@@ -32,7 +32,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
     # the same as test_simple but within transaction        
     def test_simple_transacted(self):
-        tx_id = start_transaction()
+        tx = start_transaction()
 
         v1 = {'key' : 'aaa'}
         v2 = {'key' : 'bb'}
@@ -40,16 +40,17 @@ class TestSchedulerSortCommands(YTEnvSetup):
         v4 = {'key' : 'zfoo'}
         v5 = {'key' : 'zzz'}
 
-        create('table', '//tmp/t_in', tx=tx_id)
-        write('//tmp/t_in', [v3, v5, v1, v2, v4], tx=tx_id) # some random order
+        create('table', '//tmp/t_in', tx=tx)
+        write('//tmp/t_in', [v3, v5, v1, v2, v4], tx=tx) # some random order
 
-        create('table', '//tmp/t_out', tx=tx_id)
+        create('table', '//tmp/t_out', tx=tx)
 
         sort(in_='//tmp/t_in',
              out='//tmp/t_out',
-             sort_by='key', tx=tx_id)
+             sort_by='key',
+             tx=tx)
 
-        commit_transaction(tx=tx_id)
+        commit_transaction(tx)
 
         assert read('//tmp/t_out') == [v1, v2, v3, v4, v5]
         assert get('//tmp/t_out/@sorted') ==  'true'

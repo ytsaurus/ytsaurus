@@ -52,7 +52,7 @@ class YTEnvSetup(YTEnv):
     def _abort_all_transactions(self):
         for tx in yt_commands.get_transactions():
             try:
-                yt_commands.abort_transaction(tx=tx)
+                yt_commands.abort_transaction(tx)
             except:
                 pass
 

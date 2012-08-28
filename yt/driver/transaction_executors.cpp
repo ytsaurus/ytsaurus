@@ -10,6 +10,10 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TStartTxExecutor::TStartTxExecutor()
+    : TTransactedExecutor(false, false)
+{ }
+
 Stroka TStartTxExecutor::GetCommandName() const
 {
     return "start_tx";
@@ -18,7 +22,7 @@ Stroka TStartTxExecutor::GetCommandName() const
 //////////////////////////////////////////////////////////////////////////////////
 
 TRenewTxExecutor::TRenewTxExecutor()
-    : TTransactedExecutor(true)
+    : TTransactedExecutor(true, false)
 { }
 
 Stroka TRenewTxExecutor::GetCommandName() const
@@ -29,7 +33,7 @@ Stroka TRenewTxExecutor::GetCommandName() const
 //////////////////////////////////////////////////////////////////////////////////
 
 TCommitTxExecutor::TCommitTxExecutor()
-    : TTransactedExecutor(true)
+    : TTransactedExecutor(true, false)
 { }
 
 Stroka TCommitTxExecutor::GetCommandName() const
@@ -40,7 +44,7 @@ Stroka TCommitTxExecutor::GetCommandName() const
 //////////////////////////////////////////////////////////////////////////////////
 
 TAbortTxExecutor::TAbortTxExecutor()
-    : TTransactedExecutor(true)
+    : TTransactedExecutor(true, false)
 { }
 
 Stroka TAbortTxExecutor::GetCommandName() const

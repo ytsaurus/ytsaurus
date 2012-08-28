@@ -63,10 +63,10 @@ class TestResourceLeak(YTEnvSetup):
 
     # should be called on empty nodes
     def test_canceled_upload(self):
-        tx_id = start_transaction(opt = '/timeout=2000')
+        tx = start_transaction(opt = '/timeout=2000')
 
         # uploading from empty stream will fail
-        process = run_command('upload', '//tmp/file', tx = tx_id)
+        process = run_command('upload', '//tmp/file', tx = tx)
         time.sleep(1)
         process.kill()
         time.sleep(1)
@@ -86,17 +86,17 @@ class TestResourceLeak2(YTEnvSetup):
     def test_abort_snapshot_lock(self):
         upload('//tmp/file', 'some_data')
 
-        tx_id = start_transaction()
+        tx = start_transaction()
 
-        lock('//tmp/file', mode='snapshot', tx=tx_id)
+        lock('//tmp/file', mode='snapshot', tx=tx)
         remove('//tmp/file')
-        abort_transaction(tx=tx_id)
+        abort_transaction(tx)
 
     def test_commit_snapshot_lock(self):
         upload('//tmp/file', 'some_data')
 
-        tx_id = start_transaction()
+        tx = start_transaction()
 
-        lock('//tmp/file', mode='snapshot', tx=tx_id)
+        lock('//tmp/file', mode='snapshot', tx=tx)
         remove('//tmp/file')
-        commit_transaction(tx=tx_id)
+        commit_transaction(tx)

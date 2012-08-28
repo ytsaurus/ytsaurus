@@ -28,7 +28,7 @@ class TestLocks(YTEnvSetup):
         set_str('//tmp/value', '<attr=some> 42', tx = tx)
         with pytest.raises(YTError): lock('//tmp/value/@attr/@lock_mode', tx = tx)
        
-        abort_transaction(tx = tx)
+        abort_transaction(tx)
 
     def test_display_locks(self):
         tx = start_transaction()
@@ -40,7 +40,7 @@ class TestLocks(YTEnvSetup):
         assert get('//tmp/map/list/@lock_mode', tx = tx) == 'exclusive'
         assert get('//tmp/map/list/0/@lock_mode', tx = tx) == 'exclusive'
 
-        abort_transaction(tx = tx)
+        abort_transaction(tx)
 
 
     @pytest.mark.xfail(run = False, reason = 'Issue #293')
@@ -84,7 +84,7 @@ class TestLocks(YTEnvSetup):
                 # shared locks are available only on tables 
                 lock('//tmp/some', mode = 'shared', tx = tx)
 
-            abort_transaction(tx = tx)
+            abort_transaction(tx)
 
     def test_shared_lock_inside_tx(self):
         tx_outer = start_transaction()
@@ -106,7 +106,7 @@ class TestLocks(YTEnvSetup):
         # can't change value under snapshot lock
         with pytest.raises(YTError): set('//tmp/node', 200, tx = tx)
         
-        abort_transaction(tx = tx)
+        abort_transaction(tx)
 
     @pytest.mark.xfail(run = False, reason = 'Switched off before choosing the right semantics of recursive locks')
     def test_lock_combinations(self):
@@ -125,8 +125,8 @@ class TestLocks(YTEnvSetup):
         with pytest.raises(YTError): lock('//tmp/a/b', tx = tx2)
         with pytest.raises(YTError): lock('//tmp/a/b/c', tx = tx2)
 
-        abort_transaction(tx = tx1)
-        abort_transaction(tx = tx2)
+        abort_transaction(tx1)
+        abort_transaction(tx2)
 
         remove('//tmp/a')
 

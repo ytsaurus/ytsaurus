@@ -16,7 +16,7 @@ class TestSchedulerMapReduceCommands(YTEnvSetup):
 
 
     def do_run_test(self, method):
-        tx_id = start_transaction()
+        tx = start_transaction()
 
         text = \
 """
@@ -42,17 +42,17 @@ Wish you were here.
         for s in stop_symbols:
             text = text.replace(s, ' ')
 
-        create('table', '//tmp/t_in', tx=tx_id)
-        create('table', '//tmp/t_map_out', tx=tx_id)
-        create('table', '//tmp/t_reduce_in', tx=tx_id)
-        create('table', '//tmp/t_out', tx=tx_id)
+        create('table', '//tmp/t_in', tx=tx)
+        create('table', '//tmp/t_map_out', tx=tx)
+        create('table', '//tmp/t_reduce_in', tx=tx)
+        create('table', '//tmp/t_out', tx=tx)
 
         for line in text.split('\n'):
-            write('//tmp/t_in', {'line': line}, tx=tx_id)
+            write('//tmp/t_in', {'line': line}, tx=tx)
         
-        upload_file('//tmp/yt_streaming.py', os.path.join(TOOLS_ROOTDIR, 'yt_streaming.py'), tx=tx_id)
-        upload_file('//tmp/mapper.py', os.path.join(TOOLS_ROOTDIR, 'wc_mapper.py'), tx=tx_id)
-        upload_file('//tmp/reducer.py', os.path.join(TOOLS_ROOTDIR, 'wc_reducer.py'), tx=tx_id)
+        upload_file('//tmp/yt_streaming.py', os.path.join(TOOLS_ROOTDIR, 'yt_streaming.py'), tx=tx)
+        upload_file('//tmp/mapper.py', os.path.join(TOOLS_ROOTDIR, 'wc_mapper.py'), tx=tx)
+        upload_file('//tmp/reducer.py', os.path.join(TOOLS_ROOTDIR, 'wc_reducer.py'), tx=tx)
 
 
         if method == 'map_sort_reduce':
@@ -61,19 +61,19 @@ Wish you were here.
                 command='python mapper.py',
                 file=['//tmp/mapper.py', '//tmp/yt_streaming.py'],
                 opt='/spec/mapper/format=dsv',
-                tx=tx_id)
+                tx=tx)
 
             sort(in_='//tmp/t_map_out',
                  out='//tmp/t_reduce_in',
                  sort_by='word',
-                 tx=tx_id)
+                 tx=tx)
 
             reduce(in_='//tmp/t_reduce_in',
                    out='//tmp/t_out',
                    command='python reducer.py',
                    file=['//tmp/reducer.py', '//tmp/yt_streaming.py'],
                    opt='/spec/reducer/format=dsv',
-                   tx=tx_id)
+                   tx=tx)
         elif method == 'map_reduce':
             map_reduce(in_='//tmp/t_in',
                        out='//tmp/t_out',
@@ -83,9 +83,9 @@ Wish you were here.
                        reducer_command='python reducer.py',
                        reducer_file=['//tmp/reducer.py', '//tmp/yt_streaming.py'],
                        opt=['/spec/partition_count=2', '/spec/mapper/format=dsv', '/spec/reducer/format=dsv'],
-                       tx=tx_id)
+                       tx=tx)
 
-        commit_transaction(tx=tx_id)
+        commit_transaction(tx)
 
         # count the desired output
         expected = defaultdict(int)

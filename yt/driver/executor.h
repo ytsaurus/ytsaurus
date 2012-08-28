@@ -16,6 +16,8 @@
 
 #include <ytlib/formats/format.h>
 
+#include <ytlib/transaction_client/public.h>
+
 namespace NYT {
 namespace NDriver {
 
@@ -72,10 +74,13 @@ class TTransactedExecutor
     : public TExecutor
 {
 public:
-    explicit TTransactedExecutor(bool required = false);
+    explicit TTransactedExecutor(
+        bool txRequired = false,
+        bool txLabeled = true);
 
 protected:
-    TCLAP::ValueArg<Stroka> TxArg;
+    TCLAP::ValueArg<NTransactionClient::TTransactionId> LabeledTxArg;
+    TCLAP::UnlabeledValueArg<NTransactionClient::TTransactionId> UnlabeledTxArg;
     TCLAP::SwitchArg PingAncestorTxsArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;

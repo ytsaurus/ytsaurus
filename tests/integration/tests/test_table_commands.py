@@ -169,29 +169,29 @@ class TestTableCommands(YTEnvSetup):
 
     def test_shared_locks_two_chunks(self):
         create('table', '//tmp/table')
-        tx_id = start_transaction()
+        tx = start_transaction()
 
-        write_str('//tmp/table', '{a=1}', tx=tx_id)
-        write_str('//tmp/table', '{b=2}', tx=tx_id)
+        write_str('//tmp/table', '{a=1}', tx=tx)
+        write_str('//tmp/table', '{b=2}', tx=tx)
 
         assert read('//tmp/table') == []
-        assert read('//tmp/table', tx=tx_id) == [{'a':1}, {'b':2}]
+        assert read('//tmp/table', tx=tx) == [{'a':1}, {'b':2}]
 
-        commit_transaction(tx=tx_id)
+        commit_transaction(tx)
         assert read('//tmp/table') == [{'a':1}, {'b':2}]
 
     def test_shared_locks_three_chunks(self):
         create('table', '//tmp/table')
-        tx_id = start_transaction()
+        tx = start_transaction()
 
-        write_str('//tmp/table', '{a=1}', tx=tx_id)
-        write_str('//tmp/table', '{b=2}', tx=tx_id)
-        write_str('//tmp/table', '{c=3}', tx=tx_id)
+        write_str('//tmp/table', '{a=1}', tx=tx)
+        write_str('//tmp/table', '{b=2}', tx=tx)
+        write_str('//tmp/table', '{c=3}', tx=tx)
         
         assert read('//tmp/table') == []
-        assert read('//tmp/table', tx=tx_id) == [{'a':1}, {'b':2}, {'c' : 3}]
+        assert read('//tmp/table', tx=tx) == [{'a':1}, {'b':2}, {'c' : 3}]
 
-        commit_transaction(tx=tx_id)
+        commit_transaction(tx)
         assert read('//tmp/table') == [{'a':1}, {'b':2}, {'c' : 3}]
 
     def test_shared_locks_parallel_tx(self):
@@ -212,12 +212,12 @@ class TestTableCommands(YTEnvSetup):
         assert read('//tmp/table', tx = tx1) == [{'a' : 1}, {'b': 2}]
         assert read('//tmp/table', tx = tx2) == [{'a' : 1}, {'c': 3}, {'d' : 4}]
 
-        commit_transaction(tx = tx2)
+        commit_transaction(tx2)
         assert read('//tmp/table') == [{'a' : 1}, {'c': 3}, {'d' : 4}]
         assert read('//tmp/table', tx = tx1) == [{'a' : 1}, {'b': 2}]
         
         # now all records are in table in specific order
-        commit_transaction(tx = tx1)
+        commit_transaction(tx1)
         assert read('//tmp/table') == [{'a' : 1}, {'c': 3}, {'d' : 4}, {'b' : 2}]
 
     def test_shared_locks_nested_tx(self):
@@ -246,10 +246,10 @@ class TestTableCommands(YTEnvSetup):
         assert read('//tmp/table', tx=outer_tx) == [v1, v3]
         assert read('//tmp/table', tx=inner_tx) == [v1, v2, v4]
 
-        commit_transaction(tx=inner_tx)
+        commit_transaction(inner_tx)
         self.assertItemsEqual(read('//tmp/table', tx=outer_tx), [v1, v2, v4, v3]) # order is not specified
 
-        commit_transaction(tx=outer_tx)
+        commit_transaction(outer_tx)
 
     def test_random_symbols(self):
         for i in xrange(10):

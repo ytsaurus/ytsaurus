@@ -143,9 +143,9 @@ class TestCypressCommands(YTEnvSetup):
         assert get('//tmp/t/@attr') == 100
         assert 'attr' in get('//tmp/t/@')
 
-        tx_id = start_transaction()
-        assert get('//tmp/t/@attr', tx = tx_id) == 100
-        assert 'attr' in get('//tmp/t/@', tx = tx_id)
+        tx = start_transaction()
+        assert get('//tmp/t/@attr', tx = tx) == 100
+        assert 'attr' in get('//tmp/t/@', tx = tx)
 
     def test_format_json(self):
         # check input format for json
@@ -171,7 +171,7 @@ class TestCypressCommands(YTEnvSetup):
         remove('//tmp/map/*', tx = tx)
         assert get('//tmp/map', tx = tx) == {}
         assert get('//tmp/map/@count', tx = tx) == 0
-        commit_transaction(tx = tx)
+        commit_transaction(tx)
         assert get('//tmp/map') == {}
         assert get('//tmp/map/@count') == 0
 
@@ -197,7 +197,7 @@ class TestCypressCommands(YTEnvSetup):
         remove('//tmp/@*', tx = tx)
         with pytest.raises(YTError): get('//tmp/@a', tx = tx)
         with pytest.raises(YTError): get('//tmp/@b', tx = tx)
-        commit_transaction(tx = tx)
+        commit_transaction(tx)
         with pytest.raises(YTError): get('//tmp/@a')
         with pytest.raises(YTError): get('//tmp/@b')
 
@@ -238,7 +238,7 @@ class TestCypressCommands(YTEnvSetup):
         assert lock['mode'] == 'shared'
         assert lock['child_keys'] == ['a']
 
-        commit_transaction(tx = tx)
+        commit_transaction(tx)
         assert get('//tmp') == {'a' : 1}
 
     def test_map_locks2(self):
@@ -252,11 +252,11 @@ class TestCypressCommands(YTEnvSetup):
         assert get('//tmp', tx = tx2) == {'b' : 2}
         assert get('//tmp') == {}
 
-        commit_transaction(tx = tx1)
+        commit_transaction(tx1)
         assert get('//tmp') == {'a' : 1}
         assert get('//tmp', tx = tx2) == {'a' : 1, 'b' : 2}
 
-        commit_transaction(tx = tx2)
+        commit_transaction(tx2)
         assert get('//tmp') == {'a' : 1, 'b' : 2}
                 
     def test_map_locks3(self):
@@ -300,7 +300,7 @@ class TestCypressCommands(YTEnvSetup):
         remove('//tmp/a', tx = tx)
         assert get('//tmp', tx = tx) == {}
 
-        commit_transaction(tx = tx)
+        commit_transaction(tx)
         assert get('//tmp') == {}
     
     def test_attr_locks1(self):
@@ -316,7 +316,7 @@ class TestCypressCommands(YTEnvSetup):
         assert lock['mode'] == 'shared'
         assert lock['attribute_keys'] == ['a']
 
-        commit_transaction(tx = tx)
+        commit_transaction(tx)
         assert get('//tmp/@a') == 1
 
     def test_attr_locks2(self):
@@ -331,12 +331,12 @@ class TestCypressCommands(YTEnvSetup):
         with pytest.raises(YTError): get('//tmp/@a')
         with pytest.raises(YTError): get('//tmp/@b')
 
-        commit_transaction(tx = tx1)
+        commit_transaction(tx1)
         assert get('//tmp/@a') == 1
         assert get('//tmp/@a', tx = tx2) == 1
         assert get('//tmp/@b', tx = tx2) == 2
 
-        commit_transaction(tx = tx2)
+        commit_transaction(tx2)
         assert get('//tmp/@a') == 1
         assert get('//tmp/@b') == 2
                 
@@ -381,6 +381,6 @@ class TestCypressCommands(YTEnvSetup):
         remove('//tmp/@a', tx = tx)
         with pytest.raises(YTError): get('//tmp/@a', tx = tx)
 
-        commit_transaction(tx = tx)
+        commit_transaction(tx)
         with pytest.raises(YTError): get('//tmp/@a')
     

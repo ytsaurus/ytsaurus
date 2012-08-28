@@ -117,14 +117,14 @@ def start_transaction(**kw):
     tx_id = raw_tx.replace('"', '').strip('\n')
     return tx_id
 
-def commit_transaction(**kw):
-    return command('commit_tx', **kw)
+def commit_transaction(tx, **kw):
+    return command('commit_tx', tx, **kw)
 
-def renew_transaction(*args, **kw):
-    return command('renew_tx', *args, **kw)
+def renew_transaction(tx, **kw):
+    return command('renew_tx', tx, **kw)
 
-def abort_transaction(**kw):
-    return command('abort_tx', **kw)
+def abort_transaction(tx, **kw):
+    return command('abort_tx', tx, **kw)
 
 def upload(path, data, **kw): 
     process =  run_command('upload', path, **kw)
@@ -150,7 +150,7 @@ def map_reduce(*args, **kw):
     return command('map_reduce', *args, **kw)
 
 def track_op(op, **kw):
-    return command('track_op', op.strip("\"\'"), **kw)
+    return command('track_op', op, **kw)
 
 def erase(path, *args, **kw):
     return command('erase', path, *args, **kw)

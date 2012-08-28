@@ -27,6 +27,7 @@ using namespace NYTree;
 using namespace NScheduler;
 using namespace NRpc;
 using namespace NFormats;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -249,19 +250,34 @@ TInputStream* TExecutor::GetInputStream()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTransactedExecutor::TTransactedExecutor(bool required)
-    : TxArg("", "tx", "set transaction id", required, "", "TXID")
-    , PingAncestorTxsArg("", "ping_ancestor_txs", "ping ancestor transactions while executing this command", false)
+TTransactedExecutor::TTransactedExecutor(
+    bool txRequired,
+    bool txLabeled)
+    : LabeledTxArg("", "tx", "set transaction id", txRequired, TTransactionId(), "TX_ID")
+    , UnlabeledTxArg("tx", "transaction id", true, TTransactionId(), "TX_ID")
+    , PingAncestorTxsArg("", "ping_ancestor_txs", "ping ancestor transactions", false)
 {
-    CmdLine.add(TxArg);
+    CmdLine.add(txLabeled ? LabeledTxArg : UnlabeledTxArg);
     CmdLine.add(PingAncestorTxsArg);
 }
 
 void TTransactedExecutor::BuildArgs(IYsonConsumer* consumer)
 {
+    TNullable<TTransactionId> txId;
+    if (LabeledTxArg.isSet()) {
+        txId = LabeledTxArg.getValue();
+    }
+    if (UnlabeledTxArg.isSet()) {
+        txId = UnlabeledTxArg.getValue();
+    }
+
+    if (PingAncestorTxsArg.getValue() && !txId) {
+        ythrow yexception() << "ping_ancestor_txs is set but no tx_id is given";
+    }
+
     BuildYsonMapFluently(consumer)
-        .DoIf(TxArg.isSet(), [=] (TFluentMap fluent) {
-            fluent.Item("transaction_id").Scalar(TxArg.getValue());
+        .DoIf(txId, [=] (TFluentMap fluent) {
+            fluent.Item("transaction_id").Scalar(txId.Get());
         })
         .Item("ping_ancestor_transactions").Scalar(PingAncestorTxsArg.getValue());
 

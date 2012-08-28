@@ -343,7 +343,7 @@ TAbortOpExecutor::TAbortOpExecutor()
 
 void TAbortOpExecutor::BuildArgs(IYsonConsumer* consumer)
 {
-    BuildYsonMapFluently(consumer)
+    BuildYsonMapFluently(consumer)  
         .Item("operation_id").Scalar(OpArg.getValue());
 
     TExecutor::BuildArgs(consumer);
