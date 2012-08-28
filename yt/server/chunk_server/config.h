@@ -41,10 +41,10 @@ struct TChunkReplicatorConfig
     {
         Register("min_online_node_count", MinOnlineNodeCount)
             .GreaterThan(0)
-            .Default();
+            .Default(1);
         Register("max_lost_chunk_fraction", MaxLostChunkFraction)
             .InRange(0.0, 1.0)
-            .Default();
+            .Default(0.5);
         Register("max_replication_fan_out", MaxReplicationFanOut)
             .Default(4);
         Register("max_replication_fan_in", MaxReplicationFanIn)
