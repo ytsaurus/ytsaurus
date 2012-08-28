@@ -70,12 +70,12 @@ Matcher<Stroka>::Matcher(const char* s)
 
 void PrintTo(const Stroka& string, ::std::ostream* os)
 {
-    *os << '"' + EscapeC(string) + '"';
+    *os << '"' << EscapeC(string) << '"';
 }
 
 void PrintTo(const TStringBuf& string, ::std::ostream* os)
 {
-    *os << '"' + EscapeC(string) + '"';
+    *os << '"' << EscapeC(Stroka(string)) << '"';
 }
 
 int main(int argc, char **argv)
