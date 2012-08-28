@@ -2,6 +2,7 @@
 #include "channel_writer.h"
 #include "value.h"
 
+#include <ytlib/misc/blob_output.h>
 #include <ytlib/misc/serialize.h>
 
 namespace NYT {
@@ -9,13 +10,18 @@ namespace NTableClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+static const int RangeSizesChunk = 1024;
+
 TChannelWriter::TChannelWriter(
+    int chunkSize,
     int bufferIndex,
     int fixedColumnCount,
     bool writeRangeSizes)
     : BufferIndex_(bufferIndex)
     , HeapIndex_(bufferIndex)
-    , FixedColumns(fixedColumnCount)
+    , FixedColumns(fixedColumnCount, TChunkedOutputStream(chunkSize))
+    , RangeColumns(chunkSize)
+    , RangeSizes(RangeSizesChunk) // this buffer is very small (if exists) - use small chunk size
     , IsColumnUsed(fixedColumnCount)
     , CurrentRowCount(0)
     , WriteRangeSizes(writeRangeSizes)
@@ -95,21 +101,18 @@ std::vector<TSharedRef> TChannelWriter::FlushBlock()
     result.push_back(sizeOutput.Flush());
 
     FOREACH (auto& column, FixedColumns) {
-        auto capacity = column.GetBlob()->capacity();
-        result.push_back(column.Flush());
-        column.Reserve(capacity);
+        auto blocks = column.FlushBuffer();
+        result.insert(result.end(), blocks.begin(), blocks.end());
     }
 
     {
-        auto capacity = RangeColumns.GetBlob()->capacity();
-        result.push_back(RangeColumns.Flush());
-        RangeColumns.Reserve(capacity);
+        auto blocks = RangeColumns.FlushBuffer();
+        result.insert(result.end(), blocks.begin(), blocks.end());
     }
 
     if (WriteRangeSizes) {
-        auto capacity = RangeSizes.GetBlob()->capacity();
-        result.push_back(RangeSizes.Flush());
-        RangeSizes.Reserve(capacity);
+        auto blocks = RangeSizes.FlushBuffer();
+        result.insert(result.end(), blocks.begin(), blocks.end());
         RangeOffset = 0;
     }
 

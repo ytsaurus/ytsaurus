@@ -3,7 +3,7 @@
 #include "public.h"
 #include "schema.h"
 
-#include <ytlib/misc/blob_output.h>
+#include <ytlib/misc/chunked_output_stream.h>
 #include <ytlib/misc/property.h>
 
 namespace NYT {
@@ -21,6 +21,7 @@ public:
     typedef TIntrusivePtr<TChannelWriter> TPtr;
 
     TChannelWriter(
+        int chunkSize,
         int bufferIndex,
         int fixedColumnCount,
         bool writeRangeSizes = false);
@@ -40,12 +41,12 @@ public:
 
 private:
     //! Current buffers for fixed columns.
-    std::vector<TBlobOutput> FixedColumns;
+    std::vector<TChunkedOutputStream> FixedColumns;
 
     //! Current buffer for range columns.
-    TBlobOutput RangeColumns;
+    TChunkedOutputStream RangeColumns;
 
-    TBlobOutput RangeSizes;
+    TChunkedOutputStream RangeSizes;
     int RangeOffset;
 
     //! Is fixed column with corresponding index already set in the current row.

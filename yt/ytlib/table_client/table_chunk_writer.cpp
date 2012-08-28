@@ -54,7 +54,7 @@ TTableChunkWriter::TTableChunkWriter(
 
     for (int i = 0; i < static_cast<int>(Channels.size()); ++i) {
         *ChannelsExt.add_items()->mutable_channel() = Channels[i].ToProto();
-        auto channelWriter = New<TChannelWriter>(i, Channels[i].GetColumns().size());
+        auto channelWriter = New<TChannelWriter>(Config->AllocationChunkSize, i, Channels[i].GetColumns().size());
         Buffers.push_back(channelWriter);
         BuffersHeap.push_back(~channelWriter);
     }
