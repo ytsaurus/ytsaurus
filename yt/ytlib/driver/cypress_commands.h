@@ -19,7 +19,8 @@ struct TGetRequest
     TGetRequest()
     {
         Register("path", Path);
-        Register("attributes", Attributes);
+        Register("attributes", Attributes)
+            .Default();
     }
 };
 
