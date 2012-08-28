@@ -352,6 +352,10 @@ TIntrusivePtr<T> UpdateYsonSerializable(
     TIntrusivePtr<T> obj,
     NYTree::INodePtr patch)
 {
+    static_assert(
+        NMpl::TIsConvertible<T*, TYsonSerializable*>::Value,
+        "'obj' must be convertible to TYsonSerializable");
+
     using NYTree::INodePtr;
     using NYTree::ConvertTo;
 
