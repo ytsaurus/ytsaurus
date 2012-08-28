@@ -48,7 +48,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         command = "cat > /dev/null; echo stderr 1>&2"
 
         op_id = map('--dont_track', in_='//tmp/t1', out='//tmp/t2', command=command)
-        track_op(op=op_id)
+        track_op(op_id)
         check_all_stderrs(op_id, 'stderr')
 
     # check that stderr is captured for failed jobs
@@ -62,7 +62,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         op_id = map('--dont_track', in_='//tmp/t1', out='//tmp/t2', command=command)
 
         # if all jobs failed then operation is also failed
-        with pytest.raises(YTError): track_op(op=op_id)
+        with pytest.raises(YTError): track_op(op_id)
         
         check_all_stderrs(op_id, 'stderr')
 

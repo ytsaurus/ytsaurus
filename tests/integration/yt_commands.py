@@ -149,10 +149,8 @@ def reduce(*args, **kw):
 def map_reduce(*args, **kw):
     return command('map_reduce', *args, **kw)
 
-def track_op(**kw):
-    if "op" in kw:
-        kw["op"] = kw["op"].strip("\"\'")
-    return command('track_op', **kw)
+def track_op(op, **kw):
+    return command('track_op', op.strip("\"\'"), **kw)
 
 def erase(path, *args, **kw):
     return command('erase', path, *args, **kw)

@@ -151,7 +151,7 @@ public:
     TAbortOpExecutor();
 
 private:
-    TCLAP::ValueArg<Stroka> OpArg;
+    TCLAP::UnlabeledValueArg<Stroka> OpArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
     virtual Stroka GetCommandName() const;
@@ -168,7 +168,7 @@ public:
     virtual EExitCode Execute(const std::vector<std::string>& args);
 
 private:
-    TCLAP::ValueArg<Stroka> OpArg;
+    TCLAP::UnlabeledValueArg<Stroka> OpArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
     virtual Stroka GetCommandName() const;

@@ -336,7 +336,7 @@ EOperationType TMapReduceExecutor::GetOperationType() const
 //////////////////////////////////////////////////////////////////////////////////
 
 TAbortOpExecutor::TAbortOpExecutor()
-    : OpArg("", "op", "id of an operation that must be aborted", true, "", "GUID")
+    : OpArg("", "id of an operation that must be aborted", true, "", "OP_ID")
 {
     CmdLine.add(OpArg);
 }
@@ -357,7 +357,7 @@ Stroka TAbortOpExecutor::GetCommandName() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TTrackOpExecutor::TTrackOpExecutor()
-    : OpArg("", "op", "id of an operation that must be tracked", true, "", "GUID")
+    : OpArg("", "id of an operation to track", true, "", "OP_ID")
 {
     CmdLine.add(OpArg);
 }
