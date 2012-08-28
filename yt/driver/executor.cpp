@@ -254,7 +254,7 @@ TTransactedExecutor::TTransactedExecutor(
     bool txRequired,
     bool txLabeled)
     : LabeledTxArg("", "tx", "set transaction id", txRequired, TTransactionId(), "TX_ID")
-    , UnlabeledTxArg("tx", "transaction id", true, TTransactionId(), "TX_ID")
+    , UnlabeledTxArg("tx", "transaction id", txRequired, TTransactionId(), "TX_ID")
     , PingAncestorTxsArg("", "ping_ancestor_txs", "ping ancestor transactions", false)
 {
     CmdLine.add(txLabeled ? LabeledTxArg : UnlabeledTxArg);
