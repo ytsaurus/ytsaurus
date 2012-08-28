@@ -11,7 +11,7 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 TStartTxExecutor::TStartTxExecutor()
-    : TTransactedExecutor(false, false)
+    : TTransactedExecutor(false, true)
 { }
 
 Stroka TStartTxExecutor::GetCommandName() const
