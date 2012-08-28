@@ -30,14 +30,14 @@ TTableWriter::TTableWriter(
     NRpc::IChannelPtr masterChannel,
     NTransactionClient::ITransactionPtr transaction,
     NTransactionClient::TTransactionManagerPtr transactionManager,
-    const NYTree::TYPath& path,
+    const NYTree::TRichYPath& richPath,
     const TNullable<TKeyColumns>& keyColumns)
     : Config(config)
     , MasterChannel(masterChannel)
     , Transaction(transaction)
     , TransactionId(transaction ? transaction->GetId() : NullTransactionId)
     , TransactionManager(transactionManager)
-    , Path(path)
+    , RichPath(richPath)
     , IsOpen(false)
     , IsClosed(false)
     , ObjectProxy(masterChannel)
@@ -49,7 +49,7 @@ TTableWriter::TTableWriter(
     YASSERT(transactionManager);
 
     Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
-        ~path,
+        ~ToString(richPath),
         ~TransactionId.ToString()));
 }
 
@@ -72,6 +72,8 @@ void TTableWriter::Open()
     ListenTransaction(UploadTransaction);
     LOG_INFO("Upload transaction created (TransactionId: %s)", ~uploadTransactionId.ToString());
 
+    auto path = RichPath.GetPath();
+
     LOG_INFO("Requesting table info");
     TChunkListId chunkListId;
     std::vector<TChannel> channels;
@@ -79,24 +81,23 @@ void TTableWriter::Open()
         auto batchReq = ObjectProxy.ExecuteBatch();
 
         if (KeyColumns.IsInitialized()) {
-            {
-                auto req = TCypressYPathProxy::Get(WithTransaction(Path, TransactionId) + "/@row_count");
-                batchReq->AddRequest(req, "get_row_count");
-            }
-            {
-                auto req = TTableYPathProxy::Clear(WithTransaction(Path, uploadTransactionId));
-                NMetaState::GenerateRpcMutationId(req);
-                batchReq->AddRequest(req, "clear");
-            }
+            auto req = TCypressYPathProxy::Get(WithTransaction(path, TransactionId) + "/@row_count");
+            batchReq->AddRequest(req, "get_row_count");
+        }
+
+        if (KeyColumns.IsInitialized() || RichPath.Attributes().Get<bool>("overwrite", false)) {
+            auto req = TTableYPathProxy::Clear(WithTransaction(path, uploadTransactionId));
+            NMetaState::GenerateRpcMutationId(req);
+            batchReq->AddRequest(req, "clear");
         }
 
         {
-            auto req = TTableYPathProxy::GetChunkListForUpdate(WithTransaction(Path, uploadTransactionId));
+            auto req = TTableYPathProxy::GetChunkListForUpdate(WithTransaction(path, uploadTransactionId));
             NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "get_chunk_list_for_update");
         }
         {
-            auto req = TCypressYPathProxy::Get(WithTransaction(Path, TransactionId) + "/@channels");
+            auto req = TCypressYPathProxy::Get(WithTransaction(path, TransactionId) + "/@channels");
             batchReq->AddRequest(req, "get_channels");
         }
 
@@ -119,9 +120,9 @@ void TTableWriter::Open()
                 }
             }
             {
-                auto rsp = batchRsp->GetResponse("clear");
-                if (!rsp->IsOK()) {
-                    LOG_ERROR_AND_THROW(yexception(), "Error clearing table for sorted write\n%s",
+                auto rsp = batchRsp->FindResponse("clear");
+                if (rsp && !rsp->IsOK()) {
+                    LOG_ERROR_AND_THROW(yexception(), "Error clearing table\n%s",
                         ~rsp->GetError().ToString());
                 }
             }
@@ -200,11 +201,13 @@ void TTableWriter::Close()
     Sync(~Writer, &TTableChunkSequenceWriter::AsyncClose);
     LOG_INFO("Chunk writer closed");
 
+    auto path = RichPath.GetPath();
+
     if (KeyColumns) {
         auto keyColumns = KeyColumns.Get();
         LOG_INFO("Marking table as sorted by %s", ~ConvertToYsonString(keyColumns, EYsonFormat::Text).Data());
         
-        auto req = TTableYPathProxy::SetSorted(WithTransaction(Path, UploadTransaction->GetId()));
+        auto req = TTableYPathProxy::SetSorted(WithTransaction(path, UploadTransaction->GetId()));
         NMetaState::GenerateRpcMutationId(req);
         ToProto(req->mutable_key_columns(), keyColumns);
 

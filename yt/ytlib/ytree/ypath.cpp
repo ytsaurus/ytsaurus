@@ -58,6 +58,20 @@ IAttributeDictionary& TRichYPath::Attributes()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Stroka ToString(const TRichYPath& path)
+{
+    auto keys = path.Attributes().List();
+    if (keys.empty()) {
+        return path.GetPath();
+    }
+
+    return
+        Stroka('<') +
+        ConvertToYsonString(path.Attributes()).Data() +
+        Stroka('>') +
+        path.GetPath();
+}
+
 void Serialize(const TRichYPath& richPath, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)

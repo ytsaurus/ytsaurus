@@ -31,17 +31,26 @@ TIntrusivePtr<TTypedResponse> TObjectServiceProxy::TRspExecuteBatch::GetResponse
 }
 
 template <class TTypedResponse>
-TIntrusivePtr<TTypedResponse> TObjectServiceProxy::TRspExecuteBatch::GetResponse(const Stroka& key) const
+TIntrusivePtr<TTypedResponse> TObjectServiceProxy::TRspExecuteBatch::FindResponse(const Stroka& key) const
 {
     YCHECK(!key.empty());
     auto range = KeyToIndexes.equal_range(key);
+    if (range.first == range.second) {
+        return NULL;
+    }
     auto it = range.first;
-    // Failure here means that no responses with the given key are found.
-    YCHECK(range.first != range.second);
     int index = it->second;
     // Failure here means that more than one response with the given key is found.
     YCHECK(++it == range.second);
     return GetResponse<TTypedResponse>(index);
+}
+
+template <class TTypedResponse>
+TIntrusivePtr<TTypedResponse> TObjectServiceProxy::TRspExecuteBatch::GetResponse(const Stroka& key) const
+{
+    auto result = FindResponse<TTypedResponse>(key);
+    YCHECK(result);
+    return result;
 }
 
 template <class TTypedResponse>

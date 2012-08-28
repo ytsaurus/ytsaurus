@@ -33,6 +33,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Stroka ToString(const TRichYPath& path);
 void Serialize(const TRichYPath& richPath, IYsonConsumer* consumer);
 void Deserialize(TRichYPath& richPath, INodePtr node);
 
