@@ -1524,12 +1524,7 @@ TJobIOConfigPtr TOperationControllerBase::BuildJobIOConfig(
     TJobIOConfigPtr schedulerConfig,
     INodePtr specConfigNode)
 {
-    if (specConfigNode) {
-        auto schedulerConfigNode = ConvertTo<INodePtr>(schedulerConfig);
-        return ConvertTo<TJobIOConfigPtr>(UpdateNode(schedulerConfigNode, specConfigNode));
-    } else {
-        return CloneConfigurable(schedulerConfig);
-    }
+    return UpdateYsonSerializable(schedulerConfig, specConfigNode);
 }
 
 void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr config)

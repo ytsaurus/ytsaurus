@@ -268,3 +268,8 @@ class TestTableCommands(YTEnvSetup):
             assert "Stack trace" not in stderr
 
             remove('//tmp/table')
+
+    def test_codec_in_writer(self):
+        create('table', '//tmp/table')
+        write_str('//tmp/table', '{b="hello"}', opt="/table_writer/codec_id=gzip_best_compression")
+        assert read('//tmp/table') == [{"b":"hello"}]

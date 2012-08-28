@@ -342,9 +342,26 @@ NConfig::TParameter<T>& TYsonSerializable::Register(const Stroka& parameterName,
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-inline TIntrusivePtr<T> CloneConfigurable(TIntrusivePtr<T> obj)
+inline TIntrusivePtr<T> CloneYsonSerializable(TIntrusivePtr<T> obj)
 {
     return NYTree::ConvertTo< TIntrusivePtr<T> >(NYTree::ConvertToYsonString(*obj));
+}
+
+
+template <class T>
+TIntrusivePtr<T> UpdateYsonSerializable(TIntrusivePtr<T> obj, NYTree::INodePtr patch)
+{
+    static_assert(
+        NMpl::TIsConvertible<T, TYsonSerializable>::Value,
+        "You try to update config that is not convertable to TYsonSerializable");
+    using NYTree::INodePtr;
+    using NYTree::ConvertTo;
+
+    if (patch) {
+        return ConvertTo<TIntrusivePtr<T>>(UpdateNode(ConvertTo<INodePtr>(obj), patch));
+    } else {
+        return CloneYsonSerializable(obj);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
