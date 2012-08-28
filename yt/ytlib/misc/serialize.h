@@ -23,11 +23,11 @@ namespace NYT {
 const size_t YTAlignment = 8;
 
 //! Auxiliary constants and functions.
-namespace NDetails {
+namespace NDetail {
 
 const ui8 Padding[YTAlignment] = { 0 };
 
-} // namespace NDetails
+} // namespace NDetail
 
 static_assert(!(YTAlignment & (YTAlignment - 1)), "YTAlignment should be a power of two.");
 
@@ -48,7 +48,7 @@ T AlignUp(T size)
 template <class OutputStream>
 size_t WritePaddingZeroes(OutputStream& output, i64 writtenSize)
 {
-    output.Write(&NDetails::Padding, GetPaddingSize(writtenSize));
+    output.Write(&NDetail::Padding, GetPaddingSize(writtenSize));
     return AlignUp(writtenSize);
 }
 
@@ -92,7 +92,7 @@ template <class OutputStream>
 size_t WritePadded(OutputStream& output, const TRef& ref)
 {
     output.Write(ref.Begin(), ref.Size());
-    output.Write(&NDetails::Padding, GetPaddingSize(ref.Size()));
+    output.Write(&NDetail::Padding, GetPaddingSize(ref.Size()));
     return AlignUp(ref.Size());
 }
 
@@ -100,7 +100,7 @@ template <class OutputStream>
 size_t AppendPadded(OutputStream& output, const TRef& ref)
 {
     output.Append(ref.Begin(), ref.Size());
-    output.Append(&NDetails::Padding, GetPaddingSize(ref.Size()));
+    output.Append(&NDetail::Padding, GetPaddingSize(ref.Size()));
     return AlignUp(ref.Size());
 }
 
