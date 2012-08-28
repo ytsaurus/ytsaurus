@@ -2,6 +2,8 @@
 
 #include "config.h"
 
+#include <ytlib/misc/tclap_helpers.h>
+
 #include <ytlib/ytree/tree_builder.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/ypath_service.h>
@@ -11,10 +13,8 @@
 
 #include <ytlib/driver/public.h>
 #include <ytlib/driver/config.h>
-#include <ytlib/formats/format.h>
 
-#include <ytlib/misc/tclap_helpers.h>
-#include <tclap/CmdLine.h>
+#include <ytlib/formats/format.h>
 
 namespace NYT {
 namespace NDriver {

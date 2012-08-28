@@ -1,7 +1,6 @@
 #include "table_executors.h"
 #include "preprocess.h"
 
-#include <server/job_proxy/config.h>
 #include <ytlib/driver/driver.h>
 
 namespace NYT {
@@ -19,7 +18,7 @@ TReadExecutor::TReadExecutor()
 
 void TReadExecutor::BuildArgs(IYsonConsumer* consumer)
 {
-    auto path = PreprocessYPath(PathArg.getValue());
+    auto path = PreprocessYPath(PathArg.getValue().GetPath());
 
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("read")
@@ -48,7 +47,7 @@ TWriteExecutor::TWriteExecutor()
 
 void TWriteExecutor::BuildArgs(IYsonConsumer* consumer)
 {
-    auto path = PreprocessYPath(PathArg.getValue());
+    auto path = PreprocessYPath(PathArg.getValue().GetPath());
     // TODO(babenko): refactor
     auto sortedBy = ConvertTo< std::vector<Stroka> >(TYsonString(SortedBy.getValue(), EYsonType::ListFragment));
 

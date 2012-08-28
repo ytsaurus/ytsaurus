@@ -38,7 +38,8 @@ public:
     TFormat& operator=(const TFormat& other);
 
     DEFINE_BYVAL_RO_PROPERTY(EFormatType, Type);
-    NYTree::IAttributeDictionary* GetAttributes() const;
+    
+    const NYTree::IAttributeDictionary& Attributes() const;
 
     static TFormat FromYson(NYTree::INodePtr node);
     static TFormat FromYson(const NYTree::TYsonString& yson);
@@ -48,7 +49,7 @@ public:
     NYTree::TYsonString ToYson() const;
 
 private:
-    TAutoPtr<NYTree::IAttributeDictionary> Attributes;
+    TAutoPtr<NYTree::IAttributeDictionary> Attributes_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

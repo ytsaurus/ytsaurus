@@ -10,6 +10,7 @@
 #include <ytlib/cypress_client/public.h>
 
 #include <ytlib/ytree/yson_writer.h>
+#include <ytlib/ytree/ypath.h>
 
 #include <tclap/CmdLine.h>
 
@@ -22,7 +23,7 @@ struct ArgTraits<Stroka>
 };
 
 template <>
-struct ArgTraits< ::NYT::NObjectClient::TTransactionId >
+struct ArgTraits< ::NYT::TGuid >
 {
     typedef ValueLike ValueCategory;
 };
@@ -51,46 +52,61 @@ struct ArgTraits< NYT::TNullable<T> >
     typedef ValueLike ValueCategory;
 };
 
+template <>
+struct ArgTraits< NYT::NYTree::TRichYPath >
+{
+    typedef ValueLike ValueCategory;
+};
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NYT {
 
-inline std::istream& operator >> (std::istream& input, TGuid& guid)
+Stroka ReadAll(std::istringstream& input);
+
+std::istringstream& operator >> (std::istringstream& input, TGuid& guid);
+
+template <class T>
+std::istringstream& operator >> (std::istringstream& input, TEnumBase<T>& mode);
+
+template <class T>
+std::istringstream& operator >> (std::istringstream& input, TNullable<T>& nullable);
+
+namespace NYTree {
+
+std::istringstream& operator >> (std::istringstream& input, NYTree::TRichYPath& path);
+
+}
+
+// TODO(babenko): move to inl
+
+template <class T>
+inline std::istringstream& operator >> (std::istringstream& input, TEnumBase<T>& mode)
 {
-    std::string s;
-    input >> s;
-    guid = TGuid::FromString(Stroka(s));
+    auto str = ReadAll(input);
+    mode = NYT::ParseEnum<T>(str);
     return input;
 }
 
 template <class T>
-inline std::istream& operator >> (std::istream& input, TEnumBase<T>& mode)
+inline std::istringstream& operator >> (std::istringstream& input, TNullable<T>& nullable)
 {
-    std::string s;
-    input >> s;
-    mode = NYT::ParseEnum<T>(Stroka(s));
-    return input;
-}
-
-template <class T>
-inline std::istream& operator >> (std::istream& input, TNullable<T>& nullable)
-{
-    std::string s;
-    input >> s;
-    if (s.empty()) {
+    auto str = ReadAll(input);
+    if (str.empty()) {
         nullable = NYT::TNullable<T>();
     } else {
-        std::stringstream stream(s);
+        std::istringstream strStream(str);
         T value;
-        stream >> value;
+        strStream >> value;
         nullable = NYT::TNullable<T>(value);
     }
     return input;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 
-////////////////////////////////////////////////////////////////////////////////
 

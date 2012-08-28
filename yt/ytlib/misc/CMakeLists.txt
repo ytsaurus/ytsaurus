@@ -29,6 +29,7 @@ set( SRCS
   ${BASE}/small_vector.cpp
   ${BASE}/source_location.cpp
   ${BASE}/stack_trace.cpp
+  ${BASE}/tclap_helpers.cpp
   ${BASE}/thread.cpp
   ${BASE}/url.cpp
 )

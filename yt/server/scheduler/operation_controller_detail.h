@@ -89,7 +89,7 @@ protected:
 
     struct TTableBase
     {
-        NYTree::TYPath Path;
+        NYTree::TRichYPath Path;
         NObjectClient::TObjectId ObjectId;
     };
 
@@ -140,7 +140,7 @@ protected:
     // Files.
     struct TUserFile
     {
-        NYTree::TYPath Path;
+        NYTree::TRichYPath Path;
         NFileClient::TFileYPathProxy::TRspFetchPtr FetchResponse;
     };
 
@@ -357,13 +357,13 @@ protected:
     virtual void DoBuildProgressYson(NYTree::IYsonConsumer* consumer);
 
     //! Called to extract input table paths from the spec.
-    virtual std::vector<NYTree::TYPath> GetInputTablePaths() const = 0;
+    virtual std::vector<NYTree::TRichYPath> GetInputTablePaths() const = 0;
     
     //! Called to extract output table paths from the spec.
-    virtual std::vector<NYTree::TYPath> GetOutputTablePaths() const = 0;
+    virtual std::vector<NYTree::TRichYPath> GetOutputTablePaths() const = 0;
     
     //! Called to extract file paths from the spec.
-    virtual std::vector<NYTree::TYPath> GetFilePaths() const;
+    virtual std::vector<NYTree::TRichYPath> GetFilePaths() const;
 
 
     //! Minimum resources that are needed to start any task.

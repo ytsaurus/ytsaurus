@@ -473,14 +473,14 @@ private:
         return IsPassthroughChunkImpl(inputChunk, Spec->CombineChunks);
     }
 
-    virtual std::vector<TYPath> GetInputTablePaths() const override
+    virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {
         return Spec->InputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetOutputTablePaths() const override
+    virtual std::vector<TRichYPath> GetOutputTablePaths() const override
     {
-        std::vector<TYPath> result;
+        std::vector<TRichYPath> result;
         result.push_back(Spec->OutputTablePath);
         return result;
     }
@@ -572,14 +572,14 @@ public:
 private:
     TMergeOperationSpecPtr Spec;
 
-    virtual std::vector<TYPath> GetInputTablePaths() const override
+    virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {
         return Spec->InputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetOutputTablePaths() const override
+    virtual std::vector<TRichYPath> GetOutputTablePaths() const override
     {
-        std::vector<TYPath> result;
+        std::vector<TRichYPath> result;
         result.push_back(Spec->OutputTablePath);
         return result;
     }
@@ -623,16 +623,16 @@ public:
 private:
     TEraseOperationSpecPtr Spec;
 
-    virtual std::vector<TYPath> GetInputTablePaths() const override
+    virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {
-        std::vector<TYPath> result;
+        std::vector<TRichYPath> result;
         result.push_back(Spec->TablePath);
         return result;
     }
 
-    virtual std::vector<TYPath> GetOutputTablePaths() const override
+    virtual std::vector<TRichYPath> GetOutputTablePaths() const override
     {
-        std::vector<TYPath> result;
+        std::vector<TRichYPath> result;
         result.push_back(Spec->TablePath);
         return result;
     }
@@ -890,14 +890,14 @@ private:
         ScheduleClearOutputTables();
     }
 
-    virtual std::vector<TYPath> GetInputTablePaths() const override
+    virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {
         return Spec->InputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetOutputTablePaths() const override
+    virtual std::vector<TRichYPath> GetOutputTablePaths() const override
     {
-        std::vector<TYPath> result;
+        std::vector<TRichYPath> result;
         result.push_back(Spec->OutputTablePath);
         return result;
     }
@@ -956,17 +956,17 @@ public:
 private:
     TReduceOperationSpecPtr Spec;
 
-    virtual std::vector<TYPath> GetInputTablePaths() const override
+    virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {
         return Spec->InputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetOutputTablePaths() const override
+    virtual std::vector<TRichYPath> GetOutputTablePaths() const override
     {
         return Spec->OutputTablePaths;
     }
 
-    virtual std::vector<TYPath> GetFilePaths() const override
+    virtual std::vector<TRichYPath> GetFilePaths() const override
     {
         return Spec->Reducer->FilePaths;
     }
