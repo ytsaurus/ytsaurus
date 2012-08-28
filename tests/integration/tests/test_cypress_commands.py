@@ -383,4 +383,12 @@ class TestCypressCommands(YTEnvSetup):
 
         commit_transaction(tx)
         with pytest.raises(YTError): get('//tmp/@a')
+
+    def test_get_with_attr1(self):
+        set_str('//tmp/a', '<a = 1> 1')
+        set_str('//tmp/b', '<a = 2> {}')
+        set_str('//tmp/b/c', '<b = 3> 3')
+        set_str('//tmp/b/d', '<a = 4> 4')
+
+        # TODO(babenko): write this test
     
