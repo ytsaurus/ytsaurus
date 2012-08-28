@@ -51,7 +51,7 @@ TChunkHolderService::TChunkHolderService(
         TProxy::GetServiceName(),
         DataNodeLogger.GetCategory())
     , Config(config)
-    , WorkerThread(New<TActionQueue>("ChunkHolderWorker"))
+    , WorkerThread(New<TActionQueue>("HolderWorker"))
     , Bootstrap(bootstrap)
 {
     YCHECK(config);
