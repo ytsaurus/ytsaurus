@@ -8,7 +8,6 @@ import requests
 import sys
 import urllib
 
-
 def make_request(http_method, request_type, params,
                  data=None, format=None, verbose=False, proxy=None, check_errors=True,
                  raw_response=False, files=None):
@@ -77,6 +76,7 @@ def make_request(http_method, request_type, params,
     return result
 
 def urlencode(params):
+    """ Be careful, such urlencoding is not a part of W3C standard """
     urlencode.flat_params = {}
     def recursive_urlencode(params, prefix="", depth=0):
         for key, value in params.iteritems():
