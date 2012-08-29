@@ -64,6 +64,7 @@ void TYamredDsvWriter::OnBeginMap()
 
     KeyFields.clear();
     SubkeyFields.clear();
+    ValueBuffer.Clear();
 }
 
 void TYamredDsvWriter::OnKeyedItem(const TStringBuf& key)
