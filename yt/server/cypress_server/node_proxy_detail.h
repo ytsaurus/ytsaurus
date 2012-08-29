@@ -723,7 +723,7 @@ protected:
             ythrow yexception() << "Cannot copy a node to its child";
         }
 
-        auto cypressManager = Bootstrap->GetCypressManager();
+        auto cypressManager = this->Bootstrap->GetCypressManager();
         auto handler = cypressManager->GetHandler(TrunkNode);
 
         auto sourceId = GetNodeId(NYTree::INodePtr(sourceProxy));
