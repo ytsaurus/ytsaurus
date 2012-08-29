@@ -613,6 +613,9 @@ void TChunkReplicator::OnRefresh()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
+    LOG_DEBUG("Incremental chunk refresh started");
+
+    int refreshedCount = 0;
     PROFILE_TIMING ("/incremental_chunk_refresh_time") {
         auto chunkManager = Bootstrap->GetChunkManager();
         auto now = GetCpuInstant();
@@ -627,12 +630,16 @@ void TChunkReplicator::OnRefresh()
             auto* chunk = chunkManager->FindChunk(entry.ChunkId);
             if (chunk) {
                 Refresh(chunk);
+                ++refreshedCount;
             }
 
             YCHECK(RefreshSet.erase(entry.ChunkId) == 1);
             RefreshList.pop_front();
         }
     }
+
+    LOG_DEBUG("Incremental chunk refresh completed, %d chunks processed",
+        refreshedCount);
 
     ScheduleNextRefresh();
 }
