@@ -75,13 +75,18 @@ def create_temp_table(path=None, prefix=None):
     create_table(name)
     return name
 
-def write_table(table, lines, format=None):
+def write_table(table, lines, format=None, codec_id=None):
     if format is None: format = config.DEFAULT_FORMAT
     table = to_table(table)
     create_table(table.name, not table.append)
+
+    params = {"path": table.escaped_name()}
+    if codec_id is not None:
+        params["table_writer"] = {"codec_id": codec_id}
+
     buffer = Buffer(lines)
     while not buffer.empty():
-        make_request("PUT", "write", {"path": table.escaped_name()}, buffer.get(), format=format)
+        make_request("PUT", "write", params, buffer.get(), format=format)
 
 def read_table(table, format=None):
     def add_eoln(str):
