@@ -975,9 +975,7 @@ public:
             QuorumTracker.Reset();
         }
 
-        if (LeaderRecovery) {
-            LeaderRecovery.Reset();
-        }
+        LeaderRecovery.Reset();
 
         if (SnapshotBuilder) {
             DecoratedState->GetSystemStateInvoker()->Invoke(BIND(
