@@ -119,8 +119,8 @@ def start_transaction(**kw):
 def commit_transaction(tx, **kw):
     return command('commit_tx', tx, **kw)
 
-def renew_transaction(tx, **kw):
-    return command('renew_tx', tx, **kw)
+def renew_transaction(tx, *args, **kw):
+    return command('renew_tx', tx, *args, **kw)
 
 def abort_transaction(tx, **kw):
     return command('abort_tx', tx, **kw)
