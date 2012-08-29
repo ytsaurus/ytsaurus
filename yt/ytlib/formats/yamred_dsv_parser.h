@@ -3,32 +3,29 @@
 #include "public.h"
 #include "config.h"
 
-#include <ytlib/ytree/parser.h>
-#include <ytlib/ytree/yson_consumer.h>
-
 namespace NYT {
 namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAutoPtr<NYTree::IParser> CreateParserForDsv(
+TAutoPtr<NYTree::IParser> CreateParserForYamredDsv(
     NYTree::IYsonConsumer* consumer,
-    TDsvFormatConfigPtr config = NULL,
-    bool newRecordStarted = false);
+    TYamredDsvFormatConfigPtr config = NULL);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ParseDsv(
+void ParseYamredDsv(
     TInputStream* input,
     NYTree::IYsonConsumer* consumer,
-    TDsvFormatConfigPtr config = NULL);
+    TYamredDsvFormatConfigPtr config = NULL);
 
-void ParseDsv(
+void ParseYamredDsv(
     const TStringBuf& data,
     NYTree::IYsonConsumer* consumer,
-    TDsvFormatConfigPtr config = NULL);
+    TYamredDsvFormatConfigPtr config = NULL);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFormats
 } // namespace NYT
+

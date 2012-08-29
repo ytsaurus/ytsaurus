@@ -87,8 +87,29 @@ struct TYamrFormatConfig
         Register("rs", RecordSeparator)
             .Default('\n');
     }
-
 };
+
+struct TYamredDsvFormatConfig
+    : public TDsvFormatConfig
+{
+    bool HasSubkey;
+    char YamrKeysSeparator;
+
+    std::vector<Stroka> KeyColumnNames;
+    std::vector<Stroka> SubkeyColumnNames;
+
+    TYamredDsvFormatConfig()
+    {
+        Register("has_subkey", HasSubkey)
+            .Default(false);
+        Register("key_column_names", KeyColumnNames);
+        Register("subkey_column_names", SubkeyColumnNames)
+            .Default();
+        Register("yamr_keys_separator", YamrKeysSeparator)
+            .Default(' ');
+    }
+};
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "dsv_parser.h"
+#include "dsv_symbols.h"
 
 namespace NYT {
 namespace NFormats {
@@ -8,10 +9,59 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDsvParser::TDsvParser(IYsonConsumer* consumer, TDsvFormatConfigPtr config)
+class TDsvParser
+    : public NYTree::IParser
+{
+public:
+    TDsvParser(
+        NYTree::IYsonConsumer* consumer,
+        TDsvFormatConfigPtr config,
+        bool newRecordStarted);
+
+    virtual void Read(const TStringBuf& data);
+    virtual void Finish();
+
+private:
+    NYTree::IYsonConsumer* Consumer;
+    TDsvFormatConfigPtr Config;
+    bool StartRecord;
+
+    bool NewRecordStarted;
+    bool ExpectingEscapedChar;
+
+    Stroka CurrentToken;
+
+    const char* Consume(const char* begin, const char* end);
+    const char* FindEndOfValue(const char* begin, const char* end);
+    const char* FindEndOfKey(const char* begin, const char* end);
+
+    void StartRecordIfNeeded();
+    void EndRecord();
+    void EndField();
+
+    void ValidatePrefix(const Stroka& prefix);
+
+    int Record;
+    int Field;
+    Stroka GetPositionInfo() const;
+
+    DECLARE_ENUM(EState,
+        (InsidePrefix)
+        (InsideKey)
+        (InsideValue)
+    );
+    EState State;
+    EState GetStartState();
+};
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDsvParser::TDsvParser(IYsonConsumer* consumer, TDsvFormatConfigPtr config, bool newRecordStarted)
     : Consumer(consumer)
     , Config(config)
-    , NewRecordStarted(false)
+    , StartRecord(newRecordStarted)
+    , NewRecordStarted(newRecordStarted)
     , ExpectingEscapedChar(false)
     , Record(1)
     , Field(1)
@@ -20,24 +70,7 @@ TDsvParser::TDsvParser(IYsonConsumer* consumer, TDsvFormatConfigPtr config)
         Config = New<TDsvFormatConfig>();
     }
     State = GetStartState();
-
-    memset(IsKeyStopSymbol, 0, sizeof(IsKeyStopSymbol));
-    IsKeyStopSymbol[Config->EscapingSymbol] = true;
-    IsKeyStopSymbol[Config->KeyValueSeparator] = true;
-    IsKeyStopSymbol[Config->FieldSeparator] = true;
-    IsKeyStopSymbol[Config->RecordSeparator] = true;
-
-    memset(IsValueStopSymbol, 0, sizeof(IsValueStopSymbol));
-    IsValueStopSymbol[Config->EscapingSymbol] = true;
-    IsValueStopSymbol[Config->FieldSeparator] = true;
-    IsValueStopSymbol[Config->RecordSeparator] = true;
-
-    for (int i = 0; i < 256; ++i) {
-        UnEscapingTable[i] = i;
-    }
-    UnEscapingTable['0'] = '\0';
-    UnEscapingTable['t'] = '\t';
-    UnEscapingTable['n'] = '\n';
+    InitDsvSymbols(Config);
 }
 
 void TDsvParser::Read(const TStringBuf& data)
@@ -229,20 +262,31 @@ Stroka TDsvParser::GetPositionInfo() const
 
 void ParseDsv(TInputStream* input, IYsonConsumer* consumer, TDsvFormatConfigPtr config)
 {
-    TDsvParser parser(consumer, config);
-    Parse(input, consumer, &parser);
+    auto parser = CreateParserForDsv(consumer, config);
+    Parse(input, consumer, parser.Get());
 }
 
 void ParseDsv(const TStringBuf& data,
     IYsonConsumer* consumer,
     TDsvFormatConfigPtr config)
 {
-    TDsvParser parser(consumer, config);
-    parser.Read(data);
-    parser.Finish();
+    auto parser = CreateParserForDsv(consumer, config);
+    parser->Read(data);
+    parser->Finish();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TAutoPtr<NYTree::IParser> CreateParserForDsv(
+    NYTree::IYsonConsumer* consumer,
+    TDsvFormatConfigPtr config,
+    bool newRecordStarted)
+{
+    if (!config) {
+        config = New<TDsvFormatConfig>();
+    }
+    return new TDsvParser(consumer, config, newRecordStarted);
+}
 
 } // namespace NFormats
 } // namespace NYT

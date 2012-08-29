@@ -104,7 +104,7 @@ TEST(TYamrParserTest, SimpleWithSubkey)
     ParseYamr(input, &Mock, config);
 }
 
-TEST(TYamrParserTest, SkippingRows)
+TEST(TYamrParserTest, IncompleteRows)
 {
     StrictMock<NYTree::TMockYsonConsumer> Mock;
     InSequence dummy;
@@ -121,6 +121,15 @@ TEST(TYamrParserTest, SkippingRows)
     EXPECT_CALL(Mock, OnListItem());
     EXPECT_CALL(Mock, OnBeginMap());
         EXPECT_CALL(Mock, OnKeyedItem("key"));
+        EXPECT_CALL(Mock, OnStringScalar("key"));
+        EXPECT_CALL(Mock, OnKeyedItem("subkey"));
+        EXPECT_CALL(Mock, OnStringScalar("subkey"));
+        EXPECT_CALL(Mock, OnKeyedItem("value"));
+        EXPECT_CALL(Mock, OnStringScalar(""));
+    EXPECT_CALL(Mock, OnEndMap());
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("key"));
         EXPECT_CALL(Mock, OnStringScalar("key2"));
         EXPECT_CALL(Mock, OnKeyedItem("subkey"));
         EXPECT_CALL(Mock, OnStringScalar("subkey2"));
@@ -129,16 +138,16 @@ TEST(TYamrParserTest, SkippingRows)
     EXPECT_CALL(Mock, OnEndMap());
 
     Stroka input =
-        "key\n"
         "key1\tsubkey1\tvalue1\n"
         "key\tsubkey\n"
-        "key2\tsubkey2\tvalue2\n"
-        "key\tsubkey\n";
+        "key2\tsubkey2\tvalue2\n";
 
     auto config = New<TYamrFormatConfig>();
     config->HasSubkey = true;
 
     ParseYamr(input, &Mock, config);
+    
+    EXPECT_THROW(ParseYamr("key\n", &Mock, config), std::exception);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
