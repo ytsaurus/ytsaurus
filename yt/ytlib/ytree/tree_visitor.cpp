@@ -30,7 +30,7 @@ public:
         , AttributesFilter(attributesFilter)
     { }
 
-    void Visit(INodePtr root)
+    void Visit(const INodePtr& root)
     {
         // NB: Converting from INodePtr to IConstNodePtr ensures that
         // the constant overload of Attributes() is called.
@@ -44,7 +44,7 @@ private:
     bool WithAttributes;
     const std::vector<Stroka>* const AttributesFilter;
 
-    void VisitAny(IConstNodePtr node, bool isRoot = false)
+    void VisitAny(const IConstNodePtr& node, bool isRoot = false)
     {
         if (WithAttributes) {
             VisitAttributes(node);
@@ -108,7 +108,7 @@ private:
         }
     }
 
-    void VisitScalar(IConstNodePtr node)
+    void VisitScalar(const IConstNodePtr& node)
     {
         switch (node->GetType()) {
         case ENodeType::String:
@@ -128,13 +128,13 @@ private:
         }
     }
 
-    void VisitEntity(IConstNodePtr node)
+    void VisitEntity(const IConstNodePtr& node)
     {
         UNUSED(node);
         Consumer->OnEntity();
     }
 
-    void VisitList(IConstListNodePtr node)
+    void VisitList(const IConstListNodePtr& node)
     {
         Consumer->OnBeginList();
         for (int i = 0; i < node->GetChildCount(); ++i) {
@@ -144,7 +144,7 @@ private:
         Consumer->OnEndList();
     }
 
-    void VisitMap(IConstMapNodePtr node)
+    void VisitMap(const IConstMapNodePtr& node)
     {
         Consumer->OnBeginMap();
         FOREACH (const auto& pair, node->GetChildren()) {
@@ -157,7 +157,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void VisitTree(INodePtr root, IYsonConsumer* consumer, bool withAttributes, const std::vector<Stroka>* const attributesFilter)
+void VisitTree(const INodePtr& root, IYsonConsumer* consumer, bool withAttributes, const std::vector<Stroka>* const attributesFilter)
 {
     TTreeVisitor treeVisitor(consumer, withAttributes, attributesFilter);
     treeVisitor.Visit(root);
