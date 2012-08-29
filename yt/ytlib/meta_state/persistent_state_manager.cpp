@@ -991,10 +991,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
-        if (LeaderCommitter) {
-            LeaderCommitter->Stop();
-            LeaderCommitter.Reset();
-        }
+        LeaderCommitter.Reset();
 
         DecoratedState->OnStopLeading();
 
