@@ -46,8 +46,12 @@ describe("v8 to yson", function() {
     });
 
     it("should properly translate maps", function() {
-        toYson({ foo : 1, bar : "xyz" })
-            .should.eql('{"bar"="xyz";"foo"=1}');
+        expect([
+            '{"bar"="xyz";"foo"=1}',
+            '{"foo"=1;"bar"="xyz"}'
+        ]).to.include(
+            toYson({ foo : 1, bar : "xyz" })
+        );
     });
 
     it("should support attributes", function() {
