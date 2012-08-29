@@ -724,11 +724,11 @@ protected:
         }
 
         auto cypressManager = this->Bootstrap->GetCypressManager();
-        auto handler = cypressManager->GetHandler(this->TrunkNode);
-
         auto sourceId = this->GetNodeId(NYTree::INodePtr(sourceProxy));
         auto* sourceImpl = const_cast<ICypressNode*>(GetImpl(sourceId));
-        auto* clonedImpl = handler->Clone(sourceImpl, this->Transaction);
+        auto* clonedImpl = cypressManager->GetHandler(sourceImpl)->Clone(
+            sourceImpl,
+            this->Transaction);
         const auto& clonedId = clonedImpl->GetId().ObjectId;
         auto clonedProxy = GetProxy(clonedId);
 
