@@ -136,8 +136,8 @@ protected:
 
     virtual void DoBranch(const TFileNode* originatingNode, TFileNode* branchedNode) override
     {
-    	TBase::DoBranch(originatingNode, branchedNode);
-    	
+        TBase::DoBranch(originatingNode, branchedNode);
+        
         auto* chunkList = originatingNode->GetChunkList();
         branchedNode->SetChunkList(chunkList);
         Bootstrap->GetObjectManager()->RefObject(chunkList);
@@ -146,7 +146,7 @@ protected:
 
     virtual void DoMerge(TFileNode* originatingNode, TFileNode* branchedNode) override
     {
-    	TBase::DoMerge(originatingNode, branchedNode);
+        TBase::DoMerge(originatingNode, branchedNode);
 
         auto* chunkList = branchedNode->GetChunkList();
         Bootstrap->GetObjectManager()->UnrefObject(chunkList);
