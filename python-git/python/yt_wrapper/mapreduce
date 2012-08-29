@@ -39,10 +39,9 @@
 import ast
 import yt
 import config
-from common import flatten, unlist, compose, require, YtError
+from common import flatten, unlist
 
 import sys
-import string
 from argparse import ArgumentParser
 from functools import partial
 from itertools import imap
@@ -98,7 +97,7 @@ if __name__ == "__main__":
 
     parser = ArgumentParser()
     add_bool_args(parser, action_flags + ["subkey", "lenval", "append"])
-    add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix"])
+    add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec"])
     add_multiple_args(parser, ["src", "dst", "dstappend", "file"] + ["opt", "ytspec"])
     add_integer_args(parser, ["jobcount", "threadcount", "chunksize"])
     args = parser.parse_args()
@@ -153,10 +152,10 @@ if __name__ == "__main__":
             yt.Table(args.read, lower_key=args.lowerkey, upper_key=args.upperkey)))
     if args.write is not None:
         args.write = yt.Table(args.write, append=args.append)
-        yt.write_table(args.write, sys.stdin)
+        yt.write_table(args.write, sys.stdin, codec_id=args.codec)
     if args.writesorted is not None:
         args.writesorted = yt.Table(args.writesorted, append=args.append)
-        yt.write_table(args.writesorted, sys.stdin)
+        yt.write_table(args.writesorted, sys.stdin, codec_id=args.codec)
         yt.set_attribute(args.writesorted.name, "sorted", "true")
     if args.map is not None:
         yt.run_map(args.map, args.src, dst, files=args.file, spec=spec)
