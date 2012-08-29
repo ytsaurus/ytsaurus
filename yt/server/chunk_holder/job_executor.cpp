@@ -103,9 +103,9 @@ void TJob::RunRemove()
         return;
     }
 
-    Bootstrap->GetChunkStore()->RemoveChunk(chunk);
-
-    SetCompleted();
+    Bootstrap->GetChunkStore()->RemoveChunk(chunk).Subscribe(BIND(
+        &TJob::SetCompleted, 
+        MakeStrong(this)));
 }
 
 void TJob::RunReplicate()

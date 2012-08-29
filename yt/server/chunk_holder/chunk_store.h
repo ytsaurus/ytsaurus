@@ -37,7 +37,7 @@ public:
     /*!
      *  This call also evicts the reader from the cache thus hopefully closing the file.
      */
-    void RemoveChunk(TStoredChunkPtr chunk);
+    TFuture<void> RemoveChunk(TStoredChunkPtr chunk);
 
     //! Calculates a storage location for a new chunk.
     /*!

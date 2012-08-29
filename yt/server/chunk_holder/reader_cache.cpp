@@ -88,7 +88,7 @@ public:
         return cookie.GetValue().Get();
     }
 
-    void Evict(TChunkPtr chunk)
+    void Evict(TChunk* chunk)
     {
         TCacheBase::Remove(chunk->GetId());
     }
@@ -108,7 +108,7 @@ TReaderCache::TGetReaderResult TReaderCache::GetReader(TChunkPtr chunk)
     return Impl->Get(chunk);
 }
 
-void TReaderCache::EvictReader(TChunkPtr chunk)
+void TReaderCache::EvictReader(TChunk* chunk)
 {
     Impl->Evict(chunk);
 }

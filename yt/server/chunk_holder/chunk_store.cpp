@@ -3,9 +3,7 @@
 #include "config.h"
 #include "location.h"
 #include "chunk.h"
-#include "reader_cache.h"
 #include "chunk_store.h"
-#include "reader_cache.h"
 #include "bootstrap.h"
 
 #include <ytlib/misc/foreach.h>
@@ -99,18 +97,18 @@ TStoredChunkPtr TChunkStore::FindChunk(const TChunkId& chunkId) const
     return it == ChunkMap.end() ? NULL : it->second;
 }
 
-void TChunkStore::RemoveChunk(TStoredChunkPtr chunk)
+TFuture<void> TChunkStore::RemoveChunk(TStoredChunkPtr chunk)
 {
-    auto chunkId = chunk->GetId();
-
-    YCHECK(ChunkMap.erase(chunkId) == 1);
-    
-    auto location = chunk->GetLocation();
-    location->UpdateUsedSpace(-chunk->GetInfo().size());
-
-    chunk->ScheduleRemoval();
-
-    ChunkRemoved_.Fire(chunk);
+    auto promise = NewPromise<void>();
+    chunk->ScheduleRemoval().Subscribe(BIND([=] () mutable {
+        auto chunkId = chunk->GetId();
+        YCHECK(ChunkMap.erase(chunkId) == 1);
+        auto location = chunk->GetLocation();
+        location->UpdateUsedSpace(-chunk->GetInfo().size());
+        ChunkRemoved_.Fire(chunk);
+        promise.Set();
+    }).Via(Bootstrap->GetControlInvoker()));
+    return promise;
 }
 
 TLocationPtr TChunkStore::GetNewChunkLocation()

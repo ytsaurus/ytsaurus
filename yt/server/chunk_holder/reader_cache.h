@@ -35,7 +35,10 @@ public:
      TGetReaderResult GetReader(TChunkPtr chunk);
 
     //! Evicts the reader from the cache thus hopefully closing the file.
-    void EvictReader(TChunkPtr chunk);
+    /*! 
+        NB: do not make it TChunkPtr since it is called from TCachedChunk dtor
+    */
+    void EvictReader(TChunk* chunk);
 
 private:
     class TCachedReader;

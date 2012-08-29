@@ -33,6 +33,7 @@ TChunk::TChunk(
     , Info_(chunkInfo)
     , HasMeta(true)
     , Meta(chunkMeta)
+    , RemovedEvent(Null)
 {
     Initialize();
 }
@@ -43,6 +44,7 @@ TChunk::TChunk(
     : Id_(descriptor.Id)
     , Location_(location)
     , HasMeta(false)
+    , RemovedEvent(Null)
 {
     Info_.set_size(descriptor.Size);
     Info_.clear_meta_checksum();
@@ -52,7 +54,6 @@ TChunk::TChunk(
 void TChunk::Initialize()
 {
     ReadLockCounter = 0;
-    RemovalPending = false;
     RemovalScheduled = false;
 }
 
@@ -155,7 +156,7 @@ bool TChunk::TryAcquireReadLock()
     int lockCount;
     {
         TGuard<TSpinLock> guard(SpinLock);
-        if (RemovalPending) {
+        if (!RemovedEvent.IsNull()) {
             LOG_DEBUG("Chunk read lock cannot be acquired since removal is already pending (ChunkId: %s)",
                 ~ToString(Id_));
             return false;
@@ -179,7 +180,7 @@ void TChunk::ReleaseReadLock()
         TGuard<TSpinLock> guard(SpinLock);
         YCHECK(ReadLockCounter > 0);
         lockCount = --ReadLockCounter;
-        if (ReadLockCounter == 0 && !RemovalScheduled && RemovalPending) {
+        if (ReadLockCounter == 0 && !RemovalScheduled && !RemovedEvent.IsNull()) {
             scheduleRemoval = RemovalScheduled = true;
         }
     }
@@ -189,29 +190,47 @@ void TChunk::ReleaseReadLock()
         lockCount);
 
     if (scheduleRemoval) {
-        Location_->ScheduleChunkRemoval(this);
+        DoRemoveChunk();
     }
 }
 
-void TChunk::ScheduleRemoval()
+TFuture<void> TChunk::ScheduleRemoval()
 {
     bool scheduleRemoval = false;
 
     {
         TGuard<TSpinLock> guard(SpinLock);
-        if (RemovalScheduled || RemovalPending) {
-            return;
+        if (!RemovedEvent.IsNull()) {
+            return RemovedEvent;
         }
 
-        RemovalPending = true;
+        RemovedEvent = NewPromise<void>();
         if (ReadLockCounter == 0 && !RemovalScheduled) {
             scheduleRemoval = RemovalScheduled = true;
         }
     }
 
     if (scheduleRemoval) {
-        Location_->ScheduleChunkRemoval(this);
+        DoRemoveChunk();
     }
+
+    return RemovedEvent;
+}
+
+void TChunk::DoRemoveChunk()
+{
+        EvictChunkReader();
+
+        auto this_ = MakeStrong(this);
+        Location_->ScheduleChunkRemoval(this).Subscribe(BIND([=] () {
+            this_->RemovedEvent.Set();
+        }));
+}
+
+void TChunk::EvictChunkReader()
+{
+    auto readerCache = Location_->GetBootstrap()->GetReaderCache();
+    readerCache->EvictReader(this);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -258,6 +277,7 @@ TCachedChunk::~TCachedChunk()
     // This check ensures that we don't remove any chunks from cache upon shutdown.
     if (!ChunkCache.IsExpired()) {
         LOG_INFO("Chunk is evicted from cache (ChunkId: %s)", ~GetId().ToString());
+        EvictChunkReader();
         Location_->ScheduleChunkRemoval(this);
     }
 }
