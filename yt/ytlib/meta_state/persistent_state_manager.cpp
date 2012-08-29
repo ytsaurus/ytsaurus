@@ -827,9 +827,10 @@ public:
 
         YCHECK(!QuorumTracker);
         QuorumTracker = New<TQuorumTracker>(
-            Config->FollowerTracker,
+            Config->QuorumTracker,
             CellManager,
-            EpochControlInvoker);
+            EpochControlInvoker,
+            CellManager->GetSelfId());
 
         // During recovery the leader is reporting its reachable version to followers.
         auto version = DecoratedState->GetReachableVersionAsync();
@@ -941,8 +942,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        QuorumTracker->Start(CellManager->GetSelfId());
-
         YCHECK(ControlStatus == EPeerStatus::LeaderRecovery);
         ControlStatus = EPeerStatus::Leading;
 
@@ -969,11 +968,7 @@ public:
             FollowerPinger.Reset();
         }
 
-        if (QuorumTracker) {
-            QuorumTracker->Stop();
-            QuorumTracker.Reset();
-        }
-
+        QuorumTracker.Reset();
         LeaderRecovery.Reset();
 
         if (SnapshotBuilder) {
