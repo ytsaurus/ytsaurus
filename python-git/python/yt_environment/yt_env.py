@@ -256,7 +256,9 @@ class YTEnv(unittest.TestCase):
             config['data_node']['cache_location']['path'] = \
                 os.path.join(current, 'chunk_cache')
             config['data_node']['store_locations'].append(
-                {'path': os.path.join(current, 'chunk_store')})
+                {'path': os.path.join(current, 'chunk_store'),
+                 'low_watermark' : 0,
+                 'high_watermark' : 0})
             config['exec_agent']['job_manager']['slot_location'] = \
                 os.path.join(current, 'slot')
 
