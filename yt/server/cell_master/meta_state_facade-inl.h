@@ -17,7 +17,7 @@ NMetaState::TMutationPtr TMetaStateFacade::CreateMutation(
 {
     return NMetaState::CreateMutation<TTarget, TRequest, TResponse>(
         GetManager(),
-        GetWrappedEpochInvoker(queue),
+        GetGuardedEpochInvoker(queue),
         target,
         request,
         method);

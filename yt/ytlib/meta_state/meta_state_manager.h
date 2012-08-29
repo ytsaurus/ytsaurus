@@ -45,7 +45,7 @@ struct IMetaStateManager
     /*!
      *  \note Thread affinity: any
      */
-    virtual IInvokerPtr CreateStateInvokerWrapper(IInvokerPtr underlyingInvoker) = 0;
+    virtual IInvokerPtr CreateGuardedStateInvoker(IInvokerPtr underlyingInvoker) = 0;
 
     //! Returns True is the peer has a active quorum.
     /*!

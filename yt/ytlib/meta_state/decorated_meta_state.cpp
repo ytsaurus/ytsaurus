@@ -19,11 +19,11 @@ static NProfiling::TProfiler& Profiler = MetaStateProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDecoratedMetaState::TUserStateInvoker
+class TDecoratedMetaState::TGuardedUserInvoker
     : public IInvoker
 {
 public:
-    TUserStateInvoker(TDecoratedMetaStatePtr metaState, IInvokerPtr underlyingInvoker)
+    TGuardedUserInvoker(TDecoratedMetaStatePtr metaState, IInvokerPtr underlyingInvoker)
         : MetaState(metaState)
         , UnderlyingInvoker(underlyingInvoker)
     { }
@@ -52,11 +52,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDecoratedMetaState::TSystemStateInvoker
+class TDecoratedMetaState::TSystemInvoker
     : public IInvoker
 {
 public:
-    explicit TSystemStateInvoker(TDecoratedMetaState* metaState)
+    explicit TSystemInvoker(TDecoratedMetaState* metaState)
         : MetaState(metaState)
     { }
 
@@ -96,7 +96,7 @@ TDecoratedMetaState::TDecoratedMetaState(
     , StateInvoker(stateInvoker)
     , UserEnqueueLock(0)
     , SystemLock(0)
-    , SystemStateInvoker(New<TSystemStateInvoker>(this))
+    , SystemInvoker(New<TSystemInvoker>(this))
     , SnapshotStore(snapshotStore)
     , ChangeLogCache(changeLogCache)
     , Started(false)
@@ -193,18 +193,18 @@ void TDecoratedMetaState::ComputeReachableVersion()
     LOG_INFO("Reachable version is %s", ~ReachableVersion.ToString());
 }
 
-IInvokerPtr TDecoratedMetaState::CreateUserStateInvokerWrapper(IInvokerPtr underlyingInvoker)
+IInvokerPtr TDecoratedMetaState::CreateGuardedUserInvoker(IInvokerPtr underlyingInvoker)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return New<TUserStateInvoker>(this, underlyingInvoker);
+    return New<TGuardedUserInvoker>(this, underlyingInvoker);
 }
 
-IInvokerPtr TDecoratedMetaState::GetSystemStateInvoker()
+IInvokerPtr TDecoratedMetaState::GetSystemInvoker()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return SystemStateInvoker;
+    return SystemInvoker;
 }
 
 IMetaStatePtr TDecoratedMetaState::GetState()

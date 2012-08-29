@@ -605,7 +605,7 @@ void TChunkReplicator::ScheduleNextRefresh()
 {
     TDelayedInvoker::Submit(
         BIND(&TChunkReplicator::OnRefresh, MakeStrong(this))
-            .Via(Bootstrap->GetMetaStateFacade()->GetWrappedEpochInvoker(EStateThreadQueue::ChunkRefresh)),
+            .Via(Bootstrap->GetMetaStateFacade()->GetUnguardedEpochInvoker(EStateThreadQueue::ChunkRefresh)),
         Config->ChunkRefreshQuantum);
 }
 

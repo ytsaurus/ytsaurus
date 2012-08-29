@@ -158,7 +158,7 @@ public:
 
         ControlStatus = EPeerStatus::Elections;
 
-        DecoratedState->GetSystemStateInvoker()->Invoke(BIND(
+        DecoratedState->GetSystemInvoker()->Invoke(BIND(
             &TDecoratedMetaState::Clear,
             DecoratedState));
 
@@ -179,11 +179,11 @@ public:
         return DecoratedState->GetStatus();
     }
 
-    virtual IInvokerPtr CreateStateInvokerWrapper(IInvokerPtr underlyingInvoker) override
+    virtual IInvokerPtr CreateGuardedStateInvoker(IInvokerPtr underlyingInvoker) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return DecoratedState->CreateUserStateInvokerWrapper(underlyingInvoker);
+        return DecoratedState->CreateGuardedUserInvoker(underlyingInvoker);
     }
 
     virtual bool HasActiveQuorum() const override
@@ -955,7 +955,7 @@ public:
 
         LOG_INFO("Stopped leading");
 
-        DecoratedState->GetSystemStateInvoker()->Invoke(BIND(
+        DecoratedState->GetSystemInvoker()->Invoke(BIND(
             &TThis::DoStateStopLeading,
             MakeStrong(this)));
 
@@ -972,7 +972,7 @@ public:
         LeaderRecovery.Reset();
 
         if (SnapshotBuilder) {
-            DecoratedState->GetSystemStateInvoker()->Invoke(BIND(
+            DecoratedState->GetSystemInvoker()->Invoke(BIND(
                 &TSnapshotBuilder::WaitUntilFinished,
                 SnapshotBuilder));
             SnapshotBuilder.Reset();
@@ -1073,7 +1073,7 @@ public:
 
         LOG_INFO("Stopped following");
 
-        DecoratedState->GetSystemStateInvoker()->Invoke(BIND(
+        DecoratedState->GetSystemInvoker()->Invoke(BIND(
             &TThis::DoStateStopFollowing,
             MakeStrong(this)));
 
@@ -1090,7 +1090,7 @@ public:
         }
 
         if (SnapshotBuilder) {
-            DecoratedState->GetSystemStateInvoker()->Invoke(BIND(
+            DecoratedState->GetSystemInvoker()->Invoke(BIND(
                 &TSnapshotBuilder::WaitUntilFinished,
                 SnapshotBuilder));
             SnapshotBuilder.Reset();
@@ -1113,7 +1113,7 @@ public:
 
         EpochContext = ElectionManager->GetEpochContext();
         EpochControlInvoker = EpochContext->CancelableContext->CreateInvoker(ControlInvoker);
-        EpochStateInvoker = EpochContext->CancelableContext->CreateInvoker(DecoratedState->GetSystemStateInvoker());
+        EpochStateInvoker = EpochContext->CancelableContext->CreateInvoker(DecoratedState->GetSystemInvoker());
     }
 
     void StopEpoch()
