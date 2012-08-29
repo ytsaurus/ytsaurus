@@ -928,14 +928,13 @@ public:
             SnapshotBuilder->RotateChangeLog();
         }
 
-        LeaderRecoveryComplete_.Fire();
-
         DecoratedState->OnLeaderRecoveryComplete();
+
+        LeaderRecoveryComplete_.Fire();
 
         EpochControlInvoker->Invoke(BIND(
             &TThis::DoControlLeaderRecoveryComplete,
             MakeStrong(this)));
-
     }
 
     void DoControlLeaderRecoveryComplete()
@@ -989,11 +988,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
+        StopLeading_.Fire();
+
         LeaderCommitter.Reset();
 
         DecoratedState->OnStopLeading();
-
-        StopLeading_.Fire();
     }
 
 
@@ -1107,9 +1106,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
-        DecoratedState->OnStopFollowing();
-
         StopFollowing_.Fire();
+
+        DecoratedState->OnStopFollowing();
     }
 
 
