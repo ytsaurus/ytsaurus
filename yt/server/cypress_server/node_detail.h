@@ -147,6 +147,37 @@ public:
         return NULL;
     }
 
+    virtual ICypressNode* Clone(
+        ICypressNode* node,
+        NTransactionServer::TTransaction* transaction) override
+    {
+        auto cypressManager = Bootstrap->GetCypressManager();
+        auto objectManager = Bootstrap->GetObjectManager();
+
+        auto type = GetObjectType();
+        auto clonedId = objectManager->GenerateId(type);
+
+        auto clonedNode = Instantiate(clonedId);
+        auto clonedNode_ = ~clonedNode;
+
+        clonedNode->SetTrunkNode(clonedNode_);
+
+        cypressManager->RegisterNode(transaction, clonedNode);
+
+        auto* lockedClonedNode = cypressManager->LockVersionedNode(
+            clonedNode_,
+            transaction,
+            ELockMode::Exclusive);
+
+        DoClone(
+            dynamic_cast<TImpl*>(node),
+            transaction,
+            dynamic_cast<TImpl*>(lockedClonedNode));
+
+        return clonedNode_;
+    }
+
+
 protected:
     NCellMaster::TBootstrap* Bootstrap;
 
@@ -185,6 +216,29 @@ protected:
     {
         UNUSED(originatingNode);
         UNUSED(branchedNode);
+    }
+
+    virtual void DoClone(
+        TImpl* node,
+        NTransactionServer::TTransaction* transaction,
+        TImpl* clonedNode)
+    {
+        // Copy attributes directly to suppress validation.
+        auto objectManager = Bootstrap->GetObjectManager();
+
+        auto proxy = GetProxy(node->GetTrunkNode(), transaction);
+
+        const auto& attributes = proxy->Attributes();
+        auto keys = attributes.List();
+        if (keys.empty())
+            return;
+
+        auto* clonedAttributes = objectManager->CreateAttributes(clonedNode->GetId());
+
+        FOREACH (const auto& key, keys) {
+            auto value = attributes.GetYson(key);
+            YCHECK(clonedAttributes->Attributes().insert(std::make_pair(key, value)).second);
+        }
     }
 
     bool IsRecovery() const
@@ -302,7 +356,7 @@ class TScalarNodeTypeHandler
 {
 public:
     TScalarNodeTypeHandler(NCellMaster::TBootstrap* bootstrap)
-        : TCypressNodeTypeHandlerBase< TScalarNode<TValue> >(bootstrap)
+        : TBase(bootstrap)
     { }
 
     virtual NObjectClient::EObjectType GetObjectType() override
@@ -320,10 +374,14 @@ public:
         NTransactionServer::TTransaction* transaction) override;
 
 protected:
+    typedef TCypressNodeTypeHandlerBase< TScalarNode<TValue> > TBase;
+
     virtual void DoBranch(
         const TScalarNode<TValue>* originatingNode,
         TScalarNode<TValue>* branchedNode) override
     {
+        TBase::DoBranch(originatingNode, branchedNode);
+
         branchedNode->Value() = originatingNode->Value();
     }
 
@@ -331,7 +389,19 @@ protected:
         TScalarNode<TValue>* originatingNode,
         TScalarNode<TValue>* branchedNode) override
     {
+        TBase::DoMerge(originatingNode, branchedNode);
+
         originatingNode->Value() = branchedNode->Value();
+    }
+
+    virtual void DoClone(
+        TScalarNode<TValue>* node,
+        NTransactionServer::TTransaction* transaction,
+        TScalarNode<TValue>* clonedNode) override
+    {
+        TBase::DoClone(node, transaction, clonedNode);
+
+        clonedNode->Value() = node->Value();
     }
 
 };
@@ -376,16 +446,22 @@ public:
 
 private:
     typedef TMapNodeTypeHandler TThis;
+    typedef TCypressNodeTypeHandlerBase<TMapNode> TBase;
 
     virtual void DoDestroy(TMapNode* node) override;
 
     virtual void DoBranch(
         const TMapNode* originatingNode,
-        TMapNode* branchedNode) override;
+        TMapNode* branchedNode);
 
     virtual void DoMerge(
         TMapNode* originatingNode,
         TMapNode* branchedNode) override;
+
+    virtual void DoClone(
+        TMapNode* node,
+        NTransactionServer::TTransaction* transaction,
+        TMapNode* clonedNode) override;
 };
 
 //////////////////////////////////////////////////////////////////////////////// 
@@ -424,6 +500,7 @@ public:
 
 private:
     typedef TListNodeTypeHandler TThis;
+    typedef TCypressNodeTypeHandlerBase<TListNode> TBase;
 
     virtual void DoDestroy(TListNode* node) override;
 
@@ -435,6 +512,10 @@ private:
         TListNode* originatingNode,
         TListNode* branchedNode) override;
 
+    virtual void DoClone(
+        TListNode* node,
+        NTransactionServer::TTransaction* transaction,
+        TListNode* clonedNode) override;
 };
 
 //////////////////////////////////////////////////////////////////////////////// 

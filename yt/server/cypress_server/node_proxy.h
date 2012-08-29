@@ -22,9 +22,6 @@ struct ICypressNodeProxy
 
     //! Returns the trunk node for which the proxy is created.
     virtual ICypressNode* GetTrunkNode() const = 0;
-
-    //! Constructs a deep copy of the node.
-    virtual ICypressNodeProxyPtr Clone() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

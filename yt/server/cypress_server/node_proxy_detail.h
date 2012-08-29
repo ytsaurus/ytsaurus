@@ -143,28 +143,6 @@ public:
         return NObjectServer::TObjectProxyBase::Attributes();
     }
 
-
-    virtual ICypressNodeProxyPtr Clone() override
-    {
-        auto cypressManager = Bootstrap->GetCypressManager();
-        auto objectManager = Bootstrap->GetObjectManager();
-
-        auto type = NObjectClient::TypeFromId(Id);
-        auto clonedNodeId = Bootstrap->GetObjectManager()->GenerateId(type);
-
-        auto clonedNode = TypeHandler->Instantiate(clonedNodeId);
-        auto clonedNode_ = clonedNode.Get();
-
-        clonedNode_->SetTrunkNode(clonedNode_);
-
-        cypressManager->RegisterNode(Transaction, clonedNode);
-
-        DoCloneTo(dynamic_cast<TImpl*>(clonedNode_));
-
-        return TypeHandler->GetProxy(clonedNode_, Transaction);;
-    }
-
-
 protected:
     INodeTypeHandlerPtr TypeHandler;
     NCellMaster::TBootstrap* Bootstrap;
@@ -313,6 +291,15 @@ protected:
         return cypressManager->LockVersionedNode(nodeId, Transaction, request, recursive);
     }
 
+    //! #nodeId must refer to a node with the same type as this.
+    TImpl* LockTypedImpl(
+        const TNodeId& nodeId,
+        const TLockRequest& request = ELockMode::Exclusive,
+        bool recursive = false)
+    {
+        return static_cast<TImpl*>(LockImpl(nodeId, request, recursive));
+    }
+
 
     const ICypressNode* GetThisImpl() const
     {
@@ -375,22 +362,6 @@ protected:
         child->SetParentId(NObjectClient::NullObjectId);
         if (unref) {
             Bootstrap->GetObjectManager()->UnrefObject(child);
-        }
-    }
-
-
-    virtual void DoCloneTo(TImpl* clonedNode)
-    {
-        // Copy attributes directly to suppress validation.
-        auto objectManager = Bootstrap->GetObjectManager();
-        auto* attributes = GetUserAttributes();
-        NObjectServer::TAttributeSet* clonedAttributes = NULL;
-        FOREACH (const auto& key, attributes->List()) {
-            auto value = attributes->GetYson(key);
-            if (!clonedAttributes) {
-                clonedAttributes = objectManager->CreateAttributes(clonedNode->GetId());
-            }
-            YCHECK(clonedAttributes->Attributes().insert(std::make_pair(key, value)).second);
         }
     }
 
@@ -583,12 +554,6 @@ public:
 private:
     typedef TCypressNodeProxyBase<IBase, TImpl> TBase;
 
-    virtual void DoCloneTo(TImpl* clonedNode) override
-    {
-        TBase::DoCloneTo(clonedNode);
-        clonedNode->Value() = this->GetThisTypedImpl()->Value();
-    }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -758,11 +723,18 @@ protected:
             ythrow yexception() << "Cannot copy a node to its child";
         }
 
-        auto clonedProxy = sourceProxy->Clone();
+        auto cypressManager = Bootstrap->GetCypressManager();
+        auto handler = cypressManager->GetHandler(TrunkNode);
+
+        auto sourceId = GetNodeId(NYTree::INodePtr(sourceProxy));
+        auto* sourceImpl = const_cast<ICypressNode*>(GetImpl(sourceId));
+        auto* clonedImpl = handler->Clone(sourceImpl, Transaction);
+        const auto& clonedId = clonedImpl->GetId().ObjectId;
+        auto clonedProxy = GetProxy(clonedId);
 
         this->SetRecursive(creativePath, clonedProxy);
 
-        *response->mutable_object_id() = clonedProxy->GetId().ToProto();
+        *response->mutable_object_id() = clonedId.ToProto();
 
         context->Reply();
     }
@@ -802,11 +774,19 @@ private:
     virtual void SetRecursive(const NYTree::TYPath& path, NYTree::INodePtr value) override;
     virtual IYPathService::TResolveResult ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb) override;
 
-    void DoListChildren(yhash_map<Stroka, TNodeId>* keyToChild) const;
-    TVersionedNodeId DoFindChild(const Stroka& key) const;
-
-    virtual void DoCloneTo(TMapNode* clonedNode) override;
 };
+
+void ListMapChildren(
+    NCellMaster::TBootstrap* bootstrap,
+    const TNodeId& nodeId,
+    NTransactionServer::TTransaction* transaction,
+    yhash_map<Stroka, TNodeId>* keyToChild);
+
+TVersionedNodeId FindMapChild(
+    NCellMaster::TBootstrap* bootstrap,
+    const TNodeId& nodeId,
+    NTransactionServer::TTransaction* transaction,
+    const Stroka& key);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -843,7 +823,6 @@ private:
         const NYTree::TYPath& path,
         const Stroka& verb);
 
-    virtual void DoCloneTo(TListNode* clonedNode);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

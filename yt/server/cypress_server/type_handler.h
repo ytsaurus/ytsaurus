@@ -94,6 +94,11 @@ struct INodeTypeHandler
         ICypressNode* originatingNode,
         ICypressNode* branchedNode) = 0;
 
+    //! Constructs a deep copy of the node.
+    virtual ICypressNode* Clone(
+        ICypressNode* node,
+        NTransactionServer::TTransaction* transaction) = 0;
+
     //! Creates a behavior associated with the node.
     //! The method may return NULL if no behavior is needed.
     virtual INodeBehaviorPtr CreateBehavior(const TNodeId& id) = 0;

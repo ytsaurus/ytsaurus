@@ -284,20 +284,6 @@ TTableNodeProxy::TTableNodeProxy(
         trunkNode)
 { }
 
-void TTableNodeProxy::DoCloneTo(TTableNode* clonedNode)
-{
-    TBase::DoCloneTo(clonedNode);
-
-    auto objectManager = Bootstrap->GetObjectManager();
-
-    const auto* impl = GetThisTypedImpl();
-    auto* chunkList = impl->GetChunkList();
-    
-    clonedNode->SetChunkList(chunkList);
-    objectManager->RefObject(chunkList);
-    YCHECK(chunkList->OwningNodes().insert(clonedNode).second);
-}
-
 void TTableNodeProxy::DoInvoke(IServiceContextPtr context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(GetChunkListForUpdate);

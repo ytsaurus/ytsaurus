@@ -20,6 +20,7 @@ using namespace NYTree;
 using namespace NChunkServer;
 using namespace NObjectServer;
 using namespace NTableClient;
+using namespace NTransactionServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -118,6 +119,8 @@ public:
 protected:
     virtual void DoDestroy(TTableNode* node) override
     {
+        TBase::DoDestroy(node);
+
         auto objectManager = Bootstrap->GetObjectManager();
 
         auto* chunkList = node->GetChunkList();
@@ -127,6 +130,8 @@ protected:
 
     virtual void DoBranch(const TTableNode* originatingNode, TTableNode* branchedNode) override
     {
+    	TBase::DoBranch(originatingNode, branchedNode);
+
         auto objectManager = Bootstrap->GetObjectManager();
 
         auto* chunkList = originatingNode->GetChunkList();
@@ -142,6 +147,8 @@ protected:
 
     virtual void DoMerge(TTableNode* originatingNode, TTableNode* branchedNode) override
     {
+    	TBase::DoMerge(originatingNode, branchedNode);
+
         auto originatingChunkListId = originatingNode->GetChunkList()->GetId();
         auto branchedChunkListId = branchedNode->GetChunkList()->GetId();
 
@@ -263,6 +270,21 @@ protected:
         }
 
         YUNREACHABLE();
+    }
+
+    virtual void DoClone(
+        TTableNode* node,
+        TTransaction* transaction,
+        TTableNode* clonedNode) override
+    {
+        TBase::DoClone(node, transaction, clonedNode);
+
+        auto objectManager = Bootstrap->GetObjectManager();
+
+        auto* chunkList = node->GetChunkList();
+        clonedNode->SetChunkList(chunkList);
+        objectManager->RefObject(chunkList);
+        YCHECK(chunkList->OwningNodes().insert(clonedNode).second);
     }
 };
 
