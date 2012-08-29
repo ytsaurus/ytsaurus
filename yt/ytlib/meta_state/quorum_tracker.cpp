@@ -17,24 +17,19 @@ static NLog::TLogger& Logger = MetaStateLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TQuorumTracker::TQuorumTracker(
-    TFollowerTrackerConfigPtr config,
+    TQuorumTrackerConfigPtr config,
     TCellManagerPtr cellManager,
-    IInvokerPtr epochControlInvoker)
+    IInvokerPtr epochControlInvoker,
+    TPeerId leaderId)
     : Config(config)
     , CellManager(cellManager)
     , EpochControlInvoker(epochControlInvoker)
     , Peers(cellManager->GetPeerCount())
-    , ActivePeerCount(0)
 {
     VERIFY_INVOKER_AFFINITY(epochControlInvoker, ControlThread);
     YCHECK(config);
     YCHECK(cellManager);
     YCHECK(epochControlInvoker);
-}
-
-void TQuorumTracker::Start(TPeerId leaderId)
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
 
     for (TPeerId peerId = 0; peerId < CellManager->GetPeerCount(); ++peerId) {
         Peers[peerId].Status =
@@ -44,13 +39,6 @@ void TQuorumTracker::Start(TPeerId leaderId)
     }
 
     UpdateActiveQuorum();
-}
-
-void TQuorumTracker::Stop()
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    // Do nothing, Stop is just for symmetry.
 }
 
 bool TQuorumTracker::IsFollowerActive(TPeerId followerId) const
@@ -95,9 +83,7 @@ void TQuorumTracker::UpdateActiveQuorum()
     bool oldHasQuorum = HasActiveQuorum();
     ActivePeerCount = 0;
     FOREACH (const auto& peer, Peers) {
-        if (peer.Status == EPeerStatus::Leading ||
-            peer.Status == EPeerStatus::Following)
-        {
+        if (peer.Status == EPeerStatus::Leading || peer.Status == EPeerStatus::Following) {
             ++ActivePeerCount;
         }
     }
@@ -117,7 +103,7 @@ void TQuorumTracker::OnLeaseExpired(TPeerId followerId)
     ResetFollowerState(followerId);
 }
 
-void TQuorumTracker::ProcessPing(TPeerId followerId, EPeerStatus status)
+void TQuorumTracker::SetStatus(TPeerId followerId, EPeerStatus status)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 

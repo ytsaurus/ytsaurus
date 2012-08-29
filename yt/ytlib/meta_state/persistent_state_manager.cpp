@@ -827,9 +827,10 @@ public:
 
         YCHECK(!QuorumTracker);
         QuorumTracker = New<TQuorumTracker>(
-            Config->FollowerTracker,
+            Config->QuorumTracker,
             CellManager,
-            EpochControlInvoker);
+            EpochControlInvoker,
+            CellManager->GetSelfId());
 
         // During recovery the leader is reporting its reachable version to followers.
         auto version = DecoratedState->GetReachableVersionAsync();
@@ -928,21 +929,18 @@ public:
             SnapshotBuilder->RotateChangeLog();
         }
 
-        LeaderRecoveryComplete_.Fire();
-
         DecoratedState->OnLeaderRecoveryComplete();
+
+        LeaderRecoveryComplete_.Fire();
 
         EpochControlInvoker->Invoke(BIND(
             &TThis::DoControlLeaderRecoveryComplete,
             MakeStrong(this)));
-
     }
 
     void DoControlLeaderRecoveryComplete()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        QuorumTracker->Start(CellManager->GetSelfId());
 
         YCHECK(ControlStatus == EPeerStatus::LeaderRecovery);
         ControlStatus = EPeerStatus::Leading;
@@ -970,14 +968,8 @@ public:
             FollowerPinger.Reset();
         }
 
-        if (QuorumTracker) {
-            QuorumTracker->Stop();
-            QuorumTracker.Reset();
-        }
-
-        if (LeaderRecovery) {
-            LeaderRecovery.Reset();
-        }
+        QuorumTracker.Reset();
+        LeaderRecovery.Reset();
 
         if (SnapshotBuilder) {
             DecoratedState->GetSystemStateInvoker()->Invoke(BIND(
@@ -991,14 +983,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
-        if (LeaderCommitter) {
-            LeaderCommitter->Stop();
-            LeaderCommitter.Reset();
-        }
+        StopLeading_.Fire();
+
+        LeaderCommitter.Reset();
 
         DecoratedState->OnStopLeading();
-
-        StopLeading_.Fire();
     }
 
 
@@ -1112,9 +1101,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
-        DecoratedState->OnStopFollowing();
-
         StopFollowing_.Fire();
+
+        DecoratedState->OnStopFollowing();
     }
 
 

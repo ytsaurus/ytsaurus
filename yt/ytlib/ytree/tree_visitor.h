@@ -8,7 +8,7 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 void VisitTree(
-    INodePtr root,
+    const INodePtr& root,
     IYsonConsumer* consumer,
     bool withAttributes = true,
     const std::vector<Stroka>* const attributesToVisit = NULL);

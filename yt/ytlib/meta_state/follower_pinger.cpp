@@ -112,7 +112,7 @@ void TFollowerPinger::OnPingResponse(TPeerId followerId, TProxy::TRspPingFollowe
     LOG_DEBUG("Ping reply received from follower %d (Status: %s)",
         followerId,
         ~status.ToString());
-    QuorumTracker->ProcessPing(followerId, status);
+    QuorumTracker->SetStatus(followerId, status);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

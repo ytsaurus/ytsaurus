@@ -59,18 +59,6 @@ public:
 
     ~TLeaderCommitter();
 
-    //! Initializes the instance.
-    /*!
-     *  \note Thread affinity: ControlThread
-     */
-    void Start();
-
-    //! Releases all resources.
-    /*!
-     *  \note Thread affinity: ControlThread
-     */
-    void Stop();
-
     //! Initiates a new distributed commit.
     /*!
      *  \param request A mutation request.

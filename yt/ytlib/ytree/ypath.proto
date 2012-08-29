@@ -34,7 +34,7 @@ message TRspRemove
 
 message TReqList
 {
-    repeated bytes attributes = 1;
+    repeated string attributes = 1;
 }
 
 message TRspList

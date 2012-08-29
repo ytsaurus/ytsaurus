@@ -16,15 +16,14 @@ class TQuorumTracker
 {
 public:
     TQuorumTracker(
-        TFollowerTrackerConfigPtr config,
+        TQuorumTrackerConfigPtr config,
         NElection::TCellManagerPtr cellManager,
-        IInvokerPtr epochControlInvoker);
+        IInvokerPtr epochControlInvoker,
+        TPeerId leaderId);
 
-    void Start(TPeerId leaderId);
-    void Stop();
     bool HasActiveQuorum() const;
     bool IsFollowerActive(TPeerId followerId) const;
-    void ProcessPing(TPeerId followerId, EPeerStatus status);
+    void SetStatus(TPeerId followerId, EPeerStatus status);
 
 private:
     struct TPeerInfo
@@ -38,7 +37,7 @@ private:
     void OnLeaseExpired(TPeerId followerId);
     void UpdateActiveQuorum();
 
-    TFollowerTrackerConfigPtr Config;
+    TQuorumTrackerConfigPtr Config;
     NElection::TCellManagerPtr CellManager;
     IInvokerPtr EpochControlInvoker;
     std::vector<TPeerInfo> Peers;
