@@ -374,6 +374,11 @@ IInvokerPtr TMetaStateFacade::GetUnguardedInvoker(EStateThreadQueue queue) const
     return Impl->GetUnguardedInvoker(queue);
 }
 
+IInvokerPtr TMetaStateFacade::GetUnguardedEpochInvoker(EStateThreadQueue queue) const
+{
+    return Impl->GetUnguardedEpochInvoker(queue);
+}
+
 IInvokerPtr TMetaStateFacade::GetGuardedInvoker(EStateThreadQueue queue) const
 {
     return Impl->GetGuardedInvoker(queue);
