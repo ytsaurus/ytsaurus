@@ -113,9 +113,8 @@ def write_str(path, value, **kw):
     return command('write', path, value, **kw)
 
 def start_transaction(**kw):
-    raw_tx = command('start_tx', **kw)
-    tx_id = raw_tx.replace('"', '').strip('\n')
-    return tx_id
+    out = command('start_tx', **kw)
+    return out.replace('"', '').strip('\n')
 
 def commit_transaction(tx, **kw):
     return command('commit_tx', tx, **kw)
@@ -137,26 +136,30 @@ def upload_file(path, file_name, **kw):
 def download(path, **kw):
     return command('download', path, **kw)
 
+def start_op(op_type, *args, **kw):
+    out = command(op_type, *args, **kw)
+    return out.replace('"', '').strip('\n')
+
 def map(*args, **kw):
-    return command('map', *args, **kw)
+    return start_op('map', *args, **kw)
 
 def merge(*args, **kw):
-    return command('merge', *args, **kw)
+    return start_op('merge', *args, **kw)
 
 def reduce(*args, **kw):
-    return command('reduce', *args, **kw)
+    return start_op('reduce', *args, **kw)
 
 def map_reduce(*args, **kw):
-    return command('map_reduce', *args, **kw)
-
-def track_op(op, **kw):
-    return command('track_op', op, **kw)
+    return start_op('map_reduce', *args, **kw)
 
 def erase(path, *args, **kw):
-    return command('erase', path, *args, **kw)
+    return start_op('erase', path, *args, **kw)
 
-def sort(**kw):
-    return command('sort', **kw)
+def sort(*args, **kw):
+    return start_op('sort', *args, **kw)
+
+def track_op(op, **kw):
+    command('track_op', op, **kw)
 
 #########################################
 
