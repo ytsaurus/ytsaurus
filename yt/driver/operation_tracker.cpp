@@ -191,7 +191,6 @@ EExitCode TOperationTracker::DumpResult()
         auto req = TYPathProxy::Get(jobsPath);
         req->add_attributes("job_type");
         req->add_attributes("state");
-        req->Attributes().Set<Stroka>("with_attributes", "true");
         batchReq->AddRequest(req, "get_jobs");
     }
     EExitCode exitCode;
