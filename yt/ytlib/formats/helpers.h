@@ -27,7 +27,7 @@ public:
     virtual void OnBeginAttributes() = 0;
     virtual void OnEndAttributes() = 0;
 
-    // This method has standard implementation for all formats.
+    // This method has standard implementation for yamr, dsv and yamred dsv formats.
     virtual void OnRaw(const TStringBuf& yson, NYTree::EYsonType type) override;
 
 private:

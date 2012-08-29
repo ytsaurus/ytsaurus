@@ -96,6 +96,7 @@ const char* TYamrBaseParser::Consume(const char* begin, const char* end)
     else { // State == EState::InsideValue
         ProcessValue(CurrentToken);
     }
+    CurrentToken = "";
     return next + 1;
 }
 
@@ -134,12 +135,12 @@ const char* TYamrBaseParser::TryConsumeRecord(const char* begin, const char* end
         endOfValue = endOfSubkey;
     }
 
-    ProcessKey(Stroka(begin, endOfKey));
+    ProcessKey(TStringBuf(begin, endOfKey));
     if (HasSubkey) {
-        ProcessSubkey(Stroka(endOfKey + 1, endOfSubkey));
+        ProcessSubkey(TStringBuf(endOfKey + 1, endOfSubkey));
     }
     const char* beginOfValue = std::min(endOfSubkey + 1, endOfValue);
-    ProcessValue(Stroka(beginOfValue, endOfValue));
+    ProcessValue(TStringBuf(beginOfValue, endOfValue));
 
     return endOfValue + 1;
 }
