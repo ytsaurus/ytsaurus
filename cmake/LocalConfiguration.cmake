@@ -112,22 +112,24 @@ elseif (CMAKE_COMPILER_IS_GNUCXX)
 
   # These are configuration-specific compilation flags.
   # http://gcc.gnu.org/onlinedocs/gcc/Option-Summary.html
-  set( CMAKE_CXX_FLAGS_DEBUG "-g -O0"
+  # Note that inlined version of memcmp is not used due to performance regressions.
+  # http://gcc.gnu.org/bugzilla/show_bug.cgi?id=43052
+  set( CMAKE_CXX_FLAGS_DEBUG "-g -O0 -march=corei7 -fno-builtin-strcmp -fno-builtin-strncmp -fno-builtin-memcmp"
     CACHE STRING "" FORCE)
-  set( CMAKE_CXX_FLAGS_RELEASE "-O2 -flto"
+  set( CMAKE_CXX_FLAGS_RELEASE "-O2 -flto -march=corei7 -fno-builtin-strcmp -fno-builtin-strncmp -fno-builtin-memcmp"
     CACHE STRING "" FORCE)
-  set( CMAKE_CXX_FLAGS_RELWITHDEBINFO "-g -O2"
+  set( CMAKE_CXX_FLAGS_RELWITHDEBINFO "-g -O2 -march=corei7 -fno-builtin-strcmp -fno-builtin-strncmp -fno-builtin-memcmp"
     CACHE STRING "" FORCE)
-  set( CMAKE_CXX_FLAGS_MINSIZEREL "-g -Os"
+  set( CMAKE_CXX_FLAGS_MINSIZEREL "-g -Os -march=corei7"
     CACHE STRING "" FORCE)
 
-  set( CMAKE_C_FLAGS_DEBUG "-g -O0"
+  set( CMAKE_C_FLAGS_DEBUG "-g -O0 -march=corei7"
     CACHE STRING "" FORCE)
-  set( CMAKE_C_FLAGS_RELEASE "-O2 -flto"
+  set( CMAKE_C_FLAGS_RELEASE "-O2 -flto -march=corei7"
     CACHE STRING "" FORCE)
-  set( CMAKE_C_FLAGS_RELWITHDEBINFO "-g -O2"
+  set( CMAKE_C_FLAGS_RELWITHDEBINFO "-g -O2 -march=corei7"
     CACHE STRING "" FORCE)
-  set( CMAKE_C_FLAGS_MINSIZEREL "-g -Os"
+  set( CMAKE_C_FLAGS_MINSIZEREL "-g -Os -march=corei7"
     CACHE STRING "" FORCE)
 
   set( CMAKE_EXE_LINKER_FLAGS_RELEASE "-fwhole-program" )
