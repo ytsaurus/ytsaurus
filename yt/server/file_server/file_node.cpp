@@ -127,6 +127,8 @@ public:
 protected:
     virtual void DoDestroy(TFileNode* node) override
     {
+        TBase::DoDestroy(node);
+
         auto* chunkList = node->GetChunkList();
         YCHECK(chunkList->OwningNodes().erase(node) == 1);
         Bootstrap->GetObjectManager()->UnrefObject(chunkList);
@@ -134,6 +136,8 @@ protected:
 
     virtual void DoBranch(const TFileNode* originatingNode, TFileNode* branchedNode) override
     {
+        TBase::DoBranch(originatingNode, branchedNode);
+        
         auto* chunkList = originatingNode->GetChunkList();
         branchedNode->SetChunkList(chunkList);
         Bootstrap->GetObjectManager()->RefObject(chunkList);
@@ -142,11 +146,26 @@ protected:
 
     virtual void DoMerge(TFileNode* originatingNode, TFileNode* branchedNode) override
     {
-        UNUSED(originatingNode);
+        TBase::DoMerge(originatingNode, branchedNode);
 
         auto* chunkList = branchedNode->GetChunkList();
         Bootstrap->GetObjectManager()->UnrefObject(chunkList);
         YCHECK(chunkList->OwningNodes().erase(branchedNode) == 1);
+    }
+
+    virtual void DoClone(
+        TFileNode* node,
+        TTransaction* transaction,
+        TFileNode* clonedNode) override
+    {
+        TBase::DoClone(node, transaction, clonedNode);
+
+        auto objectManager = Bootstrap->GetObjectManager();
+
+        auto* chunkList = node->GetChunkList();
+        clonedNode->SetChunkList(chunkList);
+        objectManager->RefObject(chunkList);
+        YCHECK(chunkList->OwningNodes().insert(clonedNode).second);
     }
 
 };

@@ -265,20 +265,24 @@ std::vector<TChunkDescriptor> TLocation::Scan()
     return result;
 }
 
-void TLocation::ScheduleChunkRemoval(TChunk* chunk)
+TFuture<void> TLocation::ScheduleChunkRemoval(TChunk* chunk)
 {
     auto id = chunk->GetId();
     Stroka fileName = GetChunkFileName(id);
 
     LOG_INFO("Chunk removal scheduled (ChunkId: %s)", ~id.ToString());
 
-    GetWriteInvoker()->Invoke(BIND([=] () {
+    auto promise = NewPromise<void>();
+    GetWriteInvoker()->Invoke(BIND([=] () mutable {
         // TODO: retry on failure
         LOG_DEBUG("Started removing chunk files (ChunkId: %s)", ~id.ToString());
         RemoveFile(fileName);
         RemoveFile(fileName + ChunkMetaSuffix);
         LOG_DEBUG("Finished removing chunk files (ChunkId: %s)", ~id.ToString());
+        promise.Set();
     }));
+
+    return promise;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

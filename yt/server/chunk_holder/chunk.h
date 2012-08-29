@@ -80,11 +80,15 @@ public:
      *  If no read lock is currently in progress, enqueues removal actions
      *  to the appropriate thread.
      */
-    void ScheduleRemoval();
+    TFuture<void> ScheduleRemoval();
+
+protected:
+    void EvictChunkReader();
 
 
 private:
     void Initialize();
+    void DoRemoveChunk();
 
     TAsyncError ReadMeta();
 
@@ -94,8 +98,8 @@ private:
     mutable NChunkClient::NProto::TChunkMeta Meta;
     
     int ReadLockCounter;
-    bool RemovalPending;
     bool RemovalScheduled;
+    TPromise<void> RemovedEvent;
 
 };
 

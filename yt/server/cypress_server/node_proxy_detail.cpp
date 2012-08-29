@@ -101,7 +101,7 @@ void TMapNodeProxy::Clear()
 
     // Construct children list.
     yhash_map<Stroka, TNodeId> keyToChild;
-    DoListChildren(&keyToChild);
+    ListMapChildren(Bootstrap, Id, Transaction, &keyToChild);
 
     // Take exclusive locks for children.
     std::vector< std::pair<Stroka, ICypressNode*> > children;
@@ -150,7 +150,7 @@ int TMapNodeProxy::GetChildCount() const
 std::vector< TPair<Stroka, INodePtr> > TMapNodeProxy::GetChildren() const
 {
     yhash_map<Stroka, TNodeId> keyToChild;
-    DoListChildren(&keyToChild);
+    ListMapChildren(Bootstrap, Id, Transaction, &keyToChild);
 
     std::vector< TPair<Stroka, INodePtr> > result;
     result.reserve(keyToChild.size());
@@ -163,7 +163,7 @@ std::vector< TPair<Stroka, INodePtr> > TMapNodeProxy::GetChildren() const
 std::vector<Stroka> TMapNodeProxy::GetKeys() const
 {
     yhash_map<Stroka, TNodeId> keyToChild;
-    DoListChildren(&keyToChild);
+    ListMapChildren(Bootstrap, Id, Transaction, &keyToChild);
 
     std::vector<Stroka> result;
     FOREACH (const auto& pair, keyToChild) {
@@ -174,7 +174,7 @@ std::vector<Stroka> TMapNodeProxy::GetKeys() const
 
 INodePtr TMapNodeProxy::FindChild(const Stroka& key) const
 {
-    auto versionedChildId = DoFindChild(key);
+    auto versionedChildId = FindMapChild(Bootstrap, Id, Transaction, key);
     return versionedChildId.ObjectId == NullObjectId ? NULL : GetProxy(versionedChildId.ObjectId);
 }
 
@@ -203,7 +203,7 @@ bool TMapNodeProxy::AddChild(INodePtr child, const Stroka& key)
 
 bool TMapNodeProxy::RemoveChild(const Stroka& key)
 {
-    auto versionedChildId = DoFindChild(key);
+    auto versionedChildId = FindMapChild(Bootstrap, Id, Transaction, key);
     if (versionedChildId.ObjectId == NullObjectId) {
         return false;
     }
@@ -294,46 +294,6 @@ Stroka TMapNodeProxy::GetChildKey(IConstNodePtr child)
     YUNREACHABLE();
 }
 
-void TMapNodeProxy::DoListChildren(yhash_map<Stroka, TNodeId>* keyToChild) const
-{
-    auto cypressManager = Bootstrap->GetCypressManager();
-    auto transactionManager = Bootstrap->GetTransactionManager();
-
-    auto transactions = transactionManager->GetTransactionPath(Transaction);
-    std::reverse(transactions.begin(), transactions.end());
-
-    FOREACH (const auto* transaction, transactions) {
-        const auto* node = cypressManager->GetVersionedNode(Id, transaction);
-        const auto* mapNode = static_cast<const TMapNode*>(node);
-        FOREACH (const auto& pair, mapNode->KeyToChild()) {
-            if (pair.second == NullObjectId) {
-                YCHECK(keyToChild->erase(pair.first) == 1);
-            } else {
-                (*keyToChild)[pair.first] = pair.second;
-            }
-        }
-    }
-}
-
-TVersionedNodeId TMapNodeProxy::DoFindChild(const Stroka& key) const
-{
-    auto transactionManager = Bootstrap->GetTransactionManager();
-    auto cypressManager = Bootstrap->GetCypressManager();
-
-    auto transactions = transactionManager->GetTransactionPath(Transaction);
-
-    FOREACH (const auto* transaction, transactions) {
-        const auto* node = cypressManager->GetVersionedNode(Id, transaction);
-        const auto& map = static_cast<const TMapNode*>(node)->KeyToChild();
-        auto it = map.find(key);
-        if (it != map.end()) {
-            return TVersionedNodeId(it->second, GetObjectId(transaction));
-        }
-    }
-
-    return TVersionedNodeId(NullObjectId, NullTransactionId);
-}
-
 void TMapNodeProxy::DoInvoke(NRpc::IServiceContextPtr context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(List);
@@ -352,24 +312,52 @@ IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(
     return TMapNodeMixin::ResolveRecursive(path, verb);
 }
 
-void TMapNodeProxy::DoCloneTo(TMapNode* clonedNode)
+void ListMapChildren(
+    NCellMaster::TBootstrap* bootstrap,
+    const TNodeId& nodeId,
+    NTransactionServer::TTransaction* transaction,
+    yhash_map<Stroka, TNodeId>* keyToChild)
 {
-    TBase::DoCloneTo(clonedNode);
+    auto cypressManager = bootstrap->GetCypressManager();
+    auto transactionManager = bootstrap->GetTransactionManager();
 
-    auto objectManager = Bootstrap->GetObjectManager();
+    auto transactions = transactionManager->GetTransactionPath(transaction);
+    std::reverse(transactions.begin(), transactions.end());
 
-    yhash_map<Stroka, TNodeId> keyToChild;
-    DoListChildren(&keyToChild);
+    FOREACH (const auto* currentTransaction, transactions) {
+        const auto* node = cypressManager->GetVersionedNode(nodeId, currentTransaction);
+        const auto* mapNode = static_cast<const TMapNode*>(node);
+        FOREACH (const auto& pair, mapNode->KeyToChild()) {
+            if (pair.second == NullObjectId) {
+                YCHECK(keyToChild->erase(pair.first) == 1);
+            } else {
+                (*keyToChild)[pair.first] = pair.second;
+            }
+        }
+    }
+}
 
-    FOREACH (const auto& pair, keyToChild) {
-        auto key = pair.first;
-        auto childId = pair.second;
-        YCHECK(clonedNode->KeyToChild().insert(std::make_pair(key, childId)).second);
-        YCHECK(clonedNode->ChildToKey().insert(std::make_pair(childId, key)).second);
-        objectManager->RefObject(childId);
+TVersionedNodeId FindMapChild(
+    NCellMaster::TBootstrap* bootstrap,
+    const TNodeId& nodeId,
+    NTransactionServer::TTransaction* transaction,
+    const Stroka& key)
+{
+    auto transactionManager = bootstrap->GetTransactionManager();
+    auto cypressManager = bootstrap->GetCypressManager();
+
+    auto transactions = transactionManager->GetTransactionPath(transaction);
+
+    FOREACH (const auto* currentTransaction, transactions) {
+        const auto* node = cypressManager->GetVersionedNode(nodeId, currentTransaction);
+        const auto& map = static_cast<const TMapNode*>(node)->KeyToChild();
+        auto it = map.find(key);
+        if (it != map.end()) {
+            return TVersionedNodeId(it->second, GetObjectId(transaction));
+        }
     }
 
-    YASSERT(clonedNode->ChildCountDelta() == 0);
+    return TVersionedNodeId(NullObjectId, NullTransactionId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -542,20 +530,9 @@ IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(
     return TListNodeMixin::ResolveRecursive(path, verb);
 }
 
-void TListNodeProxy::DoCloneTo(TListNode* clonedNode)
-{
-    TBase::DoCloneTo(clonedNode);
-
-    auto objectManager = Bootstrap->GetObjectManager();
-    const auto* impl = GetThisTypedImpl();
-    const auto& indexToChild = impl->IndexToChild();
-    for (int index = 0; index < indexToChild.size(); ++index) {
-        const auto& childId = indexToChild[index];
-        clonedNode->IndexToChild().push_back(childId);
-        YCHECK(clonedNode->ChildToIndex().insert(std::make_pair(childId, index)).second);
-        objectManager->RefObject(childId);
-    }
-}
+//void TListNodeProxy::DoCloneTo(TListNode* clonedNode)
+//{
+//}
 
 ////////////////////////////////////////////////////////////////////////////////
 

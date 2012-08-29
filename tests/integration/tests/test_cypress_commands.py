@@ -216,6 +216,16 @@ class TestCypressCommands(YTEnvSetup):
         copy('//tmp/a', '//tmp/b')
         assert get('//tmp/b/@x') == 'y'
 
+    def test_copy_simple4(self):
+        set("//tmp/a", { 'b' : 1 })
+        assert get('//tmp/a/b/@path') == '//tmp/a/b'
+
+        copy('//tmp/a', '//tmp/c')
+        assert get('//tmp/c/b/@path') == '//tmp/c/b'
+
+        remove('//tmp/a')
+        assert get('//tmp/c/b/@path') == '//tmp/c/b'
+
     def test_remove_locks(self):
         set('//tmp/a', {'b' : 1})
 
@@ -391,4 +401,6 @@ class TestCypressCommands(YTEnvSetup):
         set_str('//tmp/b/d', '<a = 4> 4')
 
         # TODO(babenko): write this test
+
+
     

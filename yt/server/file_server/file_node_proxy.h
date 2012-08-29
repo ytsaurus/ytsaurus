@@ -33,16 +33,14 @@ public:
 private:
     typedef NCypressServer::TCypressNodeProxyBase<NYTree::IEntityNode, TFileNode> TBase;
 
-    virtual void DoCloneTo(TFileNode* clonedNode);
-
-    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes);
-    virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer);
+    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
+    virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer) override;
     virtual void OnUpdateAttribute(
         const Stroka& key,
         const TNullable<NYTree::TYsonString>& oldValue,
-        const TNullable<NYTree::TYsonString>& newValue);
+        const TNullable<NYTree::TYsonString>& newValue) override;
 
-    virtual void DoInvoke(NRpc::IServiceContextPtr context);
+    virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
 
     DECLARE_RPC_SERVICE_METHOD(NFileClient::NProto, Fetch);
 

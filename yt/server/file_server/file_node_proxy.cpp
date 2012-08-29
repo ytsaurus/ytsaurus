@@ -34,20 +34,6 @@ TFileNodeProxy::TFileNodeProxy(
         trunkNode)
 { }
 
-void TFileNodeProxy::DoCloneTo(TFileNode* clonedNode)
-{
-    TBase::DoCloneTo(clonedNode);
-
-    auto objectManager = Bootstrap->GetObjectManager();
-
-    const auto* impl = GetThisTypedImpl();
-    auto* chunkList = impl->GetChunkList();
-
-    clonedNode->SetChunkList(chunkList);
-    objectManager->RefObject(chunkList);
-    YCHECK(chunkList->OwningNodes().insert(clonedNode).second);
-}
-
 void TFileNodeProxy::DoInvoke(IServiceContextPtr context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(Fetch);

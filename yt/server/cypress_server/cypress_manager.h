@@ -39,6 +39,7 @@ public:
     void RegisterHandler(INodeTypeHandlerPtr handler);
     INodeTypeHandlerPtr FindHandler(NObjectClient::EObjectType type);
     INodeTypeHandlerPtr GetHandler(NObjectClient::EObjectType type);
+    INodeTypeHandlerPtr GetHandler(const ICypressNode* node);
 
     typedef NRpc::TTypedServiceRequest<NCypressClient::NProto::TReqCreate> TReqCreate;
     typedef NRpc::TTypedServiceResponse<NCypressClient::NProto::TRspCreate> TRspCreate;
@@ -162,8 +163,6 @@ private:
     void ReleaseCreatedNodes(NTransactionServer::TTransaction* transaction);
     void PromoteLocks(NTransactionServer::TTransaction* transaction);
     void PromoteLock(TLock* lock, NTransactionServer::TTransaction* parentTransaction);
-
-    INodeTypeHandlerPtr GetHandler(const ICypressNode* node);
 
     void CreateNodeBehavior(const TNodeId& id);
     void DestroyNodeBehavior(const TNodeId& id);

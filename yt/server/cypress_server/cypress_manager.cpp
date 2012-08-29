@@ -400,7 +400,9 @@ ICypressNodeProxyPtr TCypressManager::FindVersionedNodeProxy(
         return NULL;
     }
 
-    return GetHandler(node)->GetProxy(node, transaction);
+    return GetHandler(node)->GetProxy(
+        node->GetTrunkNode(),
+        transaction);
 }
 
 ICypressNodeProxyPtr TCypressManager::GetVersionedNodeProxy(
