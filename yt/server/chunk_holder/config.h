@@ -47,10 +47,10 @@ struct TLocationConfig
         Register("path", Path).NonEmpty();
         Register("quota", Quota).Default(TNullable<i64>());
         Register("low_watermark", LowWatermark)
-            .GreaterThan(0)
+            .GreaterThanOrEqual(0)
             .Default((i64) 20 * 1024 * 1024 * 1024); // 20 Gb
         Register("high_watermark", HighWatermark)
-            .GreaterThan(0)
+            .GreaterThanOrEqual(0)
             .Default((i64) 10 * 1024 * 1024 * 1024); // 10 Gb
     }
 
