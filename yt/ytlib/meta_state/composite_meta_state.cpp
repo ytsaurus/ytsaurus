@@ -33,10 +33,10 @@ TMetaStatePart::TMetaStatePart(
         &TThis::OnStartRecovery,
         MakeWeak(this)));
     metaStateManager->SubscribeLeaderRecoveryComplete(BIND(
-        &TThis::OnLeaderRecoveryComplete,
-        MakeWeak(this)));
-    metaStateManager->UnsubscribeLeaderRecoveryComplete(BIND(
         &TThis::OnStopRecovery,
+        MakeWeak(this)));
+    metaStateManager->SubscribeLeaderRecoveryComplete(BIND(
+        &TThis::OnLeaderRecoveryComplete,
         MakeWeak(this)));
     metaStateManager->SubscribeStopLeading(BIND(
         &TThis::OnStopLeading,
@@ -49,10 +49,10 @@ TMetaStatePart::TMetaStatePart(
         &TThis::OnStartRecovery,
         MakeWeak(this)));
     metaStateManager->SubscribeFollowerRecoveryComplete(BIND(
-        &TThis::OnFollowerRecoveryComplete,
-        MakeWeak(this)));
-    metaStateManager->UnsubscribeFollowerRecoveryComplete(BIND(
         &TThis::OnStopRecovery,
+        MakeWeak(this)));
+    metaStateManager->SubscribeFollowerRecoveryComplete(BIND(
+        &TThis::OnFollowerRecoveryComplete,
         MakeWeak(this)));
     metaStateManager->SubscribeStopFollowing(BIND(
         &TThis::OnStopFollowing,
