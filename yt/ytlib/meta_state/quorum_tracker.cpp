@@ -95,9 +95,7 @@ void TQuorumTracker::UpdateActiveQuorum()
     bool oldHasQuorum = HasActiveQuorum();
     ActivePeerCount = 0;
     FOREACH (const auto& peer, Peers) {
-        if (peer.Status == EPeerStatus::Leading ||
-            peer.Status == EPeerStatus::Following)
-        {
+        if (peer.Status == EPeerStatus::Leading || peer.Status == EPeerStatus::Following) {
             ++ActivePeerCount;
         }
     }
