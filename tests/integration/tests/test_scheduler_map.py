@@ -7,7 +7,7 @@ from yt_commands import *
 
 #TODO(panin): refactor
 def check_all_stderrs(op_id, expected):
-    jobs_path = '//sys/operations/"' + op_id + '/"jobs'
+    jobs_path = '//sys/operations/"' + op_id + '"/jobs'
     for job_id in ls(jobs_path):
         download(jobs_path + '/"' + job_id + '"/stderr')
 
