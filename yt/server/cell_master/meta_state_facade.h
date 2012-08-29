@@ -31,11 +31,11 @@ public:
     NMetaState::TCompositeMetaStatePtr GetState() const;
     NMetaState::IMetaStateManagerPtr GetManager() const;
 
-    IInvokerPtr GetRawInvoker() const;
+    IInvokerPtr GetUnguardedInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const;
+    IInvokerPtr GetUnguardedEpochInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const;
 
-    IInvokerPtr GetWrappedInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const;
-
-    IInvokerPtr GetWrappedEpochInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const;
+    IInvokerPtr GetGuardedInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const;
+    IInvokerPtr GetGuardedEpochInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const;
 
     template <class TTarget, class TRequest, class TResponse>
     NMetaState::TMutationPtr CreateMutation(

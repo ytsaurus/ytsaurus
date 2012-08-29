@@ -42,7 +42,7 @@ public:
     /*!
      *  \note Thread affinity: any
      */
-    IInvokerPtr CreateUserStateInvokerWrapper(IInvokerPtr underlyingInvoker);
+    IInvokerPtr CreateGuardedUserInvoker(IInvokerPtr underlyingInvoker);
 
     //! Returns the invoker used for performing recovery actions.
     /*!
@@ -50,7 +50,7 @@ public:
      *
      *  \note Thread affinity: any
      */
-    IInvokerPtr GetSystemStateInvoker();
+    IInvokerPtr GetSystemInvoker();
 
     //! Returns the current version of the state.
     /*!
@@ -150,15 +150,15 @@ public:
     TMutationContext* GetMutationContext();
 
 private:
-    class TUserStateInvoker;
-    class TSystemStateInvoker;
+    class TGuardedUserInvoker;
+    class TSystemInvoker;
 
     IMetaStatePtr State;
 
     IInvokerPtr StateInvoker;
     TAtomic UserEnqueueLock;
     TAtomic SystemLock;
-    IInvokerPtr SystemStateInvoker;
+    IInvokerPtr SystemInvoker;
 
     TSnapshotStorePtr SnapshotStore;
     TChangeLogCachePtr ChangeLogCache;

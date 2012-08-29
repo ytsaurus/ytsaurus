@@ -76,11 +76,11 @@ public:
         MetaStateManager->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, Unretained(this)));
 
         for (int queueIndex = 0; queueIndex < EStateThreadQueue::GetDomainSize(); ++queueIndex) {
-            WrappedInvokers.push_back(MetaStateManager->CreateStateInvokerWrapper(StateQueue->GetInvoker(queueIndex)));
+            GuardedInvokers.push_back(MetaStateManager->CreateGuardedStateInvoker(StateQueue->GetInvoker(queueIndex)));
         }
 
         InitInvoker = New<TPeriodicInvoker>(
-            GetWrappedInvoker(EStateThreadQueue::Default),
+            GetGuardedInvoker(EStateThreadQueue::Default),
             BIND(&TImpl::OnTryInitialize, MakeWeak(this)),
             InitCheckPeriod);
     }
@@ -95,19 +95,24 @@ public:
         return MetaStateManager;
     }
 
-    IInvokerPtr GetRawInvoker() const
+    IInvokerPtr GetUnguardedInvoker(EStateThreadQueue queue) const
     {
-        return StateQueue->GetInvoker(EStateThreadQueue::Default);
+        return StateQueue->GetInvoker(queue);
     }
 
-    IInvokerPtr GetWrappedInvoker(EStateThreadQueue queue) const
+    IInvokerPtr GetUnguardedEpochInvoker(EStateThreadQueue queue) const
     {
-        return WrappedInvokers[queue];
+        return UnguardedEpochInvokers[queue];
     }
 
-    IInvokerPtr GetWrappedEpochInvoker(EStateThreadQueue queue) const
+    IInvokerPtr GetGuardedInvoker(EStateThreadQueue queue) const
     {
-        return WrappedEpochInvokers[queue];
+        return GuardedInvokers[queue];
+    }
+
+    IInvokerPtr GetGuardedEpochInvoker(EStateThreadQueue queue) const
+    {
+        return GuardedEpochInvokers[queue];
     }
 
     void Start()
@@ -124,24 +129,29 @@ private:
     TCompositeMetaStatePtr MetaState;
     IMetaStateManagerPtr MetaStateManager;
     TPeriodicInvokerPtr InitInvoker;
-    std::vector<IInvokerPtr> WrappedInvokers;
-    std::vector<IInvokerPtr> WrappedEpochInvokers;
+    std::vector<IInvokerPtr> GuardedInvokers;
+    std::vector<IInvokerPtr> GuardedEpochInvokers;
+    std::vector<IInvokerPtr> UnguardedEpochInvokers;
 
     TMapNode* Root;
 
 
     void OnStartEpoch()
     {
-        YCHECK(WrappedEpochInvokers.empty());
+        YCHECK(GuardedEpochInvokers.empty());
+        YCHECK(UnguardedEpochInvokers.empty());
+
         auto cancelableContext = MetaStateManager->GetEpochContext()->CancelableContext;
-        FOREACH (auto invoker, WrappedInvokers) {
-            WrappedEpochInvokers.push_back(cancelableContext->CreateInvoker(invoker));
+        for (int queueIndex = 0; queueIndex < EStateThreadQueue::GetDomainSize(); ++queueIndex) {
+            GuardedEpochInvokers.push_back(cancelableContext->CreateInvoker(GuardedInvokers[queueIndex]));
+            UnguardedEpochInvokers.push_back(cancelableContext->CreateInvoker(StateQueue->GetInvoker(queueIndex)));
         }
     }
 
     void OnStopEpoch()
     {
-        WrappedEpochInvokers.clear();
+        GuardedEpochInvokers.clear();
+        UnguardedEpochInvokers.clear();
     }
 
 
@@ -359,19 +369,19 @@ IMetaStateManagerPtr TMetaStateFacade::GetManager() const
     return Impl->GetManager();
 }
 
-IInvokerPtr TMetaStateFacade::GetRawInvoker() const
+IInvokerPtr TMetaStateFacade::GetUnguardedInvoker(EStateThreadQueue queue) const
 {
-    return Impl->GetRawInvoker();
+    return Impl->GetUnguardedInvoker(queue);
 }
 
-IInvokerPtr TMetaStateFacade::GetWrappedInvoker(EStateThreadQueue queue) const
+IInvokerPtr TMetaStateFacade::GetGuardedInvoker(EStateThreadQueue queue) const
 {
-    return Impl->GetWrappedInvoker(queue);
+    return Impl->GetGuardedInvoker(queue);
 }
 
-IInvokerPtr TMetaStateFacade::GetWrappedEpochInvoker(EStateThreadQueue queue) const
+IInvokerPtr TMetaStateFacade::GetGuardedEpochInvoker(EStateThreadQueue queue) const
 {
-    return Impl->GetWrappedEpochInvoker(queue);
+    return Impl->GetGuardedEpochInvoker(queue);
 }
 
 void TMetaStateFacade::Start()
@@ -383,7 +393,7 @@ TMutationPtr TMetaStateFacade::CreateMutation(EStateThreadQueue queue)
 {
     return New<TMutation>(
         GetManager(),
-        GetWrappedEpochInvoker(queue));
+        GetGuardedEpochInvoker(queue));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -49,7 +49,7 @@ TChunkService::TChunkService(TBootstrap* bootstrap)
     RegisterMethod(
         RPC_SERVICE_METHOD_DESC(FullHeartbeat)
             .SetHeavyRequest(true)
-            .SetInvoker(bootstrap->GetMetaStateFacade()->GetWrappedInvoker(EStateThreadQueue::ChunkRefresh)));
+            .SetInvoker(bootstrap->GetMetaStateFacade()->GetGuardedInvoker(EStateThreadQueue::ChunkRefresh)));
     RegisterMethod(
         RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat)
             .SetHeavyRequest(true));

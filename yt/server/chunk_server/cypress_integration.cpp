@@ -406,7 +406,7 @@ private:
         // Doing otherwise will turn node registration and Cypress update into a single
         // logged change, which is undesirable.
         BIND(&TNodeMapBehavior::CreateNodeIfNeeded, MakeStrong(this), address)
-            .Via(metaStateFacade->GetWrappedEpochInvoker())
+            .Via(metaStateFacade->GetGuardedEpochInvoker())
             .Run();
     }
 
