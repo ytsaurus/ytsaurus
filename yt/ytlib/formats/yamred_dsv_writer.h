@@ -47,11 +47,11 @@ private:
     );
     EState State;
     
-    yhash_set<Stroka> KeyColumnNames;
-    yhash_set<Stroka> SubkeyColumnNames;
+    std::set<Stroka> KeyColumnNames;
+    std::set<Stroka> SubkeyColumnNames;
 
-    yhash_map<Stroka, Stroka> KeyFields;
-    yhash_map<Stroka, Stroka> SubkeyFields;
+    std::map<Stroka, Stroka> KeyFields;
+    std::map<Stroka, Stroka> SubkeyFields;
 
     TBlobOutput ValueBuffer;
 
@@ -63,7 +63,7 @@ private:
     void WriteRow();
     void WriteYamrField(
         const std::vector<Stroka>& columnNames,
-        const yhash_map<Stroka, Stroka>& fieldValues);
+        const std::map<Stroka, Stroka>& fieldValues);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

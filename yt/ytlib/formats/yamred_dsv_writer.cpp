@@ -97,11 +97,18 @@ void TYamredDsvWriter::RememberValue(const TStringBuf& value)
     if (State != EState::ExpectingValue) {
         ythrow yexception() << "Pass value without key is forbidden";
     }
-    if (KeyColumnNames.count(Key) > 0) {
+    // Compare size before search for optimization.
+    // It is not safe in case of repeated keys. Be careful!
+    if (KeyFields.size() != KeyColumnNames.size() &&
+        KeyColumnNames.find(Key) != KeyColumnNames.end())
+    {
         YASSERT(KeyFields.count(Key) == 0);
         KeyFields[Key] = value;
     }
-    else if (SubkeyColumnNames.count(Key) > 0) {
+    else if (
+        SubkeyFields.size() != SubkeyColumnNames.size() &&
+        SubkeyColumnNames.find(Key) != SubkeyColumnNames.end())
+    {
         YASSERT(SubkeyFields.count(Key) == 0);
         SubkeyFields[Key] = value;
     }
@@ -118,7 +125,7 @@ void TYamredDsvWriter::RememberValue(const TStringBuf& value)
     }
     State = EState::None;
 }
-
+    
 void TYamredDsvWriter::WriteRow()
 {
     WriteYamrField(Config->KeyColumnNames, KeyFields);
@@ -131,13 +138,14 @@ void TYamredDsvWriter::WriteRow()
 
 void TYamredDsvWriter::WriteYamrField(
     const std::vector<Stroka>& columnNames,
-    const yhash_map<Stroka, Stroka>& fieldValues)
+    const std::map<Stroka, Stroka>& fieldValues)
 {
     for (int i = 0; i < columnNames.size(); ++i) {
-        if (fieldValues.count(columnNames[i]) == 0) {
+        auto it = fieldValues.find(columnNames[i]);
+        if (it == fieldValues.end()) {
             ythrow yexception() << "There is no required column with name " << columnNames[i];
         }
-        Stream->Write(fieldValues.find(columnNames[i])->second);
+        Stream->Write(it->second);
         if (i + 1 != columnNames.size()) {
             Stream->Write(Config->YamrKeysSeparator);
         }
