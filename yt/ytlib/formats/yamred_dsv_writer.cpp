@@ -105,14 +105,14 @@ void TYamredDsvWriter::RememberValue(const TStringBuf& value)
     // Compare size before search for optimization.
     // It is not safe in case of repeated keys. Be careful!
     if (KeyFields.size() != KeyColumnNames.size() &&
-        KeyColumnNames.count(Key) > 0)
+        KeyColumnNames.count(Key))
     {
         YASSERT(KeyFields.count(Key) == 0);
         KeyFields[Key] = value;
     }
     else if (
         SubkeyFields.size() != SubkeyColumnNames.size() &&
-        SubkeyColumnNames.count(Key) > 0)
+        SubkeyColumnNames.count(Key))
     {
         YASSERT(SubkeyFields.count(Key) == 0);
         SubkeyFields[Key] = value;

@@ -192,7 +192,7 @@ print "tskv" + "\\t" + "hello=world"
 import sys
 input = sys.stdin.readline().strip('\\n')
 assert input == '{"foo"="bar"};'
-print "key" + "\\t" + "subkey" + "\\t" + "value" + "\\n"
+print "key\\tsubkey\\tvalue"
 
 """
         upload('//tmp/mapper.sh', mapper)

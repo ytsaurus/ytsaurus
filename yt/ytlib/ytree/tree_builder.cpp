@@ -20,37 +20,37 @@ class TTreeBuilder
     , public ITreeBuilder
 {
 public:
-    TTreeBuilder(INodeFactoryPtr factory)
+    explicit TTreeBuilder(INodeFactoryPtr factory)
         : Factory(factory)
     { }
 
-    virtual void BeginTree()
+    virtual void BeginTree() override
     {
-        YASSERT(NodeStack.size() == 0);
+        YCHECK(NodeStack.size() == 0);
     }
 
-    virtual INodePtr EndTree()
+    virtual INodePtr EndTree() override
     {
         // Failure here means that the tree is not fully constructed yet.
-        YASSERT(NodeStack.size() == 0);
-        YASSERT(ResultNode);
+        YCHECK(NodeStack.size() == 0);
+        YCHECK(ResultNode);
 
         return ResultNode;
     }
 
-    virtual void OnNode(INodePtr node)
+    virtual void OnNode(INodePtr node) override
     {
         AddNode(node, false);
     }
 
-    virtual void OnMyStringScalar(const TStringBuf& value)
+    virtual void OnMyStringScalar(const TStringBuf& value) override
     {
         auto node = Factory->CreateString();
         node->SetValue(Stroka(value));
         AddNode(node, false);
     }
 
-    virtual void OnMyIntegerScalar(i64 value)
+    virtual void OnMyIntegerScalar(i64 value) override
     {
 
         auto node = Factory->CreateInteger();
@@ -58,51 +58,51 @@ public:
         AddNode(node, false);
     }
 
-    virtual void OnMyDoubleScalar(double value)
+    virtual void OnMyDoubleScalar(double value) override
     {
         auto node = Factory->CreateDouble();
         node->SetValue(value);
         AddNode(node, false);
     }
 
-    virtual void OnMyEntity()
+    virtual void OnMyEntity() override
     {
         AddNode(Factory->CreateEntity(), false);
     }
 
 
-    virtual void OnMyBeginList()
+    virtual void OnMyBeginList() override
     {
         AddNode(Factory->CreateList(), true);
     }
 
-    virtual void OnMyListItem()
+    virtual void OnMyListItem() override
     {
         YASSERT(!Key);
     }
 
-    virtual void OnMyEndList()
+    virtual void OnMyEndList() override
     {
         NodeStack.pop();
     }
 
 
-    virtual void OnMyBeginMap()
+    virtual void OnMyBeginMap() override
     {
         AddNode(Factory->CreateMap(), true);
     }
 
-    virtual void OnMyKeyedItem(const TStringBuf& key)
+    virtual void OnMyKeyedItem(const TStringBuf& key) override
     {
         Key = Stroka(key);
     }
 
-    virtual void OnMyEndMap()
+    virtual void OnMyEndMap() override
     {
         NodeStack.pop();
     }
 
-    virtual void OnMyBeginAttributes()
+    virtual void OnMyBeginAttributes() override
     {
         YASSERT(!AttributeConsumer);
         Attributes.Reset(CreateEphemeralAttributes().Release());
@@ -110,7 +110,7 @@ public:
         Forward(~AttributeConsumer, TClosure(), EYsonType::MapFragment);
     }
 
-    virtual void OnMyEndAttributes()
+    virtual void OnMyEndAttributes() override
     {
         AttributeConsumer.Reset(NULL);
         YASSERT(Attributes.Get());

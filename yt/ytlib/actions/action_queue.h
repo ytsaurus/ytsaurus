@@ -74,12 +74,14 @@ class TThreadPool
     : public TRefCounted
 {
 public:
-    TThreadPool(int threadCount, const Stroka& threadName);
+    TThreadPool(int threadCount = 1, const Stroka& threadName = "<ThreadPool>");
     virtual ~TThreadPool();
 
     void Shutdown();
 
     IInvokerPtr GetInvoker();
+
+    static TCallback<TThreadPoolPtr()> CreateFactory(int queueCount, const Stroka& threadName);
 
 private:
     class TImpl;
