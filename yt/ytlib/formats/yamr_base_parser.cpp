@@ -96,7 +96,7 @@ const char* TYamrBaseParser::Consume(const char* begin, const char* end)
     else { // State == EState::InsideValue
         ProcessValue(CurrentToken);
     }
-    CurrentToken = "";
+    CurrentToken.clear();
     return next + 1;
 }
 
@@ -147,9 +147,7 @@ const char* TYamrBaseParser::TryConsumeRecord(const char* begin, const char* end
     
 void TYamrBaseParser::ThrowIncorrectFormat() const
 {
-    ythrow yexception() <<
-        "Unexpected eoln symbol during parsing yamr record. "
-        "You may forget output value.";
+    ythrow yexception() << "Unexpected eoln symbol during parsing yamr record";
 }
 
 
