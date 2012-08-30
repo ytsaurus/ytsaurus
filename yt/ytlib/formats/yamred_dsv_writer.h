@@ -50,8 +50,8 @@ private:
     
     // On small amount of data set and map work faster
     // than hash set and hash map.
-    TSmallSet<Stroka, 128> KeyColumnNames;
-    TSmallSet<Stroka, 128> SubkeyColumnNames;
+    TSmallSet<TStringBuf, 4> KeyColumnNames;
+    TSmallSet<TStringBuf, 4> SubkeyColumnNames;
 
     std::map<Stroka, Stroka> KeyFields;
     std::map<Stroka, Stroka> SubkeyFields;

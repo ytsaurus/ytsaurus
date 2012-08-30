@@ -390,7 +390,7 @@ void TSnapshotBuilder::WatchdogFork(
     if (!result.IsOK()) {
         LOG_ERROR("Cannot open snapshot %d\n%s",
             snapshotId,
-            ~result.ToString());
+            ~ToString(result));
         localPromise.Set(TLocalResult(EResultCode::ForkError));
         return;
     }

@@ -14,6 +14,8 @@
 #include <util/generic/vector.h>
 #include <util/ysaveload.h>
 
+#include <stdexcept>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////

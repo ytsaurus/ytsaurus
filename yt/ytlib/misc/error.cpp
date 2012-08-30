@@ -380,7 +380,7 @@ TErrorException::TErrorException(const TErrorException& other)
     : Error_(other.Error_)
 { }
 
-const char* TErrorException::what() const 
+const char* TErrorException::what() const throw()
 {
     if (CachedWhat.empty()) {
         CachedWhat = ToString(Error_);
@@ -388,7 +388,7 @@ const char* TErrorException::what() const
     return ~CachedWhat;
 }
 
-TErrorException& operator <<= (TErrorException& ex, const TError& error)
+TErrorException operator <<= (TErrorException ex, const TError& error)
 {
     ex.Error() = error;
     return ex;
