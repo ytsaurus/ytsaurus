@@ -76,7 +76,7 @@ TEST_F(TPatternFormatterTest, UndefinedValue)
 {
     Formatter.AddProperty("a", "b");
     Formatter.AddProperty("key", "value");
-    EXPECT_THROW(Formatter.Format("$(a) $(kkeeyy)"), yexception);
+    EXPECT_THROW(Formatter.Format("$(a) $(kkeeyy)"), std::exception);
 }
 
 TEST_F(TPatternFormatterTest, OptionalValue)
@@ -88,9 +88,9 @@ TEST_F(TPatternFormatterTest, OptionalValue)
 TEST_F(TPatternFormatterTest, BadSyntax)
 {
     Formatter.AddProperty("a", "b");
-    EXPECT_THROW(Formatter.Format("$(a"), yexception);
-    EXPECT_THROW(Formatter.Format("$a)"), yexception);
-    EXPECT_THROW(Formatter.Format("$"),   yexception);
+    EXPECT_THROW(Formatter.Format("$(a"), std::exception);
+    EXPECT_THROW(Formatter.Format("$a)"), std::exception);
+    EXPECT_THROW(Formatter.Format("$"),   std::exception);
 }
 
 #undef EXPECT_FORMAT

@@ -60,7 +60,7 @@ TEST(TEnumTest, FromString)
     EXPECT_EQ(EColor::Black, EColor::FromString("Black"));
     EXPECT_EQ(EColor::White, EColor::FromString("White"));
 
-    EXPECT_THROW(EColor::FromString("Pink"), yexception);
+    EXPECT_THROW(EColor::FromString("Pink"), std::exception);
 
     EColor color;
     bool returnValue;

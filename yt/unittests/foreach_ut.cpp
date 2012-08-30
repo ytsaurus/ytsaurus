@@ -3,7 +3,6 @@
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/common.h>
 
-#include <util/generic/yexception.h>
 #include <util/generic/vector.h>
 
 #include <contrib/testing/framework.h>

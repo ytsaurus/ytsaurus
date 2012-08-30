@@ -49,7 +49,7 @@ private:
         if (fields.ysize() != fieldNames.size()) {
             THROW_ERROR_EXCEPTION("Invalid number of key fields: expected %d, actual %d",
                 static_cast<int>(fieldNames.size()),
-                static_cast<int>(fields.size());
+                static_cast<int>(fields.size()));
         }
         for (int i = 0; i < fields.size(); ++i) {
             Consumer->OnKeyedItem(fieldNames[i]);

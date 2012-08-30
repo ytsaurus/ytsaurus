@@ -196,14 +196,14 @@ const char* TDsvParser::FindStopPosition(const char* begin, const char* end) con
 void TDsvParser::ValidatePrefix(const Stroka& prefix) const
 {
     if (prefix != Config->LinePrefix.Get()) {
+        // TODO(babenko): provide GetPositionInfo
         THROW_ERROR_EXCEPTION(
-        	"Expected %s at the beginning of record, "
-            "found %s (Record: %d, Field: %d, %s)",
+            "Expected %s at the beginning of record, "
+            "found %s (Record: %d, Field: %d)",
             ~Config->LinePrefix.Get().Quote(),
             ~prefix.Quote(),
             RecordCount,
-            FieldCount,
-            ~GetPositionInfo());
+            FieldCount);
     }
 }
 

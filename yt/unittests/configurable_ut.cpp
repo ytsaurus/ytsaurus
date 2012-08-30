@@ -235,7 +235,7 @@ TEST(TConfigTest, MissingRequiredParameter)
     auto configNode = builder->EndTree();
 
     auto config = New<TTestConfig>();
-    EXPECT_THROW(config->Load(configNode->AsMap()), yexception);
+    EXPECT_THROW(config->Load(configNode->AsMap()), std::exception);
 }
 
 TEST(TConfigTest, IncorrectNodeType)
@@ -249,7 +249,7 @@ TEST(TConfigTest, IncorrectNodeType)
     auto configNode = builder->EndTree();
 
     auto config = New<TTestConfig>();
-    EXPECT_THROW(config->Load(configNode->AsMap()), yexception);
+    EXPECT_THROW(config->Load(configNode->AsMap()), std::exception);
 }
 
 TEST(TConfigTest, ArithmeticOverflow)
@@ -273,7 +273,7 @@ TEST(TConfigTest, ArithmeticOverflow)
     auto configNode = builder->EndTree();
 
     auto config = New<TTestConfig>();
-    EXPECT_THROW(config->Load(configNode->AsMap()), yexception);
+    EXPECT_THROW(config->Load(configNode->AsMap()), std::exception);
 }
 
 TEST(TConfigTest, Validate)
@@ -288,7 +288,7 @@ TEST(TConfigTest, Validate)
 
     auto config = New<TTestConfig>();
     config->Load(configNode, false);
-    EXPECT_THROW(config->Validate(), yexception);
+    EXPECT_THROW(config->Validate(), std::exception);
 }
 
 TEST(TConfigTest, ValidateSubconfig)
@@ -306,7 +306,7 @@ TEST(TConfigTest, ValidateSubconfig)
 
     auto config = New<TTestConfig>();
     config->Load(configNode->AsMap(), false);
-    EXPECT_THROW(config->Validate(), yexception);
+    EXPECT_THROW(config->Validate(), std::exception);
 }
 
 TEST(TConfigTest, ValidateSubconfigList)
@@ -326,7 +326,7 @@ TEST(TConfigTest, ValidateSubconfigList)
 
     auto config = New<TTestConfig>();
     config->Load(configNode->AsMap(), false);
-    EXPECT_THROW(config->Validate(), yexception);
+    EXPECT_THROW(config->Validate(), std::exception);
 }
 
 TEST(TConfigTest, ValidateSubconfigMap)
@@ -346,7 +346,7 @@ TEST(TConfigTest, ValidateSubconfigMap)
 
     auto config = New<TTestConfig>();
     config->Load(configNode->AsMap(), false);
-    EXPECT_THROW(config->Validate(), yexception);
+    EXPECT_THROW(config->Validate(), std::exception);
 }
 
 TEST(TConfigTest, Save)

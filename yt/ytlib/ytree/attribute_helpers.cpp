@@ -14,28 +14,28 @@ class TEphemeralAttributeDictionary
     typedef yhash_map<Stroka, TYPath> TAttributeMap;
     TAttributeMap Map;
 
-    virtual yhash_set<Stroka> List() const
+    virtual std::vector<Stroka> List() const override
     {
-        yhash_set<Stroka> keys;
+        std::vector<Stroka> keys;
         FOREACH (const auto& pair, Map) {
-            keys.insert(pair.first);
+            keys.push_back(pair.first);
         }
         return keys;
     }
 
-    virtual TNullable<TYsonString> FindYson(const Stroka& key) const
+    virtual TNullable<TYsonString> FindYson(const Stroka& key) const override
     {
         auto it = Map.find(key);
         return it == Map.end() ? Null : MakeNullable(TYsonString(it->second));
     }
 
-    virtual void SetYson(const Stroka& key, const TYsonString& value)
+    virtual void SetYson(const Stroka& key, const TYsonString& value) override
     {
         YASSERT(value.GetType() == EYsonType::Node);
         Map[key] = value.Data();
     }
 
-    virtual bool Remove(const Stroka& key)
+    virtual bool Remove(const Stroka& key) override
     {
         return Map.erase(key) > 0;
     }
@@ -52,22 +52,22 @@ class TEmptyAttributeDictionary
     : public IAttributeDictionary
 {
 public:
-    virtual yhash_set<Stroka> List() const
+    virtual std::vector<Stroka> List() const override
     {
-        return yhash_set<Stroka>();
+        return std::vector<Stroka>();
     }
 
-    virtual TNullable<TYsonString> FindYson(const Stroka& key) const
+    virtual TNullable<TYsonString> FindYson(const Stroka& key) const override
     {
         return Null;
     }
 
-    virtual void SetYson(const Stroka& key, const TYsonString& value)
+    virtual void SetYson(const Stroka& key, const TYsonString& value) override
     {
         YUNREACHABLE();
     }
 
-    virtual bool Remove(const Stroka& key)
+    virtual bool Remove(const Stroka& key) override
     {
         return false;
     }

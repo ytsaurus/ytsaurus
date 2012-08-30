@@ -79,7 +79,7 @@ public:
     void TestIncorrectFinish(const TStringBuf& input)
     {
         TestConsume(input);
-        EXPECT_THROW(Lexer->Finish(), yexception);
+        EXPECT_THROW(Lexer->Finish(), std::exception);
         Reset();
     }
 
@@ -88,7 +88,7 @@ public:
         size_t length = input.length();
         YASSERT(length > 0);
         TestConsume(input.Head(length - 1));
-        EXPECT_THROW(Lexer->Read(input.Tail(length - 1)), yexception);
+        EXPECT_THROW(Lexer->Read(input.Tail(length - 1)), std::exception);
         Reset();
     }
 };

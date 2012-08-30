@@ -34,7 +34,7 @@ TEST_F(TYsonTest, ConvertToNode)
     auto node = NYT::NYTree::ConvertToNode(TYsonString(yson));
 
     ASSERT_NO_THROW(node->AsMap());
-    ASSERT_THROW(node->AsList(), yexception);
+    ASSERT_THROW(node->AsList(), std::exception);
     EXPECT_EQ("key", node->AsMap()->GetKeys().front());
 
     EXPECT_EQ("{\"key\"=\"value\";\"other_key\"=10}",

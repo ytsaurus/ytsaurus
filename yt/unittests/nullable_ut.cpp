@@ -118,8 +118,8 @@ TEST(TNullableTest, Operators)
 
 TEST(TNullableTest, ToString)
 {
-    EXPECT_EQ(MakeNullable(1).ToString(), "1");
-    EXPECT_EQ(TNullable<int>().ToString(), "<NULL>");
+    EXPECT_EQ(ToString(MakeNullable(1)), "1");
+    EXPECT_EQ(ToString(TNullable<int>()), "<NULL>");
 }
 
 }

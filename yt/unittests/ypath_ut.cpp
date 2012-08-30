@@ -1,5 +1,8 @@
 #include "stdafx.h"
 
+#include <ytlib/ytree/node.h>
+#include <ytlib/ytree/convert.h>
+
 #include <ytlib/ytree/ypath_service.h>
 #include <ytlib/ytree/ypath_client.h>
 
