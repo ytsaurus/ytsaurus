@@ -119,7 +119,7 @@ TEST(TNullableTest, Operators)
 TEST(TNullableTest, ToString)
 {
     EXPECT_EQ(ToString(MakeNullable(1)), "1");
-    EXPECT_EQ(ToString(TNullable<int>()), "<NULL>");
+    EXPECT_EQ(ToString(TNullable<int>()), "<Null>");
 }
 
 }

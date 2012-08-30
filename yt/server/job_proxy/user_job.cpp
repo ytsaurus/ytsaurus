@@ -111,7 +111,7 @@ public:
             DoJobIO();
 
             LOG_DEBUG("Job process finished successfully");
-            *result.mutable_error() = JobExitError.ToProto();
+            ToProto(result.mutable_error(), JobExitError);
         } catch (const std::exception& ex) {
             TError error(ex);
             LOG_ERROR("Job failed\n%s", ~ToString(error));
@@ -321,7 +321,7 @@ private:
 
             JobExitError = StatusToError(status);
             if (!JobExitError.IsOK()) {
-                THROW_ERROR_EXCEPTION("User job failed" 
+                THROW_ERROR_EXCEPTION("User job failed")
                     << JobExitError;
             }
 

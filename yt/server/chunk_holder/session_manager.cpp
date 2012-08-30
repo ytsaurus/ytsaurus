@@ -225,7 +225,7 @@ TVoid TSession::DoWriteBlock(const TSharedRef& block, i32 blockIndex)
             }
         } catch (const std::exception& ex) {
             TBlockId blockId(ChunkId, blockIndex);
-            LOG_FATAL("Error writing chunk block %d\n%s",
+            LOG_FATAL("Error writing chunk block %s\n%s",
                 ~blockId.ToString(),
                 ex.what());
         }

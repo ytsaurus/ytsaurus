@@ -235,6 +235,11 @@ private:
     T Value;
 };
 
+inline const Stroka ToString(const int& value)
+{
+    return ::ToString(value);
+}
+
 template <class T>
 Stroka ToString(const NYT::TNullable<T>& nullable)
 {

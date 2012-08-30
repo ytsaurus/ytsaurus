@@ -189,6 +189,14 @@ public:
     TValueOrError(const TError& other)
         : TError(other)
     { }
+    
+    TValueOrError(const TErrorException& other)
+        : TError(other.Error())
+    { }
+    
+    TValueOrError(const std::exception& ex)
+        : TError(TValueOrError(ex))
+    { }
 
     TValueOrError(int code, const Stroka& message)
         : TError(code, message)
