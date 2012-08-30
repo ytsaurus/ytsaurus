@@ -1,7 +1,4 @@
 #:yt-updatable
-include_directories(
-  ../ytlib
-)
 set( BASE ${CMAKE_SOURCE_DIR}/yt/unittests )
 set( SRCS
   ${BASE}/async_change_log_ut.cpp
@@ -38,7 +35,6 @@ set( SRCS
   ${BASE}/small_string_ut.cpp
   ${BASE}/small_vector_ut.cpp
   ${BASE}/snapshot_ut.cpp
-  ${BASE}/stdafx.cpp
   ${BASE}/thread_affinity_ut.cpp
   ${BASE}/tree_builder_ut.cpp
   ${BASE}/url_ut.cpp
@@ -58,22 +54,23 @@ set( SRCS
   ${BASE}/zigzag_ut.cpp
 )
 
-protoc( rpc_ut.proto PROTO_SRC )
+protoc( rpc_ut.proto SRCS )
 
-add_msvc_precompiled_header( "stdafx.h" "stdafx.cpp" SRCS )
+add_msvc_precompiled_header(
+  "stdafx.h"
+  "stdafx.cpp"
+  SRCS
+)
+
+include_directories(
+  ../ytlib
+)
+
 add_executable( unittester
   ${CMAKE_SOURCE_DIR}/contrib/testing/framework.cpp
   ${SRCS}
-  ${PROTO_SRC}
 )
 
 target_link_libraries( unittester
   ytlib
 )
-
-if (YT_BUILD_WITH_STLPORT)
-  target_link_libraries( unittester stlport )
-  if (CMAKE_COMPILER_IS_GNUCXX)
-    set_target_properties( unittester PROPERTIES LINK_FLAGS "-nodefaultlibs -L${CMAKE_BINARY_DIR}/lib" )
-  endif()
-endif()
