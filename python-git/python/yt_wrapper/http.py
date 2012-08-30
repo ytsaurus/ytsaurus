@@ -44,6 +44,7 @@ def make_request(http_method, request_type, params,
                "Content-Type": mime_type,
                "Accept": mime_type}
 
+
     print_info("Request url:", url)
     print_info("Params:", params)
     print_info("Headers:", headers)

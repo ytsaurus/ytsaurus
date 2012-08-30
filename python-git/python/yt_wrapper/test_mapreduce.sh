@@ -1,6 +1,6 @@
 #!/bin/sh -eux
 
-echo -e "4\t5\t6\n1\t2\t3\n" > table_file
+echo -e "4\t5\t6\n1\t2\t3" > table_file
 ./mapreduce -list
 ./mapreduce -drop "ignat/temp"
 ./mapreduce -write "ignat/temp" <table_file
