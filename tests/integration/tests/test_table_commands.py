@@ -65,7 +65,7 @@ class TestTableCommands(YTEnvSetup):
         write('//tmp/table', {'foo': 'bar'}, sorted_by='foo')
         with pytest.raises(YTError):
             write('//tmp/table', {'foo': 'zzz_bar'}, sorted_by='foo')
-       
+
 
     def test_row_index_selector(self):
         create('table', '//tmp/table')
@@ -153,11 +153,11 @@ class TestTableCommands(YTEnvSetup):
 
         # open ranges
         # from left
-        assert read('//tmp/table{:aa}') == [{'a' : 1}] # + 
+        assert read('//tmp/table{:aa}') == [{'a' : 1}] # +
         assert read('//tmp/table{:aaa}') == [{'a' : 1, 'aa' : 2}] # -
 
         # from right
-        assert read('//tmp/table{bb:}') == [{'bb' : 4, 'c' : 5}] # + 
+        assert read('//tmp/table{bb:}') == [{'bb' : 4, 'c' : 5}] # +
         assert read('//tmp/table{bz:}') == [{'c' : 5}] # -
         assert read('//tmp/table{xxx:}') == [{}]
 
@@ -187,7 +187,7 @@ class TestTableCommands(YTEnvSetup):
         write_str('//tmp/table', '{a=1}', tx=tx)
         write_str('//tmp/table', '{b=2}', tx=tx)
         write_str('//tmp/table', '{c=3}', tx=tx)
-        
+
         assert read('//tmp/table') == []
         assert read('//tmp/table', tx=tx) == [{'a':1}, {'b':2}, {'c' : 3}]
 
@@ -215,7 +215,7 @@ class TestTableCommands(YTEnvSetup):
         commit_transaction(tx2)
         assert read('//tmp/table') == [{'a' : 1}, {'c': 3}, {'d' : 4}]
         assert read('//tmp/table', tx = tx1) == [{'a' : 1}, {'b': 2}]
-        
+
         # now all records are in table in specific order
         commit_transaction(tx1)
         assert read('//tmp/table') == [{'a' : 1}, {'c': 3}, {'d' : 4}, {'b' : 2}]
@@ -272,4 +272,9 @@ class TestTableCommands(YTEnvSetup):
     def test_codec_in_writer(self):
         create('table', '//tmp/table')
         write_str('//tmp/table', '{b="hello"}', opt="/table_writer/codec_id=gzip_best_compression")
+
         assert read('//tmp/table') == [{"b":"hello"}]
+
+        chunk_id = get("//tmp/table/@chunk_ids/0")
+        assert get('#"%s"/@codec_id' % chunk_id) == "gzip_best_compression"
+

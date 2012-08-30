@@ -47,6 +47,8 @@ set( SRCS
   ${BASE}/weak_ptr_ut.cpp
   ${BASE}/yamr_parser_ut.cpp
   ${BASE}/yamr_writer_ut.cpp
+  ${BASE}/yamred_dsv_parser_ut.cpp
+  ${BASE}/yamred_dsv_writer_ut.cpp
   ${BASE}/ypath_ut.cpp
   ${BASE}/yson_parser_ut.cpp
   ${BASE}/yson_ut.cpp

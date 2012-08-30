@@ -5,6 +5,7 @@
 #include "helpers.h"
 
 #include <ytlib/misc/blob_output.h>
+#include <ytlib/misc/small_set.h>
 
 namespace NYT {
 namespace NFormats {
@@ -12,17 +13,15 @@ namespace NFormats {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Note: #TYamrWriter supports only tabular data
-class TYamrWriter
-    : public virtual TFormatsConsumerBase
+class TYamredDsvWriter
+    : public TFormatsConsumerBase
 {
 public:
-    explicit TYamrWriter(
+    explicit TYamredDsvWriter(
         TOutputStream* stream,
-        // TODO(ignat): replace default value with YCHECK.
-        // Default value is used in tests.
-        TYamrFormatConfigPtr config = NULL);
+        TYamredDsvFormatConfigPtr config = NULL);
 
-    ~TYamrWriter();
+    ~TYamredDsvWriter();
 
     // IYsonConsumer overrides.
     virtual void OnStringScalar(const TStringBuf& value) override;
@@ -40,33 +39,38 @@ public:
 
 private:
     TOutputStream* Stream;
-    TYamrFormatConfigPtr Config;
+    TYamredDsvFormatConfigPtr Config;
 
-    TStringBuf Key;
-    TStringBuf Subkey;
-    TStringBuf Value;
-
-    TBlobOutput KeyBuffer;
-    TBlobOutput SubkeyBuffer;
-    TBlobOutput ValueBuffer;
-
-    bool AllowBeginMap;
-
-    void RememberItem(const TStringBuf& item, bool takeOwnership);
-
-    void WriteRow();
-    void WriteInLenvalMode(const TStringBuf& value);
-
+    Stroka Key;
     DECLARE_ENUM(EState,
         (None)
-        (ExpectingKey)
-        (ExpectingSubkey)
         (ExpectingValue)
     );
     EState State;
+    
+    // On small amount of data set and map work faster
+    // than hash set and hash map.
+    TSmallSet<Stroka, 128> KeyColumnNames;
+    TSmallSet<Stroka, 128> SubkeyColumnNames;
+
+    std::map<Stroka, Stroka> KeyFields;
+    std::map<Stroka, Stroka> SubkeyFields;
+
+    TBlobOutput ValueBuffer;
+
+    bool IsValueEmpty;
+    bool AllowBeginMap;
+
+    void RememberValue(const TStringBuf& value);
+
+    void WriteRow();
+    void WriteYamrField(
+        const std::vector<Stroka>& columnNames,
+        const std::map<Stroka, Stroka>& fieldValues);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
             
 } // namespace NFormats
 } // namespace NYT
+

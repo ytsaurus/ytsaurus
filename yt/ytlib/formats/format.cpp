@@ -10,6 +10,9 @@
 #include "yamr_parser.h"
 #include "yamr_writer.h"
 
+#include "yamred_dsv_parser.h"
+#include "yamred_dsv_writer.h"
+
 #include <ytlib/ytree/yson_writer.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/forwarding_yson_consumer.h>
@@ -196,6 +199,19 @@ TAutoPtr<IYsonConsumer> CreateConsumerForYamr(
     return new TYamrWriter(output, config);
 }
 
+TAutoPtr<IYsonConsumer> CreateConsumerForYamredDsv(
+    EDataType dataType,
+    const IAttributeDictionary& attributes,
+    TOutputStream* output)
+{
+    if (dataType != EDataType::Tabular) {
+        ythrow yexception() << Sprintf("Yamred dsv is supported only for tabular data");
+    }
+    auto config = New<TYamredDsvFormatConfig>();
+    config->Load(ConvertToNode(&attributes)->AsMap());
+    return new TYamredDsvWriter(output, config);
+}
+
 
 TAutoPtr<IYsonConsumer> CreateConsumerForFormat(const TFormat& format, EDataType dataType, TOutputStream* output)
 {
@@ -208,6 +224,8 @@ TAutoPtr<IYsonConsumer> CreateConsumerForFormat(const TFormat& format, EDataType
             return CreateConsumerForDsv(dataType, format.Attributes(), output);
         case EFormatType::Yamr:
             return CreateConsumerForYamr(dataType, format.Attributes(), output);
+        case EFormatType::YamredDsv:
+            return CreateConsumerForYamredDsv(dataType, format.Attributes(), output);
         default:
             ythrow yexception() << Sprintf("Unsupported output format %s",
                 ~FormatEnum(format.GetType()).Quote());
@@ -246,6 +264,21 @@ TYsonProducer CreateProducerForYamr(
     });
 }
 
+TYsonProducer CreateProducerForYamredDsv(
+    EDataType dataType,
+    const IAttributeDictionary& attributes,
+    TInputStream* input)
+{
+    if (dataType != EDataType::Tabular) {
+        ythrow yexception() << Sprintf("Yamred Dsv is only supported only for tabular data");
+    }
+    auto config = New<TYamredDsvFormatConfig>();
+    config->Load(ConvertToNode(&attributes)->AsMap());
+    return BIND([=] (IYsonConsumer* consumer) {
+        ParseYamredDsv(input, consumer, config);
+    });
+}
+
 TYsonProducer CreateProducerForJson(
     EDataType dataType,
     const IAttributeDictionary& attributes,
@@ -278,6 +311,8 @@ TYsonProducer CreateProducerForFormat(const TFormat& format, EDataType dataType,
             return CreateProducerForDsv(dataType, format.Attributes(), input);
         case EFormatType::Yamr:
             return CreateProducerForYamr(dataType, format.Attributes(), input);
+        case EFormatType::YamredDsv:
+            return CreateProducerForYamredDsv(dataType, format.Attributes(), input);
         default:
             ythrow yexception() << Sprintf("Unsupported input format %s",
                 ~FormatEnum(format.GetType()).Quote());
@@ -299,12 +334,17 @@ TAutoPtr<NYTree::IParser> CreateParserForFormat(const TFormat& format, EDataType
         case EFormatType::Dsv: {
             auto config = New<TDsvFormatConfig>();
             config->Load(ConvertToNode(&format.Attributes())->AsMap());
-            return new TDsvParser(consumer, config);
+            return CreateParserForDsv(consumer, config);
         }
         case EFormatType::Yamr: {
             auto config = New<TYamrFormatConfig>();
             config->Load(ConvertToNode(&format.Attributes())->AsMap());
             return CreateParserForYamr(consumer, config);
+        }
+        case EFormatType::YamredDsv: {
+            auto config = New<TYamredDsvFormatConfig>();
+            config->Load(ConvertToNode(&format.Attributes())->AsMap());
+            return CreateParserForYamredDsv(consumer, config);
         }
         default:
             ythrow yexception() << Sprintf("Unsupported input format %s",

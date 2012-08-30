@@ -2,9 +2,8 @@
 
 #include "public.h"
 #include "config.h"
+#include "helpers.h"
 
-#include <ytlib/ytree/yson_consumer.h>
-#include <ytlib/ytree/lexer.h>
 #include <ytlib/misc/enum.h>
 
 namespace NYT {
@@ -19,12 +18,14 @@ namespace NFormats {
 //  * Key and Values in map are separated with KeyValueSeparator
 
 class TDsvWriter
-    : public NYTree::IYsonConsumer
+    : public virtual TFormatsConsumerBase
 {
 public:
     explicit TDsvWriter(
         TOutputStream* stream,
         NYTree::EYsonType type = NYTree::EYsonType::ListFragment,
+        // TODO(ignat): replace default value with YCHECK.
+        // Default value is used in tests.
         TDsvFormatConfigPtr config = NULL);
     ~TDsvWriter();
 
@@ -42,27 +43,20 @@ public:
     virtual void OnBeginAttributes() override;
     virtual void OnEndAttributes() override;
 
-    virtual void OnRaw(const TStringBuf& yson, NYTree::EYsonType type) override;
-
 private:
     NYTree::EYsonType Type;
 
     TOutputStream* Stream;
     TDsvFormatConfigPtr Config;
 
-    bool FirstLine;
-    bool FirstItem;
+    bool InsideFirstLine;
+    bool InsideFirstItem;
 
     void EscapeAndWrite(const TStringBuf& key, const bool* IsStopSymbol);
     const char* FindNextEscapedSymbol(const char* begin, const char* end, const bool* IsStopSymbol);
-    char EscapingTable[256];
 
     bool AllowBeginList;
     bool AllowBeginMap;
-
-    bool IsKeyStopSymbol[256];
-    bool IsValueStopSymbol[256];
-
 
     NYTree::TLexer Lexer;
 };

@@ -70,6 +70,26 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// We need definition of this class in header because we want to inherit it.
+class TUserAttributeDictionary
+    : public NYTree::IAttributeDictionary
+{
+public:
+    TUserAttributeDictionary(TObjectManagerPtr objectManager, const TObjectId& objectId);
+
+    // NYTree::IAttributeDictionary members
+    virtual std::vector<Stroka> List() const override;
+    virtual TNullable<NYTree::TYsonString> FindYson(const Stroka& key) const override;
+    virtual void SetYson(const Stroka& key, const NYTree::TYsonString& value) override;
+    virtual bool Remove(const Stroka& key) override;
+
+protected:
+    TObjectManagerPtr ObjectManager;
+    TObjectId ObjectId;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TObjectProxyBase
     : public virtual NYTree::TYPathServiceBase
     , public virtual NYTree::TSupportsAttributes
@@ -81,10 +101,10 @@ public:
     ~TObjectProxyBase();
 
     // IObjectProxy members
-    virtual const TObjectId& GetId() const;
-    virtual NYTree::IAttributeDictionary& Attributes();
-    virtual const NYTree::IAttributeDictionary& Attributes() const;
-    virtual void Invoke(NRpc::IServiceContextPtr context);
+    virtual const TObjectId& GetId() const override;
+    virtual NYTree::IAttributeDictionary& Attributes() override;
+    virtual const NYTree::IAttributeDictionary& Attributes() const override;
+    virtual void Invoke(NRpc::IServiceContextPtr context) override;
 
 protected:
     NCellMaster::TBootstrap* Bootstrap;
@@ -99,37 +119,19 @@ protected:
     virtual TVersionedObjectId GetVersionedId() const;
 
     void GuardedInvoke(NRpc::IServiceContextPtr context);
-    virtual void DoInvoke(NRpc::IServiceContextPtr context);
-    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const;
+    virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
+    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
 
     // NYTree::TSupportsAttributes members
-    virtual NYTree::IAttributeDictionary* GetUserAttributes();
-    virtual ISystemAttributeProvider* GetSystemAttributeProvider();
+    virtual NYTree::IAttributeDictionary* GetUserAttributes() override;
+    virtual ISystemAttributeProvider* GetSystemAttributeProvider() override;
 
     virtual TAutoPtr<NYTree::IAttributeDictionary> DoCreateUserAttributes();
 
     // NYTree::ISystemAttributeProvider members
-    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes);
-    virtual bool GetSystemAttribute(const Stroka& key, NYTree::IYsonConsumer* consumer);
-    virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value);
-
-    // We need definition of this class in header because we want to inherit it.
-    class TUserAttributeDictionary
-        : public NYTree::IAttributeDictionary
-    {
-    public:
-        TUserAttributeDictionary(TObjectManagerPtr objectManager, const TObjectId& objectId);
-
-        // NYTree::IAttributeDictionary members
-        virtual yhash_set<Stroka> List() const;
-        virtual TNullable<NYTree::TYsonString> FindYson(const Stroka& key) const;
-        virtual void SetYson(const Stroka& key, const NYTree::TYsonString& value);
-        virtual bool Remove(const Stroka& key);
-
-    protected:
-        TObjectManagerPtr ObjectManager;
-        TObjectId ObjectId;
-    };
+    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
+    virtual bool GetSystemAttribute(const Stroka& key, NYTree::IYsonConsumer* consumer) override;
+    virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
     bool IsRecovery() const;
     void ValidateLeaderStatus();
@@ -160,7 +162,7 @@ public:
 protected:
     TMap* Map;
 
-    virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
+    virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context) override
     {
         UNUSED(request);
 

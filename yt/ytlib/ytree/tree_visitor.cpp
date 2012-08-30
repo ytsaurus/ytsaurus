@@ -96,10 +96,10 @@ private:
             Consumer->OnEndAttributes();
         } else {
             // Slow path.
-            auto attributesKeys = node->Attributes().List();
-            if (attributesKeys.size() > 0) {
+            auto keys = node->Attributes().List();
+            if (keys.size() > 0) {
                 Consumer->OnBeginAttributes();
-                FOREACH (const auto& key, attributesKeys) {
+                FOREACH (const auto& key, keys) {
                     Consumer->OnKeyedItem(key);
                     Consume(node->Attributes().GetYson(key), Consumer);
                 }

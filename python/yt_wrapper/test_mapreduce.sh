@@ -18,8 +18,7 @@ for (( i=1 ; i <= 2 ; i++ )); do
 done
 ./mapreduce -read "ignat/temp" | wc -l
 
-./mapreduce -write "ignat/temp" -chunksize 1 <table_file
-
+./mapreduce -write "ignat/temp" -codec gzip_normal -chunksize 1 <table_file
 
 # Test many output tables
 echo -e "#!/usr/bin/env python

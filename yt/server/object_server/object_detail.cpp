@@ -86,6 +86,74 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TUserAttributeDictionary::TUserAttributeDictionary(
+    TObjectManagerPtr objectManager,
+    const TObjectId& objectId)
+    : ObjectManager(MoveRV(objectManager))
+    , ObjectId(objectId)
+{ }
+
+std::vector<Stroka> TUserAttributeDictionary::List() const
+{
+    std::vector<Stroka> keys;
+    const auto* attributeSet = ObjectManager->FindAttributes(ObjectId);
+    if (attributeSet) {
+        FOREACH (const auto& pair, attributeSet->Attributes()) {
+            // Attribute cannot be empty (i.e. deleted) in null transaction.
+            YASSERT(pair.second);
+            keys.push_back(pair.first);
+        }
+    }
+    return keys;
+}
+
+TNullable<TYsonString> TUserAttributeDictionary::FindYson(const Stroka& key) const
+{
+    const auto* attributeSet = ObjectManager->FindAttributes(ObjectId);
+    if (!attributeSet) {
+        return Null;
+    }
+    auto it = attributeSet->Attributes().find(key);
+    if (it == attributeSet->Attributes().end()) {
+        return Null;
+    }
+    // Attribute cannot be empty (i.e. deleted) in null transaction.
+    YASSERT(it->second);
+    return it->second;
+}
+
+void TUserAttributeDictionary::SetYson(
+    const Stroka& key,
+    const NYTree::TYsonString& value)
+{
+    auto* attributeSet = ObjectManager->FindAttributes(ObjectId);
+    if (!attributeSet) {
+        attributeSet = ObjectManager->CreateAttributes(ObjectId);
+    }
+    attributeSet->Attributes()[key] = value;
+}
+
+bool TUserAttributeDictionary::Remove(const Stroka& key)
+{
+    auto* attributeSet = ObjectManager->FindAttributes(ObjectId);
+    if (!attributeSet) {
+        return false;
+    }
+    auto it = attributeSet->Attributes().find(key);
+    if (it == attributeSet->Attributes().end()) {
+        return false;
+    }
+    // Attribute cannot be empty (i.e. deleted) in null transaction.
+    YASSERT(it->second);
+    attributeSet->Attributes().erase(it);
+    if (attributeSet->Attributes().empty()) {
+        ObjectManager->RemoveAttributes(ObjectId);
+    }
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TObjectProxyBase::TObjectProxyBase(
     TBootstrap* bootstrap,
     const TObjectId& id)
@@ -281,74 +349,6 @@ void TObjectProxyBase::ValidateLeaderStatus()
         throw TLeaderFallbackException();
     }
     YCHECK(status == NMetaState::EPeerStatus::Leading);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TObjectProxyBase::TUserAttributeDictionary::TUserAttributeDictionary(
-    TObjectManagerPtr objectManager,
-    const TObjectId& objectId)
-    : ObjectManager(MoveRV(objectManager))
-    , ObjectId(objectId)
-{ }
-
-yhash_set<Stroka> TObjectProxyBase::TUserAttributeDictionary::List() const
-{
-    yhash_set<Stroka> attributes;
-    const auto* attributeSet = ObjectManager->FindAttributes(ObjectId);
-    if (attributeSet) {
-        FOREACH (const auto& pair, attributeSet->Attributes()) {
-            // Attribute cannot be empty (i.e. deleted) in null transaction.
-            YASSERT(pair.second);
-            attributes.insert(pair.first);
-        }
-    }
-    return attributes;
-}
-
-TNullable<TYsonString> TObjectProxyBase::TUserAttributeDictionary::FindYson(const Stroka& key) const
-{
-    const auto* attributeSet = ObjectManager->FindAttributes(ObjectId);
-    if (!attributeSet) {
-        return Null;
-    }
-    auto it = attributeSet->Attributes().find(key);
-    if (it == attributeSet->Attributes().end()) {
-        return Null;
-    }
-    // Attribute cannot be empty (i.e. deleted) in null transaction.
-    YASSERT(it->second);
-    return it->second;
-}
-
-void TObjectProxyBase::TUserAttributeDictionary::SetYson(
-    const Stroka& key,
-    const NYTree::TYsonString& value)
-{
-    auto* attributeSet = ObjectManager->FindAttributes(ObjectId);
-    if (!attributeSet) {
-        attributeSet = ObjectManager->CreateAttributes(ObjectId);
-    }
-    attributeSet->Attributes()[key] = value;
-}
-
-bool TObjectProxyBase::TUserAttributeDictionary::Remove(const Stroka& key)
-{
-    auto* attributeSet = ObjectManager->FindAttributes(ObjectId);
-    if (!attributeSet) {
-        return false;
-    }
-    auto it = attributeSet->Attributes().find(key);
-    if (it == attributeSet->Attributes().end()) {
-        return false;
-    }
-    // Attribute cannot be empty (i.e. deleted) in null transaction.
-    YASSERT(it->second);
-    attributeSet->Attributes().erase(it);
-    if (attributeSet->Attributes().empty()) {
-        ObjectManager->RemoveAttributes(ObjectId);
-    }
-    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

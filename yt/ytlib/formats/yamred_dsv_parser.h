@@ -8,23 +8,24 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAutoPtr<NYTree::IParser> CreateParserForYamr(
+TAutoPtr<NYTree::IParser> CreateParserForYamredDsv(
     NYTree::IYsonConsumer* consumer,
-    TYamrFormatConfigPtr config = NULL);
+    TYamredDsvFormatConfigPtr config = NULL);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ParseYamr(
+void ParseYamredDsv(
     TInputStream* input,
     NYTree::IYsonConsumer* consumer,
-    TYamrFormatConfigPtr config = NULL);
+    TYamredDsvFormatConfigPtr config = NULL);
 
-void ParseYamr(
+void ParseYamredDsv(
     const TStringBuf& data,
     NYTree::IYsonConsumer* consumer,
-    TYamrFormatConfigPtr config = NULL);
+    TYamredDsvFormatConfigPtr config = NULL);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFormats
 } // namespace NYT
+
