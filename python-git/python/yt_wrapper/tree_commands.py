@@ -1,4 +1,3 @@
-from common import bool_to_string
 from path_tools import escape_path, split_path, dirs
 from http import make_request
 
@@ -6,10 +5,17 @@ import os
 import string
 import random
 
-def get(path, with_attributes=False, check_errors=True):
+def get(path, check_errors=True, attributes=None):
+    if attributes is None:
+        attributes = []
     return make_request("GET", "get",
-                        {"path": escape_path(path),
-                         "with_attributes": bool_to_string(with_attributes)},
+                        # Hacky way to pass attributes into url
+                        dict(
+                            [("path", escape_path(path))] +
+                            [("attributes[%d]" % i, attributes[i]) for i in xrange(len(attributes))]
+                        ),
+                        #{"path": escape_path(path),
+                        # "attributes": attributes},
                         check_errors=check_errors)
 
 def set(path, value):
