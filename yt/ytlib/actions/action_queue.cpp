@@ -269,6 +269,13 @@ IInvokerPtr TThreadPool::GetInvoker()
     return Impl->GetInvoker();
 }
 
+TCallback<TThreadPoolPtr()> TThreadPool::CreateFactory(int queueCount, const Stroka& threadName)
+{
+    return BIND([=] () {
+        return NYT::New<NYT::TThreadPool>(queueCount, threadName);
+    });
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 class TPrioritizedActionQueue::TImpl
