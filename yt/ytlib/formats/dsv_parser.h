@@ -14,7 +14,7 @@ namespace NFormats {
 TAutoPtr<NYTree::IParser> CreateParserForDsv(
     NYTree::IYsonConsumer* consumer,
     TDsvFormatConfigPtr config = NULL,
-    bool newRecordStarted = false);
+    bool makeRecordProcessing = true);
 
 ////////////////////////////////////////////////////////////////////////////////
 

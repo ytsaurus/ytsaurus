@@ -26,12 +26,14 @@ public:
               config->HasSubkey)
         , Consumer(consumer)
         , Config(config)
+        , DsvParser(
+            CreateParserForDsv(Consumer, Config, /*make record processing*/ false))
     { }
 
 private:
     NYTree::IYsonConsumer* Consumer;
     TYamredDsvFormatConfigPtr Config;
-    //TAutoPtr<NYTree::IParser> DsvParser;
+    TAutoPtr<NYTree::IParser> DsvParser;
 
     void ConsumeFields(
         const std::vector<Stroka>& fieldNames,
@@ -70,10 +72,9 @@ private:
 
     void ConsumeValue(const TStringBuf& value)
     {
-        // TODO(ignat): refactor dsv parser for creating it once
-        auto parser = CreateParserForDsv(Consumer, Config, /*new record started*/ true);
-        parser->Read(value);
-        parser->Finish();
+        DsvParser->Read(value);
+        DsvParser->Finish();
+        Consumer->OnEndMap();
     }
 };
 
