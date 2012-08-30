@@ -282,7 +282,7 @@ std::vector<Stroka> DoListAttributes(
     }
 
     if (userAttributes) {
-        const auto& userKeys = userAttributes->List();
+        auto userKeys = userAttributes->List();
         keys.insert(keys.end(), userKeys.begin(), userKeys.end());
     }
 
@@ -319,10 +319,9 @@ public:
         , SystemAttributeProvider(systemAttributeProvider)
     { }
 
-    virtual yhash_set<Stroka> List() const override
+    virtual std::vector<Stroka> List() const override
     {
-        auto keys = DoListAttributes(UserAttributes, SystemAttributeProvider);
-        return yhash_set<Stroka>(keys.begin(), keys.end());
+        return DoListAttributes(UserAttributes, SystemAttributeProvider);
     }
 
     virtual TNullable<TYsonString> FindYson(const Stroka& key) const override
@@ -397,9 +396,7 @@ void TSupportsAttributes::GetAttribute(
         }
 
         if (userAttributes) {
-            auto userAttributeSet = userAttributes->List();
-            std::vector<Stroka> userAttributeList(userAttributeSet.begin(), userAttributeSet.end());
-            FOREACH (const auto& key, userAttributeList) {
+            FOREACH (const auto& key, userAttributes->List()) {
                 writer.OnKeyedItem(key);
                 Consume(userAttributes->GetYson(key), &writer);
             }
@@ -468,14 +465,11 @@ void TSupportsAttributes::SetAttribute(
 
     if (!tokenizer.ParseNext()) {
         auto newAttributes = ConvertToAttributes(TYsonString(request->value()));
-        auto newKeys = newAttributes->List();
-        yhash_set<Stroka> userKeys;
-        if (userAttributes) {
-            auto temp = userAttributes->List();
-            userKeys.swap(temp);
-        }
+        auto newKeys_ = newAttributes->List();
+        yhash_set<Stroka> newKeys(newKeys_.begin(), newKeys_.end());
+        auto oldKeys = userAttributes ? userAttributes->List() : std::vector<Stroka>();
 
-        // Call OnUpdateAttribute to check the changes for feasiblity.
+        // Call OnUpdateAttribute to check the changes for feasibility.
         FOREACH (const auto& key, newKeys) {
             YASSERT(!key.empty());
             OnUpdateAttribute(
@@ -483,7 +477,7 @@ void TSupportsAttributes::SetAttribute(
                 DoFindAttribute(userAttributes, systemAttributeProvider, key),
                 newAttributes->GetYson(key));
         }
-        FOREACH (const auto& key, userKeys) {
+        FOREACH (const auto& key, oldKeys) {
             if (newKeys.find(key) == newKeys.end()) {
                 OnUpdateAttribute(
                     key,
@@ -493,7 +487,7 @@ void TSupportsAttributes::SetAttribute(
         }
 
         // Remove deleted keys.
-        FOREACH (const auto& key, userKeys) {
+        FOREACH (const auto& key, oldKeys) {
             userAttributes->Remove(key);
         }
 

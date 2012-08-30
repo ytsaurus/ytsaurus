@@ -2,6 +2,7 @@
 
 #include "node.h"
 #include "cypress_manager.h"
+#include "helpers.h"
 
 #include <ytlib/misc/serialize.h>
 
@@ -226,18 +227,14 @@ protected:
         // Copy attributes directly to suppress validation.
         auto objectManager = Bootstrap->GetObjectManager();
 
-        auto proxy = GetProxy(node->GetTrunkNode(), transaction);
-
-        const auto& attributes = proxy->Attributes();
-        auto keys = attributes.List();
-        if (keys.empty())
+        auto keyToAttribute = GetNodeAttributes(Bootstrap, node->GetId().ObjectId, transaction);
+        if (keyToAttribute.empty())
             return;
 
         auto* clonedAttributes = objectManager->CreateAttributes(clonedNode->GetId());
 
-        FOREACH (const auto& key, keys) {
-            auto value = attributes.GetYson(key);
-            YCHECK(clonedAttributes->Attributes().insert(std::make_pair(key, value)).second);
+        FOREACH (const auto& pair, keyToAttribute) {
+            YCHECK(clonedAttributes->Attributes().insert(pair).second);
         }
     }
 

@@ -55,6 +55,29 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TVersionedUserAttributeDictionary
+    : public NYTree::IAttributeDictionary
+{
+public:
+    TVersionedUserAttributeDictionary(
+        const NObjectClient::TObjectId& id,
+        NTransactionServer::TTransaction* transaction,
+        NCellMaster::TBootstrap* bootstrap);
+
+    virtual std::vector<Stroka> List() const override;
+    virtual TNullable<NYTree::TYsonString> FindYson(const Stroka& name) const override;
+    virtual void SetYson(const Stroka& key, const NYTree::TYsonString& value) override;
+    virtual bool Remove(const Stroka& key) override;
+
+protected:
+    TNodeId Id;
+    NTransactionServer::TTransaction* Transaction;
+    NCellMaster::TBootstrap* Bootstrap;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class IBase, class TImpl>
 class TCypressNodeProxyBase
     : public NYTree::TNodeBase
@@ -374,146 +397,6 @@ protected:
             Bootstrap);
     }
 
-    class TVersionedUserAttributeDictionary
-        : public NYTree::IAttributeDictionary
-    {
-    public:
-        TVersionedUserAttributeDictionary(
-            const NObjectClient::TObjectId& id,
-            NTransactionServer::TTransaction* transaction,
-            NCellMaster::TBootstrap* bootstrap)
-            : Id(id)
-            , Transaction(transaction)
-            , Bootstrap(bootstrap)
-        { }
-           
-        
-        virtual yhash_set<Stroka> List() const
-        {
-            auto objectManager = Bootstrap->GetObjectManager();
-            auto transactionManager = Bootstrap->GetTransactionManager();
-
-            auto transactions = transactionManager->GetTransactionPath(Transaction);
-            std::reverse(transactions.begin(), transactions.end());
-
-            yhash_set<Stroka> attributes;
-            FOREACH (const auto* transaction, transactions) {
-                NObjectServer::TVersionedObjectId versionedId(Id, NObjectServer::GetObjectId(transaction));
-                const auto* userAttributes = objectManager->FindAttributes(versionedId);
-                if (userAttributes) {
-                    FOREACH (const auto& pair, userAttributes->Attributes()) {
-                        if (pair.second) {
-                            attributes.insert(pair.first);
-                        } else {
-                            attributes.erase(pair.first);
-                        }
-                    }
-                }
-            }
-            return attributes;
-        }
-
-        virtual TNullable<NYTree::TYsonString> FindYson(const Stroka& name) const override
-        {
-            auto objectManager = Bootstrap->GetObjectManager();
-            auto transactionManager = Bootstrap->GetTransactionManager();
-
-            auto transactions = transactionManager->GetTransactionPath(Transaction);
-
-            FOREACH (const auto* transaction, transactions) {
-                NObjectServer::TVersionedObjectId versionedId(Id, NObjectServer::GetObjectId(transaction));
-                const auto* userAttributes = objectManager->FindAttributes(versionedId);
-                if (userAttributes) {
-                    auto it = userAttributes->Attributes().find(name);
-                    if (it != userAttributes->Attributes().end()) {
-                        return it->second;
-                    }
-                }
-            }
-
-            return Null;
-        }
-
-        virtual void SetYson(const Stroka& key, const NYTree::TYsonString& value) override
-        {
-            auto objectManager = Bootstrap->GetObjectManager();
-            auto cypressManager = Bootstrap->GetCypressManager();
-
-            auto* node = cypressManager->LockVersionedNode(
-                Id,
-                Transaction,
-                TLockRequest::SharedAttribute(key));
-            auto versionedId = node->GetId();
-
-            auto* userAttributes = objectManager->FindAttributes(versionedId);
-            if (!userAttributes) {
-                userAttributes = objectManager->CreateAttributes(versionedId);
-            }
-
-            userAttributes->Attributes()[key] = value;
-
-            cypressManager->SetModified(Id, Transaction);
-        }
-
-        virtual bool Remove(const Stroka& key) override
-        {
-            auto cypressManager = Bootstrap->GetCypressManager();
-            auto objectManager = Bootstrap->GetObjectManager();
-            auto transactionManager = Bootstrap->GetTransactionManager();
-
-            auto transactions = transactionManager->GetTransactionPath(Transaction);
-            std::reverse(transactions.begin(), transactions.end());
-
-            const NTransactionServer::TTransaction* containingTransaction = NULL;
-            bool contains = false;
-            FOREACH (const auto* transaction, transactions) {
-                NObjectServer::TVersionedObjectId versionedId(Id, NObjectServer::GetObjectId(transaction));
-                const auto* userAttributes = objectManager->FindAttributes(versionedId);
-                if (userAttributes) {
-                    auto it = userAttributes->Attributes().find(key);
-                    if (it != userAttributes->Attributes().end()) {
-                        contains = it->second;
-                        if (contains) {
-                            containingTransaction = transaction;
-                        }
-                        break;
-                    }
-                }
-            }
-
-            if (!contains) {
-                return false;
-            }
-
-            auto* node = cypressManager->LockVersionedNode(
-                Id,
-                Transaction,
-                TLockRequest::SharedAttribute(key));
-            auto versionedId = node->GetId();
-
-            if (containingTransaction == Transaction) {
-                auto* userAttributes = objectManager->GetAttributes(versionedId);
-                YCHECK(userAttributes->Attributes().erase(key) == 1);
-            } else {
-                YCHECK(!containingTransaction);
-                auto* userAttributes = objectManager->FindAttributes(versionedId);
-                if (!userAttributes) {
-                    userAttributes = objectManager->CreateAttributes(versionedId);
-                }
-                userAttributes->Attributes()[key] = Null;           
-            }
-
-            cypressManager->SetModified(Id, Transaction);
-            return true;
-        }
-
-    protected:
-        TNodeId Id;
-        NTransactionServer::TTransaction* Transaction;
-        NCellMaster::TBootstrap* Bootstrap;
-
-    };
-
 
     void SetModified()
     {
@@ -775,18 +658,6 @@ private:
     virtual IYPathService::TResolveResult ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb) override;
 
 };
-
-void ListMapChildren(
-    NCellMaster::TBootstrap* bootstrap,
-    const TNodeId& nodeId,
-    NTransactionServer::TTransaction* transaction,
-    yhash_map<Stroka, TNodeId>* keyToChild);
-
-TVersionedNodeId FindMapChild(
-    NCellMaster::TBootstrap* bootstrap,
-    const TNodeId& nodeId,
-    NTransactionServer::TTransaction* transaction,
-    const Stroka& key);
 
 ////////////////////////////////////////////////////////////////////////////////
 

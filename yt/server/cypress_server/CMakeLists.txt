@@ -2,6 +2,7 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/server/cypress_server )
 set( SRCS
   ${BASE}/cypress_manager.cpp
+  ${BASE}/helpers.cpp
   ${BASE}/node.cpp
   ${BASE}/node_detail.cpp
   ${BASE}/node_proxy.cpp
@@ -11,6 +12,7 @@ set( SRCS
 )
 set( HDRS
   ${BASE}/cypress_manager.h
+  ${BASE}/helpers.h
   ${BASE}/node.h
   ${BASE}/node_detail.h
   ${BASE}/node_proxy.h

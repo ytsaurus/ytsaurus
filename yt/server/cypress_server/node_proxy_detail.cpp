@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "node_proxy_detail.h"
+#include "helpers.h"
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
-#include <server/cell_master/bootstrap.h>
 
 namespace NYT {
 namespace NCypressServer {
@@ -12,6 +12,121 @@ using namespace NRpc;
 using namespace NObjectServer;
 using namespace NCellMaster;
 using namespace NTransactionServer;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TVersionedUserAttributeDictionary::TVersionedUserAttributeDictionary(
+    const TObjectId& id,
+    TTransaction* transaction,
+    TBootstrap* bootstrap )
+    : Id(id)
+    , Transaction(transaction)
+    , Bootstrap(bootstrap)
+{ }
+
+std::vector<Stroka> TVersionedUserAttributeDictionary::List() const 
+{
+    auto keyToAttribute = GetNodeAttributes(Bootstrap, Id, Transaction);
+    std::vector<Stroka> keys;
+    FOREACH (const auto& pair, keyToAttribute) {
+        keys.push_back(pair.first);
+    }
+    return keys;
+}
+
+TNullable<TYsonString> TVersionedUserAttributeDictionary::FindYson(const Stroka& name) const 
+{
+    auto objectManager = Bootstrap->GetObjectManager();
+    auto transactionManager = Bootstrap->GetTransactionManager();
+
+    auto transactions = transactionManager->GetTransactionPath(Transaction);
+
+    FOREACH (const auto* transaction, transactions) {
+        NObjectServer::TVersionedObjectId versionedId(Id, NObjectServer::GetObjectId(transaction));
+        const auto* userAttributes = objectManager->FindAttributes(versionedId);
+        if (userAttributes) {
+            auto it = userAttributes->Attributes().find(name);
+            if (it != userAttributes->Attributes().end()) {
+                return it->second;
+            }
+        }
+    }
+
+    return Null;
+}
+
+void TVersionedUserAttributeDictionary::SetYson(const Stroka& key, const TYsonString& value)
+{
+    auto objectManager = Bootstrap->GetObjectManager();
+    auto cypressManager = Bootstrap->GetCypressManager();
+
+    auto* node = cypressManager->LockVersionedNode(
+        Id,
+        Transaction,
+        TLockRequest::SharedAttribute(key));
+    auto versionedId = node->GetId();
+
+    auto* userAttributes = objectManager->FindAttributes(versionedId);
+    if (!userAttributes) {
+        userAttributes = objectManager->CreateAttributes(versionedId);
+    }
+
+    userAttributes->Attributes()[key] = value;
+
+    cypressManager->SetModified(Id, Transaction);
+}
+
+bool TVersionedUserAttributeDictionary::Remove(const Stroka& key)
+{
+    auto cypressManager = Bootstrap->GetCypressManager();
+    auto objectManager = Bootstrap->GetObjectManager();
+    auto transactionManager = Bootstrap->GetTransactionManager();
+
+    auto transactions = transactionManager->GetTransactionPath(Transaction);
+    std::reverse(transactions.begin(), transactions.end());
+
+    const NTransactionServer::TTransaction* containingTransaction = NULL;
+    bool contains = false;
+    FOREACH (const auto* transaction, transactions) {
+        NObjectServer::TVersionedObjectId versionedId(Id, NObjectServer::GetObjectId(transaction));
+        const auto* userAttributes = objectManager->FindAttributes(versionedId);
+        if (userAttributes) {
+            auto it = userAttributes->Attributes().find(key);
+            if (it != userAttributes->Attributes().end()) {
+                contains = it->second;
+                if (contains) {
+                    containingTransaction = transaction;
+                }
+                break;
+            }
+        }
+    }
+
+    if (!contains) {
+        return false;
+    }
+
+    auto* node = cypressManager->LockVersionedNode(
+        Id,
+        Transaction,
+        TLockRequest::SharedAttribute(key));
+    auto versionedId = node->GetId();
+
+    if (containingTransaction == Transaction) {
+        auto* userAttributes = objectManager->GetAttributes(versionedId);
+        YCHECK(userAttributes->Attributes().erase(key) == 1);
+    } else {
+        YCHECK(!containingTransaction);
+        auto* userAttributes = objectManager->FindAttributes(versionedId);
+        if (!userAttributes) {
+            userAttributes = objectManager->CreateAttributes(versionedId);
+        }
+        userAttributes->Attributes()[key] = Null;
+    }
+
+    cypressManager->SetModified(Id, Transaction);
+    return true;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -100,8 +215,7 @@ void TMapNodeProxy::Clear()
     auto* impl = LockThisTypedImpl(ELockMode::Shared);
 
     // Construct children list.
-    yhash_map<Stroka, TNodeId> keyToChild;
-    ListMapChildren(Bootstrap, Id, Transaction, &keyToChild);
+    auto keyToChild = GetMapNodeChildren(Bootstrap, Id, Transaction);
 
     // Take exclusive locks for children.
     std::vector< std::pair<Stroka, ICypressNode*> > children;
@@ -149,8 +263,7 @@ int TMapNodeProxy::GetChildCount() const
 
 std::vector< TPair<Stroka, INodePtr> > TMapNodeProxy::GetChildren() const
 {
-    yhash_map<Stroka, TNodeId> keyToChild;
-    ListMapChildren(Bootstrap, Id, Transaction, &keyToChild);
+    auto keyToChild = GetMapNodeChildren(Bootstrap, Id, Transaction);
 
     std::vector< TPair<Stroka, INodePtr> > result;
     result.reserve(keyToChild.size());
@@ -162,8 +275,7 @@ std::vector< TPair<Stroka, INodePtr> > TMapNodeProxy::GetChildren() const
 
 std::vector<Stroka> TMapNodeProxy::GetKeys() const
 {
-    yhash_map<Stroka, TNodeId> keyToChild;
-    ListMapChildren(Bootstrap, Id, Transaction, &keyToChild);
+    auto keyToChild = GetMapNodeChildren(Bootstrap, Id, Transaction);
 
     std::vector<Stroka> result;
     FOREACH (const auto& pair, keyToChild) {
@@ -174,7 +286,7 @@ std::vector<Stroka> TMapNodeProxy::GetKeys() const
 
 INodePtr TMapNodeProxy::FindChild(const Stroka& key) const
 {
-    auto versionedChildId = FindMapChild(Bootstrap, Id, Transaction, key);
+    auto versionedChildId = FindMapNodeChild(Bootstrap, Id, Transaction, key);
     return versionedChildId.ObjectId == NullObjectId ? NULL : GetProxy(versionedChildId.ObjectId);
 }
 
@@ -203,7 +315,7 @@ bool TMapNodeProxy::AddChild(INodePtr child, const Stroka& key)
 
 bool TMapNodeProxy::RemoveChild(const Stroka& key)
 {
-    auto versionedChildId = FindMapChild(Bootstrap, Id, Transaction, key);
+    auto versionedChildId = FindMapNodeChild(Bootstrap, Id, Transaction, key);
     if (versionedChildId.ObjectId == NullObjectId) {
         return false;
     }
@@ -310,54 +422,6 @@ IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(
     const Stroka& verb)
 {
     return TMapNodeMixin::ResolveRecursive(path, verb);
-}
-
-void ListMapChildren(
-    NCellMaster::TBootstrap* bootstrap,
-    const TNodeId& nodeId,
-    NTransactionServer::TTransaction* transaction,
-    yhash_map<Stroka, TNodeId>* keyToChild)
-{
-    auto cypressManager = bootstrap->GetCypressManager();
-    auto transactionManager = bootstrap->GetTransactionManager();
-
-    auto transactions = transactionManager->GetTransactionPath(transaction);
-    std::reverse(transactions.begin(), transactions.end());
-
-    FOREACH (const auto* currentTransaction, transactions) {
-        const auto* node = cypressManager->GetVersionedNode(nodeId, currentTransaction);
-        const auto* mapNode = static_cast<const TMapNode*>(node);
-        FOREACH (const auto& pair, mapNode->KeyToChild()) {
-            if (pair.second == NullObjectId) {
-                YCHECK(keyToChild->erase(pair.first) == 1);
-            } else {
-                (*keyToChild)[pair.first] = pair.second;
-            }
-        }
-    }
-}
-
-TVersionedNodeId FindMapChild(
-    NCellMaster::TBootstrap* bootstrap,
-    const TNodeId& nodeId,
-    NTransactionServer::TTransaction* transaction,
-    const Stroka& key)
-{
-    auto transactionManager = bootstrap->GetTransactionManager();
-    auto cypressManager = bootstrap->GetCypressManager();
-
-    auto transactions = transactionManager->GetTransactionPath(transaction);
-
-    FOREACH (const auto* currentTransaction, transactions) {
-        const auto* node = cypressManager->GetVersionedNode(nodeId, currentTransaction);
-        const auto& map = static_cast<const TMapNode*>(node)->KeyToChild();
-        auto it = map.find(key);
-        if (it != map.end()) {
-            return TVersionedNodeId(it->second, GetObjectId(transaction));
-        }
-    }
-
-    return TVersionedNodeId(NullObjectId, NullTransactionId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

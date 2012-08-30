@@ -1,8 +1,10 @@
 #include "stdafx.h"
 #include "node_detail.h"
 #include "node_proxy_detail.h"
+#include "helpers.h"
 
 #include <ytlib/ytree/fluent.h>
+
 #include <server/cell_master/load_context.h>
 #include <server/cell_master/bootstrap.h>
 
@@ -230,8 +232,7 @@ void TMapNodeTypeHandler::DoClone(
 {
     TBase::DoClone(node, transaction, clonedNode);
 
-    yhash_map<Stroka, TNodeId> keyToChild;
-    ListMapChildren(Bootstrap, node->GetId().ObjectId, transaction, &keyToChild);
+    auto keyToChild = GetMapNodeChildren(Bootstrap, node->GetId().ObjectId, transaction);
 
     auto objectManager = Bootstrap->GetObjectManager();
     auto cypressManager = Bootstrap->GetCypressManager();
