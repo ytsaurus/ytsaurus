@@ -47,6 +47,8 @@ private:
     );
     EState State;
     
+    // On small amount of data set and map work faster
+    // than hash set and hash map.
     std::set<Stroka> KeyColumnNames;
     std::set<Stroka> SubkeyColumnNames;
 
