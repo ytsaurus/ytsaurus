@@ -5,6 +5,7 @@
 #include "helpers.h"
 
 #include <ytlib/misc/blob_output.h>
+#include <ytlib/misc/small_set.h>
 
 namespace NYT {
 namespace NFormats {
@@ -49,8 +50,8 @@ private:
     
     // On small amount of data set and map work faster
     // than hash set and hash map.
-    std::set<Stroka> KeyColumnNames;
-    std::set<Stroka> SubkeyColumnNames;
+    TSmallSet<Stroka, 128> KeyColumnNames;
+    TSmallSet<Stroka, 128> SubkeyColumnNames;
 
     std::map<Stroka, Stroka> KeyFields;
     std::map<Stroka, Stroka> SubkeyFields;

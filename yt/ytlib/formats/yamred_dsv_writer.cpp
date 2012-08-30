@@ -13,11 +13,16 @@ TYamredDsvWriter::TYamredDsvWriter(TOutputStream* stream, TYamredDsvFormatConfig
     : Stream(stream)
     , Config(config ? config : New<TYamredDsvFormatConfig>())
     , State(EState::None)
-    , KeyColumnNames(Config->KeyColumnNames.begin(), Config->KeyColumnNames.end())
-    , SubkeyColumnNames(Config->SubkeyColumnNames.begin(), Config->SubkeyColumnNames.end())
     , AllowBeginMap(true)
     , IsValueEmpty(true)
-{ }
+{
+    FOREACH (const auto& val, Config->KeyColumnNames) {
+        KeyColumnNames.insert(val);
+    }
+    FOREACH (const auto& val, Config->SubkeyColumnNames) {
+        SubkeyColumnNames.insert(val);
+    }
+}
 
 TYamredDsvWriter::~TYamredDsvWriter()
 { }
@@ -100,14 +105,14 @@ void TYamredDsvWriter::RememberValue(const TStringBuf& value)
     // Compare size before search for optimization.
     // It is not safe in case of repeated keys. Be careful!
     if (KeyFields.size() != KeyColumnNames.size() &&
-        KeyColumnNames.find(Key) != KeyColumnNames.end())
+        KeyColumnNames.count(Key) > 0)
     {
         YASSERT(KeyFields.count(Key) == 0);
         KeyFields[Key] = value;
     }
     else if (
         SubkeyFields.size() != SubkeyColumnNames.size() &&
-        SubkeyColumnNames.find(Key) != SubkeyColumnNames.end())
+        SubkeyColumnNames.count(Key) > 0)
     {
         YASSERT(SubkeyFields.count(Key) == 0);
         SubkeyFields[Key] = value;
