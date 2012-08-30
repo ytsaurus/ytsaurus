@@ -94,7 +94,7 @@ public:
         UNUSED(request);
         UNUSED(response);
 
-        ythrow yexception() << Sprintf("Cannot create an instance of %s outside Cypress",
+        THROW_ERROR_EXCEPTION("Cannot create an instance of %s outside Cypress",
             ~FormatEnum(GetType()));
     }
 
@@ -125,14 +125,14 @@ public:
     virtual INodePtr ResolvePath(const TYPath& path) override
     {
         if (path.empty()) {
-            ythrow yexception() << "YPath cannot be empty";
+            THROW_ERROR_EXCEPTION("YPath cannot be empty");
         }
 
         TTokenizer tokenizer(path);
         tokenizer.ParseNext();
 
         if (tokenizer.GetCurrentType() != RootToken) {
-            ythrow yexception() << "YPath must start with \"/\"";
+            THROW_ERROR_EXCEPTION("YPath must start with \"/\"");
         }
 
         auto cypressManager = Bootstrap->GetCypressManager();
@@ -437,7 +437,7 @@ void TCypressManager::ValidateLock(
 
     // Snapshot locks can only be taken inside a transaction.
     if (request.Mode == ELockMode::Snapshot && !transaction) {
-        ythrow yexception() << Sprintf("Cannot take %s lock outside of a transaction",
+        THROW_ERROR_EXCEPTION("Cannot take %s lock outside of a transaction",
             ~FormatEnum(request.Mode).Quote());
     }
 
@@ -452,7 +452,7 @@ void TCypressManager::ValidateLock(
                 return;
             }
             if (existingLock.Mode == ELockMode::Snapshot) {
-                ythrow yexception() << Sprintf("Cannot take %s lock for node %s since %s lock is already taken by the same transaction",
+                THROW_ERROR_EXCEPTION("Cannot take %s lock for node %s since %s lock is already taken by the same transaction",
                     ~FormatEnum(request.Mode).Quote(),
                     ~GetNodePath(nodeId, transaction),
                     ~FormatEnum(existingLock.Mode).Quote());
@@ -474,7 +474,7 @@ void TCypressManager::ValidateLock(
         if (request.Mode == ELockMode::Snapshot &&
             IsParentTransaction(existingTransaction, transaction))
         {
-            ythrow yexception() << Sprintf("Cannot take %s lock for node %s since %s lock is taken by descendant transaction %s",
+            THROW_ERROR_EXCEPTION("Cannot take %s lock for node %s since %s lock is taken by descendant transaction %s",
                 ~FormatEnum(request.Mode).Quote(),
                 ~GetNodePath(nodeId, transaction),
                 ~FormatEnum(existingLock.Mode).Quote(),
@@ -484,7 +484,7 @@ void TCypressManager::ValidateLock(
         if (!transaction || IsConcurrentTransaction(transaction, existingTransaction)) {
             // For Exclusive locks we check locks held by concurrent transactions.
             if (request.Mode == ELockMode::Exclusive || existingLock.Mode == ELockMode::Exclusive) {
-                ythrow yexception() << Sprintf("Cannot take %s lock for node %s since %s lock is taken by concurrent transaction %s",
+                THROW_ERROR_EXCEPTION("Cannot take %s lock for node %s since %s lock is taken by concurrent transaction %s",
                     ~FormatEnum(request.Mode).Quote(),
                     ~GetNodePath(nodeId, transaction),
                     ~FormatEnum(existingLock.Mode).Quote(),
@@ -496,7 +496,7 @@ void TCypressManager::ValidateLock(
                 if (request.ChildKey &&
                     existingLock.ChildKeys.find(request.ChildKey.Get()) != existingLock.ChildKeys.end())
                 {
-                    ythrow yexception() << Sprintf("Cannot take %s lock for child %s of node %s since %s lock is taken by concurrent transaction %s",
+                    THROW_ERROR_EXCEPTION("Cannot take %s lock for child %s of node %s since %s lock is taken by concurrent transaction %s",
                         ~FormatEnum(request.Mode).Quote(),
                         ~request.ChildKey.Get().Quote(),
                         ~GetNodePath(nodeId, transaction),
@@ -506,7 +506,7 @@ void TCypressManager::ValidateLock(
                 if (request.AttributeKey &&
                     existingLock.AttributeKeys.find(request.AttributeKey.Get()) != existingLock.AttributeKeys.end())
                 {
-                    ythrow yexception() << Sprintf("Cannot take %s lock for attribute %s of node %s since %s lock is taken by concurrent transaction %s",
+                    THROW_ERROR_EXCEPTION("Cannot take %s lock for attribute %s of node %s since %s lock is taken by concurrent transaction %s",
                         ~FormatEnum(request.Mode).Quote(),
                         ~request.AttributeKey.Get().Quote(),
                         ~GetNodePath(nodeId, transaction),
@@ -737,7 +737,7 @@ ICypressNode* TCypressManager::LockVersionedNode(
     }
 
     if (!transaction) {
-        ythrow yexception() << Sprintf("The requested operation requires %s lock but no current transaction is given",
+        THROW_ERROR_EXCEPTION("The requested operation requires %s lock but no current transaction is given",
             ~FormatEnum(request.Mode).Quote());
     }
 

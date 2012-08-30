@@ -173,7 +173,7 @@ private:
         if (!response->IsOK()) {
             LOG_WARNING("Error rotating the changelog at follower %d\n%s",
                 id,
-                ~response->GetError().ToString());
+                ~ToString(response->GetError()));
         }
     }
 
@@ -182,7 +182,7 @@ private:
         if (!response->IsOK()) {
             LOG_WARNING("Error creating the snapshot at follower %d\n%s",
                 id,
-                ~response->GetError().ToString());
+                ~ToString(response->GetError()));
             return;
         }
 

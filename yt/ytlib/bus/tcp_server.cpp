@@ -134,9 +134,8 @@ protected:
         if (listen(ServerSocket, SOMAXCONN) == SOCKET_ERROR) {
             int error = LastSystemError();
             CloseServerSocket();
-            ythrow yexception() << Sprintf("Failed to listen to server socket (ErrorCode: %d)\n%s",
-                error,
-                LastSystemErrorText(error));
+            THROW_ERROR_EXCEPTION("Failed to listen to server socket")
+                << TError::FromSystem(error);
         }
 
         LOG_DEBUG("Server socket opened");
@@ -185,9 +184,11 @@ protected:
             if (clientSocket == INVALID_SOCKET) {
                 auto error = LastSystemError();
                 if (IsSocketError(error)) {
-                    LOG_WARNING("Error accepting connection (ErrorCode: %d)\n%s",
-                        error,
-                        LastSystemErrorText(error));
+                    auto wrappedError = TError(
+                        NRpc::EErrorCode::TransportError,
+                        "Error accepting connection")
+                        << TError::FromSystem(error);
+                    LOG_WARNING("%s", ~ToString(wrappedError));
                 }
                 break;
             }
@@ -252,10 +253,8 @@ private:
     {
         ServerSocket = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
         if (ServerSocket == INVALID_SOCKET) {
-            int error = LastSystemError();
-            ythrow yexception() << Sprintf("Failed to create a server socket (ErrorCode: %d)\n%s",
-                error,
-                LastSystemErrorText(error));
+            THROW_ERROR_EXCEPTION("Failed to create a server socket")
+                << TError::FromSystem();
         }
 
 #ifdef _WIN32
@@ -282,12 +281,9 @@ private:
             serverAddress.sin6_addr = in6addr_any;
             serverAddress.sin6_port = htons(Config->Port);
             if (bind(ServerSocket, (sockaddr*)&serverAddress, sizeof(serverAddress)) != 0) {
-                int error = LastSystemError();
                 CloseServerSocket();
-                ythrow yexception() << Sprintf("Failed to bind a server socket to port %d (ErrorCode: %d)\n%s",
-                    Config->Port,
-                    error,
-                    LastSystemErrorText(error));
+                THROW_ERROR_EXCEPTION("Failed to bind a server socket to port %d", Config->Port)
+                    << TError::FromSystem();
             }
         }
     }
@@ -334,20 +330,19 @@ private:
     {
         auto path = GetLocalBusPath(Config->Port);
         if (isexist(~path)) {
-            int error = LastSystemError();
             if (unlink(~path) != 0) {
-                ythrow yexception() << Sprintf("Failed to unlink the local socket file (ErrorCode: %d)\n%s",
-                    error,
-                    LastSystemErrorText(error));
+                int error = LastSystemError();
+                if (isexist(~path)) {
+                    THROW_ERROR_EXCEPTION("Failed to unlink the local socket file")
+                        << TError::FromSystem(error);
+                }
             }
         }
 
     	ServerSocket = socket(AF_UNIX, SOCK_STREAM, 0);
         if (ServerSocket == INVALID_SOCKET) {
-            int error = LastSystemError();
-            ythrow yexception() << Sprintf("Failed to create a local server socket (ErrorCode: %d)\n%s",
-                error,
-                LastSystemErrorText(error));
+            THROW_ERROR_EXCEPTION("Failed to create a local server socket")
+                << TError::FromSystem();
         }
 
         ServerFd = ServerSocket;
@@ -355,19 +350,15 @@ private:
         {
             auto netAddress = GetLocalBusAddress(Config->Port);
             if (bind(ServerSocket, netAddress.GetSockAddr(), netAddress.GetLength()) != 0) {
-                int error = LastSystemError();
                 CloseServerSocket();
-                ythrow yexception() << Sprintf("Failed to bind a local server socket (ErrorCode: %d)\n%s",
-                    error,
-                    LastSystemErrorText(error));
+                THROW_ERROR_EXCEPTION("Failed to bind a local server socket")
+                    << TError::FromSystem();
             }
         }
 
         if (chmod(~path, 0777) != 0) {
-            int error = LastSystemError();
-            ythrow yexception() << Sprintf("Failed to update permissions of the local socket file (ErrorCode: %d)\n%s",
-                error,
-                LastSystemErrorText(error));
+            THROW_ERROR_EXCEPTION("Failed to update permissions of the local socket file")
+                << TError::FromSystem();
         }
     }
 };
@@ -405,7 +396,7 @@ public:
         auto server = New<TServer>(Config, handler);
         auto error = TTcpDispatcher::TImpl::Get()->AsyncRegister(server).Get();
         if (!error.IsOK()) {
-            ythrow yexception() << error.ToString();
+            THROW_ERROR error;
         }
 
         Server = server;

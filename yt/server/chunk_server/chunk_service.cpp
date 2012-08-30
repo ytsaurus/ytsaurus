@@ -7,8 +7,6 @@
 
 #include <ytlib/misc/string.h>
 
-#include <ytlib/actions/bind.h>
-
 #include <server/object_server/object_manager.h>
 
 #include <server/cell_master/bootstrap.h>
@@ -58,16 +56,20 @@ TChunkService::TChunkService(TBootstrap* bootstrap)
 void TChunkService::ValidateNodeId(TNodeId nodeId) const
 {
     if (!Bootstrap->GetChunkManager()->FindNode(nodeId)) {
-        ythrow TServiceException(EErrorCode::NoSuchNode) <<
-            Sprintf("Invalid or expired node id %d", nodeId);
+        THROW_ERROR_EXCEPTION(
+            EErrorCode::NoSuchNode,
+            "Invalid or expired node id: %d",
+            nodeId);
     }
 }
 
 void TChunkService::ValidateTransactionId(const TTransactionId& transactionId) const
 {
     if (!Bootstrap->GetTransactionManager()->FindTransaction(transactionId)) {
-        ythrow TServiceException(EErrorCode::NoSuchTransaction) << 
-            Sprintf("No such transaction %s", ~transactionId.ToString());
+        THROW_ERROR_EXCEPTION(
+            EErrorCode::NoSuchTransaction,
+            "No such transaction: %s",
+            ~transactionId.ToString());
     }
 }
 
@@ -75,9 +77,10 @@ void TChunkService::CheckAuthorization(const Stroka& address) const
 {
     auto nodeAuthority = Bootstrap->GetNodeAuthority();
     if (!nodeAuthority->IsAuthorized(address)) {
-        ythrow TServiceException(TError(
+        THROW_ERROR_EXCEPTION(
             EErrorCode::NotAuthorized,
-            Sprintf("Node %s is not authorized", ~address)));
+            "Node is not authorized: %s",
+            ~address);
     }
 }
 
@@ -106,12 +109,12 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterNode)
 
     auto expectedCellGuid = objectManager->GetCellGuid();
     if (!requestCellGuid.IsEmpty() && requestCellGuid != expectedCellGuid) {
-        ythrow TServiceException(TError(
+        THROW_ERROR_EXCEPTION(
             NRpc::EErrorCode::PoisonPill,
             "Wrong cell guid reported by node %s: expected %s, received %s",
             ~address,
             ~expectedCellGuid.ToString(),
-            ~requestCellGuid.ToString()));
+            ~requestCellGuid.ToString());
     }
 
     CheckAuthorization(address);

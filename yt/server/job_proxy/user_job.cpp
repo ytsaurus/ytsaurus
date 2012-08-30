@@ -94,7 +94,8 @@ public:
 
         ProcessId = fork();
         if (ProcessId < 0) {
-            ythrow yexception() << Sprintf("Failed to start the job: fork failed (errno: %d)", errno);
+            THROW_ERROR_EXCEPTION("Failed to start the job: fork failed")
+                << TError::FromSystem();
         }
 
         NScheduler::NProto::TJobResult result;
@@ -110,12 +111,11 @@ public:
             DoJobIO();
 
             LOG_DEBUG("Job process finished successfully");
-            *result.mutable_error() = JobExitStatus.ToProto();
+            *result.mutable_error() = JobExitError.ToProto();
         } catch (const std::exception& ex) {
-            LOG_ERROR("Job failed\n%s", ex.what());
-
-            result.mutable_error()->set_code(TError::Fail);
-            result.mutable_error()->set_message(ex.what());
+            TError error(ex);
+            LOG_ERROR("Job failed\n%s", ~ToString(error));
+            ToProto(result.mutable_error(), error);
         }
 
         // ToDo(psushin): fix this strange volleyball with StderrChunkId.
@@ -238,7 +238,8 @@ private:
             const int fdCountHint = 10;
             int epollFd = epoll_create(fdCountHint);
             if (epollFd < 0) {
-                ythrow yexception() << Sprintf("Error during job IO: epoll_create failed (errno: %d)", errno);
+                THROW_ERROR_EXCEPTION("Error during job IO: epoll_create failed")
+                    << TError::FromSystem();
             }
 
             FOREACH (auto& pipe, pipes) {
@@ -248,7 +249,8 @@ private:
                 evAdd.data.ptr = ~pipe;
 
                 if (epoll_ctl(epollFd, EPOLL_CTL_ADD, pipe->GetEpollDescriptor(), &evAdd) != 0) {
-                    ythrow yexception() << Sprintf("Error during job IO: epoll_ctl failed (errno: %d)", errno);
+                    THROW_ERROR_EXCEPTION("Error during job IO: epoll_ctl failed")
+                        << TError::FromSystem();
                 }
             }
 
@@ -256,7 +258,7 @@ private:
             epoll_event events[maxEvents];
             memset(events, 0, maxEvents * sizeof(epoll_event));
 
-            while (activePipeCount > 0 && JobExitStatus.IsOK()) {
+            while (activePipeCount > 0 && JobExitError.IsOK()) {
                 LOG_TRACE("Waiting on epoll, %d pipes active", activePipeCount);
 
                 int epollResult = epoll_wait(epollFd, &events[0], maxEvents, -1);
@@ -266,7 +268,8 @@ private:
                         errno = 0;
                         continue;
                     }
-                    ythrow yexception() << Sprintf("Error during job IO: epoll_wait failed (errno: %d)", errno);
+                    THROW_ERROR_EXCEPTION("Error during job IO: epoll_wait failed")
+                        << TError::FromSystem();
                 }
 
                 for (int pipeIndex = 0; pipeIndex < epollResult; ++pipeIndex) {
@@ -280,13 +283,13 @@ private:
             SafeClose(epollFd);
         } catch (const std::exception& ex) {
             TGuard<TSpinLock> guard(SpinLock);
-            if (JobExitStatus.IsOK()) {
-                JobExitStatus = TError(ex.what());
+            if (JobExitError.IsOK()) {
+                JobExitError = ex;
             }
         } catch (...) {
             TGuard<TSpinLock> guard(SpinLock);
-            if (JobExitStatus.IsOK()) {
-                JobExitStatus = TError("Unknown error during job IO");
+            if (JobExitError.IsOK()) {
+                JobExitError = TError("Unknown error during job IO");
             }
         }
     }
@@ -307,16 +310,19 @@ private:
             int status = 0;
             int waitpidResult = waitpid(ProcessId, &status, 0);
             if (waitpidResult < 0) {
-                ythrow yexception() << Sprintf("Waitpid failed (errno: %d)", errno);
+                THROW_ERROR_EXCEPTION("waitpid failed")
+                    << TError::FromSystem();
             }
 
-            if (!JobExitStatus.IsOK()) {
-                ythrow yexception() << Sprintf("User job IO failed: %s", ~JobExitStatus.GetMessage());
+            if (!JobExitError.IsOK()) {
+                THROW_ERROR_EXCEPTION("User job IO failed")
+                    << JobExitError;
             }
 
-            JobExitStatus = StatusToError(status);
-            if (!JobExitStatus.IsOK()) {
-                ythrow yexception() << Sprintf("User job failed with status: %s", ~JobExitStatus.GetMessage());
+            JobExitError = StatusToError(status);
+            if (!JobExitError.IsOK()) {
+                THROW_ERROR_EXCEPTION("User job failed" 
+                    << JobExitError;
             }
 
             FOREACH (auto& pipe, InputPipes) {
@@ -366,8 +372,8 @@ private:
             // TODO(babenko): extract error code constant
             _exit(7);
         }
-        catch (const std::exception& e) {
-            auto writeResult = ::write(STDERR_FILENO, e.what(), strlen(e.what()));
+        catch (const std::exception& ex) {
+            (void) ::write(STDERR_FILENO, ex.what(), strlen(ex.what()));
         }
         // catch (...) {
         //     // Use some exotic error codes here to analyze errors later.
@@ -386,7 +392,7 @@ private:
     TThread OutputThread;
 
     TSpinLock SpinLock;
-    TError JobExitStatus;
+    TError JobExitError;
 
     TAutoPtr<TErrorOutput> ErrorOutput;
     std::vector< TAutoPtr<TOutputStream> > TableOutput;
@@ -412,7 +418,7 @@ TJobPtr CreateUserJob(
     const NScheduler::NProto::TUserJobSpec& userJobSpec,
     TAutoPtr<TUserJobIO> userJobIO)
 {
-    ythrow yexception() << "Streaming jobs are supported only under Linux";
+    THROW_ERROR_EXCEPTION("Streaming jobs are supported only under Linux");
 }
 
 #endif

@@ -138,7 +138,7 @@ void TMasterConnector::OnRegisterResponse(TProxy::TRspRegisterNodePtr response)
         Disconnect();
         ScheduleHeartbeat();
 
-        LOG_WARNING("Error registering at master\n%s", ~response->GetError().ToString());
+        LOG_WARNING("Error registering at master\n%s", ~ToString(response->GetError()));
         return;
     }
 
@@ -307,7 +307,7 @@ void TMasterConnector::OnHeartbeatError(const TError& error)
 {
     auto errorCode = error.GetCode();
 
-    LOG_WARNING("Error sending heartbeat to master\n%s", ~error.ToString());
+    LOG_WARNING("Error sending heartbeat to master\n%s", ~ToString(error));
 
     if (!IsRetriableError(error)) {
         Disconnect();

@@ -10,19 +10,6 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Direct conversion from Stroka to Node or Producer is forbidden.
-//! For this case, use TRawString wrapper.
-class TRawString
-    : public Stroka
-{
-public:
-    TRawString(const Stroka& str)
-        : Stroka(str)
-    { }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <class T>
 void Consume(const T& value, IYsonConsumer* consumer);
 

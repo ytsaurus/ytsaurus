@@ -37,7 +37,7 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(const TYPath& pa
     auto service = GetItemService(key);
     if (!service) {
         // TODO(babenko): improve diagnostics
-        ythrow yexception() << Sprintf("No such child key %s",
+        THROW_ERROR_EXCEPTION("No such child key %s",
             ~YsonizeString(key, EYsonFormat::Text));
     }
 

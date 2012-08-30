@@ -3,6 +3,7 @@
 
 #include "token.h"
 
+#include <ytlib/misc/error.h>
 #include <ytlib/misc/zigzag.h>
 #include <ytlib/misc/property.h>
 
@@ -102,7 +103,7 @@ public:
                     case EInnerState::InsideBinaryDouble:
                     case EInnerState::InsideBinaryString:
                     case EInnerState::InsideQuotedString:
-                        ythrow yexception() << Sprintf("Premature end of stream (LexerState: %s, BytesRead: %d)",
+                        THROW_ERROR_EXCEPTION("Premature end of stream (LexerState: %s, BytesRead: %d)",
                             ~InnerState.ToString(),
                             BytesRead);
     
@@ -197,7 +198,7 @@ private:
                     SetInProgressState(EInnerState::InsideUnquotedString);
                     return ReadUnquotedString(current, end);
                 } else {
-                    ythrow yexception() << Sprintf("Unexpected character %s",
+                    THROW_ERROR_EXCEPTION("Unexpected character %s",
                         ~Stroka(ch).Quote());
                 }
             }
@@ -264,7 +265,7 @@ private:
             ui8 byte = static_cast<ui8>(*current);
 
             if (7 * BytesRead > 8 * sizeof(ui64) ) {
-                ythrow yexception() << Sprintf("The data is too long to read binary Integer");
+                THROW_ERROR_EXCEPTION("The data is too long to read binary Integer");
             }
 
             ui64Value |= (static_cast<ui64> (byte & 0x7F)) << (7 * BytesRead);
@@ -289,7 +290,7 @@ private:
             if (State_ == TLexer::EState::Terminal) {
                 i64 length = Token.IntegerValue;
                 if (length < 0) {
-                    ythrow yexception() << Sprintf("Error reading binary string: String cannot have negative length (Length: %" PRId64 ")",
+                    THROW_ERROR_EXCEPTION("Error reading binary string: String cannot have negative length (Length: %" PRId64 ")",
                         length);
                 }
                 // Token.IntegerValue = 0; // It's not necessary
@@ -343,7 +344,7 @@ private:
                 InnerState = EInnerState::InsideDouble;
                 return ReadDouble(++current, end);
             } else if (isalpha(ch)) {
-                ythrow yexception() << Sprintf("Unexpected character in numeric (Char: %s, Token: %s)",
+                THROW_ERROR_EXCEPTION("Unexpected character in numeric (Char: %s, Token: %s)",
                     ~Stroka(ch).Quote(),
                     ~GetBufferAsString());
             } else {
@@ -365,7 +366,7 @@ private:
             {
                 TokenBuffer.push_back(ch);
             } else if (isalpha(ch)) {
-                ythrow yexception() << Sprintf("Unexpected character in numeric (Char: %s, Token: %s)",
+                THROW_ERROR_EXCEPTION("Unexpected character in numeric (Char: %s, Token: %s)",
                     ~Stroka(ch).Quote(),
                     ~GetBufferAsString());
             } else {
@@ -422,7 +423,7 @@ private:
             Token.IntegerValue = FromString<i64>(GetBufferAsStringBuf());
         } catch (const std::exception& ex) {
             // This exception is wrapped in parser
-            ythrow yexception() << Sprintf("Failed to parse Integer literal %s",
+            THROW_ERROR_EXCEPTION("Failed to parse Integer literal %s",
                 ~GetBufferAsString().Quote());
         }
         ProduceToken(ETokenType::Integer);
@@ -434,7 +435,7 @@ private:
             Token.DoubleValue = FromString<double>(GetBufferAsStringBuf());
         } catch (const std::exception& ex) {
             // This exception is wrapped in parser
-            ythrow yexception() << Sprintf("Failed to parse Double literal %s",
+            THROW_ERROR_EXCEPTION("Failed to parse Double literal %s",
                 ~GetBufferAsString().Quote());
         }
         ProduceToken(ETokenType::Double);

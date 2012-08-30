@@ -60,12 +60,11 @@ public:
         completed.Get();
 
         if (!errors.empty()) {
-            Stroka message = "Error opening merging reader\n";
-            FOREACH (const auto& error, errors) {
-                message.append("\n");
-                message.append(error.ToString());
+            TError error("Error opening merging reader");
+            FOREACH (const auto& innerError, errors) {
+                error.InnerErrors().push_back(innerError);
             }
-            ythrow yexception() << message;
+            THROW_ERROR error;
         }
 
         // Push all non-empty readers to the heap.

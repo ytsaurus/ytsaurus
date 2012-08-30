@@ -276,7 +276,8 @@ protected:
     static void CheckResponse(TResponse response, const Stroka& failureMessage) 
     {
         if (!response->IsOK()) {
-            ythrow yexception() << failureMessage + "\n" + response->GetError().ToString();
+            THROW_ERROR_EXCEPTION(failureMessage)
+                << response->GetError();
         }
     }
 
@@ -468,7 +469,7 @@ TIntrusivePtr<TSpec> ParseOperationSpec(TOperation* operation)
     try {
         spec->Load(operation->GetSpec());
     } catch (const std::exception& ex) {
-        ythrow yexception() << Sprintf("Error parsing operation spec\n%s", ex.what());
+        THROW_ERROR_EXCEPTION("Error parsing operation spec") << ex;
     }
     return spec;
 }

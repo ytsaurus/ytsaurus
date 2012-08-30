@@ -195,8 +195,7 @@ private:
         FOREACH (const auto& rule, Rules) {
             FOREACH (const Stroka& writer, rule->Writers) {
                 if (WriterConfigs.find(writer) == WriterConfigs.end()) {
-                    ythrow yexception() <<
-                        Sprintf("Unknown writer %s", ~writer.Quote());
+                    THROW_ERROR_EXCEPTION("Unknown writer: %s", ~writer.Quote());
                 }
             }
         }

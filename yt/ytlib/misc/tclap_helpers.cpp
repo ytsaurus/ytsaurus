@@ -1,8 +1,11 @@
 #include "stdafx.h"
 #include "tclap_helpers.h"
 
+#include <ytlib/misc/error.h>
+
 #include <ytlib/ytree/tokenizer.h>
 #include <ytlib/ytree/token.h>
+#include <ytlib/ytree/attribute_helpers.h>
 
 #include <iterator>
 
@@ -40,7 +43,7 @@ std::istringstream& operator>>(std::istringstream& input, TRichYPath& path)
         while (true) {
             int positionBefore = str.length() - tokenizer.GetCurrentSuffix().length();
             if (!tokenizer.ParseNext()) {
-                ythrow yexception() << "Unmatched '<' in YPath";
+                THROW_ERROR_EXCEPTION("Unmatched '<' in YPath");
             }
             int positionAfter = str.length() - tokenizer.GetCurrentSuffix().length();
 

@@ -129,12 +129,12 @@ bool DeserializeFromProtoWithEnvelope(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Serializes a given protobuf message into a given stream
-//! Throw yexception() in case of error
+//! Serializes a given protobuf message into a given stream.
+//! Throws an exception in case of error.
 void SaveProto(TOutputStream* output, const ::google::protobuf::Message& message);
 
-//! Reads from a given stream protobuf message
-//! Throw yexception() in case of error
+//! Reads from a given stream protobuf message.
+//! Throws an exception in case of error.
 void LoadProto(TInputStream* input, ::google::protobuf::Message& message);
 
 ////////////////////////////////////////////////////////////////////////////////

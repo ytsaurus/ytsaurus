@@ -208,9 +208,11 @@ public:
             LOG_INFO("Finalizing");
             {
                 TJobResult result;
+                ToProto(result.mutable_error(), TError());
+
                 auto* resultExt = result.MutableExtension(TSortJobResultExt::sort_job_result_ext);
                 ToProto(resultExt->mutable_chunks(), Writer->GetWrittenChunks());
-                *result.mutable_error() = TError().ToProto();
+
                 return result;
             }
         }

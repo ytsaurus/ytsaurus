@@ -18,7 +18,6 @@ namespace NYT {
 template <class TIterator>
 Stroka JoinToString(const TIterator& begin, const TIterator& end, Stroka delimiter = ", ")
 {
-    using ::ToString;
     Stroka result;
     for (auto current = begin; current != end; ++current) {
         if (current != begin) {
@@ -47,7 +46,7 @@ template <class TIter>
 std::vector<Stroka> ConvertToStrings(TIter begin, TIter end, size_t maxSize)
 {
     std::vector<Stroka> result;
-    for (TIter it = begin; it != end; ++it) {
+    for (auto it = begin; it != end; ++it) {
         result.push_back(it->ToString());
         if (result.size() == maxSize) {
             break;
@@ -58,72 +57,13 @@ std::vector<Stroka> ConvertToStrings(TIter begin, TIter end, size_t maxSize)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline Stroka UnderscoreCaseToCamelCase(const Stroka& data)
-{
-    Stroka result;
-    bool upper = true;
-    FOREACH (char c, data) {
-        if (c == '_') {
-            upper = true;
-        } else {
-            if (upper) {
-                c = std::toupper(c);
-            }
-            result.push_back(c);
-            upper = false;
-        }
-    }
-    return result;
-}
+Stroka UnderscoreCaseToCamelCase(const Stroka& data);
+Stroka CamelCaseToUnderscoreCase(const Stroka& data);
 
-inline Stroka CamelCaseToUnderscoreCase(const Stroka& data)
-{
-    Stroka result;
-    bool first = true;
-    FOREACH (char c, data) {
-        if (std::isupper(c)) {
-            if (!first) {
-                result.push_back('_');
-            }
-            result.push_back(std::tolower(c));
-        } else {
-            result.push_back(c);
-        }
-        first = false;
-    }
-    return result;
-}
+Stroka TrimLeadingWhitespace(const Stroka& data);
 
-////////////////////////////////////////////////////////////////////////////////
-
-inline Stroka TrimLeadingWhitespace(const Stroka& data)
-{
-    for (int i = 0; i < data.size(); ++i) {
-        if (data[i] != ' ') {
-            return data.substr(i);
-        }
-    }
-    return "";
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-inline bool ParseBool(const Stroka& value)
-{
-    if (value == "true") {
-        return true;
-    } else if (value == "false") {
-        return false;
-    } else {
-        ythrow yexception() << Sprintf("Could not parse boolean value %s",
-            ~Stroka(value).Quote());
-    }
-}
-
-inline Stroka FormatBool(bool value)
-{
-    return value ? "true" : "false";
-}
+bool ParseBool(const Stroka& value);
+Stroka FormatBool(bool value);
 
 ////////////////////////////////////////////////////////////////////////////////
 

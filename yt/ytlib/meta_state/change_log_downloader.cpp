@@ -134,13 +134,13 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
                     default:
                         LOG_FATAL("Unexpected error received from peer %d\n%s",
                             sourceId,
-                            ~error.ToString());
+                            ~ToString(error));
                         break;
                 }
             } else {
                 LOG_WARNING("Error reading changelog from peer %d\n%s",
                     sourceId,
-                    ~error.ToString());
+                    ~ToString(error));
                 return EResult::RemoteError;
             }
         }
@@ -192,7 +192,7 @@ void TChangeLogDownloader::OnResponse(
         LOG_WARNING("Error requesting changelog %d info from peer %d\n%s",
             version.SegmentId,
             peerId,
-            ~response->GetError().ToString());
+            ~ToString(response->GetError()));
         return;
     }
 

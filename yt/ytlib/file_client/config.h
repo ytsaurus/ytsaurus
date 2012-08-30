@@ -2,10 +2,12 @@
 
 #include "public.h"
 
-//#include <ytlib/chunk_client/public.h>
-//#include <ytlib/chunk_client/config.h>
+#include <ytlib/misc/error.h>
+
 #include <ytlib/ytree/yson_serializable.h>
+
 #include <ytlib/codecs/codec.h>
+
 #include <ytlib/chunk_client/config.h>
 
 namespace NYT {
@@ -42,7 +44,7 @@ struct TFileWriterConfig
     virtual void DoValidate()
     {
         if (ReplicationFactor < UploadReplicationFactor) {
-            ythrow yexception() << "\"replication_factor\" cannot be less than \"upload_replication_factor\"";
+            THROW_ERROR_EXCEPTION("\"replication_factor\" cannot be less than \"upload_replication_factor\"");
         }
     }
 };

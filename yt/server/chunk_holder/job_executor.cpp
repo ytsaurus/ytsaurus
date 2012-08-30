@@ -123,8 +123,9 @@ void TJob::RunReplicate()
     chunk->GetMeta().Subscribe(BIND([=] (IAsyncReader::TGetMetaResult result) {
         if (!result.IsOK()) {
             this_->SetFailed(TError(
-                "Error getting chunk meta\n%s",
-                ~result.ToString()));
+                "Error getting meta of chunk %s",
+                ~ToString(chunk->GetId()))
+                << result);
             return;
         }
 
@@ -177,9 +178,9 @@ void TJob::ReplicateBlock(int blockIndex, TError error)
             BIND([=] (TBlockStore::TGetBlockResult result) {
                 if (!result.IsOK()) {
                     this_->SetFailed(TError(
-                        "Error getting block %d for replication\n%s",
-                        blockIndex,
-                        ~result.ToString()));
+                        "Error retrieving block %d for replication",
+                        ~blockId.ToString())
+                        << result);
                     return;
                 } 
 
@@ -204,7 +205,7 @@ void TJob::SetCompleted()
 void TJob::SetFailed(const TError& error)
 {
     State = EJobState::Failed;
-    LOG_ERROR("Job failed\n%s", ~error.ToString());
+    LOG_ERROR("Job failed\n%s", ~ToString(error));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

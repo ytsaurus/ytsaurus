@@ -123,7 +123,7 @@ TAsyncError TChunk::ReadMeta()
                     this_->ReleaseReadLock();
                     LOG_WARNING("Error reading chunk meta (ChunkId: %s)\n%s",
                         ~this_->Id_.ToString(),
-                        ~result.ToString());
+                        ~ToString(result));
                     return TError(result);
                 }
                 reader = result.Value();

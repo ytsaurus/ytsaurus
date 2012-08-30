@@ -324,8 +324,7 @@ public:
 
         auto result = SnapshotStore->GetReader(snapshotId);
         if (!result.IsOK()) {
-            // TODO: cannot use ythrow here
-            throw TServiceException(result);
+            THROW_ERROR result;
         }
 
         auto reader = result.Value();
@@ -415,8 +414,7 @@ public:
 
         auto result = ChangeLogCache->Get(changeLogId);
         if (!result.IsOK()) {
-            // TODO: cannot use ythrow here
-            throw TServiceException(result);
+            THROW_ERROR result;
         }
 
         auto changeLog = result.Value();
@@ -448,8 +446,7 @@ public:
 
         auto result = ChangeLogCache->Get(changeLogId);
         if (!result.IsOK()) {
-            // TODO: cannot use ythrow here
-            throw TServiceException(result);
+            THROW_ERROR result;
         }
 
         IOQueue->GetInvoker()->Invoke(context->Wrap(BIND(
@@ -498,8 +495,10 @@ public:
             ~version.ToString());
 
         if (GetControlStatus() != EPeerStatus::Following && GetControlStatus() != EPeerStatus::FollowerRecovery) {
-            ythrow TServiceException(EErrorCode::InvalidStatus) <<
-                Sprintf("Cannot apply changes while in %s", ~GetControlStatus().ToString());
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::InvalidStatus,
+                "Cannot apply changes while in %s",
+                ~GetControlStatus().ToString());
         }
 
         CheckEpoch(epochId);
@@ -525,7 +524,7 @@ public:
 
                     auto error = FollowerRecovery->PostponeMutations(version, request->Attachments());
                     if (!error.IsOK()) {
-                        LOG_WARNING("Error postponing mutations, restarting\n%s", ~error.ToString());
+                        LOG_WARNING("Error postponing mutations, restarting\n%s", ~ToString(error));
                         Restart();
                     }
 
@@ -579,8 +578,10 @@ public:
         auto status = GetControlStatus();
 
         if (status != EPeerStatus::Following && status != EPeerStatus::FollowerRecovery) {
-            ythrow TServiceException(EErrorCode::InvalidStatus) <<
-                Sprintf("Cannot process follower ping while in %s", ~GetControlStatus().ToString());
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::InvalidStatus,
+                "Cannot process follower ping while in %s",
+                ~GetControlStatus().ToString());
         }
 
         CheckEpoch(epochId);
@@ -642,8 +643,10 @@ public:
             ~ToString(createSnapshot));
 
         if (GetControlStatus() != EPeerStatus::Following && GetControlStatus() != EPeerStatus::FollowerRecovery) {
-            ythrow TServiceException(EErrorCode::InvalidStatus) <<
-                Sprintf("Cannot advance segment while in %s", ~GetControlStatus().ToString());
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::InvalidStatus,
+                "Cannot advance segment while in %s",
+                ~GetControlStatus().ToString());
         }
 
         CheckEpoch(epochId);
@@ -677,7 +680,7 @@ public:
 
                     auto error = FollowerRecovery->PostponeSegmentAdvance(version);
                     if (!error.IsOK()) {
-                        LOG_ERROR("%s", ~error.ToString());
+                        LOG_ERROR("%s", ~ToString(error));
                         Restart();
                     }
 
@@ -711,8 +714,9 @@ public:
 
         if (DecoratedState->GetVersion() != version) {
             Restart();
-            ythrow TServiceException(EErrorCode::InvalidVersion) <<
-                Sprintf("Invalid version, segment advancement canceled (Expected: %s, Received: %s)",
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::InvalidVersion,
+                "Invalid version, segment advancement canceled (Expected: %s, Received: %s)",
                 ~version.ToString(),
                 ~DecoratedState->GetVersion().ToString());
         }
@@ -776,8 +780,10 @@ public:
         context->SetRequestInfo("");
 
         if (GetControlStatus() != EPeerStatus::Leading) {
-            ythrow TServiceException(EErrorCode::InvalidStatus) <<
-                Sprintf("Cannot answer quorum queries while in %s", ~GetControlStatus().ToString());
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::InvalidStatus,
+                "Cannot answer quorum queries while in %s",
+                ~GetControlStatus().ToString());
         }
 
         auto tracker = QuorumTracker;
@@ -808,7 +814,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         if (!result.IsOK()) {
-            LOG_ERROR("Error committing mutation, restarting\n%s", ~result.ToString());
+            LOG_ERROR("Error committing mutation, restarting\n%s", ~ToString(result));
             Restart();
         }
 
@@ -902,7 +908,7 @@ public:
         LeaderRecovery.Reset();
 
         if (!error.IsOK()) {
-            LOG_WARNING("Leader recovery failed, restarting\n%s", ~error.ToString());
+            LOG_WARNING("Leader recovery failed, restarting\n%s", ~ToString(error));
             Restart();
             return;
         }
@@ -1023,7 +1029,7 @@ public:
 
         if (!error.IsOK()) {
             LOG_WARNING("Follower recovery failed, restarting\n%s",
-                ~error.ToString());
+                ~ToString(error));
             Restart();
             return;
         }
@@ -1129,10 +1135,11 @@ public:
     {
         auto currentEpochId = EpochContext->EpochId;
         if (epochId != currentEpochId) {
-            ythrow TServiceException(EErrorCode::InvalidEpoch) <<
-                Sprintf("Invalid epoch: expected %s, received %s",
-                    ~currentEpochId.ToString(),
-                    ~epochId.ToString());
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::InvalidEpoch,
+                "Invalid epoch: expected %s, received %s",
+                ~currentEpochId.ToString(),
+                ~epochId.ToString());
         }
     }
 

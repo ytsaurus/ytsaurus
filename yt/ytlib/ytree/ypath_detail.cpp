@@ -4,8 +4,12 @@
 #include "tokenizer.h"
 #include "ypath_format.h"
 
-#include <ytlib/rpc/rpc.pb.h>
+#include <ytlib/ytree/convert.h>
+#include <ytlib/ytree/attribute_helpers.h>
+
 #include <ytlib/bus/message.h>
+
+#include <ytlib/rpc/rpc.pb.h>
 #include <ytlib/rpc/server_detail.h>
 #include <ytlib/rpc/message.h>
 
@@ -51,14 +55,14 @@ IYPathService::TResolveResult TYPathServiceBase::ResolveAttributes(const TYPath&
 {
     UNUSED(path);
     UNUSED(verb);
-    ythrow yexception() << "Object cannot have attributes";
+    THROW_ERROR_EXCEPTION("Object cannot have attributes");
 }
 
 IYPathService::TResolveResult TYPathServiceBase::ResolveRecursive(const TYPath& path, const Stroka& verb)
 {
     UNUSED(path);
     UNUSED(verb);
-    ythrow yexception() << "Object cannot have children";
+    THROW_ERROR_EXCEPTION("Object cannot have children");
 }
 
 void TYPathServiceBase::Invoke(IServiceContextPtr context)
@@ -70,19 +74,17 @@ void TYPathServiceBase::GuardedInvoke(IServiceContextPtr context)
 {
     try {
         DoInvoke(context);
-    } catch (const TServiceException& ex) {
-        context->Reply(ex.GetError());
-    }
-    catch (const std::exception& ex) {
-        context->Reply(TError(ex.what()));
+    } catch (const std::exception& ex) {
+        context->Reply(ex);
     }
 }
 
 void TYPathServiceBase::DoInvoke(IServiceContextPtr context)
 {
-    UNUSED(context);
-    ythrow TServiceException(EErrorCode::NoSuchVerb) <<
-        "Verb is not supported";
+    THROW_ERROR_EXCEPTION(
+        EErrorCode::NoSuchVerb,
+        "Verb %s is not supported",
+        ~context->GetVerb());
 }
 
 Stroka TYPathServiceBase::GetLoggingCategory() const
@@ -97,6 +99,12 @@ bool TYPathServiceBase::IsWriteRequest(IServiceContextPtr context) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+#define THROW_VERB_NOT_SUPPORTED() \
+    THROW_ERROR TError( \
+        EErrorCode::NoSuchVerb, \
+        "Verb %s is not supported", \
+        ~context->GetVerb())
 
 #define IMPLEMENT_SUPPORTS_VERB(verb) \
     DEFINE_RPC_SERVICE_METHOD(TSupports##verb, verb) \
@@ -127,8 +135,7 @@ bool TYPathServiceBase::IsWriteRequest(IServiceContextPtr context) const
     { \
         UNUSED(request); \
         UNUSED(response); \
-        UNUSED(context); \
-        ythrow TServiceException(EErrorCode::NoSuchVerb) << "Verb is not supported"; \
+        THROW_VERB_NOT_SUPPORTED(); \
     } \
     \
     void TSupports##verb::verb##Recursive(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb* context) \
@@ -136,8 +143,7 @@ bool TYPathServiceBase::IsWriteRequest(IServiceContextPtr context) const
         UNUSED(path); \
         UNUSED(request); \
         UNUSED(response); \
-        UNUSED(context); \
-        ythrow TServiceException(EErrorCode::NoSuchVerb) << "Verb is not supported"; \
+        THROW_VERB_NOT_SUPPORTED(); \
     } \
     \
     void TSupports##verb::verb##Attribute(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb* context) \
@@ -145,8 +151,7 @@ bool TYPathServiceBase::IsWriteRequest(IServiceContextPtr context) const
         UNUSED(path); \
         UNUSED(request); \
         UNUSED(response); \
-        UNUSED(context); \
-        ythrow TServiceException(EErrorCode::NoSuchVerb) << "Verb is not supported"; \
+        THROW_VERB_NOT_SUPPORTED(); \
     }
 
 IMPLEMENT_SUPPORTS_VERB(Get)
@@ -154,6 +159,7 @@ IMPLEMENT_SUPPORTS_VERB(Set)
 IMPLEMENT_SUPPORTS_VERB(List)
 IMPLEMENT_SUPPORTS_VERB(Remove)
 
+#undef THROW_VERB_NOT_SUPPORTED
 #undef IMPLEMENT_SUPPORTS_VERB
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -178,7 +184,7 @@ TYsonString DoGetAttribute(
     }
 
     if (!userAttributes) {
-        ythrow yexception() << "User attributes are not supported";
+        THROW_ERROR_EXCEPTION("User attributes are not supported");
     }
 
     if (isSystem) {
@@ -226,11 +232,11 @@ void DoSetAttribute(
     if (isSystem) {
         YASSERT(systemAttributeProvider);
         if (!systemAttributeProvider->SetSystemAttribute(key, value)) {
-            ythrow yexception() << Sprintf("System attribute %s cannot be set", ~key.Quote());
+            THROW_ERROR_EXCEPTION("System attribute %s cannot be set", ~key.Quote());
         }
     } else {
         if (!userAttributes) {
-            ythrow yexception() << "User attributes are not supported";
+            THROW_ERROR_EXCEPTION("User attributes are not supported");
         }
         userAttributes->SetYson(key, value);
     }
@@ -253,13 +259,13 @@ void DoSetAttribute(
                 
         FOREACH (const auto& attribute, systemAttributes) {
             if (attribute.Key == key) {
-                ythrow yexception() << Sprintf("System attribute %s cannot be set", ~key.Quote());
+                THROW_ERROR_EXCEPTION("System attribute %s cannot be set", ~key.Quote());
             }
         }
     }
 
     if (!userAttributes) {
-        ythrow yexception() << "User attributes are not supported";
+        THROW_ERROR_EXCEPTION("User attributes are not supported");
     }
 
     userAttributes->SetYson(key, value);
@@ -298,7 +304,7 @@ bool DoRemoveAttribute(
     UNUSED(systemAttributeProvider);
 
     if (!userAttributes) {
-        ythrow yexception() << "User attributes are not supported";
+        THROW_ERROR_EXCEPTION("User attributes are not supported");
     }
 
     return userAttributes->Remove(key);
@@ -357,8 +363,10 @@ IYPathService::TResolveResult TSupportsAttributes::ResolveAttributes(
         verb != "List" &&
         verb != "Remove")
     {
-        ythrow TServiceException(EErrorCode::NoSuchVerb) <<
-            "Verb is not supported";
+        THROW_ERROR_EXCEPTION(
+            EErrorCode::NoSuchVerb,
+            "Verb %s is not supported",
+            ~verb);
     }
     return TResolveResult::Here("/@" + path);
 }
@@ -503,7 +511,7 @@ void TSupportsAttributes::SetAttribute(
         auto key = Stroka(tokenizer.CurrentToken().GetStringValue());
         if (!tokenizer.ParseNext()) {
             if (key.Empty()) {
-                ythrow yexception() << "Attribute key cannot be empty";
+                THROW_ERROR_EXCEPTION("Attribute key cannot be empty");
             }
             auto oldValue = DoFindAttribute(userAttributes, systemAttributeProvider, key);
             auto newValue = TYsonString(request->value());
@@ -573,7 +581,7 @@ void TSupportsAttributes::RemoveAttribute(
                 DoFindAttribute(userAttributes, systemAttributeProvider, key),
                 Null);
             if (!DoRemoveAttribute(userAttributes, systemAttributeProvider, key)) {
-                ythrow yexception() << Sprintf("User attribute %s is not found",
+                THROW_ERROR_EXCEPTION("User attribute %s is not found",
                     ~Stroka(key).Quote());
             }
         } else {
@@ -695,7 +703,7 @@ TNodeSetterBase::~TNodeSetterBase()
 
 void TNodeSetterBase::ThrowInvalidType(ENodeType actualType)
 {
-    ythrow yexception() << Sprintf("Invalid node type (Expected: %s, Actual: %s)",
+    THROW_ERROR_EXCEPTION("Invalid node type (Expected: %s, Actual: %s)",
         ~GetExpectedType().ToString().Quote(),
         ~actualType.ToString().Quote());
 }
@@ -787,7 +795,7 @@ protected:
     virtual void LogResponse(const TError& error) override
     {
         Stroka str;
-        AppendInfo(str, Sprintf("Error: %s", ~error.ToString()));
+        AppendInfo(str, Sprintf("Error: %s", ~ToString(error)));
         AppendInfo(str, ResponseInfo);
         LOG_DEBUG("%s %s -> %s",
             ~Verb,
@@ -838,7 +846,7 @@ public:
         TTokenizer tokenizer(path);
         tokenizer.ParseNext();
         if (tokenizer.GetCurrentType() != RootToken) {
-            ythrow yexception() << Sprintf("YPath must start with '/'");
+            THROW_ERROR_EXCEPTION("YPath must start with '/'");
         }
 
         return TResolveResult::There(UnderlyingService, TYPath(tokenizer.GetCurrentSuffix()));

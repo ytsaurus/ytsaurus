@@ -91,7 +91,7 @@ TAsyncError TRecovery::RecoverToStateWithChangeLog(
             if (IsLeader()) {
                 LOG_FATAL("Snapshot %d is not available\n%s",
                     snapshotId,
-                    ~readerResult.ToString());
+                    ~ToString(readerResult));
             }
 
             LOG_DEBUG("Snapshot cannot be found locally and will be downloaded");
@@ -103,10 +103,9 @@ TAsyncError TRecovery::RecoverToStateWithChangeLog(
 
             auto downloadResult = snapshotDownloader.DownloadSnapshot(snapshotId, tempFileName);
             if (downloadResult != TSnapshotDownloader::EResult::OK) {
-                TError error("Error downloading snapshot %d\n%s",
-                    snapshotId,
-                    ~downloadResult.ToString());
-                return MakeFuture(error);
+                // TODO(babenko): fix this once result is TError
+                auto wrappedError = TError("Error downloading snapshot %d: %s", snapshotId, ~downloadResult.ToString());
+                return MakeFuture(wrappedError);
             }
 
             try {
@@ -121,7 +120,7 @@ TAsyncError TRecovery::RecoverToStateWithChangeLog(
 
             readerResult = SnapshotStore->GetReader(snapshotId);
             if (!readerResult.IsOK()) {
-                LOG_FATAL("Snapshot is not available\n%s", ~readerResult.ToString());
+                LOG_FATAL("Snapshot is not available\n%s", ~ToString(readerResult));
             }
         }
 
@@ -166,7 +165,7 @@ TAsyncError TRecovery::ReplayChangeLogs(
             if (!mayBeMissing) {
                 LOG_FATAL("Changelog %d is not available\n%s",
                     segmentId,
-                    ~changeLogResult.ToString());
+                    ~ToString(changeLogResult));
             }
 
             LOG_INFO("Changelog %d is missing and will be created", segmentId);
@@ -199,10 +198,9 @@ TAsyncError TRecovery::ReplayChangeLogs(
 
             auto response = request->Invoke().Get();
             if (!response->IsOK()) {
-                TError error("Error getting changelog %d info from leader\n%s",
-                    segmentId,
-                    ~response->GetError().ToString());
-                return MakeFuture(error);
+                auto wrappedError = TError("Error getting changelog %d info from leader", segmentId)
+                    << response->GetError();
+                return MakeFuture(wrappedError);
             }
 
             i32 localRecordCount = changeLog->GetRecordCount();
@@ -238,7 +236,7 @@ TAsyncError TRecovery::ReplayChangeLogs(
                 TError error("Current version is %s while only %d mutations are expected, forcing clear restart",
                     ~currentVersion.ToString(),
                     remoteRecordCount);
-                LOG_INFO("%s", ~error.ToString());
+                LOG_INFO("%s", ~ToString(error));
                 DecoratedState->Clear();
                 return MakeFuture(error);
             }
@@ -259,10 +257,9 @@ TAsyncError TRecovery::ReplayChangeLogs(
                     *changeLog);
 
                 if (changeLogResult != TChangeLogDownloader::EResult::OK) {
-                    TError error("Error downloading changelog %d\n%s",
-                        segmentId,
-                        ~changeLogResult.ToString());
-                    return MakeFuture(error);
+                    // TODO(babenko): fix this once result is TError
+                    auto wrappedError = TError("Error downloading changelog %d: %s", segmentId, ~changeLogResult.ToString());
+                    return MakeFuture(wrappedError);
                 }
             }
         }

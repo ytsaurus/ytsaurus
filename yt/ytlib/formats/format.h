@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/misc/property.h>
+
 #include <ytlib/ytree/public.h>
 #include <ytlib/ytree/attributes.h>
 
@@ -36,7 +38,7 @@ public:
     TFormat(const TFormat& other);
     TFormat(EFormatType type, NYTree::IAttributeDictionary* attributes = NULL);
 
-    TFormat& operator=(const TFormat& other);
+    TFormat& operator = (const TFormat& other);
 
     DEFINE_BYVAL_RO_PROPERTY(EFormatType, Type);
     

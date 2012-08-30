@@ -66,7 +66,7 @@ public:
         UNUSED(request);
         UNUSED(response);
 
-        ythrow yexception() << Sprintf("Cannot create an instance of %s directly",
+        THROW_ERROR_EXCEPTION("Cannot create an instance of %s directly",
             ~FormatEnum(GetType()));
     }
 

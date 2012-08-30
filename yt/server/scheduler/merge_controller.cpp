@@ -299,7 +299,7 @@ protected:
         if (InputTables.empty()) {
             // At least one table is needed for sorted merge to figure out the key columns.
             // To be consistent, we don't allow empty set of input tables in for any merge type.
-            ythrow yexception() << "At least one input table must be given";
+            THROW_ERROR_EXCEPTION("At least one input table must be given");
         }
     }
 
@@ -790,9 +790,6 @@ protected:
 
     void ProcessOverlap(int startIndex, int endIndex)
     {
-        using NTableClient::ToString;
-        using ::ToString;
-
         // Must be an even number of endpoints.
         YCHECK((endIndex - startIndex) % 2 == 0);
 

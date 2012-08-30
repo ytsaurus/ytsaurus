@@ -11,6 +11,7 @@
 #include <ytlib/misc/nullable.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/string.h>
+#include <ytlib/misc/error.h>
 
 namespace NYT {
 namespace NYTree {
@@ -149,8 +150,7 @@ template <class T>
 T CheckedStaticCast(i64 value)
 {
     if (value < Min<T>() || value > Max<T>()) {
-        ythrow yexception()
-            << Sprintf("Argument is out of integral range (Value: %" PRId64 ")", value);
+        THROW_ERROR_EXCEPTION("Argument is out of integral range: %" PRId64 ")", value);
     }
     return static_cast<T>(value);
 }

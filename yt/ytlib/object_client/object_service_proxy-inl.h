@@ -92,11 +92,8 @@ TObjectServiceProxy::Execute(TIntrusivePtr<TTypedRequest> innerRequest)
             if (error.IsOK()) {
                 auto innerResponseMessage = NBus::CreateMessageFromParts(outerResponse->Attachments());
                 innerResponse->Deserialize(innerResponseMessage);
-            } else if (NRpc::IsRpcError(error)) {
-                innerResponse->SetError(error);
             } else {
-                // TODO(babenko): should we be erasing the error code here?
-                innerResponse->SetError(TError(outerResponse->GetError().GetMessage()));
+                innerResponse->SetError(error);
             }
             return innerResponse;
         }));

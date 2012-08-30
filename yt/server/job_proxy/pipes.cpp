@@ -39,10 +39,9 @@ static const int PipeBufferSize = 1 << 16;
 int SafeDup(int oldFd)
 {
     auto fd = dup(oldFd);
-
-    // ToDo: provide proper message.
     if (fd == -1) {
-        ythrow yexception() << "dup failed with errno: " << errno;
+        THROW_ERROR_EXCEPTION("dup failed")
+            << TError::FromSystem();
     }
     return fd;
 }
@@ -50,33 +49,28 @@ int SafeDup(int oldFd)
 void SafeDup2(int oldFd, int newFd)
 {
     auto res = dup2(oldFd, newFd);
-
-    // ToDo: provide proper message.
     if (res == -1) {
-        ythrow yexception() << "dup2 failed with errno: " << errno;
+        THROW_ERROR_EXCEPTION("dup2 failed")
+            << TError::FromSystem();
     }
 }
 
 void SafeClose(int fd)
 {
     auto res = close(fd);
-
-    // ToDo: provide proper message.
     if (res == -1) {
-        ythrow yexception() <<
-            Sprintf("close failed with errno: %d, fd: %d", errno, fd);
+        THROW_ERROR_EXCEPTION("close failed")
+            << TError::FromSystem();
     }
 }
 
 int SafePipe(int fd[2])
 {
     auto res = pipe(fd);
-
-    // ToDo: provide proper message.
     if (res == -1) {
-        ythrow yexception() << "pipe failed with errno: " << errno;
+        THROW_ERROR_EXCEPTION("pipe failed")
+            << TError::FromSystem();
     }
-
     return res;
 }
 
@@ -84,19 +78,17 @@ void SafeMakeNonblocking(int fd)
 {
     auto res = fcntl(fd, F_GETFL);
 
-    if (res == -1)
-        ythrow yexception() << Sprintf(
-            "fcntl failed to get descriptor flags (fd: %d, errno: %d)",
-            fd, 
-            errno);
+    if (res == -1) {
+        THROW_ERROR_EXCEPTION("fcntl failed to get descriptor flags")
+            << TError::FromSystem();
+    }
 
     res = fcntl(fd, F_SETFL, res | O_NONBLOCK);
 
-    if (res == -1)
-        ythrow yexception() << Sprintf(
-            "fcntl failed to set descriptor to nonblocking mode (fd: %d, errno %d)",
-            fd,
-            errno);
+    if (res == -1) {
+        THROW_ERROR_EXCEPTION("fcntl failed to set descriptor flags")
+            << TError::FromSystem();
+    }
 }
 
 #elif defined _win_
@@ -337,11 +329,10 @@ bool TInputPipe::ProcessData(ui32 epollEvents)
                 return true;
             } else {
                 // Error with pipe.
-                ythrow yexception() << 
-                    Sprintf("Writing to pipe failed (fd: %d, job fd: %d, errno: %d).",
+                THROW_ERROR_EXCEPTION("Writing to pipe failed (fd: %d, job fd: %d)",
                     Pipe.WriteFd,
-                    JobDescriptor,
-                    errno);
+                    JobDescriptor)
+                    << TError::FromSystem();
             }
         }
 
@@ -358,7 +349,7 @@ void TInputPipe::Finish()
 
     IsFinished = true;
     if (HasData) {
-        ythrow yexception() << Sprintf("Some data was not consumed by job (fd: %d, job fd: %d)",
+        THROW_ERROR_EXCEPTION("Some data was not consumed by job (fd: %d, job fd: %d)",
             Pipe.WriteFd,
             JobDescriptor);
     }
@@ -367,7 +358,7 @@ void TInputPipe::Finish()
     char buffer;
     ssize_t res = read(Pipe.ReadFd, &buffer, 1);
     if (res > 0) {
-        ythrow yexception() << Sprintf("Some data was not consumed by job (fd: %d, job fd: %d)",
+        THROW_ERROR_EXCEPTION("Some data was not consumed by job (fd: %d, job fd: %d)",
             Pipe.WriteFd,
             JobDescriptor);
     }

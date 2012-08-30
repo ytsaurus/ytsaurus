@@ -54,12 +54,12 @@ private:
 #define LOG_WARNING(...)                    LOG_EVENT(Logger, ::NYT::NLog::ELogLevel::Warning, __VA_ARGS__)
 #define LOG_WARNING_IF(condition, ...)      if (condition) LOG_WARNING(__VA_ARGS__)
 #define LOG_WARNING_UNLESS(condition, ...)  if (!condition) LOG_WARNING(__VA_ARGS__)
-#define LOG_WARNING_AND_THROW(ex, ...)      LOG_EVENT_AND_THROW(Logger, ::NYT::NLog::ELogLevel::Warning, ex, __VA_ARGS__)
+#define LOG_WARNING_AND_THROW(error)        LOG_EVENT_AND_THROW(Logger, ::NYT::NLog::ELogLevel::Warning, error)
 
 #define LOG_ERROR(...)                      LOG_EVENT(Logger, ::NYT::NLog::ELogLevel::Error, __VA_ARGS__)
 #define LOG_ERROR_IF(condition, ...)        if (condition) LOG_ERROR(__VA_ARGS__)
 #define LOG_ERROR_UNLESS(condition, ...)    if (!condition) LOG_ERROR(__VA_ARGS__)
-#define LOG_ERROR_AND_THROW(ex, ...)        LOG_EVENT_AND_THROW(Logger, ::NYT::NLog::ELogLevel::Error, ex, __VA_ARGS__)
+#define LOG_ERROR_AND_THROW(error)          LOG_EVENT_AND_THROW(Logger, ::NYT::NLog::ELogLevel::Error, error)
 
 #define LOG_FATAL(...)                      LOG_EVENT(Logger, ::NYT::NLog::ELogLevel::Fatal, __VA_ARGS__)
 #define LOG_FATAL_IF(condition, ...)        if ( UNLIKELY(condition)) LOG_FATAL(__VA_ARGS__)
@@ -78,9 +78,8 @@ private:
         } \
     } while (false)
 
-#define LOG_EVENT_AND_THROW(logger, level, ex, ...) \
+#define LOG_EVENT_AND_THROW(logger, level, error) \
     do { \
-        Stroka message = Sprintf(__VA_ARGS__); \
         if (logger.IsEnabled(level)) { \
             ::NYT::NLog::LogEventImpl( \
                 logger, \
@@ -88,9 +87,9 @@ private:
                 __LINE__, \
                 __FUNCTION__, \
                 level, \
-                message); \
+                ToString(error)); \
         } \
-        ythrow ex << message; \
+        THROW_ERROR error; \
     } while (false)
 
 

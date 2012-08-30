@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/misc/error.h>
+
 #include <ytlib/ytree/yson_serializable.h>
 
 namespace NYT {
@@ -29,7 +31,7 @@ struct TCellConfig
     virtual void DoValidate() const
     {
         if (Addresses.size() % 2 != 1) {
-            ythrow yexception() << "Number of masters must be odd";
+            THROW_ERROR_EXCEPTION("Number of masters must be odd");
         }
     }
 };

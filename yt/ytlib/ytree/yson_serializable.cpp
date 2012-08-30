@@ -60,9 +60,8 @@ void TYsonSerializable::Validate(const NYTree::TYPath& path) const
     try {
         DoValidate();
     } catch (const std::exception& ex) {
-        ythrow yexception() << Sprintf("Validation failed for %s\n%s",
-            ~path,
-            ex.what());
+        THROW_ERROR_EXCEPTION("Validation failed for %s", ~path)
+            << ex;
     }
 }
 

@@ -1,7 +1,10 @@
 #include "stdafx.h"
 #include "guid.h"
 
+#include <ytlib/misc/error.h>
+
 #include <util/datetime/cputimer.h>
+
 #include <util/system/atomic.h>
 #include <util/system/hostname.h>
 
@@ -252,7 +255,7 @@ TGuid TGuid::FromString(const TStringBuf& str)
 {
     TGuid guid;
     if (!FromString(str, &guid)) { 
-        ythrow yexception() << Sprintf("Error parsing GUID from %s", ~Stroka(str).Quote());
+        THROW_ERROR_EXCEPTION("Error parsing GUID: %s", ~Stroka(str).Quote());
     }
     return guid;
 }

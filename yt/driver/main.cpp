@@ -88,7 +88,7 @@ public:
         try {
             if (argc < 2) {
                 PrintAllCommands();
-                ythrow yexception() << "Not enough arguments";
+                THROW_ERROR_EXCEPTION("Not enough arguments");
             }
             
             Stroka commandName = Stroka(argv[1]);
@@ -194,7 +194,7 @@ private:
     {
         auto it = Executors.find(commandName);
         if (it == Executors.end()) {
-            ythrow yexception() << Sprintf("Unknown command %s", ~commandName.Quote());
+            THROW_ERROR_EXCEPTION("Unknown command %s", ~commandName.Quote());
         }
         return it->second;
     }

@@ -27,9 +27,9 @@ void TMetaStateServiceBase::ValidateLeaderStatus()
 {
     auto status = Bootstrap->GetMetaStateFacade()->GetManager()->GetStateStatus();
     if (status == NMetaState::EPeerStatus::Following) {
-        ythrow NRpc::TServiceException(TError(
+        THROW_ERROR_EXCEPTION(
             NRpc::EErrorCode::Unavailable,
-            "Not a leader"));
+            "Not a leader");
     }
     YCHECK(status == NMetaState::EPeerStatus::Leading);
 }

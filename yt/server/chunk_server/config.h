@@ -3,6 +3,8 @@
 #include "public.h"
 
 #include <ytlib/misc/nullable.h>
+#include <ytlib/misc/error.h>
+
 #include <ytlib/ytree/yson_serializable.h>
 
 namespace NYT {
@@ -83,7 +85,7 @@ struct TChunkTreeBalancerConfig
     virtual void DoValidate() const
     {
         if (MaxChunkListSize <= MinChunkListSize) {
-            ythrow yexception() << "\"max_chunk_list_size\" must be greater than \"min_chunk_list_size\"";
+            THROW_ERROR_EXCEPTION("\"max_chunk_list_size\" must be greater than \"min_chunk_list_size\"");
         }
     }
 };

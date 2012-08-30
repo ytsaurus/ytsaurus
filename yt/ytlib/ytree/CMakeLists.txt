@@ -4,6 +4,7 @@ set( SRCS
   ${BASE}/attribute_consumer.cpp
   ${BASE}/attribute_provider_detail.cpp
   ${BASE}/attributes.cpp
+  ${BASE}/attribute_helpers.cpp
   ${BASE}/ephemeral.cpp
   ${BASE}/forwarding_yson_consumer.cpp
   ${BASE}/lexer.cpp
@@ -33,8 +34,9 @@ set( HDRS
   ${BASE}/attribute_consumer.h
   ${BASE}/attribute_provider.h
   ${BASE}/attribute_provider_detail.h
-  ${BASE}/attributes-inl.h
   ${BASE}/attributes.h
+  ${BASE}/attribute_helpers.h
+  ${BASE}/attribute_helpers-inl.h
   ${BASE}/convert-inl.h
   ${BASE}/convert.h
   ${BASE}/ephemeral.h

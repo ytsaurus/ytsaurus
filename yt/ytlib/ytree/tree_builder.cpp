@@ -1,11 +1,13 @@
 #include "stdafx.h"
 #include "tree_builder.h"
-
 #include "attributes.h"
 #include "forwarding_yson_consumer.h"
 #include "attribute_consumer.h"
+#include "node.h"
+#include "attribute_helpers.h"
 
 #include <ytlib/actions/bind.h>
+
 #include <ytlib/misc/assert.h>
 
 #include <stack>

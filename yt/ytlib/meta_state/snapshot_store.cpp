@@ -51,7 +51,7 @@ void TSnapshotStore::Start()
                 i32 snapshotId = FromString<i32>(name);
                 SnapshotIds.insert(snapshotId);
                 LOG_INFO("Found snapshot %d", snapshotId);
-            } catch (const yexception&) {
+            } catch (const std::exception&) {
                 LOG_WARNING("Found unrecognized file %s", ~fileName.Quote());
             }
         }

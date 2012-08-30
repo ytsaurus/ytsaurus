@@ -102,11 +102,11 @@ private:
         NRpc::NProto::TResponseHeader responseHeader;
         YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
 
-        auto error = TError::FromProto(responseHeader.error());
+        auto error = FromProto(responseHeader.error());
 
         LOG_DEBUG("Execute[%d] -> Error: %s",
             requestIndex,
-            ~error.ToString());
+            ~ToString(error));
 
         if (error.GetCode() == EErrorCode::Unavailable) {
             // OnResponse can be called from an arbitrary thread.

@@ -45,7 +45,7 @@ EExitCode TOperationTracker::Run()
             auto waitOpRsp = waitOpReq->Invoke().Get();
 
             if (!waitOpRsp->IsOK()) {
-                ythrow yexception() << waitOpRsp->GetError().ToString();
+                THROW_ERROR waitOpRsp->GetError();
             }
 
             if (waitOpRsp->finished())
@@ -63,8 +63,6 @@ void TOperationTracker::AppendPhaseProgress(
     const Stroka& phase,
     const TYsonString& progress)
 {
-    using ::ToString;
-
     auto progressNode = ConvertToNode(progress);
     i64 total = ConvertTo<i64>(NYTree::GetNodeByYPath(progressNode, "/total"));
     if (total == 0) {
@@ -199,9 +197,8 @@ EExitCode TOperationTracker::DumpResult()
     {
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_op_result");
         CheckResponse(rsp, "Error getting operation result");
-        // TODO(babenko): refactor!
         auto errorNode = NYTree::GetNodeByYPath(ConvertToNode(TYsonString(rsp->value())), "/error");
-        auto error = TError::FromYson(errorNode);
+        auto error = ConvertTo<TError>(errorNode);
         if (error.IsOK()) {
             TInstant startTime;
             {
@@ -222,7 +219,7 @@ EExitCode TOperationTracker::DumpResult()
             exitCode = EExitCode::OK;
 
         } else {
-            fprintf(stderr, "%s\n", ~error.ToString());
+            fprintf(stderr, "%s\n", ~ToString(error));
             exitCode = EExitCode::Error;
         }
     }
@@ -291,12 +288,12 @@ EExitCode TOperationTracker::DumpResult()
             printf("%" PRISZT " job(s) have failed:\n", failedJobIds.size());
             FOREACH (const auto& jobId, failedJobIds) {
                 auto job = jobs->GetChild(jobId.ToString());
-                auto error = TError::FromYson(job->Attributes().Get<INodePtr>("error"));
+                auto error = ConvertTo<TError>(job->Attributes().Get<INodePtr>("error"));
                 printf("\n");
                 printf("Job %s on %s\n%s\n",
                     ~jobId.ToString(),
                     ~job->Attributes().Get<Stroka>("address"),
-                    ~error.ToString());
+                    ~ToString(error));
             }
         }
 

@@ -1,6 +1,10 @@
 #include "stdafx.h"
 #include "node_statistics.h"
 
+namespace NYT {
+namespace NChunkServer {
+namespace NProto {
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Stroka ToString(const NYT::NChunkServer::NProto::TNodeStatistics& statistics)
@@ -13,3 +17,7 @@ Stroka ToString(const NYT::NChunkServer::NProto::TNodeStatistics& statistics)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NProto
+} // namespace NChunkServer
+} // namespace NYT

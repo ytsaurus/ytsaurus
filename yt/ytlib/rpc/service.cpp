@@ -3,7 +3,10 @@
 #include "private.h"
 #include "rpc_dispatcher.h"
 
+#include <ytlib/misc/string.h>
+
 #include <ytlib/ytree/ypath_client.h>
+
 #include <ytlib/rpc/rpc.pb.h>
 
 namespace NYT {

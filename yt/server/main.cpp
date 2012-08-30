@@ -134,7 +134,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         NLog::TLogManager::Get()->Configure(configFileName, "/logging");
 
         if (configFileName.empty()) {
-            ythrow yexception() << "Missing --config option";
+            THROW_ERROR_EXCEPTION("Missing --config option");
         }
 
         // Parse configuration file.
@@ -142,8 +142,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
             TIFStream configStream(configFileName);
             configNode = ConvertToNode(&configStream);
         } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error reading server configuration\n%s",
-                ex.what());
+            THROW_ERROR_EXCEPTION("Error reading server configuration")
+                << ex;
         }
     }
 
@@ -171,8 +171,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
             config->Validate();
         } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error parsing cell node configuration\n%s",
-                ex.what());
+            THROW_ERROR_EXCEPTION("Error parsing cell node configuration")
+                << ex;
         }
 
 
@@ -200,8 +200,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
             config->Validate();
         } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error parsing cell master configuration\n%s",
-                ex.what());
+            THROW_ERROR_EXCEPTION("Error parsing cell master configuration")
+                << ex;
         }
 
         NCellMaster::TBootstrap bootstrap(configFileName, config);
@@ -227,8 +227,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
             }
             config->Validate();
         } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error parsing cell scheduler configuration\n%s",
-                ex.what());
+            THROW_ERROR_EXCEPTION("Error parsing cell scheduler configuration")
+                << ex;
         }
 
         NCellScheduler::TBootstrap bootstrap(configFileName, config);
@@ -249,15 +249,15 @@ EExitCode GuardedMain(int argc, const char* argv[])
         try {
             jobId = TGuid::FromString(parser.JobId.getValue());
         } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error parsing job id\n%s",
-                ex.what());
+            THROW_ERROR_EXCEPTION("Error parsing job id")
+                << ex;
         }
 
         try {
             config->Load(configNode);
         } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error parsing job proxy configuration\n%s",
-                ex.what());
+            THROW_ERROR_EXCEPTION("Error parsing job proxy configuration")
+                << ex;
         }
 
         auto jobProxy = New<TJobProxy>(config, jobId);

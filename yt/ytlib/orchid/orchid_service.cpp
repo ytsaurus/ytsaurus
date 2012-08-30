@@ -44,7 +44,7 @@ DEFINE_RPC_SERVICE_METHOD(TOrchidService, Execute)
 
     NRpc::NProto::TRequestHeader requestHeader;
     if (!ParseRequestHeader(requestMessage, &requestHeader)) {
-        ythrow yexception() << "Error parsing request header";
+        THROW_ERROR_EXCEPTION("Error parsing request header");
     }
 
     TYPath path = requestHeader.path();
@@ -59,9 +59,9 @@ DEFINE_RPC_SERVICE_METHOD(TOrchidService, Execute)
             NRpc::NProto::TResponseHeader responseHeader;
             YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
 
-            auto error = TError::FromProto(responseHeader.error());
+            auto error = FromProto(responseHeader.error());
 
-            context->SetRequestInfo("Error: %s", ~error.ToString());
+            context->SetRequestInfo("Error: %s", ~ToString(error));
 
             response->Attachments() = responseMessage->GetParts();
             context->Reply();

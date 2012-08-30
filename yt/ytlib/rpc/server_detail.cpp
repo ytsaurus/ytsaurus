@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "server_detail.h"
 
+#include <ytlib/ytree/attribute_helpers.h>
+
 #include <ytlib/rpc/message.h>
 
 namespace NYT {
@@ -58,7 +60,7 @@ void TServiceContextBase::Reply(IMessagePtr responseMessage)
     TResponseHeader header;
     YVERIFY(DeserializeFromProto(&header, parts[0]));
 
-    Error = TError::FromProto(header.error());
+    Error = FromProto(header.error());
     ResponseBody = TSharedRef();
     ResponseAttachments_.clear();
     
@@ -185,10 +187,8 @@ void TServiceContextBase::WrapThunk(TClosure action)
 {
     try {
         action.Run();
-    } catch (const TServiceException& ex) {
-        OnException(ex.GetError());
     } catch (const std::exception& ex) {
-        OnException(TError(EErrorCode::ServiceError, ex.what()));
+        OnException(ex);
     }
 }
 

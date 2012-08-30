@@ -23,7 +23,8 @@ TCallback<void (const TError& error)> CreateRpcErrorHandler(TIntrusivePtr<TConte
     return BIND([=] (const TError& error) {
         context->Reply(TError(
             NRpc::EErrorCode::Unavailable,
-            Sprintf("Error committing mutations\n%s", ~error.ToString())));
+            "Error committing mutations")
+            << error);
     });
 }
 

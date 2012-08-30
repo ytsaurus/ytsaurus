@@ -315,13 +315,10 @@ private:
         void OnError(const TError& error)
         {
             YASSERT(!error.IsOK());
-            TError wrappedError(
-                error.GetCode(),
-                Sprintf("Error downloading chunk into cache (ChunkId: %s)\n%s",
-                    ~ChunkId.ToString(),
-                    ~error.ToString()));
+            auto wrappedError = TError("Error downloading chunk %s into cache", ~ChunkId.ToString())
+                << error;
             Cookie->Cancel(wrappedError);
-            LOG_WARNING("%s", ~wrappedError.ToString());
+            LOG_WARNING("%s", ~ToString(wrappedError));
             Cleanup();
         }
 

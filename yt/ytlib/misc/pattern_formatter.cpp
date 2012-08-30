@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "pattern_formatter.h"
 
+#include <ytlib/misc/error.h>
+
 #include <util/stream/str.h>
 
 namespace NYT {
@@ -31,7 +33,7 @@ Stroka TPatternFormatter::Format(const Stroka& pattern)
         ++pos;
 
         if (pos >= pattern.size() || pattern[pos] != LeftParen) {
-            ythrow yexception() << Sprintf("Expected \"%c\" at position %d",
+            THROW_ERROR_EXCEPTION("Expected \"%c\" at position %d",
                 LeftParen,
                 static_cast<int>(pos));
         }
@@ -50,7 +52,7 @@ Stroka TPatternFormatter::Format(const Stroka& pattern)
         }
 
         if (!foundRightParen) {
-            ythrow yexception() << Sprintf("Cannot find a matching \"%c\" for \"%c\" at position %d",
+            THROW_ERROR_EXCEPTION("Cannot find a matching \"%c\" for \"%c\" at position %d",
                 RightParen,
                 LeftParen,
                 static_cast<int>(startProperty) - 1);
@@ -66,7 +68,7 @@ Stroka TPatternFormatter::Format(const Stroka& pattern)
         auto it = PropertyMap.find(property);
         if (it == PropertyMap.end()) {
             if (!isOptional) {
-                ythrow yexception() << Sprintf("Property %s is not defined", ~property);
+                THROW_ERROR_EXCEPTION("Property %s is not defined", ~property);
             }
         } else {
             result.append(it->second);

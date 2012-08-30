@@ -32,7 +32,7 @@ Stroka GetNodePathHelper(IConstNodePtr node)
 
 void ThrowInvalidNodeType(IConstNodePtr node, ENodeType expectedType, ENodeType actualType)
 {
-    ythrow yexception() << Sprintf("%s has invalid type: expected %s, actual %s",
+    THROW_ERROR_EXCEPTION("%s has invalid type: expected %s, actual %s",
         ~GetNodePathHelper(node),
         ~expectedType.ToString(),
         ~actualType.ToString());
@@ -40,30 +40,30 @@ void ThrowInvalidNodeType(IConstNodePtr node, ENodeType expectedType, ENodeType 
 
 void ThrowNoSuchChildKey(IConstNodePtr node, const Stroka& key)
 {
-    ythrow yexception() << Sprintf("%s has no child with key %s",
+    THROW_ERROR_EXCEPTION("%s has no child with key %s",
         ~GetNodePathHelper(node),
         ~YsonizeString(key, EYsonFormat::Text));
 }
 
 void ThrowNoSuchChildIndex(IConstNodePtr node, int index)
 {
-    ythrow yexception() << Sprintf("%s has no child with index %d",
+    THROW_ERROR_EXCEPTION("%s has no child with index %d",
         ~GetNodePathHelper(node),
         index);
 }
 
 void ThrowVerbNotSuppored(IConstNodePtr node, const Stroka& verb)
 {
-    ythrow TServiceException(TError(
+    THROW_ERROR_EXCEPTION(
         NRpc::EErrorCode::NoSuchVerb,
         "%s does not support verb %s",
         ~GetNodePathHelper(node),
-        ~verb));
+        ~verb);
 }
 
 void ThrowCannotHaveChildren(IConstNodePtr node)
 {
-    ythrow yexception() << Sprintf("%s cannot have children",
+    THROW_ERROR_EXCEPTION("%s cannot have children",
         ~GetNodePathHelper(node));
 }
 
@@ -116,7 +116,7 @@ void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove
 
     auto parent = GetParent();
     if (!parent) {
-        ythrow yexception() << "Cannot remove the root";
+        THROW_ERROR_EXCEPTION("Cannot remove the root");
     }
 
     parent->AsComposite()->RemoveChild(this);
@@ -181,7 +181,7 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
     switch (tokenizer.GetCurrentType()) {
         case WildcardToken:
             if (verb != "Remove") {
-                ythrow yexception() << "Wildcard is only allowed for Remove verb";
+                THROW_ERROR_EXCEPTION("Wildcard is only allowed for Remove verb");
             }
             tokenizer.ParseNext();
             tokenizer.CurrentToken().CheckType(ETokenType::EndOfStream);
@@ -191,7 +191,7 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
         case ETokenType::String: {
             Stroka key(tokenizer.CurrentToken().GetStringValue());
             if (key.Empty()) {
-                ythrow yexception() << Sprintf("Child key cannot be empty");
+                THROW_ERROR_EXCEPTION("Child key cannot be empty");
             }
 
             auto child = FindChild(key);

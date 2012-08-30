@@ -26,7 +26,9 @@ TSlot::TSlot(const Stroka& path, int id)
         NFS::ForcePath(Path);
         SandboxPath = NFS::CombinePaths(Path, "sandbox");
     } catch (const std::exception& ex) {
-        LOG_FATAL("Failed to create slot directory (Path: %s, Error: %s).", ~Path, ex.what());
+        LOG_FATAL("Failed to create slot directory %s\n%s",
+            ~Path.Quote(),
+            ex.what());
     }
 }
 
@@ -48,7 +50,9 @@ void TSlot::Clean()
         }
         IsClean = true;
     } catch (const std::exception& ex) {
-        LOG_FATAL("Failed to clean sandbox (SandboxPath: %s, Error: %s).", ~SandboxPath, ex.what());
+        LOG_FATAL("Failed to clean sandbox %s\n%s",
+            ~SandboxPath.Quote(),
+            ex.what());
     }
 }
 
@@ -64,7 +68,9 @@ void TSlot::InitSandbox()
     try {
         NFS::ForcePath(SandboxPath);
     } catch (const std::exception& ex) {
-        LOG_FATAL("Failed to create sandbox (SandboxPath: %s, Error: %s).", ~SandboxPath, ex.what());
+        LOG_FATAL("Failed to create sandbox %s\n%s",
+            ~SandboxPath.Quote(),
+            ex.what());
     }
     IsClean = false;
     LOG_TRACE("Slot created sandbox path: %s", ~SandboxPath);

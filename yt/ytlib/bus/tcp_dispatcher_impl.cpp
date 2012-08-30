@@ -25,7 +25,7 @@ Stroka GetLocalBusPath(int port)
 TNetworkAddress GetLocalBusAddress(int port)
 {
 #ifdef _win_
-    ythrow yexception() << "Local bus transport is not supported under this platform";
+    THROW_ERROR_EXCEPTION("Local bus transport is not supported under this platform");
 #else
     sockaddr_un sockAddr;
     memset(&sockAddr, 0, sizeof(sockAddr));
@@ -140,7 +140,7 @@ void TTcpDispatcher::TImpl::OnRegister(ev::async&, int)
             Register(entry.Object);
             entry.Promise.Set(TError());
         } catch (const std::exception& ex) {
-            entry.Promise.Set(TError(ex.what()));
+            entry.Promise.Set(ex);
         }
     }
 }
@@ -155,7 +155,7 @@ void TTcpDispatcher::TImpl::OnUnregister(ev::async&, int)
             Unregister(entry.Object);
             entry.Promise.Set(TError());
         } catch (const std::exception& ex) {
-            entry.Promise.Set(TError(ex.what()));
+            entry.Promise.Set(ex);
         }
     }
 }

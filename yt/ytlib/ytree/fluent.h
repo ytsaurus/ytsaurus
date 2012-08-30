@@ -8,9 +8,12 @@
 #include "attributes.h"
 
 #include <ytlib/actions/callback.h>
+
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/guid.h>
 #include <ytlib/misc/string.h>
+
+#include <ytlib/ytree/attribute_helpers.h>
 
 namespace NYT {
 namespace NYTree {

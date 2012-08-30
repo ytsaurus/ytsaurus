@@ -2,6 +2,8 @@
 #include "ypath.h"
 #include "fluent.h"
 
+#include <ytlib/misc/error.h>
+
 namespace NYT {
 namespace NYTree {
 
@@ -56,6 +58,15 @@ IAttributeDictionary& TRichYPath::Attributes()
     return *Attributes_;
 }
 
+TRichYPath& TRichYPath::operator =( const TRichYPath& other )
+{
+    if (this != &other) {
+        Path_ = other.Path_;
+        Attributes_ = ~other.Attributes_ ? other.Attributes_->Clone() : NULL;
+    }
+    return *this;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Stroka ToString(const TRichYPath& path)
@@ -84,7 +95,7 @@ void Serialize(const TRichYPath& richPath, IYsonConsumer* consumer)
 void Deserialize(TRichYPath& richPath, INodePtr node)
 {
     if (node->GetType() != ENodeType::String) {
-        ythrow yexception() << "YPath can only be parsed from String";
+        THROW_ERROR_EXCEPTION("YPath can only be parsed from String");
     }
     richPath.SetPath(node->GetValue<Stroka>());
     richPath.Attributes().Clear();

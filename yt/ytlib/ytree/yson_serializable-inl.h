@@ -12,8 +12,10 @@
 #include <ytlib/misc/nullable.h>
 #include <ytlib/misc/enum.h>
 #include <ytlib/misc/demangle.h>
+#include <ytlib/misc/error.h>
 
 #include <ytlib/actions/bind.h>
+
 #include <util/datetime/base.h>
 
 // Avoid circular references.
@@ -206,14 +208,11 @@ void TParameter<T>::Load(NYTree::INodePtr node, const NYTree::TYPath& path)
         try {
             TLoadHelper<T>::Load(Parameter, node, path);
         } catch (const std::exception& ex) {
-            ythrow yexception()
-                << Sprintf("Could not read parameter (Path: %s)\n%s",
-                    ~path,
-                    ex.what());
+            THROW_ERROR_EXCEPTION("Error reading parameter %s", ~path)
+                << ex;
         }
     } else if (!HasDefaultValue) {
-        ythrow yexception()
-            << Sprintf("Required parameter is missing (Path: %s)", ~path);
+        THROW_ERROR_EXCEPTION("Required parameter is missing: %s", ~path);
     }
 }
 
@@ -225,10 +224,8 @@ void TParameter<T>::Validate(const NYTree::TYPath& path) const
         try {
             validator.Run(Parameter);
         } catch (const std::exception& ex) {
-            ythrow yexception()
-                << Sprintf("Validation failed (Path: %s)\n%s",
-                    ~path,
-                    ex.what());
+            THROW_ERROR_EXCEPTION("Validation failed: %s", ~path)
+                << ex;
         }
     }
 }
@@ -277,7 +274,7 @@ TParameter<T>& TParameter<T>::CheckThat(TValidator validator)
 ////////////////////////////////////////////////////////////////////////////////
 // Standard validators
 
-#define DEFINE_VALIDATOR(method, condition, ex) \
+#define DEFINE_VALIDATOR(method, condition, error) \
     template <class T> \
     TParameter<T>& TParameter<T>::method \
     { \
@@ -286,7 +283,7 @@ TParameter<T>& TParameter<T>::CheckThat(TValidator validator)
             if (nullableParameter) { \
                 const TValueType& actual = nullableParameter.Get(); \
                 if (!(condition)) { \
-                    ythrow (ex); \
+                    THROW_ERROR error; \
                 } \
             } \
         })); \
@@ -295,32 +292,38 @@ TParameter<T>& TParameter<T>::CheckThat(TValidator validator)
 DEFINE_VALIDATOR(
     GreaterThan(TValueType expected),
     actual > expected,
-    yexception() << "Validation failure: expected >" << expected << ", found " << actual)
+    TError("Validation failure: expected > %s, found %s", ~ToString(expected), ~ToString(actual))
+)
 
 DEFINE_VALIDATOR(
     GreaterThanOrEqual(TValueType expected),
     actual >= expected,
-    yexception() << "Validation failure: expected >=" << expected << ", found " << actual)
+    TError("Validation failure: expected >= %s, found %s", ~ToString(expected), ~ToString(actual))
+)
 
 DEFINE_VALIDATOR(
     LessThan(TValueType expected),
     actual < expected,
-    yexception() << "Validation failure: expected <" << expected << ", found " << actual)
+    TError("Validation failure: expected < %s, found %s", ~ToString(expected), ~ToString(actual))
+)
 
 DEFINE_VALIDATOR(
     LessThanOrEqual(TValueType expected),
     actual <= expected,
-    yexception() << "Validation failure: expected <=" << expected << ", found " << actual)
+    TError("Validation failure: expected <= %s, found %s", ~ToString(expected), ~ToString(actual))
+)
 
 DEFINE_VALIDATOR(
     InRange(TValueType lowerBound, TValueType upperBound),
     lowerBound <= actual && actual <= upperBound,
-    yexception() << "Validation failure: expected in range ["<< lowerBound << ", " << upperBound << "], found " << actual)
+    TError("Validation failure: expected in range [%s, %s], found %s", ~ToString(lowerBound), ~ToString(upperBound), ~ToString(actual))
+)
 
 DEFINE_VALIDATOR(
     NonEmpty(),
     actual.size() > 0,
-    yexception() << "Validation failure: expected non-empty")
+    TError("Validation failure: expected non-empty")
+)
 
 #undef DEFINE_VALIDATOR
 

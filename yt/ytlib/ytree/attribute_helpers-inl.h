@@ -1,7 +1,7 @@
-#ifndef ATTRIBUTES_INL_H_
-#error "Direct inclusion of this file is not allowed, include attributes.h"
+#ifndef ATTRIBUTE_HELPERS_INL_H_
+#error "Direct inclusion of this file is not allowed, include attribute_helpers.h"
 #endif
-#undef ATTRIBUTES_INL_H_
+#undef ATTRIBUTE_HELPERS_INL_H_
 
 #include "convert.h"
 #include "attribute_consumer.h"

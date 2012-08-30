@@ -69,7 +69,7 @@ void TSnapshotLookup::OnLookupSnapshotResponse(
     if (!response->IsOK()) {
         LOG_WARNING("Error looking up snapshots at peer %d\n%s",
             peerId,
-            ~response->GetError().ToString());
+            ~ToString(response->GetError()));
         return;
     }
 

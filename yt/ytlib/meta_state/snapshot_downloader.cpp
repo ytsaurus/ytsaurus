@@ -94,7 +94,7 @@ void TSnapshotDownloader::OnSnapshotInfoResponse(
     if (!response->IsOK()) {
         LOG_INFO("Error requesting snapshot info from peer %d\n%s",
             peerId,
-            ~response->GetError().ToString());
+            ~ToString(response->GetError()));
         return;
     }
     
@@ -192,13 +192,13 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
                     default:
                         LOG_FATAL("Unexpected error received from peer %d\n%s",
                             sourceId,
-                            ~error.ToString());
+                            ~ToString(error));
                         break;
                 }
             } else {
                 LOG_WARNING("Error reading snapshot at peer %d\n%s",
                     sourceId,
-                    ~error.ToString());
+                    ~ToString(error));
                 return EResult::RemoteError;
             }
         }

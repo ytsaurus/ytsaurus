@@ -66,7 +66,7 @@ TJobPtr TJobManager::GetJob(const TJobId& jobId)
     auto job = FindJob(jobId);
     if (!job) {
         // TODO(babenko): error code
-        ythrow yexception() << Sprintf("No such job %s", ~jobId.ToString());
+        THROW_ERROR_EXCEPTION("No such job %s", ~jobId.ToString());
     }
     return job;
 }

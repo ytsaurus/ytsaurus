@@ -64,10 +64,8 @@ public:
 
     void Initialize()
     {
-        using ::ToString;
-
         if (!Config->AllowFetchingSeedsFromMaster && InitialSeedAddresses.empty()) {
-            ythrow yexception() << "Reader is unusable: master seeds retries are disabled and no initial seeds are given";
+            THROW_ERROR_EXCEPTION("Reader is unusable: master seeds retries are disabled and no initial seeds are given");
         }
 
         if (!InitialSeedAddresses.empty()) {
@@ -184,12 +182,11 @@ private:
             YASSERT(!GetSeedsPromise.IsSet());
             GetSeedsPromise.Set(seedAddresses);
         } else {
-            auto message = Sprintf("Error requesting chunk seeds from master\n%s",
-                ~rsp->GetError().ToString());
-            LOG_WARNING("%s", ~message);
-
+            auto wrappedError = TError("Error requesting chunk seeds from master")
+                << rsp->GetError();
+            LOG_WARNING("%s", ~ToString(wrappedError));
             YASSERT(!GetSeedsPromise.IsSet());
-            GetSeedsPromise.Set(TError(message));
+            GetSeedsPromise.Set(wrappedError);
         }
     }
 };
@@ -249,9 +246,8 @@ protected:
                 OnGotSeeds();
             }
         } else {
-            OnSessionFailed(TError("Retries have been aborted due to master error (RetryIndex: %d)\n%s",
-                RetryIndex,
-                ~result.ToString()));
+            OnSessionFailed(TError("Retries have been aborted due to master error")
+                << result);
         }
     }
 
@@ -281,7 +277,7 @@ protected:
 
         LOG_WARNING("Retry failed (RetryIndex: %d)\n%s",
             RetryIndex,
-            ~error.ToString());
+            ~ToString(error));
 
         YASSERT(!GetSeedsResult.IsNull());
         reader->DiscardSeeds(GetSeedsResult);
@@ -491,7 +487,7 @@ private:
                 try {
                     channel = NodeChannelCache->GetChannel(address);
                 } catch (const std::exception& ex) {
-                    OnGetBlocksResponseFailed(address, TError(ex.what()));
+                    OnGetBlocksResponseFailed(address, ex);
                     continue;
                 }
 
@@ -539,7 +535,7 @@ private:
     {
         LOG_WARNING("Error getting blocks from %s\n%s",
             ~address,
-            ~error.ToString());
+            ~ToString(error));
     }
 
     void ProcessReceivedBlocks(
@@ -611,10 +607,10 @@ private:
 
     virtual void OnSessionFailed(const TError& error)
     {
-        TError wrappedError(Sprintf("Error fetching chunk blocks\n%s",
-            ~error.ToString()));
+        auto wrappedError = TError("Error fetching chunk blocks")
+            << error;
 
-        LOG_ERROR("%s", ~wrappedError.ToString());
+        LOG_ERROR("%s", ~ToString(wrappedError));
 
         Promise.Set(wrappedError);
     }
@@ -690,7 +686,7 @@ private:
         try {
             channel = NodeChannelCache->GetChannel(address);
         } catch (const std::exception& ex) {
-            OnChunkMetaResponseFailed(address, TError(ex.what()));
+            OnChunkMetaResponseFailed(address, ex);
             return;
         }
 
@@ -725,7 +721,7 @@ private:
     {
         LOG_WARNING("Error getting chunk info from %s\n%s",
             ~address,
-            ~error.ToString());
+            ~ToString(error));
 
         ++SeedIndex;
         if (SeedIndex < SeedAddresses.size()) {
@@ -743,10 +739,10 @@ private:
 
     virtual void OnSessionFailed(const TError& error)
     {
-        TError wrappedError(Sprintf("Error getting chunk info\n%s",
-            ~error.ToString()));
+        auto wrappedError = TError("Error getting chunk info")
+            << error;
 
-        LOG_ERROR("%s", ~wrappedError.ToString());
+        LOG_ERROR("%s", ~ToString(wrappedError));
 
         Promise.Set(wrappedError);
     }

@@ -1,7 +1,9 @@
 #include "stdafx.h"
 #include "yamr_writer.h"
 
-#include <ytree/yson_format.h>
+#include <ytlib/misc/error.h>
+
+#include <ytlib/ytree/yson_format.h>
 
 namespace NYT {
 namespace NFormats {
@@ -41,12 +43,12 @@ void TYamrWriter::OnStringScalar(const TStringBuf& value)
 
 void TYamrWriter::OnEntity()
 {
-    ythrow yexception() << "Entities are not supported by Yamr";
+    THROW_ERROR_EXCEPTION("Entities are not supported by YAMR");
 }
 
 void TYamrWriter::OnBeginList()
 {
-    ythrow yexception() << "Lists are not supported by Yamr";
+    THROW_ERROR_EXCEPTION("Lists are not supported by YAMR");
 }
 
 void TYamrWriter::OnListItem()
@@ -60,7 +62,7 @@ void TYamrWriter::OnEndList()
 void TYamrWriter::OnBeginMap()
 {
     if (!AllowBeginMap) {
-        ythrow yexception() << "Embedded maps are not supported by Yamr";
+        THROW_ERROR_EXCEPTION("Embedded maps are not supported by YAMR");
     }
     AllowBeginMap = false;
 
@@ -88,7 +90,7 @@ void TYamrWriter::OnEndMap()
 
 void TYamrWriter::OnBeginAttributes()
 {
-    ythrow yexception() << "Attributes are not supported by Yamr";
+    THROW_ERROR_EXCEPTION("Attributes are not supported by YAMR");
 }
 
 void TYamrWriter::OnEndAttributes()

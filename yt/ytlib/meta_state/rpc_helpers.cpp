@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "rpc_helpers.h"
 
+#include <ytlib/ytree/attribute_helpers.h>
+
 #include <ytlib/rpc/service.h>
 
 namespace NYT {

@@ -180,7 +180,7 @@ private:
             return;
 
         if (!result.IsOK()) {
-            LOG_WARNING("Failed to download chunk meta\n%s", ~result.GetMessage());
+            LOG_WARNING("Failed to download chunk meta\n%s", ~ToString(result));
             OnFail(result, chunkReader);
             return;
         }
@@ -464,7 +464,7 @@ private:
         if (!error.IsOK()) {
             LOG_WARNING("Failed to download starting block for channel %d\n%s", 
                 channelIdx,
-                ~error.GetMessage());
+                ~ToString(error));
             OnFail(error, chunkReader);
             return;
         }
@@ -600,7 +600,7 @@ public:
             return;
 
         if (!result.IsOK()) {
-            LOG_WARNING("Failed to download chunk meta\n%s", ~result.GetMessage());
+            LOG_WARNING("Failed to download chunk meta\n%s", ~ToString(result));
             OnFail(result, chunkReader);
             return;
         }
@@ -615,7 +615,7 @@ public:
 
         auto channelsExt = GetProtoExtension<NProto::TChannelsExt>(result.Value().extensions());
 
-        YASSERT(channelsExt.items_size() == 1);
+        YCHECK(channelsExt.items_size() == 1);
 
         std::vector<TSequentialReader::TBlockInfo> blockSequence;
         {

@@ -20,8 +20,6 @@
 
 namespace NYT {
 
-using ::ToString;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("Network");
@@ -30,12 +28,18 @@ static NLog::TLogger Logger("Network");
 
 Stroka GetLocalHostName()
 {
-    // TODO(panin): think about caching this call in util/system/hostname.h
-    auto info = gethostbyname(::GetHostName());
-    if (!info) {
-        ythrow TSystemError() << "Unable to determine local host name";
+    static Stroka hostName;
+    static TSpinLock hostNameLock;
+
+    TGuard<TSpinLock> guard(hostNameLock);
+    if (hostName.empty()) {
+        auto info = gethostbyname(::GetHostName());
+        if (!info) {
+            ythrow TSystemError() << "Unable to determine local host name";
+        }
+        hostName = info->h_name;
     }
-    return info->h_name;
+    return hostName;
 }
 
 Stroka BuildServiceAddress(const TStringBuf& hostName, int port)
@@ -47,7 +51,7 @@ void ParseServiceAddress(const TStringBuf& address, TStringBuf* hostName, int* p
 {
     int colonIndex = address.find_last_of(':');
     if (colonIndex == Stroka::npos) {
-        ythrow yexception() << Sprintf("Service address %s is malformed, <host>:<port> format is expected",
+        THROW_ERROR_EXCEPTION("Service address %s is malformed, <host>:<port> format is expected",
             ~Stroka(address).Quote());
     }
 
@@ -59,7 +63,7 @@ void ParseServiceAddress(const TStringBuf& address, TStringBuf* hostName, int* p
         try {
             *port = FromString<int>(address.substr(colonIndex + 1));
         } catch (const std::exception) {
-            ythrow yexception() << Sprintf("Port number in service address %s is malformed",
+            THROW_ERROR_EXCEPTION("Port number in service address %s is malformed",
                 ~Stroka(address).Quote());
         }
     }
@@ -241,11 +245,11 @@ TValueOrError<TNetworkAddress> TAddressResolver::DoResolve(const Stroka& hostNam
         &addrInfo);
 
     if (gaiResult != 0) {
-        TError error("Failed to resolve host %s (ErrorCode: %d)\n%s",
-            ~hostName,
-            gaiResult,
-            gai_strerror(gaiResult));
-        LOG_WARNING("%s", ~error.ToString());
+        auto gaiError = TError(Stroka(gai_strerror(gaiResult)))
+            << TErrorAttribute("errno", gaiResult);
+        auto error = TError("Failed to resolve host %s")
+            << gaiError;
+        LOG_WARNING("%s", ~ToString(error));
         return error;
     }
 
@@ -274,7 +278,7 @@ TValueOrError<TNetworkAddress> TAddressResolver::DoResolve(const Stroka& hostNam
 
     {
         TError error("No IPv4 or IPv6 address can be found for %s", ~hostName);
-        LOG_WARNING("%s", ~error.ToString());
+        LOG_WARNING("%s", ~ToString(error));
         return error;
     }
 }

@@ -8,9 +8,13 @@
 #include "forwarding_yson_consumer.h"
 #include "attributes.h"
 
-#include <ytlib/ytree/ypath.pb.h>
 #include <ytlib/misc/assert.h>
+
+#include <ytlib/ytree/node.h>
+#include <ytlib/ytree/ypath.pb.h>
+
 #include <ytlib/logging/log.h>
+
 #include <ytlib/rpc/service.h>
 
 namespace NYT {

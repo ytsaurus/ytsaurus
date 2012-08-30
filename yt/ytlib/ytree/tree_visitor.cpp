@@ -2,9 +2,13 @@
 #include "tree_visitor.h"
 #include "attributes.h"
 #include "yson_producer.h"
+#include "attribute_helpers.h"
 
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/assert.h>
+
+#include <ytlib/ytree/node.h>
+#include <ytlib/ytree/convert.h>
 
 namespace NYT {
 namespace NYTree {

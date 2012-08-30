@@ -86,8 +86,6 @@ void TOperationControllerBase::TTask::AddStripes(const std::vector<TChunkStripeP
 
 TJobPtr TOperationControllerBase::TTask::ScheduleJob(ISchedulingContext* context)
 {
-    using ::ToString;
-
     if (!Controller->CheckAvailableChunkLists(GetChunkListCountPerJob())) {
         return NULL;
     }
@@ -335,7 +333,7 @@ TFuture<void> TOperationControllerBase::Prepare()
                 }
                 return MakeFuture();
             } else {
-                LOG_WARNING("Operation preparation failed\n%s", ~result.ToString());
+                LOG_WARNING("Operation preparation failed\n%s", ~ToString(result));
                 this_->Active = false;
                 this_->Host->OnOperationFailed(this_->Operation, result);
                 // This promise is never fulfilled.
@@ -349,8 +347,8 @@ TFuture<void> TOperationControllerBase::Revive()
     try {
         Initialize();
     } catch (const std::exception& ex) {
-        OnOperationFailed(TError("Operation has failed to initialize\n%s",
-            ex.what()));
+        OnOperationFailed(TError("Operation has failed to initialize")
+            << ex);
         // This promise is never fulfilled.
         return NewPromise<void>();
     }
@@ -376,7 +374,7 @@ TFuture<void> TOperationControllerBase::Commit()
                 LOG_INFO("Operation committed");
                 return MakeFuture();
             } else {
-                LOG_WARNING("Operation has failed to commit\n%s", ~result.ToString());
+                LOG_WARNING("Operation has failed to commit\n%s", ~ToString(result));
                 this_->Host->OnOperationFailed(this_->Operation, result);
                 return NewPromise<void>();
             }
@@ -700,7 +698,7 @@ void TOperationControllerBase::OnOperationFailed(const TError& error)
     if (!Active)
         return;
 
-    LOG_INFO("Operation failed\n%s", ~error.ToString());
+    LOG_WARNING("Operation failed\n%s", ~ToString(error));
 
     Running = false;
     Active = false;
@@ -1065,7 +1063,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 FOREACH (const auto& chunk, rsp->chunks()) {
                     auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
                     if (chunk.node_addresses_size() == 0) {
-                        ythrow yexception() << Sprintf("Chunk %s in input table %s is lost",
+                        THROW_ERROR_EXCEPTION("Chunk %s in input table %s is lost",
                             ~chunkId.ToString(),
                             ~table.Path.GetPath());
                     }
@@ -1244,7 +1242,7 @@ void TOperationControllerBase::OnChunkListsReleased(TObjectServiceProxy::TRspExe
     if (batchRsp->IsOK()) {
         LOG_INFO("Chunk lists released successfully");
     } else {
-        LOG_WARNING("Error releasing chunk lists\n%s", ~batchRsp->GetError().ToString());
+        LOG_WARNING("Error releasing chunk lists\n%s", ~ToString(batchRsp->GetError()));
     }
 }
 
@@ -1265,8 +1263,6 @@ std::vector<TChunkStripePtr> TOperationControllerBase::PrepareChunkStripes(
     TNullable<int> jobCount,
     i64 jobSliceDataSize)
 {
-    using ::ToString;
-
     i64 sliceDataSize = jobSliceDataSize;
     if (jobCount) {
         i64 totalDataSize = 0;
@@ -1319,7 +1315,7 @@ std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNull
 
     FOREACH (const auto& table, InputTables) {
         if (!table.Sorted) {
-            ythrow yexception() << Sprintf("Input table %s is not sorted",
+            THROW_ERROR_EXCEPTION("Input table %s is not sorted",
                 ~table.Path.GetPath());
         }
     }
@@ -1327,7 +1323,7 @@ std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNull
     if (keyColumns) {
         FOREACH (const auto& table, InputTables) {
             if (!CheckKeyColumnsCompatible(table.KeyColumns, keyColumns.Get())) {
-                ythrow yexception() << Sprintf("Input table %s has key columns %s that are not compatible with the requested key columns %s",
+                THROW_ERROR_EXCEPTION("Input table %s has key columns %s that are not compatible with the requested key columns %s",
                     ~table.Path.GetPath(),
                     ~ConvertToYsonString(table.KeyColumns, EYsonFormat::Text).Data(),
                     ~ConvertToYsonString(keyColumns.Get(), EYsonFormat::Text).Data());
@@ -1338,7 +1334,7 @@ std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNull
         const auto& referenceTable = InputTables[0];
         FOREACH (const auto& table, InputTables) {
             if (table.KeyColumns != referenceTable.KeyColumns) {
-                ythrow yexception() << Sprintf("Key columns do not match: input table %s is sorted by %s while input table %s is sorted by %s",
+                THROW_ERROR_EXCEPTION("Key columns do not match: input table %s is sorted by %s while input table %s is sorted by %s",
                     ~table.Path.GetPath(),
                     ~ConvertToYsonString(table.KeyColumns, EYsonFormat::Text).Data(),
                     ~referenceTable.Path.GetPath(),
@@ -1370,7 +1366,7 @@ void TOperationControllerBase::CheckOutputTablesEmpty()
 {
     FOREACH (const auto& table, OutputTables) {
         if (table.InitialRowCount > 0) {
-            ythrow yexception() << Sprintf("Output table %s is not empty",
+            THROW_ERROR_EXCEPTION("Output table %s is not empty",
                 ~table.Path.GetPath());
         }
     }
@@ -1462,11 +1458,10 @@ void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
 
 void TOperationControllerBase::BuildResultYson(IYsonConsumer* consumer)
 {
-    auto error = TError::FromProto(Operation->Result().error());
-    // TODO(babenko): refactor
+    auto error = FromProto(Operation->Result().error());
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("error").Do(BIND(&TError::ToYson, &error))
+            .Item("error").Scalar(error)
         .EndMap();
 }
 

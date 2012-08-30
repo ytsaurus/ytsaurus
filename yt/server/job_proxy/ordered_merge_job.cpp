@@ -143,7 +143,7 @@ public:
                 writer->Close();
 
                 TJobResult result;
-                *result.mutable_error() = TError().ToProto();
+                ToProto(result.mutable_error(), TError());
                 return result;
             }
         }

@@ -225,8 +225,9 @@ public:
         Request_->Context = Context.Get();
 
         if (!DeserializeFromProtoWithEnvelope(Request_.Get(), Context->GetRequestBody())) {
-            ythrow TServiceException(EErrorCode::ProtocolError) <<
-                "Error deserializing request body";
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::ProtocolError,
+                "Error deserializing request body");
         }
     }
 

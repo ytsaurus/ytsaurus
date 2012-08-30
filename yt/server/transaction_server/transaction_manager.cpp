@@ -157,14 +157,14 @@ private:
     void ValidateTransactionIsValid()
     {
         if (GetId() == NullTransactionId) {
-            ythrow yexception() << "A valid transaction is required";
+            THROW_ERROR_EXCEPTION("A valid transaction is required");
         }
     }
 
     void ValidateTransactionIsActive(const TTransaction* transaction)
     {
         if (!transaction->IsActive()) {
-            ythrow yexception() << "Transaction is not active";
+            THROW_ERROR_EXCEPTION("Transaction is not active");
         }
     }
 
@@ -231,11 +231,11 @@ private:
         auto objectManager = Owner->Bootstrap->GetObjectManager();
         auto handler = objectManager->FindHandler(type);
         if (!handler) {
-            ythrow yexception() << Sprintf("Unknown object type %s", ~type.ToString());
+            THROW_ERROR_EXCEPTION("Unknown object type %s", ~type.ToString());
         }
 
         if (handler->IsTransactionRequired() && !transaction) {
-            ythrow yexception() << Sprintf("Cannot create an instance of %s outside",
+            THROW_ERROR_EXCEPTION("Cannot create an instance of %s outside",
                 ~FormatEnum(type));
         }
 
@@ -282,7 +282,7 @@ private:
         ValidateTransactionIsActive(transaction);
 
         if (transaction->CreatedObjectIds().erase(objectId) != 1) {
-            ythrow yexception() << "Transaction does not own the object";
+            THROW_ERROR_EXCEPTION("Transaction does not own the object");
         }
 
         auto objectManager = Owner->Bootstrap->GetObjectManager();
@@ -430,7 +430,7 @@ void TTransactionManager::Commit(TTransaction* transaction)
     auto id = transaction->GetId();
 
     if (!transaction->NestedTransactions().empty()) {
-        ythrow yexception() << "Cannot commit since the transaction has nested transactions in progress";
+        THROW_ERROR_EXCEPTION("Cannot commit since the transaction has nested transactions in progress");
     }
 
     if (IsLeader()) {
@@ -611,7 +611,7 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
         } else {
             LOG_ERROR("Transaction expiration commit failed (TransactionId: %s)\n%s",
                 ~id.ToString(),
-                ~rsp->GetError().ToString());
+                ~ToString(rsp->GetError()));
         }
     }));
 }

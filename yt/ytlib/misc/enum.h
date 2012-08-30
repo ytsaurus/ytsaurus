@@ -11,7 +11,6 @@
 #include <util/stream/base.h>
 #include <util/string/cast.h>
 #include <util/generic/typehelpers.h>
-#include <util/generic/yexception.h>
 #include <util/generic/vector.h>
 #include <util/ysaveload.h>
 
@@ -153,9 +152,9 @@ protected:
         { \
             int value; \
             if (!GetValueByLiteral(str, &value)) { \
-                ythrow yexception() << Sprintf("Error parsing %s value %s", \
+                throw std::runtime_error(Sprintf("Error parsing %s value %s", \
                     PP_STRINGIZE(name), \
-                    ~Stroka(str).Quote()); \
+                    ~Stroka(str).Quote())); \
             } \
             return name(value); \
         } \

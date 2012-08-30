@@ -199,8 +199,7 @@ void Deserialize(char& value, INodePtr node)
 {
     Stroka stringValue = node->AsString()->GetValue();
     if (stringValue.size() != 1) {
-        ythrow yexception() <<
-            Sprintf("Expected string of length 1 but found of length %" PRISZT, stringValue.size());
+        THROW_ERROR_EXCEPTION("Expected string of length 1 but found of length %" PRISZT, stringValue.size());
     }
     value = stringValue[0];
 }

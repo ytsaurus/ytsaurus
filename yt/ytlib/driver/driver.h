@@ -2,11 +2,15 @@
 
 #include "public.h"
 
-#include <ytlib/formats/format.h>
 #include <ytlib/misc/error.h>
+
+#include <ytlib/formats/format.h>
+
 #include <ytlib/ytree/public.h>
 #include <ytlib/ytree/yson_consumer.h>
 #include <ytlib/ytree/yson_writer.h>
+
+#include <ytlib/rpc/public.h>
 
 namespace NYT {
 namespace NDriver {

@@ -584,7 +584,7 @@ void TTableNodeProxy::OnUpdateAttribute(
 {
     if (key == "channels") {
         if (!newValue) {
-            ythrow yexception() << "Attribute \"channels\" cannot be removed";
+            THROW_ERROR_EXCEPTION("Attribute \"channels\" cannot be removed");
         }
         ChannelsFromYson(newValue.Get());
     }
@@ -677,7 +677,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListForUpdate)
     context->SetRequestInfo("");
 
     if (!Transaction) {
-        ythrow yexception() << "Transaction required";
+        THROW_ERROR_EXCEPTION("Transaction required");
     }
 
     auto* impl = LockThisTypedImpl(ELockMode::Shared);
@@ -704,10 +704,10 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
 
     if (lowerLimit.has_key() || upperLimit.has_key()) {
         if (lowerLimit.has_row_index() || upperLimit.has_row_index()) {
-            ythrow yexception() << Sprintf("Row limits must have the same type");
+            THROW_ERROR_EXCEPTION("Row limits must have the same type");
         }
         if (chunkList->SortedBy().empty()) {
-            ythrow yexception() << Sprintf("Table is not sorted");
+            THROW_ERROR_EXCEPTION("Table is not sorted");
         }
         const auto& lowerBound = lowerLimit.key();
         const auto* upperBound = upperLimit.has_key() ? &upperLimit.key() : NULL;
@@ -741,7 +741,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
         auto chunkId = TChunkId::FromProto(inputChunk.slice().chunk_id());
         const auto* chunk = chunkManager->GetChunk(chunkId);
         if (!chunk->IsConfirmed()) {
-            ythrow yexception() << Sprintf("Cannot fetch a table containing an unconfirmed chunk %s",
+            THROW_ERROR_EXCEPTION("Cannot fetch a table containing an unconfirmed chunk %s",
                 ~chunkId.ToString());
         }
 
@@ -777,7 +777,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, SetSorted)
     auto* impl = LockThisTypedImpl();
 
     if (impl->GetUpdateMode() != ETableUpdateMode::Overwrite) {
-        ythrow TServiceException(TError("Table node must be in overwrite mode"));
+        THROW_ERROR_EXCEPTION("Table node must be in overwrite mode");
     }
 
     impl->GetChunkList()->SortedBy() = keyColumns;

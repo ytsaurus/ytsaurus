@@ -18,6 +18,8 @@ public:
     TRichYPath(const char* path);
     TRichYPath(const TYPath& path);
     TRichYPath(const TYPath& path, const IAttributeDictionary& attributes);
+    
+    TRichYPath& operator = (const TRichYPath& other);
 
     const TYPath& GetPath() const;
     void SetPath(const TYPath& path);

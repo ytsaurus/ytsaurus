@@ -2,6 +2,8 @@
 #include "yamr_parser.h"
 #include "yamr_base_parser.h"
 
+#include <ytlib/misc/error.h>
+
 namespace NYT {
 namespace NFormats {
 
@@ -120,7 +122,7 @@ void TYamrLenvalParser::Finish()
     }
 
     if (!(State == EState::InsideKey && ReadingLength && BytesToRead == 4)) {
-        ythrow yexception() << "Premature end of stream";
+        THROW_ERROR_EXCEPTION("Premature end of stream");
     }
 }
 

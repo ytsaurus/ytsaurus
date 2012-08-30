@@ -28,18 +28,14 @@ void BuildOperationAttributes(TOperationPtr operation, IYsonConsumer* consumer)
 
 void BuildJobAttributes(TJobPtr job, NYTree::IYsonConsumer* consumer)
 {
-    // TODO(babenko): refactor this once new TError is ready
     auto state = job->GetState();
-    auto error = TError::FromProto(job->Result().error());
+    auto error = FromProto(job->Result().error());
     BuildYsonMapFluently(consumer)
         .Item("job_type").Scalar(FormatEnum(job->GetType()))
         .Item("state").Scalar(FormatEnum(state))
         .Item("address").Scalar(job->GetNode()->GetAddress())
         .DoIf(state == EJobState::Failed, [=] (TFluentMap fluent) {
-            fluent.Item("error").BeginMap()
-                .Item("code").Scalar(error.GetCode())
-                .Item("message").Scalar(error.GetMessage())
-            .EndMap();
+            fluent.Item("error").Scalar(error);
         });
 }
 

@@ -76,7 +76,7 @@ struct TAsyncPipelineHelpers
             auto&& y = func.Run(x.Value());
             return MakeFuture(WrappedReturnType(ForwardRV<ReturnType>(y)));
         } catch (const std::exception& ex) {
-            return MakeFuture(WrappedReturnType(TError(ex.what())));
+            return MakeFuture(WrappedReturnType(ex));
         }
     }
 };
@@ -96,7 +96,7 @@ struct TAsyncPipelineHelpers< ArgType, TFuture<ReturnType> >
             auto&& y = func.Run(x.Value());
             return y.Apply(BIND(&TValueOrErrorHelpers<ReturnType>::Wrapper));
         } catch (const std::exception& ex) {
-            return MakeFuture(WrappedReturnType(TError(ex.what())));
+            return MakeFuture(WrappedReturnType(ex));
         }
     }
 };
@@ -116,7 +116,7 @@ struct TAsyncPipelineHelpers<ArgType, void>
             func.Run(x.Value());
             return MakeFuture(WrappedReturnType());
         } catch (const std::exception& ex) {
-            return MakeFuture(WrappedReturnType(TError(ex.what())));
+            return MakeFuture(WrappedReturnType(ex));
         }
     }
 };
@@ -136,7 +136,7 @@ struct TAsyncPipelineHelpers<void, void>
             func.Run();
             return MakeFuture(WrappedReturnType());
         } catch (const std::exception& ex) {
-            return MakeFuture(WrappedReturnType(TError(ex.what())));
+            return MakeFuture(WrappedReturnType(ex));
         }
     }
 };
@@ -156,7 +156,7 @@ struct TAsyncPipelineHelpers< void, TFuture<ReturnType> >
             auto&& y = func.Run();
             return y.Apply(BIND(&TValueOrErrorHelpers<ReturnType>::Wrapper));
         } catch (const std::exception& ex) {
-            return MakeFuture(WrappedReturnType(TError(ex.what())));
+            return MakeFuture(WrappedReturnType(ex));
         }
     }
 };

@@ -113,7 +113,7 @@ public:
             LOG_INFO("Finalizing");
             {
                 TJobResult result;
-                *result.mutable_error() = TError().ToProto();
+                ToProto(result.mutable_error(), TError());
                 auto* resultExt = result.MutableExtension(TPartitionJobResultExt::partition_job_result_ext);
                 ToProto(resultExt->mutable_chunks(), Writer->GetWrittenChunks());
                 return result;

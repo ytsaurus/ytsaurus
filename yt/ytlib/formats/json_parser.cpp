@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "json_parser.h"
 
+#include <ytlib/misc/error.h>
+
 #include <library/json/json_reader.h>
 
 #include <util/string/base64.h>
@@ -35,7 +37,7 @@ void TJsonParser::Parse(TInputStream* input)
 {
     TJsonValue jsonValue;
     if (!ReadJsonTree(input, &jsonValue)) {
-        throw yexception() << "Error parsing json";
+        THROW_ERROR_EXCEPTION("Error parsing JSON");
     }
     VisitAny(jsonValue);
 }
@@ -62,7 +64,7 @@ void TJsonParser::VisitAny(const TJsonValue& value)
             Consumer->OnStringScalar(DecodeString(value.GetString()));
             break;
         case JSON_BOOLEAN:
-            ythrow yexception() << "Json boolean are not supported";
+            THROW_ERROR_EXCEPTION("Json boolean are not supported");
             break;
         case JSON_UNDEFINED:
         default:
@@ -97,7 +99,7 @@ void TJsonParser::VisitMap(const TJsonValue::TMap& map)
         if (it != map.end()) {
             const auto& attributes = it->second;
             if (attributes.GetType() != JSON_MAP) {
-                ythrow yexception() << "Value of $attributes must be map";
+                THROW_ERROR_EXCEPTION("Value of $attributes must be map");
             }
             Consumer->OnBeginAttributes();
             VisitMapItems(attributes.GetMap());

@@ -44,7 +44,7 @@ EExitCode TStartOpExecutor::DoExecute(const TDriverRequest& request)
     auto response = Driver->Execute(requestCopy);
     if (!response.Error.IsOK()) {
         printf("failed\n");
-        ythrow yexception() << response.Error.ToString();
+        THROW_ERROR response.Error;
     }
 
     auto operationId = ConvertTo<TOperationId>(TYsonString(output.Str()));

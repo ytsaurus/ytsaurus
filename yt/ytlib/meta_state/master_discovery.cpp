@@ -80,7 +80,7 @@ private:
         if (!response->IsOK()) {
             LOG_WARNING("Error requesting quorum information from peer %s\n%s",
                 ~address,
-                ~response->GetError().ToString());
+                ~ToString(response->GetError()));
             return;
         }
 

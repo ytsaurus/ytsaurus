@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "fs.h"
 
+#include <ytlib/misc/error.h>
+
 #include <ytlib/logging/log.h>
 
 #include <util/folder/dirut.h>
@@ -144,10 +146,9 @@ i64 GetAvailableSpace(const Stroka& path)
 #else
     if (result == 0) {
 #endif
-        ythrow yexception() <<
-            Sprintf("Failed to get available disk space at %s (error code: %d)", 
-                ~path.Quote(),
-                result);
+        THROW_ERROR_EXCEPTION("Failed to get available disk space at %s (error code: %d)", 
+            ~path.Quote(),
+            result);
     }
     return availableSpace;
 }
@@ -172,7 +173,7 @@ i64 GetFileSize(const Stroka& path)
 #else
     if (handle == INVALID_HANDLE_VALUE) {
 #endif
-        ythrow yexception() << Sprintf("Failed to get the size of file %s",
+        THROW_ERROR_EXCEPTION("Failed to get the size of file %s",
             ~path.Quote());
     }
 
@@ -254,7 +255,7 @@ void SetExecutableMode(const Stroka& path, bool executable)
         mode |= S_IXUSR;
     auto res = chmod(~path, mode);
     if (res != 0) {
-        ythrow yexception() << Sprintf(
+        THROW_ERROR_EXCEPTION(
             "Failed to change mode %d for file %s (Error: %s)",
             mode,
             ~path,
@@ -270,7 +271,7 @@ void MakeSymbolicLink(const Stroka& filePath, const Stroka& linkPath)
     // If the function fails, the return value is zero. To get extended error information, call GetLastError.
     auto res = !CreateSymbolicLink(~linkPath, ~filePath, (DWORD)0);
     if (res == 0) {
-        ythrow yexception() << Sprintf(
+        THROW_ERROR_EXCEPTION(
             "Failed to link %s to %s (Error: %d)",
             ~filePath.Quote(),
             ~linkPath.Quote(),
@@ -279,7 +280,7 @@ void MakeSymbolicLink(const Stroka& filePath, const Stroka& linkPath)
 #else
     auto res = symlink(~filePath, ~linkPath);
     if (res != 0) {
-        ythrow yexception() << Sprintf(
+        THROW_ERROR_EXCEPTION(
             "Failed to link %s to %s (Error: %s)",
             ~filePath.Quote(),
             ~linkPath.Quote(),

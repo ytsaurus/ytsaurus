@@ -5,7 +5,11 @@
 #include <ytlib/ytree/yson_writer.h>
 #include <ytlib/ytree/tree_visitor.h>
 #include <ytlib/ytree/ypath_proxy.h>
+#include <ytlib/ytree/node.h>
+#include <ytlib/ytree/convert.h>
+
 #include <ytlib/actions/bind.h>
+
 #include <ytlib/profiling/profiler.h>
 
 namespace NYT {

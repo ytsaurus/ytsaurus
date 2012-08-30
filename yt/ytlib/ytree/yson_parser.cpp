@@ -7,6 +7,7 @@
 #include "yson_stream.h"
 
 #include <ytlib/misc/foreach.h>
+#include <ytlib/misc/error.h>
 
 #include <stack>
 
@@ -91,10 +92,10 @@ public:
                 current += consumed;
             }
         } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Could not read symbol %s (%s):\n%s",
+            THROW_ERROR_EXCEPTION("Could not read symbol %s (%s)",
                 ~Stroka(*current).Quote(),
-                ~GetPositionInfo(),
-                ex.what());
+                ~GetPositionInfo())
+                << ex;
         }
     }
 
@@ -110,7 +111,7 @@ public:
         ConsumeToken(TToken::EndOfStream);
 
         if (StateStack.top() != EState::Parsed) {
-            ythrow yexception() << Sprintf("Premature end of stream (State: %s, %s)",
+            THROW_ERROR_EXCEPTION("Premature end of stream (State: %s, %s)",
                 ~StateStack.top().ToString(),
                 ~GetPositionInfo());
         }
@@ -212,13 +213,13 @@ private:
                     Consumer->OnBeginAttributes();
                     StateStack.push(EState::AttributesBeforeKey);
                 } else {
-                    ythrow yexception() << Sprintf("Repeating attributes (%s)",
+                    THROW_ERROR_EXCEPTION("Repeating attributes (%s)",
                         ~GetPositionInfo());
                 }
                 break;
 
             default:
-                ythrow yexception() << Sprintf("Unexpected token %s of type %s (%s)",
+                THROW_ERROR_EXCEPTION("Unexpected token %s of type %s (%s)",
                     ~token.ToString().Quote(),
                     ~token.GetType().ToString(),
                     ~GetPositionInfo());
@@ -240,7 +241,7 @@ private:
 
             case EndListToken:
                 if (inFragment) {
-                    ythrow yexception() << Sprintf("Unexpected end of list in list fragment (%s)",
+                    THROW_ERROR_EXCEPTION("Unexpected end of list in list fragment (%s)",
                         ~GetPositionInfo());
                 }
                 Consumer->OnEndList();
@@ -259,7 +260,7 @@ private:
                         if (tokenType == ListItemSeparatorToken) {
                             topState = EState::ListBeforeItem;
                         } else {
-                            ythrow yexception() << Sprintf("Expected ';' or ']', but token %s of type %s found (%s)",
+                            THROW_ERROR_EXCEPTION("Expected ';' or ']', but token %s of type %s found (%s)",
                                 ~token.ToString().Quote(),
                                 ~tokenType.ToString(),
                                 ~GetPositionInfo());
@@ -283,7 +284,7 @@ private:
                 topState = EState::Parsed;
                 return;
             } else if (tokenType == EndMapToken) {
-                ythrow yexception() << Sprintf("Unexpected end of map in map fragment (%s)",
+                THROW_ERROR_EXCEPTION("Unexpected end of map in map fragment (%s)",
                     ~GetPositionInfo());
             }
         }
@@ -302,7 +303,7 @@ private:
                     Consumer->OnKeyedItem(token.GetStringValue());
                     topState = EState::MapAfterKey;  
                 } else {
-                    ythrow yexception() << Sprintf("Expected string literal, but token %s of type %s found (%s)",
+                    THROW_ERROR_EXCEPTION("Expected string literal, but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -313,7 +314,7 @@ private:
                 if (tokenType == KeyValueSeparatorToken) {
                     topState = EState::MapBeforeValue;
                 } else {
-                    ythrow yexception() << Sprintf("Expected '=', but token %s of type %s found (%s)",
+                    THROW_ERROR_EXCEPTION("Expected '=', but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -332,7 +333,7 @@ private:
                 } else if (tokenType == KeyedItemSeparatorToken) {
                     topState = EState::MapBeforeKey;
                 } else {
-                    ythrow yexception() << Sprintf("Expected ';' or '}', but token %s of type %s found (%s)",
+                    THROW_ERROR_EXCEPTION("Expected ';' or '}', but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -367,7 +368,7 @@ private:
                     Consumer->OnKeyedItem(token.GetStringValue());
                     topState = EState::AttributesAfterKey;  
                 } else {
-                    ythrow yexception() << Sprintf("Expected string literal, but token %s of type %s found (%s)",
+                    THROW_ERROR_EXCEPTION("Expected string literal, but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -378,7 +379,7 @@ private:
                 if (tokenType == KeyValueSeparatorToken) {
                     topState = EState::AttributesBeforeValue;
                 } else {
-                    ythrow yexception() << Sprintf("Expected '=', but token %s of type %s found (%s)",
+                    THROW_ERROR_EXCEPTION("Expected '=', but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -393,7 +394,7 @@ private:
                 if (tokenType == KeyedItemSeparatorToken) {
                     topState = EState::AttributesBeforeKey;
                 } else {
-                    ythrow yexception() << Sprintf("Expected ';' or '>', but token %s of type %s found (%s)",
+                    THROW_ERROR_EXCEPTION("Expected ';' or '>', but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -411,7 +412,7 @@ private:
 
         auto tokenType = token.GetType();
         if (tokenType != ETokenType::EndOfStream) {
-            ythrow yexception() << Sprintf("Node is already parsed, but unexpected token %s of type %s found (%s)",
+            THROW_ERROR_EXCEPTION("Node is already parsed, but unexpected token %s of type %s found (%s)",
                 ~token.ToString().Quote(),
                 ~tokenType.ToString(),
                 ~GetPositionInfo());

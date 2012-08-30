@@ -286,9 +286,7 @@ private:
             operation->SetState(EOperationState::Initializing);
             InitializeOperation(operation);
         } catch (const std::exception& ex) {
-            return MakeFuture(TStartResult(TError("Operation %s has failed to start\n%s",
-                ~operationId.ToString(),
-                ex.what())));
+            return MakeFuture(TStartResult(TError("Operation has failed to start") << ex));
         }
 
         YCHECK(operation->GetState() == EOperationState::Initializing);
@@ -314,7 +312,7 @@ private:
     void InitializeOperation(TOperationPtr operation)
     {
         if (ExecNodes.empty()) {
-            ythrow yexception() << "No online exec nodes to start operation";
+            THROW_ERROR_EXCEPTION("No online exec nodes to start operation");
         }
 
         operation->GetController()->Initialize();
@@ -422,7 +420,7 @@ private:
         auto operation = FindOperation(id);
         if (!operation) {
             // TODO(babenko): error code
-            ythrow yexception() << Sprintf("No such operation %s", ~id.ToString());
+            THROW_ERROR_EXCEPTION("No such operation %s", ~id.ToString());
         }
         return operation;
     }
@@ -581,7 +579,7 @@ private:
     void OnJobFailed(TJobPtr job, const TError& error)
     {
         NProto::TJobResult result;
-        *result.mutable_error() = error.ToProto();
+        ToProto(result.mutable_error(), error);
 
         OnJobFailed(job, &result);
     }
@@ -782,7 +780,7 @@ private:
         
         operation->SetEndTime(TInstant::Now());
         operation->SetState(finalState);
-        *operation->Result().mutable_error() = finalError.ToProto();
+        ToProto(operation->Result().mutable_error(), finalError);
 
         MasterConnector->FinalizeOperationNode(operation).Subscribe(
             BIND(&TImpl::OnFailedOperationNodeFinalized, MakeStrong(this), operation)
@@ -840,7 +838,8 @@ private:
         try {
             spec = ConvertToNode(TYsonString(request->spec()))->AsMap();
         } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error parsing operation spec\n%s", ex.what());
+            THROW_ERROR_EXCEPTION("Error parsing operation spec")
+                << ex;
         }
         
         context->SetRequestInfo("Type: %s, TransactionId: %s",
@@ -1047,7 +1046,7 @@ private:
 
             case EJobState::Failed:
                 LOG_INFO("Job failed, removal scheduled\n%s",
-                    ~TError::FromProto(jobStatus->result().error()).ToString());
+                    ~ToString(FromProto(jobStatus->result().error())));
                 OnJobFailed(job, jobStatus->mutable_result());
                 *response->add_jobs_to_remove() = jobId.ToProto();
                 break;

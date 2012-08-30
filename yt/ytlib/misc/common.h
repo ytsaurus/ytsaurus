@@ -26,7 +26,6 @@
 #include <util/generic/map.h>
 #include <util/generic/set.h>
 #include <util/generic/singleton.h>
-#include <util/generic/yexception.h>
 #include <util/generic/pair.h>
 
 #include <util/datetime/base.h>
@@ -86,3 +85,9 @@
 #include "hash.h"
 #include "enum.h"
 #include "override.h"
+
+namespace NYT {
+
+using ::ToString;
+
+} // namespace NYT

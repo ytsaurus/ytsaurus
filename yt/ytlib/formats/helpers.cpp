@@ -42,19 +42,19 @@ void TFormatsConsumerBase::OnRaw(const TStringBuf& yson, EYsonType type)
             break;
 
         case EntityToken:
-            ythrow yexception() << "Enitites are not supported as values in table";
+            THROW_ERROR_EXCEPTION("Enitites are not supported as values in table");
             break;
 
         case BeginListToken:
-            ythrow yexception() << "Lists are not supported as values in table";
+            THROW_ERROR_EXCEPTION("Lists are not supported as values in table");
             break;
 
         case BeginMapToken:
-            ythrow yexception() << "Maps are not supported as values in table";
+            THROW_ERROR_EXCEPTION("Maps are not supported as values in table");
             break;
 
         case BeginAttributesToken:
-            ythrow yexception() << "Attributes are not supported as values in table";
+            THROW_ERROR_EXCEPTION("Attributes are not supported as values in table");
             break;
 
         default:

@@ -194,7 +194,7 @@ private:
         if (!response->IsOK()) {
             LOG_WARNING("Error committing mutations by follower %d\n%s",
                 peerId,
-                ~response->GetError().ToString());
+                ~ToString(response->GetError()));
             return;
         }
 

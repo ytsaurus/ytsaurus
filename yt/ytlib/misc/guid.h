@@ -48,6 +48,12 @@ struct TGuid
     static TGuid FromProto(const NProto::TGuid& protoGuid);
 };
 
+// TODO: consider removing TGuid::ToString
+inline Stroka ToString(const TGuid& guid)
+{
+    return guid.ToString();
+}
+
 bool operator == (const TGuid &a, const TGuid &b);
 bool operator != (const TGuid &a, const TGuid &b);
 bool operator <  (const TGuid &a, const TGuid &b);
@@ -73,12 +79,6 @@ struct hash<NYT::TGuid>
                guid.Parts[3] * p * p * p;
     }
 };
-
-// TODO: consider removing TGuid::ToString
-inline Stroka ToString(const NYT::TGuid& guid)
-{
-    return guid.ToString();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

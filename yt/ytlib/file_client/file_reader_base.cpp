@@ -62,19 +62,18 @@ void TFileReaderBase::Open(
 
     auto getMetaResult = remoteReader->AsyncGetChunkMeta().Get();
     if (!getMetaResult.IsOK()) {
-        LOG_ERROR_AND_THROW(yexception(), "Error getting chunk meta\n%s",
-            ~getMetaResult.ToString());
+        LOG_ERROR_AND_THROW(TError("Error getting chunk meta")
+            << getMetaResult);
     }
 
     auto& chunkMeta = getMetaResult.Value();
     YCHECK(chunkMeta.type() == EChunkType::File);
 
     if (chunkMeta.version() != FormatVersion) {
-        LOG_ERROR_AND_THROW(
-            yexception(), 
+        LOG_ERROR_AND_THROW(TError(
             "Chunk format version mismatch (Expected: %d, Received: %d)",
             FormatVersion,
-            chunkMeta.version());
+            chunkMeta.version()));
     }
 
     auto blocksExt = GetProtoExtension<NChunkClient::NProto::TBlocksExt>(chunkMeta.extensions());

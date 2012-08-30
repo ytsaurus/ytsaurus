@@ -98,12 +98,12 @@ private:
     IChannelPtr UnderlyingChannel;
 
     //! The current attempt number (1-based).
+    std::vector<TError> InnerErrors;
     TAtomic CurrentAttempt;
     IClientRequestPtr Request;
     IClientResponseHandlerPtr OriginalHandler;
     TNullable<TDuration> Timeout;
     TInstant Deadline;
-    Stroka CumulativeErrorMessage;
 
     DECLARE_ENUM(EState, 
         (Sent)
@@ -135,7 +135,7 @@ private:
             ~Request->GetRequestId().ToString(),
             static_cast<int>(CurrentAttempt),
             Config->MaxAttempts,
-            ~error.ToString());
+            ~ToString(error));
 
         TGuard<TSpinLock> guard(SpinLock);
         if (State == EState::Done)
@@ -144,9 +144,7 @@ private:
         if (IsRetriableError(error)) {
             int count = AtomicIncrement(CurrentAttempt);
 
-            CumulativeErrorMessage.append(Sprintf("\n[#%d] %s",
-                count - 1,
-                ~error.ToString()));
+            InnerErrors.push_back(error);
 
             if (count <= Config->MaxAttempts && TInstant::Now() + Config->BackoffTime < Deadline) {
                 TDelayedInvoker::Submit(
@@ -182,9 +180,9 @@ private:
 
     void ReportUnavailable()
     {
-        OriginalHandler->OnError(TError(
-            EErrorCode::Unavailable,
-            "All retries have failed:" + CumulativeErrorMessage));
+        TError cumulativeError("All retries have failed");
+        cumulativeError.InnerErrors() = InnerErrors;
+        OriginalHandler->OnError(cumulativeError);
     }
 };
 

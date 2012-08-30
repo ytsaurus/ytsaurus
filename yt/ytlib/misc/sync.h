@@ -15,7 +15,7 @@ void Sync(
 {
     auto result = (target->*method)().Get();
     if (!result.IsOK()) {
-        ythrow yexception() << result.ToString();
+        THROW_ERROR result;
     }
 }
 
@@ -26,7 +26,7 @@ void Sync(
 {
     auto& result = (target->*method)().Get();
     if (!result.IsOK()) {
-        ythrow yexception() << result.ToString();
+        THROW_ERROR result;
     }
 }
 
@@ -38,7 +38,7 @@ void Sync(
 {
     auto result = (target->*method)(ForwardRV<TArg1>(arg1)).Get();
     if (!result.IsOK()) {
-        ythrow yexception() << result.ToString();
+        THROW_ERROR result;
     }
 }
 
@@ -54,7 +54,7 @@ void Sync(
         ForwardRV<TArg2>(arg2)).Get();
 
     if (!result.IsOK()) {
-        ythrow yexception() << result.ToString();
+        THROW_ERROR result;
     }
 }
 

@@ -67,9 +67,9 @@ bool TFileWriter::TryWriteBlock(const TSharedRef& block)
         DataSize += block.Size();
         return true;
     } catch (const std::exception& ex) {
-        Result = MakeFuture(TError(
-            "Failed to write block to file\n%s",
-            ex.what()));
+        Result = MakeFuture(
+            TError("Failed to write block to file")
+            << ex);
         return false;
     }
 }
@@ -91,16 +91,15 @@ TAsyncError TFileWriter::AsyncClose(const NChunkClient::NProto::TChunkMeta& chun
     try {
 #ifdef _linux_
         if (fsync(DataFile->GetHandle()) != 0) {
-            ythrow yexception() << Sprintf("fsync failed: %s", strerror(errno));
+            THROW_ERROR_EXCEPTION("fsync failed: %s", strerror(errno));
         }
 #endif
         DataFile->Close();
         DataFile.Destroy();
     } catch (const std::exception& ex) {
-        return MakeFuture(TError(
-            "Failed to close chunk data file %s\n%s",
-            ~FileName,
-            ex.what()));
+        return MakeFuture(
+            TError("Failed to close chunk data file %s", ~FileName)
+            << ex);
     }
 
     // Write meta.
@@ -125,17 +124,16 @@ TAsyncError TFileWriter::AsyncClose(const NChunkClient::NProto::TChunkMeta& chun
 
 #ifdef _linux_
         if (fsync(chunkMetaFile.GetHandle()) != 0) {
-            ythrow yexception() << Sprintf("fsync failed: %s", strerror(errno));
+            THROW_ERROR_EXCEPTION("fsync failed: %s", strerror(errno));
         }
 #endif
 
         chunkMetaFile.Close();
         TFileHandle(chunkMetaFile.GetHandle()).Flush();
     } catch (const std::exception& ex) {
-        return MakeFuture(TError(
-            "Failed to write chunk meta to %s\n%s",
-            ~chunkMetaFileName.Quote(),
-            ex.what()));
+        return MakeFuture(
+            TError("Failed to write chunk meta to %s", ~chunkMetaFileName.Quote())
+            << ex);
     }
 
     if (!NFS::Rename(chunkMetaFileName + NFS::TempFileSuffix, chunkMetaFileName)) {

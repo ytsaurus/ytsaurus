@@ -77,9 +77,8 @@ private:
             // TODO(babenko): make format configurable
             WriteYson(&stream, ~Root, EYsonFormat::Pretty);
         } catch (const std::exception& ex) {
-            throw yexception() << Sprintf("Error saving YSON file %s\n%s",
-                ~FileName.Quote(),
-                ex.what());
+            THROW_ERROR_EXCEPTION("Error saving YSON file %s", ~FileName.Quote())
+                << ex;
         }
     }
 };
@@ -129,9 +128,8 @@ private:
             TIFStream stream(FileName);
             return ConvertToNode(&stream);
         } catch (const std::exception& ex) {
-            throw yexception() << Sprintf("Error loading YSON file %s\n%s",
-                ~FileName.Quote(),
-                ex.what());
+            THROW_ERROR_EXCEPTION("Error loading YSON file %s", ~FileName.Quote())
+                << ex;
         }
     }
 };

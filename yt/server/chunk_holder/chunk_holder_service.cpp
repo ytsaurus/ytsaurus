@@ -74,16 +74,20 @@ TChunkHolderService::TChunkHolderService(
 void TChunkHolderService::ValidateNoSession(const TChunkId& chunkId)
 {
     if (Bootstrap->GetSessionManager()->FindSession(chunkId)) {
-        ythrow TServiceException(EErrorCode::SessionAlreadyExists) <<
-            Sprintf("Session %s already exists", ~chunkId.ToString());
+        THROW_ERROR_EXCEPTION(
+            EErrorCode::SessionAlreadyExists,
+            "Session already exists: %s",
+            ~chunkId.ToString());
     }
 }
 
 void TChunkHolderService::ValidateNoChunk(const TChunkId& chunkId)
 {
     if (Bootstrap->GetChunkStore()->FindChunk(chunkId)) {
-        ythrow TServiceException(EErrorCode::ChunkAlreadyExists) <<
-            Sprintf("Chunk %s already exists", ~chunkId.ToString());
+        THROW_ERROR_EXCEPTION(
+            EErrorCode::ChunkAlreadyExists,
+            "Chunk already exists: %s",
+            ~chunkId.ToString());
     }
 }
 
@@ -91,8 +95,10 @@ TSessionPtr TChunkHolderService::GetSession(const TChunkId& chunkId)
 {
     auto session = Bootstrap->GetSessionManager()->FindSession(chunkId);
     if (!session) {
-        ythrow TServiceException(EErrorCode::NoSuchSession) <<
-            Sprintf("Chunk upload session %s is invalid or expired", ~chunkId.ToString());
+        THROW_ERROR_EXCEPTION(
+            EErrorCode::NoSuchSession,
+            "Session is invalid or expired: %s",
+            ~chunkId.ToString());
     }
     return session;
 }
@@ -101,8 +107,10 @@ TChunkPtr TChunkHolderService::GetChunk(const TChunkId& chunkId)
 {
     auto chunk = Bootstrap->GetChunkStore()->FindChunk(chunkId);
     if (!chunk) {
-        ythrow TServiceException(EErrorCode::NoSuchChunk) <<
-            Sprintf("No such chunk %s", ~chunkId.ToString());
+        THROW_ERROR_EXCEPTION(
+            EErrorCode::NoSuchChunk,
+            "No such chunk: %s",
+            ~chunkId.ToString());
     }
     return chunk;
 }
@@ -258,9 +266,9 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, SendBlocks)
             } else {
                 context->Reply(TError(
                     TChunkHolderServiceProxy::EErrorCode::PutBlocksFailed,
-                    "Error putting blocks to %s\n%s",
-                    ~targetAddress,
-                    ~putResponse->GetError().ToString()));
+                    "Error putting blocks to %s",
+                    ~targetAddress)
+                    << putResponse->GetError());
             }
         }));
 }
@@ -397,8 +405,6 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PingSession)
 
 DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkMeta)
 {
-    using ::ToString;
-
     auto chunkId = TChunkId::FromProto(request->chunk_id());
     auto extensionTags = FromProto<i32>(request->extension_tags());
     auto partitionTag =
@@ -436,11 +442,11 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PrecacheChunk)
             if (result.IsOK()) {
                 context->Reply();
             } else {
-                context->Reply(
+                context->Reply(TError(
                     TChunkHolderServiceProxy::EErrorCode::ChunkPrecachingFailed,
-                    Sprintf("Error precaching chunk %s\n%s",
-                        ~chunkId.ToString(),
-                        ~result.ToString()));
+                    "Error precaching chunk %s",
+                    ~chunkId.ToString())
+                    << result);
             }
         }));
 }
@@ -478,7 +484,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
         if (!chunk) {
             LOG_WARNING("GetTableSamples: No such chunk %s\n", 
                 ~chunkId.ToString());
-            *chunkSamples->mutable_error() = TError("No such chunk").ToProto();
+            ToProto(chunkSamples->mutable_error(), TError("No such chunk"));
         } else {
             awaiter->Await(chunk->GetMeta(), BIND(
                 &TChunkHolderService::ProcessSample, 
@@ -505,8 +511,8 @@ void TChunkHolderService::ProcessSample(
     if (!result.IsOK()) {
         LOG_WARNING("GetTableSamples: Error getting meta of chunk %s\n%s", 
             ~chunkId.ToString(),
-            ~result.ToString());
-        *chunkSamples->mutable_error() = result.ToProto();
+            ~ToString(result));
+        ToProto(chunkSamples->mutable_error(), result);
         return;
     }
 

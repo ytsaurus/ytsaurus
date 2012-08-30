@@ -2,7 +2,10 @@
 
 #include "public.h"
 
+#include <ytlib/misc/error.h>
+
 #include <ytlib/ytree/yson_serializable.h>
+
 #include <ytlib/codecs/codec.h>
 
 namespace NYT {
@@ -112,7 +115,7 @@ struct TSequentialReaderConfig
     virtual void DoValidate() const
     {
         if (GroupSize > WindowSize) {
-            ythrow yexception() << "\"group_size\" cannot be larger than \"prefetch_window_size\"";
+            THROW_ERROR_EXCEPTION("\"group_size\" cannot be larger than \"prefetch_window_size\"");
         }
     }
 };
@@ -168,7 +171,7 @@ struct TRemoteWriterConfig
     virtual void DoValidate() const
     {
         if (WindowSize < GroupSize) {
-            ythrow yexception() << "\"window_size\" cannot be less than \"group_size\"";
+            THROW_ERROR_EXCEPTION("\"window_size\" cannot be less than \"group_size\"");
         }
     }
 };

@@ -40,20 +40,21 @@ Stroka FormatLevel(ELogLevel level)
 
 Stroka FormatMessage(const Stroka& message)
 {
-    Stroka result;
-    result.reserve(message.length() + 10);
-    for (int index = 0; index < static_cast<int>(message.length()); ++index) {
-        switch (message[index]) {
-            case '\n':
-                result.append("\\n");
-                break;
+    return message;
+    //Stroka result;
+    //result.reserve(message.length() + 10);
+    //for (int index = 0; index < static_cast<int>(message.length()); ++index) {
+    //    switch (message[index]) {
+    //        case '\n':
+    //            result.append("\\n");
+    //            break;
 
-            default:
-                result.append(message[index]);
-                break;
-        }
-    }
-    return result;
+    //        default:
+    //            result.append(message[index]);
+    //            break;
+    //    }
+    //}
+    //return result;
 }
 
 static void SetupFormatter(TPatternFormatter& formatter, const TLogEvent& event)
@@ -84,7 +85,7 @@ Stroka FormatEvent(const TLogEvent& event, Stroka pattern)
     return formatter.Format(pattern);
 }
 
-bool ValidatePattern(Stroka pattern, Stroka* errorMessage)
+TError ValidatePattern(const Stroka& pattern)
 {
     TPatternFormatter formatter;
 
@@ -96,11 +97,11 @@ bool ValidatePattern(Stroka pattern, Stroka* errorMessage)
 
     try {
         formatter.Format(pattern);
-    } catch (const yexception& e) {
-        *errorMessage = e.what();
-        return false;
+    } catch (const std::exception& ex) {
+        return TError(ex);
     }
-    return true;
+
+    return TError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

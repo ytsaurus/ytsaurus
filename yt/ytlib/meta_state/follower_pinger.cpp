@@ -104,7 +104,7 @@ void TFollowerPinger::OnPingResponse(TPeerId followerId, TProxy::TRspPingFollowe
     if (!response->IsOK()) {
         LOG_WARNING("Error pinging follower %d\n%s",
             followerId,
-            ~response->GetError().ToString());
+            ~ToString(response->GetError()));
         return;
     }
 

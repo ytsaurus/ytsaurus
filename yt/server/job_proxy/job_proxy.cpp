@@ -67,7 +67,7 @@ void TJobProxy::OnHeartbeatResponse(TSupervisorServiceProxy::TRspOnJobProgressPt
         // when io pipes are closed.
         // Bad processes will die at container shutdown.
         LOG_ERROR("Error sending heartbeat to supervisor\n%s",
-            ~rsp->GetError().ToString());
+            ~ToString(rsp->GetError()));
 
         NLog::TLogManager::Get()->Shutdown();
         // TODO(babenko): extract error code constant
@@ -85,8 +85,8 @@ void TJobProxy::RetrieveJobSpec()
 
     auto rsp = req->Invoke().Get();
     if (!rsp->IsOK()) {
-        ythrow yexception() << Sprintf("Failed to get job spec\n%s",
-            ~rsp->GetError().ToString());
+        THROW_ERROR_EXCEPTION("Failed to get job spec")
+            << rsp->GetError();
     }
 
     LOG_INFO("Job spec received\n%s", ~rsp->job_spec().DebugString());
@@ -177,8 +177,7 @@ void TJobProxy::Run()
         LOG_ERROR("Job failed\n%s", ex.what());
 
         TJobResult result;
-        result.mutable_error()->set_code(TError::Fail);
-        result.mutable_error()->set_message(ex.what());
+        ToProto(result.mutable_error(), TError(ex));
         ReportResult(result);
     }
 }
@@ -193,7 +192,7 @@ void TJobProxy::ReportResult(const TJobResult& result)
 
     auto rsp = req->Invoke().Get();
     if (!rsp->IsOK()) {
-        LOG_ERROR("Failed to report job result\n%s", ~rsp->GetError().ToString());
+        LOG_ERROR("Failed to report job result\n%s", ~ToString(rsp->GetError()));
 
         NLog::TLogManager::Get()->Shutdown();
         // TODO(babenko): extract error code constant

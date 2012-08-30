@@ -496,17 +496,17 @@ public:
         if (type == EObjectType::Chunk) {
             auto* chunk = FindChunk(id);
             if (!chunk) {
-                ythrow yexception() << Sprintf("No such chunk %s", ~id.ToString());
+                THROW_ERROR_EXCEPTION("No such chunk %s", ~id.ToString());
             }
             return TChunkTreeRef(chunk);
         } else if (type == EObjectType::ChunkList) {
             auto* chunkList = FindChunkList(id);
             if (!chunkList) {
-                ythrow yexception() << Sprintf("No such chunkList %s", ~id.ToString());
+                THROW_ERROR_EXCEPTION("No such chunkList %s", ~id.ToString());
             }
             return TChunkTreeRef(chunkList);
         } else {
-            ythrow yexception() << Sprintf("Invalid type of object %s", ~id.ToString());
+            THROW_ERROR_EXCEPTION("Invalid type of object %s", ~id.ToString());
         }
     }
 
@@ -619,8 +619,6 @@ private:
 
     TMetaRspRegisterNode RegisterNode(const TMetaReqRegisterNode& request)
     {
-        using ::ToString;
-
         Stroka address = request.address();
         auto incarnationId = TIncarnationId::FromProto(request.incarnation_id());
         const auto& statistics = request.statistics();
@@ -679,8 +677,6 @@ private:
 
     void FullHeartbeat(const TMetaReqFullHeartbeat& request)
     {
-        using ::ToString;
-
         PROFILE_TIMING ("/full_heartbeat_time") {
             Profiler.Enqueue("/full_heartbeat_chunks", request.chunks_size());
 
@@ -720,8 +716,6 @@ private:
 
     void IncrementalHeartbeat(const TMetaReqIncrementalHeartbeat& request)
     {
-        using ::ToString;
-
         Profiler.Enqueue("/incremental_heartbeat_chunks_added", request.added_chunks_size());
         Profiler.Enqueue("/incremental_heartbeat_chunks_removed", request.removed_chunks_size());
         PROFILE_TIMING ("/incremental_heartbeat_time") {
@@ -1178,8 +1172,6 @@ private:
         const TChunkAddInfo& chunkAddInfo,
         bool incremental)
     {
-        using ::ToString;
-
         auto nodeId = node->GetId();
         auto chunkId = TChunkId::FromProto(chunkAddInfo.chunk_id());
         bool cached = chunkAddInfo.cached();
@@ -1219,7 +1211,7 @@ private:
         if (!chunk->ValidateChunkInfo(chunkAddInfo.chunk_info())) {
             auto message = Sprintf("Mismatched chunk info reported by node (ChunkId: %s, Cached: %s, ExpectedInfo: {%s}, ReceivedInfo: {%s}, Address: %s, HolderId: %d)",
                 ~chunkId.ToString(),
-                ~ToString(cached),
+                ~FormatBool(cached),
                 ~chunk->ChunkInfo().DebugString(),
                 ~chunkAddInfo.chunk_info().DebugString(),
                 ~node->GetAddress(),
@@ -1610,7 +1602,7 @@ private:
         const auto* chunk = GetTypedImpl();
 
         if (chunk->ChunkMeta().type() != EChunkType::Table) {
-            ythrow yexception() << Sprintf("Unable to execute Fetch verb for non-table chunk");
+            THROW_ERROR_EXCEPTION("Unable to execute Fetch verb for non-table chunk");
         }
 
         auto* inputChunk = response->add_chunks();
@@ -1910,7 +1902,7 @@ private:
         std::vector<TChunkTreeRef> childrenRefs;
         FOREACH (const auto& childId, childrenIds) {
             if (!objectManager->ObjectExists(childId)) {
-                ythrow yexception() << Sprintf("Chunk tree %s does not exist", ~childId.ToString());
+                THROW_ERROR_EXCEPTION("Chunk tree %s does not exist", ~childId.ToString());
             }
             auto chunkRef = Owner->GetChunkTree(childId);
             childrenRefs.push_back(chunkRef);

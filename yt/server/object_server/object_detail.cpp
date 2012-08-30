@@ -187,7 +187,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, GetId)
     if (!request->allow_nonempty_path_suffix()) {
         TTokenizer tokenizer(context->GetPath());
         if (tokenizer.ParseNext()) {
-            ythrow yexception() << Sprintf("Unexpected path suffix %s", ~context->GetPath());
+            THROW_ERROR_EXCEPTION("Unexpected path suffix %s", ~context->GetPath());
         }
     }
 
@@ -210,10 +210,8 @@ void TObjectProxyBase::GuardedInvoke(IServiceContextPtr context)
         DoInvoke(context);
     } catch (const TLeaderFallbackException&) {
         ForwardToLeader(context);
-    } catch (const TServiceException& ex) {
-        context->Reply(ex.GetError());
     } catch (const std::exception& ex) {
-        context->Reply(TError(ex.what()));
+        context->Reply(ex);
     }
 }
 
@@ -250,10 +248,10 @@ void TObjectProxyBase::OnLeaderResponse(IServiceContextPtr context, NBus::IMessa
 {
     NRpc::NProto::TResponseHeader responseHeader;
     YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
-    auto error = TError::FromProto(responseHeader.error());
+    auto error = FromProto(responseHeader.error());
     LOG_DEBUG("Received response for forwarded request (RequestId: %s)\n%s",
         ~context->GetRequestId().ToString(),
-        ~error.ToString());
+        ~ToString(error));
     context->Reply(responseMessage);
 }
 

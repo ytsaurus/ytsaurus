@@ -92,15 +92,15 @@ Stroka TExecutor::GetConfigFileName()
         return system;
     }
 
-    ythrow yexception() <<
-        Sprintf("Configuration file cannot be found. Please specify it using one of the following methods:\n"
+    throw std::runtime_error(Sprintf(
+        "Configuration file cannot be found. Please specify it using one of the following methods:\n"
         "1) --config command-line option\n"
         "2) %s environment variable\n"
         "3) per-user file %s\n"
         "4) system-wide file %s",
         ConfigEnvVar,
         ~user.Quote(),
-        ~system.Quote());
+        ~system.Quote()));
 }
 
 void TExecutor::InitConfig()
@@ -114,7 +114,8 @@ void TExecutor::InitConfig()
         TIFStream configStream(fileName);
         configNode = ConvertToNode(&configStream);
     } catch (const std::exception& ex) {
-        ythrow yexception() << Sprintf("Error reading configuration\n%s", ex.what());
+        THROW_ERROR_EXCEPTION("Error reading configuration")
+            << ex;
     }
 
     // Parse config.
@@ -122,7 +123,8 @@ void TExecutor::InitConfig()
     try {
         Config->Load(configNode);
     } catch (const std::exception& ex) {
-        ythrow yexception() << Sprintf("Error parsing configuration\n%s", ex.what());
+        THROW_ERROR_EXCEPTION("Error parsing configuration")
+            << ex;
     }
 
     // Now convert back YSON tree to populate defaults.
@@ -137,7 +139,8 @@ void TExecutor::InitConfig()
     try {
         Config->Load(configNode);
     } catch (const std::exception& ex) {
-        ythrow yexception() << Sprintf("Error parsing configuration\n%s", ex.what());
+        THROW_ERROR_EXCEPTION("Error parsing configuration")
+            << ex;
     }
 }
 
@@ -186,14 +189,16 @@ EExitCode TExecutor::Execute(const std::vector<std::string>& args)
     try {
         request.InputFormat = GetFormat(descriptor->InputType, inputFormat);
     } catch (const std::exception& ex) {
-        ythrow yexception() << Sprintf("Error parsing input format\n%s", ex.what());
+        THROW_ERROR_EXCEPTION("Error parsing input format")
+            << ex;
     }
 
     request.OutputStream = &outputStream;
     try {
         request.OutputFormat = GetFormat(descriptor->OutputType, outputFormat);
     } catch (const std::exception& ex) {
-        ythrow yexception() << Sprintf("Error parsing output format\n%s", ex.what());
+        THROW_ERROR_EXCEPTION("Error parsing output format")
+            << ex;
     }
 
     return DoExecute(request);
@@ -206,7 +211,8 @@ TFormat TExecutor::GetFormat(EDataType dataType, const TNullable<TYsonString>& y
         try {
             node = ConvertToNode(*yson);
         } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error parsing format description\n%s", ex.what());
+            THROW_ERROR_EXCEPTION("Error parsing format description")
+                << ex;
         }
         return TFormat::FromYson(node);
     }
@@ -237,7 +243,7 @@ EExitCode TExecutor::DoExecute(const TDriverRequest& request)
     auto response = Driver->Execute(request);
 
     if (!response.Error.IsOK()) {
-        ythrow yexception() << response.Error.ToString();
+        THROW_ERROR response.Error;
     }
 
     return EExitCode::OK;
@@ -272,7 +278,7 @@ void TTransactedExecutor::BuildArgs(IYsonConsumer* consumer)
     }
 
     if (PingAncestorTxsArg.getValue() && !txId) {
-        ythrow yexception() << "ping_ancestor_txs is set but no tx_id is given";
+        THROW_ERROR_EXCEPTION("ping_ancestor_txs is set but no tx_id is given");
     }
 
     BuildYsonMapFluently(consumer)

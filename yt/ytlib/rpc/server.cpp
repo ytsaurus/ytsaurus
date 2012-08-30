@@ -66,7 +66,7 @@ private:
     {
         Stroka str;
         AppendInfo(str, Sprintf("RequestId: %s", ~RequestId.ToString()));
-        AppendInfo(str, Sprintf("Error: %s", ~error.ToString()));
+        AppendInfo(str, Sprintf("Error: %s", ~ToString(error)));
         AppendInfo(str, ResponseInfo);
         LOG_DEBUG("%s -> %s",
             ~Verb,

@@ -44,12 +44,12 @@ void TYamredDsvWriter::OnStringScalar(const TStringBuf& value)
 
 void TYamredDsvWriter::OnEntity()
 {
-    ythrow yexception() << "Entities are not supported by Yamred Dsv";
+    THROW_ERROR_EXCEPTION("Entities are not supported by Yamred Dsv");
 }
 
 void TYamredDsvWriter::OnBeginList()
 {
-    ythrow yexception() << "Lists are not supported by Yamred Dsv";
+    THROW_ERROR_EXCEPTION("Lists are not supported by Yamred Dsv");
 }
 
 void TYamredDsvWriter::OnListItem()
@@ -63,7 +63,7 @@ void TYamredDsvWriter::OnEndList()
 void TYamredDsvWriter::OnBeginMap()
 {
     if (!AllowBeginMap) {
-        ythrow yexception() << "Embedded maps are not supported by Yamred Dsv";
+        THROW_ERROR_EXCEPTION("Embedded maps are not supported by Yamred Dsv");
     }
     AllowBeginMap = false;
 
@@ -75,7 +75,8 @@ void TYamredDsvWriter::OnBeginMap()
 void TYamredDsvWriter::OnKeyedItem(const TStringBuf& key)
 {
     if (State != EState::None) {
-        ythrow yexception() << "Pass key without value is forbidden";
+        // TODO(babenko): improve
+        THROW_ERROR_EXCEPTION("Missing value");
     }
     Key = key;
     State = EState::ExpectingValue;

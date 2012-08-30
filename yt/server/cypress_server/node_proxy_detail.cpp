@@ -192,7 +192,7 @@ IListNodePtr TNodeFactory::CreateList()
 
 IEntityNodePtr TNodeFactory::CreateEntity()
 {
-    ythrow yexception() << "Entity nodes cannot be created inside Cypress";
+    THROW_ERROR_EXCEPTION("Entity nodes cannot be created inside Cypress");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

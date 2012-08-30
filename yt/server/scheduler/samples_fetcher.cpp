@@ -181,10 +181,11 @@ void TSamplesFetcher::OnResponse(
             auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
             const auto& chunkSamples = rsp->samples(index);
             if (chunkSamples.has_error()) {
+                auto error = FromProto(chunkSamples.error());
                 LOG_WARNING("Unable to fetch samples for chunk %s from %s\n%s",
                     ~chunkId.ToString(),
                     ~address,
-                    ~TError::FromProto(chunkSamples.error()).ToString());
+                    ~ToString(error));
                 YCHECK(DeadChunks.insert(std::make_pair(address, chunkId)).second);
             } else {
                 LOG_TRACE("Received %d samples for chunk %s",
@@ -203,7 +204,7 @@ void TSamplesFetcher::OnResponse(
     } else {
         LOG_DEBUG("Error requesting samples from %s\n%s",
             ~address,
-            ~rsp->GetError().ToString());
+            ~ToString(rsp->GetError()));
         YCHECK(DeadNodes.insert(address).second);
     }
 }

@@ -8,6 +8,7 @@
 #include "tree_builder.h"
 #include "yson_stream.h"
 #include "yson_producer.h"
+#include "attribute_helpers.h"
 
 #include <util/generic/typehelpers.h>
 #include <util/generic/static_assert.h>
@@ -23,7 +24,7 @@ void Consume(const T& value, IYsonConsumer* consumer)
     // Check that T differs from Stroka to prevent
     // accident usage of Stroka instead TYsonString.
     static_assert(!TSameType<T, Stroka>::Result,
-        "Are you sure that you want to convert from Stroka, not from TYsonString?. "
+        "Are you sure that you want to convert from Stroka, not from TYsonString? "
         "In this case use TRawString wrapper on Stroka.");
     
     Serialize(value, consumer);

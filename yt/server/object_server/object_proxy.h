@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/ytree/attributes.h>
+#include <ytlib/ytree/attribute_provider.h>
 #include <ytlib/ytree/ypath_service.h>
 
 namespace NYT {

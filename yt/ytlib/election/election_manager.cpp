@@ -96,7 +96,7 @@ private:
                 if (ElectionManager->AliveFollowers.erase(id) > 0) {
                     LOG_WARNING("Error pinging follower %d, considered down\n%s",
                         id,
-                        ~error.ToString());
+                        ~ToString(error));
                     ElectionManager->PotentialFollowers.erase(id);
                 }
             } else {
@@ -107,19 +107,19 @@ private:
                     if (ElectionManager->AliveFollowers.erase(id) > 0) {
                         LOG_WARNING("Error pinging follower %d, considered down\n%s",
                             id,
-                            ~error.ToString());
+                            ~ToString(error));
                     }
                 } else {
                     if (TInstant::Now() > ElectionManager->EpochContext->StartTime + ElectionManager->Config->PotentialFollowerTimeout) {
                         LOG_WARNING("Error pinging follower %d, no success within timeout, considered down\n%s",
                             id,
-                            ~error.ToString());
+                            ~ToString(error));
                         ElectionManager->PotentialFollowers.erase(id);
                         ElectionManager->AliveFollowers.erase(id);
                     } else {
                         LOG_INFO("Error pinging follower %d, will retry later\n%s",
                             id,
-                            ~error.ToString());
+                            ~ToString(error));
                     }
                 }
             }
@@ -249,7 +249,7 @@ private:
             LOG_INFO("Error requesting status from peer %d (Round: %p)\n%s",
                 id,
                 this,
-                ~response->GetError().ToString());
+                ~ToString(response->GetError()));
             return;
         }
 
@@ -718,23 +718,26 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager, PingFollower)
         leaderId);
 
     if (State != EPeerState::Following) {
-        ythrow TServiceException(EErrorCode::InvalidState) <<
-            Sprintf("Cannot process ping from a leader while in %s (LeaderId: %d, EpochId: %s)",
+        THROW_ERROR_EXCEPTION(
+            EErrorCode::InvalidState,
+            "Cannot process ping from a leader while in %s (LeaderId: %d, EpochId: %s)",
             ~State.ToString(),
             leaderId,
             ~epochId.ToString());
     }
 
     if (leaderId != EpochContext->LeaderId) {
-        ythrow TServiceException(EErrorCode::InvalidLeader) <<
-            Sprintf("Ping from an invalid leader: expected %d, received %d",
+        THROW_ERROR TError(
+            EErrorCode::InvalidLeader,
+            "Ping from an invalid leader: expected %d, received %d",
             EpochContext->LeaderId,
             leaderId);
     }
 
     if (epochId != EpochContext->EpochId) {
-        ythrow TServiceException(EErrorCode::InvalidEpoch) <<
-            Sprintf("Ping with invalid epoch from leader: expected %s, received %s",
+        THROW_ERROR_EXCEPTION(
+            EErrorCode::InvalidEpoch,
+            "Ping with invalid epoch from leader: expected %s, received %s",
             ~EpochContext->EpochId.ToString(),
             ~epochId.ToString());
     }

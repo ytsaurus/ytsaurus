@@ -43,7 +43,7 @@ public:
     {
         auto it = Environments.find(name);
         if (it == Environments.end()) {
-            ythrow yexception() << Sprintf("No such environment %s", ~name);
+            THROW_ERROR_EXCEPTION("No such environment %s", ~name);
         }
         return it->second;
     }

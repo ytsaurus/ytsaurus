@@ -85,7 +85,7 @@ void TChunkListPool::OnChunkListsCreated(TObjectServiceProxy::TRspExecuteBatchPt
     RequestInProgress = false;
 
     if (!batchRsp->IsOK()) {
-        LOG_ERROR("Error allocating chunk lists\n%s", ~batchRsp->GetError().ToString());
+        LOG_ERROR("Error allocating chunk lists\n%s", ~ToString(batchRsp->GetError()));
         // TODO(babenko): backoff time?
         return;
     }

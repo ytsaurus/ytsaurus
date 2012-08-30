@@ -26,6 +26,7 @@ set( SRCS
   ${BASE}/ref_counted_tracker.cpp
   ${BASE}/semaphore.cpp
   ${BASE}/serialize.cpp
+  ${BASE}/string.cpp
   ${BASE}/small_vector.cpp
   ${BASE}/source_location.cpp
   ${BASE}/stack_trace.cpp

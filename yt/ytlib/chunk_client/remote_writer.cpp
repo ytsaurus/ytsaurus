@@ -14,8 +14,6 @@
 
 #include <ytlib/chunk_client/chunk_holder_service.pb.h>
 
-#include <util/generic/yexception.h>
-
 namespace NYT {
 namespace NChunkClient {
 
@@ -742,7 +740,7 @@ void TRemoteWriter::TImpl::OnNodeFailed(TNodePtr node)
         TError error(
             TError::Fail,
             Sprintf("All target nodes [%s] have failed", ~JoinToString(Addresses)));
-        LOG_WARNING("Chunk writer failed\n%s", ~error.ToString());
+        LOG_WARNING("Chunk writer failed\n%s", ~ToString(error));
         State.Fail(error);
     }
 }
@@ -763,7 +761,7 @@ void TRemoteWriter::TImpl::CheckResponse(
         // TODO(babenko): retry?
         LOG_ERROR("Error reported by node %s\n%s",
             ~node->Address, 
-            ~rsp->GetError().ToString());
+            ~ToString(rsp->GetError()));
         OnNodeFailed(node);
     }
 }

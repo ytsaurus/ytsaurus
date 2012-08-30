@@ -90,11 +90,9 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
         try {
             ioConfigNode = ConvertToNode(TYsonString(JobSpec.io_config()));
         } catch (const std::exception& ex) {
-            Stroka message = Sprintf(
-                "Error deserializing job IO configuration\n%s", 
-                ex.what());
-            LOG_ERROR("%s", ~message);
-            DoAbort(TError(message), EJobState::Failed);
+            auto wrappedError = TError("Error deserializing job IO configuration")
+                << ex;
+            DoAbort(wrappedError, EJobState::Failed);
             return;
         }
 
@@ -125,12 +123,11 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
             JobId,
             Slot->GetWorkingDirectory());
     } catch (const std::exception& ex) {
-        Stroka message = Sprintf(
-            "Failed to create proxy controller for environment %s\n%s", 
-            ~environmentType.Quote(),
-            ex.what());
-        LOG_ERROR("%s", ~message);
-        DoAbort(TError(message), EJobState::Failed);
+        auto wrappedError = TError(
+            "Failed to create proxy controller for environment %s", 
+            ~environmentType.Quote())
+            << ex;
+        DoAbort(wrappedError, EJobState::Failed);
         return;
     }
 
@@ -188,12 +185,11 @@ void TJob::OnChunkDownloaded(
     auto fileName = fetchRsp.file_name();
 
     if (!result.IsOK()) {
-        Stroka message = Sprintf(
-            "Failed to download user file (FileName: %s)\n%s", 
-            ~fileName,
-            ~result.ToString());
-        LOG_WARNING("%s", ~message);
-        DoAbort(TError(message), EJobState::Failed, false);
+        auto wrappedError = TError(
+            "Failed to download user file %s", 
+            ~fileName)
+            << result;
+        DoAbort(wrappedError, EJobState::Failed, false);
         return;
     }
 
@@ -205,12 +201,11 @@ void TJob::OnChunkDownloaded(
             CachedChunks.back()->GetFileName(), 
             fetchRsp.executable());
     } catch (const std::exception& ex) {
-        Stroka message = Sprintf(
-            "Failed to create a symlink for %s\n%s", 
-            ~fileName.Quote(),
-            ex.what());
-        LOG_ERROR("%s", ~message);
-        DoAbort(TError(message), EJobState::Failed, false);
+        auto wrappedError = TError(
+            "Failed to create a symlink for %s", 
+            ~fileName.Quote())
+            << ex;
+        DoAbort(wrappedError, EJobState::Failed, false);
         return;
     }
 
@@ -231,7 +226,7 @@ void TJob::RunJobProxy()
         JobProgress = EJobProgress::StartedProxy;
         ProxyController->Run();
     } catch (const std::exception& ex) {
-        DoAbort(TError(ex.what()), EJobState::Failed);
+        DoAbort(ex, EJobState::Failed);
         return;
     }
 
@@ -265,8 +260,8 @@ void TJob::OnJobExit(TError error)
     }
 
     if (!IsResultSet()) {
-        DoAbort(TError(
-            "Job proxy exited successfully but job result has not been set"),
+        DoAbort(
+            TError("Job proxy exited successfully but job result has not been set"),
             EJobState::Failed);
         return;
     }
@@ -314,7 +309,7 @@ const TJobResult& TJob::GetResult() const
 void TJob::SetResult(const TError& error)
 {
     TJobResult jobResult;
-    *jobResult.mutable_error() = error.ToProto();
+    ToProto(jobResult.mutable_error(), error);
     SetResult(jobResult);
 }
 
@@ -350,7 +345,7 @@ void TJob::Abort()
     Slot->GetInvoker()->Invoke(BIND(
         &TJob::DoAbort,
         MakeStrong(this),
-        TError("Job aborted by scheduler"),
+        TError("Abort requested by scheduler"),
         EJobState::Aborted,
         true));
 }
@@ -369,7 +364,11 @@ void TJob::DoAbort(const TError& error, EJobState resultState, bool killJobProxy
     const auto jobProgress = JobProgress;
     JobProgress = EJobProgress::Cleanup;
 
-    LOG_INFO("Aborting job");
+    if (resultState == EJobState::Failed) {
+        LOG_ERROR("Job failed, aborting\n%s", ~ToString(error));
+    } else {
+        LOG_INFO("Aborting job\n%s", ~ToString(error));
+    }
 
     if (jobProgress >= EJobProgress::StartedProxy && killJobProxy) {
         try {
@@ -390,6 +389,8 @@ void TJob::DoAbort(const TError& error, EJobState resultState, bool killJobProxy
     JobProgress = EJobProgress::Failed;
     JobState = resultState;
     JobFinished.Set();
+
+    LOG_INFO("Job aborted");
 }
 
 void TJob::SubscribeFinished(const TClosure& callback)

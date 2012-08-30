@@ -1218,7 +1218,6 @@ private:
     void AddPartition(const NTableClient::NProto::TKey& key)
     {
         using NTableClient::ToString;
-        using ::ToString;
 
         int index = static_cast<int>(Partitions.size());
         LOG_DEBUG("Partition %d has starting key %s",
@@ -1591,7 +1590,7 @@ private:
         TSortControllerBase::DoInitialize();
 
         if (!CheckKeyColumnsCompatible(Spec->SortBy, Spec->ReduceBy)) {
-            ythrow yexception() << Sprintf("Reduce columns %s are not compatible with sort columns %s",
+            THROW_ERROR_EXCEPTION("Reduce columns %s are not compatible with sort columns %s",
                 ~ConvertToYsonString(Spec->ReduceBy, EYsonFormat::Text).Data(),
                 ~ConvertToYsonString(Spec->SortBy, EYsonFormat::Text).Data());
         }

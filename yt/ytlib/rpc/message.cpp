@@ -4,6 +4,9 @@
 #include "service.h"
 
 #include <ytlib/misc/protobuf_helpers.h>
+
+#include <ytlib/ytree/attribute_helpers.h>
+
 #include <ytlib/rpc/rpc.pb.h>
 
 namespace NYT {
@@ -61,7 +64,7 @@ IMessagePtr CreateResponseMessage(IServiceContextPtr context)
 {
     NProto::TResponseHeader header;
     *header.mutable_request_id() = context->GetRequestId().ToProto();
-    *header.mutable_error() = context->GetError().ToProto();
+    ToProto(header.mutable_error(), context->GetError());
     ToProto(header.mutable_attributes(), context->ResponseAttributes());
 
     return 
@@ -87,7 +90,7 @@ IMessagePtr CreateErrorResponseMessage(
 {
     NProto::TResponseHeader header;
     *header.mutable_request_id() = requestId.ToProto();
-    *header.mutable_error() = error.ToProto();
+    ToProto(header.mutable_error(), error);
     return CreateErrorResponseMessage(header);
 }
 
@@ -95,7 +98,7 @@ IMessagePtr CreateErrorResponseMessage(
     const TError& error)
 {
     NProto::TResponseHeader header;
-    *header.mutable_error() = error.ToProto();
+    ToProto(header.mutable_error(), error);
     return CreateErrorResponseMessage(header);
 }
 

@@ -65,8 +65,8 @@ void TTableWriter::Open()
     try {
         UploadTransaction = TransactionManager->Start(NULL, TransactionId);
     } catch (const std::exception& ex) {
-        LOG_ERROR_AND_THROW(yexception(), "Error creating upload transaction\n%s",
-            ex.what());
+        LOG_ERROR_AND_THROW(TError("Error creating upload transaction")
+            << ex);
     }
     auto uploadTransactionId = UploadTransaction->GetId();
     ListenTransaction(UploadTransaction);
@@ -103,27 +103,27 @@ void TTableWriter::Open()
 
         auto batchRsp = batchReq->Invoke().Get();
         if (!batchRsp->IsOK()) {
-            LOG_ERROR_AND_THROW(yexception(), "Error requesting table info\n%s",
-                ~batchRsp->GetError().ToString());
+            LOG_ERROR_AND_THROW(TError("Error requesting table info")
+                << batchRsp->GetError());
         }
 
         if (KeyColumns.IsInitialized()) {
             {
                 auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_row_count");
                 if (!rsp->IsOK()) {
-                    LOG_ERROR_AND_THROW(yexception(), "Error requesting table row count\n%s",
-                        ~rsp->GetError().ToString());
+                    LOG_ERROR_AND_THROW(TError("Error requesting table row count")
+                        << rsp->GetError());
                 }
                 i64 rowCount = ConvertTo<i64>(TYsonString(rsp->value()));
                 if (rowCount > 0) {
-                    LOG_ERROR_AND_THROW(yexception(), "Cannot write sorted data into a non-empty table");
+                    LOG_ERROR_AND_THROW(TError("Cannot write sorted data into a non-empty table"));
                 }
             }
             {
                 auto rsp = batchRsp->FindResponse("clear");
                 if (rsp && !rsp->IsOK()) {
-                    LOG_ERROR_AND_THROW(yexception(), "Error clearing table\n%s",
-                        ~rsp->GetError().ToString());
+                    LOG_ERROR_AND_THROW(TError("Error clearing table")
+                        << rsp->GetError());
                 }
             }
         }
@@ -131,8 +131,8 @@ void TTableWriter::Open()
         {
             auto rsp = batchRsp->GetResponse<TTableYPathProxy::TRspGetChunkListForUpdate>("get_chunk_list_for_update");
             if (!rsp->IsOK()) {
-                LOG_ERROR_AND_THROW(yexception(), "Error requesting chunk list id\n%s",
-                    ~rsp->GetError().ToString());
+                LOG_ERROR_AND_THROW(TError("Error requesting chunk list id")
+                    << rsp->GetError());
             }
             chunkListId = TChunkListId::FromProto(rsp->chunk_list_id());
         }
@@ -144,7 +144,8 @@ void TTableWriter::Open()
                     channels = ChannelsFromYson(TYsonString(rsp->value()));
                 }
                 catch (const std::exception& ex) {
-                    ythrow yexception() << Sprintf("Error parsing table channels\n%s", ex.what());
+                    THROW_ERROR_EXCEPTION("Error parsing table channels")
+                        << ex;
                 }
             }
         }
@@ -213,8 +214,8 @@ void TTableWriter::Close()
 
         auto rsp = ObjectProxy.Execute(req).Get();
         if (!rsp->IsOK()) {
-            LOG_ERROR_AND_THROW(yexception(), "Error marking table as sorted\n%s",
-                ~rsp->GetError().ToString());
+            LOG_ERROR_AND_THROW(TError("Error marking table as sorted")
+                << rsp->GetError());
         }
         LOG_INFO("Table is marked as sorted");
     }
@@ -223,8 +224,8 @@ void TTableWriter::Close()
     try {
         UploadTransaction->Commit();
     } catch (const std::exception& ex) {
-        LOG_ERROR_AND_THROW(yexception(), "Error committing upload transaction\n%s",
-            ex.what());
+        LOG_ERROR_AND_THROW(TError("Error committing upload transaction")
+            << ex);
     }
     LOG_INFO("Upload transaction committed");
 

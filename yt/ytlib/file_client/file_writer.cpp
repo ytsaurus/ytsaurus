@@ -61,8 +61,8 @@ void TFileWriter::Open()
             NULL,
             Transaction ? Transaction->GetId() : NullTransactionId);
     } catch (const std::exception& ex) {
-        LOG_ERROR_AND_THROW(yexception(), "Error creating upload transaction\n%s",
-            ex.what());
+        LOG_ERROR_AND_THROW(TError("Error creating upload transaction")
+            << ex);
     }
 
     ListenTransaction(UploadTransaction);
@@ -98,8 +98,8 @@ void TFileWriter::Close()
 
         auto rsp = proxy.Execute(req).Get();
         if (!rsp->IsOK()) {
-            LOG_ERROR_AND_THROW(yexception(), "Error creating file node\n%s",
-                ~rsp->GetError().ToString());
+            LOG_ERROR_AND_THROW(TError("Error creating file node")
+                << rsp->GetError());
         }
 
         NodeId = NCypressClient::TNodeId::FromProto(rsp->object_id());
@@ -110,8 +110,8 @@ void TFileWriter::Close()
     try {
         UploadTransaction->Commit();
     } catch (const std::exception& ex) {
-        LOG_ERROR_AND_THROW(yexception(), "Error committing upload transaction\n%s",
-            ex.what());
+        LOG_ERROR_AND_THROW(TError("Error committing upload transaction")
+            << ex);
     }
     LOG_INFO("Upload transaction committed");
 }

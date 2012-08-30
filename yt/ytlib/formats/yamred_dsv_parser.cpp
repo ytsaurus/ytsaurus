@@ -47,10 +47,9 @@ private:
                 Stroka(wholeField.begin(), wholeField.end()),
                 delimiter.begin());
         if (fields.ysize() != fieldNames.size()) {
-            ythrow yexception() <<
-                "YamredDsv parsing error: incorrect number of fields inside key, "
-                "actual " << fields.ysize() <<
-                ", expected " << fieldNames.size();
+            THROW_ERROR_EXCEPTION("Invalid number of key fields: expected %d, actual %d",
+                static_cast<int>(fieldNames.size()),
+                static_cast<int>(fields.size());
         }
         for (int i = 0; i < fields.size(); ++i) {
             Consumer->OnKeyedItem(fieldNames[i]);

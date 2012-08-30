@@ -35,11 +35,10 @@ void TFileReader::Open()
     TChunkMetaHeader metaHeader;
     ReadPod(chunkMetaInput, metaHeader);
     if (metaHeader.Signature != TChunkMetaHeader::ExpectedSignature) {
-        ythrow yexception()
-            << Sprintf("Incorrect signature in chunk meta header (FileName: %s, Expected: %" PRIx64 ", Found: %" PRIx64")",
-                ~FileName,
-                TChunkMetaHeader::ExpectedSignature,
-                metaHeader.Signature);
+        THROW_ERROR_EXCEPTION("Incorrect signature in chunk meta header (FileName: %s, Expected: %" PRIx64 ", Found: %" PRIx64")",
+            ~FileName,
+            TChunkMetaHeader::ExpectedSignature,
+            metaHeader.Signature);
     }
 
     Stroka chunkMetaBlob = chunkMetaInput.ReadAll();
@@ -47,15 +46,14 @@ void TFileReader::Open()
 
     auto checksum = GetChecksum(chunkMetaRef);
     if (checksum != metaHeader.Checksum) {
-        ythrow yexception()
-            << Sprintf("Incorrect checksum in chunk meta file (FileName: %s, Expected: %" PRIx64 ", Found: %" PRIx64")",
+        THROW_ERROR_EXCEPTION("Incorrect checksum in chunk meta file (FileName: %s, Expected: %" PRIx64 ", Found: %" PRIx64")",
                 ~FileName,
                 metaHeader.Checksum,
                 checksum);
     }
 
     if (!DeserializeFromProtoWithEnvelope(&ChunkMeta, chunkMetaRef)) {
-        ythrow yexception() << Sprintf("Failed to parse chunk meta (FileName: %s)",
+        THROW_ERROR_EXCEPTION("Failed to parse chunk meta (FileName: %s)",
             ~FileName); 
     }
 
@@ -106,12 +104,11 @@ TSharedRef TFileReader::ReadBlock(int blockIndex)
 
     auto checksum = GetChecksum(data);
     if (checksum != blockInfo.checksum()) {
-        ythrow yexception()
-            << Sprintf("Incorrect checksum in chunk block (FileName: %s, BlockIndex: %d, Expected: %" PRIx64 ", Found: %" PRIx64 ")",
-                ~FileName,
-                blockIndex,
-                blockInfo.checksum(),
-                checksum);
+        THROW_ERROR_EXCEPTION("Incorrect checksum in chunk block (FileName: %s, BlockIndex: %d, Expected: %" PRIx64 ", Found: %" PRIx64 ")",
+            ~FileName,
+            blockIndex,
+            blockInfo.checksum(),
+            checksum);
     }
 
     return data;

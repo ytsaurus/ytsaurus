@@ -114,11 +114,12 @@ public:
                 auto arguments = Context->GetRequest()->Arguments;
                 Request->Load(arguments);
             } catch (const std::exception& ex) {
-                ythrow yexception() << Sprintf("Error parsing command arguments\n%s", ex.what());
+                THROW_ERROR_EXCEPTION("Error parsing command arguments") <<
+                    ex;
             }
             DoExecute();
         } catch (const std::exception& ex) {
-            ReplyError(TError(ex.what()));
+            ReplyError(ex);
         }
     }
 
@@ -155,7 +156,7 @@ protected:
     NTransactionClient::ITransactionPtr GetTransaction(bool required)
     {
         if (required && this->Request->TransactionId == NTransactionClient::NullTransactionId) {
-            ythrow yexception() << "Transaction is required";
+            THROW_ERROR_EXCEPTION("Transaction is required");
         }
         auto transactionId = this->Request->TransactionId;
         if (transactionId == NTransactionClient::NullTransactionId) {

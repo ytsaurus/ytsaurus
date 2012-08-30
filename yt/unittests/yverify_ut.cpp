@@ -57,21 +57,6 @@ TEST(TVerifyDeathTest, CrashForFalseExpression)
 }
 #endif
 
-#if 0
-// XXX(sandello); This is not a requirement anymore (since 2012-04-05).
-TEST(TVerifyDeathTest, CrashForException)
-{
-    NiceMock<TMockCallee> callee;
-    ON_CALL(callee, F(A<bool>(), _))
-        .WillByDefault(Throw(yexception() << "Dumb Exception"));
-
-    ASSERT_DEATH(
-        { YVERIFY(callee.F(true, "Cheshire Cat")); },
-        "Assertion.*Exception was thrown while evaluating YVERIFY"
-    );
-}
-#endif
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

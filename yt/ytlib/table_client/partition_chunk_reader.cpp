@@ -53,7 +53,7 @@ TAsyncError TPartitionChunkReader::AsyncOpen()
 void TPartitionChunkReader::OnGotMeta(NChunkClient::IAsyncReader::TGetMetaResult result)
 {
     if (!result.IsOK()) {
-        LOG_WARNING("Failed to download chunk meta\n%s", ~result.GetMessage());
+        LOG_WARNING("Failed to download chunk meta\n%s", ~ToString(result));
         State.Fail(result);
         return;
     }

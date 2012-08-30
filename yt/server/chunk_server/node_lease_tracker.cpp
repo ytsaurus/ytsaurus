@@ -101,7 +101,7 @@ void TNodeLeaseTracker::OnExpired(TNodeId nodeId)
         ->OnError(BIND([=] (const TError& error) {
             LOG_ERROR("Node expiration commit failed (NodeId: %d)\n%s",
                 nodeId,
-                ~error.ToString());
+                ~ToString(error));
         }))
         ->Commit();
 }

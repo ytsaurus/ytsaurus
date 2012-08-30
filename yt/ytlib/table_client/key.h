@@ -507,8 +507,6 @@ Stroka ToString(const TKey<TBuffer>& key)
     return "[" + JoinToString(key.Parts) + "]";
 }
 
-Stroka ToString(const NProto::TKey& key);
-
 //! Compares given keys (truncated to #prefixLength). Returns zero if |lhs == rhs|, a negative value
 //! if |lhs < rhs| and a positive value otherwise.
 template <class TLhsBuffer, class TRhsBuffer>
@@ -526,6 +524,10 @@ int CompareKeys(const TKey<TLhsBuffer>& lhs, const TKey<TRhsBuffer>& rhs, int pr
     return lhsSize - rhsSize;
 }
 
+namespace NProto {
+
+Stroka ToString(const NProto::TKey& key);
+
 int CompareKeys(const NProto::TKey& lhs, const NProto::TKey& rhs, int prefixLength = std::numeric_limits<int>::max());
 
 bool operator >  (const NProto::TKey& lhs, const NProto::TKey& rhs);
@@ -537,6 +539,8 @@ bool operator == (const NProto::TKey& lhs, const NProto::TKey& rhs);
 //! Returns the successor of |key|, i.e. the key
 //! obtained from |key| by appending a sentinel part.
 NProto::TKey GetSuccessorKey(const NProto::TKey& key);
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

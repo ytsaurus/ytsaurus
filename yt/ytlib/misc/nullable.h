@@ -227,11 +227,6 @@ public:
         return Initialized ? &TNullable::Value : NULL;
     }
 
-    Stroka ToString() const
-    {
-        return Initialized ? ::ToString(Value) : "<NULL>";
-    }
-
 private:
     template <class U>
     friend class TNullable;
@@ -239,6 +234,12 @@ private:
     bool Initialized;
     T Value;
 };
+
+template <class T>
+Stroka ToString(const NYT::TNullable<T>& nullable)
+{
+    return nullable ? ToString(*nullable) : "<Null>";
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -359,9 +360,4 @@ void Load(TInputStream* input, TNullable<T>& optionalObj)
 
 } //namespace NYT
 
-template <class T>
-Stroka ToString(const NYT::TNullable<T>& nullable)
-{
-    return nullable ? ToString(*nullable) : "<Null>";
-}
 

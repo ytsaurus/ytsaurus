@@ -42,6 +42,13 @@ int CompareKeyParts(const NProto::TKeyPart& lhs, const NProto::TKeyPart& rhs)
 
 } // namespace
 
+namespace NProto {
+
+Stroka ToString(const NProto::TKey& key)
+{
+    return ToString(TNonOwningKey::FromProto(key));
+}
+
 int CompareKeys(const NProto::TKey& lhs, const NProto::TKey& rhs, int prefixLength)
 {
     int lhsSize = std::min(lhs.parts_size(), prefixLength);
@@ -81,11 +88,6 @@ bool operator==(const NProto::TKey& lhs, const NProto::TKey& rhs)
     return CompareKeys(lhs, rhs) == 0;
 }
 
-Stroka ToString(const NProto::TKey& key)
-{
-    return ToString(TNonOwningKey::FromProto(key));
-}
-
 NProto::TKey GetSuccessorKey(const NProto::TKey& key)
 {
     NProto::TKey result;
@@ -94,6 +96,8 @@ NProto::TKey GetSuccessorKey(const NProto::TKey& key)
     sentinelPart->set_type(EKeyPartType::MinSentinel);
     return result;
 }
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

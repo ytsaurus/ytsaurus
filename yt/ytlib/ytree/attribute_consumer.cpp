@@ -2,6 +2,8 @@
 #include "attribute_consumer.h"
 #include "attributes.h"
 
+#include <ytlib/misc/error.h>
+
 namespace NYT {
 namespace NYTree {
 
@@ -69,7 +71,7 @@ void TAttributeConsumer::OnMyBeginList()
 
 void TAttributeConsumer::ThrowMapExpected()
 {
-    ythrow yexception() << "Attributes can only be set from a map";
+    THROW_ERROR_EXCEPTION("Attributes can only be set from a map");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

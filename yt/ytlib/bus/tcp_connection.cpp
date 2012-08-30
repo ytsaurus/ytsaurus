@@ -221,7 +221,7 @@ void TTcpConnection::SyncResolve()
     try {
         ParseServiceAddress(Address, &hostName, &Port);
     } catch (const std::exception& ex) {
-        SyncClose(TError(NRpc::EErrorCode::TransportError, ex.what()));
+        SyncClose(TError(ex).SetCode(NRpc::EErrorCode::TransportError));
         return;
     }
 
@@ -278,7 +278,7 @@ void TTcpConnection::OnResolved(const TNetworkAddress& netAddress)
     try {
         ConnectSocket(netAddress);
     } catch (const std::exception& ex) {
-        SyncClose(TError(NRpc::EErrorCode::TransportError, ex.what()));
+        SyncClose(TError(ex).SetCode(NRpc::EErrorCode::TransportError));
         return;
     }
 
@@ -335,7 +335,7 @@ void TTcpConnection::SyncClose(const TError& error)
         TerminatedPromise.Set(error);
     }
 
-    LOG_INFO("Connection closed\n%s", ~error.ToString());
+    LOG_INFO("Connection closed\n%s", ~ToString(error));
 
     UpdateConnectionCount(-1);
 
@@ -372,10 +372,8 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
     int protocol = family == AF_UNIX ? 0 : IPPROTO_TCP;
     Socket = socket(family, SOCK_STREAM, protocol);
     if (Socket == INVALID_SOCKET) {
-        int error = LastSystemError();
-        ythrow yexception() << Sprintf("Failed to create client socket (ErrorCode: %d)\n%s",
-            error,
-            LastSystemErrorText(error));
+        THROW_ERROR_EXCEPTION("Failed to create client socket")
+            << TError::FromSystem();
     }
 
     // TODO(babenko): check results
@@ -413,10 +411,8 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
     if (result != 0) {
         int error = LastSystemError();
         if (IsSocketError(error)) {
-            ythrow yexception() << Sprintf("Error connecting to %s (ErrorCode: %d)\n%s",
-                ~Address,
-                error,
-                LastSystemErrorText(error));
+            THROW_ERROR_EXCEPTION("Error connecting to %s", ~Address)
+                << TError::FromSystem(error);
         }
     }
 }
@@ -605,10 +601,12 @@ bool TTcpConnection::CheckReadError(ssize_t result)
     if (result < 0) {
         int error = LastSystemError();
         if (IsSocketError(error)) {
-            LOG_WARNING("Socket read error (ErrorCode: %d)\n%s",
-                error,
-                LastSystemErrorText(error));
-            SyncClose(TError(NRpc::EErrorCode::TransportError, "Socket read error"));
+            auto wrappedError = TError(
+                NRpc::EErrorCode::TransportError,
+                "Socket read error")
+                << TError::FromSystem(error);
+            LOG_WARNING("%s", ~ToString(wrappedError));
+            SyncClose(wrappedError);
         }
         return false;
     }
@@ -714,18 +712,15 @@ void TTcpConnection::OnSocketWrite()
         // Check if connection was established successfully.
         int error = GetSocketError();
         if (error != 0) {
-            LOG_ERROR("Failed to connect to %s (ErrorCode: %d)\n%s",
-                ~Address,
-                error,
-                LastSystemErrorText(error));
+            auto wrappedErrror = TError(
+                NRpc::EErrorCode::TransportError,
+                "Failed to connect to %s",
+                ~Address)
+                << TError::FromSystem(error);
+            LOG_ERROR("%s", ~ToString(wrappedErrror));
 
             // We're currently in event loop context, so calling |SyncClose| is safe.
-            SyncClose(TError(
-                NRpc::EErrorCode::TransportError,
-                "Failed to connect to %s (ErrorCode: %d)\n%s",
-                ~Address,
-                error,
-                LastSystemErrorText(error)));
+            SyncClose(wrappedErrror);
 
             return;
         }
@@ -873,10 +868,12 @@ bool TTcpConnection::CheckWriteError(ssize_t result)
     if (result < 0) {
         int error = LastSystemError();
         if (IsSocketError(error)) {
-            LOG_WARNING("Socket write error (ErrorCode: %d)\n%s",
-                error,
-                LastSystemErrorText(error));
-            SyncClose(TError(NRpc::EErrorCode::TransportError, "Socket write error"));
+            auto wrappedError = TError(
+                NRpc::EErrorCode::TransportError,
+                "Socket write error")
+                << TError::FromSystem(error);
+            LOG_WARNING("%s", ~ToString(wrappedError));
+            SyncClose(wrappedError);
         }
         return false;
     }

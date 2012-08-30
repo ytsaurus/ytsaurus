@@ -42,8 +42,8 @@ void TFileReader::Open()
     auto fetchReq = TFileYPathProxy::Fetch(WithTransaction(Path, Transaction ? Transaction->GetId() : NullTransactionId));
     auto fetchRsp = Proxy.Execute(fetchReq).Get();
     if (!fetchRsp->IsOK()) {
-        LOG_ERROR_AND_THROW(yexception(), "Error fetching file info\n%s",
-            ~fetchRsp->GetError().ToString());
+        LOG_ERROR_AND_THROW(TError("Error fetching file info")
+            << fetchRsp->GetError());
     }
     auto chunkId = TChunkId::FromProto(fetchRsp->chunk_id());
     auto addresses = FromProto<Stroka>(fetchRsp->node_addresses());

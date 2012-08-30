@@ -31,17 +31,17 @@ void TSchedulerCommandBase::StartOperation(EOperationType type)
 
     TOperationId operationId;
     {
-        auto startOpReq = proxy.StartOperation();
-        startOpReq->set_type(type);
-        *startOpReq->mutable_transaction_id() = GetTransactionId(false).ToProto();
-        startOpReq->set_spec(ConvertToYsonString(Request->Spec).Data());
+        auto req = proxy.StartOperation();
+        req->set_type(type);
+        *req->mutable_transaction_id() = GetTransactionId(false).ToProto();
+        req->set_spec(ConvertToYsonString(Request->Spec).Data());
 
-        auto startOpRsp = startOpReq->Invoke().Get();
-        if (!startOpRsp->IsOK()) {
-            ythrow yexception() << startOpRsp->GetError().ToString();
+        auto rsp = req->Invoke().Get();
+        if (!rsp->IsOK()) {
+            THROW_ERROR(rsp->GetError());
         }
 
-        operationId = TOperationId::FromProto(startOpRsp->operation_id());
+        operationId = TOperationId::FromProto(rsp->operation_id());
     }
 
     ReplySuccess(BuildYsonFluently().Scalar(operationId).GetYsonString());
@@ -129,11 +129,11 @@ TAbortOperationCommand::TAbortOperationCommand(ICommandContext* context)
 void TAbortOperationCommand::DoExecute()
 {
     TSchedulerServiceProxy proxy(Context->GetSchedulerChannel());
-    auto abortOpReq = proxy.AbortOperation();
-    *abortOpReq->mutable_operation_id() = Request->OperationId.ToProto();
-    auto abortOpRsp = abortOpReq->Invoke().Get();
-    if (!abortOpRsp->IsOK()) {
-        ythrow yexception() << abortOpRsp->GetError().ToString();
+    auto req = proxy.AbortOperation();
+    *req->mutable_operation_id() = Request->OperationId.ToProto();
+    auto rsp = req->Invoke().Get();
+    if (!rsp->IsOK()) {
+        THROW_ERROR(rsp->GetError());
     }
 }
 

@@ -90,7 +90,8 @@ public:
         if (!rsp->IsOK()) {
             // No ping tasks are running, so no need to lock here.
             State = EState::Aborted;
-            LOG_ERROR_AND_THROW(yexception(), "Error starting transaction\n%s",  ~rsp->GetError().ToString());
+            LOG_ERROR_AND_THROW(TError("Error starting transaction")
+                << rsp->GetError());
         }
         Id = TTransactionId::FromProto(rsp->object_id());
 
@@ -124,11 +125,11 @@ public:
             TGuard<TSpinLock> guard(SpinLock);
             switch (State) {
                 case EState::Committed:
-                    ythrow yexception() << "Transaction is already committed";
+                    THROW_ERROR_EXCEPTION("Transaction is already committed");
                     break;
 
                 case EState::Aborted:
-                    ythrow yexception() << "Transaction is already aborted";
+                    THROW_ERROR_EXCEPTION("Transaction is already aborted");
                     break;
 
                 case EState::Active:
@@ -151,9 +152,8 @@ public:
             // No sync here, should be safe.
             State = EState::Aborted;
             
-            LOG_ERROR_AND_THROW(yexception(), "Error committing transaction %s\n%s",
-                ~Id.ToString(),
-                ~rsp->GetError().ToString());
+            LOG_ERROR_AND_THROW(TError("Error committing transaction %s", ~Id.ToString())
+                << rsp->GetError());
 
             FireAbort();
             return;
@@ -180,11 +180,11 @@ public:
             TGuard<TSpinLock> guard(SpinLock);
             switch (State) {
                 case EState::Committed:
-                    ythrow yexception() << "Transaction is already committed";
+                    THROW_ERROR_EXCEPTION("Transaction is already committed");
                     break;
 
                 case EState::Aborted:
-                    ythrow yexception() << "Transaction is already aborted";
+                    THROW_ERROR_EXCEPTION("Transaction is already aborted");
                     break;
 
                 case EState::Active:
@@ -274,8 +274,8 @@ private:
         if (wait) {
             auto rsp = asyncRsp.Get();
             if (!rsp->IsOK()) {
-                throw yexception() << Sprintf("Error aborting transaction\n%s",
-                    ~rsp->GetError().ToString());
+                THROW_ERROR_EXCEPTION("Error aborting transaction")
+                    << rsp->GetError();
             }
         }
     }
@@ -409,7 +409,7 @@ void TTransactionManager::OnPingResponse(
         } else {
             LOG_WARNING("Error renewing transaction lease (TransactionId: %s)\n%s",
                 ~id.ToString(),
-                ~rsp->GetError().ToString());
+                ~ToString(rsp->GetError()));
         }
         return;
     }

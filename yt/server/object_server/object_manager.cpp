@@ -193,7 +193,7 @@ public:
     virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
     {
         if (path.empty()) {
-            ythrow yexception() << "YPath cannot be empty";
+            THROW_ERROR_EXCEPTION("YPath cannot be empty");
         }
 
         TTransaction* transaction = NULL;
@@ -210,15 +210,15 @@ public:
             tokenizer.ParseNext();
             TTransactionId transactionId;
             if (!TObjectId::FromString(transactionToken, &transactionId)) {
-                ythrow yexception() << Sprintf("Error parsing transaction id %s", ~Stroka(transactionToken).Quote());
+                THROW_ERROR_EXCEPTION("Error parsing transaction id: %s", ~Stroka(transactionToken).Quote());
             }
             if (transactionId != NullTransactionId) {
                 transaction = transactionManager->FindTransaction(transactionId);
                 if (!transaction) {
-                    ythrow yexception() <<  Sprintf("No such transaction %s", ~transactionId.ToString());
+                    THROW_ERROR_EXCEPTION("No such transaction: %s", ~transactionId.ToString());
                 }
                 if (transaction->GetState() != NTransactionServer::ETransactionState::Active) {
-                    ythrow yexception() <<  Sprintf("Transaction %s is not active", ~transactionId.ToString());
+                    THROW_ERROR_EXCEPTION("Transaction is not active: %s", ~transactionId.ToString());
                 }
             }
         }
@@ -233,17 +233,17 @@ public:
             Stroka objectIdToken(tokenizer.CurrentToken().GetStringValue());
             TObjectId objectId;
             if (!TObjectId::FromString(objectIdToken, &objectId)) {
-                ythrow yexception() << Sprintf("Error parsing object id %s", ~Stroka(objectIdToken).Quote());
+                THROW_ERROR_EXCEPTION("Error parsing object id: %s", ~Stroka(objectIdToken).Quote());
             }
 
             auto proxy = objectManager->FindProxy(objectId, transaction);
             if (!proxy) {
-                ythrow yexception() << Sprintf("No such object %s", ~objectId.ToString());
+                THROW_ERROR_EXCEPTION("No such object: %s", ~objectId.ToString());
             }
 
             return TResolveResult::There(proxy, TYPath(tokenizer.GetCurrentSuffix()));
         } else {
-            ythrow yexception() << "Invalid YPath syntax";
+            THROW_ERROR_EXCEPTION("Invalid YPath syntax");
         }
     }
 

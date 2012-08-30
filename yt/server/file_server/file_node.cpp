@@ -83,7 +83,7 @@ public:
         auto objectManager = Bootstrap->GetObjectManager();
 
         if (!request->HasExtension(NFileClient::NProto::TReqCreateFileExt::create_file)) {
-            ythrow yexception() << "Missing request extension";
+            THROW_ERROR_EXCEPTION("Missing request extension");
         }
 
         const auto& requestExt = request->GetExtension(NFileClient::NProto::TReqCreateFileExt::create_file);
@@ -91,11 +91,11 @@ public:
 
         auto* chunk = chunkManager->FindChunk(chunkId);
         if (!chunk) {
-            ythrow yexception() << Sprintf("No such chunk %s", ~chunkId.ToString());
+            THROW_ERROR_EXCEPTION("No such chunk %s", ~chunkId.ToString());
         }
 
         if (!chunk->IsConfirmed()) {
-            ythrow yexception() << Sprintf("Chunk %s is not confirmed", ~chunkId.ToString());
+            THROW_ERROR_EXCEPTION("Chunk %s is not confirmed", ~chunkId.ToString());
         }
 
         auto node = TBase::DoCreate(transaction, request, response);

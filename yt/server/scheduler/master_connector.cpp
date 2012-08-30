@@ -74,8 +74,8 @@ public:
             auto req = TYPathProxy::List(GetOperationsPath());
             auto rsp = ObjectProxy.Execute(req).Get();
             if (!rsp->IsOK()) {
-                ythrow yexception() << Sprintf("Failed to get operations list\n%s",
-                    ~rsp->GetError().ToString());
+                THROW_ERROR_EXCEPTION("Failed to get operations list")
+                    << rsp->GetError();
             }
             auto keys = ConvertTo< std::vector<Stroka> >(TYsonString(rsp->keys()));
             LOG_INFO("Found %d operations", static_cast<int>(keys.size()));
@@ -94,17 +94,17 @@ public:
             }
             auto batchRsp = batchReq->Invoke().Get();
             if (!batchRsp->IsOK()) {
-                ythrow yexception() << Sprintf("Failed to get operations attributes\n%s",
-                    ~batchRsp->GetError().ToString());
+                THROW_ERROR_EXCEPTION("Failed to get operations attributes")
+                    << batchRsp->GetError();
             }
 
             for (int index = 0; index < batchRsp->GetSize(); ++index) {
                 const auto& operationId = operationIds[index];
                 auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(index);
                 if (!rsp->IsOK()) {
-                    ythrow yexception() << Sprintf("Failed to get attributes for operation %s\n%s",
-                        ~operationId.ToString(),
-                        ~rsp->GetError().ToString());
+                    THROW_ERROR_EXCEPTION("Failed to get attributes for operation %s",
+                        ~operationId.ToString())
+                        << rsp->GetError();
                 }
 
                 auto operation = ParseOperationYson(operationId, TYsonString(rsp->value()));
@@ -298,7 +298,8 @@ private:
         try {
             BootstrapTransaction = Bootstrap->GetTransactionManager()->Start();
         } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Failed to start bootstrap transaction\n%s", ex.what());
+            THROW_ERROR_EXCEPTION("Failed to start bootstrap transaction")
+                << ex;
         }
 
         try {
@@ -310,8 +311,8 @@ private:
                 req->set_mode(ELockMode::Exclusive);
                 auto rsp = ObjectProxy.Execute(req).Get();
                 if (!rsp->IsOK()) {
-                    ythrow yexception() << Sprintf("Failed to take scheduler lock, check for another running scheduler instances\n%s",
-                        ~rsp->GetError().ToString());
+                    THROW_ERROR_EXCEPTION("Failed to take scheduler lock, check for another running scheduler instances")
+                        << rsp->GetError();
                 }
             }
             LOG_INFO("Lock taken");
@@ -322,8 +323,8 @@ private:
                 req->set_value(YsonizeString(Bootstrap->GetPeerAddress(), EYsonFormat::Binary));
                 auto rsp = ObjectProxy.Execute(req).Get();
                 if (!rsp->IsOK()) {
-                    ythrow yexception() << Sprintf("Failed to publish scheduler address\n%s",
-                        ~rsp->GetError().ToString());
+                    THROW_ERROR_EXCEPTION("Failed to publish scheduler address")
+                        << rsp->GetError();
                 }
             }
             LOG_INFO("Scheduler address published");
@@ -334,8 +335,8 @@ private:
                 req->set_value(YsonizeString(Bootstrap->GetPeerAddress(), EYsonFormat::Binary));
                 auto rsp = ObjectProxy.Execute(req).Get();
                 if (!rsp->IsOK()) {
-                    ythrow yexception() << Sprintf("Failed to register at orchid\n%s",
-                        ~rsp->GetError().ToString());
+                    THROW_ERROR_EXCEPTION("Failed to register at orchid")
+                        << rsp->GetError();
                 }
             }
             LOG_INFO("Registered at orchid");
@@ -459,7 +460,7 @@ private:
         TransactionRefreshInvoker->ScheduleNext();
 
         if (!rsp->IsOK()) {
-            LOG_ERROR("Error refreshing transactions\n%s", ~rsp->GetError().ToString());
+            LOG_ERROR("Error refreshing transactions\n%s", ~ToString(rsp->GetError()));
             return;
         }
 
@@ -502,7 +503,7 @@ private:
         ExecNodesRefreshInvoker->ScheduleNext();
 
         if (!rsp->IsOK()) {
-            LOG_ERROR("Error refreshing exec nodes\n%s", ~rsp->GetError().ToString());
+            LOG_ERROR("Error refreshing exec nodes\n%s", ~ToString(rsp->GetError()));
             return;
         }
 
@@ -659,13 +660,13 @@ private:
         // Just check every response and log the errors.
         // TODO(babenko): retry?
         if (!batchRsp->IsOK()) {
-            LOG_ERROR("Error reviving operation nodes\n%s", ~batchRsp->GetError().ToString());
+            LOG_ERROR("Error reviving operation nodes\n%s", ~ToString(batchRsp->GetError()));
             return;
         }
 
         FOREACH (auto rsp, batchRsp->GetResponses()) {
             if (!rsp->IsOK()) {
-                LOG_ERROR("Error reviving operation node\n%s", ~rsp->GetError().ToString());
+                LOG_ERROR("Error reviving operation node\n%s", ~ToString(rsp->GetError()));
             }
         }
 
@@ -681,13 +682,13 @@ private:
         // Just check every response and log the errors.
         // TODO(babenko): retry?
         if (!batchRsp->IsOK()) {
-            LOG_ERROR("Error updating operation nodes\n%s", ~batchRsp->GetError().ToString());
+            LOG_ERROR("Error updating operation nodes\n%s", ~ToString(batchRsp->GetError()));
             return;
         }
 
         FOREACH (auto rsp, batchRsp->GetResponses()) {
             if (!rsp->IsOK()) {
-                LOG_ERROR("Error updating operation nodes\n%s", ~rsp->GetError().ToString());
+                LOG_ERROR("Error updating operation nodes\n%s", ~ToString(rsp->GetError()));
             }
         }
 
@@ -704,7 +705,7 @@ private:
         if (!error.IsOK()) {
             LOG_ERROR("Error creating operation node (OperationId: %s)\n%s",
                 ~operationId.ToString(),
-                ~error.ToString());
+                ~ToString(error));
             return rsp->GetError();
         }
 
@@ -725,7 +726,7 @@ private:
         if (!rsp->IsOK()) {
             LOG_WARNING("Error removing operation node (OperationId: %s)\n%s",
                 ~operation->GetOperationId().ToString(),
-                ~rsp->GetError().ToString());
+                ~ToString(rsp->GetError()));
             return;
         }
 
@@ -749,7 +750,7 @@ private:
         } else {
             LOG_ERROR("Error flushing operation node (OperationId: %s)\n%s",
                 ~operationId.ToString(),
-                ~error.ToString());
+                ~ToString(error));
         }
 
         return error;
@@ -772,12 +773,10 @@ private:
                 ~operationId.ToString());
             list->Finalized.Set(TError());
         } else {
-            LOG_ERROR("Error finalizing operation node (OperationId: %s)\n%s",
-                ~operationId.ToString(),
-                ~error.ToString());
-            // Wrap the error.
-            list->Finalized.Set(TError(Sprintf("Error finalizing operation node\n%s",
-                ~error.ToString())));
+            auto wrappedError = TError("Error finalizing operation node")
+                << error;
+            LOG_ERROR("%s", ~ToString(wrappedError));
+            list->Finalized.Set(wrappedError);
         }
 
         RemoveOperationUpdateList(operation);

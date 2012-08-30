@@ -1,7 +1,9 @@
 #include "stdafx.h"
 #include "schema.h"
 
+#include <ytlib/misc/error.h>
 #include <ytlib/misc/foreach.h>
+
 #include <ytlib/ytree/node.h>
 #include <ytlib/ytree/convert.h>
 
@@ -18,8 +20,9 @@ TRange::TRange(const Stroka& begin, const Stroka& end)
     , End_(end)
 {
     if (begin >= end) {
-        ythrow yexception() <<
-            Sprintf("Invalid range (begin: %s, end: %s)", ~begin, ~end);
+        THROW_ERROR_EXCEPTION("Invalid range (Begin: %s, End: %s)",
+            ~begin,
+            ~end);
     }
 }
 
@@ -255,7 +258,7 @@ TChannel TChannel::FromYson(const NYTree::TYsonString& yson)
 TChannel TChannel::FromNode(INodePtr node)
 {
     if (node->GetType() != ENodeType::List) {
-        ythrow yexception() << "Channel description can only be parsed from a list";
+        THROW_ERROR_EXCEPTION("Channel description can only be parsed from a list");
     }
 
     TChannel channel;
@@ -271,7 +274,7 @@ TChannel TChannel::FromNode(INodePtr node)
                     case 1: {
                         auto item = listChild->GetChild(0);
                         if (item->GetType() != ENodeType::String) {
-                            ythrow yexception() << Sprintf("Channel range description cannot contain %s items",
+                            THROW_ERROR_EXCEPTION("Channel range description cannot contain %s items",
                                 ~item->GetType().ToString().Quote());
                         }
                         channel.AddRange(TRange(item->GetValue<Stroka>()));
@@ -281,12 +284,12 @@ TChannel TChannel::FromNode(INodePtr node)
                     case 2: {
                         auto itemLo = listChild->GetChild(0);
                         if (itemLo->GetType() != ENodeType::String) {
-                            ythrow yexception() << Sprintf("Channel range description cannot contain %s items",
+                            THROW_ERROR_EXCEPTION("Channel range description cannot contain %s items",
                                 ~itemLo->GetType().ToString().Quote());
                         }
                         auto itemHi = listChild->GetChild(1);
                         if (itemHi->GetType() != ENodeType::String) {
-                            ythrow yexception() << Sprintf("Channel range description cannot contain %s items",
+                            THROW_ERROR_EXCEPTION("Channel range description cannot contain %s items",
                                 ~itemHi->GetType().ToString().Quote());
                         }
                         channel.AddRange(TRange(itemLo->GetValue<Stroka>(), itemHi->GetValue<Stroka>()));
@@ -294,13 +297,13 @@ TChannel TChannel::FromNode(INodePtr node)
                     }
 
                     default:
-                        ythrow yexception() << "Invalid channel range description";
+                        THROW_ERROR_EXCEPTION("Invalid channel range description");
                 };
                 break;
                                   }
 
             default:
-                ythrow yexception() << Sprintf("Channel description cannot contain %s items",
+                THROW_ERROR_EXCEPTION("Channel description cannot contain %s items",
                     ~child->GetType().ToString().Quote());
         }
     }
@@ -368,7 +371,8 @@ std::vector<TChannel> ChannelsFromYson(const NYTree::TYsonString& yson)
         }
         return result;
     } catch (const std::exception& ex) {
-        ythrow yexception() << Sprintf("Error parsing channels description\n%s", ex.what());
+        THROW_ERROR_EXCEPTION("Error parsing channels description")
+            << ex;
     }
 }
 

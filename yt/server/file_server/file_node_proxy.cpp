@@ -62,8 +62,9 @@ bool TFileNodeProxy::IsExecutable()
 Stroka TFileNodeProxy::GetFileName()
 {
     auto fileName = Attributes().Find<Stroka>("file_name");
-    if (fileName)
+    if (fileName) {
         return *fileName;
+    }
 
     auto parent = GetParent();
     YASSERT(parent);

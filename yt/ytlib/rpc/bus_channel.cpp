@@ -255,12 +255,12 @@ private:
                 UnregisterRequest(it);
             }
 
-            auto error = TError::FromProto(header.error());
+            auto error = FromProto(header.error());
             if (error.IsOK()) {
                 responseHandler->OnResponse(message);
             } else {
                 if (error.GetCode() == EErrorCode::PoisonPill) {
-                    LOG_FATAL("Poison pill received\n%s", ~error.ToString());
+                    LOG_FATAL("Poison pill received\n%s", ~ToString(error));
                 }
                 responseHandler->OnError(error);
             }
@@ -388,10 +388,8 @@ private:
             }
 
             if (Terminated) {
-                return TError(
-                    EErrorCode::TransportError,
-                    "Channel terminated\n%s",
-                    ~TerminationError.ToString());
+                return TError(EErrorCode::TransportError, "Channel terminated")
+                    << TerminationError;
             }
 
             session = New<TSession>(DefaultTimeout);
@@ -400,7 +398,7 @@ private:
             try {
                 bus = Client->CreateBus(messageHandler);
             } catch (const std::exception& ex) {
-                return TError(ex.what());
+                return ex;
             }
 
             session->Init(bus);

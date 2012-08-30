@@ -2,6 +2,8 @@
 #include "transaction_listener.h"
 #include "transaction.h"
 
+#include <ytlib/misc/error.h>
+
 namespace NYT {
 namespace NTransactionClient {
 
@@ -27,7 +29,7 @@ void TTransactionListener::OnAborted()
 void TTransactionListener::CheckAborted() const
 {
     if (IsAborted) {
-        ythrow yexception() << "Transaction aborted";
+        THROW_ERROR_EXCEPTION("Transaction aborted");
     }
 }
 

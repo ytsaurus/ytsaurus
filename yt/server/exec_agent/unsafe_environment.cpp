@@ -141,8 +141,8 @@ public:
         EnvironmentBuilder->ForkMutex.Release();
 
         if (ProcessId < 0) {
-            ythrow yexception() << Sprintf("Failed to start job proxy: fork failed (Error: %s)",
-                strerror(errno));
+            THROW_ERROR_EXCEPTION("Failed to start job proxy: fork failed")
+                << TError::FromSystem();
         }
 
         LOG_INFO("Job proxy started (ProcessId: %d)",
@@ -156,7 +156,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
         
-        LOG_INFO("Unsafe environment: killing job\n%s", ~error.ToString());
+        LOG_INFO("Unsafe environment: killing job\n%s", ~ToString(error));
 
         SetError(error);
 
@@ -212,8 +212,8 @@ private:
         {
             int result = waitpid(ProcessId, &status, WUNTRACED);
             if (result < 0) {
-                SetError(TError("Failed to wait for job proxy to finish: waitpid failed (errno: %s)", strerror(errno)));
-                // TODO(babenko): this return was missing.
+                SetError(TError("Failed to wait for job proxy to finish: waitpid failed")
+                    << TError::FromSystem());
                 OnExit.Set(Error);
                 return;
             }
@@ -223,18 +223,17 @@ private:
         auto statusError = StatusToError(status);
         auto wrappedError = statusError.IsOK()
             ? TError()
-            : TError(statusError.GetCode(), "Job proxy failed\n%s", ~statusError.GetMessage());
+            : TError("Job proxy failed") << statusError;
         SetError(wrappedError);
 
-        LOG_INFO("Job proxy finished\n%s", ~wrappedError.ToString());
+        LOG_INFO("Job proxy finished\n%s", ~ToString(wrappedError));
 
         {
             // Kill process group for sanity reasons.
             auto result = killpg(ProcessId, 9);
             if (result != 0 && errno != ESRCH) {
-                // TODO(babenko): this won't work if the error is already set. Is this the intended behavior?
-                SetError(TError("Failed to clean up job process group (errno: %s)",
-                    strerror(errno)));
+                SetError(TError("Failed to clean up job process group: killpg failed")
+                    << TError::FromSystem());
             }
         }
 

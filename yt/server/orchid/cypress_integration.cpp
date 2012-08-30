@@ -130,8 +130,8 @@ private:
         try {
             manifest->Load(manifestNode);
         } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error parsing Orchid manifest\n%s",
-                ex.what());
+            THROW_ERROR_EXCEPTION("Error parsing Orchid manifest")
+                << ex;
         }
         return manifest;
     }
@@ -145,18 +145,18 @@ private:
     {
         LOG_INFO("Reply from a remote Orchid received (RequestId: %s): %s",
             ~response->GetRequestId().ToString(),
-            ~response->GetError().ToString());
+            ~ToString(response->GetError()));
 
         if (response->IsOK()) {
             auto innerResponseMessage = CreateMessageFromParts(response->Attachments());
             context->Reply(innerResponseMessage);
         } else {
-            context->Reply(TError("Error executing an Orchid operation (Path: %s, Verb: %s, RemoteAddress: %s, RemoteRoot: %s)\n%s",
+            context->Reply(TError("Error executing an Orchid operation (Path: %s, Verb: %s, RemoteAddress: %s, RemoteRoot: %s)",
                 ~path,
                 ~verb,
                 ~manifest->RemoteAddress,
-                ~manifest->RemoteRoot,
-                ~response->GetError().ToString()));
+                ~manifest->RemoteRoot)
+                << response->GetError());
         }
     }
 

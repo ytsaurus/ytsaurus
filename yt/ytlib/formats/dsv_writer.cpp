@@ -2,6 +2,8 @@
 #include "dsv_writer.h"
 #include "dsv_symbols.h"
 
+#include <ytlib/misc/error.h>
+
 #include <ytree/yson_format.h>
 
 namespace NYT {
@@ -43,23 +45,23 @@ void TDsvWriter::OnStringScalar(const TStringBuf& value)
 
 void TDsvWriter::OnIntegerScalar(i64 value)
 {
-    Stream->Write(ToString(value));
+    Stream->Write(::ToString(value));
 }
 
 void TDsvWriter::OnDoubleScalar(double value)
 {
-    Stream->Write(ToString(value));
+    Stream->Write(::ToString(value));
 }
 
 void TDsvWriter::OnEntity()
 {
-    ythrow yexception() << "Entities are not supported by DSV";
+    THROW_ERROR_EXCEPTION("Entities are not supported by DSV");
 }
 
 void TDsvWriter::OnBeginList()
 {
     if (!AllowBeginList) {
-        ythrow yexception() << "Embedded lists are not supported by DSV";
+        THROW_ERROR_EXCEPTION("Embedded lists are not supported by DSV");
     }
     AllowBeginList = false;
 }
@@ -87,7 +89,7 @@ void TDsvWriter::OnEndList()
 void TDsvWriter::OnBeginMap()
 {
     if (!AllowBeginMap) {
-        ythrow yexception() << "Embedded maps are not supported by DSV";
+        THROW_ERROR_EXCEPTION("Embedded maps are not supported by DSV");
     }
     AllowBeginMap = false;
     AllowBeginList = false;
@@ -117,7 +119,7 @@ void TDsvWriter::OnEndMap()
 
 void TDsvWriter::OnBeginAttributes()
 {
-    ythrow yexception() << "Attributes are not supported by DSV";
+    THROW_ERROR_EXCEPTION("Attributes are not supported by DSV");
 }
 
 void TDsvWriter::OnEndAttributes()

@@ -28,6 +28,24 @@ DECLARE_ENUM(ENodeType,
     (Composite)
 );
 
+//! The data format.
+DECLARE_ENUM(EYsonFormat,
+    // Binary.
+    // Most compact but not human-readable.
+    (Binary)
+
+    // Text.
+    // Not so compact but human-readable.
+    // Does not use indentation.
+    // Uses escaping for non-text characters.
+    (Text)
+
+    // Text with indentation.
+    // Extremely verbose but human-readable.
+    // Uses escaping for non-text characters.
+    (Pretty)
+);
+
 class EYsonType;
 
 class TYsonString;
@@ -78,6 +96,8 @@ class TYsonOutput;
 struct IAttributeDictionary;
 
 struct IAttributeProvider;
+
+struct ISystemAttributeProvider;
 
 struct IYPathService;
 typedef TIntrusivePtr<IYPathService> IYPathServicePtr;

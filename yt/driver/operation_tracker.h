@@ -31,10 +31,10 @@ private:
     template <class TResponse>
     static void CheckResponse(TResponse response, const Stroka& failureMessage)
     {
-        if (response->IsOK())
-            return;
-
-        ythrow yexception() << failureMessage + "\n" + response->GetError().ToString();
+        if (!response->IsOK()) {
+            THROW_ERROR_EXCEPTION(failureMessage)
+                << response->GetError();
+        }
     }
 
     static void AppendPhaseProgress(Stroka* out, const Stroka& phase, const NYTree::TYsonString& progress);

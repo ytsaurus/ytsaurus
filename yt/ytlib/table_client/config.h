@@ -91,7 +91,7 @@ struct TTableWriterConfig
     virtual void DoValidate() const
     {
         if (ReplicationFactor < UploadReplicationFactor) {
-            ythrow yexception() << "\"replication_factor\" cannot be less than \"upload_replication_factor\"";
+            THROW_ERROR_EXCEPTION("\"replication_factor\" cannot be less than \"upload_replication_factor\"");
         }
     }
 };

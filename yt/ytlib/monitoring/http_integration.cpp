@@ -28,7 +28,7 @@ Stroka OnResponse(NYTree::TYPathProxy::TRspGetPtr rsp)
 {
     if (!rsp->IsOK()) {
         // TODO(sandello): Proper JSON escaping here.
-        return FormatInternalServerErrorResponse(rsp->GetError().GetMessage().Quote());
+        return FormatInternalServerErrorResponse(ToString(rsp->GetError()).Quote());
     }
 
     // TODO(babenko): maybe extract method
@@ -46,11 +46,11 @@ void ParseQuery(IAttributeDictionary* attributes, const Stroka& query)
     FOREACH (const auto& param, params) {
         auto eqIndex = param.find_first_of('=');
         if (eqIndex == Stroka::npos) {
-            ythrow yexception() << Sprintf("Missing value of query parameter %s",
+            THROW_ERROR_EXCEPTION("Missing value of query parameter %s",
                 ~param.Quote());
         }
         if (eqIndex == 0) {
-            ythrow yexception() << "Empty query parameter name";
+            THROW_ERROR_EXCEPTION("Empty query parameter name");
         }
 
         Stroka key = param.substr(0, eqIndex);
@@ -60,9 +60,8 @@ void ParseQuery(IAttributeDictionary* attributes, const Stroka& query)
         try {
             TYsonString(value).Validate();
         } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error parsing value of query parameter %s\n%s",
-                ~key,
-                ex.what());
+            THROW_ERROR_EXCEPTION("Error parsing value of query parameter %s", ~key)
+                << ex;
         }
 
         attributes->SetYson(key, value);

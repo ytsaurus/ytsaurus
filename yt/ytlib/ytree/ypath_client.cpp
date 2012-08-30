@@ -5,9 +5,11 @@
 #include "tokenizer.h"
 #include "ypath_format.h"
 #include "yson_format.h"
+#include "attribute_helpers.h"
+
+#include <ytlib/misc/serialize.h>
 
 #include <ytlib/rpc/rpc.pb.h>
-#include <ytlib/misc/serialize.h>
 #include <ytlib/rpc/message.h>
 
 namespace NYT {
@@ -87,7 +89,7 @@ void TYPathResponse::Deserialize(IMessagePtr message)
         return;
     }
 
-    Error_ = TError::FromProto(header.error());
+    Error_ = NYT::FromProto(header.error());
     if (header.has_attributes()) {
         SetAttributes(FromProto(header.attributes()));
     }
@@ -116,7 +118,7 @@ bool TYPathResponse::IsOK() const
 void TYPathResponse::ThrowIfError() const
 {
     if (!IsOK()) {
-        ythrow yexception() << Error_.ToString();
+        THROW_ERROR Error_;
     }
 }
 
@@ -196,11 +198,11 @@ void ResolveYPath(
         try {
             result = currentService->Resolve(currentPath, verb);
         } catch (const std::exception& ex) {
-            ythrow yexception() << Sprintf("Error during YPath resolution (Path: %s, Verb: %s, ResolvedPath: %s)\n%s",
+            THROW_ERROR_EXCEPTION("Error during YPath resolution (Path: %s, Verb: %s, ResolvedPath: %s)",
                 ~path,
                 ~verb,
-                ~ComputeResolvedYPath(path, currentPath),
-                ex.what());
+                ~ComputeResolvedYPath(path, currentPath))
+                << ex;
         }
 
         if (result.IsHere()) {
@@ -224,17 +226,17 @@ void OnYPathResponse(
     NRpc::NProto::TResponseHeader responseHeader;
     YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
 
-    auto error = TError::FromProto(responseHeader.error());
+    auto error = NYT::FromProto(responseHeader.error());
 
     if (error.IsOK()) {
         asyncResponseMessage.Set(responseMessage);
     } else {
-        Stroka message = Sprintf("Error executing a YPath operation (Path: %s, Verb: %s, ResolvedPath: %s)\n%s",
+        auto wrappedError = TError("Error executing a YPath operation (Path: %s, Verb: %s, ResolvedPath: %s)",
             ~path,
             ~verb,
-            ~resolvedPath,
-            ~error.GetMessage());
-        *responseHeader.mutable_error() = TError(error.GetCode(), message).ToProto();
+            ~resolvedPath)
+            << error;
+        ToProto(responseHeader.mutable_error(), wrappedError);
 
         auto updatedResponseMessage = SetResponseHeader(responseMessage, responseHeader);
         asyncResponseMessage.Set(updatedResponseMessage);
@@ -264,9 +266,9 @@ ExecuteVerb(
             &suffixService,
             &suffixPath);
     } catch (const std::exception& ex) {
-        auto responseMessage = NRpc::CreateErrorResponseMessage(TError(
-            EYPathErrorCode(EYPathErrorCode::ResolveError),
-            ex.what()));
+        TError error(ex);
+        error.SetCode(EYPathErrorCode::ResolveError);
+        auto responseMessage = NRpc::CreateErrorResponseMessage(error);
         return MakeFuture(responseMessage);
     }
 
@@ -318,7 +320,7 @@ TYsonString SyncYPathGet(IYPathServicePtr service, const TYPath& path)
 {
     auto result = AsyncYPathGet(service, path).Get();
     if (!result.IsOK()) {
-        ythrow yexception() << result.GetMessage();
+        THROW_ERROR_EXCEPTION(result);
     }
     return result.Value();
 }
@@ -353,7 +355,7 @@ void ApplyYPathOverride(INodePtr root, const TStringBuf& overrideString)
     TYPath path;
     while (true) {
         if (!tokenizer.ParseNext()) {
-            ythrow yexception() << "Unexpected end-of-stream while parsing YPath override";
+            THROW_ERROR_EXCEPTION("Unexpected end-of-stream while parsing YPath override");
         }
         if (tokenizer.GetCurrentType() == KeyValueSeparatorToken) {
             break;

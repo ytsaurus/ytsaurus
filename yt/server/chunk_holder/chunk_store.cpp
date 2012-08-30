@@ -134,9 +134,11 @@ TLocationPtr TChunkStore::GetNewChunkLocation()
     }
 
     if (candidates.empty()) {
-        ythrow TServiceException(TChunkHolderServiceProxy::EErrorCode::OutOfSpace) <<
-            "All locations are full";
+        THROW_ERROR_EXCEPTION(
+            TChunkHolderServiceProxy::EErrorCode::OutOfSpace,
+            "All locations are full");
     }
+
     return candidates[RandomNumber(candidates.size())];
 }
 

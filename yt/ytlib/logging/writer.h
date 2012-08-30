@@ -46,11 +46,11 @@ struct ILogWriter
             Register("type", Type);
             Register("pattern", Pattern)
                 .Default()
-                .CheckThat(BIND([] (const Stroka& pattern)
-                {
-                    Stroka errorMessage;
-                    if (!ValidatePattern(pattern, &errorMessage))
-                        ythrow yexception() << errorMessage;
+                .CheckThat(BIND([] (const Stroka& pattern) {
+                    auto error = ValidatePattern(pattern);
+                    if (!error.IsOK()) {
+                        THROW_ERROR error;
+                    }
                 }));
             Register("file_name", FileName).Default();
         }
@@ -58,15 +58,12 @@ struct ILogWriter
         virtual void DoValidate() const
         {
             if ((Type == EType::File || Type == EType::Raw) && FileName.empty()) {
-                ythrow yexception() <<
-                    Sprintf("FileName is empty while type is File");
+                THROW_ERROR_EXCEPTION("FileName is empty while type is File");
             } else if (Type != EType::File && Type != EType::Raw && !FileName.empty()) {
-                ythrow yexception() <<
-                    Sprintf("FileName is not empty while type is not File");
+                THROW_ERROR_EXCEPTION("FileName is not empty while type is not File");
             }
             if (Type != EType::Raw && Pattern.empty()) {
-                ythrow yexception() <<
-                    Sprintf("Pattern is empty while type is not Raw");
+                THROW_ERROR_EXCEPTION("Pattern is empty while type is not Raw");
             }
         }
     };

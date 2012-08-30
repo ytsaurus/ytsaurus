@@ -120,7 +120,7 @@ class TObjectThrowingException
 public:
     TObjectThrowingException()
     {
-        ythrow yexception() << "Sample Exception";   
+        throw std::runtime_error("Sample Exception");
     }
 
     virtual ~TObjectThrowingException()

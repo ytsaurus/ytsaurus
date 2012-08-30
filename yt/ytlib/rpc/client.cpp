@@ -4,6 +4,8 @@
 #include "message.h"
 #include "rpc_dispatcher.h"
 
+#include <ytlib/ytree/attribute_helpers.h>
+
 #include <iterator>
 
 namespace NYT {
@@ -117,7 +119,7 @@ void TClientResponseBase::OnError(const TError& error)
 {
     LOG_DEBUG("Request failed (RequestId: %s)\n%s",
         ~RequestId_.ToString(),
-        ~error.ToString());
+        ~ToString(error));
 
     {
         TGuard<TSpinLock> guard(SpinLock);

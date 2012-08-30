@@ -270,12 +270,12 @@ protected:
             mode != ELockMode::Shared &&
             mode != ELockMode::Exclusive)
         {
-            ythrow yexception() << Sprintf("Invalid lock mode %s",
+            THROW_ERROR_EXCEPTION("Invalid lock mode %s",
                 ~CamelCaseToUnderscoreCase(mode.ToString()).Quote());
         }
 
         if (!Transaction) {
-            ythrow yexception() << "Cannot take a lock outside of a transaction";
+            THROW_ERROR_EXCEPTION("Cannot take a lock outside of a transaction");
         }
 
         auto cypressManager = Bootstrap->GetCypressManager();
@@ -291,7 +291,7 @@ protected:
 
         NYTree::TTokenizer tokenizer(context->GetPath());
         if (!tokenizer.ParseNext()) {
-            ythrow yexception() << Sprintf("Node %s already exists",
+            THROW_ERROR_EXCEPTION("Node %s already exists",
                 ~this->GetPath());
         }
 
@@ -552,7 +552,7 @@ protected:
         NYTree::TTokenizer tokenizer(path);
         if (!tokenizer.ParseNext()) {
             auto cypressManager = this->Bootstrap->GetCypressManager();
-            ythrow yexception() << Sprintf("Node %s already exists",
+            THROW_ERROR_EXCEPTION("Node %s already exists",
                 ~this->GetPath());
         }
         tokenizer.CurrentToken().CheckType(NYTree::PathSeparatorToken);
@@ -576,7 +576,7 @@ protected:
 
         auto handler = cypressManager->FindHandler(type);
         if (!handler) {
-            ythrow yexception() << "Unknown object type";
+            THROW_ERROR_EXCEPTION("Unknown object type");
         }
 
         auto* newNode = cypressManager->CreateNode(
@@ -603,7 +603,7 @@ protected:
 
         auto sourceProxy = this->ResolveSourcePath(sourcePath);
         if (sourceProxy->GetId() == this->GetId()) {
-            ythrow yexception() << "Cannot copy a node to its child";
+            THROW_ERROR_EXCEPTION("Cannot copy a node to its child");
         }
 
         auto cypressManager = this->Bootstrap->GetCypressManager();

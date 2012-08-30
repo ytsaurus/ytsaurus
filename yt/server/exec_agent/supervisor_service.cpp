@@ -48,10 +48,10 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, GetJobSpec)
 DEFINE_RPC_SERVICE_METHOD(TSupervisorService, OnJobFinished)
 {
     auto jobId = TJobId::FromProto(request->job_id());
-    auto error = TError::FromProto(request->result().error());
+    auto error = FromProto(request->result().error());
     context->SetRequestInfo("JobId: %s, Error: %s",
         ~jobId.ToString(),
-        ~error.ToString());
+        ~ToString(error));
 
     auto job = Bootstrap->GetJobManager()->GetJob(jobId);
     job->SetResult(request->result());
