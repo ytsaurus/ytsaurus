@@ -13,7 +13,6 @@ set( HDRS
   ${BASE}/codec.h
   ${BASE}/helpers.h
   ${BASE}/lz.h
-  ${BASE}/public.h
   ${BASE}/snappy.h
   ${BASE}/zlib.h
 )

@@ -37,7 +37,7 @@ struct ICodec
 
 
 //! Returns a codec for the registered id.
-TCodecPtr GetCodec(ECodecId id);
+ICodec* GetCodec(ECodecId id);
 
 ////////////////////////////////////////////////////////////////////////////////
 

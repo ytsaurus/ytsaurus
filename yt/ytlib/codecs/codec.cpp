@@ -144,29 +144,29 @@ private:
 
 } // namespace NCodec
 
-TCodecPtr GetCodec(ECodecId id)
+ICodec* GetCodec(ECodecId id)
 {
     switch (id) {
         case ECodecId::None:
-            return New<NCodec::TNoneCodec>();
+            return TSingleton<NCodec::TNoneCodec>();
 
         case ECodecId::Snappy:
-            return New<NCodec::TSnappyCodec>();
+            return TSingleton<NCodec::TSnappyCodec>();
 
         case ECodecId::GzipNormal:
-            return New<NCodec::TGzipCodec>(6);
+            return TSingleton<NCodec::TGzipCodec>(6);
 
         case ECodecId::GzipBestCompression:
-            return New<NCodec::TGzipCodec>(9);
+            return TSingleton<NCodec::TGzipCodec>(9);
 
         case ECodecId::Lz4:
-            return New<NCodec::TLz4Codec>(false);
+            return TSingleton<NCodec::TLz4Codec>(false);
 
         case ECodecId::Lz4HighCompression:
-            return New<NCodec::TLz4Codec>(true);
-        
+            return TSingleton<NCodec::TLz4Codec>(true);
+
         case ECodecId::QuickLz:
-            return New<NCodec::TQuickLzCodec>();
+            return TSingleton<NCodec::TQuickLzCodec>();
 
         default:
             YUNREACHABLE();
