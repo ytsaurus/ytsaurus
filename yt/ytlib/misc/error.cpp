@@ -3,10 +3,9 @@
 
 #include <ytlib/misc/address.h>
 
-#include <ytlib/ytree/fluent.h>
-#include <ytlib/ytree/attributes.h>
-#include <ytlib/ytree/tokenizer.h>
 #include <ytlib/ytree/convert.h>
+#include <ytlib/ytree/fluent.h>
+#include <ytlib/ytree/tokenizer.h>
 
 #include <util/system/error.h>
 
