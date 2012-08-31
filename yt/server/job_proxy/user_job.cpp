@@ -373,12 +373,8 @@ private:
             _exit(7);
         }
         catch (const std::exception& ex) {
-            (void) ::write(STDERR_FILENO, ex.what(), strlen(ex.what()));
+            int result = ::write(STDERR_FILENO, ex.what(), strlen(ex.what()));
         }
-        // catch (...) {
-        //     // Use some exotic error codes here to analyze errors later.
-        //     exit(6);
-        // }
     }
 
 
