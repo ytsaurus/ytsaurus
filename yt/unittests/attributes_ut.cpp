@@ -59,18 +59,18 @@ TEST_F(TAttributesTest, CheckAccessors)
     EXPECT_EQ(keys , expectedKeys);
 
     EXPECT_EQ("Petr", attributes->Get<Stroka>("name"));
-    EXPECT_THROW(attributes->Get<int>("name"), yexception);
+    EXPECT_THROW(attributes->Get<int>("name"), std::exception);
 
     EXPECT_EQ(30, attributes->Find<int>("age"));
     EXPECT_EQ(30, attributes->Get<int>("age"));
-    EXPECT_THROW(attributes->Get<char>("age"), yexception);
+    EXPECT_THROW(attributes->Get<char>("age"), std::exception);
 
     EXPECT_EQ(70.5, attributes->Get<double>("weight"));
-    EXPECT_THROW(attributes->Get<Stroka>("weight"), yexception);
+    EXPECT_THROW(attributes->Get<Stroka>("weight"), std::exception);
 
     EXPECT_FALSE(attributes->Find<int>("unknown_key"));
     EXPECT_EQ(42, attributes->Get<int>("unknown_key", 42));
-    EXPECT_THROW(attributes->Get<double>("unknown_key"), yexception);
+    EXPECT_THROW(attributes->Get<double>("unknown_key"), std::exception);
 }
 
 
