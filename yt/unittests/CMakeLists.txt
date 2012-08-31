@@ -9,7 +9,6 @@ set( SRCS
   ${BASE}/callback_ut.cpp
   ${BASE}/change_log_ut.cpp
   ${BASE}/codec_ut.cpp
-  ${BASE}/configurable_ut.cpp
   ${BASE}/dsv_parser_ut.cpp
   ${BASE}/dsv_writer_ut.cpp
   ${BASE}/enum_ut.cpp
@@ -49,6 +48,7 @@ set( SRCS
   ${BASE}/yson_parser_ut.cpp
   ${BASE}/yson_ut.cpp
   ${BASE}/yson_writer_ut.cpp
+  ${BASE}/yson_serializable_ut.cpp
   ${BASE}/ytree_fluent_ut.cpp
   ${BASE}/yverify_ut.cpp
   ${BASE}/zigzag_ut.cpp

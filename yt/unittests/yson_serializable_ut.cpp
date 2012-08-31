@@ -31,7 +31,7 @@ struct TTestSubconfig
 
     TTestSubconfig()
     {
-        Register("my_int", MyInt).Default(100).InRange(95, 105);
+        Register("my_int", MyInt).Default(100).InRange(95, 205);
         Register("my_bool", MyBool).Default(false);
         Register("my_string_list", MyStringList).Default();
         Register("my_enum", MyEnum).Default(ETestEnum::Value1);
@@ -54,6 +54,8 @@ struct TTestConfig
         Register("sub", Subconfig).DefaultNew();
         Register("sub_list", SubconfigList).Default();
         Register("sub_map", SubconfigMap).Default();
+
+        Subconfig->MyInt = 200;
     }
 };
 
@@ -166,7 +168,7 @@ TEST(TConfigTest, MissingParameter)
     config->Load(configNode->AsMap());
 
     EXPECT_EQ("TestString", config->MyString);
-    EXPECT_EQ(100, config->Subconfig->MyInt);
+    EXPECT_EQ(200, config->Subconfig->MyInt);
     EXPECT_TRUE(config->Subconfig->MyBool);
     EXPECT_EQ(0, config->Subconfig->MyStringList.size());
     EXPECT_EQ(ETestEnum::Value1, config->Subconfig->MyEnum);
@@ -188,7 +190,7 @@ TEST(TConfigTest, MissingSubconfig)
     config->Load(configNode->AsMap());
 
     EXPECT_EQ("TestString", config->MyString);
-    EXPECT_EQ(100, config->Subconfig->MyInt);
+    EXPECT_EQ(200, config->Subconfig->MyInt);
     EXPECT_FALSE(config->Subconfig->MyBool);
     EXPECT_EQ(0, config->Subconfig->MyStringList.size());
     EXPECT_EQ(ETestEnum::Value1, config->Subconfig->MyEnum);
@@ -299,7 +301,7 @@ TEST(TConfigTest, ValidateSubconfig)
         .BeginMap()
             .Item("my_string").Scalar("TestString")
             .Item("sub").BeginMap()
-                .Item("my_int").Scalar(110) // out of range
+                .Item("my_int").Scalar(210) // out of range
             .EndMap()
         .EndMap();
     auto configNode = builder->EndTree();
@@ -318,7 +320,7 @@ TEST(TConfigTest, ValidateSubconfigList)
             .Item("my_string").Scalar("TestString")
             .Item("sub_list").BeginList()
                 .Item().BeginMap()
-                    .Item("my_int").Scalar(110) // out of range
+                    .Item("my_int").Scalar(210) // out of range
                 .EndMap()
             .EndList()
         .EndMap();
@@ -338,7 +340,7 @@ TEST(TConfigTest, ValidateSubconfigMap)
             .Item("my_string").Scalar("TestString")
             .Item("sub_map").BeginMap()
                 .Item("sub").BeginMap()
-                    .Item("my_int").Scalar(110) // out of range
+                    .Item("my_int").Scalar(210) // out of range
                 .EndMap()
             .EndMap()
         .EndMap();
@@ -360,19 +362,39 @@ TEST(TConfigTest, Save)
 
     auto output = ConvertToYsonString(config, EYsonFormat::Text);
 
-    Stroka subconfigYson;
-    subconfigYson += "{\"my_bool\"=\"false\";";
-    subconfigYson += "\"my_enum\"=\"value1\";";
-    subconfigYson += "\"my_int\"=100;";
-    subconfigYson += "\"my_string_list\"=[]}";
+    Stroka subconfigYson =
+        "{\"my_bool\"=\"false\";"
+        "\"my_enum\"=\"value1\";"
+        "\"my_int\"=200;"
+        "\"my_string_list\"=[]}";
+    
+    Stroka subconfigYsonOrigin =
+        "{\"my_bool\"=\"false\";"
+        "\"my_enum\"=\"value1\";"
+        "\"my_int\"=100;"
+        "\"my_string_list\"=[]}";
 
     Stroka expected;
     expected += "{\"my_string\"=\"hello!\";";
     expected += "\"sub\"=" + subconfigYson + ";";
-    expected += "\"sub_list\"=[" + subconfigYson + "];";
-    expected += "\"sub_map\"={\"item\"=" + subconfigYson + "}}";
+    expected += "\"sub_list\"=[" + subconfigYsonOrigin + "];";
+    expected += "\"sub_map\"={\"item\"=" + subconfigYsonOrigin + "}}";
 
     EXPECT_EQ(expected, output.Data());
+}
+
+TEST(TConfigTest, TestConfigUpdate)
+{
+    auto config = New<TTestConfig>();
+    {
+        auto newConfig = UpdateYsonSerializable(config, 0);
+        EXPECT_EQ(newConfig->Subconfig->MyInt, 200);
+    }
+    
+    {
+        auto newConfig = UpdateYsonSerializable(config, ConvertToNode(TYsonString("{\"sub\"={\"my_int\"=150}}")));
+        EXPECT_EQ(newConfig->Subconfig->MyInt, 150);
+    }
 }
 
 } // namespace NYT
