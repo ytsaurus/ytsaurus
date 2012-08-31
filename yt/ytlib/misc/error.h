@@ -134,17 +134,8 @@ TErrorException operator <<= (TErrorException ex, const TError& error);
 ////////////////////////////////////////////////////////////////////////////////
 
 #define ERROR_SOURCE_LOCATION() \
-    ::NYT::TErrorAttribute( \
-        "file", \
-         ::NYT::NYTree::ConvertToYsonString( \
-             ::NYT::NYTree::TRawString(__FILE__), \
-             ::NYT::NYTree::EYsonFormat::Binary) ) \
-    >>= \
-    ::NYT::TErrorAttribute( \
-        "line", \
-        ::NYT::NYTree::ConvertToYsonString( \
-            __LINE__, \
-            ::NYT::NYTree::EYsonFormat::Binary))
+    ::NYT::TErrorAttribute("file", ::NYT::NYTree::ConvertToYsonString(::NYT::NYTree::TRawString(__FILE__)) >>= \
+    ::NYT::TErrorAttribute("line", ::NYT::NYTree::ConvertToYsonString(__LINE__))
 
 #define THROW_ERROR \
     throw \
