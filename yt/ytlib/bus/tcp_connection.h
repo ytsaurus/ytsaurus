@@ -56,7 +56,7 @@ public:
     virtual Stroka GetLoggingId() const override;
 
     // IBus implementation.
-    virtual TSendResult Send(IMessagePtr message) override;
+    virtual TAsyncError Send(IMessagePtr message) override;
     virtual void Terminate(const TError& error) override;
 
     DECLARE_SIGNAL(void(TError), Terminated);
@@ -71,12 +71,12 @@ private:
         { }
 
         explicit TQueuedMessage(IMessagePtr message)
-            : Promise(NewPromise<ESendResult>())
+            : Promise(NewPromise<TError>())
             , Message(MoveRV(message))
             , PacketId(TPacketId::Create())
         { }
 
-        IBus::TSendPromise Promise;
+        TAsyncErrorPromise Promise;
         IMessagePtr Message;
         TPacketId PacketId;
     };
@@ -102,13 +102,13 @@ private:
             : Promise(Null)
         { }
 
-        TUnackedMessage(const TPacketId& packetId, IBus::TSendPromise promise)
+        TUnackedMessage(const TPacketId& packetId, TAsyncErrorPromise promise)
             : PacketId(packetId)
             , Promise(MoveRV(promise))
         { }
 
         TPacketId PacketId;
-        IBus::TSendPromise Promise;
+        TAsyncErrorPromise Promise;
     };
 
     struct TEncodedPacket

@@ -123,7 +123,7 @@ void TestReplies(int numRequests, int numParts)
     auto bus = client->CreateBus(handler);
     auto message = CreateMessage(numParts);
 
-    IBus::TSendResult result;
+    TAsyncError result;
     for (int i = 0; i < numRequests; ++i) {
         result = bus->Send(message);
     }
@@ -145,7 +145,7 @@ TEST(TBusTest, OK)
     auto bus = client->CreateBus(New<TEmptyBusHandler>());
     auto message = CreateMessage(1);
     auto result = bus->Send(message).Get();
-    EXPECT_EQ(ESendResult::OK, result);
+    EXPECT_TRUE(result.IsOK());
     server->Stop();
 }
 
@@ -155,7 +155,7 @@ TEST(TBusTest, Failed)
     auto bus = client->CreateBus(New<TEmptyBusHandler>());
     auto message = CreateMessage(1);
     auto result = bus->Send(message).Get();
-    EXPECT_EQ(ESendResult::Failed, result);
+    EXPECT_FALSE(!result.IsOK());
 }
 
 TEST(TBusTest, OneReply)

@@ -286,7 +286,7 @@ private:
         TError TerminationError;
 
 
-        void OnAcknowledgement(const TRequestId& requestId, ESendResult sendResult)
+        void OnAcknowledgement(const TRequestId& requestId, TError error)
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
@@ -306,16 +306,7 @@ private:
 
             Profiler.TimingCheckpoint(activeRequest.Timer, "ack");
 
-            if (sendResult == ESendResult::Failed) {
-                UnregisterRequest(it);
-
-                // Don't need the guard anymore.
-                guard.Release();
-
-                responseHandler->OnError(TError(
-                    EErrorCode::TransportError,
-                    "Unable to deliver the message"));
-            } else {
+            if (error.IsOK()) {
                 if (activeRequest.ClientRequest->IsOneWay()) {
                     UnregisterRequest(it);
                 }
@@ -324,6 +315,13 @@ private:
                 guard.Release();
 
                 responseHandler->OnAcknowledgement();
+            } else {
+                UnregisterRequest(it);
+
+                // Don't need the guard anymore.
+                guard.Release();
+
+                responseHandler->OnError(error);
             }
         }
 

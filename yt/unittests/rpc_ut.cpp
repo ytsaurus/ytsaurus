@@ -472,7 +472,7 @@ TEST_F(TRpcTest, OneWayNoService)
     auto response = request->Invoke().Get();
 
     // In this case we receive OK instead of NoSuchService
-    EXPECT_EQ(TError::OK, response->GetErrorCode());
+    EXPECT_TRUE(response->IsOK());
 }
 
 TEST_F(TRpcTest, OneWayNoMethod)
@@ -482,7 +482,7 @@ TEST_F(TRpcTest, OneWayNoMethod)
     auto response = request->Invoke().Get();
 
     // In this case we receive OK instead of NoSuchVerb
-    EXPECT_EQ(TError::OK, response->GetErrorCode());
+    EXPECT_TRUE(response->IsOK());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

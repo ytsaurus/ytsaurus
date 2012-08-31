@@ -315,7 +315,7 @@ void TTcpConnection::SyncClose(const TError& error)
 
     // Mark all unacked messages as failed.
     while (!UnackedMessages.empty()) {
-        UnackedMessages.front().Promise.Set(ESendResult(ESendResult::Failed));
+        UnackedMessages.front().Promise.Set(error);
         UnackedMessages.pop();
     }
 
@@ -323,7 +323,7 @@ void TTcpConnection::SyncClose(const TError& error)
     {
         TQueuedMessage queuedMessage;
         while (QueuedMessages.Dequeue(&queuedMessage)) {
-            queuedMessage.Promise.Set(ESendResult(ESendResult::Failed));
+            queuedMessage.Promise.Set(error);
         }
     }
     
@@ -417,7 +417,7 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
     }
 }
 
-IBus::TSendResult TTcpConnection::Send(IMessagePtr message)
+TAsyncError TTcpConnection::Send(IMessagePtr message)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -445,7 +445,9 @@ IBus::TSendResult TTcpConnection::Send(IMessagePtr message)
                 // but still enables to keep the queue empty.
                 QueuedMessages.Dequeue(&queuedMessage);
                 LOG_DEBUG("Outcoming message via closed bus is dropped");
-                return MakeFuture(ESendResult(ESendResult::Failed));
+                return MakeFuture(TError(
+                    NRpc::EErrorCode::TransportError,
+                    "Connection is closed"));
         }
     }
    
@@ -668,7 +670,7 @@ bool TTcpConnection::OnAckPacketReceived()
     LOG_DEBUG("Ack received (PacketId: %s)", ~Decoder.GetPacketId().ToString());
 
     PROFILE_AGGREGATED_TIMING (OutHandlerTime) {
-        unackedMessage.Promise.Set(ESendResult::OK);
+        unackedMessage.Promise.Set(TError());
     }
 
     UnackedMessages.pop();

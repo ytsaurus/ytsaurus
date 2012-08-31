@@ -12,21 +12,10 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Describes a result of sending a message via a bus.
-DECLARE_ENUM(ESendResult,
-    (OK)
-    (Failed)
-);
-
 //! A bus, i.e. something capable of transmitting messages.
 struct IBus
     : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<IBus> TPtr;
-
-    typedef TFuture<ESendResult> TSendResult;
-    typedef TPromise<ESendResult> TSendPromise;
-
     //! Asynchronously sends a message via the bus.
     /*!
      *  \param message A message to send.
@@ -35,7 +24,7 @@ struct IBus
      * 
      *  \note Thread affinity: any
      */
-    virtual TSendResult Send(IMessagePtr message) = 0;
+    virtual TAsyncError Send(IMessagePtr message) = 0;
 
     //! Terminates the bus.
     /*!
