@@ -29,7 +29,7 @@ extern TLazyPtr<TActionQueue> ReaderThread;
  */
 extern TLazyPtr<TActionQueue> WriterThread;
 
-extern TLazyPtr<TThreadPool> CompressionThread;
+extern TLazyPtr<TThreadPool> CompressionThreadPool;
 
 ////////////////////////////////////////////////////////////////////////////////
 

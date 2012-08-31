@@ -17,22 +17,21 @@ static NLog::TLogger& Logger = ChunkWriterLogger;
 TEncodingWriter::TEncodingWriter(TEncodingWriterConfigPtr config, IAsyncWriterPtr asyncWriter)
     : Config(config)
     , AsyncWriter(asyncWriter)
+    , CompressionInvoker(CreateSerializedInvoker(CompressionThreadPool->GetInvoker()))
     , Semaphore(Config->EncodeWindowSize)
     , Codec(GetCodec(Config->CodecId))
     , UncompressedSize_(0)
     , CompressedSize_(0)
     , CompressionRatio_(config->DefaultCompressionRatio)
     , WritePending(
-        BIND(
-            &TEncodingWriter::WritePendingBlocks, 
-            MakeWeak(this))
-        .Via(CompressionThread->GetInvoker()))
+        BIND(&TEncodingWriter::WritePendingBlocks, MakeWeak(this))
+            .Via(CompressionInvoker))
 {}
 
 void TEncodingWriter::WriteBlock(const TSharedRef& block)
 {
     Semaphore.Acquire(block.Size());
-    CompressionThread->GetInvoker()->Invoke(BIND(
+    CompressionInvoker->Invoke(BIND(
         &TEncodingWriter::DoCompressBlock, 
         MakeStrong(this),
         block));
@@ -43,8 +42,7 @@ void TEncodingWriter::WriteBlock(std::vector<TSharedRef>&& vectorizedBlock)
     FOREACH (const auto& part, vectorizedBlock) {
         Semaphore.Acquire(part.Size());
     }
-
-    CompressionThread->GetInvoker()->Invoke(BIND(
+    CompressionInvoker->Invoke(BIND(
         &TEncodingWriter::DoCompressVector, 
         MakeWeak(this),
         MoveRV(vectorizedBlock)));
