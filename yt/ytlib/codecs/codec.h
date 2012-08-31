@@ -1,7 +1,5 @@
 ﻿#pragma once
 
-#include "public.h"
-
 #include <ytlib/misc/ref.h>
 
 namespace NYT {
@@ -23,7 +21,6 @@ DECLARE_ENUM(ECodecId,
 
 //! A generic interface for compression/decompression.
 struct ICodec
-    : public TRefCounted
 {
     //! Compress a given block.
     virtual TSharedRef Compress(const TSharedRef& block) = 0;

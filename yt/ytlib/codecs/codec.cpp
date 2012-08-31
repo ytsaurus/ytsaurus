@@ -5,6 +5,11 @@
 #include "zlib.h"
 #include "lz.h"
 
+#include <ytlib/actions/bind.h>
+#include <ytlib/misc/lazy_ptr.h>
+
+#include <util/generic/singleton.h>
+
 namespace NYT {
 namespace NCodec {
 
@@ -57,6 +62,7 @@ public:
 
 class TGzipCodec
     : public ICodec
+    , public TRefCounted
 {
 public:
     explicit TGzipCodec(int level)
@@ -82,10 +88,24 @@ private:
     NCodec::TConverter Compressor_;
 };
 
+static TLazyPtr<TGzipCodec> GzipCodecNormal(
+    BIND([] () {
+        return New<TGzipCodec>(6);
+    })
+);
+
+static TLazyPtr<TGzipCodec> GzipCodecBestCompression(
+    BIND([] () {
+        return New<TGzipCodec>(9);
+    })
+);
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLz4Codec
     : public ICodec
+    , public TRefCounted
 {
 public:
     explicit TLz4Codec(bool highCompression)
@@ -110,6 +130,18 @@ public:
 private:
     NCodec::TConverter Compressor_;
 };
+
+static TLazyPtr<TLz4Codec> Lz4(
+    BIND([] () {
+        return New<TLz4Codec>(false);
+    })
+);
+
+static TLazyPtr<TLz4Codec> Lz4HighCompression(
+    BIND([] () {
+        return New<TLz4Codec>(true);
+    })
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -148,25 +180,25 @@ ICodec* GetCodec(ECodecId id)
 {
     switch (id) {
         case ECodecId::None:
-            return TSingleton<NCodec::TNoneCodec>();
+            return Singleton<NCodec::TNoneCodec>();
 
         case ECodecId::Snappy:
-            return TSingleton<NCodec::TSnappyCodec>();
+            return Singleton<NCodec::TSnappyCodec>();
 
         case ECodecId::GzipNormal:
-            return TSingleton<NCodec::TGzipCodec>(6);
+            return NCodec::GzipCodecNormal.Get();
 
         case ECodecId::GzipBestCompression:
-            return TSingleton<NCodec::TGzipCodec>(9);
+            return NCodec::GzipCodecBestCompression.Get();
 
         case ECodecId::Lz4:
-            return TSingleton<NCodec::TLz4Codec>(false);
+            return NCodec::Lz4.Get();
 
         case ECodecId::Lz4HighCompression:
-            return TSingleton<NCodec::TLz4Codec>(true);
+            return NCodec::Lz4HighCompression.Get();
 
         case ECodecId::QuickLz:
-            return TSingleton<NCodec::TQuickLzCodec>();
+            return Singleton<NCodec::TQuickLzCodec>();
 
         default:
             YUNREACHABLE();

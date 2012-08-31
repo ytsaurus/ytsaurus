@@ -19,7 +19,7 @@ class TLazyPtr
 public:
     typedef TCallback<TIntrusivePtr<T>()> TFactory;
 
-    explicit TLazyPtr(TFactory factory = TFactory())
+    explicit TLazyPtr(TFactory factory)
         : Factory(MoveRV(factory))
     { }
 
@@ -28,7 +28,7 @@ public:
         if (!Value) {
             TGuard<TLock> guard(Lock);
             if (!Value) {
-                Value = Factory.IsNull() ? New<T>() : Factory.Run();
+                Value = Factory.Run();
             }
         }
         return ~Value;
