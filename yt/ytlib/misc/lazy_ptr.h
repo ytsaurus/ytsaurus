@@ -23,7 +23,7 @@ public:
         : Factory(MoveRV(factory))
     { }
 
-    inline T* Get() const throw()
+    T* Get() const throw()
     {
         if (!Value) {
             TGuard<TLock> guard(Lock);
