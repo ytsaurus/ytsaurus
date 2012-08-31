@@ -2,7 +2,7 @@
 
 #include "public.h"
 #include "yson_string.h"
-#include "convert.h"
+#include "ephemeral.h"
 
 namespace NYT {
 namespace NYTree {
