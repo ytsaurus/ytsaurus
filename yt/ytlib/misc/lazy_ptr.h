@@ -19,7 +19,7 @@ class TLazyPtr
 public:
     typedef TCallback<TIntrusivePtr<T>()> TFactory;
 
-    TLazyPtr(TFactory factory = TFactory())
+    explicit TLazyPtr(TFactory factory = TFactory())
         : Factory(MoveRV(factory))
     { }
 
