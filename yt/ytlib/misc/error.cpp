@@ -380,6 +380,9 @@ TErrorException::TErrorException(const TErrorException& other)
     : Error_(other.Error_)
 { }
 
+TErrorException::~TErrorException() throw()
+{ }
+
 const char* TErrorException::what() const throw()
 {
     if (CachedWhat.empty()) {

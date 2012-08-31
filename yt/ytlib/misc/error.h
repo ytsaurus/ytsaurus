@@ -122,6 +122,8 @@ public:
     TErrorException();
     TErrorException(const TErrorException& other);
 
+    ~TErrorException() throw();
+
     virtual const char* what() const throw() override;
 
 private:
