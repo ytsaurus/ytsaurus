@@ -165,7 +165,7 @@ TCodecPtr GetCodec(ECodecId id)
         case ECodecId::Lz4HighCompression:
             return New<NCodec::TLz4Codec>(true);
         
-        case ECodecId::QuickLzCompression:
+        case ECodecId::QuickLz:
             return New<NCodec::TQuickLzCodec>();
 
         default:
