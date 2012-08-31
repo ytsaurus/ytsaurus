@@ -92,9 +92,8 @@ void TMultiChunkParallelReader<TChunkReader>::ProcessReadyReader(
 
     if ((chunkReader || isReadingComplete) && finishOperation) {
         YCHECK(State.HasRunningOperation());
-        State.FinishOperation();
-
         YCHECK(!CurrentReader_ || IsValid());
+        State.FinishOperation();
     }
 }
 
