@@ -395,6 +395,11 @@ TEST(TConfigTest, TestConfigUpdate)
         auto newConfig = UpdateYsonSerializable(config, ConvertToNode(TYsonString("{\"sub\"={\"my_int\"=150}}")));
         EXPECT_EQ(newConfig->Subconfig->MyInt, 150);
     }
+    
+    {
+        auto newConfig = UpdateYsonSerializable(config, ConvertToNode(TYsonString("{\"sub\"={\"my_int_\"=150}}")));
+        EXPECT_EQ(newConfig->Subconfig->MyInt, 200);
+    }
 }
 
 } // namespace NYT
