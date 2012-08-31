@@ -16,7 +16,7 @@ TLazyPtr<TActionQueue> WriterThread(TActionQueue::CreateFactory("ChunkWriter"));
 
 TLazyPtr<TActionQueue> ReaderThread(TActionQueue::CreateFactory("ChunkReader"));
 
-TLazyPtr<TThreadPool> CompressionThread(TThreadPool::CreateFactory(8, "Compression"));
+TLazyPtr<TThreadPool> CompressionThreadPool(TThreadPool::CreateFactory(8, "Compression"));
 
 ////////////////////////////////////////////////////////////////////////////////
 

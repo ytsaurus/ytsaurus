@@ -3,12 +3,13 @@
 #include "public.h"
 
 #include <ytlib/actions/callback.h>
+#include <ytlib/actions/action_queue.h>
+
 #include <ytlib/misc/ref.h>
 #include <ytlib/misc/semaphore.h>
 #include <ytlib/misc/async_stream_state.h>
-#include <ytlib/codecs/public.h>
 
-#include <util/thread/lfqueue.h>
+#include <ytlib/codecs/public.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -40,6 +41,7 @@ private:
     TEncodingWriterConfigPtr Config;
     IAsyncWriterPtr AsyncWriter;
 
+    IInvokerPtr CompressionInvoker;
     TAsyncSemaphore Semaphore;
     TCodecPtr Codec;
 
