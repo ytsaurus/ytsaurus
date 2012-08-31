@@ -96,6 +96,17 @@ INodePtr ConvertToNode(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+TAutoPtr<IAttributeDictionary> ConvertToAttributes(const T& value)
+{
+    auto attributes = CreateEphemeralAttributes();
+    TAttributeConsumer consumer(attributes.Get());
+    Consume(value, &consumer);
+    return attributes;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TTo>
 TTo ConvertTo(INodePtr node)
 {

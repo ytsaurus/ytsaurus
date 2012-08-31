@@ -28,6 +28,9 @@ INodePtr ConvertToNode(
     const T& value,
     INodeFactoryPtr factory = GetEphemeralNodeFactory());
 
+template <class T>
+TAutoPtr<IAttributeDictionary> ConvertToAttributes(const T& value);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TTo>

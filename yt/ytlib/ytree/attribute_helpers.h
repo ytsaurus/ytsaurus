@@ -18,9 +18,6 @@ const IAttributeDictionary& EmptyAttributes();
 //! Serialize attributes to consumer. Used in ConvertTo* functions.
 void Serialize(const IAttributeDictionary& attributes, IYsonConsumer* consumer);
 
-template <class T>
-TAutoPtr<IAttributeDictionary> ConvertToAttributes(const T& value);
-
 //! Protobuf conversion methods.
 void ToProto(NProto::TAttributes* protoAttributes, const IAttributeDictionary& attributes);
 TAutoPtr<IAttributeDictionary> FromProto(const NProto::TAttributes& protoAttributes);

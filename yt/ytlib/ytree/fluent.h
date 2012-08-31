@@ -5,7 +5,7 @@
 #include "yson_producer.h"
 #include "yson_parser.h"
 #include "tree_visitor.h"
-#include "attributes.h"
+#include "convert.h"
 
 #include <ytlib/actions/callback.h>
 

@@ -3,8 +3,8 @@
 #endif
 #undef ATTRIBUTE_HELPERS_INL_H_
 
-#include "convert.h"
 #include "attribute_consumer.h"
+#include "convert.h"
 
 namespace NYT {
 namespace NYTree {
@@ -14,7 +14,7 @@ namespace NYTree {
 template <class T>
 T IAttributeDictionary::Get(const Stroka& key) const
 {
-    TYsonString yson = GetYson(key);
+    auto yson = GetYson(key);
     return ConvertTo<T>(yson);
 }
 
@@ -37,7 +37,7 @@ typename TNullableTraits<T>::TNullableType IAttributeDictionary::Find(const Stro
 template <class T>
 void IAttributeDictionary::Set(const Stroka& key, const T& value)
 {
-    TYsonString yson = ConvertToYsonString(value);
+    auto yson = ConvertToYsonString(value, EYsonFormat::Binary);
     SetYson(key, yson);
 }
 
@@ -45,17 +45,6 @@ template <>
 inline void IAttributeDictionary::Set(const Stroka& key, const Stroka& value)
 {
     Set(key, TRawString(value));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-TAutoPtr<IAttributeDictionary> ConvertToAttributes(const T& value)
-{
-    auto attributes = CreateEphemeralAttributes();
-    TAttributeConsumer consumer(attributes.Get());
-    Consume(value, &consumer);
-    return attributes;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
