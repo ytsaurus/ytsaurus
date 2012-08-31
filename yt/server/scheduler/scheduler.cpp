@@ -220,7 +220,7 @@ private:
                 LOG_INFO("Operation %s belongs to an expired transaction %s, aborting",
                     ~operation->GetOperationId().ToString(),
                     ~operation->GetTransactionId().ToString());
-                AbortOperation(operation, EAbortReason::TransactionExpired);
+                AbortOperation(operation, TError("Operation transaction has been expired or was aborted"));
                 break;
 
             case EOperationState::Completed:
@@ -381,13 +381,7 @@ private:
             ~operation->GetOperationId().ToString());
     }
 
-
-    DECLARE_ENUM(EAbortReason,
-        (TransactionExpired)
-        (UserRequest)
-    );
-
-    void AbortOperation(TOperationPtr operation, EAbortReason reason)
+    void AbortOperation(TOperationPtr operation, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -395,12 +389,11 @@ private:
             return;
         }
 
-        LOG_INFO("Aborting operation (OperationId: %s, State: %s, Reason: %s)",
+        LOG_INFO("Aborting operation (OperationId: %s, State: %s)\n%s",
             ~operation->GetOperationId().ToString(),
             ~operation->GetState().ToString(),
-            ~reason.ToString());
+            ~ToString(error));
                 
-        TError error("Operation aborted (Reason: %s)", ~reason.ToString());
         DoOperationFailed(operation, error, EOperationState::Aborted);
     }
 
@@ -870,7 +863,7 @@ private:
         context->SetRequestInfo("OperationId: %s", ~operationId.ToString());
 
         auto operation = GetOperation(operationId);
-        AbortOperation(operation, EAbortReason::UserRequest);
+        AbortOperation(operation, TError("Operation aborted by user request"));
 
         context->Reply();
     }
