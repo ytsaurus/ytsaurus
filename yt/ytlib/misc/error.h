@@ -94,7 +94,7 @@ struct TErrorAttribute
     template <class T>
     TErrorAttribute(const Stroka& key, const T& value)
         : Key(key)
-        , Value(NYTree::ConvertToYsonString(value, NYTree::EYsonFormat::Binary))
+        , Value(NYTree::ConvertToYsonString(value))
     { }
 
     TErrorAttribute(const Stroka& key, const NYTree::TYsonString& value)
