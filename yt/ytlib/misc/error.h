@@ -85,9 +85,7 @@ namespace NYTree {
 class TRawString;
 
 template <class T>
-TYsonString ConvertToYsonString(
-    const T& value,
-    NYTree::EYsonFormat format);
+TYsonString ConvertToYsonString(const T& value);
 
 } // namespace NYTree
 

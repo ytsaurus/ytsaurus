@@ -18,9 +18,10 @@ template <class T>
 TYsonProducer ConvertToProducer(T&& value);
 
 template <class T>
-TYsonString ConvertToYsonString(
-    const T& value,
-    EYsonFormat format = EYsonFormat::Binary);
+TYsonString ConvertToYsonString(const T& value);
+
+template <class T>
+TYsonString ConvertToYsonString(const T& value, EYsonFormat format);
 
 template <class T>
 INodePtr ConvertToNode(

@@ -45,9 +45,13 @@ TYsonProducer ConvertToProducer(T&& value)
 }
 
 template <class T>
-TYsonString ConvertToYsonString(
-    const T& value,
-    EYsonFormat format)
+TYsonString ConvertToYsonString(const T& value)
+{
+    return ConvertToYsonString(value, EYsonFormat::Binary);
+}
+
+template <class T>
+TYsonString ConvertToYsonString(const T& value, EYsonFormat format)
 {
     auto type = GetYsonType(value);
     Stroka result;
