@@ -28,16 +28,16 @@ static NLog::TLogger Logger("Network");
 
 Stroka GetLocalHostName()
 {
-    static Stroka hostName;
+    static char hostName[256] = { 0 };
     static TSpinLock hostNameLock;
 
     TGuard<TSpinLock> guard(hostNameLock);
-    if (hostName.empty()) {
+    if (hostName[0] == 0) {
         auto info = gethostbyname(::GetHostName());
         if (!info) {
             ythrow TSystemError() << "Unable to determine local host name";
         }
-        hostName = info->h_name;
+        strcpy(hostName, info->h_name);
     }
     return hostName;
 }
