@@ -301,7 +301,7 @@ TError FromProto(const NYT::NProto::TError& protoError)
     }
 
     FOREACH (const auto& innerProtoError, protoError.inner_errors()) {
-        error.InnerErrors().push_back(FromProto(protoError));
+        error.InnerErrors().push_back(FromProto(innerProtoError));
     }
 
     return error;
