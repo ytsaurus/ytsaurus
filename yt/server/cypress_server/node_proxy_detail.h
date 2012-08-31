@@ -314,15 +314,6 @@ protected:
         return cypressManager->LockVersionedNode(nodeId, Transaction, request, recursive);
     }
 
-    //! #nodeId must refer to a node with the same type as this.
-    TImpl* LockTypedImpl(
-        const TNodeId& nodeId,
-        const TLockRequest& request = ELockMode::Exclusive,
-        bool recursive = false)
-    {
-        return static_cast<TImpl*>(LockImpl(nodeId, request, recursive));
-    }
-
 
     const ICypressNode* GetThisImpl() const
     {
