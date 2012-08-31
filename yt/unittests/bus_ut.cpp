@@ -155,7 +155,7 @@ TEST(TBusTest, Failed)
     auto bus = client->CreateBus(New<TEmptyBusHandler>());
     auto message = CreateMessage(1);
     auto result = bus->Send(message).Get();
-    EXPECT_FALSE(!result.IsOK());
+    EXPECT_FALSE(result.IsOK());
 }
 
 TEST(TBusTest, OneReply)

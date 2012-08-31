@@ -75,7 +75,7 @@ public:
         TTcpDispatcher::TImpl::Get()->AsyncRegister(Connection);
     }
 
-    virtual TSendResult Send(IMessagePtr message)
+    virtual TAsyncError Send(IMessagePtr message)
     {
         VERIFY_THREAD_AFFINITY_ANY();
         return Connection->Send(message);

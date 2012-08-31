@@ -462,7 +462,7 @@ TEST_F(TRpcTest, OneWayTransportError)
     auto request = proxy->OneWay();
     auto response = request->Invoke().Get();
 
-    EXPECT_FALSE(!response->IsOK());
+    EXPECT_FALSE(response->IsOK());
 }
 
 TEST_F(TRpcTest, OneWayNoService)
