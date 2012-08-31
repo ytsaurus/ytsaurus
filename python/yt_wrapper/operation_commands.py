@@ -6,6 +6,7 @@ from file_commands import download_file
 
 import os
 import sys
+import datetime
 from time import sleep
 
 OPERATIONS_PATH = "//sys/operations"
@@ -78,7 +79,7 @@ def wait_operation(operation, timeout=None, print_progress=True):
                 new_progress = get_operation_progress(operation)
                 if new_progress != progress:
                     progress = new_progress
-                    print >>sys.stderr, "Jobs of operation %s:" % operation, \
+                    print >>sys.stderr, "{0}, jobs of operation {1}:".format(datetime.datetime.now(), operation), \
                             "\t".join(["=".join(map(str, [k, v])) for k, v in progress.iteritems()])
             sleep(timeout)
     except KeyboardInterrupt:
@@ -121,7 +122,7 @@ class WaitStrategy(object):
                     stderr))
         self.finalization()
         if self.print_progress:
-            print >>sys.stderr, "Operation %s completed" % operation
+            print >>sys.stderr, "{0}, operation {1} completed".format(datetime.datetime.now(), operation)
         #return operation_result, jobs_errors, stderr
 
 class AsyncStrategy(object):

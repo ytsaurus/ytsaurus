@@ -15,7 +15,7 @@ DECLARE_ENUM(ECodecId,
     ((GzipBestCompression)(3))
     ((Lz4)(4))
     ((Lz4HighCompression)(5))
-    ((QuickLzCompression)(6))
+    ((QuickLz)(6))
 );
 
 
