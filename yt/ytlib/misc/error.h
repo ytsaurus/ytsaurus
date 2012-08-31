@@ -87,7 +87,7 @@ class TRawString;
 template <class T>
 TYsonString ConvertToYsonString(
     const T& value,
-    NYTree::EYsonFormat format = NYTree::EYsonFormat::Binary);
+    NYTree::EYsonFormat format);
 
 } // namespace NYTree
 
@@ -124,7 +124,7 @@ public:
     TErrorException();
     TErrorException(const TErrorException& other);
 
-    virtual const char* what() const override throw();
+    virtual const char* what() const throw() override;
 
 private:
     mutable Stroka CachedWhat;
@@ -190,16 +190,8 @@ public:
         : TError(other)
     { }
     
-    TValueOrError(const TErrorException& other)
-        : TError(other.Error())
-    { }
-    
     TValueOrError(const std::exception& ex)
-        : TError(TValueOrError(ex))
-    { }
-
-    TValueOrError(int code, const Stroka& message)
-        : TError(code, message)
+        : TError(ex)
     { }
 
     template <class TOther>

@@ -59,9 +59,9 @@ public:
         if (BeginInsert(&cookie)) {
             auto fileName = chunk->GetFileName();
             if (!isexist(~fileName)) {
-                cookie.Cancel(TGetReaderResult(
+                cookie.Cancel(TGetReaderResult(TError(
                     EErrorCode::NoSuchChunk,
-                    Sprintf("No such chunk (ChunkId: %s)", ~chunkId.ToString())));
+                    Sprintf("No such chunk: %s", ~chunkId.ToString()))));
             }
 
             LOG_DEBUG("Started opening chunk reader (LocationId: %s, ChunkId: %s)",
