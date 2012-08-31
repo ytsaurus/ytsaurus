@@ -462,8 +462,7 @@ TEST_F(TRpcTest, OneWayTransportError)
     auto request = proxy->OneWay();
     auto response = request->Invoke().Get();
 
-    EXPECT_EQ(EErrorCode::TransportError, response->GetErrorCode());
-    EXPECT_EQ("Unable to deliver the message", response->GetError().GetMessage());
+    EXPECT_FALSE(!response->IsOK());
 }
 
 TEST_F(TRpcTest, OneWayNoService)
