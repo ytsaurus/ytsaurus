@@ -51,7 +51,7 @@ struct TChunkWriterConfig
         Register("max_buffer_size", MaxBufferSize)
             .Default(32 * 1024 * 1024);
 
-        CodecId = ECodecId::Snappy;
+        CodecId = ECodecId::Lz4;
     }
 };
 
