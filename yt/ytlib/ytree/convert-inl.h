@@ -22,7 +22,7 @@ template <class T>
 void Consume(const T& value, IYsonConsumer* consumer)
 {
     // Check that T differs from Stroka to prevent
-    // accident usage of Stroka instead TYsonString.
+    // accident usage of Stroka instead of TYsonString.
     static_assert(!TSameType<T, Stroka>::Result,
         "Are you sure that you want to convert from Stroka, not from TYsonString? "
         "In this case use TRawString wrapper on Stroka.");
@@ -35,11 +35,12 @@ void Consume(const T& value, IYsonConsumer* consumer)
 template <class T>
 TYsonProducer ConvertToProducer(T&& value)
 {
-    EYsonType type = GetYsonType(value);
-    TYsonCallback callback = BIND([] (const T& value, IYsonConsumer* consumer)
-    {
-        Consume(value, consumer);
-    }, ForwardRV<T>(value));
+    auto type = GetYsonType(value);
+    auto callback = BIND(
+        [] (const T& value, IYsonConsumer* consumer) {
+            Consume(value, consumer);
+        },
+        ForwardRV<T>(value));
     return TYsonProducer(callback, type);
 }
 
@@ -48,7 +49,7 @@ TYsonString ConvertToYsonString(
     const T& value,
     EYsonFormat format)
 {
-    EYsonType type = GetYsonType(value);
+    auto type = GetYsonType(value);
     Stroka result;
     TStringOutput stringOutput(result);
     WriteYson(&stringOutput, value, type, format);
@@ -62,7 +63,7 @@ INodePtr ConvertToNode(
     const T& value,
     INodeFactoryPtr factory)
 {
-    EYsonType type = GetYsonType(value);
+    auto type = GetYsonType(value);
   
     auto builder = CreateBuilderFromFactory(factory);
     builder->BeginTree();
