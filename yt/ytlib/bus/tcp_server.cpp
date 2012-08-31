@@ -333,7 +333,8 @@ private:
             if (unlink(~path) != 0) {
                 int error = LastSystemError();
                 if (isexist(~path)) {
-                    THROW_ERROR_EXCEPTION("Failed to unlink the local socket file")
+                    THROW_ERROR_EXCEPTION("Failed to unlink the local socket file %s",
+                        ~path.Quote())
                         << TError::FromSystem(error);
                 }
             }
