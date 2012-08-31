@@ -64,7 +64,7 @@ void TOperationTracker::AppendPhaseProgress(
     const TYsonString& progress)
 {
     auto progressNode = ConvertToNode(progress);
-    i64 total = ConvertTo<i64>(NYTree::GetNodeByYPath(progressNode, "/total"));
+    i64 total = ConvertTo<i64>(GetNodeByYPath(progressNode, "/total"));
     if (total == 0) {
         return;
     }
@@ -197,8 +197,8 @@ EExitCode TOperationTracker::DumpResult()
     {
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_op_result");
         CheckResponse(rsp, "Error getting operation result");
-        auto errorNode = NYTree::GetNodeByYPath(ConvertToNode(TYsonString(rsp->value())), "/error");
-        auto error = ConvertTo<TError>(errorNode);
+        auto resultNode = ConvertToNode(TYsonString(rsp->value()));
+        auto error = ConvertTo<TError>(GetNodeByYPath(resultNode, "/error"));
         if (error.IsOK()) {
             TInstant startTime;
             {
