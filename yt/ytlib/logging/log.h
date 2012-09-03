@@ -74,13 +74,41 @@ private:
                 __LINE__, \
                 __FUNCTION__, \
                 level, \
-                Sprintf(__VA_ARGS__)); \
+                ::NYT::NLog::NDetail::FormatLogMessage(__VA_ARGS__)); \
         } \
     } while (false)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NDetail {
+
+inline Stroka printf_format(1,2) FormatLogMessage(const char* format, ...)
+{
+    Stroka result;
+    va_list params;
+    va_start(params, format);
+    vsprintf(result, format, params);
+    va_end(params);
+    return result;
+}
+
+template <class T>
+inline Stroka FormatLogMessage(const T& obj)
+{
+    return ToString(obj);
+}
+
+inline Stroka printf_format(1,2) FormatLogMessage(const TError& error, const char* format, ...)
+{
+    Stroka result;
+    va_list params;
+    va_start(params, format);
+    vsprintf(result, format, params);
+    va_end(params);
+    result.append('\n');
+    result.append(ToString(error));
+    return result;
+}
 
 template <class TLogger>
 void LogEventImpl(

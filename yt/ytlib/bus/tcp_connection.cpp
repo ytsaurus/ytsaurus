@@ -607,7 +607,7 @@ bool TTcpConnection::CheckReadError(ssize_t result)
                 NRpc::EErrorCode::TransportError,
                 "Socket read error")
                 << TError::FromSystem(error);
-            LOG_WARNING("%s", ~ToString(wrappedError));
+            LOG_WARNING(wrappedError);
             SyncClose(wrappedError);
         }
         return false;
@@ -719,7 +719,7 @@ void TTcpConnection::OnSocketWrite()
                 "Failed to connect to %s",
                 ~Address)
                 << TError::FromSystem(error);
-            LOG_ERROR("%s", ~ToString(wrappedErrror));
+            LOG_ERROR(wrappedErrror);
 
             // We're currently in event loop context, so calling |SyncClose| is safe.
             SyncClose(wrappedErrror);
@@ -874,7 +874,7 @@ bool TTcpConnection::CheckWriteError(ssize_t result)
                 NRpc::EErrorCode::TransportError,
                 "Socket write error")
                 << TError::FromSystem(error);
-            LOG_WARNING("%s", ~ToString(wrappedError));
+            LOG_WARNING(wrappedError);
             SyncClose(wrappedError);
         }
         return false;

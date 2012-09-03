@@ -70,9 +70,9 @@ void TFileReaderBase::Open(
     YCHECK(chunkMeta.type() == EChunkType::File);
 
     if (chunkMeta.version() != FormatVersion) {
-        THROW_ERROR_EXCEPTION("Chunk format version mismatch (Expected: %d, Received: %d)",
+        THROW_ERROR_EXCEPTION("Chunk format version mismatch: expected %d, actual %d",
             FormatVersion,
-            chunkMeta.version()));
+            chunkMeta.version());
     }
 
     auto blocksExt = GetProtoExtension<NChunkClient::NProto::TBlocksExt>(chunkMeta.extensions());

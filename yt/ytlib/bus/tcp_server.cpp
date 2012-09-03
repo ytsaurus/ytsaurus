@@ -188,7 +188,7 @@ protected:
                         NRpc::EErrorCode::TransportError,
                         "Error accepting connection")
                         << TError::FromSystem(error);
-                    LOG_WARNING("%s", ~ToString(wrappedError));
+                    LOG_WARNING(wrappedError);
                 }
                 break;
             }

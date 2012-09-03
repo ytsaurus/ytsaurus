@@ -680,7 +680,7 @@ public:
 
                     auto error = FollowerRecovery->PostponeSegmentAdvance(version);
                     if (!error.IsOK()) {
-                        LOG_ERROR("%s", ~ToString(error));
+                        LOG_ERROR(error);
                         Restart();
                     }
 

@@ -1209,14 +1209,15 @@ private:
 
         // Use the size reported by the node, but check it for consistency first.
         if (!chunk->ValidateChunkInfo(chunkAddInfo.chunk_info())) {
-            auto message = Sprintf("Mismatched chunk info reported by node (ChunkId: %s, Cached: %s, ExpectedInfo: {%s}, ReceivedInfo: {%s}, Address: %s, HolderId: %d)",
+            auto error = TError("Mismatched chunk info reported by node (ChunkId: %s, Cached: %s, ExpectedInfo: {%s}, ReceivedInfo: {%s}, Address: %s, HolderId: %d)",
                 ~chunkId.ToString(),
                 ~FormatBool(cached),
                 ~chunk->ChunkInfo().DebugString(),
                 ~chunkAddInfo.chunk_info().DebugString(),
                 ~node->GetAddress(),
                 node->GetId());
-            LOG_ERROR("%s", ~message);
+            LOG_ERROR(error);
+            // TODO(babenko): return error to node
             return;
         }
         chunk->ChunkInfo() = chunkAddInfo.chunk_info();

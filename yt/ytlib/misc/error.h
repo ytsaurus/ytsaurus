@@ -27,7 +27,7 @@ public:
     TError(const std::exception& ex);
 
     explicit TError(const Stroka& message);
-    TError(const char* format, ...);
+    explicit TError(const char* format, ...);
 
     TError(int code, const Stroka& message);
     TError(int code, const char* format, ...);

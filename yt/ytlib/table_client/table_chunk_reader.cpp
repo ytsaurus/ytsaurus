@@ -180,8 +180,10 @@ private:
             return;
 
         if (!result.IsOK()) {
-            LOG_WARNING("Failed to download chunk meta\n%s", ~ToString(result));
-            OnFail(result, chunkReader);
+            auto error = TError("Failed to download chunk meta")
+                << result;
+            LOG_WARNING(error);
+            OnFail(error, chunkReader);
             return;
         }
 
@@ -192,12 +194,11 @@ private:
         }
 
         if (result.Value().version() != FormatVersion) {
-            auto message = Sprintf(
-                "Invalid chunk format version (Expected: %d, Actual: %d)", 
+            auto error = TError("Invalid chunk format version (Expected: %d, Actual: %d)", 
                 FormatVersion,
                 result.Value().version());
-            LOG_WARNING("%s", ~message);
-            OnFail(TError(message), chunkReader);
+            LOG_WARNING(error);
+            OnFail(error, chunkReader);
             return;
         }
 
@@ -221,10 +222,10 @@ private:
 
         if (HasRangeRequest || chunkReader->Options.ReadKey) {
             if (!miscExt.sorted()) {
-                LOG_WARNING("Received key range read request for an unsorted chunk");
-                OnFail(
-                    TError(Sprintf("Received key range read request for an unsorted chunk (ChunkId: %s)", ~AsyncReader->GetChunkId().ToString())), 
-                    chunkReader);
+                auto error = TError("Received key range read request for an unsorted chunk %s",
+                    ~AsyncReader->GetChunkId().ToString());
+                LOG_WARNING(error);
+                OnFail(error, chunkReader);
                 return;
             }
 
@@ -462,9 +463,8 @@ private:
         LOG_DEBUG("Fetched starting block for channel %d", channelIdx);
 
         if (!error.IsOK()) {
-            LOG_WARNING("Failed to download starting block for channel %d\n%s", 
-                channelIdx,
-                ~ToString(error));
+            auto error = TError("Failed to download starting block for channel %d", 
+                channelIdx);
             OnFail(error, chunkReader);
             return;
         }
@@ -600,8 +600,10 @@ public:
             return;
 
         if (!result.IsOK()) {
-            LOG_WARNING("Failed to download chunk meta\n%s", ~ToString(result));
-            OnFail(result, chunkReader);
+            auto error = TError("Failed to download chunk meta")
+                << result;
+            LOG_WARNING(error);
+            OnFail(error, chunkReader);
             return;
         }
 

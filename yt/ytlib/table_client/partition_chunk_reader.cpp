@@ -65,12 +65,11 @@ void TPartitionChunkReader::OnGotMeta(NChunkClient::IAsyncReader::TGetMetaResult
     }
 
     if (result.Value().version() != FormatVersion) {
-        auto message = Sprintf(
-            "Invalid chunk format version (Expected: %d, Actual: %d)", 
+        auto error = TError("Invalid chunk format version: expected: %d, actual: %d", 
             FormatVersion,
             result.Value().version());
-        LOG_WARNING("%s", ~message);
-        State.Fail(TError(message));
+        LOG_ERROR(error);
+        State.Fail(error);
         return;
     }
 

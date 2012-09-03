@@ -775,7 +775,7 @@ private:
         } else {
             auto wrappedError = TError("Error finalizing operation node")
                 << error;
-            LOG_ERROR("%s", ~ToString(wrappedError));
+            LOG_ERROR(wrappedError);
             list->Finalized.Set(wrappedError);
         }
 
