@@ -760,7 +760,7 @@ private:
             EOperationState::Failed));
     }
 
-    void DoOperationFailed(TOperationPtr operation, const TError& finalError, EOperationState finalState)
+    void DoOperationFailed(TOperationPtr operation, const TError& error, EOperationState finalState)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -773,7 +773,7 @@ private:
         
         operation->SetEndTime(TInstant::Now());
         operation->SetState(finalState);
-        ToProto(operation->Result().mutable_error(), finalError);
+        ToProto(operation->Result().mutable_error(), error);
 
         MasterConnector->FinalizeOperationNode(operation).Subscribe(
             BIND(&TImpl::OnFailedOperationNodeFinalized, MakeStrong(this), operation)
