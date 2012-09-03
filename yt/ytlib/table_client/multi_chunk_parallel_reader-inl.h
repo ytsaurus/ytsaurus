@@ -170,7 +170,6 @@ bool TMultiChunkParallelReader<TChunkReader>::FetchNextItem()
 template <class TChunkReader>
 bool TMultiChunkParallelReader<TChunkReader>::IsValid() const
 {
-    YASSERT(!State.HasRunningOperation());
     if (CompleteReaderCount == TBase::InputChunks.size())
         return false;
 
