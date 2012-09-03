@@ -3,6 +3,7 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/object_client )
 set( SRCS
   ${BASE}/public.cpp
   ${BASE}/object_service_proxy.cpp
+  ${BASE}/retrying_batch.cpp
 )
 set( HDRS
   ${BASE}/public.h
@@ -12,6 +13,7 @@ set( HDRS
   ${BASE}/object_service_proxy-inl.h
   ${BASE}/object_service_proxy.h
   ${BASE}/object_ypath_proxy.h
+  ${BASE}/retrying_batch.h
 )
 
 list(APPEND YT_SOURCE_FILES
