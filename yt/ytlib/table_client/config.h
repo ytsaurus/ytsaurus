@@ -32,7 +32,7 @@ struct TChunkWriterConfig
     {
         // Block less than 1M is nonsense.
         Register("block_size", BlockSize)
-            .GreaterThan(1024 * 1024)
+            .GreaterThanOrEqual(1024 * 1024)
             .Default(16 * 1024 * 1024);
         Register("sample_rate", SampleRate)
             .GreaterThan(0)
@@ -49,6 +49,7 @@ struct TChunkWriterConfig
         Register("allow_duplicate_column_names", AllowDuplicateColumnNames)
             .Default(true);
         Register("max_buffer_size", MaxBufferSize)
+            .GreaterThanOrEqual(1024 * 1024)
             .Default(32 * 1024 * 1024);
 
         CodecId = ECodecId::Lz4;
