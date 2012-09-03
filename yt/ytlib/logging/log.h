@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+#include <ytlib/misc/error.h>
+
 #include <util/system/thread.h>
 
 namespace NYT {
@@ -54,12 +56,10 @@ private:
 #define LOG_WARNING(...)                    LOG_EVENT(Logger, ::NYT::NLog::ELogLevel::Warning, __VA_ARGS__)
 #define LOG_WARNING_IF(condition, ...)      if (condition) LOG_WARNING(__VA_ARGS__)
 #define LOG_WARNING_UNLESS(condition, ...)  if (!condition) LOG_WARNING(__VA_ARGS__)
-#define LOG_WARNING_AND_THROW(error)        LOG_EVENT_AND_THROW(Logger, ::NYT::NLog::ELogLevel::Warning, error)
 
 #define LOG_ERROR(...)                      LOG_EVENT(Logger, ::NYT::NLog::ELogLevel::Error, __VA_ARGS__)
 #define LOG_ERROR_IF(condition, ...)        if (condition) LOG_ERROR(__VA_ARGS__)
 #define LOG_ERROR_UNLESS(condition, ...)    if (!condition) LOG_ERROR(__VA_ARGS__)
-#define LOG_ERROR_AND_THROW(error)          LOG_EVENT_AND_THROW(Logger, ::NYT::NLog::ELogLevel::Error, error)
 
 #define LOG_FATAL(...)                      LOG_EVENT(Logger, ::NYT::NLog::ELogLevel::Fatal, __VA_ARGS__)
 #define LOG_FATAL_IF(condition, ...)        if ( UNLIKELY(condition)) LOG_FATAL(__VA_ARGS__)
@@ -68,32 +68,19 @@ private:
 #define LOG_EVENT(logger, level, ...) \
     do { \
         if (logger.IsEnabled(level)) { \
-            ::NYT::NLog::LogEventImpl( \
-            logger, \
-            __FILE__, \
-            __LINE__, \
-            __FUNCTION__, \
-            level, \
-            Sprintf(__VA_ARGS__)); \
-        } \
-    } while (false)
-
-#define LOG_EVENT_AND_THROW(logger, level, error) \
-    do { \
-        if (logger.IsEnabled(level)) { \
-            ::NYT::NLog::LogEventImpl( \
+            ::NYT::NLog::NDetail::LogEventImpl( \
                 logger, \
                 __FILE__, \
                 __LINE__, \
                 __FUNCTION__, \
                 level, \
-                ToString(error)); \
+                Sprintf(__VA_ARGS__)); \
         } \
-        THROW_ERROR error; \
     } while (false)
 
-
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
 
 template <class TLogger>
 void LogEventImpl(
@@ -114,6 +101,8 @@ void LogEventImpl(
     event.Function = function;
     logger.Write(event);
 }
+
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 

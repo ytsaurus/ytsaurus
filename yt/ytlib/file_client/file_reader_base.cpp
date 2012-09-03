@@ -62,16 +62,15 @@ void TFileReaderBase::Open(
 
     auto getMetaResult = remoteReader->AsyncGetChunkMeta().Get();
     if (!getMetaResult.IsOK()) {
-        LOG_ERROR_AND_THROW(TError("Error getting chunk meta")
-            << getMetaResult);
+        THROW_ERROR_EXCEPTION("Error getting chunk meta")
+            << getMetaResult;
     }
 
     auto& chunkMeta = getMetaResult.Value();
     YCHECK(chunkMeta.type() == EChunkType::File);
 
     if (chunkMeta.version() != FormatVersion) {
-        LOG_ERROR_AND_THROW(TError(
-            "Chunk format version mismatch (Expected: %d, Received: %d)",
+        THROW_ERROR_EXCEPTION("Chunk format version mismatch (Expected: %d, Received: %d)",
             FormatVersion,
             chunkMeta.version()));
     }
