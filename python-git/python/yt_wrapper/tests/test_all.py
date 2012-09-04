@@ -347,17 +347,32 @@ class YtTest(YTEnv):
             sorted(list(yt.read_table(other_table))),
             sorted(list(chain(*imap(func, self.temp_records())))))
 
-    def check_empty_output_table_deletion(self):
+    def test_empty_output_table_deletion(self):
         table = self.create_temp_table()
         other_table = TEST_DIR + "/temp_other"
         yt.run_map("cat 1>&2 2>/dev/null", table, other_table)
         self.assertFalse(yt.exists(other_table))
 
+    def test_reformatting(self):
+        def reformat(rec):
+            values = rec.strip().split("\t", 2)
+            yield "\t".join("=".join([k, v]) for k, v in zip(["k", "s", "v"], values))
+        table = self.create_temp_table()
+        other_table = TEST_DIR + "/temp_other"
+        yt.run_map(reformat, table, other_table, output_format=yt.DsvFormat())
+        self.assertTrue(yt.exists(other_table))
+        self.assertEqual(
+            sorted(
+                map(lambda str: str.split("=", 1)[0],
+                    yt.read_table(other_table, format=yt.DsvFormat())\
+                        .next().strip().split("\t"))),
+            ["k", "s", "v"])
+
 
 if __name__ == "__main__":
-    #suite = unittest.TestSuite()
-    #suite.addTest(YtTest("check_empty_output_table_deletion"))
-    #unittest.TextTestRunner().run(suite)
-    unittest.main()
+    suite = unittest.TestSuite()
+    suite.addTest(YtTest("test_reformatting"))
+    unittest.TextTestRunner().run(suite)
+    #unittest.main()
 
 
