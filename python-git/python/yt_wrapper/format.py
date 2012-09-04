@@ -26,6 +26,7 @@ class YsonFormat(Format):
                 "$attributes":
                     {"format": "text" }}
 
+
 class YamrFormat(Format):
     def __init__(self, has_subkey, lenval):
         self.has_subkey = has_subkey

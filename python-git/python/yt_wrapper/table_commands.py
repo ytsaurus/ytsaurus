@@ -218,14 +218,28 @@ class Finalizer(object):
         for file in self.files:
             remove(file)
 
+def _add_output_fd_redirect(binary, dst_count):
+    if config.USE_MAPREDUCE_STYLE_DST_TABLES:
+        for fd in xrange(3, 3 + dst_count):
+            yt_fd = 1 + (fd - 3) * 3
+            binary = binary + " %d>&%d" % (fd, yt_fd)
+    return binary
+
+def _prepare_formats(format, input_format, output_format):
+    if format is None: format = config.DEFAULT_FORMAT
+    if input_format is None: input_format = format
+    if output_format is None: output_format = format
+    return input_format, output_format
 
 def run_operation(binary, source_table, destination_table,
-                  files, file_paths, format, strategy, spec, op_type,
+                  files, file_paths, 
+                  format, input_format, output_format,
+                  strategy, spec, op_type,
                   reduce_by=None):
     if strategy is None: strategy = config.DEFAULT_STRATEGY
-    if format is None: format = config.DEFAULT_FORMAT
     if reduce_by is None: reduce_by = "key"
     if spec is None: spec = {}
+    input_format, output_format = _prepare_formats(format, input_format, output_format)
 
     files = _prepare_files(files)
     if isinstance(binary, types.FunctionType):
@@ -248,19 +262,17 @@ def run_operation(binary, source_table, destination_table,
     for table in destination_table:
         create_table(table.name, not table.append)
 
+    binary = _add_output_fd_redirect(binary, len(destination_table))
+
     op_key = {
         "map": "mapper",
         "reduce": "reducer"}
 
-    if config.USE_MAPREDUCE_STYLE_DST_TABLES:
-        for fd in xrange(3, 3 + len(destination_table)):
-            yt_fd = 1 + (fd - 3) * 3
-            binary = binary + " %d>&%d" % (fd, yt_fd)
-
     operation_descr = \
                 {"command": binary,
-                 "format": format.to_json(),
-                 "file_paths": map(escape_path, file_paths)}
+                 "file_paths": map(escape_path, file_paths),
+                 "input_format": input_format.to_json(),
+                 "output_format": output_format.to_json()}
     if op_type == "reduce":
         operation_descr.update({"reduce_by": reduce_by})
 
@@ -273,25 +285,35 @@ def run_operation(binary, source_table, destination_table,
     strategy.process_operation(op_type, operation, Finalizer(files, destination_table))
 
 def run_map(binary, source_table, destination_table,
-            files=None, file_paths=None, format=None, strategy=None, spec=None):
+            files=None, file_paths=None,
+            format=None, input_format=None, output_format=None,
+            strategy=None, spec=None):
     run_operation(binary, source_table, destination_table,
                   files=files, file_paths=file_paths,
                   format=format,
+                  input_format=input_format,
+                  output_format=output_format,
                   strategy=strategy, spec=spec,
                   op_type="map")
 
 def run_reduce(binary, source_table, destination_table,
-               files=None, file_paths=None, format=None, strategy=None, reduce_by=None, spec=None):
+               files=None, file_paths=None, 
+               format=None, input_format=None, output_format=None,
+               strategy=None, reduce_by=None, spec=None):
     run_operation(binary, source_table, destination_table,
                   files=files, file_paths=file_paths,
                   format=format,
+                  input_format=input_format,
+                  output_format=output_format,
                   strategy=strategy, spec=spec,
                   reduce_by=reduce_by,
                   op_type="reduce")
 
 def run_map_reduce(mapper, reducer, source_table, destination_table,
                    format=None, strategy=None, spec=None,
-                   map_files=None, reduce_files=None, sort_by=None, reduce_by=None):
+                   map_files=None, reduce_files=None,
+                   map_file_paths=None, reduce_file_paths=None,
+                   sort_by=None, reduce_by=None):
     if strategy is None: strategy = config.DEFAULT_STRATEGY
     if format is None: format = config.DEFAULT_FORMAT
     if reduce_by is None and sort_by is None:
@@ -300,7 +322,8 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     
     run_map_reduce.spec = {} if spec is None else spec
     run_map_reduce.files_to_remove = []
-    def prepare_operation(binary, files, spec_keyword):
+    def prepare_operation(binary, files, file_paths, spec_keyword):
+        if file_paths is None: file_paths = []
         """ Returns new spec """
         files = _prepare_files(files)
         if binary is not None:
@@ -312,23 +335,20 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                     spec_keyword: {
                         "format": format.to_json(),
                         "command": binary,
-                        "file_paths": files
+                        "file_paths": flatten(files + file_paths)
                     }
                 })
         run_map_reduce.files_to_remove += files
     
-    prepare_operation(mapper, map_files, "mapper")
-    prepare_operation(reducer, reduce_files, "reducer")
+    prepare_operation(mapper, map_files, map_file_paths, "mapper")
+    prepare_operation(reducer, reduce_files, reduce_file_paths, "reducer")
 
     source_table = prepare_source_tables(source_table)
     destination_table = map(to_table, flatten(destination_table))
     for table in destination_table:
         create_table(table.name, not table.append)
 
-    if config.USE_MAPREDUCE_STYLE_DST_TABLES and len(destination_table) > 1:
-        for fd in xrange(3, 3 + len(destination_table)):
-            yt_fd = 1 + (fd - 3) * 3
-            reducer = reducer + " %d>&%d" % (fd, yt_fd)
+    reducer = _add_output_fd_redirect(reducer, len(destination_table))
 
     params = json.dumps(
         {"spec": update(run_map_reduce.spec,
