@@ -324,6 +324,8 @@ protected:
 
             // Kick-start sort and unordered merge tasks.
             Controller->AddSortTasksPendingHints();
+
+            Controller->CheckMergeStartThreshold();
             Controller->AddMergeTasksPendingHints();
         }
     };
@@ -1734,7 +1736,8 @@ private:
     void InitJobIOConfigs(int partitionCount)
     {
         {
-            PartitionJobIOConfig = BuildJobIOConfig(Config->MapJobIO, Spec->MapJobIO);
+            // This is not a typo!
+            PartitionJobIOConfig = BuildJobIOConfig(Config->PartitionJobIO, Spec->MapJobIO);
             InitIntermediateOutputConfig(PartitionJobIOConfig);
         }
 
