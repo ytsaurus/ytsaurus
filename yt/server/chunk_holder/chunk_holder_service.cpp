@@ -27,6 +27,7 @@
 #include <ytlib/table_client/private.h>
 #include <ytlib/table_client/size_limits.h>
 
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk_holder_service.pb.h>
 
 namespace NYT {
@@ -68,7 +69,12 @@ TChunkHolderService::TChunkHolderService(
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PrecacheChunk));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer)
         .SetOneWay(true));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableSamples));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableSamples)
+        .SetResponseCodec(ECodecId::Snappy)
+        .SetHeavyResponse(true));
+ /*   RegisterMethod(RPC_SERVICE_METHOD_DESC(GetСhunkSplits)
+        .SetResponseCodec(ECodecId::Snappy)
+        .SetHeavyResponse(true)); */
 }
 
 void TChunkHolderService::ValidateNoSession(const TChunkId& chunkId)
@@ -569,6 +575,216 @@ void TChunkHolderService::ProcessSample(
             }
         }
     }
+}
+
+DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkSplits)
+{
+    context->SetRequestInfo("KeyColumnCount: %d, ChunkCount: %d, MinSplitSize: %"PRId64,
+        request->key_columns_size(),
+        request->input_chunks_size(),
+        request->min_split_size());
+
+    auto awaiter = New<TParallelAwaiter>(WorkerThread->GetInvoker());
+    auto keyColumns = FromProto<Stroka>(request->key_columns());
+
+    FOREACH (const auto& inputChunk, request->input_chunks()) {
+        auto chunkId = TChunkId::FromProto(inputChunk.slice().chunk_id());
+        auto* splittedChunk = response->add_splitted_chunks();
+        auto chunk = Bootstrap->GetChunkStore()->FindChunk(chunkId);
+
+        if (!chunk) {
+            auto error = TError("No such chunk %s", ~chunkId.ToString());
+            LOG_ERROR("%s", ~ToString(error));
+            ToProto(splittedChunk->mutable_error(), error);
+        } else {
+            awaiter->Await(chunk->GetMeta(), BIND(
+                &TChunkHolderService::MakeChunkSplits, 
+                MakeStrong(this),
+                &inputChunk,
+                splittedChunk,
+                request->min_split_size(),
+                keyColumns));
+        }
+    }
+
+    awaiter->Complete(BIND([=] () {
+        context->Reply();
+    }));
+}
+
+void TChunkHolderService::MakeChunkSplits(
+    const NTableClient::NProto::TInputChunk* inputChunk,
+    NChunkClient::NProto::TRspGetChunkSplits::TChunkSplits* splittedChunk,
+    i64 minSplitSize,
+    const TKeyColumns& keyColumns,
+    TChunk::TGetMetaResult result)
+{
+    auto chunkId = TChunkId::FromProto(inputChunk->slice().chunk_id());
+
+    if (!result.IsOK()) {
+        auto error = TError("GetChunkSplits: Error getting meta of chunk %s", ~chunkId.ToString())
+            << result;
+        LOG_ERROR("%s", ~ToString(error));
+        ToProto(splittedChunk->mutable_error(), error);
+        return;
+    }
+
+    YCHECK(result.Value().type() == EChunkType::Table);
+
+    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(result.Value().extensions());
+    if (!miscExt.sorted()) {
+        auto error =  TError("GetChunkSplits: Requested chunk splits for unsorted chunk %s", 
+            ~chunkId.ToString());
+        LOG_ERROR("%s", ~ToString(error));
+        ToProto(splittedChunk->mutable_error(), error);
+        return;
+    }
+
+    auto keyColumnsExt = GetProtoExtension<NTableClient::NProto::TKeyColumnsExt>(result.Value().extensions());
+    if (keyColumnsExt.values_size() < keyColumns.size()) {
+        auto error = TError("Not enough key columns in chunk %s (Expected: %d, Actual: %d)", 
+            ~chunkId.ToString(),
+            static_cast<int>(keyColumns.size()),
+            static_cast<int>(keyColumnsExt.values_size()));
+        LOG_ERROR("%s", ~ToString(error));
+        ToProto(splittedChunk->mutable_error(), error);
+        return;
+    }
+
+    for (int i = 0; i < keyColumns.size(); ++i) {
+        Stroka value = keyColumnsExt.values(i);
+        if (keyColumns[i] != value) {
+            auto error = TError("Invalid key columns (Expected: %s, Actual: %s)",
+                ~keyColumns[i],
+                ~value);
+            LOG_ERROR("%s", ~ToString(error));
+            ToProto(splittedChunk->mutable_error(), error);
+            return;
+        }
+    }
+
+    auto indexExt = GetProtoExtension<NTableClient::NProto::TIndexExt>(result.Value().extensions());
+    if (indexExt.items_size() == 1) {
+        // Only one index entry available - no need to split.
+        splittedChunk->add_input_chunks()->CopyFrom(*inputChunk);
+        return;
+    }
+
+    auto back = --indexExt.items().end();
+    auto dataSizeBetweenSamples = static_cast<i64>(std::ceil(
+        float(back->row_index()) /
+        miscExt.row_count() *
+        miscExt.uncompressed_data_size() /
+        indexExt.items_size()));
+
+    auto comparator = [&] (
+        const NTableClient::NProto::TReadLimit& limit,
+        const NTableClient::NProto::TIndexRow& indexRow,
+        bool isStartLimit)
+    {
+        if (!limit.has_row_index() && !limit.has_key()) {
+            return isStartLimit ? -1 : 1;
+        }
+
+        auto result = 0;
+        if (limit.has_row_index()) {
+            auto diff = limit.row_index() - indexRow.row_index();
+            // Sign function.
+            result += (diff > 0) - (diff < 0);
+        }
+
+        if (limit.has_key()) {
+            result += CompareKeys(limit.key(), indexRow.key(), keyColumns.size());
+        }
+
+        if (result == 0) {
+            return isStartLimit ? -1 : 1;
+        }
+
+        return (result > 0) - (result < 0);
+    };
+
+    auto beginIter = std::lower_bound(
+        indexExt.items().begin(), 
+        indexExt.items().end(), 
+        inputChunk->slice().start_limit(), 
+        [&] (const NTableClient::NProto::TIndexRow& indexRow,
+             const NTableClient::NProto::TReadLimit& limit) 
+        {
+            return comparator(limit, indexRow, true) > 0;
+        });
+
+    auto endIter = std::upper_bound(
+        beginIter, 
+        indexExt.items().end(), 
+        inputChunk->slice().end_limit(), 
+        [&] (const NTableClient::NProto::TReadLimit& limit,
+             const NTableClient::NProto::TIndexRow& indexRow) 
+        {
+            return comparator(limit, indexRow, false) < 0;
+        });
+
+    NTableClient::NProto::TInputChunk* currentSplit;
+    NTableClient::NProto::TBoundaryKeysExt boundaryKeysExt;
+    i64 endRowIndex = beginIter->row_index();
+    i64 startRowIndex;
+    i64 dataSize;
+
+    auto createNewSplit = [&] () {
+        currentSplit = splittedChunk->add_input_chunks();
+        currentSplit->CopyFrom(*inputChunk);
+        boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(currentSplit->extensions());
+        startRowIndex = endRowIndex;
+        dataSize = 0;
+    };
+    createNewSplit();
+
+    auto samplesLeft = std::distance(beginIter, endIter) - 1;
+    while(samplesLeft > 0) {
+        ++beginIter;
+        --samplesLeft;
+        dataSize += dataSizeBetweenSamples;
+
+        auto nextIter = beginIter + 1;
+        if (nextIter == endIter) {
+            break;
+        }
+
+        if (samplesLeft * dataSizeBetweenSamples < minSplitSize) {
+            break;
+        }
+
+        if (CompareKeys(nextIter->key(), beginIter->key(), keyColumns.size()) == 0) {
+            continue;
+        }
+
+        if (dataSize > minSplitSize) {
+            auto key = beginIter->key();
+            while (key.parts_size() > keyColumns.size()) {
+                key.mutable_parts()->RemoveLast();
+            }
+
+            *boundaryKeysExt.mutable_end() = key;
+            UpdateProtoExtension(currentSplit->mutable_extensions(), boundaryKeysExt);
+
+            endRowIndex = beginIter->row_index();
+            currentSplit->set_row_count(endRowIndex - startRowIndex);
+            currentSplit->set_uncompressed_data_size(dataSize);
+
+            key = GetSuccessorKey(key);
+            *currentSplit->mutable_slice()->mutable_end_limit()->mutable_key() = key;
+
+            createNewSplit();
+            *boundaryKeysExt.mutable_start() = key;
+            *currentSplit->mutable_slice()->mutable_start_limit()->mutable_key() = key;
+        }
+    }
+
+    UpdateProtoExtension(currentSplit->mutable_extensions(), boundaryKeysExt);
+    endRowIndex = (--endIter)->row_index();
+    currentSplit->set_row_count(endRowIndex - startRowIndex);
+    currentSplit->set_uncompressed_data_size(
+        dataSize + (std::distance(beginIter, endIter) - 1) * dataSizeBetweenSamples);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

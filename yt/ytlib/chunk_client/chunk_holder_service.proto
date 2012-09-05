@@ -3,6 +3,7 @@ package NYT.NChunkClient.NProto;
 import "yt/ytlib/misc/guid.proto";
 import "yt/ytlib/misc/error.proto";
 import "yt/ytlib/chunk_client/chunk.proto";
+import "yt/ytlib/table_client/table_reader.proto";
 import "yt/ytlib/table_client/table_chunk_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -164,6 +165,28 @@ message TRspGetTableSamples
     }
 
     repeated TChunkSamples samples = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// For sorted chunks only.
+// Scheduler calls this method to perform sorted merge.
+message TReqGetChunkSplits
+{
+    repeated NTableClient.NProto.TInputChunk input_chunks = 1;
+    repeated string key_columns = 2;
+    required int64 min_split_size = 3;
+}
+
+message TRspGetChunkSplits
+{
+    message TChunkSplits
+    {
+        optional NYT.NProto.TError error = 1;
+        repeated NTableClient.NProto.TInputChunk input_chunks = 2;
+    }
+
+    repeated TChunkSplits splitted_chunks = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

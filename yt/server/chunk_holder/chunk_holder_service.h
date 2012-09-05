@@ -21,8 +21,8 @@ class TChunkHolderService
 {
 public:
     TChunkHolderService(
-    	TDataNodeConfigPtr config,
-    	TBootstrap* bootstrap);
+        TDataNodeConfigPtr config,
+        TBootstrap* bootstrap);
 
 private:
     typedef TChunkHolderService TThis;
@@ -44,6 +44,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PrecacheChunk);
     DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NChunkClient::NProto, UpdatePeer);
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetTableSamples);
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkSplits);
 
     void ValidateNoSession(const TChunkId& chunkId);
     void ValidateNoChunk(const TChunkId& chunkId);
@@ -53,6 +54,13 @@ private:
     void ProcessSample(
         const NChunkClient::NProto::TReqGetTableSamples::TSampleRequest* sampleRequest,
         NChunkClient::NProto::TRspGetTableSamples::TChunkSamples* chunkSamples,
+        const NTableClient::TKeyColumns& keyColumns,
+        TChunk::TGetMetaResult result);
+
+    void MakeChunkSplits(
+        const NTableClient::NProto::TInputChunk* inputChunk,
+        NChunkClient::NProto::TRspGetChunkSplits::TChunkSplits* splittedChunk,
+        i64 minSplitSize,
         const NTableClient::TKeyColumns& keyColumns,
         TChunk::TGetMetaResult result);
 
