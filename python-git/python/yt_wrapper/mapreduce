@@ -102,6 +102,9 @@ def add_help_messages(parser, args):
     for arg, message in args:
         add_help_message(parser, arg, message)
 
+def parse_format(format):
+    return None if format is None else yt.RawFormat(format)
+
 if __name__ == "__main__":
     config.FORCE_SORT_IN_REDUCE = True
     config.USE_MAPREDUCE_STYLE_DST_TABLES = True
@@ -111,8 +114,8 @@ if __name__ == "__main__":
     action_flags = ["version", "copy", "sort", "merge", "list"]
 
     parser = ArgumentParser()
-    add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode"])
-    add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec"])
+    add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv"])
+    add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec", "inputformat", "outputformat"])
     add_multiple_args(parser, ["src", "dst", "dstappend", "file", "mapfile", "reducefile", "uploaded_file", "opt", "ytspec"])
     add_integer_args(parser, ["jobcount", "threadcount", "chunksize", "jcmultiplier"])
 
@@ -201,6 +204,15 @@ if __name__ == "__main__":
     reduce_files = to_list(args.file) + to_list(args.reducefile)
 
     config.DEFAULT_FORMAT = config.YamrFormat(lenval=args.lenval, has_subkey=args.subkey)
+    if args.dsv:
+        if args.lenval or args.subkey:
+            print >>sys.stderr, "Options subkey and lenval are mutually exclusive with dsv option"
+            exit(1)
+        config.DEFAULT_FORMAT = yt.DsvFormat()
+
+    args.inputformat = parse_format(args.inputformat)
+    args.outputformat = parse_format(args.outputformat)
+
     if args.list:
         sys.stdout.writelines(imap(add_eoln, list_all_tables()))
     if args.read is not None:

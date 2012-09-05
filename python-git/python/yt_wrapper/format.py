@@ -4,6 +4,17 @@ from common import bool_to_string
 class Format(object):
     pass
 
+
+class RawFormat(Format):
+    def __init__(self, str):
+        self.str = str
+
+    def to_mime_type(self):
+        return self.str
+
+    def to_json(self):
+        return self.str
+
 class DsvFormat(Format):
     def __init__(self):
         pass

@@ -74,12 +74,35 @@ test_mapreduce()
     ./mapreduce -subkey -read "ignat/reduced" | wc -l
 }
 
+test_input_output_format()
+{
+    ./mapreduce -subkey -write "ignat/temp" <table_file
 
-test_base_functionality
-test_codec
-test_many_output_tables
-test_chunksize
-test_mapreduce
+    echo -e "#!/usr/bin/env python
+import os
+import sys
+
+if __name__ == '__main__':
+    for line in sys.stdin:
+        pass
+
+    for descr in range(3, 6):
+        os.write(descr, 'k={0}\\\ts={0}\\\tv={0}\\\n'.format(descr))
+    " >reformat.py
+
+    ./mapreduce -subkey -outputformat "dsv" -map "./reformat.py" -src "ignat/tmp" -dst "ignat/reformatted"
+    ./mapreduce -dsv -read "ignat/reformatted"
+
+    rm reformat.py
+}
+
+
+#test_base_functionality
+#test_codec
+#test_many_output_tables
+#test_chunksize
+#test_mapreduce
+test_input_output_format
 
 rm -f table_file big_file
 
