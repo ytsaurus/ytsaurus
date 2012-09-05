@@ -24,10 +24,79 @@ TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
 TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>
 TObjectServiceProxy::TReqExecuteBatch::Invoke()
 {
-    auto response = New<TRspExecuteBatch>(GetRequestId(), KeyToIndexes);
-    auto asyncResult = response->GetAsyncResult();
-    DoInvoke(response);
-    return asyncResult;
+    if (Channel->GetRetryEnabled()) {
+        auto startTime = TInstant::Now();
+        auto timeout = GetTimeout();
+        auto deadline = timeout ? startTime + timeout.Get() : TNullable<TInstant>();
+        auto promise = NewPromise<TObjectServiceProxy::TRspExecuteBatchPtr>();
+        SendRetryingRequest(deadline, timeout, promise);
+        return promise;
+    } else {
+        auto batchRsp = New<TRspExecuteBatch>(GetRequestId(), KeyToIndexes);
+        DoInvoke(batchRsp);
+        return batchRsp->GetAsyncResult();
+    }
+}
+
+void TObjectServiceProxy::TReqExecuteBatch::SendRetryingRequest(
+    TNullable<TInstant> deadline,
+    TNullable<TDuration> timeout,
+    TPromise<TRspExecuteBatchPtr> promise)
+{
+    auto batchRsp = New<TRspExecuteBatch>(GetRequestId(), KeyToIndexes);
+    Channel->Send(this, batchRsp, timeout);
+    batchRsp->GetAsyncResult().Subscribe(BIND(
+        &TReqExecuteBatch::OnResponse,
+        MakeStrong(this),
+        deadline,
+        promise));
+}
+
+void TObjectServiceProxy::TReqExecuteBatch::OnResponse(
+    TNullable<TInstant> deadline,
+    TPromise<TRspExecuteBatchPtr> promise,
+    TRspExecuteBatchPtr batchRsp)
+{
+    if (!batchRsp->IsOK()) {
+        promise.Set(batchRsp);
+        return;
+    }
+
+    bool ok = true;
+    for (int index = 0; index < batchRsp->GetSize(); ++index) {
+        auto rsp = batchRsp->GetResponse(index);
+        auto rspError = rsp->GetError();
+        if (IsRetriableError(rspError)) {
+            RetryErrors.push_back(rspError);
+            ok = false;
+        }
+    }
+
+    if (ok) {
+        promise.Set(batchRsp);
+        return;
+    }
+
+    auto now = TInstant::Now();
+    if (deadline && deadline.Get() > now) {
+        ReportError(promise, TError("Request retries timed out"));
+    } else {
+        auto timeout = deadline ? now - deadline.Get() : TNullable<TDuration>();
+        SendRetryingRequest(deadline, timeout, promise);
+    }
+}
+
+void TObjectServiceProxy::TReqExecuteBatch::ReportError(
+    TPromise<TRspExecuteBatchPtr> promise,
+    TError error)
+{
+    error.InnerErrors() = RetryErrors;
+
+    auto batchRsp = New<TRspExecuteBatch>(GetRequestId(), KeyToIndexes);
+    auto responseHandler = IClientResponseHandlerPtr(batchRsp);
+    responseHandler->OnError(error);
+
+    promise.Set(batchRsp);
 }
 
 TObjectServiceProxy::TReqExecuteBatchPtr

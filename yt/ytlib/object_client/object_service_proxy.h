@@ -87,8 +87,23 @@ public:
 
         NProto::TRspExecute Body;
         TKeyToIndexes KeyToIndexes;
+        std::vector<TError> RetryErrors;
 
-        virtual TSharedRef SerializeBody() const;
+        virtual TSharedRef SerializeBody() const override;
+
+        void OnResponse(
+            TNullable<TInstant> deadline,
+            TPromise<TRspExecuteBatchPtr> promise,
+            TRspExecuteBatchPtr response);
+
+        void SendRetryingRequest(
+            TNullable<TInstant> deadline,
+            TNullable<TDuration> timeout,
+            TPromise<TRspExecuteBatchPtr> promise);
+
+        void ReportError(
+            TPromise<TRspExecuteBatchPtr> promise,
+            TError error);
 
     };
 

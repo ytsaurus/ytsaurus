@@ -42,15 +42,20 @@ public:
         YASSERT(Client);
     }
 
-    virtual TNullable<TDuration> GetDefaultTimeout() const
+    virtual TNullable<TDuration> GetDefaultTimeout() const override
     {
         return DefaultTimeout;
+    }
+
+    virtual bool GetRetryEnabled() const override
+    {
+        return false;
     }
 
     virtual void Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        TNullable<TDuration> timeout)
+        TNullable<TDuration> timeout) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -63,7 +68,7 @@ public:
         sessionOrError.Value()->Send(request, responseHandler, timeout);
     }
 
-    virtual void Terminate(const TError& error)
+    virtual void Terminate(const TError& error) override
     {
         YCHECK(!error.IsOK());
         VERIFY_THREAD_AFFINITY_ANY();
@@ -102,7 +107,7 @@ private:
             : Session(session)
         { }
 
-        virtual void OnMessage(IMessagePtr message, IBusPtr replyBus)
+        virtual void OnMessage(IMessagePtr message, IBusPtr replyBus) override
         {
             auto session_ = Session.Lock();
             if (session_) {

@@ -17,7 +17,7 @@ TIntrusivePtr<TTypedResponse> TObjectServiceProxy::TRspExecuteBatch::GetResponse
     int beginIndex = BeginPartIndexes[index];
     int endIndex = beginIndex + Body.part_counts(index);
     if (beginIndex == endIndex) {
-        // This is the empty response.
+        // This is an empty response.
         return NULL;
     }
 
@@ -79,24 +79,17 @@ TObjectServiceProxy::Execute(TIntrusivePtr<TTypedRequest> innerRequest)
 {
     typedef typename TTypedRequest::TTypedResponse TTypedResponse;
 
-    auto innerRequestMessage = innerRequest->Serialize();
-
-    auto outerRequest = Execute();
-    outerRequest->add_part_counts(static_cast<int>(innerRequestMessage->GetParts().size()));
-    outerRequest->Attachments() = innerRequestMessage->GetParts();
-
-    return outerRequest->Invoke().Apply(BIND(
-        [] (TRspExecutePtr outerResponse) -> TIntrusivePtr<TTypedResponse> {
+    auto outerRequest = ExecuteBatch();
+    outerRequest->AddRequest(innerRequest);
+    return outerRequest->Invoke().Apply(BIND([] (TRspExecuteBatchPtr outerResponse) -> TIntrusivePtr<TTypedResponse> {
+        if (outerResponse->IsOK()) {
+            return outerResponse->GetResponse<TTypedResponse>(0);
+        } else {
             auto innerResponse = New<TTypedResponse>();
-            auto error = outerResponse->GetError();
-            if (error.IsOK()) {
-                auto innerResponseMessage = NBus::CreateMessageFromParts(outerResponse->Attachments());
-                innerResponse->Deserialize(innerResponseMessage);
-            } else {
-                innerResponse->SetError(error);
-            }
+            innerResponse->SetError(outerResponse->GetError());
             return innerResponse;
-        }));
+        }
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
