@@ -226,6 +226,12 @@ class TestCypressCommands(YTEnvSetup):
         remove('//tmp/a')
         assert get('//tmp/c/b/@path') == '//tmp/c/b'
 
+    def test_move_simple(self):
+        set('//tmp/a', 1)
+        move('//tmp/a', '//tmp/b')
+        assert get('//tmp/b') == 1
+        with pytest.raises(YTError): get('//tmp/a')
+
     def test_remove_locks(self):
         set('//tmp/a', {'b' : 1})
 

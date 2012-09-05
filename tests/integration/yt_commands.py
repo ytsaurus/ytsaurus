@@ -80,9 +80,6 @@ def run_command(name, *args, **kw):
     debug_info[process.pid] = debug_string
     return process    
 
-
-
-
 ###########################################################################
 
 def lock(path, **kw):
@@ -105,6 +102,9 @@ def create(object_type, path, **kw):
 
 def copy(source_path, destination_path, **kw):
     return command('copy', source_path, destination_path, **kw)
+
+def move(source_path, destination_path, **kw):
+    return command('move', source_path, destination_path, **kw)
 
 def read_str(path, **kw):
     return command('read', path, **kw)
