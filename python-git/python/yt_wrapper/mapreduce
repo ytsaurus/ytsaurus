@@ -30,10 +30,10 @@
 # +++ -upperkey
 # +++ -append
 # +++ -jobcount
-# -threadcount    IS IGNORED
-# -jcmultiplier
+# -threadcount IS IGNORED
+# -jcmultiplier IS IGNORED
 # +++ -chunksize
-# -dynallocmode
+# -dynallocmode IS IGNORED
 # -opt  IS IGNORED
 
 import ast
@@ -70,7 +70,7 @@ def list_all_tables():
             # All other objects are ignored
             pass
     walk("/", yt.get("/", attributes=["type"]))
-    return map(remove_prefix, result)
+    return map(remove_prefix, sorted(result))
 
 def add_eoln(str):
     return str + "\n"
@@ -89,24 +89,70 @@ def add_integer_args(parser, args):
     for arg in flatten(args):
         parser.add_argument("-" + arg, type=int)
 
+def add_help_message(parser, arg_name, message):
+    arg_name = "-" + arg_name
+    args_tuple = parser._get_option_tuples(arg_name)
+    for arg in args_tuple:
+        if arg[1] == arg_name:
+            arg[0].help = message
+            return
+    assert "There is no such option"
+
+def add_help_messages(parser, args):
+    for arg, message in args:
+        add_help_message(parser, arg, message)
+
 if __name__ == "__main__":
     config.FORCE_SORT_IN_REDUCE = True
     config.USE_MAPREDUCE_STYLE_DST_TABLES = True
 
     # TODO(ignat): add unsupported arguments
-    action_stores = ["read", "write", "writesorted", "map", "reduce", "reducews", "drop"]
+    action_stores = ["read", "write", "writesorted", "map", "reduce", "mapreduce", "reducews", "drop"]
     action_flags = ["version", "copy", "sort", "merge", "list"]
 
     parser = ArgumentParser()
-    add_bool_args(parser, action_flags + ["subkey", "lenval", "append"])
+    add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode"])
     add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec"])
-    add_multiple_args(parser, ["src", "dst", "dstappend", "file"] + ["opt", "ytspec"])
-    add_integer_args(parser, ["jobcount", "threadcount", "chunksize"])
+    add_multiple_args(parser, ["src", "dst", "dstappend", "file", "mapfile", "reducefile", "uploaded_file", "opt", "ytspec"])
+    add_integer_args(parser, ["jobcount", "threadcount", "chunksize", "jcmultiplier"])
+
+    add_help_messages(parser,
+        [
+            ("codec",
+             "type of comression used while writing table, "
+             "possible values 'snappy', 'gzip_normal'' (lz4)"),
+            ("server",
+             "name of the proxy, port usually equals to 80 "
+             "and can be ommited in this argument"),
+            ("prefix",
+             "prefix that would add to each passed table, "
+             "each path in YT starts with //, for example '//home/username/my_table'"),
+            ("file",
+             "file for bath map and reduce operations"),
+            ("mapfile",
+             "file for map stage of mapreduce operation"),
+            ("reducefile",
+             "file for reduce stage of mapreduce operation"),
+            ("map",
+             "command for run map operation"),
+            ("reduce",
+             "command for run reduce operation"),
+            ("prefix",
+             "prefix that would add to each passed table, "
+             "each path in YT starts with //, for example '//home/username/my_table'"),
+        ]
+        + 
+        [(name, "this argument is inherited from Yandex Mapreduce and it is ignored")
+         for name in ["threadcount", "jcmultiplier", "dynallocmode", "opt"]
+        ]
+    )
+
     args = parser.parse_args()
 
     actions_count = sum([vars(args)[arg] is not None for arg in action_stores]) + \
                     sum([vars(args)[arg] for arg in action_flags])
-    if actions_count != 1:
+    mapreduce_case = args.map is not None and args.reduce is not None and actions_count == 2
+    if actions_count != 1 and not mapreduce_case:
         print >>sys.stderr, "You should pass exactly one action"
         exit(0)
 
@@ -146,6 +192,14 @@ if __name__ == "__main__":
     if not dst:
         dst = None
 
+    def to_list(arg):
+        if arg is None:
+            return []
+        else:
+            return flatten(arg)
+    map_files = to_list(args.file) + to_list(args.mapfile)
+    reduce_files = to_list(args.file) + to_list(args.reducefile)
+
     config.DEFAULT_FORMAT = config.YamrFormat(lenval=args.lenval, has_subkey=args.subkey)
     if args.list:
         sys.stdout.writelines(imap(add_eoln, list_all_tables()))
@@ -159,10 +213,15 @@ if __name__ == "__main__":
         args.writesorted = yt.Table(args.writesorted, append=args.append)
         yt.write_table(args.writesorted, sys.stdin, codec_id=args.codec)
         yt.set_attribute(args.writesorted.name, "sorted", "true")
-    if args.map is not None:
-        yt.run_map(args.map, args.src, dst, files=args.file, spec=spec)
-    if args.reduce is not None or args.reducews is not None:
-        yt.run_reduce(args.reduce, args.src, dst, files=args.file, spec=spec)
+    if mapreduce_case:
+        yt.run_map_reduce(args.map, args.reduce, args.src, dst,
+                          map_files=map_files, reduce_files=reduce_files,
+                          map_file_paths=args.uploaded_file, reduce_file_paths=args.uploaded_file,
+                          spec=spec)
+    elif args.map is not None:
+        yt.run_map(args.map, args.src, dst, files=map_files, file_paths=args.uploaded_file, spec=spec)
+    elif args.reduce is not None or args.reducews is not None:
+        yt.run_reduce(args.reduce, args.src, dst, files=reduce_files, file_paths=args.uploaded_file, spec=spec)
     if args.drop is not None:
         yt.remove_table(args.drop)
     if args.copy:
