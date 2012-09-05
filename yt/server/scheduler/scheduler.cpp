@@ -226,7 +226,7 @@ private:
             case EOperationState::Completed:
             case EOperationState::Aborted:
             case EOperationState::Failed:
-                LOG_INFO("Operation %s belongs to an expired transaction %s, sweeping",
+                LOG_INFO("Operation %s belongs to an expired transaction %s, unregistering",
                     ~operation->GetOperationId().ToString(),
                     ~operation->GetTransactionId().ToString());
                 break;
@@ -236,7 +236,6 @@ private:
         }
 
         UnregisterOperation(operation);
-        MasterConnector->RemoveOperationNode(operation);
     }
 
     void OnNodeOnline(const Stroka& address)
@@ -324,10 +323,9 @@ private:
 
         // Run async preparation.
         LOG_INFO("Preparing operation %s", ~operation->GetOperationId().ToString());
-        operation->GetController()->Prepare()
-            .Subscribe(
-                BIND(&TThis::OnOperationPrepared, MakeStrong(this), operation)
-            .Via(GetControlInvoker()));
+        operation->GetController()->Prepare().Subscribe(
+            BIND(&TThis::OnOperationPrepared, MakeStrong(this), operation)
+                .Via(GetControlInvoker()));
     }
 
     void OnOperationPrepared(TOperationPtr operation)
@@ -362,7 +360,7 @@ private:
 
         FOREACH (auto operation, operations) {
             LOG_INFO("Reviving operation %s", ~operation->GetOperationId().ToString());
-            operation ->GetController()->Revive().Subscribe(
+            operation->GetController()->Revive().Subscribe(
                 BIND(&TThis::OnOperationRevived, MakeStrong(this), operation)
                 .Via(GetControlInvoker()));
         }
@@ -666,9 +664,9 @@ private:
     
 
     // IOperationHost methods
-    virtual NRpc::IChannelPtr GetMasterChannel() override
+    virtual NRpc::IChannelPtr GetLeaderChannel() override
     {
-        return Bootstrap->GetMasterChannel();
+        return Bootstrap->GetLeaderChannel();
     }
 
     virtual TTransactionManagerPtr GetTransactionManager() override
@@ -723,8 +721,8 @@ private:
 
         operation->GetController()->Commit().Subscribe(
             BIND(&TImpl::OnCompletedOperationCommitted, MakeStrong(this), operation)
-            .Via(GetControlInvoker()));
-    }
+            	.Via(GetControlInvoker()));
+    }	
 
     void OnCompletedOperationCommitted(TOperationPtr operation)
     {
@@ -734,7 +732,7 @@ private:
 
         MasterConnector->FinalizeOperationNode(operation).Subscribe(
             BIND(&TThis::OnCompletedOperationNodeFinalized, MakeStrong(this), operation)
-            .Via(GetControlInvoker()));
+            	.Via(GetControlInvoker()));
     }
     
     void OnCompletedOperationNodeFinalized(TOperationPtr operation, TError finalizeError)

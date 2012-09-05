@@ -423,7 +423,7 @@ void TRemoteWriter::TGroup::CheckSendResponse(
     if (!writer)
         return;
 
-    if (rsp->GetErrorCode() == EErrorCode::PutBlocksFailed) {
+    if (rsp->GetError().GetCode() == EErrorCode::PutBlocksFailed) {
         writer->OnNodeFailed(dstNod);
         return;
     }

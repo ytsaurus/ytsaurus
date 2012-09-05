@@ -110,9 +110,9 @@ bool TClientResponseBase::IsOK() const
     return Error_.IsOK();
 }
 
-int TClientResponseBase::GetErrorCode() const
+TClientResponseBase::operator TError()
 {
-    return Error_.GetCode();
+    return Error_;
 }
 
 void TClientResponseBase::OnError(const TError& error)

@@ -362,8 +362,12 @@ TError operator << (TError error, const TErrorAttribute& attribute)
 
 TError operator << (TError error, const TError& innerError)
 {
-    error.InnerErrors().push_back(innerError);
-    return MoveRV(error);
+    if (error.IsOK()) {
+        return innerError;
+    } else {
+        error.InnerErrors().push_back(innerError);
+        return MoveRV(error);
+    }
 }
 
 TError operator >>= (const TErrorAttribute& attribute, TError error)

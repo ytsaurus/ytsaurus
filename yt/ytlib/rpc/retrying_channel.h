@@ -9,13 +9,13 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRetryConfig
+struct TRetryingChannelConfig
     : public TYsonSerializable
 {
     TDuration BackoffTime;
     int MaxAttempts;
 
-    TRetryConfig()
+    TRetryingChannelConfig()
     {
         Register("backoff_time", BackoffTime)
             .Default(TDuration::Seconds(3));
@@ -40,7 +40,7 @@ struct TRetryConfig
  *  \returns The retrying channel.
  */ 
 IChannelPtr CreateRetryingChannel(
-    TRetryConfigPtr config,
+    TRetryingChannelConfigPtr config,
     IChannelPtr underlyingChannel);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -138,19 +138,19 @@ void TOperationTracker::DumpProgress()
     }
 
     auto batchRsp = batchReq->Invoke().Get();
-    CheckResponse(batchRsp, "Error getting operation progress");
+    THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error getting operation progress");
 
     EOperationState state;
     {
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_state");
-        CheckResponse(rsp, "Error getting operation state");
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation state");
         state = ConvertTo<EOperationState>(TYsonString(rsp->value()));
     }
 
     TYsonString progress;
     {
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_progress");
-        CheckResponse(rsp, "Error getting operation progress");
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation progress");
         progress = TYsonString(rsp->value());
     }
 
@@ -193,24 +193,24 @@ EExitCode TOperationTracker::DumpResult()
     }
     EExitCode exitCode;
     auto batchRsp = batchReq->Invoke().Get();
-    CheckResponse(batchRsp, "Error getting operation result");
+    THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error getting operation result");
     {
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_op_result");
-        CheckResponse(rsp, "Error getting operation result");
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation result");
         auto resultNode = ConvertToNode(TYsonString(rsp->value()));
         auto error = ConvertTo<TError>(GetNodeByYPath(resultNode, "/error"));
         if (error.IsOK()) {
             TInstant startTime;
             {
                 auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_op_start_time");
-                CheckResponse(rsp, "Error getting operation start time");
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation start time");
                 startTime = ConvertTo<TInstant>(TYsonString(rsp->value()));
             }
 
             TInstant endTime;
             {
                 auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_op_end_time");
-                CheckResponse(rsp, "Error getting operation end time");
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation end time");
                 endTime = ConvertTo<TInstant>(TYsonString(rsp->value()));
             }
             TDuration duration = endTime - startTime;
@@ -226,7 +226,7 @@ EExitCode TOperationTracker::DumpResult()
 
     {
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_jobs");
-        CheckResponse(rsp, "Error getting operation jobs info");
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation jobs info");
 
         size_t jobTypeCount = EJobType::GetDomainSize();
         std::vector<int> totalJobCount(jobTypeCount);
@@ -316,7 +316,7 @@ EOperationType TOperationTracker::GetOperationType(const TOperationId& operation
     TObjectServiceProxy proxy(Driver->GetMasterChannel());
     auto req = TYPathProxy::Get(operationPath + "/@operation_type");
     auto rsp = proxy.Execute(req).Get();
-    CheckResponse(rsp, "Error getting operation type");
+    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation type");
     return ConvertTo<EOperationType>(TYsonString(rsp->value()));
 }
 

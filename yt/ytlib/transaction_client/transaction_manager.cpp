@@ -402,7 +402,7 @@ void TTransactionManager::OnPingResponse(
 
     if (!rsp->IsOK()) {
         UnregisterTransaction(id);
-        if (rsp->GetErrorCode() == EYPathErrorCode::ResolveError) {
+        if (rsp->GetError().GetCode() == EYPathErrorCode::ResolveError) {
             LOG_WARNING("Transaction has expired or was aborted (TransactionId: %s)",
                 ~id.ToString());
             transaction->HandleAbort();

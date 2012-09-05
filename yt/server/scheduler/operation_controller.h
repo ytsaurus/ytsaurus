@@ -2,9 +2,17 @@
 
 #include "public.h"
 
+#include <ytlib/misc/error.h>
+
+#include <ytlib/actions/invoker.h>
+
 #include <ytlib/scheduler/job.pb.h>
-#include <ytlib/transaction_client/transaction_manager.h>
+
+#include <ytlib/transaction_client/public.h>
+
 #include <ytlib/ytree/public.h>
+
+#include <ytlib/rpc/public.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -20,7 +28,7 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual NRpc::IChannelPtr GetMasterChannel() = 0;
+    virtual NRpc::IChannelPtr GetLeaderChannel() = 0;
 
     /*!
      *  \note Thread affinity: any

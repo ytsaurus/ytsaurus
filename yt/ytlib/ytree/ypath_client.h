@@ -80,10 +80,8 @@ class TYPathResponse
 public:
     void Deserialize(NBus::IMessagePtr message);
 
-    int GetErrorCode() const;
     bool IsOK() const;
-
-    void ThrowIfError() const;
+    operator TError() const;
 
 protected:
     virtual void DeserializeBody(const TRef& data);

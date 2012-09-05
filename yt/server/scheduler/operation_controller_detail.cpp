@@ -20,6 +20,9 @@
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
+#include <ytlib/transaction_client/transaction_ypath_proxy.h>
+#include <ytlib/transaction_client/transaction_manager.h>
+
 #include <ytlib/scheduler/config.h>
 
 #include <ytlib/table_client/key.h>
@@ -245,7 +248,7 @@ TOperationControllerBase::TOperationControllerBase(
     : Config(config)
     , Host(host)
     , Operation(operation)
-    , ObjectProxy(host->GetMasterChannel())
+    , ObjectProxy(host->GetLeaderChannel())
     , Logger(OperationLogger)
     , Active(false)
     , Running(false)
@@ -742,8 +745,6 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs()
         }
     }
 
-    CommitCustomOutputs(batchReq);
-
     {
         auto req = TTransactionYPathProxy::Commit(FromObjectId(InputTransaction->GetId()));
         batchReq->AddRequest(req, "commit_in_tx");
@@ -771,50 +772,38 @@ void TOperationControllerBase::OnOutputsCommitted(TObjectServiceProxy::TRspExecu
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
-    CheckResponse(batchRsp, "Error committing outputs");
+    THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error committing outputs");
 
     {
         auto rsps = batchRsp->GetResponses("attach_out");
         FOREACH (auto rsp, rsps) {
-            CheckResponse(rsp, "Error attaching chunk trees");
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error attaching chunk trees");
         }
     }
 
     {
         auto rsps = batchRsp->GetResponses("set_out_sorted");
         FOREACH (auto rsp, rsps) {
-            CheckResponse(rsp, "Error marking output table as sorted");
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error marking output table as sorted");
         }
     }
 
-    OnCustomOutputsCommitted(batchRsp);
-
     {
         auto rsp = batchRsp->GetResponse("commit_in_tx");
-        CheckResponse(rsp, "Error committing input transaction");
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error committing input transaction");
     }
 
     {
         auto rsp = batchRsp->GetResponse("commit_out_tx");
-        CheckResponse(rsp, "Error committing output transaction");
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error committing output transaction");
     }
 
     {
         auto rsp = batchRsp->GetResponse("commit_primary_tx");
-        CheckResponse(rsp, "Error committing primary transaction");
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error committing primary transaction");
     }
 
     LOG_INFO("Outputs committed");
-}
-
-void TOperationControllerBase::CommitCustomOutputs(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
-{
-    UNUSED(batchReq);
-}
-
-void TOperationControllerBase::OnCustomOutputsCommitted(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
-{
-    UNUSED(batchRsp);
 }
 
 TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::StartPrimaryTransaction()
@@ -841,11 +830,11 @@ void TOperationControllerBase::OnPrimaryTransactionStarted(TObjectServiceProxy::
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
-    CheckResponse(batchRsp, "Error starting primary transaction");
+    THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error starting primary transaction");
 
     {
         auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_primary_tx");
-        CheckResponse(rsp, "Error starting primary transaction");
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting primary transaction");
         auto id = TTransactionId::FromProto(rsp->object_id());
         LOG_INFO("Primary transaction is %s", ~id.ToString());
         PrimaryTransaction = Host->GetTransactionManager()->Attach(id, true);
@@ -879,11 +868,11 @@ void TOperationControllerBase::OnSecondaryTransactionsStarted(TObjectServiceProx
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
-    CheckResponse(batchRsp, "Error starting secondary transactions");
+    THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error starting secondary transactions");
 
     {
         auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_in_tx");
-        CheckResponse(rsp, "Error starting input transaction");
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting input transaction");
         auto id = TTransactionId::FromProto(rsp->object_id());
         LOG_INFO("Input transaction is %s", ~id.ToString());
         InputTransaction = Host->GetTransactionManager()->Attach(id, true);
@@ -891,7 +880,7 @@ void TOperationControllerBase::OnSecondaryTransactionsStarted(TObjectServiceProx
 
     {
         auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_out_tx");
-        CheckResponse(rsp, "Error starting output transaction");
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting output transaction");
         auto id = TTransactionId::FromProto(rsp->object_id());
         LOG_INFO("Output transaction is %s", ~id.ToString());
         OutputTransaction = Host->GetTransactionManager()->Attach(id, true);
@@ -926,7 +915,7 @@ void TOperationControllerBase::OnObjectIdsReceived(TObjectServiceProxy::TRspExec
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
-    CheckResponse(batchRsp, "Error getting object ids");
+    THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error getting object ids");
 
     {
         auto getInIdRsps = batchRsp->GetResponses<TObjectYPathProxy::TRspGetId>("get_in_id");
@@ -934,7 +923,7 @@ void TOperationControllerBase::OnObjectIdsReceived(TObjectServiceProxy::TRspExec
             auto& table = InputTables[index];
             {
                 auto rsp = getInIdRsps[index];
-                CheckResponse(
+                THROW_ERROR_EXCEPTION_IF_FAILED(*
                     rsp,
                     Sprintf("Error getting id for input table %s", ~table.Path.GetPath()));
                 table.ObjectId = TObjectId::FromProto(rsp->object_id());
@@ -948,7 +937,7 @@ void TOperationControllerBase::OnObjectIdsReceived(TObjectServiceProxy::TRspExec
             auto& table = OutputTables[index];
             {
                 auto rsp = getOutIdRsps[index];
-                CheckResponse(
+                THROW_ERROR_EXCEPTION_IF_FAILED(*
                     rsp,
                     Sprintf("Error getting id for output table %s",
                         ~table.Path.GetPath()));
@@ -1028,7 +1017,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
         }
     }
 
-    CustomRequestInputs(batchReq);
+    RequestCustomInputs(batchReq);
 
     return batchReq->Invoke();
 }
@@ -1037,7 +1026,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
-    CheckResponse(batchRsp, "Error requesting inputs");
+    THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error requesting inputs");
 
     {
         auto fetchInRsps = batchRsp->GetResponses<TTableYPathProxy::TRspFetch>("fetch_in");
@@ -1048,7 +1037,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
             auto& table = InputTables[index];
             {
                 auto rsp = lockInRsps[index];
-                CheckResponse(
+                THROW_ERROR_EXCEPTION_IF_FAILED(*
                     rsp,
                     Sprintf("Error locking input table %s", ~table.Path.GetPath()));
                 LOG_INFO("Input table %s was locked successfully",
@@ -1056,7 +1045,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
             }
             {
                 auto rsp = fetchInRsps[index];
-                CheckResponse(
+                THROW_ERROR_EXCEPTION_IF_FAILED(*
                     rsp,
                     Sprintf("Error fetching input input table %s", ~table.Path.GetPath()));
                 table.FetchResponse = rsp;
@@ -1075,7 +1064,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
             }
             {
                 auto rsp = getInSortedRsps[index];
-                CheckResponse(
+                THROW_ERROR_EXCEPTION_IF_FAILED(*
                     rsp,
                     Sprintf("Error getting \"sorted\" attribute for input table %s", ~table.Path.GetPath()));
                 table.Sorted = ConvertTo<bool>(TYsonString(rsp->value()));
@@ -1085,7 +1074,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
             }
             if (table.Sorted) {
                 auto rsp = getInKeyColumns[index];
-                CheckResponse(
+                THROW_ERROR_EXCEPTION_IF_FAILED(*
                     rsp,
                     Sprintf("Error getting \"sorted_by\" attribute for input table %s",
                         ~table.Path.GetPath()));
@@ -1107,7 +1096,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
             auto& table = OutputTables[index];
             {
                 auto rsp = lockOutRsps[index];
-                CheckResponse(
+                THROW_ERROR_EXCEPTION_IF_FAILED(*
                     rsp,
                     Sprintf("Error locking output table %s",
                         ~table.Path.GetPath()));
@@ -1116,7 +1105,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
             }
             {
                 auto rsp = getOutChannelsRsps[index];
-                CheckResponse(
+                THROW_ERROR_EXCEPTION_IF_FAILED(*
                     rsp,
                     Sprintf("Error getting channels for output table %s",
                         ~table.Path.GetPath()));
@@ -1127,7 +1116,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
             }
             {
                 auto rsp = getOutRowCountRsps[index];
-                CheckResponse(
+                THROW_ERROR_EXCEPTION_IF_FAILED(*
                     rsp,
                     Sprintf("Error getting \"row_count\" attribute for output table %s",
                         ~table.Path.GetPath()));
@@ -1135,7 +1124,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
             }
             if (table.Clear) {
                 auto rsp = clearOutRsps[index];
-                CheckResponse(
+                THROW_ERROR_EXCEPTION_IF_FAILED(*
                     rsp,
                     Sprintf("Error clearing output table %s",
                         ~table.Path.GetPath()));
@@ -1144,7 +1133,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
             }
             {
                 auto rsp = getOutChunkListRsps[index];
-                CheckResponse(
+                THROW_ERROR_EXCEPTION_IF_FAILED(*
                     rsp,
                     Sprintf("Error getting output chunk list for table %s",
                         ~table.Path.GetPath()));
@@ -1162,7 +1151,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
             auto& file = Files[index];
             {
                 auto rsp = fetchFilesRsps[index];
-                CheckResponse(rsp, "Error fetching files");
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching files");
                 file.FetchResponse = rsp;
                 LOG_INFO("File %s consists of chunk %s",
                     ~file.Path.GetPath(),
@@ -1176,7 +1165,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
     LOG_INFO("Inputs received");
 }
 
-void TOperationControllerBase::CustomRequestInputs(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
+void TOperationControllerBase::RequestCustomInputs(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
 {
     UNUSED(batchReq);
 }
@@ -1193,7 +1182,7 @@ void TOperationControllerBase::CompletePreparation()
     LOG_INFO("Completing preparation");
 
     ChunkListPool = New<TChunkListPool>(
-        Host->GetMasterChannel(),
+        Host->GetLeaderChannel(),
         Host->GetControlInvoker(),
         Operation,
         PrimaryTransaction->GetId());

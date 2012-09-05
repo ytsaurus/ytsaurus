@@ -42,7 +42,7 @@ public:
         NCellScheduler::TBootstrap* bootstrap)
         : Config(config)
         , Bootstrap(bootstrap)
-        , ObjectProxy(bootstrap->GetMasterChannel())
+        , ObjectProxy(bootstrap->GetLeaderChannel())
     { }
 
     void Start()
@@ -53,9 +53,8 @@ public:
                 // Registration was successful, bail out.
                 break;
             } catch (const std::exception& ex) {
-                LOG_WARNING("Registration failed, will retry in %s\n%s",
-                    ~ToString(Config->StartupRetryPeriod),
-                    ex.what());
+                LOG_WARNING(ex, "Registration failed, will retry in %s\n%s",
+                    ~ToString(Config->StartupRetryPeriod));
                 Sleep(Config->StartupRetryPeriod);
             }
         }

@@ -79,7 +79,7 @@ void TBootstrap::Run()
         ~PeerAddress,
         ~JoinToString(Config->Masters->Addresses));
 
-    MasterChannel = CreateLeaderChannel(Config->Masters);
+    LeaderChannel = CreateLeaderChannel(Config->Masters);
 
     ControlQueue = New<TFairShareActionQueue>(EControlQueue::GetDomainSize(), "Control");
 
@@ -89,7 +89,7 @@ void TBootstrap::Run()
 
     TransactionManager = New<TTransactionManager>(
         Config->TransactionManager,
-        MasterChannel);
+        LeaderChannel);
 
     Scheduler = New<TScheduler>(Config->Scheduler, this);
 
@@ -154,9 +154,9 @@ TCellSchedulerConfigPtr TBootstrap::GetConfig() const
     return Config;
 }
 
-IChannelPtr TBootstrap::GetMasterChannel() const
+IChannelPtr TBootstrap::GetLeaderChannel() const
 {
-    return MasterChannel;
+    return LeaderChannel;
 }
 
 Stroka TBootstrap::GetPeerAddress() const

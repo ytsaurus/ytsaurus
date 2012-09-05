@@ -131,7 +131,7 @@ private:
                 return;
             }
             
-            if (response->GetErrorCode() == NRpc::EErrorCode::Timeout) {
+            if (response->GetError().GetCode() == NRpc::EErrorCode::Timeout) {
                 SendPing(id);
             } else {
                 SchedulePing(id);

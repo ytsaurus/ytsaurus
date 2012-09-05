@@ -105,21 +105,14 @@ void TYPathResponse::Deserialize(IMessagePtr message)
     }
 }
 
-int TYPathResponse::GetErrorCode() const
-{
-    return Error_.GetCode();
-}
-
 bool TYPathResponse::IsOK() const
 {
     return Error_.IsOK();
 }
 
-void TYPathResponse::ThrowIfError() const
+TYPathResponse::operator TError() const
 {
-    if (!IsOK()) {
-        THROW_ERROR Error_;
-    }
+    return Error_;
 }
 
 void TYPathResponse::DeserializeBody(const TRef& data)
@@ -330,21 +323,21 @@ void SyncYPathSet(IYPathServicePtr service, const TYPath& path, const TYsonStrin
     auto request = TYPathProxy::Set(path);
     request->set_value(value.Data());
     auto response = ExecuteVerb(service, request).Get();
-    response->ThrowIfError();
+    THROW_ERROR_EXCEPTION_IF_FAILED(*response);
 }
 
 void SyncYPathRemove(IYPathServicePtr service, const TYPath& path)
 {
     auto request = TYPathProxy::Remove(path);
     auto response = ExecuteVerb(service, request).Get();
-    response->ThrowIfError();
+    THROW_ERROR_EXCEPTION_IF_FAILED(*response);
 }
 
 std::vector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path)
 {
     auto request = TYPathProxy::List(path);
     auto response = ExecuteVerb(service, request).Get();
-    response->ThrowIfError();
+    THROW_ERROR_EXCEPTION_IF_FAILED(*response);
     return ConvertTo<std::vector<Stroka> >(TYsonString(response->keys()));
 }
 

@@ -18,7 +18,7 @@ struct TDriverConfig
     : public TYsonSerializable
 {
     NMetaState::TMasterDiscoveryConfigPtr Masters;
-    NRpc::TRetryConfigPtr MasterRetries;
+    NRpc::TRetryingChannelConfigPtr MasterRetries;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NFileClient::TFileReaderConfigPtr FileReader;
     NFileClient::TFileWriterConfigPtr FileWriter;

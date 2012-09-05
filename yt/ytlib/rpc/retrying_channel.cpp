@@ -24,7 +24,7 @@ class TRetryingChannel
 {
 public:
     TRetryingChannel(
-        TRetryConfigPtr config,
+        TRetryingChannelConfigPtr config,
         IChannelPtr underlyingChannel);
 
     virtual TNullable<TDuration> GetDefaultTimeout() const;
@@ -37,13 +37,13 @@ public:
     virtual void Terminate(const TError& error);
 
 private:
-    TRetryConfigPtr Config;
+    TRetryingChannelConfigPtr Config;
     IChannelPtr UnderlyingChannel;
 
 };
 
 IChannelPtr CreateRetryingChannel(
-    TRetryConfigPtr config,
+    TRetryingChannelConfigPtr config,
     IChannelPtr underlyingChannel)
 {
     return New<TRetryingChannel>(
@@ -58,7 +58,7 @@ class TRetryingRequest
 {
 public:
     TRetryingRequest(
-        TRetryConfigPtr config,
+        TRetryingChannelConfigPtr config,
         IChannelPtr underlyingChannel,
         IClientRequestPtr request,
         IClientResponseHandlerPtr originalHandler,
@@ -94,7 +94,7 @@ public:
     }
 
 private:
-    TRetryConfigPtr Config;
+    TRetryingChannelConfigPtr Config;
     IChannelPtr UnderlyingChannel;
 
     //! The current attempt number (1-based).
@@ -189,7 +189,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TRetryingChannel::TRetryingChannel(
-    TRetryConfigPtr config,
+    TRetryingChannelConfigPtr config,
     IChannelPtr underlyingChannel)
     : UnderlyingChannel(underlyingChannel)
     , Config(config)

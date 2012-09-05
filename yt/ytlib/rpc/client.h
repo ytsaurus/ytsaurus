@@ -184,8 +184,8 @@ class TClientResponseBase
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
 
 public:
-    int GetErrorCode() const;
     bool IsOK() const;
+    operator TError();
 
 protected:
     explicit TClientResponseBase(const TRequestId& requestId);

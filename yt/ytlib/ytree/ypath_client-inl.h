@@ -30,7 +30,7 @@ TIntrusivePtr<typename TTypedRequest::TTypedResponse>
 SyncExecuteVerb(IYPathServicePtr service, TIntrusivePtr<TTypedRequest> request)
 {
     auto response = ExecuteVerb(service, request).Get();
-    response->ThrowIfError();
+    THROW_ERROR_EXCEPTION_IF_FAILED(*response);
     return response;
 }
 

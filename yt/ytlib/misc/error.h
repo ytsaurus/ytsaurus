@@ -144,8 +144,12 @@ TErrorException operator <<= (TErrorException ex, const TError& error);
         ::NYT::TErrorException() <<= \
         ERROR_SOURCE_LOCATION() >>= \
 
-#define THROW_ERROR_EXCEPTION \
-    THROW_ERROR NYT::TError
+#define THROW_ERROR_EXCEPTION(...) \
+    THROW_ERROR NYT::TError(__VA_ARGS__)
+
+#define THROW_ERROR_EXCEPTION_IF_FAILED(error, ...) \
+    if (!(error).IsOK()) \
+        THROW_ERROR NYT::TError(__VA_ARGS__) << (error)
 
 ////////////////////////////////////////////////////////////////////////////////
 

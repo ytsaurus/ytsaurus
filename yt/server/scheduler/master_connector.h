@@ -4,8 +4,12 @@
 
 #include <ytlib/actions/signal.h>
 #include <ytlib/ytree/public.h>
-#include <server/cell_scheduler/public.h>
+
+#include <ytlib/object_client/public.h>
 #include <ytlib/object_client/object_service_proxy.h>
+
+#include <server/cell_scheduler/public.h>
+
 #include <server/chunk_server/public.h>
 
 namespace NYT {
