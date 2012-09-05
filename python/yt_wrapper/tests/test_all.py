@@ -370,9 +370,9 @@ class YtTest(YTEnv):
 
 
 if __name__ == "__main__":
-    suite = unittest.TestSuite()
-    suite.addTest(YtTest("test_reformatting"))
-    unittest.TextTestRunner().run(suite)
-    #unittest.main()
+    #suite = unittest.TestSuite()
+    #suite.addTest(YtTest("test_reformatting"))
+    #unittest.TextTestRunner().run(suite)
+    unittest.main()
 
 
