@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import config
 from common import YtError
+from format import RawFormat
 
 import requests
 
@@ -40,9 +41,17 @@ def make_request(http_method, request_type, params,
         url = "{0}?{1}".format(url, urlencode(params))
         params = {}
 
+    if isinstance(format, RawFormat):
+        input_format_key = "X-YT-Input-Format"
+        output_format_key = "X-YT-Output-Format"
+    else:
+        input_format_key = "Content-Type"
+        output_format_key = "Accept"
+
+
     headers = {"User-Agent": "Python wrapper",
-               "Content-Type": mime_type,
-               "Accept": mime_type}
+               input_format_key: mime_type,
+               output_format_key: mime_type}
 
 
     print_info("Request url:", url)
