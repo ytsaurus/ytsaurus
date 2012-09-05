@@ -89,7 +89,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
              out='//tmp/t_out',
              sort_by='foo')
 
-    def test_missing_column(self):
+    def test_megalomaniac(self):
         v1 = {'key' : 'aaa'}
         v2 = {'key' : 'bb'}
         v3 = {'key' : 'bbxx'}
@@ -103,7 +103,8 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         sort(in_='//tmp/t_in',
              out='//tmp/t_out',
-             sort_by='missing_key')
+             sort_by='missing_key',
+	     opt='/spec/partition_count=2')
 
         assert len(read('//tmp/t_out')) == 5 # check only the number of raws
 
@@ -159,7 +160,11 @@ class TestSchedulerSortCommands(YTEnvSetup):
         create('table', input)
         create('table', output)
         write(input, [{'key': num} for num in xrange(5, 0, -1)])
-        sort(in_=[input], out=output, sort_by='key', **kwargs)
+
+	args = {'in_': [input], 'out' : output, 'sort_by' : 'key'}
+	args.update(kwargs)
+	
+        sort(**args)
         assert read(output) == [{'key': num} for num in xrange(1, 6)]
 
     def test_one_partition_no_merge(self):
