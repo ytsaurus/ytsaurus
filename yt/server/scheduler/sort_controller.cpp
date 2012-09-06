@@ -1036,7 +1036,7 @@ protected:
         return static_cast<i64>((double) TotalInputValueCount * dataSize / TotalInputDataSize);
     }
 
-    int SuggestGetPartitionCount() const
+    int SuggestPartitionCount() const
     {
         YCHECK(TotalInputDataSize > 0);
         int minSuggestion = static_cast<int>(ceil((double) TotalInputDataSize / Spec->MaxPartitionDataSize));
@@ -1134,7 +1134,7 @@ private:
                 return NewPromise< TValueOrError<void> >();
             }
 
-            return SamplesFetcher->Run(SuggestGetPartitionCount() * Spec->SamplesPerPartition);
+            return SamplesFetcher->Run(SuggestPartitionCount() * Spec->SamplesPerPartition);
         }
     }
 
@@ -1171,7 +1171,7 @@ private:
     {
         // Use partition count provided by user, if given.
         // Otherwise use size estimates.
-        int partitionCount = SuggestGetPartitionCount();
+        int partitionCount = SuggestPartitionCount();
 
         // Don't create more partitions than we have samples (plus one).
         partitionCount = std::min(partitionCount, static_cast<int>(SortedSamples.size()) + 1);
@@ -1348,7 +1348,7 @@ private:
         }
 
         {
-            SortedMergeJobIOConfig = BuildJobIOConfig(Config->SortedMergeJobIO, Spec->MergeJobIO);
+            SortedMergeJobIOConfig = BuildJobIOConfig(Config->SortedMergeJobIO, Spec->MergeJobIOf);
             InitIntermediateInputConfig(SortedMergeJobIOConfig);
         }
 
@@ -1688,7 +1688,7 @@ private:
     {
         // Use partition count provided by user, if given.
         // Otherwise use size estimates.
-        int partitionCount = SuggestGetPartitionCount();
+        int partitionCount = SuggestPartitionCount();
 
         // Don't create more partitions than allowed by the global config.
         partitionCount = std::min(partitionCount, Config->MaxPartitionCount);

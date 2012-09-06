@@ -359,7 +359,7 @@ struct TMapReduceOperationSpec
         Register("map_job_slice_data_size", PartitionJobSliceDataSize)
             .Default((i64) 256 * 1024 * 1024)
             .GreaterThan(0);
-        Register("min_data_size_per_map_job", MaxDataSizePerPartitionJob)
+        Register("min_data_size_per_map_job", MinDataSizePerPartitionJob)
             .Default((i64) 128 * 1024 * 1024)
             .GreaterThan(0);
         Register("max_data_size_per_map_job", MaxDataSizePerPartitionJob)
