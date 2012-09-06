@@ -1,5 +1,6 @@
 #!/bin/sh -eux
 
+set +x
 echo -e "4\t5\t6\n1\t2\t3" > table_file
 
 rm -f big_file
@@ -9,6 +10,7 @@ for i in {1..10}; do
     done
     echo -e "$i\tX\tX" >> big_file
 done
+set -x
 
 test_base_functionality()
 {
@@ -79,30 +81,45 @@ test_input_output_format()
     ./mapreduce -subkey -write "ignat/temp" <table_file
 
     echo -e "#!/usr/bin/env python
-import os
 import sys
 
 if __name__ == '__main__':
     for line in sys.stdin:
         pass
 
-    for descr in range(3, 6):
-        os.write(descr, 'k={0}\\\ts={0}\\\tv={0}\\\n'.format(descr))
+    for i in range(5):
+        sys.stdout.write('k={0}\\\ts={0}\\\tv={0}\\\n'.format(i))
     " >reformat.py
 
-    ./mapreduce -subkey -outputformat "dsv" -map "./reformat.py" -src "ignat/tmp" -dst "ignat/reformatted"
+    ./mapreduce -subkey -outputformat "dsv" -map "python reformat.py" -file "reformat.py" -src "ignat/temp" -dst "ignat/reformatted"
     ./mapreduce -dsv -read "ignat/reformatted"
 
     rm reformat.py
 }
 
+test_transactions()
+{
+    ./mapreduce -subkey -write "ignat/temp" <table_file
+    TX=`./mapreduce -start_tx`
+    ./mapreduce -subkey -write "ignat/temp" -append -tx "$TX" < table_file
+    ./mapreduce -set "ignat/temp/@my_attr"  -value 10 -tx "$TX"
+    
+    ./mapreduce -get "ignat/temp/@my_attr"
+    ./mapreduce -read "ignat/temp" | wc -l
+    
+    ./mapreduce -commit_tx "$TX"
+    
+    ./mapreduce -get "ignat/temp/@my_attr"
+    ./mapreduce -read "ignat/temp" | wc -l
+}
 
 #test_base_functionality
 #test_codec
 #test_many_output_tables
 #test_chunksize
-#test_mapreduce
-test_input_output_format
+test_mapreduce
+#test_input_output_format
+#test_transactions
 
 rm -f table_file big_file
 
