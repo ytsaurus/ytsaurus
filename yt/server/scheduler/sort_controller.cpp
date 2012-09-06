@@ -1423,8 +1423,11 @@ private:
     virtual TNodeResources GetPartitionResources(
         i64 dataSize) const override
     {
-        i64 bufferSize = std::min(PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()), dataSize);
-        bufferSize = std::min(bufferSize, PartitionJobIOConfig->TableWriter->MaxBufferSize);
+        i64 bufferSize = std::min(std::min(
+            PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()),
+            // TODO(babenko): remove 1.2 coefficient when chunked buffers are ready
+            PartitionJobIOConfig->TableWriter->MaxBufferSize * 5/4),
+            dataSize);
 
         TNodeResources result;
         result.set_slots(1);
@@ -1834,7 +1837,8 @@ private:
     {
         i64 bufferSize = std::min(
             PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()), 
-            PartitionJobIOConfig->TableWriter->MaxBufferSize);
+            // TODO(babenko): remove 1.2 coefficient when chunked buffers are ready
+            PartitionJobIOConfig->TableWriter->MaxBufferSize * 5/4);
 
         TNodeResources result;
         result.set_slots(1);
