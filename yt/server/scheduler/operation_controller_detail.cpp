@@ -1459,17 +1459,19 @@ std::vector<TRichYPath> TOperationControllerBase::GetFilePaths() const
     return std::vector<TRichYPath>();
 }
 
-int TOperationControllerBase::GetJobCount(
+int TOperationControllerBase::SuggestJobCount(
     i64 totalDataSize,
-    i64 dataSizePerJob,
+    i64 minDataSizePerJob,
+    i64 maxDataSizePerJob,
     TNullable<int> configJobCount,
     int chunkCount)
 {
-    int result = configJobCount
-        ? configJobCount.Get()
-        : static_cast<int>(std::ceil((double) totalDataSize / dataSizePerJob));
+    int minSuggestion = static_cast<int>(std::ceil((double) totalDataSize / maxDataSizePerJob));
+    int maxSuggestion = static_cast<int>(std::ceil((double) totalDataSize / minDataSizePerJob));
+    int result = configJobCount.Get(minSuggestion);
     result = std::min(result, chunkCount);
-    YCHECK(result > 0);
+    result = std::min(result, maxSuggestion);
+    result = std::max(result, 1);
     return result;
 }
 
