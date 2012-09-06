@@ -88,27 +88,32 @@ struct TSchedulerConfig
             .GreaterThan(0);
         Register("map_job_io", MapJobIO)
             .DefaultNew();
+        MapJobIO->TableReader->PrefetchWindow = 10;
+
         Register("sorted_merge_job_io", SortedMergeJobIO)
             .DefaultNew();
         Register("ordered_merge_job_io", OrderedMergeJobIO)
             .DefaultNew();
         Register("unordered_merge_job_io", UnorderedMergeJobIO)
             .DefaultNew();
+        UnorderedMergeJobIO->TableReader->PrefetchWindow = 10;
+
         Register("sorted_reduce_job_io", SortedReduceJobIO)
             .DefaultNew();
         Register("partition_reduce_job_io", PartitionReduceJobIO)
             .DefaultNew();
+        PartitionReduceJobIO->TableReader->PrefetchWindow = 10;
+
         Register("partition_job_io", PartitionJobIO)
             .DefaultNew();
+        PartitionJobIO->TableReader->PrefetchWindow = 10;
+        PartitionJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
+
         Register("simple_sort_job_io", SimpleSortJobIO)
             .DefaultNew();
         Register("partition_sort_job_io", PartitionSortJobIO)
             .DefaultNew();
-        UnorderedMergeJobIO->TableReader->PrefetchWindow = 10;
         PartitionSortJobIO->TableReader->PrefetchWindow = 10;
-        PartitionReduceJobIO->TableReader->PrefetchWindow = 10;
-
-        PartitionJobIO->TableWriter->MaxBufferSize = 2l * 1024 * 1024 * 1024; // 2 GB
     }
 };
 
