@@ -1348,7 +1348,7 @@ private:
         }
 
         {
-            SortedMergeJobIOConfig = BuildJobIOConfig(Config->SortedMergeJobIO, Spec->MergeJobIOf);
+            SortedMergeJobIOConfig = BuildJobIOConfig(Config->SortedMergeJobIO, Spec->MergeJobIO);
             InitIntermediateInputConfig(SortedMergeJobIOConfig);
         }
 
