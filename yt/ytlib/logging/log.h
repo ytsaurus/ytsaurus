@@ -98,7 +98,7 @@ inline Stroka FormatLogMessage(const T& obj)
     return ToString(obj);
 }
 
-inline Stroka printf_format(1,2) FormatLogMessage(const TError& error, const char* format, ...)
+inline Stroka printf_format(2,3) FormatLogMessage(const TError& error, const char* format, ...)
 {
     Stroka result;
     va_list params;
