@@ -233,6 +233,16 @@ def _prepare_formats(format, input_format, output_format):
     if output_format is None: output_format = format
     return input_format, output_format
 
+def _filter_empty_tables(tables):
+    filtered = []
+    for table in tables:
+        if not exists(table.name):
+            print >>sys.stderr, "Warning: input table '%s' does not exist" % table.name
+        else:
+            filtered.append(table)
+    tables = filtered
+    #source_table = filter(lambda table: exists(table.name), source_table)
+
 def run_operation(binary, source_table, destination_table,
                   files, file_paths, 
                   format, input_format, output_format,
@@ -257,16 +267,8 @@ def run_operation(binary, source_table, destination_table,
         merge_tables(source_table, temp_table, "ordered")
         source_table = [temp_table]
 
-    filtered = []
-    for table in source_table:
-        if not exists(table.name):
-            print >>sys.stderr, "Warning: input table '%s' does not exist" % table.name
-        else:
-            filtered.append(table)
-    source_table = filtered
+    _filter_empty_tables(source_table)
 
-
-    #source_table = filter(lambda table: exists(table.name), source_table)
     for table in source_table:
         if op_type == "reduce" and config.FORCE_SORT_IN_REDUCE and not is_sorted(table.name):
             sort_table(table.name)

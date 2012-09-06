@@ -1,4 +1,4 @@
-from path_tools import escape_path, split_path, dirs
+from path_tools import escape_path, split_path, dirs, split_table_ranges
 from http import make_request
 
 import os
@@ -33,19 +33,42 @@ def list(path):
     return make_request("GET", "list", {"path": escape_path(path)})
 
 def exists(path):
+    # TODO(ignat): this function is very hacky because of
+    # path can contain table ranges and attribute delimiter
+    # The right way is to add this functionality to driver
+    def find_attributes_switch(str):
+        index = 0
+        while index < len(str):
+            pos = path.find("/@", index)
+            if pos > 0 and str[pos - 1] == "\\":
+                index = pos + 1
+            else:
+                return pos
+        return -1
+
+    def check_tree_existance(path, objects_tree):
+        cur_path = "/"
+        for elem in split_path(path):
+            if objects_tree is None:
+                objects_tree = get(cur_path)
+            if not isinstance(objects_tree, dict) or elem not in objects_tree:
+                return False
+            else:
+                objects_tree = objects_tree[elem]
+                cur_path = os.path.join(cur_path, elem)
+        return True
+
     if path == "/":
         return True
-    objects = get("/")
-    cur_path = "/"
-    for elem in split_path(path):
-        if objects is None:
-            objects = get(cur_path)
-        if not isinstance(objects, dict) or elem not in objects:
-            return False
-        else:
-            objects = objects[elem]
-            cur_path = os.path.join(cur_path, elem)
-    return True
+
+    attr_switch = find_attributes_switch(path)
+    if attr_switch != -1:
+        main_part = path[:attr_switch]
+        attr_part = path[attr_switch + 2:]
+        return check_tree_existance(main_part, get("/")) and \
+               (attr_part == "" or check_tree_existance(attr_part, get(main_part + "/@")))
+    else:
+        return check_tree_existance(split_table_ranges(path)[0], get("/"))
 
 def remove(path):
     if exists(path):
