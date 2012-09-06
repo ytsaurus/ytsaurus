@@ -15,6 +15,7 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/periodic_invoker.h>
 #include <ytlib/misc/string.h>
+#include <ytlib/misc/address.h>
 
 #include <ytlib/actions/action_queue.h>
 
@@ -242,6 +243,10 @@ private:
     void OnNodeOnline(const Stroka& address)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        // XXX(babenko): Force the scheduler to precache node's DNS address.
+        // Consider removing this.
+        TAddressResolver::Get()->Resolve(Stroka(GetServiceHostName(address)));
 
         auto node = New<TExecNode>(address);
         RegisterNode(node);
