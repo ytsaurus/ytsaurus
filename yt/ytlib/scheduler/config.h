@@ -65,6 +65,7 @@ struct TMapOperationSpec
     std::vector<NYTree::TRichYPath> OutputTablePaths;
     TNullable<int> JobCount;
     i64 JobSliceDataSize;
+    i64 MinDataSizePerJob;
     i64 MaxDataSizePerJob;
     TDuration LocalityTimeout;
     NYTree::INodePtr JobIO;
@@ -79,6 +80,9 @@ struct TMapOperationSpec
             .GreaterThan(0);
         Register("job_slice_data_size", JobSliceDataSize)
             .Default((i64) 256 * 1024 * 1024)
+            .GreaterThan(0);
+        Register("min_data_size_per_job", MinDataSizePerJob)
+            .Default((i64) 128 * 1024 * 1024)
             .GreaterThan(0);
         Register("max_data_size_per_job", MaxDataSizePerJob)
             .Default((i64) 1024 * 1024 * 1024)
@@ -197,21 +201,17 @@ struct TSortOperationSpecBase
     //! Only used if no partitioning is done.
     i64 SortJobSliceDataSize;
 
+    //! Minimum amount of (uncompressed) data to be given to a single partition job.
+    i64 MinDataSizePerPartitionJob;
+
     //! Maximum amount of (uncompressed) data to be given to a single partition job.
     i64 MaxDataSizePerPartitionJob;
 
-    //! Maximum amount of (uncompressed) data to be given to a single sort job.
-    //! By default, the number of partitions is computed as follows:
-    //! \code
-    //! partitionCount = ceil(totalDataSize / MaxDataSizePerSortJob * PartitionCountBoostFactor)
-    //! \endcode
-    //! The user, however, may override this by specifying #PartitionCount explicitly.
-    //! Here #PartitionCountBoostFactor accounts for uneven partition sizes and
-    //! enables to fit most of sort jobs into #MaxWeightPerSortJob.
-    i64 MaxDataSizePerSortJob;
+    i64 MinPartitionDataSize;
+    i64 MaxPartitionDataSize;
 
-    //! See comments for #MaxWeightPerSortJob.
-    double PartitionCountBoostFactor;
+    //! Maximum amount of (uncompressed) data to be given to a single sort job.
+    i64 MaxDataSizePerSortJob;
 
     //! Maximum amount of (uncompressed) data to be given to a single unordered merge job
     //! that takes care of a megalomaniac partition.
@@ -232,12 +232,15 @@ struct TSortOperationSpecBase
         Register("partition_count", PartitionCount)
             .Default()
             .GreaterThan(0);
+        Register("min_partition_data_size", MinPartitionDataSize)
+            .Default((i64) 128 * 1024 * 1024)
+            .GreaterThan(0);
+        Register("max_partition_data_size", MaxPartitionDataSize)
+            .Default((i64) 1500 * 1024 * 1024)
+            .GreaterThan(0);
         Register("max_data_size_per_sort_job", MaxDataSizePerSortJob)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
-        Register("partition_count_boost_factor", PartitionCountBoostFactor)
-            .Default(1.5)
-            .GreaterThanOrEqual(1.0);
         Register("shuffle_start_threshold", ShuffleStartThreshold)
             .Default(0.75)
             .InRange(0.0, 1.0);
@@ -297,6 +300,9 @@ struct TSortOperationSpec
         Register("sort_job_slice_data_size", SortJobSliceDataSize)
             .Default((i64) 256 * 1024 * 1024)
             .GreaterThan(0);
+        Register("min_data_size_per_partition_job", MinDataSizePerPartitionJob)
+            .Default((i64) 128 * 1024 * 1024)
+            .GreaterThan(0);
         Register("max_data_size_per_partition_job", MaxDataSizePerPartitionJob)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
@@ -352,6 +358,9 @@ struct TMapReduceOperationSpec
             .GreaterThan(0);
         Register("map_job_slice_data_size", PartitionJobSliceDataSize)
             .Default((i64) 256 * 1024 * 1024)
+            .GreaterThan(0);
+        Register("min_data_size_per_map_job", MaxDataSizePerPartitionJob)
+            .Default((i64) 128 * 1024 * 1024)
             .GreaterThan(0);
         Register("max_data_size_per_map_job", MaxDataSizePerPartitionJob)
             .Default((i64) 1024 * 1024 * 1024)

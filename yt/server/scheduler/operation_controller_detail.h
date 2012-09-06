@@ -431,9 +431,10 @@ protected:
         TNullable<int> jobCount,
         i64 jobSliceWeight);
 
-    static int GetJobCount(
-        i64 totalWeight,
-        i64 weightPerJob,
+    static int SuggestJobCount(
+        i64 totalDataSize,
+        i64 minDataSizePerJob,
+        i64 maxDataSizePerJob,
         TNullable<int> configJobCount,
         int chunkCount);
 

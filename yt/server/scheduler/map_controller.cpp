@@ -187,8 +187,9 @@ private:
                 return NewPromise<void>();
             }
 
-            TotalJobCount = GetJobCount(
+            TotalJobCount = SuggestJobCount(
                 MapTask->DataSizeCounter().GetTotal(),
+                Spec->MinDataSizePerJob,
                 Spec->MaxDataSizePerJob,
                 Spec->JobCount,
                 MapTask->ChunkCounter().GetTotal());
