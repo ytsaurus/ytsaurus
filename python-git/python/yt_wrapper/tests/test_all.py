@@ -281,6 +281,9 @@ class YtTest(YTEnv):
                               format=yt.DsvFormat()),
             [{"b": "ignat"}, {"b": "max"}])
 
+        self.assertEqual(
+            self.read_records(table + '{b}[:#2]', format=yt.DsvFormat()),
+            [{"b": "ignat"}, {"b": "max"}])
 
     def test_merge(self):
         table = self.create_temp_table()
@@ -368,10 +371,18 @@ class YtTest(YTEnv):
                         .next().strip().split("\t"))),
             ["k", "s", "v"])
 
+    def test_table_ranges_with_exists(self):
+        table = self.create_temp_table()
+        self.assertTrue(yt.exists(table))
+        self.assertTrue(yt.exists(table + "/@"))
+        self.assertTrue(yt.exists(table + "/@compression_ratio"))
+        self.assertTrue(len(yt.list_attributes(table)) > 1)
+        self.assertTrue(len(yt.get_attribute(table, "channels")) == 0)
+
 
 if __name__ == "__main__":
     #suite = unittest.TestSuite()
-    #suite.addTest(YtTest("test_reformatting"))
+    #suite.addTest(YtTest("test_range_operations"))
     #unittest.TextTestRunner().run(suite)
     unittest.main()
 

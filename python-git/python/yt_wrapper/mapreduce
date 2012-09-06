@@ -105,7 +105,7 @@ def add_help_messages(parser, args):
 def parse_format(format):
     return None if format is None else yt.RawFormat(format)
 
-if __name__ == "__main__":
+def main():
     # TODO(ignat): remove it
     config.PROXY = "n01-0650g.yt.yandex.net:8080"
 
@@ -173,7 +173,7 @@ if __name__ == "__main__":
     if args.server is not None:
         config.PROXY = args.server
     if args.prefix is not None:
-        PREFIX = args.prefix
+        config.PREFIX = args.prefix
 
     spec = {}
     if vars(args)["ytspec"] is not None:
@@ -268,3 +268,6 @@ if __name__ == "__main__":
         yt.abort_transaction(args.abort_tx, args.ping)
     if args.renew_tx is not None:
         yt.renew_transaction(args.renew_tx, args.ping)
+
+if __name__ == "__main__":
+    main()
