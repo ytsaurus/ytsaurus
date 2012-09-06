@@ -8,6 +8,7 @@ from tree_commands import exists, remove, get_attribute, copy, mkdir, find_free_
 from file_commands import upload_file
 
 import os
+import sys
 import types
 import simplejson as json
 from itertools import imap, ifilter
@@ -93,14 +94,13 @@ def read_table(table, format=None):
         return str + "\n"
     if format is None: format = config.DEFAULT_FORMAT
     table = to_table(table)
-    print "table", table.name
     if not exists(table.name):
         return []
     response = make_request("GET", "read",
                             {"path": get_yson_name(table)}, format=format,
-                            raw_response=True, verbose=True)
-    return response.iter_lines(chunk_size=config.READ_BUFFER_SIZE)
+                            raw_response=True)
     return imap(add_eoln, ifilter(bool, response.iter_lines(chunk_size=config.READ_BUFFER_SIZE)))
+    #return response.iter_lines(chunk_size=config.READ_BUFFER_SIZE)
 
 def remove_table(table):
     if exists(table) and get_attribute(table, "type") == "table":
@@ -256,7 +256,17 @@ def run_operation(binary, source_table, destination_table,
         temp_table = create_temp_table(config.TEMP_TABLES_STORAGE, "map_operation")
         merge_tables(source_table, temp_table, "ordered")
         source_table = [temp_table]
-    source_table = filter(lambda table: exists(table.name), source_table)
+
+    filtered = []
+    for table in source_table:
+        if not exists(table.name):
+            print >>sys.stderr, "Warning: input table '%s' does not exist" % table.name
+        else:
+            filtered.append(table)
+    source_table = filtered
+
+
+    #source_table = filter(lambda table: exists(table.name), source_table)
     for table in source_table:
         if op_type == "reduce" and config.FORCE_SORT_IN_REDUCE and not is_sorted(table.name):
             sort_table(table.name)
