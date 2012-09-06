@@ -93,11 +93,13 @@ def read_table(table, format=None):
         return str + "\n"
     if format is None: format = config.DEFAULT_FORMAT
     table = to_table(table)
+    print "table", table.name
     if not exists(table.name):
         return []
     response = make_request("GET", "read",
                             {"path": get_yson_name(table)}, format=format,
-                            raw_response=True)
+                            raw_response=True, verbose=True)
+    return response.iter_lines(chunk_size=config.READ_BUFFER_SIZE)
     return imap(add_eoln, ifilter(bool, response.iter_lines(chunk_size=config.READ_BUFFER_SIZE)))
 
 def remove_table(table):
@@ -310,15 +312,17 @@ def run_reduce(binary, source_table, destination_table,
                   op_type="reduce")
 
 def run_map_reduce(mapper, reducer, source_table, destination_table,
-                   format=None, strategy=None, spec=None,
+                   format=None, input_format=None, output_format=None,
+                   strategy=None, spec=None,
                    map_files=None, reduce_files=None,
                    map_file_paths=None, reduce_file_paths=None,
                    sort_by=None, reduce_by=None):
     if strategy is None: strategy = config.DEFAULT_STRATEGY
-    if format is None: format = config.DEFAULT_FORMAT
     if reduce_by is None and sort_by is None:
         sort_by = ["key", "subkey"]
         reduce_by = ["key"]
+    
+    input_format, output_format = _prepare_formats(format, input_format, output_format)
     
     run_map_reduce.spec = {} if spec is None else spec
     run_map_reduce.files_to_remove = []
@@ -333,7 +337,8 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
             run_map_reduce.spec = update(run_map_reduce.spec, 
                 {
                     spec_keyword: {
-                        "format": format.to_json(),
+                        "input_format": input_format.to_json(),
+                        "output_format": output_format.to_json(),
                         "command": binary,
                         "file_paths": flatten(files + file_paths)
                     }

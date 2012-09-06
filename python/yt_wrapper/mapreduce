@@ -106,16 +106,21 @@ def parse_format(format):
     return None if format is None else yt.RawFormat(format)
 
 if __name__ == "__main__":
+    # TODO(ignat): remove it
+    config.PROXY = "n01-0650g.yt.yandex.net:8080"
+
     config.FORCE_SORT_IN_REDUCE = True
     config.USE_MAPREDUCE_STYLE_DST_TABLES = True
 
     # TODO(ignat): add unsupported arguments
-    action_stores = ["read", "write", "writesorted", "map", "reduce", "mapreduce", "reducews", "drop"]
-    action_flags = ["version", "copy", "sort", "merge", "list"]
+    action_stores = ["read", "write", "writesorted", "map", "reduce", "mapreduce", "reducews", "drop",
+                     "abort_tx", "commit_tx", "renew_tx", "set", "get"]
+    action_flags = ["version", "copy", "sort", "merge", "list", "start_tx"]
 
     parser = ArgumentParser()
-    add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv"])
-    add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec", "inputformat", "outputformat"])
+    add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "ping"])
+    add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec",
+                                            "inputformat", "outputformat", "tx", "value"])
     add_multiple_args(parser, ["src", "dst", "dstappend", "file", "mapfile", "reducefile", "uploaded_file", "opt", "ytspec"])
     add_integer_args(parser, ["jobcount", "threadcount", "chunksize", "jcmultiplier"])
 
@@ -160,7 +165,7 @@ if __name__ == "__main__":
         exit(0)
 
     if args.version:
-        print "Version: wrapper on YT distributed system"
+        print "Version: YT wrapper"
         exit(0)
 
     if args.chunksize is not None:
@@ -182,7 +187,7 @@ if __name__ == "__main__":
     for option in ["src", "dst", "dstappend"]:
         if vars(args)[option] is not None:
             vars(args)[option] = map(method, vars(args)[option])
-    for option in ["read", "write", "writesorted", "drop"]:
+    for option in ["read", "write", "writesorted", "drop", "get", "set"]:
         if vars(args)[option] is not None:
             vars(args)[option] = method(vars(args)[option])
 
@@ -229,11 +234,14 @@ if __name__ == "__main__":
         yt.run_map_reduce(args.map, args.reduce, args.src, dst,
                           map_files=map_files, reduce_files=reduce_files,
                           map_file_paths=args.uploaded_file, reduce_file_paths=args.uploaded_file,
+                          input_format=args.inputformat, output_format=args.outputformat,
                           spec=spec)
     elif args.map is not None:
-        yt.run_map(args.map, args.src, dst, files=map_files, file_paths=args.uploaded_file, spec=spec)
+        yt.run_map(args.map, args.src, dst, files=map_files, file_paths=args.uploaded_file,
+                   input_format=args.inputformat, output_format=args.outputformat, spec=spec)
     elif args.reduce is not None or args.reducews is not None:
-        yt.run_reduce(args.reduce, args.src, dst, files=reduce_files, file_paths=args.uploaded_file, spec=spec)
+        yt.run_reduce(args.reduce, args.src, dst, files=reduce_files, file_paths=args.uploaded_file,
+                      input_format=args.inputformat, output_format=args.outputformat, spec=spec)
     if args.drop is not None:
         yt.remove_table(args.drop)
     if args.copy:
@@ -242,3 +250,21 @@ if __name__ == "__main__":
         yt.sort_table(args.src, unlist(dst), spec=spec)
     if args.merge:
         yt.merge_tables(args.src, unlist(dst), mode="sorted", spec=spec)
+
+    if args.set:
+        if args.value is None:
+            print >>sys.stderr, "Value option is necessary for set command"
+            exit(1)
+        yt.set(args.set, args.value)
+    if args.get:
+        if yt.exists(args.get):
+            print yt.get(args.get)
+
+    if args.start_tx:
+        print yt.start_transaction(args.tx, args.ping)
+    if args.commit_tx is not None:
+        yt.commit_transaction(args.commit_tx, args.ping)
+    if args.abort_tx is not None:
+        yt.abort_transaction(args.abort_tx, args.ping)
+    if args.renew_tx is not None:
+        yt.renew_transaction(args.renew_tx, args.ping)

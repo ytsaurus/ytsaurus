@@ -1,7 +1,6 @@
 from format import YamrFormat
 
-#PROXY = "proxy.yt.yandex.net"
-PROXY = "n01-0650g.yt.yandex.net"
+PROXY = "proxy.yt.yandex.net"
 DEFAULT_FORMAT = YamrFormat(has_subkey=True, lenval=False)
 WAIT_TIMEOUT = 5.0
 WRITE_BUFFER_SIZE = 10 ** 8
