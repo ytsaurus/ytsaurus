@@ -189,7 +189,7 @@ struct TResponseKeeperConfig
     TResponseKeeperConfig()
     {
         Register("expiration_period", ExpirationPeriod)
-            .Default(TDuration::Minutes(5));
+            .Default(TDuration::Seconds(60));
         Register("sweep_period", SweepPeriod)
             .Default(TDuration::Seconds(5));
     }
