@@ -31,6 +31,9 @@ class YtTest(YTEnv):
         if os.path.exists("test.log"):
             os.remove("test.log")
         logging.basicConfig(level=logging.WARNING)
+        
+        config.PROXY = "n01-0650g.yt.yandex.net:8080"
+        return
 
         ports = {
             "master": 18001,
@@ -45,6 +48,7 @@ class YtTest(YTEnv):
     
     @classmethod
     def tearDownClass(cls):
+        return
         cls.env.clear_environment()
     
     def setUp(self):
@@ -381,9 +385,9 @@ class YtTest(YTEnv):
 
 
 if __name__ == "__main__":
-    #suite = unittest.TestSuite()
-    #suite.addTest(YtTest("test_range_operations"))
-    #unittest.TextTestRunner().run(suite)
-    unittest.main()
+    suite = unittest.TestSuite()
+    suite.addTest(YtTest("test_reformatting"))
+    unittest.TextTestRunner().run(suite)
+    #unittest.main()
 
 

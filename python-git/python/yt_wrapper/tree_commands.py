@@ -1,5 +1,6 @@
 from path_tools import escape_path, split_path, dirs, split_table_ranges
 from http import make_request
+import config
 
 import os
 import string
@@ -11,6 +12,7 @@ def get(path, check_errors=True, attributes=None):
     return make_request("GET", "get",
                         # Hacky way to pass attributes into url
                         dict(
+                            [("transaction_id", config.TRANSACTION)] +
                             [("path", escape_path(path))] +
                             [("attributes[%d]" % i, attributes[i]) for i in xrange(len(attributes))]
                         ),
@@ -19,18 +21,23 @@ def get(path, check_errors=True, attributes=None):
                         check_errors=check_errors)
 
 def set(path, value):
-    return make_request("PUT", "set", {"path": escape_path(path)}, value)
+    return make_request("PUT", "set",
+                        {"path": escape_path(path),
+                         "transaction_id": config.TRANSACTION}, value)
 
 def copy(source_path, destination_path):
     return make_request("POST", "copy",
                         {"source_path": escape_path(source_path),
-                         "destination_path": escape_path(destination_path)})
+                         "destination_path": escape_path(destination_path),
+                         "transaction_id": config.TRANSACTION})
 
 def list(path):
     if not exists(path):
         # TODO(ignat):think about throwing exception here
         return []
-    return make_request("GET", "list", {"path": escape_path(path)})
+    return make_request("GET", "list",
+            {"path": escape_path(path),
+             "transaction_id": config.TRANSACTION})
 
 def exists(path):
     # TODO(ignat): this function is very hacky because of
@@ -72,7 +79,9 @@ def exists(path):
 
 def remove(path):
     if exists(path):
-        return make_request("POST", "remove", {"path": escape_path(path)})
+        return make_request("POST", "remove",
+                {"path": escape_path(path),
+                 "transaction_id": config.TRANSACTION})
     # TODO(ignat):think about throwing exception here
     return None
 
