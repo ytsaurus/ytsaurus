@@ -191,10 +191,12 @@ void ResolveYPath(
         try {
             result = currentService->Resolve(currentPath, verb);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error during YPath resolution (Path: %s, Verb: %s, ResolvedPath: %s)",
+            THROW_ERROR_EXCEPTION(
+                EYPathErrorCode::ResolveError,
+                "Error resolving path %s for %s",
                 ~path,
-                ~verb,
-                ~ComputeResolvedYPath(path, currentPath))
+                ~verb)
+                << TErrorAttribute("resolved_path", TRawString(ComputeResolvedYPath(path, currentPath)))
                 << ex;
         }
 
@@ -213,7 +215,6 @@ void OnYPathResponse(
     TPromise<IMessagePtr> asyncResponseMessage,
     const TYPath& path,
     const Stroka& verb,
-    const TYPath& resolvedPath,
     IMessagePtr responseMessage)
 {
     NRpc::NProto::TResponseHeader responseHeader;
@@ -224,13 +225,7 @@ void OnYPathResponse(
     if (error.IsOK()) {
         asyncResponseMessage.Set(responseMessage);
     } else {
-        auto wrappedError = TError("Error executing a YPath operation (Path: %s, Verb: %s, ResolvedPath: %s)",
-            ~path,
-            ~verb,
-            ~resolvedPath)
-            << error;
-        ToProto(responseHeader.mutable_error(), wrappedError);
-
+        ToProto(responseHeader.mutable_error(), error);
         auto updatedResponseMessage = SetResponseHeader(responseMessage, responseHeader);
         asyncResponseMessage.Set(updatedResponseMessage);
     }
@@ -259,9 +254,7 @@ ExecuteVerb(
             &suffixService,
             &suffixPath);
     } catch (const std::exception& ex) {
-        TError error(ex);
-        error.SetCode(EYPathErrorCode::ResolveError);
-        auto responseMessage = NRpc::CreateErrorResponseMessage(error);
+        auto responseMessage = CreateErrorResponseMessage(ex);
         return MakeFuture(responseMessage);
     }
 
@@ -278,8 +271,7 @@ ExecuteVerb(
             &OnYPathResponse,
             asyncResponseMessage,
             path,
-            verb,
-            ComputeResolvedYPath(path, suffixPath)));
+            verb));
 
     // This should never throw.
     suffixService->Invoke(context);
