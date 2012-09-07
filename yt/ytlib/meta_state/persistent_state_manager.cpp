@@ -375,9 +375,8 @@ public:
             snapshotFile = new TFile(fileName, OpenExisting | RdOnly);
         }
         catch (const std::exception& ex) {
-            LOG_FATAL("IO error while opening snapshot %d\n%s",
-                snapshotId,
-                ex.what());
+            LOG_FATAL(ex, "IO error while opening snapshot %d",
+                snapshotId);
         }
 
         IOQueue->GetInvoker()->Invoke(context->Wrap(BIND([=] () {
@@ -389,9 +388,8 @@ public:
                 snapshotFile->Seek(offset, sSet);
                 bytesRead = snapshotFile->Read(&*data.begin(), length);
             } catch (const std::exception& ex) {
-                LOG_FATAL("IO error while reading snapshot %d\n%s",
-                    snapshotId,
-                    ex.what());
+                LOG_FATAL(ex, "IO error while reading snapshot %d",
+                    snapshotId);
             }
 
             data.erase(data.begin() + bytesRead, data.end());
@@ -469,9 +467,8 @@ public:
         try {
             changeLog->Read(startRecordId, recordCount, &recordData);
         } catch (const std::exception& ex) {
-            LOG_FATAL("IO error while reading changelog %d\n%s",
-                changeLog->GetId(),
-                ex.what());
+            LOG_FATAL(ex, "IO error while reading changelog %d",
+                changeLog->GetId());
         }
 
         // Pack refs to minimize allocations.
@@ -524,7 +521,7 @@ public:
 
                     auto error = FollowerRecovery->PostponeMutations(version, request->Attachments());
                     if (!error.IsOK()) {
-                        LOG_WARNING("Error postponing mutations, restarting\n%s", ~ToString(error));
+                        LOG_WARNING(error, "Error postponing mutations, restarting");
                         Restart();
                     }
 
@@ -534,9 +531,10 @@ public:
                     LOG_DEBUG("ApplyChange: ignoring changes (Version: %s, ChangeCount: %d)",
                         ~version.ToString(),
                         changeCount);
-                    context->Reply(
+                    context->Reply(TError(
                         EErrorCode::InvalidStatus,
-                        Sprintf("Ping is not received yet (Status: %s)", ~GetControlStatus().ToString()));
+                        "Ping is not received yet (Status: %s)",
+                        ~GetControlStatus().ToString()));
                 }
                 break;
             }
@@ -814,7 +812,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         if (!result.IsOK()) {
-            LOG_ERROR("Error committing mutation, restarting\n%s", ~ToString(result));
+            LOG_ERROR(result, "Error committing mutation, restarting");
             Restart();
         }
 
@@ -908,7 +906,7 @@ public:
         LeaderRecovery.Reset();
 
         if (!error.IsOK()) {
-            LOG_WARNING("Leader recovery failed, restarting\n%s", ~ToString(error));
+            LOG_WARNING(error, "Leader recovery failed, restarting");
             Restart();
             return;
         }
@@ -1028,8 +1026,7 @@ public:
         FollowerRecovery.Reset();
 
         if (!error.IsOK()) {
-            LOG_WARNING("Follower recovery failed, restarting\n%s",
-                ~ToString(error));
+            LOG_WARNING(error, "Follower recovery failed, restarting");
             Restart();
             return;
         }
