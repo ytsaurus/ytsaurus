@@ -35,7 +35,7 @@ test_base_functionality()
 test_codec()
 {
     ./mapreduce -write "ignat/temp" -codec "none" <table_file
-    ./mapreduce -write "ignat/temp" -codec "gzip_best_compression" <table_file
+    ./mapreduce -write "ignat/temp" -codec "gzip_best_compression" -replication_factor 5 <table_file
 }
 
 test_many_output_tables()
@@ -113,13 +113,45 @@ test_transactions()
     ./mapreduce -read "ignat/temp" | wc -l
 }
 
-#test_base_functionality
-#test_codec
-#test_many_output_tables
-#test_chunksize
+test_range_map()
+{
+    ./mapreduce -subkey -write "ignat/temp" <table_file
+    ./mapreduce -subkey -map 'awk '"'"'{sum+=$1+$2} END {print "\t\t"sum}'"'" -src "ignat/temp{key,subkey}" -dst "ignat/sum"
+    ./mapreduce -read "ignat/sum"
+}
+
+test_uploaded_files()
+{
+    ./mapreduce -subkey -write "ignat/temp" <table_file
+    
+    echo -e "#!/usr/bin/env python
+import sys
+
+if __name__ == '__main__':
+    for line in sys.stdin:
+        pass
+
+    for i in range(5):
+        sys.stdout.write('{0}\\\t{1}\\\t{2}\\\n'.format(i, i * i, i * i * i))
+    " >mapper.py
+    chmod +x mapper.py
+    ./mapreduce -upload mapper.py -dst ignat/mapper.py
+    
+    ./mapreduce -subkey -map "./mapper.py" -ytfile "ignat/mapper.py" -src "ignat/temp" -dst "ignat/mapped"
+    ./mapreduce -subkey -read "ignat/mapped" | wc -l
+
+    rm -f mapper.py
+}
+
+test_base_functionality
+test_codec
+test_many_output_tables
+test_chunksize
 test_mapreduce
-#test_input_output_format
-#test_transactions
+test_input_output_format
+test_transactions
+test_range_map
+test_uploaded_files
 
 rm -f table_file big_file
 

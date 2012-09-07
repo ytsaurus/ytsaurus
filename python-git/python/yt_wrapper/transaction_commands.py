@@ -1,10 +1,11 @@
+import config
+
 from http import make_request
 
-
 def start_transaction(parent_transaction=None, ping_ansector_transactions=False):
-    params = {"ping_ansector_transactions": ping_ansector_transactions}
-    if parent_transaction is not None:
-        params["transaction_id"] = parent_transaction
+    if parent_transaction is None: parent_transaction = config.TRANSACTION
+    params = {"ping_ansector_transactions": ping_ansector_transactions,
+              "transaction_id": parent_transaction}
     return make_request("POST", "start_tx", params)
 
 def abort_transaction(transaction, ping_ansector_transactions=False):

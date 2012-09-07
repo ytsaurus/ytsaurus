@@ -30,11 +30,11 @@
 # +++ -upperkey
 # +++ -append
 # +++ -jobcount
-# -threadcount IS IGNORED
-# -jcmultiplier IS IGNORED
+# +++ -threadcount IS IGNORED
+# +++ -jcmultiplier IS IGNORED
 # +++ -chunksize
-# -dynallocmode IS IGNORED
-# -opt  IS IGNORED
+# +++ -dynallocmode IS IGNORED
+# +++ -opt  IS IGNORED
 
 import ast
 import yt
@@ -114,14 +114,14 @@ def main():
 
     # TODO(ignat): add unsupported arguments
     action_stores = ["read", "write", "writesorted", "map", "reduce", "mapreduce", "reducews", "drop",
-                     "abort_tx", "commit_tx", "renew_tx", "set", "get"]
+                     "erase", "abort_tx", "commit_tx", "renew_tx", "set", "get", "upload", "download"]
     action_flags = ["version", "copy", "sort", "merge", "list", "start_tx"]
 
     parser = ArgumentParser()
     add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "ping"])
     add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec",
-                                            "inputformat", "outputformat", "tx", "value"])
-    add_multiple_args(parser, ["src", "dst", "dstappend", "file", "mapfile", "reducefile", "uploaded_file", "opt", "ytspec"])
+                                            "inputformat", "outputformat", "tx", "value", "replication_factor"])
+    add_multiple_args(parser, ["src", "dst", "dstappend", "file", "mapfile", "reducefile", "ytfile", "opt", "ytspec"])
     add_integer_args(parser, ["jobcount", "threadcount", "chunksize", "jcmultiplier"])
 
     add_help_messages(parser,
@@ -184,7 +184,7 @@ def main():
 
     # Fix table names
     method = add_prefix
-    for option in ["src", "dst", "dstappend"]:
+    for option in ["src", "dst", "dstappend", "ytfile"]:
         if vars(args)[option] is not None:
             vars(args)[option] = map(method, vars(args)[option])
     for option in ["read", "write", "writesorted", "drop", "get", "set"]:
@@ -218,6 +218,16 @@ def main():
     args.inputformat = parse_format(args.inputformat)
     args.outputformat = parse_format(args.outputformat)
 
+    if args.tx is not None:
+        config.TRANSACTION = args.tx
+
+    table_writer = {}
+    if args.codec is not None:
+        table_writer["codec_id"] = args.codec
+    if args.replication_factor is not None:
+        table_writer["replication_factor"] = args.replication_factor
+        table_writer["upload_replication_factor"] = args.replication_factor
+
     if args.list:
         sys.stdout.writelines(imap(add_eoln, list_all_tables()))
     if args.read is not None:
@@ -225,31 +235,42 @@ def main():
             yt.Table(args.read, lower_key=args.lowerkey, upper_key=args.upperkey)))
     if args.write is not None:
         args.write = yt.Table(args.write, append=args.append)
-        yt.write_table(args.write, sys.stdin, codec_id=args.codec)
+        yt.write_table(args.write, sys.stdin, table_writer=table_writer)
     if args.writesorted is not None:
         args.writesorted = yt.Table(args.writesorted, append=args.append)
-        yt.write_table(args.writesorted, sys.stdin, codec_id=args.codec)
+        yt.write_table(args.writesorted, sys.stdin, table_writer=table_writer)
         yt.set_attribute(args.writesorted.name, "sorted", "true")
     if mapreduce_case:
         yt.run_map_reduce(args.map, args.reduce, args.src, dst,
                           map_files=map_files, reduce_files=reduce_files,
-                          map_file_paths=args.uploaded_file, reduce_file_paths=args.uploaded_file,
+                          map_file_paths=args.ytfile, reduce_file_paths=args.ytfile,
                           input_format=args.inputformat, output_format=args.outputformat,
-                          spec=spec)
+                          table_writer=table_writer, spec=spec)
     elif args.map is not None:
-        yt.run_map(args.map, args.src, dst, files=map_files, file_paths=args.uploaded_file,
-                   input_format=args.inputformat, output_format=args.outputformat, spec=spec)
+        yt.run_map(args.map, args.src, dst, files=map_files, file_paths=args.ytfile,
+                   input_format=args.inputformat, output_format=args.outputformat,
+                   table_writer=table_writer, spec=spec)
     elif args.reduce is not None or args.reducews is not None:
-        yt.run_reduce(args.reduce, args.src, dst, files=reduce_files, file_paths=args.uploaded_file,
-                      input_format=args.inputformat, output_format=args.outputformat, spec=spec)
+        yt.run_reduce(args.reduce, args.src, dst, files=reduce_files, file_paths=args.ytfile,
+                      input_format=args.inputformat, output_format=args.outputformat,
+                      table_writer=table_writer, spec=spec)
     if args.drop is not None:
         yt.remove_table(args.drop)
     if args.copy:
         yt.copy_table(args.src, unlist(dst))
     if args.sort:
-        yt.sort_table(args.src, unlist(dst), spec=spec)
+        yt.sort_table(args.src, unlist(dst), table_writer=table_writer, spec=spec)
     if args.merge:
-        yt.merge_tables(args.src, unlist(dst), mode="sorted", spec=spec)
+        yt.merge_tables(args.src, unlist(dst), mode="sorted", table_writer=table_writer, spec=spec)
+
+    if args.erase is not None:
+        yt.erase(args.erase)
+    if args.upload is not None:
+        if yt.exists(dst[0]):
+            yt.remove(dst[0])
+        yt.upload_file(args.upload, destination=dst[0])
+    if args.download is not None:
+        sys.stdout.writelines(yt.download_file(args.download))
 
     if args.set:
         if args.value is None:
