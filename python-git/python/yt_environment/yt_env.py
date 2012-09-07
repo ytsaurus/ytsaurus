@@ -319,7 +319,7 @@ class YTEnv(unittest.TestCase):
         self._run_ytserver('scheduler', [config_path], self._ports["scheduler"])
 
         def scheduler_ready():
-            good_marker = 'Scheduler address published'
+            good_marker = 'Master connected'
 
             log = config['logging']['writers']['file']['file_name']
             if not os.path.exists(log): return False
