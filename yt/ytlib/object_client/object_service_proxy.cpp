@@ -33,8 +33,9 @@ TObjectServiceProxy::TReqExecuteBatch::Invoke()
         return promise;
     } else {
         auto batchRsp = New<TRspExecuteBatch>(GetRequestId(), KeyToIndexes);
+        auto promise = batchRsp->GetAsyncResult();
         DoInvoke(batchRsp);
-        return batchRsp->GetAsyncResult();
+        return promise;
     }
 }
 
