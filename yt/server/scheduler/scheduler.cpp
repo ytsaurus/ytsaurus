@@ -845,7 +845,7 @@ private:
     void ValidateConnected()
     {
         if (!MasterConnector->IsConnected()) {
-            THROW_ERROR_EXCEPTION("Scheduler is currently not connected to master, try later");
+            THROW_ERROR_EXCEPTION("Scheduler is not connected to master, try later");
         }
     }
 
