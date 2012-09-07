@@ -279,12 +279,17 @@ void ToProto(NYT::NProto::TError* protoError, const TError& error)
     
     if (!error.GetMessage().empty()) {
         protoError->set_message(error.GetMessage());
+    } else {
+        protoError->clear_message();
     }
 
     if (!error.Attributes().List().empty()) {
         ToProto(protoError->mutable_attributes(), error.Attributes());
+    } else {
+        protoError->clear_attributes();
     }
 
+    protoError->clear_inner_errors();
     FOREACH (const auto& innerError, error.InnerErrors()) {
         ToProto(protoError->add_inner_errors(), innerError);
     }
