@@ -46,14 +46,14 @@ from argparse import ArgumentParser
 from functools import partial
 from itertools import imap
 
-PREFIX = "//statbox/"
+config.PREFIX = "//statbox/"
 
 def add_prefix(table):
-    return PREFIX + table
+    return config.PREFIX + table
 
 def remove_prefix(table):
-    if table.startswith(PREFIX):
-        return table[len(PREFIX):]
+    if table.startswith(config.PREFIX):
+        return table[len(config.PREFIX):]
     return table
 
 def list_all_tables():
@@ -61,7 +61,7 @@ def list_all_tables():
     def walk(path, object):
         object_type = object["$attributes"]["type"]
         if object_type == "table":
-            if path.startswith(PREFIX):
+            if path.startswith(config.PREFIX):
                 result.append(path)
         elif object_type == "map_node" and object["$value"] is not None:
             for key, value in object["$value"].iteritems():
@@ -106,9 +106,6 @@ def parse_format(format):
     return None if format is None else yt.RawFormat(format)
 
 def main():
-    # TODO(ignat): remove it
-    config.PROXY = "n01-0650g.yt.yandex.net:8080"
-
     config.FORCE_SORT_IN_REDUCE = True
     config.USE_MAPREDUCE_STYLE_DST_TABLES = True
 
