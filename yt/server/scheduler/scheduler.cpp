@@ -226,7 +226,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        AbortAndClearOperations(TError("Master disconnected"));
+        AbortOperations(TError("Master disconnected"));
     }
 
 
@@ -398,7 +398,7 @@ private:
             ~operation->GetOperationId().ToString());
     }
 
-    void AbortAndClearOperations(const TError& error)
+    void AbortOperations(const TError& error)
     {
         FOREACH (const auto& pair, Operations) {
             auto operation = pair.second;
