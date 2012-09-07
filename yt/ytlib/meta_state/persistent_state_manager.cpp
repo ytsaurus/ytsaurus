@@ -271,9 +271,7 @@ public:
                 "No active quorum")));
         }
 
-        return
-            LeaderCommitter
-            ->Commit(request)
+        return LeaderCommitter->Commit(request)
             .Apply(BIND(&TThis::OnMutationCommitted, MakeStrong(this)));
     }
 
@@ -507,8 +505,7 @@ public:
                     ~version.ToString(),
                     changeCount);
 
-                FollowerCommitter
-                    ->Commit(version, request->Attachments())
+                FollowerCommitter->Commit(version, request->Attachments())
                     .Subscribe(BIND(&TThis::OnFollowerCommitted, MakeStrong(this), context));
                 break;
             }
@@ -875,7 +872,7 @@ public:
             ChangeLogCache,
             QuorumTracker,
             EpochContext->EpochId,
-            EpochControlInvoker,
+            ControlInvoker,
             EpochStateInvoker);
         LeaderCommitter->SubscribeMutationApplied(BIND(&TThis::OnMutationApplied, MakeWeak(this)));
 
@@ -1042,7 +1039,7 @@ public:
         YCHECK(!FollowerCommitter);
         FollowerCommitter = New<TFollowerCommitter>(
             DecoratedState,
-            EpochControlInvoker,
+            ControlInvoker,
             EpochStateInvoker);
 
         YCHECK(!SnapshotBuilder);

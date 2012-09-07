@@ -31,19 +31,19 @@ static NProfiling::TProfiler& Profiler = MetaStateProfiler;
 
 TCommitter::TCommitter(
     TDecoratedMetaStatePtr metaState,
-    IInvokerPtr epochControlInvoker,
+    IInvokerPtr controlInvoker,
     IInvokerPtr epochStateInvoker)
     : MetaState(metaState)
-    , EpochControlInvoker(epochControlInvoker)
+    , ControlInvoker(controlInvoker)
     , EpochStateInvoker(epochStateInvoker)
     , CommitCounter("/commit_rate")
     , BatchCommitCounter("/commit_batch_rate")
     , CommitTimeCounter("/commit_time")
 {
-    YASSERT(metaState);
-    YASSERT(epochControlInvoker);
-    YASSERT(epochStateInvoker);
-    VERIFY_INVOKER_AFFINITY(epochControlInvoker, ControlThread);
+    YCHECK(metaState);
+    YCHECK(controlInvoker);
+    YCHECK(epochStateInvoker);
+    VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
     VERIFY_INVOKER_AFFINITY(epochStateInvoker, StateThread);
 }
 
@@ -64,7 +64,6 @@ public:
         , StartVersion(startVersion)
         // The local commit is also counted.
         , CommitSuccessCount(0)
-        , IsSent(false)
         , Logger(MetaStateLogger)
     {
         Logger.AddTag(Sprintf("StartVersion: %s", ~StartVersion.ToString()));
@@ -73,7 +72,6 @@ public:
     TAsyncError AddMutation(const TSharedRef& recordData)
     {
         VERIFY_THREAD_AFFINITY(Committer.Lock()->StateThread);
-        YASSERT(!IsSent);
 
         TMetaVersion currentVersion(
             StartVersion.SegmentId,
@@ -95,7 +93,7 @@ public:
         auto committer = Committer.Lock();
 
         Logger.AddTag(Sprintf("MutationCount: %d", static_cast<int>(BatchedRecordsData.size())));
-        committer->EpochControlInvoker->Invoke(BIND(
+        committer->ControlInvoker->Invoke(BIND(
             &TBatch::DoFlushMutations,
             MakeStrong(this),
             rotateChangeLog));
@@ -104,7 +102,6 @@ public:
     int GetMutationCount() const
     {
         VERIFY_THREAD_AFFINITY(Committer.Lock()->StateThread);
-        YASSERT(!IsSent);
 
         return static_cast<int>(BatchedRecordsData.size());
     }
@@ -115,9 +112,7 @@ private:
         auto committer = Committer.Lock();
 
         VERIFY_THREAD_AFFINITY(committer->ControlThread);
-
-        IsSent = true;
-
+            
         if (!BatchedRecordsData.empty()) {
             Profiler.Enqueue("/commit_batch_size", BatchedRecordsData.size());
 
@@ -125,7 +120,7 @@ private:
             auto cellManager = committer->CellManager;
 
             Awaiter = New<TParallelAwaiter>(
-                committer->EpochControlInvoker,
+                committer->ControlInvoker,
                 &Profiler,
                 "/commit_batch_time");
 
@@ -192,9 +187,8 @@ private:
         VERIFY_THREAD_AFFINITY(committer->ControlThread);
 
         if (!response->IsOK()) {
-            LOG_WARNING("Error committing mutations by follower %d\n%s",
-                peerId,
-                ~ToString(response->GetError()));
+            LOG_WARNING(*response, "Error committing mutations by follower %d",
+                peerId);
             return;
         }
 
@@ -238,7 +232,6 @@ private:
     TPromise<TError> Promise;
     TMetaVersion StartVersion;
     int CommitSuccessCount;
-    volatile bool IsSent;
     NLog::TTaggedLogger Logger;
 
     TParallelAwaiterPtr Awaiter;
@@ -256,19 +249,19 @@ TLeaderCommitter::TLeaderCommitter(
     TChangeLogCachePtr changeLogCache,
     TQuorumTrackerPtr followerTracker,
     const TEpochId& epochId,
-    IInvokerPtr epochControlInvoker,
+    IInvokerPtr controlInvoker,
     IInvokerPtr epochStateInvoker)
-    : TCommitter(decoratedState, epochControlInvoker, epochStateInvoker)
+    : TCommitter(decoratedState, controlInvoker, epochStateInvoker)
     , Config(config)
     , CellManager(cellManager)
     , ChangeLogCache(changeLogCache)
     , FollowerTracker(followerTracker)
     , EpochId(epochId)
 {
-    YASSERT(config);
-    YASSERT(cellManager);
-    YASSERT(changeLogCache);
-    YASSERT(followerTracker);
+    YCHECK(config);
+    YCHECK(cellManager);
+    YCHECK(changeLogCache);
+    YCHECK(followerTracker);
 }
 
 TLeaderCommitter::~TLeaderCommitter()
@@ -293,7 +286,6 @@ void TLeaderCommitter::Flush(bool rotateChangeLog)
 TFuture< TValueOrError<TMutationResponse> > TLeaderCommitter::Commit(const TMutationRequest& request)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-    YASSERT(!request.Action.IsNull());
 
     if (request.Id != NullMutationId) {
         TSharedRef responseData;
@@ -369,7 +361,7 @@ TAsyncError TLeaderCommitter::AddMutationToBatch(
 void TLeaderCommitter::FlushCurrentBatch(bool rotateChangeLog)
 {
     VERIFY_SPINLOCK_AFFINITY(BatchSpinLock);
-    YASSERT(CurrentBatch);
+    YCHECK(CurrentBatch);
 
     CurrentBatch->FlushMutations(rotateChangeLog);
     TDelayedInvoker::CancelAndClear(BatchTimeoutCookie);
@@ -384,14 +376,14 @@ TLeaderCommitter::TBatchPtr TLeaderCommitter::GetOrCreateBatch(
     VERIFY_SPINLOCK_AFFINITY(BatchSpinLock);
 
     if (!CurrentBatch) {
-        YASSERT(!BatchTimeoutCookie);
+        YCHECK(!BatchTimeoutCookie);
         CurrentBatch = New<TBatch>(MakeStrong(this), version);
         BatchTimeoutCookie = TDelayedInvoker::Submit(
             BIND(
                 &TLeaderCommitter::OnBatchTimeout,
                 MakeWeak(this),
                 CurrentBatch)
-            .Via(EpochControlInvoker),
+            .Via(ControlInvoker),
             Config->MaxBatchDelay);
     }
 
@@ -415,9 +407,9 @@ void TLeaderCommitter::OnBatchTimeout(TBatchPtr batch)
 
 TFollowerCommitter::TFollowerCommitter(
     TDecoratedMetaStatePtr metaState,
-    IInvokerPtr epochControlInvoker,
+    IInvokerPtr controlInvoker,
     IInvokerPtr epochStateInvoker)
-    : TCommitter(metaState, epochControlInvoker, epochStateInvoker)
+    : TCommitter(metaState, controlInvoker, epochStateInvoker)
 { }
 
 TFollowerCommitter::~TFollowerCommitter()
