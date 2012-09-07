@@ -2,6 +2,7 @@
 #include "error.h"
 
 #include <ytlib/misc/address.h>
+#include <ytlib/misc/thread.h>
 
 #include <ytlib/ytree/convert.h>
 #include <ytlib/ytree/fluent.h>
@@ -173,6 +174,7 @@ void TError::CaptureOriginAttributes()
     Attributes().SetYson("host", ConvertToYsonString(TRawString(GetLocalHostName())));
     Attributes().SetYson("datetime", ConvertToYsonString(TRawString(ToString(TInstant::Now()))));
     Attributes().SetYson("pid", ConvertToYsonString(getpid()));
+    Attributes().SetYson("tid", ConvertToYsonString(GetCurrentThreadId()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -210,13 +212,15 @@ void AppendError(const TError& error, int indent, Stroka* out)
     auto host = error.Attributes().Find<Stroka>("host");
     auto datetime = error.Attributes().Find<Stroka>("datetime");
     auto pid = error.Attributes().Find<i64>("pid");
-    if (host && datetime && pid) {
+    auto tid = error.Attributes().Find<i64>("tid");
+    if (host && datetime && pid && tid) {
         AppendAttribute(
             "origin",
-            Sprintf("%s on %s (pid %d)",
+            Sprintf("%s on %s (pid %d, tid %d)",
                 ~host.Get(),
                 ~datetime.Get(),
-                static_cast<int>(pid.Get())),
+                static_cast<int>(pid.Get()),
+                static_cast<int>(tid.Get())),
             indent,
             out);
     }
@@ -236,7 +240,12 @@ void AppendError(const TError& error, int indent, Stroka* out)
 
     auto keys = error.Attributes().List();
     FOREACH (const auto& key, keys) {
-        if (key == "host" || key == "datetime" || key == "pid" || key == "file" || key == "line")
+        if (key == "host" ||
+            key == "datetime" ||
+            key == "pid" ||
+            key == "tid" ||
+            key == "file" ||
+            key == "line")
             continue;
 
         auto value = error.Attributes().GetYson(key);
