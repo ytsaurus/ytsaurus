@@ -121,9 +121,9 @@ public:
     TFuture< TIntrusivePtr<TResponse> > Invoke()
     {
         auto response = NYT::New<TResponse>(GetRequestId());
-        auto asyncResult = response->GetAsyncResult();
+        auto promise = response->GetAsyncResult();
         DoInvoke(response);
-        return asyncResult;
+        return promise;
     }
 
     // Override base method for fluent use.
