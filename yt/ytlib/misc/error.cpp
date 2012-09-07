@@ -174,7 +174,7 @@ void TError::CaptureOriginAttributes()
     Attributes().SetYson("host", ConvertToYsonString(TRawString(GetLocalHostName())));
     Attributes().SetYson("datetime", ConvertToYsonString(TRawString(ToString(TInstant::Now()))));
     Attributes().SetYson("pid", ConvertToYsonString(getpid()));
-    Attributes().SetYson("tid", ConvertToYsonString(GetCurrentThreadId()));
+    Attributes().SetYson("tid", ConvertToYsonString(NThread::GetCurrentThreadId()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
