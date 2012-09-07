@@ -559,7 +559,14 @@ private:
     void AbortJob(TJobPtr job)
     {
         job->SetState(EJobState::Aborted);
-        MasterConnector->UpdateJobNode(job);
+        
+        // Check if we have an active connection with master.
+        // This function may be called when master gets disconnected,
+        // so we must be careful.
+        if (MasterConnector->IsConnected()) {
+            MasterConnector->UpdateJobNode(job);
+        }
+
         UnregisterJob(job);
     }
 
@@ -778,11 +785,11 @@ private:
             return;
         }
 
-        AbortOperationJobs(operation);
-        
         operation->SetEndTime(TInstant::Now());
         operation->SetState(finalState);
         ToProto(operation->Result().mutable_error(), error);
+
+        AbortOperationJobs(operation);
 
         // Check if we have an active connection with master.
         // This function may be called when master gets disconnected,
