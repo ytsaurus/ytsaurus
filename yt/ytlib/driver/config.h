@@ -18,7 +18,6 @@ struct TDriverConfig
     : public TYsonSerializable
 {
     NMetaState::TMasterDiscoveryConfigPtr Masters;
-    NRpc::TRetryingChannelConfigPtr MasterRetries;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
     NFileClient::TFileReaderConfigPtr FileReader;
     NFileClient::TFileWriterConfigPtr FileWriter;
@@ -30,8 +29,6 @@ struct TDriverConfig
     TDriverConfig()
     {
         Register("masters", Masters);
-        Register("master_retries", MasterRetries)
-            .DefaultNew();
         Register("transaction_manager", TransactionManager)
             .DefaultNew();
         Register("file_reader", FileReader)

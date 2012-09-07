@@ -3,7 +3,10 @@
 #include "public.h"
 
 #include <ytlib/election/config.h>
+
 #include <ytlib/ytree/yson_serializable.h>
+
+#include <ytlib/rpc/retrying_channel.h>
 
 namespace NYT {
 namespace NMetaState {
@@ -271,7 +274,7 @@ struct TPersistentStateManagerConfig
 
 //! Master discovery configuration.
 struct TMasterDiscoveryConfig
-    : public TYsonSerializable
+    : public NRpc::TRetryingChannelConfig
 {
     //! List of peer addresses.
     std::vector<Stroka> Addresses;

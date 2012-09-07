@@ -46,9 +46,9 @@ IChannelPtr CreateRetryingChannel(
     TRetryingChannelConfigPtr config,
     IChannelPtr underlyingChannel)
 {
-    return New<TRetryingChannel>(
-        config,
-        underlyingChannel);
+    return config->MaxAttempts == 1
+        ? underlyingChannel 
+        : New<TRetryingChannel>(config, underlyingChannel);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

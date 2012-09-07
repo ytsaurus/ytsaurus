@@ -29,15 +29,12 @@ struct TRetryingChannelConfig
 
 //! Constructs a channel that implements a simple retry policy.
 /*!
- *  If a remote call fails at RPC level (see #NRpc::EErrorCode::IsRpcError)
+ *  If a request fails with a retriable error (see #NRpc::IsRetriableError),
  *  it is retried a given number of times with a given back off time.
  *  
  *  If the request is still failing, then EErrorCode::Unavailable is returned.
  *  
- *  \param underlyingChannel An underlying channel.
- *  \param backoffTime A interval between successive attempts.
- *  \param retryCount Maximum number of retry attempts.
- *  \returns The retrying channel.
+ *  If number of retry attemps is one then the underlying channel is returned.
  */ 
 IChannelPtr CreateRetryingChannel(
     TRetryingChannelConfigPtr config,
