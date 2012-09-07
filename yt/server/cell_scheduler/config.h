@@ -6,6 +6,8 @@
 
 #include <ytlib/transaction_client/config.h>
 
+#include <ytlib/rpc/retrying_channel.h>
+
 #include <server/scheduler/config.h>
 
 namespace NYT {

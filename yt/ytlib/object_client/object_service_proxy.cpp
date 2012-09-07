@@ -45,8 +45,9 @@ void TObjectServiceProxy::TReqExecuteBatch::SendRetryingRequest(
     TPromise<TRspExecuteBatchPtr> promise)
 {
     auto batchRsp = New<TRspExecuteBatch>(GetRequestId(), KeyToIndexes);
+    auto attemptPromise = batchRsp->GetAsyncResult();
     Channel->Send(this, batchRsp, timeout);
-    batchRsp->GetAsyncResult().Subscribe(BIND(
+    attemptPromise.Subscribe(BIND(
         &TReqExecuteBatch::OnResponse,
         MakeStrong(this),
         deadline,
@@ -63,24 +64,30 @@ void TObjectServiceProxy::TReqExecuteBatch::OnResponse(
         return;
     }
 
-    bool ok = true;
+    bool hasErrors = false;
+    bool hasFatalErrors = false;
     for (int index = 0; index < batchRsp->GetSize(); ++index) {
         auto rsp = batchRsp->GetResponse(index);
-        auto rspError = rsp->GetError();
-        if (IsRetriableError(rspError)) {
-            RetryErrors.push_back(rspError);
-            ok = false;
+        if (rsp) {
+            auto rspError = rsp->GetError();
+            if (!rspError.IsOK()) {
+                hasErrors = true;
+                RetryErrors.push_back(rspError);
+                if (!IsRetriableError(rspError)) {
+                    hasFatalErrors = true;
+                }
+            }
         }
     }
 
-    if (ok) {
+    if (!hasErrors || hasFatalErrors) {
         promise.Set(batchRsp);
         return;
     }
 
     auto now = TInstant::Now();
-    if (deadline && deadline.Get() > now) {
-        ReportError(promise, TError("Request retries timed out"));
+    if (deadline && deadline.Get() < now) {
+        ReportError(promise, TError(NRpc::EErrorCode::Timeout, "Request retries timed out"));
     } else {
         auto timeout = deadline ? now - deadline.Get() : TNullable<TDuration>();
         SendRetryingRequest(deadline, timeout, promise);
@@ -174,6 +181,24 @@ void TObjectServiceProxy::TRspExecuteBatch::DeserializeBody(const TRef& data)
 int TObjectServiceProxy::TRspExecuteBatch::GetSize() const
 {
     return Body.part_counts_size();
+}
+
+
+TError TObjectServiceProxy::TRspExecuteBatch::GetCumulativeError()
+{
+    if (!IsOK()) {
+        return GetError();
+    }
+
+    TError cumulativeError("Error communicating with master");
+    FOREACH (auto rsp, GetResponses()) {
+        auto error = rsp->GetError();
+        if (!error.IsOK()) {
+            cumulativeError.InnerErrors().push_back(error);
+        }
+    }
+
+    return cumulativeError.InnerErrors().empty() ? TError() : cumulativeError;
 }
 
 TYPathResponsePtr TObjectServiceProxy::TRspExecuteBatch::GetResponse(int index) const

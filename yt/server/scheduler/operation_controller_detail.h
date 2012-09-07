@@ -12,6 +12,7 @@
 #include <ytlib/logging/tagged_logger.h>
 
 #include <ytlib/actions/async_pipeline.h>
+#include <ytlib/actions/cancelable_context.h>
 
 #include <server/chunk_server/public.h>
 
@@ -63,6 +64,10 @@ protected:
 
     NObjectClient::TObjectServiceProxy ObjectProxy;
     mutable NLog::TTaggedLogger Logger;
+
+    TCancelableContextPtr CancelableContext;
+    IInvokerPtr CancelableControlInvoker;
+    IInvokerPtr CancelableBackgroundInvoker;
 
     // Remains True as long as the operation is not failed, completed, or aborted.
     bool Active;

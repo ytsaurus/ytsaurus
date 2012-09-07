@@ -137,6 +137,12 @@ public:
 
         JobTypeCounters.resize(EJobType::GetDomainSize());
 
+        MasterConnector->SubscribeMasterConnected(BIND(
+            &TThis::OnMasterConnected,
+            Unretained(this)));
+        MasterConnector->SubscribeMasterDisconnected(BIND(
+            &TThis::OnMasterDisconnected,
+            Unretained(this)));
         MasterConnector->SubscribePrimaryTransactionAborted(BIND(
             &TThis::OnPrimaryTransactionAborted,
             Unretained(this)));
@@ -152,7 +158,6 @@ public:
     {
         InitStrategy();
         MasterConnector->Start();
-        LoadOperations();
     }
 
     NYTree::TYPathServiceProducer CreateOrchidProducer()
@@ -210,6 +215,21 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 
+    void OnMasterConnected(const TMasterHandshakeResult& result)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        RegisterAndReviveOperations(result.Operations);
+    }
+
+    void OnMasterDisconnected()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        AbortAndClearOperations(TError("Master disconnected"));
+    }
+
+
     void OnPrimaryTransactionAborted(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -218,18 +238,18 @@ private:
             case EOperationState::Preparing:
             case EOperationState::Running:
             case EOperationState::Reviving:
-                LOG_INFO("Operation %s belongs to an expired transaction %s, aborting",
-                    ~operation->GetOperationId().ToString(),
-                    ~operation->GetTransactionId().ToString());
+                LOG_INFO("Operation belongs to an expired transaction %s, aborting (OperationId: %s)",
+                    ~operation->GetTransactionId().ToString(),
+                    ~operation->GetOperationId().ToString());
                 AbortOperation(operation, TError("Operation transaction has been expired or was aborted"));
                 break;
 
             case EOperationState::Completed:
             case EOperationState::Aborted:
             case EOperationState::Failed:
-                LOG_INFO("Operation %s belongs to an expired transaction %s, unregistering",
-                    ~operation->GetOperationId().ToString(),
-                    ~operation->GetTransactionId().ToString());
+                LOG_INFO("Operation belongs to an expired transaction %s (OperationId: %s), unregistering",
+                    ~operation->GetTransactionId().ToString(),
+                    ~operation->GetOperationId().ToString());
                 break;
 
             default:
@@ -327,7 +347,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         // Run async preparation.
-        LOG_INFO("Preparing operation %s", ~operation->GetOperationId().ToString());
+        LOG_INFO("Preparing operation (OperationId: %s)", ~operation->GetOperationId().ToString());
         operation->GetController()->Prepare().Subscribe(
             BIND(&TThis::OnOperationPrepared, MakeStrong(this), operation)
                 .Via(GetControlInvoker()));
@@ -342,7 +362,7 @@ private:
 
         operation->SetState(EOperationState::Running);
 
-        LOG_INFO("Operation %s has been prepared and is now running", 
+        LOG_INFO("Operation has been prepared and is now running (OperationId: %s)", 
             ~operation->GetOperationId().ToString());
 
         // From this moment on the controller is fully responsible for the
@@ -351,23 +371,17 @@ private:
     }
 
 
-    void ReviveOperations(const std::vector<TOperationPtr>& operations)
+    void RegisterAndReviveOperations(const std::vector<TOperationPtr>& operations)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         FOREACH (auto operation, operations) {
+            LOG_INFO("Reviving operation (OperationId: %s)", ~operation->GetOperationId().ToString());
             operation->SetController(CreateController(~operation));
-            operation->SetState(EOperationState::Reviving);
             RegisterOperation(operation);
-        }
-
-        MasterConnector->ReviveOperationNodes(operations);
-
-        FOREACH (auto operation, operations) {
-            LOG_INFO("Reviving operation %s", ~operation->GetOperationId().ToString());
             operation->GetController()->Revive().Subscribe(
                 BIND(&TThis::OnOperationRevived, MakeStrong(this), operation)
-                .Via(GetControlInvoker()));
+                    .Via(GetControlInvoker()));
         }
     }
 
@@ -380,8 +394,19 @@ private:
 
         operation->SetState(EOperationState::Running);
 
-        LOG_INFO("Operation %s has been revived and is now running", 
+        LOG_INFO("Operation has been revived and is now running (OperationId: %s)", 
             ~operation->GetOperationId().ToString());
+    }
+
+    void AbortAndClearOperations(const TError& error)
+    {
+        FOREACH (const auto& pair, Operations) {
+            auto operation = pair.second;
+            if (!operation->IsFinished()) {
+                AbortOperation(operation, error);
+            }
+        }
+        Operations.clear();
     }
 
     void AbortOperation(TOperationPtr operation, const TError& error)
@@ -389,13 +414,15 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (operation->IsFinished()) {
+            LOG_INFO(error, "Request to abort an already finished operation ignored (OperationId: %s, State: %s)",
+                ~operation->GetOperationId().ToString(),
+                ~operation->GetState().ToString());
             return;
         }
 
-        LOG_INFO("Aborting operation (OperationId: %s, State: %s)\n%s",
+        LOG_WARNING(error, "Aborting operation (OperationId: %s, State: %s)",
             ~operation->GetOperationId().ToString(),
-            ~operation->GetState().ToString(),
-            ~ToString(error));
+            ~operation->GetState().ToString());
                 
         DoOperationFailed(operation, error, EOperationState::Aborted);
     }
@@ -415,8 +442,7 @@ private:
 
         auto operation = FindOperation(id);
         if (!operation) {
-            // TODO(babenko): error code
-            THROW_ERROR_EXCEPTION("No such operation %s", ~id.ToString());
+            THROW_ERROR_EXCEPTION("No such operation: %s", ~id.ToString());
         }
         return operation;
     }
@@ -451,11 +477,11 @@ private:
         // Make a copy, the collection will be modified.
         auto jobs = node->Jobs();
         FOREACH (auto job, jobs) {
-            LOG_INFO("Aborting job %s on an offline node %s (OperationId: %s)",
-                ~job->GetId().ToString(),
+            LOG_INFO("Aborting job on an offline node %s (JobId: %s, OperationId: %s)",
                 ~node->GetAddress(),
+                ~job->GetId().ToString(),
                 ~job->GetOperation()->GetOperationId().ToString());
-            OnJobFailed(job, TError("Node %s has gone offline", ~node->GetAddress().Quote()));
+            OnJobFailed(job, TError("Node has gone offline: %s", ~node->GetAddress().Quote()));
         }
         YCHECK(ExecNodes.erase(node->GetAddress()) == 1);
     }
@@ -467,7 +493,7 @@ private:
         Strategy->OnOperationStarted(operation);
         ProfileOperationCounters();
 
-        LOG_DEBUG("Registered operation %s", ~operation->GetOperationId().ToString());
+        LOG_DEBUG("Operation registered (OperationId: %s)", ~operation->GetOperationId().ToString());
     }
 
     void AbortOperationJobs(TOperationPtr operation)
@@ -486,7 +512,7 @@ private:
         Strategy->OnOperationFinished(operation);
         ProfileOperationCounters();
 
-        LOG_DEBUG("Unregistered operation %s", ~operation->GetOperationId().ToString());
+        LOG_DEBUG("Operation unregistered (OperationId: %s)", ~operation->GetOperationId().ToString());
     }
 
     void ProfileOperationCounters()
@@ -503,7 +529,7 @@ private:
         YCHECK(job->GetOperation()->Jobs().insert(job).second);
         YCHECK(job->GetNode()->Jobs().insert(job).second);
         
-        LOG_DEBUG("Registered job %s (OperationId: %s)",
+        LOG_DEBUG("Registered job (JobId: %s, OperationId: %s)",
             ~job->GetId().ToString(),
             ~job->GetOperation()->GetOperationId().ToString());
     }
@@ -516,7 +542,7 @@ private:
         YCHECK(job->GetOperation()->Jobs().erase(job) == 1);
         YCHECK(job->GetNode()->Jobs().erase(job) == 1);
 
-        LOG_DEBUG("Unregistered job %s (OperationId: %s)",
+        LOG_DEBUG("Unregistered job (JobId: %s, OperationId: %s)",
             ~job->GetId().ToString(),
             ~job->GetOperation()->GetOperationId().ToString());
     }
@@ -580,6 +606,7 @@ private:
         OnJobFailed(job, &result);
     }
 
+
     void UpdateJobNodeOnFinish(TJobPtr job)
     {
         const auto& result = job->Result();
@@ -630,23 +657,6 @@ private:
         }
     }
 
-    void LoadOperations()
-    {
-        auto operations = MasterConnector->LoadOperations();
-        std::vector<TOperationPtr> operationsToRevive;
-        FOREACH (auto operation, operations) {
-            if (!operation->IsFinished()) {
-                operationsToRevive.push_back(operation);
-            }
-        } 
-
-        Bootstrap->GetControlInvoker()->Invoke(BIND(
-            &TThis::ReviveOperations,
-            MakeStrong(this),
-            operationsToRevive));
-    }
-
-
     IOperationControllerPtr CreateController(TOperation* operation)
     {
         switch (operation->GetType()) {
@@ -669,9 +679,9 @@ private:
     
 
     // IOperationHost methods
-    virtual NRpc::IChannelPtr GetLeaderChannel() override
+    virtual NRpc::IChannelPtr GetMasterChannel() override
     {
-        return Bootstrap->GetLeaderChannel();
+        return Bootstrap->GetMasterChannel();
     }
 
     virtual TTransactionManagerPtr GetTransactionManager() override
@@ -716,12 +726,11 @@ private:
 
         MasterConnector->FlushOperationNode(operation).Subscribe(
             BIND(&TImpl::OnCompletedOperationNodeFlushed, MakeStrong(this), operation)
-            .Via(GetControlInvoker()));
+                .Via(GetControlInvoker()));
     }
 
-    void OnCompletedOperationNodeFlushed(TOperationPtr operation, TError flushError)
+    void OnCompletedOperationNodeFlushed(TOperationPtr operation)
     {
-        UNUSED(flushError);
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         operation->GetController()->Commit().Subscribe(
@@ -740,11 +749,8 @@ private:
             	.Via(GetControlInvoker()));
     }
     
-    void OnCompletedOperationNodeFinalized(TOperationPtr operation, TError finalizeError)
+    void OnCompletedOperationNodeFinalized(TOperationPtr operation)
     {
-        // Can't do anything about the error anyway.
-        UNUSED(finalizeError);
-
         operation->SetFinished();
         operation->SetController(NULL);
     }
@@ -778,15 +784,21 @@ private:
         operation->SetState(finalState);
         ToProto(operation->Result().mutable_error(), error);
 
-        MasterConnector->FinalizeOperationNode(operation).Subscribe(
-            BIND(&TImpl::OnFailedOperationNodeFinalized, MakeStrong(this), operation)
-            .Via(GetControlInvoker()));
+        // Check if we have an active connection with master.
+        // This function may be called when master gets disconnected,
+        // so we must be careful.
+        if (MasterConnector->IsConnected()) {
+            MasterConnector->FinalizeOperationNode(operation).Subscribe(
+                BIND(&TImpl::OnFailedOperationNodeFinalized, MakeStrong(this), operation)
+                    .Via(GetControlInvoker()));
+        } else {
+            OnFailedOperationNodeFinalized(operation);
+        }
     }
 
-    void OnFailedOperationNodeFinalized(TOperationPtr operation, TError finalizeError)
+    void OnFailedOperationNodeFinalized(TOperationPtr operation)
     {
-        // Can't do anything about the error anyway.
-        UNUSED(finalizeError);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         operation->GetController()->Abort();
         operation->SetFinished();
@@ -821,7 +833,15 @@ private:
             .EndMap();
     }
 
+
     // RPC handlers
+    void ValidateConnected()
+    {
+        if (!MasterConnector->IsConnected()) {
+            THROW_ERROR_EXCEPTION("Scheduler is currently not connected to master, try later");
+        }
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NProto, StartOperation)
     {
         auto type = EOperationType(request->type());
@@ -841,6 +861,8 @@ private:
         context->SetRequestInfo("Type: %s, TransactionId: %s",
             ~type.ToString(),
             ~transactionId.ToString());
+
+        ValidateConnected();
 
         StartOperation(
             type,
@@ -865,6 +887,8 @@ private:
 
         context->SetRequestInfo("OperationId: %s", ~operationId.ToString());
 
+        ValidateConnected();
+
         auto operation = GetOperation(operationId);
         AbortOperation(operation, TError("Operation aborted by user request"));
 
@@ -878,6 +902,8 @@ private:
         context->SetRequestInfo("OperationId: %s, Timeout: %s",
             ~operationId.ToString(),
             ~ToString(timeout));
+
+        ValidateConnected();
 
         auto operation = GetOperation(operationId);
         operation->GetFinished().Subscribe(
@@ -909,7 +935,6 @@ private:
 
         auto node = FindNode(address);
         if (!node) {
-            // TODO(babenko): error code
             context->Reply(TError("Node is not registered, heartbeat ignored"));
             return;
         }
@@ -932,7 +957,7 @@ private:
 
             // Check for missing jobs.
             FOREACH (auto job, missingJobs) {
-                LOG_ERROR("Job is missing (Address: %s, JobId: %s, OperationId: %s)",
+                LOG_ERROR("Job is missing on %s (JobId: %s, OperationId: %s)",
                     ~address,
                     ~job->GetId().ToString(),
                     ~job->GetOperation()->GetOperationId().ToString());
@@ -1040,12 +1065,13 @@ private:
                 *response->add_jobs_to_remove() = jobId.ToProto();
                 break;
 
-            case EJobState::Failed:
-                LOG_INFO("Job failed, removal scheduled\n%s",
-                    ~ToString(FromProto(jobStatus->result().error())));
+            case EJobState::Failed: {
+                auto error = FromProto(jobStatus->result().error());
+                LOG_WARNING(error, "Job failed, removal scheduled");
                 OnJobFailed(job, jobStatus->mutable_result());
                 *response->add_jobs_to_remove() = jobId.ToProto();
                 break;
+            }
 
             case EJobState::Aborted:
                 LOG_WARNING("Job has aborted unexpectedly, removal scheduled");

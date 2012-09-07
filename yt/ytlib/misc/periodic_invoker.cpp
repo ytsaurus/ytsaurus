@@ -26,21 +26,25 @@ TPeriodicInvoker::TPeriodicInvoker(
 
 void TPeriodicInvoker::Start()
 {
-    YASSERT(!Started);
+    if (Started)
+        return;
+
     Started = true;
     PostDelayedCallback(RandomDuration(Splay));
 }
 
 void TPeriodicInvoker::Stop()
 {
+    if (!Started)
+        return;
+
     Started = false;
-    Busy = false;
     TDelayedInvoker::CancelAndClear(Cookie);
 }
 
 void TPeriodicInvoker::ScheduleOutOfBand()
 {
-    YASSERT(Started);
+    YCHECK(Started);
     if (Busy) {
         OutOfBandRequested = true;
     } else {
@@ -50,8 +54,8 @@ void TPeriodicInvoker::ScheduleOutOfBand()
 
 void TPeriodicInvoker::ScheduleNext()
 {
-    YASSERT(Started);
-    YASSERT(Busy);
+    YCHECK(Started);
+    YCHECK(Busy);
     Busy = false;
     if (OutOfBandRequested) {
         OutOfBandRequested = false;

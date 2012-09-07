@@ -86,8 +86,8 @@ public:
             Config->MaxAttempts);
 
         auto now = TInstant::Now();
-        if (now < Deadline) {
-            ReportError(TError("Request retries timed out"));
+        if (now > Deadline) {
+            ReportError(TError(NRpc::EErrorCode::Timeout, "Request retries timed out"));
         } else {
             UnderlyingChannel->Send(Request, this, Deadline - now);
         }
@@ -153,7 +153,7 @@ private:
             } else {
                 State = EState::Done;
                 guard.Release();
-                ReportError(TError("Request retries failed"));
+                ReportError(TError(NRpc::EErrorCode::Unavailable, "Request retries failed"));
             }
         } else {
             State = EState::Done;

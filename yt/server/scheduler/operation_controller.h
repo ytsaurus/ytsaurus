@@ -28,7 +28,7 @@ struct IOperationHost
     /*!
      *  \note Thread affinity: any
      */
-    virtual NRpc::IChannelPtr GetLeaderChannel() = 0;
+    virtual NRpc::IChannelPtr GetMasterChannel() = 0;
 
     /*!
      *  \note Thread affinity: any

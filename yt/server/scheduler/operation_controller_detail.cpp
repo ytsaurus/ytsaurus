@@ -248,8 +248,11 @@ TOperationControllerBase::TOperationControllerBase(
     : Config(config)
     , Host(host)
     , Operation(operation)
-    , ObjectProxy(host->GetLeaderChannel())
+    , ObjectProxy(host->GetMasterChannel())
     , Logger(OperationLogger)
+    , CancelableContext(New<TCancelableContext>())
+    , CancelableControlInvoker(CancelableContext->CreateInvoker(Host->GetControlInvoker()))
+    , CancelableBackgroundInvoker(CancelableContext->CreateInvoker(Host->GetBackgroundInvoker()))
     , Active(false)
     , Running(false)
     , LastChunkListAllocationCount(-1)
@@ -367,7 +370,7 @@ TFuture<void> TOperationControllerBase::Commit()
     LOG_INFO("Committing operation");
 
     auto this_ = MakeStrong(this);
-    return StartAsyncPipeline(Host->GetBackgroundInvoker())
+    return StartAsyncPipeline(CancelableBackgroundInvoker)
         ->Add(BIND(&TThis::CommitOutputs, MakeStrong(this)))
         ->Add(BIND(&TThis::OnOutputsCommitted, MakeStrong(this)))
         ->Run()
@@ -465,6 +468,7 @@ void TOperationControllerBase::Abort()
 
     Running = false;
     Active = false;
+    CancelableContext->Cancel();
 
     AbortTransactions();
 
@@ -1182,8 +1186,8 @@ void TOperationControllerBase::CompletePreparation()
     LOG_INFO("Completing preparation");
 
     ChunkListPool = New<TChunkListPool>(
-        Host->GetLeaderChannel(),
-        Host->GetControlInvoker(),
+        Host->GetMasterChannel(),
+        CancelableControlInvoker,
         Operation,
         PrimaryTransaction->GetId());
 

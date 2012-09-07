@@ -290,7 +290,7 @@ struct TMasterDiscoveryConfig
         Register("addresses", Addresses)
             .NonEmpty();
         Register("rpc_timeout", RpcTimeout)
-            .Default(TDuration::Seconds(5));
+            .Default(TDuration::Seconds(30));
         Register("connection_priority", ConnectionPriority)
             .InRange(0, 6)
             .Default(6);

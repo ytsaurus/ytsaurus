@@ -11,6 +11,7 @@
 #include <ytlib/bus/config.h>
 
 #include <ytlib/rpc/server.h>
+#include <ytlib/rpc/retrying_channel.h>
 
 #include <ytlib/meta_state/master_channel.h>    
 
@@ -79,7 +80,7 @@ void TBootstrap::Run()
         ~PeerAddress,
         ~JoinToString(Config->Masters->Addresses));
 
-    LeaderChannel = CreateLeaderChannel(Config->Masters);
+    MasterChannel = CreateLeaderChannel(Config->Masters);
 
     ControlQueue = New<TFairShareActionQueue>(EControlQueue::GetDomainSize(), "Control");
 
@@ -89,7 +90,7 @@ void TBootstrap::Run()
 
     TransactionManager = New<TTransactionManager>(
         Config->TransactionManager,
-        LeaderChannel);
+        MasterChannel);
 
     Scheduler = New<TScheduler>(Config->Scheduler, this);
 
@@ -154,9 +155,9 @@ TCellSchedulerConfigPtr TBootstrap::GetConfig() const
     return Config;
 }
 
-IChannelPtr TBootstrap::GetLeaderChannel() const
+IChannelPtr TBootstrap::GetMasterChannel() const
 {
-    return LeaderChannel;
+    return MasterChannel;
 }
 
 Stroka TBootstrap::GetPeerAddress() const
