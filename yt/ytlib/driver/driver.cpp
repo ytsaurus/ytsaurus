@@ -50,13 +50,15 @@ public:
     {
         YCHECK(config);
 
-        LeaderChannel = CreateRetryingChannel(
-            Config->MasterRetries,
-            CreateLeaderChannel(Config->Masters));
+        //LeaderChannel = CreateRetryingChannel(
+        //    Config->MasterRetries,
+        //    CreateLeaderChannel(Config->Masters));
+        LeaderChannel = CreateLeaderChannel(Config->Masters);
 
-        MasterChannel = CreateRetryingChannel(
-            Config->MasterRetries,
-            CreateMasterChannel(Config->Masters));
+        //MasterChannel = CreateRetryingChannel(
+        //    Config->MasterRetries,
+        //    CreateMasterChannel(Config->Masters));
+        MasterChannel = CreateMasterChannel(Config->Masters);
 
         // TODO(babenko): for now we use the same timeout both for masters and scheduler
         SchedulerChannel = CreateSchedulerChannel(
