@@ -295,11 +295,12 @@ void TMasterConnector::OnIncrementalHeartbeatResponse(TProxy::TRspIncrementalHea
         auto jobId = TJobId::FromProto(startInfo.job_id());
         auto jobType = EJobType(startInfo.type());
         auto chunkId = TChunkId::FromProto(startInfo.chunk_id());
+        auto targetAddresses = FromProto<Stroka>(startInfo.target_addresses());
         Bootstrap->GetJobExecutor()->StartJob(
             jobType,
             jobId,
             chunkId,
-            FromProto<Stroka>(startInfo.target_addresses()));
+            targetAddresses);
     }
 }
 
