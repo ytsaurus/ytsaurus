@@ -36,11 +36,11 @@ struct TChunkWriterConfig
             .Default(16 * 1024 * 1024);
         Register("sample_rate", SampleRate)
             .GreaterThan(0)
-            .LessThan(0.001)
+            .LessThanOrEqual(0.001)
             .Default(0.0001);
         Register("index_rate", IndexRate)
             .GreaterThan(0)
-            .LessThan(0.001)
+            .LessThanOrEqual(0.001)
             .Default(0.0001);
         Register("estimated_compression_ratio", EstimatedCompressionRatio)
             .GreaterThan(0)
@@ -77,7 +77,7 @@ struct TTableWriterConfig
             .Default(1024 * 1024 * 1024);
         Register("max_meta_size", MaxMetaSize)
             .GreaterThan(0)
-            .LessThan(64 * 1024 * 1024)
+            .LessThanOrEqual(64 * 1024 * 1024)
             .Default(30 * 1024 * 1024);
         Register("replication_factor", ReplicationFactor)
             .GreaterThanOrEqual(1)
