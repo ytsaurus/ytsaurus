@@ -45,11 +45,11 @@ elif [ "$OPERATION" = "start" -o "$OPERATION" = "stop" ]; then
         run "$HOSTS" "sudo sv $OPERATION hadoop_datanode && sudo sv $OPERATION hadoop_tasktracker"
     elif [ "$SERVICE" = "proxy" ]; then
         if [ "$OPERATION" = "stop" ]; then
-            VALUE="true"
-            HANDLE_VALUE=0
-        else
             VALUE="false"
             HANDLE_VALUE=2000000000
+        else
+            VALUE="true"
+            HANDLE_VALUE=0
         fi
         run "$HOSTS" "sudo yt set "'"//sys/holders/\"`hostname`:9012\"/@banned"'" $VALUE"
         run "$HOSTS" "sudo $OPERATION yt_http_proxy"

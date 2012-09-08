@@ -12,7 +12,7 @@ def download_file(path):
         return str + "\n"
     content = make_request("GET", "download",
             {"path": escape_path(path),
-             "transaction_id": config.TRANSACTIOB}, raw_response=True)
+             "transaction_id": config.TRANSACTION}, raw_response=True)
     return imap(add_eoln, content.iter_lines())
 
 def upload_file(filename, yt_filename=None, destination=None, placement_strategy=None):

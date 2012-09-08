@@ -32,9 +32,6 @@ class YtTest(YTEnv):
             os.remove("test.log")
         logging.basicConfig(level=logging.WARNING)
         
-        config.PROXY = "n01-0650g.yt.yandex.net:8080"
-        return
-
         ports = {
             "master": 18001,
             "node": 17001,
@@ -48,7 +45,6 @@ class YtTest(YTEnv):
     
     @classmethod
     def tearDownClass(cls):
-        return
         cls.env.clear_environment()
     
     def setUp(self):
