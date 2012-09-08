@@ -42,6 +42,7 @@ import config
 from common import flatten, unlist
 
 import sys
+import simplejson as json
 from argparse import ArgumentParser
 from functools import partial
 from itertools import imap
@@ -273,10 +274,10 @@ def main():
         if args.value is None:
             print >>sys.stderr, "Value option is necessary for set command"
             exit(1)
-        yt.set(args.set, args.value)
+        yt.set(args.set, json.loads(args.value))
     if args.get:
         if yt.exists(args.get):
-            print yt.get(args.get)
+            print json.dumps(yt.get(args.get))
 
     if args.start_tx:
         print yt.start_transaction(args.tx, args.ping)
