@@ -41,6 +41,7 @@ protected:
     Stroka Path_;
     std::vector<TSharedRef> Attachments_;
 
+    virtual bool IsHeavy() const override;
     virtual TSharedRef SerializeBody() const = 0;
 
 };

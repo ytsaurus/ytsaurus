@@ -161,7 +161,7 @@ void TMasterConnector::SendFullHeartbeat()
 {
     auto request = Proxy
         ->FullHeartbeat()
-        ->SetRequestCodec(ECodecId::Lz4)
+        ->SetCodec(ECodecId::Lz4)
         ->SetTimeout(Config->FullHeartbeatTimeout);
 
     YCHECK(NodeId != InvalidNodeId);
@@ -187,7 +187,7 @@ void TMasterConnector::SendIncrementalHeartbeat()
 {
     auto request = Proxy
         ->IncrementalHeartbeat()
-        ->SetRequestCodec(ECodecId::Lz4);
+        ->SetCodec(ECodecId::Lz4);
 
     YCHECK(NodeId != InvalidNodeId);
     request->set_node_id(NodeId);

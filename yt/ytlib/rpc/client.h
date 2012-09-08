@@ -52,6 +52,7 @@ struct IClientRequest
     virtual NBus::IMessagePtr Serialize() const = 0;
 
     virtual bool IsOneWay() const = 0;
+    virtual bool IsHeavy() const = 0;
     virtual const TRequestId& GetRequestId() const = 0;
     virtual const Stroka& GetPath() const = 0;
     virtual const Stroka& GetVerb() const = 0;
@@ -67,6 +68,7 @@ class TClientRequest
 {
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, Timeout);
+    DEFINE_BYVAL_RW_PROPERTY(bool, Heavy);
 
 public:
     virtual NBus::IMessagePtr Serialize() const override;
@@ -93,6 +95,7 @@ protected:
         const Stroka& verb,
         bool oneWay);
 
+    virtual bool IsHeavy() const;
     virtual TSharedRef SerializeBody() const = 0;
 
     void DoInvoke(IClientResponseHandlerPtr responseHandler);
@@ -115,7 +118,7 @@ public:
         const Stroka& verb,
         bool oneWay)
         : TClientRequest(channel, path, verb, oneWay)
-        , RequestCodec(ECodecId::None)
+        , Codec(ECodecId::None)
     { }
 
     TFuture< TIntrusivePtr<TResponse> > Invoke()
@@ -126,26 +129,32 @@ public:
         return promise;
     }
 
-    // Override base method for fluent use.
+    // Override base methods for fluent use.
     TIntrusivePtr<TTypedClientRequest> SetTimeout(TNullable<TDuration> timeout)
     {
         TClientRequest::SetTimeout(timeout);
         return this;
     }
 
-    TIntrusivePtr<TTypedClientRequest> SetRequestCodec(ECodecId codec)
+    TIntrusivePtr<TTypedClientRequest> SetCodec(ECodecId codec)
     {
-        RequestCodec = codec;
+        Codec = codec;
+        return this;
+    }
+
+    TIntrusivePtr<TTypedClientRequest> SetHeavy(bool value)
+    {
+        TClientRequest::SetHeavy(value);
         return this;
     }
 
 private:
-    ECodecId RequestCodec;
+    ECodecId Codec;
 
     virtual TSharedRef SerializeBody() const override
     {
         TSharedRef data;
-        YCHECK(SerializeToProtoWithEnvelope(*this, &data, RequestCodec));
+        YCHECK(SerializeToProtoWithEnvelope(*this, &data, Codec));
         return data;
     }
 
@@ -188,19 +197,18 @@ public:
     operator TError();
 
 protected:
-    explicit TClientResponseBase(const TRequestId& requestId);
-
-    virtual void FireCompleted() = 0;
-
     DECLARE_ENUM(EState,
         (Sent)
         (Ack)
         (Done)
     );
 
-    // Protects state.
-    TSpinLock SpinLock;
+    TSpinLock SpinLock; // Protects state.
     EState State;
+
+    explicit TClientResponseBase(const TRequestId& requestId);
+
+    virtual void FireCompleted() = 0;
 
     // IClientResponseHandler implementation.
     virtual void OnError(const TError& error) override;
@@ -222,7 +230,7 @@ public:
     const NYTree::IAttributeDictionary& Attributes() const;
 
 protected:
-    explicit TClientResponse(const TRequestId& requestId);
+    TClientResponse(const TRequestId& requestId);
 
     virtual void DeserializeBody(const TRef& data) = 0;
 

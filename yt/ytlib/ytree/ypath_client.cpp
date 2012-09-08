@@ -30,6 +30,11 @@ bool TYPathRequest::IsOneWay() const
     return false;
 }
 
+bool TYPathRequest::IsHeavy() const
+{
+    return false;
+}
+
 const TRequestId& TYPathRequest::GetRequestId() const
 {
     return NullRequestId;

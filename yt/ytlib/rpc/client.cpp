@@ -39,6 +39,7 @@ TClientRequest::TClientRequest(
     , Verb(verb)
     , RequestId(TRequestId::Create())
     , OneWay(oneWay)
+    , Heavy_(false)
     , Channel(channel)
     , Attributes_(CreateEphemeralAttributes())
 {
@@ -80,6 +81,11 @@ const Stroka& TClientRequest::GetVerb() const
 bool TClientRequest::IsOneWay() const
 {
     return OneWay;
+}
+
+bool TClientRequest::IsHeavy() const
+{
+    return Heavy_;
 }
 
 const TRequestId& TClientRequest::GetRequestId() const
@@ -129,10 +135,13 @@ void TClientResponseBase::OnError(const TError& error)
             return;
         }
         State = EState::Done;
+        Error_  = error;
     }
 
-    Error_  = error;
-    FireCompleted();
+    auto this_ = MakeStrong(this);
+    TRpcDispatcher::Get()->GetPoolInvoker()->Invoke(BIND([=] () {
+        this_->FireCompleted();
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

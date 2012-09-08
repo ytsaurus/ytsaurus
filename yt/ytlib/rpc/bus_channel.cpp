@@ -3,6 +3,7 @@
 #include "private.h"
 #include "client.h"
 #include "message.h"
+#include "rpc_dispatcher.h"
 
 #include <ytlib/misc/delayed_invoker.h>
 #include <ytlib/misc/thread_affinity.h>
@@ -39,7 +40,7 @@ public:
         , DefaultTimeout(defaultTimeout)
         , Terminated(false)
     {
-        YASSERT(Client);
+        YCHECK(Client);
     }
 
     virtual TNullable<TDuration> GetDefaultTimeout() const override
@@ -165,8 +166,8 @@ private:
             IClientResponseHandlerPtr responseHandler,
             TNullable<TDuration> timeout)
         {
-            YASSERT(request);
-            YASSERT(responseHandler);
+            YCHECK(request);
+            YCHECK(responseHandler);
             VERIFY_THREAD_AFFINITY_ANY();
 
             auto requestId = request->GetRequestId();
@@ -208,18 +209,20 @@ private:
                 bus = Bus;
             }
 
-            auto requestMessage = request->Serialize();
-
-            bus->Send(requestMessage).Subscribe(BIND(
-                &TSession::OnAcknowledgement,
-                MakeStrong(this),
-                requestId));
-
-            LOG_DEBUG("Request sent (RequestId: %s, Path: %s, Verb: %s, Timeout: %s)",
-                ~requestId.ToString(),
-                ~request->GetPath(),
-                ~request->GetVerb(),
-                ~ToString(timeout));
+            if (request->IsHeavy()) {
+                BIND(&IClientRequest::Serialize, request)
+                    .AsyncVia(TRpcDispatcher::Get()->GetPoolInvoker())
+                    .Run()
+                    .Subscribe(BIND(
+                        &TSession::OnRequestSerialized,
+                        this,
+                        bus,
+                        request,
+                        timeout));
+            } else {
+                auto requestMessage = request->Serialize();
+                OnRequestSerialized(bus, request, timeout, requestMessage);
+            }
         }
 
         void OnMessage(IMessagePtr message, IBusPtr replyBus)
@@ -290,6 +293,25 @@ private:
         volatile bool Terminated;
         TError TerminationError;
 
+        void OnRequestSerialized(
+            IBusPtr bus,
+            IClientRequestPtr request,
+            TNullable<TDuration> timeout,
+            IMessagePtr requestMessage)
+        {
+            const auto& requestId = request->GetRequestId();
+
+            bus->Send(requestMessage).Subscribe(BIND(
+                &TSession::OnAcknowledgement,
+                MakeStrong(this),
+                requestId));
+
+            LOG_DEBUG("Request sent (RequestId: %s, Path: %s, Verb: %s, Timeout: %s)",
+                ~requestId.ToString(),
+                ~request->GetPath(),
+                ~request->GetVerb(),
+                ~ToString(timeout));
+        }
 
         void OnAcknowledgement(const TRequestId& requestId, TError error)
         {
@@ -439,7 +461,7 @@ IChannelPtr CreateBusChannel(
     IBusClientPtr client,
     TNullable<TDuration> defaultTimeout)
 {
-    YASSERT(client);
+    YCHECK(client);
 
     return New<TChannel>(client, defaultTimeout);
 }

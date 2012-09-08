@@ -32,37 +32,42 @@ public:
         , Verb(verb)
     { }
 
-    virtual IMessagePtr Serialize() const
+    virtual IMessagePtr Serialize() const override
     {
         return Message;
     }
 
-    virtual bool IsOneWay() const
+    virtual bool IsOneWay() const override
     {
         return OneWay;
     }
 
-    virtual const TRequestId& GetRequestId() const
+    virtual bool IsHeavy() const override
+    {
+        return false;
+    }
+
+    virtual const TRequestId& GetRequestId() const override
     {
         return RequestId;
     }
 
-    virtual const Stroka& GetPath() const
+    virtual const Stroka& GetPath() const override
     {
         return Path;
     }
 
-    virtual const Stroka& GetVerb() const
+    virtual const Stroka& GetVerb() const override
     {
         return Verb;
     }
 
-    virtual NYTree::IAttributeDictionary& Attributes()
+    virtual NYTree::IAttributeDictionary& Attributes() override
     {
         YUNREACHABLE();
     }
 
-    virtual const NYTree::IAttributeDictionary& Attributes() const
+    virtual const NYTree::IAttributeDictionary& Attributes() const override
     {
         YUNREACHABLE();
     }
@@ -81,7 +86,7 @@ class TRedirectorService::TResponseHandler
     : public IClientResponseHandler
 {
 public:
-    TResponseHandler(IServiceContextPtr context)
+    explicit TResponseHandler(IServiceContextPtr context)
         : Context(context)
     { }
 

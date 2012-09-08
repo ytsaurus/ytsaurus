@@ -46,11 +46,11 @@ TChunkService::TChunkService(TBootstrap* bootstrap)
     RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterNode));
     RegisterMethod(
         RPC_SERVICE_METHOD_DESC(FullHeartbeat)
-            .SetHeavyRequest(true)
+            .SetRequestHeavy(true)
             .SetInvoker(bootstrap->GetMetaStateFacade()->GetGuardedInvoker(EStateThreadQueue::ChunkRefresh)));
     RegisterMethod(
         RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat)
-            .SetHeavyRequest(true));
+            .SetRequestHeavy(true));
 }
 
 void TChunkService::ValidateNodeId(TNodeId nodeId) const
