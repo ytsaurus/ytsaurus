@@ -8,8 +8,8 @@ from tree_commands import exists, remove, get_attribute, copy, mkdir, find_free_
 from file_commands import upload_file
 
 import os
-import sys
 import types
+import logger
 import simplejson as json
 from itertools import imap, ifilter
 
@@ -266,7 +266,7 @@ def _filter_empty_tables(tables):
     filtered = []
     for table in tables:
         if not exists(table.name):
-            print >>sys.stderr, "Warning: input table '%s' does not exist" % table.name
+            logger.warning("Warning: input table '%s' does not exist", table.name)
         else:
             filtered.append(table)
     return filtered

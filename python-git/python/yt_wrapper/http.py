@@ -7,6 +7,7 @@ from format import RawFormat
 import requests
 
 import sys
+import logger
 import urllib
 
 def make_request(http_method, request_type, params,
@@ -18,11 +19,10 @@ def make_request(http_method, request_type, params,
         Returns response content, raw_response option force
         to return request.Response instance"""
 
-    def print_info(*args):
-        if not verbose:
-            return
-        print(*args, file=sys.stderr)
-
+    def print_info(msg, *args, **kwargs):
+        if verbose:
+            print >>sys.stderr, msg % args % kwargs
+        logger.debug(msg, *args, **kwargs)
 
     # Prepare request url.
     if proxy is None:
@@ -54,9 +54,9 @@ def make_request(http_method, request_type, params,
                output_format_key: mime_type}
 
 
-    print_info("Request url:", url)
-    print_info("Params:", params)
-    print_info("Headers:", headers)
+    print_info("Request url: %r", url)
+    print_info("Params: %r", params)
+    print_info("Headers: %r", headers)
     if http_method != "PUT" and data is not None:
         print_info(data)
 
@@ -69,10 +69,10 @@ def make_request(http_method, request_type, params,
         data=data,
         files=files)
 
-    print_info("Response header", response.headers)
+    print_info("Response header %r", response.headers)
     if response.headers["content-type"] == "application/json":
         # In this case we load json and try to detect error response from server
-        print_info("Response body", response.content)
+        print_info("Response body %r", response.content)
         result = response.json if response.content else None
 
         # TODO(ignat): improve method to detect errors from server
@@ -82,7 +82,7 @@ def make_request(http_method, request_type, params,
                 format(url, headers, result["error"]))
     else:
         result = response if raw_response else response.content
-
+    
     return result
 
 def urlencode(params):
