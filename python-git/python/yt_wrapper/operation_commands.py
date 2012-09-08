@@ -78,7 +78,7 @@ def wait_operation(operation, timeout=None, print_progress=True):
                 new_progress = get_operation_progress(operation)
                 if new_progress != progress:
                     progress = new_progress
-                    logger.error(
+                    logger.info(
                         "jobs of operation %s: %s",
                         operation,
                         "\t".join(["=".join(map(str, [k, v])) for k, v in progress.iteritems()]))

@@ -23,7 +23,7 @@ test_base_functionality()
     ./mapreduce -sort  -src "ignat/other_table" -dst "ignat/other_table"
     ./mapreduce -read "ignat/other_table"
     ./mapreduce -read "ignat/other_table" -lowerkey 3
-    ./mapreduce -map "cat" -src "ignat/other_table" -dst "ignat/mapped" -ytspec "{'job_count': 10}"
+    ./mapreduce -map "cat" -src "ignat/other_table" -dst "ignat/mapped" -ytspec '{"job_count": 10}'
     ./mapreduce -read "ignat/mapped"
     for (( i=1 ; i <= 2 ; i++ )); do
         ./mapreduce -map "cat" -src "ignat/other_table" -src "ignat/mapped" \
@@ -143,12 +143,12 @@ if __name__ == '__main__':
     rm -f mapper.py
 }
 
-test_base_functionality
-test_codec
-test_many_output_tables
-test_chunksize
-test_mapreduce
-test_input_output_format
+#test_base_functionality
+#test_codec
+#test_many_output_tables
+#test_chunksize
+#test_mapreduce
+#test_input_output_format
 test_transactions
 test_range_map
 test_uploaded_files
