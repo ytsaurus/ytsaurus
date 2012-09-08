@@ -1044,7 +1044,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 THROW_ERROR_EXCEPTION_IF_FAILED(*
                     rsp,
                     Sprintf("Error locking input table %s", ~table.Path.GetPath()));
-                LOG_INFO("Input table %s was locked successfully",
+                LOG_INFO("Input table %s locked",
                     ~table.Path.GetPath());
             }
             {
@@ -1104,7 +1104,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                     rsp,
                     Sprintf("Error locking output table %s",
                         ~table.Path.GetPath()));
-                LOG_INFO("Output table %s was locked successfully",
+                LOG_INFO("Output table %s locked",
                     ~table.Path.GetPath());
             }
             {
@@ -1132,7 +1132,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                     rsp,
                     Sprintf("Error clearing output table %s",
                         ~table.Path.GetPath()));
-                LOG_INFO("Output table %s was cleared successfully",
+                LOG_INFO("Output table %s cleared",
                     ~table.Path.GetPath());
             }
             {
@@ -1232,11 +1232,12 @@ void TOperationControllerBase::ReleaseChunkLists(const std::vector<TChunkListId>
 
 void TOperationControllerBase::OnChunkListsReleased(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
 {
-    if (batchRsp->IsOK()) {
-        LOG_INFO("Chunk lists released successfully");
-    } else {
-        LOG_WARNING("Error releasing chunk lists\n%s", ~ToString(batchRsp->GetError()));
+    if (!batchRsp->IsOK()) {
+        LOG_WARNING(*batchRsp, "Error releasing chunk lists");
+        return;
     }
+
+    LOG_INFO("Chunk lists released");
 }
 
 std::vector<TRefCountedInputChunkPtr> TOperationControllerBase::CollectInputTablesChunks()
