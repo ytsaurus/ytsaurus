@@ -36,7 +36,6 @@
 # +++ -dynallocmode IS IGNORED
 # +++ -opt  IS IGNORED
 
-import ast
 import yt
 import config
 from common import flatten, unlist
@@ -111,41 +110,133 @@ def main():
     config.USE_MAPREDUCE_STYLE_DST_TABLES = True
 
     # TODO(ignat): add unsupported arguments
-    action_stores = ["read", "write", "writesorted", "map", "reduce", "mapreduce", "reducews", "drop",
+    action_stores = ["read", "write", "writesorted", "map", "reduce", "reducews", "drop",
                      "erase", "abort_tx", "commit_tx", "renew_tx", "set", "get", "upload", "download"]
     action_flags = ["version", "copy", "sort", "merge", "list", "start_tx"]
 
     parser = ArgumentParser()
-    add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "ping"])
+    add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "ping_tx"])
     add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec",
-                                            "inputformat", "outputformat", "tx", "value", "replication_factor"])
+                                            "inputformat", "outputformat", "tx", "value", "replication_factor", "sort_by"])
     add_multiple_args(parser, ["src", "dst", "dstappend", "file", "mapfile", "reducefile", "ytfile", "opt", "ytspec"])
     add_integer_args(parser, ["jobcount", "threadcount", "chunksize", "jcmultiplier"])
 
     add_help_messages(parser,
         [
+            ("abort_tx",
+             "NEW! abort given transaction"),
+            ("append",
+             "turn on append mode in write operation"),
+            ("chunksize",
+             "bound for the size of the chunk in write operation"),
             ("codec",
-             "type of comression used while writing table, "
-             "possible values 'snappy', 'gzip_normal'' (lz4)"),
-            ("server",
-             "name of the proxy, port usually equals to 80 "
-             "and can be ommited in this argument"),
-            ("prefix",
-             "prefix that would add to each passed table, "
-             "each path in YT starts with //, for example '//home/username/my_table'"),
+             "NEW! type of comression used while writing table, "
+             "possible values 'snappy', 'lz4', 'gzip_normal', "
+             "'gzip_best_compression', 'lz4', by default value "
+             "depends on yt installation."),
+            ("commit_tx",
+             "NEW! commit given transaction"),
+            ("copy",
+             "copy given tables to one destination table"),
+            ("download",
+             "NEW! download file from given path"),
+            ("drop",
+             "delete given table"),
+            ("dst",
+             "destination table, option can be passed multiple times"),
+            ("dstappend",
+             "destination table in append mode, option can be passed multiple times"),
+            ("dsv",
+             "NEW! use delimited separated value format"),
+            ("dynallocmode",
+             "OLD! this option do nothing"),
+            ("erase",
+             "NEW! delete the table, this option supports range specificators"),
             ("file",
-             "file for bath map and reduce operations"),
-            ("mapfile",
-             "file for map stage of mapreduce operation"),
-            ("reducefile",
-             "file for reduce stage of mapreduce operation"),
+             "file for both map and reduce operations"),
+            ("get",
+             "NEW! returns subtree at given path in json format"),
+            ("inputformat",
+             "NEW! specifies operation input format. "
+             "This option has the following format: "
+             "'<format options as yson list map fragment>format'"),
+            ("jcmultiplier",
+             "OLD! this option do nothing"),
+            ("jobcount",
+             "specifies jobcount (only for map and reduce operations)"),
+            ("lenval",
+             "turn on yamr format with lenval"),
+            ("list",
+             "list all tables"),
+            ("lowerkey",
+             "specifies lowerkey for the range in the read operation"),
             ("map",
-             "command for run map operation"),
-            ("reduce",
-             "command for run reduce operation"),
+             "specifies map operation command"),
+            ("mapfile",
+             "NEW! file for the map stage of mapreduce operation"),
+            ("merge",
+             "merge given tables"),
+            ("opt",
+             "OLD! this option do nothing"),
+            ("outputformat",
+             "NEW! specifies operation output format. "
+             "This option has the following format: "
+             "'<format options as yson list map fragment>format'"),
+            ("ping_tx",
+             "NEW! turn on pinging ansector transactions"),
             ("prefix",
-             "prefix that would add to each passed table, "
-             "each path in YT starts with //, for example '//home/username/my_table'"),
+             "YT use tree structure to store meta information about system objects. "
+             "Each path in the tree (except root) starts with '//'. "
+             "Therefore, (for back compatibility purpose) we use this option as prefix "
+             "for each option that means path in the tree. Default='//statbox/'"),
+            ("read",
+             "read given table"),
+            ("reduce",
+             "specifies reduce operation command"),
+            ("reducefile",
+             "NEW! file for the reduce stage of mapreduce operation"),
+            ("reducews",
+                 ""),
+            ("renew_tx",
+             "NEW! renew given transaction"),
+            ("replication_factor",
+             "NEW! specifies replication factor of tables to write"),
+            ("server",
+             "adress of the proxy "
+             "(port usually equals to 80 and can be ommited)"),
+            ("set",
+             "NEW! set value to given path, value should be in json format"),
+            ("sort",
+             "sort source tables to destination table"),
+            ("sort_by",
+             "NEW! columns to sort_by, this option can be passed multiple times. "
+             "The order is important, by default=key,subkey."),
+            ("src",
+             "source table, this option can be passed multiple times"),
+            ("start_tx",
+             "NEW! start transaction, returns transaction id"),
+            ("subkey",
+             "turn on yamr format with subkey"),
+            ("threadcount",
+             "OLD! this option do nothing"),
+            ("tx",
+             "NEW! perform command in the context of the given transaction"),
+            ("upload",
+             "NEW! upload given file to destionation"),
+            ("upperkey",
+             "specifies upperkey for the range in the read operation"),
+            ("value",
+             "specifies value for set operation"),
+            ("version",
+             "print version"),
+            ("write",
+             "write stdin to given table"),
+            ("writesorted",
+             "write stdin to given table, holds table sorted"),
+            ("ytfile",
+             "NEW! specifies path to the file in YT tree for use it in current operation"),
+            ("ytspec",
+             "NEW! spec for given operation in json format"),
         ]
         + 
         [(name, "this argument is inherited from Yandex Mapreduce and it is ignored")
@@ -176,7 +267,7 @@ def main():
     spec = {}
     if vars(args)["ytspec"] is not None:
         for spec_arg in args.ytspec:
-            spec.update(ast.literal_eval(spec_arg))
+            spec.update(json.loads(spec_arg))
     if args.jobcount is not None:
         spec.update({"job_count": args.jobcount})
 
@@ -218,6 +309,7 @@ def main():
 
     if args.tx is not None:
         config.TRANSACTION = args.tx
+    config.PING_ANSECTOR_TRANSACTIONS = args.ping_tx
 
     table_writer = {}
     if args.codec is not None:
@@ -257,7 +349,7 @@ def main():
     if args.copy:
         yt.copy_table(args.src, unlist(dst))
     if args.sort:
-        yt.sort_table(args.src, unlist(dst), table_writer=table_writer, spec=spec)
+        yt.sort_table(args.src, unlist(dst), table_writer=table_writer, sort_by=args.sort_by, spec=spec)
     if args.merge:
         yt.merge_tables(args.src, unlist(dst), mode="sorted", table_writer=table_writer, spec=spec)
 
@@ -274,19 +366,19 @@ def main():
         if args.value is None:
             print >>sys.stderr, "Value option is necessary for set command"
             exit(1)
-        yt.set(args.set, json.loads(args.value))
+        yt.set(args.set, args.value)
     if args.get:
         if yt.exists(args.get):
             print json.dumps(yt.get(args.get))
 
     if args.start_tx:
-        print yt.start_transaction(args.tx, args.ping)
+        print yt.start_transaction()
     if args.commit_tx is not None:
-        yt.commit_transaction(args.commit_tx, args.ping)
+        yt.commit_transaction(args.commit_tx)
     if args.abort_tx is not None:
-        yt.abort_transaction(args.abort_tx, args.ping)
+        yt.abort_transaction(args.abort_tx)
     if args.renew_tx is not None:
-        yt.renew_transaction(args.renew_tx, args.ping)
+        yt.renew_transaction(args.renew_tx)
 
 if __name__ == "__main__":
     main()
