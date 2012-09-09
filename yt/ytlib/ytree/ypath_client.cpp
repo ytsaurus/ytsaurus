@@ -259,8 +259,7 @@ ExecuteVerb(
             &suffixService,
             &suffixPath);
     } catch (const std::exception& ex) {
-        auto responseMessage = CreateErrorResponseMessage(ex);
-        return MakeFuture(responseMessage);
+        return MakeFuture(CreateErrorResponseMessage(ex));
     }
 
     requestHeader.set_path(suffixPath);

@@ -813,6 +813,7 @@ IServiceContextPtr CreateYPathContext(
     TYPathResponseHandler responseHandler)
 {
     YASSERT(requestMessage);
+    YASSERT(responseHandler);
 
     NRpc::NProto::TRequestHeader requestHeader;
     YCHECK(ParseRequestHeader(requestMessage, &requestHeader));

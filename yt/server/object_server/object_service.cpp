@@ -74,10 +74,10 @@ public:
             TYPath path = requestHeader.path();
             Stroka verb = requestHeader.verb();
 
-            LOG_DEBUG("Execute[%d] <- Path: %s, Verb: %s",
+            LOG_DEBUG("Execute[%d] <- %s %s",
                 requestIndex,
-                ~path,
-                ~verb);
+                ~verb,
+                ~path);
 
             awaiter->Await(
                 ExecuteVerb(rootService, requestMessage),
