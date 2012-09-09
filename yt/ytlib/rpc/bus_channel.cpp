@@ -215,7 +215,7 @@ private:
                     .Run()
                     .Subscribe(BIND(
                         &TSession::OnRequestSerialized,
-                        this,
+                        MakeStrong(this),
                         bus,
                         request,
                         timeout));
