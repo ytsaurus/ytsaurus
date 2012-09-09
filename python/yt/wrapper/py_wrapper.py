@@ -1,4 +1,4 @@
-from dill import dump
+from yt.dill import dump
 
 from common import YtError
 
@@ -6,6 +6,8 @@ import os
 import sys
 import shutil
 from zipfile import ZipFile
+
+LOCATION = os.path.dirname(os.path.abspath(__file__))
 
 def module_relpath(module):
     if module.__name__ == "__main__":
@@ -39,9 +41,9 @@ def wrap(function):
     main_filename = "/tmp/_main_module.py"
     shutil.copy(sys.modules['__main__'].__file__, main_filename)
 
-    return ("./py_runner.py {0} {1} {2} {3}".\
+    return ("python _py_runner.py {0} {1} {2} {3}".\
                 format(os.path.basename(function_filename), 
                        os.path.basename(zip_filename),
                        os.path.basename(main_filename),
                        "_main_module"),
-            ["py_runner.py", function_filename, zip_filename, main_filename])
+            [os.path.join(LOCATION, "_py_runner.py"), function_filename, zip_filename, main_filename])

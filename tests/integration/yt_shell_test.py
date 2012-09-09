@@ -1,8 +1,7 @@
-import sys
 import os
 import subprocess
 
-from yt_environment import YTEnv
+from yt.environment import YTEnv
 from yt_env_setup import SANDBOX_ROOTDIR
 
 import pytest

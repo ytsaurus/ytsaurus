@@ -1,3 +1,5 @@
+import os
+
 import pytest
 
 from yt_env_setup import YTEnvSetup

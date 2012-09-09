@@ -1,10 +1,6 @@
-import yson as yson_lib
+import yt.yson
 
-import os
-import sys
 import subprocess
-
-
 import threading
 
 ###########################################################################
@@ -186,13 +182,13 @@ def write(path, value, **kw):
 # Helpers:
 
 def table2py(yson):
-    return yson_lib.yson_parser.parse_list_fragment(yson)
+    return yt.yson.yson_parser.parse_list_fragment(yson)
 
 def yson2py(yson):
-    return yson_lib.yson_parser.parse_string(yson)
+    return yt.yson.yson_parser.parse_string(yson)
 
 def py2yson(py):
-    return yson_lib.yson.dumps(py, indent='')
+    return yt.yson.yson.dumps(py, indent='')
 
 def get_transactions(**kw):
     yson_map = get_str('//sys/transactions', **kw)
