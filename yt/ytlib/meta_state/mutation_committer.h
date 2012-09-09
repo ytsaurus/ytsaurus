@@ -52,7 +52,7 @@ public:
         NElection::TCellManagerPtr cellManager,
         TDecoratedMetaStatePtr metaState,
         TChangeLogCachePtr changeLogCache,
-        TQuorumTrackerPtr followerTracker,
+        TFollowerTrackerPtr followerTracker,
         const TEpochId& epoch,
         IInvokerPtr controlInvoker,
         IInvokerPtr epochStateInvoker);
@@ -98,7 +98,7 @@ private:
     TLeaderCommitterConfigPtr Config;
     NElection::TCellManagerPtr CellManager;
     TChangeLogCachePtr ChangeLogCache;
-    TQuorumTrackerPtr FollowerTracker;
+    TFollowerTrackerPtr FollowerTracker;
     TEpochId EpochId;
 
     //! Protects the rest.

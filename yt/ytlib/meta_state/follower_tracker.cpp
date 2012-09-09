@@ -1,10 +1,8 @@
 #include "stdafx.h"
-#include "follower_pinger.h"
+#include "follower_tracker.h"
 #include "private.h"
 #include "config.h"
 #include "decorated_meta_state.h"
-#include "snapshot_store.h"
-#include "quorum_tracker.h"
 #include "decorated_meta_state.h"
 
 #include <ytlib/election/cell_manager.h>
@@ -22,47 +20,82 @@ static NLog::TLogger& Logger = MetaStateLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFollowerPinger::TFollowerPinger(
+TFollowerTracker::TFollowerTracker(
     TFollowerPingerConfigPtr config,
     TCellManagerPtr cellManager,
     TDecoratedMetaStatePtr decoratedState,
-    TQuorumTrackerPtr followerTracker,
     const TEpochId& epoch,
     IInvokerPtr epochControlInvoker)
     : Config(config)
     , CellManager(cellManager)
     , DecoratedState(decoratedState)
-    , QuorumTracker(followerTracker)
     , EpochId(epoch)
     , EpochControlInvoker(epochControlInvoker)
+    , ActiveQuorumPromise(NewPromise<void>())
 {
     YCHECK(config);
     YCHECK(cellManager);
     YCHECK(decoratedState);
-    YCHECK(followerTracker);
     YCHECK(epochControlInvoker);
     VERIFY_INVOKER_AFFINITY(epochControlInvoker, ControlThread);
+
 }
 
-void TFollowerPinger::Start()
+void TFollowerTracker::Start()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
-        if (id != CellManager->GetSelfId()) {
+        if (id == CellManager->GetSelfId()) {
+            Statuses.push_back(EPeerStatus::Leading);
+        } else {
+            Statuses.push_back(EPeerStatus::Stopped);
             SendPing(id);
         }
     }
+
+    ActivePeerCount = 0;
+
+    OnPeerActive(CellManager->GetSelfId());
 }
 
-void TFollowerPinger::Stop()
+void TFollowerTracker::Stop()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     // Do nothing.
 }
 
-void TFollowerPinger::SendPing(TPeerId followerId)
+bool TFollowerTracker::IsPeerActive(TPeerId peerId) const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto status = Statuses[peerId];
+    return status == EPeerStatus::Leading ||
+        status == EPeerStatus::Following;
+}
+
+bool TFollowerTracker::HasActiveQuorum() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return ActivePeerCount >= CellManager->GetQuorum();
+}
+
+TFuture<void> TFollowerTracker::GetActiveQuorum()
+{
+    return ActiveQuorumPromise;
+}
+
+void TFollowerTracker::OnPeerActive(TPeerId peerId)
+{
+    ++ActivePeerCount;
+    if (ActivePeerCount == CellManager->GetQuorum()) {
+        ActiveQuorumPromise.Set();
+    }
+}
+
+void TFollowerTracker::SendPing(TPeerId followerId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
     
@@ -81,21 +114,21 @@ void TFollowerPinger::SendPing(TPeerId followerId)
     request->set_record_count(version.RecordCount);
     *request->mutable_epoch_id() = EpochId.ToProto();
     request->Invoke().Subscribe(
-        BIND(&TFollowerPinger::OnPingResponse, MakeStrong(this), followerId)
+        BIND(&TFollowerTracker::OnPingResponse, MakeStrong(this), followerId)
             .Via(EpochControlInvoker));       
 }
 
-void TFollowerPinger::SchedulePing(TPeerId followerId)
+void TFollowerTracker::SchedulePing(TPeerId followerId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     TDelayedInvoker::Submit(
-        BIND(&TFollowerPinger::SendPing, MakeStrong(this), followerId)
+        BIND(&TFollowerTracker::SendPing, MakeStrong(this), followerId)
             .Via(EpochControlInvoker),
         Config->PingInterval);
 }
 
-void TFollowerPinger::OnPingResponse(TPeerId followerId, TProxy::TRspPingFollowerPtr response)
+void TFollowerTracker::OnPingResponse(TPeerId followerId, TProxy::TRspPingFollowerPtr response)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -111,7 +144,12 @@ void TFollowerPinger::OnPingResponse(TPeerId followerId, TProxy::TRspPingFollowe
     LOG_DEBUG("Ping reply received from follower %d (Status: %s)",
         followerId,
         ~status.ToString());
-    QuorumTracker->SetStatus(followerId, status);
+
+    if (status == EPeerStatus::Following && Statuses[followerId] != EPeerStatus::Following) {
+        OnPeerActive(followerId);
+    }
+
+    Statuses[followerId] = status;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

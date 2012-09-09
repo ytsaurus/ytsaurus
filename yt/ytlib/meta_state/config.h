@@ -211,7 +211,7 @@ struct TPersistentStateManagerConfig
 
     TSnapshotDownloaderConfigPtr SnapshotDownloader;
 
-    TFollowerPingerConfigPtr FollowerPinger;
+    TFollowerPingerConfigPtr FollowerTracker;
 
     TLeaderCommitterConfigPtr LeaderCommitter;
 
@@ -238,7 +238,7 @@ struct TPersistentStateManagerConfig
             .DefaultNew();
         Register("snapshot_downloader", SnapshotDownloader)
             .DefaultNew();
-        Register("follower_pinger", FollowerPinger)
+        Register("follower_tracker", FollowerTracker)
             .DefaultNew();
         Register("leader_committer", LeaderCommitter)
             .DefaultNew();

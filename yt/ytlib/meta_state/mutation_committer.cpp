@@ -5,8 +5,9 @@
 #include "meta_version.h"
 #include "decorated_meta_state.h"
 #include "change_log_cache.h"
-#include "quorum_tracker.h"
 #include "serialize.h"
+#include "mutation_context.h"
+#include "follower_tracker.h"
 
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/foreach.h>
@@ -259,7 +260,7 @@ TLeaderCommitter::TLeaderCommitter(
     TCellManagerPtr cellManager,
     TDecoratedMetaStatePtr decoratedState,
     TChangeLogCachePtr changeLogCache,
-    TQuorumTrackerPtr followerTracker,
+    TFollowerTrackerPtr followerTracker,
     const TEpochId& epochId,
     IInvokerPtr controlInvoker,
     IInvokerPtr epochStateInvoker)

@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "persistent_state_manager.h"
+#include "meta_state_manager.h"
 #include "private.h"
 #include "config.h"
 #include "change_log.h"
@@ -9,8 +10,7 @@
 #include "snapshot_builder.h"
 #include "recovery.h"
 #include "mutation_committer.h"
-#include "quorum_tracker.h"
-#include "follower_pinger.h"
+#include "follower_tracker.h"
 #include "meta_state.h"
 #include "snapshot_store.h"
 #include "decorated_meta_state.h"
@@ -58,38 +58,39 @@ public:
             : Owner(owner)
         { }
 
-    private:
-        TPersistentStateManagerPtr Owner;
-
-        void OnStartLeading()
+        virtual void OnStartLeading() override
         {
             Owner->OnElectionStartLeading();
         }
 
-        void OnStopLeading()
+        virtual void OnStopLeading() override
         {
             Owner->OnElectionStopLeading();
         }
 
-        void OnStartFollowing()
+        virtual void OnStartFollowing() override
         {
             Owner->OnElectionStartFollowing();
         }
 
-        void OnStopFollowing()
+        virtual void OnStopFollowing() override
         {
             Owner->OnElectionStopFollowing();
         }
 
-        TPeerPriority GetPriority()
+        virtual TPeerPriority GetPriority() override
         {
             return Owner->GetPriority();
         }
 
-        Stroka FormatPriority(TPeerPriority priority)
+        virtual Stroka FormatPriority(TPeerPriority priority) override
         {
             return Owner->FormatPriority(priority);
         }
+
+    private:
+        TPersistentStateManagerPtr Owner;
+
     };
 
     TPersistentStateManager(
@@ -188,7 +189,7 @@ public:
 
     virtual bool HasActiveQuorum() const override
     {
-        auto tracker = QuorumTracker;
+        auto tracker = FollowerTracker;
         if (!tracker) {
             return false;
         }
@@ -216,7 +217,7 @@ public:
 
     virtual void GetMonitoringInfo(NYTree::IYsonConsumer* consumer) override
     {
-        auto tracker = QuorumTracker;
+        auto tracker = FollowerTracker;
 
         BuildYsonFluently(consumer)
             .BeginMap()
@@ -266,7 +267,7 @@ public:
         }
 
         // FollowerTracker is modified concurrently from the ControlThread.
-        auto tracker = QuorumTracker;
+        auto tracker = FollowerTracker;
         if (!tracker || !tracker->HasActiveQuorum()) {
             return MakeFuture(TValueOrError<TMutationResponse>(TError(
                 ECommitCode::NoQuorum,
@@ -310,8 +311,7 @@ public:
     TLeaderCommitterPtr LeaderCommitter;
     TFollowerCommitterPtr FollowerCommitter;
 
-    TQuorumTrackerPtr QuorumTracker;
-    TFollowerPingerPtr FollowerPinger;
+    TFollowerTrackerPtr FollowerTracker;
 
     // RPC methods
     DECLARE_RPC_SERVICE_METHOD(NProto, GetSnapshotInfo)
@@ -783,7 +783,7 @@ public:
                 ~GetControlStatus().ToString());
         }
 
-        auto tracker = QuorumTracker;
+        auto tracker = FollowerTracker;
         response->set_leader_address(CellManager->GetSelfAddress());
         for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
             if (tracker->IsPeerActive(id)) {
@@ -828,24 +828,18 @@ public:
         ControlStatus = EPeerStatus::LeaderRecovery;
         StartEpoch();
 
-        YCHECK(!QuorumTracker);
-        QuorumTracker = New<TQuorumTracker>(
-            CellManager,
-            EpochControlInvoker);
-
         // During recovery the leader is reporting its reachable version to followers.
         auto version = DecoratedState->GetReachableVersionAsync();
         DecoratedState->SetPingVersion(version);
 
-        YCHECK(!FollowerPinger);
-        FollowerPinger = New<TFollowerPinger>(
-            Config->FollowerPinger,
+        YCHECK(!FollowerTracker);
+        FollowerTracker = New<TFollowerTracker>(
+            Config->FollowerTracker,
             CellManager,
             DecoratedState,
-            QuorumTracker,
             EpochContext->EpochId,
             EpochControlInvoker);
-        FollowerPinger->Start();
+        FollowerTracker->Start();
 
         EpochStateInvoker->Invoke(BIND(
             &TThis::DoStateStartLeading,
@@ -870,7 +864,7 @@ public:
             CellManager,
             DecoratedState,
             ChangeLogCache,
-            QuorumTracker,
+            FollowerTracker,
             EpochContext->EpochId,
             ControlInvoker,
             EpochStateInvoker);
@@ -948,7 +942,7 @@ public:
 
         LOG_INFO("Leader recovery complete");
 
-        QuorumTracker->GetActiveQuorum().Subscribe(
+        FollowerTracker->GetActiveQuorum().Subscribe(
             BIND(&TThis::OnActiveQuorumEstablished, MakeStrong(this))
                 .Via(EpochStateInvoker));
     }
@@ -977,12 +971,11 @@ public:
 
         StopEpoch();
 
-        if (FollowerPinger) {
-            FollowerPinger->Stop();
-            FollowerPinger.Reset();
+        if (FollowerTracker) {
+            FollowerTracker->Stop();
+            FollowerTracker.Reset();
         }
 
-        QuorumTracker.Reset();
         LeaderRecovery.Reset();
 
         if (SnapshotBuilder) {
