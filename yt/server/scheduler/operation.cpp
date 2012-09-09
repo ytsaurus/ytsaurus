@@ -4,6 +4,8 @@
 #include "exec_node.h"
 #include "operation_controller.h"
 
+#include <ytlib/scheduler/helpers.h>
+
 namespace NYT {
 namespace NScheduler {
 
