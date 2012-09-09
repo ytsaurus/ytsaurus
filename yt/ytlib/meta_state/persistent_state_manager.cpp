@@ -231,7 +231,7 @@ public:
                             0,
                             CellManager->GetPeerCount(),
                             [=] (TFluentList fluent, TPeerId id) {
-                                if (tracker->IsFollowerActive(id)) {
+                                if (tracker->IsPeerActive(id)) {
                                     fluent.Item().Scalar(id);
                                 }
                             });
@@ -241,7 +241,9 @@ public:
 
     DEFINE_SIGNAL(void(), StartLeading);
     DEFINE_SIGNAL(void(), LeaderRecoveryComplete);
+    DEFINE_SIGNAL(void(), ActiveQuorumEstablished);
     DEFINE_SIGNAL(void(), StopLeading);
+
     DEFINE_SIGNAL(void(), StartFollowing);
     DEFINE_SIGNAL(void(), FollowerRecoveryComplete);
     DEFINE_SIGNAL(void(), StopFollowing);
@@ -260,12 +262,12 @@ public:
         if (ReadOnly) {
             return MakeFuture(TValueOrError<TMutationResponse>(TError(
                 ECommitCode::ReadOnly,
-                "State is read only")));
+                "Read-only mode is active")));
         }
 
         // FollowerTracker is modified concurrently from the ControlThread.
-        auto followerTracker = QuorumTracker;
-        if (!followerTracker || !followerTracker->HasActiveQuorum()) {
+        auto tracker = QuorumTracker;
+        if (!tracker || !tracker->HasActiveQuorum()) {
             return MakeFuture(TValueOrError<TMutationResponse>(TError(
                 ECommitCode::NoQuorum,
                 "No active quorum")));
@@ -607,7 +609,7 @@ public:
 
                     FollowerRecovery->Run().Subscribe(
                         BIND(&TThis::OnControlFollowerRecoveryComplete, MakeStrong(this))
-                        .Via(EpochControlInvoker));
+                            .Via(EpochControlInvoker));
                 }
                 break;
 
@@ -784,7 +786,7 @@ public:
         auto tracker = QuorumTracker;
         response->set_leader_address(CellManager->GetSelfAddress());
         for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
-            if (tracker->IsFollowerActive(id)) {
+            if (tracker->IsPeerActive(id)) {
                 response->add_follower_addresses(CellManager->GetPeerAddress(id));
             }
         }
@@ -828,10 +830,8 @@ public:
 
         YCHECK(!QuorumTracker);
         QuorumTracker = New<TQuorumTracker>(
-            Config->QuorumTracker,
             CellManager,
-            EpochControlInvoker,
-            CellManager->GetSelfId());
+            EpochControlInvoker);
 
         // During recovery the leader is reporting its reachable version to followers.
         auto version = DecoratedState->GetReachableVersionAsync();
@@ -892,7 +892,7 @@ public:
             .Run()
             .Subscribe(
                 BIND(&TThis::OnStateLeaderRecoveryComplete, MakeStrong(this))
-                .Via(EpochStateInvoker));
+                    .Via(EpochStateInvoker));
     }
 
     void OnStateLeaderRecoveryComplete(TError error)
@@ -947,6 +947,19 @@ public:
         ControlStatus = EPeerStatus::Leading;
 
         LOG_INFO("Leader recovery complete");
+
+        QuorumTracker->GetActiveQuorum().Subscribe(
+            BIND(&TThis::OnActiveQuorumEstablished, MakeStrong(this))
+                .Via(EpochStateInvoker));
+    }
+
+    void OnActiveQuorumEstablished()
+    {
+        VERIFY_THREAD_AFFINITY(StateThread);
+
+        LOG_INFO("Active quorum established");
+
+        ActiveQuorumEstablished_.Fire();
     }
 
 

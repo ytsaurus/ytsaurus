@@ -82,7 +82,7 @@ class TChunkManager::TChunkTypeHandler
 public:
     explicit TChunkTypeHandler(TImpl* owner);
 
-    virtual EObjectType GetType()
+    virtual EObjectType GetType() override
     {
         return EObjectType::Chunk;
     }
@@ -90,11 +90,11 @@ public:
     virtual TObjectId Create(
         TTransaction* transaction,
         TReqCreateObject* request,
-        TRspCreateObject* response);
+        TRspCreateObject* response) override;
 
     virtual IObjectProxyPtr GetProxy(
         const TObjectId& id,
-        TTransaction* transaction);
+        TTransaction* transaction) override;
 
 private:
     TImpl* Owner;
@@ -111,7 +111,7 @@ class TChunkManager::TChunkListTypeHandler
 public:
     explicit TChunkListTypeHandler(TImpl* owner);
 
-    virtual EObjectType GetType()
+    virtual EObjectType GetType() override
     {
         return EObjectType::ChunkList;
     }
@@ -119,11 +119,11 @@ public:
     virtual TObjectId Create(
         TTransaction* transaction,
         TReqCreateObject* request,
-        TRspCreateObject* response);
+        TRspCreateObject* response) override;
 
     virtual IObjectProxyPtr GetProxy(
         const TObjectId& id,
-        TTransaction* transaction);
+        TTransaction* transaction) override;
 
 private:
     TImpl* Owner;
@@ -868,7 +868,7 @@ private:
         }
     }
 
-    virtual void Clear()
+    virtual void Clear() override
     {
         NodeIdGenerator.Reset();
         ChunkMap.Clear();
@@ -885,29 +885,23 @@ private:
     }
 
 
-    virtual void OnStartRecovery()
+    virtual void OnStartRecovery() override
     {
         Profiler.SetEnabled(false);
     }
 
-    virtual void OnStopRecovery()
+    virtual void OnStopRecovery() override
     {
         Profiler.SetEnabled(true);
     }
 
-    virtual void OnLeaderRecoveryComplete()
+    virtual void OnLeaderRecoveryComplete() override
     {
         ChunkPlacement = New<TChunkPlacement>(Config, Bootstrap);
 
         NodeLeaseTracker = New<TNodeLeaseTracker>(Config, Bootstrap);
 
         ChunkReplicator = New<TChunkReplicator>(Config, Bootstrap, ChunkPlacement, NodeLeaseTracker);
-
-        // Assign initial leases to nodes.
-        // NB: Nodes will remain unconfirmed until the first heartbeat.
-        FOREACH (const auto& pair, NodeMap) { 
-            StartNodeTracking(pair.second, true);
-        }
 
         PROFILE_TIMING ("/full_chunk_refresh_time") {
             LOG_INFO("Starting full chunk refresh");
@@ -916,7 +910,16 @@ private:
         }
     }
 
-    virtual void OnStopLeading()
+    virtual void OnActiveQuorumEstablished() override
+    {
+        // Assign initial leases to nodes.
+        // NB: Nodes will remain unconfirmed until the first heartbeat.
+        FOREACH (const auto& pair, NodeMap) { 
+            StartNodeTracking(pair.second, true);
+        }
+    }
+
+    virtual void OnStopLeading() override
     {
         ChunkPlacement.Reset();
         ChunkReplicator.Reset();
@@ -1412,7 +1415,7 @@ public:
         Logger = ChunkServerLogger;
     }
 
-    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const
+    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override
     {
         DECLARE_YPATH_SERVICE_WRITE_METHOD(Confirm);
         return TBase::IsWriteRequest(context);
@@ -1423,7 +1426,7 @@ private:
 
     TIntrusivePtr<TImpl> Owner;
 
-    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
+    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
         const auto* chunk = GetTypedImpl();
         auto miscExt = FindProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
@@ -1450,7 +1453,7 @@ private:
         TBase::GetSystemAttributes(attributes);
     }
 
-    virtual bool GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer)
+    virtual bool GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer) override
     {
         const auto* chunk = GetTypedImpl();
 
@@ -1575,7 +1578,7 @@ private:
         return TBase::GetSystemAttribute(name, consumer);
     }
 
-    virtual void DoInvoke(IServiceContextPtr context)
+    virtual void DoInvoke(IServiceContextPtr context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Locate);
         DISPATCH_YPATH_SERVICE_METHOD(Fetch);
@@ -1760,7 +1763,7 @@ public:
         Logger = ChunkServerLogger;
     }
 
-    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const
+    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override
     {
         DECLARE_YPATH_SERVICE_WRITE_METHOD(Attach);
         return TBase::IsWriteRequest(context);
@@ -1771,7 +1774,7 @@ private:
 
     TIntrusivePtr<TImpl> Owner;
 
-    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
+    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
         attributes->push_back("children_ids");
         attributes->push_back("parent_ids");
@@ -1814,7 +1817,7 @@ private:
         }
     }
 
-    virtual bool GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer)
+    virtual bool GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer) override
     {
         const auto* chunkList = GetTypedImpl();
 
@@ -1885,7 +1888,7 @@ private:
         return TBase::GetSystemAttribute(name, consumer);
     }
 
-    virtual void DoInvoke(NRpc::IServiceContextPtr context)
+    virtual void DoInvoke(NRpc::IServiceContextPtr context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Attach);
         TBase::DoInvoke(context);

@@ -37,6 +37,7 @@ protected:
 
     virtual void OnStartLeading();
     virtual void OnLeaderRecoveryComplete();
+    virtual void OnActiveQuorumEstablished();
     virtual void OnStopLeading();
 
     virtual void OnStartFollowing();

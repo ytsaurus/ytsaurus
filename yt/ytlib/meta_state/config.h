@@ -97,21 +97,6 @@ struct TFollowerPingerConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TQuorumTrackerConfig
-    : public TYsonSerializable
-{
-    TDuration PingTimeout;
-
-    TQuorumTrackerConfig()
-    {
-        Register("ping_timeout", PingTimeout)
-            .GreaterThan(TDuration())
-            .Default(TDuration::MilliSeconds(3000));
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TLeaderCommitterConfig
     : public TYsonSerializable
 {
@@ -228,8 +213,6 @@ struct TPersistentStateManagerConfig
 
     TFollowerPingerConfigPtr FollowerPinger;
 
-    TQuorumTrackerConfigPtr QuorumTracker;
-
     TLeaderCommitterConfigPtr LeaderCommitter;
 
     TSnapshotBuilderConfigPtr SnapshotBuilder;
@@ -256,8 +239,6 @@ struct TPersistentStateManagerConfig
         Register("snapshot_downloader", SnapshotDownloader)
             .DefaultNew();
         Register("follower_pinger", FollowerPinger)
-            .DefaultNew();
-        Register("quorum_tracker", QuorumTracker)
             .DefaultNew();
         Register("leader_committer", LeaderCommitter)
             .DefaultNew();

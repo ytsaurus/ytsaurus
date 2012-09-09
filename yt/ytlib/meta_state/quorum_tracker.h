@@ -6,6 +6,8 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/lease_manager.h>
 
+#include <ytlib/actions/signal.h>
+
 namespace NYT {
 namespace NMetaState {
 
@@ -16,32 +18,23 @@ class TQuorumTracker
 {
 public:
     TQuorumTracker(
-        TQuorumTrackerConfigPtr config,
         NElection::TCellManagerPtr cellManager,
-        IInvokerPtr epochControlInvoker,
-        TPeerId leaderId);
+        IInvokerPtr epochControlInvoker);
 
     bool HasActiveQuorum() const;
-    bool IsFollowerActive(TPeerId followerId) const;
+    bool IsPeerActive(TPeerId followerId) const;
     void SetStatus(TPeerId followerId, EPeerStatus status);
 
+    TFuture<void> GetActiveQuorum();
+
 private:
-    struct TPeerInfo
-    {
-        EPeerStatus Status;
-        TLeaseManager::TLease Lease;
-    };
+    void OnPeerActive(TPeerId peerId);
 
-    void ChangeFollowerStatus(int followerId, EPeerStatus  status);
-    void ResetFollowerState(int followerId);
-    void OnLeaseExpired(TPeerId followerId);
-    void UpdateActiveQuorum();
-
-    TQuorumTrackerConfigPtr Config;
     NElection::TCellManagerPtr CellManager;
     IInvokerPtr EpochControlInvoker;
-    std::vector<TPeerInfo> Peers;
+    std::vector<EPeerStatus> Statuses;
     int ActivePeerCount;
+    TPromise<void> ActiveQuorumPromise;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };

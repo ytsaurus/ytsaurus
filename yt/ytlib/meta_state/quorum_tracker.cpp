@@ -17,35 +17,31 @@ static NLog::TLogger& Logger = MetaStateLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TQuorumTracker::TQuorumTracker(
-    TQuorumTrackerConfigPtr config,
     TCellManagerPtr cellManager,
-    IInvokerPtr epochControlInvoker,
-    TPeerId leaderId)
-    : Config(config)
-    , CellManager(cellManager)
+    IInvokerPtr epochControlInvoker)
+    : CellManager(cellManager)
     , EpochControlInvoker(epochControlInvoker)
-    , Peers(cellManager->GetPeerCount())
+    , ActiveQuorumPromise(NewPromise<void>())
 {
     VERIFY_INVOKER_AFFINITY(epochControlInvoker, ControlThread);
-    YCHECK(config);
     YCHECK(cellManager);
     YCHECK(epochControlInvoker);
 
     for (TPeerId peerId = 0; peerId < CellManager->GetPeerCount(); ++peerId) {
-        Peers[peerId].Status =
-            peerId == CellManager->GetSelfId()
-            ? EPeerStatus::Leading
-            : EPeerStatus::Stopped;
+        Statuses.push_back(peerId == CellManager->GetSelfId() ? EPeerStatus::Leading : EPeerStatus::Stopped);
     }
+    ActivePeerCount = 0;
 
-    UpdateActiveQuorum();
+    OnPeerActive(CellManager->GetSelfId());
 }
 
-bool TQuorumTracker::IsFollowerActive(TPeerId followerId) const
+bool TQuorumTracker::IsPeerActive(TPeerId peerId) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Peers[followerId].Status == EPeerStatus::Following;
+    auto status = Statuses[peerId];
+    return status == EPeerStatus::Leading ||
+           status == EPeerStatus::Following;
 }
 
 bool TQuorumTracker::HasActiveQuorum() const
@@ -55,68 +51,26 @@ bool TQuorumTracker::HasActiveQuorum() const
     return ActivePeerCount >= CellManager->GetQuorum();
 }
 
-void TQuorumTracker::ResetFollowerState(int followerId)
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    ChangeFollowerStatus(followerId, EPeerStatus::Stopped);
-    Peers[followerId].Lease = TLeaseManager::NullLease;
-}
-
-void TQuorumTracker::ChangeFollowerStatus(int followerId, EPeerStatus status)
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    auto& peer = Peers[followerId];
-    if (peer.Status != status) {
-        LOG_INFO("Follower %d status changed from %s to %s",
-            followerId,
-            ~peer.Status.ToString(),
-            ~status.ToString());
-        peer.Status = status;
-        UpdateActiveQuorum();
-    }
-}
-
-void TQuorumTracker::UpdateActiveQuorum()
-{
-    bool oldHasQuorum = HasActiveQuorum();
-    ActivePeerCount = 0;
-    FOREACH (const auto& peer, Peers) {
-        if (peer.Status == EPeerStatus::Leading || peer.Status == EPeerStatus::Following) {
-            ++ActivePeerCount;
-        }
-    }
-    bool newHasQuorum = HasActiveQuorum();
-
-    if (oldHasQuorum && !newHasQuorum) {
-        LOG_INFO("Active quorum lost");
-    } else if (!oldHasQuorum && newHasQuorum) {
-        LOG_INFO("Active quorum established");
-    }
-}
-
-void TQuorumTracker::OnLeaseExpired(TPeerId followerId)
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    ResetFollowerState(followerId);
-}
-
 void TQuorumTracker::SetStatus(TPeerId followerId, EPeerStatus status)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    ChangeFollowerStatus(followerId, status);
+    if (status == EPeerStatus::Following && Statuses[followerId] != EPeerStatus::Following) {
+        OnPeerActive(followerId);
+    }
+    Statuses[followerId] = status;
+}
 
-    auto& peer = Peers[followerId];
-    if (peer.Lease == TLeaseManager::NullLease) {
-        peer.Lease = TLeaseManager::CreateLease(
-            Config->PingTimeout,
-            BIND(&TQuorumTracker::OnLeaseExpired, MakeWeak(this), followerId)
-            .Via(EpochControlInvoker));
-    } else {
-        TLeaseManager::RenewLease(peer.Lease);
+TFuture<void> TQuorumTracker::GetActiveQuorum()
+{
+    return ActiveQuorumPromise;
+}
+
+void TQuorumTracker::OnPeerActive(TPeerId peerId)
+{
+    ++ActivePeerCount;
+    if (ActivePeerCount == CellManager->GetQuorum()) {
+        ActiveQuorumPromise.Set();
     }
 }
 

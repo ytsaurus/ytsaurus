@@ -36,11 +36,11 @@ TFollowerPinger::TFollowerPinger(
     , EpochId(epoch)
     , EpochControlInvoker(epochControlInvoker)
 {
-    YASSERT(config);
-    YASSERT(cellManager);
-    YASSERT(decoratedState);
-    YASSERT(followerTracker);
-    YASSERT(epochControlInvoker);
+    YCHECK(config);
+    YCHECK(cellManager);
+    YCHECK(decoratedState);
+    YCHECK(followerTracker);
+    YCHECK(epochControlInvoker);
     VERIFY_INVOKER_AFFINITY(epochControlInvoker, ControlThread);
 }
 
@@ -82,7 +82,7 @@ void TFollowerPinger::SendPing(TPeerId followerId)
     *request->mutable_epoch_id() = EpochId.ToProto();
     request->Invoke().Subscribe(
         BIND(&TFollowerPinger::OnPingResponse, MakeStrong(this), followerId)
-        .Via(EpochControlInvoker));       
+            .Via(EpochControlInvoker));       
 }
 
 void TFollowerPinger::SchedulePing(TPeerId followerId)
@@ -91,7 +91,7 @@ void TFollowerPinger::SchedulePing(TPeerId followerId)
 
     TDelayedInvoker::Submit(
         BIND(&TFollowerPinger::SendPing, MakeStrong(this), followerId)
-        .Via(EpochControlInvoker),
+            .Via(EpochControlInvoker),
         Config->PingInterval);
 }
 
@@ -102,9 +102,8 @@ void TFollowerPinger::OnPingResponse(TPeerId followerId, TProxy::TRspPingFollowe
     SchedulePing(followerId);
 
     if (!response->IsOK()) {
-        LOG_WARNING("Error pinging follower %d\n%s",
-            followerId,
-            ~ToString(response->GetError()));
+        LOG_WARNING(response->GetError(), "Error pinging follower %d",
+            followerId);
         return;
     }
 
