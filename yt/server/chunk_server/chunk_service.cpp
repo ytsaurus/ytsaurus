@@ -105,6 +105,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterNode)
         ~requestCellGuid.ToString(),
         ~ToString(statistics));
 
+    ValidateInitialized();
     ValidateLeaderStatus();
 
     auto expectedCellGuid = objectManager->GetCellGuid();
@@ -145,6 +146,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, FullHeartbeat)
 
     context->SetRequestInfo("NodeId: %d", nodeId);
 
+    ValidateInitialized();
     ValidateLeaderStatus();
     ValidateNodeId(nodeId);
 
@@ -173,6 +175,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
 
     context->SetRequestInfo("NodeId: %d");
 
+    ValidateInitialized();
     ValidateLeaderStatus();
     ValidateNodeId(nodeId);
 

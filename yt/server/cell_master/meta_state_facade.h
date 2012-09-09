@@ -31,6 +31,8 @@ public:
     NMetaState::TCompositeMetaStatePtr GetState() const;
     NMetaState::IMetaStateManagerPtr GetManager() const;
 
+    bool IsInitialized() const;
+
     IInvokerPtr GetUnguardedInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const;
     IInvokerPtr GetUnguardedEpochInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const;
 

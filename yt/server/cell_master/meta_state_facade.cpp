@@ -40,7 +40,7 @@ using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("MetaState");
+static NLog::TLogger Logger("Bootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,6 +92,16 @@ public:
         return MetaStateManager;
     }
 
+    bool IsInitialized() const
+    {
+        if (!Root) {
+            auto cypressManager = Bootstrap->GetCypressManager();
+            Root = dynamic_cast<TMapNode*>(cypressManager->GetNode(cypressManager->GetRootNodeId()));
+            YCHECK(Root);
+        }
+        return !Root->KeyToChild().empty();
+    }
+
     IInvokerPtr GetUnguardedInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const
     {
         return StateQueue->GetInvoker(queue);
@@ -128,7 +138,7 @@ private:
     std::vector<IInvokerPtr> GuardedEpochInvokers;
     std::vector<IInvokerPtr> UnguardedEpochInvokers;
 
-    TMapNode* Root;
+    mutable TMapNode* Root;
 
 
     void OnStartEpoch()
@@ -150,7 +160,6 @@ private:
     }
 
 
-    // TODO(babenko): move initializer to a separate class
     void OnActiveQuorumEstablished()
     {
         // NB: Initialization cannot be carried out here since not all subsystems
@@ -166,23 +175,7 @@ private:
         }
     }
 
-    bool IsInitialized()
-    {
-        if (!Root) {
-            auto cypressManager = Bootstrap->GetCypressManager();
-            Root = dynamic_cast<TMapNode*>(cypressManager->GetNode(cypressManager->GetRootNodeId()));
-            YCHECK(Root);
-        }
-        return !Root->KeyToChild().empty();
-    }
-
-    bool CanInitialize() const
-    {
-        return
-            MetaStateManager->GetStateStatus() == EPeerStatus::Leading &&
-            MetaStateManager->HasActiveQuorum();
-    }
-
+    // TODO(babenko): move initializer to a separate class
     void Initialize()
     {
         LOG_INFO("World initialization started");
@@ -379,6 +372,11 @@ TCompositeMetaStatePtr TMetaStateFacade::GetState() const
 IMetaStateManagerPtr TMetaStateFacade::GetManager() const
 {
     return Impl->GetManager();
+}
+
+bool TMetaStateFacade::IsInitialized() const
+{
+    return Impl->IsInitialized();
 }
 
 IInvokerPtr TMetaStateFacade::GetUnguardedInvoker(EStateThreadQueue queue) const
