@@ -33,17 +33,17 @@ static NProfiling::TProfiler& Profiler = MetaStateProfiler;
 ////////////////////////////////////////////////////////////////////////////////
 
 TCommitter::TCommitter(
-    TDecoratedMetaStatePtr metaState,
+    TDecoratedMetaStatePtr decoratedState,
     IInvokerPtr controlInvoker,
     IInvokerPtr epochStateInvoker)
-    : MetaState(metaState)
+    : DecoratedState(decoratedState)
     , ControlInvoker(controlInvoker)
     , EpochStateInvoker(epochStateInvoker)
     , CommitCounter("/commit_rate")
     , BatchCommitCounter("/commit_batch_rate")
     , CommitTimeCounter("/commit_time")
 {
-    YCHECK(metaState);
+    YCHECK(decoratedState);
     YCHECK(controlInvoker);
     YCHECK(epochStateInvoker);
     VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
@@ -60,21 +60,34 @@ class TLeaderCommitter::TBatch
 {
 public:
     TBatch(
-        TLeaderCommitterPtr committer,
-        const TMetaVersion& startVersion)
-        : Committer(committer)
-        , Promise(NewPromise<TError>())
+        IInvokerPtr controlInvoker,
+        TCellManagerPtr cellManager,
+        TDecoratedMetaStatePtr decoratedState,
+        TLeaderCommitterConfigPtr config,
+        const TMetaVersion& startVersion,
+        const TEpochId& epochId)
+        : ControlInvoker(controlInvoker)
+        , CellManager(cellManager)
+        , DecoratedState(decoratedState)
+        , Config(config)
         , StartVersion(startVersion)
+        , EpochId(epochId)
+        , Promise(NewPromise<TError>())
         // The local commit is also counted.
         , CommitSuccessCount(0)
         , Logger(MetaStateLogger)
     {
+        YCHECK(controlInvoker);
+        YCHECK(cellManager);
+        YCHECK(decoratedState);
+        YCHECK(config);
+
         Logger.AddTag(Sprintf("StartVersion: %s", ~StartVersion.ToString()));
     }
 
     TAsyncError AddMutation(const TSharedRef& recordData)
     {
-        VERIFY_THREAD_AFFINITY(Committer.Lock()->StateThread);
+        VERIFY_THREAD_AFFINITY(StateThread);
 
         TMetaVersion currentVersion(
             StartVersion.SegmentId,
@@ -93,10 +106,8 @@ public:
 
     void FlushMutations(bool rotateChangeLog)
     {
-        auto committer = Committer.Lock();
-
         Logger.AddTag(Sprintf("MutationCount: %d", static_cast<int>(BatchedRecordsData.size())));
-        committer->ControlInvoker->Invoke(BIND(
+        ControlInvoker->Invoke(BIND(
             &TBatch::DoFlushMutations,
             MakeStrong(this),
             rotateChangeLog));
@@ -104,7 +115,7 @@ public:
 
     int GetMutationCount() const
     {
-        VERIFY_THREAD_AFFINITY(Committer.Lock()->StateThread);
+        VERIFY_THREAD_AFFINITY(StateThread);
 
         return static_cast<int>(BatchedRecordsData.size());
     }
@@ -112,45 +123,42 @@ public:
 private:
     void DoFlushMutations(bool rotateChangeLog)
     {
-        auto committer = Committer.Lock();
-
-        VERIFY_THREAD_AFFINITY(committer->ControlThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
             
         if (!BatchedRecordsData.empty()) {
             Profiler.Enqueue("/commit_batch_size", BatchedRecordsData.size());
 
             YASSERT(!LogResult.IsNull());
-            auto cellManager = committer->CellManager;
 
             Awaiter = New<TParallelAwaiter>(
-                committer->ControlInvoker,
+                ControlInvoker,
                 &Profiler,
                 "/commit_batch_time");
 
             Awaiter->Await(
                 LogResult,
-                EscapeYPathToken(cellManager->GetSelfAddress()),
+                EscapeYPathToken(CellManager->GetSelfAddress()),
                 BIND(&TBatch::OnLocalFlush, MakeStrong(this)));
 
             LOG_DEBUG("Sending batched mutations to followers");
-            for (TPeerId id = 0; id < cellManager->GetPeerCount(); ++id) {
-                if (id == cellManager->GetSelfId()) continue;
+            for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
+                if (id == CellManager->GetSelfId()) continue;
 
                 LOG_DEBUG("Sending mutations to follower %d", id);
 
-                TProxy proxy(cellManager->GetMasterChannel(id));
-                proxy.SetDefaultTimeout(committer->Config->RpcTimeout);
+                TProxy proxy(CellManager->GetMasterChannel(id));
+                proxy.SetDefaultTimeout(Config->RpcTimeout);
 
                 auto request = proxy.ApplyMutations();
                 request->set_segment_id(StartVersion.SegmentId);
                 request->set_record_count(StartVersion.RecordCount);
-                *request->mutable_epoch_id() = committer->EpochId.ToProto();
+                *request->mutable_epoch_id() = EpochId.ToProto();
                 FOREACH (const auto& mutation, BatchedRecordsData) {
                     request->Attachments().push_back(mutation);
                 }
                 Awaiter->Await(
                     request->Invoke(),
-                    EscapeYPathToken(cellManager->GetPeerAddress(id)),
+                    EscapeYPathToken(CellManager->GetPeerAddress(id)),
                     BIND(&TBatch::OnRemoteCommit, MakeStrong(this), id));
             }
             LOG_DEBUG("Batched mutations sent");
@@ -160,7 +168,7 @@ private:
         }
         
         // This is the version the next batch will have.
-        committer->MetaState->SetPingVersion(
+        DecoratedState->SetPingVersion(
             rotateChangeLog
             ? TMetaVersion(StartVersion.SegmentId + 1, 0)
             : TMetaVersion(StartVersion.SegmentId, StartVersion.RecordCount + BatchedRecordsData.size()));
@@ -168,11 +176,9 @@ private:
 
     bool CheckCommitQuorum()
     {
-        auto committer = Committer.Lock();
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
-        VERIFY_THREAD_AFFINITY(committer->ControlThread);
-
-        if (CommitSuccessCount < committer->CellManager->GetQuorum())
+        if (CommitSuccessCount < CellManager->GetQuorum())
             return false;
 
         Promise.Set(TError());
@@ -185,9 +191,7 @@ private:
 
     void OnRemoteCommit(TPeerId peerId, TProxy::TRspApplyMutationsPtr response)
     {
-        auto committer = Committer.Lock();
-
-        VERIFY_THREAD_AFFINITY(committer->ControlThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (!response->IsOK()) {
             LOG_WARNING(*response, "Error committing mutations by follower %d",
@@ -206,9 +210,7 @@ private:
     
     void OnLocalFlush()
     {
-        auto committer = Committer.Lock();
-
-        VERIFY_THREAD_AFFINITY(committer->ControlThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         LOG_DEBUG("Mutations are flushed locally");
         ++CommitSuccessCount;
@@ -217,9 +219,7 @@ private:
 
     void OnCompleted()
     {
-        auto committer = Committer.Lock();
-
-        VERIFY_THREAD_AFFINITY(committer->ControlThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (CheckCommitQuorum())
             return;
@@ -228,18 +228,27 @@ private:
             ECommitCode::MaybeCommitted,
             "Mutations are uncertain: %d out of %d commits were successful",
             CommitSuccessCount,
-            committer->CellManager->GetQuorum()));
+            CellManager->GetQuorum()));
     }
 
-    TWeakPtr<TLeaderCommitter> Committer;
-    TPromise<TError> Promise;
+
+    IInvokerPtr ControlInvoker;
+    TCellManagerPtr CellManager;
+    TDecoratedMetaStatePtr DecoratedState;
+    TLeaderCommitterConfigPtr Config;
     TMetaVersion StartVersion;
+    TEpochId EpochId;
+
+    TPromise<TError> Promise;
     int CommitSuccessCount;
     NLog::TTaggedLogger Logger;
 
     TParallelAwaiterPtr Awaiter;
     TFuture<void> LogResult;
     std::vector<TSharedRef> BatchedRecordsData;
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 
 };
 
@@ -278,7 +287,7 @@ void TLeaderCommitter::Flush(bool rotateChangeLog)
     // If no current batch exists but the changelog is about to be rotated
     // we have to create a dummy batch and flush it to update ping version.
     if (rotateChangeLog && !CurrentBatch) {
-        auto version = MetaState->GetVersion();
+        auto version = DecoratedState->GetVersion();
         GetOrCreateBatch(version);
     }
     if (CurrentBatch) {
@@ -292,7 +301,7 @@ TFuture< TValueOrError<TMutationResponse> > TLeaderCommitter::Commit(const TMuta
 
     if (request.Id != NullMutationId) {
         TSharedRef responseData;
-        if (MetaState->FindKeptResponse(request.Id, &responseData)) {
+        if (DecoratedState->FindKeptResponse(request.Id, &responseData)) {
             LOG_DEBUG("Kept response returned (MutationId: %s)", ~request.Id.ToString());
             TMutationResponse response;
             response.Applied = false;
@@ -314,20 +323,20 @@ TFuture< TValueOrError<TMutationResponse> > TLeaderCommitter::Commit(const TMuta
     auto recordData = SerializeMutationRecord(header, request.Data);
 
     PROFILE_AGGREGATED_TIMING (CommitTimeCounter) {
-        auto version = MetaState->GetVersion();
+        auto version = DecoratedState->GetVersion();
         LOG_DEBUG("Committing mutation at version %s (MutationId: %s)",
             ~version.ToString(),
             ~request.Id.ToString());
 
-        auto logResult = MetaState->LogMutation(version, recordData);
+        auto logResult = DecoratedState->LogMutation(version, recordData);
         auto batchResult = AddMutationToBatch(version, recordData, logResult);
 
         TMutationContext context(
-            MetaState->GetVersion(),
+            DecoratedState->GetVersion(),
             request,
             timestamp,
             randomSeed);
-        MetaState->ApplyMutation(&context);
+        DecoratedState->ApplyMutation(&context);
 
         MutationApplied_.Fire();
         Profiler.Increment(CommitCounter);
@@ -380,13 +389,16 @@ TLeaderCommitter::TBatchPtr TLeaderCommitter::GetOrCreateBatch(
 
     if (!CurrentBatch) {
         YCHECK(!BatchTimeoutCookie);
-        CurrentBatch = New<TBatch>(MakeStrong(this), version);
+        CurrentBatch = New<TBatch>(
+            ControlInvoker,
+            CellManager,
+            DecoratedState,
+            Config,
+            version,
+            EpochId);
         BatchTimeoutCookie = TDelayedInvoker::Submit(
-            BIND(
-                &TLeaderCommitter::OnBatchTimeout,
-                MakeWeak(this),
-                CurrentBatch)
-            .Via(ControlInvoker),
+            BIND(&TLeaderCommitter::OnBatchTimeout, MakeWeak(this), CurrentBatch)
+                .Via(ControlInvoker),
             Config->MaxBatchDelay);
     }
 
@@ -446,7 +458,7 @@ TAsyncError TFollowerCommitter::DoCommit(
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto currentVersion = MetaState->GetVersion();
+    auto currentVersion = DecoratedState->GetVersion();
     if (currentVersion > expectedVersion) {
         return MakeFuture(TError(
             ECommitCode::LateMutations,
@@ -469,8 +481,8 @@ TAsyncError TFollowerCommitter::DoCommit(
 
     TFuture<void> result;
     FOREACH (const auto& recordData, recordsData) {
-        result = MetaState->LogMutation(currentVersion, recordData);
-        MetaState->ApplyMutation(recordData);
+        result = DecoratedState->LogMutation(currentVersion, recordData);
+        DecoratedState->ApplyMutation(recordData);
         ++currentVersion.RecordCount;
     }
 

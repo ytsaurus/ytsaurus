@@ -30,7 +30,7 @@ protected:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 
-    TDecoratedMetaStatePtr MetaState;
+    TDecoratedMetaStatePtr DecoratedState;
     IInvokerPtr ControlInvoker;
     IInvokerPtr EpochStateInvoker;
     NProfiling::TRateCounter CommitCounter;
