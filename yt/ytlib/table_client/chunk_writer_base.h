@@ -53,7 +53,7 @@ protected:
 
     i64 CurrentSize;
 
-    i64 CurrentBufferSize;
+    i64 CurrentBufferCapacity;
 
     TAsyncStreamState State;
 
@@ -67,6 +67,7 @@ protected:
     void AdjustBufferHeap(int updatedBufferIndex);
     void PopBufferHeap();
 
+    void CheckBufferCapacity();
     void FinalizeWriter();
 };
 

@@ -6,10 +6,18 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkedOutputStream::TChunkedOutputStream(int minChunkSize)
-    : MinChunkSize(minChunkSize)
+TChunkedOutputStream::TChunkedOutputStream(int maxReserveSize, int initialReserveSize)
+    : MaxReserveSize(MaxReserveSize)
+    , CurrentReserveSize(initialReserveSize)
     , CompleteSize(0)
-{ }
+{
+    if (CurrentReserveSize > MaxReserveSize) {
+        CurrentReserveSize = MaxReserveSize;
+    }
+    YCHECK(MaxReserveSize > 0);
+
+    IncompleteChunk.reserve(CurrentReserveSize);
+}
 
 TChunkedOutputStream::~TChunkedOutputStream() throw()
 { }
@@ -18,12 +26,20 @@ std::vector<TSharedRef> TChunkedOutputStream::FlushBuffer()
 {
     CompleteChunks.push_back(TSharedRef(MoveRV(IncompleteChunk)));
     YASSERT(IncompleteChunk.empty());
+    CompleteSize = 0;
+    IncompleteChunk.reserve(CurrentReserveSize);
+
     return MoveRV(CompleteChunks);
 }
 
 size_t TChunkedOutputStream::GetSize() const
 {
     return CompleteSize + IncompleteChunk.size();
+}
+
+size_t TChunkedOutputStream::GetCapacity() const
+{
+    return CompleteSize + IncompleteChunk.capacity();
 }
 
 void TChunkedOutputStream::DoWrite(const void* buf, size_t len)
@@ -37,7 +53,9 @@ void TChunkedOutputStream::DoWrite(const void* buf, size_t len)
         CompleteSize += IncompleteChunk.size();
         CompleteChunks.push_back(TSharedRef(MoveRV(IncompleteChunk)));
         YASSERT(IncompleteChunk.empty());
-        IncompleteChunk.reserve(len - writeLen + MinChunkSize);
+
+        CurrentReserveSize = std::min(2 * CurrentReserveSize, MaxReserveSize);
+        IncompleteChunk.reserve(len - writeLen + CurrentReserveSize);
         IncompleteChunk.insert(IncompleteChunk.end(), buffer + writeLen, buffer + len);
     }
 }

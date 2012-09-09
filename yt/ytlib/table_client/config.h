@@ -27,7 +27,6 @@ struct TChunkWriterConfig
     bool AllowDuplicateColumnNames;
 
     i64 MaxBufferSize;
-    int AllocationChunkSize;
 
     TChunkWriterConfig()
     {
@@ -51,10 +50,6 @@ struct TChunkWriterConfig
             .Default(true);
         Register("max_buffer_size", MaxBufferSize)
             .Default(32 * 1024 * 1024);
-        Register("allocation_chunk_size", AllocationChunkSize)
-            .GreaterThan(128)
-            .LessThan(4 * 1024 * 1024 + 1)
-            .Default(1024 * 1024); // 1MB
 
         CodecId = ECodecId::Lz4;
     }

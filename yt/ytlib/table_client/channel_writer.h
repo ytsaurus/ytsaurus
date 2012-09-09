@@ -18,21 +18,23 @@ class TChannelWriter
     DEFINE_BYVAL_RO_PROPERTY(int, BufferIndex);
 
 public:
+    static const int MaxReserveSize;
+
     typedef TIntrusivePtr<TChannelWriter> TPtr;
 
     TChannelWriter(
-        int chunkSize,
         int bufferIndex,
         int fixedColumnCount,
         bool writeRangeSizes = false);
 
-    int WriteFixed(int fixedIndex, const TStringBuf& value);
-    int WriteRange(const TStringBuf& name, const TStringBuf& value);
-    int WriteRange(int chunkColumnIndex, const TStringBuf& value);
+    void WriteFixed(int fixedIndex, const TStringBuf& value);
+    void WriteRange(const TStringBuf& name, const TStringBuf& value);
+    void WriteRange(int chunkColumnIndex, const TStringBuf& value);
 
-    int EndRow();
+    void EndRow();
 
     size_t GetCurrentSize() const;
+    size_t GetCapacity() const;
 
     //! Number of rows in the current unflushed buffer.
     i64 GetCurrentRowCount() const;
@@ -40,6 +42,8 @@ public:
     std::vector<TSharedRef> FlushBlock();
 
 private:
+    void InitCapacity();
+
     //! Current buffers for fixed columns.
     std::vector<TChunkedOutputStream> FixedColumns;
 
@@ -52,8 +56,11 @@ private:
     //! Is fixed column with corresponding index already set in the current row.
     std::vector<bool> IsColumnUsed;
 
-    //! Overall size of current buffers.
+    //! Total size of data in buffers.
     size_t CurrentSize;
+
+    //! Total size of reserved buffers.
+    size_t Capacity;
 
     //! Number of rows in the current unflushed buffer.
     int CurrentRowCount;

@@ -10,81 +10,106 @@ namespace NTableClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+const int TChannelWriter::MaxReserveSize = 64 * 1024;
 static const int RangeSizesChunk = 1024;
 
 TChannelWriter::TChannelWriter(
-    int chunkSize,
     int bufferIndex,
     int fixedColumnCount,
     bool writeRangeSizes)
     : BufferIndex_(bufferIndex)
     , HeapIndex_(bufferIndex)
-    , FixedColumns(fixedColumnCount, TChunkedOutputStream(chunkSize))
-    , RangeColumns(chunkSize)
-    , RangeSizes(RangeSizesChunk) // this buffer is very small (if exists) - use small chunk size
+    , FixedColumns(fixedColumnCount, TChunkedOutputStream(MaxReserveSize))
+    , RangeColumns(MaxReserveSize)
+    // this buffer gives additional overhead for 
+    // partition chunks, but it is very small: 1K per partition
+    , RangeSizes(writeRangeSizes ? RangeSizesChunk : 1)
     , IsColumnUsed(fixedColumnCount)
     , CurrentRowCount(0)
     , WriteRangeSizes(writeRangeSizes)
     , RangeOffset(0)
     , CurrentSize(0)
-{ }
-
-int TChannelWriter::WriteFixed(int columnIndex, const TStringBuf& value)
-{
-    auto currentSize = CurrentSize;
-    auto& columnOutput = FixedColumns[columnIndex];
-    CurrentSize += TValue(value).Save(&columnOutput);
-    IsColumnUsed[columnIndex] = true;
-    return CurrentSize - currentSize;
+    , Capacity(0)
+{ 
+    InitCapacity();
 }
 
-int TChannelWriter::WriteRange(const TStringBuf& name, const TStringBuf& value)
+void TChannelWriter::InitCapacity()
 {
-    auto currentSize = CurrentSize;
+    Capacity += RangeSizes.GetCapacity();
+    Capacity += RangeColumns.GetCapacity();
+    FOREACH(const auto& column, FixedColumns) {
+        Capacity += column.GetCapacity();
+    }
+}
+
+void TChannelWriter::WriteFixed(int columnIndex, const TStringBuf& value)
+{
+    auto& columnOutput = FixedColumns[columnIndex];
+    auto capacity = columnOutput.GetCapacity();
+    CurrentSize += TValue(value).Save(&columnOutput);
+    Capacity += columnOutput.GetCapacity() - capacity;
+    IsColumnUsed[columnIndex] = true;
+}
+
+void TChannelWriter::WriteRange(const TStringBuf& name, const TStringBuf& value)
+{
+    auto capacity = RangeColumns.GetCapacity();
     CurrentSize += TValue(value).Save(&RangeColumns);
     CurrentSize += WriteVarInt32(&RangeColumns, static_cast<i32>(name.length()));
     CurrentSize += name.length();
     RangeColumns.Write(name);
-    return CurrentSize - currentSize;
+    Capacity += RangeColumns.GetCapacity() - capacity;
 }
 
-int TChannelWriter::WriteRange(int chunkColumnIndex, const TStringBuf& value)
+void TChannelWriter::WriteRange(int chunkColumnIndex, const TStringBuf& value)
 {
-    auto currentSize = CurrentSize;
     YASSERT(chunkColumnIndex > 0);
+    auto capacity = RangeColumns.GetCapacity();
     CurrentSize += TValue(value).Save(&RangeColumns);
     CurrentSize += WriteVarInt32(&RangeColumns, -(chunkColumnIndex + 1));
-    return CurrentSize - currentSize;
+    Capacity += RangeColumns.GetCapacity() - capacity;
 }
 
-int TChannelWriter::EndRow()
+void TChannelWriter::EndRow()
 {
-    auto currentSize = CurrentSize;
     for (int columnIdx = 0; columnIdx < IsColumnUsed.size(); ++columnIdx) {
         if (IsColumnUsed[columnIdx]) {
             // Clean flags
             IsColumnUsed[columnIdx] = false;
         } else {
             auto& columnData = FixedColumns[columnIdx];
+            auto capacity = columnData.GetCapacity();
             CurrentSize += TValue().Save(&columnData);
+            Capacity += columnData.GetCapacity() - capacity;
         }
     }
 
-    // End of the row
-    CurrentSize += TValue().Save(&RangeColumns);
+    {
+        // End of the row
+        auto capacity = RangeColumns.GetCapacity();
+        CurrentSize += TValue().Save(&RangeColumns);
+        Capacity += RangeColumns.GetCapacity() - capacity;
+    }
 
     if (WriteRangeSizes) {
+        auto capacity = RangeSizes.GetCapacity();
         CurrentSize += WriteVarUInt64(&RangeSizes, RangeColumns.GetSize() - RangeOffset);
+        Capacity += RangeSizes.GetCapacity() - capacity;
         RangeOffset = RangeColumns.GetSize();
     }
 
     ++ CurrentRowCount;
-    return CurrentSize - currentSize;
 }
 
 size_t TChannelWriter::GetCurrentSize() const
 {
     return CurrentSize;
+}
+
+size_t TChannelWriter::GetCapacity() const
+{
+    return Capacity;
 }
 
 std::vector<TSharedRef> TChannelWriter::FlushBlock()
@@ -118,6 +143,8 @@ std::vector<TSharedRef> TChannelWriter::FlushBlock()
 
     CurrentSize = 0;
     CurrentRowCount = 0;
+    Capacity = 0;
+    InitCapacity();
 
     return result;
 }

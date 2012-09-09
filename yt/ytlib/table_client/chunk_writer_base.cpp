@@ -38,7 +38,7 @@ TChunkWriterBase::TChunkWriterBase(
     , RowCount(0)
     , ValueCount(0)
     , CurrentSize(0)
-    , CurrentBufferSize(0)
+    , CurrentBufferCapacity(0)
 {
     VERIFY_INVOKER_AFFINITY(WriterThread->GetInvoker(), WriterThread);
 }
@@ -46,6 +46,17 @@ TChunkWriterBase::TChunkWriterBase(
 const TNullable<TKeyColumns>& TChunkWriterBase::GetKeyColumns() const
 {
     return KeyColumns;
+}
+
+void TChunkWriterBase::CheckBufferCapacity()
+{
+    if (CurrentBufferCapacity >= Config->MaxBufferSize) {
+        auto error = TError(
+            "Too small MaxBufferSize limit for chunk writer: (CurrentBufferCapacity %"PRId64", MaxBufferSize: %"PRId64")",
+            CurrentBufferCapacity,
+            Config->MaxBufferSize);
+        State.Fail(error);
+    }
 }
 
 void TChunkWriterBase::FinalizeWriter()
@@ -109,8 +120,8 @@ void TChunkWriterBase::AdjustBufferHeap(int updatedBufferIndex)
 
 void TChunkWriterBase::PopBufferHeap()
 {
-    LOG_DEBUG("Finish block (CurrentBufferSize: %"PRId64", CurrentBlockSize: %"PRId64")",
-        CurrentBufferSize,
+    LOG_DEBUG("Finish block (CurrentBufferCapacity: %"PRId64", CurrentBlockSize: %"PRId64")",
+        CurrentBufferCapacity,
         BuffersHeap.front()->GetCurrentSize());
 
     int lastIndex = BuffersHeap.size() - 1;
@@ -121,7 +132,7 @@ void TChunkWriterBase::PopBufferHeap()
     BuffersHeap[lastIndex] = BuffersHeap[0];
 
     BuffersHeap.back()->SetHeapIndex(lastIndex);
-    CurrentBufferSize -= BuffersHeap.back()->GetCurrentSize();
+    CurrentBufferCapacity -= BuffersHeap.back()->GetCapacity();
 
     while (currentIndex < lastIndex) {
         int maxChild = 2 * currentIndex + 1;

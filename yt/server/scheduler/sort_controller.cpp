@@ -13,6 +13,7 @@
 
 #include <ytlib/table_client/schema.h>
 #include <ytlib/table_client/key.h>
+#include <ytlib/table_client/channel_writer.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
@@ -1831,8 +1832,9 @@ private:
     virtual TNodeResources GetPartitionResources(
         i64 dataSize) const override
     {
+        i64 reserveSize = NTableClient::TChannelWriter::MaxReserveSize * static_cast<i64>(Partitions.size());
         i64 bufferSize = std::min(
-            PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()), 
+            reserveSize + PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()), 
             PartitionJobIOConfig->TableWriter->MaxBufferSize);
 
         TNodeResources result;
@@ -1845,7 +1847,7 @@ private:
                 Spec->Mapper->MemoryLimit +
                 GetFootprintMemorySize());
         } else {
-            bufferSize = std::min(bufferSize, dataSize);
+            bufferSize = std::min(bufferSize, dataSize + reserveSize);
             result.set_cores(1);
             result.set_memory(
                 GetIOMemorySize(PartitionJobIOConfig, 1, 1) + 

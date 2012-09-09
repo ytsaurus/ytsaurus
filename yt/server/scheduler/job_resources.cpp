@@ -126,8 +126,10 @@ i64 GetIOMemorySize(
 {
     return
         ioConfig->TableReader->WindowSize * ioConfig->TableReader->PrefetchWindow * inputStreamCount +
-        (ioConfig->TableWriter->WindowSize + 
-        ioConfig->TableWriter->EncodeWindowSize) * outputStreamCount * 2;
+        (ioConfig->TableWriter->WindowSize + // remote chunk writer window
+        ioConfig->TableWriter->EncodeWindowSize + // codec window
+        ioConfig->TableWriter->MaxBufferSize) * 
+        outputStreamCount * 2; // possibly writing two chunks at the time at chunk change
 }
 
 ////////////////////////////////////////////////////////////////////

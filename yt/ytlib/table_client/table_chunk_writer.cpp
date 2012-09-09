@@ -54,9 +54,10 @@ TTableChunkWriter::TTableChunkWriter(
 
     for (int i = 0; i < static_cast<int>(Channels.size()); ++i) {
         *ChannelsExt.add_items()->mutable_channel() = Channels[i].ToProto();
-        auto channelWriter = New<TChannelWriter>(Config->AllocationChunkSize, i, Channels[i].GetColumns().size());
+        auto channelWriter = New<TChannelWriter>(i, Channels[i].GetColumns().size());
         Buffers.push_back(channelWriter);
         BuffersHeap.push_back(~channelWriter);
+        CurrentBufferCapacity += channelWriter->GetCapacity();
     }
 
     BasicMetaSize = ChannelsExt.ByteSize() + MiscExt.ByteSize();
@@ -110,7 +111,9 @@ TAsyncError TTableChunkWriter::AsyncOpen()
 void TTableChunkWriter::FinalizeRow(const TRow& row)
 {
     FOREACH (const auto& writer, Buffers) {
-        CurrentBufferSize += writer->EndRow();
+        auto capacity = writer->GetCapacity();
+        writer->EndRow();
+        CurrentBufferCapacity += writer->GetCapacity() - capacity;
     }
 
     if (SamplesSize < Config->SampleRate * DataWeight * EncodingWriter->GetCompressionRatio()) {
@@ -128,7 +131,7 @@ void TTableChunkWriter::FinalizeRow(const TRow& row)
         PrepareBlock();
     }
 
-    while (CurrentBufferSize > Config->MaxBufferSize) {
+    while (CurrentBufferCapacity > Config->MaxBufferSize) {
         PrepareBlock();
     }
 }
@@ -148,12 +151,14 @@ auto TTableChunkWriter::GetColumnInfo(const TStringBuf& name) ->TColumnInfo&
 void TTableChunkWriter::WriteValue(const std::pair<TStringBuf, TStringBuf>& value, const TColumnInfo& columnInfo)
 {
     FOREACH (auto& channel, columnInfo.Channels) {
+        auto capacity = channel.Writer->GetCapacity();
         if (channel.ColumnIndex == RangeColumnIndex) {
-            CurrentBufferSize += channel.Writer->WriteRange(value.first, value.second);
+            channel.Writer->WriteRange(value.first, value.second);
         } else {
-            CurrentBufferSize += channel.Writer->WriteFixed(channel.ColumnIndex, value.second);
+            channel.Writer->WriteFixed(channel.ColumnIndex, value.second);
         }
         AdjustBufferHeap(channel.Writer->GetBufferIndex());
+        CurrentBufferCapacity += channel.Writer->GetCapacity() - capacity;
     }
 
     DataWeight += value.first.size();
@@ -279,6 +284,8 @@ void TTableChunkWriter::PrepareBlock()
     }
     blockInfo->set_block_size(size);
 
+    CurrentBufferCapacity += channel->GetCapacity();
+
     EncodingWriter->WriteBlock(MoveRV(blockParts));
 }
 
@@ -317,8 +324,6 @@ TAsyncError TTableChunkWriter::AsyncClose()
     while (BuffersHeap.front()->GetCurrentSize() > 0) {
         PrepareBlock();
     }
-
-    YCHECK(CurrentBufferSize == 0);
 
     EncodingWriter->AsyncFlush().Subscribe(BIND(
         &TTableChunkWriter::OnFinalBlocksWritten,

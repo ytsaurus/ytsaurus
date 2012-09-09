@@ -13,15 +13,21 @@ class TChunkedOutputStream
     : public TOutputStream
 {
 public:
-    TChunkedOutputStream(int minChunkSize);
+    TChunkedOutputStream(
+        int maxReserveSize = 64 * 1024, 
+        int initialReserveSize = 1024);
+
     ~TChunkedOutputStream() throw();
 
     std::vector<TSharedRef> FlushBuffer();
     size_t GetSize() const;
+    size_t GetCapacity() const;
 
 private:
-    const int MinChunkSize;
-    const size_t CompleteSize;
+    const int MaxReserveSize;
+
+    size_t CompleteSize;
+    int CurrentReserveSize;
 
     std::vector<TSharedRef> CompleteChunks;
     TBlob IncompleteChunk;

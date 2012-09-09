@@ -42,6 +42,7 @@ TPartitionChunkWriter::TPartitionChunkWriter(
         // Write range column sizes to effectively skip during reading.
         Buffers.push_back(New<TChannelWriter>(partitionTag, 0, true));
         BuffersHeap.push_back(~Buffers.back());
+        CurrentBufferCapacity += Buffers.back()->GetCapacity();
 
         auto* partitionAttributes = PartitionsExt.add_partitions();
         partitionAttributes->set_row_count(0);
@@ -55,6 +56,8 @@ TPartitionChunkWriter::TPartitionChunkWriter(
         sizeof(i64) * Partitioner->GetPartitionCount() + 
         sizeof(NChunkClient::NProto::TMiscExt) + 
         sizeof(NChunkClient::NProto::TChunkMeta);
+
+    CheckBufferCapacity();
 }
 
 TPartitionChunkWriter::~TPartitionChunkWriter()
@@ -87,14 +90,17 @@ bool TPartitionChunkWriter::TryWriteRowUnsafe(const TRow& row)
     auto& channelWriter = Buffers[partitionTag];
 
     i64 rowDataWeight = 1;
+    auto capacity = channelWriter->GetCapacity();
     FOREACH (const auto& pair, row) {
-        CurrentBufferSize += channelWriter->WriteRange(pair.first, pair.second);
+        channelWriter->WriteRange(pair.first, pair.second);
 
         rowDataWeight += pair.first.size();
         rowDataWeight += pair.second.size();
         ValueCount += 1;
     }
-    CurrentBufferSize += channelWriter->EndRow();
+    channelWriter->EndRow();
+
+    CurrentBufferCapacity += channelWriter->GetCapacity() - capacity;
 
     // Update partition counters.
     auto* partitionAttributes = PartitionsExt.mutable_partitions(partitionTag);
@@ -111,7 +117,7 @@ bool TPartitionChunkWriter::TryWriteRowUnsafe(const TRow& row)
         PrepareBlock();
     }
 
-    if (CurrentBufferSize > Config->MaxBufferSize) {
+    if (CurrentBufferCapacity > Config->MaxBufferSize) {
         PrepareBlock();
     }
 
@@ -144,7 +150,10 @@ void TPartitionChunkWriter::PrepareBlock()
         size += part.Size();
     }
 
+
     blockInfo->set_block_size(size);
+
+    CurrentBufferCapacity += channelWriter->GetCapacity();
 
     auto* partitionAttributes = PartitionsExt.mutable_partitions(partitionTag);
     partitionAttributes->set_uncompressed_data_size(
@@ -194,7 +203,7 @@ TAsyncError TPartitionChunkWriter::AsyncClose()
         PrepareBlock();
     }
 
-    YCHECK(CurrentBufferSize == 0);
+    YCHECK(CurrentBufferCapacity == 0);
 
     EncodingWriter->AsyncFlush().Subscribe(BIND(
         &TPartitionChunkWriter::OnFinalBlocksWritten,
