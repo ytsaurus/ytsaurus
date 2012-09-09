@@ -122,7 +122,9 @@ void TRedirectorService::OnBeginRequest(IServiceContextPtr context)
     HandleRedirect(context).Subscribe(BIND([=] (TRedirectResult result)
         {
             if (!result.IsOK()) {
-                context->Reply(TError(NRpc::EErrorCode::Unavailable, "Redirection failed")
+                context->Reply(TError(
+                    NRpc::EErrorCode::Unavailable,
+                    "Redirection failed")
                     << result);
                 return;
             }

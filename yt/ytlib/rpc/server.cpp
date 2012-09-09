@@ -37,6 +37,7 @@ public:
         , Service(service)
         , Logger(loggingCategory)
     {
+        YASSERT(requestMessage);
         YASSERT(replyBus);
         YASSERT(service);
     }
