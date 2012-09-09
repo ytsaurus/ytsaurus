@@ -846,7 +846,9 @@ private:
     void ValidateConnected()
     {
         if (!MasterConnector->IsConnected()) {
-            THROW_ERROR_EXCEPTION("Scheduler is not connected to master, try later");
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Scheduler is not connected to master, try later");
         }
     }
 
