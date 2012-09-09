@@ -660,10 +660,10 @@ void TObjectManager::ExecuteVerb(
     IServiceContextPtr context,
     TCallback<void(NRpc::IServiceContextPtr)> action)
 {
-    LOG_INFO_UNLESS(IsRecovery(), "ExecuteVerb: %s (ObjectId: %s, Path: %s, TransactionId: %s, IsWrite: %s)",
+    LOG_INFO_UNLESS(IsRecovery(), "ExecuteVerb: %s %s (ObjectId: %s, TransactionId: %s, IsWrite: %s)",
         ~context->GetVerb(),
-        ~id.ObjectId.ToString(),
         ~context->GetPath(),
+        ~id.ObjectId.ToString(),
         ~id.TransactionId.ToString(),
         ~FormatBool(isWrite));
 
