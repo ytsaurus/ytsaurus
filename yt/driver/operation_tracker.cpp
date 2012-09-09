@@ -32,27 +32,20 @@ EExitCode TOperationTracker::Run()
 {
     OperationType = GetOperationType(OperationId);
     TSchedulerServiceProxy proxy(Driver->GetSchedulerChannel());
-    if (!OperationFinished()) {
-        while (true)  {
-            auto waitOpReq = proxy.WaitForOperation();
-            *waitOpReq->mutable_operation_id() = OperationId.ToProto();
-            waitOpReq->set_timeout(Config->OperationWaitTimeout.GetValue());
+    while (!CheckFinished())  {
+        auto waitOpReq = proxy.WaitForOperation();
+        *waitOpReq->mutable_operation_id() = OperationId.ToProto();
+        waitOpReq->set_timeout(Config->OperationWaitTimeout.GetValue());
 
-            // Override default timeout.
-            waitOpReq->SetTimeout(
-                Config->OperationWaitTimeout +
-                proxy.GetDefaultTimeout().Get(TDuration::Zero()));
-            auto waitOpRsp = waitOpReq->Invoke().Get();
+        // Override default timeout.
+        waitOpReq->SetTimeout(
+            Config->OperationWaitTimeout +
+            proxy.GetDefaultTimeout().Get(TDuration::Zero()));
 
-            if (!waitOpRsp->IsOK()) {
-                THROW_ERROR waitOpRsp->GetError();
-            }
+        auto waitOpRsp = waitOpReq->Invoke().Get();
+        THROW_ERROR_EXCEPTION_IF_FAILED(*waitOpRsp);
 
-            if (waitOpRsp->finished())
-                break;
-
-            DumpProgress();
-        }
+        DumpProgress();
     }
 
     return DumpResult();
@@ -320,7 +313,7 @@ EOperationType TOperationTracker::GetOperationType(const TOperationId& operation
     return ConvertTo<EOperationType>(TYsonString(rsp->value()));
 }
 
-bool TOperationTracker::OperationFinished()
+bool TOperationTracker::CheckFinished()
 {
     TObjectServiceProxy proxy(Driver->GetMasterChannel());
     auto operationPath = GetOperationPath(OperationId);
@@ -328,10 +321,7 @@ bool TOperationTracker::OperationFinished()
     auto rsp = proxy.Execute(req).Get();
     if (rsp->IsOK()) {
         auto state = ConvertTo<EOperationState>(TYsonString(rsp->value()));
-        if (state == EOperationState::Completed ||
-            state == EOperationState::Aborted ||
-            state == EOperationState::Failed)
-        {
+        if (IsOperationFinished(state)) {
             return true;
         }
     }

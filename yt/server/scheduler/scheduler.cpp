@@ -374,7 +374,8 @@ private:
     void RegisterAndReviveOperations(const std::vector<TOperationPtr>& operations)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
+        
+        YCHECK(Operations.empty());
         FOREACH (auto operation, operations) {
             LOG_INFO("Reviving operation (OperationId: %s)", ~operation->GetOperationId().ToString());
             operation->SetController(CreateController(~operation));
@@ -922,10 +923,10 @@ private:
     void OnOperationWaitResult(
         TCtxWaitForOperationPtr context,
         TOperationPtr operation,
-        bool finished)
+        bool maybeFinished)
     {
-        context->SetResponseInfo("Finished: %s", ~FormatBool(finished));
-        context->Response().set_finished(finished);
+        context->SetResponseInfo("MaybeFinished: %s", ~FormatBool(maybeFinished));
+        context->Response().set_maybe_finished(maybeFinished);
         context->Reply();
     }
 

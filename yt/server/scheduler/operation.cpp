@@ -39,10 +39,7 @@ void TOperation::SetFinished()
 
 bool TOperation::IsFinished() const
 {
-    return
-        State_ == EOperationState::Completed ||
-        State_ == EOperationState::Failed ||
-        State_ == EOperationState::Aborted;
+    return IsOperationFinished(State_);
 }
 
 ////////////////////////////////////////////////////////////////////

@@ -34,7 +34,7 @@ private:
 
     NScheduler::EOperationType GetOperationType(const NScheduler::TOperationId& operationId);
 
-    bool OperationFinished();
+    bool CheckFinished();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -44,6 +44,14 @@ TYPath GetStdErrPath(const TOperationId& operationId, const TJobId& jobId)
         + "/stderr";
 }
 
+bool IsOperationFinished(EOperationState state)
+{
+    return
+        state == EOperationState::Completed ||
+        state == EOperationState::Aborted ||
+        state == EOperationState::Failed;
+}
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler
