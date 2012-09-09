@@ -58,7 +58,16 @@ public:
         : TWeightLimitedCache<TBlockId, TCachedBlock>(config->MaxCachedBlocksSize)
         , Bootstrap(bootstrap)
         , PendingReadSize_(0)
-    { }
+    {
+        auto error = Bootstrap->GetMemoryUsageTracker().TryAcquire(
+            NCellNode::EMemoryConsumer::BlockCache, config->MaxCachedBlocksSize);
+        if (!error.IsOK()) {
+            auto fatalError = TError("Couldn't allocate memory for block cache.")
+                << error;
+            //TODO(psushin): No need to create core here.
+            LOG_FATAL("%s", ~ToString(fatalError));
+        }
+    }
 
     TCachedBlockPtr Put(
         const TBlockId& blockId,

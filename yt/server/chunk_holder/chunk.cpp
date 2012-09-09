@@ -13,6 +13,7 @@
 namespace NYT {
 namespace NChunkHolder {
 
+using namespace NCellNode;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 
@@ -27,24 +28,29 @@ TChunk::TChunk(
     TLocationPtr location, 
     const TChunkId& id, 
     const TChunkMeta& chunkMeta, 
-    const TChunkInfo& chunkInfo)
+    const TChunkInfo& chunkInfo,
+    TNodeMemoryTracker& memoryUsageTracker)
     : Id_(id)
     , Location_(location)
     , Info_(chunkInfo)
     , HasMeta(true)
     , Meta(chunkMeta)
     , RemovedEvent(Null)
+    , MemoryUsageTracker(memoryUsageTracker)
 {
+    MemoryUsageTracker.Acquire(NCellNode::EMemoryConsumer::ChunkMeta, Meta.SpaceUsed());
     Initialize();
 }
 
 TChunk::TChunk(
     TLocationPtr location,
-    const TChunkDescriptor& descriptor)
+    const TChunkDescriptor& descriptor,
+    TNodeMemoryTracker& memoryUsageTracker)
     : Id_(descriptor.Id)
     , Location_(location)
     , HasMeta(false)
     , RemovedEvent(Null)
+    , MemoryUsageTracker(memoryUsageTracker)
 {
     Info_.set_size(descriptor.Size);
     Info_.clear_meta_checksum();
@@ -58,7 +64,11 @@ void TChunk::Initialize()
 }
 
 TChunk::~TChunk()
-{ }
+{ 
+    if (HasMeta) {
+        MemoryUsageTracker.Release(NCellNode::EMemoryConsumer::ChunkMeta, Meta.SpaceUsed());
+    }
+}
 
 Stroka TChunk::GetFileName() const
 {
@@ -137,6 +147,7 @@ TAsyncError TChunk::ReadMeta()
                     // These are very quick getters.
                     Meta = reader->GetChunkMeta();
                     HasMeta = true;
+                    MemoryUsageTracker.Acquire(NCellNode::EMemoryConsumer::ChunkMeta, Meta.SpaceUsed());
                 }
             }
 
@@ -239,12 +250,16 @@ TStoredChunk::TStoredChunk(
     TLocationPtr location,
     const TChunkId& chunkId,
     const TChunkMeta& chunkMeta,
-    const TChunkInfo& chunkInfo)
-    : TChunk(location, chunkId, chunkMeta, chunkInfo)
+    const TChunkInfo& chunkInfo,
+    TNodeMemoryTracker& memoryUsageTracker)
+    : TChunk(location, chunkId, chunkMeta, chunkInfo, memoryUsageTracker)
 { }
 
-TStoredChunk::TStoredChunk(TLocationPtr location, const TChunkDescriptor& descriptor)
-    : TChunk(location, descriptor)
+TStoredChunk::TStoredChunk(
+    TLocationPtr location, 
+    const TChunkDescriptor& descriptor, 
+    TNodeMemoryTracker& memoryUsageTracker)
+    : TChunk(location, descriptor, memoryUsageTracker)
 { }
 
 TStoredChunk::~TStoredChunk()
@@ -257,8 +272,9 @@ TCachedChunk::TCachedChunk(
     const TChunkId& chunkId,
     const TChunkMeta& chunkMeta,
     const TChunkInfo& chunkInfo,
-    TChunkCachePtr chunkCache)
-    : TChunk(location, chunkId, chunkMeta, chunkInfo)
+    TChunkCachePtr chunkCache,
+    TNodeMemoryTracker& memoryUsageTracker)
+    : TChunk(location, chunkId, chunkMeta, chunkInfo, memoryUsageTracker)
     , TCacheValueBase<TChunkId, TCachedChunk>(GetId())
     , ChunkCache(chunkCache)
 { }
@@ -266,8 +282,9 @@ TCachedChunk::TCachedChunk(
 TCachedChunk::TCachedChunk(
     TLocationPtr location,
     const TChunkDescriptor& descriptor,
-    TChunkCachePtr chunkCache)
-    : TChunk(location, descriptor)
+    TChunkCachePtr chunkCache,
+    TNodeMemoryTracker& memoryUsageTracker)
+    : TChunk(location, descriptor, memoryUsageTracker)
     , TCacheValueBase<TChunkId, TCachedChunk>(GetId())
     , ChunkCache(chunkCache)
 { }

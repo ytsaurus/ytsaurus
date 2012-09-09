@@ -29,7 +29,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, GetJobSpec);
     DEFINE_RPC_PROXY_METHOD(NProto, OnJobFinished);
     DEFINE_ONE_WAY_RPC_PROXY_METHOD(NProto, OnJobProgress);
-    DEFINE_ONE_WAY_RPC_PROXY_METHOD(NProto, OnResourceUtilizationSet);
+    DEFINE_ONE_WAY_RPC_PROXY_METHOD(NProto, UpdateResourceUtilization);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

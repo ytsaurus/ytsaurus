@@ -6,6 +6,7 @@
 #include <server/cell_node/public.h>
 #include <ytlib/bus/public.h>
 #include <ytlib/rpc/public.h>
+#include <ytlib/misc/memory_usage_tracker.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -35,6 +36,7 @@ public:
     TReaderCachePtr GetReaderCache() const;
     NRpc::IChannelPtr GetMasterChannel() const;
     Stroka GetPeerAddress() const;
+    TMemoryUsageTracker<NCellNode::EMemoryConsumer>& GetMemoryUsageTracker();
     const TGuid& GetCellGuid() const;
     void UpdateCellGuid(const TGuid& cellGuid);
 

@@ -43,6 +43,8 @@ public:
     NChunkHolder::TBootstrap* GetChunkHolderBootstrap() const;
     NExecAgent::TBootstrap* GetExecAgentBootstrap() const;
 
+    TNodeMemoryTracker& GetMemoryUsageTracker();
+
     void Run();
 
 private:
@@ -60,6 +62,7 @@ private:
 
     THolder<NChunkHolder::TBootstrap> ChunkHolderBootstrap;
     THolder<NExecAgent::TBootstrap> ExecAgentBootstrap;
+    TMemoryUsageTracker<EMemoryConsumer> MemoryUsageTracker;
 
 };
 

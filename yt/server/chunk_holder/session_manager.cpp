@@ -370,7 +370,8 @@ TChunkPtr TSession::OnFileClosed(TVoid)
         Location, 
         ChunkId, 
         Writer->GetChunkMeta(), 
-        Writer->GetChunkInfo());
+        Writer->GetChunkInfo(),
+        Bootstrap->GetMemoryUsageTracker());
     Bootstrap->GetChunkStore()->RegisterChunk(chunk);
     return chunk;
 }

@@ -26,6 +26,7 @@ namespace NYT {
 namespace NExecAgent {
 
 using namespace NRpc;
+using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -110,6 +111,11 @@ NChunkHolder::TChunkCachePtr TBootstrap::GetChunkCache() const
 NJobProxy::TJobProxyConfigPtr TBootstrap::GetJobProxyConfig() const
 {
     return JobProxyConfig;
+}
+
+NCellNode::TNodeMemoryTracker& TBootstrap::GetMemoryUsageTracker()
+{
+    return NodeBootstrap->GetMemoryUsageTracker();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

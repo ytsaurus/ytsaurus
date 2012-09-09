@@ -56,7 +56,9 @@ public:
     NScheduler::EJobProgress GetProgress() const;
 
     NScheduler::NProto::TNodeResources GetResourceUtilization() const;
-    void SetResourceUtilization(const NScheduler::NProto::TNodeResources& utilization);
+
+    // New utilization should not exceed initial utilization.
+    void UpdateResourceUtilization(const NScheduler::NProto::TNodeResources& utilization);
 
     const NScheduler::NProto::TJobResult& GetResult() const;
     void SetResult(const NScheduler::NProto::TJobResult& jobResult);

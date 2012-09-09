@@ -1,21 +1,19 @@
 #pragma once
 
-#include "memory_consumer.h"
-
 #include <ytlib/misc/common.h>
-#include <ytlib/misc/memory_usage_tracker.h>
+#include <ytlib/misc/enum.h>
 
 namespace NYT {
 namespace NCellNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBootstrap;
-
-struct TCellNodeConfig;
-typedef TIntrusivePtr<TCellNodeConfig> TCellNodeConfigPtr;
-
-typedef TMemoryUsageTracker<EMemoryConsumer> TNodeMemoryTracker;
+DECLARE_ENUM(EMemoryConsumer,
+    (Footprint)
+    (BlockCache)
+    (ChunkMeta)
+    (Job)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -48,7 +48,10 @@ void TChunkStore::Start()
             Locations_.push_back(location);
 
             FOREACH (const auto& descriptor, location->Scan()) {
-                auto chunk = New<TStoredChunk>(location, descriptor);
+                auto chunk = New<TStoredChunk>(
+                    location, 
+                    descriptor,
+                    Bootstrap->GetMemoryUsageTracker());
                 RegisterChunk(chunk);
             }
         }

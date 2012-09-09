@@ -7,6 +7,7 @@ set( HDRS
   ${BASE}/bootstrap.h
   ${BASE}/config.h
   ${BASE}/public.h
+  ${BASE}/memory_consumer.h
 )
 
 list(APPEND YT_SOURCE_FILES

@@ -58,6 +58,7 @@ using namespace NYTree;
 
 static NLog::TLogger Logger("Bootstrap");
 
+const i64 FootprintMemorySize = 1024L * 1024 * 1024;
 ////////////////////////////////////////////////////////////////////////////////
 
 TBootstrap::TBootstrap(
@@ -65,6 +66,7 @@ TBootstrap::TBootstrap(
     TCellNodeConfigPtr config)
     : ConfigFileName(configFileName)
     , Config(config)
+    , MemoryUsageTracker(Config->TotalMemorySize, "/cell_node")
 { }
 
 TBootstrap::~TBootstrap()
@@ -81,6 +83,13 @@ void TBootstrap::Run()
         ~IncarnationId.ToString(),
         ~PeerAddress,
         ~JoinToString(Config->Masters->Addresses));
+
+    auto result = MemoryUsageTracker.TryAcquire(EMemoryConsumer::Footprint, FootprintMemorySize);
+    if (!result.IsOK()) {
+        auto error = TError("Couldn't acquire footprint memory") << result;
+        // TODO(psushin): no need to create core here.
+        LOG_FATAL("%s", ~ToString(error));
+    }
 
     MasterChannel = CreateLeaderChannel(Config->Masters);
     
@@ -188,6 +197,11 @@ NChunkHolder::TBootstrap* TBootstrap::GetChunkHolderBootstrap() const
 NExecAgent::TBootstrap* TBootstrap::GetExecAgentBootstrap() const
 {
     return ExecAgentBootstrap.Get();
+}
+
+TNodeMemoryTracker& TBootstrap::GetMemoryUsageTracker()
+{
+    return MemoryUsageTracker;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

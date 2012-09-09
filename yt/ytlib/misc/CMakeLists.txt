@@ -62,6 +62,8 @@ set( HDRS
   ${BASE}/lazy_holder.h
   ${BASE}/lazy_ptr.h
   ${BASE}/lease_manager.h
+  ${BASE}/memory_usage_tracker.h
+  ${BASE}/memory_usage_tracker-inl.h
   ${BASE}/metric.h
   ${BASE}/mpl.h
   ${BASE}/new.h

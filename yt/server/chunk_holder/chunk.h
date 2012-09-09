@@ -7,6 +7,8 @@
 #include <ytlib/misc/error.h>
 #include <ytlib/misc/cache.h>
 
+#include <server/cell_node/public.h>
+
 namespace NYT {
 namespace NChunkHolder {
 
@@ -36,12 +38,14 @@ public:
         TLocationPtr location,
         const TChunkId& chunkId,
         const NChunkClient::NProto::TChunkMeta& chunkMeta,
-        const NChunkClient::NProto::TChunkInfo& chunkInfo);
+        const NChunkClient::NProto::TChunkInfo& chunkInfo,
+        NCellNode::TNodeMemoryTracker& memoryUsageTracker);
 
     //! Constructs a chunk for which no info is loaded.
     TChunk(
         TLocationPtr location,
-        const TChunkDescriptor& descriptor);
+        const TChunkDescriptor& descriptor,
+        NCellNode::TNodeMemoryTracker& memoryUsageTracker);
 
     ~TChunk();
 
@@ -101,6 +105,8 @@ private:
     bool RemovalScheduled;
     TPromise<void> RemovedEvent;
 
+    NCellNode::TNodeMemoryTracker& MemoryUsageTracker;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -114,11 +120,13 @@ public:
         TLocationPtr location,
         const TChunkId& chunkId,
         const NChunkClient::NProto::TChunkMeta& chunkMeta,
-        const NChunkClient::NProto::TChunkInfo& chunkInfo);
+        const NChunkClient::NProto::TChunkInfo& chunkInfo,
+        NCellNode::TNodeMemoryTracker& memoryUsageTracker);
 
     TStoredChunk(
         TLocationPtr location,
-        const TChunkDescriptor& descriptor);
+        const TChunkDescriptor& descriptor,
+        NCellNode::TNodeMemoryTracker& memoryUsageTracker);
 
     ~TStoredChunk();
 };
@@ -138,12 +146,14 @@ public:
         const TChunkId& chunkId,
         const NChunkClient::NProto::TChunkMeta& chunkMeta,
         const NChunkClient::NProto::TChunkInfo& chunkInfo,
-        TChunkCachePtr chunkCache);
+        TChunkCachePtr chunkCache,
+        NCellNode::TNodeMemoryTracker& memoryUsageTracker);
 
     TCachedChunk(
         TLocationPtr location,
         const TChunkDescriptor& descriptor,
-        TChunkCachePtr chunkCache);
+        TChunkCachePtr chunkCache,
+        NCellNode::TNodeMemoryTracker& memoryUsageTracker);
 
     ~TCachedChunk();
 

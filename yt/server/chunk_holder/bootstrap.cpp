@@ -199,6 +199,10 @@ void TBootstrap::UpdateCellGuid(const TGuid& cellGuid)
     ChunkCache->UpdateCellGuid(CellGuid);
 }
 
+TMemoryUsageTracker<NCellNode::EMemoryConsumer>& TBootstrap::GetMemoryUsageTracker()
+{
+    return NodeBootstrap->GetMemoryUsageTracker();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

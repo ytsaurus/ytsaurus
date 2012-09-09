@@ -35,6 +35,7 @@ public:
     TEnvironmentManagerPtr GetEnvironmentManager() const;
     NChunkHolder::TChunkCachePtr GetChunkCache() const;
     NJobProxy::TJobProxyConfigPtr GetJobProxyConfig() const;
+    NCellNode::TNodeMemoryTracker& GetMemoryUsageTracker();
 
 private:
     TExecAgentConfigPtr Config;

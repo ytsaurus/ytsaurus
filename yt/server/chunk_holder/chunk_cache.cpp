@@ -65,7 +65,8 @@ public:
                 auto chunk = New<TCachedChunk>(
                     Location,
                     descriptor,
-                    Bootstrap->GetChunkCache());
+                    Bootstrap->GetChunkCache(),
+                    Bootstrap->GetMemoryUsageTracker());
                 Put(chunk);
             }
         } catch (const std::exception& ex) {
@@ -306,7 +307,8 @@ private:
                 ChunkId,
                 ChunkMeta,
                 FileWriter->GetChunkInfo(),
-                Owner->Bootstrap->GetChunkCache());
+                Owner->Bootstrap->GetChunkCache(),
+                Owner->Bootstrap->GetMemoryUsageTracker());
             Cookie->EndInsert(chunk);
             Owner->Register(chunk);
             Cleanup();

@@ -87,8 +87,9 @@ TNodeResources TJobManager::GetResourceLimits()
     TNodeResources result;
     result.set_slots(Config->ResourceLimits->Slots);
     result.set_cores(Config->ResourceLimits->Cores);
-    result.set_memory(Config->ResourceLimits->Memory);
     result.set_network(Config->ResourceLimits->Network);
+
+    result.set_memory(Bootstrap->GetMemoryUsageTracker().GetTotalMemory());
     return result;
 }
 
@@ -99,6 +100,8 @@ TNodeResources TJobManager::GetResourceUtilization()
         auto jobUtilization = pair.second->GetResourceUtilization();
         IncreaseResourceUtilization(&totalUtilization, jobUtilization);
     }
+
+    totalUtilization.set_memory(Bootstrap->GetMemoryUsageTracker().GetUsedMemory());
     return totalUtilization;
 }
 
@@ -111,6 +114,14 @@ TJobPtr TJobManager::StartJob(
     auto slot = GetFreeSlot();
 
     LOG_DEBUG("Job is starting (JobId: %s)", ~jobId.ToString());
+
+    auto error = Bootstrap->GetMemoryUsageTracker().TryAcquire(
+        NCellNode::EMemoryConsumer::Job, 
+        jobSpec.resource_utilization().memory());
+
+    if (!error.IsOK()) {
+        THROW_ERROR error;
+    }
 
     auto job = New<TJob>(
         jobId,
