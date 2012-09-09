@@ -167,8 +167,8 @@ class TElectionManager::TVotingRound
 public:
     explicit TVotingRound(TElectionManagerPtr electionManager)
         : ElectionManager(electionManager)
-        , EpochInvoker(electionManager->ControlEpochInvoker)
-        , Awaiter(New<TParallelAwaiter>(EpochInvoker))
+        , ControlEpochInvoker(electionManager->ControlEpochInvoker)
+        , Awaiter(New<TParallelAwaiter>(ControlEpochInvoker))
     { }
 
     void Run() 
@@ -231,7 +231,7 @@ private:
     typedef yhash_map<TPeerId, TStatus> TStatusTable;
 
     TElectionManagerPtr ElectionManager;
-    IInvokerPtr EpochInvoker;
+    IInvokerPtr ControlEpochInvoker;
     TParallelAwaiterPtr Awaiter;
     TStatusTable StatusTable;
 
@@ -329,11 +329,11 @@ private:
 
         // Become a leader or a follower.
         if (candidateId == ElectionManager->CellManager->GetSelfId()) {
-            EpochInvoker->Invoke(BIND(
+            ControlEpochInvoker->Invoke(BIND(
                 &TElectionManager::StartLeading,
                 ElectionManager));
         } else {
-            EpochInvoker->Invoke(BIND(
+            ControlEpochInvoker->Invoke(BIND(
                 &TElectionManager::StartFollowing,
                 ElectionManager,
                 candidateId,
@@ -570,7 +570,7 @@ void TElectionManager::StartVoteFor(TPeerId voteId, const TEpochId& voteEpoch)
 
     TDelayedInvoker::Submit(
         BIND(&TElectionManager::StartVotingRound, MakeStrong(this))
-            .Via(ControlInvoker),
+            .Via(ControlEpochInvoker),
         Config->VotingRoundInterval);
 }
 
