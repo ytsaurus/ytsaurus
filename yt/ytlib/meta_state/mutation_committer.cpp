@@ -388,7 +388,6 @@ TLeaderCommitter::TBatchPtr TLeaderCommitter::GetOrCreateBatch(
     VERIFY_SPINLOCK_AFFINITY(BatchSpinLock);
 
     if (!CurrentBatch) {
-        YCHECK(!BatchTimeoutCookie);
         CurrentBatch = New<TBatch>(
             ControlInvoker,
             CellManager,
@@ -396,6 +395,8 @@ TLeaderCommitter::TBatchPtr TLeaderCommitter::GetOrCreateBatch(
             Config,
             version,
             EpochId);
+
+        YCHECK(!BatchTimeoutCookie);
         BatchTimeoutCookie = TDelayedInvoker::Submit(
             BIND(&TLeaderCommitter::OnBatchTimeout, MakeWeak(this), CurrentBatch)
                 .Via(ControlInvoker),
