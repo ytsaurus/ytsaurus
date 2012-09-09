@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "multi_chunk_reader_base.h"
 
