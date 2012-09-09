@@ -1,44 +1,17 @@
 #!/usr/bin/env python
 
-# Params:
-# +++ -version
+# Options that not yet implemented:
 # -fs
 # -rs
-# +++ -lenval
-# +++ -subkey
-# +++ -src
-# +++ -dst
-# +++ -dstappend
 # -dstsorted
-# +++ -copy
-# +++ -sort
-# +++ -merge
-# +++ -map
-# +++ -reduce
-# +++ -reducews
-# +++ -file
 # -memlimit
 # -timelimit
-# +++ -list
-# +++ -read
-# +++ -write
-# +++ -writesorted
-# +++ -drop
 # -lock
 # -unlock
-# +++ -lowerkey
-# +++ -upperkey
-# +++ -append
-# +++ -jobcount
-# +++ -threadcount IS IGNORED
-# +++ -jcmultiplier IS IGNORED
-# +++ -chunksize
-# +++ -dynallocmode IS IGNORED
-# +++ -opt  IS IGNORED
 
-import yt
-import config
-from common import flatten, unlist
+import yt.wrapper as yt
+import yt.wrapper.config as config
+from yt.wrapper.common import flatten, unlist
 
 import sys
 import simplejson as json
