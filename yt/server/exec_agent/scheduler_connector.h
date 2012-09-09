@@ -33,7 +33,8 @@ private:
     void SendHeartbeat();
     void OnHeartbeatResponse(NScheduler::TSchedulerServiceProxy::TRspHeartbeatPtr rsp);
 
-    void StartJob(const NScheduler::NProto::TJobStartInfo& info);
+    // Non-const reference to swap out job spec.
+    void StartJob(NScheduler::NProto::TJobStartInfo& info);
     void AbortJob(const TJobId& jobId);
     void RemoveJob(const TJobId& jobId);
 

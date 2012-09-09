@@ -33,7 +33,7 @@ public:
     //! Starts a new job.
     TJobPtr StartJob(
         const TJobId& jobId,
-        const NScheduler::NProto::TJobSpec& jobSpec);
+        NScheduler::NProto::TJobSpec& jobSpec);
 
     //! Stops a job.
     /*!

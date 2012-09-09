@@ -37,7 +37,7 @@ class TJob
 public:
     TJob(
         const TJobId& jobId,
-        const NScheduler::NProto::TJobSpec& jobSpec,
+        NScheduler::NProto::TJobSpec&& jobSpec,
         NJobProxy::TJobProxyConfigPtr proxyConfig,
         NChunkHolder::TChunkCachePtr chunkCache,
         TSlotPtr slot);

@@ -36,7 +36,7 @@ using NChunkClient::TChunkId;
 
 TJob::TJob(
     const TJobId& jobId,
-    const TJobSpec& jobSpec,
+    TJobSpec&& jobSpec,
     TJobProxyConfigPtr proxyConfig,
     NChunkHolder::TChunkCachePtr chunkCache,
     TSlotPtr slot)

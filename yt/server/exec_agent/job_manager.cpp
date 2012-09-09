@@ -107,7 +107,7 @@ TNodeResources TJobManager::GetResourceUtilization()
 
 TJobPtr TJobManager::StartJob(
     const TJobId& jobId,
-    const NScheduler::NProto::TJobSpec& jobSpec)
+    NScheduler::NProto::TJobSpec& jobSpec)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -125,7 +125,7 @@ TJobPtr TJobManager::StartJob(
 
     auto job = New<TJob>(
         jobId,
-        jobSpec,
+        MoveRV(jobSpec),
         Bootstrap->GetJobProxyConfig(),
         Bootstrap->GetChunkCache(),
         slot);

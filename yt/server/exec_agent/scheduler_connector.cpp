@@ -99,16 +99,16 @@ void TSchedulerConnector::OnHeartbeatResponse(TSchedulerServiceProxy::TRspHeartb
         AbortJob(jobId);
     }
 
-    FOREACH (const auto& info, rsp->jobs_to_start()) {
+    FOREACH (auto& info, *rsp->mutable_jobs_to_start()) {
         StartJob(info);
     }
 }
 
-void TSchedulerConnector::StartJob(const TJobStartInfo& info)
+void TSchedulerConnector::StartJob(TJobStartInfo& info)
 {
     auto jobId = TJobId::FromProto(info.job_id());
-    const auto& spec = info.spec();
-    auto job = Bootstrap->GetJobManager()->StartJob(jobId, spec);
+    auto* spec = info.mutable_spec();
+    auto job = Bootstrap->GetJobManager()->StartJob(jobId, *spec);
 
     // Schedule an out-of-order heartbeat whenever a job finishes
     // or its resource utilization is updated.
