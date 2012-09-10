@@ -234,7 +234,8 @@ private:
         New<TRegistrationPipeline>(this)
             ->Create()
             ->Run()
-            .Subscribe(BIND(&TImpl::OnConnected, MakeStrong(this)));
+            .Subscribe(BIND(&TImpl::OnConnected, MakeStrong(this))
+                .Via(Bootstrap->GetControlInvoker()));
     }
 
     void OnConnected(TValueOrError<TMasterHandshakeResult> resultOrError)
