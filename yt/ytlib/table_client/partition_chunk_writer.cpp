@@ -203,8 +203,6 @@ TAsyncError TPartitionChunkWriter::AsyncClose()
         PrepareBlock();
     }
 
-    YCHECK(CurrentBufferCapacity == 0);
-
     EncodingWriter->AsyncFlush().Subscribe(BIND(
         &TPartitionChunkWriter::OnFinalBlocksWritten,
         MakeWeak(this)).Via(WriterThread->GetInvoker()));

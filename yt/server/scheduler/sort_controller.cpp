@@ -1014,6 +1014,7 @@ protected:
         if (!Partitions.empty()) {
             return Partitions[0]->SortTask->GetMinRequestedResources();
         }
+
         return InfiniteResources();
     }
 
@@ -1423,14 +1424,19 @@ private:
     {
         i64 bufferSize = std::min(
             PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()),
-            // TODO(babenko): remove 1.2 coefficient when chunked buffers are ready
-            std::min(PartitionJobIOConfig->TableWriter->MaxBufferSize, dataSize) * 5/4);
+            dataSize);
+
+        bufferSize = std::min(
+            bufferSize + NTableClient::TChannelWriter::MaxReserveSize * static_cast<i64>(Partitions.size()),
+            PartitionJobIOConfig->TableWriter->MaxBufferSize);
 
         TNodeResources result;
         result.set_slots(1);
         result.set_cores(1);
         result.set_memory(
-            GetIOMemorySize(PartitionJobIOConfig, 1, 1) + 
+            // NB: due to large MaxBufferSize for partition that was accounted in buffer size 
+            // we eliminate number of output streams to zero.
+            GetIOMemorySize(PartitionJobIOConfig, 1, 0) + 
             bufferSize +
             GetFootprintMemorySize());
         return result;
@@ -1452,10 +1458,10 @@ private:
             dataSize +
             // TODO(babenko): *2 are due to lack of reserve, remove this once simple sort
             // starts reserving arrays of appropriate sizes.
-            (i64) 16 * Spec->SortBy.size() * rowCount * 2 +
-            (i64) 16 * rowCount * 2 +
+            (i64) 16 * Spec->SortBy.size() * rowCount +
+            (i64) 16 * rowCount +
             (i64) 32 * valueCount * 2 +
-            GetFootprintMemorySize());
+            GetFootprintMemorySize(););
         return result;
     }
 
@@ -1837,21 +1843,24 @@ private:
         i64 bufferSize = std::min(
             reserveSize + PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()), 
             PartitionJobIOConfig->TableWriter->MaxBufferSize);
+        i64 windowSize = PartitionJobIOConfig->TableWriter->WindowSize + 
+            PartitionJobIOConfig->TableWriter->EncodeWindowSize;
 
         TNodeResources result;
         result.set_slots(1);
         if (Spec->Mapper) {
-            result.set_cores(Spec->Mapper->CoresLimit);
-            result.set_memory(
-                GetIOMemorySize(PartitionJobIOConfig, 1, 1) + 
+            bufferSize += windowSize;
+            result.set_memory(GetIOMemorySize(PartitionJobIOConfig, 1, 0) + 
                 bufferSize +
                 Spec->Mapper->MemoryLimit +
                 GetFootprintMemorySize());
+            result.set_cores(Spec->Mapper->CoresLimit);
         } else {
             bufferSize = std::min(bufferSize, dataSize + reserveSize);
+            bufferSize += windowSize;
             result.set_cores(1);
             result.set_memory(
-                GetIOMemorySize(PartitionJobIOConfig, 1, 1) + 
+                GetIOMemorySize(PartitionJobIOConfig, 1, 0) + 
                 bufferSize +
                 GetFootprintMemorySize());
         }

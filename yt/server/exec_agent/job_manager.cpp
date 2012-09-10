@@ -166,6 +166,9 @@ void TJobManager::RemoveJob(const TJobId& jobId)
     if (job) {
         YASSERT(job->GetProgress() > EJobProgress::Cleanup);
         YCHECK(Jobs.erase(jobId) == 1);
+        Bootstrap->GetMemoryUsageTracker().Release(
+            NCellNode::EMemoryConsumer::Job, 
+            job->GetSpec().resource_utilization().memory());
     } else {
         LOG_WARNING("Requested to remove an unknown job (JobId: %s)", ~jobId.ToString());
     }

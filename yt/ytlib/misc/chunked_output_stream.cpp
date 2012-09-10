@@ -7,7 +7,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkedOutputStream::TChunkedOutputStream(int maxReserveSize, int initialReserveSize)
-    : MaxReserveSize(MaxReserveSize)
+    : MaxReserveSize(maxReserveSize)
     , CurrentReserveSize(initialReserveSize)
     , CompleteSize(0)
 {

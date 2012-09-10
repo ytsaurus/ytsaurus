@@ -24,7 +24,7 @@ TMemoryUsageTracker<EMemoryConsumer>::TMemoryUsageTracker(i64 totalMemory, Strok
 
     UsedMemory.resize(EMemoryConsumer::GetDomainSize(), 0);
     for (int i = 0; i < EMemoryConsumer::GetDomainSize(); ++i) {
-        ConsumerCounters[i] = TAggregateCounter(EMemoryConsumer(i).ToString());
+        ConsumerCounters.push_back(TAggregateCounter(EMemoryConsumer(i).ToString()));
     }
 }
 
