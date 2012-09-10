@@ -1,11 +1,10 @@
 import configs
 
-from tools.common import update
-import yson
+from yt.common import update
+import yt.yson as yson
 
 import unittest
 
-import copy
 import logging
 import os
 import re
@@ -16,8 +15,6 @@ import shutil
 import subprocess
 import sys
 import simplejson as json
-
-from collections import defaultdict
 
 def init_logging(node, path, name):
     for key, suffix in [('file', '.log'), ('raw', '.debug.log')]:
