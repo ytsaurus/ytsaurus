@@ -278,6 +278,8 @@ def main():
     if args.replication_factor is not None:
         table_writer["replication_factor"] = args.replication_factor
         table_writer["upload_replication_factor"] = args.replication_factor
+    if not table_writer:
+        table_writer = None
 
     if args.list:
         sys.stdout.writelines(imap(add_eoln, list_all_tables()))
