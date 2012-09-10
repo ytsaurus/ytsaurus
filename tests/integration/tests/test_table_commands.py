@@ -251,24 +251,6 @@ class TestTableCommands(YTEnvSetup):
 
         commit_transaction(outer_tx)
 
-    def test_random_symbols(self):
-        for i in xrange(10):
-            create('table', '//tmp/table')
-            f = 'some_random_file.txt'
-            os.system('rm %s' % f)
-            os.system('dd if=/dev/urandom of=%s bs=128 count=1 2>/dev/null' % f)
-            data = open(f, 'rt').read()
-            # here is used manual run because of checking error codes and messages
-            p = run_command('write', '//tmp/table')
-            stdout, stderr = p.communicate(data)
-
-            # check error message and return code to be sure that there was no coredump
-            assert p.returncode == 1
-            assert "Could not read symbol" in stderr
-            assert "Stack trace" not in stderr
-
-            remove('//tmp/table')
-
     def test_codec_in_writer(self):
         create('table', '//tmp/table')
         write_str('//tmp/table', '{b="hello"}', opt="/table_writer/codec_id=gzip_best_compression")
