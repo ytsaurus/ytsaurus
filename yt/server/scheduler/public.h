@@ -7,6 +7,12 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_ENUM(ESchedulerStrategy,
+    (Null)
+    (Fifo)
+    (FairShare)
+);
+
 class TSchedulerService;
 typedef TIntrusivePtr<TSchedulerService> TSchedulerServicePtr;
 
@@ -28,12 +34,15 @@ class TScheduler;
 typedef TIntrusivePtr<TScheduler> TSchedulerPtr;
 
 struct ISchedulerStrategy;
+struct ISchedulerStrategyHost;
 
 struct IOperationHost;
 struct ISchedulingContext;
 
 struct IOperationController;
 typedef TIntrusivePtr<IOperationController> IOperationControllerPtr;
+
+class TMasterConnector;
 
 ////////////////////////////////////////////////////////////////////////////////
 

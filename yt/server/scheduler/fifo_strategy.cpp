@@ -16,20 +16,13 @@ class TFifoStrategy
     : public ISchedulerStrategy
 {
 public:
-    virtual void OnOperationStarted(TOperationPtr operation)
+    explicit TFifoStrategy(ISchedulerStrategyHost* host)
     {
-        auto it = Queue.insert(Queue.end(), operation);
-        YCHECK(OpToIterator.insert(MakePair(operation, it)).second);
+        host->SubscribeOperationStarted(BIND(&TFifoStrategy::OnOperationStarted, this));
+        host->SubscribeOperationFinished(BIND(&TFifoStrategy::OnOperationFinished, this));
     }
 
-    virtual void OnOperationFinished(TOperationPtr operation)
-    {
-        auto mapIt = OpToIterator.find(operation);
-        YASSERT(mapIt != OpToIterator.end());
-        Queue.erase(mapIt->second);
-    }
-
-    virtual void ScheduleJobs(ISchedulingContext* context)
+    virtual void ScheduleJobs(ISchedulingContext* context) override
     {
         // Process operations in FIFO order asking them to perform job scheduling.
         // Stop when no spare resources are left (coarse check).
@@ -58,11 +51,25 @@ private:
 
     yhash_map<TOperationPtr, TQueue::iterator> OpToIterator;
 
+    void OnOperationStarted(TOperationPtr operation)
+    {
+        auto it = Queue.insert(Queue.end(), operation);
+        YCHECK(OpToIterator.insert(MakePair(operation, it)).second);
+    }
+
+    void OnOperationFinished(TOperationPtr operation)
+    {
+        auto mapIt = OpToIterator.find(operation);
+        YASSERT(mapIt != OpToIterator.end());
+        Queue.erase(mapIt->second);
+    }
+
 };
 
-TAutoPtr<ISchedulerStrategy> CreateFifoStrategy()
+TAutoPtr<ISchedulerStrategy> CreateFifoStrategy(ISchedulerStrategyHost* host)
 {
-    return new TFifoStrategy();
+    YCHECK(host);
+    return new TFifoStrategy(host);
 }
 
 ////////////////////////////////////////////////////////////////////

@@ -5,6 +5,7 @@ set( SRCS
   ${BASE}/chunk_pool.cpp
   ${BASE}/exec_node.cpp
   ${BASE}/fifo_strategy.cpp
+  ${BASE}/fair_share_strategy.cpp
   ${BASE}/job.cpp
   ${BASE}/job_resources.cpp
   ${BASE}/map_controller.cpp
@@ -26,6 +27,7 @@ set( HDRS
   ${BASE}/config.h
   ${BASE}/exec_node.h
   ${BASE}/fifo_strategy.h
+  ${BASE}/fair_share_strategy.h
   ${BASE}/job.h
   ${BASE}/job_resources.h
   ${BASE}/map_controller.h

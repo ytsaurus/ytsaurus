@@ -15,16 +15,6 @@ class TNullStrategy
     : public ISchedulerStrategy
 {
 public:
-    virtual void OnOperationStarted(TOperationPtr operation) override
-    {
-        UNUSED(operation);
-    }
-
-    virtual void OnOperationFinished(TOperationPtr operation) override
-    {
-        UNUSED(operation);
-    }
-
     virtual void ScheduleJobs(ISchedulingContext* context) override
     {
         // Refuse to do anything.
@@ -32,8 +22,9 @@ public:
     }
 };
 
-TAutoPtr<ISchedulerStrategy> CreateNullStrategy()
+TAutoPtr<ISchedulerStrategy> CreateNullStrategy(ISchedulerStrategyHost* host)
 {
+    UNUSED(host);
     return new TNullStrategy();
 }
 
