@@ -55,8 +55,9 @@ message TReqWaitForOperation
 
 message TRspWaitForOperation
 {
-    // True iff the operation has finished (either successfully or not).
-    required bool finished = 1;
+    // If True then the operation may have just finished (either successfully or not).
+    // The client will be retrieving the outcome from Cypress.
+    required bool maybe_finished = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

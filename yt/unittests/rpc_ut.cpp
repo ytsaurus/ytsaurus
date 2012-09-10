@@ -345,7 +345,7 @@ TEST_F(TRpcTest, OK)
     auto request = proxy->ReplyingCall();
     auto response = request->Invoke().Get();
 
-    EXPECT_EQ(TError::OK, response->GetErrorCode());
+    EXPECT_EQ(TError::OK, response->GetError().GetCode());
 }
 
 TEST_F(TRpcTest, TransportError)
@@ -354,7 +354,7 @@ TEST_F(TRpcTest, TransportError)
     auto request = proxy->EmptyCall();
     auto response = request->Invoke().Get();
 
-    EXPECT_EQ(EErrorCode::TransportError, response->GetErrorCode());
+    EXPECT_EQ(EErrorCode::TransportError, response->GetError().GetCode());
 }
 
 TEST_F(TRpcTest, NoService)
@@ -363,7 +363,7 @@ TEST_F(TRpcTest, NoService)
     auto request = proxy->EmptyCall();
     auto response = request->Invoke().Get();
 
-    EXPECT_EQ(EErrorCode::NoSuchService, response->GetErrorCode());
+    EXPECT_EQ(EErrorCode::NoSuchService, response->GetError().GetCode());
 }
 
 TEST_F(TRpcTest, NoMethod)
@@ -372,7 +372,7 @@ TEST_F(TRpcTest, NoMethod)
     auto request = proxy->NotRegistredCall();
     auto response = request->Invoke().Get();
 
-    EXPECT_EQ(EErrorCode::NoSuchVerb, response->GetErrorCode());
+    EXPECT_EQ(EErrorCode::NoSuchVerb, response->GetError().GetCode());
 }
 
 TEST_F(TRpcTest, Timeout)
@@ -383,7 +383,7 @@ TEST_F(TRpcTest, Timeout)
     auto request = proxy.EmptyCall();
     auto response = request->Invoke().Get();
 
-    EXPECT_EQ(EErrorCode::Timeout, response->GetErrorCode());
+    EXPECT_EQ(EErrorCode::Timeout, response->GetError().GetCode());
 }
 
 TEST_F(TRpcTest, CustomErrorMessage)
@@ -392,7 +392,7 @@ TEST_F(TRpcTest, CustomErrorMessage)
     auto request = proxy.CustomMessageError();
     auto response = request->Invoke().Get();
 
-    EXPECT_EQ(42, response->GetErrorCode());
+    EXPECT_EQ(42, response->GetError().GetCode());
     EXPECT_EQ("Some Error", response->GetError().GetMessage());
 }
 
@@ -438,7 +438,7 @@ TEST_F(TRpcTest, OneWaySend)
     request->Attributes().SetYson("value", NYTree::TYsonString("42"));
 
     auto response = request->Invoke().Get();
-    EXPECT_EQ(TError::OK, response->GetErrorCode());
+    EXPECT_EQ(TError::OK, response->GetError().GetCode());
 
     EXPECT_TRUE(ReadyEvent.WaitT(TDuration::Seconds(4))); // assert no timeout
 }
@@ -453,7 +453,7 @@ TEST_F(TRpcTest, OneWayOK)
     auto request = proxy->OneWay();
     auto response = request->Invoke().Get();
 
-    EXPECT_EQ(TError::OK, response->GetErrorCode());
+    EXPECT_TRUE(response->IsOK());
 }
 
 TEST_F(TRpcTest, OneWayTransportError)

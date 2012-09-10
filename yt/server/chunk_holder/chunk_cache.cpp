@@ -320,7 +320,7 @@ private:
             auto wrappedError = TError("Error downloading chunk %s into cache", ~ChunkId.ToString())
                 << error;
             Cookie->Cancel(wrappedError);
-            LOG_WARNING("%s", ~ToString(wrappedError));
+            LOG_WARNING(wrappedError);
             Cleanup();
         }
 

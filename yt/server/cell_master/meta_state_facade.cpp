@@ -40,8 +40,7 @@ using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TDuration InitCheckPeriod = TDuration::Seconds(1);
-static NLog::TLogger Logger("MetaState");
+static NLog::TLogger Logger("Bootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,19 +69,17 @@ public:
             MetaState,
             Bootstrap->GetRpcServer());
 
-        MetaStateManager->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, Unretained(this)));
-        MetaStateManager->SubscribeStartFollowing(BIND(&TImpl::OnStartEpoch, Unretained(this)));
-        MetaStateManager->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, Unretained(this)));
-        MetaStateManager->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, Unretained(this)));
+        MetaStateManager->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
+        MetaStateManager->SubscribeStartFollowing(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
+
+        MetaStateManager->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
+        MetaStateManager->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
+
+        MetaStateManager->SubscribeActiveQuorumEstablished(BIND(&TImpl::OnActiveQuorumEstablished, MakeWeak(this)));
 
         for (int queueIndex = 0; queueIndex < EStateThreadQueue::GetDomainSize(); ++queueIndex) {
             GuardedInvokers.push_back(MetaStateManager->CreateGuardedStateInvoker(StateQueue->GetInvoker(queueIndex)));
         }
-
-        InitInvoker = New<TPeriodicInvoker>(
-            GetGuardedInvoker(EStateThreadQueue::Default),
-            BIND(&TImpl::OnTryInitialize, MakeWeak(this)),
-            InitCheckPeriod);
     }
 
     TCompositeMetaStatePtr GetState() const
@@ -95,22 +92,32 @@ public:
         return MetaStateManager;
     }
 
-    IInvokerPtr GetUnguardedInvoker(EStateThreadQueue queue) const
+    bool IsInitialized() const
+    {
+        if (!Root) {
+            auto cypressManager = Bootstrap->GetCypressManager();
+            Root = dynamic_cast<TMapNode*>(cypressManager->GetNode(cypressManager->GetRootNodeId()));
+            YCHECK(Root);
+        }
+        return !Root->KeyToChild().empty();
+    }
+
+    IInvokerPtr GetUnguardedInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const
     {
         return StateQueue->GetInvoker(queue);
     }
 
-    IInvokerPtr GetUnguardedEpochInvoker(EStateThreadQueue queue) const
+    IInvokerPtr GetUnguardedEpochInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const
     {
         return UnguardedEpochInvokers[queue];
     }
 
-    IInvokerPtr GetGuardedInvoker(EStateThreadQueue queue) const
+    IInvokerPtr GetGuardedInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const
     {
         return GuardedInvokers[queue];
     }
 
-    IInvokerPtr GetGuardedEpochInvoker(EStateThreadQueue queue) const
+    IInvokerPtr GetGuardedEpochInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const
     {
         return GuardedEpochInvokers[queue];
     }
@@ -118,7 +125,6 @@ public:
     void Start()
     {
         MetaStateManager->Start();
-        InitInvoker->Start();
     }
 
 private:
@@ -128,12 +134,11 @@ private:
     TFairShareActionQueuePtr StateQueue;
     TCompositeMetaStatePtr MetaState;
     IMetaStateManagerPtr MetaStateManager;
-    TPeriodicInvokerPtr InitInvoker;
     std::vector<IInvokerPtr> GuardedInvokers;
     std::vector<IInvokerPtr> GuardedEpochInvokers;
     std::vector<IInvokerPtr> UnguardedEpochInvokers;
 
-    TMapNode* Root;
+    mutable TMapNode* Root;
 
 
     void OnStartEpoch()
@@ -155,36 +160,22 @@ private:
     }
 
 
-    // TODO(babenko): move initializer to a separate class
-    void OnTryInitialize()
+    void OnActiveQuorumEstablished()
     {
-        if (IsInitialized()) {
-            InitInvoker->Stop();
-        } else if (CanInitialize()) {
+        // NB: Initialization cannot be carried out here since not all subsystems
+        // are fully initialized yet.
+        // We'll post an initialization callback to the state invoker instead.
+        GetUnguardedEpochInvoker()->Invoke(BIND(&TImpl::InitializeIfNeeded, MakeStrong(this)));
+    }
+
+    void InitializeIfNeeded()
+    {
+        if (!IsInitialized()) {
             Initialize();
-            InitInvoker->Stop();
-        } else {
-            InitInvoker->ScheduleNext();
         }
     }
 
-    bool IsInitialized()
-    {
-        if (!Root) {
-            auto cypressManager = Bootstrap->GetCypressManager();
-            Root = dynamic_cast<TMapNode*>(cypressManager->GetNode(cypressManager->GetRootNodeId()));
-            YCHECK(Root);
-        }
-        return !Root->KeyToChild().empty();
-    }
-
-    bool CanInitialize() const
-    {
-        return
-            MetaStateManager->GetStateStatus() == EPeerStatus::Leading &&
-            MetaStateManager->HasActiveQuorum();
-    }
-
+    // TODO(babenko): move initializer to a separate class
     void Initialize()
     {
         LOG_INFO("World initialization started");
@@ -197,6 +188,11 @@ private:
             auto cellId = objectManager->GetCellId();
             auto cellGuid = TGuid::Create();
 
+            // Abort all existing transactions to avoid collisions with previous (failed)
+            // initialization attempts.
+            AbortTransactions();
+
+            // All initialization will be happening within this transaction.
             auto transactionId = StartTransaction();
 
             TYsonString emptyMap("{}");
@@ -310,11 +306,20 @@ private:
 
             CommitTransaction(transactionId);
         } catch (const std::exception& ex) {
-            // TODO(babenko): this is wrong, we should retry!
-            LOG_FATAL("World initialization failed\n%s", ex.what());
+            LOG_ERROR(ex, "World initialization failed");
         }
 
         LOG_INFO("World initialization completed");
+    }
+
+    void AbortTransactions()
+    {
+        auto transactionIds = Bootstrap->GetTransactionManager()->GetTransactionIds();
+        auto service = Bootstrap->GetObjectManager()->GetRootService();
+        FOREACH (const auto& transactionId, transactionIds) {
+            auto req = TTransactionYPathProxy::Abort(FromObjectId(transactionId));
+            SyncExecuteVerb(service, req);
+        }
     }
 
     TTransactionId StartTransaction()
@@ -367,6 +372,11 @@ TCompositeMetaStatePtr TMetaStateFacade::GetState() const
 IMetaStateManagerPtr TMetaStateFacade::GetManager() const
 {
     return Impl->GetManager();
+}
+
+bool TMetaStateFacade::IsInitialized() const
+{
+    return Impl->IsInitialized();
 }
 
 IInvokerPtr TMetaStateFacade::GetUnguardedInvoker(EStateThreadQueue queue) const

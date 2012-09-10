@@ -142,14 +142,15 @@ private:
     i32 GetNodeRefCounter(const TNodeId& nodeId);
     void DestroyNode(const TNodeId& nodeId);
 
+    // TMetaStatePart overrides.
+    virtual void OnLeaderRecoveryComplete() override;
+    virtual void OnStopLeading() override;
+
     void SaveKeys(TOutputStream* output) const;
     void SaveValues(TOutputStream* output) const;
     void LoadKeys(TInputStream* input);
     void LoadValues(const NCellMaster::TLoadContext& context, TInputStream* input);
-    virtual void Clear();
-
-    virtual void OnLeaderRecoveryComplete();
-    virtual void OnStopLeading();
+    virtual void Clear() override;
 
     void OnTransactionCommitted(NTransactionServer::TTransaction* transaction);
     void OnTransactionAborted(NTransactionServer::TTransaction* transaction);

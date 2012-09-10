@@ -184,7 +184,7 @@ private:
         } else {
             auto wrappedError = TError("Error requesting chunk seeds from master")
                 << rsp->GetError();
-            LOG_WARNING("%s", ~ToString(wrappedError));
+            LOG_WARNING(wrappedError);
             YASSERT(!GetSeedsPromise.IsSet());
             GetSeedsPromise.Set(wrappedError);
         }
@@ -610,7 +610,7 @@ private:
         auto wrappedError = TError("Error fetching chunk blocks")
             << error;
 
-        LOG_ERROR("%s", ~ToString(wrappedError));
+        LOG_ERROR(wrappedError);
 
         Promise.Set(wrappedError);
     }
@@ -742,7 +742,7 @@ private:
         auto wrappedError = TError("Error getting chunk info")
             << error;
 
-        LOG_ERROR("%s", ~ToString(wrappedError));
+        LOG_ERROR(wrappedError);
 
         Promise.Set(wrappedError);
     }

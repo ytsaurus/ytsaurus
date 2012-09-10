@@ -13,6 +13,7 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! An interface for exchanging request-response pairs.
 /*!
  * \note Thread affinity: any.
  */
@@ -21,6 +22,9 @@ struct IChannel
 {
     //! Gets default timeout.
     virtual TNullable<TDuration> GetDefaultTimeout() const = 0;
+
+    //! Returns True if the requests may be retried, i.e. sent (and delivered) multiple times.
+    virtual bool GetRetryEnabled() const = 0;
 
     //! Sends a request via the channel.
     /*!

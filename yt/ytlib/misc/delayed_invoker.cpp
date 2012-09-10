@@ -75,6 +75,10 @@ public:
         {
             TGuard<TSpinLock> guard(SpinLock);
 
+            if (!cookie) {
+                return false;
+            }
+
             if (!cookie->Valid) {
                 return false;
             }

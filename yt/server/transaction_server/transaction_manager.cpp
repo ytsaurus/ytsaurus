@@ -554,7 +554,7 @@ TDuration TTransactionManager::GetActualTimeout(TNullable<TDuration> timeout)
         Config->MaximumTransactionTimeout);
 }
 
-void TTransactionManager::OnLeaderRecoveryComplete()
+void TTransactionManager::OnActiveQuorumEstablished()
 {
     auto objectManager = Bootstrap->GetObjectManager();
     FOREACH (const auto& pair, TransactionMap) {

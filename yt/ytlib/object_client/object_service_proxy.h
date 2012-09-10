@@ -87,8 +87,23 @@ public:
 
         NProto::TRspExecute Body;
         TKeyToIndexes KeyToIndexes;
+        std::vector<TError> RetryErrors;
 
-        virtual TSharedRef SerializeBody() const;
+        virtual TSharedRef SerializeBody() const override;
+
+        void OnResponse(
+            TNullable<TInstant> deadline,
+            TPromise<TRspExecuteBatchPtr> promise,
+            TRspExecuteBatchPtr response);
+
+        void SendRetryingRequest(
+            TNullable<TInstant> deadline,
+            TNullable<TDuration> timeout,
+            TPromise<TRspExecuteBatchPtr> promise);
+
+        void ReportError(
+            TPromise<TRspExecuteBatchPtr> promise,
+            TError error);
 
     };
 
@@ -119,6 +134,15 @@ public:
 
         //! Returns the number of individual responses in the batch.
         int GetSize() const;
+
+        //! Returns the cumulative error for the whole batch.
+        /*!
+         *  If the envelope request has fails then the corresponding error is returned.
+         *  Otherwise, individual responses are examined and a cumulative error
+         *  is constructed (with individual errors attached as inner).
+         *  If all individual responses were successful then OK is returned.
+         */
+        TError GetCumulativeError();
 
         //! Returns the individual response with a given index.
         template <class TTypedResponse>

@@ -78,7 +78,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
             map(in_='//tmp/t1',
                 out=table_name,
                 command=command,
-                opt='/spec/job_count=%d' % job_count)
+                opt=['/spec/job_count=%d' % job_count,
+                     '/spec/min_data_size_per_job=1'])
             assert read(table_name) == [{'hello': 'world'} for i in xrange(expected_num_records)]
 
         check('//tmp/t2', 3, 3)

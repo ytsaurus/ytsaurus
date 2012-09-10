@@ -73,8 +73,8 @@ void TFileChunkOutput::Open()
 
         auto rsp = proxy.Execute(req).Get();
         if (!rsp->IsOK()) {
-            LOG_ERROR_AND_THROW(TError("Error creating file chunk")
-                << rsp->GetError());
+            THROW_ERROR_EXCEPTION("Error creating file chunk")
+                << rsp->GetError();
         }
 
         ChunkId = TChunkId::FromProto(rsp->object_id());
@@ -169,8 +169,8 @@ void TFileChunkOutput::DoFinish()
         try {
             Sync(~Writer, &TRemoteWriter::AsyncClose, Meta);
         } catch (const std::exception& ex) {
-            LOG_ERROR_AND_THROW(TError("Error closing chunk")
-                << ex);
+            THROW_ERROR_EXCEPTION("Error closing chunk")
+                << ex;
         }
     }
     LOG_INFO("Chunk closed");
@@ -187,8 +187,8 @@ void TFileChunkOutput::DoFinish()
 
         auto rsp = proxy.Execute(req).Get();
         if (!rsp->IsOK()) {
-            LOG_ERROR_AND_THROW(TError("Error confirming chunk")
-                << rsp->GetError());
+            THROW_ERROR_EXCEPTION("Error confirming chunk")
+                << rsp->GetError();
         }
     }
     LOG_INFO("Chunk confirmed");
@@ -209,8 +209,8 @@ void TFileChunkOutput::FlushBlock()
             Sync(~Writer, &TRemoteWriter::GetReadyEvent);
         }
     } catch (const std::exception& ex) {
-        LOG_ERROR_AND_THROW(TError("Error writing file block")
-            << ex);
+        THROW_ERROR_EXCEPTION("Error writing file block")
+            << ex;
     }
     LOG_INFO("Block written (BlockIndex: %d)", BlockCount);
 

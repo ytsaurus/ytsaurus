@@ -967,7 +967,7 @@ protected:
 
     // Resource management.
 
-    virtual bool IsPartitionNonexpanding() const = 0;
+    virtual bool IsPartitionJobNonexpanding() const = 0;
 
     virtual TNodeResources GetPartitionResources(
         i64 dataSize) const = 0;
@@ -994,7 +994,7 @@ protected:
         TPartitionPtr partition) const
     {
         i64 dataSize = Spec->MaxDataSizePerSortJob;
-        if (IsPartitionNonexpanding()) {
+        if (IsPartitionJobNonexpanding()) {
             dataSize = std::min(dataSize, TotalInputDataSize);
         }
         i64 rowCount = GetRowCountEstimate(partition, dataSize);
@@ -1037,17 +1037,14 @@ protected:
         return static_cast<i64>((double) TotalInputValueCount * dataSize / TotalInputDataSize);
     }
 
-    int GetPartitionCountEstimate() const
+    int SuggestPartitionCount() const
     {
         YCHECK(TotalInputDataSize > 0);
-
-        int result = Spec->PartitionCount.Get(static_cast<int>(ceil(
-            (double) TotalInputDataSize /
-            Spec->MaxDataSizePerSortJob *
-            Spec->PartitionCountBoostFactor)));
-        if (result < 1) {
-            result = 1;
-        }
+        int minSuggestion = static_cast<int>(ceil((double) TotalInputDataSize / Spec->MaxPartitionDataSize));
+        int maxSuggestion = static_cast<int>(ceil((double) TotalInputDataSize / Spec->MinPartitionDataSize));
+        int result = Spec->PartitionCount.Get(minSuggestion);
+        result = std::min(result, minSuggestion);
+        result = std::max(result, 1);
         return result;
     }
 };
@@ -1138,7 +1135,7 @@ private:
                 return NewPromise< TValueOrError<void> >();
             }
 
-            return SamplesFetcher->Run(GetPartitionCountEstimate() * Spec->SamplesPerPartition);
+            return SamplesFetcher->Run(SuggestPartitionCount() * Spec->SamplesPerPartition);
         }
     }
 
@@ -1175,7 +1172,7 @@ private:
     {
         // Use partition count provided by user, if given.
         // Otherwise use size estimates.
-        int partitionCount = GetPartitionCountEstimate();
+        int partitionCount = SuggestPartitionCount();
 
         // Don't create more partitions than we have samples (plus one).
         partitionCount = std::min(partitionCount, static_cast<int>(SortedSamples.size()) + 1);
@@ -1296,9 +1293,10 @@ private:
             PartitionTask->ChunkCounter().GetTotal());
 
         // Init counters.
-        PartitionJobCounter.Set(GetJobCount(
+        PartitionJobCounter.Set(SuggestJobCount(
             PartitionTask->DataSizeCounter().GetTotal(),
-            PartitionJobIOConfig->TableWriter->DesiredChunkSize,
+            Spec->MinDataSizePerPartitionJob,
+            Spec->MaxDataSizePerPartitionJob,
             Spec->PartitionJobCount,
             PartitionTask->ChunkCounter().GetTotal()));
 
@@ -1415,7 +1413,7 @@ private:
 
     // Resource management.
 
-    virtual bool IsPartitionNonexpanding() const
+    virtual bool IsPartitionJobNonexpanding() const
     {
         return true;
     }
@@ -1423,8 +1421,10 @@ private:
     virtual TNodeResources GetPartitionResources(
         i64 dataSize) const override
     {
-        i64 bufferSize = std::min(PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()), dataSize);
-        bufferSize = std::min(bufferSize, PartitionJobIOConfig->TableWriter->MaxBufferSize);
+        i64 bufferSize = std::min(
+            PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()),
+            // TODO(babenko): remove 1.2 coefficient when chunked buffers are ready
+            std::min(PartitionJobIOConfig->TableWriter->MaxBufferSize, dataSize) * 5/4);
 
         TNodeResources result;
         result.set_slots(1);
@@ -1688,7 +1688,7 @@ private:
     {
         // Use partition count provided by user, if given.
         // Otherwise use size estimates.
-        int partitionCount = GetPartitionCountEstimate();
+        int partitionCount = SuggestPartitionCount();
 
         // Don't create more partitions than allowed by the global config.
         partitionCount = std::min(partitionCount, Config->MaxPartitionCount);
@@ -1717,9 +1717,10 @@ private:
         PartitionTask->AddStripes(stripes);
 
         // Init counters.
-        PartitionJobCounter.Set(GetJobCount(
+        PartitionJobCounter.Set(SuggestJobCount(
             PartitionTask->DataSizeCounter().GetTotal(),
-            PartitionJobIOConfig->TableWriter->DesiredChunkSize,
+            Spec->MinDataSizePerPartitionJob,
+            Spec->MaxDataSizePerPartitionJob,
             Spec->PartitionJobCount,
             PartitionTask->ChunkCounter().GetTotal()));
 
@@ -1824,7 +1825,7 @@ private:
 
     // Resource management.
 
-    virtual bool IsPartitionNonexpanding() const
+    virtual bool IsPartitionJobNonexpanding() const
     {
         return false;
     }

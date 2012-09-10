@@ -34,6 +34,15 @@ void TMetaStateServiceBase::ValidateLeaderStatus()
     YCHECK(status == NMetaState::EPeerStatus::Leading);
 }
 
+void TMetaStateServiceBase::ValidateInitialized()
+{
+    if (!Bootstrap->GetMetaStateFacade()->IsInitialized()) {
+        THROW_ERROR_EXCEPTION(
+            NRpc::EErrorCode::Unavailable,
+            "Not initialized yet");
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCellMaster

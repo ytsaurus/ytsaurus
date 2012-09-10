@@ -63,8 +63,8 @@ void TTableReader::Open()
 
     auto fetchRsp = Proxy.Execute(fetchReq).Get();
     if (!fetchRsp->IsOK()) {
-        LOG_ERROR_AND_THROW(TError("Error fetching table info")
-            << fetchRsp->GetError());
+        THROW_ERROR_EXCEPTION("Error fetching table info")
+            << fetchRsp->GetError();
     }
 
     auto inputChunks = FromProto<NProto::TInputChunk>(fetchRsp->chunks());

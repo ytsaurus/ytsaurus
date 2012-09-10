@@ -132,10 +132,7 @@ public:
         TSharedPtr<TInsertCookie, TAtomicCounter> cookie(new TInsertCookie(blockId));
         if (!BeginInsert(cookie.Get())) {
             chunk->ReleaseReadLock();
-            auto cachedBlock = cookie->GetValue().Get().Value();
-            Profiler.Increment(CacheReadThroughputCounter, cachedBlock->GetData().Size());
-            LOG_DEBUG("Block cache hit (BlockId: %s)", ~blockId.ToString());
-            return cookie->GetValue();
+            return cookie->GetValue().Apply(BIND(&TStoreImpl::OnCacheHit, MakeStrong(this)));
         }
      
         LOG_DEBUG("Block cache miss (BlockId: %s)", ~blockId.ToString());
@@ -178,6 +175,16 @@ private:
     virtual i64 GetWeight(TCachedBlock* block) const
     {
         return block->GetData().Size();
+    }
+
+    TGetBlockResult OnCacheHit(TGetBlockResult result)
+    {
+        if (result.IsOK()) {
+            auto cachedBlock = result.Value();
+            Profiler.Increment(CacheReadThroughputCounter, cachedBlock->GetData().Size());
+            LOG_DEBUG("Block cache hit (BlockId: %s)", ~cachedBlock->GetKey().ToString());
+        }
+        return result;
     }
 
     void DoReadBlock(

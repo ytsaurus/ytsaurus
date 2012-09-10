@@ -1,6 +1,6 @@
 from common import YtError
 from record import Record, record_to_line, line_to_record
-from format import DsvFormat, YamrFormat, YsonFormat
+from format import DsvFormat, YamrFormat, YsonFormat, RawFormat
 from table import Table
 from tree_commands import set, get, list, get_attribute, set_attribute, list_attributes, exists, remove
 from table_commands import create_table, write_table, read_table, remove_table, \
@@ -9,6 +9,9 @@ from table_commands import create_table, write_table, read_table, remove_table, 
 
 from operation_commands import get_operation_state, abort_operation, WaitStrategy, AsyncStrategy
 from file_commands import upload_file, download_file
+from transaction_commands import \
+    start_transaction, abort_transaction, \
+    commit_transaction, renew_transaction
 
 if __name__ == "__main__":
     """ Some tests """

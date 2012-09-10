@@ -7,6 +7,7 @@ set( SRCS
 set( HDRS
   ${BASE}/helpers.h
   ${BASE}/public.h
+  ${BASE}/config.h
   ${BASE}/scheduler_proxy.h
   ${BASE}/scheduler_channel.h
 )

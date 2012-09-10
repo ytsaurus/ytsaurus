@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "persistent_state_manager.h"
+#include "meta_state_manager.h"
 #include "private.h"
 #include "config.h"
 #include "change_log.h"
@@ -9,8 +10,7 @@
 #include "snapshot_builder.h"
 #include "recovery.h"
 #include "mutation_committer.h"
-#include "quorum_tracker.h"
-#include "follower_pinger.h"
+#include "follower_tracker.h"
 #include "meta_state.h"
 #include "snapshot_store.h"
 #include "decorated_meta_state.h"
@@ -58,38 +58,39 @@ public:
             : Owner(owner)
         { }
 
-    private:
-        TPersistentStateManagerPtr Owner;
-
-        void OnStartLeading()
+        virtual void OnStartLeading() override
         {
             Owner->OnElectionStartLeading();
         }
 
-        void OnStopLeading()
+        virtual void OnStopLeading() override
         {
             Owner->OnElectionStopLeading();
         }
 
-        void OnStartFollowing()
+        virtual void OnStartFollowing() override
         {
             Owner->OnElectionStartFollowing();
         }
 
-        void OnStopFollowing()
+        virtual void OnStopFollowing() override
         {
             Owner->OnElectionStopFollowing();
         }
 
-        TPeerPriority GetPriority()
+        virtual TPeerPriority GetPriority() override
         {
             return Owner->GetPriority();
         }
 
-        Stroka FormatPriority(TPeerPriority priority)
+        virtual Stroka FormatPriority(TPeerPriority priority) override
         {
             return Owner->FormatPriority(priority);
         }
+
+    private:
+        TPersistentStateManagerPtr Owner;
+
     };
 
     TPersistentStateManager(
@@ -188,7 +189,7 @@ public:
 
     virtual bool HasActiveQuorum() const override
     {
-        auto tracker = QuorumTracker;
+        auto tracker = FollowerTracker;
         if (!tracker) {
             return false;
         }
@@ -216,7 +217,7 @@ public:
 
     virtual void GetMonitoringInfo(NYTree::IYsonConsumer* consumer) override
     {
-        auto tracker = QuorumTracker;
+        auto tracker = FollowerTracker;
 
         BuildYsonFluently(consumer)
             .BeginMap()
@@ -231,7 +232,7 @@ public:
                             0,
                             CellManager->GetPeerCount(),
                             [=] (TFluentList fluent, TPeerId id) {
-                                if (tracker->IsFollowerActive(id)) {
+                                if (tracker->IsPeerActive(id)) {
                                     fluent.Item().Scalar(id);
                                 }
                             });
@@ -241,7 +242,9 @@ public:
 
     DEFINE_SIGNAL(void(), StartLeading);
     DEFINE_SIGNAL(void(), LeaderRecoveryComplete);
+    DEFINE_SIGNAL(void(), ActiveQuorumEstablished);
     DEFINE_SIGNAL(void(), StopLeading);
+
     DEFINE_SIGNAL(void(), StartFollowing);
     DEFINE_SIGNAL(void(), FollowerRecoveryComplete);
     DEFINE_SIGNAL(void(), StopFollowing);
@@ -260,20 +263,18 @@ public:
         if (ReadOnly) {
             return MakeFuture(TValueOrError<TMutationResponse>(TError(
                 ECommitCode::ReadOnly,
-                "State is read only")));
+                "Read-only mode is active")));
         }
 
         // FollowerTracker is modified concurrently from the ControlThread.
-        auto followerTracker = QuorumTracker;
-        if (!followerTracker || !followerTracker->HasActiveQuorum()) {
+        auto tracker = FollowerTracker;
+        if (!tracker || !tracker->HasActiveQuorum()) {
             return MakeFuture(TValueOrError<TMutationResponse>(TError(
                 ECommitCode::NoQuorum,
                 "No active quorum")));
         }
 
-        return
-            LeaderCommitter
-            ->Commit(request)
+        return LeaderCommitter->Commit(request)
             .Apply(BIND(&TThis::OnMutationCommitted, MakeStrong(this)));
     }
 
@@ -310,8 +311,7 @@ public:
     TLeaderCommitterPtr LeaderCommitter;
     TFollowerCommitterPtr FollowerCommitter;
 
-    TQuorumTrackerPtr QuorumTracker;
-    TFollowerPingerPtr FollowerPinger;
+    TFollowerTrackerPtr FollowerTracker;
 
     // RPC methods
     DECLARE_RPC_SERVICE_METHOD(NProto, GetSnapshotInfo)
@@ -375,9 +375,8 @@ public:
             snapshotFile = new TFile(fileName, OpenExisting | RdOnly);
         }
         catch (const std::exception& ex) {
-            LOG_FATAL("IO error while opening snapshot %d\n%s",
-                snapshotId,
-                ex.what());
+            LOG_FATAL(ex, "IO error while opening snapshot %d",
+                snapshotId);
         }
 
         IOQueue->GetInvoker()->Invoke(context->Wrap(BIND([=] () {
@@ -389,9 +388,8 @@ public:
                 snapshotFile->Seek(offset, sSet);
                 bytesRead = snapshotFile->Read(&*data.begin(), length);
             } catch (const std::exception& ex) {
-                LOG_FATAL("IO error while reading snapshot %d\n%s",
-                    snapshotId,
-                    ex.what());
+                LOG_FATAL(ex, "IO error while reading snapshot %d",
+                    snapshotId);
             }
 
             data.erase(data.begin() + bytesRead, data.end());
@@ -469,9 +467,8 @@ public:
         try {
             changeLog->Read(startRecordId, recordCount, &recordData);
         } catch (const std::exception& ex) {
-            LOG_FATAL("IO error while reading changelog %d\n%s",
-                changeLog->GetId(),
-                ex.what());
+            LOG_FATAL(ex, "IO error while reading changelog %d",
+                changeLog->GetId());
         }
 
         // Pack refs to minimize allocations.
@@ -510,8 +507,7 @@ public:
                     ~version.ToString(),
                     changeCount);
 
-                FollowerCommitter
-                    ->Commit(version, request->Attachments())
+                FollowerCommitter->Commit(version, request->Attachments())
                     .Subscribe(BIND(&TThis::OnFollowerCommitted, MakeStrong(this), context));
                 break;
             }
@@ -524,7 +520,7 @@ public:
 
                     auto error = FollowerRecovery->PostponeMutations(version, request->Attachments());
                     if (!error.IsOK()) {
-                        LOG_WARNING("Error postponing mutations, restarting\n%s", ~ToString(error));
+                        LOG_WARNING(error, "Error postponing mutations, restarting");
                         Restart();
                     }
 
@@ -534,9 +530,10 @@ public:
                     LOG_DEBUG("ApplyChange: ignoring changes (Version: %s, ChangeCount: %d)",
                         ~version.ToString(),
                         changeCount);
-                    context->Reply(
+                    context->Reply(TError(
                         EErrorCode::InvalidStatus,
-                        Sprintf("Ping is not received yet (Status: %s)", ~GetControlStatus().ToString()));
+                        "Ping is not received yet (Status: %s)",
+                        ~GetControlStatus().ToString()));
                 }
                 break;
             }
@@ -612,7 +609,7 @@ public:
 
                     FollowerRecovery->Run().Subscribe(
                         BIND(&TThis::OnControlFollowerRecoveryComplete, MakeStrong(this))
-                        .Via(EpochControlInvoker));
+                            .Via(EpochControlInvoker));
                 }
                 break;
 
@@ -680,7 +677,7 @@ public:
 
                     auto error = FollowerRecovery->PostponeSegmentAdvance(version);
                     if (!error.IsOK()) {
-                        LOG_ERROR("%s", ~ToString(error));
+                        LOG_ERROR(error);
                         Restart();
                     }
 
@@ -786,10 +783,10 @@ public:
                 ~GetControlStatus().ToString());
         }
 
-        auto tracker = QuorumTracker;
+        auto tracker = FollowerTracker;
         response->set_leader_address(CellManager->GetSelfAddress());
         for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
-            if (tracker->IsFollowerActive(id)) {
+            if (tracker->IsPeerActive(id)) {
                 response->add_follower_addresses(CellManager->GetPeerAddress(id));
             }
         }
@@ -814,7 +811,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         if (!result.IsOK()) {
-            LOG_ERROR("Error committing mutation, restarting\n%s", ~ToString(result));
+            LOG_ERROR(result, "Error committing mutation, restarting");
             Restart();
         }
 
@@ -831,26 +828,18 @@ public:
         ControlStatus = EPeerStatus::LeaderRecovery;
         StartEpoch();
 
-        YCHECK(!QuorumTracker);
-        QuorumTracker = New<TQuorumTracker>(
-            Config->QuorumTracker,
-            CellManager,
-            EpochControlInvoker,
-            CellManager->GetSelfId());
-
         // During recovery the leader is reporting its reachable version to followers.
         auto version = DecoratedState->GetReachableVersionAsync();
         DecoratedState->SetPingVersion(version);
 
-        YCHECK(!FollowerPinger);
-        FollowerPinger = New<TFollowerPinger>(
-            Config->FollowerPinger,
+        YCHECK(!FollowerTracker);
+        FollowerTracker = New<TFollowerTracker>(
+            Config->FollowerTracker,
             CellManager,
             DecoratedState,
-            QuorumTracker,
             EpochContext->EpochId,
             EpochControlInvoker);
-        FollowerPinger->Start();
+        FollowerTracker->Start();
 
         EpochStateInvoker->Invoke(BIND(
             &TThis::DoStateStartLeading,
@@ -875,9 +864,9 @@ public:
             CellManager,
             DecoratedState,
             ChangeLogCache,
-            QuorumTracker,
+            FollowerTracker,
             EpochContext->EpochId,
-            EpochControlInvoker,
+            ControlInvoker,
             EpochStateInvoker);
         LeaderCommitter->SubscribeMutationApplied(BIND(&TThis::OnMutationApplied, MakeWeak(this)));
 
@@ -897,7 +886,7 @@ public:
             .Run()
             .Subscribe(
                 BIND(&TThis::OnStateLeaderRecoveryComplete, MakeStrong(this))
-                .Via(EpochStateInvoker));
+                    .Via(EpochStateInvoker));
     }
 
     void OnStateLeaderRecoveryComplete(TError error)
@@ -908,7 +897,7 @@ public:
         LeaderRecovery.Reset();
 
         if (!error.IsOK()) {
-            LOG_WARNING("Leader recovery failed, restarting\n%s", ~ToString(error));
+            LOG_WARNING(error, "Leader recovery failed, restarting");
             Restart();
             return;
         }
@@ -952,6 +941,19 @@ public:
         ControlStatus = EPeerStatus::Leading;
 
         LOG_INFO("Leader recovery complete");
+
+        FollowerTracker->GetActiveQuorum().Subscribe(
+            BIND(&TThis::OnActiveQuorumEstablished, MakeStrong(this))
+                .Via(EpochStateInvoker));
+    }
+
+    void OnActiveQuorumEstablished()
+    {
+        VERIFY_THREAD_AFFINITY(StateThread);
+
+        LOG_INFO("Active quorum established");
+
+        ActiveQuorumEstablished_.Fire();
     }
 
 
@@ -969,12 +971,11 @@ public:
 
         StopEpoch();
 
-        if (FollowerPinger) {
-            FollowerPinger->Stop();
-            FollowerPinger.Reset();
+        if (FollowerTracker) {
+            FollowerTracker->Stop();
+            FollowerTracker.Reset();
         }
 
-        QuorumTracker.Reset();
         LeaderRecovery.Reset();
 
         if (SnapshotBuilder) {
@@ -1028,8 +1029,7 @@ public:
         FollowerRecovery.Reset();
 
         if (!error.IsOK()) {
-            LOG_WARNING("Follower recovery failed, restarting\n%s",
-                ~ToString(error));
+            LOG_WARNING(error, "Follower recovery failed, restarting");
             Restart();
             return;
         }
@@ -1045,7 +1045,7 @@ public:
         YCHECK(!FollowerCommitter);
         FollowerCommitter = New<TFollowerCommitter>(
             DecoratedState,
-            EpochControlInvoker,
+            ControlInvoker,
             EpochStateInvoker);
 
         YCHECK(!SnapshotBuilder);

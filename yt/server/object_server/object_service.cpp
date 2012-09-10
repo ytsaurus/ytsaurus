@@ -74,10 +74,10 @@ public:
             TYPath path = requestHeader.path();
             Stroka verb = requestHeader.verb();
 
-            LOG_DEBUG("Execute[%d] <- Path: %s, Verb: %s",
+            LOG_DEBUG("Execute[%d] <- %s %s",
                 requestIndex,
-                ~path,
-                ~verb);
+                ~verb,
+                ~path);
 
             awaiter->Await(
                 ExecuteVerb(rootService, requestMessage),
@@ -165,6 +165,8 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
 {
     UNUSED(request);
     UNUSED(response);
+
+    ValidateInitialized();
 
     New<TExecuteSession>(Bootstrap, context)->Run();
 }

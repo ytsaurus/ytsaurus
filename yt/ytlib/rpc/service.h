@@ -477,13 +477,13 @@ protected:
             return *this;
         }
 
-        TMethodDescriptor& SetHeavyRequest(bool value)
+        TMethodDescriptor& SetRequestHeavy(bool value)
         {
             Options.HeavyRequest = value;
             return *this;
         }
 
-        TMethodDescriptor& SetHeavyResponse(bool value)
+        TMethodDescriptor& SetResponseHeavy(bool value)
         {
             Options.HeavyResponse = value;
             return *this;

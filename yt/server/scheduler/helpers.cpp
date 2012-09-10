@@ -29,12 +29,12 @@ void BuildOperationAttributes(TOperationPtr operation, IYsonConsumer* consumer)
 void BuildJobAttributes(TJobPtr job, NYTree::IYsonConsumer* consumer)
 {
     auto state = job->GetState();
-    auto error = FromProto(job->Result().error());
     BuildYsonMapFluently(consumer)
         .Item("job_type").Scalar(FormatEnum(job->GetType()))
         .Item("state").Scalar(FormatEnum(state))
         .Item("address").Scalar(job->GetNode()->GetAddress())
         .DoIf(state == EJobState::Failed, [=] (TFluentMap fluent) {
+            auto error = FromProto(job->Result().error());
             fluent.Item("error").Scalar(error);
         });
 }

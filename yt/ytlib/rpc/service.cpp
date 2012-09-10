@@ -72,12 +72,15 @@ void TServiceBase::OnBeginRequest(IServiceContextPtr context)
     if (methodIt == RuntimeMethodInfos.end()) {
         guard.Release();
 
-        Stroka message = Sprintf("Unknown verb %s:%s",
+        auto error = TError(
+            EErrorCode::NoSuchVerb,
+            "Unknown verb %s:%s (RequestId: %s)",
             ~ServiceName,
-            ~verb);
-        LOG_WARNING("%s", ~message);
+            ~verb,
+            ~ToString(context->GetRequestId()));
+        LOG_WARNING(error);
         if (!context->IsOneWay()) {
-            context->Reply(TError(EErrorCode::NoSuchVerb, message));
+            context->Reply(error);
         }
 
         return;
@@ -87,14 +90,17 @@ void TServiceBase::OnBeginRequest(IServiceContextPtr context)
     if (runtimeInfo->Descriptor.OneWay != context->IsOneWay()) {
         guard.Release();
 
-        Stroka message = Sprintf("One-way flag mismatch for verb %s:%s: expected %s, actual %s",
+        auto error = TError(
+            EErrorCode::ProtocolError,
+            "One-way flag mismatch for verb %s:%s: expected %s, actual %s (RequestId: %s)",
             ~ServiceName,
             ~verb,
             ~FormatBool(runtimeInfo->Descriptor.OneWay).Quote(),
-            ~FormatBool(context->IsOneWay()).Quote());
-        LOG_WARNING("%s", ~message);
+            ~FormatBool(context->IsOneWay()).Quote(),
+            ~ToString(context->GetRequestId()));
+        LOG_WARNING(error);
         if (!context->IsOneWay()) {
-            context->Reply(TError(EErrorCode::NoSuchVerb, message));
+            context->Reply(error);
         }
 
         return;

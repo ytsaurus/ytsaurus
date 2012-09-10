@@ -16,7 +16,7 @@ namespace NScheduler {
 struct TSchedulerConfig
     : public TYsonSerializable
 {
-    TDuration StartupRetryPeriod;
+    TDuration ConnectRetryPeriod;
 
     TDuration TransactionsRefreshPeriod;
 
@@ -59,7 +59,7 @@ struct TSchedulerConfig
 
     TSchedulerConfig()
     {
-        Register("startup_retry_period", StartupRetryPeriod)
+        Register("connect_retry_period", ConnectRetryPeriod)
             .Default(TDuration::Seconds(15));
         Register("transactions_refresh_period", TransactionsRefreshPeriod)
             .Default(TDuration::Seconds(3));

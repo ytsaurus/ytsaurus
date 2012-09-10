@@ -26,17 +26,6 @@ private:
     NScheduler::TOperationId OperationId;
     NScheduler::EOperationType OperationType;
 
-    // TODO(babenko): refactor
-    // TODO(babenko): YPath and RPC responses currently share no base class.
-    template <class TResponse>
-    static void CheckResponse(TResponse response, const Stroka& failureMessage)
-    {
-        if (!response->IsOK()) {
-            THROW_ERROR_EXCEPTION(failureMessage)
-                << response->GetError();
-        }
-    }
-
     static void AppendPhaseProgress(Stroka* out, const Stroka& phase, const NYTree::TYsonString& progress);
 
     Stroka FormatProgress(const NYTree::TYsonString& progress);
@@ -45,7 +34,7 @@ private:
 
     NScheduler::EOperationType GetOperationType(const NScheduler::TOperationId& operationId);
 
-    bool OperationFinished();
+    bool CheckFinished();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -247,9 +247,9 @@ TValueOrError<TNetworkAddress> TAddressResolver::DoResolve(const Stroka& hostNam
     if (gaiResult != 0) {
         auto gaiError = TError(Stroka(gai_strerror(gaiResult)))
             << TErrorAttribute("errno", gaiResult);
-        auto error = TError("Failed to resolve host %s")
+        auto error = TError("Failed to resolve host %s", ~hostName)
             << gaiError;
-        LOG_WARNING("%s", ~ToString(error));
+        LOG_WARNING(error);
         return error;
     }
 
@@ -278,7 +278,7 @@ TValueOrError<TNetworkAddress> TAddressResolver::DoResolve(const Stroka& hostNam
 
     {
         TError error("No IPv4 or IPv6 address can be found for %s", ~hostName);
-        LOG_WARNING("%s", ~ToString(error));
+        LOG_WARNING(error);
         return error;
     }
 }

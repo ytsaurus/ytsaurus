@@ -613,6 +613,11 @@ void TChunkReplicator::OnRefresh()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
+    ScheduleNextRefresh();
+
+    if (RefreshList.empty())
+        return;
+
     LOG_DEBUG("Incremental chunk refresh started");
 
     int refreshedCount = 0;
@@ -640,8 +645,6 @@ void TChunkReplicator::OnRefresh()
 
     LOG_DEBUG("Incremental chunk refresh completed, %d chunks processed",
         refreshedCount);
-
-    ScheduleNextRefresh();
 }
 
 TChunkReplicator::TNodeInfo* TChunkReplicator::FindNodeInfo(TNodeId nodeId)

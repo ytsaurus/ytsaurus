@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 
-import dill
-
 import imp
 import sys
 import itertools
@@ -18,6 +16,8 @@ if __name__ == "__main__":
         __zip.extractall("modules")
     sys.path = ["./modules"] + sys.path
     
+    import dill
+
     # Magically replace out main module  by client side main
     sys.modules['__main__'] = imp.load_module(__main_module_name, open(__main_filename, 'U'), __main_filename, ('.py', 'U', 1))
     imp.reload(sys)

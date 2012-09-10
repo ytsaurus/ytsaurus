@@ -76,7 +76,7 @@ void TResponseKeeper::TrySweep()
     auto deadline = TInstant::Now() - Config->ExpirationPeriod;
     while (!ResponseQueue.empty()) {
         const auto& item = ResponseQueue.back();
-        if (item.When <= deadline) {
+        if (item.When > deadline) {
             break;
         }
         

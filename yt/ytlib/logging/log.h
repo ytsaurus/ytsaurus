@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+#include <ytlib/misc/error.h>
+
 #include <util/system/thread.h>
 
 namespace NYT {
@@ -54,12 +56,10 @@ private:
 #define LOG_WARNING(...)                    LOG_EVENT(Logger, ::NYT::NLog::ELogLevel::Warning, __VA_ARGS__)
 #define LOG_WARNING_IF(condition, ...)      if (condition) LOG_WARNING(__VA_ARGS__)
 #define LOG_WARNING_UNLESS(condition, ...)  if (!condition) LOG_WARNING(__VA_ARGS__)
-#define LOG_WARNING_AND_THROW(error)        LOG_EVENT_AND_THROW(Logger, ::NYT::NLog::ELogLevel::Warning, error)
 
 #define LOG_ERROR(...)                      LOG_EVENT(Logger, ::NYT::NLog::ELogLevel::Error, __VA_ARGS__)
 #define LOG_ERROR_IF(condition, ...)        if (condition) LOG_ERROR(__VA_ARGS__)
 #define LOG_ERROR_UNLESS(condition, ...)    if (!condition) LOG_ERROR(__VA_ARGS__)
-#define LOG_ERROR_AND_THROW(error)          LOG_EVENT_AND_THROW(Logger, ::NYT::NLog::ELogLevel::Error, error)
 
 #define LOG_FATAL(...)                      LOG_EVENT(Logger, ::NYT::NLog::ELogLevel::Fatal, __VA_ARGS__)
 #define LOG_FATAL_IF(condition, ...)        if ( UNLIKELY(condition)) LOG_FATAL(__VA_ARGS__)
@@ -68,32 +68,47 @@ private:
 #define LOG_EVENT(logger, level, ...) \
     do { \
         if (logger.IsEnabled(level)) { \
-            ::NYT::NLog::LogEventImpl( \
-            logger, \
-            __FILE__, \
-            __LINE__, \
-            __FUNCTION__, \
-            level, \
-            Sprintf(__VA_ARGS__)); \
-        } \
-    } while (false)
-
-#define LOG_EVENT_AND_THROW(logger, level, error) \
-    do { \
-        if (logger.IsEnabled(level)) { \
-            ::NYT::NLog::LogEventImpl( \
+            ::NYT::NLog::NDetail::LogEventImpl( \
                 logger, \
                 __FILE__, \
                 __LINE__, \
                 __FUNCTION__, \
                 level, \
-                ToString(error)); \
+                ::NYT::NLog::NDetail::FormatLogMessage(__VA_ARGS__)); \
         } \
-        THROW_ERROR error; \
     } while (false)
 
-
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
+
+inline Stroka printf_format(1,2) FormatLogMessage(const char* format, ...)
+{
+    Stroka result;
+    va_list params;
+    va_start(params, format);
+    vsprintf(result, format, params);
+    va_end(params);
+    return result;
+}
+
+template <class T>
+inline Stroka FormatLogMessage(const T& obj)
+{
+    return ToString(obj);
+}
+
+inline Stroka printf_format(2,3) FormatLogMessage(const TError& error, const char* format, ...)
+{
+    Stroka result;
+    va_list params;
+    va_start(params, format);
+    vsprintf(result, format, params);
+    va_end(params);
+    result.append('\n');
+    result.append(ToString(error));
+    return result;
+}
 
 template <class TLogger>
 void LogEventImpl(
@@ -114,6 +129,8 @@ void LogEventImpl(
     event.Function = function;
     logger.Write(event);
 }
+
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 

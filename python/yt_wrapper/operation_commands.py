@@ -1,12 +1,11 @@
 import config
+import logger
 from common import require, YtError
 from http import make_request
 from tree_commands import get_attribute, exists, list
 from file_commands import download_file
 
 import os
-import sys
-import datetime
 from time import sleep
 
 OPERATIONS_PATH = "//sys/operations"
@@ -58,7 +57,7 @@ def get_jobs_errors(operation):
     operation_path = os.path.join(OPERATIONS_PATH, operation)
     jobs = list(operation_path + "/jobs")
     jobs_paths = ("%s/jobs/%s" % (operation_path, job) for job in jobs)
-    return "\n\n".join(get_attribute(job, "error")
+    return "\n\n".join(repr(get_attribute(job, "error"))
                        for job in jobs_paths
                        if "error" in list(job + "/@"))
 
@@ -73,14 +72,16 @@ def wait_operation(operation, timeout=None, print_progress=True):
         while True:
             state = get_operation_state(operation)
             if state.is_final():
-                # TODO(ignat): Make some common logging
+                # TODO(ignat): Make some common logger
                 return state
             if state.is_running() and print_progress:
                 new_progress = get_operation_progress(operation)
                 if new_progress != progress:
                     progress = new_progress
-                    print >>sys.stderr, "{0}, jobs of operation {1}:".format(datetime.datetime.now(), operation), \
-                            "\t".join(["=".join(map(str, [k, v])) for k, v in progress.iteritems()])
+                    logger.info(
+                        "jobs of operation %s: %s",
+                        operation,
+                        "\t".join(["=".join(map(str, [k, v])) for k, v in progress.iteritems()]))
             sleep(timeout)
     except KeyboardInterrupt:
         if config.KEYBOARD_ABORT:
@@ -122,7 +123,7 @@ class WaitStrategy(object):
                     stderr))
         self.finalization()
         if self.print_progress:
-            print >>sys.stderr, "{0}, operation {1} completed".format(datetime.datetime.now(), operation)
+            logger.info("operation %s completed", operation)
         #return operation_result, jobs_errors, stderr
 
 class AsyncStrategy(object):

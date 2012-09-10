@@ -38,6 +38,9 @@ TMetaStatePart::TMetaStatePart(
     metaStateManager->SubscribeLeaderRecoveryComplete(BIND(
         &TThis::OnLeaderRecoveryComplete,
         MakeWeak(this)));
+    metaStateManager->SubscribeActiveQuorumEstablished(BIND(
+        &TThis::OnActiveQuorumEstablished,
+        MakeWeak(this)));
     metaStateManager->SubscribeStopLeading(BIND(
         &TThis::OnStopLeading,
         MakeWeak(this)));
@@ -81,6 +84,9 @@ void TMetaStatePart::OnStartLeading()
 { }
 
 void TMetaStatePart::OnLeaderRecoveryComplete()
+{ }
+
+void TMetaStatePart::OnActiveQuorumEstablished()
 { }
 
 void TMetaStatePart::OnStopLeading()

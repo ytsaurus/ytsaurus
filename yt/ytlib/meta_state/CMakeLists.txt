@@ -10,8 +10,7 @@ set( SRCS
   ${BASE}/composite_meta_state.cpp
   ${BASE}/decorated_meta_state.cpp
   ${BASE}/file_helpers.cpp
-  ${BASE}/follower_pinger.cpp
-  ${BASE}/quorum_tracker.cpp
+  ${BASE}/follower_tracker.cpp
   ${BASE}/master_channel.cpp
   ${BASE}/master_discovery.cpp
   ${BASE}/meta_state_manager.cpp
@@ -41,8 +40,7 @@ set( HDRS
   ${BASE}/config.h
   ${BASE}/decorated_meta_state.h
   ${BASE}/file_helpers.h
-  ${BASE}/follower_pinger.h
-  ${BASE}/quorum_tracker.h
+  ${BASE}/follower_tracker.h
   ${BASE}/master_channel.h
   ${BASE}/map-inl.h
   ${BASE}/map.h

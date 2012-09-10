@@ -102,16 +102,21 @@ struct IMetaStateManager
     //! and enters recovery.
     DECLARE_INTERFACE_SIGNAL(void(), StartLeading);
     //! Raised within the state thread when the leader recovery is complete.
+    //! The leader may now serve read requests.
     DECLARE_INTERFACE_SIGNAL(void(), LeaderRecoveryComplete);
-    //! Raised within the state thread when the state has stopped leading.
+    //! Raised within the stat thread when an active quorum is established.
+    //! The leader may now serve read-write requests.
+    DECLARE_INTERFACE_SIGNAL(void(), ActiveQuorumEstablished);
+    //! Raised within the state thread when the peer has stopped leading.
     DECLARE_INTERFACE_SIGNAL(void(), StopLeading);
 
     //! Raised within the state thread when the state has started following
     //! and enters recovery.
     DECLARE_INTERFACE_SIGNAL(void(), StartFollowing);
     //! Raised within the state thread when the follower recovery is complete.
+    //! The follower may now serve read requests.
     DECLARE_INTERFACE_SIGNAL(void(), FollowerRecoveryComplete);
-    //! Raised within the   state thread when the state has started leading.
+    //! Raised within the state thread when the peer has stopped following.
     DECLARE_INTERFACE_SIGNAL(void(), StopFollowing);
 
     // Extension methods.

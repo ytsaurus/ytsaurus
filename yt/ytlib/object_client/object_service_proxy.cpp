@@ -24,10 +24,87 @@ TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
 TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>
 TObjectServiceProxy::TReqExecuteBatch::Invoke()
 {
-    auto response = New<TRspExecuteBatch>(GetRequestId(), KeyToIndexes);
-    auto asyncResult = response->GetAsyncResult();
-    DoInvoke(response);
-    return asyncResult;
+    if (Channel->GetRetryEnabled()) {
+        auto startTime = TInstant::Now();
+        auto timeout = GetTimeout();
+        auto deadline = timeout ? startTime + timeout.Get() : TNullable<TInstant>();
+        auto promise = NewPromise<TObjectServiceProxy::TRspExecuteBatchPtr>();
+        SendRetryingRequest(deadline, timeout, promise);
+        return promise;
+    } else {
+        auto batchRsp = New<TRspExecuteBatch>(GetRequestId(), KeyToIndexes);
+        auto promise = batchRsp->GetAsyncResult();
+        DoInvoke(batchRsp);
+        return promise;
+    }
+}
+
+void TObjectServiceProxy::TReqExecuteBatch::SendRetryingRequest(
+    TNullable<TInstant> deadline,
+    TNullable<TDuration> timeout,
+    TPromise<TRspExecuteBatchPtr> promise)
+{
+    auto batchRsp = New<TRspExecuteBatch>(GetRequestId(), KeyToIndexes);
+    auto attemptPromise = batchRsp->GetAsyncResult();
+    Channel->Send(this, batchRsp, timeout);
+    attemptPromise.Subscribe(BIND(
+        &TReqExecuteBatch::OnResponse,
+        MakeStrong(this),
+        deadline,
+        promise));
+}
+
+void TObjectServiceProxy::TReqExecuteBatch::OnResponse(
+    TNullable<TInstant> deadline,
+    TPromise<TRspExecuteBatchPtr> promise,
+    TRspExecuteBatchPtr batchRsp)
+{
+    if (!batchRsp->IsOK()) {
+        promise.Set(batchRsp);
+        return;
+    }
+
+    bool hasErrors = false;
+    bool hasFatalErrors = false;
+    for (int index = 0; index < batchRsp->GetSize(); ++index) {
+        auto rsp = batchRsp->GetResponse(index);
+        if (rsp) {
+            auto rspError = rsp->GetError();
+            if (!rspError.IsOK()) {
+                hasErrors = true;
+                RetryErrors.push_back(rspError);
+                if (!IsRetriableError(rspError)) {
+                    hasFatalErrors = true;
+                }
+            }
+        }
+    }
+
+    if (!hasErrors || hasFatalErrors) {
+        promise.Set(batchRsp);
+        return;
+    }
+
+    auto now = TInstant::Now();
+    if (deadline && deadline.Get() < now) {
+        ReportError(promise, TError(NRpc::EErrorCode::Timeout, "Request retries timed out"));
+    } else {
+        auto timeout = deadline ? now - deadline.Get() : TNullable<TDuration>();
+        SendRetryingRequest(deadline, timeout, promise);
+    }
+}
+
+void TObjectServiceProxy::TReqExecuteBatch::ReportError(
+    TPromise<TRspExecuteBatchPtr> promise,
+    TError error)
+{
+    error.InnerErrors() = RetryErrors;
+
+    auto batchRsp = New<TRspExecuteBatch>(GetRequestId(), KeyToIndexes);
+    auto responseHandler = IClientResponseHandlerPtr(batchRsp);
+    responseHandler->OnError(error);
+
+    promise.Set(batchRsp);
 }
 
 TObjectServiceProxy::TReqExecuteBatchPtr
@@ -104,6 +181,24 @@ void TObjectServiceProxy::TRspExecuteBatch::DeserializeBody(const TRef& data)
 int TObjectServiceProxy::TRspExecuteBatch::GetSize() const
 {
     return Body.part_counts_size();
+}
+
+
+TError TObjectServiceProxy::TRspExecuteBatch::GetCumulativeError()
+{
+    if (!IsOK()) {
+        return GetError();
+    }
+
+    TError cumulativeError("Error communicating with master");
+    FOREACH (auto rsp, GetResponses()) {
+        auto error = rsp->GetError();
+        if (!error.IsOK()) {
+            cumulativeError.InnerErrors().push_back(error);
+        }
+    }
+
+    return cumulativeError.InnerErrors().empty() ? TError() : cumulativeError;
 }
 
 TYPathResponsePtr TObjectServiceProxy::TRspExecuteBatch::GetResponse(int index) const

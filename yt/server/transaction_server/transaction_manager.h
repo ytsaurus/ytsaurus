@@ -67,9 +67,6 @@ private:
     NMetaState::TMetaStateMap<TTransactionId, TTransaction> TransactionMap;
     yhash_map<TTransactionId, TLeaseManager::TLease> LeaseMap;
 
-    virtual void OnLeaderRecoveryComplete();
-    virtual void OnStopLeading();
-
     void OnTransactionExpired(const TTransactionId& id);
 
     void CreateLease(const TTransaction* transaction, TDuration timeout);
@@ -79,11 +76,14 @@ private:
     void DoRenewLease(const TTransaction* transaction);
 
     // TMetaStatePart overrides
+    virtual void OnActiveQuorumEstablished() override;
+    virtual void OnStopLeading() override;
+
     void SaveKeys(TOutputStream* output);
     void SaveValues(TOutputStream* output);
     void LoadKeys(TInputStream* input);
     void LoadValues(NCellMaster::TLoadContext context, TInputStream* input);
-    virtual void Clear();
+    virtual void Clear() override;
 
     TDuration GetActualTimeout(TNullable<TDuration> timeout);
 

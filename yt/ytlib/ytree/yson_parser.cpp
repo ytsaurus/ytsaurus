@@ -81,21 +81,14 @@ public:
         auto begin = data.begin();
         auto end = data.end();
         auto current = begin;
-        try {
-            while (current != end) {
-                auto consumed = Lexer.Read(TStringBuf(current, end));
-                if (Lexer.GetState() == TLexer::EState::Terminal) {
-                    ConsumeToken(Lexer.GetToken());
-                    Lexer.Reset();
-                }
-                OnRangeConsumed(current, current + consumed);
-                current += consumed;
+        while (current != end) {
+            auto consumed = Lexer.Read(TStringBuf(current, end));
+            if (Lexer.GetState() == TLexer::EState::Terminal) {
+                ConsumeToken(Lexer.GetToken());
+                Lexer.Reset();
             }
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Could not read symbol %s (%s)",
-                ~Stroka(*current).Quote(),
-                ~GetPositionInfo())
-                << ex;
+            OnRangeConsumed(current, current + consumed);
+            current += consumed;
         }
     }
 
@@ -260,7 +253,7 @@ private:
                         if (tokenType == ListItemSeparatorToken) {
                             topState = EState::ListBeforeItem;
                         } else {
-                            THROW_ERROR_EXCEPTION("Expected ';' or ']', but token %s of type %s found (%s)",
+                            THROW_ERROR_EXCEPTION("Expected ';' or ']' but token %s of type %s found (%s)",
                                 ~token.ToString().Quote(),
                                 ~tokenType.ToString(),
                                 ~GetPositionInfo());
@@ -303,7 +296,7 @@ private:
                     Consumer->OnKeyedItem(token.GetStringValue());
                     topState = EState::MapAfterKey;  
                 } else {
-                    THROW_ERROR_EXCEPTION("Expected string literal, but token %s of type %s found (%s)",
+                    THROW_ERROR_EXCEPTION("Expected string literal but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -314,7 +307,7 @@ private:
                 if (tokenType == KeyValueSeparatorToken) {
                     topState = EState::MapBeforeValue;
                 } else {
-                    THROW_ERROR_EXCEPTION("Expected '=', but token %s of type %s found (%s)",
+                    THROW_ERROR_EXCEPTION("Expected '=' but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -333,7 +326,7 @@ private:
                 } else if (tokenType == KeyedItemSeparatorToken) {
                     topState = EState::MapBeforeKey;
                 } else {
-                    THROW_ERROR_EXCEPTION("Expected ';' or '}', but token %s of type %s found (%s)",
+                    THROW_ERROR_EXCEPTION("Expected ';' or '}' but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -368,7 +361,7 @@ private:
                     Consumer->OnKeyedItem(token.GetStringValue());
                     topState = EState::AttributesAfterKey;  
                 } else {
-                    THROW_ERROR_EXCEPTION("Expected string literal, but token %s of type %s found (%s)",
+                    THROW_ERROR_EXCEPTION("Expected string literal but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -379,7 +372,7 @@ private:
                 if (tokenType == KeyValueSeparatorToken) {
                     topState = EState::AttributesBeforeValue;
                 } else {
-                    THROW_ERROR_EXCEPTION("Expected '=', but token %s of type %s found (%s)",
+                    THROW_ERROR_EXCEPTION("Expected '=' but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -394,7 +387,7 @@ private:
                 if (tokenType == KeyedItemSeparatorToken) {
                     topState = EState::AttributesBeforeKey;
                 } else {
-                    THROW_ERROR_EXCEPTION("Expected ';' or '>', but token %s of type %s found (%s)",
+                    THROW_ERROR_EXCEPTION("Expected ';' or '>' but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
                         ~tokenType.ToString(),
                         ~GetPositionInfo());
@@ -412,7 +405,7 @@ private:
 
         auto tokenType = token.GetType();
         if (tokenType != ETokenType::EndOfStream) {
-            THROW_ERROR_EXCEPTION("Node is already parsed, but unexpected token %s of type %s found (%s)",
+            THROW_ERROR_EXCEPTION("Complete node is already parsed but unexpected token %s of type %s found (%s)",
                 ~token.ToString().Quote(),
                 ~tokenType.ToString(),
                 ~GetPositionInfo());

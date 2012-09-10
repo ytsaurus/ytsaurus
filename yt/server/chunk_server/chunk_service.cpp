@@ -46,11 +46,11 @@ TChunkService::TChunkService(TBootstrap* bootstrap)
     RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterNode));
     RegisterMethod(
         RPC_SERVICE_METHOD_DESC(FullHeartbeat)
-            .SetHeavyRequest(true)
+            .SetRequestHeavy(true)
             .SetInvoker(bootstrap->GetMetaStateFacade()->GetGuardedInvoker(EStateThreadQueue::ChunkRefresh)));
     RegisterMethod(
         RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat)
-            .SetHeavyRequest(true));
+            .SetRequestHeavy(true));
 }
 
 void TChunkService::ValidateNodeId(TNodeId nodeId) const
@@ -105,6 +105,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterNode)
         ~requestCellGuid.ToString(),
         ~ToString(statistics));
 
+    ValidateInitialized();
     ValidateLeaderStatus();
 
     auto expectedCellGuid = objectManager->GetCellGuid();
@@ -145,6 +146,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, FullHeartbeat)
 
     context->SetRequestInfo("NodeId: %d", nodeId);
 
+    ValidateInitialized();
     ValidateLeaderStatus();
     ValidateNodeId(nodeId);
 
@@ -173,6 +175,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
 
     context->SetRequestInfo("NodeId: %d");
 
+    ValidateInitialized();
     ValidateLeaderStatus();
     ValidateNodeId(nodeId);
 

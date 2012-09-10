@@ -15,8 +15,6 @@ class TSupervisorService
     : public NRpc::TServiceBase
 {
 public:
-    typedef TIntrusivePtr<TSupervisorService> TPtr;
-
     explicit TSupervisorService(TBootstrap* bootstrap);
 
 private:

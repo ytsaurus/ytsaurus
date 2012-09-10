@@ -1,0 +1,62 @@
+#!/bin/sh -ex
+
+USAGE="Usage: {check|start|stop} {yt|hadoop|yamr|proxy} [hosts]"
+
+usage() { echo "$USAGE" >&2; exit 1; }
+
+die() { echo "$@" >&2; exit 1; }
+
+run() {
+    pdsh -R ssh -w $@
+}
+
+refresh_tmux() {
+    if [ -n "$TMUX" ]; then
+        NEW_SSH_AUTH_SOCK=`tmux showenv | grep ^SSH_AUTH_SOCK | cut -d = -f 2`
+        if [ -n "$NEW_SSH_AUTH_SOCK" ] && [ -S "$NEW_SSH_AUTH_SOCK" ]; then
+            SSH_AUTH_SOCK="$NEW_SSH_AUTH_SOCK"
+        fi
+    fi
+}
+
+OPERATION=$1; shift || usage
+SERVICE=$1; shift || usage
+
+case "$SERVICE" in
+    yt|hadoop|yamr) HOSTS="n01-0[401-649]g.yt.yandex.net" ;;
+    proxy) HOSTS="n01-0[400-409]g.yt.yandex.net" ;;
+    *) usage ;;
+esac
+[ -z "$1" ] || HOSTS=$1
+
+refresh_tmux
+
+set -u
+
+if [ "$OPERATION" = "check" ]; then
+    echo "It doesn't supported yet"
+    exit 1
+elif [ "$OPERATION" = "start" -o "$OPERATION" = "stop" ]; then
+    if [ "$SERVICE" = "yt" ]; then
+        run "$HOSTS" "sudo sv $OPERATION yt_node"
+    elif [ "$SERVICE" = "yamr" ]; then
+        run "$HOSTS" "sudo /etc/init.d/mapreduce $OPERATION"
+    elif [ "$SERVICE" = "hadoop" ]; then
+        run "$HOSTS" "sudo sv $OPERATION hadoop_datanode && sudo sv $OPERATION hadoop_tasktracker"
+    elif [ "$SERVICE" = "proxy" ]; then
+        if [ "$OPERATION" = "stop" ]; then
+            VALUE="false"
+            HANDLE_VALUE=2000000000
+        else
+            VALUE="true"
+            HANDLE_VALUE=0
+        fi
+        run "$HOSTS" "sudo yt set "'"//sys/holders/\"`hostname`:9012\"/@banned"'" $VALUE"
+        run "$HOSTS" "sudo $OPERATION yt_http_proxy"
+        run "$HOSTS" "echo $HANDLE_VALUE > /var/lock/yt_check_availability_time"
+    else
+        usage
+    fi
+else
+    usage
+fi

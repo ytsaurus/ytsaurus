@@ -7,6 +7,11 @@ namespace NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
     
+class TRetryingBatch;
+typedef TIntrusivePtr<TRetryingBatch> TRetryingBatchPtr;
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Provides a globally unique identifier for an object.
 /*!
  *  TGuid consists of four 32-bit parts.

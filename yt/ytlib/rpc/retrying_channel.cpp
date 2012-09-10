@@ -23,32 +23,32 @@ class TRetryingChannel
     : public IChannel
 {
 public:
-    TRetryingChannel(
-        TRetryConfigPtr config,
-        IChannelPtr underlyingChannel);
+    TRetryingChannel(TRetryingChannelConfigPtr config, IChannelPtr underlyingChannel);
 
-    virtual TNullable<TDuration> GetDefaultTimeout() const;
+    virtual TNullable<TDuration> GetDefaultTimeout() const override;
+
+    virtual bool GetRetryEnabled() const override;
 
     virtual void Send(
         IClientRequestPtr request, 
         IClientResponseHandlerPtr responseHandler, 
-        TNullable<TDuration> timeout);
+        TNullable<TDuration> timeout) override;
 
-    virtual void Terminate(const TError& error);
+    virtual void Terminate(const TError& error) override;
 
 private:
-    TRetryConfigPtr Config;
+    TRetryingChannelConfigPtr Config;
     IChannelPtr UnderlyingChannel;
 
 };
 
 IChannelPtr CreateRetryingChannel(
-    TRetryConfigPtr config,
+    TRetryingChannelConfigPtr config,
     IChannelPtr underlyingChannel)
 {
-    return New<TRetryingChannel>(
-        config,
-        underlyingChannel);
+    return config->MaxAttempts == 1
+        ? underlyingChannel 
+        : New<TRetryingChannel>(config, underlyingChannel);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -58,7 +58,7 @@ class TRetryingRequest
 {
 public:
     TRetryingRequest(
-        TRetryConfigPtr config,
+        TRetryingChannelConfigPtr config,
         IChannelPtr underlyingChannel,
         IClientRequestPtr request,
         IClientResponseHandlerPtr originalHandler,
@@ -86,15 +86,15 @@ public:
             Config->MaxAttempts);
 
         auto now = TInstant::Now();
-        if (now < Deadline) {
-            UnderlyingChannel->Send(Request, this, Deadline - now);
+        if (now > Deadline) {
+            ReportError(TError(NRpc::EErrorCode::Timeout, "Request retries timed out"));
         } else {
-            ReportUnavailable();
+            UnderlyingChannel->Send(Request, this, Deadline - now);
         }
     }
 
 private:
-    TRetryConfigPtr Config;
+    TRetryingChannelConfigPtr Config;
     IChannelPtr UnderlyingChannel;
 
     //! The current attempt number (1-based).
@@ -115,7 +115,7 @@ private:
     TSpinLock SpinLock;
     EState State;
 
-    virtual void OnAcknowledgement()
+    virtual void OnAcknowledgement() override
     {
         LOG_DEBUG("Request attempt acknowledged (RequestId: %s)",
             ~Request->GetRequestId().ToString());
@@ -129,7 +129,7 @@ private:
         OriginalHandler->OnAcknowledgement();
     }
 
-    virtual void OnError(const TError& error) 
+    virtual void OnError(const TError& error) override
     {
         LOG_DEBUG("Request attempt failed (RequestId: %s, Attempt: %d of %d)\n%s",
             ~Request->GetRequestId().ToString(),
@@ -153,7 +153,7 @@ private:
             } else {
                 State = EState::Done;
                 guard.Release();
-                ReportUnavailable();
+                ReportError(TError(NRpc::EErrorCode::Unavailable, "Request retries failed"));
             }
         } else {
             State = EState::Done;
@@ -163,7 +163,7 @@ private:
         }
     }
 
-    virtual void OnResponse(IMessagePtr message)
+    virtual void OnResponse(IMessagePtr message) override
     {
         LOG_DEBUG("Request attempt succeeded (RequestId: %s)",
             ~Request->GetRequestId().ToString());
@@ -178,18 +178,17 @@ private:
         OriginalHandler->OnResponse(message);
     }
 
-    void ReportUnavailable()
+    void ReportError(TError error)
     {
-        TError cumulativeError("All retries have failed");
-        cumulativeError.InnerErrors() = InnerErrors;
-        OriginalHandler->OnError(cumulativeError);
+        error.InnerErrors() = InnerErrors;
+        OriginalHandler->OnError(error);
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TRetryingChannel::TRetryingChannel(
-    TRetryConfigPtr config,
+    TRetryingChannelConfigPtr config,
     IChannelPtr underlyingChannel)
     : UnderlyingChannel(underlyingChannel)
     , Config(config)
@@ -223,6 +222,11 @@ void TRetryingChannel::Terminate(const TError& error)
 TNullable<TDuration> TRetryingChannel::GetDefaultTimeout() const
 {
     return UnderlyingChannel->GetDefaultTimeout();
+}
+
+bool TRetryingChannel::GetRetryEnabled() const
+{
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

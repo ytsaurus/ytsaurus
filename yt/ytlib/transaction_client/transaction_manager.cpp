@@ -90,8 +90,8 @@ public:
         if (!rsp->IsOK()) {
             // No ping tasks are running, so no need to lock here.
             State = EState::Aborted;
-            LOG_ERROR_AND_THROW(TError("Error starting transaction")
-                << rsp->GetError());
+            THROW_ERROR_EXCEPTION("Error starting transaction")
+                << rsp->GetError();
         }
         Id = TTransactionId::FromProto(rsp->object_id());
 
@@ -152,8 +152,8 @@ public:
             // No sync here, should be safe.
             State = EState::Aborted;
             
-            LOG_ERROR_AND_THROW(TError("Error committing transaction %s", ~Id.ToString())
-                << rsp->GetError());
+            THROW_ERROR_EXCEPTION("Error committing transaction %s", ~Id.ToString())
+                << rsp->GetError();
 
             FireAbort();
             return;
@@ -402,7 +402,7 @@ void TTransactionManager::OnPingResponse(
 
     if (!rsp->IsOK()) {
         UnregisterTransaction(id);
-        if (rsp->GetErrorCode() == EYPathErrorCode::ResolveError) {
+        if (rsp->GetError().GetCode() == EYPathErrorCode::ResolveError) {
             LOG_WARNING("Transaction has expired or was aborted (TransactionId: %s)",
                 ~id.ToString());
             transaction->HandleAbort();

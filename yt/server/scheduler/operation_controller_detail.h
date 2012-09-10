@@ -12,6 +12,7 @@
 #include <ytlib/logging/tagged_logger.h>
 
 #include <ytlib/actions/async_pipeline.h>
+#include <ytlib/actions/cancelable_context.h>
 
 #include <server/chunk_server/public.h>
 
@@ -63,6 +64,10 @@ protected:
 
     NObjectClient::TObjectServiceProxy ObjectProxy;
     mutable NLog::TTaggedLogger Logger;
+
+    TCancelableContextPtr CancelableContext;
+    IInvokerPtr CancelableControlInvoker;
+    IInvokerPtr CancelableBackgroundInvoker;
 
     // Remains True as long as the operation is not failed, completed, or aborted.
     bool Active;
@@ -270,18 +275,6 @@ protected:
     TJobInProgressPtr GetJobInProgress(TJobPtr job);
     void RemoveJobInProgress(TJobPtr job);
 
-
-    // TODO(babenko): YPath and RPC responses currently share no base class.
-    template <class TResponse>
-    static void CheckResponse(TResponse response, const Stroka& failureMessage) 
-    {
-        if (!response->IsOK()) {
-            THROW_ERROR_EXCEPTION(failureMessage)
-                << response->GetError();
-        }
-    }
-
-
     // Here comes the preparation pipeline.
 
     // Round 1:
@@ -319,7 +312,7 @@ protected:
     void OnInputsReceived(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
     //! Extensibility point for requesting additional info from master.
-    virtual void CustomRequestInputs(NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr batchReq);
+    virtual void RequestCustomInputs(NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr batchReq);
 
     //! Extensibility point for handling additional info from master.
     virtual void OnCustomInputsRecieved(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
@@ -338,20 +331,12 @@ protected:
 
     // Round 1.
     // - Attach chunk trees.
-    // - (Custom)
     // - Commit input transaction.
     // - Commit output transaction.
     // - Commit primary transaction.
 
     NObjectClient::TObjectServiceProxy::TInvExecuteBatch CommitOutputs();
     void OnOutputsCommitted(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
-
-    //! Extensibility point for additional finalization logic.
-    virtual void CommitCustomOutputs(NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr batchReq);
-
-    //! Extensibility point for handling additional finalization outcome.
-    virtual void OnCustomOutputsCommitted(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
-
 
     virtual void DoInitialize();
     virtual void LogProgress() = 0;
@@ -432,9 +417,10 @@ protected:
         TNullable<int> jobCount,
         i64 jobSliceWeight);
 
-    static int GetJobCount(
-        i64 totalWeight,
-        i64 weightPerJob,
+    static int SuggestJobCount(
+        i64 totalDataSize,
+        i64 minDataSizePerJob,
+        i64 maxDataSizePerJob,
         TNullable<int> configJobCount,
         int chunkCount);
 

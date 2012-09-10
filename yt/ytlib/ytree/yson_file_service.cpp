@@ -89,7 +89,7 @@ class TYsonFileService
     : public IYPathService
 {
 public:
-    TYsonFileService(const Stroka& fileName)
+    explicit TYsonFileService(const Stroka& fileName)
         : FileName(fileName)
     { }
 

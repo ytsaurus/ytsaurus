@@ -161,7 +161,7 @@ void TMasterConnector::SendFullHeartbeat()
 {
     auto request = Proxy
         ->FullHeartbeat()
-        ->SetRequestCodec(ECodecId::Lz4)
+        ->SetCodec(ECodecId::Lz4)
         ->SetTimeout(Config->FullHeartbeatTimeout);
 
     YCHECK(NodeId != InvalidNodeId);
@@ -187,7 +187,7 @@ void TMasterConnector::SendIncrementalHeartbeat()
 {
     auto request = Proxy
         ->IncrementalHeartbeat()
-        ->SetRequestCodec(ECodecId::Lz4);
+        ->SetCodec(ECodecId::Lz4);
 
     YCHECK(NodeId != InvalidNodeId);
     request->set_node_id(NodeId);
@@ -295,11 +295,12 @@ void TMasterConnector::OnIncrementalHeartbeatResponse(TProxy::TRspIncrementalHea
         auto jobId = TJobId::FromProto(startInfo.job_id());
         auto jobType = EJobType(startInfo.type());
         auto chunkId = TChunkId::FromProto(startInfo.chunk_id());
+        auto targetAddresses = FromProto<Stroka>(startInfo.target_addresses());
         Bootstrap->GetJobExecutor()->StartJob(
             jobType,
             jobId,
             chunkId,
-            FromProto<Stroka>(startInfo.target_addresses()));
+            targetAddresses);
     }
 }
 

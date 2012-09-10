@@ -30,6 +30,11 @@ bool TYPathRequest::IsOneWay() const
     return false;
 }
 
+bool TYPathRequest::IsHeavy() const
+{
+    return false;
+}
+
 const TRequestId& TYPathRequest::GetRequestId() const
 {
     return NullRequestId;
@@ -105,21 +110,14 @@ void TYPathResponse::Deserialize(IMessagePtr message)
     }
 }
 
-int TYPathResponse::GetErrorCode() const
-{
-    return Error_.GetCode();
-}
-
 bool TYPathResponse::IsOK() const
 {
     return Error_.IsOK();
 }
 
-void TYPathResponse::ThrowIfError() const
+TYPathResponse::operator TError() const
 {
-    if (!IsOK()) {
-        THROW_ERROR Error_;
-    }
+    return Error_;
 }
 
 void TYPathResponse::DeserializeBody(const TRef& data)
@@ -198,10 +196,12 @@ void ResolveYPath(
         try {
             result = currentService->Resolve(currentPath, verb);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error during YPath resolution (Path: %s, Verb: %s, ResolvedPath: %s)",
+            THROW_ERROR_EXCEPTION(
+                EYPathErrorCode::ResolveError,
+                "Error resolving path %s for %s",
                 ~path,
-                ~verb,
-                ~ComputeResolvedYPath(path, currentPath))
+                ~verb)
+                << TErrorAttribute("resolved_path", TRawString(ComputeResolvedYPath(path, currentPath)))
                 << ex;
         }
 
@@ -220,7 +220,6 @@ void OnYPathResponse(
     TPromise<IMessagePtr> asyncResponseMessage,
     const TYPath& path,
     const Stroka& verb,
-    const TYPath& resolvedPath,
     IMessagePtr responseMessage)
 {
     NRpc::NProto::TResponseHeader responseHeader;
@@ -231,13 +230,7 @@ void OnYPathResponse(
     if (error.IsOK()) {
         asyncResponseMessage.Set(responseMessage);
     } else {
-        auto wrappedError = TError("Error executing a YPath operation (Path: %s, Verb: %s, ResolvedPath: %s)",
-            ~path,
-            ~verb,
-            ~resolvedPath)
-            << error;
-        ToProto(responseHeader.mutable_error(), wrappedError);
-
+        ToProto(responseHeader.mutable_error(), error);
         auto updatedResponseMessage = SetResponseHeader(responseMessage, responseHeader);
         asyncResponseMessage.Set(updatedResponseMessage);
     }
@@ -266,10 +259,7 @@ ExecuteVerb(
             &suffixService,
             &suffixPath);
     } catch (const std::exception& ex) {
-        TError error(ex);
-        error.SetCode(EYPathErrorCode::ResolveError);
-        auto responseMessage = NRpc::CreateErrorResponseMessage(error);
-        return MakeFuture(responseMessage);
+        return MakeFuture(CreateErrorResponseMessage(ex));
     }
 
     requestHeader.set_path(suffixPath);
@@ -285,8 +275,7 @@ ExecuteVerb(
             &OnYPathResponse,
             asyncResponseMessage,
             path,
-            verb,
-            ComputeResolvedYPath(path, suffixPath)));
+            verb));
 
     // This should never throw.
     suffixService->Invoke(context);
@@ -330,21 +319,21 @@ void SyncYPathSet(IYPathServicePtr service, const TYPath& path, const TYsonStrin
     auto request = TYPathProxy::Set(path);
     request->set_value(value.Data());
     auto response = ExecuteVerb(service, request).Get();
-    response->ThrowIfError();
+    THROW_ERROR_EXCEPTION_IF_FAILED(*response);
 }
 
 void SyncYPathRemove(IYPathServicePtr service, const TYPath& path)
 {
     auto request = TYPathProxy::Remove(path);
     auto response = ExecuteVerb(service, request).Get();
-    response->ThrowIfError();
+    THROW_ERROR_EXCEPTION_IF_FAILED(*response);
 }
 
 std::vector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path)
 {
     auto request = TYPathProxy::List(path);
     auto response = ExecuteVerb(service, request).Get();
-    response->ThrowIfError();
+    THROW_ERROR_EXCEPTION_IF_FAILED(*response);
     return ConvertTo<std::vector<Stroka> >(TYsonString(response->keys()));
 }
 

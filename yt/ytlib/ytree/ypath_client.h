@@ -41,6 +41,7 @@ protected:
     Stroka Path_;
     std::vector<TSharedRef> Attachments_;
 
+    virtual bool IsHeavy() const override;
     virtual TSharedRef SerializeBody() const = 0;
 
 };
@@ -80,10 +81,8 @@ class TYPathResponse
 public:
     void Deserialize(NBus::IMessagePtr message);
 
-    int GetErrorCode() const;
     bool IsOK() const;
-
-    void ThrowIfError() const;
+    operator TError() const;
 
 protected:
     virtual void DeserializeBody(const TRef& data);

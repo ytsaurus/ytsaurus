@@ -3,7 +3,10 @@
 #include "public.h"
 
 #include <ytlib/election/config.h>
+
 #include <ytlib/ytree/yson_serializable.h>
+
+#include <ytlib/rpc/retrying_channel.h>
 
 namespace NYT {
 namespace NMetaState {
@@ -94,21 +97,6 @@ struct TFollowerPingerConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TQuorumTrackerConfig
-    : public TYsonSerializable
-{
-    TDuration PingTimeout;
-
-    TQuorumTrackerConfig()
-    {
-        Register("ping_timeout", PingTimeout)
-            .GreaterThan(TDuration())
-            .Default(TDuration::MilliSeconds(3000));
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TLeaderCommitterConfig
     : public TYsonSerializable
 {
@@ -186,7 +174,7 @@ struct TResponseKeeperConfig
     TResponseKeeperConfig()
     {
         Register("expiration_period", ExpirationPeriod)
-            .Default(TDuration::Minutes(5));
+            .Default(TDuration::Seconds(60));
         Register("sweep_period", SweepPeriod)
             .Default(TDuration::Seconds(5));
     }
@@ -223,9 +211,7 @@ struct TPersistentStateManagerConfig
 
     TSnapshotDownloaderConfigPtr SnapshotDownloader;
 
-    TFollowerPingerConfigPtr FollowerPinger;
-
-    TQuorumTrackerConfigPtr QuorumTracker;
+    TFollowerPingerConfigPtr FollowerTracker;
 
     TLeaderCommitterConfigPtr LeaderCommitter;
 
@@ -252,9 +238,7 @@ struct TPersistentStateManagerConfig
             .DefaultNew();
         Register("snapshot_downloader", SnapshotDownloader)
             .DefaultNew();
-        Register("follower_pinger", FollowerPinger)
-            .DefaultNew();
-        Register("quorum_tracker", QuorumTracker)
+        Register("follower_tracker", FollowerTracker)
             .DefaultNew();
         Register("leader_committer", LeaderCommitter)
             .DefaultNew();
@@ -271,7 +255,7 @@ struct TPersistentStateManagerConfig
 
 //! Master discovery configuration.
 struct TMasterDiscoveryConfig
-    : public TYsonSerializable
+    : public NRpc::TRetryingChannelConfig
 {
     //! List of peer addresses.
     std::vector<Stroka> Addresses;
@@ -287,7 +271,7 @@ struct TMasterDiscoveryConfig
         Register("addresses", Addresses)
             .NonEmpty();
         Register("rpc_timeout", RpcTimeout)
-            .Default(TDuration::Seconds(5));
+            .Default(TDuration::Seconds(30));
         Register("connection_priority", ConnectionPriority)
             .InRange(0, 6)
             .Default(6);

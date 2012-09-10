@@ -236,7 +236,7 @@ TAsyncError TRecovery::ReplayChangeLogs(
                 TError error("Current version is %s while only %d mutations are expected, forcing clear restart",
                     ~currentVersion.ToString(),
                     remoteRecordCount);
-                LOG_INFO("%s", ~ToString(error));
+                LOG_INFO(error);
                 DecoratedState->Clear();
                 return MakeFuture(error);
             }

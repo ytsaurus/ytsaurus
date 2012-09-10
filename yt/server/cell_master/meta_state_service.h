@@ -22,6 +22,7 @@ protected:
 
 
     void ValidateLeaderStatus();
+    void ValidateInitialized();
 
 };
 

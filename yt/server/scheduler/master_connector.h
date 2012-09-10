@@ -4,8 +4,12 @@
 
 #include <ytlib/actions/signal.h>
 #include <ytlib/ytree/public.h>
-#include <server/cell_scheduler/public.h>
+
+#include <ytlib/object_client/public.h>
 #include <ytlib/object_client/object_service_proxy.h>
+
+#include <server/cell_scheduler/public.h>
+
 #include <server/chunk_server/public.h>
 
 namespace NYT {
@@ -13,6 +17,14 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Information retrieved during scheduler-master handshake.
+struct TMasterHandshakeResult
+{
+    std::vector<TOperationPtr> Operations;
+    std::vector<Stroka> ExecNodeAddresses;
+};
+
+//! Mediates communication between scheduler and master.
 class TMasterConnector
 {
 public:
@@ -23,17 +35,18 @@ public:
 
     void Start();
 
-    std::vector<TOperationPtr> LoadOperations();
+    bool IsConnected() const;
 
     TAsyncError CreateOperationNode(TOperationPtr operation);
-    void ReviveOperationNodes(const std::vector<TOperationPtr> operations);
-    void RemoveOperationNode(TOperationPtr operation);
-    TAsyncError FlushOperationNode(TOperationPtr operation);
-    TAsyncError FinalizeOperationNode(TOperationPtr operation);
+    TFuture<void> FlushOperationNode(TOperationPtr operation);
+    TFuture<void> FinalizeOperationNode(TOperationPtr operation);
 
     void CreateJobNode(TJobPtr job);
     void UpdateJobNode(TJobPtr job);
     void SetJobStdErr(TJobPtr job, const NChunkClient::TChunkId& chunkId);
+
+    DECLARE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
+    DECLARE_SIGNAL(void(), MasterDisconnected);
 
     DECLARE_SIGNAL(void(TOperationPtr operation), PrimaryTransactionAborted);
     DECLARE_SIGNAL(void(const Stroka& address), NodeOnline);

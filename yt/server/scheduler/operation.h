@@ -47,7 +47,7 @@ class TOperation
     //! Marks the operation as finished.
     void SetFinished();
 
-    //! Returns True iff state is #EOperationState::Completed, #EOperationState::Failed or #EOperationState::Aborted.
+    //! Delegates to #NYT::NScheduler::IsOperationFinished.
     bool IsFinished() const;
 
 public:

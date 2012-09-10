@@ -26,7 +26,9 @@ TSupervisorService::TSupervisorService(TBootstrap* bootstrap)
         Logger.GetCategory())
     , Bootstrap(bootstrap)
 {
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobSpec));
+    RegisterMethod(
+        RPC_SERVICE_METHOD_DESC(GetJobSpec)
+        .SetResponseHeavy(true));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobFinished));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobProgress)
         .SetOneWay(true));

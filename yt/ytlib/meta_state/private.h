@@ -21,11 +21,8 @@ typedef TIntrusivePtr<TCachedAsyncChangeLog> TCachedAsyncChangeLogPtr;
 class TDecoratedMetaState;
 typedef TIntrusivePtr<TDecoratedMetaState> TDecoratedMetaStatePtr;
 
-class TQuorumTracker;
-typedef TIntrusivePtr<TQuorumTracker> TQuorumTrackerPtr;
-
-class TFollowerPinger;
-typedef TIntrusivePtr<TFollowerPinger> TFollowerPingerPtr;
+class TFollowerTracker;
+typedef TIntrusivePtr<TFollowerTracker> TFollowerTrackerPtr;
 
 class TRecovery;
 typedef TIntrusivePtr<TRecovery> TRecoveryPtr;

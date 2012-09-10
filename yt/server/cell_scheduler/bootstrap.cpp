@@ -11,6 +11,7 @@
 #include <ytlib/bus/config.h>
 
 #include <ytlib/rpc/server.h>
+#include <ytlib/rpc/retrying_channel.h>
 
 #include <ytlib/meta_state/master_channel.h>    
 
