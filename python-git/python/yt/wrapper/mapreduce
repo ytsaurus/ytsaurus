@@ -9,9 +9,9 @@
 # -lock
 # -unlock
 
-import yt.wrapper as yt
 import yt.wrapper.config as config
 from yt.wrapper.common import flatten, unlist
+import yt.wrapper as yt
 
 import sys
 import simplejson as json
@@ -30,20 +30,8 @@ def remove_prefix(table):
     return table
 
 def list_all_tables():
-    result = []
-    def walk(path, object):
-        object_type = object["$attributes"]["type"]
-        if object_type == "table":
-            if path.startswith(config.PREFIX):
-                result.append(path)
-        elif object_type == "map_node" and object["$value"] is not None:
-            for key, value in object["$value"].iteritems():
-                walk(path + '/%s' % key, value)
-        else:
-            # All other objects are ignored
-            pass
-    walk("/", yt.get("/", attributes=["type"]))
-    return map(remove_prefix, sorted(result))
+    tables = yt.search("/", "table", lambda path: path.startswith(config.PREFIX))
+    return sorted(map(remove_prefix, tables))
 
 def add_eoln(str):
     return str + "\n"
