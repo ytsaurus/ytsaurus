@@ -261,9 +261,9 @@ private:
         UpdateExecNodes(result.ExecNodeAddresses);
         CreateUpdateLists(result.Operations);
 
-        //LockTransaction->SubscribeAborted(
-        //    BIND(&TImpl::OnLockTransactionAborted, MakeWeak(this))
-        //        .Via(CancelableControlInvoker));
+        LockTransaction->SubscribeAborted(
+            BIND(&TImpl::OnLockTransactionAborted, MakeWeak(this))
+                .Via(CancelableControlInvoker));
 
         StartRefresh();
 
