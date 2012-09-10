@@ -1042,7 +1042,7 @@ protected:
         int minSuggestion = static_cast<int>(ceil((double) TotalInputDataSize / Spec->MaxPartitionDataSize));
         int maxSuggestion = static_cast<int>(ceil((double) TotalInputDataSize / Spec->MinPartitionDataSize));
         int result = Spec->PartitionCount.Get(minSuggestion);
-        result = std::min(result, minSuggestion);
+        result = std::min(result, maxSuggestion);
         result = std::max(result, 1);
         return result;
     }
