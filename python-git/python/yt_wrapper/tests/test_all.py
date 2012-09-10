@@ -31,7 +31,7 @@ class YtTest(YTEnv):
         if os.path.exists("test.log"):
             os.remove("test.log")
         logging.basicConfig(level=logging.WARNING)
-
+        
         ports = {
             "master": 18001,
             "node": 17001,
@@ -281,6 +281,9 @@ class YtTest(YTEnv):
                               format=yt.DsvFormat()),
             [{"b": "ignat"}, {"b": "max"}])
 
+        self.assertEqual(
+            self.read_records(table + '{b}[:#2]', format=yt.DsvFormat()),
+            [{"b": "ignat"}, {"b": "max"}])
 
     def test_merge(self):
         table = self.create_temp_table()
@@ -367,6 +370,14 @@ class YtTest(YTEnv):
                     yt.read_table(other_table, format=yt.DsvFormat())\
                         .next().strip().split("\t"))),
             ["k", "s", "v"])
+
+    def test_table_ranges_with_exists(self):
+        table = self.create_temp_table()
+        self.assertTrue(yt.exists(table))
+        self.assertTrue(yt.exists(table + "/@"))
+        self.assertTrue(yt.exists(table + "/@compression_ratio"))
+        self.assertTrue(len(yt.list_attributes(table)) > 1)
+        self.assertTrue(len(yt.get_attribute(table, "channels")) == 0)
 
 
 if __name__ == "__main__":

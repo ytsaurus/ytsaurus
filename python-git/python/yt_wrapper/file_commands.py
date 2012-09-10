@@ -2,7 +2,7 @@ import config
 from common import require, YtError
 from path_tools import escape_path, escape_name
 from http import make_request
-from tree_commands import remove, exists, set_attribute, set, mkdir, find_free_subpath
+from tree_commands import remove, exists, set_attribute, mkdir, find_free_subpath
 
 import os
 from itertools import imap
@@ -10,7 +10,9 @@ from itertools import imap
 def download_file(path):
     def add_eoln(str):
         return str + "\n"
-    content = make_request("GET", "download", {"path": escape_path(path)}, raw_response=True)
+    content = make_request("GET", "download",
+            {"path": escape_path(path),
+             "transaction_id": config.TRANSACTION}, raw_response=True)
     return imap(add_eoln, content.iter_lines())
 
 def upload_file(filename, yt_filename=None, destination=None, placement_strategy=None):
@@ -46,7 +48,8 @@ def upload_file(filename, yt_filename=None, destination=None, placement_strategy
     
     make_request(
             "PUT", "upload", 
-            {"path": escape_path(destination)},
+            {"path": escape_path(destination),
+             "transaction_id": config.TRANSACTION},
             data=open(filename))
     set_attribute(destination, "file_name", escape_name(yt_filename))
     # Set executable flag if need
