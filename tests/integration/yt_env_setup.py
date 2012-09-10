@@ -1,6 +1,6 @@
 import os
 import logging
-
+    
 from yt_environment import YTEnv
 from functools import wraps
 
@@ -46,11 +46,19 @@ class YTEnvSetup(YTEnv):
         os.makedirs(path_to_test_case)
         os.chdir(path_to_test_case)
         if self.Env.NUM_MASTERS > 0:
-            self._abort_all_transactions()
+            self.transactions_at_start = set(yt_commands.get_transactions())
             yt_commands.set_str('//tmp', '{}')
 
-    def _abort_all_transactions(self):
-        for tx in yt_commands.get_transactions():
+    def teardown_method(self, method):
+        if self.Env.NUM_MASTERS > 0:
+            current_txs = set(yt_commands.get_transactions())
+            txs_to_abort = current_txs.difference(self.transactions_at_start)
+            self._abort_transactions(list(txs_to_abort))
+
+    def _abort_transactions(self, tx_ids):
+        if tx_ids:
+            logging.info('Aborting {0} txs'.format(tx_ids))
+        for tx in tx_ids:
             try:
                 yt_commands.abort_transaction(tx)
             except:
