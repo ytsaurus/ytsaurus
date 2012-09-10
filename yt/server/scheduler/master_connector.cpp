@@ -899,7 +899,6 @@ private:
         auto error = batchRsp->GetCumulativeError();
         if (!error.IsOK()) {
             LOG_ERROR(error, "Error updating watchers");
-            Disconnect();
             return;
         }
 
