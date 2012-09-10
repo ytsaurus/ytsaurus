@@ -1,12 +1,11 @@
 #!/usr/bin/python
 
-import yt
-import config
-from yt import Record, YtError, record_to_line, line_to_record, Table
+import yt.wrapper.config as config
+import yt.wrapper as yt
+from yt.wrapper import Record, YtError, record_to_line, line_to_record, Table
+from yt.common import flatten
 
-from common import flatten
-
-from yt_environment import YTEnv
+from yt.environment import YTEnv
 
 import os
 import logging
@@ -16,9 +15,12 @@ from itertools import imap, izip, starmap, chain
 from functools import partial
 
 import unittest
+
+LOCATION = os.path.dirname(os.path.abspath(__file__))
+def abspath(path):
+    return os.path.join(LOCATION, path)
     
 TEST_DIR = "//home/tests"
-
 
 class YtTest(YTEnv):
     NUM_MASTERS = 1
@@ -87,7 +89,7 @@ class YtTest(YTEnv):
 
     def run_capitilize_b(self, src, dst):
         yt.run_map("PYTHONPATH=. ./capitilize_b.py", src, dst,
-                   files=["config.py", "common.py", "record.py", "format.py", "tests/capitilize_b.py"],
+                   files=map(abspath, ["../config.py", "../common.py", "../record.py", "../format.py", "capitilize_b.py"]),
                    format=yt.DsvFormat())
 
 
@@ -202,13 +204,13 @@ class YtTest(YTEnv):
         other_table = TEST_DIR + "/temp_other"
         yt.run_map("PYTHONPATH=. ./my_op.py",
                    table, other_table,
-                   files=["tests/my_op.py", "tests/helpers.py"])
+                   files=map(abspath, ["my_op.py", "helpers.py"]))
         self.assertEqual(2 * yt.records_count(table), yt.records_count(other_table))
 
         yt.sort_table(table)
         yt.run_reduce("./cpp_bin",
                       table, other_table,
-                      files="tests/cpp_bin")
+                      files=abspath("cpp_bin"))
 
     def test_abort_operation(self):
         strategy = yt.AsyncStrategy()
@@ -216,7 +218,7 @@ class YtTest(YTEnv):
         other_table = TEST_DIR + "/temp_other"
         yt.run_map("PYTHONPATH=. ./my_op.py 10.0",
                    table, other_table,
-                   files=["tests/my_op.py", "tests/helpers.py"],
+                   files=map(abspath, ["my_op.py", "helpers.py"]),
                    strategy=strategy)
 
         operation = strategy.operations[-1]
@@ -247,7 +249,7 @@ class YtTest(YTEnv):
         yt.run_map("PYTHONPATH=. ./many_output.py",
                    table,
                    [other_table, Table(another_table, append=True), more_another_table],
-                   files="tests/many_output.py")
+                   files=abspath("many_output.py"))
         self.assertEqual(yt.records_count(other_table), 1)
         self.assertEqual(yt.records_count(another_table), 11)
         self.assertEqual(yt.records_count(more_another_table), 1)
@@ -309,17 +311,17 @@ class YtTest(YTEnv):
         another_table = TEST_DIR + "/temp_another"
         yt.run_map("PYTHONPATH=. ./my_op.py",
                    [table, other_table], another_table,
-                   files=["tests/my_op.py", "tests/helpers.py"])
+                   files=map(abspath, ["my_op.py", "helpers.py"]))
         self.assertFalse(yt.exists(other_table))
 
     def test_file_operations(self):
         dest = []
         for i in xrange(2):
-            self.assertTrue(yt.upload_file("tests/my_op.py").find("/my_op.py") != -1)
+            self.assertTrue(yt.upload_file(abspath("my_op.py")).find("/my_op.py") != -1)
         
         for d in dest:
             self.assertEqual(list(yt.download_file(dest)),
-                             open("tests/my_op.py").readlines())
+                             open(abspath("my_op.py")).readlines())
 
     def test_map_reduce_operation(self):
         input = TEST_DIR + "/input"
@@ -333,7 +335,7 @@ class YtTest(YTEnv):
                 "c c\tc\tc c a\n"
             ])
         yt.run_map_reduce("./split.py", "./collect.py", input, output,
-                          map_files="tests/split.py", reduce_files="tests/collect.py")
+                          map_files=abspath("split.py"), reduce_files=abspath("collect.py"))
         self.assertEqual(
             sorted(list(yt.read_table(output))),
             sorted(["a\t\t2\n", "b\t\t1\n", "c\t\t6\n"]))
