@@ -72,11 +72,6 @@ DECLARE_ENUM(EJobProgress,
     ((Failed)(102))
 );
 
-DECLARE_ENUM(ESchedulerStrategy,
-    (Null)
-    (Fifo)
-);
-
 class TSchedulerServiceProxy;
 
 struct TOperationSpecBase;

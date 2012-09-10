@@ -177,11 +177,11 @@ public:
     }
 
 
+    DEFINE_SIGNAL(void(TObjectServiceProxy::TReqExecuteBatchPtr), WatcherRequest);
+    DEFINE_SIGNAL(void(TObjectServiceProxy::TRspExecuteBatchPtr), WatcherResponse);
     DEFINE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
     DEFINE_SIGNAL(void(), MasterDisconnected);
     DEFINE_SIGNAL(void(TOperationPtr operation), PrimaryTransactionAborted);
-    DEFINE_SIGNAL(void(const Stroka& address), NodeOnline);
-    DEFINE_SIGNAL(void(const Stroka& address), NodeOffline);
 
 private:
     TSchedulerConfigPtr Config;
@@ -199,6 +199,7 @@ private:
     TPeriodicInvokerPtr TransactionRefreshInvoker;
     TPeriodicInvokerPtr ExecNodesRefreshInvoker;
     TPeriodicInvokerPtr OperationNodesUpdateInvoker;
+    TPeriodicInvokerPtr WatchersInvoker;
 
     struct TOperationUpdateList
     {
@@ -258,8 +259,8 @@ private:
         CancelableControlInvoker = CancelableContext->CreateInvoker(Bootstrap->GetControlInvoker());
 
         const auto& result = resultOrError.Value();
-        UpdateExecNodes(result.ExecNodeAddresses);
         CreateUpdateLists(result.Operations);
+        WatcherResponse_.Fire(result.WatcherResponses);
 
         LockTransaction->SubscribeAborted(
             BIND(&TImpl::OnLockTransactionAborted, MakeWeak(this))
@@ -296,7 +297,8 @@ private:
                 ->Add(BIND(&TRegistrationPipeline::Round3, MakeStrong(this)))
                 ->Add(BIND(&TRegistrationPipeline::Round4, MakeStrong(this)))
                 ->Add(BIND(&TRegistrationPipeline::Round5, MakeStrong(this)))
-                ->Add(BIND(&TRegistrationPipeline::Round6, MakeStrong(this)));
+                ->Add(BIND(&TRegistrationPipeline::Round6, MakeStrong(this)))
+                ->Add(BIND(&TRegistrationPipeline::Round7, MakeStrong(this)));
         }
 
     private:
@@ -357,7 +359,6 @@ private:
         // - Publish scheduler address.
         // - Update orchid address.
         // - Request operations and their states.
-        // - Request online node addresses.
         TObjectServiceProxy::TInvExecuteBatch Round3(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
         {
             THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
@@ -382,11 +383,6 @@ private:
                 auto req = TYPathProxy::List(GetOperationsPath());
                 req->add_attributes("state");
                 batchReq->AddRequest(req, "list_operations");
-            }
-            {
-                auto req = TYPathProxy::Get("//sys/holders/@online");
-                batchReq->AddRequest(req, "get_online_nodes");
-                
             }
             return batchReq->Invoke();
         }
@@ -416,13 +412,6 @@ private:
                     }
                 }
             }
-            {
-                auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_online_nodes");
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting online nodes");
-                Result.ExecNodeAddresses = ConvertTo< std::vector<Stroka> >(TYsonString(rsp->value()));
-                LOG_INFO("Exec nodes received, %d nodes found",
-                    static_cast<int>(Result.ExecNodeAddresses.size()));
-            }
 
             auto batchReq = Owner->ObjectProxy.ExecuteBatch();
             {
@@ -439,7 +428,6 @@ private:
                     batchReq->AddRequest(req, "get_op_attr");
                 }
             }
-
             return batchReq->Invoke();
         }
 
@@ -477,22 +465,23 @@ private:
         }
 
         // Round 6:
-        // - Relax :)
-        TMasterHandshakeResult Round6(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+        // - Watcher requests.
+        TObjectServiceProxy::TInvExecuteBatch Round6(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
         {
             THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
 
-            {
-                auto rsps = batchRsp->GetResponses("reset_op");
-                YCHECK(rsps.size() == OperationIds.size());
-                for (int index = 0; index < static_cast<int>(rsps.size()); ++index) {
-                    const auto& operationId = OperationIds[index];
-                    auto rsp = rsps[index];
-                    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error resetting operation node (OperationId: %s)",
-                        ~ToString(operationId));
-                }
-            }
+            auto batchReq = Owner->ObjectProxy.ExecuteBatch();
+            Owner->WatcherRequest_.Fire(batchReq);
+            return batchReq->Invoke();
+        }
 
+        // Round 7:
+        // - Relax :)
+        TMasterHandshakeResult Round7(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+        {
+            auto error = batchRsp->GetCumulativeError();
+            THROW_ERROR_EXCEPTION_IF_FAILED(error);
+            Result.WatcherResponses = batchRsp;
             return Result;
         }
 
@@ -576,17 +565,17 @@ private:
             Config->TransactionsRefreshPeriod);
         TransactionRefreshInvoker->Start();
 
-        ExecNodesRefreshInvoker = New<TPeriodicInvoker>(
-            CancelableControlInvoker,
-            BIND(&TImpl::RefreshExecNodes, MakeWeak(this)),
-            Config->NodesRefreshPeriod);
-        ExecNodesRefreshInvoker->Start();
-
         OperationNodesUpdateInvoker = New<TPeriodicInvoker>(
             CancelableControlInvoker,
             BIND(&TImpl::UpdateOperationNodes, MakeWeak(this)),
             Config->OperationsUpdatePeriod);
         OperationNodesUpdateInvoker->Start();
+
+        WatchersInvoker = New<TPeriodicInvoker>(
+            CancelableControlInvoker,
+            BIND(&TImpl::UpdateWatchers, MakeWeak(this)),
+            Config->WatchersUpdatePeriod);
+        WatchersInvoker->Start();
     }
 
     void StopRefresh()
@@ -594,6 +583,7 @@ private:
         TransactionRefreshInvoker->Stop();
         ExecNodesRefreshInvoker->Stop();
         OperationNodesUpdateInvoker->Stop();
+        WatchersInvoker->Stop();
     }
 
 
@@ -661,66 +651,6 @@ private:
             if (deadTransactionIds.find(operation->GetTransactionId()) != deadTransactionIds.end()) {
                 PrimaryTransactionAborted_.Fire(operation);
             }
-        }
-    }
-
-
-    void RefreshExecNodes()
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
-
-        // Get the list of online nodes from the master.
-        LOG_INFO("Refreshing exec nodes");
-        auto req = TYPathProxy::Get("//sys/holders/@online");
-        ObjectProxy.Execute(req).Subscribe(
-            BIND(&TImpl::OnExecNodesRefreshed, MakeStrong(this))
-                .Via(CancelableControlInvoker));
-    }
-
-    void OnExecNodesRefreshed(NYTree::TYPathProxy::TRspGetPtr rsp)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
-
-        ExecNodesRefreshInvoker->ScheduleNext();
-
-        if (!rsp->IsOK()) {
-            LOG_ERROR(*rsp, "Error refreshing exec nodes");
-            Disconnect();
-            return;
-        }
-
-        auto onlineAddresses = ConvertTo< std::vector<Stroka> >(TYsonString(rsp->value()));
-        LOG_INFO("Exec nodes refreshed, %d nodes found",
-            static_cast<int>(onlineAddresses.size()));
-
-        UpdateExecNodes(onlineAddresses);
-    }
-
-    void UpdateExecNodes(const std::vector<Stroka>& onlineAddresses)
-    {
-        // Examine the list of nodes returned by master and figure out the difference.
-
-        yhash_set<Stroka> nodeAddresses;
-        auto nodes = Bootstrap->GetScheduler()->GetExecNodes();
-        FOREACH (auto node, nodes) {
-            YCHECK(nodeAddresses.insert(node->GetAddress()).second);
-        }
-
-        FOREACH (const auto& address, onlineAddresses) {
-            auto it = nodeAddresses.find(address);
-            if (it == nodeAddresses.end()) {
-                LOG_INFO("Node %s is online", ~address.Quote());
-                NodeOnline_.Fire(address);
-            } else {
-                nodeAddresses.erase(it);
-            }
-        }
-
-        FOREACH (const auto& address, nodeAddresses) {
-            LOG_INFO("Node %s is offline", ~address);
-            NodeOffline_.Fire(address);
         }
     }
 
@@ -857,7 +787,6 @@ private:
         list->PendingStdErrChunkIds.clear();
     }
 
-
     void OnOperationNodesUpdated(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -943,6 +872,40 @@ private:
 
         RemoveUpdateList(operation);
     }
+
+
+    void UpdateWatchers()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected);
+
+        LOG_INFO("Updating watchers");
+
+        // Create a batch update for all operations.
+        auto batchReq = ObjectProxy.ExecuteBatch();
+        WatcherRequest_.Fire(batchReq);
+        batchReq->Invoke().Subscribe(
+            BIND(&TImpl::OnWatchersUpdated, MakeStrong(this))
+                .Via(CancelableControlInvoker));
+    }
+
+    void OnWatchersUpdated(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected);
+
+        WatchersInvoker->ScheduleNext();
+
+        auto error = batchRsp->GetCumulativeError();
+        if (!error.IsOK()) {
+            LOG_ERROR(error, "Error updating watchers");
+            return;
+        }
+
+        WatcherResponse_.Fire(batchRsp);
+
+        LOG_INFO("Watchers updated");
+    }
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -996,11 +959,11 @@ void TMasterConnector::SetJobStdErr(TJobPtr job, const TChunkId& chunkId)
     Impl->SetJobStdErr(job, chunkId);
 }
 
+DELEGATE_SIGNAL(TMasterConnector, void(TObjectServiceProxy::TReqExecuteBatchPtr), WatcherRequest, *Impl);
+DELEGATE_SIGNAL(TMasterConnector, void(TObjectServiceProxy::TRspExecuteBatchPtr), WatcherResponse, *Impl);
 DELEGATE_SIGNAL(TMasterConnector, void(const TMasterHandshakeResult& result), MasterConnected, *Impl);
 DELEGATE_SIGNAL(TMasterConnector, void(), MasterDisconnected, *Impl);
 DELEGATE_SIGNAL(TMasterConnector, void(TOperationPtr operation), PrimaryTransactionAborted, *Impl)
-DELEGATE_SIGNAL(TMasterConnector, void(const Stroka& address), NodeOnline, *Impl)
-DELEGATE_SIGNAL(TMasterConnector, void(const Stroka& address), NodeOffline, *Impl)
 
 ////////////////////////////////////////////////////////////////////
 

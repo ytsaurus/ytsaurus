@@ -162,7 +162,7 @@ bool TServer::TImpl::HandlePendingRequest(TPendingRequest& request) const
     }
 
     if (timeElapsed > MaxAsyncRequestTime) {
-        LOG_WARNING("Timed out HTTP request (RequestId: %lld, Path: %s, TimeElapsed: %.3lfs)",
+        LOG_WARNING("HTTP request timed out (RequestId: %lld, Path: %s, TimeElapsed: %.3lfs)",
             request.Id,
             ~request.Path,
             timeElapsed);
@@ -176,7 +176,7 @@ bool TServer::TImpl::HandlePendingRequest(TPendingRequest& request) const
 
 bool TServer::TImpl::HandleNewRequest(TPendingRequest& request) const
 {
-    LOG_INFO("Started to serve HTTP request (RequestId: %lld, Path: %s)",
+    LOG_DEBUG("Started serving HTTP request (RequestId: %lld, Path: %s)",
         request.Id,
         ~request.Path);
 
@@ -211,7 +211,7 @@ bool TServer::TImpl::HandleNewRequest(TPendingRequest& request) const
         }
     }
 
-    LOG_WARNING("Cannot find a handler for HTTP request (RequestId: %lld, Path: %s)",
+    LOG_WARNING("Cannot find handler for HTTP request (RequestId: %lld, Path: %s)",
         request.Id,
         ~request.Path);
     SendResponse(request, FormatNotFoundResponse());
@@ -238,7 +238,7 @@ void TServer::TImpl::SendResponse(const TPendingRequest& request, const Stroka& 
     double timeElapsed = SecondsSince(request.StartTime);
 
     if (SendAndClose(request.Socket, result)) {
-        LOG_INFO("Served HTTP request (RequestId: %lld, Path: %s, TimeElapsed: %.3lfs)",
+        LOG_DEBUG("Request served (RequestId: %lld, Path: %s, TimeElapsed: %.3lfs)",
             request.Id,
             ~request.Path,
             timeElapsed);
@@ -278,7 +278,7 @@ private:
             auto impl = (TImpl*) param;
             TParsedHttpRequest request(Headers[0]);
 
-            LOG_INFO("Started to serve HTTP request (Method: %s, Path: %s)",
+            LOG_DEBUG("Started serving HTTP request (Method: %s, Path: %s)",
                 ~request.Method.ToString(),
                 ~request.Request.ToString());
 
@@ -302,7 +302,7 @@ private:
                     auto it = impl->SyncHandlers.find(prefix);
                     if (it != impl->SyncHandlers.end()) {
                         Output() << it->second.Run(suffix);
-                        LOG_INFO("Requested served");
+                        LOG_DEBUG("Request served");
                         return true;
                     }
                 }
@@ -311,7 +311,7 @@ private:
                     auto it = impl->AsyncHandlers.find(prefix);
                     if (it != impl->AsyncHandlers.end()) {
                         Output() << it->second.Run(suffix).Get();
-                        LOG_INFO("Requested served");
+                        LOG_DEBUG("Request served");
                         return true;
                     }
                 }

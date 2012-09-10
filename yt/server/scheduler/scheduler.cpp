@@ -3,6 +3,7 @@
 #include "scheduler_strategy.h"
 #include "null_strategy.h"
 #include "fifo_strategy.h"
+#include "fair_share_strategy.h"
 #include "operation_controller.h"
 #include "map_controller.h"
 #include "merge_controller.h"
@@ -48,6 +49,7 @@ using namespace NTransactionClient;
 using namespace NCypressClient;
 using namespace NYTree;
 using namespace NCellScheduler;
+using namespace NObjectClient;
 using namespace NScheduler::NProto;
 
 using NChunkClient::TChunkId;
@@ -107,6 +109,7 @@ private:
 class TScheduler::TImpl
     : public NRpc::TServiceBase
     , public IOperationHost
+    , public ISchedulerStrategyHost
 {
 public:
     TImpl(
@@ -136,6 +139,18 @@ public:
                 .SetInvoker(Bootstrap->GetControlInvoker(EControlQueue::Heartbeat)));
 
         JobTypeCounters.resize(EJobType::GetDomainSize());
+    }
+
+    void Start()
+    {
+        InitStrategy();
+
+        MasterConnector->SubscribeWatcherRequest(BIND(
+            &TThis::OnNodesRequest,
+            Unretained(this)));
+        MasterConnector->SubscribeWatcherResponse(BIND(
+            &TThis::OnNodesResponse,
+            Unretained(this)));
 
         MasterConnector->SubscribeMasterConnected(BIND(
             &TThis::OnMasterConnected,
@@ -143,20 +158,11 @@ public:
         MasterConnector->SubscribeMasterDisconnected(BIND(
             &TThis::OnMasterDisconnected,
             Unretained(this)));
+
         MasterConnector->SubscribePrimaryTransactionAborted(BIND(
             &TThis::OnPrimaryTransactionAborted,
             Unretained(this)));
-        MasterConnector->SubscribeNodeOnline(BIND(
-            &TThis::OnNodeOnline,
-            Unretained(this)));
-        MasterConnector->SubscribeNodeOffline(BIND(
-            &TThis::OnNodeOffline,
-            Unretained(this)));
-    }
 
-    void Start()
-    {
-        InitStrategy();
         MasterConnector->Start();
     }
 
@@ -180,6 +186,36 @@ public:
         return operations;
     }
 
+    // ISchedulerStrategyHost implementation
+    DEFINE_SIGNAL(void(TOperationPtr), OperationStarted);
+    DEFINE_SIGNAL(void(TOperationPtr), OperationFinished);
+
+    TMasterConnector* GetMasterConnector() override
+    {
+        return ~MasterConnector;
+    }
+
+    // IOperationHost implementation
+    virtual NRpc::IChannelPtr GetMasterChannel() override
+    {
+        return Bootstrap->GetMasterChannel();
+    }
+
+    virtual TTransactionManagerPtr GetTransactionManager() override
+    {
+        return Bootstrap->GetTransactionManager();
+    }
+
+    virtual IInvokerPtr GetControlInvoker() override
+    {
+        return Bootstrap->GetControlInvoker();
+    }
+
+    virtual IInvokerPtr GetBackgroundInvoker() override
+    {
+        return BackgroundQueue->GetInvoker();
+    }
+
     virtual std::vector<TExecNodePtr> GetExecNodes() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -190,6 +226,30 @@ public:
         }
         return result;
     }
+
+    virtual void OnOperationCompleted(TOperationPtr operation) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        GetControlInvoker()->Invoke(BIND(
+            &TThis::DoOperationCompleted,
+            MakeStrong(this),
+            operation));
+    }
+
+    virtual void OnOperationFailed(
+        TOperationPtr operation,
+        const TError& error) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        GetControlInvoker()->Invoke(BIND(
+            &TThis::DoOperationFailed,
+            MakeStrong(this),
+            operation,
+            error,
+            EOperationState::Failed));
+    }
+
 
 private:
     typedef TImpl TThis;
@@ -259,9 +319,53 @@ private:
         UnregisterOperation(operation);
     }
 
+
+    void OnNodesRequest(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
+    {
+        LOG_INFO("Updating exec nodes");
+
+        auto req = TYPathProxy::Get("//sys/holders/@online");
+        batchReq->AddRequest(req, "get_online_nodes");
+    }
+
+    void OnNodesResponse(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    {
+        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_online_nodes");
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting online nodes");
+
+        auto newAddresses = ConvertTo< std::vector<Stroka> >(TYsonString(rsp->value()));
+        LOG_INFO("Exec nodes updated, %d nodes found",
+            static_cast<int>(newAddresses.size()));
+
+        // Examine the list of nodes returned by master and figure out the difference.
+
+        yhash_set<Stroka> existingAddresses;
+        auto nodes = Bootstrap->GetScheduler()->GetExecNodes();
+        FOREACH (auto node, nodes) {
+            YCHECK(existingAddresses.insert(node->GetAddress()).second);
+        }
+
+        FOREACH (const auto& address, newAddresses) {
+            auto it = existingAddresses.find(address);
+            if (it == existingAddresses.end()) {
+                OnNodeOnline(address);
+            } else {
+                existingAddresses.erase(it);
+            }
+        }
+
+        FOREACH (const auto& address, existingAddresses) {
+            OnNodeOffline(address);
+        }
+
+        LOG_INFO("Exec nodes updated");
+    }
+
     void OnNodeOnline(const Stroka& address)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_INFO("Node online: %s", ~address);
 
         // XXX(babenko): Force the scheduler to precache node's DNS address.
         // Consider removing this.
@@ -275,6 +379,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        LOG_INFO("Node offline: %s", ~address);
+    
         auto node = GetNode(address);
         UnregisterNode(node);
     }
@@ -491,7 +597,7 @@ private:
     void RegisterOperation(TOperationPtr operation)
     {
         YCHECK(Operations.insert(MakePair(operation->GetOperationId(), operation)).second);
-        Strategy->OnOperationStarted(operation);
+        OperationStarted_.Fire(operation);
         ProfileOperationCounters();
 
         LOG_DEBUG("Operation registered (OperationId: %s)", ~operation->GetOperationId().ToString());
@@ -510,7 +616,7 @@ private:
     void UnregisterOperation(TOperationPtr operation)
     {
         YCHECK(Operations.erase(operation->GetOperationId()) == 1);
-        Strategy->OnOperationFinished(operation);
+        OperationFinished_.Fire(operation);
         ProfileOperationCounters();
 
         LOG_DEBUG("Operation unregistered (OperationId: %s)", ~operation->GetOperationId().ToString());
@@ -657,9 +763,11 @@ private:
     {
         switch (strategy) {
             case ESchedulerStrategy::Null:
-                return CreateNullStrategy();
+                return CreateNullStrategy(this);
             case ESchedulerStrategy::Fifo:
-                return CreateFifoStrategy();
+                return CreateFifoStrategy(this);
+            case ESchedulerStrategy::FairShare:
+                return CreateFairShareStrategy(this);
             default:
                 YUNREACHABLE();
         }
@@ -685,38 +793,6 @@ private:
         }
     }
     
-
-    // IOperationHost methods
-    virtual NRpc::IChannelPtr GetMasterChannel() override
-    {
-        return Bootstrap->GetMasterChannel();
-    }
-
-    virtual TTransactionManagerPtr GetTransactionManager() override
-    {
-        return Bootstrap->GetTransactionManager();
-    }
-
-    virtual IInvokerPtr GetControlInvoker() override
-    {
-        return Bootstrap->GetControlInvoker();
-    }
-
-    virtual IInvokerPtr GetBackgroundInvoker() override
-    {
-        return BackgroundQueue->GetInvoker();
-    }
-
-
-    virtual void OnOperationCompleted(TOperationPtr operation) override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        GetControlInvoker()->Invoke(BIND(
-            &TThis::DoOperationCompleted,
-            MakeStrong(this),
-            operation));
-    }
 
     void DoOperationCompleted(TOperationPtr operation)
     {
@@ -763,19 +839,6 @@ private:
         operation->SetController(NULL);
     }
 
-
-    virtual void OnOperationFailed(
-        TOperationPtr operation,
-        const TError& error) override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-        GetControlInvoker()->Invoke(BIND(
-            &TThis::DoOperationFailed,
-            MakeStrong(this),
-            operation,
-            error,
-            EOperationState::Failed));
-    }
 
     void DoOperationFailed(TOperationPtr operation, const TError& error, EOperationState finalState)
     {

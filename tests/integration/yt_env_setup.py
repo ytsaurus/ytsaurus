@@ -1,8 +1,9 @@
 import os
 import logging
-    
-from yt_environment import YTEnv
+
 from functools import wraps
+
+from yt.environment import YTEnv
 
 import yt_commands
 

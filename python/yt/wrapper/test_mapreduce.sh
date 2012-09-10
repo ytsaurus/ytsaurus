@@ -143,12 +143,12 @@ if __name__ == '__main__':
     rm -f mapper.py
 }
 
-#test_base_functionality
-#test_codec
-#test_many_output_tables
-#test_chunksize
-#test_mapreduce
-#test_input_output_format
+test_base_functionality
+test_codec
+test_many_output_tables
+test_chunksize
+test_mapreduce
+test_input_output_format
 test_transactions
 test_range_map
 test_uploaded_files
