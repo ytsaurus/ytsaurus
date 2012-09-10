@@ -20,9 +20,9 @@ struct TSchedulerConfig
 
     TDuration TransactionsRefreshPeriod;
 
-    TDuration NodesRefreshPeriod;
-
     TDuration OperationsUpdatePeriod;
+
+    TDuration WatchersUpdatePeriod;
 
     ESchedulerStrategy Strategy;
 
@@ -63,10 +63,10 @@ struct TSchedulerConfig
             .Default(TDuration::Seconds(15));
         Register("transactions_refresh_period", TransactionsRefreshPeriod)
             .Default(TDuration::Seconds(3));
-        Register("nodes_refresh_period", NodesRefreshPeriod)
-            .Default(TDuration::Seconds(15));
         Register("operations_update_period", OperationsUpdatePeriod)
             .Default(TDuration::Seconds(3));
+        Register("watchers_update_period", WatchersUpdatePeriod)
+            .Default(TDuration::Seconds(15));
         Register("strategy", Strategy)
             .Default(ESchedulerStrategy::Null);
         Register("node_rpc_timeout", NodeRpcTimeout)

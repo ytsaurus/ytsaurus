@@ -48,6 +48,7 @@ using namespace NTransactionClient;
 using namespace NCypressClient;
 using namespace NYTree;
 using namespace NCellScheduler;
+using namespace NObjectClient;
 using namespace NScheduler::NProto;
 
 using NChunkClient::TChunkId;
@@ -137,20 +138,22 @@ public:
 
         JobTypeCounters.resize(EJobType::GetDomainSize());
 
+        MasterConnector->SubscribeWatcherRequest(BIND(
+            &TThis::OnNodesRequest,
+            Unretained(this)));
+        MasterConnector->SubscribeWatcherResponse(BIND(
+            &TThis::OnNodesResponse,
+            Unretained(this)));
+
         MasterConnector->SubscribeMasterConnected(BIND(
             &TThis::OnMasterConnected,
             Unretained(this)));
         MasterConnector->SubscribeMasterDisconnected(BIND(
             &TThis::OnMasterDisconnected,
             Unretained(this)));
+
         MasterConnector->SubscribePrimaryTransactionAborted(BIND(
             &TThis::OnPrimaryTransactionAborted,
-            Unretained(this)));
-        MasterConnector->SubscribeNodeOnline(BIND(
-            &TThis::OnNodeOnline,
-            Unretained(this)));
-        MasterConnector->SubscribeNodeOffline(BIND(
-            &TThis::OnNodeOffline,
             Unretained(this)));
     }
 
@@ -259,9 +262,49 @@ private:
         UnregisterOperation(operation);
     }
 
+
+    void OnNodesRequest(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
+    {
+        auto req = TYPathProxy::Get("//sys/holders/@online");
+        batchReq->AddRequest(req, "get_online_nodes");
+    }
+
+    void OnNodesResponse(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    {
+        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_online_nodes");
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting online nodes");
+
+        auto newAddresses = ConvertTo< std::vector<Stroka> >(TYsonString(rsp->value()));
+        LOG_INFO("Exec nodes updated, %d nodes found",
+            static_cast<int>(newAddresses.size()));
+
+        // Examine the list of nodes returned by master and figure out the difference.
+
+        yhash_set<Stroka> existingAddresses;
+        auto nodes = Bootstrap->GetScheduler()->GetExecNodes();
+        FOREACH (auto node, nodes) {
+            YCHECK(existingAddresses.insert(node->GetAddress()).second);
+        }
+
+        FOREACH (const auto& address, newAddresses) {
+            auto it = existingAddresses.find(address);
+            if (it == existingAddresses.end()) {
+                OnNodeOnline(address);
+            } else {
+                existingAddresses.erase(it);
+            }
+        }
+
+        FOREACH (const auto& address, existingAddresses) {
+            OnNodeOffline(address);
+        }
+    }
+
     void OnNodeOnline(const Stroka& address)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_INFO("Node online: %s", ~address.Quote());
 
         // XXX(babenko): Force the scheduler to precache node's DNS address.
         // Consider removing this.
@@ -275,6 +318,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        LOG_INFO("Node offline: %s", ~address);
+    
         auto node = GetNode(address);
         UnregisterNode(node);
     }

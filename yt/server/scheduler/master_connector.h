@@ -21,7 +21,7 @@ namespace NScheduler {
 struct TMasterHandshakeResult
 {
     std::vector<TOperationPtr> Operations;
-    std::vector<Stroka> ExecNodeAddresses;
+    NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr WatcherResponses;
 };
 
 //! Mediates communication between scheduler and master.
@@ -45,12 +45,13 @@ public:
     void UpdateJobNode(TJobPtr job);
     void SetJobStdErr(TJobPtr job, const NChunkClient::TChunkId& chunkId);
 
+    DECLARE_SIGNAL(void(NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr), WatcherRequest);
+    DECLARE_SIGNAL(void(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr), WatcherResponse);
+
     DECLARE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
     DECLARE_SIGNAL(void(), MasterDisconnected);
 
     DECLARE_SIGNAL(void(TOperationPtr operation), PrimaryTransactionAborted);
-    DECLARE_SIGNAL(void(const Stroka& address), NodeOnline);
-    DECLARE_SIGNAL(void(const Stroka& address), NodeOffline);
 
 private:
     class TImpl;
