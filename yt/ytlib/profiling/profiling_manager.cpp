@@ -238,7 +238,7 @@ private:
             }
         }
 
-        LOG_INFO("Creating bucket %s", ~path);
+        LOG_DEBUG("Creating bucket %s", ~path);
         auto bucket = New<TBucket>();
         YCHECK(PathToBucket.insert(MakePair(path, bucket)).second);
 
