@@ -105,13 +105,13 @@ private:
 
     void RegisterPool(TPoolPtr pool)
     {
-        LOG_INFO("Pool registered: %s", pool->GetId());
+        LOG_INFO("Pool registered: %s", ~pool->GetId());
         YCHECK(Pools.insert(std::make_pair(pool->GetId(), pool)).second);
     }
 
     void UnregisterPool(TPoolPtr pool)
     {
-        LOG_INFO("Pool unregistered: %s", pool->GetId());
+        LOG_INFO("Pool unregistered: %s", ~pool->GetId());
         YCHECK(Pools.erase(pool->GetId()) == 1);
     }
 

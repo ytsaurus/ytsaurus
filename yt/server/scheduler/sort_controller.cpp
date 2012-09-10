@@ -1461,7 +1461,7 @@ private:
             (i64) 16 * Spec->SortBy.size() * rowCount +
             (i64) 16 * rowCount +
             (i64) 32 * valueCount * 2 +
-            GetFootprintMemorySize(););
+            GetFootprintMemorySize());
         return result;
     }
 
