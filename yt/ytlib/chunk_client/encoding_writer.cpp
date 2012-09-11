@@ -3,6 +3,7 @@
 
 #include "config.h"
 #include "private.h"
+#include "dispatcher.h"
 #include "async_writer.h"
 
 namespace NYT {
@@ -17,7 +18,7 @@ static NLog::TLogger& Logger = ChunkWriterLogger;
 TEncodingWriter::TEncodingWriter(TEncodingWriterConfigPtr config, IAsyncWriterPtr asyncWriter)
     : Config(config)
     , AsyncWriter(asyncWriter)
-    , CompressionInvoker(CreateSerializedInvoker(CompressionThreadPool->GetInvoker()))
+    , CompressionInvoker(CreateSerializedInvoker(TDispatcher::Get()->GetCompressionInvoker()))
     , Semaphore(Config->EncodeWindowSize)
     , Codec(GetCodec(Config->CodecId))
     , UncompressedSize_(0)

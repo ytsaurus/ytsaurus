@@ -34,6 +34,11 @@ public:
         return ~Value;
     }
 
+    T* TryGet() const throw()
+    {
+        return ~Value;
+    }
+
 private:
     TLock Lock;
     TFactory Factory;

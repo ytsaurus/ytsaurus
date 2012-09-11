@@ -175,7 +175,6 @@ EExitCode GuardedMain(int argc, const char* argv[])
                 << ex;
         }
 
-
         NCellNode::TBootstrap bootstrap(configFileName, config);
         bootstrap.Run();
     }

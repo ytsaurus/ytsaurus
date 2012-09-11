@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "remote_writer.h"
 #include "config.h"
+#include "dispatcher.h"
 #include "holder_channel_cache.h"
 #include "chunk_meta_extensions.h"
 
@@ -311,7 +312,7 @@ void TRemoteWriter::TGroup::PutGroup()
     }
 
     auto node = writer->Nodes[nodeIndex];
-    auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
+    auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker());
     auto onSuccess = BIND(
         &TGroup::OnPutBlocks, 
         MakeWeak(this), 
@@ -377,7 +378,7 @@ void TRemoteWriter::TGroup::SendGroup(TNodePtr srcNode)
     for (int dstNodIndex = 0; dstNodIndex < IsSent.size(); ++dstNodIndex) {
         auto dstNod = writer->Nodes[dstNodIndex];
         if (dstNod->IsAlive && !IsSent[dstNodIndex]) {
-            auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
+            auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker());
             auto onResponse = BIND(
                 &TGroup::CheckSendResponse,
                 MakeWeak(this),
@@ -554,7 +555,7 @@ TRemoteWriter::TImpl::TImpl(
         auto node = New<TNode>(index, address);
         node->Proxy.SetDefaultTimeout(Config->NodeRpcTimeout);
         node->PingInvoker = New<TPeriodicInvoker>(
-            WriterThread->GetInvoker(),
+            TDispatcher::Get()->GetWriterInvoker(),
             BIND(&TRemoteWriter::TImpl::SendPing, MakeWeak(this), node),
             Config->NodePingInterval);
         Nodes.push_back(node);
@@ -579,7 +580,7 @@ void TRemoteWriter::TImpl::Open()
         ~JoinToString(Addresses),
         ~FormatBool(Config->EnableNodeCaching));
 
-    auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
+    auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker());
     FOREACH (auto node, Nodes) {
         auto onSuccess = BIND(
             &TRemoteWriter::TImpl::OnChunkStarted,
@@ -623,7 +624,7 @@ void TRemoteWriter::TImpl::ShiftWindow()
     if (lastFlushableBlock < 0)
         return;
 
-    auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
+    auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker());
     FOREACH (auto node, Nodes) {
         if (node->IsAlive) {
             auto onSuccess = BIND(
@@ -816,7 +817,7 @@ void TRemoteWriter::TImpl::CloseSession()
 
     LOG_INFO("Closing writer");
 
-    auto awaiter = New<TParallelAwaiter>(WriterThread->GetInvoker());
+    auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker());
     FOREACH (auto node, Nodes) {
         if (node->IsAlive) {
             auto onSuccess = BIND(
@@ -936,7 +937,7 @@ bool TRemoteWriter::TImpl::TryWriteBlock(const TSharedRef& block)
         return false;
 
     WindowSlots.Acquire(block.Size());
-    WriterThread->GetInvoker()->Invoke(BIND(
+    TDispatcher::Get()->GetWriterInvoker()->Invoke(BIND(
         &TImpl::AddBlock, 
         MakeWeak(this), 
         block));
@@ -1023,7 +1024,8 @@ TAsyncError TRemoteWriter::TImpl::AsyncClose(const NChunkClient::NProto::TChunkM
     LOG_DEBUG("Requesting writer to close");
     State.StartOperation();
 
-    WriterThread->GetInvoker()->Invoke(BIND(&TImpl::DoClose, MakeWeak(this)));
+    TDispatcher::Get()->GetWriterInvoker()->Invoke(
+        BIND(&TImpl::DoClose, MakeWeak(this)));
 
     return State.GetOperationError();
 }

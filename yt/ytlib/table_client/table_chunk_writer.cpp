@@ -12,7 +12,7 @@
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
-#include <ytlib/chunk_client/private.h>
+#include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/misc/serialize.h>
 
 namespace NYT {
@@ -325,9 +325,9 @@ TAsyncError TTableChunkWriter::AsyncClose()
         PrepareBlock();
     }
 
-    EncodingWriter->AsyncFlush().Subscribe(BIND(
-        &TTableChunkWriter::OnFinalBlocksWritten,
-        MakeWeak(this)).Via(WriterThread->GetInvoker()));
+    EncodingWriter->AsyncFlush().Subscribe(
+        BIND(&TTableChunkWriter::OnFinalBlocksWritten, MakeWeak(this))
+        .Via(TDispatcher::Get()->GetWriterInvoker()));
 
     return State.GetOperationError();
 }

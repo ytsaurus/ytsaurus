@@ -16,23 +16,6 @@ extern NLog::TLogger ChunkWriterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/*!
- * This thread is used for background operations in #TRemoteChunkReader
- * #TSequentialChunkReader, #TTableChunkReader and #TableReader
- */
-extern TLazyPtr<TActionQueue> ReaderThread;
-
-/*!
- *  This thread is used for background operations in 
- *  #TRemoteChunkWriter, #NTableClient::TChunkWriter and 
- *  #NTableClient::TChunkSetReader
- */
-extern TLazyPtr<TActionQueue> WriterThread;
-
-extern TLazyPtr<TThreadPool> CompressionThreadPool;
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NChunkClient
 } // namespace NYT
 

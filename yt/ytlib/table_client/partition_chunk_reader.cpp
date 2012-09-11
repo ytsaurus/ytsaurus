@@ -2,7 +2,7 @@
 #include "private.h"
 #include "partition_chunk_reader.h"
 
-#include <ytlib/chunk_client/private.h>
+#include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/sequential_reader.h>
 #include <ytlib/chunk_client/config.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
@@ -43,9 +43,10 @@ TAsyncError TPartitionChunkReader::AsyncOpen()
     std::vector<int> tags;
     tags.push_back(TProtoExtensionTag<NProto::TChannelsExt>::Value);
 
-    AsyncReader->AsyncGetChunkMeta(PartitionTag, &tags).Subscribe(BIND(
-        &TPartitionChunkReader::OnGotMeta, 
-        MakeWeak(this)).Via(NChunkClient::ReaderThread->GetInvoker()));
+    AsyncReader->AsyncGetChunkMeta(PartitionTag, &tags)
+        .Subscribe(
+            BIND(&TPartitionChunkReader::OnGotMeta, MakeWeak(this))
+            .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
 
     return State.GetOperationError();
 }
