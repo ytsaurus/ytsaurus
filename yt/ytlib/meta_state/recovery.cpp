@@ -89,9 +89,8 @@ TAsyncError TRecovery::RecoverToStateWithChangeLog(
         auto readerResult = SnapshotStore->GetReader(snapshotId);
         if (!readerResult.IsOK()) {
             if (IsLeader()) {
-                LOG_FATAL("Snapshot %d is not available\n%s",
-                    snapshotId,
-                    ~ToString(readerResult));
+                LOG_FATAL(readerResult, "Snapshot %d is not available",
+                    snapshotId);
             }
 
             LOG_DEBUG("Snapshot cannot be found locally and will be downloaded");
@@ -111,16 +110,15 @@ TAsyncError TRecovery::RecoverToStateWithChangeLog(
             try {
                 NFS::Rename(tempFileName, fileName);
             } catch (const std::exception& ex) {
-                LOG_FATAL("Error renaming temp snapshot file %s\n%s",
-                    ~fileName,
-                    ex.what());
+                LOG_FATAL(ex, "Error renaming temp snapshot file %s",
+                    ~fileName);
             }
 
             SnapshotStore->OnSnapshotAdded(snapshotId);
 
             readerResult = SnapshotStore->GetReader(snapshotId);
             if (!readerResult.IsOK()) {
-                LOG_FATAL("Snapshot is not available\n%s", ~ToString(readerResult));
+                LOG_FATAL(readerResult, "Snapshot is not available");
             }
         }
 
@@ -163,9 +161,8 @@ TAsyncError TRecovery::ReplayChangeLogs(
         auto changeLogResult = ChangeLogCache->Get(segmentId);
         if (!changeLogResult.IsOK()) {
             if (!mayBeMissing) {
-                LOG_FATAL("Changelog %d is not available\n%s",
-                    segmentId,
-                    ~ToString(changeLogResult));
+                LOG_FATAL(changeLogResult, "Changelog %d is not available",
+                    segmentId);
             }
 
             LOG_INFO("Changelog %d is missing and will be created", segmentId);
@@ -325,9 +322,8 @@ void TRecovery::ReplayChangeLog(
             try {
                 DecoratedState->ApplyMutation(recordData);
             } catch (const std::exception& ex) {
-                LOG_DEBUG("Failed to apply the mutation during recovery (Version: %s)\n%s",
-                    ~version.ToString(),
-                    ex.what());
+                LOG_DEBUG(ex, "Failed to apply the mutation during recovery (Version: %s)",
+                    ~version.ToString());
             }
         }
     }
@@ -486,9 +482,8 @@ TAsyncError TFollowerRecovery::ApplyPostponedMutations(
                 try {
                     DecoratedState->ApplyMutation(mutation.RecordData);
                 } catch (const std::exception& ex) {
-                    LOG_DEBUG("Failed to apply the mutation during recovery at version %s\n%s",
-                        ~version.ToString(),
-                        ex.what());
+                    LOG_DEBUG(ex, "Failed to apply the mutation during recovery at version %s",
+                        ~version.ToString());
                 }
                 break;
             }

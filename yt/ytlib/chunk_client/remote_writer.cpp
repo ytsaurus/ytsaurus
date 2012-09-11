@@ -740,7 +740,7 @@ void TRemoteWriter::TImpl::OnNodeFailed(TNodePtr node)
         TError error(
             TError::Fail,
             Sprintf("All target nodes [%s] have failed", ~JoinToString(Addresses)));
-        LOG_WARNING("Chunk writer failed\n%s", ~ToString(error));
+        LOG_WARNING(error, "Chunk writer failed");
         State.Fail(error);
     }
 }
@@ -759,9 +759,8 @@ void TRemoteWriter::TImpl::CheckResponse(
         onSuccess.Run(rsp);
     } else {
         // TODO(babenko): retry?
-        LOG_ERROR("Error reported by node %s\n%s",
-            ~node->Address, 
-            ~ToString(rsp->GetError()));
+        LOG_ERROR(rsp->GetError(), "Error reported by node %s",
+            ~node->Address);
         OnNodeFailed(node);
     }
 }

@@ -94,9 +94,8 @@ private:
             if (IsRpcError(error)) {
                 // Hard error
                 if (ElectionManager->AliveFollowers.erase(id) > 0) {
-                    LOG_WARNING("Error pinging follower %d, considered down\n%s",
-                        id,
-                        ~ToString(error));
+                    LOG_WARNING(error, "Error pinging follower %d, considered down",
+                        id);
                     ElectionManager->PotentialFollowers.erase(id);
                 }
             } else {
@@ -105,21 +104,18 @@ private:
                     ElectionManager->PotentialFollowers.end())
                 {
                     if (ElectionManager->AliveFollowers.erase(id) > 0) {
-                        LOG_WARNING("Error pinging follower %d, considered down\n%s",
-                            id,
-                            ~ToString(error));
+                        LOG_WARNING(error, "Error pinging follower %d, considered down",
+                            id);
                     }
                 } else {
                     if (TInstant::Now() > ElectionManager->EpochContext->StartTime + ElectionManager->Config->PotentialFollowerTimeout) {
-                        LOG_WARNING("Error pinging follower %d, no success within timeout, considered down\n%s",
-                            id,
-                            ~ToString(error));
+                        LOG_WARNING(error, "Error pinging follower %d, no success within timeout, considered down",
+                            id);
                         ElectionManager->PotentialFollowers.erase(id);
                         ElectionManager->AliveFollowers.erase(id);
                     } else {
-                        LOG_INFO("Error pinging follower %d, will retry later\n%s",
-                            id,
-                            ~ToString(error));
+                        LOG_INFO(error, "Error pinging follower %d, will retry later",
+                            id);
                     }
                 }
             }
@@ -246,10 +242,9 @@ private:
         VERIFY_THREAD_AFFINITY(ElectionManager->ControlThread);
 
         if (!response->IsOK()) {
-            LOG_INFO("Error requesting status from peer %d (Round: %p)\n%s",
+            LOG_INFO(response->GetError(), "Error requesting status from peer %d (Round: %p)",
                 id,
-                this,
-                ~ToString(response->GetError()));
+                this);
             return;
         }
 

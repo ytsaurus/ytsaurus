@@ -66,9 +66,7 @@ TChangeLogCache::TGetResult TChangeLogCache::Get(i32 id)
                 changeLog->Open();
                 cookie.EndInsert(New<TCachedAsyncChangeLog>(~changeLog));
             } catch (const std::exception& ex) {
-                LOG_FATAL("Error opening changelog (ChangeLogId: %d)\n%s",
-                    id,
-                    ex.what());
+                LOG_FATAL(ex, "Error opening changelog (ChangeLogId: %d)", id);
             }
         }
     }
@@ -93,9 +91,7 @@ TCachedAsyncChangeLogPtr TChangeLogCache::Create(
         changeLog->Create(prevRecordCount, epoch);
         cookie.EndInsert(New<TCachedAsyncChangeLog>(~changeLog));
     } catch (const std::exception& ex) {
-        LOG_FATAL("Error creating changelog (ChangeLogId: %d)\n%s",
-            id,
-            ex.what());
+        LOG_FATAL(ex, "Error creating changelog (ChangeLogId: %d)", id);
     }
 
     return cookie.GetValue().Get().Value();

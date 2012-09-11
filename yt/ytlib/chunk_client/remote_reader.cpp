@@ -275,9 +275,8 @@ protected:
         if (!reader)
             return;
 
-        LOG_WARNING("Retry failed (RetryIndex: %d)\n%s",
-            RetryIndex,
-            ~ToString(error));
+        LOG_WARNING(error, "Retry failed (RetryIndex: %d)",
+            RetryIndex);
 
         YASSERT(!GetSeedsResult.IsNull());
         reader->DiscardSeeds(GetSeedsResult);
@@ -533,9 +532,8 @@ private:
 
     void OnGetBlocksResponseFailed(const Stroka& address, const TError& error)
     {
-        LOG_WARNING("Error getting blocks from %s\n%s",
-            ~address,
-            ~ToString(error));
+        LOG_WARNING(error, "Error getting blocks from %s",
+            ~address);
     }
 
     void ProcessReceivedBlocks(
@@ -719,9 +717,8 @@ private:
 
     void OnChunkMetaResponseFailed(const Stroka& address, const TError& error)
     {
-        LOG_WARNING("Error getting chunk info from %s\n%s",
-            ~address,
-            ~ToString(error));
+        LOG_WARNING(error, "Error getting chunk info from %s",
+            ~address);
 
         ++SeedIndex;
         if (SeedIndex < SeedAddresses.size()) {

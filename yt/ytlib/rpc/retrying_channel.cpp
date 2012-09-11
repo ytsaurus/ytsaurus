@@ -131,11 +131,10 @@ private:
 
     virtual void OnError(const TError& error) override
     {
-        LOG_DEBUG("Request attempt failed (RequestId: %s, Attempt: %d of %d)\n%s",
+        LOG_DEBUG(error, "Request attempt failed (RequestId: %s, Attempt: %d of %d)",
             ~Request->GetRequestId().ToString(),
             static_cast<int>(CurrentAttempt),
-            Config->MaxAttempts,
-            ~ToString(error));
+            Config->MaxAttempts);
 
         TGuard<TSpinLock> guard(SpinLock);
         if (State == EState::Done)

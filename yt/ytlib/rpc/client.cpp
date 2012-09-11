@@ -123,9 +123,8 @@ TClientResponseBase::operator TError()
 
 void TClientResponseBase::OnError(const TError& error)
 {
-    LOG_DEBUG("Request failed (RequestId: %s)\n%s",
-        ~RequestId_.ToString(),
-        ~ToString(error));
+    LOG_DEBUG(error, "Request failed (RequestId: %s)",
+        ~RequestId_.ToString());
 
     {
         TGuard<TSpinLock> guard(SpinLock);

@@ -171,18 +171,16 @@ private:
     void OnChangeLogRotated(TPeerId id, TProxy::TRspAdvanceSegmentPtr response)
     {
         if (!response->IsOK()) {
-            LOG_WARNING("Error rotating the changelog at follower %d\n%s",
-                id,
-                ~ToString(response->GetError()));
+            LOG_WARNING(response->GetError(), "Error rotating the changelog at follower %d",
+                id);
         }
     }
 
     void OnSnapshotCreated(TPeerId id, TProxy::TRspAdvanceSegmentPtr response)
     {
         if (!response->IsOK()) {
-            LOG_WARNING("Error creating the snapshot at follower %d\n%s",
-                id,
-                ~ToString(response->GetError()));
+            LOG_WARNING(response->GetError(), "Error creating the snapshot at follower %d",
+                id);
             return;
         }
 
@@ -388,9 +386,8 @@ void TSnapshotBuilder::WatchdogFork(
 
     auto result = snapshotBuilder->SnapshotStore->GetReader(snapshotId);
     if (!result.IsOK()) {
-        LOG_ERROR("Cannot open snapshot %d\n%s",
-            snapshotId,
-            ~ToString(result));
+        LOG_ERROR(result, "Cannot open snapshot %d",
+            snapshotId);
         localPromise.Set(TLocalResult(EResultCode::ForkError));
         return;
     }

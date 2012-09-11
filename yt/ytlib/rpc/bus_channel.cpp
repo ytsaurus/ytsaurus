@@ -268,7 +268,7 @@ private:
                 responseHandler->OnResponse(message);
             } else {
                 if (error.GetCode() == EErrorCode::PoisonPill) {
-                    LOG_FATAL("Poison pill received\n%s", ~ToString(error));
+                    LOG_FATAL(error, "Poison pill received");
                 }
                 responseHandler->OnError(error);
             }
