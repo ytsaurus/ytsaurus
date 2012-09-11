@@ -3,6 +3,8 @@
 #endif
 #undef MEMORY_USAGE_TRACKER_INL_H_
 
+#include <ytlib/misc/string.h>
+
 namespace NYT {
 
 using namespace NProfiling;
@@ -15,16 +17,16 @@ TMemoryUsageTracker<EMemoryConsumer>::TMemoryUsageTracker(i64 totalMemory, Strok
     , FreeMemory(totalMemory)
     , Profiler(profilingPath + "/memory_usage")
     , FreeMemoryCounter("/free", EAggregateMode::Min)
-    , Logger("MemoryUsageTracker")
+    , Logger("MemoryUsage")
 {
     FOREACH(auto value, EMemoryConsumer::GetDomainValues()) {
-        // MemoryConsumer enum must be contigious, without gaps.
+        // MemoryConsumer enum must be contiguous, without gaps.
         YCHECK(value < EMemoryConsumer::GetDomainSize());
     }
 
     UsedMemory.resize(EMemoryConsumer::GetDomainSize(), 0);
     for (int i = 0; i < EMemoryConsumer::GetDomainSize(); ++i) {
-        ConsumerCounters.push_back(TAggregateCounter(EMemoryConsumer(i).ToString()));
+        ConsumerCounters.push_back(TAggregateCounter(FormatEnum(EMemoryConsumer(i))));
     }
 }
 
@@ -61,7 +63,10 @@ void TMemoryUsageTracker<EMemoryConsumer>::Acquire(EMemoryConsumer consumer, i64
     guard.Release();
 
     if (freeMemory < 0) {
-        LOG_ERROR("Overcommited memory size %"PRId64, freeMemory);
+        LOG_ERROR("Memory overcommit by %"PRId64 " after %s request for %" PRId64,
+            -freeMemory,
+            ~FormatEnum(consumer).Quote(),
+            size);
     }
 }
 
@@ -87,12 +92,11 @@ TError TMemoryUsageTracker<EMemoryConsumer>::TryAcquire(EMemoryConsumer consumer
     auto freeMemory = FreeMemory;
     guard.Release();
 
-    return TError("Not enough memory (FreeMemory: %"PRId64
-        ", Requested: %"PRId64
-        ", MemoryConsumer: %s",
+    return TError(
+        "Not enough memory to serve %s request: free %"PRId64 ", requested %"PRId64,
+        ~FormatEnum(consumer).Quote(),
         freeMemory,
-        size,
-        ~consumer.ToString());
+        size);
 }
 
 template <class EMemoryConsumer>
