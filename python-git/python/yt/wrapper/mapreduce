@@ -226,11 +226,11 @@ def main():
         config.PREFIX = args.prefix
 
     spec = {}
+    if args.jobcount is not None:
+        spec.update({"job_count": args.jobcount})
     if vars(args)["ytspec"] is not None:
         for spec_arg in args.ytspec:
             spec.update(json.loads(spec_arg))
-    if args.jobcount is not None:
-        spec.update({"job_count": args.jobcount})
 
     # Fix table names
     method = add_prefix
