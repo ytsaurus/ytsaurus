@@ -581,10 +581,25 @@ private:
 
     void StopRefresh()
     {
-        TransactionRefreshInvoker->Stop();
-        ExecNodesRefreshInvoker->Stop();
-        OperationNodesUpdateInvoker->Stop();
-        WatchersInvoker->Stop();
+        if (TransactionRefreshInvoker) {
+            TransactionRefreshInvoker->Stop();
+            TransactionRefreshInvoker.Reset();
+        }
+
+        if (ExecNodesRefreshInvoker) {
+            ExecNodesRefreshInvoker->Stop();
+            ExecNodesRefreshInvoker.Reset();
+        }
+
+        if (OperationNodesUpdateInvoker) {
+            OperationNodesUpdateInvoker->Stop();
+            OperationNodesUpdateInvoker.Reset();
+        }
+
+        if (WatchersInvoker) {
+            WatchersInvoker->Stop();
+            WatchersInvoker.Reset();
+        }
     }
 
 
