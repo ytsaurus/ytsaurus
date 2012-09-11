@@ -30,8 +30,13 @@ void TChunkInfoCollector<TChunkInfoFetcher>::AddChunk(
 template <class TChunkInfoFetcher>
 TFuture< TValueOrError<void> > TChunkInfoCollector<TChunkInfoFetcher>::Run()
 {
-    ChunkInfoFetcher->Prepare(Chunks);
-    SendRequests();
+    if (ChunkInfoFetcher->Prepare(Chunks)) {
+        SendRequests();
+    } else {
+        // No collecting is required.
+        Promise.Set(TError());
+    }
+
     return Promise;
 }
 

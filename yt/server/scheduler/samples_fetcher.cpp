@@ -46,7 +46,7 @@ NLog::TTaggedLogger& TSamplesFetcher::GetLogger()
     return Logger;
 }
 
-void TSamplesFetcher::Prepare(const std::vector<NTableClient::NProto::TInputChunk>& chunks)
+bool TSamplesFetcher::Prepare(const std::vector<NTableClient::NProto::TInputChunk>& chunks)
 {
     i64 totalSize = 0;
     FOREACH(const auto& chunk, chunks) {
@@ -61,6 +61,7 @@ void TSamplesFetcher::Prepare(const std::vector<NTableClient::NProto::TInputChun
         SizeBetweenSamples = totalSize / DesiredSampleCount;
     }
     CurrentSize = SizeBetweenSamples;
+    return true;
 }
 
 const std::vector<TKey>& TSamplesFetcher::GetSamples() const

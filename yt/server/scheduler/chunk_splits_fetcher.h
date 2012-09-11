@@ -8,6 +8,7 @@
 
 #include <ytlib/chunk_client/chunk_holder_service_proxy.h>
 
+#include <ytlib/table_client/public.h>
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 #include <ytlib/table_client/table_reader.pb.h>
 
@@ -18,18 +19,21 @@ namespace NScheduler {
 
 //! Fetches samples for a bunch of table chunks by requesting
 //! them directly from data nodes.
-class TSamplesFetcher
+class TChunkSplitsFetcher
     : public TRefCounted
 {
 public:
-    typedef NChunkClient::TChunkHolderServiceProxy::TRspGetTableSamplesPtr TResponsePtr;
+    typedef NChunkClient::TChunkHolderServiceProxy::TRspGetChunkSplitsPtr TResponsePtr;
 
-    TSamplesFetcher(
+    TChunkSplitsFetcher(
         TSchedulerConfigPtr config,
         TSortOperationSpecPtr spec,
         const TOperationId& operationId,
-        int desiredSampleCount);
+        const NTableClient::TKeyColumns& keyColumns,
+        int maxChunkCount,
+        i64 minSplitSize);
 
+    // If returns false, no further collecting is required.
     bool Prepare(const std::vector<NTableClient::NProto::TInputChunk>& chunks);
 
     void CreateNewRequest(const Stroka& address);
@@ -40,25 +44,28 @@ public:
 
     TError ProcessResponseItem(const TResponsePtr& rsp, int index);
 
-    const std::vector<NTableClient::NProto::TKey>& GetSamples() const;
+    const std::vector<NTableClient::NProto::TInputChunk>& GetChunkSplits() const;
 
     NLog::TTaggedLogger& GetLogger();
 
 private:
     TSchedulerConfigPtr Config;
     TSortOperationSpecPtr Spec;
-    int DesiredSampleCount;
 
-    i64 SizeBetweenSamples;
-    i64 CurrentSize;
-    i64 CurrentSampleCount;
+    NTableClient::TKeyColumns KeyColumns;
+
+    // Number of splits shouldn't exceed MaxChunkCount.
+    // If initial number of chunks is greater or equal to MaxChunkCount,
+    // collecting is not performed.
+    int MaxChunkCount;
+    i64 MinSplitSize;
 
     NLog::TTaggedLogger Logger;
 
     //! All samples fetched so far.
-    std::vector<NTableClient::NProto::TKey> Samples;
+    std::vector<NTableClient::NProto::TInputChunk> ChunkSplits;
 
-    NChunkClient::TChunkHolderServiceProxy::TReqGetTableSamplesPtr CurrentRequest;
+    NChunkClient::TChunkHolderServiceProxy::TReqGetChunkSplitsPtr CurrentRequest;
 
 };
 

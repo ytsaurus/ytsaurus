@@ -3,6 +3,7 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/server/scheduler )
 set( SRCS
   ${BASE}/chunk_list_pool.cpp
   ${BASE}/chunk_pool.cpp
+  ${BASE}/chunk_splits_fetcher.cpp
   ${BASE}/exec_node.cpp
   ${BASE}/fifo_strategy.cpp
   ${BASE}/fair_share_strategy.cpp
@@ -24,6 +25,9 @@ set( SRCS
 set( HDRS
   ${BASE}/chunk_list_pool.h
   ${BASE}/chunk_pool.h
+  ${BASE}/chunk_splits_fetcher.h
+  ${BASE}/chunk_info_collector.h
+  ${BASE}/chunk_info_collector-inl.h
   ${BASE}/config.h
   ${BASE}/exec_node.h
   ${BASE}/fifo_strategy.h
