@@ -166,7 +166,7 @@ private:
         } else {
             auto channel = result.Value();
             auto responseHandlerWrapper = New<TResponseHandler>(
-                ~responseHandler,
+                responseHandler,
                 BIND(&TRoamingChannel::OnChannelFailed, MakeStrong(this), channel));
             channel->Send(request, responseHandlerWrapper, timeout);
         }
@@ -178,10 +178,7 @@ private:
 
         if (!ChannelPromise.IsNull()) {
             auto currentChannel = ChannelPromise.TryGet();
-            if (
-                currentChannel && currentChannel->IsOK() &&
-                currentChannel->Value() == failedChannel)
-            {
+            if (currentChannel && currentChannel->IsOK() && currentChannel->Value() == failedChannel) {
                 ChannelPromise.Reset();
             }
         }
