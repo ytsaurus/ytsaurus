@@ -71,10 +71,10 @@ TChunkHolderService::TChunkHolderService(
         .SetOneWay(true));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableSamples)
         .SetResponseCodec(ECodecId::Snappy)
-        .SetHeavyResponse(true));
- /*   RegisterMethod(RPC_SERVICE_METHOD_DESC(GetСhunkSplits)
+        .SetResponseHeavy(true));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkSplits)
         .SetResponseCodec(ECodecId::Snappy)
-        .SetHeavyResponse(true)); */
+        .SetResponseHeavy(true));
 }
 
 void TChunkHolderService::ValidateNoSession(const TChunkId& chunkId)

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+
 #include <ytlib/misc/error.h>
 
 
@@ -18,7 +19,7 @@ public:
 
     TChunkInfoCollector(
         const TChunkInfoFetcherPtr& fetcher,
-        const IInvokerPtr* invoker);
+        const IInvokerPtr& invoker);
 
     void AddChunk(const NTableClient::NProto::TInputChunk& chunk);
     TFuture< TValueOrError<void> > Run();
@@ -44,8 +45,6 @@ private:
     //! |(address, chunkId)| pairs for which an error was returned from the node.
     // XXX(babenko): need to specialize hash to use yhash_set
     std::set< TPair<Stroka, NChunkClient::TChunkId> > DeadChunks;
-
-    NLog::TLogger& Logger;
 
     void SendRequests();
     void OnResponse(

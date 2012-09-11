@@ -22,51 +22,43 @@ class TSamplesFetcher
     : public TRefCounted
 {
 public:
+    typedef NChunkClient::TChunkHolderServiceProxy::TRspGetTableSamplesPtr TResponsePtr;
+
     TSamplesFetcher(
         TSchedulerConfigPtr config,
         TSortOperationSpecPtr spec,
-        IInvokerPtr invoker,
-        const TOperationId& operationId);
+        const TOperationId& operationId,
+        int desiredSampleCount);
 
-    void AddChunk(const NTableClient::NProto::TInputChunk& chunk);
+    void Prepare(const std::vector<NTableClient::NProto::TInputChunk>& chunks);
 
-    TFuture< TValueOrError<void> > Run(int desiredSampleCount);
+    void CreateNewRequest(const Stroka& address);
+
+    // Returns false if samples from this chunk are not required.
+    bool AddChunkToRequest(const NTableClient::NProto::TInputChunk& inputChunk);
+    TFuture<TResponsePtr> InvokeRequest();
+
+    TError ProcessResponseItem(const TResponsePtr& rsp, int index);
 
     const std::vector<NTableClient::NProto::TKey>& GetSamples() const;
+
+    NLog::TTaggedLogger& GetLogger();
 
 private:
     TSchedulerConfigPtr Config;
     TSortOperationSpecPtr Spec;
-    IInvokerPtr Invoker;
+    int DesiredSampleCount;
 
     i64 SizeBetweenSamples;
-    i64 TotalSize;
+    i64 CurrentSize;
+    i64 CurrentSampleCount;
 
     NLog::TTaggedLogger Logger;
-    TPromise< TValueOrError<void> > Promise;
-
-    //! All chunks for which samples are to be fetched.
-    std::vector<NTableClient::NProto::TInputChunk> Chunks;
-    
-    //! Indexes of chunks for which no samples are fetched yet.
-    yhash_set<int> UnfetchedChunkIndexes;
 
     //! All samples fetched so far.
     std::vector<NTableClient::NProto::TKey> Samples;
 
-    //! Addresses of nodes that failed to reply.
-    yhash_set<Stroka> DeadNodes;
-
-    //! |(address, chunkId)| pairs for which an error was returned from the node.
-    // XXX(babenko): need to specialize hash to use yhash_set
-    std::set< TPair<Stroka, NChunkClient::TChunkId> > DeadChunks;
-
-    void SendRequests();
-    void OnResponse(
-        const Stroka& addresss,
-        std::vector<int> chunkIndexes,
-        NChunkClient::TChunkHolderServiceProxy::TRspGetTableSamplesPtr rsp);
-    void OnEndRound();
+    NChunkClient::TChunkHolderServiceProxy::TReqGetTableSamplesPtr CurrentRequest;
 
 };
 

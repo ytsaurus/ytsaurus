@@ -3,6 +3,8 @@
 #endif
 #undef CHUNK_INFO_COLLECTOR_INL_H_
 
+#include <ytlib/actions/parallel_awaiter.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -11,14 +13,15 @@ namespace NScheduler {
 template <class TChunkInfoFetcher>
 TChunkInfoCollector<TChunkInfoFetcher>::TChunkInfoCollector(
     const TChunkInfoFetcherPtr& fetcher,
-    const IInvokerPtr* invoker)
+    const IInvokerPtr& invoker)
     : ChunkInfoFetcher(fetcher)
     , Invoker(invoker)
     , Promise(NewPromise< TValueOrError<void> >())
 { }
 
 template <class TChunkInfoFetcher>
-void TChunkInfoCollector<TChunkInfoFetcher>::AddChunk(const TInputChunk& chunk)
+void TChunkInfoCollector<TChunkInfoFetcher>::AddChunk(
+    const NTableClient::NProto::TInputChunk& chunk)
 {
     YCHECK(UnfetchedChunkIndexes.insert(static_cast<int>(Chunks.size())).second);
     Chunks.push_back(chunk);
@@ -35,13 +38,15 @@ TFuture< TValueOrError<void> > TChunkInfoCollector<TChunkInfoFetcher>::Run()
 template <class TChunkInfoFetcher>
 void TChunkInfoCollector<TChunkInfoFetcher>::SendRequests()
 {
+    auto& Logger = ChunkInfoFetcher->GetLogger();
+
     // Construct address -> chunk* map.
     typedef yhash_map<Stroka, std::vector<int> > TAddressToChunkIndexes;
     TAddressToChunkIndexes addressToChunkIndexes;
 
     FOREACH (auto chunkIndex, UnfetchedChunkIndexes) {
         const auto& chunk = Chunks[chunkIndex];
-        auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
+        auto chunkId = NChunkServer::TChunkId::FromProto(chunk.slice().chunk_id());
         bool chunkAvailable = false;
         FOREACH (const auto& address, chunk.node_addresses()) {
             if (DeadNodes.find(address) == DeadNodes.end() &&
@@ -79,45 +84,23 @@ void TChunkInfoCollector<TChunkInfoFetcher>::SendRequests()
 
         ChunkInfoFetcher->CreateNewRequest(address);
 
-        /*auto channel = ChannelCache.GetChannel(address);
-        TChunkHolderServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(Config->NodeRpcTimeout);
-
-        // Take all (still unfetched) chunks from this node.
-        auto req = proxy.GetTableSamples(); */
-        std::vector<int> chunkIndexes;
-        FOREACH (auto chunkIndex, it->second) {
+        auto& addressChunkIndexes = it->second;
+        std::vector<int> requestChunkIndexes;
+        FOREACH (auto chunkIndex, addressChunkIndexes) {
             if (requestedChunkIndexes.find(chunkIndex) == requestedChunkIndexes.end()) {
                 YCHECK(requestedChunkIndexes.insert(chunkIndex).second);
 
                 const auto& chunk = Chunks[chunkIndex];
                 if (ChunkInfoFetcher->AddChunkToRequest(chunk)) {
-                    chunkIndexes.push_back(chunkIndex);
+                    requestChunkIndexes.push_back(chunkIndex);
                 }
-
-                /*
-                auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
-                currentSize += miscExt.uncompressed_data_size();
-                i64 sampleCount = currentSize / SizeBetweenSamples;
-
-                if (sampleCount > currentSampleCount) {
-                    auto chunkSampleCount = sampleCount - currentSampleCount;
-                    currentSampleCount = sampleCount;
-                    auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
-                    chunkIndexes.push_back(chunkIndex);
-
-                    auto* sampleRequest = req->add_sample_requests();
-                    *sampleRequest->mutable_chunk_id() = chunkId.ToProto();
-                    sampleRequest->set_sample_count(chunkSampleCount);
-                }
-                */
             }
         }
 
         // Send the request, if not empty.
-        if (!chunkIndexes.empty()) {
+        if (!requestChunkIndexes.empty()) {
             LOG_DEBUG("Requesting chunk info for %d chunks from %s",
-                static_cast<int>(chunkIndexes.size()),
+                static_cast<int>(requestChunkIndexes.size()),
                 ~address);
 
             awaiter->Await(
@@ -126,7 +109,7 @@ void TChunkInfoCollector<TChunkInfoFetcher>::SendRequests()
                     &TChunkInfoCollector<TChunkInfoFetcher>::OnResponse,
                     MakeStrong(this),
                     address,
-                    Passed(MoveRV(chunkIndexes))));
+                    Passed(MoveRV(requestChunkIndexes))));
         }
     }
     awaiter->Complete(BIND(
@@ -142,15 +125,17 @@ void TChunkInfoCollector<TChunkInfoFetcher>::OnResponse(
     std::vector<int> chunkIndexes,
     typename TChunkInfoFetcher::TResponsePtr rsp)
 {
+    auto& Logger = ChunkInfoFetcher->GetLogger();
+
     if (rsp->IsOK()) {
         YCHECK(chunkIndexes.size() == rsp->samples_size());
         int samplesAdded = 0;
         for (int index = 0; index < static_cast<int>(chunkIndexes.size()); ++index) {
             int chunkIndex = chunkIndexes[index];
             const auto& chunk = Chunks[chunkIndex];
-            auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
+            auto chunkId = NChunkServer::TChunkId::FromProto(chunk.slice().chunk_id());
 
-            auto result = ChunkInfoFetcher->ProcessResponse(rsp, index);
+            auto result = ChunkInfoFetcher->ProcessResponseItem(rsp, index);
             if (result.IsOK()) {
                 YCHECK(UnfetchedChunkIndexes.erase(chunkIndex) == 1);
             } else {
@@ -174,6 +159,8 @@ void TChunkInfoCollector<TChunkInfoFetcher>::OnResponse(
 template <class TChunkInfoFetcher>
 void TChunkInfoCollector<TChunkInfoFetcher>::OnEndRound()
 {
+    auto& Logger = ChunkInfoFetcher->GetLogger();
+
     if (UnfetchedChunkIndexes.empty()) {
         LOG_INFO("All info is fetched");
         Promise.Set(TError());

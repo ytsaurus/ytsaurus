@@ -5,6 +5,7 @@
 #include "chunk_pool.h"
 #include "chunk_list_pool.h"
 #include "samples_fetcher.h"
+#include "chunk_info_collector.h"
 #include "job_resources.h"
 
 #include <ytlib/misc/string.h>
@@ -1067,11 +1068,6 @@ public:
             host,
             operation)
         , Spec(spec)
-        , SamplesFetcher(New<TSamplesFetcher>(
-            Config,
-            Spec,
-            Host->GetBackgroundInvoker(),
-            Operation->GetOperationId()))
     { }
 
 private:
@@ -1079,6 +1075,8 @@ private:
 
     // Samples.
     TSamplesFetcherPtr SamplesFetcher;
+    TSamplesCollectorPtr SamplesCollector;
+
     std::vector<const NTableClient::NProto::TKey*> SortedSamples;
 
     //! |PartitionCount - 1| separating keys.
@@ -1108,6 +1106,16 @@ private:
 
     TFuture< TValueOrError<void> > RequestSamples()
     {
+        SamplesFetcher = New<TSamplesFetcher>(
+            Config,
+            Spec,
+            Operation->GetOperationId(),
+            SuggestPartitionCount() * Spec->SamplesPerPartition);
+
+        SamplesCollector = New<TSamplesCollector>(
+            SamplesFetcher,
+            ~Host->GetBackgroundInvoker());
+
         PROFILE_TIMING ("/input_processing_time") {
             LOG_INFO("Processing inputs");
 
@@ -1119,7 +1127,7 @@ private:
                     TotalInputRowCount += miscExt.row_count();
                     TotalInputValueCount += miscExt.value_count();
 
-                    SamplesFetcher->AddChunk(chunk);
+                    SamplesCollector->AddChunk(chunk);
                     ++chunkCount;
                 }
             }
@@ -1136,7 +1144,7 @@ private:
                 return NewPromise< TValueOrError<void> >();
             }
 
-            return SamplesFetcher->Run(SuggestPartitionCount() * Spec->SamplesPerPartition);
+            return SamplesCollector->Run();
         }
     }
 
@@ -1316,6 +1324,7 @@ private:
             BuildPartitions();
 
             SamplesFetcher.Reset();
+            SamplesCollector.Reset();
             SortedSamples.clear();
 
             InitJobSpecTemplates();

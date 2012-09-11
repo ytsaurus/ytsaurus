@@ -35,6 +35,12 @@ typedef TIntrusivePtr<TChunkListPool> TChunkListPoolPtr;
 class TSamplesFetcher;
 typedef TIntrusivePtr<TSamplesFetcher> TSamplesFetcherPtr;
 
+template <class TChunkInfoFetcher>
+class TChunkInfoCollector;
+
+typedef TChunkInfoCollector<TSamplesFetcher> TSamplesCollector;
+typedef TIntrusivePtr<TSamplesCollector> TSamplesCollectorPtr;
+
 extern NLog::TLogger SchedulerLogger;
 extern NLog::TLogger OperationLogger;
 extern NProfiling::TProfiler SchedulerProfiler;
