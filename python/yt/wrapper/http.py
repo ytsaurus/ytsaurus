@@ -51,7 +51,8 @@ def make_request(http_method, request_type, params,
 
     headers = {"User-Agent": "Python wrapper",
                input_format_key: mime_type,
-               output_format_key: mime_type}
+               output_format_key: mime_type,
+               "Accept-Encoding": config.ACCEPT_ENCODING}
 
 
     print_info("Request url: %r", url)
