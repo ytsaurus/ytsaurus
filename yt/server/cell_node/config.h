@@ -44,8 +44,8 @@ struct TCellNodeConfig
 
         // Very low default, override in production installation.
         Register("total_memory_size", TotalMemorySize)
-            .GreaterThan(1024L * 1024 * 1024)
-            .Default(5L * 1024 * 1024 * 1024);
+            .GreaterThanOrEqual((i64) 1024 * 1024 * 1024)
+            .Default((i64)  5 * 1024 * 1024 * 1024);
 
         SetKeepOptions(true);
     }
