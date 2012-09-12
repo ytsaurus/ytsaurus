@@ -79,7 +79,12 @@ public:
         return Node;
     }
 
-    virtual TJobPtr StartJob(TOperation* operation) override
+    virtual bool HasSpareResources() const override
+    {
+        return NScheduler::HasSpareResources(Node->ResourceUtilization(), Node->ResourceLimits());
+    }
+
+    virtual TJobPtr ScheduleJob(TOperation* operation) override
     {
         auto id = TJobId::Create();
         auto job = New<TJob>(
@@ -94,6 +99,10 @@ public:
         job->SetSpec(jobInfo->mutable_spec());
 
         StartedJobs_.push_back(job);
+
+        IncreaseResourceUtilization(
+            &Node->ResourceUtilization(),
+            job->GetSpec()->resource_utilization());
 
         return job;
     }

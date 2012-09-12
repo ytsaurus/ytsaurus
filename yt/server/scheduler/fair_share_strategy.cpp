@@ -24,23 +24,235 @@ static Stroka DefaultPoolId("default");
 
 ////////////////////////////////////////////////////////////////////
 
-struct TPoolConfig
-    : public TYsonSerializable
+struct ISchedulerElement;
+typedef TIntrusivePtr<ISchedulerElement> ISchedulerElementPtr;
+
+struct ISchedulableElement;
+typedef TIntrusivePtr<ISchedulableElement> ISchedulableElementPtr;
+
+struct IElementRanking;
+
+class TOperationElement;
+typedef TIntrusivePtr<TOperationElement> TOperationElementPtr;
+
+class TPool;
+typedef TIntrusivePtr<TPool> TPoolPtr;
+
+class TRootElement;
+typedef TIntrusivePtr<TRootElement> TRootElementPtr;
+
+////////////////////////////////////////////////////////////////////
+
+struct ISchedulerElement
+    : public virtual TRefCounted
 {
+    virtual void ScheduleJobs(ISchedulingContext* context) = 0;
+};
+
+////////////////////////////////////////////////////////////////////
+
+struct ISchedulableElement
+    : public virtual ISchedulerElement
+{
+    virtual TInstant GetStartTime() const = 0;
+    virtual int GetWeight() const = 0;
+    virtual double GetMinShare() const = 0;
+};
+
+////////////////////////////////////////////////////////////////////
+
+struct IElementRanking
+{
+    virtual ~IElementRanking()
+    { }
+
+    virtual void AddElement(ISchedulableElementPtr element) = 0;
+    virtual void RemoveElement(ISchedulableElementPtr element) = 0;
+    virtual const std::vector<ISchedulableElementPtr>& GetRankedElements() = 0;
+};
+
+////////////////////////////////////////////////////////////////////
+
+class TOperationElement
+    : public ISchedulableElement
+{
+public:
+    explicit TOperationElement(TOperationPtr operation)
+        : Operation(operation)
+    { }
+
+    void Init()
+    {
+        try {
+            Spec = ConvertTo<TPooledOperationSpecPtr>(Operation->GetSpec());
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error parsing spec of pooled operation %s, using the default one",
+                ~ToString(Operation->GetOperationId()));
+            Spec = New<TPooledOperationSpec>();
+        }
+    }
+
+
+    virtual void ScheduleJobs(ISchedulingContext* context) override
+    {
+        while (context->HasSpareResources()) {
+            auto job = Operation->GetController()->ScheduleJob(context);
+            if (!job) {
+                break;
+            }
+        }
+    }
+
+    virtual TInstant GetStartTime() const override
+    {
+        return Operation->GetStartTime();
+    }
+
+    virtual int GetWeight() const
+    {
+        // TODO(babenko): implement
+        return 0;
+    }
+
+    virtual double GetMinShare() const
+    {
+        // TODO(babenko): implement
+        return 0;
+    }
+
+
+    TPooledOperationSpecPtr GetSpec() const
+    {
+        return Spec;
+    }
+
+
+    TPoolPtr GetPool() const
+    {
+        return Pool;
+    }
+
+    void SetPool(TPoolPtr pool)
+    {
+        Pool = pool;
+    }
+
+private:
+    TOperationPtr Operation;
+    TPooledOperationSpecPtr Spec;
+    TPoolPtr Pool;
 
 };
 
-typedef TIntrusivePtr<TPoolConfig> TPoolConfigPtr;
+////////////////////////////////////////////////////////////////////
+
+class TCompositeSchedulerElement
+    : public virtual ISchedulerElement
+{
+public:
+    virtual void ScheduleJobs(ISchedulingContext* context) override
+    {
+        auto rankedChildren = Ranking->GetRankedElements();
+        FOREACH (auto child, rankedChildren) {
+            if (!context->HasSpareResources()) {
+                break;
+            }
+            child->ScheduleJobs(context);
+        }
+    }
+
+    void AddChild(ISchedulableElementPtr child)
+    {
+        Ranking->AddElement(child);
+    }
+
+    void RemoveChild(ISchedulableElementPtr child)
+    {
+        Ranking->RemoveElement(child);
+    }
+
+protected:
+    void SetRanking(TAutoPtr<IElementRanking> newRanking)
+    {
+        // Just a precaution.
+        if (Ranking == newRanking)
+            return;
+
+        // If another ranking is already set then copy its elements to the new one.
+        if (~Ranking) {
+            const auto& elements = Ranking->GetRankedElements();
+            FOREACH (auto element, elements) {
+                newRanking->AddElement(element);
+            }
+        }
+
+        Ranking = newRanking;
+    }
+
+private:
+    TAutoPtr<IElementRanking> Ranking;
+
+};
+
+////////////////////////////////////////////////////////////////////
+
+class TFifoRanking
+    : public IElementRanking
+{
+public:
+    virtual void AddElement(ISchedulableElementPtr element) override
+    {
+        YCHECK(Elements.insert(element).second);
+        CachedRankedElements.clear();
+    }
+
+    virtual void RemoveElement(ISchedulableElementPtr element) override
+    {
+        YCHECK(Elements.erase(element) == 1);
+        CachedRankedElements.clear();
+    }
+
+    virtual const std::vector<ISchedulableElementPtr>& GetRankedElements() override
+    {
+        if (!CachedRankedElements.empty()) {
+            return CachedRankedElements;
+        }
+
+        FOREACH (auto element, Elements) {
+            CachedRankedElements.push_back(element);
+        }
+
+        std::sort(
+            CachedRankedElements.begin(),
+            CachedRankedElements.end(),
+            [] (const ISchedulableElementPtr& lhs, const ISchedulableElementPtr& rhs) -> bool {
+                if (lhs->GetWeight() > rhs->GetWeight()) {
+                    return true;
+                }
+                if (lhs->GetWeight() < rhs->GetWeight()) {
+                    return false;
+                }
+                return lhs->GetStartTime() < rhs->GetStartTime();
+            });
+
+        return CachedRankedElements;
+    }
+
+private:
+    yhash_set<ISchedulableElementPtr> Elements;
+    std::vector<ISchedulableElementPtr> CachedRankedElements;
+
+};
 
 ////////////////////////////////////////////////////////////////////
 
 class TPool
-    : public TRefCounted
+    : public TCompositeSchedulerElement
+    , public virtual ISchedulableElement
 {
 public:
     explicit TPool(const Stroka& id)
         : Id(id)
-        , Config(New<TPoolConfig>())
     { }
 
     const Stroka& GetId() const
@@ -53,13 +265,63 @@ public:
         return Config;
     }
 
+    void SetConfig(TPoolConfigPtr newConfig)
+    {
+        Config = CloneYsonSerializable(newConfig);
+
+        switch (Config->Mode) {
+            case EPoolMode::Fifo:
+                SetRanking(new TFifoRanking());
+                break;
+
+            case EPoolMode::FairShare:
+                // TODO(babenko): fixme
+                SetRanking(new TFifoRanking());
+                break;
+
+            default:
+                YUNREACHABLE();
+        }
+    }
+
+    void SetDefaultConfig()
+    {
+        SetConfig(New<TPoolConfig>());
+    }
+
+    virtual TInstant GetStartTime() const override
+    {
+        // Makes no sense to pools since the root is in fair-share mode.
+        return TInstant();
+    }
+
+    virtual int GetWeight() const override
+    {
+        return Config->Weight;
+    }
+
+    virtual double GetMinShare() const override
+    {
+        return Config->MinShare;
+    }
+
 private:
     Stroka Id;
     TPoolConfigPtr Config;
 
 };
 
-typedef TIntrusivePtr<TPool> TPoolPtr;
+////////////////////////////////////////////////////////////////////
+
+class TRootElement
+    : public TCompositeSchedulerElement
+{
+public:
+    TRootElement()
+    {
+        SetRanking(new TFifoRanking());
+    }
+};
 
 ////////////////////////////////////////////////////////////////////
 
@@ -76,49 +338,90 @@ public:
         masterConnector->SubscribeWatcherRequest(BIND(&TFairShareStrategy::OnPoolsRequest, this));
         masterConnector->SubscribeWatcherResponse(BIND(&TFairShareStrategy::OnPoolsResponse, this));
 
-        InitDefaultPool();
-    }
+        RootElement = New<TRootElement>();
 
-    virtual void ScheduleJobs(ISchedulingContext* context) override
-    {
-    }
-
-private:
-    yhash_map<Stroka, TPoolPtr> Pools;
-    TPoolPtr DefaultPool;
-
-
-    void OnOperationStarted(TOperationPtr operation)
-    {
-    }
-
-    void OnOperationFinished(TOperationPtr operation)
-    {
-    }
-
-
-    void InitDefaultPool()
-    {
         DefaultPool = New<TPool>(DefaultPoolId);
         RegisterPool(DefaultPool);
     }
 
+    virtual void ScheduleJobs(ISchedulingContext* context) override
+    {
+        return RootElement->ScheduleJobs(context);
+    }
+
+private:
+    yhash_map<Stroka, TPoolPtr> IdToPool;
+    TPoolPtr DefaultPool;
+
+    yhash_map<TOperationPtr, TOperationElementPtr> OperationToElement;
+
+    TRootElementPtr RootElement;
+
+
+    void OnOperationStarted(TOperationPtr operation)
+    {
+        auto element = New<TOperationElement>(operation);
+        YCHECK(OperationToElement.insert(std::make_pair(operation, element)).second);
+        element->Init();
+
+        TPoolPtr pool;
+        auto spec = element->GetSpec();
+        if (spec->Pool) {
+            pool = FindPool(spec->Pool.Get());
+            if (!pool) {
+                LOG_ERROR("Invalid pool %s for operation %s, using %s",
+                    ~spec->Pool.Get().Quote(),
+                    ~ToString(operation->GetOperationId()),
+                    DefaultPool->GetId().Quote());
+            }
+        }
+        if (!pool) {
+            pool = DefaultPool;
+        }
+        element->SetPool(pool);
+        pool->AddChild(element);
+
+        LOG_INFO("Operation added to pool (OperationId: %s, PoolId: %s)",
+            ~ToString(operation->GetOperationId()),
+            ~pool->GetId());
+    }
+
+    void OnOperationFinished(TOperationPtr operation)
+    {
+        auto it = OperationToElement.find(operation);
+        YCHECK(it != OperationToElement.end());
+        auto element = it->second;
+        auto pool = element->GetPool();
+
+        OperationToElement.erase(it);
+        pool->RemoveChild(element);
+
+        LOG_INFO("Operation removed from pool (OperationId: %s, PoolId: %s)",
+            ~ToString(operation->GetOperationId()),
+            ~pool->GetId());
+    }
+
+
     void RegisterPool(TPoolPtr pool)
     {
         LOG_INFO("Pool registered: %s", ~pool->GetId());
-        YCHECK(Pools.insert(std::make_pair(pool->GetId(), pool)).second);
+        
+        YCHECK(IdToPool.insert(std::make_pair(pool->GetId(), pool)).second);
+        RootElement->AddChild(pool);
     }
 
     void UnregisterPool(TPoolPtr pool)
     {
         LOG_INFO("Pool unregistered: %s", ~pool->GetId());
-        YCHECK(Pools.erase(pool->GetId()) == 1);
+
+        YCHECK(IdToPool.erase(pool->GetId()) == 1);
+        RootElement->RemoveChild(pool);
     }
 
     TPoolPtr FindPool(const Stroka& id)
     {
-        auto it = Pools.find(id);
-        return it == Pools.end() ? NULL : it->second;
+        auto it = IdToPool.find(id);
+        return it == IdToPool.end() ? NULL : it->second;
     }
 
     TPoolPtr GetPool(const Stroka& id)
@@ -144,12 +447,10 @@ private:
 
         // Build the set of potential orphans (skipping the default pool).
         yhash_set<Stroka> orphanPoolIds;
-        FOREACH (const auto& pair, Pools) {
+        FOREACH (const auto& pair, IdToPool) {
             const auto& id = pair.first;
             const auto& pool = pair.second;
-            if (pool != DefaultPool) {
-                YCHECK(orphanPoolIds.insert(pair.first).second);
-            }
+            YCHECK(orphanPoolIds.insert(pair.first).second);
         }
 
         auto newPoolsNode = ConvertToNode(TYsonString(rsp->value()));
@@ -161,7 +462,8 @@ private:
             if (existingPool) {
                 // Reconfigure existing pool.
                 auto configNode = ConvertToNode(poolNode->Attributes());
-                existingPool->GetConfig()->Load(configNode);
+                auto config = ConvertTo<TPoolConfigPtr>(configNode);
+                existingPool->SetConfig(config);
                 YCHECK(orphanPoolIds.erase(id) == 1);
             } else {
                 // Create new pool.
@@ -173,7 +475,13 @@ private:
         // Unregister orphan pools.
         FOREACH (const auto& id, orphanPoolIds) {
             auto pool = GetPool(id);
-            UnregisterPool(pool);
+            if (pool == DefaultPool) {
+                // Default pool is always present.
+                // When it's configuration vanishes it just gets the default config.
+                pool->SetDefaultConfig();
+            } else {
+                UnregisterPool(pool);
+            }
         }
 
         LOG_INFO("Pools updated");

@@ -86,8 +86,8 @@ struct ISchedulingContext
 
 
     virtual TExecNodePtr GetNode() = 0;
-
-    virtual TJobPtr StartJob(TOperation* operation) = 0;
+    virtual bool HasSpareResources() const = 0;
+    virtual TJobPtr ScheduleJob(TOperation* operation) = 0;
 };
 
 /*!

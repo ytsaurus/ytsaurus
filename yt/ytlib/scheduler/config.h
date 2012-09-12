@@ -385,5 +385,47 @@ struct TMapReduceOperationSpec
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_ENUM(EPoolMode,
+    (Fifo)
+    (FairShare)
+);
+
+struct TPoolConfig
+    : public TYsonSerializable
+{
+    int Weight;
+    double MinShare;
+    EPoolMode Mode;
+
+    TPoolConfig()
+    {
+        Register("weight", Weight)
+            .Default(0)
+            .GreaterThanOrEqual(0);
+        Register("min_share", MinShare)
+            .Default(0)
+            .InRange(0.0, 1.0);
+        Register("mode", Mode)
+            .Default(EPoolMode::Fifo);
+    }
+};
+
+////////////////////////////////////////////////////////////////////
+
+struct TPooledOperationSpec
+    : public TYsonSerializable
+{
+    TNullable<Stroka> Pool;
+
+    TPooledOperationSpec()
+    {
+        Register("pool", Pool)
+            .Default(TNullable<Stroka>())
+            .NonEmpty();
+    }
+};
+
+////////////////////////////////////////////////////////////////////
+
 } // namespace NScheduler
 } // namespace NYT

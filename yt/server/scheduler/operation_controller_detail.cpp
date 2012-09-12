@@ -105,7 +105,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(ISchedulingContext* context
         jip->PoolResult->TotalDataSize,
         ~ToString(dataSizeThreshold));
 
-    jip->Job = context->StartJob(Controller->Operation);
+    jip->Job = context->ScheduleJob(Controller->Operation);
     auto* jobSpec = jip->Job->GetSpec();
 
     BuildJobSpec(jip, jobSpec);
