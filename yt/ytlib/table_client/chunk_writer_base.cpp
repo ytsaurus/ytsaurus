@@ -40,7 +40,7 @@ TChunkWriterBase::TChunkWriterBase(
     , CurrentSize(0)
     , CurrentBufferCapacity(0)
 {
-    VERIFY_INVOKER_AFFINITY(WriterThread->GetInvoker(), WriterThread);
+    VERIFY_INVOKER_AFFINITY(NChunkClient::TDispatcher::Get()->GetWriterInvoker(), WriterThread);
 }
 
 const TNullable<TKeyColumns>& TChunkWriterBase::GetKeyColumns() const
@@ -50,12 +50,11 @@ const TNullable<TKeyColumns>& TChunkWriterBase::GetKeyColumns() const
 
 void TChunkWriterBase::CheckBufferCapacity()
 {
-    if (CurrentBufferCapacity >= Config->MaxBufferSize) {
-        auto error = TError(
-            "Too small MaxBufferSize limit for chunk writer: (CurrentBufferCapacity %"PRId64", MaxBufferSize: %"PRId64")",
-            CurrentBufferCapacity,
-            Config->MaxBufferSize);
-        State.Fail(error);
+    if (Config->MaxBufferSize < CurrentBufferCapacity) {
+        State.Fail(TError(
+            "\"max_buffer_size\" limit too low: %"PRId64" < %" PRId64,
+            Config->MaxBufferSize,
+            CurrentBufferCapacity));
     }
 }
 

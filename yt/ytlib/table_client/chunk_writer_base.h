@@ -63,7 +63,7 @@ protected:
 
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
 
-    bool IsLess(const TChannelWriter* lhs, const TChannelWriter* rhs);
+    static bool IsLess(const TChannelWriter* lhs, const TChannelWriter* rhs);
     void AdjustBufferHeap(int updatedBufferIndex);
     void PopBufferHeap();
 
