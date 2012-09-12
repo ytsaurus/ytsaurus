@@ -79,6 +79,7 @@ void TCypressNodeBase::Save(TOutputStream* output) const
     ::Save(output, ParentId_);
     ::Save(output, LockMode_);
     ::Save(output, CreationTime_);
+    ::Save(output, ModificationTime_);
 }
 
 void TCypressNodeBase::Load(const TLoadContext& context, TInputStream* input)
@@ -90,6 +91,7 @@ void TCypressNodeBase::Load(const TLoadContext& context, TInputStream* input)
     ::Load(input, ParentId_);
     ::Load(input, LockMode_);
     ::Load(input, CreationTime_);
+    ::Load(input, ModificationTime_);
 
     TrunkNode_ = Id.IsBranched() ? context.Get<ICypressNode>(TVersionedObjectId(Id.ObjectId)) : this;
 }
