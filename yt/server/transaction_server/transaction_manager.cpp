@@ -430,7 +430,9 @@ void TTransactionManager::Commit(TTransaction* transaction)
     auto id = transaction->GetId();
 
     if (!transaction->NestedTransactions().empty()) {
-        THROW_ERROR_EXCEPTION("Cannot commit since the transaction has nested transactions in progress");
+        THROW_ERROR_EXCEPTION("Cannot commit transaction %s has %d active nested transaction(s)",
+            ~ToString(id),
+            static_cast<int>(transaction->NestedTransactions().size()));
     }
 
     if (IsLeader()) {
