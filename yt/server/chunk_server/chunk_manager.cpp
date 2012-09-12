@@ -895,7 +895,7 @@ private:
         Profiler.SetEnabled(true);
     }
 
-    virtual void OnLeaderRecoveryComplete() override
+    virtual void OnActiveQuorumEstablished() override
     {
         ChunkPlacement = New<TChunkPlacement>(Config, Bootstrap);
 
@@ -903,19 +903,16 @@ private:
 
         ChunkReplicator = New<TChunkReplicator>(Config, Bootstrap, ChunkPlacement, NodeLeaseTracker);
 
-        PROFILE_TIMING ("/full_chunk_refresh_time") {
-            LOG_INFO("Starting full chunk refresh");
-            ChunkReplicator->RefreshAllChunks();
-            LOG_INFO("Full chunk refresh completed");
-        }
-    }
-
-    virtual void OnActiveQuorumEstablished() override
-    {
         // Assign initial leases to nodes.
         // NB: Nodes will remain unconfirmed until the first heartbeat.
         FOREACH (const auto& pair, NodeMap) { 
             StartNodeTracking(pair.second, true);
+        }
+
+        PROFILE_TIMING ("/full_chunk_refresh_time") {
+            LOG_INFO("Starting full chunk refresh");
+            ChunkReplicator->RefreshAllChunks();
+            LOG_INFO("Full chunk refresh completed");
         }
     }
 
