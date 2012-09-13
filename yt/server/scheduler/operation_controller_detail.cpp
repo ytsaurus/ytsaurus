@@ -419,7 +419,8 @@ TFuture<void> TOperationControllerBase::Commit()
 
 void TOperationControllerBase::OnJobStarted(TJobPtr job)
 {
-    AddResources(&UsedResources, job->GetSpec()->resource_utilization());
+    job->ResourceUtilization() = job->GetSpec()->resource_utilization();
+    AddResources(&UsedResources, job->ResourceUtilization());
 }
 
 void TOperationControllerBase::OnJobRunning(TJobPtr job)
@@ -434,7 +435,7 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
     --RunningJobCount;
     ++CompletedJobCount;
 
-    SubtractResources(&UsedResources, job->GetSpec()->resource_utilization());
+    SubtractResources(&UsedResources, job->ResourceUtilization());
 
     auto jip = GetJobInProgress(job);
     jip->Task->OnJobCompleted(jip);
