@@ -398,7 +398,7 @@ private:
         if (spec->Pool) {
             pool = FindPool(spec->Pool.Get());
             if (!pool) {
-                LOG_ERROR("Invalid pool %s for operation %s, using %s",
+                LOG_ERROR("Invalid pool %s specified for operation %s, using %s",
                     ~spec->Pool.Get().Quote(),
                     ~ToString(operation->GetOperationId()),
                     ~DefaultPool->GetId().Quote());
