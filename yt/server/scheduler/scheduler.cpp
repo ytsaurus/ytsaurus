@@ -97,12 +97,11 @@ public:
         *jobInfo->mutable_job_id() = id.ToProto();
 
         job->SetSpec(jobInfo->mutable_spec());
+        job->ResourceUtilization() = job->GetSpec()->resource_utilization();
 
         StartedJobs_.push_back(job);
 
-        AddResources(
-            &Node->ResourceUtilization(),
-            job->GetSpec()->resource_utilization());
+        AddResources(&Node->ResourceUtilization(), job->ResourceUtilization());
 
         return job;
     }
