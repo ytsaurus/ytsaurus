@@ -491,6 +491,7 @@ YtCommand.prototype._logRequest = function(cb) {
 
 var RE_HOME    = /^\/\/home|^\/\/"home"|^\/\/\x01\x08\x68\x6f\x6d\x65/;
 var RE_TMP     = /^\/\/tmp|^\/\/"tmp"|^\/\/\x01\x06\x74\x6d\x70/;
+var RE_MAPS    = /^\/\/maps|^\/\/"maps"/;
 var RE_STATBOX = /^\/\/statbox|^\/\/"statbox"|^\/\/\x01\x0e\x73\x74\x61\x74\x62\x6f\x78/;
 
 YtCommand.prototype._checkPermissions = function(cb) {
@@ -539,7 +540,7 @@ YtCommand.prototype._checkPermissions = function(cb) {
         }
 
         paths.forEach(function(path) {
-            if (!(RE_HOME.test(path) || RE_TMP.test(path) || RE_STATBOX.test(path))) {
+            if (!(RE_HOME.test(path) || RE_TMP.test(path) || RE_MAPS.test(path) || RE_STATBOX.test(path))) {
                 self.rsp.statusCode = 403;
                 throw new Error("Any mutating command is allowed only on //home, //tmp and //statbox");
             }
