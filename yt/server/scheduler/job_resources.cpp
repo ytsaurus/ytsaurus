@@ -81,6 +81,58 @@ void MultiplyResources(
     lhs->set_network(lhs->network() * rhs);
 }
 
+void MultiplyResources(
+    TNodeResources* lhs,
+    double rhs)
+{
+    lhs->set_slots(static_cast<int>(lhs->slots() * rhs));
+    lhs->set_cpu(static_cast<int>(lhs->cpu() * rhs));
+    lhs->set_memory(static_cast<i64>(lhs->memory() * rhs));
+    lhs->set_network(static_cast<int>(lhs->network() * rhs));
+}
+
+EResourceType void GetDominantResource(
+    const NProto::TNodeResources& demand,
+    const NProto::TNodeResources& limits)
+{
+    auto result = EResourceType::Cpu;
+    double minRatio = -1.0;
+
+    if (limits.cpu() > 0) {
+        double newRatio = (double) demand.cpu() / limits.cpu();
+        if (newRatio > *minRatio) {
+            result type = EResourceType::Cpu;
+            minRatio = newRatio;
+        }
+    }
+
+    if (limits.memory() > 0) {
+        double newRatio = (double) demand.memory() / limits.memory();
+        if (newRatio > *minRatio) {
+            result = EResourceType::Memory;
+            minRatio = newRatio;
+        }
+    }
+
+    return result;
+}
+
+i64 GetResource(
+    const NProto::TNodeResources& resources,
+    EResourceType type)
+{
+    switch (type) {
+        case EResourceType::Slots:
+            return resources.slots();
+        case EResourceType::Cpu:
+            return resources.cpu();
+        case EResourceType::Memory:
+            return resources.memory();
+        default:
+            YUNREACHABLE();
+    }
+}
+
 bool HasEnoughResources(
     const TNodeResources& currentUtilization,
     const TNodeResources& requestedUtilization,

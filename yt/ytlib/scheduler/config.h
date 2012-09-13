@@ -393,17 +393,17 @@ DECLARE_ENUM(EPoolMode,
 struct TPoolConfig
     : public TYsonSerializable
 {
-    int Weight;
+    double Weight;
     double MinShare;
     EPoolMode Mode;
 
     TPoolConfig()
     {
         Register("weight", Weight)
-            .Default(0)
-            .GreaterThanOrEqual(0);
+            .Default(1.0)
+            .GreaterThanOrEqual(1.0);
         Register("min_share", MinShare)
-            .Default(0)
+            .Default(0.0)
             .InRange(0.0, 1.0);
         Register("mode", Mode)
             .Default(EPoolMode::Fifo);
@@ -416,12 +416,20 @@ struct TPooledOperationSpec
     : public TYsonSerializable
 {
     TNullable<Stroka> Pool;
+    double Weight;
+    double MinShare;
 
     TPooledOperationSpec()
     {
         Register("pool", Pool)
             .Default(TNullable<Stroka>())
             .NonEmpty();
+        Register("weight", Weight)
+            .Default(1.0)
+            .GreaterThanOrEqual(1.0);
+        Register("min_share", MinShare)
+            .Default(0.0)
+            .InRange(0.0, 1.0);
     }
 };
 

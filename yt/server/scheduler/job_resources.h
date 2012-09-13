@@ -13,6 +13,12 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_ENUM(EResourceType,
+    (Slots)
+    (Cpu)
+    (Memory)
+);
+
 Stroka FormatResourceUtilization(
     const NProto::TNodeResources& utilization,
     const NProto::TNodeResources& limits);
@@ -31,6 +37,18 @@ void SubtractResources(
 void MultiplyResources(
     NProto::TNodeResources* lhs,
     int rhs);
+
+void MultiplyResources(
+    NProto::TNodeResources* lhs,
+    double rhs);
+
+EResourceType GetDominantResource(
+    const NProto::TNodeResources& demand,
+    const NProto::TNodeResources& limits);
+
+i64 GetResource(
+    const NProto::TNodeResources& resources,
+    EResourceType type);
 
 bool HasEnoughResources(
     const NProto::TNodeResources& currentUtilization,
