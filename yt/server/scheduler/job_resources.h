@@ -28,6 +28,10 @@ void SubtractResources(
     NProto::TNodeResources* lhs,
     const NProto::TNodeResources& rhs);
 
+void MultiplyResources(
+    NProto::TNodeResources* lhs,
+    int rhs);
+
 bool HasEnoughResources(
     const NProto::TNodeResources& currentUtilization,
     const NProto::TNodeResources& requestedUtilization,

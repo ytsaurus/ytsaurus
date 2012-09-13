@@ -705,8 +705,9 @@ NProto::TNodeResources TOperationControllerBase::GetUsedResources()
 
 NProto::TNodeResources TOperationControllerBase::GetNeededResources()
 {
-    // TODO(babenko): fixme
-    return ZeroResources();
+    auto result = GetMinRequestedResources();
+    MultiplyResources(&result, GetPendingJobCount());
+    return result;
 }
 
 void TOperationControllerBase::OnOperationCompleted()

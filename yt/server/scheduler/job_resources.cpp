@@ -71,6 +71,16 @@ void SubtractResources(
     lhs->set_network(lhs->network() - rhs.network());
 }
 
+void MultiplyResources(
+    TNodeResources* lhs,
+    int rhs)
+{
+    lhs->set_slots(lhs->slots() * rhs);
+    lhs->set_cpu(lhs->cpu() * rhs);
+    lhs->set_memory(lhs->memory() * rhs);
+    lhs->set_network(lhs->network() * rhs);
+}
+
 bool HasEnoughResources(
     const TNodeResources& currentUtilization,
     const TNodeResources& requestedUtilization,
