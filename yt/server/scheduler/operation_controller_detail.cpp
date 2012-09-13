@@ -548,7 +548,7 @@ TJobPtr TOperationControllerBase::ScheduleJob(ISchedulingContext* context)
     return job;
 }
 
-void TOperationControllerBase::OnTaskPendingJobCountChanged(TTaskPtr task)
+void TOperationControllerBase::OnTaskUpdated(TTaskPtr task)
 {
     int oldJobCount = CachedPendingJobCount;
     int newJobCount = CachedPendingJobCount + task->GetPendingJobCountDelta();
@@ -572,7 +572,7 @@ void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
                 ~task->GetId());
         }
     }
-    OnTaskPendingJobCountChanged(task);
+    OnTaskUpdated(task);
 }
 
 void TOperationControllerBase::DoAddTaskLocalityHint(TTaskPtr task, const Stroka& address)
@@ -595,7 +595,7 @@ TOperationControllerBase::TPendingTaskInfo* TOperationControllerBase::GetPending
 void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, const Stroka& address)
 {
     DoAddTaskLocalityHint(task, address);
-    OnTaskPendingJobCountChanged(task);
+    OnTaskUpdated(task);
 }
 
 void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe)
@@ -606,7 +606,7 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePt
             DoAddTaskLocalityHint(task, address);
         }
     }
-    OnTaskPendingJobCountChanged(task);
+    OnTaskUpdated(task);
 }
 
 TJobPtr TOperationControllerBase::DoScheduleJob(ISchedulingContext* context)
@@ -649,7 +649,7 @@ TJobPtr TOperationControllerBase::DoScheduleJob(ISchedulingContext* context)
             }
 
             if (task->GetPendingJobCount() == 0) {
-                OnTaskPendingJobCountChanged(task);
+                OnTaskUpdated(task);
                 continue;
             }
 
@@ -668,7 +668,7 @@ TJobPtr TOperationControllerBase::DoScheduleJob(ISchedulingContext* context)
                     bestLocality,
                     delayedTime ? ~ToString(now - delayedTime.Get()) : "Null");
                 bestTask->SetDelayedTime(Null);
-                OnTaskPendingJobCountChanged(bestTask);
+                OnTaskUpdated(bestTask);
                 OnJobStarted(job);
                 return job;
             }
@@ -687,7 +687,7 @@ TJobPtr TOperationControllerBase::DoScheduleJob(ISchedulingContext* context)
             if (task->GetPendingJobCount() == 0) {
                 LOG_DEBUG("Task pending hint removed (Task: %s)", ~task->GetId());
                 globalTasks.erase(jt);
-                OnTaskPendingJobCountChanged(task);
+                OnTaskUpdated(task);
                 continue;
             }
 
@@ -715,7 +715,7 @@ TJobPtr TOperationControllerBase::DoScheduleJob(ISchedulingContext* context)
                     ~address,
                     priority,
                     delayedTime ? ~ToString(now - delayedTime.Get()) : "Null");
-                OnTaskPendingJobCountChanged(task);
+                OnTaskUpdated(task);
                 OnJobStarted(job);
                 return job;
             }
