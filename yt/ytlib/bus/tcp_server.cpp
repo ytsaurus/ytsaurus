@@ -357,7 +357,7 @@ private:
             }
         }
 
-        if (chmod(~path, 0777) != 0) {
+        if (chmod(~path, 0664) != 0) {
             THROW_ERROR_EXCEPTION("Failed to update permissions of the local socket file %s",
                 ~path.Quote())
                 << TError::FromSystem();
