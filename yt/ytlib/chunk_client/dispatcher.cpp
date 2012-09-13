@@ -1,3 +1,4 @@
+#include "config.h"
 #include "dispatcher.h"
 
 namespace NYT {
@@ -6,12 +7,12 @@ namespace NChunkClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 TDispatcher::TDispatcher()
-    : PoolSize(4)
+    : CompressionPoolSize(4)
     , ReaderThread(TActionQueue::CreateFactory("ChunkReader"))
     , WriterThread(TActionQueue::CreateFactory("ChunkWriter"))
     , CompressionThreadPool(BIND(
         NYT::New<NYT::TThreadPool, const int&, const Stroka&>,
-        ConstRef(PoolSize),
+        ConstRef(CompressionPoolSize),
         "Compression"))
 { }
 
@@ -20,11 +21,15 @@ TDispatcher* TDispatcher::Get()
     return Singleton<TDispatcher>();
 }
 
-void TDispatcher::SetPoolSize(int poolSize)
+void TDispatcher::Configure(TDispatcherConfigPtr config)
 {
     // We believe in proper memory ordering here.
     YCHECK(!CompressionThreadPool.TryGet());
-    PoolSize = poolSize;
+    // We do not really want to store entire config within us.
+    CompressionPoolSize = config->CompressionPoolSize;
+    // This is not redundant, since the check and the assignment above are
+    // not atomic and (adversary) thread can initialize thread pool in parallel.
+    YCHECK(!CompressionThreadPool.TryGet());
 }
 
 IInvokerPtr TDispatcher::GetReaderInvoker()
@@ -53,4 +58,3 @@ void TDispatcher::Shutdown()
 
 } // namespace NChunkClient
 } // namespace NYT
-

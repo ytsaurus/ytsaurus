@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <ytlib/misc/lazy_ptr.h>
 
 #include <ytlib/actions/action_queue.h>
@@ -16,7 +18,7 @@ public:
 
     static TDispatcher* Get();
 
-    void SetPoolSize(int poolSize);
+    void Configure(TDispatcherConfigPtr config);
 
     IInvokerPtr GetReaderInvoker();
     IInvokerPtr GetWriterInvoker();
@@ -25,7 +27,7 @@ public:
     void Shutdown();
 
 private:
-    int PoolSize;
+    int CompressionPoolSize;
 
     /*!
      * This thread is used for background operations in #TRemoteChunkReader
