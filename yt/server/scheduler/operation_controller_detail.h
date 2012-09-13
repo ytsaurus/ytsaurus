@@ -193,15 +193,22 @@ protected:
 
         virtual Stroka GetId() const = 0;
         virtual int GetPriority() const;
+
         virtual int GetPendingJobCount() const = 0;
         int GetPendingJobCountDelta();
+
+        virtual NProto::TNodeResources GetTotalNeededResources() const;
+        NProto::TNodeResources GetTotalNeededResourcesDelta();
+        
         virtual int GetChunkListCountPerJob() const = 0;
+        
         virtual TDuration GetLocalityTimeout() const = 0;
         virtual i64 GetLocality(const Stroka& address) const;
         virtual bool IsStrictlyLocal() const;
 
-        virtual NProto::TNodeResources GetMinRequestedResources() const = 0;
-        virtual NProto::TNodeResources GetRequestedResourcesForJip(TJobInProgressPtr jip) const;
+        virtual NProto::TNodeResources GetMinNeededResources() const = 0;
+        virtual NProto::TNodeResources GetAvgNeededResources() const;
+        virtual NProto::TNodeResources GetNeededResources(TJobInProgressPtr jip) const;
         bool HasEnoughResources(TExecNodePtr node) const;
 
         DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, DelayedTime);
@@ -225,6 +232,7 @@ protected:
     private:
         TOperationControllerBase* Controller;
         int CachedPendingJobCount;
+        NProto::TNodeResources CachedTotalNeededResources;
 
     protected:
         NLog::TTaggedLogger& Logger;
@@ -261,8 +269,9 @@ protected:
     std::vector<TPendingTaskInfo> PendingTaskInfos;
 
     int CachedPendingJobCount;
+    NProto::TNodeResources CachedNeededResources;
 
-    void UpdatePendingJobCount(TTaskPtr task);
+    void OnTaskPendingJobCountChanged(TTaskPtr task);
 
     void DoAddTaskLocalityHint(TTaskPtr task, const Stroka& address);
     void AddTaskLocalityHint(TTaskPtr task, const Stroka& address);
@@ -359,7 +368,7 @@ protected:
 
 
     //! Minimum resources that are needed to start any task.
-    virtual NProto::TNodeResources GetMinRequestedResources() const = 0;
+    virtual NProto::TNodeResources GetMinNeededResources() const = 0;
 
 
     //! Called when a job is unable to read a chunk.

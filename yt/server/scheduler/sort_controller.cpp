@@ -65,6 +65,58 @@ public:
         , PartitionTask(New<TPartitionTask>(this))
     { }
 
+    //virtual TNodeResources GetNeededResources() override
+    //{
+    //    auto totalResources = ZeroResources();
+
+    //    // Partition jobs.
+    //    {
+    //        int pendingJobs = PartitionJobCounter.GetPending();
+    //        if (pendingJobs > 0) {
+    //            i64 dataSizePerJob = PartitionTask->DataSizeCounter().GetPending() / pendingJobs;
+
+    //            auto partitionResources = GetPartitionResources(dataSizePerJob);
+    //            MultiplyResources(&partitionResources, pendingJobs);
+
+    //            AddResources(&totalResources, partitionResources);
+    //        }
+    //    }
+
+    //    // Sort jobs.
+    //    {
+    //        int pendingJobs = 
+    //        i64 rowCount = Controller->GetRowCountEstimate(Partition, dataSize);
+    //        i64 valueCount = Controller->GetValueCountEstimate(dataSize);
+    //        return
+    //            Controller->Partitions.size() == 1
+    //            ? Controller->GetSimpleSortResources(dataSize, rowCount, valueCount)
+    //            : Controller->GetPartitionSortResources(Partition, dataSize, rowCount);
+    //    }
+
+    //    // Sorted merge jobs.
+    //    {
+    //        int pendingJobs = SortedMergeJobCounter.GetPending();
+    //        if (pendingJobs > 0) {
+    //            // TODO(babenko): stripe count is wrong
+    //            auto sortedMergeResources = GetSortedMergeResources(2);
+    //            MultiplyResources(&sortedMergeResources, pendingJobs);
+    //            AddResources(&totalResources, sortedMergeResources);
+    //        }
+    //    }
+
+    //    // Unordered merge jobs.
+    //    {
+    //        int pendingJobs = UnorderedMergeJobCounter.GetPending();
+    //        if (pendingJobs > 0) {
+    //            auto unorderedMergeResources = GetUnorderedMergeResources();
+    //            MultiplyResources(&unorderedMergeResources, pendingJobs);
+    //            AddResources(&totalResources, unorderedMergeResources);
+    //        }
+    //    }
+
+    //    return totalResources;
+    //}
+
 private:
     TSortOperationSpecBasePtr Spec;
 
@@ -205,12 +257,22 @@ protected:
             return Controller->Spec->PartitionLocalityTimeout;
         }
 
-        virtual TNodeResources GetMinRequestedResources() const
+        virtual TNodeResources GetMinNeededResources() const override
         {
-            return Controller->GetMinRequestedPartitionResources();
+            return Controller->GetMinNeededPartitionResources();
         }
 
-        virtual TNodeResources GetRequestedResourcesForJip(TJobInProgressPtr jip) const
+        virtual TNodeResources GetAvgNeededResources() const override
+        {
+            int jobCount = GetPendingJobCount();
+            if (jobCount == 0) {
+                return ZeroResources();
+            }
+            i64 dataSizePerJob = ChunkPool->DataSizeCounter().GetPending() / jobCount;
+            return Controller->GetPartitionResources(dataSizePerJob);
+        }
+
+        virtual TNodeResources GetNeededResources(TJobInProgressPtr jip) const override
         {
             return Controller->GetPartitionResources(jip->PoolResult->TotalDataSize);
         }
@@ -377,7 +439,7 @@ protected:
 
     };
 
-    //! Implements sort phase (either simple or partition) for sort operations
+    //! Implements sort phase (either simple or partitioned) for sort operations
     //! and partition reduce phase for map-reduce operations.
     class TSortTask
         : public TPartitionBoundTask
@@ -418,14 +480,24 @@ protected:
                 : static_cast<int>(floor(fractionalJobCount));
         }
 
-        virtual TNodeResources GetMinRequestedResources() const override
+        virtual TNodeResources GetMinNeededResources() const override
         {
-            return Controller->GetMinRequestedPartitionSortResources(Partition);
+            return Controller->GetMinNeededPartitionSortResources(Partition);
         }
 
-        virtual TNodeResources GetRequestedResourcesForJip(TJobInProgressPtr jip) const override
+        virtual TNodeResources GetAvgNeededResources() const override
         {
-            return GetRequestedResourcesForDataSize(jip->PoolResult->TotalDataSize);
+            int jobCount = GetPendingJobCount();
+            if (jobCount == 0) {
+                return ZeroResources();
+            }
+            i64 dataSizePerJob = ChunkPool->DataSizeCounter().GetPending() / jobCount;
+            return GetNeededResourcesForDataSize(dataSizePerJob);
+        }
+
+        virtual TNodeResources GetNeededResources(TJobInProgressPtr jip) const override
+        {
+            return GetNeededResourcesForDataSize(jip->PoolResult->TotalDataSize);
         }
 
         virtual void AddStripe(TChunkStripePtr stripe) override
@@ -444,7 +516,7 @@ protected:
         }
 
     private:
-        TNodeResources GetRequestedResourcesForDataSize(i64 dataSize) const
+        TNodeResources GetNeededResourcesForDataSize(i64 dataSize) const
         {
             i64 rowCount = Controller->GetRowCountEstimate(Partition, dataSize);
             i64 valueCount = Controller->GetValueCountEstimate(dataSize);
@@ -618,7 +690,7 @@ protected:
                 ? 1 : 0;
         }
 
-        virtual TNodeResources GetMinRequestedResources() const override
+        virtual TNodeResources GetMinNeededResources() const override
         {
             return Controller->GetSortedMergeResources(ChunkPool->StripeCounter().GetTotal());
         }
@@ -715,7 +787,7 @@ protected:
             return false;
         }
 
-        virtual TNodeResources GetMinRequestedResources() const override
+        virtual TNodeResources GetMinNeededResources() const override
         {
             return Controller->GetUnorderedMergeResources();
         }
@@ -972,7 +1044,7 @@ protected:
     virtual TNodeResources GetPartitionResources(
         i64 dataSize) const = 0;
 
-    TNodeResources GetMinRequestedPartitionResources() const
+    TNodeResources GetMinNeededPartitionResources() const
     {
         // Holds both for sort and map-reduce.
         return GetPartitionResources(std::min(
@@ -990,7 +1062,7 @@ protected:
         i64 dataSize,
         i64 rowCount) const = 0;
 
-    TNodeResources GetMinRequestedPartitionSortResources(
+    TNodeResources GetMinNeededPartitionSortResources(
         TPartitionPtr partition) const
     {
         i64 dataSize = Spec->MaxDataSizePerSortJob;
@@ -1006,13 +1078,13 @@ protected:
 
     virtual TNodeResources GetUnorderedMergeResources() const = 0;
 
-    virtual TNodeResources GetMinRequestedResources() const override
+    virtual TNodeResources GetMinNeededResources() const override
     {
         if (PartitionTask) {
-            return PartitionTask->GetMinRequestedResources();
+            return PartitionTask->GetMinNeededResources();
         }
         if (!Partitions.empty()) {
-            return Partitions[0]->SortTask->GetMinRequestedResources();
+            return Partitions[0]->SortTask->GetMinNeededResources();
         }
 
         return InfiniteResources();
@@ -1850,11 +1922,11 @@ private:
         result.set_slots(1);
         if (Spec->Mapper) {
             bufferSize += windowSize;
+            result.set_cpu(Spec->Mapper->CpuLimit);
             result.set_memory(GetIOMemorySize(PartitionJobIOConfig, 1, 0) + 
                 bufferSize +
                 Spec->Mapper->MemoryLimit +
                 GetFootprintMemorySize());
-            result.set_cpu(Spec->Mapper->CpuLimit);
         } else {
             bufferSize = std::min(bufferSize, dataSize + reserveSize);
             bufferSize += windowSize;

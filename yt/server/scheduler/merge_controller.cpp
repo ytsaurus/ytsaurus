@@ -118,9 +118,9 @@ protected:
             return Controller->Spec->LocalityTimeout;
         }
         
-        virtual NProto::TNodeResources GetMinRequestedResources() const override
+        virtual NProto::TNodeResources GetMinNeededResources() const override
         {
-            return Controller->GetMinRequestedResources();
+            return Controller->GetMinNeededResources();
         }
 
 
@@ -394,7 +394,7 @@ protected:
 
     // Unsorted helpers.
 
-    virtual TNodeResources GetMinRequestedResources() const override
+    virtual TNodeResources GetMinNeededResources() const override
     {
         TNodeResources result;
         result.set_slots(1);
@@ -1001,7 +1001,7 @@ private:
         JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
     }
 
-    virtual NProto::TNodeResources GetMinRequestedResources() const override
+    virtual NProto::TNodeResources GetMinNeededResources() const override
     {
         TNodeResources result;
         result.set_slots(1);

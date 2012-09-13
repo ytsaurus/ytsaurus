@@ -89,9 +89,9 @@ private:
             return Controller->Spec->LocalityTimeout;
         }
 
-        virtual TNodeResources GetMinRequestedResources() const override
+        virtual TNodeResources GetMinNeededResources() const override
         {
-            return Controller->GetMinRequestedResources();
+            return Controller->GetMinNeededResources();
         }
 
     private:
@@ -210,7 +210,7 @@ private:
     }
 
 
-    virtual TNodeResources GetMinRequestedResources() const
+    virtual TNodeResources GetMinNeededResources() const
     {
         TNodeResources result;
         result.set_slots(1);
