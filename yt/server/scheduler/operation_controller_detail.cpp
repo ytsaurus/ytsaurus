@@ -259,6 +259,7 @@ TOperationControllerBase::TOperationControllerBase(
     , RunningJobCount(0)
     , CompletedJobCount(0)
     , FailedJobCount(0)
+    , UsedResources(ZeroResources())
     , PendingTaskInfos(MaxTaskPriority + 1)
     , CachedPendingJobCount(0)
 {
@@ -387,6 +388,11 @@ TFuture<void> TOperationControllerBase::Commit()
         }));
 }
 
+void TOperationControllerBase::OnJobStarted(TJobPtr job)
+{
+    AddResources(&UsedResources, job->GetSpec()->resource_utilization());
+}
+
 void TOperationControllerBase::OnJobRunning(TJobPtr job)
 {
     UNUSED(job);
@@ -398,6 +404,8 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
 
     --RunningJobCount;
     ++CompletedJobCount;
+
+    SubtractResources(&UsedResources, job->GetSpec()->resource_utilization());
 
     auto jip = GetJobInProgress(job);
     jip->Task->OnJobCompleted(jip);
@@ -421,6 +429,8 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
 
     --RunningJobCount;
     ++FailedJobCount;
+
+    SubtractResources(&UsedResources, job->GetSpec()->resource_utilization());
 
     auto jip = GetJobInProgress(job);
     jip->Task->OnJobFailed(jip);
@@ -627,6 +637,7 @@ TJobPtr TOperationControllerBase::DoScheduleJob(ISchedulingContext* context)
                     delayedTime ? ~ToString(now - delayedTime.Get()) : "Null");
                 bestTask->SetDelayedTime(Null);
                 UpdatePendingJobCount(bestTask);
+                OnJobStarted(job);
                 return job;
             }
         }
@@ -673,6 +684,7 @@ TJobPtr TOperationControllerBase::DoScheduleJob(ISchedulingContext* context)
                     priority,
                     delayedTime ? ~ToString(now - delayedTime.Get()) : "Null");
                 UpdatePendingJobCount(task);
+                OnJobStarted(job);
                 return job;
             }
         }
@@ -688,8 +700,7 @@ int TOperationControllerBase::GetPendingJobCount()
 
 NProto::TNodeResources TOperationControllerBase::GetUsedResources()
 {
-    // TODO(babenko): fixme
-    return ZeroResources();
+    return UsedResources;
 }
 
 NProto::TNodeResources TOperationControllerBase::GetNeededResources()

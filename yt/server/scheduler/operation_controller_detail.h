@@ -85,6 +85,9 @@ protected:
     int CompletedJobCount;
     int FailedJobCount;
 
+    // Total resources used by all running jobs.
+    NProto::TNodeResources UsedResources;
+
     // The primary transaction for the whole operation (nested inside operation's transaction).
     NTransactionClient::ITransactionPtr PrimaryTransaction;
     // The transaction for reading input tables (nested inside the primary one).
@@ -268,6 +271,7 @@ protected:
     TPendingTaskInfo* GetPendingTaskInfo(TTaskPtr task);
 
     TJobPtr DoScheduleJob(ISchedulingContext* context);
+    void OnJobStarted(TJobPtr job);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(BackgroundThread);
