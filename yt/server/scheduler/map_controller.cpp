@@ -214,7 +214,7 @@ private:
     {
         TNodeResources result;
         result.set_slots(1);
-        result.set_cores(Spec->Mapper->CoresLimit);
+        result.set_cpu(Spec->Mapper->CpuLimit);
         result.set_memory(
             GetIOMemorySize(
                 JobIOConfig,

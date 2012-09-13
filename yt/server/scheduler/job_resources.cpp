@@ -28,13 +28,13 @@ Stroka FormatResourceUtilization(
     const TNodeResources& utilization,
     const TNodeResources& limits)
 {
-    return Sprintf("Slots: %d/%d, Cores: %d/%d, Memory: %d/%d, Network: %d/%d",
+    return Sprintf("Slots: %d/%d, Cpu: %d/%d, Memory: %d/%d, Network: %d/%d",
         // Slots
         utilization.slots(),
         limits.slots(),
-        // Cores
-        utilization.cores(),
-        limits.cores(),
+        // Cpu
+        utilization.cpu(),
+        limits.cpu(),
         // Memory (in MB)
         static_cast<int>(utilization.memory() / (1024 * 1024)),
         static_cast<int>(limits.memory() / (1024 * 1024)),
@@ -44,21 +44,31 @@ Stroka FormatResourceUtilization(
 
 Stroka FormatResources(const TNodeResources& resources)
 {
-    return Sprintf("Slots: %d, Cores: %d, Memory: %d, Network: %d",
+    return Sprintf("Slots: %d, Cpu: %d, Memory: %d, Network: %d",
         resources.slots(),
-        resources.cores(),
+        resources.cpu(),
         static_cast<int>(resources.memory() / (1024 * 1024)),
         resources.network());
 }
 
-void IncreaseResourceUtilization(
-    TNodeResources* utilization,
-    const TNodeResources& delta)
+void AddResources(
+    TNodeResources* lhs,
+    const TNodeResources& rhs)
 {
-    utilization->set_slots(utilization->slots() + delta.slots());
-    utilization->set_cores(utilization->cores() + delta.cores());
-    utilization->set_memory(utilization->memory() + delta.memory());
-    utilization->set_network(utilization->network() + delta.network());
+    lhs->set_slots(lhs->slots() + rhs.slots());
+    lhs->set_cpu(lhs->cpu() + rhs.cpu());
+    lhs->set_memory(lhs->memory() + rhs.memory());
+    lhs->set_network(lhs->network() + rhs.network());
+}
+
+void SubtractResources(
+    TNodeResources* lhs,
+    const TNodeResources& rhs)
+{
+    lhs->set_slots(lhs->slots() - rhs.slots());
+    lhs->set_cpu(lhs->cpu() - rhs.cpu());
+    lhs->set_memory(lhs->memory() - rhs.memory());
+    lhs->set_network(lhs->network() - rhs.network());
 }
 
 bool HasEnoughResources(
@@ -68,7 +78,7 @@ bool HasEnoughResources(
 {
     return
         currentUtilization.slots() + requestedUtilization.slots() <= limits.slots() &&
-        currentUtilization.cores() + requestedUtilization.cores() <= limits.cores() &&
+        currentUtilization.cpu() + requestedUtilization.cpu() <= limits.cpu() &&
         currentUtilization.memory() + requestedUtilization.memory() <= limits.memory() &&
         currentUtilization.network() + requestedUtilization.network() <= limits.network();
 }
@@ -79,7 +89,7 @@ bool HasSpareResources(
 {
     return
         utilization.slots() < limits.slots() &&
-        utilization.cores() < limits.cores() &&
+        utilization.cpu() < limits.cpu() &&
         utilization.memory() + LowWatermarkMemorySize < limits.memory();
 }
 
@@ -89,7 +99,7 @@ void BuildNodeResourcesYson(
 {
     BuildYsonMapFluently(consumer)
         .Item("slots").Scalar(resources.slots())
-        .Item("cores").Scalar(resources.cores())
+        .Item("cpu").Scalar(resources.cpu())
         .Item("memory").Scalar(resources.memory())
         .Item("network").Scalar(resources.network());
 }
@@ -98,7 +108,7 @@ TNodeResources ZeroResources()
 {
     TNodeResources result;
     result.set_slots(0);
-    result.set_cores(0);
+    result.set_cpu(0);
     result.set_memory(0);
     result.set_network(0);
     return result;
@@ -108,7 +118,7 @@ TNodeResources InfiniteResources()
 {
     TNodeResources result;
     result.set_slots(1000);
-    result.set_cores(1000);
+    result.set_cpu(1000);
     result.set_memory((i64) 1024 * 1024 * 1024 * 1024);
     result.set_network(1000);
     return result;

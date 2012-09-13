@@ -253,7 +253,9 @@ class TPool
 public:
     explicit TPool(const Stroka& id)
         : Id(id)
-    { }
+    {
+        SetDefaultConfig();
+    }
 
     const Stroka& GetId() const
     {

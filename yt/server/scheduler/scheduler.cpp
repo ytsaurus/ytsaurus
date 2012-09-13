@@ -100,7 +100,7 @@ public:
 
         StartedJobs_.push_back(job);
 
-        IncreaseResourceUtilization(
+        AddResources(
             &Node->ResourceUtilization(),
             job->GetSpec()->resource_utilization());
 
@@ -204,6 +204,11 @@ public:
         return ~MasterConnector;
     }
 
+    NProto::TNodeResources GetTotalResourceLimits() override
+    {
+        return TotalResourceLimits;
+    }
+
     // IOperationHost implementation
     virtual NRpc::IChannelPtr GetMasterChannel() override
     {
@@ -281,6 +286,8 @@ private:
     TJobMap Jobs;
     std::vector<int> JobTypeCounters;
 
+    NProto::TNodeResources TotalResourceLimits;
+
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 
@@ -303,29 +310,11 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        switch (operation->GetState()) {
-            case EOperationState::Preparing:
-            case EOperationState::Running:
-            case EOperationState::Reviving:
-                LOG_INFO("Operation belongs to an expired transaction %s, aborting (OperationId: %s)",
-                    ~operation->GetTransactionId().ToString(),
-                    ~operation->GetOperationId().ToString());
-                AbortOperation(operation, TError("Operation transaction has been expired or was aborted"));
-                break;
+        LOG_INFO("Operation belongs to an expired transaction %s, aborting (OperationId: %s)",
+            ~operation->GetTransactionId().ToString(),
+            ~operation->GetOperationId().ToString());
 
-            case EOperationState::Completed:
-            case EOperationState::Aborted:
-            case EOperationState::Failed:
-                LOG_INFO("Operation belongs to an expired transaction %s (OperationId: %s), unregistering",
-                    ~operation->GetTransactionId().ToString(),
-                    ~operation->GetOperationId().ToString());
-                break;
-
-            default:
-                YUNREACHABLE();
-        }
-
-        UnregisterOperation(operation);
+        AbortOperation(operation, TError("Operation transaction has been expired or was aborted"));
     }
 
 
@@ -392,6 +381,8 @@ private:
     
         auto node = GetNode(address);
         UnregisterNode(node);
+
+        SubtractResources(&TotalResourceLimits, node->ResourceLimits());
     }
 
 
@@ -631,6 +622,13 @@ private:
         LOG_DEBUG("Operation unregistered (OperationId: %s)", ~operation->GetOperationId().ToString());
     }
 
+    void FinishOperation(TOperationPtr operation)
+    {
+        operation->SetFinished();
+        operation->SetController(NULL);
+        UnregisterOperation(operation);
+    }
+
     void ProfileOperationCounters()
     {
         Profiler.Enqueue("/operation_count", Operations.size());
@@ -844,8 +842,9 @@ private:
     
     void OnCompletedOperationNodeFinalized(TOperationPtr operation)
     {
-        operation->SetFinished();
-        operation->SetController(NULL);
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        FinishOperation(operation);
     }
 
 
@@ -881,8 +880,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         operation->GetController()->Abort();
-        operation->SetFinished();
-        operation->SetController(NULL);
+        FinishOperation(operation);
     }
 
 
@@ -1021,8 +1019,10 @@ private:
             return;
         }
 
+        SubtractResources(&TotalResourceLimits, node->ResourceLimits());
         node->ResourceUtilization() = resourceUtilization;
         node->ResourceLimits() = resourceLimits;
+        AddResources(&TotalResourceLimits, node->ResourceLimits());
 
         PROFILE_TIMING ("/analysis_time") {
             auto missingJobs = node->Jobs();

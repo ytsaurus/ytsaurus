@@ -398,7 +398,7 @@ protected:
     {
         TNodeResources result;
         result.set_slots(1);
-        result.set_cores(1);
+        result.set_cpu(1);
         result.set_memory(
             GetIOMemorySize(JobIOConfig, GetInputTablePaths().size(), 1) +
             GetFootprintMemorySize());
@@ -1005,7 +1005,7 @@ private:
     {
         TNodeResources result;
         result.set_slots(1);
-        result.set_cores(Spec->Reducer->CoresLimit);
+        result.set_cpu(Spec->Reducer->CpuLimit);
         result.set_memory(
             GetIOMemorySize(JobIOConfig, Spec->InputTablePaths.size(), Spec->OutputTablePaths.size()) +
             Spec->Reducer->MemoryLimit +

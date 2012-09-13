@@ -186,7 +186,7 @@ class Holder(Server):
             'job_manager': {
                 'resource_limits' : {
                     'slots' : 24,
-                    'cores' : 22,
+                    'cpu' : 22,
                     'memory' : 34 * 1024 * 1024 * 1024
                 },
                 'slot_location' : '%(work_dir)s/slots'

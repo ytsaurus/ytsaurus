@@ -86,7 +86,7 @@ TNodeResources TJobManager::GetResourceLimits()
 {
     TNodeResources result;
     result.set_slots(Config->ResourceLimits->Slots);
-    result.set_cores(Config->ResourceLimits->Cores);
+    result.set_cpu(Config->ResourceLimits->Cpu);
     result.set_network(Config->ResourceLimits->Network);
 
     result.set_memory(Bootstrap->GetMemoryUsageTracker().GetTotalMemory());
@@ -98,7 +98,7 @@ TNodeResources TJobManager::GetResourceUtilization()
     auto totalUtilization = ZeroResources();
     FOREACH (const auto& pair, Jobs) {
         auto jobUtilization = pair.second->GetResourceUtilization();
-        IncreaseResourceUtilization(&totalUtilization, jobUtilization);
+        AddResources(&totalUtilization, jobUtilization);
     }
 
     totalUtilization.set_memory(Bootstrap->GetMemoryUsageTracker().GetUsedMemory());

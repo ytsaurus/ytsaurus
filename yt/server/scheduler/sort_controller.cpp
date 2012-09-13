@@ -1432,7 +1432,7 @@ private:
 
         TNodeResources result;
         result.set_slots(1);
-        result.set_cores(1);
+        result.set_cpu(1);
         result.set_memory(
             // NB: due to large MaxBufferSize for partition that was accounted in buffer size 
             // we eliminate number of output streams to zero.
@@ -1449,10 +1449,10 @@ private:
     {
         TNodeResources result;
         result.set_slots(1);
-        result.set_cores(1);
+        result.set_cpu(1);
         result.set_memory(
-            // NB: Sort jobs typically have large prefetch window, which would
-            // drastically increase the estimated consumption returned by GetIOMemorySize.
+            // NB: Sort jobs typically have large prefetch window that
+            // drastically increases the estimated consumption returned by GetIOMemorySize.
             // Setting input count to zero to eliminates this term.
             GetIOMemorySize(FinalSortJobIOConfig, 0, 1) +
             dataSize +
@@ -1473,7 +1473,7 @@ private:
         auto ioConfig = IsSortedMergeNeeded(partition) ? IntermediateSortJobIOConfig : FinalSortJobIOConfig;
         TNodeResources result;
         result.set_slots(1);
-        result.set_cores(1);
+        result.set_cpu(1);
         result.set_memory(
             // NB: See comment above for GetSimpleSortJobResources.
             GetIOMemorySize(ioConfig, 0, 1) +
@@ -1490,7 +1490,7 @@ private:
     {
         TNodeResources result;
         result.set_slots(1);
-        result.set_cores(1);
+        result.set_cpu(1);
         result.set_memory(
             GetIOMemorySize(SortedMergeJobIOConfig, stripeCount, 1) +
             GetFootprintMemorySize());
@@ -1501,7 +1501,7 @@ private:
     {
         TNodeResources result;
         result.set_slots(1);
-        result.set_cores(1);
+        result.set_cpu(1);
         result.set_memory(
             GetIOMemorySize(UnorderedMergeJobIOConfig, 1, 1) +
             GetFootprintMemorySize());
@@ -1854,11 +1854,11 @@ private:
                 bufferSize +
                 Spec->Mapper->MemoryLimit +
                 GetFootprintMemorySize());
-            result.set_cores(Spec->Mapper->CoresLimit);
+            result.set_cpu(Spec->Mapper->CpuLimit);
         } else {
             bufferSize = std::min(bufferSize, dataSize + reserveSize);
             bufferSize += windowSize;
-            result.set_cores(1);
+            result.set_cpu(1);
             result.set_memory(
                 GetIOMemorySize(PartitionJobIOConfig, 1, 0) + 
                 bufferSize +
@@ -1883,7 +1883,7 @@ private:
         TNodeResources result;
         result.set_slots(1);
         if (IsSortedMergeNeeded(partition)) {
-            result.set_cores(1);
+            result.set_cpu(1);
             result.set_memory(
                 GetIOMemorySize(IntermediateSortJobIOConfig, 0, 1) +
                 dataSize +
@@ -1891,7 +1891,7 @@ private:
                 (i64) 12 * rowCount +
                 GetFootprintMemorySize());
         } else {
-            result.set_cores(Spec->Reducer->CoresLimit);
+            result.set_cpu(Spec->Reducer->CpuLimit);
             result.set_memory(
                 GetIOMemorySize(FinalSortJobIOConfig, 0, Spec->OutputTablePaths.size()) +
                 dataSize +
@@ -1909,7 +1909,7 @@ private:
     {
         TNodeResources result;
         result.set_slots(1);
-        result.set_cores(Spec->Reducer->CoresLimit);
+        result.set_cpu(Spec->Reducer->CpuLimit);
         result.set_memory(
             GetIOMemorySize(SortedMergeJobIOConfig, stripeCount, Spec->OutputTablePaths.size()) +
             Spec->Reducer->MemoryLimit +

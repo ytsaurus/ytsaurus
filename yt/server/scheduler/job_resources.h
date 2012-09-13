@@ -20,9 +20,13 @@ Stroka FormatResourceUtilization(
 Stroka FormatResources(
     const NProto::TNodeResources& resources);
 
-void IncreaseResourceUtilization(
-    NProto::TNodeResources* utilization,
-    const NProto::TNodeResources& delta);
+void AddResources(
+    NProto::TNodeResources* lhs,
+    const NProto::TNodeResources& rhs);
+
+void SubtractResources(
+    NProto::TNodeResources* lhs,
+    const NProto::TNodeResources& rhs);
 
 bool HasEnoughResources(
     const NProto::TNodeResources& currentUtilization,
