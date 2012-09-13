@@ -192,6 +192,47 @@ Handle<Value> SetEioConcurrency(const Arguments& args)
     return Undefined();
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// Stuff related to global subsystems
+
+Handle<Value> ConfigureSingletons(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    YASSERT(args.Length() == 1);
+
+    EXPECT_THAT_IS(args[0], Object);
+
+    INodePtr configNode = ConvertV8ValueToNode(args[0]);
+    if (!configNode) {
+        Message = "Error converting from V8 to YSON";
+        return;
+    }
+
+    NNodeJS::THttpProxyConfigPtr config;
+    try {
+        // Qualify namespace to avoid collision with class method New().
+        config = NYT::New<NYT::NNodeJS::THttpProxyConfigPtr>();
+        config->Load(configNode);
+    } catch (const std::exception& ex) {
+        return ThrowException(Exception::TypeError(
+            String::Concat(
+                String::New("Error loading configuration: "),
+                String::New(ex.what()))));
+    }
+
+    try {
+        NLog::TLogManager::Get()->Configure(config->Logging);
+        NChunkClient::TDispatcher::Get()->Configure(config->ChunkClientDispatcher);
+    } catch (const std::exception& ex) {
+        return ThrowException(Exception::TypeError(
+            String::Concat(
+                String::New("Error initializing driver instance: "),
+                String::New(ex.what()))));
+    }
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -235,6 +276,9 @@ void Initialize(Handle<Object> target)
     target->Set(
         String::NewSymbol("SetEioConcurrency"),
         FunctionTemplate::New(SetEioConcurrency)->GetFunction());
+    target->Set(
+        String::NewSymbol("ConfigureSingletons"),
+        FunctionTemplate::New(ConfigureSingletons)->GetFunction());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
