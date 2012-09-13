@@ -401,7 +401,7 @@ private:
                 LOG_ERROR("Invalid pool %s for operation %s, using %s",
                     ~spec->Pool.Get().Quote(),
                     ~ToString(operation->GetOperationId()),
-                    DefaultPool->GetId().Quote());
+                    ~DefaultPool->GetId().Quote());
             }
         }
         if (!pool) {
