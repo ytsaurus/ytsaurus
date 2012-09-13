@@ -22,4 +22,4 @@ clean:
 	rm -rf build/ MANIFEST
 	find . -name '*.pyc' -delete
 	rm -rf tests
-	$(MAKE) -f $(CURDIR)/debian/rules clean
+	sudo $(MAKE) -f $(CURDIR)/debian/rules clean
