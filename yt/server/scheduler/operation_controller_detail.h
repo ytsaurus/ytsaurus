@@ -50,6 +50,8 @@ public:
     virtual TJobPtr ScheduleJob(ISchedulingContext* context) override;
 
     virtual int GetPendingJobCount() override;
+    virtual NProto::TNodeResources GetUsedResources() override;
+    virtual NProto::TNodeResources GetNeededResources() override;
 
     virtual void BuildProgressYson(NYTree::IYsonConsumer* consumer) override;
     virtual void BuildResultYson(NYTree::IYsonConsumer* consumer) override;

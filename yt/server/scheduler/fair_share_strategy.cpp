@@ -81,18 +81,6 @@ public:
         : Operation(operation)
     { }
 
-    void Init()
-    {
-        try {
-            Spec = ConvertTo<TPooledOperationSpecPtr>(Operation->GetSpec());
-        } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error parsing spec of pooled operation %s, using the default one",
-                ~ToString(Operation->GetOperationId()));
-            Spec = New<TPooledOperationSpec>();
-        }
-    }
-
-
     virtual void ScheduleJobs(ISchedulingContext* context) override
     {
         while (context->HasSpareResources()) {
@@ -124,6 +112,11 @@ public:
     TPooledOperationSpecPtr GetSpec() const
     {
         return Spec;
+    }
+
+    void SetSpec(TPooledOperationSpecPtr newSpec)
+    {
+        Spec = newSpec;
     }
 
 
@@ -222,6 +215,7 @@ public:
             CachedRankedElements.push_back(element);
         }
 
+        // Sort by weight (desc), then by start time (asc).
         std::sort(
             CachedRankedElements.begin(),
             CachedRankedElements.end(),
@@ -240,6 +234,30 @@ public:
 
 private:
     yhash_set<ISchedulableElementPtr> Elements;
+    std::vector<ISchedulableElementPtr> CachedRankedElements;
+
+};
+
+////////////////////////////////////////////////////////////////////
+
+class TFairShareRanking
+    : public IElementRanking
+{
+public:
+    virtual void AddElement(ISchedulableElementPtr element) override
+    {
+    }
+
+    virtual void RemoveElement(ISchedulableElementPtr element) override
+    {
+    }
+
+    virtual const std::vector<ISchedulableElementPtr>& GetRankedElements() override
+    {
+        return CachedRankedElements;
+    }
+
+private:
     std::vector<ISchedulableElementPtr> CachedRankedElements;
 
 };
@@ -269,7 +287,7 @@ public:
 
     void SetConfig(TPoolConfigPtr newConfig)
     {
-        Config = CloneYsonSerializable(newConfig);
+        Config = newConfig;
 
         switch (Config->Mode) {
             case EPoolMode::Fifo:
@@ -277,8 +295,7 @@ public:
                 break;
 
             case EPoolMode::FairShare:
-                // TODO(babenko): fixme
-                SetRanking(new TFifoRanking());
+                SetRanking(new TFairShareRanking());
                 break;
 
             default:
@@ -332,6 +349,7 @@ class TFairShareStrategy
 {
 public:
     explicit TFairShareStrategy(ISchedulerStrategyHost* host)
+        : Host(host)
     {
         host->SubscribeOperationStarted(BIND(&TFairShareStrategy::OnOperationStarted, this));
         host->SubscribeOperationFinished(BIND(&TFairShareStrategy::OnOperationFinished, this));
@@ -352,6 +370,8 @@ public:
     }
 
 private:
+    ISchedulerStrategyHost* Host;
+
     yhash_map<Stroka, TPoolPtr> IdToPool;
     TPoolPtr DefaultPool;
 
@@ -364,10 +384,17 @@ private:
     {
         auto element = New<TOperationElement>(operation);
         YCHECK(OperationToElement.insert(std::make_pair(operation, element)).second);
-        element->Init();
+
+        TPooledOperationSpecPtr spec;
+        try {
+            spec = ConvertTo<TPooledOperationSpecPtr>(operation->GetSpec());
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error parsing spec of pooled operation %s, defaults will be used",
+                ~ToString(operation->GetOperationId()));
+            spec = New<TPooledOperationSpec>();
+        }
 
         TPoolPtr pool;
-        auto spec = element->GetSpec();
         if (spec->Pool) {
             pool = FindPool(spec->Pool.Get());
             if (!pool) {
@@ -380,7 +407,10 @@ private:
         if (!pool) {
             pool = DefaultPool;
         }
+
+        element->SetSpec(spec);
         element->SetPool(pool);
+
         pool->AddChild(element);
 
         LOG_INFO("Operation added to pool (OperationId: %s, PoolId: %s)",
@@ -447,7 +477,7 @@ private:
         auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_pools");
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
-        // Build the set of potential orphans (skipping the default pool).
+        // Build the set of potential orphans.
         yhash_set<Stroka> orphanPoolIds;
         FOREACH (const auto& pair, IdToPool) {
             const auto& id = pair.first;
@@ -464,7 +494,14 @@ private:
             if (existingPool) {
                 // Reconfigure existing pool.
                 auto configNode = ConvertToNode(poolNode->Attributes());
-                auto config = ConvertTo<TPoolConfigPtr>(configNode);
+                TPoolConfigPtr config;
+                try {
+                    config = ConvertTo<TPoolConfigPtr>(configNode);
+                } catch (const std::exception& ex) {
+                    LOG_ERROR(ex, "Error parsing configuration of pool %s, defauls will be used",
+                        ~id.Quote());
+                    config = New<TPoolConfig>();
+                }
                 existingPool->SetConfig(config);
                 YCHECK(orphanPoolIds.erase(id) == 1);
             } else {

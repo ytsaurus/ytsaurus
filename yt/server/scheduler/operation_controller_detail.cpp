@@ -686,6 +686,18 @@ int TOperationControllerBase::GetPendingJobCount()
     return CachedPendingJobCount;
 }
 
+NProto::TNodeResources TOperationControllerBase::GetUsedResources()
+{
+    // TODO(babenko): fixme
+    return ZeroResources();
+}
+
+NProto::TNodeResources TOperationControllerBase::GetNeededResources()
+{
+    // TODO(babenko): fixme
+    return ZeroResources();
+}
+
 void TOperationControllerBase::OnOperationCompleted()
 {
     VERIFY_THREAD_AFFINITY_ANY();
