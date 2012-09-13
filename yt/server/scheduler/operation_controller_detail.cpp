@@ -459,7 +459,7 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
     --RunningJobCount;
     ++FailedJobCount;
 
-    SubtractResources(&UsedResources, job->GetSpec()->resource_utilization());
+    SubtractResources(&UsedResources, job->ResourceUtilization());
 
     auto jip = GetJobInProgress(job);
     jip->Task->OnJobFailed(jip);
