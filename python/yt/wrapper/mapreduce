@@ -15,7 +15,7 @@ import yt.wrapper as yt
 
 import sys
 import simplejson as json
-from argparse import ArgumentParser, HelpFormatter
+from argparse import ArgumentParser, RawTextHelpFormatter
 from operator import attrgetter
 from functools import partial
 from itertools import imap
@@ -67,7 +67,7 @@ def add_help_messages(parser, args):
 def parse_format(format):
     return None if format is None else yt.RawFormat(format)
 
-class SortingHelpFormatter(HelpFormatter):
+class SortingHelpFormatter(RawTextHelpFormatter):
     def add_arguments(self, actions):
         actions = sorted(actions, key=attrgetter('option_strings'))
         super(SortingHelpFormatter, self).add_arguments(actions)
@@ -78,38 +78,37 @@ def main():
 
     parser = ArgumentParser(
         formatter_class=SortingHelpFormatter,
-        description="Shell utility to work with YT system. "
+        description="Shell utility to work with YT system.\n"
                     "This utitlity is back-compatible with mapreduce fo Yamr.",
         epilog=
 """
 Examples:
-
-Append data to table with replication factor one, gzip codec and chunks of size 1Gb:
-./mapreduce -write 'table' -replication_factor 1 -codec 'gzip_normal' -chunksize 1073741824 -append < data
-
-Run operation on the range of the table:
-./mapreduce 
-    -subkey 
-    -map 'awk '"'"'{sum+=$1+$2} END {print "\t\t"sum}'"'" 
-    -src "ignat/temp{key,subkey}[("aaa"):("zzz")]" 
-    -dst "ignat/sum"
-
-Run map-reduce operation:
-./mapreduce 
-    -subkey 
-    -map 'grep "A"'
-    -reduce 'awk '"'"'{a[$1]+=$3} END {for (i in a) {print i"\t\t"a[i]}}'"'"
-    -src "ignat/temp"
-    -dst "ignat/reduced"
-
-Use already uploaded files:
-./mapreduce -upload mapper.py -dst ignat/mapper.py
-./mapreduce -subkey -map "./mapper.py" -ytfile "ignat/mapper.py" -src "ignat/temp" -dst "ignat/mapped"
-
-Use attrbiutes:
-./mapreduce -set "log/@my_attr"  -value 10
-./mapreduce -get "log/@my_attr"
-It returns 10.
+    Append data to table with replication factor one, gzip codec and chunks of size 1Gb:
+            ./mapreduce -write 'table' -replication_factor 1 -codec 'gzip_normal' -chunksize 1073741824 -append < data
+    
+    Run operation on the range of the table:
+            ./mapreduce 
+                -subkey 
+                -map 'awk '"'"'{sum+=$1+$2} END {print "\\t\\t"sum}'"'" 
+                -src "ignat/temp{key,subkey}[("aaa"):("zzz")]" 
+                -dst "ignat/sum"
+    
+    Run map-reduce operation:
+            ./mapreduce 
+                -subkey 
+                -map 'grep "A"'
+                -reduce 'awk '"'"'{a[$1]+=$3} END {for (i in a) {print i"\\t\\t"a[i]}}'"'"
+                -src "ignat/temp"
+                -dst "ignat/reduced"
+    
+    Use already uploaded files:
+            ./mapreduce -upload mapper.py -dst ignat/mapper.py
+            ./mapreduce -subkey -map "./mapper.py" -ytfile "ignat/mapper.py" -src "ignat/temp" -dst "ignat/mapped"
+    
+    Use attrbiutes:
+            ./mapreduce -set "log/@my_attr"  -value 10
+            ./mapreduce -get "log/@my_attr"
+    It returns 10.
 """
     )
 

@@ -285,6 +285,12 @@ def get_proxy_config():
     "filename" : "/dev/null"
   },
 
-  "driver" : { }
+  "proxy" : {
+    "logging" : {
+      "rules" : [ ],
+      "writers" : { }
+    },
+    "driver" : { }
+  }
 }
 """)
