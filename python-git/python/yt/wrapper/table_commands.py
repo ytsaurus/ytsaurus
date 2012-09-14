@@ -110,6 +110,7 @@ def read_table(table, format=None):
     #return response.iter_lines(chunk_size=config.READ_BUFFER_SIZE)
 
 def remove_table(table):
+    table = to_name(table)
     if exists(table) and get_attribute(table, "type") == "table":
         remove(table)
 
