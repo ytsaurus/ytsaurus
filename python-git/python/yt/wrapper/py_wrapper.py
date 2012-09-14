@@ -36,7 +36,6 @@ def wrap(function):
 
     # We don't use with statement for compatibility with python2.6
     zip = ZipFile(zip_filename, "w")
-    zip.open()
     for module in sys.modules.values():
         if hasattr(module, "__file__"):
             zip.write(module.__file__, module_relpath(module))
