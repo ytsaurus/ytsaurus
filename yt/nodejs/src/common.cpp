@@ -209,10 +209,11 @@ Handle<Value> ConfigureSingletons(const Arguments& args)
 
     EXPECT_THAT_IS(args[0], Object);
 
+    TryCatch catcher;
     INodePtr configNode = ConvertV8ValueToNode(args[0]);
     if (!configNode) {
-        return ThrowException(Exception::TypeError(
-            String::New("Error converting from V8 to YSON")));
+        return catcher.HasCaught() ? catcher.ReThrow() : ThrowException(
+            Exception::TypeError(String::New("Error converting from V8 to YSON")));
     }
 
     NNodeJS::THttpProxyConfigPtr config;
@@ -221,8 +222,8 @@ Handle<Value> ConfigureSingletons(const Arguments& args)
         config = ::NYT::New<NYT::NNodeJS::THttpProxyConfig>();
         config->Load(configNode);
     } catch (const std::exception& ex) {
-        return ThrowException(Exception::TypeError(
-            String::Concat(
+        return catcher.HasCaught() ? catcher.ReThrow() : ThrowException(
+            Exception::TypeError(String::Concat(
                 String::New("Error loading configuration: "),
                 String::New(ex.what()))));
     }
@@ -231,8 +232,8 @@ Handle<Value> ConfigureSingletons(const Arguments& args)
         NLog::TLogManager::Get()->Configure(config->Logging);
         NChunkClient::TDispatcher::Get()->Configure(config->ChunkClientDispatcher);
     } catch (const std::exception& ex) {
-        return ThrowException(Exception::TypeError(
-            String::Concat(
+        return catcher.HasCaught() ? catcher.ReThrow() : ThrowException(
+            Exception::TypeError(String::Concat(
                 String::New("Error initializing driver instance: "),
                 String::New(ex.what()))));
     }
