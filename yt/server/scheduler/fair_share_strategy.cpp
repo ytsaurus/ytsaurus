@@ -370,7 +370,7 @@ protected:
     double GetUseToTotalRatio(const TChildInfo& childInfo)
     {
         i64 use = GetResource(childInfo.Element->GetUse(), childInfo.DominantType);
-        i64 total = std::max(GetResource(TotalResources, childInfo.DominantType), 1LL);
+        i64 total = std::max(GetResource(TotalResources, childInfo.DominantType), static_cast<i64>(1));
         return (double) use / total;
     }
 

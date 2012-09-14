@@ -91,7 +91,7 @@ void MultiplyResources(
     lhs->set_network(static_cast<int>(lhs->network() * rhs));
 }
 
-EResourceType void GetDominantResource(
+EResourceType GetDominantResource(
     const NProto::TNodeResources& demand,
     const NProto::TNodeResources& limits)
 {
@@ -100,15 +100,15 @@ EResourceType void GetDominantResource(
 
     if (limits.cpu() > 0) {
         double newRatio = (double) demand.cpu() / limits.cpu();
-        if (newRatio > *minRatio) {
-            result type = EResourceType::Cpu;
+        if (newRatio > minRatio) {
+            result = EResourceType::Cpu;
             minRatio = newRatio;
         }
     }
 
     if (limits.memory() > 0) {
         double newRatio = (double) demand.memory() / limits.memory();
-        if (newRatio > *minRatio) {
+        if (newRatio > minRatio) {
             result = EResourceType::Memory;
             minRatio = newRatio;
         }
