@@ -8,6 +8,7 @@
 
 #include <ytlib/chunk_client/chunk_holder_service_proxy.h>
 
+#include <ytlib/table_client/public.h>
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 #include <ytlib/table_client/table_reader.pb.h>
 
@@ -27,18 +28,22 @@ public:
     TSamplesFetcher(
         TSchedulerConfigPtr config,
         TSortOperationSpecPtr spec,
-        const TOperationId& operationId,
-        int desiredSampleCount);
+        const TOperationId& operationId);
 
-    bool Prepare(const std::vector<NTableClient::NProto::TInputChunk>& chunks);
+    void SetDesiredSamplesCount(int desiredSamplesCount);
+
+    bool Prepare(const std::vector<NTableClient::TRefCountedInputChunkPtr>& chunks);
 
     void CreateNewRequest(const Stroka& address);
 
     // Returns false if samples from this chunk are not required.
-    bool AddChunkToRequest(const NTableClient::NProto::TInputChunk& inputChunk);
+    bool AddChunkToRequest(NTableClient::TRefCountedInputChunkPtr& inputChunk);
     TFuture<TResponsePtr> InvokeRequest();
 
-    TError ProcessResponseItem(const TResponsePtr& rsp, int index);
+    TError ProcessResponseItem(
+        const TResponsePtr& rsp, 
+        int index,
+        NTableClient::TRefCountedInputChunkPtr& chunk);
 
     const std::vector<NTableClient::NProto::TKey>& GetSamples() const;
 

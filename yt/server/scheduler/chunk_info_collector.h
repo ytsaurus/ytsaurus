@@ -21,7 +21,7 @@ public:
         const TChunkInfoFetcherPtr& fetcher,
         const IInvokerPtr& invoker);
 
-    void AddChunk(const NTableClient::NProto::TInputChunk& chunk);
+    void AddChunk(NTableClient::TRefCountedInputChunkPtr& chunk);
     TFuture< TValueOrError<void> > Run();
 
     TChunkInfoFetcherPtr& GetFetcher();
@@ -34,7 +34,7 @@ private:
     TPromise< TValueOrError<void> > Promise;
 
     //! All chunks for which info is to be fetched.
-    std::vector<NTableClient::NProto::TInputChunk> Chunks;
+    std::vector<NTableClient::TRefCountedInputChunkPtr> Chunks;
     
     //! Indexes of chunks for which no info is fetched yet.
     yhash_set<int> UnfetchedChunkIndexes;

@@ -1109,8 +1109,7 @@ private:
         SamplesFetcher = New<TSamplesFetcher>(
             Config,
             Spec,
-            Operation->GetOperationId(),
-            SuggestPartitionCount() * Spec->SamplesPerPartition);
+            Operation->GetOperationId());
 
         SamplesCollector = New<TSamplesCollector>(
             SamplesFetcher,
@@ -1127,7 +1126,8 @@ private:
                     TotalInputRowCount += miscExt.row_count();
                     TotalInputValueCount += miscExt.value_count();
 
-                    SamplesCollector->AddChunk(chunk);
+                    auto refCountedChunk = New<TRefCountedInputChunk>(chunk);
+                    SamplesCollector->AddChunk(refCountedChunk);
                     ++chunkCount;
                 }
             }
@@ -1144,6 +1144,7 @@ private:
                 return NewPromise< TValueOrError<void> >();
             }
 
+            SamplesFetcher->SetDesiredSamplesCount(SuggestPartitionCount() * Spec->SamplesPerPartition);
             return SamplesCollector->Run();
         }
     }

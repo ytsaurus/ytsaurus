@@ -25,9 +25,13 @@ TAutoPtr<NTableClient::TTableProducer> TUserJobIO::DoCreateTableInput(
 
     auto blockCache = NChunkClient::CreateClientBlockCache(New<NChunkClient::TClientBlockCacheConfig>());
 
-    std::vector<NTableClient::NProto::TInputChunk> chunks(
-        JobSpec.input_specs(0).chunks().begin(),
-        JobSpec.input_specs(0).chunks().end());
+    std::vector<NTableClient::NProto::TInputChunk> chunks;
+    for (int i = 0; i < JobSpec.input_specs_size(); ++i) {
+        chunks.insert(
+            chunks.end(), 
+            JobSpec.input_specs(i).chunks().begin(), 
+            JobSpec.input_specs(0).chunks().end());
+    }
 
     LOG_DEBUG("Opening input %d with %d chunks", 
         index, 

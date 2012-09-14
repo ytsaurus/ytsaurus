@@ -4,6 +4,7 @@
 #undef CHUNK_INFO_COLLECTOR_INL_H_
 
 #include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/table_client/key.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -21,7 +22,7 @@ TChunkInfoCollector<TChunkInfoFetcher>::TChunkInfoCollector(
 
 template <class TChunkInfoFetcher>
 void TChunkInfoCollector<TChunkInfoFetcher>::AddChunk(
-    const NTableClient::NProto::TInputChunk& chunk)
+    NTableClient::TRefCountedInputChunkPtr& chunk)
 {
     YCHECK(UnfetchedChunkIndexes.insert(static_cast<int>(Chunks.size())).second);
     Chunks.push_back(chunk);
@@ -51,9 +52,9 @@ void TChunkInfoCollector<TChunkInfoFetcher>::SendRequests()
 
     FOREACH (auto chunkIndex, UnfetchedChunkIndexes) {
         const auto& chunk = Chunks[chunkIndex];
-        auto chunkId = NChunkServer::TChunkId::FromProto(chunk.slice().chunk_id());
+        auto chunkId = NChunkServer::TChunkId::FromProto(chunk->slice().chunk_id());
         bool chunkAvailable = false;
-        FOREACH (const auto& address, chunk.node_addresses()) {
+        FOREACH (const auto& address, chunk->node_addresses()) {
             if (DeadNodes.find(address) == DeadNodes.end() &&
                 DeadChunks.find(std::make_pair(address, chunkId)) == DeadChunks.end())
             {
@@ -64,7 +65,7 @@ void TChunkInfoCollector<TChunkInfoFetcher>::SendRequests()
         if (!chunkAvailable) {
             Promise.Set(TError("Unable to fetch chunk info for chunk %s from any of nodes [%s]",
                 ~chunkId.ToString(),
-                ~JoinToString(chunk.node_addresses())));
+                ~JoinToString(chunk->node_addresses())));
             return;
         }
     }
@@ -95,9 +96,12 @@ void TChunkInfoCollector<TChunkInfoFetcher>::SendRequests()
             if (requestedChunkIndexes.find(chunkIndex) == requestedChunkIndexes.end()) {
                 YCHECK(requestedChunkIndexes.insert(chunkIndex).second);
 
-                const auto& chunk = Chunks[chunkIndex];
+                auto& chunk = Chunks[chunkIndex];
                 if (ChunkInfoFetcher->AddChunkToRequest(chunk)) {
                     requestChunkIndexes.push_back(chunkIndex);
+                } else {
+                    // We are not going to fetch info for this chunk.
+                    YCHECK(UnfetchedChunkIndexes.erase(chunkIndex) == 1);
                 }
             }
         }
@@ -133,14 +137,12 @@ void TChunkInfoCollector<TChunkInfoFetcher>::OnResponse(
     auto& Logger = ChunkInfoFetcher->GetLogger();
 
     if (rsp->IsOK()) {
-        YCHECK(chunkIndexes.size() == rsp->samples_size());
-        int samplesAdded = 0;
         for (int index = 0; index < static_cast<int>(chunkIndexes.size()); ++index) {
             int chunkIndex = chunkIndexes[index];
-            const auto& chunk = Chunks[chunkIndex];
-            auto chunkId = NChunkServer::TChunkId::FromProto(chunk.slice().chunk_id());
+            auto& chunk = Chunks[chunkIndex];
+            auto chunkId = NChunkServer::TChunkId::FromProto(chunk->slice().chunk_id());
 
-            auto result = ChunkInfoFetcher->ProcessResponseItem(rsp, index);
+            auto result = ChunkInfoFetcher->ProcessResponseItem(rsp, index, chunk);
             if (result.IsOK()) {
                 YCHECK(UnfetchedChunkIndexes.erase(chunkIndex) == 1);
             } else {
@@ -170,6 +172,8 @@ void TChunkInfoCollector<TChunkInfoFetcher>::OnEndRound()
         LOG_INFO("All info is fetched");
         Promise.Set(TError());
     } else {
+        LOG_DEBUG("Chunk info for %d chunks is still unfetched", 
+            static_cast<int>(UnfetchedChunkIndexes.size()));
         SendRequests();
     }
 }

@@ -41,6 +41,7 @@ public:
         NYTree::IYsonConsumer* consumer) const override
     {
         YCHECK(index == 0);
+        YCHECK(JobSpec.input_specs_size() == 1);
 
         std::vector<NTableClient::NProto::TInputChunk> chunks(
             JobSpec.input_specs(0).chunks().begin(),

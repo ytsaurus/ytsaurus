@@ -27,43 +27,43 @@ public:
 
     TChunkSplitsFetcher(
         TSchedulerConfigPtr config,
-        TSortOperationSpecPtr spec,
+        TMergeOperationSpecBasePtr spec,
         const TOperationId& operationId,
-        const NTableClient::TKeyColumns& keyColumns,
-        int maxChunkCount,
-        i64 minSplitSize);
+        const NTableClient::TKeyColumns& keyColumns);
 
     // If returns false, no further collecting is required.
-    bool Prepare(const std::vector<NTableClient::NProto::TInputChunk>& chunks);
+    bool Prepare(const std::vector<NTableClient::TRefCountedInputChunkPtr>& chunks);
 
     void CreateNewRequest(const Stroka& address);
 
     // Returns false if samples from this chunk are not required.
-    bool AddChunkToRequest(const NTableClient::NProto::TInputChunk& inputChunk);
+    bool AddChunkToRequest(NTableClient::TRefCountedInputChunkPtr& inputChunk);
     TFuture<TResponsePtr> InvokeRequest();
 
-    TError ProcessResponseItem(const TResponsePtr& rsp, int index);
+    TError ProcessResponseItem(
+        const TResponsePtr& rsp, 
+        int index,
+        NTableClient::TRefCountedInputChunkPtr& inputChunk);
 
-    const std::vector<NTableClient::NProto::TInputChunk>& GetChunkSplits() const;
+    std::vector<NTableClient::TRefCountedInputChunkPtr>& GetChunkSplits();
 
     NLog::TTaggedLogger& GetLogger();
 
 private:
     TSchedulerConfigPtr Config;
-    TSortOperationSpecPtr Spec;
+    TMergeOperationSpecBasePtr Spec;
 
     NTableClient::TKeyColumns KeyColumns;
 
     // Number of splits shouldn't exceed MaxChunkCount.
     // If initial number of chunks is greater or equal to MaxChunkCount,
     // collecting is not performed.
-    int MaxChunkCount;
     i64 MinSplitSize;
 
     NLog::TTaggedLogger Logger;
 
     //! All samples fetched so far.
-    std::vector<NTableClient::NProto::TInputChunk> ChunkSplits;
+    std::vector<NTableClient::TRefCountedInputChunkPtr> ChunkSplits;
 
     NChunkClient::TChunkHolderServiceProxy::TReqGetChunkSplitsPtr CurrentRequest;
 

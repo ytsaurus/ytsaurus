@@ -2,6 +2,7 @@
 #include "samples_fetcher.h"
 #include "private.h"
 
+#include <ytlib/table_client/key.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <ytlib/rpc/channel_cache.h>
@@ -26,19 +27,22 @@ static NRpc::TChannelCache ChannelCache;
 TSamplesFetcher::TSamplesFetcher(
     TSchedulerConfigPtr config,
     TSortOperationSpecPtr spec,
-    const TOperationId& operationId,
-    int desiredSampleCount)
+    const TOperationId& operationId)
     : Config(config)
     , Spec(spec)
-    , DesiredSampleCount(desiredSampleCount)
+    , DesiredSampleCount(0)
     , SizeBetweenSamples(0)
     , CurrentSize(0)
     , CurrentSampleCount(0)
     , Logger(OperationLogger)
 
 {
-    YCHECK(DesiredSampleCount > 0);
     Logger.AddTag(Sprintf("OperationId: %s", ~operationId.ToString()));
+}
+
+void TSamplesFetcher::SetDesiredSamplesCount(int desiredSamplesCount)
+{
+    DesiredSampleCount = desiredSamplesCount;
 }
 
 NLog::TTaggedLogger& TSamplesFetcher::GetLogger()
@@ -46,11 +50,12 @@ NLog::TTaggedLogger& TSamplesFetcher::GetLogger()
     return Logger;
 }
 
-bool TSamplesFetcher::Prepare(const std::vector<NTableClient::NProto::TInputChunk>& chunks)
+bool TSamplesFetcher::Prepare(const std::vector<NTableClient::TRefCountedInputChunkPtr>& chunks)
 {
+    YCHECK(DesiredSampleCount > 0);
     i64 totalSize = 0;
     FOREACH(const auto& chunk, chunks) {
-        auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
+        auto miscExt = GetProtoExtension<TMiscExt>(chunk->extensions());
         totalSize += miscExt.uncompressed_data_size();
     }
     YCHECK(totalSize > 0);
@@ -71,8 +76,6 @@ const std::vector<TKey>& TSamplesFetcher::GetSamples() const
 
 void TSamplesFetcher::CreateNewRequest(const Stroka& address)
 {
-    YASSERT(!CurrentRequest);
-
     auto channel = ChannelCache.GetChannel(address);
     TChunkHolderServiceProxy proxy(channel);
     proxy.SetDefaultTimeout(Config->NodeRpcTimeout);
@@ -80,16 +83,16 @@ void TSamplesFetcher::CreateNewRequest(const Stroka& address)
     CurrentRequest = proxy.GetTableSamples();
 }
 
-bool TSamplesFetcher::AddChunkToRequest(const NTableClient::NProto::TInputChunk& chunk)
+bool TSamplesFetcher::AddChunkToRequest(NTableClient::TRefCountedInputChunkPtr& chunk)
 {
-    auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
+    auto miscExt = GetProtoExtension<TMiscExt>(chunk->extensions());
     CurrentSize += miscExt.uncompressed_data_size();
     i64 sampleCount = CurrentSize / SizeBetweenSamples;
 
     if (sampleCount > CurrentSampleCount) {
         auto chunkSampleCount = sampleCount - CurrentSampleCount;
         CurrentSampleCount = sampleCount;
-        auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
+        auto chunkId = TChunkId::FromProto(chunk->slice().chunk_id());
 
         auto* sampleRequest = CurrentRequest->add_sample_requests();
         *sampleRequest->mutable_chunk_id() = chunkId.ToProto();
@@ -106,7 +109,10 @@ auto TSamplesFetcher::InvokeRequest() -> TFuture<TResponsePtr>
     return req->Invoke();
 }
 
-TError TSamplesFetcher::ProcessResponseItem(const TResponsePtr& rsp, int index)
+TError TSamplesFetcher::ProcessResponseItem(
+    const TResponsePtr& rsp, 
+    int index, 
+    NTableClient::TRefCountedInputChunkPtr& chunk)
 {
     YASSERT(rsp->IsOK());
 

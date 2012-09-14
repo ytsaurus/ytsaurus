@@ -32,14 +32,20 @@ class TAtomicChunkPool;
 class TChunkListPool;
 typedef TIntrusivePtr<TChunkListPool> TChunkListPoolPtr;
 
-class TSamplesFetcher;
-typedef TIntrusivePtr<TSamplesFetcher> TSamplesFetcherPtr;
-
 template <class TChunkInfoFetcher>
 class TChunkInfoCollector;
 
+class TSamplesFetcher;
+typedef TIntrusivePtr<TSamplesFetcher> TSamplesFetcherPtr;
+
 typedef TChunkInfoCollector<TSamplesFetcher> TSamplesCollector;
 typedef TIntrusivePtr<TSamplesCollector> TSamplesCollectorPtr;
+
+class TChunkSplitsFetcher;
+typedef TIntrusivePtr<TChunkSplitsFetcher> TChunkSplitsFetcherPtr;
+
+typedef TChunkInfoCollector<TChunkSplitsFetcher> TChunkSplitsCollector;
+typedef TIntrusivePtr<TChunkSplitsCollector> TChunkSplitsCollectorPtr;
 
 extern NLog::TLogger SchedulerLogger;
 extern NLog::TLogger OperationLogger;

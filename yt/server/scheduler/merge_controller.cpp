@@ -6,6 +6,8 @@
 #include "chunk_pool.h"
 #include "chunk_list_pool.h"
 #include "job_resources.h"
+#include "chunk_splits_fetcher.h"
+#include "chunk_info_collector.h"
 
 #include <ytlib/ytree/fluent.h>
 
@@ -47,16 +49,15 @@ public:
         IOperationHost* host,
         TOperation* operation)
         : TOperationControllerBase(config, host, operation)
-        , Spec(spec)
+        , SpecBase(spec)
         , TotalJobCount(0)
         , CurrentTaskDataSize(0)
         , PartitionCount(0)
     { }
 
-private:
-    TMergeOperationSpecBasePtr Spec;
-
 protected:
+    TMergeOperationSpecBasePtr SpecBase;
+
     // Counters.
     int TotalJobCount;
     TProgressCounter DataSizeCounter;
@@ -115,7 +116,7 @@ protected:
 
         virtual TDuration GetLocalityTimeout() const override
         {
-            return Controller->Spec->LocalityTimeout;
+            return Controller->SpecBase->LocalityTimeout;
         }
         
         virtual NProto::TNodeResources GetMinRequestedResources() const override
@@ -123,6 +124,18 @@ protected:
             return Controller->GetMinRequestedResources();
         }
 
+    protected:
+        void BuildSpecInputOutput(
+            TJobInProgressPtr jip,
+            NProto::TJobSpec* jobSpec)
+        {
+            AddParallelInputSpec(jobSpec, jip);
+
+            for (int i = 0; i < Controller->OutputTables.size(); ++i) {
+                // Reduce task can have multiple output tables.
+                AddTabularOutputSpec(jobSpec, jip, i);
+            }
+        }
 
     private:
         TMergeControllerBase* Controller;
@@ -150,12 +163,7 @@ protected:
             NProto::TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->JobSpecTemplate);
-            AddParallelInputSpec(jobSpec, jip);
-
-            for (int i = 0; i < Controller->OutputTables.size(); ++i) {
-                // Reduce task can have multiple output tables.
-                AddTabularOutputSpec(jobSpec, jip, i);
-            }
+            BuildSpecInputOutput(jip, jobSpec);
         }
 
         virtual void OnJobStarted(TJobInProgressPtr jip) override
@@ -198,17 +206,11 @@ protected:
         CurrentTaskStripes.clear();
         CurrentTaskStripes.resize(InputTables.size());
     }
-    
-    //! Finishes the current task.
-    void EndTask()
-    {
-        YCHECK(HasActiveTask());
 
-        auto& table = OutputTables[0];
-        auto task = New<TMergeTask>(
-            this,
-            static_cast<int>(MergeTasks.size()),
-            PartitionCount);
+    void EndTask(TMergeTaskPtr task) 
+    {
+
+        YCHECK(HasActiveTask());
 
         FOREACH (auto stripe, CurrentTaskStripes) {
             if (stripe) {
@@ -225,6 +227,17 @@ protected:
 
         CurrentTaskDataSize = 0;
         ClearCurrentTaskStripes();
+    }
+    
+    //! Finishes the current task.
+    void EndTask()
+    {
+        auto task = New<TMergeTask>(
+            this,
+            static_cast<int>(MergeTasks.size()),
+            PartitionCount);
+
+        EndTask(task);
     }
 
     //! Finishes the current task if the size is large enough.
@@ -244,20 +257,20 @@ protected:
     //! Returns True if the total data size of currently queued stripes exceeds the pre-configured limit.
     bool HasLargeActiveTask()
     {
-        return CurrentTaskDataSize >= Spec->MaxDataSizePerJob;
+        return CurrentTaskDataSize >= SpecBase->MaxDataSizePerJob;
     }
 
     //! Add chunk to the current task's pool.
-    void AddPendingChunk(TRefCountedInputChunkPtr inputChunk, int tableIndex)
+    void AddPendingChunk(TRefCountedInputChunkPtr inputChunk)
     {
         // Merge is IO-bound, use data size as weight.
         auto miscExt = GetProtoExtension<TMiscExt>(inputChunk->extensions());
         i64 dataSize = miscExt.uncompressed_data_size();
         i64 rowCount = miscExt.row_count();
 
-        auto stripe = CurrentTaskStripes[tableIndex];
+        auto stripe = CurrentTaskStripes[inputChunk->TableIndex];
         if (!stripe) {
-            stripe = CurrentTaskStripes[tableIndex] = New<TChunkStripe>();
+            stripe = CurrentTaskStripes[inputChunk->TableIndex] = New<TChunkStripe>();
         }
 
         DataSizeCounter.Increment(dataSize);
@@ -270,7 +283,7 @@ protected:
             ~chunkId.ToString(),
             PartitionCount,
             static_cast<int>(MergeTasks.size()),
-            tableIndex,
+            inputChunk->TableIndex,
             dataSize,
             rowCount);
     }
@@ -307,7 +320,10 @@ protected:
 
     virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline) override
     {
-        return pipeline->Add(BIND(&TMergeControllerBase::ProcessInputs, MakeStrong(this)));
+        return pipeline
+            ->Add(BIND(&TMergeControllerBase::ProcessInputs, MakeStrong(this)))
+            ->Add(BIND(&TMergeControllerBase::EndInputChunks, MakeStrong(this)))
+            ->Add(BIND(&TMergeControllerBase::FinishPreparation, MakeStrong(this)));
     }
 
     void ProcessInputs()
@@ -317,7 +333,6 @@ protected:
 
             InitJobIOConfig();
             ClearCurrentTaskStripes();
-            BeginInputChunks();
 
             for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
                 const auto& table = InputTables[tableIndex];
@@ -326,57 +341,55 @@ protected:
                     auto miscExt = GetProtoExtension<TMiscExt>(inputChunk.extensions());
                     i64 dataSize = miscExt.uncompressed_data_size();
                     i64 rowCount = miscExt.row_count();
-                    LOG_DEBUG("Processing chunk (ChunkId: %s, DataSize: %" PRId64 ", RowCount: %" PRId64 ")",
+                    auto chunk = New<TRefCountedInputChunk>(inputChunk, tableIndex);
+                    LOG_DEBUG("Processing chunk (ChunkId: %s, DataSize: %" PRId64 ", RowCount: %" PRId64 ", TableIndex: %d)",
                         ~chunkId.ToString(),
                         dataSize,
-                        rowCount);
-                    ProcessInputChunk(New<TRefCountedInputChunk>(inputChunk), tableIndex);
+                        rowCount,
+                        chunk->TableIndex);
+                    ProcessInputChunk(chunk);
                 }
-            }
-
-            EndInputChunks();
-
-            // Check for trivial inputs.
-            if (ChunkCounter.GetTotal() == 0) {
-                LOG_INFO("Trivial merge");
-                OnOperationCompleted();
-                return;
-            }
-
-            // Init counters.
-            TotalJobCount = static_cast<int>(MergeTasks.size());
-
-            InitJobSpecTemplate();
-
-            LOG_INFO("Inputs processed (DataSize: %" PRId64 ", ChunkCount: %" PRId64 ", JobCount: %d)",
-                DataSizeCounter.GetTotal(),
-                ChunkCounter.GetTotal(),
-                TotalJobCount);
-
-            // Kick-start the tasks.
-            FOREACH (const auto task, MergeTasks) {
-                AddTaskPendingHint(task);
             }
         }
     }
 
+    void FinishPreparation()
+    {
+        // Check for trivial inputs.
+        if (ChunkCounter.GetTotal() == 0) {
+            LOG_INFO("Trivial merge");
+            OnOperationCompleted();
+            return;
+        }
 
-    //! Called at the beginning of input chunks scan.
-    virtual void BeginInputChunks()
-    { }
+        // Init counters.
+        TotalJobCount = static_cast<int>(MergeTasks.size());
+
+        InitJobSpecTemplate();
+
+        LOG_INFO("Inputs processed (DataSize: %" PRId64 ", ChunkCount: %" PRId64 ", JobCount: %d)",
+            DataSizeCounter.GetTotal(),
+            ChunkCounter.GetTotal(),
+            TotalJobCount);
+
+        // Kick-start the tasks.
+        FOREACH (const auto task, MergeTasks) {
+            AddTaskPendingHint(task);
+        }
+    }
+
 
     //! Called for each input chunk.
-    virtual void ProcessInputChunk(TRefCountedInputChunkPtr inputChunk, int tableIndex) = 0;
+    virtual void ProcessInputChunk(TRefCountedInputChunkPtr inputChunk) = 0;
 
     //! Called at the end of input chunks scan.
-    virtual void EndInputChunks()
+    void EndInputChunks()
     {
         // Close the last task, if any.
         if (CurrentTaskDataSize > 0) {
             EndTask();
         }
     }
-
 
     // Progress reporting.
 
@@ -409,11 +422,19 @@ protected:
     //! Such chunks are always pooled.
     static bool IsCompleteChunk(TRefCountedInputChunkPtr inputChunk)
     {
-        return
-            !inputChunk->slice().start_limit().has_row_index() &&
-            !inputChunk->slice().start_limit().has_key () &&
-            !inputChunk->slice().end_limit().has_row_index() &&
-            !inputChunk->slice().end_limit().has_key ();
+        return IsStartingSlice(inputChunk) && IsEndingSlice(inputChunk);
+    }
+
+    static bool IsStartingSlice(TRefCountedInputChunkPtr inputChunk)
+    {
+        return !inputChunk->slice().start_limit().has_key() &&
+            !inputChunk->slice().start_limit().has_row_index();
+    }
+
+    static bool IsEndingSlice(TRefCountedInputChunkPtr inputChunk)
+    {
+        return !inputChunk->slice().end_limit().has_key() &&
+            !inputChunk->slice().end_limit().has_row_index();
     }
 
     //! Returns True if the chunk can be included into the output as-is.
@@ -426,6 +447,11 @@ protected:
             return false;
         }
 
+        return IsLargeChunk(inputChunk);
+    }
+
+    bool IsLargeChunk(TRefCountedInputChunkPtr inputChunk)
+    {
         auto miscExt = GetProtoExtension<TMiscExt>(inputChunk->extensions());
         // ChunkSequenceWriter may actually produce a chunk a bit smaller than DesiredChunkSize,
         // so we have to be more flexible here.
@@ -485,10 +511,8 @@ private:
         return result;
     }
 
-    virtual void ProcessInputChunk(TRefCountedInputChunkPtr inputChunk, int tableIndex) override
+    virtual void ProcessInputChunk(TRefCountedInputChunkPtr inputChunk) override
     {
-        UNUSED(tableIndex);
-
         auto chunkId = TChunkId::FromProto(inputChunk->slice().chunk_id());
         auto& table = OutputTables[0];
 
@@ -499,7 +523,7 @@ private:
         }
 
         // NB: During unordered merge all chunks go to a single chunk stripe.
-        AddPendingChunk(inputChunk, 0);
+        AddPendingChunk(inputChunk);
         EndTaskIfLarge();
     }
 
@@ -514,7 +538,6 @@ private:
 
         *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
-        // ToDo(psushin): set larger PrefetchWindow for unordered merge.
         JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
     }
 };
@@ -535,10 +558,8 @@ public:
     { }
 
 private:
-    virtual void ProcessInputChunk(TRefCountedInputChunkPtr inputChunk, int tableIndex) override
+    virtual void ProcessInputChunk(TRefCountedInputChunkPtr inputChunk) override
     {
-        UNUSED(tableIndex);
-
         if (IsPassthroughChunk(inputChunk)) {
             // Merge is not needed. Copy the chunk directly to the output.
             if (HasActiveTask()) {
@@ -549,7 +570,7 @@ private:
         }
 
         // NB: During ordered merge all chunks go to a single chunk stripe.
-        AddPendingChunk(inputChunk, 0);
+        AddPendingChunk(inputChunk);
         EndTaskIfLarge();
     }
 };
@@ -704,10 +725,38 @@ public:
     { }
 
 protected:
-    //! Either the left or the right endpoint of a chunk.
+
+    class TManiacTask
+        : public TMergeTask
+    {
+    public:
+        TManiacTask(
+            TSortedMergeControllerBase* controller,
+            int taskIndex,
+            int partitionIndex)
+            : TMergeTask(controller, taskIndex, partitionIndex)
+            , Controller(controller)
+        { }
+
+    private:
+        TSortedMergeControllerBase* Controller;
+
+        virtual void BuildJobSpec(TJobInProgressPtr jip, NProto::TJobSpec* jobSpec) override
+        {
+            jobSpec->CopyFrom(Controller->ManiacJobSpecTemplate);
+            BuildSpecInputOutput(jip, jobSpec);
+        }
+    };
+
+    DECLARE_ENUM(EEndpointType, 
+        (Left)
+        (Maniac)
+        (Right)
+    );
+
     struct TKeyEndpoint
     {
-        bool Left;
+        EEndpointType Type;
         int TableIndex;
         NTableClient::NProto::TKey Key;
         TRefCountedInputChunkPtr InputChunk;
@@ -718,40 +767,66 @@ protected:
     //! The actual (adjusted) key columns.
     std::vector<Stroka> KeyColumns;
 
+    TChunkSplitsFetcherPtr ChunkSplitsFetcher;
+    TChunkSplitsCollectorPtr ChunkSplitsCollector;
+
+    TJobSpec ManiacJobSpecTemplate;
+
     virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() = 0;
 
-    virtual void ProcessInputChunk(TRefCountedInputChunkPtr inputChunk, int tableIndex) override
+    virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline) override
     {
-        auto miscExt = GetProtoExtension<TMiscExt>(inputChunk->extensions());
-        YCHECK(miscExt.sorted());
-
-        // Construct endpoints and place them into the list.
-        auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(inputChunk->extensions());
-        {
-            TKeyEndpoint endpoint;
-            endpoint.Left = true;
-            endpoint.TableIndex = tableIndex;
-            endpoint.Key = boundaryKeysExt.start();
-            endpoint.InputChunk = inputChunk;
-            Endpoints.push_back(endpoint);
-        }
-        {
-            TKeyEndpoint endpoint;
-            endpoint.Left = false;
-            endpoint.TableIndex = tableIndex;
-            endpoint.Key = boundaryKeysExt.end();
-            endpoint.InputChunk = inputChunk;
-            Endpoints.push_back(endpoint);
-        }
+        auto this_ = MakeStrong(this);
+        return pipeline
+            ->Add(BIND(&TSortedMergeControllerBase::ProcessInputs, MakeStrong(this)))
+            ->Add(BIND( [=] () -> TFuture< TValueOrError<void> > {
+                    return this_->ChunkSplitsCollector->Run();
+                }))
+            ->Add(BIND(&TSortedMergeControllerBase::OnChunkSplitsReceived, MakeStrong(this)))
+            ->Add(BIND(&TSortedMergeControllerBase::FinishPreparation, MakeStrong(this)));
     }
 
-    virtual void EndInputChunks() override
+    virtual void ProcessInputChunk(TRefCountedInputChunkPtr inputChunk) override
     {
+        ChunkSplitsCollector->AddChunk(inputChunk);
+    }
+
+    virtual bool IsLargeEnoughToPassthrough(TRefCountedInputChunkPtr inputChunk) = 0;
+
+    void OnChunkSplitsReceived()
+    {
+        int prefixLength = static_cast<int>(KeyColumns.size());
+        auto& chunks = ChunkSplitsFetcher->GetChunkSplits();
+        FOREACH(auto& chunk, chunks) {
+            auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(chunk->extensions());
+            if (CompareKeys(boundaryKeysExt.start(), boundaryKeysExt.end(), prefixLength) == 0) {
+                // Maniac chunk
+                TKeyEndpoint endpoint;
+                endpoint.Type = EEndpointType::Maniac;
+                endpoint.Key = boundaryKeysExt.start();
+                endpoint.InputChunk = chunk;
+                Endpoints.push_back(endpoint);
+            } else {
+                {
+                    TKeyEndpoint endpoint;
+                    endpoint.Type = EEndpointType::Left;
+                    endpoint.Key = boundaryKeysExt.start();
+                    endpoint.InputChunk = chunk;
+                    Endpoints.push_back(endpoint);
+                } {
+                    TKeyEndpoint endpoint;
+                    endpoint.Type = EEndpointType::Right;
+                    endpoint.Key = boundaryKeysExt.end();
+                    endpoint.InputChunk = chunk;
+                    Endpoints.push_back(endpoint);
+                }
+            }
+        }
+
         // Sort earlier collected endpoints to figure out overlapping chunks.
         // Sort endpoints by keys, in case of a tie left endpoints go first.
-        LOG_INFO("Sorting chunks");
+        LOG_INFO("Sorting %d endpoints", static_cast<int>(Endpoints.size()));
 
-        int prefixLength = static_cast<int>(KeyColumns.size());
         std::sort(
             Endpoints.begin(),
             Endpoints.end(),
@@ -760,95 +835,187 @@ protected:
                 if (keysResult != 0) {
                     return keysResult < 0;
                 }
-                return lhs.Left && !rhs.Left;
+                return lhs.Type < rhs.Type;
             });
 
+        BuildTasks();
+    }
+
+    void BuildTasks() 
+    {
         // Compute components consisting of overlapping chunks.
         // Combine small tasks, if requested so.
         LOG_INFO("Building tasks");
-        int depth = 0;
-        int startIndex = 0;
-        for (
-            int currentIndex = startIndex; 
-            currentIndex < static_cast<int>(Endpoints.size()); 
-            ++currentIndex) 
-        {
-            auto& endpoint = Endpoints[currentIndex];
-            if (endpoint.Left) {
-                ++depth;
-            } else {
-                --depth;
-                if (depth == 0) {
-                    ProcessOverlap(startIndex, currentIndex + 1);
-                    startIndex = currentIndex + 1;
-                }
-            }
-        }
+        yhash_set<TRefCountedInputChunkPtr> openedChunks;
 
-        TMergeControllerBase::EndInputChunks();
-    }
-
-    void ProcessOverlap(int startIndex, int endIndex)
-    {
-        // Must be an even number of endpoints.
-        YCHECK((endIndex - startIndex) % 2 == 0);
-
-        int chunkCount = (endIndex - startIndex) / 2;
-        LOG_DEBUG("Found overlap of %d chunks", chunkCount);
-
-        // Check for trivial components.
-        {
-            auto inputChunk = Endpoints[startIndex].InputChunk;
-            if (chunkCount == 1 && IsPassthroughChunk(inputChunk)) {
-                // No merge is needed. Copy the chunk directly to the output.
-                if (HasActiveTask()) {
-                    EndTask();
-                }
-                AddPassthroughChunk(inputChunk);
-                return;
-            }
-        }
-
+        int currentIndex = 0;
         TNullable<NTableClient::NProto::TKey> lastBreakpoint;
-        yhash_map<TRefCountedInputChunkPtr, TKeyEndpoint*> openedChunks;
 
-        for (int index = startIndex; index < endIndex; ++index) {
-            auto& endpoint = Endpoints[index];
-            auto chunkId = TChunkId::FromProto(endpoint.InputChunk->slice().chunk_id());
-            if (endpoint.Left) {
-                YCHECK(openedChunks.insert(std::make_pair(endpoint.InputChunk, &endpoint)).second);
-                LOG_DEBUG("Chunk interval opened (ChunkId: %s)", ~chunkId.ToString());
-            } else {
-                AddPendingChunk(
-                    SliceChunk(*endpoint.InputChunk, lastBreakpoint, Null),
-                    endpoint.TableIndex);
-                YCHECK(openedChunks.erase(endpoint.InputChunk) == 1);
-                LOG_DEBUG("Chunk interval closed (ChunkId: %s)", ~chunkId.ToString());
+        int endpointsCount = static_cast<int>(Endpoints.size());
+
+        while (currentIndex < endpointsCount) {
+            auto& endpoint = Endpoints[currentIndex];
+
+            switch (endpoint.Type) {
+            case EEndpointType::Left:
+                if (openedChunks.empty() && 
+                    IsStartingSlice(endpoint.InputChunk) &&
+                    AllowPassthroughChunks())
+                {
+                    // Trying to reconstruct passthrough chunk from chunk slices.
+                    auto chunkId = TChunkId::FromProto(endpoint.InputChunk->slice().chunk_id());
+                    auto nextIndex = currentIndex;
+                    while (true) {
+                        ++nextIndex;
+                        if (nextIndex == endpointsCount) {
+                            break;
+                        }
+                        auto nextChunkId = TChunkId::FromProto(Endpoints[nextIndex].InputChunk->slice().chunk_id());
+                        if (nextChunkId != chunkId) {
+                            break;
+                        }
+                    }
+
+                    auto lastEndpoint = Endpoints[nextIndex - 1];
+                    if (lastEndpoint.Type == EEndpointType::Right && IsEndingSlice(lastEndpoint.InputChunk)) {
+                        if (IsLargeEnoughToPassthrough(endpoint.InputChunk)) {
+                            auto chunk = CreateCompleteChunk(endpoint.InputChunk);
+                            if (HasActiveTask()) {
+                               EndTask();
+                            }
+                            AddPassthroughChunk(chunk);
+                            currentIndex = nextIndex;
+                            break;
+                        }
+                    }
+                }
+
+                YCHECK(openedChunks.insert(endpoint.InputChunk).second);
+                ++currentIndex;
+                break;
+
+            case EEndpointType::Right:
+                AddPendingChunk(SliceChunk(*endpoint.InputChunk, lastBreakpoint, Null));
+
                 if (!openedChunks.empty() &&
                     HasLargeActiveTask() &&
-                    // Avoid producing empty slices.
-                    index < endIndex - 1 &&
-                    endpoint.Key < Endpoints[index + 1].Key)
+                    endpoint.Key < Endpoints[currentIndex + 1].Key)
                 {
                     auto nextBreakpoint = GetSuccessorKey(endpoint.Key);
                     LOG_DEBUG("Task is too large, flushing %" PRISZT " chunks at key %s",
                         openedChunks.size(),
                         ~ToString(nextBreakpoint));
-                    FOREACH (const auto& pair, openedChunks) {
-                        AddPendingChunk(
-                            SliceChunk(*pair.second->InputChunk, lastBreakpoint, nextBreakpoint),
-                            pair.second->TableIndex);
+                    FOREACH (auto& inputChunk, openedChunks) {
+                        AddPendingChunk(SliceChunk(*inputChunk, lastBreakpoint, nextBreakpoint));
                     }
                     EndTask();
-                    LOG_DEBUG("Finished flushing opened chunks");
                     lastBreakpoint = nextBreakpoint;
                 }
+
+                if (openedChunks.empty()) {
+                    EndTaskIfLarge();
+                }
+                ++currentIndex;
+                break;
+
+            case EEndpointType::Maniac: {
+                auto nextIndex = currentIndex;
+                i64 partialManiacSize = 0;
+                i64 completeLargeManiacSize = 0;
+                std::vector<TRefCountedInputChunkPtr> completeLargeChunks;
+                std::vector<TRefCountedInputChunkPtr> partialChunks;
+                do {
+                    auto& nextEndpoint = Endpoints[nextIndex];
+
+                    if (nextEndpoint.Type == EEndpointType::Maniac && nextEndpoint.Key == endpoint.Key) {
+                        if (IsLargeCompleteChunk(nextEndpoint.InputChunk)) {
+                            completeLargeManiacSize += nextEndpoint.InputChunk->uncompressed_data_size();
+                            completeLargeChunks.push_back(nextEndpoint.InputChunk);
+                        } else {
+                            partialManiacSize += nextEndpoint.InputChunk->uncompressed_data_size();
+                            partialChunks.push_back(nextEndpoint.InputChunk);
+                        }
+                    } else {
+                        break;
+                    }
+                    ++nextIndex;
+                } while (nextIndex != endpointsCount);
+
+                if (AllowPassthroughChunks()) {
+                    if (partialManiacSize > SpecBase->MaxDataSizePerJob) {
+                        // Finish current task.
+                        if (HasActiveTask()) {
+                           EndTask();
+                        }
+
+                        // Create special maniac task.
+                        FOREACH (auto& chunk, partialChunks) {
+                            AddPendingChunk(chunk);
+                        }
+                        EndManiacTask();
+                    } else {
+                        // Add chunks to current task.
+                        FOREACH (auto& chunk, partialChunks) {
+                            AddPendingChunk(chunk);
+                        }
+
+                        if (completeLargeManiacSize > 0) {
+                            // If we have passthrough chunks - finish current task.
+                            EndTask();
+                        }
+                    }
+
+                    FOREACH (auto& chunk, completeLargeChunks) {
+                        YCHECK(!HasActiveTask());
+                        AddPassthroughChunk(chunk);
+                    }
+                } else {
+                    bool createManiac = partialManiacSize + completeLargeManiacSize > 
+                        SpecBase->MaxDataSizePerJob;
+                    if (createManiac) {
+                        // Complete current task
+                        if (HasActiveTask()) {
+                           EndTask();
+                        }
+                    }
+
+                    FOREACH (auto& chunk, partialChunks) {
+                        AddPendingChunk(chunk);
+                    }
+
+                    FOREACH (auto& chunk, completeLargeChunks) {
+                        AddPendingChunk(chunk);
+                    }
+
+                    if (createManiac)
+                        EndManiacTask();
+                }
+
+                currentIndex = nextIndex;
+                break;
             }
+
+            default:
+                YUNREACHABLE();
+            };
         }
 
-        YCHECK(openedChunks.empty());
-        EndTaskIfLarge();
+        if (HasActiveTask()) {
+            EndTask();
+        }
     }
+
+    void EndManiacTask()
+    {
+        auto task = New<TManiacTask>(
+            this, 
+            static_cast<int>(MergeTasks.size()),
+            PartitionCount);
+
+        EndTask(task);
+    }
+
+    virtual bool AllowPassthroughChunks() = 0;
 
     virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) override
     {
@@ -861,6 +1028,16 @@ protected:
         KeyColumns = CheckInputTablesSorted(GetSpecKeyColumns());
         LOG_INFO("Adjusted key columns are %s",
             ~ConvertToYsonString(KeyColumns, EYsonFormat::Text).Data());
+
+        ChunkSplitsFetcher = New<TChunkSplitsFetcher>(
+            Config, 
+            SpecBase, 
+            Operation->GetOperationId(),
+            KeyColumns);
+
+        ChunkSplitsCollector = New<TChunkSplitsCollector>(
+            ChunkSplitsFetcher,
+            ~Host->GetBackgroundInvoker());
     }
 };
 
@@ -904,6 +1081,19 @@ private:
         return IsPassthroughChunkImpl(inputChunk, Spec->CombineChunks);
     }
 
+    virtual bool AllowPassthroughChunks() override
+    {
+        return true;
+    }
+
+    virtual bool IsLargeEnoughToPassthrough(TRefCountedInputChunkPtr inputChunk)
+    {
+        if (!Spec->CombineChunks)
+            return true;
+
+        return IsLargeChunk(inputChunk);
+    }
+
     virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() override
     {
         return Spec->MergeBy;
@@ -924,6 +1114,9 @@ private:
         ToProto(jobSpecExt->mutable_key_columns(), KeyColumns);
 
         JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
+
+        ManiacJobSpecTemplate.CopyFrom(JobSpecTemplate);
+        ManiacJobSpecTemplate.set_type(EJobType::UnorderedMerge);
     }
 
     virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) override
@@ -970,7 +1163,16 @@ private:
 
     virtual bool IsPassthroughChunk(TRefCountedInputChunkPtr inputChunk) override
     {
-        UNUSED(inputChunk);
+        YUNREACHABLE();
+    }
+
+    virtual bool AllowPassthroughChunks() override
+    {
+        return false;
+    }
+
+    virtual bool IsLargeEnoughToPassthrough(TRefCountedInputChunkPtr inputChunk)
+    {
         return false;
     }
 
@@ -999,6 +1201,8 @@ private:
             Files);
 
         JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
+
+        ManiacJobSpecTemplate.CopyFrom(JobSpecTemplate);
     }
 
     virtual NProto::TNodeResources GetMinRequestedResources() const override

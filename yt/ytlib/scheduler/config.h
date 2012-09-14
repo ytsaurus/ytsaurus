@@ -105,6 +105,8 @@ struct TMergeOperationSpecBase
     //! be larger.
     i64 MaxDataSizePerJob;
 
+    i64 JobSliceDataSize;
+
     TDuration LocalityTimeout;
     NYTree::INodePtr JobIO;
 
@@ -117,6 +119,9 @@ struct TMergeOperationSpecBase
             .Default(TDuration::Seconds(5));
         Register("job_io", JobIO)
             .Default(NULL);
+        Register("job_slice_data_size", JobSliceDataSize)
+            .Default((i64) 128 * 1024 * 1024)
+            .GreaterThan(0);
     }
 };
 

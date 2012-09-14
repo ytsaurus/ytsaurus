@@ -1,4 +1,4 @@
-﻿#include "stdafx.h"
+#include "stdafx.h"
 #include "key.h"
 
 #include <ytlib/misc/string.h>
@@ -101,13 +101,20 @@ NProto::TKey GetSuccessorKey(const NProto::TKey& key)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRefCountedInputChunk::TRefCountedInputChunk(const NProto::TInputChunk& other)
+TRefCountedInputChunk::TRefCountedInputChunk(const NProto::TInputChunk& other, int tableIndex)
+    : TableIndex(tableIndex)
 {
     CopyFrom(other);
 }
 
+TRefCountedInputChunk::TRefCountedInputChunk(const TRefCountedInputChunk& other)
+{
+    CopyFrom(other);
+    TableIndex = other.TableIndex;
+}
+
 TRefCountedInputChunkPtr SliceChunk(
-    const NProto::TInputChunk& chunk,
+    const TRefCountedInputChunk& chunk,
     const TNullable<NProto::TKey>& startKey /*= Null*/,
     const TNullable<NProto::TKey>& endKey /*= Null*/)
 {
@@ -126,7 +133,7 @@ TRefCountedInputChunkPtr SliceChunk(
     return result;
 }
 
-std::vector<TRefCountedInputChunkPtr> SliceChunkEvenly(const NProto::TInputChunk& inputChunk, int count)
+std::vector<TRefCountedInputChunkPtr> SliceChunkEvenly(const TRefCountedInputChunk& inputChunk, int count)
 {
     YASSERT(count > 0);
 
@@ -161,6 +168,20 @@ std::vector<TRefCountedInputChunkPtr> SliceChunkEvenly(const NProto::TInputChunk
     }
 
     return result;
+}
+
+TRefCountedInputChunkPtr CreateCompleteChunk(TRefCountedInputChunkPtr inputChunk)
+{
+    auto chunk = New<TRefCountedInputChunk>(*inputChunk);
+    chunk->mutable_slice()->mutable_start_limit()->clear_key();
+    chunk->mutable_slice()->mutable_start_limit()->clear_row_index();
+    chunk->mutable_slice()->mutable_end_limit()->clear_key();
+    chunk->mutable_slice()->mutable_end_limit()->clear_row_index();
+
+    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(inputChunk->extensions());
+    chunk->set_uncompressed_data_size(miscExt.uncompressed_data_size());
+    chunk->set_row_count(miscExt.row_count());
+    return chunk;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
