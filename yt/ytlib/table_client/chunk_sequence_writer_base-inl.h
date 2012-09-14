@@ -86,7 +86,9 @@ void TChunkSequenceWriterBase<TChunkWriter>::CreateNextSession()
     req->set_type(NObjectClient::EObjectType::Chunk);
 
     auto* reqExt = req->MutableExtension(NChunkClient::NProto::TReqCreateChunkExt::create_chunk);
-    reqExt->set_preferred_host_name(Stroka(GetLocalHostName()));
+    if (Config->PreferLocalHost) {
+        reqExt->set_preferred_host_name(Stroka(GetLocalHostName()));
+    }
     reqExt->set_replication_factor(Config->ReplicationFactor);
     reqExt->set_upload_replication_factor(Config->UploadReplicationFactor);
     reqExt->set_movable(Config->ChunksMovable);
