@@ -33,10 +33,14 @@ def wrap(function):
         dump(function, fout)
     
     zip_filename = "/tmp/.modules.zip"
-    with ZipFile(zip_filename, "w") as zip:
-        for module in sys.modules.values():
-            if hasattr(module, "__file__"):
-                zip.write(module.__file__, module_relpath(module))
+
+    # We don't use with statement for compatibility with python2.6
+    zip = ZipFile(zip_filename, "w")
+    zip.open()
+    for module in sys.modules.values():
+        if hasattr(module, "__file__"):
+            zip.write(module.__file__, module_relpath(module))
+    zip.close()
 
     main_filename = "/tmp/_main_module.py"
     shutil.copy(sys.modules['__main__'].__file__, main_filename)

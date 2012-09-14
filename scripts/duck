@@ -24,7 +24,7 @@ SERVICE=$1; shift || usage
 
 case "$SERVICE" in
     yt|hadoop|yamr) HOSTS="n01-0[401-649]g.yt.yandex.net" ;;
-    proxy) HOSTS="n01-0[401-409]g.yt.yandex.net" ;;
+    proxy) HOSTS="n01-0[401-410]g.yt.yandex.net" ;;
     *) usage ;;
 esac
 [ -z "$1" ] || HOSTS=$1
