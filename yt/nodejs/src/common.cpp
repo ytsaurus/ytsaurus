@@ -1,4 +1,9 @@
 #include "common.h"
+#include "config.h"
+
+#include <ytlib/logging/log_manager.h>
+
+#include <ytlib/chunk_client/dispatcher.h>
 
 #include <ytlib/ytree/tree_builder.h>
 #include <ytlib/ytree/yson_consumer.h>
@@ -206,14 +211,14 @@ Handle<Value> ConfigureSingletons(const Arguments& args)
 
     INodePtr configNode = ConvertV8ValueToNode(args[0]);
     if (!configNode) {
-        Message = "Error converting from V8 to YSON";
-        return;
+        return ThrowException(Exception::TypeError(
+            String::New("Error converting from V8 to YSON")));
     }
 
     NNodeJS::THttpProxyConfigPtr config;
     try {
         // Qualify namespace to avoid collision with class method New().
-        config = NYT::New<NYT::NNodeJS::THttpProxyConfigPtr>();
+        config = ::NYT::New<NYT::NNodeJS::THttpProxyConfig>();
         config->Load(configNode);
     } catch (const std::exception& ex) {
         return ThrowException(Exception::TypeError(

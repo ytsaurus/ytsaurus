@@ -5,7 +5,6 @@
 #include "output_stream.h"
 #include "output_stack.h"
 
-#include <ytlib/logging/log_manager.h>
 #include <ytlib/ytree/node.h>
 #include <ytlib/driver/config.h>
 #include <ytlib/driver/driver.h>
@@ -184,7 +183,7 @@ TNodeJSDriver::TNodeJSDriver(bool echo, Handle<Object> configObject)
     NNodeJS::THttpProxyConfigPtr config;
     try {
         // Qualify namespace to avoid collision with class method New().
-        config = NYT::New<NYT::NNodeJS::THttpProxyConfigPtr>();
+        config = NYT::New<NYT::NNodeJS::THttpProxyConfig>();
         config->Load(configNode);
     } catch (const std::exception& ex) {
         Message = Sprintf("Error loading configuration\n%s", ex.what());
