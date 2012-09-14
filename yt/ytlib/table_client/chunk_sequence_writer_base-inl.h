@@ -13,6 +13,7 @@
 
 #include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
 #include <ytlib/chunk_client/chunk_ypath_proxy.h>
+#include <ytlib/chunk_client/dispatcher.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -37,7 +38,7 @@ TChunkSequenceWriterBase<TChunkWriter>::TChunkSequenceWriterBase(
     , Progress(0)
     , CompleteChunkSize(0)
     , NextSession(Null)
-    , CloseChunksAwaiter(New<TParallelAwaiter>(NChunkClient::WriterThread->GetInvoker()))
+    , CloseChunksAwaiter(New<TParallelAwaiter>(NChunkClient::TDispatcher::Get()->GetWriterInvoker()))
     , Logger(TableWriterLogger)
 {
     YASSERT(config);
@@ -92,7 +93,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::CreateNextSession()
 
     objectProxy.Execute(req).Subscribe(
         BIND(&TChunkSequenceWriterBase::OnChunkCreated, MakeWeak(this))
-        .Via(NChunkClient::WriterThread->GetInvoker()));
+        .Via(NChunkClient::TDispatcher::Get()->GetWriterInvoker()));
 }
 
 template <class TChunkWriter>

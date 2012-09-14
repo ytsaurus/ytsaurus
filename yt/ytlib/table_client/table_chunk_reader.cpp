@@ -12,7 +12,7 @@
 #include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/chunk_client/sequential_reader.h>
 #include <ytlib/chunk_client/config.h>
-#include <ytlib/chunk_client/private.h>
+#include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/ytree/tokenizer.h>
 #include <ytlib/actions/invoker.h>
@@ -163,7 +163,7 @@ public:
 
         AsyncReader->AsyncGetChunkMeta(Null, &tags).Subscribe(
             BIND(&TRegularInitializer::OnGotMeta, MakeStrong(this))
-            .Via(ReaderThread->GetInvoker()));
+            .Via(TDispatcher::Get()->GetReaderInvoker()));
     }
 
 private:
@@ -315,7 +315,7 @@ private:
 
         chunkReader->SequentialReader->AsyncNextBlock().Subscribe(
             BIND(&TRegularInitializer::OnStartingBlockReceived, MakeWeak(this), 0)
-            .Via(ReaderThread->GetInvoker()));
+            .Via(TDispatcher::Get()->GetReaderInvoker()));
     }
 
     void SelectChannels(TTableChunkReaderPtr chunkReader)
@@ -493,7 +493,7 @@ private:
                     &TRegularInitializer::OnStartingBlockReceived, 
                     MakeWeak(this), 
                     selectedChannelIndex)
-                .Via(ReaderThread->GetInvoker()));
+                .Via(TDispatcher::Get()->GetReaderInvoker()));
         } else {
             // Create current row.
             LOG_DEBUG("All starting blocks received");
@@ -519,7 +519,7 @@ private:
                 if (!chunkReader->DoNextRow()) {
                     chunkReader->RowState.GetOperationError().Subscribe(
                         BIND(&TRegularInitializer::ValidateRow, MakeWeak(this))
-                        .Via(ReaderThread->GetInvoker()));
+                        .Via(TDispatcher::Get()->GetReaderInvoker()));
                     return;
                 }
             } else {
@@ -588,9 +588,10 @@ public:
         tags.push_back(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
         tags.push_back(TProtoExtensionTag<NProto::TChannelsExt>::Value);
 
-        AsyncReader->AsyncGetChunkMeta(chunkReader->PartitionTag, &tags).Subscribe(BIND(
-            &TPartitionInitializer::OnGotMeta, 
-            MakeStrong(this)).Via(NChunkClient::ReaderThread->GetInvoker()));
+        AsyncReader->AsyncGetChunkMeta(chunkReader->PartitionTag, &tags)
+            .Subscribe(
+                BIND(&TPartitionInitializer::OnGotMeta, MakeStrong(this))
+                .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
     }
 
     void OnGotMeta(NChunkClient::IAsyncReader::TGetMetaResult result)

@@ -136,23 +136,25 @@ bool TMultiChunkParallelReader<TChunkReader>::FetchNextItem()
         }
 
         isReaderComplete = true;
-        NChunkClient::ReaderThread->GetInvoker()->Invoke(BIND(
+        NChunkClient::TDispatcher::Get()->GetReaderInvoker()->Invoke(BIND(
             &TMultiChunkParallelReader<TChunkReader>::FinishReader,
             MakeWeak(this),
             CurrentReader_));
         TBase::PrepareNextChunk();
     } else {
-        CurrentReader_->GetReadyEvent().Subscribe(BIND(
-            &TMultiChunkParallelReader<TChunkReader>::OnReaderReady,
-            MakeWeak(this),
-            CurrentReader_).Via(NChunkClient::ReaderThread->GetInvoker()));
+        CurrentReader_->GetReadyEvent().Subscribe(
+            BIND(&TMultiChunkParallelReader<TChunkReader>::OnReaderReady,
+                MakeWeak(this),
+                CurrentReader_)
+            .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
     }
 
 
     TGuard<TSpinLock> guard(SpinLock);
     if (isReaderComplete) {
-        if (++CompleteReaderCount == TBase::InputChunks.size())
+        if (++CompleteReaderCount == TBase::InputChunks.size()) {
             return true;
+        }
     }
 
     if (ReadyReaders.empty()) {

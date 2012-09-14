@@ -7,6 +7,7 @@
 #include "block_id.h"
 #include "chunk_ypath_proxy.h"
 #include "chunk_holder_service_proxy.h"
+#include "dispatcher.h"
 
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/string.h>
@@ -97,7 +98,7 @@ public:
             GetSeedsPromise = NewPromise<TGetSeedsResult>();
             TDelayedInvoker::Submit(
                 BIND(&TRemoteReader::DoFindChunk, MakeWeak(this))
-                .Via(ReaderThread->GetInvoker()),
+                .Via(TDispatcher::Get()->GetReaderInvoker()),
                 SeedsTimestamp + Config->RetryBackoffTime);
         }
 
@@ -156,7 +157,7 @@ private:
         auto req = TChunkYPathProxy::Locate(FromObjectId(ChunkId));
         ObjectProxy->Execute(req).Subscribe(
             BIND(&TRemoteReader::OnChunkFetched, MakeWeak(this))
-            .Via(ReaderThread->GetInvoker()));
+            .Via(TDispatcher::Get()->GetReaderInvoker()));
     }
 
     void OnChunkFetched(TChunkYPathProxy::TRspLocatePtr rsp)
@@ -229,7 +230,7 @@ protected:
         GetSeedsResult = reader->AsyncGetSeeds();
         GetSeedsResult.Subscribe(
             BIND(&TSessionBase::OnGetSeedsReply, MakeStrong(this))
-            .Via(ReaderThread->GetInvoker()));
+            .Via(TDispatcher::Get()->GetReaderInvoker()));
 
         PassIndex = 0;
     }
@@ -268,7 +269,7 @@ protected:
         } else {
             TDelayedInvoker::Submit(
                 BIND(&TSessionBase::NewPass, MakeStrong(this))
-                .Via(ReaderThread->GetInvoker()),
+                .Via(TDispatcher::Get()->GetReaderInvoker()),
                 reader->Config->PassBackoffTime);
         }
     }
@@ -513,7 +514,7 @@ private:
                         MakeStrong(this),
                         address,
                         request)
-                    .Via(ReaderThread->GetInvoker()));
+                    .Via(TDispatcher::Get()->GetReaderInvoker()));
                 break;
             }
 
@@ -707,7 +708,7 @@ private:
         ToProto(request->mutable_extension_tags(), ExtensionTags);
         request->Invoke().Subscribe(
             BIND(&TGetMetaSession::OnChunkMetaResponse, MakeStrong(this), address)
-            .Via(ReaderThread->GetInvoker()));
+            .Via(TDispatcher::Get()->GetReaderInvoker()));
     }
 
     void OnChunkMetaResponse(

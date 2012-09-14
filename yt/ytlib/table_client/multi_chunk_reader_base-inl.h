@@ -9,6 +9,7 @@
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/remote_reader.h>
 #include <ytlib/chunk_client/async_reader.h>
+#include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/rpc/channel.h>
 #include <ytlib/misc/protobuf_helpers.h>
@@ -67,11 +68,13 @@ void TMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
         FromProto<Stroka>(inputChunk.node_addresses()));
 
     auto chunkReader = ReaderProvider->CreateNewReader(inputChunk, remoteReader);
-    chunkReader->AsyncOpen().Subscribe(BIND(
-        &TMultiChunkReaderBase<TChunkReader>::OnReaderOpened,
-        MakeWeak(this),
-        chunkReader,
-        LastPreparedReader).Via(NChunkClient::ReaderThread->GetInvoker()));
+    chunkReader->AsyncOpen()
+        .Subscribe(BIND(
+            &TMultiChunkReaderBase<TChunkReader>::OnReaderOpened,
+            MakeWeak(this),
+            chunkReader,
+            LastPreparedReader)
+        .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
 }
 
 template <class TChunkReader>

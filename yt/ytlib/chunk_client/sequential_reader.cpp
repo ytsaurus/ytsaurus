@@ -2,6 +2,7 @@
 #include "sequential_reader.h"
 #include "config.h"
 #include "private.h"
+#include "dispatcher.h"
 
 namespace NYT {
 namespace NChunkClient {
@@ -25,7 +26,7 @@ TSequentialReader::TSequentialReader(
     , Codec(GetCodec(codecId))
     , Logger(ChunkReaderLogger)
 {
-    VERIFY_INVOKER_AFFINITY(ReaderThread->GetInvoker(), ReaderThread);
+    VERIFY_INVOKER_AFFINITY(TDispatcher::Get()->GetReaderInvoker(), ReaderThread);
 
     Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkReader->GetChunkId().ToString()));
 
@@ -40,7 +41,7 @@ TSequentialReader::TSequentialReader(
         BlockWindow.push_back(NewPromise<TSharedRef>());
     }
 
-    ReaderThread->GetInvoker()->Invoke(BIND(
+    TDispatcher::Get()->GetReaderInvoker()->Invoke(BIND(
         &TSequentialReader::FetchNextGroup,
         MakeWeak(this)));
 }
@@ -109,7 +110,7 @@ void TSequentialReader::OnGotBlocks(
         firstSequenceIndex, 
         static_cast<int>(readResult.Value().size()));
 
-    ReaderThread->GetInvoker()->Invoke(BIND(
+    TDispatcher::Get()->GetReaderInvoker()->Invoke(BIND(
         &TSequentialReader::DecompressBlock,
         MakeWeak(this),
         firstSequenceIndex,
@@ -140,7 +141,7 @@ void TSequentialReader::DecompressBlock(
 
     ++blockIndex;
     if (blockIndex < readResult.Value().size()) {
-        ReaderThread->GetInvoker()->Invoke(BIND(
+        TDispatcher::Get()->GetReaderInvoker()->Invoke(BIND(
             &TSequentialReader::DecompressBlock,
             MakeWeak(this),
             firstSequenceIndex,
@@ -175,12 +176,13 @@ void TSequentialReader::FetchNextGroup()
         static_cast<int>(blockIndexes.size()),
         groupSize);
 
-    AsyncSemaphore.GetReadyEvent().Subscribe(BIND(
-        &TSequentialReader::RequestBlocks,
-        MakeWeak(this),
-        firstUnfetched,
-        blockIndexes,
-        groupSize).Via(ReaderThread->GetInvoker()));
+    AsyncSemaphore.GetReadyEvent().Subscribe(
+        BIND(&TSequentialReader::RequestBlocks,
+            MakeWeak(this),
+            firstUnfetched,
+            blockIndexes,
+            groupSize)
+        .Via(TDispatcher::Get()->GetReaderInvoker()));
 }
 
 void TSequentialReader::RequestBlocks(
@@ -189,12 +191,13 @@ void TSequentialReader::RequestBlocks(
     int groupSize)
 {
     AsyncSemaphore.Acquire(groupSize);
-    ChunkReader->AsyncReadBlocks(blockIndexes).Subscribe(BIND(
-        &TSequentialReader::OnGotBlocks, 
-        MakeWeak(this),
-        firstIndex).Via(ReaderThread->GetInvoker()));
+    ChunkReader->AsyncReadBlocks(blockIndexes).Subscribe(
+        BIND(&TSequentialReader::OnGotBlocks, 
+            MakeWeak(this),
+            firstIndex)
+        .Via(TDispatcher::Get()->GetReaderInvoker()));
 
-    ReaderThread->GetInvoker()->Invoke(BIND(
+    TDispatcher::Get()->GetReaderInvoker()->Invoke(BIND(
         &TSequentialReader::FetchNextGroup,
         MakeWeak(this)));
 }

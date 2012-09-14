@@ -8,7 +8,7 @@
 
 #include <ytlib/ytree/lexer.h>
 #include <ytlib/chunk_client/async_writer.h>
-#include <ytlib/chunk_client/private.h>
+#include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/encoding_writer.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
@@ -196,9 +196,9 @@ TAsyncError TPartitionChunkWriter::AsyncClose()
 
     YCHECK(CurrentBufferSize == 0);
 
-    EncodingWriter->AsyncFlush().Subscribe(BIND(
-        &TPartitionChunkWriter::OnFinalBlocksWritten,
-        MakeWeak(this)).Via(WriterThread->GetInvoker()));
+    EncodingWriter->AsyncFlush().Subscribe(
+        BIND(&TPartitionChunkWriter::OnFinalBlocksWritten, MakeWeak(this))
+        .Via(TDispatcher::Get()->GetWriterInvoker()));
 
     return State.GetOperationError();
 }
