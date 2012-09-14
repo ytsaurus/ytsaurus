@@ -209,7 +209,6 @@ protected:
 
     void EndTask(TMergeTaskPtr task) 
     {
-
         YCHECK(HasActiveTask());
 
         FOREACH (auto stripe, CurrentTaskStripes) {
@@ -853,6 +852,19 @@ protected:
 
         int endpointsCount = static_cast<int>(Endpoints.size());
 
+        auto flushOpenedChunks = [&] () {
+            auto& endpoint = Endpoints[currentIndex];
+            auto nextBreakpoint = GetSuccessorKey(endpoint.Key);
+            LOG_DEBUG("Finish current task, flushing %" PRISZT " chunks at key %s",
+                openedChunks.size(),
+                ~ToString(nextBreakpoint));
+
+            FOREACH (auto& inputChunk, openedChunks) {
+                AddPendingChunk(SliceChunk(*inputChunk, lastBreakpoint, nextBreakpoint));
+            }
+            lastBreakpoint = nextBreakpoint;
+        };
+
         while (currentIndex < endpointsCount) {
             auto& endpoint = Endpoints[currentIndex];
 
@@ -896,20 +908,14 @@ protected:
 
             case EEndpointType::Right:
                 AddPendingChunk(SliceChunk(*endpoint.InputChunk, lastBreakpoint, Null));
+                YCHECK(openedChunks.erase(endpoint.InputChunk) == 1);
 
                 if (!openedChunks.empty() &&
                     HasLargeActiveTask() &&
                     endpoint.Key < Endpoints[currentIndex + 1].Key)
                 {
-                    auto nextBreakpoint = GetSuccessorKey(endpoint.Key);
-                    LOG_DEBUG("Task is too large, flushing %" PRISZT " chunks at key %s",
-                        openedChunks.size(),
-                        ~ToString(nextBreakpoint));
-                    FOREACH (auto& inputChunk, openedChunks) {
-                        AddPendingChunk(SliceChunk(*inputChunk, lastBreakpoint, nextBreakpoint));
-                    }
+                    flushOpenedChunks();
                     EndTask();
-                    lastBreakpoint = nextBreakpoint;
                 }
 
                 if (openedChunks.empty()) {
@@ -942,38 +948,50 @@ protected:
                 } while (nextIndex != endpointsCount);
 
                 if (AllowPassthroughChunks()) {
-                    if (partialManiacSize > SpecBase->MaxDataSizePerJob) {
-                        // Finish current task.
+                    bool hasManiacTask = partialManiacSize > SpecBase->MaxDataSizePerJob;
+                    bool hasPassthroughManiacs = completeLargeManiacSize > 0;
+
+                    if (!hasManiacTask) {
+                        FOREACH (auto& chunk, partialChunks) {
+                            AddPendingChunk(chunk);
+                        }
+                    }
+
+                    if (hasManiacTask || hasPassthroughManiacs) {
+                        flushOpenedChunks();
+
                         if (HasActiveTask()) {
                            EndTask();
                         }
+                    }
 
+                    if (hasManiacTask) {
+                        YCHECK(!HasActiveTask());
                         // Create special maniac task.
                         FOREACH (auto& chunk, partialChunks) {
                             AddPendingChunk(chunk);
-                        }
-                        EndManiacTask();
-                    } else {
-                        // Add chunks to current task.
-                        FOREACH (auto& chunk, partialChunks) {
-                            AddPendingChunk(chunk);
+                            if (HasLargeActiveTask()) {
+                                EndManiacTask();
+                            }
                         }
 
-                        if (completeLargeManiacSize > 0) {
-                            // If we have passthrough chunks - finish current task.
-                            EndTask();
+                        if (HasActiveTask()) {
+                           EndManiacTask();
                         }
                     }
 
+                    YCHECK(!HasActiveTask());
                     FOREACH (auto& chunk, completeLargeChunks) {
-                        YCHECK(!HasActiveTask());
+                        // Add passthrough maniacs.
                         AddPassthroughChunk(chunk);
                     }
                 } else {
-                    bool createManiac = partialManiacSize + completeLargeManiacSize > 
+                    bool hasManiacTask = partialManiacSize + completeLargeManiacSize > 
                         SpecBase->MaxDataSizePerJob;
-                    if (createManiac) {
+
+                    if (hasManiacTask) {
                         // Complete current task
+                        flushOpenedChunks();
                         if (HasActiveTask()) {
                            EndTask();
                         }
@@ -987,8 +1005,9 @@ protected:
                         AddPendingChunk(chunk);
                     }
 
-                    if (createManiac)
+                    if (hasManiacTask) {
                         EndManiacTask();
+                    }
                 }
 
                 currentIndex = nextIndex;

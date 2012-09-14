@@ -105,6 +105,23 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert read('//tmp/t_out') == [{'a': 1}, {'a': 2}, {'a': 3}, {'a': 10}, {'a': 15}, {'a': 100}]
         assert get('//tmp/t_out/@chunk_count') == 1
 
+    def test_sorted_with_maniacs(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+
+        write_str('//tmp/t1', '{a = 3}; {a = 3};{a = 3}', sorted_by='a')
+        write_str('//tmp/t2', '{a = 2}; {a = 3}; {a = 15}', sorted_by='a')
+
+        create('table', '//tmp/t_out')
+        merge('--combine',
+              mode='sorted',
+              in_=['//tmp/t1', '//tmp/t2'],
+              out='//tmp/t_out',
+              opt='/spec/max_data_size_per_job=1')
+
+        assert read('//tmp/t_out') == [{'a': 2}, {'a': 3}, {'a': 3}, {'a': 3}, {'a': 3}, {'a': 15}]
+        assert get('//tmp/t_out/@chunk_count') == 3
+
     def test_sorted_by(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
