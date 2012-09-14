@@ -9,13 +9,14 @@
 # -lock
 # -unlock
 
-import yt.wrapper as yt
 import yt.wrapper.config as config
 from yt.wrapper.common import flatten, unlist
+import yt.wrapper as yt
 
 import sys
 import simplejson as json
-from argparse import ArgumentParser
+from argparse import ArgumentParser, RawTextHelpFormatter
+from operator import attrgetter
 from functools import partial
 from itertools import imap
 
@@ -30,20 +31,8 @@ def remove_prefix(table):
     return table
 
 def list_all_tables():
-    result = []
-    def walk(path, object):
-        object_type = object["$attributes"]["type"]
-        if object_type == "table":
-            if path.startswith(config.PREFIX):
-                result.append(path)
-        elif object_type == "map_node" and object["$value"] is not None:
-            for key, value in object["$value"].iteritems():
-                walk(path + '/%s' % key, value)
-        else:
-            # All other objects are ignored
-            pass
-    walk("/", yt.get("/", attributes=["type"]))
-    return map(remove_prefix, sorted(result))
+    tables = yt.search("/", "table", lambda path: path.startswith(config.PREFIX))
+    return sorted(map(remove_prefix, tables))
 
 def add_eoln(str):
     return str + "\n"
@@ -78,16 +67,56 @@ def add_help_messages(parser, args):
 def parse_format(format):
     return None if format is None else yt.RawFormat(format)
 
+class SortingHelpFormatter(RawTextHelpFormatter):
+    def add_arguments(self, actions):
+        actions = sorted(actions, key=attrgetter('option_strings'))
+        super(SortingHelpFormatter, self).add_arguments(actions)
+
 def main():
     config.FORCE_SORT_IN_REDUCE = True
     config.USE_MAPREDUCE_STYLE_DST_TABLES = True
+
+    parser = ArgumentParser(
+        formatter_class=SortingHelpFormatter,
+        description="Shell utility to work with YT system.\n"
+                    "This utitlity is back-compatible with mapreduce fo Yamr.",
+        epilog=
+"""
+Examples:
+    Append data to table with replication factor one, gzip codec and chunks of size 1Gb:
+            ./mapreduce -write 'table' -replication_factor 1 -codec 'gzip_normal' -chunksize 1073741824 -append < data
+    
+    Run operation on the range of the table:
+            ./mapreduce 
+                -subkey 
+                -map 'awk '"'"'{sum+=$1+$2} END {print "\\t\\t"sum}'"'" 
+                -src "ignat/temp{key,subkey}[("aaa"):("zzz")]" 
+                -dst "ignat/sum"
+    
+    Run map-reduce operation:
+            ./mapreduce 
+                -subkey 
+                -map 'grep "A"'
+                -reduce 'awk '"'"'{a[$1]+=$3} END {for (i in a) {print i"\\t\\t"a[i]}}'"'"
+                -src "ignat/temp"
+                -dst "ignat/reduced"
+    
+    Use already uploaded files:
+            ./mapreduce -upload mapper.py -dst ignat/mapper.py
+            ./mapreduce -subkey -map "./mapper.py" -ytfile "ignat/mapper.py" -src "ignat/temp" -dst "ignat/mapped"
+    
+    Use attrbiutes:
+            ./mapreduce -set "log/@my_attr"  -value 10
+            ./mapreduce -get "log/@my_attr"
+    It returns 10.
+"""
+    )
 
     # TODO(ignat): add unsupported arguments
     action_stores = ["read", "write", "writesorted", "map", "reduce", "reducews", "drop",
                      "erase", "abort_tx", "commit_tx", "renew_tx", "set", "get", "upload", "download"]
     action_flags = ["version", "copy", "sort", "merge", "list", "start_tx"]
 
-    parser = ArgumentParser()
     add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "ping_tx"])
     add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec",
                                             "inputformat", "outputformat", "tx", "value", "replication_factor", "sort_by"])
@@ -238,11 +267,11 @@ def main():
         config.PREFIX = args.prefix
 
     spec = {}
+    if args.jobcount is not None:
+        spec.update({"job_count": args.jobcount})
     if vars(args)["ytspec"] is not None:
         for spec_arg in args.ytspec:
             spec.update(json.loads(spec_arg))
-    if args.jobcount is not None:
-        spec.update({"job_count": args.jobcount})
 
     # Fix table names
     method = add_prefix
@@ -290,6 +319,8 @@ def main():
     if args.replication_factor is not None:
         table_writer["replication_factor"] = args.replication_factor
         table_writer["upload_replication_factor"] = args.replication_factor
+    if not table_writer:
+        table_writer = None
 
     if args.list:
         sys.stdout.writelines(imap(add_eoln, list_all_tables()))
