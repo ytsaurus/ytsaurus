@@ -101,8 +101,6 @@ public:
 
         StartedJobs_.push_back(job);
 
-        AddResources(&Node->ResourceUtilization(), job->ResourceUtilization());
-
         return job;
     }
 

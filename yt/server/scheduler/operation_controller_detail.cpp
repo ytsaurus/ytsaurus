@@ -420,6 +420,7 @@ TFuture<void> TOperationControllerBase::Commit()
 void TOperationControllerBase::OnJobStarted(TJobPtr job)
 {
     AddResources(&UsedResources, job->ResourceUtilization());
+    AddResources(&job->GetNode()->ResourceUtilization(), job->ResourceUtilization());
 }
 
 void TOperationControllerBase::OnJobRunning(TJobPtr job)
