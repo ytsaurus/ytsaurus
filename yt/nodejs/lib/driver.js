@@ -33,7 +33,7 @@ function YtDriver(echo, configuration) {
     this.__DBG("low_watermark = " + this.low_watermark);
     this.__DBG("high_watermark = " + this.high_watermark);
 
-    this._binding = new binding.TNodeJSDriver(echo, configuration.driver);
+    this._binding = new binding.TNodeJSDriver(echo, configuration.proxy);
 }
 
 YtDriver.prototype.execute = function(name,

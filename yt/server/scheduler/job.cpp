@@ -3,6 +3,7 @@
 #include "operation.h"
 #include "exec_node.h"
 #include "operation_controller.h"
+#include "job_resources.h"
 
 namespace NYT {
 namespace NScheduler {
@@ -20,6 +21,7 @@ TJob::TJob(
     , StartTime_(startTime)
     , State_(EJobState::Running)
     , Spec_(NULL)
+    , ResourceUtilization_(ZeroResources())
 { }
 
 ////////////////////////////////////////////////////////////////////

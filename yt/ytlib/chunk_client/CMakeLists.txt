@@ -4,6 +4,7 @@ set( SRCS
   ${BASE}/block_id.cpp
   ${BASE}/client_block_cache.cpp
   ${BASE}/chunk_meta_extensions.cpp
+  ${BASE}/dispatcher.cpp
   ${BASE}/encoding_writer.cpp
   ${BASE}/file_reader.cpp
   ${BASE}/file_writer.cpp
@@ -25,6 +26,7 @@ set( HDRS
   ${BASE}/chunk_list_ypath_proxy.h
   ${BASE}/chunk_ypath_proxy.h
   ${BASE}/config.h
+  ${BASE}/dispatcher.h
   ${BASE}/encoding_writer.h
   ${BASE}/file_reader.h
   ${BASE}/file_writer.h

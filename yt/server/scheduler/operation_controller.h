@@ -86,8 +86,8 @@ struct ISchedulingContext
 
 
     virtual TExecNodePtr GetNode() = 0;
-
-    virtual TJobPtr StartJob(TOperation* operation) = 0;
+    virtual bool HasSpareResources() const = 0;
+    virtual TJobPtr ScheduleJob(TOperation* operation) = 0;
 };
 
 /*!
@@ -134,6 +134,12 @@ struct IOperationController
 
     //! Returns the number of jobs the controller still needs to start right away.
     virtual int GetPendingJobCount() = 0;
+
+    //! Returns the total resources that are currently used.
+    virtual NProto::TNodeResources GetUsedResources() = 0;
+
+    //! Returns the total resources that are additionally needed.
+    virtual NProto::TNodeResources GetNeededResources() = 0;
     
     //! Called during heartbeat processing to notify the controller that a job is running.
     virtual void OnJobRunning(TJobPtr job) = 0;

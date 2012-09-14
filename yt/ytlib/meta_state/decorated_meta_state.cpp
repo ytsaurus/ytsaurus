@@ -313,7 +313,7 @@ TCachedAsyncChangeLogPtr TDecoratedMetaState::GetCurrentChangeLog()
 
     auto result = ChangeLogCache->Get(Version.SegmentId);
     if (!result.IsOK()) {
-        LOG_FATAL("Cannot obtain the current changelog\n%s", ~ToString(result));
+        LOG_FATAL(result, "Cannot obtain the current changelog");
     }
 
     CurrentChangeLog = result.Value();

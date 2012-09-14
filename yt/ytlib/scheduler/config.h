@@ -34,7 +34,7 @@ struct TUserJobSpec
     NYTree::INodePtr InputFormat;
     NYTree::INodePtr OutputFormat;
     
-    int CoresLimit;
+    int CpuLimit;
     i64 MemoryLimit;
 
     TUserJobSpec()
@@ -48,7 +48,7 @@ struct TUserJobSpec
             .Default(NULL);
         Register("output_format", OutputFormat)
             .Default(NULL);
-        Register("cores_limit", CoresLimit)
+        Register("cpu_limit", CpuLimit)
             .Default(1);
         Register("memory_limit", MemoryLimit)
             .Default((i64) 1024 * 1024 * 1024);
@@ -389,6 +389,56 @@ struct TMapReduceOperationSpec
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_ENUM(EPoolMode,
+    (Fifo)
+    (FairShare)
+);
+
+struct TPoolConfig
+    : public TYsonSerializable
+{
+    double Weight;
+    double MinShare;
+    EPoolMode Mode;
+
+    TPoolConfig()
+    {
+        Register("weight", Weight)
+            .Default(1.0)
+            .GreaterThanOrEqual(1.0);
+        Register("min_share", MinShare)
+            .Default(0.0)
+            .InRange(0.0, 1.0);
+        Register("mode", Mode)
+            .Default(EPoolMode::Fifo);
+    }
+};
+
+////////////////////////////////////////////////////////////////////
+
+struct TPooledOperationSpec
+    : public TYsonSerializable
+{
+    TNullable<Stroka> Pool;
+    double Weight;
+    double MinShare;
+
+    TPooledOperationSpec()
+    {
+        Register("pool", Pool)
+            .Default(TNullable<Stroka>())
+            .NonEmpty();
+        Register("weight", Weight)
+            .Default(1.0)
+            .GreaterThanOrEqual(1.0);
+        Register("min_share", MinShare)
+            .Default(0.0)
+            .InRange(0.0, 1.0);
+    }
+};
+
+////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler
 } // namespace NYT

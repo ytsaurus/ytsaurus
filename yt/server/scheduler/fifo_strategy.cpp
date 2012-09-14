@@ -5,7 +5,6 @@
 #include "exec_node.h"
 #include "job.h"
 #include "operation_controller.h"
-#include "job_resources.h"
 
 namespace NYT {
 namespace NScheduler {
@@ -28,7 +27,7 @@ public:
         // Stop when no spare resources are left (coarse check).
         auto node = context->GetNode();
         FOREACH (auto operation, Queue) {
-            while (HasSpareResources(node->ResourceUtilization(), node->ResourceLimits())) {
+            while (context->HasSpareResources()) {
                 if (operation->GetState() != EOperationState::Running) {
                     break;
                 }
@@ -37,10 +36,6 @@ public:
                 if (!job) {
                     break;
                 }
-
-                IncreaseResourceUtilization(
-                    &node->ResourceUtilization(),
-                    job->GetSpec()->resource_utilization());
             }
         }
     }

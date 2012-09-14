@@ -25,21 +25,19 @@ TMetaStateServiceBase::TMetaStateServiceBase(
 
 void TMetaStateServiceBase::ValidateLeaderStatus()
 {
-    auto status = Bootstrap->GetMetaStateFacade()->GetManager()->GetStateStatus();
-    if (status == NMetaState::EPeerStatus::Following) {
-        THROW_ERROR_EXCEPTION(
-            NRpc::EErrorCode::Unavailable,
-            "Not a leader");
+    auto metaStateManager = Bootstrap->GetMetaStateFacade()->GetManager();
+    if (metaStateManager->GetStateStatus() != EPeerStatus::Leading) {
+        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Not a leader");
     }
-    YCHECK(status == NMetaState::EPeerStatus::Leading);
+    if (!metaStateManager->HasActiveQuorum()) {
+        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "No active quorum");
+    }
 }
 
 void TMetaStateServiceBase::ValidateInitialized()
 {
     if (!Bootstrap->GetMetaStateFacade()->IsInitialized()) {
-        THROW_ERROR_EXCEPTION(
-            NRpc::EErrorCode::Unavailable,
-            "Not initialized yet");
+        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Not initialized yet");
     }
 }
 

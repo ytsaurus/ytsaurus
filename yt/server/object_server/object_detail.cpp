@@ -30,6 +30,7 @@ using namespace NYTree;
 using namespace NCellMaster;
 using namespace NCypressClient;
 using namespace NObjectClient;
+using namespace NMetaState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -342,11 +343,13 @@ bool TObjectProxyBase::IsRecovery() const
 
 void TObjectProxyBase::ValidateLeaderStatus()
 {
-    auto status = Bootstrap->GetMetaStateFacade()->GetManager()->GetStateStatus();
-    if (status == NMetaState::EPeerStatus::Following) {
+    auto metaStateManager = Bootstrap->GetMetaStateFacade()->GetManager();
+    if (metaStateManager->GetStateStatus() != EPeerStatus::Leading) {
         throw TLeaderFallbackException();
     }
-    YCHECK(status == NMetaState::EPeerStatus::Leading);
+    if (!metaStateManager->HasActiveQuorum()) {
+        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "No active quorum");
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

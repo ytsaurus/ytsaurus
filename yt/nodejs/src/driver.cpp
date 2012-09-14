@@ -1,10 +1,10 @@
+#include "config.h"
 #include "driver.h"
 #include "input_stream.h"
 #include "input_stack.h"
 #include "output_stream.h"
 #include "output_stack.h"
 
-#include <ytlib/logging/log_manager.h>
 #include <ytlib/ytree/node.h>
 #include <ytlib/driver/config.h>
 #include <ytlib/driver/driver.h>
@@ -180,10 +180,10 @@ TNodeJSDriver::TNodeJSDriver(bool echo, Handle<Object> configObject)
         return;
     }
 
-    TDriverConfigPtr config;
+    NNodeJS::THttpProxyConfigPtr config;
     try {
         // Qualify namespace to avoid collision with class method New().
-        config = ::NYT::New<NDriver::TDriverConfig>();
+        config = NYT::New<NYT::NNodeJS::THttpProxyConfig>();
         config->Load(configNode);
     } catch (const std::exception& ex) {
         Message = Sprintf("Error loading configuration\n%s", ex.what());
@@ -191,8 +191,7 @@ TNodeJSDriver::TNodeJSDriver(bool echo, Handle<Object> configObject)
     }
 
     try {
-        NLog::TLogManager::Get()->Configure(configNode->AsMap()->GetChild("logging"));
-        Driver = CreateDriver(config);
+        Driver = CreateDriver(config->Driver);
     } catch (const std::exception& ex) {
         Message = Sprintf("Error initializing driver instance\n%s", ex.what());
         return;
@@ -225,7 +224,6 @@ void TNodeJSDriver::Initialize(Handle<Object> target)
         String::NewSymbol("TNodeJSDriver"),
         ConstructorTemplate->GetFunction());
 
-    // === Experimental.
     auto compressionValues = ECompression::GetDomainValues();
     FOREACH (auto& value, compressionValues) {
         Stroka key = Stroka::Join("ECompression_", ECompression::GetLiteralByValue(value));

@@ -67,9 +67,8 @@ void TSnapshotLookup::OnLookupSnapshotResponse(
     VERIFY_THREAD_AFFINITY_ANY();
 
     if (!response->IsOK()) {
-        LOG_WARNING("Error looking up snapshots at peer %d\n%s",
-            peerId,
-            ~ToString(response->GetError()));
+        LOG_WARNING(response->GetError(), "Error looking up snapshots at peer %d",
+            peerId);
         return;
     }
 

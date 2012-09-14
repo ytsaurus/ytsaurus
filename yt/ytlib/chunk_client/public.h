@@ -45,7 +45,6 @@ DECLARE_ENUM(EChunkType,
     ((Table)(2))
 );
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TRemoteReaderConfig;
@@ -56,6 +55,9 @@ typedef TIntrusivePtr<TClientBlockCacheConfig> TClientBlockCacheConfigPtr;
 
 struct TEncodingWriterConfig;
 typedef TIntrusivePtr<TEncodingWriterConfig> TEncodingWriterConfigPtr;
+
+struct TDispatcherConfig;
+typedef TIntrusivePtr<TDispatcherConfig> TDispatcherConfigPtr;
 
 class TEncodingWriter;
 typedef TIntrusivePtr<TEncodingWriter> TEncodingWriterPtr;

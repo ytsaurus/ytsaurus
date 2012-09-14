@@ -407,9 +407,8 @@ void TTransactionManager::OnPingResponse(
                 ~id.ToString());
             transaction->HandleAbort();
         } else {
-            LOG_WARNING("Error renewing transaction lease (TransactionId: %s)\n%s",
-                ~id.ToString(),
-                ~ToString(rsp->GetError()));
+            LOG_WARNING(rsp->GetError(), "Error renewing transaction lease (TransactionId: %s)",
+                ~id.ToString());
         }
         return;
     }

@@ -92,9 +92,8 @@ void TSnapshotDownloader::OnSnapshotInfoResponse(
     VERIFY_THREAD_AFFINITY_ANY();
 
     if (!response->IsOK()) {
-        LOG_INFO("Error requesting snapshot info from peer %d\n%s",
-            peerId,
-            ~ToString(response->GetError()));
+        LOG_INFO(response->GetError(), "Error requesting snapshot info from peer %d",
+            peerId);
         return;
     }
     
@@ -131,9 +130,8 @@ TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
         file = new TFile(fileName, CreateAlways | WrOnly | Seq);
         file->Resize(snapshotInfo.Length);
     } catch (const std::exception& ex) {
-        LOG_FATAL("IO error opening snapshot %d for writing\n%s",
-            snapshotId,
-            ex.what());
+        LOG_FATAL(ex, "IO error opening snapshot %d for writing",
+            snapshotId);
     }
 
     TBufferedFileOutput output(*file);
@@ -148,9 +146,8 @@ TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
         file->Flush();
         file->Close();
     } catch (const std::exception& ex) {
-        LOG_FATAL("Error closing snapshot %d\n%s",
-            snapshotId,
-            ex.what());
+        LOG_FATAL(ex, "Error closing snapshot %d",
+            snapshotId);
     }
 
     return EResult::OK;
@@ -190,15 +187,13 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
                         return EResult::SnapshotUnavailable;
 
                     default:
-                        LOG_FATAL("Unexpected error received from peer %d\n%s",
-                            sourceId,
-                            ~ToString(error));
+                        LOG_FATAL(error, "Unexpected error received from peer %d",
+                            sourceId);
                         break;
                 }
             } else {
-                LOG_WARNING("Error reading snapshot at peer %d\n%s",
-                    sourceId,
-                    ~ToString(error));
+                LOG_WARNING(error, "Error reading snapshot at peer %d",
+                    sourceId);
                 return EResult::RemoteError;
             }
         }
@@ -220,9 +215,8 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
         try {
             output.Write(block.Begin(), block.Size());
         } catch (const std::exception& ex) {
-            LOG_FATAL("Error writing snapshot %d\n%s",
-                snapshotId,
-                ex.what());
+            LOG_FATAL(ex, "Error writing snapshot %d",
+                snapshotId);
         }
 
         downloadedLength += block.Size();

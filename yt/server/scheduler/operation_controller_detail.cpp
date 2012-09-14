@@ -41,12 +41,14 @@ using namespace NObjectClient;
 using namespace NYTree;
 using namespace NFormats;
 using namespace NJobProxy;
+using namespace NScheduler::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
 TOperationControllerBase::TTask::TTask(TOperationControllerBase* controller)
     : Controller(controller)
     , CachedPendingJobCount(0)
+    , CachedTotalNeededResources(ZeroResources())
     , Logger(Controller->Logger)
 { }
 
@@ -56,6 +58,27 @@ int TOperationControllerBase::TTask::GetPendingJobCountDelta()
     int newValue = GetPendingJobCount();
     CachedPendingJobCount = newValue;
     return newValue - oldValue;
+}
+
+TNodeResources TOperationControllerBase::TTask::GetTotalNeededResourcesDelta()
+{
+    auto oldValue = CachedTotalNeededResources;
+    auto newValue = GetTotalNeededResources();
+    CachedTotalNeededResources = newValue;
+    SubtractResources(&newValue, oldValue);
+    return newValue;
+}
+
+TNodeResources TOperationControllerBase::TTask::GetTotalNeededResources() const
+{
+    int count = GetPendingJobCount();
+    if (count == 0) {
+        return ZeroResources();
+    }
+
+    auto resources = GetAvgNeededResources();
+    MultiplyResources(&resources, count);
+    return resources;
 }
 
 i64 TOperationControllerBase::TTask::GetLocality(const Stroka& address) const
@@ -105,11 +128,11 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(ISchedulingContext* context
         jip->PoolResult->TotalDataSize,
         ~ToString(dataSizeThreshold));
 
-    jip->Job = context->StartJob(Controller->Operation);
+    jip->Job = context->ScheduleJob(Controller->Operation);
     auto* jobSpec = jip->Job->GetSpec();
 
     BuildJobSpec(jip, jobSpec);
-    *jobSpec->mutable_resource_utilization() = GetRequestedResourcesForJip(jip);
+    *jobSpec->mutable_resource_utilization() = GetNeededResources(jip);
 
     Controller->RegisterJobInProgress(jip);
 
@@ -225,17 +248,22 @@ void TOperationControllerBase::TTask::AddInputChunks(
     }
 }
 
-NProto::TNodeResources TOperationControllerBase::TTask::GetRequestedResourcesForJip(TJobInProgressPtr jip) const
+TNodeResources TOperationControllerBase::TTask::GetAvgNeededResources() const
+{
+    return GetMinNeededResources();
+}
+
+TNodeResources TOperationControllerBase::TTask::GetNeededResources(TJobInProgressPtr jip) const
 {
     UNUSED(jip);
-    return GetMinRequestedResources();
+    return GetMinNeededResources();
 }
 
 bool TOperationControllerBase::TTask::HasEnoughResources(TExecNodePtr node) const
 {
     return NScheduler::HasEnoughResources(
         node->ResourceUtilization(),
-        GetMinRequestedResources(),
+        GetMinNeededResources(),
         node->ResourceLimits());
 }
 
@@ -259,8 +287,10 @@ TOperationControllerBase::TOperationControllerBase(
     , RunningJobCount(0)
     , CompletedJobCount(0)
     , FailedJobCount(0)
+    , UsedResources(ZeroResources())
     , PendingTaskInfos(MaxTaskPriority + 1)
     , CachedPendingJobCount(0)
+    , CachedNeededResources(ZeroResources())
 {
     Logger.AddTag(Sprintf("OperationId: %s", ~operation->GetOperationId().ToString()));
 }
@@ -387,6 +417,12 @@ TFuture<void> TOperationControllerBase::Commit()
         }));
 }
 
+void TOperationControllerBase::OnJobStarted(TJobPtr job)
+{
+    AddResources(&UsedResources, job->ResourceUtilization());
+    AddResources(&job->GetNode()->ResourceUtilization(), job->ResourceUtilization());
+}
+
 void TOperationControllerBase::OnJobRunning(TJobPtr job)
 {
     UNUSED(job);
@@ -398,6 +434,8 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
 
     --RunningJobCount;
     ++CompletedJobCount;
+
+    SubtractResources(&UsedResources, job->ResourceUtilization());
 
     auto jip = GetJobInProgress(job);
     jip->Task->OnJobCompleted(jip);
@@ -421,6 +459,8 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
 
     --RunningJobCount;
     ++FailedJobCount;
+
+    SubtractResources(&UsedResources, job->ResourceUtilization());
 
     auto jip = GetJobInProgress(job);
     jip->Task->OnJobFailed(jip);
@@ -493,7 +533,7 @@ TJobPtr TOperationControllerBase::ScheduleJob(ISchedulingContext* context)
     auto node = context->GetNode();
     if (!HasEnoughResources(
             node->ResourceUtilization(),
-            GetMinRequestedResources(),
+            GetMinNeededResources(),
             node->ResourceLimits()))
     {
         return NULL;
@@ -509,16 +549,19 @@ TJobPtr TOperationControllerBase::ScheduleJob(ISchedulingContext* context)
     return job;
 }
 
-void TOperationControllerBase::UpdatePendingJobCount(TTaskPtr task)
+void TOperationControllerBase::OnTaskUpdated(TTaskPtr task)
 {
-    int oldValue = CachedPendingJobCount;
-    int newValue = CachedPendingJobCount + task->GetPendingJobCountDelta();
-    CachedPendingJobCount = newValue;
+    int oldJobCount = CachedPendingJobCount;
+    int newJobCount = CachedPendingJobCount + task->GetPendingJobCountDelta();
+    CachedPendingJobCount = newJobCount;
 
-    LOG_DEBUG_IF(newValue != oldValue, "Pending job count updated (Task: %s, Count: %d -> %d)",
+    AddResources(&CachedNeededResources, task->GetTotalNeededResourcesDelta());
+
+    LOG_DEBUG_IF(newJobCount != oldJobCount, "Pending job count updated (Task: %s, Count: %d -> %d, NeededResources: {%s})",
         ~task->GetId(),
-        oldValue,
-        newValue);
+        oldJobCount,
+        newJobCount,
+        ~FormatResources(CachedNeededResources));
 }
 
 void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
@@ -530,7 +573,7 @@ void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
                 ~task->GetId());
         }
     }
-    UpdatePendingJobCount(task);
+    OnTaskUpdated(task);
 }
 
 void TOperationControllerBase::DoAddTaskLocalityHint(TTaskPtr task, const Stroka& address)
@@ -553,7 +596,7 @@ TOperationControllerBase::TPendingTaskInfo* TOperationControllerBase::GetPending
 void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, const Stroka& address)
 {
     DoAddTaskLocalityHint(task, address);
-    UpdatePendingJobCount(task);
+    OnTaskUpdated(task);
 }
 
 void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe)
@@ -564,7 +607,7 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePt
             DoAddTaskLocalityHint(task, address);
         }
     }
-    UpdatePendingJobCount(task);
+    OnTaskUpdated(task);
 }
 
 TJobPtr TOperationControllerBase::DoScheduleJob(ISchedulingContext* context)
@@ -607,7 +650,7 @@ TJobPtr TOperationControllerBase::DoScheduleJob(ISchedulingContext* context)
             }
 
             if (task->GetPendingJobCount() == 0) {
-                UpdatePendingJobCount(task);
+                OnTaskUpdated(task);
                 continue;
             }
 
@@ -626,7 +669,8 @@ TJobPtr TOperationControllerBase::DoScheduleJob(ISchedulingContext* context)
                     bestLocality,
                     delayedTime ? ~ToString(now - delayedTime.Get()) : "Null");
                 bestTask->SetDelayedTime(Null);
-                UpdatePendingJobCount(bestTask);
+                OnTaskUpdated(bestTask);
+                OnJobStarted(job);
                 return job;
             }
         }
@@ -644,7 +688,7 @@ TJobPtr TOperationControllerBase::DoScheduleJob(ISchedulingContext* context)
             if (task->GetPendingJobCount() == 0) {
                 LOG_DEBUG("Task pending hint removed (Task: %s)", ~task->GetId());
                 globalTasks.erase(jt);
-                UpdatePendingJobCount(task);
+                OnTaskUpdated(task);
                 continue;
             }
 
@@ -672,7 +716,8 @@ TJobPtr TOperationControllerBase::DoScheduleJob(ISchedulingContext* context)
                     ~address,
                     priority,
                     delayedTime ? ~ToString(now - delayedTime.Get()) : "Null");
-                UpdatePendingJobCount(task);
+                OnTaskUpdated(task);
+                OnJobStarted(job);
                 return job;
             }
         }
@@ -684,6 +729,16 @@ TJobPtr TOperationControllerBase::DoScheduleJob(ISchedulingContext* context)
 int TOperationControllerBase::GetPendingJobCount()
 {
     return CachedPendingJobCount;
+}
+
+NProto::TNodeResources TOperationControllerBase::GetUsedResources()
+{
+    return UsedResources;
+}
+
+NProto::TNodeResources TOperationControllerBase::GetNeededResources()
+{
+    return CachedNeededResources;
 }
 
 void TOperationControllerBase::OnOperationCompleted()

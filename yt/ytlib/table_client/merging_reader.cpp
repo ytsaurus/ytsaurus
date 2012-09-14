@@ -40,7 +40,8 @@ public:
     virtual void Open() override
     {
         // Open all readers in parallel and wait until of them are opened.
-        auto awaiter = New<TParallelAwaiter>(NChunkClient::ReaderThread->GetInvoker());
+        auto awaiter = New<TParallelAwaiter>(
+            NChunkClient::TDispatcher::Get()->GetReaderInvoker());
         std::vector<TError> errors;
 
         FOREACH (auto reader, Readers) {
@@ -82,8 +83,9 @@ public:
 
     virtual void NextRow() override
     {
-        if (ReaderHeap.empty())
+        if (ReaderHeap.empty()) {
             return;
+        }
 
         auto* currentReader = ReaderHeap.front();
 

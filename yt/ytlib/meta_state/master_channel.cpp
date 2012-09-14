@@ -42,7 +42,7 @@ TValueOrError<IChannelPtr> OnPeerFound(
     clientConfig->Address = result.Address.Get();
     clientConfig->Priority = config->ConnectionPriority;
     auto client = CreateTcpBusClient(clientConfig);
-    return CreateRetryingChannel(config, CreateBusChannel(client));
+    return CreateBusChannel(client);
 }
 
 } // namespace
@@ -50,7 +50,7 @@ TValueOrError<IChannelPtr> OnPeerFound(
 IChannelPtr CreateLeaderChannel(TMasterDiscoveryConfigPtr config)
 {
     auto masterDiscovery = New<TMasterDiscovery>(config);
-    return CreateRoamingChannel(
+    auto roamingChannel = CreateRoamingChannel(
         config->RpcTimeout,
         config->MaxAttempts > 1,
         BIND([=] () -> TFuture< TValueOrError<IChannelPtr> > {
@@ -59,12 +59,13 @@ IChannelPtr CreateLeaderChannel(TMasterDiscoveryConfigPtr config)
                 "leader",
                 config));
         }));
+    return CreateRetryingChannel(config, roamingChannel);
 }
 
 IChannelPtr CreateMasterChannel(TMasterDiscoveryConfigPtr config)
 {
     auto masterDiscovery = New<TMasterDiscovery>(config);
-    return CreateRoamingChannel(
+    auto roamingChannel = CreateRoamingChannel(
         config->RpcTimeout,
         config->MaxAttempts > 1,
         BIND([=] () -> TFuture< TValueOrError<IChannelPtr> > {
@@ -72,7 +73,8 @@ IChannelPtr CreateMasterChannel(TMasterDiscoveryConfigPtr config)
                 &OnPeerFound,
                 "master",
                 config));
-    }));
+        }));
+    return CreateRetryingChannel(config, roamingChannel);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

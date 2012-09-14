@@ -1,6 +1,7 @@
 from setuptools import setup, find_packages
 from setuptools.command.test import test as TestCommand
 
+import sys
 import subprocess
 
 class PyTest(TestCommand):
@@ -17,13 +18,17 @@ class PyTest(TestCommand):
         subprocess.check_call("cd yt/wrapper && make clean", shell=True)
 
 def main():
+    requires =["requests>=0.13.3", "simplejson"]
+    if sys.version_info[:2] < (2, 6):
+        requires.append("argparse")
+
     setup(
         name = "Yt",
         version = "0.1",
         packages = find_packages(exclude=["*.tests", "*.tests.*", "tests.*", "tests", "yt.environment"]),
         scripts = ["yt/wrapper/mapreduce"],
 
-        install_requires = ["requests>=0.13.3", "simplejson"],
+        install_requires = requires,
 
         author = "Ignat Kolesnichenko",
         author_email = "ignat@yandex-team.ru",

@@ -104,6 +104,12 @@ typedef TIntrusivePtr<TSortOperationSpec> TSortOperationSpecPtr;
 struct TMapReduceOperationSpec;
 typedef TIntrusivePtr<TMapReduceOperationSpec> TMapReduceOperationSpecPtr;
 
+struct TPoolConfig;
+typedef TIntrusivePtr<TPoolConfig> TPoolConfigPtr;
+
+struct TPooledOperationSpec;
+typedef TIntrusivePtr<TPooledOperationSpec> TPooledOperationSpecPtr;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

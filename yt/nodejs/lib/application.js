@@ -4,6 +4,8 @@ var YtCommand = require("./command").that;
 var YtDriver = require("./driver").that;
 var YtEioWatcher = require("./eio_watcher").that;
 
+var ConfigureSingletons = require("./ytnode").ConfigureSingletons;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 var __DBG;
@@ -20,6 +22,8 @@ exports.that = function YtApplication(logger, configuration) {
     "use strict";
     
     __DBG("New");
+
+    ConfigureSingletons(configuration.proxy);
 
     if (typeof(configuration.low_watermark) === "undefined") {
         configuration.low_watermark = parseInt(0.80 * configuration.memory_limit, 10);

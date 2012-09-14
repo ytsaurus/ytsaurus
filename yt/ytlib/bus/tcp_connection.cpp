@@ -335,7 +335,7 @@ void TTcpConnection::SyncClose(const TError& error)
         TerminatedPromise.Set(error);
     }
 
-    LOG_INFO("Connection closed\n%s", ~ToString(error));
+    LOG_INFO(error, "Connection closed");
 
     UpdateConnectionCount(-1);
 

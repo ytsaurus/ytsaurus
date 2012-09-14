@@ -13,6 +13,7 @@
 
 #include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
 #include <ytlib/chunk_client/chunk_ypath_proxy.h>
+#include <ytlib/chunk_client/dispatcher.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -37,7 +38,7 @@ TChunkSequenceWriterBase<TChunkWriter>::TChunkSequenceWriterBase(
     , Progress(0)
     , CompleteChunkSize(0)
     , NextSession(Null)
-    , CloseChunksAwaiter(New<TParallelAwaiter>(NChunkClient::WriterThread->GetInvoker()))
+    , CloseChunksAwaiter(New<TParallelAwaiter>(NChunkClient::TDispatcher::Get()->GetWriterInvoker()))
     , Logger(TableWriterLogger)
 {
     YASSERT(config);
@@ -85,14 +86,16 @@ void TChunkSequenceWriterBase<TChunkWriter>::CreateNextSession()
     req->set_type(NObjectClient::EObjectType::Chunk);
 
     auto* reqExt = req->MutableExtension(NChunkClient::NProto::TReqCreateChunkExt::create_chunk);
-    reqExt->set_preferred_host_name(Stroka(GetLocalHostName()));
+    if (Config->PreferLocalHost) {
+        reqExt->set_preferred_host_name(Stroka(GetLocalHostName()));
+    }
     reqExt->set_replication_factor(Config->ReplicationFactor);
     reqExt->set_upload_replication_factor(Config->UploadReplicationFactor);
     reqExt->set_movable(Config->ChunksMovable);
 
     objectProxy.Execute(req).Subscribe(
         BIND(&TChunkSequenceWriterBase::OnChunkCreated, MakeWeak(this))
-        .Via(NChunkClient::WriterThread->GetInvoker()));
+        .Via(NChunkClient::TDispatcher::Get()->GetWriterInvoker()));
 }
 
 template <class TChunkWriter>

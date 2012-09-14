@@ -24,7 +24,7 @@ SERVICE=$1; shift || usage
 
 case "$SERVICE" in
     yt|hadoop|yamr) HOSTS="n01-0[401-649]g.yt.yandex.net" ;;
-    proxy) HOSTS="n01-0[400-409]g.yt.yandex.net" ;;
+    proxy) HOSTS="n01-0[401-410]g.yt.yandex.net" ;;
     *) usage ;;
 esac
 [ -z "$1" ] || HOSTS=$1
@@ -34,8 +34,17 @@ refresh_tmux
 set -u
 
 if [ "$OPERATION" = "check" ]; then
-    echo "It doesn't supported yet"
-    exit 1
+    HOSTS="n01-0[399-649]g.yt.yandex.net"
+    if [ "$SERVICE" = "yt" ]; then
+        GREP_COMMAND="grep chef | grep node"
+    elif [ "$SERVICE" = "yamr" ]; then
+        GREP_COMMAND="grep mapreduce | grep runhost"
+    elif [ "$SERVICE" = "hadoop" ]; then
+        GREP_COMMAND="grep mapreduce | grep java"
+    elif [ "$SERVICE" = "proxy" ]; then
+        GREP_COMMAND="grep Http | grep Proxy"
+    fi
+    pdsh -R ssh -w "$HOSTS" "ps aux | $GREP_COMMAND | grep -v aux"
 elif [ "$OPERATION" = "start" -o "$OPERATION" = "stop" ]; then
     if [ "$SERVICE" = "yt" ]; then
         run "$HOSTS" "sudo sv $OPERATION yt_node"

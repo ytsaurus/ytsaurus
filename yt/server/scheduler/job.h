@@ -35,6 +35,13 @@ class TJob
     //! Only valid during the heartbeat during which the job was started.
     DEFINE_BYVAL_RW_PROPERTY(NProto::TJobSpec*, Spec);
 
+    //! Captures utilization limits suggested by the scheduler.
+    /*!
+     *  Receives a copy of |GetSpec()->resource_utilization()|.
+     *  Never changes afterwards.
+     */
+    DEFINE_BYREF_RW_PROPERTY(NProto::TNodeResources, ResourceUtilization);
+
 public:
     TJob(
         const TJobId& id,

@@ -294,7 +294,7 @@ public:
             auto configNode = GetNodeByYPath(root, path);
             Configure(configNode, path);
         } catch (const std::exception& ex) {
-            LOG_ERROR("Error while configuring logging\n%s", ex.what());
+            LOG_ERROR(ex, "Error while configuring logging");
         }
     }
 

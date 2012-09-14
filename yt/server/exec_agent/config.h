@@ -56,7 +56,7 @@ struct TResourceLimitsConfig
     : public TYsonSerializable
 {
     int Slots;
-    int Cores;
+    int Cpu;
     int Network;
 
     TResourceLimitsConfig()
@@ -65,7 +65,7 @@ struct TResourceLimitsConfig
         // Override for production use.
         Register("slots", Slots)
             .Default(2);
-        Register("cores", Cores)
+        Register("cpu", Cpu)
             .Default(2);
         Register("network", Network)
             .Default(100);

@@ -132,15 +132,13 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
                         return EResult::ChangeLogUnavailable;
 
                     default:
-                        LOG_FATAL("Unexpected error received from peer %d\n%s",
-                            sourceId,
-                            ~ToString(error));
+                        LOG_FATAL(error, "Unexpected error received from peer %d",
+                            sourceId);
                         break;
                 }
             } else {
-                LOG_WARNING("Error reading changelog from peer %d\n%s",
-                    sourceId,
-                    ~ToString(error));
+                LOG_WARNING(error, "Error reading changelog from peer %d",
+                    sourceId);
                 return EResult::RemoteError;
             }
         }
@@ -189,10 +187,9 @@ void TChangeLogDownloader::OnResponse(
     TProxy::TRspGetChangeLogInfoPtr response)
 {
     if (!response->IsOK()) {
-        LOG_WARNING("Error requesting changelog %d info from peer %d\n%s",
+        LOG_WARNING(response->GetError(), "Error requesting changelog %d info from peer %d",
             version.SegmentId,
-            peerId,
-            ~ToString(response->GetError()));
+            peerId);
         return;
     }
 

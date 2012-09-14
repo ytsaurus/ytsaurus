@@ -68,9 +68,7 @@ void TFileLogWriter::EnsureInitialized()
         FileOutput->SetFinishPropagateMode(true);
         *FileOutput << Endl;
     } catch (const std::exception& ex) {
-        LOG_ERROR("Error opening log file %s\n%s",
-            ~FileName.Quote(),
-            ex.what());
+        LOG_ERROR(ex, "Error opening log file %s", ~FileName.Quote());
         // Still let's pretend we're initialized to avoid subsequent attempts.
         Initialized = true;
         return;
@@ -126,9 +124,7 @@ void TRawFileLogWriter::EnsureInitialized()
         FileOutput->SetFinishPropagateMode(true);
         *FileOutput << Endl;
     } catch (const std::exception& ex) {
-        LOG_ERROR("Error opening log file %s\n%s",
-            ~FileName.Quote(),
-            ex.what());
+        LOG_ERROR(ex, "Error opening log file %s", ~FileName.Quote());
         // Still let's pretend we're initialized to avoid subsequent attempts.
     }
 

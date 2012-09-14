@@ -78,9 +78,8 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         if (!response->IsOK()) {
-            LOG_WARNING("Error requesting quorum information from peer %s\n%s",
-                ~address,
-                ~ToString(response->GetError()));
+            LOG_WARNING(response->GetError(), "Error requesting quorum information from peer %s",
+                ~address);
             return;
         }
 

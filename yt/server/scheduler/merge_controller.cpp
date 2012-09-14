@@ -119,9 +119,9 @@ protected:
             return Controller->SpecBase->LocalityTimeout;
         }
         
-        virtual NProto::TNodeResources GetMinRequestedResources() const override
+        virtual NProto::TNodeResources GetMinNeededResources() const override
         {
-            return Controller->GetMinRequestedResources();
+            return Controller->GetMinNeededResources();
         }
 
     protected:
@@ -406,11 +406,11 @@ protected:
 
     // Unsorted helpers.
 
-    virtual TNodeResources GetMinRequestedResources() const override
+    virtual TNodeResources GetMinNeededResources() const override
     {
         TNodeResources result;
         result.set_slots(1);
-        result.set_cores(1);
+        result.set_cpu(1);
         result.set_memory(
             GetIOMemorySize(JobIOConfig, GetInputTablePaths().size(), 1) +
             GetFootprintMemorySize());
@@ -1224,11 +1224,11 @@ private:
         ManiacJobSpecTemplate.CopyFrom(JobSpecTemplate);
     }
 
-    virtual NProto::TNodeResources GetMinRequestedResources() const override
+    virtual NProto::TNodeResources GetMinNeededResources() const override
     {
         TNodeResources result;
         result.set_slots(1);
-        result.set_cores(Spec->Reducer->CoresLimit);
+        result.set_cpu(Spec->Reducer->CpuLimit);
         result.set_memory(
             GetIOMemorySize(JobIOConfig, Spec->InputTablePaths.size(), Spec->OutputTablePaths.size()) +
             Spec->Reducer->MemoryLimit +

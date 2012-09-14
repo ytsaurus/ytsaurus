@@ -5,7 +5,7 @@
 #include "channel_writer.h"
 #include "chunk_meta_extensions.h"
 
-#include <ytlib/chunk_client/private.h>
+#include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/async_writer.h>
 #include <ytlib/chunk_client/encoding_writer.h>
@@ -40,7 +40,7 @@ TChunkWriterBase::TChunkWriterBase(
     , CurrentSize(0)
     , CurrentBufferCapacity(0)
 {
-    VERIFY_INVOKER_AFFINITY(WriterThread->GetInvoker(), WriterThread);
+    VERIFY_INVOKER_AFFINITY(NChunkClient::TDispatcher::Get()->GetWriterInvoker(), WriterThread);
 }
 
 const TNullable<TKeyColumns>& TChunkWriterBase::GetKeyColumns() const
@@ -50,12 +50,11 @@ const TNullable<TKeyColumns>& TChunkWriterBase::GetKeyColumns() const
 
 void TChunkWriterBase::CheckBufferCapacity()
 {
-    if (CurrentBufferCapacity >= Config->MaxBufferSize) {
-        auto error = TError(
-            "Too small MaxBufferSize limit for chunk writer: (CurrentBufferCapacity %"PRId64", MaxBufferSize: %"PRId64")",
-            CurrentBufferCapacity,
-            Config->MaxBufferSize);
-        State.Fail(error);
+    if (Config->MaxBufferSize < CurrentBufferCapacity) {
+        State.Fail(TError(
+            "\"max_buffer_size\" limit too low: %"PRId64" < %" PRId64,
+            Config->MaxBufferSize,
+            CurrentBufferCapacity));
     }
 }
 
@@ -120,7 +119,7 @@ void TChunkWriterBase::AdjustBufferHeap(int updatedBufferIndex)
 
 void TChunkWriterBase::PopBufferHeap()
 {
-    LOG_DEBUG("Finish block (CurrentBufferCapacity: %"PRId64", CurrentBlockSize: %"PRId64")",
+    LOG_DEBUG("Finish block (CurrentBufferCapacity: %"PRId64", CurrentBlockSize: %"PRISZT")",
         CurrentBufferCapacity,
         BuffersHeap.front()->GetCurrentSize());
 

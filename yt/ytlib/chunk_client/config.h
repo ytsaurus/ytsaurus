@@ -201,5 +201,20 @@ struct TEncodingWriterConfig
 
 ///////////////////////////////////////////////////////////////////////////////
 
+struct TDispatcherConfig
+    : public virtual TYsonSerializable
+{
+    int CompressionPoolSize;
+
+    TDispatcherConfig()
+    {
+        Register("compression_pool_size", CompressionPoolSize)
+            .Default(4)
+            .GreaterThan(0);
+    }
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
 } // namespace NChunkClient
 } // namespace NYT
