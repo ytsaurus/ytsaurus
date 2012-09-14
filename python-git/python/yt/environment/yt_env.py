@@ -340,7 +340,7 @@ class YTEnv(unittest.TestCase):
         driver_config['masters']['addresses'] = self._master_addresses
 
         proxy_config = configs.get_proxy_config()
-        proxy_config['driver'] = driver_config
+        proxy_config['proxy']['driver'] = driver_config
         proxy_config['port'] = self._ports["proxy"]
 
         config_path = os.path.join(self.path_to_run, 'proxy_config.json')

@@ -114,3 +114,16 @@ def find_free_subpath(path):
         name = "%s%s" % (path, "".join(random.sample(char_set, LENGTH)))
         if not exists(name):
             return name
+
+def search(root="/", node_type=None, path_filter=None):
+    result = []
+    def walk(path, object):
+        object_type = object["$attributes"]["type"]
+        if node_type is None or object_type == node_type:
+            result.append(path)
+        if object_type == "map_node" and object["$value"] is not None:
+            for key, value in object["$value"].iteritems():
+                walk('%s/%s' % (path, key), value)
+    walk(root, get(root, attributes=["type"]))
+    return result
+
