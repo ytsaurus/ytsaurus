@@ -2,12 +2,13 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree )
 set( SRCS
   ${BASE}/attribute_consumer.cpp
+  ${BASE}/attribute_helpers.cpp
   ${BASE}/attribute_provider_detail.cpp
   ${BASE}/attributes.cpp
-  ${BASE}/attribute_helpers.cpp
   ${BASE}/ephemeral.cpp
   ${BASE}/forwarding_yson_consumer.cpp
   ${BASE}/lexer.cpp
+  ${BASE}/node.cpp
   ${BASE}/node_detail.cpp
   ${BASE}/null_yson_consumer.cpp
   ${BASE}/parser.cpp
@@ -17,6 +18,7 @@ set( SRCS
   ${BASE}/tree_builder.cpp
   ${BASE}/tree_visitor.cpp
   ${BASE}/virtual.cpp
+  ${BASE}/ypath.cpp
   ${BASE}/ypath_client.cpp
   ${BASE}/ypath_detail.cpp
   ${BASE}/ypath_service.cpp
@@ -27,22 +29,21 @@ set( SRCS
   ${BASE}/yson_serializable.cpp
   ${BASE}/yson_string.cpp
   ${BASE}/yson_writer.cpp
-  ${BASE}/node.cpp
-  ${BASE}/ypath.cpp
 )
 set( HDRS
   ${BASE}/attribute_consumer.h
+  ${BASE}/attribute_helpers-inl.h
+  ${BASE}/attribute_helpers.h
   ${BASE}/attribute_provider.h
   ${BASE}/attribute_provider_detail.h
   ${BASE}/attributes.h
-  ${BASE}/attribute_helpers.h
-  ${BASE}/attribute_helpers-inl.h
   ${BASE}/convert-inl.h
   ${BASE}/convert.h
   ${BASE}/ephemeral.h
   ${BASE}/fluent.h
   ${BASE}/forwarding_yson_consumer.h
   ${BASE}/lexer.h
+  ${BASE}/node.h
   ${BASE}/node_detail.h
   ${BASE}/null_yson_consumer.h
   ${BASE}/parser.h
@@ -54,6 +55,7 @@ set( HDRS
   ${BASE}/tree_builder.h
   ${BASE}/tree_visitor.h
   ${BASE}/virtual.h
+  ${BASE}/ypath.h
   ${BASE}/ypath_client-inl.h
   ${BASE}/ypath_client.h
   ${BASE}/ypath_detail.h
@@ -71,8 +73,6 @@ set( HDRS
   ${BASE}/yson_stream.h
   ${BASE}/yson_string.h
   ${BASE}/yson_writer.h
-  ${BASE}/node.h
-  ${BASE}/ypath.h
 )
 
 list(APPEND YT_SOURCE_FILES

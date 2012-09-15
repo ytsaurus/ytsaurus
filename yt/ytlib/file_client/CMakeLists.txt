@@ -13,9 +13,9 @@ set( HDRS
   ${BASE}/file_reader.h
   ${BASE}/file_reader_base.h
   ${BASE}/file_writer.h
+  ${BASE}/file_ypath_proxy.h
   ${BASE}/private.h
   ${BASE}/public.h
-  ${BASE}/file_ypath_proxy.h
 )
 
 list(APPEND YT_SOURCE_FILES

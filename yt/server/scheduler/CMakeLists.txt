@@ -5,8 +5,9 @@ set( SRCS
   ${BASE}/chunk_pool.cpp
   ${BASE}/chunk_splits_fetcher.cpp
   ${BASE}/exec_node.cpp
-  ${BASE}/fifo_strategy.cpp
   ${BASE}/fair_share_strategy.cpp
+  ${BASE}/fifo_strategy.cpp
+  ${BASE}/helpers.cpp
   ${BASE}/job.cpp
   ${BASE}/job_resources.cpp
   ${BASE}/map_controller.cpp
@@ -20,18 +21,18 @@ set( SRCS
   ${BASE}/samples_fetcher.cpp
   ${BASE}/scheduler.cpp
   ${BASE}/sort_controller.cpp
-  ${BASE}/helpers.cpp
 )
 set( HDRS
+  ${BASE}/chunk_info_collector-inl.h
+  ${BASE}/chunk_info_collector.h
   ${BASE}/chunk_list_pool.h
   ${BASE}/chunk_pool.h
   ${BASE}/chunk_splits_fetcher.h
-  ${BASE}/chunk_info_collector.h
-  ${BASE}/chunk_info_collector-inl.h
   ${BASE}/config.h
   ${BASE}/exec_node.h
-  ${BASE}/fifo_strategy.h
   ${BASE}/fair_share_strategy.h
+  ${BASE}/fifo_strategy.h
+  ${BASE}/helpers.h
   ${BASE}/job.h
   ${BASE}/job_resources.h
   ${BASE}/map_controller.h
@@ -48,7 +49,6 @@ set( HDRS
   ${BASE}/scheduler.h
   ${BASE}/scheduler_strategy.h
   ${BASE}/sort_controller.h
-  ${BASE}/helpers.h
 )
 
 list(APPEND YT_SOURCE_FILES

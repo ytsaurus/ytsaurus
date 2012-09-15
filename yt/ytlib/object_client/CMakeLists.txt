@@ -1,17 +1,14 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/object_client )
 set( SRCS
-  ${BASE}/public.cpp
   ${BASE}/object_service_proxy.cpp
+  ${BASE}/public.cpp
 )
 set( HDRS
+  ${BASE}/object_service_proxy-inl.h
+  ${BASE}/object_service_proxy.h
+  ${BASE}/object_ypath_proxy.h
   ${BASE}/public.h
-  ${BASE}/object_service_proxy-inl.h
-  ${BASE}/object_service_proxy.h
-  ${BASE}/object_ypath_proxy.h
-  ${BASE}/object_service_proxy-inl.h
-  ${BASE}/object_service_proxy.h
-  ${BASE}/object_ypath_proxy.h
 )
 
 list(APPEND YT_SOURCE_FILES

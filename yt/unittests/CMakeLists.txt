@@ -34,6 +34,7 @@ set( SRCS
   ${BASE}/small_string_ut.cpp
   ${BASE}/small_vector_ut.cpp
   ${BASE}/snapshot_ut.cpp
+  ${BASE}/stdafx.cpp
   ${BASE}/thread_affinity_ut.cpp
   ${BASE}/tree_builder_ut.cpp
   ${BASE}/url_ut.cpp
@@ -46,9 +47,9 @@ set( SRCS
   ${BASE}/yamred_dsv_writer_ut.cpp
   ${BASE}/ypath_ut.cpp
   ${BASE}/yson_parser_ut.cpp
+  ${BASE}/yson_serializable_ut.cpp
   ${BASE}/yson_ut.cpp
   ${BASE}/yson_writer_ut.cpp
-  ${BASE}/yson_serializable_ut.cpp
   ${BASE}/ytree_fluent_ut.cpp
   ${BASE}/yverify_ut.cpp
   ${BASE}/zigzag_ut.cpp

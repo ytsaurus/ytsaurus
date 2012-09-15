@@ -11,10 +11,10 @@ set( HDRS
   ${BASE}/config.h
   ${BASE}/load_context-inl.h
   ${BASE}/load_context.h
-  ${BASE}/public.h
-  ${BASE}/meta_state_facade.h
   ${BASE}/meta_state_facade-inl.h
+  ${BASE}/meta_state_facade.h
   ${BASE}/meta_state_service.h
+  ${BASE}/public.h
 )
 
 list(APPEND YT_SOURCE_FILES

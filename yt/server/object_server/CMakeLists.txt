@@ -14,8 +14,8 @@ set( HDRS
   ${BASE}/object_manager.h
   ${BASE}/object_proxy.h
   ${BASE}/object_service.h
-  ${BASE}/public.h
   ${BASE}/private.h
+  ${BASE}/public.h
   ${BASE}/type_handler.h
   ${BASE}/type_handler_detail.h
 )

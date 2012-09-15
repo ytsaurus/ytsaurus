@@ -1,7 +1,6 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/meta_state )
 set( SRCS
-  ${BASE}/public.cpp
   ${BASE}/async_change_log.cpp
   ${BASE}/change_log.cpp
   ${BASE}/change_log_cache.cpp
@@ -19,15 +18,16 @@ set( SRCS
   ${BASE}/mutation_context.cpp
   ${BASE}/persistent_state_manager.cpp
   ${BASE}/private.cpp
+  ${BASE}/public.cpp
   ${BASE}/recovery.cpp
+  ${BASE}/response_keeper.cpp
+  ${BASE}/rpc_helpers.cpp
   ${BASE}/serialize.cpp
   ${BASE}/snapshot.cpp
   ${BASE}/snapshot_builder.cpp
   ${BASE}/snapshot_downloader.cpp
   ${BASE}/snapshot_lookup.cpp
   ${BASE}/snapshot_store.cpp
-  ${BASE}/rpc_helpers.cpp
-  ${BASE}/response_keeper.cpp
 )
 set( HDRS
   ${BASE}/async_change_log.h
@@ -41,31 +41,31 @@ set( HDRS
   ${BASE}/decorated_meta_state.h
   ${BASE}/file_helpers.h
   ${BASE}/follower_tracker.h
-  ${BASE}/master_channel.h
   ${BASE}/map-inl.h
   ${BASE}/map.h
+  ${BASE}/master_channel.h
   ${BASE}/master_discovery.h
   ${BASE}/meta_state.h
   ${BASE}/meta_state_manager.h
   ${BASE}/meta_state_manager_proxy.h
   ${BASE}/meta_version.h
-  ${BASE}/mutation.h
   ${BASE}/mutation-inl.h
+  ${BASE}/mutation.h
   ${BASE}/mutation_committer.h
   ${BASE}/mutation_context.h
   ${BASE}/persistent_state_manager.h
   ${BASE}/private.h
   ${BASE}/public.h
   ${BASE}/recovery.h
+  ${BASE}/response_keeper.h
+  ${BASE}/rpc_helpers-inl.h
+  ${BASE}/rpc_helpers.h
   ${BASE}/serialize.h
   ${BASE}/snapshot.h
   ${BASE}/snapshot_builder.h
   ${BASE}/snapshot_downloader.h
   ${BASE}/snapshot_lookup.h
   ${BASE}/snapshot_store.h
-  ${BASE}/rpc_helpers.h
-  ${BASE}/rpc_helpers-inl.h
-  ${BASE}/response_keeper.h
 )
 
 list(APPEND YT_SOURCE_FILES

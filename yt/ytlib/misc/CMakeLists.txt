@@ -27,10 +27,10 @@ set( SRCS
   ${BASE}/ref_counted_tracker.cpp
   ${BASE}/semaphore.cpp
   ${BASE}/serialize.cpp
-  ${BASE}/string.cpp
   ${BASE}/small_vector.cpp
   ${BASE}/source_location.cpp
   ${BASE}/stack_trace.cpp
+  ${BASE}/string.cpp
   ${BASE}/tclap_helpers.cpp
   ${BASE}/thread.cpp
   ${BASE}/url.cpp
@@ -57,6 +57,8 @@ set( HDRS
   ${BASE}/fs.h
   ${BASE}/guid.h
   ${BASE}/hash.h
+  ${BASE}/heap-inl.h
+  ${BASE}/heap.h
   ${BASE}/high_resolution_clock.h
   ${BASE}/home.h
   ${BASE}/id_generator.h
@@ -64,12 +66,14 @@ set( HDRS
   ${BASE}/lazy_holder.h
   ${BASE}/lazy_ptr.h
   ${BASE}/lease_manager.h
-  ${BASE}/memory_usage_tracker.h
   ${BASE}/memory_usage_tracker-inl.h
+  ${BASE}/memory_usage_tracker.h
   ${BASE}/metric.h
   ${BASE}/mpl.h
   ${BASE}/new.h
   ${BASE}/nullable.h
+  ${BASE}/object_pool-inl.h
+  ${BASE}/object_pool.h
   ${BASE}/override.h
   ${BASE}/pattern_formatter.h
   ${BASE}/periodic_invoker.h
@@ -101,10 +105,6 @@ set( HDRS
   ${BASE}/url.h
   ${BASE}/weak_ptr.h
   ${BASE}/zigzag.h
-  ${BASE}/heap.h
-  ${BASE}/heap-inl.h
-  ${BASE}/object_pool.h
-  ${BASE}/object_pool-inl.h
 )
 
 list(APPEND YT_SOURCE_FILES

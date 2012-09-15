@@ -1,8 +1,8 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/formats )
 set( SRCS
-  ${BASE}/dsv_symbols.cpp
   ${BASE}/dsv_parser.cpp
+  ${BASE}/dsv_symbols.cpp
   ${BASE}/dsv_writer.cpp
   ${BASE}/format.cpp
   ${BASE}/helpers.cpp
@@ -17,6 +17,7 @@ set( SRCS
 set( HDRS
   ${BASE}/config.h
   ${BASE}/dsv_parser.h
+  ${BASE}/dsv_symbols.h
   ${BASE}/dsv_writer.h
   ${BASE}/format.h
   ${BASE}/helpers.h

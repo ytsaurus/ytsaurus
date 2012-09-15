@@ -6,10 +6,10 @@ set( SRCS
   ${BASE}/chunk_writer_base.cpp
   ${BASE}/key.cpp
   ${BASE}/merging_reader.cpp
-  ${BASE}/partitioner.cpp
   ${BASE}/partition_chunk_reader.cpp
   ${BASE}/partition_chunk_sequence_writer.cpp
   ${BASE}/partition_chunk_writer.cpp
+  ${BASE}/partitioner.cpp
   ${BASE}/private.cpp
   ${BASE}/schema.cpp
   ${BASE}/size_limits.cpp
@@ -30,22 +30,22 @@ set( HDRS
   ${BASE}/channel_reader.h
   ${BASE}/channel_writer.h
   ${BASE}/chunk_meta_extensions.h
-  ${BASE}/multi_chunk_reader_base-inl.h
-  ${BASE}/multi_chunk_reader_base.h
-  ${BASE}/multi_chunk_parallel_reader-inl.h
-  ${BASE}/multi_chunk_parallel_reader.h
-  ${BASE}/multi_chunk_sequential_reader-inl.h
-  ${BASE}/multi_chunk_sequential_reader.h
   ${BASE}/chunk_sequence_writer_base-inl.h
   ${BASE}/chunk_sequence_writer_base.h
   ${BASE}/chunk_writer_base.h
   ${BASE}/config.h
   ${BASE}/key.h
   ${BASE}/merging_reader.h
-  ${BASE}/partitioner.h
+  ${BASE}/multi_chunk_parallel_reader-inl.h
+  ${BASE}/multi_chunk_parallel_reader.h
+  ${BASE}/multi_chunk_reader_base-inl.h
+  ${BASE}/multi_chunk_reader_base.h
+  ${BASE}/multi_chunk_sequential_reader-inl.h
+  ${BASE}/multi_chunk_sequential_reader.h
   ${BASE}/partition_chunk_reader.h
   ${BASE}/partition_chunk_sequence_writer.h
   ${BASE}/partition_chunk_writer.h
+  ${BASE}/partitioner.h
   ${BASE}/private.h
   ${BASE}/public.h
   ${BASE}/schema.h
@@ -59,8 +59,8 @@ set( HDRS
   ${BASE}/table_producer.h
   ${BASE}/table_reader.h
   ${BASE}/table_writer.h
-  ${BASE}/value.h
   ${BASE}/table_ypath_proxy.h
+  ${BASE}/value.h
 )
 
 list(APPEND YT_SOURCE_FILES

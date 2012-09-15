@@ -10,14 +10,14 @@ set( SRCS
   ${BASE}/chunk_tree_balancer.cpp
   ${BASE}/chunk_tree_ref.cpp
   ${BASE}/chunk_tree_statistics.cpp
-  ${BASE}/private.cpp
   ${BASE}/cypress_integration.cpp
+  ${BASE}/job.cpp
+  ${BASE}/job_list.cpp
   ${BASE}/node.cpp
   ${BASE}/node_authority.cpp
   ${BASE}/node_lease_tracker.cpp
   ${BASE}/node_statistics.cpp
-  ${BASE}/job.cpp
-  ${BASE}/job_list.cpp
+  ${BASE}/private.cpp
   ${BASE}/public.cpp
 )
 set( HDRS
@@ -31,15 +31,15 @@ set( HDRS
   ${BASE}/chunk_tree_balancer.h
   ${BASE}/chunk_tree_ref.h
   ${BASE}/chunk_tree_statistics.h
-  ${BASE}/private.h
   ${BASE}/config.h
   ${BASE}/cypress_integration.h
+  ${BASE}/job.h
+  ${BASE}/job_list.h
   ${BASE}/node.h
   ${BASE}/node_authority.h
   ${BASE}/node_lease_tracker.h
   ${BASE}/node_statistics.h
-  ${BASE}/job.h
-  ${BASE}/job_list.h
+  ${BASE}/private.h
   ${BASE}/public.h
 )
 

@@ -11,11 +11,11 @@ set( SRCS
   ${BASE}/redirector_service.cpp
   ${BASE}/retrying_channel.cpp
   ${BASE}/roaming_channel.cpp
+  ${BASE}/rpc_dispatcher.cpp
   ${BASE}/scoped_channel.cpp
   ${BASE}/server.cpp
   ${BASE}/server_detail.cpp
   ${BASE}/service.cpp
-  ${BASE}/rpc_dispatcher.cpp
 )
 set( HDRS
   ${BASE}/bus_channel.h
@@ -29,11 +29,11 @@ set( HDRS
   ${BASE}/redirector_service.h
   ${BASE}/retrying_channel.h
   ${BASE}/roaming_channel.h
+  ${BASE}/rpc_dispatcher.h
   ${BASE}/scoped_channel.h
   ${BASE}/server.h
   ${BASE}/server_detail.h
   ${BASE}/service.h
-  ${BASE}/rpc_dispatcher.h
 )
 
 list(APPEND YT_SOURCE_FILES
