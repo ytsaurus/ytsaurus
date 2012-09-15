@@ -860,7 +860,7 @@ protected:
                 ~ToString(nextBreakpoint));
 
             FOREACH (auto& inputChunk, openedChunks) {
-                AddPendingChunk(SliceChunk(*inputChunk, lastBreakpoint, nextBreakpoint));
+                this->AddPendingChunk(SliceChunk(*inputChunk, lastBreakpoint, nextBreakpoint));
             }
             lastBreakpoint = nextBreakpoint;
         };
