@@ -464,7 +464,6 @@ protected:
     //! A typical implementation of #IsPassthroughChunk that depends on whether chunks must be combined or not.
     bool IsPassthroughChunkImpl(TRefCountedInputChunkPtr inputChunk, bool combineChunks)
     {
-        if 
         return combineChunks ? IsLargeCompleteChunk(inputChunk) : IsCompleteChunk(inputChunk);
     }
 
