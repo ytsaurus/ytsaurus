@@ -1,5 +1,5 @@
 ﻿#include "stdafx.h"
-#include "ordered_merge_job.h"
+#include "merge_job.h"
 #include "private.h"
 #include "job_detail.h"
 #include "config.h"
@@ -10,6 +10,7 @@
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/table_chunk_sequence_writer.h>
 #include <ytlib/table_client/multi_chunk_sequential_reader.h>
+#include <ytlib/table_client/multi_chunk_parallel_reader.h>
 #include <ytlib/table_client/sync_writer.h>
 
 #include <ytlib/chunk_client/remote_reader.h>
@@ -37,11 +38,14 @@ static NProfiling::TProfiler& Profiler = JobProxyProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOrderedMergeJob
+template <template <typename> class TMultiChunkReader>
+class TMergeJob
     : public TJob
 {
 public:
-    explicit TOrderedMergeJob(IJobHost* host)
+    typedef TMultiChunkReader<TTableChunkReader> TTableMultiChunkReader;
+
+    explicit TMergeJob(IJobHost* host)
         : TJob(host)
     {
         const auto& jobSpec = Host->GetJobSpec();
@@ -60,35 +64,33 @@ public:
         }
 
         auto provider = New<TTableChunkReaderProvider>(config->JobIO->TableReader);
-        Reader = CreateSyncReader(New<TTableChunkSequenceReader>(
+        Reader = CreateSyncReader(New<TTableMultiChunkReader>(
             config->JobIO->TableReader,
             masterChannel,
             blockCache,
             MoveRV(inputChunks),
             provider));
 
-        {
-            if (jobSpec.HasExtension(TMergeJobSpecExt::merge_job_spec_ext)) {
-                const auto& mergeSpec = jobSpec.GetExtension(TMergeJobSpecExt::merge_job_spec_ext);
-                KeyColumns.Assign(FromProto<Stroka>(mergeSpec.key_columns()));
+        if (jobSpec.HasExtension(TMergeJobSpecExt::merge_job_spec_ext)) {
+            const auto& mergeSpec = jobSpec.GetExtension(TMergeJobSpecExt::merge_job_spec_ext);
+            KeyColumns.Assign(FromProto<Stroka>(mergeSpec.key_columns()));
 
-                LOG_INFO("Ordered merge produces sorted output");
-            }
-
-            // ToDo(psushin): estimate row count for writer.
-            Writer = New<TTableChunkSequenceWriter>(
-                config->JobIO->TableWriter,
-                masterChannel,
-                TTransactionId::FromProto(jobSpec.output_transaction_id()),
-                TChunkListId::FromProto(jobSpec.output_specs(0).chunk_list_id()),
-                ChannelsFromYson(NYTree::TYsonString(jobSpec.output_specs(0).channels())),
-                KeyColumns);
+            LOG_INFO("Ordered merge produces sorted output");
         }
+
+        // ToDo(psushin): estimate row count for writer.
+        Writer = New<TTableChunkSequenceWriter>(
+            config->JobIO->TableWriter,
+            masterChannel,
+            TTransactionId::FromProto(jobSpec.output_transaction_id()),
+            TChunkListId::FromProto(jobSpec.output_specs(0).chunk_list_id()),
+            ChannelsFromYson(NYTree::TYsonString(jobSpec.output_specs(0).channels())),
+            KeyColumns);
     }
 
     virtual NScheduler::NProto::TJobResult Run() override
     {
-        PROFILE_TIMING ("/ordered_merge_time") {
+        PROFILE_TIMING ("/merge_time") {
             LOG_INFO("Initializing");
 
             yhash_map<TStringBuf, int> keyColumnToIndex;
@@ -96,7 +98,6 @@ public:
             auto writer = CreateSyncWriter(Writer);
             {
                 if (KeyColumns) {
-                    // ToDo(psushin): remove this after rewriting chunk_writer.
                     for (int i = 0; i < KeyColumns->size(); ++i) {
                         TStringBuf name(~KeyColumns->at(i), KeyColumns->at(i).size());
                         keyColumnToIndex[name] = i;
@@ -159,7 +160,12 @@ private:
 
 TJobPtr CreateOrderedMergeJob(IJobHost* host)
 {
-    return New<TOrderedMergeJob>(host);
+    return New< TMergeJob<TMultiChunkSequentialReader> >(host);
+}
+
+TJobPtr CreateUnorderedMergeJob(IJobHost* host)
+{
+    return New< TMergeJob<TMultiChunkParallelReader> >(host);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

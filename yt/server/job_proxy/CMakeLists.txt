@@ -4,7 +4,7 @@ set( SRCS
   ${BASE}/job_detail.cpp
   ${BASE}/job_proxy.cpp
   ${BASE}/map_job_io.cpp
-  ${BASE}/ordered_merge_job.cpp
+  ${BASE}/merge_job.cpp
   ${BASE}/partition_job.cpp
   ${BASE}/partition_map_job_io.cpp
   ${BASE}/partition_reduce_job_io.cpp
@@ -27,7 +27,7 @@ set( HDRS
   ${BASE}/job_detail.h
   ${BASE}/job_proxy.h
   ${BASE}/map_job_io.h
-  ${BASE}/ordered_merge_job.h
+  ${BASE}/merge_job.h
   ${BASE}/partition_job.h
   ${BASE}/partition_map_job_io.h
   ${BASE}/partition_reduce_job_io.h

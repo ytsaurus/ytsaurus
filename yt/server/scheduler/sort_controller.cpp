@@ -1216,8 +1216,12 @@ private:
                 return NewPromise< TValueOrError<void> >();
             }
 
+<<<<<<< HEAD
             SamplesFetcher->SetDesiredSamplesCount(SuggestPartitionCount() * Spec->SamplesPerPartition);
             return SamplesCollector->Run();
+=======
+            return SamplesFetcher->Run(SuggestPartitionCount() * Spec->SamplesPerPartition);
+>>>>>>> hotfix/allow_passthrough_chunks
         }
     }
 
@@ -1506,11 +1510,16 @@ private:
     {
         i64 bufferSize = std::min(
             PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()),
+<<<<<<< HEAD
             dataSize);
 
         bufferSize = std::min(
             bufferSize + NTableClient::TChannelWriter::MaxReserveSize * static_cast<i64>(Partitions.size()),
             PartitionJobIOConfig->TableWriter->MaxBufferSize);
+=======
+            // TODO(babenko): remove 1.2 coefficient when chunked buffers are ready
+            std::min(PartitionJobIOConfig->TableWriter->MaxBufferSize, dataSize) * 5/4);
+>>>>>>> hotfix/allow_passthrough_chunks
 
         TNodeResources result;
         result.set_slots(1);

@@ -140,6 +140,7 @@ struct TMergeOperationSpec
     NYTree::TRichYPath OutputTablePath;
     EMergeMode Mode;
     bool CombineChunks;
+    bool AllowPassthroughChunks;
     TNullable< std::vector<Stroka> > MergeBy;
 
     TMergeOperationSpec()
@@ -150,6 +151,8 @@ struct TMergeOperationSpec
             .Default(EMergeMode::Unordered);
         Register("combine_chunks", CombineChunks)
             .Default(false);
+        Register("allow_passthrough_chunks", AllowPassthroughChunks)
+            .Default(true);
         Register("merge_by", MergeBy)
             .Default();
     }

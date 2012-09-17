@@ -3,7 +3,7 @@
 #include "job_proxy.h"
 #include "user_job.h"
 #include "sorted_merge_job.h"
-#include "ordered_merge_job.h"
+#include "merge_job.h"
 #include "simple_sort_job.h"
 #include "partition_sort_job.h"
 #include "partition_job.h"
@@ -136,8 +136,11 @@ void TJobProxy::Run()
             }
 
             case EJobType::OrderedMerge:
-            case EJobType::UnorderedMerge:
                 Job = CreateOrderedMergeJob(this);
+                break;
+
+            case EJobType::UnorderedMerge:
+                Job = CreateUnorderedMergeJob(this);
                 break;
 
             case EJobType::SortedMerge:
