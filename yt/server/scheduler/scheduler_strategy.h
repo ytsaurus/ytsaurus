@@ -33,7 +33,8 @@ struct ISchedulerStrategy
     { }
 
     virtual void ScheduleJobs(ISchedulingContext* context) = 0;
-    virtual void BuildProgressYson(TOperationPtr operation, NYTree::IYsonConsumer* consumer) = 0;
+    virtual void BuildOperationProgressYson(TOperationPtr operation, NYTree::IYsonConsumer* consumer) = 0;
+    virtual void BuildOrchidYson(NYTree::IYsonConsumer* consumer) = 0;
 
 };
 

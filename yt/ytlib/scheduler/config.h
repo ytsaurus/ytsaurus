@@ -425,7 +425,7 @@ struct TPooledOperationSpec
 {
     TNullable<Stroka> Pool;
     double Weight;
-    double MinShare;
+    double MinShareRatio;
 
     TPooledOperationSpec()
     {
@@ -435,7 +435,7 @@ struct TPooledOperationSpec
         Register("weight", Weight)
             .Default(1.0)
             .GreaterThanOrEqual(1.0);
-        Register("min_share", MinShare)
+        Register("min_share_ratio", MinShareRatio)
             .Default(0.0)
             .InRange(0.0, 1.0);
     }
