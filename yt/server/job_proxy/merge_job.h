@@ -10,6 +10,8 @@ namespace NJobProxy {
 
 TJobPtr CreateOrderedMergeJob(IJobHost* host);
 
+TJobPtr CreateUnorderedMergeJob(IJobHost* host);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NJobProxy
