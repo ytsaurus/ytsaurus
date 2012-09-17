@@ -836,8 +836,8 @@ private:
 
         operation->GetController()->Commit().Subscribe(
             BIND(&TImpl::OnCompletedOperationCommitted, MakeStrong(this), operation)
-            	.Via(GetControlInvoker()));
-    }	
+                .Via(GetControlInvoker()));
+    }   
 
     void OnCompletedOperationCommitted(TOperationPtr operation)
     {
@@ -847,7 +847,7 @@ private:
 
         MasterConnector->FinalizeOperationNode(operation).Subscribe(
             BIND(&TThis::OnCompletedOperationNodeFinalized, MakeStrong(this), operation)
-            	.Via(GetControlInvoker()));
+                .Via(GetControlInvoker()));
     }
     
     void OnCompletedOperationNodeFinalized(TOperationPtr operation)
@@ -905,7 +905,7 @@ private:
                     .Item("utilization").Do(BIND(&BuildNodeResourcesYson, TotalResourceUtilization))
                 .EndMap()
                 .Item("operations").DoMapFor(Operations, [=] (TFluentMap fluent, TOperationMap::value_type pair) {
-                    TImpl::BuildOperationAttributes(fluent, pair.second);
+                    BuildOperationAttributes(fluent, pair.second);
                 })
                 .Item("jobs").DoMapFor(Jobs, [=] (TFluentMap fluent, TJobMap::value_type pair) {
                     fluent
