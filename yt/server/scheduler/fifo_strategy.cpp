@@ -40,6 +40,12 @@ public:
         }
     }
 
+    virtual void BuildProgressYson(TOperationPtr operation, NYTree::IYsonConsumer* consumer) override
+    {
+        UNUSED(operation);
+        UNUSED(consumer);
+    }
+
 private:
     typedef std::list<TOperationPtr> TQueue;
     std::list<TOperationPtr> Queue;

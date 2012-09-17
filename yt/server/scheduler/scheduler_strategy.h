@@ -6,6 +6,8 @@
 
 #include <ytlib/scheduler/job.pb.h>
 
+#include <ytlib/ytree/public.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -31,6 +33,7 @@ struct ISchedulerStrategy
     { }
 
     virtual void ScheduleJobs(ISchedulingContext* context) = 0;
+    virtual void BuildProgressYson(TOperationPtr operation, NYTree::IYsonConsumer* consumer) = 0;
 
 };
 

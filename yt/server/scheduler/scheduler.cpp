@@ -84,12 +84,12 @@ public:
         return NScheduler::HasSpareResources(Node->ResourceUtilization(), Node->ResourceLimits());
     }
 
-    virtual TJobPtr ScheduleJob(TOperation* operation) override
+    virtual TJobPtr BeginScheduleJob(TOperationPtr operation) override
     {
         auto id = TJobId::Create();
         auto job = New<TJob>(
             id,
-            operation,
+            ~operation,
             Node,
             TInstant::Now());
 
@@ -97,11 +97,16 @@ public:
         *jobInfo->mutable_job_id() = id.ToProto();
 
         job->SetSpec(jobInfo->mutable_spec());
-        job->ResourceUtilization() = job->GetSpec()->resource_utilization();
 
         StartedJobs_.push_back(job);
 
         return job;
+    }
+
+    virtual void EndScheduleJob(TJobPtr job) override
+    {
+        job->ResourceUtilization() = job->GetSpec()->resource_utilization();
+        AddResources(&job->GetNode()->ResourceUtilization(), job->ResourceUtilization());
     }
 
 private:
@@ -504,13 +509,14 @@ private:
 
     void AbortOperations(const TError& error)
     {
-        FOREACH (const auto& pair, Operations) {
+        TOperationMap operations;
+        Operations.swap(operations);
+        FOREACH (const auto& pair, operations) {
             auto operation = pair.second;
             if (!operation->IsFinished()) {
                 AbortOperation(operation, error);
             }
         }
-        Operations.clear();
     }
 
     void AbortOperation(TOperationPtr operation, const TError& error)
@@ -888,10 +894,7 @@ private:
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("operations").DoMapFor(Operations, [=] (TFluentMap fluent, TOperationMap::value_type pair) {
-                    fluent
-                        .Item(pair.first.ToString()).BeginMap()
-                            .Do(BIND(&BuildOperationAttributes, pair.second))
-                        .EndMap();
+                    TImpl::BuildOperationAttributes(fluent, pair.second);
                 })
                 .Item("jobs").DoMapFor(Jobs, [=] (TFluentMap fluent, TJobMap::value_type pair) {
                     fluent
@@ -905,6 +908,18 @@ private:
                             .Do(BIND(&BuildExecNodeAttributes, pair.second))
                         .EndMap();
                 })
+            .EndMap();
+    }
+
+    void BuildOperationAttributes(TFluentMap fluent, TOperationPtr operation)
+    {
+        fluent
+            .Item(operation->GetOperationId().ToString()).BeginMap()
+                .Do(BIND(&NScheduler::BuildOperationAttributes, operation))
+                .Item("progress").BeginMap()
+                    .Do(BIND(&IOperationController::BuildProgressYson, operation->GetController()))
+                    .Do(BIND(&ISchedulerStrategy::BuildProgressYson, ~Strategy, operation))
+                .EndMap()
             .EndMap();
     }
 

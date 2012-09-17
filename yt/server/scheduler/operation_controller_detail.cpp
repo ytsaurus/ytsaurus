@@ -128,11 +128,12 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(ISchedulingContext* context
         jip->PoolResult->TotalDataSize,
         ~ToString(dataSizeThreshold));
 
-    jip->Job = context->ScheduleJob(Controller->Operation);
+    auto job = context->BeginScheduleJob(Controller->Operation);
+    jip->Job = job;
     auto* jobSpec = jip->Job->GetSpec();
-
     BuildJobSpec(jip, jobSpec);
     *jobSpec->mutable_resource_utilization() = GetNeededResources(jip);
+    context->EndScheduleJob(job);
 
     Controller->RegisterJobInProgress(jip);
 
@@ -338,11 +339,6 @@ void TOperationControllerBase::Initialize()
 void TOperationControllerBase::DoInitialize()
 { }
 
-void TOperationControllerBase::DoBuildProgressYson(IYsonConsumer* consumer)
-{
-    UNUSED(consumer);
-}
-
 TFuture<void> TOperationControllerBase::Prepare()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -420,7 +416,6 @@ TFuture<void> TOperationControllerBase::Commit()
 void TOperationControllerBase::OnJobStarted(TJobPtr job)
 {
     AddResources(&UsedResources, job->ResourceUtilization());
-    AddResources(&job->GetNode()->ResourceUtilization(), job->ResourceUtilization());
 }
 
 void TOperationControllerBase::OnJobRunning(TJobPtr job)
@@ -1492,16 +1487,14 @@ void TOperationControllerBase::RemoveJobInProgress(TJobPtr job)
 
 void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
 {
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("jobs").BeginMap()
-                .Item("total").Scalar(CompletedJobCount + RunningJobCount + GetPendingJobCount())
-                .Item("pending").Scalar(GetPendingJobCount())
-                .Item("running").Scalar(RunningJobCount)
-                .Item("completed").Scalar(CompletedJobCount)
-                .Item("failed").Scalar(FailedJobCount)
-            .EndMap()
-            .Do(BIND(&TThis::DoBuildProgressYson, Unretained(this)))
+    BuildYsonMapFluently(consumer)
+        .Item("jobs").BeginMap()
+            .Item("total").Scalar(CompletedJobCount + RunningJobCount + GetPendingJobCount())
+            .Item("pending").Scalar(GetPendingJobCount())
+            .Item("running").Scalar(RunningJobCount)
+
+            .Item("completed").Scalar(CompletedJobCount)
+            .Item("failed").Scalar(FailedJobCount)
         .EndMap();
 }
 

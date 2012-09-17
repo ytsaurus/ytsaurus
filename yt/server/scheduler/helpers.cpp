@@ -22,7 +22,6 @@ void BuildOperationAttributes(TOperationPtr operation, IYsonConsumer* consumer)
         .Item("transaction_id").Scalar(operation->GetTransactionId())
         .Item("state").Scalar(FormatEnum(operation->GetState()))
         .Item("start_time").Scalar(operation->GetStartTime())
-        .Item("progress").BeginMap().EndMap()
         .Item("spec").Node(operation->GetSpec());
 }
 

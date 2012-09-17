@@ -1623,8 +1623,9 @@ private:
             ~ToString(UnorderedMergeJobCounter));
     }
 
-    virtual void DoBuildProgressYson(IYsonConsumer* consumer) override
+    virtual void BuildProgressYson(IYsonConsumer* consumer) override
     {
+        TSortControllerBase::BuildProgressYson(consumer);
         BuildYsonMapFluently(consumer)
             .Item("partitions").BeginMap()
                 .Item("total").Scalar(Partitions.size())
@@ -2033,8 +2034,9 @@ private:
             ~ToString(SortedMergeJobCounter));
     }
 
-    virtual void DoBuildProgressYson(IYsonConsumer* consumer) override
+    virtual void BuildProgressYson(IYsonConsumer* consumer) override
     {
+        TSortControllerBase::BuildProgressYson(consumer);
         BuildYsonMapFluently(consumer)
             .Item("partitions").BeginMap()
                 .Item("total").Scalar(Partitions.size())

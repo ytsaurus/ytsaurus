@@ -20,6 +20,12 @@ public:
         // Refuse to do anything.
         UNUSED(context);
     }
+
+    virtual void BuildProgressYson(TOperationPtr operation, NYTree::IYsonConsumer* consumer) override
+    {
+        UNUSED(operation);
+        UNUSED(consumer);
+    }
 };
 
 TAutoPtr<ISchedulerStrategy> CreateNullStrategy(ISchedulerStrategyHost* host)
