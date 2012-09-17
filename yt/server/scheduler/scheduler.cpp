@@ -1130,7 +1130,7 @@ private:
                 LOG_WARNING("Job status report was expected from %s, removal scheduled",
                     ~expectedAddress);
             } else {
-                *response->add_jobs_to_remove() = jobId.ToProto();
+                *response->add_jobs_to_abort() = jobId.ToProto();
                 LOG_WARNING("Job status report was expected from %s, abort scheduled",
                     ~expectedAddress);
             }
