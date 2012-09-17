@@ -11,6 +11,7 @@ import os
 import types
 import logger
 import simplejson as json
+from copy import deepcopy
 from itertools import imap, ifilter
 
 """ Auxiliary methods """
@@ -46,6 +47,15 @@ class Buffer(object):
         return self._empty
 
 """ Common table methods """
+def add_user_spec(params):
+    result = deepcopy(params)
+    result["spec"] = update(
+        params.get("spec", {}),
+        {"mr_user": os.environ.get("MR_USER", ""),
+         "system_user": os.environ.get("USER", "")})
+    return result
+
+
 def create_table(path, make_it_empty=True):
     create = True
     if exists(path):
@@ -194,12 +204,13 @@ def sort_table(source_table, destination_table=None, sort_by=None, strategy=None
             spec[job_io]["table_writer"] = table_writer
 
     params = json.dumps(
-        {"spec": update(
-            {"input_table_paths": map(get_yson_name, flatten(source_table)),
-             "output_table_path": escape_path(output_table),
-             "sort_by": sort_by},
-            spec),
-         "transaction_id": config.TRANSACTION})
+        add_user_spec(
+            {"spec": update(
+                {"input_table_paths": map(get_yson_name, flatten(source_table)),
+                 "output_table_path": escape_path(output_table),
+                 "sort_by": sort_by},
+                spec),
+             "transaction_id": config.TRANSACTION}))
     operation = make_request("POST", "sort", None, params)
     strategy.process_operation("sort", operation)
     if in_place:
@@ -220,12 +231,13 @@ def merge_tables(source_table, destination_table, mode, strategy=None, table_wri
         spec["job_io"]["table_writer"] = table_writer
 
     params = json.dumps(
-        {"spec": update(
-            {"input_table_paths": map(get_yson_name, source_table),
-             "output_table_path": destination_table.escaped_name(),
-             "mode": mode},
-            spec),
-         "transaction_id": config.TRANSACTION})
+        add_user_spec(
+            {"spec": update(
+                {"input_table_paths": map(get_yson_name, source_table),
+                 "output_table_path": destination_table.escaped_name(),
+                 "mode": mode},
+                spec),
+             "transaction_id": config.TRANSACTION}))
     operation = make_request("POST", "merge", None, params)
     strategy.process_operation("merge", operation)
 
@@ -329,12 +341,13 @@ def run_operation(binary, source_table, destination_table,
         spec["job_io"]["table_writer"] = table_writer
 
     params = json.dumps(
-        {"spec": update(
-            {"input_table_paths": map(get_yson_name, source_table),
-             "output_table_paths": map(get_yson_name, destination_table),
-             op_key[op_type]: operation_descr},
-            spec),
-         "transaction_id": config.TRANSACTION})
+        add_user_spec(
+            {"spec": update(
+                {"input_table_paths": map(get_yson_name, source_table),
+                 "output_table_paths": map(get_yson_name, destination_table),
+                 op_key[op_type]: operation_descr},
+                spec),
+             "transaction_id": config.TRANSACTION}))
     operation = make_request("POST", op_type, None, params)
     strategy.process_operation(op_type, operation, Finalizer(files, destination_table))
 
@@ -431,8 +444,9 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
         run_map_reduce.spec = update(run_map_reduce.spec, spec)
 
     params = json.dumps(
-        {"spec": run_map_reduce.spec,
-         "transaction_id": config.TRANSACTION})
+        add_user_spec(
+            {"spec": run_map_reduce.spec,
+             "transaction_id": config.TRANSACTION}))
     operation = make_request("POST", "map_reduce", None, params)
     strategy.process_operation("map_reduce", operation,
          Finalizer(run_map_reduce.files_to_remove, destination_table))
