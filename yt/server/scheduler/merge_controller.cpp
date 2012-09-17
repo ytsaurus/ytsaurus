@@ -586,6 +586,9 @@ private:
 
     virtual bool IsPassthroughChunk(TRefCountedInputChunkPtr inputChunk) override
     {
+        if (!Spec->AllowPassthroughChunks)
+            return false;
+
         return IsPassthroughChunkImpl(inputChunk, Spec->CombineChunks);
     }
 
@@ -904,6 +907,9 @@ private:
 
     virtual bool IsPassthroughChunk(TRefCountedInputChunkPtr inputChunk) override
     {
+        if (!Spec->AllowPassthroughChunks)
+            return false;
+
         return IsPassthroughChunkImpl(inputChunk, Spec->CombineChunks);
     }
 
