@@ -139,7 +139,9 @@ private:
         } else {
             auto collectionNode = NodeStack.top();
             if (Key) {
-                YCHECK(collectionNode->AsMap()->AddChild(node, *Key));
+                if (!collectionNode->AsMap()->AddChild(node, *Key)) {
+                    THROW_ERROR_EXCEPTION("Duplicate key %s", ~(*Key).Quote());
+                }
                 Key.Reset();
             } else {
                 collectionNode->AsList()->AddChild(node);
