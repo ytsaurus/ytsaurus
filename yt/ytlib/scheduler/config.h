@@ -393,7 +393,7 @@ struct TMapReduceOperationSpec
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EPoolMode,
+DECLARE_ENUM(ESchedulingMode,
     (Fifo)
     (FairShare)
 );
@@ -403,7 +403,7 @@ struct TPoolConfig
 {
     double Weight;
     double MinShareRatio;
-    EPoolMode Mode;
+    ESchedulingMode Mode;
 
     TPoolConfig()
     {
@@ -414,7 +414,7 @@ struct TPoolConfig
             .Default(0.0)
             .InRange(0.0, 1.0);
         Register("mode", Mode)
-            .Default(EPoolMode::Fifo);
+            .Default(ESchedulingMode::Fifo);
     }
 };
 

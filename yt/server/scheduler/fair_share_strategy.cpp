@@ -168,6 +168,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////
 
+DECLARE_ENUM(ESchedulableStatus,
+    (BelowMinShare)
+    (BelowFairShare)
+    (Normal)
+);
+
 struct TFairShareAttributes
 {
     explicit TFairShareAttributes(ISchedulableElementPtr element)
@@ -177,6 +183,7 @@ struct TFairShareAttributes
         , DemandRatio(0.0)
         , FairShareRatio(0.0)
         , AdjustedMinShareRatio(0.0)
+        , Status(ESchedulableStatus::Normal)
     { }
 
     ISchedulableElementPtr Element;
@@ -185,14 +192,19 @@ struct TFairShareAttributes
     double DemandRatio;
     double FairShareRatio;
     double AdjustedMinShareRatio;
+    ESchedulableStatus Status;
 };
+
+////////////////////////////////////////////////////////////////////
+
+static const double RatioPrecision = 1e-12;
 
 class TCompositeSchedulerElement
     : public virtual ISchedulerElement
 {
 public:
     TCompositeSchedulerElement()
-        : Mode(EPoolMode::Fifo)
+        : Mode(ESchedulingMode::Fifo)
     { }
 
     virtual void Update(const NProto::TNodeResources& limits) override
@@ -233,7 +245,7 @@ public:
         
         // Check if have more resources than totally demanded by children.
         // Additionally check for FIFO mode.
-        if (demandRatioSum <= 1.0 || Mode == EPoolMode::Fifo) {
+        if (demandRatioSum <= 1.0 || Mode == ESchedulingMode::Fifo) {
             // Easy case -- just give everyone what he needs.
             SetFairSharesFromDemands();
         } else {
@@ -241,9 +253,19 @@ public:
             ComputeFairSharesByFitting();
         }
 
+        // Set statuses.
         // Propagate updates to children.
         FOREACH (auto& pair, Children) {
             auto& attributes = pair.second;
+            
+            if (attributes.DemandRatio < attributes.FairShareRatio - RatioPrecision) {
+                attributes.Status = ESchedulableStatus::BelowFairShare;
+            } else if (attributes.DemandRatio < attributes.AdjustedMinShareRatio - RatioPrecision) {
+                attributes.Status = ESchedulableStatus::BelowMinShare;
+            } else {
+                attributes.Status = ESchedulableStatus::Normal;
+            }
+            
             auto childLimits = Limits;
             MultiplyResources(&childLimits, attributes.FairShareRatio);
             attributes.Element->Update(childLimits);
@@ -297,7 +319,7 @@ public:
     }
 
 protected:
-    EPoolMode Mode;
+    ESchedulingMode Mode;
 
     yhash_map<ISchedulableElementPtr, TFairShareAttributes> Children;
     NProto::TNodeResources Limits;
@@ -328,10 +350,9 @@ protected:
         };
 
         // Run binary search to compute fit factor.
-        const double FitFactorPrecision = 1e-12;
         double fitFactorLo = 0.0;
         double fitFactorHi = 1.0;
-        while (fitFactorHi - fitFactorLo > FitFactorPrecision) {
+        while (fitFactorHi - fitFactorLo > RatioPrecision) {
             double fitFactor = (fitFactorLo + fitFactorHi) / 2.0;
             double fairShareRatioSum = 0.0;
             FOREACH (const auto& pair, Children) {
@@ -361,10 +382,10 @@ protected:
             }
 
             switch (Mode) {
-                case EPoolMode::Fifo:
+                case ESchedulingMode::Fifo:
                     SortChildrenFifo(&sortedChildren);
                     break;
-                case EPoolMode::FairShare:
+                case ESchedulingMode::FairShare:
                     SortChildrenFairShare(&sortedChildren);
                     break;
                 default:
@@ -457,7 +478,7 @@ protected:
     }
 
 
-    void SetMode(EPoolMode mode)
+    void SetMode(ESchedulingMode mode)
     {
         if (Mode != mode) {
             Mode = mode;
@@ -552,7 +573,7 @@ class TRootElement
 public:
     TRootElement()
     {
-        SetMode(EPoolMode::FairShare);
+        SetMode(ESchedulingMode::FairShare);
     }
 };
 
@@ -822,8 +843,8 @@ private:
             .Item("dominant_resource").Scalar(attributes.DominantResource)
             .Item("adjusted_min_share_ratio").Scalar(attributes.AdjustedMinShareRatio)
             .Item("demand_ratio").Scalar(attributes.DemandRatio)
-            .Item("fair_share_ratio").Scalar(attributes.FairShareRatio);
-
+            .Item("fair_share_ratio").Scalar(attributes.FairShareRatio)
+            .Item("status").Scalar(attributes.Status);
     }
 
 };
