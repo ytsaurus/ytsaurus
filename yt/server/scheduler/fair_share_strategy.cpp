@@ -51,7 +51,7 @@ typedef TIntrusivePtr<TRootElement> TRootElementPtr;
 struct ISchedulerElement
     : public virtual TRefCounted
 {
-    virtual void Update(const NProto::TNodeResources& totalResources) = 0;
+    virtual void Update(const NProto::TNodeResources& limits) = 0;
     virtual void ScheduleJobs(ISchedulingContext* context) = 0;
 };
 
@@ -89,9 +89,9 @@ public:
         }
     }
 
-    virtual void Update(const NProto::TNodeResources& totalResources) override
+    virtual void Update(const NProto::TNodeResources& limits) override
     {
-        UNUSED(totalResources);
+        UNUSED(limits);
     }
 
 
@@ -181,9 +181,9 @@ public:
         : Mode(EPoolMode::Fifo)
     { }
 
-    virtual void Update(const NProto::TNodeResources& totalResources) override
+    virtual void Update(const NProto::TNodeResources& limits) override
     {
-        TotalResources = totalResources;
+        Limits = limits;
 
         // Choose dominant resource types.
         // Precache weights.
@@ -195,17 +195,17 @@ public:
             auto& attributes = pair.second;
             
             auto demand = attributes.Element->GetDemand();
-            attributes.DominantResource = GetDominantResource(demand, totalResources);
-            i64 dominantTotal = GetResource(totalResources, attributes.DominantResource);
+            attributes.DominantResource = GetDominantResource(demand, limits);
+            i64 dominantTotal = std::max(
+                GetResource(limits, attributes.DominantResource),
+                static_cast<i64>(1));
             
             attributes.Weight = attributes.Element->GetWeight();
             
             attributes.AdjustedMinShareRatio = attributes.Element->GetMinShareRatio();
             minShareRatioSum += attributes.AdjustedMinShareRatio;
 
-            attributes.DemandRatio =
-                (double) GetResource(demand, attributes.DominantResource) /
-                std::max(dominantTotal, static_cast<i64>(1));
+            attributes.DemandRatio = (double) GetResource(demand, attributes.DominantResource) / dominantTotal;
             demandRatioSum += attributes.DemandRatio;
         }
 
@@ -218,51 +218,21 @@ public:
         }
         
         // Check if have more resources than totally demanded by children.
-        if (demandRatioSum <= 1.0) {
-            FOREACH (auto& pair, Children) {
-                auto& attributes = pair.second;
-                attributes.FairShareRatio = attributes.DemandRatio;
-            }
+        // Additionally check for FIFO mode.
+        if (demandRatioSum <= 1.0 || Mode == EPoolMode::Fifo) {
+            // Easy case -- just give everyone what he needs.
+            SetFairSharesFromDemands();
         } else {
-            // Compute fit factor.
-            auto computeFairShareRatio = [&] (double fitFactor, const TFairShareAttributes& attributes) -> double {
-                double result = attributes.Weight * fitFactor;
-                result = std::max(result, attributes.AdjustedMinShareRatio);
-                result = std::min(result, attributes.DemandRatio);
-                return result;
-            };
-
-            const double FitFactorPrecision = 1e-6;
-
-            double fitFactorLo = 0.0;
-            double fitFactorHi = 1.0;
-            while (fitFactorHi - fitFactorLo > FitFactorPrecision) {
-                double fitFactor = (fitFactorLo + fitFactorHi) / 2.0;
-                double fairShareRatioSum = 0.0;
-                FOREACH (const auto& pair, Children) {
-                    fairShareRatioSum += computeFairShareRatio(fitFactor, pair.second);
-                }
-                if (fairShareRatioSum < 1.0) {
-                    fitFactorLo = fitFactor;
-                } else {
-                    fitFactorHi = fitFactor;
-                }
-            }
-
-            // Compute fair share ratios.
-            double fitFactor = (fitFactorLo + fitFactorHi) / 2.0;
-            FOREACH (auto& pair, Children) {
-                auto& attributes = pair.second;
-                attributes.FairShareRatio = computeFairShareRatio(fitFactor, attributes);
-            }
+            // Hard case -- compute fair shares using fit factor.
+            ComputeFairSharesByFitting();
         }
 
         // Propagate updates to children.
         FOREACH (auto& pair, Children) {
             auto& attributes = pair.second;
-            auto childResources = TotalResources;
-            MultiplyResources(&childResources, attributes.FairShareRatio);
-            attributes.Element->Update(childResources);
+            auto childLimits = Limits;
+            MultiplyResources(&childLimits, attributes.FairShareRatio);
+            attributes.Element->Update(childLimits);
         }
     }
 
@@ -302,12 +272,56 @@ protected:
     EPoolMode Mode;
 
     yhash_map<ISchedulableElementPtr, TFairShareAttributes> Children;
-    NProto::TNodeResources TotalResources;
+    NProto::TNodeResources Limits;
 
 
     void Update()
     {
-        Update(TotalResources);
+        Update(Limits);
+    }
+
+    void SetFairSharesFromDemands()
+    {
+        FOREACH (auto& pair, Children) {
+            auto& attributes = pair.second;
+            attributes.FairShareRatio = attributes.DemandRatio;
+        }
+    }
+
+    void ComputeFairSharesByFitting()
+    {
+        auto computeFairShareRatio = [&] (double fitFactor, const TFairShareAttributes& attributes) -> double {
+            double result = attributes.Weight * fitFactor;
+            // Never give less than promised by min share.
+            result = std::max(result, attributes.AdjustedMinShareRatio);
+            // Never give more than demanded.
+            result = std::min(result, attributes.DemandRatio);
+            return result;
+        };
+
+        // Run binary search to compute fit factor.
+        const double FitFactorPrecision = 1e-6;
+        double fitFactorLo = 0.0;
+        double fitFactorHi = 1.0;
+        while (fitFactorHi - fitFactorLo > FitFactorPrecision) {
+            double fitFactor = (fitFactorLo + fitFactorHi) / 2.0;
+            double fairShareRatioSum = 0.0;
+            FOREACH (const auto& pair, Children) {
+                fairShareRatioSum += computeFairShareRatio(fitFactor, pair.second);
+            }
+            if (fairShareRatioSum < 1.0) {
+                fitFactorLo = fitFactor;
+            } else {
+                fitFactorHi = fitFactor;
+            }
+        }
+
+        // Compute fair share ratios.
+        double fitFactor = (fitFactorLo + fitFactorHi) / 2.0;
+        FOREACH (auto& pair, Children) {
+            auto& attributes = pair.second;
+            attributes.FairShareRatio = computeFairShareRatio(fitFactor, attributes);
+        }
     }
 
     const std::vector<const TFairShareAttributes*> GetSortedChildren()
@@ -391,7 +405,7 @@ protected:
             return false;
         }
 
-        i64 total = GetResource(TotalResources, attributes.DominantResource);
+        i64 total = GetResource(Limits, attributes.DominantResource);
         double useRatio = (double) use / total;
         if (useRatio >= attributes.AdjustedMinShareRatio) {
             return false;
@@ -403,7 +417,7 @@ protected:
     double GetUtilizationToTotalRatio(const TFairShareAttributes& attributes)
     {
         i64 use = GetResource(attributes.Element->GetUtilization(), attributes.DominantResource);
-        i64 total = std::max(GetResource(TotalResources, attributes.DominantResource), static_cast<i64>(1));
+        i64 total = std::max(GetResource(Limits, attributes.DominantResource), static_cast<i64>(1));
         return (double) use / total;
     }
 
