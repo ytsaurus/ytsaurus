@@ -84,11 +84,13 @@ void TBootstrap::Run()
         ~PeerAddress,
         ~JoinToString(Config->Masters->Addresses));
 
-    auto result = MemoryUsageTracker.TryAcquire(EMemoryConsumer::Footprint, FootprintMemorySize);
+    auto result = MemoryUsageTracker.TryAcquire(
+        EMemoryConsumer::Footprint,
+        FootprintMemorySize);
     if (!result.IsOK()) {
-        auto error = TError("Couldn't acquire footprint memory") << result;
+        auto error = TError("Error allocating footprint memory") << result;
         // TODO(psushin): no need to create core here.
-        LOG_FATAL("%s", ~ToString(error));
+        LOG_FATAL(error);
     }
 
     MasterChannel = CreateLeaderChannel(Config->Masters);

@@ -59,13 +59,14 @@ public:
         , Bootstrap(bootstrap)
         , PendingReadSize_(0)
     {
-        auto error = Bootstrap->GetMemoryUsageTracker().TryAcquire(
-            NCellNode::EMemoryConsumer::BlockCache, config->MaxCachedBlocksSize);
-        if (!error.IsOK()) {
-            auto fatalError = TError("Couldn't allocate memory for block cache.")
-                << error;
+        auto result = Bootstrap->GetMemoryUsageTracker().TryAcquire(
+            NCellNode::EMemoryConsumer::BlockCache,
+            config->MaxCachedBlocksSize);
+        if (!result.IsOK()) {
+            auto error = TError("Error allocating memory for block cache")
+                << result;
             //TODO(psushin): No need to create core here.
-            LOG_FATAL("%s", ~ToString(fatalError));
+            LOG_FATAL(error);
         }
     }
 
