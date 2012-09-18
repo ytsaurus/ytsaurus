@@ -527,7 +527,7 @@ class TRootElement
 public:
     TRootElement()
     {
-        SetMode(EPoolMode::Fifo);
+        SetMode(EPoolMode::FairShare);
     }
 };
 
