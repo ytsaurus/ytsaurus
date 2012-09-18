@@ -416,7 +416,7 @@ void TChunkReplicator::ScheduleNewJobs(
             }
             auto flags = ScheduleRemovalJob(node, chunkId, jobsToStart);
             if (flags & EScheduleFlags::Scheduled) {
-                --maxReplicationJobsToStart;
+                --maxRemovalJobsToStart;
             }
             if (flags & EScheduleFlags::Purged) {
                 chunksToRemove.erase(it);
