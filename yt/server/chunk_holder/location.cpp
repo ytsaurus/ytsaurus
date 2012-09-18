@@ -204,10 +204,14 @@ std::vector<TChunkDescriptor> TLocation::Scan()
         Stroka fileName = fileList.Next();
         fileNames.insert(NFS::NormalizePathSeparators(NFS::CombinePaths(path, fileName)));
         TChunkId chunkId;
-        if (TChunkId::FromString(NFS::GetFileNameWithoutExtension(fileName), &chunkId)) {
-            chunkIds.insert(chunkId);
-        } else {
-            LOG_ERROR("Invalid chunk filename %s", ~fileName.Quote());
+        auto strippedFileName = NFS::GetFileNameWithoutExtension(fileName);
+
+        if (strippedFileName != CellGuidFileName) {
+            if (TChunkId::FromString(strippedFileName, &chunkId)) {
+                chunkIds.insert(chunkId);
+            } else {
+                LOG_ERROR("Invalid chunk filename %s", ~fileName.Quote());
+            }
         }
     }
 
