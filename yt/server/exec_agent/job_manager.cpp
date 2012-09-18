@@ -115,21 +115,22 @@ TJobPtr TJobManager::StartJob(
 
     LOG_DEBUG("Job is starting (JobId: %s)", ~jobId.ToString());
 
-    auto error = Bootstrap->GetMemoryUsageTracker().TryAcquire(
-        NCellNode::EMemoryConsumer::Job, 
-        jobSpec.resource_utilization().memory());
-
-    if (!error.IsOK()) {
-        THROW_ERROR error;
-    }
-
     auto job = New<TJob>(
         jobId,
         MoveRV(jobSpec),
         Bootstrap->GetJobProxyConfig(),
         Bootstrap->GetChunkCache(),
         slot);
-    job->Start(Bootstrap->GetEnvironmentManager());
+
+    auto error = Bootstrap->GetMemoryUsageTracker().TryAcquire(
+        NCellNode::EMemoryConsumer::Job, 
+        jobSpec.resource_utilization().memory());
+
+    if (error.IsOK()) {
+        job->Start(Bootstrap->GetEnvironmentManager());
+    } else {
+        job->Abort(error);
+    }
 
     YCHECK(Jobs.insert(MakePair(jobId, job)).second);
 

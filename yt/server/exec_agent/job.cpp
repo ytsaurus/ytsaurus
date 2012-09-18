@@ -344,7 +344,7 @@ void TJob::UpdateResourceUtilization(const TNodeResources& utilization)
     }
 }
 
-void TJob::Abort()
+void TJob::Abort(const TError& error)
 {
     JobState = EJobState::Aborting;
     Slot->GetInvoker()->Invoke(BIND(
@@ -353,6 +353,11 @@ void TJob::Abort()
         TError("Abort requested by scheduler"),
         EJobState::Aborted,
         true));
+}
+
+void TJob::Abort()
+{
+    Abort(TError("Abort requested by scheduler"));
 }
 
 void TJob::DoAbort(const TError& error, EJobState resultState, bool killJobProxy)
