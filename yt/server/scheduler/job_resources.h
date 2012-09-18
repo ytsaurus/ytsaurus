@@ -17,6 +17,7 @@ DECLARE_ENUM(EResourceType,
     (Slots)
     (Cpu)
     (Memory)
+    (Network)
 );
 
 Stroka FormatResourceUtilization(

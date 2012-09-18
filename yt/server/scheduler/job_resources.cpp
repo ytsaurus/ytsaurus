@@ -136,6 +136,8 @@ i64 GetResource(
             return resources.cpu();
         case EResourceType::Memory:
             return resources.memory();
+        case EResourceType::Network:
+            return resources.network();
         default:
             YUNREACHABLE();
     }
