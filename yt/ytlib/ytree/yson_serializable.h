@@ -84,6 +84,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, KeepOptions);
     NYTree::IMapNodePtr GetOptions() const;
 
+    std::vector<Stroka> GetRegisteredKeys() const;
+
 protected:
     virtual void DoValidate() const;
     virtual void OnLoaded();

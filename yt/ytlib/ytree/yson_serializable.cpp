@@ -16,13 +16,23 @@ TYsonSerializable::TYsonSerializable()
     : KeepOptions_(false)
 { }
 
-NYTree::IMapNodePtr TYsonSerializable::GetOptions() const
+IMapNodePtr TYsonSerializable::GetOptions() const
 {
-    YASSERT(KeepOptions_);
+    YCHECK(KeepOptions_);
     return Options;
 }
 
-void TYsonSerializable::Load(NYTree::INodePtr node, bool validate, const NYTree::TYPath& path)
+
+std::vector<Stroka> TYsonSerializable::GetRegisteredKeys() const
+{
+    std::vector<Stroka> result;
+    FOREACH (const auto& pair, Parameters) {
+        result.push_back(pair.first);
+    }
+    return result;
+}
+
+void TYsonSerializable::Load(INodePtr node, bool validate, const TYPath& path)
 {
     YASSERT(node);
 
@@ -52,7 +62,7 @@ void TYsonSerializable::Load(NYTree::INodePtr node, bool validate, const NYTree:
     OnLoaded();
 }
 
-void TYsonSerializable::Validate(const NYTree::TYPath& path) const
+void TYsonSerializable::Validate(const TYPath& path) const
 {
     FOREACH (auto pair, Parameters) {
         pair.second->Validate(path + "/" + pair.first);
@@ -60,7 +70,7 @@ void TYsonSerializable::Validate(const NYTree::TYPath& path) const
     try {
         DoValidate();
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Validation failed for %s", ~path)
+        THROW_ERROR_EXCEPTION("Validation failed at %s", ~path)
             << ex;
     }
 }
