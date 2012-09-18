@@ -48,7 +48,8 @@ TJob::TJob(
     , ChunkCache(chunkCache)
     , Slot(slot)
     , JobState(EJobState::Running)
-    , JobProgress(EJobProgress::Created)
+    , JobPhase(EJobPhase::Created)
+    , Progress(0.0)
     , JobResult(Null)
     , JobFinished(NewPromise<void>())
     , ProxyConfig(proxyConfig)
@@ -66,7 +67,7 @@ TJob::~TJob()
 
 void TJob::Start(TEnvironmentManagerPtr environmentManager)
 {
-    YASSERT(JobProgress == EJobProgress::Created);
+    YASSERT(JobPhase == EJobPhase::Created);
 
     Slot->GetInvoker()->Invoke(BIND(
         &TJob::DoStart,
@@ -78,12 +79,12 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    if (JobProgress > EJobProgress::Cleanup)
+    if (JobPhase > EJobPhase::Cleanup)
         return;
 
-    YASSERT(JobProgress == EJobProgress::Created);
+    YASSERT(JobPhase == EJobPhase::Created);
 
-    JobProgress = EJobProgress::PreparingConfig;
+    JobPhase = EJobPhase::PreparingConfig;
 
     {
         INodePtr ioConfigNode;
@@ -111,7 +112,7 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
         proxyConfig->Save(&writer);
     }
 
-    JobProgress = EJobProgress::PreparingProxy;
+    JobPhase = EJobPhase::PreparingProxy;
 
     Stroka environmentType = "default";
     try {
@@ -131,7 +132,7 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
         return;
     }
 
-    JobProgress = EJobProgress::PreparingSandbox;
+    JobPhase = EJobPhase::PreparingSandbox;
     Slot->InitSandbox();
 
     auto awaiter = New<TParallelAwaiter>(Slot->GetInvoker());
@@ -177,10 +178,10 @@ void TJob::OnChunkDownloaded(
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    if (JobProgress > EJobProgress::Cleanup)
+    if (JobPhase > EJobPhase::Cleanup)
         return;
 
-    YASSERT(JobProgress == EJobProgress::PreparingSandbox);
+    YASSERT(JobPhase == EJobPhase::PreparingSandbox);
 
     auto fileName = fetchRsp.file_name();
 
@@ -217,13 +218,13 @@ void TJob::RunJobProxy()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    if (JobProgress > EJobProgress::Cleanup)
+    if (JobPhase > EJobPhase::Cleanup)
         return;
 
-    YASSERT(JobProgress == EJobProgress::PreparingSandbox);
+    YASSERT(JobPhase == EJobPhase::PreparingSandbox);
 
     try {
-        JobProgress = EJobProgress::StartedProxy;
+        JobPhase = EJobPhase::StartedProxy;
         ProxyController->Run();
     } catch (const std::exception& ex) {
         DoAbort(ex, EJobState::Failed);
@@ -249,10 +250,10 @@ void TJob::OnJobExit(TError error)
     //  1. job proxy process finished
     //  2. proxy controller already cleaned up possible child processes.
 
-    if (JobProgress > EJobProgress::Cleanup)
+    if (JobPhase > EJobPhase::Cleanup)
         return;
 
-    YASSERT(JobProgress < EJobProgress::Cleanup);
+    YASSERT(JobPhase < EJobPhase::Cleanup);
 
     if (!error.IsOK()) {
         DoAbort(error, EJobState::Failed);
@@ -266,10 +267,10 @@ void TJob::OnJobExit(TError error)
         return;
     }
 
-    JobProgress = EJobProgress::Cleanup;
+    JobPhase = EJobPhase::Cleanup;
     Slot->Clean();
 
-    JobProgress = EJobProgress::Completed;
+    JobPhase = EJobPhase::Completed;
         
     if (JobResult->error().code() == TError::OK) {
         JobState = EJobState::Completed;
@@ -318,9 +319,9 @@ EJobState TJob::GetState() const
     return JobState;
 }
 
-EJobProgress TJob::GetProgress() const
+EJobPhase TJob::GetPhase() const
 {
-    return JobProgress;
+    return JobPhase;
 }
 
 TNodeResources TJob::GetResourceUtilization() const
@@ -364,15 +365,15 @@ void TJob::DoAbort(const TError& error, EJobState resultState, bool killJobProxy
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    if (JobProgress > EJobProgress::Cleanup) {
+    if (JobPhase > EJobPhase::Cleanup) {
         JobState = resultState;
         return;
     }
 
-    YASSERT(JobProgress < EJobProgress::Cleanup);
+    YASSERT(JobPhase < EJobPhase::Cleanup);
 
-    const auto jobProgress = JobProgress;
-    JobProgress = EJobProgress::Cleanup;
+    const auto jobPhase = JobPhase;
+    JobPhase = EJobPhase::Cleanup;
 
     if (resultState == EJobState::Failed) {
         LOG_ERROR("Job failed, aborting\n%s", ~ToString(error));
@@ -380,7 +381,7 @@ void TJob::DoAbort(const TError& error, EJobState resultState, bool killJobProxy
         LOG_INFO("Aborting job\n%s", ~ToString(error));
     }
 
-    if (jobProgress >= EJobProgress::StartedProxy && killJobProxy) {
+    if (jobPhase >= EJobPhase::StartedProxy && killJobProxy) {
         try {
             LOG_INFO("Killing job");
             ProxyController->Kill(error);
@@ -390,13 +391,13 @@ void TJob::DoAbort(const TError& error, EJobState resultState, bool killJobProxy
         }
     }
 
-    if (jobProgress >= EJobProgress::PreparingSandbox) {
+    if (jobPhase >= EJobPhase::PreparingSandbox) {
         LOG_INFO("Cleaning slot");
         Slot->Clean();
     }
 
     SetResult(error);
-    JobProgress = EJobProgress::Failed;
+    JobPhase = EJobPhase::Failed;
     JobState = resultState;
     JobFinished.Set();
 
@@ -411,6 +412,16 @@ void TJob::SubscribeFinished(const TClosure& callback)
 void TJob::UnsubscribeFinished(const TClosure& callback)
 {
     YUNREACHABLE();
+}
+
+void TJob::UpdateProgress(double progress)
+{
+    Progress = progress;
+}
+
+double TJob::GetProgress() const
+{
+    return Progress;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -32,7 +32,7 @@ message TRspOnJobFinished
 message TReqOnJobProgress
 {
     required NYT.NProto.TGuid job_id = 1;
-    required NScheduler.NProto.TJobProgress progress = 2;
+    required double progress = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

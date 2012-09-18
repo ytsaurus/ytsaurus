@@ -122,6 +122,16 @@ const TNonOwningKey& TTableReader::GetKey() const
     YUNREACHABLE();
 }
 
+i64 TTableReader::GetRowIndex() const override
+{
+    return Reader->GetItemIndex();
+}
+
+i64 TTableReader::GetRowCount() const override
+{
+    return Reader->GetItemCount();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

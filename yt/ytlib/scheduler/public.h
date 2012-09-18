@@ -55,7 +55,7 @@ DECLARE_ENUM(EJobState,
     ((Aborted)(4))
 );
 
-DECLARE_ENUM(EJobProgress,
+DECLARE_ENUM(EJobPhase,
     ((Created)(0))
     ((PreparingConfig)(1))
     ((PreparingProxy)(2))

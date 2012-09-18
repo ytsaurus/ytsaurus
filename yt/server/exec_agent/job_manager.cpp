@@ -165,7 +165,7 @@ void TJobManager::RemoveJob(const TJobId& jobId)
     LOG_DEBUG("Job removal requested (JobId: %s)", ~jobId.ToString());
     auto job = FindJob(jobId);
     if (job) {
-        YASSERT(job->GetProgress() > EJobProgress::Cleanup);
+        YASSERT(job->GetPhase() > EJobPhase::Cleanup);
         YCHECK(Jobs.erase(jobId) == 1);
         Bootstrap->GetMemoryUsageTracker().Release(
             NCellNode::EMemoryConsumer::Job, 

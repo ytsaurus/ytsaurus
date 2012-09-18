@@ -123,6 +123,18 @@ public:
         }
     }
 
+    double GetProgress() const override
+    {
+        double total = Reader->GetRowCount();
+        if (total == 0.0) {
+            LOG_WARNING("GetProgress: empty total.");
+        } else {
+            auto progress = Reader->GetRowIndex() / total;
+            LOG_DEBUG("GetProgress: %f", progress);
+            return progress;
+        }
+    }
+
 private:
     ISyncReaderPtr Reader;
     TTableChunkSequenceWriterPtr Writer;

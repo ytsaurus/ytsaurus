@@ -131,6 +131,11 @@ public:
         return result;
     }
 
+    virtual double GetProgress() const override
+    {
+        JobIO->GetProgress();
+    }
+
 private:
     void InitPipes()
     {

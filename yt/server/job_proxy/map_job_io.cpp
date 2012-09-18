@@ -29,10 +29,6 @@ public:
         PopulateUserJobResult(resultExt->mutable_mapper_result());
     }
 
-    virtual TAutoPtr<TTableProducer> CreateTableInput(int index, IYsonConsumer* consumer) const override
-    {
-        return DoCreateTableInput<TMultiChunkParallelReader>(index, consumer);
-    }
 };
 
 TAutoPtr<TUserJobIO> CreateMapJobIO(

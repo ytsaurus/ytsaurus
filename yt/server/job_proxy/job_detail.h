@@ -17,8 +17,6 @@ class TJob
 public:
     explicit TJob(IJobHost* host);
 
-    virtual NScheduler::NProto::TJobProgress GetProgress() const override;
-
 protected:
     IJobHost* Host;
 

@@ -268,6 +268,22 @@ public:
         }
     }
 
+    double GetProgress() const override
+    {
+        double total = Reader->GetItemCount();
+        if (total == 0.0) {
+            LOG_WARNING("GetProgress: empty total.");
+            return 0;
+        } else {
+            // Split progress between reading and writing.
+            auto progress = 0.5 * Reader->GetItemIndex() / total;
+            progress += 0.5 * Writer->GetRowCount() / total;
+
+            LOG_DEBUG("GetProgress: %f", progress);
+            return progress;
+        }
+    }
+
 private:
     TKeyColumns KeyColumns;
     TIntrusivePtr<TReader> Reader;

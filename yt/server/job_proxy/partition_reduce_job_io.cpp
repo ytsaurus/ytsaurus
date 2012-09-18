@@ -38,7 +38,7 @@ public:
 
     TAutoPtr<NTableClient::TTableProducer> CreateTableInput(
         int index, 
-        NYTree::IYsonConsumer* consumer) const override
+        NYTree::IYsonConsumer* consumer) override
     {
         YCHECK(index == 0);
         YCHECK(JobSpec.input_specs_size() == 1);
@@ -60,6 +60,10 @@ public:
             BIND(&IJobHost::ReleaseNetwork, Host),
             MoveRV(chunks));
         reader->Open();
+
+        // ToDo(psushin): init all inputs in constructor, get rid of this check.
+        YCHECK(index == Inputs.size());
+        Inputs.push_back(reader);
 
         return new TTableProducer(reader, consumer);
     }

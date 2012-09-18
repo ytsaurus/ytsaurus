@@ -19,7 +19,7 @@ namespace NJobProxy {
 template <template <typename> class TMultiChunkReader>
 TAutoPtr<NTableClient::TTableProducer> TUserJobIO::DoCreateTableInput(
     int index, 
-    NYTree::IYsonConsumer* consumer) const
+    NYTree::IYsonConsumer* consumer)
 {
     YCHECK(index >= 0 && index < GetInputCount());
 
@@ -49,6 +49,10 @@ TAutoPtr<NTableClient::TTableProducer> TUserJobIO::DoCreateTableInput(
 
     auto syncReader = NTableClient::CreateSyncReader(reader);
     syncReader->Open();
+
+    // ToDo(psushin): init all inputs in constructor, get rid of this check.
+    YCHECK(index == Inputs.size());
+    Inputs.push_back(syncReader);
 
     return new NTableClient::TTableProducer(syncReader, consumer);
 }

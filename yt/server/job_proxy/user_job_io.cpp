@@ -6,7 +6,7 @@
 
 #include <ytlib/meta_state/config.h>
 
-#include <ytlib/table_client/multi_chunk_sequential_reader.h>
+#include <ytlib/table_client/multi_chunk_parallel_reader.h>
 #include <ytlib/table_client/table_chunk_sequence_writer.h>
 #include <ytlib/table_client/sync_writer.h>
 #include <ytlib/table_client/schema.h>
@@ -45,9 +45,9 @@ int TUserJobIO::GetInputCount() const
     return 1;
 }
 
-TAutoPtr<TTableProducer> TUserJobIO::CreateTableInput(int index, IYsonConsumer* consumer) const
+TAutoPtr<TTableProducer> TUserJobIO::CreateTableInput(int index, IYsonConsumer* consumer)
 {
-    return DoCreateTableInput<TMultiChunkSequentialReader>(index, consumer);
+    return DoCreateTableInput<TMultiChunkParallelReader>(index, consumer);
 }
 
 int TUserJobIO::GetOutputCount() const
@@ -77,14 +77,24 @@ ISyncWriterPtr TUserJobIO::CreateTableOutput(int index) const
     return syncWriter;
 }
 
-void TUserJobIO::UpdateProgress()
-{
-    YUNIMPLEMENTED();
-}
-
 double TUserJobIO::GetProgress() const
 {
-    YUNIMPLEMENTED();
+    double total = 0.;
+    double current = 0.;
+
+    FOREACH(const auto& input, Inputs) {
+        current += input->GetRowCount();
+        total += input->GetRowIndex();
+    }
+
+    if (total == 0.0) {
+        LOG_WARNING("GetProgress: empty total.");
+        return 0;
+    } else {
+        auto progress = current / total;
+        LOG_DEBUG("GetProgress: %f", progress);
+        return progress;
+    }
 }
 
 TAutoPtr<TErrorOutput> TUserJobIO::CreateErrorOutput() const

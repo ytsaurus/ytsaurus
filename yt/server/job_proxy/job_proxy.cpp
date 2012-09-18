@@ -53,7 +53,7 @@ void TJobProxy::SendHeartbeat()
 
     auto req = SupervisorProxy->OnJobProgress();
     *req->mutable_job_id() = JobId.ToProto();
-    *req->mutable_progress() = Job->GetProgress();
+    req->set_progress(Job->GetProgress());
     req->Invoke().Subscribe(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
 
     LOG_DEBUG("Supervisor heartbeat sent");

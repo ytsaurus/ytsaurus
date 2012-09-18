@@ -56,6 +56,8 @@ public:
         , CurrentKey(KeyColumnCount)
         , SortComparer(this)
         , MergeComparer(this)
+        , TotalRowCount(0)
+        , ReadRowCount(0)
     {
         srand(time(NULL));
         std::random_shuffle(chunks.begin(), chunks.end());
@@ -98,6 +100,16 @@ public:
     {
         YASSERT(IsValid_);
         DoNextRow();
+    }
+
+    virtual i64 GetRowCount() const override
+    {
+        return TotalRowCount;
+    }
+
+    virtual i64 GetRowIndex() const override
+    {
+        return ReadRowCount;
     }
 
 private:

@@ -121,6 +121,18 @@ public:
         }
     }
 
+    double GetProgress() const override
+    {
+        double total = Reader->GetItemCount();
+        if (total == 0.0) {
+            LOG_WARNING("GetProgress: empty total.");
+        } else {
+            auto progress = Reader->GetItemIndex() / total;
+            LOG_DEBUG("GetProgress: %f", progress);
+            return progress;
+        }
+    }
+
 private:
     TIntrusivePtr<TReader> Reader;
     TPartitionChunkSequenceWriterPtr Writer;

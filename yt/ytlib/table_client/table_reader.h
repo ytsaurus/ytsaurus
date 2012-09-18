@@ -55,6 +55,9 @@ public:
     virtual const TRow& GetRow() const override;
     virtual const TNonOwningKey& GetKey() const override;
 
+    virtual i64 GetRowIndex() const override;
+    virtual i64 GetRowCount() const override;
+
 private:
     TTableReaderConfigPtr Config;
     NRpc::IChannelPtr MasterChannel;

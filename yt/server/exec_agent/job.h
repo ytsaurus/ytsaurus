@@ -54,12 +54,15 @@ public:
     const NScheduler::NProto::TJobSpec& GetSpec();
 
     NScheduler::EJobState GetState() const;
-    NScheduler::EJobProgress GetProgress() const;
+    NScheduler::EJobPhase GetPhase() const;
 
     NScheduler::NProto::TNodeResources GetResourceUtilization() const;
 
     // New utilization should not exceed initial utilization.
     void UpdateResourceUtilization(const NScheduler::NProto::TNodeResources& utilization);
+
+    double GetProgress() const;
+    void UpdateProgress(double progress);
 
     const NScheduler::NProto::TJobResult& GetResult() const;
     void SetResult(const NScheduler::NProto::TJobResult& jobResult);
@@ -101,7 +104,9 @@ private:
     TSlotPtr Slot;
 
     NScheduler::EJobState JobState;
-    NScheduler::EJobProgress JobProgress;
+    NScheduler::EJobPhase JobPhase;
+
+    double Progress;
 
     NJobProxy::TJobProxyConfigPtr ProxyConfig;
 

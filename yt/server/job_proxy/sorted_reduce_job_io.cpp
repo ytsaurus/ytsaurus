@@ -32,7 +32,7 @@ public:
 
     TAutoPtr<TTableProducer> CreateTableInput(
         int index, 
-        NYTree::IYsonConsumer* consumer) const override
+        NYTree::IYsonConsumer* consumer) override
     {
         YCHECK(index >= 0 && index < GetInputCount());
 
@@ -62,6 +62,10 @@ public:
 
         auto reader = CreateMergingReader(readers);
         reader->Open();
+
+        // ToDo(psushin): init all inputs in constructor, get rid of this check.
+        YCHECK(index == Inputs.size());
+        Inputs.push_back(reader);
 
         return new TTableProducer(reader, consumer);
     }

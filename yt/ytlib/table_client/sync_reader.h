@@ -33,6 +33,9 @@ struct ISyncReader
     //! and another one is needed.
     virtual void NextRow() = 0;
 
+    virtual i64 GetRowIndex() const = 0;
+    virtual i64 GetRowCount() const = 0;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -71,6 +74,16 @@ public:
     virtual const TNonOwningKey& GetKey() const override
     {
         return AsyncReader->CurrentReader()->GetKey();
+    }
+
+    virtual i64 GetRowIndex() const
+    {
+        return AsyncReader->GetItemIndex();
+    }
+
+    virtual i64 GetRowCount() const
+    {
+        return AsyncReader->GetItemCount();
     }
 
     /*

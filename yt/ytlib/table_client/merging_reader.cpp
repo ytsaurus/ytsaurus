@@ -116,6 +116,24 @@ public:
         return ReaderHeap.front()->CurrentReader()->GetKey();
     }
 
+    virtual i64 GetRowCount() const override
+    {
+        i64 total = 0;
+        FOREACH(const auto& reader, Readers) {
+            total += reader->GetItemCount();
+        }
+        return total;
+    }
+
+    virtual i64 GetRowIndex() const override
+    {
+        i64 total = 0;
+        FOREACH(const auto& reader, Readers) {
+            total += reader->GetItemIndex();
+        }
+        return total;
+    }
+
 private:
     std::vector<TTableChunkSequenceReaderPtr> Readers;
     std::vector<TTableChunkSequenceReader*> ReaderHeap;

@@ -35,7 +35,7 @@ struct IJob
     { }
 
     virtual NScheduler::NProto::TJobResult Run() = 0;
-    virtual NScheduler::NProto::TJobProgress GetProgress() const = 0;
+    virtual double GetProgress() const = 0;
 
 };
 

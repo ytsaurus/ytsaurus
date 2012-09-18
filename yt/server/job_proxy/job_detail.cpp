@@ -12,11 +12,6 @@ TJob::TJob(IJobHost* host)
     YCHECK(host);
 }
 
-NScheduler::NProto::TJobProgress TJob::GetProgress() const
-{
-    return NScheduler::NProto::TJobProgress();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NJobProxy
