@@ -81,6 +81,7 @@ void TSamplesFetcher::CreateNewRequest(const Stroka& address)
     proxy.SetDefaultTimeout(Config->NodeRpcTimeout);
 
     CurrentRequest = proxy.GetTableSamples();
+    ToProto(CurrentRequest->mutable_key_columns(), Spec->SortBy);
 }
 
 bool TSamplesFetcher::AddChunkToRequest(NTableClient::TRefCountedInputChunkPtr& chunk)
