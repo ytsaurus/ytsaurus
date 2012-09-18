@@ -152,6 +152,7 @@ class Holder(Server):
             'addresses' : MasterAddresses,
             'rpc_timeout' : 20000
         },
+        'total_memory_size' : 42 * 1024 * 1024 * 1024,
         'data_node' : {
             'store_locations' : [
                 { 'path' : '/yt/disk1/data/chunk_store', 'quota' : storeQuota },
@@ -181,8 +182,7 @@ class Holder(Server):
             'job_manager': {
                 'resource_limits' : {
                     'slots' : 24,
-                    'cpu' : 22,
-                    'memory' : 34 * 1024 * 1024 * 1024
+                    'cpu' : 22
                 },
                 'slot_location' : '%(work_dir)s/slots'
             },
