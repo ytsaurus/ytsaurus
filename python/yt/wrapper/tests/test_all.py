@@ -19,7 +19,7 @@ import unittest
 LOCATION = os.path.dirname(os.path.abspath(__file__))
 def abspath(path):
     return os.path.join(LOCATION, path)
-    
+
 TEST_DIR = "//home/tests"
 
 class YtTest(YTEnv):
@@ -28,12 +28,12 @@ class YtTest(YTEnv):
     START_SCHEDULER = True
     START_PROXY = True
 
-    @classmethod  
+    @classmethod
     def setUpClass(cls):
         if os.path.exists("test.log"):
             os.remove("test.log")
         logging.basicConfig(level=logging.WARNING)
-        
+
         ports = {
             "master": 18001,
             "node": 17001,
@@ -44,11 +44,11 @@ class YtTest(YTEnv):
         cls.env.set_environment("tests/sandbox", "tests/sandbox/pids.txt", ports)
 
         config.PROXY = "localhost:%d" % ports["proxy"]
-    
+
     @classmethod
     def tearDownClass(cls):
         cls.env.clear_environment()
-    
+
     def setUp(self):
         os.environ["PATH"] = ".:" + os.environ["PATH"]
         if not yt.exists(TEST_DIR):
@@ -61,9 +61,9 @@ class YtTest(YTEnv):
         yt.remove(TEST_DIR)
 
     def read_records(self, table, format=None):
-        return map(
-            partial(line_to_record, format=format),
-            yt.read_table(table, format))
+        return filter(None,
+            map(partial(line_to_record, format=format),
+                yt.read_table(table, format)))
 
     def temp_records(self):
         columns = [string.digits, reversed(string.ascii_lowercase[:10]), string.ascii_uppercase[:10]]
@@ -77,7 +77,7 @@ class YtTest(YTEnv):
 
     def dsv_records(self):
         return map(
-            partial(record_to_line, format=yt.DsvFormat()), 
+            partial(record_to_line, format=yt.DsvFormat()),
                 [{"a": 12,  "b": "ignat"},
                            {"b": "max",  "c": 17.5},
                  {"a": "x", "b": "name", "c": 0.5}])
@@ -101,7 +101,7 @@ class YtTest(YTEnv):
         self.assertTrue(yt.exists("/"))
         self.assertTrue(yt.exists("//sys"))
         self.assertFalse(yt.exists("//\"sys\""))
-        
+
         self.assertFalse(yt.exists('//%s/%s' %
                                 (self.random_string(10), self.random_string(10))))
 
@@ -124,7 +124,7 @@ class YtTest(YTEnv):
         if yt.exists(table):
             yt.remove(table)
         yt.create_table(table)
-        
+
         records = map(record_to_line, [Record("x", "y", "z"), Record("key", "subkey", "value")])
         yt.write_table(table, records)
         self.assertEqual(sorted(yt.read_table(table)), sorted(records))
@@ -132,7 +132,7 @@ class YtTest(YTEnv):
         # check rewrite case
         yt.write_table(Table(table, append=True), records)
         self.assertEqual(sorted(yt.read_table(table)), sorted(records + records))
-    
+
     def test_huge_table(self):
         POWER = 3
         records = \
@@ -142,7 +142,7 @@ class YtTest(YTEnv):
         table = TEST_DIR + "/temp"
         yt.write_table(table, records)
         self.assertEqual(yt.records_count(table), 10 ** POWER)
-        
+
         records_count = 0
         for rec in yt.read_table(table):
             records_count += 1
@@ -152,11 +152,11 @@ class YtTest(YTEnv):
         table = self.create_temp_table()
         other_table = TEST_DIR + "/temp_other"
         yt.create_table(other_table)
-        
+
         yt.copy_table(table, other_table)
         self.assertEqual(sorted(self.temp_records()),
                          sorted(yt.read_table(other_table)))
-        
+
         yt.copy_table(table, other_table)
         self.assertEqual(sorted(self.temp_records()),
                          sorted(yt.read_table(other_table)))
@@ -178,7 +178,7 @@ class YtTest(YTEnv):
         yt.sort_table(table)
         self.assertEqual(len(list(yt.list(TEST_DIR))), files_count)
         self.assertEqual(self.read_records(table)[0].key, "0")
-        self.assertEqual(sorted(list(self.temp_records())), 
+        self.assertEqual(sorted(list(self.temp_records())),
                          list(yt.read_table(table)))
         self.assertTrue(yt.is_sorted(table))
 
@@ -193,7 +193,7 @@ class YtTest(YTEnv):
         table = self.create_temp_table()
         self.assertEqual(yt.records_count(table), 10)
         self.assertFalse(yt.is_sorted(table))
-        
+
         yt.set_attribute(table, "my_attribute", "{}")
         yt.set_attribute(table, "my_attribute/000", "10")
         self.assertEqual(yt.get_attribute(table, "my_attribute/000"), 10)
@@ -230,22 +230,22 @@ class YtTest(YTEnv):
         table = self.create_dsv_table()
         other_table = TEST_DIR + "/dsv_capital"
         self.run_capitilize_b(table, other_table)
-        
+
         recs = self.read_records(other_table, format=yt.DsvFormat())
         self.assertEqual(
             sorted([rec["b"] for rec in recs]),
-            ["IGNAT", "MAX", "NAME"]) 
+            ["IGNAT", "MAX", "NAME"])
         self.assertEqual(
             sorted([rec["c"] for rec in recs if "c" in rec]),
-            ["0.5", "17.5"]) 
+            ["0.5", "17.5"])
 
     def test_many_output_tables(self):
         table = self.create_temp_table()
         other_table = TEST_DIR + "/temp_other"
-        another_table = TEST_DIR + "/temp_another" 
-        more_another_table = TEST_DIR + "/temp_more_another" 
+        another_table = TEST_DIR + "/temp_another"
+        more_another_table = TEST_DIR + "/temp_more_another"
         yt.copy_table(table, another_table)
-        
+
         yt.run_map("PYTHONPATH=. ./many_output.py",
                    table,
                    [other_table, Table(another_table, append=True), more_another_table],
@@ -257,23 +257,24 @@ class YtTest(YTEnv):
     def test_range_operations(self):
         table = self.create_dsv_table()
         other_table = TEST_DIR + "/dsv_capital"
-        
+
         self.run_capitilize_b(Table(table, columns=["b"]), other_table)
         recs = self.read_records(other_table, format=yt.DsvFormat())
-        
+
         self.assertEqual(
             sorted([rec["b"] for rec in recs]),
-            ["IGNAT", "MAX", "NAME"]) 
+            ["IGNAT", "MAX", "NAME"])
         self.assertEqual(
             sorted([rec["c"] for rec in recs if "c" in rec]),
-            []) 
+            [])
 
         yt.sort_table(table, sort_by=["b", "c"])
-        self.assertEqual( 
+        self.assertEqual(
             self.read_records(Table(table, lower_key="a", upper_key="n", columns=["b"]),
                               format=yt.DsvFormat()),
             [{"b": "ignat"}, {"b": "max"}])
-        self.assertEqual( 
+
+        self.assertEqual(
             self.read_records(Table(table, columns=["c"]),
                               format=yt.DsvFormat()),
             [{"c": "17.5"}, {"c": "0.5"}])
@@ -318,7 +319,7 @@ class YtTest(YTEnv):
         dest = []
         for i in xrange(2):
             self.assertTrue(yt.upload_file(abspath("my_op.py")).find("/my_op.py") != -1)
-        
+
         for d in dest:
             self.assertEqual(list(yt.download_file(dest)),
                              open(abspath("my_op.py")).readlines())
@@ -384,7 +385,7 @@ class YtTest(YTEnv):
 
 if __name__ == "__main__":
     suite = unittest.TestSuite()
-    suite.addTest(YtTest("test_reformatting"))
+    suite.addTest(YtTest("test_range_operations"))
     unittest.TextTestRunner().run(suite)
     #unittest.main()
 

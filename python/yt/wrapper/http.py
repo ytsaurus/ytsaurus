@@ -8,6 +8,27 @@ import sys
 import logger
 import urllib
 
+def iter_lines(response):
+    """
+    Iterates over the response data, one line at a time.  This
+    avoids reading the content at once into memory for large
+    responses. It is get from requests, but ignores \r line breaks.
+    """
+    def add_eoln(str):
+        return str + "\n"
+
+    pending = None
+    for chunk in response.iter_content(chunk_size=config.READ_BUFFER_SIZE):
+        if pending is not None:
+            chunk = pending + chunk
+        lines = chunk.split('\n')
+        pending = lines.pop()
+        for line in lines:
+            yield add_eoln(line)
+
+    if pending is not None and pending:
+        yield add_eoln(pending)
+
 def make_request(http_method, request_type, params,
                  data=None, format=None, verbose=False, proxy=None, check_errors=True,
                  raw_response=False, files=None):

@@ -81,32 +81,35 @@ def main():
     parser = ArgumentParser(
         formatter_class=SortingHelpFormatter,
         description="Shell utility to work with YT system.\n"
-                    "This utitlity is back-compatible with mapreduce fo Yamr.",
+                    "This utitlity is back-compatible with mapreduce for Yamr.",
         epilog=
 """
 Examples:
     Append data to table with replication factor one, gzip codec and chunks of size 1Gb:
             ./mapreduce -write 'table' -replication_factor 1 -codec 'gzip_normal' -chunksize 1073741824 -append < data
-    
+
+    Read 10 records from the table:
+            ./mapreduce -read 'table[:#10]'
+
     Run operation on the range of the table:
-            ./mapreduce 
-                -subkey 
-                -map 'awk '"'"'{sum+=$1+$2} END {print "\\t\\t"sum}'"'" 
-                -src "ignat/temp{key,subkey}[("aaa"):("zzz")]" 
+            ./mapreduce
+                -subkey
+                -map 'awk '"'"'{sum+=$1+$2} END {print "\\t\\t"sum}'"'"
+                -src "ignat/temp{key,subkey}[("aaa"):("zzz")]"
                 -dst "ignat/sum"
-    
+
     Run map-reduce operation:
-            ./mapreduce 
-                -subkey 
+            ./mapreduce
+                -subkey
                 -map 'grep "A"'
                 -reduce 'awk '"'"'{a[$1]+=$3} END {for (i in a) {print i"\\t\\t"a[i]}}'"'"
                 -src "ignat/temp"
                 -dst "ignat/reduced"
-    
+
     Use already uploaded files:
             ./mapreduce -upload mapper.py -dst ignat/mapper.py
             ./mapreduce -subkey -map "./mapper.py" -ytfile "ignat/mapper.py" -src "ignat/temp" -dst "ignat/mapped"
-    
+
     Use attrbiutes:
             ./mapreduce -set "log/@my_attr"  -value 10
             ./mapreduce -get "log/@my_attr"
@@ -155,7 +158,7 @@ Examples:
             ("dynallocmode",
              "OLD! this option do nothing"),
             ("erase",
-             "NEW! delete the table, this option supports range specificators"),
+             "NEW! delete the table, this option supports range specifications"),
             ("file",
              "file for both map and reduce operations"),
             ("get",
@@ -163,7 +166,7 @@ Examples:
             ("inputformat",
              "NEW! specifies operation input format. "
              "This option has the following format: "
-             "'<format options as yson list map fragment>format'"),
+             "'<format options as yson map fragment>format'"),
             ("jcmultiplier",
              "OLD! this option do nothing"),
             ("jobcount",
@@ -185,9 +188,9 @@ Examples:
             ("outputformat",
              "NEW! specifies operation output format. "
              "This option has the following format: "
-             "'<format options as yson list map fragment>format'"),
+             "'<format options as yson map fragment>format'"),
             ("ping_tx",
-             "NEW! turn on pinging ansector transactions"),
+             "NEW! turn on pinging ancestor transactions"),
             ("prefix",
              "YT use tree structure to store meta information about system objects. "
              "Each path in the tree (except root) starts with '//'. "
@@ -206,8 +209,8 @@ Examples:
             ("replication_factor",
              "NEW! specifies replication factor of tables to write"),
             ("server",
-             "adress of the proxy "
-             "(port usually equals to 80 and can be ommited)"),
+             "address of the proxy "
+             "(port usually equals to 80 and can be omitted)"),
             ("set",
              "NEW! set value to given path, value should be in json format"),
             ("sort",
@@ -226,7 +229,7 @@ Examples:
             ("tx",
              "NEW! perform command in the context of the given transaction"),
             ("upload",
-             "NEW! upload given file to destionation"),
+             "NEW! upload given file to destination"),
             ("upperkey",
              "specifies upperkey for the range in the read operation"),
             ("value",
@@ -242,11 +245,14 @@ Examples:
             ("ytspec",
              "NEW! spec for given operation in json format"),
         ]
-        + 
+        +
         [(name, "this argument is inherited from Yandex Mapreduce and it is ignored")
          for name in ["threadcount", "jcmultiplier", "dynallocmode", "opt"]
         ]
     )
+
+    # Ignore all positional arguments
+    parser.add_argument("ignored", nargs='?');
 
     args = parser.parse_args()
 

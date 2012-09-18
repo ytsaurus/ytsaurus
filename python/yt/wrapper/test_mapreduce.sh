@@ -143,6 +143,30 @@ if __name__ == '__main__':
     rm -f mapper.py
 }
 
+test_ignore_positional_arguments()
+{
+    ./mapreduce -list "" "123" >/dev/null
+}
+
+test_heavy_command()
+{
+    ./mapreduce -map "cat" \
+        -src "ignat/other_tablexvIj5ElrFd" \
+        -src "ignat/other_table03sv9MSipd" \
+        -src "ignat/other_tableXPglWj1NJc" \
+        -src "ignat/other_tableB9UV0H7Q6D" \
+        -src "ignat/other_tableFNDnliTp0B" \
+        -dst ignat/ttt \
+        -file file_a \
+        -file file_b \
+        -file file_c \
+        -file file_d \
+        -file file_e \
+        -file file_f \
+        -file file_g \
+        -file fff
+}
+
 test_base_functionality
 test_codec
 test_many_output_tables
@@ -152,6 +176,8 @@ test_input_output_format
 test_transactions
 test_range_map
 test_uploaded_files
+test_ignore_positional_arguments
+test_heavy_command
 
 rm -f table_file big_file
 
