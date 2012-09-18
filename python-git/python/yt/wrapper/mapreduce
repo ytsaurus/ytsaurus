@@ -14,6 +14,7 @@ from yt.wrapper.common import flatten, unlist
 import yt.wrapper as yt
 
 import sys
+import traceback
 import simplejson as json
 from argparse import ArgumentParser, RawTextHelpFormatter
 from operator import attrgetter
@@ -31,7 +32,7 @@ def remove_prefix(table):
     return table
 
 def list_all_tables():
-    tables = yt.search("/", "table", lambda path: path.startswith(config.PREFIX))
+    tables = yt.search("//statbox", "table", lambda path: path.startswith(config.PREFIX))
     return sorted(map(remove_prefix, tables))
 
 def add_eoln(str):
@@ -75,6 +76,7 @@ class SortingHelpFormatter(RawTextHelpFormatter):
 def main():
     config.FORCE_SORT_IN_REDUCE = True
     config.USE_MAPREDUCE_STYLE_DST_TABLES = True
+    config.EXIT_WITHOUT_TRACEBACK = True
 
     parser = ArgumentParser(
         formatter_class=SortingHelpFormatter,
@@ -385,4 +387,10 @@ Examples:
         yt.renew_transaction(args.renew_tx)
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print "Shutdown requested... exiting"
+        sys.exit(1)
+    except Exception:
+        traceback.print_exc(file=sys.stdout)
