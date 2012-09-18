@@ -117,13 +117,19 @@ private:
 
     void Refresh(const TChunk* chunk);
     int GetReplicationFactor(const TChunk* chunk);
-    void GetReplicaStatistics(
-        const TChunk* chunk,
-        int* desiredCount,
-        int* storedCount,
-        int* cachedCount,
-        int* plusCount,
-        int* minusCount);
+
+    struct TReplicaStatistics
+    {
+        int ReplicationFactor;
+        int StoredCount;
+        int CachedCount;
+        int PlusCount;
+        int MinusCount;
+    };
+
+    TReplicaStatistics GetReplicaStatistics(const TChunk* chunk);
+    static Stroka ToString(const TReplicaStatistics& statistics);
+
     void ScheduleNextRefresh();
     void OnRefresh();
 

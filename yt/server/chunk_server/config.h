@@ -98,7 +98,7 @@ struct TChunkManagerConfig
     TDuration UnconfirmedNodeTimeout;
 
     TDuration ChunkRefreshDelay;
-    TDuration ChunkRefreshQuantum;
+    TDuration ChunkRefreshPeriod;
     int MaxChunksPerRefresh;
 
     double MaxNodeFillCoeff;
@@ -117,7 +117,7 @@ struct TChunkManagerConfig
             .Default(TDuration::Seconds(30));
         Register("chunk_refresh_delay", ChunkRefreshDelay)
             .Default(TDuration::Seconds(15));
-        Register("chunk_refresh_quantum", ChunkRefreshQuantum)
+        Register("chunk_refresh_period", ChunkRefreshPeriod)
             .Default(TDuration::MilliSeconds(100));
         Register("max_chunks_per_refresh", MaxChunksPerRefresh)
             .Default(10000);

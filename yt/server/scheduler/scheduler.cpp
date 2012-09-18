@@ -905,7 +905,7 @@ private:
                     .Item("utilization").Do(BIND(&BuildNodeResourcesYson, TotalResourceUtilization))
                 .EndMap()
                 .Item("operations").DoMapFor(Operations, [=] (TFluentMap fluent, TOperationMap::value_type pair) {
-                    BuildOperationAttributes(fluent, pair.second);
+                    this->BuildOperationAttributes(fluent, pair.second);
                 })
                 .Item("jobs").DoMapFor(Jobs, [=] (TFluentMap fluent, TJobMap::value_type pair) {
                     fluent
