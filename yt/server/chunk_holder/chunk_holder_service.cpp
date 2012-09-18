@@ -52,7 +52,7 @@ TChunkHolderService::TChunkHolderService(
         TProxy::GetServiceName(),
         DataNodeLogger.GetCategory())
     , Config(config)
-    , WorkerThread(New<TActionQueue>("HolderWorker"))
+    , WorkerThread(New<TActionQueue>("DataNodeWorker"))
     , Bootstrap(bootstrap)
 {
     YCHECK(config);
@@ -677,10 +677,10 @@ void TChunkHolderService::MakeChunkSplits(
         miscExt.uncompressed_data_size() /
         indexExt.items_size()));
 
-    auto comparator = [&] (
+    auto comparer = [&] (
         const NTableClient::NProto::TReadLimit& limit,
         const NTableClient::NProto::TIndexRow& indexRow,
-        bool isStartLimit)
+        bool isStartLimit) -> int
     {
         if (!limit.has_row_index() && !limit.has_key()) {
             return isStartLimit ? -1 : 1;
@@ -711,7 +711,7 @@ void TChunkHolderService::MakeChunkSplits(
         [&] (const NTableClient::NProto::TIndexRow& indexRow,
              const NTableClient::NProto::TReadLimit& limit) 
         {
-            return comparator(limit, indexRow, true) > 0;
+            return comparer(limit, indexRow, true) > 0;
         });
 
     auto endIter = std::upper_bound(
@@ -721,7 +721,7 @@ void TChunkHolderService::MakeChunkSplits(
         [&] (const NTableClient::NProto::TReadLimit& limit,
              const NTableClient::NProto::TIndexRow& indexRow) 
         {
-            return comparator(limit, indexRow, false) < 0;
+            return comparer(limit, indexRow, false) < 0;
         });
 
     NTableClient::NProto::TInputChunk* currentSplit;

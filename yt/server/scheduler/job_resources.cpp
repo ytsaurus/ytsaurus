@@ -159,11 +159,13 @@ void BuildNodeResourcesYson(
     const TNodeResources& resources,
     IYsonConsumer* consumer)
 {
-    BuildYsonMapFluently(consumer)
-        .Item("slots").Scalar(resources.slots())
-        .Item("cpu").Scalar(resources.cpu())
-        .Item("memory").Scalar(resources.memory())
-        .Item("network").Scalar(resources.network());
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("slots").Scalar(resources.slots())
+            .Item("cpu").Scalar(resources.cpu())
+            .Item("memory").Scalar(resources.memory())
+            .Item("network").Scalar(resources.network())
+        .EndMap();
 }
 
 TNodeResources ZeroResources()

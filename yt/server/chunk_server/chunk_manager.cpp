@@ -651,6 +651,8 @@ private:
         NodeHostNameMap.insert(MakePair(GetServiceHostName(address), newNode));
 
         if (IsLeader()) {
+            ChunkPlacement->OnNodeRegistered(newNode);
+            ChunkReplicator->OnNodeRegistered(newNode);
             StartNodeTracking(newNode, false);
         }
 
@@ -894,25 +896,32 @@ private:
     {
         Profiler.SetEnabled(true);
     }
-
-    virtual void OnActiveQuorumEstablished() override
+    
+    virtual void OnLeaderRecoveryComplete() override
     {
-        ChunkPlacement = New<TChunkPlacement>(Config, Bootstrap);
-
         NodeLeaseTracker = New<TNodeLeaseTracker>(Config, Bootstrap);
-
+        ChunkPlacement = New<TChunkPlacement>(Config, Bootstrap);
         ChunkReplicator = New<TChunkReplicator>(Config, Bootstrap, ChunkPlacement, NodeLeaseTracker);
 
-        // Assign initial leases to nodes.
-        // NB: Nodes will remain unconfirmed until the first heartbeat.
-        FOREACH (const auto& pair, NodeMap) { 
-            StartNodeTracking(pair.second, true);
+        FOREACH (auto& pair, NodeMap) {
+            auto* node = pair.second;
+            ChunkPlacement->OnNodeRegistered(node);
+            ChunkReplicator->OnNodeRegistered(node);
         }
 
         PROFILE_TIMING ("/full_chunk_refresh_time") {
             LOG_INFO("Starting full chunk refresh");
             ChunkReplicator->RefreshAllChunks();
             LOG_INFO("Full chunk refresh completed");
+        }
+    }
+
+    virtual void OnActiveQuorumEstablished() override
+    {
+        // Assign initial leases to nodes.
+        // NB: Nodes will remain unconfirmed until the first heartbeat.
+        FOREACH (const auto& pair, NodeMap) { 
+            StartNodeTracking(pair.second, true);
         }
     }
 
@@ -930,20 +939,12 @@ private:
         if (node->GetState() == ENodeState::Online) {
             NodeLeaseTracker->OnNodeOnline(node, recovery);
         }
-
-        ChunkPlacement->OnNodeRegistered(node);
-        
-        ChunkReplicator->OnNodeRegistered(node);
-
         NodeRegistered_.Fire(node);
     }
 
     void StopNodeTracking(TDataNode* node)
     {
         NodeLeaseTracker->OnNodeUnregistered(node);
-        ChunkPlacement->OnNodeUnregistered(node);
-        ChunkReplicator->OnNodeUnregistered(node);
-
         NodeUnregistered_.Fire(node);
     }
 
@@ -958,6 +959,8 @@ private:
                 nodeId);
 
             if (IsLeader()) {
+                ChunkPlacement->OnNodeUnregistered(node);
+                ChunkReplicator->OnNodeUnregistered(node);
                 StopNodeTracking(node);
             }
 

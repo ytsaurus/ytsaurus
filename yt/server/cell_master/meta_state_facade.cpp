@@ -223,6 +223,11 @@ private:
                 WithTransaction("//sys/scheduler/lock", transactionId),
                 emptyMap);
 
+            SyncYPathSet(
+                rootService,
+                WithTransaction("//sys/scheduler/pools", transactionId),
+                emptyOpaqueMap);
+
             SyncYPathCreate(
                 rootService,
                 WithTransaction("//sys/scheduler/orchid", transactionId),

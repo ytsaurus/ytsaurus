@@ -84,12 +84,12 @@ public:
         return NScheduler::HasSpareResources(Node->ResourceUtilization(), Node->ResourceLimits());
     }
 
-    virtual TJobPtr ScheduleJob(TOperation* operation) override
+    virtual TJobPtr BeginScheduleJob(TOperationPtr operation) override
     {
         auto id = TJobId::Create();
         auto job = New<TJob>(
             id,
-            operation,
+            ~operation,
             Node,
             TInstant::Now());
 
@@ -97,11 +97,16 @@ public:
         *jobInfo->mutable_job_id() = id.ToProto();
 
         job->SetSpec(jobInfo->mutable_spec());
-        job->ResourceUtilization() = job->GetSpec()->resource_utilization();
 
         StartedJobs_.push_back(job);
 
         return job;
+    }
+
+    virtual void EndScheduleJob(TJobPtr job) override
+    {
+        job->ResourceUtilization() = job->GetSpec()->resource_utilization();
+        AddResources(&job->GetNode()->ResourceUtilization(), job->ResourceUtilization());
     }
 
 private:
@@ -129,6 +134,8 @@ public:
         , Bootstrap(bootstrap)
         , BackgroundQueue(New<TActionQueue>("Background"))
         , MasterConnector(new TMasterConnector(Config, Bootstrap))
+        , TotalResourceLimits(ZeroResources())
+        , TotalResourceUtilization(ZeroResources())
     {
         YCHECK(config);
         YCHECK(bootstrap);
@@ -284,6 +291,7 @@ private:
     std::vector<int> JobTypeCounters;
 
     NProto::TNodeResources TotalResourceLimits;
+    NProto::TNodeResources TotalResourceUtilization;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -368,6 +376,9 @@ private:
 
         auto node = New<TExecNode>(address);
         RegisterNode(node);
+
+        AddResources(&TotalResourceLimits, node->ResourceLimits());
+        AddResources(&TotalResourceUtilization, node->ResourceUtilization());
     }
 
     void OnNodeOffline(const Stroka& address)
@@ -380,6 +391,7 @@ private:
         UnregisterNode(node);
 
         SubtractResources(&TotalResourceLimits, node->ResourceLimits());
+        SubtractResources(&TotalResourceUtilization, node->ResourceUtilization());
     }
 
 
@@ -504,13 +516,14 @@ private:
 
     void AbortOperations(const TError& error)
     {
-        FOREACH (const auto& pair, Operations) {
+        TOperationMap operations;
+        Operations.swap(operations);
+        FOREACH (const auto& pair, operations) {
             auto operation = pair.second;
             if (!operation->IsFinished()) {
                 AbortOperation(operation, error);
             }
         }
-        Operations.clear();
     }
 
     void AbortOperation(TOperationPtr operation, const TError& error)
@@ -823,8 +836,8 @@ private:
 
         operation->GetController()->Commit().Subscribe(
             BIND(&TImpl::OnCompletedOperationCommitted, MakeStrong(this), operation)
-            	.Via(GetControlInvoker()));
-    }	
+                .Via(GetControlInvoker()));
+    }   
 
     void OnCompletedOperationCommitted(TOperationPtr operation)
     {
@@ -834,7 +847,7 @@ private:
 
         MasterConnector->FinalizeOperationNode(operation).Subscribe(
             BIND(&TThis::OnCompletedOperationNodeFinalized, MakeStrong(this), operation)
-            	.Via(GetControlInvoker()));
+                .Via(GetControlInvoker()));
     }
     
     void OnCompletedOperationNodeFinalized(TOperationPtr operation)
@@ -887,11 +900,12 @@ private:
 
         BuildYsonFluently(consumer)
             .BeginMap()
+                .Item("resources").BeginMap()
+                    .Item("limits").Do(BIND(&BuildNodeResourcesYson, TotalResourceLimits))
+                    .Item("utilization").Do(BIND(&BuildNodeResourcesYson, TotalResourceUtilization))
+                .EndMap()
                 .Item("operations").DoMapFor(Operations, [=] (TFluentMap fluent, TOperationMap::value_type pair) {
-                    fluent
-                        .Item(pair.first.ToString()).BeginMap()
-                            .Do(BIND(&BuildOperationAttributes, pair.second))
-                        .EndMap();
+                    this->BuildOperationAttributes(fluent, pair.second);
                 })
                 .Item("jobs").DoMapFor(Jobs, [=] (TFluentMap fluent, TJobMap::value_type pair) {
                     fluent
@@ -899,12 +913,25 @@ private:
                             .Do(BIND(&BuildJobAttributes, pair.second))
                         .EndMap();
                 })
-                .Item("exec_nodes").DoMapFor(ExecNodes, [=] (TFluentMap fluent, TExecNodeMap::value_type pair) {
+                .Item("nodes").DoMapFor(ExecNodes, [=] (TFluentMap fluent, TExecNodeMap::value_type pair) {
                     fluent
                         .Item(pair.first).BeginMap()
                             .Do(BIND(&BuildExecNodeAttributes, pair.second))
                         .EndMap();
                 })
+                .Do(BIND(&ISchedulerStrategy::BuildOrchidYson, ~Strategy))
+            .EndMap();
+    }
+
+    void BuildOperationAttributes(TFluentMap fluent, TOperationPtr operation)
+    {
+        fluent
+            .Item(operation->GetOperationId().ToString()).BeginMap()
+                .Do(BIND(&NScheduler::BuildOperationAttributes, operation))
+                .Item("progress").BeginMap()
+                    .Do(BIND(&IOperationController::BuildProgressYson, operation->GetController()))
+                    .Do(BIND(&ISchedulerStrategy::BuildOperationProgressYson, ~Strategy, operation))
+                .EndMap()
             .EndMap();
     }
 
@@ -1017,9 +1044,10 @@ private:
         }
 
         SubtractResources(&TotalResourceLimits, node->ResourceLimits());
-        node->ResourceUtilization() = resourceUtilization;
+        SubtractResources(&TotalResourceUtilization, node->ResourceUtilization());
+
         node->ResourceLimits() = resourceLimits;
-        AddResources(&TotalResourceLimits, node->ResourceLimits());
+        node->ResourceUtilization() = resourceUtilization;
 
         PROFILE_TIMING ("/analysis_time") {
             auto missingJobs = node->Jobs();
@@ -1063,6 +1091,9 @@ private:
             MasterConnector->CreateJobNode(job);
             job->SetSpec(NULL);
         }
+
+        AddResources(&TotalResourceLimits, node->ResourceLimits());
+        AddResources(&TotalResourceUtilization, node->ResourceUtilization());
 
         context->Reply();
     }

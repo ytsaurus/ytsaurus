@@ -29,8 +29,8 @@ TChunkPlacement::TChunkPlacement(
     : Config(config)
     , Bootstrap(bootstrap)
 {
-    YASSERT(config);
-    YASSERT(bootstrap);
+    YCHECK(config);
+    YCHECK(bootstrap);
 }
 
 void TChunkPlacement::OnNodeRegistered(TDataNode* node)
@@ -67,7 +67,7 @@ std::vector<TDataNode*> TChunkPlacement::GetUploadTargets(
     const yhash_set<Stroka>* forbiddenAddresses,
     Stroka* preferredHostName)
 {
-    // TODO: check replication fan-in in case this is a replication job
+    // TODO: check replication fan-in for replication jobs
 
     std::vector<TDataNode*> resultNodes;
     resultNodes.reserve(count);
@@ -156,7 +156,7 @@ TDataNode* TChunkPlacement::GetReplicationSource(const TChunk* chunk)
 {
     // Right now we are just picking a random location (including cached ones).
     const auto& locations = chunk->GetLocations();
-    YASSERT(!locations.empty());
+    YCHECK(!locations.empty());
     int index = RandomNumber<size_t>(locations.size());
     return Bootstrap->GetChunkManager()->GetNode(locations[index]);
 }

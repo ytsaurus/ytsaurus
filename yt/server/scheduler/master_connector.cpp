@@ -515,6 +515,7 @@ private:
             BuildYsonFluently()
                 .BeginAttributes()
                     .Do(BIND(&BuildOperationAttributes, operation))
+                    .Item("progress").BeginMap().EndMap()
                     .Item("opaque").Scalar("true")
                 .EndAttributes()
                 .BeginMap()
@@ -740,13 +741,10 @@ private:
         // Set progress.
         if (state == EOperationState::Running || operation->IsFinished()) {
             auto req = TYPathProxy::Set(operationPath + "/@progress");
-            req->set_value(
-                ConvertToYsonString(
-                    BIND(
-                        &IOperationController::BuildProgressYson,
-                        operation->GetController()))
-                .Data()
-            );
+            req->set_value(BuildYsonFluently()
+                .BeginMap()
+                    .Do(BIND(&IOperationController::BuildProgressYson, operation->GetController()))
+                .EndMap().ToString());
             batchReq->AddRequest(req);
         }
 
