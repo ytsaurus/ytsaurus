@@ -127,6 +127,7 @@ TJobPtr TJobManager::StartJob(
         jobSpec.resource_utilization().memory());
 
     if (error.IsOK()) {
+        job->SubscribeFinished(BIND(&TJobManager::OnJobFinished, MakeWeak(this), job));
         job->Start(Bootstrap->GetEnvironmentManager());
     } else {
         job->Abort(error);
@@ -167,12 +168,16 @@ void TJobManager::RemoveJob(const TJobId& jobId)
     if (job) {
         YASSERT(job->GetPhase() > EJobPhase::Cleanup);
         YCHECK(Jobs.erase(jobId) == 1);
-        Bootstrap->GetMemoryUsageTracker().Release(
-            NCellNode::EMemoryConsumer::Job, 
-            job->GetSpec().resource_utilization().memory());
     } else {
         LOG_WARNING("Requested to remove an unknown job (JobId: %s)", ~jobId.ToString());
     }
+}
+
+void TJobManager::OnJobFinished(TJobPtr job)
+{
+    Bootstrap->GetMemoryUsageTracker().Release(
+        NCellNode::EMemoryConsumer::Job, 
+        job->GetSpec().resource_utilization().memory());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

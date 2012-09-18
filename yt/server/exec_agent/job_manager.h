@@ -21,8 +21,6 @@ class TJobManager
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TJobManager> TPtr;
-
     TJobManager(
         TJobManagerConfigPtr config,
         TBootstrap* bootstrap);
@@ -70,6 +68,8 @@ private:
     yhash_map<TJobId, TJobPtr> Jobs;
 
     TSlotPtr GetFreeSlot();
+
+    void OnJobFinished(TJobPtr job);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };
