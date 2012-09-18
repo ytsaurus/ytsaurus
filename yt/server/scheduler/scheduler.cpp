@@ -913,7 +913,7 @@ private:
                             .Do(BIND(&BuildJobAttributes, pair.second))
                         .EndMap();
                 })
-                .Item("exec_nodes").DoMapFor(ExecNodes, [=] (TFluentMap fluent, TExecNodeMap::value_type pair) {
+                .Item("nodes").DoMapFor(ExecNodes, [=] (TFluentMap fluent, TExecNodeMap::value_type pair) {
                     fluent
                         .Item(pair.first).BeginMap()
                             .Do(BIND(&BuildExecNodeAttributes, pair.second))
