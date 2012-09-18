@@ -303,7 +303,7 @@ protected:
         };
 
         // Run binary search to compute fit factor.
-        const double FitFactorPrecision = 1e-6;
+        const double FitFactorPrecision = 1e-12;
         double fitFactorLo = 0.0;
         double fitFactorHi = 1.0;
         while (fitFactorHi - fitFactorLo > FitFactorPrecision) {
