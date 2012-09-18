@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import config
 from common import YtError
 from format import RawFormat
@@ -78,9 +76,13 @@ def make_request(http_method, request_type, params,
 
         # TODO(ignat): improve method to detect errors from server
         if check_errors and isinstance(result, dict) and "error" in result:
-            raise YtError(
-                "Response to request {0} with headers {1} contains error: {2}".
-                format(url, headers, result["error"]))
+            message = "Response to request {0} with headers {1} contains error: {2}".\
+                      format(url, headers, result["error"])
+            if config.EXIT_WITHOUT_TRACEBACK:
+                print >>sys.stderr, "Error:", message
+                sys.exit(1)
+            else:
+                raise YtError(message)
     else:
         result = response if raw_response else response.content
     

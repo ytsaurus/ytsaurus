@@ -2,7 +2,7 @@ import config
 import logger
 from common import require, YtError
 from http import make_request
-from tree_commands import get_attribute, exists, list, search, get
+from tree_commands import get_attribute, exists, search, get
 from file_commands import download_file
 
 import os
@@ -98,13 +98,14 @@ def wait_operation(operation, timeout=None, print_progress=True):
             while True:
                 try:
                     if get_operation_state(operation).is_final():
+                        logger.info("Operation %s aborted", operation)
                         break
                     abort_operation(operation)
                     sleep(timeout)
                 except KeyboardInterrupt:
                     pass
         raise
-    except:
+    except Exception:
         raise
 
 """ Waiting operation strategies """
