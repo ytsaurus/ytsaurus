@@ -374,13 +374,15 @@ TEST(TConfigTest, Save)
         "\"my_int\"=100;"
         "\"my_string_list\"=[]}";
 
-    Stroka expected;
-    expected += "{\"my_string\"=\"hello!\";";
-    expected += "\"sub\"=" + subconfigYson + ";";
-    expected += "\"sub_list\"=[" + subconfigYsonOrigin + "];";
-    expected += "\"sub_map\"={\"item\"=" + subconfigYsonOrigin + "}}";
+    Stroka expectedYson;
+    expectedYson += "{\"my_string\"=\"hello!\";";
+    expectedYson += "\"sub\"=" + subconfigYson + ";";
+    expectedYson += "\"sub_list\"=[" + subconfigYsonOrigin + "];";
+    expectedYson += "\"sub_map\"={\"item\"=" + subconfigYsonOrigin + "}}";
 
-    EXPECT_EQ(expected, output.Data());
+    EXPECT_TRUE(AreNodesEqual(
+        ConvertToNode(TYsonString(expectedYson)),
+        ConvertToNode(TYsonString(output.Data()))));
 }
 
 TEST(TConfigTest, TestConfigUpdate)
