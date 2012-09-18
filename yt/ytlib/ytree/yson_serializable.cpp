@@ -84,12 +84,12 @@ void TYsonSerializable::OnLoaded()
 void TYsonSerializable::Save(IYsonConsumer* consumer) const
 {
     consumer->OnBeginMap();
-    auto sortedItems = GetSortedIterators(Parameters);
-    FOREACH (const auto& pair, sortedItems) {
-        const auto& parameter = pair->second;
+    FOREACH (const auto& pair, Parameters) {
+        const auto& key = pair.first;
+        const auto& parameter = pair.second;
         if (parameter->IsPresent()) {
-            consumer->OnKeyedItem(pair->first);
-            pair->second->Save(consumer);
+            consumer->OnKeyedItem(key);
+            parameter->Save(consumer);
         }
     }
     consumer->OnEndMap();
