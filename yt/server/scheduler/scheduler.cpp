@@ -598,7 +598,7 @@ private:
                 ~node->GetAddress(),
                 ~job->GetId().ToString(),
                 ~job->GetOperation()->GetOperationId().ToString());
-            OnJobFailed(job, TError("Node has gone offline: %s", ~node->GetAddress().Quote()));
+            OnJobFailed(job, TError("Node has gone offline: %s", ~node->GetAddress()));
         }
         YCHECK(ExecNodes.erase(node->GetAddress()) == 1);
     }
