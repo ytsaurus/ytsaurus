@@ -183,7 +183,6 @@ struct TFairShareAttributes
         , DemandRatio(0.0)
         , FairShareRatio(0.0)
         , AdjustedMinShareRatio(0.0)
-        , Status(ESchedulableStatus::Normal)
     { }
 
     ISchedulableElementPtr Element;
@@ -192,7 +191,6 @@ struct TFairShareAttributes
     double DemandRatio;
     double FairShareRatio;
     double AdjustedMinShareRatio;
-    ESchedulableStatus Status;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -253,19 +251,9 @@ public:
             ComputeFairSharesByFitting();
         }
 
-        // Set statuses.
         // Propagate updates to children.
         FOREACH (auto& pair, Children) {
-            auto& attributes = pair.second;
-            
-            if (attributes.DemandRatio < attributes.FairShareRatio - RatioPrecision) {
-                attributes.Status = ESchedulableStatus::BelowFairShare;
-            } else if (attributes.DemandRatio < attributes.AdjustedMinShareRatio - RatioPrecision) {
-                attributes.Status = ESchedulableStatus::BelowMinShare;
-            } else {
-                attributes.Status = ESchedulableStatus::Normal;
-            }
-            
+            auto& attributes = pair.second;           
             auto childLimits = Limits;
             MultiplyResources(&childLimits, attributes.FairShareRatio);
             attributes.Element->Update(childLimits);
@@ -307,6 +295,18 @@ public:
         auto it = Children.find(child);
         YCHECK(it != Children.end());
         return it->second;
+    }
+
+    ESchedulableStatus GetChildStatus(const TFairShareAttributes& attributes) const
+    {
+        switch (Mode) {
+            case ESchedulingMode::Fifo:
+                return ESchedulableStatus::Normal;
+            case ESchedulingMode::FairShare:
+                return GetStatus(attributes);
+            default:
+                YUNREACHABLE();
+        }
     }
 
     std::vector<ISchedulableElementPtr> GetChildren() const
@@ -448,19 +448,7 @@ protected:
 
     bool IsNeedy(const TFairShareAttributes& attributes)
     {
-        i64 demand = GetResource(attributes.Element->GetDemand(), attributes.DominantResource);
-        i64 use = GetResource(attributes.Element->GetUtilization(), attributes.DominantResource);
-        if (use >= demand) {
-            return false;
-        }
-
-        i64 total = GetResource(Limits, attributes.DominantResource);
-        double useRatio = (double) use / total;
-        if (useRatio >= attributes.AdjustedMinShareRatio) {
-            return false;
-        }
-
-        return true;
+        return GetStatus(attributes) == ESchedulableStatus::BelowMinShare;
     }
 
     double GetUtilizationToTotalRatio(const TFairShareAttributes& attributes)
@@ -477,6 +465,25 @@ protected:
         return (double) use / weight;
     }
 
+    ESchedulableStatus GetStatus(const TFairShareAttributes& attributes) const
+    {
+        i64 demand = GetResource(attributes.Element->GetDemand(), attributes.DominantResource);
+        i64 utilization = GetResource(attributes.Element->GetUtilization(), attributes.DominantResource);
+        if (utilization >= demand) {
+            return ESchedulableStatus::Normal;
+        }
+
+        i64 limits = GetResource(Limits, attributes.DominantResource);
+        double utilizationRatio = (double) utilization / limits;
+        if (utilizationRatio < attributes.AdjustedMinShareRatio) {
+            return ESchedulableStatus::BelowMinShare;
+        }
+        if (utilizationRatio < attributes.FairShareRatio) {
+            return ESchedulableStatus::BelowFairShare;
+        }
+
+        return ESchedulableStatus::Normal;
+    }
 
     void SetMode(ESchedulingMode mode)
     {
@@ -621,7 +628,6 @@ public:
         BuildYsonMapFluently(consumer)
             .Item("pool").Scalar(pool->GetId())
             .Item("start_time").Scalar(element->GetStartTime())
-            .Item("min_share_ratio").Scalar(element->GetMinShareRatio())
             .Do(BIND(&TFairShareStrategy::BuildElementYson, pool, element));
     }
 
@@ -635,8 +641,6 @@ public:
                 fluent
                     .Item(id).BeginMap()
                         .Item("mode").Scalar(config->Mode)
-                        .Item("weight").Scalar(config->Weight)
-                        .Item("min_share_ratio").Scalar(config->MinShareRatio)
                         .Do(BIND(&TFairShareStrategy::BuildElementYson, RootElement, pool))
                     .EndMap();
             });
@@ -836,15 +840,18 @@ private:
         IYsonConsumer* consumer)
     {
         const auto& attributes = composite->GetChildAttributes(element);
+        auto status = composite->GetChildStatus(attributes);
         BuildYsonMapFluently(consumer)
             .Item("resource_demand").Do(BIND(&BuildNodeResourcesYson, element->GetDemand()))
             .Item("resource_utilization").Do(BIND(&BuildNodeResourcesYson, element->GetUtilization()))
             .Item("resource_limits").Do(BIND(&BuildNodeResourcesYson, element->GetLimits()))
             .Item("dominant_resource").Scalar(attributes.DominantResource)
+            .Item("weight").Scalar(element->GetWeight())
+            .Item("min_share_ratio").Scalar(element->GetMinShareRatio())
             .Item("adjusted_min_share_ratio").Scalar(attributes.AdjustedMinShareRatio)
             .Item("demand_ratio").Scalar(attributes.DemandRatio)
             .Item("fair_share_ratio").Scalar(attributes.FairShareRatio)
-            .Item("status").Scalar(attributes.Status);
+            .Item("status").Scalar(status);
     }
 
 };
