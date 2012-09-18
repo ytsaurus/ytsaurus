@@ -53,6 +53,7 @@ struct ISchedulerElement
 {
     virtual void Update(const NProto::TNodeResources& limits) = 0;
     virtual void ScheduleJobs(ISchedulingContext* context) = 0;
+    virtual NProto::TNodeResources GetLimits() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -61,8 +62,10 @@ struct ISchedulableElement
     : public virtual ISchedulerElement
 {
     virtual TInstant GetStartTime() const = 0;
+    
     virtual double GetWeight() const = 0;
     virtual double GetMinShareRatio() const = 0;
+    
     virtual NProto::TNodeResources GetDemand() const = 0;
     virtual NProto::TNodeResources GetUtilization() const = 0;
 };
@@ -76,6 +79,7 @@ public:
     explicit TOperationElement(TOperationPtr operation)
         : Operation(operation)
         , Pool(NULL)
+        , Limits(ZeroResources())
     { }
 
 
@@ -94,7 +98,7 @@ public:
 
     virtual void Update(const NProto::TNodeResources& limits) override
     {
-        UNUSED(limits);
+        Limits = limits;
     }
 
 
@@ -127,6 +131,12 @@ public:
         return controller->GetUsedResources();
     }
 
+    virtual NProto::TNodeResources GetLimits() const override
+    {
+        return Limits;
+    }
+
+
     TPooledOperationSpecPtr GetSpec() const
     {
         return Spec;
@@ -152,6 +162,7 @@ private:
     TOperationPtr Operation;
     TPool* Pool;
     TPooledOperationSpecPtr Spec;
+    NProto::TNodeResources Limits;
 
 };
 
@@ -199,7 +210,7 @@ public:
             
             auto demand = attributes.Element->GetDemand();
             attributes.DominantResource = GetDominantResource(demand, limits);
-            i64 dominantTotal = std::max(
+            i64 dominantLimit = std::max(
                 GetResource(limits, attributes.DominantResource),
                 static_cast<i64>(1));
             
@@ -208,7 +219,7 @@ public:
             attributes.AdjustedMinShareRatio = attributes.Element->GetMinShareRatio();
             minShareRatioSum += attributes.AdjustedMinShareRatio;
 
-            attributes.DemandRatio = (double) GetResource(demand, attributes.DominantResource) / dominantTotal;
+            attributes.DemandRatio = (double) GetResource(demand, attributes.DominantResource) / dominantLimit;
             demandRatioSum += attributes.DemandRatio;
         }
 
@@ -269,6 +280,11 @@ public:
         auto it = Children.find(child);
         YCHECK(it != Children.end());
         return it->second;
+    }
+
+    virtual NProto::TNodeResources GetLimits() const override
+    {
+        return Limits;
     }
 
 protected:
@@ -775,6 +791,7 @@ private:
         BuildYsonMapFluently(consumer)
             .Item("resource_demand").Do(BIND(&BuildNodeResourcesYson, element->GetDemand()))
             .Item("resource_utilization").Do(BIND(&BuildNodeResourcesYson, element->GetUtilization()))
+            .Item("resource_limits").Do(BIND(&BuildNodeResourcesYson, element->GetLimits()))
             .Item("dominant_resource").Scalar(attributes.DominantResource)
             .Item("adjusted_min_share_ratio").Scalar(attributes.AdjustedMinShareRatio)
             .Item("demand_ratio").Scalar(attributes.DemandRatio)
