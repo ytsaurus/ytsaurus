@@ -148,14 +148,14 @@ public:
     }
 
 
-    TPool* GetPool() const
+    TPoolPtr GetPool() const
     {
         return Pool;
     }
 
-    void SetPool(TPool* pool)
+    void SetPool(TPoolPtr pool)
     {
-        Pool = pool;
+        Pool = ~pool;
     }
 
 private:
@@ -261,17 +261,22 @@ public:
         }
     }
 
+    virtual NProto::TNodeResources GetLimits() const override
+    {
+        return Limits;
+    }
+
 
     void AddChild(ISchedulableElementPtr child)
     {
-        TFairShareAttributes info(child);
-        YCHECK(Children.insert(std::make_pair(child, info)).second);
-        Update();
+        TFairShareAttributes attributes(child);
+        YCHECK(Children.insert(std::make_pair(child, attributes)).second);
     }
 
     void RemoveChild(ISchedulableElementPtr child)
     {
         YCHECK(Children.erase(child) == 1);
+        // Avoid scheduling removed children.
         Update();
     }
 
@@ -282,9 +287,13 @@ public:
         return it->second;
     }
 
-    virtual NProto::TNodeResources GetLimits() const override
+    std::vector<ISchedulableElementPtr> GetChildren() const
     {
-        return Limits;
+        std::vector<ISchedulableElementPtr> result;
+        FOREACH (const auto& pair, Children) {
+            result.push_back(pair.first);
+        }
+        return result;
     }
 
 protected:
@@ -678,18 +687,29 @@ private:
 
     void RegisterPool(TPoolPtr pool)
     {
-        LOG_INFO("Pool registered: %s", ~pool->GetId());
-        
         YCHECK(Pools.insert(std::make_pair(pool->GetId(), pool)).second);
         RootElement->AddChild(pool);
+
+        LOG_INFO("Pool registered: %s", ~pool->GetId());
     }
 
     void UnregisterPool(TPoolPtr pool)
     {
-        LOG_INFO("Pool unregistered: %s", ~pool->GetId());
+        YCHECK(pool != DefaultPool);
 
+        // Move all operations to the default pool.
+        auto children = pool->GetChildren();
+        FOREACH (auto child, children) {
+            auto* operationElement = dynamic_cast<TOperationElement*>(~child);
+            operationElement->SetPool(DefaultPool);
+            DefaultPool->AddChild(operationElement);
+        }
+
+        // Remove the pool.
         YCHECK(Pools.erase(pool->GetId()) == 1);
         RootElement->RemoveChild(pool);
+
+        LOG_INFO("Pool unregistered: %s", ~pool->GetId());
     }
 
     TPoolPtr FindPool(const Stroka& id)
@@ -719,11 +739,14 @@ private:
         return element;
     }
 
+
     void OnPoolsRequest(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
         LOG_INFO("Updating pools");
 
         auto req = TYPathProxy::Get("//sys/scheduler/pools");
+        auto poolConfigKeys = DefaultPool->GetConfig()->GetRegisteredKeys();
+        ToProto(req->mutable_attributes(), poolConfigKeys);
         batchReq->AddRequest(req, "get_pools");
     }
 
@@ -745,23 +768,27 @@ private:
         FOREACH (const auto& pair, newPoolsMapNode->GetChildren()) {
             const auto& id = pair.first;
             const auto& poolNode = pair.second;
+
+            // Parse config.
+            auto configNode = ConvertToNode(poolNode->Attributes());
+            TPoolConfigPtr config;
+            try {
+                config = ConvertTo<TPoolConfigPtr>(configNode);
+            } catch (const std::exception& ex) {
+                LOG_ERROR(ex, "Error parsing configuration of pool %s, defaults will be used",
+                    ~id.Quote());
+                config = New<TPoolConfig>();
+            }
+
             auto existingPool = FindPool(id);
             if (existingPool) {
                 // Reconfigure existing pool.
-                auto configNode = ConvertToNode(poolNode->Attributes());
-                TPoolConfigPtr config;
-                try {
-                    config = ConvertTo<TPoolConfigPtr>(configNode);
-                } catch (const std::exception& ex) {
-                    LOG_ERROR(ex, "Error parsing configuration of pool %s, defauls will be used",
-                        ~id.Quote());
-                    config = New<TPoolConfig>();
-                }
                 existingPool->SetConfig(config);
                 YCHECK(orphanPoolIds.erase(id) == 1);
             } else {
                 // Create new pool.
                 auto newPool = New<TPool>(id);
+                newPool->SetConfig(config);
                 RegisterPool(newPool);
             }
         }
