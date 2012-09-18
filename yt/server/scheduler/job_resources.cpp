@@ -114,6 +114,14 @@ EResourceType GetDominantResource(
         }
     }
 
+    if (limits.network() > 0) {
+        double newRatio = (double) demand.network() / limits.network();
+        if (newRatio > minRatio) {
+            result = EResourceType::Network;
+            minRatio = newRatio;
+        }
+    }
+
     return result;
 }
 
