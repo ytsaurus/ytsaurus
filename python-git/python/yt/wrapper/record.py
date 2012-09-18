@@ -67,4 +67,4 @@ def line_to_record(line, format=None):
     if isinstance(format, YamrFormat):
         return Record(*line.strip("\n").split("\t", 1 + (1 if format.has_subkey else 0)))
     else:
-        return dict(field.split("=", 1) for field in line.strip("\n").split("\t"))
+        return dict(field.split("=", 1) for field in line.strip("\n").split("\t") if field)

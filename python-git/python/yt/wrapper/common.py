@@ -1,5 +1,7 @@
 from yt.common import require, flatten, update, which
 
+EMPTY_GENERATOR = (i for i in [])
+
 class YtError(Exception):
     pass
 

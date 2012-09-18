@@ -1,8 +1,8 @@
 import config
 import py_wrapper
-from common import flatten, require, YtError, parse_bool, unlist, update
+from common import flatten, require, YtError, parse_bool, unlist, update, EMPTY_GENERATOR
 from path_tools import escape_path
-from http import make_request
+from http import make_request, iter_lines
 from table import get_yson_name, to_table, to_name
 from tree_commands import exists, remove, get_attribute, copy, mkdir, find_free_subpath
 from file_commands import upload_file
@@ -12,7 +12,6 @@ import types
 import logger
 import simplejson as json
 from copy import deepcopy
-from itertools import imap, ifilter
 
 """ Auxiliary methods """
 def prepare_source_tables(tables):
@@ -104,20 +103,16 @@ def write_table(table, lines, format=None, table_writer=None):
         make_request("PUT", "write", params, buffer.get(), format=format)
 
 def read_table(table, format=None):
-    def add_eoln(str):
-        return str + "\n"
     if format is None: format = config.DEFAULT_FORMAT
     table = to_table(table)
     if not exists(table.name):
-        return []
+        return EMPTY_GENERATOR
     response = make_request("GET", "read",
                             {"path": get_yson_name(table),
                              "transaction_id": config.TRANSACTION},
                             format=format,
                             raw_response=True)
-    return imap(add_eoln, ifilter(bool, response.iter_lines(chunk_size=config.READ_BUFFER_SIZE)))
-    # TODO(ignat): investigate
-    #return response.iter_lines(chunk_size=config.READ_BUFFER_SIZE)
+    return iter_lines(response)
 
 def remove_table(table):
     table = to_name(table)
