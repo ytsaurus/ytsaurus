@@ -82,6 +82,9 @@ public:
     virtual void ScheduleJobs(ISchedulingContext* context) override
     {
         while (context->HasSpareResources()) {
+            if (Operation->GetState() != EOperationState::Running) {
+                break;
+            }
             auto job = Operation->GetController()->ScheduleJob(context);
             if (!job) {
                 break;
