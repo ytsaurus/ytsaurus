@@ -42,6 +42,7 @@ struct TChunkStripe
     std::vector<NChunkClient::TChunkId> GetChunkIds() const;
 
     TSmallVector<TWeightedChunk, 1> Chunks;
+    i64 TotalDataSize;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -20,6 +20,7 @@ TWeightedChunk::TWeightedChunk()
 ////////////////////////////////////////////////////////////////////
 
 TChunkStripe::TChunkStripe()
+    : TotalDataSize(0)
 { }
 
 TChunkStripe::TChunkStripe(TRefCountedInputChunkPtr inputChunk)
@@ -47,10 +48,11 @@ void TChunkStripe::AddChunk(TRefCountedInputChunkPtr inputChunk, i64 dataSizeOve
 {
     Chunks.push_back(TWeightedChunk());
     auto& weightedChunk = Chunks.back();
-
     weightedChunk.InputChunk = inputChunk;
     weightedChunk.DataSizeOverride = dataSizeOverride;
     weightedChunk.RowCountOverride = rowCountOverride;
+
+    TotalDataSize += dataSizeOverride;
 }
 
 std::vector<NChunkClient::TChunkId> TChunkStripe::GetChunkIds() const
@@ -295,13 +297,17 @@ private:
     {
         int oldSize = static_cast<int>(result->Stripes.size());
         for (auto it = begin; it != end; ++it) {
-            if (dataSizeThreshold && result->TotalDataSize >= dataSizeThreshold.Get()) {
+            const auto& stripe = *it;
+            if (dataSizeThreshold &&
+                result->TotalChunkCount > 0 &&
+                result->TotalDataSize + stripe->TotalDataSize > dataSizeThreshold.Get())
+            {
                 break;
             }
             if (TrackLocality) {
-                result->AddStripe(*it, address);
+                result->AddStripe(stripe, address);
             } else {
-                result->AddStripe(*it);
+                result->AddStripe(stripe);
             }
         }
         int newSize = static_cast<int>(result->Stripes.size());
