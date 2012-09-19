@@ -1102,6 +1102,54 @@ private:
     }
 
 
+    void ConfirmChunk(
+        TChunk* chunk,
+        const std::vector<Stroka>& addresses,
+        NChunkClient::NProto::TChunkInfo* chunkInfo,
+        NChunkClient::NProto::TChunkMeta* chunkMeta)
+    {
+        YCHECK(!chunk->IsConfirmed());
+
+        auto id = chunk->GetId();
+
+        chunk->ChunkInfo().Swap(chunkInfo);
+        chunk->ChunkMeta().Swap(chunkMeta);
+
+        FOREACH (const auto& address, addresses) {
+            auto* node = FindNodeByAddresss(address);
+            if (!node) {
+                LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %s at an unknown node %s",
+                    ~id.ToString(),
+                    ~address);
+                continue;
+            }
+
+            if (node->GetState() != ENodeState::Online) {
+                LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %s at node %s with invalid state %s",
+                    ~id.ToString(),
+                    ~address,
+                    ~FormatEnum(node->GetState()));
+                continue;
+            }
+
+            if (!node->HasChunk(chunk, false)) {
+                AddChunkReplica(
+                    node,
+                    chunk,
+                    false,
+                    EAddReplicaReason::Confirmation);
+                node->MarkChunkUnapproved(chunk);
+            }
+        }
+
+        if (IsLeader()) {
+            ChunkReplicator->ScheduleChunkRefresh(id);
+        }
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk confirmed (ChunkId: %s)", ~id.ToString());
+    }
+
+
     void AddJob(TDataNode* node, const TJobStartInfo& jobInfo)
     {
         auto* mutationContext = Bootstrap
@@ -1631,8 +1679,8 @@ private:
     {
         UNUSED(response);
 
-        auto& addresses = request->node_addresses();
-        YCHECK(addresses.size() != 0);
+        auto addresses = FromProto<Stroka>(request->node_addresses());
+        YCHECK(!addresses.empty());
 
         context->SetRequestInfo("Size: %" PRId64 ", Addresses: [%s]",
             request->chunk_info().size(),
@@ -1654,37 +1702,12 @@ private:
                 ~chunk->ChunkInfo().DebugString(),
                 ~request->chunk_info().DebugString());
         }
-        chunk->ChunkInfo().Swap(request->mutable_chunk_info());
 
-        FOREACH (const auto& address, addresses) {
-            auto* node = Owner->FindNodeByAddresss(address);
-            if (!node) {
-                LOG_DEBUG_UNLESS(Owner->IsRecovery(), "Tried to confirm chunk %s at an unknown node %s",
-                    ~Id.ToString(),
-                    ~address);
-                continue;
-            }
-
-            if (node->GetState() != ENodeState::Online) {
-                LOG_DEBUG_UNLESS(Owner->IsRecovery(), "Tried to confirm chunk %s at node %s with invalid state %s",
-                    ~Id.ToString(),
-                    ~address,
-                    ~FormatEnum(node->GetState()));
-                continue;
-            }
-
-            if (!node->HasChunk(chunk, false)) {
-                Owner->AddChunkReplica(
-                    node,
-                    chunk,
-                    false,
-                    TImpl::EAddReplicaReason::Confirmation);
-                node->MarkChunkUnapproved(chunk);
-            }
-        }
-
-        chunk->ChunkMeta().Swap(request->mutable_chunk_meta());
-        LOG_INFO_UNLESS(Owner->IsRecovery(), "Chunk confirmed (ChunkId: %s)", ~Id.ToString());
+        Owner->ConfirmChunk(
+            chunk,
+            addresses,
+            request->mutable_chunk_info(),
+            request->mutable_chunk_meta());
 
         context->Reply();
     }

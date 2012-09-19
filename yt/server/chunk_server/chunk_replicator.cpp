@@ -482,6 +482,9 @@ int TChunkReplicator::GetReplicationFactor(const TChunk* chunk)
 
 void TChunkReplicator::Refresh(const TChunk* chunk)
 {
+    if (!chunk->IsConfirmed())
+        return;
+
     auto statistics = GetReplicaStatistics(chunk);
 
     FOREACH (auto nodeId, chunk->StoredLocations()) {
