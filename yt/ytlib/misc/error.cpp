@@ -216,7 +216,7 @@ void AppendError(const TError& error, int indent, Stroka* out)
     if (host && datetime && pid && tid) {
         AppendAttribute(
             "origin",
-            Sprintf("%s on %s (pid %d, tid %d)",
+            Sprintf("%s on %s (pid %d, tid %x)",
                 ~host.Get(),
                 ~datetime.Get(),
                 static_cast<int>(pid.Get()),
