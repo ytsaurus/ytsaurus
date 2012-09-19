@@ -20,20 +20,30 @@ TWeightedChunk::TWeightedChunk()
 ////////////////////////////////////////////////////////////////////
 
 TChunkStripe::TChunkStripe()
-    : TotalDataSize(0)
-{ }
+{
+    Clear();
+}
 
 TChunkStripe::TChunkStripe(TRefCountedInputChunkPtr inputChunk)
 {
+    Clear();
     AddChunk(inputChunk);
 }
 
 TChunkStripe::TChunkStripe(TRefCountedInputChunkPtr inputChunk, i64 dataSizeOverride, i64 rowCountOverride)
+    : TotalDataSize(0)
 {
+    Clear();
     AddChunk(
         inputChunk,
         dataSizeOverride,
         rowCountOverride);
+}
+
+void TChunkStripe::Clear()
+{
+    Chunks.clear();
+    TotalDataSize = 0;
 }
 
 void TChunkStripe::AddChunk(TRefCountedInputChunkPtr inputChunk)
@@ -53,15 +63,6 @@ void TChunkStripe::AddChunk(TRefCountedInputChunkPtr inputChunk, i64 dataSizeOve
     weightedChunk.RowCountOverride = rowCountOverride;
 
     TotalDataSize += dataSizeOverride;
-}
-
-std::vector<NChunkClient::TChunkId> TChunkStripe::GetChunkIds() const
-{
-    std::vector<NChunkClient::TChunkId> result;
-    FOREACH (const auto& chunk, Chunks) {
-        result.push_back(TChunkId::FromProto(chunk.InputChunk->slice().chunk_id()));
-    }
-    return result;
 }
 
 ////////////////////////////////////////////////////////////////////

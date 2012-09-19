@@ -46,7 +46,6 @@ public:
     void Start(TEnvironmentManagerPtr environmentManager);
 
     //! Kills the job if it is running.
-    void Abort();
     void Abort(const TError& error);
 
     const TJobId& GetId() const;

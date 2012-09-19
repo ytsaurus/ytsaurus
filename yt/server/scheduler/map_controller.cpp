@@ -197,7 +197,7 @@ private:
             InitJobIOConfig();
             InitJobSpecTemplate();
 
-            LOG_INFO("Inputs processed (Weight: %" PRId64 ", ChunkCount: %" PRId64 ", JobCount: %d)",
+            LOG_INFO("Inputs processed (DataSize: %" PRId64 ", ChunkCount: %" PRId64 ", JobCount: %d)",
                 MapTask->DataSizeCounter().GetTotal(),
                 MapTask->ChunkCounter().GetTotal(),
                 TotalJobCount);

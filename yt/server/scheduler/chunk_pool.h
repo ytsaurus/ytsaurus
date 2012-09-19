@@ -33,13 +33,13 @@ struct TChunkStripe
         i64 dataSizeOverride,
         i64 rowCount);
 
+    void Clear();
+
     void AddChunk(NTableClient::TRefCountedInputChunkPtr inputChunk);
     void AddChunk(
         NTableClient::TRefCountedInputChunkPtr inputChunk,
         i64 dataSizeOverride,
         i64 rowCountOverride);
-
-    std::vector<NChunkClient::TChunkId> GetChunkIds() const;
 
     TSmallVector<TWeightedChunk, 1> Chunks;
     i64 TotalDataSize;
