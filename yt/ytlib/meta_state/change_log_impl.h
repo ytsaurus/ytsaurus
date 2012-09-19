@@ -28,7 +28,7 @@ struct TLogHeader
     i32 ChangeLogId;
     TEpochId Epoch;
     i32 PrevRecordCount;
-    bool Finalized;
+    i32 Finalized;
 
     TLogHeader()
         : Signature(0)
