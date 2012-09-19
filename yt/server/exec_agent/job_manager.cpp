@@ -113,7 +113,7 @@ TJobPtr TJobManager::StartJob(
 
     auto slot = GetFreeSlot();
 
-    LOG_DEBUG("Job is starting (JobId: %s)", ~jobId.ToString());
+    LOG_INFO("Starting job (JobId: %s)", ~jobId.ToString());
 
     auto job = New<TJob>(
         jobId,
@@ -153,17 +153,17 @@ void TJobManager::AbortJob(const TJobId& jobId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    LOG_DEBUG("Job abort requested (JobId: %s)", ~jobId.ToString());
+    LOG_INFO("Job abort requested (JobId: %s)", ~jobId.ToString());
 
     auto job = GetJob(jobId);
-    job->Abort();
+    job->Abort(TError("Abort requested by scheduler"));
 }
 
 void TJobManager::RemoveJob(const TJobId& jobId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    LOG_DEBUG("Job removal requested (JobId: %s)", ~jobId.ToString());
+    LOG_INFO("Job removal requested (JobId: %s)", ~jobId.ToString());
     auto job = FindJob(jobId);
     if (job) {
         YASSERT(job->GetPhase() > EJobPhase::Cleanup);

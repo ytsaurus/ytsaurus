@@ -67,7 +67,7 @@ TJob::~TJob()
 
 void TJob::Start(TEnvironmentManagerPtr environmentManager)
 {
-    YASSERT(JobPhase == EJobPhase::Created);
+    YCHECK(JobPhase == EJobPhase::Created);
 
     Slot->GetInvoker()->Invoke(BIND(
         &TJob::DoStart,
@@ -82,7 +82,7 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
     if (JobPhase > EJobPhase::Cleanup)
         return;
 
-    YASSERT(JobPhase == EJobPhase::Created);
+    YCHECK(JobPhase == EJobPhase::Created);
 
     JobPhase = EJobPhase::PreparingConfig;
 
@@ -181,14 +181,14 @@ void TJob::OnChunkDownloaded(
     if (JobPhase > EJobPhase::Cleanup)
         return;
 
-    YASSERT(JobPhase == EJobPhase::PreparingSandbox);
+    YCHECK(JobPhase == EJobPhase::PreparingSandbox);
 
     auto fileName = fetchRsp.file_name();
 
     if (!result.IsOK()) {
         auto wrappedError = TError(
             "Failed to download user file %s", 
-            ~fileName)
+            ~fileName.Quote())
             << result;
         DoAbort(wrappedError, EJobState::Failed, false);
         return;
@@ -221,7 +221,7 @@ void TJob::RunJobProxy()
     if (JobPhase > EJobPhase::Cleanup)
         return;
 
-    YASSERT(JobPhase == EJobPhase::PreparingSandbox);
+    YCHECK(JobPhase == EJobPhase::PreparingSandbox);
 
     try {
         JobPhase = EJobPhase::StartedProxy;
@@ -253,7 +253,7 @@ void TJob::OnJobExit(TError error)
     if (JobPhase > EJobPhase::Cleanup)
         return;
 
-    YASSERT(JobPhase < EJobPhase::Cleanup);
+    YCHECK(JobPhase < EJobPhase::Cleanup);
 
     if (!error.IsOK()) {
         DoAbort(error, EJobState::Failed);
@@ -351,14 +351,9 @@ void TJob::Abort(const TError& error)
     Slot->GetInvoker()->Invoke(BIND(
         &TJob::DoAbort,
         MakeStrong(this),
-        TError("Abort requested by scheduler"),
+        error,
         EJobState::Aborted,
         true));
-}
-
-void TJob::Abort()
-{
-    Abort(TError("Abort requested by scheduler"));
 }
 
 void TJob::DoAbort(const TError& error, EJobState resultState, bool killJobProxy)
@@ -370,15 +365,15 @@ void TJob::DoAbort(const TError& error, EJobState resultState, bool killJobProxy
         return;
     }
 
-    YASSERT(JobPhase < EJobPhase::Cleanup);
+    YCHECK(JobPhase < EJobPhase::Cleanup);
 
     const auto jobPhase = JobPhase;
     JobPhase = EJobPhase::Cleanup;
 
     if (resultState == EJobState::Failed) {
-        LOG_ERROR("Job failed, aborting\n%s", ~ToString(error));
+        LOG_ERROR(error, "Job failed, aborting");
     } else {
-        LOG_INFO("Aborting job\n%s", ~ToString(error));
+        LOG_INFO(error, "Aborting job");
     }
 
     if (jobPhase >= EJobPhase::StartedProxy && killJobProxy) {
