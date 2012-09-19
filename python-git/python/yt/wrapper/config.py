@@ -1,6 +1,8 @@
 from format import YamrFormat
 
-PROXY = "n01-0400g.yt.yandex.net"
+PROXY = "proxy.yt.yandex.net"
+
+# Turn off gzip encoding if you want to speed up reading and writing tables
 ACCEPT_ENCODING = "identity, gzip"
 
 DEFAULT_FORMAT = YamrFormat(has_subkey=True, lenval=False)
