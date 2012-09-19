@@ -172,7 +172,7 @@ void TOperationControllerBase::TTask::OnJobCompleted(TJobInProgressPtr jip)
     ChunkPool->OnCompleted(jip->PoolResult);
 }
 
-void TOperationControllerBase::TTask::OnJobFailed(TJobInProgressPtr jip)
+void TOperationControllerBase::TTask::ReleaseFailedJob(TJobInProgressPtr jip)
 {
     ChunkPool->OnFailed(jip->PoolResult);
 
@@ -182,6 +182,16 @@ void TOperationControllerBase::TTask::OnJobFailed(TJobInProgressPtr jip)
         AddInputLocalityHint(stripe);
     }
     AddPendingHint();
+}
+
+void TOperationControllerBase::TTask::OnJobFailed(TJobInProgressPtr jip)
+{
+    ReleaseFailedJob(jip);
+}
+
+void TOperationControllerBase::TTask::OnJobAborted(TJobInProgressPtr jip)
+{
+    ReleaseFailedJob(jip);
 }
 
 void TOperationControllerBase::TTask::OnTaskCompleted()
@@ -288,6 +298,7 @@ TOperationControllerBase::TOperationControllerBase(
     , RunningJobCount(0)
     , CompletedJobCount(0)
     , FailedJobCount(0)
+    , AbortedJobCount(0)
     , UsedResources(ZeroResources())
     , PendingTaskInfos(MaxTaskPriority + 1)
     , CachedPendingJobCount(0)
@@ -473,6 +484,24 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
         OnChunkFailed(TChunkId::FromProto(chunkId));
     }
 }
+
+void TOperationControllerBase::OnJobAborted(TJobPtr job)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    --RunningJobCount;
+    ++AbortedJobCount;
+
+    SubtractResources(&UsedResources, job->ResourceUtilization());
+
+    auto jip = GetJobInProgress(job);
+    jip->Task->OnJobAborted(jip);
+
+    RemoveJobInProgress(job);
+
+    LogProgress();
+}
+
 
 void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
 {

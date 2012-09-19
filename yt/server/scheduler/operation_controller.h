@@ -153,6 +153,9 @@ struct IOperationController
     //! Called during heartbeat processing to notify the controller that a job has failed.
     virtual void OnJobFailed(TJobPtr job) = 0;
 
+    //! Called during preemtion to notify the controller that a job has been aborted.
+    virtual void OnJobAborted(TJobPtr job) = 0;
+
     //! Called during heartbeat processing to request actions the node must perform.
     virtual TJobPtr ScheduleJob(ISchedulingContext* context) = 0;
 

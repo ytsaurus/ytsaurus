@@ -680,10 +680,16 @@ private:
         Profiler.Enqueue("/job_count/total", Jobs.size());
     }
 
-    void AbortJob(TJobPtr job)
+    void AbortJob(TJobPtr job, TError error = TError())
     {
+        NProto::TJobResult result;
+        ToProto(result.mutable_error(), error);
+        job->Result().Swap(&result);
         job->SetState(EJobState::Aborted);
-        
+
+        auto operation = job->GetOperation();
+        operation->GetController()->OnJobAborted(job);
+
         // Check if we have an active connection with master.
         // This function may be called when master gets disconnected,
         // so we must be careful.
@@ -693,7 +699,6 @@ private:
 
         UnregisterJob(job);
     }
-
 
     void OnJobRunning(TJobPtr job)
     {
@@ -1156,7 +1161,9 @@ private:
         auto expectedAddress = job->GetNode()->GetAddress();
         if (address != expectedAddress) {
             // Job has moved from one node to another. No idea how this could happen.
-            if (state == EJobState::Completed || state == EJobState::Failed) {
+            if (state == EJobState::Aborting) {
+                // Do nothing, job is already terminating.
+            } else if (state == EJobState::Completed || state == EJobState::Failed || state == EJobState::Aborted) {
                 *response->add_jobs_to_remove() = jobId.ToProto();
                 LOG_WARNING("Job status report was expected from %s, removal scheduled",
                     ~expectedAddress);
@@ -1196,7 +1203,7 @@ private:
 
             case EJobState::Aborting:
                 LOG_WARNING("Job has started aborting unexpectedly");
-                OnJobFailed(job, TError("Job has aborted unexpectedly"));
+                OnJobFailed(job, TError("Job has started aborting unexpectedly"));
                 break;
 
             default:

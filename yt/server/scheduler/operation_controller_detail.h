@@ -44,6 +44,7 @@ public:
     virtual void OnJobRunning(TJobPtr job) override;
     virtual void OnJobCompleted(TJobPtr job) override;
     virtual void OnJobFailed(TJobPtr job) override;
+    virtual void OnJobAborted(TJobPtr job) override;
 
     virtual void Abort() override;
 
@@ -84,6 +85,7 @@ protected:
     int RunningJobCount;
     int CompletedJobCount;
     int FailedJobCount;
+    int AbortedJobCount;
 
     // Total resources used by all running jobs.
     NProto::TNodeResources UsedResources;
@@ -220,6 +222,7 @@ protected:
 
         virtual void OnJobCompleted(TJobInProgressPtr jip);
         virtual void OnJobFailed(TJobInProgressPtr jip);
+        virtual void OnJobAborted(TJobInProgressPtr jip);
 
         virtual void OnTaskCompleted();
 
@@ -256,6 +259,7 @@ protected:
         void AddTabularOutputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobInProgressPtr jip, int tableIndex);
 
     private:
+        void ReleaseFailedJob(TJobInProgressPtr jip);
         void AddInputChunks(NScheduler::NProto::TTableInputSpec* inputSpec, TChunkStripePtr stripe);
     };
 
