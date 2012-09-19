@@ -50,13 +50,6 @@ include_directories(
   ${CMAKE_SOURCE_DIR}
 )
 
-if (YT_BUILD_WITH_STLPORT)
-  target_link_libraries( ytext-snappy stlport )
-  if (CMAKE_COMPILER_IS_GNUCXX)
-    set_target_properties( ytext-snappy PROPERTIES LINK_FLAGS "-nodefaultlibs" )
-  endif()
-endif()
-
 set_target_properties( ytext-fastlz PROPERTIES
   VERSION   0.1.0
   SOVERSION 0.1

@@ -10,6 +10,7 @@ include_directories(
 add_subdirectory(ytlib)
 add_subdirectory(server)
 add_subdirectory(driver)
+add_subdirectory(python_bindings)
 
 if (YT_BUILD_ENABLE_EXPERIMENTS)
   add_subdirectory(experiments)

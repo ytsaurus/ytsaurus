@@ -152,11 +152,11 @@ TException&& operator <<= (TException&& ex, const TError& error)
         ERROR_SOURCE_LOCATION() >>= \
 
 #define THROW_ERROR_EXCEPTION(...) \
-    THROW_ERROR NYT::TError(__VA_ARGS__)
+    THROW_ERROR ::NYT::TError(__VA_ARGS__)
 
 #define THROW_ERROR_EXCEPTION_IF_FAILED(error, ...) \
     if (!(error).IsOK()) \
-        THROW_ERROR NYT::TError(__VA_ARGS__) << (error)
+        THROW_ERROR ::NYT::TError(__VA_ARGS__) << (error)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -239,6 +239,7 @@ public:
         : TError(code, message)
     { }
 };
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

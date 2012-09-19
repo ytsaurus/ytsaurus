@@ -94,7 +94,6 @@ protected:
     //! Overrides the spec limit to satisfy global job count limit.
     i64 MaxDataSizePerJob;
 
-
     class TMergeTask
         : public TTask
     {

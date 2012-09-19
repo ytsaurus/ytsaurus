@@ -130,7 +130,7 @@ public:
         }
 
         // TODO: refactor system shutdown
-        // XXX(sandello): Keep in sync with server/main.cpp, driver/main.cpp and utmain.cpp.
+        // XXX(sandello): Keep in sync with server/main.cpp, driver/main.cpp and utmain.cpp, python_bindings/driver.cpp
         NLog::TLogManager::Get()->Shutdown();
         NBus::TTcpDispatcher::Get()->Shutdown();
         NRpc::TDispatcher::Get()->Shutdown();

@@ -81,6 +81,7 @@ add_subdirectory(cmake/deps-arcadia-util)
 add_subdirectory(cmake/deps-protobuf)
 add_subdirectory(cmake/deps-uv)
 add_subdirectory(cmake/deps-z-lz-lzo)
+add_subdirectory(cmake/deps-pycxx)
 
 add_subdirectory(contrib/yajl)
 add_subdirectory(library/json)
