@@ -924,9 +924,9 @@ private:
 
         BuildYsonFluently(consumer)
             .BeginMap()
-                .Item("resources").BeginMap()
-                    .Item("limits").Do(BIND(&BuildNodeResourcesYson, TotalResourceLimits))
-                    .Item("utilization").Do(BIND(&BuildNodeResourcesYson, TotalResourceUtilization))
+                .Item("cell").BeginMap()
+                    .Item("resource_limits").Do(BIND(&BuildNodeResourcesYson, TotalResourceLimits))
+                    .Item("resource_utilization").Do(BIND(&BuildNodeResourcesYson, TotalResourceUtilization))
                 .EndMap()
                 .Item("operations").DoMapFor(Operations, [=] (TFluentMap fluent, TOperationMap::value_type pair) {
                     this->BuildOperationAttributes(fluent, pair.second);
