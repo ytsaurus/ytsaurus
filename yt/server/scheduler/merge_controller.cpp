@@ -879,6 +879,7 @@ protected:
                 {
                     // Trying to reconstruct passthrough chunk from chunk slices.
                     auto chunkId = TChunkId::FromProto(endpoint.InputChunk->slice().chunk_id());
+                    auto tableIndex = endpoint.InputChunk->TableIndex;
                     auto nextIndex = currentIndex;
                     while (true) {
                         ++nextIndex;
@@ -886,7 +887,8 @@ protected:
                             break;
                         }
                         auto nextChunkId = TChunkId::FromProto(Endpoints[nextIndex].InputChunk->slice().chunk_id());
-                        if (nextChunkId != chunkId) {
+                        auto nextTableIndex = Endpoints[nextIndex].InputChunk->TableIndex;
+                        if (nextChunkId != chunkId || tableIndex != nextTableIndex) {
                             break;
                         }
                     }
