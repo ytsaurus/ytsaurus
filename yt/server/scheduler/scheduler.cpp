@@ -598,7 +598,7 @@ private:
                 ~node->GetAddress(),
                 ~job->GetId().ToString(),
                 ~job->GetOperation()->GetOperationId().ToString());
-            OnJobFailed(job, TError("Node has gone offline: %s", ~node->GetAddress()));
+            AbortJob(job, true, TError("Node offline"));
         }
         YCHECK(ExecNodes.erase(node->GetAddress()) == 1);
     }
@@ -615,12 +615,10 @@ private:
 
     void AbortOperationJobs(TOperationPtr operation)
     {
-        // Take a copy, the collection will be modified.
-        auto jobs = operation->Jobs();
-        FOREACH (auto job, jobs) {
-            AbortJob(job, TError("Operation aborted"));
+        FOREACH (auto job, operation->Jobs()) {
+            AbortJob(job, false, TError("Operation aborted"));
         }
-        YCHECK(operation->Jobs().empty());
+        operation->Jobs().clear();
     }
 
     void UnregisterOperation(TOperationPtr operation)
@@ -671,6 +669,26 @@ private:
             ~job->GetOperation()->GetOperationId().ToString());
     }
 
+    void AbortJob(TJobPtr job, bool unregister, const TError& error)
+    {
+        // This method must be safe to call for any job.
+        if (job->GetState() != EJobState::Running)
+            return;
+
+        job->SetState(EJobState::Aborted);
+        ToProto(job->Result().mutable_error(), error);
+
+        auto operation = job->GetOperation();
+        if (operation->GetState() == EOperationState::Running) {
+            operation->GetController()->OnJobAborted(job);
+        }
+
+        UpdateFinishedJobNode(job);
+        if (unregister) {
+            UnregisterJob(job);
+        }
+    }
+
     void UpdateJobCounters(TJobPtr job, int delta)
     {
         auto jobType = job->GetType();
@@ -680,25 +698,6 @@ private:
         Profiler.Enqueue("/job_count/total", Jobs.size());
     }
 
-    void AbortJob(TJobPtr job, const TError& error)
-    {
-        NProto::TJobResult result;
-        ToProto(result.mutable_error(), error);
-        job->Result().Swap(&result);
-        job->SetState(EJobState::Aborted);
-
-        auto operation = job->GetOperation();
-        operation->GetController()->OnJobAborted(job);
-
-        // Check if we have an active connection with master.
-        // This function may be called when master gets disconnected,
-        // so we must be careful.
-        if (MasterConnector->IsConnected()) {
-            MasterConnector->UpdateJobNode(job);
-        }
-
-        UnregisterJob(job);
-    }
 
     void OnJobRunning(TJobPtr job)
     {
@@ -716,8 +715,9 @@ private:
         auto operation = job->GetOperation();
         if (operation->GetState() == EOperationState::Running) {
             operation->GetController()->OnJobCompleted(job);
-            UpdateJobNodeOnFinish(job);
         }
+        
+        UpdateFinishedJobNode(job);
         UnregisterJob(job);
     }
 
@@ -729,22 +729,43 @@ private:
         auto operation = job->GetOperation();
         if (operation->GetState() == EOperationState::Running) {
             operation->GetController()->OnJobFailed(job);
-            UpdateJobNodeOnFinish(job);
         }
+        
+        UpdateFinishedJobNode(job);
         UnregisterJob(job);
     }
 
-    void OnJobFailed(TJobPtr job, const TError& error)
+    void OnJobAborted(TJobPtr job, NProto::TJobResult* result)
     {
-        NProto::TJobResult result;
-        ToProto(result.mutable_error(), error);
+        // Only update the result for the first time.
+        // Typically the scheduler decides to abort the job on its own.
+        // In this case we should ignore the result returned from the node
+        // and void notifying the controller twice.
+        if (job->GetState() == EJobState::Running) {
+            job->SetState(EJobState::Aborted);
+            job->Result().Swap(result);
 
-        OnJobFailed(job, &result);
+            auto operation = job->GetOperation();
+            if (operation->GetState() == EOperationState::Running) {
+                operation->GetController()->OnJobAborted(job);
+            }
+
+            UpdateFinishedJobNode(job);
+        }
+
+        UnregisterJob(job);
     }
 
 
-    void UpdateJobNodeOnFinish(TJobPtr job)
+
+    void UpdateFinishedJobNode(TJobPtr job)
     {
+        // Check if we have an active connection with master.
+        // This function may be called when master gets disconnected,
+        // so we must be careful.
+        if (!MasterConnector->IsConnected())
+            return;
+
         const auto& result = job->Result();
         
         if (result.HasExtension(TMapJobResultExt::map_job_result_ext)) {
@@ -872,8 +893,8 @@ private:
             return;
         }
 
-        operation->SetEndTime(TInstant::Now());
         operation->SetState(finalState);
+        operation->SetEndTime(TInstant::Now());
         ToProto(operation->Result().mutable_error(), error);
 
         AbortOperationJobs(operation);
@@ -1033,7 +1054,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Heartbeat)
     {
-        auto address = request->address();
+        const auto& address = request->address();
         const auto& resourceLimits = request->resource_limits();
         const auto& resourceUtilization = request->resource_utilization();
 
@@ -1069,32 +1090,35 @@ private:
 
             // Check for missing jobs.
             FOREACH (auto job, missingJobs) {
-                LOG_ERROR("Job is missing on %s (JobId: %s, OperationId: %s)",
+                LOG_ERROR("Job is missing (Address: %s, JobId: %s, OperationId: %s)",
                     ~address,
                     ~job->GetId().ToString(),
                     ~job->GetOperation()->GetOperationId().ToString());
-                OnJobFailed(job, TError("Job has vanished"));
+                AbortJob(job, true, TError("Job vanished"));
             }
         }
 
-        TSchedulingContext schedulingContext(node, response);
-        PROFILE_TIMING ("/schedule_time") {
-            Strategy->ScheduleJobs(&schedulingContext);
-        }
+        // Only schedule new jobs when master is connected.
+        if (MasterConnector->IsConnected()) {
+            TSchedulingContext schedulingContext(node, response);
+            PROFILE_TIMING ("/schedule_time") {
+                Strategy->ScheduleJobs(&schedulingContext);
+            }
 
-        FOREACH (auto job, schedulingContext.StartedJobs()) {
-            job->SetType(EJobType(job->GetSpec()->type()));
+            FOREACH (auto job, schedulingContext.StartedJobs()) {
+                job->SetType(EJobType(job->GetSpec()->type()));
 
-            LOG_INFO("Starting job on %s (JobType: %s, JobId: %s, Utilization: {%s}, OperationId: %s)",
-                ~job->GetNode()->GetAddress(),
-                ~job->GetType().ToString(),
-                ~job->GetId().ToString(),
-                ~FormatResources(job->GetSpec()->resource_utilization()),
-                ~job->GetOperation()->GetOperationId().ToString());
+                LOG_INFO("Starting job (Address: %s, JobType: %s, JobId: %s, Utilization: {%s}, OperationId: %s)",
+                    ~job->GetNode()->GetAddress(),
+                    ~job->GetType().ToString(),
+                    ~job->GetId().ToString(),
+                    ~FormatResources(job->GetSpec()->resource_utilization()),
+                    ~job->GetOperation()->GetOperationId().ToString());
 
-            RegisterJob(job);
-            MasterConnector->CreateJobNode(job);
-            job->SetSpec(NULL);
+                RegisterJob(job);
+                MasterConnector->CreateJobNode(job);
+                job->SetSpec(NULL);
+            }
         }
 
         AddResources(&TotalResourceLimits, node->ResourceLimits());
@@ -1108,7 +1132,7 @@ private:
         NProto::TRspHeartbeat* response,
         NProto::TJobStatus* jobStatus)
     {
-        auto address = request->address();
+        const auto& address = request->address();
         auto jobId = TJobId::FromProto(jobStatus->job_id());
         auto state = EJobState(jobStatus->state());
             
@@ -1190,20 +1214,30 @@ private:
                 break;
             }
 
-            case EJobState::Aborted:
-                LOG_WARNING("Job has aborted unexpectedly, removal scheduled");
-                OnJobFailed(job, TError("Job has aborted unexpectedly"));
+            case EJobState::Aborted: {
+                auto error = FromProto(jobStatus->result().error());
+                LOG_INFO(error, "Job aborted, removal scheduled");
+                OnJobAborted(job, jobStatus->mutable_result());
                 *response->add_jobs_to_remove() = jobId.ToProto();
                 break;
+            }
 
             case EJobState::Running:
-                LOG_DEBUG("Job is running");
-                OnJobRunning(job);
+                if (job->GetState() == EJobState::Aborted) {
+                    LOG_INFO("Aborting job (Address: %s, JobType: %s, JobId: %s, OperationId: %s)",
+                        ~job->GetNode()->GetAddress(),
+                        ~job->GetType().ToString(),
+                        ~jobId.ToString(),
+                        ~operation->GetOperationId().ToString());
+                    *response->add_jobs_to_abort() = jobId.ToProto();
+                } else {
+                    LOG_DEBUG("Job is running");
+                    OnJobRunning(job);
+                }
                 break;
 
             case EJobState::Aborting:
-                LOG_WARNING("Job has started aborting unexpectedly");
-                OnJobFailed(job, TError("Job has started aborting unexpectedly"));
+                LOG_DEBUG("Job is aborting");
                 break;
 
             default:
