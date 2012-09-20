@@ -667,7 +667,7 @@ public:
             .Item("pool").Scalar(pool->GetId())
             .Item("start_time").Scalar(element->GetStartTime())
             .Item("effective_resource_limits").Do(BIND(&BuildNodeResourcesYson, element->EffectiveLimits()))
-            .Item("fair_share_status").Scalar(GetOperationStatus(element))
+            .Item("scheduling_status").Scalar(GetOperationStatus(element))
             .Do(BIND(&TFairShareStrategy::BuildElementYson, pool, element));
     }
 
