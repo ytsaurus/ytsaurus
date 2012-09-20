@@ -46,7 +46,7 @@ def get_operation_stderr(operation):
     jobs_path = os.path.join(OPERATIONS_PATH, operation, "jobs")
     if not exists(jobs_path):
         return ""
-    stderrs = search(jobs_path, "file", lambda path: path.endswith("stderr"))
+    stderrs = search(jobs_path, "file", path_fitler=lambda path: path.endswith("stderr"))
     return "\n\n".join("".join(download_file(path)) for path in stderrs)
 
 def get_operation_result(operation):

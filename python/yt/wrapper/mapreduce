@@ -16,7 +16,7 @@ import yt.wrapper as yt
 import sys
 import traceback
 import simplejson as json
-from argparse import ArgumentParser, RawTextHelpFormatter
+from argparse import ArgumentParser, RawTextHelpFormatter, REMAINDER
 from operator import attrgetter
 from functools import partial
 from itertools import imap
@@ -32,7 +32,8 @@ def remove_prefix(table):
     return table
 
 def list_all_tables():
-    tables = yt.search("//statbox", "table", lambda path: path.startswith(config.PREFIX))
+    tables = yt.search("//statbox", "table",
+                       path_filter=lambda path: path.startswith(config.PREFIX))
     return sorted(map(remove_prefix, tables))
 
 def add_eoln(str):
@@ -252,7 +253,7 @@ Examples:
     )
 
     # Ignore all positional arguments
-    parser.add_argument("ignored", nargs='?');
+    parser.add_argument("ignored", nargs=REMAINDER);
 
     args = parser.parse_args()
 
@@ -335,7 +336,7 @@ Examples:
     if args.read is not None:
         for chunk in yt.read_table(
                 yt.Table(args.read, lower_key=args.lowerkey, upper_key=args.upperkey),
-                iter_lines=False):
+                response_type="iter_content"):
             sys.stdout.write(chunk)
     if args.write is not None:
         args.write = yt.Table(args.write, append=args.append)
