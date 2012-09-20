@@ -102,8 +102,9 @@ def write_table(table, lines, format=None, table_writer=None):
     while not buffer.empty():
         make_request("PUT", "write", params, buffer.get(), format=format)
 
-def read_table(table, format=None, iter_lines=True):
+def read_table(table, format=None, response_type=None):
     if format is None: format = config.DEFAULT_FORMAT
+    if response_type is None: response_type = "iter_lines"
     table = to_table(table)
     if not exists(table.name):
         return EMPTY_GENERATOR
@@ -112,10 +113,13 @@ def read_table(table, format=None, iter_lines=True):
                              "transaction_id": config.TRANSACTION},
                             format=format,
                             raw_response=True)
-    if iter_lines:
+
+    if response_type == "iter_lines":
         return iter_lines(response)
-    else:
+    elif response_type == "iter_content":
         return response.iter_content(chunk_size=config.READ_BUFFER_SIZE)
+    else:
+        raise YtError("Incorrent response type: " + response_type) 
 
 def remove_table(table):
     table = to_name(table)
