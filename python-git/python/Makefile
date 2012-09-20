@@ -10,7 +10,10 @@ all:
 source:
 	$(PYTHON) setup.py sdist
 
-deb:
+test: clean
+	$(PYTHON) setup.py test
+
+deb: clean
 	# build the source package in the parent directory
 	# then rename it to project_version.orig.tar.gz
 	$(PYTHON) setup.py sdist --dist-dir=../
@@ -22,4 +25,5 @@ clean:
 	rm -rf build/ MANIFEST
 	find . -name '*.pyc' -delete
 	rm -rf tests
+	rm -rf Yt.egg-info
 	sudo $(MAKE) -f $(CURDIR)/debian/rules clean

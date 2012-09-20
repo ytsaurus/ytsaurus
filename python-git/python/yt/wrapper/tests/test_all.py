@@ -385,7 +385,7 @@ class YtTest(YTEnv):
 
 if __name__ == "__main__":
     suite = unittest.TestSuite()
-    suite.addTest(YtTest("test_range_operations"))
+    suite.addTest(YtTest("test_copy_move"))
     unittest.TextTestRunner().run(suite)
     #unittest.main()
 
