@@ -167,6 +167,19 @@ test_heavy_command()
         -file fff
 }
 
+test_stderr()
+{
+    ./mapreduce -subkey -write "ignat/temp" <table_file
+    ./mapreduce -subkey -map "cat &>2 && exit(1)" -src "ignat/temp" -dst "ignat/tmp" 2>/dev/null
+}
+
+test_smart_format()
+{
+    echo -e "key=1\tvalue=2" | ./mapreduce -smart_format -dsv -write "ignat/smart_x"
+    ./mapreduce -smart_format -map "cat" -src "ignat/smart_x" -dst "ignat/smart_y"
+}
+
+
 test_base_functionality
 test_codec
 test_many_output_tables
@@ -177,7 +190,9 @@ test_transactions
 test_range_map
 test_uploaded_files
 test_ignore_positional_arguments
-test_heavy_command
+#test_heavy_command
+test_stderr
+test_smart_format
 
 rm -f table_file big_file
 

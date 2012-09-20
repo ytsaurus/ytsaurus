@@ -1,5 +1,5 @@
 from common import flatten, require, YtError
-from path_tools import escape_path
+from path_tools import escape_path, split_table_ranges
 
 class Table(object):
     """ Columns should be list of string (column) or string pairs (column range) """
@@ -80,6 +80,7 @@ def to_table(object):
 
 def to_name(object):
     if isinstance(object, Table):
-        return object.name
+        name = object.name
     else:
-        return object
+        name = object
+    return split_table_ranges(name)[0]
