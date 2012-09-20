@@ -86,8 +86,6 @@ public:
         : Host(host)
         , Operation(operation)
         , Pool(NULL)
-        , LimitsRatio(0.0)
-        , Limits(ZeroResources())
         , EffectiveLimits(ZeroResources())
     { }
 
@@ -107,9 +105,7 @@ public:
 
     virtual void Update(double limitsRatio) override
     {
-        LimitsRatio = limitsRatio;
-        Limits = Host->GetTotalResourceLimits();
-        MultiplyResources(&Limits, limitsRatio);
+        UNUSED(limitsRatio);
 
         ComputeEffectiveLimits();
     }
@@ -144,11 +140,6 @@ public:
         return controller->GetUsedResources();
     }
 
-
-    const NProto::TNodeResources& GetLimits() const
-    {
-        return Limits;
-    }
 
     const NProto::TNodeResources& GetEffectiveLimits() const
     {
@@ -185,8 +176,6 @@ private:
     TPool* Pool;
     TPooledOperationSpecPtr Spec;
 
-    double LimitsRatio;
-    NProto::TNodeResources Limits;
     NProto::TNodeResources EffectiveLimits;
 
 
@@ -364,7 +353,7 @@ protected:
             auto& attributes = pair.second;
 
             auto demand = attributes.Element->GetDemand();
-            attributes.DominantResource = GetDominantResource(demand, Limits);
+            attributes.DominantResource = GetDominantResource(demand, totalLimits);
             i64 dominantLimits = GetResource(totalLimits, attributes.DominantResource);
             i64 dominantDemand = GetResource(demand, attributes.DominantResource);
             attributes.DemandRatio = dominantLimits == 0 ? LimitsRatio : (double) dominantDemand / dominantLimits;
@@ -385,11 +374,14 @@ protected:
             }
         }
 
+        // Check for FIFO mode.
         // Check if we have more resources than totally demanded by children.
-        // Additionally check for FIFO mode.
-        if (demandRatioSum <= LimitsRatio || Mode == ESchedulingMode::Fifo) {
+        if (Mode == ESchedulingMode::Fifo) {
+            // Set fair shares equal to limits ratio. This is done just for convenience.
+            SetFifoFairShares();
+        } else if (demandRatioSum <= LimitsRatio) {
             // Easy case -- just give everyone what he needs.
-            SetFairSharesFromDemands();
+            SetDemandedFairShares();
         } else {
             // Hard case -- compute fair shares using fit factor.
             ComputeFairSharesByFitting();
@@ -402,7 +394,15 @@ protected:
         }
     }
 
-    void SetFairSharesFromDemands()
+    void SetFifoFairShares()
+    {
+        FOREACH (auto& pair, Children) {
+            auto& attributes = pair.second;
+            attributes.FairShareRatio = LimitsRatio;
+        }
+    }
+
+    void SetDemandedFairShares()
     {
         FOREACH (auto& pair, Children) {
             auto& attributes = pair.second;
@@ -698,7 +698,6 @@ public:
         BuildYsonMapFluently(consumer)
             .Item("pool").Scalar(pool->GetId())
             .Item("start_time").Scalar(element->GetStartTime())
-            .Item("resource_limits").Do(BIND(&BuildNodeResourcesYson, element->GetLimits()))
             .Item("effective_resource_limits").Do(BIND(&BuildNodeResourcesYson, element->GetEffectiveLimits()))
             .Item("fair_share_status").Scalar(GetOperationStatus(element))
             .Do(BIND(&TFairShareStrategy::BuildElementYson, pool, element));
