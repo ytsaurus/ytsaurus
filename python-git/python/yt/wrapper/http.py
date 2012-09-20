@@ -1,6 +1,6 @@
 import config
 from common import YtError
-from format import RawFormat
+from format import JsonFormat
 
 import requests
 
@@ -40,7 +40,8 @@ def make_request(http_method, request_type, params,
 
     def print_info(msg, *args, **kwargs):
         if verbose:
-            print >>sys.stderr, msg % args % kwargs
+            # We don't use kwargs because python doesn't support such kind of formatting
+            print >>sys.stderr, msg % args
         logger.debug(msg, *args, **kwargs)
 
     # Prepare request url.
@@ -50,9 +51,8 @@ def make_request(http_method, request_type, params,
 
     # Prepare headers
     if format is None:
-        mime_type = "application/json"
+        format = JsonFormat()
     else:
-        mime_type = format.to_mime_type()
         # In this case we cannot write arbitrary params to body,
         # so we should encode it into url. But standard urlencode
         # support only one level dict as params, therefore we use special 
@@ -60,18 +60,10 @@ def make_request(http_method, request_type, params,
         url = "{0}?{1}".format(url, urlencode(params))
         params = {}
 
-    if isinstance(format, RawFormat):
-        input_format_key = "X-YT-Input-Format"
-        output_format_key = "X-YT-Output-Format"
-    else:
-        input_format_key = "Content-Type"
-        output_format_key = "Accept"
-
-
     headers = {"User-Agent": "Python wrapper",
-               input_format_key: mime_type,
-               output_format_key: mime_type,
                "Accept-Encoding": config.ACCEPT_ENCODING}
+    headers.update(format.to_input_http_header())
+    headers.update(format.to_output_http_header())
 
 
     print_info("Request url: %r", url)

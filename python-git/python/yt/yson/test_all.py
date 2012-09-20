@@ -1,8 +1,6 @@
 #!/usr/bin/python
 #!-*-coding:utf-8-*-
 
-import sys
-
 import yson_parser
 import yson_to_bash
 import yson_types
@@ -117,6 +115,28 @@ class TestYSONParser(unittest.TestCase):
         self.assertTrue(p.has_next())
         self.assertEqual(p.parse_next(), {'c' : 'd'})
         self.assertFalse(p.has_next())
+
+    def test_convert(self):
+        x = yson_types.convert_to_YSON_type_from_tree({
+            "$value": {
+                "x": {
+                    "$value": 10,
+                    "$attributes": {}
+                },
+                "y": {
+                    "$value": 11,
+                    "$attributes": {}
+                }
+            },
+            "$attributes": {
+                "$value": "abc",
+                "$attributes": {}
+            }
+        })
+        self.assertEqual(x, {"x": 10, "y": 11})
+        self.assertEqual(x.attributes, "abc")
+
+        self.assertEqual(yson_types.convert_to_YSON_type_from_tree("abc"), "abc")
                 
 
 if __name__ == "__main__":
