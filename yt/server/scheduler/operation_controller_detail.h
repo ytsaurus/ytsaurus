@@ -370,10 +370,6 @@ protected:
     virtual std::vector<NYTree::TRichYPath> GetFilePaths() const;
 
 
-    //! Minimum resources that are needed to start any task.
-    virtual NProto::TNodeResources GetMinNeededResources() const = 0;
-
-
     //! Called when a job is unable to read a chunk.
     void OnChunkFailed(const NChunkClient::TChunkId& chunkId);
 

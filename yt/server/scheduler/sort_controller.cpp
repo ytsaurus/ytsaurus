@@ -66,57 +66,17 @@ public:
         , PartitionTask(New<TPartitionTask>(this))
     { }
 
-    //virtual TNodeResources GetNeededResources() override
-    //{
-    //    auto totalResources = ZeroResources();
+    virtual TNodeResources GetMinNeededResources() override
+    {
+        if (PartitionTask) {
+            return PartitionTask->GetMinNeededResources();
+        }
+        if (!Partitions.empty()) {
+            return Partitions[0]->SortTask->GetMinNeededResources();
+        }
 
-    //    // Partition jobs.
-    //    {
-    //        int pendingJobs = PartitionJobCounter.GetPending();
-    //        if (pendingJobs > 0) {
-    //            i64 dataSizePerJob = PartitionTask->DataSizeCounter().GetPending() / pendingJobs;
-
-    //            auto partitionResources = GetPartitionResources(dataSizePerJob);
-    //            MultiplyResources(&partitionResources, pendingJobs);
-
-    //            AddResources(&totalResources, partitionResources);
-    //        }
-    //    }
-
-    //    // Sort jobs.
-    //    {
-    //        int pendingJobs = 
-    //        i64 rowCount = Controller->GetRowCountEstimate(Partition, dataSize);
-    //        i64 valueCount = Controller->GetValueCountEstimate(dataSize);
-    //        return
-    //            Controller->Partitions.size() == 1
-    //            ? Controller->GetSimpleSortResources(dataSize, rowCount, valueCount)
-    //            : Controller->GetPartitionSortResources(Partition, dataSize, rowCount);
-    //    }
-
-    //    // Sorted merge jobs.
-    //    {
-    //        int pendingJobs = SortedMergeJobCounter.GetPending();
-    //        if (pendingJobs > 0) {
-    //            // TODO(babenko): stripe count is wrong
-    //            auto sortedMergeResources = GetSortedMergeResources(2);
-    //            MultiplyResources(&sortedMergeResources, pendingJobs);
-    //            AddResources(&totalResources, sortedMergeResources);
-    //        }
-    //    }
-
-    //    // Unordered merge jobs.
-    //    {
-    //        int pendingJobs = UnorderedMergeJobCounter.GetPending();
-    //        if (pendingJobs > 0) {
-    //            auto unorderedMergeResources = GetUnorderedMergeResources();
-    //            MultiplyResources(&unorderedMergeResources, pendingJobs);
-    //            AddResources(&totalResources, unorderedMergeResources);
-    //        }
-    //    }
-
-    //    return totalResources;
-    //}
+        return InfiniteResources();
+    }
 
 private:
     TSortOperationSpecBasePtr Spec;
@@ -1078,18 +1038,6 @@ protected:
         int stripeCount) const = 0;
 
     virtual TNodeResources GetUnorderedMergeResources() const = 0;
-
-    virtual TNodeResources GetMinNeededResources() const override
-    {
-        if (PartitionTask) {
-            return PartitionTask->GetMinNeededResources();
-        }
-        if (!Partitions.empty()) {
-            return Partitions[0]->SortTask->GetMinNeededResources();
-        }
-
-        return InfiniteResources();
-    }
 
 
     // Unsorted helpers.

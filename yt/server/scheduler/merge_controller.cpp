@@ -55,6 +55,17 @@ public:
         , PartitionCount(0)
     { }
 
+    virtual TNodeResources GetMinNeededResources() override
+    {
+        TNodeResources result;
+        result.set_slots(1);
+        result.set_cpu(1);
+        result.set_memory(
+            GetIOMemorySize(JobIOConfig, GetInputTablePaths().size(), 1) +
+            GetFootprintMemorySize());
+        return result;
+    }
+
 protected:
     TMergeOperationSpecBasePtr SpecBase;
 
@@ -405,17 +416,6 @@ protected:
 
 
     // Unsorted helpers.
-
-    virtual TNodeResources GetMinNeededResources() const override
-    {
-        TNodeResources result;
-        result.set_slots(1);
-        result.set_cpu(1);
-        result.set_memory(
-            GetIOMemorySize(JobIOConfig, GetInputTablePaths().size(), 1) +
-            GetFootprintMemorySize());
-        return result;
-    }
 
     //! Returns True iff the chunk has nontrivial limits.
     //! Such chunks are always pooled.
@@ -1170,6 +1170,18 @@ public:
         , Spec(spec)
     { }
 
+    virtual NProto::TNodeResources GetMinNeededResources() override
+    {
+        TNodeResources result;
+        result.set_slots(1);
+        result.set_cpu(Spec->Reducer->CpuLimit);
+        result.set_memory(
+            GetIOMemorySize(JobIOConfig, Spec->InputTablePaths.size(), Spec->OutputTablePaths.size()) +
+            Spec->Reducer->MemoryLimit +
+            GetFootprintMemorySize());
+        return result;
+    }
+
 private:
     TReduceOperationSpecPtr Spec;
 
@@ -1230,18 +1242,6 @@ private:
         JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
 
         ManiacJobSpecTemplate.CopyFrom(JobSpecTemplate);
-    }
-
-    virtual NProto::TNodeResources GetMinNeededResources() const override
-    {
-        TNodeResources result;
-        result.set_slots(1);
-        result.set_cpu(Spec->Reducer->CpuLimit);
-        result.set_memory(
-            GetIOMemorySize(JobIOConfig, Spec->InputTablePaths.size(), Spec->OutputTablePaths.size()) +
-            Spec->Reducer->MemoryLimit +
-            GetFootprintMemorySize());
-        return result;
     }
 };
 

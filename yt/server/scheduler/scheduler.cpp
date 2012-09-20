@@ -799,18 +799,16 @@ private:
 
     void InitStrategy()
     {
-        Strategy = CreateStrategy(Config->Strategy);
-    }
-
-    TAutoPtr<ISchedulerStrategy> CreateStrategy(ESchedulerStrategy strategy)
-    {
-        switch (strategy) {
+        switch (Config->Strategy) {
             case ESchedulerStrategy::Null:
-                return CreateNullStrategy(this);
+                Strategy = CreateNullStrategy(this);
+                break;
             case ESchedulerStrategy::Fifo:
-                return CreateFifoStrategy(this);
+                Strategy =  CreateFifoStrategy(this);
+                break;
             case ESchedulerStrategy::FairShare:
-                return CreateFairShareStrategy(this);
+                Strategy = CreateFairShareStrategy(Config, this);
+                break;
             default:
                 YUNREACHABLE();
         }

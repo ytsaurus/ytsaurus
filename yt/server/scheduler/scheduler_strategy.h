@@ -24,6 +24,7 @@ struct ISchedulerStrategyHost
     virtual TMasterConnector* GetMasterConnector() = 0;
 
     virtual NProto::TNodeResources GetTotalResourceLimits() = 0;
+    virtual std::vector<TExecNodePtr> GetExecNodes() = 0;
 
 };
 

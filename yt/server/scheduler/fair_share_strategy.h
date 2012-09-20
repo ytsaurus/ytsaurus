@@ -7,7 +7,9 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAutoPtr<ISchedulerStrategy> CreateFairShareStrategy(ISchedulerStrategyHost* host);
+TAutoPtr<ISchedulerStrategy> CreateFairShareStrategy(
+    TFairShareStrategyConfigPtr config,
+    ISchedulerStrategyHost* host);
 
 ////////////////////////////////////////////////////////////////////////////////
 

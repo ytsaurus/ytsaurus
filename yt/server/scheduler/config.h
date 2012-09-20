@@ -13,8 +13,26 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSchedulerConfig
+struct TFairShareStrategyConfig
     : public TYsonSerializable
+{
+    TDuration FairShareUpdatePeriod;
+    double FairShareStarvationFactor;
+
+    TFairShareStrategyConfig()
+    {
+        Register("fair_share_update_period", FairShareUpdatePeriod)
+            .Default(TDuration::MilliSeconds(1000));
+        Register("fair_share_starvation_factor", FairShareStarvationFactor)
+            .InRange(0.0, 1.0)
+            .Default(0.5);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSchedulerConfig
+    : public TFairShareStrategyConfig
 {
     TDuration ConnectRetryPeriod;
 

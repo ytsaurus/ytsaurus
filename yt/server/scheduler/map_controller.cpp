@@ -50,6 +50,21 @@ public:
         , TotalJobCount(0)
     { }
 
+    virtual TNodeResources GetMinNeededResources() override
+    {
+        TNodeResources result;
+        result.set_slots(1);
+        result.set_cpu(Spec->Mapper->CpuLimit);
+        result.set_memory(
+            GetIOMemorySize(
+            JobIOConfig,
+            Spec->InputTablePaths.size(),
+            Spec->OutputTablePaths.size()) +
+            GetFootprintMemorySize());
+        return result;
+    }
+
+
 private:
     TSchedulerConfigPtr Config;
     TMapOperationSpecPtr Spec;
@@ -207,21 +222,6 @@ private:
         }
 
         return MakeFuture();
-    }
-
-
-    virtual TNodeResources GetMinNeededResources() const
-    {
-        TNodeResources result;
-        result.set_slots(1);
-        result.set_cpu(Spec->Mapper->CpuLimit);
-        result.set_memory(
-            GetIOMemorySize(
-                JobIOConfig,
-                Spec->InputTablePaths.size(),
-                Spec->OutputTablePaths.size()) +
-            GetFootprintMemorySize());
-        return result;
     }
 
 

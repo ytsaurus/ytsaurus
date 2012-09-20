@@ -47,6 +47,10 @@ EResourceType GetDominantResource(
     const NProto::TNodeResources& demand,
     const NProto::TNodeResources& limits);
 
+NProto::TNodeResources ComputeEffectiveLimits(
+    const NProto::TNodeResources& limits,
+    const NProto::TNodeResources& quantum);
+
 i64 GetResource(
     const NProto::TNodeResources& resources,
     EResourceType type);

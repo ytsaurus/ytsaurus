@@ -143,6 +143,9 @@ struct IOperationController
 
     //! Returns the total resources that are additionally needed.
     virtual NProto::TNodeResources GetNeededResources() = 0;
+
+    //! Returns the minimum resources (per node) enabling to start a job.
+    virtual NProto::TNodeResources GetMinNeededResources() = 0;
     
     //! Called during heartbeat processing to notify the controller that a job is running.
     virtual void OnJobRunning(TJobPtr job) = 0;
