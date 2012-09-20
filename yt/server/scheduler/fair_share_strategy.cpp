@@ -192,7 +192,11 @@ private:
 
     void ComputeEffectiveLimits()
     {
-        // Compute effective limits.
+        if (Operation->GetState() != EOperationState::Running) {
+            EffectiveLimits = Host->GetTotalResourceLimits();
+            return;
+        }
+
         EffectiveLimits = ZeroResources();
         auto quantum = Operation->GetController()->GetMinNeededResources();
 
