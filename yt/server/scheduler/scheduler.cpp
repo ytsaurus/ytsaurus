@@ -615,10 +615,10 @@ private:
 
     void AbortOperationJobs(TOperationPtr operation)
     {
-        FOREACH (auto job, operation->Jobs()) {
-            AbortJob(job, false, TError("Operation aborted"));
+        auto jobs = operation->Jobs();
+        FOREACH (auto job, jobs) {
+            AbortJob(job, true, TError("Operation aborted"));
         }
-        operation->Jobs().clear();
     }
 
     void UnregisterOperation(TOperationPtr operation)
