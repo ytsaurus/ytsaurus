@@ -925,7 +925,7 @@ private:
             return EOperationStatus::StarvingForMinShare;
         }
 
-        if (utilization < attributes.FairShareRatio * Config->FairShareStarvationFactor) {
+        if (utilizationRatio < attributes.FairShareRatio * Config->FairShareStarvationFactor) {
             return EOperationStatus::StarvingForFairShare;
         }
 

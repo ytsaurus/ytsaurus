@@ -25,7 +25,7 @@ struct TFairShareStrategyConfig
             .Default(TDuration::MilliSeconds(1000));
         Register("fair_share_starvation_factor", FairShareStarvationFactor)
             .InRange(0.0, 1.0)
-            .Default(0.5);
+            .Default(0.7);
     }
 };
 
