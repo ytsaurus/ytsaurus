@@ -205,7 +205,7 @@ private:
         // Merge jobs and nodes.
         auto jobIt = jobs.begin();
         auto nodeIt = nodes.begin();
-        while (jobIt != jobs.end() && nodeIt != nodes.end()) {
+        while (jobIt != jobs.end() || nodeIt != nodes.end()) {
             auto jobGroupBeginIt = jobIt;
             auto jobGroupEndIt = jobIt;
             while (jobGroupEndIt != jobs.end() && (*jobGroupEndIt)->GetNode() == (*jobGroupBeginIt)->GetNode()) {
