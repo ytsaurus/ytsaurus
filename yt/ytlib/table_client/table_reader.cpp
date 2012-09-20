@@ -122,12 +122,12 @@ const TNonOwningKey& TTableReader::GetKey() const
     YUNREACHABLE();
 }
 
-i64 TTableReader::GetRowIndex() const override
+i64 TTableReader::GetRowIndex() const
 {
     return Reader->GetItemIndex();
 }
 
-i64 TTableReader::GetRowCount() const override
+i64 TTableReader::GetRowCount() const
 {
     return Reader->GetItemCount();
 }

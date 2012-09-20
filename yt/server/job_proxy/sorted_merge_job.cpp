@@ -125,12 +125,13 @@ public:
 
     double GetProgress() const override
     {
-        double total = Reader->GetRowCount();
-        if (total == 0.0) {
-            LOG_WARNING("GetProgress: empty total.");
+        i64 total = Reader->GetRowCount();
+        if (total == 0) {
+            LOG_WARNING("GetProgress: empty total");
+            return 0;
         } else {
-            auto progress = Reader->GetRowIndex() / total;
-            LOG_DEBUG("GetProgress: %f", progress);
+            double progress = (double) Reader->GetRowIndex() / total;
+            LOG_DEBUG("GetProgress: %lf", progress);
             return progress;
         }
     }
