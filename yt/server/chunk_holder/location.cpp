@@ -211,7 +211,7 @@ std::vector<TChunkDescriptor> TLocation::Scan()
             fileNames.insert(NFS::NormalizePathSeparators(NFS::CombinePaths(path, fileName)));
             chunkIds.insert(chunkId);
         } else {
-            LOG_ERROR("Unrecognized file in chunk directory: %s", ~fileName);
+            LOG_ERROR("Unrecognized file: %s", ~fileName);
         }
     }
 
@@ -231,17 +231,17 @@ std::vector<TChunkDescriptor> TLocation::Scan()
             i64 chunkDataSize = NFS::GetFileSize(chunkDataFileName);
             i64 chunkMetaSize = NFS::GetFileSize(chunkMetaFileName);
             if (chunkMetaSize == 0) {
-                LOG_FATAL("Chunk meta file %s is empty", ~chunkMetaFileName);
+                LOG_FATAL("Chunk meta file is empty: %s", ~chunkMetaFileName);
             }
             TChunkDescriptor descriptor;
             descriptor.Id = chunkId;
             descriptor.Size = chunkDataSize + chunkMetaSize;
             result.push_back(descriptor);
         } else if (!hasMeta) {
-            LOG_WARNING("Missing meta file for %s, removing data file", ~chunkDataFileName.Quote());
+            LOG_WARNING("Missing meta file, removing data file: %s", ~chunkDataFileName);
             RemoveFile(chunkDataFileName);
         } else if (!hasData) {
-            LOG_WARNING("Missing data file for %s, removing meta file", ~chunkMetaFileName.Quote());
+            LOG_WARNING("Missing data file, removing meta file: %s", ~chunkMetaFileName);
             RemoveFile(chunkMetaFileName);
         }
     }
