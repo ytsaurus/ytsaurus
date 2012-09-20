@@ -14,6 +14,7 @@ test: clean
 	$(PYTHON) setup.py test
 
 deb: clean
+	cp yt/wrapper/mapreduce yt/wrapper/mapreduce-yt
 	# build the source package in the parent directory
 	# then rename it to project_version.orig.tar.gz
 	$(PYTHON) setup.py sdist --dist-dir=../
@@ -22,8 +23,8 @@ deb: clean
 
 clean:
 	$(PYTHON) setup.py clean
-	rm -rf build/ MANIFEST
 	find . -name '*.pyc' -delete
-	rm -rf tests
-	rm -rf Yt.egg-info
+	rm -rf build/ MANIFEST
+	rm -rf tests Yt.egg-info yt/wrapper/mapreduce-yt
 	sudo $(MAKE) -f $(CURDIR)/debian/rules clean
+
