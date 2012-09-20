@@ -245,6 +245,7 @@ private:
                 AddResources(
                     &EffectiveLimits,
                     NScheduler::ComputeEffectiveLimits(nodeLimits, quantum));
+                ++nodeIt;
             }
 
             jobIt = jobGroupEndIt;
@@ -940,6 +941,7 @@ private:
     {
         const auto& attributes = composite->GetChildAttributes(element);
         BuildYsonMapFluently(consumer)
+            .Item("rank").Scalar(attributes.Rank)
             .Item("resource_demand").Do(BIND(&BuildNodeResourcesYson, element->GetDemand()))
             .Item("resource_utilization").Do(BIND(&BuildNodeResourcesYson, element->GetUtilization()))
             .Item("dominant_resource").Scalar(attributes.DominantResource)

@@ -132,19 +132,19 @@ NProto::TNodeResources ComputeEffectiveLimits(
     auto effectiveLimits = limits;
 
     if (quantum.slots() > 0) {
-        effectiveLimits.set_slots(effectiveLimits.slots() - limits.slots() % quantum.slots());
+        effectiveLimits.set_slots(limits.slots() - limits.slots() % quantum.slots());
     }
 
     if (quantum.cpu() > 0) {
-        effectiveLimits.set_cpu(effectiveLimits.cpu() - limits.cpu() % quantum.cpu());
+        effectiveLimits.set_cpu(limits.cpu() - limits.cpu() % quantum.cpu());
     }
 
     if (quantum.memory() > 0) {
-        effectiveLimits.set_memory(effectiveLimits.memory() - limits.memory() % quantum.memory());
+        effectiveLimits.set_memory(limits.memory() - limits.memory() % quantum.memory());
     }
 
     if (quantum.network() > 0) {
-        effectiveLimits.set_memory(effectiveLimits.network() - limits.network() % quantum.network());
+        effectiveLimits.set_memory(limits.network() - limits.network() % quantum.network());
     }
 
     return effectiveLimits;
