@@ -182,7 +182,7 @@ void TLocation::UpdateCellGuid(const TGuid& newCellGuid)
         cellGuidFile.Write(CellGuid.ToString());
     }
 
-    LOG_INFO("Cell guid updated to %s", ~CellGuid.ToString());
+    LOG_INFO("Cell guid updated: %s", ~CellGuid.ToString());
 }
 
 std::vector<TChunkDescriptor> TLocation::Scan()
@@ -202,16 +202,16 @@ std::vector<TChunkDescriptor> TLocation::Scan()
     i32 size = fileList.Size();
     for (i32 i = 0; i < size; ++i) {
         Stroka fileName = fileList.Next();
-        fileNames.insert(NFS::NormalizePathSeparators(NFS::CombinePaths(path, fileName)));
+        if (fileName == CellGuidFileName)
+            continue;
+
         TChunkId chunkId;
         auto strippedFileName = NFS::GetFileNameWithoutExtension(fileName);
-
-        if (strippedFileName != CellGuidFileName) {
-            if (TChunkId::FromString(strippedFileName, &chunkId)) {
-                chunkIds.insert(chunkId);
-            } else {
-                LOG_ERROR("Invalid chunk filename %s", ~fileName.Quote());
-            }
+        if (TChunkId::FromString(strippedFileName, &chunkId)) {
+            fileNames.insert(NFS::NormalizePathSeparators(NFS::CombinePaths(path, fileName)));
+            chunkIds.insert(chunkId);
+        } else {
+            LOG_ERROR("Unrecognized file in chunk directory: %s", ~fileName);
         }
     }
 
