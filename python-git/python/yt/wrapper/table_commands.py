@@ -102,7 +102,7 @@ def write_table(table, lines, format=None, table_writer=None):
     while not buffer.empty():
         make_request("PUT", "write", params, buffer.get(), format=format)
 
-def read_table(table, format=None):
+def read_table(table, format=None, iter_lines=True):
     if format is None: format = config.DEFAULT_FORMAT
     table = to_table(table)
     if not exists(table.name):
@@ -112,7 +112,10 @@ def read_table(table, format=None):
                              "transaction_id": config.TRANSACTION},
                             format=format,
                             raw_response=True)
-    return iter_lines(response)
+    if iter_lines:
+        return iter_lines(response)
+    else:
+        return response.iter_content(chunk_size=config.READ_BUFFER_SIZE)
 
 def remove_table(table):
     table = to_name(table)
