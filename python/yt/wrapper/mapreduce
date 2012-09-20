@@ -333,8 +333,10 @@ Examples:
     if args.list:
         sys.stdout.writelines(imap(add_eoln, list_all_tables()))
     if args.read is not None:
-        sys.stdout.writelines(yt.read_table(
-            yt.Table(args.read, lower_key=args.lowerkey, upper_key=args.upperkey)))
+        for chunk in yt.read_table(
+                yt.Table(args.read, lower_key=args.lowerkey, upper_key=args.upperkey),
+                iter_lines=False):
+            sys.stdout.write(chunk)
     if args.write is not None:
         args.write = yt.Table(args.write, append=args.append)
         yt.write_table(args.write, sys.stdin, table_writer=table_writer)

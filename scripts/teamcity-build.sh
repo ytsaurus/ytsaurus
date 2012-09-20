@@ -259,10 +259,10 @@ if [ "$b" != "0" ]; then
     cp -r $CHECKOUT_DIRECTORY/tests/integration/tests.sandbox/* "$tmpdir"
 fi
 
-cd "$CHECKOUT_DIRECTORY/python/yt_wrapper" && make
-run_python_test "$CHECKOUT_DIRECTORY/python/yt_wrapper" "python_wrapper"
-
-run_python_test "$CHECKOUT_DIRECTORY/python/yson" "python_yson"
+cd "$CHECKOUT_DIRECTORY/python"
+PYTHONPATH="$CHECKOUT_DIRECTORY/python:$PYTHONPATH" \
+PATH="$WORKING_DIRECTORY/bin:$WORKING_DIRECTORY/yt/nodejs:$PATH" \
+python setup.py test
 
 tc "blockOpened name='JavaScript Tests'"
 

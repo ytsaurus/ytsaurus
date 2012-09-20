@@ -182,7 +182,7 @@ void TLocation::UpdateCellGuid(const TGuid& newCellGuid)
         cellGuidFile.Write(CellGuid.ToString());
     }
 
-    LOG_INFO("Cell guid updated to %s", ~CellGuid.ToString());
+    LOG_INFO("Cell guid updated: %s", ~CellGuid.ToString());
 }
 
 std::vector<TChunkDescriptor> TLocation::Scan()
@@ -202,16 +202,16 @@ std::vector<TChunkDescriptor> TLocation::Scan()
     i32 size = fileList.Size();
     for (i32 i = 0; i < size; ++i) {
         Stroka fileName = fileList.Next();
-        fileNames.insert(NFS::NormalizePathSeparators(NFS::CombinePaths(path, fileName)));
+        if (fileName == CellGuidFileName)
+            continue;
+
         TChunkId chunkId;
         auto strippedFileName = NFS::GetFileNameWithoutExtension(fileName);
-
-        if (strippedFileName != CellGuidFileName) {
-            if (TChunkId::FromString(strippedFileName, &chunkId)) {
-                chunkIds.insert(chunkId);
-            } else {
-                LOG_ERROR("Invalid chunk filename %s", ~fileName.Quote());
-            }
+        if (TChunkId::FromString(strippedFileName, &chunkId)) {
+            fileNames.insert(NFS::NormalizePathSeparators(NFS::CombinePaths(path, fileName)));
+            chunkIds.insert(chunkId);
+        } else {
+            LOG_ERROR("Unrecognized file: %s", ~fileName);
         }
     }
 
@@ -231,17 +231,17 @@ std::vector<TChunkDescriptor> TLocation::Scan()
             i64 chunkDataSize = NFS::GetFileSize(chunkDataFileName);
             i64 chunkMetaSize = NFS::GetFileSize(chunkMetaFileName);
             if (chunkMetaSize == 0) {
-                LOG_FATAL("Chunk meta file %s is empty", ~chunkMetaFileName);
+                LOG_FATAL("Chunk meta file is empty: %s", ~chunkMetaFileName);
             }
             TChunkDescriptor descriptor;
             descriptor.Id = chunkId;
             descriptor.Size = chunkDataSize + chunkMetaSize;
             result.push_back(descriptor);
         } else if (!hasMeta) {
-            LOG_WARNING("Missing meta file for %s, removing data file", ~chunkDataFileName.Quote());
+            LOG_WARNING("Missing meta file, removing data file: %s", ~chunkDataFileName);
             RemoveFile(chunkDataFileName);
         } else if (!hasData) {
-            LOG_WARNING("Missing data file for %s, removing meta file", ~chunkMetaFileName.Quote());
+            LOG_WARNING("Missing data file, removing meta file: %s", ~chunkMetaFileName);
             RemoveFile(chunkMetaFileName);
         }
     }

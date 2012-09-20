@@ -64,8 +64,8 @@ function stubDriver(echo, low_watermark, high_watermark) {
     var config = {
         "low_watermark" : 100,
         "high_watermark" : 200,
-        "driver" : {
-            "masters" : { "addresses" : [ "localhost:0" ] },
+        "proxy" : {
+            "driver" : { "masters" : { "addresses" : [ "localhost:0" ] } },
             "logging" : { "rules" : [], "writers" : {} }
         }
     };

@@ -45,7 +45,7 @@ class TJob
 public:
     TJob(
         const TJobId& id,
-        TOperation* operation,
+        TOperationPtr operation,
         TExecNodePtr node,
         TInstant startTime);
 
