@@ -618,7 +618,7 @@ private:
         // Take a copy, the collection will be modified.
         auto jobs = operation->Jobs();
         FOREACH (auto job, jobs) {
-            AbortJob(job);
+            AbortJob(job, TError("Operation aborted"));
         }
         YCHECK(operation->Jobs().empty());
     }
@@ -680,7 +680,7 @@ private:
         Profiler.Enqueue("/job_count/total", Jobs.size());
     }
 
-    void AbortJob(TJobPtr job, TError error = TError())
+    void AbortJob(TJobPtr job, const TError& error)
     {
         NProto::TJobResult result;
         ToProto(result.mutable_error(), error);
