@@ -89,7 +89,7 @@ public:
         auto id = TJobId::Create();
         auto job = New<TJob>(
             id,
-            ~operation,
+            operation,
             Node,
             TInstant::Now());
 

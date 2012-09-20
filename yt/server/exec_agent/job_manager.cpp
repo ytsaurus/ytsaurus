@@ -122,14 +122,9 @@ TJobPtr TJobManager::StartJob(
         Bootstrap->GetChunkCache(),
         slot);
 
-    // TODO(babenko): temporarily enable overcommit
-    //auto error = Bootstrap->GetMemoryUsageTracker().TryAcquire(
-    //    NCellNode::EMemoryConsumer::Job, 
-    //    jobSpec.resource_utilization().memory());
-    Bootstrap->GetMemoryUsageTracker().Acquire(
+    auto error = Bootstrap->GetMemoryUsageTracker().TryAcquire(
         NCellNode::EMemoryConsumer::Job, 
         jobSpec.resource_utilization().memory());
-    TError error;
 
     if (error.IsOK()) {
         job->SubscribeFinished(BIND(&TJobManager::OnJobFinished, MakeWeak(this), job));

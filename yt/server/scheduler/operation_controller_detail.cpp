@@ -122,6 +122,19 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(ISchedulingContext* context
     auto dataSizeThreshold = GetJobDataSizeThreshold();
     jip->PoolResult = ChunkPool->Extract(address, dataSizeThreshold);
 
+    // Compute the actual utilization for this JIP and check it
+    // against the the limits. This is the last chance to give up.
+    auto jipUtilization = GetNeededResources(jip);
+    auto node = context->GetNode();
+    if (!NScheduler::HasEnoughResources(
+        node->ResourceUtilization(),
+        jipUtilization,
+        node->ResourceLimits()))
+    {
+        ChunkPool->OnFailed(jip->PoolResult);
+        return NULL;
+    }
+
     LOG_DEBUG("Job chunks extracted (TotalCount: %d, LocalCount: %d, ExtractedDataSize: %" PRId64 ", DataSizeThreshold: %s)",
         jip->PoolResult->TotalChunkCount,
         jip->PoolResult->LocalChunkCount,
@@ -132,7 +145,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(ISchedulingContext* context
     jip->Job = job;
     auto* jobSpec = jip->Job->GetSpec();
     BuildJobSpec(jip, jobSpec);
-    *jobSpec->mutable_resource_utilization() = GetNeededResources(jip);
+    *jobSpec->mutable_resource_utilization() = jipUtilization;
     context->EndScheduleJob(job);
 
     Controller->RegisterJobInProgress(jip);
