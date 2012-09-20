@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+:!/usr/bin/env python
 
 # Options that not yet implemented:
 # -fs
@@ -67,12 +67,16 @@ def add_help_messages(parser, args):
         add_help_message(parser, arg, message)
 
 def parse_format(format):
-    return None if format is None else yt.RawFormat(format)
+    return config.DEFAULT_FORMAT if format is None else yt.RawFormat.from_string(format)
 
 class SortingHelpFormatter(RawTextHelpFormatter):
     def add_arguments(self, actions):
         actions = sorted(actions, key=attrgetter('option_strings'))
         super(SortingHelpFormatter, self).add_arguments(actions)
+
+def die(message, return_code=1):
+    print >>sys.stderr, message
+    sys.exit(return_code)
 
 def main():
     config.FORCE_SORT_IN_REDUCE = True
@@ -123,7 +127,7 @@ Examples:
                      "erase", "abort_tx", "commit_tx", "renew_tx", "set", "get", "upload", "download"]
     action_flags = ["version", "copy", "sort", "merge", "list", "start_tx"]
 
-    add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "ping_tx"])
+    add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "ping_tx", "smart_format"])
     add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec",
                                             "inputformat", "outputformat", "tx", "value", "replication_factor", "sort_by"])
     add_multiple_args(parser, ["src", "dst", "dstappend", "file", "mapfile", "reducefile", "ytfile", "opt", "ytspec"])
@@ -261,12 +265,9 @@ Examples:
                     sum([vars(args)[arg] for arg in action_flags])
     mapreduce_case = args.map is not None and args.reduce is not None and actions_count == 2
     if actions_count != 1 and not mapreduce_case:
-        print >>sys.stderr, "You should pass exactly one action"
-        exit(0)
-
+        die("You should pass exactly one action", 1)
     if args.version:
-        print "Version: YT wrapper"
-        exit(0)
+        die("Version: YT wrapper", 0)
 
     if args.chunksize is not None:
         config.WRITE_BUFFER_SIZE = args.chunksize
@@ -283,13 +284,12 @@ Examples:
             spec.update(json.loads(spec_arg))
 
     # Fix table names
-    method = add_prefix
     for option in ["src", "dst", "dstappend", "ytfile"]:
         if vars(args)[option] is not None:
-            vars(args)[option] = map(method, vars(args)[option])
+            vars(args)[option] = map(add_prefix, vars(args)[option])
     for option in ["read", "write", "writesorted", "drop", "get", "set"]:
         if vars(args)[option] is not None:
-            vars(args)[option] = method(vars(args)[option])
+            vars(args)[option] = add_prefix(vars(args)[option])
 
 
     dst = []
@@ -311,12 +311,17 @@ Examples:
     config.DEFAULT_FORMAT = config.YamrFormat(lenval=args.lenval, has_subkey=args.subkey)
     if args.dsv:
         if args.lenval or args.subkey:
-            print >>sys.stderr, "Options subkey and lenval are mutually exclusive with dsv option"
-            exit(1)
+            die("Options subkey and lenval are mutually exclusive with dsv option")
         config.DEFAULT_FORMAT = yt.DsvFormat()
+    if args.smart_format and args.src is not None:
+        input_formats = [yt.get_attribute(table, "_format", default="") for table in map(yt.to_name, args.src)]
+        if not (not input_formats or all(input_formats[0] == format for format in input_formats)):
+            die("Input table have differents format attributes: " + repr(input_formats))
+        inputformat = yt.RawFormat.from_tree(input_formats[0])
 
-    args.inputformat = parse_format(args.inputformat)
-    args.outputformat = parse_format(args.outputformat)
+
+    inputformat = parse_format(args.inputformat)
+    outputformat = parse_format(args.outputformat)
 
     if args.tx is not None:
         config.TRANSACTION = args.tx
@@ -349,15 +354,15 @@ Examples:
         yt.run_map_reduce(args.map, args.reduce, args.src, dst,
                           map_files=map_files, reduce_files=reduce_files,
                           map_file_paths=args.ytfile, reduce_file_paths=args.ytfile,
-                          input_format=args.inputformat, output_format=args.outputformat,
+                          input_format=inputformat, output_format=outputformat,
                           table_writer=table_writer, spec=spec)
     elif args.map is not None:
         yt.run_map(args.map, args.src, dst, files=map_files, file_paths=args.ytfile,
-                   input_format=args.inputformat, output_format=args.outputformat,
+                   input_format=inputformat, output_format=outputformat,
                    table_writer=table_writer, spec=spec)
     elif args.reduce is not None or args.reducews is not None:
         yt.run_reduce(args.reduce, args.src, dst, files=reduce_files, file_paths=args.ytfile,
-                      input_format=args.inputformat, output_format=args.outputformat,
+                      input_format=inputformat, output_format=outputformat,
                       table_writer=table_writer, spec=spec)
     if args.drop is not None:
         yt.remove_table(args.drop)
@@ -379,8 +384,7 @@ Examples:
 
     if args.set:
         if args.value is None:
-            print >>sys.stderr, "Value option is necessary for set command"
-            exit(1)
+            die("Value option is necessary for set command")
         yt.set(args.set, args.value)
     if args.get:
         if yt.exists(args.get):
@@ -394,6 +398,17 @@ Examples:
         yt.abort_transaction(args.abort_tx)
     if args.renew_tx is not None:
         yt.renew_transaction(args.renew_tx)
+
+    # Set _format for exisitng destination tables
+    if args.smart_format:
+        output_tables = []
+        if args.write is not None: output_tables.append(args.write)
+        if args.writesorted is not None: output_tables.append(args.writesorted)
+        if dst is not None: output_tables += dst
+
+        for table in map(yt.to_name, output_tables):
+            if yt.exists(table):
+                yt.set_attribute(table, "_format", json.dumps(outputformat.to_json()))
 
 if __name__ == "__main__":
     try:
