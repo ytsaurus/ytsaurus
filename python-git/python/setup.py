@@ -26,7 +26,7 @@ def main():
         name = "Yt",
         version = "0.1",
         packages = find_packages(exclude=["*.tests", "*.tests.*", "tests.*", "tests", "yt.environment"]),
-        scripts = ["yt/wrapper/mapreduce-yt"],
+        #scripts = ["yt/wrapper/mapreduce-yt"],
 
         install_requires = requires,
 
@@ -44,6 +44,10 @@ def main():
         # Using py.test, because it much more verbose
         cmdclass = {'test': PyTest},
         tests_require=['pytest'],
+
+        data_files=[
+            ("/usr/bin", ["yt/wrapper/mapreduce-yt"])
+        ]
     )
 
 if __name__ == "__main__":
