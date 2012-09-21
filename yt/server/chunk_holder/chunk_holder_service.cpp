@@ -579,7 +579,7 @@ void TChunkHolderService::ProcessSample(
 
 DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkSplits)
 {
-    context->SetRequestInfo("KeyColumnCount: %d, ChunkCount: %d, MinSplitSize: %"PRId64,
+    context->SetRequestInfo("KeyColumnCount: %d, ChunkCount: %d, MinSplitSize: %" PRId64,
         request->key_columns_size(),
         request->input_chunks_size(),
         request->min_split_size());

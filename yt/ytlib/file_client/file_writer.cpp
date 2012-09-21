@@ -51,6 +51,9 @@ TFileWriter::TFileWriter(
     }
 }
 
+TFileWriter::~TFileWriter()
+{ }
+
 void TFileWriter::Open()
 {
     CheckAborted();

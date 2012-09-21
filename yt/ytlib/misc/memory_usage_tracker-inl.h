@@ -63,7 +63,7 @@ void TMemoryUsageTracker<EMemoryConsumer>::Acquire(EMemoryConsumer consumer, i64
     guard.Release();
 
     if (freeMemory < 0) {
-        LOG_ERROR("Memory overcommit by %"PRId64 " after %s request for %" PRId64,
+        LOG_ERROR("Memory overcommit by %" PRId64 " after %s request for %" PRId64,
             -freeMemory,
             ~FormatEnum(consumer).Quote(),
             size);
@@ -93,7 +93,7 @@ TError TMemoryUsageTracker<EMemoryConsumer>::TryAcquire(EMemoryConsumer consumer
     guard.Release();
 
     return TError(
-        "Not enough memory to serve %s request: free %"PRId64 ", requested %"PRId64,
+        "Not enough memory to serve %s request: free %" PRId64 ", requested %" PRId64,
         ~FormatEnum(consumer).Quote(),
         freeMemory,
         size);

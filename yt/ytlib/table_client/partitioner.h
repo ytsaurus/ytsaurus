@@ -10,7 +10,7 @@ namespace NTableClient {
 
 struct IPartitioner
 {
-    ~IPartitioner()
+    virtual ~IPartitioner()
     { }
 
     virtual int GetPartitionCount() = 0;

@@ -133,7 +133,7 @@ public:
 
     virtual double GetProgress() const override
     {
-        JobIO->GetProgress();
+        return JobIO->GetProgress();
     }
 
 private:
@@ -221,6 +221,7 @@ private:
         NThread::SetCurrentThreadName("JobProxyInput");
         TIntrusivePtr<TUserJob> job = (TUserJob*)param;
         job->ProcessPipes(job->InputPipes);
+        return NULL;
     }
 
     static void* OutputThreadFunc(void* param) 
@@ -228,6 +229,7 @@ private:
         NThread::SetCurrentThreadName("JobProxyOutput");
         TIntrusivePtr<TUserJob> job = (TUserJob*)param;
         job->ProcessPipes(job->OutputPipes);
+        return NULL;
     }
 
     void ProcessPipes(std::vector<TDataPipePtr>& pipes)

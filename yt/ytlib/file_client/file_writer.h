@@ -32,6 +32,9 @@ public:
         NTransactionClient::TTransactionManagerPtr transactionManager,
         const NYTree::TYPath& path);
 
+    //! Destroys an instance.
+    ~TFileWriter();
+
     //! Opens the writer.
     void Open();
 

@@ -15,6 +15,7 @@
 #include "snapshot_store.h"
 #include "decorated_meta_state.h"
 #include "mutation_context.h"
+#include "response_keeper.h"
 
 #include <ytlib/misc/thread_affinity.h>
 
