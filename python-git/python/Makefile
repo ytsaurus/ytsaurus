@@ -13,7 +13,7 @@ source:
 test: clean
 	$(PYTHON) setup.py test
 
-deb: clean
+deb: test
 	cp yt/wrapper/mapreduce yt/wrapper/mapreduce-yt
 	# build the source package in the parent directory
 	# then rename it to project_version.orig.tar.gz
