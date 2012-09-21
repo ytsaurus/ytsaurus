@@ -16,12 +16,12 @@ class TMemoryUsageTracker
 public:
     explicit TMemoryUsageTracker(i64 totalMemory, Stroka profilingPath="");
 
-    i64 GetFreeMemory() const;
-    i64 GetUsedMemory() const;
-    i64 GetUsedMemory(EMemoryConsumer consumer) const;
-    i64 GetTotalMemory() const;
+    i64 GetFree() const;
+    i64 GetUsed() const;
+    i64 GetUsed(EMemoryConsumer consumer) const;
+    i64 GetTotal() const;
 
-    // Always succeeds, can lead to overcommit.
+    // Always succeeds, can lead to an overcommit.
     void Acquire(EMemoryConsumer consumer, i64 size);
     TError TryAcquire(EMemoryConsumer consumer, i64 size);
     void Release(EMemoryConsumer consumer, i64 size);

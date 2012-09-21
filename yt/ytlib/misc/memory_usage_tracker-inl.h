@@ -31,25 +31,25 @@ TMemoryUsageTracker<EMemoryConsumer>::TMemoryUsageTracker(i64 totalMemory, Strok
 }
 
 template <class EMemoryConsumer>
-i64 TMemoryUsageTracker<EMemoryConsumer>::GetFreeMemory() const
+i64 TMemoryUsageTracker<EMemoryConsumer>::GetFree() const
 {
     return FreeMemory;
 }
 
 template <class EMemoryConsumer>
-i64 TMemoryUsageTracker<EMemoryConsumer>::GetUsedMemory() const
+i64 TMemoryUsageTracker<EMemoryConsumer>::GetUsed() const
 {
     return TotalMemory - FreeMemory;
 }
 
 template <class EMemoryConsumer>
-i64 TMemoryUsageTracker<EMemoryConsumer>::GetUsedMemory(EMemoryConsumer consumer) const
+i64 TMemoryUsageTracker<EMemoryConsumer>::GetUsed(EMemoryConsumer consumer) const
 {
     return UsedMemory[consumer.ToValue()];
 }
 
 template <class EMemoryConsumer>
-i64 TMemoryUsageTracker<EMemoryConsumer>::GetTotalMemory() const
+i64 TMemoryUsageTracker<EMemoryConsumer>::GetTotal() const
 {
     return TotalMemory;
 }
