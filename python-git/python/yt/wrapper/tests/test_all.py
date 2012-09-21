@@ -11,6 +11,7 @@ import os
 import logging
 import random
 import string
+import subprocess
 from itertools import imap, izip, starmap, chain
 from functools import partial
 
@@ -22,9 +23,11 @@ def abspath(path):
 
 TEST_DIR = "//home/tests"
 
+LOCATION = os.path.dirname(os.path.abspath(__file__))
+
 class YtTest(YTEnv):
     NUM_MASTERS = 1
-    NUM_NODES = 3
+    NUM_NODES = 5
     START_SCHEDULER = True
     START_PROXY = True
 
@@ -382,11 +385,18 @@ class YtTest(YTEnv):
         self.assertTrue(len(yt.list_attributes(table)) > 1)
         self.assertTrue(len(yt.get_attribute(table, "channels")) == 0)
 
+    def test_mapreduce_binary(self):
+        yt.set("//statbox", "{}")
+        yt.create_table("//statbox/table")
+        proc = subprocess.Popen(
+            "YT_PROXY=%s %s" % 
+                (config.PROXY,
+                 os.path.join(LOCATION, "../test_mapreduce.sh")),
+            shell=True)
+        proc.communicate()
+        self.assertEqual(proc.returncode, 0)
 
 if __name__ == "__main__":
-    suite = unittest.TestSuite()
-    suite.addTest(YtTest("test_copy_move"))
-    unittest.TextTestRunner().run(suite)
-    #unittest.main()
+    unittest.main()
 
 
