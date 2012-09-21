@@ -530,14 +530,16 @@ private:
 
     void AbortOperations(const TError& error)
     {
-        TOperationMap operations;
-        Operations.swap(operations);
+        auto operations = Operations;
         FOREACH (const auto& pair, operations) {
             auto operation = pair.second;
             if (!operation->IsFinished()) {
                 AbortOperation(operation, error);
             }
         }
+        // Typically an operation gets unregistered in AbortOperation above.
+        // Finished operations, however, must be swept manually.
+        Operations.clear();
     }
 
     void AbortOperation(TOperationPtr operation, const TError& error)
