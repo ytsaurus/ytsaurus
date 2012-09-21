@@ -1014,9 +1014,8 @@ void TOperationControllerBase::OnObjectIdsReceived(TObjectServiceProxy::TRspExec
             auto& table = InputTables[index];
             {
                 auto rsp = getInIdRsps[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(*
-                    rsp,
-                    Sprintf("Error getting id for input table %s", ~table.Path.GetPath()));
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting id for input table %s",
+                    ~table.Path.GetPath());
                 table.ObjectId = TObjectId::FromProto(rsp->object_id());
             }
         }
@@ -1028,10 +1027,8 @@ void TOperationControllerBase::OnObjectIdsReceived(TObjectServiceProxy::TRspExec
             auto& table = OutputTables[index];
             {
                 auto rsp = getOutIdRsps[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(*
-                    rsp,
-                    Sprintf("Error getting id for output table %s",
-                        ~table.Path.GetPath()));
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting id for output table %s",
+                    ~table.Path.GetPath());
                 table.ObjectId = TObjectId::FromProto(rsp->object_id());
             }
         }
@@ -1128,17 +1125,15 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
             auto& table = InputTables[index];
             {
                 auto rsp = lockInRsps[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(*
-                    rsp,
-                    Sprintf("Error locking input table %s", ~table.Path.GetPath()));
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error locking input table %s",
+                    ~table.Path.GetPath());
                 LOG_INFO("Input table %s locked",
                     ~table.Path.GetPath());
             }
             {
                 auto rsp = fetchInRsps[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(*
-                    rsp,
-                    Sprintf("Error fetching input input table %s", ~table.Path.GetPath()));
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching input input table %s",
+                    ~table.Path.GetPath());
                 table.FetchResponse = rsp;
                 FOREACH (const auto& chunk, rsp->chunks()) {
                     auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
@@ -1155,9 +1150,8 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
             }
             {
                 auto rsp = getInSortedRsps[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(*
-                    rsp,
-                    Sprintf("Error getting \"sorted\" attribute for input table %s", ~table.Path.GetPath()));
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting \"sorted\" attribute for input table %s",
+                    ~table.Path.GetPath());
                 table.Sorted = ConvertTo<bool>(TYsonString(rsp->value()));
                 LOG_INFO("Input table %s is %s",
                     ~table.Path.GetPath(),
@@ -1165,10 +1159,8 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
             }
             if (table.Sorted) {
                 auto rsp = getInKeyColumns[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(*
-                    rsp,
-                    Sprintf("Error getting \"sorted_by\" attribute for input table %s",
-                        ~table.Path.GetPath()));
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting \"sorted_by\" attribute for input table %s",
+                    ~table.Path.GetPath());
                 table.KeyColumns = ConvertTo< std::vector<Stroka> >(TYsonString(rsp->value()));
                 LOG_INFO("Input table %s has key columns %s",
                     ~table.Path.GetPath(),
@@ -1187,19 +1179,15 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
             auto& table = OutputTables[index];
             {
                 auto rsp = lockOutRsps[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(*
-                    rsp,
-                    Sprintf("Error locking output table %s",
-                        ~table.Path.GetPath()));
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error locking output table %s",
+                    ~table.Path.GetPath());
                 LOG_INFO("Output table %s locked",
                     ~table.Path.GetPath());
             }
             {
                 auto rsp = getOutChannelsRsps[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(*
-                    rsp,
-                    Sprintf("Error getting channels for output table %s",
-                        ~table.Path.GetPath()));
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting channels for output table %s",
+                    ~table.Path.GetPath());
                 table.Channels = TYsonString(rsp->value());
                 LOG_INFO("Output table %s has channels %s",
                     ~table.Path.GetPath(),
@@ -1207,27 +1195,21 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
             }
             {
                 auto rsp = getOutRowCountRsps[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(*
-                    rsp,
-                    Sprintf("Error getting \"row_count\" attribute for output table %s",
-                        ~table.Path.GetPath()));
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting \"row_count\" attribute for output table %s",
+                    ~table.Path.GetPath());
                 table.InitialRowCount = ConvertTo<i64>(TYsonString(rsp->value()));
             }
             if (table.Clear) {
                 auto rsp = clearOutRsps[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(*
-                    rsp,
-                    Sprintf("Error clearing output table %s",
-                        ~table.Path.GetPath()));
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error clearing output table %s",
+                    ~table.Path.GetPath());
                 LOG_INFO("Output table %s cleared",
                     ~table.Path.GetPath());
             }
             {
                 auto rsp = getOutChunkListRsps[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(*
-                    rsp,
-                    Sprintf("Error getting output chunk list for table %s",
-                        ~table.Path.GetPath()));
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting output chunk list for table %s",
+                    ~table.Path.GetPath());
                 table.OutputChunkListId = TChunkListId::FromProto(rsp->chunk_list_id());
                 LOG_INFO("Output table %s has output chunk list %s",
                     ~table.Path.GetPath(),
