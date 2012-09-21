@@ -1,5 +1,7 @@
 #!/bin/sh -eux
 
+cd $(dirname "${BASH_SOURCE[0]}")
+
 set +x
 echo -e "4\t5\t6\n1\t2\t3" > table_file
 
@@ -11,6 +13,11 @@ for i in {1..10}; do
     echo -e "$i\tX\tX" >> big_file
 done
 set -x
+
+die()
+{
+    exit 1
+}
 
 test_base_functionality()
 {
@@ -170,7 +177,7 @@ test_heavy_command()
 test_stderr()
 {
     ./mapreduce -subkey -write "ignat/temp" <table_file
-    ./mapreduce -subkey -map "cat &>2 && exit(1)" -src "ignat/temp" -dst "ignat/tmp" 2>/dev/null
+    ./mapreduce -subkey -map "cat &>2 && exit(1)" -src "ignat/temp" -dst "ignat/tmp" 2>/dev/null && die || true
 }
 
 test_smart_format()
@@ -178,7 +185,6 @@ test_smart_format()
     echo -e "key=1\tvalue=2" | ./mapreduce -smart_format -dsv -write "ignat/smart_x"
     ./mapreduce -smart_format -map "cat" -src "ignat/smart_x" -dst "ignat/smart_y"
 }
-
 
 test_base_functionality
 test_codec
@@ -195,5 +201,3 @@ test_stderr
 test_smart_format
 
 rm -f table_file big_file
-
-
