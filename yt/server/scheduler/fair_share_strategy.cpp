@@ -186,8 +186,6 @@ private:
         EffectiveLimits_ = ZeroResources();
         auto quantum = Operation_->GetController()->GetMinNeededResources();
 
-        LOG_DEBUG("quantum: %s", ~FormatResources(quantum));
-
         // Sort jobs by node.
         std::vector<TJobPtr> jobs(Operation_->Jobs().begin(), Operation_->Jobs().end());
         std::sort(
@@ -228,7 +226,6 @@ private:
                     nodeLimits -= job->ResourceUtilization();
                     EffectiveLimits_ += job->ResourceUtilization();
                 }
-                LOG_DEBUG("node: %s | %s | %s", ~node->GetAddress(), ~FormatResources(nodeLimits), ~FormatResources(NScheduler::ComputeEffectiveLimits(nodeLimits, quantum)));
                 EffectiveLimits_ += NScheduler::ComputeEffectiveLimits(nodeLimits, quantum);
                 ++nodeIt;
             }
