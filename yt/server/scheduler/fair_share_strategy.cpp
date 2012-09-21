@@ -109,8 +109,9 @@ public:
     explicit TOperationElement(ISchedulerStrategyHost* host, TOperationPtr operation)
         : Host(host)
         , Operation_(operation)
-        , Pool_(NULL)
         , EffectiveLimits_(ZeroResources())
+        , UtilizationRatio_(0.0)
+        , Pool_(NULL)
     { }
 
 
@@ -132,6 +133,7 @@ public:
         UNUSED(limitsRatio);
 
         ComputeEffectiveLimits();
+        ComputeUtilizationRatio();
     }
 
     virtual TInstant GetStartTime() const override
@@ -163,7 +165,8 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(TSchedulableAttributes, Attributes);
     DEFINE_BYVAL_RO_PROPERTY(TOperationPtr, Operation);
-    DEFINE_BYREF_RO_PROPERTY(NProto::TNodeResources, EffectiveLimits);
+    DEFINE_BYVAL_RO_PROPERTY(NProto::TNodeResources, EffectiveLimits);
+    DEFINE_BYVAL_RO_PROPERTY(double, UtilizationRatio);
     DEFINE_BYVAL_RW_PROPERTY(TPooledOperationSpecPtr, Spec);
     DEFINE_BYVAL_RW_PROPERTY(TPool*, Pool);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, StarvingForMinShareSince);
@@ -231,6 +234,12 @@ private:
         }
     }
 
+    void ComputeUtilizationRatio()
+    {
+        i64 utilization = GetResource(GetUtilization(), Attributes_.DominantResource);
+        i64 limits = GetResource(EffectiveLimits_, Attributes_.DominantResource);
+        UtilizationRatio_ = limits == 0 ? 1.0 : (double) utilization / limits;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -666,7 +675,8 @@ public:
         BuildYsonMapFluently(consumer)
             .Item("pool").Scalar(pool->GetId())
             .Item("start_time").Scalar(element->GetStartTime())
-            .Item("effective_resource_limits").Do(BIND(&BuildNodeResourcesYson, element->EffectiveLimits()))
+            .Item("effective_resource_limits").Do(BIND(&BuildNodeResourcesYson, element->GetEffectiveLimits()))
+            .Item("utilization_ratio").Scalar(element->GetUtilizationRatio())
             .Item("scheduling_status").Scalar(GetOperationStatus(element))
             .Do(BIND(&TFairShareStrategy::BuildElementYson, pool, element));
     }
@@ -906,9 +916,7 @@ private:
             return EOperationStatus::Normal;
         }
 
-        i64 utilization = GetResource(element->GetUtilization(), attributes.DominantResource);
-        i64 limits = GetResource(element->EffectiveLimits(), attributes.DominantResource);
-        double utilizationRatio = limits == 0 ? 1.0 : (double) utilization / limits;
+        double utilizationRatio = element->GetUtilizationRatio();
 
         if (utilizationRatio < attributes.AdjustedMinShareRatio) {
             return EOperationStatus::StarvingForMinShare;
@@ -935,7 +943,7 @@ private:
             auto operation = element->GetOperation();
             auto controller = operation->GetController();
             const auto& attributes = element->Attributes();
-            i64 dominantDesiredLimit = GetResource(element->EffectiveLimits() * desiredRatio, attributes.DominantResource);
+            i64 dominantDesiredLimit = GetResource(element->GetEffectiveLimits() * desiredRatio, attributes.DominantResource);
             i64 dominantUtilization = GetResource(element->GetUtilization(), attributes.DominantResource);
             auto quantum = controller->GetMinNeededResources();
             i64 dominantQuantum = GetResource(quantum, attributes.DominantResource);
