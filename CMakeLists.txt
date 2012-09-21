@@ -87,6 +87,16 @@ add_subdirectory(library/json)
 
 add_subdirectory(yt)
 
+install(
+  FILES scripts/colorize-log.py
+  RENAME ycl
+  FILE_PERMISSIONS
+    OWNER_READ OWNER_WRITE OWNER_EXECUTE
+    GROUP_READ GROUP_EXECUTE
+    WORLD_READ WORLD_EXECUTE
+  RUNTIME DESTINATION bin
+)
+
 add_custom_target( package touch package-stamp
   COMMAND mkdir -p ARTIFACTS
   COMMAND dch
