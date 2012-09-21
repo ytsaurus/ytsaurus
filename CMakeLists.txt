@@ -89,12 +89,12 @@ add_subdirectory(yt)
 
 install(
   FILES scripts/colorize-log.py
-  RENAME ycl
-  FILE_PERMISSIONS
+  DESTINATION bin
+  PERMISSIONS
     OWNER_READ OWNER_WRITE OWNER_EXECUTE
     GROUP_READ GROUP_EXECUTE
     WORLD_READ WORLD_EXECUTE
-  RUNTIME DESTINATION bin
+  RENAME ycl
 )
 
 add_custom_target( package touch package-stamp
