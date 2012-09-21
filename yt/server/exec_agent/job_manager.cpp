@@ -21,6 +21,7 @@ namespace NExecAgent {
 using namespace NScheduler;
 using namespace NScheduler::NProto;
 using namespace NYTree;
+using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,8 +66,7 @@ TJobPtr TJobManager::GetJob(const TJobId& jobId)
 
     auto job = FindJob(jobId);
     if (!job) {
-        // TODO(babenko): error code
-        THROW_ERROR_EXCEPTION("No such job %s", ~jobId.ToString());
+        THROW_ERROR_EXCEPTION("No such job: %s", ~jobId.ToString());
     }
     return job;
 }
@@ -89,20 +89,24 @@ TNodeResources TJobManager::GetResourceLimits()
     result.set_cpu(Config->ResourceLimits->Cpu);
     result.set_network(Config->ResourceLimits->Network);
 
-    result.set_memory(Bootstrap->GetMemoryUsageTracker().GetTotalMemory());
+    const auto& tracker = Bootstrap->GetMemoryUsageTracker();
+    result.set_memory(tracker.GetFree() + tracker.GetUsed(EMemoryConsumer::Job));
+
     return result;
 }
 
 TNodeResources TJobManager::GetResourceUtilization()
 {
-    auto totalUtilization = ZeroResources();
+    auto result = ZeroResources();
     FOREACH (const auto& pair, Jobs) {
         auto jobUtilization = pair.second->GetResourceUtilization();
-        totalUtilization += jobUtilization;
+        result += jobUtilization;
     }
 
-    totalUtilization.set_memory(Bootstrap->GetMemoryUsageTracker().GetUsedMemory());
-    return totalUtilization;
+    const auto& tracker = Bootstrap->GetMemoryUsageTracker();
+    result.set_memory(tracker.GetUsed(EMemoryConsumer::Job));
+
+    return result;
 }
 
 TJobPtr TJobManager::StartJob(
