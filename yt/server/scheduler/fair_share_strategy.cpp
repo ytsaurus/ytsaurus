@@ -228,6 +228,7 @@ private:
                     nodeLimits -= job->ResourceUtilization();
                     EffectiveLimits_ += job->ResourceUtilization();
                 }
+                LOG_DEBUG("node: %s | %s | %s", ~node->GetAddress(), ~FormatResources(nodeLimits), ~FormatResources(NScheduler::ComputeEffectiveLimits(nodeLimits, quantum)));
                 EffectiveLimits_ += NScheduler::ComputeEffectiveLimits(nodeLimits, quantum);
                 ++nodeIt;
             }
