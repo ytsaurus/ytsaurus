@@ -27,6 +27,8 @@
 
 #include <ytlib/table_client/key.h>
 
+#include <ytlib/meta_state/rpc_helpers.h>
+
 #include <cmath>
 
 namespace NYT {
@@ -827,27 +829,32 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs()
             FOREACH (const auto& pair, table.OutputChunkTreeIds) {
                 *req->add_children_ids() = pair.second.ToProto();
             }
+            NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "attach_out");
         }
         if (table.SetSorted) {
             auto req = TTableYPathProxy::SetSorted(WithTransaction(ypath, OutputTransaction->GetId()));
             ToProto(req->mutable_key_columns(), table.KeyColumns);
+            NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "set_out_sorted");
         }
     }
 
     {
         auto req = TTransactionYPathProxy::Commit(FromObjectId(InputTransaction->GetId()));
+        NMetaState::GenerateRpcMutationId(req);
         batchReq->AddRequest(req, "commit_in_tx");
     }
 
     {
         auto req = TTransactionYPathProxy::Commit(FromObjectId(OutputTransaction->GetId()));
+        NMetaState::GenerateRpcMutationId(req);
         batchReq->AddRequest(req, "commit_out_tx");
     }
 
     {
         auto req = TTransactionYPathProxy::Commit(FromObjectId(PrimaryTransaction->GetId()));
+        NMetaState::GenerateRpcMutationId(req);
         batchReq->AddRequest(req, "commit_primary_tx");
     }
 
@@ -911,6 +918,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::StartPrimaryTran
             ? RootTransactionPath
             : FromObjectId(Operation->GetTransactionId()));
         req->set_type(EObjectType::Transaction);
+        NMetaState::GenerateRpcMutationId(req);
         batchReq->AddRequest(req, "start_primary_tx");
     }
 
@@ -943,12 +951,14 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::StartSeconaryTra
     {
         auto req = TTransactionYPathProxy::CreateObject(FromObjectId(PrimaryTransaction->GetId()));
         req->set_type(EObjectType::Transaction);
+        NMetaState::GenerateRpcMutationId(req);
         batchReq->AddRequest(req, "start_in_tx");
     }
 
     {
         auto req = TTransactionYPathProxy::CreateObject(FromObjectId(PrimaryTransaction->GetId()));
         req->set_type(EObjectType::Transaction);
+        NMetaState::GenerateRpcMutationId(req);
         batchReq->AddRequest(req, "start_out_tx");
     }
 
@@ -1050,6 +1060,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
         {
             auto req = TCypressYPathProxy::Lock(WithTransaction(ypath, InputTransaction->GetId()));
             req->set_mode(ELockMode::Snapshot);
+            NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "lock_in");
         }
         {
@@ -1058,14 +1069,17 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             req->set_fetch_node_addresses(true);
             req->set_fetch_all_meta_extensions(true);
             req->set_negate(table.NegateFetch);
+            NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "fetch_in");
         }
         {
             auto req = TYPathProxy::Get(WithTransaction(ypath, InputTransaction->GetId()) + "/@sorted");
+            NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "get_in_sorted");
         }
         {
             auto req = TYPathProxy::Get(WithTransaction(ypath, InputTransaction->GetId()) + "/@sorted_by");
+            NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "get_in_sorted_by");
         }
     }
@@ -1075,21 +1089,25 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
         {
             auto req = TCypressYPathProxy::Lock(WithTransaction(ypath, OutputTransaction->GetId()));
             req->set_mode(table.Clear ? ELockMode::Exclusive : ELockMode::Shared);
+            NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "lock_out");
         }
         {
             auto req = TYPathProxy::Get(WithTransaction(ypath, Operation->GetTransactionId()) + "/@channels");
             batchReq->AddRequest(req, "get_out_channels");
         }
-        {
-            auto req = TYPathProxy::Get(WithTransaction(ypath, OutputTransaction->GetId()) + "/@row_count");
-            batchReq->AddRequest(req, "get_out_row_count");
-        }
+        // NB: InitialRowCount is used to check the table for emptiness so we must be requesting
+        // it after clearing the tale.
         {
             auto req = TTableYPathProxy::Clear(WithTransaction(ypath, OutputTransaction->GetId()));
             // Even if |Clear| is False we still add a dummy request
-            // to keep "clear_out" requests aligned with output tables.            // 
+            // to keep "clear_out" requests aligned with output tables.
+            NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(table.Clear ? req : NULL, "clear_out");
+        }
+        {
+            auto req = TYPathProxy::Get(WithTransaction(ypath, OutputTransaction->GetId()) + "/@row_count");
+            batchReq->AddRequest(req, "get_out_row_count");
         }
         {
             auto req = TTableYPathProxy::GetChunkListForUpdate(WithTransaction(ypath, OutputTransaction->GetId()));
@@ -1193,18 +1211,18 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                     ~table.Path.GetPath(),
                     ~ConvertToYsonString(table.Channels, EYsonFormat::Text).Data());
             }
-            {
-                auto rsp = getOutRowCountRsps[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting \"row_count\" attribute for output table %s",
-                    ~table.Path.GetPath());
-                table.InitialRowCount = ConvertTo<i64>(TYsonString(rsp->value()));
-            }
             if (table.Clear) {
                 auto rsp = clearOutRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error clearing output table %s",
                     ~table.Path.GetPath());
                 LOG_INFO("Output table %s cleared",
                     ~table.Path.GetPath());
+            }
+            {
+                auto rsp = getOutRowCountRsps[index];
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting \"row_count\" attribute for output table %s",
+                    ~table.Path.GetPath());
+                table.InitialRowCount = ConvertTo<i64>(TYsonString(rsp->value()));
             }
             {
                 auto rsp = getOutChunkListRsps[index];
@@ -1290,6 +1308,7 @@ void TOperationControllerBase::ReleaseChunkLists(const std::vector<TChunkListId>
     FOREACH (const auto& id, ids) {
         auto req = TTransactionYPathProxy::ReleaseObject();
         *req->mutable_object_id() = id.ToProto();
+        NMetaState::GenerateRpcMutationId(req);
         batchReq->AddRequest(req);
     }
 
