@@ -1337,7 +1337,6 @@ private:
                     skippedCount);
 
                 lastPartition->Megalomaniac = true;
-                UnorderedMergeJobCounter.Increment(1);
                 YCHECK(skippedCount >= 1);
 
                 auto successorKey = GetSuccessorKey(*sampleKey);
