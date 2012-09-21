@@ -18,6 +18,7 @@ TProgressCounter::TProgressCounter(bool totalEnabled)
     , Completed_(0)
     , Pending_(0)
     , Failed_(0)
+    , Aborted_(0)
 { }
 
 bool TProgressCounter::IsTotalEnabled() const
@@ -66,6 +67,11 @@ i64 TProgressCounter::GetFailed() const
     return Failed_;
 }
 
+i64 TProgressCounter::GetAborted() const
+{
+    return Aborted_;
+}
+
 void TProgressCounter::Start(i64 count)
 {
     if (TotalEnabled) {
@@ -92,6 +98,16 @@ void TProgressCounter::Failed(i64 count)
     }
 }
 
+void TProgressCounter::Abort(i64 count)
+{
+    YCHECK(Running_ >= count);
+    Running_ -= count;
+    Aborted_ += count;
+    if (TotalEnabled) {
+        Pending_ += count;
+    }
+}
+
 void TProgressCounter::ToYson(NYTree::IYsonConsumer* consumer) const
 {
     BuildYsonFluently(consumer)
@@ -104,6 +120,7 @@ void TProgressCounter::ToYson(NYTree::IYsonConsumer* consumer) const
             .Item("running").Scalar(Running_)
             .Item("completed").Scalar(Completed_)
             .Item("failed").Scalar(Failed_)
+            .Item("aborted").Scalar(Aborted_)
         .EndMap();
 }
 
@@ -120,16 +137,18 @@ Stroka ToString(const TProgressCounter& counter)
 {
     return
         counter.IsTotalEnabled()
-        ? Sprintf("T: %" PRId64 ", R: %" PRId64 ", C: %" PRId64 ", P: %" PRId64 ", F: %" PRId64,
+        ? Sprintf("T: %" PRId64 ", R: %" PRId64 ", C: %" PRId64 ", P: %" PRId64 ", F: %" PRId64 ", A: %" PRId64,
             counter.GetTotal(),
             counter.GetRunning(),
             counter.GetCompleted(),
             counter.GetPending(),
-            counter.GetFailed())
-        : Sprintf("R: %" PRId64 ", C: %" PRId64 ", F: %" PRId64,
+            counter.GetFailed(),
+            counter.GetAborted())
+        : Sprintf("R: %" PRId64 ", C: %" PRId64 ", F: %" PRId64 ", A: %" PRId64,
             counter.GetRunning(),
             counter.GetCompleted(),
-            counter.GetFailed());
+            counter.GetFailed(),
+            counter.GetAborted());
 }
 
 ////////////////////////////////////////////////////////////////////

@@ -325,6 +325,13 @@ protected:
             TTask::OnJobFailed(jip);
         }
 
+        virtual void OnJobAborted(TJobInProgressPtr jip) override
+        {
+            Controller->PartitionJobCounter.Abort(1);
+
+            TTask::OnJobAborted(jip);
+        }
+
         virtual void OnTaskCompleted() override
         {
             TTask::OnTaskCompleted();
@@ -583,6 +590,19 @@ protected:
             TPartitionBoundTask::OnJobFailed(jip);
         }
 
+        virtual void OnJobAborted(TJobInProgressPtr jip) override
+        {
+            Controller->SortDataSizeCounter.Abort(jip->PoolResult->TotalDataSize);
+
+            if (Controller->IsSortedMergeNeeded(Partition)) {
+                Controller->IntermediateSortJobCounter.Abort(1);
+            } else {
+                Controller->FinalSortJobCounter.Abort(1);
+            }
+
+            TPartitionBoundTask::OnJobAborted(jip);
+        }
+
         virtual void OnTaskCompleted() override
         {
             TPartitionBoundTask::OnTaskCompleted();
@@ -704,6 +724,13 @@ protected:
 
             TMergeTask::OnJobFailed(jip);
         }
+
+        virtual void OnJobAborted(TJobInProgressPtr jip) override
+        {
+            Controller->SortedMergeJobCounter.Abort(1);
+
+            TMergeTask::OnJobAborted(jip);
+        }
     };
 
     //! Implements unordered merge of megalomaniac partitions for sort operation.
@@ -808,6 +835,13 @@ protected:
             Controller->UnorderedMergeJobCounter.Failed(1);
 
             TMergeTask::OnJobFailed(jip);
+        }
+
+        virtual void OnJobAborted(TJobInProgressPtr jip) override
+        {
+            Controller->UnorderedMergeJobCounter.Abort(1);
+
+            TMergeTask::OnJobAborted(jip);
         }
     };
 

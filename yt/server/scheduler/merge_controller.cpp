@@ -205,6 +205,14 @@ protected:
             Controller->ChunkCounter.Failed(jip->PoolResult->TotalChunkCount);
             Controller->DataSizeCounter.Failed(jip->PoolResult->TotalDataSize);
         }
+
+        virtual void OnJobAborted(TJobInProgressPtr jip) override
+        {
+            TTask::OnJobAborted(jip);
+
+            Controller->ChunkCounter.Abort(jip->PoolResult->TotalChunkCount);
+            Controller->DataSizeCounter.Abort(jip->PoolResult->TotalDataSize);
+        }
     };
 
     typedef TIntrusivePtr<TMergeTask> TMergeTaskPtr;

@@ -26,10 +26,12 @@ public:
     i64 GetCompleted() const;
     i64 GetPending() const;
     i64 GetFailed() const;
+    i64 GetAborted() const;
 
     void Start(i64 count);
     void Completed(i64 count);
     void Failed(i64 count);
+    void Abort(i64 count);
 
     void ToYson(NYTree::IYsonConsumer* consumer) const;
 
@@ -40,6 +42,7 @@ private:
     i64 Completed_;
     i64 Pending_;
     i64 Failed_;
+    i64 Aborted_;
 
 };
 
