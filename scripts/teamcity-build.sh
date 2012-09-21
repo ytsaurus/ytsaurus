@@ -78,7 +78,8 @@ try_to_find_compiler() {
     fi
 }
 
-try_to_find_compiler "4.7"
+# TODO(sandello): Fix build under gcc-4.7.
+# try_to_find_compiler "4.7"
 try_to_find_compiler "4.6"
 try_to_find_compiler "4.5"
 
