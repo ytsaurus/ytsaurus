@@ -722,36 +722,44 @@ private:
     void OnJobRunning(TJobPtr job)
     {
         auto operation = job->GetOperation();
-        if (operation->GetState() == EOperationState::Running) {
+        if (job->GetState() == EJobState::Running &&
+            operation->GetState() == EOperationState::Running)
+        {
             operation->GetController()->OnJobRunning(job);
         }
     }
 
     void OnJobCompleted(TJobPtr job, NProto::TJobResult* result)
     {
-        job->SetState(EJobState::Completed);
-        job->Result().Swap(result);
+        if (job->GetState() == EJobState::Running) {
+            job->SetState(EJobState::Completed);
+            job->Result().Swap(result);
 
-        auto operation = job->GetOperation();
-        if (operation->GetState() == EOperationState::Running) {
-            operation->GetController()->OnJobCompleted(job);
+            auto operation = job->GetOperation();
+            if (operation->GetState() == EOperationState::Running) {
+                operation->GetController()->OnJobCompleted(job);
+            }
+
+            UpdateFinishedJobNode(job);
         }
-        
-        UpdateFinishedJobNode(job);
+
         UnregisterJob(job);
     }
 
     void OnJobFailed(TJobPtr job, NProto::TJobResult* result)
     {
-        job->SetState(EJobState::Failed);
-        job->Result().Swap(result);
+        if (job->GetState() == EJobState::Running) {
+            job->SetState(EJobState::Failed);
+            job->Result().Swap(result);
 
-        auto operation = job->GetOperation();
-        if (operation->GetState() == EOperationState::Running) {
-            operation->GetController()->OnJobFailed(job);
+            auto operation = job->GetOperation();
+            if (operation->GetState() == EOperationState::Running) {
+                operation->GetController()->OnJobFailed(job);
+            }
+
+            UpdateFinishedJobNode(job);
         }
-        
-        UpdateFinishedJobNode(job);
+
         UnregisterJob(job);
     }
 
