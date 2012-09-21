@@ -42,8 +42,7 @@ void BuildExecNodeAttributes(TExecNodePtr node, IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .Item("resource_utilization").Do(BIND(&BuildNodeResourcesYson, node->ResourceUtilization()))
-        .Item("resource_limits").Do(BIND(&BuildNodeResourcesYson, node->ResourceLimits()))
-        .Item("job_count").Scalar(static_cast<int>(node->Jobs().size()));
+        .Item("resource_limits").Do(BIND(&BuildNodeResourcesYson, node->ResourceLimits()));
 }
 
 ////////////////////////////////////////////////////////////////////
