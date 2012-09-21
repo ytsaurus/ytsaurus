@@ -63,17 +63,27 @@ if [[ ( $WITH_DEPLOY != "YES" ) && ( $WITH_DEPLOY != "NO" ) ]]; then
     exit 1
 fi
 
-if [[ -z "$CC" ]]; then
-    shout "C compiler is not specified; trying to find gcc-4.5..."
-    CC=$(which gcc-4.5)
-    shout "CC=$CC"
-fi
+try_to_find_compiler() {
+    local version="$1"
 
-if [[ -z "$CXX" ]]; then
-    shout "C++ compiler is not specified; trying to find g++-4.5..."
-    CXX=$(which g++-4.5)
-    shout "CXX=$CXX"
-fi
+    if [[ -z "$CC" ]]; then
+        shout "C compiler is not specified; trying to find gcc-${version}..."
+        CC=$(which gcc-${version})
+        shout "CC=$CC"
+    fi
+    if [[ -z "$CXX" ]]; then
+        shout "C++ compiler is not specified; trying to find g++-${version}..."
+        CXX=$(which g++-${version})
+        shout "CXX=$CXX"
+    fi
+}
+
+try_to_find_compiler "4.7"
+try_to_find_compiler "4.6"
+try_to_find_compiler "4.5"
+
+[[ -z "$CC"  ]] && shout "Unable to find proper C compiler; exiting..." && exit 1
+[[ -z "$CXX" ]] && shout "Unable to find proper C++ compiler; exiting..." && exit 1
 
 ################################################################################
 
@@ -116,7 +126,7 @@ tc "blockOpened name='make'"
 
 shout "Running make (1/2; fast)..."
 tc "progressMessage 'Running make (1/2; fast)...'"
-make -j 8 >/dev/null 2>/dev/null || true
+make -j $(cat /proc/cpuinfo | grep processor | wc -l) >/dev/null 2>/dev/null || true
 
 shout "Running make (2/2; slow)..."
 tc "progressMessage 'Running make (2/2; slow)...'"
