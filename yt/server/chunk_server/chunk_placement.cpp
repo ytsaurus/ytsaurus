@@ -72,7 +72,8 @@ std::vector<TDataNode*> TChunkPlacement::GetUploadTargets(
     std::vector<TDataNode*> resultNodes;
     resultNodes.reserve(count);
 
-    std::vector<TDataNode*> feasibleNodes;
+    typedef std::pair<TDataNode*, int> TFeasibleNode;
+    std::vector<TFeasibleNode> feasibleNodes;
     feasibleNodes.reserve(LoadFactorMap.size());
 
     TDataNode* preferredNode = NULL;
@@ -95,7 +96,7 @@ std::vector<TDataNode*> TChunkPlacement::GetUploadTargets(
             IsValidUploadTarget(node) &&
             (!forbiddenAddresses || forbiddenAddresses->find(node->GetAddress()) == forbiddenAddresses->end()))
         {
-            feasibleNodes.push_back(node);
+            feasibleNodes.push_back(std::make_pair(node, GetSessionCount(node)));
         }
     }
 
@@ -103,25 +104,31 @@ std::vector<TDataNode*> TChunkPlacement::GetUploadTargets(
     std::sort(
         feasibleNodes.begin(),
         feasibleNodes.end(),
-        [=] (TDataNode* lhs, TDataNode* rhs) {
-            return GetSessionCount(lhs) < GetSessionCount(rhs);
+        [=] (const TFeasibleNode& lhs, const TFeasibleNode& rhs) {
+            return lhs.second < rhs.second;
         });
 
     auto beginGroupIt = feasibleNodes.begin();
     while (beginGroupIt != feasibleNodes.end() && count > 0) {
         auto endGroupIt = beginGroupIt;
         int groupSize = 0;
-        while (endGroupIt != feasibleNodes.end() && GetSessionCount(*beginGroupIt) == GetSessionCount(*endGroupIt)) {
+        while (endGroupIt != feasibleNodes.end() && beginGroupIt->second == endGroupIt->second) {
             ++endGroupIt;
             ++groupSize;
         }
 
         int sampleCount = Min(count, groupSize);
+
+        std::vector<TFeasibleNode> currentResult;
         RandomSampleN(
             beginGroupIt,
             endGroupIt,
-            std::back_inserter(resultNodes),
+            std::back_inserter(currentResult),
             sampleCount);
+
+        FOREACH(auto &feasibleNode, currentResult) {
+            resultNodes.push_back(feasibleNode.first);
+        }
 
         beginGroupIt = endGroupIt;
         count -= sampleCount;
