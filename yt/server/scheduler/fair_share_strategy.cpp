@@ -118,12 +118,12 @@ public:
 
     virtual double GetWeight() const override
     {
-        return Spec->Weight;
+        return Spec_->Weight;
     }
 
     virtual double GetMinShareRatio() const override
     {
-        return Spec->MinShareRatio;
+        return Spec_->MinShareRatio;
     }
 
     virtual NProto::TNodeResources GetDemand() const override
@@ -147,7 +147,6 @@ public:
 
 private:
     ISchedulerStrategyHost* Host;
-    TPooledOperationSpecPtr Spec;
 
 
     void ComputeEffectiveLimits()
