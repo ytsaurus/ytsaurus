@@ -1321,10 +1321,7 @@ void TOperationControllerBase::OnChunkListsReleased(TObjectServiceProxy::TRspExe
 {
     if (!batchRsp->IsOK()) {
         LOG_WARNING(*batchRsp, "Error releasing chunk lists");
-        return;
     }
-
-    LOG_INFO("Chunk lists released");
 }
 
 std::vector<TRefCountedInputChunkPtr> TOperationControllerBase::CollectInputTablesChunks()
@@ -1529,9 +1526,9 @@ void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
             .Item("total").Scalar(CompletedJobCount + RunningJobCount + GetPendingJobCount())
             .Item("pending").Scalar(GetPendingJobCount())
             .Item("running").Scalar(RunningJobCount)
-
             .Item("completed").Scalar(CompletedJobCount)
             .Item("failed").Scalar(FailedJobCount)
+            .Item("aborted").Scalar(AbortedJobCount)
         .EndMap();
 }
 
