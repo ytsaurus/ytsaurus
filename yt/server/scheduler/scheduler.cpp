@@ -204,6 +204,9 @@ public:
     DEFINE_SIGNAL(void(TOperationPtr), OperationStarted);
     DEFINE_SIGNAL(void(TOperationPtr), OperationFinished);
 
+    DEFINE_SIGNAL(void(TJobPtr), JobStarted);
+    DEFINE_SIGNAL(void(TJobPtr), JobFinished);
+
     virtual void PreeemptJob(TJobPtr job) override
     {
         AbortJob(job, false, TError("Job preempted"));
@@ -661,6 +664,8 @@ private:
         YCHECK(Jobs.insert(MakePair(job->GetId(), job)).second);
         YCHECK(job->GetOperation()->Jobs().insert(job).second);
         YCHECK(job->GetNode()->Jobs().insert(job).second);
+
+        JobStarted_.Fire(job);
         
         LOG_DEBUG("Job registered (JobId: %s, OperationId: %s)",
             ~job->GetId().ToString(),
@@ -674,6 +679,8 @@ private:
         YCHECK(Jobs.erase(job->GetId()) == 1);
         YCHECK(job->GetOperation()->Jobs().erase(job) == 1);
         YCHECK(job->GetNode()->Jobs().erase(job) == 1);
+
+        JobFinished_.Fire(job);
 
         LOG_DEBUG("Job unregistered (JobId: %s, OperationId: %s)",
             ~job->GetId().ToString(),

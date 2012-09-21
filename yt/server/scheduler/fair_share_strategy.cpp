@@ -634,6 +634,9 @@ public:
         Host->SubscribeOperationStarted(BIND(&TFairShareStrategy::OnOperationStarted, this));
         Host->SubscribeOperationFinished(BIND(&TFairShareStrategy::OnOperationFinished, this));
 
+        Host->SubscribeJobStarted(BIND(&TFairShareStrategy::OnJobStarted, this));
+        Host->SubscribeJobFinished(BIND(&TFairShareStrategy::OnJobFinished, this));
+
         auto* masterConnector = Host->GetMasterConnector();
         masterConnector->SubscribeWatcherRequest(BIND(&TFairShareStrategy::OnPoolsRequest, this));
         masterConnector->SubscribeWatcherResponse(BIND(&TFairShareStrategy::OnPoolsResponse, this));
@@ -703,9 +706,14 @@ private:
 
     yhash_map<TOperationPtr, TOperationElementPtr> OperationToElement;
 
+    typedef std::list<TJobPtr> TJobList;
+    TJobList JobList;
+    yhash_map<TJobPtr, TJobList::iterator> JobToIterator;
+
     TRootElementPtr RootElement;
     TNullable<TInstant> LastUpdateTime;
     TNullable<TInstant> LastPreemptionCheckTime;
+
 
     void OnOperationStarted(TOperationPtr operation)
     {
@@ -756,6 +764,21 @@ private:
         LOG_INFO("Operation removed from pool (OperationId: %s, PoolId: %s)",
             ~ToString(operation->GetOperationId()),
             ~pool->GetId());
+    }
+
+
+    void OnJobStarted(TJobPtr job)
+    {
+        auto it = JobList.insert(JobList.begin(), job);
+        YCHECK(JobToIterator.insert(std::make_pair(job, it)).second);
+    }
+
+    void OnJobFinished(TJobPtr job)
+    {
+        auto it = JobToIterator.find(job);
+        YASSERT(it != JobToIterator.end());
+        JobList.erase(it->second);
+        JobToIterator.erase(it);
     }
 
 
@@ -970,8 +993,6 @@ private:
                     YUNREACHABLE();
             }
         }
-
-        std::list<TJobPtr> JobList;
 
         LOG_INFO("Started preempting jobs (ResourcesToPreempt: {%s})",
             ~FormatResources(resourcesToPreempt));
