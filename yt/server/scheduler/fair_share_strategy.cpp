@@ -186,6 +186,8 @@ private:
         EffectiveLimits_ = ZeroResources();
         auto quantum = Operation_->GetController()->GetMinNeededResources();
 
+        LOG_DEBUG("quantum: %s", ~FormatResources(quantum));
+
         // Sort jobs by node.
         std::vector<TJobPtr> jobs(Operation_->Jobs().begin(), Operation_->Jobs().end());
         std::sort(
