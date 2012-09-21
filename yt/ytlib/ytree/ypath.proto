@@ -5,6 +5,7 @@ package NYT.NYTree.NProto;
 message TReqGet
 {
     repeated string attributes = 1;
+    optional bool all_attributes = 2;
 }
 
 message TRspGet

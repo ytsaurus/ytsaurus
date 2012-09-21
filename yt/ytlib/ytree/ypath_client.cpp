@@ -292,9 +292,13 @@ void ExecuteVerb(IYPathServicePtr service, IServiceContextPtr context)
         }));
 }
 
-TFuture< TValueOrError<TYsonString> > AsyncYPathGet(IYPathServicePtr service, const TYPath& path)
+TFuture< TValueOrError<TYsonString> > AsyncYPathGet(
+    IYPathServicePtr service,
+    const TYPath& path,
+    bool allAttributes)
 {
     auto request = TYPathProxy::Get(path);
+    request->set_all_attributes(allAttributes);
     return
         ExecuteVerb(service, request)
             .Apply(BIND([] (TYPathProxy::TRspGetPtr response) {
@@ -305,9 +309,9 @@ TFuture< TValueOrError<TYsonString> > AsyncYPathGet(IYPathServicePtr service, co
             }));
 }
 
-TYsonString SyncYPathGet(IYPathServicePtr service, const TYPath& path)
+TYsonString SyncYPathGet(IYPathServicePtr service, const TYPath& path, bool allAttributes)
 {
-    auto result = AsyncYPathGet(service, path).Get();
+    auto result = AsyncYPathGet(service, path, allAttributes).Get();
     if (!result.IsOK()) {
         THROW_ERROR_EXCEPTION(result);
     }

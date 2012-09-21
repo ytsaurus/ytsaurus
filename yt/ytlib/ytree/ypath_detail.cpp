@@ -424,7 +424,7 @@ void TSupportsAttributes::GetAttribute(
             response->set_value(yson.Data());
         } else {
             INodePtr node = ConvertToNode(yson);
-            TYsonString value = SyncYPathGet(node, TYPath(tokenizer.CurrentInput()));
+            TYsonString value = SyncYPathGet(node, TYPath(tokenizer.CurrentInput()), true);
             response->set_value(value.Data());
         }
     }

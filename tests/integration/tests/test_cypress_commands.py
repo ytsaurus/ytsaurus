@@ -408,5 +408,15 @@ class TestCypressCommands(YTEnvSetup):
 
         # TODO(babenko): write this test
 
+    def test_embedded_attributes(self):
+        set("//tmp/a", {})
+        set("//tmp/a/@attr", {"key": "value"})
+        set("//tmp/a/@attr/key/@embedded_attr", "emb")
+        #print  get("//tmp/a/@attr")
+        #print  get("//tmp/a/@attr/key")
+        #print  get("//tmp/a/@attr/key/@embedded_attr")
+        assert get_str("//tmp/a/@attr") == '{"key"=<"embedded_attr"="emb">"value"}'
+        assert get_str("//tmp/a/@attr/key") == '<"embedded_attr"="emb">"value"'
+        assert get_str("//tmp/a/@attr/key/@embedded_attr") == '"emb"'
 
     

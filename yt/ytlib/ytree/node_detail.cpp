@@ -89,6 +89,8 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
 {
     TNullable< std::vector<Stroka> > attributesToVisit;
 
+    YCHECK(!(request->attributes_size() > 0 && request->all_attributes()));
+
     if (request->attributes_size() > 0) {
         attributesToVisit = NYT::FromProto<Stroka>(request->attributes());
         std::sort(attributesToVisit->begin(), attributesToVisit->end());
@@ -102,7 +104,7 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
 
     VisitTree(this,
         &writer,
-        attributesToVisit,
+        attributesToVisit || request->all_attributes(),
         attributesToVisit ? attributesToVisit.GetPtr() : NULL);
 
     response->set_value(stream.Str());

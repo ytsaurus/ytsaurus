@@ -154,10 +154,10 @@ TIntrusivePtr<typename TTypedRequest::TTypedResponse>
 SyncExecuteVerb(IYPathServicePtr service, TIntrusivePtr<TTypedRequest> request);
 
 //! Asynchronously executes |Get| verb. 
-TFuture< TValueOrError<TYsonString> > AsyncYPathGet(IYPathServicePtr service, const TYPath& path);
+TFuture< TValueOrError<TYsonString> > AsyncYPathGet(IYPathServicePtr service, const TYPath& path, bool allAttributes=false);
 
 //! Synchronously executes |Get| verb. Throws if an error has occurred.
-TYsonString SyncYPathGet(IYPathServicePtr service, const TYPath& path);
+TYsonString SyncYPathGet(IYPathServicePtr service, const TYPath& path, bool allAttributes=false);
 
 //! Synchronously executes |Set| verb. Throws if an error has occurred.
 void SyncYPathSet(IYPathServicePtr service, const TYPath& path, const TYsonString& value);
