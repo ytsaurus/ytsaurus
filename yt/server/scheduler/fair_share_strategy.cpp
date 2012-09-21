@@ -940,6 +940,7 @@ private:
     void CheckForPreemption()
     {
         auto resourcesToPreempt = ZeroResources();
+        bool preemptionNeeded = false;
         auto incrementResourcesToPreempt = [&] (TOperationElementPtr element, double desiredRatio) {
             auto pool = element->GetPool();
             auto operation = element->GetOperation();
@@ -951,6 +952,7 @@ private:
             i64 dominantQuantum = GetResource(quantum, attributes.DominantResource);
             i64 slotCount = static_cast<i64>(std::ceil(double(dominantDesiredLimit - dominantUtilization) / dominantQuantum));
             resourcesToPreempt += quantum * slotCount;
+            preemptionNeeded = true;
         };
 
         auto now = TInstant::Now();
@@ -993,6 +995,9 @@ private:
                     YUNREACHABLE();
             }
         }
+
+        if (!preemptionNeeded)
+            return;
 
         LOG_INFO("Started preempting jobs (ResourcesToPreempt: {%s})",
             ~FormatResources(resourcesToPreempt));
