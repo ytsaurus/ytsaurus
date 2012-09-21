@@ -106,7 +106,7 @@ public:
     virtual void EndScheduleJob(TJobPtr job) override
     {
         job->ResourceUtilization() = job->GetSpec()->resource_utilization();
-        AddResources(&job->GetNode()->ResourceUtilization(), job->ResourceUtilization());
+        job->GetNode()->ResourceUtilization() += job->ResourceUtilization();
     }
 
 private:
@@ -199,19 +199,30 @@ public:
         return operations;
     }
 
+
     // ISchedulerStrategyHost implementation
     DEFINE_SIGNAL(void(TOperationPtr), OperationStarted);
     DEFINE_SIGNAL(void(TOperationPtr), OperationFinished);
 
-    TMasterConnector* GetMasterConnector() override
+    virtual void PreeemptJob(TJobPtr job) override
+    {
+        AbortJob(job, false, TError("Job preempted"));
+
+        LOG_DEBUG("Job preempted (JobId: %s, OperationId: %s)",
+            ~job->GetId().ToString(),
+            ~job->GetOperation()->GetOperationId().ToString());
+    }
+
+    virtual TMasterConnector* GetMasterConnector() override
     {
         return ~MasterConnector;
     }
 
-    NProto::TNodeResources GetTotalResourceLimits() override
+    virtual NProto::TNodeResources GetTotalResourceLimits() override
     {
         return TotalResourceLimits;
     }
+
 
     // IOperationHost implementation
     virtual NRpc::IChannelPtr GetMasterChannel() override
@@ -377,8 +388,8 @@ private:
         auto node = New<TExecNode>(address);
         RegisterNode(node);
 
-        AddResources(&TotalResourceLimits, node->ResourceLimits());
-        AddResources(&TotalResourceUtilization, node->ResourceUtilization());
+        TotalResourceLimits += node->ResourceLimits();
+        TotalResourceUtilization += node->ResourceUtilization();
     }
 
     void OnNodeOffline(const Stroka& address)
@@ -390,8 +401,8 @@ private:
         auto node = GetNode(address);
         UnregisterNode(node);
 
-        SubtractResources(&TotalResourceLimits, node->ResourceLimits());
-        SubtractResources(&TotalResourceUtilization, node->ResourceUtilization());
+        TotalResourceLimits -= node->ResourceLimits();
+        TotalResourceUtilization -= node->ResourceUtilization();
     }
 
 
@@ -651,7 +662,7 @@ private:
         YCHECK(job->GetOperation()->Jobs().insert(job).second);
         YCHECK(job->GetNode()->Jobs().insert(job).second);
         
-        LOG_DEBUG("Registered job (JobId: %s, OperationId: %s)",
+        LOG_DEBUG("Job registered (JobId: %s, OperationId: %s)",
             ~job->GetId().ToString(),
             ~job->GetOperation()->GetOperationId().ToString());
     }
@@ -664,7 +675,7 @@ private:
         YCHECK(job->GetOperation()->Jobs().erase(job) == 1);
         YCHECK(job->GetNode()->Jobs().erase(job) == 1);
 
-        LOG_DEBUG("Unregistered job (JobId: %s, OperationId: %s)",
+        LOG_DEBUG("Job unregistered (JobId: %s, OperationId: %s)",
             ~job->GetId().ToString(),
             ~job->GetOperation()->GetOperationId().ToString());
     }
@@ -1067,8 +1078,8 @@ private:
             return;
         }
 
-        SubtractResources(&TotalResourceLimits, node->ResourceLimits());
-        SubtractResources(&TotalResourceUtilization, node->ResourceUtilization());
+        TotalResourceLimits -= node->ResourceLimits();
+        TotalResourceUtilization -= node->ResourceUtilization();
 
         node->ResourceLimits() = resourceLimits;
         node->ResourceUtilization() = resourceUtilization;
@@ -1119,8 +1130,8 @@ private:
             }
         }
 
-        AddResources(&TotalResourceLimits, node->ResourceLimits());
-        AddResources(&TotalResourceUtilization, node->ResourceUtilization());
+        TotalResourceLimits += node->ResourceLimits();
+        TotalResourceUtilization += node->ResourceUtilization();
 
         context->Reply();
     }

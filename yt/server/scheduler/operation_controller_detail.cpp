@@ -65,20 +65,15 @@ TNodeResources TOperationControllerBase::TTask::GetTotalNeededResourcesDelta()
     auto oldValue = CachedTotalNeededResources;
     auto newValue = GetTotalNeededResources();
     CachedTotalNeededResources = newValue;
-    SubtractResources(&newValue, oldValue);
+    newValue -= oldValue;
     return newValue;
 }
 
 TNodeResources TOperationControllerBase::TTask::GetTotalNeededResources() const
 {
-    int count = GetPendingJobCount();
-    if (count == 0) {
-        return ZeroResources();
-    }
-
-    auto resources = GetAvgNeededResources();
-    MultiplyResources(&resources, count);
-    return resources;
+    i64 count = GetPendingJobCount();
+    // NB: Don't call GetAvgNeededResources if there are no pending jobs.
+    return count == 0 ? ZeroResources() : GetAvgNeededResources() * count;
 }
 
 i64 TOperationControllerBase::TTask::GetLocality(const Stroka& address) const
@@ -439,7 +434,7 @@ TFuture<void> TOperationControllerBase::Commit()
 
 void TOperationControllerBase::OnJobStarted(TJobPtr job)
 {
-    AddResources(&UsedResources, job->ResourceUtilization());
+    UsedResources += job->ResourceUtilization();
 }
 
 void TOperationControllerBase::OnJobRunning(TJobPtr job)
@@ -454,7 +449,7 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
     --RunningJobCount;
     ++CompletedJobCount;
 
-    SubtractResources(&UsedResources, job->ResourceUtilization());
+    UsedResources -= job->ResourceUtilization();
 
     auto jip = GetJobInProgress(job);
     jip->Task->OnJobCompleted(jip);
@@ -479,7 +474,7 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
     --RunningJobCount;
     ++FailedJobCount;
 
-    SubtractResources(&UsedResources, job->ResourceUtilization());
+    UsedResources -= job->ResourceUtilization();
 
     auto jip = GetJobInProgress(job);
     jip->Task->OnJobFailed(jip);
@@ -505,7 +500,7 @@ void TOperationControllerBase::OnJobAborted(TJobPtr job)
     --RunningJobCount;
     ++AbortedJobCount;
 
-    SubtractResources(&UsedResources, job->ResourceUtilization());
+    UsedResources -= job->ResourceUtilization();
 
     auto jip = GetJobInProgress(job);
     jip->Task->OnJobAborted(jip);
@@ -592,7 +587,7 @@ void TOperationControllerBase::OnTaskUpdated(TTaskPtr task)
     int newJobCount = CachedPendingJobCount + task->GetPendingJobCountDelta();
     CachedPendingJobCount = newJobCount;
 
-    AddResources(&CachedNeededResources, task->GetTotalNeededResourcesDelta());
+    CachedNeededResources += task->GetTotalNeededResourcesDelta();
 
     LOG_DEBUG_IF(newJobCount != oldJobCount, "Pending job count updated (Task: %s, Count: %d -> %d, NeededResources: {%s})",
         ~task->GetId(),

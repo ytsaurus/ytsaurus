@@ -27,21 +27,19 @@ Stroka FormatResourceUtilization(
 Stroka FormatResources(
     const NProto::TNodeResources& resources);
 
-void AddResources(
-    NProto::TNodeResources* lhs,
-    const NProto::TNodeResources& rhs);
+NProto::TNodeResources  operator +  (const NProto::TNodeResources& lhs, const NProto::TNodeResources& rhs);
+NProto::TNodeResources& operator += (NProto::TNodeResources& lhs, const NProto::TNodeResources& rhs);
+NProto::TNodeResources& operator -= (NProto::TNodeResources& lhs, const NProto::TNodeResources& rhs);
 
-void SubtractResources(
-    NProto::TNodeResources* lhs,
-    const NProto::TNodeResources& rhs);
+NProto::TNodeResources  operator *  (const NProto::TNodeResources& lhs, i64 rhs);
+NProto::TNodeResources  operator *  (const NProto::TNodeResources& lhs, double rhs);
+NProto::TNodeResources& operator *= (NProto::TNodeResources& lhs, i64 rhs);
+NProto::TNodeResources& operator *= (NProto::TNodeResources& lhs, double rhs);
 
-void MultiplyResources(
-    NProto::TNodeResources* lhs,
-    int rhs);
+bool Dominates(const NProto::TNodeResources& lhs, const NProto::TNodeResources& rhs);
 
-void MultiplyResources(
-    NProto::TNodeResources* lhs,
-    double rhs);
+NProto::TNodeResources Max(const NProto::TNodeResources& a, const NProto::TNodeResources& b);
+NProto::TNodeResources Min(const NProto::TNodeResources& a, const NProto::TNodeResources& b);
 
 EResourceType GetDominantResource(
     const NProto::TNodeResources& demand,

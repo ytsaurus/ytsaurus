@@ -17,15 +17,24 @@ struct TFairShareStrategyConfig
     : public TYsonSerializable
 {
     TDuration FairShareUpdatePeriod;
+    TDuration PreemptionCheckPeriod;
     double FairShareStarvationFactor;
+    TDuration MinSharePreemptionTimeout;
+    TDuration FairSharePreemptionTimeout;
 
     TFairShareStrategyConfig()
     {
         Register("fair_share_update_period", FairShareUpdatePeriod)
             .Default(TDuration::MilliSeconds(1000));
+        Register("preemption_check_period", PreemptionCheckPeriod)
+            .Default(TDuration::Seconds(15));
         Register("fair_share_starvation_factor", FairShareStarvationFactor)
             .InRange(0.0, 1.0)
             .Default(0.7);
+        Register("min_share_preemption_timeout", MinSharePreemptionTimeout)
+            .Default(TDuration::Seconds(15));
+        Register("fair_share_preemption_timeout", FairSharePreemptionTimeout)
+            .Default(TDuration::Seconds(30));
     }
 };
 

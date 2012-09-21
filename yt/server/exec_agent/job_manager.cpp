@@ -98,7 +98,7 @@ TNodeResources TJobManager::GetResourceUtilization()
     auto totalUtilization = ZeroResources();
     FOREACH (const auto& pair, Jobs) {
         auto jobUtilization = pair.second->GetResourceUtilization();
-        AddResources(&totalUtilization, jobUtilization);
+        totalUtilization += jobUtilization;
     }
 
     totalUtilization.set_memory(Bootstrap->GetMemoryUsageTracker().GetUsedMemory());

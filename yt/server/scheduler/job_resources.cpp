@@ -51,44 +51,98 @@ Stroka FormatResources(const TNodeResources& resources)
         resources.network());
 }
 
-void AddResources(
-    TNodeResources* lhs,
-    const TNodeResources& rhs)
+TNodeResources operator + (const TNodeResources& lhs, const TNodeResources& rhs)
 {
-    lhs->set_slots(lhs->slots() + rhs.slots());
-    lhs->set_cpu(lhs->cpu() + rhs.cpu());
-    lhs->set_memory(lhs->memory() + rhs.memory());
-    lhs->set_network(lhs->network() + rhs.network());
+    TNodeResources result;
+    result.set_slots(lhs.slots() + rhs.slots());
+    result.set_cpu(lhs.cpu() + rhs.cpu());
+    result.set_memory(lhs.memory() + rhs.memory());
+    result.set_network(lhs.network() + rhs.network());
+    return result;
 }
 
-void SubtractResources(
-    TNodeResources* lhs,
-    const TNodeResources& rhs)
+TNodeResources& operator += (TNodeResources& lhs, const TNodeResources& rhs)
 {
-    lhs->set_slots(lhs->slots() - rhs.slots());
-    lhs->set_cpu(lhs->cpu() - rhs.cpu());
-    lhs->set_memory(lhs->memory() - rhs.memory());
-    lhs->set_network(lhs->network() - rhs.network());
+    lhs.set_slots(lhs.slots() + rhs.slots());
+    lhs.set_cpu(lhs.cpu() + rhs.cpu());
+    lhs.set_memory(lhs.memory() + rhs.memory());
+    lhs.set_network(lhs.network() + rhs.network());
+    return lhs;
 }
 
-void MultiplyResources(
-    TNodeResources* lhs,
-    int rhs)
+TNodeResources& operator -= (TNodeResources& lhs, const TNodeResources& rhs)
 {
-    lhs->set_slots(lhs->slots() * rhs);
-    lhs->set_cpu(lhs->cpu() * rhs);
-    lhs->set_memory(lhs->memory() * rhs);
-    lhs->set_network(lhs->network() * rhs);
+    lhs.set_slots(lhs.slots() - rhs.slots());
+    lhs.set_cpu(lhs.cpu() - rhs.cpu());
+    lhs.set_memory(lhs.memory() - rhs.memory());
+    lhs.set_network(lhs.network() - rhs.network());
+    return lhs;
 }
 
-void MultiplyResources(
-    TNodeResources* lhs,
-    double rhs)
+TNodeResources operator * (const TNodeResources& lhs, i64 rhs)
 {
-    lhs->set_slots(static_cast<int>(lhs->slots() * rhs));
-    lhs->set_cpu(static_cast<int>(lhs->cpu() * rhs));
-    lhs->set_memory(static_cast<i64>(lhs->memory() * rhs));
-    lhs->set_network(static_cast<int>(lhs->network() * rhs));
+    TNodeResources result;
+    result.set_slots(lhs.slots() * rhs);
+    result.set_cpu(lhs.cpu() * rhs);
+    result.set_memory(lhs.memory() * rhs);
+    result.set_network(lhs.network() * rhs);
+    return result;
+}
+
+TNodeResources operator * (const TNodeResources& lhs, double rhs)
+{
+    TNodeResources result;
+    result.set_slots(static_cast<int>(lhs.slots() * rhs));
+    result.set_cpu(static_cast<int>(lhs.cpu() * rhs));
+    result.set_memory(static_cast<i64>(lhs.memory() * rhs));
+    result.set_network(static_cast<int>(lhs.network() * rhs));
+    return result;
+}
+
+TNodeResources& operator *= (TNodeResources& lhs, i64 rhs)
+{
+    lhs.set_slots(lhs.slots() * rhs);
+    lhs.set_cpu(lhs.cpu() * rhs);
+    lhs.set_memory(lhs.memory() * rhs);
+    lhs.set_network(lhs.network() * rhs);
+    return lhs;
+}
+
+TNodeResources& operator *= (TNodeResources& lhs, double rhs)
+{
+    lhs.set_slots(static_cast<int>(lhs.slots() * rhs));
+    lhs.set_cpu(static_cast<int>(lhs.cpu() * rhs));
+    lhs.set_memory(static_cast<i64>(lhs.memory() * rhs));
+    lhs.set_network(static_cast<int>(lhs.network() * rhs));
+    return lhs;
+}
+
+bool Dominates(const NProto::TNodeResources& lhs, const NProto::TNodeResources& rhs)
+{
+    return lhs.slots() >= rhs.slots() &&
+           lhs.cpu() >= rhs.cpu() &&
+           lhs.memory() >= rhs.memory() &&
+           lhs.network() >= rhs.network();
+}
+
+TNodeResources Max(const TNodeResources& a, const TNodeResources& b)
+{
+    TNodeResources result;
+    result.set_slots(std::max(a.slots(), b.slots()));
+    result.set_cpu(std::max(a.cpu(), b.cpu()));
+    result.set_memory(std::max(a.memory(), b.memory()));
+    result.set_network(std::max(a.network(), b.network()));
+    return result;
+}
+
+TNodeResources Min(const TNodeResources& a, const TNodeResources& b)
+{
+    TNodeResources result;
+    result.set_slots(std::min(a.slots(), b.slots()));
+    result.set_cpu(std::min(a.cpu(), b.cpu()));
+    result.set_memory(std::min(a.memory(), b.memory()));
+    result.set_network(std::min(a.network(), b.network()));
+    return result;
 }
 
 EResourceType GetDominantResource(

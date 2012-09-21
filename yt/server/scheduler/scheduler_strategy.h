@@ -21,6 +21,8 @@ struct ISchedulerStrategyHost
     DECLARE_INTERFACE_SIGNAL(void(TOperationPtr), OperationStarted);
     DECLARE_INTERFACE_SIGNAL(void(TOperationPtr), OperationFinished);
 
+    virtual void PreeemptJob(TJobPtr job) = 0;
+
     virtual TMasterConnector* GetMasterConnector() = 0;
 
     virtual NProto::TNodeResources GetTotalResourceLimits() = 0;

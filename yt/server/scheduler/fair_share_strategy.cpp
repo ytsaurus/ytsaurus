@@ -84,19 +84,19 @@ class TOperationElement
 public:
     explicit TOperationElement(ISchedulerStrategyHost* host, TOperationPtr operation)
         : Host(host)
-        , Operation(operation)
-        , Pool(NULL)
-        , EffectiveLimits(ZeroResources())
+        , Operation_(operation)
+        , Pool_(NULL)
+        , EffectiveLimits_(ZeroResources())
     { }
 
 
     virtual void ScheduleJobs(ISchedulingContext* context) override
     {
         while (context->HasSpareResources()) {
-            if (Operation->GetState() != EOperationState::Running) {
+            if (Operation_->GetState() != EOperationState::Running) {
                 break;
             }
-            auto job = Operation->GetController()->ScheduleJob(context);
+            auto job = Operation_->GetController()->ScheduleJob(context);
             if (!job) {
                 break;
             }
@@ -113,7 +113,7 @@ public:
 
     virtual TInstant GetStartTime() const override
     {
-        return Operation->GetStartTime();
+        return Operation_->GetStartTime();
     }
 
     virtual double GetWeight() const override
@@ -128,69 +128,40 @@ public:
 
     virtual NProto::TNodeResources GetDemand() const override
     {
-        auto controller = Operation->GetController();
-        auto result = controller->GetUsedResources();
-        AddResources(&result, controller->GetNeededResources());
-        return result;
+        auto controller = Operation_->GetController();
+        return controller->GetUsedResources() + controller->GetNeededResources();
     }
 
     virtual NProto::TNodeResources GetUtilization() const override
     {
-        auto controller = Operation->GetController();
+        auto controller = Operation_->GetController();
         return controller->GetUsedResources();
     }
 
-
-    const NProto::TNodeResources& GetEffectiveLimits() const
-    {
-        return EffectiveLimits;
-    }
-
-
-    TPooledOperationSpecPtr GetSpec() const
-    {
-        return Spec;
-    }
-
-    void SetSpec(TPooledOperationSpecPtr newSpec)
-    {
-        Spec = newSpec;
-    }
-
-
-    TPoolPtr GetPool() const
-    {
-        return Pool;
-    }
-
-    void SetPool(TPoolPtr pool)
-    {
-        Pool = ~pool;
-    }
-
+    DEFINE_BYVAL_RO_PROPERTY(TOperationPtr, Operation);
+    DEFINE_BYREF_RO_PROPERTY(NProto::TNodeResources, EffectiveLimits);
+    DEFINE_BYVAL_RW_PROPERTY(TPooledOperationSpecPtr, Spec);
+    DEFINE_BYVAL_RW_PROPERTY(TPool*, Pool);
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, StarvingForMinShareSince);
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, StarvingForFairShareSince);
 
 private:
     ISchedulerStrategyHost* Host;
-    TOperationPtr Operation;
-
-    TPool* Pool;
     TPooledOperationSpecPtr Spec;
-
-    NProto::TNodeResources EffectiveLimits;
 
 
     void ComputeEffectiveLimits()
     {
-        if (Operation->GetState() != EOperationState::Running) {
-            EffectiveLimits = Host->GetTotalResourceLimits();
+        if (Operation_->GetState() != EOperationState::Running) {
+            EffectiveLimits_ = Host->GetTotalResourceLimits();
             return;
         }
 
-        EffectiveLimits = ZeroResources();
-        auto quantum = Operation->GetController()->GetMinNeededResources();
+        EffectiveLimits_ = ZeroResources();
+        auto quantum = Operation_->GetController()->GetMinNeededResources();
 
         // Sort jobs by node.
-        std::vector<TJobPtr> jobs(Operation->Jobs().begin(), Operation->Jobs().end());
+        std::vector<TJobPtr> jobs(Operation_->Jobs().begin(), Operation_->Jobs().end());
         std::sort(
             jobs.begin(),
             jobs.end(),
@@ -215,9 +186,7 @@ private:
             while (nodeIt != nodes.end() && (jobGroupBeginIt == jobs.end() || *nodeIt < (*jobGroupBeginIt)->GetNode())) {
                 // Node without jobs.
                 const auto& node = *nodeIt;
-                AddResources(
-                    &EffectiveLimits,
-                    NScheduler::ComputeEffectiveLimits(node->ResourceLimits(), quantum));
+                EffectiveLimits_ += NScheduler::ComputeEffectiveLimits(node->ResourceLimits(), quantum);
                 ++nodeIt;
             }
 
@@ -228,12 +197,10 @@ private:
                 auto nodeLimits = node->ResourceLimits();
                 for (auto jobGroupIt = jobGroupBeginIt; jobGroupIt != jobGroupEndIt; ++jobGroupIt) {
                     const auto& job = *jobGroupIt;
-                    SubtractResources(&nodeLimits, job->ResourceUtilization());
-                    AddResources(&EffectiveLimits, job->ResourceUtilization());
+                    nodeLimits -= job->ResourceUtilization();
+                    EffectiveLimits_ += job->ResourceUtilization();
                 }
-                AddResources(
-                    &EffectiveLimits,
-                    NScheduler::ComputeEffectiveLimits(nodeLimits, quantum));
+                EffectiveLimits_ += NScheduler::ComputeEffectiveLimits(nodeLimits, quantum);
                 ++nodeIt;
             }
 
@@ -282,8 +249,7 @@ public:
     virtual void Update(double limitsRatio) override
     {
         LimitsRatio = limitsRatio;
-        Limits = Host->GetTotalResourceLimits();
-        MultiplyResources(&Limits, limitsRatio);
+        Limits = Host->GetTotalResourceLimits() * limitsRatio;
 
         ComputeFairShares();
     }
@@ -618,7 +584,7 @@ public:
     {
         auto result = ZeroResources();
         FOREACH (const auto& pair, Children) {
-            AddResources(&result, pair.second.Element->GetDemand());
+            result += pair.second.Element->GetDemand();
         }
         return result;
     }
@@ -627,7 +593,7 @@ public:
     {
         auto result = ZeroResources();
         FOREACH (const auto& pair, Children) {
-            AddResources(&result, pair.second.Element->GetUtilization());
+            result += pair.second.Element->GetUtilization();
         }
         return result;
     }
@@ -681,12 +647,21 @@ public:
     virtual void ScheduleJobs(ISchedulingContext* context) override
     {
         auto now = TInstant::Now();
+
         if (!LastUpdateTime || now > LastUpdateTime.Get() + Config->FairShareUpdatePeriod) {
             PROFILE_TIMING ("/fair_share_update_time") {
                 RootElement->Update(1.0);
             }
             LastUpdateTime = now;
         }
+        
+        if (!LastPreemptionCheckTime || now > LastPreemptionCheckTime.Get() + Config->PreemptionCheckPeriod) {
+            PROFILE_TIMING ("/preemption_check_time") {
+                CheckForPreemption();
+            }
+            LastPreemptionCheckTime = now;
+        }
+
         return RootElement->ScheduleJobs(context);
     }
 
@@ -698,7 +673,7 @@ public:
         BuildYsonMapFluently(consumer)
             .Item("pool").Scalar(pool->GetId())
             .Item("start_time").Scalar(element->GetStartTime())
-            .Item("effective_resource_limits").Do(BIND(&BuildNodeResourcesYson, element->GetEffectiveLimits()))
+            .Item("effective_resource_limits").Do(BIND(&BuildNodeResourcesYson, element->EffectiveLimits()))
             .Item("fair_share_status").Scalar(GetOperationStatus(element))
             .Do(BIND(&TFairShareStrategy::BuildElementYson, pool, element));
     }
@@ -730,6 +705,7 @@ private:
 
     TRootElementPtr RootElement;
     TNullable<TInstant> LastUpdateTime;
+    TNullable<TInstant> LastPreemptionCheckTime;
 
     void OnOperationStarted(TOperationPtr operation)
     {
@@ -799,7 +775,7 @@ private:
         auto children = pool->GetChildren();
         FOREACH (auto child, children) {
             auto* operationElement = dynamic_cast<TOperationElement*>(~child);
-            operationElement->SetPool(DefaultPool);
+            operationElement->SetPool(~DefaultPool);
             DefaultPool->AddChild(operationElement);
         }
 
@@ -918,7 +894,7 @@ private:
         }
 
         i64 utilization = GetResource(element->GetUtilization(), attributes.DominantResource);
-        i64 limits = GetResource(element->GetEffectiveLimits(), attributes.DominantResource);
+        i64 limits = GetResource(element->EffectiveLimits(), attributes.DominantResource);
         double utilizationRatio = limits == 0 ? 1.0 : (double) utilization / limits;
 
         if (utilizationRatio < attributes.AdjustedMinShareRatio) {
@@ -930,6 +906,93 @@ private:
         }
 
         return EOperationStatus::Normal;
+    }
+
+    EOperationStatus GetOperationStatus(TOperationPtr operation)
+    {
+        return GetOperationStatus(GetOperationElement(operation));
+    }
+
+
+    void CheckForPreemption()
+    {
+        auto resourcesToPreempt = ZeroResources();
+        auto incrementResourcesToPreempt = [&] (TOperationElementPtr element, double desiredRatio) {
+            auto pool = element->GetPool();
+            auto operation = element->GetOperation();
+            auto controller = operation->GetController();
+            const auto& attributes = pool->GetChildAttributes(element);
+            i64 dominantDesiredLimit = GetResource(element->EffectiveLimits() * desiredRatio, attributes.DominantResource);
+            i64 dominantUtilization = GetResource(element->GetUtilization(), attributes.DominantResource);
+            auto quantum = controller->GetMinNeededResources();
+            i64 dominantQuantum = GetResource(quantum, attributes.DominantResource);
+            i64 slotCount = static_cast<i64>(std::ceil(double(dominantDesiredLimit - dominantUtilization) / dominantQuantum));
+            resourcesToPreempt += quantum * slotCount;
+        };
+
+        auto now = TInstant::Now();
+        FOREACH (const auto& pair, OperationToElement) {
+            auto operation = pair.first;
+            auto element = pair.second;
+            auto status = GetOperationStatus(element);
+            const auto& attributes = element->GetPool()->GetChildAttributes(element);
+
+            switch (status) {
+                case EOperationStatus::StarvingForMinShare:
+                    if (!element->GetStarvingForMinShareSince()) {
+                        element->SetStarvingForMinShareSince(now);
+                    } else if (element->GetStarvingForMinShareSince().Get() < now - Config->MinSharePreemptionTimeout) {
+                        incrementResourcesToPreempt(element, attributes.AdjustedMinShareRatio);
+                        LOG_INFO("Min share starvation timeout (OpertionId: %s, Since: %s)",
+                            ~ToString(operation->GetOperationId()),
+                            ~ToString(element->GetStarvingForMinShareSince().Get()));
+                    }
+                    break;
+
+                case EOperationStatus::StarvingForFairShare:
+                    if (!element->GetStarvingForFairShareSince()) {
+                        element->SetStarvingForFairShareSince(now);
+                    } else if (element->GetStarvingForFairShareSince().Get() < now - Config->FairSharePreemptionTimeout) {
+                        incrementResourcesToPreempt(element, attributes.FairShareRatio);
+                        LOG_INFO("Fair share starvation timeout (OpertionId: %s, Since: %s)",
+                            ~ToString(operation->GetOperationId()),
+                            ~ToString(element->GetStarvingForFairShareSince().Get()));
+                    }
+                    element->SetStarvingForMinShareSince(Null);
+                    break;
+
+                case EOperationStatus::Normal:
+                    element->SetStarvingForMinShareSince(Null);
+                    element->SetStarvingForFairShareSince(Null);
+                    break;
+
+                default:
+                    YUNREACHABLE();
+            }
+        }
+
+        std::list<TJobPtr> JobList;
+
+        LOG_INFO("Started preempting jobs (ResourcesToPreempt: {%s})",
+            ~FormatResources(resourcesToPreempt));
+
+        auto resourcesPreempted = ZeroResources();
+        FOREACH (auto job, JobList) {
+            if (Dominates(resourcesPreempted, resourcesToPreempt)) {
+                break;
+            }
+            auto operation = job->GetOperation();
+            if (job->GetState() == EJobState::Running &&
+                operation->GetState() == EOperationState::Running &&
+                GetOperationStatus(operation) == EOperationStatus::Normal)
+            {
+                resourcesPreempted += job->ResourceUtilization();
+                Host->PreeemptJob(job);
+            }
+        }
+
+        LOG_INFO("Finished preempting jobs (ResourcesPreempted: {%s})",
+            ~FormatResources(resourcesPreempted));
     }
 
 
