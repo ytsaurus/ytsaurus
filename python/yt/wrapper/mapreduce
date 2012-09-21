@@ -1,4 +1,4 @@
-:!/usr/bin/env python
+#!/usr/bin/env python
 
 # Options that not yet implemented:
 # -fs
@@ -13,6 +13,7 @@ import yt.wrapper.config as config
 from yt.wrapper.common import flatten, unlist
 import yt.wrapper as yt
 
+import os
 import sys
 import traceback
 import simplejson as json
@@ -275,6 +276,10 @@ Examples:
         config.PROXY = args.server
     if args.prefix is not None:
         config.PREFIX = args.prefix
+    if "YT_PROXY" in os.environ:
+        config.PROXY = os.environ["YT_PROXY"]
+    if "YT_PREFIX" in os.environ:
+        config.PREFIX = os.environ["YT_PREFIX"]
 
     spec = {}
     if args.jobcount is not None:
