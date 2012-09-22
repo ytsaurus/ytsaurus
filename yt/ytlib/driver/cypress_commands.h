@@ -257,6 +257,35 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TExistsRequest
+    : public TTransactedRequest
+{
+    NYTree::TRichYPath Path;
+
+    TExistsRequest()
+    {
+        Register("path", Path);
+    }
+};
+
+typedef TIntrusivePtr<TExistsRequest> TExistsRequestPtr;
+
+class TExistsCommand
+    : public TTransactedCommandBase<TExistsRequest>
+{
+public:
+    explicit TExistsCommand(ICommandContext* context)
+        : TTransactedCommandBase(context)
+        , TUntypedCommandBase(context)
+   { }
+
+private:
+    virtual void DoExecute() override;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT
 

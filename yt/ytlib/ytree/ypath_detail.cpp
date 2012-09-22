@@ -166,6 +166,7 @@ IMPLEMENT_SUPPORTS_VERB(Get)
 IMPLEMENT_SUPPORTS_VERB(Set)
 IMPLEMENT_SUPPORTS_VERB(List)
 IMPLEMENT_SUPPORTS_VERB(Remove)
+IMPLEMENT_SUPPORTS_VERB(Exists)
 
 #undef THROW_VERB_NOT_SUPPORTED
 #undef IMPLEMENT_SUPPORTS_VERB
@@ -174,7 +175,7 @@ IMPLEMENT_SUPPORTS_VERB(Remove)
 
 namespace {
 
-TYsonString DoGetAttribute(
+TValueOrError<TYsonString> DoGetAttribute(
     IAttributeDictionary* userAttributes,
     ISystemAttributeProvider* systemAttributeProvider,
     const Stroka& key,
@@ -192,13 +193,16 @@ TYsonString DoGetAttribute(
     }
 
     if (!userAttributes) {
-        THROW_ERROR_EXCEPTION("User attributes are not supported");
+        return TError("User attributes are not supported");
     }
 
     if (isSystem) {
         *isSystem = false;
     }
 
+    if (!userAttributes->FindYson(key)) {
+        return TError("There is no key %s in attributes", ~key);
+    }
     return userAttributes->GetYson(key);
 }
 
@@ -369,7 +373,8 @@ IYPathService::TResolveResult TSupportsAttributes::ResolveAttributes(
     if (verb != "Get" &&
         verb != "Set" &&
         verb != "List" &&
-        verb != "Remove")
+        verb != "Remove" &&
+        verb != "Exists")
     {
         THROW_ERROR_EXCEPTION(
             EErrorCode::NoSuchVerb,
@@ -423,12 +428,12 @@ void TSupportsAttributes::GetAttribute(
 
         response->set_value(stream.Str());
     } else {
-        TYsonString yson =
+        auto yson =
             DoGetAttribute(
                 userAttributes,
                 systemAttributeProvider,
-                Stroka(tokenizer.CurrentToken().GetStringValue()));
-
+                Stroka(tokenizer.CurrentToken().GetStringValue()))
+                    .GetOrThrow();
         if (!tokenizer.ParseNext()) {
             response->set_value(yson.Data());
         } else {
@@ -461,11 +466,47 @@ void TSupportsAttributes::ListAttribute(
             DoGetAttribute(
                 userAttributes,
                 systemAttributeProvider,
-                Stroka(tokenizer.CurrentToken().GetStringValue())));
+                Stroka(tokenizer.CurrentToken().GetStringValue())).GetOrThrow());
         keys = SyncYPathList(node, TYPath(tokenizer.GetCurrentSuffix()));
     }
 
     response->set_keys(ConvertToYsonString(keys).Data());
+    context->Reply();
+}
+
+void TSupportsAttributes::ExistsAttribute(
+    const TYPath& path,
+    TReqExists* request,
+    TRspExists* response,
+    TCtxExists* context)
+{
+    UNUSED(request);
+    UNUSED(response);
+
+    auto userAttributes = GetUserAttributes();
+    auto systemAttributeProvider = GetSystemAttributeProvider();
+
+    bool result = true;
+    TTokenizer tokenizer(path);
+    if (tokenizer.ParseNext()) {
+        auto yson =
+            DoGetAttribute(
+                userAttributes,
+                systemAttributeProvider,
+                Stroka(tokenizer.CurrentToken().GetStringValue()));
+        if (!yson.IsOK()) {
+            result = false;
+        }
+        else {
+            if (tokenizer.ParseNext()) {
+                result = SyncYPathExists(
+                    ConvertToNode(yson.GetOrThrow()),
+                    TYPath(tokenizer.CurrentInput()));
+            }
+        }
+    }
+    response->set_value(result);
+
     context->Reply();
 }
 
@@ -541,7 +582,7 @@ void TSupportsAttributes::SetAttribute(
                     userAttributes,
                     systemAttributeProvider,
                     key,
-                    &isSystem);
+                    &isSystem).GetOrThrow();
             INodePtr node = ConvertToNode(yson);
             SyncYPathSet(node, TYPath(tokenizer.CurrentInput()), TYsonString(request->value()));
             TYsonString updatedYson = ConvertToYsonString(~node);
@@ -599,7 +640,7 @@ void TSupportsAttributes::RemoveAttribute(
                 userAttributes,
                 systemAttributeProvider,
                 key,
-                &isSystem);
+                &isSystem).GetOrThrow();
             auto node = ConvertToNode(yson);
             SyncYPathRemove(node, TYPath(tokenizer.CurrentInput()));
             auto updatedYson = ConvertToYsonString(~node);

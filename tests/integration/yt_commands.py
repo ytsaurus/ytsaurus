@@ -102,6 +102,10 @@ def copy(source_path, destination_path, **kw):
 def move(source_path, destination_path, **kw):
     return command('move', source_path, destination_path, **kw)
 
+def exists(path, **kw):
+    res = command('exists', path, **kw)
+    return yson2py(res)
+
 def read_str(path, **kw):
     return command('read', path, **kw)
 

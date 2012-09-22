@@ -60,6 +60,7 @@ public:
         RegisterExecutor(New<TLockExecutor>());
         RegisterExecutor(New<TCopyExecutor>());
         RegisterExecutor(New<TMoveExecutor>());
+        RegisterExecutor(New<TExistsExecutor>());
 
         RegisterExecutor(New<TDownloadExecutor>());
         RegisterExecutor(New<TUploadExecutor>());

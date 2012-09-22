@@ -196,5 +196,24 @@ void TMoveCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TExistsCommand::DoExecute()
+{
+    TObjectServiceProxy proxy(Context->GetMasterChannel());
+    auto req = TYPathProxy::Exists(Request->Path.GetPath());
+    SetTransactionId(req, GetTransactionId(false));
+
+    auto rsp = proxy.Execute(req).Get();
+
+    if (!rsp->IsOK()) {
+        ReplyError(rsp->GetError());
+    }
+    else {
+        ReplySuccess(ConvertToYsonString(rsp->value()));
+    }
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT

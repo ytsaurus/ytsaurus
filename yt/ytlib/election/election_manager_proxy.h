@@ -22,9 +22,9 @@ public:
     }
 
     DECLARE_ENUM(EErrorCode,
-        ((InvalidState)(1))
-        ((InvalidLeader)(2))
-        ((InvalidEpoch)(3))
+        ((InvalidState)(11))
+        ((InvalidLeader)(12))
+        ((InvalidEpoch)(13))
     );
 
     TElectionManagerProxy(NRpc::IChannelPtr channel)

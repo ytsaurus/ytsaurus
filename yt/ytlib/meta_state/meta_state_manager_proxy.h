@@ -20,12 +20,12 @@ public:
     }
 
     DECLARE_ENUM(EErrorCode,
-        ((NoSuchSnapshot)(1))
-        ((NoSuchChangeLog)(2))
-        ((InvalidEpoch)(3))
-        ((InvalidVersion)(4))
-        ((InvalidStatus)(5))
-        ((SnapshotAlreadyInProgress)(6))
+        ((NoSuchSnapshot)(21))
+        ((NoSuchChangeLog)(22))
+        ((InvalidEpoch)(23))
+        ((InvalidVersion)(24))
+        ((InvalidStatus)(25))
+        ((SnapshotAlreadyInProgress)(26))
     );
 
     explicit TMetaStateManagerProxy(NRpc::IChannelPtr channel)

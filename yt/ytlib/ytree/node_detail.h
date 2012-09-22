@@ -27,6 +27,7 @@ class TNodeBase
     , public virtual TSupportsSet
     , public virtual TSupportsRemove
     , public virtual TSupportsList
+    , public virtual TSupportsExists
     , public virtual INode
 {
 public:
@@ -66,6 +67,8 @@ protected:
     virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
     virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context) override;
     virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove* context) override;
+    virtual void ExistsSelf(TReqExists* request, TRspExists* response, TCtxExists* context) override;
+    virtual void ExistsRecursive(const NYTree::TYPath& path, TReqExists* request, TRspExists* response, TCtxExists* context) override;
 
     virtual TResolveResult ResolveRecursive(
         const NYTree::TYPath& path,
