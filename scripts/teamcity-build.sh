@@ -127,7 +127,7 @@ tc "blockOpened name='make'"
 
 shout "Running make (1/2; fast)..."
 tc "progressMessage 'Running make (1/2; fast)...'"
-make -j $(cat /proc/cpuinfo | grep processor | wc -l) >/dev/null 2>/dev/null || true
+make -j 8 >/dev/null 2>/dev/null || true
 
 shout "Running make (2/2; slow)..."
 tc "progressMessage 'Running make (2/2; slow)...'"
