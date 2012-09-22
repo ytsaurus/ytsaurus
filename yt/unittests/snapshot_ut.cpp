@@ -101,8 +101,9 @@ TEST_F(TSnapshotTest, WriteAndThenRead)
 
 TEST_F(TSnapshotTest, SnapshotStore)
 {
+    // TODO(sandello): Cleanup created files afterwards.
     TSnapshotStoreConfigPtr config = New<TSnapshotStoreConfig>();
-    config->Load(NYTree::ConvertToNode(NYTree::TYsonString("{path=snapshot_store}")));
+    config->Load(NYTree::ConvertToNode(NYTree::TYsonString("{path=\".\"}")));
 
     TSnapshotStorePtr store = New<TSnapshotStore>(config);
     store->Start();
