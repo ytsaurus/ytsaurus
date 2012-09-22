@@ -252,7 +252,9 @@ for node in tree.iter():
             .replace("&gt;", ">")
 tree.write(sys.stdout, encoding="utf-8")
 EOP
-    cat $WORKING_DIRECTORY/test_${test_name}.prexml | python /tmp/fix_xml_entities.py > $WORKING_DIRECTORY/test_${test_name}.xml
+    if [[ -f $WORKING_DIRECTORY/test_${test_name}.prexml ]]; then
+        cat $WORKING_DIRECTORY/test_${test_name}.prexml | python /tmp/fix_xml_entities.py > $WORKING_DIRECTORY/test_${test_name}.xml
+    fi
     tc "blockClosed name=${block_name}"
 }
 
@@ -269,10 +271,11 @@ if [ "$b" != "0" ]; then
     cp -r $CHECKOUT_DIRECTORY/tests/integration/tests.sandbox/* "$tmpdir"
 fi
 
-cd "$CHECKOUT_DIRECTORY/python"
-PYTHONPATH="$CHECKOUT_DIRECTORY/python:$PYTHONPATH" \
-PATH="$WORKING_DIRECTORY/bin:$WORKING_DIRECTORY/yt/nodejs:$PATH" \
-python setup.py test
+cd "$CHECKOUT_DIRECTORY/python/yt_wrapper" && make
+
+run_python_test "$CHECKOUT_DIRECTORY/python/yt_wrapper" "python_wrapper"
+
+run_python_test "$CHECKOUT_DIRECTORY/python/yson" "python_yson"
 
 tc "blockOpened name='JavaScript Tests'"
 
