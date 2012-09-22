@@ -33,8 +33,6 @@ typedef TIntrusivePtr<ISchedulerElement> ISchedulerElementPtr;
 struct ISchedulableElement;
 typedef TIntrusivePtr<ISchedulableElement> ISchedulableElementPtr;
 
-struct IElementRanking;
-
 class TOperationElement;
 typedef TIntrusivePtr<TOperationElement> TOperationElementPtr;
 
@@ -106,8 +104,12 @@ class TOperationElement
     : public ISchedulableElement
 {
 public:
-    explicit TOperationElement(ISchedulerStrategyHost* host, TOperationPtr operation)
-        : Host(host)
+    explicit TOperationElement(
+        TFairShareStrategyConfigPtr config,
+        ISchedulerStrategyHost* host,
+        TOperationPtr operation)
+        : Config(config)
+        , Host(host)
         , Operation_(operation)
         , EffectiveLimits_(ZeroResources())
         , UtilizationRatio_(0.0)
@@ -143,7 +145,10 @@ public:
 
     virtual double GetWeight() const override
     {
-        return Spec_->Weight;
+        return
+            TInstant::Now() < GetStartTime() + Config->NewOperationWeightBoostPeriod
+            ? Spec_->Weight * Config->NewOperationWeightBoostFactor
+            : Spec_->Weight;
     }
 
     virtual double GetMinShareRatio() const override
@@ -173,6 +178,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, StarvingForFairShareSince);
 
 private:
+    TFairShareStrategyConfigPtr Config;
     ISchedulerStrategyHost* Host;
 
 
@@ -717,7 +723,7 @@ private:
 
     void OnOperationStarted(TOperationPtr operation)
     {
-        auto operationElement = New<TOperationElement>(Host, operation);
+        auto operationElement = New<TOperationElement>(Config, Host, operation);
         YCHECK(OperationToElement.insert(std::make_pair(operation, operationElement)).second);
 
         TPooledOperationSpecPtr spec;
