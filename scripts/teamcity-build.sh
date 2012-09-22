@@ -260,11 +260,11 @@ EOP
 run_python_test "$CHECKOUT_DIRECTORY/tests/integration" "integration"
 
 if [ "$b" != "0" ]; then
-    # clean failed_tests
-    ls -1td $HOME/failed_tests/* |awk 'BEGIN{a=0}{++a; if(a>10) print $0}' |xargs rm -rf
-
     tmpdir="$HOME/failed_tests/$BUILD_VCS_NUMBER"
     mkdir -p "$tmpdir"
+
+    # Clean up.
+    ls -1td $HOME/failed_tests/* |awk 'BEGIN{a=0}{++a; if(a>10) print $0}' |xargs rm -rf
 
     shout "Integration tests failed, output was put to $tmpdir"
     cp -r $CHECKOUT_DIRECTORY/tests/integration/tests.sandbox/* "$tmpdir"
