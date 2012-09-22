@@ -918,7 +918,7 @@ private:
 
         double utilizationRatio = element->GetUtilizationRatio();
 
-        if (utilizationRatio < attributes.AdjustedMinShareRatio) {
+        if (utilizationRatio < attributes.AdjustedMinShareRatio * Config->MinShareStarvationFactor) {
             return EOperationStatus::StarvingForMinShare;
         }
 
