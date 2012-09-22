@@ -271,9 +271,6 @@ fi
 
 cd "$CHECKOUT_DIRECTORY/python/yt_wrapper" && make
 
-export PYTHONPATH="$CHECKOUT_DIRECTORY/python:$PYTHONPATH" \
-export PATH="$WORKING_DIRECTORY/bin:$WORKING_DIRECTORY/yt/nodejs:$PATH" \
-
 run_python_test "$CHECKOUT_DIRECTORY/python/yt_wrapper" "python_wrapper"
 
 run_python_test "$CHECKOUT_DIRECTORY/python/yson" "python_yson"
