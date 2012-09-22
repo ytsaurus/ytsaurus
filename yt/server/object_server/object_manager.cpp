@@ -54,114 +54,113 @@ public:
         , Replied(false)
     { }
 
-    virtual NBus::IMessagePtr GetRequestMessage() const
+    virtual NBus::IMessagePtr GetRequestMessage() const override
     {
         return UnderlyingContext->GetRequestMessage();
     }
 
-    virtual const NRpc::TRequestId& GetRequestId() const
+    virtual const NRpc::TRequestId& GetRequestId() const override
     {
         return UnderlyingContext->GetRequestId();
     }
 
-    virtual const Stroka& GetPath() const
+    virtual const Stroka& GetPath() const override
     {
         return UnderlyingContext->GetPath();
     }
 
-    virtual const Stroka& GetVerb() const
+    virtual const Stroka& GetVerb() const override
     {
         return UnderlyingContext->GetVerb();
     }
 
-    virtual bool IsOneWay() const
+    virtual bool IsOneWay() const override
     {
         return UnderlyingContext->IsOneWay();
     }
 
-    virtual bool IsReplied() const
+    virtual bool IsReplied() const override
     {
         return Replied;
     }
 
-    virtual void Reply(const TError& error)
+    virtual void Reply(const TError& error) override
     {
         YASSERT(!Replied);
         Replied = true;
         Error = error;
     }
 
-    virtual void Reply(IMessagePtr responseMessage)
+    virtual void Reply(IMessagePtr responseMessage) override
     {
         UNUSED(responseMessage);
         YUNREACHABLE();
     }
 
-    virtual const TError& GetError() const
+    virtual const TError& GetError() const override
     {
         return Error;
     }
 
-    virtual TSharedRef GetRequestBody() const
+    virtual TSharedRef GetRequestBody() const override
     {
         return UnderlyingContext->GetRequestBody();
     }
 
-    virtual TSharedRef GetResponseBody()
+    virtual TSharedRef GetResponseBody() override
     {
         return UnderlyingContext->GetResponseBody();
     }
 
-    virtual void SetResponseBody(const TSharedRef& responseBody)
+    virtual void SetResponseBody(const TSharedRef& responseBody) override
     {
         UnderlyingContext->SetResponseBody(responseBody);
     }
 
-    virtual std::vector<TSharedRef>& RequestAttachments()
+    virtual std::vector<TSharedRef>& RequestAttachments() override
     {
         return UnderlyingContext->RequestAttachments();
     }
 
-    virtual std::vector<TSharedRef>& ResponseAttachments()
+    virtual std::vector<TSharedRef>& ResponseAttachments() override
     {
         return UnderlyingContext->ResponseAttachments();
     }
 
-    virtual IAttributeDictionary& RequestAttributes()
+    virtual IAttributeDictionary& RequestAttributes() override
     {
         return UnderlyingContext->RequestAttributes();
     }
 
-    virtual IAttributeDictionary& ResponseAttributes()
+    virtual IAttributeDictionary& ResponseAttributes() override
     {
         return UnderlyingContext->ResponseAttributes();
     }
 
-    virtual void SetRequestInfo(const Stroka& info)
+    virtual void SetRequestInfo(const Stroka& info) override
     {
         UnderlyingContext->SetRequestInfo(info);
     }
 
-    virtual Stroka GetRequestInfo() const
+    virtual Stroka GetRequestInfo() const override
     {
         return UnderlyingContext->GetRequestInfo();
     }
 
-    virtual void SetResponseInfo(const Stroka& info)
+    virtual void SetResponseInfo(const Stroka& info) override
     {
         UnderlyingContext->SetResponseInfo(info);
     }
 
-    virtual Stroka GetResponseInfo()
+    virtual Stroka GetResponseInfo() override
     {
         return UnderlyingContext->GetRequestInfo();
     }
 
-    virtual TClosure Wrap(TClosure action) 
+    virtual TClosure Wrap(const TClosure& action) override
     {
         return UnderlyingContext->Wrap(action);
     }
-
 
     IMessagePtr GetResponseMessage()
     {

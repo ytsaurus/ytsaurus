@@ -92,7 +92,7 @@ struct IServiceContext
     virtual Stroka GetResponseInfo() = 0;
 
     //! Wraps the given action into an exception guard that logs the exception and replies.
-    virtual TClosure Wrap(TClosure action) = 0;
+    virtual TClosure Wrap(const TClosure& action) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -276,7 +276,7 @@ public:
         return Context;
     }
 
-    TClosure Wrap(TClosure action)
+    TClosure Wrap(const TClosure& action)
     {
         YASSERT(!action.IsNull());
         return Context->Wrap(action);
@@ -384,7 +384,7 @@ public:
     using TBase::Wrap;
 
     // TODO(sandello): get rid of double binding here by delaying bind moment to the very last possible moment.
-    TClosure Wrap(TCallback<void(TIntrusivePtr<TThis>)> paramAction)
+    TClosure Wrap(const TCallback<void(TIntrusivePtr<TThis>)>& paramAction)
     {
         YASSERT(!paramAction.IsNull());
         return this->Context->Wrap(BIND(paramAction, MakeStrong(this)));
@@ -422,10 +422,10 @@ public:
 
     using TBase::Wrap;
 
-    TClosure Wrap(TCallback<void(TIntrusivePtr<TThis>)> paramAction)
+    TClosure Wrap(const TCallback<void(TIntrusivePtr<TThis>)>& paramAction)
     {
         YASSERT(paramAction);
-        return this->Context->Wrap(paramAction->BIND(MakeStrong(this)));
+        return this->Context->Wrap(BIND(paramAction, MakeStrong(this)));
     }
 };
 

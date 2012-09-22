@@ -45,7 +45,7 @@ public:
     virtual void SetResponseInfo(const Stroka& info) override;
     virtual Stroka GetResponseInfo() override;
 
-    virtual TClosure Wrap(TClosure action) override;
+    virtual TClosure Wrap(const TClosure& action) override;
 
 protected:
     TServiceContextBase(
@@ -81,7 +81,7 @@ protected:
     static void AppendInfo(Stroka& lhs, const Stroka& rhs);
 
 private:
-    void WrapThunk(TClosure action);
+    void WrapThunk(const TClosure& action);
     void OnException(const TError& error);
     void CheckRepliable() const;
 
@@ -129,7 +129,7 @@ public:
     virtual void SetResponseInfo(const Stroka& info) override;
     virtual Stroka GetResponseInfo() override;
 
-    virtual TClosure Wrap(TClosure action);
+    virtual TClosure Wrap(const TClosure& action) override;
 
 private:
     IServiceContextPtr UnderlyingContext;

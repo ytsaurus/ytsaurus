@@ -175,15 +175,15 @@ Stroka TServiceContextBase::GetResponseInfo()
     return ResponseInfo;
 }
 
-TClosure TServiceContextBase::Wrap(TClosure action)
+TClosure TServiceContextBase::Wrap(const TClosure& action)
 {
     return BIND(
         &TServiceContextBase::WrapThunk,
         MakeStrong(this),
-        MoveRV(action));
+        action);
 }
 
-void TServiceContextBase::WrapThunk(TClosure action)
+void TServiceContextBase::WrapThunk(const TClosure& action)
 {
     try {
         action.Run();
@@ -332,7 +332,7 @@ Stroka TReplyInterceptorContext::GetResponseInfo()
     return UnderlyingContext->GetRequestInfo();
 }
 
-TClosure TReplyInterceptorContext::Wrap(TClosure action)
+TClosure TReplyInterceptorContext::Wrap(const TClosure& action)
 {
     return UnderlyingContext->Wrap(action);
 }
