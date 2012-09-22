@@ -648,7 +648,7 @@ private:
 
         NodeMap.Insert(nodeId, newNode);
         NodeAddressMap.insert(MakePair(address, newNode));
-        NodeHostNameMap.insert(MakePair(GetServiceHostName(address), newNode));
+        NodeHostNameMap.insert(MakePair(Stroka(GetServiceHostName(address)), newNode));
 
         if (IsLeader()) {
             ChunkPlacement->OnNodeRegistered(newNode);
@@ -860,7 +860,7 @@ private:
             auto* node = pair.second;
             const auto& address = node->GetAddress();
             YCHECK(NodeAddressMap.insert(MakePair(address, node)).second);
-            NodeHostNameMap.insert(MakePair(GetServiceHostName(address), node));
+            NodeHostNameMap.insert(MakePair(Stroka(GetServiceHostName(address)), node));
         }
 
         // Reconstruct ReplicationSinkMap.
