@@ -252,7 +252,9 @@ for node in tree.iter():
             .replace("&gt;", ">")
 tree.write(sys.stdout, encoding="utf-8")
 EOP
-    cat $WORKING_DIRECTORY/test_${test_name}.prexml | python /tmp/fix_xml_entities.py > $WORKING_DIRECTORY/test_${test_name}.xml
+    if [[ -f $WORKING_DIRECTORY/test_${test_name}.prexml ]]; then
+        cat $WORKING_DIRECTORY/test_${test_name}.prexml | python /tmp/fix_xml_entities.py > $WORKING_DIRECTORY/test_${test_name}.xml
+    fi
     tc "blockClosed name=${block_name}"
 }
 
