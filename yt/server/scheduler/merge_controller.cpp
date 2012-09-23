@@ -676,7 +676,7 @@ private:
 
     virtual void DoInitialize() override
     {
-        TOperationControllerBase::DoInitialize();
+        TOrderedMergeControllerBase::DoInitialize();
 
         // For erase operation the rowset specified by the user must actually be negated.
         {
@@ -1118,6 +1118,15 @@ private:
             return false;
 
         return IsPassthroughChunkImpl(inputChunk, Spec->CombineChunks);
+    }
+
+    virtual void DoInitialize() override
+    {
+        TSortedMergeControllerBase::DoInitialize();
+
+        auto& table = OutputTables[0];
+        table.Clear = true;
+        table.LockMode = ELockMode::Exclusive;
     }
 
     virtual bool AllowPassthroughChunks() override
