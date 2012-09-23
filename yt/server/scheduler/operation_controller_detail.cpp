@@ -1230,18 +1230,18 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                     ~table.Path.GetPath(),
                     ~ConvertToYsonString(table.Channels, EYsonFormat::Text).Data());
             }
+            {
+                auto rsp = getOutRowCountRsps[index];
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting \"row_count\" attribute for output table %s",
+                    ~table.Path.GetPath());
+                table.InitialRowCount = ConvertTo<i64>(TYsonString(rsp->value()));
+            }
             if (table.Clear) {
                 auto rsp = clearOutRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error clearing output table %s",
                     ~table.Path.GetPath());
                 LOG_INFO("Output table %s cleared",
                     ~table.Path.GetPath());
-            }
-            {
-                auto rsp = getOutRowCountRsps[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting \"row_count\" attribute for output table %s",
-                    ~table.Path.GetPath());
-                table.InitialRowCount = ConvertTo<i64>(TYsonString(rsp->value()));
             }
             {
                 auto rsp = getOutChunkListRsps[index];
