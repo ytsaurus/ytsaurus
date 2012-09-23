@@ -33,6 +33,7 @@ using namespace NChunkServer;
 using namespace NTableClient;
 using namespace NJobProxy;
 using namespace NObjectClient;
+using namespace NCypressClient;
 using namespace NScheduler::NProto;
 using namespace NChunkClient::NProto;
 
@@ -1132,6 +1133,13 @@ private:
 
 
     // Custom bits of preparation pipeline.
+
+    virtual void DoInitialize() override
+    {
+        TSortControllerBase::DoInitialize();
+
+        OutputTables[0].LockMode = ELockMode::Exclusive;
+    }
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {

@@ -334,6 +334,7 @@ void TOperationControllerBase::Initialize()
         table.Path = path;
         if (path.Attributes().Get<bool>("overwrite", false)) {
             table.Clear = true;
+            table.LockMode = ELockMode::Exclusive;
         }
         OutputTables.push_back(table);
     }
@@ -1099,7 +1100,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
         {
             auto req = TCypressYPathProxy::Lock(path);
             SetTransactionId(req, OutputTransaction);
-            req->set_mode(table.Clear ? ELockMode::Exclusive : ELockMode::Shared);
+            req->set_mode(table.LockMode);
             NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "lock_out");
         }

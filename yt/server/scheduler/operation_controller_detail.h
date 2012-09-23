@@ -14,13 +14,15 @@
 #include <ytlib/actions/async_pipeline.h>
 #include <ytlib/actions/cancelable_context.h>
 
-#include <server/chunk_server/public.h>
-
 #include <ytlib/table_client/table_ypath_proxy.h>
 
 #include <ytlib/file_client/file_ypath_proxy.h>
 
 #include <ytlib/scheduler/scheduler_service.pb.h>
+
+#include <ytlib/cypress_client/public.h>
+
+#include <server/chunk_server/public.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -127,10 +129,12 @@ protected:
         TOutputTable()
             : InitialRowCount(0)
             , Clear(false)
+            , LockMode(NCypressClient::ELockMode::Shared)
         { }
 
         i64 InitialRowCount;
         bool Clear;
+        NCypressClient::ELockMode LockMode;
         TNullable< std::vector<Stroka> > KeyColumns;
         NYTree::TYsonString Channels;
 

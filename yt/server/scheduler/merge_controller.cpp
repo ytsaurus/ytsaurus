@@ -28,6 +28,7 @@ using namespace NTableClient;
 using namespace NJobProxy;
 using namespace NChunkClient;
 using namespace NObjectClient;
+using namespace NCypressClient;
 using namespace NScheduler::NProto;
 using namespace NTableClient::NProto;
 using namespace NChunkClient::NProto;
@@ -681,6 +682,7 @@ private:
         InputTables[0].NegateFetch = true;
         // ...and the output table must be cleared (regardless of "overwrite" attribute).
         OutputTables[0].Clear = true;
+        OutputTables[0].LockMode = ELockMode::Exclusive;
     }
 
     virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) override
