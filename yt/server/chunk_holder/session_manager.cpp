@@ -505,7 +505,7 @@ TFuture<TChunkPtr> TSessionManager::FinishSession(
 
 TChunkPtr TSessionManager::OnSessionFinished(TSessionPtr session, TChunkPtr chunk)
 {
-    YCHECK(SessionMap.erase(chunkId) == 1);
+    YCHECK(SessionMap.erase(chunk->GetId()) == 1);
     AtomicDecrement(SessionCount);
     LOG_INFO("Session finished (ChunkId: %s)", ~session->GetChunkId().ToString());
     return chunk;
