@@ -1119,7 +1119,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             auto req = TTableYPathProxy::Clear(path);
             SetTransactionId(req, OutputTransaction);
             NMetaState::GenerateRpcMutationId(req);
-            batchReq->AddRequest(req);
+            batchReq->AddRequest(req, "clear_out");
         } else {
             // Even if |Clear| is False we still add a dummy request
             // to keep "clear_out" requests aligned with output tables.
