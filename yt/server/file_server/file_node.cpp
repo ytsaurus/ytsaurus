@@ -91,11 +91,11 @@ public:
 
         auto* chunk = chunkManager->FindChunk(chunkId);
         if (!chunk) {
-            THROW_ERROR_EXCEPTION("No such chunk %s", ~chunkId.ToString());
+            THROW_ERROR_EXCEPTION("No such chunk: %s", ~chunkId.ToString());
         }
 
         if (!chunk->IsConfirmed()) {
-            THROW_ERROR_EXCEPTION("Chunk %s is not confirmed", ~chunkId.ToString());
+            THROW_ERROR_EXCEPTION("File chunk is not confirmed: %s", ~chunkId.ToString());
         }
 
         auto node = TBase::DoCreate(transaction, request, response);
