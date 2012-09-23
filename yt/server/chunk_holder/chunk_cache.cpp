@@ -207,7 +207,7 @@ private:
                 FileWriter = New<TFileWriter>(fileName);
                 FileWriter->Open();
             } catch (const std::exception& ex) {
-                LOG_FATAL(ex, "Error opening cached chunk for writing);
+                LOG_FATAL(ex, "Error opening cached chunk for writing");
             }
 
             LOG_INFO("Getting chunk info from holders");
