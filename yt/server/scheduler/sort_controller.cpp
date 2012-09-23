@@ -1138,7 +1138,9 @@ private:
     {
         TSortControllerBase::DoInitialize();
 
-        OutputTables[0].LockMode = ELockMode::Exclusive;
+        auto& table = OutputTables[0];
+        table.Clear = true;
+        table.LockMode = ELockMode::Exclusive;
     }
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override

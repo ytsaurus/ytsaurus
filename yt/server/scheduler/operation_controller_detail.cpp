@@ -1109,8 +1109,11 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             SetTransactionId(req, OutputTransaction);
             batchReq->AddRequest(req, "get_out_channels");
         }
-        // NB: InitialRowCount is used to check the table for emptiness so we must be requesting
-        // it after clearing the tale.
+        {
+            auto req = TYPathProxy::Get(path + "/@row_count");
+            SetTransactionId(req, OutputTransaction);
+            batchReq->AddRequest(req, "get_out_row_count");
+        }
         if (table.Clear) {
             LOG_INFO("Output table %s will be cleared", ~table.Path.GetPath());
             auto req = TTableYPathProxy::Clear(path);
@@ -1121,11 +1124,6 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             // Even if |Clear| is False we still add a dummy request
             // to keep "clear_out" requests aligned with output tables.
             batchReq->AddRequest(NULL, "clear_out");
-        }
-        {
-            auto req = TYPathProxy::Get(path + "/@row_count");
-            SetTransactionId(req, OutputTransaction);
-            batchReq->AddRequest(req, "get_out_row_count");
         }
         {
             auto req = TTableYPathProxy::GetChunkListForUpdate(path);
@@ -1465,7 +1463,7 @@ bool TOperationControllerBase::CheckKeyColumnsCompatible(
 void TOperationControllerBase::CheckOutputTablesEmpty()
 {
     FOREACH (const auto& table, OutputTables) {
-        if (table.InitialRowCount > 0) {
+        if (!table.Clear && table.InitialRowCount > 0) {
             THROW_ERROR_EXCEPTION("Output table %s is not empty",
                 ~table.Path.GetPath());
         }

@@ -679,10 +679,16 @@ private:
         TOperationControllerBase::DoInitialize();
 
         // For erase operation the rowset specified by the user must actually be negated.
-        InputTables[0].NegateFetch = true;
+        {
+            auto& table = InputTables[0];
+            table.NegateFetch = true;
+        }
         // ...and the output table must be cleared (regardless of "overwrite" attribute).
-        OutputTables[0].Clear = true;
-        OutputTables[0].LockMode = ELockMode::Exclusive;
+        {
+            auto& table = OutputTables[0];
+            table.Clear = true;
+            table.LockMode = ELockMode::Exclusive;
+        }
     }
 
     virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) override
