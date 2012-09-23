@@ -893,7 +893,7 @@ void TCypressManager::Clear()
     root->SetTrunkNode(root);
 
     NodeMap.Insert(root->GetId(), root);
-    Bootstrap->GetObjectManager()->RefObject(root);
+    YCHECK(root->RefObject() == 1);
 }
 
 void TCypressManager::OnLeaderRecoveryComplete()
