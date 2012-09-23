@@ -333,6 +333,7 @@ void TOperationControllerBase::Initialize()
         TOutputTable table;
         table.Path = path;
         if (path.Attributes().Get<bool>("overwrite", false)) {
+            LOG_INFO("Output table %s will be cleared", ~path.GetPath());
             table.Clear = true;
         }
         OutputTables.push_back(table);
@@ -347,7 +348,7 @@ void TOperationControllerBase::Initialize()
     try {
         DoInitialize();
     } catch (const std::exception& ex) {
-        LOG_INFO("Operation has failed to initialize\n%s", ex.what());
+        LOG_INFO(ex, "Operation has failed to initialize");
         Active = false;
         throw;
     }

@@ -74,9 +74,8 @@ public:
                     reader->Open();
                     cookie.EndInsert(reader);
                 } catch (const std::exception& ex) {
-                    LOG_FATAL("Error opening chunk (ChunkId: %s)\n%s",
-                        ~chunkId.ToString(),
-                        ex.what());
+                    LOG_FATAL(ex, "Error opening chunk (ChunkId: %s)",
+                        ~chunkId.ToString());
                 }
             }
 

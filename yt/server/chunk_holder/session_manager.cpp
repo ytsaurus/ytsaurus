@@ -76,7 +76,7 @@ void TSession::DoOpenFile(bool directMode)
             Writer->Open();
         }
         catch (const std::exception& ex) {
-            LOG_FATAL("Error opening chunk writer\n%s", ex.what());
+            LOG_FATAL(ex, "Error opening chunk writer");
         }
     }
 
@@ -225,9 +225,8 @@ TVoid TSession::DoWriteBlock(const TSharedRef& block, i32 blockIndex)
             }
         } catch (const std::exception& ex) {
             TBlockId blockId(ChunkId, blockIndex);
-            LOG_FATAL("Error writing chunk block %s\n%s",
-                ~blockId.ToString(),
-                ex.what());
+            LOG_FATAL(ex, "Error writing chunk block %s",
+                ~blockId.ToString());
         }
     }
 
@@ -354,7 +353,7 @@ TVoid TSession::DoCloseFile(const TChunkMeta& chunkMeta)
         try {
             Sync(~Writer, &TFileWriter::AsyncClose, chunkMeta);
         } catch (const std::exception& ex) {
-            LOG_FATAL("Error closing chunk writer\n%s", ex.what());
+            LOG_FATAL(ex, "Error closing chunk writer");
         }
     }
 

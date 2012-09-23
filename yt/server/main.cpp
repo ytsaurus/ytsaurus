@@ -281,7 +281,7 @@ int Main(int argc, const char* argv[])
     try {
         exitCode = GuardedMain(argc, argv);
     } catch (const std::exception& ex) {
-        LOG_ERROR("Server startup failed\n%s", ex.what());
+        LOG_ERROR(ex, "Server startup failed");
         exitCode = EExitCode::BootstrapError;
     }
 

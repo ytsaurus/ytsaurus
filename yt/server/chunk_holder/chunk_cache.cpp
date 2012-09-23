@@ -70,7 +70,7 @@ public:
                 Put(chunk);
             }
         } catch (const std::exception& ex) {
-            LOG_FATAL("Failed to initialize storage locations\n%s", ex.what());
+            LOG_FATAL(ex, "Failed to initialize storage locations");
         }
 
         LOG_INFO("Chunk cache scan completed, %d chunks found", GetSize());
@@ -207,7 +207,7 @@ private:
                 FileWriter = New<TFileWriter>(fileName);
                 FileWriter->Open();
             } catch (const std::exception& ex) {
-                LOG_FATAL("Error opening cached chunk for writing\n%s", ex.what());
+                LOG_FATAL(ex, "Error opening cached chunk for writing);
             }
 
             LOG_INFO("Getting chunk info from holders");
