@@ -79,20 +79,20 @@ ISyncWriterPtr TUserJobIO::CreateTableOutput(int index) const
 
 double TUserJobIO::GetProgress() const
 {
-    double total = 0.;
-    double current = 0.;
+    i64 total = 0;
+    i64 current = 0;
 
     FOREACH(const auto& input, Inputs) {
         current += input->GetRowCount();
         total += input->GetRowIndex();
     }
 
-    if (total == 0.0) {
-        LOG_WARNING("GetProgress: empty total.");
+    if (total == 0) {
+        LOG_WARNING("GetProgress: empty total");
         return 0;
     } else {
-        auto progress = current / total;
-        LOG_DEBUG("GetProgress: %f", progress);
+        double progress = (double) current / total;
+        LOG_DEBUG("GetProgress: %lf", progress);
         return progress;
     }
 }

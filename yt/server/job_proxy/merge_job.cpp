@@ -155,7 +155,7 @@ public:
         i64 total = Reader->GetRowCount();
         if (total == 0) {
             LOG_WARNING("GetProgress: empty total");
-            return 0.0;
+            return 0;
         } else {
             double progress = (double) Reader->GetRowIndex() / total;
             LOG_DEBUG("GetProgress: %lf", progress);

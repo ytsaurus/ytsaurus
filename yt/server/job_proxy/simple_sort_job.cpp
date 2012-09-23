@@ -220,16 +220,16 @@ public:
 
     double GetProgress() const override
     {
-        double total = Reader->GetItemCount();
-        if (total == 0.0) {
-            LOG_WARNING("GetProgress: empty total.");
+        i64 total = Reader->GetItemCount();
+        if (total == 0) {
+            LOG_WARNING("GetProgress: empty total");
             return 0;
         } else {
-            // Split progress between reading and writing.
-            auto progress = 0.5 * Reader->GetItemIndex() / total;
-            progress += 0.5 * Writer->GetRowCount() / total;
-
-            LOG_DEBUG("GetProgress: %f", progress);
+            // Split progress evenly between reading and writing.
+            double progress =
+                0.5 * Reader->GetItemIndex() / total +;
+                0.5 * Writer->GetRowCount() / total;
+            LOG_DEBUG("GetProgress: %lf", progress);
             return progress;
         }
     }
