@@ -79,6 +79,7 @@ private:
 
     THolder<TBufferedFile> File;
     THolder<TOutputStream> CompressedOutput;
+    THolder<TBufferedOutput> BufferedOutput;
     THolder<TChecksummableOutput> ChecksummableOutput;
 };
 

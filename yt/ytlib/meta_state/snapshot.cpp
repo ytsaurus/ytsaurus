@@ -158,12 +158,13 @@ void TSnapshotWriter::Open(i32 prevRecordCount, const TEpochId& epoch)
     File->Resize(sizeof(TSnapshotHeader));
     File->Seek(0, sEnd);
 
-    TOutputStream* outputStream = File->GetOutputStream();
+    TOutputStream* output = File->GetOutputStream();
     if (EnableCompression) {
-        CompressedOutput.Reset(new TCompressedOutput(outputStream));
-        outputStream = ~CompressedOutput;
+        CompressedOutput.Reset(new TCompressedOutput(output));
+        output = ~CompressedOutput;
     }
-    ChecksummableOutput.Reset(new TChecksummableOutput(outputStream));
+    BufferedOutput.Reset(new TBufferedOutput(output, 64 * 1024));
+    ChecksummableOutput.Reset(new TChecksummableOutput(~BufferedOutput));
 
     State = EState::Opened;
 }
@@ -181,12 +182,6 @@ void TSnapshotWriter::Close()
     }
 
     ChecksummableOutput->Finish();
-
-    if (EnableCompression) {
-        // This ensures that the compressed stream gets finalized properly,
-        // in particular, flushes its trailer.
-        CompressedOutput->Finish();
-    }
 
     Header->Checksum = ChecksummableOutput->GetChecksum();
     Header->DataLength = File->GetLength() - sizeof(TSnapshotHeader);
