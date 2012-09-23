@@ -274,14 +274,15 @@ protected:
 
     virtual void DoClone(
         TTableNode* node,
-        TTransaction* transaction,
-        TTableNode* clonedNode) override
+        TTableNode* clonedNode,
+        TTransaction* transaction) override
     {
-        TBase::DoClone(node, transaction, clonedNode);
+        TBase::DoClone(node, clonedNode, transaction);
 
         auto objectManager = Bootstrap->GetObjectManager();
 
         auto* chunkList = node->GetChunkList();
+        YCHECK(!clonedNode->GetChunkList());
         clonedNode->SetChunkList(chunkList);
         objectManager->RefObject(chunkList);
         YCHECK(chunkList->OwningNodes().insert(clonedNode).second);

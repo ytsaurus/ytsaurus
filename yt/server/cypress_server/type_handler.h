@@ -95,8 +95,8 @@ struct INodeTypeHandler
         ICypressNode* branchedNode) = 0;
 
     //! Constructs a deep copy of the node.
-    virtual ICypressNode* Clone(
-        ICypressNode* node,
+    virtual TAutoPtr<ICypressNode> Clone(
+        ICypressNode* sourceNode,
         NTransactionServer::TTransaction* transaction) = 0;
 
     //! Creates a behavior associated with the node.

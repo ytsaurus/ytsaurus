@@ -44,13 +44,31 @@ public:
     typedef NRpc::TTypedServiceRequest<NCypressClient::NProto::TReqCreate> TReqCreate;
     typedef NRpc::TTypedServiceResponse<NCypressClient::NProto::TRspCreate> TRspCreate;
 
-    //! Creates a new node, sets its attributes, and also registers it.
+    //! Creates a new node.
+    /*!
+     *  The call does the following:
+     *  - Creates a new node.
+     *  - Sets its attributes.
+     *  - Registers the new node.
+     *  - Locks it with exclusive mode.
+     */
     ICypressNode* CreateNode(
         INodeTypeHandlerPtr handler,
         NTransactionServer::TTransaction* transaction,
         TReqCreate* request,
         TRspCreate* response,
         NYTree::IAttributeDictionary* attributes);
+
+    //! Clones a node.
+    /*!
+     *  The call does the following:
+     *  - Creates a clone of #sourceNode.
+     *  - Registers the cloned node.
+     *  - Locks the cloned node with exclusive mode.
+     */
+    ICypressNode* CloneNode(
+        ICypressNode* sourceNode,
+        NTransactionServer::TTransaction* transaction);
 
     //! Returns the id of the root node.
     /*!

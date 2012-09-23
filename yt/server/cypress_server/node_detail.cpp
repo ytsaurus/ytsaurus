@@ -228,13 +228,13 @@ ICypressNodeProxyPtr TMapNodeTypeHandler::GetProxy(
 }
 
 void TMapNodeTypeHandler::DoClone(
-    TMapNode* node,
-    TTransaction* transaction,
-    TMapNode* clonedNode)
+    TMapNode* sourceNode,
+    TMapNode* clonedNode,
+    TTransaction* transaction)
 {
-    TBase::DoClone(node, transaction, clonedNode);
+    TBase::DoClone(sourceNode, clonedNode, transaction);
 
-    auto keyToChild = GetMapNodeChildren(Bootstrap, node->GetId().ObjectId, transaction);
+    auto keyToChild = GetMapNodeChildren(Bootstrap, sourceNode->GetId().ObjectId, transaction);
 
     auto objectManager = Bootstrap->GetObjectManager();
     auto cypressManager = Bootstrap->GetCypressManager();
@@ -244,9 +244,8 @@ void TMapNodeTypeHandler::DoClone(
         const auto& childId = pair.second;
         
         auto* childNode = cypressManager->GetVersionedNode(childId, transaction);
-        auto childHandler = cypressManager->GetHandler(childNode);
         
-        auto* clonedChildNode = childHandler->Clone(childNode, transaction);
+        auto* clonedChildNode = cypressManager->CloneNode(childNode, transaction);
         const auto& clonedChildId = clonedChildNode->GetId().ObjectId;
 
         YCHECK(clonedNode->KeyToChild().insert(std::make_pair(key, clonedChildId)).second);
@@ -352,22 +351,21 @@ void TListNodeTypeHandler::DoMerge(
 }
 
 void TListNodeTypeHandler::DoClone(
-    TListNode* node,
-    TTransaction* transaction,
-    TListNode* clonedNode)
+    TListNode* sourceNode,
+    TListNode* clonedNode,
+    TTransaction* transaction)
 {
-    TBase::DoClone(node, transaction, clonedNode);
+    TBase::DoClone(sourceNode, clonedNode, transaction);
 
     auto objectManager = Bootstrap->GetObjectManager();
     auto cypressManager = Bootstrap->GetCypressManager();
 
-    const auto& indexToChild = node->IndexToChild();
+    const auto& indexToChild = sourceNode->IndexToChild();
     for (int index = 0; index < indexToChild.size(); ++index) {
         const auto& childId = indexToChild[index];
         auto* childNode = cypressManager->GetVersionedNode(childId, transaction);
-        auto childHandler = cypressManager->GetHandler(childNode);
 
-        auto* clonedChildNode = childHandler->Clone(childNode, transaction);
+        auto* clonedChildNode = cypressManager->CloneNode(childNode, transaction);
         const auto& clonedChildId = clonedChildNode->GetId().ObjectId;
 
         clonedNode->IndexToChild().push_back(clonedChildId);

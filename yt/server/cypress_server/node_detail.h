@@ -148,8 +148,8 @@ public:
         return NULL;
     }
 
-    virtual ICypressNode* Clone(
-        ICypressNode* node,
+    virtual TAutoPtr<ICypressNode> Clone(
+        ICypressNode* sourceNode,
         NTransactionServer::TTransaction* transaction) override
     {
         auto cypressManager = Bootstrap->GetCypressManager();
@@ -159,23 +159,14 @@ public:
         auto clonedId = objectManager->GenerateId(type);
 
         auto clonedNode = Instantiate(clonedId);
-        auto clonedNode_ = ~clonedNode;
-
-        clonedNode->SetTrunkNode(clonedNode_);
-
-        cypressManager->RegisterNode(transaction, clonedNode);
-
-        auto* lockedClonedNode = cypressManager->LockVersionedNode(
-            clonedNode_,
-            transaction,
-            ELockMode::Exclusive);
+        clonedNode->SetTrunkNode(~clonedNode);
 
         DoClone(
-            dynamic_cast<TImpl*>(node),
-            transaction,
-            dynamic_cast<TImpl*>(lockedClonedNode));
+            dynamic_cast<TImpl*>(sourceNode),
+            dynamic_cast<TImpl*>(~clonedNode),
+            transaction);
 
-        return clonedNode_;
+        return clonedNode;
     }
 
 
@@ -220,14 +211,14 @@ protected:
     }
 
     virtual void DoClone(
-        TImpl* node,
-        NTransactionServer::TTransaction* transaction,
-        TImpl* clonedNode)
+        TImpl* sourceNode,
+        TImpl* clonedNode,
+        NTransactionServer::TTransaction* transaction)
     {
         // Copy attributes directly to suppress validation.
         auto objectManager = Bootstrap->GetObjectManager();
 
-        auto keyToAttribute = GetNodeAttributes(Bootstrap, node->GetId().ObjectId, transaction);
+        auto keyToAttribute = GetNodeAttributes(Bootstrap, sourceNode->GetId().ObjectId, transaction);
         if (keyToAttribute.empty())
             return;
 
@@ -392,13 +383,13 @@ protected:
     }
 
     virtual void DoClone(
-        TScalarNode<TValue>* node,
-        NTransactionServer::TTransaction* transaction,
-        TScalarNode<TValue>* clonedNode) override
+        TScalarNode<TValue>* sourceNode,
+        TScalarNode<TValue>* clonedNode,
+        NTransactionServer::TTransaction* transaction) override
     {
-        TBase::DoClone(node, transaction, clonedNode);
+        TBase::DoClone(sourceNode, clonedNode, transaction);
 
-        clonedNode->Value() = node->Value();
+        clonedNode->Value() = sourceNode->Value();
     }
 
 };
@@ -456,9 +447,9 @@ private:
         TMapNode* branchedNode) override;
 
     virtual void DoClone(
-        TMapNode* node,
-        NTransactionServer::TTransaction* transaction,
-        TMapNode* clonedNode) override;
+        TMapNode* sourceNode,
+        TMapNode* clonedNode,
+        NTransactionServer::TTransaction* transaction) override;
 };
 
 //////////////////////////////////////////////////////////////////////////////// 
@@ -511,8 +502,8 @@ private:
 
     virtual void DoClone(
         TListNode* node,
-        NTransactionServer::TTransaction* transaction,
-        TListNode* clonedNode) override;
+        TListNode* clonedNode,
+        NTransactionServer::TTransaction* transaction) override;
 };
 
 //////////////////////////////////////////////////////////////////////////////// 

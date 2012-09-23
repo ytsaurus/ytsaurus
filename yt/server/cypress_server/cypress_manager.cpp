@@ -301,14 +301,30 @@ ICypressNode* TCypressManager::CreateNode(
         request,
         response);
     
-    // Make a rawptr copy, next call will transfer the ownership.
+    // Make a rawptr copy, the next call will transfer the ownership.
     auto node_ = ~node;
     RegisterNode(transaction, node, attributes);
 
     auto nodeId = node_->GetId().ObjectId;
     *response->mutable_object_id() = nodeId.ToProto();
 
-    return node_;
+    return LockVersionedNode(node_, transaction, ELockMode::Exclusive);
+}
+
+ICypressNode* TCypressManager::CloneNode(
+    ICypressNode* sourceNode,
+    TTransaction* transaction)
+{
+    YASSERT(sourceNode);
+
+    auto handler = GetHandler(sourceNode);
+    auto clonedNode = handler->Clone(sourceNode, transaction);
+
+    // Make a rawptr copy, the next call will transfer the ownership.
+    auto clonedNode_ = ~clonedNode;
+    RegisterNode(transaction, clonedNode, NULL);
+
+    return LockVersionedNode(clonedNode_, transaction, ELockMode::Exclusive);
 }
 
 void TCypressManager::CreateNodeBehavior(const TNodeId& id)

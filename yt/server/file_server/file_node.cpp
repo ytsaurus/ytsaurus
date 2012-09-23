@@ -149,20 +149,21 @@ protected:
         TBase::DoMerge(originatingNode, branchedNode);
 
         auto* chunkList = branchedNode->GetChunkList();
-        Bootstrap->GetObjectManager()->UnrefObject(chunkList);
         YCHECK(chunkList->OwningNodes().erase(branchedNode) == 1);
+        Bootstrap->GetObjectManager()->UnrefObject(chunkList);
     }
 
     virtual void DoClone(
-        TFileNode* node,
-        TTransaction* transaction,
-        TFileNode* clonedNode) override
+        TFileNode* sourceNode,
+        TFileNode* clonedNode,
+        TTransaction* transaction) override
     {
-        TBase::DoClone(node, transaction, clonedNode);
+        TBase::DoClone(sourceNode, clonedNode, transaction);
 
         auto objectManager = Bootstrap->GetObjectManager();
 
-        auto* chunkList = node->GetChunkList();
+        auto* chunkList = sourceNode->GetChunkList();
+        YCHECK(!clonedNode->GetChunkList());
         clonedNode->SetChunkList(chunkList);
         objectManager->RefObject(chunkList);
         YCHECK(chunkList->OwningNodes().insert(clonedNode).second);
