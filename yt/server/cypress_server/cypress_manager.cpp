@@ -165,9 +165,11 @@ public:
         : Bootstrap(bootstrap)
     { }
 
-    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb) override
+    virtual TResolveResult Resolve(
+        const TYPath& path,
+        IServiceContextPtr context) override
     {
-        UNUSED(verb);
+        UNUSED(context);
 
         auto cypressManager = Bootstrap->GetCypressManager();
         auto service = cypressManager->GetVersionedNodeProxy(

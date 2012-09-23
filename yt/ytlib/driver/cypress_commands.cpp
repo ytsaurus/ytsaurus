@@ -21,9 +21,8 @@ using namespace NObjectClient;
 void TGetCommand::DoExecute()
 {
     TObjectServiceProxy proxy(Context->GetMasterChannel());
-    auto req = TYPathProxy::Get(WithTransaction(
-        Request->Path.GetPath(),
-        GetTransactionId(false)));
+    auto req = TYPathProxy::Get(Request->Path.GetPath());
+    SetTransactionId(req, GetTransactionId(false));
 
     ToProto(req->mutable_attributes(), Request->Attributes);
 
@@ -43,9 +42,8 @@ void TGetCommand::DoExecute()
 void TSetCommand::DoExecute()
 {
     TObjectServiceProxy proxy(Context->GetMasterChannel());
-    auto req = TYPathProxy::Set(WithTransaction(
-        Request->Path.GetPath(),
-        GetTransactionId(false)));
+    auto req = TYPathProxy::Set(Request->Path.GetPath());
+    SetTransactionId(req, GetTransactionId(false));
     NMetaState::GenerateRpcMutationId(req);
     
     auto producer = Context->CreateInputProducer();
@@ -65,9 +63,8 @@ void TSetCommand::DoExecute()
 void TRemoveCommand::DoExecute()
 {
     TObjectServiceProxy proxy(Context->GetMasterChannel());
-    auto req = TYPathProxy::Remove(WithTransaction(
-        Request->Path.GetPath(),
-        GetTransactionId(false)));
+    auto req = TYPathProxy::Remove(Request->Path.GetPath());
+    SetTransactionId(req, GetTransactionId(false));
     NMetaState::GenerateRpcMutationId(req);
 
     req->Attributes().MergeFrom(Request->GetOptions());
@@ -83,9 +80,8 @@ void TRemoveCommand::DoExecute()
 void TListCommand::DoExecute()
 {
     TObjectServiceProxy proxy(Context->GetMasterChannel());
-    auto req = TYPathProxy::List(WithTransaction(
-        Request->Path.GetPath(),
-        GetTransactionId(false)));
+    auto req = TYPathProxy::List(Request->Path.GetPath());
+    SetTransactionId(req, GetTransactionId(false));
 
     ToProto(req->mutable_attributes(), Request->Attributes);
 
@@ -105,9 +101,8 @@ void TListCommand::DoExecute()
 void TCreateCommand::DoExecute()
 {
     TObjectServiceProxy proxy(Context->GetMasterChannel());
-    auto req = TCypressYPathProxy::Create(WithTransaction(
-        Request->Path.GetPath(),
-        GetTransactionId(false)));
+    auto req = TCypressYPathProxy::Create(Request->Path.GetPath());
+    SetTransactionId(req, GetTransactionId(false));
     NMetaState::GenerateRpcMutationId(req);
 
     req->set_type(Request->Type);
@@ -131,9 +126,8 @@ void TCreateCommand::DoExecute()
 void TLockCommand::DoExecute()
 {
     TObjectServiceProxy proxy(Context->GetMasterChannel());
-    auto req = TCypressYPathProxy::Lock(WithTransaction(
-        Request->Path.GetPath(),
-        GetTransactionId(true)));
+    auto req = TCypressYPathProxy::Lock(Request->Path.GetPath());
+    SetTransactionId(req, GetTransactionId(true));
     NMetaState::GenerateRpcMutationId(req);
 
     req->set_mode(Request->Mode);
@@ -151,9 +145,8 @@ void TLockCommand::DoExecute()
 void TCopyCommand::DoExecute()
 {
     TObjectServiceProxy proxy(Context->GetMasterChannel());
-    auto req = TCypressYPathProxy::Copy(WithTransaction(
-        Request->DestinationPath.GetPath(),
-        GetTransactionId(false)));
+    auto req = TCypressYPathProxy::Copy(Request->DestinationPath.GetPath());
+    SetTransactionId(req, GetTransactionId(false));
     NMetaState::GenerateRpcMutationId(req);
     req->set_source_path(Request->SourcePath.GetPath());
 
@@ -176,9 +169,8 @@ void TMoveCommand::DoExecute()
 {
     TObjectServiceProxy proxy(Context->GetMasterChannel());
     {
-        auto req = TCypressYPathProxy::Copy(WithTransaction(
-            Request->DestinationPath.GetPath(),
-            GetTransactionId(false)));
+        auto req = TCypressYPathProxy::Copy(Request->DestinationPath.GetPath());
+        SetTransactionId(req, GetTransactionId(false));
         NMetaState::GenerateRpcMutationId(req);
         req->set_source_path(Request->SourcePath.GetPath());
         auto rsp = proxy.Execute(req).Get();
@@ -190,9 +182,8 @@ void TMoveCommand::DoExecute()
     }
 
     {
-        auto req = TYPathProxy::Remove(WithTransaction(
-            Request->SourcePath.GetPath(),
-            GetTransactionId(false)));
+        auto req = TYPathProxy::Remove(Request->SourcePath.GetPath());
+        SetTransactionId(req, GetTransactionId(false));
         NMetaState::GenerateRpcMutationId(req);
 
         auto rsp = proxy.Execute(req).Get();

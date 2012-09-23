@@ -179,8 +179,7 @@ TYPath EscapeYPathToken(i64 value)
 
 void ResolveYPath(
     IYPathServicePtr rootService,
-    const TYPath& path,
-    const Stroka& verb,
+    IServiceContextPtr context,
     IYPathServicePtr* suffixService,
     TYPath* suffixPath)
 {
@@ -188,13 +187,16 @@ void ResolveYPath(
     YASSERT(suffixService);
     YASSERT(suffixPath);
 
-    IYPathServicePtr currentService = rootService;
+    const auto& path = context->GetPath();
+    const auto& verb = context->GetVerb();
+
+    auto currentService = rootService;
     auto currentPath = path;
 
     while (true) {
         IYPathService::TResolveResult result;
         try {
-            result = currentService->Resolve(currentPath, verb);
+            result = currentService->Resolve(currentPath, context);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(
                 EYPathErrorCode::ResolveError,
@@ -218,8 +220,6 @@ void ResolveYPath(
 
 void OnYPathResponse(
     TPromise<IMessagePtr> asyncResponseMessage,
-    const TYPath& path,
-    const Stroka& verb,
     IMessagePtr responseMessage)
 {
     NRpc::NProto::TResponseHeader responseHeader;
@@ -243,42 +243,36 @@ ExecuteVerb(
 {
     NLog::TLogger Logger(service->GetLoggingCategory());
 
-    NRpc::NProto::TRequestHeader requestHeader;
-    YCHECK(ParseRequestHeader(requestMessage, &requestHeader));
-
-    TYPath path = requestHeader.path();
-    Stroka verb = requestHeader.verb();
+    auto context = CreateYPathContext(
+        requestMessage,
+        "",
+        TYPathResponseHandler());
 
     IYPathServicePtr suffixService;
     TYPath suffixPath;
     try {
         ResolveYPath(
             service,
-            path,
-            verb,
+            context,
             &suffixService,
             &suffixPath);
     } catch (const std::exception& ex) {
         return MakeFuture(CreateErrorResponseMessage(ex));
     }
 
+    NRpc::NProto::TRequestHeader requestHeader;
+    YCHECK(ParseRequestHeader(requestMessage, &requestHeader));
     requestHeader.set_path(suffixPath);
     auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 
     auto asyncResponseMessage = NewPromise<IMessagePtr>();
-    auto context = CreateYPathContext(
+    auto updatedContext = CreateYPathContext(
         updatedRequestMessage,
-        suffixPath,
-        verb,
         suffixService->GetLoggingCategory(),
-        BIND(
-            &OnYPathResponse,
-            asyncResponseMessage,
-            path,
-            verb));
+        BIND(&OnYPathResponse, asyncResponseMessage));
 
     // This should never throw.
-    suffixService->Invoke(context);
+    suffixService->Invoke(updatedContext);
 
     return asyncResponseMessage;
 }

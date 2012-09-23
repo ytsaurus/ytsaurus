@@ -8,6 +8,8 @@
 namespace NYT {
 namespace NYTree {
 
+using namespace NRpc;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 IYPathServicePtr IYPathService::FromProducer(TYsonProducer producer)
@@ -26,13 +28,18 @@ class TViaYPathService
     : public TYPathServiceBase
 {
 public:
-    TViaYPathService(IYPathServicePtr underlyingService, IInvokerPtr invoker)
+    TViaYPathService(
+        IYPathServicePtr underlyingService,
+        IInvokerPtr invoker)
         : UnderlyingService(underlyingService)
         , Invoker(invoker)
     { }
 
-    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb) override
+    virtual TResolveResult Resolve(
+        const TYPath& path,
+        IServiceContextPtr context) override
     {
+        UNUSED(context);
         return TResolveResult::Here(path);
     }
 
@@ -40,7 +47,7 @@ private:
     IYPathServicePtr UnderlyingService;
     IInvokerPtr Invoker;
 
-    virtual void DoInvoke(NRpc::IServiceContextPtr context) override
+    virtual void DoInvoke(IServiceContextPtr context) override
     {
         auto underlyingService = UnderlyingService;
         auto handler = BIND([=] () {
@@ -50,7 +57,7 @@ private:
         bool result = Invoker->Invoke(wrappedHandler);
         if (!result) {
             context->Reply(TError(
-                NRpc::EErrorCode::Unavailable,
+                EErrorCode::Unavailable,
                 "Service unavailable"));
         }
     }
@@ -75,15 +82,18 @@ public:
         : Producer(producer)
     { }
 
-    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb) override
+    virtual TResolveResult Resolve(
+        const TYPath& path,
+        IServiceContextPtr context) override
     {
+        UNUSED(context);
         return TResolveResult::Here(path);
     }
 
 private:
     TYPathServiceProducer Producer;
 
-    virtual void DoInvoke(NRpc::IServiceContextPtr context) override
+    virtual void DoInvoke(IServiceContextPtr context) override
     {
         auto service = Producer.Run();
         ExecuteVerb(service, context);

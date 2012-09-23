@@ -27,7 +27,7 @@ class TYPathServiceBase
 {
 public:
     virtual void Invoke(NRpc::IServiceContextPtr context) override;
-    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb) override;
+    virtual TResolveResult Resolve(const TYPath& path, NRpc::IServiceContextPtr context) override;
     virtual Stroka GetLoggingCategory() const override;
     virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
 
@@ -37,9 +37,9 @@ protected:
     void GuardedInvoke(NRpc::IServiceContextPtr context);
     virtual void DoInvoke(NRpc::IServiceContextPtr context);
 
-    virtual TResolveResult ResolveSelf(const TYPath& path, const Stroka& verb);
-    virtual TResolveResult ResolveAttributes(const TYPath& path, const Stroka& verb);
-    virtual TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb);
+    virtual TResolveResult ResolveSelf(const TYPath& path, NRpc::IServiceContextPtr context);
+    virtual TResolveResult ResolveAttributes(const TYPath& path, NRpc::IServiceContextPtr context);
+    virtual TResolveResult ResolveRecursive(const TYPath& path, NRpc::IServiceContextPtr context);
 
 };
 
@@ -91,7 +91,7 @@ protected:
 
     virtual TResolveResult ResolveAttributes(
         const NYTree::TYPath& path,
-        const Stroka& verb);
+        NRpc::IServiceContextPtr context);
     
     virtual void GetAttribute(
         const TYPath& path,
@@ -334,8 +334,6 @@ typedef TCallback<void(NBus::IMessagePtr)> TYPathResponseHandler;
 
 NRpc::IServiceContextPtr CreateYPathContext(
     NBus::IMessagePtr requestMessage,
-    const TYPath& path,
-    const Stroka& verb,
     const Stroka& loggingCategory,
     TYPathResponseHandler responseHandler);
 

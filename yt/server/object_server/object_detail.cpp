@@ -233,8 +233,8 @@ void TObjectProxyBase::ForwardToLeader(IServiceContextPtr context)
     NRpc::NProto::TRequestHeader requestHeader;
     YCHECK(ParseRequestHeader(requestMessage, &requestHeader));
     auto versionedId = GetVersionedId();
-    auto pathPrefix = WithTransaction(FromObjectId(versionedId.ObjectId), versionedId.TransactionId);
-    requestHeader.set_path(pathPrefix + requestHeader.path());
+    requestHeader.set_path(FromObjectId(versionedId.ObjectId) + requestHeader.path());
+    SetTransactionId(&requestHeader, versionedId.TransactionId);
     auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 
     TObjectServiceProxy proxy(channel);

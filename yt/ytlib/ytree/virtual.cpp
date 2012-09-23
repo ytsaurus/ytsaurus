@@ -26,9 +26,11 @@ void TVirtualMapBase::DoInvoke(IServiceContextPtr context)
     TSupportsAttributes::DoInvoke(context);
 }
 
-IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(const TYPath& path, const Stroka& verb)
+IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(
+    const TYPath& path,
+    IServiceContextPtr context)
 {
-    UNUSED(verb);
+    UNUSED(context);
 
     TTokenizer tokenizer(path);
     tokenizer.ParseNext();
@@ -146,34 +148,38 @@ class TVirtualEntityNode
     YTREE_NODE_TYPE_OVERRIDES(Entity)
 
 public:
-    TVirtualEntityNode(IYPathServicePtr underlyingService)
+    explicit TVirtualEntityNode(IYPathServicePtr underlyingService)
         : UnderlyingService(underlyingService)
     { }
 
-    virtual INodeFactoryPtr CreateFactory() const
+    virtual INodeFactoryPtr CreateFactory() const override
     {
         YASSERT(Parent);
         return Parent->CreateFactory();
     }
 
-    virtual IYPathResolverPtr GetResolver() const
+    virtual IYPathResolverPtr GetResolver() const override
     {
         YASSERT(Parent);
         return Parent->GetResolver();
     }
 
-    virtual ICompositeNodePtr GetParent() const
+    virtual ICompositeNodePtr GetParent() const override
     {
         return Parent;
     }
 
-    virtual void SetParent(ICompositeNodePtr parent)
+    virtual void SetParent(ICompositeNodePtr parent) override
     {
         Parent = ~parent;
     }
 
-    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
+    virtual TResolveResult Resolve(
+        const TYPath& path,
+        IServiceContextPtr context) override
     {
+        UNUSED(context);
+
         // TODO(babenko): handle ugly face
         return TResolveResult::There(UnderlyingService, path);
     }
@@ -184,7 +190,7 @@ private:
     
     // TSupportsAttributes members
 
-    virtual IAttributeDictionary* GetUserAttributes()
+    virtual IAttributeDictionary* GetUserAttributes() override
     {
         return &Attributes();
     }

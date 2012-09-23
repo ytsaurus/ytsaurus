@@ -13,6 +13,8 @@
 namespace NYT {
 namespace NYTree {
 
+using namespace NRpc;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEphemeralYPathResolver
@@ -275,15 +277,17 @@ private:
     yhash_map<Stroka, INodePtr> KeyToChild;
     yhash_map<INodePtr, Stroka> ChildToKey;
 
-    virtual void DoInvoke(NRpc::IServiceContextPtr context) override
+    virtual void DoInvoke(IServiceContextPtr context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(List);
         return TEphemeralNodeBase::DoInvoke(context);
     }
 
-    virtual IYPathService::TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb) override
+    virtual IYPathService::TResolveResult ResolveRecursive(
+        const TYPath& path,
+        IServiceContextPtr context) override
     {
-        return TMapNodeMixin::ResolveRecursive(path, verb);
+        return TMapNodeMixin::ResolveRecursive(path, context);
     }
 };
 
@@ -398,9 +402,11 @@ private:
     std::vector<INodePtr> IndexToChild;
     yhash_map<INodePtr, int> ChildToIndex;
 
-    virtual TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb) override
+    virtual TResolveResult ResolveRecursive(
+        const TYPath& path,
+        IServiceContextPtr context) override
     {
-        return TListNodeMixin::ResolveRecursive(path, verb);
+        return TListNodeMixin::ResolveRecursive(path, context);
     }
 };
 

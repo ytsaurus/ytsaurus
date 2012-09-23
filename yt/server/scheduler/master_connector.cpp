@@ -336,9 +336,8 @@ private:
             auto batchReq = Owner->ObjectProxy.ExecuteBatch();
             auto schedulerAddress = Owner->Bootstrap->GetPeerAddress();
             {
-                auto req = TCypressYPathProxy::Lock(WithTransaction(
-                    "//sys/scheduler/lock",
-                    Owner->LockTransaction->GetId()));
+                auto req = TCypressYPathProxy::Lock("//sys/scheduler/lock");
+                SetTransactionId(req, Owner->LockTransaction);
                 req->set_mode(ELockMode::Exclusive);
                 GenerateRpcMutationId(req);
                 batchReq->AddRequest(req, "take_lock");

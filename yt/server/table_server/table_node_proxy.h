@@ -30,7 +30,7 @@ public:
 
     virtual TResolveResult Resolve(
         const NYTree::TYPath& path,
-        const Stroka& verb) override;
+        NRpc::IServiceContextPtr context) override;
     virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
 
 private:

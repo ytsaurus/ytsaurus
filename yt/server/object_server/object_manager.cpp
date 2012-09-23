@@ -11,6 +11,8 @@
 
 #include <ytlib/object_client/object_service_proxy.h>
 
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
+
 #include <ytlib/profiling/profiler.h>
 
 #include <server/cell_master/load_context.h>
@@ -32,6 +34,7 @@ using namespace NMetaState;
 using namespace NRpc;
 using namespace NBus;
 using namespace NCypressServer;
+using namespace NCypressClient;
 using namespace NTransactionServer;
 using namespace NChunkServer;
 using namespace NObjectClient;
@@ -189,37 +192,29 @@ public:
         : Bootstrap(bootstrap)
     { }
 
-    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
+    virtual TResolveResult Resolve(
+        const TYPath& path,
+        NRpc::IServiceContextPtr context) override
     {
-        if (path.empty()) {
-            THROW_ERROR_EXCEPTION("YPath cannot be empty");
-        }
-
-        TTransaction* transaction = NULL;
         auto cypressManager = Bootstrap->GetCypressManager();
         auto objectManager = Bootstrap->GetObjectManager();
         auto transactionManager = Bootstrap->GetTransactionManager();
 
-        TTokenizer tokenizer(path);
-        tokenizer.ParseNext();
+        TTransaction* transaction = NULL;
+        auto transactionId = GetTransactionId(context);
+        if (transactionId != NullTransactionId) {
+            transaction = transactionManager->FindTransaction(transactionId);
+            if (!transaction) {
+                THROW_ERROR_EXCEPTION("No such transaction: %s", ~transactionId.ToString());
+            }
+            if (transaction->GetState() != ETransactionState::Active) {
+                THROW_ERROR_EXCEPTION("Transaction is not active: %s", ~transactionId.ToString());
+            }
+        }
 
-        if (tokenizer.GetCurrentType() == TransactionMarkerToken) {
-            tokenizer.ParseNext();
-            Stroka transactionToken(tokenizer.CurrentToken().GetStringValue());
-            tokenizer.ParseNext();
-            TTransactionId transactionId;
-            if (!TObjectId::FromString(transactionToken, &transactionId)) {
-                THROW_ERROR_EXCEPTION("Error parsing transaction id: %s", ~Stroka(transactionToken).Quote());
-            }
-            if (transactionId != NullTransactionId) {
-                transaction = transactionManager->FindTransaction(transactionId);
-                if (!transaction) {
-                    THROW_ERROR_EXCEPTION("No such transaction: %s", ~transactionId.ToString());
-                }
-                if (transaction->GetState() != NTransactionServer::ETransactionState::Active) {
-                    THROW_ERROR_EXCEPTION("Transaction is not active: %s", ~transactionId.ToString());
-                }
-            }
+        TTokenizer tokenizer(path);
+        if (!tokenizer.ParseNext()) {
+            THROW_ERROR_EXCEPTION("YPath cannot be empty");
         }
 
         if (tokenizer.GetCurrentType() == RootToken) {
@@ -246,18 +241,18 @@ public:
         }
     }
 
-    virtual void Invoke(IServiceContextPtr context)
+    virtual void Invoke(IServiceContextPtr context) override
     {
         UNUSED(context);
         YUNREACHABLE();
     }
 
-    virtual Stroka GetLoggingCategory() const
+    virtual Stroka GetLoggingCategory() const override
     {
         return NObjectServer::Logger.GetCategory();
     }
 
-    virtual bool IsWriteRequest(IServiceContextPtr context) const
+    virtual bool IsWriteRequest(IServiceContextPtr context) const override
     {
         UNUSED(context);
         YUNREACHABLE();
@@ -682,7 +677,8 @@ void TObjectManager::ExecuteVerb(
         *executeReq.mutable_transaction_id() = id.TransactionId.ToProto();
 
         auto requestMessage = context->GetRequestMessage();
-        FOREACH (const auto& part, requestMessage->GetParts()) {
+        const auto& requestParts = requestMessage->GetParts();
+        FOREACH (const auto& part, requestParts) {
             executeReq.add_request_parts(part.Begin(), part.Size());
         }
 
@@ -738,21 +734,11 @@ void TObjectManager::ReplayVerb(const TMetaReqExecute& request)
     }
 
     auto requestMessage = CreateMessageFromParts(MoveRV(parts));
-    NRpc::NProto::TRequestHeader requestHeader;
-    YCHECK(ParseRequestHeader(requestMessage, &requestHeader));
-
-    TYPath path = requestHeader.path();
-    Stroka verb = requestHeader.verb();
-
     auto context = CreateYPathContext(
         requestMessage,
-        path,
-        verb,
         "",
         TYPathResponseHandler());
-
     auto proxy = GetProxy(objectId, transaction);
-
     proxy->Invoke(context);
 }
 

@@ -21,8 +21,6 @@ class TWriteBackService
     : public IYPathService
 {
 public:
-    typedef TIntrusivePtr<TWriteBackService> TPtr;
-
     TWriteBackService(
         const Stroka& fileName,
         INodePtr root,
@@ -32,9 +30,11 @@ public:
         , UnderlyingService(underlyingService)
     { }
 
-    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
+    virtual TResolveResult Resolve(
+        const TYPath& path,
+        IServiceContextPtr context) override
     {
-        auto result = UnderlyingService->Resolve(path, verb);
+        auto result = UnderlyingService->Resolve(path, context);
         if (result.IsHere()) {
             return TResolveResult::Here(result.GetPath());
         } else {
@@ -44,7 +44,7 @@ public:
         }
     }
 
-    virtual void Invoke(IServiceContextPtr context)
+    virtual void Invoke(IServiceContextPtr context) override
     {
         auto wrappedContext =
             UnderlyingService->IsWriteRequest(context)
@@ -55,12 +55,12 @@ public:
         UnderlyingService->Invoke(wrappedContext);
     }
 
-    virtual Stroka GetLoggingCategory() const
+    virtual Stroka GetLoggingCategory() const override
     {
         return UnderlyingService->GetLoggingCategory();
     }
 
-    virtual bool IsWriteRequest(IServiceContextPtr context) const
+    virtual bool IsWriteRequest(IServiceContextPtr context) const override
     {
         return UnderlyingService->IsWriteRequest(context);
     }
@@ -93,27 +93,29 @@ public:
         : FileName(fileName)
     { }
 
-    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
+    virtual TResolveResult Resolve(
+        const TYPath& path,
+        IServiceContextPtr context) override
     {
-        UNUSED(verb);
+        UNUSED(context);
 
         auto root = LoadFile();
         auto service = New<TWriteBackService>(FileName, ~root, ~root);
         return TResolveResult::There(service, path);
     }
 
-    virtual void Invoke(NRpc::IServiceContextPtr context)
+    virtual void Invoke(NRpc::IServiceContextPtr context) override
     {
         UNUSED(context);
         YUNREACHABLE();
     }
 
-    virtual Stroka GetLoggingCategory() const
+    virtual Stroka GetLoggingCategory() const override
     {
         return "YsonFileService";
     }
 
-    virtual bool IsWriteRequest(IServiceContextPtr context) const
+    virtual bool IsWriteRequest(IServiceContextPtr context) const override
     {
         UNUSED(context);
         YUNREACHABLE();

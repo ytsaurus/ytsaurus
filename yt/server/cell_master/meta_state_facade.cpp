@@ -198,70 +198,79 @@ private:
             TYsonString emptyMap("{}");
             TYsonString emptyOpaqueMap("<opaque = true>{}");
 
-            SyncYPathSet(
+            SetYPath(
                 rootService,
-                WithTransaction("//sys", transactionId),
+                "//sys",
+                transactionId,
                 emptyMap);
 
-            SyncYPathSet(
+            SetYPath(
                 rootService,
-                WithTransaction("//sys/@cell_id", transactionId),
+                "//sys/@cell_id",
+                transactionId,
                 ConvertToYsonString(cellId));
 
-            SyncYPathSet(
+            SetYPath(
                 rootService,
-                WithTransaction("//sys/@cell_guid", transactionId),
+                "//sys/@cell_guid",
+                transactionId,
                 ConvertToYsonString(cellGuid));
 
-            SyncYPathSet(
+            SetYPath(
                 rootService,
-                WithTransaction("//sys/scheduler", transactionId),
+                "//sys/scheduler",
+                transactionId,
                 emptyOpaqueMap);
 
-            SyncYPathSet(
+            SetYPath(
                 rootService,
-                WithTransaction("//sys/scheduler/lock", transactionId),
+                "//sys/scheduler/lock",
+                transactionId,
                 emptyMap);
 
-            SyncYPathSet(
+            SetYPath(
                 rootService,
-                WithTransaction("//sys/scheduler/pools", transactionId),
+                "//sys/scheduler/pools",
+                transactionId,
                 emptyOpaqueMap);
 
-            SyncYPathCreate(
+            CreateYPath(
                 rootService,
-                WithTransaction("//sys/scheduler/orchid", transactionId),
+                "//sys/scheduler/orchid",
+                transactionId,
                 EObjectType::Orchid);
 
-            SyncYPathSet(
+            SetYPath(
                 rootService,
-                WithTransaction("//sys/operations", transactionId),
+                "//sys/operations",
+                transactionId,
                 emptyOpaqueMap);
 
-            SyncYPathCreate(
+            CreateYPath(
                 rootService,
-                WithTransaction("//sys/holders", transactionId),
-                EObjectType::NodeMap);
-            SyncYPathSet(
-                rootService,
-                WithTransaction("//sys/holders/@opaque", transactionId),
-                TYsonString("true"));
+                "//sys/holders",
+                transactionId,
+                EObjectType::NodeMap,
+                TYsonString("{opaque=true}"));
 
-            SyncYPathSet(
+            SetYPath(
                 rootService,
-                WithTransaction("//sys/masters", transactionId),
+                "//sys/masters",
+                transactionId,
                 emptyOpaqueMap);
 
             FOREACH (const auto& address, Bootstrap->GetConfig()->MetaState->Cell->Addresses) {
                 auto addressPath = "/" + EscapeYPathToken(address);
-                SyncYPathSet(
+                SetYPath(
                     rootService,
-                    WithTransaction("//sys/masters" + addressPath, transactionId),
+                    "//sys/masters" + addressPath,
+                    transactionId,
                     emptyMap);
 
-                SyncYPathCreate(
+                CreateYPath(
                     rootService,
-                    WithTransaction("//sys/masters" + addressPath + "/orchid", transactionId),
+                    "//sys/masters" + addressPath + "/orchid",
+                    transactionId,
                     EObjectType::Orchid,
                     BuildYsonFluently()
                         .BeginMap()
@@ -269,44 +278,52 @@ private:
                         .EndMap().GetYsonString());
             }
 
-            SyncYPathCreate(
+            CreateYPath(
                 rootService,
-                WithTransaction("//sys/chunks", transactionId),
+                "//sys/chunks",
+                transactionId,
                 EObjectType::ChunkMap);
 
-            SyncYPathCreate(
+            CreateYPath(
                 rootService,
-                WithTransaction("//sys/lost_chunks", transactionId),
+                "//sys/lost_chunks",
+                transactionId,
                 EObjectType::LostChunkMap);
 
-            SyncYPathCreate(
+            CreateYPath(
                 rootService,
-                WithTransaction("//sys/overreplicated_chunks", transactionId),
+                "//sys/overreplicated_chunks",
+                transactionId,
                 EObjectType::OverreplicatedChunkMap);
 
-            SyncYPathCreate(
+            CreateYPath(
                 rootService,
-                WithTransaction("//sys/underreplicated_chunks", transactionId),
+                "//sys/underreplicated_chunks",
+                transactionId,
                 EObjectType::UnderreplicatedChunkMap);
 
-            SyncYPathCreate(
+            CreateYPath(
                 rootService,
-                WithTransaction("//sys/chunk_lists", transactionId),
+                "//sys/chunk_lists",
+                transactionId,
                 EObjectType::ChunkListMap);
 
-            SyncYPathCreate(
+            CreateYPath(
                 rootService,
-                WithTransaction("//sys/transactions", transactionId),
+                "//sys/transactions",
+                transactionId,
                 EObjectType::TransactionMap);
 
-            SyncYPathSet(
+            SetYPath(
                 rootService,
-                WithTransaction("//tmp", transactionId),
+                "//tmp",
+                transactionId,
                 emptyMap);
 
-            SyncYPathSet(
+            SetYPath(
                 rootService,
-                WithTransaction("//home", transactionId),
+                "//home",
+                transactionId,
                 emptyMap);
 
             CommitTransaction(transactionId);
@@ -344,17 +361,30 @@ private:
     }
 
     // TODO(babenko): consider moving somewhere
-    static TObjectId SyncYPathCreate(
+    static void CreateYPath(
         IYPathServicePtr service,
         const TYPath& path,
+        const TTransactionId& transactionId,
         EObjectType type,
         const TYsonString& attributes = TYsonString("{}"))
     {
         auto req = TCypressYPathProxy::Create(path);
+        SetTransactionId(req, transactionId);
         req->set_type(type);
         req->Attributes().MergeFrom(ConvertToNode(attributes)->AsMap());
-        auto rsp = SyncExecuteVerb(service, req);
-        return TObjectId::FromProto(rsp->object_id());
+        SyncExecuteVerb(service, req);
+    }
+
+    static void SetYPath(
+        IYPathServicePtr service,
+        const TYPath& path,
+        const TTransactionId& transactionId,
+        const TYsonString& value)
+    {
+        auto req = TYPathProxy::Set(path);
+        SetTransactionId(req, transactionId);
+        req->set_value(value.Data());
+        SyncExecuteVerb(service, req);
     }
 };
 

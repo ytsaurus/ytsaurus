@@ -419,9 +419,9 @@ void TMapNodeProxy::SetRecursive(const TYPath& path, INodePtr value)
 
 IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(
     const TYPath& path,
-    const Stroka& verb)
+    IServiceContextPtr context)
 {
-    return TMapNodeMixin::ResolveRecursive(path, verb);
+    return TMapNodeMixin::ResolveRecursive(path, context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -589,14 +589,10 @@ void TListNodeProxy::SetRecursive(const TYPath& path, INodePtr value)
 
 IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(
     const TYPath& path,
-    const Stroka& verb)
+    IServiceContextPtr context)
 {
-    return TListNodeMixin::ResolveRecursive(path, verb);
+    return TListNodeMixin::ResolveRecursive(path, context);
 }
-
-//void TListNodeProxy::DoCloneTo(TListNode* clonedNode)
-//{
-//}
 
 ////////////////////////////////////////////////////////////////////////////////
 

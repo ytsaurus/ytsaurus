@@ -130,8 +130,7 @@ TYPath EscapeYPathToken(i64 value);
 
 void ResolveYPath(
     IYPathServicePtr rootService,
-    const TYPath& path,
-    const Stroka& verb,
+    NRpc::IServiceContextPtr context,
     IYPathServicePtr* suffixService,
     TYPath* suffixPath);
 

@@ -57,9 +57,12 @@ public:
         , Transaction(transaction)
     { }
 
-    TResolveResult Resolve(const TYPath& path, const Stroka& verb) override
+    TResolveResult Resolve(
+        const TYPath& path,
+        IServiceContextPtr context) override
     {
-        UNUSED(verb);
+        UNUSED(context);
+
         return TResolveResult::Here(path);
     }
 

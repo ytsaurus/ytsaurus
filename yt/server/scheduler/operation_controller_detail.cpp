@@ -823,7 +823,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs()
     auto batchReq = ObjectProxy.ExecuteBatch();
 
     FOREACH (const auto& table, OutputTables) {
-        auto ypath = FromObjectId(table.ObjectId);
+        auto path = FromObjectId(table.ObjectId);
         {
             auto req = TChunkListYPathProxy::Attach(FromObjectId(table.OutputChunkListId));
             FOREACH (const auto& pair, table.OutputChunkTreeIds) {
@@ -833,7 +833,8 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs()
             batchReq->AddRequest(req, "attach_out");
         }
         if (table.SetSorted) {
-            auto req = TTableYPathProxy::SetSorted(WithTransaction(ypath, OutputTransaction->GetId()));
+            auto req = TTableYPathProxy::SetSorted(path);
+            SetTransactionId(req, OutputTransaction);
             ToProto(req->mutable_key_columns(), table.KeyColumns);
             NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "set_out_sorted");
@@ -997,13 +998,15 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::GetObjectIds()
     auto batchReq = ObjectProxy.ExecuteBatch();
 
     FOREACH (const auto& table, InputTables) {
-        auto req = TObjectYPathProxy::GetId(WithTransaction(table.Path.GetPath(), InputTransaction->GetId()));
+        auto req = TObjectYPathProxy::GetId(table.Path.GetPath());
+        SetTransactionId(req, InputTransaction);
         req->set_allow_nonempty_path_suffix(true);
         batchReq->AddRequest(req, "get_in_id");
     }
 
     FOREACH (const auto& table, OutputTables) {
-        auto req = TObjectYPathProxy::GetId(WithTransaction(table.Path.GetPath(), InputTransaction->GetId()));
+        auto req = TObjectYPathProxy::GetId(table.Path.GetPath());
+        SetTransactionId(req, InputTransaction);
         // TODO(babenko): should we allow this?
         req->set_allow_nonempty_path_suffix(true);
         batchReq->AddRequest(req, "get_out_id");
@@ -1056,16 +1059,18 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
     auto batchReq = ObjectProxy.ExecuteBatch();
 
     FOREACH (const auto& table, InputTables) {
-        auto ypath = FromObjectId(table.ObjectId);
+        auto path = FromObjectId(table.ObjectId);
         {
-            auto req = TCypressYPathProxy::Lock(WithTransaction(ypath, InputTransaction->GetId()));
+            auto req = TCypressYPathProxy::Lock(path);
+            SetTransactionId(req, InputTransaction);
             req->set_mode(ELockMode::Snapshot);
             NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "lock_in");
         }
         {
-            // NB: Use table.Path, not YPath here, otherwise path suffix is ignored.
-            auto req = TTableYPathProxy::Fetch(WithTransaction(table.Path.GetPath(), InputTransaction->GetId()));
+            // NB: Use table.Path here, otherwise path suffix is ignored.
+            auto req = TTableYPathProxy::Fetch(table.Path.GetPath());
+            SetTransactionId(req, InputTransaction);
             req->set_fetch_node_addresses(true);
             req->set_fetch_all_meta_extensions(true);
             req->set_negate(table.NegateFetch);
@@ -1073,52 +1078,60 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             batchReq->AddRequest(req, "fetch_in");
         }
         {
-            auto req = TYPathProxy::Get(WithTransaction(ypath, InputTransaction->GetId()) + "/@sorted");
+            auto req = TYPathProxy::Get(path + "/@sorted");
+            SetTransactionId(req, InputTransaction);
             NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "get_in_sorted");
         }
         {
-            auto req = TYPathProxy::Get(WithTransaction(ypath, InputTransaction->GetId()) + "/@sorted_by");
+            auto req = TYPathProxy::Get(path + "/@sorted_by");
+            SetTransactionId(req, InputTransaction);
             NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "get_in_sorted_by");
         }
     }
 
     FOREACH (const auto& table, OutputTables) {
-        auto ypath = FromObjectId(table.ObjectId);
+        auto path = FromObjectId(table.ObjectId);
         {
-            auto req = TCypressYPathProxy::Lock(WithTransaction(ypath, OutputTransaction->GetId()));
+            auto req = TCypressYPathProxy::Lock(path);
+            SetTransactionId(req, OutputTransaction);
             req->set_mode(table.Clear ? ELockMode::Exclusive : ELockMode::Shared);
             NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "lock_out");
         }
         {
-            auto req = TYPathProxy::Get(WithTransaction(ypath, Operation->GetTransactionId()) + "/@channels");
+            auto req = TYPathProxy::Get(path + "/@channels");
+            SetTransactionId(req, OutputTransaction);
             batchReq->AddRequest(req, "get_out_channels");
         }
         // NB: InitialRowCount is used to check the table for emptiness so we must be requesting
         // it after clearing the tale.
         {
-            auto req = TTableYPathProxy::Clear(WithTransaction(ypath, OutputTransaction->GetId()));
+            auto req = TTableYPathProxy::Clear(path);
+            SetTransactionId(req, OutputTransaction);
+            NMetaState::GenerateRpcMutationId(req);
             // Even if |Clear| is False we still add a dummy request
             // to keep "clear_out" requests aligned with output tables.
-            NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(table.Clear ? req : NULL, "clear_out");
         }
         {
-            auto req = TYPathProxy::Get(WithTransaction(ypath, OutputTransaction->GetId()) + "/@row_count");
+            auto req = TYPathProxy::Get(path + "/@row_count");
+            SetTransactionId(req, OutputTransaction);
             batchReq->AddRequest(req, "get_out_row_count");
         }
         {
-            auto req = TTableYPathProxy::GetChunkListForUpdate(WithTransaction(ypath, OutputTransaction->GetId()));
+            auto req = TTableYPathProxy::GetChunkListForUpdate(path);
+            SetTransactionId(req, OutputTransaction);
             batchReq->AddRequest(req, "get_out_chunk_list");
         }
     }
 
     FOREACH (const auto& file, Files) {
-        auto ypath = file.Path.GetPath();
+        auto path = file.Path.GetPath();
         {
-            auto req = TFileYPathProxy::Fetch(WithTransaction(ypath, Operation->GetTransactionId()));
+            auto req = TFileYPathProxy::Fetch(path);
+            SetTransactionId(req, Operation->GetTransactionId());
             batchReq->AddRequest(req, "fetch_files");
         }
     }

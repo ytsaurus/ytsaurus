@@ -293,15 +293,18 @@ void TTableNodeProxy::DoInvoke(IServiceContextPtr context)
     TBase::DoInvoke(context);
 }
 
-IYPathService::TResolveResult TTableNodeProxy::Resolve(const TYPath& path, const Stroka& verb)
+IYPathService::TResolveResult TTableNodeProxy::Resolve(
+    const TYPath& path,
+    IServiceContextPtr context)
 {
     // |Fetch| and |GetId| can actually handle path suffix while others can't.
     // NB: |GetId| "handles" suffixes by ignoring them
     // (provided |allow_nonempty_path_suffix| is True).
+    const auto& verb = context->GetVerb();
     if (verb == "GetId" || verb == "Fetch") {
         return TResolveResult::Here(path);
     }
-    return TCypressNodeProxyBase::Resolve(path, verb);
+    return TCypressNodeProxyBase::Resolve(path, context);
 }
 
 bool TTableNodeProxy::IsWriteRequest(IServiceContextPtr context) const

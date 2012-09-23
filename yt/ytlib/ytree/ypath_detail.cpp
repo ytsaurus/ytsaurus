@@ -23,20 +23,22 @@ using namespace NRpc::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathService::TResolveResult TYPathServiceBase::Resolve(const TYPath& path, const Stroka& verb)
+IYPathService::TResolveResult TYPathServiceBase::Resolve(
+    const TYPath& path,
+    IServiceContextPtr context)
 {
     TTokenizer tokenizer(path);
     tokenizer.ParseNext();
     switch (tokenizer.GetCurrentType()) {
         case ETokenType::EndOfStream:
-            return ResolveSelf(TYPath(tokenizer.GetCurrentSuffix()), verb);
+            return ResolveSelf(TYPath(tokenizer.GetCurrentSuffix()), context);
 
         case PathSeparatorToken:
             tokenizer.ParseNext();
             if (tokenizer.GetCurrentType() == GoToAttributesToken) {
-                return ResolveAttributes(TYPath(tokenizer.GetCurrentSuffix()), verb);
+                return ResolveAttributes(TYPath(tokenizer.GetCurrentSuffix()), context);
             } else {
-                return ResolveRecursive(TYPath(tokenizer.CurrentInput()), verb);
+                return ResolveRecursive(TYPath(tokenizer.CurrentInput()), context);
             }
 
         default:
@@ -45,23 +47,29 @@ IYPathService::TResolveResult TYPathServiceBase::Resolve(const TYPath& path, con
     }
 }
 
-IYPathService::TResolveResult TYPathServiceBase::ResolveSelf(const TYPath& path, const Stroka& verb)
+IYPathService::TResolveResult TYPathServiceBase::ResolveSelf(
+    const TYPath& path,
+    IServiceContextPtr context)
 {
-    UNUSED(verb);
+    UNUSED(context);
     return TResolveResult::Here(path);
 }
 
-IYPathService::TResolveResult TYPathServiceBase::ResolveAttributes(const TYPath& path, const Stroka& verb)
+IYPathService::TResolveResult TYPathServiceBase::ResolveAttributes(
+    const TYPath& path,
+    IServiceContextPtr context)
 {
     UNUSED(path);
-    UNUSED(verb);
+    UNUSED(context);
     THROW_ERROR_EXCEPTION("Object cannot have attributes");
 }
 
-IYPathService::TResolveResult TYPathServiceBase::ResolveRecursive(const TYPath& path, const Stroka& verb)
+IYPathService::TResolveResult TYPathServiceBase::ResolveRecursive(
+    const TYPath& path,
+    IServiceContextPtr context)
 {
     UNUSED(path);
-    UNUSED(verb);
+    UNUSED(context);
     THROW_ERROR_EXCEPTION("Object cannot have children");
 }
 
@@ -354,10 +362,10 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IYPathService::TResolveResult TSupportsAttributes::ResolveAttributes(
-    const NYTree::TYPath& path,
-    const Stroka& verb)
+    const TYPath& path,
+    IServiceContextPtr context)
 {
-    UNUSED(path);
+    const auto& verb = context->GetVerb();
     if (verb != "Get" &&
         verb != "Set" &&
         verb != "List" &&
@@ -368,6 +376,7 @@ IYPathService::TResolveResult TSupportsAttributes::ResolveAttributes(
             "Verb %s is not supported",
             ~verb);
     }
+
     return TResolveResult::Here("/@" + path);
 }
 
@@ -612,8 +621,8 @@ void TSupportsAttributes::RemoveAttribute(
 
 void TSupportsAttributes::OnUpdateAttribute(
     const Stroka& key,
-    const TNullable<NYTree::TYsonString>& oldValue,
-    const TNullable<NYTree::TYsonString>& newValue)
+    const TNullable<TYsonString>& oldValue,
+    const TNullable<TYsonString>& newValue)
 {
     UNUSED(key);
     UNUSED(oldValue);
@@ -807,8 +816,6 @@ protected:
 
 IServiceContextPtr CreateYPathContext(
     IMessagePtr requestMessage,
-    const TYPath& path,
-    const Stroka& verb,
     const Stroka& loggingCategory,
     TYPathResponseHandler responseHandler)
 {
@@ -839,12 +846,16 @@ public:
         YUNREACHABLE();
     }
 
-    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb) override
+    virtual TResolveResult Resolve(const 
+        TYPath& path,
+        IServiceContextPtr context) override
     {
-        UNUSED(verb);
+        UNUSED(context);
 
         TTokenizer tokenizer(path);
-        tokenizer.ParseNext();
+        if (!tokenizer.ParseNext()) {
+            THROW_ERROR_EXCEPTION("YPath cannot be empty");
+        }
         if (tokenizer.GetCurrentType() != RootToken) {
             THROW_ERROR_EXCEPTION("YPath must start with '/'");
         }
