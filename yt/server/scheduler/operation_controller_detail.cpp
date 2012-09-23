@@ -1199,11 +1199,10 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 table.KeyColumns = ConvertTo< std::vector<Stroka> >(TYsonString(rsp->value()));
                 LOG_INFO("Input table %s is sorted by %s",
                     ~table.Path.GetPath(),
-                    ~ConvertToYsonString(table.KeyColumns, EYsonFormat::Text).Data());
+                    ~ConvertToYsonString(table.KeyColumns.Get(), EYsonFormat::Text).Data());
             } else {
                 LOG_INFO("Input table %s is not sorted",
-                    ~table.Path.GetPath(),
-                    ~ConvertToYsonString(table.KeyColumns, EYsonFormat::Text).Data());
+                    ~table.Path.GetPath());
             }
         }
     }
@@ -1425,7 +1424,7 @@ std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNull
             if (!CheckKeyColumnsCompatible(table.KeyColumns.Get(), keyColumns.Get())) {
                 THROW_ERROR_EXCEPTION("Input table %s is sorted by columns %s that are not compatible with the requested columns %s",
                     ~table.Path.GetPath(),
-                    ~ConvertToYsonString(table.KeyColumns, EYsonFormat::Text).Data(),
+                    ~ConvertToYsonString(table.KeyColumns.Get(), EYsonFormat::Text).Data(),
                     ~ConvertToYsonString(keyColumns.Get(), EYsonFormat::Text).Data());
             }
         }
@@ -1436,9 +1435,9 @@ std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNull
             if (table.KeyColumns != referenceTable.KeyColumns) {
                 THROW_ERROR_EXCEPTION("Key columns do not match: input table %s is sorted by columns %s while input table %s is sorted by columns %s",
                     ~table.Path.GetPath(),
-                    ~ConvertToYsonString(table.KeyColumns, EYsonFormat::Text).Data(),
+                    ~ConvertToYsonString(table.KeyColumns.Get(), EYsonFormat::Text).Data(),
                     ~referenceTable.Path.GetPath(),
-                    ~ConvertToYsonString(referenceTable.KeyColumns, EYsonFormat::Text).Data());
+                    ~ConvertToYsonString(referenceTable.KeyColumns.Get(), EYsonFormat::Text).Data());
             }
         }
         return referenceTable.KeyColumns.Get();
