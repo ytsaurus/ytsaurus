@@ -78,17 +78,16 @@ TSnapshotReader::~TSnapshotReader()
 
 void TSnapshotReader::Open()
 {
-    LOG_DEBUG("Opening snapshot reader %s", ~FileName);
-
     File.Reset(new TFile(FileName, OpenExisting));
 
     Header.Reset(new TSnapshotHeader());
     ReadPod(*File, *Header);
 
     Header->Validate();
-    LOG_FATAL_UNLESS(Header->SegmentId == SnapshotId,
+    LOG_FATAL_UNLESS(
+        Header->SegmentId == SnapshotId,
         "Invalid snapshot id in header: expected %d, got %d", SnapshotId, Header->SegmentId);
-    YASSERT(Header->DataLength + sizeof(*Header) == static_cast<ui64>(File->GetLength()));
+    YCHECK(Header->DataLength + sizeof(*Header) == static_cast<ui64>(File->GetLength()));
 
     FileInput.Reset(new TBufferedFileInput(*File));
     TInputStream* inputStream = ~FileInput;
@@ -101,31 +100,31 @@ void TSnapshotReader::Open()
 
 TInputStream* TSnapshotReader::GetStream() const
 {
-    YASSERT(~ChecksummableInput);
+    YCHECK(~ChecksummableInput);
     return ~ChecksummableInput;
 }
 
 i64 TSnapshotReader::GetLength() const
 {
-    YASSERT(~File);
+    YCHECK(~File);
     return File->GetLength();
 }
 
 TChecksum TSnapshotReader::GetChecksum() const
 {
-    YASSERT(~Header);
+    YCHECK(~Header);
     return Header->Checksum;
 }
 
 i32 TSnapshotReader::GetPrevRecordCount() const
 {
-    YASSERT(~Header);
+    YCHECK(~Header);
     return Header->PrevRecordCount;
 }
 
 const TEpochId& TSnapshotReader::GetEpoch() const
 {
-    YASSERT(~Header);
+    YCHECK(~Header);
     return Header->Epoch;
 }
 
@@ -149,7 +148,7 @@ TSnapshotWriter::~TSnapshotWriter()
 
 void TSnapshotWriter::Open(i32 prevRecordCount, const TEpochId& epoch)
 {
-    YASSERT(State == EState::Uninitialized);
+    YCHECK(State == EState::Uninitialized);
 
     Header->PrevRecordCount = prevRecordCount;
     Header->Epoch = epoch;
@@ -158,19 +157,20 @@ void TSnapshotWriter::Open(i32 prevRecordCount, const TEpochId& epoch)
     File->Resize(sizeof(TSnapshotHeader));
     File->Seek(0, sEnd);
 
-    TOutputStream* outputStream = File->GetOutputStream();
+    TOutputStream* output = File->GetOutputStream();
     if (EnableCompression) {
-        CompressedOutput.Reset(new TCompressedOutput(outputStream));
-        outputStream = ~CompressedOutput;
+        CompressedOutput.Reset(new TCompressedOutput(output));
+        output = ~CompressedOutput;
     }
-    ChecksummableOutput.Reset(new TChecksummableOutput(outputStream));
+    BufferedOutput.Reset(new TBufferedOutput(output, 64 * 1024));
+    ChecksummableOutput.Reset(new TChecksummableOutput(~BufferedOutput));
 
     State = EState::Opened;
 }
 
 TOutputStream* TSnapshotWriter::GetStream() const
 {
-    YASSERT(State == EState::Opened);
+    YCHECK(State == EState::Opened);
     return ~ChecksummableOutput;
 }
 
@@ -181,12 +181,6 @@ void TSnapshotWriter::Close()
     }
 
     ChecksummableOutput->Finish();
-
-    if (EnableCompression) {
-        // This ensures that the compressed stream gets finalized properly,
-        // in particular, flushes its trailer.
-        CompressedOutput->Finish();
-    }
 
     Header->Checksum = ChecksummableOutput->GetChecksum();
     Header->DataLength = File->GetLength() - sizeof(TSnapshotHeader);
@@ -200,7 +194,7 @@ void TSnapshotWriter::Close()
 
 TChecksum TSnapshotWriter::GetChecksum() const
 {
-    YASSERT(State == EState::Closed);
+    YCHECK(State == EState::Closed);
     return Header->Checksum;
 }
 

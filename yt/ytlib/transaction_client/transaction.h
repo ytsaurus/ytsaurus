@@ -4,6 +4,8 @@
 
 #include <ytlib/actions/signal.h>
 
+#include <ytlib/rpc/public.h>
+
 namespace NYT {
 namespace NTransactionClient {
 
@@ -64,6 +66,14 @@ struct ITransaction
      */
     DECLARE_INTERFACE_SIGNAL(void(), Aborted);
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Attaches transaction id to the given request.
+/*!
+ *  #transaction may be null.
+ */
+void SetTransactionId(NRpc::IClientRequestPtr request, ITransactionPtr transaction);
 
 ////////////////////////////////////////////////////////////////////////////////
 

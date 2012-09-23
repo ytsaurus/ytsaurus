@@ -9,6 +9,7 @@
 namespace NYT {
 namespace NCypressServer {
 
+using namespace NRpc;
 using namespace NYTree;
 using namespace NCellMaster;
 using namespace NTransactionServer;
@@ -49,7 +50,9 @@ public:
         , RequireLeaderStatus(requiredLeaderStatus)
     { }
 
-    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb)
+    virtual TResolveResult Resolve(
+        const TYPath& path,
+        IServiceContextPtr context) override
     {
         if (RequireLeaderStatus) {
             ValidateLeaderStatus();
@@ -58,7 +61,7 @@ public:
         TTokenizer tokenizer(path);
         tokenizer.ParseNext();
         if (tokenizer.GetCurrentType() == SuppressRedirectToken) {
-            return TBase::Resolve(TYPath(tokenizer.GetCurrentSuffix()), verb);
+            return TBase::Resolve(TYPath(tokenizer.GetCurrentSuffix()), context);
         }
 
         return TResolveResult::There(Service, path);
@@ -103,12 +106,12 @@ public:
             RequireLeaderStatus);
     }
 
-    virtual EObjectType GetObjectType()
+    virtual EObjectType GetObjectType() override
     {
         return ObjectType;
     }
 
-    virtual ENodeType GetNodeType()
+    virtual ENodeType GetNodeType() override
     {
         return ENodeType::Entity;
     }

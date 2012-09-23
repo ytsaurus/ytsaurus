@@ -125,8 +125,13 @@ void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove
     context->Reply();
 }
 
-IYPathService::TResolveResult TNodeBase::ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb)
+IYPathService::TResolveResult TNodeBase::ResolveRecursive(
+    const NYTree::TYPath& path,
+    IServiceContextPtr context)
 {
+    UNUSED(path);
+    UNUSED(context);
+
     ThrowCannotHaveChildren(this);
     YUNREACHABLE();
 }
@@ -176,8 +181,9 @@ void TCompositeNodeMixin::RemoveRecursive(
 
 IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
     const TYPath& path,
-    const Stroka& verb)
+    IServiceContextPtr context)
 {
+    const auto& verb = context->GetVerb();
     TTokenizer tokenizer(path);
     tokenizer.ParseNext();
     switch (tokenizer.GetCurrentType()) {
@@ -281,8 +287,10 @@ void TMapNodeMixin::SetRecursive(const TYPath& path, INodePtr value)
 
 IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
     const TYPath& path,
-    const Stroka& verb)
+    IServiceContextPtr context)
 {
+    UNUSED(context);
+
     TTokenizer tokenizer(path);
     tokenizer.ParseNext();
     switch (tokenizer.GetCurrentType()) {

@@ -69,7 +69,9 @@ protected:
     virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context) override;
     virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove* context) override;
 
-    virtual TResolveResult ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb) override;
+    virtual TResolveResult ResolveRecursive(
+        const NYTree::TYPath& path,
+        NRpc::IServiceContextPtr context) override;
 
 };
 
@@ -108,7 +110,7 @@ class TMapNodeMixin
 protected:
     IYPathService::TResolveResult ResolveRecursive(
         const TYPath& path,
-        const Stroka& verb);
+        NRpc::IServiceContextPtr context);
 
     void ListSelf(
         TReqList* request,
@@ -129,7 +131,7 @@ class TListNodeMixin
 protected:
     IYPathService::TResolveResult ResolveRecursive(
         const TYPath& path,
-        const Stroka& verb);
+        NRpc::IServiceContextPtr context);
 
     void SetRecursive(
         const TYPath& path,

@@ -19,7 +19,7 @@ protected:
 private:
     virtual void DoInvoke(NRpc::IServiceContextPtr context);
 
-    virtual TResolveResult ResolveRecursive(const TYPath& path, const Stroka& verb);
+    virtual TResolveResult ResolveRecursive(const TYPath& path, NRpc::IServiceContextPtr context);
     virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context);
     virtual void ListSelf(TReqList* request, TRspList* response, TCtxList* context);
 

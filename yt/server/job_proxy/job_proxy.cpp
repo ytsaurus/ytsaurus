@@ -177,7 +177,7 @@ void TJobProxy::Run()
 
         ReportResult(result);
     } catch (const std::exception& ex) {
-        LOG_ERROR("Job failed\n%s", ex.what());
+        LOG_ERROR(ex, "Job failed");
 
         TJobResult result;
         ToProto(result.mutable_error(), TError(ex));

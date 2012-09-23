@@ -82,6 +82,7 @@ const IAttributeDictionary& EmptyAttributes()
 
 void ToProto(NProto::TAttributes* protoAttributes, const IAttributeDictionary& attributes)
 {
+    protoAttributes->Clear();
     FOREACH (const auto& key, attributes.List()) {
         auto value = attributes.GetYson(key);
         auto protoAttribute = protoAttributes->add_attributes();

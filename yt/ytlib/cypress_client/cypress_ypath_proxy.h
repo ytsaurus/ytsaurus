@@ -2,6 +2,9 @@
 
 #include "public.h"
 
+#include <ytlib/rpc/public.h>
+#include <ytlib/rpc/rpc.pb.h>
+
 #include <ytlib/object_client/object_ypath_proxy.h>
 
 #include <ytlib/cypress_client/cypress_ypath.pb.h>
@@ -14,8 +17,14 @@ namespace NCypressClient {
 //! Creates the YPath pointing to an object with a given id.
 NYTree::TYPath FromObjectId(const TObjectId& id);
 
-//! Prepends a given YPath with transaction id marker.
-NYTree::TYPath WithTransaction(const NYTree::TYPath& path, const TTransactionId& id);
+//! Extracts transaction id associated with the given request.
+TTransactionId GetTransactionId(NRpc::IServiceContextPtr context);
+
+//! Attaches transaction id to the request.
+void SetTransactionId(NRpc::IClientRequestPtr request, const TTransactionId& transactionId);
+
+//! Attaches transaction id to the request.
+void SetTransactionId(NRpc::NProto::TRequestHeader* header, const TTransactionId& transactionId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -107,7 +107,7 @@ protected:
 
     // Input tables.
     struct TInputTable
-        : TTableBase
+        : public TTableBase
     {
         TInputTable()
             : NegateFetch(false)
@@ -124,7 +124,7 @@ protected:
 
     // Output tables.
     struct TOutputTable
-        : TTableBase
+        : public TTableBase
     {
         TOutputTable()
             : InitialRowCount(0)

@@ -646,7 +646,7 @@ private:
 
     virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
     virtual void SetRecursive(const NYTree::TYPath& path, NYTree::INodePtr value) override;
-    virtual IYPathService::TResolveResult ResolveRecursive(const NYTree::TYPath& path, const Stroka& verb) override;
+    virtual IYPathService::TResolveResult ResolveRecursive(const NYTree::TYPath& path, NRpc::IServiceContextPtr context) override;
 
 };
 
@@ -665,25 +665,25 @@ public:
         NTransactionServer::TTransaction* transaction,
         ICypressNode* trunkNode);
 
-    virtual void Clear();
-    virtual int GetChildCount() const;
-    virtual std::vector<NYTree::INodePtr> GetChildren() const;
-    virtual NYTree::INodePtr FindChild(int index) const;
-    virtual void AddChild(NYTree::INodePtr child, int beforeIndex = -1);
-    virtual bool RemoveChild(int index);
-    virtual void ReplaceChild(NYTree::INodePtr oldChild, NYTree::INodePtr newChild);
-    virtual void RemoveChild(NYTree::INodePtr child);
-    virtual int GetChildIndex(NYTree::IConstNodePtr child);
+    virtual void Clear() override;
+    virtual int GetChildCount() const override;
+    virtual std::vector<NYTree::INodePtr> GetChildren() const override;
+    virtual NYTree::INodePtr FindChild(int index) const override;
+    virtual void AddChild(NYTree::INodePtr child, int beforeIndex = -1) override;
+    virtual bool RemoveChild(int index) override;
+    virtual void ReplaceChild(NYTree::INodePtr oldChild, NYTree::INodePtr newChild) override;
+    virtual void RemoveChild(NYTree::INodePtr child) override;
+    virtual int GetChildIndex(NYTree::IConstNodePtr child) override;
 
 private:
     typedef TCompositeNodeProxyBase<NYTree::IListNode, TListNode> TBase;
 
     virtual void SetRecursive(
         const NYTree::TYPath& path,
-        NYTree::INodePtr value);
+        NYTree::INodePtr value) override;
     virtual IYPathService::TResolveResult ResolveRecursive(
         const NYTree::TYPath& path,
-        const Stroka& verb);
+        NRpc::IServiceContextPtr context) override;
 
 };
 

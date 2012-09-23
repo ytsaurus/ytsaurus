@@ -1208,7 +1208,6 @@ private:
     {
         UNUSED(batchRsp);
 
-        // TODO(babenko): unless overwrite mode is ON
         CheckOutputTablesEmpty();
         ScheduleSetOutputTablesSorted(Spec->SortBy);
     }

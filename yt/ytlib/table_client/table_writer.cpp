@@ -81,23 +81,27 @@ void TTableWriter::Open()
         auto batchReq = ObjectProxy.ExecuteBatch();
 
         if (KeyColumns.IsInitialized()) {
-            auto req = TCypressYPathProxy::Get(WithTransaction(path, TransactionId) + "/@row_count");
+            auto req = TCypressYPathProxy::Get(path + "/@row_count");
+            SetTransactionId(req, TransactionId);
             batchReq->AddRequest(req, "get_row_count");
         }
 
         if (KeyColumns.IsInitialized() || RichPath.Attributes().Get<bool>("overwrite", false)) {
-            auto req = TTableYPathProxy::Clear(WithTransaction(path, uploadTransactionId));
+            auto req = TTableYPathProxy::Clear(path);
+            SetTransactionId(req, uploadTransactionId);
             NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "clear");
         }
 
         {
-            auto req = TTableYPathProxy::GetChunkListForUpdate(WithTransaction(path, uploadTransactionId));
+            auto req = TTableYPathProxy::GetChunkListForUpdate(path);
+            SetTransactionId(req, uploadTransactionId);
             NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "get_chunk_list_for_update");
         }
         {
-            auto req = TCypressYPathProxy::Get(WithTransaction(path, TransactionId) + "/@channels");
+            auto req = TCypressYPathProxy::Get(path + "/@channels");
+            SetTransactionId(req, TransactionId);
             batchReq->AddRequest(req, "get_channels");
         }
 
@@ -208,7 +212,8 @@ void TTableWriter::Close()
         auto keyColumns = KeyColumns.Get();
         LOG_INFO("Marking table as sorted by %s", ~ConvertToYsonString(keyColumns, EYsonFormat::Text).Data());
         
-        auto req = TTableYPathProxy::SetSorted(WithTransaction(path, UploadTransaction->GetId()));
+        auto req = TTableYPathProxy::SetSorted(path);
+        SetTransactionId(req, UploadTransaction);
         NMetaState::GenerateRpcMutationId(req);
         ToProto(req->mutable_key_columns(), keyColumns);
 

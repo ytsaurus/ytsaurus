@@ -172,7 +172,9 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
         auto request = proxy.ReadSnapshot();
         request->set_snapshot_id(snapshotId);
         request->set_offset(downloadedLength);
-        i32 blockSize = Min(Config->BlockSize, (i32)(snapshotLength - downloadedLength));
+        i32 blockSize = static_cast<i32>(std::min(
+            static_cast<i64>(Config->BlockSize),
+            snapshotLength - downloadedLength));
         request->set_length(blockSize);
         auto response = request->Invoke().Get();
 

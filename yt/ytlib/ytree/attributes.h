@@ -33,15 +33,22 @@ struct IAttributeDictionary
     //! Returns the value of the attribute (throws an exception if the attribute is not found).
     TYsonString GetYson(const Stroka& key) const;
 
+    //! Finds the attribute and deserializes its value.
+    //! Fails if no such value is found.
     template <class T>
     T Get(const Stroka& key) const;
 
+    //! Finds the attribute and deserializes its value.
+    //! Uses default value if no such attribute is found.
     template <class T>
     T Get(const Stroka& key, const T& defaultValue) const;
 
+    //! Finds the attribute and deserializes its value.
+    //! Returns |Null| if no such attribute is found.
     template <class T>
     typename TNullableTraits<T>::TNullableType Find(const Stroka& key) const;
 
+    //! Sets the attribute with a serialized value.
     template <class T>
     void Set(const Stroka& key, const T& value);
     
@@ -54,6 +61,7 @@ struct IAttributeDictionary
     //! Adds more attributes from another attribute dictionary.
     void MergeFrom(const IAttributeDictionary& other);
 
+    //! Constructs an ephemeral copy.
     TAutoPtr<IAttributeDictionary> Clone() const;
 };
 

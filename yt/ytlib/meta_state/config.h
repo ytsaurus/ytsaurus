@@ -30,7 +30,7 @@ struct TChangeLogDownloaderConfig
             .Default(TDuration::Seconds(10));
         Register("records_per_request", RecordsPerRequest)
             .GreaterThan(0)
-            .Default(1024 * 1024);
+            .Default(64 * 1024);
     }
 };
 

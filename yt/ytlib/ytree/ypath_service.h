@@ -65,7 +65,7 @@ struct IYPathService
     };
 
     //! Resolves the given path by either returning "here" or "there" result.
-    virtual TResolveResult Resolve(const TYPath& path, const Stroka& verb) = 0;
+    virtual TResolveResult Resolve(const TYPath& path, NRpc::IServiceContextPtr context) = 0;
 
     //! Executes a given request.
     virtual void Invoke(NRpc::IServiceContextPtr context) = 0;

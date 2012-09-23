@@ -91,9 +91,8 @@ void TFileWriter::Close()
     LOG_INFO("Creating file node");
     {
         TObjectServiceProxy proxy(MasterChannel);
-        auto req = TCypressYPathProxy::Create(WithTransaction(
-            Path,
-            Transaction ? Transaction->GetId() : NullTransactionId));
+        auto req = TCypressYPathProxy::Create(Path);
+        SetTransactionId(req, Transaction);
         req->set_type(EObjectType::File);
         auto* reqExt = req->MutableExtension(NFileClient::NProto::TReqCreateFileExt::create_file);
         *reqExt->mutable_chunk_id() = Writer->GetChunkId().ToProto();
