@@ -111,13 +111,11 @@ protected:
     {
         TInputTable()
             : NegateFetch(false)
-            , Sorted(false)
         { }
 
         NTableClient::TTableYPathProxy::TRspFetchPtr FetchResponse;
         bool NegateFetch;
-        bool Sorted;
-        std::vector<Stroka> KeyColumns;
+        TNullable< std::vector<Stroka> > KeyColumns;
     };
 
     std::vector<TInputTable> InputTables;
@@ -128,14 +126,12 @@ protected:
     {
         TOutputTable()
             : InitialRowCount(0)
-            , SetSorted(false)
             , Clear(false)
         { }
 
         i64 InitialRowCount;
-        bool SetSorted;
         bool Clear;
-        std::vector<Stroka> KeyColumns;
+        TNullable< std::vector<Stroka> > KeyColumns;
         NYTree::TYsonString Channels;
 
         // Chunk list for appending the output.
@@ -406,8 +402,6 @@ protected:
         const std::vector<Stroka>& fullColumns,
         const std::vector<Stroka>& prefixColumns);
     void CheckOutputTablesEmpty();
-    void ScheduleClearOutputTables();
-    void ScheduleSetOutputTablesSorted(const std::vector<Stroka>& keyColumns);
     void RegisterOutputChunkTree(
         const NChunkServer::TChunkTreeId& chunkTreeId,
         int key,

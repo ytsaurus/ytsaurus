@@ -677,10 +677,10 @@ private:
     {
         TOperationControllerBase::DoInitialize();
 
-        // For erase operation the rowset specified by the user must actually be removed...
+        // For erase operation the rowset specified by the user must actually be negated.
         InputTables[0].NegateFetch = true;
-        // ...and the output table must be cleared.
-        ScheduleClearOutputTables();
+        // ...and the output table must be cleared (regardless of "overwrite" attribute).
+        OutputTables[0].Clear = true;
     }
 
     virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) override
@@ -688,9 +688,10 @@ private:
         UNUSED(batchRsp);
 
         // If the input is sorted then the output chunk tree must also be marked as sorted.
-        const auto& table = InputTables[0];
-        if (table.Sorted) {
-            ScheduleSetOutputTablesSorted(table.KeyColumns);
+        const auto& inputTable = InputTables[0];
+        auto& outputTable = OutputTables[0];
+        if (inputTable.KeyColumns) {
+            outputTable.KeyColumns = inputTable.KeyColumns;
         }
     }
 
@@ -710,8 +711,8 @@ private:
         // If the input is sorted then the output must also be sorted.
         // For this, the job needs key columns.
         const auto& table = InputTables[0];
-        if (table.Sorted) {
-            ToProto(jobSpecExt->mutable_key_columns(), table.KeyColumns);
+        if (table.KeyColumns) {
+            ToProto(jobSpecExt->mutable_key_columns(), table.KeyColumns.Get());
         }
 
         JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
@@ -1091,11 +1092,6 @@ public:
 private:
     TMergeOperationSpecPtr Spec;
 
-    virtual void DoInitialize() override
-    {
-        ScheduleClearOutputTables();
-    }
-
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {
         return Spec->InputTablePaths;
@@ -1158,7 +1154,8 @@ private:
     {
         TSortedMergeControllerBase::OnCustomInputsRecieved(batchRsp);
 
-        ScheduleSetOutputTablesSorted(KeyColumns);
+        CheckOutputTablesEmpty();
+        OutputTables[0].KeyColumns = KeyColumns;
     }
 
 };

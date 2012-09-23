@@ -849,13 +849,6 @@ protected:
     // Init/finish.
 
     
-    virtual void DoInitialize() override
-    {
-        TOperationControllerBase::DoInitialize();
-
-        ScheduleClearOutputTables();
-    }
-
     virtual void OnOperationCompleted() override
     {
         YCHECK(CompletedPartitionCount == Partitions.size());
@@ -1209,7 +1202,7 @@ private:
         UNUSED(batchRsp);
 
         CheckOutputTablesEmpty();
-        ScheduleSetOutputTablesSorted(Spec->SortBy);
+        OutputTables[0].KeyColumns = Spec->SortBy;
     }
 
     void SortSamples()

@@ -333,7 +333,6 @@ void TOperationControllerBase::Initialize()
         TOutputTable table;
         table.Path = path;
         if (path.Attributes().Get<bool>("overwrite", false)) {
-            LOG_INFO("Output table %s will be cleared", ~path.GetPath());
             table.Clear = true;
         }
         OutputTables.push_back(table);
@@ -833,10 +832,13 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs()
             NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "attach_out");
         }
-        if (table.SetSorted) {
+        if (table.KeyColumns) {
+            LOG_INFO("Table %s will be marked as sorted by %s",
+                ~table.Path.GetPath(),
+                ~ConvertToYsonString(table.KeyColumns.Get(), EYsonFormat::Text).Data());
             auto req = TTableYPathProxy::SetSorted(path);
             SetTransactionId(req, OutputTransaction);
-            ToProto(req->mutable_key_columns(), table.KeyColumns);
+            ToProto(req->mutable_key_columns(), table.KeyColumns.Get());
             NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "set_out_sorted");
         }
@@ -1108,13 +1110,16 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
         }
         // NB: InitialRowCount is used to check the table for emptiness so we must be requesting
         // it after clearing the tale.
-        {
+        if (table.Clear) {
+            LOG_INFO("Output table %s will be cleared", ~table.Path.GetPath());
             auto req = TTableYPathProxy::Clear(path);
             SetTransactionId(req, OutputTransaction);
             NMetaState::GenerateRpcMutationId(req);
+            batchReq->AddRequest(req);
+        } else {
             // Even if |Clear| is False we still add a dummy request
             // to keep "clear_out" requests aligned with output tables.
-            batchReq->AddRequest(table.Clear ? req : NULL, "clear_out");
+            batchReq->AddRequest(NULL, "clear_out");
         }
         {
             auto req = TYPathProxy::Get(path + "/@row_count");
@@ -1180,21 +1185,23 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                     ~table.Path.GetPath(),
                     rsp->chunks_size());
             }
+            bool sorted;
             {
                 auto rsp = getInSortedRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting \"sorted\" attribute for input table %s",
                     ~table.Path.GetPath());
-                table.Sorted = ConvertTo<bool>(TYsonString(rsp->value()));
-                LOG_INFO("Input table %s is %s",
-                    ~table.Path.GetPath(),
-                    table.Sorted ? "sorted" : "not sorted");
+                sorted = ConvertTo<bool>(TYsonString(rsp->value()));
             }
-            if (table.Sorted) {
+            if (sorted) {
                 auto rsp = getInKeyColumns[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting \"sorted_by\" attribute for input table %s",
                     ~table.Path.GetPath());
                 table.KeyColumns = ConvertTo< std::vector<Stroka> >(TYsonString(rsp->value()));
-                LOG_INFO("Input table %s has key columns %s",
+                LOG_INFO("Input table %s is sorted by %s",
+                    ~table.Path.GetPath(),
+                    ~ConvertToYsonString(table.KeyColumns, EYsonFormat::Text).Data());
+            } else {
+                LOG_INFO("Input table %s is not sorted",
                     ~table.Path.GetPath(),
                     ~ConvertToYsonString(table.KeyColumns, EYsonFormat::Text).Data());
             }
@@ -1407,7 +1414,7 @@ std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNull
     YCHECK(!InputTables.empty());
 
     FOREACH (const auto& table, InputTables) {
-        if (!table.Sorted) {
+        if (!table.KeyColumns) {
             THROW_ERROR_EXCEPTION("Input table %s is not sorted",
                 ~table.Path.GetPath());
         }
@@ -1415,8 +1422,8 @@ std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNull
 
     if (keyColumns) {
         FOREACH (const auto& table, InputTables) {
-            if (!CheckKeyColumnsCompatible(table.KeyColumns, keyColumns.Get())) {
-                THROW_ERROR_EXCEPTION("Input table %s has key columns %s that are not compatible with the requested key columns %s",
+            if (!CheckKeyColumnsCompatible(table.KeyColumns.Get(), keyColumns.Get())) {
+                THROW_ERROR_EXCEPTION("Input table %s is sorted by columns %s that are not compatible with the requested columns %s",
                     ~table.Path.GetPath(),
                     ~ConvertToYsonString(table.KeyColumns, EYsonFormat::Text).Data(),
                     ~ConvertToYsonString(keyColumns.Get(), EYsonFormat::Text).Data());
@@ -1427,14 +1434,14 @@ std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNull
         const auto& referenceTable = InputTables[0];
         FOREACH (const auto& table, InputTables) {
             if (table.KeyColumns != referenceTable.KeyColumns) {
-                THROW_ERROR_EXCEPTION("Key columns do not match: input table %s is sorted by %s while input table %s is sorted by %s",
+                THROW_ERROR_EXCEPTION("Key columns do not match: input table %s is sorted by columns %s while input table %s is sorted by columns %s",
                     ~table.Path.GetPath(),
                     ~ConvertToYsonString(table.KeyColumns, EYsonFormat::Text).Data(),
                     ~referenceTable.Path.GetPath(),
                     ~ConvertToYsonString(referenceTable.KeyColumns, EYsonFormat::Text).Data());
             }
         }
-        return referenceTable.KeyColumns;
+        return referenceTable.KeyColumns.Get();
     }
 }
 
@@ -1462,21 +1469,6 @@ void TOperationControllerBase::CheckOutputTablesEmpty()
             THROW_ERROR_EXCEPTION("Output table %s is not empty",
                 ~table.Path.GetPath());
         }
-    }
-}
-
-void TOperationControllerBase::ScheduleClearOutputTables()
-{
-    FOREACH (auto& table, OutputTables) {
-        table.Clear = true;
-    }
-}
-
-void TOperationControllerBase::ScheduleSetOutputTablesSorted(const std::vector<Stroka>& keyColumns)
-{
-    FOREACH (auto& table, OutputTables) {
-        table.SetSorted = true;
-        table.KeyColumns = keyColumns;
     }
 }
 
