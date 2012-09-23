@@ -277,7 +277,7 @@ public:
         } else {
             // Split progress evenly between reading and writing.
             double progress =
-                0.5 * Reader->GetItemIndex() / total +;
+                0.5 * Reader->GetItemIndex() / total +
                 0.5 * Writer->GetRowCount() / total;
             LOG_DEBUG("GetProgress: %lf", progress);
             return progress;
