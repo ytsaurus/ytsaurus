@@ -262,3 +262,34 @@ class TestTableCommands(YTEnvSetup):
         chunk_id = get("//tmp/table/@chunk_ids/0")
         assert get('#"%s"/@codec_id' % chunk_id) == "gzip_best_compression"
 
+    def test_copy(self):
+        create('table', '//tmp/t')
+        write_str('//tmp/t', '{a=b}')
+
+        assert read('//tmp/t') == [{'a' : 'b'}]
+        copy('//tmp/t', '//tmp/t2')
+        assert read('//tmp/t2') == [{'a' : 'b'}]
+
+        remove('//tmp/t')
+        assert read('//tmp/t2') == [{'a' : 'b'}]
+
+        remove('//tmp/t2')
+        assert get('//sys/chunks') == []
+
+    def test_copy_tx(self):
+        create('table', '//tmp/t')
+        write_str('//tmp/t', '{a=b}')
+
+        tx = start_transaction()
+        assert read('//tmp/t', tx=tx) == [{'a' : 'b'}]
+        copy('//tmp/t', '//tmp/t2', tx=tx)
+        assert read('//tmp/t2', tx=tx) == [{'a' : 'b'}]
+        commit_transaction(tx)
+
+        assert read('//tmp/t2') == [{'a' : 'b'}]
+
+        remove('//tmp/t')
+        assert read('//tmp/t2') == [{'a' : 'b'}]
+
+        remove('//tmp/t2')
+        assert get('//sys/chunks') == []

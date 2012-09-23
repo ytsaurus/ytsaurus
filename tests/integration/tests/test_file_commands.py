@@ -22,4 +22,34 @@ class TestFileCommands(YTEnvSetup):
         remove('//tmp/file')
         assert ls('//sys/chunks') == []
     
-    # TODO(panin): check codecs
+    def test_copy(self):
+        content = "some_data"
+        upload('//tmp/f', content)
+
+        assert download('//tmp/f') == content
+        copy('//tmp/f', '//tmp/f2')
+        assert download('//tmp/f2') == content
+
+        remove('//tmp/f')
+        assert download('//tmp/f2') == content
+
+        remove('//tmp/f2')
+        assert get('//sys/chunks') == []
+
+	def test_copy_tx(self):
+        content = "some_data"
+        upload('//tmp/f', content)
+
+        tx = start_transaction()
+        assert download('//tmp/f', tx=tx) == content
+        copy('//tmp/f', '//tmp/f2', tx=tx)
+        assert download('//tmp/f2', tx=tx) == content
+        commit_transaction(tx)
+
+        assert download('//tmp/f2') == content
+
+        remove('//tmp/f')
+        assert download('//tmp/f2') == content
+
+        remove('//tmp/f2')
+        assert get('//sys/chunks') == []

@@ -226,19 +226,6 @@ class TestCypressCommands(YTEnvSetup):
         remove('//tmp/a')
         assert get('//tmp/c/b/@path') == '//tmp/c/b'
 
-    def test_copy_tx1(self):
-        create('table', '//tmp/t')
-        write_str('//tmp/t', '{a=b}')
-
-        tx = start_transaction()
-        assert read('//tmp/t', tx=tx) == [{'a' : 'b'}]
-        copy('//tmp/t', '//tmp/t2', tx=tx)
-        assert read('//tmp/t2', tx=tx) == [{'a' : 'b'}]
-        commit_transaction(tx)
-
-        assert read('//tmp/t2') == [{'a' : 'b'}]
-
-
     def test_move_simple(self):
         set('//tmp/a', 1)
         move('//tmp/a', '//tmp/b')
