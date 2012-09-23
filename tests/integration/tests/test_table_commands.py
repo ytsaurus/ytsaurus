@@ -274,7 +274,7 @@ class TestTableCommands(YTEnvSetup):
         assert read('//tmp/t2') == [{'a' : 'b'}]
 
         remove('//tmp/t2')
-        assert get('//sys/chunks') == []
+        assert ls('//sys/chunks') == []
 
     def test_copy_tx(self):
         create('table', '//tmp/t')
@@ -292,4 +292,4 @@ class TestTableCommands(YTEnvSetup):
         assert read('//tmp/t2') == [{'a' : 'b'}]
 
         remove('//tmp/t2')
-        assert get('//sys/chunks') == []
+        assert ls('//sys/chunks') == []

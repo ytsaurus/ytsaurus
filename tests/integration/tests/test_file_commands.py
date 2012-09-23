@@ -34,7 +34,7 @@ class TestFileCommands(YTEnvSetup):
         assert download('//tmp/f2') == content
 
         remove('//tmp/f2')
-        assert get('//sys/chunks') == []
+        assert ls('//sys/chunks') == []
 
 	def test_copy_tx(self):
         content = "some_data"
@@ -52,4 +52,4 @@ class TestFileCommands(YTEnvSetup):
         assert download('//tmp/f2') == content
 
         remove('//tmp/f2')
-        assert get('//sys/chunks') == []
+        assert ls('//sys/chunks') == []
