@@ -36,7 +36,7 @@ class TestFileCommands(YTEnvSetup):
         remove('//tmp/f2')
         assert ls('//sys/chunks') == []
 
-	def test_copy_tx(self):
+    def test_copy_tx(self):
         content = "some_data"
         upload('//tmp/f', content)
 
