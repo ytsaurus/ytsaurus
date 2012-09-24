@@ -110,12 +110,12 @@ test_transactions()
     TX=`./mapreduce -start_tx`
     ./mapreduce -subkey -write "ignat/temp" -append -tx "$TX" < table_file
     ./mapreduce -set "ignat/temp/@my_attr"  -value 10 -tx "$TX"
-    
+
     ./mapreduce -get "ignat/temp/@my_attr"
     ./mapreduce -read "ignat/temp" | wc -l
-    
+
     ./mapreduce -commit_tx "$TX"
-    
+
     ./mapreduce -get "ignat/temp/@my_attr"
     ./mapreduce -read "ignat/temp" | wc -l
 }
@@ -130,7 +130,7 @@ test_range_map()
 test_uploaded_files()
 {
     ./mapreduce -subkey -write "ignat/temp" <table_file
-    
+
     echo -e "#!/usr/bin/env python
 import sys
 
@@ -143,7 +143,13 @@ if __name__ == '__main__':
     " >mapper.py
     chmod +x mapper.py
     ./mapreduce -upload mapper.py -dst ignat/mapper.py
-    
+
+    ./mapreduce -listfiles
+
+    ./mapreduce -drop ignat/mapper.py
+    ./mapreduce -listfiles
+
+
     ./mapreduce -subkey -map "./mapper.py" -ytfile "ignat/mapper.py" -src "ignat/temp" -dst "ignat/mapped"
     ./mapreduce -subkey -read "ignat/mapped" | wc -l
 
@@ -153,25 +159,6 @@ if __name__ == '__main__':
 test_ignore_positional_arguments()
 {
     ./mapreduce -list "" "123" >/dev/null
-}
-
-test_heavy_command()
-{
-    ./mapreduce -map "cat" \
-        -src "ignat/other_tablexvIj5ElrFd" \
-        -src "ignat/other_table03sv9MSipd" \
-        -src "ignat/other_tableXPglWj1NJc" \
-        -src "ignat/other_tableB9UV0H7Q6D" \
-        -src "ignat/other_tableFNDnliTp0B" \
-        -dst ignat/ttt \
-        -file file_a \
-        -file file_b \
-        -file file_c \
-        -file file_d \
-        -file file_e \
-        -file file_f \
-        -file file_g \
-        -file fff
 }
 
 test_stderr()
@@ -196,8 +183,8 @@ test_transactions
 test_range_map
 test_uploaded_files
 test_ignore_positional_arguments
-#test_heavy_command
 test_stderr
 test_smart_format
+test_list_files
 
 rm -f table_file big_file

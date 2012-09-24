@@ -32,8 +32,8 @@ def remove_prefix(table):
         return table[len(config.PREFIX):]
     return table
 
-def list_all_tables():
-    tables = yt.search("//statbox", "table",
+def list_all_entities(type):
+    tables = yt.search("//statbox", type,
                        path_filter=lambda path: path.startswith(config.PREFIX))
     return sorted(map(remove_prefix, tables))
 
@@ -126,7 +126,7 @@ Examples:
     # TODO(ignat): add unsupported arguments
     action_stores = ["read", "write", "writesorted", "map", "reduce", "reducews", "drop",
                      "erase", "abort_tx", "commit_tx", "renew_tx", "set", "get", "upload", "download"]
-    action_flags = ["version", "copy", "sort", "merge", "list", "start_tx"]
+    action_flags = ["version", "copy", "sort", "merge", "list", "listfiles", "start_tx"]
 
     add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "ping_tx", "smart_format"])
     add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec",
@@ -342,7 +342,9 @@ Examples:
         table_writer = None
 
     if args.list:
-        sys.stdout.writelines(imap(add_eoln, list_all_tables()))
+        sys.stdout.writelines(imap(add_eoln, list_all_entities("table")))
+    if args.listfiles:
+        sys.stdout.writelines(imap(add_eoln, list_all_entities("file")))
     if args.read is not None:
         for chunk in yt.read_table(
                 yt.Table(args.read, lower_key=args.lowerkey, upper_key=args.upperkey),
@@ -370,7 +372,7 @@ Examples:
                       input_format=inputformat, output_format=outputformat,
                       table_writer=table_writer, spec=spec)
     if args.drop is not None:
-        yt.remove_table(args.drop)
+        yt.remove(args.drop)
     if args.copy:
         yt.copy_table(args.src, unlist(dst))
     if args.sort:
