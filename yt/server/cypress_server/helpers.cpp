@@ -30,13 +30,16 @@ yhash_map<Stroka, TNodeId> GetMapNodeChildren(
     std::reverse(transactions.begin(), transactions.end());
 
     FOREACH (const auto* currentTransaction, transactions) {
-        const auto* node = cypressManager->GetVersionedNode(nodeId, currentTransaction);
-        const auto* mapNode = static_cast<const TMapNode*>(node);
-        FOREACH (const auto& pair, mapNode->KeyToChild()) {
-            if (pair.second == NullObjectId) {
-                YCHECK(result.erase(pair.first) == 1);
-            } else {
-                result[pair.first] = pair.second;
+        TVersionedObjectId versionedId(nodeId, GetObjectId(currentTransaction));
+        const auto* node = cypressManager->FindNode(versionedId);
+        if (node) {
+            const auto* mapNode = static_cast<const TMapNode*>(node);
+            FOREACH (const auto& pair, mapNode->KeyToChild()) {
+                if (pair.second == NullObjectId) {
+                    YCHECK(result.erase(pair.first) == 1);
+                } else {
+                    result[pair.first] = pair.second;
+                }
             }
         }
     }
@@ -56,11 +59,14 @@ TVersionedNodeId FindMapNodeChild(
     auto transactions = transactionManager->GetTransactionPath(transaction);
 
     FOREACH (const auto* currentTransaction, transactions) {
-        const auto* node = cypressManager->GetVersionedNode(nodeId, currentTransaction);
-        const auto& map = static_cast<const TMapNode*>(node)->KeyToChild();
-        auto it = map.find(key);
-        if (it != map.end()) {
-            return TVersionedNodeId(it->second, GetObjectId(transaction));
+        TVersionedObjectId versionedId(nodeId, GetObjectId(currentTransaction));
+        const auto* node = cypressManager->FindNode(versionedId);
+        if (node) {
+            const auto* mapNode = static_cast<const TMapNode*>(node);
+            auto it = mapNode->KeyToChild().find(key);
+            if (it != mapNode->KeyToChild().end()) {
+                return TVersionedNodeId(it->second, GetObjectId(transaction));
+            }
         }
     }
 

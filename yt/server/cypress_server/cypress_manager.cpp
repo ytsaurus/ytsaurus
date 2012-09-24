@@ -1003,15 +1003,18 @@ void TCypressManager::ListSubtreeNodeIds(
             std::reverse(transactions.begin(), transactions.end());
 
             yhash_map<Stroka, ICypressNode*> children;
-            FOREACH (const auto* transaction, transactions) {
-                const auto* node = GetVersionedNode(rootId, transaction);
-                const auto* mapNode = static_cast<const TMapNode*>(node);
-                FOREACH (const auto& pair, mapNode->KeyToChild()) {
-                    if (pair.second == NullObjectId) {
-                        YCHECK(children.erase(pair.first) == 1);
-                    } else {
-                        auto* child = GetVersionedNode(pair.second, transaction);
-                        children[pair.first] = child;
+            FOREACH (const auto* currentTransaction, transactions) {
+                TVersionedObjectId versionedId(rootId, GetObjectId(currentTransaction));
+                const auto* node = FindNode(versionedId);
+                if (node) {
+                    const auto* mapNode = static_cast<const TMapNode*>(node);
+                    FOREACH (const auto& pair, mapNode->KeyToChild()) {
+                        if (pair.second == NullObjectId) {
+                            YCHECK(children.erase(pair.first) == 1);
+                        } else {
+                            auto* child = GetVersionedNode(pair.second, currentTransaction);
+                            children[pair.first] = child;
+                        }
                     }
                 }
             }
