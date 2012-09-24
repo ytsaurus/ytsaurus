@@ -325,19 +325,9 @@ public:
         return *Response_;
     }
 
-    // XXX(sandello): If you ever change signature of any of Reply() functions,
-    // please, search sources for "(*Context::*)(int, const Stroka&)" casts.
-    // These casts mainly used to explicitly choose overloaded function when
-    // binding it to some callback.
-
     void Reply()
     {
-        Reply(TError(NYT::TError::OK, ""));
-    }
-
-    void Reply(int code, const Stroka& message)
-    {
-        Reply(TError(code, message));
+        Reply(TError());
     }
 
     void Reply(const TError& error)
