@@ -332,9 +332,12 @@ protected:
 
             attributes.Weight = child->GetWeight();
 
-            attributes.AdjustedMinShareRatio = child->GetMinShareRatio() * LimitsRatio;
-            minShareRatioSum += attributes.AdjustedMinShareRatio;
-
+            if (dominantDemand != 0) {
+                attributes.AdjustedMinShareRatio = child->GetMinShareRatio() * LimitsRatio;
+                minShareRatioSum += attributes.AdjustedMinShareRatio;
+            } else {
+                attributes.AdjustedMinShareRatio = 0.0;
+            }
         }
 
         // Scale down weights if needed.
