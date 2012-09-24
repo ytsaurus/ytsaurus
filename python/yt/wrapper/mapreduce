@@ -128,7 +128,7 @@ Examples:
                      "erase", "abort_tx", "commit_tx", "renew_tx", "set", "get", "upload", "download"]
     action_flags = ["version", "copy", "sort", "merge", "list", "listfiles", "start_tx"]
 
-    add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "ping_tx", "smart_format"])
+    add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "ping_tx", "smart_format", "force"])
     add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec",
                                             "inputformat", "outputformat", "tx", "value", "replication_factor", "sort_by"])
     add_multiple_args(parser, ["src", "dst", "dstappend", "file", "mapfile", "reducefile", "ytfile", "opt", "ytspec"])
@@ -167,6 +167,8 @@ Examples:
              "NEW! delete the table, this option supports range specifications"),
             ("file",
              "file for both map and reduce operations"),
+            ("force",
+             "force removing object of any type"),
             ("get",
              "NEW! returns subtree at given path in json format"),
             ("inputformat",
@@ -375,7 +377,13 @@ Examples:
                       table_writer=table_writer, spec=spec)
     if args.drop is not None:
         if yt.exists(args.drop):
-            yt.remove(args.drop)
+            if not args.force and yt.get_type(args.drop) not in ["table", "list"]:
+                die("You are trying to remove object of type " + yt.get_type(args.drop))
+            path = args.drop
+            while True:
+                yt.remove(path)
+                path = os.path.dirname(path)
+                if yt.get(path): break
     if args.copy:
         yt.copy_table(args.src, unlist(dst))
     if args.sort:
