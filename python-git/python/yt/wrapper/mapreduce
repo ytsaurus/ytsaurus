@@ -75,6 +75,15 @@ class SortingHelpFormatter(RawTextHelpFormatter):
         actions = sorted(actions, key=attrgetter('option_strings'))
         super(SortingHelpFormatter, self).add_arguments(actions)
 
+def writelines_silently(lines):
+    try:
+        for line in lines:
+            sys.stdout.write(line)
+    except IOError:
+        sys.exit(1)
+    except:
+        raise
+
 def die(message, return_code=1):
     print >>sys.stderr, message
     sys.exit(return_code)
@@ -346,14 +355,14 @@ Examples:
         table_writer = None
 
     if args.list:
-        sys.stdout.writelines(imap(add_eoln, list_all_entities("table")))
+        writelines_silently(imap(add_eoln, list_all_entities("table")))
     if args.listfiles:
-        sys.stdout.writelines(imap(add_eoln, list_all_entities("file")))
+        writelines_silently(imap(add_eoln, list_all_entities("file")))
     if args.read is not None:
-        for chunk in yt.read_table(
+        writelines_silently(
+            yt.read_table(
                 yt.Table(args.read, lower_key=args.lowerkey, upper_key=args.upperkey),
-                response_type="iter_content"):
-            sys.stdout.write(chunk)
+                response_type="iter_content"))
     if args.write is not None:
         args.write = yt.Table(args.write, append=args.append)
         yt.write_table(args.write, sys.stdin, table_writer=table_writer)
@@ -398,7 +407,7 @@ Examples:
             yt.remove(dst[0])
         yt.upload_file(args.upload, destination=dst[0])
     if args.download is not None:
-        sys.stdout.writelines(yt.download_file(args.download))
+        writelines_silently(yt.download_file(args.download))
 
     if args.set:
         if args.value is None:

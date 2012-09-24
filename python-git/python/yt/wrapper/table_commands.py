@@ -117,7 +117,7 @@ def read_table(table, format=None, response_type=None):
     if response_type == "iter_lines":
         return iter_lines(response)
     elif response_type == "iter_content":
-        return response.iter_content(chunk_size=config.READ_BUFFER_SIZE)
+        return response.iter_content(chunk_size=config.HTTP_CHUNK_SIZE)
     else:
         raise YtError("Incorrent response type: " + response_type) 
 
