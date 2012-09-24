@@ -181,6 +181,8 @@ Examples:
              "turn on yamr format with lenval"),
             ("list",
              "list all tables"),
+            ("listfiles",
+             "NEW! list all files"),
             ("lowerkey",
              "specifies lowerkey for the range in the read operation"),
             ("map",
@@ -372,7 +374,8 @@ Examples:
                       input_format=inputformat, output_format=outputformat,
                       table_writer=table_writer, spec=spec)
     if args.drop is not None:
-        yt.remove(args.drop)
+        if yt.exists(args.drop):
+            yt.remove(args.drop)
     if args.copy:
         yt.copy_table(args.src, unlist(dst))
     if args.sort:
