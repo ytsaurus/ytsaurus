@@ -146,10 +146,6 @@ if __name__ == '__main__':
 
     ./mapreduce -listfiles
 
-    ./mapreduce -drop ignat/mapper.py
-    ./mapreduce -listfiles
-
-
     ./mapreduce -subkey -map "./mapper.py" -ytfile "ignat/mapper.py" -src "ignat/temp" -dst "ignat/mapped"
     ./mapreduce -subkey -read "ignat/mapped" | wc -l
 
