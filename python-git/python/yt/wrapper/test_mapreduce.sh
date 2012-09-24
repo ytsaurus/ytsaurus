@@ -188,7 +188,6 @@ test_uploaded_files
 test_ignore_positional_arguments
 test_stderr
 test_smart_format
-test_list_files
 test_drop
 
 rm -f table_file big_file
