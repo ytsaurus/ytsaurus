@@ -5,6 +5,7 @@
 #include "callback.h"
 
 #include <ytlib/profiling/profiler.h>
+#include <ytlib/misc/nullable.h>
 
 #include <util/system/thread.h>
 #include <util/system/event.h>
@@ -23,7 +24,8 @@ public:
     TQueueInvoker(
         const Stroka& name,
         TActionQueueBase* owner,
-        bool enableLogging);
+        bool enableLogging,
+        TNullable<Stroka> profilingName = Null);
 
     bool Invoke(const TClosure& action);
     void Shutdown();

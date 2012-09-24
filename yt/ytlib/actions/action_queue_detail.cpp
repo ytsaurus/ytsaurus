@@ -23,10 +23,11 @@ static NLog::TLogger Logger("ActionQueue");
 TQueueInvoker::TQueueInvoker(
     const Stroka& name,
     TActionQueueBase* owner,
-    bool enableLogging)
+    bool enableLogging,
+    TNullable<Stroka> profilingName)
     : Owner(owner)
     , EnableLogging(enableLogging)
-    , Profiler("/action_queues/" + EscapeYPathToken(name))
+    , Profiler("/action_queues/" + (profilingName ? profilingName.Get() : EscapeYPathToken(name)))
     , EnqueueCounter("/enqueue_rate")
     , DequeueCounter("/dequeue_rate")
     , QueueSize(0)

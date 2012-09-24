@@ -15,10 +15,10 @@ class TActionQueue::TImpl
     : public TActionQueueBase
 {
 public:
-    TImpl(const Stroka& threadName, bool enableLogging)
+    TImpl(const Stroka& threadName, bool enableLogging, TNullable<Stroka> profilingName = Null)
         : TActionQueueBase(threadName, enableLogging)
     {
-        QueueInvoker = New<TQueueInvoker>(threadName, this, enableLogging);
+        QueueInvoker = New<TQueueInvoker>(threadName, this, enableLogging, profilingName);
         Start();
     }
 
@@ -211,7 +211,8 @@ public:
         for (int i = 0; i < threadCount; ++i) {
             Threads.push_back(New<TActionQueue::TImpl>(
                 Sprintf("%s:%d", ~threadName, i),
-                true));
+                true,
+                threadName));
         }
     }
 
