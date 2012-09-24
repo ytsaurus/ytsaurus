@@ -1,5 +1,3 @@
-import os
-
 import pytest
 
 from yt_env_setup import YTEnvSetup
@@ -301,7 +299,11 @@ class TestTableCommands(YTEnvSetup):
         remove("//tmp/table_xxx", tx=tx)
         create("table", "//tmp/table_xxx", tx=tx)
 
-        #create("table", "//tmp/table_yyy", tx=tx)
-        #write_str('//tmp/table_yyy', '{foo=bar}', tx=tx)
-        #copy('//tmp/table_yyy', '//tmp/table_xxx', tx=tx)
+    def test_transaction_staff(self):
+        create("table", "//tmp/table_xxx")
+        
+        tx = start_transaction()
+        remove("//tmp/table_xxx", tx=tx)
+        inner_tx = start_transaction(tx=tx)
+        get("//tmp", tx=inner_tx)
 
