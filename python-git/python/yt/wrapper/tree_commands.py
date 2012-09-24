@@ -115,6 +115,9 @@ def find_free_subpath(path):
         if not exists(name):
             return name
 
+def get_type(path):
+    return get_attribute(path, "type")
+
 def search(root="/", node_type=None, path_filter=None, object_filter=None, attributes=None):
     result = []
     def walk(path, object):
