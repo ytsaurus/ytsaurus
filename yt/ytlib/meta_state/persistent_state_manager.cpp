@@ -683,17 +683,17 @@ public:
                     }
 
                     if (createSnapshot) {
-                        context->Reply(
+                        context->Reply(TError(
                             EErrorCode::InvalidStatus,
-                            "Unable to create a snapshot during recovery");
+                            "Unable to create a snapshot during recovery"));
                     } else {
                         context->Reply();
                     }
                 } else {
-                    context->Reply(
+                    context->Reply(TError(
                         EErrorCode::InvalidStatus,
-                        Sprintf("Ping is not received yet (Status: %s)",
-                            ~GetControlStatus().ToString()));
+                        "Ping is not received yet (Status: %s)",
+                        ~GetControlStatus().ToString()));
                 }
                 break;
             }
@@ -738,14 +738,14 @@ public:
                 context->Reply();
                 break;
             case TSnapshotBuilder::EResultCode::InvalidVersion:
-                context->Reply(
+                context->Reply(TError(
                     TProxy::EErrorCode::InvalidVersion,
-                    "Requested to create a snapshot for an invalid version");
+                    "Requested to create a snapshot for an invalid version"));
                 break;
             case TSnapshotBuilder::EResultCode::AlreadyInProgress:
-                context->Reply(
+                context->Reply(TError(
                     TProxy::EErrorCode::SnapshotAlreadyInProgress,
-                    "Snapshot creation is already in progress");
+                    "Snapshot creation is already in progress"));
                 break;
             case TSnapshotBuilder::EResultCode::ForkError:
                 context->Reply(TError("Fork error"));
