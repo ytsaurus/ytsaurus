@@ -293,3 +293,15 @@ class TestTableCommands(YTEnvSetup):
 
         remove('//tmp/t2')
         assert ls('//sys/chunks') == []
+
+    def test_remove_create_under_transaction(self):
+        create("table", "//tmp/table_xxx")
+        tx = start_transaction()
+
+        remove("//tmp/table_xxx", tx=tx)
+        create("table", "//tmp/table_xxx", tx=tx)
+
+        #create("table", "//tmp/table_yyy", tx=tx)
+        #write_str('//tmp/table_yyy', '{foo=bar}', tx=tx)
+        #copy('//tmp/table_yyy', '//tmp/table_xxx', tx=tx)
+

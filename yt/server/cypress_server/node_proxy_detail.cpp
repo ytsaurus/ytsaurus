@@ -303,7 +303,7 @@ bool TMapNodeProxy::AddChild(INodePtr child, const Stroka& key)
     auto childId = GetNodeId(child);
     auto* childImpl = LockImpl(childId);
 
-    YCHECK(impl->KeyToChild().insert(MakePair(key, childId)).second);
+    impl->KeyToChild()[key] = childId;
     YCHECK(impl->ChildToKey().insert(MakePair(childId, key)).second);
     ++impl->ChildCountDelta();
 
