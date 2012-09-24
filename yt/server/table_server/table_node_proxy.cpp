@@ -287,7 +287,7 @@ TTableNodeProxy::TTableNodeProxy(
 void TTableNodeProxy::DoInvoke(IServiceContextPtr context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(GetChunkListForUpdate);
-    DISPATCH_YPATH_SERVICE_METHOD(Fetch);
+    DISPATCH_YPATH_HEAVY_SERVICE_METHOD(Fetch);
     DISPATCH_YPATH_SERVICE_METHOD(SetSorted);
     DISPATCH_YPATH_SERVICE_METHOD(Clear);
     TBase::DoInvoke(context);

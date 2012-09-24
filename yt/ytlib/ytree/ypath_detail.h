@@ -344,6 +344,14 @@ IYPathServicePtr CreateRootService(IYPathServicePtr underlyingService);
 #define DISPATCH_YPATH_SERVICE_METHOD(method) \
     if (context->GetVerb() == #method) { \
         ::NYT::NRpc::THandlerInvocationOptions options; \
+        method##Thunk(context, options).Run(); \
+        return; \
+    }
+
+
+#define DISPATCH_YPATH_HEAVY_SERVICE_METHOD(method) \
+    if (context->GetVerb() == #method) { \
+        ::NYT::NRpc::THandlerInvocationOptions options; \
         options.HeavyResponse = true; \
         method##Thunk(context, options).Run(); \
         return; \
