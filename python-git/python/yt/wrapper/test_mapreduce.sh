@@ -169,6 +169,13 @@ test_smart_format()
     ./mapreduce -smart_format -map "cat" -src "ignat/smart_x" -dst "ignat/smart_y"
 }
 
+test_drop()
+{
+    ./mapreduce -subkey -write "ignat/xxx/yyy/zzz" <table_file
+    ./mapreduce -drop "ignat/xxx/yyy/zzz"
+    ./mapreduce -get "ignat/xxx"
+}
+
 test_base_functionality
 test_codec
 test_many_output_tables
@@ -182,5 +189,6 @@ test_ignore_positional_arguments
 test_stderr
 test_smart_format
 test_list_files
+test_drop
 
 rm -f table_file big_file
