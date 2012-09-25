@@ -164,7 +164,9 @@ void TRawFileLogWriter::Flush()
 void TRawFileLogWriter::Reload()
 {
     Flush();
-    File->Close();
+    if (~File) {
+        File->Close();
+    }
     Initialized = false;
 }
 
