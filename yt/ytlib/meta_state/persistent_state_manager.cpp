@@ -604,6 +604,7 @@ public:
                         SnapshotStore,
                         epochId,
                         EpochContext->LeaderId,
+                        ControlInvoker,
                         EpochControlInvoker,
                         EpochStateInvoker,
                         version);
@@ -879,6 +880,7 @@ public:
             ChangeLogCache,
             SnapshotStore,
             epochContext->EpochId,
+            ControlInvoker,
             EpochControlInvoker,
             EpochStateInvoker);
 

@@ -15,19 +15,14 @@ class TChangeLogDownloader
     : private TNonCopyable
 {
 public:
-    DECLARE_ENUM(EResult,
-        (OK)
-        (ChangeLogNotFound)
-        (ChangeLogUnavailable)
-        (RemoteError)
-    );
-
     TChangeLogDownloader(
         TChangeLogDownloaderConfigPtr config,
         NElection::TCellManagerPtr cellManager,
         IInvokerPtr controlInvoker);
 
-    EResult Download(TMetaVersion version, TAsyncChangeLog& changeLog);
+    TError Download(
+        const TMetaVersion& version,
+        TAsyncChangeLog* changeLog);
 
 private:
     typedef TMetaStateManagerProxy TProxy;
@@ -37,19 +32,20 @@ private:
     NElection::TCellManagerPtr CellManager;
     IInvokerPtr ControlInvoker;
 
-    TPeerId GetChangeLogSource(TMetaVersion version);
+    TPeerId GetChangeLogSource(const TMetaVersion& version);
 
-    EResult DownloadChangeLog(
-        TMetaVersion version,
+    TError DownloadChangeLog(
+        const TMetaVersion& version,
         TPeerId sourceId,
-        TAsyncChangeLog& changeLog);
+        TAsyncChangeLog* changeLog);
 
     static void OnResponse(
         TParallelAwaiterPtr awaiter,
         TPromise<TPeerId> promise,
         TPeerId peerId,
-        TMetaVersion version,
+        const TMetaVersion& version,
         TProxy::TRspGetChangeLogInfoPtr response);
+
     static void OnComplete(
         TPromise<TPeerId> promise);
 
