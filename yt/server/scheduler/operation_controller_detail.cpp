@@ -1135,7 +1135,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
     FOREACH (const auto& file, Files) {
         auto path = file.Path.GetPath();
         {
-            auto req = TFileYPathProxy::Fetch(path);
+            auto req = TFileYPathProxy::FetchFile(path);
             SetTransactionId(req, Operation->GetTransactionId());
             batchReq->AddRequest(req, "fetch_files");
         }
@@ -1256,7 +1256,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
     }
 
     {
-        auto fetchFilesRsps = batchRsp->GetResponses<TFileYPathProxy::TRspFetch>("fetch_files");
+        auto fetchFilesRsps = batchRsp->GetResponses<TFileYPathProxy::TRspFetchFile>("fetch_files");
         for (int index = 0; index < static_cast<int>(Files.size()); ++index) {
             auto& file = Files[index];
             {

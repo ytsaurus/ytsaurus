@@ -14,7 +14,7 @@ namespace NFileClient {
 struct TFileYPathProxy
     : NYTree::TYPathProxy
 {
-    DEFINE_YPATH_PROXY_METHOD(NProto, Fetch);
+    DEFINE_YPATH_PROXY_METHOD(NProto, FetchFile);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

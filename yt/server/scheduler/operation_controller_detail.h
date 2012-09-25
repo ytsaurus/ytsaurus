@@ -153,7 +153,7 @@ protected:
     struct TUserFile
     {
         NYTree::TRichYPath Path;
-        NFileClient::TFileYPathProxy::TRspFetchPtr FetchResponse;
+        NFileClient::TFileYPathProxy::TRspFetchFilePtr FetchResponse;
     };
 
     std::vector<TUserFile> Files;

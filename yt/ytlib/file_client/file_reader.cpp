@@ -39,7 +39,7 @@ void TFileReader::Open()
     LOG_INFO("Opening file reader");
 
     LOG_INFO("Fetching file info");
-    auto fetchReq = TFileYPathProxy::Fetch(Path);
+    auto fetchReq = TFileYPathProxy::FetchFile(Path);
     SetTransactionId(fetchReq, Transaction);
     auto fetchRsp = Proxy.Execute(fetchReq).Get();
     if (!fetchRsp->IsOK()) {

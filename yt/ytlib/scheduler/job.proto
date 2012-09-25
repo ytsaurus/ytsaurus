@@ -93,7 +93,7 @@ message TJobProgress
 message TUserJobSpec
 {
     // Additional files to be placed into the sandbox.
-    repeated NYT.NFileClient.NProto.TRspFetch files = 1;
+    repeated NYT.NFileClient.NProto.TRspFetchFile files = 1;
 
     // The user command to be executed.
     required string shell_command = 2;

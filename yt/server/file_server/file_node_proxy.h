@@ -42,7 +42,7 @@ private:
 
     virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
 
-    DECLARE_RPC_SERVICE_METHOD(NFileClient::NProto, Fetch);
+    DECLARE_RPC_SERVICE_METHOD(NFileClient::NProto, FetchFile);
 
 };
 

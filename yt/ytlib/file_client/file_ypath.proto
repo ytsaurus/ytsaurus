@@ -19,10 +19,10 @@ message TReqCreateFileExt
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqFetch
+message TReqFetchFile
 { }
 
-message TRspFetch
+message TRspFetchFile
 {
     required NYT.NProto.TGuid chunk_id = 1;
     repeated string node_addresses = 2;

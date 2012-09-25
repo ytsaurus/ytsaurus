@@ -173,7 +173,7 @@ void TJob::PrepareUserJob(
 }
 
 void TJob::OnChunkDownloaded(
-    const NFileClient::NProto::TRspFetch& fetchRsp,
+    const NFileClient::NProto::TRspFetchFile& fetchRsp,
     NChunkHolder::TChunkCache::TDownloadResult result)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
