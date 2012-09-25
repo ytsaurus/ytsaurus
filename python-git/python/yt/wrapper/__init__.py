@@ -2,7 +2,7 @@ from common import YtError
 from record import Record, record_to_line, line_to_record
 from format import DsvFormat, YamrFormat, YsonFormat, RawFormat
 from table import Table, to_table, to_name
-from tree_commands import set, get, list, get_attribute, set_attribute, list_attributes, exists, remove, search
+from tree_commands import set, get, list, get_attribute, set_attribute, list_attributes, exists, remove, search, get_type
 from table_commands import create_table, write_table, read_table, remove_table, \
                            copy_table, move_table, sort_table, records_count, is_sorted, \
                            create_temp_table, merge_tables, run_map, run_reduce, run_map_reduce
