@@ -120,7 +120,7 @@ class YtTest(YTEnv):
         self.assertTrue(yt.exists(full_path))
         self.assertEqual(yt.get(full_path), {})
         self.assertEqual(yt.remove(half_path), None)
-        self.assertEqual(yt.remove(full_path), None) # Do nothing
+        self.assertRaises(YtError, lambda: yt.remove(full_path))
 
     def test_read_write(self):
         table = TEST_DIR + "/temp"

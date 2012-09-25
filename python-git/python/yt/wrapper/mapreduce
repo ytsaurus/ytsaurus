@@ -32,8 +32,8 @@ def remove_prefix(table):
         return table[len(config.PREFIX):]
     return table
 
-def list_all_tables():
-    tables = yt.search("//statbox", "table",
+def list_all_entities(type):
+    tables = yt.search("//statbox", type,
                        path_filter=lambda path: path.startswith(config.PREFIX))
     return sorted(map(remove_prefix, tables))
 
@@ -74,6 +74,15 @@ class SortingHelpFormatter(RawTextHelpFormatter):
     def add_arguments(self, actions):
         actions = sorted(actions, key=attrgetter('option_strings'))
         super(SortingHelpFormatter, self).add_arguments(actions)
+
+def writelines_silently(lines):
+    try:
+        for line in lines:
+            sys.stdout.write(line)
+    except IOError:
+        sys.exit(1)
+    except:
+        raise
 
 def die(message, return_code=1):
     print >>sys.stderr, message
@@ -126,9 +135,9 @@ Examples:
     # TODO(ignat): add unsupported arguments
     action_stores = ["read", "write", "writesorted", "map", "reduce", "reducews", "drop",
                      "erase", "abort_tx", "commit_tx", "renew_tx", "set", "get", "upload", "download"]
-    action_flags = ["version", "copy", "sort", "merge", "list", "start_tx"]
+    action_flags = ["version", "copy", "sort", "merge", "list", "listfiles", "start_tx"]
 
-    add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "ping_tx", "smart_format"])
+    add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "ping_tx", "smart_format", "force"])
     add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec",
                                             "inputformat", "outputformat", "tx", "value", "replication_factor", "sort_by"])
     add_multiple_args(parser, ["src", "dst", "dstappend", "file", "mapfile", "reducefile", "ytfile", "opt", "ytspec"])
@@ -167,6 +176,8 @@ Examples:
              "NEW! delete the table, this option supports range specifications"),
             ("file",
              "file for both map and reduce operations"),
+            ("force",
+             "force removing object of any type"),
             ("get",
              "NEW! returns subtree at given path in json format"),
             ("inputformat",
@@ -181,6 +192,8 @@ Examples:
              "turn on yamr format with lenval"),
             ("list",
              "list all tables"),
+            ("listfiles",
+             "NEW! list all files"),
             ("lowerkey",
              "specifies lowerkey for the range in the read operation"),
             ("map",
@@ -342,12 +355,14 @@ Examples:
         table_writer = None
 
     if args.list:
-        sys.stdout.writelines(imap(add_eoln, list_all_tables()))
+        writelines_silently(imap(add_eoln, list_all_entities("table")))
+    if args.listfiles:
+        writelines_silently(imap(add_eoln, list_all_entities("file")))
     if args.read is not None:
-        for chunk in yt.read_table(
+        writelines_silently(
+            yt.read_table(
                 yt.Table(args.read, lower_key=args.lowerkey, upper_key=args.upperkey),
-                response_type="iter_content"):
-            sys.stdout.write(chunk)
+                response_type="iter_content"))
     if args.write is not None:
         args.write = yt.Table(args.write, append=args.append)
         yt.write_table(args.write, sys.stdin, table_writer=table_writer)
@@ -370,7 +385,14 @@ Examples:
                       input_format=inputformat, output_format=outputformat,
                       table_writer=table_writer, spec=spec)
     if args.drop is not None:
-        yt.remove_table(args.drop)
+        if yt.exists(args.drop):
+            if not args.force and yt.get_type(args.drop) not in ["table", "list"]:
+                die("You are trying to remove object of type " + yt.get_type(args.drop))
+            path = args.drop
+            while True:
+                yt.remove(path)
+                path = os.path.dirname(path)
+                if yt.get(path): break
     if args.copy:
         yt.copy_table(args.src, unlist(dst))
     if args.sort:
@@ -385,7 +407,7 @@ Examples:
             yt.remove(dst[0])
         yt.upload_file(args.upload, destination=dst[0])
     if args.download is not None:
-        sys.stdout.writelines(yt.download_file(args.download))
+        writelines_silently(yt.download_file(args.download))
 
     if args.set:
         if args.value is None:
