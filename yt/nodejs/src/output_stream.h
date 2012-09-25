@@ -1,6 +1,7 @@
 #pragma once
 
 #include "stream_base.h"
+#include "event_count.h"
 
 #include <ytlib/misc/event_count.h>
 
@@ -18,7 +19,7 @@ class TNodeJSOutputStream
     , public TOutputStream
 {
 protected:
-    TNodeJSOutputStream();
+    TNodeJSOutputStream(ui64 lowWatermark, ui64 highWatermark);
     ~TNodeJSOutputStream() throw();
 
 public:
@@ -32,16 +33,34 @@ public:
     // Synchronous JS API.
     static v8::Handle<v8::Value> New(const v8::Arguments& args);
 
+    static v8::Handle<v8::Value> Pull(const v8::Arguments& args);
+    v8::Handle<v8::Value> DoPull();
+
+    static v8::Handle<v8::Value> Drain(const v8::Arguments& args);
+    void DoDrain();
+
     static v8::Handle<v8::Value> Destroy(const v8::Arguments& args);
-    v8::Handle<v8::Value> DoDestroy();
+    void DoDestroy();
 
     static v8::Handle<v8::Value> IsEmpty(const v8::Arguments& args);
-    v8::Handle<v8::Value> DoIsEmpty();
+    static v8::Handle<v8::Value> IsPaused(const v8::Arguments& args);
+    static v8::Handle<v8::Value> IsDestroyed(const v8::Arguments& args);
 
     // Asynchronous JS API.
-    static int AsyncOnWrite(eio_req* request);
-    void EnqueueOnWrite();
-    void DoOnWrite();
+    static int AsyncOnData(eio_req* request);
+    void EmitAndStifleOnData();
+    void IgniteOnData();
+
+    // Diagnostics.
+    const ui32 GetBytesEnqueued()
+    {
+        return BytesEnqueued;
+    }
+
+    const ui32 GetBytesDequeued()
+    {
+        return BytesDequeued;
+    }
 
 protected:
     // C++ API.
@@ -51,12 +70,17 @@ private:
     void DisposeBuffers();
 
 private:
-    TAtomic IsWritable;
+    TAtomic IsPaused_;
+    TAtomic IsDestroyed_;
 
-    TAtomic WriteRequestPending;
-    TAtomic FlushRequestPending;
-    TAtomic FinishRequestPending;
+    TAtomic BytesInFlight;
+    TAtomic BytesEnqueued;
+    TAtomic BytesDequeued;
+    
+    const ui64 LowWatermark;
+    const ui64 HighWatermark;
 
+    TEventCount Conditional;
     TLockFreeQueue<TOutputPart> Queue;
 
 private:
@@ -64,12 +88,21 @@ private:
     TNodeJSOutputStream& operator=(const TNodeJSOutputStream&);
 };
 
-inline void TNodeJSOutputStream::EnqueueOnWrite()
+inline void TNodeJSOutputStream::EmitAndStifleOnData()
 {
-    if (AtomicCas(&WriteRequestPending, 1, 0)) {
+    if (AtomicCas(&IsPaused_, 1, 0)) {
         // Post to V8 thread.
         AsyncRef(false);
-        EIO_PUSH(TNodeJSOutputStream::AsyncOnWrite, this);
+        EIO_PUSH(TNodeJSOutputStream::AsyncOnData, this);
+    }
+}
+
+inline void TNodeJSOutputStream::IgniteOnData()
+{
+    if (AtomicCas(&IsPaused_, 0, 1)) {
+        if (!Queue.IsEmpty()) {
+            EmitAndStifleOnData();
+        }
     }
 }
 

@@ -140,6 +140,7 @@ var logger = new winston.Logger({
 });
 
 if (configuration.number_of_workers > 0 && cluster.isMaster) {
+    console.error("Starting master proxy (PID: %s)", process.pid);
     function spawnWorker() {
         var worker = cluster.fork();
 
@@ -163,6 +164,7 @@ if (configuration.number_of_workers > 0 && cluster.isMaster) {
         spawnWorker();
     });
 } else {
+    console.error("Starting worker proxy (PID: %s)", process.pid);
     if (opts.argv.profiler) {
         process.on("SIGUSR1", function() {
             console.error("*** Debugger should be running");

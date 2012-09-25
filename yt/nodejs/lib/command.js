@@ -68,7 +68,15 @@ function YtCommand(logger, driver, watcher, req, rsp) {
 
     // This is a total list of class fields; keep this up to date
     // to improve V8 performance (hence JIT relies on preset class properties).
-    this.bytes_in = 0;
+    // See http://blog.mrale.ph/post/14403172501/simple-optimization-checklist/
+    // See https://mkw.st/p/gdd11-berlin-v8-performance-tuning-tricks/
+    // See http://s3.mrale.ph/nodecamp.eu/
+    // See http://v8-io12.appspot.com/index.html
+    // See http://floitsch.blogspot.dk/2012/03/optimizing-for-v8-introduction.html
+    this.bytes_in_enqueued = 0;
+    this.bytes_in_dequeued = 0;
+    this.bytes_out_enqueued = 0;
+    this.bytes_out_dequeued = 0;
     this.bytes_out = 0;
     this.descriptor = undefined;
     this.input_compression = undefined;
@@ -145,13 +153,15 @@ YtCommand.prototype._epilogue = function(err) {
         var error_trace = err ? err.stack : undefined;
 
         this.logger.error("Done (failure)", {
-            request_id  : this.req.uuid,
-            bytes_in    : this.bytes_in,
-            bytes_out   : this.bytes_out,
-            error       : error,
-            error_trace : error_trace,
-            yt_code     : this.yt_code,
-            yt_message  : this.yt_message
+            request_id         : this.req.uuid,
+            bytes_in_enqueued  : this.bytes_in_enqueued,
+            bytes_in_dequeued  : this.bytes_in_dequeued,
+            bytes_out_enqueued : this.bytes_out_enqueued,
+            bytes_out_dequeued : this.bytes_out_dequeued,
+            error              : error,
+            error_trace        : error_trace,
+            yt_code            : this.yt_code,
+            yt_message         : this.yt_message
         });
 
         if (!this.rsp._header) {
@@ -185,9 +195,11 @@ YtCommand.prototype._epilogue = function(err) {
         }
     } else {
         this.logger.info("Done (success)", {
-            request_id : this.req.uuid,
-            bytes_in   : this.bytes_in,
-            bytes_out  : this.bytes_out
+            request_id         : this.req.uuid,
+            bytes_in_enqueued  : this.bytes_in_enqueued,
+            bytes_in_dequeued  : this.bytes_in_dequeued,
+            bytes_out_enqueued : this.bytes_out_enqueued,
+            bytes_out_dequeued : this.bytes_out_dequeued
         });
     }
 };
@@ -577,7 +589,7 @@ YtCommand.prototype._execute = function(cb) {
         this.input_stream, this.input_compression, this.input_format,
         this.output_stream, this.output_compression, this.output_format,
         this.parameters,
-        function callback(err, code, message, bytes_in, bytes_out)
+        function callback(err, code, message, bytes_in_enqueued, bytes_in_dequeued, bytes_out_enqueued, bytes_out_dequeued)
         {
             self.__DBG("_execute -> (callback)");
 
@@ -604,8 +616,10 @@ YtCommand.prototype._execute = function(cb) {
             self.yt_code = code;
             self.yt_message = message;
 
-            self.bytes_in = bytes_in;
-            self.bytes_out = bytes_out;
+            self.bytes_in_enqueued = bytes_in_enqueued;
+            self.bytes_in_dequeued = bytes_in_dequeued;
+            self.bytes_out_enqueued = bytes_out_enqueued;
+            self.bytes_out_dequeued = bytes_out_dequeued;
 
             if (code === 0) {
                 self.rsp.statusCode = 200;

@@ -460,16 +460,26 @@ void TNodeJSDriver::ExecuteAfter(uv_work_t* workRequest)
             Local<Value>::New(v8::Null()),
             Local<Value>::New(v8::Null()),
             Local<Value>::New(v8::Null()),
+            Local<Value>::New(v8::Null()),
+            Local<Value>::New(v8::Null()),
             Local<Value>::New(v8::Null())
         };
 
         if (!request->Exception.empty()) {
             args[0] = String::New(~request->Exception);
         } else {
-            args[1] = Integer::New(request->DriverResponse.Error.GetCode());
-            args[2] = String::New(~request->DriverResponse.Error.GetMessage());
-            args[3] = Integer::NewFromUnsigned(request->InputStack.GetBaseStream()->BytesCounter);
-            args[4] = Integer::NewFromUnsigned(request->OutputStack.GetBaseStream()->BytesCounter);
+            args[1] = Integer::New(
+                request->DriverResponse.Error.GetCode());
+            args[2] = String::New(
+                request->DriverResponse.Error.GetMessage().c_str());
+            args[3] = Integer::NewFromUnsigned(
+                request->InputStack.GetBaseStream()->GetBytesEnqueued());
+            args[4] = Integer::NewFromUnsigned(
+                request->InputStack.GetBaseStream()->GetBytesDequeued());
+            args[5] = Integer::NewFromUnsigned(
+                request->OutputStack.GetBaseStream()->GetBytesEnqueued());
+            args[6] = Integer::NewFromUnsigned(
+                request->OutputStack.GetBaseStream()->GetBytesDequeued());
         }
 
         request->Callback->Call(

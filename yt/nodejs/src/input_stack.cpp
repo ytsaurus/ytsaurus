@@ -44,7 +44,7 @@ void TNodeJSInputStack::AddCompression(ECompression compression)
             Add<TSnappyDecompress>();
             break;
         default:
-            YUNREACHABLE();  
+            YUNREACHABLE();
     }
 }
 

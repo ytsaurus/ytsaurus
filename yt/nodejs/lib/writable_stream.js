@@ -42,7 +42,7 @@ function YtWritableStream(low_watermark, high_watermark) {
     this._binding = new binding.TNodeJSInputStream(low_watermark, high_watermark);
 
     this._binding.on_drain = function() {
-        self.__DBG("Bindings -> on_drain");
+        self.__DBG("Bindings (InputStream) -> on_drain");
         if (!self._ended) {
             self.emit("drain");
         }

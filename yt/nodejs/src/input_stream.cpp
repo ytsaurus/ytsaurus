@@ -16,7 +16,6 @@ void DoNothing()
 { }
 
 static Persistent<String> OnDrainSymbol;
-static Persistent<String> CurrentBufferSizeSymbol;
 static Persistent<String> ActiveQueueSizeSymbol;
 static Persistent<String> InactiveQueueSizeSymbol;
 
@@ -34,7 +33,9 @@ TNodeJSInputStream::TNodeJSInputStream(ui64 lowWatermark, ui64 highWatermark)
     , IsReadable(1)
     , SweepRequestPending(0)
     , DrainRequestPending(0)
-    , CurrentBufferSize(0)
+    , BytesInFlight(0)
+    , BytesEnqueued(0)
+    , BytesDequeued(0)
     , LowWatermark(lowWatermark)
     , HighWatermark(highWatermark)
 {
@@ -56,7 +57,6 @@ void TNodeJSInputStream::Initialize(Handle<Object> target)
     HandleScope scope;
 
     OnDrainSymbol = NODE_PSYMBOL("on_drain");
-    CurrentBufferSizeSymbol = NODE_PSYMBOL("current_buffer_size");
     ActiveQueueSizeSymbol = NODE_PSYMBOL("active_queue_size");
     InactiveQueueSizeSymbol = NODE_PSYMBOL("inactive_queue_size");
 
@@ -154,10 +154,9 @@ Handle<Value> TNodeJSInputStream::Push(const Arguments& args)
 Handle<Value> TNodeJSInputStream::DoPush(Persistent<Value> handle, char* buffer, size_t offset, size_t length)
 {
     THREAD_AFFINITY_IS_V8();
-    HandleScope scope;
 
     if (!AtomicGet(IsPushable)) {
-        return v8::Undefined();
+        return Undefined();
     }
 
     TInputPart* part = new TInputPart();
@@ -175,8 +174,9 @@ Handle<Value> TNodeJSInputStream::DoPush(Persistent<Value> handle, char* buffer,
         Conditional.BroadCast();
     }
 
-    auto transientBufferSize = AtomicAdd(CurrentBufferSize, length);
-    if (transientBufferSize > HighWatermark) {
+    AtomicAdd(BytesEnqueued, length);
+    auto transientSize = AtomicAdd(BytesInFlight, length);
+    if (transientSize > HighWatermark) {
         return v8::False();
     } else {
         return v8::True();
@@ -198,10 +198,12 @@ Handle<Value> TNodeJSInputStream::End(const Arguments& args)
     YASSERT(args.Length() == 0);
 
     // Do the work.
-    return scope.Close(stream->DoEnd());
+    stream->DoEnd();
+
+    return Undefined();
 }
 
-Handle<Value> TNodeJSInputStream::DoEnd()
+void TNodeJSInputStream::DoEnd()
 {
     THREAD_AFFINITY_IS_V8();
 
@@ -213,8 +215,6 @@ Handle<Value> TNodeJSInputStream::DoEnd()
     }
 
     EnqueueSweep(true);
-
-    return Undefined();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -232,10 +232,12 @@ Handle<Value> TNodeJSInputStream::Destroy(const Arguments& args)
     YASSERT(args.Length() == 0);
 
     // Do the work.
-    return scope.Close(stream->DoDestroy());
+    stream->DoDestroy();
+
+    return Undefined();
 }
 
-Handle<Value> TNodeJSInputStream::DoDestroy()
+void TNodeJSInputStream::DoDestroy()
 {
     THREAD_AFFINITY_IS_V8();
 
@@ -250,8 +252,6 @@ Handle<Value> TNodeJSInputStream::DoDestroy()
     }
 
     EnqueueDrain(true);
-
-    return Undefined();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -281,7 +281,6 @@ Handle<Value> TNodeJSInputStream::Sweep(const Arguments& args)
     // Do the work.
     stream->EnqueueSweep(true);
 
-    // TODO(sandello): Think about OnSuccess & OnError callbacks.
     return Undefined();
 }
 
@@ -441,12 +440,11 @@ size_t TNodeJSInputStream::DoRead(void* data, size_t length)
         EnqueueSweep(false);
     }
 
-    auto transientBufferSize = AtomicSub(CurrentBufferSize, result);
-    if (transientBufferSize < LowWatermark && LowWatermark <= transientBufferSize + result) {
+    AtomicAdd(BytesDequeued, result);
+    auto transientSize = AtomicSub(BytesInFlight, result);
+    if (transientSize < LowWatermark && LowWatermark <= transientSize + result) {
         EnqueueDrain(false);
     }
-
-    AtomicAdd(BytesCounter, result);
 
     return result;
 }
@@ -457,11 +455,6 @@ void TNodeJSInputStream::UpdateV8Properties()
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
-
-    handle_->Set(
-        CurrentBufferSizeSymbol,
-        Integer::NewFromUnsigned(AtomicGet(CurrentBufferSize)),
-        (v8::PropertyAttribute)(v8::ReadOnly | v8::DontDelete));
 
     handle_->Set(
         ActiveQueueSizeSymbol,

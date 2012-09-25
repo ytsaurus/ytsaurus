@@ -100,26 +100,32 @@ public:
         YCHECK(request.InputStream);
         YCHECK(request.OutputStream);
 
+        TDriverResponse response;
+
         auto it = Commands.find(request.CommandName);
         if (it == Commands.end()) {
-            TDriverResponse response;
             response.Error = TError("Unknown command %s", ~request.CommandName.Quote());
             return response;
         }
 
         const auto& entry = it->second;
 
-        TCommandContext context(
-            this,
-            entry.Descriptor,
-            &request,
-            LeaderChannel,
-            !Config->ReadFromFollowers || entry.Descriptor.IsVolatile ? LeaderChannel : MasterChannel,
-            SchedulerChannel);
-        auto command = entry.Factory.Run(&context);
-        command->Execute();
+        try {
+            TCommandContext context(
+                this,
+                entry.Descriptor,
+                &request,
+                LeaderChannel,
+                !Config->ReadFromFollowers || entry.Descriptor.IsVolatile ? LeaderChannel : MasterChannel,
+                SchedulerChannel);
 
-        return *context.GetResponse();
+            entry.Factory.Run(&context)->Execute();
+            response = *context.GetResponse();
+        } catch (const std::exception& ex) {
+            response.Error = TError("Uncaught exception: %s", ex.what());
+        }
+
+        return response;
     }
 
     TNullable<TCommandDescriptor> FindCommandDescriptor(const Stroka& commandName) override

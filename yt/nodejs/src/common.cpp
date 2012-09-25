@@ -1,6 +1,8 @@
 #include "common.h"
 #include "config.h"
 
+#include <ytlib/misc/error.h>
+
 #include <ytlib/logging/log_manager.h>
 
 #include <ytlib/chunk_client/dispatcher.h>
@@ -78,7 +80,7 @@ void ConsumeV8Object(Handle<Object> object, IYsonConsumer* consumer)
         if (object->Has(SpecialAttributesKey)) {
             auto attributes = object->Get(SpecialAttributesKey);
             if (!attributes->IsObject()) {
-                ythrow yexception() << "Attributes have to be an object";
+                THROW_ERROR_EXCEPTION("Attributes have to be an object");
                 return;
             }
 
@@ -135,7 +137,7 @@ void ConsumeV8Value(Handle<Value> value, IYsonConsumer* consumer)
                 consumer);
         }
     } else {
-        ythrow yexception() << "Unsupported value type";
+        THROW_ERROR_EXCEPTION("Unsupported JS value type within V8-to-YSON conversion");
     }
 }
 

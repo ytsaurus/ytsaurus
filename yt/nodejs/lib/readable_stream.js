@@ -18,7 +18,7 @@ if (process.env.NODE_DEBUG && /YTNODE/.test(process.env.NODE_DEBUG)) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtReadableStream() {
+function YtReadableStream(low_watermark, high_watermark) {
     "use strict";
 
     if (__DBG.UUID) {
@@ -41,27 +41,47 @@ function YtReadableStream() {
 
     var self = this;
 
-    this._binding = new binding.TNodeJSOutputStream();
-
-    this._binding.on_write = function(chunk) {
-        self.__DBG("Bindings -> on_write");
-        if (!self.readable || self._ended) {
-            return;
-        }
-        if (self._paused || self._pending.length) {
-            self._pending.push(chunk);
-        } else {
-            assert.ok(Buffer.isBuffer(chunk));
-            self._emitData(chunk);
-        }
-    };
-    this._binding.on_drain = function() {
-        self.__DBG("Bindings -> on_drain");
-        self.emit("_drain");
+    this._binding = new binding.TNodeJSOutputStream(low_watermark, high_watermark);
+    this._binding.on_data = function() {
+        self.__DBG("Bindings (OutputStream) -> on_data");
+        self._consumeData();
     };
 }
 
 util.inherits(YtReadableStream, stream.Stream);
+
+YtReadableStream.prototype._consumeData = function() {
+    "use strict";
+    this.__DBG("_consumeData");
+
+    if (!this.readable || this._paused || this._ended) {
+        return;
+    }
+
+    var i, chunk, result = this._binding.Pull();
+
+    if (typeof(result) === "undefined") {
+        this.__DBG("Bindings (OutputStream) -> Pull <- undefined");
+        return;
+    }
+
+    for (i = 0; i < result.length; ++i) {
+        chunk = result[i];
+        if (!chunk) {
+            break;
+        } else {
+            assert.ok(Buffer.isBuffer(chunk));
+            this._emitData(chunk);
+        }
+    }
+
+    if (i > 0) {
+        process.nextTick(this._consumeData.bind(this));
+    } else {
+        this._binding.Drain();
+        this.emit("_drain");
+    }
+};
 
 YtReadableStream.prototype._emitData = function(chunk) {
     "use strict";
@@ -78,29 +98,6 @@ YtReadableStream.prototype._emitEnd = function() {
     this._ended = true;
 };
 
-YtReadableStream.prototype._emitQueue = function() {
-    "use strict";
-    this.__DBG("_emitQueue");
-
-    if (this._pending.length) {
-        var self = this;
-        process.nextTick(function() {
-            self.__DBG("_emitQueue -> (inner-cycle)");
-            while (self.readable && !self._ended && !self._paused && self._pending.length) {
-                var chunk = self._pending.shift();
-                if (chunk !== __EOF) {
-                    assert.ok(Buffer.isBuffer(chunk));
-                    self._emitData(chunk);
-                } else {
-                    assert.ok(self._pending.length === 0);
-                    self._emitEnd(chunk);
-                    self.readable = false;
-                }
-            }
-        });
-    }
-};
-
 YtReadableStream.prototype._endSoon = function() {
     "use strict";
     this.__DBG("_endSoon");
@@ -113,13 +110,9 @@ YtReadableStream.prototype._endSoon = function() {
         var self = this;
         process.nextTick(function() {
             self.__DBG("_endSoon -> (inner-tick)");
-            if (self._paused || self._pending.length) {
-                self._pending.push(__EOF);
-            } else {
-                assert.ok(self._pending.length === 0);
-                self._emitEnd();
-                self.readable = false;
-            }
+            assert.ok(self._binding.IsEmpty());
+            self._emitEnd();
+            self.readable = false;
         });
     } else {
         this.once("_drain", this._endSoon.bind(this));
@@ -137,7 +130,7 @@ YtReadableStream.prototype.resume = function() {
     this.__DBG("resume");
     this._paused = false;
 
-    this._emitQueue();
+    process.nextTick(this._consumeData.bind(this));
 };
 
 YtReadableStream.prototype.destroy = function() {

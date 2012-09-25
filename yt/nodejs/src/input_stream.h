@@ -31,10 +31,10 @@ public:
     v8::Handle<v8::Value> DoPush(v8::Persistent<v8::Value> handle, char* data, size_t offset, size_t length);
 
     static v8::Handle<v8::Value> End(const v8::Arguments& args);
-    v8::Handle<v8::Value> DoEnd();
+    void DoEnd();
 
     static v8::Handle<v8::Value> Destroy(const v8::Arguments& args);
-    v8::Handle<v8::Value> DoDestroy();
+    void DoDestroy();
 
     // Asynchronous JS API.
     static v8::Handle<v8::Value> Sweep(const v8::Arguments& args);
@@ -46,6 +46,17 @@ public:
     static int AsyncDrain(eio_req* request);
     void EnqueueDrain(bool withinV8);
     void DoDrain();
+
+    // Diagnostics.
+    const ui32 GetBytesEnqueued()
+    {
+        return BytesEnqueued;
+    }
+
+    const ui32 GetBytesDequeued()
+    {
+        return BytesDequeued;
+    }
 
 protected:
     // C++ API.
@@ -62,12 +73,16 @@ private:
     TAtomic SweepRequestPending;
     TAtomic DrainRequestPending;
 
-    TAtomic CurrentBufferSize;
+    TAtomic BytesInFlight;
+    TAtomic BytesEnqueued;
+    TAtomic BytesDequeued;
+
     const ui64 LowWatermark;
     const ui64 HighWatermark;
 
     TMutex Mutex;
     TCondVar Conditional;
+
     std::deque<TInputPart*> ActiveQueue;
     std::deque<TInputPart*> InactiveQueue;
 

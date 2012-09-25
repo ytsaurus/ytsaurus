@@ -16,20 +16,20 @@ protected:
     TNodeJSStreamBase();
     ~TNodeJSStreamBase();
 
-    NDetail::TVolatileCounter AsyncRefCounter;
-
 public:
-    TAtomic BytesCounter;
-
     using node::ObjectWrap::Ref;
     using node::ObjectWrap::Unref;
 
     void AsyncRef(bool acquireSyncRef);
     void AsyncUnref();
 
+protected:
+    NDetail::TVolatileCounter AsyncRefCounter;
+
+protected:
     struct TOutputPart
     {
-        // The following data is allocated on the heap hence have to care
+        // The following data is allocated on the heap so we have to care
         // about ownership transfer and/or freeing memory after structure
         // disposal.
         char*  Buffer;
@@ -42,14 +42,13 @@ public:
         TNodeJSStreamBase* Stream;
         v8::Persistent<v8::Value> Handle;
 
-        // The following data is owned by handle hence no need to care about
-        // freeing memory after structure disposal.
+        // The following data is owned by the handle hence no need to care
+        // about freeing memory after structure disposal.
         char*  Buffer;
         size_t Offset;
         size_t Length;
     };
 
-protected:
     template <bool acquireSyncRef>
     class TScopedRef
     {
@@ -68,7 +67,9 @@ protected:
 
 private:
     TNodeJSStreamBase(const TNodeJSStreamBase&);
+    TNodeJSStreamBase(TNodeJSStreamBase&&);
     TNodeJSStreamBase& operator=(const TNodeJSStreamBase&);
+    TNodeJSStreamBase& operator=(TNodeJSStreamBase&&);
 
     static int UnrefCallback(eio_req*);
 };

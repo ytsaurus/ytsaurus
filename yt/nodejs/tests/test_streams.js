@@ -260,12 +260,11 @@ describe("input stream interface", function() {
 
 describe("output stream interface", function() {
     beforeEach(function() {
-        this.stream = new binding.TNodeJSOutputStream();
+        this.stream = new binding.TNodeJSOutputStream(100, 1000);
         this.writer = new binding.TOutputStreamStub();
         this.writer.Reset(this.stream);
 
-        this.stream.on_drain = sinon.spy();
-        this.stream.on_write = sinon.spy();
+        this.stream.on_data = sinon.spy();
     });
 
     afterEach(function() {
@@ -278,8 +277,11 @@ describe("output stream interface", function() {
     });
 
     it("should be able to write one chunk", function(done) {
-        this.stream.on_write = (function(chunk) {
-            expect(chunk.toString()).to.be.equal("hello");
+        this.stream.on_data = (function() {
+            var pulled_chunks = this.stream.Pull();
+            var chunks = pulled_chunks.filter(function(x) { return !!x; });
+            expect(chunks.length).to.be.equal(1);
+            expect(chunks[0].toString()).to.be.equal("hello");
             done();
         }).bind(this);
 
@@ -287,19 +289,15 @@ describe("output stream interface", function() {
     });
 
     it("should be able to write many chunks", function(done) {
-        this.stream.on_write_calls = 0;
-        this.stream.on_write = (function(chunk) {
-            switch (this.stream.on_write_calls) {
-                case 0:
-                    expect(chunk.toString()).to.be.equal("hello");
-                    break;
-                case 1:
-                    expect(chunk.toString()).to.be.equal("dolly");
-                    break;
-            }
-            if (++this.stream.on_write_calls > 1) {
-                done();
-            }
+        this.stream.on_data = (function() {
+            // Since this is an off-V8-scheduled callback all data should be in place.
+            var pulled_chunks = this.stream.Pull();
+            var chunks = pulled_chunks.filter(function(x) { return !!x; });
+
+            expect(chunks.length).to.be.equal(2);
+            expect(chunks[0].toString()).to.be.equal("hello");
+            expect(chunks[1].toString()).to.be.equal("dolly");
+            done();
         }).bind(this);
 
         this.writer.WriteSynchronously("hello");
@@ -334,8 +332,15 @@ describe("output stream interface", function() {
                 var self = this;
                 var chunks = [];
 
-                self.stream.on_write = function(chunk) { chunks.push(chunk); };
-                self.stream.on_drain = function() {
+                self.stream.on_data = function() {
+                    while (true) {
+                        var pulled_chunks = self.stream.Pull().filter(function(x) { return !!x; })
+                        if (pulled_chunks.length) {
+                            chunks = chunks.concat(pulled_chunks);
+                        } else {
+                            break;
+                        }
+                    }
                     var compressed = buffertools.concat.apply(buffertools, chunks);
                     decompressor(compressed, function(err, decompressed) {
                         expect(err).to.be.null;
@@ -355,7 +360,7 @@ describe("output stream interface", function() {
 
 describe("high-level streams", function() {
     it("should play nice together", function(done) {
-        var readable = new YtReadableStream();
+        var readable = new YtReadableStream(100, 1000);
         var writable = new YtWritableStream(100, 1000);
 
         var reader = new binding.TInputStreamStub(); reader.Reset(writable._binding);
