@@ -148,7 +148,8 @@ Stroka ToString(const TNetworkAddress& address, bool withPort)
     const auto& sockAddr = address.GetSockAddr();
 
     const void* ipAddr;
-    int port;
+    int port = 0;
+    bool ipv6 = false;
     switch (sockAddr->sa_family) {
 #ifndef _win_
         case AF_UNIX: {
@@ -160,12 +161,14 @@ Stroka ToString(const TNetworkAddress& address, bool withPort)
             auto* typedAddr = reinterpret_cast<const sockaddr_in*>(sockAddr);
             ipAddr = &typedAddr->sin_addr;
             port = typedAddr->sin_port;
+            ipv6 = false;
             break;
         }
         case AF_INET6: {
             auto* typedAddr = reinterpret_cast<const sockaddr_in6*>(sockAddr);
             ipAddr = &typedAddr->sin6_addr;
             port = typedAddr->sin6_port;
+            ipv6 = true;
             break;
         }
         default:
@@ -184,7 +187,15 @@ Stroka ToString(const TNetworkAddress& address, bool withPort)
 
     Stroka result("tcp://");
 
+    if (ipv6) {
+        result.append('[');
+    }
+
     result.append(buffer);
+
+    if (ipv6) {
+        result.append(']');
+    }
 
     if (withPort) {
         result.append(':');

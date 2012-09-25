@@ -42,7 +42,7 @@ TNullable<TYsonString> TVersionedUserAttributeDictionary::FindYson(const Stroka&
     auto transactions = transactionManager->GetTransactionPath(Transaction);
 
     FOREACH (const auto* transaction, transactions) {
-        NObjectServer::TVersionedObjectId versionedId(Id, NObjectServer::GetObjectId(transaction));
+        TVersionedObjectId versionedId(Id, GetObjectId(transaction));
         const auto* userAttributes = objectManager->FindAttributes(versionedId);
         if (userAttributes) {
             auto it = userAttributes->Attributes().find(name);
@@ -88,7 +88,7 @@ bool TVersionedUserAttributeDictionary::Remove(const Stroka& key)
     const NTransactionServer::TTransaction* containingTransaction = NULL;
     bool contains = false;
     FOREACH (const auto* transaction, transactions) {
-        NObjectServer::TVersionedObjectId versionedId(Id, NObjectServer::GetObjectId(transaction));
+        TVersionedObjectId versionedId(Id, GetObjectId(transaction));
         const auto* userAttributes = objectManager->FindAttributes(versionedId);
         if (userAttributes) {
             auto it = userAttributes->Attributes().find(key);
@@ -251,12 +251,16 @@ int TMapNodeProxy::GetChildCount() const
     auto transactionManager = Bootstrap->GetTransactionManager();
 
     auto transactions = transactionManager->GetTransactionPath(Transaction);
+    // NB: No need to reverse transactions.
 
     int result = 0;
-    FOREACH (const auto* transaction, transactions) {
-        const auto* node = cypressManager->GetVersionedNode(Id, transaction);
-        const auto* mapNode = static_cast<const TMapNode*>(node);
-        result += mapNode->ChildCountDelta();
+    FOREACH (const auto* currentTransaction, transactions) {
+        TVersionedNodeId versionedId(Id, GetObjectId(currentTransaction));
+        const auto* node = cypressManager->FindNode(versionedId);
+        if (node) {
+            const auto* mapNode = static_cast<const TMapNode*>(node);
+            result += mapNode->ChildCountDelta();
+        }
     }
     return result;
 }
@@ -303,7 +307,7 @@ bool TMapNodeProxy::AddChild(INodePtr child, const Stroka& key)
     auto childId = GetNodeId(child);
     auto* childImpl = LockImpl(childId);
 
-    YCHECK(impl->KeyToChild().insert(MakePair(key, childId)).second);
+    impl->KeyToChild()[key] = childId;
     YCHECK(impl->ChildToKey().insert(MakePair(childId, key)).second);
     ++impl->ChildCountDelta();
 
@@ -393,13 +397,17 @@ Stroka TMapNodeProxy::GetChildKey(IConstNodePtr child)
     auto transactionManager = Bootstrap->GetTransactionManager();
 
     auto transactions = transactionManager->GetTransactionPath(Transaction);
+    // NB: Use the latest key, don't reverse transactions.
     
-    FOREACH (const auto* transaction, transactions) {
-        const auto* node = cypressManager->GetVersionedNode(Id, transaction);
-        const auto& map = static_cast<const TMapNode*>(node)->ChildToKey();
-        auto it = map.find(childId);
-        if (it != map.end()) {
-            return it->second;
+    FOREACH (const auto* currentTransaction, transactions) {
+        TVersionedNodeId versionedId(Id, GetObjectId(currentTransaction));
+        const auto* node = cypressManager->FindNode(versionedId);
+        if (node) {
+            const auto* mapNode = static_cast<const TMapNode*>(node);
+            auto it = mapNode->ChildToKey().find(childId);
+            if (it != mapNode->ChildToKey().end()) {
+                return it->second;
+            }
         }
     }
 

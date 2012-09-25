@@ -269,6 +269,7 @@ if [ "$b" != "0" ]; then
 
     shout "Integration tests failed, output was put to $tmpdir"
     cp -r $CHECKOUT_DIRECTORY/tests/integration/tests.sandbox/* "$tmpdir"
+    rm -rf $CHECKOUT_DIRECTORY/tests/integration/tests.sandbox/*
 fi
 
 cd "$CHECKOUT_DIRECTORY/python/yt/wrapper" && make

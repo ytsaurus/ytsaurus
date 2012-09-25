@@ -20,7 +20,10 @@ var opts = require("optimist")
     .describe("p", "Specify port to listen")
 
     .alias("a", "address")
-    .describe("a", "Specify address to listen")
+    .describe("a", "Specify IPv4-address to listen")
+
+    .alias("A", "address6")
+    .describe("A", "Specify IPv6-address to listen")
 
     .alias("n", "number-of-workers")
     .describe("n", "Specify number of worker processes")
@@ -79,9 +82,10 @@ var configuration;
 configuration = {
     port              : 80,
     address           : "0.0.0.0",
+    address6          : "::",
     neighbours        : [ "localhost" ],
     number_of_workers : 4,
-    memory_limit      : 32 * 1024 * 1024,
+    memory_limit      : 4 * 1024 * 1024,
     thread_limit      : 32,
     spare_threads     : 4,
 };
@@ -89,6 +93,7 @@ configuration = merge(configuration, JSON.parse(fs.readFileSync(opts.argv.c, "ut
 configuration = merge(configuration, {
     port              : opts.argv.p && parseInt(opts.argv.p),
     address           : opts.argv.a,
+    address6          : opts.argv.A,
     number_of_workers : opts.argv.n && parseInt(opts.argv.n),
     memory_limit      : opts.argv.m && parseInt(opts.argv.m) * 1024 * 1024,
     thread_limit      : opts.argv.t && parseInt(opts.argv.t),
@@ -175,6 +180,24 @@ if (configuration.number_of_workers > 0 && cluster.isMaster) {
     }
 
     var staticServer = new static.Server("/usr/share/yt", { cache : 4 * 60 * 60 });
+    var droppedPrivileges = 0;
+    var dropPrivileges = function() {
+        if (++droppedPrivileges < 2) return; // 2 is a number of listen sockets.
+
+        if (configuration.group) {
+            process.setgid(configuration.group);
+        }
+
+        if (configuration.user) {
+            process.setuid(configuration.user);
+        }
+
+        if (process.getuid() == 0 || process.getgid() == 0) {
+            logger.error("Failed to drop privileges; aborting");
+            if (process.send) process.send({ fatal : true });
+            process.exit(100);
+        }
+    }
 
     try {
         connect()
@@ -215,21 +238,9 @@ if (configuration.number_of_workers > 0 && cluster.isMaster) {
                     next();
                 }
             })
-            .listen(configuration.port, configuration.address, function() {
-                if (configuration.group) {
-                    process.setgid(configuration.group);
-                }
-
-                if (configuration.user) {
-                    process.setuid(configuration.user);
-                }
-
-                if (process.getuid() == 0 || process.getgid() == 0) {
-                    logger.error("Failed to drop privileges; aborting");
-                    if (process.send) process.send({ fatal : true });
-                    process.exit(100);
-                }
-            });
+            .listen(configuration.port, configuration.address, dropPrivileges)
+            .listen(configuration.port, configuration.address6, dropPrivileges)
+            ;
     } catch(err) {
         logger.error("Error '" + err.message + "' while calling '" + err.syscall + "'; aborting");
         console.error(err.stack);

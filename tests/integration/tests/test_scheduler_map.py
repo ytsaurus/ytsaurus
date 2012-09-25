@@ -251,3 +251,4 @@ cat > /dev/null; echo {hello=world}
             file='//tmp/mapper.sh')
 
         assert read('//tmp/t_out') == [{'hello': 'world'}]
+    

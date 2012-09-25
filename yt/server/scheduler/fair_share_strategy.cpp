@@ -300,6 +300,11 @@ public:
         return std::vector<ISchedulableElementPtr>(Children.begin(), Children.end());
     }
 
+    bool IsEmpty() const
+    {
+        return Children.empty();
+    }
+
 protected:
     ISchedulerStrategyHost* Host;
 
@@ -332,9 +337,12 @@ protected:
 
             attributes.Weight = child->GetWeight();
 
-            attributes.AdjustedMinShareRatio = child->GetMinShareRatio() * LimitsRatio;
-            minShareRatioSum += attributes.AdjustedMinShareRatio;
-
+            if (dominantDemand != 0) {
+                attributes.AdjustedMinShareRatio = child->GetMinShareRatio() * LimitsRatio;
+                minShareRatioSum += attributes.AdjustedMinShareRatio;
+            } else {
+                attributes.AdjustedMinShareRatio = 0.0;
+            }
         }
 
         // Scale down weights if needed.
@@ -552,6 +560,11 @@ public:
         return Id;
     }
 
+    bool IsDefaultConfigured() const
+    {
+        return DefaultConfigured;
+    }
+
 
     TPoolConfigPtr GetConfig()
     {
@@ -562,11 +575,13 @@ public:
     {
         Config = newConfig;
         SetMode(Config->Mode);
+        DefaultConfigured = false;
     }
 
     void SetDefaultConfig()
     {
         SetConfig(New<TPoolConfig>());
+        DefaultConfigured = true;
     }
 
 
@@ -608,6 +623,7 @@ private:
     Stroka Id;
 
     TPoolConfigPtr Config;
+    bool DefaultConfigured;
 
 };
 
@@ -647,9 +663,6 @@ public:
         masterConnector->SubscribeWatcherResponse(BIND(&TFairShareStrategy::OnPoolsResponse, this));
 
         RootElement = New<TRootElement>(Host);
-
-        DefaultPool = New<TPool>(Host, DefaultPoolId);
-        RegisterPool(DefaultPool);
     }
 
     virtual void ScheduleJobs(ISchedulingContext* context) override
@@ -708,7 +721,6 @@ private:
 
     typedef yhash_map<Stroka, TPoolPtr> TPoolMap;
     TPoolMap Pools;
-    TPoolPtr DefaultPool;
 
     yhash_map<TOperationPtr, TOperationElementPtr> OperationToElement;
 
@@ -735,18 +747,11 @@ private:
             spec = New<TPooledOperationSpec>();
         }
 
-        TPoolPtr pool;
-        if (spec->Pool) {
-            pool = FindPool(spec->Pool.Get());
-            if (!pool) {
-                LOG_ERROR("Invalid pool %s specified for operation %s, using %s",
-                    ~spec->Pool.Get().Quote(),
-                    ~ToString(operation->GetOperationId()),
-                    ~DefaultPool->GetId().Quote());
-            }
-        }
+        auto poolId = spec->Pool ? spec->Pool.Get() : DefaultPoolId;
+        auto pool = FindPool(poolId);
         if (!pool) {
-            pool = DefaultPool;
+            pool = New<TPool>(Host, poolId);
+            RegisterPool(pool);
         }
 
         operationElement->SetSpec(spec);
@@ -770,6 +775,10 @@ private:
         LOG_INFO("Operation removed from pool (OperationId: %s, PoolId: %s)",
             ~ToString(operation->GetOperationId()),
             ~pool->GetId());
+
+        if (pool->IsEmpty() && pool->IsDefaultConfigured()) {
+            UnregisterPool(pool);
+        }
     }
 
 
@@ -798,17 +807,8 @@ private:
 
     void UnregisterPool(TPoolPtr pool)
     {
-        YCHECK(pool != DefaultPool);
+        YCHECK(pool->IsEmpty());
 
-        // Move all operations to the default pool.
-        auto children = pool->GetChildren();
-        FOREACH (auto child, children) {
-            auto* operationElement = dynamic_cast<TOperationElement*>(~child);
-            operationElement->SetPool(~DefaultPool);
-            DefaultPool->AddChild(operationElement);
-        }
-
-        // Remove the pool.
         YCHECK(Pools.erase(pool->GetId()) == 1);
         RootElement->RemoveChild(pool);
 
@@ -848,7 +848,8 @@ private:
         LOG_INFO("Updating pools");
 
         auto req = TYPathProxy::Get("//sys/scheduler/pools");
-        auto poolConfigKeys = DefaultPool->GetConfig()->GetRegisteredKeys();
+        static auto poolConfigTemplate = New<TPoolConfig>();
+        auto poolConfigKeys = poolConfigTemplate->GetRegisteredKeys();
         ToProto(req->mutable_attributes(), poolConfigKeys);
         batchReq->AddRequest(req, "get_pools");
     }
@@ -899,12 +900,10 @@ private:
         // Unregister orphan pools.
         FOREACH (const auto& id, orphanPoolIds) {
             auto pool = GetPool(id);
-            if (pool == DefaultPool) {
-                // Default pool is always present.
-                // When it's configuration vanishes it just gets the default config.
-                pool->SetDefaultConfig();
-            } else {
+            if (pool->IsEmpty()) {
                 UnregisterPool(pool);
+            } else {
+                pool->SetDefaultConfig();
             }
         }
 

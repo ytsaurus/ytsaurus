@@ -1,3 +1,4 @@
+from common import require, YtError
 from path_tools import escape_path, split_path, dirs, split_table_ranges
 from http import make_request
 import config
@@ -78,12 +79,11 @@ def exists(path):
         return check_tree_existance(split_table_ranges(path)[0], get("/"))
 
 def remove(path):
-    if exists(path):
-        return make_request("POST", "remove",
-                {"path": escape_path(path),
-                 "transaction_id": config.TRANSACTION})
-    # TODO(ignat):think about throwing exception here
-    return None
+    require(exists(path),
+            YtError("You try to delete non-existing path " + path))
+    return make_request("POST", "remove",
+            {"path": escape_path(path),
+             "transaction_id": config.TRANSACTION})
 
 def mkdir(path):
     create = False
@@ -114,6 +114,9 @@ def find_free_subpath(path):
         name = "%s%s" % (path, "".join(random.sample(char_set, LENGTH)))
         if not exists(name):
             return name
+
+def get_type(path):
+    return get_attribute(path, "type")
 
 def search(root="/", node_type=None, path_filter=None, object_filter=None, attributes=None):
     result = []
