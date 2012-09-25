@@ -304,7 +304,6 @@ TOperationControllerBase::TOperationControllerBase(
     , CancelableBackgroundInvoker(CancelableContext->CreateInvoker(Host->GetBackgroundInvoker()))
     , Active(false)
     , Running(false)
-    , LastChunkListAllocationCount(-1)
     , RunningJobCount(0)
     , CompletedJobCount(0)
     , FailedJobCount(0)
@@ -1295,10 +1294,9 @@ void TOperationControllerBase::CompletePreparation()
         Host->GetMasterChannel(),
         CancelableControlInvoker,
         Operation,
-        PrimaryTransaction->GetId());
-
-    LastChunkListAllocationCount = Config->ChunkListPreallocationCount;
-    YCHECK(ChunkListPool->Allocate(LastChunkListAllocationCount));
+        PrimaryTransaction->GetId(),
+        Config->ChunkListPreallocationCount,
+        Config->ChunkListAllocationMultiplier);
 }
 
 void TOperationControllerBase::OnPreparationCompleted()
@@ -1493,11 +1491,7 @@ bool TOperationControllerBase::CheckAvailableChunkLists(int requestedCount)
 
     // Additional chunk lists are definitely needed but still could be a success.
     bool success = ChunkListPool->GetSize() >= requestedCount;
-
-    int allocateCount = static_cast<int>(LastChunkListAllocationCount * Config->ChunkListAllocationMultiplier);
-    if (ChunkListPool->Allocate(allocateCount)) {
-        LastChunkListAllocationCount = allocateCount;
-    }
+    ChunkListPool->AllocateMore();
 
     return success;
 }

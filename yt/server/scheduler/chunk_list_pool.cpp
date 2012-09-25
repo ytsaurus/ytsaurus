@@ -22,15 +22,22 @@ TChunkListPool::TChunkListPool(
     NRpc::IChannelPtr masterChannel,
     IInvokerPtr controlInvoker,
     TOperationPtr operation,
-    const TTransactionId& transactionId)
+    const TTransactionId& transactionId,
+    int initialCount,
+    double multiplier)
     : MasterChannel(masterChannel)
     , ControlInvoker(controlInvoker)
     , Operation(operation)
     , TransactionId(transactionId)
+    , InitialCount(initialCount)
+    , Multiplier(multiplier)
     , Logger(OperationLogger)
     , RequestInProgress(false)
+    , LastSuccessCount(-1)
 {
     Logger.AddTag(Sprintf("OperationId: %s", ~operation->GetOperationId().ToString()));
+
+    YCHECK(AllocateMore());
 }
 
 int TChunkListPool::GetSize() const
@@ -38,7 +45,7 @@ int TChunkListPool::GetSize() const
     return static_cast<int>(Ids.size());
 }
 
-NYT::NChunkClient::TChunkListId TChunkListPool::Extract()
+TChunkListId TChunkListPool::Extract()
 {
     YASSERT(!Ids.empty());
     auto id = Ids.back();
@@ -51,9 +58,12 @@ NYT::NChunkClient::TChunkListId TChunkListPool::Extract()
     return id;
 }
 
-bool TChunkListPool::Allocate(int count)
+bool TChunkListPool::AllocateMore()
 {
-    YCHECK(count > 0);
+    int count =
+        LastSuccessCount < 0
+        ? InitialCount
+        : static_cast<int>(LastSuccessCount * Multiplier);
 
     if (RequestInProgress) {
         LOG_DEBUG("Cannot allocate more chunk lists, another request is in progress");
@@ -72,14 +82,16 @@ bool TChunkListPool::Allocate(int count)
     }
 
     batchReq->Invoke().Subscribe(
-        BIND(&TChunkListPool::OnChunkListsCreated, MakeWeak(this))
-        .Via(ControlInvoker));
+        BIND(&TChunkListPool::OnChunkListsCreated, MakeWeak(this), count)
+            .Via(ControlInvoker));
 
     RequestInProgress = true;
     return true;
 }
 
-void TChunkListPool::OnChunkListsCreated(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+void TChunkListPool::OnChunkListsCreated(
+    int count,
+    TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
 {
     YASSERT(RequestInProgress);
     RequestInProgress = false;
@@ -95,6 +107,8 @@ void TChunkListPool::OnChunkListsCreated(TObjectServiceProxy::TRspExecuteBatchPt
     FOREACH (auto rsp, batchRsp->GetResponses<TTransactionYPathProxy::TRspCreateObject>()) {
         Ids.push_back(TChunkListId::FromProto(rsp->object_id()));
     }
+
+    LastSuccessCount = count;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

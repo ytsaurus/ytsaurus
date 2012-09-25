@@ -80,9 +80,6 @@ protected:
     // Remains True as long as the operation can schedule new jobs.
     bool Running;
 
-    // The number of chunk lists allocated previous time.
-    int LastChunkListAllocationCount;
-
     // Job counters.
     int RunningJobCount;
     int CompletedJobCount;
