@@ -42,7 +42,6 @@ public:
         YASSERT(request);
         YASSERT(responseHandler);
 
-
         TPromise< TValueOrError<IChannelPtr> > channelPromise(Null);
         {
             TGuard<TSpinLock> guard(SpinLock);
@@ -147,12 +146,12 @@ private:
             return;
         }
 
-        if (ChannelPromise == channelPromise) {
-            channelPromise.Set(result);
-            if (!result.IsOK()) {
-                ChannelPromise.Reset();
-            }
+        if (ChannelPromise == channelPromise && !result.IsOK()) {
+            ChannelPromise.Reset();
         }
+
+        guard.Release();
+        channelPromise.Set(result);
     }
          
     void OnGotChannel(
