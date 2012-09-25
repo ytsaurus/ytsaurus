@@ -401,7 +401,7 @@ Examples:
         yt.merge_tables(args.src, unlist(dst), mode="sorted", table_writer=table_writer, spec=spec)
 
     if args.erase is not None:
-        yt.erase(args.erase)
+        yt.erase_table(args.erase)
     if args.upload is not None:
         if yt.exists(dst[0]):
             yt.remove(dst[0])
