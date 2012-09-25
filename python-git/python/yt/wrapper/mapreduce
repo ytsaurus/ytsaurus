@@ -25,6 +25,8 @@ from itertools import imap
 config.PREFIX = "//statbox/"
 
 def add_prefix(table):
+    if table.startswith("//"):
+        return table
     return config.PREFIX + table
 
 def remove_prefix(table):
