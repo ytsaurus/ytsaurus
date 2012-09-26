@@ -398,24 +398,24 @@ void TSnapshotBuilder::WatchdogFork(
         return;
     }
 
-    auto result = snapshotBuilder->SnapshotStore->GetReader(snapshotId);
-    if (!result.IsOK()) {
-        localPromise.Set(result);
+    auto readerResult = snapshotBuilder->SnapshotStore->GetReader(snapshotId);
+    if (!readerResult.IsOK()) {
+        localPromise.Set(readerResult);
         return;
     }
 
-    auto reader = result.Value();
+    auto reader = readerResult.Value();
     try {
         reader->Open();
     } catch (const std::exception& ex) {
         LOG_FATAL(ex, "Error extracting snapshot checksum");
     }
 
-    TResult result;
-    result.SnapshotId = snapshotId;
-    result.Checksum = reader->GetChecksum();
+    TResult builderResult;
+    builderResult.SnapshotId = snapshotId;
+    builderResult.Checksum = reader->GetChecksum();
     
-    snapshotBuilder->OnLocalSnapshotCreated(snapshotId, result);
+    snapshotBuilder->OnLocalSnapshotCreated(snapshotId, builderResult);
 }
 
 #endif
