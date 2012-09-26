@@ -1,12 +1,8 @@
 #include "stdafx.h"
 #include "job.h"
 
-#include <server/cell_master/load_context.h>
-
 namespace NYT {
 namespace NChunkServer {
-
-using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,8 +25,9 @@ TJob::TJob(const TJobId& jobId)
     : TObjectWithIdBase(jobId)
 { }
 
-void TJob::Save(TOutputStream* output) const
+void TJob::Save(const NCellMaster::TSaveContext& context) const
 {
+    auto* output = context.GetOutput();
     ::Save(output, Type_);
     ::Save(output, ChunkId_);
     ::Save(output, Address_);
@@ -38,9 +35,9 @@ void TJob::Save(TOutputStream* output) const
     ::Save(output, StartTime_);
 }
 
-void TJob::Load(const TLoadContext& context, TInputStream* input)
+void TJob::Load(const NCellMaster::TLoadContext& context)
 {
-    UNUSED(context);
+    auto* input = context.GetInput();
     ::Load(input, Type_);
     ::Load(input, ChunkId_);
     ::Load(input, Address_);

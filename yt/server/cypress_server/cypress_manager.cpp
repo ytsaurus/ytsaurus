@@ -224,24 +224,36 @@ TCypressManager::TCypressManager(TBootstrap* bootstrap)
     RegisterHandler(New<TMapNodeTypeHandler>(Bootstrap));
     RegisterHandler(New<TListNodeTypeHandler>(Bootstrap));
 
-    auto metaState = bootstrap->GetMetaStateFacade()->GetState();
-    TLoadContext context(bootstrap);
-    metaState->RegisterLoader(
-        "Cypress.Keys.1",
-        BIND(&TCypressManager::LoadKeys, MakeStrong(this)));
-    metaState->RegisterLoader(
-        "Cypress.Values.1",
-        BIND(&TCypressManager::LoadValues, MakeStrong(this), context));
-    metaState->RegisterSaver(
-        "Cypress.Keys.1",
-        BIND(&TCypressManager::SaveKeys, MakeStrong(this)),
-        ESavePhase::Keys);
-    metaState->RegisterSaver(
-        "Cypress.Values.1",
-        BIND(&TCypressManager::SaveValues, MakeStrong(this)),
-        ESavePhase::Values);
+    {
+        NCellMaster::TLoadContext context;
+        context.SetBootstrap(Bootstrap);
 
-    metaState->RegisterPart(this);
+        RegisterLoader(
+            "Cypress.Keys",
+            BIND(&TCypressManager::LoadKeys, MakeStrong(this)),
+            context);
+        RegisterLoader(
+            "Cypress.Values",
+            BIND(&TCypressManager::LoadValues, MakeStrong(this)),
+            context);
+    }
+
+    {
+        NCellMaster::TSaveContext context;
+
+        RegisterSaver(
+            ESavePriority::Keys,
+            "Cypress.Keys",
+            CurrentSnapshotVersion,
+            BIND(&TCypressManager::SaveKeys, MakeStrong(this)),
+            context);
+        RegisterSaver(
+            ESavePriority::Values,
+            "Cypress.Values",
+            CurrentSnapshotVersion,
+            BIND(&TCypressManager::SaveValues, MakeStrong(this)),
+            context);
+    }
 }
 
 void TCypressManager::RegisterHandler(INodeTypeHandlerPtr handler)
@@ -870,32 +882,32 @@ ICypressNode* TCypressManager::BranchNode(
     return branchedNode_;
 }
 
-void TCypressManager::SaveKeys(TOutputStream* output) const
+void TCypressManager::SaveKeys(const NCellMaster::TSaveContext& context) const
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    NodeMap.SaveKeys(output);
+    NodeMap.SaveKeys(context);
 }
 
-void TCypressManager::SaveValues(TOutputStream* output) const
+void TCypressManager::SaveValues(const NCellMaster::TSaveContext& context) const
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    NodeMap.SaveValues(output);
+    NodeMap.SaveValues(context);
 }
 
-void TCypressManager::LoadKeys(TInputStream* input)
+void TCypressManager::LoadKeys(const NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    NodeMap.LoadKeys(input);
+    NodeMap.LoadKeys(context);
 }
 
-void TCypressManager::LoadValues(const TLoadContext& context, TInputStream* input)
+void TCypressManager::LoadValues(const NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    NodeMap.LoadValues(context, input);
+    NodeMap.LoadValues(context);
 }
 
 void TCypressManager::Clear()

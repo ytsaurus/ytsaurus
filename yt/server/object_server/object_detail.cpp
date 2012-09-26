@@ -12,6 +12,7 @@
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
 #include <server/cell_master/config.h>
+#include <server/cell_master/load_context.h>
 
 #include <ytlib/rpc/message.h>
 #include <ytlib/rpc/rpc.pb.h>
@@ -55,13 +56,15 @@ i32 TObjectBase::GetObjectRefCounter() const
     return RefCounter;
 }
 
-void TObjectBase::Save(TOutputStream* output) const
+void TObjectBase::Save(const NMetaState::TSaveContext& context) const
 {
+    auto* output = context.GetOutput();
     ::Save(output, RefCounter);
 }
 
-void TObjectBase::Load(TInputStream* input)
+void TObjectBase::Load(const NCellMaster::TLoadContext& context)
 {
+    auto* input = context.GetInput();
     ::Load(input, RefCounter);
 }
 

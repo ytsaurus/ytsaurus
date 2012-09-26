@@ -3,10 +3,9 @@
 
 #include <ytlib/misc/serialize.h>
 
+#include <server/cell_master/load_context.h>
+
 namespace NYT {
-
-using namespace NCellMaster;
-
 namespace NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -17,13 +16,15 @@ TAttributeSet::TAttributeSet()
 TAttributeSet::TAttributeSet(const TVersionedObjectId&)
 { }
 
-void TAttributeSet::Save(TOutputStream* output) const
+void TAttributeSet::Save(const NCellMaster::TSaveContext& context) const
 {
+    auto* output = context.GetOutput();
     SaveMap(output, Attributes_);
 }
 
-void TAttributeSet::Load(const TLoadContext& context, TInputStream* input)
+void TAttributeSet::Load(const NCellMaster::TLoadContext& context)
 {
+    auto* input = context.GetInput();
     LoadMap(input, Attributes_);
 }
 

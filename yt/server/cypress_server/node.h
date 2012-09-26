@@ -27,10 +27,10 @@ struct ICypressNode
     virtual NObjectClient::EObjectType GetObjectType() const = 0;
 
     //! Saves the node into the snapshot stream.
-    virtual void Save(TOutputStream* output) const = 0;
+    virtual void Save(const NCellMaster::TSaveContext& context) const = 0;
     
     //! Loads the node from the snapshot stream.
-    virtual void Load(const NCellMaster::TLoadContext& context, TInputStream* input) = 0;
+    virtual void Load(const NCellMaster::TLoadContext& context) = 0;
 
     //! Returns the composite (versioned) id of the node.
     virtual const TVersionedNodeId& GetId() const = 0;

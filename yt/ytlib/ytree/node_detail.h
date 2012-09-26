@@ -30,8 +30,6 @@ class TNodeBase
     , public virtual INode
 {
 public:
-    typedef TIntrusivePtr<TNodeBase> TPtr;
-
 #define IMPLEMENT_AS_METHODS(key) \
     virtual TIntrusivePtr<I##key##Node> As##key() override \
     { \

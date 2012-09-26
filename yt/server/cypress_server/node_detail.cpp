@@ -72,9 +72,11 @@ i32 TCypressNodeBase::GetObjectRefCounter() const
     return TObjectBase::GetObjectRefCounter();
 }
 
-void TCypressNodeBase::Save(TOutputStream* output) const
+void TCypressNodeBase::Save(const NCellMaster::TSaveContext& context) const
 {
-    TObjectBase::Save(output);
+    TObjectBase::Save(context);
+
+    auto* output = context.GetOutput();
     SaveObjectRefs(output, Locks_);
     ::Save(output, ParentId_);
     ::Save(output, LockMode_);
@@ -82,16 +84,21 @@ void TCypressNodeBase::Save(TOutputStream* output) const
     ::Save(output, ModificationTime_);
 }
 
-void TCypressNodeBase::Load(const TLoadContext& context, TInputStream* input)
+void TCypressNodeBase::Load(const TLoadContext& context)
 {
-    UNUSED(context);
+    TObjectBase::Load(context);
 
-    TObjectBase::Load(input);
+    auto* input = context.GetInput();
     LoadObjectRefs(input, Locks_, context);
     ::Load(input, ParentId_);
     ::Load(input, LockMode_);
     ::Load(input, CreationTime_);
-    ::Load(input, ModificationTime_);
+    // COMPAT(babenko): remove once version 0 is obsolete
+    if (context.GetVersion() >= 1) {
+        ::Load(input, ModificationTime_);
+    } else {
+        ModificationTime_ = CreationTime_;
+    }
 
     TrunkNode_ = Id.IsBranched() ? context.Get<ICypressNode>(TVersionedObjectId(Id.ObjectId)) : this;
 }
@@ -103,16 +110,20 @@ TMapNode::TMapNode(const TVersionedNodeId& id)
     , ChildCountDelta_(0)
 { }
 
-void TMapNode::Save(TOutputStream* output) const
+void TMapNode::Save(const NCellMaster::TSaveContext& context) const
 {
-    TCypressNodeBase::Save(output);
+    TCypressNodeBase::Save(context);
+
+    auto* output = context.GetOutput();
     ::Save(output, ChildCountDelta_);
     SaveMap(output, KeyToChild());
 }
 
-void TMapNode::Load(const TLoadContext& context, TInputStream* input)
+void TMapNode::Load(const NCellMaster::TLoadContext& context)
 {
-    TCypressNodeBase::Load(context, input);
+    TCypressNodeBase::Load(context);
+
+    auto* input = context.GetInput();
     ::Load(input, ChildCountDelta_);
     LoadMap(input, KeyToChild());
     FOREACH (const auto& pair, KeyToChild()) {
@@ -264,15 +275,19 @@ TListNode::TListNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
 { }
 
-void TListNode::Save(TOutputStream* output) const
+void TListNode::Save(const NCellMaster::TSaveContext& context) const
 {
-    TCypressNodeBase::Save(output);
+    TCypressNodeBase::Save(context);
+
+    auto* output = context.GetOutput();
     ::Save(output, IndexToChild());
 }
 
-void TListNode::Load(const TLoadContext& context, TInputStream* input)
+void TListNode::Load(const NCellMaster::TLoadContext& context)
 {
-    TCypressNodeBase::Load(context, input);
+    TCypressNodeBase::Load(context);
+
+    auto* input = context.GetInput();
     ::Load(input, IndexToChild());
     for (int i = 0; i < IndexToChild().size(); ++i) {
         ChildToIndex()[IndexToChild()[i]] = i;

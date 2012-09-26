@@ -12,12 +12,14 @@
 #include <ytlib/ytree/tree_builder.h>
 #include <ytlib/ytree/ypath.pb.h>
 
+#include <ytlib/meta_state/meta_state_manager.h>
+
 #include <server/object_server/object_detail.h>
 
+#include <server/cell_master/public.h>
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
-
-#include <ytlib/meta_state/meta_state_manager.h>
+#include <server/cell_master/load_context.h>
 
 namespace NYT {
 namespace NCypressServer {
@@ -264,8 +266,8 @@ public:
     virtual i32 UnrefObject() override;
     virtual i32 GetObjectRefCounter() const override;
 
-    virtual void Save(TOutputStream* output) const override;
-    virtual void Load(const NCellMaster::TLoadContext& context, TInputStream* input) override;
+    virtual void Save(const NCellMaster::TSaveContext& context) const override;
+    virtual void Load(const NCellMaster::TLoadContext& context) override;
 
 protected:
     TVersionedNodeId Id;
@@ -319,15 +321,17 @@ public:
         , Value_()
     { }
 
-    virtual void Save(TOutputStream* output) const override
+    virtual void Save(const NCellMaster::TSaveContext& context) const override
     {
-        TCypressNodeBase::Save(output);
+        TCypressNodeBase::Save(context);
+        auto* output = context.GetOutput();
         ::Save(output, Value_);
     }
     
-    virtual void Load(const NCellMaster::TLoadContext& context, TInputStream* input) override
+    virtual void Load(const NCellMaster::TLoadContext& context) override
     {
-        TCypressNodeBase::Load(context, input);
+        TCypressNodeBase::Load(context);
+        auto* input = context.GetInput();
         ::Load(input, Value_);
     }
 };
@@ -413,8 +417,9 @@ class TMapNode
 public:
     explicit TMapNode(const TVersionedNodeId& id);
 
-    virtual void Save(TOutputStream* output) const override;
-    virtual void Load(const NCellMaster::TLoadContext& context, TInputStream* input) override;
+    virtual void Save(const NCellMaster::TSaveContext& context) const override;
+    virtual void Load(const NCellMaster::TLoadContext& context) override;
+
 };
 
 //////////////////////////////////////////////////////////////////////////////// 
@@ -466,8 +471,8 @@ class TListNode
 public:
     explicit TListNode(const TVersionedNodeId& id);
 
-    virtual void Save(TOutputStream* output) const override;
-    virtual void Load(const NCellMaster::TLoadContext& context, TInputStream* input) override;
+    virtual void Save(const NCellMaster::TSaveContext& context) const override;
+    virtual void Load(const NCellMaster::TLoadContext& context) override;
 
 };
 

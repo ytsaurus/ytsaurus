@@ -24,8 +24,9 @@ public:
     TAttributeSet();
     explicit TAttributeSet(const TVersionedObjectId& id); // Just for meta map
 
-    void Save(TOutputStream* output) const;
-    void Load(const NCellMaster::TLoadContext& context, TInputStream* input);
+    void Save(const NCellMaster::TSaveContext& context) const;
+    void Load(const NCellMaster::TLoadContext& context);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

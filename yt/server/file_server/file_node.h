@@ -19,9 +19,8 @@ public:
 
     virtual NObjectClient::EObjectType GetObjectType() const;
 
-    virtual void Save(TOutputStream* output) const;
-    
-    virtual void Load(const NCellMaster::TLoadContext& context, TInputStream* input);
+    virtual void Save(const NCellMaster::TSaveContext& context) const;
+    virtual void Load(const NCellMaster::TLoadContext& context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

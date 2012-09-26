@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include "composite_meta_state.h"
+
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/actions/future.h>
 
@@ -150,27 +152,15 @@ public:
      */
     TConstIterator End() const;
 
-    //! Asynchronously saves the map to the stream.
-    /*!
-     *  This method saves the snapshot of the map as it is seen at the moment of
-     *  the invocation. All further updates are accepted but are kept in-memory.
-     *  
-     *  \param invoker Invoker used to perform the heavy lifting.
-     *  \param output Output stream.
-     *  \return An asynchronous result indicating that the snapshot is saved.
-     */
-    void SaveKeys(TOutputStream* output) const;
-
-    void SaveValues(TOutputStream* output) const;
-
-    //! Synchronously loads the map from the stream.
-    /*!
-     * \param input Input stream.
-     */
-    void LoadKeys(TInputStream* input);
+    void SaveKeys(const NMetaState::TSaveContext& context) const;
 
     template <class TContext>
-    void LoadValues(const TContext& context, TInputStream* input);
+    void SaveValues(const TContext& context) const;
+
+    void LoadKeys(const NMetaState::TLoadContext& context);
+
+    template <class TContext>
+    void LoadValues(const TContext& context);
     
 private:
     //! Slot for the thread in which all the public methods are called.

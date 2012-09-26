@@ -11,9 +11,9 @@
 namespace NYT {
 namespace NUnitTest {
 
-////////////////////////////////////////////////////////////////////////////////
+using namespace NMetaState;
 
-namespace {
+////////////////////////////////////////////////////////////////////////////////
 
 typedef Stroka TKey;
     
@@ -31,29 +31,30 @@ struct TMyInt
         : Value(value)
     { }
 
-    void Save(TOutputStream* output) const
+    void Save(const TSaveContext& context) const
     {
+        auto* output = context.GetOutput();
         WritePod(*output, Value);
     }
 
-    void Load(TVoid, TInputStream* input)
+    void Load(const TLoadContext& context)
     {
+        auto* input = context.GetInput();
         ReadPod(*input, Value);
     }
 };
 
-class TMetaStateMapTest: public ::testing::Test
+class TMetaStateMapTest
+    : public ::testing::Test
 { };
 
 typedef TMyInt TValue;
-
-} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_F(TMetaStateMapTest, BasicsInNormalMode)
 {
-    NMetaState::TMetaStateMap<TKey, TValue> map;
+    TMetaStateMap<TKey, TValue> map;
 
     map.Insert("a", new TValue(42)); // add
     EXPECT_EQ(map.Find("a")->Value, 42);
@@ -83,7 +84,7 @@ TEST_F(TMetaStateMapTest, SaveAndLoad)
     yhash_map<TKey, int> checkMap;
     Stroka snapshotData;
     {
-        NMetaState::TMetaStateMap<TKey, TValue> map;
+        TMetaStateMap<TKey, TValue> map;
 
         const int valueCount = 10000;
         const int valueRange = 1000;
@@ -97,16 +98,25 @@ TEST_F(TMetaStateMapTest, SaveAndLoad)
                 EXPECT_EQ(map.Get(key)->Value, checkMap[key]);
             }
         }
+
         TStringOutput output(snapshotData);
-        map.SaveKeys(&output);
-        map.SaveValues(&output);
+        
+        TSaveContext context;
+        context.SetOutput(&output);
+
+        map.SaveKeys(context);
+        map.SaveValues(context);
     }
     {
-        NMetaState::TMetaStateMap<TKey, TValue> map;
+        TMetaStateMap<TKey, TValue> map;
+
         TStringInput input(snapshotData);
-        map.LoadKeys(&input);
-        TVoid context;
-        map.LoadValues(context, &input);
+        
+        TLoadContext context;
+        context.SetInput(&input);
+
+        map.LoadKeys(context);
+        map.LoadValues(context);
 
         // assert checkMap \subseteq map
         FOREACH (const auto& pair, checkMap) {
@@ -123,11 +133,9 @@ TEST_F(TMetaStateMapTest, SaveAndLoad)
 TEST_F(TMetaStateMapTest, StressSave)
 {
     srand(42); // set seed
-    Stroka snapshotData;
-    TStringOutput output(snapshotData);
 
     yhash_map<TKey, int> checkMap;
-    NMetaState::TMetaStateMap<TKey, TValue> map;
+    TMetaStateMap<TKey, TValue> map;
 
     const int valueCount = 100000;
     const int insertRange = 100000;
@@ -142,8 +150,15 @@ TEST_F(TMetaStateMapTest, StressSave)
             EXPECT_EQ(map.Get(key)->Value, checkMap[key]);
         }
     }
-    map.SaveKeys(&output);
-    map.SaveValues(&output);
+
+    Stroka snapshotData;
+    TStringOutput output(snapshotData);
+
+    TSaveContext context;
+    context.SetOutput(&output);
+
+    map.SaveKeys(context);
+    map.SaveValues(context);
 
     const int actionCount = 100000;
     const int selectRange = 200000;

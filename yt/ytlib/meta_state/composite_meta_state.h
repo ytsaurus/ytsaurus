@@ -11,6 +11,20 @@ namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
     
+struct TSaveContext
+{
+    DEFINE_BYVAL_RW_PROPERTY(TOutputStream*, Output);
+};
+
+struct TLoadContext
+{
+    DEFINE_BYVAL_RW_PROPERTY(i32, Version);
+    DEFINE_BYVAL_RW_PROPERTY(TInputStream*, Input);
+};
+
+typedef TCallback<void(const TSaveContext&)> TSaver;
+typedef TCallback<void(const TLoadContext&)> TLoader;
+
 class TMetaStatePart
     : public virtual TRefCounted
 {
@@ -23,12 +37,27 @@ protected:
     IMetaStateManagerPtr MetaStateManager;
     TCompositeMetaStatePtr MetaState;
 
+    void RegisterSaver(int priority, const Stroka& name, i32 version, TSaver saver);
+    
+    template <class TContext>
+    void RegisterSaver(
+        int priority,
+        const Stroka& name,
+        i32 version,
+        TCallback<void(const TContext&)> saver,
+        const TContext& context);
+
+    void RegisterLoader(const Stroka& name, TLoader loader);
+
+    template <class TContext>
+    void RegisterLoader(
+        const Stroka& name,
+        TCallback<void(const TContext&)> loader,
+        const TContext& context);
+
     template <class TRequest, class TResponse>
     void RegisterMethod(TCallback<TResponse(const TRequest&)> handler);
     
-    template <class TRequest, class TResponse>
-    bool HasMethod(TCallback<TResponse(const TRequest&)> handler);
-
     bool IsLeader() const;
     bool IsFolllower() const;
     bool IsRecovery() const;
@@ -57,34 +86,31 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
     
-DECLARE_ENUM(ESavePhase,
-    (Keys)
-    (Values)
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TCompositeMetaState
     : public IMetaState 
 {
 public:
-    typedef TCallback<void(TOutputStream*)> TSaver;
-    typedef TCallback<void(TInputStream*)> TLoader;
-
     void RegisterPart(TMetaStatePartPtr part);
-    void RegisterLoader(const Stroka& name, TLoader loader);
-    void RegisterSaver(const Stroka& name, TSaver saver, ESavePhase phase);
 
 private:
     friend class TMetaStatePart;
 
     struct TSaverInfo
     {
+        int Priority;
         Stroka Name;
+        i32 Version;
         TSaver Saver;
-        ESavePhase Phase;
 
-        TSaverInfo(const Stroka& name, TSaver saver, ESavePhase phase);
+        TSaverInfo(int priority, const Stroka& name, i32 version, TSaver saver);
+    };
+
+    struct TLoaderInfo
+    {
+        Stroka Name;
+        TLoader Loader;
+
+        TLoaderInfo(const Stroka& name, TLoader loader);
     };
 
     typedef yhash_map< Stroka, TCallback<void(TMutationContext* context)> > TMethodMap;
@@ -92,18 +118,15 @@ private:
 
     std::vector<TMetaStatePartPtr> Parts;
 
-    typedef yhash_map< Stroka, TLoader > TLoaderMap;
-    typedef yhash_map< Stroka, TSaverInfo> TSaverMap;
+    yhash_map<Stroka, TLoaderInfo> Loaders;
+    yhash_map<Stroka, TSaverInfo>  Savers;
 
-    TLoaderMap Loaders;
-    TSaverMap Savers;
+    virtual void Save(TOutputStream* output) override;
+    virtual void Load(TInputStream* input) override;
 
-    virtual void Save(TOutputStream* output);
-    virtual void Load(TInputStream* input);
+    virtual void ApplyMutation(TMutationContext* context) throw() override;
 
-    virtual void ApplyMutation(TMutationContext* context) throw();
-
-    virtual void Clear();
+    virtual void Clear() override;
 
 };
 

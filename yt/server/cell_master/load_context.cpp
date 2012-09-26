@@ -18,10 +18,6 @@ using namespace NCypressServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLoadContext::TLoadContext(TBootstrap *bootstrap)
-    : Bootstrap_(bootstrap)
-{ }
-
 template <>
 TTransaction* TLoadContext::Get(const TObjectId& id) const
 {

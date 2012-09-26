@@ -15,7 +15,8 @@ typedef TIntrusivePtr<TMetaStateFacade> TMetaStateFacadePtr;
 
 class TBootstrap;
 
-class TLoadContext;
+struct TLoadContext;
+struct TSaveContext;
 
 ////////////////////////////////////////////////////////////////////////////////
             

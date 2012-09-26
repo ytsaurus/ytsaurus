@@ -3,7 +3,9 @@
 #include "public.h"
 
 #include <ytlib/misc/property.h>
+
 #include <server/cell_master/public.h>
+#include <server/cell_master/load_context.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -18,8 +20,8 @@ class TJobList
 public:
     TJobList(const TChunkId& chunkId);
 
-    void Save(TOutputStream* output) const;
-    void Load(const NCellMaster::TLoadContext& context, TInputStream* input);
+    void Save(const NCellMaster::TSaveContext& context) const;
+    void Load(const NCellMaster::TLoadContext& context);
 
     void AddJob(TJob* job);
     void RemoveJob(TJob* job);

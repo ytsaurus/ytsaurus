@@ -4,11 +4,14 @@
 
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/small_vector.h>
-#include <server/cell_master/public.h>
-#include <server/object_server/object_detail.h>
 
 #include <ytlib/chunk_client/chunk.pb.h>
+
 #include <ytlib/table_client/table_chunk_meta.pb.h>
+
+#include <server/cell_master/public.h>
+
+#include <server/object_server/object_detail.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -42,8 +45,8 @@ public:
     ~TChunk();
     TChunkTreeStatistics GetStatistics() const;
 
-    void Save(TOutputStream* output) const;
-    void Load(const NCellMaster::TLoadContext& context, TInputStream* input);
+    void Save(const NCellMaster::TSaveContext& context) const;
+    void Load(const NCellMaster::TLoadContext& context);
 
     void AddLocation(TNodeId nodeId, bool cached);
     void RemoveLocation(TNodeId nodeId, bool cached);

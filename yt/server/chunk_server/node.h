@@ -1,10 +1,12 @@
 #pragma once
 
 #include "public.h"
-#include <server/chunk_server/chunk_service.pb.h>
 
 #include <ytlib/misc/property.h>
+
 #include <server/cell_master/public.h>
+
+#include <server/chunk_server/chunk_service.pb.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -40,8 +42,8 @@ public:
 
     explicit TDataNode(TNodeId id);
 
-    void Save(TOutputStream* output) const;
-    void Load(const NCellMaster::TLoadContext& context, TInputStream* input);
+    void Save(const NCellMaster::TSaveContext& context) const;
+    void Load(const NCellMaster::TLoadContext& context);
 
     void AddChunk(TChunk* chunk, bool cached);
     void RemoveChunk(TChunk* chunk, bool cached);

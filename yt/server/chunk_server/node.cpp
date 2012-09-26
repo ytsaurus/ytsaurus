@@ -6,13 +6,11 @@
 #include <ytlib/misc/assert.h>
 #include <ytlib/misc/protobuf_helpers.h>
 #include <ytlib/misc/serialize.h>
-#include <server/cell_master/load_context.h>
 
 namespace NYT {
 
 namespace NChunkServer {
 
-using namespace NProto;
 using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,8 +28,9 @@ TDataNode::TDataNode(TNodeId id)
     : Id_(id)
 { }
 
-void TDataNode::Save(TOutputStream* output) const
+void TDataNode::Save(const NCellMaster::TSaveContext& context) const
 {
+    auto* output = context.GetOutput();
     ::Save(output, Address_);
     ::Save(output, IncarnationId_);
     ::Save(output, State_);
@@ -42,9 +41,9 @@ void TDataNode::Save(TOutputStream* output) const
     SaveObjectRefs(output, Jobs_);
 }
 
-void TDataNode::Load(const TLoadContext& context, TInputStream* input)
+void TDataNode::Load(const NCellMaster::TLoadContext& context)
 {
-    UNUSED(context);
+    auto* input = context.GetInput();
     ::Load(input, Address_);
     ::Load(input, IncarnationId_);
     ::Load(input, State_);
