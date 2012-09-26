@@ -196,7 +196,7 @@ void TCompositeMetaState::Load(TInputStream* input)
         // COMPAT(babenko): remove once version 0 is obsolete
         if (name.has_suffix(".1")) {
             version = 0;
-            name = name.substr(name.length() - 2);
+            name = name.substr(0, name.length() - 2);
         }
 
         ::Load(input, version);
