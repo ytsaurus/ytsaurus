@@ -1150,7 +1150,7 @@ public:
     void OnMutationApplied()
     {
         VERIFY_THREAD_AFFINITY(StateThread);
-        YVERIFY(DecoratedState->GetStatus() == EPeerStatus::Leading);
+        YCHECK(DecoratedState->GetStatus() == EPeerStatus::Leading);
 
         auto version = DecoratedState->GetVersion();
         auto period = Config->MaxChangesBetweenSnapshots;
