@@ -201,7 +201,7 @@ TValueOrError<TYsonString> DoGetAttribute(
     }
 
     if (!userAttributes->FindYson(key)) {
-        return TError("There is no key %s in attributes", ~key);
+        return TError("No such attribute %s", ~key.Quote());
     }
     return userAttributes->GetYson(key);
 }
