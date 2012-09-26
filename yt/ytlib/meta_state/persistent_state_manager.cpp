@@ -548,13 +548,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (error.IsOK()) {
-            auto& response = context->Response();
-            response.set_committed(true);
-        } else {
-            if (error.GetCode() == ECommitCode::OutOfOrderMutations) {
-                Restart();
-            }
+        auto& response = context->Response();
+        response.set_committed(error.IsOK());
+
+        if (error.GetCode() == ECommitCode::OutOfOrderMutations) {
+            Restart();
         }
 
         context->Reply(error);
