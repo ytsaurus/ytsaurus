@@ -66,7 +66,7 @@ void TMetaStatePart::RegisterSaver(
         name,
         version,
         BIND([=] (const TSaveContext& basicContext) {
-            auto combinedContext = context;
+            TContext combinedContext(context);
             static_cast<TSaveContext&>(combinedContext) = basicContext;
             saver.Run(combinedContext);
         }));
@@ -81,7 +81,7 @@ void TMetaStatePart::RegisterLoader(
     RegisterLoader(
         name,
         BIND([=] (const TLoadContext& basicContext) {
-            auto combinedContext = context;
+            TContext combinedContext(context);
             static_cast<TLoadContext&>(combinedContext) = basicContext;
             loader.Run(combinedContext);
         }));
