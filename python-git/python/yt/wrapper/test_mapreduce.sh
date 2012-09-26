@@ -140,9 +140,9 @@ if __name__ == '__main__':
 
     for i in range(5):
         sys.stdout.write('{0}\\\t{1}\\\t{2}\\\n'.format(i, i * i, i * i * i))
-    " >mapper.py
-    chmod +x mapper.py
-    ./mapreduce -upload mapper.py -dst ignat/mapper.py
+    " >my_mapper.py
+    chmod +x my_mapper.py
+    ./mapreduce -upload my_mapper.py -dst ignat/mapper.py
 
     ./mapreduce -listfiles
 
