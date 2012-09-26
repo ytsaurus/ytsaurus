@@ -23,6 +23,11 @@ static NLog::TLogger& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_ENUM(ELocationQueue,
+    (Data)
+    (Meta)
+);
+
 TLocation::TLocation(
     ELocationType type,
     const Stroka& id,
@@ -36,9 +41,9 @@ TLocation::TLocation(
     , AvailableSpace(0)
     , UsedSpace(0)
     , SessionCount(0)
-    , ReadQueue(New<TFairShareActionQueue>(2, Sprintf("Read:%s", ~Id)))
-    , WriteQueue(New<TActionQueue>(Sprintf("Write:%s", ~Id)))
     , Logger(DataNodeLogger)
+    , ReadQueue(New<TFairShareActionQueue>(ELocationQueue::GetDomainNames(), Sprintf("Read:%s", ~Id)))
+    , WriteQueue(New<TActionQueue>(Sprintf("Write:%s", ~Id)))
 {
     Logger.AddTag(Sprintf("Path: %s", ~Config->Path));
 }
@@ -142,12 +147,12 @@ bool TLocation::HasEnoughSpace(i64 size) const
 
 IInvokerPtr TLocation::GetDataReadInvoker()
 {
-    return ReadQueue->GetInvoker(0);
+    return ReadQueue->GetInvoker(ELocationQueue::Data);
 }
 
 IInvokerPtr TLocation::GetMetaReadInvoker()
 {
-    return ReadQueue->GetInvoker(1);
+    return ReadQueue->GetInvoker(ELocationQueue::Meta);
 }
 
 IInvokerPtr TLocation::GetWriteInvoker()

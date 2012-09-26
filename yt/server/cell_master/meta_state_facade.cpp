@@ -58,7 +58,13 @@ public:
         YCHECK(config);
         YCHECK(bootstrap);
 
-        StateQueue = New<TFairShareActionQueue>(EStateThreadQueue::GetDomainSize(), "MetaState");
+        {
+            std::vector<Stroka> profilingNames;
+            profilingNames.push_back(ToString(EStateThreadQueue(EStateThreadQueue::Default)));
+            profilingNames.push_back(ToString(EStateThreadQueue(EStateThreadQueue::ChunkRefresh)));
+            profilingNames.push_back(ToString(EStateThreadQueue(EStateThreadQueue::Heartbeat)));
+            StateQueue = New<TFairShareActionQueue>(profilingNames, "MetaState");
+        }
 
         MetaState = New<TCompositeMetaState>();
 

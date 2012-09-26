@@ -5,7 +5,10 @@
 #include "callback.h"
 
 #include <ytlib/profiling/profiler.h>
+
 #include <ytlib/misc/nullable.h>
+
+#include <ytlib/ytree/public.h>
 
 #include <util/system/thread.h>
 #include <util/system/event.h>
@@ -22,10 +25,9 @@ class TQueueInvoker
 {
 public:
     TQueueInvoker(
-        const Stroka& name,
+        const NYTree::TYPath& profilingPath,
         TActionQueueBase* owner,
-        bool enableLogging,
-        TNullable<Stroka> profilingName = Null);
+        bool enableLogging);
 
     bool Invoke(const TClosure& action);
     void Shutdown();

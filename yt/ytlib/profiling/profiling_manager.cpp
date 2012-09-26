@@ -140,7 +140,7 @@ class TProfilingManager::TImpl
 public:
     TImpl()
         : TActionQueueBase("Profiling", true)
-        , Invoker(New<TQueueInvoker>("Profiling", this, true))
+        , Invoker(New<TQueueInvoker>("/Profiling", this, true))
         , Root(GetEphemeralNodeFactory()->CreateMap())
         , EnqueueCounter("/enqueue_rate")
         , DequeueCounter("/dequeue_rate")

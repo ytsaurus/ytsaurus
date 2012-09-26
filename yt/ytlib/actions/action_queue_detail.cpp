@@ -5,13 +5,10 @@
 
 #include <ytlib/profiling/timing.h>
 
-#include <ytlib/ytree/ypath_client.h>
-
 #include <util/system/sigset.h>
 
 namespace NYT {
 
-using namespace NYTree;
 using namespace NProfiling;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -21,13 +18,12 @@ static NLog::TLogger Logger("ActionQueue");
 ///////////////////////////////////////////////////////////////////////////////
 
 TQueueInvoker::TQueueInvoker(
-    const Stroka& name,
+    const NYTree::TYPath& profilingPath,
     TActionQueueBase* owner,
-    bool enableLogging,
-    TNullable<Stroka> profilingName)
+    bool enableLogging)
     : Owner(owner)
     , EnableLogging(enableLogging)
-    , Profiler("/action_queues/" + (profilingName ? profilingName.Get() : EscapeYPathToken(name)))
+    , Profiler("/action_queues" + profilingPath)
     , EnqueueCounter("/enqueue_rate")
     , DequeueCounter("/dequeue_rate")
     , QueueSize(0)
