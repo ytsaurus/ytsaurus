@@ -23,25 +23,32 @@ public:
         NRpc::IChannelPtr masterChannel,
         IInvokerPtr controlInvoker,
         TOperationPtr operation,
-        const NTransactionClient::TTransactionId& transactionId);
+        const NTransactionClient::TTransactionId& transactionId,
+        int initialCount,
+        double multiplier);
 
     int GetSize() const;
 
     NChunkClient::TChunkListId Extract();
 
-    bool Allocate(int count);
+    bool AllocateMore();
 
 private:
     NRpc::IChannelPtr MasterChannel;
     IInvokerPtr ControlInvoker;
     TOperationPtr Operation;
     NTransactionClient::TTransactionId TransactionId;
+    int InitialCount;
+    double Multiplier;
 
     NLog::TTaggedLogger Logger;
     bool RequestInProgress;
+    int LastSuccessCount;
     std::vector<NChunkClient::TChunkListId> Ids;
 
-    void OnChunkListsCreated(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
+    void OnChunkListsCreated(
+        int count,
+        NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

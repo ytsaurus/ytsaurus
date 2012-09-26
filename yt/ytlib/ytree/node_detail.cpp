@@ -82,6 +82,7 @@ void TNodeBase::DoInvoke(IServiceContextPtr context)
     DISPATCH_YPATH_SERVICE_METHOD(Set);
     DISPATCH_YPATH_SERVICE_METHOD(Remove);
     DISPATCH_YPATH_SERVICE_METHOD(List);
+    DISPATCH_YPATH_SERVICE_METHOD(Exists);
     TYPathServiceBase::DoInvoke(context);
 }
 
@@ -129,11 +130,29 @@ IYPathService::TResolveResult TNodeBase::ResolveRecursive(
     const NYTree::TYPath& path,
     IServiceContextPtr context)
 {
-    UNUSED(path);
     UNUSED(context);
 
+    if (context->GetVerb() == "Exists") {
+        return TResolveResult::Here(path);
+    }
     ThrowCannotHaveChildren(this);
     YUNREACHABLE();
+}
+
+void TNodeBase::ExistsSelf(TReqExists* request, TRspExists* response, TCtxExists* context)
+{
+    UNUSED(request);
+    YCHECK(!TTokenizer(context->GetPath()).ParseNext());
+    response->set_value(true);
+    context->Reply();
+}
+
+void TNodeBase::ExistsRecursive(const NYTree::TYPath& path, TReqExists* request, TRspExists* response, TCtxExists* context)
+{
+    UNUSED(request);
+    UNUSED(response);
+    response->set_value(false);
+    context->Reply();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -210,9 +229,11 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
 
             if (verb == "Set" ||
                 verb == "Create" ||
-                verb == "Copy")
+                verb == "Copy" ||
+                verb == "Exists")
             {
-                if (!tokenizer.ParseNext()) {
+                // In case of Exists return false anywhere
+                if (!tokenizer.ParseNext() || verb == "Exists") {
                     return IYPathService::TResolveResult::Here(
                         TokenTypeToString(PathSeparatorToken) + path);
                 }
@@ -289,8 +310,6 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
     const TYPath& path,
     IServiceContextPtr context)
 {
-    UNUSED(context);
-
     TTokenizer tokenizer(path);
     tokenizer.ParseNext();
     switch (tokenizer.GetCurrentType()) {
@@ -301,7 +320,12 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
             return IYPathService::TResolveResult::Here(TokenTypeToString(PathSeparatorToken) + path);
 
         case ETokenType::Integer: {
+            const auto& verb = context->GetVerb();
+            
             int index = AdjustAndValidateChildIndex(tokenizer.CurrentToken().GetIntegerValue());
+            if (!FindChild(index) && verb == "Exists") {
+                return IYPathService::TResolveResult::Here(TokenTypeToString(PathSeparatorToken) + path);
+            }
             auto child = GetChild(index);
             tokenizer.ParseNext();
             if (tokenizer.GetCurrentType() == ListInsertToken) {

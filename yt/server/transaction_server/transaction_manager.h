@@ -2,17 +2,20 @@
 
 #include "public.h"
 
-#include <ytlib/actions/bind.h>
 #include <ytlib/actions/signal.h>
-#include <server/cell_master/public.h>
+
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/id_generator.h>
 #include <ytlib/misc/lease_manager.h>
+
 #include <ytlib/meta_state/meta_state_manager.h>
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/mutation.h>
 #include <ytlib/meta_state/map.h>
+
 #include <server/object_server/public.h>
+
+#include <server/cell_master/public.h>
 
 namespace NYT {
 namespace NTransactionServer {
@@ -79,10 +82,11 @@ private:
     virtual void OnActiveQuorumEstablished() override;
     virtual void OnStopLeading() override;
 
-    void SaveKeys(TOutputStream* output);
-    void SaveValues(TOutputStream* output);
-    void LoadKeys(TInputStream* input);
-    void LoadValues(NCellMaster::TLoadContext context, TInputStream* input);
+    void SaveKeys(const NCellMaster::TSaveContext& context);
+    void SaveValues(const NCellMaster::TSaveContext& context);
+    void LoadKeys(const NCellMaster::TLoadContext& context);
+    void LoadValues(const NCellMaster::TLoadContext& context);
+
     virtual void Clear() override;
 
     TDuration GetActualTimeout(TNullable<TDuration> timeout);

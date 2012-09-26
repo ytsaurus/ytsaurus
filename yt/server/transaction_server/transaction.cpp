@@ -19,9 +19,11 @@ TTransaction::TTransaction(const TTransactionId& id)
     , StartTime_(TInstant::Max())
 { }
 
-void TTransaction::Save(TOutputStream* output) const
+void TTransaction::Save(const NCellMaster::TSaveContext& context) const
 {
-    TObjectWithIdBase::Save(output);
+    TObjectWithIdBase::Save(context);
+
+    auto* output = context.GetOutput();
     ::Save(output, State_);
     SaveObjectRefs(output, NestedTransactions_);
     SaveObjectRef(output, Parent_);
@@ -32,9 +34,11 @@ void TTransaction::Save(TOutputStream* output) const
     SaveObjectRefs(output, CreatedNodes_);
 }
 
-void TTransaction::Load(const TLoadContext& context, TInputStream* input)
+void TTransaction::Load(const NCellMaster::TLoadContext& context)
 {
-    TObjectWithIdBase::Load(input);
+    TObjectWithIdBase::Load(context);
+
+    auto* input = context.GetInput();
     ::Load(input, State_);
     LoadObjectRefs(input, NestedTransactions_, context);
     LoadObjectRef(input, Parent_, context);

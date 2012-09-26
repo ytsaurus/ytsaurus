@@ -166,29 +166,42 @@ public:
         RegisterMethod(BIND(&TImpl::UnregisterNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::RebalanceChunkTree, Unretained(this)));
 
-        TLoadContext context(bootstrap);
+        {
+            NCellMaster::TLoadContext context;
+            context.SetBootstrap(bootstrap);
 
-        auto metaState = bootstrap->GetMetaStateFacade()->GetState();
-        metaState->RegisterLoader(
-            "ChunkManager.Keys.1",
-            BIND(&TImpl::LoadKeys, MakeStrong(this)));
-        metaState->RegisterLoader(
-            "ChunkManager.Values.1",
-            BIND(&TImpl::LoadValues, MakeStrong(this), context));
-        metaState->RegisterSaver(
-            "ChunkManager.Keys.1",
-            BIND(&TImpl::SaveKeys, MakeStrong(this)),
-            ESavePhase::Keys);
-        metaState->RegisterSaver(
-            "ChunkManager.Values.1",
-            BIND(&TImpl::SaveValues, MakeStrong(this)),
-            ESavePhase::Values);
+            RegisterLoader(
+                "ChunkManager.Keys",
+                BIND(&TImpl::LoadKeys, MakeStrong(this)),
+                context);
+            RegisterLoader(
+                "ChunkManager.Values",
+                BIND(&TImpl::LoadValues, MakeStrong(this)),
+                context);
+        }
 
-        metaState->RegisterPart(this);
+        {
+            NCellMaster::TSaveContext context;
 
-        auto objectManager = bootstrap->GetObjectManager();
-        objectManager->RegisterHandler(New<TChunkTypeHandler>(this));
-        objectManager->RegisterHandler(New<TChunkListTypeHandler>(this));
+            RegisterSaver(
+                ESavePriority::Keys,
+                "ChunkManager.Keys",
+                CurrentSnapshotVersion,
+                BIND(&TImpl::SaveKeys, MakeStrong(this)),
+                context);
+            RegisterSaver(
+                ESavePriority::Values,
+                "ChunkManager.Values",
+                CurrentSnapshotVersion,
+                BIND(&TImpl::SaveValues, MakeStrong(this)),
+                context);
+        }
+
+        {
+            auto objectManager = bootstrap->GetObjectManager();
+            objectManager->RegisterHandler(New<TChunkTypeHandler>(this));
+            objectManager->RegisterHandler(New<TChunkListTypeHandler>(this));
+        }
     }
 
     TMutationPtr CreateRegisterNodeMutation(
@@ -806,44 +819,46 @@ private:
     }
 
 
-    void SaveKeys(TOutputStream* output) const
+    void SaveKeys(const NCellMaster::TSaveContext& context) const
     {
-        ChunkMap.SaveKeys(output);
-        ChunkListMap.SaveKeys(output);
-        NodeMap.SaveKeys(output);
-        JobMap.SaveKeys(output);
-        JobListMap.SaveKeys(output);
+        ChunkMap.SaveKeys(context);
+        ChunkListMap.SaveKeys(context);
+        NodeMap.SaveKeys(context);
+        JobMap.SaveKeys(context);
+        JobListMap.SaveKeys(context);
     }
 
-    void SaveValues(TOutputStream* output) const
+    void SaveValues(const NCellMaster::TSaveContext& context) const
     {
+        auto* output = context.GetOutput();
         ::Save(output, NodeIdGenerator);
 
-        ChunkMap.SaveValues(output);
-        ChunkListMap.SaveValues(output);
-        NodeMap.SaveValues(output);
-        JobMap.SaveValues(output);
-        JobListMap.SaveValues(output);
+        ChunkMap.SaveValues(context);
+        ChunkListMap.SaveValues(context);
+        NodeMap.SaveValues(context);
+        JobMap.SaveValues(context);
+        JobListMap.SaveValues(context);
     }
 
-    void LoadKeys(TInputStream* input)
+    void LoadKeys(const NCellMaster::TLoadContext& context)
     {
-        ChunkMap.LoadKeys(input);
-        ChunkListMap.LoadKeys(input);
-        NodeMap.LoadKeys(input);
-        JobMap.LoadKeys(input);
-        JobListMap.LoadKeys(input);
+        ChunkMap.LoadKeys(context);
+        ChunkListMap.LoadKeys(context);
+        NodeMap.LoadKeys(context);
+        JobMap.LoadKeys(context);
+        JobListMap.LoadKeys(context);
     }
 
-    void LoadValues(TLoadContext context, TInputStream* input)
+    void LoadValues(const NCellMaster::TLoadContext& context)
     {
+        auto* input = context.GetInput();
         ::Load(input, NodeIdGenerator);
 
-        ChunkMap.LoadValues(context, input);
-        ChunkListMap.LoadValues(context, input);
-        NodeMap.LoadValues(context, input);
-        JobMap.LoadValues(context, input);
-        JobListMap.LoadValues(context, input);
+        ChunkMap.LoadValues(context);
+        ChunkListMap.LoadValues(context);
+        NodeMap.LoadValues(context);
+        JobMap.LoadValues(context);
+        JobListMap.LoadValues(context);
 
         // Compute chunk replica count.
         ChunkReplicaCount = 0;

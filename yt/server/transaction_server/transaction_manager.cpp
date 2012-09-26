@@ -352,25 +352,35 @@ TTransactionManager::TTransactionManager(
     YCHECK(bootstrap);
     VERIFY_INVOKER_AFFINITY(bootstrap->GetMetaStateFacade()->GetUnguardedInvoker(), StateThread);
 
-    TLoadContext context(Bootstrap);
+    {
+        NCellMaster::TLoadContext context;
+        context.SetBootstrap(Bootstrap);
 
-    auto metaState = Bootstrap->GetMetaStateFacade()->GetState();
-    metaState->RegisterLoader(
-        "TransactionManager.Keys.1",
-        BIND(&TTransactionManager::LoadKeys, MakeStrong(this)));
-    metaState->RegisterLoader(
-        "TransactionManager.Values.1",
-        BIND(&TTransactionManager::LoadValues, MakeStrong(this), context));
-    metaState->RegisterSaver(
-        "TransactionManager.Keys.1",
-        BIND(&TTransactionManager::SaveKeys, MakeStrong(this)),
-        ESavePhase::Keys);
-    metaState->RegisterSaver(
-        "TransactionManager.Values.1",
-        BIND(&TTransactionManager::SaveValues, MakeStrong(this)),
-        ESavePhase::Values);
+        RegisterLoader(
+            "TransactionManager.Keys",
+            BIND(&TTransactionManager::LoadKeys, MakeStrong(this)),
+            context);
+        RegisterLoader(
+            "TransactionManager.Values",
+            BIND(&TTransactionManager::LoadValues, MakeStrong(this)),
+            context);
+    }
+    {
+        NCellMaster::TSaveContext context;
 
-    metaState->RegisterPart(this);
+        RegisterSaver(
+            ESavePriority::Keys,
+            "TransactionManager.Keys",
+            CurrentSnapshotVersion,
+            BIND(&TTransactionManager::SaveKeys, MakeStrong(this)),
+            context);
+        RegisterSaver(
+            ESavePriority::Values,
+            "TransactionManager.Values",
+            CurrentSnapshotVersion,
+            BIND(&TTransactionManager::SaveValues, MakeStrong(this)),
+            context);
+    }
 }
 
 void TTransactionManager::Init()
@@ -514,32 +524,32 @@ void TTransactionManager::DoRenewLease(const TTransaction* transaction)
     TLeaseManager::RenewLease(it->second);
 }
 
-void TTransactionManager::SaveKeys(TOutputStream* output)
+void TTransactionManager::SaveKeys(const NCellMaster::TSaveContext& context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    TransactionMap.SaveKeys(output);
+    TransactionMap.SaveKeys(context);
 }
 
-void TTransactionManager::SaveValues(TOutputStream* output)
+void TTransactionManager::SaveValues(const NCellMaster::TSaveContext& context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    TransactionMap.SaveValues(output);
+    TransactionMap.SaveValues(context);
 }
 
-void TTransactionManager::LoadKeys(TInputStream* input)
+void TTransactionManager::LoadKeys(const NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    TransactionMap.LoadKeys(input);
+    TransactionMap.LoadKeys(context);
 }
 
-void TTransactionManager::LoadValues(TLoadContext context, TInputStream* input)
+void TTransactionManager::LoadValues(const NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    TransactionMap.LoadValues(context, input);
+    TransactionMap.LoadValues(context);
 }
 
 void TTransactionManager::Clear()

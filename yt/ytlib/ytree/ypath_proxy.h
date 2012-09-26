@@ -14,6 +14,7 @@ struct TYPathProxy
     DEFINE_YPATH_PROXY_METHOD(NProto, Set);
     DEFINE_YPATH_PROXY_METHOD(NProto, Remove);
     DEFINE_YPATH_PROXY_METHOD(NProto, List);
+    DEFINE_YPATH_PROXY_METHOD(NProto, Exists);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

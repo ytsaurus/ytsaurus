@@ -2,6 +2,7 @@
 #include "chunk_list.h"
 
 #include <ytlib/actions/invoker.h>
+
 #include <server/cell_master/load_context.h>
 
 namespace NYT {
@@ -17,9 +18,11 @@ TChunkList::TChunkList(const TChunkListId& id)
     , Rigid_(false)
 { }
 
-void TChunkList::Save(TOutputStream* output) const
+void TChunkList::Save(const NCellMaster::TSaveContext& context) const
 {
-    TObjectWithIdBase::Save(output);
+    TObjectWithIdBase::Save(context);
+    
+    auto* output = context.GetOutput();
     SaveObjectRefs(output, Children_);
     SaveObjectRefs(output, Parents_);
     SaveObjectRefs(output, OwningNodes_);
@@ -29,10 +32,11 @@ void TChunkList::Save(TOutputStream* output) const
     ::Save(output, RowCountSums_);
 }
 
-void TChunkList::Load(const TLoadContext& context, TInputStream* input)
+void TChunkList::Load(const NCellMaster::TLoadContext& context)
 {
-    UNUSED(context);
-    TObjectWithIdBase::Load(input);
+    TObjectWithIdBase::Load(context);
+    
+    auto* input = context.GetInput();
     LoadObjectRefs(input, Children_, context);
     LoadObjectRefs(input, Parents_, context);
     LoadObjectRefs(input, OwningNodes_, context);

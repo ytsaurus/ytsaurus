@@ -249,7 +249,7 @@ class TestCypressCommands(YTEnvSetup):
 
         locks = get('//tmp/@locks', tx = tx)
         assert len(locks) == 1
-        
+
         lock = locks[0]
         assert lock['mode'] == 'shared'
         assert lock['child_keys'] == ['a']
@@ -274,14 +274,14 @@ class TestCypressCommands(YTEnvSetup):
 
         commit_transaction(tx2)
         assert get('//tmp') == {'a' : 1, 'b' : 2}
-                
+
     def test_map_locks3(self):
         tx1 = start_transaction()
         set('//tmp/a', 1, tx = tx1)
 
         tx2 = start_transaction()
         with pytest.raises(YTError): set('//tmp/a', 2, tx = tx2)
-        
+
     def test_map_locks4(self):
         set('//tmp/a', 1)
 
@@ -292,7 +292,7 @@ class TestCypressCommands(YTEnvSetup):
 
         locks = get('//tmp/@locks', tx = tx)
         assert len(locks) == 1
-        
+
         lock = locks[0]
         assert lock['mode'] == 'shared'
         assert lock['child_keys'] == ['a']
@@ -318,7 +318,7 @@ class TestCypressCommands(YTEnvSetup):
 
         commit_transaction(tx)
         assert get('//tmp') == {}
-    
+
     def test_attr_locks1(self):
         tx = start_transaction()
         set('//tmp/@a', 1, tx = tx)
@@ -327,7 +327,7 @@ class TestCypressCommands(YTEnvSetup):
 
         locks = get('//tmp/@locks', tx = tx)
         assert len(locks) == 1
-        
+
         lock = locks[0]
         assert lock['mode'] == 'shared'
         assert lock['attribute_keys'] == ['a']
@@ -355,14 +355,14 @@ class TestCypressCommands(YTEnvSetup):
         commit_transaction(tx2)
         assert get('//tmp/@a') == 1
         assert get('//tmp/@b') == 2
-                
+
     def test_attr_locks3(self):
         tx1 = start_transaction()
         set('//tmp/@a', 1, tx = tx1)
 
         tx2 = start_transaction()
         with pytest.raises(YTError): set('//tmp/@a', 2, tx = tx2)
-        
+
     def test_attr_locks4(self):
         set('//tmp/@a', 1)
 
@@ -373,7 +373,7 @@ class TestCypressCommands(YTEnvSetup):
 
         locks = get('//tmp/@locks', tx = tx)
         assert len(locks) == 1
-        
+
         lock = locks[0]
         assert lock['mode'] == 'shared'
         assert lock['attribute_keys'] == ['a']
@@ -412,11 +412,30 @@ class TestCypressCommands(YTEnvSetup):
         set("//tmp/a", {})
         set("//tmp/a/@attr", {"key": "value"})
         set("//tmp/a/@attr/key/@embedded_attr", "emb")
-        #print  get("//tmp/a/@attr")
-        #print  get("//tmp/a/@attr/key")
-        #print  get("//tmp/a/@attr/key/@embedded_attr")
         assert get_str("//tmp/a/@attr") == '{"key"=<"embedded_attr"="emb">"value"}'
         assert get_str("//tmp/a/@attr/key") == '<"embedded_attr"="emb">"value"'
         assert get_str("//tmp/a/@attr/key/@embedded_attr") == '"emb"'
 
-    
+    def test_exists(self):
+        self.assertEqual(exists("//tmp"), "true")
+        self.assertEqual(exists("//tmp/a"), "false")
+        self.assertEqual(exists("//tmp/a/f/e"), "false")
+        self.assertEqual(exists("//tmp/a[fdjk]"), "false")
+
+        set("//tmp/a", {})
+        self.assertEqual(exists("//tmp/a"), "true")
+
+        set("//tmp/a/@list", [10])
+        self.assertEqual(exists("//tmp/a/@list"), "true")
+        self.assertEqual(exists("//tmp/a/@list/0"), "true")
+        self.assertEqual(exists("//tmp/a/@list/1"), "false")
+
+        self.assertEqual(exists("//tmp/a/@attr"), "false")
+        set("//tmp/a/@attr", {"key": "value"})
+        self.assertEqual(exists("//tmp/a/@attr"), "true")
+
+        self.assertEqual(exists("//sys/operations"), "true")
+        self.assertEqual(exists("//sys/xxx"), "false")
+        self.assertEqual(exists("//sys/operations/xxx"), "false")
+
+

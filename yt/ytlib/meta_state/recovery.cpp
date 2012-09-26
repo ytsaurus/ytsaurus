@@ -37,6 +37,7 @@ TRecovery::TRecovery(
     TSnapshotStorePtr snapshotStore,
     const TEpochId& epochId,
     TPeerId leaderId,
+    IInvokerPtr controlInvoker,
     IInvokerPtr epochControlInvoker,
     IInvokerPtr epochStateInvoker)
     : Config(config)
@@ -46,6 +47,7 @@ TRecovery::TRecovery(
     , SnapshotStore(snapshotStore)
     , EpochId(epochId)
     , LeaderId(leaderId)
+    , ControlInvoker(controlInvoker)
     , EpochControlInvoker(epochControlInvoker)
     , EpochStateInvoker(epochStateInvoker)
 {
@@ -95,16 +97,16 @@ TAsyncError TRecovery::RecoverToStateWithChangeLog(
 
             LOG_DEBUG("Snapshot cannot be found locally and will be downloaded");
 
-            TSnapshotDownloader snapshotDownloader(Config->SnapshotDownloader, CellManager);
+            TSnapshotDownloader snapshotDownloader(
+                Config->SnapshotDownloader,
+                CellManager);
 
             auto fileName = SnapshotStore->GetSnapshotFileName(snapshotId);
             auto tempFileName = fileName + NFS::TempFileSuffix;
 
-            auto downloadResult = snapshotDownloader.DownloadSnapshot(snapshotId, tempFileName);
-            if (downloadResult != TSnapshotDownloader::EResult::OK) {
-                // TODO(babenko): fix this once result is TError
-                auto wrappedError = TError("Error downloading snapshot %d: %s", snapshotId, ~downloadResult.ToString());
-                return MakeFuture(wrappedError);
+            auto error = snapshotDownloader.DownloadSnapshot(snapshotId, tempFileName);
+            if (!error.IsOK()) {
+                return MakeFuture(error);
             }
 
             try {
@@ -248,15 +250,11 @@ TAsyncError TRecovery::ReplayChangeLogs(
                 TChangeLogDownloader changeLogDownloader(
                     Config->ChangeLogDownloader,
                     CellManager,
-                    EpochControlInvoker);
-                auto changeLogResult = changeLogDownloader.Download(
-                    TMetaVersion(segmentId, desiredRecordCount),
-                    *changeLog);
-
-                if (changeLogResult != TChangeLogDownloader::EResult::OK) {
-                    // TODO(babenko): fix this once result is TError
-                    auto wrappedError = TError("Error downloading changelog %d: %s", segmentId, ~changeLogResult.ToString());
-                    return MakeFuture(wrappedError);
+                    ControlInvoker);
+                TMetaVersion version(segmentId, desiredRecordCount);
+                auto error = changeLogDownloader.Download(version, ~changeLog);
+                if (!error.IsOK()) {
+                    return MakeFuture(error);
                 }
             }
         }
@@ -340,6 +338,7 @@ TLeaderRecovery::TLeaderRecovery(
     TChangeLogCachePtr changeLogCache,
     TSnapshotStorePtr snapshotStore,
     const TEpochId& epochId,
+    IInvokerPtr controlInvoker,
     IInvokerPtr epochControlInvoker,
     IInvokerPtr epochStateInvoker)
     : TRecovery(
@@ -350,6 +349,7 @@ TLeaderRecovery::TLeaderRecovery(
         snapshotStore,
         epochId,
         cellManager->GetSelfId(),
+        controlInvoker,
         epochControlInvoker,
         epochStateInvoker)
 { }
@@ -387,6 +387,7 @@ TFollowerRecovery::TFollowerRecovery(
     TSnapshotStorePtr snapshotStore,
     const TEpochId& epochId,
     TPeerId leaderId,
+    IInvokerPtr controlInvoker,
     IInvokerPtr epochControlInvoker,
     IInvokerPtr epochStateInvoker,
     const TMetaVersion& targetVersion)
@@ -398,6 +399,7 @@ TFollowerRecovery::TFollowerRecovery(
         snapshotStore,
         epochId,
         leaderId,
+        controlInvoker,
         epochControlInvoker,
         epochStateInvoker)
     , Promise(NewPromise<TError>())

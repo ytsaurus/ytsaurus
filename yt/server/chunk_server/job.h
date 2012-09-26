@@ -3,7 +3,10 @@
 #include "public.h"
 
 #include <ytlib/misc/property.h>
+
 #include <server/cell_master/public.h>
+#include <server/cell_master/load_context.h>
+
 #include <server/object_server/object_detail.h>
 
 namespace NYT {
@@ -33,8 +36,8 @@ public:
 
     explicit TJob(const TJobId& jobId);
 
-    void Save(TOutputStream* output) const;
-    void Load(const NCellMaster::TLoadContext& context, TInputStream* input);
+    void Save(const NCellMaster::TSaveContext& context) const;
+    void Load(const NCellMaster::TLoadContext& context);
 
 };
 

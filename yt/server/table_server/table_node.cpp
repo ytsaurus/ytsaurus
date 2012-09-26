@@ -39,16 +39,20 @@ EObjectType TTableNode::GetObjectType() const
     return EObjectType::Table;
 }
 
-void TTableNode::Save(TOutputStream* output) const
+void TTableNode::Save(const NCellMaster::TSaveContext& context) const
 {
-    TCypressNodeBase::Save(output);
+    TCypressNodeBase::Save(context);
+
+    auto* output = context.GetOutput();
     SaveObjectRef(output, ChunkList_);
     ::Save(output, UpdateMode_);
 }
 
-void TTableNode::Load(const TLoadContext& context, TInputStream* input)
+void TTableNode::Load(const NCellMaster::TLoadContext& context)
 {
-    TCypressNodeBase::Load(context, input);
+    TCypressNodeBase::Load(context);
+
+    auto* input = context.GetInput();
     LoadObjectRef(input, ChunkList_, context);
     ::Load(input, UpdateMode_);
 }

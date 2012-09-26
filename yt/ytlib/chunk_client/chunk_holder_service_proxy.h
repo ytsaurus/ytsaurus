@@ -21,16 +21,16 @@ public:
     }
 
     DECLARE_ENUM(EErrorCode,
-        ((PutBlocksFailed)(1))
-        ((NoSuchSession)(2))
-        ((SessionAlreadyExists)(3))
-        ((ChunkAlreadyExists)(4))
-        ((WindowError)(5))
-        ((BlockContentMismatch)(6))
-        ((NoSuchBlock)(7))
-        ((NoSuchChunk)(8))
-        ((ChunkPrecachingFailed)(9))
-        ((OutOfSpace)(10))
+        ((PutBlocksFailed)(101))
+        ((NoSuchSession)(102))
+        ((SessionAlreadyExists)(103))
+        ((ChunkAlreadyExists)(104))
+        ((WindowError)(105))
+        ((BlockContentMismatch)(106))
+        ((NoSuchBlock)(107))
+        ((NoSuchChunk)(108))
+        ((ChunkPrecachingFailed)(109))
+        ((OutOfSpace)(110))
     );
 
     TChunkHolderServiceProxy(NRpc::IChannelPtr channel)

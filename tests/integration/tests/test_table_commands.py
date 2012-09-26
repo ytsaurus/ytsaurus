@@ -307,3 +307,15 @@ class TestTableCommands(YTEnvSetup):
         inner_tx = start_transaction(tx=tx)
         get("//tmp", tx=inner_tx)
 
+    def test_exists(self):
+        self.assertEqual(exists("//tmp/t"), "false")
+        
+        create("table", "//tmp/t")
+        self.assertEqual(exists("//tmp/t"), "true")
+        # These cases are not supported yet because of future changes in the table grammar
+        #self.assertEqual(exists("//tmp/t[:#100]"), "true")
+        #self.assertEqual(exists("//tmp/t/xxx"), "false")
+        self.assertEqual(exists("//tmp/t/@"), "true")
+        self.assertEqual(exists("//tmp/t/@chunk_ids"), "true")
+        self.assertEqual(exists("//tmp/t/@chunk_ids[0]"), "false")
+

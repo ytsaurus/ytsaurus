@@ -209,9 +209,11 @@ TMetaStateMap<TKey, TValue, TTraits, THash>::End() const
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
-void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadKeys(TInputStream* input)
+void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadKeys(const TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(UserThread);
+
+    auto* input = context.GetInput();
 
     Map.clear();
     Size = ::LoadSize(input);
@@ -233,9 +235,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadKeys(TInputStream* input)
 
 template <class TKey, class TValue, class TTraits, class THash>
 template <class TContext>
-void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadValues(
-    const TContext& context,
-    TInputStream* input)
+void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadValues(const TContext& context)
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
@@ -249,14 +249,16 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadValues(
     FOREACH (const auto& key, keys) {
         auto it = Map.find(key);
         YASSERT(it != Map.end());
-        it->second->Load(context, input);
+        it->second->Load(context);
     }
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
-void TMetaStateMap<TKey, TValue, TTraits, THash>::SaveKeys(TOutputStream* output) const
+void TMetaStateMap<TKey, TValue, TTraits, THash>::SaveKeys(const TSaveContext& context) const
 {
     VERIFY_THREAD_AFFINITY(UserThread);
+
+    auto* output = context.GetOutput();
 
     ::SaveSize(output, Map.size());
 
@@ -273,7 +275,8 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::SaveKeys(TOutputStream* output
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
-void TMetaStateMap<TKey, TValue, TTraits, THash>::SaveValues(TOutputStream* output) const
+template <class TContext>
+void TMetaStateMap<TKey, TValue, TTraits, THash>::SaveValues(const TContext& context) const
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
@@ -286,7 +289,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::SaveValues(TOutputStream* outp
         });
 
     FOREACH (const auto& item, items) {
-        item.second->Save(output);
+        item.second->Save(context);
     }
 }
 

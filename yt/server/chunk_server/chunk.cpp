@@ -53,9 +53,11 @@ TChunkTreeStatistics TChunk::GetStatistics() const
     return result;
 }
 
-void TChunk::Save(TOutputStream* output) const
+void TChunk::Save(const NCellMaster::TSaveContext& context) const
 {
-    TObjectWithIdBase::Save(output);
+    TObjectWithIdBase::Save(context);
+    
+    auto* output = context.GetOutput();
     SaveProto(output, ChunkInfo_);
     SaveProto(output, ChunkMeta_);
     ::Save(output, ReplicationFactor_);
@@ -65,10 +67,11 @@ void TChunk::Save(TOutputStream* output) const
     SaveNullableSet(output, CachedLocations_);
 }
 
-void TChunk::Load(const TLoadContext& context, TInputStream* input)
+void TChunk::Load(const NCellMaster::TLoadContext& context)
 {
-    UNUSED(context);
-    TObjectWithIdBase::Load(input);
+    TObjectWithIdBase::Load(context);
+    
+    auto* input = context.GetInput();
     LoadProto(input, ChunkInfo_);
     LoadProto(input, ChunkMeta_);
     ::Load(input, ReplicationFactor_);

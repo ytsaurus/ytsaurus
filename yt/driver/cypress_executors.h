@@ -142,5 +142,20 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TExistsExecutor
+    : public TTransactedExecutor
+{
+public:
+    TExistsExecutor();
+
+private:
+    TCLAP::UnlabeledValueArg<NYTree::TRichYPath> PathArg;
+
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT

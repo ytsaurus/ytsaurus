@@ -27,6 +27,7 @@ using namespace NCellMaster;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ObjectServerLogger;
+static const TDuration YieldTimeout = TDuration::MilliSeconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,55 +39,19 @@ public:
         : Bootstrap(bootstrap)
         , Context(context)
         , Awaiter(New<TParallelAwaiter>())
-        , UnavailableLock(0)
-    { }
-
-    void Run()
+        , ReplyLock(0)
+        , CurrentRequestIndex(0)
+        , CurrentRequestPartIndex(0)
     {
         auto& request = Context->Request();
-
         int requestCount = request.part_counts_size();
         Context->SetRequestInfo("RequestCount: %d", requestCount);
         ResponseMessages.resize(requestCount);
+    }
 
-        const auto& attachments = request.Attachments();
-        auto rootService = Bootstrap->GetObjectManager()->GetRootService();
-        auto awaiter = Awaiter;
-        int requestPartIndex = 0;
-        for (int requestIndex = 0; requestIndex < request.part_counts_size(); ++requestIndex) {
-            int partCount = request.part_counts(requestIndex);
-            if (partCount == 0) {
-                // Skip empty requests.
-                continue;
-            }
-
-            std::vector<TSharedRef> requestParts(
-                attachments.begin() + requestPartIndex,
-                attachments.begin() + requestPartIndex + partCount);
-            auto requestMessage = CreateMessageFromParts(MoveRV(requestParts));
-
-            NRpc::NProto::TRequestHeader requestHeader;
-            if (!ParseRequestHeader(requestMessage, &requestHeader)) {
-                Context->Reply(TError("Error parsing request header"));
-                return;
-            }
-
-            TYPath path = requestHeader.path();
-            Stroka verb = requestHeader.verb();
-
-            LOG_DEBUG("Execute[%d] <- %s %s",
-                requestIndex,
-                ~verb,
-                ~path);
-
-            awaiter->Await(
-                ExecuteVerb(rootService, requestMessage),
-                BIND(&TExecuteSession::OnResponse, MakeStrong(this), requestIndex));
-
-            requestPartIndex += partCount;
-        }
-
-        awaiter->Complete(BIND(&TExecuteSession::OnComplete, MakeStrong(this)));
+    void Run()
+    {
+        Continue();
     }
 
 private:
@@ -95,7 +60,79 @@ private:
 
     TParallelAwaiterPtr Awaiter;
     std::vector<IMessagePtr> ResponseMessages;
-    TAtomic UnavailableLock;
+    TAtomic ReplyLock;
+    int CurrentRequestIndex;
+    int CurrentRequestPartIndex;
+
+    void Continue()
+    {
+        auto startTime = TInstant::Now();
+        auto& request = Context->Request();
+        const auto& attachments = request.Attachments();
+        auto rootService = Bootstrap->GetObjectManager()->GetRootService();
+
+        auto awaiter = Awaiter;
+        if (!awaiter)
+            return;
+
+        while (CurrentRequestIndex < request.part_counts_size()) {
+            int partCount = request.part_counts(CurrentRequestIndex);
+            if (partCount == 0) {
+                // Skip empty requests.
+                ++CurrentRequestIndex;
+                continue;
+            }
+
+            std::vector<TSharedRef> requestParts(
+                attachments.begin() + CurrentRequestPartIndex,
+                attachments.begin() + CurrentRequestPartIndex + partCount);
+            auto requestMessage = CreateMessageFromParts(MoveRV(requestParts));
+
+            NRpc::NProto::TRequestHeader requestHeader;
+            if (!ParseRequestHeader(requestMessage, &requestHeader)) {
+                Reply(TError(
+                    EErrorCode::ProtocolError,
+                    "Error parsing request header"));
+                return;
+            }
+
+            const auto& path = requestHeader.path();
+            const auto& verb = requestHeader.verb();
+
+            if (AtomicGet(ReplyLock) != 0)
+                return;
+
+            LOG_DEBUG("Execute[%d] <- %s %s",
+                CurrentRequestIndex,
+                ~verb,
+                ~path);
+
+            awaiter->Await(
+                ExecuteVerb(rootService, requestMessage),
+                BIND(&TExecuteSession::OnResponse, MakeStrong(this), CurrentRequestIndex));
+
+            ++CurrentRequestIndex;
+            CurrentRequestPartIndex += partCount;
+
+            if (TInstant::Now() > startTime + YieldTimeout) {
+                YieldAndContinue();
+                return;
+            }
+        }
+
+        awaiter->Complete(BIND(&TExecuteSession::OnComplete, MakeStrong(this)));
+    }
+
+    void YieldAndContinue()
+    {
+        auto invoker = Bootstrap->GetMetaStateFacade()->GetGuardedEpochInvoker();
+        if (!invoker->Invoke(BIND(&TExecuteSession::Continue, MakeStrong(this)))) {
+            Reply(TError(
+                EErrorCode::Unavailable,
+                "Yield error, only %d requests were submitted",
+                CurrentRequestIndex));
+        }
+    }
 
     void OnResponse(int requestIndex, IMessagePtr responseMessage)
     {
@@ -109,13 +146,7 @@ private:
             ~ToString(error));
 
         if (error.GetCode() == EErrorCode::Unavailable) {
-            // OnResponse can be called from an arbitrary thread.
-            // Make sure that we only reply once.
-            if (AtomicTryLock(&UnavailableLock)) {
-                Awaiter->Cancel();
-                Awaiter.Reset();
-                Context->Reply(error);
-            }
+            Reply(error);
         } else {
             // No sync is needed, requestIndexes are distinct.
             ResponseMessages[requestIndex] = responseMessage;
@@ -125,9 +156,6 @@ private:
     void OnComplete()
     {
         // No sync is needed: OnComplete is called after all OnResponses.
-
-        Awaiter.Reset();
-
         auto& response = Context->Response();
 
         FOREACH (const auto& responseMessage, ResponseMessages) {
@@ -145,7 +173,18 @@ private:
                 responseParts.end());
         }
 
-        Context->Reply();
+        Reply(TError());
+    }
+
+    void Reply(const TError& error)
+    {
+        // Make sure that we only reply once.
+        if (!AtomicTryLock(&ReplyLock))
+            return;
+
+        Awaiter->Cancel();
+        Awaiter.Reset();
+        Context->Reply(error);
     }
 
 };

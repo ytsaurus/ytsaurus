@@ -60,6 +60,24 @@ TMetaStatePart::TMetaStatePart(
     metaStateManager->SubscribeStopFollowing(BIND(
         &TThis::OnStopFollowing,
         MakeWeak(this)));
+
+    MetaState->RegisterPart(this);
+}
+
+void TMetaStatePart::RegisterSaver(
+    int priority,
+    const Stroka& name,
+    i32 version,
+    TSaver saver)
+{
+    TCompositeMetaState::TSaverInfo info(priority, name, version, saver);
+    YCHECK(MetaState->Savers.insert(std::make_pair(name, info)).second);
+}
+
+void TMetaStatePart::RegisterLoader(const Stroka& name, TLoader loader)
+{
+    TCompositeMetaState::TLoaderInfo info(name, loader);
+    YCHECK(MetaState->Loaders.insert(std::make_pair(name, info)).second);
 }
 
 void TMetaStatePart::Clear()
@@ -110,12 +128,21 @@ void TMetaStatePart::OnStopRecovery()
 ////////////////////////////////////////////////////////////////////////////////
 
 TCompositeMetaState::TSaverInfo::TSaverInfo(
+    int priority,
     const Stroka& name,
-    TSaver saver,
-    ESavePhase phase)
-    : Name(name)
+    i32 version,
+    TSaver saver)
+    : Priority(priority)
+    , Name(name)
+    , Version(version)
     , Saver(saver)
-    , Phase(phase)
+{ }
+
+TCompositeMetaState::TLoaderInfo::TLoaderInfo(
+    const Stroka& name,
+    TLoader loader)
+    : Name(name)
+    , Loader(loader)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -129,48 +156,67 @@ void TCompositeMetaState::RegisterPart(TMetaStatePartPtr part)
 
 void TCompositeMetaState::Save(TOutputStream* output)
 {
-    i32 size = Savers.size();
-    ::Save(output, size);
- 
-    std::vector<TSaverInfo> saverInfos;
+    std::vector<TSaverInfo> infos;
     FOREACH (const auto& pair, Savers) {
-        saverInfos.push_back(pair.second);
+        infos.push_back(pair.second);
     }
+
     std::sort(
-        saverInfos.begin(),
-        saverInfos.end(),
+        infos.begin(),
+        infos.end(),
         [] (const TSaverInfo& lhs, const TSaverInfo& rhs) {
-            return lhs.Phase < rhs.Phase ||
-                (lhs.Phase == rhs.Phase && lhs.Name < rhs.Name);
+            return lhs.Priority < rhs.Priority ||
+                   lhs.Priority == rhs.Priority && lhs.Name < rhs.Name;
         });
 
-    FOREACH (const auto& info, saverInfos) {
+    i32 partCount = infos.size();
+    ::Save(output, partCount);
+
+    TSaveContext context;
+    context.SetOutput(output);
+
+    FOREACH (const auto& info, infos) {
         ::Save(output, info.Name);
-        info.Saver.Run(output);
+        ::Save(output, info.Version);
+        info.Saver.Run(context);
     }
 }
 
 void TCompositeMetaState::Load(TInputStream* input)
 {
-    i32 size;
-    ::Load(input, size);
+    i32 partCount;
+    ::Load(input, partCount);
     
-    for (i32 i = 0; i < size; ++i) {
+    for (i32 partIndex = 0; partIndex < partCount; ++partIndex) {
         Stroka name;
+        i32 version;
+
         ::Load(input, name);
-        auto it = Loaders.find(name);
-        if (it == Loaders.end()) {
-            LOG_FATAL("No appropriate loader is registered for part %s", ~name.Quote());
+
+        // COMPAT(babenko): remove once version 0 is obsolete
+        if (name.has_suffix(".1")) {
+            version = 0;
+            name = name.substr(0, name.length() - 2);
+        } else {
+            ::Load(input, version);
         }
-        auto loader = it->second;
-        loader.Run(input);
+
+        auto it = Loaders.find(name);
+        LOG_FATAL_IF(it == Loaders.end(), "No appropriate loader is registered for part %s", ~name.Quote());
+
+        TLoadContext context;
+        context.SetInput(input);
+        context.SetVersion(version);
+
+        const auto& info = it->second;
+        info.Loader.Run(context);
     }
 }
 
 void TCompositeMetaState::ApplyMutation(TMutationContext* context) throw()
 {
-    if (context->GetType() == "")  {
-        // Empty mutation. It is used for debug purpose.
+    if (context->GetType().empty()) {
+        // Empty mutation. Typically used as a tombstone in changelog editing.
         return;
     }
     auto it = Methods.find(context->GetType());
@@ -183,24 +229,6 @@ void TCompositeMetaState::Clear()
     FOREACH (auto& part, Parts) {
         part->Clear();
     }
-}
-
-void TCompositeMetaState::RegisterLoader(const Stroka& name, TLoader loader)
-{
-    YASSERT(!loader.IsNull());
-
-    YCHECK(Loaders.insert(MakePair(name, MoveRV(loader))).second);
-}
-
-void TCompositeMetaState::RegisterSaver(
-    const Stroka& name,
-    TSaver saver, 
-    ESavePhase phase)
-{
-    YASSERT(!saver.IsNull());
-
-    TSaverInfo info(name, MoveRV(saver), phase);
-    YCHECK(Savers.insert(MakePair(name, info)).second);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

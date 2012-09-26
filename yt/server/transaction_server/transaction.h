@@ -2,12 +2,17 @@
 
 #include "public.h"
 
-#include <server/cell_master/public.h>
 #include <ytlib/misc/property.h>
+
 #include <ytlib/cypress_client/public.h>
+
 #include <server/cypress_server/public.h>
+
 #include <server/chunk_server/public.h>
+
 #include <server/object_server/object_detail.h>
+
+#include <server/cell_master/public.h>
 
 namespace NYT {
 namespace NTransactionServer {
@@ -39,8 +44,8 @@ class TTransaction
 public:
     explicit TTransaction(const TTransactionId& id);
 
-    void Save(TOutputStream* output) const;
-    void Load(const NCellMaster::TLoadContext& context, TInputStream* input);
+    void Save(const NCellMaster::TSaveContext& context) const;
+    void Load(const NCellMaster::TLoadContext& context);
 
     bool IsActive() const;
 };

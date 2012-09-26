@@ -46,8 +46,6 @@ public:
 
     //! Returns the invoker used for performing recovery actions.
     /*!
-     *  This invoker is bound to the same thread as returned by #GetStateInvoker.
-     *
      *  \note Thread affinity: any
      */
     IInvokerPtr GetSystemInvoker();

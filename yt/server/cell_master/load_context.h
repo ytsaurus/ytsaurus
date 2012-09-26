@@ -2,23 +2,30 @@
 
 #include "public.h"
 
+#include <ytlib/misc/property.h>
+
+#include <ytlib/meta_state/composite_meta_state.h>
+
 #include <server/transaction_server/public.h>
 #include <server/chunk_server/public.h>
 #include <server/cypress_server/public.h>
-
-#include <ytlib/misc/property.h>
 
 namespace NYT {
 namespace NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLoadContext
-{
-public:
-    explicit TLoadContext(TBootstrap* bootstrap);
+DECLARE_ENUM(ESavePriority,
+    (Keys)
+    (Values)
+);
 
-    DEFINE_BYVAL_RO_PROPERTY(TBootstrap*, Bootstrap);
+const int CurrentSnapshotVersion = 0;
+
+struct TLoadContext
+    : public NMetaState::TLoadContext
+{
+    DEFINE_BYVAL_RW_PROPERTY(TBootstrap*, Bootstrap);
 
     template <class T>
     T* Get(const NObjectClient::TObjectId& id) const;
@@ -26,6 +33,10 @@ public:
     template <class T>
     T* Get(const NObjectClient::TVersionedObjectId& id) const;
 };
+
+struct TSaveContext
+    : public NMetaState::TSaveContext
+{ };
 
 template <>
 NTransactionServer::TTransaction* TLoadContext::Get(const NObjectClient::TObjectId& id) const;

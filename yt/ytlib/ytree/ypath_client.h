@@ -158,6 +158,9 @@ TFuture< TValueOrError<TYsonString> > AsyncYPathGet(IYPathServicePtr service, co
 //! Synchronously executes |Get| verb. Throws if an error has occurred.
 TYsonString SyncYPathGet(IYPathServicePtr service, const TYPath& path, bool allAttributes = false);
 
+//! Synchronously executes |Exists| verb. Throws if an error has occurred.
+bool SyncYPathExists(IYPathServicePtr service, const TYPath& path);
+
 //! Synchronously executes |Set| verb. Throws if an error has occurred.
 void SyncYPathSet(IYPathServicePtr service, const TYPath& path, const TYsonString& value);
 

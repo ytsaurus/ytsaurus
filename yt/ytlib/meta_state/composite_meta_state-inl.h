@@ -53,12 +53,38 @@ void TMetaStatePart::RegisterMethod(
     YCHECK(MetaState->Methods.insert(MakePair(mutationType, wrappedHandler)).second);
 }
 
-template <class TRequest, class TResponse>
-bool TMetaStatePart::HasMethod(
-    TCallback<TResponse(const TRequest&)> handler)
+template <class TContext>
+void TMetaStatePart::RegisterSaver(
+    int priority,
+    const Stroka& name,
+    i32 version,
+    TCallback<void(const TContext&)> saver,
+    const TContext& context)
 {
-    Stroka mutationType = TRequest().GetTypeName();
-    return MetaState->Methods.count(mutationType) > 0;
+    RegisterSaver(
+        priority,
+        name,
+        version,
+        BIND([=] (const TSaveContext& basicContext) {
+            TContext combinedContext(context);
+            static_cast<TSaveContext&>(combinedContext) = basicContext;
+            saver.Run(combinedContext);
+        }));
+}
+
+template <class TContext>
+void TMetaStatePart::RegisterLoader(
+    const Stroka& name,
+    TCallback<void(const TContext&)> loader,
+    const TContext& context)
+{
+    RegisterLoader(
+        name,
+        BIND([=] (const TLoadContext& basicContext) {
+            TContext combinedContext(context);
+            static_cast<TLoadContext&>(combinedContext) = basicContext;
+            loader.Run(combinedContext);
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

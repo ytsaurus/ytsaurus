@@ -2,8 +2,6 @@
 #include "job_list.h"
 #include "job.h"
 
-#include <server/cell_master/load_context.h>
-
 namespace NYT {
 namespace NChunkServer {
 
@@ -15,13 +13,15 @@ TJobList::TJobList(const TChunkId& chunkId)
     : ChunkId_(chunkId)
 { }
 
-void TJobList::Save(TOutputStream* output) const
+void TJobList::Save(const NCellMaster::TSaveContext& context) const
 {
+    auto* output = context.GetOutput();
     SaveObjectRefs(output, Jobs_);
 }
 
-void TJobList::Load(const TLoadContext& context, TInputStream* input)
+void TJobList::Load(const NCellMaster::TLoadContext& context)
 {
+    auto* input = context.GetInput();
     LoadObjectRefs(input, Jobs_, context);
 }
 

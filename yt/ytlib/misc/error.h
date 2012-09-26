@@ -195,6 +195,13 @@ public:
         , Value_(other.Value())
     { }
 
+    T GetOrThrow() const
+    {
+        if (!IsOK()) {
+            THROW_ERROR *this;
+        }
+        return Value_;
+    }
 };
 
 template <class T>

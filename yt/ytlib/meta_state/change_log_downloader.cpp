@@ -35,31 +35,31 @@ TChangeLogDownloader::TChangeLogDownloader(
     YCHECK(ControlInvoker);
 }
 
-TChangeLogDownloader::EResult TChangeLogDownloader::Download(
-    TMetaVersion version,
-    TAsyncChangeLog& changeLog)
+TError TChangeLogDownloader::Download(
+    const TMetaVersion& version,
+    TAsyncChangeLog* changeLog)
 {
     LOG_INFO("Requested %d records in changelog %d",
         version.RecordCount,
         version.SegmentId);
 
-    YASSERT(changeLog.GetId() == version.SegmentId);
+    YCHECK(changeLog->GetId() == version.SegmentId);
 
-    if (changeLog.GetRecordCount() >= version.RecordCount) {
+    if (changeLog->GetRecordCount() >= version.RecordCount) {
         LOG_INFO("Local changelog already contains %d records, no download needed",
-            changeLog.GetRecordCount());
-        return EResult::OK;
+            changeLog->GetRecordCount());
+        return TError();
     }
 
-    TPeerId sourceId = GetChangeLogSource(version);
+    auto sourceId = GetChangeLogSource(version);
     if (sourceId == NElection::InvalidPeerId) {
-        return EResult::ChangeLogNotFound;
+        return TError("Changelog is not found: %d", version.SegmentId);
     }
 
     return DownloadChangeLog(version, sourceId, changeLog);
 }
 
-TPeerId TChangeLogDownloader::GetChangeLogSource(TMetaVersion version)
+TPeerId TChangeLogDownloader::GetChangeLogSource(const TMetaVersion& version)
 {
     auto promise = NewPromise<TPeerId>();
     auto awaiter = New<TParallelAwaiter>(
@@ -91,15 +91,15 @@ TPeerId TChangeLogDownloader::GetChangeLogSource(TMetaVersion version)
     return promise.Get();
 }
 
-TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
-    TMetaVersion version,
+TError TChangeLogDownloader::DownloadChangeLog(
+    const TMetaVersion& version,
     TPeerId sourceId,
-    TAsyncChangeLog& changeLog)
+    TAsyncChangeLog* changeLog)
 {
-    int downloadedRecordCount = changeLog.GetRecordCount();
+    int downloadedRecordCount = changeLog->GetRecordCount();
 
     LOG_INFO("Started downloading records %d-%d from peer %d",
-        changeLog.GetRecordCount(),
+        changeLog->GetRecordCount(),
         version.RecordCount - 1,
         sourceId);
 
@@ -107,52 +107,37 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
     proxy.SetDefaultTimeout(Config->ReadTimeout);
 
     while (downloadedRecordCount < version.RecordCount) {
-        auto request = proxy.ReadChangeLog();
-        request->set_change_log_id(version.SegmentId);
-        request->set_start_record_id(downloadedRecordCount);
-        int desiredChunkSize = Min(
+        int desiredChunkSize = std::min(
             Config->RecordsPerRequest,
             version.RecordCount - downloadedRecordCount);
-        request->set_record_count(desiredChunkSize);
 
         LOG_DEBUG("Requesting records %d-%d",
             downloadedRecordCount,
             downloadedRecordCount + desiredChunkSize - 1);
 
-        auto response = request->Invoke().Get();
+        auto req = proxy.ReadChangeLog();
+        req->set_change_log_id(version.SegmentId);
+        req->set_start_record_id(downloadedRecordCount);
+        req->set_record_count(desiredChunkSize);
 
-        if (!response->IsOK()) {
-            auto error = response->GetError();
-            if (NRpc::IsServiceError(error)) {
-                switch (EErrorCode(error.GetCode())) {
-                    case EErrorCode::NoSuchChangeLog:
-                        LOG_WARNING("Peer %d does not have changelog %d anymore",
-                            sourceId,
-                            version.SegmentId);
-                        return EResult::ChangeLogUnavailable;
-
-                    default:
-                        LOG_FATAL(error, "Unexpected error received from peer %d",
-                            sourceId);
-                        break;
-                }
-            } else {
-                LOG_WARNING(error, "Error reading changelog from peer %d",
-                    sourceId);
-                return EResult::RemoteError;
-            }
+        auto rsp = req->Invoke().Get();
+        if (!rsp->IsOK()) {
+            return TError("Error reading changelog %d from peer %d",
+                version.SegmentId,
+                sourceId)
+                << *rsp;
         }
 
-        YASSERT(response->Attachments().size() == 1);
-        // Don't forget to unpack obtained refs
+        YCHECK(rsp->Attachments().size() == 1);
+
         std::vector<TSharedRef> attachments;
-        UnpackRefs(response->Attachments().front(), &attachments);
+        UnpackRefs(rsp->Attachments().front(), &attachments);
+
         if (attachments.empty()) {
-            LOG_WARNING("Peer %d does not have %d records of changelog %d anymore",
+            return TError("Peer %d does not have %d records of changelog %d anymore",
                 sourceId,
                 version.RecordCount,
                 version.SegmentId);
-            return EResult::ChangeLogUnavailable;
         }
 
         int attachmentCount = static_cast<int>(attachments.size());
@@ -169,21 +154,21 @@ TChangeLogDownloader::EResult TChangeLogDownloader::DownloadChangeLog(
         }
 
         for (int i = 0; i < static_cast<int>(attachments.size()); ++i) {
-            changeLog.Append(downloadedRecordCount, attachments[i]);
+            changeLog->Append(downloadedRecordCount, attachments[i]);
             ++downloadedRecordCount;
         }
     }
 
     LOG_INFO("Finished downloading changelog");
 
-    return EResult::OK;
+    return TError();
 }
 
 void TChangeLogDownloader::OnResponse(
     TParallelAwaiterPtr awaiter,
     TPromise<TPeerId> promise,
     TPeerId peerId,
-    TMetaVersion version,
+    const TMetaVersion& version,
     TProxy::TRspGetChangeLogInfoPtr response)
 {
     if (!response->IsOK()) {

@@ -48,8 +48,8 @@ public:
     i32 GetObjectRefCounter() const;
 
 protected:
-    void Save(TOutputStream* output) const;
-    void Load(TInputStream* input);
+    void Save(const NMetaState::TSaveContext& context) const;
+    void Load(const NCellMaster::TLoadContext& context);
 
     i32 RefCounter;
 

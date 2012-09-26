@@ -163,12 +163,12 @@ private:
     // TMetaStatePart overrides.
     virtual void OnLeaderRecoveryComplete() override;
     virtual void OnStopLeading() override;
-
-    void SaveKeys(TOutputStream* output) const;
-    void SaveValues(TOutputStream* output) const;
-    void LoadKeys(TInputStream* input);
-    void LoadValues(const NCellMaster::TLoadContext& context, TInputStream* input);
     virtual void Clear() override;
+
+    void SaveKeys(const NCellMaster::TSaveContext& context) const;
+    void SaveValues(const NCellMaster::TSaveContext& context) const;
+    void LoadKeys(const NCellMaster::TLoadContext& context);
+    void LoadValues(const NCellMaster::TLoadContext& context);
 
     void OnTransactionCommitted(NTransactionServer::TTransaction* transaction);
     void OnTransactionAborted(NTransactionServer::TTransaction* transaction);

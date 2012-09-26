@@ -286,25 +286,36 @@ TObjectManager::TObjectManager(
     transactionManager->SubscribeTransactionAborted(BIND(
         &TThis::OnTransactionAborted,
         MakeStrong(this)));
+    
+    {
+        NCellMaster::TLoadContext context;
+        context.SetBootstrap(Bootstrap);
 
-    auto metaState = bootstrap->GetMetaStateFacade()->GetState();
-    TLoadContext context(bootstrap);
-    metaState->RegisterLoader(
-        "ObjectManager.Keys.1",
-        BIND(&TObjectManager::LoadKeys, MakeStrong(this)));
-    metaState->RegisterLoader(
-        "ObjectManager.Values.1",
-        BIND(&TObjectManager::LoadValues, MakeStrong(this), context));
-    metaState->RegisterSaver(
-        "ObjectManager.Keys.1",
-        BIND(&TObjectManager::SaveKeys, MakeStrong(this)),
-        ESavePhase::Keys);
-    metaState->RegisterSaver(
-        "ObjectManager.Values.1",
-        BIND(&TObjectManager::SaveValues, MakeStrong(this)),
-        ESavePhase::Values);
+        RegisterLoader(
+            "ObjectManager.Keys",
+            BIND(&TObjectManager::LoadKeys, MakeStrong(this)),
+            context);
+        RegisterLoader(
+            "ObjectManager.Values",
+            BIND(&TObjectManager::LoadValues, MakeStrong(this)),
+            context);
+    }
+    {
+        NCellMaster::TSaveContext context;
 
-    metaState->RegisterPart(this);
+        RegisterSaver(
+            ESavePriority::Keys,
+            "ObjectManager.Keys",
+            CurrentSnapshotVersion,
+            BIND(&TObjectManager::SaveKeys, MakeStrong(this)),
+            context);
+        RegisterSaver(
+            ESavePriority::Values,
+            "ObjectManager.Values",
+            CurrentSnapshotVersion,
+            BIND(&TObjectManager::SaveValues, MakeStrong(this)),
+            context);
+    }
 
     RegisterMethod(BIND(&TObjectManager::ReplayVerb, Unretained(this)));
 
@@ -518,32 +529,32 @@ void TObjectManager::OnObjectUnreferenced(const TObjectId& id, i32 refCounter)
     }
 }
 
-void TObjectManager::SaveKeys(TOutputStream* output)
+void TObjectManager::SaveKeys(const NCellMaster::TSaveContext& context) const
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    Attributes.SaveKeys(output);
+    Attributes.SaveKeys(context);
 }
 
-void TObjectManager::SaveValues(TOutputStream* output)
+void TObjectManager::SaveValues(const NCellMaster::TSaveContext& context) const
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    Attributes.SaveValues(output);
+    Attributes.SaveValues(context);
 }
 
-void TObjectManager::LoadKeys(TInputStream* input)
+void TObjectManager::LoadKeys(const NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    Attributes.LoadKeys(input);
+    Attributes.LoadKeys(context);
 }
 
-void TObjectManager::LoadValues(TLoadContext context, TInputStream* input)
+void TObjectManager::LoadValues(const NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    Attributes.LoadValues(context, input);
+    Attributes.LoadValues(context);
 }
 
 void TObjectManager::Clear()

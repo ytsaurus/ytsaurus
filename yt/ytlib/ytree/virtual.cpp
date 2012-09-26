@@ -80,7 +80,6 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* cont
 
 void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxList* context)
 {
-    UNUSED(request);
     YASSERT(!TTokenizer(context->GetPath()).ParseNext());
 
     int max_size = request->Attributes().Get<int>("max_size", DefaultMaxSize);

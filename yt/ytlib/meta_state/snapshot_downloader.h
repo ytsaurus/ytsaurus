@@ -14,18 +14,11 @@ class TSnapshotDownloader
     : private TNonCopyable
 {
 public:
-    DECLARE_ENUM(EResult,
-        (OK)
-        (SnapshotNotFound)
-        (SnapshotUnavailable)
-        (RemoteError)
-    );
-
     TSnapshotDownloader(
         TSnapshotDownloaderConfigPtr config,
         NElection::TCellManagerPtr cellManager);
 
-    EResult DownloadSnapshot(i32 snapshotId, const Stroka& fileName);
+    TError DownloadSnapshot(i32 snapshotId, const Stroka& fileName);
 
 private:
     struct TSnapshotInfo
@@ -58,15 +51,15 @@ private:
         i32 snapshotId,
         TPromise<TSnapshotInfo> promise);
 
-    EResult DownloadSnapshot(
+    TError DownloadSnapshot(
         const Stroka& fileName,
         i32 snapshotId,
         const TSnapshotInfo& snapshotInfo);
-    EResult WriteSnapshot(
+    TError WriteSnapshot(
         i32 snapshotId,
         i64 snapshotLength,
         i32 sourceId,
-        TOutputStream &output);
+        TOutputStream* output);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

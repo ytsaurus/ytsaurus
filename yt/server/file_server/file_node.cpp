@@ -36,15 +36,19 @@ EObjectType TFileNode::GetObjectType() const
     return EObjectType::File;
 }
 
-void TFileNode::Save(TOutputStream* output) const
+void TFileNode::Save(const NCellMaster::TSaveContext& context) const
 {
-    TCypressNodeBase::Save(output);
+    TCypressNodeBase::Save(context);
+
+    auto* output = context.GetOutput();
     SaveObjectRef(output, ChunkList_);
 }
 
-void TFileNode::Load(const TLoadContext& context, TInputStream* input)
+void TFileNode::Load(const NCellMaster::TLoadContext& context)
 {
-    TCypressNodeBase::Load(context, input);
+    TCypressNodeBase::Load(context);
+
+    auto* input = context.GetInput();
     LoadObjectRef(input, ChunkList_, context);
 }
 

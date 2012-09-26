@@ -59,6 +59,7 @@ DECLARE_SUPPORTS_VERB(Get);
 DECLARE_SUPPORTS_VERB(Set);
 DECLARE_SUPPORTS_VERB(List);
 DECLARE_SUPPORTS_VERB(Remove);
+DECLARE_SUPPORTS_VERB(Exists);
 
 #undef DECLARE_SUPPORTS_VERB
 
@@ -70,6 +71,7 @@ class TSupportsAttributes
     , public virtual TSupportsList
     , public virtual TSupportsSet
     , public virtual TSupportsRemove
+    , public virtual TSupportsExists
 {
 protected:
     class TCombinedAttributeDictionary;
@@ -104,6 +106,12 @@ protected:
         TReqList* request,
         TRspList* response,
         TCtxList* context);
+
+    virtual void ExistsAttribute(
+        const TYPath& path,
+        TReqExists* request,
+        TRspExists* response,
+        TCtxExists* context);
 
     virtual void SetAttribute(
         const TYPath& path,

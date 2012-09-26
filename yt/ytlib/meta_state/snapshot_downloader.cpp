@@ -29,26 +29,21 @@ TSnapshotDownloader::TSnapshotDownloader(
     : Config(config)
     , CellManager(cellManager)
 {
-    YASSERT(config);
-    YASSERT(cellManager);
+    YCHECK(config);
+    YCHECK(cellManager);
 }
 
-TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
+TError TSnapshotDownloader::DownloadSnapshot(
     i32 snapshotId,
     const Stroka& fileName)
 {
     auto snapshotInfo = GetSnapshotInfo(snapshotId);
     auto sourceId = snapshotInfo.SourceId;
     if (sourceId == NElection::InvalidPeerId) {
-        return EResult::SnapshotNotFound;
+        return TError("Snapshot is not found: %d", snapshotId);
     }
 
-    auto result = DownloadSnapshot(fileName, snapshotId, snapshotInfo);
-    if (result != EResult::OK) {
-        return result;
-    }
-
-    return EResult::OK;
+    return DownloadSnapshot(fileName, snapshotId, snapshotInfo);
 }
 
 TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snapshotId)
@@ -116,7 +111,7 @@ void TSnapshotDownloader::OnSnapshotInfoComplete(
     promise.Set(TSnapshotInfo(NElection::InvalidPeerId, -1));
 }
 
-TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
+TError TSnapshotDownloader::DownloadSnapshot(
     const Stroka& fileName,
     i32 snapshotId,
     const TSnapshotInfo& snapshotInfo)
@@ -136,9 +131,9 @@ TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
 
     TBufferedFileOutput output(*file);
     
-    auto result = WriteSnapshot(snapshotId, snapshotInfo.Length, sourceId, output);
-    if (result != EResult::OK) {
-        return result;
+    auto error = WriteSnapshot(snapshotId, snapshotInfo.Length, sourceId, &output);
+    if (!error.IsOK()) {
+        return error;
     }
 
     try {
@@ -150,14 +145,14 @@ TSnapshotDownloader::EResult TSnapshotDownloader::DownloadSnapshot(
             snapshotId);
     }
 
-    return EResult::OK;
+    return TError();
 }
 
-TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
+TError TSnapshotDownloader::WriteSnapshot(
     i32 snapshotId,
     i64 snapshotLength,
     i32 sourceId,
-    TOutputStream& output)
+    TOutputStream* output)
 {
     LOG_INFO("Started downloading snapshot %d from peer %d (Length: %" PRId64 ")",
         snapshotId,
@@ -169,38 +164,22 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
 
     i64 downloadedLength = 0;
     while (downloadedLength < snapshotLength) {
-        auto request = proxy.ReadSnapshot();
-        request->set_snapshot_id(snapshotId);
-        request->set_offset(downloadedLength);
+        auto req = proxy.ReadSnapshot();
+        req->set_snapshot_id(snapshotId);
+        req->set_offset(downloadedLength);
         i32 blockSize = static_cast<i32>(std::min(
             static_cast<i64>(Config->BlockSize),
             snapshotLength - downloadedLength));
-        request->set_length(blockSize);
-        auto response = request->Invoke().Get();
+        req->set_length(blockSize);
 
-        if (!response->IsOK()) {
-            auto error = response->GetError();
-            if (NRpc::IsServiceError(error)) {
-                switch (error.GetCode()) {
-                    case EErrorCode::NoSuchSnapshot:
-                        LOG_WARNING("Peer %d does not have snapshot %d anymore",
-                            sourceId,
-                            snapshotId);
-                        return EResult::SnapshotUnavailable;
-
-                    default:
-                        LOG_FATAL(error, "Unexpected error received from peer %d",
-                            sourceId);
-                        break;
-                }
-            } else {
-                LOG_WARNING(error, "Error reading snapshot at peer %d",
-                    sourceId);
-                return EResult::RemoteError;
-            }
+        auto rsp = req->Invoke().Get();
+        if (!rsp->IsOK()) {
+            return TError("Error downloading snapshot from peer %d",
+                sourceId)
+                << *rsp;
         }
         
-        const std::vector<TSharedRef>& attachments = response->Attachments();
+        const auto& attachments = rsp->Attachments();
         TRef block(attachments.at(0));
         if (static_cast<i32>(block.Size()) != blockSize) {
             LOG_WARNING("Snapshot block of wrong size received (Offset: %" PRId64 ", Size: %d, ExpectedSize: %d)",
@@ -215,7 +194,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
         }
 
         try {
-            output.Write(block.Begin(), block.Size());
+            output->Write(block.Begin(), block.Size());
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Error writing snapshot %d",
                 snapshotId);
@@ -226,7 +205,7 @@ TSnapshotDownloader::EResult TSnapshotDownloader::WriteSnapshot(
 
     LOG_INFO("Finished downloading snapshot");
 
-    return EResult::OK;
+    return TError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

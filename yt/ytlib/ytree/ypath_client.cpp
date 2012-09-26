@@ -312,6 +312,12 @@ TYsonString SyncYPathGet(IYPathServicePtr service, const TYPath& path, bool allA
     return result.Value();
 }
 
+bool SyncYPathExists(IYPathServicePtr service, const TYPath& path)
+{
+    auto request = TYPathProxy::Exists(path);
+    return ExecuteVerb(service, request).Get()->value();
+}
+
 void SyncYPathSet(IYPathServicePtr service, const TYPath& path, const TYsonString& value)
 {
     auto request = TYPathProxy::Set(path);

@@ -236,5 +236,28 @@ Stroka TMoveExecutor::GetCommandName() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TExistsExecutor::TExistsExecutor()
+    : TTransactedExecutor(false)
+    , PathArg("path", "path to an object in Cypress", true, TRichYPath(""), "YPATH")
+{
+    CmdLine.add(PathArg);
+}
+
+void TExistsExecutor::BuildArgs(IYsonConsumer* consumer)
+{
+    auto path = PreprocessYPath(PathArg.getValue());
+
+    BuildYsonMapFluently(consumer).Item("path").Scalar(path);
+
+    TTransactedExecutor::BuildArgs(consumer);
+}
+
+Stroka TExistsExecutor::GetCommandName() const
+{
+    return "exists";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT
