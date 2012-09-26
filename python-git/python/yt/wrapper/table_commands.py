@@ -147,12 +147,13 @@ def move_table(source_table, destination_table):
     copy_table(source_table, destination_table)
     remove_table(source_table)
 
-def erase(table, strategy=None):
+def erase_table(table, strategy=None):
     if strategy is None: strategy = config.DEFAULT_STRATEGY
-    if not exists(table):
+    table = to_table(table)
+    if not exists(table.name):
         return
     params = {
-        "table_path": table,
+        "table_path": table.escaped_name(),
         "transaction_id": config.TRANSACTION}
     operation = make_request("POST", "erase", None, params)
     strategy.process_operation("erase", operation)
@@ -287,7 +288,6 @@ def _filter_empty_tables(tables):
         else:
             filtered.append(table)
     return filtered
-    #source_table = filter(lambda table: exists(table.name), source_table)
 
 def run_operation(binary, source_table, destination_table,
                   files, file_paths,
