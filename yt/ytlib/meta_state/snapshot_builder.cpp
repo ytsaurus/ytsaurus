@@ -158,7 +158,8 @@ private:
             }
         }
 
-        LOG_INFO("Distributed snapshot creation finished, %d peers succeeded");
+        LOG_INFO("Distributed snapshot creation finished, %d peers succeeded",
+            successCount);
     }
 
     void OnLocalSnapshotCreated(TValueOrError<TResult> result)
