@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+
 #include <ytlib/meta_state/meta_state_manager.pb.h>
 
 #include <ytlib/rpc/client.h>
@@ -41,6 +42,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, PingFollower);
     DEFINE_RPC_PROXY_METHOD(NProto, LookupSnapshot);
     DEFINE_RPC_PROXY_METHOD(NProto, GetQuorum);
+    DEFINE_RPC_PROXY_METHOD(NProto, BuildSnapshot);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

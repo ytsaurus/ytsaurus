@@ -103,19 +103,10 @@ public:
         : TServiceBase(controlInvoker, TProxy::GetServiceName(), Logger.GetCategory())
         , Config(config)
         , ControlInvoker(controlInvoker)
+        , StateInvoker(stateInvoker)
         , ReadOnly(false)
         , ControlStatus(EPeerStatus::Stopped)
     {
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetSnapshotInfo));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadSnapshot));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChangeLogInfo));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadChangeLog));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ApplyMutations));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(AdvanceSegment));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupSnapshot));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQuorum));
-
         ChangeLogCache = New<TChangeLogCache>(Config->ChangeLogs);
 
         SnapshotStore = New<TSnapshotStore>(Config->Snapshots);
@@ -135,15 +126,27 @@ public:
 
         CellManager = New<TCellManager>(Config->Cell);
 
-        LOG_INFO("SelfAddress: %s, PeerId: %d",
+        LOG_INFO("SelfAddress: %s, SelfId: %d",
             ~CellManager->GetSelfAddress(),
             CellManager->GetSelfId());
 
         ElectionManager = New<TElectionManager>(
-            ~Config->Election,
-            ~CellManager,
+            Config->Election,
+            CellManager,
             controlInvoker,
-            ~New<TElectionCallbacks>(this));
+            New<TElectionCallbacks>(this));
+
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetSnapshotInfo));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadSnapshot));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChangeLogInfo));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadChangeLog));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ApplyMutations));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(AdvanceSegment));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupSnapshot));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQuorum));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(BuildSnapshot)
+            .SetInvoker(DecoratedState->CreateGuardedUserInvoker(StateInvoker)));
 
         server->RegisterService(this);
         server->RegisterService(ElectionManager);
@@ -208,12 +211,19 @@ public:
     {
         return CellManager;
     }
-
-    virtual void SetReadOnly(bool readOnly) override
+    
+    virtual bool GetReadOnly() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        ReadOnly = readOnly;
+        return AtomicGet(ReadOnly);
+    }
+
+    virtual void SetReadOnly(bool value) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        AtomicSet(ReadOnly, value);
     }
 
     virtual void GetMonitoringInfo(NYTree::IYsonConsumer* consumer) override
@@ -261,7 +271,7 @@ public:
                 "Not a leader")));
         }
 
-        if (ReadOnly) {
+        if (AtomicGet(ReadOnly)) {
             return MakeFuture(TValueOrError<TMutationResponse>(TError(
                 ECommitCode::ReadOnly,
                 "Read-only mode is active")));
@@ -292,7 +302,8 @@ public:
     TPersistentStateManagerConfigPtr Config;
     TCellManagerPtr CellManager;
     IInvokerPtr ControlInvoker;
-    bool ReadOnly;
+    IInvokerPtr StateInvoker;
+    TAtomic ReadOnly;
     EPeerStatus ControlStatus;
 
     NElection::TElectionManagerPtr ElectionManager;
@@ -315,6 +326,7 @@ public:
     TFollowerTrackerPtr FollowerTracker;
 
     // RPC methods
+
     DECLARE_RPC_SERVICE_METHOD(NProto, GetSnapshotInfo)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -495,7 +507,7 @@ public:
         if (GetControlStatus() != EPeerStatus::Following && GetControlStatus() != EPeerStatus::FollowerRecovery) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::InvalidStatus,
-                "Cannot apply changes while in %s",
+                "Cannot apply changes while %s",
                 ~GetControlStatus().ToString());
         }
 
@@ -576,7 +588,7 @@ public:
         if (status != EPeerStatus::Following && status != EPeerStatus::FollowerRecovery) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::InvalidStatus,
-                "Cannot process follower ping while in %s",
+                "Cannot process follower ping while %s",
                 ~GetControlStatus().ToString());
         }
 
@@ -642,7 +654,7 @@ public:
         if (GetControlStatus() != EPeerStatus::Following && GetControlStatus() != EPeerStatus::FollowerRecovery) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::InvalidStatus,
-                "Cannot advance segment while in %s",
+                "Cannot advance segment while %s",
                 ~GetControlStatus().ToString());
         }
 
@@ -725,36 +737,20 @@ public:
 
     void OnCreateLocalSnapshot(
         TCtxAdvanceSegmentPtr context,
-        TSnapshotBuilder::TLocalResult result)
+        TSnapshotBuilder::TResultOrError result)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto& response = context->Response();
 
-        switch (result.ResultCode) {
-            case TSnapshotBuilder::EResultCode::OK:
-                response.set_checksum(result.Checksum);
-                context->Reply();
-                break;
-            case TSnapshotBuilder::EResultCode::InvalidVersion:
-                context->Reply(TError(
-                    TProxy::EErrorCode::InvalidVersion,
-                    "Requested to create a snapshot for an invalid version"));
-                break;
-            case TSnapshotBuilder::EResultCode::AlreadyInProgress:
-                context->Reply(TError(
-                    TProxy::EErrorCode::SnapshotAlreadyInProgress,
-                    "Snapshot creation is already in progress"));
-                break;
-            case TSnapshotBuilder::EResultCode::ForkError:
-                context->Reply(TError("Fork error"));
-                break;
-            case TSnapshotBuilder::EResultCode::TimeoutExceeded:
-                context->Reply(TError("Snapshot creation timed out"));
-                break;
-            default:
-                YUNREACHABLE();
+        if (!result.IsOK()) {
+            context->Reply(result);
+            return;
         }
+
+        const auto& value = result.Value();
+        response.set_checksum(value.Checksum);
+        context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, LookupSnapshot)
@@ -779,7 +775,7 @@ public:
         if (GetControlStatus() != EPeerStatus::Leading) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::InvalidStatus,
-                "Cannot answer quorum queries while in %s",
+                "Cannot answer quorum queries while %s",
                 ~GetControlStatus().ToString());
         }
 
@@ -793,6 +789,47 @@ public:
 
         *response->mutable_epoch_id() = EpochContext->EpochId.ToProto();
 
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, BuildSnapshot)
+    {
+        VERIFY_THREAD_AFFINITY(StateThread);
+
+        bool setReadOnly = request->set_read_only();
+
+        context->SetRequestInfo("SetReadOnly: %s",
+            ~FormatBool(setReadOnly));
+
+        if (GetStateStatus() != EPeerStatus::Leading) {
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::InvalidStatus,
+                "Not a leader");
+        }
+
+        SnapshotBuilder->CreateDistributedSnapshot().Subscribe(
+            BIND(&TThis::OnSnapshotCreated, MakeStrong(this), context)
+                .Via(ControlInvoker));
+
+        if (request->set_read_only()) {
+            SetReadOnly(true);
+        }
+    }
+
+    void OnSnapshotCreated(
+        TCtxBuildSnapshotPtr context,
+        TSnapshotBuilder::TResultOrError result)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (!result.IsOK()) {
+            context->Reply(result);
+            return;
+        }
+
+        const auto& value = result.Value();
+        auto& response = context->Response();
+        response.set_snapshot_id(value.SnapshotId);
         context->Reply();
     }
 
@@ -816,6 +853,22 @@ public:
         }
 
         return result;
+    }
+
+    void OnLocalMutationApplied()
+    {
+        VERIFY_THREAD_AFFINITY(StateThread);
+        YASSERT(DecoratedState->GetStatus() == EPeerStatus::Leading);
+
+        auto version = DecoratedState->GetVersion();
+        auto period = Config->MaxChangesBetweenSnapshots;
+        if (period &&
+            version.RecordCount > 0 &&
+            version.RecordCount % period.Get() == 0)
+        {
+            LeaderCommitter->Flush(true);
+            SnapshotBuilder->CreateDistributedSnapshot();
+        }
     }
 
 
@@ -868,7 +921,7 @@ public:
             EpochContext->EpochId,
             ControlInvoker,
             EpochStateInvoker);
-        LeaderCommitter->SubscribeMutationApplied(BIND(&TThis::OnMutationApplied, MakeWeak(this)));
+        LeaderCommitter->SubscribeMutationApplied(BIND(&TThis::OnLocalMutationApplied, MakeWeak(this)));
 
         YCHECK(!LeaderRecovery);
         LeaderRecovery = New<TLeaderRecovery>(
@@ -914,8 +967,8 @@ public:
             DecoratedState,
             SnapshotStore,
             epochContext->EpochId,
-            EpochControlInvoker,
-            EpochStateInvoker);
+            ControlInvoker,
+            StateInvoker);
 
         // Switch to a new changelog unless the current one is empty.
         // This enables changelog truncation for those followers that are down and have uncommitted changes.
@@ -1145,24 +1198,7 @@ public:
     }
 
 
-    void OnMutationApplied()
-    {
-        VERIFY_THREAD_AFFINITY(StateThread);
-        YCHECK(DecoratedState->GetStatus() == EPeerStatus::Leading);
-
-        auto version = DecoratedState->GetVersion();
-        auto period = Config->MaxChangesBetweenSnapshots;
-        if (period &&
-            version.RecordCount > 0 &&
-            version.RecordCount % period.Get() == 0)
-        {
-            LeaderCommitter->Flush(true);
-            SnapshotBuilder->CreateDistributedSnapshot();
-        }
-    }
-
-
-    TPeerPriority GetPriority()
+    TPeerPriority GetPriority() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1174,8 +1210,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        i32 segmentId = (priority >> 32);
-        i32 recordCount = priority & ((1ll << 32) - 1);
+        int segmentId = priority >> 32;
+        int recordCount = priority & 0xffffffff;
         return Sprintf("(%d, %d)", segmentId, recordCount);
     }
 

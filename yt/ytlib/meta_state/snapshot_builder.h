@@ -5,7 +5,9 @@
 
 #include <ytlib/misc/checksum.h>
 #include <ytlib/misc/thread_affinity.h>
+
 #include <ytlib/actions/action_queue.h>
+
 #include <ytlib/election/election_manager.h>
 
 namespace NYT {
@@ -17,30 +19,13 @@ class TSnapshotBuilder
     : public TExtrinsicRefCounted
 {
 public:
-    DECLARE_ENUM(EResultCode,
-        (OK)
-        (InvalidVersion)
-        (AlreadyInProgress)
-        (ForkError)
-        (TimeoutExceeded)
-    );
-
-    // TODO(babenko): consider replacing with TValueOrError
-    struct TLocalResult
+    struct TResult
     {
-        EResultCode ResultCode;
+        int SnapshotId;
         TChecksum Checksum;
-
-        explicit TLocalResult(
-            EResultCode resultCode = EResultCode::OK,
-            TChecksum checksum = 0)
-            : ResultCode(resultCode)
-            , Checksum(checksum)
-        { }
     };
 
-    typedef TFuture<TLocalResult> TAsyncLocalResult;
-    typedef TPromise<TLocalResult> TAsyncLocalPromise;
+    typedef TValueOrError<TResult> TResultOrError;
 
     TSnapshotBuilder(
         TSnapshotBuilderConfigPtr config,
@@ -48,8 +33,8 @@ public:
         TDecoratedMetaStatePtr decoratedState,
         TSnapshotStorePtr snapshotStore,
         const TEpochId& epochId,
-        IInvokerPtr epochControlInvoker,
-        IInvokerPtr epochStateInvoker);
+        IInvokerPtr controlInvoker,
+        IInvokerPtr stateInvoker);
 
     /*!
      *  \returns OK if distributed session is started,
@@ -57,7 +42,7 @@ public:
      *
      *  \note Thread affinity: StateThread
      */
-    void CreateDistributedSnapshot();
+    TFuture<TResultOrError> CreateDistributedSnapshot();
 
     /*!
      *  \note Thread affinity: StateThread
@@ -67,7 +52,7 @@ public:
     /*!
      *  \note Thread affinity: StateThread
      */
-    TAsyncLocalResult CreateLocalSnapshot(const TMetaVersion& version);
+    TFuture<TResultOrError> CreateLocalSnapshot(const TMetaVersion& version);
 
     /*!
      *  \note Thread affinity: StateThread
@@ -88,18 +73,18 @@ private:
 
     typedef TMetaStateManagerProxy TProxy;
 
-    TChecksum DoCreateLocalSnapshot(TMetaVersion version);
-    void OnLocalSnapshotCreated(i32 snapshotId, const TChecksum& checksum);
+    TResult DoCreateLocalSnapshot(const TMetaVersion& version);
+    void OnLocalSnapshotCreated(i32 snapshotId, const TResult& result);
 
     TSnapshotBuilderConfigPtr Config;
     NElection::TCellManagerPtr CellManager;
     TDecoratedMetaStatePtr DecoratedState;
     TSnapshotStorePtr SnapshotStore;
     TEpochId EpochId;
-    IInvokerPtr EpochControlInvoker;
-    IInvokerPtr EpochStateInvoker;
+    IInvokerPtr ControlInvoker;
+    IInvokerPtr StateInvoker;
 
-    TAsyncLocalPromise LocalPromise;
+    TPromise<TResultOrError> LocalPromise;
 
 #if defined(_unix_)
     static void WatchdogFork(

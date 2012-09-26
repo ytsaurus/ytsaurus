@@ -86,11 +86,17 @@ struct IMetaStateManager
      */
     virtual TMutationContext* GetMutationContext() = 0;
 
+    //! Returns True if read only mode is active.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual bool GetReadOnly() const = 0;
+
     //! Toggles read-only mode.
     /*!
      *  \note Thread affinity: any
      */
-    virtual void SetReadOnly(bool readOnly) = 0;
+    virtual void SetReadOnly(bool value) = 0;
 
     //! Returns monitoring info.
     /*!

@@ -217,7 +217,7 @@ IMetaStatePtr TDecoratedMetaState::GetState()
 void TDecoratedMetaState::Clear()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-    YASSERT(Started);
+    YCHECK(Started);
 
     State->Clear();
     ResponseKeeper->Clear();

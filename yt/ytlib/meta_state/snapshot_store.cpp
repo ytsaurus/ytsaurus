@@ -27,7 +27,7 @@ TSnapshotStore::TSnapshotStore(TSnapshotStoreConfigPtr config)
 
 void TSnapshotStore::Start()
 {
-    YASSERT(!Started);
+    YCHECK(!Started);
 
     auto path = Config->Path;
 
@@ -71,23 +71,24 @@ Stroka TSnapshotStore::GetSnapshotFileName(i32 snapshotId) const
 TSnapshotStore::TGetReaderResult TSnapshotStore::GetReader(i32 snapshotId) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YASSERT(Started);
-    YASSERT(snapshotId > 0);
+    YCHECK(Started);
+    YCHECK(snapshotId > 0);
 
     auto fileName = GetSnapshotFileName(snapshotId);
     if (!isexist(~fileName)) {
         return TError(
             EErrorCode::NoSuchSnapshot,
-            Sprintf("No such snapshot %d", snapshotId));
+            Sprintf("No such snapshot: %d", snapshotId));
     }
+
     return New<TSnapshotReader>(fileName, snapshotId, Config->EnableCompression);
 }
 
 TSnapshotWriterPtr TSnapshotStore::GetWriter(i32 snapshotId) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YASSERT(Started);
-    YASSERT(snapshotId > 0);
+    YCHECK(Started);
+    YCHECK(snapshotId > 0);
 
     auto fileName = GetSnapshotFileName(snapshotId);
     return New<TSnapshotWriter>(fileName, snapshotId, Config->EnableCompression);
@@ -96,7 +97,7 @@ TSnapshotWriterPtr TSnapshotStore::GetWriter(i32 snapshotId) const
 i32 TSnapshotStore::LookupLatestSnapshot(i32 maxSnapshotId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YASSERT(Started);
+    YCHECK(Started);
 
     while (true) {
         i32 snapshotId;
@@ -109,7 +110,7 @@ i32 TSnapshotStore::LookupLatestSnapshot(i32 maxSnapshotId)
                 return NonexistingSnapshotId;
             }
             snapshotId = *(--it);
-            YASSERT(snapshotId <= maxSnapshotId);
+            YCHECK(snapshotId <= maxSnapshotId);
         }
 
         // Check that the file really exists.
@@ -130,7 +131,7 @@ i32 TSnapshotStore::LookupLatestSnapshot(i32 maxSnapshotId)
 void TSnapshotStore::OnSnapshotAdded(i32 snapshotId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YASSERT(Started);
+    YCHECK(Started);
 
     TGuard<TSpinLock> guard(SpinLock);
     SnapshotIds.insert(snapshotId);
