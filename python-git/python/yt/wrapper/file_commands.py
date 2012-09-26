@@ -45,6 +45,8 @@ def upload_file(filename, yt_filename=None, destination=None, placement_strategy
             remove(destination)
         if placement_strategy == "ignore" and exists(destination):
             return
+    else:
+        yt_filename = os.path.basename(destination)
     
     make_request(
             "PUT", "upload", 
