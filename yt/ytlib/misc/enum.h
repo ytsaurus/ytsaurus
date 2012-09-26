@@ -149,7 +149,17 @@ protected:
                 static_cast<EDomain>(-1) \
             }; \
             return std::vector<EDomain>(values, values + sizeof(values) / sizeof(values[0]) - 1); \
-        }; \
+        } \
+        \
+        static std::vector<Stroka> GetDomainNames() \
+        { \
+            static const char* names[] = { \
+                PP_FOR_EACH(ENUM__GET_DOMAIN_NAMES_ITEM, seq) \
+                NULL \
+            }; \
+            return std::vector<Stroka>(names, names + sizeof(names) / sizeof(names[0]) - 1); \
+        } \
+        \
         static name FromString(const char* str) \
         { \
             int value; \
@@ -248,6 +258,23 @@ protected:
 
 #define ENUM__GET_DOMAIN_VALUES_ITEM_ATOMIC(item) \
     (item),
+//! \}
+
+//! #GetDomainNames() helper.
+//! {
+#define ENUM__GET_DOMAIN_NAMES_ITEM(item) \
+    PP_IF( \
+        PP_IS_SEQUENCE(item), \
+        ENUM__GET_DOMAIN_NAMES_ITEM_SEQ, \
+        ENUM__GET_DOMAIN_NAMES_ITEM_ATOMIC \
+    )(item)
+
+#define ENUM__GET_DOMAIN_NAMES_ITEM_SEQ(seq) \
+    ENUM__GET_DOMAIN_NAMES_ITEM_ATOMIC(PP_ELEMENT(seq, 0))
+
+#define ENUM__GET_DOMAIN_NAMES_ITEM_ATOMIC(item) \
+    PP_STRINGIZE(item), \
+//! \}
 
 //! Declaration of relational operators; all at once.
 #define ENUM__RELATIONAL_OPERATORS(name) \
