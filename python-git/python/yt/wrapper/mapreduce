@@ -124,7 +124,7 @@ Examples:
                 -dst "ignat/reduced"
 
     Use already uploaded files:
-            ./mapreduce -upload mapper.py -dst ignat/mapper.py
+            ./mapreduce -upload my_mapper.py -dst ignat/mapper.py
             ./mapreduce -subkey -map "./mapper.py" -ytfile "ignat/mapper.py" -src "ignat/temp" -dst "ignat/mapped"
 
     Use attrbiutes:
