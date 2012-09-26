@@ -401,7 +401,7 @@ void TSnapshotBuilder::WatchdogFork(
 
     auto readerResult = snapshotBuilder->SnapshotStore->GetReader(snapshotId);
     if (!readerResult.IsOK()) {
-        localPromise.Set(readerResult);
+        localPromise.Set(TError(readerResult));
         return;
     }
 
