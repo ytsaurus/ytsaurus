@@ -197,9 +197,9 @@ void TCompositeMetaState::Load(TInputStream* input)
         if (name.has_suffix(".1")) {
             version = 0;
             name = name.substr(0, name.length() - 2);
+        } else {
+            ::Load(input, version);
         }
-
-        ::Load(input, version);
 
         auto it = Loaders.find(name);
         LOG_FATAL_IF(it == Loaders.end(), "No appropriate loader is registered for part %s", ~name.Quote());
