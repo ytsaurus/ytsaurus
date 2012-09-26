@@ -35,7 +35,7 @@ def remove_prefix(table):
     return table
 
 def list_all_entities(type):
-    tables = yt.search("//statbox", type,
+    tables = yt.search(config.PREFIX[:-1], type,
                        path_filter=lambda path: path.startswith(config.PREFIX))
     return sorted(map(remove_prefix, tables))
 
@@ -287,14 +287,14 @@ Examples:
 
     if args.chunksize is not None:
         config.WRITE_BUFFER_SIZE = args.chunksize
-    if args.server is not None:
-        config.PROXY = args.server
-    if args.prefix is not None:
-        config.PREFIX = args.prefix
     if "YT_PROXY" in os.environ:
         config.PROXY = os.environ["YT_PROXY"]
     if "YT_PREFIX" in os.environ:
         config.PREFIX = os.environ["YT_PREFIX"]
+    if args.server is not None:
+        config.PROXY = args.server
+    if args.prefix is not None:
+        config.PREFIX = args.prefix
 
     spec = {}
     if args.jobcount is not None:
