@@ -41,7 +41,7 @@ class TestOrchid(YTEnvSetup):
         self._check_orchid('//sys/masters', self.NUM_MASTERS, "master")
 
     def test_on_nodes(self):
-        self._check_orchid('//sys/holders', self.NUM_NODES, "node")
+        self._check_orchid('//sys/nodes', self.NUM_NODES, "node")
 
     def test_on_scheduler(self):
         self._check_service('//sys/scheduler/orchid', "scheduler")

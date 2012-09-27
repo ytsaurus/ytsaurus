@@ -16,7 +16,7 @@ class TestRunMaster(YTEnvSetup):
     def test(self):
         assert True
 
-class TestRunHolder(YTEnvSetup):
+class TestRunNode(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
 
