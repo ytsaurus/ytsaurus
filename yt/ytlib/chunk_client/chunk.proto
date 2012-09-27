@@ -56,7 +56,7 @@ message TMiscExt
 
 }
 
-// TChunkMeta is stored in *.meta files on chunk holders
+// TChunkMeta is stored in *.meta files on data nodes
 // and passed around (possibly with a different extension subset).
 message TChunkMeta
 {

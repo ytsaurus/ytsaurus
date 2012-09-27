@@ -210,7 +210,7 @@ private:
                 LOG_FATAL(ex, "Error opening cached chunk for writing");
             }
 
-            LOG_INFO("Getting chunk info from holders");
+            LOG_INFO("Getting chunk meta");
             RemoteReader->AsyncGetChunkMeta().Subscribe(
                 BIND(&TThis::OnGotChunkMeta, MakeStrong(this))
                 .Via(WriteInvoker));
@@ -223,7 +223,7 @@ private:
                 return;
             }
 
-            LOG_INFO("Chunk info received from holders");
+            LOG_INFO("Chunk meta received");
             ChunkMeta = result.Value();
 
             // Download all blocks.

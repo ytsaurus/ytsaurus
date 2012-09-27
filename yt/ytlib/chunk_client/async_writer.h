@@ -12,7 +12,7 @@ namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-//! Provides a basic interface for uploading chunks to holders.
+//! Provides a basic interface for uploading chunks to data nodes.
 /*!
  *  The client must feed the blocks one after another with #AddBlock method.
  *  It must call #Close to finish the session.
@@ -31,7 +31,7 @@ struct IAsyncWriter
      *  prohibited until the returned result is set.
      *  
      *  If the result indicates some error then the whole upload session is failed.
-     *  (e.g. all chunk-holders are down).
+     *  (e.g. all target data nodes are down).
      *  The client must not retry and send the same block again.
      */
     //virtual TAsyncError AsyncWriteBlock(const TSharedRef& block) = 0;

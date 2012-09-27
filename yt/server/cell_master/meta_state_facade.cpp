@@ -248,7 +248,7 @@ private:
 
             CreateYPath(
                 rootService,
-                "//sys/holders",
+                "//sys/nodes",
                 transactionId,
                 EObjectType::NodeMap,
                 TYsonString("{opaque=true}"));

@@ -218,15 +218,21 @@ public:
     {
         auto cypressManager = Bootstrap->GetCypressManager();
         auto resolver = cypressManager->CreateResolver();
-        auto nodeMap = resolver->ResolvePath("//sys/holders")->AsMap();
-        auto node = nodeMap->FindChild(address);
+        auto nodesNode = resolver->ResolvePath("//sys/nodes");
+        if (!nodesNode) {
+            LOG_ERROR("Missing //sys/nodes");
+            return false;
+        }
 
-        if (!node) {
+        auto nodeMap = nodesNode->AsMap();
+        auto nodeNode = nodeMap->FindChild(address);
+
+        if (!nodeNode) {
             // New node.
             return true;
         }
 
-        bool banned = node->Attributes().Get<bool>("banned", false);
+        bool banned = nodeNode->Attributes().Get<bool>("banned", false);
         return !banned;
     }
     

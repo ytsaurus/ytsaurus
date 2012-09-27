@@ -39,7 +39,7 @@ public:
     //! Returns the current state.
     EJobState GetState() const;
 
-    //! Returns the addresses of chunk holders where the chunk is being replicated to.
+    //! Returns data nod addresses where the chunk is being replicated to.
     std::vector<Stroka> GetTargetAddresses() const;
 
 private:
@@ -78,7 +78,7 @@ private:
  *  Each chunk holder has a set of currently active replication jobs.
  *  These jobs are started by the master and are used for two purposes:
  *  making additional replicas of chunks lacking enough of them and
- *  moving chunks around chunk holders to ensure even distribution.
+ *  moving chunks around chunk data nodes to ensure even distribution.
  *  
  *  Each job is represented by an instance of TJob class.
  *  A job is created by calling #StartJob and stopped by calling #StopJob methods.

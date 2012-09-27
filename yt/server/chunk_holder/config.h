@@ -87,12 +87,12 @@ struct TDataNodeConfig
     //! Upload session timeout.
     /*!
      * Some activity must be happening in a session regularly (i.e. new
-     * blocks uploaded or sent to other chunk holders). Otherwise
+     * blocks uploaded or sent to other data nodes). Otherwise
      * the session expires.
      */
     TDuration SessionTimeout;
     
-    //! Timeout for "PutBlock" requests to other holders.
+    //! Timeout for "PutBlock" requests to other data nodes.
     TDuration NodeRpcTimeout;
 
     //! Period between peer updates (see TPeerBlockUpdater).

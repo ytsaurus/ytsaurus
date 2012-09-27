@@ -341,7 +341,7 @@ private:
     {
         LOG_INFO("Updating exec nodes");
 
-        auto req = TYPathProxy::Get("//sys/holders/@online");
+        auto req = TYPathProxy::Get("//sys/nodes/@online");
         batchReq->AddRequest(req, "get_online_nodes");
     }
 

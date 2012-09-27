@@ -14,7 +14,7 @@ namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-//! Provides a basic interface for readings chunks from holders.
+//! Provides a basic interface for readings chunks from data nodes.
 struct IAsyncReader
     : public virtual TRefCounted
 {
