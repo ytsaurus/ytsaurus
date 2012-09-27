@@ -13,10 +13,28 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TVersionedChunkListId::TVersionedChunkListId(const TChunkListId& id, int version)
+    : Id(id)
+    , Version(version)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 TChunkList::TChunkList(const TChunkListId& id)
     : TObjectWithIdBase(id)
     , Rigid_(false)
+    , Version_(0)
 { }
+
+void TChunkList::IncreaseVersion()
+{
+    ++Version_;
+}
+
+TVersionedChunkListId TChunkList::GetVersionedId() const
+{
+    return TVersionedChunkListId(Id_, Version_);
+}
 
 void TChunkList::Save(const NCellMaster::TSaveContext& context) const
 {

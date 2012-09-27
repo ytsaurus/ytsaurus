@@ -60,7 +60,7 @@ struct TUserJobSpec
 struct TMapOperationSpec
     : public TOperationSpecBase
 {
-    TUserJobSpecPtr Mapper;   
+    TUserJobSpecPtr Mapper;
     std::vector<NYTree::TRichYPath> InputTablePaths;
     std::vector<NYTree::TRichYPath> OutputTablePaths;
     TNullable<int> JobCount;

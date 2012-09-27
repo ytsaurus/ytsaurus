@@ -8,6 +8,7 @@
 #include <ytlib/table_client/schema.h>
 
 #include <ytlib/table_client/table_ypath.pb.h>
+#include <server/chunk_server/public.h>
 
 #include <server/cypress_server/node_proxy_detail.h>
 
@@ -36,6 +37,9 @@ public:
 private:
     typedef NCypressServer::TCypressNodeProxyBase<NYTree::IEntityNode, TTableNode> TBase;
 
+    class TFetchChunkProcessor;
+    typedef TIntrusivePtr<TFetchChunkProcessor> TFetchChunkProcessorPtr;
+
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer) override;
     virtual void OnUpdateAttribute(
@@ -49,17 +53,13 @@ private:
         std::vector<NChunkClient::TChunkId>* chunkIds,
         const NChunkServer::TChunkList* chunkList);
 
-    void TraverseChunkTree(
+    template <class TBoundary>
+    void RunFetchTraversal(
         const NChunkServer::TChunkList* chunkList,
-        i64 lowerBound,
-        TNullable<i64> upperBound,
-        NTableClient::NProto::TRspFetch* response);
-
-    void TraverseChunkTree(
-        const NChunkServer::TChunkList* chunkList,
-        const NTableClient::NProto::TKey& lowerBound,
-        const NTableClient::NProto::TKey* upperBound,
-        NTableClient::NProto::TRspFetch* response);
+        TFetchChunkProcessorPtr chunkProcessor, 
+        const TBoundary& lowerBound, 
+        const TNullable<TBoundary>& upperBound,
+        bool negate);
 
     void ParseYPath(
         const NYTree::TYPath& path,

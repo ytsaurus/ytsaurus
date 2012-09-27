@@ -11,6 +11,7 @@
 #include <server/chunk_server/chunk.h>
 #include <server/chunk_server/chunk_list.h>
 #include <server/chunk_server/chunk_manager.h>
+#include <server/chunk_server/chunk_tree_traversing.h>
 #include <server/cell_master/bootstrap.h>
 #include <ytlib/table_client/schema.h>
 #include <ytlib/table_client/key.h>
@@ -35,83 +36,6 @@ using NTableClient::NProto::TKey;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
-
-void GetBoundaryKeys(TChunkTreeRef ref, TKey* minKey, TKey* maxKey)
-{
-    switch (ref.GetType()) {
-        case EObjectType::Chunk: {
-            auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(
-                ref.AsChunk()->ChunkMeta().extensions());
-            if (minKey) {
-                *minKey = boundaryKeysExt.start();
-            }
-            if (maxKey) {
-                *maxKey = boundaryKeysExt.end();
-            }
-            break;
-        }
-        case EObjectType::ChunkList: {
-            const auto& children = ref.AsChunkList()->Children();
-            YASSERT(!children.empty());
-            if (children.size() == 1) {
-                GetBoundaryKeys(children.front(), minKey, maxKey);
-            } else {
-                if (minKey) {
-                    GetBoundaryKeys(ref.AsChunkList()->Children().front(), minKey, NULL);
-                }
-                if (maxKey) {
-                    GetBoundaryKeys(ref.AsChunkList()->Children().back(), NULL, maxKey);
-                }
-            }
-            break;
-        }
-        default:
-            YUNREACHABLE();
-    }
-}
-
-bool LessComparer(TChunkTreeRef ref, const TKey& key)
-{
-    TKey minKey;
-    GetBoundaryKeys(ref, &minKey, NULL);
-    return minKey < key;
-}
-
-bool IsEmpty(TChunkTreeRef ref)
-{
-    switch (ref.GetType()) {
-    case EObjectType::Chunk:
-        return false;
-    case EObjectType::ChunkList:
-        return ref.AsChunkList()->Children().empty();
-    default:
-        YUNREACHABLE();
-    }
-}
-
-// Adopted from http://www.cplusplus.com/reference/algorithm/lower_bound/
-template <class ForwardIterator>
-ForwardIterator LowerBound(ForwardIterator first, ForwardIterator last, const TKey& value)
-{
-    ForwardIterator it;
-    typename std::iterator_traits<ForwardIterator>::difference_type count, step;
-    count = std::distance(first, last);
-    while (count > 0) {
-        it = first;
-        step = count / 2;
-        std::advance(it, step);
-        while (it != last && IsEmpty(*it)) {
-            ++it;
-        }
-        if (it != last && LessComparer(*it, value)) {
-            count -= std::distance(first, it) + 1;
-            first = ++it;
-        } else {
-            count = step;
-        }
-    }
-    return first;
-}
 
 void ParseChannel(TTokenizer& tokenizer, TChannel* channel)
 {
@@ -272,6 +196,134 @@ void ParseRowLimits(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTableNodeProxy::TFetchChunkProcessor
+    : public NChunkServer::IChunkProcessor
+{
+public:
+    TFetchChunkProcessor(
+        TCtxFetchPtr context, 
+        const TChannel& channel, 
+        TChunkManagerPtr chunkManager)
+        : Context(context)
+        , Channel(channel)
+        , TraversalSessionsCount(0)
+        , Completed(false)
+        , Finished(false)
+        , ChunkManager(chunkManager)
+    { }
+
+    void AddTraversalSession()
+    {
+        VERIFY_THREAD_AFFINITY(Thread);
+        ++TraversalSessionsCount;
+    }
+
+    void Complete() 
+    {
+        VERIFY_THREAD_AFFINITY(Thread);
+        YCHECK(!Completed);
+        Completed = true;
+        if (TraversalSessionsCount == 0 && !Finished) {
+            Reply();
+        }
+    }
+
+private:
+    void Reply()
+    {
+        Context->SetResponseInfo("ChunkCount: %d", Context->Response().chunks_size());
+        Context->Reply();
+        Finished = true;
+    }
+
+    virtual void ProcessChunk(
+        const TChunk* chunk, 
+        const NTableClient::NProto::TReadLimit& startLimit,
+        const NTableClient::NProto::TReadLimit& endLimit) override
+    {
+        VERIFY_THREAD_AFFINITY(Thread);
+
+        if (!chunk->IsConfirmed()) {
+            ProcessError(TError("Cannot fetch a table containing an unconfirmed chunk %s",
+                ~chunk->GetId().ToString()));
+            return;
+        }
+
+        auto* inputChunk = Context->Response().add_chunks();
+        *inputChunk->mutable_channel() = Channel.ToProto();
+
+        if (Context->Request().fetch_node_addresses()) {
+            ChunkManager->FillNodeAddresses(inputChunk->mutable_node_addresses(), chunk);
+        }
+
+        if (Context->Request().fetch_all_meta_extensions()) {
+            *inputChunk->mutable_extensions() = chunk->ChunkMeta().extensions();
+        } else {
+            yhash_set<int> tags(
+                Context->Request().extension_tags().begin(),
+                Context->Request().extension_tags().end());
+            FilterProtoExtensions(
+                inputChunk->mutable_extensions(),
+                chunk->ChunkMeta().extensions(),
+                tags);
+        }
+
+        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunk->ChunkMeta().extensions());
+        inputChunk->set_uncompressed_data_size(miscExt.uncompressed_data_size());
+        inputChunk->set_row_count(miscExt.row_count());
+
+        auto* slice = inputChunk->mutable_slice();
+        *slice->mutable_chunk_id() = chunk->GetId().ToProto();
+
+        *slice->mutable_start_limit() = startLimit;
+        *slice->mutable_end_limit() = startLimit;
+    }
+
+    void ProcessError(const TError& error)
+    {
+        if (!Finished) {
+            Context->Reply(TError(
+                NRpc::EErrorCode::Unavailable, 
+                "Failed to fetch table") << error);
+            Finished = true;
+        }
+        
+    }
+
+    virtual void OnError(const TError& error) override
+    {
+        VERIFY_THREAD_AFFINITY(Thread);
+        --TraversalSessionsCount;
+        YCHECK(TraversalSessionsCount >= 0);
+
+        ProcessError(error);
+    }
+
+    virtual void OnComplete() override
+    {
+        VERIFY_THREAD_AFFINITY(Thread);
+        --TraversalSessionsCount;
+        YCHECK(TraversalSessionsCount >= 0);
+
+        if (Completed && !Finished && TraversalSessionsCount == 0) {
+            Reply();
+        }
+    }
+
+    TCtxFetchPtr Context;
+    TChannel Channel;
+    int TraversalSessionsCount;
+    bool Finished;
+    bool Completed;
+
+    TChunkManagerPtr ChunkManager;
+
+    DECLARE_THREAD_AFFINITY_SLOT(Thread);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTableNodeProxy::TTableNodeProxy(
     INodeTypeHandlerPtr typeHandler,
     TBootstrap* bootstrap,
@@ -333,154 +385,26 @@ void TTableNodeProxy::TraverseChunkTree(std::vector<TChunkId>* chunkIds, const T
     }
 }
 
-void TTableNodeProxy::TraverseChunkTree(
+template <class TBoundary>
+void TTableNodeProxy::RunFetchTraversal(
     const TChunkList* chunkList,
-    i64 lowerBound,
-    TNullable<i64> upperBound,
-    NTableClient::NProto::TRspFetch* response)
+    TFetchChunkProcessorPtr chunkProcessor, 
+    const TBoundary& lowerBound, 
+    const TNullable<TBoundary>& upperBound,
+    bool negate)
 {
-    if (chunkList->Children().empty() ||
-        lowerBound >= chunkList->Statistics().RowCount ||
-        (upperBound && (*upperBound <= 0 || *upperBound <= lowerBound)))
-    {
-        return;
-    }
+    if (!upperBound || *upperBound > lowerBound) {
+        if (negate) {
+            chunkProcessor->AddTraversalSession();
+            NChunkServer::TraverseChunkTree(Bootstrap, chunkProcessor, chunkList, TBoundary(), MakeNullable(lowerBound));
 
-    YASSERT(chunkList->Children().size() == chunkList->RowCountSums().size() + 1);
-
-    int index =
-        std::upper_bound(
-            chunkList->RowCountSums().begin(),
-            chunkList->RowCountSums().end(),
-            lowerBound) -
-        chunkList->RowCountSums().begin();
-    YASSERT(index < chunkList->Children().size());
-
-    i64 firstRowIndex = index == 0 ? 0 : chunkList->RowCountSums()[index - 1];
-    YASSERT(firstRowIndex <= lowerBound || lowerBound < 0 && firstRowIndex == 0);
-
-    while (index < chunkList->Children().size()) {
-        if (upperBound && firstRowIndex >= *upperBound) {
-            break;
-        }
-        auto child = chunkList->Children()[index];
-        switch (child.GetType()) {
-            case EObjectType::Chunk: {
-                const auto* chunk = child.AsChunk();
-
-                i64 rowCount = chunk->GetStatistics().RowCount;
-                i64 lastRowIndex = firstRowIndex + rowCount; // exclusive
-                YASSERT(lowerBound < lastRowIndex);
-
-                auto* inputChunk = response->add_chunks();
-
-                auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunk->ChunkMeta().extensions());
-                inputChunk->set_uncompressed_data_size(miscExt.uncompressed_data_size());
-                inputChunk->set_row_count(miscExt.row_count());
-
-                auto* slice = inputChunk->mutable_slice();
-                *slice->mutable_chunk_id() = child.GetId().ToProto();
-
-                slice->mutable_start_limit();
-                if (lowerBound > firstRowIndex) {
-                    slice->mutable_start_limit()->set_row_index(lowerBound - firstRowIndex);
-                }
-
-                slice->mutable_end_limit();
-                if (upperBound && *upperBound < lastRowIndex) {
-                    slice->mutable_end_limit()->set_row_index(*upperBound - firstRowIndex);
-                }
-
-                firstRowIndex += rowCount;
-                break;
+            if (upperBound) {
+                chunkProcessor->AddTraversalSession();
+                NChunkServer::TraverseChunkTree(Bootstrap, chunkProcessor, chunkList, *upperBound, Null);
             }
-            case EObjectType::ChunkList:
-                TraverseChunkTree(
-                    child.AsChunkList(),
-                    lowerBound - firstRowIndex,
-                    upperBound ? MakeNullable(*upperBound - firstRowIndex) : Null,
-                    response);
-                firstRowIndex += child.AsChunkList()->Statistics().RowCount;
-                break;
-            default:
-                YUNREACHABLE();
-        }
-        ++index;
-    }
-}
-
-void TTableNodeProxy::TraverseChunkTree(
-    const TChunkList* chunkList,
-    const TKey& lowerBound,
-    const TKey* upperBound,
-    NTableClient::NProto::TRspFetch* response)
-{
-    if (chunkList->Children().empty()) {
-        return;
-    }
-
-    if (upperBound && *upperBound <= lowerBound) {
-        return;
-    }
-
-    auto it = LowerBound(
-        chunkList->Children().begin(),
-        chunkList->Children().end(),
-        lowerBound);
-    if (it != chunkList->Children().begin()) {
-        --it;
-    }
-
-    for (; it != chunkList->Children().end(); ++it) {
-        auto child = *it;
-        if (IsEmpty(child)) {
-            continue;
-        }
-
-        TKey minKey, maxKey;
-        GetBoundaryKeys(child, &minKey, &maxKey);
-
-        if (lowerBound > maxKey) {
-            continue; // possible for the first chunk tree considered
-        }
-        if (upperBound && minKey >= *upperBound) {
-            break;
-        }
-
-        switch (child.GetType()) {
-            case EObjectType::Chunk: {
-                const auto* chunk = child.AsChunk();
-
-                auto* inputChunk = response->add_chunks();
-
-                auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunk->ChunkMeta().extensions());
-                inputChunk->set_uncompressed_data_size(miscExt.uncompressed_data_size());
-                inputChunk->set_row_count(miscExt.row_count());
-
-                auto* slice = inputChunk->mutable_slice();
-                *slice->mutable_chunk_id() = chunk->GetId().ToProto();
-
-                slice->mutable_start_limit();
-                if (lowerBound > minKey) {
-                    *slice->mutable_start_limit()->mutable_key() = lowerBound;
-                }
-
-                slice->mutable_end_limit();
-                if (upperBound && *upperBound <= maxKey) {
-                    *slice->mutable_end_limit()->mutable_key() = *upperBound;
-                }
-
-                break;
-            }
-            case EObjectType::ChunkList:
-                TraverseChunkTree(
-                    child.AsChunkList(),
-                    lowerBound,
-                    upperBound,
-                    response);
-                break;
-            default:
-                YUNREACHABLE();
+        } else {
+            chunkProcessor->AddTraversalSession();
+            NChunkServer::TraverseChunkTree(Bootstrap, chunkProcessor, chunkList, lowerBound, upperBound);
         }
     }
 }
@@ -705,71 +629,29 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
     ParseYPath(context->GetPath(), &channel, &lowerLimit, &upperLimit);
     auto* chunkList = impl->GetChunkList();
 
+    LOG_DEBUG("
+        ", );
+
+    auto chunkProcessor = New<TFetchChunkProcessor>(
+        context, 
+        channel, 
+        Bootstrap->GetChunkManager());
+
     if (lowerLimit.has_key() || upperLimit.has_key()) {
         if (lowerLimit.has_row_index() || upperLimit.has_row_index()) {
             THROW_ERROR_EXCEPTION("Row limits must have the same type");
         }
-        if (chunkList->SortedBy().empty()) {
-            THROW_ERROR_EXCEPTION("Table is not sorted");
-        }
+
         const auto& lowerBound = lowerLimit.key();
-        const auto* upperBound = upperLimit.has_key() ? &upperLimit.key() : NULL;
-        if (!upperBound || *upperBound > lowerBound) {
-            if (request->negate()) {
-                TraverseChunkTree(chunkList, TKey(), &lowerBound, response);
-                if (upperBound) {
-                    TraverseChunkTree(chunkList, *upperBound, NULL, response);
-                }
-            } else {
-                TraverseChunkTree(chunkList, lowerBound, upperBound, response);
-            }
-        }
+        auto upperBound = upperLimit.has_key() ? MakeNullable(upperLimit.key()) : Null;
+        RunFetchTraversal(chunkList, chunkProcessor, lowerBound, upperBound, request->negate());
     } else {
         i64 lowerBound = lowerLimit.has_row_index() ? lowerLimit.row_index() : 0;
-        auto upperBound = upperLimit.has_row_index() ? MakeNullable(upperLimit.row_index()) : Null;
-        if (!upperBound || *upperBound > lowerBound) {
-            if (request->negate()) {
-                TraverseChunkTree(chunkList, 0, lowerBound, response);
-                if (upperBound) {
-                    TraverseChunkTree(chunkList, *upperBound, Null, response);
-                }
-            } else {
-                TraverseChunkTree(chunkList, lowerBound, upperBound, response);
-            }
-        }
+        TNullable<i64> upperBound = upperLimit.has_row_index() ? MakeNullable(upperLimit.row_index()) : Null;
+        RunFetchTraversal(chunkList, chunkProcessor, lowerBound, upperBound, request->negate());
     }
 
-    auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH (auto& inputChunk, *response->mutable_chunks()) {
-        auto chunkId = TChunkId::FromProto(inputChunk.slice().chunk_id());
-        const auto* chunk = chunkManager->GetChunk(chunkId);
-        if (!chunk->IsConfirmed()) {
-            THROW_ERROR_EXCEPTION("Cannot fetch a table containing an unconfirmed chunk %s",
-                ~chunkId.ToString());
-        }
-
-        *inputChunk.mutable_channel() = channel.ToProto();
-
-        if (request->fetch_node_addresses()) {
-            chunkManager->FillNodeAddresses(inputChunk.mutable_node_addresses(), chunk);
-        }
-
-        if (request->fetch_all_meta_extensions()) {
-            *inputChunk.mutable_extensions() = chunk->ChunkMeta().extensions();
-        } else {
-            yhash_set<int> tags(
-                request->extension_tags().begin(),
-                request->extension_tags().end());
-            FilterProtoExtensions(
-                inputChunk.mutable_extensions(),
-                chunk->ChunkMeta().extensions(),
-                tags);
-        }
-    }
-
-    context->SetResponseInfo("ChunkCount: %d", response->chunks_size());
-
-    context->Reply();
+    chunkProcessor->Complete();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, SetSorted)

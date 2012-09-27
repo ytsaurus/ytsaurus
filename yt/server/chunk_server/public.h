@@ -34,6 +34,7 @@ class TJobList;
 class TDataNode;
 class TReplicationSink;
 
+struct TVersionedChunkListId;
 struct TChunkTreeStatistics;
 struct TTotalNodeStatistics;
 
