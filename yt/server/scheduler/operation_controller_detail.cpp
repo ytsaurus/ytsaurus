@@ -838,7 +838,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs()
 
             FOREACH (const auto& pair, table.OutputChunkTreeIds) {
                 if (!req) {
-                    auto req = TChunkListYPathProxy::Attach(FromObjectId(table.OutputChunkListId));
+                    req = TChunkListYPathProxy::Attach(FromObjectId(table.OutputChunkListId));
                     NMetaState::GenerateRpcMutationId(req);
                 }
                 *req->add_children_ids() = pair.second.ToProto();
