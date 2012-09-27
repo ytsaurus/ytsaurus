@@ -383,7 +383,7 @@ void TSnapshotBuilder::WatchdogFork(
 
     if (!WIFEXITED(status)) {
         localPromise.Set(TError(
-            "Snapshot child process existed with status %d",
+            "Snapshot child process exited with status %d",
             status));
         return;
     }

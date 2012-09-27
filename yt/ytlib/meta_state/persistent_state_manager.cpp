@@ -811,7 +811,7 @@ public:
             BIND(&TThis::OnSnapshotCreated, MakeStrong(this), context)
                 .Via(ControlInvoker));
 
-        if (request->set_read_only()) {
+        if (setReadOnly) {
             SetReadOnly(true);
         }
     }

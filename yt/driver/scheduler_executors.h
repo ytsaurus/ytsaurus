@@ -170,7 +170,6 @@ public:
 private:
     TCLAP::UnlabeledValueArg<Stroka> OpArg;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
     virtual Stroka GetCommandName() const;
 
 };
