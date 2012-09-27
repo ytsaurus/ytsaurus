@@ -388,7 +388,7 @@ Examples:
                       table_writer=table_writer, spec=spec)
     if args.drop is not None:
         if yt.exists(args.drop):
-            if not args.force and yt.get_type(args.drop) not in ["table", "list"]:
+            if not args.force and yt.get_type(args.drop) not in ["table", "file"]:
                 die("You are trying to remove object of type " + yt.get_type(args.drop))
             path = args.drop
             while True:
