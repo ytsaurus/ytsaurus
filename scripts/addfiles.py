@@ -190,6 +190,7 @@ def normalize(project_name, file_name, extensions):
 
 def print_usage():
     print 'Usage:   addfiles.py <dir_name> <file_name> [<extensions comma-separated>]'
+    print '   OR:   addfiles.py -p <path_to_dir> <file_name> [<extensions comma-separated>]'
 
 
 if __name__ == '__main__':
