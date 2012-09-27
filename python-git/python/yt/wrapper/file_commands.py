@@ -2,7 +2,7 @@ import config
 from common import require, YtError
 from path_tools import escape_path, escape_name
 from http import make_request
-from tree_commands import remove, exists, set_attribute, mkdir, find_free_subpath
+from tree_commands import remove, exists, set_attribute, mkdir, find_free_subpath, set
 
 import os
 from itertools import imap
@@ -46,6 +46,9 @@ def upload_file(filename, yt_filename=None, destination=None, placement_strategy
         if placement_strategy == "ignore" and exists(destination):
             return
     else:
+        dirname = os.path.dirname(destination)
+        if not exists(dirname):
+            set(dirname, "{}")
         yt_filename = os.path.basename(destination)
     
     make_request(
