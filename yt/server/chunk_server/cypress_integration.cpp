@@ -224,8 +224,8 @@ public:
             return false;
         }
 
-        auto nodeMap = nodesNode->AsMap();
-        auto nodeNode = nodeMap->FindChild(address);
+        auto nodesMap = nodesNode->AsMap();
+        auto nodeNode = nodesMap->FindChild(address);
 
         if (!nodeNode) {
             // New node.

@@ -563,7 +563,7 @@ TDuration TTransactionManager::GetActualTimeout(TNullable<TDuration> timeout)
 {
     return Min(
         timeout.Get(Config->DefaultTransactionTimeout),
-        Config->MaximumTransactionTimeout);
+        Config->MaxTransactionTimeout);
 }
 
 void TTransactionManager::OnActiveQuorumEstablished()
