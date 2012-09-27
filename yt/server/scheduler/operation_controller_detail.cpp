@@ -109,7 +109,7 @@ void TOperationControllerBase::TTask::AddStripes(const std::vector<TChunkStripeP
 
 TJobPtr TOperationControllerBase::TTask::ScheduleJob(ISchedulingContext* context)
 {
-    if (!Controller->CheckAvailableChunkLists(GetChunkListCountPerJob())) {
+    if (!Controller->HasEnoughChunkLists(GetChunkListCountPerJob())) {
         return NULL;
     }
 
@@ -252,7 +252,7 @@ void TOperationControllerBase::TTask::AddTabularOutputSpec(
     const auto& table = Controller->OutputTables[tableIndex];
     auto* outputSpec = jobSpec->add_output_specs();
     outputSpec->set_channels(table.Channels.Data());
-    auto chunkListId = Controller->GetFreshChunkList();
+    auto chunkListId = Controller->ExtractChunkList();
     jip->ChunkListIds.push_back(chunkListId);
     *outputSpec->mutable_chunk_list_id() = chunkListId.ToProto();
 }
@@ -824,13 +824,31 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs()
 
     FOREACH (const auto& table, OutputTables) {
         auto path = FromObjectId(table.ObjectId);
+        // Split large outputs into separate requests.
         {
-            auto req = TChunkListYPathProxy::Attach(FromObjectId(table.OutputChunkListId));
+            TChunkListYPathProxy::TReqAttachPtr req;
+            int reqSize = 0;
+            auto flushReq = [&] () {
+                if (req) {
+                    batchReq->AddRequest(req, "attach_out");
+                    reqSize = 0;
+                    req.Reset();
+                }
+            };
+
             FOREACH (const auto& pair, table.OutputChunkTreeIds) {
+                if (!req) {
+                    auto req = TChunkListYPathProxy::Attach(FromObjectId(table.OutputChunkListId));
+                    NMetaState::GenerateRpcMutationId(req);
+                }
                 *req->add_children_ids() = pair.second.ToProto();
+                ++reqSize;
+                if (reqSize >= Config->MaxChildrenPerAttachRequest) {
+                    flushReq();
+                }
             }
-            NMetaState::GenerateRpcMutationId(req);
-            batchReq->AddRequest(req, "attach_out");
+
+            flushReq();
         }
         if (table.KeyColumns) {
             LOG_INFO("Table %s will be marked as sorted by %s",
@@ -1291,12 +1309,11 @@ void TOperationControllerBase::CompletePreparation()
     LOG_INFO("Completing preparation");
 
     ChunkListPool = New<TChunkListPool>(
+        Config,
         Host->GetMasterChannel(),
         CancelableControlInvoker,
         Operation,
-        PrimaryTransaction->GetId(),
-        Config->ChunkListPreallocationCount,
-        Config->ChunkListAllocationMultiplier);
+        PrimaryTransaction->GetId());
 }
 
 void TOperationControllerBase::OnPreparationCompleted()
@@ -1482,21 +1499,12 @@ void TOperationControllerBase::RegisterOutputChunkTree(
         key);
 }
 
-bool TOperationControllerBase::CheckAvailableChunkLists(int requestedCount)
+bool TOperationControllerBase::HasEnoughChunkLists(int requestedCount)
 {
-    if (ChunkListPool->GetSize() >= requestedCount + Config->ChunkListWatermarkCount) {
-        // Enough chunk lists. Above the watermark even after extraction.
-        return true;
-    }
-
-    // Additional chunk lists are definitely needed but still could be a success.
-    bool success = ChunkListPool->GetSize() >= requestedCount;
-    ChunkListPool->AllocateMore();
-
-    return success;
+    return ChunkListPool->HasEnough(requestedCount);
 }
 
-TChunkListId TOperationControllerBase::GetFreshChunkList()
+TChunkListId TOperationControllerBase::ExtractChunkList()
 {
     return ChunkListPool->Extract();
 }

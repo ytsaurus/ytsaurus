@@ -20,31 +20,28 @@ class TChunkListPool
 {
 public:
     TChunkListPool(
+        TSchedulerConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         IInvokerPtr controlInvoker,
         TOperationPtr operation,
-        const NTransactionClient::TTransactionId& transactionId,
-        int initialCount,
-        double multiplier);
+        const NTransactionClient::TTransactionId& transactionId);
 
-    int GetSize() const;
-
+    bool HasEnough(int requestedCount);
     NChunkClient::TChunkListId Extract();
 
-    bool AllocateMore();
-
 private:
+    TSchedulerConfigPtr Config;
     NRpc::IChannelPtr MasterChannel;
     IInvokerPtr ControlInvoker;
     TOperationPtr Operation;
     NTransactionClient::TTransactionId TransactionId;
-    int InitialCount;
-    double Multiplier;
 
     NLog::TTaggedLogger Logger;
     bool RequestInProgress;
     int LastSuccessCount;
     std::vector<NChunkClient::TChunkListId> Ids;
+
+    void AllocateMore();
 
     void OnChunkListsCreated(
         int count,
