@@ -1,4 +1,4 @@
-#!/bin/sh -eux
+#!/bin/bash -eux
 
 cd $(dirname "${BASH_SOURCE[0]}")
 
