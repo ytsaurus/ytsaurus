@@ -58,7 +58,7 @@ public:
         YCHECK(config);
         YCHECK(bootstrap);
 
-        StateQueue = New<TFairShareActionQueue>(EStateThreadQueue::GetDomainSize(), "MetaState");
+        StateQueue = New<TFairShareActionQueue>(EStateThreadQueue::GetDomainNames(), "MetaState");
 
         MetaState = New<TCompositeMetaState>();
 

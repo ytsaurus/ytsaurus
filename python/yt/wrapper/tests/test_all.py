@@ -327,6 +327,10 @@ class YtTest(YTEnv):
             self.assertEqual(list(yt.download_file(dest)),
                              open(abspath("my_op.py")).readlines())
 
+        dest = TEST_DIR+"/file_dir/some_file"
+        yt.upload_file(abspath("my_op.py"), destination=dest)
+        self.assertEqual(yt.get_attribute(dest, "file_name"), "some_file")
+
     def test_map_reduce_operation(self):
         input = TEST_DIR + "/input"
         output = TEST_DIR + "/output"

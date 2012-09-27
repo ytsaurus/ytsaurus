@@ -383,7 +383,7 @@ void TSnapshotBuilder::WatchdogFork(
 
     if (!WIFEXITED(status)) {
         localPromise.Set(TError(
-            "Snapshot child process existed with status %d",
+            "Snapshot child process exited with status %d",
             status));
         return;
     }
@@ -425,7 +425,9 @@ void TSnapshotBuilder::WaitUntilFinished()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    LocalPromise.Get();
+    if (!LocalPromise.IsNull()) {
+        LocalPromise.Get();
+    }
 }
 
 bool TSnapshotBuilder::IsInProgress() const

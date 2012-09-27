@@ -381,9 +381,6 @@ EExitCode TTrackOpExecutor::Execute(const std::vector<std::string>& args)
     return tracker.Run();
 }
 
-void TTrackOpExecutor::BuildArgs(IYsonConsumer* consumer)
-{ }
-
 Stroka TTrackOpExecutor::GetCommandName() const
 {
     return "track_op";

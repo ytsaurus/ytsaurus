@@ -17,6 +17,7 @@ TEST(TLoggingTest, ReloadsOnSigHup)
     int revision = NLog::TLogManager::Get()->GetConfigRevision();
 
     kill(getpid(), SIGHUP);
+    sleep(1); // In sleep() we trust.
 
     int newVersion = NLog::TLogManager::Get()->GetConfigVersion();
     int newRevision = NLog::TLogManager::Get()->GetConfigRevision();

@@ -1,6 +1,7 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/driver )
 set( SRCS
+  ${BASE}/admin_executors.cpp
   ${BASE}/cypress_executors.cpp
   ${BASE}/executor.cpp
   ${BASE}/file_executors.cpp
@@ -13,6 +14,7 @@ set( SRCS
 )
 
 set( HDRS
+  ${BASE}/admin_executors.h
   ${BASE}/config.h
   ${BASE}/cypress_executors.h
   ${BASE}/executor.h

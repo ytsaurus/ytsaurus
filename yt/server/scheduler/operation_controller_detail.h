@@ -408,8 +408,8 @@ protected:
         int key,
         int tableIndex);
 
-    bool CheckAvailableChunkLists(int requestedCount);
-    NChunkClient::TChunkListId GetFreshChunkList();
+    bool HasEnoughChunkLists(int requestedCount);
+    NChunkClient::TChunkListId ExtractChunkList();
 
     void ReleaseChunkList(const NChunkClient::TChunkListId& id);
     void ReleaseChunkLists(const std::vector<NChunkClient::TChunkListId>& ids);

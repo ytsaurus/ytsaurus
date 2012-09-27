@@ -79,6 +79,9 @@ struct TSchedulerConfig
     //! Number of chunk lists to be allocated when an operation starts.
     int ChunkListPreallocationCount;
 
+    //! Maximum number of chunk lists to request via a single request.
+    int MaxChunkListAllocationCount;
+
     //! Better keep the number of spare chunk lists above this threshold.
     int ChunkListWatermarkCount;
 
@@ -87,6 +90,9 @@ struct TSchedulerConfig
     //! another batch is allocated. Each time we allocate #ChunkListAllocationMultiplier times
     //! more chunk lists than previously.
     double ChunkListAllocationMultiplier;
+
+    //! Maximum number of chunk trees to attach per request.
+    int MaxChildrenPerAttachRequest;
 
     //! Maximum number of partitions during sort, ever.
     int MaxPartitionCount;
@@ -119,7 +125,10 @@ struct TSchedulerConfig
             .Default(100)
             .GreaterThanOrEqual(0);
         Register("chunk_list_preallocation_count", ChunkListPreallocationCount)
-            .Default(100)
+            .Default(128)
+            .GreaterThanOrEqual(0);
+        Register("max_chunk_list_allocation_count", MaxChunkListAllocationCount)
+            .Default(16384)
             .GreaterThanOrEqual(0);
         Register("chunk_list_watermark_count", ChunkListWatermarkCount)
             .Default(50)
@@ -127,6 +136,9 @@ struct TSchedulerConfig
         Register("chunk_list_allocation_multiplier", ChunkListAllocationMultiplier)
             .Default(2.0)
             .GreaterThan(1.0);
+        Register("max_children_per_attach_request", MaxChildrenPerAttachRequest)
+            .Default(10000)
+            .GreaterThan(0);
         Register("max_partition_count", MaxPartitionCount)
             .Default(2000)
             .GreaterThan(0);

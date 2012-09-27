@@ -19,30 +19,41 @@ using namespace NChunkClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkListPool::TChunkListPool(
+    TSchedulerConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     IInvokerPtr controlInvoker,
     TOperationPtr operation,
-    const TTransactionId& transactionId,
-    int initialCount,
-    double multiplier)
-    : MasterChannel(masterChannel)
+    const TTransactionId& transactionId)
+    : Config(config)
+    , MasterChannel(masterChannel)
     , ControlInvoker(controlInvoker)
     , Operation(operation)
     , TransactionId(transactionId)
-    , InitialCount(initialCount)
-    , Multiplier(multiplier)
     , Logger(OperationLogger)
     , RequestInProgress(false)
     , LastSuccessCount(-1)
 {
+    YCHECK(config);
+    YCHECK(masterChannel);
+    YCHECK(controlInvoker);
+    YCHECK(operation);
+
     Logger.AddTag(Sprintf("OperationId: %s", ~operation->GetOperationId().ToString()));
 
-    YCHECK(AllocateMore());
+    AllocateMore();
 }
 
-int TChunkListPool::GetSize() const
+bool TChunkListPool::HasEnough(int requestedCount)
 {
-    return static_cast<int>(Ids.size());
+    int currentSize = static_cast<int>(Ids.size());
+    if (currentSize >= requestedCount + Config->ChunkListWatermarkCount) {
+        // Enough chunk lists. Above the watermark even after extraction.
+        return true;
+    } else {
+        // Additional chunk lists are definitely needed but still could be a success.
+        AllocateMore();
+        return currentSize >= requestedCount;
+    }
 }
 
 TChunkListId TChunkListPool::Extract()
@@ -58,16 +69,18 @@ TChunkListId TChunkListPool::Extract()
     return id;
 }
 
-bool TChunkListPool::AllocateMore()
+void TChunkListPool::AllocateMore()
 {
     int count =
         LastSuccessCount < 0
-        ? InitialCount
-        : static_cast<int>(LastSuccessCount * Multiplier);
+        ? Config->ChunkListPreallocationCount
+        : static_cast<int>(LastSuccessCount * Config->ChunkListAllocationMultiplier);
+    
+    count = std::min(count, Config->MaxChunkListAllocationCount);
 
     if (RequestInProgress) {
         LOG_DEBUG("Cannot allocate more chunk lists, another request is in progress");
-        return false;
+        return;
     }
 
     LOG_INFO("Allocating %d chunk lists for pool", count);
@@ -86,7 +99,6 @@ bool TChunkListPool::AllocateMore()
             .Via(ControlInvoker));
 
     RequestInProgress = true;
-    return true;
 }
 
 void TChunkListPool::OnChunkListsCreated(

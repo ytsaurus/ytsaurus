@@ -60,6 +60,8 @@ protected:
     NFormats::TFormat GetFormat(NFormats::EDataType dataType, const TNullable<NYTree::TYsonString>& yson);
 
     NYTree::IMapNodePtr GetArgs();
+
+    // Construct args according to given options
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
 
     virtual EExitCode DoExecute(const NDriver::TDriverRequest& request);

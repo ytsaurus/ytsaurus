@@ -29,7 +29,10 @@ class TActionQueue
 public:
     // TActionQueue is used internally by the logging infrastructure,
     // which passes enableLogging = false to prevent infinite recursion.
-    TActionQueue(const Stroka& threadName = "<ActionQueue>", bool enableLogging = true);
+    TActionQueue(
+        const Stroka& threadName = "<ActionQueue>",
+        bool enableLogging = true);
+
     virtual ~TActionQueue();
 
     void Shutdown();
@@ -53,14 +56,15 @@ class TFairShareActionQueue
     : public TRefCounted
 {
 public:
-    explicit TFairShareActionQueue(int queueCount = 1, const Stroka& threadName = "<FSActionQueue>");
+    explicit TFairShareActionQueue(
+        const std::vector<Stroka>& profilingNames,
+        const Stroka& threadName = "<FSActionQueue>");
+
     virtual ~TFairShareActionQueue();
 
     void Shutdown();
 
     IInvokerPtr GetInvoker(int queueIndex);
-
-    static TCallback<TFairShareActionQueuePtr()> CreateFactory(int queueCount, const Stroka& threadName);
 
 private:
     class TImpl;
@@ -74,7 +78,9 @@ class TThreadPool
     : public TRefCounted
 {
 public:
-    TThreadPool(int threadCount = 1, const Stroka& threadName = "<ThreadPool>");
+    TThreadPool(
+        int threadCount = 1,
+        const Stroka& threadNamePrefix = "<ThreadPool>");
     virtual ~TThreadPool();
 
     void Shutdown();

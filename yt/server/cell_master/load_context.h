@@ -20,7 +20,7 @@ DECLARE_ENUM(ESavePriority,
     (Values)
 );
 
-const int CurrentSnapshotVersion = 0;
+const int CurrentSnapshotVersion = 1;
 
 struct TLoadContext
     : public NMetaState::TLoadContext

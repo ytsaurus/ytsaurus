@@ -16,6 +16,7 @@ class TestHackChangelog(YTEnvSetup):
 
         self.assertTrue(get_str("//home/@").find("test_attribute") != -1)
 
+        # TODO(panin): make convenient way for this
         # Stop master
         self.kill_process(*self.Env.process_to_kill[0])
         self.Env.process_to_kill.pop()
@@ -49,6 +50,6 @@ class TestHackChangelog(YTEnvSetup):
         # Restore master
         self.Env._run_masters(prepare_files=False)
         
-        self.assertTrue(get_str("//home/@").find("test_attribute") == -1)
+        assert get_str("//home/@").find("test_attribute") == -1
 
 

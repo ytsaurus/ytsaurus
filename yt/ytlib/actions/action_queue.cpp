@@ -5,9 +5,12 @@
 
 #include <ytlib/misc/foreach.h>
 
+#include <ytlib/ytree/ypath_client.h>
+
 namespace NYT {
 
 using namespace NProfiling;
+using namespace NYTree;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -15,10 +18,13 @@ class TActionQueue::TImpl
     : public TActionQueueBase
 {
 public:
-    TImpl(const Stroka& threadName, bool enableLogging, TNullable<Stroka> profilingName = Null)
+    TImpl(const Stroka& threadName, const Stroka& profilingName, bool enableLogging)
         : TActionQueueBase(threadName, enableLogging)
     {
-        QueueInvoker = New<TQueueInvoker>(threadName, this, enableLogging, profilingName);
+        QueueInvoker = New<TQueueInvoker>(
+            "/" + EscapeYPathToken(profilingName),
+            this,
+            enableLogging);
         Start();
     }
 
@@ -57,7 +63,7 @@ private:
 };
 
 TActionQueue::TActionQueue(const Stroka& threadName, bool enableLogging)
-    : Impl(New<TImpl>(threadName, enableLogging))
+    : Impl(New<TImpl>(threadName, threadName, enableLogging))
 { }
 
 TActionQueue::~TActionQueue()
@@ -91,13 +97,13 @@ class TFairShareActionQueue::TImpl
     : public TActionQueueBase
 {
 public:
-    TImpl(int queueCount, const Stroka& threadName)
+    TImpl(const std::vector<Stroka>& profilingNames, const Stroka& threadName)
         : TActionQueueBase(threadName, true)
-        , Queues(queueCount)
+        , Queues(profilingNames.size())
     {
-        for (int index = 0; index < queueCount; ++index) {
+        for (int index = 0; index < static_cast<int>(profilingNames.size()); ++index) {
             Queues[index].Invoker = New<TQueueInvoker>(
-                threadName + "_" + ToString(index),
+                "/" + EscapeYPathToken(threadName + ":" + profilingNames[index]),
                 this,
                 true);
         }
@@ -176,8 +182,10 @@ private:
     }
 };
 
-TFairShareActionQueue::TFairShareActionQueue(int queueCount, const Stroka& threadName)
-    : Impl(New<TImpl>(queueCount, threadName))
+TFairShareActionQueue::TFairShareActionQueue(
+    const std::vector<Stroka>& profilingNames,
+    const Stroka& threadName)
+    : Impl(New<TImpl>(profilingNames, threadName))
 { }
 
 TFairShareActionQueue::~TFairShareActionQueue()
@@ -193,26 +201,19 @@ void TFairShareActionQueue::Shutdown()
     return Impl->Shutdown();
 }
 
-TCallback<TFairShareActionQueuePtr()> TFairShareActionQueue::CreateFactory(int queueCount, const Stroka& threadName)
-{
-    return BIND([=] () {
-        return NYT::New<NYT::TFairShareActionQueue>(queueCount, threadName);
-    });
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 
 class TThreadPool::TImpl
     : public IInvoker
 {
 public:
-    TImpl(int threadCount, const Stroka& threadName)
+    TImpl(int threadCount, const Stroka& threadNamePrefix)
     {
         for (int i = 0; i < threadCount; ++i) {
             Threads.push_back(New<TActionQueue::TImpl>(
-                Sprintf("%s:%d", ~threadName, i),
-                true,
-                threadName));
+                Sprintf("%s:%d", ~threadNamePrefix, i),
+                threadNamePrefix,
+                true));
         }
     }
 
@@ -253,8 +254,8 @@ private:
 
 };
 
-TThreadPool::TThreadPool(int threadCount, const Stroka& threadName)
-    : Impl(New<TImpl>(threadCount, threadName))
+TThreadPool::TThreadPool(int threadCount, const Stroka& threadNamePrefix)
+    : Impl(New<TImpl>(threadCount, threadNamePrefix))
 { }
 
 TThreadPool::~TThreadPool()

@@ -190,6 +190,7 @@ void TSnapshotWriter::Close()
     File->Close();
 
     CheckedMoveFile(TempFileName, FileName);
+    State = EState::Closed;
 }
 
 TChecksum TSnapshotWriter::GetChecksum() const
