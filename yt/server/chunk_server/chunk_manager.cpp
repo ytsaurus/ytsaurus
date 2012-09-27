@@ -322,6 +322,7 @@ public:
         const TChunkTreeRef* childrenEnd)
     {
         auto objectManager = Bootstrap->GetObjectManager();
+        chunkList->IncreaseVersion();
 
         TChunkTreeStatistics accumulatedDelta;
         for (auto it = childrenBegin; it != childrenEnd; ++it) {
@@ -387,6 +388,7 @@ public:
     {
         // TODO(babenko): currently we only support clearing a chunklist with no parents.
         YCHECK(chunkList->Parents().empty());
+        chunkList->IncreaseVersion();
 
         auto objectManager = Bootstrap->GetObjectManager();
         FOREACH (auto childRef, chunkList->Children()) {
@@ -520,6 +522,22 @@ public:
             return TChunkTreeRef(chunkList);
         } else {
             THROW_ERROR_EXCEPTION("Invalid type of object %s", ~id.ToString());
+        }
+    }
+
+    TValueOrError<TChunkList*> GetVersionedChunkList(const TVersionedChunkListId& versionedId)
+    {
+        auto chunkTreeRef = GetChunkTree(versionedId.Id);
+        YCHECK(chunkTreeRef.GetType() == EObjectType::ChunkList);
+        auto* chunkList = chunkTreeRef.AsChunkList();
+        if (chunkList->GetVersion() == versionedId.Version) {
+            return chunkList;
+        } else {
+            return TError(
+                "Chunk list version has changed (ChunkListId: %s, Expected version: %d, Actual version: %d)",
+                ~ToString(versionedId.Id),
+                versionedId.Version,
+                chunkList->GetVersion());
         }
     }
 
@@ -2138,6 +2156,12 @@ bool TChunkManager::IsNodeConfirmed(const TDataNode* node)
 i32 TChunkManager::GetChunkReplicaCount()
 {
     return Impl->GetChunkReplicaCount();
+}
+
+TValueOrError<TChunkList*> TChunkManager::GetVersionedChunkList(
+    const TVersionedChunkListId& id)
+{
+    return Impl->GetVersionedChunkList(id);
 }
 
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, Chunk, TChunk, TChunkId, *Impl)

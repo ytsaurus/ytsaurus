@@ -36,7 +36,7 @@ TFileNodeProxy::TFileNodeProxy(
 
 void TFileNodeProxy::DoInvoke(IServiceContextPtr context)
 {
-    DISPATCH_YPATH_SERVICE_METHOD(Fetch);
+    DISPATCH_YPATH_SERVICE_METHOD(FetchFile);
     TBase::DoInvoke(context);
 }
 
@@ -144,7 +144,7 @@ bool TFileNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsume
     return TBase::GetSystemAttribute(name, consumer);
 }
 
-DEFINE_RPC_SERVICE_METHOD(TFileNodeProxy, Fetch)
+DEFINE_RPC_SERVICE_METHOD(TFileNodeProxy, FetchFile)
 {
     UNUSED(request);
 

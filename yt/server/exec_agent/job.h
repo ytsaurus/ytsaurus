@@ -75,7 +75,7 @@ private:
         const NScheduler::NProto::TUserJobSpec& userJobSpec,
         TParallelAwaiterPtr awaiter);
     void OnChunkDownloaded(
-        const NFileClient::NProto::TRspFetch& fetchRsp,
+        const NFileClient::NProto::TRspFetchFile& fetchRsp,
         TValueOrError<NChunkHolder::TCachedChunkPtr> result);
 
     void RunJobProxy();
