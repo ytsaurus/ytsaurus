@@ -119,9 +119,13 @@ protected:
         }
 
         // Schedule continuation.
-        Bootstrap->GetMetaStateFacade()->GetGuardedEpochInvoker()->Invoke(BIND(
+        auto result = Bootstrap->GetMetaStateFacade()->GetGuardedEpochInvoker()->Invoke(BIND(
             &TChunkTreeTraverserBase<TBoundary>::DoTraverse,
             MakeStrong(this)));
+
+        if (!result) {
+            ChunkProcessor->OnError(TError("Unable to schedule continuation through GuardedEpochInvoker"));
+        }
     }
 
     virtual int GetStartChild(
@@ -276,7 +280,7 @@ TKey GetMaxKey(const TChunk* chunk)
 {
     auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(
         chunk->ChunkMeta().extensions());
-    return boundaryKeysExt.start();
+    return boundaryKeysExt.end();
 }
 
 TKey GetMaxKey(const TChunkList* chunkList)
@@ -304,7 +308,7 @@ TKey GetMinKey(const TChunk* chunk)
 {
     auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(
         chunk->ChunkMeta().extensions());
-    return boundaryKeysExt.end();
+    return boundaryKeysExt.start();
 }
 
 TKey GetMinKey(const TChunkList* chunkList)
@@ -331,7 +335,7 @@ TKey GetMinKey(const TChunkTreeRef& ref)
 bool LessComparer(const TKey& key, TChunkTreeRef ref)
 {
     TKey maxKey = GetMaxKey(ref);
-    return CompareKeys(maxKey, key) > 0;
+    return CompareKeys(key, maxKey) > 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -379,7 +383,7 @@ private:
                 rend,
                 lowerBound,
                 LessComparer);
-        YCHECK(index < chunkList->Children().size());
+        YCHECK(index <= chunkList->Children().size());
         return index;
     }
 
