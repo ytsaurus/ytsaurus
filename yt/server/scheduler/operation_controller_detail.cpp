@@ -1478,7 +1478,7 @@ bool TOperationControllerBase::CheckKeyColumnsCompatible(
 void TOperationControllerBase::CheckOutputTablesEmpty()
 {
     FOREACH (const auto& table, OutputTables) {
-        if (table.InitialRowCount > 0) {
+        if (table.InitialRowCount > 0 && !table.Clear) {
             THROW_ERROR_EXCEPTION("Output table %s is not empty",
                 ~table.Path.GetPath());
         }
