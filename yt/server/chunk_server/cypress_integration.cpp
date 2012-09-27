@@ -2,6 +2,7 @@
 #include "cypress_integration.h"
 #include "node.h"
 #include "node_statistics.h"
+#include "private.h"
 
 #include <ytlib/misc/string.h>
 
@@ -33,6 +34,10 @@ using namespace NObjectServer;
 using namespace NTransactionServer;
 using namespace NCellMaster;
 using namespace NObjectClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static NLog::TLogger& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
