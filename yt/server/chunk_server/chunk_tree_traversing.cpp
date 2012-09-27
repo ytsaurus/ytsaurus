@@ -197,6 +197,10 @@ public:
 private:
     virtual int GetStartChild(const TChunkList* chunkList, const i64& lowerBound) override
     {
+        if (chunkList->Children().empty()) {
+            return 0;
+        }
+
         auto begin = chunkList->RowCountSums().begin();
         int index =
             std::upper_bound(

@@ -276,7 +276,7 @@ private:
         *slice->mutable_chunk_id() = chunk->GetId().ToProto();
 
         *slice->mutable_start_limit() = startLimit;
-        *slice->mutable_end_limit() = startLimit;
+        *slice->mutable_end_limit() = endLimit;
     }
 
     void ProcessError(const TError& error)
@@ -629,9 +629,6 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
     ParseYPath(context->GetPath(), &channel, &lowerLimit, &upperLimit);
     auto* chunkList = impl->GetChunkList();
 
-    LOG_DEBUG("
-        ", );
-
     auto chunkProcessor = New<TFetchChunkProcessor>(
         context, 
         channel, 
@@ -646,8 +643,8 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
         auto upperBound = upperLimit.has_key() ? MakeNullable(upperLimit.key()) : Null;
         RunFetchTraversal(chunkList, chunkProcessor, lowerBound, upperBound, request->negate());
     } else {
-        i64 lowerBound = lowerLimit.has_row_index() ? lowerLimit.row_index() : 0;
-        TNullable<i64> upperBound = upperLimit.has_row_index() ? MakeNullable(upperLimit.row_index()) : Null;
+        i64 lowerBound = lowerLimit.has_row_index() ? std::max(lowerLimit.row_index(), 0L) : 0;
+        TNullable<i64> upperBound = upperLimit.has_row_index() ? MakeNullable(std::max(upperLimit.row_index(), 0L)) : Null;
         RunFetchTraversal(chunkList, chunkProcessor, lowerBound, upperBound, request->negate());
     }
 
