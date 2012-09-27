@@ -104,7 +104,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         sort(in_='//tmp/t_in',
              out='//tmp/t_out',
              sort_by='missing_key',
-	     opt='/spec/partition_count=2')
+         opt='/spec/partition_count=2')
 
         assert len(read('//tmp/t_out')) == 5 # check only the number of raws
 
@@ -161,9 +161,9 @@ class TestSchedulerSortCommands(YTEnvSetup):
         create('table', output)
         write(input, [{'key': num} for num in xrange(5, 0, -1)])
 
-	args = {'in_': [input], 'out' : output, 'sort_by' : 'key'}
-	args.update(kwargs)
-	
+    args = {'in_': [input], 'out' : output, 'sort_by' : 'key'}
+    args.update(kwargs)
+    
         sort(**args)
         assert read(output) == [{'key': num} for num in xrange(1, 6)]
 
@@ -178,3 +178,13 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
     def test_two_partitions_with_merge(self):
         self.sort_with_options(opt=['/spec/partition_count=2', '/spec/max_weight_per_sort_job=1'])
+
+    def test_inplace_sort(self):
+        create('table', '//tmp/t')
+        write('//tmp/t', [{'key' : 'b'}, {'key' : 'a'}])
+
+        sort(in_='//tmp/t',
+             out='<overwrite=true> //tmp/t',
+             sort_by='key')
+
+        assert read('//tmp/t') == [{'key' : 'a'}, {'key' : 'b'}]
