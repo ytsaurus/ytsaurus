@@ -16,7 +16,7 @@ public:
     virtual EExitCode Execute(const std::vector<std::string>& args);
 
 private:
-    TCLAP::SwitchArg ReadOnlyArg;
+    TCLAP::SwitchArg SetReadOnlyArg;
 
     virtual Stroka GetCommandName() const;
 };

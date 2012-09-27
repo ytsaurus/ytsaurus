@@ -14,9 +14,9 @@ using namespace NMetaState;
 ////////////////////////////////////////////////////////////////////////////////
 
 TBuildSnapshotExecutor::TBuildSnapshotExecutor()
-    : ReadOnlyArg("", "read_only", "set the master to read only mode", false)
+    : SetReadOnlyArg("", "set_read_only", "set the master to read only mode", false)
 {
-    CmdLine.add(ReadOnlyArg);
+    CmdLine.add(SetReadOnlyArg);
 }
 
 EExitCode TBuildSnapshotExecutor::Execute(const std::vector<std::string>& args)
@@ -34,12 +34,13 @@ EExitCode TBuildSnapshotExecutor::Execute(const std::vector<std::string>& args)
     TMetaStateManagerProxy proxy(Driver->GetMasterChannel());
     proxy.SetDefaultTimeout(0); //infinity
     auto req = proxy.BuildSnapshot();
-    req->set_set_read_only(ReadOnlyArg.getValue());
+    req->set_set_read_only(SetReadOnlyArg.getValue());
     auto rsp = req->Invoke().Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error building snapshot");
 
     i32 snapshotId = rsp->snapshot_id();
-    printf("SnapshotId = %d\n", snapshotId);
+    printf("Snapshot %d is built", snapshotId);
+
     return EExitCode::OK;
 }
 

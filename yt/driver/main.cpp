@@ -78,7 +78,7 @@ public:
         RegisterExecutor(New<TAbortOpExecutor>());
         RegisterExecutor(New<TTrackOpExecutor>());
 
-        // admin commands
+        // Admin commands
         RegisterExecutor(New<TBuildSnapshotExecutor>());
     }
 
