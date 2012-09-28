@@ -58,7 +58,7 @@ public:
         result.set_memory(
             GetIOMemorySize(
             JobIOConfig,
-            Spec->InputTablePaths.size(),
+            1,
             Spec->OutputTablePaths.size()) +
             GetFootprintMemorySize());
         return result;
@@ -223,7 +223,6 @@ private:
 
         return MakeFuture();
     }
-
 
     // Progress reporting.
 
