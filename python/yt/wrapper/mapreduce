@@ -307,7 +307,7 @@ Examples:
     for option in ["src", "dst", "dstappend", "ytfile"]:
         if vars(args)[option] is not None:
             vars(args)[option] = map(add_prefix, vars(args)[option])
-    for option in ["read", "write", "writesorted", "drop", "get", "set"]:
+    for option in ["read", "write", "writesorted", "drop", "get", "set", "download"]:
         if vars(args)[option] is not None:
             vars(args)[option] = add_prefix(vars(args)[option])
 
