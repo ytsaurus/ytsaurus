@@ -643,8 +643,8 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
         auto upperBound = upperLimit.has_key() ? MakeNullable(upperLimit.key()) : Null;
         RunFetchTraversal(chunkList, chunkProcessor, lowerBound, upperBound, request->negate());
     } else {
-        i64 lowerBound = lowerLimit.has_row_index() ? std::max(lowerLimit.row_index(), 0L) : 0;
-        TNullable<i64> upperBound = upperLimit.has_row_index() ? MakeNullable(std::max(upperLimit.row_index(), 0L)) : Null;
+        i64 lowerBound = lowerLimit.has_row_index() ? std::max(lowerLimit.row_index(), 0LL) : 0;
+        TNullable<i64> upperBound = upperLimit.has_row_index() ? MakeNullable(std::max(upperLimit.row_index(), 0LL)) : Null;
         RunFetchTraversal(chunkList, chunkProcessor, lowerBound, upperBound, request->negate());
     }
 

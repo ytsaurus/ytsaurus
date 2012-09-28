@@ -16,8 +16,8 @@ public:
 private:
     TCLAP::UnlabeledValueArg<NYTree::TRichYPath> PathArg;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetCommandName() const;
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
 };
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -31,8 +31,8 @@ public:
 private:
     TCLAP::UnlabeledValueArg<NYTree::TRichYPath> PathArg;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetCommandName() const;
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

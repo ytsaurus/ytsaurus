@@ -18,8 +18,8 @@ public:
 private:
     TCLAP::UnlabeledValueArg<NYTree::TRichYPath> PathArg;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetCommandName() const;
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
 };
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -38,9 +38,9 @@ private:
     bool UseStdIn;
     TStringStream Stream;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetCommandName() const;
-    virtual TInputStream* GetInputStream();
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
+    virtual TInputStream* GetInputStream() override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

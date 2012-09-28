@@ -19,18 +19,8 @@ TBuildSnapshotExecutor::TBuildSnapshotExecutor()
     CmdLine.add(SetReadOnlyArg);
 }
 
-EExitCode TBuildSnapshotExecutor::Execute(const std::vector<std::string>& args)
+EExitCode TBuildSnapshotExecutor::DoExecute()
 {
-    // TODO(babenko): get rid of this copy-paste
-    auto argsCopy = args;
-    CmdLine.parse(argsCopy);
-
-    InitConfig();
-
-    NLog::TLogManager::Get()->Configure(Config->Logging);
-
-    Driver = CreateDriver(Config);
-
     TMetaStateManagerProxy proxy(Driver->GetMasterChannel());
     proxy.SetDefaultTimeout(0); //infinity
     auto req = proxy.BuildSnapshot();

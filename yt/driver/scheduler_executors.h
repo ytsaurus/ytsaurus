@@ -16,7 +16,7 @@ public:
 private:
     TCLAP::SwitchArg DontTrackArg;
 
-    virtual EExitCode DoExecute(const NDriver::TDriverRequest& request);
+    virtual EExitCode DoExecute(const NDriver::TDriverRequest& request) override;
 
     virtual NScheduler::EOperationType GetOperationType() const = 0;
 };
@@ -35,9 +35,9 @@ private:
     TCLAP::ValueArg<Stroka> CommandArg;
     TCLAP::MultiArg<NYTree::TRichYPath> FileArg;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetCommandName() const;
-    virtual NScheduler::EOperationType GetOperationType() const;
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
+    virtual NScheduler::EOperationType GetOperationType() const override;
 };
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -59,9 +59,9 @@ private:
     TCLAP::SwitchArg CombineArg;
     TCLAP::ValueArg<Stroka> MergeByArg;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetCommandName() const;
-    virtual NScheduler::EOperationType GetOperationType() const;
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
+    virtual NScheduler::EOperationType GetOperationType() const override;
 };
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -77,9 +77,9 @@ private:
     TCLAP::ValueArg<NYTree::TRichYPath> OutArg;
     TCLAP::ValueArg<Stroka> SortByArg;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetCommandName() const;
-    virtual NScheduler::EOperationType GetOperationType() const;
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
+    virtual NScheduler::EOperationType GetOperationType() const override;
 };
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -94,9 +94,9 @@ private:
     TCLAP::UnlabeledValueArg<NYTree::TRichYPath> PathArg;
     TCLAP::SwitchArg CombineArg;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetCommandName() const;
-    virtual NScheduler::EOperationType GetOperationType() const;
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
+    virtual NScheduler::EOperationType GetOperationType() const override;
 };
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -114,9 +114,9 @@ private:
     TCLAP::MultiArg<NYTree::TRichYPath> FileArg;
     TCLAP::ValueArg<Stroka> ReduceByArg;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetCommandName() const;
-    virtual NScheduler::EOperationType GetOperationType() const;
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
+    virtual NScheduler::EOperationType GetOperationType() const override;
 };
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -137,15 +137,15 @@ private:
     TCLAP::ValueArg<Stroka> SortByArg;
     TCLAP::ValueArg<Stroka> ReduceByArg;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetCommandName() const;
-    virtual NScheduler::EOperationType GetOperationType() const;
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
+    virtual NScheduler::EOperationType GetOperationType() const override;
 };
 
 //////////////////////////////////////////////////////////////////////////////////
 
 class TAbortOpExecutor
-    : public TExecutor
+    : public TRequestExecutor
 {
 public:
     TAbortOpExecutor();
@@ -153,24 +153,24 @@ public:
 private:
     TCLAP::UnlabeledValueArg<Stroka> OpArg;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
-    virtual Stroka GetCommandName() const;
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override override;
+    virtual Stroka GetCommandName() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTrackOpExecutor
-    : public TExecutor
+    : public TRequestExecutor
 {
 public:
     TTrackOpExecutor();
 
-    virtual EExitCode Execute(const std::vector<std::string>& args);
 
 private:
     TCLAP::UnlabeledValueArg<Stroka> OpArg;
 
-    virtual Stroka GetCommandName() const;
+    virtual EExitCode DoExecute() override;
+    virtual Stroka GetCommandName() const override;
 
 };
 

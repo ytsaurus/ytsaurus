@@ -13,14 +13,12 @@ class TBuildSnapshotExecutor
 public:
     TBuildSnapshotExecutor();
 
-    virtual EExitCode Execute(const std::vector<std::string>& args);
-
 private:
     TCLAP::SwitchArg SetReadOnlyArg;
 
-    virtual Stroka GetCommandName() const;
+    virtual EExitCode DoExecute() override;
+    virtual Stroka GetCommandName() const override;
 };
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

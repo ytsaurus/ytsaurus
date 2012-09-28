@@ -11,7 +11,7 @@ class TestSnapshot(YTEnvSetup):
     def test(self):
     	set('//tmp/a', 42)
 
-    	build_snapshot()
+        build_snapshot()
 
         # TODO(panin): make convenient way for this
         # Stop master
@@ -21,4 +21,4 @@ class TestSnapshot(YTEnvSetup):
         # Restore master
         self.Env._run_masters(prepare_files=False)
 
-    	assert get('//tmp/a') == 42
+        assert get('//tmp/a') == 42

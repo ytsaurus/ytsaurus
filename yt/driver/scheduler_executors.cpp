@@ -30,7 +30,7 @@ TStartOpExecutor::TStartOpExecutor()
 EExitCode TStartOpExecutor::DoExecute(const TDriverRequest& request)
 {
     if (DontTrackArg.getValue()) {
-        return TExecutor::DoExecute(request);
+        return TRequestExecutor::DoExecute(request);
     }
 
     printf("Starting %s operation... ", ~GetCommandName().Quote());
@@ -346,7 +346,7 @@ void TAbortOpExecutor::BuildArgs(IYsonConsumer* consumer)
     BuildYsonMapFluently(consumer)  
         .Item("operation_id").Scalar(OpArg.getValue());
 
-    TExecutor::BuildArgs(consumer);
+    TRequestExecutor::BuildArgs(consumer);
 }
 
 Stroka TAbortOpExecutor::GetCommandName() const
@@ -362,18 +362,8 @@ TTrackOpExecutor::TTrackOpExecutor()
     CmdLine.add(OpArg);
 }
 
-EExitCode TTrackOpExecutor::Execute(const std::vector<std::string>& args)
+EExitCode TTrackOpExecutor::DoExecute()
 {
-    // TODO(babenko): get rid of this copy-paste
-    auto argsCopy = args;
-    CmdLine.parse(argsCopy);
-
-    InitConfig();
-
-    NLog::TLogManager::Get()->Configure(Config->Logging);
-
-    Driver = CreateDriver(Config);
-
     auto operationId = TOperationId::FromString(OpArg.getValue());
     printf("Started tracking operation %s\n", ~operationId.ToString());
 

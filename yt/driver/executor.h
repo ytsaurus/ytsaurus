@@ -28,8 +28,6 @@ DECLARE_ENUM(EExitCode,
     ((Error)(1))
 );
 
-////////////////////////////////////////////////////////////////////////////////
-
 class TExecutor
     : public TRefCounted
 {
@@ -40,15 +38,9 @@ public:
     virtual Stroka GetCommandName() const = 0;
 
 protected:
-    typedef TCLAP::UnlabeledValueArg<Stroka> TUnlabeledStringArg;
-
     TCLAP::CmdLine CmdLine;
     TCLAP::ValueArg<Stroka> ConfigArg;
-    TCLAP::ValueArg<Stroka> FormatArg;
-    TCLAP::ValueArg<Stroka> InputFormatArg;
-    TCLAP::ValueArg<Stroka> OutputFormatArg;
     TCLAP::MultiArg<Stroka> ConfigOptArg;
-    TCLAP::MultiArg<Stroka> OptArg;
 
     TExecutorConfigPtr Config;
     NDriver::IDriverPtr Driver;
@@ -56,7 +48,31 @@ protected:
     Stroka GetConfigFileName();
     void InitConfig();
     void ApplyConfigUpdates(NYTree::IYPathServicePtr service);
-    
+
+    virtual EExitCode DoExecute();
+};
+
+typedef TIntrusivePtr<TExecutor> TExecutorPtr;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRequestExecutor
+    : public TExecutor
+{
+public:
+    TRequestExecutor();
+
+protected:
+    typedef TCLAP::UnlabeledValueArg<Stroka> TUnlabeledStringArg;
+
+    TCLAP::ValueArg<Stroka> FormatArg;
+    TCLAP::ValueArg<Stroka> InputFormatArg;
+    TCLAP::ValueArg<Stroka> OutputFormatArg;
+    TCLAP::MultiArg<Stroka> OptArg;
+
+    virtual EExitCode DoExecute() override;
+    virtual EExitCode DoExecute(const TDriverRequest& request);
+
     NFormats::TFormat GetFormat(NFormats::EDataType dataType, const TNullable<NYTree::TYsonString>& yson);
 
     NYTree::IMapNodePtr GetArgs();
@@ -64,16 +80,14 @@ protected:
     // Construct args according to given options
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
 
-    virtual EExitCode DoExecute(const NDriver::TDriverRequest& request);
     virtual TInputStream* GetInputStream();
 };
 
-typedef TIntrusivePtr<TExecutor> TExecutorPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransactedExecutor
-    : public TExecutor
+    : public TRequestExecutor
 {
 public:
     explicit TTransactedExecutor(
