@@ -13,12 +13,11 @@ class TBuildSnapshotExecutor
 public:
     TBuildSnapshotExecutor();
 
-    virtual Stroka GetCommandName() const;
-
 private:
     TCLAP::SwitchArg SetReadOnlyArg;
 
-    virtual EExitCode DoExecute();
+    virtual EExitCode DoExecute() override;
+    virtual Stroka GetCommandName() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

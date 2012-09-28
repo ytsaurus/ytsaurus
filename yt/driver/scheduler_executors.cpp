@@ -362,18 +362,8 @@ TTrackOpExecutor::TTrackOpExecutor()
     CmdLine.add(OpArg);
 }
 
-EExitCode TTrackOpExecutor::Execute(const std::vector<std::string>& args)
+EExitCode TTrackOpExecutor::DoExecute()
 {
-    // TODO(babenko): get rid of this copy-paste
-    auto argsCopy = args;
-    CmdLine.parse(argsCopy);
-
-    InitConfig();
-
-    NLog::TLogManager::Get()->Configure(Config->Logging);
-
-    Driver = CreateDriver(Config);
-
     auto operationId = TOperationId::FromString(OpArg.getValue());
     printf("Started tracking operation %s\n", ~operationId.ToString());
 

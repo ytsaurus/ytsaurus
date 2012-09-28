@@ -70,7 +70,7 @@ protected:
     TCLAP::ValueArg<Stroka> OutputFormatArg;
     TCLAP::MultiArg<Stroka> OptArg;
 
-    virtual EExitCode DoExecute();
+    virtual EExitCode DoExecute() override;
     virtual EExitCode DoExecute(const TDriverRequest& request);
 
     NFormats::TFormat GetFormat(NFormats::EDataType dataType, const TNullable<NYTree::TYsonString>& yson);
