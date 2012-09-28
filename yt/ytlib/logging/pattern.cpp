@@ -40,21 +40,20 @@ Stroka FormatLevel(ELogLevel level)
 
 Stroka FormatMessage(const Stroka& message)
 {
-    return message;
-    //Stroka result;
-    //result.reserve(message.length() + 10);
-    //for (int index = 0; index < static_cast<int>(message.length()); ++index) {
-    //    switch (message[index]) {
-    //        case '\n':
-    //            result.append("\\n");
-    //            break;
+    Stroka result;
+    result.reserve(message.length() + 10);
+    for (int index = 0; index < static_cast<int>(message.length()); ++index) {
+        switch (message[index]) {
+            case '\n':
+                result.append("\\n");
+                break;
 
-    //        default:
-    //            result.append(message[index]);
-    //            break;
-    //    }
-    //}
-    //return result;
+            default:
+                result.append(message[index]);
+                break;
+        }
+    }
+    return result;
 }
 
 static void SetupFormatter(TPatternFormatter& formatter, const TLogEvent& event)
