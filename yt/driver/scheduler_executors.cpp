@@ -30,7 +30,7 @@ TStartOpExecutor::TStartOpExecutor()
 EExitCode TStartOpExecutor::DoExecute(const TDriverRequest& request)
 {
     if (DontTrackArg.getValue()) {
-        return TExecutor::DoExecute(request);
+        return TRequestExecutor::DoExecute(request);
     }
 
     printf("Starting %s operation... ", ~GetCommandName().Quote());
@@ -346,7 +346,7 @@ void TAbortOpExecutor::BuildArgs(IYsonConsumer* consumer)
     BuildYsonMapFluently(consumer)  
         .Item("operation_id").Scalar(OpArg.getValue());
 
-    TExecutor::BuildArgs(consumer);
+    TRequestExecutor::BuildArgs(consumer);
 }
 
 Stroka TAbortOpExecutor::GetCommandName() const

@@ -41,33 +41,12 @@ static const char* ConfigEnvVar = "YT_CONFIG";
 TExecutor::TExecutor()
     : CmdLine("Command line", ' ', YT_VERSION)
     , ConfigArg("", "config", "configuration file", false, "", "STRING")
-    , FormatArg("", "format", "format (both input and output)", false, "", "YSON")
-    , InputFormatArg("", "in_format", "input format", false, "", "YSON")
-    , OutputFormatArg("", "out_format", "output format", false, "", "YSON")
     , ConfigOptArg("", "config_opt", "override configuration option", false, "YPATH=YSON")
-    , OptArg("", "opt", "override command option", false, "YPATH=YSON")
 {
     CmdLine.add(ConfigArg);
-    CmdLine.add(FormatArg);
-    CmdLine.add(InputFormatArg);
-    CmdLine.add(OutputFormatArg);
     CmdLine.add(ConfigOptArg);
-    CmdLine.add(OptArg);
 }
 
-IMapNodePtr TExecutor::GetArgs()
-{
-    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
-    builder->BeginTree();
-    builder->OnBeginMap();
-    BuildArgs(~builder);
-    builder->OnEndMap();
-    auto args = builder->EndTree()->AsMap();
-    FOREACH (const auto& opt, OptArg.getValue()) {
-        ApplyYPathOverride(args, opt);
-    }
-    return args;
-}
 
 Stroka TExecutor::GetConfigFileName()
 {
@@ -152,11 +131,35 @@ EExitCode TExecutor::Execute(const std::vector<std::string>& args)
     InitConfig();
 
     NLog::TLogManager::Get()->Configure(Config->Logging);
-   
+
     Driver = CreateDriver(Config);
 
+    return DoExecute();
+}
+
+EExitCode TExecutor::DoExecute()
+{ }
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRequestExecutor::TRequestExecutor()
+    : FormatArg("", "format", "format (both input and output)", false, "", "YSON")
+    , InputFormatArg("", "in_format", "input format", false, "", "YSON")
+    , OutputFormatArg("", "out_format", "output format", false, "", "YSON")
+    , OptArg("", "opt", "override command option", false, "YPATH=YSON")
+{
+    CmdLine.add(FormatArg);
+    CmdLine.add(InputFormatArg);
+    CmdLine.add(OutputFormatArg);
+    CmdLine.add(OptArg);
+}
+
+
+EExitCode TRequestExecutor::DoExecute()
+{
     auto commandName = GetCommandName();
-    
+
     auto descriptor = Driver->FindCommandDescriptor(commandName);
     YASSERT(descriptor);
 
@@ -168,7 +171,7 @@ EExitCode TExecutor::Execute(const std::vector<std::string>& args)
     if (!OutputFormatArg.getValue().empty()) {
         outputFormatString = OutputFormatArg.getValue();
     }
-    
+
     TNullable<TYsonString> inputFormat, outputFormat;
     if (!inputFormatString.empty()) {
         inputFormat = TYsonString(inputFormatString);
@@ -200,11 +203,36 @@ EExitCode TExecutor::Execute(const std::vector<std::string>& args)
         THROW_ERROR_EXCEPTION("Error parsing output format")
             << ex;
     }
-
     return DoExecute(request);
 }
 
-TFormat TExecutor::GetFormat(EDataType dataType, const TNullable<TYsonString>& yson)
+EExitCode TRequestExecutor::DoExecute(const TDriverRequest& request)
+{
+    auto response = Driver->Execute(request);
+
+    if (!response.Error.IsOK()) {
+        THROW_ERROR response.Error;
+    }
+
+    return EExitCode::OK;
+}
+
+
+IMapNodePtr TRequestExecutor::GetArgs()
+{
+    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+    builder->BeginTree();
+    builder->OnBeginMap();
+    BuildArgs(~builder);
+    builder->OnEndMap();
+    auto args = builder->EndTree()->AsMap();
+    FOREACH (const auto& opt, OptArg.getValue()) {
+        ApplyYPathOverride(args, opt);
+    }
+    return args;
+}
+
+TFormat TRequestExecutor::GetFormat(EDataType dataType, const TNullable<TYsonString>& yson)
 {
     if (yson) {
         INodePtr node;
@@ -233,23 +261,12 @@ TFormat TExecutor::GetFormat(EDataType dataType, const TNullable<TYsonString>& y
     }
 }
 
-void TExecutor::BuildArgs(IYsonConsumer* consumer)
+void TRequestExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     UNUSED(consumer);
 }
 
-EExitCode TExecutor::DoExecute(const TDriverRequest& request)
-{
-    auto response = Driver->Execute(request);
-
-    if (!response.Error.IsOK()) {
-        THROW_ERROR response.Error;
-    }
-
-    return EExitCode::OK;
-}
-
-TInputStream* TExecutor::GetInputStream()
+TInputStream* TRequestExecutor::GetInputStream()
 {
     return &StdInStream();
 }
@@ -287,7 +304,7 @@ void TTransactedExecutor::BuildArgs(IYsonConsumer* consumer)
         })
         .Item("ping_ancestor_transactions").Scalar(PingAncestorTxsArg.getValue());
 
-    TExecutor::BuildArgs(consumer);
+    TRequestExecutor::BuildArgs(consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

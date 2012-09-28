@@ -145,7 +145,7 @@ private:
 //////////////////////////////////////////////////////////////////////////////////
 
 class TAbortOpExecutor
-    : public TExecutor
+    : public TRequestExecutor
 {
 public:
     TAbortOpExecutor();
@@ -160,7 +160,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTrackOpExecutor
-    : public TExecutor
+    : public TRequestExecutor
 {
 public:
     TTrackOpExecutor();
