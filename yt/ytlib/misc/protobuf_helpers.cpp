@@ -2,8 +2,11 @@
 #include "protobuf_helpers.h"
 
 #include <contrib/libs/protobuf/io/zero_copy_stream.h>
+#include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
 
 namespace NYT {
+
+using namespace google::protobuf::io;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,7 +105,15 @@ bool DeserializeFromProtoWithEnvelope(
     auto codec = GetCodec(codecId);
     auto serializedMessage = codec->Decompress(compressedMessage);
 
-    if (!message->ParseFromArray(serializedMessage.Begin(), serializedMessage.Size())) {
+    // Read comments to CodedInputStream::SetTotalBytesLimit (libs/protobuf/io/coded_stream.h)
+    // to find out more about protobuf message size limits.
+    ArrayInputStream arrayInputStream(serializedMessage.Begin(), serializedMessage.Size());
+    CodedInputStream codedInputStream(arrayInputStream);
+    codedInputStream.SetTotalBytesLimit(
+        serializedMessage.Size() + 1, 
+        serializedMessage.Size() + 1);
+
+    if (!message->ParseFromCodedStream(&codedInputStream) {
         return false;
     }
 
