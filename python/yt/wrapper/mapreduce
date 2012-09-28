@@ -409,7 +409,7 @@ Examples:
             yt.remove(dst[0])
         yt.upload_file(args.upload, destination=dst[0])
     if args.download is not None:
-        writelines_silently(yt.download_file(args.download))
+        writelines_silently(yt.download_file(args.download, response_type="iter_content"))
 
     if args.set:
         if args.value is None:
