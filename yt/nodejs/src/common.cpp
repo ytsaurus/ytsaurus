@@ -136,6 +136,8 @@ void ConsumeV8Value(Handle<Value> value, IYsonConsumer* consumer)
                 Local<Object>::Cast(Local<Value>::New(value)),
                 consumer);
         }
+    } else if (value->IsBoolean()) {
+        consumer->OnStringScalar(value->BooleanValue() ? "true" : "false");
     } else {
         THROW_ERROR_EXCEPTION("Unsupported JS value type within V8-to-YSON conversion");
     }
