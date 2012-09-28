@@ -1,19 +1,23 @@
 import config
 from common import require, YtError
 from path_tools import escape_path, escape_name
-from http import make_request
+from http import make_request, iter_lines
 from tree_commands import remove, exists, set_attribute, mkdir, find_free_subpath, set
 
 import os
-from itertools import imap
+import sys
 
-def download_file(path):
-    def add_eoln(str):
-        return str + "\n"
-    content = make_request("GET", "download",
+def download_file(path, response_type=None):
+    if response_type is None: response_type = "iter_lines"
+    response = make_request("GET", "download",
             {"path": escape_path(path),
              "transaction_id": config.TRANSACTION}, raw_response=True)
-    return imap(add_eoln, content.iter_lines())
+    if response_type == "iter_lines":
+        return iter_lines(response)
+    elif response_type == "iter_content":
+        return response.iter_content(chunk_size=config.HTTP_CHUNK_SIZE)
+    else:
+        raise YtError("Incorrent response type: " + response_type) 
 
 def upload_file(filename, yt_filename=None, destination=None, placement_strategy=None):
     """
