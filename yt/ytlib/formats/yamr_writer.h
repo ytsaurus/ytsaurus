@@ -5,6 +5,7 @@
 #include "helpers.h"
 
 #include <ytlib/misc/blob_output.h>
+#include <ytlib/misc/nullable.h>
 
 namespace NYT {
 namespace NFormats {
@@ -42,9 +43,9 @@ private:
     TOutputStream* Stream;
     TYamrFormatConfigPtr Config;
 
-    TStringBuf Key;
-    TStringBuf Subkey;
-    TStringBuf Value;
+    TNullable<TStringBuf> Key;
+    TNullable<TStringBuf> Subkey;
+    TNullable<TStringBuf> Value;
 
     TBlobOutput KeyBuffer;
     TBlobOutput SubkeyBuffer;

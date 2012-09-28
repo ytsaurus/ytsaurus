@@ -103,23 +103,21 @@ TEST(TYamrWriterTest, SkippedValues)
     TStringStream outputStream;
     TYamrWriter writer(&outputStream);
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("key");
-        writer.OnStringScalar("foo");
-        writer.OnKeyedItem("value");
-        writer.OnStringScalar("bar");
-    writer.OnEndMap();
+    auto DoWrite = [&]() {
+        writer.OnListItem();
+        writer.OnBeginMap();
+            writer.OnKeyedItem("key");
+            writer.OnStringScalar("foo");
+            writer.OnKeyedItem("value");
+            writer.OnStringScalar("bar");
+        writer.OnEndMap();
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-    writer.OnEndMap();
+        writer.OnListItem();
+        writer.OnBeginMap();
+        writer.OnEndMap();
+    };
 
-    Stroka output =
-        "foo\tbar\n"
-        "\t\n";
-
-    EXPECT_EQ(output, outputStream.Str());
+    EXPECT_THROW(DoWrite(), std::exception);
 }
 
 TEST(TYamrWriterTest, Lenval)
@@ -173,49 +171,34 @@ TEST(TYamrWriterTest, LenvalWithoutFields)
     config->Lenval = true;
     TYamrWriter writer(&outputStream, config);
 
-    // Note: order is unusual (value, key)
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("value");
-        writer.OnStringScalar("value1");
-        writer.OnKeyedItem("key");
-        writer.OnStringScalar("key1");
-    writer.OnEndMap();
+    auto DoWrite = [&]() {
+        // Note: order is unusual (value, key)
+        writer.OnListItem();
+        writer.OnBeginMap();
+            writer.OnKeyedItem("value");
+            writer.OnStringScalar("value1");
+            writer.OnKeyedItem("key");
+            writer.OnStringScalar("key1");
+        writer.OnEndMap();
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("subkey");
-        writer.OnStringScalar("subkey2");
-        writer.OnKeyedItem("key");
-        writer.OnStringScalar("key2");
-    writer.OnEndMap();
+        writer.OnListItem();
+        writer.OnBeginMap();
+            writer.OnKeyedItem("subkey");
+            writer.OnStringScalar("subkey2");
+            writer.OnKeyedItem("key");
+            writer.OnStringScalar("key2");
+        writer.OnEndMap();
 
-    writer.OnListItem();
-    writer.OnBeginMap();
-        writer.OnKeyedItem("value");
-        writer.OnStringScalar("value3");
-        writer.OnKeyedItem("subkey");
-        writer.OnStringScalar("subkey3");
-    writer.OnEndMap();
+        writer.OnListItem();
+        writer.OnBeginMap();
+            writer.OnKeyedItem("value");
+            writer.OnStringScalar("value3");
+            writer.OnKeyedItem("subkey");
+            writer.OnStringScalar("subkey3");
+        writer.OnEndMap();
+    };
 
-
-    Stroka output = Stroka(
-        "\x04\x00\x00\x00" "key1"
-        "\x00\x00\x00\x00"
-        "\x06\x00\x00\x00" "value1"
-
-        "\x04\x00\x00\x00" "key2"
-        "\x07\x00\x00\x00" "subkey2"
-        "\x00\x00\x00\x00" ""
-
-        "\x00\x00\x00\x00" ""
-        "\x07\x00\x00\x00" "subkey3"
-        "\x06\x00\x00\x00" "value3"
-
-        , 9 * 4 + (4 + 6) + (4 + 7) + (7 + 6) // all i32 + lengths of keys
-    );
-
-    EXPECT_EQ(output, outputStream.Str());
+    EXPECT_THROW(DoWrite(), std::exception);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -66,9 +66,9 @@ void TYamrWriter::OnBeginMap()
     }
     AllowBeginMap = false;
 
-    Key.Clear();
-    Subkey.Clear();
-    Value.Clear();
+    Key = Null;
+    Subkey = Null;
+    Value = Null;
 }
 
 void TYamrWriter::OnKeyedItem(const TStringBuf& key)
@@ -100,7 +100,7 @@ void TYamrWriter::OnEndAttributes()
 
 void TYamrWriter::RememberItem(const TStringBuf& item, bool takeOwnership)
 {
-    TStringBuf* value;
+    TNullable<TStringBuf>* value;
     TBlobOutput* buffer;
 
     switch (State) {
@@ -126,29 +126,37 @@ void TYamrWriter::RememberItem(const TStringBuf& item, bool takeOwnership)
     if (takeOwnership) {
         buffer->Clear();
         buffer->PutData(item);
-        *value = TStringBuf(buffer->Begin(), buffer->GetSize());
+        value->Assign(TStringBuf(buffer->Begin(), buffer->GetSize()));
     } else {
-        *value = item;
+        value->Assign(item);
     }
 }
 
 void TYamrWriter::WriteRow()
 {
+    if (!Key) {
+        THROW_ERROR_EXCEPTION("There is no key column for yamr format");
+    }
+    if (!Value) {
+        THROW_ERROR_EXCEPTION("There is no value column for yamr format");
+    }
+    TStringBuf subkey = Subkey ? *Subkey : "";
+
     if (!Config->Lenval) {
-        Stream->Write(Key);
+        Stream->Write(*Key);
         Stream->Write(Config->FieldSeparator);
         if (Config->HasSubkey) {
-            Stream->Write(Subkey);
+            Stream->Write(subkey);
             Stream->Write(Config->FieldSeparator);
         }
-        Stream->Write(Value);
+        Stream->Write(*Value);
         Stream->Write(Config->RecordSeparator);
     } else {
-        WriteInLenvalMode(Key);
+        WriteInLenvalMode(*Key);
         if (Config->HasSubkey) {
-            WriteInLenvalMode(Subkey);
+            WriteInLenvalMode(subkey);
         }
-        WriteInLenvalMode(Value);
+        WriteInLenvalMode(*Value);
     }
 }
 
