@@ -172,7 +172,7 @@ if [[ ( $WITH_PACKAGE = "YES" ) && ( $WITH_DEPLOY = "YES" ) ]]; then
         --data-urlencode "package[1]=yandex-yt-http-api" \
         --data-urlencode "version[1]=${package_version}" \
         --data-urlencode "ticket[branch]=testing" \
-        --data-urlencode "ticket[mailcc]=sandello@yandex-team.ru" \
+        --data-urlencode "ticket[mailcc]=yt-dev-root@yandex-team.ru" \
         --data-urlencode "ticket[comment]@${comment_file}" \
         --cookie "conductor_auth=$(cat ~/.conductor_auth)" \
         --header "Accept: application/xml" \
