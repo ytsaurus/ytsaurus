@@ -27,7 +27,7 @@ namespace NDetail {
 
 inline int futex(
     int* uaddr, int op, int val, const timespec* timeout,
-    int* uaddr2, int val3) noexcept
+    int* uaddr2, int val3)
 {
 #ifdef _linux_
     return syscall(SYS_futex, uaddr, op, val, timeout, uaddr2, val3);
