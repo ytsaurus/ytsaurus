@@ -1,7 +1,6 @@
 #pragma once
 
 #include "stream_base.h"
-#include "event_count.h"
 
 #include <ytlib/misc/event_count.h>
 
