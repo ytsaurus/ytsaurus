@@ -663,7 +663,7 @@ void TObjectManager::ExecuteVerb(
     const TVersionedObjectId& id,
     bool isWrite,
     IServiceContextPtr context,
-    TCallback<void(NRpc::IServiceContextPtr)> action)
+    TCallback<void(IServiceContextPtr)> action)
 {
     LOG_INFO_UNLESS(IsRecovery(), "ExecuteVerb: %s %s (ObjectId: %s, TransactionId: %s, IsWrite: %s)",
         ~context->GetVerb(),

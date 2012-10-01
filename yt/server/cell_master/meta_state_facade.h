@@ -17,6 +17,19 @@ DECLARE_ENUM(EStateThreadQueue,
     (Heartbeat)
 );
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TNotALeaderException
+    : public TErrorException
+{
+public:
+    TNotALeaderException()
+    { }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TMetaStateFacade
     : public TRefCounted
 {
@@ -47,6 +60,9 @@ public:
         EStateThreadQueue queue = EStateThreadQueue::Default);
 
     NMetaState::TMutationPtr CreateMutation(EStateThreadQueue queue = EStateThreadQueue::Default);
+
+    void ValidateLeaderStatus();
+    void ValidateInitialized();
 
 private:
     class TImpl;
