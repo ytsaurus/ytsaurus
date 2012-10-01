@@ -6,8 +6,10 @@
 #include "chunk_manager.h"
 
 #include <ytlib/object_client/public.h>
+
 #include <ytlib/table_client/key.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
+
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
 
@@ -22,11 +24,11 @@ using NTableClient::NProto::TKey;
 
 namespace {
 
-static const int MaxChunkPerAction = 1000;
+static const int MaxChunksPerAction = 1000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TBoundary>
+template <class TBoundary>
 class TChunkTreeTraverserBase
     : public virtual TRefCounted
 {
@@ -67,7 +69,7 @@ protected:
         auto chunkManager = Bootstrap->GetChunkManager();
 
         int currentChunkCount = 0;
-        while (currentChunkCount < MaxChunkPerAction) {
+        while (currentChunkCount < MaxChunksPerAction) {
             if (ChunkTreeStack.empty()) {
                 ChunkProcessor->OnComplete();
                 return;
@@ -166,7 +168,7 @@ public:
             childIndex,
             lowerBound,
             upperBound));
-        // Run first round syncronously.
+        // Run first round synchronously.
         DoTraverse();
     }
 
@@ -186,7 +188,7 @@ public:
 
     virtual void Run(
         const TChunkList* chunkList,
-        i64& lowerBound,
+        const i64& lowerBound,
         TNullable<i64>& upperBound) override
     {
         YCHECK(lowerBound >= 0);
