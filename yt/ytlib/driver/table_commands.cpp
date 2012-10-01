@@ -24,10 +24,11 @@ using namespace NTableClient;
 
 void TReadCommand::DoExecute()
 {
+    auto config = UpdateYsonSerializable(
+        Context->GetConfig()->TableReader,
+        Request->TableReaderConfig);
     auto reader = New<TTableReader>(
-        UpdateYsonSerializable(
-            Context->GetConfig()->TableReader,
-            Request->TableReaderConfig),
+        config,
         Context->GetMasterChannel(),
         GetTransaction(false),
         Context->GetBlockCache(),

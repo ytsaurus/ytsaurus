@@ -127,13 +127,13 @@ void TDsvWriter::OnEndAttributes()
     YUNREACHABLE();
 }
 
-void TDsvWriter::EscapeAndWrite(const TStringBuf& key, const bool* IsStopSymbol)
+void TDsvWriter::EscapeAndWrite(const TStringBuf& key, const bool* isStopSymbol)
 {
     if (Config->EnableEscaping) {
         auto current = key.begin();
         auto end = key.end();
         while (current != end) {
-            auto next = FindNextEscapedSymbol(current, end, IsStopSymbol);
+            auto next = FindNextEscapedSymbol(current, end, isStopSymbol);
             Stream->Write(current, next - current);
             if (next != end) {
                 Stream->Write(Config->EscapingSymbol);
@@ -150,11 +150,10 @@ void TDsvWriter::EscapeAndWrite(const TStringBuf& key, const bool* IsStopSymbol)
 const char* TDsvWriter::FindNextEscapedSymbol(
     const char* begin,
     const char* end,
-    const bool* IsStopSymbol)
+    const bool* isStopSymbol)
 {
-    auto current = begin;
-    for ( ; current != end; ++current) {
-        if (IsStopSymbol[static_cast<ui8>(*current)]) {
+    for (auto current = begin; current != end; ++current) {
+        if (isStopSymbol[static_cast<ui8>(*current)]) {
             return current;
         }
     }

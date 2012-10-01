@@ -104,7 +104,7 @@ public:
 
         auto it = Commands.find(request.CommandName);
         if (it == Commands.end()) {
-            response.Error = TError("Unknown command %s", ~request.CommandName.Quote());
+            response.Error = TError("Unknown command: %s", ~request.CommandName);
             return response;
         }
 
@@ -122,7 +122,7 @@ public:
             entry.Factory.Run(&context)->Execute();
             response = *context.GetResponse();
         } catch (const std::exception& ex) {
-            response.Error = TError("Uncaught exception: %s", ex.what());
+            response.Error = TError("Uncaught exception") << ex;
         }
 
         return response;
