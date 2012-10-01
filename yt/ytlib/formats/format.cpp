@@ -60,8 +60,8 @@ TFormat TFormat::FromYson(INodePtr node)
     try {
         type = ParseEnum<EFormatType>(typeStr);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Invalid format type %s",
-            ~typeStr.Quote());
+        THROW_ERROR_EXCEPTION("Invalid format type: %s",
+            ~typeStr);
     }
 
     return TFormat(type, &node->Attributes());
@@ -104,8 +104,8 @@ EYsonType DataTypeToYsonType(EDataType dataType)
         case EDataType::Tabular:
             return EYsonType::ListFragment;
         default:
-            THROW_ERROR_EXCEPTION("Data type %s is not supported by YSON",
-                ~FormatEnum(dataType).Quote());
+            THROW_ERROR_EXCEPTION("Data type is not supported by YSON: %s",
+                ~FormatEnum(dataType));
     }
 }
 
@@ -171,7 +171,7 @@ TAutoPtr<IYsonConsumer> CreateConsumerForJson(
     TOutputStream* output)
 {
     if (dataType != EDataType::Structured) {
-        THROW_ERROR_EXCEPTION("Json is supported only for Structured data");
+        THROW_ERROR_EXCEPTION("JSON is supported only for Structured data");
     }
     auto config = New<TJsonFormatConfig>();
     config->Load(ConvertToNode(&attributes)->AsMap());
@@ -207,7 +207,7 @@ TAutoPtr<IYsonConsumer> CreateConsumerForYamredDsv(
     TOutputStream* output)
 {
     if (dataType != EDataType::Tabular) {
-        ythrow yexception() << Sprintf("Yamred dsv is supported only for tabular data");
+        ythrow yexception() << Sprintf("Yamred DSV is supported only for tabular data");
     }
     auto config = New<TYamredDsvFormatConfig>();
     config->Load(ConvertToNode(&attributes)->AsMap());
@@ -229,8 +229,8 @@ TAutoPtr<IYsonConsumer> CreateConsumerForFormat(const TFormat& format, EDataType
         case EFormatType::YamredDsv:
             return CreateConsumerForYamredDsv(dataType, format.Attributes(), output);
         default:
-            THROW_ERROR_EXCEPTION("Unsupported output format %s",
-                ~FormatEnum(format.GetType()).Quote());
+            THROW_ERROR_EXCEPTION("Unsupported output format: %s",
+                ~FormatEnum(format.GetType()));
     }
 }
 
@@ -316,14 +316,14 @@ TYsonProducer CreateProducerForFormat(const TFormat& format, EDataType dataType,
         case EFormatType::YamredDsv:
             return CreateProducerForYamredDsv(dataType, format.Attributes(), input);
         default:
-            THROW_ERROR_EXCEPTION("Unsupported input format %s",
-                ~FormatEnum(format.GetType()).Quote());
+            THROW_ERROR_EXCEPTION("Unsupported input format: %s",
+                ~FormatEnum(format.GetType()));
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAutoPtr<NYTree::IParser> CreateParserForFormat(const TFormat& format, EDataType dataType, NYTree::IYsonConsumer* consumer)
+TAutoPtr<IParser> CreateParserForFormat(const TFormat& format, EDataType dataType, IYsonConsumer* consumer)
 {
     switch (format.GetType()) {
         case EFormatType::Yson:
@@ -349,8 +349,8 @@ TAutoPtr<NYTree::IParser> CreateParserForFormat(const TFormat& format, EDataType
             return CreateParserForYamredDsv(consumer, config);
         }
         default:
-            THROW_ERROR_EXCEPTION("Unsupported input format %s",
-                ~FormatEnum(format.GetType()).Quote());
+            THROW_ERROR_EXCEPTION("Unsupported input format: %s",
+                ~FormatEnum(format.GetType()));
     }
 }
 
