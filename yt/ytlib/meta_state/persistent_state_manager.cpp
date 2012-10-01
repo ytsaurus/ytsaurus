@@ -894,7 +894,7 @@ public:
             EpochControlInvoker);
         FollowerTracker->Start();
 
-        EpochStateInvoker->Invoke(BIND(
+        DecoratedState->GetSystemInvoker()->Invoke(BIND(
             &TThis::DoStateStartLeading,
             MakeStrong(this)));
     }
@@ -974,7 +974,7 @@ public:
         // This enables changelog truncation for those followers that are down and have uncommitted changes.
         auto version = DecoratedState->GetVersion();
         if (version.RecordCount > 0) {
-            LOG_INFO("Switching to a new changelog %d for the new epoch", version.SegmentId + 1);
+            LOG_INFO("Switching to a new changelog %d", version.SegmentId + 1);
             SnapshotBuilder->RotateChangeLog();
         }
 
