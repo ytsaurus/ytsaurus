@@ -183,7 +183,7 @@ TAsyncError TRecovery::ReplayChangeLogs(
         if (expectedPrevRecordCount != UnknownPrevRecordCount &&
             changeLog->GetPrevRecordCount() != expectedPrevRecordCount)
         {
-            LOG_FATAL("PrevRecordCount mismatch: expected: %d but found %d",
+            LOG_FATAL("PrevRecordCount mismatch: expected: %d, found %d",
                 expectedPrevRecordCount,
                 changeLog->GetPrevRecordCount());
         }
@@ -229,7 +229,7 @@ TAsyncError TRecovery::ReplayChangeLogs(
             auto currentVersion = DecoratedState->GetVersion();
             YCHECK(currentVersion.SegmentId <= segmentId);
 
-            // Check if the current state contains some changes that are not present in the remote changelog.
+            // Check if the current state contains some mutations that are not present in the remote changelog.
             // If so, clear the state and restart recovery.
             if (currentVersion.SegmentId == segmentId && currentVersion.RecordCount > remoteRecordCount) {
                 TError error("Current version is %s while only %d mutations are expected, forcing clear restart",
@@ -304,14 +304,14 @@ void TRecovery::ReplayChangeLog(
     std::vector<TSharedRef> records;
     changeLog.Read(startRecordId, recordCount, &records);
     if (records.size() != recordCount) {
-        LOG_FATAL("Not enough records in changelog %d: expected %d but found %d (StartRecordId: %d)",
+        LOG_FATAL("Not enough records in changelog %d: expected %d, found %d (StartRecordId: %d)",
             changeLog.GetId(),
             recordCount,
             static_cast<int>(records.size()),
             startRecordId);
     }
 
-    LOG_INFO("Applying %d changes to meta state", recordCount);
+    LOG_INFO("Applying %d mutations to meta state", recordCount);
     Profiler.Enqueue("/replay_change_count", recordCount);
 
     PROFILE_TIMING ("/replay_time") {
@@ -326,7 +326,7 @@ void TRecovery::ReplayChangeLog(
         }
     }
 
-    LOG_INFO("Finished applying changes");
+    LOG_INFO("Finished applying mutations");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -402,7 +402,6 @@ TFollowerRecovery::TFollowerRecovery(
         controlInvoker,
         epochControlInvoker,
         epochStateInvoker)
-    , Promise(NewPromise<TError>())
     , TargetVersion(targetVersion)
 { }
 
@@ -413,23 +412,16 @@ TAsyncError TFollowerRecovery::Run()
     PostponedVersion = TargetVersion;
     YCHECK(PostponedMutations.empty());
 
-    auto this_ = MakeStrong(this);
-    BIND(
-        &TRecovery::RecoverToState,
-        MakeStrong(this),
-        TargetVersion)
-    .AsyncVia(EpochStateInvoker)
-    .Run()
-    .Apply(BIND(
-        &TFollowerRecovery::OnSyncReached,
-        MakeStrong(this)))
-    // TODO(sandello): Remove a lambda here when listeners accept
-    // const-reference.
-    .Subscribe(BIND([this, this_] (TError error) mutable {
-        Promise.Set(MoveRV(error));
-    }));
-
-    return Promise;
+    return
+        BIND(
+            &TRecovery::RecoverToState,
+            MakeStrong(this),
+            TargetVersion)
+        .AsyncVia(EpochStateInvoker)
+        .Run()
+        .Apply(BIND(
+            &TFollowerRecovery::OnSyncReached,
+            MakeStrong(this)));
 }
 
 TAsyncError TFollowerRecovery::OnSyncReached(TError error)
@@ -452,31 +444,31 @@ TAsyncError TFollowerRecovery::CapturePostponedMutations()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (PostponedMutations.empty()) {
-        LOG_INFO("No postponed changes left");
+        LOG_INFO("No postponed mutations left");
         return MakeFuture(TError());
     }
 
-    THolder<TPostponedMutations> changes(new TPostponedMutations());
-    changes->swap(PostponedMutations);
+    TPostponedMutations mutations;
+    mutations.swap(PostponedMutations);
 
-    LOG_INFO("Captured %" PRISZT " postponed changes", changes->size());
+    LOG_INFO("Captured %" PRISZT " postponed mutations", mutations.size());
 
     return BIND(
                &TFollowerRecovery::ApplyPostponedMutations,
                MakeStrong(this),
-               Passed(MoveRV(changes)))
+               Passed(MoveRV(mutations)))
            .AsyncVia(EpochStateInvoker)
            .Run();
 }
 
 TAsyncError TFollowerRecovery::ApplyPostponedMutations(
-    TAutoPtr<TPostponedMutations> mutations)
+    TPostponedMutations mutations)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    LOG_INFO("Applying %" PRISZT " postponed mutations", mutations->size());
+    LOG_INFO("Applying %" PRISZT " postponed mutations", mutations.size());
     
-    FOREACH (const auto& mutation, *mutations) {
+    FOREACH (const auto& mutation, mutations) {
         switch (mutation.Type) {
             case TPostponedMutation::EType::Mutation: {
                 auto version = DecoratedState->GetVersion();
@@ -501,9 +493,7 @@ TAsyncError TFollowerRecovery::ApplyPostponedMutations(
    
     LOG_INFO("Finished applying postponed mutations");
 
-    return BIND(
-               &TFollowerRecovery::CapturePostponedMutations,
-               MakeStrong(this))
+    return BIND(&TFollowerRecovery::CapturePostponedMutations, MakeStrong(this))
            .AsyncVia(EpochControlInvoker)
            .Run();
 }
@@ -514,14 +504,14 @@ TError TFollowerRecovery::PostponeSegmentAdvance(
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (PostponedVersion > version) {
-        LOG_DEBUG("Late segment advance received during recovery, ignored: expected %s but received %s",
+        LOG_DEBUG("Late segment advance received during recovery, ignored: expected %s, received %s",
             ~PostponedVersion.ToString(),
             ~version.ToString());
         return TError();
     }
 
     if (PostponedVersion < version) {
-        TError error("Out-of-order segment advance received during recovery: expected %s but received %s",
+        TError error("Out-of-order segment advance received during recovery: expected %s, received %s",
             ~PostponedVersion.ToString(),
             ~version.ToString());
         return error;
@@ -529,7 +519,8 @@ TError TFollowerRecovery::PostponeSegmentAdvance(
 
     PostponedMutations.push_back(TPostponedMutation::CreateSegmentAdvance());
     
-    LOG_DEBUG("Postponing segment advance at version %s", ~PostponedVersion.ToString());
+    LOG_DEBUG("Postponing segment advance at version %s",
+        ~PostponedVersion.ToString());
 
     ++PostponedVersion.SegmentId;
     PostponedVersion.RecordCount = 0;
@@ -544,14 +535,14 @@ TError TFollowerRecovery::PostponeMutations(
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (PostponedVersion > version) {
-        LOG_WARNING("Late mutations received during recovery, ignored: expected %s but received %s",
+        LOG_WARNING("Late mutations received during recovery, ignored: expected %s, received %s",
             ~PostponedVersion.ToString(),
             ~version.ToString());
         return TError();
     }
 
     if (PostponedVersion != version) {
-        TError error("Out-of-order mutations received during recovery: expected %s but received %s",
+        TError error("Out-of-order mutations received during recovery: expected %s, received %s",
             ~PostponedVersion.ToString(),
             ~version.ToString());
         return error;

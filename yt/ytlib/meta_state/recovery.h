@@ -228,7 +228,6 @@ private:
     typedef std::vector<TPostponedMutation> TPostponedMutations;
 
     // Any thread.
-    TAsyncErrorPromise Promise;
     TMetaVersion TargetVersion;
 
     // Control thread
@@ -237,7 +236,7 @@ private:
     
     TAsyncError OnSyncReached(TError erro);
     TAsyncError CapturePostponedMutations();
-    TAsyncError ApplyPostponedMutations(TAutoPtr<TPostponedMutations> mutations);
+    TAsyncError ApplyPostponedMutations(TPostponedMutations mutations);
 
     virtual bool IsLeader() const;
 
