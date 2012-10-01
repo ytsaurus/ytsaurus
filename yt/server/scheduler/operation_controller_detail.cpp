@@ -333,6 +333,7 @@ void TOperationControllerBase::Initialize()
         table.Path = path;
         if (path.Attributes().Get<bool>("overwrite", false)) {
             table.Clear = true;
+            table.Overwrite = true;
             table.LockMode = ELockMode::Exclusive;
         }
         OutputTables.push_back(table);
@@ -1251,7 +1252,11 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 auto rsp = getOutRowCountRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting \"row_count\" attribute for output table %s",
                     ~table.Path.GetPath());
-                table.InitialRowCount = ConvertTo<i64>(TYsonString(rsp->value()));
+                i64 initialRowCount = ConvertTo<i64>(TYsonString(rsp->value()));
+                if (initialRowCount > 0 && table.Clear && !table.Overwrite) {
+                    THROW_ERROR_EXCEPTION("Output table %s must be empty (use \"overwrite\" attribute to force clearing it)",
+                        ~table.Path.GetPath());
+                }
             }
             if (table.Clear) {
                 auto rsp = clearOutRsps[index];
@@ -1473,16 +1478,6 @@ bool TOperationControllerBase::CheckKeyColumnsCompatible(
     }
 
     return true;
-}
-
-void TOperationControllerBase::CheckOutputTablesEmpty()
-{
-    FOREACH (const auto& table, OutputTables) {
-        if (table.InitialRowCount > 0 && !table.Clear) {
-            THROW_ERROR_EXCEPTION("Output table %s is not empty",
-                ~table.Path.GetPath());
-        }
-    }
 }
 
 void TOperationControllerBase::RegisterOutputChunkTree(

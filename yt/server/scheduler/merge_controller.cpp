@@ -687,6 +687,7 @@ private:
         {
             auto& table = OutputTables[0];
             table.Clear = true;
+            table.Overwrite = true;
             table.LockMode = ELockMode::Exclusive;
         }
     }
@@ -1171,7 +1172,6 @@ private:
     {
         TSortedMergeControllerBase::OnCustomInputsRecieved(batchRsp);
 
-        CheckOutputTablesEmpty();
         OutputTables[0].KeyColumns = KeyColumns;
     }
 

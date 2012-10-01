@@ -1211,7 +1211,6 @@ private:
     {
         UNUSED(batchRsp);
 
-        CheckOutputTablesEmpty();
         OutputTables[0].KeyColumns = Spec->SortBy;
     }
 
