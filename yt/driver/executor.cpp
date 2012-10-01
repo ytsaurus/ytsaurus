@@ -137,10 +137,6 @@ EExitCode TExecutor::Execute(const std::vector<std::string>& args)
     return DoExecute();
 }
 
-EExitCode TExecutor::DoExecute()
-{ }
-
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TRequestExecutor::TRequestExecutor()
@@ -203,6 +199,7 @@ EExitCode TRequestExecutor::DoExecute()
         THROW_ERROR_EXCEPTION("Error parsing output format")
             << ex;
     }
+
     return DoExecute(request);
 }
 
