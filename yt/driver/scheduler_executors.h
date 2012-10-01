@@ -153,7 +153,7 @@ public:
 private:
     TCLAP::UnlabeledValueArg<Stroka> OpArg;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override override;
+    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
 };
 
