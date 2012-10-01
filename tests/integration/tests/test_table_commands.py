@@ -320,5 +320,4 @@ class TestTableCommands(YTEnvSetup):
         self.assertEqual(exists("//tmp/t/@chunk_ids[0]"), "false")
 
     def test_invalid_channels_in_create(self):
-        with pytest.raises(YTError): create('table', '//tmp/t', channels=123)
-
+        with pytest.raises(YTError): create('table', '//tmp/t', opt='channels=123')
