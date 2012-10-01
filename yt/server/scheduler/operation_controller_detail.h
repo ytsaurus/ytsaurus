@@ -124,13 +124,13 @@ protected:
         : public TTableBase
     {
         TOutputTable()
-            : InitialRowCount(0)
-            , Clear(false)
+            : Clear(false)
+            , Overwrite(false)
             , LockMode(NCypressClient::ELockMode::Shared)
         { }
 
-        i64 InitialRowCount;
         bool Clear;
+        bool Overwrite;
         NCypressClient::ELockMode LockMode;
         TNullable< std::vector<Stroka> > KeyColumns;
         NYTree::TYsonString Channels;
@@ -402,7 +402,6 @@ protected:
     static bool CheckKeyColumnsCompatible(
         const std::vector<Stroka>& fullColumns,
         const std::vector<Stroka>& prefixColumns);
-    void CheckOutputTablesEmpty();
     void RegisterOutputChunkTree(
         const NChunkServer::TChunkTreeId& chunkTreeId,
         int key,
