@@ -5,6 +5,8 @@ target=$2
 
 codec=$3
 
+CLUSTER_NAME="redwood.yandex.ru"
+
 [[ -z $source ]] && exit 1
 [[ -z $target ]] && exit 2
 
@@ -37,7 +39,7 @@ keep_tx $tx &
 echo "--- Working within transaction '$tx'" >&2
 
 time MR_USER=tmp \
-    ./mapreduce -server "redwood.yandex.ru:8013" \
+    ./mapreduce -server "${CLUSTER_NAME}:8013" \
     -src "$source" -dst tmp/null \
     -subkey -lenval \
     -file ./libc.so.6 \
@@ -58,7 +60,7 @@ time MR_USER=tmp \
 success=$?
 
 src_row_count=$(\
-    wget -qO - "http://redwood.yandex.ru:13013/debug?info=table&table=$source" \
+    wget -qO - "http://${CLUSTER_NAME}:13013/debug?info=table&table=$source" \
     | grep '<b>Records:' \
     | perl -pe 's/^<b>Records:\s*<\/b>([\d,]+).*$/\1/;s/,//g' \
 )
