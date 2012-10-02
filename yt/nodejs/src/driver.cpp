@@ -5,9 +5,13 @@
 #include "output_stream.h"
 #include "output_stack.h"
 
+#include <ytlib/misc/error.h>
+
 #include <ytlib/ytree/node.h>
+
 #include <ytlib/driver/config.h>
 #include <ytlib/driver/driver.h>
+
 #include <ytlib/formats/format.h>
 
 #include <util/memory/tempbuf.h>
@@ -39,7 +43,7 @@ struct TExecuteRequest
 
     Persistent<Function> Callback;
 
-    Stroka Exception;
+    TError Error;
 
     TDriverRequest DriverRequest;
     TDriverResponse DriverResponse;
@@ -433,8 +437,12 @@ void TNodeJSDriver::ExecuteWork(uv_work_t* workRequest)
         } else {
             request->DriverResponse = request->Host->Driver->Execute(request->DriverRequest);
         }
+    } catch (const TErrorException& ex) {
+        LOG_ERROR(ex.Error(), "Caught error exception while executing driver request");
+        request->Error = TError("Failed to execute driver request") << ex;
     } catch (const std::exception& ex) {
-        request->Exception = ex.what();
+        LOG_ERROR(TError(ex), "Caught unknown exception while executing driver request");
+        request->Error = TError("Unknown error while executing driver request") << TError(ex);
     }
 }
 
@@ -445,7 +453,11 @@ void TNodeJSDriver::ExecuteAfter(uv_work_t* workRequest)
 
     TExecuteRequest* request = container_of(workRequest, TExecuteRequest, Request);
 
-    request->Finish();
+    try {
+        request->Finish();
+    } catch (const std::exception& ex) {
+        LOG_INFO(TError(ex), "Ignoring exception while closing driver output stream");
+    }
 
     {
         TryCatch block;
@@ -460,9 +472,11 @@ void TNodeJSDriver::ExecuteAfter(uv_work_t* workRequest)
             Local<Value>::New(v8::Null())
         };
 
-        if (!request->Exception.empty()) {
-            args[0] = String::New(~request->Exception);
+        if (!request->IsOK()) {
+            // TODO(sandello): Implement TError-to-V8 conversion here for request->Error
+            args[0] = String::New(~ToString(request->Error));
         } else {
+            // TODO(sandello): Implement TError-to-V8 conversion here for request->DriverResponse.Error
             args[1] = Integer::New(
                 request->DriverResponse.Error.GetCode());
             args[2] = String::New(
