@@ -4,6 +4,7 @@
 
 #include <ytlib/actions/action_queue.h>
 #include <ytlib/logging/log.h>
+#include <ytlib/profiling/timing.h>
 
 #include <util/system/hostname.h>
 #include <util/generic/singleton.h>
@@ -240,6 +241,8 @@ TFuture< TValueOrError<TNetworkAddress> > TAddressResolver::Resolve(const Stroka
 
 TValueOrError<TNetworkAddress> TAddressResolver::DoResolve(const Stroka& hostName)
 {
+    static const auto WarningDuration = TDuration::MilliSeconds(100);
+
     addrinfo hints;
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;    // Allow both IPv4 and IPv6 addresses.
@@ -249,11 +252,13 @@ TValueOrError<TNetworkAddress> TAddressResolver::DoResolve(const Stroka& hostNam
 
     LOG_DEBUG("Started resolving host %s", ~hostName);
 
+    auto startTime = NProfiling::GetCpuInstant();
     int gaiResult = getaddrinfo(
         ~hostName,
         NULL,
         &hints,
         &addrInfo);
+    auto duration = NProfiling::CpuDurationToDuration(GetCpuInstant() - startTime);
 
     if (gaiResult != 0) {
         auto gaiError = TError(Stroka(gai_strerror(gaiResult)))
@@ -262,6 +267,10 @@ TValueOrError<TNetworkAddress> TAddressResolver::DoResolve(const Stroka& hostNam
             << gaiError;
         LOG_WARNING(error);
         return error;
+    } else if (duration > WarningDuration) {
+        LOG_WARNING("Too long dns lookup (Host: %s, Duration: %s)",
+            ~hostName
+            ~ToString(duration));
     }
 
     TNullable<TNetworkAddress> result;
