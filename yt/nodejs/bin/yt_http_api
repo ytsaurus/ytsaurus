@@ -46,9 +46,6 @@ var opts = require("optimist")
     .alias("h", "help")
     .boolean("h")
     .describe("h", "Show help message")
-
-    .boolean("profiler")
-    .describe("profiler", "Enable V8 profiler")
     ;
 
 if (opts.argv.h) {
@@ -111,16 +108,8 @@ configuration = merge(configuration, {
 
 process.title = "YtHttpProxy";
 
-var agent = null;
-var profiler = null;
-
-if (opts.argv.profiler) {
-    agent = require("webkit-devtools-agent");
-    profiler = require("v8-profiler");
-    console.error("*** V8 Profiler and WebKit Developer Tools are enabled");
-    console.error("*** Send SIGUSR1 to fire up debugger");
-    console.error("*** Send SIGUSR2 to take a heap snapshot and fire up DT");
-}
+var agent = require("webkit-devtools-agent");
+var profiler = require("v8-profiler");
 
 if (configuration.logging) {
     var path = configuration.logging.filename;
@@ -140,6 +129,7 @@ var logger = new winston.Logger({
 });
 
 if (configuration.number_of_workers > 0 && cluster.isMaster) {
+    process.title = "YtHttpProxy (master)";
     console.error("Starting master proxy (PID: %s)", process.pid);
     function spawnWorker() {
         var worker = cluster.fork();
@@ -164,6 +154,7 @@ if (configuration.number_of_workers > 0 && cluster.isMaster) {
         spawnWorker();
     });
 } else {
+    process.title = "YtHttpProxy (worker)";
     console.error("Starting worker proxy (PID: %s)", process.pid);
     if (opts.argv.profiler) {
         process.on("SIGUSR1", function() {
