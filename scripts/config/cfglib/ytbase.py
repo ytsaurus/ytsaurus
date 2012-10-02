@@ -7,7 +7,7 @@ import stat
 import sys
 from collections import namedtuple
 
-import yson
+from yt import yson
 
 if os.name == 'nt':
     SCRIPT_EXT = 'bat'
@@ -75,7 +75,7 @@ class Node(AggrBase):
         return os.path.join(cls.work_dir, cls.__name__ + '.debug.log')
 
     def makeConfig(cls, fd):
-        yson.yson.dump(cls.config, fd, indent='  ')
+        yson.dump(cls.config, fd, indent='  ')
 
     def defaultFile(cls, fd, descr):
         raise "No file creation method for node (%s) and file %s" % (cls.path, desrc.name)
