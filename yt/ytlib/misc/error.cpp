@@ -47,7 +47,7 @@ TError::TError(const TError& other)
 
 TError::TError(TError&& other)
     : Code_(other.Code_)
-    , Message_(other.Message_)
+    , Message_(MoveRV(other.Message_))
     , Attributes_(other.Attributes_)
     , InnerErrors_(MoveRV(other.InnerErrors_))
 { }

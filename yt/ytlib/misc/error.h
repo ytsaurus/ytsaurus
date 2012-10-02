@@ -54,7 +54,7 @@ public:
 
     enum
     {
-        OK = 0, 
+        OK = 0,
         Fail = INT_MAX
     };
 
