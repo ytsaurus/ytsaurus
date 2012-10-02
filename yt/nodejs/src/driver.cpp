@@ -261,18 +261,23 @@ Handle<Value> TNodeJSDriver::New(const Arguments& args)
     EXPECT_THAT_IS(args[0], Boolean);
     EXPECT_THAT_IS(args[1], Object);
 
+    TNodeJSDriver* host = NULL;
     try {
-        THolder<TNodeJSDriver> host = new TNodeJSDriver(
+        host = new TNodeJSDriver(
             args[0]->BooleanValue(),
             args[1].As<Object>());
+        host->Wrap(args.This());
 
         if (host->Driver) {
-            host.Release()->Wrap(args.This());
             return args.This();
         } else {
-            return ThrowException(Exception::Error(String::New(host->Message.c_str())));
+            return ThrowException(Exception::Error(String::New(~host->Message)));
         }
     } catch (const std::exception& ex) {
+        if (host) {
+            delete host;
+        }
+
         return ThrowException(Exception::Error(String::New(ex.what())));
     }
 }
