@@ -9,6 +9,8 @@
 
 #include <ytlib/ytree/node.h>
 
+#include <ytlib/logging/log.h>
+
 #include <ytlib/driver/config.h>
 #include <ytlib/driver/driver.h>
 
@@ -31,6 +33,8 @@ using namespace NFormats;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+NLog::TLogger Logger("HttpProxy");
 
 // TODO(sandello): Refactor this huge mess.
 struct TExecuteRequest
@@ -477,7 +481,7 @@ void TNodeJSDriver::ExecuteAfter(uv_work_t* workRequest)
             Local<Value>::New(v8::Null())
         };
 
-        if (!request->IsOK()) {
+        if (!request->Error.IsOK()) {
             // TODO(sandello): Implement TError-to-V8 conversion here for request->Error
             args[0] = String::New(~ToString(request->Error));
         } else {
