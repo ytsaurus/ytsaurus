@@ -258,7 +258,7 @@ TValueOrError<TNetworkAddress> TAddressResolver::DoResolve(const Stroka& hostNam
         NULL,
         &hints,
         &addrInfo);
-    auto duration = NProfiling::CpuDurationToDuration(GetCpuInstant() - startTime);
+    auto duration = NProfiling::CpuDurationToDuration(NProfiling::GetCpuInstant() - startTime);
 
     if (gaiResult != 0) {
         auto gaiError = TError(Stroka(gai_strerror(gaiResult)))
@@ -269,7 +269,7 @@ TValueOrError<TNetworkAddress> TAddressResolver::DoResolve(const Stroka& hostNam
         return error;
     } else if (duration > WarningDuration) {
         LOG_WARNING("Too long dns lookup (Host: %s, Duration: %s)",
-            ~hostName
+            ~hostName,
             ~ToString(duration));
     }
 
