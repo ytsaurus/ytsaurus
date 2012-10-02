@@ -132,8 +132,8 @@ class Holder(Server):
     nodeid = Subclass(xrange(49))
 
     log_disk = 'disk1'
-    log_path = Template("node-%(groupid)d-%(nodeid)d.log")
-    debug_log_path = Template("node-%(groupid)d-%(nodeid)d.debug.log")
+    log_path = Template("node-%(nodeid)d.log")
+    debug_log_path = Template("node-%(nodeid)d.debug.log")
     
     @propmethod
     def host(cls):
