@@ -1602,7 +1602,9 @@ TJobIOConfigPtr TOperationControllerBase::BuildJobIOConfig(
     TJobIOConfigPtr schedulerConfig,
     INodePtr specConfigNode)
 {
-    return UpdateYsonSerializable(schedulerConfig, specConfigNode);
+    auto config = UpdateYsonSerializable(schedulerConfig, specConfigNode);
+    config->Validate();
+    return config;
 }
 
 void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr config)

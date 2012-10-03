@@ -97,8 +97,15 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
             return;
         }
 
-        auto ioConfig = New<TJobIOConfig>();
-        ioConfig->Load(ioConfigNode);
+        try {
+            auto ioConfig = New<TJobIOConfig>();
+            ioConfig->Load(ioConfigNode);
+        } catch (const std::exception& ex) {
+            auto error = TError("Error validating job IO configuration")
+                << ex;
+            DoAbort(error, EJobState::Failed);
+            return;
+        }
 
         auto proxyConfig = CloneYsonSerializable(ProxyConfig);
         proxyConfig->JobIO = ioConfig;
