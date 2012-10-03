@@ -160,7 +160,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTrackOpExecutor
-    : public TRequestExecutor
+    : public TExecutor
 {
 public:
     TTrackOpExecutor();
