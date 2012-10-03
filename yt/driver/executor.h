@@ -49,7 +49,7 @@ protected:
     void InitConfig();
     void ApplyConfigUpdates(NYTree::IYPathServicePtr service);
 
-    virtual EExitCode DoExecute();
+    virtual EExitCode DoExecute() = 0;
 };
 
 typedef TIntrusivePtr<TExecutor> TExecutorPtr;

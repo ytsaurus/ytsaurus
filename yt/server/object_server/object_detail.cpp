@@ -79,17 +79,6 @@ TObjectWithIdBase::TObjectWithIdBase(const TObjectId& id)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLeaderFallbackException
-    : public std::runtime_error
-{
-public:
-    TLeaderFallbackException()
-        : std::runtime_error("Not a leader")
-    { }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 TUserAttributeDictionary::TUserAttributeDictionary(
     TObjectManagerPtr objectManager,
     const TObjectId& objectId)
@@ -212,7 +201,7 @@ void TObjectProxyBase::GuardedInvoke(IServiceContextPtr context)
 {
     try {
         DoInvoke(context);
-    } catch (const TLeaderFallbackException&) {
+    } catch (const TNotALeaderException&) {
         ForwardToLeader(context);
     } catch (const std::exception& ex) {
         context->Reply(ex);
@@ -346,13 +335,7 @@ bool TObjectProxyBase::IsRecovery() const
 
 void TObjectProxyBase::ValidateLeaderStatus()
 {
-    auto metaStateManager = Bootstrap->GetMetaStateFacade()->GetManager();
-    if (metaStateManager->GetStateStatus() != EPeerStatus::Leading) {
-        throw TLeaderFallbackException();
-    }
-    if (!metaStateManager->HasActiveQuorum()) {
-        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "No active quorum");
-    }
+    Bootstrap->GetMetaStateFacade()->ValidateLeaderStatus();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

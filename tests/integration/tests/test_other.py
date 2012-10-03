@@ -100,3 +100,14 @@ class TestResourceLeak2(YTEnvSetup):
         lock('//tmp/file', mode='snapshot', tx=tx)
         remove('//tmp/file')
         commit_transaction(tx)
+
+###################################################################################
+
+class TestVirtualMaps(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 0
+
+    def test_chunks(self):
+        assert get('//sys/chunks/@count') == 0
+        assert get('//sys/underreplicated_chunks/@count') == 0
+        assert get('//sys/overreplicated_chunks/@count') == 0

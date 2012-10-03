@@ -82,6 +82,11 @@ public:
         }
     }
 
+    void Start()
+    {
+        MetaStateManager->Start();
+    }
+
     TCompositeMetaStatePtr GetState() const
     {
         return MetaState;
@@ -122,9 +127,23 @@ public:
         return GuardedEpochInvokers[queue];
     }
 
-    void Start()
+    void ValidateLeaderStatus()
     {
-        MetaStateManager->Start();
+        if (MetaStateManager->GetStateStatus() != EPeerStatus::Leading) {
+            throw TNotALeaderException()
+                <<= ERROR_SOURCE_LOCATION()
+                >>= TError(EErrorCode::Unavailable, "Not a leader");
+        }
+        if (!MetaStateManager->HasActiveQuorum()) {
+            THROW_ERROR_EXCEPTION(EErrorCode::Unavailable, "No active quorum");
+        }
+    }
+
+    void ValidateInitialized()
+    {
+        if (!IsInitialized()) {
+            THROW_ERROR_EXCEPTION(EErrorCode::Unavailable, "Not initialized yet");
+        }
     }
 
 private:
@@ -444,6 +463,16 @@ TMutationPtr TMetaStateFacade::CreateMutation(EStateThreadQueue queue)
     return New<TMutation>(
         GetManager(),
         GetGuardedEpochInvoker(queue));
+}
+
+void TMetaStateFacade::ValidateLeaderStatus()
+{
+    return Impl->ValidateLeaderStatus();
+}
+
+void TMetaStateFacade::ValidateInitialized()
+{
+    return Impl->ValidateInitialized();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

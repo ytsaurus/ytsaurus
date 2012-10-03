@@ -80,7 +80,7 @@ public:
     }
 
     virtual TAutoPtr<ICypressNode> Create(
-        NTransactionServer::TTransaction* transaction,
+        TTransaction* transaction,
         TReqCreate* request,
         TRspCreate* response) override
     {
@@ -111,7 +111,7 @@ public:
 
     virtual ICypressNodeProxyPtr GetProxy(
         ICypressNode* trunkNode,
-        NTransactionServer::TTransaction* transaction) override
+        TTransaction* transaction) override
     {
         return New<TTableNodeProxy>(
             this,

@@ -25,20 +25,12 @@ TMetaStateServiceBase::TMetaStateServiceBase(
 
 void TMetaStateServiceBase::ValidateLeaderStatus()
 {
-    auto metaStateManager = Bootstrap->GetMetaStateFacade()->GetManager();
-    if (metaStateManager->GetStateStatus() != EPeerStatus::Leading) {
-        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Not a leader");
-    }
-    if (!metaStateManager->HasActiveQuorum()) {
-        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "No active quorum");
-    }
+    Bootstrap->GetMetaStateFacade()->ValidateLeaderStatus();
 }
 
 void TMetaStateServiceBase::ValidateInitialized()
 {
-    if (!Bootstrap->GetMetaStateFacade()->IsInitialized()) {
-        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Not initialized yet");
-    }
+    Bootstrap->GetMetaStateFacade()->ValidateInitialized();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

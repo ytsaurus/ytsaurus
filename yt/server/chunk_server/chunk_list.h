@@ -18,11 +18,10 @@ namespace NChunkServer {
 
 struct TVersionedChunkListId
 {
-    TChunkListId Id;
-    int Version;
-
     TVersionedChunkListId(const TChunkListId& id, int version);
 
+    TChunkListId Id;
+    int Version;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,7 +32,7 @@ class TChunkList
     DEFINE_BYREF_RW_PROPERTY(std::vector<TChunkTreeRef>, Children);
 
     // Accumulated sums of children row counts .
-    // i-th value is equal to the sum of row counts of children 0..i 
+    // The i-th value is equal to the sum of row counts of children 0..i 
     // for all i in [0..Children.size() - 2]
     // Accumalated statistic for the last child (which is effectively total chunk list statistic)
     // is stored in #Statistics field.

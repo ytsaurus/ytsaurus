@@ -28,6 +28,48 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TLeaderValidatorWrapper
+    : public IYPathService
+{
+public:
+    TLeaderValidatorWrapper(
+        TBootstrap* bootstrap,
+        IYPathServicePtr underlyingService)
+        : Bootstrap(bootstrap)
+        , UnderlyingService(underlyingService)
+    { }
+
+    virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr context) override
+    {
+        UNUSED(path);
+        UNUSED(context);
+        YUNREACHABLE();
+    }
+
+    virtual void Invoke(IServiceContextPtr context) override
+    {
+        Bootstrap->GetMetaStateFacade()->ValidateLeaderStatus();
+        UnderlyingService->Invoke(context);
+    }
+
+    virtual Stroka GetLoggingCategory() const override
+    {
+        return UnderlyingService->GetLoggingCategory();
+    }
+
+    virtual bool IsWriteRequest(IServiceContextPtr context) const override
+    {
+        return UnderlyingService->IsWriteRequest(context);
+    }
+
+private:
+    TBootstrap* Bootstrap;
+    IYPathServicePtr UnderlyingService;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TVirtualNodeProxy
     : public TCypressNodeProxyBase<IEntityNode, TVirtualNode>
 {
@@ -46,18 +88,14 @@ public:
             bootstrap,
             transaction,
             trunkNode)
-        , Service(service)
-        , RequireLeaderStatus(requiredLeaderStatus)
+        , Service(
+            requiredLeaderStatus
+            ? New<TLeaderValidatorWrapper>(Bootstrap, service)
+            : service)
     { }
 
-    virtual TResolveResult Resolve(
-        const TYPath& path,
-        IServiceContextPtr context) override
+    virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr context) override
     {
-        if (RequireLeaderStatus) {
-            ValidateLeaderStatus();
-        }
-
         TTokenizer tokenizer(path);
         tokenizer.ParseNext();
         if (tokenizer.GetCurrentType() == SuppressRedirectToken) {
@@ -69,7 +107,6 @@ public:
 
 private:
     IYPathServicePtr Service;
-    bool RequireLeaderStatus;
 
 };
 
