@@ -97,8 +97,8 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
             return;
         }
 
+        auto ioConfig = New<TJobIOConfig>();
         try {
-            auto ioConfig = New<TJobIOConfig>();
             ioConfig->Load(ioConfigNode);
         } catch (const std::exception& ex) {
             auto error = TError("Error validating job IO configuration")
@@ -113,7 +113,7 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
         auto proxyConfigPath = NFS::CombinePaths(
             Slot->GetWorkingDirectory(), 
             ProxyConfigFileName);
-        
+
         TFileOutput output(proxyConfigPath);
         TYsonWriter writer(&output, EYsonFormat::Pretty);
         proxyConfig->Save(&writer);
