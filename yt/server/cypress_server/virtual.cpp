@@ -41,9 +41,12 @@ public:
 
     virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr context) override
     {
-        UNUSED(path);
-        UNUSED(context);
-        YUNREACHABLE();
+        auto result = UnderlyingService->Resolve(path, context);
+        return result.IsHere()
+            ? result
+            : TResolveResult::There(
+                CreateLeaderValidatorWrapper(Bootstrap, result.GetService()),
+                result.GetPath());
     }
 
     virtual void Invoke(IServiceContextPtr context) override
@@ -81,17 +84,13 @@ public:
         TBootstrap* bootstrap,
         TTransaction* transaction,
         ICypressNode* trunkNode,
-        IYPathServicePtr service,
-        bool requiredLeaderStatus)
+        IYPathServicePtr service)
         : TBase(
             typeHandler,
             bootstrap,
             transaction,
             trunkNode)
-        , Service(
-            requiredLeaderStatus
-            ? New<TLeaderValidatorWrapper>(Bootstrap, service)
-            : service)
+        , Service(service)
     { }
 
     virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr context) override
@@ -121,12 +120,10 @@ public:
     TVirtualNodeTypeHandler(
         TBootstrap* bootstrap,
         TYPathServiceProducer producer,
-        EObjectType objectType,
-        bool requireLeaderStatus)
+        EObjectType objectType)
         : TCypressNodeTypeHandlerBase<TVirtualNode>(bootstrap)
         , Producer(producer)
         , ObjectType(objectType)
-        , RequireLeaderStatus(requireLeaderStatus)
     { }
 
     virtual ICypressNodeProxyPtr GetProxy(
@@ -139,8 +136,7 @@ public:
             Bootstrap,
             transaction,
             trunkNode,
-            service,
-            RequireLeaderStatus);
+            service);
     }
 
     virtual EObjectType GetObjectType() override
@@ -156,28 +152,24 @@ public:
 private:
     TYPathServiceProducer Producer;
     EObjectType ObjectType;
-    bool RequireLeaderStatus;
 
 };
 
 INodeTypeHandlerPtr CreateVirtualTypeHandler(
     TBootstrap* bootstrap,
     EObjectType objectType,
-    TYPathServiceProducer producer,
-    bool requireLeaderStatus)
+    TYPathServiceProducer producer)
 {
     return New<TVirtualNodeTypeHandler>(
         bootstrap,
         producer,
-        objectType,
-        requireLeaderStatus);
+        objectType);
 }
 
 INodeTypeHandlerPtr CreateVirtualTypeHandler(
     TBootstrap* bootstrap,
     EObjectType objectType,
-    IYPathServicePtr service,
-    bool requireLeaderStatus)
+    IYPathServicePtr service)
 {
     return CreateVirtualTypeHandler(
         bootstrap,
@@ -186,8 +178,14 @@ INodeTypeHandlerPtr CreateVirtualTypeHandler(
             UNUSED(trunkNode);
             UNUSED(transaction);
             return service;
-        }),
-        requireLeaderStatus);
+        }));
+}
+
+IYPathServicePtr CreateLeaderValidatorWrapper(
+    TBootstrap* bootstrap,
+    IYPathServicePtr service)
+{
+    return New<TLeaderValidatorWrapper>(bootstrap, service);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

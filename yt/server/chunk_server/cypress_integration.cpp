@@ -41,17 +41,17 @@ static NLog::TLogger& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_ENUM(EChunkFilter,
+    (All)
+    (Lost)
+    (Overreplicated)
+    (Underreplicated)
+);
+
 class TVirtualChunkMap
     : public TVirtualMapBase
 {
 public:
-    DECLARE_ENUM(EChunkFilter,
-        (All)
-        (Lost)
-        (Overreplicated)
-        (Underreplicated)
-    );
-
     TVirtualChunkMap(TBootstrap* bootstrap, EChunkFilter filter)
         : Bootstrap(bootstrap)
         , Filter(filter)
@@ -122,47 +122,38 @@ private:
     }
 };
 
+INodeTypeHandlerPtr CreateChunkMapTypeHandler(
+    TBootstrap* bootstrap,
+    EObjectType objectType,
+    EChunkFilter filter)
+{
+    YCHECK(bootstrap);
+
+    IYPathServicePtr service = New<TVirtualChunkMap>(bootstrap, filter);
+    if (filter != EChunkFilter::All) {
+        service = CreateLeaderValidatorWrapper(bootstrap, service);
+    }
+    return CreateVirtualTypeHandler(bootstrap, objectType, service);
+}
+
 INodeTypeHandlerPtr CreateChunkMapTypeHandler(TBootstrap* bootstrap)
 {
-    YASSERT(bootstrap);
-
-    return CreateVirtualTypeHandler(
-        bootstrap,
-        EObjectType::ChunkMap,
-        New<TVirtualChunkMap>(bootstrap, TVirtualChunkMap::EChunkFilter::All));
+    return CreateChunkMapTypeHandler(bootstrap, EObjectType::ChunkMap, EChunkFilter::All);
 }
 
 INodeTypeHandlerPtr CreateLostChunkMapTypeHandler(TBootstrap* bootstrap)
 {
-    YASSERT(bootstrap);
-
-    return CreateVirtualTypeHandler(
-        bootstrap,
-        EObjectType::LostChunkMap,
-        New<TVirtualChunkMap>(bootstrap, TVirtualChunkMap::EChunkFilter::Lost),
-        true);
+    return CreateChunkMapTypeHandler(bootstrap, EObjectType::LostChunkMap, EChunkFilter::Lost);
 }
 
 INodeTypeHandlerPtr CreateOverreplicatedChunkMapTypeHandler(TBootstrap* bootstrap)
 {
-    YASSERT(bootstrap);
-
-    return CreateVirtualTypeHandler(
-        bootstrap,
-        EObjectType::OverreplicatedChunkMap,
-        New<TVirtualChunkMap>(bootstrap, TVirtualChunkMap::EChunkFilter::Overreplicated),
-        true);
+    return CreateChunkMapTypeHandler(bootstrap, EObjectType::OverreplicatedChunkMap, EChunkFilter::Overreplicated);
 }
 
 INodeTypeHandlerPtr CreateUnderreplicatedChunkMapTypeHandler(TBootstrap* bootstrap)
 {
-    YASSERT(bootstrap);
-
-    return CreateVirtualTypeHandler(
-        bootstrap,
-        EObjectType::UnderreplicatedChunkMap,
-        New<TVirtualChunkMap>(bootstrap, TVirtualChunkMap::EChunkFilter::Underreplicated),
-        true);
+    return CreateChunkMapTypeHandler(bootstrap, EObjectType::UnderreplicatedChunkMap, EChunkFilter::Underreplicated);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
