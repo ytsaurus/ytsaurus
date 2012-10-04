@@ -302,42 +302,47 @@ bool TInputPipe::ProcessData(ui32 epollEvents)
     if (IsFinished)
         return false;
 
-    while (true) {
-        if (Position == Buffer->GetSize()) {
-            Position = 0;
-            Buffer->Clear();
-            while (HasData && Buffer->GetSize() < PipeBufferSize) {
-                HasData = TableProducer->ProduceRow();
+    try {
+        while (true) {
+            if (Position == Buffer->GetSize()) {
+                Position = 0;
+                Buffer->Clear();
+                while (HasData && Buffer->GetSize() < PipeBufferSize) {
+                    HasData = TableProducer->ProduceRow();
+                }
             }
-        }
 
-        if (Position == Buffer->GetSize()) {
-            YCHECK(!HasData);
-            SafeClose(Pipe.WriteFd);
-            LOG_TRACE("Input pipe finished writing (JobDescriptor: %d)", JobDescriptor);
-            return false;
-        }
-
-        YASSERT(Position < Buffer->GetSize());
-
-        auto res = ::write(Pipe.WriteFd, Buffer->Begin() + Position, Buffer->GetSize() - Position);
-        LOG_TRACE("Written %" PRIPDT " bytes to input pipe (JobDescriptor: %d)", res, JobDescriptor);
-
-        if (res < 0)  {
-            if (errno == EAGAIN) {
-                // Pipe blocked, pause writing.
-                return true;
-            } else {
-                // Error with pipe.
-                THROW_ERROR_EXCEPTION("Writing to pipe failed (fd: %d, job fd: %d)",
-                    Pipe.WriteFd,
-                    JobDescriptor)
-                    << TError::FromSystem();
+            if (Position == Buffer->GetSize()) {
+                YCHECK(!HasData);
+                SafeClose(Pipe.WriteFd);
+                LOG_TRACE("Input pipe finished writing (JobDescriptor: %d)", JobDescriptor);
+                return false;
             }
-        }
 
-        Position += res;
-        YASSERT(Position <= Buffer->GetSize());
+            YASSERT(Position < Buffer->GetSize());
+
+            auto res = ::write(Pipe.WriteFd, Buffer->Begin() + Position, Buffer->GetSize() - Position);
+            LOG_TRACE("Written %" PRIPDT " bytes to input pipe (JobDescriptor: %d)", res, JobDescriptor);
+
+            if (res < 0)  {
+                if (errno == EAGAIN) {
+                    // Pipe blocked, pause writing.
+                    return true;
+                } else {
+                    // Error with pipe.
+                    THROW_ERROR_EXCEPTION("Writing to pipe failed (fd: %d, job fd: %d)",
+                        Pipe.WriteFd,
+                        JobDescriptor)
+                        << TError::FromSystem();
+                }
+            }
+
+            Position += res;
+            YASSERT(Position <= Buffer->GetSize());
+        }
+    } catch (...) {
+        ::close(Pipe.WriteFd);
+        throw;
     }
 }
 
