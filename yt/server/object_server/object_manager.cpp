@@ -476,7 +476,8 @@ void TObjectManager::UnrefObject(TObjectWithIdBase* object)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     i32 refCounter = object->UnrefObject();
-    OnObjectUnreferenced(object->GetId(), refCounter);
+    auto id = object->GetId();
+    OnObjectUnreferenced(id, refCounter);
 }
 
 void TObjectManager::UnrefObject(ICypressNode* node)
@@ -484,7 +485,8 @@ void TObjectManager::UnrefObject(ICypressNode* node)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     i32 refCounter = node->GetTrunkNode()->UnrefObject();
-    OnObjectUnreferenced(node->GetId().ObjectId, refCounter);
+    auto id = node->GetId();
+    OnObjectUnreferenced(id.ObjectId, refCounter);
 }
 
 void TObjectManager::UnrefObject(TChunkTreeRef ref)
