@@ -92,7 +92,7 @@ def die(message, return_code=1):
 
 def main():
     config.FORCE_SORT_IN_REDUCE = True
-    config.USE_MAPREDUCE_STYLE_DST_TABLES = True
+    config.USE_MAPREDUCE_STYLE_DESTINATION_FDS = True
     config.EXIT_WITHOUT_TRACEBACK = True
 
     parser = ArgumentParser(
@@ -139,7 +139,7 @@ Examples:
                      "erase", "abort_tx", "commit_tx", "renew_tx", "set", "get", "upload", "download"]
     action_flags = ["version", "copy", "sort", "merge", "list", "listfiles", "start_tx"]
 
-    add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "ping_tx", "smart_format", "force"])
+    add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "ping_tx", "smart_format", "force", "executable"])
     add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec",
                                             "inputformat", "outputformat", "tx", "value", "replication_factor", "sort_by"])
     add_multiple_args(parser, ["src", "dst", "dstappend", "file", "mapfile", "reducefile", "ytfile", "opt", "ytspec"])
@@ -307,7 +307,7 @@ Examples:
     for option in ["src", "dst", "dstappend", "ytfile"]:
         if vars(args)[option] is not None:
             vars(args)[option] = map(add_prefix, vars(args)[option])
-    for option in ["read", "write", "writesorted", "drop", "get", "set", "download"]:
+    for option in ["read", "write", "writesorted", "drop", "get", "set", "download", "upload"]:
         if vars(args)[option] is not None:
             vars(args)[option] = add_prefix(vars(args)[option])
 
@@ -405,9 +405,9 @@ Examples:
     if args.erase is not None:
         yt.erase_table(args.erase)
     if args.upload is not None:
-        if yt.exists(dst[0]):
-            yt.remove(dst[0])
-        yt.upload_file(args.upload, destination=dst[0])
+        yt.upload_file(sys.stdin, args.upload)
+        if args.executable:
+            yt.set_attribute(args.upload, "executable", "true")
     if args.download is not None:
         writelines_silently(yt.download_file(args.download, response_type="iter_content"))
 
@@ -437,7 +437,7 @@ Examples:
 
         for table in map(yt.to_name, output_tables):
             if yt.exists(table):
-                yt.set_attribute(table, "_format", json.dumps(outputformat.to_json()))
+                yt.set_attribute(table, "_format", outputformat.to_json())
 
 if __name__ == "__main__":
     try:

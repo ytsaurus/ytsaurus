@@ -52,7 +52,6 @@ class YamrFormat(Format):
 class RawFormat(Format):
     @staticmethod
     def from_string(str):
-        print "STR", str
         format = RawFormat()
         format._str = str
         format._format = parse_string(str)

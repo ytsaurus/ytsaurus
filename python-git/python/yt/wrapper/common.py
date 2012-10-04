@@ -26,3 +26,10 @@ def bool_to_string(bool_value):
     else:
         return "false"
 
+def is_prefix(list_a, list_b):
+    if len(list_a) > len(list_b):
+        return False
+    for i in xrange(len(list_a)):
+        if list_a[i] != list_b[i]:
+            return False
+    return True
