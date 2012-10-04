@@ -1,11 +1,11 @@
 import config
 import py_wrapper
-from common import flatten, require, YtError, parse_bool, unlist, update, EMPTY_GENERATOR
+from common import flatten, require, YtError, unlist, update, EMPTY_GENERATOR, parse_bool, is_prefix
 from path_tools import escape_path
-from http import make_request, iter_lines
-from table import get_yson_name, to_table, to_name
+from http import make_request, read_content
+from table import get_yson_name, get_output_yson_name, to_table, to_name
 from tree_commands import exists, remove, get_attribute, copy, mkdir, find_free_subpath
-from file_commands import upload_file
+from file_commands import smart_upload_file
 
 import os
 import types
@@ -14,8 +14,33 @@ import simplejson as json
 from copy import deepcopy
 
 """ Auxiliary methods """
-def prepare_source_tables(tables):
-    return map(to_table, filter(exists, map(to_name, flatten(tables))))
+def _filter_empty_tables(tables):
+    filtered = []
+    for table in tables:
+        if not exists(table.name):
+            logger.warning("Warning: input table '%s' does not exist", table.name)
+        else:
+            filtered.append(table)
+    return filtered
+
+def _prepare_source_tables(tables):
+    return _filter_empty_tables(map(to_table, flatten(tables)))
+
+def _prepare_reduce_by(reduce_by):
+    if reduce_by is None:
+        if config.MAPREDUCE_MODE:
+            reduce_by = ["key"]
+        else:
+            raise YtError("reduce_by option is required")
+    return flatten(reduce_by)
+
+def _prepare_sort_by(sort_by):
+    if sort_by is None:
+        if config.MAPREDUCE_MODE:
+            sort_by = ["key", "subkey"]
+        else:
+            raise YtError("sort_by option is required")
+    return flatten(sort_by)
 
 class Buffer(object):
     """ Reads line iterator by chunks """
@@ -113,13 +138,7 @@ def read_table(table, format=None, response_type=None):
                              "transaction_id": config.TRANSACTION},
                             format=format,
                             raw_response=True)
-
-    if response_type == "iter_lines":
-        return iter_lines(response)
-    elif response_type == "iter_content":
-        return response.iter_content(chunk_size=config.HTTP_CHUNK_SIZE)
-    else:
-        raise YtError("Incorrent response type: " + response_type) 
+    return read_content(response, response_type)
 
 def remove_table(table):
     table = to_name(table)
@@ -127,7 +146,7 @@ def remove_table(table):
         remove(table)
 
 def copy_table(source_table, destination_table, strategy=None):
-    source_tables = prepare_source_tables(source_table)
+    source_tables = _prepare_source_tables(source_table)
     destination_table = to_table(destination_table)
     require(len(source_tables) > 0,
             YtError("You try to copy unexisting tables"))
@@ -165,85 +184,71 @@ def records_count(table):
 def is_empty(table):
     return records_count(table) == 0
 
+def get_sorted_by(table):
+    return get_attribute(table, "sorted_by", default=[])
+
 def is_sorted(table):
     require(exists(table), YtError("Table %s doesn't exist" % table))
-    return parse_bool(get_attribute(table, "sorted"))
+    if config.MAPREDUCE_MODE:
+        return get_sorted_by(table) == ["key", "subkey"]
+    else:
+        return parse_bool(get_attribute(table, "sorted", default="false"))
+
+
+def merge_tables(source_table, destination_table, mode, strategy=None, table_writer=None, spec=None):
+    source_table = _prepare_source_tables(source_table)
+    destination_table = unlist(_prepare_destination_tables(destination_table))
+
+    if spec is None: spec = {}
+    if table_writer is not None:
+        spec = update({"job_io": {"table_writer": table_writer}}, spec)
+
+    params = json.dumps(
+        add_user_spec(
+            {"spec": update(
+                {"input_table_paths": map(get_yson_name, source_table),
+                 "output_table_path": destination_table.yson_name("output"),
+                 "mode": mode},
+                spec),
+             "transaction_id": config.TRANSACTION}))
+    operation = make_request("POST", "merge", None, params)
+
+    if strategy is None: strategy = config.DEFAULT_STRATEGY
+    strategy.process_operation("merge", operation)
+
 
 def sort_table(source_table, destination_table=None, sort_by=None, strategy=None, table_writer=None, spec=None):
-    if strategy is None: strategy = config.DEFAULT_STRATEGY
-    if spec is None: spec = {}
-    if sort_by is None:
-        require(hasattr(config.DEFAULT_FORMAT, "has_subkey"),
-                YtError("You must pass sort_by parameter to sort operation"))
-        sort_by = ["key", "subkey"]
-        #if config.DEFAULT_FORMAT.has_subkey:
-        #    sort_by.append("subkey")
-
-    source_table = map(to_table, flatten(source_table))
-    source_table = filter(lambda table: exists(table.name), source_table)
-    if not source_table or get_attribute(source_table, "sorted", default=[]) == sort_by:
+    sort_by = _prepare_sort_by(sort_by)
+    source_table = _prepare_source_tables(source_table)
+    if all(is_prefix(sort_by, get_sorted_by(table.name))
+           for table in source_table):
+        if len(source_table) > 1:
+            merge_tables(source_table, destination_table, "sorted", strategy=strategy, table_writer=table_writer, spec=spec)
         return
 
     if destination_table is None:
         require(len(source_table) == 1 and not source_table[0].has_delimiters(),
                 YtError("You must specify destination sort table "
                         "in case of multiple source tables"))
-        destination_table = to_table(source_table[0])
-    else:
-        destination_table = to_table(destination_table)
+        destination_table = source_table[0]
+    destination_table = unlist(_prepare_destination_tables(destination_table))
 
-    in_place = destination_table == unlist(source_table)
-    if in_place:
-        source_table = source_table[0]
-        output_table = create_temp_table(os.path.dirname(source_table.name),
-                                         os.path.basename(source_table.name))
-    else:
-        output_table = destination_table.name
-        create_table(output_table, not destination_table.append)
-
-    if table_writer is not None:
-        for job_io in ["map_job_io", "reduce_job_io", "sort_job_io"]:
-            spec[job_io] = {}
-            spec[job_io]["table_writer"] = table_writer
-
-    params = json.dumps(
-        add_user_spec(
-            {"spec": update(
-                {"input_table_paths": map(get_yson_name, flatten(source_table)),
-                 "output_table_path": escape_path(output_table),
-                 "sort_by": sort_by},
-                spec),
-             "transaction_id": config.TRANSACTION}))
-    operation = make_request("POST", "sort", None, params)
-    strategy.process_operation("sort", operation)
-    if in_place:
-        move_table(output_table, source_table)
-
-def merge_tables(source_table, destination_table, mode, strategy=None, table_writer=None, spec=None):
-    if strategy is None: strategy = config.DEFAULT_STRATEGY
     if spec is None: spec = {}
-    source_table = map(to_table, flatten(source_table))
-    destination_table = to_table(destination_table)
-    require(destination_table.name not in map(lambda x: x.name, source_table),
-            YtError("Destination should differ from source tables in merge operation"))
-    create_table(destination_table.name,
-                 make_it_empty=not destination_table.append)
-
     if table_writer is not None:
-        spec["job_io"] = {}
-        spec["job_io"]["table_writer"] = table_writer
+        spec = update({"sort_job_io": {"table_writer": table_writer}}, spec)
+    spec = update(
+                {"input_table_paths": map(get_yson_name, flatten(source_table)),
+                 "output_table_path": destination_table.yson_name("output"),
+                 "sort_by": sort_by},
+                spec)
+    params = json.dumps(add_user_spec(
+        {"spec": spec,
+         "transaction_id": config.TRANSACTION}
+    ))
+    operation = make_request("POST", "sort", None, params)
 
-    params = json.dumps(
-        add_user_spec(
-            {"spec": update(
-                {"input_table_paths": map(get_yson_name, source_table),
-                 "output_table_path": destination_table.escaped_name(),
-                 "mode": mode},
-                spec),
-             "transaction_id": config.TRANSACTION}))
-    operation = make_request("POST", "merge", None, params)
-    strategy.process_operation("merge", operation)
-
+    if strategy is None: strategy = config.DEFAULT_STRATEGY
+    strategy.process_operation("sort", operation)
 
 
 """ Map and reduce methods """
@@ -253,8 +258,35 @@ def _prepare_files(files):
 
     file_paths = []
     for file in flatten(files):
-        file_paths.append(upload_file(file))
+        file_paths.append(smart_upload_file(file))
     return file_paths
+
+def _add_output_fd_redirect(binary, dst_count):
+    if config.USE_MAPREDUCE_STYLE_DESTINATION_FDS:
+        for fd in xrange(3, 3 + dst_count):
+            yt_fd = 1 + (fd - 3) * 3
+            binary = binary + " %d>&%d" % (fd, yt_fd)
+    return binary
+
+def _prepare_formats(format, input_format, output_format):
+    if format is None: format = config.DEFAULT_FORMAT
+    if input_format is None: input_format = format
+    if output_format is None: output_format = format
+    return input_format, output_format
+
+def _prepare_binary(binary, files):
+    if isinstance(binary, types.FunctionType):
+        binary, additional_files = py_wrapper.wrap(binary)
+        files += _prepare_files(additional_files)
+    return binary
+
+def _prepare_destination_tables(tables):
+    tables = map(to_table, flatten(tables))
+    for table in tables:
+        if not exists(table.name):
+            create_table(table.name)
+    return tables
+
 
 class Finalizer(object):
     def __init__(self, files, output_tables):
@@ -267,123 +299,6 @@ class Finalizer(object):
         for file in self.files:
             remove(file)
 
-def _add_output_fd_redirect(binary, dst_count):
-    if config.USE_MAPREDUCE_STYLE_DST_TABLES:
-        for fd in xrange(3, 3 + dst_count):
-            yt_fd = 1 + (fd - 3) * 3
-            binary = binary + " %d>&%d" % (fd, yt_fd)
-    return binary
-
-def _prepare_formats(format, input_format, output_format):
-    if format is None: format = config.DEFAULT_FORMAT
-    if input_format is None: input_format = format
-    if output_format is None: output_format = format
-    return input_format, output_format
-
-def _filter_empty_tables(tables):
-    filtered = []
-    for table in tables:
-        if not exists(table.name):
-            logger.warning("Warning: input table '%s' does not exist", table.name)
-        else:
-            filtered.append(table)
-    return filtered
-
-def run_operation(binary, source_table, destination_table,
-                  files, file_paths,
-                  format, input_format, output_format,
-                  strategy,
-                  table_writer, spec,
-                  op_type,
-                  reduce_by=None):
-    if strategy is None: strategy = config.DEFAULT_STRATEGY
-    if reduce_by is None: reduce_by = "key"
-    if spec is None: spec = {}
-    input_format, output_format = _prepare_formats(format, input_format, output_format)
-
-    files = _prepare_files(files)
-    if isinstance(binary, types.FunctionType):
-        binary, additional_files = py_wrapper.wrap(binary)
-        files += _prepare_files(additional_files)
-    if file_paths is None:
-        file_paths = []
-    file_paths += files
-
-    source_table = map(to_table, flatten(source_table))
-    if config.MERGE_SRC_TABLES_BEFORE_OPERATION and len(source_table) > 1:
-        temp_table = create_temp_table(config.TEMP_TABLES_STORAGE, "map_operation")
-        merge_tables(source_table, temp_table, "ordered")
-        source_table = [temp_table]
-
-    source_table = _filter_empty_tables(source_table)
-
-    for table in source_table:
-        if op_type == "reduce" and config.FORCE_SORT_IN_REDUCE and not is_sorted(table.name):
-            sort_table(table.name)
-    destination_table = map(to_table, flatten(destination_table))
-    for table in destination_table:
-        create_table(table.name, not table.append)
-
-    binary = _add_output_fd_redirect(binary, len(destination_table))
-
-    op_key = {
-        "map": "mapper",
-        "reduce": "reducer"}
-
-    operation_descr = \
-                {"command": binary,
-                 "file_paths": map(escape_path, file_paths),
-                 "input_format": input_format.to_json(),
-                 "output_format": output_format.to_json()}
-    if op_type == "reduce":
-        operation_descr.update({"reduce_by": reduce_by})
-
-    if table_writer is not None:
-        spec["job_io"] = {}
-        spec["job_io"]["table_writer"] = table_writer
-
-    params = json.dumps(
-        add_user_spec(
-            {"spec": update(
-                {"input_table_paths": map(get_yson_name, source_table),
-                 "output_table_paths": map(get_yson_name, destination_table),
-                 op_key[op_type]: operation_descr},
-                spec),
-             "transaction_id": config.TRANSACTION}))
-    operation = make_request("POST", op_type, None, params)
-    strategy.process_operation(op_type, operation, Finalizer(files, destination_table))
-
-def run_map(binary, source_table, destination_table,
-            files=None, file_paths=None,
-            format=None, input_format=None, output_format=None,
-            strategy=None, table_writer=None, spec=None):
-    run_operation(binary, source_table, destination_table,
-                  files=files,
-                  file_paths=file_paths,
-                  format=format,
-                  input_format=input_format,
-                  output_format=output_format,
-                  strategy=strategy,
-                  table_writer=table_writer,
-                  spec=spec,
-                  op_type="map")
-
-def run_reduce(binary, source_table, destination_table,
-               files=None, file_paths=None,
-               format=None, input_format=None, output_format=None,
-               strategy=None, reduce_by=None,
-               table_writer=None, spec=None):
-    run_operation(binary, source_table, destination_table,
-                  files=files,
-                  file_paths=file_paths,
-                  format=format,
-                  input_format=input_format,
-                  output_format=output_format,
-                  strategy=strategy,
-                  table_writer=table_writer,
-                  spec=spec,
-                  reduce_by=reduce_by,
-                  op_type="reduce")
 
 def run_map_reduce(mapper, reducer, source_table, destination_table,
                    format=None, input_format=None, output_format=None,
@@ -392,42 +307,36 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                    map_file_paths=None, reduce_file_paths=None,
                    sort_by=None, reduce_by=None):
     if strategy is None: strategy = config.DEFAULT_STRATEGY
-    if reduce_by is None and sort_by is None:
-        sort_by = ["key", "subkey"]
-        reduce_by = ["key"]
-
+    sort_by = _prepare_reduce_by(sort_by)
+    reduce_by = _prepare_reduce_by(reduce_by)
     input_format, output_format = _prepare_formats(format, input_format, output_format)
 
     run_map_reduce.spec = {}
     run_map_reduce.files_to_remove = []
     def prepare_operation(binary, files, file_paths, spec_keyword):
-        if file_paths is None: file_paths = []
         """ Returns new spec """
+        if binary is None: return
+        if file_paths is None: file_paths = []
         files = _prepare_files(files)
-        if binary is not None:
-            if isinstance(binary, types.FunctionType):
-                binary, additional_files = py_wrapper.wrap(binary)
-                files += _prepare_files(additional_files)
-            run_map_reduce.spec = update(run_map_reduce.spec,
-                {
-                    spec_keyword: {
-                        "input_format": input_format.to_json(),
-                        "output_format": output_format.to_json(),
-                        "command": binary,
-                        "file_paths": flatten(files + file_paths)
-                    }
-                })
+        binary = _prepare_binary(binary, files)
+        run_map_reduce.spec = update(run_map_reduce.spec,
+            {
+                spec_keyword: {
+                    "input_format": input_format.to_json(),
+                    "output_format": output_format.to_json(),
+                    "command": binary,
+                    "file_paths": flatten(files + file_paths)
+                }
+            })
         run_map_reduce.files_to_remove += files
 
+    reducer = _add_output_fd_redirect(reducer, len(destination_table))
     prepare_operation(mapper, map_files, map_file_paths, "mapper")
     prepare_operation(reducer, reduce_files, reduce_file_paths, "reducer")
 
-    source_table = prepare_source_tables(source_table)
-    destination_table = map(to_table, flatten(destination_table))
-    for table in destination_table:
-        create_table(table.name, not table.append)
+    source_table = _prepare_source_tables(source_table)
+    destination_table = _prepare_destination_tables(destination_table)
 
-    reducer = _add_output_fd_redirect(reducer, len(destination_table))
 
     if table_writer is not None:
         for job_io in ["map_job_io", "reduce_job_io", "sort_job_io"]:
@@ -439,7 +348,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
         {"sort_by": flatten(sort_by),
          "reduce_by": flatten(reduce_by),
          "input_table_paths": map(get_yson_name, source_table),
-         "output_table_paths": map(get_yson_name, destination_table)
+         "output_table_paths": map(get_output_yson_name, destination_table)
         })
 
     if spec is not None:
@@ -452,4 +361,83 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     operation = make_request("POST", "map_reduce", None, params)
     strategy.process_operation("map_reduce", operation,
          Finalizer(run_map_reduce.files_to_remove, destination_table))
+
+def run_operation(binary, source_table, destination_table,
+                  files=None, file_paths=None,
+                  format=None, input_format=None, output_format=None,
+                  strategy=None,
+                  table_writer=None, spec=None,
+                  op_type=None,
+                  reduce_by=None):
+
+    input_format, output_format = _prepare_formats(format, input_format, output_format)
+    files = _prepare_files(files)
+    binary = _prepare_binary(binary, files)
+
+    if file_paths is None: file_paths = []
+    file_paths += files
+
+    source_table = _prepare_source_tables(source_table)
+    if op_type == "reduce":
+        reduce_by = _prepare_reduce_by(reduce_by)
+        are_input_tables_sorted =  all(
+            is_prefix(reduce_by, get_sorted_by(table.name))
+            for table in source_table)
+        sort_by = None if config.MAPREDUCE_MODE else reduce_by
+        if not are_input_tables_sorted:
+            run_map_reduce(
+                mapper=None,
+                reducer=binary,
+                source_table=source_table,
+                destination_table=destination_table,
+                reduce_file_paths=file_paths,
+                reduce_by=reduce_by,
+                sort_by=sort_by)
+            return
+        else:
+            for table in source_table:
+                if not is_sorted(table.name):
+                    sort_table(table, sort_by=reduce_by)
+
+    destination_table = _prepare_destination_tables(destination_table)
+
+    binary = _add_output_fd_redirect(binary, len(destination_table))
+
+    operation_descr = \
+                {"command": binary,
+                 "file_paths": map(escape_path, file_paths),
+                 "input_format": input_format.to_json(),
+                 "output_format": output_format.to_json()}
+    if op_type == "reduce":
+        operation_descr.update({"reduce_by": reduce_by})
+
+    if spec is None: spec = {}
+    if table_writer is not None:
+        spec = update({"job_io": {"table_writer": table_writer}}, spec)
+
+    op_key = None
+    if op_type == "map": op_key = "mapper"
+    if op_type == "reduce": op_key = "reducer"
+    spec = update(
+        {"input_table_paths": map(get_yson_name, source_table),
+         "output_table_paths": map(get_output_yson_name, destination_table),
+         op_key: operation_descr},
+        spec)
+
+    params = json.dumps(
+        add_user_spec(
+            {"spec": spec,
+             "transaction_id": config.TRANSACTION}))
+    operation = make_request("POST", op_type, None, params)
+
+    if strategy is None: strategy = config.DEFAULT_STRATEGY
+    strategy.process_operation(op_type, operation, Finalizer(files, destination_table))
+
+def run_map(binary, source_table, destination_table, **kwargs):
+    kwargs["op_type"] = "map"
+    run_operation(binary, source_table, destination_table, **kwargs)
+
+def run_reduce(binary, source_table, destination_table, **kwargs):
+    kwargs["op_type"] = "reduce"
+    run_operation(binary, source_table, destination_table, **kwargs)
 

@@ -309,9 +309,11 @@ class TestTableCommands(YTEnvSetup):
 
     def test_exists(self):
         self.assertEqual(exists("//tmp/t"), "false")
+        self.assertEqual(exists("<overwrite=true>//tmp/t"), "false")
         
         create("table", "//tmp/t")
         self.assertEqual(exists("//tmp/t"), "true")
+        self.assertEqual(exists("<overwrite=true>//tmp/t"), "true")
         # These cases are not supported yet because of future changes in the table grammar
         #self.assertEqual(exists("//tmp/t[:#100]"), "true")
         #self.assertEqual(exists("//tmp/t/xxx"), "false")

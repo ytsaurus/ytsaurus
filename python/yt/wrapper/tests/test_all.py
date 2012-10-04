@@ -55,7 +55,7 @@ class YtTest(YTEnv):
     def setUp(self):
         os.environ["PATH"] = ".:" + os.environ["PATH"]
         if not yt.exists(TEST_DIR):
-            yt.set(TEST_DIR, "{}")
+            yt.set(TEST_DIR, {})
 
         config.WAIT_TIMEOUT = 0.2
         config.DEFAULT_STRATEGY = yt.WaitStrategy(print_progress=False)
@@ -114,9 +114,9 @@ class YtTest(YTEnv):
 
         half_path = '%s/"%s"' % (TEST_DIR, random_strA)
         full_path = '%s/"%s"/"%s"' % (TEST_DIR, random_strA, random_strB)
-        self.assertRaises(YtError, lambda: yt.set(full_path, "{}"))
-        self.assertEqual(yt.set(half_path, "{}"), None)
-        self.assertEqual(yt.set(full_path, "{}"), None)
+        self.assertRaises(YtError, lambda: yt.set(full_path, {}))
+        self.assertEqual(yt.set(half_path, {}), None)
+        self.assertEqual(yt.set(full_path, {}), None)
         self.assertTrue(yt.exists(full_path))
         self.assertEqual(yt.get(full_path), {})
         self.assertEqual(yt.remove(half_path), None)
@@ -197,8 +197,8 @@ class YtTest(YTEnv):
         self.assertEqual(yt.records_count(table), 10)
         self.assertFalse(yt.is_sorted(table))
 
-        yt.set_attribute(table, "my_attribute", "{}")
-        yt.set_attribute(table, "my_attribute/000", "10")
+        yt.set_attribute(table, "my_attribute", {})
+        yt.set_attribute(table, "my_attribute/000", 10)
         self.assertEqual(yt.get_attribute(table, "my_attribute/000"), 10)
         #self.assertEqual(yt.list_attributes(table, "my_attribute"), ["000"])
 
@@ -304,7 +304,7 @@ class YtTest(YTEnv):
         self.assertEqual(yt.records_count(another_table), 20)
 
     def test_digit_names(self):
-        table = TEST_DIR + '/"123"'
+        table = TEST_DIR + '/123'
         yt.write_table(table, self.temp_records())
         yt.sort_table(table)
         self.assertEqual(self.read_records(table)[0].key, "0")
@@ -321,14 +321,14 @@ class YtTest(YTEnv):
     def test_file_operations(self):
         dest = []
         for i in xrange(2):
-            self.assertTrue(yt.upload_file(abspath("my_op.py")).find("/my_op.py") != -1)
+            self.assertTrue(yt.smart_upload_file(abspath("my_op.py")).find("/my_op.py") != -1)
 
         for d in dest:
             self.assertEqual(list(yt.download_file(dest)),
                              open(abspath("my_op.py")).readlines())
 
         dest = TEST_DIR+"/file_dir/some_file"
-        yt.upload_file(abspath("my_op.py"), destination=dest)
+        yt.smart_upload_file(abspath("my_op.py"), destination=dest)
         self.assertEqual(yt.get_attribute(dest, "file_name"), "some_file")
 
     def test_map_reduce_operation(self):
@@ -390,15 +390,38 @@ class YtTest(YTEnv):
         self.assertTrue(len(yt.get_attribute(table, "channels")) == 0)
 
     def test_mapreduce_binary(self):
-        yt.set("//statbox", "{}")
+        yt.mkdir("//statbox")
         yt.create_table("//statbox/table")
         proc = subprocess.Popen(
-            "YT_PROXY=%s %s" % 
+            "YT_PROXY=%s %s" %
                 (config.PROXY,
                  os.path.join(LOCATION, "../test_mapreduce.sh")),
             shell=True)
         proc.communicate()
         self.assertEqual(proc.returncode, 0)
+
+    def test_inplace_operations(self):
+        table = self.create_temp_table()
+
+        yt.run_map("cat", table, table)
+        self.assertEqual(yt.records_count(table), 10)
+
+        yt.run_reduce("cat", table, table)
+        self.assertEqual(yt.records_count(table), 10)
+
+    def test_sort_of_sorted_tables(self):
+        table = self.create_temp_table()
+        other_table = TEST_DIR + "/temp_other"
+        result_table = TEST_DIR + "/result"
+
+        yt.sort_table(table)
+        yt.copy_table(table, other_table)
+        self.assertTrue(yt.is_sorted(other_table))
+
+        yt.sort_table([table, other_table], result_table)
+        self.assertTrue(yt.is_sorted(result_table))
+        self.assertEqual(yt.records_count(table), 20)
+
 
 if __name__ == "__main__":
     unittest.main()

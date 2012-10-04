@@ -554,7 +554,7 @@ YtCommand.prototype._checkPermissions = function(cb) {
         paths.forEach(function(path) {
             if (!(RE_HOME.test(path) || RE_TMP.test(path) || RE_MAPS.test(path) || RE_STATBOX.test(path))) {
                 self.rsp.statusCode = 403;
-                throw new Error("Any mutating command is allowed only on //home, //tmp and //statbox");
+                throw new Error("Any mutating command is allowed only on //home, //tmp and //statbox, path: " + path);
             }
         });
     }
