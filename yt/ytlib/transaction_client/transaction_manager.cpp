@@ -83,9 +83,13 @@ public:
             : FromObjectId(ParentId);
         auto req = TTransactionYPathProxy::CreateObject(transactionPath);
         req->set_type(EObjectType::Transaction);
+        if (ParentId != NullTransactionId) {
+            NMetaState::GenerateRpcMutationId(req);
+        }
         if (attributes) {
             req->Attributes().MergeFrom(*attributes);
         }
+
         auto rsp = Proxy.Execute(req).Get();
         if (!rsp->IsOK()) {
             // No ping tasks are running, so no need to lock here.
