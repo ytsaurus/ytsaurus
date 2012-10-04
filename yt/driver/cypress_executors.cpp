@@ -12,8 +12,8 @@ using namespace NYPath;
 ////////////////////////////////////////////////////////////////////////////////
 
 TGetExecutor::TGetExecutor()
-    : PathArg("path", "path to an object in Cypress to get", true, TRichYPath(""), "YPATH")
-    , AttributeArg("", "attr", "attribute to fetch with node", false, "ATTRIBUTE")
+    : PathArg("path", "object path to get", true, TRichYPath(""), "YPATH")
+    , AttributeArg("", "attr", "attribute key to fetch", false, "ATTRIBUTE")
 {
     CmdLine.add(PathArg);
     CmdLine.add(AttributeArg);
@@ -38,7 +38,7 @@ Stroka TGetExecutor::GetCommandName() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TSetExecutor::TSetExecutor()
-    : PathArg("path", "path to an object in Cypress to set", true, TRichYPath(""), "YPATH")
+    : PathArg("path", "object path to set", true, TRichYPath(""), "YPATH")
     , ValueArg("value", "value to set", false, "", "YSON")
     , UseStdIn(true)
 {
@@ -80,7 +80,7 @@ Stroka TSetExecutor::GetCommandName() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TRemoveExecutor::TRemoveExecutor()
-    : PathArg("path", "path to an object in Cypress to remove", true, TRichYPath(""), "YPATH")
+    : PathArg("path", "object path to remove", true, TRichYPath(""), "YPATH")
 {
     CmdLine.add(PathArg);
 }
@@ -103,8 +103,8 @@ Stroka TRemoveExecutor::GetCommandName() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TListExecutor::TListExecutor()
-    : PathArg("path", "path to a object in Cypress whose children are to be listed", true, TRichYPath(""), "YPATH")
-    , AttributeArg("", "attr", "attribute to fetch with node", false, "ATTRIBUTE")
+    : PathArg("path", "collection path to list", true, TRichYPath(""), "YPATH")
+    , AttributeArg("", "attr", "attribute key to fetch", false, "ATTRIBUTE")
 {
     CmdLine.add(PathArg);
     CmdLine.add(AttributeArg);
@@ -130,7 +130,7 @@ Stroka TListExecutor::GetCommandName() const
 
 TCreateExecutor::TCreateExecutor()
     : TypeArg("type", "type of node", true, NObjectClient::EObjectType::Null, "NODE_TYPE")
-    , PathArg("path", "path for a new object in Cypress", true, TRichYPath(""), "YPATH")
+    , PathArg("path", "object path to create", true, TRichYPath(""), "YPATH")
 {
     CmdLine.add(TypeArg);
     CmdLine.add(PathArg);
@@ -156,7 +156,7 @@ Stroka TCreateExecutor::GetCommandName() const
 
 TLockExecutor::TLockExecutor()
     : TTransactedExecutor(true)
-    , PathArg("path", "path to an object in Cypress to lock", true, TRichYPath(""), "YPATH")
+    , PathArg("path", "object path to lock", true, TRichYPath(""), "YPATH")
     , ModeArg("", "mode", "lock mode", false, NCypressClient::ELockMode::Exclusive, "snapshot, shared, exclusive")
 {
     CmdLine.add(PathArg);
@@ -183,8 +183,8 @@ Stroka TLockExecutor::GetCommandName() const
 
 TCopyExecutor::TCopyExecutor()
     : TTransactedExecutor(false)
-    , SourcePathArg("src_path", "path to a source object in Cypress", true, TRichYPath(""), "YPATH")
-    , DestinationPathArg("dst_path", "destination path in Cypress", true, TRichYPath(""), "YPATH")
+    , SourcePathArg("src_path", "source object path", true, TRichYPath(""), "YPATH")
+    , DestinationPathArg("dst_path", "destination object path", true, TRichYPath(""), "YPATH")
 {
     CmdLine.add(SourcePathArg);
     CmdLine.add(DestinationPathArg);
@@ -211,8 +211,8 @@ Stroka TCopyExecutor::GetCommandName() const
 
 TMoveExecutor::TMoveExecutor()
     : TTransactedExecutor(false)
-    , SourcePathArg("src_path", "path to a source object in Cypress", true, TRichYPath(""), "YPATH")
-    , DestinationPathArg("dst_path", "destination path in Cypress", true, TRichYPath(""), "YPATH")
+    , SourcePathArg("src_path", "source object path", true, TRichYPath(""), "YPATH")
+    , DestinationPathArg("dst_path", "destination object path", true, TRichYPath(""), "YPATH")
 {
     CmdLine.add(SourcePathArg);
     CmdLine.add(DestinationPathArg);
@@ -239,7 +239,7 @@ Stroka TMoveExecutor::GetCommandName() const
 
 TExistsExecutor::TExistsExecutor()
     : TTransactedExecutor(false)
-    , PathArg("path", "path to an object in Cypress", true, TRichYPath(""), "YPATH")
+    , PathArg("path", "path to check", true, TRichYPath(""), "YPATH")
 {
     CmdLine.add(PathArg);
 }

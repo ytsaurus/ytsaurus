@@ -14,7 +14,7 @@ using namespace NYPath;
 ////////////////////////////////////////////////////////////////////////////////
 
 TUploadExecutor::TUploadExecutor()
-    : PathArg("path", "to a new file in Cypress that must be uploaded", true, TRichYPath(""), "YPATH")
+    : PathArg("path", "file path to create", true, TRichYPath(""), "YPATH")
 {
     CmdLine.add(PathArg);
 }
@@ -37,7 +37,7 @@ Stroka TUploadExecutor::GetCommandName() const
 //////////////////////////////////////////////////////////////////////////////////
 
 TDownloadExecutor::TDownloadExecutor()
-    : PathArg("path", "path to a file in Cypress that must be downloaded", true, TRichYPath(""), "YPATH")
+    : PathArg("path", "file path to download", true, TRichYPath(""), "YPATH")
 {
     CmdLine.add(PathArg);
 }

@@ -11,7 +11,7 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 TReadExecutor::TReadExecutor()
-    : PathArg("path", "path to a table in Cypress to read", true, "", "YPATH")
+    : PathArg("path", "table path to read", true, "", "YPATH")
 {
     CmdLine.add(PathArg);
 }
@@ -35,7 +35,7 @@ Stroka TReadExecutor::GetCommandName() const
 //////////////////////////////////////////////////////////////////////////////////
 
 TWriteExecutor::TWriteExecutor()
-    : PathArg("path", "path to a table in Cypress to write", true, "", "YPATH")
+    : PathArg("path", "table path to write", true, "", "YPATH")
     , ValueArg("value", "row(s) to write", false, "", "YSON")
     , SortedBy("", "sorted_by", "key columns names (for sorted write)", false, "", "YSON_LIST_FRAGMENT")
     , UseStdIn(true)

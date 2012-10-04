@@ -186,7 +186,7 @@ EOperationType TSortExecutor::GetOperationType() const
 //////////////////////////////////////////////////////////////////////////////////
 
 TEraseExecutor::TEraseExecutor()
-    : PathArg("path", "path to a table where rows must be removed", true, "", "YPATH")
+    : PathArg("path", "table path to erase", true, "", "YPATH")
     , CombineArg("", "combine", "combine small output chunks into larger ones")
 {
     CmdLine.add(PathArg);
