@@ -89,6 +89,21 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert read('//tmp/t_out') == [{'a': 1}, {'a': 2}, {'a': 3}, {'a': 10}, {'a': 15}, {'a': 100}]
         assert get('//tmp/t_out/@chunk_count') == 1 # resulting number of chunks is always equal to 1 (as long they are small)
 
+    def test_sorted_with_same_chunks(self):
+        t1 = '//tmp/t1'
+        t1 = '//tmp/t2'
+        v = [{'key1' : 'value1'}]
+        write(t1, v[0])
+        sort(in_=t1,
+             out="<overwrite=true>" + t1,
+             sort_by="key1")
+        copy(t1, t2)
+
+        merge(mode='sorted',
+              in_=[t1, t2], 
+              out='<overwrite=true>//tmp/t_out')
+        self.assertItemsEqual(read('//tmp/t_out'), sorted(v + v))
+
     def test_sorted_combine(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
