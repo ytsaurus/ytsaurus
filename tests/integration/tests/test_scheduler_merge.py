@@ -91,14 +91,17 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
     def test_sorted_with_same_chunks(self):
         t1 = '//tmp/t1'
-        t1 = '//tmp/t2'
+        t2 = '//tmp/t2'
         v = [{'key1' : 'value1'}]
+
+        create("table", t1)
         write(t1, v[0])
         sort(in_=t1,
              out="<overwrite=true>" + t1,
              sort_by="key1")
         copy(t1, t2)
 
+        create("table", "//tmp/t_out")
         merge(mode='sorted',
               in_=[t1, t2], 
               out='<overwrite=true>//tmp/t_out')
