@@ -22,7 +22,7 @@ class Table(object):
     def escaped_name(self):
         return escape_path(self.name)
 
-    def yson_name(self):
+    def yson_name(self, usage_type=None):
         def column_to_str(column):
             column = flatten(column)
             require(len(column) <= 2,
@@ -54,14 +54,19 @@ class Table(object):
             name = "%s[%s]" % \
                 (name, ":".join(map(index_to_str, [self.start_index, self.end_index])))
 
+        if not self.append and usage_type == "output":
+            return {
+                "$value": name,
+                "$attributes": {"overwrite": "true"}
+            }
+
         return name
 
     def has_delimiters(self):
         return \
             self.columns is not None or \
             self.lower_key is not None or \
-            self.upper_key is not None or \
-            self.append
+            self.upper_key is not None
 
     def __eq__(self, other):
         return self.name == other.name
@@ -71,6 +76,12 @@ class Table(object):
 
 def get_yson_name(table):
     return table.yson_name()
+
+def get_input_yson_name(table):
+    return table.yson_name("input")
+
+def get_output_yson_name(table):
+    return table.yson_name("output")
 
 def to_table(object):
     if isinstance(object, Table):

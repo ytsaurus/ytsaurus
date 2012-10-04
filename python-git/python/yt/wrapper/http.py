@@ -10,9 +10,9 @@ import urllib
 
 def iter_lines(response):
     """
-    Iterates over the response data, one line at a time.  This
-    avoids reading the content at once into memory for large
-    responses. It is get from requests, but ignores \r line breaks.
+    Iterates over the response data, one line at a time.  This avoids reading
+    the content at once into memory for large responses. It is get from
+    requests, but improved to ignore \r line breaks.
     """
     def add_eoln(str):
         return str + "\n"
@@ -29,16 +29,28 @@ def iter_lines(response):
     if pending is not None and pending:
         yield add_eoln(pending)
 
+def read_content(response, type):
+    if type == "iter_lines":
+        return iter_lines(response)
+    elif type == "iter_content":
+        return response.iter_content(chunk_size=config.HTTP_CHUNK_SIZE)
+    else:
+        raise YtError("Incorrent response type: " + type)
+
+
 def make_request(http_method, request_type, params,
                  data=None, format=None, verbose=False, proxy=None, check_errors=True,
                  raw_response=False, files=None):
     """ Makes request to yt proxy.
-        http_method may be equal to GET, POST or PUT
-        type may be equal to  get, read, write, create ...
+        http_method may be equal to GET, POST or PUT,
+        request_type is type of driver command, it may be equal
+        to get, read, write, create ...
         Returns response content, raw_response option force
         to return request.Response instance"""
 
     def print_info(msg, *args, **kwargs):
+        # Verbose option is used for debugging because it is more
+        # selective than logging
         if verbose:
             # We don't use kwargs because python doesn't support such kind of formatting
             print >>sys.stderr, msg % args

@@ -142,7 +142,7 @@ if __name__ == '__main__':
         sys.stdout.write('{0}\\\t{1}\\\t{2}\\\n'.format(i, i * i, i * i * i))
     " >my_mapper.py
     chmod +x my_mapper.py
-    ./mapreduce -upload my_mapper.py -dst ignat/mapper.py
+    ./mapreduce -upload ignat/mapper.py -executable < my_mapper.py
     ./mapreduce -download ignat/mapper.py > my_mapper_copy.py
     diff my_mapper.py my_mapper_copy.py
 
@@ -178,18 +178,18 @@ test_drop()
     ./mapreduce -get "ignat/xxx"
 }
 
-#test_base_functionality
-#test_codec
-#test_many_output_tables
-#test_chunksize
-#test_mapreduce
-#test_input_output_format
-#test_transactions
+test_base_functionality
+test_codec
+test_many_output_tables
+test_chunksize
+test_mapreduce
+test_input_output_format
+test_transactions
 #test_range_map
 test_uploaded_files
-#test_ignore_positional_arguments
-#test_stderr
-#test_smart_format
-#test_drop
+test_ignore_positional_arguments
+test_stderr
+test_smart_format
+test_drop
 
 rm -f table_file big_file
