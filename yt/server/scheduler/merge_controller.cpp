@@ -1003,10 +1003,12 @@ protected:
                         }
                     }
 
-                    YCHECK(!HasActiveTask());
-                    FOREACH (auto& chunk, completeLargeChunks) {
-                        // Add passthrough maniacs.
-                        AddPassthroughChunk(chunk);
+                    if (hasPassthroughManiacs) {
+                        YCHECK(!HasActiveTask());
+                        FOREACH (auto& chunk, completeLargeChunks) {
+                            // Add passthrough maniacs.
+                            AddPassthroughChunk(chunk);
+                        }
                     }
                 } else {
                     bool hasManiacTask = partialManiacSize + completeLargeManiacSize > 
