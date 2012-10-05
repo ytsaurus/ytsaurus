@@ -134,29 +134,29 @@ void TYamrWriter::RememberItem(const TStringBuf& item, bool takeOwnership)
 
 void TYamrWriter::WriteRow()
 {
-    if (!Key) {
-        THROW_ERROR_EXCEPTION("There is no key column for yamr format");
+    if (!Key && !Value && !(Subkey && Config->HasSubkey)) {
+        THROW_ERROR_EXCEPTION("There is no columns for yamr format");
     }
-    if (!Value) {
-        THROW_ERROR_EXCEPTION("There is no value column for yamr format");
-    }
+
+    TStringBuf key = Key ? *Key : "";
     TStringBuf subkey = Subkey ? *Subkey : "";
+    TStringBuf value = Value ? *Value : "";
 
     if (!Config->Lenval) {
-        Stream->Write(*Key);
+        Stream->Write(key);
         Stream->Write(Config->FieldSeparator);
         if (Config->HasSubkey) {
             Stream->Write(subkey);
             Stream->Write(Config->FieldSeparator);
         }
-        Stream->Write(*Value);
+        Stream->Write(value);
         Stream->Write(Config->RecordSeparator);
     } else {
-        WriteInLenvalMode(*Key);
+        WriteInLenvalMode(key);
         if (Config->HasSubkey) {
             WriteInLenvalMode(subkey);
         }
-        WriteInLenvalMode(*Value);
+        WriteInLenvalMode(value);
     }
 }
 
@@ -167,6 +167,6 @@ void TYamrWriter::WriteInLenvalMode(const TStringBuf& value)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 } // namespace NFormats
 } // namespace NYT

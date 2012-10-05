@@ -185,7 +185,7 @@ test_chunksize
 test_mapreduce
 test_input_output_format
 test_transactions
-#test_range_map
+test_range_map
 test_uploaded_files
 test_ignore_positional_arguments
 test_stderr

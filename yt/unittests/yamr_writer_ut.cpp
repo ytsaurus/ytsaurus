@@ -72,7 +72,9 @@ TEST(TYamrWriterTest, SimpleWithSubkey)
 TEST(TYamrWriterTest, NonStringValues)
 {
     TStringStream outputStream;
-    TYamrWriter writer(&outputStream);
+    auto config = New<TYamrFormatConfig>();
+    config->HasSubkey = true;
+    TYamrWriter writer(&outputStream, config);
 
     writer.OnListItem();
     writer.OnBeginMap();
@@ -84,15 +86,15 @@ TEST(TYamrWriterTest, NonStringValues)
 
     writer.OnListItem();
     writer.OnBeginMap();
-        writer.OnKeyedItem("key");
+        writer.OnKeyedItem("subkey");
         writer.OnStringScalar("double");
         writer.OnKeyedItem("value");
         writer.OnDoubleScalar(10);
     writer.OnEndMap();
 
     Stroka output =
-        "integer\t42\n"
-        "double\t10.\n";
+        "integer\t\t42\n"
+        "\tdouble\t10.\n";
 
     EXPECT_EQ(output, outputStream.Str());
 }
@@ -171,34 +173,48 @@ TEST(TYamrWriterTest, LenvalWithoutFields)
     config->Lenval = true;
     TYamrWriter writer(&outputStream, config);
 
-    auto DoWrite = [&]() {
-        // Note: order is unusual (value, key)
-        writer.OnListItem();
-        writer.OnBeginMap();
-            writer.OnKeyedItem("value");
-            writer.OnStringScalar("value1");
-            writer.OnKeyedItem("key");
-            writer.OnStringScalar("key1");
-        writer.OnEndMap();
+    // Note: order is unusual (value, key)
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("value");
+        writer.OnStringScalar("value1");
+        writer.OnKeyedItem("key");
+        writer.OnStringScalar("key1");
+    writer.OnEndMap();
 
-        writer.OnListItem();
-        writer.OnBeginMap();
-            writer.OnKeyedItem("subkey");
-            writer.OnStringScalar("subkey2");
-            writer.OnKeyedItem("key");
-            writer.OnStringScalar("key2");
-        writer.OnEndMap();
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("subkey");
+        writer.OnStringScalar("subkey2");
+        writer.OnKeyedItem("key");
+        writer.OnStringScalar("key2");
+    writer.OnEndMap();
 
-        writer.OnListItem();
-        writer.OnBeginMap();
-            writer.OnKeyedItem("value");
-            writer.OnStringScalar("value3");
-            writer.OnKeyedItem("subkey");
-            writer.OnStringScalar("subkey3");
-        writer.OnEndMap();
-    };
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("value");
+        writer.OnStringScalar("value3");
+        writer.OnKeyedItem("subkey");
+        writer.OnStringScalar("subkey3");
+    writer.OnEndMap();
 
-    EXPECT_THROW(DoWrite(), std::exception);
+    Stroka output = Stroka(
+        "\x04\x00\x00\x00" "key1"
+        "\x00\x00\x00\x00"
+        "\x06\x00\x00\x00" "value1"
+
+        "\x04\x00\x00\x00" "key2"
+        "\x07\x00\x00\x00" "subkey2"
+        "\x00\x00\x00\x00" ""
+
+        "\x00\x00\x00\x00" ""
+        "\x07\x00\x00\x00" "subkey3"
+        "\x06\x00\x00\x00" "value3"
+
+        , 9 * 4 + (4 + 6) + (4 + 7) + (7 + 6) // all i32 + lengths of keys
+    );
+
+    EXPECT_EQ(output, outputStream.Str());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
