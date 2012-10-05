@@ -405,6 +405,8 @@ Examples:
     if args.erase is not None:
         yt.erase_table(args.erase)
     if args.upload is not None:
+        if yt.exists(args.upload) and yt.get_type(args.upload) == "file":
+            yt.remove(args.upload)
         yt.upload_file(sys.stdin, args.upload)
         if args.executable:
             yt.set_attribute(args.upload, "executable", "true")
