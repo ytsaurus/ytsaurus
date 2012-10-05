@@ -325,6 +325,27 @@ TEST(TJsonParserTest, DoubleAttributes)
     ParseJson(&stream, &Mock);
 }
 
+TEST(TJsonWriterTest, SomeHackyTest)
+{
+    Stroka input = "{\"$value\": \"yamr\", \"$attributes\": {\"lenval\": \"false\", \"has_subkey\": \"false\"}}";
+
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    InSequence dummy;
+
+    EXPECT_CALL(Mock, OnBeginAttributes());
+        EXPECT_CALL(Mock, OnKeyedItem("lenval"));
+        EXPECT_CALL(Mock, OnStringScalar("false"));
+        EXPECT_CALL(Mock, OnKeyedItem("has_subkey"));
+        EXPECT_CALL(Mock, OnStringScalar("false"));
+    EXPECT_CALL(Mock, OnEndAttributes());
+
+    EXPECT_CALL(Mock, OnStringScalar("yamr"));
+
+    TStringInput stream(input);
+    ParseJson(&stream, &Mock);
+}
+
+
 ///////////////////////////////////////////////////////////////////////////////
             
 } // namespace NFormats
