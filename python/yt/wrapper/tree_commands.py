@@ -1,5 +1,5 @@
 from common import require, YtError, parse_bool
-from path_tools import escape_path, dirs, split_table_ranges
+from path_tools import dirs, split_table_ranges
 from http import make_request
 import config
 
@@ -15,41 +15,39 @@ def get(path, check_errors=True, attributes=None):
                         # Hacky way to pass attributes into url
                         dict(
                             [("transaction_id", config.TRANSACTION)] +
-                            [("path", escape_path(path))] +
+                            [("path", path)] +
                             [("attributes[%d]" % i, attributes[i]) for i in xrange(len(attributes))]
                         ),
-                        #{"path": escape_path(path),
-                        # "attributes": attributes},
                         check_errors=check_errors)
 
 def set(path, value):
     return make_request("PUT", "set",
-                        {"path": escape_path(path),
+                        {"path": path,
                          "transaction_id": config.TRANSACTION},
                         json.dumps(value))
 
 def copy(source_path, destination_path):
     return make_request("POST", "copy",
-                        {"source_path": escape_path(source_path),
-                         "destination_path": escape_path(destination_path),
+                        {"source_path": source_path,
+                         "destination_path": destination_path,
                          "transaction_id": config.TRANSACTION})
 
 def list(path):
     return make_request("GET", "list",
-            {"path": escape_path(path),
+            {"path": path,
              "transaction_id": config.TRANSACTION})
 
 def exists(path):
     return parse_bool(
         make_request("GET", "exists",
-            {"path": escape_path(split_table_ranges(path)[0]),
+            {"path": split_table_ranges(path)[0],
              "transaction_id": config.TRANSACTION}))
 
 def remove(path):
     require(exists(path),
             YtError("You try to delete non-existing path " + path))
     return make_request("POST", "remove",
-            {"path": escape_path(path),
+            {"path": path,
              "transaction_id": config.TRANSACTION})
 
 def mkdir(path):

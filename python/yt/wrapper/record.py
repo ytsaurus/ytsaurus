@@ -47,6 +47,7 @@ def Record(*args, **kws):
     return SubkeyedRecord(*args[:3], **kws)
 
 """ Methods for records convertion """
+# TODO(ignat): builtin full support of this methods to read/write and python operations
 def record_to_line(rec, eoln=True, format=None):
     if format is None: format = config.DEFAULT_FORMAT
     
