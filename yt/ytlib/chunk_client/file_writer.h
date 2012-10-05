@@ -19,7 +19,7 @@ class TFileWriter
     : public IAsyncWriter
 {
 public:
-    explicit TFileWriter(const Stroka& fileName, bool directMode = false);
+    explicit TFileWriter(const Stroka& fileName);
 
     virtual void Open();
 
@@ -40,7 +40,6 @@ private:
     Stroka FileName;
     bool IsOpen;
     bool IsClosed;
-    const bool DirectMode;
     i64 DataSize;
     THolder<TFile> DataFile;
     NChunkClient::NProto::TChunkInfo ChunkInfo;

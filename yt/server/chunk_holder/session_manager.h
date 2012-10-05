@@ -25,7 +25,7 @@ public:
         TLocationPtr location);
 
     //! Starts the session.
-    void Start(bool directMode);
+    void Start();
 
     ~TSession();
 
@@ -119,7 +119,7 @@ private:
     void ReleaseBlocks(i32 flushedBlockIndex);
 
     void OpenFile();
-    void DoOpenFile(bool directMode);
+    void DoOpenFile();
 
     TFuture<TVoid> AbortWriter();
     TVoid DoAbortWriter();
@@ -153,7 +153,7 @@ public:
         TBootstrap* bootstrap);
 
     //! Starts a new chunk upload session.
-    TSessionPtr StartSession(const TChunkId& chunkId, bool directMode);
+    TSessionPtr StartSession(const TChunkId& chunkId);
 
     //! Completes an earlier opened upload session.
     /*!

@@ -370,7 +370,13 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
 {
     int family = netAddress.GetSockAddr()->sa_family;
     int protocol = family == AF_UNIX ? 0 : IPPROTO_TCP;
-    Socket = socket(family, SOCK_STREAM, protocol);
+    int type = SOCK_STREAM;
+
+#ifdef _linux_
+    type |= SOCK_CLOEXEC;
+#endif
+
+    Socket = socket(family, type, protocol);
     if (Socket == INVALID_SOCKET) {
         THROW_ERROR_EXCEPTION("Failed to create client socket")
             << TError::FromSystem();
@@ -398,7 +404,6 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
     ioctlsocket(Socket, FIONBIO, &dummy);
 #else
     fcntl(Socket, F_SETFL, O_NONBLOCK);
-    fcntl(Socket, F_SETFD, FD_CLOEXEC);
 #endif
 
     int result;

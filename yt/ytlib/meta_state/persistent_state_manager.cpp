@@ -385,7 +385,7 @@ public:
 
         TSharedPtr<TFile, TAtomicCounter> snapshotFile;
         try {
-            snapshotFile = new TFile(fileName, OpenExisting | RdOnly);
+            snapshotFile = new TFile(fileName, OpenExisting | RdOnly | CloseOnExec);
         }
         catch (const std::exception& ex) {
             LOG_FATAL(ex, "IO error while opening snapshot %d",

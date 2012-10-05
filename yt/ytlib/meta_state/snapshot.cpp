@@ -78,7 +78,7 @@ TSnapshotReader::~TSnapshotReader()
 
 void TSnapshotReader::Open()
 {
-    File.Reset(new TFile(FileName, OpenExisting));
+    File.Reset(new TFile(FileName, OpenExisting | CloseOnExec));
 
     Header.Reset(new TSnapshotHeader());
     ReadPod(*File, *Header);

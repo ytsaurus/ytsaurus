@@ -63,7 +63,7 @@ void TFileLogWriter::EnsureInitialized()
 
     try {
         NFS::ForcePath(NFS::GetDirectoryName(FileName));
-        File.Reset(new TFile(FileName, OpenAlways|ForAppend|WrOnly|Seq));
+        File.Reset(new TFile(FileName, OpenAlways|ForAppend|WrOnly|Seq|CloseOnExec));
         FileOutput.Reset(new TBufferedFileOutput(*File, BufferSize));
         FileOutput->SetFinishPropagateMode(true);
         *FileOutput << Endl;
@@ -119,7 +119,7 @@ void TRawFileLogWriter::EnsureInitialized()
 
     try {
         NFS::ForcePath(NFS::GetDirectoryName(FileName));
-        File.Reset(new TFile(FileName, OpenAlways|ForAppend|WrOnly|Seq));
+        File.Reset(new TFile(FileName, OpenAlways|ForAppend|WrOnly|Seq|CloseOnExec));
         FileOutput.Reset(new TBufferedFileOutput(*File, BufferSize));
         FileOutput->SetFinishPropagateMode(true);
         *FileOutput << Endl;

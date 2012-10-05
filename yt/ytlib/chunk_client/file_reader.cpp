@@ -28,7 +28,8 @@ void TFileReader::Open()
     Stroka chunkMetaFileName = FileName + ChunkMetaSuffix;
     TFile chunkMetaFile(
         chunkMetaFileName,
-        OpenExisting | RdOnly | Seq);
+        OpenExisting | RdOnly | Seq | CloseOnExec);
+
     InfoSize = chunkMetaFile.GetLength();
     TBufferedFileInput chunkMetaInput(chunkMetaFile);
 
@@ -57,8 +58,7 @@ void TFileReader::Open()
             ~FileName); 
     }
 
-    DataFile.Reset(new TFile(FileName, OpenExisting | RdOnly));
-
+    DataFile.Reset(new TFile(FileName, OpenExisting | RdOnly | CloseOnExec));
     Opened = true;
 }
 

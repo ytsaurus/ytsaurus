@@ -466,7 +466,7 @@ void TChangeLog::TImpl::ReadIndex()
         LOG_ERROR_IF(correctPrefixSize < Index.size(), "Changelog index contains incorrect records");
         Index.resize(correctPrefixSize);
 
-        IndexFile.Reset(new TFile(IndexFileName, RdWr|Seq));
+        IndexFile.Reset(new TFile(IndexFileName, RdWr|Seq|CloseOnExec));
         IndexFile->Resize(sizeof(TLogIndexHeader) + Index.size() * sizeof(TLogIndexRecord));
         IndexFile->Seek(0, sEnd);
     }

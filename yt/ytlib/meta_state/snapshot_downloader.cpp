@@ -122,7 +122,7 @@ TError TSnapshotDownloader::DownloadSnapshot(
 
     TAutoPtr<TFile> file;
     try {
-        file = new TFile(fileName, CreateAlways | WrOnly | Seq);
+        file = new TFile(fileName, CreateAlways | WrOnly | Seq | CloseOnExec);
         file->Resize(snapshotInfo.Length);
     } catch (const std::exception& ex) {
         LOG_FATAL(ex, "IO error opening snapshot %d for writing",

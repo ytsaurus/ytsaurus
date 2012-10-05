@@ -59,20 +59,20 @@ TSession::~TSession()
     Location->UpdateSessionCount(-1);
 }
 
-void TSession::Start(bool directMode)
+void TSession::Start()
 {
     LOG_DEBUG("Session started");
 
-    WriteInvoker->Invoke(BIND(&TSession::DoOpenFile, MakeStrong(this), directMode));
+    WriteInvoker->Invoke(BIND(&TSession::DoOpenFile, MakeStrong(this)));
 }
 
-void TSession::DoOpenFile(bool directMode)
+void TSession::DoOpenFile()
 {
     LOG_DEBUG("Started opening chunk writer");
     
     PROFILE_TIMING ("/chunk_io/chunk_writer_open_time") {
         try {
-            Writer = New<TFileWriter>(FileName, directMode);
+            Writer = New<TFileWriter>(FileName);
             Writer->Open();
         }
         catch (const std::exception& ex) {
@@ -453,12 +453,12 @@ TSessionPtr TSessionManager::FindSession(const TChunkId& chunkId) const
     return session;
 }
 
-TSessionPtr TSessionManager::StartSession(const TChunkId& chunkId, bool directMode)
+TSessionPtr TSessionManager::StartSession(const TChunkId& chunkId)
 {
     auto location = Bootstrap->GetChunkStore()->GetNewChunkLocation();
 
     auto session = New<TSession>(Bootstrap, chunkId, location);
-    session->Start(directMode);
+    session->Start();
 
     auto lease = TLeaseManager::CreateLease(
         Config->SessionTimeout,

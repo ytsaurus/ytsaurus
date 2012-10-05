@@ -773,7 +773,6 @@ TRemoteWriter::TImpl::StartChunk(TNodePtr node)
 
     auto req = node->Proxy.StartChunk();
     *req->mutable_chunk_id() = ChunkId.ToProto();
-    req->set_direct_mode(Config->DirectMode);
     return req->Invoke();
 }
 

@@ -178,7 +178,15 @@ protected:
             socklen_t clientAddressLen = clientAddress.GetLength();
             SOCKET clientSocket;
             PROFILE_AGGREGATED_TIMING (AcceptTime) {
+#ifdef _linux_
+                clientSocket = accept4(
+                    ServerSocket, 
+                    clientAddress.GetSockAddr(), 
+                    &clientAddressLen, 
+                    SOCK_CLOEXEC);
+#else
                 clientSocket = accept(ServerSocket, clientAddress.GetSockAddr(), &clientAddressLen);
+#endif
             }
 
             if (clientSocket == INVALID_SOCKET) {
@@ -251,7 +259,13 @@ public:
 private:
     virtual void CreateServerSocket() override
     {
-        ServerSocket = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
+        int type = SOCK_STREAM;
+
+#ifdef _linux_
+        type |= SOCK_CLOEXEC;
+#endif
+
+        ServerSocket = socket(AF_INET6, type, IPPROTO_TCP);
         if (ServerSocket == INVALID_SOCKET) {
             THROW_ERROR_EXCEPTION("Failed to create a server socket")
                 << TError::FromSystem();
@@ -340,7 +354,13 @@ private:
             }
         }
 
-    	ServerSocket = socket(AF_UNIX, SOCK_STREAM, 0);
+        int type = SOCK_STREAM;
+
+#ifdef _linux_
+        type |= SOCK_CLOEXEC;
+#endif
+
+        ServerSocket = socket(AF_UNIX, type, 0);
         if (ServerSocket == INVALID_SOCKET) {
             THROW_ERROR_EXCEPTION("Failed to create a local server socket")
                 << TError::FromSystem();

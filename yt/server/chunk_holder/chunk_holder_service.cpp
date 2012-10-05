@@ -175,14 +175,13 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, StartChunk)
 
     auto chunkId = TChunkId::FromProto(request->chunk_id());
 
-    context->SetRequestInfo("ChunkId: %s, DirectMode: %s", 
-        ~chunkId.ToString(),
-        request->direct_mode() ? "True" : "False");
+    context->SetRequestInfo("ChunkId: %s", 
+        ~chunkId.ToString());
 
     ValidateNoSession(chunkId);
     ValidateNoChunk(chunkId);
 
-    Bootstrap->GetSessionManager()->StartSession(chunkId, request->direct_mode());
+    Bootstrap->GetSessionManager()->StartSession(chunkId);
 
     context->Reply();
 }

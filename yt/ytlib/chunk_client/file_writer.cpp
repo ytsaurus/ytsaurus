@@ -23,13 +23,12 @@ static TNullOutput NullOutput;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TFileWriter::TFileWriter(const Stroka& fileName, bool directMode)
+TFileWriter::TFileWriter(const Stroka& fileName)
     : FileName(fileName)
     , IsOpen(false)
     , IsClosed(false)
     , DataSize(0)
     , Result(MakeFuture(TError()))
-    , DirectMode(directMode)
     , ChecksumOutput(&NullOutput)
 { }
 
@@ -38,11 +37,7 @@ void TFileWriter::Open()
     YASSERT(!IsOpen);
     YASSERT(!IsClosed);
 
-    ui32 oMode = CreateAlways | WrOnly | Seq;
-    if (DirectMode) {
-        oMode |= Direct;
-    }
-
+    ui32 oMode = CreateAlways | WrOnly | Seq | CloseOnExec;
     DataFile.Reset(new TFile(FileName + NFS::TempFileSuffix, oMode));
 
     IsOpen = true;
@@ -118,7 +113,8 @@ TAsyncError TFileWriter::AsyncClose(const NChunkClient::NProto::TChunkMeta& chun
     try {
         TFile chunkMetaFile(
             chunkMetaFileName + NFS::TempFileSuffix,
-            CreateAlways | WrOnly | Seq);
+            CreateAlways | WrOnly | Seq | CloseOnExec);
+
         WritePod(chunkMetaFile, header);
         chunkMetaFile.Write(metaData.Begin(), metaData.Size());
 
