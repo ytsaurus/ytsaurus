@@ -1171,7 +1171,7 @@ private:
 
         SamplesCollector = New<TSamplesCollector>(
             SamplesFetcher,
-            ~Host->GetBackgroundInvoker());
+            Host->GetBackgroundInvoker());
 
         PROFILE_TIMING ("/input_processing_time") {
             LOG_INFO("Processing inputs");
@@ -1202,7 +1202,7 @@ private:
                 return NewPromise< TValueOrError<void> >();
             }
 
-            SamplesFetcher->SetDesiredSamplesCount(SuggestPartitionCount() * Spec->SamplesPerPartition);
+            SamplesFetcher->SetDesiredSampleCount(SuggestPartitionCount() * Spec->SamplesPerPartition);
             return SamplesCollector->Run();
         }
     }

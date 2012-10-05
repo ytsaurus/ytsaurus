@@ -514,9 +514,8 @@ void TChunkHolderService::ProcessSample(
     auto chunkId = TChunkId::FromProto(sampleRequest->chunk_id());
 
     if (!result.IsOK()) {
-        LOG_WARNING("GetTableSamples: Error getting meta of chunk %s\n%s", 
-            ~chunkId.ToString(),
-            ~ToString(result));
+        LOG_WARNING(result, "GetTableSamples: Error getting meta of chunk %s", 
+            ~chunkId.ToString());
         ToProto(chunkSamples->mutable_error(), result);
         return;
     }
@@ -592,8 +591,8 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkSplits)
         auto chunk = Bootstrap->GetChunkStore()->FindChunk(chunkId);
 
         if (!chunk) {
-            auto error = TError("No such chunk %s", ~chunkId.ToString());
-            LOG_ERROR("%s", ~ToString(error));
+            auto error = TError("No such chunk: %s", ~chunkId.ToString());
+            LOG_ERROR(error);
             ToProto(splittedChunk->mutable_error(), error);
         } else {
             awaiter->Await(chunk->GetMeta(), BIND(
@@ -623,7 +622,7 @@ void TChunkHolderService::MakeChunkSplits(
     if (!result.IsOK()) {
         auto error = TError("GetChunkSplits: Error getting meta of chunk %s", ~chunkId.ToString())
             << result;
-        LOG_ERROR("%s", ~ToString(error));
+        LOG_ERROR(error);
         ToProto(splittedChunk->mutable_error(), error);
         return;
     }
@@ -634,18 +633,18 @@ void TChunkHolderService::MakeChunkSplits(
     if (!miscExt.sorted()) {
         auto error =  TError("GetChunkSplits: Requested chunk splits for unsorted chunk %s", 
             ~chunkId.ToString());
-        LOG_ERROR("%s", ~ToString(error));
+        LOG_ERROR(error);
         ToProto(splittedChunk->mutable_error(), error);
         return;
     }
 
     auto keyColumnsExt = GetProtoExtension<NTableClient::NProto::TKeyColumnsExt>(result.Value().extensions());
     if (keyColumnsExt.values_size() < keyColumns.size()) {
-        auto error = TError("Not enough key columns in chunk %s (Expected: %d, Actual: %d)", 
+        auto error = TError("Not enough key columns in chunk %s: expected %d, actual %d", 
             ~chunkId.ToString(),
             static_cast<int>(keyColumns.size()),
             static_cast<int>(keyColumnsExt.values_size()));
-        LOG_ERROR("%s", ~ToString(error));
+        LOG_ERROR(error);
         ToProto(splittedChunk->mutable_error(), error);
         return;
     }
@@ -653,10 +652,10 @@ void TChunkHolderService::MakeChunkSplits(
     for (int i = 0; i < keyColumns.size(); ++i) {
         Stroka value = keyColumnsExt.values(i);
         if (keyColumns[i] != value) {
-            auto error = TError("Invalid key columns (Expected: %s, Actual: %s)",
+            auto error = TError("Invalid key columns: expected %s, actual %s",
                 ~keyColumns[i],
                 ~value);
-            LOG_ERROR("%s", ~ToString(error));
+            LOG_ERROR(error);
             ToProto(splittedChunk->mutable_error(), error);
             return;
         }
@@ -703,7 +702,7 @@ void TChunkHolderService::MakeChunkSplits(
         return (result > 0) - (result < 0);
     };
 
-    auto beginIter = std::lower_bound(
+    auto beginIt = std::lower_bound(
         indexExt.items().begin(), 
         indexExt.items().end(), 
         inputChunk->slice().start_limit(), 
@@ -713,8 +712,8 @@ void TChunkHolderService::MakeChunkSplits(
             return comparer(limit, indexRow, true) > 0;
         });
 
-    auto endIter = std::upper_bound(
-        beginIter, 
+    auto endIt = std::upper_bound(
+        beginIt, 
         indexExt.items().end(), 
         inputChunk->slice().end_limit(), 
         [&] (const NTableClient::NProto::TReadLimit& limit,
@@ -725,7 +724,7 @@ void TChunkHolderService::MakeChunkSplits(
 
     NTableClient::NProto::TInputChunk* currentSplit;
     NTableClient::NProto::TBoundaryKeysExt boundaryKeysExt;
-    i64 endRowIndex = beginIter->row_index();
+    i64 endRowIndex = beginIt->row_index();
     i64 startRowIndex;
     i64 dataSize;
 
@@ -738,14 +737,14 @@ void TChunkHolderService::MakeChunkSplits(
     };
     createNewSplit();
 
-    auto samplesLeft = std::distance(beginIter, endIter) - 1;
+    auto samplesLeft = std::distance(beginIt, endIt) - 1;
     while(samplesLeft > 0) {
-        ++beginIter;
+        ++beginIt;
         --samplesLeft;
         dataSize += dataSizeBetweenSamples;
 
-        auto nextIter = beginIter + 1;
-        if (nextIter == endIter) {
+        auto nextIter = beginIt + 1;
+        if (nextIter == endIt) {
             break;
         }
 
@@ -753,12 +752,12 @@ void TChunkHolderService::MakeChunkSplits(
             break;
         }
 
-        if (CompareKeys(nextIter->key(), beginIter->key(), keyColumns.size()) == 0) {
+        if (CompareKeys(nextIter->key(), beginIt->key(), keyColumns.size()) == 0) {
             continue;
         }
 
         if (dataSize > minSplitSize) {
-            auto key = beginIter->key();
+            auto key = beginIt->key();
             while (key.parts_size() > keyColumns.size()) {
                 key.mutable_parts()->RemoveLast();
             }
@@ -766,7 +765,7 @@ void TChunkHolderService::MakeChunkSplits(
             *boundaryKeysExt.mutable_end() = key;
             UpdateProtoExtension(currentSplit->mutable_extensions(), boundaryKeysExt);
 
-            endRowIndex = beginIter->row_index();
+            endRowIndex = beginIt->row_index();
             currentSplit->set_row_count(endRowIndex - startRowIndex);
             currentSplit->set_uncompressed_data_size(dataSize);
 
@@ -780,10 +779,10 @@ void TChunkHolderService::MakeChunkSplits(
     }
 
     UpdateProtoExtension(currentSplit->mutable_extensions(), boundaryKeysExt);
-    endRowIndex = (--endIter)->row_index();
+    endRowIndex = (--endIt)->row_index();
     currentSplit->set_row_count(endRowIndex - startRowIndex);
     currentSplit->set_uncompressed_data_size(
-        dataSize + (std::distance(beginIter, endIter) - 1) * dataSizeBetweenSamples);
+        dataSize + (std::distance(beginIt, endIt) - 1) * dataSizeBetweenSamples);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

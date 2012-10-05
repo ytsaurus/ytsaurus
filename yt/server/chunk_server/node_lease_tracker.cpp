@@ -96,12 +96,12 @@ void TNodeLeaseTracker::OnExpired(TNodeId nodeId)
         ->GetChunkManager()
         ->CreateUnregisterNodeMutation(message)
         ->OnSuccess(BIND([=] () {
-            LOG_INFO("Node expiration commit success (NodeId: %d)", nodeId);
+            LOG_INFO("Node expiration commit success (NodeId: %d)",
+                nodeId);
         }))
         ->OnError(BIND([=] (const TError& error) {
-            LOG_ERROR("Node expiration commit failed (NodeId: %d)\n%s",
-                nodeId,
-                ~ToString(error));
+            LOG_ERROR(error, "Node expiration commit failed (NodeId: %d)",
+                nodeId);
         }))
         ->Commit();
 }

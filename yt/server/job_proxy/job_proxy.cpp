@@ -66,8 +66,7 @@ void TJobProxy::OnHeartbeatResponse(TSupervisorServiceProxy::TRspOnJobProgressPt
         // Good user processes are supposed to die themselves 
         // when io pipes are closed.
         // Bad processes will die at container shutdown.
-        LOG_ERROR("Error sending heartbeat to supervisor\n%s",
-            ~ToString(rsp->GetError()));
+        LOG_ERROR(*rsp, "Error sending heartbeat to supervisor");
 
         NLog::TLogManager::Get()->Shutdown();
         // TODO(babenko): extract error code constant
@@ -195,7 +194,7 @@ void TJobProxy::ReportResult(const TJobResult& result)
 
     auto rsp = req->Invoke().Get();
     if (!rsp->IsOK()) {
-        LOG_ERROR("Failed to report job result\n%s", ~ToString(rsp->GetError()));
+        LOG_ERROR(*rsp, "Failed to report job result");
 
         NLog::TLogManager::Get()->Shutdown();
         // TODO(babenko): extract error code constant

@@ -74,7 +74,7 @@ protected:
     IInvokerPtr CancelableControlInvoker;
     IInvokerPtr CancelableBackgroundInvoker;
 
-    // Remains True as long as the operation is not failed, completed, or aborted.
+    // Remains True as long as the operation is not finished.
     bool Active;
 
     // Remains True as long as the operation can schedule new jobs.

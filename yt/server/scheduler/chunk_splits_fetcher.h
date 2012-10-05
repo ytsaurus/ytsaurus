@@ -37,13 +37,13 @@ public:
     void CreateNewRequest(const Stroka& address);
 
     // Returns false if samples from this chunk are not required.
-    bool AddChunkToRequest(NTableClient::TRefCountedInputChunkPtr& inputChunk);
+    bool AddChunkToRequest(NTableClient::TRefCountedInputChunkPtr inputChunk);
     TFuture<TResponsePtr> InvokeRequest();
 
     TError ProcessResponseItem(
-        const TResponsePtr& rsp, 
+        TResponsePtr rsp, 
         int index,
-        NTableClient::TRefCountedInputChunkPtr& inputChunk);
+        NTableClient::TRefCountedInputChunkPtr inputChunk);
 
     std::vector<NTableClient::TRefCountedInputChunkPtr>& GetChunkSplits();
 

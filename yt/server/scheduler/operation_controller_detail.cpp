@@ -387,7 +387,7 @@ TFuture<void> TOperationControllerBase::Prepare()
                 }
                 return MakeFuture();
             } else {
-                LOG_WARNING("Operation preparation failed\n%s", ~ToString(result));
+                LOG_WARNING(result, "Operation has failed to prepare");
                 this_->Active = false;
                 this_->Host->OnOperationFailed(this_->Operation, result);
                 // This promise is never fulfilled.
@@ -428,7 +428,7 @@ TFuture<void> TOperationControllerBase::Commit()
                 LOG_INFO("Operation committed");
                 return MakeFuture();
             } else {
-                LOG_WARNING("Operation has failed to commit\n%s", ~ToString(result));
+                LOG_WARNING(result, "Operation has failed to commit");
                 this_->Host->OnOperationFailed(this_->Operation, result);
                 return NewPromise<void>();
             }
@@ -795,7 +795,7 @@ void TOperationControllerBase::OnOperationFailed(const TError& error)
     if (!Active)
         return;
 
-    LOG_WARNING("Operation failed\n%s", ~ToString(error));
+    LOG_WARNING(error, "Operation failed");
 
     Running = false;
     Active = false;

@@ -114,7 +114,7 @@ public:
             ToProto(result.mutable_error(), JobExitError);
         } catch (const std::exception& ex) {
             TError error(ex);
-            LOG_ERROR("Job failed\n%s", ~ToString(error));
+            LOG_ERROR(error, "Job failed");
             ToProto(result.mutable_error(), error);
         }
 

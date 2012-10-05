@@ -67,11 +67,13 @@ void TChunkSplitsFetcher::CreateNewRequest(const Stroka& address)
     ToProto(CurrentRequest->mutable_key_columns(), KeyColumns);
 }
 
-bool TChunkSplitsFetcher::AddChunkToRequest(NTableClient::TRefCountedInputChunkPtr& chunk)
+bool TChunkSplitsFetcher::AddChunkToRequest(NTableClient::TRefCountedInputChunkPtr chunk)
 {
+    auto chunkId = TChunkId::FromProto(chunk->slice().chunk_id());
     if (chunk->uncompressed_data_size() < Spec->JobSliceDataSize) {
-        LOG_DEBUG("Added chunk split (ChunkId: %s, TableIndex: %d)", 
-            ~ToString(TChunkId::FromProto(chunk->slice().chunk_id())), chunk->TableIndex);
+        LOG_DEBUG("Chunk split added (ChunkId: %s, TableIndex: %d)", 
+            ~ToString(chunkId),
+            chunk->TableIndex);
 
         ChunkSplits.push_back(chunk);
         return false;
@@ -81,32 +83,34 @@ bool TChunkSplitsFetcher::AddChunkToRequest(NTableClient::TRefCountedInputChunkP
     }
 }
 
-auto TChunkSplitsFetcher::InvokeRequest() -> TFuture<TResponsePtr>
+TFuture<TChunkSplitsFetcher::TResponsePtr> TChunkSplitsFetcher::InvokeRequest()
 {
-    auto req(MoveRV(CurrentRequest));
+    auto req = CurrentRequest;
+    CurrentRequest.Reset();
     return req->Invoke();
 }
 
 TError TChunkSplitsFetcher::ProcessResponseItem(
-    const TResponsePtr& rsp, 
+    TResponsePtr rsp, 
     int index,
-    NTableClient::TRefCountedInputChunkPtr& chunk)
+    TRefCountedInputChunkPtr inputChunk)
 {
-    YASSERT(rsp->IsOK());
+    YCHECK(rsp->IsOK());
 
     const auto& splittedChunks = rsp->splitted_chunks(index);
     if (splittedChunks.has_error()) {
-        auto error = FromProto(splittedChunks.error());
-        return error;
-    } else {
-        LOG_TRACE("Received %d chunk splits for chunk number %d",
-            splittedChunks.input_chunks_size(),
-            index);
-        FOREACH (const auto& inputChunk, splittedChunks.input_chunks()) {
-            ChunkSplits.push_back(New<TRefCountedInputChunk>(inputChunk, chunk->TableIndex));
-        }
-        return TError();
+        return FromProto(splittedChunks.error());
     }
+
+    LOG_TRACE("Received %d chunk splits for chunk #%d",
+        splittedChunks.input_chunks_size(),
+        index);
+
+    FOREACH (const auto& splittedChunk, splittedChunks.input_chunks()) {
+        ChunkSplits.push_back(New<TRefCountedInputChunk>(splittedChunk, inputChunk->TableIndex));
+    }
+
+    return TError();
 }
 
 ////////////////////////////////////////////////////////////////////

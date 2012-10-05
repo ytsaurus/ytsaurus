@@ -30,20 +30,21 @@ public:
         TSortOperationSpecPtr spec,
         const TOperationId& operationId);
 
-    void SetDesiredSamplesCount(int desiredSamplesCount);
+    void SetDesiredSampleCount(int desiredSampleCount);
 
     bool Prepare(const std::vector<NTableClient::TRefCountedInputChunkPtr>& chunks);
 
     void CreateNewRequest(const Stroka& address);
 
-    // Returns false if samples from this chunk are not required.
-    bool AddChunkToRequest(NTableClient::TRefCountedInputChunkPtr& inputChunk);
+    // If False is returned then samples from this chunk are not required.
+    bool AddChunkToRequest(NTableClient::TRefCountedInputChunkPtr inputChunk);
+
     TFuture<TResponsePtr> InvokeRequest();
 
     TError ProcessResponseItem(
-        const TResponsePtr& rsp, 
+        TResponsePtr rsp, 
         int index,
-        NTableClient::TRefCountedInputChunkPtr& chunk);
+        NTableClient::TRefCountedInputChunkPtr inputChunk);
 
     const std::vector<NTableClient::NProto::TKey>& GetSamples() const;
 

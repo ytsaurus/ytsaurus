@@ -18,17 +18,14 @@ public:
     typedef TIntrusivePtr<TChunkInfoFetcher> TChunkInfoFetcherPtr;
 
     TChunkInfoCollector(
-        const TChunkInfoFetcherPtr& fetcher,
-        const IInvokerPtr& invoker);
+        TChunkInfoFetcherPtr fetcher,
+        IInvokerPtr invoker);
 
-    void AddChunk(NTableClient::TRefCountedInputChunkPtr& chunk);
+    void AddChunk(NTableClient::TRefCountedInputChunkPtr chunk);
     TFuture< TValueOrError<void> > Run();
-
-    TChunkInfoFetcherPtr& GetFetcher();
 
 private:
     TChunkInfoFetcherPtr ChunkInfoFetcher;
-
     IInvokerPtr Invoker;
 
     TPromise< TValueOrError<void> > Promise;

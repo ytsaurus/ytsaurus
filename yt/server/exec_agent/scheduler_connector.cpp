@@ -81,7 +81,7 @@ void TSchedulerConnector::OnHeartbeatResponse(TSchedulerServiceProxy::TRspHeartb
     HeartbeatInvoker->ScheduleNext();
 
     if (!rsp->IsOK()) {
-        LOG_ERROR("Error reporting heartbeat to scheduler\n%s", ~ToString(rsp->GetError()));
+        LOG_ERROR(*rsp, "Error reporting heartbeat to scheduler");
         return;
     }
 

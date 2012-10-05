@@ -4,6 +4,7 @@
 #undef CHUNK_INFO_COLLECTOR_INL_H_
 
 #include <ytlib/actions/parallel_awaiter.h>
+
 #include <ytlib/table_client/key.h>
 
 namespace NYT {
@@ -13,8 +14,8 @@ namespace NScheduler {
 
 template <class TChunkInfoFetcher>
 TChunkInfoCollector<TChunkInfoFetcher>::TChunkInfoCollector(
-    const TChunkInfoFetcherPtr& fetcher,
-    const IInvokerPtr& invoker)
+    TChunkInfoFetcherPtr fetcher,
+    IInvokerPtr invoker)
     : ChunkInfoFetcher(fetcher)
     , Invoker(invoker)
     , Promise(NewPromise< TValueOrError<void> >())
@@ -22,7 +23,7 @@ TChunkInfoCollector<TChunkInfoFetcher>::TChunkInfoCollector(
 
 template <class TChunkInfoFetcher>
 void TChunkInfoCollector<TChunkInfoFetcher>::AddChunk(
-    NTableClient::TRefCountedInputChunkPtr& chunk)
+    NTableClient::TRefCountedInputChunkPtr chunk)
 {
     YCHECK(UnfetchedChunkIndexes.insert(static_cast<int>(Chunks.size())).second);
     Chunks.push_back(chunk);
@@ -146,19 +147,16 @@ void TChunkInfoCollector<TChunkInfoFetcher>::OnResponse(
             if (result.IsOK()) {
                 YCHECK(UnfetchedChunkIndexes.erase(chunkIndex) == 1);
             } else {
-                auto error = TError(
-                    "Unable to fetch chunk info for chunk %s from %s",
+                LOG_WARNING(result, "Unable to fetch chunk info for chunk %s from %s",
                     ~chunkId.ToString(),
-                    ~address) << result;
-                LOG_WARNING("%s", ~ToString(error));
+                    ~address);
                 YCHECK(DeadChunks.insert(std::make_pair(address, chunkId)).second);
             }
         }
         LOG_DEBUG("Received chunk info from %s", ~address);
     } else {
-        auto error = TError("Error requesting chunk info from %s",
-            ~address) << rsp->GetError();
-        LOG_WARNING("%s", ~ToString(error));
+        LOG_WARNING(*rsp, "Error requesting chunk info from %s",
+            ~address);
         YCHECK(DeadNodes.insert(address).second);
     }
 }

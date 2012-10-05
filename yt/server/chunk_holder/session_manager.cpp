@@ -301,7 +301,7 @@ TFuture<TChunkPtr> TSession::Finish(const TChunkMeta& chunkMeta)
 
 void TSession::Cancel(const TError& error)
 {
-    LOG_DEBUG("Session canceled\n%s", ~ToString(error));
+    LOG_DEBUG(error, "Session canceled");
 
     CloseLease();
     AbortWriter()
@@ -484,9 +484,8 @@ void TSessionManager::CancelSession(TSessionPtr session, const TError& error)
 
     session->Cancel(error);
 
-    LOG_INFO("Session %s canceled\n%s",
-        ~chunkId.ToString(),
-        ~ToString(error));
+    LOG_INFO(error, "Session canceled (ChunkId: %s)",
+        ~chunkId.ToString());
 }
 
 TFuture<TChunkPtr> TSessionManager::FinishSession(

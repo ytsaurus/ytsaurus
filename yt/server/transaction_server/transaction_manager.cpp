@@ -621,9 +621,8 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
             LOG_INFO("Transaction expiration commit success (TransactionId: %s)",
                 ~id.ToString());
         } else {
-            LOG_ERROR("Transaction expiration commit failed (TransactionId: %s)\n%s",
-                ~id.ToString(),
-                ~ToString(rsp->GetError()));
+            LOG_ERROR(*rsp, "Transaction expiration commit failed (TransactionId: %s)",
+                ~id.ToString());
         }
     }));
 }

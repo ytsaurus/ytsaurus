@@ -156,7 +156,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
         
-        LOG_INFO("Unsafe environment: killing job\n%s", ~ToString(error));
+        LOG_INFO(error, "Killing job");
 
         SetError(error);
 
@@ -226,7 +226,7 @@ private:
             : TError("Job proxy failed") << statusError;
         SetError(wrappedError);
 
-        LOG_INFO("Job proxy finished\n%s", ~ToString(wrappedError));
+        LOG_INFO(wrappedError, "Job proxy finished");
 
         {
             // Kill process group for sanity reasons.

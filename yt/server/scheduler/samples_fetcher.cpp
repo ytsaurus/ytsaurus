@@ -40,7 +40,7 @@ TSamplesFetcher::TSamplesFetcher(
     Logger.AddTag(Sprintf("OperationId: %s", ~operationId.ToString()));
 }
 
-void TSamplesFetcher::SetDesiredSamplesCount(int desiredSamplesCount)
+void TSamplesFetcher::SetDesiredSampleCount(int desiredSamplesCount)
 {
     DesiredSampleCount = desiredSamplesCount;
 }
@@ -53,6 +53,7 @@ NLog::TTaggedLogger& TSamplesFetcher::GetLogger()
 bool TSamplesFetcher::Prepare(const std::vector<NTableClient::TRefCountedInputChunkPtr>& chunks)
 {
     YCHECK(DesiredSampleCount > 0);
+
     i64 totalSize = 0;
     FOREACH(const auto& chunk, chunks) {
         auto miscExt = GetProtoExtension<TMiscExt>(chunk->extensions());
@@ -84,7 +85,7 @@ void TSamplesFetcher::CreateNewRequest(const Stroka& address)
     ToProto(CurrentRequest->mutable_key_columns(), Spec->SortBy);
 }
 
-bool TSamplesFetcher::AddChunkToRequest(NTableClient::TRefCountedInputChunkPtr& chunk)
+bool TSamplesFetcher::AddChunkToRequest(NTableClient::TRefCountedInputChunkPtr chunk)
 {
     auto miscExt = GetProtoExtension<TMiscExt>(chunk->extensions());
     CurrentSize += miscExt.uncompressed_data_size();
@@ -106,30 +107,32 @@ bool TSamplesFetcher::AddChunkToRequest(NTableClient::TRefCountedInputChunkPtr& 
 
 auto TSamplesFetcher::InvokeRequest() -> TFuture<TResponsePtr>
 {
-    auto req(MoveRV(CurrentRequest));
+    auto req = CurrentRequest;
+    CurrentRequest.Reset();
     return req->Invoke();
 }
 
 TError TSamplesFetcher::ProcessResponseItem(
-    const TResponsePtr& rsp, 
+    TResponsePtr rsp, 
     int index, 
-    NTableClient::TRefCountedInputChunkPtr& chunk)
+    NTableClient::TRefCountedInputChunkPtr chunk)
 {
-    YASSERT(rsp->IsOK());
+    YCHECK(rsp->IsOK());
 
     const auto& chunkSamples = rsp->samples(index);
     if (chunkSamples.has_error()) {
-            auto error = FromProto(chunkSamples.error());
-            return error;
-    } else {
-        LOG_TRACE("Received %d samples for chunk number %d",
-            chunkSamples.items_size(),
-            index);
-        FOREACH (const auto& sample, chunkSamples.items()) {
-            Samples.push_back(sample);
-        }
-        return TError();
+        return FromProto(chunkSamples.error());
     }
+
+    LOG_TRACE("Received %d samples for chunk #%d",
+        chunkSamples.items_size(),
+        index);
+
+    FOREACH (const auto& sample, chunkSamples.items()) {
+        Samples.push_back(sample);
+    }
+
+    return TError();
 }
 
 ////////////////////////////////////////////////////////////////////

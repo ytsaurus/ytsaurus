@@ -242,9 +242,8 @@ void TObjectProxyBase::OnLeaderResponse(IServiceContextPtr context, NBus::IMessa
     NRpc::NProto::TResponseHeader responseHeader;
     YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
     auto error = FromProto(responseHeader.error());
-    LOG_DEBUG("Received response for forwarded request (RequestId: %s)\n%s",
-        ~context->GetRequestId().ToString(),
-        ~ToString(error));
+    LOG_DEBUG(error, "Received response for forwarded request (RequestId: %s)",
+        ~context->GetRequestId().ToString());
     context->Reply(responseMessage);
 }
 

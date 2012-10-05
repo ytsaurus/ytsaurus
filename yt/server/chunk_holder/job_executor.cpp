@@ -205,7 +205,7 @@ void TJob::SetCompleted()
 void TJob::SetFailed(const TError& error)
 {
     State = EJobState::Failed;
-    LOG_ERROR("Job failed\n%s", ~ToString(error));
+    LOG_ERROR(error, "Job failed");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

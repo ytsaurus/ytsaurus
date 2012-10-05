@@ -131,9 +131,8 @@ TAsyncError TChunk::ReadMeta()
                 auto result = readerCache->GetReader(this_);
                 if (!result.IsOK()) {
                     this_->ReleaseReadLock();
-                    LOG_WARNING("Error reading chunk meta (ChunkId: %s)\n%s",
-                        ~this_->Id_.ToString(),
-                        ~ToString(result));
+                    LOG_WARNING(result, "Error reading chunk meta (ChunkId: %s)",
+                        ~this_->Id_.ToString());
                     return TError(result);
                 }
                 reader = result.Value();
