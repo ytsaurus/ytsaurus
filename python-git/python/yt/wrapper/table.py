@@ -1,5 +1,5 @@
 from common import flatten, require, YtError
-from path_tools import escape_path, split_table_ranges
+from path_tools import split_table_ranges
 
 class Table(object):
     """ Columns should be list of string (column) or string pairs (column range) """
@@ -18,9 +18,6 @@ class Table(object):
         self.has_key = lower_key is not None or upper_key is not None
         require(not (self.has_index and self.has_key),
                 YtError("You could not specify key bound and index bound simultaneously"))
-
-    def escaped_name(self):
-        return escape_path(self.name)
 
     def yson_name(self, usage_type=None):
         def column_to_str(column):
@@ -42,7 +39,7 @@ class Table(object):
                 return ""
             return '#%d' % index
 
-        name = self.escaped_name()
+        name = self.name
         if self.columns is not None:
             name = "%s{%s}" % \
                 (name, ",".join(map(column_to_str, self.columns)))

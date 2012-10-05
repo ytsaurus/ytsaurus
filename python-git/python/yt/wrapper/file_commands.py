@@ -1,6 +1,5 @@
 import config
 from common import require, YtError
-from path_tools import escape_path
 from http import make_request, read_content
 from tree_commands import remove, exists, set_attribute, mkdir, find_free_subpath
 
@@ -9,7 +8,7 @@ import os
 def download_file(path, response_type=None):
     if response_type is None: response_type = "iter_lines"
     response = make_request("GET", "download",
-            {"path": escape_path(path),
+            {"path": path,
              "transaction_id": config.TRANSACTION}, raw_response=True)
     return read_content(response, response_type)
 
@@ -21,7 +20,7 @@ def upload_file(stream, destination, yt_filename=None):
         "PUT",
         "upload",
         {
-            "path": escape_path(destination),
+            "path": destination,
             "transaction_id": config.TRANSACTION
         },
         data=stream)

@@ -1,7 +1,6 @@
 import config
 import py_wrapper
 from common import flatten, require, YtError, unlist, update, EMPTY_GENERATOR, parse_bool, is_prefix
-from path_tools import escape_path
 from http import make_request, read_content
 from table import get_yson_name, get_output_yson_name, to_table, to_name
 from tree_commands import exists, remove, get_attribute, copy, mkdir, find_free_subpath
@@ -95,7 +94,7 @@ def create_table(path, make_it_empty=True):
         dirname = os.path.dirname(path)
         mkdir(dirname)
         make_request("POST", "create",
-                     {"path": escape_path(path),
+                     {"path": path,
                       "type": "table",
                       "transaction_id": config.TRANSACTION})
 
@@ -117,7 +116,7 @@ def write_table(table, lines, format=None, table_writer=None):
     table = to_table(table)
     create_table(table.name, not table.append)
 
-    params = {"path": table.escaped_name()}
+    params = {"path": table.name}
     if table_writer is not None:
         params["table_writer"] = table_writer
 
@@ -172,7 +171,7 @@ def erase_table(table, strategy=None):
     if not exists(table.name):
         return
     params = {
-        "table_path": table.escaped_name(),
+        "table_path": table.name,
         "transaction_id": config.TRANSACTION}
     operation = make_request("POST", "erase", None, params)
     strategy.process_operation("erase", operation)
@@ -405,7 +404,7 @@ def run_operation(binary, source_table, destination_table,
 
     operation_descr = \
                 {"command": binary,
-                 "file_paths": map(escape_path, file_paths),
+                 "file_paths": file_paths,
                  "input_format": input_format.to_json(),
                  "output_format": output_format.to_json()}
     if op_type == "reduce":
