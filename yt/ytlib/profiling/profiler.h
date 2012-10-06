@@ -153,6 +153,8 @@ public:
         const NYTree::TYPath& pathPrefix,
         bool selfProfiling = false);
 
+    DEFINE_BYVAL_RW_PROPERTY(Stroka, PathPrefix);
+
     //! Controls if the profiler is enabled.
     DEFINE_BYVAL_RW_PROPERTY(bool, Enabled);
 
@@ -192,7 +194,6 @@ public:
     void Increment(TAggregateCounter& counter, TValue delta);
 
 private:
-    NYTree::TYPath PathPrefix;
     bool SelfProfiling;
 
     void DoAggregate(
