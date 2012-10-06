@@ -6,6 +6,8 @@
 
 #include <ytlib/scheduler/scheduler_service.pb.h>
 
+#include <ytlib/profiling/profiler.h>
+
 #include <server/job_proxy/public.h>
 
 namespace NYT {
@@ -20,12 +22,10 @@ DECLARE_ENUM(EResourceType,
     (Network)
 );
 
-Stroka FormatResourceUtilization(
-    const NProto::TNodeResources& utilization,
-    const NProto::TNodeResources& limits);
+Stroka FormatResourceUtilization(const NProto::TNodeResources& utilization, const NProto::TNodeResources& limits);
+Stroka FormatResources(const NProto::TNodeResources& resources);
 
-Stroka FormatResources(
-    const NProto::TNodeResources& resources);
+void ProfileResources(NProfiling::TProfiler& profiler, const NProto::TNodeResources& resources);
 
 NProto::TNodeResources  operator +  (const NProto::TNodeResources& lhs, const NProto::TNodeResources& rhs);
 NProto::TNodeResources& operator += (NProto::TNodeResources& lhs, const NProto::TNodeResources& rhs);

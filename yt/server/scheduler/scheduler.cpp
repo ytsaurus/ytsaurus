@@ -58,6 +58,8 @@ using NChunkClient::TChunkId;
 static NLog::TLogger& Logger = SchedulerLogger;
 static NProfiling::TProfiler& Profiler = SchedulerProfiler;
 
+static TDuration ProfilingPreiod = TDuration::Seconds(1);
+
 ////////////////////////////////////////////////////////////////////
 
 class TScheduler::TSchedulingContext
@@ -133,6 +135,9 @@ public:
         , Bootstrap(bootstrap)
         , BackgroundQueue(New<TActionQueue>("Background"))
         , MasterConnector(new TMasterConnector(Config, Bootstrap))
+        , TotalResourceLimitsProfiler(Profiler.GetPathPrefix() + "/total_resource_limits")
+        , TotalResourceUtilizationProfiler(Profiler.GetPathPrefix() + "/total_resource_utilization")
+        , JobTypeCounters(EJobType::GetDomainSize())
         , TotalResourceLimits(ZeroResources())
         , TotalResourceUtilization(ZeroResources())
     {
@@ -150,7 +155,10 @@ public:
                 .SetResponseCodec(ECodecId::Lz4)
                 .SetInvoker(Bootstrap->GetControlInvoker(EControlQueue::Heartbeat)));
 
-        JobTypeCounters.resize(EJobType::GetDomainSize());
+        ProfilingInvoker = New<TPeriodicInvoker>(
+            Bootstrap->GetControlInvoker(),
+            BIND(&TThis::OnProfiling, MakeWeak(this)),
+            ProfilingPreiod);
     }
 
     void Start()
@@ -176,6 +184,8 @@ public:
             Unretained(this)));
 
         MasterConnector->Start();
+
+        ProfilingInvoker->Start();
     }
 
     NYTree::TYPathServiceProducer CreateOrchidProducer()
@@ -252,7 +262,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         std::vector<TExecNodePtr> result;
-        FOREACH (const auto& pair, ExecNodes) {
+        FOREACH (const auto& pair, Nodes) {
             result.push_back(pair.second);
         }
         return result;
@@ -294,19 +304,40 @@ private:
     TAutoPtr<ISchedulerStrategy> Strategy;
 
     typedef yhash_map<Stroka, TExecNodePtr> TExecNodeMap;
-    TExecNodeMap ExecNodes;
+    TExecNodeMap Nodes;
 
     typedef yhash_map<TOperationId, TOperationPtr> TOperationMap;
     TOperationMap Operations;
 
     typedef yhash_map<TJobId, TJobPtr> TJobMap;
     TJobMap Jobs;
+
+    NProfiling::TProfiler TotalResourceLimitsProfiler;
+    NProfiling::TProfiler TotalResourceUtilizationProfiler;
     std::vector<int> JobTypeCounters;
+    TPeriodicInvokerPtr ProfilingInvoker;
 
     NProto::TNodeResources TotalResourceLimits;
     NProto::TNodeResources TotalResourceUtilization;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
+
+    void OnProfiling()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        FOREACH (auto jobType, EJobType::GetDomainValues()) {
+            Profiler.Enqueue("/job_count/" + FormatEnum(EJobType(jobType)), JobTypeCounters[jobType]);
+        }
+        
+        Profiler.Enqueue("/job_count/total", Jobs.size());
+        Profiler.Enqueue("/operation_count", Operations.size());
+        Profiler.Enqueue("/node_count", Nodes.size());
+
+        ProfileResources(TotalResourceLimitsProfiler, TotalResourceLimits);
+        ProfileResources(TotalResourceUtilizationProfiler, TotalResourceUtilization);
+    }
 
 
     void OnMasterConnected(const TMasterHandshakeResult& result)
@@ -463,7 +494,7 @@ private:
 
     void InitializeOperation(TOperationPtr operation)
     {
-        if (ExecNodes.empty()) {
+        if (Nodes.empty()) {
             THROW_ERROR_EXCEPTION("No online exec nodes to start operation");
         }
 
@@ -581,8 +612,8 @@ private:
 
     TExecNodePtr FindNode(const Stroka& address)
     {
-        auto it = ExecNodes.find(address);
-        return it == ExecNodes.end() ? NULL : it->second;
+        auto it = Nodes.find(address);
+        return it == Nodes.end() ? NULL : it->second;
     }
 
     TExecNodePtr GetNode(const Stroka& address)
@@ -601,7 +632,7 @@ private:
 
     void RegisterNode(TExecNodePtr node)
     {
-        YCHECK(ExecNodes.insert(MakePair(node->GetAddress(), node)).second);    
+        YCHECK(Nodes.insert(MakePair(node->GetAddress(), node)).second);    
     }
 
     void UnregisterNode(TExecNodePtr node)
@@ -615,7 +646,7 @@ private:
                 ~job->GetOperation()->GetOperationId().ToString());
             AbortJob(job, true, TError("Node offline"));
         }
-        YCHECK(ExecNodes.erase(node->GetAddress()) == 1);
+        YCHECK(Nodes.erase(node->GetAddress()) == 1);
     }
 
     
@@ -623,7 +654,6 @@ private:
     {
         YCHECK(Operations.insert(MakePair(operation->GetOperationId(), operation)).second);
         OperationStarted_.Fire(operation);
-        ProfileOperationCounters();
 
         LOG_DEBUG("Operation registered (OperationId: %s)", ~operation->GetOperationId().ToString());
     }
@@ -640,7 +670,6 @@ private:
     {
         YCHECK(Operations.erase(operation->GetOperationId()) == 1);
         OperationFinished_.Fire(operation);
-        ProfileOperationCounters();
 
         LOG_DEBUG("Operation unregistered (OperationId: %s)", ~operation->GetOperationId().ToString());
     }
@@ -652,15 +681,10 @@ private:
         UnregisterOperation(operation);
     }
 
-    void ProfileOperationCounters()
-    {
-        Profiler.Enqueue("/operation_count", Operations.size());
-    }
-
 
     void RegisterJob(TJobPtr job)
     {
-        UpdateJobCounters(job, +1);
+        ++JobTypeCounters[job->GetType()];
 
         YCHECK(Jobs.insert(MakePair(job->GetId(), job)).second);
         YCHECK(job->GetOperation()->Jobs().insert(job).second);
@@ -675,7 +699,7 @@ private:
 
     void UnregisterJob(TJobPtr job)
     {
-        UpdateJobCounters(job, -1);
+        --JobTypeCounters[job->GetType()];
 
         YCHECK(Jobs.erase(job->GetId()) == 1);
         YCHECK(job->GetOperation()->Jobs().erase(job) == 1);
@@ -706,15 +730,6 @@ private:
         if (unregister) {
             UnregisterJob(job);
         }
-    }
-
-    void UpdateJobCounters(TJobPtr job, int delta)
-    {
-        auto jobType = job->GetType();
-        JobTypeCounters[jobType] += delta;
-
-        Profiler.Enqueue("/job_count/" + FormatEnum(jobType), JobTypeCounters[jobType]);
-        Profiler.Enqueue("/job_count/total", Jobs.size());
     }
 
 
@@ -964,7 +979,7 @@ private:
                             .Do(BIND(&BuildJobAttributes, pair.second))
                         .EndMap();
                 })
-                .Item("nodes").DoMapFor(ExecNodes, [=] (TFluentMap fluent, TExecNodeMap::value_type pair) {
+                .Item("nodes").DoMapFor(Nodes, [=] (TFluentMap fluent, TExecNodeMap::value_type pair) {
                     fluent
                         .Item(pair.first).BeginMap()
                             .Do(BIND(&BuildExecNodeAttributes, pair.second))

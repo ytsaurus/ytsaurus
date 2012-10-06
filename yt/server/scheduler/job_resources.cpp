@@ -51,6 +51,15 @@ Stroka FormatResources(const TNodeResources& resources)
         resources.network());
 }
 
+
+void ProfileResources(NProfiling::TProfiler& profiler, const TNodeResources& resources)
+{
+    profiler.Enqueue("/slots", resources.slots());
+    profiler.Enqueue("/cpu", resources.cpu());
+    profiler.Enqueue("/memory", resources.memory());
+    profiler.Enqueue("/network", resources.network());
+}
+
 TNodeResources operator + (const TNodeResources& lhs, const TNodeResources& rhs)
 {
     TNodeResources result;
