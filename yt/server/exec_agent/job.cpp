@@ -341,15 +341,18 @@ TNodeResources TJob::GetResourceUtilization() const
 
 void TJob::UpdateResourceUtilization(const TNodeResources& utilization)
 {
-    if (JobState == EJobState::Running) {
-        LOG_FATAL_IF(ResourceUtilization.memory() < utilization.memory(),
-            "Job resource utilization increased (Old utilization: %s, new utilization: %s)",
-            ~ResourceUtilization.DebugString(),
-            ~utilization.DebugString());
+    if (JobState != EJobState::Running)
+        return;
 
-        ResourceUtilization = utilization;
-        ResourceUtilizationSet_.Fire();
-    }
+    LOG_FATAL_IF(
+        ResourceUtilization.cpu() < utilization.cpu() ||
+        ResourceUtilization.memory() < utilization.memory(),
+        "Job resource utilization has increased: old value %s, new value %s",
+        ~ResourceUtilization.DebugString(),
+        ~utilization.DebugString());
+
+    ResourceUtilization = utilization;
+    ResourceUtilizationSet_.Fire();
 }
 
 void TJob::Abort(const TError& error)

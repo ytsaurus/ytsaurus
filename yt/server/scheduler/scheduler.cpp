@@ -719,13 +719,13 @@ private:
     }
 
 
-    void OnJobRunning(TJobPtr job)
+    void OnJobRunning(TJobPtr job, const NProto::TJobStatus& status)
     {
         auto operation = job->GetOperation();
         if (job->GetState() == EJobState::Running &&
             operation->GetState() == EOperationState::Running)
         {
-            operation->GetController()->OnJobRunning(job);
+            operation->GetController()->OnJobRunning(job, status);
         }
     }
 
@@ -1258,7 +1258,7 @@ private:
                     *response->add_jobs_to_abort() = jobId.ToProto();
                 } else {
                     LOG_DEBUG("Job is running");
-                    OnJobRunning(job);
+                    OnJobRunning(job, *jobStatus);
                 }
                 break;
 

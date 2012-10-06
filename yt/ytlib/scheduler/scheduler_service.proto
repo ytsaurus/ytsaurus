@@ -72,6 +72,7 @@ message TJobStatus
     required int32 phase = 3;
     required double progress = 4;
     optional TJobResult result = 5;
+    optional TNodeResources resource_utilization = 6;
 }
 
 message TReqHeartbeat

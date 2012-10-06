@@ -18,8 +18,6 @@
 
 #include <ytlib/file_client/file_ypath_proxy.h>
 
-#include <ytlib/scheduler/scheduler_service.pb.h>
-
 #include <ytlib/cypress_client/public.h>
 
 #include <server/chunk_server/public.h>
@@ -43,7 +41,7 @@ public:
     virtual TFuture<void> Revive() override;
     virtual TFuture<void> Commit() override;
 
-    virtual void OnJobRunning(TJobPtr job) override;
+    virtual void OnJobRunning(TJobPtr job, const NProto::TJobStatus& status) override;
     virtual void OnJobCompleted(TJobPtr job) override;
     virtual void OnJobFailed(TJobPtr job) override;
     virtual void OnJobAborted(TJobPtr job) override;

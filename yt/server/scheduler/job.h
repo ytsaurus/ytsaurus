@@ -38,7 +38,7 @@ class TJob
     //! Captures utilization limits suggested by the scheduler.
     /*!
      *  Receives a copy of |GetSpec()->resource_utilization()|.
-     *  Never changes afterwards.
+     *  May change afterwards on heartbeats.
      */
     DEFINE_BYREF_RW_PROPERTY(NProto::TNodeResources, ResourceUtilization);
 

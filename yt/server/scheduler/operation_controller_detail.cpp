@@ -440,9 +440,11 @@ void TOperationControllerBase::OnJobStarted(TJobPtr job)
     UsedResources += job->ResourceUtilization();
 }
 
-void TOperationControllerBase::OnJobRunning(TJobPtr job)
+void TOperationControllerBase::OnJobRunning(TJobPtr job, const NProto::TJobStatus& status)
 {
-    UNUSED(job);
+    UsedResources -= job->ResourceUtilization();
+    job->ResourceUtilization() = status.resource_utilization();
+    UsedResources += job->ResourceUtilization();
 }
 
 void TOperationControllerBase::OnJobCompleted(TJobPtr job)

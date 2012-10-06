@@ -14,6 +14,8 @@
 
 #include <ytlib/rpc/public.h>
 
+#include <ytlib/scheduler/scheduler_service.pb.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -148,7 +150,7 @@ struct IOperationController
     virtual NProto::TNodeResources GetMinNeededResources() = 0;
     
     //! Called during heartbeat processing to notify the controller that a job is running.
-    virtual void OnJobRunning(TJobPtr job) = 0;
+    virtual void OnJobRunning(TJobPtr job, const NProto::TJobStatus& status) = 0;
 
     //! Called during heartbeat processing to notify the controller that a job has completed.
     virtual void OnJobCompleted(TJobPtr job) = 0;
@@ -156,7 +158,7 @@ struct IOperationController
     //! Called during heartbeat processing to notify the controller that a job has failed.
     virtual void OnJobFailed(TJobPtr job) = 0;
 
-    //! Called during preemtion to notify the controller that a job has been aborted.
+    //! Called during preemption to notify the controller that a job has been aborted.
     virtual void OnJobAborted(TJobPtr job) = 0;
 
     //! Called during heartbeat processing to request actions the node must perform.

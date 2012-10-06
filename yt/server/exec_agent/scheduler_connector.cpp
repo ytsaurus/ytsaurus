@@ -59,9 +59,17 @@ void TSchedulerConnector::SendHeartbeat()
         jobStatus->set_state(state);
         jobStatus->set_phase(job->GetPhase());
         jobStatus->set_progress(job->GetProgress());
-        if (state == EJobState::Completed || state == EJobState::Failed) {
-            auto& jobResult = job->GetResult();
-            *jobStatus->mutable_result() = jobResult;
+        switch (state) {
+            case EJobState::Running:
+                *jobStatus->mutable_resource_utilization() = job->GetResourceUtilization();
+                break;
+
+            case EJobState::Completed:
+            case EJobState::Failed: {
+                auto& jobResult = job->GetResult();
+                *jobStatus->mutable_result() = jobResult;
+                break;
+            }
         }
     }
 
