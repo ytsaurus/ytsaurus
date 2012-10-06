@@ -3,7 +3,7 @@
 #include "private.h"
 
 #include <ytlib/ytree/ypath_detail.h>
-#include <ytlib/ytree/ypath_client.h>
+//#include <ytlib/ytree/ypath_client.h>
 
 #include <ytlib/rpc/message.h>
 

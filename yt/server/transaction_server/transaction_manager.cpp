@@ -7,7 +7,6 @@
 #include <ytlib/transaction_client/transaction_ypath.pb.h>
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
-#include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/fluent.h>
 

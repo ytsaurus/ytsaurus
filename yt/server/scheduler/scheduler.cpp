@@ -36,7 +36,6 @@
 #include <ytlib/scheduler/scheduler_proxy.h>
 
 #include <ytlib/ytree/ypath_proxy.h>
-#include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/fluent.h>
 
 #include <server/cell_scheduler/config.h>
