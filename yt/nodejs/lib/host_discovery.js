@@ -4,7 +4,7 @@ var utils = require("./utils");
 
 var __DBG;
 
-if (process.env.NODE_DEBUG && /YTAPP/.test(process.env.NODE_DEBUG)) {
+if (process.env.NODE_DEBUG && /YT(ALL|APP)/.test(process.env.NODE_DEBUG)) {
     __DBG = function(x) { "use strict"; console.error("YT Host Discovery:", x); };
 } else {
     __DBG = function(){};

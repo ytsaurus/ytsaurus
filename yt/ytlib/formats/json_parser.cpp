@@ -62,7 +62,7 @@ void TJsonParser::VisitAny(const TJsonValue& value)
             Consumer->OnStringScalar(DecodeString(value.GetString()));
             break;
         case JSON_BOOLEAN:
-            THROW_ERROR_EXCEPTION("Json boolean are not supported");
+            Consumer->OnStringScalar(value.GetBoolean() ? "true" : "false");
             break;
         case JSON_UNDEFINED:
         default:

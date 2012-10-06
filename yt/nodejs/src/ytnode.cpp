@@ -1,4 +1,6 @@
 #include "common.h"
+#include "error.h"
+#include "node.h"
 #include "input_stream.h"
 #include "input_stub.h"
 #include "output_stream.h"
@@ -18,7 +20,10 @@ void ExportYT(Handle<Object> target)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    Initialize(target);
+    InitializeCommon(target);
+    InitializeError(target);
+
+    TNodeJSNode::Initialize(target);
 
     TNodeJSInputStream::Initialize(target);
     TNodeJSOutputStream::Initialize(target);

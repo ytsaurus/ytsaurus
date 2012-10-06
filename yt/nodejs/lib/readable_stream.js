@@ -6,10 +6,9 @@ var binding = require("./ytnode");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-var __EOF = {};
 var __DBG;
 
-if (process.env.NODE_DEBUG && /YTNODE/.test(process.env.NODE_DEBUG)) {
+if (process.env.NODE_DEBUG && /YT(ALL|NODE)/.test(process.env.NODE_DEBUG)) {
     __DBG = function(x) { "use strict"; console.error("YT Readable Stream:", x); };
     __DBG.UUID = require("node-uuid");
 } else {
@@ -36,6 +35,7 @@ function YtReadableStream(low_watermark, high_watermark) {
     this.writable = false;
 
     this._pending = [];
+
     this._paused = false;
     this._ended = false;
 
@@ -63,6 +63,8 @@ YtReadableStream.prototype._consumeData = function() {
     if (typeof(result) === "undefined") {
         this.__DBG("Bindings (OutputStream) -> Pull <- undefined");
         return;
+    } else {
+        this.__DBG("Bindings (OutputStream) -> Pull <- " + result.length);
     }
 
     for (i = 0; i < result.length; ++i) {
@@ -70,8 +72,7 @@ YtReadableStream.prototype._consumeData = function() {
         if (!chunk) {
             break;
         } else {
-            assert.ok(Buffer.isBuffer(chunk));
-            this._emitData(chunk);
+            this.emit("data", chunk);
         }
     }
 
@@ -81,12 +82,6 @@ YtReadableStream.prototype._consumeData = function() {
         this._binding.Drain();
         this.emit("_drain");
     }
-};
-
-YtReadableStream.prototype._emitData = function(chunk) {
-    "use strict";
-    this.__DBG("_emitData");
-    this.emit("data", chunk);
 };
 
 YtReadableStream.prototype._emitEnd = function() {
@@ -128,9 +123,13 @@ YtReadableStream.prototype.pause = function() {
 YtReadableStream.prototype.resume = function() {
     "use strict";
     this.__DBG("resume");
-    this._paused = false;
 
-    process.nextTick(this._consumeData.bind(this));
+    if (!this._paused) {
+        return;
+    } else {
+        this._paused = false;
+        process.nextTick(this._consumeData.bind(this));
+    }
 };
 
 YtReadableStream.prototype.destroy = function() {
@@ -140,6 +139,7 @@ YtReadableStream.prototype.destroy = function() {
     this._binding.Destroy();
 
     this.readable = false;
+    this._paused = false;
     this._ended = true;
 };
 

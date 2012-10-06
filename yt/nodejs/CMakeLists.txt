@@ -34,7 +34,9 @@ include_directories(
 
 set( SRCS
   src/common.cpp
+  src/error.cpp
   src/stream_base.cpp
+  src/node.cpp
   src/input_stack.cpp
   src/input_stream.cpp
   src/input_stub.cpp

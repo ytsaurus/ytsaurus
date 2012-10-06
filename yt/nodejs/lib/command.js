@@ -1,17 +1,20 @@
 var url = require("url");
-var crypto = require("crypto");
 
 var buffertools = require("buffertools");
 var qs = require("qs");
 
+var Q = require("q");
+
 var utils = require("./utils");
-var ytnode_wrappers = require("./ytnode_wrappers");
+var binding = require("./ytnode");
+
+var YtError = require("./error").that;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 var __DBG;
 
-if (process.env.NODE_DEBUG && /YTAPP/.test(process.env.NODE_DEBUG)) {
+if (process.env.NODE_DEBUG && /YT(ALL|APP)/.test(process.env.NODE_DEBUG)) {
     __DBG = function(x) { "use strict"; console.error("YT Command:", x); };
     __DBG.UUID = require("node-uuid");
 } else {
@@ -19,32 +22,96 @@ if (process.env.NODE_DEBUG && /YTAPP/.test(process.env.NODE_DEBUG)) {
 }
 
 // This mapping defines how MIME types map onto YT format specifications.
-var _MIME_TYPE_TO_FORMAT = {
-    "application/json"                    : "json",
-    "application/x-yamr-delimited"        : "<lenval=false;has_subkey=false>yamr",
-    "application/x-yamr-lenval"           : "<lenval=true;has_subkey=false>yamr",
-    "application/x-yamr-subkey-delimited" : "<lenval=false;has_subkey=true>yamr",
-    "application/x-yamr-subkey-lenval"    : "<lenval=true;has_subkey=true>yamr",
-    "application/x-yt-yson-binary"        : "<format=binary>yson",
-    "application/x-yt-yson-text"          : "<format=text>yson",
-    "application/x-yt-yson-pretty"        : "<format=pretty>yson",
-    "text/csv"                            : "<record_separator=\",\";key_value_separator=\":\">dsv",
-    "text/tab-separated-values"           : "dsv",
-    "text/x-tskv"                         : "<line_prefix=tskv>dsv"
+var _MIME_TO_FORMAT = {
+    "application/json" : new binding.TNodeJSNode({
+        $value : "json"
+    }),
+    "application/x-yamr-delimited" : new binding.TNodeJSNode({
+        $attributes : { lenval : false, has_subkey : false },
+        $value : "yamr",
+    }),
+    "application/x-yamr-lenval" : new binding.TNodeJSNode({
+        $attributes : { lenval : true, has_subkey : false },
+        $value : "yamr"
+    }),
+    "application/x-yamr-subkey-delimited" : new binding.TNodeJSNode({
+        $attributes : { lenval : false, has_subkey : true },
+        $value : "yamr"
+    }),
+    "application/x-yamr-subkey-lenval" : new binding.TNodeJSNode({
+        $attributes : { lenval : true, has_subkey : true },
+        $value : "yamr"
+    }),
+    "application/x-yt-yson-binary" : new binding.TNodeJSNode({
+        $attributes : { format : "binary" },
+        $value : "yson"
+    }),
+    "application/x-yt-yson-pretty" : new binding.TNodeJSNode({
+        $attributes : { format : "pretty" },
+        $value : "yson"
+    }),
+    "application/x-yt-yson-text" : new binding.TNodeJSNode({
+        $attributes : { format : "text" },
+        $value : "yson"
+    }),
+    "text/csv" : new binding.TNodeJSNode({
+        $attributes : { record_separator : ",", key_value_separator : ":" },
+        $value : "dsv"
+    }),
+    "text/tab-separated-values" : new binding.TNodeJSNode({
+        $value : "dsv"
+    }),
+    "text/x-tskv" : new binding.TNodeJSNode({
+        $attributes : { line_prefix : "tskv" },
+        $value : "dsv"
+    })
 };
 
+// This mapping defines which MIME types could be used to encode specific data type.
+var _MIME_BY_OUTPUT_TYPE = {};
+_MIME_BY_OUTPUT_TYPE[binding.EDataType_Structured] = [
+    "application/json",
+    "application/x-yt-yson-pretty",
+    "application/x-yt-yson-text",
+    "application/x-yt-yson-binary"
+];
+_MIME_BY_OUTPUT_TYPE[binding.EDataType_Tabular] = [
+    "application/x-yamr-delimited",
+    "application/x-yamr-lenval",
+    "application/x-yamr-subkey-delimited",
+    "application/x-yamr-subkey-lenval",
+    "application/x-yt-yson-binary",
+    "application/x-yt-yson-text",
+    "application/x-yt-yson-pretty",
+    "text/csv",
+    "text/tab-separated-values",
+    "text/x-tskv"
+];
+
 // This mapping defines how Content-Encoding and Accept-Encoding map onto YT compressors.
-var _STREAM_COMPRESSION = {
-    "gzip"     : ytnode_wrappers.ECompression_Gzip,
-    "deflate"  : ytnode_wrappers.ECompression_Deflate,
-    "x-lzo"    : ytnode_wrappers.ECompression_LZO,
-    "x-lzf"    : ytnode_wrappers.ECompression_LZF,
-    "x-snappy" : ytnode_wrappers.ECompression_Snappy
+var _ENCODING_TO_COMPRESSION = {
+    "gzip"     : binding.ECompression_Gzip,
+    "deflate"  : binding.ECompression_Deflate,
+    "identity" : binding.ECompression_None
 };
+
+var _ENCODING_ALL = [ "gzip", "deflate", "identity" ];
+
+var _PREDEFINED_JSON_FORMAT = new binding.TNodeJSNode({ $value : "json" });
+var _PREDEFINED_YSON_FORMAT = new binding.TNodeJSNode({ $value : "yson" });
+
+// === HTTP Status Codes
+// http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html
+// === V8 Optimization
+// http://blog.mrale.ph/post/14403172501/simple-optimization-checklist/
+// https://mkw.st/p/gdd11-berlin-v8-performance-tuning-tricks/
+// http://s3.mrale.ph/nodecamp.eu/
+// http://v8-io12.appspot.com/index.html
+// http://floitsch.blogspot.dk/2012/03/optimizing-for-v8-introduction.html
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtCommand(logger, driver, watcher, read_only, req, rsp) {
+function YtCommand(logger, driver, watcher, read_only, pause, req, rsp) {
     "use strict";
     if (__DBG.UUID) {
         this.__DBG  = function(x) { __DBG(this.__UUID + " -> " + x); };
@@ -57,72 +124,76 @@ function YtCommand(logger, driver, watcher, read_only, req, rsp) {
     this.driver = driver;
     this.watcher = watcher;
     this.read_only = read_only;
+    this.pause = pause;
 
     this.req = req;
     this.rsp = rsp;
 
-    this.prematurely_completed = false;
-
-    this.req.parsedUrl = url.parse(this.req.url);
-
     this.__DBG("New");
 
-    // This is a total list of class fields; keep this up to date
-    // to improve V8 performance (hence JIT relies on preset class properties).
-    // See http://blog.mrale.ph/post/14403172501/simple-optimization-checklist/
-    // See https://mkw.st/p/gdd11-berlin-v8-performance-tuning-tricks/
-    // See http://s3.mrale.ph/nodecamp.eu/
-    // See http://v8-io12.appspot.com/index.html
-    // See http://floitsch.blogspot.dk/2012/03/optimizing-for-v8-introduction.html
-    this.bytes_in_enqueued = 0;
-    this.bytes_in_dequeued = 0;
-    this.bytes_out_enqueued = 0;
-    this.bytes_out_dequeued = 0;
-    this.bytes_out = 0;
+    // This is a total list of class fields; keep this up to date to improve V8
+    // performance (JIT code reuse depends on so-called "hidden class"; see links
+    // on V8 optimization for more details).
+
+    this.name = undefined;
+    this.parameters = undefined;
+    this.result = undefined;
     this.descriptor = undefined;
+
     this.input_compression = undefined;
     this.input_format = undefined;
     this.input_stream = undefined;
-    this.name = undefined;
+
     this.output_compression = undefined;
-    this.output_compression_mime = undefined;
     this.output_format = undefined;
-    this.output_mime = undefined;
     this.output_stream = undefined;
-    this.parameters = undefined;
-    this.yt_code = undefined;
-    this.yt_message = undefined;
+
+    this.mime_compression = undefined;
+    this.mime_type = undefined;
+
+    this.bytes_in = undefined;
+    this.bytes_out = undefined;
 }
 
 YtCommand.prototype.dispatch = function() {
     "use strict";
-    this._prologue();
+    this.__DBG("dispatch");
 
-    utils.callSeq(this, [
-        this._getName,
-        this._getDescriptor,
-        this._checkHttpMethod,
-        this._checkHeavy,
-        this._getParameters,
-        this._getInputFormat,
-        this._getInputCompression,
-        this._getOutputFormat,
-        this._getOutputCompression,
-        utils.callIf(this, this._needToCaptureBody,
-            this._captureBody,
-            this._retainBody),
-        this._logRequest,
-        this._checkPermissions,
-        this._addHeaders,
-        this._execute
-    ],
-        this._epilogue
-    );
+    var self = this;
+
+    self.req.parsedUrl = url.parse(self.req.url);
+    self.rsp.statusCode = 202; // "Accepted". This may change during the pipeline.
+
+    Q
+        .fcall(function() {
+            self._getName();
+            self._getDescriptor();
+            self._checkHttpMethod();
+            self._checkReadOnlyAndHeavy();
+            self._getInputFormat();
+            self._getInputCompression();
+            self._getOutputFormat();
+            self._getOutputCompression();
+        })
+        .then(self._captureParameters.bind(self))
+        .then(function() {
+            self._logRequest();
+            self._checkPermissions();
+            self._addHeaders();
+        })
+        .then(self._execute.bind(self))
+        .fail(function(err) {
+            return YtError.ensureWrapped(
+                err,
+                "Unhandled error in command pipeline");
+        })
+        .then(self._epilogue.bind(self))
+        .end();
 };
 
-YtCommand.prototype._dispatchJSON = function(object) {
+YtCommand.prototype._dispatchAsJson = function(body) {
     "use strict";
-    var body = JSON.stringify(object);
+    this.__DBG("_dispatchAsJson");
 
     this.rsp.removeHeader("Transfer-Encoding");
     this.rsp.removeHeader("Content-Encoding");
@@ -131,101 +202,76 @@ YtCommand.prototype._dispatchJSON = function(object) {
     this.rsp.setHeader("Content-Length", body.length);
     this.rsp.writeHead(this.rsp.statusCode);
     this.rsp.end(body);
-
-    this.prematurely_completed = true;
-};
-
-YtCommand.prototype._prologue = function() {
-    "use strict";
-    this.__DBG("_prologue");
-
-    this.rsp.statusCode = 202;
 };
 
 YtCommand.prototype._epilogue = function(err) {
     "use strict";
     this.__DBG("_epilogue");
 
-    this.watcher.tackle();
+    var sent_headers = !!this.rsp._header;
 
-    var failed = !this.prematurely_completed && (err || this.yt_code !== 0);
-    if (failed) {
-        var error = err ? err.message : this.yt_message;
-        var error_trace = err ? err.stack : undefined;
+    if (!sent_headers) {
+        this.rsp.removeHeader("Trailer");
+    } else {
+        this.rsp.addTrailers({
+            "X-YT-Error" : err.toJson(),
+            "X-YT-Response-Code" : err.getCode(),
+            "X-YT-Response-Message" : err.getMessage()
+        });
+    }
 
+    if (err.getCode()) {
         this.logger.error("Done (failure)", {
-            request_id         : this.req.uuid,
-            bytes_in_enqueued  : this.bytes_in_enqueued,
-            bytes_in_dequeued  : this.bytes_in_dequeued,
-            bytes_out_enqueued : this.bytes_out_enqueued,
-            bytes_out_dequeued : this.bytes_out_dequeued,
-            error              : error,
-            error_trace        : error_trace,
-            yt_code            : this.yt_code,
-            yt_message         : this.yt_message
+            request_id : this.req.uuid,
+            bytes_in   : this.bytes_in,
+            bytes_out  : this.bytes_out,
+            error      : err,
         });
 
-        if (!this.rsp._header) {
-            var body = {};
-
-            if (!this.rsp.statusCode || (this.rsp.statusCode >= 200 && this.rsp.statusCode < 300)) {
+        if (!sent_headers) {
+            if (!this.rsp.statusCode ||
+                (this.rsp.statusCode >= 200 && this.rsp.statusCode < 300))
+            {
                 this.rsp.statusCode = 400;
             }
-
-            if (error)           { body.error       = error; }
-            if (error_trace)     { body.error_trace = error_trace;}
-            if (this.yt_code)    { body.yt_code     = this.yt_code; }
-            if (this.yt_message) { body.yt_message  = this.yt_message; }
-
-            this._dispatchJSON(body);
-        } else {
-            var trailers = {};
-
-            if (error) {
-                trailers["X-YT-Error"] = JSON.stringify(error);
-            }
-            if (this.yt_code) {
-                trailers["X-YT-Response-Code"] = JSON.stringify(this.yt_code);
-            }
-            if (this.yt_message) {
-                trailers["X-YT-Response-Message"] = JSON.stringify(this.yt_message);
-            }
-
-            this.rsp.addTrailers(trailers);
-            this.rsp.end();
+            this._dispatchAsJson(err.toJson());
         }
     } else {
         this.logger.info("Done (success)", {
-            request_id         : this.req.uuid,
-            bytes_in_enqueued  : this.bytes_in_enqueued,
-            bytes_in_dequeued  : this.bytes_in_dequeued,
-            bytes_out_enqueued : this.bytes_out_enqueued,
-            bytes_out_dequeued : this.bytes_out_dequeued
+            request_id : this.req.uuid,
+            bytes_in   : this.bytes_in,
+            bytes_out  : this.bytes_out,
+            error      : err
         });
+
+        if (!sent_headers) {
+            this.rsp.statusCode = 200;
+        }
     }
+
+    this.rsp.end();
 };
 
-YtCommand.prototype._getName = function(cb) {
+YtCommand.prototype._getName = function() {
     "use strict";
     this.__DBG("_getName");
 
     this.name = this.req.parsedUrl.pathname.slice(1).toLowerCase();
 
     if (!this.name.length) {
+        // Bail out to API description.
+        this.rsp.statusCode = 200;
         this.rsp.setHeader("Access-Control-Allow-Origin", "*");
-        this._dispatchJSON(this.driver.get_command_descriptors());
-        return cb(false);
+        this._dispatchAsJson(JSON.stringify(this.driver.get_command_descriptors()));
+        throw new YtError();
     }
 
     if (!/^[a-z_]+$/.test(this.name)) {
-        this.rsp.statusCode = 400;
-        throw new Error("Malformed command name '" + this.name + "'.");
+        throw new YtError("Malformed command name " + JSON.stringify(this.name) + ".");
     }
-
-    return cb();
 };
 
-YtCommand.prototype._getDescriptor = function(cb) {
+YtCommand.prototype._getDescriptor = function() {
     "use strict";
     this.__DBG("_getDescriptor");
 
@@ -233,24 +279,17 @@ YtCommand.prototype._getDescriptor = function(cb) {
 
     if (!this.descriptor) {
         this.rsp.statusCode = 404;
-        throw new Error("Command '" + this.name + "' is not registered.");
+        throw new YtError("Command '" + this.name + "' is not registered.");
     }
-
-    this.logger.debug("Successfully found command descriptor", {
-        request_id : this.req.uuid,
-        descriptor : this.descriptor
-    });
-
-    return cb();
 };
 
-YtCommand.prototype._checkHttpMethod = function(cb) {
+YtCommand.prototype._checkHttpMethod = function() {
     "use strict";
     this.__DBG("_checkHttpMethod");
 
     var expected_http_method, actual_http_method = this.req.method;
 
-    if (this.descriptor.input_type_as_integer !== ytnode_wrappers.EDataType_Null) {
+    if (this.descriptor.input_type_as_integer !== binding.EDataType_Null) {
         expected_http_method = "PUT";
     } else {
         if (this.descriptor.is_volatile) {
@@ -263,61 +302,50 @@ YtCommand.prototype._checkHttpMethod = function(cb) {
     if (expected_http_method !== actual_http_method) {
         this.rsp.statusCode = 405;
         this.rsp.setHeader("Allow", expected_http_method);
-        throw new Error(
-            "Command '" + this.name + "' have to be executed with the " + expected_http_method + " HTTP method.");
+        throw new YtError(
+            "Command '" + this.name +
+            "' have to be executed with the " +
+            expected_http_method +
+            " HTTP method while the actual one is " +
+            actual_http_method +
+            ".");
     }
-
-    return cb();
 };
 
-YtCommand.prototype._checkHeavy = function(cb) {
+YtCommand.prototype._checkReadOnlyAndHeavy = function() {
     "use strict";
     this.__DBG("_checkHeavy");
 
     if (this.descriptor.is_volatile && this.read_only) {
         this.rsp.statusCode = 503;
         this.rsp.setHeader("Retry-After", "60");
-        throw new Error(
+        throw new YtError(
             "Command '" + this.name + "' is volatile and the proxy is in read-only mode.");
     }
 
     if (this.descriptor.is_heavy && this.watcher.is_choking()) {
         this.rsp.statusCode = 503;
         this.rsp.setHeader("Retry-After", "60");
-        throw new Error(
-            "Command '" + this.name + "' is heavy and the proxy is currently under heavy load. Please, try again later.");
+        throw new YtError(
+            "Command '" + this.name +
+            "' is heavy and the proxy is currently under heavy load. " +
+            "Please, try another proxy or try again later.");
     }
-
-    return cb();
 };
 
-YtCommand.prototype._getParameters = function(cb) {
-    "use strict";
-    this.__DBG("_getParameters");
-
-    this.parameters = utils.numerify(qs.parse(this.req.parsedUrl.query));
-
-    if (!this.parameters) {
-        this.rsp.statusCode = 400;
-        throw new Error("Unable to parse parameters from the query string.");
-    }
-
-    return cb();
-};
-
-YtCommand.prototype._getInputFormat = function(cb) {
+YtCommand.prototype._getInputFormat = function() {
     "use strict";
     this.__DBG("_getInputFormat");
 
-    var result, format, header;
+    var result, header;
 
     // Firstly, try to deduce input format from Content-Type header.
     header = this.req.headers["content-type"];
     if (typeof(header) === "string") {
         header = header.trim();
-        for (var mime in _MIME_TYPE_TO_FORMAT) {
-            if (utils.matches(mime, header)) {
-                result = _MIME_TYPE_TO_FORMAT[mime];
+        for (var mime in _MIME_TO_FORMAT) {
+            if (_MIME_TO_FORMAT.hasOwnProperty(mime) && utils.matches(mime, header)) {
+                result = _MIME_TO_FORMAT[mime];
                 break;
             }
         }
@@ -326,20 +354,25 @@ YtCommand.prototype._getInputFormat = function(cb) {
     // Secondly, try to deduce output format from our custom header.
     header = this.req.headers["x-yt-input-format"];
     if (typeof(header) === "string") {
-        result = header.trim();
+        try {
+            result = new binding.TNodeJSNode(
+                header.trim(),
+                binding.ECompression_None,
+                _PREDEFINED_JSON_FORMAT);
+        } catch(err) {
+            throw new YtError("Unable to parse X-YT-Input-Format header.", err);
+        }
     }
 
     // Lastly, provide a default option, i. e. YSON.
     if (typeof(result) === "undefined") {
-        result = "yson";
+        result = _PREDEFINED_YSON_FORMAT;
     }
 
     this.input_format = result;
-
-    return cb();
 };
 
-YtCommand.prototype._getInputCompression = function(cb) {
+YtCommand.prototype._getInputCompression = function() {
     "use strict";
     this.__DBG("_getInputCompression");
 
@@ -348,77 +381,79 @@ YtCommand.prototype._getInputCompression = function(cb) {
     header = this.req.headers["content-encoding"];
     if (typeof(header) === "string") {
         header = header.trim();
-        result = _STREAM_COMPRESSION[header];
-    }
-
-    if (typeof(result) !== "undefined") {
-        if (this.req.method !== "PUT") {
-            throw new Error("Currently it is only allowed to specify Content-Encoding for PUT requests.");
+        if (_ENCODING_TO_COMPRESSION.hasOwnProperty(header)) {
+            result = _ENCODING_TO_COMPRESSION[header];
         } else {
-            this.input_compression = result;
+            throw new YtError("Unsupported Content-Encoding " + JSON.stringify(header) + ".");
         }
-    } else {
-        this.input_compression = ytnode_wrappers.ECompression_None;
     }
 
-    return cb();
+    if (typeof(result) === "undefined") {
+        result = binding.ECompression_None;
+    }
+
+    this.input_compression = result;
 };
 
-// TODO(sandello): 406 Error
-YtCommand.prototype._getOutputFormat = function(cb) {
+YtCommand.prototype._getOutputFormat = function() {
     "use strict";
     this.__DBG("_getOutputFormat");
 
     var result_format, result_mime, header;
 
-    // Firstly, check whether the command produces an octet stream.
-    if (this.descriptor.output_type_as_integer === ytnode_wrappers.EDataType_Binary) {
-        // XXX(sandello): This is temporary, until I figure out a better solution.
-        this.output_mime = "text/plain";
-        this.output_format = "yson";
-        return cb();
+    // Firstly, check whether the command either produces no data or an octet stream.
+    if (this.descriptor.output_type_as_integer === binding.EDataType_Null) {
+        this.output_format = _PREDEFINED_YSON_FORMAT;
+        this.mime_type = undefined;
+        return;
+    }
+    if (this.descriptor.output_type_as_integer === binding.EDataType_Binary) {
+        // TODO(sandello): Replace with application/octet-stream and Content-Disposition.
+        this.output_format = _PREDEFINED_YSON_FORMAT;
+        this.mime_type = "text/plain";
+        return;
     }
 
     // Secondly, try to deduce output format from Accept header.
     header = this.req.headers["accept"];
     if (typeof(header) === "string") {
-        if (header.indexOf("*") === -1) {
-            if (_MIME_TYPE_TO_FORMAT.hasOwnProperty(header)) {
-                result_mime = header;
-                result_format = _MIME_TYPE_TO_FORMAT[header];
-            }
-        } else {
-            for (var mime in _MIME_TYPE_TO_FORMAT) {
-                if (utils.acceptsType(mime, header)) {
-                    result_mime = mime;
-                    result_format = _MIME_TYPE_TO_FORMAT[mime];
-                    break;
-                }
-            }
+        result_mime = utils.bestAcceptedType(
+            _MIME_BY_OUTPUT_TYPE[this.descriptor.output_type_as_integer],
+            header);
+
+        if (!result_mime) {
+            this.rsp.statusCode = 406;
+            throw new YtError("Could not determine feasible Content-Type given Accept constraints.");
         }
+
+        result_format = _MIME_TO_FORMAT[result_mime];
     }
 
     // Thirdly, try to deduce output format from our custom header.
     header = this.req.headers["x-yt-output-format"];
     if (typeof(header) === "string") {
-        result_mime = "application/octet-stream";
-        result_format = header.trim();
+        try {
+            result_mime = "application/octet-stream";
+            result_format = new binding.TNodeJSNode(
+                header.trim(),
+                binding.ECompression_None,
+                _PREDEFINED_JSON_FORMAT);
+        } catch(err) {
+            throw new YtError("Unable to parse X-YT-Output-Format header.", err);
+        }
     }
 
     // Lastly, provide a default option, i. e. YSON.
     if (typeof(result_format) === "undefined") {
         result_mime = "text/plain";
-        result_format = "<format=pretty;enable_raw=false>yson";
+        result_format = _PREDEFINED_YSON_FORMAT;
     }
 
-    this.output_mime = result_mime;
     this.output_format = result_format;
-
-    return cb();
+    this.mime_type = result_mime;
 };
 
-// TODO(sandello): 415 Error
-YtCommand.prototype._getOutputCompression = function(cb) {
+YtCommand.prototype._getOutputCompression = function() {
     "use strict";
     this.__DBG("_getOutputCompression");
 
@@ -426,36 +461,81 @@ YtCommand.prototype._getOutputCompression = function(cb) {
 
     header = this.req.headers["accept-encoding"];
     if (typeof(header) === "string") {
-        for (var encoding in _STREAM_COMPRESSION) {
-            if (utils.acceptsEncoding(encoding, header)) {
-                result_mime = encoding;
-                result_compression = _STREAM_COMPRESSION[encoding];
-                break;
-            }
+        result_mime = utils.bestAcceptedEncoding(
+            _ENCODING_TO_COMPRESSION,
+            header);
+
+        if (!result_mime) {
+            this.rsp.statusCode = 415;
+            throw new YtError("Could not determine feasible Content-Encoding given Accept-Encoding constraints.");
         }
+
+        result_compression = _ENCODING_TO_COMPRESSION[result_mime];
     }
 
     if (typeof(result_compression) === "undefined") {
         result_mime = "identity";
-        result_compression = ytnode_wrappers.ECompression_None;
+        result_compression = binding.ECompression_None;
     }
 
-    this.output_compression_mime = result_mime;
     this.output_compression = result_compression;
-
-    return cb();
+    this.mime_compression = result_mime;
 };
 
-YtCommand.prototype._needToCaptureBody = function(cb) {
+YtCommand.prototype._captureParameters = function() {
     "use strict";
-    this.__DBG("_needToCaptureBody");
+    this.__DBG("_captureParameters");
 
-    return this.req.method === "POST";
+    var header;
+    var parameters_from_url, parameters_from_header, parameters_from_body;
+
+    try {
+        parameters_from_url = utils.numerify(qs.parse(this.req.parsedUrl.query));
+        parameters_from_url = new binding.TNodeJSNode(parameters_from_url);
+    } catch(err) {
+        throw new YtError("Unable to parse parameters from the query string.", err);
+    }
+
+    try {
+        header = this.req.headers["x-yt-parameters"];
+        if (typeof(header) === "string") {
+            parameters_from_header = new binding.TNodeJSNode(
+                header,
+                binding.ECompression_None,
+                _PREDEFINED_JSON_FORMAT);
+        }
+    } catch(err) {
+        throw new YtError("Unable to parse parameters from the request header X-YT-Parameters.", err);
+    }
+
+    if (this.req.method === "POST") {
+        // Here we heavily rely on fact that HTTP method was checked beforehand.
+        // Moreover, there is a convention that mutating commands with structured input
+        // are served with POST method (see |_checkHttpMethod|).
+        parameters_from_body = this._captureBody();
+        this.input_stream = new utils.NullStream();
+        this.output_stream = this.rsp;
+        this.pause = utils.Pause(this.input_stream);
+    } else {
+        parameters_from_body = Q.resolve(undefined);
+        this.input_stream = this.req;
+        this.output_stream = this.rsp;
+    }
+
+    var self = this;
+
+    return Q
+        .all([ parameters_from_url, parameters_from_header, parameters_from_body ])
+        .spread(function(from_url, from_header, from_body) {
+            self.parameters = binding.CreateMergedNode(from_url, from_header, from_body);
+        });
 };
 
-YtCommand.prototype._captureBody = function(cb) {
+YtCommand.prototype._captureBody = function() {
     "use strict";
     this.__DBG("_captureBody");
+
+    var deferred = Q.defer();
 
     var self = this;
     var chunks = [];
@@ -463,59 +543,40 @@ YtCommand.prototype._captureBody = function(cb) {
     this.req.on("data", function(chunk) { chunks.push(chunk); });
     this.req.on("end", function() {
         try {
-            var result = buffertools.concat.apply(buffertools, chunks);
-            if (result.length) {
-                if (self.input_format !== "json") {
-                    throw new Error("Currently it is only allowed to use JSON in a POST body.");
-                }
-                self.parameters = utils.merge(self.parameters, JSON.parse(result));
-            }
-
-            self.input_stream = new utils.NullStream();
-            self.output_stream = self.rsp;
-
-            return cb();
+            deferred.resolve(new binding.TNodeJSNode(
+                buffertools.concat.apply(undefined, chunks),
+                self.input_compression,
+                self.input_format));
         } catch (err) {
-            return cb(err);
+            deferred.reject(new YtError(
+                "Unable to parse parameters from the request body.",
+                err));
         }
     });
+
+    this.pause.unpause();
+
+    return deferred.promise;
 };
 
-YtCommand.prototype._retainBody = function(cb) {
-    "use strict";
-    this.__DBG("_retainBody");
-
-    this.input_stream = this.req;
-    this.output_stream = this.rsp;
-
-    return cb();
-};
-
-YtCommand.prototype._logRequest = function(cb) {
+YtCommand.prototype._logRequest = function() {
     "use strict";
     this.__DBG("_logRequest");
 
     this.logger.debug("Gathered request parameters", {
         request_id              : this.req.uuid,
         name                    : this.name,
-        parameters              : this.parameters,
-        input_format            : this.input_format,
+        parameters              : this.parameters.Print(),
+        input_format            : this.input_format.Print(),
         input_compression       : this.input_compression,
-        output_mime             : this.output_mime,
-        output_format           : this.output_format,
-        output_compression      : this.output_compression,
-        output_compression_mime : this.output_compression_mime
+        output_format           : this.output_format.Print(),
+        output_compression      : this.output_compression
     });
-
-    return cb();
 };
 
-var RE_HOME    = /^\/\/home|^\/\/"home"|^\/\/\x01\x08\x68\x6f\x6d\x65/;
-var RE_TMP     = /^\/\/tmp|^\/\/"tmp"|^\/\/\x01\x06\x74\x6d\x70/;
-var RE_MAPS    = /^\/\/maps|^\/\/"maps"/;
-var RE_STATBOX = /^\/\/statbox|^\/\/"statbox"|^\/\/\x01\x0e\x73\x74\x61\x74\x62\x6f\x78/;
+var RE_WRITABLE    = /^\/\/home|^\/\/tmp|^\/\/maps|^\/\/statbox/;
 
-YtCommand.prototype._checkPermissions = function(cb) {
+YtCommand.prototype._checkPermissions = function() {
     "use strict";
     this.__DBG("_checkPermissions");
 
@@ -561,31 +622,30 @@ YtCommand.prototype._checkPermissions = function(cb) {
         }
 
         paths.forEach(function(path) {
-            if (!(RE_HOME.test(path) || RE_TMP.test(path) || RE_MAPS.test(path) || RE_STATBOX.test(path))) {
+            if (!RE_WRITABLE.test(path)) {
                 self.rsp.statusCode = 403;
-                throw new Error("Any mutating command is allowed only on //home, //tmp and //statbox, path: " + path);
+                throw new YtError("Any mutating command is allowed only on //home, //tmp, //statbox and //maps. Violating path was: " + JSON.stringify(path));
             }
         });
     }
-
-    return cb();
 };
 
-YtCommand.prototype._addHeaders = function(cb) {
+YtCommand.prototype._addHeaders = function() {
     "use strict";
     this.__DBG("_addHeaders");
 
-    this.rsp.setHeader("Content-Type", this.output_mime);
-    this.rsp.setHeader("Transfer-Encoding", "chunked");
-    this.rsp.setHeader("Access-Control-Allow-Origin", "*");
-    this.rsp.setHeader("Trailer", "X-YT-Error, X-YT-Response-Code, X-YT-Response-Message");
+    if (this.mime_type) {
+        this.rsp.setHeader("Content-Type", this.mime_type);
+    }
 
-    if (this.output_compression !== ytnode_wrappers.ECompression_None) {
-        this.rsp.setHeader("Content-Encoding", this.output_compression_mime);
+    if (this.output_compression !== binding.ECompression_None) {
+        this.rsp.setHeader("Content-Encoding", this.mime_compression);
         this.rsp.setHeader("Vary", "Content-Encoding");
     }
 
-    return cb();
+    this.rsp.setHeader("Transfer-Encoding", "chunked");
+    this.rsp.setHeader("Access-Control-Allow-Origin", "*");
+    this.rsp.setHeader("Trailer", "X-YT-Response, X-YT-Response-Code, X-YT-Response-Message");
 };
 
 YtCommand.prototype._execute = function(cb) {
@@ -594,51 +654,39 @@ YtCommand.prototype._execute = function(cb) {
 
     var self = this;
 
-    this.driver.execute(this.name,
+    process.nextTick(function() { self.pause.unpause(); });
+
+    return this.driver.execute(this.name,
         this.input_stream, this.input_compression, this.input_format,
         this.output_stream, this.output_compression, this.output_format,
-        this.parameters,
-        function callback(err, code, message, bytes_in_enqueued, bytes_in_dequeued, bytes_out_enqueued, bytes_out_dequeued)
-        {
-            self.__DBG("_execute -> (callback)");
+        this.parameters).then(
+        function(args) {
+            var response = args[0];
 
-            if (err) {
-                if (typeof(err) === "string") {
-                    self.logger.error(
-                        "Command '" + self.name + "' has thrown C++ exception",
-                        { request_id : self.req.uuid, error : err });
-                    return cb(new Error(err));
-                }
-                if (err instanceof Error) {
-                    self.logger.error(
-                        "Command '" + self.name + "' has failed to execute",
-                        { request_id : self.req.uuid, error : err.message });
-                    return cb(err);
-                }
-                return cb(new Error("Unknown error: " + err.toString()));
-            } else {
-                self.logger.debug(
-                    "Command '" + self.name + "' successfully executed",
-                    { request_id : self.req.uuid, code : code, error : message });
-            }
+            self.logger.error(
+                "Command '" + self.name + "' successfully executed",
+                { request_id : self.req.uuid, response : response });
 
-            self.yt_code = code;
-            self.yt_message = message;
+            self.result    = response;
+            self.bytes_in  = args[1];
+            self.bytes_out = args[2];
 
-            self.bytes_in_enqueued = bytes_in_enqueued;
-            self.bytes_in_dequeued = bytes_in_dequeued;
-            self.bytes_out_enqueued = bytes_out_enqueued;
-            self.bytes_out_dequeued = bytes_out_dequeued;
-
-            if (code === 0) {
+            if (response.code === 0) {
                 self.rsp.statusCode = 200;
-            } else if (code < 0) {
+            } else if (response.code < 0) {
                 self.rsp.statusCode = 500;
-            } else if (code > 0) {
+            } else if (response.code > 0) {
                 self.rsp.statusCode = 400;
             }
 
-            return cb();
+            return response;
+        },
+        function(err) {
+            self.logger.error(
+                "Command '" + self.name + "' has failed to execute",
+                { request_id : self.req.uuid, response : err });
+
+            return new YtError("Unexpected error while calling IDriver::Execute()", err);
         });
 };
 

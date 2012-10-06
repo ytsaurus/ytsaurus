@@ -1,6 +1,5 @@
 var util = require("util");
 var stream = require("stream");
-var assert = require("assert");
 
 var binding = require("./ytnode");
 
@@ -8,7 +7,7 @@ var binding = require("./ytnode");
 
 var __DBG;
 
-if (process.env.NODE_DEBUG && /YTNODE/.test(process.env.NODE_DEBUG)) {
+if (process.env.NODE_DEBUG && /YT(ALL|NODE)/.test(process.env.NODE_DEBUG)) {
     __DBG = function(x) { "use strict"; console.error("YT Writable Stream:", x); };
     __DBG.UUID = require("node-uuid");
 } else {
@@ -65,7 +64,7 @@ YtWritableStream.prototype.write = function(chunk, encoding) {
     this.__DBG("write");
 
     if (typeof(chunk) !== "string" && !Buffer.isBuffer(chunk)) {
-        throw new TypeError("Expected first argument to be a String or Buffer");
+        throw new TypeError("Expected first argument to be a String or a Buffer");
     }
 
     if (typeof(chunk) === "string") {

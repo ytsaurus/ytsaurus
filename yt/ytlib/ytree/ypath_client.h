@@ -181,6 +181,9 @@ std::vector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path);
  */
 void ApplyYPathOverride(INodePtr root, const TStringBuf& overrideString);
 
+/*!
+ *  Throws exception if the specified node does not exist.
+ */
 INodePtr GetNodeByYPath(INodePtr root, const TYPath& path);
 
 void SetNodeByYPath(INodePtr root, const TYPath& path, INodePtr value);

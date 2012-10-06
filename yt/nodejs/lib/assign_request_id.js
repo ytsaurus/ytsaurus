@@ -4,7 +4,6 @@ var uuid = require("node-uuid");
 
 exports.that = function YtAssignRequestId() {
     "use strict";
-
     var buffer = new Buffer(16);
 
     return function(req, rsp, next) {

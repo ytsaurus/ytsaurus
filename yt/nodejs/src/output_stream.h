@@ -69,6 +69,8 @@ private:
     void DisposeBuffers();
 
 private:
+    // XXX(sandello): I believe these atomics are subject to false sharing due
+    // to in-memory locality. But whatever -- it is not a bottleneck.
     TAtomic IsPaused_;
     TAtomic IsDestroyed_;
 

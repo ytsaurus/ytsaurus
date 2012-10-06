@@ -11,5 +11,5 @@ make cmake_check_build_system || (echo "Re-run $0" && exit)
 export NODE_PATH=$CMB/node_modules:$NODE_PATH
 
 (cd $CMB && npm install); [[ ! -L $CMB/node_modules/yt ]] && ln -s $CMS $CMB/node_modules/yt
-(cd $CMB && exec $CMB/node_modules/yt/bin/yt_http_api "$@")
+(cd $CMB && exec $CMB/node_modules/yt/bin/yt_http_proxy "$@")
 

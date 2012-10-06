@@ -1,16 +1,15 @@
-var utils = require("./utils");
-
 var YtCommand = require("./command").that;
 var YtDriver = require("./driver").that;
 var YtEioWatcher = require("./eio_watcher").that;
 
-var configure_singletons = require("./ytnode").ConfigureSingletons;
+var utils = require("./utils");
+var binding = require("./ytnode");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 var __DBG;
 
-if (process.env.NODE_DEBUG && /YTAPP/.test(process.env.NODE_DEBUG)) {
+if (process.env.NODE_DEBUG && /YT(ALL|APP)/.test(process.env.NODE_DEBUG)) {
     __DBG = function(x) { "use strict"; console.error("YT Application:", x); };
 } else {
     __DBG = function(){};
@@ -18,28 +17,29 @@ if (process.env.NODE_DEBUG && /YTAPP/.test(process.env.NODE_DEBUG)) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-exports.that = function YtApplication(logger, configuration) {
+exports.that = function YtApplication(logger, config) {
     "use strict";
 
     __DBG("New");
 
-    configure_singletons(configuration.proxy);
+    binding.ConfigureSingletons(config.proxy);
 
-    if (typeof(configuration.low_watermark) === "undefined") {
-        configuration.low_watermark = parseInt(0.80 * configuration.memory_limit, 10);
+    if (typeof(config.low_watermark) === "undefined") {
+        config.low_watermark = parseInt(0.80 * config.memory_limit, 10);
     }
 
-    if (typeof(configuration.high_watermark) === "undefined") {
-        configuration.high_watermark = parseInt(0.95 * configuration.memory_limit, 10);
+    if (typeof(config.high_watermark) === "undefined") {
+        config.high_watermark = parseInt(0.95 * config.memory_limit, 10);
     }
 
-    var driver = new YtDriver(false, configuration);
-    var watcher = new YtEioWatcher(logger, configuration);
-    var read_only = configuration.read_only;
+    var driver = new YtDriver(false, config);
+    var watcher = new YtEioWatcher(logger, config);
+    var read_only = config.read_only;
 
     return function(req, rsp) {
+        var pause = utils.Pause(req);
         return (new YtCommand(
-            logger, driver, watcher, read_only, req, rsp
+            logger, driver, watcher, read_only, pause, req, rsp
         )).dispatch();
     };
 };

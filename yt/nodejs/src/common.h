@@ -1,6 +1,7 @@
 #pragma once
 
 #include <ytlib/misc/common.h>
+#include <ytlib/misc/error.h>
 #include <ytlib/ytree/public.h>
 
 #define BUILDING_NODE_EXTENSION
@@ -69,16 +70,18 @@
 #define EXPECT_THAT_IS(value, type) \
     do { \
         if (!(value)->Is##type()) { \
-            return ThrowException(Exception::TypeError( \
-                String::New("Expected " #value " to be a " #type))); \
+            return ThrowException(Exception::TypeError(String::Concat( \
+                String::New(__PRETTY_FUNCTION__), \
+                String::New(": Expected " #value " to be a " #type)))); \
         } \
     } while (0)
 
 #define EXPECT_THAT_HAS_INSTANCE(value, type) \
     do { \
         if (!type::HasInstance(value)) { \
-            return ThrowException(Exception::TypeError( \
-                String::New("Expected " #value " to be an instance of " #type))); \
+            return ThrowException(Exception::TypeError(String::Concat( \
+                String::New(__PRETTY_FUNCTION__), \
+                String::New(": Expected " #value " to be an instance of " #type)))); \
         } \
     } while (0)
 
@@ -107,10 +110,8 @@ DECLARE_ENUM(ECompression,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYTree::INodePtr ConvertV8ValueToNode(v8::Handle<v8::Value> value);
-NYTree::INodePtr ConvertV8StringToNode(v8::Handle<v8::String> string);
 
-void Initialize(v8::Handle<v8::Object> target);
+void InitializeCommon(v8::Handle<v8::Object> target);
 
 ////////////////////////////////////////////////////////////////////////////////
 

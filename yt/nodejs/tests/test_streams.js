@@ -315,7 +315,7 @@ describe("output stream interface", function() {
         [ "gzip",    binding.ECompression_Gzip,    zlib.gunzip  ],
         [ "deflate", binding.ECompression_Deflate, zlib.inflate ],
     ].forEach(function(test_setting) {
-        [ 
+        [
             [ "empty string",  ""                              ],
             [ "tiny string",   "hello"                         ],
             [ "small string",  generateString(8 * 1024)        ],
