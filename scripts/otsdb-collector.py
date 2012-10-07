@@ -11,7 +11,7 @@ import traceback
 import urllib2
 import os
 
-class YtCollector(object):
+class YTCollector(object):
     def __init__(self, config_json):
         self.config = {
             u'interval': 30, # collector invocation period
@@ -53,7 +53,7 @@ class YtCollector(object):
         for path in metric_paths:
             cleaned_path = self.regex.sub('_', path).replace('/', '.')
             g_metric = 'yt' + cleaned_path
-            new_metrics[g_metric] = {'service': service, 'port': port, 'path': self.quote_path(path), 'last_time': 0, 'tail': []}
+            new_metrics[g_metric] = {'service': service, 'port': port, 'path': path, 'last_time': 0, 'tail': []}
 
         # update existing metrics
         if len(new_metrics) > 0:
@@ -109,7 +109,7 @@ class YtCollector(object):
             metric['tail'] = cur_vals
             return values
         else:
-            print >>sys.stderr, 'YtCollector: Unexpected reply from %s' % metric_url
+            print >>sys.stderr, 'YTCollector: Unexpected reply from %s' % metric_url
             return []
 
     def publish_with_timestamp(self, name, value, timestamp, precision=0, **kwargs):
@@ -131,7 +131,7 @@ class YtCollector(object):
                 if source['status'] is True:
                     self.collect_from_source(source)
             except Exception, e:
-                print >>sys.stderr, 'YtCollector: Failed to collect data from ' + source['endpoint'] + '\n' + traceback.format_exc()
+                print >>sys.stderr, 'YTCollector: Failed to collect data from ' + source['endpoint'] + '\n' + traceback.format_exc()
                 source['status'] = False # failed
 
         self.publish_with_timestamp('yt.collector.collect_time', time.time() - iter_start, int(time.time()), 3)
@@ -171,21 +171,17 @@ class YtCollector(object):
             if value is None:
                 subpaths.append(key)
             else:
-                subpaths = subpaths + YtCollector.get_paths(value, key)
+                subpaths = subpaths + YTCollector.get_paths(value, key)
         for subpath in subpaths:
             paths.append(root + '/' + subpath)
         return paths
-
-    @staticmethod
-    def quote_path(path):
-        return (path.replace('/', '"/"') + '"')[1:]
 
 if __name__ == "__main__":
     config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'etc', 'yt_collector.json')
     config_path = os.path.normpath(config_path)
     config_json = open(config_path, "r").read()
 
-    collector = YtCollector(config_json)
+    collector = YTCollector(config_json)
 
     while True:
         collector.collect()
