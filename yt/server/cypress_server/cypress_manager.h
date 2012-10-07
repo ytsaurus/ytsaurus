@@ -229,7 +229,7 @@ private:
        NTransactionServer::TTransaction* transaction,
        ELockMode mode);
 
-    NYTree::TYPath GetNodePath(
+    NYPath::TYPath GetNodePath(
        const TNodeId& nodeId,
        NTransactionServer::TTransaction* transaction);
 

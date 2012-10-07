@@ -138,7 +138,7 @@ private:
 
             Awaiter->Await(
                 LogResult,
-                EscapeYPathToken(CellManager->GetSelfAddress()),
+                CellManager->GetSelfAddress(),
                 BIND(&TBatch::OnLocalFlush, MakeStrong(this)));
 
             LOG_DEBUG("Sending batched mutations to followers");
@@ -159,7 +159,7 @@ private:
                 }
                 Awaiter->Await(
                     request->Invoke(),
-                    EscapeYPathToken(CellManager->GetPeerAddress(id)),
+                    CellManager->GetPeerAddress(id),
                     BIND(&TBatch::OnRemoteCommit, MakeStrong(this), id));
             }
             LOG_DEBUG("Batched mutations sent");

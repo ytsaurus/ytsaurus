@@ -11,12 +11,16 @@
 #include "tokenizer.h"
 #include "ypath_format.h"
 
+#include <ytlib/ypath/token.h>
+#include <ytlib/ypath/tokenizer.h>
+
 #include <ytlib/misc/protobuf_helpers.h>
 
 namespace NYT {
 namespace NYTree {
 
 using namespace NRpc;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,14 +44,14 @@ void ThrowInvalidNodeType(IConstNodePtr node, ENodeType expectedType, ENodeType 
 
 void ThrowNoSuchChildKey(IConstNodePtr node, const Stroka& key)
 {
-    THROW_ERROR_EXCEPTION("%s has no child with key %s",
+    THROW_ERROR_EXCEPTION("%s has no child with key: %s",
         ~GetNodePathHelper(node),
-        ~YsonizeString(key, EYsonFormat::Text));
+        ~ToYPathLiteral(key));
 }
 
 void ThrowNoSuchChildIndex(IConstNodePtr node, int index)
 {
-    THROW_ERROR_EXCEPTION("%s has no child with index %d",
+    THROW_ERROR_EXCEPTION("%s has no child with index: %d",
         ~GetNodePathHelper(node),
         index);
 }
@@ -56,8 +60,16 @@ void ThrowVerbNotSuppored(IConstNodePtr node, const Stroka& verb)
 {
     THROW_ERROR_EXCEPTION(
         NRpc::EErrorCode::NoSuchVerb,
-        "%s does not support verb %s",
+        "%s does not support verb: %s",
         ~GetNodePathHelper(node),
+        ~verb);
+}
+
+void ThrowVerbNotSuppored(const Stroka& verb)
+{
+    THROW_ERROR_EXCEPTION(
+        NRpc::EErrorCode::NoSuchVerb,
+        "Verb is not supported: %s",
         ~verb);
 }
 
@@ -86,7 +98,7 @@ void TNodeBase::DoInvoke(IServiceContextPtr context)
     TYPathServiceBase::DoInvoke(context);
 }
 
-void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
+void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
 {
     TNullable< std::vector<Stroka> > attributesToVisit;
 
@@ -112,7 +124,7 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
     context->Reply();
 }
 
-void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove* context)
+void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemovePtr context)
 {
     UNUSED(request);
     UNUSED(response);
@@ -127,7 +139,7 @@ void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove
 }
 
 IYPathService::TResolveResult TNodeBase::ResolveRecursive(
-    const NYTree::TYPath& path,
+    const NYPath::TYPath& path,
     IServiceContextPtr context)
 {
     UNUSED(context);
@@ -139,18 +151,18 @@ IYPathService::TResolveResult TNodeBase::ResolveRecursive(
     YUNREACHABLE();
 }
 
-void TNodeBase::ExistsSelf(TReqExists* request, TRspExists* response, TCtxExists* context)
+void TNodeBase::ExistsSelf(TReqExists* request, TRspExists* response, TCtxExistsPtr context)
 {
     UNUSED(request);
-    YCHECK(!TTokenizer(context->GetPath()).ParseNext());
+
     response->set_value(true);
     context->Reply();
 }
 
-void TNodeBase::ExistsRecursive(const NYTree::TYPath& path, TReqExists* request, TRspExists* response, TCtxExists* context)
+void TNodeBase::ExistsRecursive(const NYTree::TYPath& path, TReqExists* request, TRspExists* response, TCtxExistsPtr context)
 {
     UNUSED(request);
-    UNUSED(response);
+
     response->set_value(false);
     context->Reply();
 }
@@ -161,7 +173,7 @@ void TCompositeNodeMixin::SetRecursive(
     const TYPath& path,
     TReqSet* request,
     TRspSet* response,
-    TCtxSet* context)
+    TCtxSetPtr context)
 {
     UNUSED(response);
 
@@ -175,23 +187,21 @@ void TCompositeNodeMixin::RemoveRecursive(
     const TYPath& path,
     TSupportsRemove::TReqRemove* request,
     TSupportsRemove::TRspRemove* response,
-    TSupportsRemove::TCtxRemove* context)
+    TSupportsRemove::TCtxRemovePtr context)
 {
     UNUSED(request);
     UNUSED(response);
 
-    TTokenizer tokenizer(path);
-    tokenizer.ParseNext();
-    switch (tokenizer.CurrentToken().GetType()) {
-        case WildcardToken:
-            YASSERT(!tokenizer.ParseNext());
-            Clear();
-            break;
-
-        default:
-            ThrowUnexpectedToken(tokenizer.CurrentToken());
-            YUNREACHABLE();
+    NYPath::TTokenizer tokenizer(path);
+    tokenizer.Advance();
+    if (tokenizer.GetType() != NYPath::ETokenType::Literal || tokenizer.GetToken() != WildcardToken) {
+        tokenizer.ThrowUnexpected();
     }
+
+    tokenizer.Advance();
+    tokenizer.Expect(NYPath::ETokenType::EndOfStream);
+
+    Clear();
 
     context->Reply();
 }
@@ -203,104 +213,97 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
     IServiceContextPtr context)
 {
     const auto& verb = context->GetVerb();
-    TTokenizer tokenizer(path);
-    tokenizer.ParseNext();
-    switch (tokenizer.GetCurrentType()) {
-        case WildcardToken:
-            if (verb != "Remove") {
-                THROW_ERROR_EXCEPTION("Wildcard is only allowed for Remove verb");
-            }
-            tokenizer.ParseNext();
-            tokenizer.CurrentToken().CheckType(ETokenType::EndOfStream);
-            return IYPathService::TResolveResult::Here(
-                TokenTypeToString(PathSeparatorToken) + path);
 
-        case ETokenType::String: {
-            Stroka key(tokenizer.CurrentToken().GetStringValue());
-            if (key.Empty()) {
-                THROW_ERROR_EXCEPTION("Child key cannot be empty");
-            }
+    NYPath::TTokenizer tokenizer(path);
+    tokenizer.Advance();
+    tokenizer.Expect(NYPath::ETokenType::Literal);
 
-            auto child = FindChild(key);
-            if (child) {
-                return IYPathService::TResolveResult::There(
-                    child, TYPath(tokenizer.GetCurrentSuffix()));
-            }
-
-            if (verb == "Set" ||
-                verb == "Create" ||
-                verb == "Copy" ||
-                verb == "Exists")
-            {
-                // In case of Exists return false anywhere
-                if (!tokenizer.ParseNext() || verb == "Exists") {
-                    return IYPathService::TResolveResult::Here(
-                        TokenTypeToString(PathSeparatorToken) + path);
-                }
-            }
-
-            ThrowNoSuchChildKey(this, key);
+    if (tokenizer.GetToken() == WildcardToken) {
+        if (verb != "Remove") {
+            THROW_ERROR_EXCEPTION("\"%s\" is only allowed for Remove verb",
+                WildcardToken);
         }
 
-        default:
-            ThrowUnexpectedToken(tokenizer.CurrentToken());
-            YUNREACHABLE();
+        tokenizer.Advance();
+        tokenizer.Expect(NYPath::ETokenType::EndOfStream);
+
+        return IYPathService::TResolveResult::Here("/" + path);
+    } else {
+        auto key = tokenizer.GetLiteralValue();
+        if (key.Empty()) {
+            THROW_ERROR_EXCEPTION("Child key cannot be empty");
+        }
+
+        auto child = FindChild(key);
+        if (!child) {
+            if ((verb == "Set" || verb == "Create" || verb == "Copy") &&
+                tokenizer.Advance() == NYPath::ETokenType::EndOfStream ||
+                verb == "Exists")
+            {
+                return IYPathService::TResolveResult::Here("/" + path);
+            } else {
+                ThrowNoSuchChildKey(this, key);
+            }
+        }
+
+        return IYPathService::TResolveResult::There(child, tokenizer.GetSuffix());
     }
 }
 
-void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxList* context)
+void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxListPtr context)
 {
     if (request->attributes_size() == 0) {
         // Fast path.
         response->set_keys(ConvertToYsonString(GetKeys()).Data());
-        context->Reply();
-        return;
-    }
+    } else {
+        auto attributesToVisit = NYT::FromProto<Stroka>(request->attributes());
 
-    auto attributesToVisit = NYT::FromProto<Stroka>(request->attributes());
+        std::sort(attributesToVisit.begin(), attributesToVisit.end());
+        attributesToVisit.erase(
+            std::unique(attributesToVisit.begin(), attributesToVisit.end()),
+            attributesToVisit.end());
 
-    std::sort(attributesToVisit.begin(), attributesToVisit.end());
-    attributesToVisit.erase(
-        std::unique(attributesToVisit.begin(), attributesToVisit.end()),
-        attributesToVisit.end());
+        TStringStream stream;
+        TYsonWriter writer(&stream);
 
-    TStringStream stream;
-    TYsonWriter writer(&stream);
+        writer.OnBeginList();
+        FOREACH (const auto& pair, GetChildren()) {
+            const auto& key = pair.First();
+            const auto& node = pair.Second();
+            const auto& attributes = node->Attributes();
 
-    writer.OnBeginList();
-    FOREACH (const auto& pair, GetChildren()) {
-        const auto& key = pair.First();
-        const auto& node = pair.Second();
-        const auto& attributes = node->Attributes();
+            writer.OnListItem();
+            writer.OnBeginAttributes();
 
-        writer.OnListItem();
-        writer.OnBeginAttributes();
-
-        FOREACH (const auto& attributeKey, attributesToVisit) {
-            auto value = attributes.FindYson(attributeKey);
-            if  (value) {
-                writer.OnKeyedItem(attributeKey);
-                Consume(*value, &writer);
+            FOREACH (const auto& attributeKey, attributesToVisit) {
+                auto value = attributes.FindYson(attributeKey);
+                if  (value) {
+                    writer.OnKeyedItem(attributeKey);
+                    Consume(*value, &writer);
+                }
             }
+
+            writer.OnEndAttributes();
+            writer.OnStringScalar(key);
         }
+        writer.OnEndList();
 
-        writer.OnEndAttributes();
-        writer.OnStringScalar(key);
+        response->set_keys(stream.Str());
     }
-    writer.OnEndList();
 
-    response->set_keys(stream.Str());
     context->Reply();
 }
 
 void TMapNodeMixin::SetRecursive(const TYPath& path, INodePtr value)
 {
-    TTokenizer tokenizer(path);
-    tokenizer.ParseNext();
-    Stroka key(tokenizer.CurrentToken().GetStringValue());
-    YASSERT(!tokenizer.ParseNext());
-    YASSERT(!key.empty());
-    YASSERT(!FindChild(key));
+    NYPath::TTokenizer tokenizer(path);
+    tokenizer.Advance();
+    tokenizer.Expect(NYPath::ETokenType::Literal);
+    auto key = tokenizer.GetLiteralValue();
+    
+    tokenizer.Advance();
+    tokenizer.Expect(NYPath::ETokenType::EndOfStream);
+
     AddChild(value, key);
 }
 
@@ -310,44 +313,39 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
     const TYPath& path,
     IServiceContextPtr context)
 {
-    TTokenizer tokenizer(path);
-    tokenizer.ParseNext();
-    switch (tokenizer.GetCurrentType()) {
-        case ListAppendToken:
-        case WildcardToken:
-            tokenizer.ParseNext();
-            tokenizer.CurrentToken().CheckType(ETokenType::EndOfStream);
-            return IYPathService::TResolveResult::Here(TokenTypeToString(PathSeparatorToken) + path);
+    NYPath::TTokenizer tokenizer(path);
+    tokenizer.Advance();
+    tokenizer.Expect(NYPath::ETokenType::Literal);
 
-        case ETokenType::Integer: {
-            const auto& verb = context->GetVerb();
-            
-            int index = AdjustAndValidateChildIndex(tokenizer.CurrentToken().GetIntegerValue());
-            if (!FindChild(index) && verb == "Exists") {
-                return IYPathService::TResolveResult::Here(TokenTypeToString(PathSeparatorToken) + path);
-            }
-            auto child = GetChild(index);
-            tokenizer.ParseNext();
-            if (tokenizer.GetCurrentType() == ListInsertToken) {
-                tokenizer.ParseNext();
-                tokenizer.CurrentToken().CheckType(ETokenType::EndOfStream);
-                return IYPathService::TResolveResult::Here(TokenTypeToString(PathSeparatorToken) + path);
-            } else {
-                return IYPathService::TResolveResult::There(child, TYPath(tokenizer.CurrentInput()));
-            }
+    const auto& token = tokenizer.GetToken();
+    if (token == WildcardToken ||
+        token == ListBeginToken ||
+        token == ListEndToken)
+    {
+        tokenizer.Advance();
+        tokenizer.Expect(NYPath::ETokenType::EndOfStream);
+
+        return IYPathService::TResolveResult::Here("/" + path);
+    } else if (token.has_prefix(ListBeforeToken) ||
+               token.has_prefix(ListAfterToken))
+    {
+        auto indexToken = ExtractListIndex(token);
+        int index = ParseListIndex(indexToken);
+        AdjustChildIndex(index);
+        
+        tokenizer.Advance();
+        tokenizer.Expect(NYPath::ETokenType::EndOfStream);
+
+        return IYPathService::TResolveResult::Here("/" + path);
+    } else {
+        int index = ParseListIndex(token);
+        int adjustedIndex = AdjustChildIndex(index);
+        auto child = FindChild(adjustedIndex);
+        const auto& verb = context->GetVerb();
+        if (!child && verb == "Exists") {
+        	return IYPathService::TResolveResult::Here("/" + path);
         }
-
-        case ListInsertToken: {
-            tokenizer.ParseNext();
-            int index = AdjustAndValidateChildIndex(tokenizer.CurrentToken().GetIntegerValue());
-            tokenizer.ParseNext();
-            tokenizer.CurrentToken().CheckType(ETokenType::EndOfStream);
-            return IYPathService::TResolveResult::Here(TokenTypeToString(PathSeparatorToken) + path);
-        }
-
-        default:
-            ThrowUnexpectedToken(tokenizer.CurrentToken());
-            YUNREACHABLE();
+        return IYPathService::TResolveResult::There(child, tokenizer.GetSuffix());
     }
 }
 
@@ -355,32 +353,30 @@ void TListNodeMixin::SetRecursive(
     const TYPath& path,
     INodePtr value)
 {
-    int beforeIndex = -1;
+    int beforeIndex;
 
-    TTokenizer tokenizer(path);
-    tokenizer.ParseNext();
-    switch (tokenizer.GetCurrentType()) {
-        case ListAppendToken:
-            YASSERT(!tokenizer.ParseNext());
-            break;
-
-        case ListInsertToken:
-            tokenizer.ParseNext();
-            beforeIndex = AdjustAndValidateChildIndex(tokenizer.CurrentToken().GetIntegerValue());
-            YASSERT(!tokenizer.ParseNext());
-            break;
-
-        case ETokenType::Integer:
-            beforeIndex = AdjustAndValidateChildIndex(tokenizer.CurrentToken().GetIntegerValue());
+    NYPath::TTokenizer tokenizer(path);
+    tokenizer.Advance();
+    const auto& token = tokenizer.GetToken();
+    if (token.has_prefix(ListBeginToken)) {
+        beforeIndex = 0;
+    } else if (token.has_prefix(ListEndToken)) {
+        beforeIndex = GetChildCount();
+    } else if (token.has_prefix(ListBeforeToken) ||
+               token.has_prefix(ListAfterToken))
+    {
+        auto indexToken = ExtractListIndex(token);
+        int index = ParseListIndex(indexToken);
+        beforeIndex = AdjustChildIndex(index);
+        if (token.has_prefix(ListAfterToken)) {
             ++beforeIndex;
-            tokenizer.ParseNext();
-            YASSERT(tokenizer.GetCurrentType() == ListInsertToken);
-            YASSERT(!tokenizer.ParseNext());
-            break;
-
-        default:
-            YUNREACHABLE();
+        }
+    } else {
+        tokenizer.ThrowUnexpected();
     }
+
+    tokenizer.Advance();
+    tokenizer.Expect(NYPath::ETokenType::EndOfStream);
 
     AddChild(value, beforeIndex);
 }

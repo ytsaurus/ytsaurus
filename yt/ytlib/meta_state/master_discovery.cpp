@@ -52,7 +52,7 @@ public:
             auto request = proxy.GetQuorum();
             awaiter->Await(
                 request->Invoke(),
-                EscapeYPathToken(address),
+                address,
                 BIND(&TQuorumRequester::OnResponse, MakeStrong(this), address));
         }
 

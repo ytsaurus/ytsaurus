@@ -18,10 +18,10 @@ public:
     explicit TParallelAwaiter(
         IInvokerPtr invoker,
         NProfiling::TProfiler* profiler = NULL,
-        const NYTree::TYPath& timerPath = "");
+        const NYPath::TYPath& timerPath = "");
     explicit TParallelAwaiter(
         NProfiling::TProfiler* profiler = NULL,
-        const NYTree::TYPath& timerPath = "");
+        const NYPath::TYPath& timerPath = "");
 
     template <class T>
     void Await(
@@ -30,7 +30,7 @@ public:
     template <class T>
     void Await(
         TFuture<T> result,
-        const NYTree::TYPath& timerPathSuffix,
+        const Stroka& timerKey,
         TCallback<void(T)> onResult = TCallback<void(T)>());
 
     //! Specialization of #Await for |T = void|.
@@ -40,7 +40,7 @@ public:
     //! Specialization of #Await for |T = void|.
     void Await(
         TFuture<void> result,
-        const NYTree::TYPath& timerPathSuffix,
+        const Stroka& timerKey,
         TCallback<void()> onResult = TCallback<void()>());
 
 
@@ -67,22 +67,23 @@ private:
     template <class Signature>
     bool WrapOnResult(TCallback<Signature> onResult, TCallback<Signature>& wrappedOnResult);
 
-    void MaybeInvokeOnComplete(const NYTree::TYPath& timerPathSuffix);
+    void MaybeInvokeOnComplete(const Stroka& key);
 
     void Init(
         IInvokerPtr invoker,
         NProfiling::TProfiler* profiler,
-        const NYTree::TYPath& timerPath);
+        const NYPath::TYPath& timerPath);
+
     void Terminate();
 
     template <class T>
     void OnResult(
-        const NYTree::TYPath& timerPathSuffix,
+        const Stroka& key,
         TCallback<void(T)> onResult,
         T result);
 
     void OnResult(
-        const NYTree::TYPath& timerPathSuffix,
+        const Stroka& key,
         TCallback<void()> onResult);
 
 };

@@ -6,7 +6,6 @@
 #include "convert.h"
 #include "tree_visitor.h"
 #include "yson_consumer.h"
-#include "ypath_client.h"
 
 #include <ytlib/misc/guid.h>
 #include <ytlib/misc/string.h>
@@ -15,17 +14,11 @@
 #include <ytlib/misc/demangle.h>
 #include <ytlib/misc/error.h>
 
+#include <ytlib/ypath/token.h>
+
 #include <ytlib/actions/bind.h>
 
 #include <util/datetime/base.h>
-
-// Avoid circular references.
-namespace NYT {
-namespace NYTree {
-    TYPath EscapeYPathToken(const Stroka& value);
-    TYPath EscapeYPathToken(i64 value);
-}
-}
 
 namespace NYT {
 namespace NConfig {
@@ -35,10 +28,10 @@ namespace NConfig {
 template <class T, class = void>
 struct TLoadHelper
 {
-    static void Load(T& parameter, NYTree::INodePtr node, const NYTree::TYPath& path)
+    static void Load(T& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
     {
         UNUSED(path);
-        NYTree::Deserialize(parameter, node);
+        Deserialize(parameter, node);
     }
 };
 
@@ -49,7 +42,7 @@ struct TLoadHelper<
     typename NMpl::TEnableIf< NMpl::TIsConvertible<T&, TYsonSerializable&> >::TType
 >
 {
-    static void Load(TIntrusivePtr<T>& parameter, NYTree::INodePtr node, const NYTree::TYPath& path)
+    static void Load(TIntrusivePtr<T>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
     {
         if (!parameter) {
             parameter = New<T>();
@@ -62,7 +55,7 @@ struct TLoadHelper<
 template <class T>
 struct TLoadHelper<TNullable<T>, void>
 {
-    static void Load(TNullable<T>& parameter, NYTree::INodePtr node, const NYTree::TYPath& path)
+    static void Load(TNullable<T>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
     {
         T value;
         TLoadHelper<T>::Load(value, node, path);
@@ -74,7 +67,7 @@ struct TLoadHelper<TNullable<T>, void>
 template <class T>
 struct TLoadHelper<std::vector<T>, void>
 {
-    static void Load(std::vector<T>& parameter, NYTree::INodePtr node, const NYTree::TYPath& path)
+    static void Load(std::vector<T>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
     {
         auto listNode = node->AsList();
         auto size = listNode->GetChildCount();
@@ -83,7 +76,7 @@ struct TLoadHelper<std::vector<T>, void>
             TLoadHelper<T>::Load(
                 parameter[i],
                 listNode->GetChild(i),
-                path + "/" + NYTree::EscapeYPathToken(i));
+                path + "/" + NYPath::ToYPathLiteral(i));
         }
     }
 };
@@ -92,7 +85,7 @@ struct TLoadHelper<std::vector<T>, void>
 template <class T>
 struct TLoadHelper<yhash_set<T>, void>
 {
-    static void Load(yhash_set<T>& parameter, NYTree::INodePtr node, const NYTree::TYPath& path)
+    static void Load(yhash_set<T>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
     {
         auto listNode = node->AsList();
         auto size = listNode->GetChildCount();
@@ -101,7 +94,7 @@ struct TLoadHelper<yhash_set<T>, void>
             TLoadHelper<T>::Load(
                 value,
                 listNode->GetChild(i),
-                path + "/" +  NYTree::EscapeYPathToken(i));
+                path + "/" +  NYPath::ToYPathLiteral(i));
             parameter.insert(MoveRV(value));
         }
     }
@@ -111,7 +104,7 @@ struct TLoadHelper<yhash_set<T>, void>
 template <class T>
 struct TLoadHelper<yhash_map<Stroka, T>, void>
 {
-    static void Load(yhash_map<Stroka, T>& parameter, NYTree::INodePtr node, const NYTree::TYPath& path)
+    static void Load(yhash_map<Stroka, T>& parameter, NYTree::INodePtr node, const NYPath::TYPath& path)
     {
         auto mapNode = node->AsMap();
         FOREACH (const auto& pair, mapNode->GetChildren()) {
@@ -120,7 +113,7 @@ struct TLoadHelper<yhash_map<Stroka, T>, void>
             TLoadHelper<T>::Load(
                 value,
                 pair.second,
-                path + "/" + NYTree::YsonizeString(key, NYTree::EYsonFormat::Binary));
+                path + "/" + NYPath::ToYPathLiteral(key));
             parameter.insert(MakePair(key, MoveRV(value)));
         }
     }
@@ -131,14 +124,14 @@ struct TLoadHelper<yhash_map<Stroka, T>, void>
 // all
 inline void ValidateSubconfigs(
     const void* /* parameter */,
-    const NYTree::TYPath& /* path */)
+    const NYPath::TYPath& /* path */)
 { }
 
 // TYsonSerializable
 template <class T>
 inline void ValidateSubconfigs(
     const TIntrusivePtr<T>* parameter,
-    const NYTree::TYPath& path,
+    const NYPath::TYPath& path,
     typename NMpl::TEnableIf<NMpl::TIsConvertible< T*, TYsonSerializable* >, int>::TType = 0)
 {
     if (*parameter) {
@@ -150,12 +143,12 @@ inline void ValidateSubconfigs(
 template <class T>
 inline void ValidateSubconfigs(
     const std::vector<T>* parameter,
-    const NYTree::TYPath& path)
+    const NYPath::TYPath& path)
 {
     for (int i = 0; i < parameter->size(); ++i) {
         ValidateSubconfigs(
             &(*parameter)[i],
-            path + "/" + NYTree::EscapeYPathToken(i));
+            path + "/" + NYPath::ToYPathLiteral(i));
     }
 }
 
@@ -163,12 +156,12 @@ inline void ValidateSubconfigs(
 template <class T>
 inline void ValidateSubconfigs(
     const yhash_map<Stroka, T>* parameter,
-    const NYTree::TYPath& path)
+    const NYPath::TYPath& path)
 {
     FOREACH (const auto& pair, *parameter) {
         ValidateSubconfigs(
             &pair.second,
-            path + "/" + NYTree::EscapeYPathToken(pair.first));
+            path + "/" + NYPath::ToYPathLiteral(pair.first));
     }
 }
 
@@ -203,13 +196,13 @@ TParameter<T>::TParameter(T& parameter)
 { }
 
 template <class T>
-void TParameter<T>::Load(NYTree::INodePtr node, const NYTree::TYPath& path)
+void TParameter<T>::Load(NYTree::INodePtr node, const NYPath::TYPath& path)
 {
     if (node) {
         try {
             TLoadHelper<T>::Load(Parameter, node, path);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error reading parameter %s", ~path)
+            THROW_ERROR_EXCEPTION("Error reading parameter: %s", ~path)
                 << ex;
         }
     } else if (!HasDefaultValue) {
@@ -218,7 +211,7 @@ void TParameter<T>::Load(NYTree::INodePtr node, const NYTree::TYPath& path)
 }
 
 template <class T>
-void TParameter<T>::Validate(const NYTree::TYPath& path) const
+void TParameter<T>::Validate(const NYPath::TYPath& path) const
 {
     ValidateSubconfigs(&Parameter, path);
     FOREACH (const auto& validator, Validators) {
@@ -234,7 +227,7 @@ void TParameter<T>::Validate(const NYTree::TYPath& path) const
 template <class T>
 void TParameter<T>::Save(NYTree::IYsonConsumer* consumer) const
 {
-    NYTree::Serialize(Parameter, consumer);
+    Serialize(Parameter, consumer);
 }
 
 template <class T>
@@ -293,37 +286,37 @@ TParameter<T>& TParameter<T>::CheckThat(TValidator validator)
 DEFINE_VALIDATOR(
     GreaterThan(TValueType expected),
     actual > expected,
-    TError("Validation failure: expected > %s, found %s", ~ToString(expected), ~ToString(actual))
+    TError("Expected > %s, found %s", ~ToString(expected), ~ToString(actual))
 )
 
 DEFINE_VALIDATOR(
     GreaterThanOrEqual(TValueType expected),
     actual >= expected,
-    TError("Validation failure: expected >= %s, found %s", ~ToString(expected), ~ToString(actual))
+    TError("Expected >= %s, found %s", ~ToString(expected), ~ToString(actual))
 )
 
 DEFINE_VALIDATOR(
     LessThan(TValueType expected),
     actual < expected,
-    TError("Validation failure: expected < %s, found %s", ~ToString(expected), ~ToString(actual))
+    TError("Expected < %s, found %s", ~ToString(expected), ~ToString(actual))
 )
 
 DEFINE_VALIDATOR(
     LessThanOrEqual(TValueType expected),
     actual <= expected,
-    TError("Validation failure: expected <= %s, found %s", ~ToString(expected), ~ToString(actual))
+    TError("Expected <= %s, found %s", ~ToString(expected), ~ToString(actual))
 )
 
 DEFINE_VALIDATOR(
     InRange(TValueType lowerBound, TValueType upperBound),
     lowerBound <= actual && actual <= upperBound,
-    TError("Validation failure: expected in range [%s, %s], found %s", ~ToString(lowerBound), ~ToString(upperBound), ~ToString(actual))
+    TError("Expected in range [%s, %s], found %s", ~ToString(lowerBound), ~ToString(upperBound), ~ToString(actual))
 )
 
 DEFINE_VALIDATOR(
     NonEmpty(),
     actual.size() > 0,
-    TError("Validation failure: expected non-empty")
+    TError("Expected non-empty collection")
 )
 
 #undef DEFINE_VALIDATOR

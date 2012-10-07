@@ -28,13 +28,13 @@ public:
      * \param path      YPath for specified monitoring info.
      * \param producer  Monitoring info producer for the system.
      */
-    void Register(const NYTree::TYPath& path, NYTree::TYsonProducer producer);
+    void Register(const NYPath::TYPath& path, NYTree::TYsonProducer producer);
 
     //! Unregisters system for specified path.
     /*!
      * \param path  YPath for specified monitoring info.
      */
-    void Unregister(const NYTree::TYPath& path);
+    void Unregister(const NYPath::TYPath& path);
 
     //! Provides a root node containing info for all registered systems.
     /*!

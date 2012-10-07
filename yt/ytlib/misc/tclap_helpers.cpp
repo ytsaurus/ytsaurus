@@ -28,14 +28,14 @@ std::istringstream& operator >> (std::istringstream& input, TGuid& guid)
     return input;
 }
 
-namespace NYTree {
+namespace NYPath {
 
 std::istringstream& operator>>(std::istringstream& input, TRichYPath& path)
 {
     auto str = ReadAll(input);
-    if (!str.empty() && str[0] == TokenTypeToChar(ETokenType::LeftAngle)) {
+    if (!str.empty() && str[0] == TokenTypeToChar(NYTree::ETokenType::LeftAngle)) {
         // Look for the matching right angle.
-        TTokenizer tokenizer(str);
+        NYTree::TTokenizer tokenizer(str);
         int depth = 0;
         int attrStartPosition = -1;
         int attrEndPosition = -1;
@@ -48,10 +48,10 @@ std::istringstream& operator>>(std::istringstream& input, TRichYPath& path)
             int positionAfter = str.length() - tokenizer.GetCurrentSuffix().length();
 
             switch (tokenizer.CurrentToken().GetType()) {
-                case ETokenType::LeftAngle:
+                case NYTree::ETokenType::LeftAngle:
                     ++depth;
                     break;
-                case ETokenType::RightAngle:
+                case NYTree::ETokenType::RightAngle:
                     --depth;
                     break;
             }
@@ -67,11 +67,11 @@ std::istringstream& operator>>(std::istringstream& input, TRichYPath& path)
             }
         }
 
-        TYsonString attrYson(
+        NYTree::TYsonString attrYson(
             str.substr(attrStartPosition, attrEndPosition - attrStartPosition),
-            EYsonType::MapFragment);
+            NYTree::EYsonType::MapFragment);
 
-        path.SetPath(str.substr(pathStartPosition));
+        path.SetPath(TrimLeadingWhitespaces(str.substr(pathStartPosition)));
         path.Attributes().Clear();
         path.Attributes().MergeFrom(*ConvertToAttributes(attrYson));
     } else {
@@ -81,7 +81,7 @@ std::istringstream& operator>>(std::istringstream& input, TRichYPath& path)
     return input;
 }
 
-} // namespace NYTree
+} // namespace NYPath
 
 ////////////////////////////////////////////////////////////////////////////////
 

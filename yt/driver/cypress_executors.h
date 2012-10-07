@@ -14,7 +14,7 @@ public:
     TGetExecutor();
 
 private:
-    TCLAP::UnlabeledValueArg<NYTree::TRichYPath> PathArg;
+    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
     TCLAP::MultiArg<Stroka> AttributeArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
@@ -30,7 +30,7 @@ public:
     TSetExecutor();
 
 private:
-    TCLAP::UnlabeledValueArg<NYTree::TRichYPath> PathArg;
+    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
     TUnlabeledStringArg ValueArg;
 
     bool UseStdIn;
@@ -50,7 +50,7 @@ public:
     TRemoveExecutor();
 
 private:
-    TCLAP::UnlabeledValueArg<NYTree::TRichYPath> PathArg;
+    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
@@ -65,7 +65,7 @@ public:
     TListExecutor();
 
 private:
-    TCLAP::UnlabeledValueArg<NYTree::TRichYPath> PathArg;
+    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
     TCLAP::MultiArg<Stroka> AttributeArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
@@ -84,7 +84,7 @@ private:
     typedef TCLAP::UnlabeledValueArg<NObjectClient::EObjectType> TTypeArg;
     TTypeArg TypeArg;
 
-    TCLAP::UnlabeledValueArg<NYTree::TRichYPath> PathArg;
+    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
@@ -99,7 +99,7 @@ public:
     TLockExecutor();
 
 private:
-    TCLAP::UnlabeledValueArg<NYTree::TRichYPath> PathArg;
+    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
 
     typedef TCLAP::ValueArg<NCypressClient::ELockMode> TModeArg;
     TModeArg ModeArg;
@@ -117,8 +117,8 @@ public:
     TCopyExecutor();
 
 private:
-    TCLAP::UnlabeledValueArg<NYTree::TRichYPath> SourcePathArg;
-    TCLAP::UnlabeledValueArg<NYTree::TRichYPath> DestinationPathArg;
+    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> SourcePathArg;
+    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> DestinationPathArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
@@ -133,8 +133,8 @@ public:
     TMoveExecutor();
 
 private:
-    TCLAP::UnlabeledValueArg<NYTree::TRichYPath> SourcePathArg;
-    TCLAP::UnlabeledValueArg<NYTree::TRichYPath> DestinationPathArg;
+    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> SourcePathArg;
+    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> DestinationPathArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
@@ -149,7 +149,7 @@ public:
     TExistsExecutor();
 
 private:
-    TCLAP::UnlabeledValueArg<NYTree::TRichYPath> PathArg;
+    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;

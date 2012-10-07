@@ -2,7 +2,7 @@
 
 #include "command.h"
 
-#include <ytlib/ytree/ypath.h>
+#include <ytlib/ypath/rich.h>
 
 #include <ytlib/table_client/public.h>
 
@@ -14,7 +14,7 @@ namespace NDriver {
 struct TReadRequest
     : public TTransactedRequest
 {
-    NYTree::TRichYPath Path;
+    NYPath::TRichYPath Path;
     NYTree::INodePtr TableReaderConfig;
 
     TReadRequest()
@@ -45,7 +45,7 @@ private:
 struct TWriteRequest
     : public TTransactedRequest
 {
-    NYTree::TRichYPath Path;
+    NYPath::TRichYPath Path;
     TNullable<NTableClient::TKeyColumns> SortedBy;
     NYTree::INodePtr TableWriterConfig;
 

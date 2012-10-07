@@ -2,29 +2,30 @@
 
 #include <ytlib/misc/foreach.h>
 
-#include <ytlib/ytree/tokenizer.h>
-#include <ytlib/ytree/ypath_format.h>
-#include <ytlib/ytree/ypath_client.h>
+#include <ytlib/ypath/tokenizer.h>
 
 namespace NYT {
 namespace NDriver {
 
-using namespace NYTree;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TRichYPath PreprocessYPath(const TRichYPath& path)
 {
-    TTokenizer tokenizer(path.GetPath());
-    tokenizer.ParseNext();
-    if (tokenizer.GetCurrentType() == HomeDirToken) {
-        auto userName = Stroka(getenv("USERNAME"));
-        TYPath userDirectory = Stroka("//home/") + EscapeYPathToken(userName);
-        return TRichYPath(
-            userDirectory + tokenizer.GetCurrentSuffix(),
-            path.Attributes());
+    if (!path.GetPath().has_prefix("~")) {
+        return path;
     }
-    return path;
+    
+    NYPath::TTokenizer tokenizer(path.GetPath());
+    YCHECK(tokenizer.Advance() == ETokenType::Literal);
+    auto userName = tokenizer.GetLiteralValue().substr(1);
+    if (userName.empty()) {
+        userName = getenv("USERNAME");
+    }
+    return TRichYPath(
+        Stroka("//home/") + ToYPathLiteral(userName) + tokenizer.GetSuffix(),
+        path.Attributes());
 }
 
 std::vector<TRichYPath> PreprocessYPaths(const std::vector<TRichYPath>& paths)

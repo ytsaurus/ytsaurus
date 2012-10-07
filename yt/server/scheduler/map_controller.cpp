@@ -24,6 +24,7 @@ namespace NYT {
 namespace NScheduler {
 
 using namespace NYTree;
+using namespace NYPath;
 using namespace NChunkServer;
 using namespace NJobProxy;
 using namespace NScheduler::NProto;

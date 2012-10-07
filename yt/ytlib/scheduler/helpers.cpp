@@ -1,13 +1,15 @@
 #include "stdafx.h"
 #include "helpers.h"
 
-#include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/fluent.h>
+
+#include <ytlib/ypath/token.h>
 
 namespace NYT {
 namespace NScheduler {
 
 using namespace NYTree;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -20,7 +22,7 @@ TYPath GetOperationPath(const TOperationId& operationId)
 {
     return
         GetOperationsPath() + "/" +
-        EscapeYPathToken(operationId.ToString());
+        ToYPathLiteral(operationId.ToString());
 }
 
 TYPath GetJobsPath(const TOperationId& operationId)
@@ -34,7 +36,7 @@ TYPath GetJobPath(const TOperationId& operationId, const TJobId& jobId)
 {
     return
         GetJobsPath(operationId) + "/" +
-        EscapeYPathToken(jobId.ToString());
+        ToYPathLiteral(jobId.ToString());
 }
 
 TYPath GetStdErrPath(const TOperationId& operationId, const TJobId& jobId)

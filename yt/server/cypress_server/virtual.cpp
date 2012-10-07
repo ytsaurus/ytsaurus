@@ -95,13 +95,12 @@ public:
 
     virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr context) override
     {
-        TTokenizer tokenizer(path);
-        tokenizer.ParseNext();
-        if (tokenizer.GetCurrentType() == SuppressRedirectToken) {
-            return TBase::Resolve(TYPath(tokenizer.GetCurrentSuffix()), context);
+        NYPath::TTokenizer tokenizer(path);
+        if (tokenizer.Advance() == NYPath::ETokenType::Ampersand) {
+            return TBase::Resolve(tokenizer.GetSuffix(), context);
         }
 
-        return TResolveResult::There(Service, path);
+		return TResolveResult::There(Service, path);
     }
 
 private:

@@ -156,13 +156,13 @@ public:
         : TObjectProxyBase(bootstrap, id)
         , Map(map)
     {
-        YASSERT(map);
+        YCHECK(map);
     }
 
 protected:
     TMap* Map;
 
-    virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context) override
+    virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context) override
     {
         UNUSED(request);
 

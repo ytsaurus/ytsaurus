@@ -1,13 +1,15 @@
 #include "file_executors.h"
 #include "preprocess.h"
 
-#include <server/job_proxy/config.h>
 #include <ytlib/driver/driver.h>
+
+#include <server/job_proxy/config.h>
 
 namespace NYT {
 namespace NDriver {
 
 using namespace NYTree;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 

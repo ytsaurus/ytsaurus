@@ -20,7 +20,7 @@ struct TQueuedSample
     { }
 
     TCpuInstant Time;
-    NYTree::TYPath Path;
+    NYPath::TYPath Path;
     TValue Value;
 };
 

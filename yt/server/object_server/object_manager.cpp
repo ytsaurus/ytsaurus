@@ -2,8 +2,7 @@
 #include "object_manager.h"
 #include "config.h"
 
-#include <ytlib/ytree/tokenizer.h>
-#include <ytlib/ytree/ypath_format.h>
+#include <ytlib/ypath/tokenizer.h>
 
 #include <ytlib/rpc/message.h>
 
@@ -30,6 +29,7 @@ namespace NObjectServer {
 
 using namespace NCellMaster;
 using namespace NYTree;
+using namespace NYPath;
 using namespace NMetaState;
 using namespace NRpc;
 using namespace NBus;
@@ -205,39 +205,48 @@ public:
         if (transactionId != NullTransactionId) {
             transaction = transactionManager->FindTransaction(transactionId);
             if (!transaction) {
-                THROW_ERROR_EXCEPTION("No such transaction: %s", ~transactionId.ToString());
+                THROW_ERROR_EXCEPTION("No such transaction: %s", ~ToString(transactionId));
             }
             if (transaction->GetState() != ETransactionState::Active) {
-                THROW_ERROR_EXCEPTION("Transaction is not active: %s", ~transactionId.ToString());
+                THROW_ERROR_EXCEPTION("Transaction is not active: %s", ~ToString(transactionId));
             }
         }
 
-        TTokenizer tokenizer(path);
-        if (!tokenizer.ParseNext()) {
-            THROW_ERROR_EXCEPTION("YPath cannot be empty");
-        }
+        NYPath::TTokenizer tokenizer(path);
+        switch (tokenizer.Advance()) {
+            case NYPath::ETokenType::EndOfStream:
+                THROW_ERROR_EXCEPTION("YPath cannot be empty");
 
-        if (tokenizer.GetCurrentType() == RootToken) {
-            auto root = cypressManager->FindVersionedNodeProxy(
-                cypressManager->GetRootNodeId(),
-                transaction);
-            return TResolveResult::There(root, TYPath(tokenizer.GetCurrentSuffix()));
-        } else if (tokenizer.GetCurrentType() == NodeGuidMarkerToken) {
-            tokenizer.ParseNext();
-            Stroka objectIdToken(tokenizer.CurrentToken().GetStringValue());
-            TObjectId objectId;
-            if (!TObjectId::FromString(objectIdToken, &objectId)) {
-                THROW_ERROR_EXCEPTION("Error parsing object id: %s", ~Stroka(objectIdToken).Quote());
+            case NYPath::ETokenType::Slash: {
+                auto root = cypressManager->FindVersionedNodeProxy(
+                    cypressManager->GetRootNodeId(),
+                    transaction);
+                return TResolveResult::There(root, tokenizer.GetSuffix());
             }
 
-            auto proxy = objectManager->FindProxy(objectId, transaction);
-            if (!proxy) {
-                THROW_ERROR_EXCEPTION("No such object: %s", ~objectId.ToString());
+            case NYPath::ETokenType::Literal: {
+                const auto& token = tokenizer.GetToken();
+                if (!token.has_prefix(ObjectIdPathPrefix)) {
+                    tokenizer.ThrowUnexpected();
+                }
+
+                TStringBuf objectIdString(token.begin() + ObjectIdPathPrefix.length(), token.end());
+                TObjectId objectId;
+                if (!TObjectId::FromString(objectIdString, &objectId)) {
+                    THROW_ERROR_EXCEPTION("Error parsing object id: %s", ~objectIdString);
+                }
+
+                auto proxy = objectManager->FindProxy(objectId, transaction);
+                if (!proxy) {
+                    THROW_ERROR_EXCEPTION("No such object: %s", ~ToString(objectId));
+                }
+
+                return TResolveResult::There(proxy, tokenizer.GetSuffix());
             }
 
-            return TResolveResult::There(proxy, TYPath(tokenizer.GetCurrentSuffix()));
-        } else {
-            THROW_ERROR_EXCEPTION("Invalid YPath syntax");
+            default:
+                tokenizer.ThrowUnexpected();
+                YUNREACHABLE();
         }
     }
 
@@ -332,10 +341,10 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
 {
     // No thread affinity check here.
     // This will be called during init-time only but from an unspecified thread.
-    YASSERT(handler);
+    YCHECK(handler);
     int typeValue = handler->GetType().ToValue();
-    YASSERT(typeValue >= 0 && typeValue < MaxObjectType);
-    YASSERT(!TypeToHandler[typeValue]);
+    YCHECK(typeValue >= 0 && typeValue < MaxObjectType);
+    YCHECK(!TypeToHandler[typeValue]);
     TypeToHandler[typeValue] = handler;
 }
 

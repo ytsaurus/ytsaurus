@@ -37,6 +37,11 @@ using NTableClient::NProto::TKey;
 
 namespace {
 
+void ThrowUnexpectedToken(const TToken& token)
+{
+    THROW_ERROR_EXCEPTION("Token is unexpected");
+}
+
 void ParseChannel(TTokenizer& tokenizer, TChannel* channel)
 {
     if (tokenizer.GetCurrentType() == BeginColumnSelectorToken) {

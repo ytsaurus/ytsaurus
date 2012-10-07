@@ -30,11 +30,9 @@ class TestOrchid(YTEnvSetup):
 
     def _check_orchid(self, path, num_services, service_name):
         services = ls(path)
-        q = '"'
-        
         assert len(services) == num_services
         for service in services:
-            path_to_orchid = path + '/'  + q + service + q + '/orchid'
+            path_to_orchid = path + '/' + service + '/orchid'
             self._check_service(path_to_orchid, service_name)
 
     def test_on_masters(self):

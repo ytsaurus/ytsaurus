@@ -9,6 +9,7 @@
 namespace NYT {
 
 using namespace NYTree;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,7 +22,6 @@ IMapNodePtr TYsonSerializable::GetOptions() const
     YCHECK(KeepOptions_);
     return Options;
 }
-
 
 std::vector<Stroka> TYsonSerializable::GetRegisteredKeys() const
 {

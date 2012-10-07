@@ -4,7 +4,8 @@
 #include "timing.h"
 
 #include <ytlib/misc/fs.h>
-#include <ytlib/ytree/ypath_client.h>
+
+#include <ytlib/ypath/token.h>
 
 #include <util/folder/filelist.h>
 #include <util/stream/file.h>
@@ -13,7 +14,7 @@
 namespace NYT {
 namespace NProfiling {
 
-using namespace NYTree;
+using namespace NYPath;
 
 #ifndef _win_
 
@@ -82,7 +83,7 @@ void TResourceTracker::EnqueueCpuUsage()
         YCHECK(fields[1].size() >= 2);
 
         Stroka threadName = fields[1].substr(1, fields[1].size() - 2);
-        TYPath pathPrefix = "/" + EscapeYPathToken(threadName);
+        TYPath pathPrefix = "/" + ToYPathLiteral(threadName);
 
         i64 userJiffies = FromString<i64>(fields[13]); // In jiffies
         i64 systemJiffies = FromString<i64>(fields[14]); // In jiffies
@@ -118,11 +119,9 @@ void TResourceTracker::EnqueueMemoryUsage()
     Profiler.Enqueue("/total/memory", residentSetSize);
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 #endif
-
 
 } // namespace NProfiling
 } // namespace NYT

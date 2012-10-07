@@ -30,7 +30,7 @@ public:
         NRpc::IChannelPtr masterChannel,
         NTransactionClient::ITransactionPtr transaction,
         NTransactionClient::TTransactionManagerPtr transactionManager,
-        const NYTree::TYPath& path);
+        const NYPath::TYPath& path);
 
     //! Destroys an instance.
     ~TFileWriter();
@@ -58,7 +58,7 @@ private:
     NTransactionClient::ITransactionPtr Transaction;
     NTransactionClient::TTransactionManagerPtr TransactionManager;
     NTransactionClient::ITransactionPtr UploadTransaction;
-    NYTree::TYPath Path;
+    NYPath::TYPath Path;
 
     TAutoPtr<TFileChunkOutput> Writer;
 

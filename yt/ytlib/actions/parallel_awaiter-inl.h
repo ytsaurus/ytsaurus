@@ -12,14 +12,14 @@ namespace NYT {
 inline TParallelAwaiter::TParallelAwaiter(
     IInvokerPtr invoker,
     NProfiling::TProfiler* profiler,
-    const NYTree::TYPath& timerPath)
+    const NYPath::TYPath& timerPath)
 {
     Init(invoker, profiler, timerPath);
 }
 
 inline TParallelAwaiter::TParallelAwaiter(
     NProfiling::TProfiler* profiler,
-    const NYTree::TYPath& timerPath)
+    const NYPath::TYPath& timerPath)
 {
     Init(GetSyncInvoker(), profiler, timerPath);
 }
@@ -27,7 +27,7 @@ inline TParallelAwaiter::TParallelAwaiter(
 inline void TParallelAwaiter::Init(
     IInvokerPtr invoker,
     NProfiling::TProfiler* profiler,
-    const NYTree::TYPath& timerPath)
+    const NYPath::TYPath& timerPath)
 {
     YASSERT(invoker);
 
@@ -64,7 +64,7 @@ bool TParallelAwaiter::WrapOnResult(TCallback<Signature> onResult, TCallback<Sig
 template <class T>
 void TParallelAwaiter::Await(
     TFuture<T> result,
-    const NYTree::TYPath& timerPathSuffix,
+    const Stroka& timerKey,
     TCallback<void(T)> onResult)
 {
     YASSERT(!result.IsNull());
@@ -74,14 +74,14 @@ void TParallelAwaiter::Await(
         result.Subscribe(BIND(
             &TParallelAwaiter::OnResult<T>,
             MakeStrong(this),
-            timerPathSuffix,
+            timerKey,
             Passed(MoveRV(wrappedOnResult))));
     }
 }
 
 inline void TParallelAwaiter::Await(
     TFuture<void> result,
-    const NYTree::TYPath& timerPathSuffix,
+    const Stroka& timerKey,
     TCallback<void(void)> onResult)
 {
     YASSERT(!result.IsNull());
@@ -89,9 +89,9 @@ inline void TParallelAwaiter::Await(
     TCallback<void(void)> wrappedOnResult;
     if (WrapOnResult(onResult, wrappedOnResult)) {
         result.Subscribe(BIND(
-            (void(TParallelAwaiter::*)(const NYTree::TYPath&, TCallback<void()>))&TParallelAwaiter::OnResult,
+            (void(TParallelAwaiter::*)(const NYPath::TYPath&, TCallback<void()>)) &TParallelAwaiter::OnResult,
             MakeStrong(this),
-            timerPathSuffix,
+            timerKey,
             Passed(MoveRV(wrappedOnResult))));
     }
 }
@@ -111,7 +111,7 @@ inline void TParallelAwaiter::Await(
     Await(MoveRV(result), "", MoveRV(onResult));
 }
 
-inline void TParallelAwaiter::MaybeInvokeOnComplete(const NYTree::TYPath& timerPathSuffix)
+inline void TParallelAwaiter::MaybeInvokeOnComplete(const Stroka& timerKey)
 {
     bool invokeOnComplete = false;
     TClosure onComplete;
@@ -121,8 +121,8 @@ inline void TParallelAwaiter::MaybeInvokeOnComplete(const NYTree::TYPath& timerP
         if (Canceled || Terminated)
             return;
 
-        if (Profiler && !timerPathSuffix.empty()) {
-            Profiler->TimingCheckpoint(Timer, timerPathSuffix);
+        if (Profiler && !timerKey.empty()) {
+            Profiler->TimingCheckpoint(Timer, timerKey);
         }
 
         ++ResponseCount;
@@ -141,7 +141,7 @@ inline void TParallelAwaiter::MaybeInvokeOnComplete(const NYTree::TYPath& timerP
 
 template <class T>
 void TParallelAwaiter::OnResult(
-    const NYTree::TYPath& timerPathSuffix,
+    const Stroka& timerKey,
     TCallback<void(T)> onResult,
     T result)
 {
@@ -149,17 +149,17 @@ void TParallelAwaiter::OnResult(
         onResult.Run(result);
     }
 
-    MaybeInvokeOnComplete(timerPathSuffix);
+    MaybeInvokeOnComplete(timerKey);
 }
 
 inline void TParallelAwaiter::OnResult(
-    const NYTree::TYPath& timerPathSuffix,
+    const Stroka& timerKey,
     TCallback<void()> onResult)
 {
     if (!onResult.IsNull()) {
         onResult.Run();
     }
-    MaybeInvokeOnComplete(timerPathSuffix);
+    MaybeInvokeOnComplete(timerKey);
 }
 
 

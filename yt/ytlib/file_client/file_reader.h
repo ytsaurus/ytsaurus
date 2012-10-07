@@ -26,7 +26,7 @@ public:
         NRpc::IChannelPtr masterChannel,
         NTransactionClient::ITransactionPtr transaction,
         NChunkClient::IBlockCachePtr blockCache,
-        const NYTree::TYPath& path);
+        const NYPath::TYPath& path);
 
     //! Opens the reader.
     void Open();
@@ -42,7 +42,7 @@ public:
 
 private:
     NTransactionClient::ITransactionPtr Transaction;
-    NYTree::TYPath Path;
+    NYPath::TYPath Path;
 
     DECLARE_THREAD_AFFINITY_SLOT(Client);
 

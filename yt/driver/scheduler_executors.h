@@ -30,10 +30,10 @@ public:
     TMapExecutor();
 
 private:
-    TCLAP::MultiArg<NYTree::TRichYPath> InArg;
-    TCLAP::MultiArg<NYTree::TRichYPath> OutArg;
+    TCLAP::MultiArg<NYPath::TRichYPath> InArg;
+    TCLAP::MultiArg<NYPath::TRichYPath> OutArg;
     TCLAP::ValueArg<Stroka> CommandArg;
-    TCLAP::MultiArg<NYTree::TRichYPath> FileArg;
+    TCLAP::MultiArg<NYPath::TRichYPath> FileArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
@@ -49,8 +49,8 @@ public:
     TMergeExecutor();
 
 private:
-    TCLAP::MultiArg<NYTree::TRichYPath> InArg;
-    TCLAP::ValueArg<NYTree::TRichYPath> OutArg;
+    TCLAP::MultiArg<NYPath::TRichYPath> InArg;
+    TCLAP::ValueArg<NYPath::TRichYPath> OutArg;
 
     typedef TNullable<NScheduler::EMergeMode> TMode;
     typedef TCLAP::ValueArg<TMode> TModeArg;
@@ -73,8 +73,8 @@ public:
     TSortExecutor();
 
 private:
-    TCLAP::MultiArg<NYTree::TRichYPath> InArg;
-    TCLAP::ValueArg<NYTree::TRichYPath> OutArg;
+    TCLAP::MultiArg<NYPath::TRichYPath> InArg;
+    TCLAP::ValueArg<NYPath::TRichYPath> OutArg;
     TCLAP::ValueArg<Stroka> SortByArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
@@ -91,7 +91,7 @@ public:
     TEraseExecutor();
 
 private:
-    TCLAP::UnlabeledValueArg<NYTree::TRichYPath> PathArg;
+    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
     TCLAP::SwitchArg CombineArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
@@ -108,10 +108,10 @@ public:
     TReduceExecutor();
 
 private:
-    TCLAP::MultiArg<NYTree::TRichYPath> InArg;
-    TCLAP::MultiArg<NYTree::TRichYPath> OutArg;
+    TCLAP::MultiArg<NYPath::TRichYPath> InArg;
+    TCLAP::MultiArg<NYPath::TRichYPath> OutArg;
     TCLAP::ValueArg<Stroka> CommandArg;
-    TCLAP::MultiArg<NYTree::TRichYPath> FileArg;
+    TCLAP::MultiArg<NYPath::TRichYPath> FileArg;
     TCLAP::ValueArg<Stroka> ReduceByArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
@@ -128,12 +128,12 @@ public:
     TMapReduceExecutor();
 
 private:
-    TCLAP::MultiArg<NYTree::TRichYPath> InArg;
-    TCLAP::MultiArg<NYTree::TRichYPath> OutArg;
+    TCLAP::MultiArg<NYPath::TRichYPath> InArg;
+    TCLAP::MultiArg<NYPath::TRichYPath> OutArg;
     TCLAP::ValueArg<Stroka> MapperCommandArg;
-    TCLAP::MultiArg<NYTree::TRichYPath> MapperFileArg;
+    TCLAP::MultiArg<NYPath::TRichYPath> MapperFileArg;
     TCLAP::ValueArg<Stroka> ReducerCommandArg;
-    TCLAP::MultiArg<NYTree::TRichYPath> ReducerFileArg;
+    TCLAP::MultiArg<NYPath::TRichYPath> ReducerFileArg;
     TCLAP::ValueArg<Stroka> SortByArg;
     TCLAP::ValueArg<Stroka> ReduceByArg;
 

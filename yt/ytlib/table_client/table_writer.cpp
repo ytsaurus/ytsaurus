@@ -30,7 +30,7 @@ TTableWriter::TTableWriter(
     NRpc::IChannelPtr masterChannel,
     NTransactionClient::ITransactionPtr transaction,
     NTransactionClient::TTransactionManagerPtr transactionManager,
-    const NYTree::TRichYPath& richPath,
+    const NYPath::TRichYPath& richPath,
     const TNullable<TKeyColumns>& keyColumns)
     : Config(config)
     , MasterChannel(masterChannel)

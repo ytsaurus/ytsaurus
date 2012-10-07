@@ -128,12 +128,5 @@ TTo ConvertTo(const T& value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline Stroka YsonizeString(const Stroka& string, EYsonFormat format)
-{
-    return ConvertToYsonString(TRawString(string), format).Data();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYTree
 } // namespace NYT

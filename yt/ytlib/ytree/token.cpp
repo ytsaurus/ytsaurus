@@ -167,14 +167,5 @@ void TToken::CheckType(ETokenType expectedType) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ThrowUnexpectedToken(const TToken& token)
-{
-    THROW_ERROR_EXCEPTION("Unexpected token (Token: %s, Type: %s)",
-        ~token.ToString().Quote(),
-        ~token.GetType().ToString());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYtree
 } // namespace NYT

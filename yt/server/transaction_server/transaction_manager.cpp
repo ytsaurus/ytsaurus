@@ -153,10 +153,10 @@ private:
         TBase::DoInvoke(context);
     }
 
-    void ValidateTransactionIsValid()
+    void ValidateTransactionNotNull()
     {
         if (GetId() == NullTransactionId) {
-            THROW_ERROR_EXCEPTION("A valid transaction is required");
+            THROW_ERROR_EXCEPTION("Transaction is required");
         }
     }
 
@@ -172,7 +172,7 @@ private:
         UNUSED(request);
         UNUSED(response);
 
-        ValidateTransactionIsValid();
+        ValidateTransactionNotNull();
         auto* transaction = GetTypedImpl();
         ValidateTransactionIsActive(transaction);
 
@@ -186,7 +186,7 @@ private:
         UNUSED(request);
         UNUSED(response);
 
-        ValidateTransactionIsValid();
+        ValidateTransactionNotNull();
         auto* transaction = GetTypedImpl();
         ValidateTransactionIsActive(transaction);
 
@@ -204,7 +204,7 @@ private:
 
         ValidateLeaderStatus();
 
-        ValidateTransactionIsValid();
+        ValidateTransactionNotNull();
 
         auto* transaction = GetTypedImpl();
         ValidateTransactionIsActive(transaction);
@@ -230,7 +230,7 @@ private:
         auto objectManager = Owner->Bootstrap->GetObjectManager();
         auto handler = objectManager->FindHandler(type);
         if (!handler) {
-            THROW_ERROR_EXCEPTION("Unknown object type %s", ~type.ToString());
+            THROW_ERROR_EXCEPTION("Unknown object type: %s", ~type.ToString());
         }
 
         if (handler->IsTransactionRequired() && !transaction) {
@@ -276,7 +276,7 @@ private:
         auto objectId = TObjectId::FromProto(request->object_id());
         context->SetRequestInfo("ObjectId: %s", ~objectId.ToString());
 
-        ValidateTransactionIsValid();
+        ValidateTransactionNotNull();
         auto* transaction = GetTypedImpl();
         ValidateTransactionIsActive(transaction);
 
@@ -439,7 +439,7 @@ void TTransactionManager::Commit(TTransaction* transaction)
     auto id = transaction->GetId();
 
     if (!transaction->NestedTransactions().empty()) {
-        THROW_ERROR_EXCEPTION("Cannot commit transaction %s has %d active nested transaction(s)",
+        THROW_ERROR_EXCEPTION("Cannot commit transaction %s since it has %d active nested transaction(s)",
             ~ToString(id),
             static_cast<int>(transaction->NestedTransactions().size()));
     }

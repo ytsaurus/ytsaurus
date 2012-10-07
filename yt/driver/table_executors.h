@@ -2,7 +2,7 @@
 
 #include "executor.h"
 
-#include <ytlib/ytree/ypath.h>
+#include <ytlib/ypath/rich.h>
 
 namespace NYT {
 namespace NDriver {
@@ -16,7 +16,7 @@ public:
     TReadExecutor();
 
 private:
-    TCLAP::UnlabeledValueArg<NYTree::TRichYPath> PathArg;
+    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
@@ -31,7 +31,7 @@ public:
     TWriteExecutor();
 
 private:
-    TCLAP::UnlabeledValueArg<NYTree::TRichYPath> PathArg;
+    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
     TUnlabeledStringArg ValueArg;
     TCLAP::ValueArg<Stroka> SortedBy;
 

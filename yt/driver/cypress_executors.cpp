@@ -7,11 +7,12 @@ namespace NYT {
 namespace NDriver {
 
 using namespace NYTree;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TGetExecutor::TGetExecutor()
-    : PathArg("path", "path to an object in Cypress that must be retrieved", true, TRichYPath(""), "YPATH")
+    : PathArg("path", "path to an object in Cypress to get", true, TRichYPath(""), "YPATH")
     , AttributeArg("", "attr", "attribute to fetch with node", false, "ATTRIBUTE")
 {
     CmdLine.add(PathArg);
@@ -37,7 +38,7 @@ Stroka TGetExecutor::GetCommandName() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TSetExecutor::TSetExecutor()
-    : PathArg("path", "path to an object in Cypress that must be set", true, TRichYPath(""), "YPATH")
+    : PathArg("path", "path to an object in Cypress to set", true, TRichYPath(""), "YPATH")
     , ValueArg("value", "value to set", false, "", "YSON")
     , UseStdIn(true)
 {
@@ -79,7 +80,7 @@ Stroka TSetExecutor::GetCommandName() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TRemoveExecutor::TRemoveExecutor()
-    : PathArg("path", "path to an object in Cypress that must be removed", true, TRichYPath(""), "YPATH")
+    : PathArg("path", "path to an object in Cypress to remove", true, TRichYPath(""), "YPATH")
 {
     CmdLine.add(PathArg);
 }
@@ -102,7 +103,7 @@ Stroka TRemoveExecutor::GetCommandName() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TListExecutor::TListExecutor()
-    : PathArg("path", "path to a object in Cypress whose children must be listed", true, TRichYPath(""), "YPATH")
+    : PathArg("path", "path to a object in Cypress whose children are to be listed", true, TRichYPath(""), "YPATH")
     , AttributeArg("", "attr", "attribute to fetch with node", false, "ATTRIBUTE")
 {
     CmdLine.add(PathArg);
@@ -155,7 +156,7 @@ Stroka TCreateExecutor::GetCommandName() const
 
 TLockExecutor::TLockExecutor()
     : TTransactedExecutor(true)
-    , PathArg("path", "path to an object in Cypress that must be locked", true, TRichYPath(""), "YPATH")
+    , PathArg("path", "path to an object in Cypress to lock", true, TRichYPath(""), "YPATH")
     , ModeArg("", "mode", "lock mode", false, NCypressClient::ELockMode::Exclusive, "snapshot, shared, exclusive")
 {
     CmdLine.add(PathArg);

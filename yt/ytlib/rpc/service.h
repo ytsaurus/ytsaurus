@@ -492,12 +492,12 @@ protected:
     {
         TRuntimeMethodInfo(
             const TMethodDescriptor& descriptor,
-            const NYTree::TYPath& profilingPath);
+            const NYPath::TYPath& profilingPath);
 
         TMethodDescriptor Descriptor;
 
         //! Path prefix for all profiling information regarding this method.
-        NYTree::TYPath ProfilingPath;
+        NYPath::TYPath ProfilingPath;
 
         //! Increments with each method call.
         NProfiling::TRateCounter RequestCounter;

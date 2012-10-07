@@ -18,7 +18,7 @@ static NLog::TLogger Logger("ActionQueue");
 ///////////////////////////////////////////////////////////////////////////////
 
 TQueueInvoker::TQueueInvoker(
-    const NYTree::TYPath& profilingPath,
+    const NYPath::TYPath& profilingPath,
     TActionQueueBase* owner,
     bool enableLogging)
     : Owner(owner)

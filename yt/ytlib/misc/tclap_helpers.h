@@ -10,7 +10,8 @@
 #include <ytlib/cypress_client/public.h>
 
 #include <ytlib/ytree/yson_writer.h>
-#include <ytlib/ytree/ypath.h>
+
+#include <ytlib/ypath/rich.h>
 
 #include <tclap/CmdLine.h>
 
@@ -53,7 +54,7 @@ struct ArgTraits< NYT::TNullable<T> >
 };
 
 template <>
-struct ArgTraits< NYT::NYTree::TRichYPath >
+struct ArgTraits< NYT::NYPath::TRichYPath >
 {
     typedef ValueLike ValueCategory;
 };
@@ -74,11 +75,11 @@ std::istringstream& operator >> (std::istringstream& input, TEnumBase<T>& mode);
 template <class T>
 std::istringstream& operator >> (std::istringstream& input, TNullable<T>& nullable);
 
-namespace NYTree {
+namespace NYPath {
 
-std::istringstream& operator >> (std::istringstream& input, NYTree::TRichYPath& path);
+std::istringstream& operator >> (std::istringstream& input, NYPath::TRichYPath& path);
 
-}
+} // namespace NYPath
 
 // TODO(babenko): move to inl
 

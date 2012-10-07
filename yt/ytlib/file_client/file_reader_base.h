@@ -55,7 +55,7 @@ private:
     TFileReaderConfigPtr Config;
     NRpc::IChannelPtr MasterChannel;
     NChunkClient::IBlockCachePtr BlockCache;
-    NYTree::TYPath Path;
+    NYPath::TYPath Path;
     bool IsOpen;
     i32 BlockCount;
     i32 BlockIndex;

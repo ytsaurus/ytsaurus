@@ -258,7 +258,7 @@ class TestTableCommands(YTEnvSetup):
         assert read('//tmp/table') == [{"b":"hello"}]
 
         chunk_id = get("//tmp/table/@chunk_ids/0")
-        assert get('#"%s"/@codec_id' % chunk_id) == "gzip_best_compression"
+        assert get('#%s/@codec_id' % chunk_id) == "gzip_best_compression"
 
     def test_copy(self):
         create('table', '//tmp/t')

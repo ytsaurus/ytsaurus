@@ -12,12 +12,15 @@
 #include <ytlib/rpc/rpc.pb.h>
 #include <ytlib/rpc/message.h>
 
+#include <ytlib/ypath/token.h>
+#include <ytlib/ypath/tokenizer.h>
+
 namespace NYT {
 namespace NYTree {
 
 using namespace NBus;
 using namespace NRpc;
-using namespace NYTree;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -141,42 +144,6 @@ TYPath ComputeResolvedYPath(
         : wholePath.substr(0, resolvedLength);
 }
 
-TYPath EscapeYPathToken(const Stroka& value)
-{
-    bool isIdentifer = false;
-
-    // Checking if we can leave the value as is (i.e. value is an identifier)
-    if (!value.empty() && value[0] != '-' && !isdigit(value[0])) {
-        isIdentifer = true;
-        FOREACH (char ch, value) {
-            if (!isIdentifer)
-                break;
-            switch (ch) {
-                case '_':
-                case '-':
-                case '%':
-                    break;
-                default:
-                    if (!isalpha(ch) && !isdigit(ch)) {
-                        isIdentifer = false;
-                    }
-                    break;
-            }
-        }
-    }
-
-    if (isIdentifer) {
-        return value;
-    } else {
-        return YsonizeString(value, EYsonFormat::Text);
-    }
-}
-
-TYPath EscapeYPathToken(i64 value)
-{
-    return ConvertToYsonString(value, EYsonFormat::Text).Data();
-}
-
 void ResolveYPath(
     IYPathServicePtr rootService,
     IServiceContextPtr context,
@@ -200,9 +167,9 @@ void ResolveYPath(
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(
                 EYPathErrorCode::ResolveError,
-                "Error resolving path %s for %s",
-                ~path,
-                ~verb)
+                "Error resolving path: %s",
+                ~path)
+                << TErrorAttribute("verb", ~verb)
                 << TErrorAttribute("resolved_path", TRawString(ComputeResolvedYPath(path, currentPath)))
                 << ex;
         }
@@ -343,20 +310,14 @@ std::vector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path)
 
 void ApplyYPathOverride(INodePtr root, const TStringBuf& overrideString)
 {
-    TTokenizer tokenizer(overrideString);
-
-    TYPath path;
-    while (true) {
-        if (!tokenizer.ParseNext()) {
-            THROW_ERROR_EXCEPTION("Unexpected end-of-stream while parsing YPath override");
-        }
-        if (tokenizer.GetCurrentType() == KeyValueSeparatorToken) {
-            break;
-        }
-        path.append(tokenizer.CurrentToken().ToString());
+    // TODO(babenko): this effectively forbids override path from containing "="
+    int eqIndex = overrideString.find('=');
+    if (eqIndex == TStringBuf::npos) {
+        THROW_ERROR_EXCEPTION("Missing \"=\" in override string");
     }
 
-    auto value = TYsonString(Stroka(tokenizer.GetCurrentSuffix()));
+    TYPath path(overrideString.begin(), overrideString.begin() + eqIndex);
+    TYsonString value(Stroka(overrideString.begin() + eqIndex + 1, overrideString.end()));
 
     ForceYPath(root, path);
     SyncYPathSet(root, path, value);
@@ -364,28 +325,31 @@ void ApplyYPathOverride(INodePtr root, const TStringBuf& overrideString)
 
 INodePtr GetNodeByYPath(INodePtr root, const TYPath& path)
 {
-    INodePtr currentNode = root;
-    TTokenizer tokenizer(path);
-    while (tokenizer.ParseNext()) {
-        tokenizer.CurrentToken().CheckType(PathSeparatorToken);
-        tokenizer.ParseNext();
-        switch (tokenizer.GetCurrentType()) {
-            case ETokenType::String: {
+    auto currentNode = root;
+    NYPath::TTokenizer tokenizer(path);
+    while (tokenizer.Advance() != NYPath::ETokenType::EndOfStream) {
+        tokenizer.Expect(NYPath::ETokenType::Slash);
+        tokenizer.Advance();
+        tokenizer.Expect(NYPath::ETokenType::Literal);
+        switch (currentNode->GetType()) {
+            case ENodeType::Map: {
                 auto currentMap = currentNode->AsMap();
-                Stroka key(tokenizer.CurrentToken().GetStringValue());
+                auto key = tokenizer.GetLiteralValue();
                 currentNode = currentMap->GetChild(key);
                 break;
             }
 
-            case ETokenType::Integer: {
+            case ENodeType::List: {
                 auto currentList = currentNode->AsList();
-                int index = currentList->AdjustAndValidateChildIndex(tokenizer.CurrentToken().GetIntegerValue());
+                const auto& token = tokenizer.GetToken();
+                int index = ParseListIndex(token);
+                int adjustedIndex = currentList->AdjustChildIndex(index);
                 currentNode = currentList->GetChild(index);
                 break;
             }
 
             default:
-                ThrowUnexpectedToken(tokenizer.CurrentToken());
+                tokenizer.ThrowUnexpected();
                 YUNREACHABLE();
         }
     }
@@ -395,50 +359,50 @@ INodePtr GetNodeByYPath(INodePtr root, const TYPath& path)
 void SetNodeByYPath(INodePtr root, const TYPath& path, INodePtr value)
 {
     auto currentNode = root;
-    TTokenizer tokenizer(path);
-    tokenizer.ParseNext();
-    tokenizer.CurrentToken().CheckType(PathSeparatorToken);
-    tokenizer.ParseNext();
-    Stroka currentTokenBuffer;
-    auto currentToken = tokenizer.CurrentToken();
-    if (currentToken.GetType() == ETokenType::String) {
-        currentTokenBuffer.assign(currentToken.GetStringValue());
-        currentToken = TToken(currentTokenBuffer);
-    }
-    while (tokenizer.ParseNext()) {
-        // Move to currentToken.
-        switch (currentToken.GetType()) {
-            case ETokenType::String: {
-                Stroka key(currentToken.GetStringValue());
-                currentNode = currentNode->AsMap()->GetChild(key);
+
+    NYPath::TTokenizer tokenizer(path);
+    
+    Stroka currentToken;
+    Stroka currentLiteralValue;
+    auto nextSegment = [&] () {
+        tokenizer.Expect(NYPath::ETokenType::Slash);
+        tokenizer.Advance();
+        tokenizer.Expect(NYPath::ETokenType::Literal);
+        currentToken = Stroka(tokenizer.GetToken());
+        currentLiteralValue = tokenizer.GetLiteralValue();
+    };
+
+    tokenizer.Advance();
+    nextSegment();
+
+    while (tokenizer.Advance() != NYPath::ETokenType::EndOfStream) {
+        switch (currentNode->GetType()) {
+            case ENodeType::Map: {
+                const auto& key = currentLiteralValue;
+                auto currentMap = currentNode->AsMap();
+                currentNode = currentMap->GetChild(key);
                 break;
             }
 
-            case ETokenType::Integer: {
+            case ENodeType::List: {
                 auto currentList = currentNode->AsList();
-                int index = currentList->AdjustAndValidateChildIndex(currentToken.GetIntegerValue());
-                currentNode = currentList->GetChild(index);
+                int index = ParseListIndex(currentToken);
+                int adjustedIndex = currentList->AdjustChildIndex(index);
+                currentNode = currentList->GetChild(adjustedIndex);
                 break;
             }
 
             default:
-                ThrowUnexpectedToken(currentToken);
+                tokenizer.ThrowUnexpected();
                 YUNREACHABLE();
         }
-        // Update currentToken.
-        tokenizer.CurrentToken().CheckType(PathSeparatorToken);
-        tokenizer.ParseNext();
-        currentToken = tokenizer.CurrentToken();
-        if (currentToken.GetType() == ETokenType::String) {
-            currentTokenBuffer.assign(currentToken.GetStringValue());
-            currentToken = TToken(currentTokenBuffer);
-        }
+        nextSegment();
     }
 
     // Set value.
-    switch (currentToken.GetType()) {
-        case ETokenType::String: {
-            Stroka key(currentToken.GetStringValue());
+    switch (currentNode->GetType()) {
+        case ENodeType::Map: {
+            const auto& key = currentLiteralValue;
             auto currentMap = currentNode->AsMap();
             auto child = currentMap->FindChild(key);
             if (child) {
@@ -449,16 +413,17 @@ void SetNodeByYPath(INodePtr root, const TYPath& path, INodePtr value)
             break;
         }
 
-        case ETokenType::Integer: {
+        case ENodeType::List: {
             auto currentList = currentNode->AsList();
-            int index = currentList->AdjustAndValidateChildIndex(currentToken.GetIntegerValue());
-            auto child = currentList->GetChild(index);
+            int index = ParseListIndex(currentToken);
+            int adjustedIndex = currentList->AdjustChildIndex(index);
+            auto child = currentList->GetChild(adjustedIndex);
             currentList->ReplaceChild(child, value);
             break;
         }
 
         default:
-            ThrowUnexpectedToken(currentToken);
+            tokenizer.ThrowUnexpected();
             YUNREACHABLE();
     }
 }
@@ -467,35 +432,27 @@ void ForceYPath(INodePtr root, const TYPath& path)
 {
     auto currentNode = root;
 
-    TTokenizer tokenizer(path);
-    if (!tokenizer.ParseNext()) {
-        // Hmm... empty path!
-        return;
-    }
+    NYPath::TTokenizer tokenizer(path);
 
-    while (true) {
-        tokenizer.CurrentToken().CheckType(PathSeparatorToken);
+    Stroka currentToken;
+    Stroka currentLiteralValue;
+    auto nextSegment = [&] () {
+        tokenizer.Expect(NYPath::ETokenType::Slash);
+        tokenizer.Advance();
+        tokenizer.Expect(NYPath::ETokenType::Literal);
+        currentToken = Stroka(tokenizer.GetToken());
+        currentLiteralValue = tokenizer.GetLiteralValue();
+    };
 
-        tokenizer.ParseNext();
-        auto token = tokenizer.CurrentToken();
-        
-        // Token holds a stringbuf that gets invalidated with each ParseNext call.
-        // Thus we have to make a persistent copy before advancing the tokenizer.
-        // For the sake of completeness, we also make copies of the type and the integer value.
-        auto tokenType = token.GetType();
-        Stroka key(token.GetType() == ETokenType::String ? token.GetStringValue() : "");
-        i64 index(token.GetType() == ETokenType::Integer ? token.GetIntegerValue() : -1);
+    tokenizer.Advance();
+    nextSegment();
 
-        if (!tokenizer.ParseNext()) {
-            // The previous token was the last one.
-            // Stop here -- we don't force the very last segment.
-            return;
-        }
-
+    while (tokenizer.Advance() != NYPath::ETokenType::EndOfStream) {
         INodePtr child;
-        switch (tokenType) {
-            case ETokenType::String: {
+        switch (currentNode->GetType()) {
+            case ENodeType::Map: {
                 auto currentMap = currentNode->AsMap();
+                const auto& key = currentLiteralValue;
                 child = currentMap->AsMap()->FindChild(key);
                 if (!child) {
                     auto factory = currentMap->CreateFactory();
@@ -505,40 +462,42 @@ void ForceYPath(INodePtr root, const TYPath& path)
                 break;
             }
 
-            case ETokenType::Integer: {
+            case ENodeType::List: {
                 auto currentList = currentNode->AsList();
-                index = currentList->AdjustAndValidateChildIndex(index);
-                child = currentList->GetChild(index);
+                int index = ParseListIndex(currentToken);
+                int adjustedIndex = currentList->AdjustChildIndex(index);
+                child = currentList->GetChild(adjustedIndex);
                 break;
             }
 
             default:
-                ThrowUnexpectedToken(tokenizer.CurrentToken());
+                tokenizer.ThrowUnexpected();
                 YUNREACHABLE();
         }
 
+        nextSegment();
         currentNode = child;
     }
 }
 
 TYPath GetNodeYPath(INodePtr node, INodePtr* root)
 {
-    std::vector<TYPath> tokens;
+    std::vector<Stroka> tokens;
     while (true) {
         auto parent = node->GetParent();
         if (!parent) {
             break;
         }
-        TYPath token;
+        Stroka token;
         switch (parent->GetType()) {
             case ENodeType::List: {
                 auto index = parent->AsList()->GetChildIndex(node);
-                token = EscapeYPathToken(index);
+                token = ToYPathLiteral(index);
                 break;
             }
             case ENodeType::Map: {
                 auto key = parent->AsMap()->GetChildKey(node);
-                token = EscapeYPathToken(key);
+                token = ToYPathLiteral(key);
                 break;
             }
             default:
@@ -553,7 +512,7 @@ TYPath GetNodeYPath(INodePtr node, INodePtr* root)
     std::reverse(tokens.begin(), tokens.end());
     TYPath path;
     FOREACH (const auto& token, tokens) {
-        path.append(TokenTypeToChar(PathSeparatorToken));
+        path.append('/');
         path.append(token);
     }
     return path;
@@ -571,7 +530,7 @@ INodePtr UpdateNode(INodePtr base, INodePtr patch)
         auto resultMap = result->AsMap();
         auto patchMap = patch->AsMap();
         auto baseMap = base->AsMap();
-        FOREACH (Stroka key, patchMap->GetKeys()) {
+        FOREACH (const auto& key, patchMap->GetKeys()) {
             if (baseMap->FindChild(key)) {
                 resultMap->RemoveChild(key);
                 resultMap->AddChild(UpdateNode(baseMap->GetChild(key), patchMap->GetChild(key)), key);
@@ -582,8 +541,7 @@ INodePtr UpdateNode(INodePtr base, INodePtr patch)
         }
         result->Attributes().MergeFrom(patch->Attributes());
         return result;
-    }
-    else {
+    } else {
         auto result = CloneNode(patch);
         result->Attributes().Clear();
         if (base->GetType() == patch->GetType()) {
@@ -594,7 +552,8 @@ INodePtr UpdateNode(INodePtr base, INodePtr patch)
     }
 }
 
-bool AreNodesEqual(INodePtr lhs, INodePtr rhs) {
+bool AreNodesEqual(INodePtr lhs, INodePtr rhs)
+{
     if (lhs->GetType() == ENodeType::Map && rhs->GetType() == ENodeType::Map) {
         auto lhsMap = lhs->AsMap();
         auto lhsKeys = lhsMap->GetKeys();
@@ -603,17 +562,18 @@ bool AreNodesEqual(INodePtr lhs, INodePtr rhs) {
         auto rhsMap = rhs->AsMap();
         auto rhsKeys = rhsMap->GetKeys();
         sort(rhsKeys.begin(), rhsKeys.end());
+
         if (rhsKeys != lhsKeys) {
             return false;
         }
-        FOREACH (Stroka key, lhsKeys) {
+
+        FOREACH (const auto& key, lhsKeys) {
             if (!AreNodesEqual(lhsMap->FindChild(key), rhsMap->FindChild(key))) {
                 return false;
             }
         }
         return true;
-    }
-    else if (lhs->GetType() == ENodeType::List && rhs->GetType() == ENodeType::List) {
+    } else if (lhs->GetType() == ENodeType::List && rhs->GetType() == ENodeType::List) {
         auto lhsList = lhs->AsList();
         auto lhsChildren = lhsList->GetChildren();
 
@@ -629,11 +589,9 @@ bool AreNodesEqual(INodePtr lhs, INodePtr rhs) {
             }
         }
         return true; 
-    }
-    else if (lhs->GetType() == rhs->GetType()) {
+    } else if (lhs->GetType() == rhs->GetType()) {
         return ConvertToYsonString(lhs) == ConvertToYsonString(rhs);
-    }
-    else {
+    } else {
         return false;
     }
 }

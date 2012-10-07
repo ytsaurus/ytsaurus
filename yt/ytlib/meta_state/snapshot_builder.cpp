@@ -119,9 +119,10 @@ private:
                 CreateSnapshot
                 ? BIND(&TSession::OnSnapshotCreated, MakeStrong(this), id)
                 : BIND(&TSession::OnChangeLogRotated, MakeStrong(this), id);
+
             Awaiter->Await(
                 request->Invoke(),
-                EscapeYPathToken(Owner->CellManager->GetPeerAddress(id)),
+                Owner->CellManager->GetPeerAddress(id),
                 responseHandler);
         }
 

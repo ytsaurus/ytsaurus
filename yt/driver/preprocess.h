@@ -1,14 +1,14 @@
 #pragma once
 
-#include <ytlib/ytree/ypath.h>
+#include <ytlib/ypath/rich.h>
 
 namespace NYT {
 namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYTree::TRichYPath PreprocessYPath(const NYTree::TRichYPath& path);
-std::vector<NYTree::TRichYPath> PreprocessYPaths(const std::vector<NYTree::TRichYPath>& paths);
+NYPath::TRichYPath PreprocessYPath(const NYPath::TRichYPath& path);
+std::vector<NYPath::TRichYPath> PreprocessYPaths(const std::vector<NYPath::TRichYPath>& paths);
 
 ////////////////////////////////////////////////////////////////////////////////
 

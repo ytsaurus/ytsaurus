@@ -112,7 +112,7 @@ protected:
     typedef TIntrusivePtr<TReq##method> TReq##method##Ptr; \
     typedef TIntrusivePtr<TRsp##method> TRsp##method##Ptr; \
     \
-    static TReq##method##Ptr method(const NYT::NYTree::TYPath& path  = "") \
+    static TReq##method##Ptr method(const NYT::NYPath::TYPath& path  = "") \
     { \
         auto req = New<TReq##method>(#method); \
         req->SetPath(path); \
@@ -124,9 +124,6 @@ protected:
 TYPath ComputeResolvedYPath(
     const TYPath& wholePath,
     const TYPath& unresolvedPath);
-
-TYPath EscapeYPathToken(const Stroka& value);
-TYPath EscapeYPathToken(i64 value);
 
 void ResolveYPath(
     IYPathServicePtr rootService,

@@ -1,14 +1,15 @@
 #pragma once
 
 #include <ytlib/misc/common.h>
+
 #include <ytlib/actions/callback_forward.h>
+
+#include <ytlib/ypath/public.h>
 
 namespace NYT {
 namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-typedef Stroka TYPath;
 
 //! A static node type.
 DECLARE_ENUM(ENodeType,
@@ -116,7 +117,7 @@ typedef TIntrusivePtr<TYPathResponse> TYPathResponsePtr;
 template <class TRequestMessage, class TResponseMessage>
 class TTypedYPathResponse;
 
-class TRichYPath;
+using NYPath::TYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 

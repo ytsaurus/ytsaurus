@@ -30,7 +30,7 @@ public:
         NCypressServer::ICypressNode* trunkNode);
 
     virtual TResolveResult Resolve(
-        const NYTree::TYPath& path,
+        const NYPath::TYPath& path,
         NRpc::IServiceContextPtr context) override;
     virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
 
@@ -62,7 +62,7 @@ private:
         bool negate);
 
     void ParseYPath(
-        const NYTree::TYPath& path,
+        const NYPath::TYPath& path,
         NTableClient::TChannel* channel,
         NTableClient::NProto::TReadLimit* lowerBound,
         NTableClient::NProto::TReadLimit* upperBound);

@@ -2,7 +2,7 @@
 
 #include "command.h"
 
-#include <ytlib/ytree/ypath.h>
+#include <ytlib/ypath/rich.h>
 
 #include <ytlib/cypress_client/public.h>
 
@@ -14,7 +14,7 @@ namespace NDriver {
 struct TGetRequest
     : public TTransactedRequest
 {
-    NYTree::TRichYPath Path;
+    NYPath::TRichYPath Path;
     std::vector<Stroka> Attributes;
 
     TGetRequest()
@@ -46,7 +46,7 @@ private:
 struct TSetRequest
     : public TTransactedRequest
 {
-    NYTree::TRichYPath Path;
+    NYPath::TRichYPath Path;
 
     TSetRequest()
     {
@@ -75,7 +75,7 @@ private:
 struct TRemoveRequest
     : public TTransactedRequest
 {
-    NYTree::TRichYPath Path;
+    NYPath::TRichYPath Path;
 
     TRemoveRequest()
     {
@@ -104,7 +104,7 @@ private:
 struct TListRequest
     : public TTransactedRequest
 {
-    NYTree::TRichYPath Path;
+    NYPath::TRichYPath Path;
     std::vector<Stroka> Attributes;
 
     TListRequest()
@@ -136,7 +136,7 @@ private:
 struct TCreateRequest
     : public TTransactedRequest
 {
-    NYTree::TRichYPath Path;
+    NYPath::TRichYPath Path;
     NObjectClient::EObjectType Type;
 
     TCreateRequest()
@@ -166,7 +166,7 @@ private:
 struct TLockRequest
     : public TTransactedRequest
 {
-    NYTree::TRichYPath Path;
+    NYPath::TRichYPath Path;
     NCypressClient::ELockMode Mode;
 
     TLockRequest()
@@ -198,8 +198,8 @@ private:
 struct TCopyRequest
     : public TTransactedRequest
 {
-    NYTree::TRichYPath SourcePath;
-    NYTree::TRichYPath DestinationPath;
+    NYPath::TRichYPath SourcePath;
+    NYPath::TRichYPath DestinationPath;
 
     TCopyRequest()
     {
@@ -229,8 +229,8 @@ private:
 struct TMoveRequest
     : public TTransactedRequest
 {
-    NYTree::TRichYPath SourcePath;
-    NYTree::TRichYPath DestinationPath;
+    NYPath::TRichYPath SourcePath;
+    NYPath::TRichYPath DestinationPath;
 
     TMoveRequest()
     {
@@ -260,7 +260,7 @@ private:
 struct TExistsRequest
     : public TTransactedRequest
 {
-    NYTree::TRichYPath Path;
+    NYPath::TRichYPath Path;
 
     TExistsRequest()
     {

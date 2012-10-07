@@ -110,7 +110,6 @@ void TChunkListPool::OnChunkListsCreated(
 
     if (!batchRsp->IsOK()) {
         LOG_ERROR(*batchRsp, "Error allocating chunk lists");
-        // TODO(babenko): backoff time?
         return;
     }
 

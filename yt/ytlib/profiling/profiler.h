@@ -2,8 +2,9 @@
 
 #include "public.h"
 
-#include <ytlib/ytree/public.h>
 #include <ytlib/misc/property.h>
+
+#include <ytlib/ypath/public.h>
 
 namespace NYT {
 namespace NProfiling {
@@ -37,9 +38,9 @@ DECLARE_ENUM(ETimerMode,
 struct TTimer
 {
     TTimer();
-    TTimer(const NYTree::TYPath& path, TCpuInstant start, ETimerMode mode);
+    TTimer(const NYPath::TYPath& path, TCpuInstant start, ETimerMode mode);
 
-    NYTree::TYPath Path;
+    NYPath::TYPath Path;
     //! Start time.
     TCpuInstant Start;
     //! Last checkpoint time (0 if no checkpoint has occurred yet).
@@ -56,11 +57,11 @@ struct TTimer
 struct TCounterBase
 {
     TCounterBase(
-        const NYTree::TYPath& path = "",
+        const NYPath::TYPath& path = "",
         TDuration interval = TDuration::MilliSeconds(1000));
 
     TSpinLock SpinLock;
-    NYTree::TYPath Path;
+    NYPath::TYPath Path;
     //! Interval between samples (in ticks).
     TCpuDuration Interval;
     //! The time when the next sample must be queued (in ticks).
@@ -83,7 +84,7 @@ struct TRateCounter
     : public TCounterBase
 {
     TRateCounter(
-        const NYTree::TYPath& path = "",
+        const NYPath::TYPath& path = "",
         TDuration interval = TDuration::MilliSeconds(1000));
 
     //! The time when the last sample was queued (in ticks).
@@ -121,7 +122,7 @@ struct TAggregateCounter
     : public TCounterBase
 {
     TAggregateCounter(
-        const NYTree::TYPath& path = "",
+        const NYPath::TYPath& path = "",
         EAggregateMode mode = EAggregateMode::Max,
         TDuration interval = TDuration::MilliSeconds(100));
 
@@ -150,20 +151,20 @@ public:
      *  By default the profiler is enabled.
      */
     TProfiler(
-        const NYTree::TYPath& pathPrefix,
+        const NYPath::TYPath& pathPrefix,
         bool selfProfiling = false);
 
-    DEFINE_BYVAL_RW_PROPERTY(Stroka, PathPrefix);
+    DEFINE_BYVAL_RW_PROPERTY(NYPath::TYPath, PathPrefix);
 
     //! Controls if the profiler is enabled.
     DEFINE_BYVAL_RW_PROPERTY(bool, Enabled);
 
     //! Enqueues a new sample.
-    void Enqueue(const NYTree::TYPath& path, TValue value);
+    void Enqueue(const NYPath::TYPath& path, TValue value);
 
     //! Starts time measurement.
     TTimer TimingStart(
-        const NYTree::TYPath& path,
+        const NYPath::TYPath& path,
         ETimerMode mode = ETimerMode::Simple);
 
     //! Marks a checkpoint and enqueues the corresponding sample.
@@ -173,7 +174,7 @@ public:
      *  If #timer is in Simple mode then it is automatically
      *  switched to Sequential mode.
      */
-    TDuration TimingCheckpoint(TTimer& timer, const NYTree::TYPath& pathSuffix);
+    TDuration TimingCheckpoint(TTimer& timer, const Stroka& key);
 
     //! Stops time measurement and enqueues the "total" sample.
     //! Returns the total duration.
@@ -214,7 +215,7 @@ private:
 class TTimingGuard
 {
 public:
-    TTimingGuard(TProfiler* profiler, const NYTree::TYPath& path)
+    TTimingGuard(TProfiler* profiler, const NYPath::TYPath& path)
         : Profiler(profiler)
         , Timer(profiler->TimingStart(path))
     {
@@ -229,9 +230,9 @@ public:
         }
     }
 
-    void Checkpoint(const NYTree::TYPath& pathSuffix)
+    void Checkpoint(const Stroka& key)
     {
-        Profiler->TimingCheckpoint(Timer, pathSuffix);
+        Profiler->TimingCheckpoint(Timer, key);
     }
 
     operator bool() const
@@ -254,8 +255,8 @@ private:
     else
 
 //! Must be used inside #PROFILE_TIMING block to mark a checkpoint.
-#define PROFILE_TIMING_CHECKPOINT(pathSuffix) \
-    PROFILE_TIMING__Guard.Checkpoint(pathSuffix)
+#define PROFILE_TIMING_CHECKPOINT(key) \
+    PROFILE_TIMING__Guard.Checkpoint(key)
 
 ////////////////////////////////////////////////////////////////////////////////
 

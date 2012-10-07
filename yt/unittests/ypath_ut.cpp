@@ -81,22 +81,22 @@ public:
 
 TEST_F(TYPathTest, MapModification)
 {
-    Set("/map", "{\"hello\"=\"world\"; \"list\"=[0;\"a\";{}]; \"n\"=1}");
+    Set("/map", "{hello=world; list=[0;a;{}]; n=1}");
 
     Set("/map/hello", "not_world");
-    Check("", "{\"map\"={\"hello\"=\"not_world\";\"list\"=[0;\"a\";{}];\"n\"=1}}");
+    Check("", "{map={hello=not_world;list=[0;a;{}];n=1}}");
 
     Set("/map/list/2/some", "value");
-    Check("", "{\"map\"={\"hello\"=\"not_world\";\"list\"=[0;\"a\";{\"some\"=\"value\"}];\"n\"=1}}");
+    Check("", "{map={hello=not_world;list=[0;a;{some=value}];n=1}}");
 
     Remove("/map/n");
-    Check("", "{\"map\"={\"hello\"=\"not_world\";\"list\"=[0;\"a\";{\"some\"=\"value\"}]}}");
+    Check("", "{map={hello=not_world;list=[0;a;{some=value}]}}");
 
     Set("/map/list", "[]");
-    Check("", "{\"map\"={\"hello\"=\"not_world\";\"list\"=[]}}");
+    Check("", "{map={hello=not_world;list=[]}}");
 
     Remove("/map/hello");
-    Check("", "{\"map\"={\"list\"=[]}}");
+    Check("", "{map={list=[]}}");
 
     Remove("/map");
     Check("", "{}");
@@ -105,7 +105,7 @@ TEST_F(TYPathTest, MapModification)
 TEST_F(TYPathTest, ListModification)
 {
     Set("/list", "[1;2;3]");
-    Check("", "{\"list\"=[1;2;3]}");
+    Check("", "{list=[1;2;3]}");
     Check("/list", "[1;2;3]");
     Check("/list/0", "1");
     Check("/list/1", "2");
@@ -114,10 +114,10 @@ TEST_F(TYPathTest, ListModification)
     Check("/list/-2", "2");
     Check("/list/-3", "1");
 
-    Set("/list/+", "4");
+    Set("/list/end", "4");
     Check("/list", "[1;2;3;4]");
 
-    Set("/list/+", "5");
+    Set("/list/end", "5");
     Check("/list", "[1;2;3;4;5]");
 
     Set("/list/2", "100");
@@ -135,17 +135,20 @@ TEST_F(TYPathTest, ListModification)
     Remove("/list/-1");
     Check("/list", "[1;2]");
 
-    Set("/list/^0", "0");
+    Set("/list/before:0", "0");
     Check("/list", "[0;1;2]");
 
-    Set("/list/1^", "3");
+    Set("/list/after:1", "3");
     Check("/list", "[0;1;3;2]");
 
-    Set("/list/-1^", "4");
+    Set("/list/after:-1", "4");
     Check("/list", "[0;1;3;2;4]");
 
-    Set("/list/^-1", "5");
+    Set("/list/before:-1", "5");
     Check("/list", "[0;1;3;2;5;4]");
+
+    Set("/list/begin", "6");
+    Check("/list", "[6;0;1;3;2;5;4]");
 }
 
 TEST_F(TYPathTest, ListReassignment)
@@ -153,20 +156,20 @@ TEST_F(TYPathTest, ListReassignment)
     Set("/list", "[a;b;c]");
     Set("/list", "[1;2;3]");
 
-    Check("", "{\"list\"=[1;2;3]}");
+    Check("", "{list=[1;2;3]}");
 }
 
 TEST_F(TYPathTest, Clear)
 {
-    Set("/my", "{\"list\"=<\"type\"=\"list\">[1;2];\"map\"=<\"type\"=\"map\">{\"a\"=1;\"b\"=2}}");
+    Set("/my", "{list=<type=list>[1;2];map=<type=map>{a=1;b=2}}");
 
     Remove("/my/list/*");
     Check("/my/list", "[]");
-    Check("/my/list/@", "{\"type\"=\"list\"}");
+    Check("/my/list/@", "{type=list}");
 
     Remove("/my/map/*");
     Check("/my/map", "{}");
-    Check("/my/map/@", "{\"type\"=\"map\"}");
+    Check("/my/map/@", "{type=map}");
 }
 
 TEST_F(TYPathTest, Ls)
@@ -218,31 +221,31 @@ TEST_F(TYPathTest, LsOnUnsupportedNodes)
 
 TEST_F(TYPathTest, Attributes)
 {
-    Set("/root", "<attr=100;mode=\"rw\"> {nodes=[\"1\"; \"2\"]}");
-    Check("/root/@", "{\"attr\"=100;\"mode\"=\"rw\"}");
+    Set("/root", "<attr=100;mode=rw> {nodes=[1; 2]}");
+    Check("/root/@", "{attr=100;mode=rw}");
     Check("/root/@attr", "100");
 
     Set("/root/value", "<>500");
     Check("/root/value", "500");
 
-    Remove("/root/@");
+    Remove("/root/@*");
     Check("/root/@", "{}");
 
     Remove("/root/nodes");
     Remove("/root/value");
-    Check("", "{\"root\"={}}");
+    Check("", "{root={}}");
 
-    Set("/root/\"2\"", "<author=\"ignat\"> #");
-    Check("", "{\"root\"={\"2\"=#}}");
-    Check("/root/\"2\"/@", "{\"author\"=\"ignat\"}");
-    Check("/root/\"2\"/@author", "\"ignat\"");
+    Set("/root/2", "<author=ignat> #");
+    Check("", "{root={\"2\"=#}}");
+    Check("/root/2/@", "{author=ignat}");
+    Check("/root/2/@author", "ignat");
 
     // note: empty attributes are shown when nested
-    Set("/root/\"3\"", "<dir=<file=<>-100>#>#");
-    Check("/root/\"3\"/@", "{\"dir\"=<\"file\"=<>-100>#}");
-    Check("/root/\"3\"/@dir/@", "{\"file\"=<>-100}");
-    Check("/root/\"3\"/@dir/@file", "<>-100");
-    Check("/root/\"3\"/@dir/@file/@", "{}");
+    Set("/root/3", "<dir=<file=<>-100>#>#");
+    Check("/root/3/@", "{dir=<file=<>-100>#}");
+    Check("/root/3/@dir/@", "{file=<>-100}");
+    Check("/root/3/@dir/@file", "<>-100");
+    Check("/root/3/@dir/@file/@", "{}");
 }
 
 TEST_F(TYPathTest, RemoveAll)
@@ -284,8 +287,6 @@ TEST_F(TYPathTest, InvalidCases)
 
     // remove non-existing child
     EXPECT_ANY_THROW(Remove("/a"));
-
-//    EXPECT_ANY_THROW(Set("//@/some", "{}"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

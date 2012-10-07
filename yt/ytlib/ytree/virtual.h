@@ -17,19 +17,19 @@ protected:
     virtual IYPathServicePtr GetItemService(const TStringBuf& key) const = 0;
 
 private:
-    virtual void DoInvoke(NRpc::IServiceContextPtr context);
+    virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
 
-    virtual TResolveResult ResolveRecursive(const TYPath& path, NRpc::IServiceContextPtr context);
-    virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context);
-    virtual void ListSelf(TReqList* request, TRspList* response, TCtxList* context);
+    virtual TResolveResult ResolveRecursive(const TYPath& path, NRpc::IServiceContextPtr context) override;
+    virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context) override;
+    virtual void ListSelf(TReqList* request, TRspList* response, TCtxListPtr context) override;
 
     // TSupportsAttributes overrides
-    virtual ISystemAttributeProvider* GetSystemAttributeProvider();
+    virtual ISystemAttributeProvider* GetSystemAttributeProvider() override;
 
     // ISystemAttributeProvider overrides
-    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes);
-    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer);
-    virtual bool SetSystemAttribute(const Stroka& key, const TYsonString& value);
+    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
+    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) override;
+    virtual bool SetSystemAttribute(const Stroka& key, const TYsonString& value) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

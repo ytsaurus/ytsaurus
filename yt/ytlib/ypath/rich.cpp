@@ -1,11 +1,14 @@
 #include "stdafx.h"
-#include "ypath.h"
-#include "fluent.h"
+#include "rich.h"
 
 #include <ytlib/misc/error.h>
 
+#include <ytlib/ytree/fluent.h>
+
 namespace NYT {
-namespace NYTree {
+namespace NYPath {
+
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,7 +61,7 @@ IAttributeDictionary& TRichYPath::Attributes()
     return *Attributes_;
 }
 
-TRichYPath& TRichYPath::operator =( const TRichYPath& other )
+TRichYPath& TRichYPath::operator = (const TRichYPath& other)
 {
     if (this != &other) {
         Path_ = other.Path_;
@@ -104,5 +107,5 @@ void Deserialize(TRichYPath& richPath, INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
+} // namespace NYPath
 } // namespace NYT

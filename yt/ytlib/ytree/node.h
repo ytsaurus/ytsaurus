@@ -298,7 +298,7 @@ struct IListNode
      *  \param index Original (possibly negative) index.
      *  \returns Adjusted (valid non-negative) index.
      */
-    int AdjustAndValidateChildIndex(int index) const;
+    int AdjustChildIndex(int index) const;
 
 };
 
@@ -336,6 +336,11 @@ struct INodeFactory
     //! Creates an entity node.
     virtual IEntityNodePtr CreateEntity() = 0;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(INode& value, IYsonConsumer* consumer);
+void Deserialize(INodePtr& value, INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

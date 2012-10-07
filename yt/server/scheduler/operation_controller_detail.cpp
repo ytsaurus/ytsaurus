@@ -41,6 +41,7 @@ using namespace NTableClient;
 using namespace NChunkClient;
 using namespace NObjectClient;
 using namespace NYTree;
+using namespace NYPath;
 using namespace NFormats;
 using namespace NJobProxy;
 using namespace NScheduler::NProto;

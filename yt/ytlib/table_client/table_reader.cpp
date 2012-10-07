@@ -17,7 +17,6 @@
 namespace NYT {
 namespace NTableClient {
 
-using namespace NYTree;
 using namespace NCypressClient;
 using namespace NTableClient;
 
@@ -28,7 +27,7 @@ TTableReader::TTableReader(
     NRpc::IChannelPtr masterChannel,
     NTransactionClient::ITransactionPtr transaction,
     NChunkClient::IBlockCachePtr blockCache,
-    const NYTree::TRichYPath& richPath)
+    const NYPath::TRichYPath& richPath)
     : Config(config)
     , MasterChannel(masterChannel)
     , Transaction(transaction)

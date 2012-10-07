@@ -128,10 +128,7 @@ public:
             THROW_ERROR_EXCEPTION("YPath cannot be empty");
         }
 
-        TTokenizer tokenizer(path);
-        tokenizer.ParseNext();
-
-        if (tokenizer.GetCurrentType() != RootToken) {
+        if (path[0] != '/') {
             THROW_ERROR_EXCEPTION("YPath must start with \"/\"");
         }
 
@@ -140,13 +137,12 @@ public:
             cypressManager->GetRootNodeId(),
             Transaction);
 
-        return GetNodeByYPath(root, TYPath(tokenizer.GetCurrentSuffix()));
+        return GetNodeByYPath(root, path.substr(1));
     }
 
     virtual TYPath GetPath(INodePtr node) override
     {
-        auto path = GetNodeYPath(node);
-        return Stroka(TokenTypeToChar(RootToken)) + path;
+        return Stroka::Join("/", GetNodeYPath(node));
     }
 
 private:

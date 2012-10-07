@@ -147,7 +147,7 @@ void TChunkInfoCollector<TChunkInfoFetcher>::OnResponse(
             if (result.IsOK()) {
                 YCHECK(UnfetchedChunkIndexes.erase(chunkIndex) == 1);
             } else {
-                LOG_WARNING(result, "Unable to fetch chunk info for chunk %s from %s",
+                LOG_WARNING(result, "Unable to fetch info for chunk %s from %s",
                     ~chunkId.ToString(),
                     ~address);
                 YCHECK(DeadChunks.insert(std::make_pair(address, chunkId)).second);

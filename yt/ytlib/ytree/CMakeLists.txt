@@ -18,7 +18,6 @@ set( SRCS
   ${BASE}/tree_builder.cpp
   ${BASE}/tree_visitor.cpp
   ${BASE}/virtual.cpp
-  ${BASE}/ypath.cpp
   ${BASE}/ypath_client.cpp
   ${BASE}/ypath_detail.cpp
   ${BASE}/ypath_service.cpp
@@ -55,7 +54,6 @@ set( HDRS
   ${BASE}/tree_builder.h
   ${BASE}/tree_visitor.h
   ${BASE}/virtual.h
-  ${BASE}/ypath.h
   ${BASE}/ypath_client-inl.h
   ${BASE}/ypath_client.h
   ${BASE}/ypath_detail.h

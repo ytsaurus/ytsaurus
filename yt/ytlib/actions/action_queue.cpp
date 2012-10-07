@@ -5,12 +5,12 @@
 
 #include <ytlib/misc/foreach.h>
 
-#include <ytlib/ytree/ypath_client.h>
+#include <ytlib/ypath/token.h>
 
 namespace NYT {
 
 using namespace NProfiling;
-using namespace NYTree;
+using namespace NYPath;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -22,7 +22,7 @@ public:
         : TActionQueueBase(threadName, enableLogging)
     {
         QueueInvoker = New<TQueueInvoker>(
-            "/" + EscapeYPathToken(profilingName),
+            "/" + ToYPathLiteral(profilingName),
             this,
             enableLogging);
         Start();
@@ -103,7 +103,7 @@ public:
     {
         for (int index = 0; index < static_cast<int>(profilingNames.size()); ++index) {
             Queues[index].Invoker = New<TQueueInvoker>(
-                "/" + EscapeYPathToken(threadName + ":" + profilingNames[index]),
+                "/" + ToYPathLiteral(threadName + ":" + profilingNames[index]),
                 this,
                 true);
         }

@@ -1,5 +1,7 @@
 #pragma once
 
+// TODO(babenko): remove this file once table selectors are moved to rich YPath attributes
+
 #include "public.h"
 #include "token.h"
 
@@ -8,15 +10,16 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const ETokenType::EDomain PathSeparatorToken = ETokenType::Slash;
-const ETokenType::EDomain GoToAttributesToken = ETokenType::At;
-const ETokenType::EDomain RootToken = ETokenType::Slash;
-const ETokenType::EDomain NodeGuidMarkerToken = ETokenType::Hash;
-const ETokenType::EDomain ListAppendToken = ETokenType::Plus;
-const ETokenType::EDomain ListInsertToken = ETokenType::Caret;
-const ETokenType::EDomain HomeDirToken = ETokenType::Tilde;
-const ETokenType::EDomain SuppressRedirectToken = ETokenType::Ampersand;
-const ETokenType::EDomain WildcardToken = ETokenType::Asterisk;
+//const ETokenType::EDomain PathSeparatorToken = ETokenType::Slash;
+//const ETokenType::EDomain GoToAttributesToken = ETokenType::At;
+//const ETokenType::EDomain RootToken = ETokenType::Slash;
+//const ETokenType::EDomain NodeGuidMarkerToken = ETokenType::Hash;
+//const ETokenType::EDomain TransactionMarkerToken = ETokenType::Bang;
+//const ETokenType::EDomain ListAppendToken = ETokenType::Plus;
+//const ETokenType::EDomain ListInsertToken = ETokenType::Caret;
+//const ETokenType::EDomain HomeDirToken = ETokenType::Tilde;
+//const ETokenType::EDomain SuppressRedirectToken = ETokenType::Ampersand;
+//const ETokenType::EDomain WildcardToken = ETokenType::Asterisk;
 
 // Table selectors
 const ETokenType::EDomain BeginColumnSelectorToken = ETokenType::LeftBrace;

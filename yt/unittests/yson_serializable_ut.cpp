@@ -6,12 +6,15 @@
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/yson_writer.h>
 #include <ytlib/ytree/tree_visitor.h>
+#include <ytlib/ytree/ypath_client.h>
 
 #include <contrib/testing/framework.h>
 
 namespace NYT {
 
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_ENUM(ETestEnum,
     (Value0)
@@ -403,5 +406,7 @@ TEST(TConfigTest, TestConfigUpdate)
         EXPECT_EQ(newConfig->Subconfig->MyInt, 200);
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

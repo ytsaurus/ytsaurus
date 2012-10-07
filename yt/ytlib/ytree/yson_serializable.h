@@ -18,8 +18,8 @@ struct IParameter
     : public TRefCounted
 {
     // node can be NULL
-    virtual void Load(NYTree::INodePtr node, const NYTree::TYPath& path) = 0;
-    virtual void Validate(const NYTree::TYPath& path) const = 0;
+    virtual void Load(NYTree::INodePtr node, const NYPath::TYPath& path) = 0;
+    virtual void Validate(const NYPath::TYPath& path) const = 0;
     virtual void Save(NYTree::IYsonConsumer* consumer) const = 0;
     virtual bool IsPresent() const = 0;
 };
@@ -41,8 +41,8 @@ public:
 
     explicit TParameter(T& parameter);
 
-    virtual void Load(NYTree::INodePtr node, const NYTree::TYPath& path);
-    virtual void Validate(const NYTree::TYPath& path) const;
+    virtual void Load(NYTree::INodePtr node, const NYPath::TYPath& path);
+    virtual void Validate(const NYPath::TYPath& path) const;
     virtual void Save(NYTree::IYsonConsumer* consumer) const;
     virtual bool IsPresent() const;
 
@@ -76,8 +76,8 @@ class TYsonSerializable
 public:
     TYsonSerializable();
 
-    void Load(NYTree::INodePtr node, bool validate = true, const NYTree::TYPath& path = "");
-    void Validate(const NYTree::TYPath& path = "") const;
+    void Load(NYTree::INodePtr node, bool validate = true, const NYPath::TYPath& path = "");
+    void Validate(const NYPath::TYPath& path = "") const;
 
     void Save(NYTree::IYsonConsumer* consumer) const;
 

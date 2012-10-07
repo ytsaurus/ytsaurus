@@ -25,7 +25,7 @@ static NProfiling::TProfiler& Profiler = RpcServerProfiler;
 
 TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     const TMethodDescriptor& descriptor,
-    const NYTree::TYPath& profilingPath)
+    const NYPath::TYPath& profilingPath)
     : Descriptor(descriptor)
     , ProfilingPath(profilingPath)
     , RequestCounter(profilingPath + "/request_rate")

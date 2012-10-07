@@ -14,7 +14,7 @@ public:
     TUploadExecutor();
 
 private:
-    TCLAP::UnlabeledValueArg<NYTree::TRichYPath> PathArg;
+    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
@@ -29,13 +29,13 @@ public:
     TDownloadExecutor();
 
 private:
-    TCLAP::UnlabeledValueArg<NYTree::TRichYPath> PathArg;
+    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
 
     virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
 };
 
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////F//////////////////////////
 
 } // namespace NDriver
 } // namespace NYT

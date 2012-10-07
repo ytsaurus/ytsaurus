@@ -8,14 +8,17 @@
 #include "attribute_provider_detail.h"
 #include "tokenizer.h"
 
+#include <ytlib/ypath/tokenizer.h>
+
 namespace NYT {
 namespace NYTree {
 
 using namespace NRpc;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const int DefaultMaxSize = 1000;
+static const size_t DefaultMaxSize = 1000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,28 +35,28 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(
 {
     UNUSED(context);
 
-    TTokenizer tokenizer(path);
-    tokenizer.ParseNext();
-    Stroka key(tokenizer.CurrentToken().GetStringValue());
-
+    NYPath::TTokenizer tokenizer(path);
+    tokenizer.Advance();
+    tokenizer.Expect(NYPath::ETokenType::Literal);
+    auto key = tokenizer.GetLiteralValue();
     auto service = GetItemService(key);
     if (!service) {
         // TODO(babenko): improve diagnostics
-        THROW_ERROR_EXCEPTION("No such child key %s",
-            ~YsonizeString(key, EYsonFormat::Text));
+        THROW_ERROR_EXCEPTION("Node has no child with key: %s",
+            ~ToYPathLiteral(key));
     }
 
-    return TResolveResult::There(service, TYPath(tokenizer.GetCurrentSuffix()));
+    return TResolveResult::There(service, tokenizer.GetSuffix());
 }
 
-void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
+void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
 {
     YASSERT(!TTokenizer(context->GetPath()).ParseNext());
 
-    int max_size = request->Attributes().Get<int>("max_size", DefaultMaxSize);
+    size_t max_size = request->Attributes().Get<int>("max_size", DefaultMaxSize);
 
     auto keys = GetKeys(max_size);
-    auto size = GetSize();
+    size_t size = GetSize();
 
     TStringStream stream;
     TYsonWriter writer(&stream, EYsonFormat::Binary);
@@ -78,13 +81,12 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGet* cont
     context->Reply();
 }
 
-void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxList* context)
+void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPtr context)
 {
-    YASSERT(!TTokenizer(context->GetPath()).ParseNext());
+    size_t maxSize = request->Attributes().Get<int>("max_size", DefaultMaxSize);
 
-    int max_size = request->Attributes().Get<int>("max_size", DefaultMaxSize);
-    auto keys = GetKeys(max_size);
-    auto size = GetSize();
+    auto keys = GetKeys(maxSize);
+    size_t size = GetSize();
 
     TStringStream stream;
     TYsonWriter writer(&stream, EYsonFormat::Binary);

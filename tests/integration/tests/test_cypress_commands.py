@@ -43,16 +43,16 @@ class TestCypressCommands(YTEnvSetup):
         set('//tmp/list', [1,2,"some string"])
         assert get('//tmp/list') == [1,2,"some string"]
 
-        set('//tmp/list/+', 100)
+        set('//tmp/list/end', 100)
         assert get('//tmp/list') == [1,2,"some string",100]
 
-        set('//tmp/list/^0', 200)
+        set('//tmp/list/before:0', 200)
         assert get('//tmp/list') == [200,1,2,"some string",100]
 
-        set('//tmp/list/^0', 500)
+        set('//tmp/list/before:0', 500)
         assert get('//tmp/list') == [500,200,1,2,"some string",100]
 
-        set('//tmp/list/2^', 1000)
+        set('//tmp/list/after:2', 1000)
         assert get('//tmp/list') == [500,200,1,1000,2,"some string",100]
 
         set('//tmp/list/3', 777)
@@ -67,11 +67,14 @@ class TestCypressCommands(YTEnvSetup):
         remove('//tmp/list/0')
         assert get('//tmp/list') == [200,1,777,100]
 
-        set('//tmp/list/+', 'last')
+        set('//tmp/list/end', 'last')
         assert get('//tmp/list') == [200,1,777,100,"last"]
 
-        set('//tmp/list/^0', 'first')
+        set('//tmp/list/before:0', 'first')
         assert get('//tmp/list') == ["first",200,1,777,100,"last"]
+
+        set('//tmp/list/begin', 'very_first')
+        assert get('//tmp/list') == ["very_first","first",200,1,777,100,"last"]
 
     def test_map(self):
         set('//tmp/map', {'hello': 'world', 'list':[0,'a',{}], 'n': 1})
@@ -89,7 +92,7 @@ class TestCypressCommands(YTEnvSetup):
         set('//tmp/map/list', [])
         assert get('//tmp/map') == {"hello":"not_world","list":[]}
 
-        set('//tmp/map/list/+', {})
+        set('//tmp/map/list/end', {})
         set('//tmp/map/list/0/a', 1)
         assert get('//tmp/map') == {"hello":"not_world","list":[{"a":1}]}
 
@@ -108,7 +111,7 @@ class TestCypressCommands(YTEnvSetup):
         assert get('//tmp/t/@attr') == 100
         assert get('//tmp/t/@mode') == "rw"
 
-        remove('//tmp/t/@')
+        remove('//tmp/t/@*')
         with pytest.raises(YTError): get('//tmp/t/@attr')
         with pytest.raises(YTError): get('//tmp/t/@mode')
 

@@ -98,7 +98,7 @@ protected:
 
     struct TTableBase
     {
-        NYTree::TRichYPath Path;
+        NYPath::TRichYPath Path;
         NObjectClient::TObjectId ObjectId;
     };
 
@@ -147,7 +147,7 @@ protected:
     // Files.
     struct TUserFile
     {
-        NYTree::TRichYPath Path;
+        NYPath::TRichYPath Path;
         NFileClient::TFileYPathProxy::TRspFetchFilePtr FetchResponse;
     };
 
@@ -356,13 +356,13 @@ protected:
     virtual void LogProgress() = 0;
 
     //! Called to extract input table paths from the spec.
-    virtual std::vector<NYTree::TRichYPath> GetInputTablePaths() const = 0;
+    virtual std::vector<NYPath::TRichYPath> GetInputTablePaths() const = 0;
     
     //! Called to extract output table paths from the spec.
-    virtual std::vector<NYTree::TRichYPath> GetOutputTablePaths() const = 0;
+    virtual std::vector<NYPath::TRichYPath> GetOutputTablePaths() const = 0;
     
     //! Called to extract file paths from the spec.
-    virtual std::vector<NYTree::TRichYPath> GetFilePaths() const;
+    virtual std::vector<NYPath::TRichYPath> GetFilePaths() const;
 
 
     //! Called when a job is unable to read a chunk.

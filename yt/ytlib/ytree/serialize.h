@@ -9,8 +9,10 @@
 #include <ytlib/misc/guid.h>
 
 namespace NYT {
-    class TYsonSerializable;
-}
+
+class TYsonSerializable;
+
+} // namespace NYT
 
 namespace NYT {
 namespace NYTree {
@@ -102,9 +104,6 @@ void Serialize(
 template <class T>
 void Serialize(const TNullable<T>& value, IYsonConsumer* consumer);
 
-// TODO(roizner): move to node.h
-void Serialize(INode& value, IYsonConsumer* consumer);
-
 // std::vector
 template <class T>
 void Serialize(const std::vector<T>& value, IYsonConsumer* consumer);
@@ -120,9 +119,6 @@ void Serialize(const yhash_set<T>& value, IYsonConsumer* consumer);
 // yhash_map
 template <class T>
 void Serialize(const yhash_map<Stroka, T>& value, IYsonConsumer* consumer);
-
-// TRichYPath
-void Serialize(const TRichYPath& richPath, IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -182,11 +178,6 @@ void Deserialize(
 template <class T>
 void Deserialize(TNullable<T>& value, INodePtr node);
 
-// INode
-void Deserialize(
-    INodePtr& value,
-    INodePtr node);
-
 // std::vector
 template <class T>
 void Deserialize(std::vector<T>& value, INodePtr node);
@@ -202,9 +193,6 @@ void Deserialize(yhash_set<T>& value, INodePtr node);
 // yhash_map
 template <class T>
 void Deserialize(yhash_map<Stroka, T>& value, INodePtr node);
-
-// TRichYPath
-void Deserialize(TRichYPath& richPath, INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

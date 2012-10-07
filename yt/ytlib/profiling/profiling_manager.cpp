@@ -100,7 +100,7 @@ public:
 private:
     std::deque<TStoredSample> Samples;
 
-    void DoInvoke(NRpc::IServiceContextPtr context)
+    virtual void DoInvoke(NRpc::IServiceContextPtr context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Get);
         TYPathServiceBase::DoInvoke(context);
@@ -111,7 +111,7 @@ private:
         return value ? MakeNullable(TInstant::MicroSeconds(value.Get())) : Null;
     }
 
-    void GetSelf(TReqGet* request, TRspGet* response, TCtxGet* context)
+    virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context) override
     {
         context->SetRequestInfo("");
         auto fromTime = ParseInstant(request->Attributes().Find<i64>("from_time"));

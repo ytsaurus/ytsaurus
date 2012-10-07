@@ -6,8 +6,9 @@
 #include <ytlib/misc/string.h>
 
 #include <ytlib/ytree/fluent.h>
-#include <ytlib/ytree/ypath_client.h>
-#include <ytlib/ytree/tokenizer.h>
+#include <ytlib/ytree/yson_string.h>
+
+#include <ytlib/ypath/tokenizer.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
@@ -27,6 +28,7 @@ namespace NYT {
 namespace NObjectServer {
 
 using namespace NRpc;
+using namespace NYPath;
 using namespace NYTree;
 using namespace NCellMaster;
 using namespace NCypressClient;
@@ -178,9 +180,9 @@ DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, GetId)
         ~FormatBool(request->allow_nonempty_path_suffix()));
 
     if (!request->allow_nonempty_path_suffix()) {
-        TTokenizer tokenizer(context->GetPath());
-        if (tokenizer.ParseNext()) {
-            THROW_ERROR_EXCEPTION("Unexpected path suffix %s", ~context->GetPath());
+        NYPath::TTokenizer tokenizer(context->GetPath());
+        if (tokenizer.Advance() != NYPath::ETokenType::EndOfStream) {
+            THROW_ERROR_EXCEPTION("Unexpected path suffix: %s", ~context->GetPath());
         }
     }
 

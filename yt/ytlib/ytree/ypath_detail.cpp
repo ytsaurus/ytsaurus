@@ -1,11 +1,13 @@
 #include "stdafx.h"
 #include "ypath_detail.h"
 #include "ypath_client.h"
-#include "tokenizer.h"
 #include "ypath_format.h"
+#include "node_detail.h"
 
 #include <ytlib/ytree/convert.h>
 #include <ytlib/ytree/attribute_helpers.h>
+
+#include <ytlib/ypath/tokenizer.h>
 
 #include <ytlib/bus/message.h>
 
@@ -20,6 +22,7 @@ using namespace NProto;
 using namespace NBus;
 using namespace NRpc;
 using namespace NRpc::NProto;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,22 +30,21 @@ IYPathService::TResolveResult TYPathServiceBase::Resolve(
     const TYPath& path,
     IServiceContextPtr context)
 {
-    TTokenizer tokenizer(path);
-    tokenizer.ParseNext();
-    switch (tokenizer.GetCurrentType()) {
-        case ETokenType::EndOfStream:
-            return ResolveSelf(TYPath(tokenizer.GetCurrentSuffix()), context);
+    NYPath::TTokenizer tokenizer(path);
+    switch (tokenizer.Advance()) {
+        case NYPath::ETokenType::EndOfStream:
+            return ResolveSelf(tokenizer.GetSuffix(), context);
 
-        case PathSeparatorToken:
-            tokenizer.ParseNext();
-            if (tokenizer.GetCurrentType() == GoToAttributesToken) {
-                return ResolveAttributes(TYPath(tokenizer.GetCurrentSuffix()), context);
+        case NYPath::ETokenType::Slash: {
+            if (tokenizer.Advance() == NYPath::ETokenType::At) {
+                return ResolveAttributes(tokenizer.GetSuffix(), context);
             } else {
-                return ResolveRecursive(TYPath(tokenizer.CurrentInput()), context);
+                return ResolveRecursive(tokenizer.GetInput(), context);
             }
+        }
 
         default:
-            ThrowUnexpectedToken(tokenizer.CurrentToken());
+            tokenizer.ThrowUnexpected();
             YUNREACHABLE();
     }
 }
@@ -89,10 +91,7 @@ void TYPathServiceBase::GuardedInvoke(IServiceContextPtr context)
 
 void TYPathServiceBase::DoInvoke(IServiceContextPtr context)
 {
-    THROW_ERROR_EXCEPTION(
-        EErrorCode::NoSuchVerb,
-        "Verb %s is not supported",
-        ~context->GetVerb());
+    ThrowVerbNotSuppored(context->GetVerb());
 }
 
 Stroka TYPathServiceBase::GetLoggingCategory() const
@@ -108,58 +107,50 @@ bool TYPathServiceBase::IsWriteRequest(IServiceContextPtr context) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define THROW_VERB_NOT_SUPPORTED() \
-    THROW_ERROR TError( \
-        EErrorCode::NoSuchVerb, \
-        "Verb %s is not supported", \
-        ~context->GetVerb())
-
 #define IMPLEMENT_SUPPORTS_VERB(verb) \
     DEFINE_RPC_SERVICE_METHOD(TSupports##verb, verb) \
     { \
-        TTokenizer tokenizer(context->GetPath()); \
-        tokenizer.ParseNext(); \
-        switch (tokenizer.GetCurrentType()) { \
-            case ETokenType::EndOfStream: \
-                verb##Self(request, response, ~context); \
+        NYPath::TTokenizer tokenizer(context->GetPath()); \
+        switch (tokenizer.Advance()) { \
+            case NYPath::ETokenType::EndOfStream: \
+                verb##Self(request, response, context); \
                 break; \
             \
-            case PathSeparatorToken: \
-                tokenizer.ParseNext(); \
-                if (tokenizer.GetCurrentType() == GoToAttributesToken) { \
-                    verb##Attribute(TYPath(tokenizer.GetCurrentSuffix()), request, response, ~context); \
+            case NYPath::ETokenType::Slash: \
+                if (tokenizer.Advance() == NYPath::ETokenType::At) { \
+                    verb##Attribute(tokenizer.GetSuffix(), request, response, context); \
                 } else { \
-                    verb##Recursive(TYPath(tokenizer.CurrentInput()), request, response, ~context); \
+                    verb##Recursive(tokenizer.GetInput(), request, response, context); \
                 } \
                 break; \
             \
             default: \
-                ThrowUnexpectedToken(tokenizer.CurrentToken()); \
+                tokenizer.ThrowUnexpected(); \
                 YUNREACHABLE(); \
         } \
     } \
     \
-    void TSupports##verb::verb##Self(TReq##verb* request, TRsp##verb* response, TCtx##verb* context) \
+    void TSupports##verb::verb##Self(TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context) \
     { \
         UNUSED(request); \
         UNUSED(response); \
-        THROW_VERB_NOT_SUPPORTED(); \
+        NYTree::ThrowVerbNotSuppored(context->GetVerb()); \
     } \
     \
-    void TSupports##verb::verb##Recursive(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb* context) \
+    void TSupports##verb::verb##Recursive(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context) \
     { \
         UNUSED(path); \
         UNUSED(request); \
         UNUSED(response); \
-        THROW_VERB_NOT_SUPPORTED(); \
+        NYTree::ThrowVerbNotSuppored(context->GetVerb()); \
     } \
     \
-    void TSupports##verb::verb##Attribute(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb* context) \
+    void TSupports##verb::verb##Attribute(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context) \
     { \
         UNUSED(path); \
         UNUSED(request); \
         UNUSED(response); \
-        THROW_VERB_NOT_SUPPORTED(); \
+        NYTree::ThrowVerbNotSuppored(context->GetVerb()); \
     }
 
 IMPLEMENT_SUPPORTS_VERB(Get)
@@ -168,7 +159,6 @@ IMPLEMENT_SUPPORTS_VERB(List)
 IMPLEMENT_SUPPORTS_VERB(Remove)
 IMPLEMENT_SUPPORTS_VERB(Exists)
 
-#undef THROW_VERB_NOT_SUPPORTED
 #undef IMPLEMENT_SUPPORTS_VERB
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -193,7 +183,8 @@ TValueOrError<TYsonString> DoGetAttribute(
     }
 
     if (!userAttributes) {
-        return TError("User attributes are not supported");
+        return TError("System attribute is not found: %s",
+            ~ToYPathLiteral(key));
     }
 
     if (isSystem) {
@@ -201,8 +192,10 @@ TValueOrError<TYsonString> DoGetAttribute(
     }
 
     if (!userAttributes->FindYson(key)) {
-        return TError("No such attribute %s", ~key.Quote());
+        return TError("Attribute is not found: %s",
+            ~ToYPathLiteral(key));
     }
+    
     return userAttributes->GetYson(key);
 }
 
@@ -244,7 +237,8 @@ void DoSetAttribute(
     if (isSystem) {
         YASSERT(systemAttributeProvider);
         if (!systemAttributeProvider->SetSystemAttribute(key, value)) {
-            THROW_ERROR_EXCEPTION("System attribute %s cannot be set", ~key.Quote());
+            THROW_ERROR_EXCEPTION("System attribute cannot be set: %s",
+                ~ToYPathLiteral(key));
         }
     } else {
         if (!userAttributes) {
@@ -271,7 +265,8 @@ void DoSetAttribute(
                 
         FOREACH (const auto& attribute, systemAttributes) {
             if (attribute.Key == key) {
-                THROW_ERROR_EXCEPTION("System attribute %s cannot be set", ~key.Quote());
+                THROW_ERROR_EXCEPTION("System attribute cannot be set: %s",
+                    ~ToYPathLiteral(key));
             }
         }
     }
@@ -376,10 +371,7 @@ IYPathService::TResolveResult TSupportsAttributes::ResolveAttributes(
         verb != "Remove" &&
         verb != "Exists")
     {
-        THROW_ERROR_EXCEPTION(
-            EErrorCode::NoSuchVerb,
-            "Verb %s is not supported",
-            ~verb);
+        ThrowVerbNotSuppored(verb);
     }
 
     return TResolveResult::Here("/@" + path);
@@ -389,14 +381,14 @@ void TSupportsAttributes::GetAttribute(
     const TYPath& path,
     TReqGet* request,
     TRspGet* response,
-    TCtxGet* context)
+    TCtxGetPtr context)
 {
     auto userAttributes = GetUserAttributes();
     auto systemAttributeProvider = GetSystemAttributeProvider();
     
-    TTokenizer tokenizer(path);
+    NYPath::TTokenizer tokenizer(path);
 
-    if (!tokenizer.ParseNext()) {
+    if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
         TStringStream stream;
         TYsonWriter writer(&stream);
         
@@ -432,13 +424,14 @@ void TSupportsAttributes::GetAttribute(
             DoGetAttribute(
                 userAttributes,
                 systemAttributeProvider,
-                Stroka(tokenizer.CurrentToken().GetStringValue()))
-                    .GetOrThrow();
-        if (!tokenizer.ParseNext()) {
+                tokenizer.GetLiteralValue())
+            .GetOrThrow();
+
+        if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
             response->set_value(yson.Data());
         } else {
-            INodePtr node = ConvertToNode(yson);
-            TYsonString value = SyncYPathGet(node, TYPath(tokenizer.CurrentInput()), true);
+            auto node = ConvertToNode(yson);
+            auto value = SyncYPathGet(node, tokenizer.GetInput(), true);
             response->set_value(value.Data());
         }
     }
@@ -450,24 +443,27 @@ void TSupportsAttributes::ListAttribute(
     const TYPath& path,
     TReqList* request,
     TRspList* response,
-    TCtxList* context)
+    TCtxListPtr context)
 {
     auto userAttributes = GetUserAttributes();
     auto systemAttributeProvider = GetSystemAttributeProvider();
 
-    TTokenizer tokenizer(path);
+    NYPath::TTokenizer tokenizer(path);
 
     std::vector<Stroka> keys;
 
-    if (!tokenizer.ParseNext()) {
+    if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
         keys = DoListAttributes(userAttributes, systemAttributeProvider);
     } else  {
-        INodePtr node = ConvertToNode(
+        tokenizer.Expect(NYPath::ETokenType::Literal);
+        auto key = tokenizer.GetLiteralValue();
+        auto node = ConvertToNode(
             DoGetAttribute(
                 userAttributes,
                 systemAttributeProvider,
-                Stroka(tokenizer.CurrentToken().GetStringValue())).GetOrThrow());
-        keys = SyncYPathList(node, TYPath(tokenizer.GetCurrentSuffix()));
+                tokenizer.GetLiteralValue())
+            .GetOrThrow());
+        keys = SyncYPathList(node, tokenizer.GetSuffix());
     }
 
     response->set_keys(ConvertToYsonString(keys).Data());
@@ -478,7 +474,7 @@ void TSupportsAttributes::ExistsAttribute(
     const TYPath& path,
     TReqExists* request,
     TRspExists* response,
-    TCtxExists* context)
+    TCtxExistsPtr context)
 {
     UNUSED(request);
     UNUSED(response);
@@ -487,22 +483,21 @@ void TSupportsAttributes::ExistsAttribute(
     auto systemAttributeProvider = GetSystemAttributeProvider();
 
     bool result = true;
-    TTokenizer tokenizer(path);
-    if (tokenizer.ParseNext()) {
-        auto yson =
+
+    NYPath::TTokenizer tokenizer(path);
+    if (tokenizer.Advance() != NYPath::ETokenType::EndOfStream) {
+        auto ysonOrError =
             DoGetAttribute(
                 userAttributes,
                 systemAttributeProvider,
-                Stroka(tokenizer.CurrentToken().GetStringValue()));
-        if (!yson.IsOK()) {
-            result = false;
-        }
-        else {
-            if (tokenizer.ParseNext()) {
-                result = SyncYPathExists(
-                    ConvertToNode(yson.GetOrThrow()),
-                    TYPath(tokenizer.CurrentInput()));
+                tokenizer.GetLiteralValue());
+        if (ysonOrError.IsOK()) {
+            if (tokenizer.Advance() != NYPath::ETokenType::EndOfStream) {
+                auto node = ConvertToNode(ysonOrError.Value());
+                result = SyncYPathExists(node, tokenizer.GetInput());
             }
+        } else {
+            result = false;
         }
     }
     response->set_value(result);
@@ -514,14 +509,14 @@ void TSupportsAttributes::SetAttribute(
     const TYPath& path,
     TReqSet* request,
     TRspSet* response,
-    TCtxSet* context)
+    TCtxSetPtr context)
 {
     auto userAttributes = GetUserAttributes();
     auto systemAttributeProvider = GetSystemAttributeProvider();
 
-    TTokenizer tokenizer(path);
+    NYPath::TTokenizer tokenizer(path);
 
-    if (!tokenizer.ParseNext()) {
+    if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
         auto newAttributes = ConvertToAttributes(TYsonString(request->value()));
         auto newKeys_ = newAttributes->List();
         yhash_set<Stroka> newKeys(newKeys_.begin(), newKeys_.end());
@@ -558,11 +553,12 @@ void TSupportsAttributes::SetAttribute(
                 newAttributes->GetYson(key));
         }
     } else {
-        auto key = Stroka(tokenizer.CurrentToken().GetStringValue());
-        if (!tokenizer.ParseNext()) {
-            if (key.Empty()) {
-                THROW_ERROR_EXCEPTION("Attribute key cannot be empty");
-            }
+        tokenizer.Expect(NYPath::ETokenType::Literal);
+        auto key = tokenizer.GetLiteralValue();
+        if (key.Empty()) {
+            THROW_ERROR_EXCEPTION("Attribute key cannot be empty");
+        }
+        if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
             auto oldValue = DoFindAttribute(userAttributes, systemAttributeProvider, key);
             auto newValue = TYsonString(request->value());
             newValue.Validate();
@@ -577,15 +573,16 @@ void TSupportsAttributes::SetAttribute(
                 newValue);
         } else {
             bool isSystem;
-            TYsonString yson =
+            auto yson =
                 DoGetAttribute(
                     userAttributes,
                     systemAttributeProvider,
                     key,
-                    &isSystem).GetOrThrow();
-            INodePtr node = ConvertToNode(yson);
-            SyncYPathSet(node, TYPath(tokenizer.CurrentInput()), TYsonString(request->value()));
-            TYsonString updatedYson = ConvertToYsonString(~node);
+                    &isSystem)
+                .GetOrThrow();
+            auto node = ConvertToNode(yson);
+            SyncYPathSet(node, tokenizer.GetInput(), TYsonString(request->value()));
+            auto updatedYson = ConvertToYsonString(node);
             OnUpdateAttribute(
                 key,
                 DoFindAttribute(userAttributes, systemAttributeProvider, key),
@@ -606,14 +603,16 @@ void TSupportsAttributes::RemoveAttribute(
     const TYPath& path,
     TReqRemove* request,
     TRspRemove* response,
-    TCtxRemove* context)
+    TCtxRemovePtr context)
 {
     auto userAttributes = GetUserAttributes();
     auto systemAttributeProvider = GetSystemAttributeProvider();
     
-    TTokenizer tokenizer(path);
+    NYPath::TTokenizer tokenizer(path);
+    tokenizer.Advance();
+    tokenizer.Expect(NYPath::ETokenType::Literal);
 
-    if (!tokenizer.ParseNext() || tokenizer.CurrentToken().GetType() == WildcardToken) {
+    if (tokenizer.GetToken() == WildcardToken) {
         if (userAttributes) {
             auto userKeys = userAttributes->List();
             FOREACH (const auto& key, userKeys) {
@@ -624,26 +623,28 @@ void TSupportsAttributes::RemoveAttribute(
             }
         }
     } else {
-        auto key = Stroka(tokenizer.CurrentToken().GetStringValue());
-        if (!tokenizer.ParseNext()) {
+        auto key = tokenizer.GetLiteralValue();
+        if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
             OnUpdateAttribute(
                 key,
                 DoFindAttribute(userAttributes, systemAttributeProvider, key),
                 Null);
             if (!DoRemoveAttribute(userAttributes, systemAttributeProvider, key)) {
-                THROW_ERROR_EXCEPTION("User attribute %s is not found",
-                    ~Stroka(key).Quote());
+                THROW_ERROR_EXCEPTION("User attribute is not found: %s",
+                    ~ToYPathLiteral(key));
             }
         } else {
             bool isSystem;
-            TYsonString yson = DoGetAttribute(
-                userAttributes,
-                systemAttributeProvider,
-                key,
-                &isSystem).GetOrThrow();
+            auto yson =
+                DoGetAttribute(
+                    userAttributes,
+                    systemAttributeProvider,
+                    key,
+                    &isSystem)
+                .GetOrThrow();
             auto node = ConvertToNode(yson);
-            SyncYPathRemove(node, TYPath(tokenizer.CurrentInput()));
-            auto updatedYson = ConvertToYsonString(~node);
+            SyncYPathRemove(node, tokenizer.GetInput());
+            auto updatedYson = ConvertToYsonString(node);
             OnUpdateAttribute(
                 key,
                 DoFindAttribute(userAttributes, systemAttributeProvider, key),
@@ -728,9 +729,9 @@ private:
     {
         Stroka localKey(key);
         AttributeWriter.Reset(new TYsonWriter(&AttributeStream));
-        Forward(~AttributeWriter,
-            BIND( [=] ()
-            {
+        Forward(
+            ~AttributeWriter,
+            BIND ([=] () {
                 AttributeWriter.Reset(NULL);
                 Attributes->SetYson(localKey, TYsonString(AttributeStream.Str()));
                 AttributeStream.clear();
@@ -753,7 +754,7 @@ TNodeSetterBase::~TNodeSetterBase()
 
 void TNodeSetterBase::ThrowInvalidType(ENodeType actualType)
 {
-    THROW_ERROR_EXCEPTION("Invalid node type (Expected: %s, Actual: %s)",
+    THROW_ERROR_EXCEPTION("Invalid node type: expected: %s, actual %s",
         ~GetExpectedType().ToString().Quote(),
         ~actualType.ToString().Quote());
 }
@@ -877,7 +878,7 @@ class TRootService
     : public IYPathService
 {
 public:
-    TRootService(IYPathServicePtr underlyingService)
+    explicit TRootService(IYPathServicePtr underlyingService)
         : UnderlyingService(underlyingService)
     { }
 
@@ -893,15 +894,12 @@ public:
     {
         UNUSED(context);
 
-        TTokenizer tokenizer(path);
-        if (!tokenizer.ParseNext()) {
-            THROW_ERROR_EXCEPTION("YPath cannot be empty");
-        }
-        if (tokenizer.GetCurrentType() != RootToken) {
-            THROW_ERROR_EXCEPTION("YPath must start with '/'");
+        NYPath::TTokenizer tokenizer(path);
+        if (tokenizer.Advance() != NYPath::ETokenType::Slash) {
+            THROW_ERROR_EXCEPTION("YPath must start with \"/\"");
         }
 
-        return TResolveResult::There(UnderlyingService, TYPath(tokenizer.GetCurrentSuffix()));
+        return TResolveResult::There(UnderlyingService, tokenizer.GetSuffix());
     }
 
     virtual Stroka GetLoggingCategory() const override

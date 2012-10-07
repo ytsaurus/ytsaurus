@@ -77,7 +77,7 @@ TPeerId TChangeLogDownloader::GetChangeLogSource(const TMetaVersion& version)
         request->set_change_log_id(version.SegmentId);
         awaiter->Await(
             request->Invoke(),
-            EscapeYPathToken(CellManager->GetPeerAddress(id)),
+            CellManager->GetPeerAddress(id),
             BIND(
                 &TChangeLogDownloader::OnResponse,
                 awaiter,

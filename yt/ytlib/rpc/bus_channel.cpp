@@ -12,7 +12,7 @@
 #include <ytlib/bus/tcp_client.h>
 #include <ytlib/bus/config.h>
 
-#include <ytlib/ytree/ypath_client.h>
+#include <ytlib/ypath/token.h>
 
 #include <ytlib/rpc/rpc.pb.h>
 
@@ -20,7 +20,7 @@ namespace NYT {
 namespace NRpc {
 
 using namespace NBus;
-using namespace NYTree;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -177,8 +177,8 @@ private:
             activeRequest.ResponseHandler = responseHandler;
             activeRequest.Timer = Profiler.TimingStart(
                 "/services/" +
-                EscapeYPathToken(request->GetPath()) + "/" +
-                EscapeYPathToken(request->GetVerb()) +
+                ToYPathLiteral(request->GetPath()) + "/" +
+                ToYPathLiteral(request->GetVerb()) +
                 "/time",
                 NProfiling::ETimerMode::Sequential);
 

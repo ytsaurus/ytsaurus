@@ -1,11 +1,4 @@
 #include "stdafx.h"
-#include "yson_producer.h"
-#include "node.h"
-#include "yson_parser.h"
-#include "yson_stream.h"
-#include "tree_visitor.h"
-#include "tree_builder.h"
-#include "null_yson_consumer.h"
 
 #include <ytlib/ytree/yson_serializable.h>
 
@@ -131,12 +124,6 @@ void Serialize(TInputStream& input, IYsonConsumer* consumer)
     Serialize(TYsonInput(&input), consumer);
 }
 
-// TNodePtr
-void Serialize(INode& value, IYsonConsumer* consumer)
-{
-    VisitTree(&value, consumer);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 // i64
@@ -224,12 +211,6 @@ void Deserialize(TInstant& value, INodePtr node)
 void Deserialize(TGuid& value, INodePtr node)
 {
     value = TGuid::FromString(node->AsString()->GetValue());
-}
-
-// TNodePtr
-void Deserialize(INodePtr& value, INodePtr node)
-{
-    value = node;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -26,6 +26,7 @@ namespace NYT {
 namespace NChunkServer {
 
 using namespace NYTree;
+using namespace NYPath;
 using namespace NCypressServer;
 using namespace NCypressClient;
 using namespace NMetaState;
@@ -192,7 +193,7 @@ private:
 
 INodeTypeHandlerPtr CreateChunkListMapTypeHandler(TBootstrap* bootstrap)
 {
-    YASSERT(bootstrap);
+    YCHECK(bootstrap);
 
     return CreateVirtualTypeHandler(
         bootstrap,
@@ -426,13 +427,13 @@ private:
         // TODO(babenko): check for errors and retry
 
         {
-            auto req = TCypressYPathProxy::Create("/" + EscapeYPathToken(address));
+            auto req = TCypressYPathProxy::Create("/" + ToYPathLiteral(address));
             req->set_type(EObjectType::Node);
             ExecuteVerb(service, req);
         }
 
         {
-            auto req = TCypressYPathProxy::Create("/" + EscapeYPathToken(address) + "/orchid");
+            auto req = TCypressYPathProxy::Create("/" + ToYPathLiteral(address) + "/orchid");
             req->set_type(EObjectType::Orchid);
             req->Attributes().Set<Stroka>("remote_address", address);
             ExecuteVerb(service, req);
@@ -586,7 +587,7 @@ public:
 
 INodeTypeHandlerPtr CreateNodeMapTypeHandler(TBootstrap* bootstrap)
 {
-    YASSERT(bootstrap);
+    YCHECK(bootstrap);
 
     return New<TNodeMapTypeHandler>(bootstrap);
 }

@@ -14,8 +14,11 @@ namespace NCypressClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! "#"-prefix.
+extern TStringBuf ObjectIdPathPrefix;
+
 //! Creates the YPath pointing to an object with a given id.
-NYTree::TYPath FromObjectId(const TObjectId& id);
+NYPath::TYPath FromObjectId(const TObjectId& id);
 
 //! Extracts transaction id associated with the given request.
 TTransactionId GetTransactionId(NRpc::IServiceContextPtr context);

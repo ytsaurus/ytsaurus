@@ -60,7 +60,7 @@ std::vector<Stroka> ConvertToStrings(TIter begin, TIter end, size_t maxSize)
 Stroka UnderscoreCaseToCamelCase(const Stroka& data);
 Stroka CamelCaseToUnderscoreCase(const Stroka& data);
 
-Stroka TrimLeadingWhitespace(const Stroka& data);
+Stroka TrimLeadingWhitespaces(const Stroka& data);
 
 bool ParseBool(const Stroka& value);
 Stroka FormatBool(bool value);

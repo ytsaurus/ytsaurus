@@ -50,9 +50,9 @@ protected:
     { \
     protected: \
         DECLARE_RPC_SERVICE_METHOD(NProto, verb); \
-        virtual void verb##Self(TReq##verb* request, TRsp##verb* response, TCtx##verb* context); \
-        virtual void verb##Recursive(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb* context); \
-        virtual void verb##Attribute(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb* context); \
+        virtual void verb##Self(TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context); \
+        virtual void verb##Recursive(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context); \
+        virtual void verb##Attribute(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context); \
     }
 
 DECLARE_SUPPORTS_VERB(Get);
@@ -92,38 +92,38 @@ protected:
     virtual ISystemAttributeProvider* GetSystemAttributeProvider();
 
     virtual TResolveResult ResolveAttributes(
-        const NYTree::TYPath& path,
-        NRpc::IServiceContextPtr context);
+        const NYPath::TYPath& path,
+        NRpc::IServiceContextPtr context) override;
     
     virtual void GetAttribute(
         const TYPath& path,
         TReqGet* request,
         TRspGet* response,
-        TCtxGet* context);
+        TCtxGetPtr context) override;
 
     virtual void ListAttribute(
         const TYPath& path,
         TReqList* request,
         TRspList* response,
-        TCtxList* context);
+        TCtxListPtr context) override;
 
     virtual void ExistsAttribute(
         const TYPath& path,
         TReqExists* request,
         TRspExists* response,
-        TCtxExists* context);
+        TCtxExistsPtr context) override;
 
     virtual void SetAttribute(
         const TYPath& path,
         TReqSet* request,
         TRspSet* response,
-        TCtxSet* context);
+        TCtxSetPtr context) override;
 
     virtual void RemoveAttribute(
         const TYPath& path,
         TReqRemove* request,
         TRspRemove* response,
-        TCtxRemove* context);
+        TCtxRemovePtr context) override;
 
     // This method is called before the attribute with the corresponding key
     // is updated (added, removed or changed).
@@ -134,6 +134,7 @@ protected:
 
 private:
     IAttributeDictionary& GetOrCreateCombinedAttributes();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -44,7 +44,7 @@ Stroka CamelCaseToUnderscoreCase(const Stroka& data)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka TrimLeadingWhitespace(const Stroka& data)
+Stroka TrimLeadingWhitespaces(const Stroka& data)
 {
     for (int i = 0; i < data.size(); ++i) {
         if (data[i] != ' ') {
@@ -63,8 +63,8 @@ bool ParseBool(const Stroka& value)
     } else if (value == "false") {
         return false;
     } else {
-        THROW_ERROR_EXCEPTION("Could not parse boolean value %s",
-            ~Stroka(value).Quote());
+        THROW_ERROR_EXCEPTION("Error parsing boolean value: %s",
+            ~value);
     }
 }
 

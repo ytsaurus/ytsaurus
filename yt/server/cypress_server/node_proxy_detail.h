@@ -4,15 +4,14 @@
 #include "node_detail.h"
 
 #include <ytlib/ytree/node.h>
-#include <ytlib/ytree/ypath_format.h>
-#include <ytlib/ytree/tokenizer.h>
-#include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/ypath_service.h>
 #include <ytlib/ytree/ypath_detail.h>
 #include <ytlib/ytree/node_detail.h>
 #include <ytlib/ytree/convert.h>
 #include <ytlib/ytree/ephemeral.h>
 #include <ytlib/ytree/fluent.h>
+
+#include <ytlib/ypath/tokenizer.h>
 
 #include <ytlib/cypress_client/cypress_ypath.pb.h>
 
@@ -270,8 +269,8 @@ protected:
             mode != ELockMode::Shared &&
             mode != ELockMode::Exclusive)
         {
-            THROW_ERROR_EXCEPTION("Invalid lock mode %s",
-                ~CamelCaseToUnderscoreCase(mode.ToString()).Quote());
+            THROW_ERROR_EXCEPTION("Invalid lock mode: %s",
+                ~mode.ToString());
         }
 
         if (!Transaction) {
@@ -289,15 +288,13 @@ protected:
         UNUSED(request);
         UNUSED(response);
 
-        NYTree::TTokenizer tokenizer(context->GetPath());
-        if (!tokenizer.ParseNext()) {
-            THROW_ERROR_EXCEPTION("Node %s already exists",
-                ~this->GetPath());
+        NYPath::TTokenizer tokenizer(context->GetPath());
+        if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
+            THROW_ERROR_EXCEPTION("Node already exists: %s", ~this->GetPath());
         }
 
         ThrowVerbNotSuppored(this, context->GetVerb());
     }
-
 
     const ICypressNode* GetImpl(const TNodeId& nodeId) const
     {
@@ -503,7 +500,7 @@ protected:
     { }
 
     virtual void SetRecursive(
-        const NYTree::TYPath& path,
+        const NYPath::TYPath& path,
         NYTree::INodePtr value) = 0;
 
     virtual void DoInvoke(NRpc::IServiceContextPtr context) override
@@ -537,25 +534,23 @@ protected:
         return TBase::GetSystemAttribute(name, consumer);
     }
 
-
-    Stroka GetCreativePath(const NYTree::TYPath& path)
+    NYPath::TYPath GetCreativePath(const NYPath::TYPath& path)
     {
-        NYTree::TTokenizer tokenizer(path);
-        if (!tokenizer.ParseNext()) {
-            auto cypressManager = this->Bootstrap->GetCypressManager();
-            THROW_ERROR_EXCEPTION("Node %s already exists",
+        NYPath::TTokenizer tokenizer(path);
+        if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
+            THROW_ERROR_EXCEPTION("Node already exists: %s",
                 ~this->GetPath());
         }
-        tokenizer.CurrentToken().CheckType(NYTree::PathSeparatorToken);
-        return NYTree::TYPath(tokenizer.GetCurrentSuffix());
+
+        tokenizer.Expect(NYPath::ETokenType::Slash);
+        return tokenizer.GetSuffix();
     }
 
-    ICypressNodeProxyPtr ResolveSourcePath(const NYTree::TYPath& path)
+    ICypressNodeProxyPtr ResolveSourcePath(const NYPath::TYPath& path)
     {
         auto sourceNode = this->GetResolver()->ResolvePath(path);
         return dynamic_cast<ICypressNodeProxy*>(~sourceNode);
     }
-
 
     DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, Create)
     {
@@ -567,7 +562,8 @@ protected:
 
         auto handler = cypressManager->FindHandler(type);
         if (!handler) {
-            THROW_ERROR_EXCEPTION("Unknown object type");
+            THROW_ERROR_EXCEPTION("Unknown object type: %s",
+                ~type.ToString());
         }
 
         auto* newNode = cypressManager->CreateNode(
@@ -645,8 +641,8 @@ private:
     typedef TCompositeNodeProxyBase<NYTree::IMapNode, TMapNode> TBase;
 
     virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
-    virtual void SetRecursive(const NYTree::TYPath& path, NYTree::INodePtr value) override;
-    virtual IYPathService::TResolveResult ResolveRecursive(const NYTree::TYPath& path, NRpc::IServiceContextPtr context) override;
+    virtual void SetRecursive(const NYPath::TYPath& path, NYTree::INodePtr value) override;
+    virtual IYPathService::TResolveResult ResolveRecursive(const NYPath::TYPath& path, NRpc::IServiceContextPtr context) override;
 
 };
 
@@ -679,12 +675,12 @@ private:
     typedef TCompositeNodeProxyBase<NYTree::IListNode, TListNode> TBase;
 
     virtual void SetRecursive(
-        const NYTree::TYPath& path,
-        NYTree::INodePtr value) override;
+        const NYPath::TYPath& path,
+        NYTree::INodePtr value);
     virtual IYPathService::TResolveResult ResolveRecursive(
-        const NYTree::TYPath& path,
+        const NYPath::TYPath& path,
         NRpc::IServiceContextPtr context) override;
-
+        
 };
 
 ////////////////////////////////////////////////////////////////////////////////

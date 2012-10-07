@@ -42,50 +42,6 @@ class TestLocks(YTEnvSetup):
 
         abort_transaction(tx)
 
-
-    @pytest.mark.xfail(run = False, reason = 'Issue #293')
-    def test_shared_locks_on_different_types(self):
-
-        types_to_check = """
-        string_node
-        integer_node
-        double_node
-        map_node
-        list_node
-
-        file
-        table
-        chunk_map
-        lost_chunk_map
-        overreplicated_chunk_map
-        underreplicated_chunk_map
-        chunk_list_map
-        transaction_map
-        node_map
-        lock_map
-        holder
-        holder_map
-        orchid
-        """.split()
-
-        # check creation of different types and shared locks on them
-        for object_type in types_to_check:
-            tx = start_transaction()
-            if object_type != "file":
-                create(object_type, '//tmp/some', tx = tx)
-                assert get('//tmp/some/@type', tx = tx) == object_type
-            else:
-                #file can't be created via create
-                with pytest.raises(YTError): create(object_type, '//tmp/some', tx = tx)
-            
-            if object_type != "table":
-                with pytest.raises(YTError): lock('//tmp/some', mode = 'shared', tx = tx)
-            else:
-                # shared locks are available only on tables 
-                lock('//tmp/some', mode = 'shared', tx = tx)
-
-            abort_transaction(tx)
-
     def test_shared_lock_inside_tx(self):
         tx_outer = start_transaction()
         create('table', '//tmp/table', tx=tx_outer)
@@ -107,28 +63,6 @@ class TestLocks(YTEnvSetup):
         with pytest.raises(YTError): set('//tmp/node', 200, tx = tx)
         
         abort_transaction(tx)
-
-    @pytest.mark.xfail(run = False, reason = 'Switched off before choosing the right semantics of recursive locks')
-    def test_lock_combinations(self):
-
-        set('//tmp/a', {})
-        set('//tmp/a/b', {})
-        set('//tmp/a/b/c', 42)
-
-        tx1 = start_transaction()
-        tx2 = start_transaction()
-
-        lock('//tmp/a/b', tx = tx1)
-
-        # now taking lock for any element in //tmp/a/b/c cause en error
-        with pytest.raises(YTError): lock('//tmp/a', tx = tx2)
-        with pytest.raises(YTError): lock('//tmp/a/b', tx = tx2)
-        with pytest.raises(YTError): lock('//tmp/a/b/c', tx = tx2)
-
-        abort_transaction(tx1)
-        abort_transaction(tx2)
-
-        remove('//tmp/a')
 
     def test_remove_map_subtree_lock(self):
         set('//tmp/a', {'b' : 1})

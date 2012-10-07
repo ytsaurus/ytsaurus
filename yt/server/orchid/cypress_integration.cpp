@@ -146,9 +146,8 @@ private:
         const Stroka& verb,
         TOrchidServiceProxy::TRspExecutePtr response)
     {
-        LOG_INFO("Reply from a remote Orchid received (RequestId: %s): %s",
-            ~response->GetRequestId().ToString(),
-            ~ToString(response->GetError()));
+        LOG_INFO(*response, "Reply from a remote Orchid received (RequestId: %s)",
+            ~ToString(context->GetRequestId()));
 
         if (response->IsOK()) {
             auto innerResponseMessage = CreateMessageFromParts(response->Attachments());

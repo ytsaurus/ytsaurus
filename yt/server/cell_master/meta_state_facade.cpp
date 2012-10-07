@@ -2,12 +2,10 @@
 #include "meta_state_facade.h"
 #include "config.h"
 
-#include <ytlib/misc/periodic_invoker.h>
-
-#include <ytlib/actions/action_queue.h>
-
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/ypath_client.h>
+
+#include <ytlib/ypath/token.h>
 
 #include <ytlib/rpc/bus_channel.h>
 
@@ -33,6 +31,7 @@ namespace NCellMaster {
 using namespace NRpc;
 using namespace NMetaState;
 using namespace NYTree;
+using namespace NYPath;
 using namespace NCypressServer;
 using namespace NCypressClient;
 using namespace NTransactionClient;
@@ -279,7 +278,7 @@ private:
                 emptyOpaqueMap);
 
             FOREACH (const auto& address, Bootstrap->GetConfig()->MetaState->Cell->Addresses) {
-                auto addressPath = "/" + EscapeYPathToken(address);
+                auto addressPath = "/" + ToYPathLiteral(address);
                 SetYPath(
                     rootService,
                     "//sys/masters" + addressPath,

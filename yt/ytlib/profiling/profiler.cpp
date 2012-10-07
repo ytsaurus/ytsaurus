@@ -3,14 +3,14 @@
 #include "profiling_manager.h"
 #include "timing.h"
 
-#include <ytlib/ytree/ypath_client.h>
+#include <ytlib/ypath/token.h>
 
 #include <util/datetime/cputimer.h>
 
 namespace NYT {
 namespace NProfiling  {
 
-using namespace NYTree;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,7 +46,7 @@ TRateCounter::TRateCounter(const TYPath& path, TDuration interval)
 ////////////////////////////////////////////////////////////////////////////////
 
 TAggregateCounter::TAggregateCounter(
-    const NYTree::TYPath& path,
+    const NYPath::TYPath& path,
     EAggregateMode mode,
     TDuration interval)
     : TCounterBase(path, interval)
@@ -118,7 +118,7 @@ TDuration TProfiler::TimingStop(TTimer& timer)
     return CpuDurationToDuration(cpuDuration);
 }
 
-TDuration TProfiler::TimingCheckpoint(TTimer& timer, const TYPath& pathSuffix)
+TDuration TProfiler::TimingCheckpoint(TTimer& timer, const Stroka& key)
 {
     // Failure here means that the timer was not started or already stopped.
     YASSERT(timer.Start != 0);
@@ -131,7 +131,7 @@ TDuration TProfiler::TimingCheckpoint(TTimer& timer, const TYPath& pathSuffix)
         timer.Mode = ETimerMode::Sequential;
     }
 
-    auto path = timer.Path + "/" + pathSuffix;
+    auto path = timer.Path + "/" + ToYPathLiteral(key);
     switch (timer.Mode) {
         case ETimerMode::Sequential: {
             auto lastCheckpoint = timer.LastCheckpoint == 0 ? timer.Start : timer.LastCheckpoint;

@@ -18,9 +18,11 @@ static Stroka TransactionIdAttribute("transaction_id");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TStringBuf ObjectIdPathPrefix("#");
+
 TYPath FromObjectId(const TObjectId& id)
 {
-    return Stroka('#') + EscapeYPathToken(id.ToString());
+    return Stroka(ObjectIdPathPrefix) + ToString(id);
 }
 
 TTransactionId GetTransactionId(IServiceContextPtr context)

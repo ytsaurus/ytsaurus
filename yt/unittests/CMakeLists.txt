@@ -45,6 +45,7 @@ set( SRCS
   ${BASE}/yamr_writer_ut.cpp
   ${BASE}/yamred_dsv_parser_ut.cpp
   ${BASE}/yamred_dsv_writer_ut.cpp
+  ${BASE}/ypath_tokenizer_ut.cpp
   ${BASE}/ypath_ut.cpp
   ${BASE}/yson_parser_ut.cpp
   ${BASE}/yson_serializable_ut.cpp

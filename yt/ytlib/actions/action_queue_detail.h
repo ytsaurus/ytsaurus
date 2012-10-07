@@ -4,14 +4,15 @@
 #include "invoker.h"
 #include "callback.h"
 
-#include <ytlib/profiling/profiler.h>
-
 #include <ytlib/misc/nullable.h>
 
-#include <ytlib/ytree/public.h>
+#include <ytlib/profiling/profiler.h>
+
+#include <ytlib/ypath/public.h>
 
 #include <util/system/thread.h>
 #include <util/system/event.h>
+
 #include <util/thread/lfqueue.h>
 
 namespace NYT {
@@ -25,7 +26,7 @@ class TQueueInvoker
 {
 public:
     TQueueInvoker(
-        const NYTree::TYPath& profilingPath,
+        const NYPath::TYPath& profilingPath,
         TActionQueueBase* owner,
         bool enableLogging);
 
