@@ -96,7 +96,7 @@ class TestCypressCommands(YTEnvSetup):
         set('//tmp/map/list/0/a', 1)
         assert get('//tmp/map') == {"hello":"not_world","list":[{"a":1}]}
 
-        set('//tmp/map/list/^0', {})
+        set('//tmp/map/list/begin', {})
         set('//tmp/map/list/0/b', 2)
         assert get('//tmp/map') == {"hello":"not_world","list":[{"b":2},{"a":1}]}
 
