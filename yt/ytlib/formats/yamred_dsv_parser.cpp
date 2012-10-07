@@ -18,7 +18,7 @@ class TYamredDsvParser
 {
 public:
     TYamredDsvParser(
-        NYTree::IYsonConsumer* consumer,
+        IYsonConsumer* consumer,
         TYamredDsvFormatConfigPtr config)
         : TYamrBaseParser(
               config->FieldSeparator,
@@ -26,14 +26,16 @@ public:
               config->HasSubkey)
         , Consumer(consumer)
         , Config(config)
-        , DsvParser(
-            CreateParserForDsv(Consumer, Config, /*make record processing*/ false))
+        , DsvParser(CreateParserForDsv(
+            Consumer,
+            Config,
+            /*wrapWithMap*/ false))
     { }
 
 private:
-    NYTree::IYsonConsumer* Consumer;
+    IYsonConsumer* Consumer;
     TYamredDsvFormatConfigPtr Config;
-    TAutoPtr<NYTree::IParser> DsvParser;
+    TAutoPtr<IParser> DsvParser;
 
     void ConsumeFields(
         const std::vector<Stroka>& fieldNames,
@@ -42,15 +44,16 @@ private:
         // Feel the power of arcadia util.
         // How elegent it cuts string using the sharp axe!
         Stroka delimiter(Config->YamrKeysSeparator);
-        VectorStrok fields =
-            splitStroku(
-                Stroka(wholeField.begin(), wholeField.end()),
-                delimiter.begin());
-        if (fields.ysize() != fieldNames.size()) {
-            THROW_ERROR_EXCEPTION("Invalid number of key fields: expected %d, actual %d",
+        auto fields = splitStroku(
+            Stroka(wholeField.begin(), wholeField.end()),
+            delimiter.begin());
+        
+        if (fields.size() != fieldNames.size()) {
+            THROW_ERROR_EXCEPTION("Invalid number of key fields in YAMRed DSV: expected %d, actual %d",
                 static_cast<int>(fieldNames.size()),
                 static_cast<int>(fields.size()));
         }
+
         for (int i = 0; i < fields.size(); ++i) {
             Consumer->OnKeyedItem(fieldNames[i]);
             Consumer->OnStringScalar(fields[i]);
@@ -79,13 +82,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAutoPtr<NYTree::IParser> CreateParserForYamredDsv(
-    NYTree::IYsonConsumer* consumer,
+TAutoPtr<IParser> CreateParserForYamredDsv(
+    IYsonConsumer* consumer,
     TYamredDsvFormatConfigPtr config)
 {
-    if (!config) {
-        config = New<TYamredDsvFormatConfig>();
-    }
     return new TYamredDsvParser(consumer, config);
 }
 
@@ -93,7 +93,7 @@ TAutoPtr<NYTree::IParser> CreateParserForYamredDsv(
 
 void ParseYamredDsv(
     TInputStream* input,
-    NYTree::IYsonConsumer* consumer,
+    IYsonConsumer* consumer,
     TYamredDsvFormatConfigPtr config)
 {
     auto parser = CreateParserForYamredDsv(consumer, config);
@@ -102,7 +102,7 @@ void ParseYamredDsv(
 
 void ParseYamredDsv(
     const TStringBuf& data,
-    NYTree::IYsonConsumer* consumer,
+    IYsonConsumer* consumer,
     TYamredDsvFormatConfigPtr config)
 {
     auto parser = CreateParserForYamredDsv(consumer, config);

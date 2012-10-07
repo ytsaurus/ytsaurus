@@ -11,22 +11,26 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*!
+ *  \param wrapWithMap If True then the parser wraps values with calls to
+ *  #IYsonConsumer::OnBeginMap and #IYsonConsumer::OnEndMap.
+ */
 TAutoPtr<NYTree::IParser> CreateParserForDsv(
     NYTree::IYsonConsumer* consumer,
     TDsvFormatConfigPtr config = NULL,
-    bool makeRecordProcessing = true);
+    bool wrapWithMap = true);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void ParseDsv(
     TInputStream* input,
     NYTree::IYsonConsumer* consumer,
-    TDsvFormatConfigPtr config = NULL);
+    TDsvFormatConfigPtr config = New<TDsvFormatConfig>());
 
 void ParseDsv(
     const TStringBuf& data,
     NYTree::IYsonConsumer* consumer,
-    TDsvFormatConfigPtr config = NULL);
+    TDsvFormatConfigPtr config = New<TDsvFormatConfig>());
 
 ////////////////////////////////////////////////////////////////////////////////
 

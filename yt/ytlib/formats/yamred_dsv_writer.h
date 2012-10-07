@@ -12,14 +12,14 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Note: #TYamrWriter supports only tabular data
+//! Note: TYamrWriter only supports tabular data.
 class TYamredDsvWriter
     : public TFormatsConsumerBase
 {
 public:
     explicit TYamredDsvWriter(
         TOutputStream* stream,
-        TYamredDsvFormatConfigPtr config = NULL);
+        TYamredDsvFormatConfigPtr config = New<TYamredDsvFormatConfig>());
 
     ~TYamredDsvWriter();
 
@@ -48,8 +48,7 @@ private:
     );
     EState State;
     
-    // On small amount of data set and map work faster
-    // than hash set and hash map.
+    // For small data sizes, set and map are faster than hash set and hash map.
     TSmallSet<TStringBuf, 4> KeyColumnNames;
     TSmallSet<TStringBuf, 4> SubkeyColumnNames;
 

@@ -10,21 +10,21 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDsvParser
-    : public NYTree::IParser
+    : public IParser
 {
 public:
     TDsvParser(
-        NYTree::IYsonConsumer* consumer,
+        IYsonConsumer* consumer,
         TDsvFormatConfigPtr config,
-        bool makeRecordProcessing);
+        bool wrapWithmap);
 
-    virtual void Read(const TStringBuf& data);
-    virtual void Finish();
+    virtual void Read(const TStringBuf& data) override;
+    virtual void Finish() override;
 
 private:
-    NYTree::IYsonConsumer* Consumer;
+    IYsonConsumer* Consumer;
     TDsvFormatConfigPtr Config;
-    bool MakeRecordProcessing;
+    bool WrapWithMap;
 
     const char* Consume(const char* begin, const char* end);
     const char* FindStopPosition(const char* begin, const char* end) const;
@@ -55,19 +55,16 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDsvParser::TDsvParser(IYsonConsumer* consumer, TDsvFormatConfigPtr config, bool makeRecordProcessing)
+TDsvParser::TDsvParser(IYsonConsumer* consumer, TDsvFormatConfigPtr config, bool wrapWithMap)
     : Consumer(consumer)
     , Config(config)
-    , MakeRecordProcessing(makeRecordProcessing)
+    , WrapWithMap(wrapWithMap)
     , State(GetStartState())
-    , NewRecordStarted(!MakeRecordProcessing)
+    , NewRecordStarted(!WrapWithMap)
     , ExpectingEscapedChar(false)
     , RecordCount(1)
     , FieldCount(1)
 {
-    if (!Config) {
-        Config = New<TDsvFormatConfig>();
-    }
     InitDsvSymbols(Config);
 }
 
@@ -82,11 +79,11 @@ void TDsvParser::Read(const TStringBuf& data)
 void TDsvParser::Finish()
 {
     if (ExpectingEscapedChar) {
-        ythrow yexception() << "Dsv record is incomplete, expecting escaped character";
+        THROW_ERROR_EXCEPTION("Incomplete escape sequence in DSV");
     }
     if (State == EState::InsideKey) {
         if (!CurrentToken.empty()) {
-            ythrow yexception() << "Dsv record is incomplete, there is key without value";
+            THROW_ERROR_EXCEPTION("Missing value in DSV");
         }
     }
     if (!CurrentToken.empty()) {
@@ -104,7 +101,7 @@ void TDsvParser::Finish()
 
 const char* TDsvParser::Consume(const char* begin, const char* end)
 {
-    // Processing escaping symbols
+    // Process escaping symbols.
     if (!ExpectingEscapedChar && *begin == Config->EscapingSymbol) {
         ExpectingEscapedChar = true;
         return begin + 1;
@@ -167,7 +164,7 @@ void TDsvParser::StartRecordIfNeeded()
 
 void TDsvParser::FinishRecord()
 {
-    if (MakeRecordProcessing && NewRecordStarted) {
+    if (WrapWithMap && NewRecordStarted) {
         Consumer->OnEndMap();
         NewRecordStarted = false;
     }
@@ -197,13 +194,11 @@ void TDsvParser::ValidatePrefix(const Stroka& prefix) const
 {
     if (prefix != Config->LinePrefix.Get()) {
         // TODO(babenko): provide GetPositionInfo
-        THROW_ERROR_EXCEPTION(
-            "Expected %s at the beginning of record, "
-            "found %s (Record: %d, Field: %d)",
+        THROW_ERROR_EXCEPTION("Malformed line prefix in DSV: expected %s, found %s",
             ~Config->LinePrefix.Get().Quote(),
-            ~prefix.Quote(),
-            RecordCount,
-            FieldCount);
+            ~prefix.Quote())
+            << TErrorAttribute("record_index", RecordCount)
+            << TErrorAttribute("field_index", FieldCount);
     }
 }
 
@@ -224,18 +219,15 @@ void ParseDsv(const TStringBuf& data,
     parser->Finish();
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-TAutoPtr<NYTree::IParser> CreateParserForDsv(
-    NYTree::IYsonConsumer* consumer,
+TAutoPtr<IParser> CreateParserForDsv(
+    IYsonConsumer* consumer,
     TDsvFormatConfigPtr config,
-    bool makeRecordProcessing)
+    bool wrapWithMap)
 {
-    if (!config) {
-        config = New<TDsvFormatConfig>();
-    }
-    return new TDsvParser(consumer, config, makeRecordProcessing);
+    return new TDsvParser(consumer, config, wrapWithMap);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFormats
 } // namespace NYT

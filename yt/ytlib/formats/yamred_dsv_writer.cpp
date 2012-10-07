@@ -11,7 +11,7 @@ using namespace NYTree;
 
 TYamredDsvWriter::TYamredDsvWriter(TOutputStream* stream, TYamredDsvFormatConfigPtr config)
     : Stream(stream)
-    , Config(config ? config : New<TYamredDsvFormatConfig>())
+    , Config(config)
     , State(EState::None)
     , AllowBeginMap(true)
     , IsValueEmpty(true)
@@ -44,12 +44,12 @@ void TYamredDsvWriter::OnStringScalar(const TStringBuf& value)
 
 void TYamredDsvWriter::OnEntity()
 {
-    THROW_ERROR_EXCEPTION("Entities are not supported by Yamred Dsv");
+    THROW_ERROR_EXCEPTION("Entities are not supported by YAMRed DSV");
 }
 
 void TYamredDsvWriter::OnBeginList()
 {
-    THROW_ERROR_EXCEPTION("Lists are not supported by Yamred Dsv");
+    THROW_ERROR_EXCEPTION("Lists are not supported by YAMRed DSV");
 }
 
 void TYamredDsvWriter::OnListItem()
@@ -63,7 +63,7 @@ void TYamredDsvWriter::OnEndList()
 void TYamredDsvWriter::OnBeginMap()
 {
     if (!AllowBeginMap) {
-        THROW_ERROR_EXCEPTION("Embedded maps are not supported by Yamred Dsv");
+        THROW_ERROR_EXCEPTION("Embedded maps are not supported by YAMRed DSV");
     }
     AllowBeginMap = false;
 
@@ -75,8 +75,8 @@ void TYamredDsvWriter::OnBeginMap()
 void TYamredDsvWriter::OnKeyedItem(const TStringBuf& key)
 {
     if (State != EState::None) {
-        // TODO(babenko): improve
-        THROW_ERROR_EXCEPTION("Missing value");
+        // TODO(babenko): improve diagnostics
+        THROW_ERROR_EXCEPTION("Missing value in YAMRed DSV");
     }
     Key = key;
     State = EState::ExpectingValue;
@@ -90,7 +90,7 @@ void TYamredDsvWriter::OnEndMap()
 
 void TYamredDsvWriter::OnBeginAttributes()
 {
-    ythrow yexception() << "Attributes are not supported by Yamred Dsv";
+    THROW_ERROR_EXCEPTION("Attributes are not supported by YAMRed DSV");
 }
 
 void TYamredDsvWriter::OnEndAttributes()
@@ -101,7 +101,7 @@ void TYamredDsvWriter::OnEndAttributes()
 void TYamredDsvWriter::RememberValue(const TStringBuf& value)
 {
     if (State != EState::ExpectingValue) {
-        ythrow yexception() << "Pass value without key is forbidden";
+        THROW_ERROR_EXCEPTION("Missing key in YAMRed DSV");
     }
     // Compare size before search for optimization.
     // It is not safe in case of repeated keys. Be careful!
@@ -149,7 +149,7 @@ void TYamredDsvWriter::WriteYamrField(
     for (int i = 0; i < columnNames.size(); ++i) {
         auto it = fieldValues.find(columnNames[i]);
         if (it == fieldValues.end()) {
-            ythrow yexception() << "There is no required column with name " << columnNames[i];
+            THROW_ERROR_EXCEPTION("Missing required column in YAMRed DSV: %s", ~columnNames[i]);
         }
         Stream->Write(it->second);
         if (i + 1 != columnNames.size()) {
