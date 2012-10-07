@@ -65,6 +65,7 @@ public:
         , UnorderedMergeJobCounter(false)
         , SortStartThresholdReached(false)
         , MergeStartThresholdReached(false)
+        , SimpleSort(false)
         , PartitionTask(New<TPartitionTask>(this))
     { }
 
@@ -168,6 +169,9 @@ protected:
 
     typedef TIntrusivePtr<TPartition> TPartitionPtr;
 
+    //! Is equivalent to |Partitions.size() == 1| but enables
+    //! checking for simple sort when #Partitions is still being constructed.
+    bool SimpleSort;
     std::vector<TPartitionPtr> Partitions;
 
     //! Templates for starting new jobs.
@@ -376,17 +380,17 @@ protected:
 
         virtual TDuration GetLocalityTimeout() const override
         {
-            // Locality timeouts are only used for simple sort.
-            return
-                Controller->Partitions.size() == 1
-                ? GetSimpleLocalityTimeout()
-                : TDuration::Zero();
+            if (Controller->SimpleSort) {
+                return GetSimpleLocalityTimeout();
+            }
+
+            return TDuration::Zero();
         }
 
         virtual i64 GetLocality(const Stroka& address) const override
         {
-            if (Controller->Partitions.size() == 1) {
-                return 0;
+            if (Controller->SimpleSort) {
+                return TTask::GetLocality(address);
             } 
 
             // Report locality proportional to the pending data size.
@@ -398,7 +402,11 @@ protected:
 
         virtual bool IsStrictlyLocal() const override
         {
-            return Controller->Partitions.size() > 1;
+            if (Controller->SimpleSort) {
+                return TTask::IsStrictlyLocal();
+            }
+
+            return true;
         }
 
     protected:
@@ -418,7 +426,7 @@ protected:
         TSortTask(TSortControllerBase* controller, TPartition* partition)
             : TPartitionBoundTask(controller, partition)
         {
-            ChunkPool = CreateUnorderedChunkPool(false);
+            ChunkPool = CreateUnorderedChunkPool(Controller->SimpleSort);
         }
 
         virtual Stroka GetId() const override
@@ -491,7 +499,7 @@ protected:
             i64 rowCount = Controller->GetRowCountEstimate(Partition, dataSize);
             i64 valueCount = Controller->GetValueCountEstimate(dataSize);
             return
-                Controller->Partitions.size() == 1
+                Controller->SimpleSort
                 ? Controller->GetSimpleSortResources(dataSize, rowCount, valueCount)
                 : Controller->GetPartitionSortResources(Partition, dataSize, rowCount);
         }
@@ -526,7 +534,7 @@ protected:
 
             {
                 auto* jobSpecExt = jobSpec->MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
-                if (Controller->Partitions.size() > 1) {
+                if (!Controller->SimpleSort) {
                     auto* inputSpec = jobSpec->mutable_input_specs(0);
                     FOREACH (auto& chunk, *inputSpec->mutable_chunks()) {
                         chunk.set_partition_tag(Partition->Index);
@@ -801,7 +809,7 @@ protected:
             AddSequentialInputSpec(jobSpec, jip);
             AddTabularOutputSpec(jobSpec, jip, 0);
 
-            if (Controller->Partitions.size() > 1) {
+            if (!Controller->SimpleSort) {
                 auto* inputSpec = jobSpec->mutable_input_specs(0);
                 FOREACH (auto& chunk, *inputSpec->mutable_chunks()) {
                     chunk.set_partition_tag(Partition->Index);
@@ -1248,9 +1256,11 @@ private:
 
         YCHECK(partitionCount > 0);
 
-        InitJobIOConfigs(partitionCount);
+        SimpleSort = partitionCount == 1;
+
+        InitJobIOConfigs();
         
-        if (partitionCount == 1) {
+        if (SimpleSort) {
             BuildSinglePartition();
         } else {
             BuildMulitplePartitions(partitionCount);
@@ -1387,7 +1397,7 @@ private:
         }
     }
 
-    void InitJobIOConfigs(int partitionCount) 
+    void InitJobIOConfigs() 
     {
         {
             PartitionJobIOConfig = BuildJobIOConfig(Config->PartitionJobIO, Spec->PartitionJobIO);
@@ -1395,21 +1405,21 @@ private:
         }
 
         {
-            if (partitionCount > 1) {
+            if (SimpleSort) {
+                IntermediateSortJobIOConfig = BuildJobIOConfig(Config->SimpleSortJobIO, Spec->SortJobIO);
+            } else {
                 IntermediateSortJobIOConfig = BuildJobIOConfig(Config->PartitionSortJobIO, Spec->SortJobIO);
                 InitIntermediateInputConfig(IntermediateSortJobIOConfig);
-            } else {
-                IntermediateSortJobIOConfig = BuildJobIOConfig(Config->SimpleSortJobIO, Spec->SortJobIO);
             }
             InitIntermediateOutputConfig(IntermediateSortJobIOConfig);
         }
 
         {
-            if (partitionCount > 1) {
+            if (SimpleSort) {
+                FinalSortJobIOConfig = BuildJobIOConfig(Config->SimpleSortJobIO, Spec->SortJobIO);
+            } else {
                 FinalSortJobIOConfig = BuildJobIOConfig(Config->PartitionSortJobIO, Spec->SortJobIO);
                 InitIntermediateInputConfig(FinalSortJobIOConfig);
-            } else {
-                FinalSortJobIOConfig = BuildJobIOConfig(Config->SimpleSortJobIO, Spec->SortJobIO);
             }
         }
 
@@ -1442,7 +1452,7 @@ private:
         
         {
             TJobSpec sortJobSpecTemplate;
-            sortJobSpecTemplate.set_type(Partitions.size() == 1 ? EJobType::SimpleSort : EJobType::PartitionSort);
+            sortJobSpecTemplate.set_type(SimpleSort ? EJobType::SimpleSort : EJobType::PartitionSort);
             *sortJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
             auto* specExt = sortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
