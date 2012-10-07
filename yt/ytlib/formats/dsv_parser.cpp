@@ -204,13 +204,17 @@ void TDsvParser::ValidatePrefix(const Stroka& prefix) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ParseDsv(TInputStream* input, IYsonConsumer* consumer, TDsvFormatConfigPtr config)
+void ParseDsv(
+    TInputStream* input,
+    IYsonConsumer* consumer,
+    TDsvFormatConfigPtr config)
 {
     auto parser = CreateParserForDsv(consumer, config);
     Parse(input, consumer, parser.Get());
 }
 
-void ParseDsv(const TStringBuf& data,
+void ParseDsv(
+    const TStringBuf& data,
     IYsonConsumer* consumer,
     TDsvFormatConfigPtr config)
 {
