@@ -378,11 +378,13 @@ def run_operation(binary, source_table, destination_table,
 
     source_table = _prepare_source_tables(source_table)
     if op_type == "reduce":
-        reduce_by = _prepare_reduce_by(reduce_by)
         are_input_tables_sorted =  all(
-            is_prefix(reduce_by, get_sorted_by(table.name))
+            is_prefix(_prepare_reduce_by(reduce_by), get_sorted_by(table.name))
             for table in source_table)
-        sort_by = None if config.MAPREDUCE_MODE else reduce_by
+        if reduce_by is None:
+            reduce_by = sort_by = None
+        else:
+            sort_by = reduce_by
         if not are_input_tables_sorted:
             run_map_reduce(
                 mapper=None,
