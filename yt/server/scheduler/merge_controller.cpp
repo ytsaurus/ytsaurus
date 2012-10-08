@@ -143,11 +143,7 @@ protected:
             NProto::TJobSpec* jobSpec)
         {
             AddParallelInputSpec(jobSpec, jip);
-
-            for (int i = 0; i < Controller->OutputTables.size(); ++i) {
-                // Reduce task can have multiple output tables.
-                AddTabularOutputSpec(jobSpec, jip, i);
-            }
+            AddOutputSpecs(jobSpec, jip);
         }
 
     private:
@@ -193,11 +189,7 @@ protected:
 
             Controller->ChunkCounter.Completed(jip->PoolResult->TotalChunkCount);
             Controller->DataSizeCounter.Completed(jip->PoolResult->TotalDataSize);
-
-            int outputCount = static_cast<int>(Controller->OutputTables.size());
-            for (int i = 0; i < outputCount; ++i) {
-                Controller->RegisterOutputChunkTree(jip->ChunkListIds[i], PartitionIndex, i);
-            }
+            Controller->RegisterOutputChunkTrees(jip, PartitionIndex);
         }
 
         virtual void OnJobFailed(TJobInProgressPtr jip) override
@@ -241,7 +233,7 @@ protected:
         ++PartitionCount;
         MergeTasks.push_back(task);
 
-        LOG_DEBUG("Finished task (Task: %d, TaskDataSize: %" PRId64 ")",
+        LOG_DEBUG("Task finished (Task: %d, TaskDataSize: %" PRId64 ")",
             static_cast<int>(MergeTasks.size()) - 1,
             CurrentTaskDataSize);
 
@@ -299,7 +291,7 @@ protected:
         stripe->AddChunk(inputChunk, dataSize, rowCount);
 
         auto chunkId = TChunkId::FromProto(inputChunk->slice().chunk_id());
-        LOG_DEBUG("Added pending chunk (ChunkId: %s, Partition: %d, Task: %d, TableIndex: %d, DataSize: %" PRId64 ", RowCount: %" PRId64 ")",
+        LOG_DEBUG("Pending chunk added (ChunkId: %s, Partition: %d, Task: %d, TableIndex: %d, DataSize: %" PRId64 ", RowCount: %" PRId64 ")",
             ~chunkId.ToString(),
             PartitionCount,
             static_cast<int>(MergeTasks.size()),
@@ -313,7 +305,7 @@ protected:
     {
         auto& table = OutputTables[0];
         auto chunkId = TChunkId::FromProto(inputChunk->slice().chunk_id());
-        LOG_DEBUG("Added passthrough chunk (ChunkId: %s, Partition: %d)",
+        LOG_DEBUG("Passthrough chunk added (ChunkId: %s, Partition: %d)",
             ~chunkId.ToString(),
             PartitionCount);
 

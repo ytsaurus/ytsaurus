@@ -223,7 +223,7 @@ struct TSortOperationSpecBase
     i64 MaxDataSizePerSortJob;
 
     //! Maximum amount of (uncompressed) data to be given to a single unordered merge job
-    //! that takes care of a megalomaniac partition.
+    //! that takes care of a maniac partition.
     i64 MaxDataSizePerUnorderedMergeJob;
 
     double ShuffleStartThreshold;

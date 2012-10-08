@@ -245,17 +245,17 @@ void TOperationControllerBase::TTask::AddParallelInputSpec(
     }
 }
 
-void TOperationControllerBase::TTask::AddTabularOutputSpec(
+void TOperationControllerBase::TTask::AddOutputSpecs(
     NScheduler::NProto::TJobSpec* jobSpec,
-    TJobInProgressPtr jip,
-    int tableIndex)
+    TJobInProgressPtr jip)
 {
-    const auto& table = Controller->OutputTables[tableIndex];
-    auto* outputSpec = jobSpec->add_output_specs();
-    outputSpec->set_channels(table.Channels.Data());
-    auto chunkListId = Controller->ExtractChunkList();
-    jip->ChunkListIds.push_back(chunkListId);
-    *outputSpec->mutable_chunk_list_id() = chunkListId.ToProto();
+    FOREACH (const auto& table, Controller->OutputTables) {
+        auto* outputSpec = jobSpec->add_output_specs();
+        outputSpec->set_channels(table.Channels.Data());
+        auto chunkListId = Controller->ExtractChunkList();
+        jip->ChunkListIds.push_back(chunkListId);
+        *outputSpec->mutable_chunk_list_id() = chunkListId.ToProto();
+    }
 }
 
 void TOperationControllerBase::TTask::AddInputChunks(
@@ -1495,6 +1495,15 @@ void TOperationControllerBase::RegisterOutputChunkTree(
         tableIndex,
         ~chunkTreeId.ToString(),
         key);
+}
+
+void TOperationControllerBase::RegisterOutputChunkTrees(
+    TJobInProgressPtr jip,
+    int key)
+{
+    for (int tableIndex = 0; tableIndex < static_cast<int>(OutputTables.size()); ++tableIndex) {
+        RegisterOutputChunkTree(jip->ChunkListIds[tableIndex], key, tableIndex);
+    }
 }
 
 bool TOperationControllerBase::HasEnoughChunkLists(int requestedCount)

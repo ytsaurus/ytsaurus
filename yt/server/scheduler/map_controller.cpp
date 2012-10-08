@@ -131,18 +131,14 @@ private:
         {
             jobSpec->CopyFrom(Controller->JobSpecTemplate);
             AddSequentialInputSpec(jobSpec, jip);
-            for (int index = 0; index < static_cast<int>(Controller->OutputTables.size()); ++index) {
-                AddTabularOutputSpec(jobSpec, jip, index);
-            }
+            AddOutputSpecs(jobSpec, jip);
         }
 
         virtual void OnJobCompleted(TJobInProgressPtr jip) override
         {
             TTask::OnJobCompleted(jip);
 
-            for (int index = 0; index < static_cast<int>(Controller->OutputTables.size()); ++index) {
-                Controller->RegisterOutputChunkTree(jip->ChunkListIds[index], 0, index);
-            }
+            Controller->RegisterOutputChunkTrees(jip, 0);
         }
 
         virtual void OnTaskCompleted() override

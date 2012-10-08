@@ -251,7 +251,7 @@ protected:
 
         void AddSequentialInputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobInProgressPtr jip);
         void AddParallelInputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobInProgressPtr jip);
-        void AddTabularOutputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobInProgressPtr jip, int tableIndex);
+        void AddOutputSpecs(NScheduler::NProto::TJobSpec* jobSpec, TJobInProgressPtr jip);
 
     private:
         void ReleaseFailedJob(TJobInProgressPtr jip);
@@ -404,6 +404,9 @@ protected:
         const NChunkServer::TChunkTreeId& chunkTreeId,
         int key,
         int tableIndex);
+    void RegisterOutputChunkTrees(
+        TJobInProgressPtr jip,
+        int key);
 
     bool HasEnoughChunkLists(int requestedCount);
     NChunkClient::TChunkListId ExtractChunkList();

@@ -135,7 +135,7 @@ protected:
             : Index(index)
             , Completed(false)
             , SortedMergeNeeded(false)
-            , Megalomaniac(false)
+            , Maniac(false)
             , SortTask(New<TSortTask>(controller, this))
             , SortedMergeTask(New<TSortedMergeTask>(controller, this))
             , UnorderedMergeTask(New<TUnorderedMergeTask>(controller, this))
@@ -154,7 +154,7 @@ protected:
         bool SortedMergeNeeded;
 
         //! Does the partition consist of rows with the same key?
-        bool Megalomaniac;
+        bool Maniac;
 
         //! Accumulated attributes.
         NTableClient::NProto::TPartitionsExt::TPartitionAttributes TotalAttributes;
@@ -266,7 +266,7 @@ protected:
         {
             jobSpec->CopyFrom(Controller->PartitionJobSpecTemplate);
             AddSequentialInputSpec(jobSpec, jip);
-            AddTabularOutputSpec(jobSpec, jip, 0);
+            AddOutputSpecs(jobSpec, jip);
         }
 
         virtual void OnJobStarted(TJobInProgressPtr jip) override
@@ -313,7 +313,7 @@ protected:
                             rcPartitionChunk,
                             jobPartitionAttributes.uncompressed_data_size(),
                             jobPartitionAttributes.row_count());
-                        auto destinationTask = partition->Megalomaniac
+                        auto destinationTask = partition->Maniac
                             ? TTaskPtr(partition->UnorderedMergeTask)
                             : TTaskPtr(partition->SortTask);
                         destinationTask->AddStripe(stripe);
@@ -531,7 +531,7 @@ protected:
             }
 
             AddSequentialInputSpec(jobSpec, jip);
-            AddTabularOutputSpec(jobSpec, jip, 0);
+            AddOutputSpecs(jobSpec, jip);
 
             {
                 auto* jobSpecExt = jobSpec->MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
@@ -548,7 +548,7 @@ protected:
         {
             TPartitionBoundTask::OnJobStarted(jip);
 
-            YCHECK(!Partition->Megalomaniac);
+            YCHECK(!Partition->Maniac);
 
             Controller->SortDataSizeCounter.Start(jip->PoolResult->TotalDataSize);
 
@@ -580,7 +580,7 @@ protected:
                 Controller->FinalSortJobCounter.Completed(1);
 
                 // Sort outputs in small partitions go directly to the output.
-                Controller->RegisterOutputChunkTree(Partition, jip->ChunkListIds[0]);
+                Controller->RegisterOutputChunkTrees(jip, Partition);
                 Controller->OnPartitionCompeted(Partition);
             }
 
@@ -704,12 +704,12 @@ protected:
         {
             jobSpec->CopyFrom(Controller->SortedMergeJobSpecTemplate);
             AddParallelInputSpec(jobSpec, jip);
-            AddTabularOutputSpec(jobSpec, jip, 0);
+            AddOutputSpecs(jobSpec, jip);
         }
 
         virtual void OnJobStarted(TJobInProgressPtr jip) override
         {
-            YCHECK(!Partition->Megalomaniac);
+            YCHECK(!Partition->Maniac);
 
             Controller->SortedMergeJobCounter.Start(1);
 
@@ -721,9 +721,7 @@ protected:
             TMergeTask::OnJobCompleted(jip);
 
             Controller->SortedMergeJobCounter.Completed(1);
-
-            Controller->RegisterOutputChunkTree(Partition, jip->ChunkListIds[0]);
-
+            Controller->RegisterOutputChunkTrees(jip, Partition);
             YCHECK(ChunkPool->IsCompleted());
             Controller->OnPartitionCompeted(Partition);
         }
@@ -743,7 +741,7 @@ protected:
         }
     };
 
-    //! Implements unordered merge of megalomaniac partitions for sort operation.
+    //! Implements unordered merge of maniac partitions for sort operation.
     //! Not used in map-reduce operations.
     class TUnorderedMergeTask
         : public TMergeTask
@@ -808,7 +806,7 @@ protected:
         {
             jobSpec->CopyFrom(Controller->UnorderedMergeJobSpecTemplate);
             AddSequentialInputSpec(jobSpec, jip);
-            AddTabularOutputSpec(jobSpec, jip, 0);
+            AddOutputSpecs(jobSpec, jip);
 
             if (!Controller->SimpleSort) {
                 auto* inputSpec = jobSpec->mutable_input_specs(0);
@@ -820,7 +818,7 @@ protected:
 
         virtual void OnJobStarted(TJobInProgressPtr jip) override
         {
-            YCHECK(Partition->Megalomaniac);
+            YCHECK(Partition->Maniac);
 
             Controller->UnorderedMergeJobCounter.Start(1);
 
@@ -832,9 +830,7 @@ protected:
             TMergeTask::OnJobCompleted(jip);
 
             Controller->UnorderedMergeJobCounter.Completed(1);
-
-            Controller->RegisterOutputChunkTree(Partition, jip->ChunkListIds[0]);
-
+            Controller->RegisterOutputChunkTrees(jip, Partition);
             if (ChunkPool->IsCompleted()) {
                 Controller->OnPartitionCompeted(Partition);
             }
@@ -866,9 +862,9 @@ protected:
     }
 
 
-    void RegisterOutputChunkTree(TPartitionPtr partition, const TChunkTreeId& chunkTreeId)
+    void RegisterOutputChunkTrees(TJobInProgressPtr jip, TPartition* partition)
     {
-        TOperationControllerBase::RegisterOutputChunkTree(chunkTreeId, partition->Index, 0);
+        TOperationControllerBase::RegisterOutputChunkTrees(jip, partition->Index);
     }
 
     void OnPartitionCompeted(TPartitionPtr partition)
@@ -901,7 +897,7 @@ protected:
 
     bool IsSortedMergeNeededImpl(TPartitionPtr partition) const
     {
-        if (partition->Megalomaniac) {
+        if (partition->Maniac) {
             return false;
         }
 
@@ -921,7 +917,7 @@ protected:
     bool IsUnorderedMergeNeeded(TPartitionPtr partition)
     {
         return
-            partition->Megalomaniac &&
+            partition->Maniac &&
             PartitionTask->IsCompleted();
     }
 
@@ -961,7 +957,7 @@ protected:
     void AddSortTasksPendingHints()
     {
         FOREACH (auto partition, Partitions) {
-            if (!partition->Megalomaniac) {
+            if (!partition->Maniac) {
                 AddTaskPendingHint(partition->SortTask);
             }
         }   
@@ -970,7 +966,7 @@ protected:
     void AddMergeTasksPendingHints()
     {
         FOREACH (auto partition, Partitions) {
-            auto taskToKick = partition->Megalomaniac
+            auto taskToKick = partition->Maniac
                 ? TTaskPtr(partition->UnorderedMergeTask)
                 : TTaskPtr(partition->SortedMergeTask);
             AddTaskPendingHint(taskToKick);
@@ -1344,11 +1340,11 @@ private:
                 }
 
                 auto lastPartition = Partitions.back();
-                LOG_DEBUG("Partition %d is a megalomaniac, skipped %d samples",
+                LOG_DEBUG("Partition %d is a maniac, skipped %d samples",
                     lastPartition->Index,
                     skippedCount);
 
-                lastPartition->Megalomaniac = true;
+                lastPartition->Maniac= true;
                 YCHECK(skippedCount >= 1);
 
                 auto successorKey = GetSuccessorKey(*sampleKey);
