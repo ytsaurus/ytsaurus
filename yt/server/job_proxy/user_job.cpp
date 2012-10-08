@@ -172,7 +172,14 @@ private:
 
         std::vector<int> reservedDescriptors;
         do {
-            reservedDescriptors.push_back(SafeDup(STDIN_FILENO));
+            try {
+                reservedDescriptors.push_back(SafeDup(STDIN_FILENO));
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION(
+                    "Couldn't reserve descriptor (LastReserved: %d, Required: %d)",
+                    reservedDescriptors.empty() ? 0 : reservedDescriptors.back(),
+                    maxReservedDescriptor) << ex;
+            }
         } while (reservedDescriptors.back() < maxReservedDescriptor);
 
 
