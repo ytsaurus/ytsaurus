@@ -114,7 +114,8 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
             Slot->GetWorkingDirectory(), 
             ProxyConfigFileName);
 
-        TFileOutput output(proxyConfigPath);
+        TFile file(proxyConfigPath, CreateAlways | WrOnly | Seq | CloseOnExec);
+        TFileOutput output(file);
         TYsonWriter writer(&output, EYsonFormat::Pretty);
         proxyConfig->Save(&writer);
     }

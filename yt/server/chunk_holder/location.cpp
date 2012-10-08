@@ -182,7 +182,8 @@ void TLocation::UpdateCellGuid(const TGuid& newCellGuid)
 
     {
         auto cellGuidPath = NFS::CombinePaths(GetPath(), CellGuidFileName);
-        TFileOutput cellGuidFile(cellGuidPath);
+        TFile file(cellGuidPath, CreateAlways | WrOnly | Seq | CloseOnExec);
+        TFileOutput cellGuidFile(file);
         cellGuidFile.Write(CellGuid.ToString());
     }
 
