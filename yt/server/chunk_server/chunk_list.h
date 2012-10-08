@@ -31,7 +31,7 @@ class TChunkList
 {
     DEFINE_BYREF_RW_PROPERTY(std::vector<TChunkTreeRef>, Children);
 
-    // Accumulated sums of children row counts .
+    // Accumulated sums of children row counts.
     // The i-th value is equal to the sum of row counts of children 0..i 
     // for all i in [0..Children.size() - 2]
     // Accumalated statistic for the last child (which is effectively total chunk list statistic)
