@@ -218,7 +218,7 @@ public:
 
     virtual void PreeemptJob(TJobPtr job) override
     {
-        AbortJob(job, false, TError("Job preempted"));
+        AbortJob(job, TError("Job preempted"));
 
         LOG_DEBUG("Job preempted (JobId: %s, OperationId: %s)",
             ~job->GetId().ToString(),
@@ -644,7 +644,8 @@ private:
                 ~node->GetAddress(),
                 ~job->GetId().ToString(),
                 ~job->GetOperation()->GetOperationId().ToString());
-            AbortJob(job, true, TError("Node offline"));
+            AbortJob(job, TError("Node offline"));
+            UnregisterJob(job);
         }
         YCHECK(Nodes.erase(node->GetAddress()) == 1);
     }
@@ -662,7 +663,8 @@ private:
     {
         auto jobs = operation->Jobs();
         FOREACH (auto job, jobs) {
-            AbortJob(job, true, TError("Operation aborted"));
+            AbortJob(job, TError("Operation aborted"));
+            UnregisterJob(job);
         }
     }
 
@@ -712,10 +714,10 @@ private:
             ~job->GetOperation()->GetOperationId().ToString());
     }
 
-    void AbortJob(TJobPtr job, bool unregister, const TError& error)
+    void AbortJob(TJobPtr job, const TError& error)
     {
         // This method must be safe to call for any job.
-        if (job->GetState() != EJobState::Running)
+        if (job->GetState() == EJobState::Running)
             return;
 
         job->SetState(EJobState::Aborted);
@@ -727,9 +729,6 @@ private:
         }
 
         UpdateFinishedJobNode(job);
-        if (unregister) {
-            UnregisterJob(job);
-        }
     }
 
 
@@ -1134,7 +1133,8 @@ private:
                     ~address,
                     ~job->GetId().ToString(),
                     ~job->GetOperation()->GetOperationId().ToString());
-                AbortJob(job, true, TError("Job vanished"));
+                AbortJob(job, TError("Job vanished"));
+                UnregisterJob(job);
             }
         }
 
