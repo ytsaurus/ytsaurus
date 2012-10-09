@@ -173,7 +173,9 @@ private:
         std::vector<int> reservedDescriptors;
         do {
             try {
-                reservedDescriptors.push_back(SafeDup(STDIN_FILENO));
+                // NB: do not use STDIN_FILENO here cause it is usually used by 
+                // logging and may be closed on rotation.
+                reservedDescriptors.push_back(SafeDup(STDERR_FILENO));
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION(
                     "Couldn't reserve descriptor (LastReserved: %d, Required: %d)",
