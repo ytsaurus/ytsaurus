@@ -161,6 +161,9 @@ def sort(*args, **kw):
 def track_op(op, **kw):
     command('track_op', op, **kw)
 
+def abort_op(op, **kw):
+    command('abort_op', op, **kw)
+
 def build_snapshot(*args, **kw):
     command('build_snapshot', *args, **kw)
 

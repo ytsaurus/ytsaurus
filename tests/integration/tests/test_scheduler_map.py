@@ -252,3 +252,19 @@ cat > /dev/null; echo {hello=world}
 
         assert read('//tmp/t_out') == [{'hello': 'world'}]
     
+    def test_abort_op(self):
+        create('table', '//tmp/t')
+        write_str('//tmp/t', '{foo=bar}')
+
+        op_id = map('--dont_track',
+            in_='//tmp/t', 
+            out='//tmp/t',
+            command="sleep 2")
+
+        path = '//sys/operations/%s/@state' % op_id
+        # check running
+        abort_op(op_id)
+        assert get(path) == 'aborted'
+
+
+
