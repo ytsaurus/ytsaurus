@@ -97,8 +97,8 @@ class TMyService
     : public TServiceBase
 {
 public:
-    typedef TIntrusivePtr<TMyService> TPtr;
     typedef TMyService TThis;
+
     TMyService(IInvokerPtr invoker, Event* event)
         : TServiceBase(invoker, TMyProxy::ServiceName, "Main")
         , Event_(event)
@@ -217,27 +217,24 @@ class TResponseHandler
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TResponseHandler> TPtr;
-
-    TResponseHandler(int numRepliesWaiting)
+    explicit TResponseHandler(int numRepliesWaiting, Event* event_)
         : NumRepliesWaiting(numRepliesWaiting)
+        , Event_(event_)
     { }
-
-    Event Event_;
 
     void CheckReply(int expected, TMyProxy::TRspSomeCallPtr response)
     {
         EXPECT_TRUE(response->IsOK());
         EXPECT_EQ(expected, response->b());
 
-        --NumRepliesWaiting;
-        if (NumRepliesWaiting == 0) {
-            Event_.Signal();
+        if (AtomicDecrement(NumRepliesWaiting) == 0) {
+            Event_->Signal();
         }
     }
 
 private:
-    int NumRepliesWaiting;
+    TAtomic NumRepliesWaiting;
+    Event* Event_;
 
 };
 
@@ -257,18 +254,22 @@ TEST_F(TRpcTest, Send)
 TEST_F(TRpcTest, ManyAsyncSends)
 {
     int numSends = 1000;
-    auto handler = New<TResponseHandler>(numSends);
+
+    Event event;
+    auto handler = New<TResponseHandler>(numSends, &event);
 
     TMyProxy proxy(CreateChannel("localhost:2000"));
 
     for (int i = 0; i < numSends; ++i) {
         auto request = proxy.SomeCall();
         request->set_a(i);
-        request->Invoke().Subscribe(
-            BIND(&TResponseHandler::CheckReply, handler, i + 100));
+        request->Invoke().Subscribe(BIND(
+            &TResponseHandler::CheckReply,
+            handler,
+            i + 100));
     }
 
-    EXPECT_TRUE(handler->Event_.WaitT(TDuration::Seconds(4))); // assert no timeout
+    EXPECT_TRUE(event.WaitT(TDuration::Seconds(4))); // assert no timeout
 }
 
 ////////////////////////////////////////////////////////////////////////////////
