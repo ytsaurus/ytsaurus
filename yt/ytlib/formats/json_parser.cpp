@@ -36,7 +36,9 @@ void TJsonParser::Finish()
 void TJsonParser::Parse(TInputStream* input)
 {
     TJsonValue jsonValue;
-    ReadJsonTree(input, &jsonValue);
+    if (!ReadJsonTree(input, &jsonValue)) {
+        THROW_ERROR_EXCEPTION("Incorrect json");
+    }
     VisitAny(jsonValue);
 }
 
