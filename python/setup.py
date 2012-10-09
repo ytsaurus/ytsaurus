@@ -26,7 +26,7 @@ def main():
         name = "Yt",
         version = "0.1",
         packages = find_packages(exclude=["*.tests", "*.tests.*", "tests.*", "tests", "yt.environment"]),
-        #scripts = ["yt/wrapper/mapreduce-yt"],
+        #scripts = ['yt/wrapper/mapreduce-yt'],
 
         install_requires = requires,
 

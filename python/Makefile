@@ -13,13 +13,21 @@ source:
 test: clean
 	$(PYTHON) setup.py test
 
+
+prepare:
+	cp yt/wrapper/mapreduce yt/wrapper/mapreduce-yt
+
 deb:
 	$(MAKE) test
 	$(MAKE) clean
 	$(MAKE) deb_without_test
 
+egg: prepare
+	python setup.py bdist_egg
+	cp dist/*.egg .
+
 deb_without_test: clean
-	cp yt/wrapper/mapreduce yt/wrapper/mapreduce-yt
+	@MAKE prepare
 	# build the source package in the parent directory
 	# then rename it to project_version.orig.tar.gz
 	$(PYTHON) setup.py sdist --dist-dir=../
