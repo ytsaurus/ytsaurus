@@ -217,7 +217,7 @@ class TResponseHandler
     : public TRefCounted
 {
 public:
-    explicit TResponseHandler(int numRepliesWaiting, Event* event_)
+    TResponseHandler(int numRepliesWaiting, Event* event_)
         : NumRepliesWaiting(numRepliesWaiting)
         , Event_(event_)
     { }
