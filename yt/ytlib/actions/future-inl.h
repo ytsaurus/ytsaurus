@@ -51,7 +51,7 @@ public:
     {
         TGuard<TSpinLock> guard(SpinLock);
         
-        if (Value.IsInitialized()) {
+        if (Value.HasValue()) {
             return Value.Get();
         }
         
@@ -62,7 +62,7 @@ public:
         guard.Release();
         ReadyEvent->Wait();
         
-        YASSERT(Value.IsInitialized());       
+        YASSERT(Value.HasValue());       
         return Value.Get();
     }
 
@@ -76,7 +76,7 @@ public:
     {
         // Guard is typically redundant.
         TGuard<TSpinLock> guard(SpinLock);
-        return Value.IsInitialized();
+        return Value.HasValue();
     }
 
     template <class U>
@@ -90,7 +90,7 @@ public:
         
         {
             TGuard<TSpinLock> guard(SpinLock);
-            YASSERT(!Value.IsInitialized());
+            YASSERT(!Value.HasValue());
             Value.Assign(ForwardRV<U>(value));
         
             auto* event = ~ReadyEvent;
@@ -168,7 +168,7 @@ inline void TPromiseState<T>::Subscribe(
 {
     TGuard<TSpinLock> guard(SpinLock);
 
-    if (Value.IsInitialized()) {
+    if (Value.HasValue()) {
         guard.Release();
         listener.Run(Value.Get());
     } else {

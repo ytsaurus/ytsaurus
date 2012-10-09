@@ -146,7 +146,7 @@ TFileReader::AsyncGetChunkMeta(
     // Partition tag filtering not implemented here
     // because there is no practical need.
     // Implement when necessary.
-    YCHECK(!partitionTag.IsInitialized());
+    YCHECK(!partitionTag.HasValue());
     return MakeFuture(TGetMetaResult(GetChunkMeta(tags)));
 }
 

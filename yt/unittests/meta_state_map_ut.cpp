@@ -9,9 +9,9 @@
 #include <contrib/testing/framework.h>
 
 namespace NYT {
-namespace NUnitTest {
 
 using namespace NMetaState;
+using ::ToString;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -209,5 +209,4 @@ TEST_F(TMetaStateMapTest, StressSave)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NUnitTest
 } // namespace NYT

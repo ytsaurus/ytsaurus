@@ -184,7 +184,7 @@ inline bool IsPresent(TIntrusivePtr<T>* parameter)
 template <class T>
 inline bool IsPresent(TNullable<T>* parameter)
 {
-    return parameter->IsInitialized();
+    return parameter->HasValue();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -273,6 +273,7 @@ TParameter<T>& TParameter<T>::CheckThat(TValidator validator)
     TParameter<T>& TParameter<T>::method \
     { \
         return CheckThat(BIND([=] (const T& parameter) { \
+            using ::ToString; \
             TNullable<TValueType> nullableParameter(parameter); \
             if (nullableParameter) { \
                 const TValueType& actual = nullableParameter.Get(); \

@@ -245,8 +245,8 @@ private:
 
 TEST_F(TRpcTest, Send)
 {
-    TAutoPtr<TMyProxy> proxy = new TMyProxy(CreateChannel("localhost:2000"));
-    auto request = proxy->SomeCall();
+    TMyProxy proxy(CreateChannel("localhost:2000"));
+    auto request = proxy.SomeCall();
     request->set_a(42);
     auto response = request->Invoke().Get();
 
@@ -259,10 +259,10 @@ TEST_F(TRpcTest, ManyAsyncSends)
     int numSends = 1000;
     auto handler = New<TResponseHandler>(numSends);
 
-    TAutoPtr<TMyProxy> proxy = new TMyProxy(CreateChannel("localhost:2000"));
+    TMyProxy proxy(CreateChannel("localhost:2000"));
 
     for (int i = 0; i < numSends; ++i) {
-        auto request = proxy->SomeCall();
+        auto request = proxy.SomeCall();
         request->set_a(i);
         request->Invoke().Subscribe(
             BIND(&TResponseHandler::CheckReply, handler, i + 100));
@@ -285,8 +285,8 @@ DEFINE_RPC_SERVICE_METHOD(TMyService, ModifyAttachments)
 
 TEST_F(TRpcTest, Attachments)
 {
-    TAutoPtr<TMyProxy> proxy = new TMyProxy(CreateChannel("localhost:2000"));
-    auto request = proxy->ModifyAttachments();
+    TMyProxy proxy(CreateChannel("localhost:2000"));
+    auto request = proxy.ModifyAttachments();
 
     request->Attachments().push_back(SharedRefFromString("Hello"));
     request->Attachments().push_back(SharedRefFromString("from"));
@@ -320,8 +320,8 @@ DEFINE_RPC_SERVICE_METHOD(TMyService, ModifyAttributes)
 
 TEST_F(TRpcTest, Attributes)
 {
-    TAutoPtr<TMyProxy> proxy = new TMyProxy(CreateChannel("localhost:2000"));
-    auto request = proxy->ModifyAttributes();
+    TMyProxy proxy(CreateChannel("localhost:2000"));
+    auto request = proxy.ModifyAttributes();
 
     request->Attributes().SetYson("value1", NYTree::TYsonString("stroka1"));
     request->Attributes().SetYson("value2", NYTree::TYsonString("stroka2"));
@@ -330,7 +330,7 @@ TEST_F(TRpcTest, Attributes)
     auto response = request->Invoke().Get();
     const auto& attributes = response->Attributes();
 
-    EXPECT_FALSE(attributes.FindYson("value1").IsInitialized());
+    EXPECT_FALSE(attributes.FindYson("value1").HasValue());
     EXPECT_EQ(NYTree::TYsonString("another_stroka"), attributes.GetYson("value2"));
     EXPECT_EQ(NYTree::TYsonString("stroka3"), attributes.GetYson("value3"));
 } 
@@ -341,8 +341,8 @@ TEST_F(TRpcTest, Attributes)
 // Now test different types of errors
 TEST_F(TRpcTest, OK)
 {
-    TAutoPtr<TMyProxy> proxy = new TMyProxy(CreateChannel("localhost:2000"));
-    auto request = proxy->ReplyingCall();
+    TMyProxy proxy(CreateChannel("localhost:2000"));
+    auto request = proxy.ReplyingCall();
     auto response = request->Invoke().Get();
 
     EXPECT_EQ(TError::OK, response->GetError().GetCode());
@@ -350,8 +350,8 @@ TEST_F(TRpcTest, OK)
 
 TEST_F(TRpcTest, TransportError)
 {
-    TAutoPtr<TMyProxy> proxy = new TMyProxy(CreateChannel("localhost:9999"));
-    auto request = proxy->EmptyCall();
+    TMyProxy proxy(CreateChannel("localhost:9999"));
+    auto request = proxy.EmptyCall();
     auto response = request->Invoke().Get();
 
     EXPECT_EQ(EErrorCode::TransportError, response->GetError().GetCode());
@@ -359,8 +359,8 @@ TEST_F(TRpcTest, TransportError)
 
 TEST_F(TRpcTest, NoService)
 {
-    TAutoPtr<TNonExistingServiceProxy> proxy = new TNonExistingServiceProxy(CreateChannel("localhost:2000"));
-    auto request = proxy->EmptyCall();
+    TNonExistingServiceProxy proxy(CreateChannel("localhost:2000"));
+    auto request = proxy.EmptyCall();
     auto response = request->Invoke().Get();
 
     EXPECT_EQ(EErrorCode::NoSuchService, response->GetError().GetCode());
@@ -368,8 +368,8 @@ TEST_F(TRpcTest, NoService)
 
 TEST_F(TRpcTest, NoMethod)
 {
-    TAutoPtr<TMyProxy> proxy = new TMyProxy(CreateChannel("localhost:2000"));
-    auto request = proxy->NotRegistredCall();
+    TMyProxy proxy(CreateChannel("localhost:2000"));
+    auto request = proxy.NotRegistredCall();
     auto response = request->Invoke().Get();
 
     EXPECT_EQ(EErrorCode::NoSuchVerb, response->GetError().GetCode());
@@ -417,15 +417,15 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TMyService, CheckAll)
     EXPECT_EQ("world", attributes.Get<Stroka>("hello"));
     EXPECT_EQ(42, attributes.Get<i64>("value"));
 
-    EXPECT_FALSE(attributes.FindYson("another_value").IsInitialized());
+    EXPECT_FALSE(attributes.FindYson("another_value").HasValue());
 
     Event_->Signal();
 }
 
 TEST_F(TRpcTest, OneWaySend)
 {
-    TAutoPtr<TMyProxy> proxy = new TMyProxy(CreateChannel("localhost:2000"));
-    auto request = proxy->CheckAll();
+    TMyProxy proxy(CreateChannel("localhost:2000"));
+    auto request = proxy.CheckAll();
 
     request->set_value(12345);
     request->set_ok(true);
@@ -449,8 +449,8 @@ TEST_F(TRpcTest, OneWaySend)
 // TODO: think about refactoring
 TEST_F(TRpcTest, OneWayOK)
 {
-    TAutoPtr<TMyProxy> proxy = new TMyProxy(CreateChannel("localhost:2000"));
-    auto request = proxy->OneWay();
+    TMyProxy proxy(CreateChannel("localhost:2000"));
+    auto request = proxy.OneWay();
     auto response = request->Invoke().Get();
 
     EXPECT_TRUE(response->IsOK());
@@ -458,8 +458,8 @@ TEST_F(TRpcTest, OneWayOK)
 
 TEST_F(TRpcTest, OneWayTransportError)
 {
-    TAutoPtr<TMyProxy> proxy = new TMyProxy(CreateChannel("localhost:9999"));
-    auto request = proxy->OneWay();
+    TMyProxy proxy(CreateChannel("localhost:9999"));
+    auto request = proxy.OneWay();
     auto response = request->Invoke().Get();
 
     EXPECT_FALSE(response->IsOK());
@@ -467,8 +467,8 @@ TEST_F(TRpcTest, OneWayTransportError)
 
 TEST_F(TRpcTest, OneWayNoService)
 {
-    TAutoPtr<TNonExistingServiceProxy> proxy = new TNonExistingServiceProxy(CreateChannel("localhost:2000"));
-    auto request = proxy->OneWay();
+    TNonExistingServiceProxy proxy(CreateChannel("localhost:2000"));
+    auto request = proxy.OneWay();
     auto response = request->Invoke().Get();
 
     // In this case we receive OK instead of NoSuchService
@@ -477,8 +477,8 @@ TEST_F(TRpcTest, OneWayNoService)
 
 TEST_F(TRpcTest, OneWayNoMethod)
 {
-    TAutoPtr<TMyProxy> proxy = new TMyProxy(CreateChannel("localhost:2000"));
-    auto request = proxy->NotRegistredOneWay();
+    TMyProxy proxy(CreateChannel("localhost:2000"));
+    auto request = proxy.NotRegistredOneWay();
     auto response = request->Invoke().Get();
 
     // In this case we receive OK instead of NoSuchVerb

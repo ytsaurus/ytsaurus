@@ -247,7 +247,7 @@ void TJob::RunJobProxy()
 bool TJob::IsResultSet() const
 {
     TGuard<TSpinLock> guard(SpinLock);
-    return JobResult.IsInitialized();
+    return JobResult.HasValue();
 }
 
 void TJob::OnJobExit(TError error)
@@ -303,7 +303,7 @@ void TJob::SetResult(const TJobResult& jobResult)
 {
     TGuard<TSpinLock> guard(SpinLock);
 
-    if (!JobResult.IsInitialized() || JobResult->error().code() == TError::OK) {
+    if (!JobResult.HasValue() || JobResult->error().code() == TError::OK) {
         JobResult.Assign(jobResult);
     }
 }
@@ -311,7 +311,7 @@ void TJob::SetResult(const TJobResult& jobResult)
 const TJobResult& TJob::GetResult() const
 {
     TGuard<TSpinLock> guard(SpinLock);
-    YCHECK(JobResult.IsInitialized());
+    YCHECK(JobResult.HasValue());
     return JobResult.Get();
 }
 

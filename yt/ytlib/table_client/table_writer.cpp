@@ -80,13 +80,13 @@ void TTableWriter::Open()
     {
         auto batchReq = ObjectProxy.ExecuteBatch();
 
-        if (KeyColumns.IsInitialized()) {
+        if (KeyColumns.HasValue()) {
             auto req = TCypressYPathProxy::Get(path + "/@row_count");
             SetTransactionId(req, TransactionId);
             batchReq->AddRequest(req, "get_row_count");
         }
 
-        if (KeyColumns.IsInitialized() || RichPath.Attributes().Get<bool>("overwrite", false)) {
+        if (KeyColumns.HasValue() || RichPath.Attributes().Get<bool>("overwrite", false)) {
             auto req = TTableYPathProxy::Clear(path);
             SetTransactionId(req, uploadTransactionId);
             NMetaState::GenerateRpcMutationId(req);
@@ -111,7 +111,7 @@ void TTableWriter::Open()
                 << batchRsp->GetError();
         }
 
-        if (KeyColumns.IsInitialized()) {
+        if (KeyColumns.HasValue()) {
             {
                 auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_row_count");
                 if (!rsp->IsOK()) {

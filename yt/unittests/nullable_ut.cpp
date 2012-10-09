@@ -7,18 +7,20 @@
 
 namespace NYT {
 
+using ::ToString;
+
 #ifndef NDEBUG
 TEST(TNullableDeathTest, Uninitialized)
 {
     TNullable<int> nullable;
-    EXPECT_FALSE(nullable.IsInitialized());
+    EXPECT_FALSE(nullable.HasValue());
     ASSERT_DEATH(nullable.Get(), ".*");
 }
 #endif
 
 inline void TestNullable(const TNullable<int>& nullable, bool initialized, int value = 0)
 {
-    EXPECT_EQ(initialized, nullable.IsInitialized());
+    EXPECT_EQ(initialized, nullable.HasValue());
     if (initialized) {
         EXPECT_EQ(value, nullable.Get());
     }
@@ -56,9 +58,9 @@ TEST(TNullableTest, Destruct)
 
 inline void TestSwap(TNullable<int> nullable1, TNullable<int> nullable2)
 {
-    bool initialized1 = nullable1.IsInitialized();
+    bool initialized1 = nullable1.HasValue();
     int value1 = initialized1 ? *nullable1 : 0;
-    bool initialized2 = nullable2.IsInitialized();
+    bool initialized2 = nullable2.HasValue();
     int value2 = initialized2 ? *nullable2 : 0;
 
     nullable1.Swap(nullable2);

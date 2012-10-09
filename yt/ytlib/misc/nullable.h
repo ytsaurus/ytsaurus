@@ -29,28 +29,28 @@ public:
     typedef T TValueType;
 
     TNullable()
-        : Initialized(false)
+        : HasValue_(false)
     { }
 
     TNullable(const T& value)
-        : Initialized(true)
+        : HasValue_(true)
         , Value(value)
     { }
 
     TNullable(T&& value)
-        : Initialized(true)
+        : HasValue_(true)
         , Value(MoveRV(value))
     { }
 
     TNullable(TNull)
-        : Initialized(false)
+        : HasValue_(false)
     { }
     
     template <class U>
     TNullable(
         const TNullable<U>& other,
         typename NMpl::TEnableIf<NMpl::TIsConvertible<U, T>, int>::TType = 0)
-        : Initialized(other.Initialized)
+        : HasValue_(other.HasValue_)
         , Value(other.Value)
     { }
 
@@ -58,12 +58,12 @@ public:
     TNullable(
         TNullable<U>&& other,
         typename NMpl::TEnableIf<NMpl::TIsConvertible<U, T>, int>::TType = 0)
-        : Initialized(other.Initialized)
+        : HasValue_(other.HasValue_)
         , Value(MoveRV(other.Value))
     { }
     
     TNullable(bool condition, const T& value)
-        : Initialized(false)
+        : HasValue_(false)
     {
         if (condition) {
             Assign(value);
@@ -71,7 +71,7 @@ public:
     }
 
     TNullable(bool condition, T&& value)
-        : Initialized(false)
+        : HasValue_(false)
     {
         if (condition) {
             Assign(MoveRV(value));
@@ -114,13 +114,13 @@ public:
     
     void Assign(const T& value)
     {
-        Initialized = true;
+        HasValue_ = true;
         Value = value;
     }
 
     void Assign(T&& value)
     {
-        Initialized = true;
+        HasValue_ = true;
         Value = MoveRV(value);
     }
 
@@ -134,11 +134,11 @@ public:
     {
         static_assert(NMpl::TIsConvertible<U, T>::Value, "U have to be convertible to T");
         
-        bool wasInitalized = Initialized;
-        Initialized = other.Initialized;
-        if (other.Initialized) {
+        bool hadValue = HasValue_;
+        HasValue_ = other.HasValue_;
+        if (other.HasValue_) {
             Value = other.Value;
-        } else if (wasInitalized) {
+        } else if (hadValue) {
             Value = T();
         }
     }
@@ -153,51 +153,51 @@ public:
 
     void Reset()
     {
-        Initialized = false;
+        HasValue_ = false;
         Value = T();
     }
 
     void Swap(TNullable& other)
     {
-        if (!Initialized && !other.Initialized) {
+        if (!HasValue_ && !other.HasValue_) {
             return;
         }
         
-        DoSwap(Initialized, other.Initialized);
+        DoSwap(HasValue_, other.HasValue_);
         DoSwap(Value, other.Value);
     }
 
 
-    bool IsInitialized() const
+    bool HasValue() const
     {
-        return Initialized;
+        return HasValue_;
     }
 
     const T& Get() const
     {
-        YASSERT(Initialized);
+        YASSERT(HasValue_);
         return Value;
     }
 
     T& Get()
     {
-        YASSERT(Initialized);
+        YASSERT(HasValue_);
         return Value;
     }
 
     const T& Get(const T& defaultValue) const
     {
-        return Initialized ? Value : defaultValue;
+        return HasValue_ ? Value : defaultValue;
     }
 
     const T* GetPtr() const
     {
-        return Initialized ? &Value : NULL;
+        return HasValue_ ? &Value : NULL;
     }
 
     T* GetPtr()
     {
-        return Initialized ? &Value : NULL;
+        return HasValue_ ? &Value : NULL;
     }
 
     const T& operator*() const
@@ -224,21 +224,16 @@ public:
     typedef T TNullable::*TUnspecifiedBoolType;
     operator TUnspecifiedBoolType() const
     {
-        return Initialized ? &TNullable::Value : NULL;
+        return HasValue_ ? &TNullable::Value : NULL;
     }
 
 private:
     template <class U>
     friend class TNullable;
 
-    bool Initialized;
+    bool HasValue_;
     T Value;
 };
-
-inline const Stroka ToString(const int& value)
-{
-    return ::ToString(value);
-}
 
 template <class T>
 Stroka ToString(const NYT::TNullable<T>& nullable)
@@ -301,10 +296,10 @@ TNullable< typename NMpl::TDecay<T>::TType > MakeNullable(const T* ptr)
 template <class T>
 bool operator==(const TNullable<T>& lhs, const TNullable<T>& rhs)
 {
-    if (!lhs.IsInitialized() && !rhs.IsInitialized()) {
+    if (!lhs.HasValue() && !rhs.HasValue()) {
         return true;
     }
-    if (!lhs.IsInitialized() || !rhs.IsInitialized()) {
+    if (!lhs.HasValue() || !rhs.HasValue()) {
         return false;
     }
     return *lhs == *rhs;
@@ -319,7 +314,7 @@ bool operator!=(const TNullable<T>& rhs, const TNullable<T>& lhs)
 template <class T>
 bool operator==(const TNullable<T>& lhs, const T& rhs)
 {
-    if (!lhs.IsInitialized()) {
+    if (!lhs.HasValue()) {
         return false;
     }
     return *lhs == rhs;
@@ -334,7 +329,7 @@ bool operator!=(const TNullable<T>& rhs, const T& lhs)
 template <class T>
 bool operator==(const T& lhs, const TNullable<T>& rhs)
 {
-    if (!rhs.IsInitialized()) {
+    if (!rhs.HasValue()) {
         return false;
     }
     return lhs == *rhs;
@@ -351,18 +346,26 @@ bool operator!=(const T& rhs, const TNullable<T>& lhs)
 template <class T>
 void Save(TOutputStream* output, const TNullable<T>& obj)
 {
-    YASSERT(obj);
-    Save(output, *obj);
+    Save(output, obj.HasValue());
+    if (obj.HasValue()) {
+        Save(output, obj.Get());
+    }
 }
 
 template <class T>
-void Load(TInputStream* input, TNullable<T>& optionalObj)
+void Load(TInputStream* input, TNullable<T>& obj)
 {
-    T obj;
-    Load(input, obj);
-    optionalObj = obj;
+    bool hasValue;
+    Load(input, hasValue);
+    if (hasValue) {
+        T temp;
+        Load(input, temp);
+        obj = MoveRV(temp);
+    }
 }
 
-} //namespace NYT
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT
 
 

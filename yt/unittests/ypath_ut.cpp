@@ -72,7 +72,7 @@ public:
         SplitStroku(&result, expected, ";");
 
         for (int index = 0; index < result.ysize(); ++index) {
-            Check(path + "/" + ToString(index), result[index]);
+            Check(path + "/" + ::ToString(index), result[index]);
         }
     }
 };
