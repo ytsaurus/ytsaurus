@@ -239,6 +239,7 @@ private:
 template <class T>
 Stroka ToString(const NYT::TNullable<T>& nullable)
 {
+    using ::ToString;
     return nullable ? ToString(*nullable) : "<Null>";
 }
 
