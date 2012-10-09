@@ -118,6 +118,8 @@ void TBootstrap::Init()
     SyncYPathSet(orchidRoot, "/@build_host", ConvertToYsonString(YT_BUILD_HOST));
     SyncYPathSet(orchidRoot, "/@build_time", ConvertToYsonString(YT_BUILD_TIME));
     SyncYPathSet(orchidRoot, "/@build_machine", ConvertToYsonString(YT_BUILD_MACHINE));
+    SyncYPathSet(orchidRoot, "/@start_time", ConvertToYsonString(TInstant::Now()));
+
 
     MasterConnector->Start();
 }
