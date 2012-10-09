@@ -58,7 +58,7 @@ public:
         result.set_cpu(Spec->Mapper->CpuLimit);
         result.set_memory(
             GetIOMemorySize(
-            JobIOConfig,
+            Spec->JobIO,
             1,
             Spec->OutputTablePaths.size()) +
             GetFootprintMemorySize());
@@ -69,7 +69,6 @@ public:
 private:
     TSchedulerConfigPtr Config;
     TMapOperationSpecPtr Spec;
-    TJobIOConfigPtr JobIOConfig;
 
     // Counters.
     int TotalJobCount;
@@ -206,7 +205,6 @@ private:
                 Spec->JobCount,
                 MapTask->ChunkCounter().GetTotal());
             
-            InitJobIOConfig();
             InitJobSpecTemplate();
 
             LOG_INFO("Inputs processed (DataSize: %" PRId64 ", ChunkCount: %" PRId64 ", JobCount: %d)",
@@ -237,11 +235,6 @@ private:
 
     // Unsorted helpers.
 
-    void InitJobIOConfig()
-    {
-        JobIOConfig = BuildJobIOConfig(Config->MapJobIO, Spec->JobIO);
-    }
-
     void InitJobSpecTemplate()
     {
         JobSpecTemplate.set_type(EJobType::Map);
@@ -255,7 +248,7 @@ private:
 
         *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
-        JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
+        JobSpecTemplate.set_io_config(ConvertToYsonString(Spec->JobIO).Data());
     }
 
 };
@@ -265,7 +258,7 @@ IOperationControllerPtr CreateMapController(
     IOperationHost* host,
     TOperation* operation)
 {
-    auto spec = ParseOperationSpec<TMapOperationSpec>(operation);
+    auto spec = ParseOperationSpec<TMapOperationSpec>(operation, config->MapOperationSpec);
     return New<TMapController>(config, spec, host, operation);
 }
 

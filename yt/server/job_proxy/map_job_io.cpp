@@ -3,12 +3,14 @@
 #include "config.h"
 
 #include <ytlib/table_client/multi_chunk_parallel_reader.h>
+#include <ytlib/scheduler/config.h>
 
 namespace NYT {
 namespace NJobProxy {
 
 using namespace NTableClient;
 using namespace NYTree;
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////
 

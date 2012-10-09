@@ -19,6 +19,7 @@
 #include <ytlib/file_client/file_ypath_proxy.h>
 
 #include <ytlib/cypress_client/public.h>
+#include <ytlib/ytree/ypath_client.h>
 
 #include <server/chunk_server/public.h>
 
@@ -439,13 +440,9 @@ protected:
         TUserJobSpecPtr config,
         const std::vector<TUserFile>& files);
 
-    static NJobProxy::TJobIOConfigPtr BuildJobIOConfig(
-        NJobProxy::TJobIOConfigPtr schedulerConfig,
-        NYTree::INodePtr specConfigNode);
+    static void InitIntermediateOutputConfig(TJobIOConfigPtr config);
 
-    static void InitIntermediateOutputConfig(NJobProxy::TJobIOConfigPtr config);
-
-    static void InitIntermediateInputConfig(NJobProxy::TJobIOConfigPtr config);
+    static void InitIntermediateInputConfig(TJobIOConfigPtr config);
 
 private:
     TChunkListPoolPtr ChunkListPool;
@@ -459,11 +456,12 @@ private:
 namespace {
 
 template <class TSpec>
-TIntrusivePtr<TSpec> ParseOperationSpec(TOperation* operation)
+TIntrusivePtr<TSpec> ParseOperationSpec(TOperation* operation, NYTree::INodePtr defaultSpec)
 {
+    auto ysonSpec = NYTree::UpdateNode(defaultSpec, operation->GetSpec());
     auto spec = New<TSpec>();
     try {
-        spec->Load(operation->GetSpec());
+        spec->Load(ysonSpec);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing operation spec") << ex;
     }

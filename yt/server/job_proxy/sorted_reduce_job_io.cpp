@@ -9,6 +9,8 @@
 #include <ytlib/table_client/table_producer.h>
 #include <ytlib/table_client/merging_reader.h>
 
+#include <ytlib/scheduler/config.h>
+
 namespace NYT {
 namespace NJobProxy {
 

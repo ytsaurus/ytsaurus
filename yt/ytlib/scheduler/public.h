@@ -77,6 +77,9 @@ DECLARE_ENUM(EJobPhase,
 
 class TSchedulerServiceProxy;
 
+struct TJobIOConfig;
+typedef TIntrusivePtr<TJobIOConfig> TJobIOConfigPtr;
+
 struct TOperationSpecBase;
 typedef TIntrusivePtr<TOperationSpecBase> TOperationSpecBasePtr;
 
@@ -91,6 +94,15 @@ typedef TIntrusivePtr<TMergeOperationSpecBase> TMergeOperationSpecBasePtr;
 
 struct TMergeOperationSpec;
 typedef TIntrusivePtr<TMergeOperationSpec> TMergeOperationSpecPtr;
+
+struct TUnorderedMergeOperationSpec;
+typedef TIntrusivePtr<TUnorderedMergeOperationSpec> TUnorderedMergeOperationSpecPtr;
+
+struct TOrderedMergeOperationSpec;
+typedef TIntrusivePtr<TOrderedMergeOperationSpec> TOrderedMergeOperationSpecPtr;
+
+struct TSortedMergeOperationSpec;
+typedef TIntrusivePtr<TSortedMergeOperationSpec> TSortedMergeOperationSpecPtr;
 
 struct TEraseOperationSpec;
 typedef TIntrusivePtr<TEraseOperationSpec> TEraseOperationSpecPtr;

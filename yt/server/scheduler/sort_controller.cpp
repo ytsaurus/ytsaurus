@@ -1398,36 +1398,32 @@ private:
     void InitJobIOConfigs() 
     {
         {
-            PartitionJobIOConfig = BuildJobIOConfig(Config->PartitionJobIO, Spec->PartitionJobIO);
+            PartitionJobIOConfig = Spec->PartitionJobIO;
             InitIntermediateOutputConfig(PartitionJobIOConfig);
         }
 
         {
-            if (SimpleSort) {
-                IntermediateSortJobIOConfig = BuildJobIOConfig(Config->SimpleSortJobIO, Spec->SortJobIO);
-            } else {
-                IntermediateSortJobIOConfig = BuildJobIOConfig(Config->PartitionSortJobIO, Spec->SortJobIO);
+            IntermediateSortJobIOConfig = Spec->SortJobIO;
+            if (!SimpleSort) {
                 InitIntermediateInputConfig(IntermediateSortJobIOConfig);
             }
             InitIntermediateOutputConfig(IntermediateSortJobIOConfig);
         }
 
         {
-            if (SimpleSort) {
-                FinalSortJobIOConfig = BuildJobIOConfig(Config->SimpleSortJobIO, Spec->SortJobIO);
-            } else {
-                FinalSortJobIOConfig = BuildJobIOConfig(Config->PartitionSortJobIO, Spec->SortJobIO);
+            FinalSortJobIOConfig = Spec->SortJobIO;
+            if (!SimpleSort) {
                 InitIntermediateInputConfig(FinalSortJobIOConfig);
             }
         }
 
         {
-            SortedMergeJobIOConfig = BuildJobIOConfig(Config->SortedMergeJobIO, Spec->MergeJobIO);
+            SortedMergeJobIOConfig = Spec->MergeJobIO;
             InitIntermediateInputConfig(SortedMergeJobIOConfig);
         }
 
         {
-            UnorderedMergeJobIOConfig = BuildJobIOConfig(Config->UnorderedMergeJobIO, Spec->MergeJobIO);
+            UnorderedMergeJobIOConfig = Spec->MergeJobIO;
             InitIntermediateInputConfig(UnorderedMergeJobIOConfig);
         }
     }
@@ -1636,7 +1632,9 @@ IOperationControllerPtr CreateSortController(
     IOperationHost* host,
     TOperation* operation)
 {
-    auto spec = ParseOperationSpec<TSortOperationSpec>(operation);
+    auto spec = ParseOperationSpec<TSortOperationSpec>(
+        operation,
+        config->SortOperationSpec);
     return New<TSortController>(config, spec, host, operation);
 }
 
@@ -1818,23 +1816,23 @@ private:
     {
         {
             // This is not a typo!
-            PartitionJobIOConfig = BuildJobIOConfig(Config->PartitionJobIO, Spec->MapJobIO);
+            PartitionJobIOConfig = Spec->MapJobIO;
             InitIntermediateOutputConfig(PartitionJobIOConfig);
         }
 
         {
-            IntermediateSortJobIOConfig = BuildJobIOConfig(Config->PartitionSortJobIO, Spec->SortJobIO);
+            IntermediateSortJobIOConfig = Spec->SortJobIO;
             InitIntermediateInputConfig(IntermediateSortJobIOConfig);
             InitIntermediateOutputConfig(IntermediateSortJobIOConfig);
         }
 
         {
-            FinalSortJobIOConfig = BuildJobIOConfig(Config->PartitionReduceJobIO, Spec->ReduceJobIO);
+            FinalSortJobIOConfig = Spec->ReduceJobIO;
             InitIntermediateInputConfig(FinalSortJobIOConfig);
         }
 
         {
-            SortedMergeJobIOConfig = BuildJobIOConfig(Config->SortedReduceJobIO, Spec->ReduceJobIO);
+            SortedMergeJobIOConfig = Spec->ReduceJobIO;
             InitIntermediateInputConfig(SortedMergeJobIOConfig);
         }
     }
@@ -2047,7 +2045,9 @@ IOperationControllerPtr CreateMapReduceController(
     IOperationHost* host,
     TOperation* operation)
 {
-    auto spec = ParseOperationSpec<TMapReduceOperationSpec>(operation);
+    auto spec = ParseOperationSpec<TMapReduceOperationSpec>(
+        operation,
+        config->MapReduceOperationSpec);
     return New<TMapReduceController>(config, spec, host, operation);
 }
 

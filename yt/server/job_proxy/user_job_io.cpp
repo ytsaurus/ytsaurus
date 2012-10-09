@@ -12,6 +12,7 @@
 #include <ytlib/table_client/schema.h>
 
 #include <ytlib/meta_state/master_channel.h>
+#include <ytlib/scheduler/config.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -20,6 +21,7 @@ using namespace NElection;
 using namespace NScheduler::NProto;
 using namespace NTableClient;
 using namespace NYTree;
+using namespace NScheduler;
 using namespace NTransactionClient;
 using namespace NChunkClient;
 using namespace NChunkServer;

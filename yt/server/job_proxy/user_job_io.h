@@ -25,7 +25,7 @@ class TUserJobIO
 {
 public:
     TUserJobIO(
-        TJobIOConfigPtr ioConfig,
+        NScheduler::TJobIOConfigPtr ioConfig,
         NMetaState::TMasterDiscoveryConfigPtr mastersConfig,
         const NScheduler::NProto::TJobSpec& jobSpec);
 
@@ -50,7 +50,7 @@ public:
     virtual void PopulateResult(NScheduler::NProto::TJobResult* result) = 0;
 
 protected:
-    TJobIOConfigPtr IOConfig;
+    NScheduler::TJobIOConfigPtr IOConfig;
     NRpc::IChannelPtr MasterChannel;
     NScheduler::NProto::TJobSpec JobSpec;
 

@@ -72,7 +72,7 @@ NProto::TNodeResources InfiniteResources();
 i64 GetFootprintMemorySize();
 
 i64 GetIOMemorySize(
-    NJobProxy::TJobIOConfigPtr ioConfig,
+    TJobIOConfigPtr ioConfig,
     int inputStreamCount,
     int outputStreamCount);
 

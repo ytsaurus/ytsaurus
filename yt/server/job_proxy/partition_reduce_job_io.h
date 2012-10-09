@@ -3,13 +3,15 @@
 #include "public.h"
 #include "user_job_io.h"
 
+#include <ytlib/scheduler/public.h>
+
 namespace NYT {
 namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////
 
 TAutoPtr<TUserJobIO> CreatePartitionReduceJobIO(
-    TJobIOConfigPtr config,
+    NScheduler::TJobIOConfigPtr config,
     IJobHost* host,
     NMetaState::TMasterDiscoveryConfigPtr mastersConfig,
     const NScheduler::NProto::TJobSpec& jobSpec);

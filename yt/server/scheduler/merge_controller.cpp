@@ -63,7 +63,7 @@ public:
         result.set_slots(1);
         result.set_cpu(1);
         result.set_memory(
-            GetIOMemorySize(JobIOConfig, GetInputTablePaths().size(), 1) +
+            GetIOMemorySize(SpecBase->JobIO, GetInputTablePaths().size(), 1) +
             GetFootprintMemorySize());
         return result;
     }
@@ -93,8 +93,6 @@ protected:
      *  Partition index is used as a key when calling #TOperationControllerBase::RegisterOutputChunkTree.
      */
     int PartitionCount;
-
-    TJobIOConfigPtr JobIOConfig;
 
     // Merge task.
 
@@ -343,7 +341,6 @@ protected:
         PROFILE_TIMING ("/input_processing_time") {
             LOG_INFO("Processing inputs");
 
-            InitJobIOConfig();
             ClearCurrentTaskStripes();
 
             for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
@@ -456,7 +453,7 @@ protected:
         auto miscExt = GetProtoExtension<TMiscExt>(inputChunk->extensions());
         // ChunkSequenceWriter may actually produce a chunk a bit smaller than DesiredChunkSize,
         // so we have to be more flexible here.
-        if (0.9 * miscExt.compressed_data_size() >= JobIOConfig->TableWriter->DesiredChunkSize) {
+        if (0.9 * miscExt.compressed_data_size() >= SpecBase->JobIO->TableWriter->DesiredChunkSize) {
             return true;
         }
 
@@ -468,9 +465,6 @@ protected:
     {
         return combineChunks ? IsLargeCompleteChunk(inputChunk) : IsCompleteChunk(inputChunk);
     }
-
-    //! Initializes #JobIOConfig.
-    virtual void InitJobIOConfig() = 0;
 
     //! Initializes #JobSpecTemplate.
     virtual void InitJobSpecTemplate() = 0;
@@ -485,7 +479,7 @@ class TUnorderedMergeController
 public:
     TUnorderedMergeController(
         TSchedulerConfigPtr config,
-        TMergeOperationSpecPtr spec,
+        TUnorderedMergeOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
         : TMergeControllerBase(config, spec, host, operation)
@@ -493,7 +487,7 @@ public:
     { }
 
 private:
-    TMergeOperationSpecPtr Spec;
+    TUnorderedMergeOperationSpecPtr Spec;
 
     virtual bool IsPassthroughChunk(TRefCountedInputChunkPtr inputChunk) override
     {
@@ -528,18 +522,13 @@ private:
         EndTaskIfLarge();
     }
 
-    virtual void InitJobIOConfig() override
-    {
-        JobIOConfig = BuildJobIOConfig(Config->UnorderedMergeJobIO, Spec->JobIO);
-    }
-
     virtual void InitJobSpecTemplate() override
     {
         JobSpecTemplate.set_type(EJobType::UnorderedMerge);
 
         *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
-        JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
+        JobSpecTemplate.set_io_config(ConvertToYsonString(Spec->JobIO).Data());
     }
 };
 
@@ -584,7 +573,7 @@ class TOrderedMergeController
 public:
     TOrderedMergeController(
         TSchedulerConfigPtr config,
-        TMergeOperationSpecPtr spec,
+        TOrderedMergeOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
         : TOrderedMergeControllerBase(config, spec, host, operation)
@@ -592,7 +581,7 @@ public:
     { }
 
 private:
-    TMergeOperationSpecPtr Spec;
+    TOrderedMergeOperationSpecPtr Spec;
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {
@@ -614,18 +603,13 @@ private:
         return IsPassthroughChunkImpl(inputChunk, Spec->CombineChunks);
     }
 
-    virtual void InitJobIOConfig() override
-    {
-        JobIOConfig = BuildJobIOConfig(Config->OrderedMergeJobIO, Spec->JobIO);
-    }
-
     virtual void InitJobSpecTemplate() override
     {
         JobSpecTemplate.set_type(EJobType::OrderedMerge);
 
         *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
-        JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
+        JobSpecTemplate.set_io_config(ConvertToYsonString(Spec->JobIO).Data());
     }
 
 };
@@ -697,11 +681,6 @@ private:
         }
     }
 
-    virtual void InitJobIOConfig() override
-    {
-        JobIOConfig = BuildJobIOConfig(Config->OrderedMergeJobIO, Spec->JobIO);
-    }
-
     virtual void InitJobSpecTemplate() override
     {
         JobSpecTemplate.set_type(EJobType::OrderedMerge);
@@ -717,7 +696,7 @@ private:
             ToProto(jobSpecExt->mutable_key_columns(), table.KeyColumns.Get());
         }
 
-        JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
+        JobSpecTemplate.set_io_config(ConvertToYsonString(Spec->JobIO).Data());
     }
 
 };
@@ -1086,7 +1065,7 @@ class TSortedMergeController
 public:
     TSortedMergeController(
         TSchedulerConfigPtr config,
-        TMergeOperationSpecPtr spec,
+        TSortedMergeOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
         : TSortedMergeControllerBase(config, spec, host, operation)
@@ -1094,7 +1073,7 @@ public:
     { }
 
 private:
-    TMergeOperationSpecPtr Spec;
+    TSortedMergeOperationSpecPtr Spec;
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {
@@ -1143,11 +1122,6 @@ private:
         return Spec->MergeBy;
     }
 
-    virtual void InitJobIOConfig() override
-    {
-        JobIOConfig = BuildJobIOConfig(Config->SortedMergeJobIO, Spec->JobIO);
-    }
-
     virtual void InitJobSpecTemplate() override
     {
         JobSpecTemplate.set_type(EJobType::SortedMerge);
@@ -1157,7 +1131,7 @@ private:
         auto* jobSpecExt = JobSpecTemplate.MutableExtension(NScheduler::NProto::TMergeJobSpecExt::merge_job_spec_ext);
         ToProto(jobSpecExt->mutable_key_columns(), KeyColumns);
 
-        JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
+        JobSpecTemplate.set_io_config(ConvertToYsonString(Spec->JobIO).Data());
 
         ManiacJobSpecTemplate.CopyFrom(JobSpecTemplate);
         ManiacJobSpecTemplate.set_type(EJobType::UnorderedMerge);
@@ -1193,7 +1167,7 @@ public:
         result.set_slots(1);
         result.set_cpu(Spec->Reducer->CpuLimit);
         result.set_memory(
-            GetIOMemorySize(JobIOConfig, Spec->InputTablePaths.size(), Spec->OutputTablePaths.size()) +
+            GetIOMemorySize(Spec->JobIO, Spec->InputTablePaths.size(), Spec->OutputTablePaths.size()) +
             Spec->Reducer->MemoryLimit +
             GetFootprintMemorySize());
         return result;
@@ -1237,11 +1211,6 @@ private:
         return Spec->ReduceBy;
     }
 
-    virtual void InitJobIOConfig() override
-    {
-        JobIOConfig = BuildJobIOConfig(Config->SortedReduceJobIO, Spec->JobIO);
-    }
-
     virtual void InitJobSpecTemplate() override
     {
         JobSpecTemplate.set_type(EJobType::SortedReduce);
@@ -1256,7 +1225,7 @@ private:
             Spec->Reducer,
             Files);
 
-        JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
+        JobSpecTemplate.set_io_config(ConvertToYsonString(Spec->JobIO).Data());
 
         ManiacJobSpecTemplate.CopyFrom(JobSpecTemplate);
     }
@@ -1269,17 +1238,35 @@ IOperationControllerPtr CreateMergeController(
     IOperationHost* host,
     TOperation* operation)
 {
-    auto spec = ParseOperationSpec<TMergeOperationSpec>(operation);
-    switch (spec->Mode) {
+    auto baseSpec = ParseOperationSpec<TMergeOperationSpec>(
+        operation, 
+        NYTree::GetEphemeralNodeFactory()->CreateMap());
+
+    switch (baseSpec->Mode) {
         case EMergeMode::Unordered:
+        {
+            auto spec = ParseOperationSpec<TUnorderedMergeOperationSpec>(
+                operation, 
+                config->UnorderedMergeOperationSpec);
             return New<TUnorderedMergeController>(config, spec, host, operation);
+        }
         case EMergeMode::Ordered:
+        {
+            auto spec = ParseOperationSpec<TOrderedMergeOperationSpec>(
+                operation, 
+                config->OrderedMergeOperationSpec);
             return New<TOrderedMergeController>(config, spec, host, operation);
+        }
         case EMergeMode::Sorted:
+        {
+            auto spec = ParseOperationSpec<TSortedMergeOperationSpec>(
+                operation, 
+                config->SortedMergeOperationSpec);
             return New<TSortedMergeController>(config, spec, host, operation);
+        }
         default:
             YUNREACHABLE();
-    }
+    };
 }
 
 IOperationControllerPtr CreateEraseController(
@@ -1287,7 +1274,9 @@ IOperationControllerPtr CreateEraseController(
     IOperationHost* host,
     TOperation* operation)
 {
-    auto spec = ParseOperationSpec<TEraseOperationSpec>(operation);
+    auto spec = ParseOperationSpec<TEraseOperationSpec>(
+        operation,
+        config->EraseOperationSpec);
     return New<TEraseController>(config, spec, host, operation);
 }
 
@@ -1296,7 +1285,9 @@ IOperationControllerPtr CreateReduceController(
     IOperationHost* host,
     TOperation* operation)
 {
-    auto spec = ParseOperationSpec<TReduceOperationSpec>(operation);
+    auto spec = ParseOperationSpec<TReduceOperationSpec>(
+        operation,
+        config->ReduceOperationSpec);
     return New<TReduceController>(config, spec, host, operation);
 }
 

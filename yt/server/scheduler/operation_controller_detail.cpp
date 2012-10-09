@@ -1621,15 +1621,6 @@ void TOperationControllerBase::InitUserJobSpec(
     }
 }
 
-TJobIOConfigPtr TOperationControllerBase::BuildJobIOConfig(
-    TJobIOConfigPtr schedulerConfig,
-    INodePtr specConfigNode)
-{
-    auto config = UpdateYsonSerializable(schedulerConfig, specConfigNode);
-    config->Validate();
-    return config;
-}
-
 void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr config)
 {
     // Don't replicate intermediate output.

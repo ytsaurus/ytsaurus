@@ -7,9 +7,34 @@
 #include <ytlib/ytree/yson_serializable.h>
 
 #include <ytlib/table_client/config.h>
+#include <ytlib/file_client/config.h>
 
 namespace NYT {
 namespace NScheduler {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TJobIOConfig
+    : public TYsonSerializable
+{
+    NTableClient::TTableReaderConfigPtr TableReader;
+    NTableClient::TTableWriterConfigPtr TableWriter;
+    NFileClient::TFileWriterConfigPtr ErrorFileWriter;
+
+    TJobIOConfig()
+    {
+        Register("table_reader", TableReader)
+            .DefaultNew();
+        Register("table_writer", TableWriter)
+            .DefaultNew();
+        Register("error_file_writer", ErrorFileWriter)
+            .DefaultNew();
+
+        // We do not provide much fault tolerance for stderr by default.
+        ErrorFileWriter->ReplicationFactor = 1;
+        ErrorFileWriter->UploadReplicationFactor = 1;
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,7 +94,7 @@ struct TMapOperationSpec
     i64 MinDataSizePerJob;
     i64 MaxDataSizePerJob;
     TDuration LocalityTimeout;
-    NYTree::INodePtr JobIO;
+    TJobIOConfigPtr JobIO;
 
     TMapOperationSpec()
     {
@@ -91,7 +116,9 @@ struct TMapOperationSpec
         Register("locality_timeout", LocalityTimeout)
             .Default(TDuration::Seconds(5));
         Register("job_io", JobIO)
-            .Default(NULL);
+            .DefaultNew();
+
+        JobIO->TableReader->PrefetchWindow = 10;
     }
 };
 
@@ -109,7 +136,7 @@ struct TMergeOperationSpecBase
     i64 JobSliceDataSize;
 
     TDuration LocalityTimeout;
-    NYTree::INodePtr JobIO;
+    TJobIOConfigPtr JobIO;
 
     TMergeOperationSpecBase()
     {
@@ -119,7 +146,7 @@ struct TMergeOperationSpecBase
         Register("locality_timeout", LocalityTimeout)
             .Default(TDuration::Seconds(5));
         Register("job_io", JobIO)
-            .Default(NULL);
+            .DefaultNew();
         Register("job_slice_data_size", JobSliceDataSize)
             .Default((i64) 128 * 1024 * 1024)
             .GreaterThan(0);
@@ -148,16 +175,35 @@ struct TMergeOperationSpec
     {
         Register("input_table_paths", InputTablePaths);
         Register("output_table_path", OutputTablePath);
-        Register("mode", Mode)
-            .Default(EMergeMode::Unordered);
         Register("combine_chunks", CombineChunks)
             .Default(false);
+        Register("mode", Mode)
+            .Default(EMergeMode::Unordered);
         Register("allow_passthrough_chunks", AllowPassthroughChunks)
             .Default(true);
         Register("merge_by", MergeBy)
             .Default();
     }
 };
+
+struct TUnorderedMergeOperationSpec
+    : public TMergeOperationSpec
+{ 
+    TUnorderedMergeOperationSpec()
+    {
+        JobIO->TableReader->PrefetchWindow = 10;
+    }
+};
+
+struct TOrderedMergeOperationSpec
+    : public TMergeOperationSpec
+{ 
+
+};
+
+struct TSortedMergeOperationSpec
+    : public TMergeOperationSpec
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -277,9 +323,9 @@ struct TSortOperationSpec
     //! Only used if no partitioning is done.
     TNullable<int> SortJobCount;
 
-    NYTree::INodePtr PartitionJobIO;
-    NYTree::INodePtr SortJobIO;
-    NYTree::INodePtr MergeJobIO;
+    TJobIOConfigPtr PartitionJobIO;
+    TJobIOConfigPtr SortJobIO;
+    TJobIOConfigPtr MergeJobIO;
 
     TSortOperationSpec()
     {
@@ -293,11 +339,16 @@ struct TSortOperationSpec
             .Default(10)
             .GreaterThan(1);
         Register("partition_job_io", PartitionJobIO)
-            .Default(NULL);
+            .DefaultNew();
         Register("sort_job_io", SortJobIO)
-            .Default(NULL);
+            .DefaultNew();
         Register("merge_job_io", MergeJobIO)
-            .Default(NULL);
+            .DefaultNew();
+
+        PartitionJobIO->TableReader->PrefetchWindow = 10;
+        PartitionJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
+
+        SortJobIO->TableReader->PrefetchWindow = 10;
 
         // Provide custom names for shared settings.
         Register("partition_job_count", PartitionJobCount)
@@ -340,9 +391,9 @@ struct TMapReduceOperationSpec
     TUserJobSpecPtr Mapper;
     TUserJobSpecPtr Reducer;
 
-    NYTree::INodePtr MapJobIO;
-    NYTree::INodePtr SortJobIO;
-    NYTree::INodePtr ReduceJobIO;
+    TJobIOConfigPtr MapJobIO;
+    TJobIOConfigPtr SortJobIO;
+    TJobIOConfigPtr ReduceJobIO;
 
     TMapReduceOperationSpec()
     {
@@ -355,11 +406,11 @@ struct TMapReduceOperationSpec
             .Default();
         Register("reducer", Reducer);
         Register("map_job_io", MapJobIO)
-            .Default(NULL);
+            .DefaultNew();
         Register("sort_job_io", SortJobIO)
-            .Default(NULL);
+            .DefaultNew();
         Register("reduce_job_io", ReduceJobIO)
-            .Default(NULL);
+            .DefaultNew();
 
         // Provide custom names for shared settings.
         Register("map_job_count", PartitionJobCount)

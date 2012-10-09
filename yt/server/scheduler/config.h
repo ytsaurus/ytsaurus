@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <ytlib/ytree/yson_serializable.h>
+#include <ytlib/ytree/ephemeral.h>
 
 #include <ytlib/table_client/config.h>
 
@@ -97,15 +98,14 @@ struct TSchedulerConfig
     //! Maximum number of partitions during sort, ever.
     int MaxPartitionCount;
 
-    NJobProxy::TJobIOConfigPtr MapJobIO;
-    NJobProxy::TJobIOConfigPtr SortedMergeJobIO;
-    NJobProxy::TJobIOConfigPtr OrderedMergeJobIO;
-    NJobProxy::TJobIOConfigPtr UnorderedMergeJobIO;
-    NJobProxy::TJobIOConfigPtr SortedReduceJobIO;
-    NJobProxy::TJobIOConfigPtr PartitionReduceJobIO;
-    NJobProxy::TJobIOConfigPtr PartitionJobIO;
-    NJobProxy::TJobIOConfigPtr SimpleSortJobIO;
-    NJobProxy::TJobIOConfigPtr PartitionSortJobIO;
+    NYTree::INodePtr MapOperationSpec;
+    NYTree::INodePtr ReduceOperationSpec;
+    NYTree::INodePtr EraseOperationSpec;
+    NYTree::INodePtr OrderedMergeOperationSpec;
+    NYTree::INodePtr UnorderedMergeOperationSpec;
+    NYTree::INodePtr SortedMergeOperationSpec;
+    NYTree::INodePtr MapReduceOperationSpec;
+    NYTree::INodePtr SortOperationSpec;
 
     TSchedulerConfig()
     {
@@ -142,34 +142,26 @@ struct TSchedulerConfig
         Register("max_partition_count", MaxPartitionCount)
             .Default(2000)
             .GreaterThan(0);
-        Register("map_job_io", MapJobIO)
-            .DefaultNew();
-        MapJobIO->TableReader->PrefetchWindow = 10;
 
-        Register("sorted_merge_job_io", SortedMergeJobIO)
-            .DefaultNew();
-        Register("ordered_merge_job_io", OrderedMergeJobIO)
-            .DefaultNew();
-        Register("unordered_merge_job_io", UnorderedMergeJobIO)
-            .DefaultNew();
-        UnorderedMergeJobIO->TableReader->PrefetchWindow = 10;
 
-        Register("sorted_reduce_job_io", SortedReduceJobIO)
-            .DefaultNew();
-        Register("partition_reduce_job_io", PartitionReduceJobIO)
-            .DefaultNew();
-        PartitionReduceJobIO->TableReader->PrefetchWindow = 10;
+        auto factory = NYTree::GetEphemeralNodeFactory();
+        Register("map_operation_spec", MapOperationSpec)
+            .Default(factory->CreateMap());
+        Register("reduce_operation_spec", ReduceOperationSpec)
+            .Default(factory->CreateMap());
+        Register("erase_operation_spec", EraseOperationSpec)
+            .Default(factory->CreateMap());
+        Register("ordered_merge_operation_spec", OrderedMergeOperationSpec)
+            .Default(factory->CreateMap());
+        Register("unordered_merge_operation_spec", UnorderedMergeOperationSpec)
+            .Default(factory->CreateMap());
+        Register("sorted_merge_operation_spec", SortedMergeOperationSpec)
+            .Default(factory->CreateMap());
+        Register("map_reduce_operation_spec", MapReduceOperationSpec)
+            .Default(factory->CreateMap());
+        Register("sort_operation_spec", SortOperationSpec)
+            .Default(factory->CreateMap());
 
-        Register("partition_job_io", PartitionJobIO)
-            .DefaultNew();
-        PartitionJobIO->TableReader->PrefetchWindow = 10;
-        PartitionJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
-
-        Register("simple_sort_job_io", SimpleSortJobIO)
-            .DefaultNew();
-        Register("partition_sort_job_io", PartitionSortJobIO)
-            .DefaultNew();
-        PartitionSortJobIO->TableReader->PrefetchWindow = 10;
     }
 };
 

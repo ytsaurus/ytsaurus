@@ -10,9 +10,6 @@ namespace NJobProxy {
 
 using NScheduler::TJobId;
 
-struct TJobIOConfig;
-typedef TIntrusivePtr<TJobIOConfig> TJobIOConfigPtr;
-
 struct TJobProxyConfig;
 typedef TIntrusivePtr<TJobProxyConfig> TJobProxyConfigPtr;
 

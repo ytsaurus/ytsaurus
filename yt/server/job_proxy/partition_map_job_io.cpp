@@ -10,6 +10,7 @@
 
 #include <server/chunk_server/public.h>
 
+#include <ytlib/scheduler/config.h>
 #include <ytlib/scheduler/job.pb.h>
 
 namespace NYT {
@@ -18,6 +19,7 @@ namespace NJobProxy {
 using namespace NTableClient;
 using namespace NTransactionServer;
 using namespace NChunkServer;
+using namespace NScheduler;
 using namespace NScheduler::NProto;
 
 ////////////////////////////////////////////////////////////////////

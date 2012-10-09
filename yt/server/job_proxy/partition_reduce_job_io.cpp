@@ -11,6 +11,8 @@
 #include <ytlib/table_client/sync_reader.h>
 #include <ytlib/table_client/table_producer.h>
 
+#include <ytlib/scheduler/config.h>
+
 #include <ytlib/rpc/channel.h>
 
 namespace NYT {
