@@ -67,7 +67,7 @@ TAsyncError TRecovery::RecoverToState(const TMetaVersion& targetVersion)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     TSnapshotLookup snapshotLookup(Config, CellManager);
-    i32 lastestSnapshotId = snapshotLookup.LookupLatestSnapshot(targetVersion.SegmentId);
+    int lastestSnapshotId = snapshotLookup.LookupLatestSnapshot(targetVersion.SegmentId);
     YCHECK(lastestSnapshotId <= targetVersion.SegmentId);
 
     return RecoverToStateWithChangeLog(targetVersion, lastestSnapshotId);
@@ -75,12 +75,12 @@ TAsyncError TRecovery::RecoverToState(const TMetaVersion& targetVersion)
 
 TAsyncError TRecovery::RecoverToStateWithChangeLog(
     const TMetaVersion& targetVersion,
-    i32 snapshotId)
+    int snapshotId)
 {
     auto currentVersion = DecoratedState->GetVersion();
     YCHECK(snapshotId <= targetVersion.SegmentId);
 
-    LOG_INFO("Recovering state from %s to %s",
+    LOG_INFO("Recovering from %s to %s",
         ~currentVersion.ToString(),
         ~targetVersion.ToString());
 
@@ -136,7 +136,7 @@ TAsyncError TRecovery::RecoverToStateWithChangeLog(
         // Recover using changelogs only.
         LOG_INFO("No snapshot can be used for recovery");
 
-        i32 prevRecordCount =
+        int prevRecordCount =
             currentVersion.SegmentId == 0
             ? NonexistingPrevRecordCount
             : UnknownPrevRecordCount;
@@ -147,12 +147,14 @@ TAsyncError TRecovery::RecoverToStateWithChangeLog(
 
 TAsyncError TRecovery::ReplayChangeLogs(
     const TMetaVersion& targetVersion,
-    i32 expectedPrevRecordCount)
+    int expectedPrevRecordCount)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
+    LOG_INFO("Replaying changelogs to %s", ~targetVersion.ToString());
+
     // Iterate through the segments and apply the changelogs.
-    for (i32 segmentId = DecoratedState->GetVersion().SegmentId;
+    for (int segmentId = DecoratedState->GetVersion().SegmentId;
          segmentId <= targetVersion.SegmentId;
          ++segmentId)
     {
@@ -162,31 +164,26 @@ TAsyncError TRecovery::ReplayChangeLogs(
         TCachedAsyncChangeLogPtr changeLog;
         auto changeLogResult = ChangeLogCache->Get(segmentId);
         if (!changeLogResult.IsOK()) {
-            if (!mayBeMissing) {
-                LOG_FATAL(changeLogResult, "Changelog %d is not available",
-                    segmentId);
-            }
-
-            LOG_INFO("Changelog %d is missing and will be created", segmentId);
+            LOG_FATAL_IF(
+                !mayBeMissing,
+                changeLogResult,
+                "Changelog %d is not available",
+                segmentId);
+            LOG_INFO("Changelog %d is missing and will be created",
+                segmentId);
             YCHECK(expectedPrevRecordCount != UnknownPrevRecordCount);
             changeLog = ChangeLogCache->Create(segmentId, expectedPrevRecordCount, EpochId);
         } else {
             changeLog = changeLogResult.Value();
         }
 
-        LOG_DEBUG("Changelog found (ChangeLogId: %d, RecordCount: %d, PrevRecordCount: %d, IsLast: %s)",
+        LOG_FATAL_IF(
+            expectedPrevRecordCount != UnknownPrevRecordCount &&
+            changeLog->GetPrevRecordCount() != expectedPrevRecordCount,
+            "PrevRecordCount mismatch in changelog %d: expected: %d, found %d",
             segmentId,
-            changeLog->GetRecordCount(),
-            changeLog->GetPrevRecordCount(),
-            ~FormatBool(isLast));
-
-        if (expectedPrevRecordCount != UnknownPrevRecordCount &&
-            changeLog->GetPrevRecordCount() != expectedPrevRecordCount)
-        {
-            LOG_FATAL("PrevRecordCount mismatch: expected: %d, found %d",
-                expectedPrevRecordCount,
-                changeLog->GetPrevRecordCount());
-        }
+            expectedPrevRecordCount,
+            changeLog->GetPrevRecordCount());
 
         if (!IsLeader()) {
             TProxy proxy(CellManager->GetMasterChannel(LeaderId));
@@ -202,69 +199,55 @@ TAsyncError TRecovery::ReplayChangeLogs(
                 return MakeFuture(wrappedError);
             }
 
-            i32 localRecordCount = changeLog->GetRecordCount();
-            i32 remoteRecordCount = response->record_count();
+            int remoteRecordCount = response->record_count();
+            int localRecordCount = changeLog->GetRecordCount();
+            int targetLocalRecordCount = isLast ? targetVersion.RecordCount : remoteRecordCount;
 
-            LOG_INFO("Changelog %d has %d local and %d remote records",
+            LOG_INFO("Syncing changelog %d record count: local %d, remote %d, target local %d",
                 segmentId,
                 localRecordCount,
-                remoteRecordCount);
+                remoteRecordCount,
+                targetLocalRecordCount);
 
-            if (segmentId == targetVersion.SegmentId &&
-                remoteRecordCount < targetVersion.RecordCount)
-            {
-                LOG_FATAL("Remote changelog %d has insufficient records",
-                    segmentId);
-            }
+            LOG_FATAL_IF(
+                remoteRecordCount < targetLocalRecordCount,
+                "Remote changelog %d has insufficient records",
+                segmentId);
 
-            if (localRecordCount > remoteRecordCount) {
-                changeLog->Truncate(remoteRecordCount);
+            if (localRecordCount > targetLocalRecordCount) {
+                changeLog->Truncate(targetLocalRecordCount);
                 changeLog->Finalize();
-                LOG_INFO("Local changelog %d has %d records, truncated to %d records",
-                    segmentId,
-                    localRecordCount,
-                    remoteRecordCount);
             }
 
-            auto currentVersion = DecoratedState->GetVersion();
-            YCHECK(currentVersion.SegmentId <= segmentId);
-
-            // Check if the current state contains some mutations that are not present in the remote changelog.
-            // If so, clear the state and restart recovery.
-            if (currentVersion.SegmentId == segmentId && currentVersion.RecordCount > remoteRecordCount) {
-                TError error("Current version is %s while only %d mutations are expected, forcing clear restart",
-                    ~currentVersion.ToString(),
-                    remoteRecordCount);
-                LOG_INFO(error);
-                DecoratedState->Clear();
-                return MakeFuture(error);
-            }
-
-            // Do not download more than actually needed.
-            int desiredRecordCount =
-                segmentId == targetVersion.SegmentId
-                ? targetVersion.RecordCount
-                : remoteRecordCount;
-            
-            if (localRecordCount < desiredRecordCount) {
+            if (localRecordCount < targetLocalRecordCount) {
                 TChangeLogDownloader changeLogDownloader(
                     Config->ChangeLogDownloader,
                     CellManager,
                     ControlInvoker);
-                TMetaVersion version(segmentId, desiredRecordCount);
-                auto error = changeLogDownloader.Download(version, ~changeLog);
+                auto error = changeLogDownloader.Download(TMetaVersion(segmentId, targetLocalRecordCount), ~changeLog);
                 if (!error.IsOK()) {
                     return MakeFuture(error);
                 }
             }
+
+            YCHECK(changeLog->GetRecordCount() == targetLocalRecordCount);
         }
 
         if (!isLast && !changeLog->IsFinalized()) {
-            LOG_INFO("Finalizing an intermediate changelog %d", segmentId);
             changeLog->Finalize();
         }
 
-        if (segmentId == targetVersion.SegmentId) {
+        // Check if the current state contains some mutations that are redundant.
+        // If so, clear the state and restart recovery.
+        if (isLast) {
+            auto currentVersion = DecoratedState->GetVersion();
+            if (currentVersion.RecordCount > targetVersion.RecordCount) {
+                DecoratedState->Clear();
+                return MakeFuture(TError("Current version is %s while only %d mutations are expected, forcing clear restart",
+                    ~currentVersion.ToString(),
+                    targetVersion.RecordCount));
+            }
+
             YCHECK(changeLog->GetRecordCount() == targetVersion.RecordCount);
         }
 
@@ -283,20 +266,20 @@ TAsyncError TRecovery::ReplayChangeLogs(
 }
 
 void TRecovery::ReplayChangeLog(
-    TAsyncChangeLog& changeLog,
-    i32 targetRecordCount)
+    const TAsyncChangeLog& changeLog,
+    int targetRecordCount)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
     YCHECK(DecoratedState->GetVersion().SegmentId == changeLog.GetId());
     
-    i32 startRecordId = DecoratedState->GetVersion().RecordCount;
-    i32 recordCount = targetRecordCount - startRecordId;
+    int startRecordId = DecoratedState->GetVersion().RecordCount;
+    int recordCount = targetRecordCount - startRecordId;
 
     if (recordCount == 0)
         return;
 
-    LOG_INFO("Reading records %d-%d from changelog %d",
+    LOG_INFO("Replaying records %d-%d from changelog %d",
         startRecordId,
         targetRecordCount - 1, 
         changeLog.GetId());
@@ -359,7 +342,7 @@ TAsyncError TLeaderRecovery::Run()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto version = DecoratedState->GetReachableVersionAsync();
-    i32 maxSnapshotId = SnapshotStore->LookupLatestSnapshot();
+    int maxSnapshotId = SnapshotStore->LookupLatestSnapshot();
     return
         BIND(
             &TRecovery::RecoverToStateWithChangeLog,

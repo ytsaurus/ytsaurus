@@ -25,10 +25,10 @@ struct TLogHeader
     static const ui64 CorrectSignature = 0x313030304C435459ull; // YTCL0002
 
     ui64 Signature;
-    i32 ChangeLogId;
+    int ChangeLogId;
     TEpochId Epoch;
-    i32 PrevRecordCount;
-    i32 Finalized;
+    int PrevRecordCount;
+    int Finalized;
 
     TLogHeader()
         : Signature(0)
@@ -37,7 +37,7 @@ struct TLogHeader
         , Finalized(false)
     { }
 
-    TLogHeader(i32 changeLogId, const TEpochId& epoch, i32 prevRecordCount, bool finalized)
+    TLogHeader(int changeLogId, const TEpochId& epoch, int prevRecordCount, bool finalized)
         : Signature(CorrectSignature)
         , ChangeLogId(changeLogId)
         , Epoch(epoch)
@@ -50,8 +50,8 @@ static_assert(sizeof(TLogHeader) == 36, "Binary size of TLogHeader has changed."
 
 struct TRecordHeader
 {
-    i32 RecordId;
-    i32 DataLength;
+    int RecordId;
+    int DataLength;
     TChecksum Checksum;
 
     TRecordHeader()
@@ -60,7 +60,7 @@ struct TRecordHeader
         , Checksum(0)
     { }
 
-    TRecordHeader(i32 recordId, i32 dataLength, TChecksum checksum)
+    TRecordHeader(int recordId, int dataLength, TChecksum checksum)
         : RecordId(recordId)
         , DataLength(dataLength)
         , Checksum(checksum)
@@ -75,8 +75,8 @@ struct TLogIndexHeader
     static const ui64 CorrectSignature = 0x31303030494C5459ull; // YTLI0001
 
     ui64 Signature;
-    i32 ChangeLogId;
-    i32 IndexSize;
+    int ChangeLogId;
+    int IndexSize;
 
     TLogIndexHeader()
         : Signature(0)
@@ -84,7 +84,7 @@ struct TLogIndexHeader
         , IndexSize(0)
     { }
 
-    TLogIndexHeader(i32 changeLogId, i32 indexSize)
+    TLogIndexHeader(int changeLogId, int indexSize)
         : Signature(CorrectSignature)
         , ChangeLogId(changeLogId)
         , IndexSize(indexSize)
@@ -96,9 +96,9 @@ static_assert(sizeof(TLogIndexHeader) == 16, "Binary size of TLogIndexHeader has
 struct TLogIndexRecord
 {
     i64 FilePosition;
-    i32 RecordId;
+    int RecordId;
 
-    TLogIndexRecord(i32 recordId, i64 filePosition):
+    TLogIndexRecord(int recordId, i64 filePosition):
         FilePosition(filePosition),
         RecordId(recordId)
     { }
@@ -130,26 +130,26 @@ class TChangeLog::TImpl
 public:
     TImpl(
         const Stroka& fileName,
-        i32 id,
+        int id,
         i64 indexBlockSize);
 
     void Open();
-    void Create(i32 previousRecordCount, const TEpochId& epoch);
+    void Create(int previousRecordCount, const TEpochId& epoch);
 
     void Append(const std::vector<TSharedRef>&);
-    void Append(i32 firstRecordId, const std::vector<TSharedRef>&);
+    void Append(int firstRecordId, const std::vector<TSharedRef>&);
     void Append(const TSharedRef& ref);
 
     void Flush();
-    void Read(i32 firstRecordId, i32 recordCount, std::vector<TSharedRef>* records);
-    void Truncate(i32 atRecordId);
+    void Read(int firstRecordId, int recordCount, std::vector<TSharedRef>* records);
+    void Truncate(int recordCount);
 
     void Finalize();
     void Definalize();
 
-    i32 GetId() const;
-    i32 GetPrevRecordCount() const;
-    i32 GetRecordCount() const;
+    int GetId() const;
+    int GetPrevRecordCount() const;
+    int GetRecordCount() const;
     const TEpochId& GetEpoch() const;
     bool IsFinalized() const;
 
@@ -191,7 +191,7 @@ private:
     /*! Checks correctness of record id, updates the index, record count,
      *  current block size and current file position.
      */
-    void ProcessRecord(i32 recordId, i32 readSize);
+    void ProcessRecord(int recordId, int readSize);
 
     //! Refresh index header and update current number of records.
     void RefreshIndexHeader();
@@ -200,7 +200,7 @@ private:
     void ReadIndex();
 
     //! Reads piece of changelog that contains firstRecordId and lastRecordId.
-    TEnvelopeData ReadEnvelope(i32 firstRecordId, i32 lastRecordId);
+    TEnvelopeData ReadEnvelope(int firstRecordId, int lastRecordId);
 
     //! Reads changelog starting from the last indexed record until the end of file.
     void ReadChangeLogUntilEnd();
@@ -209,7 +209,7 @@ private:
     void WriteHeader(bool finalized);
 
     //! Constant data.
-    const i32 Id;
+    const int Id;
     const i64 IndexBlockSize;
     const Stroka FileName;
     const Stroka IndexFileName;
@@ -217,13 +217,13 @@ private:
     //! Mutable data.
     EState State;
 
-    i32 RecordCount;
+    int RecordCount;
     i64 CurrentBlockSize;
     i64 CurrentFilePosition;
 
     //! This is a foreign constraint and it is used to verify integrity of a sequence of changelogs.
     //! \see IMetaState
-    i32 PrevRecordCount;
+    int PrevRecordCount;
     TEpochId Epoch;
 
     std::vector<TLogIndexRecord> Index;

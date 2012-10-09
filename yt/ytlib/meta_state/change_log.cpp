@@ -9,7 +9,7 @@ namespace NMetaState {
 
 TChangeLog::TChangeLog(
     const Stroka& fileName,
-    i32 id,
+    int id,
     i64 indexBlockSize)
     : Impl(new TImpl(
         fileName,
@@ -20,17 +20,17 @@ TChangeLog::TChangeLog(
 TChangeLog::~TChangeLog()
 { }
 
-i32 TChangeLog::GetId() const
+int TChangeLog::GetId() const
 {
     return Impl->GetId();
 }
 
-i32 TChangeLog::GetPrevRecordCount() const
+int TChangeLog::GetPrevRecordCount() const
 {
     return Impl->GetPrevRecordCount();
 }
 
-i32 TChangeLog::GetRecordCount() const
+int TChangeLog::GetRecordCount() const
 {
     return Impl->GetRecordCount();
 }
@@ -50,7 +50,7 @@ void TChangeLog::Open()
     Impl->Open();
 }
 
-void TChangeLog::Create(i32 prevRecordCount, const TEpochId& epoch)
+void TChangeLog::Create(int prevRecordCount, const TEpochId& epoch)
 {
     Impl->Create(prevRecordCount, epoch);
 }
@@ -65,7 +65,7 @@ void TChangeLog::Definalize()
     Impl->Definalize();
 }
 
-void TChangeLog::Append(i32 firstRecordId, const std::vector<TSharedRef>& records)
+void TChangeLog::Append(int firstRecordId, const std::vector<TSharedRef>& records)
 {
     Impl->Append(firstRecordId, records);
 }
@@ -75,14 +75,14 @@ void TChangeLog::Flush()
     Impl->Flush();
 }
 
-void TChangeLog::Read(i32 firstRecordId, i32 recordCount, std::vector<TSharedRef>* result)
+void TChangeLog::Read(int firstRecordId, int recordCount, std::vector<TSharedRef>* result)
 {
     Impl->Read(firstRecordId, recordCount, result);
 }
 
-void TChangeLog::Truncate(i32 atRecordId)
+void TChangeLog::Truncate(int truncatedRecordCount)
 {
-    Impl->Truncate(atRecordId);
+    Impl->Truncate(truncatedRecordCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

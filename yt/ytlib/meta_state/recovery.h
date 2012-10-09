@@ -63,7 +63,7 @@ protected:
      */
     TAsyncError RecoverToStateWithChangeLog(
         const TMetaVersion& targetVersion,
-        i32 snapshotId);
+        int snapshotId);
 
     //! Recovers to the desired state by applying changelogs.
     /*!
@@ -78,7 +78,7 @@ protected:
      */
     TAsyncError ReplayChangeLogs(
         const TMetaVersion& targetVersion,
-        i32 expectedPrevRecordCount);
+        int expectedPrevRecordCount);
 
     //! Applies records from a given changes up to a given one.
     /*!
@@ -94,8 +94,8 @@ protected:
      * \note Thread affinity: StateThread
      */
     void ReplayChangeLog(
-        TAsyncChangeLog& changeLog,
-        i32 targetRecordCount);
+        const TAsyncChangeLog& changeLog,
+        int targetRecordCount);
 
     // Any thread.
     TPersistentStateManagerConfigPtr Config;

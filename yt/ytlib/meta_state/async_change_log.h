@@ -43,11 +43,11 @@ public:
      *
      * \param recordId Consecutive record id.
      * \param data Actual record content.
-     * \returns Promise to fulfill when the record will be flushed.
+     * \returns Promise to fulfill when the record is flushed.
      *
      * \see TChangeLog::Append
      */
-    TFuture<void> Append(i32 recordId, const TSharedRef& data);
+    TFuture<void> Append(int recordId, const TSharedRef& data);
 
     //! Flushes the changelog.
     //! \see TChangeLog::Flush
@@ -56,19 +56,19 @@ public:
     //! Reads records from the changelog.
     //! \see TChangeLog::Read
     //! Size of result can be less than recordCount
-    void Read(i32 firstRecordId, i32 recordCount, std::vector<TSharedRef>* result);
+    void Read(int firstRecordId, int recordCount, std::vector<TSharedRef>* result) const;
 
     //! Truncates the changelog at the specified record.
     //! \see TChangeLog::Truncate
-    void Truncate(i32 atRecordId);
+    void Truncate(int truncatedRecordCount);
 
     //! Finalizes the changelog.
     //! \see TChangeLog::Finalize
     void Finalize();
         
-    i32 GetId() const;
-    i32 GetPrevRecordCount() const;
-    i32 GetRecordCount() const;
+    int GetId() const;
+    int GetPrevRecordCount() const;
+    int GetRecordCount() const;
     const TEpochId& GetEpoch() const;
     bool IsFinalized() const;
 

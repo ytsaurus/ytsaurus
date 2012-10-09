@@ -35,7 +35,7 @@ public:
         , Promise(NewPromise<void>())
     { }
 
-    TFuture<void> Append(i32 recordId, const TSharedRef& data)
+    TFuture<void> Append(int recordId, const TSharedRef& data)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -107,7 +107,7 @@ public:
         }
     }
 
-    i32 GetRecordCount()
+    int GetRecordCount()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -138,11 +138,11 @@ public:
     }
 
     // Can return less records than recordCount
-    void Read(i32 firstRecordId, i32 recordCount, std::vector<TSharedRef>* result)
+    void Read(int firstRecordId, int recordCount, std::vector<TSharedRef>* result)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        i32 flushedRecordCount;
+        int flushedRecordCount;
 
         PROFILE_TIMING ("/changelog_read_copy_time") {
             TGuard<TSpinLock> guard(SpinLock);
@@ -166,7 +166,7 @@ public:
         PROFILE_TIMING ("/changelog_read_io_time") {
             if (firstRecordId < flushedRecordCount) {
                 std::vector<TSharedRef> buffer;
-                i32 neededRecordCount = Min(
+                int neededRecordCount = Min(
                     recordCount,
                     flushedRecordCount - firstRecordId);
                 ChangeLog->Read(firstRecordId, neededRecordCount, &buffer);
@@ -185,22 +185,22 @@ public:
     }
 
 private:
-    i32 DoGetRecordCount() const
+    int DoGetRecordCount() const
     {
         VERIFY_SPINLOCK_AFFINITY(SpinLock);
         return FlushedRecordCount + FlushQueue.size() + AppendQueue.size();
     }
 
     static void CopyRecords(
-        i32 firstRecordId,
+        int firstRecordId,
         const std::vector<TSharedRef>& records,
-        i32 neededFirstRecordId,
-        i32 neededRecordCount,
+        int neededFirstRecordId,
+        int neededRecordCount,
         std::vector<TSharedRef>* result)
     {
-        i32 size = records.size();
-        i32 begin = neededFirstRecordId - firstRecordId;
-        i32 end = neededFirstRecordId + neededRecordCount - firstRecordId;
+        int size = records.size();
+        int begin = neededFirstRecordId - firstRecordId;
+        int end = neededFirstRecordId + neededRecordCount - firstRecordId;
         auto beginIt = records.begin() + Min(Max(begin, 0), size);
         auto endIt = records.begin() + Min(Max(end, 0), size);
         if (endIt != beginIt) {
@@ -214,7 +214,7 @@ private:
     TChangeLogPtr ChangeLog;
     
     TSpinLock SpinLock;
-    i32 FlushedRecordCount;
+    int FlushedRecordCount;
     std::vector<TSharedRef> AppendQueue;
     std::vector<TSharedRef> FlushQueue;
     TPromise<void> Promise;
@@ -248,8 +248,8 @@ public:
     }
 
     TFuture<void> Append(
-        const TChangeLogPtr& changeLog,
-        i32 recordId,
+        TChangeLogPtr changeLog,
+        int recordId,
         const TSharedRef& data)
     {
         LOG_TRACE("Async changelog record is enqueued at version %s",
@@ -267,9 +267,9 @@ public:
     }
 
     void Read(
-        const TChangeLogPtr& changeLog,
-        i32 firstRecordId,
-        i32 recordCount,
+        TChangeLogPtr changeLog,
+        int firstRecordId,
+        int recordCount,
         std::vector<TSharedRef>* result)
     {
         YASSERT(firstRecordId >= 0);
@@ -291,7 +291,7 @@ public:
         }
     }
 
-    void Flush(const TChangeLogPtr& changeLog)
+    void Flush(TChangeLogPtr changeLog)
     {
         auto queue = FindQueue(changeLog);
         if (queue) {
@@ -303,7 +303,7 @@ public:
         }
     }
 
-    i32 GetRecordCount(const TChangeLogPtr& changeLog)
+    int GetRecordCount(TChangeLogPtr changeLog)
     {
         auto queue = FindQueueAndLock(changeLog);
         if (queue) {
@@ -315,7 +315,7 @@ public:
         }
     }
 
-    void Finalize(const TChangeLogPtr& changeLog)
+    void Finalize(TChangeLogPtr changeLog)
     {
         Flush(changeLog);
 
@@ -326,14 +326,14 @@ public:
         LOG_DEBUG("Async changelog %d is finalized", changeLog->GetId());
     }
 
-    void Truncate(const TChangeLogPtr& changeLog, i32 atRecordId)
+    void Truncate(TChangeLogPtr changeLog, int truncatedRecordCount)
     {
         // TODO: Later on this can be improved to asynchronous behavior by
         // getting rid of explicit synchronization.
         Flush(changeLog);
 
         PROFILE_TIMING ("/changelog_truncate_time") {
-            changeLog->Truncate(atRecordId);
+            changeLog->Truncate(truncatedRecordCount);
         }
     }
 
@@ -345,14 +345,14 @@ public:
     }
 
 private:
-    TChangeLogQueuePtr FindQueue(const TChangeLogPtr& changeLog) const
+    TChangeLogQueuePtr FindQueue(TChangeLogPtr changeLog) const
     {
         TGuard<TSpinLock> guard(SpinLock);
         auto it = ChangeLogQueues.find(changeLog);
         return it == ChangeLogQueues.end() ? NULL : it->second;
     }
 
-    TChangeLogQueuePtr FindQueueAndLock(const TChangeLogPtr& changeLog) const
+    TChangeLogQueuePtr FindQueueAndLock(TChangeLogPtr changeLog) const
     {
         TGuard<TSpinLock> guard(SpinLock);
         auto it = ChangeLogQueues.find(changeLog);
@@ -364,7 +364,7 @@ private:
         return queue;
     }
 
-    TChangeLogQueuePtr GetQueueAndLock(const TChangeLogPtr& changeLog)
+    TChangeLogQueuePtr GetQueueAndLock(TChangeLogPtr changeLog)
     {
         TGuard<TSpinLock> guard(SpinLock);
         TChangeLogQueuePtr queue;
@@ -478,7 +478,7 @@ TAsyncChangeLog::~TAsyncChangeLog()
 { }
 
 TFuture<void> TAsyncChangeLog::Append(
-    i32 recordId,
+    int recordId,
     const TSharedRef& data)
 {
     return TImpl::Get()->Append(ChangeLog, recordId, data);
@@ -494,17 +494,17 @@ void TAsyncChangeLog::Flush()
     TImpl::Get()->Flush(ChangeLog);
 }
 
-void TAsyncChangeLog::Read(i32 firstRecordId, i32 recordCount, std::vector<TSharedRef>* result)
+void TAsyncChangeLog::Read(int firstRecordId, int recordCount, std::vector<TSharedRef>* result) const
 {
     TImpl::Get()->Read(ChangeLog, firstRecordId, recordCount, result);
 }
 
-i32 TAsyncChangeLog::GetId() const
+int TAsyncChangeLog::GetId() const
 {
     return ChangeLog->GetId();
 }
 
-i32 TAsyncChangeLog::GetRecordCount() const
+int TAsyncChangeLog::GetRecordCount() const
 {
     return TImpl::Get()->GetRecordCount(ChangeLog);
 }
@@ -514,7 +514,7 @@ const TEpochId& TAsyncChangeLog::GetEpoch() const
     return ChangeLog->GetEpoch();
 }
 
-i32 TAsyncChangeLog::GetPrevRecordCount() const
+int TAsyncChangeLog::GetPrevRecordCount() const
 {
     return ChangeLog->GetPrevRecordCount();
 }
@@ -524,9 +524,9 @@ bool TAsyncChangeLog::IsFinalized() const
     return ChangeLog->IsFinalized();
 }
 
-void TAsyncChangeLog::Truncate(i32 atRecordId)
+void TAsyncChangeLog::Truncate(int recordCount)
 {
-    return TImpl::Get()->Truncate(ChangeLog, atRecordId);
+    return TImpl::Get()->Truncate(ChangeLog, recordCount);
 }
 
 void TAsyncChangeLog::Shutdown()

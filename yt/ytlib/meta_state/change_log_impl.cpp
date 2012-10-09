@@ -17,7 +17,7 @@ static const char* const IndexSuffix = ".index";
 
 TChangeLog::TImpl::TImpl(
     const Stroka& fileName,
-    i32 id,
+    int id,
     i64 indexBlockSize)
     : Id(id)
     , IndexBlockSize(indexBlockSize)
@@ -47,7 +47,7 @@ void TChangeLog::TImpl::Append(const std::vector<TSharedRef>& records)
     }
 }
 
-void TChangeLog::TImpl::Append(i32 firstRecordId, const std::vector<TSharedRef>& records)
+void TChangeLog::TImpl::Append(int firstRecordId, const std::vector<TSharedRef>& records)
 {
     YCHECK(firstRecordId == RecordCount);
     Append(records);
@@ -55,10 +55,10 @@ void TChangeLog::TImpl::Append(i32 firstRecordId, const std::vector<TSharedRef>&
 
 void TChangeLog::TImpl::Append(const TSharedRef& recordData)
 {
-    i32 recordId = RecordCount;
+    int recordId = RecordCount;
     TRecordHeader header(recordId, recordData.Size(), GetChecksum(recordData));
 
-    i32 readSize = 0;
+    int readSize = 0;
     readSize += AppendPodPadded(*File, header);
     readSize += AppendPadded(*File, recordData);
 
@@ -67,7 +67,7 @@ void TChangeLog::TImpl::Append(const TSharedRef& recordData)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TChangeLog::TImpl::Read(i32 firstRecordId, i32 recordCount, std::vector<TSharedRef>* records)
+void TChangeLog::TImpl::Read(int firstRecordId, int recordCount, std::vector<TSharedRef>* records)
 {
     // Check stupid conditions.
     YCHECK(firstRecordId >= 0);
@@ -83,7 +83,7 @@ void TChangeLog::TImpl::Read(i32 firstRecordId, i32 recordCount, std::vector<TSh
     }
 
     recordCount = std::min(recordCount, RecordCount - firstRecordId);
-    i32 lastRecordId = firstRecordId + recordCount;
+    int lastRecordId = firstRecordId + recordCount;
 
     // Read envelope piece of changelog.
     auto envelope = ReadEnvelope(firstRecordId, lastRecordId);
@@ -91,7 +91,7 @@ void TChangeLog::TImpl::Read(i32 firstRecordId, i32 recordCount, std::vector<TSh
     // Read records from envelope data and save them to the records.
     records->resize(recordCount);
     TMemoryInput inputStream(envelope.Blob.Begin(), envelope.Length());
-    for (i32 recordId = envelope.StartRecordId(); recordId < envelope.EndRecordId(); ++recordId) {
+    for (int recordId = envelope.StartRecordId(); recordId < envelope.EndRecordId(); ++recordId) {
         // Read and check header.
         TRecordHeader header;
         ReadPodPadded(inputStream, header);
@@ -132,7 +132,7 @@ void AtomicWriteHeader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TChangeLog::TImpl::Create(i32 prevRecordCount, const TEpochId& epoch)
+void TChangeLog::TImpl::Create(int prevRecordCount, const TEpochId& epoch)
 {
     YCHECK(State == EState::Uninitialized);
 
@@ -202,21 +202,24 @@ void TChangeLog::TImpl::Open()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TChangeLog::TImpl::Truncate(i32 atRecordId)
+void TChangeLog::TImpl::Truncate(int truncatedRecordCount)
 {
     YCHECK(State == EState::Open);
-    YCHECK(atRecordId >= 0);
-    LOG_DEBUG("Truncating changelog (RecordId: %d)", atRecordId);
+    YCHECK(truncatedRecordCount >= 0);
 
-    if (atRecordId >= RecordCount) {
+    if (truncatedRecordCount >= RecordCount) {
         return;
     }
 
-    auto envelope = ReadEnvelope(atRecordId, atRecordId);
-    if (atRecordId == 0) {
+    LOG_DEBUG("Truncating changelog: %d->%d",
+        RecordCount,
+        truncatedRecordCount);
+
+    auto envelope = ReadEnvelope(truncatedRecordCount, truncatedRecordCount);
+    if (truncatedRecordCount == 0) {
         Index.clear();
     } else {
-        auto cutBound = (envelope.LowerBound.RecordId == atRecordId) ? envelope.LowerBound : envelope.UpperBound;
+        auto cutBound = (envelope.LowerBound.RecordId == truncatedRecordCount) ? envelope.LowerBound : envelope.UpperBound;
         auto indexPosition =
             std::lower_bound(Index.begin(), Index.end(), cutBound) - Index.begin();
         Index.resize(indexPosition);
@@ -224,7 +227,7 @@ void TChangeLog::TImpl::Truncate(i32 atRecordId)
     
     i64 readSize = 0;
     TMemoryInput inputStream(envelope.Blob.Begin(), envelope.Length());
-    for (i32 i = envelope.StartRecordId(); i < atRecordId; ++i) {
+    for (int i = envelope.StartRecordId(); i < truncatedRecordCount; ++i) {
         TRecordHeader header;
         readSize += ReadPodPadded(inputStream, header);
         auto alignedSize = AlignUp(header.DataLength);
@@ -232,7 +235,7 @@ void TChangeLog::TImpl::Truncate(i32 atRecordId)
         readSize += alignedSize;
     }
 
-    RecordCount = atRecordId;
+    RecordCount = truncatedRecordCount;
     CurrentBlockSize = readSize;
     CurrentFilePosition = envelope.StartPosition() + readSize;
     {
@@ -303,17 +306,17 @@ void TChangeLog::TImpl::Definalize()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-i32 TChangeLog::TImpl::GetId() const
+int TChangeLog::TImpl::GetId() const
 {
     return Id;
 }
 
-i32 TChangeLog::TImpl::GetPrevRecordCount() const
+int TChangeLog::TImpl::GetPrevRecordCount() const
 {
     return PrevRecordCount;
 }
 
-i32 TChangeLog::TImpl::GetRecordCount() const
+int TChangeLog::TImpl::GetRecordCount() const
 {
     return RecordCount;
 }
@@ -339,12 +342,12 @@ struct TRecordInfo
         Id(-1), TotalSize(-1)
     { }
 
-    TRecordInfo(i32 id, i32 takenPlace):
+    TRecordInfo(int id, int takenPlace):
         Id(id), TotalSize(takenPlace)
     { }
 
-    i32 Id;
-    i32 TotalSize;
+    int Id;
+    int TotalSize;
 };
 
 // Trying to read one record from changelog file.
@@ -352,7 +355,7 @@ struct TRecordInfo
 template <class Stream>
 TNullable<TRecordInfo> ReadRecord(TCheckableFileReader<Stream>& input)
 {
-    i32 readSize = 0;
+    int readSize = 0;
     TRecordHeader header;
     readSize += ReadPodPadded(input, header);
     if (!input.Success() || header.DataLength <= 0) {
@@ -376,7 +379,7 @@ size_t GetMaxCorrectIndexPrefix(const std::vector<TLogIndexRecord>& index, TBuff
 {
     // Check adequacy of index
     size_t correctPrefixLength = 0;
-    for (i32 i = 0; i < index.size(); ++i) {
+    for (int i = 0; i < index.size(); ++i) {
         bool correct;
         if (i == 0) {
             correct = index[i].FilePosition == sizeof(TLogHeader) && index[i].RecordId == 0;
@@ -415,7 +418,7 @@ size_t GetMaxCorrectIndexPrefix(const std::vector<TLogIndexRecord>& index, TBuff
 } // anonymous namespace
 
 
-void TChangeLog::TImpl::ProcessRecord(i32 recordId, i32 readSize)
+void TChangeLog::TImpl::ProcessRecord(int recordId, int readSize)
 {
     if (CurrentBlockSize >= IndexBlockSize || RecordCount == 0) {
         // Add index record in two cases:
@@ -454,7 +457,7 @@ void TChangeLog::TImpl::ReadIndex()
         YCHECK(indexHeader.IndexSize >= 0);
 
         // Read index records.
-        for (i32 i = 0; i < indexHeader.IndexSize; ++i) {
+        for (int i = 0; i < indexHeader.IndexSize; ++i) {
             TLogIndexRecord indexRecord;
             ReadPod(indexStream, indexRecord);
             Index.push_back(indexRecord);
@@ -554,7 +557,7 @@ typename std::vector<T>::const_iterator FirstGreater(const std::vector<T>& vec, 
 
 } // anonymous namesapce
 
-TChangeLog::TImpl::TEnvelopeData TChangeLog::TImpl::ReadEnvelope(i32 firstRecordId, i32 lastRecordId)
+TChangeLog::TImpl::TEnvelopeData TChangeLog::TImpl::ReadEnvelope(int firstRecordId, int lastRecordId)
 {
     TEnvelopeData result;
     result.LowerBound = *LastNotGreater(Index, TLogIndexRecord(firstRecordId, -1));

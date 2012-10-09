@@ -22,7 +22,7 @@ public:
     //! Basic constructor.
     TChangeLog(
         const Stroka& fileName,
-        i32 id,
+        int id,
         i64 indexBlockSize);
 
     ~TChangeLog();
@@ -32,7 +32,7 @@ public:
     void Open();
     //! Creates new changelog.
     //! Throws exception on failure.
-    void Create(i32 prevRecordCount, const TEpochId& epoch);
+    void Create(int prevRecordCount, const TEpochId& epoch);
     //! Finalizes current changelog.
     void Finalize();
     //! Reverts the effects of #FInalize, that is marks a finalize changelog as opened.
@@ -40,17 +40,17 @@ public:
     void Definalize();
 
     //! Appends records to the changelog.
-    void Append(i32 firstRecordId, const std::vector<TSharedRef>& records);
+    void Append(int firstRecordId, const std::vector<TSharedRef>& records);
     //! Flushes the changelog.
     void Flush();
     //! Reads #recordCount records starting from record with id #firstRecordId.
-    void Read(i32 firstRecordId, i32 recordCount, std::vector<TSharedRef>* result);
+    void Read(int firstRecordId, int recordCount, std::vector<TSharedRef>* result);
     //! Deletes all records with id greater or equal than #atRecordId.
-    void Truncate(i32 atRecordId);
+    void Truncate(int truncatedRecordCount);
 
-    i32 GetId() const;
-    i32 GetPrevRecordCount() const;
-    i32 GetRecordCount() const;
+    int GetId() const;
+    int GetPrevRecordCount() const;
+    int GetRecordCount() const;
     const TEpochId& GetEpoch() const;
     bool IsFinalized() const;
 
