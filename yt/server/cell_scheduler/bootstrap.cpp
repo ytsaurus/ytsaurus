@@ -34,13 +34,12 @@
 
 #include <ytlib/transaction_client/transaction_manager.h>
 
+#include <server/bootstrap/common.h>
 
 #include <server/job_proxy/config.h>
 
 #include <server/scheduler/scheduler.h>
 #include <server/scheduler/config.h>
-
-#include <yt/build.h>
 
 namespace NYT {
 namespace NCellScheduler {
@@ -122,11 +121,7 @@ void TBootstrap::Run()
         CreateVirtualNode(Scheduler->CreateOrchidProducer()));
 
     SyncYPathSet(orchidRoot, "/@service_name", ConvertToYsonString("scheduler"));
-    SyncYPathSet(orchidRoot, "/@version", ConvertToYsonString(YT_VERSION));
-    SyncYPathSet(orchidRoot, "/@build_host", ConvertToYsonString(YT_BUILD_HOST));
-    SyncYPathSet(orchidRoot, "/@build_time", ConvertToYsonString(YT_BUILD_TIME));
-    SyncYPathSet(orchidRoot, "/@build_machine", ConvertToYsonString(YT_BUILD_MACHINE));
-    SyncYPathSet(orchidRoot, "/@start_time", ConvertToYsonString(TInstant::Now()));
+    SetBuildAttributes(orchidRoot);
 
     auto orchidService = New<TOrchidService>(
         orchidRoot,

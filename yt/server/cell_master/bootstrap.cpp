@@ -47,7 +47,7 @@
 
 #include <server/orchid/cypress_integration.h>
 
-#include <yt/build.h>
+#include <server/bootstrap/common.h>
 
 namespace NYT {
 namespace NCellMaster {
@@ -184,11 +184,7 @@ void TBootstrap::Run()
         CreateVirtualNode(CreateYsonFileProducer(ConfigFileName)));
 
     SyncYPathSet(orchidRoot, "/@service_name", ConvertToYsonString("master"));
-    SyncYPathSet(orchidRoot, "/@version", ConvertToYsonString(YT_VERSION));
-    SyncYPathSet(orchidRoot, "/@build_host", ConvertToYsonString(YT_BUILD_HOST));
-    SyncYPathSet(orchidRoot, "/@build_time", ConvertToYsonString(YT_BUILD_TIME));
-    SyncYPathSet(orchidRoot, "/@build_machine", ConvertToYsonString(YT_BUILD_MACHINE));
-    SyncYPathSet(orchidRoot, "/@start_time", ConvertToYsonString(TInstant::Now()));
+    SetBuildAttributes(orchidRoot);
 
     auto orchidRpcService = New<NOrchid::TOrchidService>(
         orchidRoot,

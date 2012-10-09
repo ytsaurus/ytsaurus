@@ -17,6 +17,7 @@
 #include "ytree_integration.h"
 #include "private.h"
 
+#include <server/bootstrap/common.h>
 #include <server/cell_node/bootstrap.h>
 
 #include <ytlib/ytree/ypath_client.h>
@@ -25,8 +26,6 @@
 
 #include <ytlib/rpc/server.h>
 #include <ytlib/rpc/channel_cache.h>
-
-#include <yt/build.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -114,12 +113,7 @@ void TBootstrap::Init()
         CreateVirtualNode(CreateCachedChunkMapService(~ChunkCache)));
 
     SyncYPathSet(orchidRoot, "/@service_name", ConvertToYsonString("node"));
-    SyncYPathSet(orchidRoot, "/@version", ConvertToYsonString(YT_VERSION));
-    SyncYPathSet(orchidRoot, "/@build_host", ConvertToYsonString(YT_BUILD_HOST));
-    SyncYPathSet(orchidRoot, "/@build_time", ConvertToYsonString(YT_BUILD_TIME));
-    SyncYPathSet(orchidRoot, "/@build_machine", ConvertToYsonString(YT_BUILD_MACHINE));
-    SyncYPathSet(orchidRoot, "/@start_time", ConvertToYsonString(TInstant::Now()));
-
+    SetBuildAttributes(orchidRoot);
 
     MasterConnector->Start();
 }

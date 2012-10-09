@@ -1,4 +1,5 @@
 set( DIRS
+  bootstrap
   cell_master
   cell_node
   cell_scheduler
