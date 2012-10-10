@@ -717,7 +717,7 @@ private:
     void AbortJob(TJobPtr job, const TError& error)
     {
         // This method must be safe to call for any job.
-        if (job->GetState() == EJobState::Running)
+        if (job->GetState() != EJobState::Running)
             return;
 
         job->SetState(EJobState::Aborted);
