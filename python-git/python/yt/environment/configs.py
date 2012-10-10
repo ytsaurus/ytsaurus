@@ -81,7 +81,7 @@ def get_scheduler_config():
                 categories  = [ "*" ];
             };
             {
-                min_level = Debug;
+                min_level = Trace;
                 writers = [ raw ];
                 categories  = [ "*" ];
             };
@@ -176,6 +176,7 @@ def get_node_config():
     return yson.parse_string(
 """
 {
+    "total_memory_size" = 8000000000;
     "data_node" = {
         "cache_location" = {
             "path" = ""
