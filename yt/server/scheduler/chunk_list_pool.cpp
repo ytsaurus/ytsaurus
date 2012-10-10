@@ -115,8 +115,13 @@ void TChunkListPool::OnChunkListsCreated(
 
     LOG_INFO("Chunk lists allocated");
 
-    FOREACH (auto rsp, batchRsp->GetResponses<TTransactionYPathProxy::TRspCreateObject>()) {
-        Ids.push_back(TChunkListId::FromProto(rsp->object_id()));
+    auto rsps = batchRsp->GetResponses<TTransactionYPathProxy::TRspCreateObject>();
+    FOREACH (auto rsp, rsps) {
+        if (rsp->IsOK()) {
+            Ids.push_back(TChunkListId::FromProto(rsp->object_id()));
+        } else {
+            LOG_ERROR(*rsp, "Error allocating chunk list");
+        }
     }
 
     LastSuccessCount = count;
