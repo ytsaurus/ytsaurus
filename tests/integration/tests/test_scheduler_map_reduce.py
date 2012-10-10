@@ -103,3 +103,15 @@ Wish you were here.
 
     def test_map_reduce(self):
         self.do_run_test('map_reduce')
+
+    def test_many_output_tables(self):
+        create('table', '//tmp/t_in')
+        create('table', '//tmp/t_out1')
+        create('table', '//tmp/t_out2')
+        write('//tmp/t_in', {'line': "some_data"})
+        map_reduce(in_='//tmp/t_in',
+                   out=['//tmp/t_out1', '//tmp/t_out2'],
+                   sort_by='line',
+                   mapper_command='cat',
+                   reducer_command='cat',
+                   opt=['/spec/mapper/format=dsv', '/spec/reducer/format=dsv'])
