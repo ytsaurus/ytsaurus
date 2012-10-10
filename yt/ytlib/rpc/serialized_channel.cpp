@@ -106,7 +106,6 @@ private:
 TSerializedChannel::TSerializedChannel(IChannelPtr underlyingChannel)
     : UnderlyingChannel(MoveRV(underlyingChannel))
     , QueueSize(0)
-    , Terminated(false)
 { }
 
 TNullable<TDuration> TSerializedChannel::GetDefaultTimeout() const
