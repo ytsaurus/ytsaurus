@@ -10,6 +10,8 @@
 
 #include <ytlib/actions/async_pipeline.h>
 
+#include <ytlib/rpc/serialized_channel.h>
+
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/transaction.h>
 
@@ -34,6 +36,7 @@ using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NTransactionClient;
 using namespace NMetaState;
+using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -51,7 +54,6 @@ public:
         : Config(config)
         , Bootstrap(bootstrap)
         , Connected(false)
-        , ObjectProxy(bootstrap->GetMasterChannel())
     { }
 
     void Start()
@@ -76,11 +78,14 @@ public:
         LOG_INFO("Creating operation node (OperationId: %s)",
             ~ToString(id));
 
-        CreateUpdateList(operation);
+        auto* list = CreateUpdateList(operation);
+
+        TObjectServiceProxy proxy(list->SerializedChannel);
 
         auto setReq = TYPathProxy::Set(GetOperationPath(id));
         setReq->set_value(BuildOperationYson(operation).Data());
-        return ObjectProxy.Execute(setReq).Apply(
+
+        return proxy.Execute(setReq).Apply(
             BIND(&TImpl::OnOperationNodeCreated, MakeStrong(this), operation)
                 .AsyncVia(Bootstrap->GetControlInvoker()));
     }
@@ -97,7 +102,8 @@ public:
         auto* list = GetUpdateList(operation);
 
         // Create a batch update for this particular operation.
-        auto batchReq = ObjectProxy.ExecuteBatch();
+        TObjectServiceProxy proxy(list->SerializedChannel);
+        auto batchReq = proxy.ExecuteBatch();
         PrepareOperationUpdate(list, batchReq);
 
         batchReq->Invoke().Apply(
@@ -121,7 +127,8 @@ public:
         list->FinalizationPending = true;
 
         // Create a batch update for this particular operation.
-        auto batchReq = ObjectProxy.ExecuteBatch();
+        TObjectServiceProxy proxy(list->SerializedChannel);
+        auto batchReq = proxy.ExecuteBatch();
         PrepareOperationUpdate(list, batchReq);
 
         batchReq->Invoke().Subscribe(
@@ -192,8 +199,6 @@ private:
 
     bool Connected;
 
-    NObjectClient::TObjectServiceProxy ObjectProxy;
-
     NTransactionClient::ITransactionPtr LockTransaction;
 
     TPeriodicInvokerPtr TransactionRefreshInvoker;
@@ -203,11 +208,12 @@ private:
 
     struct TOperationUpdateList
     {
-        explicit TOperationUpdateList(TOperationPtr operation)
+        TOperationUpdateList(IChannelPtr masterChannel, TOperationPtr operation)
             : Operation(operation)
             , FinalizationPending(false)
             , Flushed(NewPromise<void>())
             , Finalized(NewPromise<void>())
+            , SerializedChannel(CreateSerializedChannel(masterChannel))
         { }
 
         TOperationPtr Operation;
@@ -217,6 +223,7 @@ private:
         bool FinalizationPending;
         TPromise<void> Flushed;
         TPromise<void> Finalized;
+        IChannelPtr SerializedChannel;
     };
 
     yhash_map<TOperationId, TOperationUpdateList> UpdateLists;
@@ -288,6 +295,7 @@ private:
     public:
         explicit TRegistrationPipeline(TIntrusivePtr<TImpl> owner)
             : Owner(owner)
+            , Proxy(owner->Bootstrap->GetMasterChannel())
         { }
 
         TAsyncPipeline<TMasterHandshakeResult>::TPtr Create()
@@ -304,6 +312,7 @@ private:
 
     private:
         TIntrusivePtr<TImpl> Owner;
+        TObjectServiceProxy Proxy;
         std::vector<TOperationId> OperationIds;
         TMasterHandshakeResult Result;
 
@@ -311,7 +320,7 @@ private:
         // - Start lock transaction.
         TObjectServiceProxy::TInvExecuteBatch Round1()
         {
-            auto batchReq = Owner->ObjectProxy.ExecuteBatch();
+            auto batchReq = Proxy.ExecuteBatch();
             {
                 auto req = TTransactionYPathProxy::CreateObject(RootTransactionPath);
                 req->set_type(EObjectType::Transaction);
@@ -333,7 +342,7 @@ private:
                 LOG_INFO("Lock transaction is %s", ~ToString(transactionId));
             }
 
-            auto batchReq = Owner->ObjectProxy.ExecuteBatch();
+            auto batchReq = Proxy.ExecuteBatch();
             auto schedulerAddress = Owner->Bootstrap->GetPeerAddress();
             {
                 auto req = TCypressYPathProxy::Lock("//sys/scheduler/lock");
@@ -378,7 +387,7 @@ private:
                 LOG_INFO("Orchid address set");
             }
 
-            auto batchReq = Owner->ObjectProxy.ExecuteBatch();
+            auto batchReq = Proxy.ExecuteBatch();
             {
                 auto req = TYPathProxy::List(GetOperationsPath());
                 req->add_attributes("state");
@@ -413,7 +422,7 @@ private:
                 }
             }
 
-            auto batchReq = Owner->ObjectProxy.ExecuteBatch();
+            auto batchReq = Proxy.ExecuteBatch();
             {
                 LOG_INFO("Fetching attributes for %d unfinished operations",
                     static_cast<int>(OperationIds.size()));
@@ -452,7 +461,7 @@ private:
                 }
             }
 
-            auto batchReq = Owner->ObjectProxy.ExecuteBatch();
+            auto batchReq = Proxy.ExecuteBatch();
             FOREACH (auto operation, Result.Operations) {
                 operation->SetState(EOperationState::Reviving);
 
@@ -470,7 +479,7 @@ private:
         {
             THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
 
-            auto batchReq = Owner->ObjectProxy.ExecuteBatch();
+            auto batchReq = Proxy.ExecuteBatch();
             Owner->WatcherRequest_.Fire(batchReq);
             return batchReq->Invoke();
         }
@@ -620,7 +629,8 @@ private:
 
         // Invoke GetId verbs for these transactions to see if they are alive.
         std::vector<TTransactionId> transactionIdsList;
-        auto batchReq = ObjectProxy.ExecuteBatch();
+        TObjectServiceProxy proxy(Bootstrap->GetMasterChannel());
+        auto batchReq = proxy.ExecuteBatch();
         FOREACH (const auto& id, transactionIdsSet) {
             auto checkReq = TObjectYPathProxy::GetId(FromObjectId(id));
             transactionIdsList.push_back(id);
@@ -671,11 +681,12 @@ private:
     }
 
 
-    void CreateUpdateList(TOperationPtr operation)
+    TOperationUpdateList* CreateUpdateList(TOperationPtr operation)
     {
-        YCHECK(UpdateLists.insert(std::make_pair(
-            operation->GetOperationId(),
-            TOperationUpdateList(operation))).second);
+        TOperationUpdateList list(Bootstrap->GetMasterChannel(), operation);
+        auto pair = UpdateLists.insert(std::make_pair(operation->GetOperationId(), list));
+        YCHECK(pair.second);
+        return &pair.first->second;
     }
 
     void CreateUpdateLists(const std::vector<TOperationPtr>& operations)
@@ -711,7 +722,8 @@ private:
         LOG_INFO("Updating operation nodes");
 
         // Create a batch update for all operations.
-        auto batchReq = ObjectProxy.ExecuteBatch();
+        TObjectServiceProxy proxy(Bootstrap->GetMasterChannel());
+        auto batchReq = proxy.ExecuteBatch();
         FOREACH (auto& pair, UpdateLists) {
             auto* list = &pair.second;
             PrepareOperationUpdate(list, batchReq);
@@ -895,7 +907,8 @@ private:
         LOG_INFO("Updating watchers");
 
         // Create a batch update for all operations.
-        auto batchReq = ObjectProxy.ExecuteBatch();
+        TObjectServiceProxy proxy(Bootstrap->GetMasterChannel());
+        auto batchReq = proxy.ExecuteBatch();
         WatcherRequest_.Fire(batchReq);
         batchReq->Invoke().Subscribe(
             BIND(&TImpl::OnWatchersUpdated, MakeStrong(this))
