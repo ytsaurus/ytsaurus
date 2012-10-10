@@ -112,6 +112,5 @@ Wish you were here.
         map_reduce(in_='//tmp/t_in',
                    out=['//tmp/t_out1', '//tmp/t_out2'],
                    sort_by='line',
-                   mapper_command='cat',
                    reducer_command='cat',
-                   opt=['/spec/mapper/format=dsv', '/spec/reducer/format=dsv'])
+                   opt='/spec/reducer/format=dsv')
