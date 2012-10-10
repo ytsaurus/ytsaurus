@@ -105,7 +105,7 @@ void TChunkListPool::OnChunkListsCreated(
     int count,
     TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
 {
-    YASSERT(RequestInProgress);
+    YCHECK(RequestInProgress);
     RequestInProgress = false;
 
     if (!batchRsp->IsOK()) {
