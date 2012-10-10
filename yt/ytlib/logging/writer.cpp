@@ -68,7 +68,7 @@ void TFileLogWriter::EnsureInitialized()
         FileOutput->SetFinishPropagateMode(true);
         *FileOutput << Endl;
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Error opening log file %s", ~FileName.Quote());
+        LOG_ERROR(ex, "Error opening log file: %s", ~FileName);
         // Still let's pretend we're initialized to avoid subsequent attempts.
         Initialized = true;
         return;
@@ -77,7 +77,7 @@ void TFileLogWriter::EnsureInitialized()
     LogWriter = New<TStreamLogWriter>(~FileOutput, Pattern);
     LogWriter->Write(TLogEvent(
         SystemLoggingCategory,
-        ELogLevel::Debug,
+        ELogLevel::Info,
         "Log file opened"));
 
     Initialized = true;
@@ -124,7 +124,7 @@ void TRawFileLogWriter::EnsureInitialized()
         FileOutput->SetFinishPropagateMode(true);
         *FileOutput << Endl;
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Error opening log file %s", ~FileName.Quote());
+        LOG_ERROR(ex, "Error opening log file: %s", ~FileName);
         // Still let's pretend we're initialized to avoid subsequent attempts.
     }
 
@@ -132,7 +132,7 @@ void TRawFileLogWriter::EnsureInitialized()
 
     Write(TLogEvent(
         SystemLoggingCategory,
-        ELogLevel::Debug,
+        ELogLevel::Info,
         "Log file opened"));
 }
 
