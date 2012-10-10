@@ -13,6 +13,7 @@ set( SRCS
   ${BASE}/roaming_channel.cpp
   ${BASE}/rpc_dispatcher.cpp
   ${BASE}/scoped_channel.cpp
+  ${BASE}/serialized_channel.cpp
   ${BASE}/server.cpp
   ${BASE}/server_detail.cpp
   ${BASE}/service.cpp
@@ -31,6 +32,7 @@ set( HDRS
   ${BASE}/roaming_channel.h
   ${BASE}/rpc_dispatcher.h
   ${BASE}/scoped_channel.h
+  ${BASE}/serialized_channel.h
   ${BASE}/server.h
   ${BASE}/server_detail.h
   ${BASE}/service.h

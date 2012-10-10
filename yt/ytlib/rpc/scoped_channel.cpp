@@ -49,7 +49,7 @@ public:
         IClientResponseHandlerPtr underlyingHandler,
         TScopedChannelPtr channel)
         : UnderlyingHandler(MoveRV(underlyingHandler))
-        , Channel(channel)
+        , Channel(MoveRV(channel))
     { }
 
     void OnAcknowledgement() override
@@ -138,7 +138,8 @@ void TScopedChannel::OnRequestCompleted()
 
 IChannelPtr CreateScopedChannel(IChannelPtr underlyingChannel)
 {
-    YASSERT(underlyingChannel);
+    YCHECK(underlyingChannel);
+
     return New<TScopedChannel>(underlyingChannel);
 }
 
