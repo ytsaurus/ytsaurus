@@ -258,6 +258,17 @@ void TOperationControllerBase::TTask::AddOutputSpecs(
     }
 }
 
+void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
+    NScheduler::NProto::TJobSpec* jobSpec,
+    TJobInProgressPtr jip)
+{
+    auto* outputSpec = jobSpec->add_output_specs();
+    outputSpec->set_channels("[]");
+    auto chunkListId = Controller->ExtractChunkList();
+    jip->ChunkListIds.push_back(chunkListId);
+    *outputSpec->mutable_chunk_list_id() = chunkListId.ToProto();
+}
+
 void TOperationControllerBase::TTask::AddInputChunks(
     NScheduler::NProto::TTableInputSpec* inputSpec,
     TChunkStripePtr stripe)

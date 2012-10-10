@@ -266,7 +266,7 @@ protected:
         {
             jobSpec->CopyFrom(Controller->PartitionJobSpecTemplate);
             AddSequentialInputSpec(jobSpec, jip);
-            AddOutputSpecs(jobSpec, jip);
+            AddIntermediateOutputSpec(jobSpec, jip);
         }
 
         virtual void OnJobStarted(TJobInProgressPtr jip) override
@@ -526,12 +526,13 @@ protected:
         {
             if (Controller->IsSortedMergeNeeded(Partition)) {
                 jobSpec->CopyFrom(Controller->IntermediateSortJobSpecTemplate);
+                AddIntermediateOutputSpec(jobSpec, jip);
             } else {
                 jobSpec->CopyFrom(Controller->FinalSortJobSpecTemplate);
+                AddOutputSpecs(jobSpec, jip);
             }
 
             AddSequentialInputSpec(jobSpec, jip);
-            AddOutputSpecs(jobSpec, jip);
 
             {
                 auto* jobSpecExt = jobSpec->MutableExtension(TSortJobSpecExt::sort_job_spec_ext);

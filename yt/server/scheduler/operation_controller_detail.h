@@ -252,6 +252,7 @@ protected:
         void AddSequentialInputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobInProgressPtr jip);
         void AddParallelInputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobInProgressPtr jip);
         void AddOutputSpecs(NScheduler::NProto::TJobSpec* jobSpec, TJobInProgressPtr jip);
+        void AddIntermediateOutputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobInProgressPtr jip);
 
     private:
         void ReleaseFailedJob(TJobInProgressPtr jip);
