@@ -738,7 +738,7 @@ private:
         }
 
         // Set progress.
-        if (state == EOperationState::Running || operation->IsFinished()) {
+        if (state == EOperationState::Running || operation->IsFinishedState()) {
             auto req = TYPathProxy::Set(operationPath + "/@progress");
             req->set_value(BuildYsonFluently()
                 .BeginMap()
@@ -748,7 +748,7 @@ private:
         }
 
         // Set result.
-        if (operation->IsFinished()) {
+        if (operation->IsFinishedState()) {
             auto req = TYPathProxy::Set(operationPath + "/@result");
             req->set_value(
                 ConvertToYsonString(

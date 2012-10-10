@@ -39,7 +39,7 @@ void TOperation::SetFinished()
     FinishedPromise.Set();
 }
 
-bool TOperation::IsFinished() const
+bool TOperation::IsFinishedState() const
 {
     return IsOperationFinished(State_);
 }

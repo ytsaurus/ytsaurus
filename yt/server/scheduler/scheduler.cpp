@@ -19,6 +19,7 @@
 #include <ytlib/misc/address.h>
 
 #include <ytlib/actions/action_queue.h>
+#include <ytlib/actions/async_pipeline.h>
 
 #include <ytlib/logging/tagged_logger.h>
 
@@ -287,8 +288,8 @@ public:
             &TThis::DoOperationFailed,
             MakeStrong(this),
             operation,
-            error,
-            EOperationState::Failed));
+            EOperationState::Failed,
+            error));
     }
 
 
@@ -351,7 +352,21 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        AbortOperations(TError("Master disconnected"));
+        auto operations = Operations;
+        FOREACH (const auto& pair, operations) {
+            auto operation = pair.second;
+            if (!operation->IsFinishedState()) {
+                operation->GetController()->Abort();
+                SetOperationFinishedState(
+                    operation,
+                    EOperationState::Aborted,
+                    TError("Master disconnected"));
+            }
+            AbortOperationJobs(operation);
+            FinishOperation(operation);
+        }
+
+        YCHECK(Operations.empty());
     }
 
 
@@ -507,6 +522,7 @@ private:
 
         // Run async preparation.
         LOG_INFO("Preparing operation (OperationId: %s)", ~operation->GetOperationId().ToString());
+
         operation->GetController()->Prepare().Subscribe(
             BIND(&TThis::OnOperationPrepared, MakeStrong(this), operation)
                 .Via(GetControlInvoker()));
@@ -558,25 +574,12 @@ private:
             ~operation->GetOperationId().ToString());
     }
 
-    void AbortOperations(const TError& error)
-    {
-        auto operations = Operations;
-        FOREACH (const auto& pair, operations) {
-            auto operation = pair.second;
-            if (!operation->IsFinished()) {
-                AbortOperation(operation, error);
-            }
-        }
-        // Typically an operation gets unregistered in AbortOperation above.
-        // Finished operations, however, must be swept manually.
-        Operations.clear();
-    }
 
     void AbortOperation(TOperationPtr operation, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (operation->IsFinished()) {
+        if (operation->IsFinishedState()) {
             LOG_INFO(error, "Request to abort an already finished operation ignored (OperationId: %s, State: %s)",
                 ~operation->GetOperationId().ToString(),
                 ~operation->GetState().ToString());
@@ -587,7 +590,7 @@ private:
             ~operation->GetOperationId().ToString(),
             ~operation->GetState().ToString());
                 
-        DoOperationFailed(operation, error, EOperationState::Aborted);
+        DoOperationFailed(operation, EOperationState::Aborted, error);
     }
 
 
@@ -666,6 +669,8 @@ private:
             AbortJob(job, TError("Operation aborted"));
             UnregisterJob(job);
         }
+
+        YCHECK(operation->Jobs().empty());
     }
 
     void UnregisterOperation(TOperationPtr operation)
@@ -674,6 +679,15 @@ private:
         OperationFinished_.Fire(operation);
 
         LOG_DEBUG("Operation unregistered (OperationId: %s)", ~operation->GetOperationId().ToString());
+    }
+
+    void SetOperationFinishedState(TOperationPtr operation, EOperationState state, const TError& error)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        operation->SetState(state);
+        operation->SetEndTime(TInstant::Now());
+        ToProto(operation->Result().mutable_error(), error);
     }
 
     void FinishOperation(TOperationPtr operation)
@@ -798,7 +812,6 @@ private:
     }
 
 
-
     void UpdateFinishedJobNode(TJobPtr job)
     {
         // Check if we have an active connection with master.
@@ -880,7 +893,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (operation->IsFinished()) {
+        if (operation->IsFinishedState()) {
             // Operation is probably being aborted.
             return;
         }
@@ -888,74 +901,32 @@ private:
         // The operation may still have running jobs (e.g. those started speculatively).
         AbortOperationJobs(operation);
         
-        operation->SetEndTime(TInstant::Now());
-
-        MasterConnector->FlushOperationNode(operation).Subscribe(
-            BIND(&TImpl::OnCompletedOperationNodeFlushed, MakeStrong(this), operation)
-                .Via(GetControlInvoker()));
+        StartAsyncPipeline(GetControlInvoker())
+            ->Add(BIND(&TMasterConnector::FlushOperationNode, ~MasterConnector, operation))
+            ->Add(BIND(&IOperationController::Commit, operation->GetController()))
+            ->Add(BIND(&TThis::SetOperationFinishedState, MakeStrong(this), operation, EOperationState::Completed, TError()))
+            ->Add(BIND(&TMasterConnector::FinalizeOperationNode, ~MasterConnector, operation))
+            ->Add(BIND(&TThis::FinishOperation, MakeStrong(this), operation))
+            ->Run();
     }
 
-    void OnCompletedOperationNodeFlushed(TOperationPtr operation)
+    void DoOperationFailed(TOperationPtr operation, EOperationState state, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        operation->GetController()->Commit().Subscribe(
-            BIND(&TImpl::OnCompletedOperationCommitted, MakeStrong(this), operation)
-                .Via(GetControlInvoker()));
-    }   
-
-    void OnCompletedOperationCommitted(TOperationPtr operation)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        operation->SetState(EOperationState::Completed);
-
-        MasterConnector->FinalizeOperationNode(operation).Subscribe(
-            BIND(&TThis::OnCompletedOperationNodeFinalized, MakeStrong(this), operation)
-                .Via(GetControlInvoker()));
-    }
-    
-    void OnCompletedOperationNodeFinalized(TOperationPtr operation)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        FinishOperation(operation);
-    }
-
-
-    void DoOperationFailed(TOperationPtr operation, const TError& error, EOperationState finalState)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (operation->IsFinished()) {
+        if (operation->IsFinishedState()) {
             // Safe to call OnOperationFailed multiple times, just ignore it.
             return;
         }
 
-        operation->SetState(finalState);
-        operation->SetEndTime(TInstant::Now());
-        ToProto(operation->Result().mutable_error(), error);
-
+        SetOperationFinishedState(operation, state, error);
         AbortOperationJobs(operation);
 
-        // Check if we have an active connection with master.
-        // This function may be called when master gets disconnected,
-        // so we must be careful.
-        if (MasterConnector->IsConnected()) {
-            MasterConnector->FinalizeOperationNode(operation).Subscribe(
-                BIND(&TImpl::OnFailedOperationNodeFinalized, MakeStrong(this), operation)
-                    .Via(GetControlInvoker()));
-        } else {
-            OnFailedOperationNodeFinalized(operation);
-        }
-    }
-
-    void OnFailedOperationNodeFinalized(TOperationPtr operation)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        operation->GetController()->Abort();
-        FinishOperation(operation);
+        StartAsyncPipeline(GetControlInvoker())
+            ->Add(BIND(&IOperationController::Abort, operation->GetController()))
+            ->Add(BIND(&TMasterConnector::FinalizeOperationNode, ~MasterConnector, operation))
+            ->Add(BIND(&TThis::FinishOperation, MakeStrong(this), operation))
+            ->Run();
     }
 
 

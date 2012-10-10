@@ -48,7 +48,7 @@ class TOperation
     void SetFinished();
 
     //! Delegates to #NYT::NScheduler::IsOperationFinished.
-    bool IsFinished() const;
+    bool IsFinishedState() const;
 
 public:
     TOperation(
