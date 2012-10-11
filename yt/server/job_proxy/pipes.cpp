@@ -142,6 +142,24 @@ void TOutputPipe::PrepareJobDescriptors()
     YASSERT(!IsFinished);
 
     SafeClose(Pipe.ReadFd);
+
+#ifdef _linux_
+    const int MaxRetryCount = 5;
+
+    for (int retryCount = 0; ;++retryCount) {
+        int res = ::close(JobDescriptor);
+        if (res == 0 || errno == EBADF) {
+            break;
+        }
+
+        if (retryCount == MaxRetryCount) {
+            THROW_ERROR_EXCEPTION(
+                "Failed to prepare job descriptor (fd: %d)", 
+                JobDescriptor) << TError::FromSystem();
+        }
+    }
+#endif
+
     SafeDup2(Pipe.WriteFd, JobDescriptor);
     SafeClose(Pipe.WriteFd);
 }
