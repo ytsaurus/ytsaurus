@@ -19,7 +19,7 @@ print 'extracted ', len(rows), ' rows'
 codecs = ["none", "gzip_normal", "snappy", "gzip_best_compression", "lz4", "lz4_high_compression", "quick_lz"]
 
 def count_speed(size, t):
-	return 1. * (size / t) * 1024 * 1024 / 1000 / 1000
+	return 1. * size / t  / 1024 / 1024 * 1000 * 1000
 
 def pretty_speed(speed):
 	return str(round(speed, 4)) + ' Mb/s'
@@ -38,6 +38,8 @@ for codec in codecs:
 	write_time = (finish - start).microseconds
 
 	actual_size = yt.get(output + '/@uncompressed_data_size')
+	print '  actual_size = ', actual_size
+	print '  write_time = ', write_time / 1e6
 
 	write_speed = count_speed(actual_size, write_time)
 
@@ -51,6 +53,7 @@ for codec in codecs:
 	finish = dt.datetime.now()
 	read_time = (finish - start).microseconds
 	read_speed = count_speed(actual_size, read_time)
+	print '  read_time = ', read_time / 1e6
 
 	local_result =  {}
 	local_result['ratio'] = str(ratio) + '%'
@@ -60,8 +63,4 @@ for codec in codecs:
 
 	res[codec] = local_result
 	yt.set_attribute(output_dir, '_result/' + codec, local_result)
-
-
-
-
 
