@@ -42,8 +42,11 @@ DECLARE_ENUM(EOperationState,
     (Preparing)
     (Reviving)
     (Running)
+    (Completing)
     (Completed)
+    (Aborting)
     (Aborted)
+    (Failing)
     (Failed)
 );
 

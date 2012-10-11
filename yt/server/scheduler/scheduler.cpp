@@ -288,6 +288,7 @@ public:
             &TThis::DoOperationFailed,
             MakeStrong(this),
             operation,
+            EOperationState::Failing,
             EOperationState::Failed,
             error));
     }
@@ -357,7 +358,7 @@ private:
             auto operation = pair.second;
             if (!operation->IsFinishedState()) {
                 operation->GetController()->Abort();
-                SetOperationFinishedState(
+                SetOperationFinalState(
                     operation,
                     EOperationState::Aborted,
                     TError("Master disconnected"));
@@ -590,7 +591,7 @@ private:
             ~operation->GetOperationId().ToString(),
             ~operation->GetState().ToString());
                 
-        DoOperationFailed(operation, EOperationState::Aborted, error);
+        DoOperationFailed(operation, EOperationState::Aborting, EOperationState::Aborted, error);
     }
 
 
@@ -681,7 +682,7 @@ private:
         LOG_DEBUG("Operation unregistered (OperationId: %s)", ~operation->GetOperationId().ToString());
     }
 
-    void SetOperationFinishedState(TOperationPtr operation, EOperationState state, const TError& error)
+    void SetOperationFinalState(TOperationPtr operation, EOperationState state, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -900,17 +901,19 @@ private:
 
         // The operation may still have running jobs (e.g. those started speculatively).
         AbortOperationJobs(operation);
+
+        operation->SetState(EOperationState::Completing);
         
         StartAsyncPipeline(GetControlInvoker())
             ->Add(BIND(&TMasterConnector::FlushOperationNode, ~MasterConnector, operation))
             ->Add(BIND(&IOperationController::Commit, operation->GetController()))
-            ->Add(BIND(&TThis::SetOperationFinishedState, MakeStrong(this), operation, EOperationState::Completed, TError()))
+            ->Add(BIND(&TThis::SetOperationFinalState, MakeStrong(this), operation, EOperationState::Completed, TError()))
             ->Add(BIND(&TMasterConnector::FinalizeOperationNode, ~MasterConnector, operation))
             ->Add(BIND(&TThis::FinishOperation, MakeStrong(this), operation))
             ->Run();
     }
 
-    void DoOperationFailed(TOperationPtr operation, EOperationState state, const TError& error)
+    void DoOperationFailed(TOperationPtr operation, EOperationState pendingState, EOperationState finalState, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -919,12 +922,14 @@ private:
             return;
         }
 
-        SetOperationFinishedState(operation, state, error);
         AbortOperationJobs(operation);
 
+        operation->SetState(pendingState);
+
         StartAsyncPipeline(GetControlInvoker())
-            ->Add(BIND(&IOperationController::Abort, operation->GetController()))
             ->Add(BIND(&TMasterConnector::FlushOperationNode, ~MasterConnector, operation))
+            ->Add(BIND(&IOperationController::Abort, operation->GetController()))
+            ->Add(BIND(&TThis::SetOperationFinalState, MakeStrong(this), operation, finalState, error))
             ->Add(BIND(&TMasterConnector::FinalizeOperationNode, ~MasterConnector, operation))
             ->Add(BIND(&TThis::FinishOperation, MakeStrong(this), operation))
             ->Run();
