@@ -891,7 +891,11 @@ i64 TTableChunkReader::GetRowIndex() const
 
 TFuture<void> TTableChunkReader::GetFetchingCompleteEvent()
 {
-    return SequentialReader->GetFetchingCompleteEvent();
+    if (SequentialReader) {
+        return SequentialReader->GetFetchingCompleteEvent();
+    } else {
+        return MakeFuture();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
