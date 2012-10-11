@@ -924,6 +924,7 @@ private:
 
         StartAsyncPipeline(GetControlInvoker())
             ->Add(BIND(&IOperationController::Abort, operation->GetController()))
+            ->Add(BIND(&TMasterConnector::FlushOperationNode, ~MasterConnector, operation))
             ->Add(BIND(&TMasterConnector::FinalizeOperationNode, ~MasterConnector, operation))
             ->Add(BIND(&TThis::FinishOperation, MakeStrong(this), operation))
             ->Run();
