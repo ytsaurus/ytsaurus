@@ -383,7 +383,8 @@ Examples:
                    input_format=inputformat, output_format=outputformat,
                    table_writer=table_writer, spec=spec)
     elif args.reduce is not None or args.reducews is not None:
-        yt.run_reduce(args.reduce, args.src, dst, files=reduce_files, file_paths=args.ytfile,
+        op = args.reduce if args.reduce is not None else args.reducews
+        yt.run_reduce(op, args.src, dst, files=reduce_files, file_paths=args.ytfile,
                       input_format=inputformat, output_format=outputformat,
                       table_writer=table_writer, spec=spec)
     if args.drop is not None:
