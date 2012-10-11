@@ -245,7 +245,7 @@ struct TSortOperationSpecBase
             .Default((i64) 128 * 1024 * 1024)
             .GreaterThan(0);
         Register("max_partition_data_size", MaxPartitionDataSize)
-            .Default((i64) 1500 * 1024 * 1024)
+            .Default((i64) 750 * 1024 * 1024)
             .GreaterThan(0);
         Register("max_data_size_per_sort_job", MaxDataSizePerSortJob)
             .Default((i64) 1024 * 1024 * 1024)
