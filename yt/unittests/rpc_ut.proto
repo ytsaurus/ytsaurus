@@ -28,6 +28,9 @@ message TRspCustomMessageError { }
 message TReqNotRegistredCall { }
 message TRspNotRegistredCall { }
 
+message TReqLongReply { }
+message TRspLongReply { }
+
 message TReqOneWay { }
 message TReqNotRegistredOneWay { }
 

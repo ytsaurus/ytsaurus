@@ -42,6 +42,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NMyRpc, EmptyCall);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, CustomMessageError);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, NotRegistredCall);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, LongReply);
 
     DEFINE_ONE_WAY_RPC_PROXY_METHOD(NMyRpc, OneWay);
     DEFINE_ONE_WAY_RPC_PROXY_METHOD(NMyRpc, CheckAll);
@@ -109,6 +110,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReplyingCall));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(EmptyCall));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CustomMessageError));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(LongReply));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(OneWay)
             .SetOneWay(true));
@@ -124,6 +126,7 @@ public:
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, ReplyingCall);
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, EmptyCall);
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, CustomMessageError);
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, LongReply);
 
     DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NMyRpc, OneWay);
     DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NMyRpc, CheckAll);
@@ -156,6 +159,15 @@ DEFINE_RPC_SERVICE_METHOD(TMyService, EmptyCall)
     UNUSED(context);
 }
 
+DEFINE_RPC_SERVICE_METHOD(TMyService, LongReply)
+{
+    UNUSED(request);
+    UNUSED(response);
+    Sleep(TDuration::Seconds(5));
+    context->Reply();
+}
+
+
 DEFINE_RPC_SERVICE_METHOD(TMyService, NotRegistredCall)
 {
     UNUSED(request);
@@ -181,12 +193,11 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TMyService, OneWay)
 class TRpcTest
     : public ::testing::Test
 {
-    IServerPtr RpcServer;
-
     // need to remember
     TActionQueuePtr Queue;
-
 public:
+    IServerPtr RpcServer;
+
     virtual void SetUp()
     {
         auto busConfig = New<NBus::TTcpBusServerConfig>();
@@ -487,5 +498,28 @@ TEST_F(TRpcTest, OneWayNoMethod)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TRpcTest, LostConnection)
+{
+    TMyProxy proxy(CreateChannel("localhost:2000"));
+    proxy.SetDefaultTimeout(TDuration::Seconds(10));
+
+    auto request = proxy.LongReply();
+    auto future = request->Invoke();
+
+    Sleep(TDuration::Seconds(1));
+
+    EXPECT_FALSE(future.IsSet());
+    RpcServer->Stop();
+
+    Sleep(TDuration::Seconds(1));
+
+    // check that lost of connection is detected fast
+    EXPECT_TRUE(future.IsSet());
+    auto response = future.Get();
+    EXPECT_FALSE(response->IsOK());
+    EXPECT_EQ(EErrorCode::TransportError, response->GetError().GetCode());
+}
+
 
 } // namespace NYT

@@ -109,3 +109,21 @@ class TestVirtualMaps(YTEnvSetup):
         assert get('//sys/chunks/@count') == 0
         assert get('//sys/underreplicated_chunks/@count') == 0
         assert get('//sys/overreplicated_chunks/@count') == 0
+
+##################################################################
+
+class TestLostConnection(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 0
+    START_SCHEDULER = False
+
+    def test(self):
+        # TODO(panin): make convenient way for this
+        # Stop master
+        self.kill_process(*self.Env.process_to_kill[0])
+        self.Env.process_to_kill.pop()
+
+        # Restore master
+        self.Env._run_masters(prepare_files=False)
+
+        assert get('//tmp/a') == 42
