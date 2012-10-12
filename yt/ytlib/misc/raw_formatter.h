@@ -51,7 +51,7 @@ public:
         return Cursor - Begin;
     }
 
-    //! Returns the number of bytes avaliable in the buffer.
+    //! Returns the number of bytes available in the buffer.
     int GetBytesRemaining() const
     {
         return End - Cursor;
@@ -70,8 +70,7 @@ public:
     //! Appends the string and updates the internal cursor.
     void AppendString(const char* string)
     {
-        while (*string != '\0' && Cursor < End)
-        {
+        while (*string != '\0' && Cursor < End) {
             *Cursor++ = *string++;
         }
     }
