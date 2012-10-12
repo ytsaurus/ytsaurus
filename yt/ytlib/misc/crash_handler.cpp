@@ -3,7 +3,10 @@
 #include "assert.h"
 
 #include <yt/config.h>
-#include <yt/ytlib/misc/raw_formatter.h>
+
+#include <ytlib/misc/raw_formatter.h>
+
+#include <ytlib/logging/log_manager.h>
 
 #include <util/system/defaults.h>
 
@@ -301,10 +304,10 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
 
     TRawFormatter<16> prefix;
 
-    // When the crash happened?
+    // When did the crash happen?
     DumpTimeInfo();
 
-    // Where the crash happened?
+    // Where did the crash happen?
     void *pc = GetPC(uc);
 
     {
@@ -317,7 +320,7 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
     DumpSignalInfo(signal, si);
 
     // Get the stack trace (without current frame hence +1).
-    void *stack[99]; // 99 is to keep formatting. :)
+    void* stack[99]; // 99 is to keep formatting. :)
     const int depth = GetStackTrace(stack, ARRAY_SIZE(stack), 1);
 
     // Dump the stack trace.
@@ -331,6 +334,7 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
 
     // Okay, we have done enough, so now we can do unsafe (async signal unsafe)
     // things. The process could be terminated or hung at any time.
+    TLogManager::Get()->Shutdown();
 
     // Kill ourself by the default signal handler.
     InvokeDefaultSignalHandler(signal);
