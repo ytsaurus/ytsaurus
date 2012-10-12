@@ -57,7 +57,7 @@ void TNodeLeaseTracker::OnNodeUnregistered(const TDataNode* node)
     auto nodeId = node->GetId();
     auto& nodeInfo = GetNodeInfo(nodeId);
     TLeaseManager::CloseLease(nodeInfo.Lease);
-    YVERIFY(NodeInfoMap.erase(nodeId) == 1);
+    YCHECK(NodeInfoMap.erase(nodeId) == 1);
     if (node->GetState() == ENodeState::Online) {
         --OnlineNodeCount;
     }
