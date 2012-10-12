@@ -58,7 +58,7 @@ void AssertTrapImpl(
         ASSERT_TRAP("YUNREACHABLE", ""); \
     } while (false)
 
-//! Unimplemented method marker. Abnormally terminates the current process.
+//! Unimplemented code marker. Abnormally terminates the current process.
 #define YUNIMPLEMENTED() \
     do { \
         ASSERT_TRAP("YUNIMPLEMENTED", ""); \
