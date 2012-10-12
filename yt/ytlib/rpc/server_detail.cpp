@@ -58,7 +58,7 @@ void TServiceContextBase::Reply(IMessagePtr responseMessage)
     YASSERT(!parts.empty());
 
     TResponseHeader header;
-    YVERIFY(DeserializeFromProto(&header, parts[0]));
+    YCHECK(DeserializeFromProto(&header, parts[0]));
 
     Error = FromProto(header.error());
     ResponseBody = TSharedRef();
