@@ -23,7 +23,7 @@ namespace NBus {
 static NProfiling::TProfiler& Profiler = BusProfiler;
 
 static const size_t ReadChunkSize = 16 * 1024;
-static const size_t FragmentCountThreshold = 16;
+static const size_t FragmentCountThreshold = 256;
 
 static NProfiling::TAggregateCounter ReceiveTime("/receive_time");
 static NProfiling::TAggregateCounter ReceiveSize("/receive_size");
@@ -762,8 +762,10 @@ bool TTcpConnection::WriteFragments(size_t* bytesWritten)
 
     auto fragmentIt = EncodedFragments.begin();
     auto fragmentEnd = EncodedFragments.end();
+
     SendVector.clear();
-    while (fragmentIt != fragmentEnd) {
+
+    while (fragmentIt != fragmentEnd && SendVector.size() < FragmentCountThreshold) {
         auto& data = fragmentIt->Data;
 #ifdef _WIN32
         WSABUF item;
