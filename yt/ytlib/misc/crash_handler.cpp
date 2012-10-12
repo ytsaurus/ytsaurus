@@ -334,7 +334,7 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
 
     // Okay, we have done enough, so now we can do unsafe (async signal unsafe)
     // things. The process could be terminated or hung at any time.
-    TLogManager::Get()->Shutdown();
+    NLog::TLogManager::Get()->Shutdown();
 
     // Kill ourself by the default signal handler.
     InvokeDefaultSignalHandler(signal);
