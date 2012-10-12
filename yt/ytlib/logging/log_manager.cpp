@@ -3,7 +3,7 @@
 #include "writer.h"
 
 #include <ytlib/misc/pattern_formatter.h>
-#include <yt/ytlib/misc/raw_formatter.h>
+#include <ytlib/misc/raw_formatter.h>
 
 #include <ytlib/actions/action_queue_detail.h>
 
