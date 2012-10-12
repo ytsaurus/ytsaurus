@@ -1,103 +1,68 @@
 #pragma once
 
-#include <util/system/yassert.h>
-
-// TODO(ignat): delete namespace, because it doesn't depend on define declarations
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: Add extended diagnostics why the process was terminated.
-#define _ASSERT_X(s) _ASSERT_Y(s)
-#define _ASSERT_Y(s) #s
-#define _ASSERT_AT __FILE__ ":" _ASSERT_X(__LINE__)
+namespace NDetail {
+
+void AssertTrapImpl(
+    const char* trapType, 
+    const char* expr,
+    const char* file,
+    int line);
+
+} // namespace NDetail
 
 #ifdef __GNUC__
-
-#define YCHECK_FAILED(expr) \
-    do { \
-        ::std::fputs( \
-            "YCHECK(" #expr "): " _ASSERT_AT "\n", \
-            stderr); \
-        __builtin_trap(); \
-        __builtin_unreachable(); \
-    } while (0)
-
-#define YVERIFY_FAILED(expr) \
-    do { \
-        ::std::fputs( \
-            "YVERIFY(" #expr "): " _ASSERT_AT "\n", \
-            stderr); \
-        __builtin_trap(); \
-        __builtin_unreachable(); \
-    } while (0)
-
+    #define BUILTIN_UNREACHABLE() __builtin_unreachable()
+    #define BUILTIN_TRAP()        __builtin_trap()
 #else
-
-#define YCHECK_FAILED(expr) \
-    ::std::terminate()
-
-#define YVERIFY_FAILED(expr) \
-    ::std::terminate()
-
+    #define BUILTIN_UNREACHABLE() std::terminate()
+    #define BUILTIN_TRAP()        std::terminate()
 #endif
 
-//! Evaluates the expression #expr.
-//! In debug mode also throws an error if #expr is false.
+#define ASSERT_TRAP(trapType, expr) \
+    ::NYT::NDetail::AssertTrapImpl(trapType, expr, __FILE__, __LINE__); \
+    BUILTIN_UNREACHABLE() \
+
+#undef YASSERT
 
 #ifdef NDEBUG
-
-#define YVERIFY(expr) \
-    (void) (expr)
-
+    #define YASSERT(expr) \
+        do { \
+            if (false) {
+                (void) (expr);
+            }
+        } while (false)
 #else
-
-#define YVERIFY(expr) \
-    do { \
-        if (UNLIKELY( !(expr) )) { \
-            YVERIFY_FAILED(expr); \
-        } \
-    } while (0)
-
+    #define YASSERT(expr) \
+        do { \
+            if (UNLIKELY(!(expr))) { \
+                ASSERT_TRAP("YASSERT", #expr); \
+            } \
+        } while (false)
 #endif
 
-//! Do the same as |YASSERT| but both in release and debug mode.
+//! Same as |YASSERT| but evaluates and checks the expression in both release and debug mode.
 #define YCHECK(expr) \
     do { \
         if (UNLIKELY(!(expr))) { \
-            YCHECK_FAILED(expr); \
+            ASSERT_TRAP("YCHECK", #expr); \
         } \
-    } while (0)
+    } while (false)
 
-//! Marker for unreachable code. Abnormally terminates current process.
-#ifdef __GNUC__
+//! Unreachable code marker. Abnormally terminates the current process.
 #define YUNREACHABLE() \
     do { \
-        ::std::fputs( \
-            "YUNREACHABLE(): " _ASSERT_AT "\n", \
-            stderr); \
-        __builtin_trap(); \
-        __builtin_unreachable(); \
-    } while (0)
-#else
-#define YUNREACHABLE() \
-    ::std::terminate()
-#endif
+        ASSERT_TRAP("YUNREACHABLE", ""); \
+    } while (false)
 
-//! Marker for unimplemented methods. Abnormally terminates current process.
-#ifdef __GNUC__
+//! Unimplemented method marker. Abnormally terminates the current process.
 #define YUNIMPLEMENTED() \
     do { \
-        ::std::fputs( \
-            "YUNIMPLEMENTED(): " _ASSERT_AT "\n", \
-            stderr); \
-        __builtin_trap(); \
-        __builtin_unreachable(); \
-    } while (0)
-#else
-#define YUNIMPLEMENTED() \
-    ::std::terminate()
-#endif
+        ASSERT_TRAP("YUNIMPLEMENTED", ""); \
+    } while (false)
 
 ////////////////////////////////////////////////////////////////////////////////
 
