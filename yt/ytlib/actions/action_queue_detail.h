@@ -5,6 +5,7 @@
 #include "callback.h"
 
 #include <ytlib/misc/nullable.h>
+#include <ytlib/misc/thread.h>
 
 #include <ytlib/profiling/profiler.h>
 
@@ -92,6 +93,7 @@ private:
 
     bool EnableLogging;
     volatile bool Running;
+    NThread::TThreadId ThreadId;
     Event WakeupEvent;
     TThread Thread;
     Stroka ThreadName;

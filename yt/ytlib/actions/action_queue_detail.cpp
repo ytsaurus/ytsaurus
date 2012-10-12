@@ -102,6 +102,7 @@ bool TQueueInvoker::IsEmpty() const
 TActionQueueBase::TActionQueueBase(const Stroka& threadName, bool enableLogging)
     : EnableLogging(enableLogging)
     , Running(true)
+    , ThreadId(NThread::InvalidThreadId)
     , WakeupEvent(Event::rManual)
     , Thread(ThreadFunc, (void*) this)
     , ThreadName(threadName)
@@ -120,7 +121,7 @@ void TActionQueueBase::Start()
 
 void* TActionQueueBase::ThreadFunc(void* param)
 {
-    auto* this_ = (TActionQueueBase*) param;
+    auto* this_ = static_cast<TActionQueueBase*>(param);
     this_->ThreadMain();
     return NULL;
 }
@@ -128,7 +129,10 @@ void* TActionQueueBase::ThreadFunc(void* param)
 void TActionQueueBase::ThreadMain()
 {
     OnThreadStart();
+    
     NThread::SetCurrentThreadName(~ThreadName);
+    ThreadId = NThread::GetCurrentThreadId();
+
     while (true) {
         if (!DequeueAndExecute()) {
             WakeupEvent.Reset();
@@ -141,7 +145,9 @@ void TActionQueueBase::ThreadMain()
             }
         }
     }
+
     YCHECK(!DequeueAndExecute());
+    
     OnThreadShutdown();
 }
 
@@ -150,9 +156,14 @@ void TActionQueueBase::Shutdown()
     if (!Running) {
         return;
     }
+
     Running = false;
     WakeupEvent.Signal();
-    Thread.Join();
+
+    // Prevent deadlock.
+    if (NThread::GetCurrentThreadId() != ThreadId) {
+        Thread.Join();
+    }
 }
 
 void TActionQueueBase::OnIdle()
