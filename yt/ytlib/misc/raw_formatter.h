@@ -77,7 +77,7 @@ public:
     }
 
     //! Formats |number| in base |radix| and updates the internal cursor.
-    void AppendNumber(uintptr_t number, int radix, int width = 0)
+    void AppendNumber(uintptr_t number, int radix = 10, int width = 0)
     {
         int i = 0;
         while (Cursor + i < End) {

@@ -130,7 +130,7 @@ int GetSymbol(void* pc, char* buffer, int length)
         formatter.AppendString(info.dli_sname);
 #endif
         formatter.AppendString("+");
-        formatter.AppendNumber((char*)pc - (char*)info.dli_saddr, 10);
+        formatter.AppendNumber((char*)pc - (char*)info.dli_saddr);
         formatter.AppendString(">");
         formatter.AppendString(" ");
     }
@@ -139,7 +139,7 @@ int GetSymbol(void* pc, char* buffer, int length)
         formatter.AppendString("(");
         formatter.AppendString(info.dli_fname);
         formatter.AppendString("+");
-        formatter.AppendNumber((char*)pc - (char*)info.dli_fbase, 10);
+        formatter.AppendNumber((char*)pc - (char*)info.dli_fbase);
         formatter.AppendString(")");
     }
 #else
@@ -162,13 +162,14 @@ void WriteToStdErr(const char* buffer, int length)
  *  We do not dump human-readable time information with localtime()
  *  as it is not guaranteed to be async signal safe.
  */
-void DumpTimeInfo() {
+void DumpTimeInfo()
+{
     time_t timeSinceEpoch = time(NULL);
 
     TRawFormatter<256> formatter;
 
     formatter.AppendString("*** Aborted at ");
-    formatter.AppendNumber(timeSinceEpoch, 10);
+    formatter.AppendNumber(timeSinceEpoch);
     formatter.AppendString(" (Unix time); Try \"date -d @");
     formatter.AppendNumber(timeSinceEpoch, 10);
     formatter.AppendString("\" if you are using GNU date ***\n");
@@ -196,14 +197,14 @@ void DumpSignalInfo(int signal, siginfo_t* si)
         // Use the signal number if the name is unknown. The signal name
         // should be known, but just in case.
         formatter.AppendString("Signal ");
-        formatter.AppendNumber(si->si_signo, 10);
+        formatter.AppendNumber(si->si_signo);
     }
 
     formatter.AppendString(" (@0x");
     formatter.AppendNumber(reinterpret_cast<uintptr_t>(si->si_addr), 16);
     formatter.AppendString(")");
     formatter.AppendString(" received by PID ");
-    formatter.AppendNumber(getpid(), 10);
+    formatter.AppendNumber(getpid());
     formatter.AppendString(" (TID 0x");
     // We assume pthread_t is an integral number or a pointer, rather
     // than a complex struct. In some environments, pthread_self()
@@ -215,7 +216,7 @@ void DumpSignalInfo(int signal, siginfo_t* si)
     // Only linux has the PID of the signal sender in si_pid.
 #ifdef _linux_
     formatter.AppendString("from PID ");
-    formatter.AppendNumber(si->si_pid, 10);
+    formatter.AppendNumber(si->si_pid);
     formatter.AppendString(" ");
 #endif
     formatter.AppendString("***\n");

@@ -368,7 +368,7 @@ public:
             formatter.AppendString(" (");
             formatter.AppendString(event.FileName);
             formatter.AppendString(":");
-            formatter.AppendNumber(event.Line, 10);
+            formatter.AppendNumber(event.Line);
             formatter.AppendString(") ***\n");
             formatter.AppendString(event.Message.c_str());
             formatter.AppendString("\n*** Aborting ***\n");
