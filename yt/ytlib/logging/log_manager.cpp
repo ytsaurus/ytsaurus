@@ -16,6 +16,8 @@
 #include <util/system/defaults.h>
 #include <util/system/sigset.h>
 
+#include <io.h>
+
 namespace NYT {
 namespace NLog {
 
@@ -360,7 +362,6 @@ public:
             // Flush everything and die.
             Shutdown();
 
-#ifdef _unix_
             // Last-minute information.
             TRawFormatter<1024> formatter;
             formatter.AppendString("*** Fatal error encountered in ");
@@ -374,7 +375,7 @@ public:
             formatter.AppendString("\n*** Aborting ***\n");
 
             auto unused = ::write(2, formatter.GetData(), formatter.GetBytesWritten());
-#endif
+
             std::terminate();
         }
     }
