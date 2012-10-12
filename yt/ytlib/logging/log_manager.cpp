@@ -16,7 +16,7 @@
 #include <util/system/defaults.h>
 #include <util/system/sigset.h>
 
-#include <io.h>
+#include <unistd.h>
 
 namespace NYT {
 namespace NLog {

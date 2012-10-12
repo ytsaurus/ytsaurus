@@ -4,7 +4,11 @@
 
 #include <ytlib/logging/log_manager.h>
 
-#include <io.h>
+#ifdef _win_
+    #include <io.h>
+#else
+    #include <unistd.h>
+#endif
 
 namespace NYT {
 namespace NDetail {
