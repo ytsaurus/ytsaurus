@@ -41,21 +41,19 @@ TEST(TVerifyDeathTest, NoCrashForTruthExpression)
     TMockCallee callee;
     EXPECT_CALL(callee, F(true, _)).Times(1);
 
-    YVERIFY(callee.F(true, "This should be okay."));
+    YCHECK(callee.F(true, "This should be okay."));
     SUCCEED();
 }
 
-#ifndef NDEBUG
 TEST(TVerifyDeathTest, CrashForFalseExpression)
 {
     NiceMock<TMockCallee> callee;
 
     ASSERT_DEATH(
-        { YVERIFY(callee.F(false, "Cheshire Cat")); },
+        { YCHECK(callee.F(false, "Cheshire Cat")); },
         ".*Cheshire Cat.*"
     );
 }
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
