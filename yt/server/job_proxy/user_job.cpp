@@ -393,6 +393,7 @@ private:
         }
         catch (const std::exception& ex) {
             int result = ::write(STDERR_FILENO, ex.what(), strlen(ex.what()));
+            _exit(8);
         }
     }
 

@@ -11,9 +11,12 @@ namespace NJobProxy {
 
 int SafeDup(int oldFd);
 void SafeDup2(int oldFd, int newFd);
-void SafeClose(int fd);
+void SafeClose(int fd, bool ignoreInvalidFd = false);
 int SafePipe(int fd[2]);
 void SafeMakeNonblocking(int fd);
+
+// Ensures that descriptor is open and CLOEXEC flag is not set.
+void CheckJobDescriptor(int fd);
 
 ////////////////////////////////////////////////////////////////////
 

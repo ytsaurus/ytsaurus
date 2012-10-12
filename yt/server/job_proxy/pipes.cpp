@@ -38,29 +38,67 @@ static const int PipeBufferSize = 1 << 16;
 
 int SafeDup(int oldFd)
 {
-    auto fd = dup(oldFd);
-    if (fd == -1) {
-        THROW_ERROR_EXCEPTION("dup failed")
-            << TError::FromSystem();
+    while (true) {
+        auto fd = dup(oldFd);
+
+        if (fd == -1) {
+            switch (errno) {
+            case EINTR:
+            case EBUSY:
+                break;
+
+            default:
+                THROW_ERROR_EXCEPTION("dup failed")
+                    << TError::FromSystem();
+            }
+        } else {
+            return fd;
+        }
     }
-    return fd;
 }
 
 void SafeDup2(int oldFd, int newFd)
 {
-    auto res = dup2(oldFd, newFd);
-    if (res == -1) {
-        THROW_ERROR_EXCEPTION("dup2 failed")
-            << TError::FromSystem();
+    while (true) {
+        auto res = dup2(oldFd, newFd);
+
+        if (res == -1) {
+            switch (errno) {
+            case EINTR:
+            case EBUSY:
+                break;
+
+            default:
+                THROW_ERROR_EXCEPTION("dup2 failed")
+                    << TError::FromSystem();
+            }
+        } else {
+            return;
+        }
     }
 }
 
-void SafeClose(int fd)
+void SafeClose(int fd, bool ignoreInvalidFd)
 {
-    auto res = close(fd);
-    if (res == -1) {
-        THROW_ERROR_EXCEPTION("close failed")
-            << TError::FromSystem();
+    while (true) {
+        auto res = close(fd);
+        if (res == -1) { 
+            switch (errno) {
+            case EINTR:
+                break;
+
+            case EBADF:
+                if (ignoreInvalidFd) {
+                    return;
+                } // otherwise fall through and throw exception.
+
+            default:
+                THROW_ERROR_EXCEPTION("close failed")
+                    << TError::FromSystem();
+            }
+        } else {
+            return;
+        }
     }
 }
 
@@ -91,6 +129,19 @@ void SafeMakeNonblocking(int fd)
     }
 }
 
+void CheckJobDescriptor(int fd)
+{
+    auto res = fcntl(fd, F_GETFD);
+    if (res == -1) {
+        THROW_ERROR_EXCEPTION("Job descriptor is not valid (fd: %d)", fd)
+            << TError::FromSystem();
+    }
+
+    if (res & FD_CLOEXEC) {
+        THROW_ERROR_EXCEPTION("CLOEXEC flag is set for job descriptor (fd: %d)", fd);
+    }
+}
+
 #elif defined _win_
 
 // Streaming jobs are not supposed to work on windows for now.
@@ -105,7 +156,7 @@ void SafeDup2(int oldFd, int newFd)
     YUNIMPLEMENTED();
 }
 
-void SafeClose(int fd)
+void SafeClose(int fd, bool ignoreInvalidFd)
 {
     YUNIMPLEMENTED();
 }
@@ -116,6 +167,11 @@ int SafePipe(int fd[2])
 }
 
 void SafeMakeNonblocking(int fd)
+{
+    YUNIMPLEMENTED();
+}
+
+void CheckJobDescriptor(int fd)
 {
     YUNIMPLEMENTED();
 }
@@ -143,25 +199,13 @@ void TOutputPipe::PrepareJobDescriptors()
 
     SafeClose(Pipe.ReadFd);
 
-#ifdef _linux_
-    const int MaxRetryCount = 5;
-
-    for (int retryCount = 0; ;++retryCount) {
-        int res = ::close(JobDescriptor);
-        if (res == 0 || errno == EBADF) {
-            break;
-        }
-
-        if (retryCount == MaxRetryCount) {
-            THROW_ERROR_EXCEPTION(
-                "Failed to prepare job descriptor (fd: %d)", 
-                JobDescriptor) << TError::FromSystem();
-        }
-    }
-#endif
+    // Always try to close target descriptor before calling dup2.
+    SafeClose(JobDescriptor, true);
 
     SafeDup2(Pipe.WriteFd, JobDescriptor);
     SafeClose(Pipe.WriteFd);
+
+    CheckJobDescriptor(JobDescriptor);
 }
 
 void TOutputPipe::PrepareProxyDescriptors()
@@ -286,8 +330,14 @@ void TInputPipe::PrepareJobDescriptors()
     YASSERT(!IsFinished);
 
     SafeClose(Pipe.WriteFd);
+
+    // Always try to close target descriptor before calling dup2.
+    SafeClose(JobDescriptor, true);
+
     SafeDup2(Pipe.ReadFd, JobDescriptor);
     SafeClose(Pipe.ReadFd);
+
+    CheckJobDescriptor(JobDescriptor);
 }
 
 void TInputPipe::PrepareProxyDescriptors()
