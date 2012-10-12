@@ -31,9 +31,9 @@ void AssertTrapImpl(
 #ifdef NDEBUG
     #define YASSERT(expr) \
         do { \
-            if (false) {
-                (void) (expr);
-            }
+            if (false) { \
+                (void) (expr); \
+            } \
         } while (false)
 #else
     #define YASSERT(expr) \
