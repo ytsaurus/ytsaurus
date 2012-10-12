@@ -22,9 +22,7 @@ public:
         , Cursor(Buffer)
         , End(Buffer + N)
     {
-        for (int i = 0; i < N; ++i) {
-            Buffer[i] = 0;
-        }
+        std::fill(Buffer, Buffer + N, '\0');
     }
 
     TRawFormatter(char* buffer, int length)
