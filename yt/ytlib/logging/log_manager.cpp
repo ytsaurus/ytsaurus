@@ -16,7 +16,11 @@
 #include <util/system/defaults.h>
 #include <util/system/sigset.h>
 
-#include <unistd.h>
+#ifdef _win_
+    #include <io.h>
+#else
+    #include <unistd.h>
+#endif
 
 namespace NYT {
 namespace NLog {
