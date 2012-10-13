@@ -46,6 +46,26 @@ static NLog::TLogger& Logger = MetaStateLogger;
 class TPersistentStateManager;
 typedef TIntrusivePtr<TPersistentStateManager> TPersistentStateManagerPtr;
 
+struct TEpochContext;
+typedef TIntrusivePtr<TEpochContext> TEpochContextPtr;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TEpochContext
+    : public NElection::TEpochContext
+{
+    IInvokerPtr EpochStateInvoker;
+    IInvokerPtr EpochControlInvoker;
+    TSnapshotBuilderPtr SnapshotBuilder;
+    TLeaderRecoveryPtr LeaderRecovery;
+    TFollowerRecoveryPtr FollowerRecovery;
+    TLeaderCommitterPtr LeaderCommitter;
+    TFollowerCommitterPtr FollowerCommitter;
+    TFollowerTrackerPtr FollowerTracker;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TPersistentStateManager
     : public TServiceBase
     , public IMetaStateManager
@@ -193,14 +213,15 @@ public:
 
     virtual bool HasActiveQuorum() const override
     {
-        auto tracker = FollowerTracker;
+        auto tracker = GetFollowerTracker();
         if (!tracker) {
             return false;
         }
+
         return tracker->HasActiveQuorum();
     }
 
-    virtual TEpochContextPtr GetEpochContext() const override
+    virtual NElection::TEpochContextPtr GetEpochContext() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -226,9 +247,9 @@ public:
         AtomicSet(ReadOnly, value);
     }
 
-    virtual void GetMonitoringInfo(NYTree::IYsonConsumer* consumer) override
+    virtual void GetMonitoringInfo(IYsonConsumer* consumer) override
     {
-        auto tracker = FollowerTracker;
+        auto tracker = GetFollowerTracker();
 
         BuildYsonFluently(consumer)
             .BeginMap()
@@ -277,15 +298,18 @@ public:
                 "Read-only mode is active")));
         }
 
-        // FollowerTracker is modified concurrently from the ControlThread.
-        auto tracker = FollowerTracker;
-        if (!tracker || !tracker->HasActiveQuorum()) {
+        auto epochContext = EpochContext;
+        if (!epochContext ||
+            !epochContext->FollowerTracker ||
+            !epochContext->LeaderCommitter ||
+            !epochContext->FollowerTracker->HasActiveQuorum())
+        {
             return MakeFuture(TValueOrError<TMutationResponse>(TError(
                 ECommitCode::NoQuorum,
                 "No active quorum")));
         }
 
-        return LeaderCommitter->Commit(request)
+        return epochContext->LeaderCommitter->Commit(request)
             .Apply(BIND(&TThis::OnMutationCommitted, MakeStrong(this)));
     }
 
@@ -313,17 +337,6 @@ public:
     TActionQueuePtr IOQueue;
 
     TEpochContextPtr EpochContext;
-    IInvokerPtr EpochControlInvoker;
-    IInvokerPtr EpochStateInvoker;
-
-    TSnapshotBuilderPtr SnapshotBuilder;
-    TLeaderRecoveryPtr LeaderRecovery;
-    TFollowerRecoveryPtr FollowerRecovery;
-
-    TLeaderCommitterPtr LeaderCommitter;
-    TFollowerCommitterPtr FollowerCommitter;
-
-    TFollowerTrackerPtr FollowerTracker;
 
     // RPC methods
 
@@ -520,18 +533,18 @@ public:
                     ~version.ToString(),
                     changeCount);
 
-                FollowerCommitter->Commit(version, request->Attachments())
+                EpochContext->FollowerCommitter->Commit(version, request->Attachments())
                     .Subscribe(BIND(&TThis::OnFollowerCommitted, MakeStrong(this), context));
                 break;
             }
 
             case EPeerStatus::FollowerRecovery: {
-                if (FollowerRecovery) {
+                if (EpochContext->FollowerRecovery) {
                     LOG_DEBUG("ApplyChange: keeping postponed changes (Version: %s, ChangeCount: %d)",
                         ~version.ToString(),
                         changeCount);
 
-                    auto error = FollowerRecovery->PostponeMutations(version, request->Attachments());
+                    auto error = EpochContext->FollowerRecovery->PostponeMutations(version, request->Attachments());
                     if (!error.IsOK()) {
                         LOG_WARNING(error, "Error postponing mutations, restarting");
                         Restart();
@@ -601,12 +614,12 @@ public:
                 break;
 
             case EPeerStatus::FollowerRecovery:
-                if (!FollowerRecovery) {
+                if (!EpochContext->FollowerRecovery) {
                     LOG_INFO("Received sync ping from leader (Version: %s, Epoch: %s)",
                         ~version.ToString(),
                         ~epochId.ToString());
 
-                    FollowerRecovery = New<TFollowerRecovery>(
+                    EpochContext->FollowerRecovery = New<TFollowerRecovery>(
                         Config,
                         CellManager,
                         DecoratedState,
@@ -615,13 +628,13 @@ public:
                         epochId,
                         EpochContext->LeaderId,
                         ControlInvoker,
-                        EpochControlInvoker,
-                        EpochStateInvoker,
+                        EpochContext->EpochControlInvoker,
+                        EpochContext->EpochStateInvoker,
                         version);
 
-                    FollowerRecovery->Run().Subscribe(
-                        BIND(&TThis::OnControlFollowerRecoveryComplete, MakeStrong(this))
-                            .Via(EpochControlInvoker));
+                    EpochContext->FollowerRecovery->Run().Subscribe(
+                        BIND(&TThis::OnControlFollowerRecoveryComplete, MakeStrong(this), EpochContext)
+                            .Via(EpochContext->EpochControlInvoker));
                 }
                 break;
 
@@ -665,8 +678,8 @@ public:
                 if (createSnapshot) {
                     LOG_DEBUG("AdvanceSegment: starting snapshot creation");
 
-                    BIND(&TSnapshotBuilder::CreateLocalSnapshot, SnapshotBuilder, version)
-                        .AsyncVia(EpochStateInvoker)
+                    BIND(&TSnapshotBuilder::CreateLocalSnapshot, EpochContext->SnapshotBuilder, version)
+                        .AsyncVia(EpochContext->EpochStateInvoker)
                         .Run()
                         .Subscribe(BIND(
                             &TThis::OnCreateLocalSnapshot,
@@ -675,7 +688,7 @@ public:
                 } else {
                     LOG_DEBUG("AdvanceSegment: advancing segment");
 
-                    EpochStateInvoker->Invoke(context->Wrap(BIND(
+                    EpochContext->EpochStateInvoker->Invoke(context->Wrap(BIND(
                         &TThis::DoStateAdvanceSegment,
                         MakeStrong(this),
                         version,
@@ -684,10 +697,10 @@ public:
                 break;
 
             case EPeerStatus::FollowerRecovery: {
-                if (FollowerRecovery) {
+                if (EpochContext->FollowerRecovery) {
                     LOG_DEBUG("AdvanceSegment: postponing snapshot creation");
 
-                    auto error = FollowerRecovery->PostponeSegmentAdvance(version);
+                    auto error = EpochContext->FollowerRecovery->PostponeSegmentAdvance(version);
                     if (!error.IsOK()) {
                         LOG_ERROR(error);
                         Restart();
@@ -779,10 +792,9 @@ public:
                 ~GetControlStatus().ToString());
         }
 
-        auto tracker = FollowerTracker;
         response->set_leader_address(CellManager->GetSelfAddress());
         for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
-            if (tracker->IsPeerActive(id)) {
+            if (EpochContext->FollowerTracker->IsPeerActive(id)) {
                 response->add_follower_addresses(CellManager->GetPeerAddress(id));
             }
         }
@@ -801,13 +813,15 @@ public:
         context->SetRequestInfo("SetReadOnly: %s",
             ~FormatBool(setReadOnly));
 
-        if (GetStateStatus() != EPeerStatus::Leading) {
+        auto epochContext = EpochContext;
+
+        if (!epochContext || GetStateStatus() != EPeerStatus::Leading) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::InvalidStatus,
                 "Not a leader");
         }
 
-        SnapshotBuilder->CreateDistributedSnapshot().Subscribe(
+        epochContext->SnapshotBuilder->CreateDistributedSnapshot().Subscribe(
             BIND(&TThis::OnSnapshotCreated, MakeStrong(this), context)
                 .Via(ControlInvoker));
 
@@ -855,7 +869,7 @@ public:
         return result;
     }
 
-    void OnLocalMutationApplied()
+    void OnLocalMutationApplied(TEpochContextPtr epochContext)
     {
         VERIFY_THREAD_AFFINITY(StateThread);
         YASSERT(DecoratedState->GetStatus() == EPeerStatus::Leading);
@@ -866,8 +880,8 @@ public:
             version.RecordCount > 0 &&
             version.RecordCount % period.Get() == 0)
         {
-            LeaderCommitter->Flush(true);
-            SnapshotBuilder->CreateDistributedSnapshot();
+            epochContext->LeaderCommitter->Flush(true);
+            epochContext->SnapshotBuilder->CreateDistributedSnapshot();
         }
     }
 
@@ -885,70 +899,72 @@ public:
         auto version = DecoratedState->GetReachableVersionAsync();
         DecoratedState->SetPingVersion(version);
 
-        YCHECK(!FollowerTracker);
-        FollowerTracker = New<TFollowerTracker>(
+        EpochContext->FollowerTracker = New<TFollowerTracker>(
             Config->FollowerTracker,
             CellManager,
             DecoratedState,
             EpochContext->EpochId,
-            EpochControlInvoker);
-        FollowerTracker->Start();
+            EpochContext->EpochControlInvoker);
 
-        DecoratedState->GetSystemInvoker()->Invoke(BIND(
-            &TThis::DoStateStartLeading,
-            MakeStrong(this)));
-    }
-
-    void DoStateStartLeading()
-    {
-        VERIFY_THREAD_AFFINITY(StateThread);
-
-        auto epochContext = EpochContext;
-        if (!epochContext)
-            return;
-
-        DecoratedState->OnStartLeading();
-
-        StartLeading_.Fire();
-
-        YCHECK(!LeaderCommitter);
-        LeaderCommitter = New<TLeaderCommitter>(
+        EpochContext->LeaderCommitter = New<TLeaderCommitter>(
             Config->LeaderCommitter,
             CellManager,
             DecoratedState,
             ChangeLogCache,
-            FollowerTracker,
+            EpochContext->FollowerTracker,
             EpochContext->EpochId,
             ControlInvoker,
-            EpochStateInvoker);
-        LeaderCommitter->SubscribeMutationApplied(BIND(&TThis::OnLocalMutationApplied, MakeWeak(this)));
+            EpochContext->EpochStateInvoker);
+        EpochContext->LeaderCommitter->SubscribeMutationApplied(
+            BIND(&TThis::OnLocalMutationApplied, MakeWeak(this), EpochContext));
 
-        YCHECK(!LeaderRecovery);
-        LeaderRecovery = New<TLeaderRecovery>(
+        EpochContext->SnapshotBuilder = New<TSnapshotBuilder>(
+            Config->SnapshotBuilder,
+            CellManager,
+            DecoratedState,
+            SnapshotStore,
+            EpochContext->EpochId,
+            ControlInvoker,
+            StateInvoker);
+
+        EpochContext->LeaderRecovery = New<TLeaderRecovery>(
             Config,
             CellManager,
             DecoratedState,
             ChangeLogCache,
             SnapshotStore,
-            epochContext->EpochId,
+            EpochContext->EpochId,
             ControlInvoker,
-            EpochControlInvoker,
-            EpochStateInvoker);
+            EpochContext->EpochControlInvoker,
+            EpochContext->EpochStateInvoker);
 
-        BIND(&TLeaderRecovery::Run, LeaderRecovery)
-            .AsyncVia(EpochControlInvoker)
-            .Run()
-            .Subscribe(
-                BIND(&TThis::OnStateLeaderRecoveryComplete, MakeStrong(this))
-                    .Via(EpochStateInvoker));
+        EpochContext->FollowerTracker->Start();
+
+        DecoratedState->GetSystemInvoker()->Invoke(BIND(
+            &TThis::DoStateStartLeading,
+            MakeStrong(this),
+            EpochContext));
     }
 
-    void OnStateLeaderRecoveryComplete(TError error)
+    void DoStateStartLeading(TEpochContextPtr epochContext)
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
-        YCHECK(LeaderRecovery);
-        LeaderRecovery.Reset();
+        DecoratedState->OnStartLeading();
+
+        StartLeading_.Fire();
+
+        BIND(&TLeaderRecovery::Run, epochContext->LeaderRecovery)
+            .AsyncVia(epochContext->EpochControlInvoker)
+            .Run()
+            .Subscribe(
+                BIND(&TThis::OnStateLeaderRecoveryComplete, MakeStrong(this), epochContext)
+                    .Via(epochContext->EpochStateInvoker));
+    }
+
+    void OnStateLeaderRecoveryComplete(TEpochContextPtr epochContext, TError error)
+    {
+        VERIFY_THREAD_AFFINITY(StateThread);
 
         if (!error.IsOK()) {
             LOG_WARNING(error, "Leader recovery failed, restarting");
@@ -956,38 +972,25 @@ public:
             return;
         }
 
-        auto epochContext = EpochContext;
-        if (!epochContext)
-            return;
-
-        YCHECK(!SnapshotBuilder);
-        SnapshotBuilder = New<TSnapshotBuilder>(
-            Config->SnapshotBuilder,
-            CellManager,
-            DecoratedState,
-            SnapshotStore,
-            epochContext->EpochId,
-            ControlInvoker,
-            StateInvoker);
-
         // Switch to a new changelog unless the current one is empty.
         // This enables changelog truncation for those followers that are down and have uncommitted changes.
         auto version = DecoratedState->GetVersion();
         if (version.RecordCount > 0) {
             LOG_INFO("Switching to a new changelog %d", version.SegmentId + 1);
-            SnapshotBuilder->RotateChangeLog();
+            epochContext->SnapshotBuilder->RotateChangeLog();
         }
 
         DecoratedState->OnLeaderRecoveryComplete();
 
         LeaderRecoveryComplete_.Fire();
 
-        EpochControlInvoker->Invoke(BIND(
+        epochContext->EpochControlInvoker->Invoke(BIND(
             &TThis::DoControlLeaderRecoveryComplete,
-            MakeStrong(this)));
+            MakeStrong(this),
+            epochContext));
     }
 
-    void DoControlLeaderRecoveryComplete()
+    void DoControlLeaderRecoveryComplete(TEpochContextPtr epochContext)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -996,9 +999,9 @@ public:
 
         LOG_INFO("Leader recovery complete");
 
-        FollowerTracker->GetActiveQuorum().Subscribe(
+        epochContext->FollowerTracker->GetActiveQuorum().Subscribe(
             BIND(&TThis::OnActiveQuorumEstablished, MakeStrong(this))
-                .Via(EpochStateInvoker));
+                .Via(epochContext->EpochStateInvoker));
     }
 
     void OnActiveQuorumEstablished()
@@ -1024,20 +1027,6 @@ public:
         ControlStatus = EPeerStatus::Elections;
 
         StopEpoch();
-
-        if (FollowerTracker) {
-            FollowerTracker->Stop();
-            FollowerTracker.Reset();
-        }
-
-        LeaderRecovery.Reset();
-
-        if (SnapshotBuilder) {
-            DecoratedState->GetSystemInvoker()->Invoke(BIND(
-                &TSnapshotBuilder::WaitUntilFinished,
-                SnapshotBuilder));
-            SnapshotBuilder.Reset();
-        }
     }
 
     void DoStateStopLeading()
@@ -1045,8 +1034,6 @@ public:
         VERIFY_THREAD_AFFINITY(StateThread);
 
         StopLeading_.Fire();
-
-        LeaderCommitter.Reset();
 
         DecoratedState->OnStopLeading();
     }
@@ -1059,9 +1046,24 @@ public:
         LOG_INFO("Starting follower recovery");
 
         ControlStatus = EPeerStatus::FollowerRecovery;
+        
         StartEpoch();
 
-        EpochStateInvoker->Invoke(BIND(
+        EpochContext->FollowerCommitter = New<TFollowerCommitter>(
+            DecoratedState,
+            ControlInvoker,
+            EpochContext->EpochStateInvoker);
+
+        EpochContext->SnapshotBuilder = New<TSnapshotBuilder>(
+            Config->SnapshotBuilder,
+            CellManager,
+            DecoratedState,
+            SnapshotStore,
+            EpochContext->EpochId,
+            EpochContext->EpochControlInvoker,
+            EpochContext->EpochStateInvoker);
+
+        EpochContext->EpochStateInvoker->Invoke(BIND(
             &TThis::DoStateStartFollowing,
             MakeStrong(this)));
     }
@@ -1075,12 +1077,9 @@ public:
         StartFollowing_.Fire();
     }
 
-    void OnControlFollowerRecoveryComplete(TError error)
+    void OnControlFollowerRecoveryComplete(TEpochContextPtr epochContext, TError error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        YCHECK(FollowerRecovery);
-        FollowerRecovery.Reset();
 
         if (!error.IsOK()) {
             LOG_WARNING(error, "Follower recovery failed, restarting");
@@ -1088,36 +1087,17 @@ public:
             return;
         }
 
-        auto epochContext = EpochContext;
-        if (!epochContext)
-            return;
-
-        EpochStateInvoker->Invoke(BIND(
+        epochContext->EpochStateInvoker->Invoke(BIND(
             &TThis::DoStateFollowerRecoveryComplete,
-            MakeStrong(this)));
-
-        YCHECK(!FollowerCommitter);
-        FollowerCommitter = New<TFollowerCommitter>(
-            DecoratedState,
-            ControlInvoker,
-            EpochStateInvoker);
-
-        YCHECK(!SnapshotBuilder);
-        SnapshotBuilder = New<TSnapshotBuilder>(
-            Config->SnapshotBuilder,
-            CellManager,
-            DecoratedState,
-            SnapshotStore,
-            epochContext->EpochId,
-            EpochControlInvoker,
-            EpochStateInvoker);
+            MakeStrong(this),
+            epochContext));
 
         ControlStatus = EPeerStatus::Following;
 
         LOG_INFO("Follower recovery complete");
     }
 
-    void DoStateFollowerRecoveryComplete()
+    void DoStateFollowerRecoveryComplete(TEpochContextPtr epochContext)
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -1140,21 +1120,6 @@ public:
         ControlStatus = EPeerStatus::Elections;
 
         StopEpoch();
-
-        if (FollowerRecovery) {
-            FollowerRecovery.Reset();
-        }
-
-        if (FollowerCommitter) {
-            FollowerCommitter.Reset();
-        }
-
-        if (SnapshotBuilder) {
-            DecoratedState->GetSystemInvoker()->Invoke(BIND(
-                &TSnapshotBuilder::WaitUntilFinished,
-                SnapshotBuilder));
-            SnapshotBuilder.Reset();
-        }
     }
 
     void DoStateStopFollowing()
@@ -1171,18 +1136,31 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        EpochContext = ElectionManager->GetEpochContext();
-        EpochControlInvoker = EpochContext->CancelableContext->CreateInvoker(ControlInvoker);
-        EpochStateInvoker = EpochContext->CancelableContext->CreateInvoker(DecoratedState->GetSystemInvoker());
+        auto electionEpochContext = ElectionManager->GetEpochContext();
+        EpochContext = New<TEpochContext>();
+        EpochContext->LeaderId = electionEpochContext->LeaderId;
+        EpochContext->EpochId = electionEpochContext->EpochId;
+        EpochContext->StartTime = electionEpochContext->StartTime;
+        EpochContext->CancelableContext = electionEpochContext->CancelableContext;
+        EpochContext->EpochControlInvoker = EpochContext->CancelableContext->CreateInvoker(ControlInvoker);
+        EpochContext->EpochStateInvoker = EpochContext->CancelableContext->CreateInvoker(DecoratedState->GetSystemInvoker());
     }
 
     void StopEpoch()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         
+        YCHECK(EpochContext);
+
+        EpochContext->CancelableContext->Cancel();
+        auto snapshotBuilder = EpochContext->SnapshotBuilder;
         EpochContext.Reset();
-        EpochControlInvoker.Reset();
-        EpochStateInvoker.Reset();
+
+        if (snapshotBuilder) {
+            DecoratedState->GetSystemInvoker()->Invoke(BIND(
+                &TSnapshotBuilder::WaitUntilFinished,
+                snapshotBuilder));
+        }
     }
 
     void CheckEpoch(const TEpochId& epochId) const
@@ -1195,6 +1173,17 @@ public:
                 ~currentEpochId.ToString(),
                 ~epochId.ToString());
         }
+    }
+
+
+    TFollowerTrackerPtr GetFollowerTracker() const
+    {
+        auto epochContext = EpochContext;
+        if (!epochContext) {
+            return NULL;
+        }
+
+        return epochContext->FollowerTracker;
     }
 
 

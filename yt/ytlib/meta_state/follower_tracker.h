@@ -23,7 +23,6 @@ public:
         IInvokerPtr epochControlInvoker);
 
     void Start();
-    void Stop();
 
     bool HasActiveQuorum() const;
     bool IsPeerActive(TPeerId followerId) const;

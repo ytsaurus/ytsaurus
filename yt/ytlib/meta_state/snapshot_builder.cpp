@@ -222,15 +222,15 @@ TSnapshotBuilder::TSnapshotBuilder(
     TDecoratedMetaStatePtr decoratedState,
     TSnapshotStorePtr snapshotStore,
     const TEpochId& epochId,
-    IInvokerPtr epochControlInvoker,
-    IInvokerPtr epochStateInvoker)
+    IInvokerPtr controlInvoker,
+    IInvokerPtr stateInvoker)
     : Config(config)
     , CellManager(cellManager)
     , DecoratedState(decoratedState)
     , SnapshotStore(snapshotStore)
     , EpochId(epochId)
-    , ControlInvoker(epochControlInvoker)
-    , StateInvoker(epochStateInvoker)
+    , ControlInvoker(controlInvoker)
+    , StateInvoker(stateInvoker)
     , LocalPromise(Null)
 #if defined(_unix_)
     , WatchdogQueue(New<TActionQueue>("SnapshotWDog"))
@@ -239,8 +239,8 @@ TSnapshotBuilder::TSnapshotBuilder(
     YCHECK(cellManager);
     YCHECK(decoratedState);
     YCHECK(snapshotStore);
-    YCHECK(epochControlInvoker);
-    YCHECK(epochStateInvoker);
+    YCHECK(controlInvoker);
+    YCHECK(stateInvoker);
     VERIFY_INVOKER_AFFINITY(ControlInvoker, ControlThread);
     VERIFY_INVOKER_AFFINITY(StateInvoker, StateThread);
 }

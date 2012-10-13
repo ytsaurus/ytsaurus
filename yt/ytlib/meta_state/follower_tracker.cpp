@@ -38,7 +38,6 @@ TFollowerTracker::TFollowerTracker(
     YCHECK(decoratedState);
     YCHECK(epochControlInvoker);
     VERIFY_INVOKER_AFFINITY(epochControlInvoker, ControlThread);
-
 }
 
 void TFollowerTracker::Start()
@@ -57,13 +56,6 @@ void TFollowerTracker::Start()
     ActivePeerCount = 0;
 
     OnPeerActive(CellManager->GetSelfId());
-}
-
-void TFollowerTracker::Stop()
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    // Do nothing.
 }
 
 bool TFollowerTracker::IsPeerActive(TPeerId peerId) const
