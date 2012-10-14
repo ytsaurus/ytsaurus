@@ -1,6 +1,6 @@
 #pragma once
 
-#include <util/random/mersenne.h>
+#include "common.h"
 
 namespace NYT {
 
@@ -10,40 +10,27 @@ namespace NYT {
 class TRandomGenerator
 {
 public:
-    explicit TRandomGenerator(ui64 seed)
-        : Generator(seed)
-    { }
+    explicit TRandomGenerator(ui64 seed);
 
     template <class T>
-    T GetNext();
+    T Generate();
 
 private:
-    TMersenne<ui64> Generator;
+    ui64 X;
+
+    ui64 GenerateInteger();
+    double GenerateDouble();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TForwardIterator, class TOutputIterator, class TDistance>
+template <class TForwardIterator, class TOutputIterator>
 TOutputIterator RandomSampleN(
-    TForwardIterator begin, TForwardIterator end,
-    TOutputIterator output, const TDistance n)
-{
-    TDistance remaining = std::distance(begin, end);
-    TDistance m = Min(n, remaining);
-
-    while (m > 0) {
-        if ((std::rand() % remaining) < m) {
-            *output = *begin;
-            ++output;
-            --m;
-        }
-
-        --remaining;
-        ++begin;
-    }
-
-    return output;
-}
+    TForwardIterator begin,
+    TForwardIterator end,
+    TOutputIterator output,
+    size_t n);
 
 ////////////////////////////////////////////////////////////////////////////////
 

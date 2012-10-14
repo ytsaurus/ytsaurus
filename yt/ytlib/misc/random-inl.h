@@ -7,28 +7,58 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline TRandomGenerator::TRandomGenerator(ui64 seed)
+    : X(seed)
+{ }
+
 template <>
-inline double TRandomGenerator::GetNext()
+inline double TRandomGenerator::Generate()
 {
-    return Generator.GenRandReal2();
+    return GenerateDouble();
 }
 
 template <>
-inline float TRandomGenerator::GetNext()
+inline float TRandomGenerator::Generate()
 {
-    return Generator.GenRandReal2();
+    return GenerateDouble();
 }
 
 template <>
-inline long double TRandomGenerator::GetNext()
+inline long double TRandomGenerator::Generate()
 {
-    return Generator.GenRandReal2();
+    return GenerateDouble();
 }
 
 template <class T>
-T TRandomGenerator::GetNext()
+T TRandomGenerator::Generate()
 {
-    return static_cast<T>(Generator.GenRand());
+    return static_cast<T>(GenerateInteger());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TForwardIterator, class TOutputIterator>
+TOutputIterator RandomSampleN(
+    TForwardIterator begin,
+    TForwardIterator end,
+    TOutputIterator output,
+    size_t n)
+{
+    size_t remaining = std::distance(begin, end);
+    size_t m = Min(n, remaining);
+
+    while (m > 0) {
+        if ((std::rand() % remaining) < m) {
+            *output = *begin;
+            ++output;
+            --m;
+        }
+
+        --remaining;
+        ++begin;
+    }
+
+    return output;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

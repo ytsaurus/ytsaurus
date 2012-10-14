@@ -23,6 +23,7 @@ set( SRCS
   ${BASE}/pattern_formatter.cpp
   ${BASE}/periodic_invoker.cpp
   ${BASE}/protobuf_helpers.cpp
+  ${BASE}/random.cpp
   ${BASE}/ref.cpp
   ${BASE}/ref_counted.cpp
   ${BASE}/ref_counted_tracker.cpp

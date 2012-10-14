@@ -404,7 +404,7 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
 
     const auto& version = mutationContext->GetVersion();
 
-    auto random = mutationContext->RandomGenerator().GetNext<ui64>();
+    auto random = mutationContext->RandomGenerator().Generate<ui64>();
 
     int typeValue = type.ToValue();
     YASSERT(typeValue >= 0 && typeValue < MaxObjectType);
