@@ -22,14 +22,15 @@ TBuildSnapshotExecutor::TBuildSnapshotExecutor()
 EExitCode TBuildSnapshotExecutor::DoExecute()
 {
     TMetaStateManagerProxy proxy(Driver->GetMasterChannel());
-    proxy.SetDefaultTimeout(0); //infinity
+    proxy.SetDefaultTimeout(Null); // infinity
     auto req = proxy.BuildSnapshot();
     req->set_set_read_only(SetReadOnlyArg.getValue());
+
     auto rsp = req->Invoke().Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error building snapshot");
 
     i32 snapshotId = rsp->snapshot_id();
-    printf("Snapshot %d is built", snapshotId);
+    printf("Snapshot %d is built\n", snapshotId);
 
     return EExitCode::OK;
 }
