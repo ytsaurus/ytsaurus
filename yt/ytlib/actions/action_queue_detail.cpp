@@ -101,6 +101,7 @@ bool TQueueInvoker::IsEmpty() const
 
 TActionQueueBase::TActionQueueBase(const Stroka& threadName, bool enableLogging)
     : EnableLogging(enableLogging)
+    , Running(false)
     , ThreadId(NThread::InvalidThreadId)
     , WakeupEvent(Event::rManual)
     , Thread(ThreadFunc, (void*) this)
