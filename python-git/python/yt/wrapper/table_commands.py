@@ -324,7 +324,8 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                     "input_format": input_format.to_json(),
                     "output_format": output_format.to_json(),
                     "command": binary,
-                    "file_paths": flatten(files + file_paths)
+                    "file_paths": flatten(files + file_paths),
+                    "memory_limit": config.MEMORY_LIMIT
                 }
             })
         run_map_reduce.files_to_remove += files
@@ -408,7 +409,8 @@ def run_operation(binary, source_table, destination_table,
                 {"command": binary,
                  "file_paths": file_paths,
                  "input_format": input_format.to_json(),
-                 "output_format": output_format.to_json()}
+                 "output_format": output_format.to_json(),
+                 "memory_limit": config.MEMORY_LIMIT}
     if op_type == "reduce":
         operation_descr.update({"reduce_by": reduce_by})
 
