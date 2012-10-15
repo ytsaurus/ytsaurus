@@ -4,7 +4,6 @@
 # -fs
 # -rs
 # -dstsorted
-# -memlimit
 # -timelimit
 # -lock
 # -unlock
@@ -141,7 +140,8 @@ Examples:
 
     add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "ping_tx", "smart_format", "force", "executable"])
     add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec",
-                                            "inputformat", "outputformat", "tx", "value", "replication_factor", "sort_by"])
+                                            "inputformat", "outputformat", "tx", "value",
+                                            "replication_factor", "sort_by", "memlimit"])
     add_multiple_args(parser, ["src", "dst", "dstappend", "file", "mapfile", "reducefile", "ytfile", "opt", "ytspec"])
     add_integer_args(parser, ["jobcount", "threadcount", "chunksize", "jcmultiplier"])
 
@@ -346,6 +346,9 @@ Examples:
     if args.tx is not None:
         config.TRANSACTION = args.tx
     config.PING_ANSECTOR_TRANSACTIONS = args.ping_tx
+
+    if args.memlimit is not None:
+        config.MEMORY_LIMIT = int(args.memlimit)
 
     table_writer = {}
     if args.codec is not None:
