@@ -7,7 +7,7 @@ import argparse
 
 parser = argparse.ArgumentParser(description="Benchmark codecs")
 parser.add_argument('table_name')
-parser.add_argument('--size', default=1)
+parser.add_argument('--size', default=100)
 parser.add_argument('--dst')
 
 args = parser.parse_args()
@@ -17,8 +17,8 @@ table_name = args.table_name
 output_dir = args.dst
 
 if output_dir is None:
-	timestamp = int(time.time())
-	output_dir = '//tmp/codec_test/t' + str(timestamp)
+	name = table_name.replace("/", "#").replace('"', '')
+	output_dir = '//tmp/codec_test/"%s"' % name
 	print  "Option --dst was not set, using ", output_dir
 
 yt.mkdir(output_dir)
