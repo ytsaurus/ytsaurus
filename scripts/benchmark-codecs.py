@@ -1,11 +1,30 @@
 import yt.wrapper as yt
 
+import time
 import datetime as dt
 import sys
+import argparse
 
-table_name = '//home/redwood/reqans_log/"20121008"'
-size = 1 * 2**20
-output_dir = '//home/panin/codec_test'
+parser = argparse.ArgumentParser(description="Benchmark codecs")
+parser.add_argument('table_name')
+parser.add_argument('--size', default=1)
+parser.add_argument('--dst')
+
+args = parser.parse_args()
+
+size = int(args.size) * 2**20
+table_name = args.table_name
+output_dir = args.dst
+
+if output_dir is None:
+	timestamp = int(time.time())
+	output_dir = '//tmp/codec_test/t' + str(timestamp)
+	print  "Option --dst was not set, using ", output_dir
+
+yt.mkdir(output_dir)
+
+# TODO(panin): use logger
+print 'size = ', size
 
 read_size = 0
 rows = []
@@ -16,13 +35,18 @@ for row in yt.read_table(table_name, yt.YsonFormat()):
 
 print 'extracted ', len(rows), ' rows'
 
-codecs = ["none", "gzip_normal", "snappy", "gzip_best_compression", "lz4", "lz4_high_compression", "quick_lz"]
+codecs = [
+	"none",
+	"gzip_normal",
+	"snappy",
+	"gzip_best_compression",
+	"lz4",
+	"lz4_high_compression",
+	"quick_lz"
+]
 
 def count_speed(size, t):
-	return 1. * size / t  / 1024 / 1024
-
-def pretty_speed(speed):
-	return str(round(speed, 4)) + ' Mb/s'
+	return round(1. * size / t  / 1024 / 1024, 4)
 
 res = {}
 yt.set_attribute(output_dir, '_result', {})
@@ -44,7 +68,7 @@ for codec in codecs:
 	write_speed = count_speed(actual_size, write_time)
 
 	value = yt.get(output + '/@compression_ratio')
-	ratio = round(100 * value, 2)
+	ratio = round(value, 4)
 
 	start = dt.datetime.now()
 	total_size = 0
@@ -58,9 +82,9 @@ for codec in codecs:
 	print '  read_time = ', read_time
 
 	local_result =  {}
-	local_result['ratio'] = str(ratio) + '%'
-	local_result['read_speed'] = pretty_speed(read_speed)
-	local_result['write_speed'] = pretty_speed(write_speed)
+	local_result['ratio'] = ratio
+	local_result['read_speed'] = read_speed
+	local_result['write_speed'] = write_speed
 	print '  ', local_result
 
 	res[codec] = local_result
