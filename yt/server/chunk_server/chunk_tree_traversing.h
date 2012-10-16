@@ -11,6 +11,16 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_ENUM(ETraversingError,
+    (Fatal)
+
+    // Retriable error means that subsequent traversing attempt may be successul.
+    // E.g. chunk list version has changed.
+    (Retriable)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IChunkProcessor
     : public virtual TRefCounted
 {
@@ -32,15 +42,8 @@ void TraverseChunkTree(
     NCellMaster::TBootstrap* bootstrap,
     IChunkProcessorPtr processor,
     const TChunkList* root,
-    i64 lowerBound,
-    TNullable<i64> upperBound);
-
-void TraverseChunkTree(
-    NCellMaster::TBootstrap* bootstrap,
-    IChunkProcessorPtr processor,
-    const TChunkList* root,
-    const NTableClient::NProto::TKey& lowerBound,
-    TNullable<NTableClient::NProto::TKey> upperBound);
+    const NTableClient::NProto::TReadLimit& lowerBound,
+    const NTableClient::NProto::TReadLimit& upperBound);
 
 ////////////////////////////////////////////////////////////////////////////////
 

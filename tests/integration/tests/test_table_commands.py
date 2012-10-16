@@ -124,7 +124,7 @@ class TestTableCommands(YTEnvSetup):
             ]
 
         # limits of different types
-        with pytest.raises(YTError): assert read('//tmp/table[#0:zz]')
+        assert read('//tmp/table[#0:zz]') == [v1, v2, v3, v4, v5]
 
 
     def test_column_selector(self):

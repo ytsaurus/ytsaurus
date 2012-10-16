@@ -287,9 +287,12 @@ private:
     void ProcessError(const TError& error)
     {
         if (!Finished) {
-            Context->Reply(TError(
-                NRpc::EErrorCode::Unavailable, 
-                "Failed to fetch table") << error);
+            auto wrappedError = TError("Failed to fetch table.") << error;
+            if (error.GetCode() == ETraversingError::Retriable) {
+                wrappedError.SetCode(NRpc::EErrorCode::Unavailable);
+            }
+
+            Context->Reply(wrappedError);
             Finished = true;
         }
         
@@ -386,30 +389,6 @@ void TTableNodeProxy::TraverseChunkTree(std::vector<TChunkId>* chunkIds, const T
             }
             default:
                 YUNREACHABLE();
-        }
-    }
-}
-
-template <class TBoundary>
-void TTableNodeProxy::RunFetchTraversal(
-    const TChunkList* chunkList,
-    TFetchChunkProcessorPtr chunkProcessor, 
-    const TBoundary& lowerBound, 
-    const TNullable<TBoundary>& upperBound,
-    bool negate)
-{
-    if (!upperBound || *upperBound > lowerBound) {
-        if (negate) {
-            chunkProcessor->AddTraversalSession();
-            NChunkServer::TraverseChunkTree(Bootstrap, chunkProcessor, chunkList, TBoundary(), MakeNullable(lowerBound));
-
-            if (upperBound) {
-                chunkProcessor->AddTraversalSession();
-                NChunkServer::TraverseChunkTree(Bootstrap, chunkProcessor, chunkList, *upperBound, Null);
-            }
-        } else {
-            chunkProcessor->AddTraversalSession();
-            NChunkServer::TraverseChunkTree(Bootstrap, chunkProcessor, chunkList, lowerBound, upperBound);
         }
     }
 }
@@ -639,18 +618,19 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
         channel, 
         Bootstrap->GetChunkManager());
 
-    if (lowerLimit.has_key() || upperLimit.has_key()) {
-        if (lowerLimit.has_row_index() || upperLimit.has_row_index()) {
-            THROW_ERROR_EXCEPTION("Row limits must have the same type");
+    if (request->negate()) {
+        if (lowerLimit.has_row_index() || lowerLimit.has_key()) {
+            chunkProcessor->AddTraversalSession();
+            NChunkServer::TraverseChunkTree(Bootstrap, chunkProcessor, chunkList, TReadLimit(), lowerLimit);
         }
 
-        const auto& lowerBound = lowerLimit.key();
-        auto upperBound = upperLimit.has_key() ? MakeNullable(upperLimit.key()) : Null;
-        RunFetchTraversal(chunkList, chunkProcessor, lowerBound, upperBound, request->negate());
+        if (upperLimit.has_row_index() || upperLimit.has_key()) {
+            chunkProcessor->AddTraversalSession();
+            NChunkServer::TraverseChunkTree(Bootstrap, chunkProcessor, chunkList, upperLimit, TReadLimit());
+        }
     } else {
-        i64 lowerBound = lowerLimit.has_row_index() ? std::max(lowerLimit.row_index(), (i64)0) : 0;
-        TNullable<i64> upperBound = upperLimit.has_row_index() ? MakeNullable(std::max(upperLimit.row_index(), (i64)0)) : Null;
-        RunFetchTraversal(chunkList, chunkProcessor, lowerBound, upperBound, request->negate());
+        chunkProcessor->AddTraversalSession();
+        NChunkServer::TraverseChunkTree(Bootstrap, chunkProcessor, chunkList, lowerLimit, upperLimit);
     }
 
     chunkProcessor->Complete();
