@@ -17,7 +17,7 @@ public:
         : Context(context)
         , UnderlyingInvoker(underlyingInvoker)
     {
-        YASSERT(underlyingInvoker);
+        YCHECK(underlyingInvoker);
     }
 
     virtual bool Invoke(const TClosure& action) override
@@ -29,13 +29,11 @@ public:
         }
 
         auto context = Context;
-        UnderlyingInvoker->Invoke(BIND([=] {
+        return UnderlyingInvoker->Invoke(BIND([=] {
             if (!context->Canceled) {
                 action.Run();
             }
         }));
-
-        return true;
     }
 
     void Cancel();
