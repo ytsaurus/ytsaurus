@@ -420,7 +420,18 @@ class YtTest(YTEnv):
 
         yt.sort_table([table, other_table], result_table)
         self.assertTrue(yt.is_sorted(result_table))
-        self.assertEqual(yt.records_count(table), 20)
+        self.assertEqual(yt.records_count(result_table), 20)
+    
+    def test_sort_of_one_sorted_table(self):
+        table = self.create_temp_table()
+        other_table = TEST_DIR + "/temp_other"
+
+        yt.sort_table(table)
+        self.assertTrue(yt.is_sorted(table))
+
+        yt.sort_table([table], other_table)
+        self.assertTrue(yt.is_sorted(other_table))
+        self.assertEqual(yt.records_count(other_table), 10)
 
 
 if __name__ == "__main__":
