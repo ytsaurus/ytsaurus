@@ -221,7 +221,7 @@ def sort_table(source_table, destination_table=None, sort_by=None, strategy=None
     source_table = _prepare_source_tables(source_table)
     if all(is_prefix(sort_by, get_sorted_by(table.name))
            for table in source_table):
-        if len(source_table) > 1:
+        if len(source_table) > 0:
             merge_tables(source_table, destination_table, "sorted", strategy=strategy, table_writer=table_writer, spec=spec)
         return
 
