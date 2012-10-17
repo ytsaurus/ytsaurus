@@ -313,7 +313,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                    map_file_paths=None, reduce_file_paths=None,
                    sort_by=None, reduce_by=None):
     if strategy is None: strategy = config.DEFAULT_STRATEGY
-    sort_by = _prepare_reduce_by(sort_by)
+    sort_by = _prepare_sort_by(sort_by)
     reduce_by = _prepare_reduce_by(reduce_by)
     input_format, output_format = _prepare_formats(format, input_format, output_format)
 
@@ -365,7 +365,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
         add_user_spec(
             {"spec": run_map_reduce.spec,
              "transaction_id": config.TRANSACTION}))
-    operation = make_request("POST", "map_reduce", None, params)
+    operation = make_request("POST", "map_reduce", None, params, verbose=True)
     strategy.process_operation("map_reduce", operation,
          Finalizer(run_map_reduce.files_to_remove, destination_table))
 
