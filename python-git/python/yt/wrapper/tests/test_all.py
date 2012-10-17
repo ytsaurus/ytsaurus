@@ -362,9 +362,10 @@ class YtTest(YTEnv):
 
     def test_empty_output_table_deletion(self):
         table = self.create_temp_table()
-        other_table = TEST_DIR + "/temp_other"
+        other_table = TEST_DIR + "/ttt/temp_other"
         yt.run_map("cat 1>&2 2>/dev/null", table, other_table)
         self.assertFalse(yt.exists(other_table))
+        self.assertFalse(yt.exists(TEST_DIR + "/ttt"))
 
     def test_reformatting(self):
         def reformat(rec):
@@ -432,6 +433,16 @@ class YtTest(YTEnv):
         yt.sort_table([table], other_table)
         self.assertTrue(yt.is_sorted(other_table))
         self.assertEqual(yt.records_count(other_table), 10)
+
+    def test_erase_table(self):
+        table = self.create_temp_table()
+        self.assertEqual(yt.records_count(table), 10)
+
+        yt.erase_table(Table(table, start_index=0, end_index=5))
+        self.assertEqual(yt.records_count(table), 5)
+
+        yt.erase_table(Table(table, start_index=0, end_index=5))
+        self.assertEqual(yt.records_count(table), 0)
 
 
 if __name__ == "__main__":
