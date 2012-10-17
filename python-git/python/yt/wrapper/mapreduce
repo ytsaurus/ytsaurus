@@ -394,11 +394,7 @@ Examples:
         if yt.exists(args.drop):
             if not args.force and yt.get_type(args.drop) not in ["table", "file"]:
                 die("You are trying to remove object of type " + yt.get_type(args.drop))
-            path = args.drop
-            while True:
-                yt.remove(path)
-                path = os.path.dirname(path)
-                if yt.get(path): break
+            yt.remove_with_empty_dirs(args.drop)
     if args.copy:
         yt.copy_table(args.src, unlist(dst))
     if args.sort:
@@ -410,7 +406,7 @@ Examples:
         yt.erase_table(args.erase)
     if args.upload is not None:
         if yt.exists(args.upload) and yt.get_type(args.upload) == "file":
-            yt.remove(args.upload)
+            yt.remove_with_empty_dirs(args.upload)
         yt.upload_file(sys.stdin, args.upload)
         if args.executable:
             yt.set_attribute(args.upload, "executable", "true")
