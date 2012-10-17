@@ -54,7 +54,8 @@ typedef TIntrusivePtr<TEpochContext> TEpochContextPtr;
 struct TEpochContext
     : public NElection::TEpochContext
 {
-    IInvokerPtr EpochStateInvoker;
+    IInvokerPtr EpochSystemStateInvoker;
+    IInvokerPtr EpochUserStateInvoker;
     IInvokerPtr EpochControlInvoker;
     TSnapshotBuilderPtr SnapshotBuilder;
     TLeaderRecoveryPtr LeaderRecovery;
@@ -133,8 +134,8 @@ public:
         DecoratedState = New<TDecoratedMetaState>(
             Config,
             metaState,
-            stateInvoker,
-            controlInvoker,
+            StateInvoker,
+            ControlInvoker,
             SnapshotStore,
             ChangeLogCache);
 
@@ -629,7 +630,7 @@ public:
                         EpochContext->LeaderId,
                         ControlInvoker,
                         EpochContext->EpochControlInvoker,
-                        EpochContext->EpochStateInvoker,
+                        EpochContext->EpochSystemStateInvoker,
                         version);
 
                     EpochContext->FollowerRecovery->Run().Subscribe(
@@ -679,7 +680,7 @@ public:
                     LOG_DEBUG("AdvanceSegment: starting snapshot creation");
 
                     BIND(&TSnapshotBuilder::CreateLocalSnapshot, EpochContext->SnapshotBuilder, version)
-                        .AsyncVia(EpochContext->EpochStateInvoker)
+                        .AsyncVia(EpochContext->EpochUserStateInvoker)
                         .Run()
                         .Subscribe(BIND(
                             &TThis::OnCreateLocalSnapshot,
@@ -688,7 +689,7 @@ public:
                 } else {
                     LOG_DEBUG("AdvanceSegment: advancing segment");
 
-                    EpochContext->EpochStateInvoker->Invoke(context->Wrap(BIND(
+                    EpochContext->EpochUserStateInvoker->Invoke(context->Wrap(BIND(
                         &TThis::DoStateAdvanceSegment,
                         MakeStrong(this),
                         version,
@@ -914,7 +915,7 @@ public:
             EpochContext->FollowerTracker,
             EpochContext->EpochId,
             ControlInvoker,
-            EpochContext->EpochStateInvoker);
+            EpochContext->EpochUserStateInvoker);
         EpochContext->LeaderCommitter->SubscribeMutationApplied(
             BIND(&TThis::OnLocalMutationApplied, MakeWeak(this), EpochContext));
 
@@ -936,7 +937,7 @@ public:
             EpochContext->EpochId,
             ControlInvoker,
             EpochContext->EpochControlInvoker,
-            EpochContext->EpochStateInvoker);
+            EpochContext->EpochSystemStateInvoker);
 
         EpochContext->FollowerTracker->Start();
 
@@ -959,7 +960,7 @@ public:
             .Run()
             .Subscribe(
                 BIND(&TThis::OnStateLeaderRecoveryComplete, MakeStrong(this), epochContext)
-                    .Via(epochContext->EpochStateInvoker));
+                    .Via(epochContext->EpochSystemStateInvoker));
     }
 
     void OnStateLeaderRecoveryComplete(TEpochContextPtr epochContext, TError error)
@@ -1001,7 +1002,7 @@ public:
 
         epochContext->FollowerTracker->GetActiveQuorum().Subscribe(
             BIND(&TThis::OnActiveQuorumEstablished, MakeStrong(this))
-                .Via(epochContext->EpochStateInvoker));
+                .Via(epochContext->EpochUserStateInvoker));
     }
 
     void OnActiveQuorumEstablished()
@@ -1052,7 +1053,7 @@ public:
         EpochContext->FollowerCommitter = New<TFollowerCommitter>(
             DecoratedState,
             ControlInvoker,
-            EpochContext->EpochStateInvoker);
+            EpochContext->EpochUserStateInvoker);
 
         EpochContext->SnapshotBuilder = New<TSnapshotBuilder>(
             Config->SnapshotBuilder,
@@ -1061,9 +1062,9 @@ public:
             SnapshotStore,
             EpochContext->EpochId,
             EpochContext->EpochControlInvoker,
-            EpochContext->EpochStateInvoker);
+            EpochContext->EpochUserStateInvoker);
 
-        EpochContext->EpochStateInvoker->Invoke(BIND(
+        EpochContext->EpochSystemStateInvoker->Invoke(BIND(
             &TThis::DoStateStartFollowing,
             MakeStrong(this)));
     }
@@ -1087,7 +1088,7 @@ public:
             return;
         }
 
-        epochContext->EpochStateInvoker->Invoke(BIND(
+        epochContext->EpochSystemStateInvoker->Invoke(BIND(
             &TThis::DoStateFollowerRecoveryComplete,
             MakeStrong(this),
             epochContext));
@@ -1143,7 +1144,8 @@ public:
         EpochContext->StartTime = electionEpochContext->StartTime;
         EpochContext->CancelableContext = electionEpochContext->CancelableContext;
         EpochContext->EpochControlInvoker = EpochContext->CancelableContext->CreateInvoker(ControlInvoker);
-        EpochContext->EpochStateInvoker = EpochContext->CancelableContext->CreateInvoker(DecoratedState->GetSystemInvoker());
+        EpochContext->EpochSystemStateInvoker = EpochContext->CancelableContext->CreateInvoker(DecoratedState->GetSystemInvoker());
+        EpochContext->EpochUserStateInvoker = EpochContext->CancelableContext->CreateInvoker(StateInvoker);
     }
 
     void StopEpoch()
