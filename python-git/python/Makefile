@@ -23,7 +23,7 @@ deb:
 	$(MAKE) deb_without_test
 
 egg: prepare
-	python setup.py bdist_egg
+	EGG=1 python setup.py bdist_egg
 	cp dist/*.egg .
 
 deb_without_test: clean
