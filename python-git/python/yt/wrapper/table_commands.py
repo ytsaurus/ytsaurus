@@ -3,7 +3,7 @@ import py_wrapper
 from common import flatten, require, YtError, unlist, update, EMPTY_GENERATOR, parse_bool, is_prefix
 from http import make_request, read_content
 from table import get_yson_name, get_output_yson_name, to_table, to_name
-from tree_commands import exists, remove, get_attribute, copy, mkdir, find_free_subpath
+from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, mkdir, find_free_subpath
 from file_commands import smart_upload_file
 
 import os
@@ -141,8 +141,15 @@ def read_table(table, format=None, response_type=None):
 
 def remove_table(table):
     table = to_name(table)
-    if exists(table) and get_attribute(table, "type") == "table":
-        remove(table)
+    require(exists(table) and get_attribute(table, "type") == "table",
+            "'%s' should exist and be table")
+    remove(table)
+
+def remove_table_with_empty_dirs(table):
+    table = to_name(table)
+    require(exists(table) and get_attribute(table, "type") == "table",
+            "'%s' should exist and be table")
+    remove_with_empty_dirs(table)
 
 def copy_table(source_table, destination_table, strategy=None):
     source_tables = _prepare_source_tables(source_table)
@@ -294,9 +301,9 @@ class Finalizer(object):
 
     def __call__(self):
         for table in filter(is_empty, map(to_name, self.output_tables)):
-            remove_table(table)
+            remove_table_with_empty_dirs(table)
         for file in self.files:
-            remove(file)
+            remove_with_empty_dirs(file)
 
 
 def run_map_reduce(mapper, reducer, source_table, destination_table,

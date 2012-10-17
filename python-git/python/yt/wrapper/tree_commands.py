@@ -3,6 +3,7 @@ from path_tools import dirs, split_table_ranges
 from http import make_request
 import config
 
+import os
 import string
 import random
 import simplejson as json
@@ -49,6 +50,13 @@ def remove(path):
     return make_request("POST", "remove",
             {"path": path,
              "transaction_id": config.TRANSACTION})
+
+def remove_with_empty_dirs(path):
+    while True:
+        remove(path)
+        path = os.path.dirname(path)
+        if list(path):
+            break
 
 def mkdir(path):
     create = False
