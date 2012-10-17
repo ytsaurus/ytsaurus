@@ -365,7 +365,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
         add_user_spec(
             {"spec": run_map_reduce.spec,
              "transaction_id": config.TRANSACTION}))
-    operation = make_request("POST", "map_reduce", None, params, verbose=True)
+    operation = make_request("POST", "map_reduce", None, params)
     strategy.process_operation("map_reduce", operation,
          Finalizer(run_map_reduce.files_to_remove, destination_table))
 
