@@ -1,6 +1,7 @@
 from setuptools import setup, find_packages
 from setuptools.command.test import test as TestCommand
 
+import os
 import sys
 import subprocess
 
@@ -22,11 +23,20 @@ def main():
     if sys.version_info[:2] < (2, 6):
         requires.append("argparse")
 
+
+    scripts = []
+    data_files = []
+    # in egg and debian cases strategy of binary distribution is different
+    if "EGG" in os.environ:
+        scripts.append("yt/wrapper/mapreduce-yt")
+    else:
+        data_files.append(("/usr/bin", ["yt/wrapper/mapreduce-yt"]))
+
     setup(
         name = "Yt",
         version = "0.1",
         packages = find_packages(exclude=["*.tests", "*.tests.*", "tests.*", "tests", "yt.environment"]),
-        #scripts = ['yt/wrapper/mapreduce-yt'],
+        scripts = scripts,
 
         install_requires = requires,
 
@@ -43,11 +53,9 @@ def main():
 
         # Using py.test, because it much more verbose
         cmdclass = {'test': PyTest},
-        tests_require=['pytest'],
+        tests_require = ['pytest'],
 
-        data_files=[
-            ("/usr/bin", ["yt/wrapper/mapreduce-yt"])
-        ]
+        data_files = data_files
     )
 
 if __name__ == "__main__":
