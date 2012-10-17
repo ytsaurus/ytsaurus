@@ -14,6 +14,7 @@
 #include <ytlib/scheduler/config.h>
 
 #include <ytlib/meta_state/async_change_log.h>
+#include <ytlib/chunk_client/dispatcher.h>
 
 #include <tclap/CmdLine.h>
 
@@ -290,6 +291,7 @@ int Main(int argc, const char* argv[])
     NLog::TLogManager::Get()->Shutdown();
     NBus::TTcpDispatcher::Get()->Shutdown();
     NRpc::TRpcDispatcher::Get()->Shutdown();
+    NChunkClient::TDispatcher::Get()->Shutdown();
     NProfiling::TProfilingManager::Get()->Shutdown();
     TDelayedInvoker::Shutdown();
 
