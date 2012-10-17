@@ -5,6 +5,8 @@ from http import make_request
 from tree_commands import get_attribute, exists, search, get
 from file_commands import download_file
 
+import sys
+
 import os
 from time import sleep
 
@@ -31,6 +33,20 @@ class OperationState(object):
 
     def __str__(self):
         return self.name
+
+class Timeout(object):
+    def __init__(self, min_timeout, max_timeout, slowdown_coef):
+        self.min_timeout = min_timeout
+        self.max_timeout = max_timeout
+        self.slowdown_coef = slowdown_coef
+        self.total_time = 0.0
+
+    def wait(self):
+        def bound(val, a, b):
+            return min(max(val, a), b)
+        res = bound(self.total_time * self.slowdown_coef, self.min_timeout, self.max_timeout)
+        self.total_time += res
+        sleep(res)
 
 def get_operation_state(operation):
     operation_path = os.path.join(OPERATIONS_PATH, operation)
@@ -76,7 +92,8 @@ def abort_operation(operation):
         make_request("POST", "abort_op", {"operation_id": operation})
 
 def wait_operation(operation, timeout=None, print_progress=True):
-    if timeout is None: timeout = config.WAIT_TIMEOUT
+    if timeout is None:
+        timeout = Timeout(config.WAIT_TIMEOUT / 5.0, config.WAIT_TIMEOUT, 0.1)
     try:
         progress = None
         while True:
@@ -92,7 +109,7 @@ def wait_operation(operation, timeout=None, print_progress=True):
                         "jobs of operation %s: %s",
                         operation,
                         "\t".join(["=".join(map(str, [k, v])) for k, v in progress.iteritems()]))
-            sleep(timeout)
+            timeout.wait()
     except KeyboardInterrupt:
         if config.KEYBOARD_ABORT:
             while True:
