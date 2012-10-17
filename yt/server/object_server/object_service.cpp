@@ -129,8 +129,9 @@ private:
         if (!invoker->Invoke(BIND(&TExecuteSession::Continue, MakeStrong(this)))) {
             Reply(TError(
                 EErrorCode::Unavailable,
-                "Yield error, only %d requests were submitted",
-                CurrentRequestIndex));
+                "Yield error, only %d of out %d requests were served",
+                CurrentRequestIndex,
+                Context->Request().part_counts_size()));
         }
     }
 
@@ -184,6 +185,7 @@ private:
 
         Awaiter->Cancel();
         Awaiter.Reset();
+
         Context->Reply(error);
     }
 
