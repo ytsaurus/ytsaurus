@@ -44,6 +44,12 @@ bool TOperation::IsFinishedState() const
     return IsOperationFinished(State_);
 }
 
+bool TOperation::IsFinalizingState() const
+{
+    return IsOperationFinalizing(State_);
+}
+
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

@@ -54,6 +54,14 @@ bool IsOperationFinished(EOperationState state)
         state == EOperationState::Failed;
 }
 
+bool IsOperationFinalizing(EOperationState state)
+{
+    return
+        state == EOperationState::Completing ||
+        state == EOperationState::Aborting ||
+        state == EOperationState::Failing;
+}
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

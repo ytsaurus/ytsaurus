@@ -16,6 +16,7 @@ NYPath::TYPath GetJobPath(const TOperationId& operationId, const TJobId& jobId);
 NYPath::TYPath GetStdErrPath(const TOperationId& operationId, const TJobId& jobId);
 
 bool IsOperationFinished(EOperationState state);
+bool IsOperationFinalizing(EOperationState state);
 
 ////////////////////////////////////////////////////////////////////////////////
 
