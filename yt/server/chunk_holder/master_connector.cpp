@@ -42,6 +42,8 @@ TMasterConnector::TMasterConnector(TDataNodeConfigPtr config, TBootstrap* bootst
     , State(EState::Offline)
     , NodeId(InvalidNodeId)
 {
+    VERIFY_INVOKER_AFFINITY(ControlInvoker, ControlThread);
+
     YCHECK(config);
     YCHECK(bootstrap);
 }
@@ -50,18 +52,20 @@ void TMasterConnector::Start()
 {
     Proxy.Reset(new TProxy(Bootstrap->GetMasterChannel()));
 
+    // Chunk store callbacks are always called in Control thead.
     Bootstrap->GetChunkStore()->SubscribeChunkAdded(BIND(
         &TMasterConnector::OnChunkAdded,
         MakeWeak(this)));
     Bootstrap->GetChunkStore()->SubscribeChunkRemoved(BIND(
         &TMasterConnector::OnChunkRemoved,
         MakeWeak(this)));
+
     Bootstrap->GetChunkCache()->SubscribeChunkAdded(BIND(
         &TMasterConnector::OnChunkAdded,
-        MakeWeak(this)));
+        MakeWeak(this)).Via(ControlInvoker));
     Bootstrap->GetChunkCache()->SubscribeChunkRemoved(BIND(
         &TMasterConnector::OnChunkRemoved,
-        MakeWeak(this)));
+        MakeWeak(this)).Via(ControlInvoker));
 
     TDelayedInvoker::Submit(
         BIND(&TMasterConnector::OnHeartbeat, MakeStrong(this))
@@ -79,6 +83,7 @@ void TMasterConnector::ScheduleHeartbeat()
 
 void TMasterConnector::OnHeartbeat()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
     switch (State) {
         case EState::Offline:
             SendRegister();
@@ -134,6 +139,8 @@ NChunkServer::NProto::TNodeStatistics TMasterConnector::ComputeStatistics()
 
 void TMasterConnector::OnRegisterResponse(TProxy::TRspRegisterNodePtr response)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     if (!response->IsOK()) {
         Disconnect();
         ScheduleHeartbeat();
@@ -240,6 +247,8 @@ TChunkRemoveInfo TMasterConnector::GetRemoveInfo(TChunkPtr chunk)
 
 void TMasterConnector::OnFullHeartbeatResponse(TProxy::TRspFullHeartbeatPtr response)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     ScheduleHeartbeat();
     
     if (!response->IsOK()) {
@@ -254,6 +263,7 @@ void TMasterConnector::OnFullHeartbeatResponse(TProxy::TRspFullHeartbeatPtr resp
 
 void TMasterConnector::OnIncrementalHeartbeatResponse(TProxy::TRspIncrementalHeartbeatPtr response)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
     ScheduleHeartbeat();
 
     if (!response->IsOK()) {
@@ -325,6 +335,8 @@ void TMasterConnector::Disconnect()
 
 void TMasterConnector::OnChunkAdded(TChunkPtr chunk)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     NLog::TTaggedLogger Logger(DataNodeLogger);
     Logger.AddTag(Sprintf("ChunkId: %s, Location: %s",
         ~chunk->GetId().ToString(),
@@ -351,6 +363,8 @@ void TMasterConnector::OnChunkAdded(TChunkPtr chunk)
 
 void TMasterConnector::OnChunkRemoved(TChunkPtr chunk)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     NLog::TTaggedLogger Logger(DataNodeLogger);
     Logger.AddTag(Sprintf("ChunkId: %s, Location: %s",
         ~chunk->GetId().ToString(),

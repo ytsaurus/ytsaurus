@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <ytlib/rpc/channel.h>
+#include <ytlib/misc/thread_affinity.h>
 #include <server/chunk_server/chunk_service_proxy.h>
 
 namespace NYT {
@@ -120,6 +121,8 @@ private:
      *  to the master upon a next heartbeat.
      */
     void OnChunkRemoved(TChunkPtr chunk);
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
