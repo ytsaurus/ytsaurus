@@ -54,7 +54,7 @@ bool IsOperationFinished(EOperationState state)
         state == EOperationState::Failed;
 }
 
-bool IsOperationFinalizing(EOperationState state)
+bool IsOperationFinishing(EOperationState state)
 {
     return
         state == EOperationState::Completing ||

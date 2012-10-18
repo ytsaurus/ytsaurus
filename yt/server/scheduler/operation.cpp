@@ -44,11 +44,10 @@ bool TOperation::IsFinishedState() const
     return IsOperationFinished(State_);
 }
 
-bool TOperation::IsFinalizingState() const
+bool TOperation::IsFinishingState() const
 {
-    return IsOperationFinalizing(State_);
+    return IsOperationFinishing(State_);
 }
-
 
 ////////////////////////////////////////////////////////////////////
 

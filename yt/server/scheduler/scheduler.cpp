@@ -580,8 +580,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (operation->IsFinalizingState()) {
-            LOG_INFO(error, "Request to abort an already finalizing operation ignored (OperationId: %s, State: %s)",
+        if (operation->IsFinishingState()) {
+            LOG_INFO(error, "Operation is already finishing (OperationId: %s, State: %s)",
                 ~operation->GetOperationId().ToString(),
                 ~operation->GetState().ToString());
             return;
@@ -594,7 +594,7 @@ private:
             return;
         }
 
-        LOG_WARNING(error, "Aborting operation (OperationId: %s, State: %s)",
+        LOG_INFO(error, "Aborting operation (OperationId: %s, State: %s)",
             ~operation->GetOperationId().ToString(),
             ~operation->GetState().ToString());
                 
@@ -901,7 +901,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (operation->IsFinishedState() || operation->IsFinalizingState()) {
+        if (operation->IsFinishedState() || operation->IsFinishingState()) {
             // Operation is probably being aborted.
             return;
         }
@@ -924,7 +924,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (operation->IsFinishedState() || operation->IsFinalizingState()) {
+        if (operation->IsFinishedState() || operation->IsFinishingState()) {
             // Safe to call OnOperationFailed multiple times, just ignore it.
             return;
         }

@@ -50,7 +50,8 @@ class TOperation
     //! Delegates to #NYT::NScheduler::IsOperationFinished.
     bool IsFinishedState() const;
 
-    bool IsFinalizingState() const;
+    //! Delegates to #NYT::NScheduler::IsOperationFinishing.
+    bool IsFinishingState() const;
 
 public:
     TOperation(
@@ -62,6 +63,7 @@ public:
         EOperationState state = EOperationState::Initializing);
 
     TPromise<void> FinishedPromise;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
