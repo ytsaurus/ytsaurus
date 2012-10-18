@@ -148,7 +148,7 @@ void TBootstrap::Run()
     // TODO(babenko): refactor
     TransactionManager->Init();
 
-    auto objectService = New<TObjectService>(this);
+    auto objectService = New<TObjectService>(Config->Objects, this);
     RpcServer->RegisterService(objectService);
 
     HolderAuthority = CreateNodeAuthority(this);
@@ -186,7 +186,7 @@ void TBootstrap::Run()
     SyncYPathSet(orchidRoot, "/@service_name", ConvertToYsonString("master"));
     SetBuildAttributes(orchidRoot);
 
-    auto orchidRpcService = New<NOrchid::TOrchidService>(
+    auto orchidRpcService = New<TOrchidService>(
         orchidRoot,
         GetControlInvoker());
     RpcServer->RegisterService(orchidRpcService);
@@ -204,6 +204,7 @@ void TBootstrap::Run()
     CypressManager->RegisterHandler(CreateTableTypeHandler(this));
 
     MetaStateFacade->Start();
+    ObjectManager->Start();
     monitoringManager->Start();
 
     ::THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));

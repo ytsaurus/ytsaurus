@@ -218,12 +218,21 @@ void TMapNodeProxy::Clear()
     auto keyToChild = GetMapNodeChildren(Bootstrap, Id, Transaction);
 
     // Take exclusive locks for children.
-    std::vector< std::pair<Stroka, ICypressNode*> > children;
+    typedef std::pair<Stroka, ICypressNode*> TChild;
+    std::vector<TChild> children;
     FOREACH (const auto& pair, keyToChild) {
         LockThisImpl(TLockRequest::SharedChild(pair.first));
         auto* child = LockImpl(pair.second);
         children.push_back(std::make_pair(pair.first, child));
     }
+
+    // Sort the children by the key to ensure consistent unref order.
+    std::sort(
+        children.begin(),
+        children.end(),
+        [] (const TChild& lhs, const TChild& rhs) {
+            return lhs.second < rhs.second;
+        });
 
     // Detach children.
     // Insert tombstones.

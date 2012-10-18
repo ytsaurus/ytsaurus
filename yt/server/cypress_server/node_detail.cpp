@@ -153,12 +153,27 @@ void TMapNodeTypeHandler::DoDestroy(TMapNode* node)
 {
     TBase::DoDestroy(node);
 
-    // Drop references to the children.
-    auto objectManager = Bootstrap->GetObjectManager();
+    // Construct a list of children sorted by the key to ensure consistent unref order.
+    typedef std::pair<Stroka, TNodeId> TChild;
+    std::vector<TChild> children;
+    children.reserve(node->KeyToChild().size());
     FOREACH (const auto& pair, node->KeyToChild()) {
         if (pair.second != NullObjectId) {
-            objectManager->UnrefObject(pair.second);
+            children.push_back(pair);
         }
+    }
+
+    std::sort(
+        children.begin(),
+        children.end(),
+        [] (const TChild& lhs, const TChild& rhs) {
+            return lhs.first < rhs.first;
+        });
+
+    // Drop references to the children.
+    auto objectManager = Bootstrap->GetObjectManager();
+    FOREACH (const auto& pair, children) {
+        objectManager->UnrefObject(pair.second);
     }
 }
 

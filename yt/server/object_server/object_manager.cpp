@@ -2,6 +2,8 @@
 #include "object_manager.h"
 #include "config.h"
 
+#include <ytlib/misc/delayed_invoker.h>
+
 #include <ytlib/ypath/tokenizer.h>
 
 #include <ytlib/rpc/message.h>
@@ -12,8 +14,6 @@
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <ytlib/profiling/profiler.h>
-
 #include <server/cell_master/load_context.h>
 
 #include <server/transaction_server/transaction_manager.h>
@@ -23,6 +23,8 @@
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
+
+#include <util/ysaveload.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -38,6 +40,7 @@ using namespace NCypressClient;
 using namespace NTransactionServer;
 using namespace NChunkServer;
 using namespace NObjectClient;
+using namespace NMetaState;
 using namespace NObjectServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -284,6 +287,8 @@ TObjectManager::TObjectManager(
     , Bootstrap(bootstrap)
     , TypeToHandler(MaxObjectType)
     , RootService(New<TRootService>(bootstrap))
+    , GCQueueSizeCounter("/gc_queue_size")
+    , DestroyedObjectCounter("/destroyed_object_count")
 {
     YCHECK(config);
     YCHECK(bootstrap);
@@ -327,9 +332,15 @@ TObjectManager::TObjectManager(
     }
 
     RegisterMethod(BIND(&TObjectManager::ReplayVerb, Unretained(this)));
+    RegisterMethod(BIND(&TObjectManager::DestroyObjects, Unretained(this)));
 
     LOG_INFO("Object Manager initialized (CellId: %d)",
         static_cast<int>(config->CellId));
+}
+
+void TObjectManager::Start()
+{
+    ScheduleGCSweep();
 }
 
 IYPathServicePtr TObjectManager::GetRootService()
@@ -531,12 +542,10 @@ void TObjectManager::OnObjectUnreferenced(const TObjectId& id, i32 refCounter)
     LOG_DEBUG_UNLESS(IsRecovery(), "Object unreferenced (Id: %s, RefCounter: %d)",
         ~id.ToString(),
         refCounter);
+
     if (refCounter == 0) {
-        auto handler = GetHandler(id);
-        handler->Destroy(id);
-        LOG_DEBUG_UNLESS(IsRecovery(), "Object destroyed (Type: %s, Id: %s)",
-            ~handler->GetType().ToString(),
-            ~id.ToString());
+        GCQueue.push_back(id);
+        Profiler.Increment(GCQueueSizeCounter, 1);
     }
 }
 
@@ -552,6 +561,7 @@ void TObjectManager::SaveValues(const NCellMaster::TSaveContext& context) const
     VERIFY_THREAD_AFFINITY(StateThread);
 
     Attributes.SaveValues(context);
+    Save(context.GetOutput(), GCQueue);
 }
 
 void TObjectManager::LoadKeys(const NCellMaster::TLoadContext& context)
@@ -566,6 +576,10 @@ void TObjectManager::LoadValues(const NCellMaster::TLoadContext& context)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     Attributes.LoadValues(context);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 2) {
+        Load(context.GetInput(), GCQueue);
+    }
 }
 
 void TObjectManager::Clear()
@@ -573,6 +587,7 @@ void TObjectManager::Clear()
     VERIFY_THREAD_AFFINITY(StateThread);
 
     Attributes.Clear();
+    GCQueue.clear();
 }
 
 void TObjectManager::OnStartRecovery()
@@ -764,6 +779,82 @@ void TObjectManager::ReplayVerb(const TMetaReqExecute& request)
     proxy->Invoke(context);
 }
 
+void TObjectManager::DestroyObjects(const NProto::TMetaReqDestroyObjects& request)
+{
+    FOREACH (const auto& protoId, request.object_ids()) {
+        auto id = TObjectId::FromProto(protoId);
+
+        YCHECK(!GCQueue.empty());
+        YCHECK(GCQueue.front() == id);
+        GCQueue.pop_front();
+        Profiler.Increment(GCQueueSizeCounter, -1);
+
+        DestroyObject(id);
+    }
+}
+
+void TObjectManager::DestroyObject(const TObjectId& id)
+{
+    auto handler = GetHandler(id);
+    handler->Destroy(id);
+    
+    Profiler.Increment(DestroyedObjectCounter, +1);
+    
+    LOG_DEBUG_UNLESS(IsRecovery(), "Object destroyed (Type: %s, Id: %s)",
+        ~handler->GetType().ToString(),
+        ~id.ToString());
+}
+
+void TObjectManager::ScheduleGCSweep()
+{
+    TDelayedInvoker::Submit(
+        BIND(&TThis::GCSweep, MakeWeak(this))
+            .Via(Bootstrap->GetMetaStateFacade()->GetUnguardedInvoker()),
+        Config->GCSweepPeriod);
+}
+
+void TObjectManager::GCSweep()
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    if (MetaStateManager->GetStateStatus() != EPeerStatus::Leading ||
+        !MetaStateManager->HasActiveQuorum() ||
+        GCQueue.empty())
+    {
+        ScheduleGCSweep();
+        return;
+    }
+
+    // Extract up to GCObjectsPerMutation objects and post a mutation.
+    NProto::TMetaReqDestroyObjects request;
+    auto it = GCQueue.begin();
+    while (it != GCQueue.end() && request.object_ids_size() < Config->MaxObjectsPerGCSweep) {
+        *request.add_object_ids() = it->ToProto();
+        ++it;
+    }
+
+    LOG_DEBUG("Starting GC commit for %d objects", request.object_ids_size());
+
+    Bootstrap
+        ->GetMetaStateFacade()
+        ->CreateMutation(this, request, &TThis::DestroyObjects)
+        ->OnSuccess(BIND(&TThis::OnGCCommitSucceeded, MakeWeak(this)))
+        ->OnError(BIND(&TThis::OnGCCommitFailed, MakeWeak(this)))
+        ->PostCommit();
+}
+
+void TObjectManager::OnGCCommitSucceeded()
+{
+    LOG_DEBUG("GC commit succeeded");
+    ScheduleGCSweep();
+}
+
+void TObjectManager::OnGCCommitFailed(const TError& error)
+{
+    LOG_WARNING(error, "GC commit failed");
+    ScheduleGCSweep();
+}
+
 void TObjectManager::OnTransactionCommitted(TTransaction* transaction)
 {
     if (transaction->GetParent()) {
@@ -790,10 +881,17 @@ void TObjectManager::PromoteCreatedObjects(TTransaction* transaction)
 
 void TObjectManager::ReleaseCreatedObjects(TTransaction* transaction)
 {
+    // Sort the ids to ensure consistent unref order.
+    std::vector<TObjectId> createdObjectIds(
+        transaction->CreatedObjectIds().begin(),
+        transaction->CreatedObjectIds().end());
+    std::sort(createdObjectIds.begin(), createdObjectIds.end());
+
     auto objectManager = Bootstrap->GetObjectManager();
-    FOREACH (const auto& objectId, transaction->CreatedObjectIds()) {
+    FOREACH (const auto& objectId, createdObjectIds) {
         objectManager->UnrefObject(objectId);
     }
+
     transaction->CreatedObjectIds().clear();
 }
 

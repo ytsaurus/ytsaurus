@@ -156,14 +156,15 @@ private:
     void ValidateTransactionNotNull()
     {
         if (GetId() == NullTransactionId) {
-            THROW_ERROR_EXCEPTION("Transaction is required");
+            THROW_ERROR_EXCEPTION("Non-null transaction must be provided");
         }
     }
 
     void ValidateTransactionIsActive(const TTransaction* transaction)
     {
         if (!transaction->IsActive()) {
-            THROW_ERROR_EXCEPTION("Transaction is not active");
+            THROW_ERROR_EXCEPTION("Transaction is not active: %s",
+                ~transaction->GetId().ToString());
         }
     }
 
@@ -230,12 +231,13 @@ private:
         auto objectManager = Owner->Bootstrap->GetObjectManager();
         auto handler = objectManager->FindHandler(type);
         if (!handler) {
-            THROW_ERROR_EXCEPTION("Unknown object type: %s", ~type.ToString());
+            THROW_ERROR_EXCEPTION("Unknown object type: %s",
+                ~type.ToString());
         }
 
         if (handler->IsTransactionRequired() && !transaction) {
-            THROW_ERROR_EXCEPTION("Cannot create an instance of %s outside",
-                ~FormatEnum(type));
+            THROW_ERROR_EXCEPTION("Cannot create an instance of %s outside of a transaction",
+                ~FormatEnum(type).Quote());
         }
 
         auto objectId = handler->Create(
@@ -281,7 +283,9 @@ private:
         ValidateTransactionIsActive(transaction);
 
         if (transaction->CreatedObjectIds().erase(objectId) != 1) {
-            THROW_ERROR_EXCEPTION("Transaction does not own the object");
+            THROW_ERROR_EXCEPTION("Object %s does not belong to transaction %s",
+                ~objectId.ToString(),
+                ~transaction->GetId().ToString());
         }
 
         auto objectManager = Owner->Bootstrap->GetObjectManager();
@@ -465,8 +469,16 @@ void TTransactionManager::Abort(TTransaction* transaction)
 
     auto id = transaction->GetId();
 
-    // Make a copy, the set will be modified.
-    auto nestedTransactions = transaction->NestedTransactions();
+    // Sort nested transactions by id to ensure consist unref order.
+    std::vector<TTransaction*> nestedTransactions(
+        transaction->NestedTransactions().begin(),
+        transaction->NestedTransactions().end());
+    std::sort(
+        nestedTransactions.begin(),
+        nestedTransactions.end(),
+        [] (const TTransaction* lhs, const TTransaction* rhs) {
+            return lhs->GetId() < rhs->GetId();
+        });
     FOREACH (auto* nestedTransaction, nestedTransactions) {
         Abort(nestedTransaction);
     }

@@ -19,6 +19,10 @@
 
 #include <server/chunk_server/chunk_tree_ref.h>
 
+#include <ytlib/profiling/profiler.h>
+
+#include <queue>
+
 namespace NYT {
 namespace NObjectServer {
 
@@ -37,6 +41,8 @@ public:
     TObjectManager(
         TObjectManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
+
+    void Start();
 
     //! Registers a new type handler.
     /*!
@@ -142,12 +148,20 @@ private:
 
     TObjectManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
+
     std::vector<IObjectTypeHandlerPtr> TypeToHandler;
     TIntrusivePtr<TRootService> RootService;
     mutable TGuid CachedCellGuild;
 
-    // Stores deltas from parent transaction.
+    NProfiling::TAggregateCounter GCQueueSizeCounter;
+    NProfiling::TAggregateCounter DestroyedObjectCounter;
+
+    //! Stores deltas from parent transaction.
     NMetaState::TMetaStateMap<TVersionedObjectId, TAttributeSet> Attributes;
+
+    //! Contains the ids of object have reached ref counter of 0
+    //! but are not destroyed yet.
+    std::deque<TObjectId> GCQueue;
 
     void SaveKeys(const NCellMaster::TSaveContext& context) const;
     void SaveValues(const NCellMaster::TSaveContext& context) const;
@@ -158,7 +172,7 @@ private:
     virtual void OnStopRecovery() override;
     virtual void Clear() override;
 
-    void ReplayVerb(const NProto::TMetaReqExecute& message);
+    void ReplayVerb(const NProto::TMetaReqExecute& request);
 
     void OnTransactionCommitted(NTransactionServer::TTransaction* transaction);
     void OnTransactionAborted(NTransactionServer::TTransaction* transaction);
@@ -167,6 +181,13 @@ private:
 
     void OnObjectReferenced(const TObjectId& id, i32 refCounter);
     void OnObjectUnreferenced(const TObjectId& id, i32 refCounter);
+
+    void DestroyObjects(const NProto::TMetaReqDestroyObjects& request);
+    void DestroyObject(const TObjectId& id);
+    void ScheduleGCSweep();
+    void GCSweep();
+    void OnGCCommitSucceeded();
+    void OnGCCommitFailed(const TError& error);
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 };

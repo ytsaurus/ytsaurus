@@ -43,7 +43,7 @@ void TTransaction::Load(const NCellMaster::TLoadContext& context)
     LoadObjectRefs(input, NestedTransactions_, context);
     LoadObjectRef(input, Parent_, context);
     ::Load(input, StartTime_);
-    LoadSet(input, CreatedObjectIds_);
+    ::Load(input, CreatedObjectIds_);
     LoadObjectRefs(input, LockedNodes_, context);
     LoadObjectRefs(input, BranchedNodes_, context);
     LoadObjectRefs(input, CreatedNodes_, context);

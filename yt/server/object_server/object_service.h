@@ -17,11 +17,15 @@ class TObjectService
     : public NCellMaster::TMetaStateServiceBase
 {
 public:
-    explicit TObjectService(NCellMaster::TBootstrap* bootstrap);
+    explicit TObjectService(
+        TObjectManagerConfigPtr config,
+        NCellMaster::TBootstrap* bootstrap);
 
 private:
     typedef TObjectService TThis;
     class TExecuteSession;
+
+    TObjectManagerConfigPtr Config;
 
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, Execute);
 

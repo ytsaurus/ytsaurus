@@ -1,15 +1,14 @@
 #include "stdafx.h"
 #include "object_service.h"
 #include "private.h"
+#include "object_manager.h"
+#include "config.h"
 
 #include <ytlib/ytree/ypath_detail.h>
-//#include <ytlib/ytree/ypath_client.h>
 
 #include <ytlib/rpc/message.h>
 
 #include <ytlib/actions/parallel_awaiter.h>
-
-#include <server/object_server/object_manager.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
@@ -27,7 +26,6 @@ using namespace NCellMaster;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ObjectServerLogger;
-static const TDuration YieldTimeout = TDuration::MilliSeconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,8 +33,8 @@ class TObjectService::TExecuteSession
     : public TIntrinsicRefCounted
 {
 public:
-    TExecuteSession(TBootstrap* bootstrap, TCtxExecutePtr context)
-        : Bootstrap(bootstrap)
+    TExecuteSession(TObjectService* owner, TCtxExecutePtr context)
+        : Owner(owner)
         , Context(context)
         , Awaiter(New<TParallelAwaiter>())
         , ReplyLock(0)
@@ -55,7 +53,7 @@ public:
     }
 
 private:
-    TBootstrap* Bootstrap;
+    TObjectService* Owner;
     TCtxExecutePtr Context;
 
     TParallelAwaiterPtr Awaiter;
@@ -69,7 +67,7 @@ private:
         auto startTime = TInstant::Now();
         auto& request = Context->Request();
         const auto& attachments = request.Attachments();
-        auto rootService = Bootstrap->GetObjectManager()->GetRootService();
+        auto rootService = Owner->Bootstrap->GetObjectManager()->GetRootService();
 
         auto awaiter = Awaiter;
         if (!awaiter)
@@ -114,7 +112,7 @@ private:
             ++CurrentRequestIndex;
             CurrentRequestPartIndex += partCount;
 
-            if (TInstant::Now() > startTime + YieldTimeout) {
+            if (TInstant::Now() > startTime + Owner->Config->YieldTimeout) {
                 YieldAndContinue();
                 return;
             }
@@ -125,7 +123,10 @@ private:
 
     void YieldAndContinue()
     {
-        auto invoker = Bootstrap->GetMetaStateFacade()->GetGuardedEpochInvoker();
+        LOG_DEBUG("Yielding state thread (RequestId: %s)",
+            ~Context->GetUntypedContext()->GetRequestId().ToString());
+
+        auto invoker = Owner->Bootstrap->GetMetaStateFacade()->GetGuardedEpochInvoker();
         if (!invoker->Invoke(BIND(&TExecuteSession::Continue, MakeStrong(this)))) {
             Reply(TError(
                 EErrorCode::Unavailable,
@@ -193,11 +194,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TObjectService::TObjectService(TBootstrap* bootstrap)
+TObjectService::TObjectService(
+    TObjectManagerConfigPtr config,
+    TBootstrap* bootstrap)
     : TMetaStateServiceBase(
         bootstrap,
         NObjectClient::TObjectServiceProxy::GetServiceName(),
         ObjectServerLogger.GetCategory())
+    , Config(config)
 {
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
 }
@@ -209,7 +213,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
 
     ValidateInitialized();
 
-    New<TExecuteSession>(Bootstrap, context)->Run();
+    New<TExecuteSession>(this, context)->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
