@@ -509,10 +509,19 @@ private:
         if (!chunkReader)
             return;
 
+        if (!error.IsOK()) {
+            OnFail(error, chunkReader);
+            return;
+        }
+
         while (true) {
             LOG_TRACE("Validating row %" PRId64, chunkReader->CurrentRowIndex);
+            if (!chunkReader->IsValid()) {
+                // We have already exceed right reading limit.
+                break;
+            }
 
-            YASSERT(chunkReader->CurrentRowIndex < chunkReader->EndRowIndex);
+            YCHECK(chunkReader->CurrentRowIndex < chunkReader->EndRowIndex);
             if (~StartValidator && !StartValidator->IsValid(chunkReader->CurrentKey)) {
                 // This quick check is aimed to improve potential performance issue and
                 // eliminate unnecessary calls to Subscribe and BIND.
