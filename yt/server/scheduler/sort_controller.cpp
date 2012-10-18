@@ -512,7 +512,9 @@ protected:
 
         virtual int GetChunkListCountPerJob() const override
         {
-            return 1;
+            return Controller->IsSortedMergeNeeded(Partition)
+                ? 1
+                : Controller->OutputTables.size();
         }
 
         virtual TNullable<i64> GetJobDataSizeThreshold() const override
@@ -691,7 +693,7 @@ protected:
     private:
         virtual int GetChunkListCountPerJob() const override
         {
-            return 1;
+            return Controller->OutputTables.size();
         }
 
         virtual TNullable<i64> GetJobDataSizeThreshold() const override

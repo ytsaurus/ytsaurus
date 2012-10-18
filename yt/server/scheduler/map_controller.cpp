@@ -114,7 +114,7 @@ private:
 
         virtual int GetChunkListCountPerJob() const override
         {
-            return static_cast<int>(Controller->OutputTables.size());
+            return Controller->OutputTables.size();
         }
 
         virtual TNullable<i64> GetJobDataSizeThreshold() const override
