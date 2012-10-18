@@ -58,7 +58,7 @@ bool TChunkListPool::HasEnough(int requestedCount)
 
 TChunkListId TChunkListPool::Extract()
 {
-    YASSERT(!Ids.empty());
+    YCHECK(!Ids.empty());
     auto id = Ids.back();
     Ids.pop_back();
 
