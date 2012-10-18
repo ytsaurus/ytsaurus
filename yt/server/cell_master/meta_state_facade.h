@@ -46,11 +46,9 @@ public:
 
     bool IsInitialized() const;
 
-    IInvokerPtr GetUnguardedInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const;
-    IInvokerPtr GetUnguardedEpochInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const;
-
+    IInvokerPtr GetInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const;
+    IInvokerPtr GetEpochInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const;
     IInvokerPtr GetGuardedInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const;
-    IInvokerPtr GetGuardedEpochInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const;
 
     template <class TTarget, class TRequest, class TResponse>
     NMetaState::TMutationPtr CreateMutation(

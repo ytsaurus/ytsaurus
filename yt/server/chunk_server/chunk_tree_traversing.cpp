@@ -233,14 +233,11 @@ protected:
         }
 
         // Schedule continuation.
-        auto result = Bootstrap->GetMetaStateFacade()->GetGuardedEpochInvoker()->Invoke(BIND(
-            &TChunkTreeTraverser::DoTraverse,
-            MakeStrong(this)));
-
-        if (!result) {
+        auto invoker = Bootstrap->GetMetaStateFacade()->GetGuardedInvoker();
+        if (!invoker->Invoke(BIND(&TChunkTreeTraverser::DoTraverse, MakeStrong(this)))) {
             ChunkProcessor->OnError(TError(
                 ETraversingError::Retriable,
-                "Unable to schedule continuation through GuardedEpochInvoker"));
+                "Yield error"));
         }
     }
 

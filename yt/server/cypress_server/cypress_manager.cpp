@@ -201,7 +201,7 @@ TCypressManager::TCypressManager(TBootstrap* bootstrap)
     , TypeToHandler(MaxObjectType)
 {
     YCHECK(bootstrap);
-    VERIFY_INVOKER_AFFINITY(bootstrap->GetMetaStateFacade()->GetUnguardedInvoker(), StateThread);
+    VERIFY_INVOKER_AFFINITY(bootstrap->GetMetaStateFacade()->GetInvoker(), StateThread);
 
     auto cellId = Bootstrap->GetObjectManager()->GetCellId();
     RootNodeId = MakeId(

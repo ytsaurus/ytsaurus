@@ -11,14 +11,14 @@ namespace NMetaState {
 
 TMutation::TMutation(
     IMetaStateManagerPtr metaStateManager,
-    IInvokerPtr epochStateInvoker)
+    IInvokerPtr stateInvoker)
     : MetaStateManager(MoveRV(metaStateManager))
-    , EpochStateInvoker(MoveRV(epochStateInvoker))
+    , StateInvoker(MoveRV(stateInvoker))
 { }
 
 bool TMutation::PostCommit()
 {
-    return EpochStateInvoker->Invoke(BIND(&TMutation::Commit, MakeStrong(this)));
+    return StateInvoker->Invoke(BIND(&TMutation::Commit, MakeStrong(this)));
 }
 
 void TMutation::Commit()

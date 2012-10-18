@@ -108,24 +108,19 @@ public:
         return !Root->KeyToChild().empty();
     }
 
-    IInvokerPtr GetUnguardedInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const
+    IInvokerPtr GetInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const
     {
         return StateQueue->GetInvoker(queue);
     }
 
-    IInvokerPtr GetUnguardedEpochInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const
+    IInvokerPtr GetEpochInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const
     {
-        return UnguardedEpochInvokers[queue];
+        return EpochInvokers[queue];
     }
 
     IInvokerPtr GetGuardedInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const
     {
         return GuardedInvokers[queue];
-    }
-
-    IInvokerPtr GetGuardedEpochInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const
-    {
-        return GuardedEpochInvokers[queue];
     }
 
     void ValidateLeaderStatus()
@@ -155,28 +150,24 @@ private:
     TCompositeMetaStatePtr MetaState;
     IMetaStateManagerPtr MetaStateManager;
     std::vector<IInvokerPtr> GuardedInvokers;
-    std::vector<IInvokerPtr> GuardedEpochInvokers;
-    std::vector<IInvokerPtr> UnguardedEpochInvokers;
+    std::vector<IInvokerPtr> EpochInvokers;
 
     mutable TMapNode* Root;
 
 
     void OnStartEpoch()
     {
-        YCHECK(GuardedEpochInvokers.empty());
-        YCHECK(UnguardedEpochInvokers.empty());
+        YCHECK(EpochInvokers.empty());
 
         auto cancelableContext = MetaStateManager->GetEpochContext()->CancelableContext;
         for (int queueIndex = 0; queueIndex < EStateThreadQueue::GetDomainSize(); ++queueIndex) {
-            GuardedEpochInvokers.push_back(cancelableContext->CreateInvoker(GuardedInvokers[queueIndex]));
-            UnguardedEpochInvokers.push_back(cancelableContext->CreateInvoker(StateQueue->GetInvoker(queueIndex)));
+            EpochInvokers.push_back(cancelableContext->CreateInvoker(StateQueue->GetInvoker(queueIndex)));
         }
     }
 
     void OnStopEpoch()
     {
-        GuardedEpochInvokers.clear();
-        UnguardedEpochInvokers.clear();
+        EpochInvokers.clear();
     }
 
 
@@ -185,7 +176,7 @@ private:
         // NB: Initialization cannot be carried out here since not all subsystems
         // are fully initialized yet.
         // We'll post an initialization callback to the state invoker instead.
-        GetUnguardedEpochInvoker()->Invoke(BIND(&TImpl::InitializeIfNeeded, MakeStrong(this)));
+        GetEpochInvoker()->Invoke(BIND(&TImpl::InitializeIfNeeded, MakeStrong(this)));
     }
 
     void InitializeIfNeeded()
@@ -434,24 +425,19 @@ bool TMetaStateFacade::IsInitialized() const
     return Impl->IsInitialized();
 }
 
-IInvokerPtr TMetaStateFacade::GetUnguardedInvoker(EStateThreadQueue queue) const
+IInvokerPtr TMetaStateFacade::GetInvoker(EStateThreadQueue queue) const
 {
-    return Impl->GetUnguardedInvoker(queue);
+    return Impl->GetInvoker(queue);
 }
 
-IInvokerPtr TMetaStateFacade::GetUnguardedEpochInvoker(EStateThreadQueue queue) const
+IInvokerPtr TMetaStateFacade::GetEpochInvoker(EStateThreadQueue queue) const
 {
-    return Impl->GetUnguardedEpochInvoker(queue);
+    return Impl->GetEpochInvoker(queue);
 }
 
 IInvokerPtr TMetaStateFacade::GetGuardedInvoker(EStateThreadQueue queue) const
 {
     return Impl->GetGuardedInvoker(queue);
-}
-
-IInvokerPtr TMetaStateFacade::GetGuardedEpochInvoker(EStateThreadQueue queue) const
-{
-    return Impl->GetGuardedEpochInvoker(queue);
 }
 
 void TMetaStateFacade::Start()
@@ -463,7 +449,7 @@ TMutationPtr TMetaStateFacade::CreateMutation(EStateThreadQueue queue)
 {
     return New<TMutation>(
         GetManager(),
-        GetGuardedEpochInvoker(queue));
+        GetGuardedInvoker(queue));
 }
 
 void TMetaStateFacade::ValidateLeaderStatus()

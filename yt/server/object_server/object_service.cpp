@@ -126,7 +126,7 @@ private:
         LOG_DEBUG("Yielding state thread (RequestId: %s)",
             ~Context->GetUntypedContext()->GetRequestId().ToString());
 
-        auto invoker = Owner->Bootstrap->GetMetaStateFacade()->GetGuardedEpochInvoker();
+        auto invoker = Owner->Bootstrap->GetMetaStateFacade()->GetGuardedInvoker();
         if (!invoker->Invoke(BIND(&TExecuteSession::Continue, MakeStrong(this)))) {
             Reply(TError(
                 EErrorCode::Unavailable,

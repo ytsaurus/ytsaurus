@@ -724,7 +724,7 @@ void TObjectManager::ScheduleGCSweep()
 {
     TDelayedInvoker::Submit(
         BIND(&TThis::GCSweep, MakeWeak(this))
-            .Via(Bootstrap->GetMetaStateFacade()->GetUnguardedInvoker()),
+            .Via(Bootstrap->GetMetaStateFacade()->GetInvoker()),
         Config->GCSweepPeriod);
 }
 

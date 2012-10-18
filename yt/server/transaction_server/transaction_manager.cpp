@@ -353,7 +353,7 @@ TTransactionManager::TTransactionManager(
 {
     YCHECK(config);
     YCHECK(bootstrap);
-    VERIFY_INVOKER_AFFINITY(bootstrap->GetMetaStateFacade()->GetUnguardedInvoker(), StateThread);
+    VERIFY_INVOKER_AFFINITY(bootstrap->GetMetaStateFacade()->GetInvoker(), StateThread);
 
     {
         NCellMaster::TLoadContext context;
@@ -603,7 +603,7 @@ void TTransactionManager::CreateLease(const TTransaction* transaction, TDuration
     auto lease = TLeaseManager::CreateLease(
         timeout,
         BIND(&TThis::OnTransactionExpired, MakeStrong(this), transaction->GetId())
-            .Via(metaStateFacade->GetUnguardedEpochInvoker()));
+            .Via(metaStateFacade->GetEpochInvoker()));
     YCHECK(LeaseMap.insert(MakePair(transaction->GetId(), lease)).second);
 }
 
