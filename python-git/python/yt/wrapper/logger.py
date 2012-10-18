@@ -2,7 +2,7 @@ import logging
 
 logging.basicConfig(format="%(asctime)-15s, %(levelname)s: %(message)s")
 LOGGER = logging.getLogger("YtWrapper")
-LOGGER.setLevel(level="INFO")
+LOGGER.setLevel(level=logging.INFO)
 
 def debug(msg, *args, **kwargs):
     LOGGER.debug(msg, *args, **kwargs)

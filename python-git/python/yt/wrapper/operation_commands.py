@@ -5,8 +5,6 @@ from http import make_request
 from tree_commands import get_attribute, exists, search, get
 from file_commands import download_file
 
-import sys
-
 import os
 from time import sleep
 
