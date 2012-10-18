@@ -61,6 +61,18 @@ struct TValueOrErrorHelpers< TValueOrError<T> >
     }
 };
 
+template <>
+struct TValueOrErrorHelpers<TError>
+{
+    typedef TValueOrError<void> TWrappedType;
+    typedef void TValueType;
+
+    static TWrappedType Wrapper(TError error)
+    {
+        return error;
+    }
+};
+
 template <class ArgType, class ReturnType>
 struct TAsyncPipelineHelpers
 {
@@ -155,6 +167,25 @@ struct TAsyncPipelineHelpers< void, TFuture<ReturnType> >
         try {
             auto&& y = func.Run();
             return y.Apply(BIND(&TValueOrErrorHelpers<ReturnType>::Wrapper));
+        } catch (const std::exception& ex) {
+            return MakeFuture(WrappedReturnType(ex));
+        }
+    }
+};
+
+template <class ReturnType>
+struct TAsyncPipelineHelpers<void, ReturnType>
+{
+    typedef typename TValueOrErrorHelpers<ReturnType>::TWrappedType WrappedReturnType;
+
+    static TFuture<WrappedReturnType> Wrapper(TCallback<ReturnType()> func, TValueOrError<void> x)
+    {
+        if (!x.IsOK()) {
+            return MakeFuture(WrappedReturnType(TError(x)));
+        }
+
+        try {
+            return MakeFuture(WrappedReturnType(func.Run()));
         } catch (const std::exception& ex) {
             return MakeFuture(WrappedReturnType(ex));
         }
