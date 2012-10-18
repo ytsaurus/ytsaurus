@@ -423,7 +423,7 @@ private:
         }
 
         if (AtomicTryAndTryLock(&Lock)) {
-            UnderlyingInvoker->Invoke(BIND(&TSerializedInvoker::DoInvoke, MakeStrong(this)));
+            YCHECK(UnderlyingInvoker->Invoke(BIND(&TSerializedInvoker::DoInvoke, MakeStrong(this))));
         }
     }
 
