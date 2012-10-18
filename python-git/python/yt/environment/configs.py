@@ -81,7 +81,7 @@ def get_scheduler_config():
                 categories  = [ "*" ];
             };
             {
-                min_level = Trace;
+                min_level = Debug;
                 writers = [ raw ];
                 categories  = [ "*" ];
             };
