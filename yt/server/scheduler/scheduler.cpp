@@ -363,11 +363,11 @@ private:
                     EOperationState::Aborted,
                     TError("Master disconnected"));
             }
-            AbortOperationJobs(operation);
             FinishOperation(operation);
         }
 
         YCHECK(Operations.empty());
+        Jobs.clear();
     }
 
 
@@ -824,12 +824,6 @@ private:
 
     void UpdateFinishedJobNode(TJobPtr job)
     {
-        // Check if we have an active connection with master.
-        // This function may be called when master gets disconnected,
-        // so we must be careful.
-        if (!MasterConnector->IsConnected())
-            return;
-
         const auto& result = job->Result();
         
         if (result.HasExtension(TMapJobResultExt::map_job_result_ext)) {
@@ -993,9 +987,7 @@ private:
     void ValidateConnected()
     {
         if (!MasterConnector->IsConnected()) {
-            THROW_ERROR_EXCEPTION(
-                NRpc::EErrorCode::Unavailable,
-                "Scheduler is not connected to master, try later");
+            THROW_ERROR_EXCEPTION("Master is not connected");
         }
     }
 
@@ -1090,6 +1082,8 @@ private:
             request->jobs_size(),
             ~FormatResourceUtilization(resourceUtilization, resourceLimits));
 
+        ValidateConnected();
+
         auto node = FindNode(address);
         if (!node) {
             context->Reply(TError("Node is not registered, heartbeat ignored"));
@@ -1126,27 +1120,24 @@ private:
             }
         }
 
-        // Only schedule new jobs when master is connected.
-        if (MasterConnector->IsConnected()) {
-            TSchedulingContext schedulingContext(node, response);
-            PROFILE_TIMING ("/schedule_time") {
-                Strategy->ScheduleJobs(&schedulingContext);
-            }
+        TSchedulingContext schedulingContext(node, response);
+        PROFILE_TIMING ("/schedule_time") {
+            Strategy->ScheduleJobs(&schedulingContext);
+        }
 
-            FOREACH (auto job, schedulingContext.StartedJobs()) {
-                job->SetType(EJobType(job->GetSpec()->type()));
+        FOREACH (auto job, schedulingContext.StartedJobs()) {
+            job->SetType(EJobType(job->GetSpec()->type()));
 
-                LOG_INFO("Starting job (Address: %s, JobType: %s, JobId: %s, Utilization: {%s}, OperationId: %s)",
-                    ~job->GetNode()->GetAddress(),
-                    ~job->GetType().ToString(),
-                    ~job->GetId().ToString(),
-                    ~FormatResources(job->GetSpec()->resource_utilization()),
-                    ~job->GetOperation()->GetOperationId().ToString());
+            LOG_INFO("Starting job (Address: %s, JobType: %s, JobId: %s, Utilization: {%s}, OperationId: %s)",
+                ~job->GetNode()->GetAddress(),
+                ~job->GetType().ToString(),
+                ~job->GetId().ToString(),
+                ~FormatResources(job->GetSpec()->resource_utilization()),
+                ~job->GetOperation()->GetOperationId().ToString());
 
-                RegisterJob(job);
-                MasterConnector->CreateJobNode(job);
-                job->SetSpec(NULL);
-            }
+            RegisterJob(job);
+            MasterConnector->CreateJobNode(job);
+            job->SetSpec(NULL);
         }
 
         TotalResourceLimits += node->ResourceLimits();
