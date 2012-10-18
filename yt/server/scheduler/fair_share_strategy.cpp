@@ -90,6 +90,7 @@ struct ISchedulableElement
     
     virtual NProto::TNodeResources GetDemand() const = 0;
     virtual NProto::TNodeResources GetUtilization() const = 0;
+    virtual NProto::TNodeResources GetEffectiveLimits() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -619,6 +620,15 @@ public:
         return result;
     }
 
+    virtual NProto::TNodeResources GetEffectiveLimits() const override
+    {
+        auto result = ZeroResources();
+        FOREACH (auto child, Children) {
+            result += child->GetEffectiveLimits();
+        }
+        return result;
+    }
+
 private:
     Stroka Id;
 
@@ -678,7 +688,7 @@ public:
         
         if (!LastPreemptionCheckTime || now > LastPreemptionCheckTime.Get() + Config->PreemptionCheckPeriod) {
             PROFILE_TIMING ("/preemption_check_time") {
-                CheckForPreemption();
+                PreemptJobs();
             }
             LastPreemptionCheckTime = now;
         }
@@ -940,7 +950,29 @@ private:
     }
 
 
-    void CheckForPreemption()
+    bool CanPreemptJob(TJobPtr job)
+    {
+        if (job->GetState() != EJobState::Running)
+            return false;
+
+        auto operation = job->GetOperation();
+        if (operation->GetState() != EOperationState::Running)
+            return false;
+
+        auto operationElement = GetOperationElement(operation);
+
+        auto schedulable =
+            operationElement->GetPool()->GetConfig()->Mode == ESchedulingMode::Fifo
+            ? ISchedulableElementPtr(operationElement->GetPool())
+            : ISchedulableElementPtr(operationElement);
+
+        const auto& attributes = schedulable->Attributes();
+        i64 utilization = GetResource(schedulable->GetUtilization(), attributes.DominantResource);
+        i64 limits = GetResource(schedulable->GetEffectiveLimits(), attributes.DominantResource);
+        return limits > 0 && (double) utilization / limits > attributes.FairShareRatio;
+    }
+
+    void PreemptJobs()
     {
         auto resourcesToPreempt = ZeroResources();
         bool preemptionNeeded = false;
@@ -1009,11 +1041,7 @@ private:
             if (Dominates(resourcesPreempted, resourcesToPreempt)) {
                 break;
             }
-            auto operation = job->GetOperation();
-            if (job->GetState() == EJobState::Running &&
-                operation->GetState() == EOperationState::Running &&
-                GetOperationStatus(operation) == EOperationStatus::Normal)
-            {
+            if (CanPreemptJob(job)) {
                 resourcesPreempted += job->ResourceUtilization();
                 Host->PreeemptJob(job);
             }
