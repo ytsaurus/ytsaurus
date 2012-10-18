@@ -5,6 +5,7 @@
 #include <ytlib/misc/error.h>
 
 #include <ytlib/actions/invoker.h>
+#include <ytlib/actions/cancelable_context.h>
 
 #include <ytlib/scheduler/job.pb.h>
 
@@ -135,6 +136,16 @@ struct IOperationController
      *  The operation, however, may carry out any additional cleanup it finds necessary.
      */
     virtual void Abort() = 0;
+
+
+    //! Returns the context that gets invalidated by #Abort.
+    virtual TCancelableContextPtr GetCancelableContext() = 0;
+
+    //! Returns the control invoker wrapped by the context provided by #GetCancelableContext.
+    virtual IInvokerPtr GetCancelableControlInvoker() = 0;
+
+    //! Returns the background invoker wrapped by the context provided by #GetCancelableContext.
+    virtual IInvokerPtr GetCancelableBackgroundInvoker() = 0;
 
 
     //! Returns the number of jobs the controller still needs to start right away.

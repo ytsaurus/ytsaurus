@@ -189,7 +189,7 @@ public:
         ProfilingInvoker->Start();
     }
 
-    NYTree::TYPathServiceProducer CreateOrchidProducer()
+    TYPathServiceProducer CreateOrchidProducer()
     {
         // TODO(babenko): virtualize
         auto producer = BIND(&TThis::BuildOrchidYson, MakeStrong(this));
@@ -457,10 +457,10 @@ private:
 
     typedef TValueOrError<TOperationPtr> TStartResult;
 
-    TFuture< TStartResult > StartOperation(
+    TFuture<TStartResult> StartOperation(
         EOperationType type,
         const TTransactionId& transactionId,
-        const NYTree::IMapNodePtr spec)
+        const IMapNodePtr spec)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -478,11 +478,13 @@ private:
             ~operationId.ToString(),
             ~transactionId.ToString());
 
+        auto controller = CreateController(~operation);
+        operation->SetController(controller);
+        operation->SetState(EOperationState::Initializing);
+
         try {
             // The operation owns the controller but not vice versa.
             // Hence we use raw pointers inside controllers.
-            operation->SetController(CreateController(operation.Get()));
-            operation->SetState(EOperationState::Initializing);
             InitializeOperation(operation);
         } catch (const std::exception& ex) {
             return MakeFuture(TStartResult(TError("Operation has failed to start") << ex));
@@ -491,42 +493,28 @@ private:
         YCHECK(operation->GetState() == EOperationState::Initializing);
         operation->SetState(EOperationState::Preparing);
 
-        // Create a node in Cypress that will represent the operation.
-        return MasterConnector->CreateOperationNode(operation).Apply(
-            BIND([=] (TError error) -> TStartResult {
-                if (!error.IsOK()) {
-                    return error;
-                }
-
-                RegisterOperation(operation);
-                LOG_INFO("Operation has started (OperationId: %s)", ~operationId.ToString());
-
-                PrepareOperation(operation);
-
-                return operation;
-            })
-            .AsyncVia(GetControlInvoker()));
+        return StartAsyncPipeline(controller->GetCancelableControlInvoker())
+            ->Add(BIND(&TMasterConnector::CreateOperationNode, ~MasterConnector, operation))
+            ->Add(BIND(&TThis::OnOperationNodeCreated, MakeStrong(this), operation))
+            ->Run();
     }
 
-    void InitializeOperation(TOperationPtr operation)
-    {
-        if (Nodes.empty()) {
-            THROW_ERROR_EXCEPTION("No online exec nodes to start operation");
-        }
-
-        operation->GetController()->Initialize();
-    }
-
-    void PrepareOperation(TOperationPtr operation)
+    TOperationPtr OnOperationNodeCreated(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        // Run async preparation.
-        LOG_INFO("Preparing operation (OperationId: %s)", ~operation->GetOperationId().ToString());
+        RegisterOperation(operation);
 
-        operation->GetController()->Prepare().Subscribe(
+        // Run async preparation.
+        LOG_INFO("Preparing operation (OperationId: %s)",
+            ~operation->GetOperationId().ToString());
+
+        auto controller = operation->GetController();
+        controller->Prepare().Subscribe(
             BIND(&TThis::OnOperationPrepared, MakeStrong(this), operation)
-                .Via(GetControlInvoker()));
+                .Via(controller->GetCancelableControlInvoker()));
+
+        return operation;
     }
 
     void OnOperationPrepared(TOperationPtr operation)
@@ -547,6 +535,15 @@ private:
     }
 
 
+    void InitializeOperation(TOperationPtr operation)
+    {
+        if (Nodes.empty()) {
+            THROW_ERROR_EXCEPTION("No online exec nodes to start operation");
+        }
+
+        operation->GetController()->Initialize();
+    }
+
     void RegisterAndReviveOperations(const std::vector<TOperationPtr>& operations)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -554,11 +551,16 @@ private:
         YCHECK(Operations.empty());
         FOREACH (auto operation, operations) {
             LOG_INFO("Reviving operation (OperationId: %s)", ~operation->GetOperationId().ToString());
-            operation->SetController(CreateController(~operation));
+            
+            auto controller = CreateController(~operation);
+            operation->SetController(controller);
+
             RegisterOperation(operation);
-            operation->GetController()->Revive().Subscribe(
-                BIND(&TThis::OnOperationRevived, MakeStrong(this), operation)
-                    .Via(GetControlInvoker()));
+
+            StartAsyncPipeline(controller->GetCancelableControlInvoker())
+                ->Add(BIND(&IOperationController::Revive, controller))
+                ->Add(BIND(&TThis::OnOperationRevived, MakeStrong(this), operation))
+                ->Run();
         }
     }
 
@@ -911,9 +913,10 @@ private:
 
         operation->SetState(EOperationState::Completing);
         
-        StartAsyncPipeline(GetControlInvoker())
+        auto controller = operation->GetController();
+        StartAsyncPipeline(controller->GetCancelableControlInvoker())
             ->Add(BIND(&TMasterConnector::FlushOperationNode, ~MasterConnector, operation))
-            ->Add(BIND(&IOperationController::Commit, operation->GetController()))
+            ->Add(BIND(&IOperationController::Commit, controller))
             ->Add(BIND(&TThis::SetOperationFinalState, MakeStrong(this), operation, EOperationState::Completed, TError()))
             ->Add(BIND(&TMasterConnector::FinalizeOperationNode, ~MasterConnector, operation))
             ->Add(BIND(&TThis::FinishOperation, MakeStrong(this), operation))
@@ -933,9 +936,10 @@ private:
 
         operation->SetState(pendingState);
 
-        StartAsyncPipeline(GetControlInvoker())
+        auto controller = operation->GetController();
+        StartAsyncPipeline(controller->GetCancelableControlInvoker())
             ->Add(BIND(&TMasterConnector::FlushOperationNode, ~MasterConnector, operation))
-            ->Add(BIND(&IOperationController::Abort, operation->GetController()))
+            ->Add(BIND(&IOperationController::Abort, controller))
             ->Add(BIND(&TThis::SetOperationFinalState, MakeStrong(this), operation, finalState, error))
             ->Add(BIND(&TMasterConnector::FinalizeOperationNode, ~MasterConnector, operation))
             ->Add(BIND(&TThis::FinishOperation, MakeStrong(this), operation))
@@ -1294,7 +1298,7 @@ NRpc::IServicePtr TScheduler::GetService()
     return Impl;
 }
 
-NYTree::TYPathServiceProducer TScheduler::CreateOrchidProducer()
+TYPathServiceProducer TScheduler::CreateOrchidProducer()
 {
     return Impl->CreateOrchidProducer();
 }

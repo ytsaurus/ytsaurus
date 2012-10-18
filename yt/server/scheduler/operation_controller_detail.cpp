@@ -378,7 +378,7 @@ TFuture<void> TOperationControllerBase::Prepare()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto this_ = MakeStrong(this);
-    auto pipeline = StartAsyncPipeline(Host->GetBackgroundInvoker())
+    auto pipeline = StartAsyncPipeline(CancelableBackgroundInvoker)
         ->Add(BIND(&TThis::StartPrimaryTransaction, MakeStrong(this)))
         ->Add(BIND(&TThis::OnPrimaryTransactionStarted, MakeStrong(this)))
         ->Add(BIND(&TThis::StartSeconaryTransactions, MakeStrong(this)))
@@ -526,7 +526,6 @@ void TOperationControllerBase::OnJobAborted(TJobPtr job)
 
     LogProgress();
 }
-
 
 void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
 {
@@ -773,6 +772,21 @@ TJobPtr TOperationControllerBase::DoScheduleJob(ISchedulingContext* context)
     }
 
     return NULL;
+}
+
+TCancelableContextPtr TOperationControllerBase::GetCancelableContext()
+{
+    return CancelableContext;
+}
+
+IInvokerPtr TOperationControllerBase::GetCancelableControlInvoker()
+{
+    return CancelableControlInvoker;
+}
+
+IInvokerPtr TOperationControllerBase::GetCancelableBackgroundInvoker()
+{
+    return CancelableBackgroundInvoker;
 }
 
 int TOperationControllerBase::GetPendingJobCount()

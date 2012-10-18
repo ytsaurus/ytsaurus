@@ -51,6 +51,10 @@ public:
 
     virtual TJobPtr ScheduleJob(ISchedulingContext* context) override;
 
+    virtual TCancelableContextPtr GetCancelableContext() override;
+    virtual IInvokerPtr GetCancelableControlInvoker() override;
+    virtual IInvokerPtr GetCancelableBackgroundInvoker() override;
+
     virtual int GetPendingJobCount() override;
     virtual NProto::TNodeResources GetUsedResources() override;
     virtual NProto::TNodeResources GetNeededResources() override;

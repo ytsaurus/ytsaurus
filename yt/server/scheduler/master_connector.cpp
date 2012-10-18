@@ -960,7 +960,7 @@ TAsyncError TMasterConnector::CreateOperationNode(TOperationPtr operation)
     return Impl->CreateOperationNode(operation);
 }
 
-TFuture<void> TMasterConnector::FlushOperationNode( TOperationPtr operation )
+TFuture<void> TMasterConnector::FlushOperationNode(TOperationPtr operation)
 {
     return Impl->FlushOperationNode(operation);
 }
