@@ -21,6 +21,12 @@ public:
     virtual void Read(const TStringBuf& data) override;
     virtual void Finish() override;
 
+protected:
+    virtual void ConsumeKey(const TStringBuf& key) = 0;
+    virtual void ConsumeSubkey(const TStringBuf& subkey) = 0;
+    virtual void ConsumeValue(const TStringBuf& value) = 0;
+
+    Stroka GetDebugInfo() const;
 private:
     DECLARE_ENUM(EState,
         (InsideKey)
@@ -47,11 +53,17 @@ private:
     void ProcessSubkey(const TStringBuf& subkey);
     void ProcessValue(const TStringBuf& value);
 
-    virtual void ConsumeKey(const TStringBuf& key) = 0;
-    virtual void ConsumeSubkey(const TStringBuf& subkey) = 0;
-    virtual void ConsumeValue(const TStringBuf& value) = 0;
-
     void ThrowIncorrectFormat() const;
+
+    void OnRangeConsumed(const char* begin, const char* end);
+    void AppendToContextBuffer(char symbol);
+
+    // Diagnostic Info
+    i64 Offset;
+    i64 Record;
+    i32 BufferPosition;
+    static const int BufferSize = 16;
+    char ContextBuffer[BufferSize];
 };
 
 ////////////////////////////////////////////////////////////////////////////////
