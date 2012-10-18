@@ -69,7 +69,7 @@ void SafeDup2(int oldFd, int newFd)
                 break;
 
             default:
-                THROW_ERROR_EXCEPTION("dup2 failed")
+                THROW_ERROR_EXCEPTION("dup2 failed (oldfd: %d, newfd: %d)", oldFd, newFd)
                     << TError::FromSystem();
             }
         } else {
