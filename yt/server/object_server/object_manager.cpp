@@ -7,6 +7,7 @@
 #include <ytlib/ypath/tokenizer.h>
 
 #include <ytlib/rpc/message.h>
+#include <ytlib/rpc/server_detail.h>
 
 #include <ytlib/meta_state/rpc_helpers.h>
 
@@ -52,38 +53,13 @@ static NProfiling::TProfiler Profiler("/object_server");
 
 //! A wrapper that is used to postpone the reply until the mutation is committed by quorum.
 class TObjectManager::TServiceContextWrapper
-    : public IServiceContext
+    : public NRpc::TServiceContextWrapper
 {
 public:
     explicit TServiceContextWrapper(IServiceContextPtr underlyingContext)
-        : UnderlyingContext(underlyingContext)
+        : NRpc::TServiceContextWrapper(underlyingContext)
         , Replied(false)
     { }
-
-    virtual NBus::IMessagePtr GetRequestMessage() const override
-    {
-        return UnderlyingContext->GetRequestMessage();
-    }
-
-    virtual const NRpc::TRequestId& GetRequestId() const override
-    {
-        return UnderlyingContext->GetRequestId();
-    }
-
-    virtual const Stroka& GetPath() const override
-    {
-        return UnderlyingContext->GetPath();
-    }
-
-    virtual const Stroka& GetVerb() const override
-    {
-        return UnderlyingContext->GetVerb();
-    }
-
-    virtual bool IsOneWay() const override
-    {
-        return UnderlyingContext->IsOneWay();
-    }
 
     virtual bool IsReplied() const override
     {
@@ -92,7 +68,7 @@ public:
 
     virtual void Reply(const TError& error) override
     {
-        YASSERT(!Replied);
+        YCHECK(!Replied);
         Replied = true;
         Error = error;
     }
@@ -108,66 +84,6 @@ public:
         return Error;
     }
 
-    virtual TSharedRef GetRequestBody() const override
-    {
-        return UnderlyingContext->GetRequestBody();
-    }
-
-    virtual TSharedRef GetResponseBody() override
-    {
-        return UnderlyingContext->GetResponseBody();
-    }
-
-    virtual void SetResponseBody(const TSharedRef& responseBody) override
-    {
-        UnderlyingContext->SetResponseBody(responseBody);
-    }
-
-    virtual std::vector<TSharedRef>& RequestAttachments() override
-    {
-        return UnderlyingContext->RequestAttachments();
-    }
-
-    virtual std::vector<TSharedRef>& ResponseAttachments() override
-    {
-        return UnderlyingContext->ResponseAttachments();
-    }
-
-    virtual IAttributeDictionary& RequestAttributes() override
-    {
-        return UnderlyingContext->RequestAttributes();
-    }
-
-    virtual IAttributeDictionary& ResponseAttributes() override
-    {
-        return UnderlyingContext->ResponseAttributes();
-    }
-
-    virtual void SetRequestInfo(const Stroka& info) override
-    {
-        UnderlyingContext->SetRequestInfo(info);
-    }
-
-    virtual Stroka GetRequestInfo() const override
-    {
-        return UnderlyingContext->GetRequestInfo();
-    }
-
-    virtual void SetResponseInfo(const Stroka& info) override
-    {
-        UnderlyingContext->SetResponseInfo(info);
-    }
-
-    virtual Stroka GetResponseInfo() override
-    {
-        return UnderlyingContext->GetRequestInfo();
-    }
-
-    virtual TClosure Wrap(const TClosure& action) override
-    {
-        return UnderlyingContext->Wrap(action);
-    }
-
     IMessagePtr GetResponseMessage()
     {
         YASSERT(Replied);
@@ -178,7 +94,6 @@ public:
     }
 
 private:
-    IServiceContextPtr UnderlyingContext;
     bool Replied;
     TError Error;
     IMessagePtr ResponseMessage;

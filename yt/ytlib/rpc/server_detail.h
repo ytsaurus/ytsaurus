@@ -89,13 +89,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplyInterceptorContext
+class TServiceContextWrapper
     : public IServiceContext
 {
 public:
-    TReplyInterceptorContext(
-        IServiceContextPtr underlyingContext,
-        TClosure onReply);
+    explicit TServiceContextWrapper(IServiceContextPtr underlyingContext);
 
     virtual NBus::IMessagePtr GetRequestMessage() const override;
 
@@ -133,6 +131,23 @@ public:
 
 private:
     IServiceContextPtr UnderlyingContext;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReplyInterceptorContext
+    : public TServiceContextWrapper
+{
+public:
+    TReplyInterceptorContext(
+        IServiceContextPtr underlyingContext,
+        TClosure onReply);
+
+    virtual void Reply(const TError& error) override;
+    virtual void Reply(NBus::IMessagePtr responseMessage) override;
+
+private:
     TClosure OnReply;
 
 };

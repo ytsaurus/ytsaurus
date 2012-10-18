@@ -223,118 +223,134 @@ void TServiceContextBase::AppendInfo(Stroka& lhs, const Stroka& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReplyInterceptorContext::TReplyInterceptorContext(
-    IServiceContextPtr underlyingContext,
-    TClosure onReply)
+TServiceContextWrapper::TServiceContextWrapper(IServiceContextPtr underlyingContext)
     : UnderlyingContext(underlyingContext)
-    , OnReply(onReply)
 { }
 
-IMessagePtr TReplyInterceptorContext::GetRequestMessage() const
+IMessagePtr TServiceContextWrapper::GetRequestMessage() const
 {
     return UnderlyingContext->GetRequestMessage();
 }
 
-const TRequestId& TReplyInterceptorContext::GetRequestId() const
+const TRequestId& TServiceContextWrapper::GetRequestId() const
 {
     return UnderlyingContext->GetRequestId();
 }
 
-const Stroka& TReplyInterceptorContext::GetPath() const
+const Stroka& TServiceContextWrapper::GetPath() const
 {
     return UnderlyingContext->GetPath();
 }
 
-const Stroka& TReplyInterceptorContext::GetVerb() const
+const Stroka& TServiceContextWrapper::GetVerb() const
 {
     return UnderlyingContext->GetVerb();
 }
 
-bool TReplyInterceptorContext::IsOneWay() const
+bool TServiceContextWrapper::IsOneWay() const
 {
     return UnderlyingContext->IsOneWay();
 }
 
-bool TReplyInterceptorContext::IsReplied() const
+bool TServiceContextWrapper::IsReplied() const
 {
     return UnderlyingContext->IsReplied();
 }
 
-void TReplyInterceptorContext::Reply(const TError& error)
+void TServiceContextWrapper::Reply(const TError& error)
 {
     UnderlyingContext->Reply(error);
+}
+
+void TServiceContextWrapper::Reply(IMessagePtr responseMessage)
+{
+    UnderlyingContext->Reply(responseMessage);
+}
+
+const TError& TServiceContextWrapper::GetError() const
+{
+    return UnderlyingContext->GetError();
+}
+
+TSharedRef TServiceContextWrapper::GetRequestBody() const
+{
+    return UnderlyingContext->GetRequestBody();
+}
+
+TSharedRef TServiceContextWrapper::GetResponseBody()
+{
+    return UnderlyingContext->GetResponseBody();
+}
+
+void TServiceContextWrapper::SetResponseBody(const TSharedRef& responseBody)
+{
+    UnderlyingContext->SetResponseBody(responseBody);
+}
+
+std::vector<TSharedRef>& TServiceContextWrapper::RequestAttachments()
+{
+    return UnderlyingContext->RequestAttachments();
+}
+
+std::vector<TSharedRef>& TServiceContextWrapper::ResponseAttachments()
+{
+    return UnderlyingContext->ResponseAttachments();
+}
+
+IAttributeDictionary& TServiceContextWrapper::RequestAttributes()
+{
+    return UnderlyingContext->RequestAttributes();
+}
+
+IAttributeDictionary& TServiceContextWrapper::ResponseAttributes()
+{
+    return UnderlyingContext->ResponseAttributes();
+}
+
+void TServiceContextWrapper::SetRequestInfo(const Stroka& info)
+{
+    UnderlyingContext->SetRequestInfo(info);
+}
+
+Stroka TServiceContextWrapper::GetRequestInfo() const
+{
+    return UnderlyingContext->GetRequestInfo();
+}
+
+void TServiceContextWrapper::SetResponseInfo(const Stroka& info)
+{
+    UnderlyingContext->SetRequestInfo(info);
+}
+
+Stroka TServiceContextWrapper::GetResponseInfo()
+{
+    return UnderlyingContext->GetRequestInfo();
+}
+
+TClosure TServiceContextWrapper::Wrap(const TClosure& action)
+{
+    return UnderlyingContext->Wrap(action);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TReplyInterceptorContext::TReplyInterceptorContext(
+    IServiceContextPtr underlyingContext,
+    TClosure onReply)
+    : TServiceContextWrapper(underlyingContext)
+    , OnReply(onReply)
+{ }
+
+void TReplyInterceptorContext::Reply(const TError& error)
+{
+    TServiceContextWrapper::Reply(error);
     OnReply.Run();
 }
 
 void TReplyInterceptorContext::Reply(IMessagePtr responseMessage)
 {
-    UnderlyingContext->Reply(responseMessage);
+    TServiceContextWrapper::Reply(responseMessage);
     OnReply.Run();
-}
-
-const TError& TReplyInterceptorContext::GetError() const
-{
-    return UnderlyingContext->GetError();
-}
-
-TSharedRef TReplyInterceptorContext::GetRequestBody() const
-{
-    return UnderlyingContext->GetRequestBody();
-}
-
-TSharedRef TReplyInterceptorContext::GetResponseBody()
-{
-    return UnderlyingContext->GetResponseBody();
-}
-
-void TReplyInterceptorContext::SetResponseBody(const TSharedRef& responseBody)
-{
-    UnderlyingContext->SetResponseBody(responseBody);
-}
-
-std::vector<TSharedRef>& TReplyInterceptorContext::RequestAttachments()
-{
-    return UnderlyingContext->RequestAttachments();
-}
-
-std::vector<TSharedRef>& TReplyInterceptorContext::ResponseAttachments()
-{
-    return UnderlyingContext->ResponseAttachments();
-}
-
-IAttributeDictionary& TReplyInterceptorContext::RequestAttributes()
-{
-    return UnderlyingContext->RequestAttributes();
-}
-
-IAttributeDictionary& TReplyInterceptorContext::ResponseAttributes()
-{
-    return UnderlyingContext->ResponseAttributes();
-}
-
-void TReplyInterceptorContext::SetRequestInfo(const Stroka& info)
-{
-    UnderlyingContext->SetRequestInfo(info);
-}
-
-Stroka TReplyInterceptorContext::GetRequestInfo() const
-{
-    return UnderlyingContext->GetRequestInfo();
-}
-
-void TReplyInterceptorContext::SetResponseInfo(const Stroka& info)
-{
-    UnderlyingContext->SetRequestInfo(info);
-}
-
-Stroka TReplyInterceptorContext::GetResponseInfo()
-{
-    return UnderlyingContext->GetRequestInfo();
-}
-
-TClosure TReplyInterceptorContext::Wrap(const TClosure& action)
-{
-    return UnderlyingContext->Wrap(action);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
