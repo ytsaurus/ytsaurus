@@ -1,8 +1,9 @@
+import os
 import logging
 
 logging.basicConfig(format="%(asctime)-15s, %(levelname)s: %(message)s")
 LOGGER = logging.getLogger("YtWrapper")
-LOGGER.setLevel(level=logging.INFO)
+LOGGER.setLevel(level=logging.__dict__[os.environ.get("LOG_LEVEL", "INFO")])
 
 def debug(msg, *args, **kwargs):
     LOGGER.debug(msg, *args, **kwargs)
