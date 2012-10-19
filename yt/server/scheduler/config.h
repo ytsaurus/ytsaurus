@@ -98,6 +98,9 @@ struct TSchedulerConfig
     //! Maximum number of partitions during sort, ever.
     int MaxPartitionCount;
 
+    //! Approximate maximum number of jobs per operation.
+    int MaxJobCount;
+
     NYTree::INodePtr MapOperationSpec;
     NYTree::INodePtr ReduceOperationSpec;
     NYTree::INodePtr EraseOperationSpec;
@@ -143,7 +146,6 @@ struct TSchedulerConfig
             .Default(2000)
             .GreaterThan(0);
 
-
         auto factory = NYTree::GetEphemeralNodeFactory();
         Register("map_operation_spec", MapOperationSpec)
             .Default(factory->CreateMap());
@@ -162,6 +164,9 @@ struct TSchedulerConfig
         Register("sort_operation_spec", SortOperationSpec)
             .Default(factory->CreateMap());
 
+        Register("max_job_count", MaxPartitionCount)
+            .Default(20000)
+            .GreaterThan(0);
     }
 };
 

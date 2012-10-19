@@ -67,13 +67,13 @@ public:
 
 
 private:
-    TSchedulerConfigPtr Config;
     TMapOperationSpecPtr Spec;
+
+    // Overrides spec limit to prevent huge job counts.
+    i64 MaxDataSizePerJob;
 
     // Counters.
     int TotalJobCount;
-
-    // Map task.
 
     class TMapTask
         : public TTask

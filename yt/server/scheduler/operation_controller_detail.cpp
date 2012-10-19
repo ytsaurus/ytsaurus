@@ -1598,6 +1598,7 @@ int TOperationControllerBase::SuggestJobCount(
     result = std::min(result, chunkCount);
     result = std::min(result, maxSuggestion);
     result = std::max(result, 1);
+    result = std::min(result, Config->MaxJobCount);
     return result;
 }
 

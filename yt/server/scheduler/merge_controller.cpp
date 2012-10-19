@@ -55,6 +55,7 @@ public:
         , TotalJobCount(0)
         , CurrentTaskDataSize(0)
         , PartitionCount(0)
+        , MaxDataSizePerJob(0)
     { }
 
     virtual TNodeResources GetMinNeededResources() override
@@ -94,6 +95,14 @@ protected:
      */
     int PartitionCount;
 
+<<<<<<< HEAD
+=======
+    TJobIOConfigPtr JobIOConfig;
+
+    // Overrides spec limit to fulfill global limit on job count.
+    i64 MaxDataSizePerJob;
+
+>>>>>>> de8c3dd... Global limit on job count.
     // Merge task.
 
     class TMergeTask
@@ -267,7 +276,8 @@ protected:
     //! Returns True if the total data size of currently queued stripes exceeds the pre-configured limit.
     bool HasLargeActiveTask()
     {
-        return CurrentTaskDataSize >= SpecBase->MaxDataSizePerJob;
+        YCHECK(MaxDataSizePerJob > 0);
+        return CurrentTaskDataSize >= MaxDataSizePerJob;
     }
 
     //! Add chunk to the current task's pool.
@@ -343,6 +353,8 @@ protected:
 
             ClearCurrentTaskStripes();
 
+            std::vector<TRefCountedInputChunkPtr> chunks;
+            i64 totalDataSize = 0;
             for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
                 const auto& table = InputTables[tableIndex];
                 FOREACH (auto& inputChunk, *table.FetchResponse->mutable_chunks()) {
@@ -356,8 +368,17 @@ protected:
                         dataSize,
                         rowCount,
                         chunk->TableIndex);
-                    ProcessInputChunk(chunk);
+                    chunks.push_back(chunk);
+                    totalDataSize += dataSize;
                 }
+            }
+
+            MaxDataSizePerJob = std::max(
+                SpecBase->MaxDataSizePerJob, 
+                static_cast<i64>(std::ceil((double) totalDataSize / Config->MaxJobCount)));
+
+            FOREACH(auto& chunk, chunks) {
+                ProcessInputChunk(chunk);
             }
         }
     }
@@ -943,7 +964,7 @@ protected:
                 } while (nextIndex != endpointsCount);
 
                 if (AllowPassthroughChunks()) {
-                    bool hasManiacTask = partialManiacSize > SpecBase->MaxDataSizePerJob;
+                    bool hasManiacTask = partialManiacSize > MaxDataSizePerJob;
                     bool hasPassthroughManiacs = completeLargeManiacSize > 0;
 
                     if (!hasManiacTask) {
@@ -983,8 +1004,7 @@ protected:
                         }
                     }
                 } else {
-                    bool hasManiacTask = partialManiacSize + completeLargeManiacSize > 
-                        SpecBase->MaxDataSizePerJob;
+                    bool hasManiacTask = partialManiacSize + completeLargeManiacSize > MaxDataSizePerJob;
 
                     if (hasManiacTask) {
                         // Complete current task
