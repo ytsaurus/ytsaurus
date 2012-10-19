@@ -46,7 +46,6 @@ public:
         IOperationHost* host,
         TOperation* operation)
         : TOperationControllerBase(config, host, operation)
-        , Config(config)
         , Spec(spec)
         , TotalJobCount(0)
     { }

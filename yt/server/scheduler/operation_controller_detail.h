@@ -432,7 +432,7 @@ protected:
         TNullable<int> jobCount,
         i64 jobSliceWeight);
 
-    static int SuggestJobCount(
+    int SuggestJobCount(
         i64 totalDataSize,
         i64 minDataSizePerJob,
         i64 maxDataSizePerJob,
