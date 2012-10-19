@@ -407,7 +407,7 @@ Examples:
     if args.upload is not None:
         if yt.exists(args.upload) and yt.get_type(args.upload) == "file":
             yt.remove_with_empty_dirs(args.upload)
-        yt.upload_file(sys.stdin, args.upload)
+        yt.upload_file(sys.stdin.read(), args.upload)
         if args.executable:
             yt.set_attribute(args.upload, "executable", "true")
     if args.download is not None:
