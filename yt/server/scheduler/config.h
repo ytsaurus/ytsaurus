@@ -164,7 +164,7 @@ struct TSchedulerConfig
         Register("sort_operation_spec", SortOperationSpec)
             .Default(factory->CreateMap());
 
-        Register("max_job_count", MaxPartitionCount)
+        Register("max_job_count", MaxJobCount)
             .Default(20000)
             .GreaterThan(0);
     }
