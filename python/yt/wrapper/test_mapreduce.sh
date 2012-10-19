@@ -143,6 +143,7 @@ if __name__ == '__main__':
     " >my_mapper.py
     chmod +x my_mapper.py
     ./mapreduce -upload ignat/mapper.py -executable < my_mapper.py
+    cat my_mapper.py | ./mapreduce -upload ignat/mapper.py -executable
     ./mapreduce -download ignat/mapper.py > my_mapper_copy.py
     diff my_mapper.py my_mapper_copy.py
 
