@@ -116,7 +116,7 @@ def wait_operation(operation, timeout=None, print_progress=True):
                         logger.info("Operation %s aborted", operation)
                         break
                     abort_operation(operation)
-                    sleep(timeout)
+                    timeout.wait()
                 except KeyboardInterrupt:
                     pass
         raise

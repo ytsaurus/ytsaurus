@@ -39,11 +39,11 @@ TObjectId CreateId(EObjectType type, TCellId cellId, ui64 counter)
     };
     // XXX(sandello): Those subtle aliasing/alignment/whatever issues
     // are really creppy. Therefore I decided to plug in a lot of static_asserts.
-    static_assert(sizeof(salt) == 12,
-        "You can run into subtle problems while generating object ids");
-    static_assert(offset_of(TSalt, Counter)   == 0,  ".Counter field has shifted");
-    static_assert(offset_of(TSalt, TypeValue) == 8,  ".TypeValue field has shifted");
-    static_assert(offset_of(TSalt, CellId)    == 10, ".CellId field has shifted");
+    //static_assert(sizeof(salt) == 12,
+    //    "You can run into subtle problems while generating object ids");
+    //static_assert(offset_of(TSalt, Counter)   == 0,  ".Counter field has shifted");
+    //static_assert(offset_of(TSalt, TypeValue) == 8,  ".TypeValue field has shifted");
+    //static_assert(offset_of(TSalt, CellId)    == 10, ".CellId field has shifted");
     ui32 hash = MurmurHash<ui32>(&salt, sizeof(salt), 0);
 #else
     char data[12] = { 0 };
