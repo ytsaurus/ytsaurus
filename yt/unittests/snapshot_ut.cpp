@@ -110,12 +110,16 @@ TEST_F(TSnapshotTest, SnapshotStore)
 
     EXPECT_FALSE(store->GetReader(1).IsOK());
 
-    auto writer = store->GetWriter(2);
-    writer->Open(1, TEpochId());
-    TOutputStream* output = writer->GetStream();
-    std::vector<char> data(10, 42);
-    output->Write(&*data.begin(), data.size());
-    writer->Close();
+    { // Add snapshot file to store.
+        i32 id = 2;
+        auto writer = store->GetWriter(id);
+        writer->Open(1, TEpochId());
+        TOutputStream* output = writer->GetStream();
+        std::vector<char> data(10, 42);
+        output->Write(&*data.begin(), data.size());
+        writer->Close();
+        store->OnSnapshotAdded(id);
+    }
 
     auto readerResult = store->GetReader(2);
     ASSERT_TRUE(readerResult.IsOK());
