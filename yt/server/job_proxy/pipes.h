@@ -72,6 +72,7 @@ class TOutputPipe
 {
 public:
     TOutputPipe(
+        int fd[2],
         TOutputStream* output, 
         int jobDescriptor);
 
@@ -106,6 +107,7 @@ public:
      *  \param jobDescriptor - number of underlying read descriptor in the job process.
      */
     TInputPipe(
+        int fd[2],
         TAutoPtr<NTableClient::TTableProducer> tableProducer, 
         TAutoPtr<TBlobOutput> buffer, 
         TAutoPtr<NYTree::IYsonConsumer> consumer,

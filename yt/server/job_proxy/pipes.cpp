@@ -181,17 +181,15 @@ void CheckJobDescriptor(int fd)
 ////////////////////////////////////////////////////////////////////
 
 TOutputPipe::TOutputPipe(
+    int fd[2],
     TOutputStream* output, 
     int jobDescriptor)
     : OutputStream(output)
     , JobDescriptor(jobDescriptor)
     , IsFinished(false)
     , IsClosed(false)
-{
-    int fd[2];
-    SafePipe(fd);
-    Pipe = TPipe(fd);
-}
+    , Pipe(fd)
+{ }
 
 void TOutputPipe::PrepareJobDescriptors()
 {
@@ -304,6 +302,7 @@ void TOutputPipe::Finish()
 ////////////////////////////////////////////////////////////////////
 
 TInputPipe::TInputPipe(
+    int fd[2],
     TAutoPtr<NTableClient::TTableProducer> tableProducer,
     TAutoPtr<TBlobOutput> buffer, 
     TAutoPtr<NYTree::IYsonConsumer> consumer,
@@ -315,14 +314,11 @@ TInputPipe::TInputPipe(
     , Position(0)
     , IsFinished(false)
     , HasData(true)
+    , Pipe(fd)
 {
     YCHECK(~TableProducer);
     YCHECK(~Buffer);
     YCHECK(~Consumer);
-
-    int fd[2];
-    SafePipe(fd);
-    Pipe = TPipe(fd);
 }
 
 void TInputPipe::PrepareJobDescriptors()

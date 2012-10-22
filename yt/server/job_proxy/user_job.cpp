@@ -171,22 +171,22 @@ private:
         // we ensure that lower 3 * N descriptors are allocated before creating pipes.
 
         std::vector<int> reservedDescriptors;
-        do {
-            try {
-                // NB: do not use STDIN_FILENO here cause it is usually used by 
-                // logging and may be closed on rotation.
-                reservedDescriptors.push_back(SafeDup(STDERR_FILENO));
-            } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION(
-                    "Couldn't reserve descriptor (LastReserved: %d, Required: %d)",
-                    reservedDescriptors.empty() ? 0 : reservedDescriptors.back(),
-                    maxReservedDescriptor) << ex;
+        auto createPipe = [&] (int fd[2]) {
+            while (true) {
+                SafePipe(fd);
+                if (fd[0] < maxReservedDescriptor || fd[1] < maxReservedDescriptor) {
+                    reservedDescriptors.push_back(fd[0]);
+                    reservedDescriptors.push_back(fd[1]);
+                } else {
+                    break;
+                }
             }
-        } while (reservedDescriptors.back() < maxReservedDescriptor);
+        };
 
-
+        int pipe[2];
+        createPipe(pipe);
         ErrorOutput = JobIO->CreateErrorOutput();
-        OutputPipes.push_back(New<TOutputPipe>(~ErrorOutput, STDERR_FILENO));
+        OutputPipes.push_back(New<TOutputPipe>(pipe, ~ErrorOutput, STDERR_FILENO));
 
         // Make pipe for each input and each output table.
         {
@@ -198,7 +198,9 @@ private:
                     EDataType::Tabular, 
                     buffer.Get());
 
+                createPipe(pipe);
                 InputPipes.push_back(New<TInputPipe>(
+                    pipe,
                     JobIO->CreateTableInput(i, consumer.Get()),
                     buffer,
                     consumer,
@@ -216,7 +218,8 @@ private:
                 TAutoPtr<IYsonConsumer> consumer(new TTableConsumer(writer));
                 auto parser = CreateParserForFormat(format, EDataType::Tabular, consumer.Get());
                 TableOutput[i] = new TTableOutput(parser, consumer, writer);
-                OutputPipes.push_back(New<TOutputPipe>(~TableOutput[i], 3 * i + 1));
+                createPipe(pipe);
+                OutputPipes.push_back(New<TOutputPipe>(pipe, ~TableOutput[i], 3 * i + 1));
             }
         }
 
