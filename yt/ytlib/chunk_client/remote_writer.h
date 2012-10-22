@@ -54,6 +54,7 @@ private:
 
     struct TNode;
     typedef TIntrusivePtr<TNode> TNodePtr;
+    typedef TWeakPtr<TNode> TNodeWeakPtr;
 
     typedef ydeque<TGroupPtr> TWindow;
 

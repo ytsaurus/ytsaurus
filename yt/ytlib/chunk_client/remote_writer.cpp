@@ -125,7 +125,7 @@ private:
 
     void OnSessionFinished();
 
-    void SendPing(TNodePtr node);
+    void SendPing(TNodeWeakPtr node);
     void StartPing(TNodePtr node);
     void CancelPing(TNodePtr node);
     void CancelAllPings();
@@ -556,7 +556,7 @@ TRemoteWriter::TImpl::TImpl(
         node->Proxy.SetDefaultTimeout(Config->NodeRpcTimeout);
         node->PingInvoker = New<TPeriodicInvoker>(
             TDispatcher::Get()->GetWriterInvoker(),
-            BIND(&TRemoteWriter::TImpl::SendPing, MakeWeak(this), node),
+            BIND(&TRemoteWriter::TImpl::SendPing, MakeWeak(this), MakeWeak(~node)),
             Config->NodePingInterval);
         Nodes.push_back(node);
     }
@@ -742,6 +742,7 @@ void TRemoteWriter::TImpl::OnNodeFailed(TNodePtr node)
             TError::Fail,
             Sprintf("All target nodes [%s] have failed", ~JoinToString(Addresses)));
         LOG_WARNING(error, "Chunk writer failed");
+        CancelAllPings();
         State.Fail(error);
     }
 }
@@ -890,9 +891,14 @@ void TRemoteWriter::TImpl::OnSessionFinished()
     State.FinishOperation();
 }
 
-void TRemoteWriter::TImpl::SendPing(TNodePtr node)
+void TRemoteWriter::TImpl::SendPing(TNodeWeakPtr nodeWeak)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
+
+    auto node = nodeWeak.Lock();
+    if (!node) {
+        return;
+    }
 
     LOG_DEBUG("Sending ping to %s", ~node->Address);
 
