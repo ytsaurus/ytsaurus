@@ -57,7 +57,7 @@ class TObjectManager::TServiceContextWrapper
 {
 public:
     explicit TServiceContextWrapper(IServiceContextPtr underlyingContext)
-        : NRpc::TServiceContextWrapper(underlyingContext)
+        : NRpc::TServiceContextWrapper(MoveRV(underlyingContext))
         , Replied(false)
     { }
 
