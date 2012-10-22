@@ -26,7 +26,7 @@ TChunkList::TChunkList(const TChunkListId& id)
     , Version_(0)
 { }
 
-void TChunkList::IncreaseVersion()
+void TChunkList::IncrementVersion()
 {
     ++Version_;
 }

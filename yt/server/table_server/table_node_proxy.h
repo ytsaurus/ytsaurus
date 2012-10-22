@@ -37,8 +37,8 @@ public:
 private:
     typedef NCypressServer::TCypressNodeProxyBase<NYTree::IEntityNode, TTableNode> TBase;
 
-    class TFetchChunkProcessor;
-    typedef TIntrusivePtr<TFetchChunkProcessor> TFetchChunkProcessorPtr;
+    class TFetchChunkVisitor;
+    typedef TIntrusivePtr<TFetchChunkVisitor> TFetchChunkProcessorPtr;
 
     virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
     virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer) override;
@@ -49,6 +49,8 @@ private:
 
     virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
 
+    // TODO(babenko): this runs a sync traversal
+    // replace with an async one!
     void TraverseChunkTree(
         std::vector<NChunkClient::TChunkId>* chunkIds,
         const NChunkServer::TChunkList* chunkList);

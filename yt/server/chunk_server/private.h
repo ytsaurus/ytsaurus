@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <ytlib/logging/log.h>
 #include <ytlib/profiling/profiler.h>
 
@@ -10,6 +12,9 @@ namespace NChunkServer {
 
 extern NLog::TLogger ChunkServerLogger;
 extern NProfiling::TProfiler ChunkServerProfiler;
+
+struct IChunkVisitor;
+typedef TIntrusivePtr<IChunkVisitor> IChunkVisitorPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

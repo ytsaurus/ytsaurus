@@ -1,10 +1,13 @@
 #pragma once
-#include "public.h"
+
+#include "private.h"
+
+#include <ytlib/misc/error.h>
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 #include <ytlib/table_client/table_reader.pb.h>
+
 #include <server/cell_master/public.h>
-#include <ytlib/misc/error.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -14,33 +17,31 @@ namespace NChunkServer {
 DECLARE_ENUM(ETraversingError,
     (Fatal)
 
-    // Retriable error means that subsequent traversing attempt may be successul.
-    // E.g. chunk list version has changed.
+    // Indicates that subsequent traversing attempt may succeed.
+    // This typically happens when an optimistic chunk tree locking fails.
     (Retriable)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IChunkProcessor
+struct IChunkVisitor
     : public virtual TRefCounted
 {
-    virtual void ProcessChunk(
+    virtual void OnChunk(
         const TChunk* chunk, 
         const NTableClient::NProto::TReadLimit& startLimit,
         const NTableClient::NProto::TReadLimit& endLimit) = 0;
+
     virtual void OnError(const TError& error) = 0;
-    virtual void OnComplete() = 0;
 
+    virtual void OnFinish() = 0;
 };
-
-// Move to private.h (or public.h?)
-typedef TIntrusivePtr<IChunkProcessor> IChunkProcessorPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TraverseChunkTree(
     NCellMaster::TBootstrap* bootstrap,
-    IChunkProcessorPtr processor,
+    IChunkVisitorPtr visitor,
     const TChunkList* root,
     const NTableClient::NProto::TReadLimit& lowerBound,
     const NTableClient::NProto::TReadLimit& upperBound);

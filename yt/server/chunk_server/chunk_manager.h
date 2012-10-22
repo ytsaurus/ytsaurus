@@ -94,14 +94,7 @@ public:
         TChunkList* chunkList,
         const TChunkTreeRef childRef);
 
-    // Returns error if version has changed and pointer to chunklist otherwise.
-    TValueOrError<TChunkList*> GetVersionedChunkList(const TVersionedChunkListId& id);
-
     void ClearChunkList(TChunkList* chunkList);
-
-    // TODO(babenko): consider making private
-    void SetChunkTreeParent(TChunkList* parent, TChunkTreeRef childRef);
-    void ResetChunkTreeParent(TChunkList* parent, TChunkTreeRef childRef);
 
     void ScheduleJobs(
         TDataNode* node,

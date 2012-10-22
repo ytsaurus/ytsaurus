@@ -201,34 +201,47 @@ void ParseRowLimits(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTableNodeProxy::TFetchChunkProcessor
-    : public NChunkServer::IChunkProcessor
+class TTableNodeProxy::TFetchChunkVisitor
+    : public IChunkVisitor
 {
 public:
-    TFetchChunkProcessor(
+    TFetchChunkVisitor(
         TCtxFetchPtr context, 
         const TChannel& channel, 
         TChunkManagerPtr chunkManager)
         : Context(context)
         , Channel(channel)
-        , TraversalSessionsCount(0)
+        , SessionCount(0)
         , Completed(false)
         , Finished(false)
         , ChunkManager(chunkManager)
     { }
 
-    void AddTraversalSession()
+    void AddSession(
+        NCellMaster::TBootstrap* bootstrap,
+        const TChunkList* root,
+        const NTableClient::NProto::TReadLimit& lowerBound,
+        const NTableClient::NProto::TReadLimit& upperBound)
     {
-        VERIFY_THREAD_AFFINITY(Thread);
-        ++TraversalSessionsCount;
+        VERIFY_THREAD_AFFINITY(StateThread);
+
+        ++SessionCount;
+
+        NChunkServer::TraverseChunkTree(
+            bootstrap,
+            this,
+            root,
+            lowerBound,
+            upperBound);
     }
 
     void Complete() 
     {
-        VERIFY_THREAD_AFFINITY(Thread);
+        VERIFY_THREAD_AFFINITY(StateThread);
         YCHECK(!Completed);
+
         Completed = true;
-        if (TraversalSessionsCount == 0 && !Finished) {
+        if (SessionCount == 0 && !Finished) {
             Reply();
         }
     }
@@ -241,15 +254,15 @@ private:
         Finished = true;
     }
 
-    virtual void ProcessChunk(
+    virtual void OnChunk(
         const TChunk* chunk, 
         const NTableClient::NProto::TReadLimit& startLimit,
         const NTableClient::NProto::TReadLimit& endLimit) override
     {
-        VERIFY_THREAD_AFFINITY(Thread);
+        VERIFY_THREAD_AFFINITY(StateThread);
 
         if (!chunk->IsConfirmed()) {
-            ProcessError(TError("Cannot fetch a table containing an unconfirmed chunk %s",
+            ReplyError(TError("Cannot fetch a table containing an unconfirmed chunk %s",
                 ~chunk->GetId().ToString()));
             return;
         }
@@ -284,49 +297,55 @@ private:
         *slice->mutable_end_limit() = endLimit;
     }
 
-    void ProcessError(const TError& error)
-    {
-        if (!Finished) {
-            auto wrappedError = TError("Failed to fetch table.") << error;
-            if (error.GetCode() == ETraversingError::Retriable) {
-                wrappedError.SetCode(NRpc::EErrorCode::Unavailable);
-            }
-
-            Context->Reply(wrappedError);
-            Finished = true;
-        }
-        
-    }
-
     virtual void OnError(const TError& error) override
     {
-        VERIFY_THREAD_AFFINITY(Thread);
-        --TraversalSessionsCount;
-        YCHECK(TraversalSessionsCount >= 0);
+        VERIFY_THREAD_AFFINITY(StateThread);
 
-        ProcessError(error);
+        --SessionCount;
+        YCHECK(SessionCount >= 0);
+
+        ReplyError(error);
     }
 
-    virtual void OnComplete() override
+    virtual void OnFinish() override
     {
-        VERIFY_THREAD_AFFINITY(Thread);
-        --TraversalSessionsCount;
-        YCHECK(TraversalSessionsCount >= 0);
+        VERIFY_THREAD_AFFINITY(StateThread);
 
-        if (Completed && !Finished && TraversalSessionsCount == 0) {
+        --SessionCount;
+        YCHECK(SessionCount >= 0);
+
+        if (Completed && !Finished && SessionCount == 0) {
             Reply();
         }
     }
 
+
+    void ReplyError(const TError& error)
+    {
+        if (Finished)
+            return;
+
+        auto wrappedError = TError(
+            error.GetCode() == ETraversingError::Retriable
+            ? NRpc::EErrorCode::Unavailable
+            : TError::Fail,
+            "Failed to fetch table")
+            << error;
+        Context->Reply(wrappedError);
+
+        Finished = true;
+    }
+
+
     TCtxFetchPtr Context;
     TChannel Channel;
-    int TraversalSessionsCount;
+    TChunkManagerPtr ChunkManager;
+
+    int SessionCount;
     bool Finished;
     bool Completed;
 
-    TChunkManagerPtr ChunkManager;
-
-    DECLARE_THREAD_AFFINITY_SLOT(Thread);
+    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 
 };
 
@@ -613,27 +632,24 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
     ParseYPath(context->GetPath(), &channel, &lowerLimit, &upperLimit);
     auto* chunkList = impl->GetChunkList();
 
-    auto chunkProcessor = New<TFetchChunkProcessor>(
+    auto visitor = New<TFetchChunkVisitor>(
         context, 
         channel, 
         Bootstrap->GetChunkManager());
 
     if (request->negate()) {
         if (lowerLimit.has_row_index() || lowerLimit.has_key()) {
-            chunkProcessor->AddTraversalSession();
-            NChunkServer::TraverseChunkTree(Bootstrap, chunkProcessor, chunkList, TReadLimit(), lowerLimit);
+            visitor->AddSession(Bootstrap, chunkList, TReadLimit(), lowerLimit);
         }
 
         if (upperLimit.has_row_index() || upperLimit.has_key()) {
-            chunkProcessor->AddTraversalSession();
-            NChunkServer::TraverseChunkTree(Bootstrap, chunkProcessor, chunkList, upperLimit, TReadLimit());
+            visitor->AddSession(Bootstrap, chunkList, upperLimit, TReadLimit());
         }
     } else {
-        chunkProcessor->AddTraversalSession();
-        NChunkServer::TraverseChunkTree(Bootstrap, chunkProcessor, chunkList, lowerLimit, upperLimit);
+        visitor->AddSession(Bootstrap, chunkList, lowerLimit, upperLimit);
     }
 
-    chunkProcessor->Complete();
+    visitor->Complete();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, SetSorted)

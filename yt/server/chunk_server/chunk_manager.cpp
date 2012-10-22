@@ -322,7 +322,7 @@ public:
         const TChunkTreeRef* childrenEnd)
     {
         auto objectManager = Bootstrap->GetObjectManager();
-        chunkList->IncreaseVersion();
+        chunkList->IncrementVersion();
 
         TChunkTreeStatistics accumulatedDelta;
         for (auto it = childrenBegin; it != childrenEnd; ++it) {
@@ -388,7 +388,7 @@ public:
     {
         // TODO(babenko): currently we only support clearing a chunklist with no parents.
         YCHECK(chunkList->Parents().empty());
-        chunkList->IncreaseVersion();
+        chunkList->IncrementVersion();
 
         auto objectManager = Bootstrap->GetObjectManager();
         FOREACH (auto childRef, chunkList->Children()) {
@@ -508,39 +508,28 @@ public:
     TChunkTreeRef GetChunkTree(const TChunkTreeId& id)
     {
         auto type = TypeFromId(id);
-        if (type == EObjectType::Chunk) {
-            auto* chunk = FindChunk(id);
-            if (!chunk) {
-                THROW_ERROR_EXCEPTION("No such chunk %s", ~id.ToString());
+        switch (type) {
+            case EObjectType::Chunk: {
+                auto* chunk = FindChunk(id);
+                if (!chunk) {
+                    THROW_ERROR_EXCEPTION("No such chunk: %s", ~id.ToString());
+                }
+                return TChunkTreeRef(chunk);
             }
-            return TChunkTreeRef(chunk);
-        } else if (type == EObjectType::ChunkList) {
-            auto* chunkList = FindChunkList(id);
-            if (!chunkList) {
-                THROW_ERROR_EXCEPTION("No such chunkList %s", ~id.ToString());
+
+            case EObjectType::ChunkList: {
+                auto* chunkList = FindChunkList(id);
+                if (!chunkList) {
+                    THROW_ERROR_EXCEPTION("No such chunk list: %s", ~id.ToString());
+                }
+                return TChunkTreeRef(chunkList);
             }
-            return TChunkTreeRef(chunkList);
-        } else {
-            THROW_ERROR_EXCEPTION("Invalid type of object %s", ~id.ToString());
+
+            default:
+                THROW_ERROR_EXCEPTION("Invalid object type, expected chunk or chunk list but found %s",
+                    ~type.ToString());
         }
     }
-
-    TValueOrError<TChunkList*> GetVersionedChunkList(const TVersionedChunkListId& versionedId)
-    {
-        auto chunkTreeRef = GetChunkTree(versionedId.Id);
-        YCHECK(chunkTreeRef.GetType() == EObjectType::ChunkList);
-        auto* chunkList = chunkTreeRef.AsChunkList();
-        if (chunkList->GetVersion() == versionedId.Version) {
-            return chunkList;
-        } else {
-            return TError(
-                "Chunk list version has changed (ChunkListId: %s, Expected version: %d, Actual version: %d)",
-                ~ToString(versionedId.Id),
-                versionedId.Version,
-                chunkList->GetVersion());
-        }
-    }
-
 
 private:
     typedef TImpl TThis;
@@ -1950,6 +1939,7 @@ private:
         TBase::DoInvoke(context);
     }
 
+
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, Attach)
     {
         UNUSED(response);
@@ -1973,6 +1963,7 @@ private:
 
         context->Reply();
     }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2108,16 +2099,6 @@ void TChunkManager::ClearChunkList(TChunkList* chunkList)
     Impl->ClearChunkList(chunkList);
 }
 
-void TChunkManager::SetChunkTreeParent(TChunkList* parent, TChunkTreeRef childRef)
-{
-    return Impl->SetChunkTreeParent(parent, childRef);
-}
-
-void TChunkManager::ResetChunkTreeParent(TChunkList* parent, TChunkTreeRef childRef)
-{
-    return Impl->ResetChunkTreeParent(parent, childRef);
-}
-
 void TChunkManager::ScheduleJobs(
     TDataNode* node,
     const std::vector<TJobInfo>& runningJobs,
@@ -2156,12 +2137,6 @@ bool TChunkManager::IsNodeConfirmed(const TDataNode* node)
 i32 TChunkManager::GetChunkReplicaCount()
 {
     return Impl->GetChunkReplicaCount();
-}
-
-TValueOrError<TChunkList*> TChunkManager::GetVersionedChunkList(
-    const TVersionedChunkListId& id)
-{
-    return Impl->GetVersionedChunkList(id);
 }
 
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, Chunk, TChunk, TChunkId, *Impl)

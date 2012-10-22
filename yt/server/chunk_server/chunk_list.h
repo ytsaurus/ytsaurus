@@ -16,6 +16,7 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! |(id, version)| pair used for optimistic chunk list locking.
 struct TVersionedChunkListId
 {
     TVersionedChunkListId(const TChunkListId& id, int version);
@@ -34,7 +35,7 @@ class TChunkList
     // Accumulated sums of children row counts.
     // The i-th value is equal to the sum of row counts of children 0..i 
     // for all i in [0..Children.size() - 2]
-    // Accumalated statistic for the last child (which is effectively total chunk list statistic)
+    // Accumulated statistics for the last child (which is equal to the total chunk list statistics)
     // is stored in #Statistics field.
     DEFINE_BYREF_RW_PROPERTY(std::vector<i64>, RowCountSums);
     DEFINE_BYREF_RW_PROPERTY(yhash_multiset<TChunkList*>, Parents);
@@ -50,8 +51,9 @@ class TChunkList
     // such changes are not allowed since they would break the invariants.
     DEFINE_BYVAL_RW_PROPERTY(bool, Rigid);
 
-    // Required for optimistic locking during splitted fetch responses.
-    DEFINE_BYVAL_RO_PROPERTY(i64, Version);
+    // Increases each time the list changes.
+    // Enables optimistic locking during chunk tree traversing.
+    DEFINE_BYVAL_RO_PROPERTY(int, Version);
 
 public:
     explicit TChunkList(const TChunkListId& id);
@@ -59,7 +61,7 @@ public:
     void Save(const NCellMaster::TSaveContext& context) const;
     void Load(const NCellMaster::TLoadContext& context);
 
-    void IncreaseVersion();
+    void IncrementVersion();
     TVersionedChunkListId GetVersionedId() const;
 
 };
