@@ -578,7 +578,7 @@ private:
     }
 
 
-    void AbortOperation(TOperationPtr operation, const TError& error)
+    TFuture<void> AbortOperation(TOperationPtr operation, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -586,14 +586,14 @@ private:
             LOG_INFO(error, "Operation is already finishing (OperationId: %s, State: %s)",
                 ~operation->GetOperationId().ToString(),
                 ~operation->GetState().ToString());
-            return;
+            return operation->GetFinished();
         }
 
         if (operation->IsFinishedState()) {
-            LOG_INFO(error, "Request to abort an already finished operation ignored (OperationId: %s, State: %s)",
+            LOG_INFO(error, "Operation is already finished (OperationId: %s, State: %s)",
                 ~operation->GetOperationId().ToString(),
                 ~operation->GetState().ToString());
-            return;
+            return operation->GetFinished();
         }
 
         LOG_INFO(error, "Aborting operation (OperationId: %s, State: %s)",
@@ -601,6 +601,8 @@ private:
             ~operation->GetState().ToString());
                 
         DoOperationFailed(operation, EOperationState::Aborting, EOperationState::Aborted, error);
+
+        return operation->GetFinished();
     }
 
 
@@ -1039,9 +1041,13 @@ private:
         ValidateConnected();
 
         auto operation = GetOperation(operationId);
-        AbortOperation(operation, TError("Operation aborted by user request"));
 
-        context->Reply();
+        AbortOperation(
+            operation,
+            TError("Operation aborted by user request"))
+        .Subscribe(BIND([=] () {
+            context->Reply();
+        }));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, WaitForOperation)
