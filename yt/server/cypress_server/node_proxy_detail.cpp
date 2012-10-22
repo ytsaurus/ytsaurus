@@ -231,7 +231,7 @@ void TMapNodeProxy::Clear()
         children.begin(),
         children.end(),
         [] (const TChild& lhs, const TChild& rhs) {
-            return lhs.second < rhs.second;
+            return lhs.first < rhs.first;
         });
 
     // Detach children.
