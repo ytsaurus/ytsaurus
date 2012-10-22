@@ -68,7 +68,7 @@ public:
 private:
     TMapOperationSpecPtr Spec;
 
-    // Overrides spec limit to prevent huge job counts.
+    //! Overrides the spec limit to prevent huge job counts.
     i64 MaxDataSizePerJob;
 
     // Counters.
