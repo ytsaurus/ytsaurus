@@ -53,6 +53,7 @@ using namespace NObjectClient;
 using namespace NScheduler::NProto;
 
 using NChunkClient::TChunkId;
+using NChunkClient::NullChunkId;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -827,35 +828,34 @@ private:
     void UpdateFinishedJobNode(TJobPtr job)
     {
         const auto& result = job->Result();
-        
+
         if (result.HasExtension(TMapJobResultExt::map_job_result_ext)) {
             const auto& resultExt = result.GetExtension(TMapJobResultExt::map_job_result_ext);
-            SetJobStdErr(job, resultExt.mapper_result());
-        }
-
-        if (result.HasExtension(TReduceJobResultExt::reduce_job_result_ext)) {
+            ProcessFinishedJob(job, resultExt.mapper_result());
+        } else if (result.HasExtension(TReduceJobResultExt::reduce_job_result_ext)) {
             const auto& resultExt = result.GetExtension(TReduceJobResultExt::reduce_job_result_ext);
-            SetJobStdErr(job, resultExt.reducer_result());
-        }
-
-        if (result.HasExtension(TPartitionJobResultExt::partition_job_result_ext)) {
+            ProcessFinishedJob(job, resultExt.reducer_result());
+        } else if (result.HasExtension(TPartitionJobResultExt::partition_job_result_ext)) {
             const auto& resultExt = result.GetExtension(TPartitionJobResultExt::partition_job_result_ext);
             if (resultExt.has_mapper_result()) {
-                SetJobStdErr(job, resultExt.mapper_result());
+                ProcessFinishedJob(job, resultExt.mapper_result());
             }
+        } else {
+            // Dummy empty job result without stderr.
+            static TUserJobResult jobResult;
+            ProcessFinishedJob(job, jobResult);
         }
-
-        MasterConnector->UpdateJobNode(job);
     }
 
-    void SetJobStdErr(TJobPtr job, const TUserJobResult& result)
+    void ProcessFinishedJob(TJobPtr job, const TUserJobResult& result)
     {
         if (result.has_stderr_chunk_id()) {
             auto chunkId = TChunkId::FromProto(result.stderr_chunk_id());
-            MasterConnector->SetJobStdErr(job, chunkId);
+            MasterConnector->CreateJobNode(job, chunkId);
+        } else if (job->GetState() == EJobState::Failed) {
+            MasterConnector->CreateJobNode(job, NullChunkId);
         }
     }
-
 
     void InitStrategy()
     {
@@ -1142,7 +1142,6 @@ private:
                 ~job->GetOperation()->GetOperationId().ToString());
 
             RegisterJob(job);
-            MasterConnector->CreateJobNode(job);
             job->SetSpec(NULL);
         }
 

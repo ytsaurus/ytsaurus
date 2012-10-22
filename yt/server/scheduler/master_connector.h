@@ -41,9 +41,7 @@ public:
     TFuture<void> FlushOperationNode(TOperationPtr operation);
     TFuture<void> FinalizeOperationNode(TOperationPtr operation);
 
-    void CreateJobNode(TJobPtr job);
-    void UpdateJobNode(TJobPtr job);
-    void SetJobStdErr(TJobPtr job, const NChunkClient::TChunkId& chunkId);
+    void CreateJobNode(TJobPtr job, const NChunkClient::TChunkId& chunkId);
 
     DECLARE_SIGNAL(void(NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr), WatcherRequest);
     DECLARE_SIGNAL(void(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr), WatcherResponse);

@@ -38,6 +38,8 @@ using namespace NTransactionClient;
 using namespace NMetaState;
 using namespace NRpc;
 
+using NChunkClient::NullChunkId;
+
 ////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = SchedulerLogger;
@@ -139,50 +141,20 @@ public:
     }
 
 
-    void CreateJobNode(TJobPtr job)
+    void CreateJobNode(TJobPtr job, const NChunkClient::TChunkId& chunkId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        LOG_DEBUG("Creating job node (OperationId: %s, JobId: %s)",
-            ~job->GetOperation()->GetOperationId().ToString(),
-            ~job->GetId().ToString());
-
-        auto* list = GetUpdateList(job->GetOperation());
-        YCHECK(!list->FinalizationPending);
-        YCHECK(list->PendingJobCreations.insert(job).second);
-    }
-
-    void UpdateJobNode(TJobPtr job)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
-
-        LOG_DEBUG("Updating job node (OperationId: %s, JobId: %s)",
-            ~job->GetOperation()->GetOperationId().ToString(),
-            ~job->GetId().ToString());
-
-        auto* list = GetUpdateList(job->GetOperation());
-        YCHECK(!list->FinalizationPending);
-        list->PendingJobUpdates.insert(job);
-    }
-
-    void SetJobStdErr(TJobPtr job, const NChunkClient::TChunkId& chunkId)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
-        YCHECK(chunkId != NullChunkId);
-
-        LOG_DEBUG("Setting job stderr (OperationId: %s, JobId: %s, StdErrChunkId: %s)",
+        LOG_DEBUG("Creating job node (OperationId: %s, JobId: %s, StdErrChunkId: %s)",
             ~job->GetOperation()->GetOperationId().ToString(),
             ~job->GetId().ToString(),
             ~chunkId.ToString());
 
         auto* list = GetUpdateList(job->GetOperation());
         YCHECK(!list->FinalizationPending);
-        list->PendingStdErrChunkIds.insert(std::make_pair(job, chunkId));
+        list->PendingJobs.insert(std::make_pair(job, chunkId));
     }
-
 
     DEFINE_SIGNAL(void(TObjectServiceProxy::TReqExecuteBatchPtr), WatcherRequest);
     DEFINE_SIGNAL(void(TObjectServiceProxy::TRspExecuteBatchPtr), WatcherResponse);
@@ -217,9 +189,7 @@ private:
         { }
 
         TOperationPtr Operation;
-        yhash_set<TJobPtr> PendingJobCreations;
-        yhash_set<TJobPtr> PendingJobUpdates;
-        yhash_map<TJobPtr, TChunkId> PendingStdErrChunkIds;
+        yhash_map<TJobPtr, TChunkId> PendingJobs;
         bool FinalizationPending;
         TPromise<void> Flushed;
         TPromise<void> Finalized;
@@ -680,7 +650,6 @@ private:
         }
     }
 
-
     TOperationUpdateList* CreateUpdateList(TOperationPtr operation)
     {
         TOperationUpdateList list(Bootstrap->GetMasterChannel(), operation);
@@ -780,36 +749,25 @@ private:
         }
 
         // Create jobs.
-        FOREACH (auto job, list->PendingJobCreations) {
+        FOREACH (auto pair, list->PendingJobs) {
+            auto job = pair.first;
+            auto chunkId = pair.second;
             auto jobPath = GetJobPath(operation->GetOperationId(), job->GetId());
             auto req = TYPathProxy::Set(jobPath);
             req->set_value(BuildJobYson(job).Data());
             batchReq->AddRequest(req);
-        }
-        list->PendingJobCreations.clear();
-        
-        // Update jobs.
-        FOREACH (auto job, list->PendingJobUpdates) {
-            auto jobPath = GetJobPath(operation->GetOperationId(), job->GetId());
-            auto req = TYPathProxy::Set(jobPath + "/@");
-            req->set_value(BuildJobAttributesYson(job).Data());
-            batchReq->AddRequest(req);
-        }
-        list->PendingJobUpdates.clear();
 
-        // Set stderrs.
-        FOREACH (const auto& pair, list->PendingStdErrChunkIds) {
-            auto job = pair.first;
-            auto chunkId = pair.second;
-            auto stdErrPath = GetStdErrPath(operation->GetOperationId(), job->GetId());
-            auto req = TCypressYPathProxy::Create(stdErrPath);
-            req->set_type(EObjectType::File);
-            auto* reqExt = req->MutableExtension(NFileClient::NProto::TReqCreateFileExt::create_file);
-            *reqExt->mutable_chunk_id() = chunkId.ToProto();
-            GenerateRpcMutationId(req);
-            batchReq->AddRequest(req);
+            if (chunkId != NullChunkId) {
+                auto stdErrPath = GetStdErrPath(operation->GetOperationId(), job->GetId());
+                auto req = TCypressYPathProxy::Create(stdErrPath);
+                req->set_type(EObjectType::File);
+                auto* reqExt = req->MutableExtension(NFileClient::NProto::TReqCreateFileExt::create_file);
+                *reqExt->mutable_chunk_id() = chunkId.ToProto();
+                GenerateRpcMutationId(req);
+                batchReq->AddRequest(req);
+            }
         }
-        list->PendingStdErrChunkIds.clear();
+        list->PendingJobs.clear();
     }
 
     void OnOperationNodesUpdated(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
@@ -970,19 +928,9 @@ TFuture<void> TMasterConnector::FinalizeOperationNode(TOperationPtr operation)
     return Impl->FinalizeOperationNode(operation);
 }
 
-void TMasterConnector::CreateJobNode(TJobPtr job)
+void TMasterConnector::CreateJobNode(TJobPtr job, const NChunkClient::TChunkId& chunkId)
 {
-    return Impl->CreateJobNode(job);
-}
-
-void TMasterConnector::UpdateJobNode(TJobPtr job)
-{
-    return Impl->UpdateJobNode(job);
-}
-
-void TMasterConnector::SetJobStdErr(TJobPtr job, const TChunkId& chunkId)
-{
-    Impl->SetJobStdErr(job, chunkId);
+    return Impl->CreateJobNode(job, chunkId);
 }
 
 DELEGATE_SIGNAL(TMasterConnector, void(TObjectServiceProxy::TReqExecuteBatchPtr), WatcherRequest, *Impl);
