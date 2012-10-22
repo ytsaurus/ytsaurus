@@ -307,7 +307,7 @@ TCellId TObjectManager::GetCellId() const
     return Config->CellId;
 }
 
-TGuid TObjectManager::GetCellGuid() const
+const TGuid& TObjectManager::GetCellGuid() const
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 

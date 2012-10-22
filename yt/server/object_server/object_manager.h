@@ -63,7 +63,7 @@ public:
     TCellId GetCellId() const;
 
     //! Returns the cell unique id.
-    TGuid GetCellGuid() const;
+    const TGuid& GetCellGuid() const;
 
     //! Creates a new unique object id.
     TObjectId GenerateId(EObjectType type);
