@@ -88,22 +88,16 @@ protected:
     //! The template for starting new jobs.
     TJobSpec JobSpecTemplate;
 
-    //! Number of output partitions generated so far.
+    //! The number of output partitions generated so far.
     /*!
      *  Each partition either corresponds to a merge task or to a pass-through chunk.
      *  Partition index is used as a key when calling #TOperationControllerBase::RegisterOutputChunkTree.
      */
     int PartitionCount;
 
-<<<<<<< HEAD
-=======
-    TJobIOConfigPtr JobIOConfig;
-
-    // Overrides spec limit to fulfill global limit on job count.
+    //! Overrides the spec limit to satisfy global job count limit.
     i64 MaxDataSizePerJob;
 
->>>>>>> de8c3dd... Global limit on job count.
-    // Merge task.
 
     class TMergeTask
         : public TTask
