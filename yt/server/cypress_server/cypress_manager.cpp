@@ -203,8 +203,15 @@ TCypressManager::TCypressManager(TBootstrap* bootstrap)
     YCHECK(bootstrap);
     VERIFY_INVOKER_AFFINITY(bootstrap->GetMetaStateFacade()->GetUnguardedInvoker(), StateThread);
 
-    RootService = New<TRootService>(Bootstrap)
-        ->Via(Bootstrap->GetMetaStateFacade()->GetGuardedInvoker());
+    auto cellId = Bootstrap->GetObjectManager()->GetCellId();
+    RootNodeId = MakeId(
+        EObjectType::MapNode,
+        cellId,
+        0xffffffffffffffff,
+        static_cast<ui32>(cellId * 901517) ^ 0x140a8383);
+
+    RootService = New<TRootService>(Bootstrap)->Via(
+        Bootstrap->GetMetaStateFacade()->GetGuardedInvoker());
 
     auto transactionManager = bootstrap->GetTransactionManager();
     transactionManager->SubscribeTransactionCommitted(BIND(
@@ -359,17 +366,14 @@ void TCypressManager::DestroyNodeBehavior(const TNodeId& id)
     LOG_DEBUG("Node behavior destroyed (NodeId: %s)", ~id.ToString());
 }
 
-TNodeId TCypressManager::GetRootNodeId()
+const TNodeId& TCypressManager::GetRootNodeId() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return CreateId(
-        EObjectType::MapNode,
-        Bootstrap->GetObjectManager()->GetCellId(),
-        0xffffffffffffffff);
+    return RootNodeId;
 }
 
-IYPathServicePtr TCypressManager::GetRootService()
+IYPathServicePtr TCypressManager::GetRootService() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

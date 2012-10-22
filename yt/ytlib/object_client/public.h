@@ -87,10 +87,11 @@ const int MaxObjectType = 1 << 16;
 EObjectType TypeFromId(const TObjectId& id);
 
 //! Constructs the id from its parts.
-TObjectId CreateId(
+TObjectId MakeId(
     EObjectType type,
     TCellId cellId,
-    ui64 counter);
+    ui64 counter,
+    ui32 hash);
 
 ////////////////////////////////////////////////////////////////////////////////
 

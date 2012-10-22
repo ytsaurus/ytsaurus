@@ -100,8 +100,10 @@ public:
     {
         if (!Root) {
             auto cypressManager = Bootstrap->GetCypressManager();
-            Root = dynamic_cast<TMapNode*>(cypressManager->GetNode(cypressManager->GetRootNodeId()));
-            YCHECK(Root);
+            const auto& rootId = cypressManager->GetRootNodeId();
+            Root = dynamic_cast<TMapNode*>(cypressManager->FindNode(rootId));
+            LOG_FATAL_IF(!Root, "Missing Cypress root node %s; a possible reason could be that cell id has been changed",
+                ~ToString(rootId));
         }
         return !Root->KeyToChild().empty();
     }

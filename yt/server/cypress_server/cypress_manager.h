@@ -75,11 +75,11 @@ public:
      *  \note
      *  This id depends on cell id.
      */
-    TNodeId GetRootNodeId();
+    const TNodeId& GetRootNodeId() const;
 
     //! Returns a service representing the root.
     //! This service is fully thread-safe.
-    NYTree::IYPathServicePtr GetRootService();
+    NYTree::IYPathServicePtr GetRootService() const;
 
     //! Creates a resolver that provides a view in the context of a given transaction.
     NYTree::IYPathResolverPtr CreateResolver(NTransactionServer::TTransaction* transaction = NULL);
@@ -151,6 +151,7 @@ private:
 
     std::vector<INodeTypeHandlerPtr> TypeToHandler;
 
+    TNodeId RootNodeId;
     NYTree::IYPathServicePtr RootService;
 
     yhash_map<TNodeId, INodeBehaviorPtr> NodeBehaviors;
