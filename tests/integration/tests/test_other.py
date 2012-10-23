@@ -106,6 +106,7 @@ class TestVirtualMaps(YTEnvSetup):
     NUM_NODES = 0
 
     def test_chunks(self):
+        gc_collect()
         assert get('//sys/chunks/@count') == 0
         assert get('//sys/underreplicated_chunks/@count') == 0
         assert get('//sys/overreplicated_chunks/@count') == 0

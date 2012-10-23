@@ -15,12 +15,12 @@ class TestFileCommands(YTEnvSetup):
         assert download('//tmp/file') == content
 
         chunk_id = get('//tmp/file/@chunk_id')
-        assert ls('//sys/chunks') == [chunk_id]
+        assert get_chunks() == [chunk_id]
         assert get('//tmp/file/@size') == 9
 
         # check that chunk was deleted
         remove('//tmp/file')
-        assert ls('//sys/chunks') == []
+        assert get_chunks() == []
     
     def test_copy(self):
         content = "some_data"
@@ -34,7 +34,7 @@ class TestFileCommands(YTEnvSetup):
         assert download('//tmp/f2') == content
 
         remove('//tmp/f2')
-        assert ls('//sys/chunks') == []
+        assert get_chunks() == []
 
     def test_copy_tx(self):
         content = "some_data"
@@ -52,4 +52,4 @@ class TestFileCommands(YTEnvSetup):
         assert download('//tmp/f2') == content
 
         remove('//tmp/f2')
-        assert ls('//sys/chunks') == []
+        assert get_chunks() == []

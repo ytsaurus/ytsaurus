@@ -167,6 +167,9 @@ def abort_op(op, **kw):
 def build_snapshot(*args, **kw):
     command('build_snapshot', *args, **kw)
 
+def gc_collect():
+    command('gc_collect')
+
 #########################################
 
 def get(path, **kw):
@@ -200,8 +203,12 @@ def yson2py(yson):
 def py2yson(py):
     return yt.yson.yson.dumps(py, indent='')
 
-def get_transactions(**kw):
-    yson_map = get_str('//sys/transactions', **kw)
-    return yson2py(yson_map).keys()
+def get_transactions():
+    gc_collect()
+    return ls('//sys/transactions')
+
+def get_chunks():
+    gc_collect()
+    return ls('//sys/chunks')
 
 #########################################

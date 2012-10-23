@@ -15,7 +15,7 @@ class TestTableCommands(YTEnvSetup):
         create('table', '//tmp/t')
         write_str('//tmp/t', '{a=10}')
 
-        chunk_ids = ls('//sys/chunks')
+        chunk_ids = get_chunks()
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
 
@@ -272,7 +272,7 @@ class TestTableCommands(YTEnvSetup):
         assert read('//tmp/t2') == [{'a' : 'b'}]
 
         remove('//tmp/t2')
-        assert ls('//sys/chunks') == []
+        assert get_chunks() == []
 
     def test_copy_tx(self):
         create('table', '//tmp/t')
@@ -290,7 +290,7 @@ class TestTableCommands(YTEnvSetup):
         assert read('//tmp/t2') == [{'a' : 'b'}]
 
         remove('//tmp/t2')
-        assert ls('//sys/chunks') == []
+        assert get_chunks() == []
 
     def test_remove_create_under_transaction(self):
         create("table", "//tmp/table_xxx")

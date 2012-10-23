@@ -17,7 +17,6 @@ class TestTxCommands(YTEnvSetup):
         
         #check that transaction is on the master (also within a tx)
         self.assertItemsEqual(get_transactions(), [tx])
-        self.assertItemsEqual(get_transactions(tx = tx), [tx])
 
         commit_transaction(tx)
         #check that transaction no longer exists
@@ -33,7 +32,6 @@ class TestTxCommands(YTEnvSetup):
         tx = start_transaction()
 
         self.assertItemsEqual(get_transactions(), [tx])
-        self.assertItemsEqual(get_transactions(tx = tx), [tx])
         
         abort_transaction(tx)
         #check that transaction no longer exists
