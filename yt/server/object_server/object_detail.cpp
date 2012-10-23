@@ -58,6 +58,11 @@ i32 TObjectBase::GetObjectRefCounter() const
     return RefCounter;
 }
 
+bool TObjectBase::IsAlive() const
+{
+    return RefCounter > 0;
+}
+
 void TObjectBase::Save(const NMetaState::TSaveContext& context) const
 {
     auto* output = context.GetOutput();

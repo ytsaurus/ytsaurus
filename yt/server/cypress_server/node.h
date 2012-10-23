@@ -70,6 +70,8 @@ struct ICypressNode
     virtual i32 UnrefObject() = 0;
     //! Returns the current reference counter value.
     virtual i32 GetObjectRefCounter() const = 0;
+    //! Returns True iff the reference counter is positive.
+    virtual bool IsAlive() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

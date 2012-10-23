@@ -72,6 +72,11 @@ i32 TCypressNodeBase::GetObjectRefCounter() const
     return TObjectBase::GetObjectRefCounter();
 }
 
+bool TCypressNodeBase::IsAlive() const 
+{
+    return TObjectBase::IsAlive();
+}
+
 void TCypressNodeBase::Save(const NCellMaster::TSaveContext& context) const
 {
     TObjectBase::Save(context);

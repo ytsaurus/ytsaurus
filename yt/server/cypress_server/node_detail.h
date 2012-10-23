@@ -54,7 +54,7 @@ protected:
     {
         auto proxy = Bootstrap->GetCypressManager()->GetVersionedNodeProxy(NodeId);
         auto* typedProxy = dynamic_cast<TProxy*>(~proxy);
-        YASSERT(typedProxy);
+        YCHECK(typedProxy);
         return typedProxy;
     }
 
@@ -265,6 +265,7 @@ public:
     virtual i32 RefObject() override;
     virtual i32 UnrefObject() override;
     virtual i32 GetObjectRefCounter() const override;
+    virtual bool IsAlive() const override;
 
     virtual void Save(const NCellMaster::TSaveContext& context) const override;
     virtual void Load(const NCellMaster::TLoadContext& context) override;

@@ -32,7 +32,7 @@ public:
     /*!
      *  \returns the incremented counter.
      */
-    i32 RefObject();
+    int RefObject();
 
     //! Decrements the object's reference counter.
     /*!
@@ -46,6 +46,9 @@ public:
 
     //! Returns the current reference counter.
     i32 GetObjectRefCounter() const;
+
+    //! Returns True iff the reference counter is non-zero.
+    bool IsAlive() const;
 
 protected:
     void Save(const NMetaState::TSaveContext& context) const;

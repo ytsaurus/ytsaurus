@@ -29,7 +29,7 @@ public:
     virtual bool Exists(const TObjectId& id) override
     {
         auto* obj = Map->Find(id);
-        return obj && obj->GetObjectRefCounter() > 0;
+        return obj && obj->IsAlive();
     }
 
     virtual i32 RefObject(const TObjectId& id) override
@@ -88,7 +88,7 @@ protected:
     // We store map by a raw pointer. In most cases this should be OK.
     TMap* Map;
 
-    virtual void DoDestroy(TObject* obj) override
+    virtual void DoDestroy(TObject* obj)
     {
         UNUSED(obj);
     }

@@ -56,7 +56,7 @@ public:
     virtual bool Exists(const TObjectId& id) override
     {
         auto* node = CypressManager->FindNode(id);
-        return node && node->GetObjectRefCounter() > 0;
+        return node && node->IsAlive();
     }
 
     virtual i32 RefObject(const TObjectId& id) override
