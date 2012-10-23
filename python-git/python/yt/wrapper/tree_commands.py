@@ -2,7 +2,7 @@ from common import require, YtError, parse_bool
 from path_tools import dirs, split_table_ranges
 from http import make_request
 
-from yson.yson_types import YSONString
+from yt.yson.yson_types import YSONString
 import config
 
 import os
