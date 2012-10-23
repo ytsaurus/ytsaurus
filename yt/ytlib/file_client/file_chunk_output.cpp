@@ -43,8 +43,8 @@ TFileChunkOutput::TFileChunkOutput(
     , BlockCount(0)
     , Logger(FileWriterLogger)
 {
-    YASSERT(config);
-    YASSERT(masterChannel);
+    YCHECK(config);
+    YCHECK(masterChannel);
 
     Codec = GetCodec(Config->CodecId);
 }
@@ -107,7 +107,7 @@ TFileChunkOutput::~TFileChunkOutput() throw()
 
 void TFileChunkOutput::DoWrite(const void* buf, size_t len)
 {
-    YASSERT(IsOpen);
+    YCHECK(IsOpen);
 
     LOG_DEBUG("Writing data (ChunkId: %s, Size: %d)",
         ~ChunkId.ToString(),
@@ -220,7 +220,7 @@ void TFileChunkOutput::FlushBlock()
 
 TChunkId TFileChunkOutput::GetChunkId() const
 {
-    YASSERT(ChunkId != NullChunkId);
+    YCHECK(ChunkId != NullChunkId);
     return ChunkId;
 }
 
