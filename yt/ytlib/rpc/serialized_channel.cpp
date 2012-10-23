@@ -17,16 +17,16 @@ class TSerializedChannel
 public:
     explicit TSerializedChannel(IChannelPtr underlyingChannel);
 
-    TNullable<TDuration> GetDefaultTimeout() const override;
+    virtual TNullable<TDuration> GetDefaultTimeout() const override;
 
-    bool GetRetryEnabled() const override;
+    virtual bool GetRetryEnabled() const override;
 
-    void Send(
+    virtual void Send(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout) override;
 
-    void Terminate(const TError& error) override;
+    virtual void Terminate(const TError& error) override;
 
     void OnRequestCompleted();
 
@@ -80,18 +80,18 @@ public:
         , Channel(MoveRV(channel))
     { }
 
-    void OnAcknowledgement() override
+    virtual void OnAcknowledgement() override
     {
         UnderlyingHandler->OnAcknowledgement();
     }
     
-    void OnResponse(NBus::IMessagePtr message) override
+    virtual void OnResponse(NBus::IMessagePtr message) override
     {
         UnderlyingHandler->OnResponse(MoveRV(message));
         Channel->OnRequestCompleted();
     }
 
-    void OnError(const TError& error) override
+    virtual void OnError(const TError& error) override
     {
         UnderlyingHandler->OnError(error);
         Channel->OnRequestCompleted();
