@@ -216,10 +216,10 @@ public:
         IServiceContextPtr context,
         const THandlerInvocationOptions& options)
         : Logger(RpcServerLogger)
-        , Context(context)
+        , Context(MoveRV(context))
         , Options(options)
     {
-        YCHECK(context);
+        YCHECK(Context);
     }
 
     void DeserializeRequest()
@@ -312,7 +312,7 @@ public:
     explicit TTypedServiceContext(
         IServiceContextPtr context,
         const THandlerInvocationOptions& options)
-        : TBase(context, options)
+        : TBase(MoveRV(context), options)
     {
         Response_ = ObjectPool<TTypedResponse>().Allocate();
         Response_->Context = this->Context.Get();
@@ -410,7 +410,7 @@ public:
     explicit TOneWayTypedServiceContext(
         IServiceContextPtr context,
         const THandlerInvocationOptions& options)
-        : TBase(context, options)
+        : TBase(MoveRV(context), options)
     { }
 
     using TBase::Wrap;
@@ -610,7 +610,7 @@ private:
         ::NYT::NRpc::IServiceContextPtr context, \
         const ::NYT::NRpc::THandlerInvocationOptions& options) \
     { \
-        auto typedContext = New<TCtx##method>(context, options); \
+        auto typedContext = New<TCtx##method>(MoveRV(context), options); \
         typedContext->DeserializeRequest(); \
         return BIND([=] () { \
             this->method( \
@@ -647,7 +647,7 @@ private:
         ::NYT::NRpc::IServiceContextPtr context, \
         const ::NYT::NRpc::THandlerInvocationOptions& options) \
     { \
-        auto typedContext = New<TCtx##method>(context, options); \
+        auto typedContext = New<TCtx##method>(MoveRV(context), options); \
         typedContext->DeserializeRequest(); \
         return BIND([=] () { \
             this->method( \

@@ -223,7 +223,7 @@ void TServiceBase::OnRequest(
                 &TServiceBase::OnInvocationPrepared,
                 MakeStrong(this),
                 MoveRV(activeRequest),
-                MoveRV(context)));
+                context));
     } else {
         auto preparedHandler = handler.Run(context, options);
         OnInvocationPrepared(
@@ -238,7 +238,7 @@ void TServiceBase::OnInvocationPrepared(
     IServiceContextPtr context,
     TClosure handler)
 {
-    auto guardedHandler = context->Wrap(handler);
+    auto guardedHandler = context->Wrap(MoveRV(handler));
 
     auto wrappedHandler = BIND([=] () {
         auto& timer = activeRequest->Timer;
@@ -281,7 +281,7 @@ void TServiceBase::InvokerHandler(
     IInvokerPtr invoker,
     TClosure handler)
 {
-    if (!invoker->Invoke(handler)) {
+    if (!invoker->Invoke(MoveRV(handler))) {
         context->Reply(TError(
             EErrorCode::Unavailable,
             "Service unavailable"));
