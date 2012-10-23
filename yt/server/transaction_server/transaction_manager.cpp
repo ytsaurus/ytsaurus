@@ -482,7 +482,7 @@ void TTransactionManager::Abort(TTransaction* transaction)
     FOREACH (auto* nestedTransaction, nestedTransactions) {
         Abort(nestedTransaction);
     }
-    YASSERT(transaction->NestedTransactions().empty());
+    YCHECK(transaction->NestedTransactions().empty());
 
     if (IsLeader()) {
         CloseLease(transaction);
@@ -583,9 +583,11 @@ void TTransactionManager::OnActiveQuorumEstablished()
     FOREACH (const auto& pair, TransactionMap) {
         const auto& id = pair.first;
         const auto* transaction = pair.second;
-        auto proxy = objectManager->GetProxy(id, NULL);
-        auto timeout = proxy->Attributes().Find<TDuration>("timeout");
-        CreateLease(transaction, GetActualTimeout(timeout));
+        if (transaction->GetState() == ETransactionState::Active) {
+            auto proxy = objectManager->GetProxy(id, NULL);
+            auto timeout = proxy->Attributes().Find<TDuration>("timeout");
+            CreateLease(transaction, GetActualTimeout(timeout));
+        }
     }
 }
 
