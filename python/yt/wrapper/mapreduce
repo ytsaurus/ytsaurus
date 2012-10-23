@@ -102,7 +102,7 @@ def main():
 """
 Examples:
     Append data to table with replication factor one, gzip codec and chunks of size 1Gb:
-            ./mapreduce -write 'table' -replication_factor 1 -codec 'gzip_normal' -chunksize 1073741824 -append < data
+            ./mapreduce -write 'table' -replicationfactor 1 -codec 'gzip_normal' -chunksize 1073741824 -append < data
 
     Read 10 records from the table:
             ./mapreduce -read 'table[:#10]'
@@ -135,19 +135,20 @@ Examples:
 
     # TODO(ignat): add unsupported arguments
     action_stores = ["read", "write", "writesorted", "map", "reduce", "reducews", "drop",
-                     "erase", "abort_tx", "commit_tx", "renew_tx", "set", "get", "upload", "download"]
-    action_flags = ["version", "copy", "sort", "merge", "list", "listfiles", "start_tx"]
+                     "erase", "aborttx", "committx", "renewtx", "set", "get", "upload", "download",
+                     "createtable"]
+    action_flags = ["version", "copy", "sort", "merge", "list", "listfiles", "starttx"]
 
-    add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "ping_tx", "smart_format", "force", "executable"])
+    add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "pingtx", "smartformat", "force", "executable"])
     add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec",
                                             "inputformat", "outputformat", "tx", "value",
-                                            "replication_factor", "sort_by", "memlimit"])
+                                            "replication_factor", "sortby", "memlimit"])
     add_multiple_args(parser, ["src", "dst", "dstappend", "file", "mapfile", "reducefile", "ytfile", "opt", "ytspec"])
     add_integer_args(parser, ["jobcount", "threadcount", "chunksize", "jcmultiplier"])
 
     add_help_messages(parser,
         [
-            ("abort_tx",
+            ("aborttx",
              "NEW! abort given transaction"),
             ("append",
              "turn on append mode in write operation"),
@@ -158,7 +159,7 @@ Examples:
              "possible values 'snappy', 'lz4', 'gzip_normal', "
              "'gzip_best_compression', 'lz4', by default value "
              "depends on yt installation."),
-            ("commit_tx",
+            ("committx",
              "NEW! commit given transaction"),
             ("copy",
              "copy given tables to one destination table"),
@@ -210,7 +211,7 @@ Examples:
              "NEW! specifies operation output format. "
              "This option has the following format: "
              "'<format options as yson map fragment>format'"),
-            ("ping_tx",
+            ("pingtx",
              "NEW! turn on pinging ancestor transactions"),
             ("prefix",
              "YT use tree structure to store meta information about system objects. "
@@ -225,9 +226,9 @@ Examples:
              "NEW! file for the reduce stage of mapreduce operation"),
             ("reducews",
                  ""),
-            ("renew_tx",
+            ("renewtx",
              "NEW! renew given transaction"),
-            ("replication_factor",
+            ("replicationfactor",
              "NEW! specifies replication factor of tables to write"),
             ("server",
              "address of the proxy "
@@ -236,12 +237,12 @@ Examples:
              "NEW! set value to given path, value should be in json format"),
             ("sort",
              "sort source tables to destination table"),
-            ("sort_by",
-             "NEW! columns to sort_by, this option can be passed multiple times. "
+            ("sortby",
+             "NEW! columns to sortby, this option can be passed multiple times. "
              "The order is important, by default=key,subkey."),
             ("src",
              "source table, this option can be passed multiple times"),
-            ("start_tx",
+            ("starttx",
              "NEW! start transaction, returns transaction id"),
             ("subkey",
              "turn on yamr format with subkey"),
@@ -307,7 +308,7 @@ Examples:
     for option in ["src", "dst", "dstappend", "ytfile"]:
         if vars(args)[option] is not None:
             vars(args)[option] = map(add_prefix, vars(args)[option])
-    for option in ["read", "write", "writesorted", "drop", "get", "set", "download", "upload"]:
+    for option in ["read", "write", "writesorted", "drop", "get", "set", "download", "upload", "createtable"]:
         if vars(args)[option] is not None:
             vars(args)[option] = add_prefix(vars(args)[option])
 
@@ -333,7 +334,7 @@ Examples:
         if args.lenval or args.subkey:
             die("Options subkey and lenval are mutually exclusive with dsv option")
         config.DEFAULT_FORMAT = yt.DsvFormat()
-    if args.smart_format and args.src is not None:
+    if args.smartformat and args.src is not None:
         input_formats = [yt.get_attribute(table, "_format", default="") for table in map(yt.to_name, args.src)]
         if not (not input_formats or all(input_formats[0] == format for format in input_formats)):
             die("Input table have differents format attributes: " + repr(input_formats))
@@ -345,7 +346,7 @@ Examples:
 
     if args.tx is not None:
         config.TRANSACTION = args.tx
-    config.PING_ANSECTOR_TRANSACTIONS = args.ping_tx
+    config.PING_ANSECTOR_TRANSACTIONS = args.pingtx
 
     if args.memlimit is not None:
         config.MEMORY_LIMIT = int(args.memlimit)
@@ -353,9 +354,9 @@ Examples:
     table_writer = {}
     if args.codec is not None:
         table_writer["codec_id"] = args.codec
-    if args.replication_factor is not None:
-        table_writer["replication_factor"] = args.replication_factor
-        table_writer["upload_replication_factor"] = args.replication_factor
+    if args.replicationfactor is not None:
+        table_writer["replicationfactor"] = args.replicationfactor
+        table_writer["upload_replicationfactor"] = args.replicationfactor
     if not table_writer:
         table_writer = None
 
@@ -368,6 +369,8 @@ Examples:
             yt.read_table(
                 yt.Table(args.read, lower_key=args.lowerkey, upper_key=args.upperkey),
                 response_type="iter_content"))
+    if args.createtable is not None:
+        yt.create_table(args.createtable)
     if args.write is not None:
         args.write = yt.Table(args.write, append=args.append)
         yt.write_table(args.write, sys.stdin, table_writer=table_writer)
@@ -398,7 +401,7 @@ Examples:
     if args.copy:
         yt.copy_table(args.src, unlist(dst))
     if args.sort:
-        yt.sort_table(args.src, unlist(dst), table_writer=table_writer, sort_by=args.sort_by, spec=spec)
+        yt.sort_table(args.src, unlist(dst), table_writer=table_writer, sortby=args.sortby, spec=spec)
     if args.merge:
         yt.merge_tables(args.src, unlist(dst), mode="sorted", table_writer=table_writer, spec=spec)
 
@@ -421,17 +424,17 @@ Examples:
         if yt.exists(args.get):
             print json.dumps(yt.get(args.get))
 
-    if args.start_tx:
+    if args.starttx:
         print yt.start_transaction()
-    if args.commit_tx is not None:
-        yt.commit_transaction(args.commit_tx)
-    if args.abort_tx is not None:
-        yt.abort_transaction(args.abort_tx)
-    if args.renew_tx is not None:
-        yt.renew_transaction(args.renew_tx)
+    if args.committx is not None:
+        yt.commit_transaction(args.committx)
+    if args.aborttx is not None:
+        yt.abort_transaction(args.aborttx)
+    if args.renewtx is not None:
+        yt.renew_transaction(args.renewtx)
 
     # Set _format for exisitng destination tables
-    if args.smart_format:
+    if args.smartformat:
         output_tables = []
         if args.write is not None: output_tables.append(args.write)
         if args.writesorted is not None: output_tables.append(args.writesorted)
