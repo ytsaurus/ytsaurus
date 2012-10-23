@@ -22,7 +22,12 @@ protected:
 
 
     void ValidateLeaderStatus();
-    void ValidateInitialized();
+
+private:
+    virtual void InvokerHandler(
+        NRpc::IServiceContextPtr context,
+        IInvokerPtr invoker,
+        TClosure handler) override;
 
 };
 

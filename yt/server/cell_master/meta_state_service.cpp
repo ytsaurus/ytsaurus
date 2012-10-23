@@ -7,6 +7,7 @@ namespace NYT {
 namespace NCellMaster {
 
 using namespace NMetaState;
+using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,9 +29,18 @@ void TMetaStateServiceBase::ValidateLeaderStatus()
     Bootstrap->GetMetaStateFacade()->ValidateLeaderStatus();
 }
 
-void TMetaStateServiceBase::ValidateInitialized()
+void TMetaStateServiceBase::InvokerHandler(
+    IServiceContextPtr context,
+    IInvokerPtr invoker,
+    TClosure handler)
 {
-    Bootstrap->GetMetaStateFacade()->ValidateInitialized();
+    auto* bootstrap = Bootstrap;
+    auto wrappedHandler = BIND([=] () {
+        bootstrap->GetMetaStateFacade()->ValidateInitialized();
+        handler.Run();
+    });
+
+    TServiceBase::InvokerHandler(context, invoker, wrappedHandler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

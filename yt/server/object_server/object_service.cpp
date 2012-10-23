@@ -212,8 +212,6 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
     UNUSED(request);
     UNUSED(response);
 
-    ValidateInitialized();
-
     New<TExecuteSession>(this, context)->Run();
 }
 

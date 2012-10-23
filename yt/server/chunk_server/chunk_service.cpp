@@ -82,6 +82,8 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterNode)
 {
     UNUSED(response);
 
+    ValidateLeaderStatus();
+
     auto metaStateFacade = Bootstrap->GetMetaStateFacade();
     auto chunkManager = Bootstrap->GetChunkManager();
     auto objectManager = Bootstrap->GetObjectManager();
@@ -96,9 +98,6 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterNode)
         ~incarnationId.ToString(),
         ~requestCellGuid.ToString(),
         ~ToString(statistics));
-
-    ValidateInitialized();
-    ValidateLeaderStatus();
 
     auto expectedCellGuid = objectManager->GetCellGuid();
     if (!requestCellGuid.IsEmpty() && requestCellGuid != expectedCellGuid) {
@@ -131,15 +130,14 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterNode)
 
 DEFINE_RPC_SERVICE_METHOD(TChunkService, FullHeartbeat)
 {
+    ValidateLeaderStatus();
+
     auto metaStateFacade = Bootstrap->GetMetaStateFacade();
     auto chunkManager = Bootstrap->GetChunkManager();
 
     auto nodeId = request->node_id();
 
     context->SetRequestInfo("NodeId: %d", nodeId);
-
-    ValidateInitialized();
-    ValidateLeaderStatus();
 
     const auto* node = GetNode(nodeId);
     if (node->GetState() != ENodeState::Registered) {
@@ -159,15 +157,14 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, FullHeartbeat)
 
 DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
 {
+    ValidateLeaderStatus();
+
     auto metaStateFacade = Bootstrap->GetMetaStateFacade();
     auto chunkManager = Bootstrap->GetChunkManager();
 
     auto nodeId = request->node_id();
 
     context->SetRequestInfo("NodeId: %d");
-
-    ValidateInitialized();
-    ValidateLeaderStatus();
 
     auto* node = GetNode(nodeId);
     if (node->GetState() != ENodeState::Online) {
