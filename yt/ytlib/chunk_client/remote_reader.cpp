@@ -89,7 +89,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         TGuard<TSpinLock> guard(SpinLock);
-        if (GetSeedsPromise.IsNull()) {
+        if (!GetSeedsPromise) {
             LOG_INFO("Need fresh chunk seeds");
             GetSeedsPromise = NewPromise<TGetSeedsResult>();
             TDelayedInvoker::Submit(
@@ -103,7 +103,7 @@ public:
 
     void DiscardSeeds(TAsyncGetSeedsResult result)
     {
-        YASSERT(!result.IsNull());
+        YASSERT(result);
         YASSERT(result.IsSet());
 
         TGuard<TSpinLock> guard(SpinLock);
@@ -159,7 +159,7 @@ private:
     void OnChunkFetched(TChunkYPathProxy::TRspLocatePtr rsp)
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YASSERT(!GetSeedsPromise.IsNull());
+        YASSERT(GetSeedsPromise);
 
         {
             TGuard<TSpinLock> guard(SpinLock);
@@ -218,7 +218,7 @@ protected:
         if (!reader)
             return;
 
-        YASSERT(GetSeedsResult.IsNull());
+        YASSERT(!GetSeedsResult);
 
         LOG_INFO("New retry started (RetryIndex: %d)", RetryIndex);
 
@@ -277,7 +277,7 @@ protected:
         LOG_WARNING(error, "Retry failed (RetryIndex: %d)",
             RetryIndex);
 
-        YASSERT(!GetSeedsResult.IsNull());
+        YASSERT(GetSeedsResult);
         reader->DiscardSeeds(GetSeedsResult);
         GetSeedsResult.Reset();
 

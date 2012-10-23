@@ -67,7 +67,7 @@ void TParallelAwaiter::Await(
     const Stroka& timerKey,
     TCallback<void(T)> onResult)
 {
-    YASSERT(!result.IsNull());
+    YASSERT(result);
 
     TCallback<void(T)> wrappedOnResult;
     if (WrapOnResult(onResult, wrappedOnResult)) {
@@ -84,7 +84,7 @@ inline void TParallelAwaiter::Await(
     const Stroka& timerKey,
     TCallback<void(void)> onResult)
 {
-    YASSERT(!result.IsNull());
+    YASSERT(result);
 
     TCallback<void(void)> wrappedOnResult;
     if (WrapOnResult(onResult, wrappedOnResult)) {

@@ -425,7 +425,7 @@ void TSnapshotBuilder::WaitUntilFinished()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    if (!LocalPromise.IsNull()) {
+    if (LocalPromise) {
         LocalPromise.Get();
     }
 }
@@ -434,7 +434,7 @@ bool TSnapshotBuilder::IsInProgress() const
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    return !LocalPromise.IsNull() && !LocalPromise.IsSet();
+    return LocalPromise && !LocalPromise.IsSet();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -52,7 +52,7 @@ public:
             }
 
             channelPromise = ChannelPromise;
-            if (channelPromise.IsNull()) {
+            if (!channelPromise) {
                 channelPromise = ChannelPromise = NewPromise< TValueOrError<IChannelPtr> >();
                 guard.Release();
 
@@ -83,7 +83,7 @@ public:
                 return;
             }
 
-            channel = ChannelPromise.IsNull() ? Null : ChannelPromise.TryGet();
+            channel = ChannelPromise ? ChannelPromise.TryGet() : Null;
             ChannelPromise.Reset();
             TerminationError = error;
             Terminated = true;
@@ -174,7 +174,7 @@ private:
     {
         TGuard<TSpinLock> guard(SpinLock);
 
-        if (!ChannelPromise.IsNull()) {
+        if (ChannelPromise) {
             auto currentChannel = ChannelPromise.TryGet();
             if (currentChannel && currentChannel->IsOK() && currentChannel->Value() == failedChannel) {
                 ChannelPromise.Reset();

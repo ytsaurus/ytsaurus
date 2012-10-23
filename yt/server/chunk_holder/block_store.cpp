@@ -155,7 +155,7 @@ public:
     TCachedBlockPtr Find(const TBlockId& blockId)
     {
         auto asyncResult = Lookup(blockId);
-        if (asyncResult.IsNull()) {
+        if (!asyncResult) {
             LOG_DEBUG("Block cache miss (BlockId: %s)", ~blockId.ToString());
             return NULL;            
         }

@@ -360,12 +360,6 @@ inline TFuture<T>::operator TUnspecifiedBoolType() const
 }
 
 template <class T>
-inline bool TFuture<T>::IsNull() const
-{
-    return Impl.Get() == NULL;
-}
-
-template <class T>
 inline void TFuture<T>::Reset()
 {
     Impl.Reset();
@@ -520,11 +514,6 @@ inline TFuture<void>::TFuture(TFuture<void>&& other)
 inline TFuture<void>::operator TUnspecifiedBoolType() const
 {
     return Impl ? &TFuture::Impl : NULL; 
-}
-
-inline bool TFuture<void>::IsNull() const
-{
-    return Impl.Get() == NULL;
 }
 
 inline void TFuture<void>::Reset()
@@ -692,12 +681,6 @@ template <class T>
 inline TPromise<T>::operator TUnspecifiedBoolType() const
 {
     return Impl ? &TPromise::Impl : NULL;   
-}
-
-template <class T>
-inline bool TPromise<T>::IsNull() const
-{
-    return Impl.Get() == NULL;
 }
 
 template <class T>

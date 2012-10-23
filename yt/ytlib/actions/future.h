@@ -78,9 +78,6 @@ public:
     //! Checks if the future is associated with a state.
     operator TUnspecifiedBoolType() const;
 
-    //! Checks if the future is associated with a state.
-    bool IsNull() const;
-
     //! Drops underlying associated state.
     void Reset();
 
@@ -191,9 +188,6 @@ public:
     //! Checks if the future is associated with a state.
     operator TUnspecifiedBoolType() const;
 
-    //! Checks if the future is associated with a state.
-    bool IsNull() const;
-
     //! Drops underlying associated state.
     void Reset();
 
@@ -303,9 +297,6 @@ public:
     typedef TIntrusivePtr< NYT::NDetail::TPromiseState<T> > TPromise::*TUnspecifiedBoolType;
     //! Checks if the promise is associated with a state.
     operator TUnspecifiedBoolType() const;
-
-    //! Checks if the promise is associated with a state.
-    bool IsNull() const;
 
     //! Drops underlying associated state.
     void Reset();

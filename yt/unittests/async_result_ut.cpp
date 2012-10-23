@@ -23,18 +23,18 @@ TEST(TFutureTest, IsNull)
     TFuture<int> empty;
     TFuture<int> nonEmpty = MakeFuture(42);
 
-    EXPECT_TRUE(empty.IsNull());
-    EXPECT_FALSE(nonEmpty.IsNull());
+    EXPECT_FALSE(empty);
+    EXPECT_TRUE(nonEmpty);
 
     empty = MoveRV(nonEmpty);
 
-    EXPECT_FALSE(empty.IsNull());
-    EXPECT_TRUE(nonEmpty.IsNull());
+    EXPECT_TRUE(empty);
+    EXPECT_FALSE(nonEmpty);
 
     empty.Swap(nonEmpty);
 
-    EXPECT_TRUE(empty.IsNull());
-    EXPECT_FALSE(nonEmpty.IsNull());
+    EXPECT_FALSE(empty);
+    EXPECT_TRUE(nonEmpty);
 }
 
 TEST(TFutureTest, IsNullVoid)
@@ -42,36 +42,36 @@ TEST(TFutureTest, IsNullVoid)
     TFuture<void> empty;
     TFuture<void> nonEmpty = MakeFuture();
 
-    EXPECT_TRUE(empty.IsNull());
-    EXPECT_FALSE(nonEmpty.IsNull());
+    EXPECT_FALSE(empty);
+    EXPECT_TRUE(nonEmpty);
 
     empty = MoveRV(nonEmpty);
 
-    EXPECT_FALSE(empty.IsNull());
-    EXPECT_TRUE(nonEmpty.IsNull());
+    EXPECT_TRUE(empty);
+    EXPECT_FALSE(nonEmpty);
 
     empty.Swap(nonEmpty);
 
-    EXPECT_TRUE(empty.IsNull());
-    EXPECT_FALSE(nonEmpty.IsNull());
+    EXPECT_FALSE(empty);
+    EXPECT_TRUE(nonEmpty);
 }
 
 TEST(TFutureTest, Reset)
 {
     TFuture<int> foo = MakeFuture(42);
 
-    EXPECT_FALSE(foo.IsNull());
+    EXPECT_TRUE(foo);
     foo.Reset();
-    EXPECT_TRUE(foo.IsNull());
+    EXPECT_FALSE(foo);
 }
 
 TEST(TFutureTest, ResetVoid)
 {
     TFuture<void> foo = MakeFuture();
 
-    EXPECT_FALSE(foo.IsNull());
+    EXPECT_TRUE(foo);
     foo.Reset();
-    EXPECT_TRUE(foo.IsNull());
+    EXPECT_FALSE(foo);
 }
 
 TEST(TFutureTest, IsSet)

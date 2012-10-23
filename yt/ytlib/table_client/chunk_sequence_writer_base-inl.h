@@ -71,7 +71,7 @@ bool TChunkSequenceWriterBase<TChunkWriter>::TryWriteRow(const TRow& row)
 template <class TChunkWriter>
 void TChunkSequenceWriterBase<TChunkWriter>::CreateNextSession()
 {
-    YCHECK(NextSession.IsNull());
+    YCHECK(!NextSession);
 
     NextSession = NewPromise<TSession>();
 
@@ -105,7 +105,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkCreated(
     NTransactionClient::TTransactionYPathProxy::TRspCreateObjectPtr rsp)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YCHECK(!NextSession.IsNull());
+    YCHECK(NextSession);
 
     if (!State.IsActive()) {
         return;
@@ -215,7 +215,7 @@ template <class TChunkWriter>
 void TChunkSequenceWriterBase<TChunkWriter>::SwitchSession()
 {
     State.StartOperation();
-    YCHECK(!NextSession.IsNull());
+    YCHECK(NextSession);
     // We're not waiting for the chunk to be closed.
     FinishCurrentSession();
     NextSession.Subscribe(BIND(

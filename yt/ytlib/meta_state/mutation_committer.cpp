@@ -129,7 +129,7 @@ private:
         if (!BatchedRecordsData.empty()) {
             Profiler.Enqueue("/commit_batch_size", BatchedRecordsData.size());
 
-            YASSERT(!LogResult.IsNull());
+            YASSERT(LogResult);
 
             Awaiter = New<TParallelAwaiter>(
                 ControlInvoker,
