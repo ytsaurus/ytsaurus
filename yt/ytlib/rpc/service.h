@@ -563,7 +563,7 @@ protected:
     //! Invokes request handler.
     virtual void InvokerHandler(
         IServiceContextPtr context,
-        TActiveRequestPtr activeRequest,
+        IInvokerPtr invoker,
         TClosure handler);
 
     //! Replies #error to every request in #ActiveRequests, clears the latter one.
