@@ -99,6 +99,7 @@ public:
     public:
         typedef TThis<TParent> TDeepThis;
         typedef TThis<TFluentYsonVoid> TShallowThis;
+        typedef typename TFluentYsonUnwrapper<TParent>::TUnwrapped TUnwrappedParent;
 
         explicit TFluentFragmentBase(IYsonConsumer* consumer, const TParent& parent = TParent())
             : TFluentBase<TParent>(consumer, parent)
@@ -157,6 +158,8 @@ public:
         : public TFluentBase<TParent>
     {
     public:
+        typedef typename TFluentYsonUnwrapper<TParent>::TUnwrapped TUnwrappedParent;
+
         TAnyWithoutAttributes(IYsonConsumer* consumer, const TParent& parent)
             : TFluentBase<TParent>(consumer, parent)
         { }
@@ -305,6 +308,7 @@ public:
     {
     public:
         typedef TAttributes<TParent> TThis;
+        typedef typename TFluentYsonUnwrapper<TParent>::TUnwrapped TUnwrappedParent;
 
         TAttributes(IYsonConsumer* consumer, const TParent& parent)
             : TFluentFragmentBase<TFluentYsonBuilder::TAttributes, TParent>(consumer, parent)
@@ -348,6 +352,7 @@ public:
     {
     public:
         typedef TList<TParent> TThis;
+        typedef typename TFluentYsonUnwrapper<TParent>::TUnwrapped TUnwrappedParent;
 
         explicit TList(IYsonConsumer* consumer, const TParent& parent = TParent())
             : TFluentFragmentBase<TFluentYsonBuilder::TList, TParent>(consumer, parent)
@@ -381,6 +386,7 @@ public:
     {
     public:
         typedef TMap<TParent> TThis;
+        typedef typename TFluentYsonUnwrapper<TParent>::TUnwrapped TUnwrappedParent;
 
         explicit TMap(IYsonConsumer* consumer, const TParent& parent = TParent())
             : TFluentFragmentBase<TFluentYsonBuilder::TMap, TParent>(consumer, parent)
