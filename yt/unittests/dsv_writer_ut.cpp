@@ -155,6 +155,32 @@ TEST(TDsvWriterTest, TabularUsingOnRaw)
     EXPECT_EQ(output, outputStream.Str());
 }
 
+TEST(TDsvWriterTest, ListUsingOnRaw)
+{
+    TStringStream outputStream;
+    TDsvWriter writer(&outputStream, EYsonType::Node);
+
+    writer.OnRaw("[10; 20; 30]", EYsonType::Node);
+    Stroka output =
+        "10\n"
+        "20\n"
+        "30\n";
+
+    EXPECT_EQ(output, outputStream.Str());
+}
+
+TEST(TDsvWriterTest, MapUsingOnRaw)
+{
+    TStringStream outputStream;
+    TDsvWriter writer(&outputStream, EYsonType::Node);
+
+    writer.OnRaw("{a=b; c=d}", EYsonType::Node);
+    Stroka output = "a=b\tc=d";
+
+    EXPECT_EQ(output, outputStream.Str());
+}
+
+
 TEST(TDsvWriterTest, ListInTable)
 {
     TStringStream outputStream;
@@ -164,7 +190,7 @@ TEST(TDsvWriterTest, ListInTable)
     writer.OnBeginMap();
         writer.OnKeyedItem("value");
 
-    EXPECT_ANY_THROW(writer.OnRaw("[10, 20, 30]", EYsonType::Node));
+    EXPECT_ANY_THROW(writer.OnRaw("[10; 20; 30]", EYsonType::Node));
 }
 
 TEST(TDsvWriterTest, MapInTable)

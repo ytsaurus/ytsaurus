@@ -124,15 +124,13 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
         StartRecordIfNeeded();
         ValidatePrefix(CurrentToken);
         State = EState::InsideKey;
-    }
-    else if (State == EState::InsideKey) {
+    } else if (State == EState::InsideKey) {
         StartRecordIfNeeded();
         if (*next == Config->KeyValueSeparator) {
             Consumer->OnKeyedItem(CurrentToken);
             State = EState::InsideValue;
         }
-    }
-    else if (State == EState::InsideValue) {
+    } else if (State == EState::InsideValue) {
         Consumer->OnStringScalar(CurrentToken);
         State = EState::InsideKey;
         FieldCount += 1;

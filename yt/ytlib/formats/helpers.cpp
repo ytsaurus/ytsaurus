@@ -16,14 +16,12 @@ namespace NFormats {
 
 void TFormatsConsumerBase::OnRaw(const TStringBuf& yson, EYsonType type)
 {
-    // On raw is called only for values in table
-
+    // onRaw is supported only on nodes
     if (type != EYsonType::Node) {
         YUNIMPLEMENTED();
     }
 
-    NYTree::TLexer Lexer;
-    
+    // for peformance reason try to consume only one token first
     Lexer.Reset();
     Lexer.Read(yson);
     Lexer.Finish();
@@ -44,19 +42,11 @@ void TFormatsConsumerBase::OnRaw(const TStringBuf& yson, EYsonType type)
             break;
 
         case EntityToken:
-            THROW_ERROR_EXCEPTION("Enitites are not supported as values in table");
-            break;
-
         case BeginListToken:
-            THROW_ERROR_EXCEPTION("Lists are not supported as values in table");
-            break;
-
         case BeginMapToken:
-            THROW_ERROR_EXCEPTION("Maps are not supported as values in table");
-            break;
-
         case BeginAttributesToken:
-            THROW_ERROR_EXCEPTION("Attributes are not supported as values in table");
+            // fallback on usual OnRaw
+            TYsonConsumerBase::OnRaw(yson, type);
             break;
 
         default:
