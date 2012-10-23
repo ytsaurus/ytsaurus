@@ -560,6 +560,12 @@ protected:
     //! Registers a method.
     void RegisterMethod(const TMethodDescriptor& descriptor);
 
+    //! Invokes request handler.
+    virtual void InvokerHandler(
+        IServiceContextPtr context,
+        TActiveRequestPtr activeRequest,
+        TClosure handler);
+
     //! Replies #error to every request in #ActiveRequests, clears the latter one.
     void CancelActiveRequests(const TError& error);
 
@@ -589,8 +595,6 @@ private:
         TClosure handler);
 
     void OnResponse(TActiveRequestPtr activeRequest, NBus::IMessagePtr message);
-
-    void Finish();
 
 };
 

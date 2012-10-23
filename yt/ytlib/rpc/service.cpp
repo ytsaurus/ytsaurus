@@ -268,12 +268,20 @@ void TServiceBase::OnInvocationPrepared(
         }
     });
 
+    InvokerHandler(context, activeRequest, wrappedHandler);
+}
+
+void TServiceBase::InvokerHandler(
+    IServiceContextPtr context,
+    TActiveRequestPtr activeRequest,
+    TClosure handler)
+{
     auto invoker = activeRequest->RuntimeInfo->Descriptor.Invoker;
     if (!invoker) {
         invoker = DefaultInvoker;
     }
 
-    if (!invoker->Invoke(wrappedHandler)) {
+    if (!invoker->Invoke(handler)) {
         context->Reply(TError(
             EErrorCode::Unavailable,
             "Service unavailable"));
