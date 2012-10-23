@@ -22,9 +22,9 @@ private:
     typedef TChunkService TThis;
     typedef TChunkServiceProxy::EErrorCode EErrorCode;
 
-    void ValidateNodeId(TNodeId nodeId) const;
-    void ValidateTransactionId(const TTransactionId& transactionId) const;
-    void CheckAuthorization(const Stroka& address) const;
+    TDataNode* GetNode(TNodeId nodeId);
+
+    void ValidateAuthorization(const Stroka& address);
 
     DECLARE_RPC_SERVICE_METHOD(NProto, RegisterNode);
     DECLARE_RPC_SERVICE_METHOD(NProto, FullHeartbeat);

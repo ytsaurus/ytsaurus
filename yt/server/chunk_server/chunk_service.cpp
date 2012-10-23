@@ -53,27 +53,19 @@ TChunkService::TChunkService(TBootstrap* bootstrap)
             .SetRequestHeavy(true));
 }
 
-void TChunkService::ValidateNodeId(TNodeId nodeId) const
+TDataNode* TChunkService::GetNode(TNodeId nodeId)
 {
-    if (!Bootstrap->GetChunkManager()->FindNode(nodeId)) {
+    auto* node = Bootstrap->GetChunkManager()->FindNode(nodeId);
+    if (!node) {
         THROW_ERROR_EXCEPTION(
             EErrorCode::NoSuchNode,
             "Invalid or expired node id: %d",
             nodeId);
     }
+    return node;
 }
 
-void TChunkService::ValidateTransactionId(const TTransactionId& transactionId) const
-{
-    if (!Bootstrap->GetTransactionManager()->FindTransaction(transactionId)) {
-        THROW_ERROR_EXCEPTION(
-            EErrorCode::NoSuchTransaction,
-            "No such transaction: %s",
-            ~transactionId.ToString());
-    }
-}
-
-void TChunkService::CheckAuthorization(const Stroka& address) const
+void TChunkService::ValidateAuthorization(const Stroka& address)
 {
     auto nodeAuthority = Bootstrap->GetNodeAuthority();
     if (!nodeAuthority->IsAuthorized(address)) {
@@ -118,7 +110,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterNode)
             ~requestCellGuid.ToString());
     }
 
-    CheckAuthorization(address);
+    ValidateAuthorization(address);
 
     TMetaReqRegisterNode registerReq;
     registerReq.set_address(address);
@@ -148,16 +140,15 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, FullHeartbeat)
 
     ValidateInitialized();
     ValidateLeaderStatus();
-    ValidateNodeId(nodeId);
 
-    const auto* node = chunkManager->GetNode(nodeId);
+    const auto* node = GetNode(nodeId);
     if (node->GetState() != ENodeState::Registered) {
         context->Reply(TError(
             EErrorCode::InvalidState,
             Sprintf("Cannot process a full heartbeat in %s state", ~node->GetState().ToString())));
         return;
     }
-    CheckAuthorization(node->GetAddress());
+    ValidateAuthorization(node->GetAddress());
 
     chunkManager
         ->CreateFullHeartbeatMutation(context)
@@ -177,16 +168,15 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
 
     ValidateInitialized();
     ValidateLeaderStatus();
-    ValidateNodeId(nodeId);
 
-    auto* node = chunkManager->GetNode(nodeId);
+    auto* node = GetNode(nodeId);
     if (node->GetState() != ENodeState::Online) {
         context->Reply(TError(
             EErrorCode::InvalidState,
             Sprintf("Cannot process an incremental heartbeat in %s state", ~node->GetState().ToString())));
         return;
     }
-    CheckAuthorization(node->GetAddress());
+    ValidateAuthorization(node->GetAddress());
 
     TMetaReqIncrementalHeartbeat heartbeatReq;
     heartbeatReq.set_node_id(nodeId);

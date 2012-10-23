@@ -217,11 +217,11 @@ public:
         , ChunkManager(chunkManager)
     { }
 
-    void AddSession(
-        NCellMaster::TBootstrap* bootstrap,
+    void StartSession(
+        TBootstrap* bootstrap,
         const TChunkList* root,
-        const NTableClient::NProto::TReadLimit& lowerBound,
-        const NTableClient::NProto::TReadLimit& upperBound)
+        const TReadLimit& lowerBound,
+        const TReadLimit& upperBound)
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -256,8 +256,8 @@ private:
 
     virtual void OnChunk(
         const TChunk* chunk, 
-        const NTableClient::NProto::TReadLimit& startLimit,
-        const NTableClient::NProto::TReadLimit& endLimit) override
+        const TReadLimit& startLimit,
+        const TReadLimit& endLimit) override
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -327,8 +327,8 @@ private:
 
         auto wrappedError = TError(
             error.GetCode() == ETraversingError::Retriable
-            ? NRpc::EErrorCode::Unavailable
-            : TError::Fail,
+            ? NRpc::EErrorCode(NRpc::EErrorCode::Unavailable)
+            : NRpc::EErrorCode(TError::Fail),
             "Failed to fetch table")
             << error;
         Context->Reply(wrappedError);
@@ -396,14 +396,14 @@ bool TTableNodeProxy::IsWriteRequest(IServiceContextPtr context) const
 
 void TTableNodeProxy::TraverseChunkTree(std::vector<TChunkId>* chunkIds, const TChunkList* chunkList)
 {
-    FOREACH (auto child, chunkList->Children()) {
-        switch (child.GetType()) {
+    FOREACH (auto childRef, chunkList->Children()) {
+        switch (childRef.GetType()) {
             case EObjectType::Chunk: {
-                chunkIds->push_back(child.GetId());
+                chunkIds->push_back(childRef.GetId());
                 break;
             }
             case EObjectType::ChunkList: {
-                TraverseChunkTree(chunkIds, child.AsChunkList());
+                TraverseChunkTree(chunkIds, childRef.AsChunkList());
                 break;
             }
             default:
@@ -639,14 +639,14 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
 
     if (request->negate()) {
         if (lowerLimit.has_row_index() || lowerLimit.has_key()) {
-            visitor->AddSession(Bootstrap, chunkList, TReadLimit(), lowerLimit);
+            visitor->StartSession(Bootstrap, chunkList, TReadLimit(), lowerLimit);
         }
 
         if (upperLimit.has_row_index() || upperLimit.has_key()) {
-            visitor->AddSession(Bootstrap, chunkList, upperLimit, TReadLimit());
+            visitor->StartSession(Bootstrap, chunkList, upperLimit, TReadLimit());
         }
     } else {
-        visitor->AddSession(Bootstrap, chunkList, lowerLimit, upperLimit);
+        visitor->StartSession(Bootstrap, chunkList, lowerLimit, upperLimit);
     }
 
     visitor->Complete();
