@@ -179,6 +179,14 @@ test_drop()
     ./mapreduce -get "ignat/xxx"
 }
 
+test_create_table()
+{
+    ./mapreduce -createtable "ignat/empty_table"
+    ./mapreduce -set "ignat/empty_table/@xxx" -value "my_value"
+    echo -e "x\ty" | ./mapreduce -write "ignat/empty_table" -append
+    ./mapreduce -get "ignat/empty_table/@xxx"
+}
+
 test_base_functionality
 test_codec
 test_many_output_tables
@@ -192,5 +200,6 @@ test_ignore_positional_arguments
 test_stderr
 test_smart_format
 test_drop
+test_create_table
 
 rm -f table_file big_file
