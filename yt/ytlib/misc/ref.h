@@ -103,8 +103,8 @@ public:
         return memcmp(lhs.Begin(), rhs.Begin(), lhs.Size()) == 0;
     }
 
-    // Implicit conversion to bool.
     typedef char* TRef::*TUnspecifiedBoolType;
+    //! Implicit conversion to bool.
     operator TUnspecifiedBoolType() const
     {
         return Data ? &TRef::Data : NULL;
