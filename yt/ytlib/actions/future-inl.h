@@ -675,7 +675,7 @@ inline TFuture<void> MakeFuture()
 
 template <class T>
 inline TPromise<T>::TPromise()
-    : Impl()
+    : Impl(NULL)
 { }
 
 template <class T>
@@ -807,7 +807,7 @@ inline TPromise<T>::TPromise(
 // #TPromise<void>
 
 inline TPromise<void>::TPromise()
-    : Impl()
+    : Impl(NULL)
 { }
 
 inline TPromise<void>::TPromise(const TPromise<void>& other)
