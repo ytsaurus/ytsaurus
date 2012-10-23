@@ -9,6 +9,7 @@
 #include <ytlib/misc/delayed_invoker.h>
 
 #include <ytlib/actions/async_pipeline.h>
+#include <ytlib/actions/parallel_awaiter.h>
 
 #include <ytlib/rpc/serialized_channel.h>
 
@@ -102,6 +103,8 @@ public:
             ~ToString(id));
 
         auto* list = GetUpdateList(operation);
+        YCHECK(list->State == EUpdateListState::Active);
+        list->State = EUpdateListState::Flushing;
 
         // Create a batch update for this particular operation.
         TObjectServiceProxy proxy(list->SerializedChannel);
@@ -112,7 +115,7 @@ public:
             BIND(&TImpl::OnOperationNodeFlushed, MakeStrong(this), operation)
                 .Via(CancelableControlInvoker));
 
-        return list->Flushed;
+        return list->FlushedPromise;
     }
 
     TFuture<void> FinalizeOperationNode(TOperationPtr operation)
@@ -125,8 +128,8 @@ public:
             ~ToString(id));
 
         auto* list = GetUpdateList(operation);
-        YCHECK(!list->FinalizationPending);
-        list->FinalizationPending = true;
+        YCHECK(list->State == EUpdateListState::Flushed);
+        list->State = EUpdateListState::Finalizing;
 
         // Create a batch update for this particular operation.
         TObjectServiceProxy proxy(list->SerializedChannel);
@@ -137,7 +140,7 @@ public:
             BIND(&TImpl::OnOperationNodeFinalized, MakeStrong(this), operation)
                 .Via(CancelableControlInvoker));
 
-        return list->Finalized;
+        return list->FinalizedPromise;
     }
 
 
@@ -152,7 +155,7 @@ public:
             ~chunkId.ToString());
 
         auto* list = GetUpdateList(job->GetOperation());
-        YCHECK(!list->FinalizationPending);
+        YCHECK(list->State = EUpdateListState::Active);
         list->PendingJobs.insert(std::make_pair(job, chunkId));
     }
 
@@ -178,25 +181,33 @@ private:
     TPeriodicInvokerPtr OperationNodesUpdateInvoker;
     TPeriodicInvokerPtr WatchersInvoker;
 
-    struct TOperationUpdateList
+    DECLARE_ENUM(EUpdateListState,
+        (Active)
+        (Flushing)
+        (Flushed)
+        (Finalizing)
+        (Finalized)
+    );
+
+    struct TUpdateList
     {
-        TOperationUpdateList(IChannelPtr masterChannel, TOperationPtr operation)
+        TUpdateList(IChannelPtr masterChannel, TOperationPtr operation)
             : Operation(operation)
-            , FinalizationPending(false)
-            , Flushed(NewPromise<void>())
-            , Finalized(NewPromise<void>())
+            , State(EUpdateListState::Active)
+            , FlushedPromise(NewPromise<void>())
+            , FinalizedPromise(NewPromise<void>())
             , SerializedChannel(CreateSerializedChannel(masterChannel))
         { }
 
         TOperationPtr Operation;
         yhash_map<TJobPtr, TChunkId> PendingJobs;
-        bool FinalizationPending;
-        TPromise<void> Flushed;
-        TPromise<void> Finalized;
+        EUpdateListState State;
+        TPromise<void> FlushedPromise;
+        TPromise<void> FinalizedPromise;
         IChannelPtr SerializedChannel;
     };
 
-    yhash_map<TOperationId, TOperationUpdateList> UpdateLists;
+    yhash_map<TOperationId, TUpdateList> UpdateLists;
 
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
@@ -260,6 +271,7 @@ private:
 
 
     class TRegistrationPipeline
+
         : public TRefCounted
     {
     public:
@@ -617,7 +629,7 @@ private:
 
     void OnTransactionsRefreshed(
         const std::vector<TTransactionId>& transactionIds,
-        NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+        TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
@@ -650,9 +662,9 @@ private:
         }
     }
 
-    TOperationUpdateList* CreateUpdateList(TOperationPtr operation)
+    TUpdateList* CreateUpdateList(TOperationPtr operation)
     {
-        TOperationUpdateList list(Bootstrap->GetMasterChannel(), operation);
+        TUpdateList list(Bootstrap->GetMasterChannel(), operation);
         auto pair = UpdateLists.insert(std::make_pair(operation->GetOperationId(), list));
         YCHECK(pair.second);
         return &pair.first->second;
@@ -665,7 +677,7 @@ private:
         }
     }
 
-    TOperationUpdateList* GetUpdateList(TOperationPtr operation)
+    TUpdateList* GetUpdateList(TOperationPtr operation)
     {
         auto it = UpdateLists.find(operation->GetOperationId());
         YCHECK(it != UpdateLists.end());
@@ -690,21 +702,60 @@ private:
 
         LOG_INFO("Updating operation nodes");
 
-        // Create a batch update for all operations.
-        TObjectServiceProxy proxy(Bootstrap->GetMasterChannel());
-        auto batchReq = proxy.ExecuteBatch();
+        auto awaiter = New<TParallelAwaiter>(CancelableControlInvoker);
+
         FOREACH (auto& pair, UpdateLists) {
-            auto* list = &pair.second;
-            PrepareOperationUpdate(list, batchReq);
+            auto& list = pair.second;
+            auto operation = list.Operation;
+            if (list.State == EUpdateListState::Active) {
+                LOG_DEBUG("Updating operation node (OperationId: %s)",
+                    ~ToString(operation->GetOperationId()));
+
+                TObjectServiceProxy proxy(list.SerializedChannel);
+                auto batchReq = proxy.ExecuteBatch();
+                PrepareOperationUpdate(&list, batchReq);
+
+                awaiter->Await(
+                    batchReq->Invoke(),
+                    BIND(&TImpl::OnOperationNodeUpdated, MakeStrong(this), operation));
+            }
         }
 
-        batchReq->Invoke().Subscribe(
-            BIND(&TImpl::OnOperationNodesUpdated, MakeStrong(this))
-                .Via(CancelableControlInvoker));
+        awaiter->Complete(BIND(&TImpl::OnOperationNodesUpdated, MakeStrong(this)));
     }
 
+    void OnOperationNodeUpdated(
+        TOperationPtr operation,
+        TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected);
+
+        auto error = batchRsp->GetCumulativeError();
+        if (!error.IsOK()) {
+            LOG_ERROR(error, "Error updating operation node (OperationId: %s)",
+                ~ToString(operation->GetOperationId()));
+            Disconnect();
+            return;
+        }
+
+        LOG_DEBUG("Operation node updated (OperationId: %s)",
+            ~ToString(operation->GetOperationId()));
+    }
+
+    void OnOperationNodesUpdated()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected);
+
+        LOG_INFO("Operation nodes updated");
+
+        OperationNodesUpdateInvoker->ScheduleNext();
+    }
+
+
     void PrepareOperationUpdate(
-        TOperationUpdateList* list,
+        TUpdateList* list,
         TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
         auto operation = list->Operation;
@@ -723,7 +774,7 @@ private:
             auto req = TYPathProxy::Set(operationPath + "/@progress");
             req->set_value(BuildYsonFluently()
                 .BeginMap()
-                    .Do(BIND(&IOperationController::BuildProgressYson, operation->GetController()))
+                .Do(BIND(&IOperationController::BuildProgressYson, operation->GetController()))
                 .EndMap().ToString());
             batchReq->AddRequest(req);
         }
@@ -731,13 +782,9 @@ private:
         // Set result.
         if (operation->IsFinishedState()) {
             auto req = TYPathProxy::Set(operationPath + "/@result");
-            req->set_value(
-                ConvertToYsonString(
-                    BIND(
-                        &IOperationController::BuildResultYson,
-                        operation->GetController()))
-                .Data()
-            );
+            req->set_value(ConvertToYsonString(BIND(
+                &IOperationController::BuildResultYson,
+                operation->GetController())).Data());
             batchReq->AddRequest(req);
         }
 
@@ -749,7 +796,7 @@ private:
         }
 
         // Create jobs.
-        FOREACH (auto pair, list->PendingJobs) {
+        FOREACH (const auto& pair, list->PendingJobs) {
             auto job = pair.first;
             auto chunkId = pair.second;
             auto jobPath = GetJobPath(operation->GetOperationId(), job->GetId());
@@ -770,22 +817,6 @@ private:
         list->PendingJobs.clear();
     }
 
-    void OnOperationNodesUpdated(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
-
-        OperationNodesUpdateInvoker->ScheduleNext();
-
-        auto error = batchRsp->GetCumulativeError();
-        if (!error.IsOK()) {
-            LOG_ERROR(error, "Error updating operation nodes");
-            Disconnect();
-            return;
-        }
-
-        LOG_INFO("Operation nodes updated");
-    }
 
     TError OnOperationNodeCreated(
         TOperationPtr operation,
@@ -829,7 +860,9 @@ private:
             ~operationId.ToString());
        
         auto* list = GetUpdateList(operation);
-        list->Flushed.Set();
+        YCHECK(list->State == EUpdateListState::Flushing);
+        list->State = EUpdateListState::Flushed;
+        list->FlushedPromise.Set();
     }
 
     void OnOperationNodeFinalized(
@@ -852,7 +885,9 @@ private:
             ~operationId.ToString());
 
         auto* list = GetUpdateList(operation);
-        list->Finalized.Set();
+        YCHECK(list->State == EUpdateListState::Finalizing);
+        list->State = EUpdateListState::Finalized; 
+        list->FinalizedPromise.Set();
 
         RemoveUpdateList(operation);
     }
