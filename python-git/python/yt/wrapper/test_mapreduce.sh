@@ -42,7 +42,7 @@ test_base_functionality()
 test_codec()
 {
     ./mapreduce -write "ignat/temp" -codec "none" <table_file
-    ./mapreduce -write "ignat/temp" -codec "gzip_best_compression" -replication_factor 5 <table_file
+    ./mapreduce -write "ignat/temp" -codec "gzip_best_compression" -replicationfactor 5 <table_file
 }
 
 test_many_output_tables()
@@ -107,14 +107,14 @@ if __name__ == '__main__':
 test_transactions()
 {
     ./mapreduce -subkey -write "ignat/temp" <table_file
-    TX=`./mapreduce -start_tx`
+    TX=`./mapreduce -starttx`
     ./mapreduce -subkey -write "ignat/temp" -append -tx "$TX" < table_file
     ./mapreduce -set "ignat/temp/@my_attr"  -value 10 -tx "$TX"
 
     ./mapreduce -get "ignat/temp/@my_attr"
     ./mapreduce -read "ignat/temp" | wc -l
 
-    ./mapreduce -commit_tx "$TX"
+    ./mapreduce -committx "$TX"
 
     ./mapreduce -get "ignat/temp/@my_attr"
     ./mapreduce -read "ignat/temp" | wc -l
@@ -168,8 +168,8 @@ test_stderr()
 
 test_smart_format()
 {
-    echo -e "key=1\tvalue=2" | ./mapreduce -smart_format -dsv -write "ignat/smart_x"
-    ./mapreduce -smart_format -map "cat" -src "ignat/smart_x" -dst "ignat/smart_y"
+    echo -e "key=1\tvalue=2" | ./mapreduce -smartformat -dsv -write "ignat/smart_x"
+    ./mapreduce -smartformat -map "cat" -src "ignat/smart_x" -dst "ignat/smart_y"
 }
 
 test_drop()

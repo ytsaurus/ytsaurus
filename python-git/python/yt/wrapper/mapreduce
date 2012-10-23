@@ -401,7 +401,7 @@ Examples:
     if args.copy:
         yt.copy_table(args.src, unlist(dst))
     if args.sort:
-        yt.sort_table(args.src, unlist(dst), table_writer=table_writer, sortby=args.sortby, spec=spec)
+        yt.sort_table(args.src, unlist(dst), table_writer=table_writer, sort_by=args.sortby, spec=spec)
     if args.merge:
         yt.merge_tables(args.src, unlist(dst), mode="sorted", table_writer=table_writer, spec=spec)
 
