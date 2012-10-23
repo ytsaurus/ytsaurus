@@ -23,9 +23,8 @@ protected:
     void ValidateLeaderStatus();
 
 private:
-    virtual void InvokerHandler(
+    virtual TClosure PrepareHandler(
         NRpc::IServiceContextPtr context,
-        IInvokerPtr invoker,
         TClosure handler) override;
 
     void OnStopEpoch();

@@ -33,21 +33,15 @@ void TMetaStateServiceBase::ValidateLeaderStatus()
     Bootstrap->GetMetaStateFacade()->ValidateLeaderStatus();
 }
 
-void TMetaStateServiceBase::InvokerHandler(
+TClosure TMetaStateServiceBase::PrepareHandler(
     IServiceContextPtr context,
-    IInvokerPtr invoker,
     TClosure handler)
 {
     auto* bootstrap = Bootstrap;
-    auto wrappedHandler = BIND([=] () {
+    return context->Wrap(BIND([=] () {
         bootstrap->GetMetaStateFacade()->ValidateInitialized();
         handler.Run();
-    });
-
-    TServiceBase::InvokerHandler(
-        MoveRV(context),
-        MoveRV(invoker),
-        MoveRV(wrappedHandler));
+    }));
 }
 
 void TMetaStateServiceBase::OnStopEpoch()

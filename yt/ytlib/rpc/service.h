@@ -560,11 +560,8 @@ protected:
     //! Registers a method.
     void RegisterMethod(const TMethodDescriptor& descriptor);
 
-    //! Invokes request handler.
-    virtual void InvokerHandler(
-        IServiceContextPtr context,
-        IInvokerPtr invoker,
-        TClosure handler);
+    //! Prepares the handler to invocation.
+    virtual TClosure PrepareHandler(IServiceContextPtr context, TClosure handler);
 
     //! Replies #error to every request in #ActiveRequests, clears the latter one.
     void CancelActiveRequests(const TError& error);

@@ -238,7 +238,7 @@ void TServiceBase::OnInvocationPrepared(
     IServiceContextPtr context,
     TClosure handler)
 {
-    auto guardedHandler = context->Wrap(MoveRV(handler));
+    auto preparedHandler = PrepareHandler(context, MoveRV(handler));
 
     auto wrappedHandler = BIND([=] () {
         auto& timer = activeRequest->Timer;
@@ -250,7 +250,7 @@ void TServiceBase::OnInvocationPrepared(
             Profiler.TimingCheckpoint(timer, "wait");
         }
 
-        guardedHandler.Run();
+        preparedHandler.Run();
 
         {
             TGuard<TSpinLock> guard(activeRequest->SpinLock);
@@ -273,19 +273,18 @@ void TServiceBase::OnInvocationPrepared(
         invoker = DefaultInvoker;
     }
 
-    InvokerHandler(context, invoker, wrappedHandler);
-}
-
-void TServiceBase::InvokerHandler(
-    IServiceContextPtr context,
-    IInvokerPtr invoker,
-    TClosure handler)
-{
     if (!invoker->Invoke(MoveRV(handler))) {
         context->Reply(TError(
             EErrorCode::Unavailable,
             "Service unavailable"));
     }
+}
+
+TClosure TServiceBase::PrepareHandler(
+    IServiceContextPtr context,
+    TClosure handler)
+{
+    return context->Wrap(handler);
 }
 
 void TServiceBase::OnResponse(TActiveRequestPtr activeRequest, IMessagePtr message)
