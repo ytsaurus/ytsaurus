@@ -11,7 +11,6 @@ TAsyncStreamState::TAsyncStreamState()
     : IsOperationFinished(true)
     , IsActive_(true)
     , StaticError(MakePromise(TError()))
-    , CurrentError(Null)
 { }
 
 void TAsyncStreamState::Cancel(const TError& error)

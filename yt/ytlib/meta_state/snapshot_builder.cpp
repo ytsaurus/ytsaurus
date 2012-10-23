@@ -231,7 +231,6 @@ TSnapshotBuilder::TSnapshotBuilder(
     , EpochId(epochId)
     , ControlInvoker(controlInvoker)
     , StateInvoker(stateInvoker)
-    , LocalPromise(Null)
 #if defined(_unix_)
     , WatchdogQueue(New<TActionQueue>("SnapshotWDog"))
 #endif
@@ -347,7 +346,7 @@ void TSnapshotBuilder::WatchdogFork(
     pid_t childPid)
 {
     TInstant deadline;
-    TPromise<TResultOrError> localPromise(Null);
+    TPromise<TResultOrError> localPromise;
     {
         auto snapshotBuilder = weakSnapshotBuilder.Lock();
         if (!snapshotBuilder) {

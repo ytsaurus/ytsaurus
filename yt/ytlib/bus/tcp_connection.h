@@ -67,7 +67,6 @@ private:
     struct TQueuedMessage
     {
         TQueuedMessage()
-            : Promise(Null)
         { }
 
         explicit TQueuedMessage(IMessagePtr message)
@@ -99,7 +98,6 @@ private:
     struct TUnackedMessage
     {
         TUnackedMessage()
-            : Promise(Null)
         { }
 
         TUnackedMessage(const TPacketId& packetId, TAsyncErrorPromise promise)

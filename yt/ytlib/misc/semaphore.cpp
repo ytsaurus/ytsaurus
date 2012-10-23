@@ -9,8 +9,6 @@ namespace NYT {
 TAsyncSemaphore::TAsyncSemaphore(i64 maxFreeSlots)
     : MaxFreeSlots(maxFreeSlots)
     , FreeSlotCount(maxFreeSlots)
-    , ReadyEvent(Null)
-    , FreeEvent(Null)
     , StaticResult(MakePromise())
 { }
 
@@ -20,8 +18,8 @@ void TAsyncSemaphore::Release(i64 slots /* = 1 */)
     FreeSlotCount += slots;
     YASSERT(FreeSlotCount <= MaxFreeSlots);
 
-    TPromise<void> ready(Null);
-    TPromise<void> free(Null);
+    TPromise<void> ready;
+    TPromise<void> free;
 
     if (!ReadyEvent.IsNull() && FreeSlotCount > 0) {
         ready.Swap(ReadyEvent);

@@ -35,7 +35,6 @@ TChunk::TChunk(
     , Info_(chunkInfo)
     , HasMeta(true)
     , Meta(chunkMeta)
-    , RemovedEvent(Null)
     , MemoryUsageTracker(memoryUsageTracker)
 {
     MemoryUsageTracker.Acquire(NCellNode::EMemoryConsumer::ChunkMeta, Meta.SpaceUsed());
@@ -49,7 +48,6 @@ TChunk::TChunk(
     : Id_(descriptor.Id)
     , Location_(location)
     , HasMeta(false)
-    , RemovedEvent(Null)
     , MemoryUsageTracker(memoryUsageTracker)
 {
     Info_.set_size(descriptor.Size);

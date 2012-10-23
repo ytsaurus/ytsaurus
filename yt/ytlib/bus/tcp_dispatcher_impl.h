@@ -57,7 +57,6 @@ private:
     struct TQueueEntry
     {
         TQueueEntry()
-            : Promise(Null)
         { }
 
         explicit TQueueEntry(IEventLoopObjectPtr object)

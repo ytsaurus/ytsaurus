@@ -204,7 +204,6 @@ TObjectManager::TObjectManager(
     , RootService(New<TRootService>(bootstrap))
     , GCQueueSizeCounter("/gc_queue_size")
     , DestroyedObjectCounter("/destroyed_object_count")
-    , GCCollectPromise(Null)
 {
     YCHECK(config);
     YCHECK(bootstrap);

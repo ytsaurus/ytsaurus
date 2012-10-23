@@ -55,12 +55,10 @@ public:
         , BlockCache(blockCache)
         , ChunkId(chunkId)
         , Logger(ChunkReaderLogger)
-        , ObjectProxy(new TObjectServiceProxy(masterChannel))
+        , ObjectProxy(masterChannel)
         , InitialSeedAddresses(seedAddresses)
-        , GetSeedsPromise(Null)
     {
         Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
-
     }
 
     void Initialize()
@@ -139,7 +137,7 @@ private:
     TChunkId ChunkId;
     NLog::TTaggedLogger Logger;
 
-    TAutoPtr<TObjectServiceProxy> ObjectProxy;
+    TObjectServiceProxy ObjectProxy;
 
     TSpinLock SpinLock;
     std::vector<Stroka> InitialSeedAddresses;
@@ -153,7 +151,7 @@ private:
         LOG_INFO("Requesting chunk seeds from the master");
 
         auto req = TChunkYPathProxy::Locate(FromObjectId(ChunkId));
-        ObjectProxy->Execute(req).Subscribe(
+        ObjectProxy.Execute(req).Subscribe(
             BIND(&TRemoteReader::OnChunkFetched, MakeWeak(this))
             .Via(TDispatcher::Get()->GetReaderInvoker()));
     }

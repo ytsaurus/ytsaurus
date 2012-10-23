@@ -58,8 +58,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(Flush);
 
-        TPromise<void> promise(Null);
-
+        TPromise<void> promise;
         {
             TGuard<TSpinLock> guard(SpinLock);
 
@@ -95,7 +94,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         PROFILE_TIMING ("/changelog_flush_wait_time") {
-            TPromise<void> promise(Null);
+            TPromise<void> promise;
             {
                 TGuard<TSpinLock> guard(SpinLock);
                 if (FlushQueue.empty() && AppendQueue.empty()) {

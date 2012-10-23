@@ -679,11 +679,6 @@ inline TPromise<T>::TPromise()
 { }
 
 template <class T>
-inline TPromise<T>::TPromise(TNull)
-    : Impl(NULL)
-{ }
-
-template <class T>
 inline TPromise<T>::TPromise(const TPromise<T>& other)
     : Impl(other.Impl)
 { }
@@ -813,10 +808,6 @@ inline TPromise<T>::TPromise(
 
 inline TPromise<void>::TPromise()
     : Impl()
-{ }
-
-inline TPromise<void>::TPromise(TNull)
-    : Impl(NULL)
 { }
 
 inline TPromise<void>::TPromise(const TPromise<void>& other)

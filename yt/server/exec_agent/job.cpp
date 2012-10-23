@@ -50,7 +50,6 @@ TJob::TJob(
     , JobState(EJobState::Running)
     , JobPhase(EJobPhase::Created)
     , Progress(0.0)
-    , JobResult(Null)
     , JobFinished(NewPromise<void>())
     , ProxyConfig(proxyConfig)
 {

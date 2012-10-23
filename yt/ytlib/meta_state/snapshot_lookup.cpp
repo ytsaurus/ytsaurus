@@ -23,7 +23,6 @@ TSnapshotLookup::TSnapshotLookup(
     TCellManagerPtr cellManager)
     : Config(config)
     , CellManager(cellManager)
-    , Promise(Null)
 {
     YASSERT(config);
     YASSERT(cellManager);

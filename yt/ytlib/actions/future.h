@@ -292,10 +292,7 @@ public:
     typedef T TValueType;
 
     //! Empty constructor.
-    //TPromise();
-
-    //! Empty constructor.
-    TPromise(TNull);
+    TPromise();
 
     //! Copy constructor.
     TPromise(const TPromise& other);
@@ -382,7 +379,6 @@ private:
     TIntrusivePtr< NYT::NDetail::TPromiseState<T> > Impl;
 
 private:
-    TPromise();
     friend class TFuture<T>;
 
     template <class U>
@@ -409,10 +405,7 @@ public:
     typedef void TValueType;
 
     //! Empty constructor.
-    //TPromise();
-
-    //! Empty constructor.
-    TPromise(TNull);
+    TPromise();
 
     //! Copy constructor.
     TPromise(const TPromise& other);
@@ -492,7 +485,6 @@ private:
     TIntrusivePtr< NYT::NDetail::TPromiseState<void> > Impl;
 
 private:
-    TPromise();
     friend class TFuture<void>;
 
     template <class U>

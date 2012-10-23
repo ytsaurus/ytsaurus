@@ -21,7 +21,6 @@ public:
         , RetryEnabled(retryEnabled)
         , Producer(producer)
         , Terminated(false)
-        , ChannelPromise(Null)
     { }
 
     virtual TNullable<TDuration> GetDefaultTimeout() const override
@@ -42,7 +41,7 @@ public:
         YASSERT(request);
         YASSERT(responseHandler);
 
-        TPromise< TValueOrError<IChannelPtr> > channelPromise(Null);
+        TPromise< TValueOrError<IChannelPtr> > channelPromise;
         {
             TGuard<TSpinLock> guard(SpinLock);
 

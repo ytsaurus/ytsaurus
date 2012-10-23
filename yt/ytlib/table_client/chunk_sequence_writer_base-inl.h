@@ -39,7 +39,6 @@ TChunkSequenceWriterBase<TChunkWriter>::TChunkSequenceWriterBase(
     , RowCount(0)
     , Progress(0)
     , CompleteChunkSize(0)
-    , NextSession(Null)
     , CloseChunksAwaiter(New<TParallelAwaiter>(NChunkClient::TDispatcher::Get()->GetWriterInvoker()))
     , Logger(TableWriterLogger)
 {
