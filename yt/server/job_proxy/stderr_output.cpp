@@ -40,18 +40,41 @@ TErrorOutput::~TErrorOutput() throw()
 void TErrorOutput::DoWrite(const void* buf, size_t len)
 {
     if (!FileWriter) {
-        LOG_DEBUG("Open stderr stream.");
+        LOG_DEBUG("Opening stderr stream");
+
         FileWriter = new TFileChunkOutput(Config, MasterChannel, TransactionId);
-        FileWriter->Open();
+
+        try {
+            FileWriter->Open();
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error opening stderr stream");
+            // TOOD(babenko): extract constant
+            _exit(777);
+        }
+
+        LOG_DEBUG("Stderr stream opened");
     }
 
-    FileWriter->Write(buf, len);
+    try {
+        FileWriter->Write(buf, len);
+    } catch (const std::exception& ex) {
+        LOG_ERROR(ex, "Error writing to stderr stream");
+        // TOOD(babenko): extract constant
+        _exit(777);
+    }
 }
 
 void TErrorOutput::DoFinish() 
 {
-    if (~FileWriter) {
+    if (!FileWriter)
+        return;
+
+    try {
         FileWriter->Finish();
+    } catch (const std::exception& ex) {
+        LOG_ERROR(ex, "Error closing stderr stream");
+        // TOOD(babenko): extract constant
+        _exit(777);
     }
 }
 
