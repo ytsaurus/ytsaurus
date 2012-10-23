@@ -155,7 +155,7 @@ public:
             ~chunkId.ToString());
 
         auto* list = GetUpdateList(job->GetOperation());
-        YCHECK(list->State = EUpdateListState::Active);
+        YCHECK(list->State == EUpdateListState::Active);
         list->PendingJobs.insert(std::make_pair(job, chunkId));
     }
 
