@@ -354,6 +354,12 @@ inline TFuture<T>::TFuture(TFuture<T>&& other)
 { }
 
 template <class T>
+inline TFuture<T>::operator TUnspecifiedBoolType() const
+{
+    return Impl ? &TFuture::Impl : NULL;   
+}
+
+template <class T>
 inline bool TFuture<T>::IsNull() const
 {
     return Impl.Get() == NULL;
@@ -510,6 +516,11 @@ inline TFuture<void>::TFuture(const TFuture<void>& other)
 inline TFuture<void>::TFuture(TFuture<void>&& other)
     : Impl(MoveRV(other.Impl))
 { }
+
+inline TFuture<void>::operator TUnspecifiedBoolType() const
+{
+    return Impl ? &TFuture::Impl : NULL; 
+}
 
 inline bool TFuture<void>::IsNull() const
 {
@@ -683,6 +694,12 @@ inline TPromise<T>::TPromise(TPromise<T>&& other)
 { }
 
 template <class T>
+inline TPromise<T>::operator TUnspecifiedBoolType() const
+{
+    return Impl ? &TPromise::Impl : NULL;   
+}
+
+template <class T>
 inline bool TPromise<T>::IsNull() const
 {
     return Impl.Get() == NULL;
@@ -809,6 +826,11 @@ inline TPromise<void>::TPromise(const TPromise<void>& other)
 inline TPromise<void>::TPromise(TPromise<void>&& other)
     : Impl(MoveRV(other.Impl))
 { }
+
+inline TPromise<void>::operator TUnspecifiedBoolType() const
+{
+    return Impl ? &TPromise::Impl : NULL;   
+}
 
 inline bool TPromise<void>::IsNull() const
 {

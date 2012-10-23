@@ -74,6 +74,10 @@ public:
     //! Move constructor.
     TFuture(TFuture&& other);
 
+    typedef TIntrusivePtr< NYT::NDetail::TPromiseState<T> > TFuture::* TUnspecifiedBoolType;
+    //! Checks if the future is associated with a state.
+    operator TUnspecifiedBoolType() const;
+
     //! Checks if the future is associated with a state.
     bool IsNull() const;
 
@@ -183,6 +187,10 @@ public:
     //! Move constructor.
     TFuture(TFuture&& other);
 
+    typedef TIntrusivePtr< NYT::NDetail::TPromiseState<void> > TFuture::* TUnspecifiedBoolType;
+    //! Checks if the future is associated with a state.
+    operator TUnspecifiedBoolType() const;
+
     //! Checks if the future is associated with a state.
     bool IsNull() const;
 
@@ -201,7 +209,7 @@ public:
     //! Checks if the value is set.
     bool IsSet() const;
 
-    //! Synchronously waits unitl #Set is called.
+    //! Synchronously waits until #Set is called.
     void Get() const;
 
     //! Attaches a listener.
@@ -295,7 +303,11 @@ public:
     //! Move constructor.
     TPromise(TPromise&& other);
 
-    //! Checks if the future is associated with a state.
+    typedef TIntrusivePtr< NYT::NDetail::TPromiseState<T> > TPromise::*TUnspecifiedBoolType;
+    //! Checks if the promise is associated with a state.
+    operator TUnspecifiedBoolType() const;
+
+    //! Checks if the promise is associated with a state.
     bool IsNull() const;
 
     //! Drops underlying associated state.
@@ -408,7 +420,11 @@ public:
     //! Move constructor.
     TPromise(TPromise&& other);
 
-    //! Checks if the future is associated with a state.
+    typedef TIntrusivePtr< NYT::NDetail::TPromiseState<void> > TPromise::* TUnspecifiedBoolType;
+    //! Checks if the promise is associated with a state.
+    operator TUnspecifiedBoolType() const;
+
+    //! Checks if the promise is associated with a state.
     bool IsNull() const;
 
     //! Drops underlying associated state.
