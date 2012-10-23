@@ -22,11 +22,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TGcCollectExector
+class TGCCollectExector
     : public TExecutor
 {
 public:
-    TGcCollectExector();
+    TGCCollectExector();
 
 private:
     virtual EExitCode DoExecute() override;

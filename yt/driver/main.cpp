@@ -81,7 +81,7 @@ public:
 
         // Admin commands
         RegisterExecutor(New<TBuildSnapshotExecutor>());
-        RegisterExecutor(New<TGcCollectExector>());
+        RegisterExecutor(New<TGCCollectExector>());
     }
 
     int Main(int argc, const char* argv[])

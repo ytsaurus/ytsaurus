@@ -44,20 +44,20 @@ Stroka TBuildSnapshotExecutor::GetCommandName() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TGcCollectExector::TGcCollectExector()
+TGCCollectExector::TGCCollectExector()
 { }
 
-EExitCode TGcCollectExector::DoExecute()
+EExitCode TGCCollectExector::DoExecute()
 {
     TObjectServiceProxy proxy(Driver->GetMasterChannel());
     proxy.SetDefaultTimeout(Null); // infinity
-    auto req = proxy.GcCollect();
+    auto req = proxy.GCCollect();
     auto rsp = req->Invoke().Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error collecting garbage");
     return EExitCode::OK;
 }
 
-Stroka TGcCollectExector::GetCommandName() const
+Stroka TGCCollectExector::GetCommandName() const
 {
     return "gc_collect";
 }
