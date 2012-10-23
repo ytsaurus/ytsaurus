@@ -243,7 +243,7 @@ inline TIntrusivePtr< TAsyncPipeline<void> > StartAsyncPipeline(IInvokerPtr invo
         invoker,
         BIND([=] () {
             return MakeFuture(TValueOrError<void>());
-    }));
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
