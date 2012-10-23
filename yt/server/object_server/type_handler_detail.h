@@ -28,7 +28,8 @@ public:
 
     virtual bool Exists(const TObjectId& id)
     {
-        return Map->Contains(id);
+        auto* obj = Map->Find(id);
+        return obj && obj->GetObjectRefCounter() > 0;
     }
 
     virtual i32 RefObject(const TObjectId& id)
