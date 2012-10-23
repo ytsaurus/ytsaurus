@@ -799,6 +799,7 @@ private:
         if (!error.IsOK()) {
             LOG_ERROR(error, "Error creating operation node (OperationId: %s)",
                 ~operationId.ToString());
+            RemoveUpdateList(operation);
             return error;
         }
 
