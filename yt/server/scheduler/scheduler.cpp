@@ -302,7 +302,10 @@ private:
     TSchedulerConfigPtr Config;
     TBootstrap* Bootstrap;
     TActionQueuePtr BackgroundQueue;
+
     THolder<TMasterConnector> MasterConnector;
+    TCancelableContextPtr CancelableConnectionContext;
+    IInvokerPtr CancelableConnectionControlInvoker;
 
     TAutoPtr<ISchedulerStrategy> Strategy;
 
@@ -347,12 +350,21 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        CancelableConnectionContext = New<TCancelableContext>();
+        CancelableConnectionControlInvoker = CancelableConnectionContext->CreateInvoker(
+            Bootstrap->GetControlInvoker());
+
         RegisterAndReviveOperations(result.Operations);
     }
 
     void OnMasterDisconnected()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+
+        YCHECK(CancelableConnectionContext);
+        CancelableConnectionContext->Cancel();
+        CancelableConnectionContext.Reset();
+        CancelableConnectionControlInvoker.Reset();
 
         auto operations = Operations;
         FOREACH (const auto& pair, operations) {
@@ -933,7 +945,7 @@ private:
         operation->SetState(pendingState);
 
         auto controller = operation->GetController();
-        StartAsyncPipeline(controller->GetCancelableControlInvoker())
+        StartAsyncPipeline(CancelableConnectionControlInvoker)
             ->Add(BIND(&TMasterConnector::FlushOperationNode, ~MasterConnector, operation))
             ->Add(BIND(&IOperationController::Abort, controller))
             ->Add(BIND(&TThis::SetOperationFinalState, MakeStrong(this), operation, finalState, error))
