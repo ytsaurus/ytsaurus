@@ -64,7 +64,7 @@ void TServiceBase::OnBeginRequest(IServiceContextPtr context)
 
     Profiler.Increment(RequestCounter);
 
-    Stroka verb = context->GetVerb();
+    auto& verb = context->GetVerb();
 
     TGuard<TSpinLock> guard(SpinLock);
 
@@ -122,12 +122,12 @@ void TServiceBase::OnBeginRequest(IServiceContextPtr context)
     if (options.HeavyRequest) {
         auto invoker = TRpcDispatcher::Get()->GetPoolInvoker();
         handler
-            .AsyncVia(invoker)
+            .AsyncVia(MoveRV(invoker))
             .Run(context, options)
-            .Subscribe(BIND(&TServiceBase::OnInvocationPrepared, MakeStrong(this), activeRequest));
+            .Subscribe(BIND(&TServiceBase::OnInvocationPrepared, MakeStrong(this), MoveRV(activeRequest)));
     } else {
-        auto preparedHandler = handler.Run(context, options);
-        OnInvocationPrepared(activeRequest, preparedHandler);
+        auto preparedHandler = handler.Run(MoveRV(context), options);
+        OnInvocationPrepared(MoveRV(activeRequest), MoveRV(preparedHandler));
     }
 }
 
