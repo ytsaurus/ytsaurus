@@ -273,7 +273,7 @@ void TServiceBase::OnInvocationPrepared(
         invoker = DefaultInvoker;
     }
 
-    if (!invoker->Invoke(MoveRV(handler))) {
+    if (!invoker->Invoke(MoveRV(wrappedHandler))) {
         context->Reply(TError(
             EErrorCode::Unavailable,
             "Service unavailable"));
