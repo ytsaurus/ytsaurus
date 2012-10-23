@@ -16,12 +16,12 @@ namespace NFormats {
 
 void TFormatsConsumerBase::OnRaw(const TStringBuf& yson, EYsonType type)
 {
-    // onRaw is supported only on nodes
+    // OnRaw is supported only on nodes
     if (type != EYsonType::Node) {
         YUNIMPLEMENTED();
     }
 
-    // for peformance reason try to consume only one token first
+    // For peformance reason try to consume only one token first
     Lexer.Reset();
     Lexer.Read(yson);
     Lexer.Finish();
@@ -45,7 +45,7 @@ void TFormatsConsumerBase::OnRaw(const TStringBuf& yson, EYsonType type)
         case BeginListToken:
         case BeginMapToken:
         case BeginAttributesToken:
-            // fallback on usual OnRaw
+            // Fallback to usual OnRaw
             TYsonConsumerBase::OnRaw(yson, type);
             break;
 
