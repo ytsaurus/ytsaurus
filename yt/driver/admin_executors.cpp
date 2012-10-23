@@ -4,12 +4,14 @@
 #include <ytlib/logging/log_manager.h>
 
 #include <ytlib/meta_state/meta_state_manager_proxy.h>
+#include <ytlib/object_client/object_service_proxy.h>
 
 namespace NYT {
 namespace NDriver {
 
 using namespace NYTree;
 using namespace NMetaState;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,6 +40,26 @@ EExitCode TBuildSnapshotExecutor::DoExecute()
 Stroka TBuildSnapshotExecutor::GetCommandName() const
 {
     return "build_snapshot";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TGcCollectExector::TGcCollectExector()
+{ }
+
+EExitCode TGcCollectExector::DoExecute()
+{
+    TObjectServiceProxy proxy(Driver->GetMasterChannel());
+    proxy.SetDefaultTimeout(Null); // infinity
+    auto req = proxy.GcCollect();
+    auto rsp = req->Invoke().Get();
+    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error collecting garbage");
+    return EExitCode::OK;
+}
+
+Stroka TGcCollectExector::GetCommandName() const
+{
+    return "gc_collect";
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -19,4 +19,10 @@ message TRspExecute
     repeated int32 part_counts = 1;
 }
 
+message TReqGcCollect
+{ }
+
+message TRspGcCollect
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////

@@ -204,6 +204,7 @@ TObjectService::TObjectService(
     , Config(config)
 {
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(GcCollect));
 }
 
 DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
@@ -214,6 +215,11 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
     ValidateInitialized();
 
     New<TExecuteSession>(this, context)->Run();
+}
+
+DEFINE_RPC_SERVICE_METHOD(TObjectService, GcCollect)
+{
+    YUNIMPLEMENTED();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

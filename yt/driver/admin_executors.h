@@ -22,5 +22,18 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGcCollectExector
+    : public TExecutor
+{
+public:
+    TGcCollectExector();
+
+private:
+    virtual EExitCode DoExecute() override;
+    virtual Stroka GetCommandName() const override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT

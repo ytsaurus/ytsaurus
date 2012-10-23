@@ -28,6 +28,7 @@ private:
     TObjectManagerConfigPtr Config;
 
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, Execute);
+    DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, GcCollect);
 
 };
 
