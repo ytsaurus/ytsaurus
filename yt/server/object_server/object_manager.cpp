@@ -204,6 +204,7 @@ TObjectManager::TObjectManager(
     , RootService(New<TRootService>(bootstrap))
     , GCQueueSizeCounter("/gc_queue_size")
     , DestroyedObjectCounter("/destroyed_object_count")
+    , GCCollectPromise(Null)
 {
     YCHECK(config);
     YCHECK(bootstrap);
@@ -459,8 +460,7 @@ void TObjectManager::OnObjectUnreferenced(const TObjectId& id, i32 refCounter)
         refCounter);
 
     if (refCounter == 0) {
-        GCQueue.push_back(id);
-        Profiler.Increment(GCQueueSizeCounter, 1);
+        GCEnqueue(id);
     }
 }
 
@@ -502,7 +502,10 @@ void TObjectManager::Clear()
     VERIFY_THREAD_AFFINITY(StateThread);
 
     Attributes.Clear();
+
     GCQueue.clear();
+    GCCollectPromise = NewPromise<void>();
+    GCCollectPromise.Set();
 }
 
 void TObjectManager::OnStartRecovery()
@@ -517,6 +520,8 @@ void TObjectManager::OnStopRecovery()
 
 bool TObjectManager::ObjectExists(const TObjectId& id)
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+    
     auto handler = FindHandler(TypeFromId(id));
     return handler ? handler->Exists(id) : false;
 }
@@ -525,6 +530,8 @@ IObjectProxyPtr TObjectManager::FindProxy(
     const TObjectId& id,
     TTransaction* transaction)
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     // (NullObjectId, NullTransaction) means the root transaction.
     if (id == NullObjectId && !transaction) {
         return Bootstrap->GetTransactionManager()->GetRootTransactionProxy();
@@ -548,13 +555,17 @@ IObjectProxyPtr TObjectManager::GetProxy(
     const TObjectId& id,
     TTransaction* transaction)
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     auto proxy = FindProxy(id, transaction);
-    YASSERT(proxy);
+    YCHECK(proxy);
     return proxy;
 }
 
 TAttributeSet* TObjectManager::CreateAttributes(const TVersionedObjectId& id)
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     auto result = new TAttributeSet();
     Attributes.Insert(id, result);
     return result;
@@ -562,6 +573,8 @@ TAttributeSet* TObjectManager::CreateAttributes(const TVersionedObjectId& id)
 
 void TObjectManager::RemoveAttributes(const TVersionedObjectId& id)
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     Attributes.Remove(id);
 }
 
@@ -569,6 +582,7 @@ void TObjectManager::BranchAttributes(
     const TVersionedObjectId& originatingId,
     const TVersionedObjectId& branchedId)
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
     UNUSED(originatingId);
     UNUSED(branchedId);
     // We don't store empty deltas at the moment
@@ -578,6 +592,8 @@ void TObjectManager::MergeAttributes(
     const TVersionedObjectId& originatingId,
     const TVersionedObjectId& branchedId)
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     auto* originatingAttributes = FindAttributes(originatingId);
     const auto* branchedAttributes = FindAttributes(branchedId);
     if (!branchedAttributes) {
@@ -606,6 +622,8 @@ void TObjectManager::ExecuteVerb(
     IServiceContextPtr context,
     TCallback<void(IServiceContextPtr)> action)
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     LOG_INFO_UNLESS(IsRecovery(), "ExecuteVerb: %s %s (ObjectId: %s, TransactionId: %s, IsWrite: %s)",
         ~context->GetVerb(),
         ~context->GetPath(),
@@ -666,8 +684,17 @@ void TObjectManager::ExecuteVerb(
     }
 }
 
+TFuture<void> TObjectManager::GCCollect()
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    return GCCollectPromise;
+}
+
 void TObjectManager::ReplayVerb(const TMetaReqExecute& request)
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+
     auto objectId = TObjectId::FromProto(request.object_id());
     auto transactionId = TTransactionId::FromProto(request.transaction_id());
 
@@ -698,13 +725,12 @@ void TObjectManager::DestroyObjects(const NProto::TMetaReqDestroyObjects& reques
 {
     FOREACH (const auto& protoId, request.object_ids()) {
         auto id = TObjectId::FromProto(protoId);
-
-        YCHECK(!GCQueue.empty());
-        YCHECK(GCQueue.front() == id);
-        GCQueue.pop_front();
-        Profiler.Increment(GCQueueSizeCounter, -1);
-
+        // NB: The order of these two calls matters.
+        // GCDequeue will check GCQueue for emptiness and will raise GCCollectPromise when
+        // the latter becomes empty. To enable cascaded GC sweep we don't want this to happen
+        // if some ids are added during DestroyObject.
         DestroyObject(id);
+        GCDequeue(id);
     }
 }
 
@@ -718,6 +744,29 @@ void TObjectManager::DestroyObject(const TObjectId& id)
     LOG_DEBUG_UNLESS(IsRecovery(), "Object destroyed (Type: %s, Id: %s)",
         ~handler->GetType().ToString(),
         ~id.ToString());
+}
+
+void TObjectManager::GCEnqueue(const TObjectId& id)
+{
+    if (GCQueue.empty()) {
+        GCCollectPromise = NewPromise<void>();
+    }
+    GCQueue.push_back(id);
+    
+    Profiler.Increment(GCQueueSizeCounter, 1);
+}
+
+void TObjectManager::GCDequeue(const TObjectId& expectedId)
+{
+    YCHECK(!GCQueue.empty());
+    YCHECK(GCQueue.front() == expectedId);
+    GCQueue.pop_front();
+    if (GCQueue.empty()) {
+        LOG_DEBUG("GC queue is empty");
+        GCCollectPromise.Set();
+    }
+
+    Profiler.Increment(GCQueueSizeCounter, -1);
 }
 
 void TObjectManager::ScheduleGCSweep()

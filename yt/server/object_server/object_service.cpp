@@ -217,7 +217,12 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
 
 DEFINE_RPC_SERVICE_METHOD(TObjectService, GCCollect)
 {
-    YUNIMPLEMENTED();
+    UNUSED(request);
+    UNUSED(response);
+
+    Bootstrap->GetObjectManager()->GCCollect().Subscribe(BIND([=] () {
+        context->Reply();
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

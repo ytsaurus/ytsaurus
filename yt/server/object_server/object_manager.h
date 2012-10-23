@@ -138,6 +138,9 @@ public:
         NRpc::IServiceContextPtr context,
         TCallback<void(NRpc::IServiceContextPtr)> action);
 
+    //! Returns a future that gets set when the GC queues becomes empty.
+    TFuture<void> GCCollect();
+
     DECLARE_METAMAP_ACCESSORS(Attributes, TAttributeSet, TVersionedObjectId);
 
 private:
@@ -163,6 +166,9 @@ private:
     //! but are not destroyed yet.
     std::deque<TObjectId> GCQueue;
 
+    //! This promise is set each time #GCQueue becomes empty.
+    TPromise<void> GCCollectPromise;
+
     void SaveKeys(const NCellMaster::TSaveContext& context) const;
     void SaveValues(const NCellMaster::TSaveContext& context) const;
     void LoadKeys(const NCellMaster::TLoadContext& context);
@@ -184,6 +190,10 @@ private:
 
     void DestroyObjects(const NProto::TMetaReqDestroyObjects& request);
     void DestroyObject(const TObjectId& id);
+
+    void GCEnqueue(const TObjectId& id);
+    void GCDequeue(const TObjectId& expectedId);
+
     void ScheduleGCSweep();
     void GCSweep();
     void OnGCCommitSucceeded();
