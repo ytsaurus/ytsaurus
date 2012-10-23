@@ -205,8 +205,8 @@ class YtTest(YTEnv):
         result = yt.search(table, node_type='table', attributes=('my_attribute', ))
         self.assertEqual(len(result), 1)
         self.assertEqual(str(result[0]), table)
-        self.assertEqual(result[0].attributes['my_attribute'], '10')
-
+        self.assertEqual(result[0].attributes['my_attribute'], {'000': 10})
+        
     def test_operations(self):
         table = self.create_temp_table()
         other_table = TEST_DIR + "/temp_other"
