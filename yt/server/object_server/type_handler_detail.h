@@ -26,25 +26,25 @@ public:
         YASSERT(map);
     }
 
-    virtual bool Exists(const TObjectId& id)
+    virtual bool Exists(const TObjectId& id) override
     {
         auto* obj = Map->Find(id);
         return obj && obj->GetObjectRefCounter() > 0;
     }
 
-    virtual i32 RefObject(const TObjectId& id)
+    virtual i32 RefObject(const TObjectId& id) override
     {
         auto* obj = Map->Get(id);
         return obj->RefObject();
     }
 
-    virtual i32 UnrefObject(const TObjectId& id)
+    virtual i32 UnrefObject(const TObjectId& id) override
     {
         auto* obj = Map->Get(id);
         return obj->UnrefObject();
     }
 
-    virtual i32 GetObjectRefCounter(const TObjectId& id)
+    virtual i32 GetObjectRefCounter(const TObjectId& id) override
     {
         auto* obj = Map->Get(id);
         return obj->GetObjectRefCounter();
@@ -52,7 +52,7 @@ public:
 
     virtual IObjectProxyPtr GetProxy(
         const TObjectId& id,
-        NTransactionServer::TTransaction* transaction)
+        NTransactionServer::TTransaction* transaction) override
     {
         UNUSED(transaction);
         return New< TUnversionedObjectProxyBase<TObject> >(Bootstrap, id, Map);
@@ -61,7 +61,7 @@ public:
     virtual TObjectId Create(
         NTransactionServer::TTransaction* transaction,
         TReqCreateObject* request,
-        TRspCreateObject* response)
+        TRspCreateObject* response) override
     {
         UNUSED(transaction);
         UNUSED(request);
@@ -71,12 +71,12 @@ public:
             ~FormatEnum(GetType()));
     }
 
-    virtual bool IsTransactionRequired() const
+    virtual bool IsTransactionRequired() const override
     {
         return true;
     }
 
-    virtual void Destroy(const TObjectId& objectId)
+    virtual void Destroy(const TObjectId& objectId) override
     {
         // Remove the object from the map but keep it alive.
         TAutoPtr<TObject> objHolder(Map->Release(objectId));
@@ -88,7 +88,7 @@ protected:
     // We store map by a raw pointer. In most cases this should be OK.
     TMap* Map;
 
-    virtual void DoDestroy(TObject* obj)
+    virtual void DoDestroy(TObject* obj) override
     {
         UNUSED(obj);
     }
