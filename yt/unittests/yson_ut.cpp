@@ -3,7 +3,6 @@
 #include <ytlib/ytree/yson_string.h>
 #include <ytlib/ytree/yson_stream.h>
 #include <ytlib/ytree/convert.h>
-
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/ypath_client.h>
 
@@ -20,11 +19,10 @@ using NYT::NYTree::TYsonInput;
 using NYT::NYTree::TYsonWriter;
 using NYT::NYTree::EYsonType;
 using NYT::NYTree::EYsonFormat;
-using NYT::NYTree::BuildYsonFluently;
+using NYT::NYTree::BuildYsonNodeFluently;
 
 class TYsonTest: public ::testing::Test
-{
-};
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -134,47 +132,45 @@ TEST_F(TYsonTest, ConvertToForPODTypes)
 
 TEST_F(TYsonTest, UpdateNodes)
 {
-    auto base = ConvertToNode(
-        BuildYsonFluently()
+    auto base = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("key_a")
+            .Scalar(0)
+
+            .Item("key_b")
+            .BeginAttributes()
+                .Item("attr")
+                .Scalar("some_attr")
+            .EndAttributes()
+            .Scalar(3.0)
+
+            .Item("key_c")
             .BeginMap()
-                .Item("key_a")
-                .Scalar(0)
+                .Item("ignat")
+                .Scalar(70.0)
+            .EndMap()
+        .EndMap();
 
-                .Item("key_b")
-                .BeginAttributes()
-                    .Item("attr")
-                    .Scalar("some_attr")
-                .EndAttributes()
-                .Scalar(3.0)
+    auto patch = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("key_a")
+            .Scalar(100)
 
-                .Item("key_c")
-                .BeginMap()
-                    .Item("ignat")
-                    .Scalar(70.0)
-                .EndMap()
-            .EndMap().GetYsonString());
+            .Item("key_b")
+            .Scalar(0.0)
 
-    auto patch = ConvertToNode(
-        BuildYsonFluently()
+            .Item("key_c")
             .BeginMap()
-                .Item("key_a")
-                .Scalar(100)
+                .Item("max")
+                .Scalar(75.0)
+            .EndMap()
 
-                .Item("key_b")
-                .Scalar(0.0)
-
-                .Item("key_c")
-                .BeginMap()
-                    .Item("max")
-                    .Scalar(75.0)
-                .EndMap()
-
-                .Item("key_d")
-                .BeginMap()
-                    .Item("x")
-                    .Scalar("y")
-                .EndMap()
-            .EndMap().GetYsonString());
+            .Item("key_d")
+            .BeginMap()
+                .Item("x")
+                .Scalar("y")
+            .EndMap()
+        .EndMap();
 
     auto res = UpdateNode(base, patch);
 

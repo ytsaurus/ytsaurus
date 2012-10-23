@@ -169,7 +169,7 @@ protected:
     {
         UNUSED(request);
 
-        response->set_value(NYTree::BuildYsonFluently().Entity().ToString());
+        response->set_value("<>");
         context->Reply();
     }
 

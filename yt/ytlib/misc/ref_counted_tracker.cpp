@@ -119,7 +119,7 @@ void TRefCountedTracker::GetMonitoringInfo(IYsonConsumer* consumer)
         totalAlive += item.AliveObjects;
     }
 
-    auto current = BuildYsonFluently(consumer)
+    BuildYsonFluently(consumer)
         .BeginMap()
             .Item("statistics").DoListFor(items, [] (TFluentList fluent, TItem item) {
                 fluent

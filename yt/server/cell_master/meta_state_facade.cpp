@@ -283,10 +283,10 @@ private:
                     "//sys/masters" + addressPath + "/orchid",
                     transactionId,
                     EObjectType::Orchid,
-                    BuildYsonFluently()
+                    BuildYsonStringFluently()
                         .BeginMap()
                             .Item("remote_address").Scalar(address)
-                        .EndMap().GetYsonString());
+                        .EndMap());
             }
 
             CreateYPath(

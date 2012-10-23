@@ -44,7 +44,8 @@ void TSchedulerCommandBase::StartOperation(EOperationType type)
         operationId = TOperationId::FromProto(rsp->operation_id());
     }
 
-    ReplySuccess(BuildYsonFluently().Scalar(operationId).GetYsonString());
+    ReplySuccess(BuildYsonStringFluently()
+        .Scalar(operationId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

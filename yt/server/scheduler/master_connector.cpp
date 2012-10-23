@@ -501,20 +501,19 @@ private:
 
     static TYsonString BuildOperationYson(TOperationPtr operation)
     {
-        return
-            BuildYsonFluently()
-                .BeginAttributes()
-                    .Do(BIND(&BuildOperationAttributes, operation))
-                    .Item("progress").BeginMap().EndMap()
+        return BuildYsonStringFluently()
+            .BeginAttributes()
+                .Do(BIND(&BuildOperationAttributes, operation))
+                .Item("progress").BeginMap().EndMap()
+                .Item("opaque").Scalar("true")
+            .EndAttributes()
+            .BeginMap()
+                .Item("jobs").BeginAttributes()
                     .Item("opaque").Scalar("true")
                 .EndAttributes()
                 .BeginMap()
-                    .Item("jobs").BeginAttributes()
-                        .Item("opaque").Scalar("true")
-                    .EndAttributes()
-                    .BeginMap()
-                    .EndMap()
-                .EndMap().GetYsonString();
+                .EndMap()
+            .EndMap();
     }
 
     static TOperationPtr ParseOperationYson(const TOperationId& operationId, const IAttributeDictionary& attributes)
@@ -530,22 +529,20 @@ private:
 
     static TYsonString BuildJobYson(TJobPtr job)
     {
-        return
-            BuildYsonFluently()
-                .BeginAttributes()
-                    .Do(BIND(&BuildJobAttributes, job))
-                .EndAttributes()
-                .BeginMap()
-                .EndMap().GetYsonString();
+        return BuildYsonStringFluently()
+            .BeginAttributes()
+                .Do(BIND(&BuildJobAttributes, job))
+            .EndAttributes()
+            .BeginMap()
+            .EndMap();
     }
 
     static TYsonString BuildJobAttributesYson(TJobPtr job)
     {
-        return
-            BuildYsonFluently()
-                .BeginMap()
-                    .Do(BIND(&BuildJobAttributes, job))
-                .EndMap().GetYsonString();
+        return BuildYsonStringFluently()
+            .BeginMap()
+                .Do(BIND(&BuildJobAttributes, job))
+            .EndMap();
     }
 
 
@@ -772,10 +769,10 @@ private:
         // Set progress.
         if (state == EOperationState::Running || operation->IsFinishedState()) {
             auto req = TYPathProxy::Set(operationPath + "/@progress");
-            req->set_value(BuildYsonFluently()
+            req->set_value(BuildYsonStringFluently()
                 .BeginMap()
-                .Do(BIND(&IOperationController::BuildProgressYson, operation->GetController()))
-                .EndMap().ToString());
+                    .Do(BIND(&IOperationController::BuildProgressYson, operation->GetController()))
+                .EndMap().Data());
             batchReq->AddRequest(req);
         }
 

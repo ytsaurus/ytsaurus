@@ -19,17 +19,17 @@ struct TFormatDefaultsConfig
     {
         // Keep this in sync with ytlib/driver/format.cpp
         Register("structured", Structured)
-            .Default(NYTree::ConvertToNode(NYTree::BuildYsonFluently()
+            .Default(NYTree::BuildYsonNodeFluently()
                 .BeginAttributes()
                     .Item("format").Scalar("pretty")
                 .EndAttributes()
-                .Scalar("yson").GetYsonString()));
+                .Scalar("yson"));
         Register("tabular", Tabular)
-            .Default(NYTree::ConvertToNode(NYTree::BuildYsonFluently()
+            .Default(NYTree::BuildYsonNodeFluently()
                 .BeginAttributes()
                     .Item("format").Scalar("text")
                 .EndAttributes()
-                .Scalar("yson").GetYsonString()));
+                .Scalar("yson"));
     }
 };
 
