@@ -5,7 +5,7 @@
 
 #include <ytlib/bus/tcp_dispatcher.h>
 
-#include <ytlib/rpc/rpc_dispatcher.h>
+#include <ytlib/rpc/dispatcher.h>
 
 #include <ytlib/logging/log_manager.h>
 
@@ -290,7 +290,7 @@ int Main(int argc, const char* argv[])
     NMetaState::TAsyncChangeLog::Shutdown();
     NLog::TLogManager::Get()->Shutdown();
     NBus::TTcpDispatcher::Get()->Shutdown();
-    NRpc::TRpcDispatcher::Get()->Shutdown();
+    NRpc::TDispatcher::Get()->Shutdown();
     NChunkClient::TDispatcher::Get()->Shutdown();
     NProfiling::TProfilingManager::Get()->Shutdown();
     TDelayedInvoker::Shutdown();

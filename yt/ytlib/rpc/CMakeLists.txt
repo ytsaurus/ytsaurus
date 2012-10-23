@@ -11,7 +11,7 @@ set( SRCS
   ${BASE}/redirector_service.cpp
   ${BASE}/retrying_channel.cpp
   ${BASE}/roaming_channel.cpp
-  ${BASE}/rpc_dispatcher.cpp
+  ${BASE}/dispatcher.cpp
   ${BASE}/scoped_channel.cpp
   ${BASE}/serialized_channel.cpp
   ${BASE}/server.cpp
@@ -30,7 +30,7 @@ set( HDRS
   ${BASE}/redirector_service.h
   ${BASE}/retrying_channel.h
   ${BASE}/roaming_channel.h
-  ${BASE}/rpc_dispatcher.h
+  ${BASE}/dispatcher.h
   ${BASE}/scoped_channel.h
   ${BASE}/serialized_channel.h
   ${BASE}/server.h

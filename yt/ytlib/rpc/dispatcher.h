@@ -9,12 +9,12 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRpcDispatcher
+class TDispatcher
 {
 public:
-    TRpcDispatcher();
+    TDispatcher();
 
-    static TRpcDispatcher* Get();
+    static TDispatcher* Get();
 
     IInvokerPtr GetPoolInvoker();
 

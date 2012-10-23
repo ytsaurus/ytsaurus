@@ -2,7 +2,7 @@
 #include "client.h"
 #include "private.h"
 #include "message.h"
-#include "rpc_dispatcher.h"
+#include "dispatcher.h"
 
 #include <ytlib/ytree/attribute_helpers.h>
 
@@ -138,7 +138,7 @@ void TClientResponseBase::OnError(const TError& error)
     }
 
     auto this_ = MakeStrong(this);
-    TRpcDispatcher::Get()->GetPoolInvoker()->Invoke(BIND([=] () {
+    TDispatcher::Get()->GetPoolInvoker()->Invoke(BIND([=] () {
         this_->FireCompleted();
     }));
 }
@@ -203,7 +203,7 @@ void TClientResponse::OnResponse(IMessagePtr message)
     }
 
     auto this_ = MakeStrong(this);
-    TRpcDispatcher::Get()->GetPoolInvoker()->Invoke(BIND([=] () {
+    TDispatcher::Get()->GetPoolInvoker()->Invoke(BIND([=] () {
         this_->Deserialize(message);
         this_->FireCompleted();
     }));

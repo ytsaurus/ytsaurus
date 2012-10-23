@@ -2,7 +2,7 @@
 
 #include "public.h"
 #include "client.h"
-#include "rpc_dispatcher.h"
+#include "dispatcher.h"
 
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/hash.h>
@@ -11,6 +11,8 @@
 #include <ytlib/misc/object_pool.h>
 
 #include <ytlib/codecs/codec.h>
+
+#include <ytlib/rpc/rpc.pb.h>
 
 #include <ytlib/profiling/profiler.h>
 
@@ -101,10 +103,11 @@ struct IService
     : public virtual TRefCounted
 {
     virtual Stroka GetServiceName() const = 0;
-    virtual Stroka GetLoggingCategory() const = 0;
-
-    virtual void OnBeginRequest(IServiceContextPtr context) = 0;
-    virtual void OnEndRequest(IServiceContextPtr context) = 0;
+    
+    virtual void OnRequest(
+        const NProto::TRequestHeader& header,
+        NBus::IMessagePtr message,
+        NBus::IBusPtr replyBus) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -338,7 +341,7 @@ public:
         }
 
         if (this->Options.HeavyResponse) {
-            TRpcDispatcher::Get()->GetPoolInvoker()->Invoke(BIND(
+            TDispatcher::Get()->GetPoolInvoker()->Invoke(BIND(
                 &TThis::SerializeResponseAndReply,
                 MakeStrong(this)));
         } else {
@@ -432,12 +435,7 @@ protected:
     //! Information needed to a register a service method.
     struct TMethodDescriptor
     {
-        //! Initializes the instance.
-        TMethodDescriptor(const Stroka& verb, THandler handler)
-            : Verb(verb)
-            , Handler(MoveRV(handler))
-            , OneWay(false)
-        { }
+        TMethodDescriptor(const Stroka& verb, THandler handler);
 
         //! Invoker used to executing the handler.
         //! If NULL then the default one is used.
@@ -510,18 +508,16 @@ protected:
         : public TIntrinsicRefCounted
     {
         TActiveRequest(
-            IServiceContextPtr context,
+            const TRequestId& id,
+            NBus::IBusPtr replyBus,
             TRuntimeMethodInfoPtr runtimeInfo,
-            const NProfiling::TTimer& timer)
-            : Context(context)
-            , RuntimeInfo(runtimeInfo)
-            , Timer(timer)
-            , RunningSync(false)
-            , Completed(false)
-        { }
+            const NProfiling::TTimer& timer);
 
-        //! Service context.
-        IServiceContextPtr Context;
+        //! Request id.
+        TRequestId Id;
+
+        //! Bus for replying back to the client.
+        NBus::IBusPtr ReplyBus;
 
         //! Method that is being served.
         TRuntimeMethodInfoPtr RuntimeInfo;
@@ -564,7 +560,12 @@ protected:
     //! Registers a method.
     void RegisterMethod(const TMethodDescriptor& descriptor);
 
+    //! Replies #error to every request in #ActiveRequests, clears the latter one.
+    void CancelActiveRequests(const TError& error);
+
 private:
+    class TServiceContext;
+
     IInvokerPtr DefaultInvoker;
     Stroka ServiceName;
     Stroka LoggingCategory;
@@ -573,17 +574,23 @@ private:
     //! Protects #RuntimeMethodInfos and #ActiveRequests.
     TSpinLock SpinLock;
     yhash_map<Stroka, TRuntimeMethodInfoPtr> RuntimeMethodInfos;
-    yhash_map<IServiceContextPtr, TActiveRequestPtr> ActiveRequests;
+    yhash_set<TActiveRequestPtr> ActiveRequests;
 
     virtual Stroka GetServiceName() const override;
-    virtual Stroka GetLoggingCategory() const override;
 
-    virtual void OnBeginRequest(IServiceContextPtr context) override;
-    virtual void OnEndRequest(IServiceContextPtr context) override;
+    virtual void OnRequest(
+        const NProto::TRequestHeader& header,
+        NBus::IMessagePtr message,
+        NBus::IBusPtr replyBus) override;
 
     void OnInvocationPrepared(
         TActiveRequestPtr activeRequest,
+        IServiceContextPtr context,
         TClosure handler);
+
+    void OnResponse(TActiveRequestPtr activeRequest, NBus::IMessagePtr message);
+
+    void Finish();
 
 };
 

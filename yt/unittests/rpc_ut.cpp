@@ -31,7 +31,7 @@ class TMyProxy
 public:
     static const Stroka ServiceName;
 
-    TMyProxy(IChannelPtr channel)
+    explicit TMyProxy(IChannelPtr channel)
         : TProxyBase(channel, ServiceName)
     { }
 
@@ -41,7 +41,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NMyRpc, ReplyingCall);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, EmptyCall);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, CustomMessageError);
-    DEFINE_RPC_PROXY_METHOD(NMyRpc, NotRegistredCall);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, NotRegisteredCall);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, LongReply);
 
     DEFINE_ONE_WAY_RPC_PROXY_METHOD(NMyRpc, OneWay);
@@ -117,7 +117,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckAll)
             .SetOneWay(true));
 
-        // Note: NotRegistredCall and NotRegistredOneWay are not registered
+        // Note: NotRegisteredCall and NotRegistredOneWay are not registered
     }
 
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, SomeCall);
@@ -131,7 +131,7 @@ public:
     DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NMyRpc, OneWay);
     DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NMyRpc, CheckAll);
 
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, NotRegistredCall);
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, NotRegisteredCall);
     DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NMyRpc, NotRegistredOneWay);
 private:
     // To signal for one-way rpc requests when processed the request
@@ -168,7 +168,7 @@ DEFINE_RPC_SERVICE_METHOD(TMyService, LongReply)
 }
 
 
-DEFINE_RPC_SERVICE_METHOD(TMyService, NotRegistredCall)
+DEFINE_RPC_SERVICE_METHOD(TMyService, NotRegisteredCall)
 {
     UNUSED(request);
     UNUSED(response);
@@ -381,7 +381,7 @@ TEST_F(TRpcTest, NoService)
 TEST_F(TRpcTest, NoMethod)
 {
     TMyProxy proxy(CreateChannel("localhost:2000"));
-    auto request = proxy.NotRegistredCall();
+    auto request = proxy.NotRegisteredCall();
     auto response = request->Invoke().Get();
 
     EXPECT_EQ(EErrorCode::NoSuchVerb, response->GetError().GetCode());

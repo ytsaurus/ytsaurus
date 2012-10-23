@@ -1,7 +1,7 @@
 #include "stdafx.h"
 
 #include <ytlib/bus/tcp_dispatcher.h>
-#include <ytlib/rpc/rpc_dispatcher.h>
+#include <ytlib/rpc/dispatcher.h>
 #include <ytlib/logging/log_manager.h>
 #include <ytlib/profiling/profiling_manager.h>
 #include <ytlib/meta_state/async_change_log.h>
@@ -89,7 +89,7 @@ int main(int argc, char **argv)
     NYT::NLog::TLogManager::Get()->Shutdown();
     NYT::NProfiling::TProfilingManager::Get()->Shutdown();
     NYT::NBus::TTcpDispatcher::Get()->Shutdown();
-    NYT::NRpc::TRpcDispatcher::Get()->Shutdown();
+    NYT::NRpc::TDispatcher::Get()->Shutdown();
     NYT::NChunkClient::TDispatcher::Get()->Shutdown();
     NYT::TDelayedInvoker::Shutdown();
 

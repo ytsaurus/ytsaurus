@@ -46,6 +46,9 @@ typedef TIntrusivePtr<IChannel> IChannelPtr;
 
 class TChannelCache;
 
+class TServiceBase;
+typedef TIntrusivePtr<TServiceBase> TServiceBasePtr;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef TGuid TRequestId;

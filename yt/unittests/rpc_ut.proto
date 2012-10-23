@@ -25,8 +25,8 @@ message TRspEmptyCall { }
 message TReqCustomMessageError { }
 message TRspCustomMessageError { }
 
-message TReqNotRegistredCall { }
-message TRspNotRegistredCall { }
+message TReqNotRegisteredCall { }
+message TRspNotRegisteredCall { }
 
 message TReqLongReply { }
 message TRspLongReply { }

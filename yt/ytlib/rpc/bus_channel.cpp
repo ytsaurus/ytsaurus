@@ -3,7 +3,7 @@
 #include "private.h"
 #include "client.h"
 #include "message.h"
-#include "rpc_dispatcher.h"
+#include "dispatcher.h"
 
 #include <ytlib/misc/delayed_invoker.h>
 #include <ytlib/misc/thread_affinity.h>
@@ -211,7 +211,7 @@ private:
 
             if (request->IsHeavy()) {
                 BIND(&IClientRequest::Serialize, request)
-                    .AsyncVia(TRpcDispatcher::Get()->GetPoolInvoker())
+                    .AsyncVia(TDispatcher::Get()->GetPoolInvoker())
                     .Run()
                     .Subscribe(BIND(
                         &TSession::OnRequestSerialized,

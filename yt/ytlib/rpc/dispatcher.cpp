@@ -12,21 +12,21 @@ static const int ThreadPoolSize = 8;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRpcDispatcher::TRpcDispatcher()
+TDispatcher::TDispatcher()
     : ThreadPool(New<TThreadPool>(ThreadPoolSize, "Rpc"))
 { }
 
-TRpcDispatcher* TRpcDispatcher::Get()
+TDispatcher* TDispatcher::Get()
 {
-    return Singleton<TRpcDispatcher>();
+    return Singleton<TDispatcher>();
 }
 
-IInvokerPtr TRpcDispatcher::GetPoolInvoker()
+IInvokerPtr TDispatcher::GetPoolInvoker()
 {
     return ThreadPool->GetInvoker();
 }
 
-void TRpcDispatcher::Shutdown()
+void TDispatcher::Shutdown()
 {
     ThreadPool->Shutdown();
 }

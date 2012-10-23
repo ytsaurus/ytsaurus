@@ -1,11 +1,15 @@
 #include "stdafx.h"
 #include "service.h"
 #include "private.h"
-#include "rpc_dispatcher.h"
+#include "dispatcher.h"
+#include "server_detail.h"
+#include "message.h"
 
 #include <ytlib/misc/string.h>
 
 #include <ytlib/ytree/ypath_client.h>
+
+#include <ytlib/bus/bus.h>
 
 #include <ytlib/rpc/rpc.pb.h>
 
@@ -13,8 +17,8 @@ namespace NYT {
 namespace NRpc {
 
 using namespace NBus;
-using namespace NProto;
-using namespace NYTree;
+using namespace NYPath;
+using namespace NRpc::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,13 +27,92 @@ static NProfiling::TProfiler& Profiler = RpcServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TServiceBase::TMethodDescriptor::TMethodDescriptor(
+    const Stroka& verb,
+    THandler handler)
+    : Verb(verb)
+    , Handler(MoveRV(handler))
+    , OneWay(false)
+{ }
+
 TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     const TMethodDescriptor& descriptor,
-    const NYPath::TYPath& profilingPath)
+    const TYPath& profilingPath)
     : Descriptor(descriptor)
     , ProfilingPath(profilingPath)
     , RequestCounter(profilingPath + "/request_rate")
 { }
+
+TServiceBase::TActiveRequest::TActiveRequest(
+    const TRequestId& id,
+    IBusPtr replyBus,
+    TRuntimeMethodInfoPtr runtimeInfo,
+    const NProfiling::TTimer& timer)
+    : Id(id)
+    , ReplyBus(MoveRV(replyBus))
+    , RuntimeInfo(runtimeInfo)
+    , Timer(timer)
+    , RunningSync(false)
+    , Completed(false)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TServiceBase::TServiceContext
+    : public TServiceContextBase
+{
+public:
+    TServiceContext(
+        TServiceBasePtr service,
+        TActiveRequestPtr activeRequest,
+        const NProto::TRequestHeader& header,
+        IMessagePtr requestMessage,
+        IBusPtr replyBus,
+        const Stroka& loggingCategory)
+        : TServiceContextBase(header, requestMessage)
+        , Service(MoveRV(service))
+        , ActiveRequest(MoveRV(activeRequest))
+        , ReplyBus(MoveRV(replyBus))
+        , Logger(loggingCategory)
+    {
+        YCHECK(RequestMessage);
+        YCHECK(ReplyBus);
+        YCHECK(Service);
+    }
+
+private:
+    TServiceBasePtr Service;
+    TActiveRequestPtr ActiveRequest;
+    IBusPtr ReplyBus;
+    NLog::TLogger Logger;
+
+    virtual void DoReply(IMessagePtr responseMessage) override
+    {
+        Service->OnResponse(ActiveRequest, MoveRV(responseMessage));
+    }
+
+    virtual void LogRequest() override
+    {
+        Stroka str;
+        AppendInfo(str, Sprintf("RequestId: %s", ~RequestId.ToString()));
+        AppendInfo(str, RequestInfo);
+        LOG_DEBUG("%s <- %s",
+            ~Verb,
+            ~str);
+    }
+
+    virtual void LogResponse(const TError& error) override
+    {
+        Stroka str;
+        AppendInfo(str, Sprintf("RequestId: %s", ~RequestId.ToString()));
+        AppendInfo(str, Sprintf("Error: %s", ~ToString(error)));
+        AppendInfo(str, ResponseInfo);
+        LOG_DEBUG("%s -> %s",
+            ~Verb,
+            ~str);
+    }
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,12 +120,12 @@ TServiceBase::TServiceBase(
     IInvokerPtr defaultInvoker,
     const Stroka& serviceName,
     const Stroka& loggingCategory)
-    : DefaultInvoker(defaultInvoker)
+    : DefaultInvoker(MoveRV(defaultInvoker))
     , ServiceName(serviceName)
     , LoggingCategory(loggingCategory)
     , RequestCounter("/services/" + ServiceName + "/request_rate")
 {
-    YASSERT(defaultInvoker);
+    YCHECK(DefaultInvoker);
 }
 
 TServiceBase::~TServiceBase()
@@ -53,18 +136,16 @@ Stroka TServiceBase::GetServiceName() const
     return ServiceName;
 }
 
-Stroka TServiceBase::GetLoggingCategory() const
+void TServiceBase::OnRequest(
+    const TRequestHeader& header,
+    IMessagePtr message,
+    IBusPtr replyBus)
 {
-    return LoggingCategory;
-}
-
-void TServiceBase::OnBeginRequest(IServiceContextPtr context)
-{
-    YASSERT(context);
-
     Profiler.Increment(RequestCounter);
 
-    auto& verb = context->GetVerb();
+    const auto& verb = header.verb();
+    bool oneWay = header.one_way();
+    auto requestId = TRequestId::FromProto(header.request_id());
 
     TGuard<TSpinLock> guard(SpinLock);
 
@@ -77,17 +158,18 @@ void TServiceBase::OnBeginRequest(IServiceContextPtr context)
             "Unknown verb %s:%s (RequestId: %s)",
             ~ServiceName,
             ~verb,
-            ~ToString(context->GetRequestId()));
+            ~ToString(requestId));
         LOG_WARNING(error);
-        if (!context->IsOneWay()) {
-            context->Reply(error);
+        if (!oneWay) {
+            auto errorMessage = CreateErrorResponseMessage(requestId, error);
+            replyBus->Send(errorMessage);
         }
 
         return;
     }
 
     auto runtimeInfo = methodIt->second;
-    if (runtimeInfo->Descriptor.OneWay != context->IsOneWay()) {
+    if (runtimeInfo->Descriptor.OneWay != oneWay) {
         guard.Release();
 
         auto error = TError(
@@ -95,12 +177,13 @@ void TServiceBase::OnBeginRequest(IServiceContextPtr context)
             "One-way flag mismatch for verb %s:%s: expected %s, actual %s (RequestId: %s)",
             ~ServiceName,
             ~verb,
-            ~FormatBool(runtimeInfo->Descriptor.OneWay).Quote(),
-            ~FormatBool(context->IsOneWay()).Quote(),
-            ~ToString(context->GetRequestId()));
+            ~FormatBool(runtimeInfo->Descriptor.OneWay),
+            ~FormatBool(oneWay),
+            ~ToString(requestId));
         LOG_WARNING(error);
-        if (!context->IsOneWay()) {
-            context->Reply(error);
+        if (!header.one_way()) {
+            auto errorMessage = CreateErrorResponseMessage(requestId, error);
+            replyBus->Send(errorMessage);
         }
 
         return;
@@ -109,10 +192,22 @@ void TServiceBase::OnBeginRequest(IServiceContextPtr context)
     Profiler.Increment(runtimeInfo->RequestCounter);
     auto timer = Profiler.TimingStart(runtimeInfo->ProfilingPath + "/time");
 
-    auto activeRequest = New<TActiveRequest>(context, runtimeInfo, timer);
+    auto activeRequest = New<TActiveRequest>(
+        requestId,
+        replyBus,
+        runtimeInfo,
+        timer);
 
-    if (!context->IsOneWay()) {
-        YCHECK(ActiveRequests.insert(MakePair(context, activeRequest)).second);
+    auto context = New<TServiceContext>(
+        this,
+        activeRequest,
+        header,
+        message,
+        replyBus,
+        LoggingCategory);
+
+    if (!oneWay) {
+        YCHECK(ActiveRequests.insert(activeRequest).second);
     }
 
     guard.Release();
@@ -120,22 +215,30 @@ void TServiceBase::OnBeginRequest(IServiceContextPtr context)
     auto handler = runtimeInfo->Descriptor.Handler;
     const auto& options = runtimeInfo->Descriptor.Options;
     if (options.HeavyRequest) {
-        auto invoker = TRpcDispatcher::Get()->GetPoolInvoker();
+        auto invoker = TDispatcher::Get()->GetPoolInvoker();
         handler
             .AsyncVia(MoveRV(invoker))
             .Run(context, options)
-            .Subscribe(BIND(&TServiceBase::OnInvocationPrepared, MakeStrong(this), MoveRV(activeRequest)));
+            .Subscribe(BIND(
+                &TServiceBase::OnInvocationPrepared,
+                MakeStrong(this),
+                MoveRV(activeRequest),
+                MoveRV(context)));
     } else {
-        auto preparedHandler = handler.Run(MoveRV(context), options);
-        OnInvocationPrepared(MoveRV(activeRequest), MoveRV(preparedHandler));
+        auto preparedHandler = handler.Run(context, options);
+        OnInvocationPrepared(
+            MoveRV(activeRequest),
+            MoveRV(context),
+            MoveRV(preparedHandler));
     }
 }
 
 void TServiceBase::OnInvocationPrepared(
     TActiveRequestPtr activeRequest,
+    IServiceContextPtr context,
     TClosure handler)
 {
-    auto guardedHandler = activeRequest->Context->Wrap(handler);
+    auto guardedHandler = context->Wrap(handler);
 
     auto wrappedHandler = BIND([=] () {
         auto& timer = activeRequest->Timer;
@@ -152,7 +255,7 @@ void TServiceBase::OnInvocationPrepared(
         {
             TGuard<TSpinLock> guard(activeRequest->SpinLock);
 
-            YASSERT(activeRequest->RunningSync);
+            YCHECK(activeRequest->RunningSync);
             activeRequest->RunningSync = false;
 
             if (!activeRequest->Completed) {
@@ -171,30 +274,30 @@ void TServiceBase::OnInvocationPrepared(
     }
 
     if (!invoker->Invoke(wrappedHandler)) {
-        activeRequest->Context->Reply(TError(
+        context->Reply(TError(
             EErrorCode::Unavailable,
             "Service unavailable"));
     }
 }
 
-void TServiceBase::OnEndRequest(IServiceContextPtr context)
+void TServiceBase::OnResponse(TActiveRequestPtr activeRequest, IMessagePtr message)
 {
-    YASSERT(context);
-    YASSERT(!context->IsOneWay());
+    bool active;
+    {
+        TGuard<TSpinLock> guard(SpinLock);
 
-    TGuard<TSpinLock> guard(SpinLock);
-
-    auto it = ActiveRequests.find(context);
-    if (it == ActiveRequests.end())
-        return;
-
-    auto& activeRequest = it->second;
+        active = ActiveRequests.erase(activeRequest) == 1;
+    }
 
     {
         TGuard<TSpinLock> guard(activeRequest->SpinLock);
 
-        YASSERT(!activeRequest->Completed);
+        YCHECK(!activeRequest->Completed);
         activeRequest->Completed = true;
+
+        if (active) {
+            activeRequest->ReplyBus->Send(MoveRV(message));
+        }
 
         auto& timer = activeRequest->Timer;
 
@@ -204,18 +307,29 @@ void TServiceBase::OnEndRequest(IServiceContextPtr context)
         Profiler.TimingCheckpoint(timer, "async");
         Profiler.TimingStop(timer);
     }
-
-    ActiveRequests.erase(it);
 }
 
 void TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor)
 {
+    TGuard<TSpinLock> guard(SpinLock);
+
     auto path = "/services/" + ServiceName + "/methods/" +  descriptor.Verb;
+    auto info = New<TRuntimeMethodInfo>(descriptor, path);
+    // Failure here means that such verb is already registered.
+    YCHECK(RuntimeMethodInfos.insert(MakePair(descriptor.Verb, info)).second);
+}
+
+void TServiceBase::CancelActiveRequests(const TError& error)
+{
+    yhash_set<TActiveRequestPtr> requestsToCancel;
     {
         TGuard<TSpinLock> guard(SpinLock);
-        auto info = New<TRuntimeMethodInfo>(descriptor, path);
-        // Failure here means that such verb is already registered.
-        YCHECK(RuntimeMethodInfos.insert(MakePair(descriptor.Verb, info)).second);
+        requestsToCancel.swap(ActiveRequests);
+    }
+
+    FOREACH (auto activeRequest, requestsToCancel) {
+        auto errorMessage = CreateErrorResponseMessage(activeRequest->Id, error);
+        activeRequest->ReplyBus->Send(errorMessage);
     }
 }
 

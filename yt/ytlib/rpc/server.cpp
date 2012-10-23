@@ -2,11 +2,12 @@
 #include "server.h"
 #include "private.h"
 #include "service.h"
-#include "server_detail.h"
 
 #include <ytlib/bus/server.h>
 #include <ytlib/bus/bus.h>
+
 #include <ytlib/ytree/fluent.h>
+
 #include <ytlib/rpc/message.h>
 #include <ytlib/rpc/rpc.pb.h>
 
@@ -22,83 +23,27 @@ static NLog::TLogger& Logger = RpcServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TServiceContext
-    : public TServiceContextBase
-{
-public:
-    TServiceContext(
-        const NProto::TRequestHeader& header,
-        IMessagePtr requestMessage,
-        IBusPtr replyBus,
-        IServicePtr service,
-        const Stroka& loggingCategory)
-        : TServiceContextBase(header, requestMessage)
-        , ReplyBus(replyBus)
-        , Service(service)
-        , Logger(loggingCategory)
-    {
-        YASSERT(requestMessage);
-        YASSERT(replyBus);
-        YASSERT(service);
-    }
-
-private:
-    IBusPtr ReplyBus;
-    IServicePtr Service;
-    NLog::TLogger Logger;
-
-    virtual void DoReply(IMessagePtr responseMessage)
-    {
-        ReplyBus->Send(responseMessage);
-        Service->OnEndRequest(MakeStrong(this));
-    }
-
-    virtual void LogRequest()
-    {
-        Stroka str;
-        AppendInfo(str, Sprintf("RequestId: %s", ~RequestId.ToString()));
-        AppendInfo(str, RequestInfo);
-        LOG_DEBUG("%s <- %s",
-            ~Verb,
-            ~str);
-    }
-
-    virtual void LogResponse(const TError& error)
-    {
-        Stroka str;
-        AppendInfo(str, Sprintf("RequestId: %s", ~RequestId.ToString()));
-        AppendInfo(str, Sprintf("Error: %s", ~ToString(error)));
-        AppendInfo(str, ResponseInfo);
-        LOG_DEBUG("%s -> %s",
-            ~Verb,
-            ~str);
-    }
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TRpcServer
     : public IServer
     , public IMessageHandler
 {
 public:
-    TRpcServer(IBusServerPtr busServer)
+    explicit TRpcServer(IBusServerPtr busServer)
         : BusServer(busServer)
         , Started(false)
     { }
 
-    virtual void RegisterService(IServicePtr service)
+    virtual void RegisterService(IServicePtr service) override
     {
-        YASSERT(service);
+        YCHECK(service);
 
         YCHECK(Services.insert(MakePair(service->GetServiceName(), service)).second);
-        LOG_INFO("RPC service registered (ServiceName: %s)", ~service->GetServiceName());
+        LOG_INFO("RPC service registered: %s", ~service->GetServiceName());
     }
 
-    virtual void Start()
+    virtual void Start() override
     {
-        YASSERT(!Started);
+        YCHECK(!Started);
 
         Started = true;
         BusServer->Start(this);
@@ -106,7 +51,7 @@ public:
         LOG_INFO("RPC server started");
     }
 
-    virtual void Stop()
+    virtual void Stop() override
     {
         if (!Started)
             return;
@@ -130,9 +75,7 @@ private:
         return it == Services.end() ? NULL : it->second;
     }
 
-    virtual void OnMessage(
-        IMessagePtr message,
-        IBusPtr replyBus)
+    virtual void OnMessage(IMessagePtr message, IBusPtr replyBus) override
     {
         const auto& parts = message->GetParts();
         if (parts.size() < 2) {
@@ -168,20 +111,19 @@ private:
             LOG_DEBUG(error);
 
             if (!oneWay) {
-                auto response = CreateErrorResponseMessage(requestId, error);
-                replyBus->Send(response);
+                replyBus->Send(CreateErrorResponseMessage(requestId, error));
             }
             return;
         }
 
         // TODO: anything smarter?
-        Stroka serviceName = path;
+        const auto& serviceName = path;
 
         auto service = GetService(serviceName);
         if (!service) {
             auto error = TError(
                 EErrorCode::NoSuchService,
-                "Unknown service %s (RequestId: %s)",
+                "Unknown service: %s (RequestId: %s)",
                 ~serviceName.Quote(),
                 ~requestId.ToString());
 
@@ -194,14 +136,7 @@ private:
             return;
         }
 
-        auto context = New<TServiceContext>(
-            header,
-            message,
-            replyBus,
-            service,
-            service->GetLoggingCategory());
-
-        service->OnBeginRequest(context);
+        service->OnRequest(header, message, replyBus);
     }
 
 };
