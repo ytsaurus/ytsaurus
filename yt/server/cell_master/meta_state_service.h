@@ -20,7 +20,6 @@ protected:
         const Stroka& serviceName,
         const Stroka& loggingCategory);
 
-
     void ValidateLeaderStatus();
 
 private:
@@ -28,6 +27,8 @@ private:
         NRpc::IServiceContextPtr context,
         IInvokerPtr invoker,
         TClosure handler) override;
+
+    void OnStopEpoch();
 
 };
 

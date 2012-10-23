@@ -22,6 +22,10 @@ TMetaStateServiceBase::TMetaStateServiceBase(
     , Bootstrap(bootstrap)
 {
     YCHECK(bootstrap);
+
+    auto metaStateManager = Bootstrap->GetMetaStateFacade()->GetManager();
+    metaStateManager->SubscribeStopLeading(BIND(&TMetaStateServiceBase::OnStopEpoch, MakeWeak(this)));
+    metaStateManager->SubscribeStopFollowing(BIND(&TMetaStateServiceBase::OnStopEpoch, MakeWeak(this)));
 }
 
 void TMetaStateServiceBase::ValidateLeaderStatus()
@@ -40,7 +44,17 @@ void TMetaStateServiceBase::InvokerHandler(
         handler.Run();
     });
 
-    TServiceBase::InvokerHandler(context, invoker, wrappedHandler);
+    TServiceBase::InvokerHandler(
+        MoveRV(context),
+        MoveRV(invoker),
+        MoveRV(wrappedHandler));
+}
+
+void TMetaStateServiceBase::OnStopEpoch()
+{
+    CancelActiveRequests(TError(
+        NRpc::EErrorCode::Unavailable,
+        "Master is restarting"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
