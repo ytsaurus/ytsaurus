@@ -38,10 +38,12 @@ TClosure TMetaStateServiceBase::PrepareHandler(
     TClosure handler)
 {
     auto* bootstrap = Bootstrap;
-    return context->Wrap(BIND([=] () {
-        bootstrap->GetMetaStateFacade()->ValidateInitialized();
-        handler.Run();
-    }));
+    return TServiceBase::PrepareHandler(
+        context,
+        BIND([=] () {
+            bootstrap->GetMetaStateFacade()->ValidateInitialized();
+            handler.Run();
+        }));
 }
 
 void TMetaStateServiceBase::OnStopEpoch()
