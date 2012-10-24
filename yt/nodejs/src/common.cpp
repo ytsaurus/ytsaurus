@@ -11,7 +11,7 @@
 #include <ytlib/ytree/yson_consumer.h>
 #include <ytlib/ytree/yson_writer.h>
 #include <ytlib/ytree/yson_string.h>
-#include <ytlib/ytree/ephemeral.h>
+#include <ytlib/ytree/ephemeral_node_factory.h>
 #include <ytlib/ytree/convert.h>
 
 extern "C" {
