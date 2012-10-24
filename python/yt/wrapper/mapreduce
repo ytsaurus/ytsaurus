@@ -429,8 +429,7 @@ Examples:
             die("Value option is necessary for set command")
         yt.set(args.set, json.loads(args.value))
     if args.get:
-        if yt.exists(args.get):
-            print json.dumps(yt.get(args.get))
+        print json.dumps(yt.get(args.get))
 
     if args.starttx:
         print yt.start_transaction()
