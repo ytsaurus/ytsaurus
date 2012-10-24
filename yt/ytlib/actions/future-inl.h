@@ -344,6 +344,11 @@ inline TFuture<T>::TFuture()
 { }
 
 template <class T>
+inline TFuture<T>::TFuture(TNull)
+    : Impl(NULL)
+{ }
+
+template <class T>
 inline TFuture<T>::TFuture(const TFuture<T>& other)
     : Impl(other.Impl)
 { }
@@ -500,6 +505,10 @@ inline TFuture<T>::TFuture(
 // #TFuture<void>
 
 inline TFuture<void>::TFuture()
+    : Impl(NULL)
+{ }
+
+inline TFuture<void>::TFuture(TNull)
     : Impl(NULL)
 { }
 
@@ -668,6 +677,11 @@ inline TPromise<T>::TPromise()
 { }
 
 template <class T>
+inline TPromise<T>::TPromise(TNull)
+    : Impl(NULL)
+{ }
+
+template <class T>
 inline TPromise<T>::TPromise(const TPromise<T>& other)
     : Impl(other.Impl)
 { }
@@ -790,6 +804,10 @@ inline TPromise<T>::TPromise(
 // #TPromise<void>
 
 inline TPromise<void>::TPromise()
+    : Impl(NULL)
+{ }
+
+inline TPromise<void>::TPromise(TNull)
     : Impl(NULL)
 { }
 

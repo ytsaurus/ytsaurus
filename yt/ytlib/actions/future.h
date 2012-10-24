@@ -68,6 +68,9 @@ public:
     //! Empty constructor.
     TFuture();
 
+    //! Empty constructor.
+    TFuture(TNull);
+
     //! Copy constructor.
     TFuture(const TFuture& other);
 
@@ -177,6 +180,9 @@ public:
 
     //! Empty constructor.
     TFuture();
+
+    //! Empty constructor.
+    TFuture(TNull);
 
     //! Copy constructor.
     TFuture(const TFuture& other);
@@ -288,6 +294,9 @@ public:
     //! Empty constructor.
     TPromise();
 
+    //! Empty constructor.
+    TPromise(TNull);
+
     //! Copy constructor.
     TPromise(const TPromise& other);
 
@@ -397,6 +406,9 @@ public:
 
     //! Empty constructor.
     TPromise();
+
+    //! Empty constructor.
+    TPromise(TNull);
 
     //! Copy constructor.
     TPromise(const TPromise& other);
