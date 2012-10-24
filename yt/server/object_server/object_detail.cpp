@@ -296,8 +296,6 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* names) 
     names->push_back("id");
     names->push_back("type");
     names->push_back("ref_counter");
-    // TODO(babenko): kill me
-    names->push_back(TAttributeInfo("async_test", true, true));
 }
 
 bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const
@@ -325,23 +323,6 @@ bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* cons
 
 TAsyncError TObjectProxyBase::GetSystemAttributeAsync(const Stroka& key, IYsonConsumer* consumer) const
 {
-    // TODO(babenko): kill me
-    if (key == "async_test") {
-        auto promise = NewPromise<TError>();
-        TDelayedInvoker::Submit(
-            BIND([=] () mutable {
-                BuildYsonFluently(consumer)
-                    .BeginList()
-                        .Item().Scalar(1)
-                        .Item().Scalar(2)
-                        .Item().Scalar(3)
-                    .EndList();
-                promise.Set(TError());
-            }),
-            TDuration::Seconds(5));
-        return promise;
-    }
-
     return Null;
 }
 
