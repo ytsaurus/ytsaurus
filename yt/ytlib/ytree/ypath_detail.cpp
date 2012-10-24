@@ -360,6 +360,7 @@ TFuture< TValueOrError<TYsonString> > TSupportsAttributes::DoListAttribute(const
         if (userAttributes) {
             auto userKeys = userAttributes->List();
             FOREACH (const auto& key, userKeys) {
+                writer.OnListItem();
                 writer.OnStringScalar(key);
             }
         }
@@ -368,6 +369,7 @@ TFuture< TValueOrError<TYsonString> > TSupportsAttributes::DoListAttribute(const
             std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
             systemAttributeProvider->ListSystemAttributes(&systemAttributes);
             FOREACH (const auto& attribute, systemAttributes) {
+                writer.OnListItem();
                 writer.OnStringScalar(attribute.Key);
             }
         }
