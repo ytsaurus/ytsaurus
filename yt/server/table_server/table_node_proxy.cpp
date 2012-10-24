@@ -213,31 +213,29 @@ class TTableNodeProxy::TFetchChunkVisitor
 {
 public:
     TFetchChunkVisitor(
+        NCellMaster::TBootstrap* bootstrap,
+        const TChunkList* chunkList,
         TCtxFetchPtr context, 
-        const TChannel& channel, 
-        TChunkManagerPtr chunkManager)
-        : Context(context)
+        const TChannel& channel)
+        : Bootstrap(bootstrap)
+        , ChunkList(chunkList)
+        , Context(context)
         , Channel(channel)
         , SessionCount(0)
         , Completed(false)
         , Finished(false)
-        , ChunkManager(chunkManager)
     { }
 
-    void StartSession(
-        TBootstrap* bootstrap,
-        const TChunkList* root,
-        const TReadLimit& lowerBound,
-        const TReadLimit& upperBound)
+    void StartSession(const TReadLimit& lowerBound, const TReadLimit& upperBound)
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
         ++SessionCount;
 
-        NChunkServer::TraverseChunkTree(
-            bootstrap,
+        TraverseChunkTree(
+            Bootstrap,
             this,
-            root,
+            ChunkList,
             lowerBound,
             upperBound);
     }
@@ -254,6 +252,15 @@ public:
     }
 
 private:
+    NCellMaster::TBootstrap* Bootstrap;
+    const TChunkList* ChunkList;
+    TCtxFetchPtr Context;
+    TChannel Channel;
+
+    int SessionCount;
+    bool Finished;
+    bool Completed;
+
     void Reply()
     {
         Context->SetResponseInfo("ChunkCount: %d", Context->Response().chunks_size());
@@ -268,6 +275,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
+        auto chunkManager = Bootstrap->GetChunkManager();
+
         if (!chunk->IsConfirmed()) {
             ReplyError(TError("Cannot fetch a table containing an unconfirmed chunk %s",
                 ~chunk->GetId().ToString()));
@@ -278,7 +287,7 @@ private:
         *inputChunk->mutable_channel() = Channel.ToProto();
 
         if (Context->Request().fetch_node_addresses()) {
-            ChunkManager->FillNodeAddresses(inputChunk->mutable_node_addresses(), chunk);
+            chunkManager->FillNodeAddresses(inputChunk->mutable_node_addresses(), chunk);
         }
 
         if (Context->Request().fetch_all_meta_extensions()) {
@@ -343,45 +352,47 @@ private:
         Finished = true;
     }
 
-
-    TCtxFetchPtr Context;
-    TChannel Channel;
-    TChunkManagerPtr ChunkManager;
-
-    int SessionCount;
-    bool Finished;
-    bool Completed;
-
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAttributeChunkVisitor
+class TChunkIdsAttributeVisitor
     : public IChunkVisitor
 {
 public:
-    typedef TValueOrError<Stroka> TResult;
-
-    TAttributeChunkVisitor()
-        : Result(NewPromise<TResult>())
-        , Writer(&Output)
+    explicit TChunkIdsAttributeVisitor(
+        NCellMaster::TBootstrap* bootstrap,
+        const TChunkList* chunkList,
+        IYsonConsumer* consumer)
+        : Bootstrap(bootstrap)
+        , Consumer(consumer)
+        , ChunkList(chunkList)
+        , Promise(NewPromise<TError>())
     {
         VERIFY_THREAD_AFFINITY(StateThread);
-        Writer.OnBeginList();
     }
 
-    TFuture<TResult> GetResult()
+    TAsyncError Run()
     {
         VERIFY_THREAD_AFFINITY(StateThread);
-        return Result;
+
+        Consumer->OnBeginList();
+
+        TraverseChunkTree(
+            Bootstrap,
+            this,
+            ChunkList);
+
+        return Promise;
     }
 
 private:
-    TPromise<TResult> Result;
-    TStringStream Output;
-    TYsonWriter Writer;
+    NCellMaster::TBootstrap* Bootstrap;
+    IYsonConsumer* Consumer;
+    const TChunkList* ChunkList;
+    TPromise<TError> Promise;
 
     virtual void OnChunk(
         const TChunk* chunk, 
@@ -389,25 +400,28 @@ private:
         const NTableClient::NProto::TReadLimit& endLimit) override
     {
         VERIFY_THREAD_AFFINITY(StateThread);
-        Writer.OnStringScalar(chunk->GetId().ToString());
-        Writer.OnListItem();
+        UNUSED(startLimit);
+        UNUSED(endLimit);
+        
+        Consumer->OnListItem();
+        Consumer->OnStringScalar(chunk->GetId().ToString());
     }
 
     virtual void OnError(const TError& error) override
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
-        auto wrappedError = TError("Chunk tree traversing failed")
-            << error;
-        Result.Set(wrappedError);
+        Promise.Set(TError("Error traversing chunk tree") << error);
     }
 
     virtual void OnFinish() override
     {
         VERIFY_THREAD_AFFINITY(StateThread);
-        Writer.OnEndList();
-        Result.Set(Output.Str());
+
+        Consumer->OnEndList();
+        Promise.Set(TError());
     }
+
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 
@@ -488,26 +502,6 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
         return true;
     }
 
-    if (key == "chunk_ids") {
-        auto visitor = New<TAttributeChunkVisitor>();
-        std::vector<TChunkId> chunkIds;
-        NChunkServer::TraverseChunkTree(
-            Bootstrap, 
-            visitor, 
-            impl->GetChunkList(), 
-            NTableClient::NProto::TReadLimit(), 
-            NTableClient::NProto::TReadLimit());
-
-        // XXX: this will cause deadlock on big tables!
-        auto result = visitor->GetResult().Get();
-        if (result.IsOK()) {
-            consumer->OnRaw(result.Value(), EYsonType::Node);
-            return true;
-        } else {
-            return false;
-        }
-    }
-
     if (key == "chunk_count") {
         BuildYsonFluently(consumer)
             .Scalar(statistics.ChunkCount);
@@ -561,6 +555,22 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
     }
 
     return TBase::GetSystemAttribute(key, consumer);
+}
+
+TAsyncError TTableNodeProxy::GetSystemAttributeAsync(const Stroka& key, IYsonConsumer* consumer) const 
+{
+    const auto* impl = GetThisTypedImpl();
+    const auto* chunkList = impl->GetChunkList();
+
+    if (key == "chunk_ids") {
+        auto visitor = New<TChunkIdsAttributeVisitor>(
+            Bootstrap,
+            chunkList,
+            consumer);
+        return visitor->Run();
+    }
+
+    return TBase::GetSystemAttributeAsync(key, consumer);
 }
 
 void TTableNodeProxy::ValidateUserAttributeUpdate(
@@ -692,20 +702,21 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
     auto* chunkList = impl->GetChunkList();
 
     auto visitor = New<TFetchChunkVisitor>(
+        Bootstrap,
+        chunkList,
         context, 
-        channel, 
-        Bootstrap->GetChunkManager());
+        channel);
 
     if (request->negate()) {
         if (lowerLimit.has_row_index() || lowerLimit.has_key()) {
-            visitor->StartSession(Bootstrap, chunkList, TReadLimit(), lowerLimit);
+            visitor->StartSession(TReadLimit(), lowerLimit);
         }
 
         if (upperLimit.has_row_index() || upperLimit.has_key()) {
-            visitor->StartSession(Bootstrap, chunkList, upperLimit, TReadLimit());
+            visitor->StartSession(upperLimit, TReadLimit());
         }
     } else {
-        visitor->StartSession(Bootstrap, chunkList, lowerLimit, upperLimit);
+        visitor->StartSession(lowerLimit, upperLimit);
     }
 
     visitor->Complete();

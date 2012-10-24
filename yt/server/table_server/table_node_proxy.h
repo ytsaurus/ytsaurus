@@ -42,26 +42,13 @@ private:
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override;
     virtual bool GetSystemAttribute(const Stroka& key, NYTree::IYsonConsumer* consumer) const override;
+    virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, NYTree::IYsonConsumer* consumer) const override;
     virtual void ValidateUserAttributeUpdate(
         const Stroka& key,
         const TNullable<NYTree::TYsonString>& oldValue,
         const TNullable<NYTree::TYsonString>& newValue) override;
 
     virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
-
-    // TODO(babenko): this runs a sync traversal
-    // replace with an async one!
-    void TraverseChunkTree(
-        std::vector<NChunkClient::TChunkId>* chunkIds,
-        const NChunkServer::TChunkList* chunkList) const;
-
-    template <class TBoundary>
-    void RunFetchTraversal(
-        const NChunkServer::TChunkList* chunkList,
-        TFetchChunkProcessorPtr chunkProcessor, 
-        const TBoundary& lowerBound, 
-        const TNullable<TBoundary>& upperBound,
-        bool negate);
 
     void ParseYPath(
         const NYPath::TYPath& path,

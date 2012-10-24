@@ -43,8 +43,8 @@ void TraverseChunkTree(
     NCellMaster::TBootstrap* bootstrap,
     IChunkVisitorPtr visitor,
     const TChunkList* root,
-    const NTableClient::NProto::TReadLimit& lowerBound,
-    const NTableClient::NProto::TReadLimit& upperBound);
+    const NTableClient::NProto::TReadLimit& lowerBound = NTableClient::NProto::TReadLimit(),
+    const NTableClient::NProto::TReadLimit& upperBound = NTableClient::NProto::TReadLimit());
 
 ////////////////////////////////////////////////////////////////////////////////
 
