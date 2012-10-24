@@ -338,6 +338,7 @@ TValueOrError<TYsonString> TSupportsAttributes::DoListAttributeFragment(
     TYsonWriter writer(&stream);
     writer.OnBeginList();
     FOREACH (const auto& listedKey, listedKeys) {
+        writer.OnListItem();
         writer.OnStringScalar(listedKey);
     }
     writer.OnEndList();
