@@ -177,19 +177,12 @@ def erase_table(table, strategy=None):
     table = to_table(table)
     if not exists(table.name):
         return
-<<<<<<< HEAD
-    params = {
-        "table_path": table.name,
-        "transaction_id": config.TRANSACTION}
-    operation = make_request("POST", "erase", None, params)
-=======
     params = json.dumps(add_transaction_params({
         "spec": {
             "table_path": table.yson_name()
         }
     }))
     operation = make_request("POST", "erase", params=None, data=params)
->>>>>>> f06f528... Fix erase. Add checks to test_mapreduce. Delete default YT_PREFIX. Fix dumping data in set command
     strategy.process_operation("erase", operation)
 
 def records_count(table):
