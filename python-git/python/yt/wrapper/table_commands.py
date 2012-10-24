@@ -5,6 +5,7 @@ from http import make_request, read_content
 from table import get_yson_name, get_output_yson_name, to_table, to_name
 from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, mkdir, find_free_subpath
 from file_commands import smart_upload_file
+from transaction_commands import add_transaction_params
 
 import os
 import types
@@ -78,7 +79,6 @@ def add_user_spec(params):
          "system_user": os.environ.get("USER", "")})
     return result
 
-
 def create_table(path, make_it_empty=True):
     create = True
     if exists(path):
@@ -94,9 +94,9 @@ def create_table(path, make_it_empty=True):
         dirname = os.path.dirname(path)
         mkdir(dirname)
         make_request("POST", "create",
-                     {"path": path,
-                      "type": "table",
-                      "transaction_id": config.TRANSACTION})
+                     add_transaction_params(
+                         {"path": path,
+                          "type": "table"}))
 
 def create_temp_table(path=None, prefix=None):
     if path is None: path = config.TEMP_TABLES_STORAGE
@@ -119,8 +119,7 @@ def write_table(table, lines, format=None, table_writer=None):
     params = {"path": table.name}
     if table_writer is not None:
         params["table_writer"] = table_writer
-
-    params["transaction_id"] = config.TRANSACTION
+    params = add_transaction_params(params)
 
     buffer = Buffer(lines)
     while not buffer.empty():
@@ -133,8 +132,9 @@ def read_table(table, format=None, response_type=None):
     if not exists(table.name):
         return EMPTY_GENERATOR
     response = make_request("GET", "read",
-                            {"path": get_yson_name(table),
-                             "transaction_id": config.TRANSACTION},
+                            add_transaction_params(
+                                {"path": get_yson_name(table)}
+                            ),
                             format=format,
                             raw_response=True)
     return read_content(response, response_type)
@@ -177,10 +177,19 @@ def erase_table(table, strategy=None):
     table = to_table(table)
     if not exists(table.name):
         return
+<<<<<<< HEAD
     params = {
         "table_path": table.name,
         "transaction_id": config.TRANSACTION}
     operation = make_request("POST", "erase", None, params)
+=======
+    params = json.dumps(add_transaction_params({
+        "spec": {
+            "table_path": table.yson_name()
+        }
+    }))
+    operation = make_request("POST", "erase", params=None, data=params)
+>>>>>>> f06f528... Fix erase. Add checks to test_mapreduce. Delete default YT_PREFIX. Fix dumping data in set command
     strategy.process_operation("erase", operation)
 
 def records_count(table):
@@ -210,13 +219,12 @@ def merge_tables(source_table, destination_table, mode, strategy=None, table_wri
         spec = update({"job_io": {"table_writer": table_writer}}, spec)
 
     params = json.dumps(
-        add_user_spec(
+        add_user_spec(add_transaction_params(
             {"spec": update(
                 {"input_table_paths": map(get_yson_name, source_table),
                  "output_table_path": destination_table.yson_name("output"),
                  "mode": mode},
-                spec),
-             "transaction_id": config.TRANSACTION}))
+                spec)})))
     operation = make_request("POST", "merge", None, params)
 
     if strategy is None: strategy = config.DEFAULT_STRATEGY
@@ -247,10 +255,9 @@ def sort_table(source_table, destination_table=None, sort_by=None, strategy=None
                  "output_table_path": destination_table.yson_name("output"),
                  "sort_by": sort_by},
                 spec)
-    params = json.dumps(add_user_spec(
-        {"spec": spec,
-         "transaction_id": config.TRANSACTION}
-    ))
+    params = json.dumps(add_user_spec(add_transaction_params(
+        {"spec": spec}
+    )))
     operation = make_request("POST", "sort", None, params)
 
     if strategy is None: strategy = config.DEFAULT_STRATEGY
@@ -362,9 +369,8 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
         run_map_reduce.spec = update(run_map_reduce.spec, spec)
 
     params = json.dumps(
-        add_user_spec(
-            {"spec": run_map_reduce.spec,
-             "transaction_id": config.TRANSACTION}))
+        add_user_spec(add_transaction_params(
+            {"spec": run_map_reduce.spec})))
     operation = make_request("POST", "map_reduce", None, params)
     strategy.process_operation("map_reduce", operation,
          Finalizer(run_map_reduce.files_to_remove, destination_table))
@@ -435,9 +441,8 @@ def run_operation(binary, source_table, destination_table,
         spec)
 
     params = json.dumps(
-        add_user_spec(
-            {"spec": spec,
-             "transaction_id": config.TRANSACTION}))
+        add_user_spec(add_transaction_params(
+            {"spec": spec})))
     operation = make_request("POST", op_type, None, params)
 
     if strategy is None: strategy = config.DEFAULT_STRATEGY
