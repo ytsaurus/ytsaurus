@@ -368,11 +368,8 @@ private:
     bool Completed;
     TPromise<TValueOrError<TYsonString> > Result;
 
-    typedef yhash_map<ECodecId, i32> TCodecInfoMap;
-    typedef yhash_map<i16, i32> TReplicationFactorInfoMap;
-
-    TCodecInfoMap CodecInfo;
-    TReplicationFactorInfoMap ReplicationFactorInfo;
+    typedef yhash_map<ECodecId, TChunkTreeStatistics> TChunkStatisticsMap;
+    TChunkStatisticsMap ChunkStatistics;
 
     virtual void OnChunk(
         const TChunk* chunk,
@@ -382,8 +379,7 @@ private:
         const auto& chunkMeta = chunk->ChunkMeta();
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkMeta.extensions());
 
-        CodecInfo[ECodecId(miscExt.codec_id())]++;
-        ReplicationFactorInfo[chunk->GetReplicationFactor()]++;
+        ChunkStatistics[ECodecId(miscExt.codec_id())].Accumulate(chunk->GetStatistics());
     }
 
     virtual void OnError(const TError& error) override
@@ -399,18 +395,17 @@ private:
         if (!Completed) {
             Completed = true;
             Result.Set(BuildYsonStringFluently()
-                .BeginMap()
-                    .Item("codec_info")
-                        .DoMapFor(CodecInfo, [=] (TFluentMap fluent, TCodecInfoMap::value_type pair) {
-                            fluent
-                                .Item(ToString(pair.first)).Scalar(pair.second);
-                        })
-                    .Item("replication_factor_info")
-                        .DoMapFor(ReplicationFactorInfo, [=] (TFluentMap fluent, TReplicationFactorInfoMap::value_type pair) {
-                            fluent
-                                .Item(ToString(pair.first)).Scalar(pair.second);
-                        })
-                .EndMap());
+                .DoMapFor(ChunkStatistics, [=] (TFluentMap fluent, TChunkStatisticsMap::value_type pair) {
+                    const auto& statistics = pair.second;
+                    // TODO(panin): maybe use here the same method as in attributes
+                    fluent
+                        .Item(ToString(pair.first))
+                        .BeginMap()
+                            .Item("chunk_count").Scalar(statistics.ChunkCount)
+                            .Item("uncompressed_data_size").Scalar(statistics.UncompressedSize)
+                            .Item("compressed_size").Scalar(statistics.CompressedSize)
+                        .EndMap();
+                }));
         }
     }
 };
