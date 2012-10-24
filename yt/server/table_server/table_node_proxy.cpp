@@ -351,6 +351,63 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAttributeChunkVisitor
+    : public IChunkVisitor
+{
+public:
+    typedef TValueOrError<Stroka> TResult;
+
+    TAttributeChunkVisitor()
+        : Result(NewPromise<TResult>())
+        , Writer(&Output)
+    {
+        VERIFY_THREAD_AFFINITY(StateThread);
+        Writer.OnBeginList();
+    }
+
+    TFuture<TResult> GetResult()
+    {
+        VERIFY_THREAD_AFFINITY(StateThread);
+        return Result;
+    }
+
+private:
+    TPromise<TResult> Result;
+    TStringStream Output;
+    TYsonWriter Writer;
+
+    virtual void OnChunk(
+        const TChunk* chunk, 
+        const NTableClient::NProto::TReadLimit& startLimit,
+        const NTableClient::NProto::TReadLimit& endLimit) override
+    {
+        VERIFY_THREAD_AFFINITY(StateThread);
+        Writer.OnStringScalar(chunk->GetId().ToString());
+        Writer.OnListItem();
+    }
+
+    virtual void OnError(const TError& error) override
+    {
+        VERIFY_THREAD_AFFINITY(StateThread);
+
+        auto wrappedError = TError("Chunk tree traversing failed")
+            << error;
+        Result.Set(wrappedError);
+    }
+
+    virtual void OnFinish() override
+    {
+        VERIFY_THREAD_AFFINITY(StateThread);
+        Writer.OnEndList();
+        Result.Set(Output.Str());
+    }
+
+    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTableNodeProxy::TTableNodeProxy(
     INodeTypeHandlerPtr typeHandler,
     TBootstrap* bootstrap,
@@ -394,24 +451,6 @@ bool TTableNodeProxy::IsWriteRequest(IServiceContextPtr context) const
     return TBase::IsWriteRequest(context);
 }
 
-void TTableNodeProxy::TraverseChunkTree(std::vector<TChunkId>* chunkIds, const TChunkList* chunkList)
-{
-    FOREACH (auto childRef, chunkList->Children()) {
-        switch (childRef.GetType()) {
-            case EObjectType::Chunk: {
-                chunkIds->push_back(childRef.GetId());
-                break;
-            }
-            case EObjectType::ChunkList: {
-                TraverseChunkTree(chunkIds, childRef.AsChunkList());
-                break;
-            }
-            default:
-                YUNREACHABLE();
-        }
-    }
-}
-
 void TTableNodeProxy::GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
 {
     const auto* impl = GetThisTypedImpl();
@@ -443,13 +482,23 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* cons
     }
 
     if (name == "chunk_ids") {
+        auto visitor = New<TAttributeChunkVisitor>();
         std::vector<TChunkId> chunkIds;
-        TraverseChunkTree(&chunkIds, impl->GetChunkList());
-        BuildYsonFluently(consumer)
-            .DoListFor(chunkIds, [=] (TFluentList fluent, TChunkId chunkId) {
-                fluent.Item().Scalar(chunkId.ToString());
-            });
-        return true;
+        NChunkServer::TraverseChunkTree(
+            Bootstrap, 
+            visitor, 
+            impl->GetChunkList(), 
+            NTableClient::NProto::TReadLimit(), 
+            NTableClient::NProto::TReadLimit());
+
+        // XXX: this will cause deadlock on big tables!
+        auto result = visitor->GetResult().Get();
+        if (result.IsOK()) {
+            consumer->OnRaw(result.Value(), EYsonType::Node);
+            return true;
+        } else {
+            return false;
+        }
     }
 
     if (name == "chunk_count") {
