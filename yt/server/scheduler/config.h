@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <ytlib/ytree/yson_serializable.h>
-#include <ytlib/ytree/ephemeral.h>
+#include <ytlib/ytree/ephemeral_node_factory.h>
 
 #include <ytlib/table_client/config.h>
 

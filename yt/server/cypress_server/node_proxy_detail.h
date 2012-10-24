@@ -8,7 +8,7 @@
 #include <ytlib/ytree/ypath_detail.h>
 #include <ytlib/ytree/node_detail.h>
 #include <ytlib/ytree/convert.h>
-#include <ytlib/ytree/ephemeral.h>
+#include <ytlib/ytree/ephemeral_node_factory.h>
 #include <ytlib/ytree/fluent.h>
 
 #include <ytlib/ypath/tokenizer.h>
@@ -77,93 +77,38 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class IBase, class TImpl>
-class TCypressNodeProxyBase
+class TCypressNodeProxyNontemplateBase
     : public NYTree::TNodeBase
     , public NObjectServer::TObjectProxyBase
     , public ICypressNodeProxy
-    , public virtual IBase
 {
 public:
-    TCypressNodeProxyBase(
+    TCypressNodeProxyNontemplateBase(
         INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
         NTransactionServer::TTransaction* transaction,
-        ICypressNode* trunkNode)
-        : NObjectServer::TObjectProxyBase(bootstrap, trunkNode->GetId().ObjectId)
-        , TypeHandler(typeHandler)
-        , Bootstrap(bootstrap)
-        , Transaction(transaction)
-        , TrunkNode(trunkNode)
-    {
-        YASSERT(typeHandler);
-        YASSERT(bootstrap);
-        YASSERT(trunkNode);
+        ICypressNode* trunkNode);
 
-        Logger = NLog::TLogger("Cypress");
-    }
+    NYTree::INodeFactoryPtr CreateFactory() const;
+    NYTree::IYPathResolverPtr GetResolver() const;
 
-    NYTree::INodeFactoryPtr CreateFactory() const
-    {
-        return New<TNodeFactory>(Bootstrap, Transaction);
-    }
+    virtual NTransactionServer::TTransaction* GetTransaction() const override;
 
-    NYTree::IYPathResolverPtr GetResolver() const
-    {
-        if (!Resolver) {
-            auto cypressManager = Bootstrap->GetCypressManager();
-            Resolver = cypressManager->CreateResolver(Transaction);
-        }
-        return Resolver;
-    }
+    virtual ICypressNode* GetTrunkNode() const override;
 
+    virtual NYTree::ENodeType GetType() const override;
 
-    virtual NTransactionServer::TTransaction* GetTransaction() const override
-    {
-        return Transaction;
-    }
+    virtual NYTree::ICompositeNodePtr GetParent() const override;
+    virtual void SetParent(NYTree::ICompositeNodePtr parent) override;
 
-    virtual ICypressNode* GetTrunkNode() const override
-    {
-        return TrunkNode;
-    }
+    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
 
+    virtual NYTree::IAttributeDictionary& Attributes() override;
+    virtual const NYTree::IAttributeDictionary& Attributes() const override;
 
-    virtual NYTree::ENodeType GetType() const override
-    {
-        return TypeHandler->GetNodeType();
-    }
-
-
-    virtual NYTree::ICompositeNodePtr GetParent() const override
-    {
-        auto nodeId = GetThisImpl()->GetParentId();
-        return nodeId == NObjectClient::NullObjectId ? NULL : GetProxy(nodeId)->AsComposite();
-    }
-
-    virtual void SetParent(NYTree::ICompositeNodePtr parent) override
-    {
-        auto* impl = LockThisImpl();
-        impl->SetParentId(parent ? GetNodeId(NYTree::INodePtr(parent)) : NObjectClient::NullObjectId);
-    }
-
-
-    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override
-    {
-        DECLARE_YPATH_SERVICE_WRITE_METHOD(Lock);
-        // NB: Create is not considered a write verb since it always fails here.
-        return NYTree::TNodeBase::IsWriteRequest(context);
-    }
-
-    virtual NYTree::IAttributeDictionary& Attributes() override
-    {
-        return NObjectServer::TObjectProxyBase::Attributes();
-    }
-
-    virtual const NYTree::IAttributeDictionary& Attributes() const override
-    {
-        return NObjectServer::TObjectProxyBase::Attributes();
-    }
+    virtual void GetAttributes(
+        NYTree::IYsonConsumer* consumer,
+        const NYTree::TAttributeFilter& filter) const override;
 
 protected:
     INodeTypeHandlerPtr TypeHandler;
@@ -173,158 +118,61 @@ protected:
 
     mutable NYTree::IYPathResolverPtr Resolver;
 
+    virtual NObjectServer::TVersionedObjectId GetVersionedId() const override;
 
-    virtual NObjectServer::TVersionedObjectId GetVersionedId() const override
-    {
-        return NObjectServer::TVersionedObjectId(Id, NObjectServer::GetObjectId(Transaction));
-    }
+    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override;
+    virtual bool GetSystemAttribute(const Stroka& key, NYTree::IYsonConsumer* consumer) const override;
 
+    virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
 
-    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes) override
-    {
-        attributes->push_back("parent_id");
-        attributes->push_back("locks");
-        attributes->push_back("lock_mode");
-        attributes->push_back(TAttributeInfo("path", true, true));
-        attributes->push_back("creation_time");
-        attributes->push_back("modification_time");
-        NObjectServer::TObjectProxyBase::GetSystemAttributes(attributes);
-    }
+    DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, Lock);
+    DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, Create);
 
-    virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer) override
-    {
-        const auto* node = GetThisImpl();
-
-        // NB: Locks are stored in trunk nodes (TransactionId == Null).
-        const auto* trunkNode = Bootstrap->GetCypressManager()->GetNode(Id);
-
-        if (name == "parent_id") {
-            BuildYsonFluently(consumer)
-                .Scalar(node->GetParentId().ToString());
-            return true;
-        }
-
-        if (name == "locks") {
-            BuildYsonFluently(consumer)
-                .DoListFor(trunkNode->Locks(), [=] (NYTree::TFluentList fluent, const ICypressNode::TLockMap::value_type& pair) {
-                    fluent.Item()
-                        .BeginMap()
-                            .Item("mode").Scalar(pair.second.Mode)
-                            .Item("transaction_id").Scalar(pair.first->GetId())
-                            .DoIf(!pair.second.ChildKeys.empty(), [=] (NYTree::TFluentMap fluent) {
-                                fluent
-                                    .Item("child_keys").List(pair.second.ChildKeys);
-                            })
-                            .DoIf(!pair.second.AttributeKeys.empty(), [=] (NYTree::TFluentMap fluent) {
-                                fluent
-                                    .Item("attribute_keys").List(pair.second.AttributeKeys);
-                            })
-                        .EndMap();
-                 });
-            return true;
-        }
-
-        if (name == "lock_mode") {
-            BuildYsonFluently(consumer)
-                .Scalar(FormatEnum(node->GetLockMode()));
-            return true;
-        }
-
-        if (name == "path") {
-            BuildYsonFluently(consumer)
-                .Scalar(GetPath());
-            return true;
-        }
-
-        if (name == "creation_time") {
-            BuildYsonFluently(consumer)
-                .Scalar(node->GetCreationTime().ToString());
-            return true;
-        }
-
-        if (name == "modification_time") {
-            BuildYsonFluently(consumer)
-                .Scalar(node->GetModificationTime().ToString());
-            return true;
-        }
-
-        return NObjectServer::TObjectProxyBase::GetSystemAttribute(name, consumer);
-    }
-
-
-    virtual void DoInvoke(NRpc::IServiceContextPtr context) override
-    {
-        DISPATCH_YPATH_SERVICE_METHOD(GetId);
-        DISPATCH_YPATH_SERVICE_METHOD(Lock);
-        DISPATCH_YPATH_SERVICE_METHOD(Create);
-        TNodeBase::DoInvoke(context);
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, Lock)
-    {
-        auto mode = ELockMode(request->mode());
-
-        context->SetRequestInfo("Mode: %s", ~mode.ToString());
-        if (mode != ELockMode::Snapshot &&
-            mode != ELockMode::Shared &&
-            mode != ELockMode::Exclusive)
-        {
-            THROW_ERROR_EXCEPTION("Invalid lock mode: %s",
-                ~mode.ToString());
-        }
-
-        if (!Transaction) {
-            THROW_ERROR_EXCEPTION("Cannot take a lock outside of a transaction");
-        }
-
-        auto cypressManager = Bootstrap->GetCypressManager();
-        cypressManager->LockVersionedNode(Id, Transaction, mode);
-
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, Create)
-    {
-        UNUSED(request);
-        UNUSED(response);
-
-        NYPath::TTokenizer tokenizer(context->GetPath());
-        if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-            THROW_ERROR_EXCEPTION("Node already exists: %s", ~this->GetPath());
-        }
-
-        ThrowVerbNotSuppored(this, context->GetVerb());
-    }
-
-    const ICypressNode* GetImpl(const TNodeId& nodeId) const
-    {
-        auto cypressManager = Bootstrap->GetCypressManager();
-        return cypressManager->GetVersionedNode(nodeId, Transaction);
-    }
-
+    const ICypressNode* GetImpl(const TNodeId& nodeId) const;
     ICypressNode* LockImpl(
         const TNodeId& nodeId,
         const TLockRequest& request = ELockMode::Exclusive,
-        bool recursive = false)
-    {
-        auto cypressManager = Bootstrap->GetCypressManager();
-        return cypressManager->LockVersionedNode(nodeId, Transaction, request, recursive);
-    }
-
-
-    const ICypressNode* GetThisImpl() const
-    {
-        return GetImpl(Id);
-    }
-
+        bool recursive = false);
+    const ICypressNode* GetThisImpl() const;
     ICypressNode* LockThisImpl(
         const TLockRequest& request = ELockMode::Exclusive,
-        bool recursive = false)
-    {
-        return LockImpl(Id, request, recursive);
-    }
+        bool recursive = false);
 
+    ICypressNodeProxyPtr GetProxy(const TNodeId& nodeId) const;
+    static ICypressNodeProxyPtr ToProxy(NYTree::INodePtr node);
 
+    static TNodeId GetNodeId(NYTree::INodePtr node);
+    static TNodeId GetNodeId(NYTree::IConstNodePtr node);
+
+    void AttachChild(ICypressNode* child);
+    void DetachChild(ICypressNode* child, bool unref);
+
+    virtual TAutoPtr<NYTree::IAttributeDictionary> DoCreateUserAttributes() override;
+    
+    void SetModified();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class IBase, class TImpl>
+class TCypressNodeProxyBase
+    : public TCypressNodeProxyNontemplateBase
+    , public virtual IBase
+{
+public:
+    TCypressNodeProxyBase(
+        INodeTypeHandlerPtr typeHandler,
+        NCellMaster::TBootstrap* bootstrap,
+        NTransactionServer::TTransaction* transaction,
+        ICypressNode* trunkNode)
+        : TCypressNodeProxyNontemplateBase(
+            typeHandler,
+            bootstrap,
+            transaction,
+            trunkNode)
+    { }
+
+protected:
     const TImpl* GetThisTypedImpl() const
     {
         return static_cast<const TImpl*>(GetThisImpl());
@@ -335,60 +183,6 @@ protected:
         bool recursive = false)
     {
         return static_cast<TImpl*>(LockThisImpl(request, recursive));
-    }
-
-
-    ICypressNodeProxyPtr GetProxy(const TNodeId& nodeId) const
-    {
-        YASSERT(nodeId != NObjectClient::NullObjectId);
-        return Bootstrap->GetCypressManager()->GetVersionedNodeProxy(nodeId, Transaction);
-    }
-
-
-    static ICypressNodeProxyPtr ToProxy(NYTree::INodePtr node)
-    {
-        return dynamic_cast<ICypressNodeProxy*>(~node);
-    }
-
-
-    static TNodeId GetNodeId(NYTree::INodePtr node)
-    {
-        return dynamic_cast<ICypressNodeProxy&>(*node).GetId();
-    }
-
-    static TNodeId GetNodeId(NYTree::IConstNodePtr node)
-    {
-        return dynamic_cast<const ICypressNodeProxy&>(*node).GetId();
-    }
-
-
-    void AttachChild(ICypressNode* child)
-    {
-        child->SetParentId(Id);
-        Bootstrap->GetObjectManager()->RefObject(child);
-    }
-
-    void DetachChild(ICypressNode* child, bool unref)
-    {
-        child->SetParentId(NObjectClient::NullObjectId);
-        if (unref) {
-            Bootstrap->GetObjectManager()->UnrefObject(child);
-        }
-    }
-
-
-    virtual TAutoPtr<NYTree::IAttributeDictionary> DoCreateUserAttributes() override
-    {
-        return new TVersionedUserAttributeDictionary(
-            Id,
-            Transaction,
-            Bootstrap);
-    }
-
-
-    void SetModified()
-    {
-        Bootstrap->GetCypressManager()->SetModified(Id, Transaction);
     }
 };
 
@@ -517,24 +311,24 @@ protected:
         return TBase::IsWriteRequest(context);
     }
 
-    virtual void GetSystemAttributes(std::vector<typename TBase::TAttributeInfo>* attributes) override
+    virtual void ListSystemAttributes(std::vector<typename TBase::TAttributeInfo>* attributes) const override
     {
         attributes->push_back("count");
-        TBase::GetSystemAttributes(attributes);
+        TBase::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer) override
+    virtual bool GetSystemAttribute(const Stroka& key, NYTree::IYsonConsumer* consumer) const override
     {
-        if (name == "count") {
+        if (key == "count") {
             BuildYsonFluently(consumer)
                 .Scalar(this->GetChildCount());
             return true;
         }
 
-        return TBase::GetSystemAttribute(name, consumer);
+        return TBase::GetSystemAttribute(key, consumer);
     }
 
-    NYPath::TYPath GetCreativePath(const NYPath::TYPath& path)
+    NYPath::TYPath GetCreativePath(const NYPath::TYPath& path) const
     {
         NYPath::TTokenizer tokenizer(path);
         if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {

@@ -9,7 +9,7 @@
 #include <ytlib/actions/action_queue_detail.h>
 
 #include <ytlib/ytree/node.h>
-#include <ytlib/ytree/ephemeral.h>
+#include <ytlib/ytree/ephemeral_node_factory.h>
 #include <ytlib/ytree/ypath_detail.h>
 #include <ytlib/ytree/virtual.h>
 #include <ytlib/ytree/ypath_client.h>

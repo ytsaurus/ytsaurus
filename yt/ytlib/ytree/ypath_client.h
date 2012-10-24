@@ -2,7 +2,7 @@
 
 #include "public.h"
 #include "ypath_service.h"
-#include "attribute_provider_detail.h"
+#include "ephemeral_attribute_owner.h"
 
 #include <ytlib/misc/ref.h>
 #include <ytlib/misc/property.h>
@@ -17,7 +17,7 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYPathRequest
-    : public TEphemeralAttributeProvider
+    : public TEphemeralAttributeOwner
     , public NRpc::IClientRequest
 {
 public:
@@ -73,7 +73,7 @@ protected:
 
 class TYPathResponse
     : public TRefCounted
-    , public TEphemeralAttributeProvider
+    , public TEphemeralAttributeOwner
 {
     DEFINE_BYVAL_RW_PROPERTY(TError, Error);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);

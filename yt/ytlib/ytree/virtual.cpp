@@ -5,7 +5,7 @@
 #include "yson_writer.h"
 #include "ypath_detail.h"
 #include "ypath_client.h"
-#include "attribute_provider_detail.h"
+#include "ephemeral_attribute_owner.h"
 #include "tokenizer.h"
 
 #include <ytlib/ypath/tokenizer.h>
@@ -110,12 +110,12 @@ void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPt
     context->Reply();
 }
 
-void TVirtualMapBase::GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
+void TVirtualMapBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const
 {
     attributes->push_back("count");
 }
 
-bool TVirtualMapBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
+bool TVirtualMapBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const
 {
     if (key == "count") {
         BuildYsonFluently(consumer)
@@ -126,11 +126,19 @@ bool TVirtualMapBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
     return false;
 }
 
-bool TVirtualMapBase::SetSystemAttribute(const Stroka& key, const TYsonString& value)
+TAsyncError TVirtualMapBase::GetSystemAttributeAsync(const Stroka& key, IYsonConsumer* consumer) const
 {
     UNUSED(key);
+    UNUSED(consumer);
+    return Null;
+}
+
+void TVirtualMapBase::SetSystemAttribute(const Stroka& key, const TYsonString& value)
+{
     UNUSED(value);
-    return false;
+
+    THROW_ERROR_EXCEPTION("System attribute cannot be set: %s",
+        ~ToYPathLiteral(key));
 }
 
 ISystemAttributeProvider* TVirtualMapBase::GetSystemAttributeProvider()
@@ -144,7 +152,7 @@ class TVirtualEntityNode
     : public TNodeBase
     , public TSupportsAttributes
     , public IEntityNode
-    , public TEphemeralAttributeProvider
+    , public TEphemeralAttributeOwner
 {
     YTREE_NODE_TYPE_OVERRIDES(Entity)
 
@@ -183,6 +191,12 @@ public:
 
         // TODO(babenko): handle ugly face
         return TResolveResult::There(UnderlyingService, path);
+    }
+
+    virtual void GetAttributes(IYsonConsumer* consumer, const TAttributeFilter& filter) const
+    {
+        UNUSED(consumer);
+        UNUSED(filter);
     }
 
 private:

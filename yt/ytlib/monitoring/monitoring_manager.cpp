@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "monitoring_manager.h"
 
-#include <ytlib/ytree/ephemeral.h>
+#include <ytlib/ytree/ephemeral_node_factory.h>
 #include <ytlib/ytree/yson_writer.h>
 #include <ytlib/ytree/tree_visitor.h>
 #include <ytlib/ytree/ypath_proxy.h>

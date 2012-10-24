@@ -24,7 +24,7 @@
 #include <ytlib/monitoring/http_server.h>
 #include <ytlib/monitoring/http_integration.h>
 
-#include <ytlib/ytree/ephemeral.h>
+#include <ytlib/ytree/ephemeral_node_factory.h>
 #include <ytlib/ytree/virtual.h>
 #include <ytlib/ytree/yson_file_service.h>
 #include <ytlib/ytree/ypath_client.h>

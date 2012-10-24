@@ -1496,7 +1496,7 @@ private:
 
     TIntrusivePtr<TImpl> Owner;
 
-    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes) override
+    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override
     {
         const auto* chunk = GetTypedImpl();
         auto miscExt = FindProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
@@ -1520,20 +1520,20 @@ private:
         attributes->push_back(TAttributeInfo("row_count", chunk->IsConfirmed() && miscExt->has_row_count()));
         attributes->push_back(TAttributeInfo("value_count", chunk->IsConfirmed() && miscExt->has_value_count()));
         attributes->push_back(TAttributeInfo("sorted", chunk->IsConfirmed() && miscExt->has_sorted()));
-        TBase::GetSystemAttributes(attributes);
+        TBase::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer) override
+    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const override
     {
         const auto* chunk = GetTypedImpl();
 
-        if (name == "confirmed") {
+        if (key == "confirmed") {
             BuildYsonFluently(consumer)
                 .Scalar(FormatBool(chunk->IsConfirmed()));
             return true;
         }
 
-        if (name == "cached_locations") {
+        if (key == "cached_locations") {
             if (~chunk->CachedLocations()) {
                 BuildYsonFluently(consumer)
                     .DoListFor(*chunk->CachedLocations(), [=] (TFluentList fluent, TNodeId nodeId) {
@@ -1548,7 +1548,7 @@ private:
             return true;
         }
 
-        if (name == "stored_locations") {
+        if (key == "stored_locations") {
             BuildYsonFluently(consumer)
                 .DoListFor(chunk->StoredLocations(), [=] (TFluentList fluent, TNodeId nodeId) {
                     const auto& node = Owner->GetNode(nodeId);
@@ -1557,25 +1557,25 @@ private:
             return true;
         }
 
-        if (name == "replication_factor") {
+        if (key == "replication_factor") {
             BuildYsonFluently(consumer)
                 .Scalar(chunk->GetReplicationFactor());
             return true;
         }
 
-        if (name == "movable") {
+        if (key == "movable") {
             BuildYsonFluently(consumer)
                 .Scalar(chunk->GetMovable());
             return true;
         }
 
-        if (name == "master_meta_size") {
+        if (key == "master_meta_size") {
             BuildYsonFluently(consumer)
                 .Scalar(chunk->ChunkMeta().ByteSize());
             return true;
         }
 
-        if (name == "owning_nodes") {
+        if (key == "owning_nodes") {
             Owner->GetOwningNodes(TChunkTreeRef(const_cast<TChunk*>(chunk)), consumer);
             return true;
         }
@@ -1583,69 +1583,69 @@ private:
         if (chunk->IsConfirmed()) {
             auto miscExt = GetProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
 
-            if (name == "size") {
+            if (key == "size") {
                 BuildYsonFluently(consumer)
                     .Scalar(chunk->ChunkInfo().size());
                 return true;
             }
 
-            if (name == "chunk_type") {
+            if (key == "chunk_type") {
                 auto type = EChunkType(chunk->ChunkMeta().type());
                 BuildYsonFluently(consumer)
                     .Scalar(CamelCaseToUnderscoreCase(type.ToString()));
                 return true;
             }
 
-            if (name == "meta_size") {
+            if (key == "meta_size") {
                 BuildYsonFluently(consumer)
                     .Scalar(miscExt.meta_size());
                 return true;
             }
 
-            if (name == "compressed_data_size") {
+            if (key == "compressed_data_size") {
                 BuildYsonFluently(consumer)
                     .Scalar(miscExt.compressed_data_size());
                 return true;
             }
 
-            if (name == "uncompressed_data_size") {
+            if (key == "uncompressed_data_size") {
                 BuildYsonFluently(consumer)
                     .Scalar(miscExt.uncompressed_data_size());
                 return true;
             }
 
-            if (name == "data_weight") {
+            if (key == "data_weight") {
                 BuildYsonFluently(consumer)
                     .Scalar(miscExt.data_weight());
                 return true;
             }
 
-            if (name == "codec_id") {
+            if (key == "codec_id") {
                 BuildYsonFluently(consumer)
                     .Scalar(CamelCaseToUnderscoreCase(ECodecId(miscExt.codec_id()).ToString()));
                 return true;
             }
 
-            if (name == "row_count") {
+            if (key == "row_count") {
                 BuildYsonFluently(consumer)
                     .Scalar(miscExt.row_count());
                 return true;
             }
 
-            if (name == "value_count") {
+            if (key == "value_count") {
                 BuildYsonFluently(consumer)
                     .Scalar(miscExt.value_count());
                 return true;
             }
 
-            if (name == "sorted") {
+            if (key == "sorted") {
                 BuildYsonFluently(consumer)
                     .Scalar(FormatBool(miscExt.sorted()));
                 return true;
             }
         }
 
-        return TBase::GetSystemAttribute(name, consumer);
+        return TBase::GetSystemAttribute(key, consumer);
     }
 
     virtual void DoInvoke(IServiceContextPtr context) override
@@ -1819,7 +1819,7 @@ private:
 
     TIntrusivePtr<TImpl> Owner;
 
-    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes) override
+    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override
     {
         attributes->push_back("children_ids");
         attributes->push_back("parent_ids");
@@ -1831,15 +1831,17 @@ private:
         attributes->push_back("rigid");
         attributes->push_back(TAttributeInfo("tree", true, true));
         attributes->push_back(TAttributeInfo("owning_nodes", true, true));
-        TBase::GetSystemAttributes(attributes);
+        TBase::ListSystemAttributes(attributes);
     }
 
-    void TraverseTree(TChunkTreeRef ref, IYsonConsumer* consumer)
+    void TraverseTree(TChunkTreeRef ref, IYsonConsumer* consumer) const
     {
         switch (ref.GetType()) {
-            case EObjectType::Chunk:
+            case EObjectType::Chunk: {
                 consumer->OnStringScalar(ref.GetId().ToString());
                 break;
+            }
+
             case EObjectType::ChunkList: {
                 const auto* chunkList = ref.AsChunkList();
                 consumer->OnBeginAttributes();
@@ -1857,16 +1859,17 @@ private:
                 consumer->OnEndList();
                 break;
             }
+
             default:
                 YUNREACHABLE();
         }
     }
 
-    virtual bool GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer) override
+    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const override
     {
         const auto* chunkList = GetTypedImpl();
 
-        if (name == "children_ids") {
+        if (key == "children_ids") {
             BuildYsonFluently(consumer)
                 .DoListFor(chunkList->Children(), [=] (TFluentList fluent, TChunkTreeRef chunkRef) {
                         fluent.Item().Scalar(chunkRef.GetId());
@@ -1874,7 +1877,7 @@ private:
             return true;
         }
 
-        if (name == "parent_ids") {
+        if (key == "parent_ids") {
             BuildYsonFluently(consumer)
                 .DoListFor(chunkList->Parents(), [=] (TFluentList fluent, TChunkList* chunkList) {
                     fluent.Item().Scalar(chunkList->GetId());
@@ -1884,53 +1887,53 @@ private:
 
         const auto& statistics = chunkList->Statistics();
 
-        if (name == "row_count") {
+        if (key == "row_count") {
             BuildYsonFluently(consumer)
                 .Scalar(statistics.RowCount);
             return true;
         }
 
-        if (name == "uncompressed_data_size") {
+        if (key == "uncompressed_data_size") {
             BuildYsonFluently(consumer)
                 .Scalar(statistics.UncompressedSize);
             return true;
         }
 
-        if (name == "compressed_size") {
+        if (key == "compressed_size") {
             BuildYsonFluently(consumer)
                 .Scalar(statistics.CompressedSize);
             return true;
         }
 
-        if (name == "chunk_count") {
+        if (key == "chunk_count") {
             BuildYsonFluently(consumer)
                 .Scalar(statistics.ChunkCount);
             return true;
         }
 
-        if (name == "rank") {
+        if (key == "rank") {
             BuildYsonFluently(consumer)
                 .Scalar(statistics.Rank);
             return true;
         }
 
-        if (name == "rigid") {
+        if (key == "rigid") {
             BuildYsonFluently(consumer)
                 .Scalar(chunkList->GetRigid());
             return true;
         }
 
-        if (name == "tree") {
+        if (key == "tree") {
             TraverseTree(const_cast<TChunkList*>(chunkList), consumer);
             return true;
         }
 
-        if (name == "owning_nodes") {
+        if (key == "owning_nodes") {
             Owner->GetOwningNodes(const_cast<TChunkList*>(chunkList), consumer);
             return true;
         }
 
-        return TBase::GetSystemAttribute(name, consumer);
+        return TBase::GetSystemAttribute(key, consumer);
     }
 
     virtual void DoInvoke(NRpc::IServiceContextPtr context) override

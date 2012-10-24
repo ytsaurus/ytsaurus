@@ -7,7 +7,7 @@
 #include <ytlib/transaction_client/transaction_ypath.pb.h>
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
-#include <ytlib/ytree/ephemeral.h>
+#include <ytlib/ytree/ephemeral_node_factory.h>
 #include <ytlib/ytree/fluent.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
@@ -75,32 +75,32 @@ private:
         attributes->push_back("created_node_ids");
         attributes->push_back("branched_node_ids");
         attributes->push_back("locked_node_ids");
-        TBase::GetSystemAttributes(attributes);
+        TBase::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
+    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
     {
         const auto* transaction = GetTypedImpl();
         
-        if (name == "state") {
+        if (key == "state") {
             BuildYsonFluently(consumer)
                 .Scalar(FormatEnum(transaction->GetState()));
             return true;
         }
 
-        if (name == "parent_id") {
+        if (key == "parent_id") {
             BuildYsonFluently(consumer)
                 .Scalar(GetObjectId(transaction->GetParent()).ToString());
             return true;
         }
 
-        if (name == "start_time") {
+        if (key == "start_time") {
             BuildYsonFluently(consumer)
                 .Scalar(ToString(transaction->GetStartTime()));
             return true;
         }
 
-        if (name == "nested_transaction_ids") {
+        if (key == "nested_transaction_ids") {
             BuildYsonFluently(consumer)
                 .DoListFor(transaction->NestedTransactions(), [=] (TFluentList fluent, TTransaction* nestedTransaction) {
                     fluent.Item().Scalar(nestedTransaction->GetId().ToString());
@@ -108,7 +108,7 @@ private:
             return true;
         }
 
-        if (name == "created_object_ids") {
+        if (key == "created_object_ids") {
             BuildYsonFluently(consumer)
                 .DoListFor(transaction->CreatedObjectIds(), [=] (TFluentList fluent, const TTransactionId& id) {
                     fluent.Item().Scalar(id.ToString());
@@ -116,7 +116,7 @@ private:
             return true;
         }
 
-        if (name == "created_node_ids") {
+        if (key == "created_node_ids") {
             BuildYsonFluently(consumer)
                 .DoListFor(transaction->CreatedNodes(), [=] (TFluentList fluent, const ICypressNode* node) {
                     fluent.Item().Scalar(node->GetId().ObjectId.ToString());
@@ -124,7 +124,7 @@ private:
             return true;
         }
 
-        if (name == "branched_node_ids") {
+        if (key == "branched_node_ids") {
             BuildYsonFluently(consumer)
                 .DoListFor(transaction->BranchedNodes(), [=] (TFluentList fluent, const ICypressNode* node) {
                     fluent.Item().Scalar(node->GetId().ObjectId.ToString());
@@ -132,7 +132,7 @@ private:
             return true;
         }
 
-        if (name == "locked_node_ids") {
+        if (key == "locked_node_ids") {
             BuildYsonFluently(consumer)
                 .DoListFor(transaction->LockedNodes(), [=] (TFluentList fluent, const ICypressNode* node) {
                     fluent.Item().Scalar(node->GetId().ObjectId.ToString());
@@ -140,7 +140,7 @@ private:
             return true;
         }
 
-        return TBase::GetSystemAttribute(name, consumer);
+        return TBase::GetSystemAttribute(key, consumer);
     }
 
     virtual void DoInvoke(NRpc::IServiceContextPtr context)

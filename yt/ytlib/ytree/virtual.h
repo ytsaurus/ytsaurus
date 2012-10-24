@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ypath_detail.h"
+#include "system_attribute_provider.h"
 
 namespace NYT {
 namespace NYTree {
@@ -27,9 +28,10 @@ private:
     virtual ISystemAttributeProvider* GetSystemAttributeProvider() override;
 
     // ISystemAttributeProvider overrides
-    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
-    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) override;
-    virtual bool SetSystemAttribute(const Stroka& key, const TYsonString& value) override;
+    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override;
+    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const override;
+    virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, IYsonConsumer* consumer) const override;
+    virtual void SetSystemAttribute(const Stroka& key, const TYsonString& value) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

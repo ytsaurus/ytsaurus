@@ -40,11 +40,13 @@ void TFileNodeProxy::DoInvoke(IServiceContextPtr context)
     TBase::DoInvoke(context);
 }
 
-void TFileNodeProxy::OnUpdateAttribute(
+void TFileNodeProxy::ValidateUserAttributeUpdate(
     const Stroka& key,
-    const TNullable<NYTree::TYsonString>& oldValue,
-    const TNullable<NYTree::TYsonString>& newValue)
+    const TNullable<TYsonString>& oldValue,
+    const TNullable<TYsonString>& newValue)
 {
+    UNUSED(oldValue);
+
     if (key == "executable" && newValue) {
         ConvertTo<bool>(*newValue);
     } else if (key == "file_name" && newValue) {
@@ -81,7 +83,7 @@ Stroka TFileNodeProxy::GetFileName()
     }
 }
 
-void TFileNodeProxy::GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
+void TFileNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const
 {
     attributes->push_back("size");
     attributes->push_back("compressed_size");
@@ -89,10 +91,10 @@ void TFileNodeProxy::GetSystemAttributes(std::vector<TAttributeInfo>* attributes
     attributes->push_back("codec_id");
     attributes->push_back("chunk_list_id");
     attributes->push_back("chunk_id");
-    TBase::GetSystemAttributes(attributes);
+    TBase::ListSystemAttributes(attributes);
 }
 
-bool TFileNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsumer* consumer)
+bool TFileNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const
 {
     const auto* impl = GetThisTypedImpl();
     const auto* chunkList = impl->GetChunkList();
@@ -102,19 +104,19 @@ bool TFileNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsume
     const auto* chunk = chunkRef.AsChunk();
 
     auto miscExt = GetProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
-    if (name == "size") {
+    if (key == "size") {
         BuildYsonFluently(consumer)
             .Scalar(statistics.UncompressedSize);
         return true;
     }
 
-    if (name == "compressed_size") {
+    if (key == "compressed_size") {
         BuildYsonFluently(consumer)
             .Scalar(statistics.CompressedSize);
         return true;
     }
 
-    if (name == "compression_ratio") {
+    if (key == "compression_ratio") {
         double ratio = statistics.UncompressedSize > 0 ?
             static_cast<double>(statistics.CompressedSize) / statistics.UncompressedSize : 0;
         BuildYsonFluently(consumer)
@@ -122,26 +124,26 @@ bool TFileNodeProxy::GetSystemAttribute(const Stroka& name, NYTree::IYsonConsume
         return true;
     }
 
-    if (name == "codec_id") {
+    if (key == "codec_id") {
         auto codecId = ECodecId(miscExt.codec_id());
         BuildYsonFluently(consumer)
             .Scalar(CamelCaseToUnderscoreCase(codecId.ToString()));
         return true;
     }
 
-    if (name == "chunk_list_id") {
+    if (key == "chunk_list_id") {
         BuildYsonFluently(consumer)
             .Scalar(chunkList->GetId().ToString());
         return true;
     }
 
-    if (name == "chunk_id") {
+    if (key == "chunk_id") {
         BuildYsonFluently(consumer)
             .Scalar(chunkRef.GetId().ToString());
         return true;
     }
 
-    return TBase::GetSystemAttribute(name, consumer);
+    return TBase::GetSystemAttribute(key, consumer);
 }
 
 DEFINE_RPC_SERVICE_METHOD(TFileNodeProxy, FetchFile)

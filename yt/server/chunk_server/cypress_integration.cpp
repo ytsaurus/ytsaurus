@@ -268,7 +268,7 @@ private:
         return Bootstrap->GetChunkManager()->FindNodeByAddress(address);
     }
 
-    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes) override
+    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override
     {
         const auto* node = GetNode();
         attributes->push_back(TAttributeInfo("state"));
@@ -279,14 +279,14 @@ private:
         attributes->push_back(TAttributeInfo("chunk_count", node));
         attributes->push_back(TAttributeInfo("session_count", node));
         attributes->push_back(TAttributeInfo("full", node));
-        TMapNodeProxy::GetSystemAttributes(attributes);
+        TMapNodeProxy::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer) override
+    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const override
     {
         const auto* node = GetNode();
 
-        if (name == "state") {
+        if (key == "state") {
             auto state = node ? node->GetState() : ENodeState(ENodeState::Offline);
             BuildYsonFluently(consumer)
                 .Scalar(FormatEnum(state));
@@ -294,56 +294,57 @@ private:
         }
 
         if (node) {
-            if (name == "confirmed") {
+            if (key == "confirmed") {
                 ValidateLeaderStatus();
                 BuildYsonFluently(consumer)
                     .Scalar(FormatBool(Bootstrap->GetChunkManager()->IsNodeConfirmed(node)));
                 return true;
             }
 
-            if (name == "incarnation_id") {
+            if (key == "incarnation_id") {
                 BuildYsonFluently(consumer)
                     .Scalar(node->GetIncarnationId());
                 return true;
             }
 
             const auto& statistics = node->Statistics();
-            if (name == "available_space") {
+            if (key == "available_space") {
                 BuildYsonFluently(consumer)
                     .Scalar(statistics.available_space());
                 return true;
             }
-            if (name == "used_space") {
+            if (key == "used_space") {
                 BuildYsonFluently(consumer)
                     .Scalar(statistics.used_space());
                 return true;
             }
-            if (name == "chunk_count") {
+            if (key == "chunk_count") {
                 BuildYsonFluently(consumer)
                     .Scalar(statistics.chunk_count());
                 return true;
             }
-            if (name == "session_count") {
+            if (key == "session_count") {
                 BuildYsonFluently(consumer)
                     .Scalar(statistics.session_count());
                 return true;
             }
-            if (name == "full") {
+            if (key == "full") {
                 BuildYsonFluently(consumer)
                     .Scalar(statistics.full());
                 return true;
             }
         }
 
-        return TMapNodeProxy::GetSystemAttribute(name, consumer);
+        return TMapNodeProxy::GetSystemAttribute(key, consumer);
     }
 
-    virtual void OnUpdateAttribute(
+    virtual void ValidateUserAttributeUpdate(
         const Stroka& key,
         const TNullable<TYsonString>& oldValue,
         const TNullable<TYsonString>& newValue) override
     {
         UNUSED(oldValue);
+
         if (key == "banned") {
             if (newValue) {
                 ConvertTo<bool>(*newValue);
@@ -459,7 +460,7 @@ public:
     { }
 
 private:
-    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes) override
+    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override
     {
         attributes->push_back("offline");
         attributes->push_back("registered");
@@ -472,14 +473,14 @@ private:
         attributes->push_back("session_count");
         attributes->push_back("online_holder_count");
         attributes->push_back("chunk_replicator_enabled");
-        TMapNodeProxy::GetSystemAttributes(attributes);
+        TMapNodeProxy::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer) override
+    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const override
     {
         auto chunkManager = Bootstrap->GetChunkManager();
 
-        if (name == "offline") {
+        if (key == "offline") {
             BuildYsonFluently(consumer)
                 .DoListFor(GetKeys(), [=] (TFluentList fluent, Stroka address) {
                     if (!chunkManager->FindNodeByAddress(address)) {
@@ -489,8 +490,8 @@ private:
             return true;
         }
 
-        if (name == "registered" || name == "online") {
-            auto state = name == "registered" ? ENodeState::Registered : ENodeState::Online;
+        if (key == "registered" || key == "online") {
+            auto state = key == "registered" ? ENodeState::Registered : ENodeState::Online;
             BuildYsonFluently(consumer)
                 .DoListFor(chunkManager->GetNodes(), [=] (TFluentList fluent, TDataNode* node) {
                     if (node->GetState() == state) {
@@ -500,9 +501,9 @@ private:
             return true;
         }
 
-        if (name == "unconfirmed" || name == "confirmed") {
+        if (key == "unconfirmed" || key == "confirmed") {
             ValidateLeaderStatus();
-            bool state = name == "confirmed";
+            bool state = key == "confirmed";
             BuildYsonFluently(consumer)
                 .DoListFor(chunkManager->GetNodes(), [=] (TFluentList fluent, TDataNode* node) {
                     if (chunkManager->IsNodeConfirmed(node) == state) {
@@ -513,44 +514,44 @@ private:
         }
 
         auto statistics = chunkManager->GetTotalNodeStatistics();
-        if (name == "available_space") {
+        if (key == "available_space") {
             BuildYsonFluently(consumer)
                 .Scalar(statistics.AvailbaleSpace);
             return true;
         }
 
-        if (name == "used_space") {
+        if (key == "used_space") {
             BuildYsonFluently(consumer)
                 .Scalar(statistics.UsedSpace);
             return true;
         }
 
-        if (name == "chunk_count") {
+        if (key == "chunk_count") {
             BuildYsonFluently(consumer)
                 .Scalar(statistics.ChunkCount);
             return true;
         }
 
-        if (name == "session_count") {
+        if (key == "session_count") {
             BuildYsonFluently(consumer)
                 .Scalar(statistics.SessionCount);
             return true;
         }
 
-        if (name == "online_holder_count") {
+        if (key == "online_holder_count") {
             BuildYsonFluently(consumer)
                 .Scalar(statistics.OnlineNodeCount);
             return true;
         }
 
-        if (name == "chunk_replicator_enabled") {
+        if (key == "chunk_replicator_enabled") {
             ValidateLeaderStatus();
             BuildYsonFluently(consumer)
                 .Scalar(chunkManager->IsReplicatorEnabled());
             return true;
         }
 
-        return TMapNodeProxy::GetSystemAttribute(name, consumer);
+        return TMapNodeProxy::GetSystemAttribute(key, consumer);
     }
 };
 

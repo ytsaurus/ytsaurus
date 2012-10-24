@@ -4,16 +4,16 @@
 #include "object_proxy.h"
 #include "object_manager.h"
 
-#include <ytlib/object_client/object_ypath.pb.h>
-
-#include <ytlib/ytree/ypath.pb.h>
-
 #include <ytlib/misc/property.h>
 
 #include <ytlib/meta_state/map.h>
 
 #include <ytlib/ytree/ypath_detail.h>
 #include <ytlib/ytree/fluent.h>
+#include <ytlib/ytree/system_attribute_provider.h>
+#include <ytlib/ytree/ypath.pb.h>
+
+#include <ytlib/object_client/object_ypath.pb.h>
 
 #include <server/cell_master/public.h>
 
@@ -132,12 +132,13 @@ protected:
     virtual TAutoPtr<NYTree::IAttributeDictionary> DoCreateUserAttributes();
 
     // NYTree::ISystemAttributeProvider members
-    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
-    virtual bool GetSystemAttribute(const Stroka& key, NYTree::IYsonConsumer* consumer) override;
-    virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
+    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override;
+    virtual bool GetSystemAttribute(const Stroka& key, NYTree::IYsonConsumer* consumer) const override;
+    virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, NYTree::IYsonConsumer* consumer) const override;
+    virtual void SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
     bool IsRecovery() const;
-    void ValidateLeaderStatus();
+    void ValidateLeaderStatus() const;
     void ForwardToLeader(NRpc::IServiceContextPtr context);
     void OnLeaderResponse(NRpc::IServiceContextPtr context, NBus::IMessagePtr responseMessage);
 

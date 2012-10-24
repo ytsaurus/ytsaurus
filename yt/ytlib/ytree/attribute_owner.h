@@ -1,16 +1,20 @@
 #pragma once
 
-#include "attribute_provider.h"
+#include "public.h"
 
 namespace NYT {
 namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void VisitTree(
-    INodePtr root,
-    IYsonConsumer* consumer,
-    const TAttributeFilter& attributeFilter = TAttributeFilter::All);
+struct IAttributeOwner
+{
+    virtual ~IAttributeOwner()
+    { }
+
+    virtual IAttributeDictionary& Attributes() = 0;
+    virtual const IAttributeDictionary& Attributes() const = 0;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

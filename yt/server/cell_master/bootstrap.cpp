@@ -8,7 +8,7 @@
 #include <ytlib/bus/config.h>
 
 #include <ytlib/ytree/tree_builder.h>
-#include <ytlib/ytree/ephemeral.h>
+#include <ytlib/ytree/ephemeral_node_factory.h>
 #include <ytlib/ytree/virtual.h>
 
 #include <server/object_server/object_manager.h>

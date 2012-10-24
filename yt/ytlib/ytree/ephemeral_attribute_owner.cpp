@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "attribute_provider_detail.h"
+#include "ephemeral_attribute_owner.h"
 #include "attribute_helpers.h"
 
 namespace NYT {
@@ -7,7 +7,7 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IAttributeDictionary& TEphemeralAttributeProvider::Attributes()
+IAttributeDictionary& TEphemeralAttributeOwner::Attributes()
 {
     if (!HasAttributes()) {
         Attributes_ = CreateEphemeralAttributes();
@@ -15,19 +15,19 @@ IAttributeDictionary& TEphemeralAttributeProvider::Attributes()
     return *Attributes_;
 }
 
-const IAttributeDictionary& TEphemeralAttributeProvider::Attributes() const
+const IAttributeDictionary& TEphemeralAttributeOwner::Attributes() const
 {
     if (!HasAttributes()) {
         return EmptyAttributes();
     }
     return *Attributes_;}
 
-bool TEphemeralAttributeProvider::HasAttributes() const
+bool TEphemeralAttributeOwner::HasAttributes() const
 {
     return Attributes_.Get();
 }
 
-void TEphemeralAttributeProvider::SetAttributes(TAutoPtr<IAttributeDictionary> attributes)
+void TEphemeralAttributeOwner::SetAttributes(TAutoPtr<IAttributeDictionary> attributes)
 {
     Attributes_ = attributes;
 }

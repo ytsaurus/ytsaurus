@@ -60,12 +60,12 @@ void TYPathRequest::SetPath(const Stroka& path)
 
 IAttributeDictionary& TYPathRequest::Attributes()
 {
-    return TEphemeralAttributeProvider::Attributes();
+    return TEphemeralAttributeOwner::Attributes();
 }
 
 const IAttributeDictionary& TYPathRequest::Attributes() const
 {
-    return TEphemeralAttributeProvider::Attributes();
+    return TEphemeralAttributeOwner::Attributes();
 }
 
 IMessagePtr TYPathRequest::Serialize() const

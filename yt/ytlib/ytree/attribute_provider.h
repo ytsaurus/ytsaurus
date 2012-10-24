@@ -8,55 +8,51 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IAttributeProvider
+//! Describes an attribute filtering mode.
+DECLARE_ENUM(EAttributeFilterMode,
+    // Accept all attributes.
+    (All)
+    // Don't accept any attribute.
+    (None)
+    // Accept only matching attributes.
+    (MatchingOnly)
+);
+
+//! Describes a filtering criteria for attributes.
+/*!
+ *  If #Mode is |All| or |None| then act accordingly.
+ *  If #Mode is |MatchingOnly| then only accept keys listed in #Keys.
+ */
+struct TAttributeFilter
 {
-    ~IAttributeProvider()
+    TAttributeFilter()
+        : Mode(EAttributeFilterMode::None)
     { }
 
-    virtual IAttributeDictionary& Attributes() = 0;
-    virtual const IAttributeDictionary& Attributes() const = 0;
+    TAttributeFilter(EAttributeFilterMode mode, const std::vector<Stroka>& keys)
+        : Mode(mode)
+        , Keys(keys)
+    { }
+
+    EAttributeFilterMode Mode;
+    std::vector<Stroka> Keys;
+
+    static TAttributeFilter All;
+    static TAttributeFilter None;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ISystemAttributeProvider
+struct IAttributeProvider
 {
-    ~ISystemAttributeProvider()
+    virtual ~IAttributeProvider()
     { }
 
-    //! Describes a system attribute.
-    struct TAttributeInfo
-    {
-        Stroka Key;
-        bool IsPresent;
-        bool IsOpaque;
+    //! Writes attributes that match #filter into #consumer.
+    virtual void GetAttributes(
+        IYsonConsumer* consumer,
+        const TAttributeFilter& filter) const = 0;
 
-        TAttributeInfo(const char* key, bool isPresent = true, bool isOpaque = false)
-            : Key(key)
-            , IsPresent(isPresent)
-            , IsOpaque(isOpaque)
-        { }
-    };
-
-    //! Populates the list of all system attributes supported by this object.
-    /*!
-     *  \note
-     *  Must not clear #attributes since additional items may be added in inheritors.
-     */
-    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes) = 0;
-
-    //! Gets the value of a system attribute.
-    /*!
-     *  \returns False if there is no system attribute with the given key.
-     */
-    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) = 0;
-
-    //! Sets the value of a system attribute.
-    /*! 
-     *  \returns False if the attribute cannot be set or
-     *  there is no system attribute with the given key.
-     */
-    virtual bool SetSystemAttribute(const Stroka& key, const TYsonString& value) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

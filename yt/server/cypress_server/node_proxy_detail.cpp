@@ -18,7 +18,7 @@ using namespace NTransactionServer;
 TVersionedUserAttributeDictionary::TVersionedUserAttributeDictionary(
     const TObjectId& id,
     TTransaction* transaction,
-    TBootstrap* bootstrap )
+    TBootstrap* bootstrap)
     : Id(id)
     , Transaction(transaction)
     , Bootstrap(bootstrap)
@@ -126,6 +126,333 @@ bool TVersionedUserAttributeDictionary::Remove(const Stroka& key)
 
     cypressManager->SetModified(Id, Transaction);
     return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCypressNodeProxyNontemplateBase::TCypressNodeProxyNontemplateBase(
+    INodeTypeHandlerPtr typeHandler,
+    NCellMaster::TBootstrap* bootstrap,
+    NTransactionServer::TTransaction* transaction,
+    ICypressNode* trunkNode)
+    : TObjectProxyBase(bootstrap, trunkNode->GetId().ObjectId)
+    , TypeHandler(typeHandler)
+    , Bootstrap(bootstrap)
+    , Transaction(transaction)
+    , TrunkNode(trunkNode)
+{
+    YASSERT(typeHandler);
+    YASSERT(bootstrap);
+    YASSERT(trunkNode);
+
+    Logger = NLog::TLogger("Cypress");
+}
+
+INodeFactoryPtr TCypressNodeProxyNontemplateBase::CreateFactory() const
+{
+    return New<TNodeFactory>(Bootstrap, Transaction);
+}
+
+IYPathResolverPtr TCypressNodeProxyNontemplateBase::GetResolver() const
+{
+    if (!Resolver) {
+        auto cypressManager = Bootstrap->GetCypressManager();
+        Resolver = cypressManager->CreateResolver(Transaction);
+    }
+    return Resolver;
+}
+
+NTransactionServer::TTransaction* TCypressNodeProxyNontemplateBase::GetTransaction() const 
+{
+    return Transaction;
+}
+
+ICypressNode* TCypressNodeProxyNontemplateBase::GetTrunkNode() const 
+{
+    return TrunkNode;
+}
+
+ENodeType TCypressNodeProxyNontemplateBase::GetType() const 
+{
+    return TypeHandler->GetNodeType();
+}
+
+ICompositeNodePtr TCypressNodeProxyNontemplateBase::GetParent() const 
+{
+    auto nodeId = GetThisImpl()->GetParentId();
+    return nodeId == NObjectClient::NullObjectId ? NULL : GetProxy(nodeId)->AsComposite();
+}
+
+void TCypressNodeProxyNontemplateBase::SetParent(ICompositeNodePtr parent)
+{
+    auto* impl = LockThisImpl();
+    impl->SetParentId(parent ? GetNodeId(INodePtr(parent)) : NObjectClient::NullObjectId);
+}
+
+bool TCypressNodeProxyNontemplateBase::IsWriteRequest(NRpc::IServiceContextPtr context) const 
+{
+    DECLARE_YPATH_SERVICE_WRITE_METHOD(Lock);
+    // NB: Create is not considered a write verb since it always fails here.
+    return TNodeBase::IsWriteRequest(context);
+}
+
+IAttributeDictionary& TCypressNodeProxyNontemplateBase::Attributes()
+{
+    return TObjectProxyBase::Attributes();
+}
+
+const IAttributeDictionary& TCypressNodeProxyNontemplateBase::Attributes() const 
+{
+    return TObjectProxyBase::Attributes();
+}
+
+void TCypressNodeProxyNontemplateBase::GetAttributes(
+    IYsonConsumer* consumer,
+    const TAttributeFilter& filter) const 
+{
+    if (filter.Mode == EAttributeFilterMode::None)
+        return;
+
+    const auto& userAttributes = Attributes();
+
+    auto userKeys = userAttributes.List();
+
+    std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
+    ListSystemAttributes(&systemAttributes);
+
+    yhash_set<Stroka> matchingKeys(filter.Keys.begin(), filter.Keys.end());
+
+    bool seenMatching = false;
+
+    FOREACH (const auto& key, userKeys) {
+        if (filter.Mode == EAttributeFilterMode::All || matchingKeys.find(key) != matchingKeys.end()) {
+            if (!seenMatching) {
+                consumer->OnBeginAttributes();
+                seenMatching = true;
+            }
+            consumer->OnKeyedItem(key);
+            consumer->OnRaw(userAttributes.GetYson(key).Data(), EYsonType::Node);
+        }
+    }
+
+    FOREACH (const auto& attribute, systemAttributes) {
+        if (attribute.IsPresent &&
+            (filter.Mode == EAttributeFilterMode::All || matchingKeys.find(attribute.Key) != matchingKeys.end()))
+        {
+            if (!seenMatching) {
+                consumer->OnBeginAttributes();
+                seenMatching = true;
+            }
+            Stroka key(attribute.Key);
+            consumer->OnKeyedItem(key);
+            if (attribute.IsOpaque) {
+                consumer->OnEntity();
+            } else {
+                YCHECK(GetSystemAttribute(key, consumer));
+            }
+        }
+    }
+
+    if (seenMatching) {
+        consumer->OnEndAttributes();
+    }
+}
+
+TVersionedObjectId TCypressNodeProxyNontemplateBase::GetVersionedId() const 
+{
+    return TVersionedObjectId(Id, GetObjectId(Transaction));
+}
+
+void TCypressNodeProxyNontemplateBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const 
+{
+    attributes->push_back("parent_id");
+    attributes->push_back("locks");
+    attributes->push_back("lock_mode");
+    attributes->push_back(TAttributeInfo("path", true, true));
+    attributes->push_back("creation_time");
+    attributes->push_back("modification_time");
+    TObjectProxyBase::ListSystemAttributes(attributes);
+}
+
+bool TCypressNodeProxyNontemplateBase::GetSystemAttribute(
+    const Stroka& key,
+    IYsonConsumer* consumer) const 
+{
+    const auto* node = GetThisImpl();
+
+    // NB: Locks are stored in trunk nodes (TransactionId == Null).
+    const auto* trunkNode = Bootstrap->GetCypressManager()->GetNode(Id);
+
+    if (key == "parent_id") {
+        BuildYsonFluently(consumer)
+            .Scalar(node->GetParentId().ToString());
+        return true;
+    }
+
+    if (key == "locks") {
+        BuildYsonFluently(consumer)
+            .DoListFor(trunkNode->Locks(), [=] (TFluentList fluent, const ICypressNode::TLockMap::value_type& pair) {
+                fluent.Item()
+                    .BeginMap()
+                    .Item("mode").Scalar(pair.second.Mode)
+                    .Item("transaction_id").Scalar(pair.first->GetId())
+                    .DoIf(!pair.second.ChildKeys.empty(), [=] (TFluentMap fluent) {
+                        fluent
+                            .Item("child_keys").List(pair.second.ChildKeys);
+                })
+                    .DoIf(!pair.second.AttributeKeys.empty(), [=] (TFluentMap fluent) {
+                        fluent
+                            .Item("attribute_keys").List(pair.second.AttributeKeys);
+                })
+                    .EndMap();
+        });
+        return true;
+    }
+
+    if (key == "lock_mode") {
+        BuildYsonFluently(consumer)
+            .Scalar(FormatEnum(node->GetLockMode()));
+        return true;
+    }
+
+    if (key == "path") {
+        BuildYsonFluently(consumer)
+            .Scalar(GetPath());
+        return true;
+    }
+
+    if (key == "creation_time") {
+        BuildYsonFluently(consumer)
+            .Scalar(node->GetCreationTime().ToString());
+        return true;
+    }
+
+    if (key == "modification_time") {
+        BuildYsonFluently(consumer)
+            .Scalar(node->GetModificationTime().ToString());
+        return true;
+    }
+
+    return TObjectProxyBase::GetSystemAttribute(key, consumer);
+}
+
+void TCypressNodeProxyNontemplateBase::DoInvoke(NRpc::IServiceContextPtr context)
+{
+    DISPATCH_YPATH_SERVICE_METHOD(GetId);
+    DISPATCH_YPATH_SERVICE_METHOD(Lock);
+    DISPATCH_YPATH_SERVICE_METHOD(Create);
+    TNodeBase::DoInvoke(context);
+}
+
+DEFINE_RPC_SERVICE_METHOD(TCypressNodeProxyNontemplateBase, Lock)
+{
+    auto mode = ELockMode(request->mode());
+
+    context->SetRequestInfo("Mode: %s", ~mode.ToString());
+    if (mode != ELockMode::Snapshot &&
+        mode != ELockMode::Shared &&
+        mode != ELockMode::Exclusive)
+    {
+        THROW_ERROR_EXCEPTION("Invalid lock mode: %s",
+            ~mode.ToString());
+    }
+
+    if (!Transaction) {
+        THROW_ERROR_EXCEPTION("Cannot take a lock outside of a transaction");
+    }
+
+    auto cypressManager = Bootstrap->GetCypressManager();
+    cypressManager->LockVersionedNode(Id, Transaction, mode);
+
+    context->Reply();
+}
+
+DEFINE_RPC_SERVICE_METHOD(TCypressNodeProxyNontemplateBase, Create)
+{
+    UNUSED(request);
+    UNUSED(response);
+
+    NYPath::TTokenizer tokenizer(context->GetPath());
+    if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
+        THROW_ERROR_EXCEPTION("Node already exists: %s", ~this->GetPath());
+    }
+
+    ThrowVerbNotSuppored(this, context->GetVerb());
+}
+
+const ICypressNode* TCypressNodeProxyNontemplateBase::GetImpl(const TNodeId& nodeId) const
+{
+    auto cypressManager = Bootstrap->GetCypressManager();
+    return cypressManager->GetVersionedNode(nodeId, Transaction);
+}
+
+ICypressNode* TCypressNodeProxyNontemplateBase::LockImpl(
+    const TNodeId& nodeId,
+    const TLockRequest& request /*= ELockMode::Exclusive*/,
+    bool recursive /*= false*/)
+{
+    auto cypressManager = Bootstrap->GetCypressManager();
+    return cypressManager->LockVersionedNode(nodeId, Transaction, request, recursive);
+}
+
+const ICypressNode* TCypressNodeProxyNontemplateBase::GetThisImpl() const
+{
+    return GetImpl(Id);
+}
+
+ICypressNode* TCypressNodeProxyNontemplateBase::LockThisImpl(
+    const TLockRequest& request /*= ELockMode::Exclusive*/,
+    bool recursive /*= false*/)
+{
+    return LockImpl(Id, request, recursive);
+}
+
+ICypressNodeProxyPtr TCypressNodeProxyNontemplateBase::GetProxy(const TNodeId& nodeId) const
+{
+    YASSERT(nodeId != NObjectClient::NullObjectId);
+    return Bootstrap->GetCypressManager()->GetVersionedNodeProxy(nodeId, Transaction);
+}
+
+ICypressNodeProxyPtr TCypressNodeProxyNontemplateBase::ToProxy(INodePtr node)
+{
+    return dynamic_cast<ICypressNodeProxy*>(~node);
+}
+
+TNodeId TCypressNodeProxyNontemplateBase::GetNodeId(INodePtr node)
+{
+    return dynamic_cast<ICypressNodeProxy&>(*node).GetId();
+}
+
+TNodeId TCypressNodeProxyNontemplateBase::GetNodeId(IConstNodePtr node)
+{
+    return dynamic_cast<const ICypressNodeProxy&>(*node).GetId();
+}
+
+void TCypressNodeProxyNontemplateBase::AttachChild(ICypressNode* child)
+{
+    child->SetParentId(Id);
+    Bootstrap->GetObjectManager()->RefObject(child);
+}
+
+void TCypressNodeProxyNontemplateBase::DetachChild(ICypressNode* child, bool unref)
+{
+    child->SetParentId(NObjectClient::NullObjectId);
+    if (unref) {
+        Bootstrap->GetObjectManager()->UnrefObject(child);
+    }
+}
+
+TAutoPtr<IAttributeDictionary> TCypressNodeProxyNontemplateBase::DoCreateUserAttributes()
+{
+    return new TVersionedUserAttributeDictionary(
+        Id,
+        Transaction,
+        Bootstrap);
+}
+
+void TCypressNodeProxyNontemplateBase::SetModified()
+{
+    Bootstrap->GetCypressManager()->SetModified(Id, Transaction);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -612,6 +939,7 @@ IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
 
 } // namespace NCypressServer
 } // namespace NYT

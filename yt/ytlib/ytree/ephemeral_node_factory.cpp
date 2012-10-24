@@ -1,8 +1,8 @@
 #include "stdafx.h"
-#include "ephemeral.h"
+#include "ephemeral_node_factory.h"
 #include "node_detail.h"
 #include "ypath_detail.h"
-#include "attribute_provider_detail.h"
+#include "ephemeral_attribute_owner.h"
 #include "ypath_client.h"
 
 #include <ytlib/misc/hash.h>
@@ -54,12 +54,13 @@ private:
 class TEphemeralNodeBase
     : public TNodeBase
     , public TSupportsAttributes
-    , public TEphemeralAttributeProvider
+    , public TEphemeralAttributeOwner
 {
 public:
     TEphemeralNodeBase()
         : Parent(NULL)
     { }
+
 
     virtual INodeFactoryPtr CreateFactory() const override
     {
@@ -71,6 +72,7 @@ public:
         return New<TEphemeralYPathResolver>(const_cast<TEphemeralNodeBase*>(this));
     }
 
+
     virtual ICompositeNodePtr GetParent() const override
     {
         return Parent;
@@ -80,6 +82,34 @@ public:
     {
         YASSERT(!parent || !Parent);
         Parent = ~parent;
+    }
+
+
+    virtual void GetAttributes(
+        IYsonConsumer* consumer,
+        const TAttributeFilter& filter) const override
+    {
+        if (filter.Mode == EAttributeFilterMode::None)
+            return;
+
+        const auto& attributes = Attributes();
+        auto keys = attributes.List();
+        yhash_set<Stroka> matchingKeys(filter.Keys.begin(), filter.Keys.end());
+        bool seenMatching = false;
+        FOREACH (const auto& key, keys) {
+            if (filter.Mode == EAttributeFilterMode::All || matchingKeys.find(key) != matchingKeys.end()) {
+                if (!seenMatching) {
+                    consumer->OnBeginAttributes();
+                    seenMatching = true;
+                }
+                consumer->OnKeyedItem(key);
+                consumer->OnRaw(attributes.GetYson(key).Data(), EYsonType::Node);
+            }
+        }
+
+        if (seenMatching) {
+            consumer->OnEndAttributes();
+        }
     }
 
 protected:

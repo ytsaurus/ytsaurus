@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "ypath_service.h"
 #include "tree_builder.h"
-#include "ephemeral.h"
+#include "ephemeral_node_factory.h"
 #include "ypath_client.h"
 #include "ypath_detail.h"
 

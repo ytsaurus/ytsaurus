@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "attribute_owner.h"
 #include "attribute_provider.h"
 #include "ypath_service.h"
 #include "yson_consumer.h"
@@ -39,6 +40,7 @@ struct IYPathResolver
 //! A base DOM-like interface representing a node.
 struct INode
     : public virtual IYPathService
+    , public virtual IAttributeOwner
     , public virtual IAttributeProvider
 {
     //! Returns the static type of the node.

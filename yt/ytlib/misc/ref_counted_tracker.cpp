@@ -4,7 +4,7 @@
 #include "demangle.h"
 
 #include <ytlib/ytree/node.h>
-#include <ytlib/ytree/ephemeral.h>
+#include <ytlib/ytree/ephemeral_node_factory.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/tree_builder.h>
 

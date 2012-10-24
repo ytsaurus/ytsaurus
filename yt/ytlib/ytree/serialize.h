@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ephemeral.h"
+#include "ephemeral_node_factory.h"
 #include "yson_writer.h"
 #include "yson_producer.h"
 

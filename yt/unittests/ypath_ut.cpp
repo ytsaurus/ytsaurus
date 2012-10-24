@@ -11,7 +11,7 @@
 
 #include <ytlib/ytree/yson_parser.h>
 #include <ytlib/ytree/yson_writer.h>
-#include <ytlib/ytree/ephemeral.h>
+#include <ytlib/ytree/ephemeral_node_factory.h>
 
 #include <contrib/testing/framework.h>
 

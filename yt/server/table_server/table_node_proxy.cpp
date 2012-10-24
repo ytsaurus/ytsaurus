@@ -3,20 +3,27 @@
 
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/serialize.h>
+
 #include <ytlib/ytree/tree_builder.h>
-#include <ytlib/ytree/ephemeral.h>
+#include <ytlib/ytree/ephemeral_node_factory.h>
 #include <ytlib/ytree/yson_parser.h>
 #include <ytlib/ytree/tokenizer.h>
 #include <ytlib/ytree/ypath_format.h>
+
+#include <ytlib/ypath/token.h>
+
 #include <server/chunk_server/chunk.h>
 #include <server/chunk_server/chunk_list.h>
 #include <server/chunk_server/chunk_manager.h>
 #include <server/chunk_server/chunk_tree_traversing.h>
+
 #include <server/cell_master/bootstrap.h>
+
 #include <ytlib/table_client/schema.h>
 #include <ytlib/table_client/key.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
+
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 namespace NYT {
 namespace NTableServer {
@@ -451,7 +458,7 @@ bool TTableNodeProxy::IsWriteRequest(IServiceContextPtr context) const
     return TBase::IsWriteRequest(context);
 }
 
-void TTableNodeProxy::GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
+void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const
 {
     const auto* impl = GetThisTypedImpl();
     const auto* chunkList = impl->GetChunkList();
@@ -466,22 +473,22 @@ void TTableNodeProxy::GetSystemAttributes(std::vector<TAttributeInfo>* attribute
     attributes->push_back("sorted");
     attributes->push_back("update_mode");
     attributes->push_back(TAttributeInfo("sorted_by", !chunkList->SortedBy().empty()));
-    TBase::GetSystemAttributes(attributes);
+    TBase::ListSystemAttributes(attributes);
 }
 
-bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* consumer)
+bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const
 {
     const auto* impl = GetThisTypedImpl();
     const auto* chunkList = impl->GetChunkList();
     const auto& statistics = chunkList->Statistics();
 
-    if (name == "chunk_list_id") {
+    if (key == "chunk_list_id") {
         BuildYsonFluently(consumer)
             .Scalar(chunkList->GetId().ToString());
         return true;
     }
 
-    if (name == "chunk_ids") {
+    if (key == "chunk_ids") {
         auto visitor = New<TAttributeChunkVisitor>();
         std::vector<TChunkId> chunkIds;
         NChunkServer::TraverseChunkTree(
@@ -501,25 +508,25 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* cons
         }
     }
 
-    if (name == "chunk_count") {
+    if (key == "chunk_count") {
         BuildYsonFluently(consumer)
             .Scalar(statistics.ChunkCount);
         return true;
     }
 
-    if (name == "uncompressed_data_size") {
+    if (key == "uncompressed_data_size") {
         BuildYsonFluently(consumer)
             .Scalar(statistics.UncompressedSize);
         return true;
     }
 
-    if (name == "compressed_size") {
+    if (key == "compressed_size") {
         BuildYsonFluently(consumer)
             .Scalar(statistics.CompressedSize);
         return true;
     }
 
-    if (name == "compression_ratio") {
+    if (key == "compression_ratio") {
         double ratio = statistics.UncompressedSize > 0 ?
             static_cast<double>(statistics.CompressedSize) / statistics.UncompressedSize : 0;
         BuildYsonFluently(consumer)
@@ -527,43 +534,46 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& name, IYsonConsumer* cons
         return true;
     }
 
-    if (name == "row_count") {
+    if (key == "row_count") {
         BuildYsonFluently(consumer)
             .Scalar(chunkList->Statistics().RowCount);
         return true;
     }
 
-    if (name == "sorted") {
+    if (key == "sorted") {
         BuildYsonFluently(consumer)
             .Scalar(!chunkList->SortedBy().empty());
         return true;
     }
 
     if (!chunkList->SortedBy().empty()) {
-        if (name == "sorted_by") {
+        if (key == "sorted_by") {
             BuildYsonFluently(consumer)
                 .List(chunkList->SortedBy());
             return true;
         }
     }
 
-    if (name == "update_mode") {
+    if (key == "update_mode") {
         BuildYsonFluently(consumer)
             .Scalar(FormatEnum(impl->GetUpdateMode()));
         return true;
     }
 
-    return TBase::GetSystemAttribute(name, consumer);
+    return TBase::GetSystemAttribute(key, consumer);
 }
 
-void TTableNodeProxy::OnUpdateAttribute(
+void TTableNodeProxy::ValidateUserAttributeUpdate(
     const Stroka& key,
     const TNullable<TYsonString>& oldValue,
     const TNullable<TYsonString>& newValue)
 {
+    UNUSED(oldValue);
+
     if (key == "channels") {
         if (!newValue) {
-            THROW_ERROR_EXCEPTION("Attribute \"channels\" cannot be removed");
+            THROW_ERROR_EXCEPTION("Attribute cannot be removed: %s",
+                ~NYPath::ToYPathLiteral(key));
         }
         ChannelsFromYson(newValue.Get());
     }

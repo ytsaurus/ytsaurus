@@ -1,5 +1,4 @@
-#pragma once
-
+#include "stdafx.h"
 #include "attribute_provider.h"
 
 namespace NYT {
@@ -7,10 +6,8 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void VisitTree(
-    INodePtr root,
-    IYsonConsumer* consumer,
-    const TAttributeFilter& attributeFilter = TAttributeFilter::All);
+TAttributeFilter TAttributeFilter::All(EAttributeFilterMode::All, std::vector<Stroka>());
+TAttributeFilter TAttributeFilter::None(EAttributeFilterMode::None, std::vector<Stroka>());
 
 ////////////////////////////////////////////////////////////////////////////////
 

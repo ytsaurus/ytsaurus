@@ -6,6 +6,7 @@
 
 #include <ytlib/ytree/convert.h>
 #include <ytlib/ytree/attribute_helpers.h>
+#include <ytlib/ytree/system_attribute_provider.h>
 
 #include <ytlib/ypath/tokenizer.h>
 
@@ -163,202 +164,8 @@ IMPLEMENT_SUPPORTS_VERB(Exists)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-TValueOrError<TYsonString> DoGetAttribute(
-    IAttributeDictionary* userAttributes,
-    ISystemAttributeProvider* systemAttributeProvider,
-    const Stroka& key,
-    bool* isSystem = NULL)
-{
-    if (systemAttributeProvider) {
-        TStringStream stream;
-        TYsonWriter writer(&stream);
-        if (systemAttributeProvider->GetSystemAttribute(key, &writer)) {
-            if (isSystem) {
-                *isSystem = true;
-            }
-            return TYsonString(stream.Str());
-        }
-    }
-
-    if (!userAttributes) {
-        return TError("System attribute is not found: %s",
-            ~ToYPathLiteral(key));
-    }
-
-    if (isSystem) {
-        *isSystem = false;
-    }
-
-    if (!userAttributes->FindYson(key)) {
-        return TError("Attribute is not found: %s",
-            ~ToYPathLiteral(key));
-    }
-    
-    return userAttributes->GetYson(key);
-}
-
-TNullable<TYsonString> DoFindAttribute(
-    IAttributeDictionary* userAttributes,
-    ISystemAttributeProvider* systemAttributeProvider,
-    const Stroka& key,
-    bool* isSystem = NULL)
-{
-    if (systemAttributeProvider) {
-        TStringStream stream;
-        TYsonWriter writer(&stream);
-        if (systemAttributeProvider->GetSystemAttribute(key, &writer)) {
-            if (isSystem) {
-                *isSystem = true;
-            }
-            return TYsonString(stream.Str());
-        }
-    }
-
-    if (!userAttributes) {
-        return Null;
-    }
-
-    if (isSystem) {
-        *isSystem = false;
-    }
-
-    return userAttributes->FindYson(key);
-}
-
-void DoSetAttribute(
-    IAttributeDictionary* userAttributes,
-    ISystemAttributeProvider* systemAttributeProvider,
-    const Stroka& key,
-    const TYsonString& value,
-    bool isSystem)
-{
-    if (isSystem) {
-        YASSERT(systemAttributeProvider);
-        if (!systemAttributeProvider->SetSystemAttribute(key, value)) {
-            THROW_ERROR_EXCEPTION("System attribute cannot be set: %s",
-                ~ToYPathLiteral(key));
-        }
-    } else {
-        if (!userAttributes) {
-            THROW_ERROR_EXCEPTION("User attributes are not supported");
-        }
-        userAttributes->SetYson(key, value);
-    }
-}
-
-void DoSetAttribute(
-    IAttributeDictionary* userAttributes,
-    ISystemAttributeProvider* systemAttributeProvider,
-    const Stroka& key,
-    const TYsonString& value)
-{
-    if (systemAttributeProvider) {
-        if (systemAttributeProvider->SetSystemAttribute(key, value)) {
-            return;
-        }
-
-        // Check for system attributes
-        std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
-        systemAttributeProvider->GetSystemAttributes(&systemAttributes);
-                
-        FOREACH (const auto& attribute, systemAttributes) {
-            if (attribute.Key == key) {
-                THROW_ERROR_EXCEPTION("System attribute cannot be set: %s",
-                    ~ToYPathLiteral(key));
-            }
-        }
-    }
-
-    if (!userAttributes) {
-        THROW_ERROR_EXCEPTION("User attributes are not supported");
-    }
-
-    userAttributes->SetYson(key, value);
-}
-
-std::vector<Stroka> DoListAttributes(
-    IAttributeDictionary* userAttributes,
-    ISystemAttributeProvider* systemAttributeProvider)
-{
-    std::vector<Stroka> keys;
-
-    if (systemAttributeProvider) {
-        std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
-        systemAttributeProvider->GetSystemAttributes(&systemAttributes);
-        FOREACH (const auto& attribute, systemAttributes) {
-            if (attribute.IsPresent) {
-                keys.push_back(attribute.Key);
-            }
-        }
-    }
-
-    if (userAttributes) {
-        auto userKeys = userAttributes->List();
-        keys.insert(keys.end(), userKeys.begin(), userKeys.end());
-    }
-
-    return keys;
-}
-
-bool DoRemoveAttribute(
-    IAttributeDictionary* userAttributes,
-    ISystemAttributeProvider* systemAttributeProvider,
-    const Stroka& key)
-{
-    // System attributes do not support removal.
-    UNUSED(systemAttributeProvider);
-
-    if (!userAttributes) {
-        THROW_ERROR_EXCEPTION("User attributes are not supported");
-    }
-
-    return userAttributes->Remove(key);
-}
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSupportsAttributes::TCombinedAttributeDictionary
-    : public IAttributeDictionary
-{
-public:
-    TCombinedAttributeDictionary(
-        IAttributeDictionary* userAttributes,
-        ISystemAttributeProvider* systemAttributeProvider)
-        : UserAttributes(userAttributes)
-        , SystemAttributeProvider(systemAttributeProvider)
-    { }
-
-    virtual std::vector<Stroka> List() const override
-    {
-        return DoListAttributes(UserAttributes, SystemAttributeProvider);
-    }
-
-    virtual TNullable<TYsonString> FindYson(const Stroka& key) const override
-    {
-        return DoFindAttribute(UserAttributes, SystemAttributeProvider, key);
-    }
-
-    virtual void SetYson(const Stroka& key, const TYsonString& value) override
-    {
-        DoSetAttribute(UserAttributes, SystemAttributeProvider, key, value);
-    }
-
-    virtual bool Remove(const Stroka& key) override
-    {
-        return DoRemoveAttribute(UserAttributes, SystemAttributeProvider, key);
-    }
-
-private:
-    IAttributeDictionary* UserAttributes;
-    ISystemAttributeProvider* SystemAttributeProvider;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
+static TFuture<bool> TrueFuture = MakeFuture(true);
+static TFuture<bool> FalseFuture = MakeFuture(false);
 
 IYPathService::TResolveResult TSupportsAttributes::ResolveAttributes(
     const TYPath& path,
@@ -377,26 +184,84 @@ IYPathService::TResolveResult TSupportsAttributes::ResolveAttributes(
     return TResolveResult::Here("/@" + path);
 }
 
-void TSupportsAttributes::GetAttribute(
-    const TYPath& path,
-    TReqGet* request,
-    TRspGet* response,
-    TCtxGetPtr context)
+TFuture< TValueOrError<TYsonString> > TSupportsAttributes::DoFindAttribute(const Stroka& key)
 {
     auto userAttributes = GetUserAttributes();
     auto systemAttributeProvider = GetSystemAttributeProvider();
-    
+
+    if (userAttributes) {
+        auto userYson = userAttributes->FindYson(key);
+        if (userYson) {
+            return MakeFuture(TValueOrError<TYsonString>(userYson.Get()));
+        }
+    }
+
+    if (systemAttributeProvider) {
+        TStringStream syncStream;
+        TYsonWriter syncWriter(&syncStream);
+        if (systemAttributeProvider->GetSystemAttribute(key, &syncWriter)) {
+            TYsonString systemYson(syncStream.Str());
+            return MakeFuture(TValueOrError<TYsonString>(systemYson));
+        }
+
+        auto onAsyncAttribute = [] (
+            TStringStream* stream,
+            TYsonWriter* writer,
+            TError error) ->
+            TValueOrError<TYsonString>
+        {
+            if (error.IsOK()) {
+                return TYsonString(stream->Str());
+            } else {
+                return error;
+            }
+        };
+
+        TAutoPtr<TStringStream> asyncStream(new TStringStream());
+        TAutoPtr<TYsonWriter> asyncWriter(new TYsonWriter(~asyncStream));
+        auto asyncResult = systemAttributeProvider->GetSystemAttributeAsync(key, ~asyncWriter);
+        if (asyncResult) {
+            return asyncResult.Apply(BIND(
+                onAsyncAttribute,
+                Owned(asyncStream.Release()),
+                Owned(asyncWriter.Release())));
+        }
+    }
+
+    return Null;
+}
+
+TValueOrError<TYsonString> TSupportsAttributes::DoGetAttributeFragment(
+    const TYPath& path,
+    TValueOrError<TYsonString> wholeYsonOrError)
+{
+    if (!wholeYsonOrError.IsOK()) {
+        return wholeYsonOrError;
+    }
+    auto node = ConvertToNode<TYsonString>(wholeYsonOrError.Value());
+    try {
+        return SyncYPathGet(node, path);
+    } catch (const std::exception& ex) {
+        return ex;
+    }
+}
+
+TFuture< TValueOrError<TYsonString> > TSupportsAttributes::DoGetAttribute(const TYPath& path)
+{
+    auto userAttributes = GetUserAttributes();
+    auto systemAttributeProvider = GetSystemAttributeProvider();
+
     NYPath::TTokenizer tokenizer(path);
 
     if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
         TStringStream stream;
         TYsonWriter writer(&stream);
-        
+
         writer.OnBeginMap();
 
         if (systemAttributeProvider) {
             std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
-            systemAttributeProvider->GetSystemAttributes(&systemAttributes);
+            systemAttributeProvider->ListSystemAttributes(&systemAttributes);
             FOREACH (const auto& attribute, systemAttributes) {
                 if (attribute.IsPresent) {
                     writer.OnKeyedItem(attribute.Key);
@@ -415,28 +280,115 @@ void TSupportsAttributes::GetAttribute(
                 Consume(userAttributes->GetYson(key), &writer);
             }
         }
-        
-        writer.OnEndMap();
 
-        response->set_value(stream.Str());
+        writer.OnEndMap();
+        TYsonString yson(stream.Str());
+        return MakeFuture(TValueOrError<TYsonString>(yson));
     } else {
-        auto yson =
-            DoGetAttribute(
-                userAttributes,
-                systemAttributeProvider,
-                tokenizer.GetLiteralValue())
-            .GetOrThrow();
+        auto key = tokenizer.GetLiteralValue();
+        auto ysonOrError = DoFindAttribute(key);
+        if (!ysonOrError) {
+            return MakeFuture(TValueOrError<TYsonString>(TError("Attribute is not found: %s",
+                ~ToYPathLiteral(key))));
+        }
 
         if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-            response->set_value(yson.Data());
-        } else {
-            auto node = ConvertToNode(yson);
-            auto value = SyncYPathGet(node, tokenizer.GetInput(), true);
-            response->set_value(value.Data());
+            return ysonOrError;
         }
+
+        auto suffixPath = tokenizer.GetInput();
+        return ysonOrError.Apply(BIND(&TSupportsAttributes::DoGetAttributeFragment, suffixPath));
+   }
+}
+
+void TSupportsAttributes::GetAttribute(
+    const TYPath& path,
+    TReqGet* request,
+    TRspGet* response,
+    TCtxGetPtr context)
+{
+    DoGetAttribute(path).Subscribe(BIND([=] (TValueOrError<TYsonString> ysonOrError) {
+        if (ysonOrError.IsOK()) {
+            response->set_value(ysonOrError.Value().Data());
+            context->Reply();
+        } else {
+            context->Reply(ysonOrError);
+        }
+    }));
+}
+
+TValueOrError<TYsonString> TSupportsAttributes::DoListAttributeFragment(
+    const TYPath& path,
+    TValueOrError<TYsonString> wholeYsonOrError)
+{
+    if (!wholeYsonOrError.IsOK()) {
+        return wholeYsonOrError;
     }
 
-    context->Reply();
+    auto node = ConvertToNode(wholeYsonOrError.Value());
+
+    std::vector<Stroka> listedKeys;
+    try {
+        listedKeys = SyncYPathList(node, path);
+    } catch (const std::exception& ex) {
+        return ex;
+    }
+
+    TStringStream stream;
+    TYsonWriter writer(&stream);
+    writer.OnBeginList();
+    FOREACH (const auto& listedKey, listedKeys) {
+        writer.OnStringScalar(listedKey);
+    }
+    writer.OnEndList();
+
+    return TYsonString(stream.Str());
+}
+
+TFuture< TValueOrError<TYsonString> > TSupportsAttributes::DoListAttribute(const TYPath& path)
+{
+    auto userAttributes = GetUserAttributes();
+    auto systemAttributeProvider = GetSystemAttributeProvider();
+
+    NYPath::TTokenizer tokenizer(path);
+
+    if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
+        TStringStream stream;
+        TYsonWriter writer(&stream);
+        writer.OnBeginList();
+
+        if (userAttributes) {
+            auto userKeys = userAttributes->List();
+            FOREACH (const auto& key, userKeys) {
+                writer.OnStringScalar(key);
+            }
+        }
+
+        if (systemAttributeProvider) {
+            std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
+            systemAttributeProvider->ListSystemAttributes(&systemAttributes);
+            FOREACH (const auto& attribute, systemAttributes) {
+                writer.OnStringScalar(attribute.Key);
+            }
+        }
+
+        writer.OnEndList();
+
+        TYsonString yson(stream.Str());
+        return MakeFuture(TValueOrError<TYsonString>(yson));
+    } else  {
+        tokenizer.Expect(NYPath::ETokenType::Literal);
+        auto key = tokenizer.GetLiteralValue();
+
+        auto ysonOrError = DoFindAttribute(key);
+        if (!ysonOrError) {
+            return MakeFuture(TValueOrError<TYsonString>(TError("Attribute is not found: %s",
+                ~ToYPathLiteral(key))));
+        }
+
+        auto pathSuffix = tokenizer.GetSuffix();
+        return ysonOrError.Apply(BIND(&TSupportsAttributes::DoListAttributeFragment, pathSuffix));
+    }
 }
 
 void TSupportsAttributes::ListAttribute(
@@ -445,29 +397,70 @@ void TSupportsAttributes::ListAttribute(
     TRspList* response,
     TCtxListPtr context)
 {
+    UNUSED(request);
+
+    DoListAttribute(path).Subscribe(BIND([=] (TValueOrError<TYsonString> ysonOrError) {
+        if (ysonOrError.IsOK()) {
+            response->set_keys(ysonOrError.Value().Data());
+            context->Reply();
+        } else {
+            context->Reply(ysonOrError);
+        }
+    }));
+}
+
+bool TSupportsAttributes::DoExistsAttributeFragment(
+    const TYPath& path,
+    TValueOrError<TYsonString> wholeYsonOrError)
+{
+    if (!wholeYsonOrError.IsOK()) {
+        return false;
+    }
+    auto node = ConvertToNode<TYsonString>(wholeYsonOrError.Value());
+    try {
+        return SyncYPathExists(node, path);
+    } catch (const std::exception&) {
+        return false;
+    }
+}
+
+TFuture<bool> TSupportsAttributes::DoExistsAttribute(const TYPath& path)
+{
     auto userAttributes = GetUserAttributes();
     auto systemAttributeProvider = GetSystemAttributeProvider();
 
     NYPath::TTokenizer tokenizer(path);
-
-    std::vector<Stroka> keys;
-
     if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-        keys = DoListAttributes(userAttributes, systemAttributeProvider);
-    } else  {
-        tokenizer.Expect(NYPath::ETokenType::Literal);
-        auto key = tokenizer.GetLiteralValue();
-        auto node = ConvertToNode(
-            DoGetAttribute(
-                userAttributes,
-                systemAttributeProvider,
-                tokenizer.GetLiteralValue())
-            .GetOrThrow());
-        keys = SyncYPathList(node, tokenizer.GetSuffix());
+        return TrueFuture;
     }
 
-    response->set_keys(ConvertToYsonString(keys).Data());
-    context->Reply();
+    auto key = tokenizer.GetLiteralValue();
+    if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
+        if (userAttributes) {
+            auto userYson = userAttributes->FindYson(key);
+            return userYson ? TrueFuture : FalseFuture;
+        }
+
+        if (systemAttributeProvider) {
+            std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
+            systemAttributeProvider->ListSystemAttributes(&systemAttributes);
+            FOREACH (const auto& attribute, systemAttributes) {
+                if (attribute.Key == key && attribute.IsPresent) {
+                    return TrueFuture;
+                }
+            }
+        }
+
+        return FalseFuture;
+    } else {
+        auto ysonOrError = DoFindAttribute(key);
+        if (!ysonOrError) {
+            return FalseFuture;
+        }
+
+        auto pathSuffix = tokenizer.GetInput();
+        return ysonOrError.Apply(BIND(&TSupportsAttributes::DoExistsAttributeFragment, pathSuffix));
+    }
 }
 
 void TSupportsAttributes::ExistsAttribute(
@@ -477,32 +470,131 @@ void TSupportsAttributes::ExistsAttribute(
     TCtxExistsPtr context)
 {
     UNUSED(request);
-    UNUSED(response);
 
+    DoExistsAttribute(path).Subscribe(BIND([=] (bool result) {
+        response->set_value(result);
+        context->Reply();
+    }));
+}
+
+void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& newYson)
+{
     auto userAttributes = GetUserAttributes();
     auto systemAttributeProvider = GetSystemAttributeProvider();
 
-    bool result = true;
-
     NYPath::TTokenizer tokenizer(path);
-    if (tokenizer.Advance() != NYPath::ETokenType::EndOfStream) {
-        auto ysonOrError =
-            DoGetAttribute(
-                userAttributes,
-                systemAttributeProvider,
-                tokenizer.GetLiteralValue());
-        if (ysonOrError.IsOK()) {
-            if (tokenizer.Advance() != NYPath::ETokenType::EndOfStream) {
-                auto node = ConvertToNode(ysonOrError.Value());
-                result = SyncYPathExists(node, tokenizer.GetInput());
+
+    if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
+        auto newAttributes = ConvertToAttributes(newYson);
+
+        if (systemAttributeProvider) {
+            std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
+            systemAttributeProvider->ListSystemAttributes(&systemAttributes);
+
+            FOREACH (const auto& attribute, systemAttributes) {
+                Stroka key(attribute.Key);
+                auto newAttributeYson = newAttributes->FindYson(key);
+                if (newAttributeYson) {
+                    if (attribute.IsOpaque) {
+                        THROW_ERROR_EXCEPTION("Cannot set an opaque system attribute: %s",
+                            ~ToYPathLiteral(key));
+                    }
+                    systemAttributeProvider->SetSystemAttribute(key, newAttributeYson.Get());
+                    YCHECK(newAttributes->Remove(key));
+                }
+            }
+        }
+
+        auto newUserKeys = newAttributes->List();
+
+        if (!userAttributes) {
+             if (!newUserKeys.empty()) {
+                 THROW_ERROR_EXCEPTION("User attributes are not supported");
+             }
+             return;
+        }
+
+        auto oldUserKeys = userAttributes->List();
+
+        FOREACH (const auto& key, newUserKeys) {
+            auto newAttributeYson = newAttributes->GetYson(key);
+            auto oldAttributeYson = userAttributes->FindYson(key);
+            ValidateUserAttributeUpdate(key, oldAttributeYson, newAttributeYson);
+            userAttributes->SetYson(key, newAttributeYson);
+        }
+
+        FOREACH (const auto& key, oldUserKeys) {
+            if (!newAttributes->FindYson(key)) {
+                auto oldAttributeYson = userAttributes->GetYson(key);
+                ValidateUserAttributeUpdate(key, oldAttributeYson, Null);
+                userAttributes->Remove(key);
+            }
+        }
+    } else {
+        tokenizer.Expect(NYPath::ETokenType::Literal);
+        auto key = tokenizer.GetLiteralValue();
+        if (key.Empty()) {
+            THROW_ERROR_EXCEPTION("Attribute key cannot be empty");
+        }
+
+        const ISystemAttributeProvider::TAttributeInfo* attribute = NULL;
+        if (systemAttributeProvider) {
+            std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
+            systemAttributeProvider->ListSystemAttributes(&systemAttributes);
+            FOREACH (const auto& currentAttribute, systemAttributes) {
+                if (currentAttribute.Key == key) {
+                    attribute = &currentAttribute;
+                    break;
+                }
+            }
+        }
+
+        if (attribute) {
+            if (attribute->IsOpaque) {
+                THROW_ERROR_EXCEPTION("Cannot set an opaque system attribute: %s",
+                    ~ToYPathLiteral(key));
+            }
+
+            if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
+                systemAttributeProvider->SetSystemAttribute(key, newYson);
+            } else {
+                TStringStream stream;
+                TYsonWriter writer(&stream);
+                if (!systemAttributeProvider->GetSystemAttribute(key, &writer)) {
+                    THROW_ERROR_EXCEPTION("System attribute is not found: %s",
+                        ~ToYPathLiteral(key));
+                }
+
+                TYsonString oldWholeYson(stream.Str());
+                auto wholeNode = ConvertToNode(oldWholeYson);
+                SyncYPathSet(wholeNode, tokenizer.GetInput(), newYson);
+                auto newWholeYson = ConvertToYsonString(wholeNode);
+
+                systemAttributeProvider->SetSystemAttribute(key, newWholeYson);
             }
         } else {
-            result = false;
+            if (!userAttributes) {
+                THROW_ERROR_EXCEPTION("User attributes are not supported");
+            }
+            auto oldWholeYson = userAttributes->FindYson(key);
+            if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
+                ValidateUserAttributeUpdate(key, oldWholeYson, newYson);
+                userAttributes->SetYson(key, newYson);
+            } else {
+                if (!oldWholeYson) {
+                    THROW_ERROR_EXCEPTION("User attribute is not found: %s",
+                        ~ToYPathLiteral(key));
+                }
+                
+                auto wholeNode = ConvertToNode(oldWholeYson.Get());
+                SyncYPathSet(wholeNode, tokenizer.GetInput(), newYson);
+                auto newWholeYson = ConvertToYsonString(wholeNode);
+
+                ValidateUserAttributeUpdate(key, oldWholeYson, newWholeYson);
+                userAttributes->SetYson(key, newWholeYson);
+            }
         }
     }
-    response->set_value(result);
-
-    context->Reply();
 }
 
 void TSupportsAttributes::SetAttribute(
@@ -511,103 +603,17 @@ void TSupportsAttributes::SetAttribute(
     TRspSet* response,
     TCtxSetPtr context)
 {
-    auto userAttributes = GetUserAttributes();
-    auto systemAttributeProvider = GetSystemAttributeProvider();
+    UNUSED(response);
 
-    NYPath::TTokenizer tokenizer(path);
-
-    if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-        auto newAttributes = ConvertToAttributes(TYsonString(request->value()));
-        auto newKeys_ = newAttributes->List();
-        yhash_set<Stroka> newKeys(newKeys_.begin(), newKeys_.end());
-        auto oldKeys = userAttributes ? userAttributes->List() : std::vector<Stroka>();
-
-        // Call OnUpdateAttribute to check the changes for feasibility.
-        FOREACH (const auto& key, newKeys) {
-            YASSERT(!key.empty());
-            OnUpdateAttribute(
-                key,
-                DoFindAttribute(userAttributes, systemAttributeProvider, key),
-                newAttributes->GetYson(key));
-        }
-        FOREACH (const auto& key, oldKeys) {
-            if (newKeys.find(key) == newKeys.end()) {
-                OnUpdateAttribute(
-                    key,
-                    userAttributes->GetYson(key),
-                    Null);
-            }
-        }
-
-        // Remove deleted keys.
-        FOREACH (const auto& key, oldKeys) {
-            userAttributes->Remove(key);
-        }
-
-        // Add new keys.
-        FOREACH (const auto& key, newKeys) {
-            DoSetAttribute(
-                userAttributes,
-                systemAttributeProvider,
-                key,
-                newAttributes->GetYson(key));
-        }
-    } else {
-        tokenizer.Expect(NYPath::ETokenType::Literal);
-        auto key = tokenizer.GetLiteralValue();
-        if (key.Empty()) {
-            THROW_ERROR_EXCEPTION("Attribute key cannot be empty");
-        }
-        if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-            auto oldValue = DoFindAttribute(userAttributes, systemAttributeProvider, key);
-            auto newValue = TYsonString(request->value());
-            newValue.Validate();
-            OnUpdateAttribute(
-                key,
-                oldValue,
-                newValue);
-            DoSetAttribute(
-                userAttributes,
-                systemAttributeProvider,
-                key,
-                newValue);
-        } else {
-            bool isSystem;
-            auto yson =
-                DoGetAttribute(
-                    userAttributes,
-                    systemAttributeProvider,
-                    key,
-                    &isSystem)
-                .GetOrThrow();
-            auto node = ConvertToNode(yson);
-            SyncYPathSet(node, tokenizer.GetInput(), TYsonString(request->value()));
-            auto updatedYson = ConvertToYsonString(node);
-            OnUpdateAttribute(
-                key,
-                DoFindAttribute(userAttributes, systemAttributeProvider, key),
-                updatedYson);
-            DoSetAttribute(
-                userAttributes,
-                systemAttributeProvider,
-                key,
-                updatedYson,
-                isSystem);
-        }
-    }
-
+    DoSetAttribute(path, TYsonString(request->value()));
     context->Reply();
 }
 
-void TSupportsAttributes::RemoveAttribute(
-    const TYPath& path,
-    TReqRemove* request,
-    TRspRemove* response,
-    TCtxRemovePtr context)
+void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
 {
     auto userAttributes = GetUserAttributes();
     auto systemAttributeProvider = GetSystemAttributeProvider();
-    
+
     NYPath::TTokenizer tokenizer(path);
     tokenizer.Advance();
     tokenizer.Expect(NYPath::ETokenType::Literal);
@@ -616,7 +622,7 @@ void TSupportsAttributes::RemoveAttribute(
         if (userAttributes) {
             auto userKeys = userAttributes->List();
             FOREACH (const auto& key, userKeys) {
-                OnUpdateAttribute(key, userAttributes->GetYson(key), Null);
+                ValidateUserAttributeUpdate(key, userAttributes->GetYson(key), Null);
             }
             FOREACH (const auto& key, userKeys) {
                 YCHECK(userAttributes->Remove(key));
@@ -624,44 +630,56 @@ void TSupportsAttributes::RemoveAttribute(
         }
     } else {
         auto key = tokenizer.GetLiteralValue();
+        auto userYson = userAttributes ? userAttributes->FindYson(key) : TNullable<TYsonString>(Null);
         if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-            OnUpdateAttribute(
-                key,
-                DoFindAttribute(userAttributes, systemAttributeProvider, key),
-                Null);
-            if (!DoRemoveAttribute(userAttributes, systemAttributeProvider, key)) {
+            if (!userYson) {
                 THROW_ERROR_EXCEPTION("User attribute is not found: %s",
                     ~ToYPathLiteral(key));
             }
+
+            ValidateUserAttributeUpdate(key, userYson, Null);
+            YCHECK(userAttributes->Remove(key));
         } else {
-            bool isSystem;
-            auto yson =
-                DoGetAttribute(
-                    userAttributes,
-                    systemAttributeProvider,
-                    key,
-                    &isSystem)
-                .GetOrThrow();
-            auto node = ConvertToNode(yson);
-            SyncYPathRemove(node, tokenizer.GetInput());
-            auto updatedYson = ConvertToYsonString(node);
-            OnUpdateAttribute(
-                key,
-                DoFindAttribute(userAttributes, systemAttributeProvider, key),
-                updatedYson);
-            DoSetAttribute(
-                userAttributes,
-                systemAttributeProvider,
-                key,
-                updatedYson,
-                isSystem);
+            if (userYson) {
+                auto userNode = ConvertToNode(userYson);
+                SyncYPathRemove(userNode, tokenizer.GetInput());
+                auto updatedUserYson = ConvertToYsonString(userNode);
+
+                ValidateUserAttributeUpdate(key, userYson, updatedUserYson);
+                userAttributes->SetYson(key, updatedUserYson);
+            } else {
+                TStringStream stream;
+                TYsonWriter writer(&stream);
+                if (!systemAttributeProvider || !systemAttributeProvider->GetSystemAttribute(key, &writer)) {
+                    THROW_ERROR_EXCEPTION("System attribute is not found: %s",
+                        ~ToYPathLiteral(key));
+                }
+
+                TYsonString systemYson(stream.Str());
+                auto systemNode = ConvertToNode(userYson);
+                SyncYPathRemove(systemNode, tokenizer.GetInput());
+                auto updatedSystemYson = ConvertToYsonString(systemNode);
+
+                systemAttributeProvider->SetSystemAttribute(key, systemYson);
+            }
         }
     }
+}
 
+void TSupportsAttributes::RemoveAttribute(
+    const TYPath& path,
+    TReqRemove* request,
+    TRspRemove* response,
+    TCtxRemovePtr context)
+{
+    UNUSED(request);
+    UNUSED(response);
+
+    DoRemoveAttribute(path);
     context->Reply();
 }
 
-void TSupportsAttributes::OnUpdateAttribute(
+void TSupportsAttributes::ValidateUserAttributeUpdate(
     const Stroka& key,
     const TNullable<TYsonString>& oldValue,
     const TNullable<TYsonString>& newValue)
@@ -669,34 +687,6 @@ void TSupportsAttributes::OnUpdateAttribute(
     UNUSED(key);
     UNUSED(oldValue);
     UNUSED(newValue);
-}
-
-IAttributeDictionary& TSupportsAttributes::CombinedAttributes()
-{
-    return GetOrCreateCombinedAttributes();
-}
-
-const IAttributeDictionary& TSupportsAttributes::CombinedAttributes() const
-{
-    return const_cast<TSupportsAttributes*>(this)->CombinedAttributes();
-}
-
-IAttributeDictionary& TSupportsAttributes::GetOrCreateCombinedAttributes()
-{
-    auto* provider = GetSystemAttributeProvider();
-
-    // Ephemeral nodes typically don't have system attributes.
-    // This quick check eliminates creation of an additional |TCombinedAttributeDictionary| wrapper.
-    if (!provider) {
-        return *GetUserAttributes();
-    }
-
-    if (!CombinedAttributes_) {
-        CombinedAttributes_.Reset(new TCombinedAttributeDictionary(
-            GetUserAttributes(),
-            GetSystemAttributeProvider()));
-    }
-    return *CombinedAttributes_;
 }
 
 IAttributeDictionary* TSupportsAttributes::GetUserAttributes()

@@ -1,15 +1,14 @@
 #pragma once
 
-#include "attributes.h"
-#include "attribute_provider.h"
+#include "attribute_owner.h"
 
 namespace NYT {
 namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TEphemeralAttributeProvider
-    : public virtual IAttributeProvider
+class TEphemeralAttributeOwner
+    : public virtual IAttributeOwner
 {
 public:
     virtual IAttributeDictionary& Attributes();

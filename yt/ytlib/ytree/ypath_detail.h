@@ -74,17 +74,6 @@ class TSupportsAttributes
     , public virtual TSupportsExists
 {
 protected:
-    class TCombinedAttributeDictionary;
-
-    THolder<IAttributeDictionary> CombinedAttributes_;
-
-    //! Returns a collection containing both and system attributes
-    //! (see #GetUserAttributes and #GetSystemAttributeProvider).
-    IAttributeDictionary& CombinedAttributes();
-
-    //! Returns a const collection containing both and system attributes.
-    const IAttributeDictionary& CombinedAttributes() const;
-
     //! Can be NULL.
     virtual IAttributeDictionary* GetUserAttributes();
 
@@ -127,13 +116,26 @@ protected:
 
     // This method is called before the attribute with the corresponding key
     // is updated (added, removed or changed).
-    virtual void OnUpdateAttribute(
+    virtual void ValidateUserAttributeUpdate(
         const Stroka& key,
         const TNullable<NYTree::TYsonString>& oldValue,
         const TNullable<NYTree::TYsonString>& newValue);
 
 private:
-    IAttributeDictionary& GetOrCreateCombinedAttributes();
+    TFuture< TValueOrError<TYsonString> > DoFindAttribute(const Stroka& key);
+    
+    static TValueOrError<TYsonString> DoGetAttributeFragment(const TYPath& path, TValueOrError<TYsonString> wholeYsonOrError);
+    TFuture< TValueOrError<TYsonString> > DoGetAttribute(const TYPath& path);
+    
+    static bool DoExistsAttributeFragment(const TYPath& path, TValueOrError<TYsonString> wholeYsonOrError);
+    TFuture<bool> DoExistsAttribute(const TYPath& path);
+
+    static TValueOrError<TYsonString> DoListAttributeFragment(const TYPath& path, TValueOrError<TYsonString> wholeYsonOrError);
+    TFuture< TValueOrError<TYsonString> > DoListAttribute(const TYPath& path);
+    
+    void DoSetAttribute(const TYPath& path, const TYsonString& newYson);
+
+    void DoRemoveAttribute(const TYPath& path);
 
 };
 
@@ -183,9 +185,9 @@ class TNodeSetter
         : public TNodeSetterBase \
     { \
     public: \
-        TNodeSetter(I##name##Node* node, ITreeBuilder* builder) \
-            : TNodeSetterBase(node, builder) \
-            , Node(node) \
+        TNodeSetter(I##name##Node* wholeNode, ITreeBuilder* builder) \
+            : TNodeSetterBase(wholeNode, builder) \
+            , Node(wholeNode) \
         { } \
     \
     private: \
@@ -196,9 +198,9 @@ class TNodeSetter
             return ENodeType::name; \
         } \
         \
-        virtual void On##name##Scalar(NDetail::TScalarTypeTraits<type>::TConsumerType value) override \
+        virtual void On##name##Scalar(NDetail::TScalarTypeTraits<type>::TConsumerType newWholeYson) override \
         { \
-            Node->SetValue(type(value)); \
+            Node->SetValue(type(newWholeYson)); \
         } \
     }
 

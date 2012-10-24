@@ -25,34 +25,23 @@ class TTreeVisitor
     : private TNonCopyable
 {
 public:
-    TTreeVisitor(
-        IYsonConsumer* consumer,
-        bool withAttributes,
-        const std::vector<Stroka>* const attributesFilter)
+    TTreeVisitor(IYsonConsumer* consumer, const TAttributeFilter& attributeFilter)
         : Consumer(consumer)
-        , WithAttributes(withAttributes)
-        , AttributesFilter(attributesFilter)
+        , AttributeFilter(attributeFilter)
     { }
 
-    void Visit(const INodePtr& root)
+    void Visit(const IConstNodePtr& root)
     {
-        // NB: Converting from INodePtr to IConstNodePtr ensures that
-        // the constant overload of Attributes() is called.
-        // Calling non-const version mutates the node and
-        // makes TreeVisitor thread-unsafe.
         VisitAny(root, true);
     }
 
 private:
     IYsonConsumer* Consumer;
-    bool WithAttributes;
-    const std::vector<Stroka>* const AttributesFilter;
+    TAttributeFilter AttributeFilter;
 
     void VisitAny(const IConstNodePtr& node, bool isRoot = false)
     {
-        if (WithAttributes) {
-            VisitAttributes(node);
-        }
+        node->GetAttributes(Consumer, AttributeFilter);
 
         if (!isRoot && node->Attributes().Get<bool>("opaque", false)) {
             // This node is opaque, i.e. replaced by entity during tree traversal.
@@ -84,51 +73,23 @@ private:
         }
     }
 
-    void VisitAttributes(IConstNodePtr node)
-    {
-        if (AttributesFilter) {
-            // Fast path.
-            const auto& attributes = node->Attributes();
-            Consumer->OnBeginAttributes();    
-            FOREACH (const auto& key, *AttributesFilter) {
-                auto value = attributes.FindYson(key);
-                if (value) {
-                    Consumer->OnKeyedItem(key);
-                    Consume(*value, Consumer);
-                }
-            }
-            Consumer->OnEndAttributes();
-        } else {
-            // Slow path.
-            auto keys = node->Attributes().List();
-            if (keys.size() > 0) {
-                Consumer->OnBeginAttributes();
-                FOREACH (const auto& key, keys) {
-                    Consumer->OnKeyedItem(key);
-                    Consume(node->Attributes().GetYson(key), Consumer);
-                }
-                Consumer->OnEndAttributes();
-            }
-        }
-    }
-
     void VisitScalar(const IConstNodePtr& node)
     {
         switch (node->GetType()) {
-        case ENodeType::String:
-            Consumer->OnStringScalar(node->GetValue<Stroka>());
-            break;
+            case ENodeType::String:
+                Consumer->OnStringScalar(node->GetValue<Stroka>());
+                break;
 
-        case ENodeType::Integer:
-            Consumer->OnIntegerScalar(node->GetValue<i64>());
-            break;
+            case ENodeType::Integer:
+                Consumer->OnIntegerScalar(node->GetValue<i64>());
+                break;
 
-        case ENodeType::Double:
-            Consumer->OnDoubleScalar(node->GetValue<double>());
-            break;
+            case ENodeType::Double:
+                Consumer->OnDoubleScalar(node->GetValue<double>());
+                break;
 
-        default:
-            YUNREACHABLE();
+            default:
+                YUNREACHABLE();
         }
     }
 
@@ -161,9 +122,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void VisitTree(const INodePtr& root, IYsonConsumer* consumer, bool withAttributes, const std::vector<Stroka>* const attributesFilter)
+void VisitTree(
+    INodePtr root,
+    IYsonConsumer* consumer,
+    const TAttributeFilter& attributeFilter)
 {
-    TTreeVisitor treeVisitor(consumer, withAttributes, attributesFilter);
+    TTreeVisitor treeVisitor(consumer, attributeFilter);
     treeVisitor.Visit(root);
 }
 

@@ -104,21 +104,17 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
 
     YCHECK(!(request->attributes_size() > 0 && request->all_attributes()));
 
-    if (request->attributes_size() > 0) {
-        attributesToVisit = NYT::FromProto<Stroka>(request->attributes());
-        std::sort(attributesToVisit->begin(), attributesToVisit->end());
-        attributesToVisit->erase(
-            std::unique(attributesToVisit->begin(), attributesToVisit->end()),
-            attributesToVisit->end());
-    }
+    auto filter =
+        request->all_attributes()
+        ? TAttributeFilter::All
+        : TAttributeFilter(
+            EAttributeFilterMode::MatchingOnly,
+            NYT::FromProto<Stroka>(request->attributes()));
 
     TStringStream stream;
     TYsonWriter writer(&stream);
 
-    VisitTree(this,
-        &writer,
-        attributesToVisit || request->all_attributes(),
-        attributesToVisit ? attributesToVisit.GetPtr() : NULL);
+    VisitTree(this, &writer, filter);
 
     response->set_value(stream.Str());
     context->Reply();

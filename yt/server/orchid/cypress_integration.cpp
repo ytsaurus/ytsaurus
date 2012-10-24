@@ -5,7 +5,7 @@
 
 #include <ytlib/actions/action_queue.h>
 
-#include <ytlib/ytree/ephemeral.h>
+#include <ytlib/ytree/ephemeral_node_factory.h>
 #include <ytlib/ytree/ypath_detail.h>
 
 #include <server/cypress_server/virtual.h>

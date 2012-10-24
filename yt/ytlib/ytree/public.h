@@ -96,7 +96,7 @@ class TYsonOutput;
 
 struct IAttributeDictionary;
 
-struct IAttributeProvider;
+struct IAttributeOwner;
 
 struct ISystemAttributeProvider;
 

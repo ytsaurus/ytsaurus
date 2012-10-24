@@ -2,7 +2,7 @@
 #include "yson_serializable.h"
 
 #include <ytlib/ytree/node.h>
-#include <ytlib/ytree/ephemeral.h>
+#include <ytlib/ytree/ephemeral_node_factory.h>
 #include <ytlib/ytree/ypath_detail.h>
 #include <ytlib/ytree/yson_consumer.h>
 

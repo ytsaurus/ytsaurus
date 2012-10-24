@@ -171,12 +171,12 @@ const TObjectId& TObjectProxyBase::GetId() const
 
 IAttributeDictionary& TObjectProxyBase::Attributes()
 {
-    return CombinedAttributes();
+    return *GetUserAttributes();
 }
 
 const IAttributeDictionary& TObjectProxyBase::Attributes() const
 {
-    return CombinedAttributes();
+    return *const_cast<TObjectProxyBase*>(this)->GetUserAttributes();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, GetId)
@@ -291,14 +291,16 @@ TAutoPtr<IAttributeDictionary> TObjectProxyBase::DoCreateUserAttributes()
         Id);
 }
 
-void TObjectProxyBase::GetSystemAttributes(std::vector<TAttributeInfo>* names)
+void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* names) const
 {
     names->push_back("id");
     names->push_back("type");
     names->push_back("ref_counter");
+    // TODO(babenko): kill me
+    names->push_back(TAttributeInfo("async_test", true, true));
 }
 
-bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
+bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const
 {
     if (key == "id") {
         BuildYsonFluently(consumer)
@@ -321,12 +323,34 @@ bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* cons
     return false;
 }
 
-bool TObjectProxyBase::SetSystemAttribute(const Stroka& key, const TYsonString& value)
+TAsyncError TObjectProxyBase::GetSystemAttributeAsync(const Stroka& key, IYsonConsumer* consumer) const
 {
-    UNUSED(key);
+    // TODO(babenko): kill me
+    if (key == "async_test") {
+        auto promise = NewPromise<TError>();
+        TDelayedInvoker::Submit(
+            BIND([=] () mutable {
+                BuildYsonFluently(consumer)
+                    .BeginList()
+                        .Item().Scalar(1)
+                        .Item().Scalar(2)
+                        .Item().Scalar(3)
+                    .EndList();
+                promise.Set(TError());
+            }),
+            TDuration::Seconds(5));
+        return promise;
+    }
+
+    return Null;
+}
+
+void TObjectProxyBase::SetSystemAttribute(const Stroka& key, const TYsonString& value)
+{
     UNUSED(value);
 
-    return false;
+    THROW_ERROR_EXCEPTION("System attribute cannot be set: %s",
+        ~ToYPathLiteral(key));
 }
 
 TVersionedObjectId TObjectProxyBase::GetVersionedId() const
@@ -339,7 +363,7 @@ bool TObjectProxyBase::IsRecovery() const
     return Bootstrap->GetMetaStateFacade()->GetManager()->IsRecovery();
 }
 
-void TObjectProxyBase::ValidateLeaderStatus()
+void TObjectProxyBase::ValidateLeaderStatus() const
 {
     Bootstrap->GetMetaStateFacade()->ValidateLeaderStatus();
 }

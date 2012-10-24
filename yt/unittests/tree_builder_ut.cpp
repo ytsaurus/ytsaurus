@@ -4,7 +4,7 @@
 #include <ytlib/ytree/tree_visitor.h>
 #include <ytlib/ytree/yson_writer.h>
 #include <ytlib/ytree/node.h>
-#include <ytlib/ytree/ephemeral.h>
+#include <ytlib/ytree/ephemeral_node_factory.h>
 #include <ytlib/ytree/yson_consumer-mock.h>
 
 #include <contrib/testing/framework.h>

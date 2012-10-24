@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "yson_file_service.h"
 #include "tree_builder.h"
-#include "ephemeral.h"
+#include "ephemeral_node_factory.h"
 #include "virtual.h"
 #include "convert.h"
 
