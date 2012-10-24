@@ -427,6 +427,73 @@ private:
 
 };
 
+class TAggregatedTableInfoVisitor
+    : public IChunkVisitor
+{
+public:
+    TAggregatedTableInfoVisitor()
+        :  Completed(false)
+    { }
+
+    TFuture<TValueOrError<TYsonString> > GetInfo(TBootstrap* bootstrap, const TChunkList* root)
+    {
+        TraverseChunkTree(bootstrap, this, root, TReadLimit(), TReadLimit());
+        return Result;
+    }
+
+
+private:
+    bool Completed;
+    TPromise<TValueOrError<TYsonString> > Result;
+
+    typedef yhash_map<ECodecId, i32> TCodecInfoMap;
+    typedef yhash_map<i16, i32> TReplicationFactorInfoMap;
+
+    TCodecInfoMap CodecInfo;
+    TReplicationFactorInfoMap ReplicationFactorInfo;
+
+    virtual void OnChunk(
+        const TChunk* chunk,
+        const TReadLimit& startLimit,
+        const TReadLimit& endLimit) override
+    {
+        const auto& chunkMeta = chunk->ChunkMeta();
+        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkMeta.extensions());
+
+        CodecInfo[ECodecId(miscExt.codec_id())]++;
+        ReplicationFactorInfo[chunk->GetReplicationFactor()]++;
+    }
+
+    virtual void OnError(const TError& error) override
+    {
+        if (!Completed) {
+            Completed = true;
+            Result.Set(error);
+        }
+    }
+
+    virtual void OnFinish() override
+    {
+        if (!Completed) {
+            Completed = true;
+            Result.Set(BuildYsonStringFluently()
+                .BeginMap()
+                    .Item("codec_info")
+                        .DoMapFor(CodecInfo, [=] (TFluentMap fluent, TCodecInfoMap::value_type pair) {
+                            fluent
+                                .Item(ToString(pair.first)).Scalar(pair.second);
+                        })
+                    .Item("replication_factor_info")
+                        .DoMapFor(ReplicationFactorInfo, [=] (TFluentMap fluent, TReplicationFactorInfoMap::value_type pair) {
+                            fluent
+                                .Item(ToString(pair.first)).Scalar(pair.second);
+                        })
+                .EndMap());
+        }
+    }
+};
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableNodeProxy::TTableNodeProxy(
