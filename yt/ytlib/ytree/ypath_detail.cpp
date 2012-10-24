@@ -369,8 +369,10 @@ TFuture< TValueOrError<TYsonString> > TSupportsAttributes::DoListAttribute(const
             std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
             systemAttributeProvider->ListSystemAttributes(&systemAttributes);
             FOREACH (const auto& attribute, systemAttributes) {
-                writer.OnListItem();
-                writer.OnStringScalar(attribute.Key);
+                if (attribute.IsPresent) {
+                    writer.OnListItem();
+                    writer.OnStringScalar(attribute.Key);
+                }
             }
         }
 
