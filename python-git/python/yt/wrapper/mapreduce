@@ -21,19 +21,31 @@ from operator import attrgetter
 from functools import partial
 from itertools import imap
 
-config.PREFIX = "//statbox/"
+def die(message, return_code=1):
+    print >>sys.stderr, message
+    sys.exit(return_code)
+
+def check_prefix():
+    if not "PREFIX" in config.__dict__:
+        die("You should set variable YT_PREFIX or option -prefix or use absolute paths.")
+    if not config.PREFIX.startswith("//"):
+        die("Prefix should starts with //")
+    if not config.PREFIX.endswith("/"):
+        die("Prefix should ends with /")
 
 def add_prefix(table):
     if table.startswith("//"):
         return table
+    check_prefix()
     return config.PREFIX + table
 
 def remove_prefix(table):
-    if table.startswith(config.PREFIX):
+    if "PREFIX" in config.__dict__ and table.startswith(config.PREFIX):
         return table[len(config.PREFIX):]
     return table
 
 def list_all_entities(type):
+    check_prefix()
     tables = yt.search(config.PREFIX[:-1], type,
                        path_filter=lambda path: path.startswith(config.PREFIX))
     return sorted(map(remove_prefix, tables))
@@ -84,10 +96,6 @@ def writelines_silently(lines):
         sys.exit(1)
     except:
         raise
-
-def die(message, return_code=1):
-    print >>sys.stderr, message
-    sys.exit(return_code)
 
 def main():
     config.FORCE_SORT_IN_REDUCE = True
@@ -419,7 +427,7 @@ Examples:
     if args.set:
         if args.value is None:
             die("Value option is necessary for set command")
-        yt.set(args.set, args.value)
+        yt.set(args.set, json.loads(args.value))
     if args.get:
         if yt.exists(args.get):
             print json.dumps(yt.get(args.get))

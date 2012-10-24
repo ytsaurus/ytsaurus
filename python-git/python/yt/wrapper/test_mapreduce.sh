@@ -2,21 +2,32 @@
 
 cd $(dirname "${BASH_SOURCE[0]}")
 
-set +x
-echo -e "4\t5\t6\n1\t2\t3" > table_file
+export YT_PREFIX="//statbox/"
 
-rm -f big_file
-for i in {1..10}; do
-    for j in {1..10}; do
-        echo -e "$i\tA\t$j" >> big_file
+prepare_table_files() {
+    set +x
+    echo -e "4\t5\t6\n1\t2\t3" > table_file
+    TABLE_SIZE=2
+
+    rm -f big_file
+    for i in {1..10}; do
+        for j in {1..10}; do
+            echo -e "$i\tA\t$j" >> big_file
+        done
+        echo -e "$i\tX\tX" >> big_file
     done
-    echo -e "$i\tX\tX" >> big_file
-done
-set -x
+    BIG_TABLE_SIZE=100
+    set -x
+}
 
-die()
-{
-    exit 1
+die() {
+    echo "$@" && exit 1
+}
+
+check() {
+    local first="`echo -e "$1"`"
+    local second="`echo -e "$2"`"
+    [ "${first}" = "${second}" ] || die "Test fail $1 does not equal $2"
 }
 
 test_base_functionality()
@@ -25,18 +36,18 @@ test_base_functionality()
     ./mapreduce -drop "ignat/temp"
     ./mapreduce -write "ignat/temp" <table_file
     ./mapreduce -copy -src "ignat/temp" -dst "ignat/other_table"
-    ./mapreduce -read "ignat/other_table"
+    check "4\t5\t6\n1\t2\t3\n" "`./mapreduce -read "ignat/other_table"`"
     ./mapreduce -drop "ignat/temp"
     ./mapreduce -sort  -src "ignat/other_table" -dst "ignat/other_table"
-    ./mapreduce -read "ignat/other_table"
-    ./mapreduce -read "ignat/other_table" -lowerkey 3
+    check "1\t2\t3\n4\t5\t6\n" "`./mapreduce -read "ignat/other_table"`"
+    check "4\t5\t6\n" "`./mapreduce -read "ignat/other_table" -lowerkey 3`"
     ./mapreduce -map "cat" -src "ignat/other_table" -dst "ignat/mapped" -ytspec '{"job_count": 10}'
-    ./mapreduce -read "ignat/mapped"
+    check 2 `./mapreduce -read "ignat/mapped" | wc -l`
     for (( i=1 ; i <= 2 ; i++ )); do
         ./mapreduce -map "cat" -src "ignat/other_table" -src "ignat/mapped" \
             -dstappend "ignat/temp"
     done
-    ./mapreduce -read "ignat/temp" | wc -l
+    check 8 `./mapreduce -read "ignat/temp" | wc -l`
 }
 
 test_codec()
@@ -63,7 +74,7 @@ if __name__ == '__main__':
 
     ./mapreduce -map "./many_output_mapreduce.py" -src "ignat/temp" -dst "ignat/out1" -dst "ignat/out2" -dst "ignat/out3" -file "many_output_mapreduce.py"
     for (( i=1 ; i <= 3 ; i++ )); do
-        ./mapreduce -read "ignat/out$i" | wc -l
+        check 1 "`./mapreduce -read "ignat/out$i" | wc -l`"
     done
 
     rm -f "many_output_mapreduce.py"
@@ -72,6 +83,7 @@ if __name__ == '__main__':
 test_chunksize()
 {
     ./mapreduce -write "ignat/temp" -chunksize 1 <table_file
+    check 2 "`./mapreduce -get "ignat/temp/@chunk_count"`"
 }
 
 test_mapreduce()
@@ -80,7 +92,7 @@ test_mapreduce()
     ./mapreduce -subkey -src "ignat/temp" -dst "ignat/reduced" \
         -map 'grep "A"' \
         -reduce 'awk '"'"'{a[$1]+=$3} END {for (i in a) {print i"\t\t"a[i]}}'"'"
-    ./mapreduce -subkey -read "ignat/reduced" | wc -l
+    check 10 "`./mapreduce -subkey -read "ignat/reduced" | wc -l`"
 }
 
 test_input_output_format()
@@ -94,12 +106,16 @@ if __name__ == '__main__':
     for line in sys.stdin:
         pass
 
-    for i in range(5):
+    for i in range(2):
         sys.stdout.write('k={0}\\\ts={0}\\\tv={0}\\\n'.format(i))
     " >reformat.py
 
     ./mapreduce -subkey -outputformat "dsv" -map "python reformat.py" -file "reformat.py" -src "ignat/temp" -dst "ignat/reformatted"
-    ./mapreduce -dsv -read "ignat/reformatted"
+    for i in {0..1}; do
+        for f in k s v; do
+            ./mapreduce -dsv -read "ignat/reformatted" | grep "$f=$i"
+        done
+    done
 
     rm reformat.py
 }
@@ -111,20 +127,20 @@ test_transactions()
     ./mapreduce -subkey -write "ignat/temp" -append -tx "$TX" < table_file
     ./mapreduce -set "ignat/temp/@my_attr"  -value 10 -tx "$TX"
 
-    ./mapreduce -get "ignat/temp/@my_attr"
-    ./mapreduce -read "ignat/temp" | wc -l
+    check "" "`./mapreduce -get "ignat/temp/@my_attr"`"
+    check 2 "`./mapreduce -read "ignat/temp" | wc -l`"
 
     ./mapreduce -committx "$TX"
 
-    ./mapreduce -get "ignat/temp/@my_attr"
-    ./mapreduce -read "ignat/temp" | wc -l
+    check 10 "`./mapreduce -get "ignat/temp/@my_attr"`"
+    check 4 "`./mapreduce -read "ignat/temp" | wc -l`"
 }
 
 test_range_map()
 {
     ./mapreduce -subkey -write "ignat/temp" <table_file
     ./mapreduce -subkey -map 'awk '"'"'{sum+=$1+$2} END {print "\t\t"sum}'"'" -src "ignat/temp{key,subkey}" -dst "ignat/sum"
-    ./mapreduce -read "ignat/sum"
+    check "\t12" "`./mapreduce -read "ignat/sum"`"
 }
 
 test_uploaded_files()
@@ -147,10 +163,10 @@ if __name__ == '__main__':
     ./mapreduce -download ignat/mapper.py > my_mapper_copy.py
     diff my_mapper.py my_mapper_copy.py
 
-    ./mapreduce -listfiles
+    check 1 "`./mapreduce -listfiles | wc -l`"
 
     ./mapreduce -subkey -map "./mapper.py" -ytfile "ignat/mapper.py" -src "ignat/temp" -dst "ignat/mapped"
-    ./mapreduce -subkey -read "ignat/mapped" | wc -l
+    check 5 "`./mapreduce -subkey -read "ignat/mapped" | wc -l`"
 
     rm -f mapper.py
 }
@@ -176,17 +192,18 @@ test_drop()
 {
     ./mapreduce -subkey -write "ignat/xxx/yyy/zzz" <table_file
     ./mapreduce -drop "ignat/xxx/yyy/zzz"
-    ./mapreduce -get "ignat/xxx"
+    check "" "`./mapreduce -get "ignat/xxx"`"
 }
 
 test_create_table()
 {
     ./mapreduce -createtable "ignat/empty_table"
-    ./mapreduce -set "ignat/empty_table/@xxx" -value "my_value"
+    ./mapreduce -set "ignat/empty_table/@xxx" -value '"my_value"'
     echo -e "x\ty" | ./mapreduce -write "ignat/empty_table" -append
-    ./mapreduce -get "ignat/empty_table/@xxx"
+    check '"my_value"' "`./mapreduce -get "ignat/empty_table/@xxx"`"
 }
 
+prepare_table_files
 test_base_functionality
 test_codec
 test_many_output_tables
