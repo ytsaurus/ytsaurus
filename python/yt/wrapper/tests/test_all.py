@@ -54,8 +54,7 @@ class YtTest(YTEnv):
 
     def setUp(self):
         os.environ["PATH"] = ".:" + os.environ["PATH"]
-        if not yt.exists(TEST_DIR):
-            yt.set(TEST_DIR, {})
+        yt.mkdir(TEST_DIR)
 
         config.WAIT_TIMEOUT = 0.2
         config.DEFAULT_STRATEGY = yt.WaitStrategy(print_progress=False)
