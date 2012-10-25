@@ -493,9 +493,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
-        Promise.Set(TError());
         BuildYsonFluently(Consumer)
-            .DoMapFor(ChunkStatistics, [=] (TFluentMap fluent, TChunkStatisticsMap::value_type pair) {
+            .DoMapFor(ChunkStatistics, [=] (TFluentMap fluent, const TChunkStatisticsMap::value_type& pair) {
                 const auto& statistics = pair.second;
                 // TODO(panin): maybe use here the same method as in attributes
                 fluent
@@ -506,6 +505,7 @@ private:
                         .Item("compressed_size").Scalar(statistics.CompressedSize)
                     .EndMap();
             });
+        Promise.Set(TError());
     }
 };
 

@@ -135,7 +135,10 @@ class TestCypressCommands(YTEnvSetup):
         assert get('//tmp/t/@key2') == "value2"
 
         # error cases
-        with pytest.raises(YTError): set('//tmp/t/@', 1)
+        # typo (extra slash)
+        with pytest.raises(YTError): get('//tmp/t/@/key1')
+        # change type
+        with pytest.raises(YTError): set('//tmp/t/@', 1) 
         with pytest.raises(YTError): set('//tmp/t/@', 'a')
         with pytest.raises(YTError): set_str('//tmp/t/@', '<>')
         with pytest.raises(YTError): set('//tmp/t/@', [1, 2, 3])

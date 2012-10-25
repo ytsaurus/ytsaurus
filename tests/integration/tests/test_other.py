@@ -111,3 +111,24 @@ class TestVirtualMaps(YTEnvSetup):
         assert get('//sys/underreplicated_chunks/@count') == 0
         assert get('//sys/overreplicated_chunks/@count') == 0
 
+###################################################################################
+
+
+class TestAsyncAttributes(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    START_SCHEDULER = True
+
+    def test(self):
+        table = '//tmp/t'
+        create('table', table)
+
+        write_str(table, '{foo=bar}', opt='/table_writer/codec_id=snappy')
+
+        for i in xrange(8):
+            merge(in_=[table, table], out=table)
+
+        chunk_count = 3**8
+        assert len(get('//tmp/t/@chunk_ids')) == chunk_count
+        codec_info = get('//tmp/t/@codec_info')
+        assert codec_info['snappy']['chunk_count'] == chunk_count

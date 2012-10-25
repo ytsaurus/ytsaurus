@@ -75,3 +75,6 @@ class TestLocks(YTEnvSetup):
         tx = start_transaction()
         lock('//tmp/a/0', mode = 'exclusive', tx = tx);
         with pytest.raises(YTError): remove('//tmp/a')
+
+
+
