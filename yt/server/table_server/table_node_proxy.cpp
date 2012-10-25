@@ -427,33 +427,55 @@ private:
 
 };
 
-class TAggregatedTableInfoVisitor
+
+// TODO(panin): maybe get rid of copy-paste
+class TCodecInfoAttributeVisitor
     : public IChunkVisitor
 {
 public:
-    TAggregatedTableInfoVisitor()
-        :  Completed(false)
-    { }
-
-    TFuture<TValueOrError<TYsonString> > GetInfo(TBootstrap* bootstrap, const TChunkList* root)
+    TCodecInfoAttributeVisitor(
+        TBootstrap* bootstrap,
+        const TChunkList* chunkList,
+        IYsonConsumer* consumer)
+        : Bootstrap(bootstrap)
+        , ChunkList(chunkList)
+        , Consumer(consumer)
+        , Promise(NewPromise<TError>())
     {
-        TraverseChunkTree(bootstrap, this, root, TReadLimit(), TReadLimit());
-        return Result;
+        VERIFY_THREAD_AFFINITY(StateThread);
     }
 
+    TAsyncError Run()
+    {
+        VERIFY_THREAD_AFFINITY(StateThread);
+
+        TraverseChunkTree(
+            Bootstrap,
+            this,
+            ChunkList);
+
+        return Promise;
+    }
 
 private:
-    bool Completed;
-    TPromise<TValueOrError<TYsonString> > Result;
+    NCellMaster::TBootstrap* Bootstrap;
+    IYsonConsumer* Consumer;
+    const TChunkList* ChunkList;
+    TPromise<TError> Promise;
 
     typedef yhash_map<ECodecId, TChunkTreeStatistics> TChunkStatisticsMap;
     TChunkStatisticsMap ChunkStatistics;
+    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 
     virtual void OnChunk(
         const TChunk* chunk,
         const TReadLimit& startLimit,
         const TReadLimit& endLimit) override
     {
+        VERIFY_THREAD_AFFINITY(StateThread);
+        UNUSED(startLimit);
+        UNUSED(endLimit);
+
         const auto& chunkMeta = chunk->ChunkMeta();
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkMeta.extensions());
 
@@ -462,29 +484,28 @@ private:
 
     virtual void OnError(const TError& error) override
     {
-        if (!Completed) {
-            Completed = true;
-            Result.Set(error);
-        }
+        VERIFY_THREAD_AFFINITY(StateThread);
+
+        Promise.Set(TError("Error traversing chunk tree") << error);
     }
 
     virtual void OnFinish() override
     {
-        if (!Completed) {
-            Completed = true;
-            Result.Set(BuildYsonStringFluently()
-                .DoMapFor(ChunkStatistics, [=] (TFluentMap fluent, TChunkStatisticsMap::value_type pair) {
-                    const auto& statistics = pair.second;
-                    // TODO(panin): maybe use here the same method as in attributes
-                    fluent
-                        .Item(ToString(pair.first))
-                        .BeginMap()
-                            .Item("chunk_count").Scalar(statistics.ChunkCount)
-                            .Item("uncompressed_data_size").Scalar(statistics.UncompressedSize)
-                            .Item("compressed_size").Scalar(statistics.CompressedSize)
-                        .EndMap();
-                }));
-        }
+        VERIFY_THREAD_AFFINITY(StateThread);
+
+        Promise.Set(TError());
+        BuildYsonFluently(Consumer)
+            .DoMapFor(ChunkStatistics, [=] (TFluentMap fluent, TChunkStatisticsMap::value_type pair) {
+                const auto& statistics = pair.second;
+                // TODO(panin): maybe use here the same method as in attributes
+                fluent
+                    .Item(FormatEnum(pair.first))
+                    .BeginMap()
+                        .Item("chunk_count").Scalar(statistics.ChunkCount)
+                        .Item("uncompressed_data_size").Scalar(statistics.UncompressedSize)
+                        .Item("compressed_size").Scalar(statistics.CompressedSize)
+                    .EndMap();
+            });
     }
 };
 
@@ -541,6 +562,7 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attribut
 
     attributes->push_back("chunk_list_id");
     attributes->push_back(TAttributeInfo("chunk_ids", true, true));
+    attributes->push_back(TAttributeInfo("codec_info", true, true));
     attributes->push_back("chunk_count");
     attributes->push_back("uncompressed_data_size");
     attributes->push_back("compressed_size");
@@ -626,6 +648,14 @@ TAsyncError TTableNodeProxy::GetSystemAttributeAsync(const Stroka& key, IYsonCon
 
     if (key == "chunk_ids") {
         auto visitor = New<TChunkIdsAttributeVisitor>(
+            Bootstrap,
+            chunkList,
+            consumer);
+        return visitor->Run();
+    }
+
+    if (key == "codec_info") {
+        auto visitor = New<TCodecInfoAttributeVisitor>(
             Bootstrap,
             chunkList,
             consumer);
