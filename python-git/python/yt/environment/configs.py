@@ -181,7 +181,8 @@ def get_node_config():
         "cache_location" = {
             "path" = ""
         };
-        "store_locations" = []
+        "store_locations" = [];
+        "heartbeat_period" = 1000
     };
     "exec_agent" = {
         "environment_manager" = {
