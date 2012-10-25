@@ -436,11 +436,11 @@ public:
     }
 };
 
-class TCodecInfoAttributeVisitor
+class TChunkStatisticsAttributeVisitor
     : public TChunkVisitorBase
 {
 public:
-    TCodecInfoAttributeVisitor(
+    TChunkStatisticsAttributeVisitor(
         TBootstrap* bootstrap,
         const TChunkList* chunkList,
         IYsonConsumer* consumer)
@@ -629,8 +629,8 @@ TAsyncError TTableNodeProxy::GetSystemAttributeAsync(const Stroka& key, IYsonCon
         return visitor->Run();
     }
 
-    if (key == "codec_info") {
-        auto visitor = New<TCodecInfoAttributeVisitor>(
+    if (key == "chunk_statistics") {
+        auto visitor = New<TChunkStatisticsAttributeVisitor>(
             Bootstrap,
             chunkList,
             consumer);
