@@ -66,6 +66,20 @@ class TestSchedulerMapCommands(YTEnvSetup):
         
         check_all_stderrs(op_id, 'stderr')
 
+    def test_invalid_output_record(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+        write_str('//tmp/t1', '{key=foo;value=ninja}')
+
+        command = "awk '($1==\"foo\"){print \"bar\"}'"
+
+        with pytest.raises(YTError):
+            map(
+                in_='//tmp/t1',
+                out='//tmp/t2',
+                opt='/spec/mapper/format=yamr',
+                command=command)
+
     def test_job_count(self):
         create('table', '//tmp/t1')
         for i in xrange(5):
