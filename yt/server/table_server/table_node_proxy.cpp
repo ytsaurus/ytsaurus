@@ -358,11 +358,24 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkIdsAttributeVisitor
+class TChunkVisitorBase
     : public IChunkVisitor
 {
 public:
-    explicit TChunkIdsAttributeVisitor(
+    TAsyncError Run()
+    {
+        VERIFY_THREAD_AFFINITY(StateThread);
+
+        TraverseChunkTree(
+            Bootstrap,
+            this,
+            ChunkList);
+
+        return Promise;
+    }
+
+protected:
+    TChunkVisitorBase(
         NCellMaster::TBootstrap* bootstrap,
         const TChunkList* chunkList,
         IYsonConsumer* consumer)
@@ -374,25 +387,32 @@ public:
         VERIFY_THREAD_AFFINITY(StateThread);
     }
 
-    TAsyncError Run()
-    {
-        VERIFY_THREAD_AFFINITY(StateThread);
-
-        Consumer->OnBeginList();
-
-        TraverseChunkTree(
-            Bootstrap,
-            this,
-            ChunkList);
-
-        return Promise;
-    }
-
-private:
     NCellMaster::TBootstrap* Bootstrap;
     IYsonConsumer* Consumer;
     const TChunkList* ChunkList;
     TPromise<TError> Promise;
+    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
+
+    virtual void OnError(const TError& error) override
+    {
+        VERIFY_THREAD_AFFINITY(StateThread);
+
+        Promise.Set(TError("Error traversing chunk tree") << error);
+    }
+};
+
+class TChunkIdsAttributeVisitor
+    : public TChunkVisitorBase
+{
+public:
+    TChunkIdsAttributeVisitor(
+        NCellMaster::TBootstrap* bootstrap,
+        const TChunkList* chunkList,
+        IYsonConsumer* consumer)
+        : TChunkVisitorBase(bootstrap, chunkList, consumer)
+    {
+        Consumer->OnBeginList();
+    }
 
     virtual void OnChunk(
         const TChunk* chunk, 
@@ -407,13 +427,6 @@ private:
         Consumer->OnStringScalar(chunk->GetId().ToString());
     }
 
-    virtual void OnError(const TError& error) override
-    {
-        VERIFY_THREAD_AFFINITY(StateThread);
-
-        Promise.Set(TError("Error traversing chunk tree") << error);
-    }
-
     virtual void OnFinish() override
     {
         VERIFY_THREAD_AFFINITY(StateThread);
@@ -421,51 +434,18 @@ private:
         Consumer->OnEndList();
         Promise.Set(TError());
     }
-
-
-    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
-
 };
 
-
-// TODO(panin): maybe get rid of copy-paste
 class TCodecInfoAttributeVisitor
-    : public IChunkVisitor
+    : public TChunkVisitorBase
 {
 public:
     TCodecInfoAttributeVisitor(
         TBootstrap* bootstrap,
         const TChunkList* chunkList,
         IYsonConsumer* consumer)
-        : Bootstrap(bootstrap)
-        , ChunkList(chunkList)
-        , Consumer(consumer)
-        , Promise(NewPromise<TError>())
-    {
-        VERIFY_THREAD_AFFINITY(StateThread);
-    }
-
-    TAsyncError Run()
-    {
-        VERIFY_THREAD_AFFINITY(StateThread);
-
-        TraverseChunkTree(
-            Bootstrap,
-            this,
-            ChunkList);
-
-        return Promise;
-    }
-
-private:
-    NCellMaster::TBootstrap* Bootstrap;
-    IYsonConsumer* Consumer;
-    const TChunkList* ChunkList;
-    TPromise<TError> Promise;
-
-    typedef yhash_map<ECodecId, TChunkTreeStatistics> TChunkStatisticsMap;
-    TChunkStatisticsMap ChunkStatistics;
-    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
+        : TChunkVisitorBase(bootstrap, chunkList, consumer)
+    { }
 
     virtual void OnChunk(
         const TChunk* chunk,
@@ -479,14 +459,7 @@ private:
         const auto& chunkMeta = chunk->ChunkMeta();
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkMeta.extensions());
 
-        ChunkStatistics[ECodecId(miscExt.codec_id())].Accumulate(chunk->GetStatistics());
-    }
-
-    virtual void OnError(const TError& error) override
-    {
-        VERIFY_THREAD_AFFINITY(StateThread);
-
-        Promise.Set(TError("Error traversing chunk tree") << error);
+        CodecInfo[ECodecId(miscExt.codec_id())].Accumulate(chunk->GetStatistics());
     }
 
     virtual void OnFinish() override
@@ -494,7 +467,7 @@ private:
         VERIFY_THREAD_AFFINITY(StateThread);
 
         BuildYsonFluently(Consumer)
-            .DoMapFor(ChunkStatistics, [=] (TFluentMap fluent, const TChunkStatisticsMap::value_type& pair) {
+            .DoMapFor(CodecInfo, [=] (TFluentMap fluent, const TCodecInfoMap::value_type& pair) {
                 const auto& statistics = pair.second;
                 // TODO(panin): maybe use here the same method as in attributes
                 fluent
@@ -507,6 +480,9 @@ private:
             });
         Promise.Set(TError());
     }
+private:
+    typedef yhash_map<ECodecId, TChunkTreeStatistics> TCodecInfoMap;
+    TCodecInfoMap CodecInfo;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
