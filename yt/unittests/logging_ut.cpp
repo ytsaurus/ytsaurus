@@ -9,7 +9,6 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#if 0
 #ifndef _win_
 
 TEST(TLoggingTest, ReloadsOnSigHup)
@@ -18,7 +17,11 @@ TEST(TLoggingTest, ReloadsOnSigHup)
     int revision = NLog::TLogManager::Get()->GetConfigRevision();
 
     kill(getpid(), SIGHUP);
-    sleep(2); // In sleep() we trust.
+
+    LOG_INFO("Awaking logging thread.");
+    sleep(1); // In sleep() we trust.
+    LOG_INFO("Awaking logging thread.");
+    sleep(1); // In sleep() we trust.
 
     int newVersion = NLog::TLogManager::Get()->GetConfigVersion();
     int newRevision = NLog::TLogManager::Get()->GetConfigRevision();
@@ -27,7 +30,6 @@ TEST(TLoggingTest, ReloadsOnSigHup)
     EXPECT_NE(revision, newRevision);
 }
 
-#endif
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
