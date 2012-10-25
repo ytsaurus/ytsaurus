@@ -1,6 +1,6 @@
 import config
 import logger
-from common import require, YtError
+from common import require, YtError, prefix
 from http import make_request
 from tree_commands import get_attribute, exists, search, get
 from file_commands import download_file
@@ -56,34 +56,30 @@ def get_operation_progress(operation):
     operation_path = os.path.join(OPERATIONS_PATH, operation)
     return get_attribute(operation_path, "progress/jobs")
 
-def get_operation_stderr(operation):
+def get_operation_stderr(operation, limit=None):
+    if limit is None: limit = config.ERRORS_TO_PRINT_LIMIT
     jobs_path = os.path.join(OPERATIONS_PATH, operation, "jobs")
     if not exists(jobs_path):
         return ""
-    stderrs = search(jobs_path, "file", path_filter=lambda path: path.endswith("stderr"))
-    return "\n\n".join("".join(download_file(path)) for path in stderrs)
+    stderr_paths = search(jobs_path, "file", path_filter=lambda path: path.endswith("stderr"))
+    return "\n\n".join("".join(download_file(path))
+                       for path in stderr_paths[:config.ERRORS_TO_PRINT_LIMIT])
 
 def get_operation_result(operation):
     operation_path = os.path.join(OPERATIONS_PATH, operation)
     return get_attribute(operation_path, "result", check_errors=False)
 
-def get_jobs_errors(operation):
+def get_jobs_errors(operation, limit=None):
+    if limit is None: limit = config.ERRORS_TO_PRINT_LIMIT
     jobs_path = os.path.join(OPERATIONS_PATH, operation, "jobs")
     if not exists(jobs_path):
         return ""
     errors = []
     jobs = get(jobs_path, attributes=["error"])
-    for key, value in jobs["$value"].iteritems():
-        if "error" in value["$attributes"]:
-            errors.append(repr(value["$attributes"]["error"]))
-    return "\n\n".join(errors)
-
-    #operation_path = os.path.join(OPERATIONS_PATH, operation)
-    #jobs = list(operation_path + "/jobs")
-    #jobs_paths = ("%s/jobs/%s" % (operation_path, job) for job in jobs)
-    #return "\n\n".join(repr(get_attribute(job, "error"))
-    #                   for job in jobs_paths
-    #                   if "error" in list(job + "/@"))
+    errors = (repr(value["$attributes"]["error"])
+              for value in jobs["$value"].values()
+              if "error" in value["$attributes"])
+    return "\n\n".join(prefix(errors, limit))
 
 def abort_operation(operation):
     if not get_operation_state(operation).is_final():
