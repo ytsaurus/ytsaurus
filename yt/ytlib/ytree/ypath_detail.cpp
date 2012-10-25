@@ -285,7 +285,9 @@ TFuture< TValueOrError<TYsonString> > TSupportsAttributes::DoGetAttribute(const 
         TYsonString yson(stream.Str());
         return MakeFuture(TValueOrError<TYsonString>(yson));
     } else {
+        tokenizer.Expect(NYPath::ETokenType::Literal);
         auto key = tokenizer.GetLiteralValue();
+
         auto ysonOrError = DoFindAttribute(key);
         if (!ysonOrError) {
             return MakeFuture(TValueOrError<TYsonString>(TError("Attribute is not found: %s",
@@ -439,7 +441,9 @@ TFuture<bool> TSupportsAttributes::DoExistsAttribute(const TYPath& path)
         return TrueFuture;
     }
 
+    tokenizer.Expect(NYPath::ETokenType::Literal);
     auto key = tokenizer.GetLiteralValue();
+
     if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
         if (userAttributes) {
             auto userYson = userAttributes->FindYson(key);
@@ -540,6 +544,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
     } else {
         tokenizer.Expect(NYPath::ETokenType::Literal);
         auto key = tokenizer.GetLiteralValue();
+
         if (key.Empty()) {
             THROW_ERROR_EXCEPTION("Attribute key cannot be empty");
         }
@@ -636,7 +641,9 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
             }
         }
     } else {
+        tokenizer.Expect(NYPath::ETokenType::Literal);
         auto key = tokenizer.GetLiteralValue();
+
         auto userYson = userAttributes ? userAttributes->FindYson(key) : TNullable<TYsonString>(Null);
         if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
             if (!userYson) {
