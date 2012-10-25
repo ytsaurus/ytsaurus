@@ -59,7 +59,7 @@ def remove_with_empty_dirs(path):
     while True:
         remove(path)
         path = os.path.dirname(path)
-        if list(path):
+        if path == "//" or list(path):
             break
 
 def mkdir(path):

@@ -403,6 +403,7 @@ def run_operation(binary, source_table, destination_table,
                 sort_by=sort_by)
             return
         else:
+            reduce_by = _prepare_reduce_by(reduce_by)
             for table in source_table:
                 if not is_sorted(table.name):
                     sort_table(table, sort_by=reduce_by)
