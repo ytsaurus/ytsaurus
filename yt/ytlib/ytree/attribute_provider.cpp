@@ -15,8 +15,7 @@ NProto::TAttributeFilter ToProto(const TAttributeFilter& filter)
 {
     NProto::TAttributeFilter protoFilter;
     protoFilter.set_mode(filter.Mode);
-    std::vector<Stroka> v;
-    FOREACH (const auto& key, v) {
+    FOREACH (const auto& key, filter.Keys) {
         protoFilter.add_keys(key);
     }
     return protoFilter;
