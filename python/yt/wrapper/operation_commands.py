@@ -74,7 +74,6 @@ def get_jobs_errors(operation, limit=None):
     jobs_path = os.path.join(OPERATIONS_PATH, operation, "jobs")
     if not exists(jobs_path):
         return ""
-    errors = []
     jobs = get(jobs_path, attributes=["error"])
     errors = (repr(value["$attributes"]["error"])
               for value in jobs["$value"].values()

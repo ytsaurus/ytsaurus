@@ -1,4 +1,4 @@
-from common import require, YtError, parse_bool
+from common import require, YtError, parse_bool, flatten
 from path_tools import dirs, split_table_ranges
 from http import make_request
 
@@ -8,6 +8,7 @@ import config
 import os
 import string
 import random
+from copy import deepcopy
 import simplejson as json
 
 
@@ -100,17 +101,18 @@ def search(root="/", node_type=None, path_filter=None, object_filter=None, attri
         if (node_type is None or object_type == node_type) and \
            (object_filter is None or object_filter(object)) and \
            (path_filter is None or path_filter(path)):
+            # TODO(ignat): bad solution, because of embedded attributes
+            # have wrong represantation
             rich_path = YSONString(path)
             rich_path.attributes = object["$attributes"]
             result.append(rich_path)
         if object_type == "map_node" and object["$value"] is not None:
             for key, value in object["$value"].iteritems():
                 walk('%s/%s' % (path, key), value)
-    if attributes is None:
-        copy_attributes = []
-    else:
-        copy_attributes = [x for x in attributes]
+    if attributes is None: attributes = []
+    copy_attributes = deepcopy(flatten(attributes))
     copy_attributes.append("type")
+
     walk(root, get(root, attributes=copy_attributes))
     return result
 
