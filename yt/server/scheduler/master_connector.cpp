@@ -411,11 +411,13 @@ private:
                 FOREACH (const auto& operationId, OperationIds) {
                     auto req = TYPathProxy::Get(GetOperationPath(operationId));
                     // Keep in sync with ParseOperationYson.
-                    req->add_attributes("operation_type");
-                    req->add_attributes("transaction_id");
-                    req->add_attributes("spec");
-                    req->add_attributes("start_time");
-                    req->add_attributes("state");
+                    auto* attributeFilter = req->mutable_attribute_filter();
+                    attributeFilter->set_mode(EAttributeFilterMode::MatchingOnly);
+                    attributeFilter->add_keys("operation_type");
+                    attributeFilter->add_keys("transaction_id");
+                    attributeFilter->add_keys("spec");
+                    attributeFilter->add_keys("start_time");
+                    attributeFilter->add_keys("state");
                     batchReq->AddRequest(req, "get_op_attr");
                 }
             }

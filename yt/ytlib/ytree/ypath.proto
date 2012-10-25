@@ -2,10 +2,15 @@ package NYT.NYTree.NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TAttributeFilter
+{
+    required int32 mode = 1;
+    repeated string keys = 2;
+}
+
 message TReqGet
 {
-    repeated string attributes = 1;
-    optional bool all_attributes = 2 [default = false];
+    optional TAttributeFilter attribute_filter = 1;
 }
 
 message TRspGet

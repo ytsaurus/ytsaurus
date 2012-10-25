@@ -180,10 +180,12 @@ EExitCode TOperationTracker::DumpResult()
 
     {
         auto req = TYPathProxy::Get(jobsPath);
-        req->add_attributes("job_type");
-        req->add_attributes("state");
-        req->add_attributes("address");
-        req->add_attributes("error");
+        auto* attributeFilter = req->mutable_attribute_filter();
+        attributeFilter->set_mode(EAttributeFilterMode::MatchingOnly);
+        attributeFilter->add_keys("job_type");
+        attributeFilter->add_keys("state");
+        attributeFilter->add_keys("address");
+        attributeFilter->add_keys("error");
         batchReq->AddRequest(req, "get_jobs");
     }
     EExitCode exitCode;

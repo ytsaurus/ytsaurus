@@ -19,11 +19,10 @@
 namespace NYT {
 namespace NYTree {
 
-using namespace NProto;
 using namespace NBus;
 using namespace NRpc;
-using namespace NRpc::NProto;
 using namespace NYPath;
+using namespace NRpc::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -240,7 +239,7 @@ TValueOrError<TYsonString> TSupportsAttributes::DoGetAttributeFragment(
     }
     auto node = ConvertToNode<TYsonString>(wholeYsonOrError.Value());
     try {
-        return SyncYPathGet(node, path);
+        return SyncYPathGet(node, path, TAttributeFilter::All);
     } catch (const std::exception& ex) {
         return ex;
     }

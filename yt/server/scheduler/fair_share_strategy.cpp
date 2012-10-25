@@ -860,7 +860,8 @@ private:
         auto req = TYPathProxy::Get("//sys/scheduler/pools");
         static auto poolConfigTemplate = New<TPoolConfig>();
         auto poolConfigKeys = poolConfigTemplate->GetRegisteredKeys();
-        ToProto(req->mutable_attributes(), poolConfigKeys);
+        TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, poolConfigKeys);
+        *req->mutable_attribute_filter() = ToProto(attributeFilter);
         batchReq->AddRequest(req, "get_pools");
     }
 

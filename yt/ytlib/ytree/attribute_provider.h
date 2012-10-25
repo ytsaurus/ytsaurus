@@ -3,6 +3,8 @@
 #include "public.h"
 #include "yson_consumer.h"
 
+#include <ytlib/ytree/ypath.pb.h>
+
 namespace NYT {
 namespace NYTree {
 
@@ -40,6 +42,9 @@ struct TAttributeFilter
     static TAttributeFilter All;
     static TAttributeFilter None;
 };
+
+NProto::TAttributeFilter ToProto(const TAttributeFilter& filter);
+TAttributeFilter FromProto(const NProto::TAttributeFilter& protoFilter);
 
 ////////////////////////////////////////////////////////////////////////////////
 

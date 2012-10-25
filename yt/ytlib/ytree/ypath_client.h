@@ -3,6 +3,7 @@
 #include "public.h"
 #include "ypath_service.h"
 #include "ephemeral_attribute_owner.h"
+#include "attribute_provider.h"
 
 #include <ytlib/misc/ref.h>
 #include <ytlib/misc/property.h>
@@ -150,10 +151,16 @@ TIntrusivePtr<typename TTypedRequest::TTypedResponse>
 SyncExecuteVerb(IYPathServicePtr service, TIntrusivePtr<TTypedRequest> request);
 
 //! Asynchronously executes |Get| verb. 
-TFuture< TValueOrError<TYsonString> > AsyncYPathGet(IYPathServicePtr service, const TYPath& path, bool allAttributes = false);
+TFuture< TValueOrError<TYsonString> > AsyncYPathGet(
+    IYPathServicePtr service,
+    const TYPath& path,
+    const TAttributeFilter& attributeFilter = TAttributeFilter::None);
 
 //! Synchronously executes |Get| verb. Throws if an error has occurred.
-TYsonString SyncYPathGet(IYPathServicePtr service, const TYPath& path, bool allAttributes = false);
+TYsonString SyncYPathGet(
+    IYPathServicePtr service,
+    const TYPath& path,
+    const TAttributeFilter& attributeFilter = TAttributeFilter::None);
 
 //! Synchronously executes |Exists| verb. Throws if an error has occurred.
 bool SyncYPathExists(IYPathServicePtr service, const TYPath& path);
