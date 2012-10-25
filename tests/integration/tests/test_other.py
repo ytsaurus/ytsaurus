@@ -130,5 +130,5 @@ class TestAsyncAttributes(YTEnvSetup):
 
         chunk_count = 3**8
         assert len(get('//tmp/t/@chunk_ids')) == chunk_count
-        codec_info = get('//tmp/t/chunk_statistics')
+        codec_info = get('//tmp/t/@chunk_statistics')
         assert codec_info['snappy']['chunk_count'] == chunk_count
