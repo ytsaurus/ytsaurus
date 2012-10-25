@@ -8,12 +8,12 @@
 namespace NYT {
 namespace {
 
-////////////////////////////////////////////////////////////////////////////////
-
 #ifndef _win_
 
 TEST(TLoggingTest, ReloadsOnSigHup)
 {
+    NLog::TLogger Logger("Test");
+
     int version = NLog::TLogManager::Get()->GetConfigVersion();
     int revision = NLog::TLogManager::Get()->GetConfigRevision();
 
