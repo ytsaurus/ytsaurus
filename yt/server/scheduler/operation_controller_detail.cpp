@@ -1617,15 +1617,15 @@ void TOperationControllerBase::InitUserJobSpec(
         TFormat outputFormat(EFormatType::Yson);
 
         if (config->Format) {
-            inputFormat = outputFormat = TFormat::FromYson(config->Format);
+            inputFormat = outputFormat = config->Format.Get();
         }
 
         if (config->InputFormat) {
-            inputFormat = TFormat::FromYson(config->InputFormat);
+            inputFormat = config->InputFormat.Get();
         }
 
         if (config->OutputFormat) {
-            outputFormat = TFormat::FromYson(config->OutputFormat);
+            outputFormat = config->OutputFormat.Get();
         }
 
         proto->set_input_format(inputFormat.ToYson().Data());

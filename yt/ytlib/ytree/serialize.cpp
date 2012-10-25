@@ -124,6 +124,12 @@ void Serialize(TInputStream& input, IYsonConsumer* consumer)
     Serialize(TYsonInput(&input), consumer);
 }
 
+// TFormat
+void Serialize(const NFormats::TFormat& value, IYsonConsumer* consumer)
+{
+    value.ToYson(consumer);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // i64
@@ -212,6 +218,13 @@ void Deserialize(TGuid& value, INodePtr node)
 {
     value = TGuid::FromString(node->AsString()->GetValue());
 }
+
+// TFormat
+void Deserialize(NFormats::TFormat& value, INodePtr node)
+{
+    value = NFormats::TFormat::FromYson(node);
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

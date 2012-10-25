@@ -9,6 +9,8 @@
 #include <ytlib/table_client/config.h>
 #include <ytlib/file_client/config.h>
 
+#include <ytlib/formats/format.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -56,12 +58,11 @@ struct TUserJobSpec
     
     std::vector<NYPath::TRichYPath> FilePaths;
 
-    NYTree::INodePtr Format;
-    NYTree::INodePtr InputFormat;
-    NYTree::INodePtr OutputFormat;
-
     // List of environment strings.
     NYTree::INodePtr Environment;
+    TNullable<NFormats::TFormat> Format;
+    TNullable<NFormats::TFormat> InputFormat;
+    TNullable<NFormats::TFormat> OutputFormat;
     
     int CpuLimit;
     i64 MemoryLimit;
@@ -72,11 +73,11 @@ struct TUserJobSpec
         Register("file_paths", FilePaths)
             .Default();
         Register("format", Format)
-            .Default(NULL);
+            .Default();
         Register("input_format", InputFormat)
-            .Default(NULL);
+            .Default();
         Register("output_format", OutputFormat)
-            .Default(NULL);
+            .Default();
         Register("environment", Environment)
             .Default(NULL);
         Register("cpu_limit", CpuLimit)

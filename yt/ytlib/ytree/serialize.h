@@ -7,6 +7,7 @@
 #include <ytlib/misc/nullable.h>
 #include <ytlib/misc/mpl.h>
 #include <ytlib/misc/guid.h>
+#include <ytlib/formats/format.h>
 
 namespace NYT {
 
@@ -90,6 +91,9 @@ void Serialize(TInstant value, IYsonConsumer* consumer);
 // TGuid
 void Serialize(const TGuid& value, IYsonConsumer* consumer);
 
+// TFormat
+void Serialize(const NFormats::TFormat& value, IYsonConsumer* consumer);
+
 // TInputStream
 void Serialize(TInputStream& input, IYsonConsumer* consumer);
 
@@ -166,6 +170,9 @@ void Deserialize(TInstant& value, INodePtr node);
 
 // TGuid
 void Deserialize(TGuid& value, INodePtr node);
+
+// TFormat
+void Deserialize(NFormats::TFormat& value, INodePtr node);
 
 // TEnumBase
 template <class T>
