@@ -103,6 +103,9 @@ message TUserJobSpec
 
     // Output format description (in YSON).
     required string output_format = 4;
+
+    repeated string environment = 5;
+
 }
 
 // User code result.

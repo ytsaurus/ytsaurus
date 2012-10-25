@@ -89,6 +89,9 @@ protected:
     int FailedJobCount;
     int AbortedJobCount;
 
+    // Increments each time a new job is scheduled.
+    int CurrentJobCount;
+
     // Total resources used by all running jobs.
     NProto::TNodeResources UsedResources;
 
@@ -170,12 +173,13 @@ protected:
     struct TJobInProgress
         : public TIntrinsicRefCounted
     {
-        explicit TJobInProgress(TTaskPtr task)
+        explicit TJobInProgress(TTaskPtr task, int jobIndex)
             : Task(task)
         { }
 
         TTaskPtr Task;
         TJobPtr Job;
+        int JobIndex;
         TPoolExtractionResultPtr PoolResult;
         std::vector<NChunkClient::TChunkListId> ChunkListIds;
     };
@@ -439,10 +443,12 @@ protected:
         TNullable<int> configJobCount,
         int chunkCount);
 
-    static void InitUserJobSpec(
+    void InitUserJobSpec(
         NScheduler::NProto::TUserJobSpec* proto,
         TUserJobSpecPtr config,
         const std::vector<TUserFile>& files);
+
+    static void AddUserJobEnvironment(NScheduler::NProto::TUserJobSpec* proto, TJobInProgressPtr jip);
 
     static void InitIntermediateOutputConfig(TJobIOConfigPtr config);
 

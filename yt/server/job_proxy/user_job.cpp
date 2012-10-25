@@ -379,12 +379,21 @@ private:
             ChDir(config->SandboxName);
 
             Stroka cmd = UserJobSpec.shell_command();
+
+            const char **envp= new const char*[UserJobSpec.environment_size() + 1];
+            for (int i = 0; i < UserJobSpec.environment_size(); ++i) {
+                envp[i] = ~UserJobSpec.environment(i);
+            }
+            envp[UserJobSpec.environment_size()] = NULL;
+
             // do not search the PATH, inherit environment
-            execl("/bin/sh",
+            execle("/bin/sh",
                 "/bin/sh", 
                 "-c", 
                 ~cmd, 
-                (void*)NULL);
+                (void*)NULL,
+                envp);
+
             int _errno = errno;
 
             fprintf(stderr, "Failed to exec job (/bin/sh -c '%s'): %s\n",

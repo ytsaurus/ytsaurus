@@ -59,6 +59,9 @@ struct TUserJobSpec
     NYTree::INodePtr Format;
     NYTree::INodePtr InputFormat;
     NYTree::INodePtr OutputFormat;
+
+    // List of environment strings.
+    NYTree::INodePtr Environment;
     
     int CpuLimit;
     i64 MemoryLimit;
@@ -73,6 +76,8 @@ struct TUserJobSpec
         Register("input_format", InputFormat)
             .Default(NULL);
         Register("output_format", OutputFormat)
+            .Default(NULL);
+        Register("environment", Environment)
             .Default(NULL);
         Register("cpu_limit", CpuLimit)
             .Default(1);

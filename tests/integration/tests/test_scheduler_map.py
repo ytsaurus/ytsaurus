@@ -45,10 +45,18 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create('table', '//tmp/t2')
         write_str('//tmp/t1', '{foo=bar}')
 
-        command = "cat > /dev/null; echo stderr 1>&2"
+        command = '''cat > /dev/null; echo stderr 1>&2; echo {operation='"'$YT_OPERATION_ID'"'}';'; echo {job_index='"'$YT_JOB_INDEX'"'};'''
 
         op_id = map('--dont_track', in_='//tmp/t1', out='//tmp/t2', command=command)
         track_op(op_id)
+
+        a = read('//tmp/t2')
+	assert len(a) == 2
+	assert a[0].has_key('operation')
+	assert a[0]['operation'] != ''
+	assert a[1].has_key('job_index')
+	assert a[1]['job_index'] != ''
+	
         check_all_stderrs(op_id, 'stderr')
 
     # check that stderr is captured for failed jobs

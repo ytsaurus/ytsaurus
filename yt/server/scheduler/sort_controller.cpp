@@ -267,6 +267,7 @@ protected:
             jobSpec->CopyFrom(Controller->PartitionJobSpecTemplate);
             AddSequentialInputSpec(jobSpec, jip);
             AddIntermediateOutputSpec(jobSpec, jip);
+            Controller->CustomizeJobSpec(jip, jobSpec);
         }
 
         virtual void OnJobStarted(TJobInProgressPtr jip) override
@@ -535,6 +536,7 @@ protected:
             }
 
             AddSequentialInputSpec(jobSpec, jip);
+            Controller->CustomizeJobSpec(jip, jobSpec);
 
             {
                 auto* jobSpecExt = jobSpec->MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
@@ -708,6 +710,7 @@ protected:
             jobSpec->CopyFrom(Controller->SortedMergeJobSpecTemplate);
             AddParallelInputSpec(jobSpec, jip);
             AddOutputSpecs(jobSpec, jip);
+            Controller->CustomizeJobSpec(jip, jobSpec);
         }
 
         virtual void OnJobStarted(TJobInProgressPtr jip) override
@@ -810,6 +813,7 @@ protected:
             jobSpec->CopyFrom(Controller->UnorderedMergeJobSpecTemplate);
             AddSequentialInputSpec(jobSpec, jip);
             AddOutputSpecs(jobSpec, jip);
+            Controller->CustomizeJobSpec(jip, jobSpec);
 
             if (!Controller->SimpleSort) {
                 auto* inputSpec = jobSpec->mutable_input_specs(0);
@@ -1033,6 +1037,9 @@ protected:
                 pair.second);
         }
     }
+
+    virtual void CustomizeJobSpec(TJobInProgressPtr jip, NProto::TJobSpec* jobSpec)
+    { }
 
 
     // Resource management.
@@ -1899,6 +1906,28 @@ private:
                 ReducerFiles);
 
             SortedMergeJobSpecTemplate.set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).Data());
+        }
+    }
+
+    void CustomizeJobSpec(TJobInProgressPtr jip, NProto::TJobSpec* jobSpec) override
+    {
+        switch (jobSpec->type()) {
+        case EJobType::PartitionMap: {
+            auto* jobSpecExt = jobSpec->MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
+            AddUserJobEnvironment(jobSpecExt->mutable_mapper_spec(), jip);
+            break;
+        }
+
+        case EJobType::PartitionReduce:
+        case EJobType::SortedReduce: {
+            auto* jobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+            AddUserJobEnvironment(jobSpecExt->mutable_reducer_spec(), jip);
+            break;
+        }
+
+        default:
+            // For other jobs do nothing.
+            break;
         }
     }
 

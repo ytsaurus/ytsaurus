@@ -114,7 +114,8 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(ISchedulingContext* context
         return NULL;
     }
 
-    auto jip = New<TJobInProgress>(this);
+    auto jip = New<TJobInProgress>(this, Controller->CurrentJobCount);
+    ++Controller->CurrentJobCount;
 
     auto address = context->GetNode()->GetAddress();
     auto dataSizeThreshold = GetJobDataSizeThreshold();
@@ -320,6 +321,7 @@ TOperationControllerBase::TOperationControllerBase(
     , CompletedJobCount(0)
     , FailedJobCount(0)
     , AbortedJobCount(0)
+    , CurrentJobCount(0)
     , UsedResources(ZeroResources())
     , PendingTaskInfos(MaxTaskPriority + 1)
     , CachedPendingJobCount(0)
@@ -1630,10 +1632,36 @@ void TOperationControllerBase::InitUserJobSpec(
         proto->set_output_format(outputFormat.ToYson().Data());
     }
 
+    auto fillEnvironment = [&] (NYTree::INodePtr env) {
+        if (env) {
+            auto list = env->AsList();
+            for(int i = 0; i < list->GetChildCount(); ++i) {
+                proto->add_environment(list->GetChild(i)->AsString()->GetValue());
+            }
+        }
+    };
+
+    // Global environment.
+    fillEnvironment(Config->Environment);
+
+    // Local environment.
+    fillEnvironment(config->Environment);
+
+    proto->add_environment(Sprintf("YT_OPERATION_ID=%s", 
+        ~Operation->GetOperationId().ToString()));
+
     // TODO(babenko): think about per-job files
     FOREACH (const auto& file, files) {
         *proto->add_files() = *file.FetchResponse;
     }
+}
+
+void TOperationControllerBase::AddUserJobEnvironment(
+    NScheduler::NProto::TUserJobSpec* proto,
+    TJobInProgressPtr jip)
+{
+    proto->add_environment(Sprintf("YT_JOB_INDEX=%d", jip->JobIndex));
+    proto->add_environment(Sprintf("YT_JOB_ID=%s", ~jip->Job->GetId().ToString()));
 }
 
 void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr config)

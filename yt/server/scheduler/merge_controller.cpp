@@ -145,6 +145,7 @@ protected:
         {
             AddParallelInputSpec(jobSpec, jip);
             AddOutputSpecs(jobSpec, jip);
+            Controller->CustomizeJobSpec(jip, jobSpec);
         }
 
     private:
@@ -483,6 +484,9 @@ protected:
 
     //! Initializes #JobSpecTemplate.
     virtual void InitJobSpecTemplate() = 0;
+
+    virtual void CustomizeJobSpec(TJobInProgressPtr jip, NProto::TJobSpec* jobSpec) 
+    { }
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -1242,6 +1246,12 @@ private:
         JobSpecTemplate.set_io_config(ConvertToYsonString(Spec->JobIO).Data());
 
         ManiacJobSpecTemplate.CopyFrom(JobSpecTemplate);
+    }
+
+    void CustomizeJobSpec(TJobInProgressPtr jip, NProto::TJobSpec* jobSpec) override
+    {
+        auto* jobSpecExt = JobSpecTemplate.MutableExtension(NScheduler::NProto::TReduceJobSpecExt::reduce_job_spec_ext);
+        AddUserJobEnvironment(jobSpecExt->mutable_reducer_spec(), jip);
     }
 };
 

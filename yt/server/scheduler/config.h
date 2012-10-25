@@ -110,6 +110,9 @@ struct TSchedulerConfig
     NYTree::INodePtr MapReduceOperationSpec;
     NYTree::INodePtr SortOperationSpec;
 
+    // Default environment variables set for every job.
+    NYTree::INodePtr Environment;
+
     TSchedulerConfig()
     {
         Register("connect_retry_period", ConnectRetryPeriod)
@@ -167,6 +170,9 @@ struct TSchedulerConfig
         Register("max_job_count", MaxJobCount)
             .Default(20000)
             .GreaterThan(0);
+
+        Register("environment", Environment)
+            .Default(NULL);
     }
 };
 

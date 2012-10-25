@@ -130,6 +130,9 @@ private:
             jobSpec->CopyFrom(Controller->JobSpecTemplate);
             AddSequentialInputSpec(jobSpec, jip);
             AddOutputSpecs(jobSpec, jip);
+
+            auto* jobSpecExt = jobSpec->MutableExtension(TMapJobSpecExt::map_job_spec_ext);
+            Controller->AddUserJobEnvironment(jobSpecExt->mutable_mapper_spec(), jip);
         }
 
         virtual void OnJobCompleted(TJobInProgressPtr jip) override
