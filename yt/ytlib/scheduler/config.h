@@ -58,11 +58,12 @@ struct TUserJobSpec
     
     std::vector<NYPath::TRichYPath> FilePaths;
 
-    // List of environment strings.
     NYTree::INodePtr Environment;
     TNullable<NFormats::TFormat> Format;
     TNullable<NFormats::TFormat> InputFormat;
     TNullable<NFormats::TFormat> OutputFormat;
+
+    yhash_map<Stroka, Stroka> Environment;
     
     int CpuLimit;
     i64 MemoryLimit;
@@ -79,7 +80,7 @@ struct TUserJobSpec
         Register("output_format", OutputFormat)
             .Default();
         Register("environment", Environment)
-            .Default(NULL);
+            .Default(yhash_map<Stroka, Stroka>());
         Register("cpu_limit", CpuLimit)
             .Default(1);
         Register("memory_limit", MemoryLimit)

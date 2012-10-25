@@ -111,7 +111,7 @@ struct TSchedulerConfig
     NYTree::INodePtr SortOperationSpec;
 
     // Default environment variables set for every job.
-    NYTree::INodePtr Environment;
+    yhash_map<Stroka, Stroka> Environment;
 
     TSchedulerConfig()
     {
@@ -172,7 +172,7 @@ struct TSchedulerConfig
             .GreaterThan(0);
 
         Register("environment", Environment)
-            .Default(NULL);
+            .Default(yhash_map<Stroka, Stroka>());
     }
 };
 

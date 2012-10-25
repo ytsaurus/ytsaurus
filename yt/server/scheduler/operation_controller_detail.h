@@ -175,6 +175,7 @@ protected:
     {
         explicit TJobInProgress(TTaskPtr task, int jobIndex)
             : Task(task)
+            , JobIndex(jobIndex)
         { }
 
         TTaskPtr Task;

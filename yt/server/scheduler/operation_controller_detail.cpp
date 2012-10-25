@@ -1632,12 +1632,9 @@ void TOperationControllerBase::InitUserJobSpec(
         proto->set_output_format(outputFormat.ToYson().Data());
     }
 
-    auto fillEnvironment = [&] (NYTree::INodePtr env) {
-        if (env) {
-            auto list = env->AsList();
-            for(int i = 0; i < list->GetChildCount(); ++i) {
-                proto->add_environment(list->GetChild(i)->AsString()->GetValue());
-            }
+    auto fillEnvironment = [&] (yhash_map<Stroka, Stroka>& env) {
+        FOREACH(const auto& pair, env) {
+            proto->add_environment(Sprintf("%s=%s", ~pair.first, ~pair.second));
         }
     };
 
