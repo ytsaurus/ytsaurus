@@ -1064,7 +1064,7 @@ public:
             EpochContext->EpochControlInvoker,
             EpochContext->EpochUserStateInvoker);
 
-        EpochContext->EpochSystemStateInvoker->Invoke(BIND(
+        DecoratedState->GetSystemInvoker()->Invoke(BIND(
             &TThis::DoStateStartFollowing,
             MakeStrong(this)));
     }
