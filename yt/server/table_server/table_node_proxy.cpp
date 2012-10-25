@@ -375,6 +375,13 @@ public:
     }
 
 protected:
+    NCellMaster::TBootstrap* Bootstrap;
+    IYsonConsumer* Consumer;
+    const TChunkList* ChunkList;
+    TPromise<TError> Promise;
+
+    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
+
     TChunkVisitorBase(
         NCellMaster::TBootstrap* bootstrap,
         const TChunkList* chunkList,
@@ -386,12 +393,6 @@ protected:
     {
         VERIFY_THREAD_AFFINITY(StateThread);
     }
-
-    NCellMaster::TBootstrap* Bootstrap;
-    IYsonConsumer* Consumer;
-    const TChunkList* ChunkList;
-    TPromise<TError> Promise;
-    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 
     virtual void OnError(const TError& error) override
     {
@@ -436,11 +437,11 @@ public:
     }
 };
 
-class TChunkStatisticsAttributeVisitor
+class TCodecStatisticsAttributeVisitor
     : public TChunkVisitorBase
 {
 public:
-    TChunkStatisticsAttributeVisitor(
+    TCodecStatisticsAttributeVisitor(
         TBootstrap* bootstrap,
         const TChunkList* chunkList,
         IYsonConsumer* consumer)
@@ -480,9 +481,11 @@ public:
             });
         Promise.Set(TError());
     }
+
 private:
     typedef yhash_map<ECodecId, TChunkTreeStatistics> TCodecInfoMap;
     TCodecInfoMap CodecInfo;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -537,7 +540,7 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attribut
 
     attributes->push_back("chunk_list_id");
     attributes->push_back(TAttributeInfo("chunk_ids", true, true));
-    attributes->push_back(TAttributeInfo("codec_info", true, true));
+    attributes->push_back(TAttributeInfo("codec_statistics", true, true));
     attributes->push_back("chunk_count");
     attributes->push_back("uncompressed_data_size");
     attributes->push_back("compressed_size");
@@ -629,8 +632,8 @@ TAsyncError TTableNodeProxy::GetSystemAttributeAsync(const Stroka& key, IYsonCon
         return visitor->Run();
     }
 
-    if (key == "chunk_statistics") {
-        auto visitor = New<TChunkStatisticsAttributeVisitor>(
+    if (key == "codec_statistics") {
+        auto visitor = New<TCodecStatisticsAttributeVisitor>(
             Bootstrap,
             chunkList,
             consumer);
