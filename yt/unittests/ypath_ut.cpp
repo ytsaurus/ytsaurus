@@ -270,6 +270,10 @@ TEST_F(TYPathTest, InvalidCases)
 {
     Set("/root", "{}");
 
+    // exception when setting attributes
+    EXPECT_ANY_THROW(Set("/root/some", "[10; {key=value;foo=<attr=42a>bar}]"));
+    Check("/root", "{}");
+
     EXPECT_ANY_THROW(Set("a", "{}")); // must start with '/'
     EXPECT_ANY_THROW(Set("/root/", "{}")); // cannot end with '/'
     EXPECT_ANY_THROW(Set("", "[]")); // change the type of root
