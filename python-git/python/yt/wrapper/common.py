@@ -33,3 +33,11 @@ def is_prefix(list_a, list_b):
         if list_a[i] != list_b[i]:
             return False
     return True
+
+def prefix(iterable, n):
+    counter = 0
+    for value in iterable:
+        if counter == n:
+            break
+        counter += 1
+        yield value
