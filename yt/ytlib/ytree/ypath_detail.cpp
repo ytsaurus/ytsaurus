@@ -443,7 +443,9 @@ TFuture<bool> TSupportsAttributes::DoExistsAttribute(const TYPath& path)
     if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
         if (userAttributes) {
             auto userYson = userAttributes->FindYson(key);
-            return userYson ? TrueFuture : FalseFuture;
+            if (userYson) {
+                return TrueFuture;
+            }
         }
 
         if (systemAttributeProvider) {
