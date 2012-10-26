@@ -58,7 +58,6 @@ struct TUserJobSpec
     
     std::vector<NYPath::TRichYPath> FilePaths;
 
-    NYTree::INodePtr Environment;
     TNullable<NFormats::TFormat> Format;
     TNullable<NFormats::TFormat> InputFormat;
     TNullable<NFormats::TFormat> OutputFormat;
