@@ -27,7 +27,7 @@ egg: prepare
 	cp dist/*.egg .
 
 deb_without_test: clean
-	@MAKE prepare
+	$(MAKE) prepare
 	# build the source package in the parent directory
 	# then rename it to project_version.orig.tar.gz
 	$(PYTHON) setup.py sdist --dist-dir=../
