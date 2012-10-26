@@ -42,6 +42,13 @@ def _prepare_sort_by(sort_by):
             raise YtError("sort_by option is required")
     return flatten(sort_by)
 
+def _calc_job_count(input_tables, min_data=None, max_data=None):
+    size = sum(map(get_size, input_tables))
+    if min_data is None: min_data = config.MIN_SIZE_PER_JOB
+    if max_data is None: max_data = config.MAX_SIZE_PER_JOB
+    return max(1, min(size / min_data, max(config.CLUSTER_SIZE, size / max_data)))
+
+
 class Buffer(object):
     """ Reads line iterator by chunks """
     def __init__(self, lines_iterator, has_eoln=True):
@@ -189,6 +196,9 @@ def records_count(table):
     require(exists(table), YtError("Table %s doesn't exist" % table))
     return get_attribute(table, "row_count")
 
+def get_size(table):
+    return get_attribute(to_name(table), "uncompressed_data_size")
+
 def is_empty(table):
     return records_count(table) == 0
 
@@ -225,6 +235,10 @@ def merge_tables(source_table, destination_table, mode, strategy=None, table_wri
 
 
 def sort_table(source_table, destination_table=None, sort_by=None, strategy=None, table_writer=None, spec=None):
+    def prepare_job_count(spec, source_table):
+        if "partition_count" not in spec:
+            spec["partition_count"] = _calc_job_count(source_table, max_data=config.MAX_SIZE_PER_JOB/2.0)
+
     sort_by = _prepare_sort_by(sort_by)
     source_table = _prepare_source_tables(source_table)
     if all(is_prefix(sort_by, get_sorted_by(table.name))
@@ -248,6 +262,7 @@ def sort_table(source_table, destination_table=None, sort_by=None, strategy=None
                  "output_table_path": destination_table.yson_name("output"),
                  "sort_by": sort_by},
                 spec)
+    prepare_job_count(spec, source_table)
     params = json.dumps(add_user_spec(add_transaction_params(
         {"spec": spec}
     )))
@@ -312,6 +327,11 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                    map_files=None, reduce_files=None,
                    map_file_paths=None, reduce_file_paths=None,
                    sort_by=None, reduce_by=None):
+    def prepare_job_count(spec, source_table):
+        if "map_job_count" not in spec and "partition_count" not in spec:
+            spec["map_job_count"] = _calc_job_count(source_table)
+            spec["partition_count"] = max(1, spec["map_job_count"] / 2)
+
     if strategy is None: strategy = config.DEFAULT_STRATEGY
     sort_by = _prepare_sort_by(sort_by)
     reduce_by = _prepare_reduce_by(reduce_by)
@@ -344,7 +364,6 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     source_table = _prepare_source_tables(source_table)
     destination_table = _prepare_destination_tables(destination_table)
 
-
     if table_writer is not None:
         for job_io in ["map_job_io", "reduce_job_io", "sort_job_io"]:
             run_map_reduce.spec[job_io] = {}
@@ -361,6 +380,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     if spec is not None:
         run_map_reduce.spec = update(run_map_reduce.spec, spec)
 
+    prepare_job_count(run_map_reduce.spec, source_table)
     params = json.dumps(
         add_user_spec(add_transaction_params(
             {"spec": run_map_reduce.spec})))
@@ -375,6 +395,10 @@ def run_operation(binary, source_table, destination_table,
                   table_writer=None, spec=None,
                   op_type=None,
                   reduce_by=None):
+    def prepare_job_count(spec, source_table):
+        if "job_count" not in spec:
+            spec["job_count"] = _calc_job_count(source_table)
+
 
     input_format, output_format = _prepare_formats(format, input_format, output_format)
     files = _prepare_files(files)
@@ -434,6 +458,7 @@ def run_operation(binary, source_table, destination_table,
          op_key: operation_descr},
         spec)
 
+    prepare_job_count(spec, source_table)
     params = json.dumps(
         add_user_spec(add_transaction_params(
             {"spec": spec})))
