@@ -55,6 +55,25 @@ TEST(TDsvParserTest, EmptyInput)
     ParseDsv(input, &Mock);
 }
 
+TEST(TDsvParserTest, BinaryData)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+
+    auto a = Stroka("\0\0\0\0", 4);
+    auto b = Stroka("\x80\0\x16\xC8", 4);
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("ntr"));
+        EXPECT_CALL(Mock, OnStringScalar(a));
+        EXPECT_CALL(Mock, OnKeyedItem("xrp"));
+        EXPECT_CALL(Mock, OnStringScalar(b));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    Stroka input = "ntr=\\0\\0\\0\\0\txrp=\x80\\0\x16\xC8";
+    ParseDsv(input, &Mock);
+}
+
 TEST(TDsvParserTest, EmptyRecord)
 {
     StrictMock<NYTree::TMockYsonConsumer> Mock;
