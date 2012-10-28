@@ -300,11 +300,11 @@ bool TCypressNodeProxyNontemplateBase::GetSystemAttribute(
                     .DoIf(!pair.second.ChildKeys.empty(), [=] (TFluentMap fluent) {
                         fluent
                             .Item("child_keys").List(pair.second.ChildKeys);
-                })
+                    })
                     .DoIf(!pair.second.AttributeKeys.empty(), [=] (TFluentMap fluent) {
                         fluent
                             .Item("attribute_keys").List(pair.second.AttributeKeys);
-                })
+                    })
                     .EndMap();
         });
         return true;
@@ -336,7 +336,8 @@ bool TCypressNodeProxyNontemplateBase::GetSystemAttribute(
 
     if (key == "resource_usage") {
         BuildYsonFluently(consumer)
-            .Entity();
+            .Scalar(GetResourceUsage());
+        return true;
     }
 
     return TObjectProxyBase::GetSystemAttribute(key, consumer);

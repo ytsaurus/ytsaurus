@@ -704,7 +704,7 @@ public:
         BuildYsonMapFluently(consumer)
             .Item("pool").Scalar(pool->GetId())
             .Item("start_time").Scalar(element->GetStartTime())
-            .Item("effective_resource_limits").Do(BIND(&BuildNodeResourcesYson, element->GetEffectiveLimits()))
+            .Item("effective_resource_limits").Scalar(element->GetEffectiveLimits())
             .Item("utilization_ratio").Scalar(element->GetUtilizationRatio())
             .Item("scheduling_status").Scalar(GetOperationStatus(element))
             .Do(BIND(&TFairShareStrategy::BuildElementYson, pool, element));
@@ -1061,8 +1061,8 @@ private:
         const auto& attributes = element->Attributes();
         BuildYsonMapFluently(consumer)
             .Item("scheduling_rank").Scalar(attributes.Rank)
-            .Item("resource_demand").Do(BIND(&BuildNodeResourcesYson, element->GetDemand()))
-            .Item("resource_utilization").Do(BIND(&BuildNodeResourcesYson, element->GetUtilization()))
+            .Item("resource_demand").Scalar(element->GetDemand())
+            .Item("resource_utilization").Scalar(element->GetUtilization())
             .Item("dominant_resource").Scalar(attributes.DominantResource)
             .Item("weight").Scalar(element->GetWeight())
             .Item("min_share_ratio").Scalar(element->GetMinShareRatio())

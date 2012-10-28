@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/ytree/public.h>
+
 namespace NYT {
 namespace NCypressServer {
 
@@ -19,6 +21,8 @@ struct TClusterResources
      */
     i64 DiskSpace;
 };
+
+void Serialize(const TClusterResources& resources, NYTree::IYsonConsumer* consumer);
 
 const TClusterResources& ZeroClusterResources();
 

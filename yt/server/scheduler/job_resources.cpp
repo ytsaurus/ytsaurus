@@ -213,9 +213,7 @@ NProto::TNodeResources ComputeEffectiveLimits(
     return effectiveLimits;
 }
 
-i64 GetResource(
-    const NProto::TNodeResources& resources,
-    EResourceType type)
+i64 GetResource(const NProto::TNodeResources& resources, EResourceType type)
 {
     switch (type) {
         case EResourceType::Slots:
@@ -251,19 +249,6 @@ bool HasSpareResources(
         utilization.slots() < limits.slots() &&
         utilization.cpu() < limits.cpu() &&
         utilization.memory() + LowWatermarkMemorySize < limits.memory();
-}
-
-void BuildNodeResourcesYson(
-    const TNodeResources& resources,
-    IYsonConsumer* consumer)
-{
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("slots").Scalar(resources.slots())
-            .Item("cpu").Scalar(resources.cpu())
-            .Item("memory").Scalar(resources.memory())
-            .Item("network").Scalar(resources.network())
-        .EndMap();
 }
 
 TNodeResources ZeroNodeResources()
@@ -303,6 +288,21 @@ i64 GetIOMemorySize(
         ioConfig->TableWriter->MaxBufferSize) * 
         outputStreamCount * 2; // possibly writing two chunks at the time at chunk change
 }
+
+namespace NProto {
+
+void Serialize(const TNodeResources& resources, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+        .Item("slots").Scalar(resources.slots())
+        .Item("cpu").Scalar(resources.cpu())
+        .Item("memory").Scalar(resources.memory())
+        .Item("network").Scalar(resources.network())
+        .EndMap();
+}
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////
 

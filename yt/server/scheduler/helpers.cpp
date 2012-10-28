@@ -18,7 +18,7 @@ using namespace NYTree;
 void BuildOperationAttributes(TOperationPtr operation, IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
-        .Item("operation_type").Scalar(CamelCaseToUnderscoreCase(operation->GetType().ToString()))
+        .Item("operation_type").Scalar(operation->GetType())
         .Item("transaction_id").Scalar(operation->GetTransactionId())
         .Item("state").Scalar(FormatEnum(operation->GetState()))
         .Item("start_time").Scalar(operation->GetStartTime())
@@ -41,8 +41,8 @@ void BuildJobAttributes(TJobPtr job, NYTree::IYsonConsumer* consumer)
 void BuildExecNodeAttributes(TExecNodePtr node, IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
-        .Item("resource_utilization").Do(BIND(&BuildNodeResourcesYson, node->ResourceUtilization()))
-        .Item("resource_limits").Do(BIND(&BuildNodeResourcesYson, node->ResourceLimits()));
+        .Item("resource_utilization").Scalar(node->ResourceUtilization())
+        .Item("resource_limits").Scalar(node->ResourceLimits());
 }
 
 ////////////////////////////////////////////////////////////////////

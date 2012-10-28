@@ -1,14 +1,26 @@
 #include "stdafx.h"
 #include "cluster_resources.h"
 
+#include <ytlib/ytree/fluent.h>
+
 namespace NYT {
 namespace NCypressServer {
+
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TClusterResources::TClusterResources()
     : DiskSpace(0)
 { }
+
+void Serialize(const TClusterResources& resources, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("disk_space").Scalar(resources.DiskSpace)
+        .EndMap();
+}
 
 const TClusterResources& ZeroClusterResources()
 {
