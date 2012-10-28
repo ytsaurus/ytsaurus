@@ -234,7 +234,7 @@ protected:
         {
             int jobCount = GetPendingJobCount();
             if (jobCount == 0) {
-                return ZeroResources();
+                return ZeroNodeResources();
             }
             i64 dataSizePerJob = ChunkPool->DataSizeCounter().GetPending() / jobCount;
             return Controller->GetPartitionResources(dataSizePerJob);
@@ -469,7 +469,7 @@ protected:
         {
             int jobCount = GetPendingJobCount();
             if (jobCount == 0) {
-                return ZeroResources();
+                return ZeroNodeResources();
             }
             i64 dataSizePerJob = ChunkPool->DataSizeCounter().GetPending() / jobCount;
             return GetNeededResourcesForDataSize(dataSizePerJob);

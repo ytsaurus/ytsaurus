@@ -336,7 +336,7 @@ TNodeResources TJob::GetResourceUtilization() const
     return
         JobState == EJobState::Running || JobState == EJobState::Aborting
         ? ResourceUtilization
-        : ZeroResources();
+        : ZeroNodeResources();
 }
 
 void TJob::UpdateResourceUtilization(const TNodeResources& utilization)

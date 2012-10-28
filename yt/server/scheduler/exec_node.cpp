@@ -13,8 +13,8 @@ namespace NScheduler {
 
 TExecNode::TExecNode(const Stroka& address)
     : Address_(address)
-    , ResourceLimits_(ZeroResources())
-    , ResourceUtilization_(ZeroResources())
+    , ResourceLimits_(ZeroNodeResources())
+    , ResourceUtilization_(ZeroNodeResources())
 { }
 
 ////////////////////////////////////////////////////////////////////

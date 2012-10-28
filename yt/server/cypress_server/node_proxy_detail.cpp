@@ -271,6 +271,7 @@ void TCypressNodeProxyNontemplateBase::ListSystemAttributes(std::vector<TAttribu
     attributes->push_back(TAttributeInfo("path", true, true));
     attributes->push_back("creation_time");
     attributes->push_back("modification_time");
+    attributes->push_back(TAttributeInfo("resource_usage", true, true));
     TObjectProxyBase::ListSystemAttributes(attributes);
 }
 
@@ -331,6 +332,11 @@ bool TCypressNodeProxyNontemplateBase::GetSystemAttribute(
         BuildYsonFluently(consumer)
             .Scalar(node->GetModificationTime().ToString());
         return true;
+    }
+
+    if (key == "resource_usage") {
+        BuildYsonFluently(consumer)
+            .Entity();
     }
 
     return TObjectProxyBase::GetSystemAttribute(key, consumer);
@@ -453,6 +459,11 @@ TAutoPtr<IAttributeDictionary> TCypressNodeProxyNontemplateBase::DoCreateUserAtt
 void TCypressNodeProxyNontemplateBase::SetModified()
 {
     Bootstrap->GetCypressManager()->SetModified(Id, Transaction);
+}
+
+TClusterResources TCypressNodeProxyNontemplateBase::GetResourceUsage() const 
+{
+    return ZeroClusterResources();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

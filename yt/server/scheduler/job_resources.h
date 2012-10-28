@@ -66,7 +66,7 @@ void BuildNodeResourcesYson(
     const NProto::TNodeResources& resources,
     NYTree::IYsonConsumer* consumer);
 
-NProto::TNodeResources ZeroResources();
+NProto::TNodeResources ZeroNodeResources();
 NProto::TNodeResources InfiniteResources();
 
 i64 GetFootprintMemorySize();

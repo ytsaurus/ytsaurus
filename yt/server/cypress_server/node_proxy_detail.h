@@ -110,6 +110,8 @@ public:
         NYTree::IYsonConsumer* consumer,
         const NYTree::TAttributeFilter& filter) const override;
 
+    virtual TClusterResources GetResourceUsage() const override;
+
 protected:
     INodeTypeHandlerPtr TypeHandler;
     NCellMaster::TBootstrap* Bootstrap;

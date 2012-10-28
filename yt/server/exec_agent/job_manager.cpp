@@ -97,7 +97,7 @@ TNodeResources TJobManager::GetResourceLimits()
 
 TNodeResources TJobManager::GetResourceUtilization()
 {
-    auto result = ZeroResources();
+    auto result = ZeroNodeResources();
     FOREACH (const auto& pair, Jobs) {
         auto jobUtilization = pair.second->GetResourceUtilization();
         result += jobUtilization;

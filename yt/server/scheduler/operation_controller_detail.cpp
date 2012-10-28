@@ -51,7 +51,7 @@ using namespace NScheduler::NProto;
 TOperationControllerBase::TTask::TTask(TOperationControllerBase* controller)
     : Controller(controller)
     , CachedPendingJobCount(0)
-    , CachedTotalNeededResources(ZeroResources())
+    , CachedTotalNeededResources(ZeroNodeResources())
     , Logger(Controller->Logger)
 { }
 
@@ -76,7 +76,7 @@ TNodeResources TOperationControllerBase::TTask::GetTotalNeededResources() const
 {
     i64 count = GetPendingJobCount();
     // NB: Don't call GetAvgNeededResources if there are no pending jobs.
-    return count == 0 ? ZeroResources() : GetAvgNeededResources() * count;
+    return count == 0 ? ZeroNodeResources() : GetAvgNeededResources() * count;
 }
 
 i64 TOperationControllerBase::TTask::GetLocality(const Stroka& address) const
@@ -322,10 +322,10 @@ TOperationControllerBase::TOperationControllerBase(
     , FailedJobCount(0)
     , AbortedJobCount(0)
     , CurrentJobCount(0)
-    , UsedResources(ZeroResources())
+    , UsedResources(ZeroNodeResources())
     , PendingTaskInfos(MaxTaskPriority + 1)
     , CachedPendingJobCount(0)
-    , CachedNeededResources(ZeroResources())
+    , CachedNeededResources(ZeroNodeResources())
 {
     Logger.AddTag(Sprintf("OperationId: %s", ~operation->GetOperationId().ToString()));
 }

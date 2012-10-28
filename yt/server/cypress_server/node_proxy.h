@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "node.h"
+#include "cluster_resources.h"
 
 #include <ytlib/ytree/node.h>
 
@@ -23,6 +24,9 @@ struct ICypressNodeProxy
 
     //! Returns the trunk node for which the proxy is created.
     virtual ICypressNode* GetTrunkNode() const = 0;
+
+    //! Returns resources used by the object.
+    virtual TClusterResources GetResourceUsage() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

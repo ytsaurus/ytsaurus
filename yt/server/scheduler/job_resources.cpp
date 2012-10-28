@@ -266,7 +266,7 @@ void BuildNodeResourcesYson(
         .EndMap();
 }
 
-TNodeResources ZeroResources()
+TNodeResources ZeroNodeResources()
 {
     TNodeResources result;
     result.set_slots(0);

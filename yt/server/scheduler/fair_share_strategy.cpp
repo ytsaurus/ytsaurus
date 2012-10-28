@@ -112,7 +112,7 @@ public:
         : Config(config)
         , Host(host)
         , Operation_(operation)
-        , EffectiveLimits_(ZeroResources())
+        , EffectiveLimits_(ZeroNodeResources())
         , UtilizationRatio_(0.0)
         , Pool_(NULL)
     { }
@@ -190,7 +190,7 @@ private:
             return;
         }
 
-        EffectiveLimits_ = ZeroResources();
+        EffectiveLimits_ = ZeroNodeResources();
         auto quantum = Operation_->GetController()->GetMinNeededResources();
 
         // Sort jobs by node.
@@ -259,7 +259,7 @@ public:
         : Host(host)
         , Mode(ESchedulingMode::Fifo)
         , LimitsRatio(0.0)
-        , Limits(ZeroResources())
+        , Limits(ZeroNodeResources())
     { }
 
     virtual void Update(double limitsRatio) override
@@ -604,7 +604,7 @@ public:
 
     virtual NProto::TNodeResources GetDemand() const override
     {
-        auto result = ZeroResources();
+        auto result = ZeroNodeResources();
         FOREACH (auto child, Children) {
             result += child->GetDemand();
         }
@@ -613,7 +613,7 @@ public:
 
     virtual NProto::TNodeResources GetUtilization() const override
     {
-        auto result = ZeroResources();
+        auto result = ZeroNodeResources();
         FOREACH (auto child, Children) {
             result += child->GetUtilization();
         }
@@ -622,7 +622,7 @@ public:
 
     virtual NProto::TNodeResources GetEffectiveLimits() const override
     {
-        auto result = ZeroResources();
+        auto result = ZeroNodeResources();
         FOREACH (auto child, Children) {
             result += child->GetEffectiveLimits();
         }
@@ -975,7 +975,7 @@ private:
 
     void PreemptJobs()
     {
-        auto resourcesToPreempt = ZeroResources();
+        auto resourcesToPreempt = ZeroNodeResources();
         bool preemptionNeeded = false;
         auto incrementResourcesToPreempt = [&] (TOperationElementPtr element, double desiredRatio) {
             auto operation = element->GetOperation();
@@ -1037,7 +1037,7 @@ private:
         LOG_INFO("Started preempting jobs (ResourcesToPreempt: {%s})",
             ~FormatResources(resourcesToPreempt));
 
-        auto resourcesPreempted = ZeroResources();
+        auto resourcesPreempted = ZeroNodeResources();
         FOREACH (auto job, JobList) {
             if (Dominates(resourcesPreempted, resourcesToPreempt)) {
                 break;

@@ -140,8 +140,8 @@ public:
         , TotalResourceLimitsProfiler(Profiler.GetPathPrefix() + "/total_resource_limits")
         , TotalResourceUtilizationProfiler(Profiler.GetPathPrefix() + "/total_resource_utilization")
         , JobTypeCounters(EJobType::GetDomainSize())
-        , TotalResourceLimits(ZeroResources())
-        , TotalResourceUtilization(ZeroResources())
+        , TotalResourceLimits(ZeroNodeResources())
+        , TotalResourceUtilization(ZeroNodeResources())
     {
         YCHECK(config);
         YCHECK(bootstrap);

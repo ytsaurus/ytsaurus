@@ -21,7 +21,7 @@ TJob::TJob(
     , StartTime_(startTime)
     , State_(EJobState::Running)
     , Spec_(NULL)
-    , ResourceUtilization_(ZeroResources())
+    , ResourceUtilization_(ZeroNodeResources())
 { }
 
 ////////////////////////////////////////////////////////////////////
