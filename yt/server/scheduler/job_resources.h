@@ -62,10 +62,6 @@ bool HasSpareResources(
     const NProto::TNodeResources& utilization,
     const NProto::TNodeResources& limits);
 
-void BuildNodeResourcesYson(
-    const NProto::TNodeResources& resources,
-    NYTree::IYsonConsumer* consumer);
-
 NProto::TNodeResources ZeroNodeResources();
 NProto::TNodeResources InfiniteResources();
 
@@ -75,6 +71,14 @@ i64 GetIOMemorySize(
     TJobIOConfigPtr ioConfig,
     int inputStreamCount,
     int outputStreamCount);
+
+namespace NProto {
+
+void Serialize(
+    const NProto::TNodeResources& resources,
+    NYTree::IYsonConsumer* consumer);
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 
