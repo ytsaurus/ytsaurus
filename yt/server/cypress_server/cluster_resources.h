@@ -13,6 +13,7 @@ namespace NCypressServer {
 struct TClusterResources
 {
     TClusterResources();
+    explicit TClusterResources(i64 diskSpace);
 
     //! Space occupied on data nodes in bytes.
     /*!

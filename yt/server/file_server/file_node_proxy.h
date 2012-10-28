@@ -30,6 +30,8 @@ public:
     bool IsExecutable();
     Stroka GetFileName();
 
+    virtual NCypressServer::TClusterResources GetResourceUsage() const override;
+
 private:
     typedef NCypressServer::TCypressNodeProxyBase<NYTree::IEntityNode, TFileNode> TBase;
 

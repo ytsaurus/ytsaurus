@@ -533,6 +533,14 @@ bool TTableNodeProxy::IsWriteRequest(IServiceContextPtr context) const
     return TBase::IsWriteRequest(context);
 }
 
+TClusterResources TTableNodeProxy::GetResourceUsage() const 
+{
+    const auto* impl = GetThisTypedImpl();
+    const auto* chunkList = impl->GetChunkList();
+    // TODO(babenko): this is wrong
+    return TClusterResources(chunkList->Statistics().CompressedSize * 3);
+}
+
 void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const
 {
     const auto* impl = GetThisTypedImpl();

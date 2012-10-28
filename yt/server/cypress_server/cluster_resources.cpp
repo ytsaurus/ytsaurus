@@ -14,6 +14,10 @@ TClusterResources::TClusterResources()
     : DiskSpace(0)
 { }
 
+TClusterResources::TClusterResources(i64 diskSpace)
+    : DiskSpace(diskSpace)
+{ }
+
 void Serialize(const TClusterResources& resources, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)

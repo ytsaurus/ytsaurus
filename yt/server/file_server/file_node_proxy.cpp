@@ -83,6 +83,14 @@ Stroka TFileNodeProxy::GetFileName()
     }
 }
 
+TClusterResources TFileNodeProxy::GetResourceUsage() const 
+{
+    const auto* impl = GetThisTypedImpl();
+    const auto* chunkList = impl->GetChunkList();
+    // TODO(babenko): this is wrong
+    return TClusterResources(chunkList->Statistics().CompressedSize * 3);
+}
+
 void TFileNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const
 {
     attributes->push_back("size");

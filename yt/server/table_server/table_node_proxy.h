@@ -32,7 +32,10 @@ public:
     virtual TResolveResult Resolve(
         const NYPath::TYPath& path,
         NRpc::IServiceContextPtr context) override;
+    
     virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
+
+    virtual NCypressServer::TClusterResources GetResourceUsage() const override;
 
 private:
     typedef NCypressServer::TCypressNodeProxyBase<NYTree::IEntityNode, TTableNode> TBase;
