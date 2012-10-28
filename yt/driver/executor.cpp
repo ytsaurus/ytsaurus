@@ -232,14 +232,7 @@ IMapNodePtr TRequestExecutor::GetArgs()
 TFormat TRequestExecutor::GetFormat(EDataType dataType, const TNullable<TYsonString>& yson)
 {
     if (yson) {
-        INodePtr node;
-        try {
-            node = ConvertToNode(*yson);
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error parsing format description")
-                << ex;
-        }
-        return TFormat::FromYson(node);
+        return ConvertTo<TFormat>(yson.Get());
     }
 
     switch (dataType) {
@@ -248,10 +241,10 @@ TFormat TRequestExecutor::GetFormat(EDataType dataType, const TNullable<TYsonStr
             return TFormat(EFormatType::Null);
 
         case EDataType::Structured:
-            return TFormat::FromYson(Config->FormatDefaults->Structured);
+            return Config->FormatDefaults->Structured;
 
         case EDataType::Tabular:
-            return TFormat::FromYson(Config->FormatDefaults->Tabular);
+            return Config->FormatDefaults->Tabular;
 
         default:
             YUNREACHABLE();

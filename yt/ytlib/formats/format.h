@@ -44,16 +44,13 @@ public:
     
     const NYTree::IAttributeDictionary& Attributes() const;
 
-    static TFormat FromYson(NYTree::INodePtr node);
-    static TFormat FromYson(const NYTree::TYsonString& yson);
-
-    //TODO(ignat): rename to consume
-    void ToYson(NYTree::IYsonConsumer* consumer) const;
-    NYTree::TYsonString ToYson() const;
-
 private:
     TAutoPtr<NYTree::IAttributeDictionary> Attributes_;
+
 };
+
+void Serialize(const TFormat& value, NYTree::IYsonConsumer* consumer);
+void Deserialize(TFormat& value, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

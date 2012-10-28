@@ -1628,8 +1628,8 @@ void TOperationControllerBase::InitUserJobSpec(
             outputFormat = config->OutputFormat.Get();
         }
 
-        proto->set_input_format(inputFormat.ToYson().Data());
-        proto->set_output_format(outputFormat.ToYson().Data());
+        proto->set_input_format(ConvertToYsonString(inputFormat).Data());
+        proto->set_output_format(ConvertToYsonString(outputFormat).Data());
     }
 
     auto fillEnvironment = [&] (yhash_map<Stroka, Stroka>& env) {

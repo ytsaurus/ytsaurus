@@ -49,7 +49,21 @@ TFormat& TFormat::operator=(const TFormat& other)
     return *this;
 }
 
-TFormat TFormat::FromYson(INodePtr node)
+const IAttributeDictionary& TFormat::Attributes() const
+{
+    return *Attributes_;
+}
+
+void Serialize(const TFormat& value, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginAttributes()
+            .Items(value.Attributes())
+        .EndAttributes()
+        .Scalar(value.GetType());
+}
+
+void Deserialize(TFormat& value, INodePtr node)
 {
     if (node->GetType() != ENodeType::String) {
         THROW_ERROR_EXCEPTION("Format can only be parsed from String");
@@ -64,37 +78,10 @@ TFormat TFormat::FromYson(INodePtr node)
             ~typeStr);
     }
 
-    return TFormat(type, &node->Attributes());
+    value = TFormat(type, &node->Attributes());
 }
 
-TFormat TFormat::FromYson(const TYsonString& yson)
-{
-    return FromYson(ConvertToNode(yson));
-}
-
-void TFormat::ToYson(IYsonConsumer* consumer) const
-{
-    BuildYsonFluently(consumer)
-        .BeginAttributes()
-            .Items(*Attributes_)
-        .EndAttributes()
-        .Scalar(Type_.ToString());
-}
-
-TYsonString TFormat::ToYson() const
-{
-    TStringStream stream;
-    TYsonWriter writer(&stream);
-    ToYson(&writer);
-    return TYsonString(stream.Str());
-}
-
-const IAttributeDictionary& TFormat::Attributes() const
-{
-    return *Attributes_;
-}
-
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 EYsonType DataTypeToYsonType(EDataType dataType)
 {

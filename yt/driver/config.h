@@ -2,7 +2,11 @@
 
 #include <ytlib/ytree/yson_serializable.h>
 #include <ytlib/ytree/fluent.h>
+#include <ytlib/ytree/attribute_helpers.h>
+
 #include <ytlib/driver/config.h>
+
+#include <ytlib/formats/format.h>
 
 namespace NYT {
 namespace NDriver {
@@ -12,24 +16,21 @@ namespace NDriver {
 struct TFormatDefaultsConfig
     : public TYsonSerializable
 {
-    NYTree::INodePtr Structured;
-    NYTree::INodePtr Tabular;
+    NFormats::TFormat Structured;
+    NFormats::TFormat Tabular;
 
     TFormatDefaultsConfig()
     {
         // Keep this in sync with ytlib/driver/format.cpp
+        auto structuredAttributes = NYTree::CreateEphemeralAttributes();
+        structuredAttributes->Set("format", Stroka("pretty"));
         Register("structured", Structured)
-            .Default(NYTree::BuildYsonNodeFluently()
-                .BeginAttributes()
-                    .Item("format").Scalar("pretty")
-                .EndAttributes()
-                .Scalar("yson"));
+            .Default(NFormats::TFormat(NFormats::EFormatType::Yson, ~structuredAttributes));
+
+        auto tabularAttributes = NYTree::CreateEphemeralAttributes();
+        tabularAttributes->Set("format", Stroka("text"));
         Register("tabular", Tabular)
-            .Default(NYTree::BuildYsonNodeFluently()
-                .BeginAttributes()
-                    .Item("format").Scalar("text")
-                .EndAttributes()
-                .Scalar("yson"));
+            .Default(NFormats::TFormat(NFormats::EFormatType::Yson, ~tabularAttributes));
     }
 };
 
