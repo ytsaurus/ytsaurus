@@ -95,7 +95,7 @@ public:
 #undef REGISTER
     }
 
-    TDriverResponse Execute(const TDriverRequest& request) override
+    virtual TDriverResponse Execute(const TDriverRequest& request) override
     {
         YCHECK(request.InputStream);
         YCHECK(request.OutputStream);
@@ -128,7 +128,7 @@ public:
         return response;
     }
 
-    TNullable<TCommandDescriptor> FindCommandDescriptor(const Stroka& commandName) override
+    virtual TNullable<TCommandDescriptor> FindCommandDescriptor(const Stroka& commandName) override
     {
         auto it = Commands.find(commandName);
         if (it == Commands.end()) {
@@ -137,7 +137,7 @@ public:
         return it->second.Descriptor;
     }
 
-    std::vector<TCommandDescriptor> GetCommandDescriptors() override
+    virtual std::vector<TCommandDescriptor> GetCommandDescriptors() override
     {
         std::vector<TCommandDescriptor> result;
         result.reserve(Commands.size());
@@ -147,12 +147,12 @@ public:
         return result;
     }
 
-    IChannelPtr GetMasterChannel() override
+    virtual IChannelPtr GetMasterChannel() override
     {
         return LeaderChannel;
     }
 
-    IChannelPtr GetSchedulerChannel() override
+    virtual IChannelPtr GetSchedulerChannel() override
     {
         return SchedulerChannel;
     }
@@ -203,42 +203,42 @@ private:
             SchedulerChannel->Terminate(error);
         }
 
-        TDriverConfigPtr GetConfig() override
+        virtual TDriverConfigPtr GetConfig() override
         {
             return Driver->Config;
         }
 
-        IChannelPtr GetMasterChannel() override
+        virtual IChannelPtr GetMasterChannel() override
         {
             return MasterChannel;
         }
 
-        IChannelPtr GetSchedulerChannel() override
+        virtual IChannelPtr GetSchedulerChannel() override
         {
             return SchedulerChannel;
         }
 
-        IBlockCachePtr GetBlockCache() override
+        virtual IBlockCachePtr GetBlockCache() override
         {
             return Driver->BlockCache;
         }
 
-        TTransactionManagerPtr GetTransactionManager() override
+        virtual TTransactionManagerPtr GetTransactionManager() override
         {
             return TransactionManager;
         }
 
-        const TDriverRequest* GetRequest() override
+        virtual const TDriverRequest* GetRequest() override
         {
             return Request;
         }
 
-        TDriverResponse* GetResponse() override
+        virtual TDriverResponse* GetResponse() override
         {
             return &Response;
         }
 
-        TYsonProducer CreateInputProducer() override
+        virtual TYsonProducer CreateInputProducer() override
         {
             return CreateProducerForFormat(
                 Request->InputFormat,
@@ -246,7 +246,7 @@ private:
                 Request->InputStream);
         }
 
-        TAutoPtr<IYsonConsumer> CreateOutputConsumer() override
+        virtual TAutoPtr<IYsonConsumer> CreateOutputConsumer() override
         {
             return CreateConsumerForFormat(
                 Request->OutputFormat,
