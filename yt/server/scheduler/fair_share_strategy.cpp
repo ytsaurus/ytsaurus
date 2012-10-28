@@ -1003,7 +1003,7 @@ private:
                         element->SetStarvingForMinShareSince(now);
                     } else if (element->GetStarvingForMinShareSince().Get() < now - Config->MinSharePreemptionTimeout) {
                         incrementResourcesToPreempt(element, attributes.AdjustedMinShareRatio);
-                        LOG_INFO("Min share starvation timeout (OpertionId: %s, Since: %s)",
+                        LOG_INFO("Min share starvation timeout (OperationId: %s, Since: %s)",
                             ~ToString(operation->GetOperationId()),
                             ~ToString(element->GetStarvingForMinShareSince().Get()));
                     }
@@ -1014,7 +1014,7 @@ private:
                         element->SetStarvingForFairShareSince(now);
                     } else if (element->GetStarvingForFairShareSince().Get() < now - Config->FairSharePreemptionTimeout) {
                         incrementResourcesToPreempt(element, attributes.FairShareRatio);
-                        LOG_INFO("Fair share starvation timeout (OpertionId: %s, Since: %s)",
+                        LOG_INFO("Fair share starvation timeout (OperationId: %s, Since: %s)",
                             ~ToString(operation->GetOperationId()),
                             ~ToString(element->GetStarvingForFairShareSince().Get()));
                     }
