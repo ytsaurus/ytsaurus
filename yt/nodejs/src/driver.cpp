@@ -8,6 +8,7 @@
 #include <ytlib/misc/error.h>
 
 #include <ytlib/ytree/node.h>
+#include <ytlib/ytree/serialize.h>
 
 #include <ytlib/logging/log.h>
 
@@ -100,7 +101,7 @@ struct TExecuteRequest
 
     void SetInputFormat(INodePtr format)
     {
-        DriverRequest.InputFormat = TFormat::FromYson(MoveRV(format));
+        DriverRequest.InputFormat = Deserialize<TFormat>(MoveRV(format));
     }
 
     void SetOutputCompression(ECompression compression)
@@ -110,7 +111,7 @@ struct TExecuteRequest
 
     void SetOutputFormat(INodePtr format)
     {
-        DriverRequest.OutputFormat = TFormat::FromYson(MoveRV(format));
+        DriverRequest.OutputFormat = Deserialize<TFormat>(MoveRV(format));
     }
 
     void Prepare()
