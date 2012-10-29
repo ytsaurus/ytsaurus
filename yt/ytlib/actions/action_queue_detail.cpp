@@ -118,7 +118,7 @@ TActionQueueBase::~TActionQueueBase()
 
 void TActionQueueBase::Start()
 {
-    LOG_DEBUG("Starting thread: %s", ~ThreadName);
+    LOG_DEBUG_IF(EnableLogging, "Starting thread: %s", ~ThreadName);
 
     Thread.Start();
     Running = true;
@@ -134,7 +134,7 @@ void* TActionQueueBase::ThreadFunc(void* param)
 void TActionQueueBase::ThreadMain()
 {
     try {
-        LOG_DEBUG("Thread started: %s", ~ThreadName);
+        LOG_DEBUG_IF(EnableLogging, "Thread started: %s", ~ThreadName);
 
         OnThreadStart();
     
@@ -158,9 +158,9 @@ void TActionQueueBase::ThreadMain()
     
         OnThreadShutdown();
 
-        LOG_DEBUG("Thread stopped: %s", ~ThreadName);
+        LOG_DEBUG_IF(EnableLogging, "Thread stopped: %s", ~ThreadName);
     } catch (const std::exception& ex) {
-        LOG_FATAL(ex, "Unhandled exception in thread: %s", ~ThreadName);
+        LOG_FATAL_IF(EnableLogging, ex, "Unhandled exception in thread: %s", ~ThreadName);
     }
 }
 
@@ -170,7 +170,7 @@ void TActionQueueBase::Shutdown()
         return;
     }
 
-    LOG_DEBUG("Stopping thread: %s", ~ThreadName);
+    LOG_DEBUG_IF(EnableLogging, "Stopping thread: %s", ~ThreadName);
 
     Running = false;
     WakeupEvent.Signal();
