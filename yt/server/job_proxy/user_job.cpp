@@ -12,7 +12,7 @@
 
 #include <ytlib/ytree/yson_writer.h>
 #include <ytlib/ytree/parser.h>
-#include <ytlib/ytree/serialize.h>
+#include <ytlib/ytree/convert.h>
 
 #include <ytlib/table_client/table_producer.h>
 #include <ytlib/table_client/table_consumer.h>
@@ -191,7 +191,7 @@ private:
 
         // Make pipe for each input and each output table.
         {
-            auto format = Deserialize<TFormat>(TYsonString(UserJobSpec.input_format()));
+            auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec.input_format()));
             for (int i = 0; i < JobIO->GetInputCount(); ++i) {
                 TAutoPtr<TBlobOutput> buffer(new TBlobOutput());
                 TAutoPtr<IYsonConsumer> consumer = CreateConsumerForFormat(
@@ -210,7 +210,7 @@ private:
         }
 
         {
-            auto format = Deserialize<TFormat>(TYsonString(UserJobSpec.output_format()));
+            auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec.output_format()));
             int outputCount = JobIO->GetOutputCount();
             TableOutput.resize(outputCount);
 
