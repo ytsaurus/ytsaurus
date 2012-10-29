@@ -6,7 +6,7 @@ from copy import deepcopy
 
 def add_transaction_params(params):
     return update(deepcopy(params), {
-        "ping_ansector_transactions": config.PING_ANSECTOR_TRANSACTIONS,
+        "ping_ancestor_transactions": config.PING_ANSECTOR_TRANSACTIONS,
         "transaction_id": config.TRANSACTION})
 
 
