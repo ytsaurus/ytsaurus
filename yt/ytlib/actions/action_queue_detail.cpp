@@ -35,8 +35,10 @@ TQueueInvoker::TQueueInvoker(
 
 bool TQueueInvoker::Invoke(const TClosure& action)
 {
-    if (!Owner) {
-        LOG_TRACE_IF(EnableLogging, "Queue had been shut down, incoming action ignored (Action: %p)", action.GetHandle());
+    auto* owner = Owner;
+
+    if (!owner) {
+        LOG_TRACE_IF(EnableLogging, "Queue had been shut down, incoming action ignored: %p", action.GetHandle());
         return false;
     }
 
@@ -48,9 +50,9 @@ bool TQueueInvoker::Invoke(const TClosure& action)
     item.Action = action;
     Queue.Enqueue(item);
 
-    LOG_TRACE_IF(EnableLogging, "Action is enqueued (Action: %p)", action.GetHandle());
+    LOG_TRACE_IF(EnableLogging, "Action enqueued: %p", action.GetHandle());
 
-    Owner->Signal();
+    owner->Signal();
     return true;
 
 }
@@ -73,9 +75,9 @@ bool TQueueInvoker::DequeueAndExecute()
     Profiler.Aggregate(WaitTimeCounter, CpuDurationToValue(startExecInstant - item.StartInstant));
 
     auto action = item.Action;
-    LOG_TRACE_IF(EnableLogging, "Action started (Action: %p)", action.GetHandle());
+    LOG_TRACE_IF(EnableLogging, "Action started: %p", action.GetHandle());
     action.Run();
-    LOG_TRACE_IF(EnableLogging, "Action stopped (Action: %p)", action.GetHandle());
+    LOG_TRACE_IF(EnableLogging, "Action stopped: %p", action.GetHandle());
 
     auto size = AtomicDecrement(QueueSize);
     Profiler.Aggregate(QueueSizeCounter, size);
@@ -116,6 +118,8 @@ TActionQueueBase::~TActionQueueBase()
 
 void TActionQueueBase::Start()
 {
+    LOG_DEBUG("Starting thread: %s", ~ThreadName);
+
     Thread.Start();
     Running = true;
 }
@@ -129,27 +133,35 @@ void* TActionQueueBase::ThreadFunc(void* param)
 
 void TActionQueueBase::ThreadMain()
 {
-    OnThreadStart();
-    
-    NThread::SetCurrentThreadName(~ThreadName);
-    ThreadId = NThread::GetCurrentThreadId();
+    try {
+        LOG_DEBUG("Thread started: %s", ~ThreadName);
 
-    while (true) {
-        if (!DequeueAndExecute()) {
-            WakeupEvent.Reset();
+        OnThreadStart();
+    
+        NThread::SetCurrentThreadName(~ThreadName);
+        ThreadId = NThread::GetCurrentThreadId();
+
+        while (true) {
             if (!DequeueAndExecute()) {
-                if (!Running) {
-                    break;
+                WakeupEvent.Reset();
+                if (!DequeueAndExecute()) {
+                    if (!Running) {
+                        break;
+                    }
+                    OnIdle();
+                    WakeupEvent.Wait();
                 }
-                OnIdle();
-                WakeupEvent.Wait();
             }
         }
-    }
 
-    YCHECK(!DequeueAndExecute());
+        YCHECK(!DequeueAndExecute());
     
-    OnThreadShutdown();
+        OnThreadShutdown();
+
+        LOG_DEBUG("Thread stopped: %s", ~ThreadName);
+    } catch (const std::exception& ex) {
+        LOG_FATAL(ex, "Unhandled exception in thread: %s", ~ThreadName);
+    }
 }
 
 void TActionQueueBase::Shutdown()
@@ -157,6 +169,8 @@ void TActionQueueBase::Shutdown()
     if (!Running) {
         return;
     }
+
+    LOG_DEBUG("Stopping thread: %s", ~ThreadName);
 
     Running = false;
     WakeupEvent.Signal();
