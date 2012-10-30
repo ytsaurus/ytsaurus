@@ -32,7 +32,15 @@ TTableNode::TTableNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
     , ChunkList_(NULL)
     , UpdateMode_(ETableUpdateMode::None)
+    , ReplicationFactor_(InvalidReplicationFactor)
 { }
+
+int TTableNode::GetOwningReplicationFactor() const 
+{
+    auto* trunkNode = dynamic_cast<TTableNode*>(TrunkNode_);
+    YCHECK(trunkNode);
+    return trunkNode->GetReplicationFactor();
+}
 
 EObjectType TTableNode::GetObjectType() const
 {
@@ -46,6 +54,7 @@ void TTableNode::Save(const NCellMaster::TSaveContext& context) const
     auto* output = context.GetOutput();
     SaveObjectRef(output, ChunkList_);
     ::Save(output, UpdateMode_);
+    ::Save(output, ReplicationFactor_);
 }
 
 void TTableNode::Load(const NCellMaster::TLoadContext& context)
@@ -55,6 +64,10 @@ void TTableNode::Load(const NCellMaster::TLoadContext& context)
     auto* input = context.GetInput();
     LoadObjectRef(input, ChunkList_, context);
     ::Load(input, UpdateMode_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 2) {
+        ::Load(input, ReplicationFactor_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -98,11 +111,12 @@ public:
             attributes.SetYson("channels", TYsonString("[]"));
         }
 
-        if (!attributes.Contains("replication_factor")) {
-            attributes.Set("replication_factor", 3);
-        }
+        int replicationFactor = attributes.Get("replication_factor", 3);
+        attributes.Remove("replication_factor");
 
         auto node = TBase::DoCreate(transaction, request, response);
+
+        node->SetReplicationFactor(replicationFactor);
 
         // Create an empty chunk list and reference it from the node.
         auto* chunkList = chunkManager->CreateChunkList();

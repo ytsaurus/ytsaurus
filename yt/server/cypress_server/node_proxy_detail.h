@@ -131,11 +131,16 @@ protected:
     DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, Create);
 
     const ICypressNode* GetImpl(const TNodeId& nodeId) const;
+    ICypressNode* GetMutableImpl(const TNodeId& nodeId);
+
     ICypressNode* LockImpl(
         const TNodeId& nodeId,
         const TLockRequest& request = ELockMode::Exclusive,
         bool recursive = false);
+
     const ICypressNode* GetThisImpl() const;
+    ICypressNode* GetThisMutableImpl();
+
     ICypressNode* LockThisImpl(
         const TLockRequest& request = ELockMode::Exclusive,
         bool recursive = false);
@@ -177,14 +182,19 @@ public:
 protected:
     const TImpl* GetThisTypedImpl() const
     {
-        return static_cast<const TImpl*>(GetThisImpl());
+        return dynamic_cast<const TImpl*>(GetThisImpl());
+    }
+
+    TImpl* GetThisTypedMutableImpl()
+    {
+        return dynamic_cast<TImpl*>(GetThisMutableImpl());
     }
 
     TImpl* LockThisTypedImpl(
         const TLockRequest& request = ELockMode::Exclusive,
         bool recursive = false)
     {
-        return static_cast<TImpl*>(LockThisImpl(request, recursive));
+        return dynamic_cast<TImpl*>(LockThisImpl(request, recursive));
     }
 };
 

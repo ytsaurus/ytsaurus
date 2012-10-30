@@ -14,13 +14,18 @@ class TFileNode
 {
     DEFINE_BYVAL_RW_PROPERTY(NChunkServer::TChunkList*, ChunkList);
 
+    static const int InvalidReplicationFactor = -1;
+    DEFINE_BYVAL_RW_PROPERTY(int, ReplicationFactor);
+
 public:
     explicit TFileNode(const NCypressServer::TVersionedNodeId& id);
 
-    virtual NObjectClient::EObjectType GetObjectType() const;
+    virtual int GetOwningReplicationFactor() const override;
 
-    virtual void Save(const NCellMaster::TSaveContext& context) const;
-    virtual void Load(const NCellMaster::TLoadContext& context);
+    virtual NObjectClient::EObjectType GetObjectType() const override;
+
+    virtual void Save(const NCellMaster::TSaveContext& context) const override;
+    virtual void Load(const NCellMaster::TLoadContext& context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

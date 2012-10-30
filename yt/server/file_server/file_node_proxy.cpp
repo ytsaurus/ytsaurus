@@ -58,21 +58,33 @@ void TFileNodeProxy::ValidateUserAttributeUpdate(
         ConvertTo<Stroka>(*newValue);
         return;
     }
-    
+}
+
+void TFileNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& value)
+{
     if (key == "replication_factor") {
-        if (!newValue) {
-            ThrowCannotRemoveAttribute(key);
-        }
-        int value = ConvertTo<int>(newValue);
+        int value = ConvertTo<int>(value);
+
         const int MinReplicationFactor = 1;
         const int MaxReplicationFactor = 10;
         if (value < MinReplicationFactor || value > MaxReplicationFactor) {
-            THROW_ERROR_EXCEPTION("Replication factor must be in range [%d,%d]",
+            THROW_ERROR_EXCEPTION("Value must be in range [%d,%d]",
                 MinReplicationFactor,
                 MaxReplicationFactor);
         }
+
+        if (Transaction) {
+            THROW_ERROR_EXCEPTION("Value cannot be altered inside transaction");
+        }
+
+        auto* impl = GetThisTypedMutableImpl();
+        YCHECK(impl->GetTrunkNode() == impl);
+        impl->SetReplicationFactor(value);
+
         return;
     }
+
+    TBase::SetSystemAttribute(key, value);
 }
 
 bool TFileNodeProxy::IsExecutable()
@@ -118,6 +130,7 @@ void TFileNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attribute
     attributes->push_back("codec_id");
     attributes->push_back("chunk_list_id");
     attributes->push_back("chunk_id");
+    attributes->push_back("replication_factor");
     TBase::ListSystemAttributes(attributes);
 }
 
@@ -167,6 +180,12 @@ bool TFileNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consum
     if (key == "chunk_id") {
         BuildYsonFluently(consumer)
             .Scalar(chunkRef.GetId().ToString());
+        return true;
+    }
+
+    if (key == "replication_factor") {
+        BuildYsonFluently(consumer)
+            .Scalar(impl->GetOwningReplicationFactor());
         return true;
     }
 

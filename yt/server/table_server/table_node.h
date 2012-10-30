@@ -20,9 +20,14 @@ class TTableNode
 {
     DEFINE_BYVAL_RW_PROPERTY(NChunkServer::TChunkList*, ChunkList);
     DEFINE_BYVAL_RW_PROPERTY(ETableUpdateMode, UpdateMode);
+ 
+    static const int InvalidReplicationFactor = -1;
+    DEFINE_BYVAL_RW_PROPERTY(int, ReplicationFactor);
 
 public:
     explicit TTableNode(const NCypressServer::TVersionedNodeId& id);
+
+    virtual int GetOwningReplicationFactor() const override;
 
     virtual NObjectClient::EObjectType GetObjectType() const;
 

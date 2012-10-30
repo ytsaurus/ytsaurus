@@ -29,7 +29,15 @@ static NLog::TLogger& Logger = FileServerLogger;
 TFileNode::TFileNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
     , ChunkList_(NULL)
+    , ReplicationFactor_(InvalidReplicationFactor)
 { }
+
+int TFileNode::GetOwningReplicationFactor() const 
+{
+    auto* trunkNode = dynamic_cast<TFileNode*>(TrunkNode_);
+    YCHECK(trunkNode);
+    return trunkNode->GetReplicationFactor();
+}
 
 EObjectType TFileNode::GetObjectType() const
 {
@@ -42,6 +50,7 @@ void TFileNode::Save(const NCellMaster::TSaveContext& context) const
 
     auto* output = context.GetOutput();
     SaveObjectRef(output, ChunkList_);
+    ::Save(output, ReplicationFactor_);
 }
 
 void TFileNode::Load(const NCellMaster::TLoadContext& context)
@@ -50,6 +59,10 @@ void TFileNode::Load(const NCellMaster::TLoadContext& context)
 
     auto* input = context.GetInput();
     LoadObjectRef(input, ChunkList_, context);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 2) {
+        ::Load(input, ReplicationFactor_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -103,13 +116,12 @@ public:
         }
 
         auto& attributes = request->Attributes();
-
-        // Set defaults.
-        if (!attributes.Contains("replication_factor")) {
-            attributes.Set("replication_factor", 3);
-        }
+        int replicationFactor = attributes.Get<int>("replication_factor", 3);
+        attributes.Remove("replication_factor");
 
         auto node = TBase::DoCreate(transaction, request, response);
+
+        node->SetReplicationFactor(replicationFactor);
 
         auto* chunkList = chunkManager->CreateChunkList();
         node->SetChunkList(chunkList);

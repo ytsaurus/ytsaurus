@@ -393,6 +393,12 @@ const ICypressNode* TCypressNodeProxyNontemplateBase::GetImpl(const TNodeId& nod
     return cypressManager->GetVersionedNode(nodeId, Transaction);
 }
 
+ICypressNode* TCypressNodeProxyNontemplateBase::GetMutableImpl(const TNodeId& nodeId)
+{
+    auto cypressManager = Bootstrap->GetCypressManager();
+    return cypressManager->GetVersionedNode(nodeId, Transaction);
+}
+
 ICypressNode* TCypressNodeProxyNontemplateBase::LockImpl(
     const TNodeId& nodeId,
     const TLockRequest& request /*= ELockMode::Exclusive*/,
@@ -405,6 +411,11 @@ ICypressNode* TCypressNodeProxyNontemplateBase::LockImpl(
 const ICypressNode* TCypressNodeProxyNontemplateBase::GetThisImpl() const
 {
     return GetImpl(Id);
+}
+
+ICypressNode* TCypressNodeProxyNontemplateBase::GetThisMutableImpl()
+{
+    return GetMutableImpl(Id);
 }
 
 ICypressNode* TCypressNodeProxyNontemplateBase::LockThisImpl(

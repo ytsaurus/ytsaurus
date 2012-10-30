@@ -311,7 +311,7 @@ DEFINE_VALIDATOR(
 DEFINE_VALIDATOR(
     InRange(TValueType lowerBound, TValueType upperBound),
     lowerBound <= actual && actual <= upperBound,
-    TError("Expected in range [%s, %s], found %s", ~ToString(lowerBound), ~ToString(upperBound), ~ToString(actual))
+    TError("Expected in range [%s,%s], found %s", ~ToString(lowerBound), ~ToString(upperBound), ~ToString(actual))
 )
 
 DEFINE_VALIDATOR(

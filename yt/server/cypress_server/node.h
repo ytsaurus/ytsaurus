@@ -72,6 +72,9 @@ struct ICypressNode
     virtual i32 GetObjectRefCounter() const = 0;
     //! Returns True iff the reference counter is positive.
     virtual bool IsAlive() const = 0;
+
+    //! Implemented by nodes that own chunk trees (i.e. files and tables).
+    virtual int GetOwningReplicationFactor() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

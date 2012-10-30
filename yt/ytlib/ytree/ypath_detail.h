@@ -137,6 +137,13 @@ private:
 
     void DoRemoveAttribute(const TYPath& path);
 
+    void GuardedSetSystemAttribute(const Stroka& key, const TYsonString& value);
+
+    void GuardedValidateUserAttributeUpdate(
+        const Stroka& key,
+        const TNullable<TYsonString>& oldValue,
+        const TNullable<TYsonString>& newValue);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -332,8 +339,8 @@ void SetNodeFromProducer(
     TYsonProducer producer,
     ITreeBuilder* builder)
 {
-    YASSERT(node);
-    YASSERT(builder);
+    YCHECK(node);
+    YCHECK(builder);
 
     TNodeSetter<TNode> setter(node, builder);
     producer.Run(&setter);

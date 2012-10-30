@@ -77,6 +77,11 @@ bool TCypressNodeBase::IsAlive() const
     return TObjectBase::IsAlive();
 }
 
+int TCypressNodeBase::GetOwningReplicationFactor() const 
+{
+    YUNREACHABLE();
+}
+
 void TCypressNodeBase::Save(const NCellMaster::TSaveContext& context) const
 {
     TObjectBase::Save(context);

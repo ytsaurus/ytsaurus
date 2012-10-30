@@ -509,7 +509,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                         THROW_ERROR_EXCEPTION("Cannot set an opaque system attribute: %s",
                             ~ToYPathLiteral(key));
                     }
-                    systemAttributeProvider->SetSystemAttribute(key, newAttributeYson.Get());
+                    GuardedSetSystemAttribute(key, newAttributeYson.Get());
                     YCHECK(newAttributes->Remove(key));
                 }
             }
@@ -529,14 +529,14 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
         FOREACH (const auto& key, newUserKeys) {
             auto newAttributeYson = newAttributes->GetYson(key);
             auto oldAttributeYson = userAttributes->FindYson(key);
-            ValidateUserAttributeUpdate(key, oldAttributeYson, newAttributeYson);
+            GuardedValidateUserAttributeUpdate(key, oldAttributeYson, newAttributeYson);
             userAttributes->SetYson(key, newAttributeYson);
         }
 
         FOREACH (const auto& key, oldUserKeys) {
             if (!newAttributes->FindYson(key)) {
                 auto oldAttributeYson = userAttributes->GetYson(key);
-                ValidateUserAttributeUpdate(key, oldAttributeYson, Null);
+                GuardedValidateUserAttributeUpdate(key, oldAttributeYson, Null);
                 userAttributes->Remove(key);
             }
         }
@@ -567,7 +567,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
             }
 
             if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-                systemAttributeProvider->SetSystemAttribute(key, newYson);
+                GuardedSetSystemAttribute(key, newYson);
             } else {
                 TStringStream stream;
                 TYsonWriter writer(&stream);
@@ -580,7 +580,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                 SyncYPathSet(wholeNode, tokenizer.GetInput(), newYson);
                 auto newWholeYson = ConvertToYsonString(wholeNode);
 
-                systemAttributeProvider->SetSystemAttribute(key, newWholeYson);
+                GuardedSetSystemAttribute(key, newWholeYson);
             }
         } else {
             if (!userAttributes) {
@@ -588,7 +588,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
             }
             auto oldWholeYson = userAttributes->FindYson(key);
             if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-                ValidateUserAttributeUpdate(key, oldWholeYson, newYson);
+                GuardedValidateUserAttributeUpdate(key, oldWholeYson, newYson);
                 userAttributes->SetYson(key, newYson);
             } else {
                 if (!oldWholeYson) {
@@ -599,7 +599,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                 SyncYPathSet(wholeNode, tokenizer.GetInput(), newYson);
                 auto newWholeYson = ConvertToYsonString(wholeNode);
 
-                ValidateUserAttributeUpdate(key, oldWholeYson, newWholeYson);
+                GuardedValidateUserAttributeUpdate(key, oldWholeYson, newWholeYson);
                 userAttributes->SetYson(key, newWholeYson);
             }
         }
@@ -631,7 +631,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
         if (userAttributes) {
             auto userKeys = userAttributes->List();
             FOREACH (const auto& key, userKeys) {
-                ValidateUserAttributeUpdate(key, userAttributes->GetYson(key), Null);
+                GuardedValidateUserAttributeUpdate(key, userAttributes->GetYson(key), Null);
             }
             FOREACH (const auto& key, userKeys) {
                 YCHECK(userAttributes->Remove(key));
@@ -647,7 +647,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
                 ThrowNoSuchUserAttribute(key);
             }
 
-            ValidateUserAttributeUpdate(key, userYson, Null);
+            GuardedValidateUserAttributeUpdate(key, userYson, Null);
             YCHECK(userAttributes->Remove(key));
         } else {
             if (userYson) {
@@ -655,7 +655,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
                 SyncYPathRemove(userNode, tokenizer.GetInput());
                 auto updatedUserYson = ConvertToYsonString(userNode);
 
-                ValidateUserAttributeUpdate(key, userYson, updatedUserYson);
+                GuardedValidateUserAttributeUpdate(key, userYson, updatedUserYson);
                 userAttributes->SetYson(key, updatedUserYson);
             } else {
                 TStringStream stream;
@@ -669,7 +669,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
                 SyncYPathRemove(systemNode, tokenizer.GetInput());
                 auto updatedSystemYson = ConvertToYsonString(systemNode);
 
-                systemAttributeProvider->SetSystemAttribute(key, systemYson);
+                GuardedSetSystemAttribute(key, systemYson);
             }
         }
     }
@@ -706,6 +706,34 @@ IAttributeDictionary* TSupportsAttributes::GetUserAttributes()
 ISystemAttributeProvider* TSupportsAttributes::GetSystemAttributeProvider()
 {
     return NULL;
+}
+
+void TSupportsAttributes::GuardedSetSystemAttribute(const Stroka& key, const TYsonString& yson)
+{
+    try {
+        GetSystemAttributeProvider()->SetSystemAttribute(key, yson);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error setting system attribute: %s", key)
+            << ex;
+    }
+}
+
+void TSupportsAttributes::GuardedValidateUserAttributeUpdate(
+    const Stroka& key,
+    const TNullable<TYsonString>& oldValue,
+    const TNullable<TYsonString>& newValue)
+{
+    try {
+        ValidateUserAttributeUpdate(key, oldValue, newValue);
+    } catch (const std::exception& ex) {
+        if (newValue) {
+            THROW_ERROR_EXCEPTION("Error setting user attribute: %s", key)
+                << ex;
+        } else {
+            THROW_ERROR_EXCEPTION("Error removing user attribute: %s", key)
+                << ex;
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

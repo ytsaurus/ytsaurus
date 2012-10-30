@@ -94,6 +94,11 @@ void ThrowCannotRemoveAttribute(const Stroka& key)
         ~NYPath::ToYPathLiteral(key));
 }
 
+void ThrowCannotRemoveAttribute()
+{
+    THROW_ERROR_EXCEPTION("The attribute cannot be removed");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree

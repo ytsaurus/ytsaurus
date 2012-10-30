@@ -267,6 +267,8 @@ public:
     virtual i32 GetObjectRefCounter() const override;
     virtual bool IsAlive() const override;
 
+    virtual int GetOwningReplicationFactor() const override;
+
     virtual void Save(const NCellMaster::TSaveContext& context) const override;
     virtual void Load(const NCellMaster::TLoadContext& context) override;
 

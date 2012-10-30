@@ -22,6 +22,8 @@ typedef TIntrusivePtr<INodeTypeHandler> INodeTypeHandlerPtr;
 
 struct ICypressNode;
 
+struct IOwningCypressNode;
+
 struct ICypressNodeProxy;
 typedef TIntrusivePtr<ICypressNodeProxy> ICypressNodeProxyPtr;
 

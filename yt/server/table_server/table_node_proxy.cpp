@@ -557,6 +557,7 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attribut
     attributes->push_back("sorted");
     attributes->push_back("update_mode");
     attributes->push_back(TAttributeInfo("sorted_by", !chunkList->SortedBy().empty()));
+    attributes->push_back("replication_factor");
     TBase::ListSystemAttributes(attributes);
 }
 
@@ -610,6 +611,12 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
         return true;
     }
 
+    if (key == "update_mode") {
+        BuildYsonFluently(consumer)
+            .Scalar(FormatEnum(impl->GetUpdateMode()));
+        return true;
+    }
+
     if (!chunkList->SortedBy().empty()) {
         if (key == "sorted_by") {
             BuildYsonFluently(consumer)
@@ -618,9 +625,9 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
         }
     }
 
-    if (key == "update_mode") {
+    if (key == "replication_factor") {
         BuildYsonFluently(consumer)
-            .Scalar(FormatEnum(impl->GetUpdateMode()));
+            .Scalar(impl->GetOwningReplicationFactor());
         return true;
     }
 
@@ -660,26 +667,38 @@ void TTableNodeProxy::ValidateUserAttributeUpdate(
 
     if (key == "channels") {
         if (!newValue) {
-            ThrowCannotRemoveAttribute(key);
+            ThrowCannotRemoveAttribute();
         }
         ChannelsFromYson(newValue.Get());
         return;
     }
+}
 
+void TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& value)
+{
     if (key == "replication_factor") {
-        if (!newValue) {
-            ThrowCannotRemoveAttribute(key);
-        }
-        int value = ConvertTo<int>(newValue);
+        int value = ConvertTo<int>(value);
+        
         const int MinReplicationFactor = 1;
         const int MaxReplicationFactor = 10;
         if (value < MinReplicationFactor || value > MaxReplicationFactor) {
-            THROW_ERROR_EXCEPTION("Replication factor must be in range [%d,%d]",
+            THROW_ERROR_EXCEPTION("Value must be in range [%d,%d]",
                 MinReplicationFactor,
                 MaxReplicationFactor);
         }
+        
+        if (Transaction) {
+            THROW_ERROR_EXCEPTION("Value cannot be altered inside transaction");
+        }
+
+        auto* impl = GetThisTypedMutableImpl();
+        YCHECK(impl->GetTrunkNode() == impl);
+        impl->SetReplicationFactor(value);
+
         return;
     }
+
+    TBase::SetSystemAttribute(key, value);
 }
 
 void TTableNodeProxy::ParseYPath(
