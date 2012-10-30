@@ -35,7 +35,9 @@ TQueueInvoker::TQueueInvoker(
 
 bool TQueueInvoker::Invoke(const TClosure& action)
 {
-    auto* owner = Owner;
+    // XXX(babenko): don't replace TActionQueueBase by auto here, see
+    // http://connect.microsoft.com/VisualStudio/feedback/details/680927/dereferencing-of-incomplete-type-not-diagnosed-fails-to-synthesise-constructor-and-destructor
+    TActionQueueBase* owner = Owner;
 
     if (!owner) {
         LOG_TRACE_IF(EnableLogging, "Queue had been shut down, incoming action ignored: %p", action.GetHandle());
