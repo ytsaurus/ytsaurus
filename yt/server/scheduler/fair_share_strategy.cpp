@@ -973,24 +973,42 @@ private:
         return limits > 0 && (double) utilization / limits > attributes.FairShareRatio;
     }
 
+    NProto::TNodeResources ComputeResourcesToPreempt(TOperationElementPtr element, double desiredRatio)
+    {
+        auto desiredResources = ZeroNodeResources();
+
+        auto demand = element->GetDemand();
+        auto limits = element->GetEffectiveLimits();
+        auto utilization = element->GetUtilization();
+
+        // Don't trust attributes, they might be out of sync.
+        double maxDemandRatio = 0.0;
+
+        for (int typeIndex = 0; typeIndex < EResourceType::GetDomainSize(); ++typeIndex) {
+            auto type = EResourceType(typeIndex);
+
+            i64 demandComponent = GetResource(demand, type);
+            i64 limitsComponent = GetResource(limits, type);
+            if (limitsComponent == 0)
+                continue;
+
+            i64 utilizationComponent = GetResource(utilization, type);
+            double demandComponentRatio = (double) demandComponent / limitsComponent;
+            maxDemandRatio = std::max(maxDemandRatio, demandComponentRatio);
+            i64 desiredComponent = static_cast<i64>(demandComponentRatio * desiredRatio * limitsComponent);
+            SetResource(desiredResources, type, desiredComponent);
+        }
+
+        desiredResources *= 1.0 / maxDemandRatio;
+
+        return Max(ZeroNodeResources(), desiredResources - utilization);
+    }
+
     void PreemptJobs()
     {
         auto resourcesToPreempt = ZeroNodeResources();
-        bool preemptionNeeded = false;
-        auto incrementResourcesToPreempt = [&] (TOperationElementPtr element, double desiredRatio) {
-            auto operation = element->GetOperation();
-            auto controller = operation->GetController();
-            const auto& attributes = element->Attributes();
-            i64 dominantDesiredLimit = GetResource(element->GetEffectiveLimits() * desiredRatio, attributes.DominantResource);
-            i64 dominantUtilization = GetResource(element->GetUtilization(), attributes.DominantResource);
-            auto quantum = controller->GetMinNeededResources();
-            i64 dominantQuantum = GetResource(quantum, attributes.DominantResource);
-            i64 slotCount = static_cast<i64>(std::ceil(double(dominantDesiredLimit - dominantUtilization) / dominantQuantum));
-            resourcesToPreempt += quantum * slotCount;
-            preemptionNeeded = true;
-        };
 
-        auto now = TInstant::Now();
+        auto now = TInstant::Now(); 
         FOREACH (const auto& pair, OperationToElement) {
             auto operation = pair.first;
             auto element = pair.second;
@@ -1002,7 +1020,7 @@ private:
                     if (!element->GetStarvingForMinShareSince()) {
                         element->SetStarvingForMinShareSince(now);
                     } else if (element->GetStarvingForMinShareSince().Get() < now - Config->MinSharePreemptionTimeout) {
-                        incrementResourcesToPreempt(element, attributes.AdjustedMinShareRatio);
+                        resourcesToPreempt += ComputeResourcesToPreempt(element, attributes.AdjustedMinShareRatio);
                         LOG_INFO("Min share starvation timeout (OperationId: %s, Since: %s)",
                             ~ToString(operation->GetOperationId()),
                             ~ToString(element->GetStarvingForMinShareSince().Get()));
@@ -1013,7 +1031,7 @@ private:
                     if (!element->GetStarvingForFairShareSince()) {
                         element->SetStarvingForFairShareSince(now);
                     } else if (element->GetStarvingForFairShareSince().Get() < now - Config->FairSharePreemptionTimeout) {
-                        incrementResourcesToPreempt(element, attributes.FairShareRatio);
+                        resourcesToPreempt += ComputeResourcesToPreempt(element, attributes.FairShareRatio);
                         LOG_INFO("Fair share starvation timeout (OperationId: %s, Since: %s)",
                             ~ToString(operation->GetOperationId()),
                             ~ToString(element->GetStarvingForFairShareSince().Get()));
@@ -1031,7 +1049,7 @@ private:
             }
         }
 
-        if (!preemptionNeeded)
+        if (resourcesToPreempt != ZeroNodeResources())
             return;
 
         LOG_INFO("Started preempting jobs (ResourcesToPreempt: {%s})",

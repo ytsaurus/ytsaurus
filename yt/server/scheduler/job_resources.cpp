@@ -51,7 +51,6 @@ Stroka FormatResources(const TNodeResources& resources)
         resources.network());
 }
 
-
 void ProfileResources(NProfiling::TProfiler& profiler, const TNodeResources& resources)
 {
     profiler.Enqueue("/slots", resources.slots());
@@ -77,6 +76,16 @@ TNodeResources& operator += (TNodeResources& lhs, const TNodeResources& rhs)
     lhs.set_memory(lhs.memory() + rhs.memory());
     lhs.set_network(lhs.network() + rhs.network());
     return lhs;
+}
+
+TNodeResources operator - (const TNodeResources& lhs, const TNodeResources& rhs)
+{
+    TNodeResources result;
+    result.set_slots(lhs.slots() - rhs.slots());
+    result.set_cpu(lhs.cpu() - rhs.cpu());
+    result.set_memory(lhs.memory() - rhs.memory());
+    result.set_network(lhs.network() - rhs.network());
+    return result;
 }
 
 TNodeResources& operator -= (TNodeResources& lhs, const TNodeResources& rhs)
@@ -124,6 +133,19 @@ TNodeResources& operator *= (TNodeResources& lhs, double rhs)
     lhs.set_memory(static_cast<i64>(lhs.memory() * rhs));
     lhs.set_network(static_cast<int>(lhs.network() * rhs));
     return lhs;
+}
+
+bool operator == (const NProto::TNodeResources& a, const NProto::TNodeResources& b)
+{
+    return a.slots() == b.slots() &&
+           a.cpu() == b.cpu() &&
+           a.memory() == b.memory() &&
+           a.network() == b.network();
+}
+
+bool operator != (const NProto::TNodeResources& a, const NProto::TNodeResources& b)
+{
+    return !(a == b);
 }
 
 bool Dominates(const NProto::TNodeResources& lhs, const NProto::TNodeResources& rhs)
@@ -229,6 +251,22 @@ i64 GetResource(const NProto::TNodeResources& resources, EResourceType type)
     }
 }
 
+void SetResource(NProto::TNodeResources& resources, EResourceType type, i64 value)
+{
+    switch (type) {
+        case EResourceType::Slots:
+            resources.set_slots(static_cast<i32>(value));
+        case EResourceType::Cpu:
+            resources.set_cpu(static_cast<i32>(value));
+        case EResourceType::Memory:
+            resources.set_memory(value);
+        case EResourceType::Network:
+            resources.set_network(static_cast<i32>(value));
+        default:
+            YUNREACHABLE();
+    }
+}
+
 bool HasEnoughResources(
     const TNodeResources& currentUtilization,
     const TNodeResources& requestedUtilization,
@@ -251,7 +289,7 @@ bool HasSpareResources(
         utilization.memory() + LowWatermarkMemorySize < limits.memory();
 }
 
-TNodeResources ZeroNodeResources()
+TNodeResources GetZeroNodeResources()
 {
     TNodeResources result;
     result.set_slots(0);
@@ -261,13 +299,25 @@ TNodeResources ZeroNodeResources()
     return result;
 }
 
-TNodeResources InfiniteResources()
+const TNodeResources& ZeroNodeResources()
+{
+    static auto value = GetZeroNodeResources();
+    return value;
+}
+
+TNodeResources GetInfiniteResources()
 {
     TNodeResources result;
     result.set_slots(1000);
     result.set_cpu(1000);
     result.set_memory((i64) 1024 * 1024 * 1024 * 1024);
     result.set_network(1000);
+    return result;
+}
+
+const TNodeResources& InfiniteResources()
+{
+    static auto result = GetInfiniteResources();
     return result;
 }
 
@@ -295,10 +345,10 @@ void Serialize(const TNodeResources& resources, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-        .Item("slots").Scalar(resources.slots())
-        .Item("cpu").Scalar(resources.cpu())
-        .Item("memory").Scalar(resources.memory())
-        .Item("network").Scalar(resources.network())
+            .Item("slots").Scalar(resources.slots())
+            .Item("cpu").Scalar(resources.cpu())
+            .Item("memory").Scalar(resources.memory())
+            .Item("network").Scalar(resources.network())
         .EndMap();
 }
 

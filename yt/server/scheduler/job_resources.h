@@ -15,6 +15,7 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// NB: Types must be numbered from 0 to N - 1.
 DECLARE_ENUM(EResourceType,
     (Slots)
     (Cpu)
@@ -29,12 +30,17 @@ void ProfileResources(NProfiling::TProfiler& profiler, const NProto::TNodeResour
 
 NProto::TNodeResources  operator +  (const NProto::TNodeResources& lhs, const NProto::TNodeResources& rhs);
 NProto::TNodeResources& operator += (NProto::TNodeResources& lhs, const NProto::TNodeResources& rhs);
+
+NProto::TNodeResources  operator -  (const NProto::TNodeResources& lhs, const NProto::TNodeResources& rhs);
 NProto::TNodeResources& operator -= (NProto::TNodeResources& lhs, const NProto::TNodeResources& rhs);
 
 NProto::TNodeResources  operator *  (const NProto::TNodeResources& lhs, i64 rhs);
 NProto::TNodeResources  operator *  (const NProto::TNodeResources& lhs, double rhs);
 NProto::TNodeResources& operator *= (NProto::TNodeResources& lhs, i64 rhs);
 NProto::TNodeResources& operator *= (NProto::TNodeResources& lhs, double rhs);
+
+bool operator == (const NProto::TNodeResources& a, const NProto::TNodeResources& b);
+bool operator != (const NProto::TNodeResources& a, const NProto::TNodeResources& b);
 
 bool Dominates(const NProto::TNodeResources& lhs, const NProto::TNodeResources& rhs);
 
@@ -53,6 +59,11 @@ i64 GetResource(
     const NProto::TNodeResources& resources,
     EResourceType type);
 
+void SetResource(
+    NProto::TNodeResources& resources,
+    EResourceType type,
+    i64 value);
+
 bool HasEnoughResources(
     const NProto::TNodeResources& currentUtilization,
     const NProto::TNodeResources& requestedUtilization,
@@ -62,8 +73,8 @@ bool HasSpareResources(
     const NProto::TNodeResources& utilization,
     const NProto::TNodeResources& limits);
 
-NProto::TNodeResources ZeroNodeResources();
-NProto::TNodeResources InfiniteResources();
+const NProto::TNodeResources& ZeroNodeResources();
+const NProto::TNodeResources& InfiniteResources();
 
 i64 GetFootprintMemorySize();
 
