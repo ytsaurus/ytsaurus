@@ -323,3 +323,24 @@ class TestTableCommands(YTEnvSetup):
 
     def test_invalid_channels_in_create(self):
         with pytest.raises(YTError): create('table', '//tmp/t', opt='channels=123')
+
+    def test_replication_factor_attr(self):
+        create('table', '//tmp/t')
+        
+        get('//tmp/t/@replication_factor')
+
+        with pytest.raises(YTError): remove('//tmp/t/@replication_factor')
+        with pytest.raises(YTError): set('//tmp/t/@replication_factor', 0)
+        with pytest.raises(YTError): set('//tmp/t/@replication_factor', {})
+
+    def test_replication_factor_static(self):
+        create('table', '//tmp/t')
+        set('//tmp/t/@replication_factor', 2)
+
+        write('//tmp/t', {'foo' : 'bar'})
+
+        chunk_ids = get('//tmp/t/@chunk_ids')
+        assert len(chunk_ids) == 1
+
+        chunk_id = chunk_ids[0]
+        assert get('#' + chunk_id + '/@replication_factor') == 2

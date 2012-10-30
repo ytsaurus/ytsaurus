@@ -53,3 +53,13 @@ class TestFileCommands(YTEnvSetup):
 
         remove('//tmp/f2')
         assert get_chunks() == []
+
+    def test_replication_factor_attr(self):
+        content = "some_data"
+        upload('//tmp/f', content)
+        
+        get('//tmp/f/@replication_factor')
+
+        with pytest.raises(YTError): remove('//tmp/f/@replication_factor')
+        with pytest.raises(YTError): set('//tmp/f/@replication_factor', 0)
+        with pytest.raises(YTError): set('//tmp/f/@replication_factor', {})
