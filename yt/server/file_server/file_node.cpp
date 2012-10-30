@@ -102,6 +102,13 @@ public:
             THROW_ERROR_EXCEPTION("File chunk is not confirmed: %s", ~chunkId.ToString());
         }
 
+        auto& attributes = request->Attributes();
+
+        // Set defaults.
+        if (!attributes.Contains("replication_factor")) {
+            attributes.Set("replication_factor", 3);
+        }
+
         auto node = TBase::DoCreate(transaction, request, response);
 
         auto* chunkList = chunkManager->CreateChunkList();

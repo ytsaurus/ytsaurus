@@ -1,8 +1,7 @@
 #include "stdafx.h"
 #include "attributes.h"
 #include "attribute_helpers.h"
-
-#include <ytlib/misc/error.h>
+#include "exception_helpers.h"
 
 namespace NYT {
 namespace NYTree {
@@ -16,7 +15,7 @@ TYsonString IAttributeDictionary::GetYson(const Stroka& key) const
 {
     const auto& result = FindYson(key);
     if (!result) {
-        THROW_ERROR_EXCEPTION("Attribute %s is not found", ~key.Quote());
+        ThrowNoSuchAttribute(key);
     }
     return *result;
 }
@@ -51,6 +50,11 @@ void IAttributeDictionary::Clear()
     FOREACH (const auto& key, keys) {
         Remove(key);
     }
+}
+
+bool IAttributeDictionary::Contains(const Stroka& key) const
+{
+    return FindYson(key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

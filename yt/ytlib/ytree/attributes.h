@@ -48,6 +48,9 @@ struct IAttributeDictionary
     template <class T>
     typename TNullableTraits<T>::TNullableType Find(const Stroka& key) const;
 
+    //! Returns True iff the given key is present.
+    bool Contains(const Stroka& key) const;
+
     //! Sets the attribute with a serialized value.
     template <class T>
     void Set(const Stroka& key, const T& value);

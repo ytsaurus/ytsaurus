@@ -24,63 +24,6 @@ using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-Stroka GetNodePathHelper(IConstNodePtr node)
-{
-    auto path = node->GetPath();
-    return path.empty() ? "Node" : Sprintf("Node %s", ~path);
-}
-
-} // namespace
-
-void ThrowInvalidNodeType(IConstNodePtr node, ENodeType expectedType, ENodeType actualType)
-{
-    THROW_ERROR_EXCEPTION("%s has invalid type: expected %s, actual %s",
-        ~GetNodePathHelper(node),
-        ~expectedType.ToString(),
-        ~actualType.ToString());
-}
-
-void ThrowNoSuchChildKey(IConstNodePtr node, const Stroka& key)
-{
-    THROW_ERROR_EXCEPTION("%s has no child with key: %s",
-        ~GetNodePathHelper(node),
-        ~ToYPathLiteral(key));
-}
-
-void ThrowNoSuchChildIndex(IConstNodePtr node, int index)
-{
-    THROW_ERROR_EXCEPTION("%s has no child with index: %d",
-        ~GetNodePathHelper(node),
-        index);
-}
-
-void ThrowVerbNotSuppored(IConstNodePtr node, const Stroka& verb)
-{
-    THROW_ERROR_EXCEPTION(
-        NRpc::EErrorCode::NoSuchVerb,
-        "%s does not support verb: %s",
-        ~GetNodePathHelper(node),
-        ~verb);
-}
-
-void ThrowVerbNotSuppored(const Stroka& verb)
-{
-    THROW_ERROR_EXCEPTION(
-        NRpc::EErrorCode::NoSuchVerb,
-        "Verb is not supported: %s",
-        ~verb);
-}
-
-void ThrowCannotHaveChildren(IConstNodePtr node)
-{
-    THROW_ERROR_EXCEPTION("%s cannot have children",
-        ~GetNodePathHelper(node));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 bool TNodeBase::IsWriteRequest(IServiceContextPtr context) const
 {
     DECLARE_YPATH_SERVICE_WRITE_METHOD(Set);

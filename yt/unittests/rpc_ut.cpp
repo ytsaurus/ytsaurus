@@ -342,7 +342,7 @@ TEST_F(TRpcTest, Attributes)
     auto response = request->Invoke().Get();
     const auto& attributes = response->Attributes();
 
-    EXPECT_FALSE(attributes.FindYson("value1").HasValue());
+    EXPECT_FALSE(attributes.Contains("value1"));
     EXPECT_EQ(NYTree::TYsonString("another_stroka"), attributes.GetYson("value2"));
     EXPECT_EQ(NYTree::TYsonString("stroka3"), attributes.GetYson("value3"));
 } 

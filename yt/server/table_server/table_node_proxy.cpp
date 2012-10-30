@@ -660,10 +660,25 @@ void TTableNodeProxy::ValidateUserAttributeUpdate(
 
     if (key == "channels") {
         if (!newValue) {
-            THROW_ERROR_EXCEPTION("Attribute cannot be removed: %s",
-                ~NYPath::ToYPathLiteral(key));
+            ThrowCannotRemoveAttribute(key);
         }
         ChannelsFromYson(newValue.Get());
+        return;
+    }
+
+    if (key == "replication_factor") {
+        if (!newValue) {
+            ThrowCannotRemoveAttribute(key);
+        }
+        int value = ConvertTo<int>(newValue);
+        const int MinReplicationFactor = 1;
+        const int MaxReplicationFactor = 10;
+        if (value < MinReplicationFactor || value > MaxReplicationFactor) {
+            THROW_ERROR_EXCEPTION("Replication factor must be in range [%d,%d]",
+                MinReplicationFactor,
+                MaxReplicationFactor);
+        }
+        return;
     }
 }
 

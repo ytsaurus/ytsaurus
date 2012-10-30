@@ -48,7 +48,9 @@ private:
     void DoFinish();
     void FlushBlock();
 
-    TFileWriterConfigPtr Config;
+    const TFileWriterConfigPtr Config;
+    const int ReplicationFactor;
+    const int UploadReplicationFactor;
 
     NRpc::IChannelPtr MasterChannel;
     NObjectClient::TTransactionId TransactionId;

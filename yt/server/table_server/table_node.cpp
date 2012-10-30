@@ -91,10 +91,15 @@ public:
         auto chunkManager = Bootstrap->GetChunkManager();
         auto objectManager = Bootstrap->GetObjectManager();
 
-        // Set default channels, if not given explicitly.
-        auto ysonChannels = request->Attributes().FindYson("channels");
-        if (!ysonChannels) {
-            request->Attributes().SetYson("channels", TYsonString("[]"));
+        auto& attributes = request->Attributes();
+
+        // Set defaults.
+        if (!attributes.Contains("channels")) {
+            attributes.SetYson("channels", TYsonString("[]"));
+        }
+
+        if (!attributes.Contains("replication_factor")) {
+            attributes.Set("replication_factor", 3);
         }
 
         auto node = TBase::DoCreate(transaction, request, response);

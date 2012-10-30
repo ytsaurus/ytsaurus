@@ -44,9 +44,9 @@ TTableWriter::TTableWriter(
     , Logger(TableWriterLogger)
     , KeyColumns(keyColumns)
 {
-    YASSERT(config);
-    YASSERT(masterChannel);
-    YASSERT(transactionManager);
+    YCHECK(config);
+    YCHECK(masterChannel);
+    YCHECK(transactionManager);
 
     Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
         ~ToString(richPath),
@@ -80,12 +80,6 @@ void TTableWriter::Open()
     {
         auto batchReq = ObjectProxy.ExecuteBatch();
 
-        if (KeyColumns.HasValue()) {
-            auto req = TCypressYPathProxy::Get(path + "/@row_count");
-            SetTransactionId(req, TransactionId);
-            batchReq->AddRequest(req, "get_row_count");
-        }
-
         if (KeyColumns.HasValue() || RichPath.Attributes().Get<bool>("overwrite", false)) {
             auto req = TTableYPathProxy::Clear(path);
             SetTransactionId(req, uploadTransactionId);
@@ -94,15 +88,23 @@ void TTableWriter::Open()
         }
 
         {
+            auto req = TCypressYPathProxy::Get(path);
+            SetTransactionId(req, TransactionId);
+            TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
+            attributeFilter.Keys.push_back("replication_factor");
+            attributeFilter.Keys.push_back("channels");
+            if (KeyColumns.HasValue()) {
+                attributeFilter.Keys.push_back("row_count");
+            }
+            *req->mutable_attribute_filter() = ToProto(attributeFilter);
+            batchReq->AddRequest(req, "get_attributes");
+        }
+
+        {
             auto req = TTableYPathProxy::GetChunkListForUpdate(path);
             SetTransactionId(req, uploadTransactionId);
             NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "get_chunk_list_for_update");
-        }
-        {
-            auto req = TCypressYPathProxy::Get(path + "/@channels");
-            SetTransactionId(req, TransactionId);
-            batchReq->AddRequest(req, "get_channels");
         }
 
         auto batchRsp = batchReq->Invoke().Get();
@@ -111,18 +113,33 @@ void TTableWriter::Open()
                 << batchRsp->GetError();
         }
 
-        if (KeyColumns.HasValue()) {
-            {
-                auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_row_count");
-                if (!rsp->IsOK()) {
-                    THROW_ERROR_EXCEPTION("Error requesting table row count")
-                        << rsp->GetError();
-                }
-                i64 rowCount = ConvertTo<i64>(TYsonString(rsp->value()));
+        {
+            auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
+            if (!rsp->IsOK()) {
+                THROW_ERROR_EXCEPTION("Error requesting table attributes")
+                    << rsp->GetError();
+            }
+
+            auto node = ConvertToNode(TYsonString(rsp->value()));
+            const auto& attributes = node->Attributes();
+
+            if (KeyColumns.HasValue()) {
+                i64 rowCount = attributes.Get<i64>("row_count");
                 if (rowCount > 0) {
                     THROW_ERROR_EXCEPTION("Cannot write sorted data into a non-empty table");
                 }
             }
+            
+            auto channelsYson = attributes.FindYson("channels");
+            if (channelsYson) {
+                channels = ChannelsFromYson(channelsYson.Get());
+            }
+
+            // COMPAT(babenko): eliminate default value
+            Config->ReplicationFactor = attributes.Get<int>("replication_factor", 3);
+        }
+        
+        if (KeyColumns.HasValue()) {
             {
                 auto rsp = batchRsp->FindResponse("clear");
                 if (rsp && !rsp->IsOK()) {
@@ -139,19 +156,6 @@ void TTableWriter::Open()
                     << rsp->GetError();
             }
             chunkListId = TChunkListId::FromProto(rsp->chunk_list_id());
-        }
-
-        {
-            auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspGet>("get_channels");
-            if (rsp->IsOK()) {
-                try {
-                    channels = ChannelsFromYson(TYsonString(rsp->value()));
-                }
-                catch (const std::exception& ex) {
-                    THROW_ERROR_EXCEPTION("Error parsing table channels")
-                        << ex;
-                }
-            }
         }
     }
     LOG_INFO("Table info received (ChunkListId: %s, ChannelCount: %d)",

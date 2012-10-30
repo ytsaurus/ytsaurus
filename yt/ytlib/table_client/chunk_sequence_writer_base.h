@@ -109,6 +109,8 @@ protected:
     void SwitchSession();
 
     const TTableWriterConfigPtr Config;
+    const int ReplicationFactor;
+    const int UploadReplicationFactor;
     const NRpc::IChannelPtr MasterChannel;
     const NObjectClient::TTransactionId TransactionId;
     const NChunkClient::TChunkListId ParentChunkList;
@@ -133,6 +135,7 @@ protected:
 
 private:
     NLog::TLogger& Logger;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

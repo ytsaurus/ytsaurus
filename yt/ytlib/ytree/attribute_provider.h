@@ -36,6 +36,10 @@ struct TAttributeFilter
         , Keys(keys)
     { }
 
+    explicit TAttributeFilter(EAttributeFilterMode mode)
+        : Mode(mode)
+    { }
+
     EAttributeFilterMode Mode;
     std::vector<Stroka> Keys;
 

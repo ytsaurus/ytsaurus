@@ -1778,9 +1778,9 @@ TObjectId TChunkManager::TChunkTypeHandler::Create(
             responseExt->add_node_addresses(node->GetAddress());
         }
 
-        LOG_DEBUG_UNLESS(Owner->IsRecovery(), "Allocated nodes [%s] for chunk %s (PreferredHostName: %s, ReplicationFactor: %d, UploadReplicationFactor: %d, Movable: %s)",
-            ~JoinToString(responseExt->node_addresses()),
+        LOG_DEBUG_UNLESS(Owner->IsRecovery(), "Allocated nodes for new chunk (ChunkId: %s, Addresses: [%s], PreferredHostName: %s, ReplicationFactor: %d, UploadReplicationFactor: %d, Movable: %s)",
             ~chunk->GetId().ToString(),
+            ~JoinToString(responseExt->node_addresses()),
             ~ToString(preferredHostName),
             requestExt->replication_factor(),
             requestExt->upload_replication_factor(),

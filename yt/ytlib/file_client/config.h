@@ -20,8 +20,10 @@ struct TFileWriterConfig
 {
     i64 BlockSize;
     ECodecId CodecId;
+
     int ReplicationFactor;
     int UploadReplicationFactor;
+
     bool ChunkMovable;
 
     TFileWriterConfig()
@@ -39,13 +41,6 @@ struct TFileWriterConfig
             .GreaterThanOrEqual(1);
         Register("chunk_movable", ChunkMovable)
             .Default(true);
-    }
-
-    virtual void DoValidate()
-    {
-        if (ReplicationFactor < UploadReplicationFactor) {
-            THROW_ERROR_EXCEPTION("\"replication_factor\" cannot be less than \"upload_replication_factor\"");
-        }
     }
 };
 

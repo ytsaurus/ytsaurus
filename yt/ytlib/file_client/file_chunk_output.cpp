@@ -36,6 +36,8 @@ TFileChunkOutput::TFileChunkOutput(
     NRpc::IChannelPtr masterChannel,
     TTransactionId transactionId)
     : Config(config)
+    , ReplicationFactor(Config->ReplicationFactor)
+    , UploadReplicationFactor(std::min(Config->ReplicationFactor, Config->UploadReplicationFactor))
     , MasterChannel(masterChannel)
     , TransactionId(transactionId)
     , IsOpen(false)
@@ -67,8 +69,8 @@ void TFileChunkOutput::Open()
 
         auto* reqExt = req->MutableExtension(TReqCreateChunkExt::create_chunk);
         reqExt->set_preferred_host_name(Stroka(GetLocalHostName()));
-        reqExt->set_upload_replication_factor(Config->UploadReplicationFactor);
-        reqExt->set_replication_factor(Config->ReplicationFactor);
+        reqExt->set_upload_replication_factor(UploadReplicationFactor);
+        reqExt->set_replication_factor(ReplicationFactor);
         reqExt->set_movable(Config->ChunkMovable);
 
         auto rsp = proxy.Execute(req).Get();

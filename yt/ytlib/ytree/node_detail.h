@@ -5,20 +5,12 @@
 #include "ypath_service.h"
 #include "tree_builder.h"
 #include "ypath_detail.h"
+#include "exception_helpers.h"
 
 #include <ytlib/ytree/ypath.pb.h>
 
 namespace NYT {
 namespace NYTree {
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ThrowInvalidNodeType(IConstNodePtr node, ENodeType expectedType, ENodeType actualType);
-void ThrowNoSuchChildKey(IConstNodePtr node, const Stroka& key);
-void ThrowNoSuchChildIndex(IConstNodePtr node, int index);
-void ThrowVerbNotSuppored(const Stroka& verb);
-void ThrowVerbNotSuppored(IConstNodePtr node, const Stroka& verb);
-void ThrowCannotHaveChildren(IConstNodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

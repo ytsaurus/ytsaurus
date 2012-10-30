@@ -32,6 +32,8 @@ TChunkSequenceWriterBase<TChunkWriter>::TChunkSequenceWriterBase(
     const NChunkClient::TChunkListId& parentChunkList,
     const TNullable<TKeyColumns>& keyColumns)
     : Config(config)
+    , ReplicationFactor(Config->ReplicationFactor)
+    , UploadReplicationFactor(std::min(Config->ReplicationFactor, Config->UploadReplicationFactor))
     , MasterChannel(masterChannel)
     , TransactionId(transactionId)
     , ParentChunkList(parentChunkList)
@@ -77,8 +79,8 @@ void TChunkSequenceWriterBase<TChunkWriter>::CreateNextSession()
 
     LOG_DEBUG("Creating chunk (TransactionId: %s, ReplicationFactor: %d, UploadReplicationFactor: %d)",
         ~TransactionId.ToString(),
-        Config->ReplicationFactor,
-        Config->UploadReplicationFactor);
+        ReplicationFactor,
+        UploadReplicationFactor);
 
     NObjectClient::TObjectServiceProxy objectProxy(MasterChannel);
 
@@ -91,13 +93,13 @@ void TChunkSequenceWriterBase<TChunkWriter>::CreateNextSession()
     if (Config->PreferLocalHost) {
         reqExt->set_preferred_host_name(Stroka(GetLocalHostName()));
     }
-    reqExt->set_replication_factor(Config->ReplicationFactor);
-    reqExt->set_upload_replication_factor(Config->UploadReplicationFactor);
+    reqExt->set_replication_factor(ReplicationFactor);
+    reqExt->set_upload_replication_factor(UploadReplicationFactor);
     reqExt->set_movable(Config->ChunksMovable);
 
     objectProxy.Execute(req).Subscribe(
         BIND(&TChunkSequenceWriterBase::OnChunkCreated, MakeWeak(this))
-        .Via(NChunkClient::TDispatcher::Get()->GetWriterInvoker()));
+            .Via(NChunkClient::TDispatcher::Get()->GetWriterInvoker()));
 }
 
 template <class TChunkWriter>
@@ -119,9 +121,10 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkCreated(
     auto chunkId = NChunkClient::TChunkId::FromProto(rsp->object_id());
     const auto& rspExt = rsp->GetExtension(NChunkClient::NProto::TRspCreateChunkExt::create_chunk);
     auto addresses = FromProto<Stroka>(rspExt.node_addresses());
-
-    if (addresses.size() < Config->UploadReplicationFactor) {
-        State.Fail(TError("Not enough data nodes available"));
+    if (addresses.size() < UploadReplicationFactor) {
+        State.Fail(TError("Not enough data nodes available: %d received, %d needed",
+            static_cast<int>(addresses.size()),
+            UploadReplicationFactor));
         return;
     }
 

@@ -49,10 +49,29 @@ void TFileNodeProxy::ValidateUserAttributeUpdate(
 
     if (key == "executable" && newValue) {
         ConvertTo<bool>(*newValue);
-    } else if (key == "file_name" && newValue) {
+        return;
+    }
+    
+    if (key == "file_name" && newValue) {
         // File name must be string.
         // ToDo(psushin): write more sophisticated validation.
         ConvertTo<Stroka>(*newValue);
+        return;
+    }
+    
+    if (key == "replication_factor") {
+        if (!newValue) {
+            ThrowCannotRemoveAttribute(key);
+        }
+        int value = ConvertTo<int>(newValue);
+        const int MinReplicationFactor = 1;
+        const int MaxReplicationFactor = 10;
+        if (value < MinReplicationFactor || value > MaxReplicationFactor) {
+            THROW_ERROR_EXCEPTION("Replication factor must be in range [%d,%d]",
+                MinReplicationFactor,
+                MaxReplicationFactor);
+        }
+        return;
     }
 }
 

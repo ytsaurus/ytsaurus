@@ -572,8 +572,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                 TStringStream stream;
                 TYsonWriter writer(&stream);
                 if (!systemAttributeProvider->GetSystemAttribute(key, &writer)) {
-                    THROW_ERROR_EXCEPTION("System attribute is not found: %s",
-                        ~ToYPathLiteral(key));
+                    ThrowNoSuchSystemAttribute(key);
                 }
 
                 TYsonString oldWholeYson(stream.Str());
@@ -593,8 +592,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                 userAttributes->SetYson(key, newYson);
             } else {
                 if (!oldWholeYson) {
-                    THROW_ERROR_EXCEPTION("User attribute is not found: %s",
-                        ~ToYPathLiteral(key));
+                    ThrowNoSuchUserAttribute(key);
                 }
                 
                 auto wholeNode = ConvertToNode(oldWholeYson.Get());
@@ -646,8 +644,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
         auto userYson = userAttributes ? userAttributes->FindYson(key) : TNullable<TYsonString>(Null);
         if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
             if (!userYson) {
-                THROW_ERROR_EXCEPTION("User attribute is not found: %s",
-                    ~ToYPathLiteral(key));
+                ThrowNoSuchUserAttribute(key);
             }
 
             ValidateUserAttributeUpdate(key, userYson, Null);
@@ -664,8 +661,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
                 TStringStream stream;
                 TYsonWriter writer(&stream);
                 if (!systemAttributeProvider || !systemAttributeProvider->GetSystemAttribute(key, &writer)) {
-                    THROW_ERROR_EXCEPTION("System attribute is not found: %s",
-                        ~ToYPathLiteral(key));
+                    ThrowNoSuchSystemAttribute(key);
                 }
 
                 TYsonString systemYson(stream.Str());

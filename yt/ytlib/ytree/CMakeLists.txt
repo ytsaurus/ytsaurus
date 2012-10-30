@@ -7,6 +7,7 @@ set( SRCS
   ${BASE}/attribute_provider.cpp
   ${BASE}/attributes.cpp
   ${BASE}/ephemeral_node_factory.cpp
+  ${BASE}/exception_helpers.cpp
   ${BASE}/forwarding_yson_consumer.cpp
   ${BASE}/lexer.cpp
   ${BASE}/node.cpp
@@ -38,6 +39,7 @@ set( HDRS
   ${BASE}/attribute_provider.h
   ${BASE}/attribute_owner.h
   ${BASE}/ephemeral_attribute_owner.h
+  ${BASE}/exception_helpers.h
   ${BASE}/attributes.h
   ${BASE}/convert-inl.h
   ${BASE}/convert.h

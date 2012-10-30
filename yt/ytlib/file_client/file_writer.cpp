@@ -92,12 +92,16 @@ void TFileWriter::Close()
     {
         TObjectServiceProxy proxy(MasterChannel);
         auto req = TCypressYPathProxy::Create(Path);
+        NMetaState::GenerateRpcMutationId(req);
         SetTransactionId(req, Transaction);
+
         req->set_type(EObjectType::File);
+
         auto* reqExt = req->MutableExtension(NFileClient::NProto::TReqCreateFileExt::create_file);
         *reqExt->mutable_chunk_id() = Writer->GetChunkId().ToProto();
-        NMetaState::GenerateRpcMutationId(req);
 
+        req->Attributes().Set("replication_factor", Config->ReplicationFactor);
+        
         auto rsp = proxy.Execute(req).Get();
         if (!rsp->IsOK()) {
             THROW_ERROR_EXCEPTION("Error creating file node")

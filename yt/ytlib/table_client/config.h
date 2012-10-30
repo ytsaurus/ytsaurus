@@ -91,13 +91,6 @@ struct TTableWriterConfig
         Register("prefer_local_host", PreferLocalHost)
             .Default(true);
     }
-
-    virtual void DoValidate() const
-    {
-        if (ReplicationFactor < UploadReplicationFactor) {
-            THROW_ERROR_EXCEPTION("\"replication_factor\" cannot be less than \"upload_replication_factor\"");
-        }
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
