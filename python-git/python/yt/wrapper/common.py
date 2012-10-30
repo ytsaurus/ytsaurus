@@ -41,3 +41,9 @@ def prefix(iterable, n):
             break
         counter += 1
         yield value
+
+def dict_depth(obj):
+    if not isinstance(obj, dict):
+        return 0
+    else:
+        return 1 + max(map(dict_depth, obj.values()))

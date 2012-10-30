@@ -98,10 +98,16 @@ def wait_operation(operation, timeout=None, print_progress=True):
                 new_progress = get_operation_progress(operation)
                 if new_progress != progress:
                     progress = new_progress
-                    logger.info(
-                        "jobs of operation %s: %s",
-                        operation,
-                        "\t".join(["=".join(map(str, [k, v])) for k, v in progress.iteritems()]))
+                    print progress
+                    if config.USE_SHORTEN_OPERATION_INFO:
+                        logger.info(
+                            "operation %s: " % operation + 
+                            "c={completed!s}\tf={failed!s}\tr={running!s}\tp={pending!s}".format(**progress))
+                    else:
+                        logger.info(
+                            "jobs of operation %s: %s",
+                            operation,
+                            "\t".join(["=".join(map(str, [k, v])) for k, v in progress.iteritems()]))
             timeout.wait()
     except KeyboardInterrupt:
         if config.KEYBOARD_ABORT:
