@@ -238,6 +238,7 @@ def sort_table(source_table, destination_table=None, sort_by=None, strategy=None
     def prepare_job_count(spec, source_table):
         if "partition_count" not in spec:
             spec["partition_count"] = _calc_job_count(source_table, max_data=config.MAX_SIZE_PER_JOB/2.0)
+            spec["min_data_size_per_sort_job"] = config.MIN_SIZE_PER_JOB
 
     sort_by = _prepare_sort_by(sort_by)
     source_table = _prepare_source_tables(source_table)
@@ -331,6 +332,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
         if "map_job_count" not in spec and "partition_count" not in spec:
             spec["map_job_count"] = _calc_job_count(source_table)
             spec["partition_count"] = max(1, spec["map_job_count"] / 2)
+            spec["min_data_size_per_map_job"] = config.MIN_SIZE_PER_JOB
 
     if strategy is None: strategy = config.DEFAULT_STRATEGY
     sort_by = _prepare_sort_by(sort_by)
@@ -398,6 +400,7 @@ def run_operation(binary, source_table, destination_table,
     def prepare_job_count(spec, source_table):
         if "job_count" not in spec:
             spec["job_count"] = _calc_job_count(source_table)
+            spec["min_data_size_per_job"] = config.MIN_SIZE_PER_JOB
 
 
     input_format, output_format = _prepare_formats(format, input_format, output_format)
