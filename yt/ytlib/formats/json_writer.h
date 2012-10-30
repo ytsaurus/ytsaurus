@@ -53,22 +53,22 @@ public:
 
     void Flush();
 
-    virtual void OnStringScalar(const TStringBuf& value);
-    virtual void OnIntegerScalar(i64 value);
-    virtual void OnDoubleScalar(double value);
+    virtual void OnStringScalar(const TStringBuf& value) override;
+    virtual void OnIntegerScalar(i64 value) override;
+    virtual void OnDoubleScalar(double value) override;
 
-    virtual void OnEntity();
+    virtual void OnEntity() override;
 
-    virtual void OnBeginList();
-    virtual void OnListItem();
-    virtual void OnEndList();
+    virtual void OnBeginList() override;
+    virtual void OnListItem() override;
+    virtual void OnEndList() override;
 
-    virtual void OnBeginMap();
-    virtual void OnKeyedItem(const TStringBuf& key);
-    virtual void OnEndMap();
+    virtual void OnBeginMap() override;
+    virtual void OnKeyedItem(const TStringBuf& key) override;
+    virtual void OnEndMap() override;
 
-    virtual void OnBeginAttributes();
-    virtual void OnEndAttributes();
+    virtual void OnBeginAttributes() override;
+    virtual void OnEndAttributes() override;
 
 private:
     TJsonWriter(NJson::TJsonWriter* jsonWriter, TJsonFormatConfigPtr config);
