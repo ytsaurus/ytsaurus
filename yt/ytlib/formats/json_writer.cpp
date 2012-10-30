@@ -61,6 +61,8 @@ TJsonWriter::TJsonWriter(TOutputStream* output, TJsonFormatConfigPtr config)
     }
     UnderlyingJsonWriter.Reset(new NJson::TJsonWriter(output, Config->Pretty));
     JsonWriter = ~UnderlyingJsonWriter;
+    HasAttributes_ = false;
+    InAttributesBalance_ = 0;
 }
 
 TJsonWriter::~TJsonWriter()
@@ -68,79 +70,145 @@ TJsonWriter::~TJsonWriter()
     Flush();
 }
 
-void TJsonWriter::OnMyStringScalar(const TStringBuf& value)
+void TJsonWriter::EnterNode()
 {
-    WriteStringScalar(value);
+    if (Config->PrintAttributes == EPrintAttributes::Never) {
+        HasAttributes_ = false;
+    }
+    else if (Config->PrintAttributes == EPrintAttributes::OnDemand) {
+        // Do nothing
+    }
+    else if (Config->PrintAttributes == EPrintAttributes::Always) {
+        if (!HasAttributes_) {
+            JsonWriter->OpenMap();
+            JsonWriter->Write("$attributes");
+            JsonWriter->OpenMap();
+            JsonWriter->CloseMap();
+        }
+        HasAttributes_ = true;
+    }
+    HasUnfoldedStructureStack_.push_back(HasAttributes_);
+
+    if (HasAttributes_) {
+        JsonWriter->Write("$value");
+        HasAttributes_ = false;
+    }
 }
 
-void TJsonWriter::OnMyIntegerScalar(i64 value)
+void TJsonWriter::LeaveNode()
 {
-    JsonWriter->Write(value);
+    YCHECK(!HasUnfoldedStructureStack_.empty());
+    if (HasUnfoldedStructureStack_.back()) {
+        // Close map of the {$attributes, $value}
+        JsonWriter->CloseMap();
+    }
+    HasUnfoldedStructureStack_.pop_back();
 }
 
-void TJsonWriter::OnMyDoubleScalar(double value)
+bool TJsonWriter::IsWriteAllowed()
 {
-    JsonWriter->Write(value);
+    if (Config->PrintAttributes == EPrintAttributes::Never) {
+        return InAttributesBalance_ == 0;
+    }
+    return true;
 }
 
-void TJsonWriter::OnMyEntity()
+
+void TJsonWriter::OnStringScalar(const TStringBuf& value)
 {
-    JsonWriter->WriteNull();
+    if (IsWriteAllowed()) {
+        EnterNode();
+        WriteStringScalar(value);
+        LeaveNode();
+    }
 }
 
-void TJsonWriter::OnMyBeginList()
+void TJsonWriter::OnIntegerScalar(i64 value)
 {
-    JsonWriter->OpenArray();
+    if (IsWriteAllowed()) {
+        EnterNode();
+        JsonWriter->Write(value);
+        LeaveNode();
+    }
 }
 
-void TJsonWriter::OnMyListItem()
+void TJsonWriter::OnDoubleScalar(double value)
+{
+    if (IsWriteAllowed()) {
+        EnterNode();
+        JsonWriter->Write(value);
+        LeaveNode();
+    }
+}
+
+void TJsonWriter::OnEntity()
+{
+    if (IsWriteAllowed()) {
+        EnterNode();
+        JsonWriter->WriteNull();
+        LeaveNode();
+    }
+}
+
+void TJsonWriter::OnBeginList()
+{
+    if (IsWriteAllowed()) {
+        EnterNode();
+        JsonWriter->OpenArray();
+    }
+}
+
+void TJsonWriter::OnListItem()
 { }
 
-void TJsonWriter::OnMyEndList()
+void TJsonWriter::OnEndList()
 {
-
-    JsonWriter->CloseArray();
+    if (IsWriteAllowed()) {
+        JsonWriter->CloseArray();
+        LeaveNode();
+    }
 }
 
-void TJsonWriter::OnMyBeginMap()
+void TJsonWriter::OnBeginMap()
 {
-    JsonWriter->OpenMap();
+    if (IsWriteAllowed()) {
+        EnterNode();
+        JsonWriter->OpenMap();
+    }
 }
 
-void TJsonWriter::OnMyKeyedItem(const TStringBuf& name)
+void TJsonWriter::OnKeyedItem(const TStringBuf& name)
 {
-    WriteStringScalar(name);
+    if (IsWriteAllowed()) {
+        WriteStringScalar(name);
+    }
 }
 
-void TJsonWriter::OnMyEndMap()
+void TJsonWriter::OnEndMap()
 {
-    JsonWriter->CloseMap();
+    if (IsWriteAllowed()) {
+        JsonWriter->CloseMap();
+        LeaveNode();
+    }
 }
 
-void TJsonWriter::OnMyBeginAttributes()
+void TJsonWriter::OnBeginAttributes()
 {
-    JsonWriter->OpenMap();
-    JsonWriter->Write("$attributes");
-    JsonWriter->OpenMap();
-
-    ForwardedJsonWriter.Reset(new TJsonWriter(JsonWriter, Config));
-    Forward(~ForwardedJsonWriter, TClosure(), EYsonType::MapFragment);
+    InAttributesBalance_ += 1;
+    if (Config->PrintAttributes != EPrintAttributes::Never) {
+        JsonWriter->OpenMap();
+        JsonWriter->Write("$attributes");
+        JsonWriter->OpenMap();
+    }
 }
 
-void TJsonWriter::OnMyEndAttributes()
+void TJsonWriter::OnEndAttributes()
 {
-    JsonWriter->CloseMap();
-    JsonWriter->Write("$value");
-
-    ForwardedJsonWriter.Reset(new TJsonWriter(JsonWriter, Config));
-    Forward(~ForwardedJsonWriter,
-        BIND(&TJsonWriter::OnForwardingValueFinished, Unretained(this)),
-        EYsonType::Node);
-}
-
-void TJsonWriter::OnForwardingValueFinished()
-{
-    JsonWriter->CloseMap();
+    InAttributesBalance_ -= 1;
+    if (Config->PrintAttributes != EPrintAttributes::Never) {
+        HasAttributes_ = true;
+        JsonWriter->CloseMap();
+    }
 }
 
 TJsonWriter::TJsonWriter(NJson::TJsonWriter* jsonWriter, TJsonFormatConfigPtr config)

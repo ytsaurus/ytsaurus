@@ -43,15 +43,24 @@ struct TDsvFormatConfig
     }
 };
 
+DECLARE_ENUM(EPrintAttributes,
+    (Always)
+    (Never)
+    (OnDemand)
+);
+
 struct TJsonFormatConfig
     : public TYsonSerializable
 {
     bool Pretty;
+    EPrintAttributes PrintAttributes;
 
     TJsonFormatConfig()
     {
         Register("pretty", Pretty)
             .Default(false);
+        Register("print_attributes", PrintAttributes)
+            .Default(EPrintAttributes::OnDemand);
     }
 };
 

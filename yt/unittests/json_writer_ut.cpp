@@ -287,5 +287,81 @@ TEST(TJsonWriterTest, DoubleAttributes)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TJsonWriterTest, NeverAttributes)
+{
+    TStringStream outputStream;
+    auto config = New<TJsonFormatConfig>();
+    config->PrintAttributes = EPrintAttributes::Never;
+    TJsonWriter writer(&outputStream, config);
+
+    writer.OnBeginAttributes();
+        writer.OnKeyedItem("foo");
+        writer.OnStringScalar("bar");
+    writer.OnEndAttributes();
+
+    writer.OnBeginMap();
+        writer.OnKeyedItem("answer");
+        writer.OnIntegerScalar(42);
+
+        writer.OnKeyedItem("question");
+        writer.OnBeginAttributes();
+            writer.OnKeyedItem("foo");
+            writer.OnStringScalar("bar");
+        writer.OnEndAttributes();
+        writer.OnStringScalar("strange question");
+    writer.OnEndMap();
+    writer.Flush();
+
+    Stroka output =
+        "{"
+            "\"answer\":42,"
+            "\"question\":\"strange question\""
+        "}";
+    EXPECT_EQ(output, outputStream.Str());
+}
+
+TEST(TJsonWriterTest, AlwaysAttributes)
+{
+    TStringStream outputStream;
+    auto config = New<TJsonFormatConfig>();
+    config->PrintAttributes = EPrintAttributes::Always;
+    TJsonWriter writer(&outputStream, config);
+
+    writer.OnBeginAttributes();
+        writer.OnKeyedItem("foo");
+        writer.OnStringScalar("bar");
+    writer.OnEndAttributes();
+
+    writer.OnBeginMap();
+        writer.OnKeyedItem("answer");
+        writer.OnIntegerScalar(42);
+
+        writer.OnKeyedItem("question");
+        writer.OnBeginAttributes();
+            writer.OnKeyedItem("foo");
+            writer.OnStringScalar("bar");
+        writer.OnEndAttributes();
+        writer.OnStringScalar("strange question");
+    writer.OnEndMap();
+    writer.Flush();
+
+    Stroka output =
+        "{"
+            "\"$attributes\":{\"foo\":{\"$attributes\":{},\"$value\":\"bar\"}},"
+            "\"$value\":"
+            "{"
+                "\"answer\":{\"$attributes\":{},\"$value\":42},"
+                "\"question\":"
+                "{"
+                    "\"$attributes\":{\"foo\":{\"$attributes\":{},\"$value\":\"bar\"}},"
+                    "\"$value\":\"strange question\""
+                "}"
+            "}"
+        "}";
+    EXPECT_EQ(output, outputStream.Str());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NFormats
 } // namespace NYT

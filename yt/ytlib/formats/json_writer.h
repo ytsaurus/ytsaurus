@@ -14,7 +14,7 @@ namespace NFormats {
 ////////////////////////////////////////////////////////////////////////////////
 
 // YSON-to-JSON Mapping Conventions
-// 
+//
 // * ListFragments and MapFragments (which exist in YSON) are not supported.
 // * Bool type (which exists in JSON) is not supported.
 // * Other types (without attributes) are mapped almost as is:
@@ -38,14 +38,14 @@ namespace NFormats {
 /*!
  *  \note
  *  Entities are translated to empty maps.
- *  
+ *
  *  Attributes are only supported for entities and maps.
  *  They are written as an inner "$attributes" map.
- *  
+ *
  *  Explicit #Flush calls should be made when finished writing via the adapter.
  */
 class TJsonWriter
-    : public NYTree::TForwardingYsonConsumer
+    : public NYTree::TYsonConsumerBase
 {
 public:
     TJsonWriter(TOutputStream* output, TJsonFormatConfigPtr config = NULL);
@@ -53,22 +53,22 @@ public:
 
     void Flush();
 
-    virtual void OnMyStringScalar(const TStringBuf& value);
-    virtual void OnMyIntegerScalar(i64 value);
-    virtual void OnMyDoubleScalar(double value);
+    virtual void OnStringScalar(const TStringBuf& value);
+    virtual void OnIntegerScalar(i64 value);
+    virtual void OnDoubleScalar(double value);
 
-    virtual void OnMyEntity();
+    virtual void OnEntity();
 
-    virtual void OnMyBeginList();
-    virtual void OnMyListItem();
-    virtual void OnMyEndList();
+    virtual void OnBeginList();
+    virtual void OnListItem();
+    virtual void OnEndList();
 
-    virtual void OnMyBeginMap();
-    virtual void OnMyKeyedItem(const TStringBuf& key);
-    virtual void OnMyEndMap();
+    virtual void OnBeginMap();
+    virtual void OnKeyedItem(const TStringBuf& key);
+    virtual void OnEndMap();
 
-    virtual void OnMyBeginAttributes();
-    virtual void OnMyEndAttributes();
+    virtual void OnBeginAttributes();
+    virtual void OnEndAttributes();
 
 private:
     TJsonWriter(NJson::TJsonWriter* jsonWriter, TJsonFormatConfigPtr config);
@@ -77,10 +77,15 @@ private:
     NJson::TJsonWriter* JsonWriter;
     TJsonFormatConfigPtr Config;
 
-    THolder<TJsonWriter> ForwardedJsonWriter;
-
     void WriteStringScalar(const TStringBuf& value);
-    void OnForwardingValueFinished();
+
+    void EnterNode();
+    void LeaveNode();
+    bool IsWriteAllowed();
+
+    std::vector<bool> HasUnfoldedStructureStack_;
+    int InAttributesBalance_;
+    bool HasAttributes_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
