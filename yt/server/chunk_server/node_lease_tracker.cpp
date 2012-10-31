@@ -39,7 +39,7 @@ void TNodeLeaseTracker::OnNodeRegistered(const TDataNode* node, bool recovery)
     nodeInfo.Lease = TLeaseManager::CreateLease(
         GetTimeout(node, nodeInfo),
         BIND(&TNodeLeaseTracker::OnExpired, MakeStrong(this), node->GetId())
-            .Via(metaStateFacade->GetEpochInvoker(EStateThreadQueue::ChunkRefresh)));
+            .Via(metaStateFacade->GetEpochInvoker(EStateThreadQueue::ChunkMaintenance)));
     YCHECK(NodeInfoMap.insert(MakePair(node->GetId(), nodeInfo)).second);
 }
 

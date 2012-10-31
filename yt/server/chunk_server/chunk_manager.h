@@ -32,10 +32,10 @@ public:
     ~TChunkManager();
 
     NMetaState::TMutationPtr CreateRegisterNodeMutation(
-        const NProto::TMetaReqRegisterNode& message);
+        const NProto::TMetaReqRegisterNode& request);
 
     NMetaState::TMutationPtr CreateUnregisterNodeMutation(
-        const NProto::TMetaReqUnregisterNode& message);
+        const NProto::TMetaReqUnregisterNode& request);
 
     // Pass RPC service context to full heartbeat handler to avoid copying request message.
     typedef NRpc::TTypedServiceContext<NProto::TReqFullHeartbeat, NProto::TRspFullHeartbeat> TCtxFullHeartbeat;
@@ -44,10 +44,13 @@ public:
         TCtxFullHeartbeatPtr context);
 
     NMetaState::TMutationPtr CreateIncrementalHeartbeatMutation(
-        const NProto::TMetaReqIncrementalHeartbeat& message);
+        const NProto::TMetaReqIncrementalHeartbeat& request);
 
     NMetaState::TMutationPtr CreateUpdateJobsMutation(
-        const NProto::TMetaReqUpdateJobs& message);
+        const NProto::TMetaReqUpdateJobs& reuqest);
+
+    NMetaState::TMutationPtr CreateUpdateChunkReplicationFactorMutation(
+        const NProto::TMetaReqUpdateChunkReplicationFactor& request);
 
     DECLARE_METAMAP_ACCESSORS(Chunk, TChunk, TChunkId);
     DECLARE_METAMAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
@@ -112,7 +115,9 @@ public:
 
     bool IsReplicatorEnabled();
 
-    //! Fills a given protobuf structure with the list of data node addresses.
+    void ScheduleRFUpdate(const TChunkList* chunkList);
+
+        //! Fills a given protobuf structure with the list of data node addresses.
     /*!
      *  Not too nice but seemingly fast.
      */

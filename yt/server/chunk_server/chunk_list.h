@@ -56,6 +56,11 @@ class TChunkList
     // Enables optimistic locking during chunk tree traversing.
     DEFINE_BYVAL_RO_PROPERTY(int, Version);
 
+    // Used to mark visited chunk lists with "unique" marks.
+    DEFINE_BYVAL_RW_PROPERTY(TAtomic, VisitMark);
+
+    static TAtomic GenerateVisitMark();
+
 public:
     explicit TChunkList(const TChunkListId& id);
 

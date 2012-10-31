@@ -674,6 +674,8 @@ void TTableNodeProxy::ValidateUserAttributeUpdate(
 
 bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& value)
 {
+    auto chunkManager = Bootstrap->GetChunkManager();
+
     if (key == "replication_factor") {
         int replicationFactor = ConvertTo<int>(value);
         
@@ -692,6 +694,10 @@ bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& v
         auto* impl = GetThisTypedMutableImpl();
         YCHECK(impl->GetTrunkNode() == impl);
         impl->SetReplicationFactor(replicationFactor);
+
+        if (IsLeader()) {
+            chunkManager->ScheduleRFUpdate(impl->GetChunkList());
+        }
 
         return true;
     }

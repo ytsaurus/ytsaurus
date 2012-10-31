@@ -250,6 +250,14 @@ public:
             ->CreateMutation(this, request, &TThis::UpdateJobs);
     }
 
+    TMutationPtr CreateUpdateChunkReplicationFactorMutation(
+        const NProto::TMetaReqUpdateChunkReplicationFactor& request)
+    {
+        return Bootstrap
+            ->GetMetaStateFacade()
+            ->CreateMutation(this, request, &TThis::UpdateChunkReplicationFactor);
+    }
+
     TMutationPtr CreateRebalanceChunkTreeMutation(
         const TMetaReqRebalanceChunkTree& request)
     {
@@ -544,6 +552,11 @@ public:
         return ChunkReplicator->IsEnabled();
     }
 
+    void ScheduleRFUpdate(const TChunkList* chunkList)
+    {
+        ChunkReplicator->ScheduleRFUpdate(chunkList);
+    }
+
 
     TChunkTreeRef GetChunkTree(const TChunkTreeId& id)
     {
@@ -683,7 +696,7 @@ private:
             JobListMap.Remove(chunkId);
         }
 
-        // Notify the balancer about chunk's death.
+        // Notify the replicator about chunk's death.
         if (ChunkReplicator) {
             ChunkReplicator->OnChunkRemoved(chunk);
         }
@@ -756,6 +769,7 @@ private:
             DoUnregisterNode(node);
         }
     }
+
 
     void FullHeartbeatWithContext(TCtxFullHeartbeatPtr context)
     {
@@ -843,6 +857,7 @@ private:
         }
     }
 
+
     void UpdateJobs(const TMetaReqUpdateJobs& request)
     {
         PROFILE_TIMING ("/update_jobs_time") {
@@ -869,6 +884,7 @@ private:
                 static_cast<int>(request.stopped_jobs_size()));
         }
     }
+
 
     void ScheduleChunkTreeRebalanceIfNeeded(TChunkList* chunkList)
     {
@@ -902,6 +918,7 @@ private:
         }
     }
 
+
     void UpdateChunkReplicationFactor(const TMetaReqUpdateChunkReplicationFactor& request)
     {
         FOREACH (const auto& update, request.updates()) {
@@ -910,7 +927,9 @@ private:
             auto* chunk = FindChunk(chunkId);
             if (chunk && chunk->GetReplicationFactor() != replicationFactor) {
                 chunk->SetReplicationFactor(replicationFactor);
-                ChunkReplicator->ScheduleChunkRefresh(chunkId);
+                if (IsLeader()) {
+                    ChunkReplicator->ScheduleChunkRefresh(chunkId);
+                }
             }
         }
     }
@@ -1085,7 +1104,7 @@ private:
 
         PROFILE_TIMING ("/full_chunk_refresh_time") {
             LOG_INFO("Starting full chunk refresh");
-            ChunkReplicator->RefreshAllChunks();
+            ChunkReplicator->Start();
             LOG_INFO("Full chunk refresh completed");
         }
     }
@@ -1722,6 +1741,12 @@ TMutationPtr TChunkManager::CreateUpdateJobsMutation(
     return Impl->CreateUpdateJobsMutation(request);
 }
 
+TMutationPtr TChunkManager::CreateUpdateChunkReplicationFactorMutation(
+    const NProto::TMetaReqUpdateChunkReplicationFactor& request)
+{
+    return Impl->CreateUpdateChunkReplicationFactorMutation(request);
+}
+
 TChunk* TChunkManager::CreateChunk()
 {
     return Impl->CreateChunk();
@@ -1788,6 +1813,11 @@ void TChunkManager::ScheduleJobs(
 bool TChunkManager::IsReplicatorEnabled()
 {
     return Impl->IsReplicatorEnabled();
+}
+
+void TChunkManager::ScheduleRFUpdate(const TChunkList* chunkList)
+{
+    Impl->ScheduleRFUpdate(chunkList);
 }
 
 void TChunkManager::FillNodeAddresses(

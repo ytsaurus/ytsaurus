@@ -5,11 +5,14 @@
 #include "node.h"
 #include "job.h"
 #include "chunk.h"
+#include "chunk_list.h"
 #include "job_list.h"
+#include "chunk_tree_traversing.h"
 
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/string.h>
+#include <ytlib/misc/small_vector.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/config.h>
@@ -50,7 +53,27 @@ TChunkReplicator::TChunkReplicator(
     YCHECK(chunkPlacement);
     YCHECK(nodeLeaseTracker);
 
-    ScheduleNextRefresh();
+    RefreshInvoker = New<TPeriodicInvoker>(
+        Bootstrap->GetMetaStateFacade()->GetEpochInvoker(EStateThreadQueue::ChunkMaintenance),
+        BIND(&TChunkReplicator::OnRefresh, MakeWeak(this)),
+        Config->ChunkRefreshPeriod);
+
+    RFUpdateInvoker = New<TPeriodicInvoker>(
+        Bootstrap->GetMetaStateFacade()->GetEpochInvoker(EStateThreadQueue::ChunkMaintenance),
+        BIND(&TChunkReplicator::OnRFUpdate, MakeWeak(this)),
+        Config->ChunkRFUpdatePeriod);
+}
+
+void TChunkReplicator::Start()
+{
+    auto chunkManager = Bootstrap->GetChunkManager();
+    FOREACH (auto* chunk, chunkManager->GetChunks()) {
+        Refresh(chunk);
+        ScheduleRFUpdate(chunk);
+    }
+
+    RefreshInvoker->Start();
+    RFUpdateInvoker->Start();
 }
 
 void TChunkReplicator::ScheduleJobs(
@@ -73,8 +96,8 @@ void TChunkReplicator::ScheduleJobs(
     if (IsEnabled()) {
         ScheduleNewJobs(
             node,
-            Max(0, Config->ChunkReplicator->MaxReplicationFanOut - replicationJobCount),
-            Max(0, Config->ChunkReplicator->MaxRemovalJobsPerNode - removalJobCount),
+            std::max(0, Config->ChunkReplicator->MaxReplicationFanOut - replicationJobCount),
+            std::max(0, Config->ChunkReplicator->MaxRemovalJobsPerNode - removalJobCount),
             jobsToStart);
     }
 }
@@ -421,9 +444,9 @@ TChunkReplicator::TReplicaStatistics TChunkReplicator::GetReplicaStatistics(cons
 {
     TReplicaStatistics result;
 
-    result.ReplicationFactor = GetReplicationFactor(chunk);
+    result.ReplicationFactor = chunk->GetReplicationFactor();
     result.StoredCount = static_cast<int>(chunk->StoredLocations().size());
-    result.CachedCount = !~chunk->CachedLocations() ? 0 : static_cast<int>(chunk->CachedLocations()->size());
+    result.CachedCount = ~chunk->CachedLocations() ? static_cast<int>(chunk->CachedLocations()->size()) : 0;
     result.PlusCount = 0;
     result.MinusCount = 0;
 
@@ -473,11 +496,6 @@ Stroka TChunkReplicator::ToString(const TReplicaStatistics& statistics)
         statistics.CachedCount,
         statistics.PlusCount,
         statistics.MinusCount);
-}
-
-int TChunkReplicator::GetReplicationFactor(const TChunk* chunk)
-{
-    return chunk->GetReplicationFactor();
 }
 
 void TChunkReplicator::Refresh(const TChunk* chunk)
@@ -578,58 +596,41 @@ void TChunkReplicator::ScheduleChunkRefresh(const TChunkId& chunkId)
     RefreshSet.insert(chunkId);
 }
 
-void TChunkReplicator::RefreshAllChunks()
-{
-    auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH (auto* chunk, chunkManager->GetChunks()) {
-        Refresh(chunk);
-    }
-}
-
-void TChunkReplicator::ScheduleNextRefresh()
-{
-    TDelayedInvoker::Submit(
-        BIND(&TChunkReplicator::OnRefresh, MakeStrong(this))
-            .Via(Bootstrap->GetMetaStateFacade()->GetEpochInvoker(EStateThreadQueue::ChunkRefresh)),
-        Config->ChunkRefreshPeriod);
-}
-
 void TChunkReplicator::OnRefresh()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    ScheduleNextRefresh();
+    if (!RefreshList.empty()) {
+        LOG_DEBUG("Incremental chunk refresh started");
 
-    if (RefreshList.empty())
-        return;
+        int refreshedCount = 0;
+        PROFILE_TIMING ("/incremental_chunk_refresh_time") {
+            auto chunkManager = Bootstrap->GetChunkManager();
+            auto now = GetCpuInstant();
+            for (int i = 0; i < Config->MaxChunksPerRefresh; ++i) {
+                if (RefreshList.empty())
+                    break;
 
-    LOG_DEBUG("Incremental chunk refresh started");
+                const auto& entry = RefreshList.front();
+                if (entry.When > now)
+                    break;
 
-    int refreshedCount = 0;
-    PROFILE_TIMING ("/incremental_chunk_refresh_time") {
-        auto chunkManager = Bootstrap->GetChunkManager();
-        auto now = GetCpuInstant();
-        for (int i = 0; i < Config->MaxChunksPerRefresh; ++i) {
-            if (RefreshList.empty())
-                break;
+                auto* chunk = chunkManager->FindChunk(entry.ChunkId);
+                if (chunk) {
+                    Refresh(chunk);
+                    ++refreshedCount;
+                }
 
-            const auto& entry = RefreshList.front();
-            if (entry.When > now)
-                break;
-
-            auto* chunk = chunkManager->FindChunk(entry.ChunkId);
-            if (chunk) {
-                Refresh(chunk);
-                ++refreshedCount;
+                YCHECK(RefreshSet.erase(entry.ChunkId) == 1);
+                RefreshList.pop_front();
             }
-
-            YCHECK(RefreshSet.erase(entry.ChunkId) == 1);
-            RefreshList.pop_front();
         }
+
+        LOG_DEBUG("Incremental chunk refresh completed, %d chunks processed",
+            refreshedCount);
     }
 
-    LOG_DEBUG("Incremental chunk refresh completed, %d chunks processed",
-        refreshedCount);
+    RefreshInvoker->ScheduleNext();
 }
 
 TChunkReplicator::TNodeInfo* TChunkReplicator::FindNodeInfo(TNodeId nodeId)
@@ -686,6 +687,185 @@ bool TChunkReplicator::IsEnabled()
     }
 
     return true;
+}
+
+void TChunkReplicator::ScheduleRFUpdate(const TChunkList* root)
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    class TVisitor
+        : public IChunkVisitor
+    {
+    public:
+        TVisitor(
+            NCellMaster::TBootstrap* bootstrap,
+            TChunkReplicatorPtr replicator,
+            const TChunkList* root)
+            : Bootstrap(bootstrap)
+            , Replicator(MoveRV(replicator))
+            , Root(root)
+        { }
+
+        void Run()
+        {
+            TraverseChunkTree(Bootstrap, this, Root);
+        }
+
+    private:
+        TBootstrap* Bootstrap;
+        TChunkReplicatorPtr Replicator;
+        const TChunkList* Root;
+
+        virtual void OnChunk(
+            const TChunk* chunk, 
+            const NTableClient::NProto::TReadLimit& startLimit,
+            const NTableClient::NProto::TReadLimit& endLimit) override
+        {
+            UNUSED(startLimit);
+            UNUSED(endLimit);
+
+            Replicator->ScheduleRFUpdate(chunk);
+        }
+
+        virtual void OnError(const TError& error) override
+        {
+            LOG_ERROR(error, "Error traversing chunk tree for RF update");
+        }
+
+        virtual void OnFinish() override
+        { }
+
+    };
+
+    New<TVisitor>(Bootstrap, this, root)->Run();
+}
+
+void TChunkReplicator::ScheduleRFUpdate(const TChunk* chunk)
+{
+    const auto& id = chunk->GetId();
+    if (RFUpdateSet.insert(id).second) {
+        RFUpdateList.push_back(id);
+    }
+}
+
+void TChunkReplicator::OnRFUpdate()
+{
+    if (RFUpdateList.empty() ||
+        !Bootstrap->GetMetaStateFacade()->GetManager()->HasActiveQuorum())
+    {
+        RFUpdateInvoker->ScheduleNext();
+        return;
+    }
+
+    // Extract up to GCObjectsPerMutation objects and post a mutation.
+    auto chunkManager = Bootstrap->GetChunkManager();
+    NProto::TMetaReqUpdateChunkReplicationFactor request;
+    while (!RFUpdateList.empty() && request.updates_size() < Config->MaxChunksPerRFUpdate) {
+        const auto& chunkId = RFUpdateList.front();
+        RFUpdateList.pop_front();
+        YCHECK(RFUpdateSet.erase(chunkId) == 1);
+
+        auto* chunk = chunkManager->FindChunk(chunkId);
+        if (chunk) {
+            int replicationFactor = ComputeReplicationFactor(chunk);
+            if (chunk->GetReplicationFactor() != replicationFactor) {
+                auto* update = request.add_updates();
+                *update->mutable_chunk_id() = chunkId.ToProto();
+                update->set_replication_factor(replicationFactor);
+            }
+        }
+    }
+
+    LOG_DEBUG("Starting RF update for %d chunks", request.updates_size());
+
+    chunkManager
+        ->CreateUpdateChunkReplicationFactorMutation(request)
+        ->OnSuccess(BIND(&TChunkReplicator::OnRFUpdateCommitSucceeded, MakeWeak(this)))
+        ->OnError(BIND(&TChunkReplicator::OnRFUpdateCommitFailed, MakeWeak(this)))
+        ->PostCommit();
+}
+
+void TChunkReplicator::OnRFUpdateCommitSucceeded()
+{
+    LOG_DEBUG("RF update commit succeeded");
+
+    RFUpdateInvoker->ScheduleOutOfBand();
+    RFUpdateInvoker->ScheduleNext();
+}
+
+void TChunkReplicator::OnRFUpdateCommitFailed(const TError& error)
+{
+    LOG_WARNING(error, "RF update commit failed");
+
+    RFUpdateInvoker->ScheduleNext();
+}
+
+int TChunkReplicator::ComputeReplicationFactor(const TChunk* chunk)
+{
+    int result = 0;
+    
+    // Unique number used to distinguish already visited chunk lists.
+    auto mark = TChunkList::GenerateVisitMark();
+
+    // BFS queue. Try to avoid allocations.
+    TSmallVector<TChunkList*, 64> queue;
+    size_t frontIndex = 0;
+
+    auto enqueue = [&] (TChunkList* chunkList) {
+        if (chunkList->GetVisitMark() != mark) {
+            chunkList->SetVisitMark(mark);
+            queue.push_back(chunkList);
+        }
+    };
+
+    // Put seeds into the queue.
+    FOREACH (auto* parent, chunk->Parents()) {
+        auto* adjustedParent = FollowParentLinks(parent);
+        if (adjustedParent) {
+            enqueue(adjustedParent);
+        }
+    }
+
+    if (queue.empty()) {
+        // Better leave the chunk as is.
+        return chunk->GetReplicationFactor();
+    }
+    
+    // The main BFS loop.
+    while (frontIndex < queue.size()) {
+        auto* chunkList = queue[frontIndex++];
+
+        // Examine owners, if any.
+        FOREACH (const auto* owningNode, chunkList->OwningNodes()) {
+            result = std::max(result, owningNode->GetOwningReplicationFactor());
+        }
+
+        // Proceed to parents.
+        FOREACH (auto* parent, chunkList->Parents()) {
+            auto* adjustedParent = FollowParentLinks(parent);
+            if (adjustedParent) {
+                enqueue(adjustedParent);
+            }
+        }
+    }
+    
+    return result;
+}
+
+TChunkList* TChunkReplicator::FollowParentLinks(TChunkList* chunkList)
+{
+    while (chunkList->OwningNodes().empty()) {
+        const auto& parents = chunkList->Parents();
+        size_t parentCount = parents.size();
+        if (parentCount == 0) {
+            return NULL;
+        }
+        if (parentCount > 1) {
+            break;
+        }
+        chunkList = *parents.begin();
+    }
+    return chunkList;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

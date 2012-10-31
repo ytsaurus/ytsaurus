@@ -343,6 +343,11 @@ bool TObjectProxyBase::IsRecovery() const
     return Bootstrap->GetMetaStateFacade()->GetManager()->IsRecovery();
 }
 
+bool TObjectProxyBase::IsLeader() const
+{
+    return Bootstrap->GetMetaStateFacade()->GetManager()->IsLeader();
+}
+
 void TObjectProxyBase::ValidateLeaderStatus() const
 {
     Bootstrap->GetMetaStateFacade()->ValidateLeaderStatus();

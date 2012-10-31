@@ -2,11 +2,16 @@
 
 #include "public.h"
 
-#include <server/cell_master/public.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/nullable.h>
+#include <ytlib/misc/periodic_invoker.h>
+#include <ytlib/misc/error.h>
+
 #include <ytlib/profiling/public.h>
+
+#include <server/cell_master/public.h>
+
 #include <server/chunk_server/chunk_service.pb.h>
 
 #include <deque>
@@ -26,6 +31,8 @@ public:
         TChunkPlacementPtr chunkPlacement,
         TNodeLeaseTrackerPtr nodeLeaseTracker);
 
+    void Start();
+
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunkId>, LostChunkIds);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunkId>, UnderreplicatedChunkIds);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunkId>, OverreplicatedChunkIds);
@@ -35,11 +42,11 @@ public:
 
     void OnChunkRemoved(const TChunk* chunk);
 
-    void RefreshAllChunks();
-
     void ScheduleChunkRefresh(const TChunkId& chunkId);
 
     void ScheduleChunkRemoval(const TDataNode* node, const TChunkId& chunkId);
+
+    void ScheduleRFUpdate(const TChunkList* chunkList);
 
     void ScheduleJobs(
         TDataNode* node,
@@ -58,16 +65,19 @@ private:
     NProfiling::TCpuDuration ChunkRefreshDelay;
     TNullable<bool> LastEnabled;
 
-    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
-
     struct TRefreshEntry
     {
         TChunkId ChunkId;
         NProfiling::TCpuInstant When;
     };
 
+    TPeriodicInvokerPtr RefreshInvoker;
     yhash_set<TChunkId> RefreshSet;
     std::deque<TRefreshEntry> RefreshList;
+
+    TPeriodicInvokerPtr RFUpdateInvoker;
+    yhash_set<TChunkId> RFUpdateSet;
+    std::deque<TChunkId> RFUpdateList;
 
     struct TNodeInfo
     {
@@ -115,9 +125,6 @@ private:
         int maxRemovalJobsToStart,
         std::vector<NProto::TJobStartInfo>* jobsToStart);
 
-    void Refresh(const TChunk* chunk);
-    int GetReplicationFactor(const TChunk* chunk);
-
     struct TReplicaStatistics
     {
         int ReplicationFactor;
@@ -130,8 +137,22 @@ private:
     TReplicaStatistics GetReplicaStatistics(const TChunk* chunk);
     static Stroka ToString(const TReplicaStatistics& statistics);
 
-    void ScheduleNextRefresh();
     void OnRefresh();
+    void Refresh(const TChunk* chunk);
+
+    void ScheduleRFUpdate(const TChunk* chunk);
+    void OnRFUpdate();
+    void OnRFUpdateCommitSucceeded();
+    void OnRFUpdateCommitFailed(const TError& error);
+
+    //! Computes the actual replication factor the chunk must have.
+    int ComputeReplicationFactor(const TChunk* chunk);
+
+    //! Follows upward parent links.
+    //! Stops when some owning nodes are discovered or parents become ambiguous.
+    TChunkList* FollowParentLinks(TChunkList* chunkList);
+
+    DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 
 };
 

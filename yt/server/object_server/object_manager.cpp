@@ -818,7 +818,6 @@ void TObjectManager::OnGCCommitFailed(const TError& error)
 {
     LOG_WARNING(error, "GC sweep commit failed");
 
-    GCSweepInvoker->ScheduleOutOfBand();
     GCSweepInvoker->ScheduleNext();
 }
 

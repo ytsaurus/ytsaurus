@@ -24,6 +24,7 @@ TChunkList::TChunkList(const TChunkListId& id)
     : TObjectWithIdBase(id)
     , Rigid_(false)
     , Version_(0)
+    , VisitMark_(0)
 { }
 
 void TChunkList::IncrementVersion()
@@ -62,6 +63,12 @@ void TChunkList::Load(const NCellMaster::TLoadContext& context)
     ::Load(input, SortedBy_);
     ::Load(input, Rigid_);
     ::Load(input, RowCountSums_);
+}
+
+TAtomic TChunkList::GenerateVisitMark()
+{
+    static TAtomic result = 0;
+    return AtomicIncrement(result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

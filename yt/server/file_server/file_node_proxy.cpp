@@ -60,33 +60,6 @@ void TFileNodeProxy::ValidateUserAttributeUpdate(
     }
 }
 
-bool TFileNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& value)
-{
-    if (key == "replication_factor") {
-        int replicationFactor = ConvertTo<int>(value);
-
-        const int MinReplicationFactor = 1;
-        const int MaxReplicationFactor = 10;
-        if (replicationFactor < MinReplicationFactor || replicationFactor > MaxReplicationFactor) {
-            THROW_ERROR_EXCEPTION("Value must be in range [%d,%d]",
-                MinReplicationFactor,
-                MaxReplicationFactor);
-        }
-
-        if (Transaction) {
-            THROW_ERROR_EXCEPTION("Value cannot be altered inside transaction");
-        }
-
-        auto* impl = GetThisTypedMutableImpl();
-        YCHECK(impl->GetTrunkNode() == impl);
-        impl->SetReplicationFactor(replicationFactor);
-
-        return true;
-    }
-
-    return TBase::SetSystemAttribute(key, value);
-}
-
 bool TFileNodeProxy::IsExecutable()
 {
     return Attributes().Get("executable", false);
@@ -189,6 +162,39 @@ bool TFileNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consum
     }
 
     return TBase::GetSystemAttribute(key, consumer);
+}
+
+bool TFileNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& value)
+{
+    auto chunkManager = Bootstrap->GetChunkManager();
+
+    if (key == "replication_factor") {
+        int replicationFactor = ConvertTo<int>(value);
+
+        const int MinReplicationFactor = 1;
+        const int MaxReplicationFactor = 10;
+        if (replicationFactor < MinReplicationFactor || replicationFactor > MaxReplicationFactor) {
+            THROW_ERROR_EXCEPTION("Value must be in range [%d,%d]",
+                MinReplicationFactor,
+                MaxReplicationFactor);
+        }
+
+        if (Transaction) {
+            THROW_ERROR_EXCEPTION("Value cannot be altered inside transaction");
+        }
+
+        auto* impl = GetThisTypedMutableImpl();
+        YCHECK(impl->GetTrunkNode() == impl);
+        impl->SetReplicationFactor(replicationFactor);
+
+        if (IsLeader()) {
+            chunkManager->ScheduleRFUpdate(impl->GetChunkList());
+        }
+
+        return true;
+    }
+
+    return TBase::SetSystemAttribute(key, value);
 }
 
 DEFINE_RPC_SERVICE_METHOD(TFileNodeProxy, FetchFile)

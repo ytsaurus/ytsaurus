@@ -101,10 +101,13 @@ struct TChunkManagerConfig
     TDuration ChunkRefreshPeriod;
     int MaxChunksPerRefresh;
 
-    double MaxNodeFillCoeff;
-    i64 MinNodeFreeSpace;
     double ActiveSessionsPenalityCoeff;
+
+    TDuration ChunkRFUpdatePeriod;
+    int MaxChunksPerRFUpdate;
+
     TChunkReplicatorConfigPtr ChunkReplicator;
+    
     TChunkTreeBalancerConfigPtr ChunkTreeBalancer;
 
     TChunkManagerConfig()
@@ -115,16 +118,25 @@ struct TChunkManagerConfig
             .Default(TDuration::Seconds(180));
         Register("unconfirmed_node_timeout", UnconfirmedNodeTimeout)
             .Default(TDuration::Seconds(30));
+
         Register("chunk_refresh_delay", ChunkRefreshDelay)
             .Default(TDuration::Seconds(15));
         Register("chunk_refresh_period", ChunkRefreshPeriod)
             .Default(TDuration::MilliSeconds(100));
         Register("max_chunks_per_refresh", MaxChunksPerRefresh)
             .Default(10000);
+
+        Register("chunk_rf_update_period", ChunkRFUpdatePeriod)
+            .Default(TDuration::MilliSeconds(1000));
+        Register("max_chunks_per_rf_update", MaxChunksPerRFUpdate)
+            .Default(10000);
+
         Register("active_sessions_penality_coeff", ActiveSessionsPenalityCoeff)
             .Default(0.1);
+
         Register("chunk_replicator", ChunkReplicator)
             .DefaultNew();
+
         Register("chunk_tree_balancer", ChunkTreeBalancer)
             .DefaultNew();
     }

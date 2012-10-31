@@ -138,6 +138,7 @@ protected:
     virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
     bool IsRecovery() const;
+    bool IsLeader() const;
     void ValidateLeaderStatus() const;
     void ForwardToLeader(NRpc::IServiceContextPtr context);
     void OnLeaderResponse(NRpc::IServiceContextPtr context, NBus::IMessagePtr responseMessage);
