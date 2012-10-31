@@ -12,7 +12,7 @@ namespace NYTree {
 
 struct ISystemAttributeProvider
 {
-    ~ISystemAttributeProvider()
+    virtual ~ISystemAttributeProvider()
     { }
 
     //! Describes a system attribute.
