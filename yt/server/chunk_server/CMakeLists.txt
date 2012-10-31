@@ -14,7 +14,6 @@ set( SRCS
   ${BASE}/chunk_tree_statistics.cpp
   ${BASE}/chunk_tree_traversing.cpp
   ${BASE}/cypress_integration.cpp
-  ${BASE}/helpers.cpp
   ${BASE}/job.cpp
   ${BASE}/job_list.cpp
   ${BASE}/node.cpp
@@ -40,7 +39,6 @@ set( HDRS
   ${BASE}/chunk_tree_traversing.h
   ${BASE}/config.h
   ${BASE}/cypress_integration.h
-  ${BASE}/helpers.h
   ${BASE}/job.h
   ${BASE}/job_list.h
   ${BASE}/node.h
