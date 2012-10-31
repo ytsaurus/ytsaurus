@@ -333,6 +333,9 @@ class TestTableCommands(YTEnvSetup):
         with pytest.raises(YTError): set('//tmp/t/@replication_factor', 0)
         with pytest.raises(YTError): set('//tmp/t/@replication_factor', {})
 
+        tx = start_tx()
+        with pytest.raises(YTError): set('//tmp/t/@replication_factor', 2, tx=tx)
+
     def test_replication_factor_static(self):
         create('table', '//tmp/t')
         set('//tmp/t/@replication_factor', 2)
