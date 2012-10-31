@@ -508,9 +508,11 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                     if (!attribute.IsPresent) {
                         ThrowCannotSetSystemAttribute(key);
                     }
+
                     if (attribute.IsOpaque) {
                         ThrowCannotSetOpaqueAttribute(key);
                     }
+
                     GuardedSetSystemAttribute(key, newAttributeYson.Get());
                     YCHECK(newAttributes->Remove(key));
                 }
@@ -551,8 +553,8 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
         }
 
         const ISystemAttributeProvider::TAttributeInfo* attribute = NULL;
+        std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
         if (systemAttributeProvider) {
-            std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
             systemAttributeProvider->ListSystemAttributes(&systemAttributes);
             FOREACH (const auto& currentAttribute, systemAttributes) {
                 if (currentAttribute.Key == key) {
