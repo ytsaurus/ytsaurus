@@ -104,7 +104,8 @@ protected:
 
     void OnRowWritten();
 
-    void OnClose();
+    void AttachChunks();
+    void OnClose(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
     void SwitchSession();
 

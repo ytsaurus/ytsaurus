@@ -290,23 +290,6 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkClosed(
         batchReq->AddRequest(req);
     }
     {
-        auto req = NChunkClient::TChunkListYPathProxy::Attach(
-            NCypressClient::FromObjectId(ParentChunkList));
-        NMetaState::GenerateRpcMutationId(req);
-        *req->add_children_ids() = remoteWriter->GetChunkId().ToProto();
-
-        batchReq->AddRequest(req);
-    }
-    {
-        auto req = NTransactionClient::TTransactionYPathProxy::ReleaseObject(
-            NCypressClient::FromObjectId(TransactionId));
-        NMetaState::GenerateRpcMutationId(req);
-        *req->mutable_object_id() = remoteWriter->GetChunkId().ToProto();
-
-        batchReq->AddRequest(req);
-    }
-
-    {
         NProto::TInputChunk inputChunk;
 
         auto* slice = inputChunk.mutable_slice();
@@ -346,9 +329,6 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkRegistered(
         return;
     }
 
-    LOG_DEBUG("Chunk registered successfully (ChunkId: %s)",
-        ~chunkId.ToString());
-
     for (int i = 0; i < batchRsp->GetSize(); ++i) {
         auto rsp = batchRsp->GetResponse(i);
         if (!rsp->IsOK()) {
@@ -356,6 +336,10 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkRegistered(
             return;
         }
     }
+
+    LOG_DEBUG("Chunk registered successfully (ChunkId: %s)",
+        ~chunkId.ToString());
+
 
     finishResult.Set(TError());
 }
@@ -385,22 +369,68 @@ TAsyncError TChunkSequenceWriterBase<TChunkWriter>::AsyncClose()
     FinishCurrentSession();
 
     CloseChunksAwaiter->Complete(BIND(
-        &TChunkSequenceWriterBase::OnClose,
+        &TChunkSequenceWriterBase::AttachChunks,
         MakeWeak(this)));
 
     return State.GetOperationError();
 }
 
 template <class TChunkWriter>
-void TChunkSequenceWriterBase<TChunkWriter>::OnClose()
+void TChunkSequenceWriterBase<TChunkWriter>::AttachChunks()
 {
-    if (State.IsActive()) {
-        State.Close();
+    if (!State.IsActive()) {
+        return;
     }
 
-    LOG_DEBUG("Sequence writer closed (TransactionId: %s)",
-        ~TransactionId.ToString());
+    NObjectClient::TObjectServiceProxy objectProxy(MasterChannel);
+    auto batchReq = objectProxy.ExecuteBatch();
 
+    FOREACH(const auto& inputChunk, WrittenChunks) {
+        {
+            auto req = NChunkClient::TChunkListYPathProxy::Attach(
+                NCypressClient::FromObjectId(ParentChunkList));
+            *req->add_children_ids() = inputChunk.slice().chunk_id();
+            NMetaState::GenerateRpcMutationId(req);
+            batchReq->AddRequest(req);
+        }
+        {
+            auto req = NTransactionClient::TTransactionYPathProxy::ReleaseObject(
+                NCypressClient::FromObjectId(TransactionId));
+            *req->mutable_object_id() = inputChunk.slice().chunk_id();
+            NMetaState::GenerateRpcMutationId(req);
+            batchReq->AddRequest(req);
+        }
+    }
+
+    batchReq->Invoke().Subscribe(BIND(
+        &TChunkSequenceWriterBase::OnClose,
+        MakeWeak(this)));
+}
+
+template <class TChunkWriter>
+void TChunkSequenceWriterBase<TChunkWriter>::OnClose(
+    NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+{
+    if (!State.IsActive()) {
+        return;
+    }
+
+    if (!batchRsp->IsOK()) {
+        State.Fail(batchRsp->GetError());
+        return;
+    }
+
+    for (int i = 0; i < batchRsp->GetSize(); ++i) {
+        auto rsp = batchRsp->GetResponse(i);
+        if (!rsp->IsOK()) {
+            State.Fail(rsp->GetError());
+            return;
+        }
+    }
+
+    LOG_DEBUG("Chunk sequence writer successfully closed.");
+
+    State.Close();
     State.FinishOperation();
 }
 
