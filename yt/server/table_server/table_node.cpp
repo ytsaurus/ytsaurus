@@ -67,6 +67,8 @@ void TTableNode::Load(const NCellMaster::TLoadContext& context)
     // COMPAT(babenko)
     if (context.GetVersion() >= 2) {
         ::Load(input, ReplicationFactor_);
+    } else {
+        ReplicationFactor_ = 3;
     }
 }
 
