@@ -714,7 +714,7 @@ void TSupportsAttributes::GuardedSetSystemAttribute(const Stroka& key, const TYs
     try {
         result = GetSystemAttributeProvider()->SetSystemAttribute(key, yson);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error setting system attribute: %s", key)
+        THROW_ERROR_EXCEPTION("Error setting system attribute: %s", ~key)
             << ex;
     }
 
