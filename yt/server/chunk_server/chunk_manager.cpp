@@ -167,6 +167,7 @@ public:
         RegisterMethod(BIND(&TImpl::RegisterNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::UnregisterNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::RebalanceChunkTree, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::UpdateChunkReplicationFactor, Unretained(this)));
 
         {
             NCellMaster::TLoadContext context;
@@ -897,6 +898,19 @@ private:
                 LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree rebalancing completed");
             } else {
                 LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree rebalancing canceled");
+            }
+        }
+    }
+
+    void UpdateChunkReplicationFactor(const TMetaReqUpdateChunkReplicationFactor& request)
+    {
+        FOREACH (const auto& update, request.updates()) {
+            auto chunkId = TChunkId::FromProto(update.chunk_id());
+            int replicationFactor = update.replication_factor();
+            auto* chunk = FindChunk(chunkId);
+            if (chunk && chunk->GetReplicationFactor() != replicationFactor) {
+                chunk->SetReplicationFactor(replicationFactor);
+                ChunkReplicator->ScheduleChunkRefresh(chunkId);
             }
         }
     }

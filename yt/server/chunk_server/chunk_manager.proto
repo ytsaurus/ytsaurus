@@ -48,5 +48,16 @@ message TMetaReqRebalanceChunkTree
     required int32 max_chunk_list_size = 3;
 }
 
+message TMetaReqUpdateChunkReplicationFactor
+{
+    message TUpdate
+    {
+        required NYT.NProto.TGuid chunk_id = 1;
+        required int32 replication_factor = 2;
+    }
+
+    repeated TUpdate updates = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
