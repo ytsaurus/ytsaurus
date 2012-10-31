@@ -32,7 +32,7 @@ TTableNode::TTableNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
     , ChunkList_(NULL)
     , UpdateMode_(ETableUpdateMode::None)
-    , ReplicationFactor_(InvalidReplicationFactor)
+    , ReplicationFactor_(0)
 { }
 
 int TTableNode::GetOwningReplicationFactor() const 

@@ -13,8 +13,6 @@ class TFileNode
     : public NCypressServer::TCypressNodeBase
 {
     DEFINE_BYVAL_RW_PROPERTY(NChunkServer::TChunkList*, ChunkList);
-
-    static const int InvalidReplicationFactor = -1;
     DEFINE_BYVAL_RW_PROPERTY(int, ReplicationFactor);
 
 public:

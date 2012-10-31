@@ -148,6 +148,7 @@ public:
         , Bootstrap(bootstrap)
         , ChunkTreeBalancer(Bootstrap, Config->ChunkTreeBalancer)
         , ChunkReplicaCount(0)
+        , NeedToRecomputeStatistics(false)
         , Profiler(ChunkServerProfiler)
         , AddChunkCounter("/add_chunk_rate")
         , RemoveChunkCounter("/remove_chunk_rate")
@@ -439,7 +440,6 @@ public:
     }
 
 
-
     void ScheduleJobs(
         TDataNode* node,
         const std::vector<TJobInfo>& runningJobs,
@@ -495,7 +495,8 @@ public:
         return NodeLeaseTracker->IsNodeConfirmed(node);
     }
 
-    i32 GetChunkReplicaCount()
+
+    int GetChunkReplicaCount()
     {
         return ChunkReplicaCount;
     }
@@ -504,6 +505,7 @@ public:
     {
         return ChunkReplicator->IsEnabled();
     }
+
 
     TChunkTreeRef GetChunkTree(const TChunkTreeId& id)
     {
@@ -531,6 +533,7 @@ public:
         }
     }
 
+
 private:
     typedef TImpl TThis;
     friend class TChunkTypeHandler;
@@ -543,7 +546,9 @@ private:
 
     TChunkTreeBalancer ChunkTreeBalancer;
     
-    i32 ChunkReplicaCount;
+    int ChunkReplicaCount;
+
+    bool NeedToRecomputeStatistics;
 
     NProfiling::TProfiler& Profiler;
     NProfiling::TRateCounter AddChunkCounter;
@@ -890,6 +895,11 @@ private:
         FOREACH (auto& pair, JobMap) {
             RegisterReplicationSinks(pair.second);
         }
+
+        // COMPAT(babenko)
+        if (context.GetVersion() < 2) {
+            ScheduleRecomputeStatistics();
+        }
     }
 
     virtual void Clear() override
@@ -909,14 +919,71 @@ private:
     }
 
 
+    void ScheduleRecomputeStatistics()
+    {
+        NeedToRecomputeStatistics = true;
+    }
+
+    const TChunkTreeStatistics& ComputeStatisticsFor(TChunkList* chunkList)
+    {
+        auto& statistics = chunkList->Statistics();
+        if (statistics.Rank == -1) {
+            statistics = TChunkTreeStatistics();
+            FOREACH (auto childRef, chunkList->Children()) {
+                switch (childRef.GetType()) {
+                case EObjectType::Chunk:
+                    statistics.Accumulate(childRef.AsChunk()->GetStatistics());
+                    break;
+
+                case EObjectType::ChunkList:
+                    statistics.Accumulate(ComputeStatisticsFor(childRef.AsChunkList()));
+                    break;
+
+                default:
+                    YUNREACHABLE();
+                }
+            }
+        }
+        return statistics;
+    }
+
+    void RecomputeStatistics()
+    {
+        // Chunk trees traversal with memoization.
+
+        LOG_INFO("Started recomputing statistics");
+
+        // Use Rank field for keeping track of already visited chunk lists.
+        FOREACH (auto& pair, ChunkListMap) {
+            auto* chunkList = pair.second;
+            chunkList->Statistics().Rank = -1;
+        }
+
+        // Force all statistics to be recalculated.
+        FOREACH (auto& pair, ChunkListMap) {
+            auto* chunkList = pair.second;
+            ComputeStatisticsFor(chunkList);
+        }
+
+        LOG_INFO("Finished recomputing statistics");
+    }
+
+
     virtual void OnStartRecovery() override
     {
         Profiler.SetEnabled(false);
+
+        YCHECK(!NeedToRecomputeStatistics);
     }
 
     virtual void OnStopRecovery() override
     {
         Profiler.SetEnabled(true);
+
+        if (NeedToRecomputeStatistics) {
+            RecomputeStatistics();
+            NeedToRecomputeStatistics = false;
+        }
     }
     
     virtual void OnLeaderRecoveryComplete() override
@@ -2137,7 +2204,7 @@ bool TChunkManager::IsNodeConfirmed(const TDataNode* node)
     return Impl->IsNodeConfirmed(node);
 }
 
-i32 TChunkManager::GetChunkReplicaCount()
+int TChunkManager::GetChunkReplicaCount()
 {
     return Impl->GetChunkReplicaCount();
 }

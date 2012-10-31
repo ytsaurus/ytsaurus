@@ -121,7 +121,7 @@ public:
     bool IsNodeConfirmed(const TDataNode* node);
 
     //! Returns the total number of all chunk replicas.
-    i32 GetChunkReplicaCount();
+    int GetChunkReplicaCount();
 
 private:
     class TImpl;

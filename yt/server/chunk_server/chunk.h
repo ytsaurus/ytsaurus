@@ -41,8 +41,8 @@ public:
     static const i64 UnknownSize;
 
     explicit TChunk(const TChunkId& id);
-
     ~TChunk();
+
     TChunkTreeStatistics GetStatistics() const;
 
     void Save(const NCellMaster::TSaveContext& context) const;

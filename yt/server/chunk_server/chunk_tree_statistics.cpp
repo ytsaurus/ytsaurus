@@ -1,6 +1,10 @@
 #include "stdafx.h"
 #include "chunk_tree_statistics.h"
 
+#include <server/cell_master/bootstrap.h>
+
+#include <server/chunk_server/chunk_manager.h>
+
 namespace NYT {
 namespace NChunkServer {
 
@@ -40,8 +44,6 @@ void Load(TChunkTreeStatistics& statistics, const NCellMaster::TLoadContext& con
     // COMPAT(babenko)
     if (context.GetVersion() >= 2) {
         ::Load(input, statistics.DiskSpace);
-    } else {
-        statistics.DiskSpace = -1;
     }
 }
 

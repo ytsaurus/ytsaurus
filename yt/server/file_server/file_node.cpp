@@ -29,7 +29,7 @@ static NLog::TLogger& Logger = FileServerLogger;
 TFileNode::TFileNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
     , ChunkList_(NULL)
-    , ReplicationFactor_(InvalidReplicationFactor)
+    , ReplicationFactor_(0)
 { }
 
 int TFileNode::GetOwningReplicationFactor() const 
