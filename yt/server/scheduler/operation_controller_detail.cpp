@@ -1440,13 +1440,13 @@ std::vector<TChunkStripePtr> TOperationControllerBase::PrepareChunkStripes(
                 auto stripe = New<TChunkStripe>(slicedInputChunk);
                 result.push_back(stripe);
             }
-            LOG_DEBUG("Slicing chunk (ChunkId: %s, SliceCount: %d)",
+            LOG_TRACE("Slicing chunk (ChunkId: %s, SliceCount: %d)",
                 ~chunkId.ToString(),
                 sliceCount);
         } else {
             auto stripe = New<TChunkStripe>(inputChunk);
             result.push_back(stripe);
-            LOG_DEBUG("Taking whole chunk (ChunkId: %s)",
+            LOG_TRACE("Taking whole chunk (ChunkId: %s)",
                 ~chunkId.ToString());
         }
     }
