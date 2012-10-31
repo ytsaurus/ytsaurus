@@ -203,6 +203,7 @@ TObjectManager::TObjectManager(
     , TypeToHandler(MaxObjectType)
     , RootService(New<TRootService>(bootstrap))
     , GCQueueSizeCounter("/gc_queue_size")
+    , CreatedObjectCounter("/destroyed_object_count")
     , DestroyedObjectCounter("/destroyed_object_count")
 {
     YCHECK(config);
@@ -343,7 +344,9 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
         version.RecordCount,
         version.SegmentId);
 
-    LOG_DEBUG_UNLESS(IsRecovery(), "Object id generated (Type: %s, Id: %s)",
+    Profiler.Increment(CreatedObjectCounter, +1);
+
+    LOG_DEBUG_UNLESS(IsRecovery(), "Object created (Type: %s, Id: %s)",
         ~type.ToString(),
         ~id.ToString());
 

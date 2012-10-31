@@ -157,6 +157,7 @@ private:
     mutable TGuid CachedCellGuild;
 
     NProfiling::TAggregateCounter GCQueueSizeCounter;
+    NProfiling::TAggregateCounter CreatedObjectCounter;
     NProfiling::TAggregateCounter DestroyedObjectCounter;
 
     //! Stores deltas from parent transaction.
