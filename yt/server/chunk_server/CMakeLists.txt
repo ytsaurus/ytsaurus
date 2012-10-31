@@ -2,7 +2,9 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/server/chunk_server )
 set( SRCS
   ${BASE}/chunk.cpp
+  ${BASE}/chunk_proxy.cpp
   ${BASE}/chunk_list.cpp
+  ${BASE}/chunk_list_proxy.cpp
   ${BASE}/chunk_manager.cpp
   ${BASE}/chunk_placement.cpp
   ${BASE}/chunk_replicator.cpp
@@ -12,6 +14,7 @@ set( SRCS
   ${BASE}/chunk_tree_statistics.cpp
   ${BASE}/chunk_tree_traversing.cpp
   ${BASE}/cypress_integration.cpp
+  ${BASE}/helpers.cpp
   ${BASE}/job.cpp
   ${BASE}/job_list.cpp
   ${BASE}/node.cpp
@@ -23,7 +26,9 @@ set( SRCS
 )
 set( HDRS
   ${BASE}/chunk.h
+  ${BASE}/chunk_proxy.h
   ${BASE}/chunk_list.h
+  ${BASE}/chunk_list_proxy.h
   ${BASE}/chunk_manager.h
   ${BASE}/chunk_placement.h
   ${BASE}/chunk_replicator.h
@@ -35,6 +40,7 @@ set( HDRS
   ${BASE}/chunk_tree_traversing.h
   ${BASE}/config.h
   ${BASE}/cypress_integration.h
+  ${BASE}/helpers.h
   ${BASE}/job.h
   ${BASE}/job_list.h
   ${BASE}/node.h

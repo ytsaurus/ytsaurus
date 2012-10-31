@@ -55,7 +55,9 @@ public:
     DECLARE_METAMAP_ACCESSORS(JobList, TJobList, TChunkId);
     DECLARE_METAMAP_ACCESSORS(Job, TJob, TJobId);
 
-    //! Fired when a node gets registered.
+    TChunkTreeRef GetChunkTree(const TChunkTreeId& id);
+
+        //! Fired when a node gets registered.
     /*!
      *  \note
      *  Only fired for leaders, not fired during recovery.
@@ -94,6 +96,12 @@ public:
         TChunkList* chunkList,
         const TChunkTreeRef childRef);
 
+    void ConfirmChunk(
+        TChunk* chunk,
+        const std::vector<Stroka>& addresses,
+        NChunkClient::NProto::TChunkInfo* chunkInfo,
+        NChunkClient::NProto::TChunkMeta* chunkMeta);
+
     void ClearChunkList(TChunkList* chunkList);
 
     void ScheduleJobs(
@@ -122,6 +130,8 @@ public:
 
     //! Returns the total number of all chunk replicas.
     int GetChunkReplicaCount();
+
+    void GetOwningNodes(TChunkTreeRef chunkRef, NYTree::IYsonConsumer* consumer);
 
 private:
     class TImpl;

@@ -14,6 +14,8 @@
 #include "node_authority.h"
 #include "node_statistics.h"
 #include "chunk_tree_balancer.h"
+#include "chunk_proxy.h"
+#include "chunk_list_proxy.h"
 #include "private.h"
 
 #include <ytlib/misc/foreach.h>
@@ -41,7 +43,6 @@
 
 #include <ytlib/logging/log.h>
 
-#include <server/chunk_server/chunk_manager.pb.h>
 #include <server/chunk_server/chunk_manager.pb.h>
 
 #include <server/cypress_server/cypress_manager.h>
@@ -355,18 +356,6 @@ public:
         ScheduleChunkTreeRebalanceIfNeeded(chunkList);
     }
 
-    void ScheduleChunkTreeRebalanceIfNeeded(TChunkList* chunkList)
-    {
-        TMetaReqRebalanceChunkTree request;
-        if (IsLeader() &&
-            ChunkTreeBalancer.CheckRebalanceNeeded(chunkList, &request))
-        {
-            // Don't retry in case of failure.
-            // Balancing will happen eventually.
-            CreateRebalanceChunkTreeMutation(request)->PostCommit();
-        }
-    }
-
     void AttachToChunkList(
         TChunkList* chunkList,
         const std::vector<TChunkTreeRef>& children)
@@ -382,6 +371,54 @@ public:
         TChunkTreeRef childRef)
     {
         AttachToChunkList(chunkList, &childRef, &childRef + 1);
+    }
+
+
+    void ConfirmChunk(
+        TChunk* chunk,
+        const std::vector<Stroka>& addresses,
+        NChunkClient::NProto::TChunkInfo* chunkInfo,
+        NChunkClient::NProto::TChunkMeta* chunkMeta)
+    {
+        YCHECK(!chunk->IsConfirmed());
+
+        auto id = chunk->GetId();
+
+        chunk->ChunkInfo().Swap(chunkInfo);
+        chunk->ChunkMeta().Swap(chunkMeta);
+
+        FOREACH (const auto& address, addresses) {
+            auto* node = FindNodeByAddresss(address);
+            if (!node) {
+                LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %s at an unknown node %s",
+                    ~id.ToString(),
+                    ~address);
+                continue;
+            }
+
+            if (node->GetState() != ENodeState::Online) {
+                LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %s at node %s with invalid state %s",
+                    ~id.ToString(),
+                    ~address,
+                    ~FormatEnum(node->GetState()));
+                continue;
+            }
+
+            if (!node->HasChunk(chunk, false)) {
+                AddChunkReplica(
+                    node,
+                    chunk,
+                    false,
+                    EAddReplicaReason::Confirmation);
+                node->MarkChunkUnapproved(chunk);
+            }
+        }
+
+        if (IsLeader()) {
+            ChunkReplicator->ScheduleChunkRefresh(id);
+        }
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk confirmed (ChunkId: %s)", ~id.ToString());
     }
 
 
@@ -534,12 +571,34 @@ public:
     }
 
 
+    void GetOwningNodes(TChunkTreeRef chunkRef, IYsonConsumer* consumer)
+    {
+        auto cypressManager = Bootstrap->GetCypressManager();
+
+        yhash_set<ICypressNode*> owningNodes;
+        yhash_set<TChunkTreeRef> visitedRefs;
+        GetOwningNodes(chunkRef, visitedRefs, &owningNodes);
+
+        std::vector<TYPath> paths;
+        FOREACH (auto* node, owningNodes) {
+            auto proxy = cypressManager->GetVersionedNodeProxy(node->GetId());
+            auto path = proxy->GetPath();
+            paths.push_back(path);
+        }
+
+        std::sort(paths.begin(), paths.end());
+        paths.erase(std::unique(paths.begin(), paths.end()), paths.end());
+
+        BuildYsonFluently(consumer)
+            .DoListFor(paths, [] (TFluentList fluent, const TYPath& path) {
+                fluent.Item().Scalar(path);
+        });
+    }
+
 private:
     typedef TImpl TThis;
     friend class TChunkTypeHandler;
-    friend class TChunkProxy;
     friend class TChunkListTypeHandler;
-    friend class TChunkListProxy;
 
     TChunkManagerConfigPtr Config;
     TBootstrap* Bootstrap;
@@ -807,6 +866,18 @@ private:
                 nodeId,
                 static_cast<int>(request.started_jobs_size()),
                 static_cast<int>(request.stopped_jobs_size()));
+        }
+    }
+
+    void ScheduleChunkTreeRebalanceIfNeeded(TChunkList* chunkList)
+    {
+        TMetaReqRebalanceChunkTree request;
+        if (IsLeader() &&
+            ChunkTreeBalancer.CheckRebalanceNeeded(chunkList, &request))
+        {
+            // Don't retry in case of failure.
+            // Balancing will happen eventually.
+            CreateRebalanceChunkTreeMutation(request)->PostCommit();
         }
     }
 
@@ -1191,54 +1262,6 @@ private:
     }
 
 
-    void ConfirmChunk(
-        TChunk* chunk,
-        const std::vector<Stroka>& addresses,
-        NChunkClient::NProto::TChunkInfo* chunkInfo,
-        NChunkClient::NProto::TChunkMeta* chunkMeta)
-    {
-        YCHECK(!chunk->IsConfirmed());
-
-        auto id = chunk->GetId();
-
-        chunk->ChunkInfo().Swap(chunkInfo);
-        chunk->ChunkMeta().Swap(chunkMeta);
-
-        FOREACH (const auto& address, addresses) {
-            auto* node = FindNodeByAddresss(address);
-            if (!node) {
-                LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %s at an unknown node %s",
-                    ~id.ToString(),
-                    ~address);
-                continue;
-            }
-
-            if (node->GetState() != ENodeState::Online) {
-                LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %s at node %s with invalid state %s",
-                    ~id.ToString(),
-                    ~address,
-                    ~FormatEnum(node->GetState()));
-                continue;
-            }
-
-            if (!node->HasChunk(chunk, false)) {
-                AddChunkReplica(
-                    node,
-                    chunk,
-                    false,
-                    EAddReplicaReason::Confirmation);
-                node->MarkChunkUnapproved(chunk);
-            }
-        }
-
-        if (IsLeader()) {
-            ChunkReplicator->ScheduleChunkRefresh(id);
-        }
-
-        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk confirmed (ChunkId: %s)", ~id.ToString());
-    }
-
-
     void AddJob(TDataNode* node, const TJobStartInfo& jobInfo)
     {
         auto* mutationContext = Bootstrap
@@ -1475,6 +1498,7 @@ private:
         }
     }
 
+
     static void GetOwningNodes(
         TChunkTreeRef chunkRef,
         yhash_set<TChunkTreeRef>& visitedRefs,
@@ -1503,30 +1527,6 @@ private:
         }
     }
 
-    void GetOwningNodes(TChunkTreeRef chunkRef, IYsonConsumer* consumer)
-    {
-        auto cypressManager = Bootstrap->GetCypressManager();
-
-        yhash_set<ICypressNode*> owningNodes;
-        yhash_set<TChunkTreeRef> visitedRefs;
-        GetOwningNodes(chunkRef, visitedRefs, &owningNodes);
-
-        std::vector<TYPath> paths;
-        FOREACH (auto* node, owningNodes) {
-            auto proxy = cypressManager->GetVersionedNodeProxy(node->GetId());
-            auto path = proxy->GetPath();
-            paths.push_back(path);
-        }
-
-        std::sort(paths.begin(), paths.end());
-        paths.erase(std::unique(paths.begin(), paths.end()), paths.end());
-
-        BuildYsonFluently(consumer)
-            .DoListFor(paths, [] (TFluentList fluent, const TYPath& path) {
-                fluent.Item().Scalar(path);
-            });
-    }
-
 };
 
 DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, Chunk, TChunk, TChunkId, ChunkMap)
@@ -1541,269 +1541,6 @@ DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, Underrepli
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TChunkManager::TChunkProxy
-    : public NObjectServer::TUnversionedObjectProxyBase<TChunk>
-{
-public:
-    TChunkProxy(TIntrusivePtr<TImpl> owner, const TChunkId& id)
-        : TBase(owner->Bootstrap, id, &owner->ChunkMap)
-        , Owner(owner)
-    {
-        Logger = ChunkServerLogger;
-    }
-
-    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override
-    {
-        DECLARE_YPATH_SERVICE_WRITE_METHOD(Confirm);
-        return TBase::IsWriteRequest(context);
-    }
-
-private:
-    typedef TUnversionedObjectProxyBase<TChunk> TBase;
-
-    TIntrusivePtr<TImpl> Owner;
-
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override
-    {
-        const auto* chunk = GetTypedImpl();
-        auto miscExt = FindProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
-
-        YCHECK(!chunk->IsConfirmed() || miscExt);
-
-        attributes->push_back("confirmed");
-        attributes->push_back("cached_locations");
-        attributes->push_back("stored_locations");
-        attributes->push_back("replication_factor");
-        attributes->push_back("movable");
-        attributes->push_back("master_meta_size");
-        attributes->push_back(TAttributeInfo("owning_nodes", true, true));
-        attributes->push_back(TAttributeInfo("size", chunk->IsConfirmed()));
-        attributes->push_back(TAttributeInfo("chunk_type", chunk->IsConfirmed()));
-        attributes->push_back(TAttributeInfo("meta_size", chunk->IsConfirmed() && miscExt->has_meta_size()));
-        attributes->push_back(TAttributeInfo("compressed_data_size", chunk->IsConfirmed() && miscExt->has_compressed_data_size()));
-        attributes->push_back(TAttributeInfo("uncompressed_data_size", chunk->IsConfirmed() && miscExt->has_uncompressed_data_size()));
-        attributes->push_back(TAttributeInfo("data_weight", chunk->IsConfirmed() && miscExt->has_data_weight()));
-        attributes->push_back(TAttributeInfo("codec_id", chunk->IsConfirmed() && miscExt->has_codec_id()));
-        attributes->push_back(TAttributeInfo("row_count", chunk->IsConfirmed() && miscExt->has_row_count()));
-        attributes->push_back(TAttributeInfo("value_count", chunk->IsConfirmed() && miscExt->has_value_count()));
-        attributes->push_back(TAttributeInfo("sorted", chunk->IsConfirmed() && miscExt->has_sorted()));
-        TBase::ListSystemAttributes(attributes);
-    }
-
-    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const override
-    {
-        const auto* chunk = GetTypedImpl();
-
-        if (key == "confirmed") {
-            BuildYsonFluently(consumer)
-                .Scalar(FormatBool(chunk->IsConfirmed()));
-            return true;
-        }
-
-        if (key == "cached_locations") {
-            if (~chunk->CachedLocations()) {
-                BuildYsonFluently(consumer)
-                    .DoListFor(*chunk->CachedLocations(), [=] (TFluentList fluent, TNodeId nodeId) {
-                        const auto& node = Owner->GetNode(nodeId);
-                        fluent.Item().Scalar(node->GetAddress());
-                    });
-            } else {
-                BuildYsonFluently(consumer)
-                    .BeginList()
-                    .EndList();
-            }
-            return true;
-        }
-
-        if (key == "stored_locations") {
-            BuildYsonFluently(consumer)
-                .DoListFor(chunk->StoredLocations(), [=] (TFluentList fluent, TNodeId nodeId) {
-                    const auto& node = Owner->GetNode(nodeId);
-                    fluent.Item().Scalar(node->GetAddress());
-                });
-            return true;
-        }
-
-        if (key == "replication_factor") {
-            BuildYsonFluently(consumer)
-                .Scalar(chunk->GetReplicationFactor());
-            return true;
-        }
-
-        if (key == "movable") {
-            BuildYsonFluently(consumer)
-                .Scalar(chunk->GetMovable());
-            return true;
-        }
-
-        if (key == "master_meta_size") {
-            BuildYsonFluently(consumer)
-                .Scalar(chunk->ChunkMeta().ByteSize());
-            return true;
-        }
-
-        if (key == "owning_nodes") {
-            Owner->GetOwningNodes(TChunkTreeRef(const_cast<TChunk*>(chunk)), consumer);
-            return true;
-        }
-
-        if (chunk->IsConfirmed()) {
-            auto miscExt = GetProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
-
-            if (key == "size") {
-                BuildYsonFluently(consumer)
-                    .Scalar(chunk->ChunkInfo().size());
-                return true;
-            }
-
-            if (key == "chunk_type") {
-                auto type = EChunkType(chunk->ChunkMeta().type());
-                BuildYsonFluently(consumer)
-                    .Scalar(CamelCaseToUnderscoreCase(type.ToString()));
-                return true;
-            }
-
-            if (key == "meta_size") {
-                BuildYsonFluently(consumer)
-                    .Scalar(miscExt.meta_size());
-                return true;
-            }
-
-            if (key == "compressed_data_size") {
-                BuildYsonFluently(consumer)
-                    .Scalar(miscExt.compressed_data_size());
-                return true;
-            }
-
-            if (key == "uncompressed_data_size") {
-                BuildYsonFluently(consumer)
-                    .Scalar(miscExt.uncompressed_data_size());
-                return true;
-            }
-
-            if (key == "data_weight") {
-                BuildYsonFluently(consumer)
-                    .Scalar(miscExt.data_weight());
-                return true;
-            }
-
-            if (key == "codec_id") {
-                BuildYsonFluently(consumer)
-                    .Scalar(CamelCaseToUnderscoreCase(ECodecId(miscExt.codec_id()).ToString()));
-                return true;
-            }
-
-            if (key == "row_count") {
-                BuildYsonFluently(consumer)
-                    .Scalar(miscExt.row_count());
-                return true;
-            }
-
-            if (key == "value_count") {
-                BuildYsonFluently(consumer)
-                    .Scalar(miscExt.value_count());
-                return true;
-            }
-
-            if (key == "sorted") {
-                BuildYsonFluently(consumer)
-                    .Scalar(FormatBool(miscExt.sorted()));
-                return true;
-            }
-        }
-
-        return TBase::GetSystemAttribute(key, consumer);
-    }
-
-    virtual void DoInvoke(IServiceContextPtr context) override
-    {
-        DISPATCH_YPATH_SERVICE_METHOD(Locate);
-        DISPATCH_YPATH_SERVICE_METHOD(Fetch);
-        DISPATCH_YPATH_SERVICE_METHOD(Confirm);
-        TBase::DoInvoke(context);
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, Locate)
-    {
-        UNUSED(request);
-
-        const auto* chunk = GetTypedImpl();
-        Owner->FillNodeAddresses(response->mutable_node_addresses(), chunk);
-
-        context->SetResponseInfo("NodeAddresses: [%s]",
-            ~JoinToString(response->node_addresses()));
-
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NTableClient::NProto, Fetch)
-    {
-        UNUSED(request);
-
-        const auto* chunk = GetTypedImpl();
-
-        if (chunk->ChunkMeta().type() != EChunkType::Table) {
-            THROW_ERROR_EXCEPTION("Unable to execute Fetch verb for non-table chunk");
-        }
-
-        auto* inputChunk = response->add_chunks();
-        *inputChunk->mutable_slice()->mutable_chunk_id() = chunk->GetId().ToProto();
-        inputChunk->mutable_slice()->mutable_start_limit();
-        inputChunk->mutable_slice()->mutable_end_limit();
-        *inputChunk->mutable_channel() = NTableClient::TChannel::Universal().ToProto();
-        inputChunk->mutable_extensions()->CopyFrom(chunk->ChunkMeta().extensions());
-
-        auto miscExt = GetProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
-        inputChunk->set_row_count(miscExt.row_count());
-        inputChunk->set_uncompressed_data_size(miscExt.uncompressed_data_size());
-
-        if (request->fetch_node_addresses()) {
-            Owner->FillNodeAddresses(inputChunk->mutable_node_addresses(), chunk);
-        }
-
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, Confirm)
-    {
-        UNUSED(response);
-
-        auto addresses = FromProto<Stroka>(request->node_addresses());
-        YCHECK(!addresses.empty());
-
-        context->SetRequestInfo("Size: %" PRId64 ", Addresses: [%s]",
-            request->chunk_info().size(),
-            ~JoinToString(addresses));
-
-        auto* chunk = GetTypedImpl();
-
-        // Skip chunks that are already confirmed.
-        if (chunk->IsConfirmed()) {
-            context->SetResponseInfo("Chunk is already confirmed");
-            context->Reply();
-            return;
-        }
-
-        // Use the size reported by the client, but check it for consistency first.
-        if (!chunk->ValidateChunkInfo(request->chunk_info())) {
-            LOG_FATAL("Invalid chunk info reported by client (ChunkId: %s, ExpectedInfo: {%s}, ReceivedInfo: {%s})",
-                ~Id.ToString(),
-                ~chunk->ChunkInfo().DebugString(),
-                ~request->chunk_info().DebugString());
-        }
-
-        Owner->ConfirmChunk(
-            chunk,
-            addresses,
-            request->mutable_chunk_info(),
-            request->mutable_chunk_meta());
-
-        context->Reply();
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 TChunkManager::TChunkTypeHandler::TChunkTypeHandler(TImpl* owner)
     : TObjectTypeHandlerBase(owner->Bootstrap, &owner->ChunkMap)
     , Owner(owner)
@@ -1814,7 +1551,11 @@ IObjectProxyPtr TChunkManager::TChunkTypeHandler::GetProxy(
     TTransaction* transaction)
 {
     UNUSED(transaction);
-    return New<TChunkProxy>(Owner, id);
+
+    return CreateChunkProxy(
+        Bootstrap,
+        &Owner->ChunkMap,
+        id);
 }
 
 TObjectId TChunkManager::TChunkTypeHandler::Create(
@@ -1862,180 +1603,6 @@ void TChunkManager::TChunkTypeHandler::DoDestroy(TChunk* chunk)
     Owner->DestroyChunk(chunk);
 }
 
-///////////////////////////////////////////////////////////////////////////////
-
-class TChunkManager::TChunkListProxy
-    : public NObjectServer::TUnversionedObjectProxyBase<TChunkList>
-{
-public:
-    TChunkListProxy(TIntrusivePtr<TImpl> owner, const TChunkListId& id)
-        : TBase(owner->Bootstrap, id, &owner->ChunkListMap)
-        , Owner(owner)
-    {
-        Logger = ChunkServerLogger;
-    }
-
-    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override
-    {
-        DECLARE_YPATH_SERVICE_WRITE_METHOD(Attach);
-        return TBase::IsWriteRequest(context);
-    }
-
-private:
-    typedef TUnversionedObjectProxyBase<TChunkList> TBase;
-
-    TIntrusivePtr<TImpl> Owner;
-
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override
-    {
-        attributes->push_back("children_ids");
-        attributes->push_back("parent_ids");
-        attributes->push_back("row_count");
-        attributes->push_back("uncompressed_data_size");
-        attributes->push_back("compressed_size");
-        attributes->push_back("chunk_count");
-        attributes->push_back("rank");
-        attributes->push_back("rigid");
-        attributes->push_back(TAttributeInfo("tree", true, true));
-        attributes->push_back(TAttributeInfo("owning_nodes", true, true));
-        TBase::ListSystemAttributes(attributes);
-    }
-
-    void TraverseTree(TChunkTreeRef ref, IYsonConsumer* consumer) const
-    {
-        switch (ref.GetType()) {
-            case EObjectType::Chunk: {
-                consumer->OnStringScalar(ref.GetId().ToString());
-                break;
-            }
-
-            case EObjectType::ChunkList: {
-                const auto* chunkList = ref.AsChunkList();
-                consumer->OnBeginAttributes();
-                consumer->OnKeyedItem("id");
-                consumer->OnStringScalar(chunkList->GetId().ToString());
-                consumer->OnKeyedItem("rank");
-                consumer->OnIntegerScalar(chunkList->Statistics().Rank);
-                consumer->OnEndAttributes();
-
-                consumer->OnBeginList();
-                FOREACH (auto childRef, chunkList->Children()) {
-                    consumer->OnListItem();
-                    TraverseTree(childRef, consumer);
-                }
-                consumer->OnEndList();
-                break;
-            }
-
-            default:
-                YUNREACHABLE();
-        }
-    }
-
-    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const override
-    {
-        const auto* chunkList = GetTypedImpl();
-
-        if (key == "children_ids") {
-            BuildYsonFluently(consumer)
-                .DoListFor(chunkList->Children(), [=] (TFluentList fluent, TChunkTreeRef chunkRef) {
-                        fluent.Item().Scalar(chunkRef.GetId());
-                });
-            return true;
-        }
-
-        if (key == "parent_ids") {
-            BuildYsonFluently(consumer)
-                .DoListFor(chunkList->Parents(), [=] (TFluentList fluent, TChunkList* chunkList) {
-                    fluent.Item().Scalar(chunkList->GetId());
-                });
-            return true;
-        }
-
-        const auto& statistics = chunkList->Statistics();
-
-        if (key == "row_count") {
-            BuildYsonFluently(consumer)
-                .Scalar(statistics.RowCount);
-            return true;
-        }
-
-        if (key == "uncompressed_data_size") {
-            BuildYsonFluently(consumer)
-                .Scalar(statistics.UncompressedSize);
-            return true;
-        }
-
-        if (key == "compressed_size") {
-            BuildYsonFluently(consumer)
-                .Scalar(statistics.CompressedSize);
-            return true;
-        }
-
-        if (key == "chunk_count") {
-            BuildYsonFluently(consumer)
-                .Scalar(statistics.ChunkCount);
-            return true;
-        }
-
-        if (key == "rank") {
-            BuildYsonFluently(consumer)
-                .Scalar(statistics.Rank);
-            return true;
-        }
-
-        if (key == "rigid") {
-            BuildYsonFluently(consumer)
-                .Scalar(chunkList->GetRigid());
-            return true;
-        }
-
-        if (key == "tree") {
-            TraverseTree(const_cast<TChunkList*>(chunkList), consumer);
-            return true;
-        }
-
-        if (key == "owning_nodes") {
-            Owner->GetOwningNodes(const_cast<TChunkList*>(chunkList), consumer);
-            return true;
-        }
-
-        return TBase::GetSystemAttribute(key, consumer);
-    }
-
-    virtual void DoInvoke(NRpc::IServiceContextPtr context) override
-    {
-        DISPATCH_YPATH_SERVICE_METHOD(Attach);
-        TBase::DoInvoke(context);
-    }
-
-
-    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, Attach)
-    {
-        UNUSED(response);
-
-        auto childrenIds = FromProto<TChunkTreeId>(request->children_ids());
-
-        context->SetRequestInfo("Children: [%s]", ~JoinToString(childrenIds));
-
-        auto objectManager = Bootstrap->GetObjectManager();
-        std::vector<TChunkTreeRef> childrenRefs;
-        FOREACH (const auto& childId, childrenIds) {
-            if (!objectManager->ObjectExists(childId)) {
-                THROW_ERROR_EXCEPTION("Chunk tree %s does not exist", ~childId.ToString());
-            }
-            auto chunkRef = Owner->GetChunkTree(childId);
-            childrenRefs.push_back(chunkRef);
-        }
-
-        auto* chunkList = GetTypedImpl();
-        Owner->AttachToChunkList(chunkList, childrenRefs);
-
-        context->Reply();
-    }
-
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkManager::TChunkListTypeHandler::TChunkListTypeHandler(TImpl* owner)
@@ -2048,7 +1615,11 @@ IObjectProxyPtr TChunkManager::TChunkListTypeHandler::GetProxy(
     TTransaction* transaction)
 {
     UNUSED(transaction);
-    return New<TChunkListProxy>(Owner, id);
+
+    return CreateChunkListProxy(
+        Bootstrap,
+        &Owner->ChunkListMap,
+        id);
 }
 
 TObjectId TChunkManager::TChunkListTypeHandler::Create(
@@ -2079,6 +1650,11 @@ TChunkManager::TChunkManager(
 
 TChunkManager::~TChunkManager()
 { }
+
+TChunkTreeRef TChunkManager::GetChunkTree(const TChunkTreeId& id)
+{
+    return Impl->GetChunkTree(id);
+}
 
 TDataNode* TChunkManager::FindNodeByAddress(const Stroka& address)
 {
@@ -2150,6 +1726,19 @@ void TChunkManager::AttachToChunkList(
     Impl->AttachToChunkList(chunkList, childrenBegin, childrenEnd);
 }
 
+void TChunkManager::ConfirmChunk(
+    TChunk* chunk,
+    const std::vector<Stroka>& addresses,
+    NChunkClient::NProto::TChunkInfo* chunkInfo,
+    NChunkClient::NProto::TChunkMeta* chunkMeta)
+{
+    Impl->ConfirmChunk(
+        chunk,
+        addresses,
+        chunkInfo,
+        chunkMeta);
+}
+
 void TChunkManager::AttachToChunkList(
     TChunkList* chunkList,
     const std::vector<TChunkTreeRef>& children)
@@ -2207,6 +1796,11 @@ bool TChunkManager::IsNodeConfirmed(const TDataNode* node)
 int TChunkManager::GetChunkReplicaCount()
 {
     return Impl->GetChunkReplicaCount();
+}
+
+void TChunkManager::GetOwningNodes(TChunkTreeRef chunkRef, IYsonConsumer* consumer)
+{
+    return Impl->GetOwningNodes(chunkRef, consumer);
 }
 
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, Chunk, TChunk, TChunkId, *Impl)
