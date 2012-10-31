@@ -5,6 +5,9 @@ EMPTY_GENERATOR = (i for i in [])
 class YtError(Exception):
     pass
 
+class YtOperationFailedError(YtError):
+    pass
+
 def compose(f, g):
     return lambda x: f(g(x))
 

@@ -457,6 +457,15 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print "Shutdown requested... exiting"
         sys.exit(1)
+    except yt.YtOperationFailedError as error:
+        print error.message
+        sys.exit(1)
+    except yt.ConnectionError as error:
+        print "Connection problem:", error.message
+        sys.exit(1)
+    except yt.HTTPError as error:
+        print "Connection was broken:", error.message
+        sys.exit(1)
     except Exception:
         traceback.print_exc(file=sys.stdout)
         sys.exit(1)

@@ -1,6 +1,6 @@
 import config
 import logger
-from common import require, YtError, prefix
+from common import require, YtError, YtOperationFailedError, prefix
 from http import make_request
 from tree_commands import get_attribute, exists, search, get
 from file_commands import download_file
@@ -46,6 +46,7 @@ class Timeout(object):
         self.total_time += res
         sleep(res)
 
+
 def get_operation_state(operation):
     operation_path = os.path.join(OPERATIONS_PATH, operation)
     require(exists(operation_path),
@@ -55,6 +56,68 @@ def get_operation_state(operation):
 def get_operation_progress(operation):
     operation_path = os.path.join(OPERATIONS_PATH, operation)
     return get_attribute(operation_path, "progress/jobs")
+
+class PrintOperationInfo(object):
+    def __init__(self):
+        self.state = None
+        self.progress = None
+
+    def __call__(self, operation, state):
+        if state.is_running():
+            progress = get_operation_progress(operation)
+            if progress != self.progress:
+                if config.USE_SHORTEN_OPERATION_INFO:
+                    logger.info(
+                        "operation %s: " % operation + 
+                        "c={completed!s}\tf={failed!s}\tr={running!s}\tp={pending!s}".format(**progress))
+                else:
+                    logger.info(
+                        "jobs of operation %s: %s",
+                        operation,
+                        "\t".join("{}={}".format(k, v) for k, v in progress.iteritems()))
+            self.progress = progress
+        elif state != self.state:
+            logger.info("operation %s %s", operation, state)
+        self.state = state
+
+
+def abort_operation(operation):
+    if not get_operation_state(operation).is_final():
+        make_request("POST", "abort_op", {"operation_id": operation})
+
+def wait_final_state(operation, timeout, print_info, action=lambda: None):
+    while True:
+        state = get_operation_state(operation)
+        print_info(operation, state)
+        if state.is_final():
+            break
+        action()
+        timeout.wait()
+    return state
+
+def wait_operation(operation, timeout=None, print_progress=True):
+    if timeout is None:
+        timeout = Timeout(config.WAIT_TIMEOUT / 5.0, config.WAIT_TIMEOUT, 0.1)
+    print_info = PrintOperationInfo() if print_progress else lambda operation, state: None
+
+    try:
+        return wait_final_state(operation, timeout, print_info)
+    except KeyboardInterrupt:
+        if config.KEYBOARD_ABORT:
+            while True:
+                try:
+                    wait_final_state(operation,
+                                     Timeout(1.0, 1.0, 0.0),
+                                     print_info,
+                                     lambda: abort_operation(operation))
+                except KeyboardInterrupt:
+                    pass
+                break
+        raise
+    except Exception:
+        raise
+
+
 
 def get_operation_stderr(operation, limit=None):
     if limit is None: limit = config.ERRORS_TO_PRINT_LIMIT
@@ -80,50 +143,6 @@ def get_jobs_errors(operation, limit=None):
               if "error" in value["$attributes"])
     return "\n\n".join(prefix(errors, limit))
 
-def abort_operation(operation):
-    if not get_operation_state(operation).is_final():
-        make_request("POST", "abort_op", {"operation_id": operation})
-
-def wait_operation(operation, timeout=None, print_progress=True):
-    if timeout is None:
-        timeout = Timeout(config.WAIT_TIMEOUT / 5.0, config.WAIT_TIMEOUT, 0.1)
-    try:
-        progress = None
-        while True:
-            state = get_operation_state(operation)
-            if state.is_final():
-                # TODO(ignat): Make some common logger
-                return state
-            if state.is_running() and print_progress:
-                new_progress = get_operation_progress(operation)
-                if new_progress != progress:
-                    progress = new_progress
-                    print progress
-                    if config.USE_SHORTEN_OPERATION_INFO:
-                        logger.info(
-                            "operation %s: " % operation + 
-                            "c={completed!s}\tf={failed!s}\tr={running!s}\tp={pending!s}".format(**progress))
-                    else:
-                        logger.info(
-                            "jobs of operation %s: %s",
-                            operation,
-                            "\t".join(["=".join(map(str, [k, v])) for k, v in progress.iteritems()]))
-            timeout.wait()
-    except KeyboardInterrupt:
-        if config.KEYBOARD_ABORT:
-            while True:
-                try:
-                    if get_operation_state(operation).is_final():
-                        logger.info("Operation %s aborted", operation)
-                        break
-                    abort_operation(operation)
-                    timeout.wait()
-                except KeyboardInterrupt:
-                    pass
-        raise
-    except Exception:
-        raise
-
 """ Waiting operation strategies """
 class WaitStrategy(object):
     def __init__(self, files_to_delete=None, check_result=True, print_progress=True):
@@ -139,7 +158,7 @@ class WaitStrategy(object):
             stderr = get_operation_stderr(operation)
             # TODO: remove finalization when transactions would be buultin
             self.finalization()
-            raise YtError(
+            raise YtOperationFailedError(
                 "Operation {0} failed!\n"
                 "Operation result: {1}\n"
                 "Job results: {2}\n"
@@ -149,8 +168,6 @@ class WaitStrategy(object):
                     jobs_errors,
                     stderr))
         self.finalization()
-        if self.print_progress:
-            logger.info("operation %s completed", operation)
         #return operation_result, jobs_errors, stderr
 
 class AsyncStrategy(object):
