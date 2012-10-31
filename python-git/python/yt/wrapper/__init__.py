@@ -1,4 +1,4 @@
-from common import YtError
+from common import YtError, YtOperationFailedError
 from record import Record, record_to_line, line_to_record
 from format import DsvFormat, YamrFormat, YsonFormat, RawFormat
 from table import Table, to_table, to_name
@@ -12,3 +12,4 @@ from file_commands import download_file, upload_file, smart_upload_file
 from transaction_commands import \
     start_transaction, abort_transaction, \
     commit_transaction, renew_transaction
+from requests import HTTPError, ConnectionError
