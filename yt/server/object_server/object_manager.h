@@ -5,6 +5,7 @@
 #include "type_handler.h"
 
 #include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/periodic_invoker.h>
 
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/map.h>
@@ -163,6 +164,8 @@ private:
     //! Stores deltas from parent transaction.
     NMetaState::TMetaStateMap<TVersionedObjectId, TAttributeSet> Attributes;
 
+    TPeriodicInvokerPtr GCSweepInvoker;
+
     //! Contains the ids of object have reached ref counter of 0
     //! but are not destroyed yet.
     std::deque<TObjectId> GCQueue;
@@ -195,7 +198,6 @@ private:
     void GCEnqueue(const TObjectId& id);
     void GCDequeue(const TObjectId& expectedId);
 
-    void ScheduleGCSweep();
     void GCSweep();
     void OnGCCommitSucceeded();
     void OnGCCommitFailed(const TError& error);

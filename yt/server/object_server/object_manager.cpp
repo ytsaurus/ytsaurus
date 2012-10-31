@@ -250,13 +250,18 @@ TObjectManager::TObjectManager(
     RegisterMethod(BIND(&TObjectManager::ReplayVerb, Unretained(this)));
     RegisterMethod(BIND(&TObjectManager::DestroyObjects, Unretained(this)));
 
+    GCSweepInvoker = New<TPeriodicInvoker>(
+        Bootstrap->GetMetaStateFacade()->GetInvoker(),
+        BIND(&TThis::GCSweep, MakeWeak(this)),
+        Config->GCSweepPeriod);
+
     LOG_INFO("Object Manager initialized (CellId: %d)",
         static_cast<int>(config->CellId));
 }
 
 void TObjectManager::Start()
 {
-    ScheduleGCSweep();
+    GCSweepInvoker->Start();
 }
 
 IYPathServicePtr TObjectManager::GetRootService()
@@ -771,14 +776,6 @@ void TObjectManager::GCDequeue(const TObjectId& expectedId)
     Profiler.Increment(GCQueueSizeCounter, -1);
 }
 
-void TObjectManager::ScheduleGCSweep()
-{
-    TDelayedInvoker::Submit(
-        BIND(&TThis::GCSweep, MakeWeak(this))
-            .Via(Bootstrap->GetMetaStateFacade()->GetInvoker()),
-        Config->GCSweepPeriod);
-}
-
 void TObjectManager::GCSweep()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
@@ -787,7 +784,7 @@ void TObjectManager::GCSweep()
         !MetaStateManager->HasActiveQuorum() ||
         GCQueue.empty())
     {
-        ScheduleGCSweep();
+        GCSweepInvoker->ScheduleNext();
         return;
     }
 
@@ -812,13 +809,17 @@ void TObjectManager::GCSweep()
 void TObjectManager::OnGCCommitSucceeded()
 {
     LOG_DEBUG("GC commit succeeded");
-    ScheduleGCSweep();
+
+    GCSweepInvoker->ScheduleOutOfBand();
+    GCSweepInvoker->ScheduleNext();
 }
 
 void TObjectManager::OnGCCommitFailed(const TError& error)
 {
     LOG_WARNING(error, "GC commit failed");
-    ScheduleGCSweep();
+
+    GCSweepInvoker->ScheduleOutOfBand();
+    GCSweepInvoker->ScheduleNext();
 }
 
 void TObjectManager::OnTransactionCommitted(TTransaction* transaction)
