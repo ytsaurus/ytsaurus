@@ -89,6 +89,7 @@ protected:
     void FinishCurrentSession();
 
     void OnChunkClosed(
+        int chunkIndex,
         TSession currentSession,
         TAsyncErrorPromise finishResult,
         TError error);

@@ -194,7 +194,6 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnRowWritten()
         return;
     }
 
-
     if (CurrentSession.ChunkWriter->GetCurrentSize() > Config->DesiredChunkSize) 
     {
         i64 currentDataSize = CompleteChunkSize + CurrentSession.ChunkWriter->GetCurrentSize();
@@ -236,6 +235,20 @@ void TChunkSequenceWriterBase<TChunkWriter>::FinishCurrentSession()
         LOG_DEBUG("Finishing chunk (ChunkId: %s)",
             ~CurrentSession.RemoteWriter->GetChunkId().ToString());
 
+        int chunkIndex = 0;
+        {
+            NProto::TInputChunk inputChunk;
+
+            auto* slice = inputChunk.mutable_slice();
+            slice->mutable_start_limit();
+            slice->mutable_end_limit();
+            *slice->mutable_chunk_id() = CurrentSession.RemoteWriter->GetChunkId().ToProto();
+
+            TGuard<TSpinLock> guard(WrittenChunksGuard);
+            chunkIndex = WrittenChunks.size();
+            WrittenChunks.push_back(inputChunk);
+        }
+
         auto finishResult = NewPromise<TError>();
         CloseChunksAwaiter->Await(finishResult.ToFuture(), BIND(
             &TChunkSequenceWriterBase::OnChunkFinished, 
@@ -245,6 +258,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::FinishCurrentSession()
         CurrentSession.ChunkWriter->AsyncClose().Subscribe(BIND(
             &TChunkSequenceWriterBase::OnChunkClosed,
             MakeWeak(this),
+            chunkIndex,
             CurrentSession,
             finishResult));
 
@@ -258,6 +272,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::FinishCurrentSession()
 
 template <class TChunkWriter>
 void TChunkSequenceWriterBase<TChunkWriter>::OnChunkClosed(
+    int chunkIndex,
     TSession currentSession,
     TAsyncErrorPromise finishResult,
     TError error)
@@ -290,12 +305,8 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkClosed(
         batchReq->AddRequest(req);
     }
     {
-        NProto::TInputChunk inputChunk;
-
-        auto* slice = inputChunk.mutable_slice();
-        slice->mutable_start_limit();
-        slice->mutable_end_limit();
-        *slice->mutable_chunk_id() = remoteWriter->GetChunkId().ToProto();
+        TGuard<TSpinLock> guard(WrittenChunksGuard);
+        auto& inputChunk = WrittenChunks[chunkIndex];
 
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkWriter->GetMasterMeta().extensions());
         inputChunk.set_uncompressed_data_size(miscExt.uncompressed_data_size());
@@ -304,9 +315,6 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkClosed(
         ToProto(inputChunk.mutable_node_addresses(), remoteWriter->GetNodeAddresses());
         *inputChunk.mutable_channel() = TChannel::Universal().ToProto();
         *inputChunk.mutable_extensions() = chunkWriter->GetSchedulerMeta().extensions();
-
-        TGuard<TSpinLock> guard(WrittenChunksGuard);
-        WrittenChunks.push_back(inputChunk);
     }
 
     batchReq->Invoke().Subscribe(BIND(
