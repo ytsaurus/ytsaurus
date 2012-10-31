@@ -333,7 +333,7 @@ class TestTableCommands(YTEnvSetup):
         with pytest.raises(YTError): set('//tmp/t/@replication_factor', 0)
         with pytest.raises(YTError): set('//tmp/t/@replication_factor', {})
 
-        tx = start_tx()
+        tx = start_transaction()
         with pytest.raises(YTError): set('//tmp/t/@replication_factor', 2, tx=tx)
 
     def test_replication_factor_static(self):

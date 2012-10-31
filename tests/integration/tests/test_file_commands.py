@@ -64,5 +64,5 @@ class TestFileCommands(YTEnvSetup):
         with pytest.raises(YTError): set('//tmp/f/@replication_factor', 0)
         with pytest.raises(YTError): set('//tmp/f/@replication_factor', {})
 
-        tx = start_tx()
+        tx = start_transaction()
         with pytest.raises(YTError): set('//tmp/f/@replication_factor', 2, tx=tx)
