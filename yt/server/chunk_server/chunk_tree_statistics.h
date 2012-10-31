@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <server/cell_master/load_context.h>
+#include <server/cell_master/serialization_context.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -20,6 +20,9 @@ struct TChunkTreeStatistics
     //! Sum of compressed sizes of chunks in the tree.
     i64 CompressedSize;
     
+    //! Disk space occupied on data nodes (with replication).
+    i64 DiskSpace;
+
     //! Total number of chunks in the tree.
     i32 ChunkCount;
 
@@ -30,6 +33,7 @@ struct TChunkTreeStatistics
         : RowCount(0)
         , UncompressedSize(0)
         , CompressedSize(0)
+        , DiskSpace(0)
         , ChunkCount(0)
         , Rank(0)
     { }

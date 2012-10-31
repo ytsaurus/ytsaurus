@@ -46,7 +46,7 @@
 
 #include <server/cypress_server/cypress_manager.h>
 
-#include <server/cell_master/load_context.h>
+#include <server/cell_master/serialization_context.h>
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
 

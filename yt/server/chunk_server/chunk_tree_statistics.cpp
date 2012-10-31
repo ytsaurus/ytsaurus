@@ -11,6 +11,7 @@ void TChunkTreeStatistics::Accumulate(const TChunkTreeStatistics& other)
     RowCount += other.RowCount;
     UncompressedSize += other.UncompressedSize;
     CompressedSize += other.CompressedSize;
+    DiskSpace += other.DiskSpace;
     ChunkCount += other.ChunkCount;
     Rank = Max(Rank, other.Rank);
 }
@@ -25,6 +26,7 @@ void Save(const TChunkTreeStatistics& statistics, const NCellMaster::TSaveContex
     ::Save(output, statistics.CompressedSize);
     ::Save(output, statistics.ChunkCount);
     ::Save(output, statistics.Rank);
+    ::Save(output, statistics.DiskSpace);
 }
 
 void Load(TChunkTreeStatistics& statistics, const NCellMaster::TLoadContext& context)
@@ -35,6 +37,12 @@ void Load(TChunkTreeStatistics& statistics, const NCellMaster::TLoadContext& con
     ::Load(input, statistics.CompressedSize);
     ::Load(input, statistics.ChunkCount);
     ::Load(input, statistics.Rank);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 2) {
+        ::Load(input, statistics.DiskSpace);
+    } else {
+        statistics.DiskSpace = -1;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

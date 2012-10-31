@@ -537,8 +537,7 @@ TClusterResources TTableNodeProxy::GetResourceUsage() const
 {
     const auto* impl = GetThisTypedImpl();
     const auto* chunkList = impl->GetChunkList();
-    // TODO(babenko): this is wrong
-    return TClusterResources(chunkList->Statistics().CompressedSize * 3);
+    return TClusterResources(chunkList->Statistics().DiskSpace);
 }
 
 void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const

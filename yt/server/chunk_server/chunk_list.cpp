@@ -3,7 +3,7 @@
 
 #include <ytlib/actions/invoker.h>
 
-#include <server/cell_master/load_context.h>
+#include <server/cell_master/serialization_context.h>
 
 namespace NYT {
 namespace NChunkServer {

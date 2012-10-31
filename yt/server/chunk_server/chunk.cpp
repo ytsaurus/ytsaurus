@@ -4,7 +4,7 @@
 #include "chunk_tree_statistics.h"
 #include "chunk_list.h"
 
-#include <server/cell_master/load_context.h>
+#include <server/cell_master/serialization_context.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 namespace NYT {
@@ -39,16 +39,16 @@ TChunk::~TChunk()
 
 TChunkTreeStatistics TChunk::GetStatistics() const
 {
-    TChunkTreeStatistics result;
-
+    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(ChunkMeta().extensions());
     YASSERT(ChunkInfo().size() != TChunk::UnknownSize);
-    result.CompressedSize = ChunkInfo().size();
+
+    TChunkTreeStatistics result;
+    result.RowCount = miscExt.row_count();
+    result.UncompressedSize = miscExt.uncompressed_data_size();
+    result.CompressedSize = miscExt.compressed_data_size();
+    result.DiskSpace = ChunkInfo().size() * ReplicationFactor_;
     result.ChunkCount = 1;
     result.Rank = 0;
-
-    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(ChunkMeta().extensions());
-    result.UncompressedSize = miscExt.uncompressed_data_size();
-    result.RowCount = miscExt.row_count();
 
     return result;
 }

@@ -1,11 +1,13 @@
-#ifndef LOAD_CONTEXT_INL_H_
-#error "Direct inclusion of this file is not allowed, include load_context.h"
+#ifndef SERIALIZATION_CONTEXT_INL_H_
+#error "Direct inclusion of this file is not allowed, include serialization_context.h"
 #endif
-#undef LOAD_CONTEXT_INL_H_
+#undef SERIALIZATION_CONTEXT_INL_H_
 
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/serialize.h>
+
 #include <server/chunk_server/chunk_tree_ref.h>
+
 #include <server/cypress_server/node.h>
 
 // Some forward declarations.

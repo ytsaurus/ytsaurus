@@ -6,7 +6,7 @@
 #include <server/chunk_server/chunk.h>
 #include <server/chunk_server/chunk_list.h>
 
-#include <server/cell_master/load_context.h>
+#include <server/cell_master/serialization_context.h>
 #include <server/cell_master/bootstrap.h>
 
 namespace NYT {

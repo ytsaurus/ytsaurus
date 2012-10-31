@@ -8,7 +8,7 @@
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/cypress_client/cypress_ypath.pb.h>
 
-#include <server/cell_master/load_context.h>
+#include <server/cell_master/serialization_context.h>
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
 

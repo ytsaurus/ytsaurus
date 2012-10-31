@@ -74,6 +74,6 @@ void LoadObjectRefs(TInputStream* input, T& object, const TLoadContext& context)
 } // namespace NCellMaster
 } // namespace NYT
 
-#define LOAD_CONTEXT_INL_H_
-#include "load_context-inl.h"
-#undef LOAD_CONTEXT_INL_H_
+#define SERIALIZATION_CONTEXT_INL_H_
+#include "serialization_context-inl.h"
+#undef SERIALIZATION_CONTEXT_INL_H_

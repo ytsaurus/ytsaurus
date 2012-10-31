@@ -5,7 +5,7 @@
 #include <ytlib/misc/property.h>
 
 #include <server/cell_master/public.h>
-#include <server/cell_master/load_context.h>
+#include <server/cell_master/serialization_context.h>
 
 #include <server/object_server/object_detail.h>
 
