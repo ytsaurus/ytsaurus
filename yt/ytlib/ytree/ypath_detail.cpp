@@ -732,10 +732,10 @@ void TSupportsAttributes::GuardedValidateUserAttributeUpdate(
         ValidateUserAttributeUpdate(key, oldValue, newValue);
     } catch (const std::exception& ex) {
         if (newValue) {
-            THROW_ERROR_EXCEPTION("Error setting user attribute: %s", key)
+            THROW_ERROR_EXCEPTION("Error setting user attribute: %s", ~key)
                 << ex;
         } else {
-            THROW_ERROR_EXCEPTION("Error removing user attribute: %s", key)
+            THROW_ERROR_EXCEPTION("Error removing user attribute: %s", ~key)
                 << ex;
         }
     }
