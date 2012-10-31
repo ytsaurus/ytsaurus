@@ -37,7 +37,7 @@ TTableNode::TTableNode(const TVersionedNodeId& id)
 
 int TTableNode::GetOwningReplicationFactor() const 
 {
-    auto* trunkNode = dynamic_cast<TTableNode*>(TrunkNode_);
+    auto* trunkNode = TrunkNode_ == this ? this : dynamic_cast<TTableNode*>(TrunkNode_);
     YCHECK(trunkNode);
     return trunkNode->GetReplicationFactor();
 }

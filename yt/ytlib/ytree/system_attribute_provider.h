@@ -49,7 +49,10 @@ struct ISystemAttributeProvider
     virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, IYsonConsumer* consumer) const = 0;
 
     //! Sets the value of a system attribute.
-    virtual void SetSystemAttribute(const Stroka& key, const TYsonString& value) = 0;
+    /*!
+     *  \returns False if there is no writable system attribute with the given key.
+     */
+    virtual bool SetSystemAttribute(const Stroka& key, const TYsonString& value) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -31,7 +31,8 @@ private:
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override;
     virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const override;
     virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, IYsonConsumer* consumer) const override;
-    virtual void SetSystemAttribute(const Stroka& key, const TYsonString& value) override;
+    virtual bool SetSystemAttribute(const Stroka& key, const TYsonString& value) override;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

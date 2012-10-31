@@ -34,7 +34,7 @@ TFileNode::TFileNode(const TVersionedNodeId& id)
 
 int TFileNode::GetOwningReplicationFactor() const 
 {
-    auto* trunkNode = dynamic_cast<TFileNode*>(TrunkNode_);
+    auto* trunkNode = TrunkNode_ == this ? this : dynamic_cast<TFileNode*>(TrunkNode_);
     YCHECK(trunkNode);
     return trunkNode->GetReplicationFactor();
 }

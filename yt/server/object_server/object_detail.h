@@ -135,7 +135,7 @@ protected:
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override;
     virtual bool GetSystemAttribute(const Stroka& key, NYTree::IYsonConsumer* consumer) const override;
     virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, NYTree::IYsonConsumer* consumer) const override;
-    virtual void SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
+    virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
     bool IsRecovery() const;
     void ValidateLeaderStatus() const;

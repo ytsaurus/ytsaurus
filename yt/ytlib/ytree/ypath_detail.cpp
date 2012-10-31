@@ -710,11 +710,16 @@ ISystemAttributeProvider* TSupportsAttributes::GetSystemAttributeProvider()
 
 void TSupportsAttributes::GuardedSetSystemAttribute(const Stroka& key, const TYsonString& yson)
 {
+    bool result;
     try {
-        GetSystemAttributeProvider()->SetSystemAttribute(key, yson);
+        result = GetSystemAttributeProvider()->SetSystemAttribute(key, yson);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error setting system attribute: %s", key)
             << ex;
+    }
+
+    if (!result) {
+        ThrowCannotSetSystemAttribute(key);
     }
 }
 

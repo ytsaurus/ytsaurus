@@ -326,12 +326,11 @@ TAsyncError TObjectProxyBase::GetSystemAttributeAsync(const Stroka& key, IYsonCo
     return Null;
 }
 
-void TObjectProxyBase::SetSystemAttribute(const Stroka& key, const TYsonString& value)
+bool TObjectProxyBase::SetSystemAttribute(const Stroka& key, const TYsonString& value)
 {
+    UNUSED(key);
     UNUSED(value);
-
-    THROW_ERROR_EXCEPTION("System attribute cannot be set: %s",
-        ~ToYPathLiteral(key));
+    return false;
 }
 
 TVersionedObjectId TObjectProxyBase::GetVersionedId() const

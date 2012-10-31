@@ -133,17 +133,16 @@ TAsyncError TVirtualMapBase::GetSystemAttributeAsync(const Stroka& key, IYsonCon
     return Null;
 }
 
-void TVirtualMapBase::SetSystemAttribute(const Stroka& key, const TYsonString& value)
-{
-    UNUSED(value);
-
-    THROW_ERROR_EXCEPTION("System attribute cannot be set: %s",
-        ~ToYPathLiteral(key));
-}
-
 ISystemAttributeProvider* TVirtualMapBase::GetSystemAttributeProvider()
 {
     return this;
+}
+
+bool TVirtualMapBase::SetSystemAttribute(const Stroka& key, const TYsonString& value)
+{
+    UNUSED(key);
+    UNUSED(value);
+    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

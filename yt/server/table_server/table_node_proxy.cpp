@@ -674,7 +674,7 @@ void TTableNodeProxy::ValidateUserAttributeUpdate(
     }
 }
 
-void TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& value)
+bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& value)
 {
     if (key == "replication_factor") {
         int value = ConvertTo<int>(value);
@@ -695,10 +695,10 @@ void TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& v
         YCHECK(impl->GetTrunkNode() == impl);
         impl->SetReplicationFactor(value);
 
-        return;
+        return true;
     }
 
-    TBase::SetSystemAttribute(key, value);
+    return TBase::SetSystemAttribute(key, value);
 }
 
 void TTableNodeProxy::ParseYPath(

@@ -60,7 +60,7 @@ void TFileNodeProxy::ValidateUserAttributeUpdate(
     }
 }
 
-void TFileNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& value)
+bool TFileNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& value)
 {
     if (key == "replication_factor") {
         int value = ConvertTo<int>(value);
@@ -81,10 +81,10 @@ void TFileNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& va
         YCHECK(impl->GetTrunkNode() == impl);
         impl->SetReplicationFactor(value);
 
-        return;
+        return true;
     }
 
-    TBase::SetSystemAttribute(key, value);
+    return TBase::SetSystemAttribute(key, value);
 }
 
 bool TFileNodeProxy::IsExecutable()

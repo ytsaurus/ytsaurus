@@ -41,7 +41,7 @@ private:
         const Stroka& key,
         const TNullable<NYTree::TYsonString>& oldValue,
         const TNullable<NYTree::TYsonString>& newValue) override;
-    void SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
+    bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
     virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
 
