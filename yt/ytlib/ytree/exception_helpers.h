@@ -19,6 +19,7 @@ void ThrowCannotHaveChildren(IConstNodePtr node);
 void ThrowCannotRemoveAttribute(const Stroka& key);
 void ThrowCannotRemoveAttribute();
 void ThrowCannotSetSystemAttribute(const Stroka& key);
+void ThrowCannotSetOpaqueAttribute(const Stroka& key);
 
 ////////////////////////////////////////////////////////////////////////////////
 

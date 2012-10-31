@@ -105,6 +105,12 @@ void ThrowCannotSetSystemAttribute(const Stroka& key)
         ~NYPath::ToYPathLiteral(key));
 }
 
+void ThrowCannotSetOpaqueAttribute(const Stroka& key)
+{
+    THROW_ERROR_EXCEPTION("An opaque attribute cannot be set: %s",
+        ~ToYPathLiteral(key));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree

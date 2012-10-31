@@ -505,9 +505,11 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                 Stroka key(attribute.Key);
                 auto newAttributeYson = newAttributes->FindYson(key);
                 if (newAttributeYson) {
+                    if (!attribute.IsPresent) {
+                        ThrowCannotSetSystemAttribute(key);
+                    }
                     if (attribute.IsOpaque) {
-                        THROW_ERROR_EXCEPTION("Cannot set an opaque system attribute: %s",
-                            ~ToYPathLiteral(key));
+                        ThrowCannotSetOpaqueAttribute(key);
                     }
                     GuardedSetSystemAttribute(key, newAttributeYson.Get());
                     YCHECK(newAttributes->Remove(key));
@@ -561,9 +563,12 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
         }
 
         if (attribute) {
+            if (!attribute->IsPresent) {
+                ThrowCannotSetSystemAttribute(key);
+            }
+
             if (attribute->IsOpaque) {
-                THROW_ERROR_EXCEPTION("Cannot set an opaque system attribute: %s",
-                    ~ToYPathLiteral(key));
+                ThrowCannotSetOpaqueAttribute(key);
             }
 
             if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
