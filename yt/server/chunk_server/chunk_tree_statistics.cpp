@@ -15,22 +15,26 @@ void TChunkTreeStatistics::Accumulate(const TChunkTreeStatistics& other)
     Rank = Max(Rank, other.Rank);
 }
 
-void TChunkTreeStatistics::Save(TOutputStream* output) const
+////////////////////////////////////////////////////////////////////////////////
+
+void Save(const TChunkTreeStatistics& statistics, const NCellMaster::TSaveContext& context)
 {
-    ::Save(output, RowCount);
-    ::Save(output, UncompressedSize);
-    ::Save(output, CompressedSize);
-    ::Save(output, ChunkCount);
-    ::Save(output, Rank);
+    auto* output = context.GetOutput();
+    ::Save(output, statistics.RowCount);
+    ::Save(output, statistics.UncompressedSize);
+    ::Save(output, statistics.CompressedSize);
+    ::Save(output, statistics.ChunkCount);
+    ::Save(output, statistics.Rank);
 }
 
-void TChunkTreeStatistics::Load(TInputStream* input)
+void Load(TChunkTreeStatistics& statistics, const NCellMaster::TLoadContext& context)
 {
-    ::Load(input, RowCount);
-    ::Load(input, UncompressedSize);
-    ::Load(input, CompressedSize);
-    ::Load(input, ChunkCount);
-    ::Load(input, Rank);
+    auto* input = context.GetInput();
+    ::Load(input, statistics.RowCount);
+    ::Load(input, statistics.UncompressedSize);
+    ::Load(input, statistics.CompressedSize);
+    ::Load(input, statistics.ChunkCount);
+    ::Load(input, statistics.Rank);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

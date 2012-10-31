@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <server/cell_master/load_context.h>
+
 namespace NYT {
 namespace NChunkServer {
 
@@ -34,10 +36,10 @@ struct TChunkTreeStatistics
 
     void Accumulate(const TChunkTreeStatistics& other);
 
-    void Save(TOutputStream* output) const;
-    void Load(TInputStream* input);
-
 };
+
+void Save(const TChunkTreeStatistics& statistics, const NCellMaster::TSaveContext& context);
+void Load(TChunkTreeStatistics& statistics, const NCellMaster::TLoadContext& context);
 
 ////////////////////////////////////////////////////////////////////////////////
 

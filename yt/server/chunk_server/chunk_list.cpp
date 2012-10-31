@@ -44,7 +44,7 @@ void TChunkList::Save(const NCellMaster::TSaveContext& context) const
     SaveObjectRefs(output, Children_);
     SaveObjectRefs(output, Parents_);
     SaveObjectRefs(output, OwningNodes_);
-    ::Save(output, Statistics_);
+    NChunkServer::Save(Statistics_, context);
     ::Save(output, SortedBy_);
     ::Save(output, Rigid_);
     ::Save(output, RowCountSums_);
@@ -58,7 +58,7 @@ void TChunkList::Load(const NCellMaster::TLoadContext& context)
     LoadObjectRefs(input, Children_, context);
     LoadObjectRefs(input, Parents_, context);
     LoadObjectRefs(input, OwningNodes_, context);
-    ::Load(input, Statistics_);
+    NChunkServer::Load(Statistics_, context);
     ::Load(input, SortedBy_);
     ::Load(input, Rigid_);
     ::Load(input, RowCountSums_);
