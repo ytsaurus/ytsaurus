@@ -472,8 +472,7 @@ public:
                 const auto& statistics = pair.second;
                 // TODO(panin): maybe use here the same method as in attributes
                 fluent
-                    .Item(FormatEnum(pair.first))
-                    .BeginMap()
+                    .Item(FormatEnum(pair.first)).BeginMap()
                         .Item("chunk_count").Scalar(statistics.ChunkCount)
                         .Item("uncompressed_data_size").Scalar(statistics.UncompressedSize)
                         .Item("compressed_size").Scalar(statistics.CompressedSize)
