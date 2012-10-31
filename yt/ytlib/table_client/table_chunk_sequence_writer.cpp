@@ -20,7 +20,7 @@ TTableChunkSequenceWriter::TTableChunkSequenceWriter(
     NRpc::IChannelPtr masterChannel,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkList,
-    const std::vector<TChannel>& channels,
+    const TChannels& channels,
     const TNullable<TKeyColumns>& keyColumns)
     : TChunkSequenceWriterBase<TTableChunkWriter>(
         config, 

@@ -82,15 +82,14 @@ public:
             masterChannel,
             TTransactionId::FromProto(jobSpec.output_transaction_id()),
             TChunkListId::FromProto(jobSpec.output_specs(0).chunk_list_id()),
-            ChannelsFromYson(TYsonString(jobSpec.output_specs(0).channels())),
+            ConvertTo<TChannels>(TYsonString(jobSpec.output_specs(0).channels())),
             KeyColumns);
     }
 
     virtual NScheduler::NProto::TJobResult Run() override
     {
         PROFILE_TIMING ("/sort_time") {
-
-            auto keyColumnCount = KeyColumns.size();
+            size_t keyColumnCount = KeyColumns.size();
 
             yhash_map<TStringBuf, int> keyColumnToIndex;
 

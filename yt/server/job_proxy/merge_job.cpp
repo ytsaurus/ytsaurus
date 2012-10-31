@@ -24,7 +24,7 @@
 namespace NYT {
 namespace NJobProxy {
 
-using namespace NElection;
+using namespace NYTree;
 using namespace NTableClient;
 using namespace NChunkClient;
 using namespace NChunkServer;
@@ -84,7 +84,7 @@ public:
             masterChannel,
             TTransactionId::FromProto(jobSpec.output_transaction_id()),
             TChunkListId::FromProto(jobSpec.output_specs(0).chunk_list_id()),
-            ChannelsFromYson(NYTree::TYsonString(jobSpec.output_specs(0).channels())),
+            ConvertTo<TChannels>(NYTree::TYsonString(jobSpec.output_specs(0).channels())),
             KeyColumns);
     }
 

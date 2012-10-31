@@ -65,7 +65,7 @@ ISyncWriterPtr TUserJobIO::CreateTableOutput(int index) const
 
     Stroka channelsString = JobSpec.output_specs(index).channels();
     YCHECK(!channelsString.empty());
-    auto channels = ChannelsFromYson(TYsonString(channelsString));
+    auto channels = ConvertTo<TChannels>(TYsonString(channelsString));
     auto chunkSequenceWriter = New<TTableChunkSequenceWriter>(
         IOConfig->TableWriter,
         MasterChannel,

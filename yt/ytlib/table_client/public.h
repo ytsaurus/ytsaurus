@@ -103,6 +103,9 @@ typedef TIntrusivePtr<TRefCountedInputChunk> TRefCountedInputChunkPtr;
 
 struct IPartitioner;
 
+class TChannel;
+typedef std::vector<TChannel> TChannels;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

@@ -1,6 +1,9 @@
 ﻿#pragma once
 
+#include "public.h"
+
 #include <ytlib/table_client/table_chunk_meta.pb.h>
+
 #include <ytlib/ytree/public.h>
 
 namespace NYT {
@@ -41,6 +44,8 @@ private:
 class TChannel
 {
 public:
+    TChannel();
+
     void AddColumn(const Stroka& column);
     void AddRange(const TRange& range);
     void AddRange(const Stroka& begin, const Stroka& end);
@@ -58,28 +63,25 @@ public:
     NProto::TChannel ToProto() const;
     static TChannel FromProto(const NProto::TChannel& protoChannel);
 
-    static TChannel FromYson(const NYTree::TYsonString& yson);
-    static TChannel FromNode(NYTree::INodePtr node);
-
     const std::vector<Stroka>& GetColumns() const;
 
     //! Returns the channel containing all possible columns.
-    static TChannel CreateUniversal();
+    static const TChannel& Universal();
+
     //! Returns the empty channel.
-    static TChannel CreateEmpty();
+    static const TChannel& Empty();
 
 private:
-    TChannel();
+    friend TChannel& operator -= (TChannel& lhs, const TChannel& rhs);
 
-    friend void operator -= (TChannel& lhs, const TChannel& rhs);
+    std::vector<Stroka> Columns_;
+    std::vector<TRange> Ranges_;
 
-    std::vector<Stroka> Columns;
-    std::vector<TRange> Ranges;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TChannel> ChannelsFromYson(const NYTree::TYsonString& yson);
+void Deserialize(TChannel& channel, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -20,7 +20,7 @@ TRange::TRange(const Stroka& begin, const Stroka& end)
     , End_(end)
 {
     if (begin >= end) {
-        THROW_ERROR_EXCEPTION("Invalid range (Begin: %s, End: %s)",
+        THROW_ERROR_EXCEPTION("Invalid range: [%s,%s]",
             ~begin,
             ~end);
     }
@@ -102,33 +102,33 @@ TChannel::TChannel()
 
 void TChannel::AddColumn(const Stroka& column)
 {
-    FOREACH (const auto& existingColumn, Columns) {
+    FOREACH (const auto& existingColumn, Columns_) {
         if (existingColumn == column) {
             return;
         }
     }
 
-    Columns.push_back(column);
+    Columns_.push_back(column);
 }
 
 void TChannel::AddRange(const TRange& range)
 {
-    Ranges.push_back(range);
+    Ranges_.push_back(range);
 }
 
 void TChannel::AddRange(const Stroka& begin, const Stroka& end)
 {
-    Ranges.push_back(TRange(begin, end));
+    Ranges_.push_back(TRange(begin, end));
 }
 
 NProto::TChannel TChannel::ToProto() const
 {
     NProto::TChannel protoChannel;
-    FOREACH (auto column, Columns) {
+    FOREACH (const auto& column, Columns_) {
         protoChannel.add_columns(~column);
     }
 
-    FOREACH (const auto& range, Ranges) {
+    FOREACH (const auto& range, Ranges_) {
         *protoChannel.add_ranges() = range.ToProto();
     }
     return protoChannel;
@@ -149,7 +149,7 @@ NYT::NTableClient::TChannel TChannel::FromProto(const NProto::TChannel& protoCha
 
 bool TChannel::Contains(const TStringBuf& column) const
 {
-    FOREACH (auto& oldColumn, Columns) {
+    FOREACH (const auto& oldColumn, Columns_) {
         if (oldColumn == column) {
             return true;
         }
@@ -159,7 +159,7 @@ bool TChannel::Contains(const TStringBuf& column) const
 
 bool TChannel::Contains(const TRange& range) const
 {
-    FOREACH (auto& currentRange, Ranges) {
+    FOREACH (const auto& currentRange, Ranges_) {
         if (currentRange.Contains(range)) {
             return true;
         }
@@ -169,13 +169,13 @@ bool TChannel::Contains(const TRange& range) const
 
 bool TChannel::Contains(const TChannel& channel) const
 {
-    FOREACH (auto& column, channel.Columns) {
+    FOREACH (const auto& column, channel.Columns_) {
         if (!Contains(column)) {
             return false;
         }
     }
 
-    FOREACH (auto& range, channel.Ranges) {
+    FOREACH (const auto& range, channel.Ranges_) {
         if (!Contains(range)) {
             return false;
         }
@@ -186,7 +186,7 @@ bool TChannel::Contains(const TChannel& channel) const
 
 bool TChannel::ContainsInRanges(const TStringBuf& column) const
 {
-    FOREACH (auto& range, Ranges) {
+    FOREACH (const auto& range, Ranges_) {
         if (range.Contains(column)) {
             return true;
         }
@@ -196,13 +196,13 @@ bool TChannel::ContainsInRanges(const TStringBuf& column) const
 
 bool TChannel::Overlaps(const TRange& range) const
 {
-    FOREACH (auto& column, Columns) {
+    FOREACH (const auto& column, Columns_) {
         if (range.Contains(column)) {
             return true;
         }
     }
 
-    FOREACH (auto& currentRange, Ranges) {
+    FOREACH (const auto& currentRange, Ranges_) {
         if (currentRange.Overlaps(range)) {
             return true;
         }
@@ -213,13 +213,13 @@ bool TChannel::Overlaps(const TRange& range) const
 
 bool TChannel::Overlaps(const TChannel& channel) const
 {
-    FOREACH (auto& column, channel.Columns) {
+    FOREACH (const auto& column, channel.Columns_) {
         if (Contains(column)) {
             return true;
         }
     }
 
-    FOREACH (auto& range, channel.Ranges) {
+    FOREACH (const auto& range, channel.Ranges_) {
         if (Overlaps(range)) {
             return true;
         }
@@ -230,38 +230,100 @@ bool TChannel::Overlaps(const TChannel& channel) const
 
 const std::vector<Stroka>& TChannel::GetColumns() const
 {
-    return Columns;
+    return Columns_;
 }
 
 bool TChannel::IsEmpty() const
 {
-    return Columns.empty() && Ranges.empty();
+    return Columns_.empty() && Ranges_.empty();
 }
 
-TChannel TChannel::CreateUniversal()
+namespace {
+
+TChannel CreateUniversal()
 {
     TChannel result;
     result.AddRange(TRange(""));
-    return result;
+    return result;   
 }
 
-TChannel TChannel::CreateEmpty()
+TChannel CreateEmpty()
 {
     return TChannel();
 }
 
-TChannel TChannel::FromYson(const NYTree::TYsonString& yson)
+} // namespace
+
+const TChannel& TChannel::Universal()
 {
-    return FromNode(ConvertToNode(yson));
+    static auto result = CreateUniversal();
+    return result;
 }
 
-TChannel TChannel::FromNode(INodePtr node)
+const TChannel& TChannel::Empty()
+{
+    static auto result = CreateEmpty();
+    return result;
+}
+
+TChannel& operator -= (TChannel& lhs, const TChannel& rhs)
+{
+    std::vector<Stroka> newColumns;
+    FOREACH (const auto& column, lhs.Columns_) {
+        if (!rhs.Contains(column)) {
+            newColumns.push_back(column);
+        }
+    }
+    lhs.Columns_.swap(newColumns);
+
+    std::vector<TRange> rhsRanges(rhs.Ranges_);
+    FOREACH (const auto& column, rhs.Columns_) {
+        // Add single columns as ranges.
+        Stroka rangeEnd;
+        rangeEnd.reserve(column.Size() + 1);
+        rangeEnd.append(column);
+        rangeEnd.append('\0');
+        rhsRanges.push_back(TRange(column, rangeEnd));
+    }
+
+    std::vector<TRange> newRanges;
+    FOREACH (const auto& rhsRange, rhsRanges) {
+        FOREACH (const auto& lhsRange, lhs.Ranges_) {
+            if (!lhsRange.Overlaps(rhsRange)) {
+                newRanges.push_back(lhsRange);
+                continue;
+            } 
+
+            if (lhsRange.Begin() < rhsRange.Begin()) {
+                newRanges.push_back(TRange(lhsRange.Begin(), rhsRange.Begin()));
+            }
+
+            if (rhsRange.IsInfinite()) {
+                continue;
+            }
+
+            if (lhsRange.IsInfinite()) {
+                newRanges.push_back(TRange(rhsRange.End()));
+            } else if (lhsRange.End() > rhsRange.End()) {
+                newRanges.push_back(TRange(rhsRange.End(), lhsRange.End()));
+            }
+        }
+        lhs.Ranges_.swap(newRanges);
+        newRanges.clear();
+    }
+
+    return lhs;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Deserialize(TChannel& channel, INodePtr node)
 {
     if (node->GetType() != ENodeType::List) {
         THROW_ERROR_EXCEPTION("Channel description can only be parsed from a list");
     }
 
-    TChannel channel;
+    channel = TChannel::Empty();
     FOREACH (auto child, node->AsList()->GetChildren()) {
         switch (child->GetType()) {
             case ENodeType::String:
@@ -297,82 +359,16 @@ TChannel TChannel::FromNode(INodePtr node)
                     }
 
                     default:
-                        THROW_ERROR_EXCEPTION("Invalid channel range description");
+                        THROW_ERROR_EXCEPTION("Channel range description cannot contain %d items",
+                            listChild->GetChildCount());
                 };
                 break;
-                                  }
+            }
 
             default:
                 THROW_ERROR_EXCEPTION("Channel description cannot contain %s items",
                     ~child->GetType().ToString().Quote());
         }
-    }
-
-    return channel;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void operator-= (TChannel& lhs, const TChannel& rhs)
-{
-    std::vector<Stroka> newColumns;
-    FOREACH (auto column, lhs.Columns) {
-        if (!rhs.Contains(column)) {
-            newColumns.push_back(column);
-        }
-    }
-    lhs.Columns.swap(newColumns);
-
-    std::vector<TRange> rhsRanges(rhs.Ranges);
-    FOREACH (auto column, rhs.Columns) {
-        // Add single columns as ranges.
-        Stroka rangeEnd;
-        rangeEnd.reserve(column.Size() + 1);
-        rangeEnd.append(column);
-        rangeEnd.append('\0');
-        rhsRanges.push_back(TRange(column, rangeEnd));
-    }
-
-    std::vector<TRange> newRanges;
-    FOREACH (auto& rhsRange, rhsRanges) {
-        FOREACH (auto& lhsRange, lhs.Ranges) {
-            if (!lhsRange.Overlaps(rhsRange)) {
-                newRanges.push_back(lhsRange);
-                continue;
-            } 
-
-            if (lhsRange.Begin() < rhsRange.Begin()) {
-                newRanges.push_back(TRange(lhsRange.Begin(), rhsRange.Begin()));
-            }
-
-            if (rhsRange.IsInfinite()) {
-                continue;
-            }
-
-            if (lhsRange.IsInfinite()) {
-                newRanges.push_back(TRange(rhsRange.End()));
-            } else if (lhsRange.End() > rhsRange.End()) {
-                newRanges.push_back(TRange(rhsRange.End(), lhsRange.End()));
-            }
-        }
-        lhs.Ranges.swap(newRanges);
-        newRanges.clear();
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<TChannel> ChannelsFromYson(const NYTree::TYsonString& yson)
-{
-    try {
-        std::vector<TChannel> result;
-        FOREACH (auto channelNode, ConvertToNode(yson)->AsList()->GetChildren()) {
-            result.push_back(TChannel::FromNode(channelNode));
-        }
-        return result;
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error parsing channels description")
-            << ex;
     }
 }
 

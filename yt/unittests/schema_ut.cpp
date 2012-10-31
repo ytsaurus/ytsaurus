@@ -66,13 +66,13 @@ TEST_F(TSchemaTest, RangeOverlaps)
 
 TEST_F(TSchemaTest, ChannelContains)
 {
-    TChannel ch1 = TChannel::CreateEmpty();
+    auto ch1 = TChannel::Empty();
     ch1.AddColumn("anything");
     EXPECT_TRUE(ch1.Contains("anything"));
     EXPECT_FALSE(ch1.Contains(TRange("anything")));
 
     {
-        TChannel ch2 = TChannel::CreateEmpty();
+        auto ch2 = TChannel::Empty();
         ch2.AddColumn("anything");
         EXPECT_TRUE(ch1.Contains(ch2));
         EXPECT_TRUE(ch2.Contains(ch1));
@@ -81,7 +81,7 @@ TEST_F(TSchemaTest, ChannelContains)
     ch1.AddRange(TRange("m", "p"));
 
     {
-        TChannel ch2 = TChannel::CreateEmpty();
+        auto ch2 = TChannel::Empty();
         ch2.AddColumn("anything");
         EXPECT_TRUE(ch1.Contains(ch2));
         EXPECT_FALSE(ch2.Contains(ch1));
@@ -94,11 +94,11 @@ TEST_F(TSchemaTest, ChannelContains)
 
 TEST_F(TSchemaTest, ChannelOverlaps)
 {
-    TChannel ch1 = TChannel::CreateEmpty();
+    auto ch1 = TChannel::Empty();
     ch1.AddRange(TRange("a", "c"));
 
     {
-        TChannel ch2 = TChannel::CreateEmpty();
+        auto ch2 = TChannel::Empty();
         ch2.AddColumn("anything");
         EXPECT_TRUE(ch1.Overlaps(ch2));
         EXPECT_TRUE(ch2.Overlaps(ch1));
@@ -106,21 +106,21 @@ TEST_F(TSchemaTest, ChannelOverlaps)
 
     {
         EXPECT_TRUE(TRange("a", "c").Overlaps(TRange("b", "d")));
-        TChannel ch2 = TChannel::CreateEmpty();
+        auto ch2 = TChannel::Empty();
         ch2.AddRange(TRange("b", "d"));
         EXPECT_TRUE(ch1.Overlaps(ch2));
         EXPECT_TRUE(ch2.Overlaps(ch1));
     }
 
     {
-        TChannel ch2 = TChannel::CreateEmpty();
+        auto ch2 = TChannel::Empty();
         ch2.AddRange(TRange(""));
         EXPECT_TRUE(ch1.Overlaps(ch2));
         EXPECT_TRUE(ch2.Overlaps(ch1));
     }
 
     {
-        TChannel ch2 = TChannel::CreateEmpty();
+        auto ch2 = TChannel::Empty();
         ch2.AddRange(TRange("c", "d"));
         EXPECT_FALSE(ch1.Overlaps(ch2));
         EXPECT_FALSE(ch2.Overlaps(ch1));
@@ -129,7 +129,7 @@ TEST_F(TSchemaTest, ChannelOverlaps)
     ch1.AddColumn("Hello!");
 
     {
-        TChannel ch2 = TChannel::CreateEmpty();
+        auto ch2 = TChannel::Empty();
         ch2.AddRange(TRange("c", "d"));
         ch2.AddColumn("Hello!");
         EXPECT_TRUE(ch1.Overlaps(ch2));
@@ -141,9 +141,9 @@ TEST_F(TSchemaTest, ChannelSubtract)
 {
     {
         TChannel 
-            ch1 = TChannel::CreateEmpty(), 
-            ch2 = TChannel::CreateEmpty(), 
-            res = TChannel::CreateEmpty();
+            ch1 = TChannel::Empty(), 
+            ch2 = TChannel::Empty(), 
+            res = TChannel::Empty();
 
         ch1.AddRange(TRange("a", "c"));
         ch1.AddColumn("something");
@@ -160,9 +160,9 @@ TEST_F(TSchemaTest, ChannelSubtract)
 
     {
         TChannel 
-            ch1 = TChannel::CreateEmpty(), 
-            ch2 = TChannel::CreateEmpty(), 
-            res = TChannel::CreateEmpty();
+            ch1 = TChannel::Empty(), 
+            ch2 = TChannel::Empty(), 
+            res = TChannel::Empty();
 
         ch1.AddRange(TRange("a", "c"));
         ch1.AddColumn("something");
@@ -179,9 +179,9 @@ TEST_F(TSchemaTest, ChannelSubtract)
 
     {
         TChannel 
-            ch1 = TChannel::CreateEmpty(), 
-            ch2 = TChannel::CreateEmpty(), 
-            res = TChannel::CreateEmpty();
+            ch1 = TChannel::Empty(), 
+            ch2 = TChannel::Empty(), 
+            res = TChannel::Empty();
 
         ch1.AddRange(TRange("a", "c"));
         ch1.AddColumn("something");

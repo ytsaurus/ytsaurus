@@ -1683,7 +1683,7 @@ private:
         *inputChunk->mutable_slice()->mutable_chunk_id() = chunk->GetId().ToProto();
         inputChunk->mutable_slice()->mutable_start_limit();
         inputChunk->mutable_slice()->mutable_end_limit();
-        *inputChunk->mutable_channel() = NTableClient::TChannel::CreateUniversal().ToProto();
+        *inputChunk->mutable_channel() = NTableClient::TChannel::Universal().ToProto();
         inputChunk->mutable_extensions()->CopyFrom(chunk->ChunkMeta().extensions());
 
         auto miscExt = GetProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());

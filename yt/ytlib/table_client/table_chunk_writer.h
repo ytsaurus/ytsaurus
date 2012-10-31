@@ -31,7 +31,7 @@ public:
     TTableChunkWriter(
         TChunkWriterConfigPtr config,
         NChunkClient::IAsyncWriterPtr chunkWriter,
-        const std::vector<TChannel>& channels,
+        const TChannels& channels,
         const TNullable<TKeyColumns>& keyColumns);
 
     ~TTableChunkWriter();
@@ -81,7 +81,7 @@ private:
         { }
     };
 
-    std::vector<TChannel> Channels;
+    TChannels Channels;
 
     bool IsOpen;
 

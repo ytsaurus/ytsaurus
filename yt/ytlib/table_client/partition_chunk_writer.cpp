@@ -36,7 +36,7 @@ TPartitionChunkWriter::TPartitionChunkWriter(
     for (int i = 0; i < KeyColumns.Get().size(); ++i) {
         KeyColumnIndexes[KeyColumns.Get()[i]] = i;
     }
-    *ChannelsExt.add_items()->mutable_channel() = TChannel::CreateUniversal().ToProto();
+    *ChannelsExt.add_items()->mutable_channel() = TChannel::Universal().ToProto();
 
     for (int partitionTag = 0; partitionTag < Partitioner->GetPartitionCount(); ++partitionTag) {
         // Write range column sizes to effectively skip during reading.

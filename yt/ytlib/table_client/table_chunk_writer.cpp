@@ -31,7 +31,7 @@ static const int RangeColumnIndex = -1;
 TTableChunkWriter::TTableChunkWriter(
     TChunkWriterConfigPtr config,
     NChunkClient::IAsyncWriterPtr chunkWriter,
-    const std::vector<TChannel>& channels,
+    const TChannels& channels,
     const TNullable<TKeyColumns>& keyColumns)
     : TChunkWriterBase(config, chunkWriter, keyColumns)
     , Channels(channels)
@@ -46,7 +46,7 @@ TTableChunkWriter::TTableChunkWriter(
     MiscExt.set_codec_id(Config->CodecId);
 
     // Init trash channel.
-    auto trashChannel = TChannel::CreateUniversal();
+    auto trashChannel = TChannel::Universal();
     FOREACH (const auto& channel, Channels) {
         trashChannel -= channel;
     }

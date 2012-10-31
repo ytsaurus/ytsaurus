@@ -557,7 +557,7 @@ private:
     THolder<TKeyValidator> StartValidator;
 
     NProto::TChannelsExt ChannelsExt;
-    std::vector<TChannel> ChunkChannels;
+    TChannels ChunkChannels;
     std::vector<int> SelectedChannels;
 
     //! First row of the first block in each selected channel.

@@ -76,7 +76,7 @@ void TTableWriter::Open()
 
     LOG_INFO("Requesting table info");
     TChunkListId chunkListId;
-    std::vector<TChannel> channels;
+    TChannels channels;
     {
         auto batchReq = ObjectProxy.ExecuteBatch();
 
@@ -132,7 +132,7 @@ void TTableWriter::Open()
             
             auto channelsYson = attributes.FindYson("channels");
             if (channelsYson) {
-                channels = ChannelsFromYson(channelsYson.Get());
+                channels = ConvertTo<TChannels>(channelsYson.Get());
             }
 
             // COMPAT(babenko): eliminate default value

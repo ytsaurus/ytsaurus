@@ -18,7 +18,7 @@ public:
         NRpc::IChannelPtr masterChannel,
         const NTransactionClient::TTransactionId& transactionId,
         const NChunkClient::TChunkListId& parentChunkList,
-        const std::vector<TChannel>& channels,
+        const TChannels& channels,
         const TNullable<TKeyColumns>& keyColumns = Null);
 
     ~TTableChunkSequenceWriter();
@@ -28,10 +28,10 @@ public:
     bool TryWriteRowUnsafe(const TRow& row);
 
 private:
+    const TChannels Channels;
+
     virtual void InitCurrentSession(TSession nextSession) override;
     virtual void PrepareChunkWriter(TSession* newSession) override;
-
-    const std::vector<TChannel> Channels;
 
 };
 
