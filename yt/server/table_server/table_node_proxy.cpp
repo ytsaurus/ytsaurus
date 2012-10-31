@@ -53,7 +53,7 @@ void ParseChannel(TTokenizer& tokenizer, TChannel* channel)
 {
     if (tokenizer.GetCurrentType() == BeginColumnSelectorToken) {
         tokenizer.ParseNext();
-        *channel = TChannel::CreateEmpty();
+        *channel = TChannel::Empty();
         while (tokenizer.GetCurrentType() != EndColumnSelectorToken) {
             Stroka begin;
             bool isRange = false;
@@ -106,7 +106,7 @@ void ParseChannel(TTokenizer& tokenizer, TChannel* channel)
         }
         tokenizer.ParseNext();
     } else {
-        *channel = TChannel::CreateUniversal();
+        *channel = TChannel::Universal();
     }
 }
 
@@ -669,7 +669,7 @@ void TTableNodeProxy::ValidateUserAttributeUpdate(
         if (!newValue) {
             ThrowCannotRemoveAttribute();
         }
-        ChannelsFromYson(newValue.Get());
+        ConvertTo<TChannels>(newValue.Get());
         return;
     }
 }
@@ -677,11 +677,11 @@ void TTableNodeProxy::ValidateUserAttributeUpdate(
 bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& value)
 {
     if (key == "replication_factor") {
-        int value = ConvertTo<int>(value);
+        int replicationFactor = ConvertTo<int>(value);
         
         const int MinReplicationFactor = 1;
         const int MaxReplicationFactor = 10;
-        if (value < MinReplicationFactor || value > MaxReplicationFactor) {
+        if (replicationFactor < MinReplicationFactor || replicationFactor > MaxReplicationFactor) {
             THROW_ERROR_EXCEPTION("Value must be in range [%d,%d]",
                 MinReplicationFactor,
                 MaxReplicationFactor);
@@ -693,7 +693,7 @@ bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& v
 
         auto* impl = GetThisTypedMutableImpl();
         YCHECK(impl->GetTrunkNode() == impl);
-        impl->SetReplicationFactor(value);
+        impl->SetReplicationFactor(replicationFactor);
 
         return true;
     }
@@ -808,7 +808,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
 
     const auto* impl = GetThisTypedImpl();
 
-    auto channel = TChannel::CreateEmpty();
+    auto channel = TChannel::Empty();
     TReadLimit lowerLimit, upperLimit;
     ParseYPath(context->GetPath(), &channel, &lowerLimit, &upperLimit);
     auto* chunkList = impl->GetChunkList();

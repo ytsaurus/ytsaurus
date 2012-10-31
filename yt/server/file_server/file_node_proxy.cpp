@@ -63,11 +63,11 @@ void TFileNodeProxy::ValidateUserAttributeUpdate(
 bool TFileNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& value)
 {
     if (key == "replication_factor") {
-        int value = ConvertTo<int>(value);
+        int replicationFactor = ConvertTo<int>(value);
 
         const int MinReplicationFactor = 1;
         const int MaxReplicationFactor = 10;
-        if (value < MinReplicationFactor || value > MaxReplicationFactor) {
+        if (replicationFactor < MinReplicationFactor || replicationFactor > MaxReplicationFactor) {
             THROW_ERROR_EXCEPTION("Value must be in range [%d,%d]",
                 MinReplicationFactor,
                 MaxReplicationFactor);
@@ -79,7 +79,7 @@ bool TFileNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& va
 
         auto* impl = GetThisTypedMutableImpl();
         YCHECK(impl->GetTrunkNode() == impl);
-        impl->SetReplicationFactor(value);
+        impl->SetReplicationFactor(replicationFactor);
 
         return true;
     }
