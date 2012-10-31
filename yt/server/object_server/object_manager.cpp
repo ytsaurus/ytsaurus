@@ -788,7 +788,7 @@ void TObjectManager::GCSweep()
         return;
     }
 
-    // Extract up to GCObjectsPerMutation objects and post a mutation.
+    // Extract up to MaxObjectsPerGCSweep objects and post a mutation.
     NProto::TMetaReqDestroyObjects request;
     auto it = GCQueue.begin();
     while (it != GCQueue.end() && request.object_ids_size() < Config->MaxObjectsPerGCSweep) {
@@ -796,7 +796,7 @@ void TObjectManager::GCSweep()
         ++it;
     }
 
-    LOG_DEBUG("Starting GC commit for %d objects", request.object_ids_size());
+    LOG_DEBUG("Starting GC sweep for %d objects", request.object_ids_size());
 
     Bootstrap
         ->GetMetaStateFacade()
@@ -808,7 +808,7 @@ void TObjectManager::GCSweep()
 
 void TObjectManager::OnGCCommitSucceeded()
 {
-    LOG_DEBUG("GC commit succeeded");
+    LOG_DEBUG("GC sweep commit succeeded");
 
     GCSweepInvoker->ScheduleOutOfBand();
     GCSweepInvoker->ScheduleNext();
@@ -816,7 +816,7 @@ void TObjectManager::OnGCCommitSucceeded()
 
 void TObjectManager::OnGCCommitFailed(const TError& error)
 {
-    LOG_WARNING(error, "GC commit failed");
+    LOG_WARNING(error, "GC sweep commit failed");
 
     GCSweepInvoker->ScheduleOutOfBand();
     GCSweepInvoker->ScheduleNext();
