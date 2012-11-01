@@ -9,7 +9,6 @@ class Base(RemoteNode):
     bin_path = '/home/yt/build/bin/rpc'
 
     libs = [
-        '/home/yt/build/lib/libstlport.so.5.2',
         '/home/yt/build/lib/libyajl.so.2',
         '/home/yt/build/lib/libytext-fastlz.so.0.1',
         '/home/yt/build/lib/libytext-json.so',

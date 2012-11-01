@@ -37,7 +37,6 @@ class Base(AggrBase):
     path = opts.get_string('--name', 'control')
     base_dir = '/yt/disk1/data'
     libs = [
-        '/home/yt/build/lib/libstlport.so.5.2',
         '/home/yt/build/lib/libyajl.so.2',
         '/home/yt/build/lib/libytext-json.so',
         '/home/yt/build/lib/libytext-uv.so.0.6'
