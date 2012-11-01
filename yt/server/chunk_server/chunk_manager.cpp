@@ -607,9 +607,9 @@ public:
         return ChunkReplicator->IsEnabled();
     }
 
-    void ScheduleRFUpdate(const TChunkList* chunkList)
+    void ScheduleRFUpdate(TChunkTreeRef ref)
     {
-        ChunkReplicator->ScheduleRFUpdate(chunkList);
+        ChunkReplicator->ScheduleRFUpdate(ref);
     }
 
 
@@ -1852,9 +1852,9 @@ bool TChunkManager::IsReplicatorEnabled()
     return Impl->IsReplicatorEnabled();
 }
 
-void TChunkManager::ScheduleRFUpdate(const TChunkList* chunkList)
+void TChunkManager::ScheduleRFUpdate(TChunkTreeRef ref)
 {
-    Impl->ScheduleRFUpdate(chunkList);
+    Impl->ScheduleRFUpdate(ref);
 }
 
 void TChunkManager::FillNodeAddresses(

@@ -46,7 +46,7 @@ public:
 
     void ScheduleChunkRemoval(const TDataNode* node, const TChunkId& chunkId);
 
-    void ScheduleRFUpdate(const TChunkList* chunkList);
+    void ScheduleRFUpdate(TChunkTreeRef ref);
 
     void ScheduleJobs(
         TDataNode* node,
@@ -141,6 +141,7 @@ private:
     void Refresh(const TChunk* chunk);
 
     void ScheduleRFUpdate(const TChunk* chunk);
+    void ScheduleRFUpdate(const TChunkList* chunkList);
     void OnRFUpdate();
     void OnRFUpdateCommitSucceeded();
     void OnRFUpdateCommitFailed(const TError& error);

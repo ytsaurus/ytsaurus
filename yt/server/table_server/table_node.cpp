@@ -209,6 +209,9 @@ protected:
 
         YCHECK(branchedChunkList->OwningNodes().erase(branchedNode) == 1);
 
+        // Only schedule RF update when the topmost transaction commits.
+        bool needRFUpdate = !originatingNode->GetId().IsBranched();
+
         if (branchedMode == ETableUpdateMode::None) {
             objectManager->UnrefObject(branchedChunkList);
 
@@ -229,6 +232,10 @@ protected:
                 originatingNode->SetUpdateMode(ETableUpdateMode::Overwrite);
             }
 
+            if (needRFUpdate) {
+                chunkManager->ScheduleRFUpdate(branchedChunkList);
+            }
+
             return;
         }
 
@@ -236,6 +243,7 @@ protected:
             branchedMode == ETableUpdateMode::Append)
         {
             YCHECK(branchedChunkList->Children().size() == 2);
+            auto deltaRef = branchedChunkList->Children()[1];
 
             bool setOriginatingAppendMode =
                 originatingMode == ETableUpdateMode::None &&
@@ -251,14 +259,17 @@ protected:
             objectManager->RefObject(newOriginatingChunkList);
          
             chunkManager->AttachToChunkList(newOriginatingChunkList, originatingChunkList);
-            chunkManager->AttachToChunkList(newOriginatingChunkList, branchedChunkList->Children()[1]);
+            chunkManager->AttachToChunkList(newOriginatingChunkList, deltaRef);
 
             objectManager->UnrefObject(originatingChunkList);
             objectManager->UnrefObject(branchedChunkList);
 
-
             if (setOriginatingAppendMode) {
                 originatingNode->SetUpdateMode(ETableUpdateMode::Append);
+            }
+
+            if (needRFUpdate) {
+                chunkManager->ScheduleRFUpdate(deltaRef);
             }
 
             return;
@@ -291,6 +302,9 @@ protected:
             objectManager->UnrefObject(branchedChunkList);
 
             // originatingMode remains Append.
+
+            YCHECK(!needRFUpdate);
+
             return;
         }
 

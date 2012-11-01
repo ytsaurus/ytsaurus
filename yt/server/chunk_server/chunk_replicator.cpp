@@ -27,8 +27,9 @@ namespace NYT {
 namespace NChunkServer {
 
 using namespace NCellMaster;
-using namespace NProto;
+using namespace NObjectClient;
 using namespace NProfiling;
+using namespace NChunkServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -689,7 +690,21 @@ bool TChunkReplicator::IsEnabled()
     return true;
 }
 
-void TChunkReplicator::ScheduleRFUpdate(const TChunkList* root)
+void TChunkReplicator::ScheduleRFUpdate(TChunkTreeRef ref)
+{
+    switch (ref.GetType()) {
+        case EObjectType::Chunk:
+            ScheduleRFUpdate(ref.AsChunk());
+            break;
+        case EObjectType::ChunkList:
+            ScheduleRFUpdate(ref.AsChunkList());
+            break;
+        default:
+            YUNREACHABLE();
+    }
+}
+
+void TChunkReplicator::ScheduleRFUpdate(const TChunkList* chunkList)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -737,7 +752,7 @@ void TChunkReplicator::ScheduleRFUpdate(const TChunkList* root)
 
     };
 
-    New<TVisitor>(Bootstrap, this, root)->Run();
+    New<TVisitor>(Bootstrap, this, chunkList)->Run();
 }
 
 void TChunkReplicator::ScheduleRFUpdate(const TChunk* chunk)

@@ -115,7 +115,7 @@ public:
 
     bool IsReplicatorEnabled();
 
-    void ScheduleRFUpdate(const TChunkList* chunkList);
+    void ScheduleRFUpdate(TChunkTreeRef REF);
 
         //! Fills a given protobuf structure with the list of data node addresses.
     /*!
