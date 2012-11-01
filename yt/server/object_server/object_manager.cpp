@@ -769,7 +769,7 @@ void TObjectManager::GCDequeue(const TObjectId& expectedId)
     YCHECK(GCQueue.front() == expectedId);
     GCQueue.pop_front();
     if (GCQueue.empty()) {
-        LOG_DEBUG("GC queue is empty");
+        LOG_DEBUG_UNLESS(IsRecovery(), "GC queue is empty");
         GCCollectPromise.Set();
     }
 
