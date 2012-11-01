@@ -91,7 +91,8 @@ TClusterResources TFileNodeProxy::GetResourceUsage() const
 {
     const auto* impl = GetThisTypedImpl();
     const auto* chunkList = impl->GetChunkList();
-    return TClusterResources(chunkList->Statistics().DiskSpace);
+    i64 diskSpace = chunkList->Statistics().DiskSpace * impl->GetReplicationFactor();
+    return TClusterResources(diskSpace);
 }
 
 void TFileNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const
@@ -118,19 +119,19 @@ bool TFileNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consum
     auto miscExt = GetProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
     if (key == "size") {
         BuildYsonFluently(consumer)
-            .Scalar(statistics.UncompressedSize);
+            .Scalar(statistics.UncompressedDataSize);
         return true;
     }
 
     if (key == "compressed_size") {
         BuildYsonFluently(consumer)
-            .Scalar(statistics.CompressedSize);
+            .Scalar(statistics.CompressedDataSize);
         return true;
     }
 
     if (key == "compression_ratio") {
-        double ratio = statistics.UncompressedSize > 0 ?
-            static_cast<double>(statistics.CompressedSize) / statistics.UncompressedSize : 0;
+        double ratio = statistics.UncompressedDataSize > 0 ?
+            static_cast<double>(statistics.CompressedDataSize) / statistics.UncompressedDataSize : 0;
         BuildYsonFluently(consumer)
             .Scalar(ratio);
         return true;

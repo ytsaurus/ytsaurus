@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/ytree/public.h>
+
 #include <server/cell_master/serialization_context.h>
 
 namespace NYT {
@@ -14,13 +16,16 @@ struct TChunkTreeStatistics
     //! Total number of rows in the tree.
     i64 RowCount;
     
-    //! Sum of uncompressed sizes of chunks in the tree.
-    i64 UncompressedSize;
+    //! Sum of uncompressed data sizes of chunks in the tree.
+    i64 UncompressedDataSize;
     
-    //! Sum of compressed sizes of chunks in the tree.
-    i64 CompressedSize;
+    //! Sum of compressed data sizes of chunks in the tree.
+    i64 CompressedDataSize;
     
-    //! Disk space occupied on data nodes (with replication).
+    //! Sum of data weights of chunks in the tree.
+    i64 DataWeight;
+
+    //! Disk space occupied on data nodes (without replication).
     i64 DiskSpace;
 
     //! Total number of chunks in the tree.
@@ -34,6 +39,8 @@ struct TChunkTreeStatistics
     void Accumulate(const TChunkTreeStatistics& other);
 
 };
+
+void Serialize(const TChunkTreeStatistics& statistics, NYTree::IYsonConsumer* consumer);
 
 void Save(const TChunkTreeStatistics& statistics, const NCellMaster::TSaveContext& context);
 void Load(TChunkTreeStatistics& statistics, const NCellMaster::TLoadContext& context);

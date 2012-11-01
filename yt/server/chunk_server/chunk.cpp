@@ -39,14 +39,15 @@ TChunk::~TChunk()
 
 TChunkTreeStatistics TChunk::GetStatistics() const
 {
-    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(ChunkMeta().extensions());
-    YASSERT(ChunkInfo().size() != TChunk::UnknownSize);
+    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(ChunkMeta_.extensions());
+    YASSERT(ChunkInfo_.size() != TChunk::UnknownSize);
 
     TChunkTreeStatistics result;
     result.RowCount = miscExt.row_count();
-    result.UncompressedSize = miscExt.uncompressed_data_size();
-    result.CompressedSize = miscExt.compressed_data_size();
-    result.DiskSpace = ChunkInfo().size() * ReplicationFactor_;
+    result.UncompressedDataSize = miscExt.uncompressed_data_size();
+    result.CompressedDataSize = miscExt.compressed_data_size();
+    result.DataWeight = miscExt.data_weight();
+    result.DiskSpace = ChunkInfo_.size();
     result.ChunkCount = 1;
     result.Rank = 0;
 

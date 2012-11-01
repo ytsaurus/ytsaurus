@@ -108,8 +108,10 @@ bool TChunkTreeBalancer::RebalanceChunkTree(
 
     const auto& newStatistics = root->Statistics();
     YCHECK(newStatistics.RowCount == oldStatistics.RowCount);
-    YCHECK(newStatistics.UncompressedSize == oldStatistics.UncompressedSize);
-    YCHECK(newStatistics.CompressedSize == oldStatistics.CompressedSize);
+    YCHECK(newStatistics.UncompressedDataSize == oldStatistics.UncompressedDataSize);
+    YCHECK(newStatistics.CompressedDataSize == oldStatistics.CompressedDataSize);
+    YCHECK(newStatistics.DataWeight == oldStatistics.DataWeight);
+    YCHECK(newStatistics.DiskSpace == oldStatistics.DiskSpace);
     YCHECK(newStatistics.ChunkCount == oldStatistics.ChunkCount);
 
     return true;

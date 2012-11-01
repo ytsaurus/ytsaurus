@@ -44,11 +44,7 @@ private:
     {
         attributes->push_back("children_ids");
         attributes->push_back("parent_ids");
-        attributes->push_back("row_count");
-        attributes->push_back("uncompressed_data_size");
-        attributes->push_back("compressed_size");
-        attributes->push_back("chunk_count");
-        attributes->push_back("rank");
+        attributes->push_back("statistics");
         attributes->push_back("rigid");
         attributes->push_back(TAttributeInfo("tree", true, true));
         attributes->push_back(TAttributeInfo("owning_nodes", true, true));
@@ -61,7 +57,7 @@ private:
             case EObjectType::Chunk: {
                 consumer->OnStringScalar(ref.GetId().ToString());
                 break;
-                                     }
+            }
 
             case EObjectType::ChunkList: {
                 const auto* chunkList = ref.AsChunkList();
@@ -79,7 +75,7 @@ private:
                 }
                 consumer->OnEndList();
                 break;
-                                         }
+            }
 
             default:
                 YUNREACHABLE();
@@ -109,33 +105,9 @@ private:
 
         const auto& statistics = chunkList->Statistics();
 
-        if (key == "row_count") {
+        if (key == "statistics") {
             BuildYsonFluently(consumer)
-                .Scalar(statistics.RowCount);
-            return true;
-        }
-
-        if (key == "uncompressed_data_size") {
-            BuildYsonFluently(consumer)
-                .Scalar(statistics.UncompressedSize);
-            return true;
-        }
-
-        if (key == "compressed_size") {
-            BuildYsonFluently(consumer)
-                .Scalar(statistics.CompressedSize);
-            return true;
-        }
-
-        if (key == "chunk_count") {
-            BuildYsonFluently(consumer)
-                .Scalar(statistics.ChunkCount);
-            return true;
-        }
-
-        if (key == "rank") {
-            BuildYsonFluently(consumer)
-                .Scalar(statistics.Rank);
+                .Scalar(statistics);
             return true;
         }
 

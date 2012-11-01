@@ -327,6 +327,64 @@ public:
     }
 
 
+    static TChunkTreeStatistics GetChunkTreeStatistics(TChunkTreeRef ref)
+    {
+        switch (ref.GetType()) {
+            case EObjectType::Chunk:
+                return ref.AsChunk()->GetStatistics();
+            case EObjectType::ChunkList:
+                return ref.AsChunkList()->Statistics();
+            default:
+                YUNREACHABLE();
+        }
+    }
+
+    template <class F>
+    static void VisitUniqueAncestors(TChunkList* chunkList, F functor)
+    {
+        while (chunkList != NULL) {
+            functor(chunkList);
+            const auto& parents = chunkList->Parents();
+            if (parents.empty())
+                break;
+            YCHECK(parents.size() == 1);
+            chunkList = *parents.begin();
+        }
+    }
+
+    template <class F>
+    static void VisitAncestors(TChunkList* chunkList, F functor)
+    {
+        // BFS queue. Try to avoid allocations.
+        TSmallVector<TChunkList*, 64> queue;
+        size_t frontIndex = 0;
+
+        // Put seed into the queue.
+        queue.push_back(chunkList);
+
+        // The main loop.
+        while (frontIndex < queue.size()) {
+            auto* chunkList = queue[frontIndex++];
+
+            // Fast lane: handle unique parents.
+            while (chunkList != NULL) {
+                functor(chunkList);
+                const auto& parents = chunkList->Parents();
+                if (parents.size() != 1)
+                    break;
+                chunkList = *parents.begin();
+            }
+
+            if (chunkList != NULL) {
+                // Proceed to parents.
+                FOREACH (auto* parent, chunkList->Parents()) {
+                    queue.push_back(parent);
+                }
+            }
+        }
+    }
+
+
     void AttachToChunkList(
         TChunkList* chunkList,
         const TChunkTreeRef* childrenBegin,
@@ -335,48 +393,29 @@ public:
         auto objectManager = Bootstrap->GetObjectManager();
         chunkList->IncrementVersion();
 
-        TChunkTreeStatistics statisticsDelta;
+        TChunkTreeStatistics delta;
         for (auto it = childrenBegin; it != childrenEnd; ++it) {
             auto childRef = *it;
             if (!chunkList->Children().empty()) {
                 chunkList->RowCountSums().push_back(
                     chunkList->Statistics().RowCount +
-                    statisticsDelta.RowCount);
+                    delta.RowCount);
             }
             chunkList->Children().push_back(childRef);
             SetChunkTreeParent(chunkList, childRef);
             objectManager->RefObject(childRef);
-
-            TChunkTreeStatistics delta;
-            switch (childRef.GetType()) {
-                case EObjectType::Chunk:
-                    statisticsDelta= childRef.AsChunk()->GetStatistics();
-                    break;
-                case EObjectType::ChunkList:
-                    statisticsDelta= childRef.AsChunkList()->Statistics();
-                    break;
-                default:
-                    YUNREACHABLE();
-            }
-            delta.Accumulate(delta);
+            delta.Accumulate(GetChunkTreeStatistics(childRef));
         }
 
         // Go upwards and apply delta.
         // Reset Sorted flags.
-        // Check that parents are unique along the way.
-        while (true) {
-            ++statisticsDelta.Rank;
-            chunkList->Statistics().Accumulate(statisticsDelta);
-            chunkList->SortedBy().clear();
-
-            const auto& parents = chunkList->Parents();
-            if (parents.empty()) {
-                break;
-            }
-
-            YCHECK(parents.size() == 1);
-            chunkList = *parents.begin();
-        }
+        VisitUniqueAncestors(
+            chunkList,
+            [&] (TChunkList* current) {
+                ++delta.Rank;
+                current->Statistics().Accumulate(delta);
+                current->SortedBy().clear();
+            });
 
         ScheduleChunkTreeRebalanceIfNeeded(chunkList);
     }
@@ -926,7 +965,7 @@ private:
             if (chunk && chunk->GetReplicationFactor() != replicationFactor) {
                 chunk->SetReplicationFactor(replicationFactor);
                 if (IsLeader()) {
-                    ChunkReplicator->ScheduleChunkRefresh(chunkId);
+                    ChunkReplicator->ScheduleChunkRefresh(chunk->GetId());
                 }
             }
         }

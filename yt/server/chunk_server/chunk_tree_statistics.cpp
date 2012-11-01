@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "chunk_tree_statistics.h"
 
+#include <ytlib/ytree/fluent.h>
+
 #include <server/cell_master/bootstrap.h>
 
 #include <server/chunk_server/chunk_manager.h>
@@ -12,8 +14,9 @@ namespace NChunkServer {
 
 TChunkTreeStatistics::TChunkTreeStatistics()
     : RowCount(0)
-    , UncompressedSize(0)
-    , CompressedSize(0)
+    , UncompressedDataSize(0)
+    , CompressedDataSize(0)
+    , DataWeight(0)
     , DiskSpace(0)
     , ChunkCount(0)
     , Rank(0)
@@ -22,8 +25,9 @@ TChunkTreeStatistics::TChunkTreeStatistics()
 void TChunkTreeStatistics::Accumulate(const TChunkTreeStatistics& other)
 {
     RowCount += other.RowCount;
-    UncompressedSize += other.UncompressedSize;
-    CompressedSize += other.CompressedSize;
+    UncompressedDataSize += other.UncompressedDataSize;
+    CompressedDataSize += other.CompressedDataSize;
+    DataWeight += other.DataWeight;
     DiskSpace += other.DiskSpace;
     ChunkCount += other.ChunkCount;
     Rank = std::max(Rank, other.Rank);
@@ -31,29 +35,45 @@ void TChunkTreeStatistics::Accumulate(const TChunkTreeStatistics& other)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Serialize(const TChunkTreeStatistics& statistics, NYTree::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("row_count").Scalar(statistics.RowCount)
+            .Item("uncompressed_data_size").Scalar(statistics.UncompressedDataSize)
+            .Item("compressed_data_size").Scalar(statistics.CompressedDataSize)
+            .Item("data_weight").Scalar(statistics.DataWeight)
+            .Item("disk_space").Scalar(statistics.DiskSpace)
+            .Item("chunk_count").Scalar(statistics.ChunkCount)
+            .Item("rank").Scalar(statistics.Rank)
+        .EndMap();
+}
+
 void Save(const TChunkTreeStatistics& statistics, const NCellMaster::TSaveContext& context)
 {
     auto* output = context.GetOutput();
     ::Save(output, statistics.RowCount);
-    ::Save(output, statistics.UncompressedSize);
-    ::Save(output, statistics.CompressedSize);
+    ::Save(output, statistics.UncompressedDataSize);
+    ::Save(output, statistics.CompressedDataSize);
+    ::Save(output, statistics.DataWeight);
+    ::Save(output, statistics.DiskSpace);
     ::Save(output, statistics.ChunkCount);
     ::Save(output, statistics.Rank);
-    ::Save(output, statistics.DiskSpace);
 }
 
 void Load(TChunkTreeStatistics& statistics, const NCellMaster::TLoadContext& context)
 {
     auto* input = context.GetInput();
     ::Load(input, statistics.RowCount);
-    ::Load(input, statistics.UncompressedSize);
-    ::Load(input, statistics.CompressedSize);
-    ::Load(input, statistics.ChunkCount);
-    ::Load(input, statistics.Rank);
+    ::Load(input, statistics.UncompressedDataSize);
+    ::Load(input, statistics.CompressedDataSize);
     // COMPAT(babenko)
     if (context.GetVersion() >= 2) {
+        ::Load(input, statistics.DataWeight);
         ::Load(input, statistics.DiskSpace);
     }
+    ::Load(input, statistics.ChunkCount);
+    ::Load(input, statistics.Rank);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

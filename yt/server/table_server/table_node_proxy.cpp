@@ -474,8 +474,8 @@ public:
                 fluent
                     .Item(FormatEnum(pair.first)).BeginMap()
                         .Item("chunk_count").Scalar(statistics.ChunkCount)
-                        .Item("uncompressed_data_size").Scalar(statistics.UncompressedSize)
-                        .Item("compressed_size").Scalar(statistics.CompressedSize)
+                        .Item("uncompressed_data_size").Scalar(statistics.UncompressedDataSize)
+                        .Item("compressed_data_size").Scalar(statistics.CompressedDataSize)
                     .EndMap();
             });
         Promise.Set(TError());
@@ -536,7 +536,8 @@ TClusterResources TTableNodeProxy::GetResourceUsage() const
 {
     const auto* impl = GetThisTypedImpl();
     const auto* chunkList = impl->GetChunkList();
-    return TClusterResources(chunkList->Statistics().DiskSpace);
+    i64 diskSpace = chunkList->Statistics().DiskSpace * impl->GetReplicationFactor();
+    return TClusterResources(diskSpace);
 }
 
 void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const
@@ -549,7 +550,7 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attribut
     attributes->push_back(TAttributeInfo("codec_statistics", true, true));
     attributes->push_back("chunk_count");
     attributes->push_back("uncompressed_data_size");
-    attributes->push_back("compressed_size");
+    attributes->push_back("compressed_data_size");
     attributes->push_back("compression_ratio");
     attributes->push_back("row_count");
     attributes->push_back("sorted");
@@ -579,19 +580,21 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
 
     if (key == "uncompressed_data_size") {
         BuildYsonFluently(consumer)
-            .Scalar(statistics.UncompressedSize);
+            .Scalar(statistics.UncompressedDataSize);
         return true;
     }
 
-    if (key == "compressed_size") {
+    if (key == "compressed_data_size") {
         BuildYsonFluently(consumer)
-            .Scalar(statistics.CompressedSize);
+            .Scalar(statistics.CompressedDataSize);
         return true;
     }
 
     if (key == "compression_ratio") {
-        double ratio = statistics.UncompressedSize > 0 ?
-            static_cast<double>(statistics.CompressedSize) / statistics.UncompressedSize : 0;
+        double ratio =
+            statistics.UncompressedDataSize > 0
+            ? static_cast<double>(statistics.CompressedDataSize) / statistics.UncompressedDataSize
+            : 0;
         BuildYsonFluently(consumer)
             .Scalar(ratio);
         return true;
@@ -599,7 +602,7 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
 
     if (key == "row_count") {
         BuildYsonFluently(consumer)
-            .Scalar(chunkList->Statistics().RowCount);
+            .Scalar(statistics.RowCount);
         return true;
     }
 
