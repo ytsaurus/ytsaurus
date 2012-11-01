@@ -335,13 +335,13 @@ public:
         auto objectManager = Bootstrap->GetObjectManager();
         chunkList->IncrementVersion();
 
-        TChunkTreeStatistics accumulatedDelta;
+        TChunkTreeStatistics statisticsDelta;
         for (auto it = childrenBegin; it != childrenEnd; ++it) {
             auto childRef = *it;
             if (!chunkList->Children().empty()) {
                 chunkList->RowCountSums().push_back(
                     chunkList->Statistics().RowCount +
-                    accumulatedDelta.RowCount);
+                    statisticsDelta.RowCount);
             }
             chunkList->Children().push_back(childRef);
             SetChunkTreeParent(chunkList, childRef);
@@ -350,18 +350,34 @@ public:
             TChunkTreeStatistics delta;
             switch (childRef.GetType()) {
                 case EObjectType::Chunk:
-                    delta = childRef.AsChunk()->GetStatistics();
+                    statisticsDelta= childRef.AsChunk()->GetStatistics();
                     break;
                 case EObjectType::ChunkList:
-                    delta = childRef.AsChunkList()->Statistics();
+                    statisticsDelta= childRef.AsChunkList()->Statistics();
                     break;
                 default:
                     YUNREACHABLE();
             }
-            accumulatedDelta.Accumulate(delta);
+            delta.Accumulate(delta);
         }
 
-        UpdateStatistics(chunkList, accumulatedDelta);
+        // Go upwards and apply delta.
+        // Reset Sorted flags.
+        // Check that parents are unique along the way.
+        while (true) {
+            ++statisticsDelta.Rank;
+            chunkList->Statistics().Accumulate(statisticsDelta);
+            chunkList->SortedBy().clear();
+
+            const auto& parents = chunkList->Parents();
+            if (parents.empty()) {
+                break;
+            }
+
+            YCHECK(parents.size() == 1);
+            chunkList = *parents.begin();
+        }
+
         ScheduleChunkTreeRebalanceIfNeeded(chunkList);
     }
 
@@ -649,26 +665,8 @@ private:
 
     yhash_map<Stroka, TReplicationSink> ReplicationSinkMap;
 
-    void UpdateStatistics(TChunkList* chunkList, const TChunkTreeStatistics& statisticsDelta)
+    void UpdateStatistics(TChunkList* chunkList, const TChunkTreeStatistics& delta)
     {
-        // Go upwards and apply delta.
-        // Also reset Sorted flags.
-        // Check that parents are unique along the way.
-        auto statisticsCopy = statisticsDelta;
-        while (true) {
-            ++statisticsCopy.Rank;
-
-            chunkList->Statistics().Accumulate(statisticsCopy);
-            chunkList->SortedBy().clear();
-
-            const auto& parents = chunkList->Parents();
-            if (parents.empty()) {
-                break;
-            }
-
-            YCHECK(parents.size() == 1);
-            chunkList = *parents.begin();
-        }
     }
 
 

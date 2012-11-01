@@ -10,6 +10,15 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TChunkTreeStatistics::TChunkTreeStatistics()
+    : RowCount(0)
+    , UncompressedSize(0)
+    , CompressedSize(0)
+    , DiskSpace(0)
+    , ChunkCount(0)
+    , Rank(0)
+{ }
+
 void TChunkTreeStatistics::Accumulate(const TChunkTreeStatistics& other)
 {
     RowCount += other.RowCount;
@@ -17,7 +26,7 @@ void TChunkTreeStatistics::Accumulate(const TChunkTreeStatistics& other)
     CompressedSize += other.CompressedSize;
     DiskSpace += other.DiskSpace;
     ChunkCount += other.ChunkCount;
-    Rank = Max(Rank, other.Rank);
+    Rank = std::max(Rank, other.Rank);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

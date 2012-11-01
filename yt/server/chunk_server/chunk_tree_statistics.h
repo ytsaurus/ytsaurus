@@ -29,14 +29,7 @@ struct TChunkTreeStatistics
     //! Distance to leaves (chunks) in edges. Leaves have rank zero.
     i32 Rank;
 
-    TChunkTreeStatistics()
-        : RowCount(0)
-        , UncompressedSize(0)
-        , CompressedSize(0)
-        , DiskSpace(0)
-        , ChunkCount(0)
-        , Rank(0)
-    { }
+    TChunkTreeStatistics();
 
     void Accumulate(const TChunkTreeStatistics& other);
 
