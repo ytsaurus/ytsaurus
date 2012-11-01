@@ -12,7 +12,6 @@ set( SRCS
   ${BASE}/redirector_service.cpp
   ${BASE}/retrying_channel.cpp
   ${BASE}/roaming_channel.cpp
-  ${BASE}/rpc_dispatcher.cpp
   ${BASE}/scoped_channel.cpp
   ${BASE}/serialized_channel.cpp
   ${BASE}/server.cpp
