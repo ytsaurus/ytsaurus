@@ -137,7 +137,7 @@ void TPartitionChunkWriter::PrepareBlock()
     blockInfo->set_partition_tag(partitionTag);
     blockInfo->set_block_index(CurrentBlockIndex);
 
-    LOG_DEBUG("Emitting block for partition %d (BlockIndex %d, RowCount: %" PRId64 ")", 
+    LOG_DEBUG("Emitting block for partition %d (BlockIndex: %d, RowCount: %" PRId64 ")", 
         partitionTag, 
         CurrentBlockIndex, 
         channelWriter->GetCurrentRowCount());
@@ -149,7 +149,6 @@ void TPartitionChunkWriter::PrepareBlock()
     FOREACH (const auto& part, blockParts) {
         size += part.Size();
     }
-
 
     blockInfo->set_block_size(size);
 
