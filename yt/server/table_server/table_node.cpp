@@ -198,6 +198,7 @@ protected:
 
     void MergeChunkLists(TTableNode* originatingNode, TTableNode* branchedNode)
     {
+        auto metaStateManager = Bootstrap->GetMetaStateFacade()->GetManager();
         auto chunkManager = Bootstrap->GetChunkManager();
         auto objectManager = Bootstrap->GetObjectManager();
 
@@ -210,7 +211,9 @@ protected:
         YCHECK(branchedChunkList->OwningNodes().erase(branchedNode) == 1);
 
         // Only schedule RF update when the topmost transaction commits.
-        bool needRFUpdate = !originatingNode->GetId().IsBranched();
+        bool needRFUpdate =
+            metaStateManager->IsLeader() &&
+            !originatingNode->GetId().IsBranched();
 
         if (branchedMode == ETableUpdateMode::None) {
             objectManager->UnrefObject(branchedChunkList);
