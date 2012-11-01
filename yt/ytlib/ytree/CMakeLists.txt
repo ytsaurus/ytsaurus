@@ -3,9 +3,9 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/ytree )
 set( SRCS
   ${BASE}/attribute_consumer.cpp
   ${BASE}/attribute_helpers.cpp
-  ${BASE}/ephemeral_attribute_owner.cpp
   ${BASE}/attribute_provider.cpp
   ${BASE}/attributes.cpp
+  ${BASE}/ephemeral_attribute_owner.cpp
   ${BASE}/ephemeral_node_factory.cpp
   ${BASE}/exception_helpers.cpp
   ${BASE}/forwarding_yson_consumer.cpp
@@ -35,15 +35,14 @@ set( HDRS
   ${BASE}/attribute_consumer.h
   ${BASE}/attribute_helpers-inl.h
   ${BASE}/attribute_helpers.h
-  ${BASE}/system_attribute_provider.h
-  ${BASE}/attribute_provider.h
   ${BASE}/attribute_owner.h
-  ${BASE}/ephemeral_attribute_owner.h
-  ${BASE}/exception_helpers.h
+  ${BASE}/attribute_provider.h
   ${BASE}/attributes.h
   ${BASE}/convert-inl.h
   ${BASE}/convert.h
+  ${BASE}/ephemeral_attribute_owner.h
   ${BASE}/ephemeral_node_factory.h
+  ${BASE}/exception_helpers.h
   ${BASE}/fluent.h
   ${BASE}/forwarding_yson_consumer.h
   ${BASE}/lexer.h
@@ -54,6 +53,7 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/serialize-inl.h
   ${BASE}/serialize.h
+  ${BASE}/system_attribute_provider.h
   ${BASE}/token.h
   ${BASE}/tokenizer.h
   ${BASE}/tree_builder.h

@@ -12,14 +12,10 @@ set( HDRS
   ${BASE}/action_queue_detail.h
   ${BASE}/async_pipeline-inl.h
   ${BASE}/async_pipeline.h
-  ${BASE}/bind.h
   ${BASE}/bind_helpers.h
-  ${BASE}/bind_internal.h
   ${BASE}/bind_mpl.h
-  ${BASE}/callback.h
   ${BASE}/callback_forward.h
   ${BASE}/callback_internal.h
-  ${BASE}/callback_via.h
   ${BASE}/cancelable_context.h
   ${BASE}/common.h
   ${BASE}/future-inl.h

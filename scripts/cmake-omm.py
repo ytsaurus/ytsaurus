@@ -170,8 +170,11 @@ def update_list(list):
     # Everything have to be checked by the caller.
     directory = os.path.dirname(list)
 
+    pumps   = glob.glob(os.path.join(directory, '*.pump'))
     sources = glob.glob(os.path.join(directory, '*.cpp'))
+    sources = set(sources) - set(name[:-5] for name in pumps)
     headers = glob.glob(os.path.join(directory, '*.h'))
+    headers = set(headers) - set(name[:-5] for name in pumps)
 
     updater = cmake_writing.CMakeListsUpdater(directory, get_project_root())
     updater.set_sources(sources)

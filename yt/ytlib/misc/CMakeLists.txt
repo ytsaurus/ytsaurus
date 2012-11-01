@@ -73,14 +73,12 @@ set( HDRS
   ${BASE}/memory_usage_tracker.h
   ${BASE}/metric.h
   ${BASE}/mpl.h
-  ${BASE}/new.h
   ${BASE}/nullable.h
   ${BASE}/object_pool-inl.h
   ${BASE}/object_pool.h
   ${BASE}/override.h
   ${BASE}/pattern_formatter.h
   ${BASE}/periodic_invoker.h
-  ${BASE}/preprocessor-gen.h
   ${BASE}/preprocessor.h
   ${BASE}/property.h
   ${BASE}/protobuf_helpers-inl.h
