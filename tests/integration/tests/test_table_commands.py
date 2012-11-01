@@ -268,6 +268,8 @@ class TestTableCommands(YTEnvSetup):
         copy('//tmp/t', '//tmp/t2')
         assert read('//tmp/t2') == [{'a' : 'b'}]
 
+	get('//tmp/@recursive_resource_usage')
+
         remove('//tmp/t')
         assert read('//tmp/t2') == [{'a' : 'b'}]
 

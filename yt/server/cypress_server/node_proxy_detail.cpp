@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "node_proxy_detail.h"
+#include "node_traversing.h"
 #include "helpers.h"
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -130,6 +131,51 @@ bool TVersionedUserAttributeDictionary::Remove(const Stroka& key)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+class TResourceUsageVisitor
+    : public virtual ICypressNodeVisitor
+{
+public:
+    TResourceUsageVisitor(IYsonConsumer* consumer)
+        : Result(NewPromise<TError>())
+        , Consumer(consumer)
+    { }
+
+    TAsyncError Run(NCellMaster::TBootstrap* bootstrap, ICypressNodeProxyPtr nodeProxy)
+    {
+        TraverseSubtree(bootstrap, nodeProxy, this);
+        return Result;
+    }
+
+private:
+    TPromise<TError> Result;
+    TClusterResources ResourceUsage;
+    IYsonConsumer* Consumer;
+
+    virtual void OnNode(ICypressNodeProxyPtr nodeProxy) override
+    {
+        ResourceUsage = ResourceUsage + nodeProxy->GetResourceUsage();
+    }
+
+    virtual void OnError(const TError& error) override
+    {
+        auto wrappedError = TError("Failed to get recursiver resource usage")
+            << error;
+        Result.Set(wrappedError);
+    }
+
+    virtual void OnCompleted() override
+    {
+        Result.Set(TError());
+    }
+
+};
+
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCypressNodeProxyNontemplateBase::TCypressNodeProxyNontemplateBase(
     INodeTypeHandlerPtr typeHandler,
     NCellMaster::TBootstrap* bootstrap,
@@ -255,6 +301,16 @@ void TCypressNodeProxyNontemplateBase::GetAttributes(
 
     if (seenMatching) {
         consumer->OnEndAttributes();
+    }
+}
+
+TAsyncError TCypressNodeProxyNontemplateBase::GetSystemAttributeAsync(
+    const Stroka& key, 
+    NYTree::IYsonConsumer* consumer) const
+{
+    if (key == "recursive_resource_usage") {
+        auto visitor = New<TResourceUsageVisitor>(consumer);
+        return visitor->Run(Bootstrap, const_cast<TCypressNodeProxyNontemplateBase*>(this));
     }
 }
 
