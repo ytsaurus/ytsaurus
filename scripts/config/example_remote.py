@@ -136,7 +136,7 @@ class Holder(Server):
     
     @propmethod
     def host(cls):
-        return 'n01-0%dg' % (650 + cls.nodeid)
+        return 'n01-0%dg.yt.yandex.net' % (650 + cls.nodeid)
     
     params = Template('--node --config %(config_path)s')
 
