@@ -28,10 +28,10 @@ using NDriver::TDriverRequest;
 using NDriver::TDriverConfig;
 using NDriver::IDriverPtr;
 using NDriver::CreateDriver;
-using NYTree::IYsonConsumer;
+using NYson::IYsonConsumer;
 using NYTree::ConvertToNode;
 using NYTree::ConvertToYsonString;
-using NYTree::EYsonFormat;
+using NYson::EYsonFormat;
 
 namespace NPython {
 
