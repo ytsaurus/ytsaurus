@@ -186,7 +186,10 @@ void TCompositeMetaState::Load(TInputStream* input)
 {
     i32 partCount;
     ::Load(input, partCount);
-    
+
+    LOG_DEBUG("Started loading composite meta state (PartCount: %d)",
+        partCount);
+
     for (i32 partIndex = 0; partIndex < partCount; ++partIndex) {
         Stroka name;
         i32 version;
@@ -208,9 +211,15 @@ void TCompositeMetaState::Load(TInputStream* input)
         context.SetInput(input);
         context.SetVersion(version);
 
+        LOG_DEBUG("Loading meta state part (Name: %s, Version: %d)",
+            ~name,
+            version);
+
         const auto& info = it->second;
         info.Loader.Run(context);
     }
+
+    LOG_DEBUG("Finished loading composite meta state");
 }
 
 void TCompositeMetaState::ApplyMutation(TMutationContext* context) throw()
