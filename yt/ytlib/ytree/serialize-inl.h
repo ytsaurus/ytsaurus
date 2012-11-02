@@ -13,8 +13,6 @@
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/error.h>
 
-#include <util/system/defaults.h>
-
 namespace NYT {
 namespace NYTree {
 
@@ -152,8 +150,7 @@ template <class T>
 T CheckedStaticCast(i64 value)
 {
     if (value < Min<T>() || value > Max<T>()) {
-        THROW_ERROR_EXCEPTION("XXX" PRId64, value);
-                //"Argument is out of integral range: %" PRId64 ")", value);
+        THROW_ERROR_EXCEPTION("Argument is out of integral range: %" PRId64 ")", value);
     }
     return static_cast<T>(value);
 }
