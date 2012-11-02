@@ -354,3 +354,13 @@ class TestTableCommands(YTEnvSetup):
 
         chunk_id = chunk_ids[0]
         assert get('#' + chunk_id + '/@replication_factor') == 2
+
+    def test_recursive_resource_usage(self):
+        create('table', '//tmp/t1')
+        write_str('//tmp/t1', '{a=b}')
+        copy('//tmp/t1', '//tmp/t2')
+
+        assert get('//tmp/t1/@resource_usage')['disk_space'] + \
+               get('//tmp/t2/@resource_usage')['disk_space'] == \
+               get('//tmp/@recursive_resource_usage')['disk_space']
+      
