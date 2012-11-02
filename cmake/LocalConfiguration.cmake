@@ -72,7 +72,7 @@ set( CUSTOM_CMAKE_CXX_FLAGS
   $ENV{CXXFLAGS} ${USER_CMAKE_CXX_FLAGS}
   CACHE STRING "User-defined C++ compiler flags")
 
-# Now configure compiler options for g++.
+# Now configure compiler options for clang.
 if (CMAKE_COMPILER_IS_CLANG)
    # These are default (basic) compilation flags.
   set( CMAKE_C_FLAGS "${CUSTOM_CMAKE_C_FLAGS} -pthread -fPIC"
@@ -103,11 +103,12 @@ if (CMAKE_COMPILER_IS_CLANG)
   set( CMAKE_EXE_LINKER_FLAGS_RELEASE "" )
   set( CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO "" )
   set( CMAKE_EXE_LINKER_FLAGS_MINSIZEREL "" )
+# Now configure compiler options for g++.
 elseif (CMAKE_COMPILER_IS_GNUCXX)
   # These are default (basic) compilation flags.
-  set( CMAKE_C_FLAGS "${CUSTOM_CMAKE_C_FLAGS} -pthread -fPIC"
+  set( CMAKE_C_FLAGS "${CUSTOM_CMAKE_C_FLAGS} -pthread -fPIC -Wall"
     CACHE STRING "(Auto-generated) C compiler flags" FORCE)
-  set( CMAKE_CXX_FLAGS "${CUSTOM_CMAKE_CXX_FLAGS} -std=gnu++0x -pthread -fPIC"
+  set( CMAKE_CXX_FLAGS "${CUSTOM_CMAKE_CXX_FLAGS} -std=gnu++0x -pthread -fPIC -Wall"
     CACHE STRING "(Auto-generated) C++ compiler flags" FORCE)
 
   # These are configuration-specific compilation flags.
