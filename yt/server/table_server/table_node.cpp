@@ -326,6 +326,7 @@ protected:
         auto* chunkList = node->GetChunkList();
         YCHECK(!clonedNode->GetChunkList());
         clonedNode->SetChunkList(chunkList);
+        clonedNode->SetReplicationFactor(node->GetReplicationFactor());
         objectManager->RefObject(chunkList);
         YCHECK(chunkList->OwningNodes().insert(clonedNode).second);
     }
