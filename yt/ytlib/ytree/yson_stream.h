@@ -12,12 +12,10 @@ namespace NYTree {
 class TYsonInput
 {
 public:
-    TYsonInput(TInputStream* stream, EYsonType type = EYsonType::Node):
-        Stream_(stream), Type_(type)
-    { }
+    explicit TYsonInput(TInputStream* stream, EYsonType type = EYsonType::Node);
 
-    DEFINE_BYVAL_RO_PROPERTY(EYsonType, Type);
     DEFINE_BYVAL_RO_PROPERTY(TInputStream*, Stream);
+    DEFINE_BYVAL_RO_PROPERTY(EYsonType, Type);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -25,23 +23,17 @@ public:
 class TYsonOutput
 {
 public:
-    TYsonOutput(TOutputStream* stream, EYsonType type = EYsonType::Node):
-        Stream_(stream), Type_(type)
-    { }
+    explicit TYsonOutput(TOutputStream* stream, EYsonType type = EYsonType::Node);
 
-    DEFINE_BYVAL_RO_PROPERTY(EYsonType, Type);
     DEFINE_BYVAL_RO_PROPERTY(TOutputStream*, Stream);
+    DEFINE_BYVAL_RO_PROPERTY(EYsonType, Type);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(roizner): move to .cpp
-inline void Serialize(const TYsonInput& input, IYsonConsumer* consumer)
-{
-    ParseYson(input, consumer);
-}
+void Serialize(const TYsonInput& input, IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYtree
+} // namespace NYTree
 } // namespace NYT

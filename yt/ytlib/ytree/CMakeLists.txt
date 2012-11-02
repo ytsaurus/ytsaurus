@@ -28,6 +28,7 @@ set( SRCS
   ${BASE}/yson_parser.cpp
   ${BASE}/yson_producer.cpp
   ${BASE}/yson_serializable.cpp
+  ${BASE}/yson_stream.cpp
   ${BASE}/yson_string.cpp
   ${BASE}/yson_writer.cpp
 )
