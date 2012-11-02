@@ -36,6 +36,7 @@ namespace NMetaState {
 using namespace NElection;
 using namespace NRpc;
 using namespace NYTree;
+using namespace NYson;
 
 ///////////////////////////////////////////////////////////////////////////////
 

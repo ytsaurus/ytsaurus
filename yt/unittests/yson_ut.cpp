@@ -16,9 +16,9 @@ using NYT::NYTree::ConvertToYsonString;
 using NYT::NYTree::ConvertToProducer;
 using NYT::NYTree::TYsonString;
 using NYT::NYTree::TYsonInput;
-using NYT::NYTree::TYsonWriter;
-using NYT::NYTree::EYsonType;
-using NYT::NYTree::EYsonFormat;
+using NYT::NYson::TYsonWriter;
+using NYT::NYson::EYsonType;
+using NYT::NYson::EYsonFormat;
 using NYT::NYTree::BuildYsonNodeFluently;
 
 class TYsonTest: public ::testing::Test

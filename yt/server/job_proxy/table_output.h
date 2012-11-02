@@ -1,6 +1,7 @@
 ﻿#pragma once
 
-#include <ytlib/ytree/public.h>
+#include <ytlib/yson/public.h>
+#include <ytlib/formats/public.h>
 #include <ytlib/table_client/public.h>
 #include <util/stream/output.h>
 
@@ -14,8 +15,8 @@ class TTableOutput
 {
 public:
     TTableOutput(
-        TAutoPtr<NYTree::IParser> parser,
-        TAutoPtr<NYTree::IYsonConsumer> consumer,
+        TAutoPtr<NFormats::IParser> parser,
+        TAutoPtr<NYson::IYsonConsumer> consumer,
         const NTableClient::ISyncWriterPtr& writer);
 
     ~TTableOutput() throw();
@@ -24,10 +25,10 @@ private:
     void DoWrite(const void* buf, size_t len);
     void DoFinish();
 
-    TAutoPtr<NYTree::IParser> Parser;
+    TAutoPtr<NFormats::IParser> Parser;
 
     // Just holds the consumer that parser is using.
-    TAutoPtr<NYTree::IYsonConsumer> Consumer;
+    TAutoPtr<NYson::IYsonConsumer> Consumer;
     NTableClient::ISyncWriterPtr SyncWriter;
 };
 

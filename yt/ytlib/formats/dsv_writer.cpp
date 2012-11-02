@@ -4,12 +4,13 @@
 
 #include <ytlib/misc/error.h>
 
-#include <ytree/yson_format.h>
+#include <yson/yson_format.h>
 
 namespace NYT {
 namespace NFormats {
 
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 

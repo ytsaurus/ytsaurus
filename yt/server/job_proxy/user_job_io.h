@@ -38,7 +38,7 @@ public:
 
     virtual TAutoPtr<NTableClient::TTableProducer> CreateTableInput(
         int index, 
-        NYTree::IYsonConsumer* consumer);
+        NYson::IYsonConsumer* consumer);
 
     virtual NTableClient::ISyncWriterPtr CreateTableOutput(
         int index) const;
@@ -63,7 +63,7 @@ protected:
     template <template <typename> class TMultiChunkReader>
     TAutoPtr<NTableClient::TTableProducer> DoCreateTableInput(
         int index, 
-        NYTree::IYsonConsumer* consumer);
+        NYson::IYsonConsumer* consumer);
 
     void PopulateUserJobResult(NScheduler::NProto::TUserJobResult* result);
 

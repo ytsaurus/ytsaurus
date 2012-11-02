@@ -64,8 +64,8 @@ public:
     virtual NProto::TNodeResources GetUsedResources() override;
     virtual NProto::TNodeResources GetNeededResources() override;
 
-    virtual void BuildProgressYson(NYTree::IYsonConsumer* consumer) override;
-    virtual void BuildResultYson(NYTree::IYsonConsumer* consumer) override;
+    virtual void BuildProgressYson(NYson::IYsonConsumer* consumer) override;
+    virtual void BuildResultYson(NYson::IYsonConsumer* consumer) override;
 
 private:
     typedef TOperationControllerBase TThis;

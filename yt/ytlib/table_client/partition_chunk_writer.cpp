@@ -6,7 +6,7 @@
 #include "chunk_meta_extensions.h"
 #include "partitioner.h"
 
-#include <ytlib/ytree/lexer.h>
+#include <ytlib/yson/lexer.h>
 #include <ytlib/chunk_client/async_writer.h>
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/encoding_writer.h>

@@ -2,9 +2,10 @@
 #include "yson_string.h"
 
 #include "yson_stream.h"
-#include "yson_parser.h"
-#include "yson_consumer.h"
 #include "null_yson_consumer.h"
+
+#include <ytlib/yson/yson_parser.h>
+#include <ytlib/yson/yson_consumer.h>
 
 namespace NYT {
 namespace NYTree {
@@ -19,17 +20,17 @@ void TYsonString::Validate() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Serialize(const TYsonString& yson, IYsonConsumer* consumer)
+void Serialize(const TYsonString& yson, NYson::IYsonConsumer* consumer)
 {
     consumer->OnRaw(yson.Data(), yson.GetType());
 }
 
-void Save(TOutputStream* output, const NYTree::TYsonString& ysonString)
+void Save(TOutputStream* output, const TYsonString& ysonString)
 {
     Save(output, ysonString.Data());
 }
 
-void Load(TInputStream* input, NYTree::TYsonString& ysonString)
+void Load(TInputStream* input, TYsonString& ysonString)
 {
     Stroka str;
     Load(input, str);

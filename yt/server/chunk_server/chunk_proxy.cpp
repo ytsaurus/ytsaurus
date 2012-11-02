@@ -21,6 +21,7 @@ namespace NYT {
 namespace NChunkServer {
 
 using namespace NYTree;
+using namespace NYson;
 using namespace NTableClient;
 using namespace NObjectServer;
 using namespace NChunkClient::NProto;

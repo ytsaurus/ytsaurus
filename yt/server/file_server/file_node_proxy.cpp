@@ -14,6 +14,7 @@ namespace NFileServer {
 using namespace NChunkServer;
 using namespace NCypressServer;
 using namespace NYTree;
+using namespace NYson;
 using namespace NRpc;
 using namespace NChunkClient::NProto;
 using namespace NObjectServer;

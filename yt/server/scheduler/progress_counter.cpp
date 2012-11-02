@@ -8,6 +8,7 @@ namespace NYT {
 namespace NScheduler {
 
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////
 

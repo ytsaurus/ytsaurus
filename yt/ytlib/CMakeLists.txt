@@ -10,6 +10,7 @@ set( DIRS
   rpc
   bus
   ytree
+  yson
   ypath
   cypress_client
   orchid

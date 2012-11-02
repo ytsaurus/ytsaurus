@@ -1,16 +1,16 @@
 #include "stdafx.h"
 #include "parser.h"
 
-#include <ytlib/ytree/yson_consumer.h>
+#include <ytlib/yson/yson_consumer.h>
 
 namespace NYT {
-namespace NYTree {
+namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 const size_t ParseChunkSize = 1 << 16;
 
-void Parse(TInputStream* input, IYsonConsumer* consumer, IParser* parser)
+void Parse(TInputStream* input, NYson::IYsonConsumer* consumer, IParser* parser)
 {
     char chunk[ParseChunkSize];
     while (true) {
@@ -26,6 +26,6 @@ void Parse(TInputStream* input, IYsonConsumer* consumer, IParser* parser)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-            
-} // namespace NYTree
+
+} // namespace NFormats
 } // namespace NYT

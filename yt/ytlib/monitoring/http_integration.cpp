@@ -6,7 +6,7 @@
 #include <ytlib/formats/json_writer.h>
 #include <ytlib/formats/config.h>
 #include <ytlib/ytree/ypath_proxy.h>
-#include <ytlib/ytree/yson_parser.h>
+#include <ytlib/yson/yson_parser.h>
 #include <ytlib/ytree/ypath_detail.h>
 #include <ytlib/ytree/virtual.h>
 

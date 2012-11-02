@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/ytree/public.h>
+#include <ytlib/yson/public.h>
 
 #include <ytlib/scheduler/scheduler_service.pb.h>
 
@@ -75,7 +75,7 @@ namespace NProto {
 
 void Serialize(
     const NProto::TNodeResources& resources,
-    NYTree::IYsonConsumer* consumer);
+    NYson::IYsonConsumer* consumer);
 
 } // namespace NProto
 

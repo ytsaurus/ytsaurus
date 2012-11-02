@@ -4,7 +4,6 @@
 #include "yson_consumer.h"
 #include "lexer.h"
 #include "yson_format.h"
-#include "yson_stream.h"
 
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/error.h>
@@ -12,7 +11,7 @@
 #include <stack>
 
 namespace NYT {
-namespace NYTree {
+namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -476,13 +475,5 @@ void TYsonParser::Finish()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ParseYson(const TYsonInput& input, IYsonConsumer* consumer, bool enableLinePositionInfo)
-{
-    TYsonParser parser(consumer, input.GetType(), enableLinePositionInfo);
-    Parse(input.GetStream(), consumer, &parser);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYtree
+} // namespace NYson
 } // namespace NYT

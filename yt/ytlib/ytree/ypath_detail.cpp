@@ -197,7 +197,7 @@ TFuture< TValueOrError<TYsonString> > TSupportsAttributes::DoFindAttribute(const
 
     if (systemAttributeProvider) {
         TStringStream syncStream;
-        TYsonWriter syncWriter(&syncStream);
+        NYson::TYsonWriter syncWriter(&syncStream);
         if (systemAttributeProvider->GetSystemAttribute(key, &syncWriter)) {
             TYsonString systemYson(syncStream.Str());
             return MakeFuture(TValueOrError<TYsonString>(systemYson));
@@ -205,7 +205,7 @@ TFuture< TValueOrError<TYsonString> > TSupportsAttributes::DoFindAttribute(const
 
         auto onAsyncAttribute = [] (
             TStringStream* stream,
-            TYsonWriter* writer,
+            NYson::TYsonWriter* writer,
             TError error) ->
             TValueOrError<TYsonString>
         {
@@ -217,7 +217,7 @@ TFuture< TValueOrError<TYsonString> > TSupportsAttributes::DoFindAttribute(const
         };
 
         TAutoPtr<TStringStream> asyncStream(new TStringStream());
-        TAutoPtr<TYsonWriter> asyncWriter(new TYsonWriter(~asyncStream));
+        TAutoPtr<NYson::TYsonWriter> asyncWriter(new NYson::TYsonWriter(~asyncStream));
         auto asyncResult = systemAttributeProvider->GetSystemAttributeAsync(key, ~asyncWriter);
         if (asyncResult) {
             return asyncResult.Apply(BIND(
@@ -254,7 +254,7 @@ TFuture< TValueOrError<TYsonString> > TSupportsAttributes::DoGetAttribute(const 
 
     if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
         TStringStream stream;
-        TYsonWriter writer(&stream);
+        NYson::TYsonWriter writer(&stream);
 
         writer.OnBeginMap();
 
@@ -336,7 +336,7 @@ TValueOrError<TYsonString> TSupportsAttributes::DoListAttributeFragment(
     }
 
     TStringStream stream;
-    TYsonWriter writer(&stream);
+    NYson::TYsonWriter writer(&stream);
     writer.OnBeginList();
     FOREACH (const auto& listedKey, listedKeys) {
         writer.OnListItem();
@@ -356,7 +356,7 @@ TFuture< TValueOrError<TYsonString> > TSupportsAttributes::DoListAttribute(const
 
     if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
         TStringStream stream;
-        TYsonWriter writer(&stream);
+        NYson::TYsonWriter writer(&stream);
         writer.OnBeginList();
 
         if (userAttributes) {
@@ -579,7 +579,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                 GuardedSetSystemAttribute(key, newYson);
             } else {
                 TStringStream stream;
-                TYsonWriter writer(&stream);
+                NYson::TYsonWriter writer(&stream);
                 if (!systemAttributeProvider->GetSystemAttribute(key, &writer)) {
                     ThrowNoSuchSystemAttribute(key);
                 }
@@ -668,7 +668,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
                 userAttributes->SetYson(key, updatedUserYson);
             } else {
                 TStringStream stream;
-                TYsonWriter writer(&stream);
+                NYson::TYsonWriter writer(&stream);
                 if (!systemAttributeProvider || !systemAttributeProvider->GetSystemAttribute(key, &writer)) {
                     ThrowNoSuchSystemAttribute(key);
                 }
@@ -764,12 +764,12 @@ private:
     IAttributeDictionary* Attributes;
 
     TStringStream AttributeStream;
-    THolder<TYsonWriter> AttributeWriter;
+    THolder<NYson::TYsonWriter> AttributeWriter;
 
     virtual void OnMyKeyedItem(const TStringBuf& key) override
     {
         Stroka localKey(key);
-        AttributeWriter.Reset(new TYsonWriter(&AttributeStream));
+        AttributeWriter.Reset(new NYson::TYsonWriter(&AttributeStream));
         Forward(
             ~AttributeWriter,
             BIND ([=] () {
@@ -839,7 +839,7 @@ void TNodeSetterBase::OnMyBeginMap()
 void TNodeSetterBase::OnMyBeginAttributes()
 {
     AttributesSetter.Reset(new TAttributesSetter(&Node->Attributes()));
-    Forward(~AttributesSetter, TClosure(), EYsonType::MapFragment);
+    Forward(~AttributesSetter, TClosure(), NYson::EYsonType::MapFragment);
 }
 
 void TNodeSetterBase::OnMyEndAttributes()

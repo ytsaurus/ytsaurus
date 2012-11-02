@@ -9,7 +9,7 @@
 
 #include <ytlib/cypress_client/public.h>
 
-#include <ytlib/ytree/yson_writer.h>
+#include <ytlib/yson/yson_writer.h>
 
 #include <ytlib/ypath/rich.h>
 
@@ -42,7 +42,7 @@ struct ArgTraits< ::NYT::NObjectClient::EObjectType >
 };
 
 template <>
-struct ArgTraits< ::NYT::NYTree::EYsonFormat >
+struct ArgTraits< ::NYT::NYson::EYsonFormat >
 {
     typedef ValueLike ValueCategory;
 };

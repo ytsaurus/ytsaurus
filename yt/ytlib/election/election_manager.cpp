@@ -470,7 +470,7 @@ void TElectionManager::Restart()
     Start();
 }
 
-void TElectionManager::GetMonitoringInfo(NYTree::IYsonConsumer* consumer)
+void TElectionManager::GetMonitoringInfo(NYson::IYsonConsumer* consumer)
 {
     auto epochContext = EpochContext;
     BuildYsonFluently(consumer)

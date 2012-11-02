@@ -102,7 +102,7 @@ struct IMetaStateManager
     /*!
      *  \note Thread affinity: any
      */
-    virtual void GetMonitoringInfo(NYTree::IYsonConsumer* consumer) = 0;
+    virtual void GetMonitoringInfo(NYson::IYsonConsumer* consumer) = 0;
 
     //! Raised within the state thread when the state has started leading
     //! and enters recovery.

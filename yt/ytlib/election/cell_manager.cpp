@@ -1,11 +1,14 @@
 #include "stdafx.h"
 #include "cell_manager.h"
 
+#include <ytlib/ytree/serialize.h>
 #include <ytlib/misc/address.h>
 #include <ytlib/rpc/channel.h>
 
 namespace NYT {
 namespace NElection {
+
+using namespace NYTree;
 
 ///////////////////////////////////////////////////////////////////////////////
 

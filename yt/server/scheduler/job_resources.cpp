@@ -11,6 +11,7 @@ namespace NScheduler {
 
 using namespace NScheduler::NProto;
 using namespace NYTree;
+using namespace NYson;
 using namespace NJobProxy;
 
 ////////////////////////////////////////////////////////////////////

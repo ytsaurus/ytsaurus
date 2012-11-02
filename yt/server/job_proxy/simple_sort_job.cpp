@@ -16,7 +16,7 @@
 #include <ytlib/table_client/multi_chunk_parallel_reader.h>
 #include <ytlib/table_client/sync_writer.h>
 
-#include <ytlib/ytree/lexer.h>
+#include <ytlib/yson/lexer.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -122,7 +122,7 @@ public:
 
             LOG_INFO("Reading");
             {
-                TLexer lexer;
+                NYson::TLexer lexer;
                 while (Reader->IsValid()) {
                     rowIndexBuffer.push_back(rowIndexBuffer.size());
                     YASSERT(rowIndexBuffer.back() <= std::numeric_limits<ui32>::max());

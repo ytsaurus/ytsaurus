@@ -2,7 +2,7 @@
 #include "monitoring_manager.h"
 
 #include <ytlib/ytree/ephemeral_node_factory.h>
-#include <ytlib/ytree/yson_writer.h>
+#include <ytlib/yson/yson_writer.h>
 #include <ytlib/ytree/tree_visitor.h>
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/node.h>
@@ -91,7 +91,7 @@ void TMonitoringManager::Update()
     PeriodicInvoker->ScheduleNext();
 }
 
-void TMonitoringManager::Visit(IYsonConsumer* consumer)
+void TMonitoringManager::Visit(NYson::IYsonConsumer* consumer)
 {
     PROFILE_TIMING ("/visit_time") {
         VisitTree(GetRoot(), consumer);

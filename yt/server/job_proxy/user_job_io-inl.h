@@ -19,7 +19,7 @@ namespace NJobProxy {
 template <template <typename> class TMultiChunkReader>
 TAutoPtr<NTableClient::TTableProducer> TUserJobIO::DoCreateTableInput(
     int index, 
-    NYTree::IYsonConsumer* consumer)
+    NYson::IYsonConsumer* consumer)
 {
     YCHECK(index >= 0 && index < GetInputCount());
 

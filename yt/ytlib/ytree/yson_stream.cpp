@@ -4,6 +4,8 @@
 namespace NYT {
 namespace NYTree {
 
+using namespace NYson;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TYsonInput::TYsonInput(TInputStream* stream, EYsonType type)

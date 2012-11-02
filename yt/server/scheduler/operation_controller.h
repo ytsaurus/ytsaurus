@@ -183,10 +183,10 @@ struct IOperationController
         bool isStarving) = 0;
 
     //! Called to construct a YSON representing the current progress.
-    virtual void BuildProgressYson(NYTree::IYsonConsumer* consumer) = 0;
+    virtual void BuildProgressYson(NYson::IYsonConsumer* consumer) = 0;
 
     //! Called for finished operations to construct a YSON representing the result.
-    virtual void BuildResultYson(NYTree::IYsonConsumer* consumer) = 0;
+    virtual void BuildResultYson(NYson::IYsonConsumer* consumer) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

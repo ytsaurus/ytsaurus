@@ -19,7 +19,7 @@
 #include <server/chunk_server/public.h>
 
 #include <ytlib/ytree/yson_string.h>
-#include <ytlib/ytree/lexer.h>
+#include <ytlib/yson/lexer.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -111,7 +111,7 @@ public:
 
             LOG_INFO("Merging");
             {
-                NYTree::TLexer lexer;
+                NYson::TLexer lexer;
                 // Unsorted write - use dummy key.
                 TNonOwningKey key;
                 if (KeyColumns)

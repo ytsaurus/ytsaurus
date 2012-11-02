@@ -21,13 +21,13 @@ public:
         UNUSED(context);
     }
 
-    virtual void BuildOperationProgressYson(TOperationPtr operation, NYTree::IYsonConsumer* consumer) override
+    virtual void BuildOperationProgressYson(TOperationPtr operation, NYson::IYsonConsumer* consumer) override
     {
         UNUSED(operation);
         UNUSED(consumer);
     }
 
-    virtual void BuildOrchidYson(NYTree::IYsonConsumer* consumer) override
+    virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override
     {
         UNUSED(consumer);
     }

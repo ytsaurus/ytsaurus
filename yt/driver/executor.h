@@ -78,7 +78,7 @@ protected:
     NYTree::IMapNodePtr GetArgs();
 
     // Construct args according to given options
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer);
+    virtual void BuildArgs(NYson::IYsonConsumer* consumer);
 
     virtual TInputStream* GetInputStream();
 };
@@ -99,7 +99,7 @@ protected:
     TCLAP::UnlabeledValueArg<NTransactionClient::TTransactionId> UnlabeledTxArg;
     TCLAP::SwitchArg PingAncestorTxsArg;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
+    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

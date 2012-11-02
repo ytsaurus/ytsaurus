@@ -6,8 +6,8 @@
 
 #include <ytlib/ytree/tree_builder.h>
 #include <ytlib/ytree/ephemeral_node_factory.h>
-#include <ytlib/ytree/yson_parser.h>
-#include <ytlib/ytree/tokenizer.h>
+#include <ytlib/yson/yson_parser.h>
+#include <ytlib/yson/tokenizer.h>
 #include <ytlib/ytree/ypath_format.h>
 
 #include <ytlib/ypath/token.h>
@@ -31,6 +31,7 @@ namespace NTableServer {
 using namespace NChunkServer;
 using namespace NCypressServer;
 using namespace NYTree;
+using namespace NYson;
 using namespace NRpc;
 using namespace NObjectServer;
 using namespace NTableClient;

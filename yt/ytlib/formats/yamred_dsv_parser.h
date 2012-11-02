@@ -8,20 +8,20 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAutoPtr<NYTree::IParser> CreateParserForYamredDsv(
-    NYTree::IYsonConsumer* consumer,
+TAutoPtr<IParser> CreateParserForYamredDsv(
+    NYson::IYsonConsumer* consumer,
     TYamredDsvFormatConfigPtr config = NULL);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void ParseYamredDsv(
     TInputStream* input,
-    NYTree::IYsonConsumer* consumer,
+    NYson::IYsonConsumer* consumer,
     TYamredDsvFormatConfigPtr config = NULL);
 
 void ParseYamredDsv(
     const TStringBuf& data,
-    NYTree::IYsonConsumer* consumer,
+    NYson::IYsonConsumer* consumer,
     TYamredDsvFormatConfigPtr config = NULL);
 
 ////////////////////////////////////////////////////////////////////////////////

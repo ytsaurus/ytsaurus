@@ -10,7 +10,7 @@
 
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/forwarding_yson_consumer.h>
-#include <ytlib/ytree/yson_parser.h>
+#include <ytlib/yson/yson_parser.h>
 #include <ytlib/ytree/ephemeral_node_factory.h>
 
 #include <ytlib/rpc/scoped_channel.h>
@@ -28,6 +28,7 @@ namespace NYT {
 namespace NDriver {
 
 using namespace NYTree;
+using namespace NYson;
 using namespace NRpc;
 using namespace NElection;
 using namespace NTransactionClient;

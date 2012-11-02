@@ -7,119 +7,119 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EYsonType GetYsonType(const TYsonString& yson)
+NYson::EYsonType GetYsonType(const TYsonString& yson)
 {
     return yson.GetType();
 }
 
-EYsonType GetYsonType(const TYsonInput& input)
+NYson::EYsonType GetYsonType(const TYsonInput& input)
 {
     return input.GetType();
 }
 
-EYsonType GetYsonType(const TYsonProducer& producer)
+NYson::EYsonType GetYsonType(const TYsonProducer& producer)
 {
     return producer.GetType();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Serialize(short value, IYsonConsumer* consumer)
+void Serialize(short value, NYson::IYsonConsumer* consumer)
 {
     consumer->OnIntegerScalar(CheckedStaticCast<i64>(value));
 }
 
-void Serialize(unsigned short value, IYsonConsumer* consumer)
+void Serialize(unsigned short value, NYson::IYsonConsumer* consumer)
 {
     consumer->OnIntegerScalar(CheckedStaticCast<i64>(value));
 }
 
-void Serialize(int value, IYsonConsumer* consumer)
+void Serialize(int value, NYson::IYsonConsumer* consumer)
 {
     consumer->OnIntegerScalar(CheckedStaticCast<i64>(value));
 }
 
-void Serialize(unsigned int value, IYsonConsumer* consumer)
+void Serialize(unsigned int value, NYson::IYsonConsumer* consumer)
 {
     consumer->OnIntegerScalar(CheckedStaticCast<i64>(value));
 }
 
-void Serialize(long value, IYsonConsumer* consumer)
+void Serialize(long value, NYson::IYsonConsumer* consumer)
 {
     consumer->OnIntegerScalar(CheckedStaticCast<i64>(value));
 }
 
-void Serialize(unsigned long value, IYsonConsumer* consumer)
+void Serialize(unsigned long value, NYson::IYsonConsumer* consumer)
 {
     consumer->OnIntegerScalar(CheckedStaticCast<i64>(value));
 }
 
-void Serialize(long long value, IYsonConsumer* consumer)
+void Serialize(long long value, NYson::IYsonConsumer* consumer)
 {
     consumer->OnIntegerScalar(CheckedStaticCast<i64>(value));
 }
 
-void Serialize(unsigned long long value, IYsonConsumer* consumer)
+void Serialize(unsigned long long value, NYson::IYsonConsumer* consumer)
 {
     consumer->OnIntegerScalar(CheckedStaticCast<i64>(value));
 }
 
 // double
-void Serialize(double value, IYsonConsumer* consumer)
+void Serialize(double value, NYson::IYsonConsumer* consumer)
 {
     consumer->OnDoubleScalar(value);
 }
 
 // Stroka
-void Serialize(const Stroka& value, IYsonConsumer* consumer)
+void Serialize(const Stroka& value, NYson::IYsonConsumer* consumer)
 {
     consumer->OnStringScalar(value);
 }
 
 // TStringBuf
-void Serialize(const TStringBuf& value, IYsonConsumer* consumer)
+void Serialize(const TStringBuf& value, NYson::IYsonConsumer* consumer)
 {
     consumer->OnStringScalar(value);
 }
 
 // const char*
-void Serialize(const char* value, IYsonConsumer* consumer)
+void Serialize(const char* value, NYson::IYsonConsumer* consumer)
 {
     consumer->OnStringScalar(TStringBuf(value));
 }
 
 // bool
-void Serialize(bool value, IYsonConsumer* consumer)
+void Serialize(bool value, NYson::IYsonConsumer* consumer)
 {
     consumer->OnStringScalar(FormatBool(value));
 }
 
 // char
-void Serialize(char value, IYsonConsumer* consumer)
+void Serialize(char value, NYson::IYsonConsumer* consumer)
 {
     consumer->OnStringScalar(Stroka(value));
 }
 
 // TDuration
-void Serialize(TDuration value, IYsonConsumer* consumer)
+void Serialize(TDuration value, NYson::IYsonConsumer* consumer)
 {
     consumer->OnIntegerScalar(value.MilliSeconds());
 }
 
 // TInstant
-void Serialize(TInstant value, IYsonConsumer* consumer)
+void Serialize(TInstant value, NYson::IYsonConsumer* consumer)
 {
     consumer->OnStringScalar(value.ToString());
 }
 
 // TGuid
-void Serialize(const TGuid& value, IYsonConsumer* consumer)
+void Serialize(const TGuid& value, NYson::IYsonConsumer* consumer)
 {
     consumer->OnStringScalar(value.ToString());
 }
 
 // TInputStream
-void Serialize(TInputStream& input, IYsonConsumer* consumer)
+void Serialize(TInputStream& input, NYson::IYsonConsumer* consumer)
 {
     Serialize(TYsonInput(&input), consumer);
 }

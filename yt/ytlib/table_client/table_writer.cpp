@@ -213,7 +213,7 @@ void TTableWriter::Close()
 
     if (KeyColumns) {
         auto keyColumns = KeyColumns.Get();
-        LOG_INFO("Marking table as sorted by %s", ~ConvertToYsonString(keyColumns, EYsonFormat::Text).Data());
+        LOG_INFO("Marking table as sorted by %s", ~ConvertToYsonString(keyColumns, NYson::EYsonFormat::Text).Data());
         
         auto req = TTableYPathProxy::SetSorted(path);
         SetTransactionId(req, UploadTransaction);

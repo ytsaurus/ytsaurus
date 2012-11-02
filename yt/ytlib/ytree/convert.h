@@ -10,7 +10,7 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void Consume(const T& value, IYsonConsumer* consumer);
+void Consume(const T& value, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,7 +21,7 @@ template <class T>
 TYsonString ConvertToYsonString(const T& value);
 
 template <class T>
-TYsonString ConvertToYsonString(const T& value, EYsonFormat format);
+TYsonString ConvertToYsonString(const T& value, NYson::EYsonFormat format);
 
 template <class T>
 INodePtr ConvertToNode(

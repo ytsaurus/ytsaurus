@@ -2,13 +2,14 @@
 #include "rich.h"
 
 #include <ytlib/misc/error.h>
-
+#include <ytlib/yson/yson_consumer.h>
 #include <ytlib/ytree/fluent.h>
 
 namespace NYT {
 namespace NYPath {
 
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,7 +87,7 @@ Stroka ToString(const TRichYPath& path)
         path.GetPath();
 }
 
-void Serialize(const TRichYPath& richPath, IYsonConsumer* consumer)
+void Serialize(const TRichYPath& richPath, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginAttributes()

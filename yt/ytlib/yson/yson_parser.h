@@ -1,24 +1,20 @@
 #pragma once
 
 #include "public.h"
-#include "parser.h"
-#include "yson_string.h"
-
-#include <ytlib/misc/property.h>
 
 namespace NYT {
-namespace NYTree {
+namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYsonParser
-    : public IParser
 {
 public:
     TYsonParser(
         IYsonConsumer* consumer,
         EYsonType type = EYsonType::Node,
         bool enableLinePositionInfo = false);
+
     ~TYsonParser();
 
     void Read(const TStringBuf& data);
@@ -31,12 +27,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ParseYson(
-    const TYsonInput& input,
-    IYsonConsumer* consumer,
-    bool enableLinePositionInfo = false);
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYtree
+} // namespace NYson
 } // namespace NYT

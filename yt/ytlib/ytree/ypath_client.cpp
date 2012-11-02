@@ -2,10 +2,11 @@
 #include "ypath_client.h"
 #include "ypath_proxy.h"
 #include "ypath_detail.h"
-#include "tokenizer.h"
 #include "ypath_format.h"
-#include "yson_format.h"
 #include "attribute_helpers.h"
+
+#include <ytlib/yson/yson_format.h>
+#include <ytlib/yson/tokenizer.h>
 
 #include <ytlib/misc/serialize.h>
 

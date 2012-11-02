@@ -1,10 +1,12 @@
 #include "stdafx.h"
 #include "value.h"
 
-#include <ytlib/misc/serialize.h>
+#include <ytlib/yson/varint.h>
 
 namespace NYT {
 namespace NTableClient {
+
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 

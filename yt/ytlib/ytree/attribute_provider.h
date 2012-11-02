@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "yson_consumer.h"
+#include <ytlib/yson/yson_consumer.h>
 
 #include <ytlib/ytree/ypath.pb.h>
 
@@ -59,7 +59,7 @@ struct IAttributeProvider
 
     //! Writes attributes that match #filter into #consumer.
     virtual void SerializeAttributes(
-        IYsonConsumer* consumer,
+        NYson::IYsonConsumer* consumer,
         const TAttributeFilter& filter) const = 0;
 
 };

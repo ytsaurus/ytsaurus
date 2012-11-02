@@ -48,7 +48,7 @@ public:
 private:
     IPartitioner* Partitioner;
 
-    NYTree::TLexer Lexer;
+    NYson::TLexer Lexer;
     yhash_map<TStringBuf, int> KeyColumnIndexes;
 
     i64 BasicMetaSize;

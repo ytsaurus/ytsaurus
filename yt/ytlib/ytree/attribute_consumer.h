@@ -2,8 +2,9 @@
 
 #include "public.h"
 #include "forwarding_yson_consumer.h"
-#include "yson_writer.h"
 #include "yson_stream.h"
+
+#include <ytlib/yson/yson_writer.h>
 
 namespace NYT {
 namespace NYTree {
@@ -33,7 +34,7 @@ protected:
 private:
     IAttributeDictionary* Attributes;
     TStringStream Output;
-    THolder<TYsonWriter> Writer;
+    THolder<NYson::TYsonWriter> Writer;
 
     void ThrowMapExpected();
 

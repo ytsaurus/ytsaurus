@@ -35,7 +35,7 @@ TEST(TYTreeSerializationTest, All)
         "{\"mode\"=755;\"path\"=\"/home/sandello\"}"
     );
     auto root = ConvertToNode(canonicalYson);
-    auto deserializedYson = ConvertToYsonString(root, EYsonFormat::Text);
+    auto deserializedYson = ConvertToYsonString(root, NYson::EYsonFormat::Text);
     EXPECT_EQ(RemoveSpaces(canonicalYson.Data()), deserializedYson.Data());
 }
 

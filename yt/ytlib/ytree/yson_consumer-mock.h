@@ -1,6 +1,6 @@
 #pragma once
 
-#include "yson_consumer.h"
+#include <ytlib/yson/yson_consumer.h>
 
 #include <contrib/testing/framework.h>
 
@@ -10,7 +10,7 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMockYsonConsumer
-    : public TYsonConsumerBase
+    : public NYson::TYsonConsumerBase
 {
 public:
     MOCK_METHOD1(OnStringScalar, void(const TStringBuf& value));

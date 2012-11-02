@@ -18,7 +18,7 @@ TClusterResources::TClusterResources(i64 diskSpace)
     : DiskSpace(diskSpace)
 { }
 
-void Serialize(const TClusterResources& resources, IYsonConsumer* consumer)
+void Serialize(const TClusterResources& resources, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()

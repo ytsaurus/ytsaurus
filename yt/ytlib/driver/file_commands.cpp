@@ -3,6 +3,7 @@
 #include "config.h"
 #include "driver.h"
 
+#include <ytlib/ytree/fluent.h>
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/file_client/file_reader.h>
 #include <ytlib/file_client/file_writer.h>
@@ -11,6 +12,7 @@ namespace NYT {
 namespace NDriver {
 
 using namespace NFileClient;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 

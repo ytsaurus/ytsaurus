@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ytlib/ytree/public.h>
+#include <ytlib/yson/public.h>
 
 namespace NYT {
 
@@ -55,7 +55,7 @@ public:
     }
 
     Stroka GetDebugInfo(int sortByColumn = -1);
-    void GetMonitoringInfo(NYTree::IYsonConsumer* consumer);
+    void GetMonitoringInfo(NYson::IYsonConsumer* consumer);
 
     i64 GetAliveObjects(TKey key);
     i64 GetCreatedObjects(TKey key);

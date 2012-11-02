@@ -19,6 +19,8 @@ typedef TIntrusivePtr<TYamrFormatConfig> TYamrFormatConfigPtr;
 struct TYamredDsvFormatConfig;
 typedef TIntrusivePtr<TYamredDsvFormatConfig> TYamredDsvFormatConfigPtr;
 
+struct IParser;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFormats

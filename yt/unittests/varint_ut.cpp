@@ -1,6 +1,7 @@
 #include "stdafx.h"
 
-#include <ytlib/misc/serialize.h>
+#include <ytlib/yson/varint.h>
+#include <ytlib/misc/common.h>
 
 #include <util/string/escape.h>
 #include <util/random/random.h>
@@ -14,6 +15,8 @@ using ::std::tr1::make_tuple;
 using ::testing::Values;
 
 namespace NYT {
+
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 

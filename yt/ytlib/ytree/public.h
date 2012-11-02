@@ -29,33 +29,7 @@ DECLARE_ENUM(ENodeType,
     (Composite)
 );
 
-//! The data format.
-DECLARE_ENUM(EYsonFormat,
-    // Binary.
-    // Most compact but not human-readable.
-    (Binary)
-
-    // Text.
-    // Not so compact but human-readable.
-    // Does not use indentation.
-    // Uses escaping for non-text characters.
-    (Text)
-
-    // Text with indentation.
-    // Extremely verbose but human-readable.
-    // Uses escaping for non-text characters.
-    (Pretty)
-);
-
-class EYsonType;
-
 class TYsonString;
-
-class ETokenType;
-
-class TTokenizer;
-
-struct IParser;
 
 struct INode;
 typedef TIntrusivePtr<INode> INodePtr;
@@ -88,7 +62,6 @@ typedef TIntrusivePtr<INodeFactory> INodeFactoryPtr;
 struct IYPathResolver;
 typedef TIntrusivePtr<IYPathResolver> IYPathResolverPtr;
 
-struct IYsonConsumer;
 class TYsonProducer;
 
 class TYsonInput;

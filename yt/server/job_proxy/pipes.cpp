@@ -1,8 +1,8 @@
 ﻿#include "stdafx.h"
 #include "pipes.h"
 
-#include <ytlib/ytree/yson_parser.h>
-#include <ytlib/ytree/yson_consumer.h>
+#include <ytlib/yson/yson_parser.h>
+#include <ytlib/yson/yson_consumer.h>
 #include <ytlib/table_client/table_producer.h>
 #include <ytlib/table_client/sync_reader.h>
 
@@ -294,7 +294,7 @@ TInputPipe::TInputPipe(
     int fd[2],
     TAutoPtr<NTableClient::TTableProducer> tableProducer,
     TAutoPtr<TBlobOutput> buffer, 
-    TAutoPtr<NYTree::IYsonConsumer> consumer,
+    TAutoPtr<NYson::IYsonConsumer> consumer,
     int jobDescriptor)
     : Pipe(fd)
     , JobDescriptor(jobDescriptor)

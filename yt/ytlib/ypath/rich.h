@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <ytlib/yson/public.h>
 #include <ytlib/ytree/attributes.h>
 
 namespace NYT {
@@ -37,7 +38,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 Stroka ToString(const TRichYPath& path);
-void Serialize(const TRichYPath& richPath, NYTree::IYsonConsumer* consumer);
+void Serialize(const TRichYPath& richPath, NYson::IYsonConsumer* consumer);
 void Deserialize(TRichYPath& richPath, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////

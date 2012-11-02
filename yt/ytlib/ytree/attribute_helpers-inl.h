@@ -37,7 +37,7 @@ typename TNullableTraits<T>::TNullableType IAttributeDictionary::Find(const Stro
 template <class T>
 void IAttributeDictionary::Set(const Stroka& key, const T& value)
 {
-    auto yson = ConvertToYsonString(value, EYsonFormat::Binary);
+    auto yson = ConvertToYsonString(value, NYson::EYsonFormat::Binary);
     SetYson(key, yson);
 }
 

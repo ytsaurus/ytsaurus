@@ -16,7 +16,7 @@
 #include <ytlib/table_client/multi_chunk_parallel_reader.h>
 #include <ytlib/table_client/partitioner.h>
 
-#include <ytlib/ytree/lexer.h>
+#include <ytlib/yson/lexer.h>
 
 namespace NYT {
 namespace NJobProxy {

@@ -47,7 +47,7 @@ int TUserJobIO::GetInputCount() const
     return 1;
 }
 
-TAutoPtr<TTableProducer> TUserJobIO::CreateTableInput(int index, IYsonConsumer* consumer)
+TAutoPtr<TTableProducer> TUserJobIO::CreateTableInput(int index, NYson::IYsonConsumer* consumer)
 {
     return DoCreateTableInput<TMultiChunkParallelReader>(index, consumer);
 }

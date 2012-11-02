@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include <ytlib/ytree/lexer.h>
+#include <ytlib/yson/lexer.h>
 
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/nullable.h>
@@ -9,7 +9,7 @@
 #include <contrib/testing/framework.h>
 
 namespace NYT {
-namespace NYTree {
+namespace NYson {
 
 using ::ToString;
 

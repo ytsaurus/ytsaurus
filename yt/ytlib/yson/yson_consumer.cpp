@@ -4,7 +4,7 @@
 #include "yson_parser.h"
 
 namespace NYT {
-namespace NYTree {
+namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,5 +17,5 @@ void TYsonConsumerBase::OnRaw(const TStringBuf& yson, EYsonType type)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
+} // namespace NYson
 } // namespace NYT

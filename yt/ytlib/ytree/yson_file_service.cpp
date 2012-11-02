@@ -75,7 +75,7 @@ private:
         try {
             TOFStream stream(FileName);
             // TODO(babenko): make format configurable
-            WriteYson(&stream, ~Root, EYsonFormat::Pretty);
+            WriteYson(&stream, ~Root, NYson::EYsonFormat::Pretty);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error saving YSON file %s", ~FileName.Quote())
                 << ex;

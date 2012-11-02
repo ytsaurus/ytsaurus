@@ -30,6 +30,7 @@ using namespace NScheduler::NProto;
 using namespace NRpc;
 using namespace NJobProxy;
 using namespace NYTree;
+using namespace NYson;
 using NChunkClient::TChunkId;
 
 ////////////////////////////////////////////////////////////////////////////////

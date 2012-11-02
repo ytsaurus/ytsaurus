@@ -6,10 +6,11 @@
 #include "ypath_service.h"
 #include "tree_visitor.h"
 #include "tree_builder.h"
-#include "yson_writer.h"
 #include "ypath_client.h"
-#include "tokenizer.h"
 #include "ypath_format.h"
+
+#include <ytlib/yson/yson_writer.h>
+#include <ytlib/yson/tokenizer.h>
 
 #include <ytlib/ypath/token.h>
 #include <ytlib/ypath/tokenizer.h>
@@ -21,6 +22,7 @@ namespace NYTree {
 
 using namespace NRpc;
 using namespace NYPath;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 

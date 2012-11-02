@@ -6,10 +6,9 @@
 
 #include <ytlib/misc/error.h>
 #include <ytlib/ytree/public.h>
-#include <ytlib/ytree/yson_consumer.h>
-#include <ytlib/ytree/yson_parser.h>
-#include <ytlib/ytree/yson_writer.h>
-#include <ytlib/ytree/fluent.h>
+#include <ytlib/yson/yson_consumer.h>
+#include <ytlib/yson/yson_parser.h>
+#include <ytlib/yson/yson_writer.h>
 #include <ytlib/ytree/yson_serializable.h>
 #include <ytlib/rpc/channel.h>
 #include <ytlib/chunk_client/public.h>
@@ -66,7 +65,7 @@ struct ICommandContext
     virtual TDriverResponse* GetResponse() = 0;
 
     virtual NYTree::TYsonProducer CreateInputProducer() = 0;
-    virtual TAutoPtr<NYTree::IYsonConsumer> CreateOutputConsumer() = 0;
+    virtual TAutoPtr<NYson::IYsonConsumer> CreateOutputConsumer() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -90,7 +90,7 @@ private:
     std::vector<Stroka> ColumnNames;
 
     // Used for key creation.
-    NYTree::TLexer Lexer;
+    NYson::TLexer Lexer;
 
     TNonOwningKey CurrentKey;
     TOwningKey LastKey;

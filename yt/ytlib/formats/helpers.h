@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <ytlib/ytree/yson_consumer.h>
-#include <ytlib/ytree/lexer.h>
+#include <ytlib/yson/yson_consumer.h>
+#include <ytlib/yson/lexer.h>
 
 namespace NYT {
 namespace NFormats {
@@ -11,7 +11,7 @@ namespace NFormats {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFormatsConsumerBase
-    : public virtual NYTree::TYsonConsumerBase
+    : public virtual NYson::TYsonConsumerBase
 {
 public:
     virtual void OnStringScalar(const TStringBuf& value) = 0;
@@ -28,10 +28,10 @@ public:
     virtual void OnEndAttributes() = 0;
 
     // This method has standard implementation for yamr, dsv and yamred dsv formats.
-    virtual void OnRaw(const TStringBuf& yson, NYTree::EYsonType type) override;
+    virtual void OnRaw(const TStringBuf& yson, NYson::EYsonType type) override;
 
 private:
-    NYTree::TLexer Lexer;
+    NYson::TLexer Lexer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

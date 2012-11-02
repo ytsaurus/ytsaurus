@@ -17,7 +17,7 @@ private:
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
     TCLAP::MultiArg<Stroka> AttributeArg;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
+    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
 };
 
@@ -36,7 +36,7 @@ private:
     bool UseStdIn;
     TStringStream Stream;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
+    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
     virtual TInputStream* GetInputStream() override;
 };
@@ -52,7 +52,7 @@ public:
 private:
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
+    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
 };
 
@@ -68,7 +68,7 @@ private:
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
     TCLAP::MultiArg<Stroka> AttributeArg;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
+    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
 };
 
@@ -86,7 +86,7 @@ private:
 
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
+    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
 };
 
@@ -104,7 +104,7 @@ private:
     typedef TCLAP::ValueArg<NCypressClient::ELockMode> TModeArg;
     TModeArg ModeArg;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
+    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
 };
 
@@ -120,7 +120,7 @@ private:
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> SourcePathArg;
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> DestinationPathArg;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
+    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
 };
 
@@ -136,7 +136,7 @@ private:
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> SourcePathArg;
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> DestinationPathArg;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
+    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
 };
 
@@ -151,7 +151,7 @@ public:
 private:
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
 
-    virtual void BuildArgs(NYTree::IYsonConsumer* consumer) override;
+    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
 };
 

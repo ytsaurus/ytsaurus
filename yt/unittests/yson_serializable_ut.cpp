@@ -4,7 +4,7 @@
 #include <ytlib/ytree/tree_builder.h>
 #include <ytlib/ytree/ephemeral_node_factory.h>
 #include <ytlib/ytree/fluent.h>
-#include <ytlib/ytree/yson_writer.h>
+#include <ytlib/yson/yson_writer.h>
 #include <ytlib/ytree/tree_visitor.h>
 #include <ytlib/ytree/ypath_client.h>
 
@@ -363,7 +363,7 @@ TEST(TConfigTest, Save)
     config->SubconfigList.push_back(New<TTestSubconfig>());
     config->SubconfigMap["item"] = New<TTestSubconfig>();
 
-    auto output = ConvertToYsonString(config, EYsonFormat::Text);
+    auto output = ConvertToYsonString(config, NYson::EYsonFormat::Text);
 
     Stroka subconfigYson =
         "{\"my_bool\"=\"false\";"

@@ -70,7 +70,7 @@ private:
     NYTree::INodePtr Root;
 
     void Update();
-    void Visit(NYTree::IYsonConsumer* consumer);
+    void Visit(NYson::IYsonConsumer* consumer);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

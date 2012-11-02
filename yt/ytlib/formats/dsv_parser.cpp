@@ -1,11 +1,13 @@
 #include "stdafx.h"
 #include "dsv_parser.h"
 #include "dsv_symbols.h"
+#include "parser.h"
 
 namespace NYT {
 namespace NFormats {
 
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 

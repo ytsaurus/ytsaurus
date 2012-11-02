@@ -8,20 +8,20 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAutoPtr<NYTree::IParser> CreateParserForYamr(
-    NYTree::IYsonConsumer* consumer,
+TAutoPtr<IParser> CreateParserForYamr(
+    NYson::IYsonConsumer* consumer,
     TYamrFormatConfigPtr config = NULL);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void ParseYamr(
     TInputStream* input,
-    NYTree::IYsonConsumer* consumer,
+    NYson::IYsonConsumer* consumer,
     TYamrFormatConfigPtr config = NULL);
 
 void ParseYamr(
     const TStringBuf& data,
-    NYTree::IYsonConsumer* consumer,
+    NYson::IYsonConsumer* consumer,
     TYamrFormatConfigPtr config = NULL);
 
 ////////////////////////////////////////////////////////////////////////////////

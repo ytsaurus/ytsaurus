@@ -7,6 +7,8 @@
 namespace NYT {
 namespace NYTree {
 
+using namespace NYson;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TAttributeConsumer::TAttributeConsumer(IAttributeDictionary* attributes)

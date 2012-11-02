@@ -81,7 +81,7 @@ public:
     /*!
      * \note Thread affinity: any.
      */
-    void GetMonitoringInfo(NYTree::IYsonConsumer* consumer);
+    void GetMonitoringInfo(NYson::IYsonConsumer* consumer);
 
     //! Returns the current current epoch context.
     /*!

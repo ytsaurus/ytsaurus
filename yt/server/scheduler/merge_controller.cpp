@@ -1041,11 +1041,11 @@ protected:
 
         auto specKeyColumns = GetSpecKeyColumns();
         LOG_INFO("Spec key columns are %s",
-            specKeyColumns ? ~ConvertToYsonString(specKeyColumns.Get(), EYsonFormat::Text).Data() : "<Null>");
+            specKeyColumns ? ~ConvertToYsonString(specKeyColumns.Get(), NYson::EYsonFormat::Text).Data() : "<Null>");
 
         KeyColumns = CheckInputTablesSorted(GetSpecKeyColumns());
         LOG_INFO("Adjusted key columns are %s",
-            ~ConvertToYsonString(KeyColumns, EYsonFormat::Text).Data());
+            ~ConvertToYsonString(KeyColumns, NYson::EYsonFormat::Text).Data());
 
         ChunkSplitsFetcher = New<TChunkSplitsFetcher>(
             Config, 

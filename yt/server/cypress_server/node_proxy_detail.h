@@ -107,7 +107,7 @@ public:
     virtual const NYTree::IAttributeDictionary& Attributes() const override;
 
     virtual void SerializeAttributes(
-        NYTree::IYsonConsumer* consumer,
+        NYson::IYsonConsumer* consumer,
         const NYTree::TAttributeFilter& filter) const override;
 
     virtual TClusterResources GetResourceUsage() const override;
@@ -123,8 +123,8 @@ protected:
     virtual NObjectServer::TVersionedObjectId GetVersionedId() const override;
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override;
-    virtual bool GetSystemAttribute(const Stroka& key, NYTree::IYsonConsumer* consumer) const override;
-    virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, NYTree::IYsonConsumer* consumer) const override;
+    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) const override;
+    virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) const override;
 
     virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
 
@@ -330,10 +330,10 @@ protected:
         TBase::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetSystemAttribute(const Stroka& key, NYTree::IYsonConsumer* consumer) const override
+    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) const override
     {
         if (key == "count") {
-            BuildYsonFluently(consumer)
+            NYTree::BuildYsonFluently(consumer)
                 .Scalar(this->GetChildCount());
             return true;
         }

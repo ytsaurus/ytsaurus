@@ -16,6 +16,7 @@ namespace NYT {
 namespace NScheduler {
 
 using namespace NYTree;
+using namespace NYson;
 using namespace NObjectClient;
 using NScheduler::NProto::TNodeResources;
 

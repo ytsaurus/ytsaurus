@@ -7,8 +7,6 @@
 namespace NYT {
 namespace NFormats {
 
-using namespace NYTree;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYamrDelimitedParser
@@ -16,7 +14,7 @@ class TYamrDelimitedParser
 {
 public:
     TYamrDelimitedParser(
-        NYTree::IYsonConsumer* consumer,
+        NYson::IYsonConsumer* consumer,
         TYamrFormatConfigPtr config)
         : TYamrBaseParser(
               config->FieldSeparator,
@@ -27,7 +25,7 @@ public:
     { }
 
 private:
-    NYTree::IYsonConsumer* Consumer;
+    NYson::IYsonConsumer* Consumer;
     TYamrFormatConfigPtr Config;
 
     void ConsumeKey(const TStringBuf& key)
@@ -55,18 +53,18 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYamrLenvalParser
-    : public NYTree::IParser
+    : public IParser
 {
 public:
     TYamrLenvalParser(
-        NYTree::IYsonConsumer* consumer,
+        NYson::IYsonConsumer* consumer,
         TYamrFormatConfigPtr config);
 
     virtual void Read(const TStringBuf& data) override;
     virtual void Finish() override;
 
 private:
-    NYTree::IYsonConsumer* Consumer;
+    NYson::IYsonConsumer* Consumer;
     TYamrFormatConfigPtr Config;
 
     Stroka CurrentToken;
@@ -93,7 +91,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYamrLenvalParser::TYamrLenvalParser(IYsonConsumer* consumer, TYamrFormatConfigPtr config)
+TYamrLenvalParser::TYamrLenvalParser(NYson::IYsonConsumer* consumer, TYamrFormatConfigPtr config)
     : Consumer(consumer)
     , Config(config)
     , ReadingLength(true)
@@ -208,8 +206,8 @@ const char* TYamrLenvalParser::ConsumeData(const char* begin, const char* end)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TAutoPtr<NYTree::IParser> CreateParserForYamr(
-    NYTree::IYsonConsumer* consumer,
+TAutoPtr<IParser> CreateParserForYamr(
+    NYson::IYsonConsumer* consumer,
     TYamrFormatConfigPtr config)
 {
     if (!config) {
@@ -226,7 +224,7 @@ TAutoPtr<NYTree::IParser> CreateParserForYamr(
 
 void ParseYamr(
     TInputStream* input,
-    NYTree::IYsonConsumer* consumer,
+    NYson::IYsonConsumer* consumer,
     TYamrFormatConfigPtr config)
 {
     auto parser = CreateParserForYamr(consumer, config);
@@ -235,7 +233,7 @@ void ParseYamr(
 
 void ParseYamr(
     const TStringBuf& data,
-    NYTree::IYsonConsumer* consumer,
+    NYson::IYsonConsumer* consumer,
     TYamrFormatConfigPtr config)
 {
     auto parser = CreateParserForYamr(consumer, config);

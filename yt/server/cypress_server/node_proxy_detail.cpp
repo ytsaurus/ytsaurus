@@ -9,6 +9,7 @@ namespace NYT {
 namespace NCypressServer {
 
 using namespace NYTree;
+using namespace NYson;
 using namespace NRpc;
 using namespace NObjectServer;
 using namespace NCellMaster;
@@ -310,7 +311,7 @@ void TCypressNodeProxyNontemplateBase::SerializeAttributes(
 
 TAsyncError TCypressNodeProxyNontemplateBase::GetSystemAttributeAsync(
     const Stroka& key, 
-    NYTree::IYsonConsumer* consumer) const
+    NYson::IYsonConsumer* consumer) const
 {
     if (key == "recursive_resource_usage") {
         auto visitor = New<TResourceUsageVisitor>(Bootstrap, consumer);

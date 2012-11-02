@@ -1,6 +1,7 @@
 #pragma once
 
-#include "yson_consumer.h"
+#include "public.h"
+#include <ytlib/yson/yson_consumer.h>
 
 namespace NYT {
 namespace NYTree {
@@ -9,7 +10,7 @@ namespace NYTree {
 
 //! Reconstructs a YTree from IYsonConsumer calls.
 struct ITreeBuilder
-    : public virtual IYsonConsumer
+    : public virtual NYson::IYsonConsumer
 {
     //! Resets the instance.
     virtual void BeginTree() = 0;

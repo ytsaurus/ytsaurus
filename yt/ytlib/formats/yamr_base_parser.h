@@ -1,16 +1,14 @@
 #pragma once
 
-#include <ytlib/ytree/parser.h>
+#include "parser.h"
 
 namespace NYT {
 namespace NFormats {
 
-using namespace NYTree;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYamrBaseParser
-    : public NYTree::IParser
+    : public IParser
 {
 public:
     TYamrBaseParser(
@@ -67,6 +65,6 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 } // namespace NFormats
 } // namespace NYT

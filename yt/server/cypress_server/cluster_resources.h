@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/ytree/public.h>
+#include <ytlib/yson/public.h>
 
 namespace NYT {
 namespace NCypressServer {
@@ -23,7 +23,7 @@ struct TClusterResources
     i64 DiskSpace;
 };
 
-void Serialize(const TClusterResources& resources, NYTree::IYsonConsumer* consumer);
+void Serialize(const TClusterResources& resources, NYson::IYsonConsumer* consumer);
 
 const TClusterResources& ZeroClusterResources();
 

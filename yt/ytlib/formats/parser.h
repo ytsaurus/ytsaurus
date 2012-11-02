@@ -1,10 +1,12 @@
 ﻿#pragma once
 
 #include "public.h"
+
+#include <ytlib/yson/public.h>
 #include <ytlib/misc/common.h>
 
 namespace NYT {
-namespace NYTree {
+namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,10 +22,9 @@ struct IParser
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Parse(TInputStream* input, IYsonConsumer* consumer, IParser* parser);
+void Parse(TInputStream* input, NYson::IYsonConsumer* consumer, IParser* parser);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
-} // namespace NYTree
+} // namespace NFormats
 } // namespace NYT

@@ -2,15 +2,15 @@
 #include "lexer.h"
 
 #include "token.h"
+#include "zigzag.h"
 
 #include <ytlib/misc/error.h>
-#include <ytlib/misc/zigzag.h>
 #include <ytlib/misc/property.h>
 
 #include <util/string/escape.h>
 
 namespace NYT {
-namespace NYTree {
+namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -520,5 +520,5 @@ const TToken& TLexer::GetToken() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
+} // namespace NYson
 } // namespace NYT

@@ -6,7 +6,7 @@
 #include "chunk_meta_extensions.h"
 #include "size_limits.h"
 
-#include <ytlib/ytree/tokenizer.h>
+#include <ytlib/yson/tokenizer.h>
 #include <ytlib/chunk_client/async_writer.h>
 #include <ytlib/chunk_client/encoding_writer.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
@@ -20,6 +20,7 @@ namespace NTableClient {
 
 using namespace NChunkClient;
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -5,7 +5,7 @@ namespace NYT {
 
 namespace {
 
-using NYTree::IYsonConsumer;
+using NYson::IYsonConsumer;
 
 class TPythonYTreeProducer {
 public:

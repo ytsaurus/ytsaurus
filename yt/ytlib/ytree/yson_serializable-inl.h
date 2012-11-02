@@ -5,14 +5,14 @@
 
 #include "convert.h"
 #include "tree_visitor.h"
-#include "yson_consumer.h"
+
+#include <ytlib/yson/yson_consumer.h>
 
 #include <ytlib/misc/guid.h>
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/nullable.h>
 #include <ytlib/misc/enum.h>
 #include <ytlib/misc/demangle.h>
-#include <ytlib/misc/error.h>
 
 #include <ytlib/ypath/token.h>
 
@@ -225,7 +225,7 @@ void TParameter<T>::Validate(const NYPath::TYPath& path) const
 }
 
 template <class T>
-void TParameter<T>::Save(NYTree::IYsonConsumer* consumer) const
+void TParameter<T>::Save(NYson::IYsonConsumer* consumer) const
 {
     Serialize(Parameter, consumer);
 }

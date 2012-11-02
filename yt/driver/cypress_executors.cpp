@@ -7,6 +7,7 @@ namespace NYT {
 namespace NDriver {
 
 using namespace NYTree;
+using namespace NYson;
 using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////

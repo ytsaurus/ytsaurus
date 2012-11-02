@@ -19,9 +19,9 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-EYsonType GetYsonType(const T&)
+NYson::EYsonType GetYsonType(const T&)
 {
-    return EYsonType::Node;
+    return NYson::EYsonType::Node;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,10 +30,10 @@ template <class T>
 void WriteYson(
     TOutputStream* output,
     const T& value,
-    EYsonType type,
-    EYsonFormat format)
+    NYson::EYsonType type,
+    NYson::EYsonFormat format)
 {
-    TYsonWriter writer(output, format, type);
+    NYson::TYsonWriter writer(output, format, type);
     Consume(value, &writer);
 }
 
@@ -41,7 +41,7 @@ template <class T>
 void WriteYson(
     TOutputStream* output,
     const T& value,
-    EYsonFormat format)
+    NYson::EYsonFormat format)
 {
     WriteYson(output, value, GetYsonType(value), format);
 }
@@ -50,7 +50,7 @@ template <class T>
 void WriteYson(
     const TYsonOutput& output,
     const T& value,
-    EYsonFormat format)
+    NYson::EYsonFormat format)
 {
     WriteYson(output.GetStream(), value, output.GetType(), format);
 }
@@ -58,14 +58,14 @@ void WriteYson(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void Serialize(T* value, IYsonConsumer* consumer)
+void Serialize(T* value, NYson::IYsonConsumer* consumer)
 {
     YASSERT(value);
     Serialize(*value, consumer);
 }
 
 template <class T>
-void Serialize(const TIntrusivePtr<T>& value, IYsonConsumer* consumer)
+void Serialize(const TIntrusivePtr<T>& value, NYson::IYsonConsumer* consumer)
 {
     Serialize(~value, consumer);
 }
@@ -74,7 +74,7 @@ void Serialize(const TIntrusivePtr<T>& value, IYsonConsumer* consumer)
 template <class T>
 void Serialize(
     T value,
-    IYsonConsumer* consumer,
+    NYson::IYsonConsumer* consumer,
     typename NMpl::TEnableIf<NMpl::TIsConvertible<T&, TEnumBase<T>&>, int>::TType)
 {
     consumer->OnStringScalar(FormatEnum(value));
@@ -82,7 +82,7 @@ void Serialize(
 
 // TNullable
 template <class T>
-void Serialize(const TNullable<T>& value, IYsonConsumer* consumer)
+void Serialize(const TNullable<T>& value, NYson::IYsonConsumer* consumer)
 {
     YASSERT(value);
     Serialize(*value, consumer);
@@ -90,7 +90,7 @@ void Serialize(const TNullable<T>& value, IYsonConsumer* consumer)
 
 // std::vector
 template <class T>
-void Serialize(const std::vector<T>& value, IYsonConsumer* consumer)
+void Serialize(const std::vector<T>& value, NYson::IYsonConsumer* consumer)
 {
     consumer->OnBeginList();
     FOREACH (const auto& value, value) {
@@ -102,7 +102,7 @@ void Serialize(const std::vector<T>& value, IYsonConsumer* consumer)
 
 // yhash_set
 template <class T>
-void Serialize(const yhash_set<T>& value, IYsonConsumer* consumer)
+void Serialize(const yhash_set<T>& value, NYson::IYsonConsumer* consumer)
 {
     consumer->OnBeginList();
     auto sortedItems = GetSortedIterators(value);
@@ -115,7 +115,7 @@ void Serialize(const yhash_set<T>& value, IYsonConsumer* consumer)
 
 // yhash_map
 template <class T>
-void Serialize(const yhash_map<Stroka, T>& value, IYsonConsumer* consumer)
+void Serialize(const yhash_map<Stroka, T>& value, NYson::IYsonConsumer* consumer)
 {
     consumer->OnBeginMap();
     auto sortedItems = GetSortedIterators(value);

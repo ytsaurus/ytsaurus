@@ -1,11 +1,13 @@
 #include "stdafx.h"
 #include "null_yson_consumer.h"
 
-#include "yson_consumer.h"
+#include <ytlib/yson/yson_consumer.h>
 #include "yson_string.h"
 
 namespace NYT {
 namespace NYTree {
+
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 

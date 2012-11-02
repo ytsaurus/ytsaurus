@@ -11,7 +11,7 @@
 #include <ytlib/table_client/table_reader.pb.h>
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/ytree/public.h>
-#include <ytlib/ytree/lexer.h>
+#include <ytlib/yson/lexer.h>
 #include <ytlib/ytree/yson_string.h>
 
 namespace NYT {
@@ -120,7 +120,7 @@ private:
     TRow CurrentRow;
     TNonOwningKey CurrentKey;
 
-    NYTree::TLexer Lexer;
+    NYson::TLexer Lexer;
 
     yhash_map<TStringBuf, TColumnInfo> ColumnsMap;
     std::vector<Stroka> ColumnNames;

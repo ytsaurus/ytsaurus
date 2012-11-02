@@ -2,15 +2,21 @@
 
 #include "public.h"
 
+#include <ytlib/yson/public.h>
+
 #include <ytlib/misc/mpl.h>
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/nullable.h>
+#include <ytlib/misc/error.h>
 
 #include <ytlib/actions/bind.h>
 #include <ytlib/actions/callback.h>
 
 namespace NYT {
 namespace NConfig {
+
+// Introduces Serialize function family into current scope.
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,7 +26,7 @@ struct IParameter
     // node can be NULL
     virtual void Load(NYTree::INodePtr node, const NYPath::TYPath& path) = 0;
     virtual void Validate(const NYPath::TYPath& path) const = 0;
-    virtual void Save(NYTree::IYsonConsumer* consumer) const = 0;
+    virtual void Save(NYson::IYsonConsumer* consumer) const = 0;
     virtual bool IsPresent() const = 0;
 };
 
@@ -43,7 +49,7 @@ public:
 
     virtual void Load(NYTree::INodePtr node, const NYPath::TYPath& path);
     virtual void Validate(const NYPath::TYPath& path) const;
-    virtual void Save(NYTree::IYsonConsumer* consumer) const;
+    virtual void Save(NYson::IYsonConsumer* consumer) const;
     virtual bool IsPresent() const;
 
 public: // for users
@@ -79,7 +85,7 @@ public:
     void Load(NYTree::INodePtr node, bool validate = true, const NYPath::TYPath& path = "");
     void Validate(const NYPath::TYPath& path = "") const;
 
-    void Save(NYTree::IYsonConsumer* consumer) const;
+    void Save(NYson::IYsonConsumer* consumer) const;
 
     DEFINE_BYVAL_RW_PROPERTY(bool, KeepOptions);
     NYTree::IMapNodePtr GetOptions() const;
@@ -108,7 +114,7 @@ private:
 template <class T>
 TIntrusivePtr<T> CloneYsonSerializable(TIntrusivePtr<T> obj);
 
-void Serialize(const TYsonSerializable& value, NYTree::IYsonConsumer* consumer);
+void Serialize(const TYsonSerializable& value, NYson::IYsonConsumer* consumer);
 void Deserialize(TYsonSerializable& value, NYTree::INodePtr node);
 
 template <class T>

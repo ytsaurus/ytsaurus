@@ -37,9 +37,9 @@ void TChunkTreeStatistics::Accumulate(const TChunkTreeStatistics& other)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Serialize(const TChunkTreeStatistics& statistics, NYTree::IYsonConsumer* consumer)
+void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
-    BuildYsonFluently(consumer)
+    NYTree::BuildYsonFluently(consumer)
         .BeginMap()
             .Item("row_count").Scalar(statistics.RowCount)
             .Item("uncompressed_data_size").Scalar(statistics.UncompressedDataSize)

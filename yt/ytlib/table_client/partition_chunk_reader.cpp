@@ -8,12 +8,13 @@
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
-#include <ytlib/misc/serialize.h>
+#include <ytlib/yson/varint.h>
 
 namespace NYT {
 namespace NTableClient {
 
 using namespace NChunkClient;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 

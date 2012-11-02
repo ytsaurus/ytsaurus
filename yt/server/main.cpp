@@ -39,6 +39,7 @@
 namespace NYT {
 
 using namespace NYTree;
+using namespace NYson;
 using namespace NElection;
 using namespace NScheduler;
 using namespace NJobProxy;

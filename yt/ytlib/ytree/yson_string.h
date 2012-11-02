@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <ytlib/yson/yson_consumer.h>
 #include <ytlib/misc/nullable.h>
 #include <ytlib/misc/property.h>
 
@@ -10,18 +11,10 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EYsonType,
-    (Node)
-    (ListFragment)
-    (MapFragment)
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TYsonString
 {
 public:
-    explicit TYsonString(const Stroka& data, EYsonType type = EYsonType::Node):
+    explicit TYsonString(const Stroka& data, NYson::EYsonType type = NYson::EYsonType::Node):
         Data_(data), Type_(type)
     { }
 
@@ -29,15 +22,15 @@ public:
     { }
 
     DEFINE_BYREF_RO_PROPERTY(Stroka, Data);
-    DEFINE_BYVAL_RO_PROPERTY(EYsonType, Type);
+    DEFINE_BYVAL_RO_PROPERTY(NYson::EYsonType, Type);
 
     void Validate() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Serialize(const TYsonString& yson, IYsonConsumer* consumer);
-void Save(TOutputStream* output, const NYTree::TYsonString& ysonString);
+void Serialize(const TYsonString& yson, NYson::IYsonConsumer* consumer);
+void Save(TOutputStream* output, const TYsonString& ysonString);
 void Load(TInputStream* input, NYTree::TYsonString& ysonString);
 bool operator == (const TYsonString& lhs, const TYsonString& rhs);
 

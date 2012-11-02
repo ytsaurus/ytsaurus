@@ -29,6 +29,7 @@ using namespace NCellMaster;
 using namespace NObjectServer;
 using namespace NMetaState;
 using namespace NYTree;
+using namespace NYson;
 using namespace NCypressServer;
 using namespace NTransactionClient;
 

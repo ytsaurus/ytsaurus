@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include "public.h"
-#include <ytlib/ytree/public.h>
+#include <ytlib/yson/public.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -11,18 +11,18 @@ namespace NTableClient {
 class TTableProducer
 {
 public:
-    TTableProducer(ISyncReaderPtr reader, NYTree::IYsonConsumer* consumer);
+    TTableProducer(ISyncReaderPtr reader, NYson::IYsonConsumer* consumer);
     bool ProduceRow();
 
 private:
     ISyncReaderPtr Reader;
-    NYTree::IYsonConsumer* Consumer;
+    NYson::IYsonConsumer* Consumer;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ProduceYson(ISyncReaderPtr Reader, NYTree::IYsonConsumer* consumer);
+void ProduceYson(ISyncReaderPtr Reader, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

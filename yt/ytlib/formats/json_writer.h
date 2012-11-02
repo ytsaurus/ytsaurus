@@ -4,7 +4,7 @@
 #include "config.h"
 
 #include <ytlib/ytree/forwarding_yson_consumer.h>
-#include <ytlib/ytree/yson_writer.h>
+#include <ytlib/yson/yson_writer.h>
 
 #include <library/json/json_writer.h>
 
@@ -45,7 +45,7 @@ namespace NFormats {
  *  Explicit #Flush calls should be made when finished writing via the adapter.
  */
 class TJsonWriter
-    : public NYTree::TYsonConsumerBase
+    : public NYson::TYsonConsumerBase
 {
 public:
     explicit TJsonWriter(TOutputStream* output, TJsonFormatConfigPtr config = NULL);

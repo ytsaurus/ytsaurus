@@ -2,11 +2,12 @@
 #include "virtual.h"
 #include "fluent.h"
 #include "node_detail.h"
-#include "yson_writer.h"
 #include "ypath_detail.h"
 #include "ypath_client.h"
 #include "ephemeral_attribute_owner.h"
-#include "tokenizer.h"
+
+#include <ytlib/yson/tokenizer.h>
+#include <ytlib/yson/yson_writer.h>
 
 #include <ytlib/ypath/tokenizer.h>
 
@@ -14,6 +15,7 @@ namespace NYT {
 namespace NYTree {
 
 using namespace NRpc;
+using namespace NYson;
 using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -51,7 +53,7 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(
 
 void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
 {
-    YASSERT(!TTokenizer(context->GetPath()).ParseNext());
+    YASSERT(!NYson::TTokenizer(context->GetPath()).ParseNext());
 
     size_t max_size = request->Attributes().Get<int>("max_size", DefaultMaxSize);
 

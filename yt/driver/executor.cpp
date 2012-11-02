@@ -7,8 +7,8 @@
 #include <ytlib/misc/fs.h>
 #include <ytlib/misc/assert.h>
 
-#include <ytlib/ytree/tokenizer.h>
-#include <ytlib/ytree/yson_format.h>
+#include <ytlib/yson/tokenizer.h>
+#include <ytlib/yson/yson_format.h>
 #include <ytlib/ytree/fluent.h>
 
 #include <server/job_proxy/config.h>
@@ -24,6 +24,7 @@ namespace NYT {
 namespace NDriver {
 
 using namespace NYTree;
+using namespace NYson;
 using namespace NScheduler;
 using namespace NRpc;
 using namespace NFormats;

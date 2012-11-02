@@ -29,8 +29,8 @@ private:
 
     // ISystemAttributeProvider overrides
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override;
-    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const override;
-    virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, IYsonConsumer* consumer) const override;
+    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) const override;
+    virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) const override;
     virtual bool SetSystemAttribute(const Stroka& key, const TYsonString& value) override;
 
 };

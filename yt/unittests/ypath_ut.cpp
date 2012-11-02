@@ -9,8 +9,8 @@
 #include <ytlib/ytree/tree_builder.h>
 #include <ytlib/ytree/tree_visitor.h>
 
-#include <ytlib/ytree/yson_parser.h>
-#include <ytlib/ytree/yson_writer.h>
+#include <ytlib/yson/yson_parser.h>
+#include <ytlib/yson/yson_writer.h>
 #include <ytlib/ytree/ephemeral_node_factory.h>
 
 #include <contrib/testing/framework.h>
@@ -34,7 +34,7 @@ public:
 
     static TYsonString TextifyYson(const TYsonString& data)
     {
-        return ConvertToYsonString(data, EYsonFormat::Text);
+        return ConvertToYsonString(data, NYson::EYsonFormat::Text);
     }
 
     void Set(const TYPath& path, const Stroka& value)

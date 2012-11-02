@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-
+#include <ytlib/yson/public.h>
 #include <ytlib/ytree/attributes.pb.h>
 
 namespace NYT {
@@ -16,7 +16,7 @@ TAutoPtr<IAttributeDictionary> CreateEphemeralAttributes();
 const IAttributeDictionary& EmptyAttributes();
 
 //! Serialize attributes to consumer. Used in ConvertTo* functions.
-void Serialize(const IAttributeDictionary& attributes, IYsonConsumer* consumer);
+void Serialize(const IAttributeDictionary& attributes, NYson::IYsonConsumer* consumer);
 
 //! Protobuf conversion methods.
 void ToProto(NProto::TAttributes* protoAttributes, const IAttributeDictionary& attributes);

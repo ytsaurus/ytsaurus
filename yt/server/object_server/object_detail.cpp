@@ -32,6 +32,7 @@ namespace NObjectServer {
 using namespace NRpc;
 using namespace NYPath;
 using namespace NYTree;
+using namespace NYson;
 using namespace NCellMaster;
 using namespace NCypressClient;
 using namespace NObjectClient;

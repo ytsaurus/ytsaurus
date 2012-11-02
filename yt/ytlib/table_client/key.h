@@ -9,7 +9,7 @@
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/nullable.h>
 #include <ytlib/misc/blob_output.h>
-#include <ytlib/ytree/lexer.h>
+#include <ytlib/yson/lexer.h>
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 #include <ytlib/table_client/table_reader.pb.h>
 
@@ -415,23 +415,23 @@ public:
         return key;
     }
 
-    void SetKeyPart(int index, const TStringBuf& yson, NYTree::TLexer& lexer)
+    void SetKeyPart(int index, const TStringBuf& yson, NYson::TLexer& lexer)
     {
         lexer.Reset();
         YCHECK(lexer.Read(yson) > 0);
-        YASSERT(lexer.GetState() == NYTree::TLexer::EState::Terminal);
+        YASSERT(lexer.GetState() == NYson::TLexer::EState::Terminal);
 
         const auto& token = lexer.GetToken();
         switch (token.GetType()) {
-            case NYTree::ETokenType::Integer:
+            case NYson::ETokenType::Integer:
                 SetValue(index, token.GetIntegerValue());
                 break;
 
-            case NYTree::ETokenType::String:
+            case NYson::ETokenType::String:
                 SetValue(index, token.GetStringValue());
                 break;
 
-            case NYTree::ETokenType::Double:
+            case NYson::ETokenType::Double:
                 SetValue(index, token.GetDoubleValue());
                 break;
 

@@ -24,7 +24,7 @@ class TDsvWriter
 public:
     explicit TDsvWriter(
         TOutputStream* stream,
-        NYTree::EYsonType type = NYTree::EYsonType::ListFragment,
+        NYson::EYsonType type = NYson::EYsonType::ListFragment,
         TDsvFormatConfigPtr config = New<TDsvFormatConfig>());
     ~TDsvWriter();
 
@@ -44,7 +44,7 @@ public:
 
 private:
     TOutputStream* Stream;
-    NYTree::EYsonType Type;
+    NYson::EYsonType Type;
     TDsvFormatConfigPtr Config;
 
     TDsvSymbolTable SymbolTable;
@@ -56,7 +56,7 @@ private:
     bool AllowBeginList;
     bool AllowBeginMap;
 
-    NYTree::TLexer Lexer;
+    NYson::TLexer Lexer;
 
     void EscapeAndWrite(const TStringBuf& key, const bool* IsStopSymbol);
     const char* FindNextEscapedSymbol(const char* begin, const char* end, const bool* IsStopSymbol);

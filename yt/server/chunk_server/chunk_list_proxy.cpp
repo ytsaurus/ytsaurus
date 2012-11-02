@@ -50,7 +50,7 @@ private:
         TBase::ListSystemAttributes(attributes);
     }
 
-    void TraverseTree(TChunkTreeRef ref, NYTree::IYsonConsumer* consumer) const
+    void TraverseTree(TChunkTreeRef ref, NYson::IYsonConsumer* consumer) const
     {
         switch (ref.GetType()) {
             case EObjectType::Chunk: {
@@ -81,7 +81,7 @@ private:
         }
     }
 
-    virtual bool GetSystemAttribute(const Stroka& key, NYTree::IYsonConsumer* consumer) const override
+    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) const override
     {
         auto chunkManager = Bootstrap->GetChunkManager();
         const auto* chunkList = GetTypedImpl();

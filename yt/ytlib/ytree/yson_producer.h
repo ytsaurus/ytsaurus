@@ -12,16 +12,16 @@ namespace NYTree {
 
 //! A callback capable of generating YSON by calling appropriate
 //! methods for its IYsonConsumer argument.
-typedef TCallback<void(IYsonConsumer*)> TYsonCallback;
+typedef TCallback<void(NYson::IYsonConsumer*)> TYsonCallback;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYsonProducer
 {
 public:
-    TYsonProducer(TYsonCallback callback, EYsonType ysonType = EYsonType::Node);
-    void Run(IYsonConsumer* consumer) const;
-    DEFINE_BYVAL_RO_PROPERTY(EYsonType, Type);
+    TYsonProducer(TYsonCallback callback, NYson::EYsonType ysonType = NYson::EYsonType::Node);
+    void Run(NYson::IYsonConsumer* consumer) const;
+    DEFINE_BYVAL_RO_PROPERTY(NYson::EYsonType, Type);
 
 private:
     TYsonCallback Callback;
@@ -29,7 +29,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Serialize(const TYsonProducer& value, IYsonConsumer* consumer);
+void Serialize(const TYsonProducer& value, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

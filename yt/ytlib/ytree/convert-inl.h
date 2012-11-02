@@ -4,12 +4,12 @@
 #undef CONVERT_INL_H_
 
 #include "serialize.h"
-#include "yson_parser.h"
 #include "tree_builder.h"
 #include "yson_stream.h"
 #include "yson_producer.h"
 #include "attribute_helpers.h"
 
+#include <ytlib/yson/yson_parser.h>
 #include <util/generic/typehelpers.h>
 #include <util/generic/static_assert.h>
 
@@ -19,7 +19,7 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void Consume(const T& value, IYsonConsumer* consumer)
+void Consume(const T& value, NYson::IYsonConsumer* consumer)
 {
     // Check that T differs from Stroka to prevent
     // accident usage of Stroka instead of TYsonString.
@@ -37,7 +37,7 @@ TYsonProducer ConvertToProducer(T&& value)
 {
     auto type = GetYsonType(value);
     auto callback = BIND(
-        [] (const T& value, IYsonConsumer* consumer) {
+        [] (const T& value, NYson::IYsonConsumer* consumer) {
             Consume(value, consumer);
         },
         ForwardRV<T>(value));
@@ -47,11 +47,11 @@ TYsonProducer ConvertToProducer(T&& value)
 template <class T>
 TYsonString ConvertToYsonString(const T& value)
 {
-    return ConvertToYsonString(value, EYsonFormat::Binary);
+    return ConvertToYsonString(value, NYson::EYsonFormat::Binary);
 }
 
 template <class T>
-TYsonString ConvertToYsonString(const T& value, EYsonFormat format)
+TYsonString ConvertToYsonString(const T& value, NYson::EYsonFormat format)
 {
     auto type = GetYsonType(value);
     Stroka result;
@@ -73,10 +73,10 @@ INodePtr ConvertToNode(
     builder->BeginTree();
 
     switch (type) {
-        case EYsonType::ListFragment:
+        case NYson::EYsonType::ListFragment:
             builder->OnBeginList();
             break;
-        case EYsonType::MapFragment:
+        case NYson::EYsonType::MapFragment:
             builder->OnBeginMap();
             break;
         default:
@@ -86,10 +86,10 @@ INodePtr ConvertToNode(
     Consume(value, ~builder);
 
     switch (type) {
-        case EYsonType::ListFragment:
+        case NYson::EYsonType::ListFragment:
             builder->OnEndList();
             break;
-        case EYsonType::MapFragment:
+        case NYson::EYsonType::MapFragment:
             builder->OnEndMap();
             break;
         default:

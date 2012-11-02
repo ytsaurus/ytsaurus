@@ -109,7 +109,7 @@ public:
         YASSERT(!AttributeConsumer);
         Attributes.Reset(CreateEphemeralAttributes().Release());
         AttributeConsumer.Reset(new TAttributeConsumer(Attributes.Get()));
-        Forward(~AttributeConsumer, TClosure(), EYsonType::MapFragment);
+        Forward(~AttributeConsumer, TClosure(), NYson::EYsonType::MapFragment);
     }
 
     virtual void OnMyEndAttributes() override

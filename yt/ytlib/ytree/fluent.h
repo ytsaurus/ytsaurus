@@ -1,9 +1,9 @@
 #pragma once
 
 #include "public.h"
-#include "yson_consumer.h"
+#include <ytlib/yson/yson_consumer.h>
 #include "yson_producer.h"
-#include "yson_parser.h"
+#include <ytlib/yson/yson_parser.h>
 #include "tree_visitor.h"
 #include "tree_builder.h"
 #include "convert.h"
@@ -52,12 +52,12 @@ class TFluentYsonBuilder
 {
 private:
     template <class T>
-    static void WriteScalar(IYsonConsumer* consumer, const T& value)
+    static void WriteScalar(NYson::IYsonConsumer* consumer, const T& value)
     {
         Consume(value, consumer);
     }
 
-    static void WriteScalar(IYsonConsumer* consumer, const Stroka& value)
+    static void WriteScalar(NYson::IYsonConsumer* consumer, const Stroka& value)
     {
         Consume(TRawString(value), consumer);
     }
@@ -74,16 +74,16 @@ public:
     class TFluentBase
     {
     public:
-        operator IYsonConsumer* () const
+        operator NYson::IYsonConsumer* () const
         {
             return Consumer;
         }
 
     protected:
-        IYsonConsumer* Consumer;
+        NYson::IYsonConsumer* Consumer;
         TParent Parent;
 
-        TFluentBase(IYsonConsumer* consumer, const TParent& parent)
+        TFluentBase(NYson::IYsonConsumer* consumer, const TParent& parent)
             : Consumer(consumer)
             , Parent(parent)
         { }
@@ -106,7 +106,7 @@ public:
         typedef TThis<TFluentYsonVoid> TShallowThis;
         typedef typename TFluentYsonUnwrapper<TParent>::TUnwrapped TUnwrappedParent;
 
-        explicit TFluentFragmentBase(IYsonConsumer* consumer, const TParent& parent = TParent())
+        explicit TFluentFragmentBase(NYson::IYsonConsumer* consumer, const TParent& parent = TParent())
             : TFluentBase<TParent>(consumer, parent)
         { }
 
@@ -165,7 +165,7 @@ public:
     public:
         typedef typename TFluentYsonUnwrapper<TParent>::TUnwrapped TUnwrappedParent;
 
-        TAnyWithoutAttributes(IYsonConsumer* consumer, const TParent& parent)
+        TAnyWithoutAttributes(NYson::IYsonConsumer* consumer, const TParent& parent)
             : TFluentBase<TParent>(consumer, parent)
         { }
 
@@ -294,7 +294,7 @@ public:
     public:
         typedef TAnyWithoutAttributes<TParent> TBase;
 
-        explicit TAny(IYsonConsumer* consumer, const TParent& parent)
+        explicit TAny(NYson::IYsonConsumer* consumer, const TParent& parent)
             : TBase(consumer, parent)
         { }
 
@@ -315,7 +315,7 @@ public:
         typedef TAttributes<TParent> TThis;
         typedef typename TFluentYsonUnwrapper<TParent>::TUnwrapped TUnwrappedParent;
 
-        TAttributes(IYsonConsumer* consumer, const TParent& parent)
+        TAttributes(NYson::IYsonConsumer* consumer, const TParent& parent)
             : TFluentFragmentBase<TFluentYsonBuilder::TAttributes, TParent>(consumer, parent)
         { }
 
@@ -339,7 +339,7 @@ public:
             FOREACH (const auto& key, attributes.List()) {
                 const auto& yson = attributes.GetYson(key);
                 this->Consumer->OnKeyedItem(key);
-                this->Consumer->OnRaw(yson.Data(), EYsonType::Node);
+                this->Consumer->OnRaw(yson.Data(), NYson::EYsonType::Node);
             }
             return *this;
         }
@@ -359,7 +359,7 @@ public:
         typedef TList<TParent> TThis;
         typedef typename TFluentYsonUnwrapper<TParent>::TUnwrapped TUnwrappedParent;
 
-        explicit TList(IYsonConsumer* consumer, const TParent& parent = TParent())
+        explicit TList(NYson::IYsonConsumer* consumer, const TParent& parent = TParent())
             : TFluentFragmentBase<TFluentYsonBuilder::TList, TParent>(consumer, parent)
         { }
 
@@ -393,7 +393,7 @@ public:
         typedef TMap<TParent> TThis;
         typedef typename TFluentYsonUnwrapper<TParent>::TUnwrapped TUnwrappedParent;
 
-        explicit TMap(IYsonConsumer* consumer, const TParent& parent = TParent())
+        explicit TMap(NYson::IYsonConsumer* consumer, const TParent& parent = TParent())
             : TFluentFragmentBase<TFluentYsonBuilder::TMap, TParent>(consumer, parent)
         { }
 
@@ -436,17 +436,17 @@ typedef TFluentYsonBuilder::TMap<TFluentYsonVoid> TFluentMap;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static inline TFluentYsonBuilder::TAny<TFluentYsonVoid> BuildYsonFluently(IYsonConsumer* consumer)
+static inline TFluentYsonBuilder::TAny<TFluentYsonVoid> BuildYsonFluently(NYson::IYsonConsumer* consumer)
 {
     return TFluentYsonBuilder::TAny<TFluentYsonVoid>(consumer, TFluentYsonVoid());
 }
 
-static inline TFluentList BuildYsonListFluently(IYsonConsumer* consumer)
+static inline TFluentList BuildYsonListFluently(NYson::IYsonConsumer* consumer)
 {
     return TFluentList(consumer);
 }
 
-static inline TFluentMap BuildYsonMapFluently(IYsonConsumer* consumer)
+static inline TFluentMap BuildYsonMapFluently(NYson::IYsonConsumer* consumer)
 {
     return TFluentMap(consumer);
 }
@@ -459,7 +459,7 @@ class TFluentYsonWriterState
 public:
     typedef TYsonString TValue;
 
-    explicit TFluentYsonWriterState(EYsonFormat format)
+    explicit TFluentYsonWriterState(NYson::EYsonFormat format)
         : Writer(&Output, format)
     { }
 
@@ -468,14 +468,14 @@ public:
         return TYsonString(Output.Str());
     }
 
-    IYsonConsumer* GetConsumer()
+    NYson::IYsonConsumer* GetConsumer()
     {
         return &Writer;
     }
 
 private:
     TStringStream Output;
-    TYsonWriter Writer;
+    NYson::TYsonWriter Writer;
 
 };
 
@@ -496,7 +496,7 @@ public:
         return Builder->EndTree();
     }
 
-    IYsonConsumer* GetConsumer()
+    NYson::IYsonConsumer* GetConsumer()
     {
         return ~Builder;
     }
@@ -551,7 +551,7 @@ TFluentYsonBuilder::TAny< TFluentYsonHolder<TState> > BuildYsonFluentlyWithState
 }
 
 inline TFluentYsonBuilder::TAny< TFluentYsonHolder<TFluentYsonWriterState> > BuildYsonStringFluently(
-    EYsonFormat format = EYsonFormat::Binary)
+    NYson::EYsonFormat format = NYson::EYsonFormat::Binary)
 {
     return BuildYsonFluentlyWithState(New<TFluentYsonWriterState>(format));
 }

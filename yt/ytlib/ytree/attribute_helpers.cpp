@@ -6,6 +6,8 @@
 namespace NYT {
 namespace NYTree {
 
+using namespace NYson;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEphemeralAttributeDictionary

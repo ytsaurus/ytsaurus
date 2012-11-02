@@ -4,6 +4,8 @@
 namespace NYT {
 namespace NYTree {
 
+using namespace NYson;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TYsonProducer::TYsonProducer(TYsonCallback callback, EYsonType type)

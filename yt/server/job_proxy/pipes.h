@@ -113,7 +113,7 @@ public:
         int fd[2],
         TAutoPtr<NTableClient::TTableProducer> tableProducer, 
         TAutoPtr<TBlobOutput> buffer, 
-        TAutoPtr<NYTree::IYsonConsumer> consumer,
+        TAutoPtr<NYson::IYsonConsumer> consumer,
         int jobDescriptor);
 
     void PrepareJobDescriptors() override;
@@ -133,7 +133,7 @@ private:
 
     TAutoPtr<NTableClient::TTableProducer> TableProducer;
     TAutoPtr<TBlobOutput> Buffer;
-    TAutoPtr<NYTree::IYsonConsumer> Consumer;
+    TAutoPtr<NYson::IYsonConsumer> Consumer;
     int Position;
 
     bool HasData;

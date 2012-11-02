@@ -1,17 +1,14 @@
 #include "stdafx.h"
+
 #include "yson_writer.h"
-
 #include "yson_format.h"
-
-#include <ytlib/misc/serialize.h>
-
-#include <util/string/escape.h>
+#include "varint.h"
 
 namespace NYT {
-namespace NYTree {
+namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
-    
+
 // Copied from <util/string/escape.cpp>
 namespace {
 
@@ -304,5 +301,5 @@ void TYsonWriter::OnRaw(const TStringBuf& yson, EYsonType type)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
+} // namespace NYson
 } // namespace NYT

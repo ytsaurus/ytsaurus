@@ -2,7 +2,7 @@
 
 #include <ytlib/ytree/yson_consumer-mock.h>
 
-#include <ytlib/ytree/yson_parser.h>
+#include <ytlib/yson/yson_parser.h>
 
 #include <util/stream/mem.h>
 
@@ -12,8 +12,9 @@ using ::testing::InSequence;
 using ::testing::StrictMock;
 
 namespace NYT {
-namespace NYTree {
+namespace NYson {
 
+using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYsonParserTest: public ::testing::Test

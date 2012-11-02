@@ -2,13 +2,14 @@
 #include "table_producer.h"
 #include "sync_reader.h"
 
-#include <ytlib/ytree/yson_consumer.h>
+#include <ytlib/yson/yson_consumer.h>
 #include <ytlib/ytree/yson_string.h>
 #include <ytlib/misc/foreach.h>
 
 namespace NYT {
 namespace NTableClient {
 
+using namespace NYson;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -47,7 +48,7 @@ bool TTableProducer::ProduceRow()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ProduceYson(ISyncReaderPtr reader, NYTree::IYsonConsumer* consumer)
+void ProduceYson(ISyncReaderPtr reader, NYson::IYsonConsumer* consumer)
 {
     TTableProducer producer(reader, consumer);
     while (producer.ProduceRow());

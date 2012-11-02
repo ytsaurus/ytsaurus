@@ -10,8 +10,8 @@
 
 #include <ytlib/formats/format.h>
 
-#include <ytlib/ytree/yson_writer.h>
-#include <ytlib/ytree/parser.h>
+#include <ytlib/yson/yson_writer.h>
+#include <ytlib/formats/parser.h>
 #include <ytlib/ytree/convert.h>
 
 #include <ytlib/table_client/table_producer.h>
@@ -42,6 +42,7 @@ namespace NYT {
 namespace NJobProxy {
 
 using namespace NYTree;
+using namespace NYson;
 using namespace NTableClient;
 using namespace NFormats;
 using namespace NScheduler;

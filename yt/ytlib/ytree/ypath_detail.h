@@ -1,10 +1,10 @@
 #pragma once
 
 #include "ypath_service.h"
-#include "yson_consumer.h"
+#include <ytlib/yson/yson_consumer.h>
 #include "yson_producer.h"
 #include "tree_builder.h"
-#include "yson_writer.h"
+#include <ytlib/yson/yson_writer.h>
 #include "forwarding_yson_consumer.h"
 #include "attributes.h"
 

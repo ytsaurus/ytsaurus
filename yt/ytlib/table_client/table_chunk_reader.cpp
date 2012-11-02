@@ -14,7 +14,7 @@
 #include <ytlib/chunk_client/config.h>
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/ytree/tokenizer.h>
+#include <ytlib/yson/tokenizer.h>
 #include <ytlib/actions/invoker.h>
 #include <ytlib/logging/tagged_logger.h>
 

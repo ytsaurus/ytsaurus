@@ -8,11 +8,13 @@ set( SRCS
   ${BASE}/helpers.cpp
   ${BASE}/json_parser.cpp
   ${BASE}/json_writer.cpp
+  ${BASE}/parser.cpp
   ${BASE}/yamr_base_parser.cpp
   ${BASE}/yamr_parser.cpp
   ${BASE}/yamr_writer.cpp
   ${BASE}/yamred_dsv_parser.cpp
   ${BASE}/yamred_dsv_writer.cpp
+  ${BASE}/yson_parser.cpp
 )
 set( HDRS
   ${BASE}/config.h
@@ -23,12 +25,14 @@ set( HDRS
   ${BASE}/helpers.h
   ${BASE}/json_parser.h
   ${BASE}/json_writer.h
+  ${BASE}/parser.h
   ${BASE}/public.h
   ${BASE}/yamr_base_parser.h
   ${BASE}/yamr_parser.h
   ${BASE}/yamr_writer.h
   ${BASE}/yamred_dsv_parser.h
   ${BASE}/yamred_dsv_writer.h
+  ${BASE}/yson_parser.h
 )
 
 list(APPEND YT_SOURCE_FILES

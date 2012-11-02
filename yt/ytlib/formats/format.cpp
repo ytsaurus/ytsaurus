@@ -13,9 +13,11 @@
 #include "yamred_dsv_parser.h"
 #include "yamred_dsv_writer.h"
 
+#include "yson_parser.h"
+
 #include <ytlib/misc/error.h>
 
-#include <ytlib/ytree/yson_writer.h>
+#include <ytlib/yson/yson_writer.h>
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/forwarding_yson_consumer.h>
 
@@ -23,6 +25,7 @@ namespace NYT {
 namespace NFormats {
 
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -314,7 +317,8 @@ TAutoPtr<IParser> CreateParserForFormat(const TFormat& format, EDataType dataTyp
 {
     switch (format.GetType()) {
         case EFormatType::Yson:
-            return new TYsonParser(consumer, DataTypeToYsonType(dataType));
+            return CreateParserForYson(consumer, DataTypeToYsonType(dataType));
+
         case EFormatType::Json: {
             auto config = New<TJsonFormatConfig>();
             config->Load(ConvertToNode(&format.Attributes())->AsMap());

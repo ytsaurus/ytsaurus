@@ -1,21 +1,21 @@
 ﻿#include "stdafx.h"
 #include "table_output.h"
 
-#include <ytlib/ytree/parser.h>
-#include <ytlib/ytree/yson_consumer.h>
+#include <ytlib/formats/parser.h>
+#include <ytlib/yson/yson_consumer.h>
 #include <ytlib/table_client/sync_writer.h>
 
 namespace NYT {
 namespace NJobProxy {
 
-using namespace NYTree;
+using namespace NFormats;
 using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////
 
 TTableOutput::TTableOutput(
     TAutoPtr<IParser> parser, 
-    TAutoPtr<IYsonConsumer> consumer,
+    TAutoPtr<NYson::IYsonConsumer> consumer,
     const ISyncWriterPtr& syncWriter)
     : Parser(parser)
     , Consumer(consumer)

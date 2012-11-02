@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/ytree/public.h>
+#include <ytlib/yson/public.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -49,7 +49,7 @@ private:
 };
 
 Stroka ToString(const TProgressCounter& counter);
-void Serialize(const TProgressCounter& counter, NYTree::IYsonConsumer* consumer);
+void Serialize(const TProgressCounter& counter, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

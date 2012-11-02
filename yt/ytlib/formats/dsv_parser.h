@@ -3,8 +3,7 @@
 #include "public.h"
 #include "config.h"
 
-#include <ytlib/ytree/parser.h>
-#include <ytlib/ytree/yson_consumer.h>
+#include <ytlib/yson/yson_consumer.h>
 
 namespace NYT {
 namespace NFormats {
@@ -15,8 +14,8 @@ namespace NFormats {
  *  \param wrapWithMap If True then the parser wraps values with calls to
  *  #IYsonConsumer::OnBeginMap and #IYsonConsumer::OnEndMap.
  */
-TAutoPtr<NYTree::IParser> CreateParserForDsv(
-    NYTree::IYsonConsumer* consumer,
+TAutoPtr<IParser> CreateParserForDsv(
+    NYson::IYsonConsumer* consumer,
     TDsvFormatConfigPtr config = New<TDsvFormatConfig>(),
     bool wrapWithMap = true);
 
@@ -24,12 +23,12 @@ TAutoPtr<NYTree::IParser> CreateParserForDsv(
 
 void ParseDsv(
     TInputStream* input,
-    NYTree::IYsonConsumer* consumer,
+    NYson::IYsonConsumer* consumer,
     TDsvFormatConfigPtr config = New<TDsvFormatConfig>());
 
 void ParseDsv(
     const TStringBuf& data,
-    NYTree::IYsonConsumer* consumer,
+    NYson::IYsonConsumer* consumer,
     TDsvFormatConfigPtr config = New<TDsvFormatConfig>());
 
 ////////////////////////////////////////////////////////////////////////////////

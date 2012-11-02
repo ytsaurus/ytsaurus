@@ -16,7 +16,8 @@
 
 #include <ytlib/chunk_client/block_cache.h>
 
-#include <ytlib/ytree/lexer.h>
+#include <ytlib/yson/lexer.h>
+#include <ytlib/yson/varint.h>
 
 #include <util/system/yield.h>
 
@@ -25,6 +26,7 @@ namespace NJobProxy {
 
 using namespace NTableClient;
 using namespace NYTree;
+using namespace NYson;
  
 ////////////////////////////////////////////////////////////////////////////////
 

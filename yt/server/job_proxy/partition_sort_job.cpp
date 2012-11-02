@@ -12,7 +12,8 @@
 #include <ytlib/meta_state/master_channel.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/table_client/sync_writer.h>
-#include <ytlib/ytree/lexer.h>
+#include <ytlib/yson/lexer.h>
+#include <ytlib/yson/varint.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -23,6 +24,7 @@ using namespace NChunkClient;
 using namespace NTransactionClient;
 using namespace NScheduler::NProto;
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -123,7 +125,7 @@ public:
                 bool isNetworkReleased = false;
                 auto jobSpecExt = Host->GetJobSpec().GetExtension(TSortJobSpecExt::sort_job_spec_ext);
 
-                TLexer lexer;
+                NYson::TLexer lexer;
                 while (Reader->IsValid()) {
                     // Push row pointer.
                     rowPtrBuffer.push_back(Reader->CurrentReader()->GetRowPointer());

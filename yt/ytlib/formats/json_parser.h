@@ -3,8 +3,8 @@
 #include "public.h"
 #include "config.h"
 
-#include <ytlib/ytree/parser.h>
-#include <ytlib/ytree/yson_consumer.h>
+#include <ytlib/formats/parser.h>
+#include <ytlib/yson/yson_consumer.h>
 
 #include <library/json/json_value.h>
 
@@ -17,11 +17,11 @@ namespace NFormats {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJsonParser
-    : public NYTree::IParser
+    : public IParser
 {
 public:
     TJsonParser(
-        NYTree::IYsonConsumer* consumer,
+        NYson::IYsonConsumer* consumer,
         TJsonFormatConfigPtr config = NULL);
 
     virtual void Read(const TStringBuf& data);
@@ -30,7 +30,7 @@ public:
     void Parse(TInputStream* input);
 
 private:
-    NYTree::IYsonConsumer* Consumer;
+    NYson::IYsonConsumer* Consumer;
     TJsonFormatConfigPtr Config;
 
     TStringStream Stream;
@@ -49,7 +49,7 @@ private:
 
 void ParseJson(
     TInputStream* input,
-    NYTree::IYsonConsumer* consumer,
+    NYson::IYsonConsumer* consumer,
     TJsonFormatConfigPtr config = NULL);
 
 ////////////////////////////////////////////////////////////////////////////////

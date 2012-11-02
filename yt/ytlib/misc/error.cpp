@@ -6,13 +6,14 @@
 
 #include <ytlib/ytree/convert.h>
 #include <ytlib/ytree/fluent.h>
-#include <ytlib/ytree/tokenizer.h>
+#include <ytlib/yson/tokenizer.h>
 
 #include <util/system/error.h>
 
 namespace NYT {
 
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -321,7 +322,7 @@ TError FromProto(const NYT::NProto::TError& protoError)
     return error;
 }
 
-void Serialize(const TError& error, NYTree::IYsonConsumer* consumer)
+void Serialize(const TError& error, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()

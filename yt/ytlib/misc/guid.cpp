@@ -3,8 +3,6 @@
 
 #include <ytlib/misc/error.h>
 
-#include <ytlib/ytree/yson_consumer.h>
-
 #include <util/datetime/cputimer.h>
 
 #include <util/system/atomic.h>

@@ -5,11 +5,13 @@
 #include "private.h"
 
 #include <ytlib/misc/string.h>
+#include <ytlib/misc/nullable.h>
 
 #include <ytlib/actions/bind.h>
 
 #include <ytlib/ytree/virtual.h>
 #include <ytlib/ytree/fluent.h>
+#include <ytlib/ytree/yson_string.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -26,6 +28,7 @@ namespace NYT {
 namespace NChunkServer {
 
 using namespace NYTree;
+using namespace NYson;
 using namespace NYPath;
 using namespace NCypressServer;
 using namespace NCypressClient;
@@ -304,8 +307,8 @@ private:
 
     virtual void ValidateUserAttributeUpdate(
         const Stroka& key,
-        const TNullable<TYsonString>& oldValue,
-        const TNullable<TYsonString>& newValue) override
+        const TNullable<NYTree::TYsonString>& oldValue,
+        const TNullable<NYTree::TYsonString>& newValue) override
     {
         UNUSED(oldValue);
 

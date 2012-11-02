@@ -2,7 +2,7 @@
 
 #include "small_key.h"
 
-#include <ytlib/ytree/lexer.h>
+#include <ytlib/yson/lexer.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -12,25 +12,25 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SetSmallKeyPart(TSmallKeyPart& keyPart, const TStringBuf& yson, TLexer& lexer)
+void SetSmallKeyPart(TSmallKeyPart& keyPart, const TStringBuf& yson, NYson::TLexer& lexer)
 {
     lexer.Reset();
     YCHECK(lexer.Read(yson) > 0);
-    YASSERT(lexer.GetState() == NYTree::TLexer::EState::Terminal);
+    YASSERT(lexer.GetState() == NYson::TLexer::EState::Terminal);
 
     const auto& token = lexer.GetToken();
     switch (token.GetType()) {
-    case ETokenType::Integer:
+    case NYson::ETokenType::Integer:
         keyPart.Type = EKeyPartType::Integer;
         keyPart.Value.Int = token.GetIntegerValue();
         break;
 
-    case ETokenType::Double:
+    case NYson::ETokenType::Double:
         keyPart.Type = EKeyPartType::Double;
         keyPart.Value.Double = token.GetDoubleValue();
         break;
 
-    case ETokenType::String: {
+    case NYson::ETokenType::String: {
         keyPart.Type = EKeyPartType::String;
         auto& value = token.GetStringValue();
         keyPart.Value.Str = ~value;

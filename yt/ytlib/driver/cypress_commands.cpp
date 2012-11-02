@@ -5,6 +5,7 @@
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
+#include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/attribute_helpers.h>
 

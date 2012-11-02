@@ -14,7 +14,7 @@ using namespace NJson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJsonParser::TJsonParser(NYTree::IYsonConsumer* consumer, TJsonFormatConfigPtr config)
+TJsonParser::TJsonParser(NYson::IYsonConsumer* consumer, TJsonFormatConfigPtr config)
     : Consumer(consumer)
     , Config(config)
 {
@@ -121,7 +121,7 @@ Stroka TJsonParser::DecodeString(const Stroka& value)
             
 void ParseJson(
     TInputStream* input,
-    NYTree::IYsonConsumer* consumer,
+    NYson::IYsonConsumer* consumer,
     TJsonFormatConfigPtr config)
 {
     TJsonParser jsonParser(consumer, config);

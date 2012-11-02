@@ -4,7 +4,7 @@
 #include "attribute_owner.h"
 #include "attribute_provider.h"
 #include "ypath_service.h"
-#include "yson_consumer.h"
+#include <ytlib/yson/yson_consumer.h>
 
 #include <ytlib/misc/mpl.h>
 
@@ -341,7 +341,7 @@ struct INodeFactory
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Serialize(INode& value, IYsonConsumer* consumer);
+void Serialize(INode& value, NYson::IYsonConsumer* consumer);
 void Deserialize(INodePtr& value, INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////

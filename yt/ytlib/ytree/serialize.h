@@ -1,9 +1,9 @@
 #pragma once
 
 #include "ephemeral_node_factory.h"
-#include "yson_writer.h"
 #include "yson_producer.h"
 
+#include <ytlib/yson/yson_writer.h>
 #include <ytlib/misc/nullable.h>
 #include <ytlib/misc/mpl.h>
 #include <ytlib/misc/guid.h>
@@ -20,10 +20,10 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-EYsonType GetYsonType(const T&);
-EYsonType GetYsonType(const TYsonString& yson);
-EYsonType GetYsonType(const TYsonInput& input);
-EYsonType GetYsonType(const TYsonProducer& producer);
+NYson::EYsonType GetYsonType(const T&);
+NYson::EYsonType GetYsonType(const TYsonString& yson);
+NYson::EYsonType GetYsonType(const TYsonInput& input);
+NYson::EYsonType GetYsonType(const TYsonProducer& producer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,94 +31,94 @@ template <class T>
 void WriteYson(
     TOutputStream* output,
     const T& value,
-    EYsonType type,
-    EYsonFormat format = EYsonFormat::Binary);
+    NYson::EYsonType type,
+    NYson::EYsonFormat format = NYson::EYsonFormat::Binary);
 
 template <class T>
 void WriteYson(
     TOutputStream* output,
     const T& value,
-    EYsonFormat format = EYsonFormat::Binary);
+    NYson::EYsonFormat format = NYson::EYsonFormat::Binary);
 
 template <class T>
 void WriteYson(
     const TYsonOutput& output,
     const T& value,
-    EYsonFormat format = EYsonFormat::Binary);
+    NYson::EYsonFormat format = NYson::EYsonFormat::Binary);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void Serialize(T* value, IYsonConsumer* consumer);
+void Serialize(T* value, NYson::IYsonConsumer* consumer);
 
 template <class T>
-void Serialize(const TIntrusivePtr<T>& value, IYsonConsumer* consumer);
+void Serialize(const TIntrusivePtr<T>& value, NYson::IYsonConsumer* consumer);
 
-void Serialize(short value, IYsonConsumer* consumer);
-void Serialize(unsigned short value, IYsonConsumer* consumer);
-void Serialize(int value, IYsonConsumer* consumer);
-void Serialize(unsigned int value, IYsonConsumer* consumer);
-void Serialize(long value, IYsonConsumer* consumer);
-void Serialize(unsigned long value, IYsonConsumer* consumer);
-void Serialize(long long value, IYsonConsumer* consumer);
-void Serialize(unsigned long long value, IYsonConsumer* consumer);
+void Serialize(short value, NYson::IYsonConsumer* consumer);
+void Serialize(unsigned short value, NYson::IYsonConsumer* consumer);
+void Serialize(int value, NYson::IYsonConsumer* consumer);
+void Serialize(unsigned int value, NYson::IYsonConsumer* consumer);
+void Serialize(long value, NYson::IYsonConsumer* consumer);
+void Serialize(unsigned long value, NYson::IYsonConsumer* consumer);
+void Serialize(long long value, NYson::IYsonConsumer* consumer);
+void Serialize(unsigned long long value, NYson::IYsonConsumer* consumer);
 
 // double
-void Serialize(double value, IYsonConsumer* consumer);
+void Serialize(double value, NYson::IYsonConsumer* consumer);
 
 // Stroka
-void Serialize(const Stroka& value, IYsonConsumer* consumer);
+void Serialize(const Stroka& value, NYson::IYsonConsumer* consumer);
 
 // TStringBuf
-void Serialize(const TStringBuf& value, IYsonConsumer* consumer);
+void Serialize(const TStringBuf& value, NYson::IYsonConsumer* consumer);
 
 // const char*
-void Serialize(const char* value, IYsonConsumer* consumer);
+void Serialize(const char* value, NYson::IYsonConsumer* consumer);
 
 // bool
-void Serialize(bool value, IYsonConsumer* consumer);
+void Serialize(bool value, NYson::IYsonConsumer* consumer);
 
 // char
-void Serialize(char value, IYsonConsumer* consumer);
+void Serialize(char value, NYson::IYsonConsumer* consumer);
 
 // TDuration
-void Serialize(TDuration value, IYsonConsumer* consumer);
+void Serialize(TDuration value, NYson::IYsonConsumer* consumer);
 
 // TInstant
-void Serialize(TInstant value, IYsonConsumer* consumer);
+void Serialize(TInstant value, NYson::IYsonConsumer* consumer);
 
 // TGuid
-void Serialize(const TGuid& value, IYsonConsumer* consumer);
+void Serialize(const TGuid& value, NYson::IYsonConsumer* consumer);
 
 // TInputStream
-void Serialize(TInputStream& input, IYsonConsumer* consumer);
+void Serialize(TInputStream& input, NYson::IYsonConsumer* consumer);
 
 // TEnumBase
 template <class T>
 void Serialize(
     T value,
-    IYsonConsumer* consumer,
+    NYson::IYsonConsumer* consumer,
     typename NMpl::TEnableIf<NMpl::TIsConvertible<T&, TEnumBase<T>&>, int>::TType = 0);
 
 // TNullable
 template <class T>
-void Serialize(const TNullable<T>& value, IYsonConsumer* consumer);
+void Serialize(const TNullable<T>& value, NYson::IYsonConsumer* consumer);
 
 // std::vector
 template <class T>
-void Serialize(const std::vector<T>& value, IYsonConsumer* consumer);
+void Serialize(const std::vector<T>& value, NYson::IYsonConsumer* consumer);
 
 // std::vector
 template <class T>
-void Serialize(const std::vector<T>& value, IYsonConsumer* consumer);
+void Serialize(const std::vector<T>& value, NYson::IYsonConsumer* consumer);
 
 // yhash_set
 template <class T>
-void Serialize(const yhash_set<T>& value, IYsonConsumer* consumer);
+void Serialize(const yhash_set<T>& value, NYson::IYsonConsumer* consumer);
 
 // yhash_map
 template <class T>
-void Serialize(const yhash_map<Stroka, T>& value, IYsonConsumer* consumer);
+void Serialize(const yhash_map<Stroka, T>& value, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

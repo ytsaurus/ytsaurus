@@ -7,6 +7,8 @@
 #include <ytlib/ytree/public.h>
 #include <ytlib/ytree/attributes.h>
 
+#include <ytlib/yson/public.h>
+
 namespace NYT {
 namespace NFormats {
 
@@ -49,12 +51,12 @@ private:
 
 };
 
-void Serialize(const TFormat& value, NYTree::IYsonConsumer* consumer);
+void Serialize(const TFormat& value, NYson::IYsonConsumer* consumer);
 void Deserialize(TFormat& value, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAutoPtr<NYTree::IYsonConsumer> CreateConsumerForFormat(
+TAutoPtr<NYson::IYsonConsumer> CreateConsumerForFormat(
     const TFormat& format,
     EDataType dataType,
     TOutputStream* output);
@@ -64,10 +66,10 @@ NYTree::TYsonProducer CreateProducerForFormat(
     EDataType dataType,
     TInputStream* input);
 
-TAutoPtr<NYTree::IParser> CreateParserForFormat(
+TAutoPtr<IParser> CreateParserForFormat(
     const TFormat& format,
     EDataType dataType,
-    NYTree::IYsonConsumer* consumer);
+    NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

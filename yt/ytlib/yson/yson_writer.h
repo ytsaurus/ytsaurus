@@ -2,10 +2,9 @@
 
 #include "public.h"
 #include "yson_consumer.h"
-#include "yson_string.h"
 
 namespace NYT {
-namespace NYTree {
+namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,6 +70,6 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
+} // namespace NYson
 } // namespace NYT
 

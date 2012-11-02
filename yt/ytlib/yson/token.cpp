@@ -4,7 +4,7 @@
 #include <ytlib/misc/error.h>
 
 namespace NYT {
-namespace NYTree {
+namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -167,5 +167,5 @@ void TToken::CheckType(ETokenType expectedType) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYtree
+} // namespace NYson
 } // namespace NYT

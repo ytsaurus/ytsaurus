@@ -2,13 +2,14 @@
 
 #include <ytlib/misc/error.h>
 
-#include <ytlib/ytree/yson_format.h>
+#include <ytlib/yson/yson_format.h>
 #include <ytlib/ytree/yson_string.h>
-#include <ytlib/ytree/token.h>
+#include <ytlib/yson/token.h>
 
 namespace NYT {
 
 using namespace NYTree;
+using namespace NYson;
 
 namespace NFormats {
 

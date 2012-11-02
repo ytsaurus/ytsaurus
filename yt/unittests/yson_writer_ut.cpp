@@ -1,7 +1,7 @@
 #include "stdafx.h"
 
-#include <ytlib/ytree/yson_writer.h>
-#include <ytlib/ytree/yson_parser.h>
+#include <ytlib/yson/yson_writer.h>
+#include <ytlib/yson/yson_parser.h>
 #include <ytlib/ytree/yson_consumer-mock.h>
 #include <ytlib/ytree/yson_stream.h>
 
@@ -13,7 +13,9 @@ using ::testing::InSequence;
 using ::testing::StrictMock;
 
 namespace NYT {
-namespace NYTree {
+namespace NYson {
+
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
