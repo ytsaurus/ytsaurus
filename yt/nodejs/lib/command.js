@@ -212,6 +212,7 @@ YtCommand.prototype._getName = function(cb) {
     this.name = this.req.parsedUrl.pathname.slice(1).toLowerCase();
 
     if (!this.name.length) {
+        this.rsp.setHeader("Access-Control-Allow-Origin", "*");
         this._dispatchJSON(this.driver.get_command_descriptors());
         return cb(false);
     }
