@@ -135,35 +135,31 @@ void* TActionQueueBase::ThreadFunc(void* param)
 
 void TActionQueueBase::ThreadMain()
 {
-    try {
-        LOG_DEBUG_IF(EnableLogging, "Thread started: %s", ~ThreadName);
+    LOG_DEBUG_IF(EnableLogging, "Thread started: %s", ~ThreadName);
 
-        OnThreadStart();
+    OnThreadStart();
     
-        NThread::SetCurrentThreadName(~ThreadName);
-        ThreadId = NThread::GetCurrentThreadId();
+    NThread::SetCurrentThreadName(~ThreadName);
+    ThreadId = NThread::GetCurrentThreadId();
 
-        while (true) {
+    while (true) {
+        if (!DequeueAndExecute()) {
+            WakeupEvent.Reset();
             if (!DequeueAndExecute()) {
-                WakeupEvent.Reset();
-                if (!DequeueAndExecute()) {
-                    if (!IsRunning()) {
-                        break;
-                    }
-                    OnIdle();
-                    WakeupEvent.Wait();
+                if (!IsRunning()) {
+                    break;
                 }
+                OnIdle();
+                WakeupEvent.Wait();
             }
         }
-
-        YCHECK(!DequeueAndExecute());
-    
-        OnThreadShutdown();
-
-        LOG_DEBUG_IF(EnableLogging, "Thread stopped: %s", ~ThreadName);
-    } catch (const std::exception& ex) {
-        LOG_FATAL_IF(EnableLogging, ex, "Unhandled exception in thread: %s", ~ThreadName);
     }
+
+    YCHECK(!DequeueAndExecute());
+    
+    OnThreadShutdown();
+
+    LOG_DEBUG_IF(EnableLogging, "Thread stopped: %s", ~ThreadName);
 }
 
 void TActionQueueBase::Shutdown()
