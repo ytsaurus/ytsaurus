@@ -359,18 +359,13 @@ template <class T>
 void Load(TInputStream* input, TNullable<T>& obj)
 {
     using ::Load;
-    /*
     bool hasValue;
     Load(input, hasValue);
     if (hasValue) {
         T temp;
         Load(input, temp);
         obj = MoveRV(temp);
-    }*/
-    // XXX(babenko): oh Ignat!
-    T temp;
-    Load(input, temp);
-    obj = MoveRV(temp);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
