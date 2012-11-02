@@ -256,12 +256,16 @@ void SetResource(NProto::TNodeResources& resources, EResourceType type, i64 valu
     switch (type) {
         case EResourceType::Slots:
             resources.set_slots(static_cast<i32>(value));
+        break;
         case EResourceType::Cpu:
             resources.set_cpu(static_cast<i32>(value));
+        break;
         case EResourceType::Memory:
             resources.set_memory(value);
+        break;
         case EResourceType::Network:
             resources.set_network(static_cast<i32>(value));
+        break;
         default:
             YUNREACHABLE();
     }

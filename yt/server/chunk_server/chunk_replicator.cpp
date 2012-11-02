@@ -776,7 +776,7 @@ void TChunkReplicator::OnRFUpdate()
     auto chunkManager = Bootstrap->GetChunkManager();
     NProto::TMetaReqUpdateChunkReplicationFactor request;
     while (!RFUpdateList.empty() && request.updates_size() < Config->MaxChunksPerRFUpdate) {
-        const auto& chunkId = RFUpdateList.front();
+        auto chunkId = RFUpdateList.front();
         RFUpdateList.pop_front();
         YCHECK(RFUpdateSet.erase(chunkId) == 1);
 

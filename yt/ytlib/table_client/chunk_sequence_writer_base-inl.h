@@ -451,7 +451,6 @@ const std::vector<NProto::TInputChunk>& TChunkSequenceWriterBase<TChunkWriter>::
 template <class TChunkWriter>
 i64 TChunkSequenceWriterBase<TChunkWriter>::GetRowCount() const
 {
-    YASSERT(!State.HasRunningOperation());
     return RowCount;
 }
 

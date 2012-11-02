@@ -351,11 +351,6 @@ struct TSortOperationSpec
         Register("merge_job_io", MergeJobIO)
             .DefaultNew();
 
-        PartitionJobIO->TableReader->PrefetchWindow = 10;
-        PartitionJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
-
-        SortJobIO->TableReader->PrefetchWindow = 10;
-
         // Provide custom names for shared settings.
         Register("partition_job_count", PartitionJobCount)
             .Default()
@@ -381,6 +376,11 @@ struct TSortOperationSpec
             .Default(TDuration::Seconds(10));
         Register("merge_locality_timeout", MergeLocalityTimeout)
             .Default(TDuration::Seconds(10));
+
+        PartitionJobIO->TableReader->PrefetchWindow = 10;
+        PartitionJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
+
+        SortJobIO->TableReader->PrefetchWindow = 10;
     }
 };
 
@@ -439,6 +439,11 @@ struct TMapReduceOperationSpec
         //   MaxDataSizePerUnorderedMergeJob
         //   SortLocalityTimeout
         //   MergeLocalityTimeout
+
+        MapJobIO->TableReader->PrefetchWindow = 10;
+        MapJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
+
+        SortJobIO->TableReader->PrefetchWindow = 10;
     }
 
     virtual void OnLoaded() override
