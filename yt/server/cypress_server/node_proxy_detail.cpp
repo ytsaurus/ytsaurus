@@ -167,6 +167,7 @@ private:
 
     virtual void OnCompleted() override
     {
+        Serialize(ResourceUsage, Consumer);
         Result.Set(TError());
     }
 
@@ -312,6 +313,8 @@ TAsyncError TCypressNodeProxyNontemplateBase::GetSystemAttributeAsync(
         auto visitor = New<TResourceUsageVisitor>(consumer);
         return visitor->Run(Bootstrap, const_cast<TCypressNodeProxyNontemplateBase*>(this));
     }
+
+    return TObjectProxyBase::GetSystemAttributeAsync(key, consumer);
 }
 
 TVersionedObjectId TCypressNodeProxyNontemplateBase::GetVersionedId() const 

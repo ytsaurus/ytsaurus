@@ -265,10 +265,13 @@ class TestTableCommands(YTEnvSetup):
         write_str('//tmp/t', '{a=b}')
 
         assert read('//tmp/t') == [{'a' : 'b'}]
+
         copy('//tmp/t', '//tmp/t2')
         assert read('//tmp/t2') == [{'a' : 'b'}]
 
-	get('//tmp/@recursive_resource_usage')
+        assert get('//tmp/t2/@resource_usage') == get('//tmp/t/@resource_usage')
+
+        #assert get('//tmp/@recursive_resource_usage') == {"disk_space" : 438}
 
         remove('//tmp/t')
         assert read('//tmp/t2') == [{'a' : 'b'}]
@@ -284,6 +287,9 @@ class TestTableCommands(YTEnvSetup):
         assert read('//tmp/t', tx=tx) == [{'a' : 'b'}]
         copy('//tmp/t', '//tmp/t2', tx=tx)
         assert read('//tmp/t2', tx=tx) == [{'a' : 'b'}]
+
+        #assert get('//tmp/@recursive_resource_usage') == {"disk_space" : 438}
+        #assert get('//tmp/@recursive_resource_usage', tx=tx) == {"disk_space" : 2 * 438}
         commit_transaction(tx)
 
         assert read('//tmp/t2') == [{'a' : 'b'}]

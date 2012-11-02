@@ -18,6 +18,11 @@ using namespace NTransactionServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Extract to private.
+static NLog::TLogger Logger("Cypress");
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 static const int MaxNodeCountPerAction = 1000;
@@ -102,20 +107,25 @@ private:
 
          int currentNodeCount = 0;
          while (currentNodeCount < MaxNodeCountPerAction) {
+            YASSERT(!Stack.empty());
             auto& entry = Stack.back();
-            if (entry.ChildIndex >= entry.Children.size()) {
+            auto childIndex = entry.ChildIndex;
+            entry.NextChild();
+
+            if (childIndex >= entry.Children.size()) {
                 Stack.pop_back();
                 if (Stack.empty()) {
                     Visitor->OnCompleted();
                     return;
                 }
+                continue;
+            } else {
+                auto& nodeId = entry.Children[childIndex];
+                auto nodeProxy = Bootstrap->GetCypressManager()->FindVersionedNodeProxy(nodeId, transaction);
+
+                VisitNode(nodeProxy);
+                ++currentNodeCount;
             }
-
-            auto& nodeId = entry.Children[entry.ChildIndex];
-            auto nodeProxy = Bootstrap->GetCypressManager()->FindVersionedNodeProxy(nodeId, transaction);
-
-            VisitNode(nodeProxy);
-            ++currentNodeCount;
          }
 
          auto res = Bootstrap->GetMetaStateFacade()->GetGuardedInvoker()->Invoke(BIND(
@@ -150,6 +160,10 @@ public:
         if (tx) {
             TransactionId = tx->GetId();
         }
+
+        LOG_DEBUG("Run cypress node traverser (RootNodeId: %s, TransactionId: %s)",
+            ~nodeProxy->GetId().ToString(),
+            ~TransactionId.ToString());
 
         VisitNode(nodeProxy);
         DoTraverse();
