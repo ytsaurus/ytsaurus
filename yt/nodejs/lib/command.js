@@ -44,7 +44,7 @@ var _STREAM_COMPRESSION = {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtCommand(logger, driver, watcher, req, rsp) {
+function YtCommand(logger, driver, watcher, read_only, req, rsp) {
     "use strict";
     if (__DBG.UUID) {
         this.__DBG  = function(x) { __DBG(this.__UUID + " -> " + x); };
@@ -56,6 +56,7 @@ function YtCommand(logger, driver, watcher, req, rsp) {
     this.logger = logger;
     this.driver = driver;
     this.watcher = watcher;
+    this.read_only = read_only;
 
     this.req = req;
     this.rsp = rsp;
@@ -271,6 +272,13 @@ YtCommand.prototype._checkHttpMethod = function(cb) {
 YtCommand.prototype._checkHeavy = function(cb) {
     "use strict";
     this.__DBG("_checkHeavy");
+
+    if (this.descriptor.is_volatile && this.read_only) {
+        this.rsp.statusCode = 503;
+        this.rsp.setHeader("Retry-After", "60");
+        throw new Error(
+            "Command '" + this.name + "' is volatile and the proxy is in read-only mode.");
+    }
 
     if (this.descriptor.is_heavy && this.watcher.is_choking()) {
         this.rsp.statusCode = 503;

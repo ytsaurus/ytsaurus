@@ -81,6 +81,7 @@ configuration = {
     memory_limit      : 32 * 1024 * 1024,
     thread_limit      : 32,
     spare_threads     : 4,
+    read_only         : false
 };
 configuration = merge(configuration, JSON.parse(fs.readFileSync(opts.argv.c, "utf8")) || {});
 configuration = merge(configuration, {

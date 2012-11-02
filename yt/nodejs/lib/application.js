@@ -35,10 +35,11 @@ exports.that = function YtApplication(logger, configuration) {
 
     var driver = new YtDriver(false, configuration);
     var watcher = new YtEioWatcher(logger, configuration);
+    var read_only = configuration.read_only;
 
     return function(req, rsp) {
         return (new YtCommand(
-            logger, driver, watcher, req, rsp
+            logger, driver, watcher, read_only, req, rsp
         )).dispatch();
     };
 };
