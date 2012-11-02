@@ -190,7 +190,7 @@ protected:
         auto* chunkList = sourceNode->GetChunkList();
         YCHECK(!clonedNode->GetChunkList());
         clonedNode->SetChunkList(chunkList);
-        clonedNode->SetReplicationFactor(node->GetReplicationFactor());
+        clonedNode->SetReplicationFactor(sourceNode->GetReplicationFactor());
         objectManager->RefObject(chunkList);
         YCHECK(chunkList->OwningNodes().insert(clonedNode).second);
     }

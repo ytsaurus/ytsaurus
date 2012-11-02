@@ -315,18 +315,18 @@ protected:
     }
 
     virtual void DoClone(
-        TTableNode* node,
+        TTableNode* sourceNode,
         TTableNode* clonedNode,
         TTransaction* transaction) override
     {
-        TBase::DoClone(node, clonedNode, transaction);
+        TBase::DoClone(sourceNode, clonedNode, transaction);
 
         auto objectManager = Bootstrap->GetObjectManager();
 
-        auto* chunkList = node->GetChunkList();
+        auto* chunkList = sourceNode->GetChunkList();
         YCHECK(!clonedNode->GetChunkList());
         clonedNode->SetChunkList(chunkList);
-        clonedNode->SetReplicationFactor(node->GetReplicationFactor());
+        clonedNode->SetReplicationFactor(sourceNode->GetReplicationFactor());
         objectManager->RefObject(chunkList);
         YCHECK(chunkList->OwningNodes().insert(clonedNode).second);
     }
