@@ -270,8 +270,7 @@ class TestTableCommands(YTEnvSetup):
         assert read('//tmp/t2') == [{'a' : 'b'}]
 
         assert get('//tmp/t2/@resource_usage') == get('//tmp/t/@resource_usage')
-
-        #assert get('//tmp/@recursive_resource_usage') == {"disk_space" : 438}
+        assert get('//tmp/t2/@replication_factor') == get('//tmp/t/@replication_factor')
 
         remove('//tmp/t')
         assert read('//tmp/t2') == [{'a' : 'b'}]

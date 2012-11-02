@@ -444,4 +444,12 @@ class TestCypressCommands(YTEnvSetup):
         self.assertEqual(exists("//sys/xxx"), "false")
         self.assertEqual(exists("//sys/operations/xxx"), "false")
 
+    def test_recursive_resource_usage(self):
+        create('table', '//tmp/t1')
+        write_str('//tmp/t1', '{a=b}')
+        copy('//tmp/t1', '//tmp/t2')
 
+        assert get('//tmp/t1/@resource_usage')['disk_space'] +
+               get('//tmp/t2/@resource_usage')['disk_space'] ==
+               get('//tmp/@recursive_resource_usage')['disk_space']
+      

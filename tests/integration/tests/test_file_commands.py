@@ -30,6 +30,9 @@ class TestFileCommands(YTEnvSetup):
         copy('//tmp/f', '//tmp/f2')
         assert download('//tmp/f2') == content
 
+        assert get('//tmp/f2/@resource_usage') == get('//tmp/f/@resource_usage')
+        assert get('//tmp/f2/@replication_factor') == get('//tmp/f/@replication_factor')
+
         remove('//tmp/f')
         assert download('//tmp/f2') == content
 
