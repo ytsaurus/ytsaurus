@@ -21,8 +21,8 @@ TYamrBaseParser::TYamrBaseParser(
     , BufferPosition(0)
 {
     memset(IsStopSymbol, 0, sizeof(IsStopSymbol));
-    IsStopSymbol[RecordSeparator] = true;
-    IsStopSymbol[FieldSeparator] = true;
+    IsStopSymbol[static_cast<ui8>(RecordSeparator)] = true;
+    IsStopSymbol[static_cast<ui8>(FieldSeparator)] = true;
 }
     
 void TYamrBaseParser::Read(const TStringBuf& data)
@@ -126,10 +126,10 @@ const char* TYamrBaseParser::Consume(const char* begin, const char* end)
 const char* TYamrBaseParser::FindNextStopSymbol(const char* begin, const char* end, EState currentState)
 {
     if (currentState == EState::InsideValue) {
-        IsStopSymbol[FieldSeparator] = false;
+        IsStopSymbol[static_cast<ui8>(FieldSeparator)] = false;
     }
     else {
-        IsStopSymbol[FieldSeparator] = true;
+        IsStopSymbol[static_cast<ui8>(FieldSeparator)] = true;
     }
     auto current = begin;
     for ( ; current < end; ++current) {

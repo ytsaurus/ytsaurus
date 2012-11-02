@@ -20,10 +20,10 @@ TEncodingWriter::TEncodingWriter(TEncodingWriterConfigPtr config, IAsyncWriterPt
     , AsyncWriter(asyncWriter)
     , CompressionInvoker(CreateSerializedInvoker(TDispatcher::Get()->GetCompressionInvoker()))
     , Semaphore(Config->EncodeWindowSize)
-    , Codec(GetCodec(Config->CodecId))
     , UncompressedSize_(0)
     , CompressedSize_(0)
     , CompressionRatio_(config->DefaultCompressionRatio)
+    , Codec(GetCodec(Config->CodecId))
     , WritePending(
         BIND(&TEncodingWriter::WritePendingBlocks, MakeWeak(this))
             .Via(CompressionInvoker))

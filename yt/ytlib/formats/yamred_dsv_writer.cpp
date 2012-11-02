@@ -13,8 +13,8 @@ TYamredDsvWriter::TYamredDsvWriter(TOutputStream* stream, TYamredDsvFormatConfig
     : Stream(stream)
     , Config(config)
     , State(EState::None)
-    , AllowBeginMap(true)
     , IsValueEmpty(true)
+    , AllowBeginMap(true)
 {
     FOREACH (const auto& val, Config->KeyColumnNames) {
         KeyColumnNames.insert(val);

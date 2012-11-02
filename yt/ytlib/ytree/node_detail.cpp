@@ -171,9 +171,9 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
 
         auto child = FindChild(key);
         if (!child) {
-            if ((verb == "Set" || verb == "Create" || verb == "Copy") &&
-                tokenizer.Advance() == NYPath::ETokenType::EndOfStream ||
-                verb == "Exists")
+            if (verb == "Exists" ||
+                ((verb == "Set" || verb == "Create" || verb == "Copy") &&
+                 tokenizer.Advance() == NYPath::ETokenType::EndOfStream))
             {
                 return IYPathService::TResolveResult::Here("/" + path);
             } else {

@@ -28,8 +28,8 @@ TFileWriter::TFileWriter(const Stroka& fileName)
     , IsOpen(false)
     , IsClosed(false)
     , DataSize(0)
-    , Result(MakeFuture(TError()))
     , ChecksumOutput(&NullOutput)
+    , Result(MakeFuture(TError()))
 { }
 
 void TFileWriter::Open()

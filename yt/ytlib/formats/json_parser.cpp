@@ -15,8 +15,8 @@ using namespace NJson;
 ////////////////////////////////////////////////////////////////////////////////
 
 TJsonParser::TJsonParser(NYTree::IYsonConsumer* consumer, TJsonFormatConfigPtr config)
-    : Config(config)
-    , Consumer(consumer)
+    : Consumer(consumer)
+    , Config(config)
 {
     if (!Config) {
         Config = New<TJsonFormatConfig>();

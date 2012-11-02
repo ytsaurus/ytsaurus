@@ -42,8 +42,8 @@ public:
         , State(EState::Active)
         , IsOwning(false)
         , ParentId(parentId)
-        , Aborted(NewPromise<void>())
         , PingAncestorTransactions_(pingAncestorTransactions)
+        , Aborted(NewPromise<void>())
     {
         YCHECK(cellChannel);
         YCHECK(owner);
