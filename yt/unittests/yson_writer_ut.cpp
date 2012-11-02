@@ -27,7 +27,7 @@ public:
     {
         Stream.Flush();
 
-        ParseYson(&Stream, &Mock);
+        ParseYson(TYsonInput(&Stream), &Mock);
     }
 };
 
