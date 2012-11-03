@@ -809,6 +809,7 @@ private:
                 auto stdErrPath = GetStdErrPath(operation->GetOperationId(), job->GetId());
                 auto req = TCypressYPathProxy::Create(stdErrPath);
                 req->set_type(EObjectType::File);
+                req->Attributes().Set("replication_factor", 1);
                 auto* reqExt = req->MutableExtension(NFileClient::NProto::TReqCreateFileExt::create_file);
                 *reqExt->mutable_chunk_id() = chunkId.ToProto();
                 GenerateRpcMutationId(req);
