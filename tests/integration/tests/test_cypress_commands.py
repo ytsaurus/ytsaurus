@@ -428,7 +428,7 @@ class TestCypressCommands(YTEnvSetup):
 
     def test_list_with_attributes(self):
         set('//tmp/a', {})
-        assert list_str('//tmp', attr=['type']) == '[<"type"="map_node">"a"]'
+        assert ls_str('//tmp', attr=['type']) == '[<"type"="map_node">"a"]'
 
     def test_exists(self):
         self.assertEqual(exists("//tmp"), "true")
