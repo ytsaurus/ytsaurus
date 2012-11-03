@@ -48,7 +48,7 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
     auto attributeFilter =
         request->has_attribute_filter()
         ? FromProto(request->attribute_filter())
-        : TAttributeFilter::All;
+        : TAttributeFilter::None;
 
     TStringStream stream;
     TYsonWriter writer(&stream);
@@ -190,7 +190,7 @@ void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxListPtr 
     auto attributeFilter =
         request->has_attribute_filter()
         ? FromProto(request->attribute_filter())
-        : TAttributeFilter::All;
+        : TAttributeFilter::None;
 
     TStringStream stream;
     TYsonWriter writer(&stream);
