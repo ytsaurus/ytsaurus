@@ -21,6 +21,15 @@ using namespace NCypressServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NMetaState::TVersionValidator SnapshotVersionValidator()
+{
+    static auto result = BIND([] (int version) {
+        YCHECK(version == 1 ||
+               version == 2);
+    });
+    return result;
+}
+
 template <>
 TTransaction* TLoadContext::Get(const TObjectId& id) const
 {

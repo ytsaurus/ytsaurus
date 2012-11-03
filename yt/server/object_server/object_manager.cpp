@@ -225,10 +225,12 @@ TObjectManager::TObjectManager(
 
         RegisterLoader(
             "ObjectManager.Keys",
+            SnapshotVersionValidator(),
             BIND(&TObjectManager::LoadKeys, MakeStrong(this)),
             context);
         RegisterLoader(
             "ObjectManager.Values",
+            SnapshotVersionValidator(),
             BIND(&TObjectManager::LoadValues, MakeStrong(this)),
             context);
     }

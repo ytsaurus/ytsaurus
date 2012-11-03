@@ -24,6 +24,7 @@ struct TLoadContext
 
 typedef TCallback<void(const TSaveContext&)> TSaver;
 typedef TCallback<void(const TLoadContext&)> TLoader;
+typedef TCallback<void(int)> TVersionValidator;
 
 class TMetaStatePart
     : public virtual TRefCounted
@@ -47,11 +48,15 @@ protected:
         TCallback<void(const TContext&)> saver,
         const TContext& context);
 
-    void RegisterLoader(const Stroka& name, TLoader loader);
+    void RegisterLoader(
+        const Stroka& name,
+        TVersionValidator versionValidator,
+        TLoader loader);
 
     template <class TContext>
     void RegisterLoader(
         const Stroka& name,
+        TVersionValidator versionValidator,
         TCallback<void(const TContext&)> loader,
         const TContext& context);
 
@@ -108,9 +113,10 @@ private:
     struct TLoaderInfo
     {
         Stroka Name;
+        TVersionValidator VersionValidator;
         TLoader Loader;
 
-        TLoaderInfo(const Stroka& name, TLoader loader);
+        TLoaderInfo(const Stroka& name, TVersionValidator versionValidator, TLoader loader);
     };
 
     typedef yhash_map< Stroka, TCallback<void(TMutationContext* context)> > TMethodMap;

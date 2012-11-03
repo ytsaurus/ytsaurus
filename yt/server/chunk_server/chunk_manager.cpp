@@ -175,10 +175,12 @@ public:
 
             RegisterLoader(
                 "ChunkManager.Keys",
+                SnapshotVersionValidator(),
                 BIND(&TImpl::LoadKeys, MakeStrong(this)),
                 context);
             RegisterLoader(
                 "ChunkManager.Values",
+                SnapshotVersionValidator(),
                 BIND(&TImpl::LoadValues, MakeStrong(this)),
                 context);
         }

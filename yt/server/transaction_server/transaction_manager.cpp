@@ -361,10 +361,12 @@ TTransactionManager::TTransactionManager(
 
         RegisterLoader(
             "TransactionManager.Keys",
+            SnapshotVersionValidator(),
             BIND(&TTransactionManager::LoadKeys, MakeStrong(this)),
             context);
         RegisterLoader(
             "TransactionManager.Values",
+            SnapshotVersionValidator(),
             BIND(&TTransactionManager::LoadValues, MakeStrong(this)),
             context);
     }

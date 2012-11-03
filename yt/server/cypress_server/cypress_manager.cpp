@@ -234,10 +234,12 @@ TCypressManager::TCypressManager(TBootstrap* bootstrap)
 
         RegisterLoader(
             "Cypress.Keys",
+            SnapshotVersionValidator(),
             BIND(&TCypressManager::LoadKeys, MakeStrong(this)),
             context);
         RegisterLoader(
             "Cypress.Values",
+            SnapshotVersionValidator(),
             BIND(&TCypressManager::LoadValues, MakeStrong(this)),
             context);
     }

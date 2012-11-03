@@ -75,11 +75,13 @@ void TMetaStatePart::RegisterSaver(
 template <class TContext>
 void TMetaStatePart::RegisterLoader(
     const Stroka& name,
+    TVersionValidator versionValidator,
     TCallback<void(const TContext&)> loader,
     const TContext& context)
 {
     RegisterLoader(
         name,
+        versionValidator,
         BIND([=] (const TLoadContext& basicContext) {
             TContext combinedContext(context);
             static_cast<TLoadContext&>(combinedContext) = basicContext;

@@ -103,12 +103,7 @@ void TCypressNodeBase::Load(const TLoadContext& context)
     ::Load(input, ParentId_);
     ::Load(input, LockMode_);
     ::Load(input, CreationTime_);
-    // COMPAT(babenko): remove once version 0 is obsolete
-    if (context.GetVersion() >= 1) {
-        ::Load(input, ModificationTime_);
-    } else {
-        ModificationTime_ = CreationTime_;
-    }
+    ::Load(input, ModificationTime_);
 
     TrunkNode_ = Id.IsBranched() ? context.Get<ICypressNode>(TVersionedObjectId(Id.ObjectId)) : this;
 }

@@ -74,9 +74,12 @@ void TMetaStatePart::RegisterSaver(
     YCHECK(MetaState->Savers.insert(std::make_pair(name, info)).second);
 }
 
-void TMetaStatePart::RegisterLoader(const Stroka& name, TLoader loader)
+void TMetaStatePart::RegisterLoader(
+    const Stroka& name,
+    TVersionValidator versionValidator,
+    TLoader loader)
 {
-    TCompositeMetaState::TLoaderInfo info(name, loader);
+    TCompositeMetaState::TLoaderInfo info(name, versionValidator, loader);
     YCHECK(MetaState->Loaders.insert(std::make_pair(name, info)).second);
 }
 
@@ -140,8 +143,10 @@ TCompositeMetaState::TSaverInfo::TSaverInfo(
 
 TCompositeMetaState::TLoaderInfo::TLoaderInfo(
     const Stroka& name,
+    TVersionValidator versionValidator,
     TLoader loader)
     : Name(name)
+    , VersionValidator(versionValidator)
     , Loader(loader)
 { }
 
@@ -195,14 +200,7 @@ void TCompositeMetaState::Load(TInputStream* input)
         i32 version;
 
         ::Load(input, name);
-
-        // COMPAT(babenko): remove once version 0 is obsolete
-        if (name.has_suffix(".1")) {
-            version = 0;
-            name = name.substr(0, name.length() - 2);
-        } else {
-            ::Load(input, version);
-        }
+        ::Load(input, version);
 
         auto it = Loaders.find(name);
         LOG_FATAL_IF(it == Loaders.end(), "No appropriate loader is registered for part %s", ~name.Quote());
@@ -216,6 +214,7 @@ void TCompositeMetaState::Load(TInputStream* input)
             version);
 
         const auto& info = it->second;
+        info.VersionValidator.Run(version);
         info.Loader.Run(context);
     }
 
