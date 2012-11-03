@@ -85,11 +85,12 @@ public:
     }
 
 
-    virtual void GetAttributes(
+    virtual void SerializeAttributes(
         IYsonConsumer* consumer,
         const TAttributeFilter& filter) const override
     {
-        if (filter.Mode == EAttributeFilterMode::None)
+        if (filter.Mode == EAttributeFilterMode::None ||
+            filter.Mode == EAttributeFilterMode::MatchingOnly && filter.Keys.empty())
             return;
 
         const auto& attributes = Attributes();

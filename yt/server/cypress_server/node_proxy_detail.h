@@ -106,7 +106,7 @@ public:
     virtual NYTree::IAttributeDictionary& Attributes() override;
     virtual const NYTree::IAttributeDictionary& Attributes() const override;
 
-    virtual void GetAttributes(
+    virtual void SerializeAttributes(
         NYTree::IYsonConsumer* consumer,
         const NYTree::TAttributeFilter& filter) const override;
 

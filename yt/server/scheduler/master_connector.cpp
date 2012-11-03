@@ -372,7 +372,9 @@ private:
             auto batchReq = Proxy.ExecuteBatch();
             {
                 auto req = TYPathProxy::List(GetOperationsPath());
-                req->add_attributes("state");
+                auto* attributeFilter = req->mutable_attribute_filter();
+                attributeFilter->set_mode(EAttributeFilterMode::MatchingOnly);
+                attributeFilter->add_keys("state");
                 batchReq->AddRequest(req, "list_operations");
             }
             return batchReq->Invoke();

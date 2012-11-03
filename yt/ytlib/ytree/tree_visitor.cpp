@@ -41,7 +41,7 @@ private:
 
     void VisitAny(const IConstNodePtr& node, bool isRoot = false)
     {
-        node->GetAttributes(Consumer, AttributeFilter);
+        node->SerializeAttributes(Consumer, AttributeFilter);
 
         if (!isRoot && node->Attributes().Get<bool>("opaque", false)) {
             // This node is opaque, i.e. replaced by entity during tree traversal.

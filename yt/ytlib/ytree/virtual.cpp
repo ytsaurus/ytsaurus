@@ -192,7 +192,7 @@ public:
         return TResolveResult::There(UnderlyingService, path);
     }
 
-    virtual void GetAttributes(IYsonConsumer* consumer, const TAttributeFilter& filter) const
+    virtual void SerializeAttributes(IYsonConsumer* consumer, const TAttributeFilter& filter) const
     {
         UNUSED(consumer);
         UNUSED(filter);

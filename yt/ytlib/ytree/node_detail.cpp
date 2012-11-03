@@ -187,44 +187,25 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
 
 void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxListPtr context)
 {
-    if (request->attributes_size() == 0) {
-        // Fast path.
-        response->set_keys(ConvertToYsonString(GetKeys()).Data());
-    } else {
-        auto attributesToVisit = NYT::FromProto<Stroka>(request->attributes());
+    auto attributeFilter =
+        request->has_attribute_filter()
+        ? FromProto(request->attribute_filter())
+        : TAttributeFilter::All;
 
-        std::sort(attributesToVisit.begin(), attributesToVisit.end());
-        attributesToVisit.erase(
-            std::unique(attributesToVisit.begin(), attributesToVisit.end()),
-            attributesToVisit.end());
-
-        TStringStream stream;
-        TYsonWriter writer(&stream);
-
-        writer.OnBeginList();
-        FOREACH (const auto& pair, GetChildren()) {
-            const auto& key = pair.First();
-            const auto& node = pair.Second();
-            const auto& attributes = node->Attributes();
-
-            writer.OnListItem();
-            writer.OnBeginAttributes();
-
-            FOREACH (const auto& attributeKey, attributesToVisit) {
-                auto value = attributes.FindYson(attributeKey);
-                if  (value) {
-                    writer.OnKeyedItem(attributeKey);
-                    Consume(*value, &writer);
-                }
-            }
-
-            writer.OnEndAttributes();
-            writer.OnStringScalar(key);
-        }
-        writer.OnEndList();
-
-        response->set_keys(stream.Str());
+    TStringStream stream;
+    TYsonWriter writer(&stream);
+    
+    writer.OnBeginList();
+    FOREACH (const auto& pair, GetChildren()) {
+        const auto& key = pair.First();
+        const auto& node = pair.Second();
+        writer.OnListItem();
+        node->SerializeAttributes(&writer, attributeFilter);
+        writer.OnStringScalar(key);
     }
+    writer.OnEndList();
+
+    response->set_keys(stream.Str());
 
     context->Reply();
 }

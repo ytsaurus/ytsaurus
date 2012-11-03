@@ -84,7 +84,8 @@ void TListCommand::DoExecute()
     auto req = TYPathProxy::List(Request->Path.GetPath());
     SetTransactionId(req, GetTransactionId(false));
 
-    ToProto(req->mutable_attributes(), Request->Attributes);
+    TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, Request->Attributes);
+    *req->mutable_attribute_filter() = ToProto(attributeFilter); 
 
     req->Attributes().MergeFrom(Request->GetOptions());
     auto rsp = proxy.Execute(req).Get();

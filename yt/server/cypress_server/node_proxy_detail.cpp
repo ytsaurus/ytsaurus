@@ -256,11 +256,12 @@ const IAttributeDictionary& TCypressNodeProxyNontemplateBase::Attributes() const
     return TObjectProxyBase::Attributes();
 }
 
-void TCypressNodeProxyNontemplateBase::GetAttributes(
+void TCypressNodeProxyNontemplateBase::SerializeAttributes(
     IYsonConsumer* consumer,
     const TAttributeFilter& filter) const 
 {
-    if (filter.Mode == EAttributeFilterMode::None)
+    if (filter.Mode == EAttributeFilterMode::None ||
+        filter.Mode == EAttributeFilterMode::MatchingOnly && filter.Keys.empty())
         return;
 
     const auto& userAttributes = Attributes();
@@ -293,12 +294,11 @@ void TCypressNodeProxyNontemplateBase::GetAttributes(
                 consumer->OnBeginAttributes();
                 seenMatching = true;
             }
-            Stroka key(attribute.Key);
-            consumer->OnKeyedItem(key);
+            consumer->OnKeyedItem(attribute.Key);
             if (attribute.IsOpaque) {
                 consumer->OnEntity();
             } else {
-                YCHECK(GetSystemAttribute(key, consumer));
+                YCHECK(GetSystemAttribute(attribute.Key, consumer));
             }
         }
     }

@@ -58,7 +58,7 @@ struct IAttributeProvider
     { }
 
     //! Writes attributes that match #filter into #consumer.
-    virtual void GetAttributes(
+    virtual void SerializeAttributes(
         IYsonConsumer* consumer,
         const TAttributeFilter& filter) const = 0;
 

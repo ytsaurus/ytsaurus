@@ -40,7 +40,7 @@ message TRspRemove
 
 message TReqList
 {
-    repeated string attributes = 1;
+    optional TAttributeFilter attribute_filter = 1;
 }
 
 message TRspList
