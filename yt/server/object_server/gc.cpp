@@ -29,14 +29,16 @@ TGarbageCollector::TGarbageCollector(
 {
     YCHECK(Config);
     YCHECK(Bootstrap);
-}
 
-void TGarbageCollector::Start()
-{
     SweepInvoker = New<TPeriodicInvoker>(
         Bootstrap->GetMetaStateFacade()->GetInvoker(),
         BIND(&TGarbageCollector::Sweep, MakeWeak(this)),
         Config->GCSweepPeriod);
+}
+
+void TGarbageCollector::Start()
+{
+    SweepInvoker->Start();
 }
 
 void TGarbageCollector::Save(const NCellMaster::TSaveContext& context) const
@@ -102,7 +104,7 @@ void TGarbageCollector::Sweep()
     VERIFY_THREAD_AFFINITY(StateThread);
 
     auto metaStateManager = Bootstrap->GetMetaStateFacade()->GetManager();
-    if (metaStateManager->IsLeader() ||
+    if (!metaStateManager->IsLeader() ||
         !metaStateManager->HasActiveQuorum() ||
         Queue.empty())
     {
