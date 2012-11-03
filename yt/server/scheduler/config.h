@@ -50,9 +50,9 @@ struct TFairShareStrategyConfig
 
         Register("new_operation_weight_boost_factor", NewOperationWeightBoostFactor)
             .GreaterThanOrEqual(1.0)
-            .Default(3.0);
+            .Default(1.0);
         Register("new_operation_weight_boost_period", NewOperationWeightBoostPeriod)
-            .Default(TDuration::Minutes(5));
+            .Default(TDuration::Minutes(0));
     }
 };
 
