@@ -661,9 +661,7 @@ public:
         paths.erase(std::unique(paths.begin(), paths.end()), paths.end());
 
         BuildYsonFluently(consumer)
-            .DoListFor(paths, [] (TFluentList fluent, const TYPath& path) {
-                fluent.Item().Scalar(path);
-        });
+            .Scalar(paths);
     }
 
 private:

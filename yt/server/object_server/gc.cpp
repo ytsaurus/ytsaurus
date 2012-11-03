@@ -43,14 +43,14 @@ void TGarbageCollector::Start()
 
 void TGarbageCollector::Save(const NCellMaster::TSaveContext& context) const
 {
-    ::Save(context.GetOutput(), Queue);
+    SaveSet(context.GetOutput(), Queue);
 }
 
 void TGarbageCollector::Load(const NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    ::Load(context.GetInput(), Queue);
+    LoadSet(context.GetInput(), Queue);
 }
 
 void TGarbageCollector::Clear()
@@ -78,7 +78,8 @@ void TGarbageCollector::Enqueue(const TObjectId& id)
     if (Queue.empty()) {
         CollectPromise = NewPromise<void>();
     }
-    Queue.push_back(id);
+
+    YCHECK(Queue.insert(id).second);
 
     Profiler.Increment(QueueSizeCounter, 1);
 }
@@ -87,9 +88,8 @@ void TGarbageCollector::Dequeue(const TObjectId& id)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    YCHECK(!Queue.empty());
-    YCHECK(Queue.front() == id);
-    Queue.pop_front();
+    YCHECK(Queue.erase(id) == 1);
+
     if (Queue.empty()) {
         auto metaStateManager = Bootstrap->GetMetaStateFacade()->GetManager();
         LOG_DEBUG_UNLESS(metaStateManager->IsRecovery(), "GC queue is empty");

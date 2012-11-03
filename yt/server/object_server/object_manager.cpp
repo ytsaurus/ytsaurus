@@ -778,14 +778,8 @@ void TObjectManager::PromoteCreatedObjects(TTransaction* transaction)
 
 void TObjectManager::ReleaseCreatedObjects(TTransaction* transaction)
 {
-    // Sort the ids to ensure consistent unref order.
-    std::vector<TObjectId> createdObjectIds(
-        transaction->CreatedObjectIds().begin(),
-        transaction->CreatedObjectIds().end());
-    std::sort(createdObjectIds.begin(), createdObjectIds.end());
-
     auto objectManager = Bootstrap->GetObjectManager();
-    FOREACH (const auto& objectId, createdObjectIds) {
+    FOREACH (const auto& objectId, transaction->CreatedObjectIds()) {
         objectManager->UnrefObject(objectId);
     }
 

@@ -471,16 +471,7 @@ void TTransactionManager::Abort(TTransaction* transaction)
 
     auto id = transaction->GetId();
 
-    // Sort nested transactions by id to ensure consist unref order.
-    std::vector<TTransaction*> nestedTransactions(
-        transaction->NestedTransactions().begin(),
-        transaction->NestedTransactions().end());
-    std::sort(
-        nestedTransactions.begin(),
-        nestedTransactions.end(),
-        [] (const TTransaction* lhs, const TTransaction* rhs) {
-            return lhs->GetId() < rhs->GetId();
-        });
+    auto nestedTransactions = transaction->NestedTransactions();
     FOREACH (auto* nestedTransaction, nestedTransactions) {
         Abort(nestedTransaction);
     }

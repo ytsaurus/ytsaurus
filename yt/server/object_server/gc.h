@@ -46,7 +46,7 @@ private:
 
     //! Contains the ids of object have reached ref counter of 0
     //! but are not destroyed yet.
-    std::deque<TObjectId> Queue;
+    yhash_set<TObjectId> Queue;
 
     //! This promise is set each time #GCQueue becomes empty.
     TPromise<void> CollectPromise;
