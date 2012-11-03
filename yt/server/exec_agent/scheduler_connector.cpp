@@ -70,6 +70,9 @@ void TSchedulerConnector::SendHeartbeat()
                 *jobStatus->mutable_result() = jobResult;
                 break;
             }
+
+            case:
+                break;
         }
     }
 

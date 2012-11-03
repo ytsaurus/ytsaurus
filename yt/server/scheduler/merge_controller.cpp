@@ -306,7 +306,6 @@ protected:
     //! Add chunk directly to the output.
     void AddPassthroughChunk(TRefCountedInputChunkPtr inputChunk)
     {
-        auto& table = OutputTables[0];
         auto chunkId = TChunkId::FromProto(inputChunk->slice().chunk_id());
         LOG_DEBUG("Passthrough chunk added (ChunkId: %s, Partition: %d)",
             ~chunkId.ToString(),
@@ -527,7 +526,6 @@ private:
 
     virtual void ProcessInputChunk(TRefCountedInputChunkPtr inputChunk) override
     {
-        auto chunkId = TChunkId::FromProto(inputChunk->slice().chunk_id());
         auto& table = OutputTables[0];
 
         if (IsPassthroughChunk(inputChunk)) {

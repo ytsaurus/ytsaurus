@@ -381,7 +381,7 @@ private:
 
             Stroka cmd = UserJobSpec.shell_command();
 
-            const char **envp= new const char*[UserJobSpec.environment_size() + 1];
+            std::vector<const char*> envp(UserJobSpec.environment_size() + 1);
             for (int i = 0; i < UserJobSpec.environment_size(); ++i) {
                 envp[i] = ~UserJobSpec.environment(i);
             }
@@ -393,7 +393,7 @@ private:
                 "-c", 
                 ~cmd, 
                 (void*)NULL,
-                envp);
+                envp.data());
 
             int _errno = errno;
 
@@ -405,7 +405,8 @@ private:
             _exit(7);
         }
         catch (const std::exception& ex) {
-            int result = ::write(STDERR_FILENO, ex.what(), strlen(ex.what()));
+            fprintf(stderr, "%s", what());
+            // TODO(babenko): extract error code constant
             _exit(8);
         }
     }

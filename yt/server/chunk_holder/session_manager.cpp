@@ -492,8 +492,6 @@ TFuture<TChunkPtr> TSessionManager::FinishSession(
     TSessionPtr session, 
     const TChunkMeta& chunkMeta)
 {
-    auto chunkId = session->GetChunkId();
-
     return session
         ->Finish(chunkMeta)
         .Apply(BIND(

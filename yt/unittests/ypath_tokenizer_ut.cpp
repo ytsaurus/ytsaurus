@@ -57,6 +57,7 @@ public:
                 case ETokenType::Slash:     result.append('/'); break;
                 case ETokenType::Ampersand: result.append('&'); break;
                 case ETokenType::At:        result.append('@'); break;
+                default:                                        break;
             }
         }
         return result;

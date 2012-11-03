@@ -552,7 +552,6 @@ void TTcpConnection::OnSocketRead()
 
             // Feed the read buffer to the decoder.
             const char* recvBegin = &*ReadBuffer.begin();
-            const char* recvEnd = recvBegin + bytesRead;
             size_t recvRemaining = bytesRead;
             while (recvRemaining != 0) {
                 decoderChunk = Decoder.GetChunk();

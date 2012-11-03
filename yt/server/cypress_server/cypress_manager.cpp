@@ -614,7 +614,7 @@ ICypressNode* TCypressManager::AcquireLock(
 {
     YCHECK(transaction);
 
-    auto* lock = DoAcquireLock(trunkNode, transaction, request);
+    DoAcquireLock(trunkNode, transaction, request);
 
     // Upgrade locks held by parent transactions, if needed.
     if (request.Mode != ELockMode::Snapshot) {
@@ -1046,6 +1046,9 @@ void TCypressManager::ListSubtreeNodeIds(
             }
             break;
         }
+
+        default:
+            break;
     }
 }
 

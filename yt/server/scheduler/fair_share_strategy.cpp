@@ -700,7 +700,6 @@ public:
     {
         auto element = GetOperationElement(operation);
         auto pool = element->GetPool();
-        const auto& attributes = element->Attributes();
         BuildYsonMapFluently(consumer)
             .Item("pool").Scalar(pool->GetId())
             .Item("start_time").Scalar(element->GetStartTime())
@@ -873,8 +872,6 @@ private:
         // Build the set of potential orphans.
         yhash_set<Stroka> orphanPoolIds;
         FOREACH (const auto& pair, Pools) {
-            const auto& id = pair.first;
-            const auto& pool = pair.second;
             YCHECK(orphanPoolIds.insert(pair.first).second);
         }
 
@@ -992,7 +989,6 @@ private:
             if (limitsComponent == 0)
                 continue;
 
-            i64 utilizationComponent = GetResource(utilization, type);
             double demandComponentRatio = (double) demandComponent / limitsComponent;
             maxDemandRatio = std::max(maxDemandRatio, demandComponentRatio);
             i64 desiredComponent = static_cast<i64>(demandComponentRatio * desiredRatio * limitsComponent);
@@ -1000,8 +996,18 @@ private:
         }
 
         desiredResources *= 1.0 / maxDemandRatio;
+        auto resourcesToPreempt = Max(ZeroNodeResources(), desiredResources - utilization);
 
-        return Max(ZeroNodeResources(), desiredResources - utilization);
+        LOG_DEBUG("Scheduling resource preemption (OperationId: %s, Demand: {%s}, Utilization: {%s}, Limits: {%s}, DesiredRatio: %ld, DesiredResources: {%s}, Preempt: {%s})",
+            ~element->GetOperation()->GetOperationId().ToString(),
+            ~FormatResources(demand),
+            ~FormatResources(utilization),
+            ~FormatResources(limits),
+            desiredRatio,
+            ~FormatResources(desiredResources),
+            ~FormatResources(resourcesToPreempt));
+
+        return resourcesToPreempt;
     }
 
     void PreemptJobs()
@@ -1020,10 +1026,10 @@ private:
                     if (!element->GetStarvingForMinShareSince()) {
                         element->SetStarvingForMinShareSince(now);
                     } else if (element->GetStarvingForMinShareSince().Get() < now - Config->MinSharePreemptionTimeout) {
-                        resourcesToPreempt += ComputeResourcesToPreempt(element, attributes.AdjustedMinShareRatio);
                         LOG_INFO("Min share starvation timeout (OperationId: %s, Since: %s)",
                             ~ToString(operation->GetOperationId()),
                             ~ToString(element->GetStarvingForMinShareSince().Get()));
+                        resourcesToPreempt += ComputeResourcesToPreempt(element, attributes.AdjustedMinShareRatio);
                     }
                     break;
 
@@ -1031,10 +1037,10 @@ private:
                     if (!element->GetStarvingForFairShareSince()) {
                         element->SetStarvingForFairShareSince(now);
                     } else if (element->GetStarvingForFairShareSince().Get() < now - Config->FairSharePreemptionTimeout) {
-                        resourcesToPreempt += ComputeResourcesToPreempt(element, attributes.FairShareRatio);
                         LOG_INFO("Fair share starvation timeout (OperationId: %s, Since: %s)",
                             ~ToString(operation->GetOperationId()),
                             ~ToString(element->GetStarvingForFairShareSince().Get()));
+                        resourcesToPreempt += ComputeResourcesToPreempt(element, attributes.FairShareRatio);
                     }
                     element->SetStarvingForMinShareSince(Null);
                     break;

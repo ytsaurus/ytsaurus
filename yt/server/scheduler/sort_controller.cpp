@@ -538,13 +538,10 @@ protected:
             AddSequentialInputSpec(jobSpec, jip);
             Controller->CustomizeJobSpec(jip, jobSpec);
 
-            {
-                auto* jobSpecExt = jobSpec->MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
-                if (!Controller->SimpleSort) {
-                    auto* inputSpec = jobSpec->mutable_input_specs(0);
-                    FOREACH (auto& chunk, *inputSpec->mutable_chunks()) {
-                        chunk.set_partition_tag(Partition->Index);
-                    }
+            if (!Controller->SimpleSort) {
+                auto* inputSpec = jobSpec->mutable_input_specs(0);
+                FOREACH (auto& chunk, *inputSpec->mutable_chunks()) {
+                    chunk.set_partition_tag(Partition->Index);
                 }
             }
         }

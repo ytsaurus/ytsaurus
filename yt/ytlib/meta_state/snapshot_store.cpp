@@ -41,7 +41,6 @@ void TSnapshotStore::Start()
     TFileList fileList;
     fileList.Fill(path);
 
-    i32 maxSnapshotId = NonexistingSnapshotId;
     Stroka fileName;
     while ((fileName = fileList.Next()) != NULL) {
         auto extension = NFS::GetFileExtension(fileName);
