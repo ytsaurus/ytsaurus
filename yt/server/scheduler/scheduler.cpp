@@ -966,35 +966,53 @@ private:
                     .Item("resource_utilization").Scalar(TotalResourceUtilization)
                 .EndMap()
                 .Item("operations").DoMapFor(Operations, [=] (TFluentMap fluent, TOperationMap::value_type pair) {
-                    this->BuildOperationAttributes(fluent, pair.second);
-                })
-                .Item("jobs").DoMapFor(Jobs, [=] (TFluentMap fluent, TJobMap::value_type pair) {
-                    fluent
-                        .Item(pair.first.ToString()).BeginMap()
-                            .Do(BIND(&BuildJobAttributes, pair.second))
-                        .EndMap();
+                    BuildOperationYson(pair.second, fluent);
                 })
                 .Item("nodes").DoMapFor(Nodes, [=] (TFluentMap fluent, TExecNodeMap::value_type pair) {
-                    fluent
-                        .Item(pair.first).BeginMap()
-                            .Do(BIND(&BuildExecNodeAttributes, pair.second))
-                        .EndMap();
+                    BuildNodeYson(pair.second, fluent);
                 })
                 .Do(BIND(&ISchedulerStrategy::BuildOrchidYson, ~Strategy))
             .EndMap();
     }
 
-    void BuildOperationAttributes(TFluentMap fluent, TOperationPtr operation)
+    void BuildOperationYson(TOperationPtr operation, IYsonConsumer* consumer)
     {
-        fluent
-            .Item(operation->GetOperationId().ToString()).BeginMap()
+        BuildYsonMapFluently(consumer)
+            .Item(ToString(operation->GetOperationId())).BeginMap()
                 .Do(BIND(&NScheduler::BuildOperationAttributes, operation))
                 .Item("progress").BeginMap()
                     .Do(BIND(&IOperationController::BuildProgressYson, operation->GetController()))
                     .Do(BIND(&ISchedulerStrategy::BuildOperationProgressYson, ~Strategy, operation))
                 .EndMap()
+                .Item("running_jobs").BeginAttributes()
+                    .Item("opaque").Scalar("true")
+                .EndAttributes()
+                .DoMapFor(operation->Jobs(), [=] (TFluentMap fluent, TJobPtr job) {
+                    BuildJobYson(job, fluent);
+                })
             .EndMap();
     }
+
+    void BuildJobYson(TJobPtr job, IYsonConsumer* consumer)
+    {
+        BuildYsonMapFluently(consumer)
+            .Item(ToString(job->GetId())).BeginMap()
+                .Do([=] (TFluentMap fluent) {
+                    BuildJobAttributes(job, fluent);
+                })
+            .EndMap();
+    }
+
+    void BuildNodeYson(TExecNodePtr node, IYsonConsumer* consumer)
+    {
+        BuildYsonMapFluently(consumer)
+            .Item(node->GetAddress()).BeginMap()
+                .Do([=] (TFluentMap fluent) {
+                    BuildExecNodeAttributes(node, fluent);
+                })
+            .EndMap();
+    }
+
 
 
     // RPC handlers

@@ -74,6 +74,12 @@ public:
     template <class TParent>
     class TFluentBase
     {
+    public:
+        operator IYsonConsumer* () const
+        {
+            return Consumer;
+        }
+
     protected:
         IYsonConsumer* Consumer;
         TParent Parent;
