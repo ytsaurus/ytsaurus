@@ -980,34 +980,28 @@ private:
 
         // Don't trust attributes, they might be out of sync.
         double maxDemandRatio = 0.0;
+        for (int typeIndex = 0; typeIndex < EResourceType::GetDomainSize(); ++typeIndex) {
+            auto type = EResourceType(typeIndex);
+            i64 demandComponent = GetResource(demand, type);
+            i64 limitsComponent = GetResource(limits, type);
+            if (limitsComponent > 0) {
+                double demandComponentRatio = (double) demandComponent / limitsComponent;
+                maxDemandRatio = std::max(maxDemandRatio, demandComponentRatio);
+            }
+        }
 
         for (int typeIndex = 0; typeIndex < EResourceType::GetDomainSize(); ++typeIndex) {
             auto type = EResourceType(typeIndex);
-
             i64 demandComponent = GetResource(demand, type);
             i64 limitsComponent = GetResource(limits, type);
-            if (limitsComponent == 0)
-                continue;
-
-            double demandComponentRatio = (double) demandComponent / limitsComponent;
-            maxDemandRatio = std::max(maxDemandRatio, demandComponentRatio);
-            i64 desiredComponent = static_cast<i64>(demandComponentRatio * desiredRatio * limitsComponent);
-            SetResource(desiredResources, type, desiredComponent);
+            if (limitsComponent > 0) {
+                double demandComponentRatio = (double) demandComponent / limitsComponent;
+                i64 desiredComponent = static_cast<i64>(demandComponentRatio / maxDemandRatio * desiredRatio * limitsComponent);
+                SetResource(desiredResources, type, desiredComponent);
+            }
         }
 
-        desiredResources *= 1.0 / maxDemandRatio;
-        auto resourcesToPreempt = Max(ZeroNodeResources(), desiredResources - utilization);
-
-        LOG_DEBUG("Scheduling resource preemption (OperationId: %s, Demand: {%s}, Utilization: {%s}, Limits: {%s}, DesiredRatio: %lf, DesiredResources: {%s}, Preempt: {%s})",
-            ~element->GetOperation()->GetOperationId().ToString(),
-            ~FormatResources(demand),
-            ~FormatResources(utilization),
-            ~FormatResources(limits),
-            desiredRatio,
-            ~FormatResources(desiredResources),
-            ~FormatResources(resourcesToPreempt));
-
-        return resourcesToPreempt;
+        return Max(ZeroNodeResources(), desiredResources - utilization);
     }
 
     void PreemptJobs()
