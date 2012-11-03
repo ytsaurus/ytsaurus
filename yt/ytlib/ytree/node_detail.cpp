@@ -269,7 +269,7 @@ void TListNodeMixin::SetRecursive(
     const TYPath& path,
     INodePtr value)
 {
-    int beforeIndex;
+    int beforeIndex = -1;
 
     NYPath::TTokenizer tokenizer(path);
     tokenizer.Advance();
