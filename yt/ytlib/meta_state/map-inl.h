@@ -256,8 +256,6 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadValues(const TContext& con
 template <class TKey, class TValue, class TTraits, class THash>
 void TMetaStateMap<TKey, TValue, TTraits, THash>::SaveKeys(const TSaveContext& context) const
 {
-    VERIFY_THREAD_AFFINITY(UserThread);
-
     auto* output = context.GetOutput();
 
     ::SaveSize(output, Map.size());
@@ -278,8 +276,6 @@ template <class TKey, class TValue, class TTraits, class THash>
 template <class TContext>
 void TMetaStateMap<TKey, TValue, TTraits, THash>::SaveValues(const TContext& context) const
 {
-    VERIFY_THREAD_AFFINITY(UserThread);
-
     std::vector<TItem> items(Map.begin(), Map.end());
     std::sort(
         items.begin(),

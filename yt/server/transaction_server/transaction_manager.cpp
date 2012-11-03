@@ -537,15 +537,11 @@ void TTransactionManager::DoRenewLease(const TTransaction* transaction)
 
 void TTransactionManager::SaveKeys(const NCellMaster::TSaveContext& context)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
-
     TransactionMap.SaveKeys(context);
 }
 
 void TTransactionManager::SaveValues(const NCellMaster::TSaveContext& context)
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
-
     TransactionMap.SaveValues(context);
 }
 

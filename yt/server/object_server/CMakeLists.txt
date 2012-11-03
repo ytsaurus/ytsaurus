@@ -6,6 +6,7 @@ set( SRCS
   ${BASE}/object_manager.cpp
   ${BASE}/object_service.cpp
   ${BASE}/private.cpp
+  ${BASE}/gc.cpp
 )
 set( HDRS
   ${BASE}/attribute_set.h
@@ -18,6 +19,7 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/type_handler.h
   ${BASE}/type_handler_detail.h
+  ${BASE}/gc.h
 )
 
 list(APPEND YT_SOURCE_FILES

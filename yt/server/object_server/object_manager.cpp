@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "object_manager.h"
 #include "config.h"
+#include "private.h"
+#include "gc.h"
 
 #include <ytlib/misc/delayed_invoker.h>
 
@@ -46,8 +48,8 @@ using namespace NObjectServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("ObjectServer");
-static NProfiling::TProfiler Profiler("/object_server");
+static NLog::TLogger& Logger = ObjectServerLogger;
+static NProfiling::TProfiler& Profiler = ObjectServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -201,8 +203,8 @@ TObjectManager::TObjectManager(
     , Config(config)
     , Bootstrap(bootstrap)
     , TypeToHandler(MaxObjectType)
-    , RootService(New<TRootService>(bootstrap))
-    , GCQueueSizeCounter("/gc_queue_size")
+    , RootService(New<TRootService>(Bootstrap))
+    , GarbageCollector(New<TGarbageCollector>(Config, Bootstrap))
     , CreatedObjectCounter("/destroyed_object_count")
     , DestroyedObjectCounter("/destroyed_object_count")
 {
@@ -250,18 +252,13 @@ TObjectManager::TObjectManager(
     RegisterMethod(BIND(&TObjectManager::ReplayVerb, Unretained(this)));
     RegisterMethod(BIND(&TObjectManager::DestroyObjects, Unretained(this)));
 
-    GCSweepInvoker = New<TPeriodicInvoker>(
-        Bootstrap->GetMetaStateFacade()->GetInvoker(),
-        BIND(&TThis::GCSweep, MakeWeak(this)),
-        Config->GCSweepPeriod);
-
     LOG_INFO("Object Manager initialized (CellId: %d)",
         static_cast<int>(config->CellId));
 }
 
 void TObjectManager::Start()
 {
-    GCSweepInvoker->Start();
+    GarbageCollector->Start();
 }
 
 IYPathServicePtr TObjectManager::GetRootService()
@@ -467,23 +464,19 @@ void TObjectManager::OnObjectUnreferenced(const TObjectId& id, i32 refCounter)
         refCounter);
 
     if (refCounter == 0) {
-        GCEnqueue(id);
+        GarbageCollector->Enqueue(id);
     }
 }
 
 void TObjectManager::SaveKeys(const NCellMaster::TSaveContext& context) const
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
-
     Attributes.SaveKeys(context);
 }
 
 void TObjectManager::SaveValues(const NCellMaster::TSaveContext& context) const
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
-
     Attributes.SaveValues(context);
-    Save(context.GetOutput(), GCQueue);
+    GarbageCollector->Save(context);
 }
 
 void TObjectManager::LoadKeys(const NCellMaster::TLoadContext& context)
@@ -500,7 +493,7 @@ void TObjectManager::LoadValues(const NCellMaster::TLoadContext& context)
     Attributes.LoadValues(context);
     // COMPAT(babenko)
     if (context.GetVersion() >= 2) {
-        Load(context.GetInput(), GCQueue);
+        GarbageCollector->Load(context);
     }
 }
 
@@ -509,10 +502,7 @@ void TObjectManager::Clear()
     VERIFY_THREAD_AFFINITY(StateThread);
 
     Attributes.Clear();
-
-    GCQueue.clear();
-    GCCollectPromise = NewPromise<void>();
-    GCCollectPromise.Set();
+    GarbageCollector->Clear();
 }
 
 void TObjectManager::OnStartRecovery()
@@ -691,11 +681,18 @@ void TObjectManager::ExecuteVerb(
     }
 }
 
+TMutationPtr TObjectManager::CreateDestroyObjectsMutation(const NProto::TMetaReqDestroyObjects& request)
+{
+    return Bootstrap
+        ->GetMetaStateFacade()
+        ->CreateMutation(this, request, &TThis::DestroyObjects);
+}
+
 TFuture<void> TObjectManager::GCCollect()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    return GCCollectPromise;
+    return GarbageCollector->Collect();
 }
 
 void TObjectManager::ReplayVerb(const TMetaReqExecute& request)
@@ -733,11 +730,11 @@ void TObjectManager::DestroyObjects(const NProto::TMetaReqDestroyObjects& reques
     FOREACH (const auto& protoId, request.object_ids()) {
         auto id = TObjectId::FromProto(protoId);
         // NB: The order of these two calls matters.
-        // GCDequeue will check GCQueue for emptiness and will raise GCCollectPromise when
+        // Dequeue will check the queue for emptiness and will raise CollectPromise when
         // the latter becomes empty. To enable cascaded GC sweep we don't want this to happen
         // if some ids are added during DestroyObject.
         DestroyObject(id);
-        GCDequeue(id);
+        GarbageCollector->Dequeue(id);
     }
 }
 
@@ -751,74 +748,6 @@ void TObjectManager::DestroyObject(const TObjectId& id)
     LOG_DEBUG_UNLESS(IsRecovery(), "Object destroyed (Type: %s, Id: %s)",
         ~handler->GetType().ToString(),
         ~id.ToString());
-}
-
-void TObjectManager::GCEnqueue(const TObjectId& id)
-{
-    if (GCQueue.empty()) {
-        GCCollectPromise = NewPromise<void>();
-    }
-    GCQueue.push_back(id);
-    
-    Profiler.Increment(GCQueueSizeCounter, 1);
-}
-
-void TObjectManager::GCDequeue(const TObjectId& expectedId)
-{
-    YCHECK(!GCQueue.empty());
-    YCHECK(GCQueue.front() == expectedId);
-    GCQueue.pop_front();
-    if (GCQueue.empty()) {
-        LOG_DEBUG_UNLESS(IsRecovery(), "GC queue is empty");
-        GCCollectPromise.Set();
-    }
-
-    Profiler.Increment(GCQueueSizeCounter, -1);
-}
-
-void TObjectManager::GCSweep()
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    if (MetaStateManager->GetStateStatus() != EPeerStatus::Leading ||
-        !MetaStateManager->HasActiveQuorum() ||
-        GCQueue.empty())
-    {
-        GCSweepInvoker->ScheduleNext();
-        return;
-    }
-
-    // Extract up to MaxObjectsPerGCSweep objects and post a mutation.
-    NProto::TMetaReqDestroyObjects request;
-    auto it = GCQueue.begin();
-    while (it != GCQueue.end() && request.object_ids_size() < Config->MaxObjectsPerGCSweep) {
-        *request.add_object_ids() = it->ToProto();
-        ++it;
-    }
-
-    LOG_DEBUG("Starting GC sweep for %d objects", request.object_ids_size());
-
-    Bootstrap
-        ->GetMetaStateFacade()
-        ->CreateMutation(this, request, &TThis::DestroyObjects)
-        ->OnSuccess(BIND(&TThis::OnGCCommitSucceeded, MakeWeak(this)))
-        ->OnError(BIND(&TThis::OnGCCommitFailed, MakeWeak(this)))
-        ->PostCommit();
-}
-
-void TObjectManager::OnGCCommitSucceeded()
-{
-    LOG_DEBUG("GC sweep commit succeeded");
-
-    GCSweepInvoker->ScheduleOutOfBand();
-    GCSweepInvoker->ScheduleNext();
-}
-
-void TObjectManager::OnGCCommitFailed(const TError& error)
-{
-    LOG_WARNING(error, "GC sweep commit failed");
-
-    GCSweepInvoker->ScheduleNext();
 }
 
 void TObjectManager::OnTransactionCommitted(TTransaction* transaction)

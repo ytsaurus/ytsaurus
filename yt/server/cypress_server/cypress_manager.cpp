@@ -885,15 +885,11 @@ ICypressNode* TCypressManager::BranchNode(
 
 void TCypressManager::SaveKeys(const NCellMaster::TSaveContext& context) const
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
-
     NodeMap.SaveKeys(context);
 }
 
 void TCypressManager::SaveValues(const NCellMaster::TSaveContext& context) const
 {
-    VERIFY_THREAD_AFFINITY(StateThread);
-
     NodeMap.SaveValues(context);
 }
 

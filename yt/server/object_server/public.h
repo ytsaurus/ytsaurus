@@ -37,6 +37,9 @@ typedef TIntrusivePtr<IObjectTypeHandler> IObjectTypeHandlerPtr;
 class TObjectService;
 typedef TIntrusivePtr<TObjectService> TObjectServicePtr;
 
+class TGarbageCollector;
+typedef TIntrusivePtr<TGarbageCollector> TGarbageCollectorPtr;
+
 ////////////////////////////////////////////////////////////////////////////////
             
 //! Provides means for choosing appropriate object id type from object type.

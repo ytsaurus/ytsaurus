@@ -5,10 +5,10 @@
 #include "type_handler.h"
 
 #include <ytlib/misc/thread_affinity.h>
-#include <ytlib/misc/periodic_invoker.h>
 
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/map.h>
+#include <ytlib/meta_state/mutation.h>
 
 #include <server/cell_master/public.h>
 
@@ -139,6 +139,9 @@ public:
         NRpc::IServiceContextPtr context,
         TCallback<void(NRpc::IServiceContextPtr)> action);
 
+    NMetaState::TMutationPtr CreateDestroyObjectsMutation(
+        const NProto::TMetaReqDestroyObjects& request);
+
     //! Returns a future that gets set when the GC queues becomes empty.
     TFuture<void> GCCollect();
 
@@ -157,21 +160,13 @@ private:
     TIntrusivePtr<TRootService> RootService;
     mutable TGuid CachedCellGuild;
 
-    NProfiling::TAggregateCounter GCQueueSizeCounter;
+    TGarbageCollectorPtr GarbageCollector;
+
     NProfiling::TAggregateCounter CreatedObjectCounter;
     NProfiling::TAggregateCounter DestroyedObjectCounter;
 
     //! Stores deltas from parent transaction.
     NMetaState::TMetaStateMap<TVersionedObjectId, TAttributeSet> Attributes;
-
-    TPeriodicInvokerPtr GCSweepInvoker;
-
-    //! Contains the ids of object have reached ref counter of 0
-    //! but are not destroyed yet.
-    std::deque<TObjectId> GCQueue;
-
-    //! This promise is set each time #GCQueue becomes empty.
-    TPromise<void> GCCollectPromise;
 
     void SaveKeys(const NCellMaster::TSaveContext& context) const;
     void SaveValues(const NCellMaster::TSaveContext& context) const;
@@ -194,13 +189,6 @@ private:
 
     void DestroyObjects(const NProto::TMetaReqDestroyObjects& request);
     void DestroyObject(const TObjectId& id);
-
-    void GCEnqueue(const TObjectId& id);
-    void GCDequeue(const TObjectId& expectedId);
-
-    void GCSweep();
-    void OnGCCommitSucceeded();
-    void OnGCCommitFailed(const TError& error);
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 };
