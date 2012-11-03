@@ -343,7 +343,7 @@ INodePtr GetNodeByYPath(INodePtr root, const TYPath& path)
                 const auto& token = tokenizer.GetToken();
                 int index = ParseListIndex(token);
                 int adjustedIndex = currentList->AdjustChildIndex(index);
-                currentNode = currentList->GetChild(index);
+                currentNode = currentList->GetChild(adjustedIndex);
                 break;
             }
 
