@@ -405,7 +405,7 @@ private:
             _exit(7);
         }
         catch (const std::exception& ex) {
-            fprintf(stderr, "%s", what());
+            fprintf(stderr, "%s", ex.what());
             // TODO(babenko): extract error code constant
             _exit(8);
         }

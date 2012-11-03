@@ -998,7 +998,7 @@ private:
         desiredResources *= 1.0 / maxDemandRatio;
         auto resourcesToPreempt = Max(ZeroNodeResources(), desiredResources - utilization);
 
-        LOG_DEBUG("Scheduling resource preemption (OperationId: %s, Demand: {%s}, Utilization: {%s}, Limits: {%s}, DesiredRatio: %ld, DesiredResources: {%s}, Preempt: {%s})",
+        LOG_DEBUG("Scheduling resource preemption (OperationId: %s, Demand: {%s}, Utilization: {%s}, Limits: {%s}, DesiredRatio: %lf, DesiredResources: {%s}, Preempt: {%s})",
             ~element->GetOperation()->GetOperationId().ToString(),
             ~FormatResources(demand),
             ~FormatResources(utilization),

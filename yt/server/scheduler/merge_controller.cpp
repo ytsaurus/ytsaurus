@@ -526,8 +526,6 @@ private:
 
     virtual void ProcessInputChunk(TRefCountedInputChunkPtr inputChunk) override
     {
-        auto& table = OutputTables[0];
-
         if (IsPassthroughChunk(inputChunk)) {
             // Chunks not requiring merge go directly to the output chunk list.
             AddPassthroughChunk(inputChunk);
