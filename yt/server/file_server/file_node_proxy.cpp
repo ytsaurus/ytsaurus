@@ -89,9 +89,9 @@ Stroka TFileNodeProxy::GetFileName()
 
 TClusterResources TFileNodeProxy::GetResourceUsage() const 
 {
-    const auto* impl = GetThisTypedImpl();
-    const auto* chunkList = impl->GetChunkList();
-    i64 diskSpace = chunkList->Statistics().DiskSpace * impl->GetReplicationFactor();
+    const auto* node = GetThisTypedImpl();
+    const auto* chunkList = node->GetChunkList();
+    i64 diskSpace = chunkList->Statistics().DiskSpace * node->GetReplicationFactor();
     return TClusterResources(diskSpace);
 }
 
@@ -109,8 +109,8 @@ void TFileNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attribute
 
 bool TFileNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const
 {
-    const auto* impl = GetThisTypedImpl();
-    const auto* chunkList = impl->GetChunkList();
+    const auto* node = GetThisTypedImpl();
+    const auto* chunkList = node->GetChunkList();
     const auto& statistics = chunkList->Statistics();
     YASSERT(chunkList->Children().size() == 1);
     auto chunkRef = chunkList->Children()[0];
@@ -158,7 +158,7 @@ bool TFileNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consum
 
     if (key == "replication_factor") {
         BuildYsonFluently(consumer)
-            .Scalar(impl->GetOwningReplicationFactor());
+            .Scalar(node->GetOwningReplicationFactor());
         return true;
     }
 
@@ -184,12 +184,12 @@ bool TFileNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& va
             THROW_ERROR_EXCEPTION("Value cannot be altered inside transaction");
         }
 
-        auto* impl = GetThisTypedMutableImpl();
-        YCHECK(impl->GetTrunkNode() == impl);
-        impl->SetReplicationFactor(replicationFactor);
+        auto* node = GetThisTypedMutableImpl();
+        YCHECK(node->GetTrunkNode() == node);
+        node->SetReplicationFactor(replicationFactor);
 
         if (IsLeader()) {
-            chunkManager->ScheduleRFUpdate(impl->GetChunkList());
+            chunkManager->ScheduleRFUpdate(node->GetChunkList());
         }
 
         return true;
@@ -204,9 +204,9 @@ DEFINE_RPC_SERVICE_METHOD(TFileNodeProxy, FetchFile)
 
     auto chunkManager = Bootstrap->GetChunkManager();
 
-    const auto* impl = GetThisTypedImpl();
+    const auto* node = GetThisTypedImpl();
     
-    const auto* chunkList = impl->GetChunkList();
+    const auto* chunkList = node->GetChunkList();
     YASSERT(chunkList->Children().size() == 1);
     
     auto chunkRef = chunkList->Children()[0];

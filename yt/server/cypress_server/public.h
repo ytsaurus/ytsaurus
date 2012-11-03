@@ -27,6 +27,9 @@ struct IOwningCypressNode;
 struct ICypressNodeProxy;
 typedef TIntrusivePtr<ICypressNodeProxy> ICypressNodeProxyPtr;
 
+struct ICypressNodeVisitor;
+typedef TIntrusivePtr<ICypressNodeVisitor> ICypressNodeVisitorPtr;
+
 using NCypressClient::TNodeId;
 using NCypressClient::ELockMode;
 using NCypressClient::TVersionedNodeId;

@@ -48,7 +48,7 @@ class TJsonWriter
     : public NYTree::TYsonConsumerBase
 {
 public:
-    TJsonWriter(TOutputStream* output, TJsonFormatConfigPtr config = NULL);
+    explicit TJsonWriter(TOutputStream* output, TJsonFormatConfigPtr config = NULL);
     ~TJsonWriter();
 
     void Flush();

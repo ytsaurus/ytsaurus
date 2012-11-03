@@ -43,7 +43,14 @@ struct TDsvFormatConfig
     }
 };
 
-DECLARE_ENUM(EPrintAttributes,
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_ENUM(EJsonFormat,
+    (Text)
+    (Pretty)
+);
+
+DECLARE_ENUM(EJsonAttributesMode,
     (Always)
     (Never)
     (OnDemand)
@@ -52,17 +59,19 @@ DECLARE_ENUM(EPrintAttributes,
 struct TJsonFormatConfig
     : public TYsonSerializable
 {
-    bool Pretty;
-    EPrintAttributes PrintAttributes;
+    bool Format;
+    EJsonAttributesMode AttributesMode;
 
     TJsonFormatConfig()
     {
-        Register("pretty", Pretty)
-            .Default(false);
-        Register("print_attributes", PrintAttributes)
-            .Default(EPrintAttributes::OnDemand);
+        Register("format", Format)
+            .Default(EJsonFormat::Text);
+        Register("attributes_mode", AttributesMode)
+            .Default(EJsonAttributesMode::OnDemand);
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TYamrFormatConfig
     : public TYsonSerializable
@@ -97,6 +106,8 @@ struct TYamrFormatConfig
             .Default('\n');
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TYamredDsvFormatConfig
     : public TDsvFormatConfig

@@ -231,11 +231,14 @@ protected:
         }
 
         // Schedule continuation.
-        auto invoker = Bootstrap->GetMetaStateFacade()->GetGuardedInvoker();
-        if (!invoker->Invoke(BIND(&TChunkTreeTraverser::DoTraverse, MakeStrong(this)))) {
-            Visitor->OnError(TError(
-                ETraversingError::Retriable,
-                "Yield error"));
+        {
+            auto invoker = Bootstrap->GetMetaStateFacade()->GetGuardedInvoker();
+            auto result = invoker->Invoke(BIND(&TChunkTreeTraverser::DoTraverse, MakeStrong(this)));
+            if (!result) {
+                Visitor->OnError(TError(
+                    ETraversingError::Retriable,
+                    "Yield error"));
+            }
         }
     }
 

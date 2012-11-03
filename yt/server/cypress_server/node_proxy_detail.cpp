@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "node_proxy_detail.h"
-#include "node_traversing.h"
+#include "cypress_traversing.h"
 #include "helpers.h"
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -134,33 +134,36 @@ bool TVersionedUserAttributeDictionary::Remove(const Stroka& key)
 namespace {
 
 class TResourceUsageVisitor
-    : public virtual ICypressNodeVisitor
+    : public ICypressNodeVisitor
 {
 public:
-    TResourceUsageVisitor(IYsonConsumer* consumer)
-        : Result(NewPromise<TError>())
+    explicit TResourceUsageVisitor(NCellMaster::TBootstrap* bootstrap, IYsonConsumer* consumer)
+        : Bootstrap(bootstrap)
         , Consumer(consumer)
+        , Result(NewPromise<TError>())
     { }
 
-    TAsyncError Run(NCellMaster::TBootstrap* bootstrap, ICypressNodeProxyPtr nodeProxy)
+    TAsyncError Run(ICypressNodeProxyPtr rootNode)
     {
-        TraverseSubtree(bootstrap, nodeProxy, this);
+        TraverseCypress(Bootstrap, rootNode, this);
         return Result;
     }
 
 private:
-    TPromise<TError> Result;
-    TClusterResources ResourceUsage;
+    NCellMaster::TBootstrap* Bootstrap;
     IYsonConsumer* Consumer;
 
-    virtual void OnNode(ICypressNodeProxyPtr nodeProxy) override
+    TPromise<TError> Result;
+    TClusterResources ResourceUsage;
+
+    virtual void OnNode(ICypressNodeProxyPtr node) override
     {
-        ResourceUsage = ResourceUsage + nodeProxy->GetResourceUsage();
+        ResourceUsage += node->GetResourceUsage();
     }
 
     virtual void OnError(const TError& error) override
     {
-        auto wrappedError = TError("Failed to get recursiver resource usage")
+        auto wrappedError = TError("Error computing recursive resource usage")
             << error;
         Result.Set(wrappedError);
     }
@@ -310,8 +313,8 @@ TAsyncError TCypressNodeProxyNontemplateBase::GetSystemAttributeAsync(
     NYTree::IYsonConsumer* consumer) const
 {
     if (key == "recursive_resource_usage") {
-        auto visitor = New<TResourceUsageVisitor>(consumer);
-        return visitor->Run(Bootstrap, const_cast<TCypressNodeProxyNontemplateBase*>(this));
+        auto visitor = New<TResourceUsageVisitor>(Bootstrap, consumer);
+        return visitor->Run(const_cast<TCypressNodeProxyNontemplateBase*>(this));
     }
 
     return TObjectProxyBase::GetSystemAttributeAsync(key, consumer);
@@ -331,6 +334,7 @@ void TCypressNodeProxyNontemplateBase::ListSystemAttributes(std::vector<TAttribu
     attributes->push_back("creation_time");
     attributes->push_back("modification_time");
     attributes->push_back(TAttributeInfo("resource_usage", true, true));
+    attributes->push_back(TAttributeInfo("recursive_resource_usage", true, true));
     TObjectProxyBase::ListSystemAttributes(attributes);
 }
 
@@ -339,9 +343,7 @@ bool TCypressNodeProxyNontemplateBase::GetSystemAttribute(
     IYsonConsumer* consumer) const 
 {
     const auto* node = GetThisImpl();
-
-    // NB: Locks are stored in trunk nodes (TransactionId == Null).
-    const auto* trunkNode = Bootstrap->GetCypressManager()->GetNode(Id);
+    const auto* trunkNode = node->GetTrunkNode();
 
     if (key == "parent_id") {
         BuildYsonFluently(consumer)

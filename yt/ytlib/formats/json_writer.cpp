@@ -3,7 +3,6 @@
 #include "config.h"
 
 #include <ytlib/ytree/null_yson_consumer.h>
-#include <ytlib/misc/assert.h>
 
 #include <util/string/base64.h>
 
@@ -59,7 +58,9 @@ TJsonWriter::TJsonWriter(TOutputStream* output, TJsonFormatConfigPtr config)
     if (!Config) {
         Config = New<TJsonFormatConfig>();
     }
-    UnderlyingJsonWriter.Reset(new NJson::TJsonWriter(output, Config->Pretty));
+    UnderlyingJsonWriter.Reset(new NJson::TJsonWriter(
+        output,
+        Config->Format == EJsonFormat::Pretty));
     JsonWriter = ~UnderlyingJsonWriter;
     HasAttributes_ = false;
     InAttributesBalance_ = 0;
@@ -72,13 +73,13 @@ TJsonWriter::~TJsonWriter()
 
 void TJsonWriter::EnterNode()
 {
-    if (Config->PrintAttributes == EPrintAttributes::Never) {
+    if (Config->AttributesMode == EJsonAttributesMode::Never) {
         HasAttributes_ = false;
     }
-    else if (Config->PrintAttributes == EPrintAttributes::OnDemand) {
+    else if (Config->AttributesMode == EJsonAttributesMode::OnDemand) {
         // Do nothing
     }
-    else if (Config->PrintAttributes == EPrintAttributes::Always) {
+    else if (Config->AttributesMode == EJsonAttributesMode::Always) {
         if (!HasAttributes_) {
             JsonWriter->OpenMap();
             JsonWriter->Write("$attributes");
@@ -107,12 +108,11 @@ void TJsonWriter::LeaveNode()
 
 bool TJsonWriter::IsWriteAllowed()
 {
-    if (Config->PrintAttributes == EPrintAttributes::Never) {
+    if (Config->AttributesMode == EJsonAttributesMode::Never) {
         return InAttributesBalance_ == 0;
     }
     return true;
 }
-
 
 void TJsonWriter::OnStringScalar(const TStringBuf& value)
 {
@@ -195,7 +195,7 @@ void TJsonWriter::OnEndMap()
 void TJsonWriter::OnBeginAttributes()
 {
     InAttributesBalance_ += 1;
-    if (Config->PrintAttributes != EPrintAttributes::Never) {
+    if (Config->AttributesMode != EJsonAttributesMode::Never) {
         JsonWriter->OpenMap();
         JsonWriter->Write("$attributes");
         JsonWriter->OpenMap();
@@ -205,7 +205,7 @@ void TJsonWriter::OnBeginAttributes()
 void TJsonWriter::OnEndAttributes()
 {
     InAttributesBalance_ -= 1;
-    if (Config->PrintAttributes != EPrintAttributes::Never) {
+    if (Config->AttributesMode != EJsonAttributesMode::Never) {
         HasAttributes_ = true;
         JsonWriter->CloseMap();
     }

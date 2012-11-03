@@ -10,7 +10,7 @@ set( SRCS
   ${BASE}/node_proxy.cpp
   ${BASE}/node_proxy_detail.cpp
   ${BASE}/virtual.cpp
-  ${BASE}/node_traversing.cpp
+  ${BASE}/cypress_traversing.cpp
 )
 set( HDRS
   ${BASE}/cluster_resources.h
@@ -24,7 +24,7 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/type_handler.h
   ${BASE}/virtual.h
-  ${BASE}/node_traversing.h
+  ${BASE}/cypress_traversing.h
 )
 
 list(APPEND YT_SOURCE_FILES

@@ -291,7 +291,7 @@ TEST(TJsonWriterTest, NeverAttributes)
 {
     TStringStream outputStream;
     auto config = New<TJsonFormatConfig>();
-    config->PrintAttributes = EPrintAttributes::Never;
+    config->AttributesMode = EJsonAttributesMode::Never;
     TJsonWriter writer(&outputStream, config);
 
     writer.OnBeginAttributes();
@@ -324,7 +324,7 @@ TEST(TJsonWriterTest, AlwaysAttributes)
 {
     TStringStream outputStream;
     auto config = New<TJsonFormatConfig>();
-    config->PrintAttributes = EPrintAttributes::Always;
+    config->AttributesMode = EJsonAttributesMode::Always;
     TJsonWriter writer(&outputStream, config);
 
     writer.OnBeginAttributes();

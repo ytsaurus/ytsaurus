@@ -534,16 +534,16 @@ bool TTableNodeProxy::IsWriteRequest(IServiceContextPtr context) const
 
 TClusterResources TTableNodeProxy::GetResourceUsage() const 
 {
-    const auto* impl = GetThisTypedImpl();
-    const auto* chunkList = impl->GetChunkList();
-    i64 diskSpace = chunkList->Statistics().DiskSpace * impl->GetReplicationFactor();
+    const auto* node = GetThisTypedImpl();
+    const auto* chunkList = node->GetChunkList();
+    i64 diskSpace = chunkList->Statistics().DiskSpace * node->GetReplicationFactor();
     return TClusterResources(diskSpace);
 }
 
 void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const
 {
-    const auto* impl = GetThisTypedImpl();
-    const auto* chunkList = impl->GetChunkList();
+    const auto* node = GetThisTypedImpl();
+    const auto* chunkList = node->GetChunkList();
 
     attributes->push_back("chunk_list_id");
     attributes->push_back(TAttributeInfo("chunk_ids", true, true));
@@ -562,8 +562,8 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attribut
 
 bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const
 {
-    const auto* impl = GetThisTypedImpl();
-    const auto* chunkList = impl->GetChunkList();
+    const auto* node = GetThisTypedImpl();
+    const auto* chunkList = node->GetChunkList();
     const auto& statistics = chunkList->Statistics();
 
     if (key == "chunk_list_id") {
@@ -614,7 +614,7 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
 
     if (key == "update_mode") {
         BuildYsonFluently(consumer)
-            .Scalar(FormatEnum(impl->GetUpdateMode()));
+            .Scalar(FormatEnum(node->GetUpdateMode()));
         return true;
     }
 
@@ -628,7 +628,7 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
 
     if (key == "replication_factor") {
         BuildYsonFluently(consumer)
-            .Scalar(impl->GetOwningReplicationFactor());
+            .Scalar(node->GetOwningReplicationFactor());
         return true;
     }
 
@@ -637,8 +637,8 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
 
 TAsyncError TTableNodeProxy::GetSystemAttributeAsync(const Stroka& key, IYsonConsumer* consumer) const 
 {
-    const auto* impl = GetThisTypedImpl();
-    const auto* chunkList = impl->GetChunkList();
+    const auto* node = GetThisTypedImpl();
+    const auto* chunkList = node->GetChunkList();
 
     if (key == "chunk_ids") {
         auto visitor = New<TChunkIdsAttributeVisitor>(
@@ -694,12 +694,12 @@ bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& v
             THROW_ERROR_EXCEPTION("Value cannot be altered inside transaction");
         }
 
-        auto* impl = GetThisTypedMutableImpl();
-        YCHECK(impl->GetTrunkNode() == impl);
-        impl->SetReplicationFactor(replicationFactor);
+        auto* node = GetThisTypedMutableImpl();
+        YCHECK(node->GetTrunkNode() == node);
+        node->SetReplicationFactor(replicationFactor);
 
         if (IsLeader()) {
-            chunkManager->ScheduleRFUpdate(impl->GetChunkList());
+            chunkManager->ScheduleRFUpdate(node->GetChunkList());
         }
 
         return true;
@@ -798,8 +798,8 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListForUpdate)
         THROW_ERROR_EXCEPTION("Transaction required");
     }
 
-    auto* impl = LockThisTypedImpl(ELockMode::Shared);
-    const auto* chunkList = EnsureNodeMutable(impl);
+    auto* node = LockThisTypedImpl(ELockMode::Shared);
+    const auto* chunkList = EnsureNodeMutable(node);
 
     *response->mutable_chunk_list_id() = chunkList->GetId().ToProto();
     context->SetResponseInfo("ChunkListId: %s", ~chunkList->GetId().ToString());
@@ -813,12 +813,12 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
 {
     context->SetRequestInfo("");
 
-    const auto* impl = GetThisTypedImpl();
+    const auto* node = GetThisTypedImpl();
 
     auto channel = TChannel::Empty();
     TReadLimit lowerLimit, upperLimit;
     ParseYPath(context->GetPath(), &channel, &lowerLimit, &upperLimit);
-    auto* chunkList = impl->GetChunkList();
+    auto* chunkList = node->GetChunkList();
 
     auto visitor = New<TFetchChunkVisitor>(
         Bootstrap,
@@ -846,13 +846,13 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, SetSorted)
     auto keyColumns = FromProto<Stroka>(request->key_columns());
     context->SetRequestInfo("KeyColumns: %s", ~ConvertToYsonString(keyColumns, EYsonFormat::Text).Data());
 
-    auto* impl = LockThisTypedImpl();
+    auto* node = LockThisTypedImpl();
 
-    if (impl->GetUpdateMode() != ETableUpdateMode::Overwrite) {
+    if (node->GetUpdateMode() != ETableUpdateMode::Overwrite) {
         THROW_ERROR_EXCEPTION("Table node must be in overwrite mode");
     }
 
-    impl->GetChunkList()->SortedBy() = keyColumns;
+    node->GetChunkList()->SortedBy() = keyColumns;
 
     SetModified();
 
@@ -863,9 +863,9 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Clear)
 {
     context->SetRequestInfo("");
 
-    auto* impl = LockThisTypedImpl();
+    auto* node = LockThisTypedImpl();
 
-    ClearNode(impl);
+    ClearNode(node);
 
     SetModified();
 

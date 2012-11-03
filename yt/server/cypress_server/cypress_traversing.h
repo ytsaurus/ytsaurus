@@ -13,16 +13,14 @@ namespace NCypressServer {
 struct ICypressNodeVisitor
     : public virtual TRefCounted
 {
-    virtual void OnNode(ICypressNodeProxyPtr nodeProxy) = 0;
+    virtual void OnNode(ICypressNodeProxyPtr node) = 0;
     virtual void OnError(const TError& error) = 0;
     virtual void OnCompleted() = 0;
 };
 
-typedef TIntrusivePtr<ICypressNodeVisitor> ICypressNodeVisitorPtr;
-
-void TraverseSubtree(
+void TraverseCypress(
     NCellMaster::TBootstrap* bootstrap, 
-    ICypressNodeProxyPtr nodeProxy, 
+    ICypressNodeProxyPtr rootNode, 
     ICypressNodeVisitorPtr visitor);
 
 ////////////////////////////////////////////////////////////////////////////////
