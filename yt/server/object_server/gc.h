@@ -46,7 +46,7 @@ private:
 
     //! Contains the ids of object have reached ref counter of 0
     //! but are not destroyed yet.
-    yhash_set<TObjectId> Queue;
+    yhash_set<TObjectId> ZombieIds;
 
     //! This promise is set each time #GCQueue becomes empty.
     TPromise<void> CollectPromise;

@@ -642,13 +642,13 @@ public:
     }
 
 
-    void GetOwningNodes(TChunkTreeRef chunkRef, IYsonConsumer* consumer)
+    std::vector<TYPath> GetOwningNodes(TChunkTreeRef ref)
     {
         auto cypressManager = Bootstrap->GetCypressManager();
 
         yhash_set<ICypressNode*> owningNodes;
         yhash_set<TChunkTreeRef> visitedRefs;
-        GetOwningNodes(chunkRef, visitedRefs, &owningNodes);
+        GetOwningNodes(ref, visitedRefs, &owningNodes);
 
         std::vector<TYPath> paths;
         FOREACH (auto* node, owningNodes) {
@@ -659,9 +659,7 @@ public:
 
         std::sort(paths.begin(), paths.end());
         paths.erase(std::unique(paths.begin(), paths.end()), paths.end());
-
-        BuildYsonFluently(consumer)
-            .Scalar(paths);
+        return paths;
     }
 
 private:
@@ -1570,22 +1568,22 @@ private:
 
 
     static void GetOwningNodes(
-        TChunkTreeRef chunkRef,
+        TChunkTreeRef ref,
         yhash_set<TChunkTreeRef>& visitedRefs,
         yhash_set<ICypressNode*>* owningNodes)
     {
-        if (!visitedRefs.insert(chunkRef).second) {
+        if (!visitedRefs.insert(ref).second) {
             return;
         }
-        switch (chunkRef.GetType()) {
+        switch (ref.GetType()) {
             case EObjectType::Chunk: {
-                FOREACH (auto* parent, chunkRef.AsChunk()->Parents()) {
+                FOREACH (auto* parent, ref.AsChunk()->Parents()) {
                     GetOwningNodes(parent, visitedRefs, owningNodes);
                 }
                 break;
             }
             case EObjectType::ChunkList: {
-                auto* chunkList = chunkRef.AsChunkList();
+                auto* chunkList = ref.AsChunkList();
                 owningNodes->insert(chunkList->OwningNodes().begin(), chunkList->OwningNodes().end());
                 FOREACH (auto* parent, chunkList->Parents()) {
                     GetOwningNodes(parent, visitedRefs, owningNodes);
@@ -1879,9 +1877,9 @@ int TChunkManager::GetChunkReplicaCount()
     return Impl->GetChunkReplicaCount();
 }
 
-void TChunkManager::GetOwningNodes(TChunkTreeRef chunkRef, IYsonConsumer* consumer)
+std::vector<TYPath> TChunkManager::GetOwningNodes(TChunkTreeRef ref)
 {
-    return Impl->GetOwningNodes(chunkRef, consumer);
+    return Impl->GetOwningNodes(ref);
 }
 
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, Chunk, TChunk, TChunkId, *Impl)

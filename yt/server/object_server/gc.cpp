@@ -43,21 +43,21 @@ void TGarbageCollector::Start()
 
 void TGarbageCollector::Save(const NCellMaster::TSaveContext& context) const
 {
-    SaveSet(context.GetOutput(), Queue);
+    SaveSet(context.GetOutput(), ZombieIds);
 }
 
 void TGarbageCollector::Load(const NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    LoadSet(context.GetInput(), Queue);
+    LoadSet(context.GetInput(), ZombieIds);
 }
 
 void TGarbageCollector::Clear()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    Queue.clear();
+    ZombieIds.clear();
     CollectPromise = NewPromise<void>();
     CollectPromise.Set();
 
@@ -75,11 +75,11 @@ void TGarbageCollector::Enqueue(const TObjectId& id)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    if (Queue.empty()) {
+    if (ZombieIds.empty()) {
         CollectPromise = NewPromise<void>();
     }
 
-    YCHECK(Queue.insert(id).second);
+    YCHECK(ZombieIds.insert(id).second);
 
     Profiler.Increment(QueueSizeCounter, 1);
 }
@@ -88,9 +88,9 @@ void TGarbageCollector::Dequeue(const TObjectId& id)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    YCHECK(Queue.erase(id) == 1);
+    YCHECK(ZombieIds.erase(id) == 1);
 
-    if (Queue.empty()) {
+    if (ZombieIds.empty()) {
         auto metaStateManager = Bootstrap->GetMetaStateFacade()->GetManager();
         LOG_DEBUG_UNLESS(metaStateManager->IsRecovery(), "GC queue is empty");
         CollectPromise.Set();
@@ -106,7 +106,7 @@ void TGarbageCollector::Sweep()
     auto metaStateManager = Bootstrap->GetMetaStateFacade()->GetManager();
     if (!metaStateManager->IsLeader() ||
         !metaStateManager->HasActiveQuorum() ||
-        Queue.empty())
+        ZombieIds.empty())
     {
         SweepInvoker->ScheduleNext();
         return;
@@ -114,8 +114,8 @@ void TGarbageCollector::Sweep()
 
     // Extract up to MaxObjectsPerGCSweep objects and post a mutation.
     NProto::TMetaReqDestroyObjects request;
-    auto it = Queue.begin();
-    while (it != Queue.end() && request.object_ids_size() < Config->MaxObjectsPerGCSweep) {
+    auto it = ZombieIds.begin();
+    while (it != ZombieIds.end() && request.object_ids_size() < Config->MaxObjectsPerGCSweep) {
         *request.add_object_ids() = it->ToProto();
         ++it;
     }

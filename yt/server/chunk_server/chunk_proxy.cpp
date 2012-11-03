@@ -130,7 +130,9 @@ private:
         }
 
         if (key == "owning_nodes") {
-            chunkManager->GetOwningNodes(TChunkTreeRef(const_cast<TChunk*>(chunk)), consumer);
+            auto paths = chunkManager->GetOwningNodes(TChunkTreeRef(const_cast<TChunk*>(chunk)));
+            BuildYsonFluently(consumer)
+                .Scalar(paths);
             return true;
         }
 

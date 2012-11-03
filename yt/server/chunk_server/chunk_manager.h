@@ -136,14 +136,12 @@ public:
     //! Returns the total number of all chunk replicas.
     int GetChunkReplicaCount();
 
-    void GetOwningNodes(TChunkTreeRef chunkRef, NYTree::IYsonConsumer* consumer);
+    std::vector<NYPath::TYPath> GetOwningNodes(TChunkTreeRef ref);
 
 private:
     class TImpl;
     class TChunkTypeHandler;
-    class TChunkProxy;
     class TChunkListTypeHandler;
-    class TChunkListProxy;
     
     TIntrusivePtr<TImpl> Impl;
 

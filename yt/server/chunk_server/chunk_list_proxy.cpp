@@ -123,7 +123,9 @@ private:
         }
 
         if (key == "owning_nodes") {
-            chunkManager->GetOwningNodes(const_cast<TChunkList*>(chunkList), consumer);
+            auto paths = chunkManager->GetOwningNodes(const_cast<TChunkList*>(chunkList));
+            BuildYsonFluently(consumer)
+                .Scalar(paths);
             return true;
         }
 
