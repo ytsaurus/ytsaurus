@@ -1045,25 +1045,24 @@ private:
             }
         }
 
-        if (resourcesToPreempt != ZeroNodeResources())
-            return;
+        if (resourcesToPreempt != ZeroNodeResources()) {
+            LOG_INFO("Started preempting jobs (ResourcesToPreempt: {%s})",
+                ~FormatResources(resourcesToPreempt));
 
-        LOG_INFO("Started preempting jobs (ResourcesToPreempt: {%s})",
-            ~FormatResources(resourcesToPreempt));
+            auto resourcesPreempted = ZeroNodeResources();
+            FOREACH (auto job, JobList) {
+                if (Dominates(resourcesPreempted, resourcesToPreempt)) {
+                    break;
+                }
+                if (CanPreemptJob(job)) {
+                    resourcesPreempted += job->ResourceUtilization();
+                    Host->PreeemptJob(job);
+                }
+            }
 
-        auto resourcesPreempted = ZeroNodeResources();
-        FOREACH (auto job, JobList) {
-            if (Dominates(resourcesPreempted, resourcesToPreempt)) {
-                break;
-            }
-            if (CanPreemptJob(job)) {
-                resourcesPreempted += job->ResourceUtilization();
-                Host->PreeemptJob(job);
-            }
+            LOG_INFO("Finished preempting jobs (ResourcesPreempted: {%s})",
+                ~FormatResources(resourcesPreempted));
         }
-
-        LOG_INFO("Finished preempting jobs (ResourcesPreempted: {%s})",
-            ~FormatResources(resourcesPreempted));
     }
 
 
