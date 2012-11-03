@@ -71,7 +71,7 @@ void TSchedulerConnector::SendHeartbeat()
                 break;
             }
 
-            case:
+            default:
                 break;
         }
     }
