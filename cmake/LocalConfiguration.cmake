@@ -106,9 +106,9 @@ if (CMAKE_COMPILER_IS_CLANG)
 # Now configure compiler options for g++.
 elseif (CMAKE_COMPILER_IS_GNUCXX)
   # These are default (basic) compilation flags.
-  set( CMAKE_C_FLAGS "${CUSTOM_CMAKE_C_FLAGS} -pthread -fPIC -Wall -Wno-sign-compare -Wno-parentheses"
+  set( CMAKE_C_FLAGS "${CUSTOM_CMAKE_C_FLAGS} -pthread -fPIC -Wall -Wno-sign-compare -Wno-parentheses -Wno-reorder"
     CACHE STRING "(Auto-generated) C compiler flags" FORCE)
-  set( CMAKE_CXX_FLAGS "${CUSTOM_CMAKE_CXX_FLAGS} -std=gnu++0x -pthread -fPIC -Wall -Wno-sign-compare -Wno-parentheses"
+  set( CMAKE_CXX_FLAGS "${CUSTOM_CMAKE_CXX_FLAGS} -std=gnu++0x -pthread -fPIC -Wall -Wno-sign-compare -Wno-parentheses -Wno-reorder"
     CACHE STRING "(Auto-generated) C++ compiler flags" FORCE)
 
   # These are configuration-specific compilation flags.
