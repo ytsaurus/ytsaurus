@@ -761,11 +761,10 @@ TJobPtr TOperationControllerBase::DoScheduleJob(
             // Use delayed execution unless starving.
             bool mustWait = false;
             auto delayedTime = task->GetDelayedTime();
-            if (!delayedTime) {
+            if (delayedTime) {
+                mustWait = delayedTime.Get() + task->GetLocalityTimeout() > now;
+            } else {
                 task->SetDelayedTime(now);
-                mustWait = true;
-            }
-            if (delayedTime.Get() + task->GetLocalityTimeout() > now) {
                 mustWait = true;
             }
             if (!isStarving && mustWait) {
