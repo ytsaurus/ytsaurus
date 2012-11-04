@@ -173,9 +173,9 @@ const char* TYamrBaseParser::TryConsumeRecord(const char* begin, const char* end
     
 void TYamrBaseParser::ThrowIncorrectFormat() const
 {
-    THROW_ERROR_EXCEPTION("Unexpected %s symbol during parsing yamr record, expected %s (%s)",
-        ~Stroka(RecordSeparator).Quote(),
+    THROW_ERROR_EXCEPTION("Unexpected symbol in YAMR row: expected %s, found: %s (%s)",
         ~Stroka(FieldSeparator).Quote(),
+        ~Stroka(RecordSeparator).Quote(),
         ~GetDebugInfo());
 }
 
