@@ -10,7 +10,6 @@ from transaction_commands import add_transaction_params
 import os
 import types
 import logger
-import simplejson as json
 from copy import deepcopy
 
 """ Auxiliary methods """
@@ -100,7 +99,7 @@ def create_table(path, make_it_empty=True):
     if create:
         dirname = os.path.dirname(path)
         mkdir(dirname)
-        make_request("POST", "create",
+        make_request("create",
                      add_transaction_params(
                          {"path": path,
                           "type": "table"}))
@@ -130,7 +129,7 @@ def write_table(table, lines, format=None, table_writer=None):
 
     buffer = Buffer(lines)
     while not buffer.empty():
-        make_request("PUT", "write", params, buffer.get(), format=format)
+        make_request("write", params, buffer.get(), format=format)
 
 def read_table(table, format=None, response_type=None):
     if format is None: format = config.DEFAULT_FORMAT
@@ -138,7 +137,7 @@ def read_table(table, format=None, response_type=None):
     table = to_table(table)
     if not exists(table.name):
         return EMPTY_GENERATOR
-    response = make_request("GET", "read",
+    response = make_request("read",
                             add_transaction_params(
                                 {"path": get_yson_name(table)}
                             ),
@@ -184,12 +183,12 @@ def erase_table(table, strategy=None):
     table = to_table(table)
     if not exists(table.name):
         return
-    params = json.dumps(add_transaction_params({
+    params = add_transaction_params({
         "spec": {
             "table_path": table.yson_name()
         }
-    }))
-    operation = make_request("POST", "erase", params=None, data=params)
+    })
+    operation = make_request("erase", data=params)
     strategy.process_operation("erase", operation)
 
 def records_count(table):
@@ -221,14 +220,14 @@ def merge_tables(source_table, destination_table, mode, strategy=None, table_wri
     if table_writer is not None:
         spec = update({"job_io": {"table_writer": table_writer}}, spec)
 
-    params = json.dumps(
+    params = \
         add_user_spec(add_transaction_params(
             {"spec": update(
                 {"input_table_paths": map(get_yson_name, source_table),
                  "output_table_path": destination_table.yson_name("output"),
                  "mode": mode},
-                spec)})))
-    operation = make_request("POST", "merge", None, params)
+                spec)}))
+    operation = make_request("merge", params)
 
     if strategy is None: strategy = config.DEFAULT_STRATEGY
     strategy.process_operation("merge", operation)
@@ -264,10 +263,10 @@ def sort_table(source_table, destination_table=None, sort_by=None, strategy=None
                  "sort_by": sort_by},
                 spec)
     prepare_job_count(spec, source_table)
-    params = json.dumps(add_user_spec(add_transaction_params(
+    params = add_user_spec(add_transaction_params(
         {"spec": spec}
-    )))
-    operation = make_request("POST", "sort", None, params)
+    ))
+    operation = make_request("sort", params)
 
     if strategy is None: strategy = config.DEFAULT_STRATEGY
     strategy.process_operation("sort", operation)
@@ -287,7 +286,7 @@ def _add_output_fd_redirect(binary, dst_count):
     if config.USE_MAPREDUCE_STYLE_DESTINATION_FDS:
         for fd in xrange(3, 3 + dst_count):
             yt_fd = 1 + (fd - 3) * 3
-            binary = binary + " %d>&%d" % (fd, yt_fd)
+            binary = binary + " %d>/dev/fd/%d" % (fd, yt_fd)
     return binary
 
 def _prepare_formats(format, input_format, output_format):
@@ -383,10 +382,10 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
         run_map_reduce.spec = update(run_map_reduce.spec, spec)
 
     prepare_job_count(run_map_reduce.spec, source_table)
-    params = json.dumps(
+    params = \
         add_user_spec(add_transaction_params(
-            {"spec": run_map_reduce.spec})))
-    operation = make_request("POST", "map_reduce", None, params)
+            {"spec": run_map_reduce.spec}))
+    operation = make_request("map_reduce", params)
     strategy.process_operation("map_reduce", operation,
          Finalizer(run_map_reduce.files_to_remove, destination_table))
 
@@ -462,10 +461,10 @@ def run_operation(binary, source_table, destination_table,
         spec)
 
     prepare_job_count(spec, source_table)
-    params = json.dumps(
+    params = \
         add_user_spec(add_transaction_params(
-            {"spec": spec})))
-    operation = make_request("POST", op_type, None, params)
+            {"spec": spec}))
+    operation = make_request(op_type, params)
 
     if strategy is None: strategy = config.DEFAULT_STRATEGY
     strategy.process_operation(op_type, operation, Finalizer(files, destination_table))
