@@ -74,10 +74,11 @@ def make_request(command_name, params,
         make_request.proxy_api[proxy] = dict(map(lambda d: (d["name"], d), api))
 
     # calculate http_method
-    volatile = make_request.proxy_api[proxy][command_name]["is_volatile"]
-    require(data is None or volatile,
+    is_volatile = make_request.proxy_api[proxy][command_name]["is_volatile"]
+    #is_heavy = make_request.proxy_api[proxy][command_name]["is_heavy"]
+    require(data is None or is_volatile,
             YtError("Not volatile request should not have body"))
-    if not volatile:
+    if not is_volatile:
         http_method = "GET"
     elif data is None:
         http_method = "POST"
@@ -89,13 +90,14 @@ def make_request(command_name, params,
     url = "http://{0}/api/{1}".format(proxy, command_name)
     print_info("Request url: %r", url)
 
-    # prepare params and format
+    # prepare params, format and headers
     print_info("Params: %r", params)
-    require((format is None) == (data is None),
-            YtError("Format and data arguments should be specified simultaneously sense without data"))
-    if data is None:
-        format = JsonFormat()
-    if data is None and volatile:
+    headers = {"User-Agent": "Python wrapper",
+               "Accept-Encoding": config.ACCEPT_ENCODING}
+    if data is None and is_volatile:
+        require(format is None,
+                YtError("Format has no meaning if data is not specified and command is volatile"))
+        headers.update(JsonFormat().to_input_http_header())
         data = json.dumps(params)
         params = {}
     elif dict_depth(params) > 1:
@@ -104,12 +106,11 @@ def make_request(command_name, params,
         # therefore we use special recursive encoding method.
         url = "{0}?{1}".format(url, urlencode(params))
         params = {}
-
-    # prepare headers
-    headers = {"User-Agent": "Python wrapper",
-               "Accept-Encoding": config.ACCEPT_ENCODING}
-    headers.update(format.to_input_http_header())
-    headers.update(format.to_output_http_header())
+    if format is not None:
+        headers.update(format.to_input_http_header())
+        headers.update(format.to_output_http_header())
+    else:
+        headers.update(JsonFormat().to_output_http_header())
     print_info("Headers: %r", headers)
     print_info("Params: %r", params)
     print_info("Body: %r", data)
