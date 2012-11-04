@@ -88,7 +88,7 @@ public:
 
     virtual TObjectId Create(
         TTransaction* transaction,
-        const IAttributeDictionary& attributes,
+        IAttributeDictionary* attributes,
         TReqCreateObject* request,
         TRspCreateObject* response) override
     {
@@ -307,7 +307,7 @@ INodeTypeHandlerPtr TCypressManager::GetHandler(const ICypressNode* node)
 ICypressNode* TCypressManager::CreateNode(
     INodeTypeHandlerPtr handler,
     NTransactionServer::TTransaction* transaction,
-    const IAttributeDictionary& attributes,
+    IAttributeDictionary* attributes,
     TReqCreate* request,
     TRspCreate* response)
 {
@@ -315,11 +315,7 @@ ICypressNode* TCypressManager::CreateNode(
     YASSERT(request);
     YASSERT(response);
 
-    auto node = handler->Create(
-        transaction,
-        attributes,
-        request,
-        response);
+    auto node = handler->Create(transaction, attributes, request, response);
     
     // Make a rawptr copy, the next call will transfer the ownership.
     auto node_ = ~node;
@@ -342,7 +338,7 @@ ICypressNode* TCypressManager::CloneNode(
 
     // Make a rawptr copy, the next call will transfer the ownership.
     auto clonedNode_ = ~clonedNode;
-    RegisterNode(transaction, EmptyAttributes(), clonedNode);
+    RegisterNode(transaction, NULL, clonedNode);
 
     return LockVersionedNode(clonedNode_, transaction, ELockMode::Exclusive);
 }
@@ -809,7 +805,7 @@ void TCypressManager::SetModified(
 
 void TCypressManager::RegisterNode(
     TTransaction* transaction,
-    const IAttributeDictionary& attributes,
+    IAttributeDictionary* attributes,
     TAutoPtr<ICypressNode> node)
 {
     auto nodeId = node->GetId().ObjectId;
@@ -831,10 +827,10 @@ void TCypressManager::RegisterNode(
     // is somewhat weird. Moving this logic to some other place, however,
     // complicates the code since we need to worry about possible
     // exceptions thrown from custom attribute validators.
-    if (&attributes != &EmptyAttributes()) {
+    if (attributes) {
         auto proxy = GetVersionedNodeProxy(nodeId, transaction);
         try {
-            proxy->Attributes().MergeFrom(attributes);
+            proxy->Attributes().MergeFrom(*attributes);
         } catch (...) {
             GetHandler(node_)->Destroy(node_);
             NodeMap.Remove(nodeId);

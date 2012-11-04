@@ -96,7 +96,7 @@ public:
 
     virtual TAutoPtr<ICypressNode> Create(
         TTransaction* transaction,
-        const IAttributeDictionary& attributes,
+        IAttributeDictionary* attributes,
         TReqCreate* request,
         TRspCreate* response) override
     {
@@ -108,16 +108,15 @@ public:
         auto objectManager = Bootstrap->GetObjectManager();
 
         // Adjust attributes:
-        auto mutableAttributes = attributes.Clone();
         // - channels
-        if (!mutableAttributes->Contains("channels")) {
-            mutableAttributes->SetYson("channels", TYsonString("[]"));
+        if (!attributes->Contains("channels")) {
+            attributes->SetYson("channels", TYsonString("[]"));
         }
         // - replciation_factor
-        int replicationFactor = mutableAttributes->Get<int>("replication_factor", 3);
-        mutableAttributes->Remove("replication_factor");
+        int replicationFactor = attributes->Get<int>("replication_factor", 3);
+        attributes->Remove("replication_factor");
 
-        auto node = TBase::DoCreate(transaction, *mutableAttributes, request, response);
+        auto node = TBase::DoCreate(transaction, attributes, request, response);
 
         node->SetReplicationFactor(replicationFactor);
 

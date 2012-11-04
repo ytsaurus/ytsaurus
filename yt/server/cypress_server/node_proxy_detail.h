@@ -373,15 +373,15 @@ protected:
                 ~type.ToString());
         }
 
-        TAutoPtr<NYTree::IAttributeDictionary> attributes;
-        if (request->has_node_attributes()) {
-            attributes = NYTree::FromProto(request->node_attributes());
-        }
+        auto attributes =
+            request->has_node_attributes()
+            ? NYTree::FromProto(request->node_attributes())
+            : NYTree::CreateEphemeralAttributes();
 
         auto* newNode = cypressManager->CreateNode(
             handler,
             this->Transaction,
-            ~attributes ? * attributes : NYTree::EmptyAttributes(),
+            ~attributes,
             request,
             response);
 

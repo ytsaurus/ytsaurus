@@ -78,7 +78,7 @@ public:
 
     virtual TAutoPtr<ICypressNode> Create(
         NTransactionServer::TTransaction* transaction,
-        const NYTree::IAttributeDictionary& attributes,
+        NYTree::IAttributeDictionary* attributes,
         TReqCreate* request,
         TRspCreate* response) override
     {
@@ -182,7 +182,7 @@ protected:
 
     virtual TAutoPtr<TImpl> DoCreate(
         NTransactionServer::TTransaction* transaction,
-        const NYTree::IAttributeDictionary& attributes,
+        NYTree::IAttributeDictionary* attributes,
         TReqCreate* request,
         TRspCreate* response)
     {

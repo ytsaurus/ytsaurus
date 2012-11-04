@@ -63,7 +63,7 @@ struct INodeTypeHandler
      */
     virtual TAutoPtr<ICypressNode> Create(
         NTransactionServer::TTransaction* transaction,
-        const NYTree::IAttributeDictionary& attributes,
+        NYTree::IAttributeDictionary* attributes,
         TReqCreate* request,
         TRspCreate* response) = 0;
 

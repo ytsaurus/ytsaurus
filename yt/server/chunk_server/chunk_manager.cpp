@@ -90,7 +90,7 @@ public:
 
     virtual TObjectId Create(
         TTransaction* transaction,
-        const IAttributeDictionary& attributes,
+        IAttributeDictionary* attributes,
         TReqCreateObject* request,
         TRspCreateObject* response) override;
 
@@ -120,7 +120,7 @@ public:
 
     virtual TObjectId Create(
         TTransaction* transaction,
-        const IAttributeDictionary& attributes,
+        IAttributeDictionary* attributes,
         TReqCreateObject* request,
         TRspCreateObject* response) override;
 
@@ -1630,7 +1630,7 @@ IObjectProxyPtr TChunkManager::TChunkTypeHandler::GetProxy(
 
 TObjectId TChunkManager::TChunkTypeHandler::Create(
     TTransaction* transaction,
-    const IAttributeDictionary& attributes,
+    IAttributeDictionary* attributes,
     TReqCreateObject* request,
     TRspCreateObject* response)
 {
@@ -1696,7 +1696,7 @@ IObjectProxyPtr TChunkManager::TChunkListTypeHandler::GetProxy(
 
 TObjectId TChunkManager::TChunkListTypeHandler::Create(
     TTransaction* transaction,
-    const IAttributeDictionary& attributes,
+    IAttributeDictionary* attributes,
     TReqCreateObject* request,
     TRspCreateObject* response)
 {

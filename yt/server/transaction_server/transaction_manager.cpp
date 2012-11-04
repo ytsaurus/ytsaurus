@@ -241,27 +241,23 @@ private:
                 ~FormatEnum(type).Quote());
         }
 
-        TAutoPtr<IAttributeDictionary> attributes;
-        if (request->has_object_attributes()) {
-            attributes = FromProto(request->object_attributes());
-        }
+        auto attributes =
+            request->has_object_attributes()
+            ? FromProto(request->object_attributes())
+            : CreateEphemeralAttributes();
 
-        auto objectId = handler->Create(
-            transaction,
-            ~attributes ? *attributes : EmptyAttributes(),
-            request,
-            response);
+        auto objectId = handler->Create(transaction, ~attributes, request, response);
 
         *response->mutable_object_id() = objectId.ToProto();
 
-        if (~attributes) {
+        auto attributeKeys = attributes->List();
+        if (!attributeKeys.empty()) {
             // Copy attributes. Quick and dirty.
             auto* attributeSet = objectManager->FindAttributes(objectId);
             if (!attributeSet) {
                 attributeSet = objectManager->CreateAttributes(objectId);
             }
             
-            auto attributeKeys = attributes->List();
             FOREACH (const auto& key, attributeKeys) {
                 YCHECK(attributeSet->Attributes().insert(MakePair(
                     key,
@@ -320,13 +316,13 @@ public:
 
     virtual TObjectId Create(
         TTransaction* parent,
-        const IAttributeDictionary& attributes,
+        IAttributeDictionary* attributes,
         TReqCreateObject* request,
         TRspCreateObject* response)
     {
         UNUSED(response);
 
-        auto timeout = attributes.Find<TDuration>("timeout");
+        auto timeout = attributes->Find<TDuration>("timeout");
         auto* transaction = Owner->Start(parent, timeout);
         return transaction->GetId();
     }
