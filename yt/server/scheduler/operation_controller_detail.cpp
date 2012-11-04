@@ -293,14 +293,6 @@ TNodeResources TOperationControllerBase::TTask::GetNeededResources(TJobInProgres
     return GetMinNeededResources();
 }
 
-bool TOperationControllerBase::TTask::HasEnoughResources(TExecNodePtr node) const
-{
-    return NScheduler::HasEnoughResources(
-        node->ResourceUtilization(),
-        GetMinNeededResources(),
-        node->ResourceLimits());
-}
-
 ////////////////////////////////////////////////////////////////////
 
 TOperationControllerBase::TOperationControllerBase(
@@ -565,7 +557,9 @@ void TOperationControllerBase::Abort()
     LOG_INFO("Operation aborted");
 }
 
-TJobPtr TOperationControllerBase::ScheduleJob(ISchedulingContext* context)
+TJobPtr TOperationControllerBase::ScheduleJob(
+    ISchedulingContext* context,
+    bool isStarving)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
  
@@ -581,15 +575,11 @@ TJobPtr TOperationControllerBase::ScheduleJob(ISchedulingContext* context)
 
     // Make a course check to see if the node has enough resources.
     auto node = context->GetNode();
-    if (!HasEnoughResources(
-            node->ResourceUtilization(),
-            GetMinNeededResources(),
-            node->ResourceLimits()))
-    {
+    if (!HasEnoughResources(node)) {
         return NULL;
     }
 
-    auto job = DoScheduleJob(context);
+    auto job = DoScheduleJob(context, isStarving);
     if (!job) {
         return NULL;
     }
@@ -660,7 +650,25 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePt
     OnTaskUpdated(task);
 }
 
-TJobPtr TOperationControllerBase::DoScheduleJob(ISchedulingContext* context)
+bool TOperationControllerBase::HasEnoughResources(TExecNodePtr node)
+{
+    return NScheduler::HasEnoughResources(
+        node->ResourceUtilization(),
+        GetMinNeededResources(),
+        node->ResourceLimits());
+}
+
+bool TOperationControllerBase::HasEnoughResources(TTaskPtr task, TExecNodePtr node)
+{
+    return NScheduler::HasEnoughResources(
+        node->ResourceUtilization(),
+        task->GetMinNeededResources(),
+        node->ResourceLimits());
+}
+
+TJobPtr TOperationControllerBase::DoScheduleJob(
+    ISchedulingContext* context,
+    bool isStarving)
 {
     // First try to find a local task for this node.
     auto now = TInstant::Now();
@@ -682,6 +690,8 @@ TJobPtr TOperationControllerBase::DoScheduleJob(ISchedulingContext* context)
             auto jt = it++;
             auto task = *jt;
 
+            // Make sure that the task is ready to launch jobs.
+            // Remove pending hint if not.
             i64 locality = task->GetLocality(address);
             if (locality <= 0) {
                 localTasks.erase(jt);
@@ -695,7 +705,7 @@ TJobPtr TOperationControllerBase::DoScheduleJob(ISchedulingContext* context)
                 continue;
             }
 
-            if (!task->HasEnoughResources(node)) {
+            if (!HasEnoughResources(task, node)) {
                 continue;
             }
 
@@ -735,6 +745,8 @@ TJobPtr TOperationControllerBase::DoScheduleJob(ISchedulingContext* context)
             auto jt = it++;
             auto task = *jt;
 
+            // Make sure that the task is ready to launch jobs.
+            // Remove pending hint if not.
             if (task->GetPendingJobCount() == 0) {
                 LOG_DEBUG("Task pending hint removed (Task: %s)", ~task->GetId());
                 globalTasks.erase(jt);
@@ -742,21 +754,22 @@ TJobPtr TOperationControllerBase::DoScheduleJob(ISchedulingContext* context)
                 continue;
             }
 
-            if (!task->HasEnoughResources(node)) {
+            if (!HasEnoughResources(task, node)) {
                 continue;
             }
 
-            // Check for delayed execution.
+            // Use delayed execution unless starving.
+            bool mustWait = false;
             auto delayedTime = task->GetDelayedTime();
-            auto localityTimeout = task->GetLocalityTimeout();
-            if (localityTimeout != TDuration::Zero()) {
-                if (!delayedTime) {
-                    task->SetDelayedTime(now);
-                    continue;
-                }
-                if (delayedTime.Get() + localityTimeout > now) {
-                    continue;
-                }
+            if (!delayedTime) {
+                task->SetDelayedTime(now);
+                mustWait = true;
+            }
+            if (delayedTime.Get() + task->GetLocalityTimeout() > now) {
+                mustWait = true;
+            }
+            if (!isStarving && mustWait) {
+                continue;
             }
 
             auto job = task->ScheduleJob(context);

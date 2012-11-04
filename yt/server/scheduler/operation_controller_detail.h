@@ -49,7 +49,9 @@ public:
 
     virtual void Abort() override;
 
-    virtual TJobPtr ScheduleJob(ISchedulingContext* context) override;
+    virtual TJobPtr ScheduleJob(
+        ISchedulingContext* context,
+        bool isStarving) override;
 
     virtual TCancelableContextPtr GetCancelableContext() override;
     virtual IInvokerPtr GetCancelableControlInvoker() override;
@@ -216,7 +218,6 @@ protected:
         virtual NProto::TNodeResources GetMinNeededResources() const = 0;
         virtual NProto::TNodeResources GetAvgNeededResources() const;
         virtual NProto::TNodeResources GetNeededResources(TJobInProgressPtr jip) const;
-        bool HasEnoughResources(TExecNodePtr node) const;
 
         DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, DelayedTime);
 
@@ -289,7 +290,12 @@ protected:
     void AddTaskPendingHint(TTaskPtr task);
     TPendingTaskInfo* GetPendingTaskInfo(TTaskPtr task);
 
-    TJobPtr DoScheduleJob(ISchedulingContext* context);
+    bool HasEnoughResources(TExecNodePtr node);
+    bool HasEnoughResources(TTaskPtr task, TExecNodePtr node);
+
+    TJobPtr DoScheduleJob(
+        ISchedulingContext* context,
+        bool isStarving);
     void OnJobStarted(TJobPtr job);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

@@ -124,7 +124,11 @@ public:
             if (Operation_->GetState() != EOperationState::Running) {
                 break;
             }
-            auto job = Operation_->GetController()->ScheduleJob(context);
+
+            auto status = GetOperationStatus();
+            bool isStarving = status == EOperationStatus::StarvingForMinShare || status == EOperationStatus::StarvingForFairShare;
+
+            auto job = Operation_->GetController()->ScheduleJob(context, isStarving);
             if (!job) {
                 break;
             }
@@ -168,6 +172,8 @@ public:
         auto controller = Operation_->GetController();
         return controller->GetUsedResources();
     }
+
+    EOperationStatus GetOperationStatus() const;
 
     DEFINE_BYREF_RW_PROPERTY(TSchedulableAttributes, Attributes);
     DEFINE_BYVAL_RO_PROPERTY(TOperationPtr, Operation);
@@ -637,6 +643,25 @@ private:
 
 };
 
+EOperationStatus TOperationElement::GetOperationStatus() const
+{
+    // For operations in FIFO pools only the top one may starve.
+    if (Pool_->GetConfig()->Mode == ESchedulingMode::Fifo && Attributes_.Rank != 0) {
+        return EOperationStatus::Normal;
+    }
+
+    if (UtilizationRatio_ < Attributes_.AdjustedMinShareRatio * Config->MinShareStarvationFactor) {
+        return EOperationStatus::StarvingForMinShare;
+    }
+
+    if (UtilizationRatio_ < Attributes_.FairShareRatio * Config->FairShareStarvationFactor) {
+        return EOperationStatus::StarvingForFairShare;
+    }
+
+    return EOperationStatus::Normal;
+}
+
+
 ////////////////////////////////////////////////////////////////////
 
 class TRootElement
@@ -705,7 +730,7 @@ public:
             .Item("start_time").Scalar(element->GetStartTime())
             .Item("effective_resource_limits").Scalar(element->GetEffectiveLimits())
             .Item("utilization_ratio").Scalar(element->GetUtilizationRatio())
-            .Item("scheduling_status").Scalar(GetOperationStatus(element))
+            .Item("scheduling_status").Scalar(element->GetOperationStatus())
             .Do(BIND(&TFairShareStrategy::BuildElementYson, pool, element));
     }
 
@@ -919,35 +944,6 @@ private:
     }
 
 
-    EOperationStatus GetOperationStatus(TOperationElementPtr element) const
-    {
-        auto pool = element->GetPool();
-        const auto& attributes = element->Attributes();
-
-        // For operations in FIFO pools only the top one may starve.
-        if (pool->GetConfig()->Mode == ESchedulingMode::Fifo && attributes.Rank != 0) {
-            return EOperationStatus::Normal;
-        }
-
-        double utilizationRatio = element->GetUtilizationRatio();
-
-        if (utilizationRatio < attributes.AdjustedMinShareRatio * Config->MinShareStarvationFactor) {
-            return EOperationStatus::StarvingForMinShare;
-        }
-
-        if (utilizationRatio < attributes.FairShareRatio * Config->FairShareStarvationFactor) {
-            return EOperationStatus::StarvingForFairShare;
-        }
-
-        return EOperationStatus::Normal;
-    }
-
-    EOperationStatus GetOperationStatus(TOperationPtr operation)
-    {
-        return GetOperationStatus(GetOperationElement(operation));
-    }
-
-
     bool CanPreemptJob(TJobPtr job)
     {
         if (job->GetState() != EJobState::Running)
@@ -1012,7 +1008,7 @@ private:
         FOREACH (const auto& pair, OperationToElement) {
             auto operation = pair.first;
             auto element = pair.second;
-            auto status = GetOperationStatus(element);
+            auto status = element->GetOperationStatus();
             const auto& attributes = element->Attributes();
 
             switch (status) {

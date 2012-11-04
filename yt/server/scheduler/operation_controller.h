@@ -173,7 +173,9 @@ struct IOperationController
     virtual void OnJobAborted(TJobPtr job) = 0;
 
     //! Called during heartbeat processing to request actions the node must perform.
-    virtual TJobPtr ScheduleJob(ISchedulingContext* context) = 0;
+    virtual TJobPtr ScheduleJob(
+        ISchedulingContext* context,
+        bool isStarving) = 0;
 
     //! Called to construct a YSON representing the current progress.
     virtual void BuildProgressYson(NYTree::IYsonConsumer* consumer) = 0;
