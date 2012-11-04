@@ -188,7 +188,7 @@ def erase_table(table, strategy=None):
             "table_path": table.yson_name()
         }
     })
-    operation = make_request("erase", data=params)
+    operation = make_request("erase", params)
     strategy.process_operation("erase", operation)
 
 def records_count(table):

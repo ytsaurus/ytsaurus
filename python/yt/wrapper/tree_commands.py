@@ -1,5 +1,6 @@
 from common import require, YtError, parse_bool, flatten
 from path_tools import dirs, split_table_ranges
+from format import JsonFormat
 from http import make_request
 
 from yt.yson.yson_types import YSONString
@@ -29,7 +30,8 @@ def set(path, value):
     return make_request("set",
                         {"path": path,
                          "transaction_id": config.TRANSACTION},
-                        json.dumps(value))
+                        json.dumps(value),
+                        format=JsonFormat())
 
 def copy(source_path, destination_path):
     return make_request("copy",
