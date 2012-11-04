@@ -94,22 +94,20 @@ int GetSymbol(void* pc, char* buffer, int length)
         return 0;
     }
 
-#if 0
     /*
      * typedef struct {
-     *     const char *dli_fname;  /* Pathname of shared object that
-     *                                contains address */
-     *     void       *dli_fbase;  /* Address at which shared object
-     *                                is loaded */
-     *     const char *dli_sname;  /* Name of nearest symbol with address
-     *                                lower than addr */
-     *     void       *dli_saddr;  /* Exact address of symbol named
-     *                                in dli_sname */
+     *     const char *dli_fname;  // Pathname of shared object that
+     *                             // contains address
+     *     void       *dli_fbase;  // Address at which shared object
+     *                             // is loaded
+     *     const char *dli_sname;  // Name of nearest symbol with address
+     *                             // lower than addr
+     *     void       *dli_saddr;  // Exact address of symbol named
+     *                             // in dli_sname
      * } Dl_info;
      *
      * If no symbol matching addr could be found, then dli_sname and dli_saddr are set to NULL.
      */
-#endif
 
     if (info.dli_sname && info.dli_saddr) {
         formatter.AppendString("<");

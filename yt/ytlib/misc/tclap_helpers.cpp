@@ -54,6 +54,8 @@ std::istringstream& operator>>(std::istringstream& input, TRichYPath& path)
                 case NYTree::ETokenType::RightAngle:
                     --depth;
                     break;
+                default:
+                    break;
             }
 
             if (attrStartPosition < 0 && depth == 1) {
