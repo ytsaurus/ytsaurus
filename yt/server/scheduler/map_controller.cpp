@@ -52,16 +52,9 @@ public:
 
     virtual TNodeResources GetMinNeededResources() override
     {
-        TNodeResources result;
-        result.set_slots(1);
-        result.set_cpu(Spec->Mapper->CpuLimit);
-        result.set_memory(
-            GetIOMemorySize(
-            Spec->JobIO,
-            1,
-            Spec->OutputTablePaths.size()) +
-            GetFootprintMemorySize());
-        return result;
+        return MapTask
+            ? MapTask->GetMinNeededResources()
+            : InfiniteNodeResources();
     }
 
 
@@ -105,7 +98,16 @@ private:
 
         virtual TNodeResources GetMinNeededResources() const override
         {
-            return Controller->GetMinNeededResources();
+            TNodeResources result;
+            result.set_slots(1);
+            result.set_cpu(Controller->Spec->Mapper->CpuLimit);
+            result.set_memory(
+                GetIOMemorySize(
+                Controller->Spec->JobIO,
+                1,
+                Controller->Spec->OutputTablePaths.size()) +
+                GetFootprintMemorySize());
+            return result;
         }
 
     private:

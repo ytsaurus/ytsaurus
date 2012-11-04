@@ -74,7 +74,7 @@ bool HasSpareResources(
     const NProto::TNodeResources& limits);
 
 const NProto::TNodeResources& ZeroNodeResources();
-const NProto::TNodeResources& InfiniteResources();
+const NProto::TNodeResources& InfiniteNodeResources();
 
 i64 GetFootprintMemorySize();
 

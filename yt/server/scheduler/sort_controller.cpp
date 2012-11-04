@@ -72,14 +72,14 @@ public:
 
     virtual TNodeResources GetMinNeededResources() override
     {
-        if (PartitionTask) {
+        if (PartitionTask && PartitionTask->IsPending()) {
             return PartitionTask->GetMinNeededResources();
         }
         if (!Partitions.empty()) {
             return Partitions[0]->SortTask->GetMinNeededResources();
         }
 
-        return InfiniteResources();
+        return InfiniteNodeResources();
     }
 
 private:

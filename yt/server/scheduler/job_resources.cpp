@@ -319,7 +319,7 @@ TNodeResources GetInfiniteResources()
     return result;
 }
 
-const TNodeResources& InfiniteResources()
+const TNodeResources& InfiniteNodeResources()
 {
     static auto result = GetInfiniteResources();
     return result;

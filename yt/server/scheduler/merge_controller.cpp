@@ -60,13 +60,9 @@ public:
 
     virtual TNodeResources GetMinNeededResources() override
     {
-        TNodeResources result;
-        result.set_slots(1);
-        result.set_cpu(1);
-        result.set_memory(
-            GetIOMemorySize(SpecBase->JobIO, GetInputTablePaths().size(), 1) +
-            GetFootprintMemorySize());
-        return result;
+        return MergeTasks.empty()
+            ? InfiniteNodeResources()
+            : MergeTasks[0]->GetMinNeededResources();
     }
 
 protected:
@@ -135,7 +131,16 @@ protected:
         
         virtual NProto::TNodeResources GetMinNeededResources() const override
         {
-            return Controller->GetMinNeededResources();
+            TNodeResources result;
+            result.set_slots(1);
+            result.set_cpu(1);
+            result.set_memory(
+                GetIOMemorySize(
+                    Controller->SpecBase->JobIO,
+                    Controller->GetInputTablePaths().size(),
+                    1) +
+                GetFootprintMemorySize());
+            return result;
         }
 
     protected:
