@@ -2,6 +2,8 @@
 
 cd $(dirname "${BASH_SOURCE[0]}")
 
+#export YT_PROXY="n01-0444g.yt.yandex.net"
+
 export YT_PREFIX="//statbox/"
 
 prepare_table_files() {
@@ -158,12 +160,16 @@ if __name__ == '__main__':
         sys.stdout.write('{0}\\\t{1}\\\t{2}\\\n'.format(i, i * i, i * i * i))
     " >my_mapper.py
     chmod +x my_mapper.py
+    
+    ./mapreduce -drop ignat/mapper.py
+    initial_number_of_files="`./mapreduce -listfiles | wc -l`"
+
     ./mapreduce -upload ignat/mapper.py -executable < my_mapper.py
     cat my_mapper.py | ./mapreduce -upload ignat/mapper.py -executable
     ./mapreduce -download ignat/mapper.py > my_mapper_copy.py
     diff my_mapper.py my_mapper_copy.py
 
-    check 1 "`./mapreduce -listfiles | wc -l`"
+    check $((1 + ${initial_number_of_files})) "`./mapreduce -listfiles | wc -l`"
 
     ./mapreduce -subkey -map "./mapper.py" -ytfile "ignat/mapper.py" -src "ignat/temp" -dst "ignat/mapped"
     check 5 "`./mapreduce -subkey -read "ignat/mapped" | wc -l`"

@@ -1,5 +1,5 @@
 import config
-from common import YtError, dict_depth
+from common import YtError, dict_depth, require
 from format import JsonFormat
 
 import requests
@@ -7,6 +7,7 @@ import requests
 import sys
 import logger
 import urllib
+import simplejson as json
 
 def iter_lines(response):
     """
@@ -38,16 +39,15 @@ def read_content(response, type):
         raise YtError("Incorrent response type: " + type)
 
 
-def make_request(http_method, request_type, params,
+def make_request(command_name, params,
                  data=None, format=None, verbose=False, proxy=None, check_errors=True,
                  raw_response=False, files=None):
     """ Makes request to yt proxy.
         http_method may be equal to GET, POST or PUT,
-        request_type is type of driver command, it may be equal
+        command_name is type of driver command, it may be equal
         to get, read, write, create ...
         Returns response content, raw_response option force
         to return request.Response instance"""
-
     def print_info(msg, *args, **kwargs):
         # Verbose option is used for debugging because it is more
         # selective than logging
@@ -59,30 +59,60 @@ def make_request(http_method, request_type, params,
     # Prepare request url.
     if proxy is None:
         proxy = config.PROXY
-    url = "http://{0}/api/{1}".format(proxy, request_type)
 
-    # Prepare headers
-    if format is None:
+    # prepare commands description for given proxy
+    if not hasattr(make_request, "proxy_api"):
+        make_request.proxy_api = {}
+    if proxy not in make_request.proxy_api:
+        api = requests.get(
+            "http://{}/api".format(proxy),
+            headers= {
+                "User-Agent": "Python wrapper",
+                "Accept": "application/json"
+            }
+        ).json
+        make_request.proxy_api[proxy] = dict(map(lambda d: (d["name"], d), api))
+
+    # calculate http_method
+    volatile = make_request.proxy_api[proxy][command_name]["is_volatile"]
+    require(data is None or volatile,
+            YtError("Not volatile request should not have body"))
+    if not volatile:
+        http_method = "GET"
+    elif data is None:
+        http_method = "POST"
+    else:
+        http_method = "PUT"
+
+
+    # prepare url
+    url = "http://{0}/api/{1}".format(proxy, command_name)
+    print_info("Request url: %r", url)
+
+    # prepare params and format
+    print_info("Params: %r", params)
+    require((format is None) == (data is None),
+            YtError("Format and data arguments should be specified simultaneously sense without data"))
+    if data is None:
         format = JsonFormat()
-    if dict_depth(params) > 1:
-        # In this case we cannot write arbitrary params to body,
-        # so we should encode it into url. But standard urlencode
-        # support only one level dict as params, therefore we use special 
-        # recursive encoding method.
+    if data is None and volatile:
+        data = json.dumps(params)
+        params = {}
+    elif dict_depth(params) > 1:
+        # In this case we need encode params to the url.
+        # But standard urlencode support only one level dict as params,
+        # therefore we use special recursive encoding method.
         url = "{0}?{1}".format(url, urlencode(params))
         params = {}
 
+    # prepare headers
     headers = {"User-Agent": "Python wrapper",
                "Accept-Encoding": config.ACCEPT_ENCODING}
     headers.update(format.to_input_http_header())
     headers.update(format.to_output_http_header())
-
-
-    print_info("Request url: %r", url)
-    print_info("Params: %r", params)
     print_info("Headers: %r", headers)
-    if http_method != "PUT" and data is not None:
-        print_info(data)
+    print_info("Params: %r", params)
+    print_info("Body: %r", data)
 
     response = requests.request(
         url=url,
@@ -110,7 +140,7 @@ def make_request(http_method, request_type, params,
                 raise YtError(message)
     else:
         result = response if raw_response else response.content
-    
+
     return result
 
 def urlencode(params):

@@ -15,7 +15,7 @@ import simplejson as json
 def get(path, check_errors=True, attributes=None):
     if attributes is None:
         attributes = []
-    return make_request("GET", "get",
+    return make_request("get",
                         # TODO(ignat): fix it after proper changes in proxy
                         # Hacky way to pass attributes into url
                         dict(
@@ -26,34 +26,34 @@ def get(path, check_errors=True, attributes=None):
                         check_errors=check_errors)
 
 def set(path, value):
-    return make_request("PUT", "set",
+    return make_request("set",
                         {"path": path,
                          "transaction_id": config.TRANSACTION},
                         json.dumps(value))
 
 def copy(source_path, destination_path):
-    return make_request("POST", "copy",
+    return make_request("copy",
                         {"source_path": source_path,
                          "destination_path": destination_path,
                          "transaction_id": config.TRANSACTION})
 
 def list(path):
-    return make_request("GET", "list",
-            {"path": path,
-             "transaction_id": config.TRANSACTION})
+    return make_request("list",
+                        {"path": path,
+                         "transaction_id": config.TRANSACTION})
 
 def exists(path):
     return parse_bool(
-        make_request("GET", "exists",
-            {"path": split_table_ranges(path)[0],
-             "transaction_id": config.TRANSACTION}))
+        make_request("exists",
+                     {"path": split_table_ranges(path)[0],
+                      "transaction_id": config.TRANSACTION}))
 
 def remove(path):
     require(exists(path),
             YtError("You try to delete non-existing path " + path))
-    return make_request("POST", "remove",
-            {"path": path,
-             "transaction_id": config.TRANSACTION})
+    return make_request("remove",
+                        {"path": path,
+                         "transaction_id": config.TRANSACTION})
 
 def remove_with_empty_dirs(path):
     while True:
