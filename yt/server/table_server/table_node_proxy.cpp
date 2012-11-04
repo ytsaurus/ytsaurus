@@ -668,7 +668,7 @@ void TTableNodeProxy::ValidateUserAttributeUpdate(
 
     if (key == "channels") {
         if (!newValue) {
-            ThrowCannotRemoveAttribute();
+            ThrowCannotRemoveAttribute(key);
         }
         ConvertTo<TChannels>(newValue.Get());
         return;

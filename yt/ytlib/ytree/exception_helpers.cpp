@@ -94,11 +94,6 @@ void ThrowCannotRemoveAttribute(const Stroka& key)
         ~NYPath::ToYPathLiteral(key));
 }
 
-void ThrowCannotRemoveAttribute()
-{
-    THROW_ERROR_EXCEPTION("The attribute cannot be removed");
-}
-
 void ThrowCannotSetSystemAttribute(const Stroka& key)
 {
     THROW_ERROR_EXCEPTION("System attribute cannot be set: %s",
