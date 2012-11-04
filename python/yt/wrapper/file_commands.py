@@ -7,9 +7,13 @@ import os
 
 def download_file(path, response_type=None):
     if response_type is None: response_type = "iter_lines"
-    response = make_request("GET", "download",
-            {"path": path,
-             "transaction_id": config.TRANSACTION}, raw_response=True)
+    response = make_request(
+        "download",
+        {
+            "path": path,
+            "transaction_id": config.TRANSACTION
+        },
+        raw_response=True)
     return read_content(response, response_type)
 
 def upload_file(stream, destination, yt_filename=None):
@@ -17,7 +21,6 @@ def upload_file(stream, destination, yt_filename=None):
         set file_name attribute if yt_filename is specified"""
     mkdir(os.path.dirname(destination))
     make_request(
-        "PUT",
         "upload",
         {
             "path": destination,

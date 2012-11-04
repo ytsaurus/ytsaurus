@@ -24,7 +24,10 @@ class OperationState(object):
         return self.name == "running"
 
     def __eq__(self, other):
-        return self.name == other
+        return self.name == str(other)
+
+    def __ne__(self, other):
+        return not (self == other)
 
     def __repr__(self):
         return self.name
@@ -83,7 +86,7 @@ class PrintOperationInfo(object):
 
 def abort_operation(operation):
     if not get_operation_state(operation).is_final():
-        make_request("POST", "abort_op", {"operation_id": operation})
+        make_request("abort_op", {"operation_id": operation})
 
 def wait_final_state(operation, timeout, print_info, action=lambda: None):
     while True:
