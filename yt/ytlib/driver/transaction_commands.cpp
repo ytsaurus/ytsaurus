@@ -2,6 +2,7 @@
 #include "transaction_commands.h"
 
 #include <ytlib/ytree/fluent.h>
+#include <ytlib/ytree/attribute_helpers.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 
@@ -31,7 +32,7 @@ void TStartTransactionCommand::DoExecute()
         Request->PingAncestorTransactions);
 
     BuildYsonFluently(~Context->CreateOutputConsumer())
-        .Scalar(newTransaction->GetId().ToString());
+        .Scalar(newTransaction->GetId());
 
     newTransaction->Detach();
 }

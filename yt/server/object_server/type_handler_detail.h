@@ -60,10 +60,12 @@ public:
 
     virtual TObjectId Create(
         NTransactionServer::TTransaction* transaction,
+        const NYTree::IAttributeDictionary& attributes,
         TReqCreateObject* request,
         TRspCreateObject* response) override
     {
         UNUSED(transaction);
+        UNUSED(attributes);
         UNUSED(request);
         UNUSED(response);
 

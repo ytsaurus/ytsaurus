@@ -382,7 +382,7 @@ private:
         auto req = TCypressYPathProxy::Create(path);
         SetTransactionId(req, transactionId);
         req->set_type(type);
-        req->Attributes().MergeFrom(ConvertToNode(attributes)->AsMap());
+        ToProto(req->mutable_node_attributes(), *ConvertToAttributes(attributes));
         SyncExecuteVerb(service, req);
     }
 

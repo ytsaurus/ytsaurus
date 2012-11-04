@@ -87,7 +87,7 @@ public:
             NMetaState::GenerateRpcMutationId(req);
         }
         if (attributes) {
-            req->Attributes().MergeFrom(*attributes);
+            ToProto(req->mutable_object_attributes(), *attributes);
         }
 
         auto rsp = Proxy.Execute(req).Get();

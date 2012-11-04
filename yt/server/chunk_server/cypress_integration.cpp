@@ -436,7 +436,11 @@ private:
         {
             auto req = TCypressYPathProxy::Create("/" + ToYPathLiteral(address) + "/orchid");
             req->set_type(EObjectType::Orchid);
-            req->Attributes().Set<Stroka>("remote_address", address);
+
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("remote_address", address);
+            ToProto(req->mutable_node_attributes(), *attributes);
+
             ExecuteVerb(service, req);
         }
     }

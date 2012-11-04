@@ -9,6 +9,7 @@
 
 #include <ytlib/ytree/ephemeral_node_factory.h>
 #include <ytlib/ytree/fluent.h>
+#include <ytlib/ytree/attributes.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 
@@ -103,7 +104,7 @@ private:
         if (key == "nested_transaction_ids") {
             BuildYsonFluently(consumer)
                 .DoListFor(transaction->NestedTransactions(), [=] (TFluentList fluent, TTransaction* nestedTransaction) {
-                    fluent.Item().Scalar(nestedTransaction->GetId().ToString());
+                    fluent.Item().Scalar(nestedTransaction->GetId());
                 });
             return true;
         }
@@ -111,7 +112,7 @@ private:
         if (key == "created_object_ids") {
             BuildYsonFluently(consumer)
                 .DoListFor(transaction->CreatedObjectIds(), [=] (TFluentList fluent, const TTransactionId& id) {
-                    fluent.Item().Scalar(id.ToString());
+                    fluent.Item().Scalar(id);
                 });
             return true;
         }
@@ -119,7 +120,7 @@ private:
         if (key == "created_node_ids") {
             BuildYsonFluently(consumer)
                 .DoListFor(transaction->CreatedNodes(), [=] (TFluentList fluent, const ICypressNode* node) {
-                    fluent.Item().Scalar(node->GetId().ObjectId.ToString());
+                    fluent.Item().Scalar(node->GetId().ObjectId);
                 });
             return true;
         }
@@ -127,7 +128,7 @@ private:
         if (key == "branched_node_ids") {
             BuildYsonFluently(consumer)
                 .DoListFor(transaction->BranchedNodes(), [=] (TFluentList fluent, const ICypressNode* node) {
-                    fluent.Item().Scalar(node->GetId().ObjectId.ToString());
+                    fluent.Item().Scalar(node->GetId().ObjectId);
             });
             return true;
         }
@@ -135,7 +136,7 @@ private:
         if (key == "locked_node_ids") {
             BuildYsonFluently(consumer)
                 .DoListFor(transaction->LockedNodes(), [=] (TFluentList fluent, const ICypressNode* node) {
-                    fluent.Item().Scalar(node->GetId().ObjectId.ToString());
+                    fluent.Item().Scalar(node->GetId().ObjectId);
             });
             return true;
         }
@@ -240,25 +241,31 @@ private:
                 ~FormatEnum(type).Quote());
         }
 
+        TAutoPtr<IAttributeDictionary> attributes;
+        if (request->has_object_attributes()) {
+            attributes = FromProto(request->object_attributes());
+        }
+
         auto objectId = handler->Create(
             transaction,
+            ~attributes ? *attributes : EmptyAttributes(),
             request,
             response);
 
         *response->mutable_object_id() = objectId.ToProto();
 
-        auto attributeKeys = request->Attributes().List();
-        if (!attributeKeys.empty()) {
+        if (~attributes) {
             // Copy attributes. Quick and dirty.
             auto* attributeSet = objectManager->FindAttributes(objectId);
             if (!attributeSet) {
                 attributeSet = objectManager->CreateAttributes(objectId);
             }
             
+            auto attributeKeys = attributes->List();
             FOREACH (const auto& key, attributeKeys) {
                 YCHECK(attributeSet->Attributes().insert(MakePair(
                     key,
-                    request->Attributes().GetYson(key))).second);
+                    attributes->GetYson(key))).second);
             }
         }
 
@@ -313,12 +320,13 @@ public:
 
     virtual TObjectId Create(
         TTransaction* parent,
+        const IAttributeDictionary& attributes,
         TReqCreateObject* request,
         TRspCreateObject* response)
     {
         UNUSED(response);
 
-        auto timeout = request->Attributes().Find<TDuration>("timeout");
+        auto timeout = attributes.Find<TDuration>("timeout");
         auto* transaction = Owner->Start(parent, timeout);
         return transaction->GetId();
     }

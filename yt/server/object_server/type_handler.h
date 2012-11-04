@@ -50,6 +50,7 @@ struct IObjectTypeHandler
      */
     virtual TObjectId Create(
         NTransactionServer::TTransaction* transaction,
+        const NYTree::IAttributeDictionary& attributes,
         TReqCreateObject* request,
         TRspCreateObject* response) = 0;
 

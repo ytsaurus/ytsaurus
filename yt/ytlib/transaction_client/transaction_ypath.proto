@@ -34,6 +34,7 @@ message TRspRenewLease
 message TReqCreateObject
 {
     required int32 type = 1;
+    optional NYT.NYTree.NProto.TAttributes object_attributes = 2;
 
     extensions 100 to max;
 }

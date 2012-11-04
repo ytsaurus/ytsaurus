@@ -373,12 +373,18 @@ protected:
                 ~type.ToString());
         }
 
+        TAutoPtr<NYTree::IAttributeDictionary> attributes;
+        if (request->has_node_attributes()) {
+            attributes = NYTree::FromProto(request->node_attributes());
+        }
+
         auto* newNode = cypressManager->CreateNode(
             handler,
             this->Transaction,
+            ~attributes ? * attributes : NYTree::EmptyAttributes(),
             request,
-            response,
-            &request->Attributes());
+            response);
+
         auto newProxy = cypressManager->GetVersionedNodeProxy(
             newNode->GetId().ObjectId,
             this->Transaction);

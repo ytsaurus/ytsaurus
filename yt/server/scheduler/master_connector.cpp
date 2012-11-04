@@ -807,12 +807,18 @@ private:
 
             if (chunkId != NullChunkId) {
                 auto stdErrPath = GetStdErrPath(operation->GetOperationId(), job->GetId());
+                
                 auto req = TCypressYPathProxy::Create(stdErrPath);
+                GenerateRpcMutationId(req);
                 req->set_type(EObjectType::File);
-                req->Attributes().Set("replication_factor", 1);
+
+                auto attributes = CreateEphemeralAttributes();
+                attributes->Set("replication_factor", 1);
+                ToProto(req->mutable_node_attributes(), *attributes);
+
                 auto* reqExt = req->MutableExtension(NFileClient::NProto::TReqCreateFileExt::create_file);
                 *reqExt->mutable_chunk_id() = chunkId.ToProto();
-                GenerateRpcMutationId(req);
+
                 batchReq->AddRequest(req);
             }
         }

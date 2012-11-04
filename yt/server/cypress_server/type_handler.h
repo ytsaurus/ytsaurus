@@ -3,9 +3,12 @@
 #include "public.h"
 
 #include <ytlib/rpc/service.h>
+
 #include <ytlib/ytree/public.h>
-#include <server/transaction_server/public.h>
+
 #include <ytlib/cypress_client/cypress_ypath.pb.h>
+
+#include <server/transaction_server/public.h>
 
 namespace NYT {
 namespace NCypressServer {
@@ -60,6 +63,7 @@ struct INodeTypeHandler
      */
     virtual TAutoPtr<ICypressNode> Create(
         NTransactionServer::TTransaction* transaction,
+        const NYTree::IAttributeDictionary& attributes,
         TReqCreate* request,
         TRspCreate* response) = 0;
 

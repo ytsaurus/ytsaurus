@@ -1,6 +1,7 @@
 package NYT.NCypressClient.NProto;
 
 import "yt/ytlib/misc/guid.proto";
+import "yt/ytlib/ytree/attributes.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,13 +18,14 @@ message TRspLock
 message TReqCreate
 {
     required int32 type = 1;
+    optional NYT.NYTree.NProto.TAttributes node_attributes = 2;
 
     extensions 100 to max;
 }
 
 message TRspCreate
 {
-    required NYT.NProto.TGuid object_id = 1;
+    required NYT.NProto.TGuid node_id = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

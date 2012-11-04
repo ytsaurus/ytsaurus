@@ -78,11 +78,16 @@ public:
 
     virtual TAutoPtr<ICypressNode> Create(
         NTransactionServer::TTransaction* transaction,
+        const NYTree::IAttributeDictionary& attributes,
         TReqCreate* request,
         TRspCreate* response) override
     {
         // TODO(babenko): Release is needed due to cast to ICypressNode.
-        return DoCreate(transaction, request, response).Release();
+        return DoCreate(
+            transaction,
+            attributes,
+            request,
+            response).Release();
     }
 
     virtual void Destroy(ICypressNode* node) override
@@ -177,10 +182,12 @@ protected:
 
     virtual TAutoPtr<TImpl> DoCreate(
         NTransactionServer::TTransaction* transaction,
+        const NYTree::IAttributeDictionary& attributes,
         TReqCreate* request,
         TRspCreate* response)
     {
         UNUSED(transaction);
+        UNUSED(attributes);
         UNUSED(request);
         UNUSED(response);
 

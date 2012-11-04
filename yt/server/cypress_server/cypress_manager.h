@@ -55,9 +55,9 @@ public:
     ICypressNode* CreateNode(
         INodeTypeHandlerPtr handler,
         NTransactionServer::TTransaction* transaction,
+        const NYTree::IAttributeDictionary& attributes,
         TReqCreate* request,
-        TRspCreate* response,
-        NYTree::IAttributeDictionary* attributes);
+        TRspCreate* response);
 
     //! Clones a node.
     /*!
@@ -121,8 +121,8 @@ public:
 
     void RegisterNode(
         NTransactionServer::TTransaction* transaction,
-        TAutoPtr<ICypressNode> node,
-        NYTree::IAttributeDictionary* attributes = NULL);
+        const NYTree::IAttributeDictionary& attributes,
+        TAutoPtr<ICypressNode> node);
 
     DECLARE_METAMAP_ACCESSORS(Node, ICypressNode, TVersionedNodeId);
 

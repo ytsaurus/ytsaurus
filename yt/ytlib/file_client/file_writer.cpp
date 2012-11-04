@@ -100,7 +100,9 @@ void TFileWriter::Close()
         auto* reqExt = req->MutableExtension(NFileClient::NProto::TReqCreateFileExt::create_file);
         *reqExt->mutable_chunk_id() = Writer->GetChunkId().ToProto();
 
-        req->Attributes().Set("replication_factor", Config->ReplicationFactor);
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("replication_factor", Config->ReplicationFactor);
+        ToProto(req->mutable_node_attributes(), *attributes);
         
         auto rsp = proxy.Execute(req).Get();
         if (!rsp->IsOK()) {
@@ -108,7 +110,7 @@ void TFileWriter::Close()
                 << rsp->GetError();
         }
 
-        NodeId = NCypressClient::TNodeId::FromProto(rsp->object_id());
+        NodeId = NCypressClient::TNodeId::FromProto(rsp->node_id());
     }
     LOG_INFO("File node created (NodeId: %s)", ~NodeId.ToString());
 

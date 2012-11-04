@@ -6,6 +6,7 @@
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <ytlib/ytree/ypath_proxy.h>
+#include <ytlib/ytree/attribute_helpers.h>
 
 #include <ytlib/meta_state/rpc_helpers.h>
 
@@ -104,23 +105,23 @@ void TCreateCommand::DoExecute()
 {
     TObjectServiceProxy proxy(Context->GetMasterChannel());
     auto req = TCypressYPathProxy::Create(Request->Path.GetPath());
+    req->set_type(Request->Type);
     SetTransactionId(req, GetTransactionId(false));
     NMetaState::GenerateRpcMutationId(req);
 
-    req->set_type(Request->Type);
+    auto attributes = ConvertToAttributes(Request->GetOptions());
+    ToProto(req->mutable_node_attributes(), *attributes);
 
-    req->Attributes().MergeFrom(Request->GetOptions());
     auto rsp = proxy.Execute(req).Get();
-
     if (!rsp->IsOK()) {
         ReplyError(rsp->GetError());
         return;
     }
 
     auto consumer = Context->CreateOutputConsumer();
-    auto nodeId = TNodeId::FromProto(rsp->object_id());
+    auto nodeId = TNodeId::FromProto(rsp->node_id());
     BuildYsonFluently(~consumer)
-        .Scalar(nodeId.ToString());
+        .Scalar(nodeId);
 }
 
 //////////////////////////////////////////////////////////////////////////////////

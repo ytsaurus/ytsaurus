@@ -565,11 +565,12 @@ ICypressNodeProxyPtr TNodeFactory::DoCreate(EObjectType type)
    
     auto handler = cypressManager->GetHandler(type);
   
-    auto node = handler->Create(Transaction, NULL, NULL);
-    auto node_ = ~node;
-    cypressManager->RegisterNode(Transaction, node);
+    auto  node = handler->Create(Transaction, EmptyAttributes(), NULL, NULL);
+    auto* node_ = ~node;
+    const auto& nodeId = node_->GetId().ObjectId;
+
+    cypressManager->RegisterNode(Transaction, EmptyAttributes(), node);
     
-    auto nodeId = node_->GetId().ObjectId;
     objectManager->RefObject(node_);
     CreatedNodeIds.push_back(nodeId);
 

@@ -88,6 +88,7 @@ public:
 
     virtual TObjectId Create(
         TTransaction* transaction,
+        const IAttributeDictionary& attributes,
         TReqCreateObject* request,
         TRspCreateObject* response) override
     {
@@ -306,9 +307,9 @@ INodeTypeHandlerPtr TCypressManager::GetHandler(const ICypressNode* node)
 ICypressNode* TCypressManager::CreateNode(
     INodeTypeHandlerPtr handler,
     NTransactionServer::TTransaction* transaction,
+    const IAttributeDictionary& attributes,
     TReqCreate* request,
-    TRspCreate* response,
-    IAttributeDictionary* attributes)
+    TRspCreate* response)
 {
     YASSERT(handler);
     YASSERT(request);
@@ -316,15 +317,16 @@ ICypressNode* TCypressManager::CreateNode(
 
     auto node = handler->Create(
         transaction,
+        attributes,
         request,
         response);
     
     // Make a rawptr copy, the next call will transfer the ownership.
     auto node_ = ~node;
-    RegisterNode(transaction, node, attributes);
 
-    auto nodeId = node_->GetId().ObjectId;
-    *response->mutable_object_id() = nodeId.ToProto();
+    RegisterNode(transaction, attributes, node);
+
+    *response->mutable_node_id() = node_->GetId().ObjectId.ToProto();
 
     return LockVersionedNode(node_, transaction, ELockMode::Exclusive);
 }
@@ -340,7 +342,7 @@ ICypressNode* TCypressManager::CloneNode(
 
     // Make a rawptr copy, the next call will transfer the ownership.
     auto clonedNode_ = ~clonedNode;
-    RegisterNode(transaction, clonedNode, NULL);
+    RegisterNode(transaction, EmptyAttributes(), clonedNode);
 
     return LockVersionedNode(clonedNode_, transaction, ELockMode::Exclusive);
 }
@@ -807,8 +809,8 @@ void TCypressManager::SetModified(
 
 void TCypressManager::RegisterNode(
     TTransaction* transaction,
-    TAutoPtr<ICypressNode> node,
-    IAttributeDictionary* attributes)
+    const IAttributeDictionary& attributes,
+    TAutoPtr<ICypressNode> node)
 {
     auto nodeId = node->GetId().ObjectId;
     YASSERT(node->GetId().TransactionId == NullTransactionId);
@@ -829,10 +831,10 @@ void TCypressManager::RegisterNode(
     // is somewhat weird. Moving this logic to some other place, however,
     // complicates the code since we need to worry about possible
     // exceptions thrown from custom attribute validators.
-    if (attributes) {
+    if (&attributes != &EmptyAttributes()) {
         auto proxy = GetVersionedNodeProxy(nodeId, transaction);
         try {
-            proxy->Attributes().MergeFrom(*attributes);
+            proxy->Attributes().MergeFrom(attributes);
         } catch (...) {
             GetHandler(node_)->Destroy(node_);
             NodeMap.Remove(nodeId);
