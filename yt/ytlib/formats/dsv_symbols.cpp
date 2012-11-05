@@ -14,28 +14,28 @@ bool IsValueStopSymbol[256] = {};
 
 void InitDsvSymbols(const TDsvFormatConfigPtr& config)
 {
-    IsKeyStopSymbol[config->RecordSeparator] = true;
-    IsKeyStopSymbol[config->FieldSeparator] = true;
-    IsKeyStopSymbol[config->KeyValueSeparator] = true;
-    IsKeyStopSymbol[config->EscapingSymbol] = true;
-    IsKeyStopSymbol['\0'] = true;
-
-    IsValueStopSymbol[config->RecordSeparator] = true;
-    IsValueStopSymbol[config->FieldSeparator] = true;
-    IsValueStopSymbol[config->EscapingSymbol] = true;
-    IsValueStopSymbol['\0'] = true;
-
-    // Init escaping table
-    for (int i = 0; i < 256; ++i) {
+    for (int i = 0; i < 256;; ++i) {
         EscapingTable[i] = i;
+        UnEscapingTable[i] = i;
+        IsKeyStopSymbol[i] = false;
+        IsValueStopSymbol[i] = false;
     }
+
+    IsKeyStopSymbol[static_cast<unsigned char>(config->RecordSeparator)] = true;
+    IsKeyStopSymbol[static_cast<unsigned char>(config->FieldSeparator)] = true;
+    IsKeyStopSymbol[static_cast<unsigned char>(config->KeyValueSeparator)] = true;
+    IsKeyStopSymbol[static_cast<unsigned char>(config->EscapingSymbol)] = true;
+    IsKeyStopSymbol[static_cast<unsigned char>('\0')] = true;
+
+    IsValueStopSymbol[static_cast<unsigned char>(config->RecordSeparator)] = true;
+    IsValueStopSymbol[static_cast<unsigned char>(config->FieldSeparator)] = true;
+    IsValueStopSymbol[static_cast<unsigned char>(config->EscapingSymbol)] = true;
+    IsValueStopSymbol[static_cast<unsigned char>('\0')] = true;
+
     EscapingTable['\0'] = '0';
     EscapingTable['\n'] = 'n';
     EscapingTable['\t'] = 't';
 
-    for (int i = 0; i < 256; ++i) {
-        UnEscapingTable[i] = i;
-    }
     UnEscapingTable['0'] = '\0';
     UnEscapingTable['t'] = '\t';
     UnEscapingTable['n'] = '\n';
