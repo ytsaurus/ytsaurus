@@ -1,12 +1,11 @@
 import config
-from common import YtError, dict_depth, require
+from common import YtError, YtResponseError, require
 from format import JsonFormat
 
 import requests
 
 import sys
 import logger
-import urllib
 import simplejson as json
 
 def iter_lines(response):
@@ -38,9 +37,32 @@ def read_content(response, type):
     else:
         raise YtError("Incorrent response type: " + type)
 
+class Response(object):
+    def __init__(self, http_response):
+        self.http_response = http_response
+        if not str(http_response.status_code).startswith("2"):
+            self._error = http_response.json
+        elif http_response.headers.get("x-yt-response-code", 0) != 0:
+            self._error = http_response.headers["x-yt-error"].json
+
+    def error(self):
+        return self._error
+
+    def is_ok(self):
+        return not hasattr(self, "_error")
+
+    def is_json(self):
+        return self.http_response["content-type"] == "application/json"
+
+    def json(self):
+        return self.http_response.json
+
+    def content(self):
+        return self.http_response.content
+
 
 def make_request(command_name, params,
-                 data=None, format=None, verbose=False, proxy=None, check_errors=True,
+                 data=None, format=None, verbose=False, proxy=None,
                  raw_response=False, files=None):
     """ Makes request to yt proxy.
         http_method may be equal to GET, POST or PUT,
@@ -56,56 +78,51 @@ def make_request(command_name, params,
             print >>sys.stderr, msg % args
         logger.debug(msg, *args, **kwargs)
 
+    http_method = {
+        "start_tx": "POST",
+        "renew_tx": "POST",
+        "commit_tx": "POST",
+        "abort_tx": "POST",
+        "create": "POST",
+        "remove": "POST",
+        "set": "PUT",
+        "get": "GET",
+        "list": "GET",
+        "lock": "POST",
+        "copy": "POST",
+        "exists": "GET",
+        "upload": "PUT",
+        "download": "GET",
+        "write": "PUT",
+        "read": "GET",
+        "merge": "POST",
+        "erase": "POST",
+        "map": "POST",
+        "reduce": "POST",
+        "map_reduce": "POST",
+        "sort": "POST",
+        "abort_op": "POST"
+    }
+
     # Prepare request url.
     if proxy is None:
         proxy = config.PROXY
-
-    # prepare commands description for given proxy
-    if not hasattr(make_request, "proxy_api"):
-        make_request.proxy_api = {}
-    if proxy not in make_request.proxy_api:
-        api = requests.get(
-            "http://{}/api".format(proxy),
-            headers= {
-                "User-Agent": "Python wrapper",
-                "Accept": "application/json"
-            }
-        ).json
-        make_request.proxy_api[proxy] = dict(map(lambda d: (d["name"], d), api))
-
-    # calculate http_method
-    is_volatile = make_request.proxy_api[proxy][command_name]["is_volatile"]
-    #is_heavy = make_request.proxy_api[proxy][command_name]["is_heavy"]
-    require(data is None or is_volatile,
-            YtError("Not volatile request should not have body"))
-    if not is_volatile:
-        http_method = "GET"
-    elif data is None:
-        http_method = "POST"
-    else:
-        http_method = "PUT"
-
 
     # prepare url
     url = "http://{0}/api/{1}".format(proxy, command_name)
     print_info("Request url: %r", url)
 
     # prepare params, format and headers
-    print_info("Params: %r", params)
     headers = {"User-Agent": "Python wrapper",
                "Accept-Encoding": config.ACCEPT_ENCODING}
-    if data is None and is_volatile:
-        require(format is None,
-                YtError("Format has no meaning if data is not specified and command is volatile"))
+    if http_method[command_name] == "POST":
+        require(data is None and format is None,
+                YtError("Format and data should not be specified in POST methods"))
         headers.update(JsonFormat().to_input_http_header())
         data = json.dumps(params)
         params = {}
-    elif dict_depth(params) > 1:
-        # In this case we need encode params to the url.
-        # But standard urlencode support only one level dict as params,
-        # therefore we use special recursive encoding method.
-        url = "{0}?{1}".format(url, urlencode(params))
-        params = {}
+    if params:
+        headers.update({"X-YT-Parameters": json.dumps(params)})
     if format is not None:
         headers.update(format.to_input_http_header())
         headers.update(format.to_output_http_header())
@@ -115,47 +132,25 @@ def make_request(command_name, params,
     print_info("Params: %r", params)
     print_info("Body: %r", data)
 
-    response = requests.request(
-        url=url,
-        method=http_method,
-        headers=headers,
-        prefetch=False,
-        params=params,
-        data=data,
-        files=files)
+    response = Response(
+        requests.request(
+            url=url,
+            method=http_method[command_name],
+            headers=headers,
+            prefetch=False,
+            data=data,
+            files=files))
 
-    print_info("Response header %r", response.headers)
-    if response.headers["content-type"] == "application/json":
-        # In this case we load json and try to detect error response from server
-        print_info("Response body %r", response.content)
-        result = response.json if response.content else None
-
-        # TODO(ignat): improve method to detect errors from server
-        if check_errors and isinstance(result, dict) and "error" in result:
-            message = "Response to request {0} with headers {1} contains error: {2}".\
-                      format(url, headers, result["error"])
-            if config.EXIT_WITHOUT_TRACEBACK:
-                print >>sys.stderr, "Error:", message
-                sys.exit(1)
-            else:
-                raise YtError(message)
+    print_info("Response header %r", response.http_response.headers)
+    if response.is_ok():
+        if raw_response:
+            return response.http_response
+        elif response.is_json:
+            return response.json()
+        else:
+            response.content()
     else:
-        result = response if raw_response else response.content
-
-    return result
-
-def urlencode(params):
-    """ Be careful, such urlencoding is not a part of W3C standard """
-    urlencode.flat_params = {}
-    def recursive_urlencode(params, prefix="", depth=0):
-        for key, value in params.iteritems():
-            if depth > 0:
-                key = "[%s]" % key
-            key = prefix + key
-            if isinstance(value, dict):
-                recursive_urlencode(value, key, depth + 1)
-            else:
-                urlencode.flat_params[key] = value
-    recursive_urlencode(params)
-    return urllib.urlencode(urlencode.flat_params)
+        message = "Response to request {0} with headers {1} contains error: {2}".\
+                  format(url, headers, response.error())
+        raise YtResponseError(message)
 

@@ -2,6 +2,7 @@ import config
 from common import require, YtError
 from http import make_request, read_content
 from tree_commands import remove, exists, set_attribute, mkdir, find_free_subpath
+from transaction_commands import add_transaction_params
 
 import os
 
@@ -9,10 +10,9 @@ def download_file(path, response_type=None):
     if response_type is None: response_type = "iter_lines"
     response = make_request(
         "download",
-        {
-            "path": path,
-            "transaction_id": config.TRANSACTION
-        },
+        add_transaction_params({
+            "path": path
+        }),
         raw_response=True)
     return read_content(response, response_type)
 
@@ -22,10 +22,9 @@ def upload_file(stream, destination, yt_filename=None):
     mkdir(os.path.dirname(destination))
     make_request(
         "upload",
-        {
-            "path": destination,
-            "transaction_id": config.TRANSACTION
-        },
+        add_transaction_params({
+            "path": destination
+        }),
         data=stream)
     if yt_filename is not None:
         set_attribute(destination, "file_name", yt_filename)

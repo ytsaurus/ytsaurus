@@ -2,7 +2,7 @@
 
 import yt.wrapper.config as config
 import yt.wrapper as yt
-from yt.wrapper import Record, YtError, record_to_line, line_to_record, Table
+from yt.wrapper import Record, YtError, YtResponseError, record_to_line, line_to_record, Table
 from yt.common import flatten
 
 from yt.environment import YTEnv
@@ -113,7 +113,7 @@ class YtTest(YTEnv):
 
         half_path = '%s/"%s"' % (TEST_DIR, random_strA)
         full_path = '%s/"%s"/"%s"' % (TEST_DIR, random_strA, random_strB)
-        self.assertRaises(YtError, lambda: yt.set(full_path, {}))
+        self.assertRaises(YtResponseError, lambda: yt.set(full_path, {}))
         self.assertEqual(yt.set(half_path, {}), None)
         self.assertEqual(yt.set(full_path, {}), None)
         self.assertTrue(yt.exists(full_path))

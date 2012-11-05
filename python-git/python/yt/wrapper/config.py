@@ -18,9 +18,7 @@ MEMORY_LIMIT = 10 ** 9
 FILE_STORAGE = "//tmp/yt_wrapper/file_storage"
 TEMP_TABLES_STORAGE = "//tmp/yt_wrapper/table_storage"
 
-CHECK_RESULT = True
 KEYBOARD_ABORT = True
-EXIT_WITHOUT_TRACEBACK = False
 FORCE_SORT_IN_REDUCE = False
 
 TRANSACTION = "0-0-0-0"
