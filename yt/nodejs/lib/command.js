@@ -645,7 +645,7 @@ YtCommand.prototype._addHeaders = function() {
 
     this.rsp.setHeader("Transfer-Encoding", "chunked");
     this.rsp.setHeader("Access-Control-Allow-Origin", "*");
-    this.rsp.setHeader("Trailer", "X-YT-Response, X-YT-Response-Code, X-YT-Response-Message");
+    this.rsp.setHeader("Trailer", "X-YT-Error, X-YT-Response-Code, X-YT-Response-Message");
 };
 
 YtCommand.prototype._execute = function(cb) {
