@@ -1,9 +1,6 @@
-from yt.common import require, flatten, update, which
+from yt.common import require, flatten, update, which, YtError
 
 EMPTY_GENERATOR = (i for i in [])
-
-class YtError(Exception):
-    pass
 
 class YtOperationFailedError(YtError):
     pass
