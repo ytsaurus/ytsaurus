@@ -14,7 +14,7 @@ bool IsValueStopSymbol[256] = {};
 
 void InitDsvSymbols(const TDsvFormatConfigPtr& config)
 {
-    for (int i = 0; i < 256;; ++i) {
+    for (int i = 0; i < 256; ++i) {
         EscapingTable[i] = i;
         UnEscapingTable[i] = i;
         IsKeyStopSymbol[i] = false;
