@@ -109,6 +109,8 @@ Handle<Value> ConfigureSingletons(const Arguments& args)
                 String::New("Error initializing driver instance: "),
                 String::New(ex.what()))));
     }
+
+    return Undefined();
 }
 
 } // namespace
