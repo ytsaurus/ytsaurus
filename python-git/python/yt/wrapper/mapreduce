@@ -81,7 +81,7 @@ def add_help_messages(parser, args):
         add_help_message(parser, arg, message)
 
 def parse_format(format):
-    return config.DEFAULT_FORMAT if format is None else yt.RawFormat.from_string(format)
+    return config.DEFAULT_FORMAT if format is None else yt.RawFormat.from_yson(format)
 
 class SortingHelpFormatter(RawTextHelpFormatter):
     def add_arguments(self, actions):
@@ -458,6 +458,9 @@ if __name__ == "__main__":
         print "Shutdown requested... exiting"
         sys.exit(1)
     except yt.YtOperationFailedError as error:
+        print error.message
+        sys.exit(1)
+    except yt.YtResponseError as error:
         print error.message
         sys.exit(1)
     except yt.ConnectionError as error:

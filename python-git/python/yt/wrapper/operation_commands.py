@@ -1,9 +1,10 @@
 import config
 import logger
-from common import require, YtError, YtOperationFailedError, prefix
+from common import require, YtError, YtOperationFailedError, prefix, remove_attributes
 from http import make_request
 from tree_commands import get_attribute, exists, search, get
 from file_commands import download_file
+from format import RawFormat
 
 import os
 from time import sleep
@@ -71,7 +72,7 @@ class PrintOperationInfo(object):
             if progress != self.progress:
                 if config.USE_SHORTEN_OPERATION_INFO:
                     logger.info(
-                        "operation %s: " % operation + 
+                        "operation %s: " % operation +
                         "c={completed!s}\tf={failed!s}\tr={running!s}\tp={pending!s}".format(**progress))
                 else:
                     logger.info(
@@ -133,18 +134,26 @@ def get_operation_stderr(operation, limit=None):
 
 def get_operation_result(operation):
     operation_path = os.path.join(OPERATIONS_PATH, operation)
-    return get_attribute(operation_path, "result", check_errors=False)
+    return get_attribute(operation_path, "result")
 
 def get_jobs_errors(operation, limit=None):
+    def format_error(error):
+        return "{}\n{}".format(
+                    error["message"],
+                    "\n".join("{}: {}".format(k, v)
+                        for k, v in error.iteritems()
+                        if k != "message"))
+
     if limit is None: limit = config.ERRORS_TO_PRINT_LIMIT
     jobs_path = os.path.join(OPERATIONS_PATH, operation, "jobs")
     if not exists(jobs_path):
         return ""
-    jobs = get(jobs_path, attributes=["error"])
-    errors = (repr(value["$attributes"]["error"])
+    jobs = get(jobs_path, attributes=["error"],
+               format=RawFormat.from_yson("<attributes_mode=always>json"))
+    errors = (remove_attributes(value["$attributes"]["error"])
               for value in jobs["$value"].values()
               if "error" in value["$attributes"])
-    return "\n\n".join(prefix(errors, limit))
+    return "\n\n".join(map(format_error, prefix(errors, limit)))
 
 """ Waiting operation strategies """
 class WaitStrategy(object):
@@ -163,9 +172,9 @@ class WaitStrategy(object):
             self.finalization()
             raise YtOperationFailedError(
                 "Operation {0} failed!\n"
-                "Operation result: {1}\n"
-                "Job results: {2}\n"
-                "Stderr: {3}\n".format(
+                "Operation result: {1}\n\n"
+                "JOB RESULTS:\n{2}\n\n"
+                "STDERRORS:\n{3}\n\n".format(
                     operation,
                     operation_result,
                     jobs_errors,

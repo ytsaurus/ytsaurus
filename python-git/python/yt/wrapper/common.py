@@ -8,6 +8,9 @@ class YtError(Exception):
 class YtOperationFailedError(YtError):
     pass
 
+class YtResponseError(YtError):
+    pass
+
 def compose(f, g):
     return lambda x: f(g(x))
 
@@ -50,3 +53,14 @@ def dict_depth(obj):
         return 0
     else:
         return 1 + max(map(dict_depth, obj.values()))
+
+def remove_attributes(tree):
+    if isinstance(tree, dict):
+        if "$attributes" in tree:
+            return remove_attributes(tree["$value"])
+        else:
+            return dict([(k, remove_attributes(v)) for k, v in tree.iteritems()])
+    elif isinstance(tree, list):
+        return map(remove_attributes, tree)
+    else:
+        return tree

@@ -32,6 +32,15 @@ check() {
     [ "${first}" = "${second}" ] || die "Test fail $1 does not equal $2"
 }
 
+check_failed() {
+    set +e
+    eval $1
+    if [ "$?" = "0" ]; then
+        die "Command \"$@\" should fail"
+    fi
+    set -e
+}
+
 test_base_functionality()
 {
     ./mapreduce -list
@@ -129,7 +138,7 @@ test_transactions()
     ./mapreduce -subkey -write "ignat/temp" -append -tx "$TX" < table_file
     ./mapreduce -set "ignat/temp/@my_attr"  -value 10 -tx "$TX"
 
-    check "" "`./mapreduce -get "ignat/temp/@my_attr"`"
+    check_failed './mapreduce -get "ignat/temp/@my_attr"'
     check 2 "`./mapreduce -read "ignat/temp" | wc -l`"
 
     ./mapreduce -committx "$TX"
@@ -185,7 +194,7 @@ test_ignore_positional_arguments()
 test_stderr()
 {
     ./mapreduce -subkey -write "ignat/temp" <table_file
-    ./mapreduce -subkey -map "cat &>2 && exit(1)" -src "ignat/temp" -dst "ignat/tmp" 2>/dev/null && die || true
+    check_failed "./mapreduce -subkey -map 'cat &>2 && exit(1)' -src 'ignat/temp' -dst 'ignat/tmp' 2>/dev/null"
 }
 
 test_smart_format()
@@ -198,7 +207,7 @@ test_drop()
 {
     ./mapreduce -subkey -write "ignat/xxx/yyy/zzz" <table_file
     ./mapreduce -drop "ignat/xxx/yyy/zzz"
-    check "" "`./mapreduce -get "ignat/xxx"`"
+    check_failed './mapreduce -get "ignat/xxx"'
 }
 
 test_create_table()
