@@ -1,0 +1,241 @@
+#!/usr/bin/env node
+
+// Standard modules.
+var fs = require("fs");
+var http = require("http");
+
+// NPM modules.
+var optimist = require("optimist");
+var uid_number = require("uid-number");
+var up = require("up");
+var winstond = require("winstond");
+
+var Q = require("q");
+
+// Program arguments.
+var opts = optimist
+    .usage("Provide HTTP API for YT.\nUsage: $0")
+
+    .alias("c", "config")
+    .describe("c", "Specify configuration file")
+
+    .alias("p", "port")
+    .describe("p", "Specify port to listen")
+
+    .alias("a", "address")
+    .describe("a", "Specify address to listen")
+
+    .alias("n", "number-of-workers")
+    .describe("n", "Specify number of worker processes")
+
+    .alias("m", "memory-limit")
+    .describe("m", "Specify memory limit (in MB) for data buffer size for each request")
+
+    .alias("t", "thread-limit")
+    .describe("t", "Specify thread limit for concurrent off-loop processing")
+
+    .alias("s", "spare-threads")
+    .describe("s", "Specify a number of threads reserved for non-heavy tasks")
+
+    .alias("l", "log")
+    .describe("l", "Specify log file")
+
+    .alias("u", "user")
+    .describe("u", "Specify a user to setuid() to")
+
+    .alias("g", "group")
+    .describe("g", "Specify a group to setgid() to")
+
+    .alias("v", "version")
+    .boolean("v")
+    .describe("v", "Show version and exit")
+
+    .alias("h", "help")
+    .boolean("h")
+    .describe("h", "Show help message and exit")
+
+    .string("user_interface")
+    .describe("user_interface", "Path to the UI")
+    .default("user_interface", "/usr/share/yt")
+
+    .boolean("read_only")
+    .describe("read_only", "Enable read-only mode")
+    .default("read_only", false)
+
+    .boolean("profiler")
+    .describe("profiler", "Enable V8 profiler")
+    .default("profiler", false)
+    ;
+
+////////////////////////////////////////////////////////////////////////////////
+
+var agent;
+var profiler;
+var config;
+var version;
+
+try {
+    version = JSON.parse(fs.readFileSync(__dirname + "/../package.json"));
+} catch (ex) {
+    version = { version : "(development)", dependencies : {} };
+}
+
+if (opts.argv.v) {
+    console.error("*** YT HTTP Proxy ***");
+    console.error("Version %s", version.version);
+    for (var p in version.dependencies) {
+        if (version.dependencies.hasOwnProperty(p)) {
+            console.error("Depends on %s (%s)", p, version.dependencies[p]);
+        }
+    }
+    process.exit(0);
+}
+
+if (opts.argv.h) {
+    opts.showHelp();
+    process.exit(0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+function merge(lhs, rhs) {
+    for (var p in rhs) {
+        try {
+            if (typeof(rhs[p]) !== "undefined" && rhs[p] !== null) {
+                if (rhs[p].constructor === Object) {
+                    lhs[p] = merge(lhs[p], rhs[p]);
+                } else {
+                    lhs[p] = rhs[p];
+                }
+            }
+        } catch(err) {
+            lhs[p] = rhs[p];
+        }
+    }
+    return lhs;
+}
+
+config = {
+    port              : 80,
+    log_port          : 59999,
+    address           : "::",
+    log_address       : "::1",
+    neighbours        : [ "::1" ],
+    number_of_workers : 4,
+    memory_limit      : 32 * 1024 * 1024,
+    thread_limit      : 32,
+    spare_threads     : 4,
+    user_interface    : opts.argv.user_interface,
+    read_only         : opts.argv.read_only,
+    profiler          : opts.argv.profiler,
+    proxy             : { logging : { rules : [], writers : {} } },
+};
+config = merge(config, (opts.argv.c && JSON.parse(fs.readFileSync(opts.argv.c, "utf8"))) || {});
+config = merge(config, {
+    port              : opts.argv.p && parseInt(opts.argv.p),
+    address           : opts.argv.a,
+    number_of_workers : opts.argv.n && parseInt(opts.argv.n),
+    memory_limit      : opts.argv.m && parseInt(opts.argv.m) * 1024 * 1024,
+    thread_limit      : opts.argv.t && parseInt(opts.argv.t),
+    spare_threads     : opts.argv.s && parseInt(opts.argv.s),
+    logging           : opts.argv.l && { filename : opts.argv.l, timestamp : true, raw : true },
+    user              : opts.argv.u,
+    group             : opts.argv.g
+});
+
+////////////////////////////////////////////////////////////////////////////////
+
+if (config.profiler) {
+    var agent = require("webkit-devtools-agent");
+    var profiler = require("v8-profiler");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+function ensureFileExistsAndOwned(path, user, group) {
+    return Q
+        .ncall(fs.exists, fs, path)
+        .fail(function(exists) {
+            return exists || Q
+                .ncall(fs.writeFile, fs, path, "")
+                .then(Q
+                    .ncall(uid_number, undefined, user || process.getuid(), group || process.getgid)
+                    .spread(Q.nbind(fs.chown, path))
+                );
+        });
+};
+
+function provideWinstonTransport() {
+    if (config.logging) {
+        return Q.when(
+            ensureFileExistsAndOwned(config.logging.filename, config.user, config.group),
+            function() {
+                console.error("Setting up logging to file '%s'", config.logging.filename);
+                return new winstond.transports.File(config.logging);
+            });
+    } else {
+        return Q.fcall(function() {
+            console.error("Setting up logging to console");
+            return new winstond.transports.Console({ timestamp : true, raw : true });
+        });
+    }
+}
+
+function provideWinstonLogger(transport) {
+    console.error("Winston is listening on address '%s' on port '%s'", config.log_address, config.log_port);
+    var server = winstond.nssocket.createServer({
+        host : config.log_address,
+        port : config.log_port,
+        services : [ "collect" ],
+        transports : [ transport ]
+    });
+    server.listen();
+    return server;
+}
+
+function createLogger() {
+    return Q.fcall(provideWinstonTransport).then(provideWinstonLogger);
+}
+
+function createServer() {
+    return Q.fcall(function() {
+        console.error("Proxy is listening on address '%s' on port '%s'", config.address, config.port);
+        return http.Server().listen(config.port, config.address);
+    });
+}
+
+function runProxy(logger, server) {
+    process.env.YT_PROXY_CONFIGURATION = JSON.stringify(config);
+    process.env.YT_PROXY_VERSION = JSON.stringify(version);
+    process.env.YT_PROXY_MASTER = process.pid.toString();
+
+    var facade = up(server, __dirname + "/../lib/worker.js", {
+        numWorkers: config.number_of_workers,
+        workerTimeout: "15m",
+        minExpectedLifetime: "15s",
+        keepAlive: true,
+        assumeReady: false,
+        title: "YtHttpProxy"
+    });
+
+    process.on("SIGUSR1", function() {
+        if (profiler) {
+            var snapshot = "snap-" + (new Date()).toISOString();
+            profiler.takeSnapshot(snapshot);
+        }
+    });
+
+    process.on("SIGUSR2", function() {
+        logger.info("Reloading workers", { pid : process.pid });
+        console.error("*** SIGUSR2 received; reloading...");
+        facade.reload();
+    });
+
+    logger.info("Starting HTTP proxy master", { pid : process.pid });
+    console.error("Starting master (PID: %s)", process.pid);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Magic line.
+Q.all([ createLogger(), createServer() ]).spread(runProxy).end();

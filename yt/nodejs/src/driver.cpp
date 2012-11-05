@@ -1,5 +1,7 @@
 #include "config.h"
 #include "driver.h"
+#include "node.h"
+#include "error.h"
 #include "input_stream.h"
 #include "input_stack.h"
 #include "output_stream.h"
@@ -132,6 +134,14 @@ struct TExecuteRequest
     }
 };
 
+static Persistent<String> DescriptorName;
+static Persistent<String> DescriptorInputType;
+static Persistent<String> DescriptorInputTypeAsInteger;
+static Persistent<String> DescriptorOutputType;
+static Persistent<String> DescriptorOutputTypeAsInteger;
+static Persistent<String> DescriptorIsVolatile;
+static Persistent<String> DescriptorIsHeavy;
+
 Local<Object> ConvertCommandDescriptorToV8Object(const TCommandDescriptor& descriptor)
 {
     THREAD_AFFINITY_IS_V8();
@@ -139,31 +149,31 @@ Local<Object> ConvertCommandDescriptorToV8Object(const TCommandDescriptor& descr
 
     Local<Object> result = Object::New();
     result->Set(
-        String::New("name"),
+        DescriptorName,
         String::New(descriptor.CommandName.c_str()),
         v8::ReadOnly);
     result->Set(
-        String::New("input_type"),
+        DescriptorInputType,
         String::New(descriptor.InputType.ToString().c_str()),
         v8::ReadOnly);
     result->Set(
-        String::New("input_type_as_integer"),
+        DescriptorInputTypeAsInteger,
         Integer::New(descriptor.InputType.ToValue()),
         static_cast<v8::PropertyAttribute>(v8::ReadOnly | v8::DontEnum));
     result->Set(
-        String::New("output_type"),
+        DescriptorOutputType,
         String::New(descriptor.OutputType.ToString().c_str()),
         v8::ReadOnly);
     result->Set(
-        String::New("output_type_as_integer"),
+        DescriptorOutputTypeAsInteger,
         Integer::New(descriptor.OutputType.ToValue()),
         static_cast<v8::PropertyAttribute>(v8::ReadOnly | v8::DontEnum));
     result->Set(
-        String::New("is_volatile"),
+        DescriptorIsVolatile,
         Boolean::New(descriptor.IsVolatile),
         v8::ReadOnly);
     result->Set(
-        String::New("is_heavy"),
+        DescriptorIsHeavy,
         Boolean::New(descriptor.IsHeavy),
         v8::ReadOnly);
     return scope.Close(result);
@@ -218,6 +228,14 @@ void TNodeJSDriver::Initialize(Handle<Object> target)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
+
+    DescriptorName = NODE_PSYMBOL("name");
+    DescriptorInputType = NODE_PSYMBOL("input_type");
+    DescriptorInputTypeAsInteger = NODE_PSYMBOL("input_type_as_integer");
+    DescriptorOutputType = NODE_PSYMBOL("output_type");
+    DescriptorOutputTypeAsInteger = NODE_PSYMBOL("output_type_as_integer");
+    DescriptorIsVolatile = NODE_PSYMBOL("is_volatile");
+    DescriptorIsHeavy = NODE_PSYMBOL("is_heavy");
 
     ConstructorTemplate = Persistent<FunctionTemplate>::New(
         FunctionTemplate::New(TNodeJSDriver::New));
@@ -317,8 +335,8 @@ Handle<Value> TNodeJSDriver::DoFindCommandDescriptor(Handle<String> commandNameH
 
     auto maybeDescriptor = Driver->FindCommandDescriptor(commandName);
     if (maybeDescriptor) {
-        Local<Object> result = ConvertCommandDescriptorToV8Object(*maybeDescriptor);
-        return scope.Close(result);
+        return scope.Close(
+            ConvertCommandDescriptorToV8Object(*maybeDescriptor));
     } else {
         return v8::Null();
     }
@@ -369,33 +387,36 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
     YASSERT(args.Length() == 9);
 
     EXPECT_THAT_IS(args[0], String); // CommandName
+
     EXPECT_THAT_HAS_INSTANCE(args[1], TNodeJSInputStream); // InputStream
     EXPECT_THAT_IS(args[2], Uint32); // InputCompression
-    EXPECT_THAT_IS(args[3], String); // InputFormat
+    EXPECT_THAT_HAS_INSTANCE(args[3], TNodeJSNode); // InputFormat
+
     EXPECT_THAT_HAS_INSTANCE(args[4], TNodeJSOutputStream); // OutputStream
     EXPECT_THAT_IS(args[5], Uint32); // OutputCompression
-    EXPECT_THAT_IS(args[6], String); // OutputFormat
-    EXPECT_THAT_IS(args[7], Object); // Parameters
+    EXPECT_THAT_HAS_INSTANCE(args[6], TNodeJSNode); // OutputFormat)
+
+    EXPECT_THAT_HAS_INSTANCE(args[7], TNodeJSNode); // Parameters
     EXPECT_THAT_IS(args[8], Function); // Callback
 
     // Unwrap arguments.
     TNodeJSDriver* host = ObjectWrap::Unwrap<TNodeJSDriver>(args.This());
 
     String::AsciiValue commandName(args[0]);
+
     TNodeJSInputStream* inputStream =
         ObjectWrap::Unwrap<TNodeJSInputStream>(args[1].As<Object>());
     ECompression inputCompression =
         (ECompression)args[2]->Uint32Value();
-    INodePtr inputFormat =
-        ConvertV8StringToNode(args[3].As<String>());
+    INodePtr inputFormat = TNodeJSNode::Node(args[3]);
+
     TNodeJSOutputStream* outputStream =
         ObjectWrap::Unwrap<TNodeJSOutputStream>(args[4].As<Object>());
     ECompression outputCompression =
         (ECompression)args[5]->Uint32Value();
-    INodePtr outputFormat =
-        ConvertV8StringToNode(args[6].As<String>());
-    INodePtr parameters =
-        ConvertV8ValueToNode(args[7].As<Object>());
+    INodePtr outputFormat = TNodeJSNode::Node(args[6]);
+
+    INodePtr parameters = TNodeJSNode::Node(args[7]);
     Local<Function> callback = args[8].As<Function>();
 
     // Build an atom of work.
@@ -447,12 +468,9 @@ void TNodeJSDriver::ExecuteWork(uv_work_t* workRequest)
         } else {
             request->DriverResponse = request->Host->Driver->Execute(request->DriverRequest);
         }
-    } catch (const TErrorException& ex) {
-        LOG_ERROR(ex.Error(), "Caught error exception while executing driver request");
-        request->Error = TError("Failed to execute driver request") << ex;
     } catch (const std::exception& ex) {
-        LOG_ERROR(TError(ex), "Caught unknown exception while executing driver request");
-        request->Error = TError("Unknown error while executing driver request") << TError(ex);
+        request->Error = TError("Caught unknown exception while executing driver request") << TError(ex);
+        LOG_ERROR(request->Error);
     }
 }
 
@@ -466,16 +484,16 @@ void TNodeJSDriver::ExecuteAfter(uv_work_t* workRequest)
     try {
         request->Finish();
     } catch (const std::exception& ex) {
-        LOG_INFO(TError(ex), "Ignoring exception while closing driver output stream");
+        LOG_DEBUG(TError(ex), "Ignoring exception while closing driver output stream");
     }
 
     {
-        TryCatch block;
+        char buffer[32]; // This should be enough to stringify ui64.
+        size_t length;
 
-        Local<Value> args[] = {
-            Local<Value>::New(v8::Null()),
-            Local<Value>::New(v8::Null()),
-            Local<Value>::New(v8::Null()),
+        TryCatch catcher;
+
+        Handle<Value> args[] = {
             Local<Value>::New(v8::Null()),
             Local<Value>::New(v8::Null()),
             Local<Value>::New(v8::Null()),
@@ -483,22 +501,23 @@ void TNodeJSDriver::ExecuteAfter(uv_work_t* workRequest)
         };
 
         if (!request->Error.IsOK()) {
-            // TODO(sandello): Implement TError-to-V8 conversion here for request->Error
-            args[0] = String::New(~ToString(request->Error));
+            args[0] = ConvertErrorToV8(request->Error);
         } else {
-            // TODO(sandello): Implement TError-to-V8 conversion here for request->DriverResponse.Error
-            args[1] = Integer::New(
-                request->DriverResponse.Error.GetCode());
-            args[2] = String::New(
-                request->DriverResponse.Error.GetMessage().c_str());
-            args[3] = Integer::NewFromUnsigned(
-                request->InputStack.GetBaseStream()->GetBytesEnqueued());
-            args[4] = Integer::NewFromUnsigned(
-                request->InputStack.GetBaseStream()->GetBytesDequeued());
-            args[5] = Integer::NewFromUnsigned(
-                request->OutputStack.GetBaseStream()->GetBytesEnqueued());
-            args[6] = Integer::NewFromUnsigned(
-                request->OutputStack.GetBaseStream()->GetBytesDequeued());
+            args[1] = ConvertErrorToV8(request->DriverResponse.Error);
+            // XXX(sandello): Since counters are ui64 we cannot represent
+            // them precisely in V8. Therefore we pass them as strings
+            // because they are used only for debugging purposes.
+            length = ToString(
+                request->InputStack.GetBaseStream()->GetBytesEnqueued(),
+                buffer,
+                sizeof(buffer));
+            args[2] = String::New(buffer, length);
+
+            length = ToString(
+                request->OutputStack.GetBaseStream()->GetBytesEnqueued(),
+                buffer,
+                sizeof(buffer));
+            args[3] = String::New(buffer, length);
         }
 
         request->Callback->Call(
@@ -506,8 +525,8 @@ void TNodeJSDriver::ExecuteAfter(uv_work_t* workRequest)
             ARRAY_SIZE(args),
             args);
 
-        if (block.HasCaught()) {
-            node::FatalException(block);
+        if (catcher.HasCaught()) {
+            node::FatalException(catcher);
         }
     }
 

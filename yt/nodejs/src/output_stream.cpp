@@ -106,11 +106,11 @@ Handle<Value> TNodeJSOutputStream::New(const Arguments& args)
         stream->Wrap(args.This());
 
         stream->handle_->Set(
-            String::New("low_watermark"),
+            String::NewSymbol("low_watermark"),
             Integer::NewFromUnsigned(lowWatermark),
             (v8::PropertyAttribute)(v8::ReadOnly | v8::DontDelete));
         stream->handle_->Set(
-            String::New("high_watermark"),
+            String::NewSymbol("high_watermark"),
             Integer::NewFromUnsigned(highWatermark),
             (v8::PropertyAttribute)(v8::ReadOnly | v8::DontDelete));
 

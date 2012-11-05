@@ -8,6 +8,7 @@
 var util = require("util");
 var stream = require("stream");
 
+// Checks whether MIME pattern |mime| matches actual MIME type |actual|.
 exports.matches = function(mime, actual) {
     "use strict";
     if (!actual) {
@@ -32,42 +33,54 @@ exports.matches = function(mime, actual) {
     }
 };
 
-exports.acceptsType = function(mime, header) {
+// Returns best MIME type in |mimes| which is accepted by Accept header |header|.
+exports.bestAcceptedType = function(mimes, header) {
     "use strict";
     if (!header) {
-        return false;
+        return mimes[0];
     }
 
-    var parts = mime.split("/");
     var accepted = exports.parseAcceptType(header);
+    var mime, parts;
+
     for (var i = 0, imax = accepted.length; i < imax; ++i) {
-        if ((accepted[i].type    === parts[0] || accepted[i].type    === "*") &&
-            (accepted[i].subtype === parts[1] || accepted[i].subtype === "*"))
-        {
-            return true;
+        for (var j in mimes) {
+            mime = mimes[j];
+            parts = mime.split("/");
+            if ((accepted[i].type    === parts[0] || accepted[i].type    === "*") &&
+                (accepted[i].subtype === parts[1] || accepted[i].subtype === "*"))
+            {
+                return mime;
+            }
         }
     }
 
-    return false;
+    return undefined;
 };
 
-exports.acceptsEncoding = function(encoding, header) {
+// Returns best encoding in |encodings| which is accepted by Accept-Encoding header |header|.
+exports.bestAcceptedEncoding = function(encodings, header) {
     "use strict";
     if (!header) {
-        return false;
+        return encodings[0];
     }
 
     var accepted = exports.parseAcceptEncoding(header);
+    var encoding;
+
     for (var i = 0, imax = accepted.length; i < imax; ++i) {
-        if (accepted[i].value === encoding || accepted[i].value === "*")
-        {
-            return true;
+        for (var j in encodings) {
+            encoding = encodings[j];
+            if (accepted[i].value === encoding || accepted[i].value === "*") {
+                return encoding;
+            }
         }
     }
 
-    return false;
+    return undefined;
 };
 
+// Auxiliary.
 exports.parseAcceptType = function(header) {
     "use strict";
     return header
@@ -87,6 +100,7 @@ exports.parseAcceptType = function(header) {
         });
 };
 
+// Auxiliary.
 exports.parseAcceptEncoding = function(header) {
     "use strict";
     return header
@@ -100,6 +114,7 @@ exports.parseAcceptEncoding = function(header) {
         });
 };
 
+// Auxiliary.
 exports.parseQuality = function(header) {
     "use strict";
 
@@ -108,7 +123,7 @@ exports.parseQuality = function(header) {
 
     var quality = parts[1] ? parseFloat(parts[1].split(/ *= */)[1]) : 1.0;
 
-    return { value: value, quality: quality };
+    return { value : value, quality : quality };
 };
 
 /**
@@ -134,49 +149,6 @@ exports.numerify = function(obj) {
         }
     }
     return obj;
-};
-
-/**
- * A simple control flow function which sequentially calls all functions.
- */
-exports.callSeq = function(context, functions, callback) {
-    "use strict";
-    return (function inner(context, functions, callback) {
-        var nextFunction = functions.shift();
-        if (typeof(nextFunction) !== "undefined") {
-            try {
-                nextFunction.call(context, function(ex) {
-                    if (typeof(ex) === "undefined") {
-                        inner(context, functions, callback);
-                    } else {
-                        callback.call(context, ex);
-                    }
-                });
-            } catch(ex) {
-                callback.call(context, ex);
-            }
-        } else {
-            callback.call(context);
-        }
-    }(context, functions, callback));
-};
-
-/**
- * A simple control flow conditional branch.
- */
-exports.callIf = function(context, condition, if_true, if_false) {
-    "use strict";
-    return function(cb) {
-        if (condition.call(context)) {
-            if (if_true) {
-                if_true.call(context, cb);
-            }
-        } else {
-            if (if_false) {
-                if_false.call(context, cb);
-            }
-        }
-    };
 };
 
 /**
@@ -211,8 +183,10 @@ exports.NullStream = function() {
     this.writable = false;
 
     var self = this;
-
-    process.nextTick(function() { self.emit("end"); self.readable = false; });
+    process.nextTick(function() {
+        self.emit("end");
+        self.readable = false;
+    });
 };
 
 util.inherits(exports.NullStream, stream.Stream);
@@ -220,3 +194,38 @@ util.inherits(exports.NullStream, stream.Stream);
 exports.NullStream.prototype.pause = function(){};
 exports.NullStream.prototype.resume = function(){};
 exports.NullStream.prototype.destroy = function(){};
+
+////////////////////////////////////////////////////////////////////////////////
+
+exports.Pause = function(slave) {
+    "use strict";
+    var on_data, on_end, events = [];
+    var dummy = function() {};
+
+    slave.on("data", on_data = function(data, encoding) {
+        events.push(["data", data, encoding]);
+    });
+
+    slave.on("end", on_end = function(data, encoding) {
+        events.push(["end", data, encoding]);
+    });
+
+    slave.pause();
+
+    return {
+        dispose: function() {
+            slave.removeListener("data", on_data);
+            slave.removeListener("end", on_end);
+        },
+        unpause: function() {
+            this.dispose();
+            for (var i = 0, n = events.length; i < n; ++i) {
+                slave.emit.apply(slave, events[i]);
+            }
+            slave.resume();
+
+            this.dispose = dummy;
+            this.unpause = dummy;
+        }
+    };
+};

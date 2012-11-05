@@ -39,7 +39,7 @@ describe("#matches()", function() {
     });
 });
 
-describe("#acceptsType()", function() {
+describe("#bestAcceptedType()", function() {
     // True cases.
     [
         [ "text/plain", "text/plain" ],
@@ -51,7 +51,7 @@ describe("#acceptsType()", function() {
         var header = pair[1];
 
         it("should be true for ('" + mime + "', '" + header + "')", function() {
-            utils.acceptsType(mime, header).should.be.true;
+            expect(utils.bestAcceptedType([ mime ], header)).to.eql(mime);
         });
     });
 
@@ -65,19 +65,22 @@ describe("#acceptsType()", function() {
         var header = pair[1];
 
         it("should be false for ('" + mime + "', '" + header + "')", function() {
-            utils.acceptsType(mime, header).should.be.false;
+            expect(utils.bestAcceptedType([ mime ], header)).to.be.undefined;
         });
     });
 
     it("should work with real header", function() {
-        expect(utils.acceptsType(
-            "application/json",
-            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
-        )).to.be.true;
-        expect(utils.acceptsType(
-            "application/xxxx",
-            "text/html,application/xhtml+xml,application/xml;q=0.9"
-        )).to.be.false;
+        var good_header = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
+        var bad_header = "text/html,application/xhtml+xml,application/xml;q=0.9";
+        expect(utils.bestAcceptedType(
+            [ "text/html", "application/json" ], good_header
+        )).to.eql("text/html");
+        expect(utils.bestAcceptedType(
+            [ "application/json" ], good_header
+        )).to.eql("application/json");
+        expect(utils.bestAcceptedType(
+            [ "application/xxxx" ], bad_header
+        )).to.be.undefined;
     });
 });
 
@@ -94,7 +97,7 @@ describe("#acceptsEncoding()", function() {
         var header = pair[1];
 
         it("should be true for ('" + mime + "', '" + header + "')", function() {
-            utils.acceptsEncoding(mime, header).should.be.true;
+            expect(utils.bestAcceptedEncoding([ mime ], header)).to.eql(mime);
         });
     });
 
@@ -107,8 +110,33 @@ describe("#acceptsEncoding()", function() {
         var header = pair[1];
 
         it("should be false for ('" + mime + "', '" + header + "')", function() {
-            utils.acceptsEncoding(mime, header).should.be.false;
+            expect(utils.bestAcceptedEncoding([ mime ], header)).to.be.undefined;
         });
+    });
+});
+
+describe("#parseAcceptType()", function() {
+    it("should parse real header", function() {
+        expect(
+            utils.parseAcceptType("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+        ).to.eql([
+            { value: "text/html", quality: 1.0, type: "text", subtype: "html" },
+            { value: "application/xhtml+xml", quality: 1.0, type: "application", subtype: "xhtml+xml" },
+            { value: "application/xml", quality: 0.9, type: "application", subtype: "xml" },
+            { value: "*/*", quality: 0.8, type: "*", subtype: "*" }
+        ]);
+    });
+});
+
+describe("#parseAcceptEncoding()", function() {
+    it("should parse real header", function() {
+        expect(
+            utils.parseAcceptEncoding("gzip,deflate,sdch")
+        ).to.eql([
+            { value: "gzip", quality: 1.0 },
+            { value: "deflate", quality: 1.0 },
+            { value: "sdch", quality: 1.0 }
+        ]);
     });
 });
 
@@ -129,31 +157,6 @@ describe("#parseQuality()", function() {
         var result = utils.parseQuality("text/html;q=.5");
         expect(result.value).to.be.equal("text/html");
         expect(result.quality).to.be.equal(0.5);
-    });
-});
-
-describe("#parseAcceptType()", function() {
-    it("should parse real header", function() {
-        expect(
-            utils.parseAcceptType("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-        ).to.be.eql([
-            { value: "text/html", quality: 1.0, type: "text", subtype: "html" },
-            { value: "application/xhtml+xml", quality: 1.0, type: "application", subtype: "xhtml+xml" },
-            { value: "application/xml", quality: 0.9, type: "application", subtype: "xml" },
-            { value: "*/*", quality: 0.8, type: "*", subtype: "*" }
-        ]);
-    });
-});
-
-describe("#parseAcceptEncoding()", function() {
-    it("should parse real header", function() {
-        expect(
-            utils.parseAcceptEncoding("gzip,deflate,sdch")
-        ).to.be.eql([
-            { value: "gzip", quality: 1.0 },
-            { value: "deflate", quality: 1.0 },
-            { value: "sdch", quality: 1.0 }
-        ]);
     });
 });
 

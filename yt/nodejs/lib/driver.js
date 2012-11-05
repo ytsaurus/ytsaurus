@@ -1,14 +1,16 @@
-var binding = require("./ytnode");
-var debug = require("./debug");
+var Q = require("q");
 
+var YtError = require("./error").that;
 var YtReadableStream = require("./readable_stream").that;
 var YtWritableStream = require("./writable_stream").that;
+
+var binding = require("./ytnode");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 var __DBG;
 
-if (process.env.NODE_DEBUG && /YTNODE/.test(process.env.NODE_DEBUG)) {
+if (process.env.NODE_DEBUG && /YT(ALL|NODE)/.test(process.env.NODE_DEBUG)) {
     __DBG = function(x) { "use strict"; console.error("YT Driver:", x); };
     __DBG.UUID = require("node-uuid");
 } else {
@@ -17,9 +19,11 @@ if (process.env.NODE_DEBUG && /YTNODE/.test(process.env.NODE_DEBUG)) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function properlyPipe(source, destination, onError)
+function promisinglyPipe(source, destination)
 {
     "use strict";
+
+    var deferred = Q.defer();
 
     function on_data(chunk) {
         if (destination.writable && destination.write(chunk) === false) {
@@ -37,37 +41,18 @@ function properlyPipe(source, destination, onError)
 
     destination.on("drain", on_drain);
 
-    var source_has_died = false;
-    var destination_has_died = false;
-
     function on_end() {
-        if (source_has_died) { return; }
-        source_has_died = true;
-        destination.end();
+        deferred.resolve();
     }
-
     function on_source_close() {
-        if (source_has_died) { return; }
-        source_has_died = true;
-        destination.destroy();
+        deferred.reject(new YtError("Source stream in the pipe has been closed."));
     }
-
     function on_destination_close() {
-        if (destination_has_died) { return; }
-        destination_has_died = true;
-        source.destroy();
+        deferred.reject(new YtError("Destination stream in the pipe has been closed."));
     }
-
-    function on_error() {
+    function on_error(err) {
         cleanup();
-        if (!source_has_died) {
-            source_has_died = true;
-            destination.destroy();
-        }
-        if (!destination_has_died) {
-            destination_has_died = true;
-            source.destroy();
-        }
+        deferred.reject(err);
     }
 
     source.on("end", on_end);
@@ -103,13 +88,14 @@ function properlyPipe(source, destination, onError)
 
     destination.emit("pipe", source);
 
-    return destination;
+    return deferred.promise;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtDriver(echo, configuration) {
+function YtDriver(echo, config) {
     "use strict";
+
     if (__DBG.UUID) {
         this.__DBG  = function(x) { __DBG(this.__UUID + " -> " + x); };
         this.__UUID = __DBG.UUID.v4();
@@ -119,19 +105,19 @@ function YtDriver(echo, configuration) {
 
     this.__DBG("New");
 
-    this.low_watermark = configuration.low_watermark;
-    this.high_watermark = configuration.high_watermark;
+    this.low_watermark = config.low_watermark;
+    this.high_watermark = config.high_watermark;
 
     this.__DBG("low_watermark = " + this.low_watermark);
     this.__DBG("high_watermark = " + this.high_watermark);
 
-    this._binding = new binding.TNodeJSDriver(echo, configuration.proxy);
+    this._binding = new binding.TNodeJSDriver(echo, config.proxy);
 }
 
 YtDriver.prototype.execute = function(name,
     input_stream, input_compression, input_format,
     output_stream, output_compression, output_format,
-    parameters, cb
+    parameters
 ) {
     "use strict";
     this.__DBG("execute");
@@ -141,41 +127,53 @@ YtDriver.prototype.execute = function(name,
 
     this.__DBG("execute <<(" + wrapped_input_stream.__UUID + ") >>(" + wrapped_output_stream.__UUID + ")");
 
+    var deferred = Q.defer();
     var self = this;
-    var self_finished = false;
 
-    properlyPipe(input_stream, wrapped_input_stream);
-    properlyPipe(wrapped_output_stream, output_stream);
+    var input_pipe_promise = Q.when(
+        promisinglyPipe(input_stream, wrapped_input_stream),
+        function() { wrapped_input_stream.end(); },
+        function(err) {
+            input_stream.destroy();
+            wrapped_input_stream.destroy();
+            return YtError.ensureWrapped(err);
+        });
 
-    // debug.TraceReadableStream(input_stream, "source input (req)");
-    // debug.TraceWritableStream(wrapped_input_stream, "wrapped input (writable; TNodeJSInputStream)");
-    // debug.TraceReadableStream(wrapped_output_stream, "wrapped output (readable; TNodeJSOutputStream)");
-    // debug.TraceWritableStream(output_stream, "source output (rsp)");
-    // debug.TraceSocket(input_stream.connection, "underlying socket");
+    var output_pipe_promise = Q.when(
+        promisinglyPipe(wrapped_output_stream, output_stream),
+        function() { }, // Do not close |output_stream| here since we have to write out trailers.
+        function(err) {
+            output_stream.destroy();
+            wrapped_output_stream.destroy();
+            return YtError.ensureWrapped(err);
+        });
 
-    function on_error(err) {
-        self.__DBG("execute -> (on-error callback)");
-        if (!self_finished) {
-            cb.call(null, new Error("I/O error while executing driver command: " + err.toString()));
-            self_finished = true;
-        }
-    }
-
-    input_stream.on("error", on_error);
-    output_stream.on("error", on_error);
-
-    var result = this._binding.Execute(name,
+    this._binding.Execute(name,
         wrapped_input_stream._binding, input_compression, input_format,
         wrapped_output_stream._binding, output_compression, output_format,
-        parameters, function()
+        parameters, function(err)
     {
         self.__DBG("execute -> (on-execute callback)");
-        if (!self_finished) {
-            cb.apply(null, arguments);
-            wrapped_output_stream._endSoon();
-            self_finished = true;
+        // XXX(sandello): Can we move |_endSoon| to C++?
+        wrapped_output_stream._endSoon();
+        if (err) {
+            deferred.reject(new YtError("Unable to execute driver command", err));
+        } else {
+            deferred.resolve(Array.prototype.slice.call(arguments, 1));
         }
     });
+
+    // Probably, pipe promises could abort the pipeline, but whatever,
+    // Execute() promise will be rejected upon pipe failure.
+    return Q
+        .all([ deferred.promise, input_pipe_promise, output_pipe_promise ])
+        .spread(function(result, ir, or) {
+            if (result instanceof YtError) {
+                if (ir) { result.inner_errors.push(ir); }
+                if (or) { result.inner_errors.push(or); }
+            }
+            return result;
+        });
 };
 
 YtDriver.prototype.find_command_descriptor = function(command_name) {

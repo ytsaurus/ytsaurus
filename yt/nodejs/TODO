@@ -1,24 +1,15 @@
-- Tests for on_drain & IsEmpty for output stream.
+https://github.com/joyent/node/commit/a93424da4aeb03e71c39eab68e0b0588ecb401e1
+https://github.com/joyent/node/commit/6a128e037e5b9f0c5c84fc24d343db3364a56d64
+
 - When performing POST and PUT queries post-pone output generation
   until the whole output will be produced and set proper status code.
   (cf. 413 Request Entity Too Large for limiting input data size)
-- Fortify Driver::Execute method (From* methods may throw exceptions).
-- In application when extraction of input/output format succeeded we have to
-  explicitly verify whether the input is correct and throw an error otherwise.
-- Ref()/Unref() streams during Driver::Execute.
 - Rename TDriverRequest::Arguments to *::Parameters
 - Rename TCommandDescriptor::CommandName to *::Name
 - Implement proper thread affinity.
-- There should be EventuallyUnref() method which is thread-safe and
-  which eventually Unref()'s Ref()'ed object. Exactly this method
-  should be used with TIntrusivePtr on C++ side.
 - Investigate common allocation sizes and migrate to SlabAllocator.
 - Merge {Read,Write} and {Read,Write}Synchronous into a single method
   (i. e. if a callback was passed then perform asynchronously).
 - Measure performance when, e. g., writing to a file.
-- Investigate whether it is costy to allocate uv_work_t structures
-  on every asynchronous call.
 - Maybe cache allocated and used request structures.
-- Implement write queue threshold to limit memory usage.
 - Investigate all 'new' call sites for potential memory leaks due to exceptions.
-- We can pass as HTTP configuration some JS structure and modify it in real-time.

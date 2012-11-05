@@ -67,6 +67,8 @@ private:
     void UpdateV8Properties();
 
 private:
+    // XXX(sandello): I believe these atomics are subject to false sharing due
+    // to in-memory locality. But whatever -- it is not a bottleneck.
     TAtomic IsPushable;
     TAtomic IsReadable;
 

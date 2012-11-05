@@ -4,7 +4,7 @@ var binding = require("./ytnode");
 
 var __DBG;
 
-if (process.env.NODE_DEBUG && /YTAPP/.test(process.env.NODE_DEBUG)) {
+if (process.env.NODE_DEBUG && /YT(ALL|NODE)/.test(process.env.NODE_DEBUG)) {
     __DBG = function(x) { "use strict"; console.error("YT Eio:", x); };
 } else {
     __DBG = function(){};
@@ -12,11 +12,11 @@ if (process.env.NODE_DEBUG && /YTAPP/.test(process.env.NODE_DEBUG)) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtEioWatcher(logger, configuration) {
+function YtEioWatcher(logger, config) {
     "use strict";
     this.logger = logger;
-    this.thread_limit = configuration.thread_limit;
-    this.spare_threads = configuration.spare_threads;
+    this.thread_limit = config.thread_limit;
+    this.spare_threads = config.spare_threads;
 
     __DBG("Concurrency: " + this.thread_limit + " (w/ " + this.spare_threads + " spare threads)");
 
