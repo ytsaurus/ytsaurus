@@ -462,7 +462,7 @@ YtCommand.prototype._getOutputCompression = function() {
     header = this.req.headers["accept-encoding"];
     if (typeof(header) === "string") {
         result_mime = utils.bestAcceptedEncoding(
-            _ENCODING_TO_COMPRESSION,
+            _ENCODING_ALL,
             header);
 
         if (!result_mime) {
