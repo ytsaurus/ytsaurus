@@ -191,8 +191,6 @@ TNodeJSDriver::TNodeJSDriver(bool echo, Handle<Object> configObject)
 {
     THREAD_AFFINITY_IS_V8();
 
-    bool stillOkay = true;
-
     INodePtr configNode = ConvertV8ValueToNode(configObject);
     if (!configNode) {
         Message = "Error converting from V8 to YSON";
