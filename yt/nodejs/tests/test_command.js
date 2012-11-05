@@ -56,7 +56,7 @@ function spawnServer(driver, watcher) {
         .use("/api", function(req, rsp) {
             var pause = utils.Pause(req);
             return (new YtCommand(
-                logger, driver, watcher, pause, req, rsp
+                logger, driver, watcher, false, pause, req, rsp
             )).dispatch();
         })
         .listen(__HTTP_PORT, __HTTP_HOST);
