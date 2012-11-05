@@ -3,6 +3,9 @@ from itertools import chain, imap
 import types
 import os
 
+class YtError(Exception):
+    pass
+
 def which(name, flags=os.X_OK):
     """
     Returns list of files in system paths with given name.
