@@ -2,9 +2,9 @@ from common import require, YtError, parse_bool, flatten
 from path_tools import dirs, split_table_ranges
 from format import JsonFormat
 from http import make_request
+from transaction_commands import add_transaction_params
 
 from yt.yson.yson_types import YSONString
-import config
 
 import os
 import string
@@ -13,49 +13,51 @@ from copy import deepcopy
 import simplejson as json
 
 
-def get(path, check_errors=True, attributes=None):
+def get(path, attributes=None, format=None):
     if attributes is None:
         attributes = []
     return make_request("get",
-                        # TODO(ignat): fix it after proper changes in proxy
-                        # Hacky way to pass attributes into url
-                        dict(
-                            [("transaction_id", config.TRANSACTION)] +
-                            [("path", path)] +
-                            [("attributes[%d]" % i, attributes[i]) for i in xrange(len(attributes))]
-                        ),
-                        check_errors=check_errors)
+                        add_transaction_params({
+                            "path": path,
+                            "attributes": attributes
+                        }),
+                        format=format)
 
 def set(path, value):
     return make_request("set",
-                        {"path": path,
-                         "transaction_id": config.TRANSACTION},
+                        add_transaction_params({
+                            "path": path,
+                        }),
                         json.dumps(value),
                         format=JsonFormat())
 
 def copy(source_path, destination_path):
     return make_request("copy",
-                        {"source_path": source_path,
-                         "destination_path": destination_path,
-                         "transaction_id": config.TRANSACTION})
+                        add_transaction_params({
+                            "source_path": source_path,
+                            "destination_path": destination_path
+                        }))
 
 def list(path):
     return make_request("list",
-                        {"path": path,
-                         "transaction_id": config.TRANSACTION})
+                        add_transaction_params({
+                            "path": path
+                        }))
 
 def exists(path):
     return parse_bool(
         make_request("exists",
-                     {"path": split_table_ranges(path)[0],
-                      "transaction_id": config.TRANSACTION}))
+                     add_transaction_params({
+                        "path": split_table_ranges(path)[0]
+                     })))
 
 def remove(path):
     require(exists(path),
             YtError("You try to delete non-existing path " + path))
     return make_request("remove",
-                        {"path": path,
-                         "transaction_id": config.TRANSACTION})
+                        add_transaction_params({
+                            "path": path
+                        }))
 
 def remove_with_empty_dirs(path):
     while True:
@@ -72,10 +74,10 @@ def mkdir(path):
         if create:
             set(dir, {})
 
-def get_attribute(path, attribute, check_errors=True, default=None):
+def get_attribute(path, attribute, default=None):
     if default is not None and attribute not in list_attributes(path):
         return default
-    return get("%s/@%s" % (path, attribute), check_errors=check_errors)
+    return get("%s/@%s" % (path, attribute))
 
 def set_attribute(path, attribute, value):
     return set("%s/@%s" % (path, attribute), value)

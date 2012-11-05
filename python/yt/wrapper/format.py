@@ -1,5 +1,6 @@
 from common import bool_to_string
 from yt.yson import parse_string, yson_types, dumps
+import simplejson as json
 
 
 # TODO(ignat): Add custom field separator
@@ -51,9 +52,8 @@ class YamrFormat(Format):
 
 class RawFormat(Format):
     @staticmethod
-    def from_string(str):
+    def from_yson(str):
         format = RawFormat()
-        format._str = str
         format._format = parse_string(str)
         return format
 
@@ -61,18 +61,20 @@ class RawFormat(Format):
     def from_tree(tree):
         format = RawFormat()
         format._format = yson_types.convert_to_YSON_type_from_tree(tree)
-        format._str = dumps(format._format)
         return format
 
     def to_input_http_header(self):
-        return {"X-YT-Input-Format": self._str}
+        return {"X-YT-Input-Format": self.to_str()}
 
     def to_output_http_header(self):
-        return {"X-YT-Output-Format": self._str}
+        return {"X-YT-Output-Format": self.to_str()}
 
     def to_json(self):
         return {"$value": str(self._format),
                 "$attributes": self._format.attributes}
+
+    def to_str(self):
+        return json.dumps(self.to_json())
 
 class JsonFormat(Format):
     def _mime_type(self):
