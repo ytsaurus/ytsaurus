@@ -123,14 +123,21 @@ def write_table(table, lines, format=None, table_writer=None):
     if not exists(table.name):
         create_table(table.name)
 
-    params = {"path": table.yson_name()}
+    params = {}
     if table_writer is not None:
         params["table_writer"] = table_writer
     params = add_transaction_params(params)
 
+    step = 0
     buffer = Buffer(lines)
     while not buffer.empty():
+        if step == 0:
+            params["path"] = table.yson_name("output")
+        else:
+            params["path"] = table.yson_name()
         make_request("write", params, buffer.get(), format=format)
+        step += 1
+    # TODO(ignat): what if lines is empty?
 
 def read_table(table, format=None, response_type=None):
     if format is None: format = config.DEFAULT_FORMAT
@@ -237,7 +244,7 @@ def merge_tables(source_table, destination_table, mode, strategy=None, table_wri
 def sort_table(source_table, destination_table=None, sort_by=None, strategy=None, table_writer=None, spec=None):
     def prepare_job_count(spec, source_table):
         if "partition_count" not in spec:
-            spec["partition_count"] = _calc_job_count(source_table, max_data=config.MAX_SIZE_PER_JOB/2.0)
+            spec["partition_count"] = _calc_job_count(source_table, max_data=config.MAX_SIZE_PER_JOB/2)
             spec["min_data_size_per_sort_job"] = config.MIN_SIZE_PER_JOB
 
     sort_by = _prepare_sort_by(sort_by)
