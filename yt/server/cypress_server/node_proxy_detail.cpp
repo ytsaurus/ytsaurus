@@ -333,7 +333,7 @@ void TCypressNodeProxyNontemplateBase::ListSystemAttributes(std::vector<TAttribu
     attributes->push_back(TAttributeInfo("path", true, true));
     attributes->push_back("creation_time");
     attributes->push_back("modification_time");
-    attributes->push_back(TAttributeInfo("resource_usage", true, true));
+    attributes->push_back("resource_usage");
     attributes->push_back(TAttributeInfo("recursive_resource_usage", true, true));
     TObjectProxyBase::ListSystemAttributes(attributes);
 }
