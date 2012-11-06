@@ -517,7 +517,7 @@ YtCommand.prototype._captureParameters = function() {
         this.output_stream = this.rsp;
         this.pause = utils.Pause(this.input_stream);
     } else {
-        parameters_from_body = Q.resolve(undefined);
+        parameters_from_body = Q.resolve();
         this.input_stream = this.req;
         this.output_stream = this.rsp;
     }
@@ -543,10 +543,15 @@ YtCommand.prototype._captureBody = function() {
     this.req.on("data", function(chunk) { chunks.push(chunk); });
     this.req.on("end", function() {
         try {
-            deferred.resolve(new binding.TNodeJSNode(
-                buffertools.concat.apply(undefined, chunks),
-                self.input_compression,
-                self.input_format));
+            var body = buffertools.concat.apply(undefined, chunks);
+            if (body.length) {
+                deferred.resolve(new binding.TNodeJSNode(
+                    body,
+                    self.input_compression,
+                    self.input_format));
+            } else {
+                deferred.resolve();
+            }
         } catch (err) {
             deferred.reject(new YtError(
                 "Unable to parse parameters from the request body.",
