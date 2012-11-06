@@ -18,7 +18,7 @@ function shuffle(array) {
     var i = array.length;
 
     if (i === 0) {
-        return false;
+        return [];
     }
 
     while (--i) {
@@ -42,16 +42,20 @@ exports.that = function YtHostDiscovery(hosts) {
     return function(req, rsp) {
         var body = shuffle(hosts);
         var accept = req.headers["accept"];
+        var accepted_type;
 
-        // TODO: Use proper acceptsType() implementation which respects order and quality.
         if (typeof(accept) === "string") {
-            /****/ if (utils.acceptsType("application/json", accept)) {
+            accepted_type = utils.bestAcceptedType(
+                [ "application/json", "text/plain" ],
+                accept);
+
+            if (accepted_type === "application/json") {
                 body = JSON.stringify(body);
                 rsp.writeHead(200, {
                     "Content-Length" : body.length,
                     "Content-Type" : "application/json"
                 });
-            } else if (utils.acceptsType("text/plain", accept)) {
+            } else if (accepted_type === "text/plain") {
                 body = body.toString("\n");
                 rsp.writeHead(200, {
                     "Content-Length" : body.length,
