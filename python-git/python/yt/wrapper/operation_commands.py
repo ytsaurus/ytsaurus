@@ -70,7 +70,7 @@ class PrintOperationInfo(object):
         if state.is_running():
             progress = get_operation_progress(operation)
             if progress != self.progress:
-                if config.USE_SHORTEN_OPERATION_INFO:
+                if config.USE_SHORT_OPERATION_INFO:
                     logger.info(
                         "operation %s: " % operation +
                         "c={completed!s}\tf={failed!s}\tr={running!s}\tp={pending!s}".format(**progress))
@@ -78,7 +78,7 @@ class PrintOperationInfo(object):
                     logger.info(
                         "jobs of operation %s: %s",
                         operation,
-                        "\t".join("{}={}".format(k, v) for k, v in progress.iteritems()))
+                        "\t".join("{0}={1}".format(k, v) for k, v in progress.iteritems()))
             self.progress = progress
         elif state != self.state:
             logger.info("operation %s %s", operation, state)
@@ -138,9 +138,9 @@ def get_operation_result(operation):
 
 def get_jobs_errors(operation, limit=None):
     def format_error(error):
-        return "{}\n{}".format(
+        return "{0}\n{1}".format(
                     error["message"],
-                    "\n".join("{}: {}".format(k, v)
+                    "\n".join("{0}: {1}".format(k, v)
                         for k, v in error.iteritems()
                         if k != "message"))
 
