@@ -120,9 +120,10 @@ def create_temp_table(path=None, prefix=None):
 def write_table(table, lines, format=None, table_writer=None):
     if format is None: format = config.DEFAULT_FORMAT
     table = to_table(table)
-    create_table(table.name, not table.append)
+    if not exists(table.name):
+        create_table(table.name)
 
-    params = {"path": table.name}
+    params = {"path": table.yson_name()}
     if table_writer is not None:
         params["table_writer"] = table_writer
     params = add_transaction_params(params)
