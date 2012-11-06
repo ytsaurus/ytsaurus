@@ -69,7 +69,8 @@ class YTEnv(unittest.TestCase):
             "master": 8001,
             "node": 7001,
             "scheduler": 8101,
-            "proxy": 8080}
+            "proxy": 8080,
+            "proxy_log": 8081}
         if ports is not None:
             self._ports.update(ports)
 
@@ -342,6 +343,7 @@ class YTEnv(unittest.TestCase):
         proxy_config = configs.get_proxy_config()
         proxy_config['proxy']['driver'] = driver_config
         proxy_config['port'] = self._ports["proxy"]
+        proxy_config['log_port'] = self._ports["proxy_log"]
 
         config_path = os.path.join(self.path_to_run, 'proxy_config.json')
         with open(config_path, "w") as f:

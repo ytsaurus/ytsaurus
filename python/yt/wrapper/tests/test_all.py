@@ -41,7 +41,8 @@ class YtTest(YTEnv):
             "master": 18001,
             "node": 17001,
             "scheduler": 18101,
-            "proxy": 18080}
+            "proxy": 18080,
+            "proxy_log": 18081}
         # (TODO): remake this strange stuff.
         cls.env = cls()
         cls.env.set_environment("tests/sandbox", "tests/sandbox/pids.txt", ports)
@@ -126,10 +127,12 @@ class YtTest(YTEnv):
         if yt.exists(table):
             yt.remove(table)
         yt.create_table(table)
+        yt.set_attribute(table, "my_attr", 10)
 
         records = map(record_to_line, [Record("x", "y", "z"), Record("key", "subkey", "value")])
         yt.write_table(table, records)
         self.assertEqual(sorted(yt.read_table(table)), sorted(records))
+        self.assertEqual(yt.get_attribute(table, "my_attr"), 10)
 
         # check rewrite case
         yt.write_table(Table(table, append=True), records)
