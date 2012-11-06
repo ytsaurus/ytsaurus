@@ -275,6 +275,7 @@ def get_proxy_config():
 """
 {
   "port" : -1,
+  "log_port" : -1,
   "address" : "localhost",
   "number_of_workers" : 0,
   "memory_limit" : 33554432,
