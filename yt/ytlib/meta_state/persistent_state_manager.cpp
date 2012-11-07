@@ -410,7 +410,7 @@ public:
             VERIFY_THREAD_AFFINITY(IOThread);
 
             TBlob data(length);
-            i32 bytesRead;
+            size_t bytesRead = 0;
             try {
                 snapshotFile->Seek(offset, sSet);
                 bytesRead = snapshotFile->Read(&*data.begin(), length);
@@ -422,7 +422,7 @@ public:
             data.erase(data.begin() + bytesRead, data.end());
             context->Response().Attachments().push_back(TSharedRef(MoveRV(data)));
 
-            context->SetResponseInfo("BytesRead: %d", bytesRead);
+            context->SetResponseInfo("BytesRead: %" PRISZT, bytesRead);
 
             context->Reply();
         })));
