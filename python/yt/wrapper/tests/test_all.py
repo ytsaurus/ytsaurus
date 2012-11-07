@@ -95,6 +95,11 @@ class YtTest(YTEnv):
                    files=map(abspath, ["../config.py", "../common.py", "../record.py", "../format.py", "capitilize_b.py"]),
                    format=yt.DsvFormat())
 
+    def run_accumulate_c(self, src, dst):
+        yt.run_reduce("PYTHONPATH=. ./accumulate_c.py", src, dst,
+                      reduce_by="c",
+                      files=map(abspath, ["../config.py", "../common.py", "../record.py", "../format.py", "accumulate_c.py"]),
+                      format=yt.DsvFormat())
 
     def random_string(self, length):
         char_set = string.ascii_uppercase + string.digits
@@ -248,6 +253,12 @@ class YtTest(YTEnv):
         self.assertEqual(
             sorted([rec["c"] for rec in recs if "c" in rec]),
             ["0.5", "17.5"])
+
+        self.run_accumulate_c(table, other_table)
+        recs = self.read_records(other_table, format=yt.DsvFormat())
+        self.assertEqual(
+            sorted(recs),
+            [{"a": "12", "c": "0.0"}, {"a": "x", "c": "0.5"}])
 
     def test_many_output_tables(self):
         table = self.create_temp_table()

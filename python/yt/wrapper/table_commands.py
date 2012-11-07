@@ -433,8 +433,10 @@ def run_operation(binary, source_table, destination_table,
                 source_table=source_table,
                 destination_table=destination_table,
                 reduce_file_paths=file_paths,
+                input_format=input_format, output_format=output_format,
                 reduce_by=reduce_by,
-                sort_by=sort_by)
+                sort_by=sort_by,
+                spec=spec)
             return
         else:
             reduce_by = _prepare_reduce_by(reduce_by)
