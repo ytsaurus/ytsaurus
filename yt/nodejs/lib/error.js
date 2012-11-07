@@ -21,7 +21,7 @@ function YtError(first, second) {
         } else if (first instanceof Error) {
             this.code = YtError.V8_ERROR_CODE;
             this.message = first.message;
-            this.attributes.stack = first.stack;
+            this.attributes.stack = JSON.stringify(first.stack);
         } else {
             this.code = YtError.JS_ERROR_CODE;
             this.message = first.toString();
