@@ -35,7 +35,7 @@ using NYTree::EYsonFormat;
 
 namespace NPython {
 
-Py::Object ExtractArgument(Py::Tuple &args, Py::Dict &kwds, const std::string& name) {
+Py::Object ExtractArgument(Py::Tuple& args, Py::Dict& kwds, const std::string& name) {
     Py::Object result;
     if (kwds.hasKey(name)) {
         result = kwds[name];
@@ -61,11 +61,12 @@ void ExtractFormat(const Py::Object& obj, TFormat& format)
     }
 }
 
-class Driver: public Py::PythonClass<Driver>
+class Driver
+    : public Py::PythonClass<Driver>
 {
 public:
-    Driver(Py::PythonClassInstance *self, Py::Tuple &args, Py::Dict &kwds):
-        Py::PythonClass<Driver>::PythonClass(self, args, kwds)
+    Driver(Py::PythonClassInstance *self, Py::Tuple &args, Py::Dict &kwds)
+        : Py::PythonClass<Driver>::PythonClass(self, args, kwds)
     {
         Py::Object configDict = ExtractArgument(args, kwds, "config");
         if (args.length() > 0 || kwds.length() > 0) {
@@ -75,17 +76,17 @@ public:
         auto configNode = ConvertToNode(configDict);
         try {
             config->Load(configNode);
-        } catch(TErrorException error) {
+        } catch(const TErrorException& error) {
             throw Py::RuntimeError("Fail while loading config: " + error.Error().GetMessage());
         }
         NLog::TLogManager::Get()->Configure(configNode->AsMap()->FindChild("logging"));
-        driverInstance_ = CreateDriver(config);
+        DriverInstance_ = CreateDriver(config);
     }
     
     virtual ~Driver()
     { }
 
-    static void init_type() {
+    static void InitType() {
         behaviors().name("Driver");
         behaviors().doc("Some documentation");
         behaviors().supportGetattro();
@@ -103,7 +104,7 @@ public:
         }
         
         TDriverRequest request;
-        request.CommandName = AsStroka(Py::String(GetAttr(pyRequest, "command_name")));
+        request.CommandName = ConvertToStroka(Py::String(GetAttr(pyRequest, "command_name")));
         request.Arguments = ConvertToNode(GetAttr(pyRequest, "arguments"))->AsMap();
         ExtractFormat(GetAttr(pyRequest, "input_format"), request.InputFormat);
         ExtractFormat(GetAttr(pyRequest, "output_format"), request.OutputFormat);
@@ -115,16 +116,17 @@ public:
         request.InputStream = inputStream.Get();
         request.OutputStream = outputStream.Get();
 
-        auto response = driverInstance_->Execute(request);
+        auto response = DriverInstance_->Execute(request);
         return ConvertToPythonString(ToString(response.Error));
     }
     PYCXX_KEYWORDS_METHOD_DECL(Driver, Execute)
 
 private:
-    IDriverPtr driverInstance_;
+    IDriverPtr DriverInstance_;
 };
 
-class ytlib_python_module : public Py::ExtensionModule<ytlib_python_module>
+class ytlib_python_module 
+    : public Py::ExtensionModule<ytlib_python_module>
 {
 public:
     ytlib_python_module()
@@ -132,7 +134,7 @@ public:
     {
         Py_AtExit(ytlib_python_module::at_exit);
 
-        Driver::init_type();
+        Driver::InitType();
         
         initialize("Ytlib python bindings");
         

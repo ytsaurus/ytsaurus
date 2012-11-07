@@ -7,13 +7,14 @@ namespace {
 
 using NYTree::IYsonConsumer;
 
-class PythonYTreeProducer {
+class TPythonYTreeProducer {
 public:
-    explicit PythonYTreeProducer(IYsonConsumer* consumer):
-        Consumer_(consumer)
+    explicit TPythonYTreeProducer(IYsonConsumer* consumer)
+        : Consumer_(consumer)
     { }
 
-    void Process(const Py::Object& obj) {
+    void Process(const Py::Object& obj)
+    {
         if (obj.hasAttr("attributes")) {
             Consumer_->OnBeginAttributes();
             ProcessItems(Py::Mapping(GetAttr(obj, "attributes")).items());
@@ -27,7 +28,7 @@ public:
             Consumer_->OnDoubleScalar(Py::Float(obj));
         }
         else if (IsStringLike(obj)) {
-            Consumer_->OnStringScalar(AsStroka(ConvertToString(obj)));
+            Consumer_->OnStringScalar(ConvertToStroka(ConvertToString(obj)));
         }
         else if (obj.isSequence()) {
             const auto& objList = Py::Sequence(obj);
@@ -50,7 +51,8 @@ public:
         }
     }
 
-    void ProcessItems(const Py::List& items) {
+    void ProcessItems(const Py::List& items)
+    {
         // Unfortunately const_iterator doesn't work for mapping,
         // so we use iterator over items
         for (auto it = items.begin(); it != items.end(); ++it) {
@@ -62,7 +64,7 @@ public:
                     "Unsupported python object in the dict key in tree builder: " + 
                     std::string(key.repr()));
             }
-            Consumer_->OnKeyedItem(AsStroka(ConvertToString(key)));
+            Consumer_->OnKeyedItem(ConvertToStroka(ConvertToString(key)));
             Process(value);
         }
     }
@@ -77,7 +79,7 @@ namespace NYTree {
 
 void Serialize(const Py::Object& obj, IYsonConsumer* consumer)
 {
-    PythonYTreeProducer(consumer).Process(obj);
+    TPythonYTreeProducer(consumer).Process(obj);
 }
 
 } // namespace NYTree

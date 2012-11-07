@@ -11,7 +11,7 @@
 namespace NYT {
 namespace NPython {
 
-TPythonInputStream::TPythonInputStream(Py::Object inputStream)
+TPythonInputStream::TPythonInputStream(const Py::Object& inputStream)
     : InputStream_(inputStream)
 { }
     
@@ -25,24 +25,23 @@ size_t TPythonInputStream::DoRead(void* buf, size_t len)
     if (!result.isString()) {
         throw Py::RuntimeError("Read returns non-string object");
     }
-    // TODO(ignat): it is very inoptimal implementation
-    std::string resultStr = Py::String(result).as_std_string();
-    std::cerr << resultStr << std::endl;
-    std::copy(resultStr.begin(), resultStr.end(), (char*)buf);
-    return resultStr.size();
+    auto data = PyString_AsString(*result);
+    auto length = PyString_Size(*result);
+    std::copy(data, data + length, (char*)buf);
+    return length;
 }
 
 
-TPythonOutputStream::TPythonOutputStream(Py::Object stream)
-    : Stream_(stream)
+TPythonOutputStream::TPythonOutputStream(const Py::Object& outputStream)
+    : OutputStream_(outputStream)
 { }
 
 TPythonOutputStream::~TPythonOutputStream() throw()
 { }
 
 void TPythonOutputStream::DoWrite(const void* buf, size_t len) {
-    std::string str((const char*)buf, len);
-    Stream_.callMemberFunction("write", Py::TupleN(Py::String(str)));
+    //std::string str((const char*)buf, len);
+    OutputStream_.callMemberFunction("write", Py::TupleN(Py::String((const char*)buf, len)));
 }
 
 } // namespace NPython

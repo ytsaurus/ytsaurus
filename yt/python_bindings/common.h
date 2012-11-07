@@ -4,7 +4,7 @@
 
 #include <contrib/libs/pycxx/Objects.hxx>
 
-// Unfortunately PyCxx does not implement some usefull methods.
+// Unfortunately PyCxx does not implement some useful methods.
 namespace Py {
 
 inline bool IsInstance(const Object& obj, const Object& cls)
@@ -35,12 +35,11 @@ inline Object GetAttr(const Object& obj, const std::string& fieldName) {
 
 namespace NYT {
 
-inline Stroka AsStroka(const Py::String& pyString)
+inline Stroka ConvertToStroka(const Py::String& pyString)
 {
-    std::string string(pyString);
-    Stroka res(string.length());
-    std::copy(string.begin(), string.end(), res.begin());
-    return res;
+    return Stroka(
+        PyString_AsString(pyString.ptr()),
+        PyString_Size(pyString.ptr()));
 }
 
 inline Py::String ConvertToPythonString(const Stroka& string)
