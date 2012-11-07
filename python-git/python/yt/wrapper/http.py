@@ -130,7 +130,8 @@ def make_request(command_name, params,
         headers.update(JsonFormat().to_output_http_header())
     print_info("Headers: %r", headers)
     print_info("Params: %r", params)
-    print_info("Body: %r", data)
+    if http_method[command_name] != "PUT":
+        print_info("Body: %r", data)
 
     response = Response(
         requests.request(
