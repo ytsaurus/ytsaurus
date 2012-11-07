@@ -2,8 +2,6 @@
 
 cd $(dirname "${BASH_SOURCE[0]}")
 
-#export YT_PROXY="n01-0444g.yt.yandex.net"
-
 export YT_PREFIX="//statbox/"
 
 prepare_table_files() {
