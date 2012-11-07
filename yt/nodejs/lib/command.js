@@ -212,6 +212,7 @@ YtCommand.prototype._epilogue = function(err) {
 
     if (!sent_headers) {
         this.rsp.removeHeader("Trailer");
+        this.rsp.addHeader("X-YT-Error", err.toJson());
     } else {
         this.rsp.addTrailers({
             "X-YT-Error" : err.toJson(),
