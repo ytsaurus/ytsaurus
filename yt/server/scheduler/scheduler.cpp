@@ -67,33 +67,35 @@ static TDuration ProfilingPreiod = TDuration::Seconds(1);
 class TScheduler::TSchedulingContext
     : public ISchedulingContext
 {
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, StartedJobs);
+    DEFINE_BYVAL_RO_PROPERTY(TExecNodePtr, Node);
+    DEFINE_BYREF_RO_PROPERTY(yhash_set<TJobPtr>, StartedJobs);
+    DEFINE_BYREF_RO_PROPERTY(yhash_set<TJobPtr>, PreemptedJobs);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, RunningJobs);
 
 public:
     TSchedulingContext(
         TExecNodePtr node,
+        const std::vector<TJobPtr>& runningJobs,
         NProto::TRspHeartbeat* response)
-        : Node(node)
+        : Node_(node)
+        , RunningJobs_(runningJobs)
         , Response(response)
     { }
 
-    virtual TExecNodePtr GetNode() override
-    {
-        return Node;
-    }
 
     virtual bool HasSpareResources() const override
     {
-        return NScheduler::HasSpareResources(Node->ResourceUtilization(), Node->ResourceLimits());
+        return NScheduler::HasSpareResources(Node_->ResourceUtilization(), Node_->ResourceLimits());
     }
 
-    virtual TJobPtr BeginScheduleJob(TOperationPtr operation) override
+
+    virtual TJobPtr BeginStartJob(TOperationPtr operation) override
     {
         auto id = TJobId::Create();
         auto job = New<TJob>(
             id,
             operation,
-            Node,
+            Node_,
             TInstant::Now());
 
         auto* jobInfo = Response->add_jobs_to_start();
@@ -101,19 +103,27 @@ public:
 
         job->SetSpec(jobInfo->mutable_spec());
 
-        StartedJobs_.push_back(job);
+        YCHECK(StartedJobs_.insert(job).second);
 
         return job;
     }
 
-    virtual void EndScheduleJob(TJobPtr job) override
+    virtual void EndStartJob(TJobPtr job) override
     {
         job->ResourceUtilization() = job->GetSpec()->resource_utilization();
         job->GetNode()->ResourceUtilization() += job->ResourceUtilization();
     }
 
+
+    virtual void PreemptJob(TJobPtr job) override
+    {
+        YCHECK(StartedJobs_.find(job) == StartedJobs_.end());
+        YCHECK(job->GetNode() == Node_);
+        YCHECK(PreemptedJobs_.insert(job).second);
+        job->GetNode()->ResourceUtilization() -= job->ResourceUtilization();
+    }
+
 private:
-    TExecNodePtr Node;
     NProto::TRspHeartbeat* Response;
 
 };
@@ -218,14 +228,6 @@ public:
     DEFINE_SIGNAL(void(TJobPtr), JobStarted);
     DEFINE_SIGNAL(void(TJobPtr), JobFinished);
 
-    virtual void PreeemptJob(TJobPtr job) override
-    {
-        AbortJob(job, TError("Job preempted"));
-
-        LOG_DEBUG("Job preempted (JobId: %s, OperationId: %s)",
-            ~job->GetId().ToString(),
-            ~job->GetOperation()->GetOperationId().ToString());
-    }
 
     virtual TMasterConnector* GetMasterConnector() override
     {
@@ -756,7 +758,8 @@ private:
     void AbortJob(TJobPtr job, const TError& error)
     {
         // This method must be safe to call for any job.
-        if (job->GetState() != EJobState::Running)
+        if (job->GetState() != EJobState::Running &&
+            job->GetState() != EJobState::Waiting)
             return;
 
         job->SetState(EJobState::Aborted);
@@ -774,16 +777,21 @@ private:
     void OnJobRunning(TJobPtr job, const NProto::TJobStatus& status)
     {
         auto operation = job->GetOperation();
-        if (job->GetState() == EJobState::Running &&
-            operation->GetState() == EOperationState::Running)
-        {
+        if (operation->GetState() == EOperationState::Running) {
             operation->GetController()->OnJobRunning(job, status);
         }
     }
 
+    void OnJobWaiting(TJobPtr)
+    {
+        // Do nothing.
+    }
+
     void OnJobCompleted(TJobPtr job, NProto::TJobResult* result)
     {
-        if (job->GetState() == EJobState::Running) {
+        if (job->GetState() == EJobState::Running ||
+            job->GetState() == EJobState::Waiting)
+        {
             job->SetState(EJobState::Completed);
             job->Result().Swap(result);
 
@@ -800,7 +808,9 @@ private:
 
     void OnJobFailed(TJobPtr job, NProto::TJobResult* result)
     {
-        if (job->GetState() == EJobState::Running) {
+        if (job->GetState() == EJobState::Running ||
+            job->GetState() == EJobState::Waiting)
+        {
             job->SetState(EJobState::Failed);
             job->Result().Swap(result);
 
@@ -821,7 +831,9 @@ private:
         // Typically the scheduler decides to abort the job on its own.
         // In this case we should ignore the result returned from the node
         // and void notifying the controller twice.
-        if (job->GetState() == EJobState::Running) {
+        if (job->GetState() == EJobState::Running ||
+            job->GetState() == EJobState::Waiting)
+        {
             job->SetState(EJobState::Aborted);
             job->Result().Swap(result);
 
@@ -1132,6 +1144,8 @@ private:
         node->ResourceLimits() = resourceLimits;
         node->ResourceUtilization() = resourceUtilization;
 
+        std::vector<TJobPtr> runningJobs;
+        bool hasWaitingJobs = false;
         PROFILE_TIMING ("/analysis_time") {
             auto missingJobs = node->Jobs();
 
@@ -1142,6 +1156,16 @@ private:
                     &jobStatus);
                 if (job) {
                     YCHECK(missingJobs.erase(job) == 1);
+                    switch (job->GetState()) {
+                        case EJobState::Running:
+                            runningJobs.push_back(job);
+                            break;
+                        case EJobState::Waiting:
+                            hasWaitingJobs = true;
+                            break;
+                        default:
+                            break;
+                    }
                 }
             }
 
@@ -1156,23 +1180,36 @@ private:
             }
         }
 
-        TSchedulingContext schedulingContext(node, response);
-        PROFILE_TIMING ("/schedule_time") {
-            Strategy->ScheduleJobs(&schedulingContext);
-        }
+        if (hasWaitingJobs) {
+            LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
+        } else {
+            LOG_DEBUG("Scheduling new jobs");
+            TSchedulingContext schedulingContext(node, runningJobs, response);
+            PROFILE_TIMING ("/schedule_time") {
+                Strategy->ScheduleJobs(&schedulingContext);
+            }
 
-        FOREACH (auto job, schedulingContext.StartedJobs()) {
-            job->SetType(EJobType(job->GetSpec()->type()));
+            FOREACH (auto job, schedulingContext.StartedJobs()) {
+                const auto& jobId = job->GetId();
+                LOG_INFO("Starting job (Address: %s, JobType: %s, JobId: %s, Utilization: {%s}, OperationId: %s)",
+                    ~job->GetNode()->GetAddress(),
+                    ~job->GetType().ToString(),
+                    ~jobId.ToString(),
+                    ~FormatResources(job->GetSpec()->resource_utilization()),
+                    ~job->GetOperation()->GetOperationId().ToString());
+                job->SetType(EJobType(job->GetSpec()->type()));
+                RegisterJob(job);
+                job->SetSpec(NULL);
+            }
 
-            LOG_INFO("Starting job (Address: %s, JobType: %s, JobId: %s, Utilization: {%s}, OperationId: %s)",
-                ~job->GetNode()->GetAddress(),
-                ~job->GetType().ToString(),
-                ~job->GetId().ToString(),
-                ~FormatResources(job->GetSpec()->resource_utilization()),
-                ~job->GetOperation()->GetOperationId().ToString());
-
-            RegisterJob(job);
-            job->SetSpec(NULL);
+            FOREACH (auto job, schedulingContext.PreemptedJobs()) {
+                const auto& jobId = job->GetId();
+                LOG_DEBUG("Job preempted (JobId: %s, OperationId: %s)",
+                    ~job->GetId().ToString(),
+                    ~job->GetOperation()->GetOperationId().ToString());
+                *response->add_jobs_to_abort() = jobId.ToProto();
+                AbortJob(job, TError("Job preempted"));
+            }
         }
 
         TotalResourceLimits += node->ResourceLimits();
@@ -1215,6 +1252,11 @@ private:
 
                 case EJobState::Running:
                     LOG_WARNING("Unknown job is running, abort scheduled");
+                    *response->add_jobs_to_abort() = jobId.ToProto();
+                    break;
+
+                case EJobState::Waiting:
+                    LOG_WARNING("Unknown job is waiting, abort scheduled");
                     *response->add_jobs_to_abort() = jobId.ToProto();
                     break;
 
@@ -1277,6 +1319,7 @@ private:
             }
 
             case EJobState::Running:
+            case EJobState::Waiting:
                 if (job->GetState() == EJobState::Aborted) {
                     LOG_INFO("Aborting job (Address: %s, JobType: %s, JobId: %s, OperationId: %s)",
                         ~job->GetNode()->GetAddress(),
@@ -1285,8 +1328,22 @@ private:
                         ~operation->GetOperationId().ToString());
                     *response->add_jobs_to_abort() = jobId.ToProto();
                 } else {
-                    LOG_DEBUG("Job is running");
-                    OnJobRunning(job, *jobStatus);
+                    switch (state) {
+                        case EJobState::Running:
+                            LOG_DEBUG("Job is running");
+                            job->SetState(state);
+                            OnJobRunning(job, *jobStatus);
+                            break;
+
+                        case EJobState::Waiting:
+                            LOG_DEBUG("Job is waiting");
+                            YCHECK(job->GetState() == EJobState::Waiting);
+                            OnJobWaiting(job);
+                            break;
+
+                        default:
+                            YUNREACHABLE();
+                    }
                 }
                 break;
 

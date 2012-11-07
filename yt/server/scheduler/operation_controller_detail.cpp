@@ -140,12 +140,12 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(ISchedulingContext* context
         jip->PoolResult->TotalDataSize,
         ~ToString(dataSizeThreshold));
 
-    auto job = context->BeginScheduleJob(Controller->Operation);
+    auto job = context->BeginStartJob(Controller->Operation);
     jip->Job = job;
     auto* jobSpec = jip->Job->GetSpec();
     BuildJobSpec(jip, jobSpec);
     *jobSpec->mutable_resource_utilization() = jipUtilization;
-    context->EndScheduleJob(job);
+    context->EndStartJob(job);
 
     Controller->RegisterJobInProgress(jip);
 

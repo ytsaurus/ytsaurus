@@ -12,7 +12,7 @@ namespace NJobProxy {
 //! Represents a context for running jobs inside job proxy.
 struct IJobHost
 {
-    ~IJobHost()
+    virtual ~IJobHost()
     { }
 
     virtual TJobProxyConfigPtr GetConfig() = 0;
@@ -22,7 +22,6 @@ struct IJobHost
     virtual void SetResourceUtilization(const NScheduler::NProto::TNodeResources& utilization) = 0;
 
     virtual void ReleaseNetwork() = 0;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -36,7 +35,6 @@ struct IJob
 
     virtual NScheduler::NProto::TJobResult Run() = 0;
     virtual double GetProgress() const = 0;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

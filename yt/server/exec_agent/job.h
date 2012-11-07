@@ -17,10 +17,11 @@
 #include <ytlib/file_client/file_ypath.pb.h>
 
 #include <ytlib/scheduler/job.pb.h>
+#include <ytlib/scheduler/scheduler_service.pb.h>
 
 #include <ytlib/logging/tagged_logger.h>
 
-#include <ytlib/scheduler/scheduler_service.pb.h>
+#include <server/scheduler/job_resources.h>
 
 #include <server/job_proxy/public.h>
 
@@ -34,16 +35,16 @@ namespace NExecAgent {
 class TJob
     : public TRefCounted
 {
+    DEFINE_SIGNAL(void(const NScheduler::NProto::TNodeResources&, const NScheduler::NProto::TNodeResources&), ResourcesReleased);
+
 public:
     TJob(
         const TJobId& jobId,
         NScheduler::NProto::TJobSpec&& jobSpec,
         NJobProxy::TJobProxyConfigPtr proxyConfig,
-        NChunkHolder::TChunkCachePtr chunkCache,
-        TSlotPtr slot);
-    ~TJob();
+        NChunkHolder::TChunkCachePtr chunkCache);
 
-    void Start(TEnvironmentManagerPtr environmentManager);
+    void Start(TEnvironmentManagerPtr environmentManager, TSlotPtr slot);
 
     //! Kills the job if it is running.
     void Abort(const TError& error);
@@ -57,17 +58,17 @@ public:
 
     NScheduler::NProto::TNodeResources GetResourceUtilization() const;
 
-    // New utilization should not exceed initial utilization.
-    void UpdateResourceUtilization(const NScheduler::NProto::TNodeResources& utilization);
+    //! Notifies the exec agent that job 
+    /*
+     * New utilization should not exceed initial utilization.
+     */
+    void ReleaseResources(const NScheduler::NProto::TNodeResources& newUtilization);
 
     double GetProgress() const;
     void UpdateProgress(double progress);
 
     const NScheduler::NProto::TJobResult& GetResult() const;
     void SetResult(const NScheduler::NProto::TJobResult& jobResult);
-
-    DECLARE_SIGNAL(void(), Finished);
-    DEFINE_SIGNAL(void(), ResourceUtilizationSet);
 
 private:
     void DoStart(TEnvironmentManagerPtr environmentManager);
@@ -82,6 +83,7 @@ private:
     void SetResult(const TError& error);
 
     bool IsResultSet() const;
+    void FinalizeJob();
 
     //! Called by ProxyController when proxy process finishes.
     void OnJobExit(TError error);
@@ -94,6 +96,7 @@ private:
     const TJobId JobId;
     const NScheduler::NProto::TJobSpec JobSpec;
 
+    TSpinLock ResourcesLock;
     NScheduler::NProto::TNodeResources ResourceUtilization;
 
     NLog::TTaggedLogger Logger;
@@ -114,7 +117,7 @@ private:
     IProxyControllerPtr ProxyController;
 
     // Protects #JobResult.
-    TSpinLock SpinLock;
+    TSpinLock ResultLock;
     TNullable<NScheduler::NProto::TJobResult> JobResult;
     TPromise<void> JobFinished;
 

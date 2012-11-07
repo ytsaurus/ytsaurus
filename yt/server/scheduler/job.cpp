@@ -19,7 +19,7 @@ TJob::TJob(
     , Operation_(~operation)
     , Node_(node)
     , StartTime_(startTime)
-    , State_(EJobState::Running)
+    , State_(EJobState::Waiting)
     , Spec_(NULL)
     , ResourceUtilization_(ZeroNodeResources())
 { }

@@ -34,6 +34,9 @@ TJobManager::TJobManager(
     TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)
+    , StartScheduled(false)
+    , ResourcesUpdatedFlag(false)
+    , SpareResources(GetResourceLimits())
 {
     YASSERT(config);
     YASSERT(bootstrap);
@@ -109,7 +112,59 @@ TNodeResources TJobManager::GetResourceUtilization()
     return result;
 }
 
-TJobPtr TJobManager::StartJob(
+void TJobManager::StartWaitingJobs()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    auto& tracker = Bootstrap->GetMemoryUsageTracker();
+
+    FOREACH(const auto& pair, Jobs) {
+        auto job = pair.second;
+        if (job->GetState() != EJobState::Waiting)
+            continue;
+
+        SpareResources.set_memory(tracker.GetFree());
+        auto& jobResources = job->GetSpec().resource_utilization();
+
+        if (Dominates(SpareResources, jobResources)) {
+            auto error = tracker.TryAcquire(
+                NCellNode::EMemoryConsumer::Job, 
+                jobResources.memory());
+
+            if (error.IsOK()) {
+                LOG_INFO("Starting job (JobId: %s)", ~job->GetId().ToString());
+                SpareResources -= jobResources;
+                auto slot = GetFreeSlot();
+                job->SubscribeResourcesReleased(BIND(
+                    &TJobManager::OnResourcesReleased, 
+                    MakeWeak(this)).Via(Bootstrap->GetControlInvoker()));
+                slot->Acquire();
+                job->Start(Bootstrap->GetEnvironmentManager(), slot);
+
+                // This job is done :)
+                continue;
+            } else {
+                LOG_DEBUG(
+                    error,
+                    "Not enough memory to start waiting job (JobId: %s)", 
+                    ~job->GetId().ToString());
+            }
+        } else {
+            LOG_DEBUG(
+                "Not enough resources to start waiting job (JobId: %s)", 
+                ~job->GetId().ToString());
+        }
+    }
+
+    if (ResourcesUpdatedFlag) {
+        ResourcesUpdatedFlag = false;
+        ResourcesUpdated_.Fire();
+    }
+
+    StartScheduled = false;
+}
+
+void TJobManager::CreateJob(
     const TJobId& jobId,
     NScheduler::NProto::TJobSpec& jobSpec)
 {
@@ -117,29 +172,28 @@ TJobPtr TJobManager::StartJob(
 
     auto slot = GetFreeSlot();
 
-    LOG_INFO("Starting job (JobId: %s)", ~jobId.ToString());
+    LOG_INFO("Creating job (JobId: %s)", ~jobId.ToString());
 
     auto job = New<TJob>(
         jobId,
         MoveRV(jobSpec),
         Bootstrap->GetJobProxyConfig(),
-        Bootstrap->GetChunkCache(),
-        slot);
+        Bootstrap->GetChunkCache());
 
-    auto error = Bootstrap->GetMemoryUsageTracker().TryAcquire(
-        NCellNode::EMemoryConsumer::Job, 
-        jobSpec.resource_utilization().memory());
+    YCHECK(Jobs.insert(std::make_pair(jobId, job)).second);
+    ScheduleStart();
+}
 
-    if (error.IsOK()) {
-        job->SubscribeFinished(BIND(&TJobManager::OnJobFinished, MakeWeak(this), job));
-        job->Start(Bootstrap->GetEnvironmentManager());
-    } else {
-        job->Abort(error);
+void TJobManager::ScheduleStart()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    if (!StartScheduled) {
+        Bootstrap->GetControlInvoker()->Invoke(BIND(
+            &TJobManager::StartWaitingJobs,
+            MakeWeak(this)));
+        StartScheduled = true;
     }
-
-    YCHECK(Jobs.insert(MakePair(jobId, job)).second);
-
-    return job;
 }
 
 TSlotPtr TJobManager::GetFreeSlot()
@@ -149,6 +203,7 @@ TSlotPtr TJobManager::GetFreeSlot()
             return slot;
         }
     }
+
     LOG_FATAL("All slots are busy");
     YUNREACHABLE();
 }
@@ -177,11 +232,19 @@ void TJobManager::RemoveJob(const TJobId& jobId)
     }
 }
 
-void TJobManager::OnJobFinished(TJobPtr job)
+void TJobManager::OnResourcesReleased(const TNodeResources& oldResources, const TNodeResources& newResources)
 {
-    Bootstrap->GetMemoryUsageTracker().Release(
-        NCellNode::EMemoryConsumer::Job, 
-        job->GetSpec().resource_utilization().memory());
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    if (oldResources.memory() > newResources.memory()) {
+        Bootstrap->GetMemoryUsageTracker().Release(
+            NCellNode::EMemoryConsumer::Job, 
+            oldResources.memory() - newResources.memory());
+    }
+
+    SpareResources += oldResources - newResources;
+    ResourcesUpdatedFlag = true;
+    ScheduleStart();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

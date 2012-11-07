@@ -38,6 +38,13 @@ void TSchedulerConnector::Start()
         BIND(&TThis::SendHeartbeat, MakeWeak(this)),
         Config->HeartbeatPeriod,
         Config->HeartbeatSplay);
+
+    // Schedule an out-of-order heartbeat whenever a job finishes
+    // or its resource utilization is updated.
+    Bootstrap->GetJobManager()->SubscribeResourcesUpdated(BIND(
+        &TPeriodicInvoker::ScheduleOutOfBand,
+        HeartbeatInvoker));
+
     HeartbeatInvoker->Start();
 }
 
@@ -120,16 +127,7 @@ void TSchedulerConnector::StartJob(TJobStartInfo& info)
 {
     auto jobId = TJobId::FromProto(info.job_id());
     auto* spec = info.mutable_spec();
-    auto job = Bootstrap->GetJobManager()->StartJob(jobId, *spec);
-
-    // Schedule an out-of-order heartbeat whenever a job finishes
-    // or its resource utilization is updated.
-    job->SubscribeFinished(BIND(
-        &TPeriodicInvoker::ScheduleOutOfBand,
-        HeartbeatInvoker));
-    job->SubscribeResourceUtilizationSet(BIND(
-        &TPeriodicInvoker::ScheduleOutOfBand,
-        HeartbeatInvoker));
+    Bootstrap->GetJobManager()->CreateJob(jobId, *spec);
 }
 
 void TSchedulerConnector::AbortJob(const TJobId& jobId)

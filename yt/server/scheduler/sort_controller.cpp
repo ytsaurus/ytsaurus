@@ -1404,12 +1404,12 @@ private:
     void InitJobIOConfigs() 
     {
         {
-            PartitionJobIOConfig = Spec->PartitionJobIO;
+            PartitionJobIOConfig = CloneYsonSerializable(Spec->PartitionJobIO);
             InitIntermediateOutputConfig(PartitionJobIOConfig);
         }
 
         {
-            IntermediateSortJobIOConfig = Spec->SortJobIO;
+            IntermediateSortJobIOConfig = CloneYsonSerializable(Spec->SortJobIO);
             if (!SimpleSort) {
                 InitIntermediateInputConfig(IntermediateSortJobIOConfig);
             }
@@ -1417,19 +1417,19 @@ private:
         }
 
         {
-            FinalSortJobIOConfig = Spec->SortJobIO;
+            FinalSortJobIOConfig = CloneYsonSerializable(Spec->SortJobIO);
             if (!SimpleSort) {
                 InitIntermediateInputConfig(FinalSortJobIOConfig);
-            }
+            }   
         }
 
         {
-            SortedMergeJobIOConfig = Spec->MergeJobIO;
+            SortedMergeJobIOConfig = CloneYsonSerializable(Spec->MergeJobIO);
             InitIntermediateInputConfig(SortedMergeJobIOConfig);
         }
 
         {
-            UnorderedMergeJobIOConfig = Spec->MergeJobIO;
+            UnorderedMergeJobIOConfig = CloneYsonSerializable(Spec->MergeJobIO);
             InitIntermediateInputConfig(UnorderedMergeJobIOConfig);
         }
     }

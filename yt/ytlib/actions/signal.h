@@ -110,6 +110,29 @@ public:
     }
 };
 
+template <class A1, class A2>
+class TCallbackList<void(A1, A2)>
+    : public TCallbackListBase<void(A1, A2)>
+{
+public:
+    //! Calls Run for all callbacks in the list.
+    void Fire(const A1& a1, const A2& a2) const
+    {
+        TGuard<TSpinLock> guard(this->SpinLock);
+
+        if (this->Callbacks.empty())
+            return;
+
+        std::vector< TCallback<void(A1, A2)> > callbacks(this->Callbacks);
+        guard.Release();
+
+        FOREACH (const auto& callback, callbacks) {
+            callback.Run(a1, a2);
+        }
+    }
+};
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 #define DEFINE_SIGNAL(signature, name) \

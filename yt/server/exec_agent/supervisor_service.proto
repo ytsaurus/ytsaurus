@@ -38,7 +38,7 @@ message TReqOnJobProgress
 ////////////////////////////////////////////////////////////////////////////////
 
 // One-way.
-message TReqUpdateResourceUtilization
+message TReqOnResourcesReleased
 {
     required NYT.NProto.TGuid job_id = 1;
     required NScheduler.NProto.TNodeResources utilization = 2;

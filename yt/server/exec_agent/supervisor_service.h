@@ -25,7 +25,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, GetJobSpec);
     DECLARE_RPC_SERVICE_METHOD(NProto, OnJobFinished);
     DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NProto, OnJobProgress);
-    DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NProto, UpdateResourceUtilization);
+    DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NProto, OnResourcesReleased);
 
 };
 

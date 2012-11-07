@@ -222,7 +222,7 @@ void TJobProxy::SetResourceUtilization(const TNodeResources& utilization)
     ResourceUtilization = utilization;
 
     // Fire-and-forget.
-    auto req = SupervisorProxy->UpdateResourceUtilization();
+    auto req = SupervisorProxy->OnResourcesReleased();
     *req->mutable_job_id() = JobId.ToProto();
     *req->mutable_utilization() = ResourceUtilization;
     req->Invoke();

@@ -18,14 +18,7 @@ struct TFairShareStrategyConfig
     : public TYsonSerializable
 {
     TDuration FairShareUpdatePeriod;
-    TDuration PreemptionCheckPeriod;
     
-    double MinShareStarvationFactor;
-    TDuration MinSharePreemptionTimeout;
-
-    double FairShareStarvationFactor;
-    TDuration FairSharePreemptionTimeout;
-
     double NewOperationWeightBoostFactor;
     TDuration NewOperationWeightBoostPeriod;
 
@@ -33,21 +26,7 @@ struct TFairShareStrategyConfig
     {
         Register("fair_share_update_period", FairShareUpdatePeriod)
             .Default(TDuration::MilliSeconds(1000));
-        Register("preemption_check_period", PreemptionCheckPeriod)
-            .Default(TDuration::Seconds(15));
         
-        Register("min_share_starvation_factor", MinShareStarvationFactor)
-            .InRange(0.0, 1.0)
-            .Default(0.9);
-        Register("min_share_preemption_timeout", MinSharePreemptionTimeout)
-            .Default(TDuration::Seconds(15));
-
-        Register("fair_share_starvation_factor", FairShareStarvationFactor)
-            .InRange(0.0, 1.0)
-            .Default(0.7);
-        Register("fair_share_preemption_timeout", FairSharePreemptionTimeout)
-            .Default(TDuration::Seconds(30));
-
         Register("new_operation_weight_boost_factor", NewOperationWeightBoostFactor)
             .GreaterThanOrEqual(1.0)
             .Default(1.0);

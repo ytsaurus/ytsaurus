@@ -88,12 +88,16 @@ struct ISchedulingContext
     { }
 
 
-    virtual TExecNodePtr GetNode() = 0;
+    virtual TExecNodePtr GetNode() const = 0;
+
+    virtual const std::vector<TJobPtr>& RunningJobs() const = 0;
 
     virtual bool HasSpareResources() const = 0;
 
-    virtual TJobPtr BeginScheduleJob(TOperationPtr operation) = 0;
-    virtual void EndScheduleJob(TJobPtr job) = 0;
+    virtual TJobPtr BeginStartJob(TOperationPtr operation) = 0;
+    virtual void EndStartJob(TJobPtr job) = 0;
+
+    virtual void PreemptJob(TJobPtr job) = 0;
 };
 
 /*!

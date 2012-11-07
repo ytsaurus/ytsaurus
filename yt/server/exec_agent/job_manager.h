@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <ytlib/actions/signal.h>
 #include <ytlib/scheduler/job.pb.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/scheduler/scheduler_service.pb.h>
@@ -20,6 +21,8 @@ namespace NExecAgent {
 class TJobManager
     : public TRefCounted
 {
+    DEFINE_SIGNAL(void(), ResourcesUpdated);
+
 public:
     TJobManager(
         TJobManagerConfigPtr config,
@@ -29,7 +32,7 @@ public:
     void Initialize();
 
     //! Starts a new job.
-    TJobPtr StartJob(
+    void CreateJob(
         const TJobId& jobId,
         NScheduler::NProto::TJobSpec& jobSpec);
 
@@ -67,9 +70,19 @@ private:
     std::vector<TSlotPtr> Slots;
     yhash_map<TJobId, TJobPtr> Jobs;
 
+    bool StartScheduled;
+    bool ResourcesUpdatedFlag;
+
+    NScheduler::NProto::TNodeResources SpareResources;
+
     TSlotPtr GetFreeSlot();
 
+    void ScheduleStart();
     void OnJobFinished(TJobPtr job);
+    void OnResourcesReleased(
+        const NScheduler::NProto::TNodeResources& oldResources, 
+        const NScheduler::NProto::TNodeResources& newResources);
+    void StartWaitingJobs();
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };

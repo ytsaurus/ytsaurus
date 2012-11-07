@@ -56,6 +56,7 @@ DECLARE_ENUM(EJobState,
     ((Completed)(2))
     ((Failed)(3))
     ((Aborted)(4))
+    ((Waiting)(5))
 );
 
 DECLARE_ENUM(EJobPhase,

@@ -38,35 +38,30 @@ TJob::TJob(
     const TJobId& jobId,
     TJobSpec&& jobSpec,
     TJobProxyConfigPtr proxyConfig,
-    NChunkHolder::TChunkCachePtr chunkCache,
-    TSlotPtr slot)
+    NChunkHolder::TChunkCachePtr chunkCache)
     : JobId(jobId)
     , JobSpec(jobSpec)
     // Use initial utilization provided by the scheduler.
     , ResourceUtilization(JobSpec.resource_utilization())
     , Logger(ExecAgentLogger)
     , ChunkCache(chunkCache)
-    , Slot(slot)
-    , JobState(EJobState::Running)
+    , JobState(EJobState::Waiting)
     , JobPhase(EJobPhase::Created)
     , Progress(0.0)
     , JobFinished(NewPromise<void>())
     , ProxyConfig(proxyConfig)
 {
-    VERIFY_INVOKER_AFFINITY(Slot->GetInvoker(), JobThread);
-
     Logger.AddTag(Sprintf("JobId: %s", ~jobId.ToString()));
-    Slot->Acquire();
 }
 
-TJob::~TJob()
+void TJob::Start(TEnvironmentManagerPtr environmentManager, TSlotPtr slot)
 {
-    Slot->Release();
-}
+    YCHECK(!Slot);
 
-void TJob::Start(TEnvironmentManagerPtr environmentManager)
-{
-    YCHECK(JobPhase == EJobPhase::Created);
+    Slot = slot;
+    slot->Acquire();
+
+    VERIFY_INVOKER_AFFINITY(Slot->GetInvoker(), JobThread);
 
     Slot->GetInvoker()->Invoke(BIND(
         &TJob::DoStart,
@@ -81,8 +76,9 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
     if (JobPhase > EJobPhase::Cleanup)
         return;
 
-    YCHECK(JobPhase == EJobPhase::Created);
+    JobState = EJobState::Running;
 
+    YCHECK(JobPhase == EJobPhase::Created);
     JobPhase = EJobPhase::PreparingConfig;
 
     {
@@ -245,7 +241,7 @@ void TJob::RunJobProxy()
 
 bool TJob::IsResultSet() const
 {
-    TGuard<TSpinLock> guard(SpinLock);
+    TGuard<TSpinLock> guard(ResultLock);
     return JobResult.HasValue();
 }
 
@@ -285,7 +281,7 @@ void TJob::OnJobExit(TError error)
         JobState = EJobState::Failed;
     }
 
-    JobFinished.Set();
+    FinalizeJob();
 }
 
 const TJobId& TJob::GetId() const
@@ -300,7 +296,7 @@ const TJobSpec& TJob::GetSpec()
 
 void TJob::SetResult(const TJobResult& jobResult)
 {
-    TGuard<TSpinLock> guard(SpinLock);
+    TGuard<TSpinLock> guard(ResultLock);
 
     if (!JobResult.HasValue() || JobResult->error().code() == TError::OK) {
         JobResult.Assign(jobResult);
@@ -309,7 +305,7 @@ void TJob::SetResult(const TJobResult& jobResult)
 
 const TJobResult& TJob::GetResult() const
 {
-    TGuard<TSpinLock> guard(SpinLock);
+    TGuard<TSpinLock> guard(ResultLock);
     YCHECK(JobResult.HasValue());
     return JobResult.Get();
 }
@@ -333,26 +329,24 @@ EJobPhase TJob::GetPhase() const
 
 TNodeResources TJob::GetResourceUtilization() const
 {
-    return
-        JobState == EJobState::Running || JobState == EJobState::Aborting
-        ? ResourceUtilization
-        : ZeroNodeResources();
+    TGuard<TSpinLock> guard(ResourcesLock);
+    return ResourceUtilization;
 }
 
-void TJob::UpdateResourceUtilization(const TNodeResources& utilization)
+void TJob::ReleaseResources(const TNodeResources& newUtilization)
 {
-    if (JobState != EJobState::Running)
-        return;
+    TGuard<TSpinLock> guard(ResourcesLock);
+    auto oldUtilization = ResourceUtilization;
 
-    LOG_FATAL_IF(
-        ResourceUtilization.cpu() < utilization.cpu() ||
-        ResourceUtilization.memory() < utilization.memory(),
-        "Job resource utilization has increased: old value %s, new value %s",
-        ~ResourceUtilization.DebugString(),
-        ~utilization.DebugString());
+    LOG_FATAL_IF(JobState == EJobState::Running && Dominates(newUtilization, oldUtilization),
+        "Job resource utilization has increased: old value {%s}, new value {%s}",
+        ~FormatResources(ResourceUtilization),
+        ~FormatResources(newUtilization));
 
-    ResourceUtilization = utilization;
-    ResourceUtilizationSet_.Fire();
+    if (!Dominates(newUtilization, oldUtilization)) {
+        ResourceUtilization = newUtilization;
+        ResourcesReleased_.Fire(oldUtilization, newUtilization);
+    }
 }
 
 void TJob::Abort(const TError& error)
@@ -404,19 +398,16 @@ void TJob::DoAbort(const TError& error, EJobState resultState, bool killJobProxy
     SetResult(error);
     JobPhase = EJobPhase::Failed;
     JobState = resultState;
-    JobFinished.Set();
 
     LOG_INFO("Job aborted");
+
+    FinalizeJob();
 }
 
-void TJob::SubscribeFinished(const TClosure& callback)
+void TJob::FinalizeJob()
 {
-    JobFinished.Subscribe(callback);
-}
-
-void TJob::UnsubscribeFinished(const TClosure& callback)
-{
-    YUNREACHABLE();
+    Slot->Release();
+    ReleaseResources(ZeroNodeResources());
 }
 
 void TJob::UpdateProgress(double progress)
