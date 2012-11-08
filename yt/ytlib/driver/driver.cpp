@@ -95,37 +95,37 @@ public:
 #undef REGISTER
     }
 
-    virtual TFuture<TDriverResponse> Execute(const TDriverRequest& request) override
+    virtual TDriverResponse Execute(const TDriverRequest& request) override
     {
         YCHECK(request.InputStream);
         YCHECK(request.OutputStream);
 
-        auto it = Commands.find(request.CommandName);
+        TDriverResponse response;
 
+        auto it = Commands.find(request.CommandName);
         if (it == Commands.end()) {
-            return MakeFuture(TDriverResponse({
-                TError("Unknown command: %s", ~request.CommandName)
-            }));
+            response.Error = TError("Unknown command: %s", ~request.CommandName);
+            return response;
         }
 
         const auto& entry = it->second;
 
         try {
-            auto context = New<TCommandContext>(
-                *this,
+            TCommandContext context(
+                this,
                 entry.Descriptor,
-                request,
+                &request,
                 LeaderChannel,
                 !Config->ReadFromFollowers || entry.Descriptor.IsVolatile ? LeaderChannel : MasterChannel,
                 SchedulerChannel);
 
-            entry.Factory.Run(context)->Execute();
-            return context->GetResponse();
+            entry.Factory.Run(&context)->Execute();
+            response = *context.GetResponse();
         } catch (const std::exception& ex) {
-            return MakeFuture(TDriverResponse({
-                TError("Uncaught exception") << ex
-            }));
+            response.Error = TError("Uncaught exception") << ex;
         }
+
+        return response;
     }
 
     virtual TNullable<TCommandDescriptor> FindCommandDescriptor(const Stroka& commandName) override
@@ -165,7 +165,7 @@ private:
     IChannelPtr SchedulerChannel;
     IBlockCachePtr BlockCache;
 
-    typedef TCallback< ICommandPtr(const ICommandContextPtr&) > TCommandFactory;
+    typedef TCallback< TAutoPtr<ICommand>(ICommandContext*) > TCommandFactory;
 
     struct TCommandEntry
     {
@@ -180,22 +180,20 @@ private:
     {
     public:
         TCommandContext(
-            const TDriver& driver,
+            TDriver* driver,
             const TCommandDescriptor& descriptor,
-            const TDriverRequest& request,
+            const TDriverRequest* request,
             IChannelPtr leaderChannel,
             IChannelPtr masterChannel,
             IChannelPtr schedulerChannel)
-            : Descriptor(descriptor)
+            : Driver(driver)
+            , Descriptor(descriptor)
             , Request(request)
-            , DriverConfig(driver.Config)
-            , MasterChannel(CreateScopedChannel(MoveRV(masterChannel)))
-            , SchedulerChannel(CreateScopedChannel(MoveRV(schedulerChannel)))
-            , BlockCache(driver.BlockCache)
+            , MasterChannel(CreateScopedChannel(masterChannel))
+            , SchedulerChannel(CreateScopedChannel(schedulerChannel))
             , TransactionManager(New<TTransactionManager>(
-                driver.Config->TransactionManager,
-                MoveRV(leaderChannel)))
-            , ResponsePromise(NewPromise<TDriverResponse>())
+                Driver->Config->TransactionManager,
+                leaderChannel))
         { }
 
         ~TCommandContext()
@@ -207,7 +205,7 @@ private:
 
         virtual TDriverConfigPtr GetConfig() override
         {
-            return DriverConfig;
+            return Driver->Config;
         }
 
         virtual IChannelPtr GetMasterChannel() override
@@ -222,7 +220,7 @@ private:
 
         virtual IBlockCachePtr GetBlockCache() override
         {
-            return BlockCache;
+            return Driver->BlockCache;
         }
 
         virtual TTransactionManagerPtr GetTransactionManager() override
@@ -232,55 +230,51 @@ private:
 
         virtual const TDriverRequest* GetRequest() override
         {
-            return &Request;
+            return Request;
         }
 
-        virtual TFuture<TDriverResponse> GetResponse() override
+        virtual TDriverResponse* GetResponse() override
         {
-            return ResponsePromise;
-        }
-
-        virtual TPromise<TDriverResponse> GetResponsePromise() override
-        {
-            return ResponsePromise;
+            return &Response;
         }
 
         virtual TYsonProducer CreateInputProducer() override
         {
             return CreateProducerForFormat(
-                Request.InputFormat,
+                Request->InputFormat,
                 Descriptor.InputType,
-                Request.InputStream);
+                Request->InputStream);
         }
 
         virtual TAutoPtr<IYsonConsumer> CreateOutputConsumer() override
         {
             return CreateConsumerForFormat(
-                Request.OutputFormat,
+                Request->OutputFormat,
                 Descriptor.OutputType,
-                Request.OutputStream);
+                Request->OutputStream);
         }
 
     private:
-        const TCommandDescriptor Descriptor;
-        const TDriverRequest Request;
+        TDriver* Driver;
+        TCommandDescriptor Descriptor;
+        const TDriverRequest* Request;
 
-        TDriverConfigPtr DriverConfig;
         IChannelPtr MasterChannel;
         IChannelPtr SchedulerChannel;
-        IBlockCachePtr BlockCache;
         TTransactionManagerPtr TransactionManager;
 
-        TPromise<TDriverResponse> ResponsePromise;
+        TDriverResponse Response;
+
     };
+
 
     template <class TCommand>
     void RegisterCommand(const TCommandDescriptor& descriptor)
     {
         TCommandEntry entry;
         entry.Descriptor = descriptor;
-        entry.Factory = BIND([] (const ICommandContextPtr& context) -> ICommandPtr {
-            return New<TCommand>(context);
+        entry.Factory = BIND([] (ICommandContext* context) -> TAutoPtr<ICommand> {
+            return new TCommand(context);
         });
         YCHECK(Commands.insert(MakePair(descriptor.CommandName, entry)).second);
     }
@@ -290,7 +284,7 @@ private:
 
 IDriverPtr CreateDriver(TDriverConfigPtr config)
 {
-    return New<TDriver>(MoveRV(config));
+    return New<TDriver>(config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

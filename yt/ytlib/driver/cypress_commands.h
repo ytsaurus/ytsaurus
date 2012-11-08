@@ -8,7 +8,7 @@
 
 namespace NYT {
 namespace NDriver {
-
+    
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TGetRequest
@@ -31,7 +31,7 @@ class TGetCommand
     : public TTransactedCommandBase<TGetRequest>
 {
 public:
-    explicit TGetCommand(const ICommandContextPtr& context)
+    explicit TGetCommand(ICommandContext* context)
         : TTransactedCommandBase(context)
         , TUntypedCommandBase(context)
    { }
@@ -60,7 +60,7 @@ class TSetCommand
     : public TTransactedCommandBase<TSetRequest>
 {
 public:
-    explicit TSetCommand(const ICommandContextPtr& context)
+    explicit TSetCommand(ICommandContext* context)
         : TTransactedCommandBase(context)
         , TUntypedCommandBase(context)
     { }
@@ -89,7 +89,7 @@ class TRemoveCommand
     : public TTransactedCommandBase<TRemoveRequest>
 {
 public:
-    explicit TRemoveCommand(const ICommandContextPtr& context)
+    explicit TRemoveCommand(ICommandContext* context)
         : TTransactedCommandBase(context)
         , TUntypedCommandBase(context)
     { }
@@ -121,7 +121,7 @@ class TListCommand
     : public TTransactedCommandBase<TListRequest>
 {
 public:
-    explicit TListCommand(const ICommandContextPtr& context)
+    explicit TListCommand(ICommandContext* context)
         : TTransactedCommandBase(context)
         , TUntypedCommandBase(context)
     { }
@@ -152,7 +152,7 @@ class TCreateCommand
     : public TTransactedCommandBase<TCreateRequest>
 {
 public:
-    explicit TCreateCommand(const ICommandContextPtr& context)
+    explicit TCreateCommand(ICommandContext* context)
         : TTransactedCommandBase(context)
         , TUntypedCommandBase(context)
    { }
@@ -183,7 +183,7 @@ class TLockCommand
     : public TTransactedCommandBase<TLockRequest>
 {
 public:
-    explicit TLockCommand(const ICommandContextPtr& context)
+    explicit TLockCommand(ICommandContext* context)
         : TTransactedCommandBase(context)
         , TUntypedCommandBase(context)
     { }
@@ -214,7 +214,7 @@ class TCopyCommand
     : public TTransactedCommandBase<TCopyRequest>
 {
 public:
-    explicit TCopyCommand(const ICommandContextPtr& context)
+    explicit TCopyCommand(ICommandContext* context)
         : TTransactedCommandBase(context)
         , TUntypedCommandBase(context)
     { }
@@ -245,7 +245,7 @@ class TMoveCommand
     : public TTransactedCommandBase<TMoveRequest>
 {
 public:
-    explicit TMoveCommand(const ICommandContextPtr& context)
+    explicit TMoveCommand(ICommandContext* context)
         : TTransactedCommandBase(context)
         , TUntypedCommandBase(context)
     { }
@@ -274,7 +274,7 @@ class TExistsCommand
     : public TTransactedCommandBase<TExistsRequest>
 {
 public:
-    explicit TExistsCommand(const ICommandContextPtr& context)
+    explicit TExistsCommand(ICommandContext* context)
         : TTransactedCommandBase(context)
         , TUntypedCommandBase(context)
    { }

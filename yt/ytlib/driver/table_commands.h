@@ -31,9 +31,9 @@ class TReadCommand
     : public TTransactedCommandBase<TReadRequest>
 {
 public:
-    explicit TReadCommand(const ICommandContextPtr& context)
-        : TTransactedCommandBase(context)
-        , TUntypedCommandBase(context)
+    explicit TReadCommand(ICommandContext* host)
+        : TTransactedCommandBase(host)
+        , TUntypedCommandBase(host)
     { }
 
 private:
@@ -65,9 +65,9 @@ class TWriteCommand
     : public TTransactedCommandBase<TWriteRequest>
 {
 public:
-    explicit TWriteCommand(const ICommandContextPtr& context)
-        : TTransactedCommandBase(context)
-        , TUntypedCommandBase(context)
+    explicit TWriteCommand(ICommandContext* host)
+        : TTransactedCommandBase(host)
+        , TUntypedCommandBase(host)
     { }
 
 private:

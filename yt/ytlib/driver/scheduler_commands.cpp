@@ -20,7 +20,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchedulerCommandBase::TSchedulerCommandBase(const ICommandContextPtr& context)
+TSchedulerCommandBase::TSchedulerCommandBase(ICommandContext* context)
     : TTransactedCommandBase(context)
     , TUntypedCommandBase(context)
 { }
@@ -50,9 +50,9 @@ void TSchedulerCommandBase::StartOperation(EOperationType type)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMapCommand::TMapCommand(const ICommandContextPtr& context)
-    : TSchedulerCommandBase(context)
-    , TUntypedCommandBase(context)
+TMapCommand::TMapCommand(ICommandContext* host)
+    : TSchedulerCommandBase(host)
+    , TUntypedCommandBase(host)
 { }
 
 void TMapCommand::DoExecute()
@@ -62,7 +62,7 @@ void TMapCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMergeCommand::TMergeCommand(const ICommandContextPtr& context)
+TMergeCommand::TMergeCommand(ICommandContext* context)
     : TSchedulerCommandBase(context)
     , TUntypedCommandBase(context)
 { }
@@ -74,7 +74,7 @@ void TMergeCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSortCommand::TSortCommand(const ICommandContextPtr& context)
+TSortCommand::TSortCommand(ICommandContext* context)
     : TSchedulerCommandBase(context)
     , TUntypedCommandBase(context)
 { }
@@ -86,7 +86,7 @@ void TSortCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEraseCommand::TEraseCommand(const ICommandContextPtr& context)
+TEraseCommand::TEraseCommand(ICommandContext* context)
     : TSchedulerCommandBase(context)
     , TUntypedCommandBase(context)
 { }
@@ -98,7 +98,7 @@ void TEraseCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReduceCommand::TReduceCommand(const ICommandContextPtr& context)
+TReduceCommand::TReduceCommand(ICommandContext* context)
     : TSchedulerCommandBase(context)
     , TUntypedCommandBase(context)
 { }
@@ -110,7 +110,7 @@ void TReduceCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMapReduceCommand::TMapReduceCommand(const ICommandContextPtr& context)
+TMapReduceCommand::TMapReduceCommand(ICommandContext* context)
     : TSchedulerCommandBase(context)
     , TUntypedCommandBase(context)
 { }
@@ -122,7 +122,7 @@ void TMapReduceCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAbortOperationCommand::TAbortOperationCommand(const ICommandContextPtr& context)
+TAbortOperationCommand::TAbortOperationCommand(ICommandContext* context)
     : TTransactedCommandBase(context)
     , TUntypedCommandBase(context)
 { }

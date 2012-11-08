@@ -24,9 +24,9 @@ class TDownloadCommand
     : public TTransactedCommandBase<TDownloadRequest>
 {
 public:
-    explicit TDownloadCommand(const ICommandContextPtr& context)
-        : TTransactedCommandBase(context)
-        , TUntypedCommandBase(context)
+    explicit TDownloadCommand(ICommandContext* host)
+        : TTransactedCommandBase(host)
+        , TUntypedCommandBase(host)
     { }
 
 private:
@@ -52,9 +52,9 @@ class TUploadCommand
     : public TTransactedCommandBase<TUploadRequest>
 {
 public:
-    explicit TUploadCommand(const ICommandContextPtr& context)
-        : TTransactedCommandBase(context)
-        , TUntypedCommandBase(context)
+    explicit TUploadCommand(ICommandContext* host)
+        : TTransactedCommandBase(host)
+        , TUntypedCommandBase(host)
     { }
 
 private:

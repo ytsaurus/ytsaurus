@@ -17,7 +17,7 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! An instance of driver request. This is a copyable type.
+//! An instance of driver request.
 struct TDriverRequest
 {
     //! Command name to execute.
@@ -43,7 +43,7 @@ struct TDriverRequest
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! An instance of driver response. This is a copyable type.
+//! An instance of driver request.
 struct TDriverResponse
 {
     //! An error returned by the command, if any.
@@ -105,7 +105,7 @@ struct IDriver
     : public virtual TRefCounted
 {
     //! Synchronously executes a given request.
-    virtual TFuture<TDriverResponse> Execute(const TDriverRequest& request) = 0;
+    virtual TDriverResponse Execute(const TDriverRequest& request) = 0;
 
     //! Returns a descriptor for a command with a given name or
     //! |Null| if no command with this name is registered.

@@ -52,7 +52,7 @@ void TUploadCommand::DoExecute()
     writer->Open();
 
     auto input = Context->GetRequest()->InputStream;
-
+    
     TBlob buffer(config->BlockSize);
     while (true) {
         size_t bytesRead = input->Read(&*buffer.begin(), buffer.size());
