@@ -90,6 +90,8 @@ const char* TTokenizer::AdvanceEscaped(const char* current)
         case '/':
         case '@':
         case '&':
+        case '[':
+        case '{':
             LiteralValue_.append(*current);
             ++current;
             break;

@@ -144,9 +144,9 @@ TEST_F(TYPathTokenizerTest, GUID)
 
 TEST_F(TYPathTokenizerTest, EscapedSpecial)
 {
-    PrepareAndTokenize("\\@\\&\\/\\\\");
+    PrepareAndTokenize("\\@\\&\\/\\\\\\[\\{");
     EXPECT_EQ("L", GetFlattenedTokens());
-    EXPECT_EQ(std::vector<Stroka>(1, "@&/\\"), GetLiterals());
+    EXPECT_EQ(std::vector<Stroka>(1, "@&/\\[{"), GetLiterals());
 }
 
 TEST_F(TYPathTokenizerTest, EscapedHex)

@@ -46,7 +46,7 @@ Stroka ToYPathLiteral(const Stroka& value)
     Stroka result;
     result.reserve(value.length() + 10);
     FOREACH (char ch, value) {
-        if (ch == '\\' || ch == '/' || ch == '@' || ch == '&') {
+        if (ch == '\\' || ch == '/' || ch == '@' || ch == '&' || ch == '[' || ch == '{') {
             result.append('\\');
             result.append(ch);
         } else if (ch < 32 || ch > 127) {
