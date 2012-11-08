@@ -338,13 +338,15 @@ void TJob::ReleaseResources(const TNodeResources& newUtilization)
     TGuard<TSpinLock> guard(ResourcesLock);
     auto oldUtilization = ResourceUtilization;
 
-    LOG_FATAL_IF(JobState == EJobState::Running && Dominates(newUtilization, oldUtilization),
+    LOG_FATAL_IF(
+        JobState == EJobState::Running && !Dominates(oldUtilization, newUtilization),
         "Job resource utilization has increased: old value {%s}, new value {%s}",
         ~FormatResources(ResourceUtilization),
         ~FormatResources(newUtilization));
 
-    if (!Dominates(newUtilization, oldUtilization)) {
+    if (newUtilization != oldUtilization) {
         ResourceUtilization = newUtilization;
+        guard.Release();
         ResourcesReleased_.Fire(oldUtilization, newUtilization);
     }
 }
