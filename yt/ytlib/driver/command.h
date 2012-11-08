@@ -5,6 +5,7 @@
 #include "driver.h"
 
 #include <ytlib/misc/error.h>
+#include <ytlib/misc/ref_counted.h>
 #include <ytlib/ytree/public.h>
 #include <ytlib/ytree/yson_consumer.h>
 #include <ytlib/ytree/yson_parser.h>
@@ -52,10 +53,9 @@ typedef TIntrusivePtr<TTransactedRequest> TTransactedRequestPtr;
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ICommandContext
+    : public TRefCounted
+    // Please, note that there is no virtual inheritance.
 {
-    virtual ~ICommandContext()
-    { }
-
     virtual TDriverConfigPtr GetConfig() = 0;
     virtual NRpc::IChannelPtr GetMasterChannel() = 0;
     virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
@@ -63,21 +63,24 @@ struct ICommandContext
     virtual NTransactionClient::TTransactionManagerPtr GetTransactionManager() = 0;
 
     virtual const TDriverRequest* GetRequest() = 0;
-    virtual TDriverResponse* GetResponse() = 0;
+    virtual TFuture<TDriverResponse> GetResponse() = 0;
+    virtual TPromise<TDriverResponse> GetResponsePromise() = 0;
 
     virtual NYTree::TYsonProducer CreateInputProducer() = 0;
     virtual TAutoPtr<NYTree::IYsonConsumer> CreateOutputConsumer() = 0;
 };
 
+typedef TIntrusivePtr<ICommandContext> ICommandContextPtr;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ICommand
+    : public TRefCounted
 {
-    virtual ~ICommand()
-    { }
-
     virtual void Execute() = 0;
 };
+
+typedef TIntrusivePtr<ICommand> ICommandPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -85,10 +88,9 @@ class TUntypedCommandBase
     : public ICommand
 {
 protected:
-    ICommandContext* Context;
-    bool Replied;
+    ICommandContextPtr Context;
 
-    explicit TUntypedCommandBase(ICommandContext* host);
+    explicit TUntypedCommandBase(const ICommandContextPtr& host);
 
     void ReplyError(const TError& error);
     void ReplySuccess(const NYTree::TYsonString& yson);
@@ -102,7 +104,7 @@ class TTypedCommandBase
     : public virtual TUntypedCommandBase
 {
 public:
-    explicit TTypedCommandBase(ICommandContext* context)
+    explicit TTypedCommandBase(const ICommandContextPtr& context)
         : TUntypedCommandBase(context)
     { }
 
@@ -111,11 +113,9 @@ public:
         try {
             Request = New<TRequest>();
             try {
-                auto arguments = Context->GetRequest()->Arguments;
-                Request->Load(arguments);
+                Request->Load(Context->GetRequest()->Arguments);
             } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Error parsing command arguments") <<
-                    ex;
+                THROW_ERROR_EXCEPTION("Error parsing command arguments") << ex;
             }
             DoExecute();
         } catch (const std::exception& ex) {
@@ -137,7 +137,7 @@ class TTransactedCommandBase
     : public TTypedCommandBase<TRequest>
 {
 public:
-    explicit TTransactedCommandBase(ICommandContext* context)
+    explicit TTransactedCommandBase(const ICommandContextPtr& context)
         : TTypedCommandBase<TRequest>(context)
         , TUntypedCommandBase(context)
     { }
@@ -163,9 +163,11 @@ protected:
             return NULL;
         }
         bool pingAncestorTransactions = this->Request->PingAncestorTransactions;
-        return this->Context->GetTransactionManager()->Attach(transactionId, false, pingAncestorTransactions);
+        return this->Context->GetTransactionManager()->Attach(
+            transactionId,
+            false,
+            pingAncestorTransactions);
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

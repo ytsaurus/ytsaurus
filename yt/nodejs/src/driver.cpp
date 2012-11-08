@@ -464,7 +464,7 @@ void TNodeJSDriver::ExecuteWork(uv_work_t* workRequest)
 
             request->DriverResponse = TDriverResponse();
         } else {
-            request->DriverResponse = request->Host->Driver->Execute(request->DriverRequest);
+            request->DriverResponse = request->Host->Driver->Execute(request->DriverRequest).Get();
         }
     } catch (const std::exception& ex) {
         request->Error = TError("Caught unknown exception while executing driver request") << TError(ex);

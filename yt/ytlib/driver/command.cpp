@@ -8,29 +8,28 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUntypedCommandBase::TUntypedCommandBase(ICommandContext* context)
+TUntypedCommandBase::TUntypedCommandBase(const ICommandContextPtr& context)
     : Context(context)
-    , Replied(false)
 { }
 
 void TUntypedCommandBase::ReplyError(const TError& error)
 {
-    YASSERT(!Replied);
+    auto promise = Context->GetResponsePromise();
+    YASSERT(!promise.IsSet());
     YASSERT(!error.IsOK());
 
-    Context->GetResponse()->Error = error;
-    Replied = true;
+    promise.Set(TDriverResponse({ error }));
 }
 
 void TUntypedCommandBase::ReplySuccess(const TYsonString& yson)
 {
-    YASSERT(!Replied);
+    auto promise = Context->GetResponsePromise();
+    YASSERT(!promise.IsSet());
 
     auto consumer = Context->CreateOutputConsumer();
     Consume(yson, ~consumer);
 
-    Context->GetResponse()->Error = TError();
-    Replied = true;
+    promise.Set(TDriverResponse());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
