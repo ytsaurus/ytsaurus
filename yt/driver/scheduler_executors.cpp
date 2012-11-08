@@ -41,7 +41,7 @@ EExitCode TStartOpExecutor::DoExecute(const TDriverRequest& request)
     requestCopy.OutputFormat = TFormat(EFormatType::Yson);
     requestCopy.OutputStream = &output;
 
-    auto response = Driver->Execute(requestCopy);
+    auto response = Driver->Execute(requestCopy).Get();
     if (!response.Error.IsOK()) {
         printf("failed\n");
         THROW_ERROR response.Error;

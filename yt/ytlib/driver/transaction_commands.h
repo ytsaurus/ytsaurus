@@ -17,9 +17,9 @@ class TStartTransactionCommand
     : public TTransactedCommandBase<TStartTransactionRequest>
 {
 public:
-    explicit TStartTransactionCommand(ICommandContext* host)
-        : TTransactedCommandBase(host)
-        , TUntypedCommandBase(host)
+    explicit TStartTransactionCommand(const ICommandContextPtr& context)
+        : TTransactedCommandBase(context)
+        , TUntypedCommandBase(context)
     { }
 
 private:
@@ -38,9 +38,9 @@ class TRenewTransactionCommand
     : public TTransactedCommandBase<TRenewTransactionRequest>
 {
 public:
-    explicit TRenewTransactionCommand(ICommandContext* host)
-        : TTransactedCommandBase(host)
-        , TUntypedCommandBase(host)
+    explicit TRenewTransactionCommand(const ICommandContextPtr& context)
+        : TTransactedCommandBase(context)
+        , TUntypedCommandBase(context)
     { }
 
 private:
@@ -59,9 +59,9 @@ class TCommitTransactionCommand
     : public TTransactedCommandBase<TCommitTransactionRequest>
 {
 public:
-    explicit TCommitTransactionCommand(ICommandContext* host)
-        : TTransactedCommandBase(host)
-        , TUntypedCommandBase(host)
+    explicit TCommitTransactionCommand(const ICommandContextPtr& context)
+        : TTransactedCommandBase(context)
+        , TUntypedCommandBase(context)
     { }
 
 private:
@@ -80,9 +80,9 @@ class TAbortTransactionCommand
     : public TTransactedCommandBase<TAbortTransactionRequest>
 {
 public:
-    explicit TAbortTransactionCommand(ICommandContext* host)
-        : TTransactedCommandBase(host)
-        , TUntypedCommandBase(host)
+    explicit TAbortTransactionCommand(const ICommandContextPtr& context)
+        : TTransactedCommandBase(context)
+        , TUntypedCommandBase(context)
     { }
 
 private:

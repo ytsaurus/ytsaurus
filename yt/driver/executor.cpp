@@ -205,7 +205,7 @@ EExitCode TRequestExecutor::DoExecute()
 
 EExitCode TRequestExecutor::DoExecute(const TDriverRequest& request)
 {
-    auto response = Driver->Execute(request);
+    auto response = Driver->Execute(request).Get();
 
     if (!response.Error.IsOK()) {
         THROW_ERROR response.Error;

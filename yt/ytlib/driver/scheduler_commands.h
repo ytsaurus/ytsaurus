@@ -30,7 +30,7 @@ class TSchedulerCommandBase
 protected:
     typedef TSchedulerCommandBase TThis;
 
-    explicit TSchedulerCommandBase(ICommandContext* context);
+    explicit TSchedulerCommandBase(const ICommandContextPtr& context);
 
     void StartOperation(NScheduler::EOperationType type);
 };
@@ -41,7 +41,7 @@ class TMapCommand
     : public TSchedulerCommandBase
 {
 public:
-    explicit TMapCommand(ICommandContext* context);
+    explicit TMapCommand(const ICommandContextPtr& context);
 
 private:
     virtual void DoExecute();
@@ -53,7 +53,7 @@ class TMergeCommand
     : public TSchedulerCommandBase
 {
 public:
-    explicit TMergeCommand(ICommandContext* context);
+    explicit TMergeCommand(const ICommandContextPtr& context);
 
 private:
     virtual void DoExecute();
@@ -65,7 +65,7 @@ class TSortCommand
     : public TSchedulerCommandBase
 {
 public:
-    explicit TSortCommand(ICommandContext* context);
+    explicit TSortCommand(const ICommandContextPtr& context);
 
 private:
     virtual void DoExecute();
@@ -77,7 +77,7 @@ class TEraseCommand
     : public TSchedulerCommandBase
 {
 public:
-    explicit TEraseCommand(ICommandContext* context);
+    explicit TEraseCommand(const ICommandContextPtr& context);
 
 private:
     virtual void DoExecute();
@@ -89,7 +89,7 @@ class TReduceCommand
     : public TSchedulerCommandBase
 {
 public:
-    explicit TReduceCommand(ICommandContext* context);
+    explicit TReduceCommand(const ICommandContextPtr& context);
 
 private:
     virtual void DoExecute();
@@ -101,7 +101,7 @@ class TMapReduceCommand
     : public TSchedulerCommandBase
 {
 public:
-    explicit TMapReduceCommand(ICommandContext* context);
+    explicit TMapReduceCommand(const ICommandContextPtr& context);
 
 private:
     virtual void DoExecute();
@@ -126,7 +126,7 @@ class TAbortOperationCommand
     : public TTransactedCommandBase<TAbortOperationRequest>
 {
 public:
-    explicit TAbortOperationCommand(ICommandContext* context);
+    explicit TAbortOperationCommand(const ICommandContextPtr& context);
 
 private:
     virtual void DoExecute();

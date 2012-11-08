@@ -95,37 +95,37 @@ public:
 #undef REGISTER
     }
 
-    virtual TDriverResponse Execute(const TDriverRequest& request) override
+    virtual TFuture<TDriverResponse> Execute(const TDriverRequest& request) override
     {
         YCHECK(request.InputStream);
         YCHECK(request.OutputStream);
 
-        TDriverResponse response;
-
         auto it = Commands.find(request.CommandName);
+
         if (it == Commands.end()) {
-            response.Error = TError("Unknown command: %s", ~request.CommandName);
-            return response;
+            return MakeFuture(TDriverResponse({
+                TError("Unknown command: %s", ~request.CommandName)
+            }));
         }
 
         const auto& entry = it->second;
 
         try {
-            TCommandContext context(
-                this,
+            auto context = New<TCommandContext>(
+                *this,
                 entry.Descriptor,
-                &request,
+                request,
                 LeaderChannel,
                 !Config->ReadFromFollowers || entry.Descriptor.IsVolatile ? LeaderChannel : MasterChannel,
                 SchedulerChannel);
 
-            entry.Factory.Run(&context)->Execute();
-            response = *context.GetResponse();
+            entry.Factory.Run(context)->Execute();
+            return context->GetResponse();
         } catch (const std::exception& ex) {
-            response.Error = TError("Uncaught exception") << ex;
+            return MakeFuture(TDriverResponse({
+                TError("Uncaught exception") << ex
+            }));
         }
-
-        return response;
     }
 
     virtual TNullable<TCommandDescriptor> FindCommandDescriptor(const Stroka& commandName) override
@@ -165,7 +165,7 @@ private:
     IChannelPtr SchedulerChannel;
     IBlockCachePtr BlockCache;
 
-    typedef TCallback< TAutoPtr<ICommand>(ICommandContext*) > TCommandFactory;
+    typedef TCallback< ICommandPtr(const ICommandContextPtr&) > TCommandFactory;
 
     struct TCommandEntry
     {
@@ -180,20 +180,21 @@ private:
     {
     public:
         TCommandContext(
-            TDriver* driver,
+            const TDriver& driver,
             const TCommandDescriptor& descriptor,
-            const TDriverRequest* request,
+            const TDriverRequest& request,
             IChannelPtr leaderChannel,
             IChannelPtr masterChannel,
             IChannelPtr schedulerChannel)
-            : Driver(driver)
-            , Descriptor(descriptor)
+            : Descriptor(descriptor)
             , Request(request)
-            , MasterChannel(CreateScopedChannel(masterChannel))
-            , SchedulerChannel(CreateScopedChannel(schedulerChannel))
+            , DriverConfig(driver.Config)
+            , MasterChannel(CreateScopedChannel(MoveRV(masterChannel)))
+            , SchedulerChannel(CreateScopedChannel(MoveRV(schedulerChannel)))
+            , BlockCache(driver.BlockCache)
             , TransactionManager(New<TTransactionManager>(
-                Driver->Config->TransactionManager,
-                leaderChannel))
+                driver.Config->TransactionManager,
+                MoveRV(leaderChannel)))
         { }
 
         ~TCommandContext()
@@ -205,7 +206,7 @@ private:
 
         virtual TDriverConfigPtr GetConfig() override
         {
-            return Driver->Config;
+            return DriverConfig;
         }
 
         virtual IChannelPtr GetMasterChannel() override
@@ -220,7 +221,7 @@ private:
 
         virtual IBlockCachePtr GetBlockCache() override
         {
-            return Driver->BlockCache;
+            return BlockCache;
         }
 
         virtual TTransactionManagerPtr GetTransactionManager() override
@@ -230,51 +231,55 @@ private:
 
         virtual const TDriverRequest* GetRequest() override
         {
-            return Request;
+            return &Request;
         }
 
-        virtual TDriverResponse* GetResponse() override
+        virtual TFuture<TDriverResponse> GetResponse() override
         {
-            return &Response;
+            return ResponsePromise;
+        }
+
+        virtual TPromise<TDriverResponse> GetResponsePromise() override
+        {
+            return ResponsePromise;
         }
 
         virtual TYsonProducer CreateInputProducer() override
         {
             return CreateProducerForFormat(
-                Request->InputFormat,
+                Request.InputFormat,
                 Descriptor.InputType,
-                Request->InputStream);
+                Request.InputStream);
         }
 
         virtual TAutoPtr<IYsonConsumer> CreateOutputConsumer() override
         {
             return CreateConsumerForFormat(
-                Request->OutputFormat,
+                Request.OutputFormat,
                 Descriptor.OutputType,
-                Request->OutputStream);
+                Request.OutputStream);
         }
 
     private:
-        TDriver* Driver;
-        TCommandDescriptor Descriptor;
-        const TDriverRequest* Request;
+        const TCommandDescriptor Descriptor;
+        const TDriverRequest Request;
 
+        TDriverConfigPtr DriverConfig;
         IChannelPtr MasterChannel;
         IChannelPtr SchedulerChannel;
+        IBlockCachePtr BlockCache;
         TTransactionManagerPtr TransactionManager;
 
-        TDriverResponse Response;
-
+        TPromise<TDriverResponse> ResponsePromise;
     };
-
 
     template <class TCommand>
     void RegisterCommand(const TCommandDescriptor& descriptor)
     {
         TCommandEntry entry;
         entry.Descriptor = descriptor;
-        entry.Factory = BIND([] (ICommandContext* context) -> TAutoPtr<ICommand> {
-            return new TCommand(context);
+        entry.Factory = BIND([] (const ICommandContextPtr& context) -> ICommandPtr {
+            return New<TCommand>(context);
         });
         YCHECK(Commands.insert(MakePair(descriptor.CommandName, entry)).second);
     }
@@ -284,7 +289,7 @@ private:
 
 IDriverPtr CreateDriver(TDriverConfigPtr config)
 {
-    return New<TDriver>(config);
+    return New<TDriver>(MoveRV(config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
