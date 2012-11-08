@@ -124,6 +124,26 @@ TEST(TDsvParserTest, EmptyKeysAndValues)
     ParseDsv(input, &Mock);
 }
 
+TEST(TDsvParserTest, ZerosAreNotTerminals)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    InSequence dummy;
+
+    Stroka key = Stroka("a\x00b", 3);
+    Stroka value = Stroka("c\x00d", 3);
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem(key));
+        EXPECT_CALL(Mock, OnStringScalar(value));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    Stroka input = key + "=" + value;
+
+    ParseDsv(input, &Mock);
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTskvParserTest: public ::testing::Test
