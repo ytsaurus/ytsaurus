@@ -58,6 +58,8 @@ void TJob::Start(TEnvironmentManagerPtr environmentManager, TSlotPtr slot)
 {
     YCHECK(!Slot);
 
+    JobState = EJobState::Running;
+
     Slot = slot;
     slot->Acquire();
 
@@ -75,8 +77,6 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
 
     if (JobPhase > EJobPhase::Cleanup)
         return;
-
-    JobState = EJobState::Running;
 
     YCHECK(JobPhase == EJobPhase::Created);
     JobPhase = EJobPhase::PreparingConfig;
