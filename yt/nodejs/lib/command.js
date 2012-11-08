@@ -580,7 +580,7 @@ YtCommand.prototype._logRequest = function() {
     });
 };
 
-var RE_WRITABLE    = /^\/\/home|^\/\/tmp|^\/\/maps|^\/\/statbox/;
+var RE_WRITABLE = /^\/\/home|^\/\/tmp|^\/\/maps|^\/\/statbox/;
 
 YtCommand.prototype._checkPermissions = function() {
     "use strict";
