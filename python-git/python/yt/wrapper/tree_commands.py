@@ -38,10 +38,11 @@ def copy(source_path, destination_path):
                             "destination_path": destination_path
                         }))
 
-def list(path):
+def list(path, max_size=1000):
     return make_request("list",
                         add_transaction_params({
-                            "path": path
+                            "path": path,
+                            "max_size": max_size
                         }))
 
 def exists(path):
