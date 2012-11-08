@@ -195,6 +195,7 @@ private:
             , TransactionManager(New<TTransactionManager>(
                 driver.Config->TransactionManager,
                 MoveRV(leaderChannel)))
+            , ResponsePromise(NewPromise<TDriverResponse>())
         { }
 
         ~TCommandContext()
