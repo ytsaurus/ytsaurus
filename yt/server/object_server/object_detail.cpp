@@ -10,17 +10,19 @@
 
 #include <ytlib/ypath/tokenizer.h>
 
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/meta_state_facade.h>
-#include <server/cell_master/config.h>
-#include <server/cell_master/serialization_context.h>
-
 #include <ytlib/rpc/message.h>
 #include <ytlib/rpc/rpc.pb.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <ytlib/meta_state/meta_state_manager.h>
+
+#include <server/cell_master/bootstrap.h>
+#include <server/cell_master/meta_state_facade.h>
+#include <server/cell_master/config.h>
+#include <server/cell_master/serialization_context.h>
+
+#include <server/cypress_server/virtual.h>
 
 #include <stdexcept>
 
@@ -348,9 +350,9 @@ bool TObjectProxyBase::IsLeader() const
     return Bootstrap->GetMetaStateFacade()->GetManager()->IsLeader();
 }
 
-void TObjectProxyBase::ValidateLeaderStatus() const
+void TObjectProxyBase::ValidateActiveLeader() const
 {
-    Bootstrap->GetMetaStateFacade()->ValidateLeaderStatus();
+    Bootstrap->GetMetaStateFacade()->ValidateActiveLeader();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

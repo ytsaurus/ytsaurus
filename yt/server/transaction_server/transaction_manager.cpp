@@ -204,7 +204,7 @@ private:
         bool renewAncestors = request->renew_ancestors();
         context->SetRequestInfo("RenewAncestors: %s", ~FormatBool(renewAncestors));
 
-        ValidateLeaderStatus();
+        ValidateActiveLeader();
 
         ValidateTransactionNotNull();
 

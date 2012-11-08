@@ -20,7 +20,7 @@ protected:
         const Stroka& serviceName,
         const Stroka& loggingCategory);
 
-    void ValidateLeaderStatus();
+    void ValidateActiveLeader();
 
 private:
     virtual TClosure PrepareHandler(

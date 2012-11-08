@@ -130,11 +130,8 @@ INodeTypeHandlerPtr CreateChunkMapTypeHandler(
 {
     YCHECK(bootstrap);
 
-    IYPathServicePtr service = New<TVirtualChunkMap>(bootstrap, filter);
-    if (filter != EChunkFilter::All) {
-        service = CreateLeaderValidatorWrapper(bootstrap, service);
-    }
-    return CreateVirtualTypeHandler(bootstrap, objectType, service);
+    auto service = New<TVirtualChunkMap>(bootstrap, filter);
+    return CreateVirtualTypeHandler(bootstrap, objectType, service, true);
 }
 
 INodeTypeHandlerPtr CreateChunkMapTypeHandler(TBootstrap* bootstrap)
@@ -295,7 +292,7 @@ private:
 
         if (node) {
             if (key == "confirmed") {
-                ValidateLeaderStatus();
+                ValidateActiveLeader();
                 BuildYsonFluently(consumer)
                     .Scalar(FormatBool(Bootstrap->GetChunkManager()->IsNodeConfirmed(node)));
                 return true;
@@ -506,7 +503,7 @@ private:
         }
 
         if (key == "unconfirmed" || key == "confirmed") {
-            ValidateLeaderStatus();
+            ValidateActiveLeader();
             bool state = key == "confirmed";
             BuildYsonFluently(consumer)
                 .DoListFor(chunkManager->GetNodes(), [=] (TFluentList fluent, TDataNode* node) {
@@ -549,7 +546,7 @@ private:
         }
 
         if (key == "chunk_replicator_enabled") {
-            ValidateLeaderStatus();
+            ValidateActiveLeader();
             BuildYsonFluently(consumer)
                 .Scalar(chunkManager->IsReplicatorEnabled());
             return true;

@@ -60,10 +60,15 @@ public:
     NMetaState::TMutationPtr CreateMutation(EStateThreadQueue queue = EStateThreadQueue::Default);
 
     //! Checks if the current master is leading and has an active quorum of followers.
-    //! Throws on failure.
-    void ValidateLeaderStatus();
+    bool IsActiveLeader();
 
-    //! Checks if the cell is initialized. Throws on failure.
+    //! Same as #IsActiveLeader but throws on failure.
+    void ValidateActiveLeader();
+
+    //! Checks if the cell is initialized.
+    bool IsInitialized();
+
+    //! Same as #IsInitialized but throws on failure.
     void ValidateInitialized();
 
 private:

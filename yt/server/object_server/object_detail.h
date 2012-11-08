@@ -139,7 +139,7 @@ protected:
 
     bool IsRecovery() const;
     bool IsLeader() const;
-    void ValidateLeaderStatus() const;
+    void ValidateActiveLeader() const;
     void ForwardToLeader(NRpc::IServiceContextPtr context);
     void OnLeaderResponse(NRpc::IServiceContextPtr context, NBus::IMessagePtr responseMessage);
 

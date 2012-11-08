@@ -96,18 +96,6 @@ public:
         return MetaStateManager;
     }
 
-    bool IsInitialized() const
-    {
-        if (!Root) {
-            auto cypressManager = Bootstrap->GetCypressManager();
-            const auto& rootId = cypressManager->GetRootNodeId();
-            Root = dynamic_cast<TMapNode*>(cypressManager->FindNode(rootId));
-            LOG_FATAL_IF(!Root, "Missing Cypress root node %s; a possible reason could be that cell id has been changed",
-                ~ToString(rootId));
-        }
-        return !Root->KeyToChild().empty();
-    }
-
     IInvokerPtr GetInvoker(EStateThreadQueue queue = EStateThreadQueue::Default) const
     {
         return StateQueue->GetInvoker(queue);
@@ -123,16 +111,35 @@ public:
         return GuardedInvokers[queue];
     }
 
-    void ValidateLeaderStatus()
+    bool IsActiveLeader()
+    {
+        return 
+            MetaStateManager->GetStateStatus() == EPeerStatus::Leading &&
+            MetaStateManager->HasActiveQuorum();
+    }
+
+    void ValidateActiveLeader()
     {
         if (MetaStateManager->GetStateStatus() != EPeerStatus::Leading) {
-            throw TNotALeaderException()
+			throw TNotALeaderException()
                 <<= ERROR_SOURCE_LOCATION()
                 >>= TError(EErrorCode::Unavailable, "Not a leader");
-        }
+		}
         if (!MetaStateManager->HasActiveQuorum()) {
             THROW_ERROR_EXCEPTION(EErrorCode::Unavailable, "No active quorum");
         }
+    }
+
+    bool IsInitialized() const
+    {
+        if (!Root) {
+            auto cypressManager = Bootstrap->GetCypressManager();
+            const auto& rootId = cypressManager->GetRootNodeId();
+            Root = dynamic_cast<TMapNode*>(cypressManager->FindNode(rootId));
+            LOG_FATAL_IF(!Root, "Missing Cypress root node %s; a possible reason could be that cell id has been changed",
+                ~ToString(rootId));
+        }
+        return !Root->KeyToChild().empty();
     }
 
     void ValidateInitialized()
@@ -452,9 +459,19 @@ TMutationPtr TMetaStateFacade::CreateMutation(EStateThreadQueue queue)
         GetGuardedInvoker(queue));
 }
 
-void TMetaStateFacade::ValidateLeaderStatus()
+bool TMetaStateFacade::IsActiveLeader()
 {
-    return Impl->ValidateLeaderStatus();
+    return Impl->IsActiveLeader();
+}
+
+void TMetaStateFacade::ValidateActiveLeader()
+{
+    return Impl->ValidateActiveLeader();
+}
+
+bool TMetaStateFacade::IsInitialized()
+{
+    return Impl->IsInitialized();
 }
 
 void TMetaStateFacade::ValidateInitialized()

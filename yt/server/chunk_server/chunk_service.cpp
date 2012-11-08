@@ -82,7 +82,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterNode)
 {
     UNUSED(response);
 
-    ValidateLeaderStatus();
+    ValidateActiveLeader();
 
     auto metaStateFacade = Bootstrap->GetMetaStateFacade();
     auto chunkManager = Bootstrap->GetChunkManager();
@@ -130,7 +130,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterNode)
 
 DEFINE_RPC_SERVICE_METHOD(TChunkService, FullHeartbeat)
 {
-    ValidateLeaderStatus();
+    ValidateActiveLeader();
 
     auto metaStateFacade = Bootstrap->GetMetaStateFacade();
     auto chunkManager = Bootstrap->GetChunkManager();
@@ -157,7 +157,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, FullHeartbeat)
 
 DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
 {
-    ValidateLeaderStatus();
+    ValidateActiveLeader();
 
     auto metaStateFacade = Bootstrap->GetMetaStateFacade();
     auto chunkManager = Bootstrap->GetChunkManager();

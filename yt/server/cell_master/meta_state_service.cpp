@@ -28,9 +28,9 @@ TMetaStateServiceBase::TMetaStateServiceBase(
     metaStateManager->SubscribeStopFollowing(BIND(&TMetaStateServiceBase::OnStopEpoch, MakeWeak(this)));
 }
 
-void TMetaStateServiceBase::ValidateLeaderStatus()
+void TMetaStateServiceBase::ValidateActiveLeader()
 {
-    Bootstrap->GetMetaStateFacade()->ValidateLeaderStatus();
+    Bootstrap->GetMetaStateFacade()->ValidateActiveLeader();
 }
 
 TClosure TMetaStateServiceBase::PrepareHandler(

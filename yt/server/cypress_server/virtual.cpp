@@ -1,9 +1,13 @@
 #include "stdafx.h"
 #include "virtual.h"
 
+#include <ytlib/misc/singleton.h>
+
 #include <ytlib/ytree/ypath_format.h>
+
 #include <server/cypress_server/node_detail.h>
 #include <server/cypress_server/node_proxy_detail.h>
+
 #include <server/cell_master/bootstrap.h>
 
 namespace NYT {
@@ -28,6 +32,44 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TFailedLeaderValidationWrapper
+    : public IYPathService
+{
+public:
+    explicit TFailedLeaderValidationWrapper(TBootstrap* bootstrap)
+        : Bootstrap(bootstrap)
+    { }
+
+    virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr context) override
+    {
+        UNUSED(context);
+
+        return TResolveResult::Here(path);
+    }
+
+    virtual void Invoke(IServiceContextPtr context) override
+    {
+        UNUSED(context);
+
+        Bootstrap->GetMetaStateFacade()->ValidateActiveLeader();
+    }
+
+    virtual Stroka GetLoggingCategory() const override
+    {
+        return "";
+    }
+
+    virtual bool IsWriteRequest(IServiceContextPtr context) const override
+    {
+        UNUSED(context);
+
+        return false;
+    }
+
+private:
+    TBootstrap* Bootstrap;
+};
+
 class TLeaderValidatorWrapper
     : public IYPathService
 {
@@ -41,17 +83,17 @@ public:
 
     virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr context) override
     {
-        auto result = UnderlyingService->Resolve(path, context);
-        return result.IsHere()
-            ? result
-            : TResolveResult::There(
-                CreateLeaderValidatorWrapper(Bootstrap, result.GetService()),
-                result.GetPath());
+        if (!Bootstrap->GetMetaStateFacade()->IsActiveLeader()) {
+            return TResolveResult::There(
+                New<TFailedLeaderValidationWrapper>(Bootstrap),
+                path);
+        }
+        return UnderlyingService->Resolve(path, context);
     }
 
     virtual void Invoke(IServiceContextPtr context) override
     {
-        Bootstrap->GetMetaStateFacade()->ValidateLeaderStatus();
+        Bootstrap->GetMetaStateFacade()->ValidateActiveLeader();
         UnderlyingService->Invoke(context);
     }
 
@@ -84,7 +126,8 @@ public:
         TBootstrap* bootstrap,
         TTransaction* transaction,
         ICypressNode* trunkNode,
-        IYPathServicePtr service)
+        IYPathServicePtr service,
+        bool requireLeader)
         : TBase(
             typeHandler,
             bootstrap,
@@ -100,11 +143,24 @@ public:
             return TBase::Resolve(tokenizer.GetSuffix(), context);
         }
 
+        if (RequireLeader && !Bootstrap->GetMetaStateFacade()->IsActiveLeader()) {
+            return TResolveResult::Here(path);
+        }
+
 		return TResolveResult::There(Service, path);
     }
 
 private:
     IYPathServicePtr Service;
+    bool RequireLeader;
+
+    virtual void DoInvoke(NRpc::IServiceContextPtr context) override
+    {
+        if (RequireLeader) {
+            Bootstrap->GetMetaStateFacade()->ValidateActiveLeader();
+        }
+        TBase::DoInvoke(context);
+    }
 
 };
 
@@ -119,10 +175,12 @@ public:
     TVirtualNodeTypeHandler(
         TBootstrap* bootstrap,
         TYPathServiceProducer producer,
-        EObjectType objectType)
+        EObjectType objectType,
+        bool requireLeader)
         : TCypressNodeTypeHandlerBase<TVirtualNode>(bootstrap)
         , Producer(producer)
         , ObjectType(objectType)
+        , RequireLeader(requireLeader)
     { }
 
     virtual ICypressNodeProxyPtr GetProxy(
@@ -135,7 +193,8 @@ public:
             Bootstrap,
             transaction,
             trunkNode,
-            service);
+            service,
+            RequireLeader);
     }
 
     virtual EObjectType GetObjectType() override
@@ -151,24 +210,28 @@ public:
 private:
     TYPathServiceProducer Producer;
     EObjectType ObjectType;
+    bool RequireLeader;
 
 };
 
 INodeTypeHandlerPtr CreateVirtualTypeHandler(
     TBootstrap* bootstrap,
     EObjectType objectType,
-    TYPathServiceProducer producer)
+    TYPathServiceProducer producer,
+    bool requireLeader)
 {
     return New<TVirtualNodeTypeHandler>(
         bootstrap,
         producer,
-        objectType);
+        objectType,
+        requireLeader);
 }
 
 INodeTypeHandlerPtr CreateVirtualTypeHandler(
     TBootstrap* bootstrap,
     EObjectType objectType,
-    IYPathServicePtr service)
+    IYPathServicePtr service,
+    bool requireLeader)
 {
     return CreateVirtualTypeHandler(
         bootstrap,
@@ -177,14 +240,8 @@ INodeTypeHandlerPtr CreateVirtualTypeHandler(
             UNUSED(trunkNode);
             UNUSED(transaction);
             return service;
-        }));
-}
-
-IYPathServicePtr CreateLeaderValidatorWrapper(
-    TBootstrap* bootstrap,
-    IYPathServicePtr service)
-{
-    return New<TLeaderValidatorWrapper>(bootstrap, service);
+        }),
+        requireLeader);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
