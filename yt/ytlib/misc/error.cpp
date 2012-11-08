@@ -394,7 +394,11 @@ TError operator >>= (const TErrorAttribute& attribute, TError error)
 TErrorException::TErrorException()
 { }
 
-TErrorException::TErrorException(const TErrorException& other)
+TErrorException::TErrorException(TErrorException&& other)
+    : Error_(other.Error_)
+{ }
+
+TErrorException::TErrorException(const TErrorException& other)  
     : Error_(other.Error_)
 { }
 
@@ -407,12 +411,6 @@ const char* TErrorException::what() const throw()
         CachedWhat = ToString(Error_);
     }
     return ~CachedWhat;
-}
-
-TErrorException operator <<= (TErrorException ex, const TError& error)
-{
-    ex.Error() = error;
-    return ex;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

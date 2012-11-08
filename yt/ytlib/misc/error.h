@@ -120,6 +120,7 @@ class TErrorException
 
 public:
     TErrorException();
+    TErrorException(TErrorException&& other);
     TErrorException(const TErrorException& other);
 
     ~TErrorException() throw();
@@ -131,7 +132,13 @@ private:
 
 };
 
-TErrorException operator <<= (TErrorException ex, const TError& error);
+// Make it template to avoid type erasure during throw.
+template <class TException>
+TException&& operator <<= (TException&& ex, const TError& error)
+{
+    ex.Error() = error;
+    return MoveRV(ex);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
