@@ -6,6 +6,7 @@ export YT_PREFIX="//statbox/"
 
 prepare_table_files() {
     set +x
+
     echo -e "4\t5\t6\n1\t2\t3" > table_file
     TABLE_SIZE=2
 
@@ -17,6 +18,7 @@ prepare_table_files() {
         echo -e "$i\tX\tX" >> big_file
     done
     BIG_TABLE_SIZE=100
+
     set -x
 }
 
@@ -167,7 +169,7 @@ if __name__ == '__main__':
         sys.stdout.write('{0}\\\t{1}\\\t{2}\\\n'.format(i, i * i, i * i * i))
     " >my_mapper.py
     chmod +x my_mapper.py
-    
+
     ./mapreduce -drop ignat/mapper.py
     initial_number_of_files="`./mapreduce -listfiles | wc -l`"
 
@@ -181,7 +183,7 @@ if __name__ == '__main__':
     ./mapreduce -subkey -map "./mapper.py" -ytfile "ignat/mapper.py" -src "ignat/temp" -dst "ignat/mapped"
     check 5 "`./mapreduce -subkey -read "ignat/mapped" | wc -l`"
 
-    rm -f mapper.py
+    rm -f my_mapper.py my_mapper_copy.py
 }
 
 test_ignore_positional_arguments()
@@ -216,7 +218,52 @@ test_create_table()
     check '"my_value"' "`./mapreduce -get "ignat/empty_table/@xxx"`"
 }
 
+test_sortby_reduceby()
+{
+    # It calculates sum of c2 grouped by c2
+    echo -e "#!/usr/bin/env python
+import sys
+from itertools import groupby, starmap
+
+def parse(line):
+    d = dict(x.split('=') for x in line.split())
+    return (d['c3'], d['c2'])
+
+def aggregate(key, recs):
+    recs = list(recs)
+    for i in xrange(len(recs) - 1):
+        assert recs[i][1] <= recs[i + 1][1]
+    return key, sum(map(lambda x: int(x[1]), recs))
+
+if __name__ == '__main__':
+    recs = map(parse, sys.stdin.readlines())
+    for key, num in starmap(aggregate, groupby(recs, lambda rec: rec[0])):
+        print 'c3=%s	c2=%d' % (key, num)
+    " >my_reducer.py
+    chmod +x my_reducer.py
+    
+    echo -e "#!/usr/bin/env python
+import sys
+
+if __name__ == '__main__':
+    for line in sys.stdin:
+        print '\t'.join(k + '=' + v for k, v in sorted(x.split('=') for x in line.split()))
+    " >order.py
+    chmod +x order.py
+
+    echo -e "c1=1\tc2=2\tc3=z\n"\
+            "c1=1\tc2=3\tc3=x\n"\
+            "c1=2\tc2=2\tc3=x" | ./mapreduce -dsv -write "ignat/test_table"
+    ./mapreduce -sort -src "ignat/test_table" -dst "ignat/sorted_table" -sortby "c3" -sortby "c2"
+    ./mapreduce -reduce "./my_reducer.py" -src "ignat/sorted_table{c3,c2}" -dst "ignat/reduced_table" -reduceby "c3" -file "my_reducer.py" -dsv
+
+    check "`echo -e "c3=x\tc2=5\nc3=z\tc2=2\n" | ./order.py`" "`./mapreduce -read "ignat/reduced_table" -dsv | ./order.py`"
+
+    rm -f my_reducer.py order.py
+}
+
 prepare_table_files
+test_sortby_reduceby
 test_base_functionality
 test_codec
 test_many_output_tables
