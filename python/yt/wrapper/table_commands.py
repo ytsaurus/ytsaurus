@@ -201,7 +201,7 @@ def erase_table(table, strategy=None):
 
 def records_count(table):
     require(exists(table), YtError("Table %s doesn't exist" % table))
-    return get_attribute(table, "row_count")
+    return get_attribute(to_name(table), "row_count")
 
 def get_size(table):
     return get_attribute(to_name(table), "uncompressed_data_size")
@@ -210,14 +210,14 @@ def is_empty(table):
     return records_count(table) == 0
 
 def get_sorted_by(table):
-    return get_attribute(table, "sorted_by", default=[])
+    return get_attribute(to_name(table), "sorted_by", default=[])
 
 def is_sorted(table):
     require(exists(table), YtError("Table %s doesn't exist" % table))
     if config.MAPREDUCE_MODE:
         return get_sorted_by(table) == ["key", "subkey"]
     else:
-        return parse_bool(get_attribute(table, "sorted", default="false"))
+        return parse_bool(get_attribute(to_name(table), "sorted", default="false"))
 
 
 def merge_tables(source_table, destination_table, mode, strategy=None, table_writer=None, spec=None):
@@ -440,9 +440,6 @@ def run_operation(binary, source_table, destination_table,
             return
         else:
             reduce_by = _prepare_reduce_by(reduce_by)
-            for table in source_table:
-                if not is_sorted(table.name):
-                    sort_table(table, sort_by=reduce_by)
 
     destination_table = _prepare_destination_tables(destination_table)
 
