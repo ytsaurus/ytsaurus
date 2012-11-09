@@ -1072,18 +1072,20 @@ private:
             statistics = TChunkTreeStatistics();
             FOREACH (auto childRef, chunkList->Children()) {
                 switch (childRef.GetType()) {
-                case EObjectType::Chunk:
-                    statistics.Accumulate(childRef.AsChunk()->GetStatistics());
-                    break;
+                    case EObjectType::Chunk:
+                        statistics.Accumulate(childRef.AsChunk()->GetStatistics());
+                        break;
 
-                case EObjectType::ChunkList:
-                    statistics.Accumulate(ComputeStatisticsFor(childRef.AsChunkList()));
-                    break;
+                    case EObjectType::ChunkList:
+                        statistics.Accumulate(ComputeStatisticsFor(childRef.AsChunkList()));
+                        break;
 
-                default:
-                    YUNREACHABLE();
+                    default:
+                        YUNREACHABLE();
                 }
             }
+            ++statistics.Rank;
+            ++statistics.ChunkListCount;
         }
         return statistics;
     }

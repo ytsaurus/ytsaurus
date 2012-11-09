@@ -19,6 +19,7 @@ TChunkTreeStatistics::TChunkTreeStatistics()
     , DataWeight(0)
     , DiskSpace(0)
     , ChunkCount(0)
+    , ChunkListCount(0)
     , Rank(0)
 { }
 
@@ -30,6 +31,7 @@ void TChunkTreeStatistics::Accumulate(const TChunkTreeStatistics& other)
     DataWeight += other.DataWeight;
     DiskSpace += other.DiskSpace;
     ChunkCount += other.ChunkCount;
+    ChunkListCount += other.ChunkListCount;
     Rank = std::max(Rank, other.Rank);
 }
 
@@ -45,6 +47,7 @@ void Serialize(const TChunkTreeStatistics& statistics, NYTree::IYsonConsumer* co
             .Item("data_weight").Scalar(statistics.DataWeight)
             .Item("disk_space").Scalar(statistics.DiskSpace)
             .Item("chunk_count").Scalar(statistics.ChunkCount)
+            .Item("chunk_list_count").Scalar(statistics.ChunkListCount)
             .Item("rank").Scalar(statistics.Rank)
         .EndMap();
 }
@@ -58,6 +61,7 @@ void Save(const TChunkTreeStatistics& statistics, const NCellMaster::TSaveContex
     ::Save(output, statistics.DataWeight);
     ::Save(output, statistics.DiskSpace);
     ::Save(output, statistics.ChunkCount);
+    ::Save(output, statistics.ChunkListCount);
     ::Save(output, statistics.Rank);
 }
 
@@ -73,6 +77,10 @@ void Load(TChunkTreeStatistics& statistics, const NCellMaster::TLoadContext& con
         ::Load(input, statistics.DiskSpace);
     }
     ::Load(input, statistics.ChunkCount);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 3) {
+        ::Load(input, statistics.ChunkListCount);
+    }
     ::Load(input, statistics.Rank);
 }
 

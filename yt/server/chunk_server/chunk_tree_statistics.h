@@ -31,6 +31,9 @@ struct TChunkTreeStatistics
     //! Total number of chunks in the tree.
     i32 ChunkCount;
 
+    //! Total number of chunk lists in the tree.
+    i32 ChunkListCount;
+
     //! Distance to leaves (chunks) in edges. Leaves have rank zero.
     i32 Rank;
 

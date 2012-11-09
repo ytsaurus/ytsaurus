@@ -25,7 +25,9 @@ TChunkList::TChunkList(const TChunkListId& id)
     , Rigid_(false)
     , Version_(0)
     , VisitMark_(0)
-{ }
+{
+    Statistics_.ChunkListCount = 1;
+}
 
 void TChunkList::IncrementVersion()
 {

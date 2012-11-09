@@ -25,7 +25,8 @@ NMetaState::TVersionValidator SnapshotVersionValidator()
 {
     static auto result = BIND([] (int version) {
         YCHECK(version == 1 ||
-               version == 2);
+               version == 2 ||
+               version == 3);
     });
     return result;
 }
