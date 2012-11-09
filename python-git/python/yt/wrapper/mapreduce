@@ -150,8 +150,8 @@ Examples:
     add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "pingtx", "smartformat", "force", "executable"])
     add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec",
                                             "inputformat", "outputformat", "tx", "value",
-                                            "replicationfactor", "sortby", "memlimit"])
-    add_multiple_args(parser, ["src", "dst", "dstappend", "file", "mapfile", "reducefile", "ytfile", "opt", "ytspec"])
+                                            "replicationfactor", "memlimit"])
+    add_multiple_args(parser, ["src", "dst", "dstappend", "file", "mapfile", "reducefile", "ytfile", "opt", "ytspec", "sortby", "reduceby"])
     add_integer_args(parser, ["jobcount", "threadcount", "chunksize", "jcmultiplier"])
 
     add_help_messages(parser,
@@ -248,6 +248,9 @@ Examples:
             ("sortby",
              "NEW! columns to sortby, this option can be passed multiple times. "
              "The order is important, by default=key,subkey."),
+            ("reduceby",
+             "NEW! columns to reduceby, this option can be passed multiple times. "
+             "The order is important, by default=key."),
             ("src",
              "source table, this option can be passed multiple times"),
             ("starttx",
@@ -391,6 +394,7 @@ Examples:
                           map_files=map_files, reduce_files=reduce_files,
                           map_file_paths=args.ytfile, reduce_file_paths=args.ytfile,
                           input_format=inputformat, output_format=outputformat,
+                          sort_by=args.sortby, reduce_by=args.reduceby,
                           table_writer=table_writer, spec=spec)
     elif args.map is not None:
         yt.run_map(args.map, args.src, dst, files=map_files, file_paths=args.ytfile,
@@ -400,6 +404,7 @@ Examples:
         op = args.reduce if args.reduce is not None else args.reducews
         yt.run_reduce(op, args.src, dst, files=reduce_files, file_paths=args.ytfile,
                       input_format=inputformat, output_format=outputformat,
+                      reduce_by=args.reduceby,
                       table_writer=table_writer, spec=spec)
     if args.drop is not None:
         if yt.exists(args.drop):
