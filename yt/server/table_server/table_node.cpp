@@ -112,7 +112,7 @@ public:
         if (!attributes->Contains("channels")) {
             attributes->SetYson("channels", TYsonString("[]"));
         }
-        // - replciation_factor
+        // - replication_factor
         int replicationFactor = attributes->Get<int>("replication_factor", 3);
         attributes->Remove("replication_factor");
 
