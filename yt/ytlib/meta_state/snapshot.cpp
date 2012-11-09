@@ -162,7 +162,10 @@ void TSnapshotWriter::Open(i32 prevRecordCount, const TEpochId& epoch)
         CompressedOutput.Reset(new TCompressedOutput(output));
         output = ~CompressedOutput;
     }
+    
     BufferedOutput.Reset(new TBufferedOutput(output, 64 * 1024));
+    BufferedOutput->SetFinishPropagateMode(true);
+
     ChecksummableOutput.Reset(new TChecksummableOutput(~BufferedOutput));
 
     State = EState::Opened;
