@@ -1,6 +1,8 @@
 import config
 from common import require, YtError
-from format import DsvFormat, YamrFormat
+from format import DsvFormat, YamrFormat, YsonFormat
+
+import yt.yson as yson
 
 """ Old style mapreduce records.
     Copy-pasted from mapreducelib.py with some additions"""
@@ -58,14 +60,24 @@ def record_to_line(rec, eoln=True, format=None):
         else:
             fields = [rec.key, rec.value]
         body = "\t".join(fields)
-    else:
+    elif isinstance(format, DsvFormat):
         body = "\t".join("=".join(map(str, item)) for item in rec.iteritems())
-    return "%s%s" % (body, "\n" if eoln else "")
+    elif isinstance(format, YsonFormat):
+        body = yson.dumps(rec) + ";"
+    else:
+        raise YtError("Can not convert record to line with format " + repr(format))
+    if eoln:
+        body = body + "\n"
+    return body
 
 def line_to_record(line, format=None):
     if format is None: format = config.DEFAULT_FORMAT
     
     if isinstance(format, YamrFormat):
         return Record(*line.strip("\n").split("\t", 1 + (1 if format.has_subkey else 0)))
-    else:
+    elif isinstance(format, DsvFormat):
         return dict(field.split("=", 1) for field in line.strip("\n").split("\t") if field)
+    elif isinstance(format, YsonFormat):
+        return yson.parse_string(line.rstrip(";\n"))
+    else:
+        raise YtError("Can not convert line to record with format " + repr(format))
