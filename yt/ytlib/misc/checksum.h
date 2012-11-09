@@ -15,11 +15,11 @@ TChecksum GetChecksum(TRef data);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChecksummableInput
+class TChecksumInput
     : public TInputStream
 {
 public:
-    explicit TChecksummableInput(TInputStream* input);
+    explicit TChecksumInput(TInputStream* input);
     TChecksum GetChecksum() const;
 
 protected:
@@ -32,11 +32,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChecksummableOutput
+class TChecksumOutput
     : public TOutputStream
 {
 public:
-    explicit TChecksummableOutput(TOutputStream* output);
+    explicit TChecksumOutput(TOutputStream* output);
     TChecksum GetChecksum() const;
 
 protected:

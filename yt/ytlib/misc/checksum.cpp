@@ -25,17 +25,17 @@ TChecksum GetChecksum(TRef data)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChecksummableInput::TChecksummableInput(TInputStream* input)
+TChecksumInput::TChecksumInput(TInputStream* input)
     : Input(input)
     , Checksum(0)
 { }
 
-TChecksum TChecksummableInput::GetChecksum() const
+TChecksum TChecksumInput::GetChecksum() const
 {
     return Checksum;
 }
 
-size_t TChecksummableInput::DoRead(void* buf, size_t len)
+size_t TChecksumInput::DoRead(void* buf, size_t len)
 {
     size_t res = Input->Read(buf, len);
     Checksum = GetChecksumImpl(buf, res, Checksum);
@@ -44,28 +44,28 @@ size_t TChecksummableInput::DoRead(void* buf, size_t len)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChecksummableOutput::TChecksummableOutput(TOutputStream* output)
+TChecksumOutput::TChecksumOutput(TOutputStream* output)
     : Output(output)
     , Checksum(0)
 { }
 
-TChecksum TChecksummableOutput::GetChecksum() const
+TChecksum TChecksumOutput::GetChecksum() const
 {
     return Checksum;
 }
 
-void TChecksummableOutput::DoWrite(const void* buf, size_t len)
+void TChecksumOutput::DoWrite(const void* buf, size_t len)
 {
     Output->Write(buf, len);
     Checksum = GetChecksumImpl(buf, len, Checksum);
 }
 
-void TChecksummableOutput::DoFlush()
+void TChecksumOutput::DoFlush()
 {
     Output->Flush();
 }
 
-void TChecksummableOutput::DoFinish()
+void TChecksumOutput::DoFinish()
 {
     Output->Finish();
 }

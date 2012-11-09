@@ -46,7 +46,7 @@ private:
     NChunkClient::NProto::TBlocksExt BlocksExt;
     NChunkClient::NProto::TChunkMeta ChunkMeta;
 
-    TChecksummableOutput ChecksumOutput;
+    TChecksumOutput ChecksumOutput;
 
     TAsyncError Result;
 

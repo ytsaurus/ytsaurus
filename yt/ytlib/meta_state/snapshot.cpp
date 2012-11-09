@@ -95,7 +95,7 @@ void TSnapshotReader::Open()
         DecompressedInput.Reset(new TDecompressedInput(inputStream));
         inputStream = ~DecompressedInput;
     }
-    ChecksummableInput.Reset(new TChecksummableInput(inputStream));
+    ChecksummableInput.Reset(new TChecksumInput(inputStream));
 }
 
 TInputStream* TSnapshotReader::GetStream() const
@@ -166,7 +166,7 @@ void TSnapshotWriter::Open(i32 prevRecordCount, const TEpochId& epoch)
     BufferedOutput.Reset(new TBufferedOutput(output, 64 * 1024));
     BufferedOutput->SetFinishPropagateMode(true);
 
-    ChecksummableOutput.Reset(new TChecksummableOutput(~BufferedOutput));
+    ChecksummableOutput.Reset(new TChecksumOutput(~BufferedOutput));
 
     State = EState::Opened;
 }
