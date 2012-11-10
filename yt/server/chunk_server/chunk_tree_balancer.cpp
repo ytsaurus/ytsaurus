@@ -39,8 +39,8 @@ bool TChunkTreeBalancer::CheckRebalanceNeeded(
         }
 
         if (currentChunkList->Children().size() > Config->MaxChunkListSize ||
-            currentChunkList->Statistics().Rank > Config->MaxChunkTreeRank ||
-            currentChunkList->Statistics().ChunkListCount < currentChunkList->Statistics().ChunkCount * Config->MinChunkListToChunkRatio)
+            currentChunkList->Statistics().Rank > Config->MaxChunkTreeRank/* ||
+            currentChunkList->Statistics().ChunkListCount < currentChunkList->Statistics().ChunkCount * Config->MinChunkListToChunkRatio*/)
         {
             rebalanceNeeded = true;
         }
