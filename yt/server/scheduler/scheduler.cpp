@@ -2,7 +2,6 @@
 #include "scheduler.h"
 #include "scheduler_strategy.h"
 #include "null_strategy.h"
-#include "fifo_strategy.h"
 #include "fair_share_strategy.h"
 #include "operation_controller.h"
 #include "map_controller.h"
@@ -81,12 +80,6 @@ public:
         , RunningJobs_(runningJobs)
         , Response(response)
     { }
-
-
-    virtual bool HasSpareResources() const override
-    {
-        return NScheduler::HasSpareResources(Node_->ResourceUtilization(), Node_->ResourceLimits());
-    }
 
 
     virtual TJobPtr BeginStartJob(TOperationPtr operation) override
@@ -886,9 +879,6 @@ private:
         switch (Config->Strategy) {
             case ESchedulerStrategy::Null:
                 Strategy = CreateNullStrategy(this);
-                break;
-            case ESchedulerStrategy::Fifo:
-                Strategy =  CreateFifoStrategy(this);
                 break;
             case ESchedulerStrategy::FairShare:
                 Strategy = CreateFairShareStrategy(Config, this);

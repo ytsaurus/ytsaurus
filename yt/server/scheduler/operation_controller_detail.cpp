@@ -123,13 +123,9 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(ISchedulingContext* context
 
     // Compute the actual utilization for this JIP and check it
     // against the the limits. This is the last chance to give up.
-    auto jipUtilization = GetNeededResources(jip);
+    auto neededResources = GetNeededResources(jip);
     auto node = context->GetNode();
-    if (!NScheduler::HasEnoughResources(
-        node->ResourceUtilization(),
-        jipUtilization,
-        node->ResourceLimits()))
-    {
+    if (!node->HasEnoughResources(neededResources)) {
         ChunkPool->OnFailed(jip->PoolResult);
         return NULL;
     }
@@ -144,7 +140,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(ISchedulingContext* context
     jip->Job = job;
     auto* jobSpec = jip->Job->GetSpec();
     BuildJobSpec(jip, jobSpec);
-    *jobSpec->mutable_resource_utilization() = jipUtilization;
+    *jobSpec->mutable_resource_utilization() = neededResources;
     context->EndStartJob(job);
 
     Controller->RegisterJobInProgress(jip);
@@ -652,18 +648,14 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePt
 
 bool TOperationControllerBase::HasEnoughResources(TExecNodePtr node)
 {
-    return NScheduler::HasEnoughResources(
-        node->ResourceUtilization(),
-        GetMinNeededResources(),
-        node->ResourceLimits());
+    return Dominates(
+        node->ResourceLimits() + node->ResourceUtilizationDiscount(),
+        node->ResourceUtilization() + GetMinNeededResources());
 }
 
 bool TOperationControllerBase::HasEnoughResources(TTaskPtr task, TExecNodePtr node)
 {
-    return NScheduler::HasEnoughResources(
-        node->ResourceUtilization(),
-        task->GetMinNeededResources(),
-        node->ResourceLimits());
+    return node->HasEnoughResources(task->GetMinNeededResources());
 }
 
 TJobPtr TOperationControllerBase::DoScheduleJob(

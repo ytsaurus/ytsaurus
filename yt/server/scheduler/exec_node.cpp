@@ -5,7 +5,6 @@
 #include "operation_controller.h"
 #include "job_resources.h"
 
-
 namespace NYT {
 namespace NScheduler {
 
@@ -16,6 +15,18 @@ TExecNode::TExecNode(const Stroka& address)
     , ResourceLimits_(ZeroNodeResources())
     , ResourceUtilization_(ZeroNodeResources())
 { }
+
+bool TExecNode::HasEnoughResources(const NProto::TNodeResources& neededResources) const
+{
+    return Dominates(
+        ResourceLimits_ + ResourceUtilizationDiscount_,
+        ResourceUtilization_ + neededResources);
+}
+
+bool TExecNode::HasSpareResources() const
+{
+    return HasEnoughResources(LowWatermarkNodeResources());
+}
 
 ////////////////////////////////////////////////////////////////////
 

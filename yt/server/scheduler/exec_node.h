@@ -32,6 +32,12 @@ class TExecNode
      */
     DEFINE_BYREF_RW_PROPERTY(NProto::TNodeResources, ResourceUtilization);
 
+    //! Used during preemption to allow second-chance scheduling.
+    DEFINE_BYREF_RW_PROPERTY(NProto::TNodeResources, ResourceUtilizationDiscount);
+
+    bool HasEnoughResources(const NProto::TNodeResources& neededResources) const;
+    bool HasSpareResources() const;
+
 public:
     explicit TExecNode(const Stroka& address);
 

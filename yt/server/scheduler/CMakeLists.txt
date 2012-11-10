@@ -6,7 +6,6 @@ set( SRCS
   ${BASE}/chunk_splits_fetcher.cpp
   ${BASE}/exec_node.cpp
   ${BASE}/fair_share_strategy.cpp
-  ${BASE}/fifo_strategy.cpp
   ${BASE}/helpers.cpp
   ${BASE}/job.cpp
   ${BASE}/job_resources.cpp
@@ -31,7 +30,6 @@ set( HDRS
   ${BASE}/config.h
   ${BASE}/exec_node.h
   ${BASE}/fair_share_strategy.h
-  ${BASE}/fifo_strategy.h
   ${BASE}/helpers.h
   ${BASE}/job.h
   ${BASE}/job_resources.h

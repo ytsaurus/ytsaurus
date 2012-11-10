@@ -17,6 +17,7 @@ namespace NScheduler {
 
 using namespace NYTree;
 using namespace NObjectClient;
+using NScheduler::NProto::TNodeResources;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -90,17 +91,19 @@ struct ISchedulableElement
     virtual double GetWeight() const = 0;
     virtual double GetMinShareRatio() const = 0;
     
-    virtual NProto::TNodeResources GetDemand() const = 0;
-    virtual NProto::TNodeResources GetUtilization() const = 0;
-    virtual NProto::TNodeResources GetEffectiveLimits() const = 0;
+    virtual TNodeResources GetDemand() const = 0;
+    virtual TNodeResources GetUtilization() const = 0;
+    virtual TNodeResources GetEffectiveLimits() const = 0;
 
     // Extension methods.
-    double GetUtilizationRatio() const
+    double GetUtilizationRatio(const TNodeResources& utilizationDiscount = ZeroNodeResources()) const
     {
         const auto& attributes = Attributes();
-        i64 utilization = GetResource(GetUtilization(), attributes.DominantResource);
-        i64 limits = GetResource(GetEffectiveLimits(), attributes.DominantResource);
-        return limits == 0 ? 1.0 : (double) utilization / limits;
+        auto utilization = GetUtilization() - utilizationDiscount;
+        auto limits = GetEffectiveLimits();
+        i64 utilizationComponent = GetResource(utilization, attributes.DominantResource);
+        i64 limitsComponent = GetResource(limits, attributes.DominantResource);
+        return limitsComponent == 0 ? 1.0 : (double) utilizationComponent / limitsComponent;
     }
 };
 
@@ -138,13 +141,16 @@ public:
             return false;
         }
 
+        auto node = context->GetNode();
+        auto controller = Operation_->GetController();
+
         bool result =  false;
         while (Operation_->GetState() == EOperationState::Running) {
-            if (!context->HasSpareResources()) {
+            if (!node->HasSpareResources()) {
                 break;
             }
 
-            auto job = Operation_->GetController()->ScheduleJob(context, Starving_);
+            auto job = controller->ScheduleJob(context, Starving_);
             if (!job) {
                 // The first failure means that no more jobs can be scheduled.
                 break;
@@ -185,13 +191,13 @@ public:
         return Spec_->MinShareRatio;
     }
 
-    virtual NProto::TNodeResources GetDemand() const override
+    virtual TNodeResources GetDemand() const override
     {
         auto controller = Operation_->GetController();
         return controller->GetUsedResources() + controller->GetNeededResources();
     }
 
-    virtual NProto::TNodeResources GetUtilization() const override
+    virtual TNodeResources GetUtilization() const override
     {
         auto controller = Operation_->GetController();
         return controller->GetUsedResources();
@@ -201,7 +207,7 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(TSchedulableAttributes, Attributes);
     DEFINE_BYVAL_RO_PROPERTY(TOperationPtr, Operation);
-    DEFINE_BYVAL_RO_PROPERTY(NProto::TNodeResources, EffectiveLimits);
+    DEFINE_BYVAL_RO_PROPERTY(TNodeResources, EffectiveLimits);
     DEFINE_BYVAL_RW_PROPERTY(TPooledOperationSpecPtr, Spec);
     DEFINE_BYVAL_RW_PROPERTY(TPool*, Pool);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, BelowMinShareSince);
@@ -298,9 +304,10 @@ public:
         bool starvingOnly) override
     {
         bool result = false;
+        auto node = context->GetNode();
         auto sortedChildren = GetSortedChildren();
         FOREACH (auto child, sortedChildren) {
-            if (!context->HasSpareResources()) {
+            if (!node->HasSpareResources()) {
                 break;
             }
             if (child->ScheduleJobs(context, starvingOnly)) {
@@ -347,7 +354,7 @@ protected:
     yhash_set<ISchedulableElementPtr> Children;
     
     double LimitsRatio;
-    NProto::TNodeResources Limits;
+    TNodeResources Limits;
 
 
     void ComputeFairShares()
@@ -636,7 +643,7 @@ public:
         return Config->MinShareRatio;
     }
 
-    virtual NProto::TNodeResources GetDemand() const override
+    virtual TNodeResources GetDemand() const override
     {
         auto result = ZeroNodeResources();
         FOREACH (auto child, Children) {
@@ -645,7 +652,7 @@ public:
         return result;
     }
 
-    virtual NProto::TNodeResources GetUtilization() const override
+    virtual TNodeResources GetUtilization() const override
     {
         auto result = ZeroNodeResources();
         FOREACH (auto child, Children) {
@@ -654,7 +661,7 @@ public:
         return result;
     }
 
-    virtual NProto::TNodeResources GetEffectiveLimits() const override
+    virtual TNodeResources GetEffectiveLimits() const override
     {
         auto result = ZeroNodeResources();
         FOREACH (auto child, Children) {
@@ -673,29 +680,22 @@ private:
 
 EOperationStatus TOperationElement::GetStatus() const
 {
-    const ISchedulableElement* schedulable =
-        Pool_->GetConfig()->Mode == ESchedulingMode::Fifo
-        ? Pool_
-        : (const ISchedulableElement*) this;
+    double utilizationRatio = GetUtilizationRatio();
 
-    const auto& attributes = schedulable->Attributes();
-    double utilizationRatio = schedulable->GetUtilizationRatio();
-
-    if (utilizationRatio > attributes.FairShareRatio) {
+    if (utilizationRatio > Attributes_.FairShareRatio + RatioPrecision) {
         return EOperationStatus::AboveFairShare;
     }
 
-    if (utilizationRatio < attributes.AdjustedMinShareRatio * Spec_->MinShareTolerance) {
+    if (utilizationRatio < Attributes_.AdjustedMinShareRatio * Spec_->MinShareTolerance) {
         return EOperationStatus::BelowMinShare;
     }
 
-    if (utilizationRatio < attributes.FairShareRatio * Spec_->FairShareTolerance) {
+    if (utilizationRatio < Attributes_.FairShareRatio * Spec_->FairShareTolerance) {
         return EOperationStatus::BelowFairShare;
     }
 
     return EOperationStatus::Normal;
 }
-
 
 ////////////////////////////////////////////////////////////////////
 
@@ -753,39 +753,52 @@ public:
             LastUpdateTime = now;
         }
 
-        // Try to schedule some jobs.
+        // First-chance scheduling.
         RootElement->ScheduleJobs(context, false);
 
-        // Temporary boost node resource limits by
-        // ignoring jobs belonging to operations that exceed their fair shares.
+        // Compute discount to node utilization.
+        yhash_map<TOperationElementPtr, TNodeResources> elementToDiscount;
         auto node = context->GetNode();
         auto actualResourceLimits = node->ResourceLimits();
-        std::vector<TJobPtr> preemptionCandidates;
+        std::vector<TJobPtr> preemptableJobs;
         FOREACH (auto job, context->RunningJobs()) {
             auto operation = job->GetOperation();
+            if (operation->GetState() != EOperationState::Running) {
+                continue;
+            }
+
             auto element = GetOperationElement(operation);
-            if (element->GetStatus() == EOperationStatus::AboveFairShare) {
-                preemptionCandidates.push_back(job);
-                node->ResourceLimits() += job->ResourceUtilization();
+
+            auto discountIt = elementToDiscount.find(element);
+            if (discountIt == elementToDiscount.end()) {
+                discountIt = elementToDiscount.insert(std::make_pair(element, ZeroNodeResources())).first;
+            }
+
+            auto& discount = discountIt->second;
+            discount += job->ResourceUtilization();
+
+            if (element->GetUtilizationRatio(discount) > element->Attributes().FairShareRatio + RatioPrecision) {
+                preemptableJobs.push_back(job);
+                node->ResourceUtilizationDiscount() += job->ResourceUtilization();
             }
         }
 
-        // Try to schedule a job for starving operations.
+        // Second-chance scheduling.
         bool needsPreemption = RootElement->ScheduleJobs(context, true);
 
-        // Restore original limits.
-        node->ResourceLimits() = actualResourceLimits;
+        // Reset discount.
+        node->ResourceUtilizationDiscount() = ZeroNodeResources();
 
         // Preempt jobs if needed.
         if (needsPreemption) {
             std::sort(
-                preemptionCandidates.begin(),
-                preemptionCandidates.end(),
+                preemptableJobs.begin(),
+                preemptableJobs.end(),
                 [] (const TJobPtr& lhs, const TJobPtr& rhs) {
                     return lhs->GetStartTime() > rhs->GetStartTime();
                 });
 
-            FOREACH (auto job, preemptionCandidates) {
+            FOREACH (auto job, preemptableJobs) {
                 if (Dominates(node->ResourceLimits(), node->ResourceUtilization())) {
                     break;
                 }
@@ -1070,28 +1083,6 @@ private:
             LOG_INFO("Operation is no longer starving (OperationId: %s)",
                 ~ToString(element->GetOperation()->GetOperationId()));
         }
-    }
-
-    bool CanPreemptJob(TJobPtr job)
-    {
-        if (job->GetState() != EJobState::Running)
-            return false;
-
-        auto operation = job->GetOperation();
-        if (operation->GetState() != EOperationState::Running)
-            return false;
-
-        auto operationElement = GetOperationElement(operation);
-
-        auto schedulable =
-            operationElement->GetPool()->GetConfig()->Mode == ESchedulingMode::Fifo
-            ? ISchedulableElementPtr(operationElement->GetPool())
-            : ISchedulableElementPtr(operationElement);
-
-        const auto& attributes = schedulable->Attributes();
-        i64 utilization = GetResource(schedulable->GetUtilization(), attributes.DominantResource);
-        i64 limits = GetResource(schedulable->GetEffectiveLimits(), attributes.DominantResource);
-        return limits > 0 && (double) utilization / limits > attributes.FairShareRatio;
     }
 
 

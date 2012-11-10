@@ -92,8 +92,6 @@ struct ISchedulingContext
 
     virtual const std::vector<TJobPtr>& RunningJobs() const = 0;
 
-    virtual bool HasSpareResources() const = 0;
-
     virtual TJobPtr BeginStartJob(TOperationPtr operation) = 0;
     virtual void EndStartJob(TJobPtr job) = 0;
 

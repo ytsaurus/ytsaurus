@@ -9,7 +9,6 @@ namespace NScheduler {
 
 DECLARE_ENUM(ESchedulerStrategy,
     (Null)
-    (Fifo)
     (FairShare)
 );
 

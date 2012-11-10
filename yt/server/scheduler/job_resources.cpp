@@ -271,28 +271,6 @@ void SetResource(NProto::TNodeResources& resources, EResourceType type, i64 valu
     }
 }
 
-bool HasEnoughResources(
-    const TNodeResources& currentUtilization,
-    const TNodeResources& requestedUtilization,
-    const TNodeResources& limits)
-{
-    return
-        currentUtilization.slots() + requestedUtilization.slots() <= limits.slots() &&
-        currentUtilization.cpu() + requestedUtilization.cpu() <= limits.cpu() &&
-        currentUtilization.memory() + requestedUtilization.memory() <= limits.memory() &&
-        currentUtilization.network() + requestedUtilization.network() <= limits.network();
-}
-
-bool HasSpareResources(
-    const TNodeResources& utilization,
-    const TNodeResources& limits)
-{
-    return
-        utilization.slots() < limits.slots() &&
-        utilization.cpu() < limits.cpu() &&
-        utilization.memory() + LowWatermarkMemorySize < limits.memory();
-}
-
 TNodeResources GetZeroNodeResources()
 {
     TNodeResources result;
@@ -322,6 +300,22 @@ TNodeResources GetInfiniteResources()
 const TNodeResources& InfiniteNodeResources()
 {
     static auto result = GetInfiniteResources();
+    return result;
+}
+
+TNodeResources GetLowWatermarkNodeResources()
+{
+    TNodeResources result;
+    result.set_slots(1);
+    result.set_cpu(1);
+    result.set_memory(LowWatermarkMemorySize);
+    result.set_network(0);
+    return result;
+}
+
+const TNodeResources& LowWatermarkNodeResources()
+{
+    static auto result = GetLowWatermarkNodeResources();
     return result;
 }
 

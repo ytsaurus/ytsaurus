@@ -64,17 +64,9 @@ void SetResource(
     EResourceType type,
     i64 value);
 
-bool HasEnoughResources(
-    const NProto::TNodeResources& currentUtilization,
-    const NProto::TNodeResources& requestedUtilization,
-    const NProto::TNodeResources& limits);
-
-bool HasSpareResources(
-    const NProto::TNodeResources& utilization,
-    const NProto::TNodeResources& limits);
-
 const NProto::TNodeResources& ZeroNodeResources();
 const NProto::TNodeResources& InfiniteNodeResources();
+const NProto::TNodeResources& LowWatermarkNodeResources();
 
 i64 GetFootprintMemorySize();
 

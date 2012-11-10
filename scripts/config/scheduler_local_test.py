@@ -76,10 +76,10 @@ class Scheduler(UnixNode, Server):
 
     config = Template({
         'masters' : {
-                'addresses' : MasterAddresses
+			'addresses' : MasterAddresses
         },
         'scheduler' : {
-            'strategy' : 'Fifo'
+            'strategy' : 'fair_share'
         },
         'rpc_port' : 8666,
         'logging' : Logging
