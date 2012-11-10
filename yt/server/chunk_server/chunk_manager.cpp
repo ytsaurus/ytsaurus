@@ -1040,7 +1040,7 @@ private:
         }
 
         // COMPAT(babenko)
-        if (context.GetVersion() < 2) {
+        if (context.GetVersion() < 3) {
             ScheduleRecomputeStatistics();
         }
     }
