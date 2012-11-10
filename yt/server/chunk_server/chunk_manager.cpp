@@ -927,32 +927,30 @@ private:
 
     void ScheduleChunkTreeRebalanceIfNeeded(TChunkList* chunkList)
     {
+        if (!IsLeader())
+            return;
+
         TMetaReqRebalanceChunkTree request;
-        if (IsLeader() &&
-            ChunkTreeBalancer.CheckRebalanceNeeded(chunkList, &request))
-        {
-            // Don't retry in case of failure.
-            // Balancing will happen eventually.
-            CreateRebalanceChunkTreeMutation(request)->PostCommit();
-        }
+        if (!ChunkTreeBalancer.CheckRebalanceNeeded(chunkList, &request))
+            return;
+
+        // Don't retry in case of failure.
+        // Balancing will happen eventually.
+        CreateRebalanceChunkTreeMutation(request)
+            ->PostCommit();
+
+        LOG_DEBUG("Chunk tree rebalancing scheduled (RootId: %s)",
+            ~chunkList->GetId().ToString());
     }
 
     void RebalanceChunkTree(const TMetaReqRebalanceChunkTree& request)
     {
         PROFILE_TIMING ("/chunk_tree_rebalance_time") {
-            auto rootId = TChunkListId::FromProto(request.root_id());
-            auto* root = FindChunkList(rootId);
-            if (!root) {
-                return;
-            }
-
-            LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree rebalancing started (RootId: %s)",
-                ~rootId.ToString());
-
-            if (ChunkTreeBalancer.RebalanceChunkTree(root, request)) {
-                LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree rebalancing completed");
-            } else {
-                LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree rebalancing canceled");
+            auto* root = ChunkTreeBalancer.RebalanceChunkTree(request);
+            if (root) {
+                FOREACH (auto* parent, root->Parents()) {
+                    RecomputeStatistics(parent);
+                }
             }
         }
     }
@@ -1086,7 +1084,9 @@ private:
                         YUNREACHABLE();
                 }
             }
-            ++statistics.Rank;
+            if (!chunkList->Children().empty()) {
+                ++statistics.Rank;
+            }
             ++statistics.ChunkListCount;
         }
         return statistics;
@@ -1111,6 +1111,23 @@ private:
         }
 
         LOG_INFO("Finished recomputing statistics");
+    }
+
+    void RecomputeStatistics(TChunkList* chunkList)
+    {
+        VisitAncestors(
+            chunkList,
+            [] (TChunkList* current) {
+                auto& statistics = current->Statistics();
+                statistics = TChunkTreeStatistics();
+                FOREACH (auto childRef, current->Children()) {
+                    statistics.Accumulate(GetChunkTreeStatistics(childRef));
+                }
+                if (!current->Children().empty()) {
+                    ++statistics.Rank;
+                }
+                ++statistics.ChunkListCount;
+            });
     }
 
 

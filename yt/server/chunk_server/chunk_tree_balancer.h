@@ -19,11 +19,9 @@ public:
 
     bool CheckRebalanceNeeded(
         TChunkList* chunkList,
-        NProto::TMetaReqRebalanceChunkTree* message);
+        NProto::TMetaReqRebalanceChunkTree* request);
 
-    bool RebalanceChunkTree(
-        TChunkList* chunkList,
-        const NProto::TMetaReqRebalanceChunkTree& message);
+    TChunkList* RebalanceChunkTree(const NProto::TMetaReqRebalanceChunkTree& request);
 
 private:
     NCellMaster::TBootstrap* Bootstrap;

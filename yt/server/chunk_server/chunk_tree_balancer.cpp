@@ -6,7 +6,9 @@
 #include "chunk_manager.h"
 
 #include <ytlib/profiling/profiler.h>
+
 #include <server/cell_master/bootstrap.h>
+#include <server/cell_master/meta_state_facade.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -28,7 +30,7 @@ TChunkTreeBalancer::TChunkTreeBalancer(
 
 bool TChunkTreeBalancer::CheckRebalanceNeeded(
     TChunkList* chunkList,
-    NProto::TMetaReqRebalanceChunkTree* message)
+    NProto::TMetaReqRebalanceChunkTree* request)
 {
     bool rebalanceNeeded = false;
     TChunkList* topmostFeasibleChunkList = NULL;
@@ -38,9 +40,11 @@ bool TChunkTreeBalancer::CheckRebalanceNeeded(
             topmostFeasibleChunkList = currentChunkList;
         }
 
+        const auto& statistics = currentChunkList->Statistics();
         if (currentChunkList->Children().size() > Config->MaxChunkListSize ||
-            currentChunkList->Statistics().Rank > Config->MaxChunkTreeRank/* ||
-            currentChunkList->Statistics().ChunkListCount < currentChunkList->Statistics().ChunkCount * Config->MinChunkListToChunkRatio*/)
+            statistics.Rank > Config->MaxChunkTreeRank ||
+            statistics.ChunkListCount > statistics.ChunkCount * Config->MinChunkListToChunkRatio &&
+            statistics.ChunkListCount > 2)
         {
             rebalanceNeeded = true;
         }
@@ -56,34 +60,42 @@ bool TChunkTreeBalancer::CheckRebalanceNeeded(
         return false;
     }
 
-    *message->mutable_root_id() = chunkList->GetId().ToProto();
-    message->set_min_chunk_list_size(Config->MinChunkListSize);
-    message->set_max_chunk_list_size(Config->MaxChunkListSize);
+    *request->mutable_root_id() = chunkList->GetId().ToProto();
+    request->set_min_chunk_list_size(Config->MinChunkListSize);
+    request->set_max_chunk_list_size(Config->MaxChunkListSize);
 
     return true;
 }
 
-bool TChunkTreeBalancer::RebalanceChunkTree(
-    TChunkList* root,
-    const NProto::TMetaReqRebalanceChunkTree& message)
+TChunkList* TChunkTreeBalancer::RebalanceChunkTree(const NProto::TMetaReqRebalanceChunkTree& request)
 {
-
-    if (root->GetRigid() ||
-        !root->Parents().empty() ||
-        root->Statistics().Rank <= 1)
-    {
-        return false;
-    }
-
     auto chunkManager = Bootstrap->GetChunkManager();
     auto objectManager = Bootstrap->GetObjectManager();
+    bool isRecovery = Bootstrap->GetMetaStateFacade()->GetManager()->IsRecovery();
+
+    auto rootId = TChunkListId::FromProto(request.root_id());
+    auto* root = chunkManager->FindChunkList(rootId);
+    if (!root) {
+        LOG_DEBUG_UNLESS(isRecovery, "Chunk tree balancing canceled: no such chunk list (RootId: %s)",
+            ~ToString(rootId));
+        return NULL;
+    }
+
+    if (root->GetRigid()) {
+        LOG_DEBUG_UNLESS(isRecovery, "Chunk tree balancing canceled: chunk list is rigid (RootId: %s)",
+            ~ToString(rootId));
+        return NULL;
+    }
+
+    LOG_DEBUG_UNLESS(isRecovery, "Chunk tree balancing started (RootId: %s)",
+        ~rootId.ToString());
 
     auto oldStatistics = root->Statistics();
 
     // Create new children list.
     std::vector<TChunkTreeRef> newChildren;
 
-    AppendChunkTree(&newChildren, root, message);
+    AppendChunkTree(&newChildren, root, request);
     YCHECK(!newChildren.empty());
     YCHECK(newChildren.front() != root);
 
@@ -116,7 +128,8 @@ bool TChunkTreeBalancer::RebalanceChunkTree(
     YCHECK(newStatistics.DiskSpace == oldStatistics.DiskSpace);
     YCHECK(newStatistics.ChunkCount == oldStatistics.ChunkCount);
 
-    return true;
+    LOG_DEBUG_UNLESS(isRecovery, "Chunk tree balancing completed");
+    return root;
 }
 
 void TChunkTreeBalancer::AppendChunkTree(
