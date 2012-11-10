@@ -95,16 +95,6 @@ struct ISchedulableElement
     virtual TNodeResources GetUtilization() const = 0;
     virtual TNodeResources GetEffectiveLimits() const = 0;
 
-    // Extension methods.
-    double GetUtilizationRatio(const TNodeResources& utilizationDiscount = ZeroNodeResources()) const
-    {
-        const auto& attributes = Attributes();
-        auto utilization = GetUtilization() - utilizationDiscount;
-        auto limits = GetEffectiveLimits();
-        i64 utilizationComponent = GetResource(utilization, attributes.DominantResource);
-        i64 limitsComponent = GetResource(limits, attributes.DominantResource);
-        return limitsComponent == 0 ? 1.0 : (double) utilizationComponent / limitsComponent;
-    }
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -203,7 +193,19 @@ public:
         return controller->GetUsedResources();
     }
 
+
+    double GetUtilizationRatio() const
+    {
+        const auto& attributes = Attributes();
+        auto utilization = GetUtilization() - UtilizationDiscount_;
+        auto limits = GetEffectiveLimits();
+        i64 utilizationComponent = GetResource(utilization, attributes.DominantResource);
+        i64 limitsComponent = GetResource(limits, attributes.DominantResource);
+        return limitsComponent == 0 ? 1.0 : (double) utilizationComponent / limitsComponent;
+    }
+
     EOperationStatus GetStatus() const;
+
 
     DEFINE_BYREF_RW_PROPERTY(TSchedulableAttributes, Attributes);
     DEFINE_BYVAL_RO_PROPERTY(TOperationPtr, Operation);
@@ -213,11 +215,11 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, BelowMinShareSince);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, BelowFairShareSince);
     DEFINE_BYVAL_RW_PROPERTY(bool, Starving);
+    DEFINE_BYREF_RW_PROPERTY(TNodeResources, UtilizationDiscount);
 
 private:
     TFairShareStrategyConfigPtr Config;
     ISchedulerStrategyHost* Host;
-
 
     void ComputeEffectiveLimits()
     {
@@ -240,7 +242,7 @@ private:
 
         // Sort nodes.
         auto nodes = Host->GetExecNodes();
-        sort(nodes.begin(), nodes.end());
+        std::sort(nodes.begin(), nodes.end());
 
         // Merge jobs and nodes.
         auto jobIt = jobs.begin();
@@ -757,9 +759,8 @@ public:
         RootElement->ScheduleJobs(context, false);
 
         // Compute discount to node utilization.
-        yhash_map<TOperationElementPtr, TNodeResources> elementToDiscount;
         auto node = context->GetNode();
-        auto actualResourceLimits = node->ResourceLimits();
+        yhash_set<TOperationElementPtr> discountedElements;
         std::vector<TJobPtr> preemptableJobs;
         FOREACH (auto job, context->RunningJobs()) {
             auto operation = job->GetOperation();
@@ -768,16 +769,10 @@ public:
             }
 
             auto element = GetOperationElement(operation);
+            discountedElements.insert(element);
+            element->UtilizationDiscount() += job->ResourceUtilization();
 
-            auto discountIt = elementToDiscount.find(element);
-            if (discountIt == elementToDiscount.end()) {
-                discountIt = elementToDiscount.insert(std::make_pair(element, ZeroNodeResources())).first;
-            }
-
-            auto& discount = discountIt->second;
-            discount += job->ResourceUtilization();
-
-            if (element->GetUtilizationRatio(discount) > element->Attributes().FairShareRatio + RatioPrecision) {
+            if (element->GetUtilizationRatio() > element->Attributes().FairShareRatio + RatioPrecision) {
                 preemptableJobs.push_back(job);
                 node->ResourceUtilizationDiscount() += job->ResourceUtilization();
             }
@@ -786,8 +781,11 @@ public:
         // Second-chance scheduling.
         bool needsPreemption = RootElement->ScheduleJobs(context, true);
 
-        // Reset discount.
+        // Reset discounts.
         node->ResourceUtilizationDiscount() = ZeroNodeResources();
+        FOREACH (auto element, discountedElements) {
+            element->UtilizationDiscount() = ZeroNodeResources();
+        }
 
         // Preempt jobs if needed.
         if (needsPreemption) {
@@ -818,6 +816,7 @@ public:
             .Item("effective_resource_limits").Scalar(element->GetEffectiveLimits())
             .Item("scheduling_status").Scalar(element->GetStatus())
             .Item("starving").Scalar(element->GetStarving())
+            .Item("utilization_ratio").Scalar(element->GetUtilizationRatio())
             .Do(BIND(&TFairShareStrategy::BuildElementYson, pool, element));
     }
 
@@ -1101,8 +1100,7 @@ private:
             .Item("min_share_ratio").Scalar(element->GetMinShareRatio())
             .Item("adjusted_min_share_ratio").Scalar(attributes.AdjustedMinShareRatio)
             .Item("demand_ratio").Scalar(attributes.DemandRatio)
-            .Item("fair_share_ratio").Scalar(attributes.FairShareRatio)
-            .Item("utilization_ratio").Scalar(element->GetUtilizationRatio());
+            .Item("fair_share_ratio").Scalar(attributes.FairShareRatio);
     }
 
 };
