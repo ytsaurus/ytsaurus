@@ -70,7 +70,7 @@ def get_scheduler_config():
         ];
     };
     scheduler = {
-        strategy = fifo;
+        strategy = fair_share;
         failed_jobs_limit = 10;
     };
     logging = {
@@ -119,7 +119,7 @@ def get_driver_config():
         addresses = [
             "localhost";
         ];
-	"rpc_timeout" = 30000;
+    "rpc_timeout" = 30000;
     };
 
     logging = {
