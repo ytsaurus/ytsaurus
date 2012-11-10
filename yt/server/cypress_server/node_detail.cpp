@@ -250,12 +250,21 @@ void TMapNodeTypeHandler::DoClone(
 {
     TBase::DoClone(sourceNode, clonedNode, transaction);
 
-    auto keyToChild = GetMapNodeChildren(Bootstrap, sourceNode->GetId().ObjectId, transaction);
+    auto keyToChildMap = GetMapNodeChildren(Bootstrap, sourceNode->GetId().ObjectId, transaction);
+    std::vector< std::pair<Stroka, TNodeId> > keyToChildList(keyToChildMap.begin(), keyToChildMap.end());
+
+    // Sort children by key to ensure deterministic ids generation.
+    std::sort(
+        keyToChildList.begin(),
+        keyToChildList.end(),
+        [] (const std::pair<Stroka, TNodeId>& lhs, const std::pair<Stroka, TNodeId>& rhs) {
+            return lhs.first < rhs.first;
+        });
 
     auto objectManager = Bootstrap->GetObjectManager();
     auto cypressManager = Bootstrap->GetCypressManager();
 
-    FOREACH (const auto& pair, keyToChild) {
+    FOREACH (const auto& pair, keyToChildList) {
         const auto& key = pair.first;
         const auto& childId = pair.second;
         
