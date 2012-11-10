@@ -1129,36 +1129,6 @@ private:
             RecomputeStatistics();
             NeedToRecomputeStatistics = false;
         }
-
-        LOG_INFO("Starting owners check");
-
-        FOREACH (const auto& pair, ChunkListMap) {
-            const auto* chunkList = pair.second;
-            FOREACH (auto* node, chunkList->OwningNodes()) {
-                const auto* table = dynamic_cast<const NTableServer::TTableNode*>(node);
-                if (table) {
-                    if (table->GetChunkList() != chunkList) {
-                        LOG_ERROR("%s -> %s:%s -> %s",
-                            ~ToString(chunkList->GetId()),
-                            ~ToString(table->GetId().TransactionId),
-                            ~ToString(table->GetId().ObjectId),
-                            ~ToString(table->GetChunkList()->GetId()));
-                    }
-                }
-            }
-        }
-
-        FOREACH (auto* node, Bootstrap->GetCypressManager()->GetNodes()) {
-            auto* table = dynamic_cast<const NTableServer::TTableNode*>(node);
-            if (table) {
-                if (table->GetChunkList()->OwningNodes().find(node) == table->GetChunkList()->OwningNodes().end()) {
-                    LOG_ERROR("%s:%s -> %s -> ?",
-                        ~ToString(table->GetId().TransactionId),
-                        ~ToString(table->GetId().ObjectId),
-                        ~ToString(table->GetChunkList()->GetId()));
-                }
-            }
-        }
     }
     
     virtual void OnLeaderRecoveryComplete() override
