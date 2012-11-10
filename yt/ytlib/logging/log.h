@@ -40,7 +40,7 @@ private:
 #define LOG_TRACE_IF(condition, ...)        if (condition) LOG_TRACE(__VA_ARGS__)
 #define LOG_TRACE_UNLESS(condition, ...)    if (!condition) LOG_TRACE(__VA_ARGS__)
 #else
-#define LOG_UNUSED(...)                     if (true) { } else { UNUSED(__VA_ARGS__); }
+#define LOG_UNUSED(...)                     if (true) { } else { void(__VA_ARGS__); }
 #define LOG_TRACE(...)                      LOG_UNUSED(__VA_ARGS__)
 #define LOG_TRACE_IF(condition, ...)        LOG_UNUSED(__VA_ARGS__)
 #define LOG_TRACE_UNLESS(condition, ...)    LOG_UNUSED(__VA_ARGS__)
