@@ -210,31 +210,6 @@ EResourceType GetDominantResource(
     return result;
 }
 
-NProto::TNodeResources ComputeEffectiveLimits(
-    const NProto::TNodeResources& limits,
-    const NProto::TNodeResources& quantum)
-{
-    auto effectiveLimits = limits;
-
-    if (quantum.slots() > 0) {
-        effectiveLimits.set_slots(limits.slots() - limits.slots() % quantum.slots());
-    }
-
-    if (quantum.cpu() > 0) {
-        effectiveLimits.set_cpu(limits.cpu() - limits.cpu() % quantum.cpu());
-    }
-
-    if (quantum.memory() > 0) {
-        effectiveLimits.set_memory(limits.memory() - limits.memory() % quantum.memory());
-    }
-
-    if (quantum.network() > 0) {
-        effectiveLimits.set_memory(limits.network() - limits.network() % quantum.network());
-    }
-
-    return effectiveLimits;
-}
-
 i64 GetResource(const NProto::TNodeResources& resources, EResourceType type)
 {
     switch (type) {

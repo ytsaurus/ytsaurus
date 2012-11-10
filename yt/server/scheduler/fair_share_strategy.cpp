@@ -1004,10 +1004,9 @@ private:
     {
         if (!element->GetStarving()) {
             element->SetStarving(true);
-            LOG_INFO("Operation starvation timeout (OperationId: %s, Status: %s, Since: %s)",
+            LOG_INFO("Operation starvation timeout (OperationId: %s, Status: %s)",
                 ~ToString(element->GetOperation()->GetOperationId()),
-                ~status.ToString(),
-                ~ToString(element->GetBelowMinShareSince().Get()));
+                ~status.ToString());
         }
     }
 
