@@ -198,7 +198,7 @@ public:
         auto utilization = GetUtilization() - UtilizationDiscount_;
         i64 utilizationComponent = GetResource(utilization, attributes.DominantResource);
         i64 limitsComponent = GetResource(Limits_, attributes.DominantResource);
-        return limitsComponent == 0 ? 1.0 : (double) utilizationComponent / limitsComponent;
+        return limitsComponent == 0 ? 0.0 : (double) utilizationComponent / limitsComponent;
     }
 
     EOperationStatus GetStatus() const
