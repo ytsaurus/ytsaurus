@@ -1117,7 +1117,7 @@ private:
     {
         VisitAncestors(
             chunkList,
-            [] (TChunkList* current) {
+            [=] (TChunkList* current) {
                 auto& statistics = current->Statistics();
                 statistics = TChunkTreeStatistics();
                 FOREACH (auto childRef, current->Children()) {
