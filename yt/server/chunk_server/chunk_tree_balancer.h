@@ -33,15 +33,10 @@ private:
         std::vector<TChunkTreeRef>* children,
         TChunkTreeRef child,
         const NProto::TMetaReqRebalanceChunkTree& message);
-    
     void AppendChunkTree(
         std::vector<TChunkTreeRef>* children,
         TChunkTreeRef child,
         const NProto::TMetaReqRebalanceChunkTree& message);
-
-    void InitRebalanceMessage(
-        TChunkList* chunkList,
-        NProto::TMetaReqRebalanceChunkTree* message);
 
 };
 

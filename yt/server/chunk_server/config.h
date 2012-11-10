@@ -68,6 +68,7 @@ struct TChunkTreeBalancerConfig
     int MaxChunkTreeRank;
     int MinChunkListSize;
     int MaxChunkListSize;
+    double MinChunkListToChunkRatio;
 
     TChunkTreeBalancerConfig()
     {
@@ -80,6 +81,9 @@ struct TChunkTreeBalancerConfig
         Register("max_chunk_list_size", MaxChunkListSize)
             .GreaterThan(0)
             .Default(2048);
+        Register("min_chunk_list_to_chunk_ratio", MinChunkListToChunkRatio)
+            .GreaterThan(0.0)
+            .Default(0.1);
     }
 
     virtual void DoValidate() const

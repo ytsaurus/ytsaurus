@@ -19,8 +19,6 @@ static NLog::TLogger& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(roizner): reuse chunklists with ref-count = 1
-
 TChunkTreeBalancer::TChunkTreeBalancer(
     NCellMaster::TBootstrap* bootstrap,
     TChunkTreeBalancerConfigPtr config)
@@ -41,7 +39,8 @@ bool TChunkTreeBalancer::CheckRebalanceNeeded(
         }
 
         if (currentChunkList->Children().size() > Config->MaxChunkListSize ||
-            currentChunkList->Statistics().Rank > Config->MaxChunkTreeRank)
+            currentChunkList->Statistics().Rank > Config->MaxChunkTreeRank ||
+            currentChunkList->Statistics().ChunkListCount < currentChunkList->Statistics().ChunkCount * Config->MinChunkListToChunkRatio)
         {
             rebalanceNeeded = true;
         }
@@ -57,7 +56,10 @@ bool TChunkTreeBalancer::CheckRebalanceNeeded(
         return false;
     }
 
-    InitRebalanceMessage(currentChunkList, message);
+    *message->mutable_root_id() = chunkList->GetId().ToProto();
+    message->set_min_chunk_list_size(Config->MinChunkListSize);
+    message->set_max_chunk_list_size(Config->MaxChunkListSize);
+
     return true;
 }
 
@@ -189,58 +191,45 @@ void TChunkTreeBalancer::MergeChunkTrees(
     auto chunkManager = Bootstrap->GetChunkManager();
 
     switch (child.GetType()) {
-    case EObjectType::Chunk: {
-        // Just adding the chunk to the last chunk list.
-        chunkManager->AttachToChunkList(lastChunkList, child);
-        break;
-                             }
-
-    case EObjectType::ChunkList: {
-        const auto* chunkList = child.AsChunkList();
-        if (lastChunkList->Children().size() + chunkList->Children().size() <=
-            message.max_chunk_list_size())
-        {
-            // Just appending the chunk list to the last chunk list.
-            chunkManager->AttachToChunkList(lastChunkList, chunkList->Children());
-        } else {
-            // The chunk list is too large. We have to copy chunks by blocks.
-            int mergedCount = 0;
-            while (mergedCount < chunkList->Children().size()) {
-                if (lastChunkList->Children().size() >= message.min_chunk_list_size()) {
-                    // The last chunk list is too large. Creating a new one.
-                    YASSERT(lastChunkList->Children().size() == message.min_chunk_list_size());
-                    lastChunkList = chunkManager->CreateChunkList();
-                    children->push_back(TChunkTreeRef(lastChunkList));
-                }
-                int count = Min(
-                    message.min_chunk_list_size() - lastChunkList->Children().size(),
-                    chunkList->Children().size() - mergedCount);
-                chunkManager->AttachToChunkList(
-                    lastChunkList,
-                    &*chunkList->Children().begin() + mergedCount,
-                    &*chunkList->Children().begin() + mergedCount + count);
-                mergedCount += count;
-            }
-        }
-        break;
+        case EObjectType::Chunk: {
+            // Just adding the chunk to the last chunk list.
+            chunkManager->AttachToChunkList(lastChunkList, child);
+            break;
                                  }
 
-    default:
-        YUNREACHABLE();
+        case EObjectType::ChunkList: {
+            const auto* chunkList = child.AsChunkList();
+            if (lastChunkList->Children().size() + chunkList->Children().size() <=
+                message.max_chunk_list_size())
+            {
+                // Just appending the chunk list to the last chunk list.
+                chunkManager->AttachToChunkList(lastChunkList, chunkList->Children());
+            } else {
+                // The chunk list is too large. We have to copy chunks by blocks.
+                int mergedCount = 0;
+                while (mergedCount < chunkList->Children().size()) {
+                    if (lastChunkList->Children().size() >= message.min_chunk_list_size()) {
+                        // The last chunk list is too large. Creating a new one.
+                        YASSERT(lastChunkList->Children().size() == message.min_chunk_list_size());
+                        lastChunkList = chunkManager->CreateChunkList();
+                        children->push_back(TChunkTreeRef(lastChunkList));
+                    }
+                    int count = Min(
+                        message.min_chunk_list_size() - lastChunkList->Children().size(),
+                        chunkList->Children().size() - mergedCount);
+                    chunkManager->AttachToChunkList(
+                        lastChunkList,
+                        &*chunkList->Children().begin() + mergedCount,
+                        &*chunkList->Children().begin() + mergedCount + count);
+                    mergedCount += count;
+                }
+            }
+            break;
+                                     }
+
+        default:
+            YUNREACHABLE();
     }
-}
-
-void TChunkTreeBalancer::InitRebalanceMessage(
-    TChunkList* chunkList,
-    NProto::TMetaReqRebalanceChunkTree* message)
-{
-    if (!message)
-        return;
-
-    *message->mutable_root_id() = chunkList->GetId().ToProto();
-    
-    message->set_min_chunk_list_size(Config->MinChunkListSize);
-    message->set_max_chunk_list_size(Config->MaxChunkListSize);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
