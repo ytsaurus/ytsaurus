@@ -490,10 +490,7 @@ struct TPooledOperationSpec
     double Weight;
     double MinShareRatio;
 
-    double MinShareTolerance;
     TDuration MinSharePreemptionTimeout;
-
-    double FairShareTolerance;
     TDuration FairSharePreemptionTimeout;
 
     TPooledOperationSpec()
@@ -508,15 +505,8 @@ struct TPooledOperationSpec
             .Default(0.0)
             .InRange(0.0, 1.0);
 
-        Register("min_share_tolerance", MinShareTolerance)
-            .InRange(0.0, 1.0)
-            .Default(0.9);
         Register("min_share_preemption_timeout", MinSharePreemptionTimeout)
             .Default(TDuration::Seconds(15));
-
-        Register("fair_share_tolerance", FairShareTolerance)
-            .InRange(0.0, 1.0)
-            .Default(0.7);
         Register("fair_share_preemption_timeout", FairSharePreemptionTimeout)
             .Default(TDuration::Seconds(30));
     }

@@ -22,6 +22,12 @@ struct TFairShareStrategyConfig
     double NewOperationWeightBoostFactor;
     TDuration NewOperationWeightBoostPeriod;
 
+    double MinShareTolerance;
+    double FairShareTolerance;
+
+    double PreemptionTolerance;
+    double MinPreemptionRatio;
+
     TFairShareStrategyConfig()
     {
         Register("fair_share_update_period", FairShareUpdatePeriod)
@@ -32,6 +38,20 @@ struct TFairShareStrategyConfig
             .Default(1.0);
         Register("new_operation_weight_boost_period", NewOperationWeightBoostPeriod)
             .Default(TDuration::Minutes(0));
+
+        Register("min_share_tolerance", MinShareTolerance)
+            .InRange(0.0, 1.0)
+            .Default(0.9);
+        Register("fair_share_tolerance", FairShareTolerance)
+            .InRange(0.0, 1.0)
+            .Default(0.7);
+
+        Register("preemption_tolerance", PreemptionTolerance)
+            .InRange(0.0, 1.0)
+            .Default(0.9);
+        Register("min_preemption_ratio", MinPreemptionRatio)
+            .InRange(0.0, 1.0)
+            .Default(0.01);
     }
 };
 

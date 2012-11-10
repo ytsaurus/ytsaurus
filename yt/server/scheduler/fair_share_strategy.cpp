@@ -93,7 +93,7 @@ struct ISchedulableElement
     
     virtual TNodeResources GetDemand() const = 0;
     virtual TNodeResources GetUtilization() const = 0;
-    virtual TNodeResources GetEffectiveLimits() const = 0;
+    virtual TNodeResources GetLimits() const = 0;
 
 };
 
@@ -103,7 +103,6 @@ DECLARE_ENUM(EOperationStatus,
     (Normal)
     (BelowMinShare)
     (BelowFairShare)
-    (AboveFairShare)
 );
 
 class TOperationElement
@@ -117,7 +116,6 @@ public:
         : Config(config)
         , Host(host)
         , Operation_(operation)
-        , EffectiveLimits_(ZeroNodeResources())
         , Pool_(NULL)
         , Starving_(false)
     { }
@@ -160,7 +158,7 @@ public:
     {
         UNUSED(limitsRatio);
 
-        ComputeEffectiveLimits();
+        Limits_ = Host->GetTotalResourceLimits() * limitsRatio;
     }
 
     virtual TInstant GetStartTime() const override
@@ -198,18 +196,30 @@ public:
     {
         const auto& attributes = Attributes();
         auto utilization = GetUtilization() - UtilizationDiscount_;
-        auto limits = GetEffectiveLimits();
         i64 utilizationComponent = GetResource(utilization, attributes.DominantResource);
-        i64 limitsComponent = GetResource(limits, attributes.DominantResource);
+        i64 limitsComponent = GetResource(Limits_, attributes.DominantResource);
         return limitsComponent == 0 ? 1.0 : (double) utilizationComponent / limitsComponent;
     }
 
-    EOperationStatus GetStatus() const;
+    EOperationStatus GetStatus() const
+    {
+        double utilizationRatio = GetUtilizationRatio();
+
+        if (utilizationRatio < Attributes_.AdjustedMinShareRatio * Config->MinShareTolerance) {
+            return EOperationStatus::BelowMinShare;
+        }
+
+        if (utilizationRatio < Attributes_.FairShareRatio * Config->FairShareTolerance) {
+            return EOperationStatus::BelowFairShare;
+        }
+
+        return EOperationStatus::Normal;
+    }
 
 
     DEFINE_BYREF_RW_PROPERTY(TSchedulableAttributes, Attributes);
     DEFINE_BYVAL_RO_PROPERTY(TOperationPtr, Operation);
-    DEFINE_BYVAL_RO_PROPERTY(TNodeResources, EffectiveLimits);
+    DEFINE_BYVAL_RO_PROPERTY(TNodeResources, Limits);
     DEFINE_BYVAL_RW_PROPERTY(TPooledOperationSpecPtr, Spec);
     DEFINE_BYVAL_RW_PROPERTY(TPool*, Pool);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, BelowMinShareSince);
@@ -221,63 +231,6 @@ private:
     TFairShareStrategyConfigPtr Config;
     ISchedulerStrategyHost* Host;
 
-    void ComputeEffectiveLimits()
-    {
-        if (Operation_->GetState() != EOperationState::Running) {
-            EffectiveLimits_ = Host->GetTotalResourceLimits();
-            return;
-        }
-
-        EffectiveLimits_ = ZeroNodeResources();
-        auto quantum = Operation_->GetController()->GetMinNeededResources();
-
-        // Sort jobs by node.
-        std::vector<TJobPtr> jobs(Operation_->Jobs().begin(), Operation_->Jobs().end());
-        std::sort(
-            jobs.begin(),
-            jobs.end(),
-            [] (const TJobPtr& lhs, const TJobPtr& rhs) {
-                return lhs->GetNode() < rhs->GetNode();
-            });
-
-        // Sort nodes.
-        auto nodes = Host->GetExecNodes();
-        std::sort(nodes.begin(), nodes.end());
-
-        // Merge jobs and nodes.
-        auto jobIt = jobs.begin();
-        auto nodeIt = nodes.begin();
-        while (jobIt != jobs.end() || nodeIt != nodes.end()) {
-            auto jobGroupBeginIt = jobIt;
-            auto jobGroupEndIt = jobIt;
-            while (jobGroupEndIt != jobs.end() && (*jobGroupEndIt)->GetNode() == (*jobGroupBeginIt)->GetNode()) {
-                ++jobGroupEndIt;
-            }
-
-            while (nodeIt != nodes.end() && (jobGroupBeginIt == jobs.end() || *nodeIt < (*jobGroupBeginIt)->GetNode())) {
-                // Node without jobs.
-                const auto& node = *nodeIt;
-                EffectiveLimits_ += NScheduler::ComputeEffectiveLimits(node->ResourceLimits(), quantum);
-                ++nodeIt;
-            }
-
-            if (nodeIt != nodes.end()) {
-                // Node with jobs.
-                const auto& node = *nodeIt;
-                YASSERT(node == (*jobGroupBeginIt)->GetNode());
-                auto nodeLimits = node->ResourceLimits();
-                for (auto jobGroupIt = jobGroupBeginIt; jobGroupIt != jobGroupEndIt; ++jobGroupIt) {
-                    const auto& job = *jobGroupIt;
-                    nodeLimits -= job->ResourceUtilization();
-                    EffectiveLimits_ += job->ResourceUtilization();
-                }
-                EffectiveLimits_ += NScheduler::ComputeEffectiveLimits(nodeLimits, quantum);
-                ++nodeIt;
-            }
-
-            jobIt = jobGroupEndIt;
-        }
-    }
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -663,11 +616,11 @@ public:
         return result;
     }
 
-    virtual TNodeResources GetEffectiveLimits() const override
+    virtual TNodeResources GetLimits() const override
     {
         auto result = ZeroNodeResources();
         FOREACH (auto child, Children) {
-            result += child->GetEffectiveLimits();
+            result += child->GetLimits();
         }
         return result;
     }
@@ -679,25 +632,6 @@ private:
     bool DefaultConfigured;
 
 };
-
-EOperationStatus TOperationElement::GetStatus() const
-{
-    double utilizationRatio = GetUtilizationRatio();
-
-    if (utilizationRatio > Attributes_.FairShareRatio + RatioPrecision) {
-        return EOperationStatus::AboveFairShare;
-    }
-
-    if (utilizationRatio < Attributes_.AdjustedMinShareRatio * Spec_->MinShareTolerance) {
-        return EOperationStatus::BelowMinShare;
-    }
-
-    if (utilizationRatio < Attributes_.FairShareRatio * Spec_->FairShareTolerance) {
-        return EOperationStatus::BelowFairShare;
-    }
-
-    return EOperationStatus::Normal;
-}
 
 ////////////////////////////////////////////////////////////////////
 
@@ -772,7 +706,10 @@ public:
             discountedElements.insert(element);
             element->UtilizationDiscount() += job->ResourceUtilization();
 
-            if (element->GetUtilizationRatio() > element->Attributes().FairShareRatio + RatioPrecision) {
+            double utilizationRatio = element->GetUtilizationRatio();
+            if (utilizationRatio > Config->MinPreemptionRatio &&
+                utilizationRatio > element->Attributes().FairShareRatio * Config->PreemptionTolerance)
+            {
                 preemptableJobs.push_back(job);
                 node->ResourceUtilizationDiscount() += job->ResourceUtilization();
             }
@@ -813,7 +750,7 @@ public:
         BuildYsonMapFluently(consumer)
             .Item("pool").Scalar(pool->GetId())
             .Item("start_time").Scalar(element->GetStartTime())
-            .Item("effective_resource_limits").Scalar(element->GetEffectiveLimits())
+            .Item("resource_limits").Scalar(element->GetLimits())
             .Item("scheduling_status").Scalar(element->GetStatus())
             .Item("starving").Scalar(element->GetStarving())
             .Item("utilization_ratio").Scalar(element->GetUtilizationRatio())
@@ -1053,7 +990,6 @@ private:
                 break;
 
             case EOperationStatus::Normal:
-            case EOperationStatus::AboveFairShare:
                 element->SetBelowMinShareSince(Null);
                 element->SetBelowFairShareSince(Null);
                 ResetStarving(element);
