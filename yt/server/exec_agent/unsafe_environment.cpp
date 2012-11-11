@@ -148,6 +148,8 @@ public:
         LOG_INFO("Job proxy started (ProcessId: %d)",
             ProcessId);
 
+        // This mutex ensures that proxy controller is still alive when thread will actually start.
+        WaitpidMutex.Acquire();
         ControllerThread.Start();
         ControllerThread.Detach();
     }
@@ -206,6 +208,7 @@ private:
 
     void ThreadMain()
     {
+        WaitpidMutex.Release();
         LOG_INFO("Waiting for job proxy to finish");
 
         int status = 0;
@@ -249,6 +252,8 @@ private:
 
     int ProcessId;
     TIntrusivePtr<TUnsafeEnvironmentBuilder> EnvironmentBuilder;
+
+    TMutex WaitpidMutex;
 
     TSpinLock SpinLock;
     TError Error;
