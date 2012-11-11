@@ -24,10 +24,11 @@
 
 #include <server/cypress_server/cypress_manager.h>
 
+#include <server/chunk_server/chunk.h>
+#include <server/chunk_server/chunk_list.h>
+
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
-
-#include <util/ysaveload.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -435,10 +436,10 @@ void TObjectManager::UnrefObject(TChunkTreeRef ref)
 {
     switch (ref.GetType()) {
         case EObjectType::Chunk:
-            UnrefObject((TObjectWithIdBase*) ref.AsChunk());
+            UnrefObject(static_cast<TObjectWithIdBase*>(ref.AsChunk()));
             break;
         case EObjectType::ChunkList:
-            UnrefObject((TObjectWithIdBase*) ref.AsChunkList());
+            UnrefObject(static_cast<TObjectWithIdBase*>(ref.AsChunkList()));
             break;
         default:
             YUNREACHABLE();

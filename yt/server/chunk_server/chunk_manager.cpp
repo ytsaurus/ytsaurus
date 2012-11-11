@@ -505,7 +505,7 @@ public:
         auto objectManager = Bootstrap->GetObjectManager();
         FOREACH (auto childRef, chunkList->Children()) {
             ResetChunkTreeParent(chunkList, childRef);
-            objectManager->UnrefObject(childRef.GetId());
+            objectManager->UnrefObject(childRef);
         }
         chunkList->Children().clear();
         chunkList->RowCountSums().clear();
@@ -755,7 +755,7 @@ private:
         // Drop references to children.
         FOREACH (auto childRef, chunkList->Children()) {
             ResetChunkTreeParent(chunkList, childRef);
-            objectManager->UnrefObject(childRef.GetId());
+            objectManager->UnrefObject(childRef);
         }
     }
 
