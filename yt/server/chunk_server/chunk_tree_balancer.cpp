@@ -36,13 +36,19 @@ bool TChunkTreeBalancer::IsRebalanceNeeded(TChunkList* root)
     if (root->Children().size() > MaxChunkListSize) {
         return true;
     }
-    
-    if (root->Statistics().Rank > MaxChunkTreeRank) {
+
+    const auto& statistics = root->Statistics();
+
+    if (statistics.ChunkCount == 0) {
         return true;
     }
 
-    if (root->Statistics().ChunkListCount > 2 &&
-        root->Statistics().ChunkListCount > root->Statistics().ChunkCount * MinChunkListToChunkRatio)
+    if (statistics.Rank > MaxChunkTreeRank) {
+        return true;
+    }
+
+    if (statistics.ChunkListCount > 2 &&
+        statistics.ChunkListCount > statistics.ChunkCount * MinChunkListToChunkRatio)
     {
         return true;
     }
@@ -57,28 +63,29 @@ void TChunkTreeBalancer::Rebalance(TChunkList* root)
 
     auto oldStatistics = root->Statistics();
 
-    // Create new children list.
-    std::vector<TChunkTreeRef> newChildren;
+    // Special case: no chunk in the chunk tree.
+    if (oldStatistics.ChunkCount == 0) {
+        chunkManager->ClearChunkList(root);
+        return;
+    }
 
+    // Construct new children list.
+    std::vector<TChunkTreeRef> newChildren;
     AppendChunkTree(&newChildren, root);
     YCHECK(!newChildren.empty());
     YCHECK(newChildren.front() != root);
 
     // Rewrite the root with newChildren.
     
-    // Make a copy of key columns and set it back when the root is updated.
-    auto sortedBy = root->SortedBy();
-
     // Add temporary references to the old children.
     auto oldChildren = root->Children();
     FOREACH (auto childRef, oldChildren) {
         objectManager->RefObject(childRef);
     }
 
-    // Replace the children list and restore the key columns.
+    // Replace the children list.
     chunkManager->ClearChunkList(root);
     chunkManager->AttachToChunkList(root, newChildren);
-    root->SortedBy() = sortedBy;
 
     // Release the temporary references added above.
     FOREACH (auto childRef, oldChildren) {
