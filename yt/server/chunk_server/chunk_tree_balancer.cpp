@@ -89,7 +89,7 @@ void TChunkTreeBalancer::Rebalance(TChunkList* root)
 
     // Release the temporary references added above.
     FOREACH (auto childRef, oldChildren) {
-        objectManager->UnrefObject(childRef.GetId());
+        objectManager->UnrefObject(childRef);
     }
 
     const auto& newStatistics = root->Statistics();
