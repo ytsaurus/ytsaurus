@@ -769,7 +769,7 @@ void TObjectManager::OnTransactionAborted(TTransaction* transaction)
 
 void TObjectManager::PromoteCreatedObjects(TTransaction* transaction)
 {
-    auto parentTransaction = transaction->GetParent();
+    auto* parentTransaction = transaction->GetParent();
     auto objectManager = Bootstrap->GetObjectManager();
     FOREACH (const auto& objectId, transaction->CreatedObjectIds()) {
         YCHECK(parentTransaction->CreatedObjectIds().insert(objectId).second);
