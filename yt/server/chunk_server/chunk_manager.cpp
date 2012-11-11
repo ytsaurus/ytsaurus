@@ -1091,7 +1091,7 @@ private:
     {
         Profiler.SetEnabled(false);
 
-        YCHECK(!NeedToRecomputeStatistics);
+        NeedToRecomputeStatistics = false;
     }
 
     virtual void OnStopRecovery() override
