@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "chunk_tree_balancer.h"
 #include "chunk_list.h"
-#include "private.h"
 #include "chunk_manager.h"
 
 #include <server/cell_master/bootstrap.h>
@@ -12,8 +11,6 @@ namespace NChunkServer {
 using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-static NLog::TLogger& Logger = ChunkServerLogger;
 
 // NB: Changing these values will invalidate all changelogs!
 const int TChunkTreeBalancer::MaxChunkTreeRank = 32;
