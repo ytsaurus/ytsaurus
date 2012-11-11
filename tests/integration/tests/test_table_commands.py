@@ -363,4 +363,16 @@ class TestTableCommands(YTEnvSetup):
         assert get('//tmp/t1/@resource_usage')['disk_space'] + \
                get('//tmp/t2/@resource_usage')['disk_space'] == \
                get('//tmp/@recursive_resource_usage')['disk_space']
+
+
+    def test_chunk_tree_balancer(self):
+    	create('table', '//tmp/t')
+    	for i in xrange(0, 40):
+    		write('//tmp/t', {'a' : 'b'})
+    	chunk_list_id = get('//tmp/t/@chunk_list_id')
+    	statistics = get('#' + id + '/@statistics')
+    	assert statistics['chunk_count'] == 40
+    	assert statistics['chunk_list_count'] == 2
+    	assert statistics['row_count'] == 40
+    	assert statistics['rank'] == 2
       
