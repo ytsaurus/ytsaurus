@@ -154,7 +154,6 @@ public:
         , ChunkTreeBalancer(Bootstrap)
         , ChunkReplicaCount(0)
         , NeedToRecomputeStatistics(false)
-        , NeedToRebalanceChunkTrees(false)
         , Profiler(ChunkServerProfiler)
         , AddChunkCounter("/add_chunk_rate")
         , RemoveChunkCounter("/remove_chunk_rate")
@@ -684,7 +683,6 @@ private:
     int ChunkReplicaCount;
 
     bool NeedToRecomputeStatistics;
-    bool NeedToRebalanceChunkTrees;
 
     NProfiling::TProfiler& Profiler;
     NProfiling::TRateCounter AddChunkCounter;
@@ -1015,7 +1013,6 @@ private:
         // COMPAT(babenko)
         if (context.GetVersion() < 4) {
             ScheduleRecomputeStatistics();
-            RebalanceChunkTrees();
         }
     }
 
@@ -1090,33 +1087,11 @@ private:
     }
 
 
-    void ScheduleRebalanceChunkTrees()
-    {
-        NeedToRebalanceChunkTrees = true;
-    }
-
-    void RebalanceChunkTrees()
-    {
-        LOG_INFO("Started rebalancing chunk trees");
-
-        auto chunkListIds = GetChunkListIds();
-        FOREACH (const auto& chunkListId, chunkListIds) {
-            auto* chunkList = FindChunkList(chunkListId);
-            if (chunkList) {
-                RebalanceChunkTree(chunkList);
-            }
-        }
-
-        LOG_INFO("Finished rebalancing chunk trees");
-    }
-
-
     virtual void OnStartRecovery() override
     {
         Profiler.SetEnabled(false);
 
         YCHECK(!NeedToRecomputeStatistics);
-        YCHECK(!NeedToRebalanceChunkTrees);
     }
 
     virtual void OnStopRecovery() override
@@ -1126,11 +1101,6 @@ private:
         if (NeedToRecomputeStatistics) {
             RecomputeStatistics();
             NeedToRecomputeStatistics = false;
-        }
-
-        if (NeedToRebalanceChunkTrees) {
-            RebalanceChunkTrees();
-            NeedToRebalanceChunkTrees = false;
         }
     }
     
