@@ -41,13 +41,6 @@ message TMetaReqUpdateJobs
     repeated TJobStopInfo stopped_jobs = 3;
 }
 
-message TMetaReqRebalanceChunkTree
-{
-    required NYT.NProto.TGuid root_id = 1;
-    required int32 min_chunk_list_size = 2;
-    required int32 max_chunk_list_size = 3;
-}
-
 message TMetaReqUpdateChunkReplicationFactor
 {
     message TUpdate

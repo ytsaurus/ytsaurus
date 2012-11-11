@@ -22,7 +22,6 @@ TVersionedChunkListId::TVersionedChunkListId(const TChunkListId& id, int version
 
 TChunkList::TChunkList(const TChunkListId& id)
     : TObjectWithIdBase(id)
-    , Rigid_(false)
     , Version_(0)
     , VisitMark_(0)
 {
@@ -49,7 +48,6 @@ void TChunkList::Save(const NCellMaster::TSaveContext& context) const
     SaveObjectRefs(output, OwningNodes_);
     NChunkServer::Save(Statistics_, context);
     ::Save(output, SortedBy_);
-    ::Save(output, Rigid_);
     ::Save(output, RowCountSums_);
 }
 
@@ -63,7 +61,11 @@ void TChunkList::Load(const NCellMaster::TLoadContext& context)
     LoadObjectRefs(input, OwningNodes_, context);
     NChunkServer::Load(Statistics_, context);
     ::Load(input, SortedBy_);
-    ::Load(input, Rigid_);
+    // TODO(babenko): compat
+    if (context.GetVersion() <= 3) {
+        bool dummy;
+        ::Load(input, dummy);
+    }
     ::Load(input, RowCountSums_);
 }
 

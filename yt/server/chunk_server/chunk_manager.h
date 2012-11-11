@@ -99,6 +99,8 @@ public:
         TChunkList* chunkList,
         const TChunkTreeRef childRef);
 
+    void RebalanceChunkTree(TChunkList* chunkList);
+
     void ConfirmChunk(
         TChunk* chunk,
         const std::vector<Stroka>& addresses,

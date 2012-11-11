@@ -151,9 +151,10 @@ public:
             bootstrap->GetMetaStateFacade()->GetState())
         , Config(config)
         , Bootstrap(bootstrap)
-        , ChunkTreeBalancer(Bootstrap, Config->ChunkTreeBalancer)
+        , ChunkTreeBalancer(Bootstrap)
         , ChunkReplicaCount(0)
         , NeedToRecomputeStatistics(false)
+        , NeedToRebalanceChunkTrees(false)
         , Profiler(ChunkServerProfiler)
         , AddChunkCounter("/add_chunk_rate")
         , RemoveChunkCounter("/remove_chunk_rate")
@@ -170,7 +171,6 @@ public:
         RegisterMethod(BIND(&TImpl::UpdateJobs, Unretained(this)));
         RegisterMethod(BIND(&TImpl::RegisterNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::UnregisterNode, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::RebalanceChunkTree, Unretained(this)));
         RegisterMethod(BIND(&TImpl::UpdateChunkReplicationFactor, Unretained(this)));
 
         {
@@ -262,14 +262,6 @@ public:
         return Bootstrap
             ->GetMetaStateFacade()
             ->CreateMutation(this, request, &TThis::UpdateChunkReplicationFactor);
-    }
-
-    TMutationPtr CreateRebalanceChunkTreeMutation(
-        const TMetaReqRebalanceChunkTree& request)
-    {
-        return Bootstrap
-            ->GetMetaStateFacade()
-            ->CreateMutation(this, request, &TThis::RebalanceChunkTree);
     }
 
 
@@ -422,8 +414,6 @@ public:
                 current->Statistics().Accumulate(delta);
                 current->SortedBy().clear();
             });
-
-        ScheduleChunkTreeRebalanceIfNeeded(chunkList);
     }
 
     void AttachToChunkList(
@@ -441,6 +431,20 @@ public:
         TChunkTreeRef childRef)
     {
         AttachToChunkList(chunkList, &childRef, &childRef + 1);
+    }
+
+
+    void RebalanceChunkTree(TChunkList* chunkList)
+    {
+        if (!ChunkTreeBalancer.IsRebalanceNeeded(chunkList))
+            return;
+
+        PROFILE_TIMING ("/chunk_tree_rebalance_time") {
+            LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree rebalancing started (RootId: %s)",
+                ~chunkList->GetId().ToString());
+            ChunkTreeBalancer.Rebalance(chunkList);
+            LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree rebalancing completed");
+        }
     }
 
 
@@ -507,7 +511,7 @@ public:
         chunkList->RowCountSums().clear();
         chunkList->Statistics() = TChunkTreeStatistics();
 
-        LOG_DEBUG_UNLESS(IsRecovery(),"Chunk list cleared (ChunkListId: %s)", ~chunkList->GetId().ToString());
+        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk list cleared (ChunkListId: %s)", ~chunkList->GetId().ToString());
     }
 
     void SetChunkTreeParent(TChunkList* parent, TChunkTreeRef childRef)
@@ -679,6 +683,7 @@ private:
     int ChunkReplicaCount;
 
     bool NeedToRecomputeStatistics;
+    bool NeedToRebalanceChunkTrees;
 
     NProfiling::TProfiler& Profiler;
     NProfiling::TRateCounter AddChunkCounter;
@@ -925,37 +930,6 @@ private:
     }
 
 
-    void ScheduleChunkTreeRebalanceIfNeeded(TChunkList* chunkList)
-    {
-        if (!IsLeader())
-            return;
-
-        TMetaReqRebalanceChunkTree request;
-        if (!ChunkTreeBalancer.CheckRebalanceNeeded(chunkList, &request))
-            return;
-
-        // Don't retry in case of failure.
-        // Balancing will happen eventually.
-        CreateRebalanceChunkTreeMutation(request)
-            ->PostCommit();
-
-        LOG_DEBUG("Chunk tree rebalancing scheduled (RootId: %s)",
-            ~chunkList->GetId().ToString());
-    }
-
-    void RebalanceChunkTree(const TMetaReqRebalanceChunkTree& request)
-    {
-        PROFILE_TIMING ("/chunk_tree_rebalance_time") {
-            auto* root = ChunkTreeBalancer.RebalanceChunkTree(request);
-            if (root) {
-                FOREACH (auto* parent, root->Parents()) {
-                    RecomputeStatistics(parent);
-                }
-            }
-        }
-    }
-
-
     void UpdateChunkReplicationFactor(const TMetaReqUpdateChunkReplicationFactor& request)
     {
         FOREACH (const auto& update, request.updates()) {
@@ -1038,8 +1012,9 @@ private:
         }
 
         // COMPAT(babenko)
-        if (context.GetVersion() < 3) {
+        if (context.GetVersion() < 4) {
             ScheduleRecomputeStatistics();
+            RebalanceChunkTrees();
         }
     }
 
@@ -1113,21 +1088,22 @@ private:
         LOG_INFO("Finished recomputing statistics");
     }
 
-    void RecomputeStatistics(TChunkList* chunkList)
+
+    void ScheduleRebalanceChunkTrees()
     {
-        VisitAncestors(
-            chunkList,
-            [=] (TChunkList* current) {
-                auto& statistics = current->Statistics();
-                statistics = TChunkTreeStatistics();
-                FOREACH (auto childRef, current->Children()) {
-                    statistics.Accumulate(GetChunkTreeStatistics(childRef));
-                }
-                if (!current->Children().empty()) {
-                    ++statistics.Rank;
-                }
-                ++statistics.ChunkListCount;
-            });
+        NeedToRebalanceChunkTrees = true;
+    }
+
+    void RebalanceChunkTrees()
+    {
+        LOG_INFO("Started rebalancing chunk trees");
+
+        auto chunkLists = GetChunkLists();
+        FOREACH (auto* chunkList, chunkLists) {
+            RebalanceChunkTree(chunkList);
+        }
+
+        LOG_INFO("Finished rebalancing chunk trees");
     }
 
 
@@ -1136,6 +1112,7 @@ private:
         Profiler.SetEnabled(false);
 
         YCHECK(!NeedToRecomputeStatistics);
+        YCHECK(!NeedToRebalanceChunkTrees);
     }
 
     virtual void OnStopRecovery() override
@@ -1145,6 +1122,11 @@ private:
         if (NeedToRecomputeStatistics) {
             RecomputeStatistics();
             NeedToRecomputeStatistics = false;
+        }
+
+        if (NeedToRebalanceChunkTrees) {
+            RebalanceChunkTrees();
+            NeedToRebalanceChunkTrees = false;
         }
     }
     
@@ -1852,6 +1834,11 @@ void TChunkManager::AttachToChunkList(
     const TChunkTreeRef childRef)
 {
     Impl->AttachToChunkList(chunkList, childRef);
+}
+
+void TChunkManager::RebalanceChunkTree(TChunkList* chunkList)
+{
+    Impl->RebalanceChunkTree(chunkList);
 }
 
 void TChunkManager::ClearChunkList(TChunkList* chunkList)

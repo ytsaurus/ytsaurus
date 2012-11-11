@@ -45,7 +45,6 @@ private:
         attributes->push_back("children_ids");
         attributes->push_back("parent_ids");
         attributes->push_back("statistics");
-        attributes->push_back("rigid");
         attributes->push_back(TAttributeInfo("tree", true, true));
         attributes->push_back(TAttributeInfo("owning_nodes", true, true));
         TBase::ListSystemAttributes(attributes);
@@ -108,12 +107,6 @@ private:
         if (key == "statistics") {
             BuildYsonFluently(consumer)
                 .Scalar(statistics);
-            return true;
-        }
-
-        if (key == "rigid") {
-            BuildYsonFluently(consumer)
-                .Scalar(chunkList->GetRigid());
             return true;
         }
 

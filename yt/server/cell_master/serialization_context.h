@@ -20,7 +20,7 @@ DECLARE_ENUM(ESavePriority,
     (Values)
 );
 
-const int CurrentSnapshotVersion = 3;
+const int CurrentSnapshotVersion = 4;
 NMetaState::TVersionValidator SnapshotVersionValidator();
 
 struct TLoadContext

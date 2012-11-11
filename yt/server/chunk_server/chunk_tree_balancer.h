@@ -3,7 +3,6 @@
 #include "public.h"
 
 #include <server/cell_master/public.h>
-#include <server/chunk_server/chunk_manager.pb.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -13,28 +12,26 @@ namespace NChunkServer {
 class TChunkTreeBalancer
 {
 public:
-    TChunkTreeBalancer(
-        NCellMaster::TBootstrap* bootstrap,
-        TChunkTreeBalancerConfigPtr config);
+    explicit TChunkTreeBalancer(NCellMaster::TBootstrap* bootstrap);
 
-    bool CheckRebalanceNeeded(
-        TChunkList* chunkList,
-        NProto::TMetaReqRebalanceChunkTree* request);
-
-    TChunkList* RebalanceChunkTree(const NProto::TMetaReqRebalanceChunkTree& request);
+    bool IsRebalanceNeeded(TChunkList* root);
+    void Rebalance(TChunkList* root);
 
 private:
     NCellMaster::TBootstrap* Bootstrap;
-    TChunkTreeBalancerConfigPtr Config;
+
+    static const int MaxChunkTreeRank;
+    static const int MinChunkListSize;
+    static const int MaxChunkListSize;
+    static const double MinChunkListToChunkRatio;
 
     void MergeChunkTrees(
         std::vector<TChunkTreeRef>* children,
-        TChunkTreeRef child,
-        const NProto::TMetaReqRebalanceChunkTree& message);
+        TChunkTreeRef child);
+
     void AppendChunkTree(
         std::vector<TChunkTreeRef>* children,
-        TChunkTreeRef child,
-        const NProto::TMetaReqRebalanceChunkTree& message);
+        TChunkTreeRef child);
 
 };
 

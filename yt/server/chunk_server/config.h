@@ -62,38 +62,6 @@ struct TChunkReplicatorConfig
     }
 };
 
-struct TChunkTreeBalancerConfig
-    : public TYsonSerializable
-{
-    int MaxChunkTreeRank;
-    int MinChunkListSize;
-    int MaxChunkListSize;
-    double MinChunkListToChunkRatio;
-
-    TChunkTreeBalancerConfig()
-    {
-        Register("max_chunk_tree_rank", MaxChunkTreeRank)
-            .GreaterThanOrEqual(2)
-            .Default(32);
-        Register("min_chunk_list_size", MinChunkListSize)
-            .GreaterThan(0)
-            .Default(1024);
-        Register("max_chunk_list_size", MaxChunkListSize)
-            .GreaterThan(0)
-            .Default(2048);
-        Register("min_chunk_list_to_chunk_ratio", MinChunkListToChunkRatio)
-            .GreaterThan(0.0)
-            .Default(0.1);
-    }
-
-    virtual void DoValidate() const
-    {
-        if (MaxChunkListSize <= MinChunkListSize) {
-            THROW_ERROR_EXCEPTION("\"max_chunk_list_size\" must be greater than \"min_chunk_list_size\"");
-        }
-    }
-};
-
 struct TChunkManagerConfig
     : public TYsonSerializable
 {
@@ -112,8 +80,6 @@ struct TChunkManagerConfig
 
     TChunkReplicatorConfigPtr ChunkReplicator;
     
-    TChunkTreeBalancerConfigPtr ChunkTreeBalancer;
-
     TChunkManagerConfig()
     {
         Register("online_node_timeout", OnlineNodeTimeout)
@@ -139,9 +105,6 @@ struct TChunkManagerConfig
             .Default(0.1);
 
         Register("chunk_replicator", ChunkReplicator)
-            .DefaultNew();
-
-        Register("chunk_tree_balancer", ChunkTreeBalancer)
             .DefaultNew();
     }
 };

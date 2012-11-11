@@ -61,9 +61,6 @@ typedef TIntrusivePtr<TChunkService> TChunkServicePtr;
 struct TChunkReplicatorConfig;
 typedef TIntrusivePtr<TChunkReplicatorConfig> TChunkReplicatorConfigPtr;
 
-struct TChunkTreeBalancerConfig;
-typedef TIntrusivePtr<TChunkTreeBalancerConfig> TChunkTreeBalancerConfigPtr;
-
 struct TChunkManagerConfig;
 typedef TIntrusivePtr<TChunkManagerConfig> TChunkManagerConfigPtr;
 

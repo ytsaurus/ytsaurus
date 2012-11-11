@@ -210,50 +210,25 @@ protected:
 
         YCHECK(branchedChunkList->OwningNodes().erase(branchedNode) == 1);
 
-        // Only schedule RF update when the topmost transaction commits.
-        bool needRFUpdate =
-            metaStateManager->IsLeader() &&
-            !originatingNode->GetId().IsBranched();
-
+        // Check if we have anything to do at all.
         if (branchedMode == ETableUpdateMode::None) {
             objectManager->UnrefObject(branchedChunkList);
-
             return;
         }
 
         if (branchedMode == ETableUpdateMode::Overwrite) {
-            bool setOriginatingOverwriteMode = 
-                originatingNode->GetId().IsBranched();
-
             YCHECK(originatingChunkList->OwningNodes().erase(originatingNode) == 1);
             YCHECK(branchedChunkList->OwningNodes().insert(originatingNode).second);
             originatingNode->SetChunkList(branchedChunkList);
 
             objectManager->UnrefObject(originatingChunkList);
-
-            if (setOriginatingOverwriteMode) {
-                originatingNode->SetUpdateMode(ETableUpdateMode::Overwrite);
-            }
-
-            if (needRFUpdate) {
-                chunkManager->ScheduleRFUpdate(branchedChunkList);
-            }
-
-            return;
-        }
-
-        if ((originatingMode == ETableUpdateMode::None || originatingMode == ETableUpdateMode::Overwrite) &&
-            branchedMode == ETableUpdateMode::Append)
+        } else if ((originatingMode == ETableUpdateMode::None || originatingMode == ETableUpdateMode::Overwrite) &&
+                   branchedMode == ETableUpdateMode::Append)
         {
             YCHECK(branchedChunkList->Children().size() == 2);
             auto deltaRef = branchedChunkList->Children()[1];
 
-            bool setOriginatingAppendMode =
-                originatingMode == ETableUpdateMode::None &&
-                originatingNode->GetId().IsBranched();
-
             auto* newOriginatingChunkList = chunkManager->CreateChunkList();
-            newOriginatingChunkList->SetRigid(setOriginatingAppendMode);
             newOriginatingChunkList->SortedBy() = branchedChunkList->SortedBy();
 
             YCHECK(originatingChunkList->OwningNodes().erase(originatingNode) == 1);
@@ -266,26 +241,13 @@ protected:
 
             objectManager->UnrefObject(originatingChunkList);
             objectManager->UnrefObject(branchedChunkList);
-
-            if (setOriginatingAppendMode) {
-                originatingNode->SetUpdateMode(ETableUpdateMode::Append);
-            }
-
-            if (needRFUpdate) {
-                chunkManager->ScheduleRFUpdate(deltaRef);
-            }
-
-            return;
-        }
-
-        if (originatingMode == ETableUpdateMode::Append &&
-            branchedMode == ETableUpdateMode::Append)
+        } else if (originatingMode == ETableUpdateMode::Append &&
+                   branchedMode == ETableUpdateMode::Append)
         {
             YCHECK(originatingChunkList->Children().size() == 2);
             YCHECK(branchedChunkList->Children().size() == 2);
 
             auto* newOriginatingChunkList = chunkManager->CreateChunkList();
-            newOriginatingChunkList->SetRigid(true);
             newOriginatingChunkList->SortedBy() = branchedChunkList->SortedBy();
 
             YCHECK(originatingChunkList->OwningNodes().erase(originatingNode) == 1);
@@ -304,14 +266,27 @@ protected:
             objectManager->UnrefObject(originatingChunkList);
             objectManager->UnrefObject(branchedChunkList);
 
-            // originatingMode remains Append.
-
-            YCHECK(!needRFUpdate);
-
-            return;
+        } else {
+            YUNREACHABLE();
         }
 
-        YUNREACHABLE();
+        if (originatingNode->GetId().IsBranched()) {
+            // Set proper originating mode.
+            originatingNode->SetUpdateMode(
+                originatingMode == ETableUpdateMode::Overwrite || branchedMode == ETableUpdateMode::Overwrite
+                ? ETableUpdateMode::Overwrite
+                : ETableUpdateMode::Append);
+        } else {
+            // Originating mode must always remains None.
+            // Rebalance and schedule RF update when the topmost transaction commits.
+            auto* newOriginatingChunkList = originatingNode->GetChunkList();
+
+            chunkManager->RebalanceChunkTree(newOriginatingChunkList);
+
+            if (metaStateManager->IsLeader()) {
+                chunkManager->ScheduleRFUpdate(newOriginatingChunkList);
+            }
+        }
     }
 
     virtual void DoClone(
