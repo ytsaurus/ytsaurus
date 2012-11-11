@@ -510,6 +510,7 @@ public:
         chunkList->Children().clear();
         chunkList->RowCountSums().clear();
         chunkList->Statistics() = TChunkTreeStatistics();
+        chunkList->Statistics().ChunkListCount = 1;
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Chunk list cleared (ChunkListId: %s)", ~chunkList->GetId().ToString());
     }
