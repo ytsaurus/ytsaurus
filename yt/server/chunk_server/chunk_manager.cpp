@@ -1098,9 +1098,12 @@ private:
     {
         LOG_INFO("Started rebalancing chunk trees");
 
-        auto chunkLists = GetChunkLists();
-        FOREACH (auto* chunkList, chunkLists) {
-            RebalanceChunkTree(chunkList);
+        auto chunkListIds = GetChunkListIds();
+        FOREACH (const auto& chunkListId, chunkListIds) {
+            auto* chunkList = FindChunkList(chunkListId);
+            if (chunkList) {
+                RebalanceChunkTree(chunkList);
+            }
         }
 
         LOG_INFO("Finished rebalancing chunk trees");
