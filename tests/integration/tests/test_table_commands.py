@@ -370,7 +370,7 @@ class TestTableCommands(YTEnvSetup):
     	for i in xrange(0, 40):
     		write('//tmp/t', {'a' : 'b'})
     	chunk_list_id = get('//tmp/t/@chunk_list_id')
-    	statistics = get('#' + id + '/@statistics')
+    	statistics = get('#' + chunk_list_id + '/@statistics')
     	assert statistics['chunk_count'] == 40
     	assert statistics['chunk_list_count'] == 2
     	assert statistics['row_count'] == 40
