@@ -230,7 +230,7 @@ run_python_test()
     PYTHONPATH="$CHECKOUT_DIRECTORY/python:$PYTHONPATH" \
     PATH="$WORKING_DIRECTORY/bin:$WORKING_DIRECTORY/yt/nodejs:$PATH" \
         py.test \
-            -rx -v \
+            -rx -vs \
             --tb=native \
             --timeout 300 \
             --junitxml="$WORKING_DIRECTORY/test_${test_name}.prexml"
