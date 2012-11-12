@@ -49,18 +49,17 @@ private:
     {
         auto id = TChunkId::FromString(key);
         auto chunk = Collection->FindChunk(id);
-        if (!chunk || !chunk->IsAlive()) {
+        if (!chunk) {
             return NULL;
         }
 
-        return IYPathService::FromProducer(BIND([=] (IYsonConsumer* consumer)
-            {
-                BuildYsonFluently(consumer)
-                    .BeginMap()
-                        .Item("size").Scalar(chunk->GetInfo().size())
-                        .Item("location").Scalar(chunk->GetLocation()->GetPath())
-                    .EndMap();
-            }));
+        return IYPathService::FromProducer(BIND([=] (IYsonConsumer* consumer) {
+            BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("size").Scalar(chunk->GetInfo().size())
+                    .Item("location").Scalar(chunk->GetLocation()->GetPath())
+                .EndMap();
+        }));
     }
 
 };
