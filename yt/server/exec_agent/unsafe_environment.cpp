@@ -91,6 +91,10 @@ public:
         , ControllerThread(ThreadFunc, this)
     {
         Logger.AddTag(Sprintf("JobId: %s", ~jobId.ToString()));
+
+        // We acquire this mutex second time from Run()
+        // and wait on it until waitpid thread actually starts.
+        WaitpidMutex.Acquire();
     }
 
     void Run() 
@@ -148,9 +152,11 @@ public:
         LOG_INFO("Job proxy started (ProcessId: %d)",
             ProcessId);
 
-        // This mutex ensures that proxy controller is still alive when thread will actually start.
-        WaitpidMutex.Acquire();
         ControllerThread.Start();
+
+        // See comment in ctor.
+        WaitpidMutex.Acquire();
+
         ControllerThread.Detach();
     }
 
@@ -209,6 +215,7 @@ private:
     void ThreadMain()
     {
         WaitpidMutex.Release();
+ 
         LOG_INFO("Waiting for job proxy to finish");
 
         int status = 0;
