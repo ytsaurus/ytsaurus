@@ -99,7 +99,7 @@ void TJob::RunRemove()
 
     auto chunk = Bootstrap->GetChunkStore()->FindChunk(ChunkId);
     if (!chunk) {
-        SetFailed(TError("No such chunk %s", ~ChunkId.ToString()));
+        SetFailed(TError("No such chunk: %s", ~ChunkId.ToString()));
         return;
     }
 
@@ -115,7 +115,7 @@ void TJob::RunReplicate()
 
     auto chunk = Bootstrap->GetChunkRegistry()->FindChunk(ChunkId);
     if (!chunk) {
-        SetFailed(TError("No such chunk %s", ~ChunkId.ToString()));
+        SetFailed(TError("No such chunk: %s", ~ChunkId.ToString()));
         return;
     }
 
@@ -123,7 +123,7 @@ void TJob::RunReplicate()
     chunk->GetMeta().Subscribe(BIND([=] (IAsyncReader::TGetMetaResult result) {
         if (!result.IsOK()) {
             this_->SetFailed(TError(
-                "Error getting meta of chunk %s",
+                "Error getting meta of chunk: %s",
                 ~ToString(chunk->GetId()))
                 << result);
             return;
