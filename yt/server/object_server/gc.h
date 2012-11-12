@@ -55,6 +55,8 @@ private:
     void OnCommitSucceeded();
     void OnCommitFailed(const TError& error);
 
+    void ProfileQueueSize();
+
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 
 };
