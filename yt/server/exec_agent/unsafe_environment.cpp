@@ -91,10 +91,6 @@ public:
         , ControllerThread(ThreadFunc, this)
     {
         Logger.AddTag(Sprintf("JobId: %s", ~jobId.ToString()));
-
-        // We acquire this mutex second time from Run()
-        // and wait on it until waitpid thread actually starts.
-        WaitpidMutex.Acquire();
     }
 
     void Run() 
@@ -152,10 +148,9 @@ public:
         LOG_INFO("Job proxy started (ProcessId: %d)",
             ProcessId);
 
+        // Unref is called in the thread.
+        Ref();
         ControllerThread.Start();
-
-        // See comment in ctor.
-        WaitpidMutex.Acquire();
 
         ControllerThread.Detach();
     }
@@ -208,14 +203,13 @@ private:
     static void* ThreadFunc(void* param)
     {
         auto controller = MakeStrong(static_cast<TUnsafeProxyController*>(param));
+        controller->Unref();
         controller->ThreadMain();
         return NULL;
     }
 
     void ThreadMain()
     {
-        WaitpidMutex.Release();
- 
         LOG_INFO("Waiting for job proxy to finish");
 
         int status = 0;
@@ -259,8 +253,6 @@ private:
 
     int ProcessId;
     TIntrusivePtr<TUnsafeEnvironmentBuilder> EnvironmentBuilder;
-
-    TMutex WaitpidMutex;
 
     TSpinLock SpinLock;
     TError Error;
