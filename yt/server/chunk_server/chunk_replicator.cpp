@@ -243,7 +243,7 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleReplicationJob(
     std::vector<TJobStartInfo>* jobsToStart)
 {
     auto chunkManager = Bootstrap->GetChunkManager();
-    auto chunk = chunkManager->FindChunk(chunkId);
+    auto* chunk = chunkManager->FindChunk(chunkId);
     if (!chunk || !chunk->IsAlive()) {
         LOG_TRACE("Chunk %s we're about to replicate is missing on %s",
             ~chunkId.ToString(),

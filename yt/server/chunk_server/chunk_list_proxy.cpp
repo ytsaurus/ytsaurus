@@ -143,12 +143,10 @@ private:
         auto chunkManager = Bootstrap->GetChunkManager();
 
         std::vector<TChunkTreeRef> childrenRefs;
+        childrenRefs.reserve(childrenIds.size());
         FOREACH (const auto& childId, childrenIds) {
-            if (!objectManager->ObjectExists(childId)) {
-                THROW_ERROR_EXCEPTION("Chunk tree %s does not exist", ~childId.ToString());
-            }
-            auto chunkRef = chunkManager->GetChunkTree(childId);
-            childrenRefs.push_back(chunkRef);
+            auto childRef = chunkManager->GetChunkTree(childId);
+            childrenRefs.push_back(childRef);
         }
 
         auto* chunkList = GetTypedImpl();
