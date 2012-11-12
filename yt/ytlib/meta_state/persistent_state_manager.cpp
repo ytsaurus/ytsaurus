@@ -679,7 +679,7 @@ public:
                 if (createSnapshot) {
                     LOG_DEBUG("AdvanceSegment: starting snapshot creation");
 
-                    BIND(&TSnapshotBuilder::CreateLocalSnapshot, EpochContext->SnapshotBuilder, version)
+                    BIND(&TSnapshotBuilder::BuildSnapshotLocal, EpochContext->SnapshotBuilder, version)
                         .AsyncVia(EpochContext->EpochUserStateInvoker)
                         .Run()
                         .Subscribe(BIND(
@@ -822,9 +822,7 @@ public:
                 "Not a leader");
         }
 
-        epochContext->SnapshotBuilder->CreateDistributedSnapshot().Subscribe(
-            BIND(&TThis::OnSnapshotCreated, MakeStrong(this), context)
-                .Via(ControlInvoker));
+        BuildSnapshotDistributed(epochContext);
 
         if (setReadOnly) {
             SetReadOnly(true);
@@ -881,9 +879,14 @@ public:
             version.RecordCount > 0 &&
             version.RecordCount % period.Get() == 0)
         {
-            epochContext->LeaderCommitter->Flush(true);
-            epochContext->SnapshotBuilder->CreateDistributedSnapshot();
+            BuildSnapshotDistributed(epochContext);
         }
+    }
+
+    void BuildSnapshotDistributed(TEpochContextPtr epochContext)
+    {
+        epochContext->LeaderCommitter->Flush(true);
+        epochContext->SnapshotBuilder->BuildSnapshotDistributed();
     }
 
 
