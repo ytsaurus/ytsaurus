@@ -817,19 +817,22 @@ public:
         auto epochContext = EpochContext;
 
         if (!epochContext || GetStateStatus() != EPeerStatus::Leading) {
-            THROW_ERROR_EXCEPTION(
-                EErrorCode::InvalidStatus,
-                "Not a leader");
+            THROW_ERROR_EXCEPTION(EErrorCode::InvalidStatus, "Not a leader");
         }
 
-        BuildSnapshotDistributed(epochContext);
+        if (!HasActiveQuorum()) {
+            THROW_ERROR_EXCEPTION(EErrorCode::InvalidStatus, "Not active quorum");
+        }
+
+        BuildSnapshotDistributed(epochContext).Subscribe(
+            BIND(&TThis::OnSnapshotBuilt, MakeStrong(this), context);
 
         if (setReadOnly) {
             SetReadOnly(true);
         }
     }
 
-    void OnSnapshotCreated(
+    void OnSnapshotBuilt(
         TCtxBuildSnapshotPtr context,
         TSnapshotBuilder::TResultOrError result)
     {
@@ -871,7 +874,6 @@ public:
     void OnLocalMutationApplied(TEpochContextPtr epochContext)
     {
         VERIFY_THREAD_AFFINITY(StateThread);
-        YASSERT(DecoratedState->GetStatus() == EPeerStatus::Leading);
 
         auto version = DecoratedState->GetVersion();
         auto period = Config->MaxChangesBetweenSnapshots;
@@ -883,10 +885,13 @@ public:
         }
     }
 
-    void BuildSnapshotDistributed(TEpochContextPtr epochContext)
+    TFuture<TSnapshotBuilder::TResultOrError> BuildSnapshotDistributed(TEpochContextPtr epochContext)
     {
+        YASSERT(DecoratedState->GetStatus() == EPeerStatus::Leading);
+        YASSERT(HasActiveQuorum());
+
         epochContext->LeaderCommitter->Flush(true);
-        epochContext->SnapshotBuilder->BuildSnapshotDistributed();
+        return epochContext->SnapshotBuilder->BuildSnapshotDistributed();
     }
 
 
