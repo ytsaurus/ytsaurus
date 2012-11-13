@@ -175,8 +175,8 @@ bool TMultiChunkParallelReader<TChunkReader>::IsValid() const
     if (CompleteReaderCount == TBase::InputChunks.size())
         return false;
 
-    YASSERT(CurrentReader_);
-    YASSERT(CurrentReader_->IsValid());
+    YCHECK(CurrentReader_);
+    YCHECK(CurrentReader_->IsValid());
 
     return true;
 }

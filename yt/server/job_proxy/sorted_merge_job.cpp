@@ -106,9 +106,8 @@ public:
 
             // Run the actual merge.
             LOG_INFO("Merging");
-            while (Reader->IsValid()) {
-                writer->WriteRowUnsafe(Reader->GetRow(), Reader->GetKey());
-                Reader->NextRow();
+            while (const TRow* row = Reader->GetRow()) {
+                writer->WriteRowUnsafe(*row, Reader->GetKey());
             }
             PROFILE_TIMING_CHECKPOINT("merge");
 

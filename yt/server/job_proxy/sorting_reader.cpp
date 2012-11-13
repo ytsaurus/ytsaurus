@@ -78,28 +78,17 @@ public:
         InitInput();
         ReadInput();
         StartMerge();
+    }
+
+    virtual const TRow* GetRow() override
+    {
         DoNextRow();
-    }
-
-    virtual bool IsValid() const override
-    {
-        return IsValid_;
-    }
-
-    virtual const TRow& GetRow() const override
-    {
-        return CurrentRow;
+        return IsValid_ ? &CurrentRow : NULL;
     }
 
     virtual const TNonOwningKey& GetKey() const override
     {
         return CurrentKey;
-    }
-
-    virtual void NextRow() override
-    {
-        YASSERT(IsValid_);
-        DoNextRow();
     }
 
     virtual i64 GetRowCount() const override

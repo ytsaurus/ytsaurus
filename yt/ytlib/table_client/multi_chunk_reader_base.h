@@ -2,7 +2,6 @@
 
 #include "public.h"
 #include "private.h"
-#include "async_reader.h"
 
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/table_client/table_reader.pb.h>

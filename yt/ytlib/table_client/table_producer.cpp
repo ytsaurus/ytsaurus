@@ -22,23 +22,24 @@ TTableProducer::TTableProducer(
 
 bool TTableProducer::ProduceRow()
 {
-    if (!Reader->IsValid())
-        return false;
-
     /*const auto& attributes = Reader->GetRowAttributes();
     if (!attributes.empty())
         Consumer->OnRaw(Reader->GetRowAttributes(), EYsonType::Node);
     */
 
+    auto row = Reader->GetRow();
+    if (!row) {
+        return false;
+    }
+
     Consumer->OnListItem();
     Consumer->OnBeginMap();
-    FOREACH (auto& pair, Reader->GetRow()) {
+    FOREACH (auto& pair, *row) {
         Consumer->OnKeyedItem(pair.first);
         Consumer->OnRaw(pair.second, EYsonType::Node);
     }
     Consumer->OnEndMap();
 
-    Reader->NextRow();
     return true;
 }
 

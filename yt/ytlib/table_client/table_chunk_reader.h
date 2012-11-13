@@ -2,7 +2,6 @@
 
 #include "public.h"
 #include "schema.h"
-#include "async_reader.h"
 #include "key.h"
 
 #include <ytlib/codecs/codec.h>

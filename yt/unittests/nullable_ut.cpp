@@ -18,7 +18,8 @@ TEST(TNullableDeathTest, Uninitialized)
 }
 #endif
 
-inline void TestNullable(const TNullable<int>& nullable, bool initialized, int value = 0)
+template<class T>
+inline void TestNullable(const TNullable<T>& nullable, bool initialized, T value = T())
 {
     EXPECT_EQ(initialized, nullable.HasValue());
     if (initialized) {
@@ -92,7 +93,8 @@ TEST(TNullableTest, MakeNullable)
 
 TEST(TNullableTest, Null)
 {
-    TestNullable(Null, false);
+    TNullable<int> null = Null;
+    TestNullable(null, false);
     // TestNullable(NULL, true, 0); // Doesn't compile with gcc (ambigous conversion). Don't use this.
 }
 
@@ -123,5 +125,16 @@ TEST(TNullableTest, ToString)
     EXPECT_EQ(ToString(MakeNullable(1)), "1");
     EXPECT_EQ(ToString(TNullable<int>()), "<Null>");
 }
+
+// This functionality isn't supported
+//TEST(TNullableTest, VectorByReference)
+//{
+//    std::vector<int> v;
+//    TNullable<std::vector<int>&> nullable(v);
+//    TestNullable(nullable, true, std::vector<int>());
+//    
+//    v.push_back(10);
+//    TestNullable(nullable, true, std::vector<int>(1, 10));
+//}
 
 }
