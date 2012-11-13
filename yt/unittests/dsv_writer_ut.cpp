@@ -322,7 +322,7 @@ TEST(TTskvWriterTest, EscapingOfCustomSeparator)
 
     TStringStream outputStreamB;
     TDsvWriter writerB(&outputStreamB, EYsonType::ListFragment, config);
-    ParseDsv(outputStreamA.Str(), &writerB);
+    ParseDsv(outputStreamA.Str(), &writerB, config);
 
     EXPECT_EQ(outputStreamA.Str(), outputStreamB.Str());
 }
