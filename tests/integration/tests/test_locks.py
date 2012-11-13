@@ -76,5 +76,9 @@ class TestLocks(YTEnvSetup):
         lock('//tmp/a/0', mode = 'exclusive', tx = tx);
         with pytest.raises(YTError): remove('//tmp/a')
 
-
-
+    def test_exclusive_vs_snapshot_locks(self):
+        create('table', '//tmp/t')
+        tx1 = start_transaction()
+        tx2 = start_transaction()
+        lock('//tmp/t', mode = 'snapshot', tx = tx1)
+        lock('//tmp/t', mode = 'exclusive', tx = tx2)
