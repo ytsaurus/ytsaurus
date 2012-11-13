@@ -825,7 +825,7 @@ public:
         }
 
         BuildSnapshotDistributed(epochContext).Subscribe(
-            BIND(&TThis::OnSnapshotBuilt, MakeStrong(this), context);
+            BIND(&TThis::OnSnapshotBuilt, MakeStrong(this), context));
 
         if (setReadOnly) {
             SetReadOnly(true);
