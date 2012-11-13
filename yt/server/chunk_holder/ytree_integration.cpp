@@ -49,7 +49,7 @@ private:
     {
         auto id = TChunkId::FromString(key);
         auto chunk = Collection->FindChunk(id);
-        if (!chunk) {
+        if (!chunk || !chunk->IsAlive()) {
             return NULL;
         }
 

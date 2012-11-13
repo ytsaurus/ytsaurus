@@ -137,7 +137,7 @@ protected:
             auto& stackEntry = Stack.back();
             const auto& versionedId = stackEntry.ChunkListId;
             auto* chunkList = chunkManager->FindChunkList(versionedId.Id);
-            if (!chunkList) {
+            if (!chunkList || !chunkList->IsAlive()) {
                 Visitor->OnError(TError(
                     ETraversingError::Retriable, 
                     "Missing chunk list: %s",
