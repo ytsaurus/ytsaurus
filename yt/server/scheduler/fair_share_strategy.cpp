@@ -512,8 +512,8 @@ protected:
     {
         const auto& attributes = element->Attributes();
         i64 utilization = GetResource(element->GetUtilization(), attributes.DominantResource);
-        i64 total = GetResource(Limits, attributes.DominantResource);
-        return total == 0 ? 1.0 : (double) utilization / total;
+        i64 limits = GetResource(Limits, attributes.DominantResource);
+        return limits == 0 ? 1.0 : (double) utilization / limits;
     }
 
     static double GetUtilizationToWeightRatio(ISchedulableElementPtr element)
