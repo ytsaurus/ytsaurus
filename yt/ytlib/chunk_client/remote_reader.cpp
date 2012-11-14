@@ -64,7 +64,9 @@ public:
     void Initialize()
     {
         if (!Config->AllowFetchingSeedsFromMaster && InitialSeedAddresses.empty()) {
-            THROW_ERROR_EXCEPTION("Reader is unusable: master seeds retries are disabled and no initial seeds are given");
+            THROW_ERROR_EXCEPTION(
+                "Reader is unusable: master seeds retries are disabled and no initial seeds are given (ChunkId: %s)", 
+                ~ChunkId.ToString());
         }
 
         if (!InitialSeedAddresses.empty()) {
@@ -181,8 +183,10 @@ private:
             YASSERT(!GetSeedsPromise.IsSet());
             GetSeedsPromise.Set(seedAddresses);
         } else {
-            auto wrappedError = TError("Error requesting chunk seeds from master")
-                << rsp->GetError();
+            auto wrappedError = TError(
+                "Error requesting chunk seeds from master (ChunkId: %s)", 
+                ~ChunkId.ToString()) << rsp->GetError();
+
             LOG_WARNING(wrappedError);
             YASSERT(!GetSeedsPromise.IsSet());
             GetSeedsPromise.Set(wrappedError);
@@ -287,7 +291,7 @@ protected:
         } else {
             OnSessionFailed(TError("All retries failed (RetryCount: %d, PassCount: %d)",
                 reader->Config->RetryCount,
-                reader->Config->PassCount));
+                reader->Config->PassCount) << error);
         }
     }
 
@@ -604,8 +608,13 @@ private:
 
     virtual void OnSessionFailed(const TError& error)
     {
-        auto wrappedError = TError("Error fetching chunk blocks")
-            << error;
+        auto reader = Reader.Lock();
+        if (!reader)
+            return;
+
+        auto wrappedError = TError(
+            "Error fetching chunk blocks (ChunkId: %s)", 
+            ~reader->ChunkId.ToString()) << error;
 
         LOG_ERROR(wrappedError);
 
@@ -735,8 +744,13 @@ private:
 
     virtual void OnSessionFailed(const TError& error)
     {
-        auto wrappedError = TError("Error getting chunk info")
-            << error;
+        auto reader = Reader.Lock();
+        if (!reader)
+            return;
+
+        auto wrappedError = TError(
+            "Error getting chunk info (ChunkId: %s)", 
+            ~reader->ChunkId.ToString()) << error;
 
         LOG_ERROR(wrappedError);
 
