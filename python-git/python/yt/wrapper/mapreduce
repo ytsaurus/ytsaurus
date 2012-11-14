@@ -327,7 +327,7 @@ Examples:
 
     dst = []
     if args.dst is not None:
-        dst += args.dst
+        dst += map(partial(yt.Table, append=args.append), args.dst)
     if args.dstappend is not None:
         dst += map(partial(yt.Table, append=True), args.dstappend)
     if not dst:
