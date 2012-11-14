@@ -17,7 +17,7 @@ class TDataNodeServiceProxy
 public:
     static Stroka GetServiceName()
     {
-        return "ChunkHolder";
+        return "DataNode";
     }
 
     DECLARE_ENUM(EErrorCode,
