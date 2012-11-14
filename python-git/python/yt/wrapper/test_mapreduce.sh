@@ -54,10 +54,10 @@ test_base_functionality()
     check "4\t5\t6\n" "`./mapreduce -read "ignat/other_table" -lowerkey 3`"
     ./mapreduce -map "cat" -src "ignat/other_table" -dst "ignat/mapped" -ytspec '{"job_count": 10}'
     check 2 `./mapreduce -read "ignat/mapped" | wc -l`
-    for (( i=1 ; i <= 2 ; i++ )); do
-        ./mapreduce -map "cat" -src "ignat/other_table" -src "ignat/mapped" \
-            -dstappend "ignat/temp"
-    done
+    ./mapreduce -map "cat" -src "ignat/other_table" -src "ignat/mapped" \
+        -dstappend "ignat/temp"
+    ./mapreduce -map "cat" -src "ignat/other_table" -src "ignat/mapped" \
+        -dst "ignat/temp" -append
     check 8 `./mapreduce -read "ignat/temp" | wc -l`
 }
 
