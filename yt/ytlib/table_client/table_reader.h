@@ -48,11 +48,7 @@ public:
 
     virtual void Open() override;
 
-    virtual void NextRow() override;
-
-    virtual bool IsValid() const override;
-
-    virtual const TRow& GetRow() const override;
+    virtual const TRow* GetRow() override;
     virtual const TNonOwningKey& GetKey() const override;
 
     virtual i64 GetRowIndex() const override;
@@ -66,6 +62,7 @@ private:
     NChunkClient::IBlockCachePtr BlockCache;
     NYPath::TRichYPath RichPath;
     bool IsOpen;
+    bool IsReadingStarted;
     NObjectClient::TObjectServiceProxy Proxy;
     NLog::TTaggedLogger Logger;
 

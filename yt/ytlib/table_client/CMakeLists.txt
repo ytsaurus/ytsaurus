@@ -25,7 +25,6 @@ set( SRCS
 )
 
 set( HDRS
-  ${BASE}/async_reader.h
   ${BASE}/async_writer.h
   ${BASE}/channel_reader.h
   ${BASE}/channel_writer.h

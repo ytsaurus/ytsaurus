@@ -4,6 +4,7 @@
 #include "key.h"
 
 #include <ytlib/misc/sync.h>
+#include <ytlib/misc/nullable.h>
 
 #include <ytlib/ytree/public.h>
 
@@ -18,20 +19,12 @@ struct ISyncReader
     //! Called to initialize the reader.
     virtual void Open() = 0;
 
-    //! Returns True if end-of-stream is not reached yet and thus
-    //! calling #GetRow returns a valid current row.
-    virtual bool IsValid() const = 0;
-
     //! Returns the current row.
-    virtual const TRow& GetRow() const = 0;
+    virtual const TRow* GetRow() = 0;
 
     //! Returns the key of the current row.
     //! Not all implementations support this call.
     virtual const TNonOwningKey& GetKey() const = 0;
-
-    //! Must be called after the row returned from #GetRow has been examines
-    //! and another one is needed.
-    virtual void NextRow() = 0;
 
     virtual i64 GetRowIndex() const = 0;
     virtual i64 GetRowCount() const = 0;
@@ -47,6 +40,7 @@ class TSyncReaderAdapter
 public:
     explicit TSyncReaderAdapter(TIntrusivePtr<TAsyncReader> asyncReader)
         : AsyncReader(asyncReader)
+        , IsReadingStarted(false)
     { }
 
     virtual void Open() override
@@ -54,21 +48,15 @@ public:
         Sync(~AsyncReader, &TAsyncReader::AsyncOpen);
     }
 
-    virtual void NextRow() override
+    virtual const TRow* GetRow() override
     {
-        if (!AsyncReader->FetchNextItem()) {
-            Sync(~AsyncReader, &TAsyncReader::GetReadyEvent);
+        if (IsReadingStarted && AsyncReader->IsValid()) {
+            if (!AsyncReader->FetchNextItem()) {
+                Sync(~AsyncReader, &TAsyncReader::GetReadyEvent);
+            }
         }
-    }
-
-    virtual bool IsValid() const override
-    {
-        return AsyncReader->IsValid();
-    }
-
-    virtual const TRow& GetRow() const override
-    {
-        return AsyncReader->CurrentReader()->GetRow();
+        IsReadingStarted = true;
+        return AsyncReader->IsValid() ? &AsyncReader->CurrentReader()->GetRow() : NULL;
     }
 
     virtual const TNonOwningKey& GetKey() const override
@@ -95,6 +83,7 @@ public:
 private:
     TIntrusivePtr<TAsyncReader> AsyncReader;
 
+    bool IsReadingStarted;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
