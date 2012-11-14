@@ -138,7 +138,7 @@ NChunkServer::NProto::TNodeStatistics TMasterConnector::ComputeStatistics()
         totalUsedSpace += location->GetUsedSpace();
         totalChunkCount += location->GetChunkCount();
         totalSessionCount += location->GetSessionCount();
-        full &= !location->IsFull();
+        full &= location->IsFull();
     }
 
     nodeStatistics.set_total_available_space(totalAvailableSpace);
