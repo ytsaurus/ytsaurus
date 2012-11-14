@@ -592,10 +592,10 @@ public:
         FOREACH (const auto& key, keys) {
             const auto* node = NodeMap.Get(key);
             const auto& statistics = node->Statistics();
-            result.AvailbaleSpace += statistics.available_space();
-            result.UsedSpace += statistics.used_space();
-            result.ChunkCount += statistics.chunk_count();
-            result.SessionCount += statistics.session_count();
+            result.AvailbaleSpace += statistics.total_available_space();
+            result.UsedSpace += statistics.total_used_space();
+            result.ChunkCount += statistics.total_chunk_count();
+            result.SessionCount += statistics.total_session_count();
             result.OnlineNodeCount++;
         }
         return result;
@@ -629,7 +629,7 @@ public:
         switch (type) {
             case EObjectType::Chunk: {
                 auto* chunk = FindChunk(id);
-                if (!chunk) {
+                if (!chunk || !chunk->IsAlive()) {
                     THROW_ERROR_EXCEPTION("No such chunk: %s", ~id.ToString());
                 }
                 return TChunkTreeRef(chunk);
@@ -637,7 +637,7 @@ public:
 
             case EObjectType::ChunkList: {
                 auto* chunkList = FindChunkList(id);
-                if (!chunkList) {
+                if (!chunkList || !chunkList->IsAlive()) {
                     THROW_ERROR_EXCEPTION("No such chunk list: %s", ~id.ToString());
                 }
                 return TChunkTreeRef(chunkList);
@@ -710,9 +710,6 @@ private:
 
     yhash_map<Stroka, TReplicationSink> ReplicationSinkMap;
 
-    void UpdateStatistics(TChunkList* chunkList, const TChunkTreeStatistics& delta)
-    {
-    }
 
 
     void DestroyChunk(TChunk* chunk)
@@ -935,7 +932,7 @@ private:
             auto chunkId = TChunkId::FromProto(update.chunk_id());
             int replicationFactor = update.replication_factor();
             auto* chunk = FindChunk(chunkId);
-            if (chunk && chunk->GetReplicationFactor() != replicationFactor) {
+            if (chunk && chunk->IsAlive() && chunk->GetReplicationFactor() != replicationFactor) {
                 chunk->SetReplicationFactor(replicationFactor);
                 if (IsLeader()) {
                     ChunkReplicator->ScheduleChunkRefresh(chunk->GetId());
@@ -1387,7 +1384,7 @@ private:
         bool cached = chunkAddInfo.cached();
 
         auto* chunk = FindChunk(chunkId);
-        if (!chunk) {
+        if (!chunk || !chunk->IsAlive()) {
             // Nodes may still contain cached replicas of chunks that no longer exist.
             // Here we just silently ignore this case.
             if (cached) {
@@ -1448,7 +1445,7 @@ private:
         bool cached = chunkInfo.cached();
 
         auto* chunk = FindChunk(chunkId);
-        if (!chunk) {
+        if (!chunk || !chunk->IsAlive()) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk replica removed (ChunkId: %s, Cached: %s, Address: %s, NodeId: %d)",
                  ~chunkId.ToString(),
                  ~FormatBool(cached),

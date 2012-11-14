@@ -22,6 +22,7 @@ TDataNode::TDataNode(
     : Id_(id)
     , Address_(address)
     , IncarnationId_(incarnationId)
+    , HintedSessionCount_(0)
 { }
 
 TDataNode::TDataNode(TNodeId id)
@@ -110,6 +111,11 @@ void TDataNode::ApproveChunk(TChunk* chunk)
 {
     YASSERT(HasChunk(chunk, false));
     YCHECK(UnapprovedChunks_.erase(chunk) == 1);
+}
+
+int TDataNode::GetTotalSessionCount() const
+{
+    return HintedSessionCount_ + Statistics_.total_session_count();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

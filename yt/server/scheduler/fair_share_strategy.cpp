@@ -93,7 +93,6 @@ struct ISchedulableElement
     
     virtual TNodeResources GetDemand() const = 0;
     virtual TNodeResources GetUtilization() const = 0;
-    virtual TNodeResources GetLimits() const = 0;
 
 };
 
@@ -157,8 +156,6 @@ public:
     virtual void Update(double limitsRatio) override
     {
         UNUSED(limitsRatio);
-
-        Limits_ = Host->GetTotalResourceLimits() * limitsRatio;
     }
 
     virtual TInstant GetStartTime() const override
@@ -196,9 +193,9 @@ public:
     {
         const auto& attributes = Attributes();
         auto utilization = GetUtilization() - UtilizationDiscount_;
-        i64 utilizationComponent = GetResource(utilization, attributes.DominantResource);
-        i64 limitsComponent = GetResource(Limits_, attributes.DominantResource);
-        return limitsComponent == 0 ? 1.0 : (double) utilizationComponent / limitsComponent;
+        i64 dominantUtilization = GetResource(utilization, attributes.DominantResource);
+        i64 dominantLimits = GetResource(Host->GetTotalResourceLimits(), attributes.DominantResource);
+        return dominantLimits == 0 ? 1.0 : (double) dominantUtilization / dominantLimits;
     }
 
     EOperationStatus GetStatus() const
@@ -219,7 +216,6 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(TSchedulableAttributes, Attributes);
     DEFINE_BYVAL_RO_PROPERTY(TOperationPtr, Operation);
-    DEFINE_BYVAL_RO_PROPERTY(TNodeResources, Limits);
     DEFINE_BYVAL_RW_PROPERTY(TPooledOperationSpecPtr, Spec);
     DEFINE_BYVAL_RW_PROPERTY(TPool*, Pool);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, BelowMinShareSince);
@@ -243,13 +239,11 @@ public:
         : Host(host)
         , Mode(ESchedulingMode::Fifo)
         , LimitsRatio(0.0)
-        , Limits(ZeroNodeResources())
     { }
 
     virtual void Update(double limitsRatio) override
     {
         LimitsRatio = limitsRatio;
-        Limits = Host->GetTotalResourceLimits() * limitsRatio;
 
         ComputeFairShares();
     }
@@ -309,7 +303,6 @@ protected:
     yhash_set<ISchedulableElementPtr> Children;
     
     double LimitsRatio;
-    TNodeResources Limits;
 
 
     void ComputeFairShares()
@@ -328,12 +321,12 @@ protected:
             attributes.DominantResource = GetDominantResource(demand, totalLimits);
             i64 dominantLimits = GetResource(totalLimits, attributes.DominantResource);
             i64 dominantDemand = GetResource(demand, attributes.DominantResource);
-            attributes.DemandRatio = dominantLimits == 0 ? LimitsRatio : (double) dominantDemand / dominantLimits;
+            attributes.DemandRatio = dominantLimits == 0 ? 0.0 : (double) dominantDemand / dominantLimits;
             demandRatioSum += attributes.DemandRatio;
 
             attributes.Weight = child->GetWeight();
 
-            if (dominantDemand != 0) {
+            if (dominantDemand > 0) {
                 attributes.AdjustedMinShareRatio = child->GetMinShareRatio() * LimitsRatio;
                 minShareRatioSum += attributes.AdjustedMinShareRatio;
             } else {
@@ -352,7 +345,7 @@ protected:
         // Check for FIFO mode.
         // Check if we have more resources than totally demanded by children.
         if (Mode == ESchedulingMode::Fifo) {
-            // Set fair shares equal to limits ratio. This is done just for convenience.
+            // Easy case -- the first child get everything, others get none.
             SetFifoFairShares();
         } else if (demandRatioSum <= LimitsRatio) {
             // Easy case -- just give everyone what he needs.
@@ -371,7 +364,6 @@ protected:
 
     void SetFifoFairShares()
     {
-        // The first child gets everything, others get none.
         FOREACH (auto child, Children) {
             auto& attributes = child->Attributes();
             attributes.FairShareRatio = attributes.Rank == 0 ? LimitsRatio : 0.0;
@@ -499,29 +491,29 @@ protected:
     }
 
 
-    bool IsNeedy(ISchedulableElementPtr element)
+    bool IsNeedy(ISchedulableElementPtr element) const
     {
         const auto& attributes = element->Attributes();
-        i64 demand = GetResource(element->GetDemand(), attributes.DominantResource);
-        i64 utilization = GetResource(element->GetUtilization(), attributes.DominantResource);
-        i64 limits = GetResource(Limits, attributes.DominantResource);
-        return utilization < demand && utilization < limits * attributes.AdjustedMinShareRatio;
+        i64 dominantDemand = GetResource(element->GetDemand(), attributes.DominantResource);
+        i64 dominantUtilization = GetResource(element->GetUtilization(), attributes.DominantResource);
+        i64 dominantLimits = GetResource(Host->GetTotalResourceLimits(), attributes.DominantResource);
+        return dominantUtilization < dominantDemand && dominantUtilization < dominantLimits * attributes.AdjustedMinShareRatio;
     }
 
-    double GetUtilizationToLimitsRatio(ISchedulableElementPtr element)
+    double GetUtilizationToLimitsRatio(ISchedulableElementPtr element) const
     {
         const auto& attributes = element->Attributes();
-        i64 utilization = GetResource(element->GetUtilization(), attributes.DominantResource);
-        i64 total = GetResource(Limits, attributes.DominantResource);
-        return total == 0 ? 1.0 : (double) utilization / total;
+        i64 dominantUtilization = GetResource(element->GetUtilization(), attributes.DominantResource);
+        i64 dominantLimits = GetResource(Host->GetTotalResourceLimits(), attributes.DominantResource);
+        return dominantLimits == 0 ? 0.0 : (double) dominantUtilization / dominantLimits;
     }
 
     static double GetUtilizationToWeightRatio(ISchedulableElementPtr element)
     {
         const auto& attributes = element->Attributes();
-        i64 utilization = GetResource(element->GetUtilization(), attributes.DominantResource);
+        i64 dominantUtilization = GetResource(element->GetUtilization(), attributes.DominantResource);
         i64 weight = attributes.Weight;
-        return weight == 0 ? 1.0 : (double) utilization / weight;
+        return weight == 0 ? 1.0 : (double) dominantUtilization / weight;
     }
 
 
@@ -612,15 +604,6 @@ public:
         auto result = ZeroNodeResources();
         FOREACH (auto child, Children) {
             result += child->GetUtilization();
-        }
-        return result;
-    }
-
-    virtual TNodeResources GetLimits() const override
-    {
-        auto result = ZeroNodeResources();
-        FOREACH (auto child, Children) {
-            result += child->GetLimits();
         }
         return result;
     }
@@ -750,7 +733,6 @@ public:
         BuildYsonMapFluently(consumer)
             .Item("pool").Scalar(pool->GetId())
             .Item("start_time").Scalar(element->GetStartTime())
-            .Item("resource_limits").Scalar(element->GetLimits())
             .Item("scheduling_status").Scalar(element->GetStatus())
             .Item("starving").Scalar(element->GetStarving())
             .Item("utilization_ratio").Scalar(element->GetUtilizationRatio())

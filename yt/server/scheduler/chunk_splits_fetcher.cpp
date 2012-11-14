@@ -59,7 +59,7 @@ std::vector<TRefCountedInputChunkPtr>& TChunkSplitsFetcher::GetChunkSplits()
 void TChunkSplitsFetcher::CreateNewRequest(const Stroka& address)
 {
     auto channel = ChannelCache.GetChannel(address);
-    TChunkHolderServiceProxy proxy(channel);
+    TDataNodeServiceProxy proxy(channel);
     proxy.SetDefaultTimeout(Config->NodeRpcTimeout);
 
     CurrentRequest = proxy.GetChunkSplits();

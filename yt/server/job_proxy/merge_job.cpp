@@ -117,24 +117,20 @@ public:
                 if (KeyColumns)
                     key.ClearAndResize(KeyColumns->size());
 
-                while (Reader->IsValid()) {
-                    const TRow& row = Reader->GetRow();
-
+                while (const TRow* row = Reader->GetRow()) {
                     if (KeyColumns) {
                         key.Clear();
 
-                        FOREACH (const auto& pair, row) {
+                        FOREACH (const auto& pair, *row) {
                             auto it = keyColumnToIndex.find(pair.first);
                             if (it != keyColumnToIndex.end()) {
                                 key.SetKeyPart(it->second, pair.second, lexer);
                             }
                         }
-                        writer->WriteRowUnsafe(row, key);
+                        writer->WriteRowUnsafe(*row, key);
                     } else {
-                        writer->WriteRowUnsafe(row);
+                        writer->WriteRowUnsafe(*row);
                     }
-
-                    Reader->NextRow();
                 }
             }
             PROFILE_TIMING_CHECKPOINT("merge");

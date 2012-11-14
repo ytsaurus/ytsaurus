@@ -119,6 +119,13 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
         return next;
     }
 
+    if (*next == '\0') {
+        THROW_ERROR_EXCEPTION("Found unescaped \\0 symbol")
+            << TErrorAttribute("record_index", RecordCount)
+            << TErrorAttribute("field_index", FieldCount);
+    }
+
+
     // Here, we have finished reading prefix, key or value
     if (State == EState::InsidePrefix) {
         StartRecordIfNeeded();

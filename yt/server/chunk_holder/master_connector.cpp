@@ -116,25 +116,38 @@ void TMasterConnector::SendRegister()
 
 NChunkServer::NProto::TNodeStatistics TMasterConnector::ComputeStatistics()
 {
-    i64 availableSpace = 0;
-    i64 usedSpace = 0;
-    bool isFull = true;
-    FOREACH (const auto& location, Bootstrap->GetChunkStore()->Locations()) {
-        availableSpace += location->GetAvailableSpace();
-        usedSpace += location->GetUsedSpace();
-        if (!location->IsFull()) {
-            isFull = false;
-        }
+    TNodeStatistics nodeStatistics;
+    
+    i64 totalAvailableSpace = 0;
+    i64 totalUsedSpace = 0;
+    int totalChunkCount = 0;
+    int totalSessionCount = 0;
+    bool full = true;
+    
+    FOREACH (auto location, Bootstrap->GetChunkStore()->Locations()) {
+        auto* locationStatistics = nodeStatistics.add_locations();
+
+        locationStatistics->set_available_space(location->GetAvailableSpace());
+        locationStatistics->set_used_space(location->GetUsedSpace());
+        locationStatistics->set_chunk_count(location->GetChunkCount());
+        locationStatistics->set_session_count(location->GetSessionCount());
+        locationStatistics->set_full(location->IsFull());
+        locationStatistics->set_enabled(true);
+
+        totalAvailableSpace += location->GetAvailableSpace();
+        totalUsedSpace += location->GetUsedSpace();
+        totalChunkCount += location->GetChunkCount();
+        totalSessionCount += location->GetSessionCount();
+        full &= location->IsFull();
     }
 
-    TNodeStatistics result;
-    result.set_available_space(availableSpace);
-    result.set_used_space(usedSpace);
-    result.set_chunk_count(Bootstrap->GetChunkStore()->GetChunkCount());
-    result.set_session_count(Bootstrap->GetSessionManager()->GetSessionCount());
-    result.set_full(isFull);
+    nodeStatistics.set_total_available_space(totalAvailableSpace);
+    nodeStatistics.set_total_used_space(totalUsedSpace);
+    nodeStatistics.set_total_chunk_count(totalChunkCount);
+    nodeStatistics.set_total_session_count(totalSessionCount);
+    nodeStatistics.set_full(full);
 
-    return result;
+    return nodeStatistics;
 }
 
 void TMasterConnector::OnRegisterResponse(TProxy::TRspRegisterNodePtr response)

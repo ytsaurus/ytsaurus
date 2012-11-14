@@ -51,6 +51,8 @@ void TGarbageCollector::Load(const NCellMaster::TLoadContext& context)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     LoadSet(context.GetInput(), ZombieIds);
+
+    ProfileQueueSize();
 }
 
 void TGarbageCollector::Clear()
@@ -61,7 +63,7 @@ void TGarbageCollector::Clear()
     CollectPromise = NewPromise<void>();
     CollectPromise.Set();
 
-    Profiler.Aggregate(QueueSizeCounter, 0);
+    ProfileQueueSize();
 }
 
 TFuture<void> TGarbageCollector::Collect()
@@ -81,7 +83,7 @@ void TGarbageCollector::Enqueue(const TObjectId& id)
 
     YCHECK(ZombieIds.insert(id).second);
 
-    Profiler.Increment(QueueSizeCounter, 1);
+    ProfileQueueSize();
 }
 
 void TGarbageCollector::Dequeue(const TObjectId& id)
@@ -96,7 +98,7 @@ void TGarbageCollector::Dequeue(const TObjectId& id)
         CollectPromise.Set();
     }
 
-    Profiler.Increment(QueueSizeCounter, -1);
+    ProfileQueueSize();
 }
 
 void TGarbageCollector::Sweep()
@@ -143,6 +145,11 @@ void TGarbageCollector::OnCommitFailed(const TError& error)
     LOG_WARNING(error, "GC sweep commit failed");
 
     SweepInvoker->ScheduleNext();
+}
+
+void TGarbageCollector::ProfileQueueSize()
+{
+    Profiler.Aggregate(QueueSizeCounter, ZombieIds.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

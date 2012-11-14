@@ -7,7 +7,7 @@
 #include "bootstrap.h"
 
 #include <ytlib/chunk_client/file_reader.h>
-#include <ytlib/chunk_client/chunk_holder_service_proxy.h>
+#include <ytlib/chunk_client/data_node_service_proxy.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 namespace NYT {

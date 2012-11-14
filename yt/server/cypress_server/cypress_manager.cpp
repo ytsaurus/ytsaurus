@@ -514,7 +514,9 @@ void TCypressManager::ValidateLock(
 
         if (!transaction || IsConcurrentTransaction(transaction, existingTransaction)) {
             // For Exclusive locks we check locks held by concurrent transactions.
-            if (request.Mode == ELockMode::Exclusive || existingLock.Mode == ELockMode::Exclusive) {
+            if (request.Mode == ELockMode::Exclusive && existingLock.Mode != ELockMode::Snapshot ||
+                existingLock.Mode == ELockMode::Exclusive && request.Mode != ELockMode::Snapshot)
+            {
                 THROW_ERROR_EXCEPTION("Cannot take %s lock for node %s since %s lock is taken by concurrent transaction %s",
                     ~FormatEnum(request.Mode).Quote(),
                     ~GetNodePath(nodeId, transaction),

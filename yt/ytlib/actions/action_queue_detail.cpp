@@ -122,7 +122,7 @@ void TActionQueueBase::Start()
 {
     LOG_DEBUG_IF(EnableLogging, "Starting thread: %s", ~ThreadName);
 
-    AtomicSet(Running, true);
+    Running = true;
     Thread.Start();
 }
 
@@ -146,7 +146,7 @@ void TActionQueueBase::ThreadMain()
         if (!DequeueAndExecute()) {
             WakeupEvent.Reset();
             if (!DequeueAndExecute()) {
-                if (!IsRunning()) {
+                if (!Running) {
                     break;
                 }
                 OnIdle();
@@ -154,8 +154,6 @@ void TActionQueueBase::ThreadMain()
             }
         }
     }
-
-    YCHECK(!DequeueAndExecute());
     
     OnThreadShutdown();
 
@@ -170,7 +168,7 @@ void TActionQueueBase::Shutdown()
 
     LOG_DEBUG_IF(EnableLogging, "Stopping thread: %s", ~ThreadName);
 
-    AtomicSet(Running, false);
+    Running = false;
     WakeupEvent.Signal();
 
     // Prevent deadlock.
@@ -189,7 +187,7 @@ void TActionQueueBase::Signal()
 
 bool TActionQueueBase::IsRunning() const
 {
-    return AtomicGet(Running);
+    return Running;
 }
 
 void TActionQueueBase::OnThreadStart()

@@ -12,7 +12,7 @@
 #include <ytlib/chunk_client/file_reader.h>
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/chunk_holder_service_proxy.h>
+#include <ytlib/chunk_client/data_node_service_proxy.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -121,7 +121,7 @@ public:
 
         if (!chunk) {
             return MakeFuture(TGetBlockResult(TError(
-                TChunkHolderServiceProxy::EErrorCode::NoSuchChunk,
+                TDataNodeServiceProxy::EErrorCode::NoSuchChunk,
                 Sprintf("No such chunk (ChunkId: %s)", ~blockId.ChunkId.ToString()))));
         }
 
@@ -240,7 +240,7 @@ private:
 
         if (!data) {
             cookie->Cancel(TError(
-                TChunkHolderServiceProxy::EErrorCode::NoSuchBlock,
+                TDataNodeServiceProxy::EErrorCode::NoSuchBlock,
                 Sprintf("No such block (BlockId: %s)", ~blockId.ToString())));
             return;
         }

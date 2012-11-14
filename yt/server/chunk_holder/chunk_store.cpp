@@ -6,14 +6,12 @@
 #include "chunk_store.h"
 #include "bootstrap.h"
 
-#include <ytlib/misc/foreach.h>
+#include <ytlib/chunk_client/data_node_service_proxy.h>
 
-#include <ytlib/chunk_client/chunk_holder_service_proxy.h>
-
+#include <util/random/random.h>
 
 #include <utility>
 #include <limits>
-#include <util/random/random.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -64,8 +62,7 @@ void TChunkStore::Start()
             if (CellGuid.IsEmpty()) {
                 CellGuid = cellGuid;
             } else if (CellGuid != cellGuid) {
-                LOG_FATAL(
-                    "Inconsistent cell guid across chunk store locations (%s and %s)", 
+                LOG_FATAL("Inconsistent cell guid across chunk store locations: %s vs %s", 
                     ~CellGuid.ToString(),
                     ~cellGuid.ToString());
             }
@@ -85,7 +82,10 @@ void TChunkStore::Start()
 void TChunkStore::RegisterChunk(TStoredChunkPtr chunk)
 {
     YCHECK(ChunkMap.insert(MakePair(chunk->GetId(), chunk)).second);
-    chunk->GetLocation()->UpdateUsedSpace(chunk->GetInfo().size());
+
+    auto location = chunk->GetLocation();
+    location->UpdateChunkCount(+1);
+    location->UpdateUsedSpace(+chunk->GetInfo().size());
 
     LOG_DEBUG("Chunk registered (ChunkId: %s, Size: %" PRId64 ")",
         ~chunk->GetId().ToString(),
@@ -103,14 +103,19 @@ TStoredChunkPtr TChunkStore::FindChunk(const TChunkId& chunkId) const
 TFuture<void> TChunkStore::RemoveChunk(TStoredChunkPtr chunk)
 {
     auto promise = NewPromise<void>();
-    chunk->ScheduleRemoval().Subscribe(BIND([=] () mutable {
-        auto chunkId = chunk->GetId();
-        YCHECK(ChunkMap.erase(chunkId) == 1);
-        auto location = chunk->GetLocation();
-        location->UpdateUsedSpace(-chunk->GetInfo().size());
-        ChunkRemoved_.Fire(chunk);
-        promise.Set();
-    }).Via(Bootstrap->GetControlInvoker()));
+    chunk->ScheduleRemoval().Subscribe(
+        BIND([=] () mutable {
+            auto chunkId = chunk->GetId();
+            YCHECK(ChunkMap.erase(chunkId) == 1);
+
+            auto location = chunk->GetLocation();
+            location->UpdateChunkCount(-1);
+            location->UpdateUsedSpace(-chunk->GetInfo().size());
+
+            ChunkRemoved_.Fire(chunk);
+            promise.Set();
+        })
+        .Via(Bootstrap->GetControlInvoker()));
     return promise;
 }
 
@@ -138,7 +143,7 @@ TLocationPtr TChunkStore::GetNewChunkLocation()
 
     if (candidates.empty()) {
         THROW_ERROR_EXCEPTION(
-            TChunkHolderServiceProxy::EErrorCode::OutOfSpace,
+            TDataNodeServiceProxy::EErrorCode::OutOfSpace,
             "All locations are full");
     }
 

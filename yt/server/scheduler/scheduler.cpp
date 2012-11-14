@@ -373,8 +373,13 @@ private:
             }
             FinishOperation(operation);
         }
-
         YCHECK(Operations.empty());
+
+        FOREACH (const auto& pair, Nodes) {
+            auto node = pair.second;
+            node->Jobs().clear();
+        }
+
         Jobs.clear();
     }
 

@@ -1,6 +1,7 @@
 #include "stdafx.h"
 
 #include <ytlib/formats/dsv_writer.h>
+#include <ytlib/formats/dsv_parser.h>
 
 #include <contrib/testing/framework.h>
 
@@ -303,6 +304,27 @@ TEST(TTskvWriterTest, Escaping)
     Cout << output;
 
     EXPECT_EQ(outputStream.Str(), output);
+}
+
+TEST(TTskvWriterTest, EscapingOfCustomSeparator)
+{
+    auto config = New<TDsvFormatConfig>();
+    config->KeyValueSeparator = ':';
+
+    TStringStream outputStreamA;
+    TDsvWriter writerA(&outputStreamA, EYsonType::ListFragment, config);
+
+    writerA.OnListItem();
+    writerA.OnBeginMap();
+        writerA.OnKeyedItem(Stroka("=my\\:key"));
+        writerA.OnStringScalar(Stroka("42"));
+    writerA.OnEndMap();
+
+    TStringStream outputStreamB;
+    TDsvWriter writerB(&outputStreamB, EYsonType::ListFragment, config);
+    ParseDsv(outputStreamA.Str(), &writerB, config);
+
+    EXPECT_EQ(outputStreamA.Str(), outputStreamB.Str());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

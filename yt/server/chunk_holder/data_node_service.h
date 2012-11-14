@@ -7,7 +7,7 @@
 
 #include <ytlib/actions/action_queue.h>
 
-#include <ytlib/chunk_client/chunk_holder_service_proxy.h>
+#include <ytlib/chunk_client/data_node_service_proxy.h>
 
 #include <ytlib/table_client/public.h>
 
@@ -16,17 +16,17 @@ namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkHolderService
+class TDataNodeService
     : public NRpc::TServiceBase
 {
 public:
-    TChunkHolderService(
+    TDataNodeService(
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap);
 
 private:
-    typedef TChunkHolderService TThis;
-    typedef NChunkClient::TChunkHolderServiceProxy TProxy;
+    typedef TDataNodeService TThis;
+    typedef NChunkClient::TDataNodeServiceProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
 
     TDataNodeConfigPtr Config;

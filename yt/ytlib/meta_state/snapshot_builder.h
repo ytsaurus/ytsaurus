@@ -42,7 +42,7 @@ public:
      *
      *  \note Thread affinity: StateThread
      */
-    TFuture<TResultOrError> CreateDistributedSnapshot();
+    TFuture<TResultOrError> BuildSnapshotDistributed();
 
     /*!
      *  \note Thread affinity: StateThread
@@ -52,7 +52,7 @@ public:
     /*!
      *  \note Thread affinity: StateThread
      */
-    TFuture<TResultOrError> CreateLocalSnapshot(const TMetaVersion& version);
+    TFuture<TResultOrError> BuildSnapshotLocal(const TMetaVersion& version);
 
     /*!
      *  \note Thread affinity: StateThread

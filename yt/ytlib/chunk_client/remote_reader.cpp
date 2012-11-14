@@ -6,7 +6,7 @@
 #include "holder_channel_cache.h"
 #include "block_id.h"
 #include "chunk_ypath_proxy.h"
-#include "chunk_holder_service_proxy.h"
+#include "data_node_service_proxy.h"
 #include "dispatcher.h"
 
 #include <ytlib/misc/foreach.h>
@@ -493,7 +493,7 @@ private:
                     continue;
                 }
 
-                TChunkHolderServiceProxy proxy(channel);
+                TDataNodeServiceProxy proxy(channel);
                 proxy.SetDefaultTimeout(reader->Config->NodeRpcTimeout);
 
                 auto request = proxy.GetBlocks();
@@ -521,8 +521,8 @@ private:
 
     void OnGetBlocksResponse(
         const Stroka& address,
-        TChunkHolderServiceProxy::TReqGetBlocksPtr request,
-        TChunkHolderServiceProxy::TRspGetBlocksPtr response)
+        TDataNodeServiceProxy::TReqGetBlocksPtr request,
+        TDataNodeServiceProxy::TRspGetBlocksPtr response)
     {
         if (response->IsOK()) {
             ProcessReceivedBlocks(address, request, response);
@@ -541,8 +541,8 @@ private:
 
     void ProcessReceivedBlocks(
         const Stroka& address,
-        TChunkHolderServiceProxy::TReqGetBlocksPtr request,
-        TChunkHolderServiceProxy::TRspGetBlocksPtr response)
+        TDataNodeServiceProxy::TReqGetBlocksPtr request,
+        TDataNodeServiceProxy::TRspGetBlocksPtr response)
     {
         auto reader = Reader.Lock();
         if (!reader)
@@ -696,7 +696,7 @@ private:
             return;
         }
 
-        TChunkHolderServiceProxy proxy(channel);
+        TDataNodeServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(reader->Config->NodeRpcTimeout);
 
         auto request = proxy.GetChunkMeta();
@@ -714,7 +714,7 @@ private:
 
     void OnChunkMetaResponse(
         const Stroka& address,
-        TChunkHolderServiceProxy::TRspGetChunkMetaPtr response)
+        TDataNodeServiceProxy::TRspGetChunkMetaPtr response)
     {
         if (response->IsOK()) {
             OnSessionSucceeded(response->chunk_meta());

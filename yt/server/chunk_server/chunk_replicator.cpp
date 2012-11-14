@@ -243,8 +243,8 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleReplicationJob(
     std::vector<TJobStartInfo>* jobsToStart)
 {
     auto chunkManager = Bootstrap->GetChunkManager();
-    auto chunk = chunkManager->FindChunk(chunkId);
-    if (!chunk) {
+    auto* chunk = chunkManager->FindChunk(chunkId);
+    if (!chunk || !chunk->IsAlive()) {
         LOG_TRACE("Chunk %s we're about to replicate is missing on %s",
             ~chunkId.ToString(),
             ~sourceNode->GetAddress());
@@ -617,7 +617,7 @@ void TChunkReplicator::OnRefresh()
                     break;
 
                 auto* chunk = chunkManager->FindChunk(entry.ChunkId);
-                if (chunk) {
+                if (chunk && chunk->IsAlive()) {
                     Refresh(chunk);
                     ++refreshedCount;
                 }
@@ -781,7 +781,7 @@ void TChunkReplicator::OnRFUpdate()
         YCHECK(RFUpdateSet.erase(chunkId) == 1);
 
         auto* chunk = chunkManager->FindChunk(chunkId);
-        if (chunk) {
+        if (chunk && chunk->IsAlive()) {
             int replicationFactor = ComputeReplicationFactor(chunk);
             if (chunk->GetReplicationFactor() != replicationFactor) {
                 auto* update = request.add_updates();

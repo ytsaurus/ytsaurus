@@ -3,7 +3,7 @@
 #include "public.h"
 
 #include <ytlib/chunk_client/public.h>
-#include <ytlib/chunk_client/chunk_holder_service_proxy.h>
+#include <ytlib/chunk_client/data_node_service_proxy.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -21,7 +21,7 @@ public:
     ~TReaderCache();
 
     typedef TValueOrError<NChunkClient::TFileReaderPtr> TGetReaderResult;
-    typedef NChunkClient::TChunkHolderServiceProxy::EErrorCode EErrorCode;
+    typedef NChunkClient::TDataNodeServiceProxy::EErrorCode EErrorCode;
 
     //! Returns a (cached) chunk reader.
     /*!

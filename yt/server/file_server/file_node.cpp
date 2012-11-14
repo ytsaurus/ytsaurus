@@ -59,12 +59,7 @@ void TFileNode::Load(const NCellMaster::TLoadContext& context)
 
     auto* input = context.GetInput();
     LoadObjectRef(input, ChunkList_, context);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 2) {
-        ::Load(input, ReplicationFactor_);
-    } else {
-        ReplicationFactor_ = 3;
-    }
+    ::Load(input, ReplicationFactor_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -110,7 +105,7 @@ public:
         auto chunkId = TChunkId::FromProto(requestExt.chunk_id());
 
         auto* chunk = chunkManager->FindChunk(chunkId);
-        if (!chunk) {
+        if (!chunk || !chunk->IsAlive()) {
             THROW_ERROR_EXCEPTION("No such chunk: %s", ~chunkId.ToString());
         }
 

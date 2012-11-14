@@ -8,7 +8,7 @@
 
 #include <ytlib/misc/periodic_invoker.h>
 
-#include <ytlib/chunk_client/chunk_holder_service_proxy.h>
+#include <ytlib/chunk_client/data_node_service_proxy.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -29,7 +29,7 @@ public:
 private:
     void Update();
     
-    typedef NChunkClient::TChunkHolderServiceProxy TProxy;
+    typedef NChunkClient::TDataNodeServiceProxy TProxy;
 
     TDataNodeConfigPtr Config;
     TBootstrap* Bootstrap;

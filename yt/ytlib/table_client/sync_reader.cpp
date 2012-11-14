@@ -1,7 +1,6 @@
 ﻿#include "stdafx.h"
 
 #include "sync_reader.h"
-#include "async_reader.h"
 
 #include <ytlib/misc/sync.h>
 

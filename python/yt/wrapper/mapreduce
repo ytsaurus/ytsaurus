@@ -21,8 +21,9 @@ from operator import attrgetter
 from functools import partial
 from itertools import imap
 
-def die(message, return_code=1):
-    print >>sys.stderr, message
+def die(message=None, return_code=1):
+    if message is not None:
+        print >>sys.stderr, message
     sys.exit(return_code)
 
 def check_prefix():
@@ -326,7 +327,7 @@ Examples:
 
     dst = []
     if args.dst is not None:
-        dst += args.dst
+        dst += map(partial(yt.Table, append=args.append), args.dst)
     if args.dstappend is not None:
         dst += map(partial(yt.Table, append=True), args.dstappend)
     if not dst:
@@ -460,20 +461,15 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print "Shutdown requested... exiting"
-        sys.exit(1)
+        die("Shutdown requested... exiting")
     except yt.YtOperationFailedError as error:
-        print error.message
-        sys.exit(1)
+        die(error.message)
     except yt.YtResponseError as error:
-        print error.message
-        sys.exit(1)
+        die(error.message)
     except yt.ConnectionError as error:
-        print "Connection problem:", error.message
-        sys.exit(1)
+        die("Connection problem: " + error.message)
     except yt.HTTPError as error:
-        print "Connection was broken:", error.message
-        sys.exit(1)
+        die("Connection was broken: " + error.message)
     except Exception:
         traceback.print_exc(file=sys.stdout)
-        sys.exit(1)
+        die()

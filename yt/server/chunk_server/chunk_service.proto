@@ -5,13 +5,24 @@ import "yt/ytlib/chunk_client/chunk.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TNodeStatistics
+message TLocationStatistics
 {
     required int64 available_space = 1;
     required int64 used_space = 2;
     required int32 chunk_count = 3;
     required int32 session_count = 4;
+    required bool enabled = 5;
+    required bool full = 6;
+}
+
+message TNodeStatistics
+{
+    required int64 total_available_space = 1;
+    required int64 total_used_space = 2;
+    required int32 total_chunk_count = 3;
+    required int32 total_session_count = 4;
     required bool full = 5;
+    repeated TLocationStatistics locations = 6;
 }
 
 message TChunkAddInfo

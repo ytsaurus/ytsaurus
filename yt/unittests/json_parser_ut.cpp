@@ -325,7 +325,7 @@ TEST(TJsonParserTest, DoubleAttributes)
     ParseJson(&stream, &Mock);
 }
 
-TEST(TJsonWriterTest, SomeHackyTest)
+TEST(TJsonParserTest, SomeHackyTest)
 {
     Stroka input = "{\"$value\": \"yamr\", \"$attributes\": {\"lenval\": \"false\", \"has_subkey\": \"false\"}}";
 

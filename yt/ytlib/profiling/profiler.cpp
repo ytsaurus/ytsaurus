@@ -223,26 +223,26 @@ void TProfiler::DoAggregate(
         counter.Deadline = now + counter.Interval;
         guard.Release();
         switch (counter.Mode) {
-        case EAggregateMode::All:
-            Enqueue(counter.Path + "/min", min);
-            Enqueue(counter.Path + "/max", max);
-            Enqueue(counter.Path + "/avg", avg);
-            break;
+            case EAggregateMode::All:
+                Enqueue(counter.Path + "/min", min);
+                Enqueue(counter.Path + "/max", max);
+                Enqueue(counter.Path + "/avg", avg);
+                break;
 
-        case EAggregateMode::Min:
-            Enqueue(counter.Path, min);
-            break;
+            case EAggregateMode::Min:
+                Enqueue(counter.Path, min);
+                break;
 
-        case EAggregateMode::Max:
-            Enqueue(counter.Path, max);
-            break;
+            case EAggregateMode::Max:
+                Enqueue(counter.Path, max);
+                break;
 
-        case EAggregateMode::Avg:
-            Enqueue(counter.Path, avg);
-            break;
+            case EAggregateMode::Avg:
+                Enqueue(counter.Path, avg);
+                break;
 
-        default:
-            YUNREACHABLE();
+            default:
+                YUNREACHABLE();
         }
     }
 }

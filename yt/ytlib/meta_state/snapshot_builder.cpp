@@ -77,7 +77,7 @@ public:
         
         if (CreateSnapshot) {
             Awaiter->Await(
-                Owner->CreateLocalSnapshot(Version),
+                Owner->BuildSnapshotLocal(Version),
                 BIND(&TSession::OnLocalSnapshotCreated, MakeStrong(this)));
 
             // The awaiter must be completed from the control thread.
@@ -244,7 +244,7 @@ TSnapshotBuilder::TSnapshotBuilder(
     VERIFY_INVOKER_AFFINITY(StateInvoker, StateThread);
 }
 
-TFuture<TSnapshotBuilder::TResultOrError> TSnapshotBuilder::CreateDistributedSnapshot()
+TFuture<TSnapshotBuilder::TResultOrError> TSnapshotBuilder::BuildSnapshotDistributed()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -260,7 +260,7 @@ void TSnapshotBuilder::RotateChangeLog()
     New<TSession>(MakeStrong(this), version, EpochId, false)->Run();
 }
 
-TFuture<TSnapshotBuilder::TResultOrError> TSnapshotBuilder::CreateLocalSnapshot(const TMetaVersion& version)
+TFuture<TSnapshotBuilder::TResultOrError> TSnapshotBuilder::BuildSnapshotLocal(const TMetaVersion& version)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 

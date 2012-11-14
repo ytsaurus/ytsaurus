@@ -122,8 +122,8 @@ bool TMultiChunkSequentialReader<TChunkReader>::ValidateReader()
 template <class TChunkReader>
 bool TMultiChunkSequentialReader<TChunkReader>::FetchNextItem()
 {
-    YASSERT(!State.HasRunningOperation());
-    YASSERT(IsValid());
+    YCHECK(!State.HasRunningOperation());
+    YCHECK(IsValid());
 
     if (TBase::CurrentReader_->FetchNextItem()) {
         if (!ValidateReader()) {
@@ -145,7 +145,7 @@ bool TMultiChunkSequentialReader<TChunkReader>::FetchNextItem()
 template <class TChunkReader>
 void TMultiChunkSequentialReader<TChunkReader>::OnItemFetched(TError error)
 {
-    YASSERT(State.HasRunningOperation());
+    YCHECK(State.HasRunningOperation());
     CHECK_ERROR(error);
 
     if (ValidateReader()) {
@@ -157,7 +157,7 @@ void TMultiChunkSequentialReader<TChunkReader>::OnItemFetched(TError error)
 template <class TChunkReader>
 bool TMultiChunkSequentialReader<TChunkReader>::IsValid() const
 {
-    YASSERT(!State.HasRunningOperation());
+    YCHECK(!State.HasRunningOperation());
     return TBase::CurrentReader_;
 }
 

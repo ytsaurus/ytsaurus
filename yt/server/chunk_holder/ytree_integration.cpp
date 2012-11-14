@@ -53,14 +53,13 @@ private:
             return NULL;
         }
 
-        return IYPathService::FromProducer(BIND([=] (IYsonConsumer* consumer)
-            {
-                BuildYsonFluently(consumer)
-                    .BeginMap()
-                        .Item("size").Scalar(chunk->GetInfo().size())
-                        .Item("location").Scalar(chunk->GetLocation()->GetPath())
-                    .EndMap();
-            }));
+        return IYPathService::FromProducer(BIND([=] (IYsonConsumer* consumer) {
+            BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("size").Scalar(chunk->GetInfo().size())
+                    .Item("location").Scalar(chunk->GetLocation()->GetPath())
+                .EndMap();
+        }));
     }
 
 };

@@ -35,6 +35,7 @@ TTableReader::TTableReader(
     , BlockCache(blockCache)
     , RichPath(richPath)
     , IsOpen(false)
+    , IsReadingStarted(false)
     , Proxy(masterChannel)
     , Logger(TableReaderLogger)
 {
@@ -87,34 +88,21 @@ void TTableReader::Open()
     LOG_INFO("Table reader opened");
 }
 
-void TTableReader::NextRow()
+const TRow* TTableReader::GetRow()
 {
     VERIFY_THREAD_AFFINITY(Client);
     YASSERT(IsOpen);
 
     CheckAborted();
 
-    if (!Reader->FetchNextItem()) {
-        Sync(~Reader, &TTableChunkSequenceReader::GetReadyEvent);
+    if (Reader->IsValid() && IsReadingStarted) {
+        if (!Reader->FetchNextItem()) {
+            Sync(~Reader, &TTableChunkSequenceReader::GetReadyEvent);
+        }
     }
-}
+    IsReadingStarted = true;
 
-bool TTableReader::IsValid() const
-{
-    VERIFY_THREAD_AFFINITY(Client);
-    YASSERT(IsOpen);
-
-    CheckAborted();
-
-    return Reader->IsValid();
-}
-
-const TRow& TTableReader::GetRow() const
-{
-    VERIFY_THREAD_AFFINITY(Client);
-    YASSERT(IsOpen);
-
-    return Reader->CurrentReader()->GetRow();
+    return Reader->IsValid() ? &(Reader->CurrentReader()->GetRow()) : NULL;
 }
 
 const TNonOwningKey& TTableReader::GetKey() const 

@@ -4,20 +4,20 @@
 
 #include <ytlib/rpc/client.h>
 
-#include <ytlib/chunk_client/chunk_holder_service.pb.h>
+#include <ytlib/chunk_client/data_node_service.pb.h>
 
 namespace NYT {
 namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkHolderServiceProxy
+class TDataNodeServiceProxy
     : public NRpc::TProxyBase
 {
 public:
     static Stroka GetServiceName()
     {
-        return "ChunkHolder";
+        return "DataNode";
     }
 
     DECLARE_ENUM(EErrorCode,
@@ -33,7 +33,7 @@ public:
         ((OutOfSpace)(110))
     );
 
-    TChunkHolderServiceProxy(NRpc::IChannelPtr channel)
+    explicit TDataNodeServiceProxy(NRpc::IChannelPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
 

@@ -4,7 +4,7 @@
 #include "private.h"
 #include "async_writer.h"
 #include "chunk_ypath_proxy.h"
-#include "chunk_holder_service_proxy.h"
+#include "data_node_service_proxy.h"
 
 #include <ytlib/misc/metric.h>
 #include <ytlib/misc/semaphore.h>
@@ -58,7 +58,7 @@ private:
 
     typedef ydeque<TGroupPtr> TWindow;
 
-    typedef NChunkClient::TChunkHolderServiceProxy TProxy;
+    typedef NChunkClient::TDataNodeServiceProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
 
     TIntrusivePtr<TImpl> Impl;

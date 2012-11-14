@@ -110,10 +110,10 @@ TNodeResources operator * (const TNodeResources& lhs, i64 rhs)
 TNodeResources operator * (const TNodeResources& lhs, double rhs)
 {
     TNodeResources result;
-    result.set_slots(static_cast<int>(lhs.slots() * rhs));
-    result.set_cpu(static_cast<int>(lhs.cpu() * rhs));
-    result.set_memory(static_cast<i64>(lhs.memory() * rhs));
-    result.set_network(static_cast<int>(lhs.network() * rhs));
+    result.set_slots(static_cast<int>(lhs.slots() * rhs + 0.5));
+    result.set_cpu(static_cast<int>(lhs.cpu() * rhs + 0.5));
+    result.set_memory(static_cast<i64>(lhs.memory() * rhs + 0.5));
+    result.set_network(static_cast<int>(lhs.network() * rhs + 0.5));
     return result;
 }
 
@@ -128,10 +128,10 @@ TNodeResources& operator *= (TNodeResources& lhs, i64 rhs)
 
 TNodeResources& operator *= (TNodeResources& lhs, double rhs)
 {
-    lhs.set_slots(static_cast<int>(lhs.slots() * rhs));
-    lhs.set_cpu(static_cast<int>(lhs.cpu() * rhs));
-    lhs.set_memory(static_cast<i64>(lhs.memory() * rhs));
-    lhs.set_network(static_cast<int>(lhs.network() * rhs));
+    lhs.set_slots(static_cast<int>(lhs.slots() * rhs + 0.5));
+    lhs.set_cpu(static_cast<int>(lhs.cpu() * rhs + 0.5));
+    lhs.set_memory(static_cast<i64>(lhs.memory() * rhs + 0.5));
+    lhs.set_network(static_cast<int>(lhs.network() * rhs + 0.5));
     return lhs;
 }
 
@@ -231,16 +231,16 @@ void SetResource(NProto::TNodeResources& resources, EResourceType type, i64 valu
     switch (type) {
         case EResourceType::Slots:
             resources.set_slots(static_cast<i32>(value));
-        break;
+            break;
         case EResourceType::Cpu:
             resources.set_cpu(static_cast<i32>(value));
-        break;
+            break;
         case EResourceType::Memory:
             resources.set_memory(value);
-        break;
+            break;
         case EResourceType::Network:
             resources.set_network(static_cast<i32>(value));
-        break;
+            break;
         default:
             YUNREACHABLE();
     }

@@ -494,10 +494,7 @@ void TObjectManager::LoadValues(const NCellMaster::TLoadContext& context)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     Attributes.LoadValues(context);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 2) {
-        GarbageCollector->Load(context);
-    }
+    GarbageCollector->Load(context);
 }
 
 void TObjectManager::Clear()

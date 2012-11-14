@@ -35,6 +35,7 @@ class TMergingReader
 public:
     explicit TMergingReader(const std::vector<TTableChunkSequenceReaderPtr>& readers)
         : Readers(readers)
+        , IsStarted_(false)
     { }
 
     virtual void Open() override
@@ -81,34 +82,28 @@ public:
         }
     }
 
-    virtual void NextRow() override
+    virtual const TRow* GetRow() override
     {
+        if (IsStarted_) {
+            auto* currentReader = ReaderHeap.front();
+            if (!currentReader->FetchNextItem()) {
+                Sync(currentReader, &TTableChunkSequenceReader::GetReadyEvent);
+            }
+            if (currentReader->IsValid()) {
+                AdjustHeap(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
+            } else {
+                ExtractHeap(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
+                ReaderHeap.pop_back();
+            }
+        }
+        IsStarted_ = true;
+
         if (ReaderHeap.empty()) {
-            return;
+            return NULL;
         }
-
-        auto* currentReader = ReaderHeap.front();
-
-        if (!currentReader->FetchNextItem()) {
-            Sync(currentReader, &TTableChunkSequenceReader::GetReadyEvent);
+        else {
+            return &(ReaderHeap.front()->CurrentReader()->GetRow());
         }
-
-        if (currentReader->IsValid()) {
-            AdjustHeap(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
-        } else {
-            ExtractHeap(ReaderHeap.begin(), ReaderHeap.end(), CompareReaders);
-            ReaderHeap.pop_back();
-        }
-    }
-
-    virtual bool IsValid() const override
-    {
-        return !ReaderHeap.empty();
-    }
-
-    virtual const TRow& GetRow() const override
-    {
-        return ReaderHeap.front()->CurrentReader()->GetRow();
     }
 
     virtual const TNonOwningKey& GetKey() const override
@@ -138,6 +133,7 @@ private:
     std::vector<TTableChunkSequenceReaderPtr> Readers;
     std::vector<TTableChunkSequenceReader*> ReaderHeap;
 
+    bool IsStarted_;
 };
 
 ISyncReaderPtr CreateMergingReader(const std::vector<TTableChunkSequenceReaderPtr>& readers)

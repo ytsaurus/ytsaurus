@@ -271,11 +271,7 @@ private:
         attributes->push_back(TAttributeInfo("state"));
         attributes->push_back(TAttributeInfo("confirmed", node));
         attributes->push_back(TAttributeInfo("incarnation_id", node));
-        attributes->push_back(TAttributeInfo("available_space", node));
-        attributes->push_back(TAttributeInfo("used_space", node));
-        attributes->push_back(TAttributeInfo("chunk_count", node));
-        attributes->push_back(TAttributeInfo("session_count", node));
-        attributes->push_back(TAttributeInfo("full", node));
+        attributes->push_back(TAttributeInfo("statistics", node));
         TMapNodeProxy::ListSystemAttributes(attributes);
     }
 
@@ -304,30 +300,27 @@ private:
                 return true;
             }
 
-            const auto& statistics = node->Statistics();
-            if (key == "available_space") {
+            if (key == "statistics") {
+                const auto& nodeStatistics = node->Statistics();
                 BuildYsonFluently(consumer)
-                    .Scalar(statistics.available_space());
-                return true;
-            }
-            if (key == "used_space") {
-                BuildYsonFluently(consumer)
-                    .Scalar(statistics.used_space());
-                return true;
-            }
-            if (key == "chunk_count") {
-                BuildYsonFluently(consumer)
-                    .Scalar(statistics.chunk_count());
-                return true;
-            }
-            if (key == "session_count") {
-                BuildYsonFluently(consumer)
-                    .Scalar(statistics.session_count());
-                return true;
-            }
-            if (key == "full") {
-                BuildYsonFluently(consumer)
-                    .Scalar(statistics.full());
+                    .BeginMap()
+                        .Item("total_available_space").Scalar(nodeStatistics.total_available_space())
+                        .Item("total_used_space").Scalar(nodeStatistics.total_used_space())
+                        .Item("total_chunk_count").Scalar(nodeStatistics.total_chunk_count())
+                        .Item("total_session_count").Scalar(node->GetTotalSessionCount())
+                        .Item("full").Scalar(nodeStatistics.full())
+                        .Item("locations").DoListFor(nodeStatistics.locations(), [] (TFluentList fluent, const NProto::TLocationStatistics& locationStatistics) {
+                            fluent
+                                .Item().BeginMap()
+                                    .Item("available_space").Scalar(locationStatistics.available_space())
+                                    .Item("used_space").Scalar(locationStatistics.used_space())
+                                    .Item("chunk_count").Scalar(locationStatistics.chunk_count())
+                                    .Item("session_count").Scalar(locationStatistics.session_count())
+                                    .Item("full").Scalar(locationStatistics.full())
+                                    .Item("enabled").Scalar(locationStatistics.enabled())
+                                .EndMap();
+                        })
+                    .EndMap();
                 return true;
             }
         }
