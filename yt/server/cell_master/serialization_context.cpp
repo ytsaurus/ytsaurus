@@ -24,9 +24,7 @@ using namespace NCypressServer;
 NMetaState::TVersionValidator SnapshotVersionValidator()
 {
     static auto result = BIND([] (int version) {
-        YCHECK(version == 1 ||
-               version == 2 ||
-               version == 3 ||
+        YCHECK(version == 3 ||
                version == 4);
     });
     return result;

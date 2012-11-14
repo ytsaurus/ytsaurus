@@ -59,12 +59,7 @@ void TFileNode::Load(const NCellMaster::TLoadContext& context)
 
     auto* input = context.GetInput();
     LoadObjectRef(input, ChunkList_, context);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 2) {
-        ::Load(input, ReplicationFactor_);
-    } else {
-        ReplicationFactor_ = 3;
-    }
+    ::Load(input, ReplicationFactor_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

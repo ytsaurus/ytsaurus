@@ -71,16 +71,10 @@ void Load(TChunkTreeStatistics& statistics, const NCellMaster::TLoadContext& con
     ::Load(input, statistics.RowCount);
     ::Load(input, statistics.UncompressedDataSize);
     ::Load(input, statistics.CompressedDataSize);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 2) {
-        ::Load(input, statistics.DataWeight);
-        ::Load(input, statistics.DiskSpace);
-    }
+    ::Load(input, statistics.DataWeight);
+    ::Load(input, statistics.DiskSpace);
     ::Load(input, statistics.ChunkCount);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 3) {
-        ::Load(input, statistics.ChunkListCount);
-    }
+    ::Load(input, statistics.ChunkListCount);
     ::Load(input, statistics.Rank);
 }
 

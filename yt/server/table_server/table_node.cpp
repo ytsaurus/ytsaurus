@@ -64,12 +64,7 @@ void TTableNode::Load(const NCellMaster::TLoadContext& context)
     auto* input = context.GetInput();
     LoadObjectRef(input, ChunkList_, context);
     ::Load(input, UpdateMode_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 2) {
-        ::Load(input, ReplicationFactor_);
-    } else {
-        ReplicationFactor_ = 3;
-    }
+    ::Load(input, ReplicationFactor_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
