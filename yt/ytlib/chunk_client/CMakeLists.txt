@@ -20,7 +20,7 @@ set( HDRS
   ${BASE}/async_writer.h
   ${BASE}/block_cache.h
   ${BASE}/block_id.h
-  ${BASE}/chunk_holder_service_proxy.h
+  ${BASE}/data_node_service_proxy.h
   ${BASE}/chunk_list_ypath_proxy.h
   ${BASE}/chunk_meta_extensions.h
   ${BASE}/chunk_ypath_proxy.h
@@ -45,6 +45,6 @@ list(APPEND YT_SOURCE_FILES
 )
 
 protoc( ${BASE}/chunk.proto YT_SOURCE_FILES )
-protoc( ${BASE}/chunk_holder_service.proto YT_SOURCE_FILES )
+protoc( ${BASE}/data_node_service.proto YT_SOURCE_FILES )
 protoc( ${BASE}/chunk_ypath.proto YT_SOURCE_FILES )
 protoc( ${BASE}/chunk_list_ypath.proto YT_SOURCE_FILES )

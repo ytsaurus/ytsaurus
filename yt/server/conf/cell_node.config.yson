@@ -3,7 +3,7 @@
         addresses = ["localhost:8001", "localhost:8002", "localhost:8003" ]
     };
 
-    chunk_holder = {
+    data_node = {
         store_locations = [ {path = "node1"} ];
         cache_locations = {path = "cache1"};
     }

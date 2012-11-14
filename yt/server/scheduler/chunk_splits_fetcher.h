@@ -6,7 +6,7 @@
 
 #include <ytlib/logging/tagged_logger.h>
 
-#include <ytlib/chunk_client/chunk_holder_service_proxy.h>
+#include <ytlib/chunk_client/data_node_service_proxy.h>
 
 #include <ytlib/table_client/public.h>
 #include <ytlib/table_client/table_chunk_meta.pb.h>
@@ -23,7 +23,7 @@ class TChunkSplitsFetcher
     : public TRefCounted
 {
 public:
-    typedef NChunkClient::TChunkHolderServiceProxy::TRspGetChunkSplitsPtr TResponsePtr;
+    typedef NChunkClient::TDataNodeServiceProxy::TRspGetChunkSplitsPtr TResponsePtr;
 
     TChunkSplitsFetcher(
         TSchedulerConfigPtr config,
@@ -65,7 +65,7 @@ private:
     //! All samples fetched so far.
     std::vector<NTableClient::TRefCountedInputChunkPtr> ChunkSplits;
 
-    NChunkClient::TChunkHolderServiceProxy::TReqGetChunkSplitsPtr CurrentRequest;
+    NChunkClient::TDataNodeServiceProxy::TReqGetChunkSplitsPtr CurrentRequest;
 
 };
 

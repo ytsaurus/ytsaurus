@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "chunk_holder_service.h"
+#include "data_node_service.h"
 #include "private.h"
 #include "config.h"
 #include "chunk.h"
@@ -28,7 +28,7 @@
 #include <ytlib/table_client/size_limits.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/chunk_holder_service.pb.h>
+#include <ytlib/chunk_client/data_node_service.pb.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -44,7 +44,7 @@ static NLog::TLogger& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkHolderService::TChunkHolderService(
+TDataNodeService::TDataNodeService(
     TDataNodeConfigPtr config,
     TBootstrap* bootstrap)
     : NRpc::TServiceBase(
@@ -77,7 +77,7 @@ TChunkHolderService::TChunkHolderService(
         .SetResponseHeavy(true));
 }
 
-void TChunkHolderService::ValidateNoSession(const TChunkId& chunkId)
+void TDataNodeService::ValidateNoSession(const TChunkId& chunkId)
 {
     if (Bootstrap->GetSessionManager()->FindSession(chunkId)) {
         THROW_ERROR_EXCEPTION(
@@ -87,7 +87,7 @@ void TChunkHolderService::ValidateNoSession(const TChunkId& chunkId)
     }
 }
 
-void TChunkHolderService::ValidateNoChunk(const TChunkId& chunkId)
+void TDataNodeService::ValidateNoChunk(const TChunkId& chunkId)
 {
     if (Bootstrap->GetChunkStore()->FindChunk(chunkId)) {
         THROW_ERROR_EXCEPTION(
@@ -97,7 +97,7 @@ void TChunkHolderService::ValidateNoChunk(const TChunkId& chunkId)
     }
 }
 
-TSessionPtr TChunkHolderService::GetSession(const TChunkId& chunkId)
+TSessionPtr TDataNodeService::GetSession(const TChunkId& chunkId)
 {
     auto session = Bootstrap->GetSessionManager()->FindSession(chunkId);
     if (!session) {
@@ -109,7 +109,7 @@ TSessionPtr TChunkHolderService::GetSession(const TChunkId& chunkId)
     return session;
 }
 
-TChunkPtr TChunkHolderService::GetChunk(const TChunkId& chunkId)
+TChunkPtr TDataNodeService::GetChunk(const TChunkId& chunkId)
 {
     auto chunk = Bootstrap->GetChunkStore()->FindChunk(chunkId);
     if (!chunk) {
@@ -121,7 +121,7 @@ TChunkPtr TChunkHolderService::GetChunk(const TChunkId& chunkId)
     return chunk;
 }
 
-void TChunkHolderService::OnGotChunkMeta(TCtxGetChunkMetaPtr context, TNullable<int> partitionTag, TChunk::TGetMetaResult result)
+void TDataNodeService::OnGotChunkMeta(TCtxGetChunkMetaPtr context, TNullable<int> partitionTag, TChunk::TGetMetaResult result)
 {
     if (!result.IsOK()) {
         context->Reply(result);
@@ -154,7 +154,7 @@ void TChunkHolderService::OnGotChunkMeta(TCtxGetChunkMetaPtr context, TNullable<
 }
 
 
-bool TChunkHolderService::CheckThrottling() const
+bool TDataNodeService::CheckThrottling() const
 {
     i64 responseDataSize = NBus::TTcpDispatcher::Get()->GetStatistics().PendingOutSize;
     i64 pendingReadSize = Bootstrap->GetBlockStore()->GetPendingReadSize();
@@ -169,7 +169,7 @@ bool TChunkHolderService::CheckThrottling() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, StartChunk)
+DEFINE_RPC_SERVICE_METHOD(TDataNodeService, StartChunk)
 {
     UNUSED(response);
 
@@ -186,7 +186,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, StartChunk)
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, FinishChunk)
+DEFINE_RPC_SERVICE_METHOD(TDataNodeService, FinishChunk)
 {
     UNUSED(response);
 
@@ -209,7 +209,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, FinishChunk)
         }));
 }
 
-DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PutBlocks)
+DEFINE_RPC_SERVICE_METHOD(TDataNodeService, PutBlocks)
 {
     UNUSED(response);
 
@@ -234,7 +234,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PutBlocks)
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, SendBlocks)
+DEFINE_RPC_SERVICE_METHOD(TDataNodeService, SendBlocks)
 {
     UNUSED(response);
 
@@ -270,7 +270,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, SendBlocks)
                 context->Reply();
             } else {
                 context->Reply(TError(
-                    TChunkHolderServiceProxy::EErrorCode::PutBlocksFailed,
+                    TDataNodeServiceProxy::EErrorCode::PutBlocksFailed,
                     "Error putting blocks to %s",
                     ~targetAddress)
                     << putResponse->GetError());
@@ -278,7 +278,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, SendBlocks)
         }));
 }
 
-DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
+DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
 {
     auto chunkId = TChunkId::FromProto(request->chunk_id());
     int blockCount = static_cast<int>(request->block_indexes_size());
@@ -328,7 +328,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
                         auto block = result.Value();
                         response->Attachments()[index] = block->GetData();
                         LOG_DEBUG("GetBlocks: Block fetched (BlockIndex: %d)", blockIndex);
-                    } else if (result.GetCode() == TChunkHolderServiceProxy::EErrorCode::NoSuchChunk) {
+                    } else if (result.GetCode() == TDataNodeServiceProxy::EErrorCode::NoSuchChunk) {
                         // This is really sad. We neither have the full chunk nor this particular block.
                         blockInfo->set_data_attached(false);
                         LOG_DEBUG("GetBlocks: Chunk is missing, block is not cached (BlockIndex: %d)", blockIndex);
@@ -374,7 +374,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetBlocks)
     }));
 }
 
-DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, FlushBlock)
+DEFINE_RPC_SERVICE_METHOD(TDataNodeService, FlushBlock)
 {
     UNUSED(response);
 
@@ -394,7 +394,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, FlushBlock)
         }));
 }
 
-DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PingSession)
+DEFINE_RPC_SERVICE_METHOD(TDataNodeService, PingSession)
 {
     UNUSED(response);
 
@@ -408,7 +408,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PingSession)
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkMeta)
+DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetChunkMeta)
 {
     auto chunkId = TChunkId::FromProto(request->chunk_id());
     auto extensionTags = FromProto<i32>(request->extension_tags());
@@ -428,13 +428,13 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkMeta)
         ? NULL
         : &extensionTags);
 
-    asyncChunkMeta.Subscribe(BIND(&TChunkHolderService::OnGotChunkMeta,
+    asyncChunkMeta.Subscribe(BIND(&TDataNodeService::OnGotChunkMeta,
         Unretained(this),
         context,
         partitionTag));
 }
 
-DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PrecacheChunk)
+DEFINE_RPC_SERVICE_METHOD(TDataNodeService, PrecacheChunk)
 {
     auto chunkId = TChunkId::FromProto(request->chunk_id());
 
@@ -448,7 +448,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PrecacheChunk)
                 context->Reply();
             } else {
                 context->Reply(TError(
-                    TChunkHolderServiceProxy::EErrorCode::ChunkPrecachingFailed,
+                    TDataNodeServiceProxy::EErrorCode::ChunkPrecachingFailed,
                     "Error precaching chunk %s",
                     ~chunkId.ToString())
                     << result);
@@ -456,7 +456,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, PrecacheChunk)
         }));
 }
 
-DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TChunkHolderService, UpdatePeer)
+DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TDataNodeService, UpdatePeer)
 {
     TPeerInfo peer(request->peer_address(), TInstant(request->peer_expiration_time()));
 
@@ -472,7 +472,7 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TChunkHolderService, UpdatePeer)
     }
 }
 
-DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
+DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetTableSamples)
 {
     context->SetRequestInfo("KeyColumnCount: %d, ChunkCount: %d",
         request->key_columns_size(),
@@ -492,7 +492,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
             ToProto(chunkSamples->mutable_error(), TError("No such chunk"));
         } else {
             awaiter->Await(chunk->GetMeta(), BIND(
-                &TChunkHolderService::ProcessSample, 
+                &TDataNodeService::ProcessSample, 
                 MakeStrong(this), 
                 &sampleRequest,
                 chunkSamples,
@@ -505,7 +505,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetTableSamples)
     }));
 }
 
-void TChunkHolderService::ProcessSample(
+void TDataNodeService::ProcessSample(
     const NChunkClient::NProto::TReqGetTableSamples::TSampleRequest* sampleRequest,
     NChunkClient::NProto::TRspGetTableSamples::TChunkSamples* chunkSamples,
     const TKeyColumns& keyColumns,
@@ -575,7 +575,7 @@ void TChunkHolderService::ProcessSample(
     }
 }
 
-DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkSplits)
+DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetChunkSplits)
 {
     context->SetRequestInfo("KeyColumnCount: %d, ChunkCount: %d, MinSplitSize: %" PRId64,
         request->key_columns_size(),
@@ -596,7 +596,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkSplits)
             ToProto(splittedChunk->mutable_error(), error);
         } else {
             awaiter->Await(chunk->GetMeta(), BIND(
-                &TChunkHolderService::MakeChunkSplits, 
+                &TDataNodeService::MakeChunkSplits, 
                 MakeStrong(this),
                 &inputChunk,
                 splittedChunk,
@@ -610,7 +610,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkHolderService, GetChunkSplits)
     }));
 }
 
-void TChunkHolderService::MakeChunkSplits(
+void TDataNodeService::MakeChunkSplits(
     const NTableClient::NProto::TInputChunk* inputChunk,
     NChunkClient::NProto::TRspGetChunkSplits::TChunkSplits* splittedChunk,
     i64 minSplitSize,

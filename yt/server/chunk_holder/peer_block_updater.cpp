@@ -7,7 +7,7 @@
 
 #include <ytlib/rpc/channel_cache.h>
 
-#include <ytlib/chunk_client/chunk_holder_service_proxy.h>
+#include <ytlib/chunk_client/data_node_service_proxy.h>
 
 #include <server/cell_node/bootstrap.h>
 

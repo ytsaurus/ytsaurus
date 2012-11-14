@@ -2,7 +2,7 @@
 #include "bootstrap.h"
 #include "config.h"
 #include "chunk.h"
-#include "chunk_holder_service.h"
+#include "data_node_service.h"
 #include "reader_cache.h"
 #include "session_manager.h"
 #include "block_store.h"
@@ -98,7 +98,7 @@ void TBootstrap::Init()
 
     MasterConnector = New<TMasterConnector>(Config, this);
 
-    auto chunkHolderService = New<TChunkHolderService>(Config, this);
+    auto chunkHolderService = New<TDataNodeService>(Config, this);
     NodeBootstrap->GetRpcServer()->RegisterService(chunkHolderService);
 
     auto orchidRoot = NodeBootstrap->GetOrchidRoot();

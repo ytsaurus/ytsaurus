@@ -72,8 +72,8 @@ typedef TIntrusivePtr<TPeerBlockUpdater> TPeerBlockUpdaterPtr;
 class TChunkRegistry;
 typedef TIntrusivePtr<TChunkRegistry> TChunkRegistryPtr;
 
-class TChunkHolderService;
-typedef TIntrusivePtr<TChunkHolderService> TChunkHolderServicePtr;
+class TDataNodeService;
+typedef TIntrusivePtr<TDataNodeService> TChunkHolderServicePtr;
 
 using NChunkClient::TChunkId;
 using NChunkServer::TJobId;

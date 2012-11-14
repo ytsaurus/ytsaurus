@@ -8,7 +8,7 @@
 
 #include <ytlib/misc/foreach.h>
 
-#include <ytlib/chunk_client/chunk_holder_service_proxy.h>
+#include <ytlib/chunk_client/data_node_service_proxy.h>
 
 
 #include <utility>
@@ -138,7 +138,7 @@ TLocationPtr TChunkStore::GetNewChunkLocation()
 
     if (candidates.empty()) {
         THROW_ERROR_EXCEPTION(
-            TChunkHolderServiceProxy::EErrorCode::OutOfSpace,
+            TDataNodeServiceProxy::EErrorCode::OutOfSpace,
             "All locations are full");
     }
 

@@ -13,7 +13,7 @@
 
 #include <ytlib/actions/parallel_awaiter.h>
 
-#include <ytlib/chunk_client/chunk_holder_service.pb.h>
+#include <ytlib/chunk_client/data_node_service.pb.h>
 
 namespace NYT {
 namespace NChunkClient {

@@ -6,7 +6,7 @@
 
 #include <ytlib/logging/tagged_logger.h>
 
-#include <ytlib/chunk_client/chunk_holder_service_proxy.h>
+#include <ytlib/chunk_client/data_node_service_proxy.h>
 
 #include <ytlib/table_client/public.h>
 #include <ytlib/table_client/table_chunk_meta.pb.h>
@@ -23,7 +23,7 @@ class TSamplesFetcher
     : public TRefCounted
 {
 public:
-    typedef NChunkClient::TChunkHolderServiceProxy::TRspGetTableSamplesPtr TResponsePtr;
+    typedef NChunkClient::TDataNodeServiceProxy::TRspGetTableSamplesPtr TResponsePtr;
 
     TSamplesFetcher(
         TSchedulerConfigPtr config,
@@ -64,7 +64,7 @@ private:
     //! All samples fetched so far.
     std::vector<NTableClient::NProto::TKey> Samples;
 
-    NChunkClient::TChunkHolderServiceProxy::TReqGetTableSamplesPtr CurrentRequest;
+    NChunkClient::TDataNodeServiceProxy::TReqGetTableSamplesPtr CurrentRequest;
 
 };
 

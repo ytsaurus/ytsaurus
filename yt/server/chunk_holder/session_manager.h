@@ -7,7 +7,7 @@
 #include <ytlib/logging/tagged_logger.h>
 
 #include <ytlib/chunk_client/public.h>
-#include <ytlib/chunk_client/chunk_holder_service_proxy.h>
+#include <ytlib/chunk_client/data_node_service_proxy.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -66,7 +66,7 @@ public:
 private:
     friend class TSessionManager;
 
-    typedef NChunkClient::TChunkHolderServiceProxy TProxy;
+    typedef NChunkClient::TDataNodeServiceProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
 
     DECLARE_ENUM(ESlotState,
