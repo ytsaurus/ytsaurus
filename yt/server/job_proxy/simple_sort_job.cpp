@@ -98,7 +98,7 @@ public:
             std::vector<ui32> valueIndexBuffer;
             std::vector<ui32> rowIndexBuffer;
 
-            LOG_INFO("Simple sort job.");
+            LOG_INFO("Initializing");
             {
                 for (int i = 0; i < KeyColumns.size(); ++i) {
                     TStringBuf name(~KeyColumns[i], KeyColumns[i].size());
