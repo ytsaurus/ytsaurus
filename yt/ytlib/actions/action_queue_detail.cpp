@@ -146,7 +146,7 @@ void TActionQueueBase::ThreadMain()
         if (!DequeueAndExecute()) {
             WakeupEvent.Reset();
             if (!DequeueAndExecute()) {
-                if (Running) {
+                if (!Running) {
                     break;
                 }
                 OnIdle();
