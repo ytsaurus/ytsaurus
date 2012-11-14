@@ -92,7 +92,7 @@ private:
     void ThreadMain();
 
     bool EnableLogging;
-    TAtomic Running;
+    volatile bool Running;
     NThread::TThreadId ThreadId;
     Event WakeupEvent;
     TThread Thread;

@@ -146,7 +146,7 @@ void TActionQueueBase::ThreadMain()
         if (!DequeueAndExecute()) {
             WakeupEvent.Reset();
             if (!DequeueAndExecute()) {
-                if (!IsRunning()) {
+                if (Running) {
                     break;
                 }
                 OnIdle();
@@ -154,8 +154,6 @@ void TActionQueueBase::ThreadMain()
             }
         }
     }
-
-    YCHECK(!DequeueAndExecute());
     
     OnThreadShutdown();
 
