@@ -75,8 +75,14 @@ public:
     //! Changes the number of currently active sessions by a given delta.
     void UpdateSessionCount(int delta);
 
+    //! Changes the number of chunks by a given delta.
+    void UpdateChunkCount(int delta);
+
     //! Returns the number of currently active sessions.
     int GetSessionCount() const;
+
+    //! Returns the number of chunks.
+    int GetChunkCount() const;
 
     //! Returns a full path to a chunk file.
     Stroka GetChunkFileName(const TChunkId& chunkId) const;
@@ -107,6 +113,7 @@ private:
     mutable i64 AvailableSpace;
     i64 UsedSpace;
     int SessionCount;
+    int ChunkCount;
 
     TFairShareActionQueuePtr ReadQueue;
     TActionQueuePtr WriteQueue;

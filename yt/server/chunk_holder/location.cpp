@@ -41,6 +41,7 @@ TLocation::TLocation(
     , AvailableSpace(0)
     , UsedSpace(0)
     , SessionCount(0)
+    , ChunkCount(0)
     , Logger(DataNodeLogger)
     , ReadQueue(New<TFairShareActionQueue>(ELocationQueue::GetDomainNames(), Sprintf("Read:%s", ~Id)))
     , WriteQueue(New<TActionQueue>(Sprintf("Write:%s", ~Id)))
@@ -118,13 +119,21 @@ Stroka TLocation::GetPath() const
 void TLocation::UpdateSessionCount(int delta)
 {
     SessionCount += delta;
-    LOG_DEBUG("Location session count updated (SessionCount: %d)",
-        SessionCount);
 }
 
 int TLocation::GetSessionCount() const
 {
     return SessionCount;
+}
+
+void TLocation::UpdateChunkCount(int delta)
+{
+    ChunkCount += delta;
+}
+
+int TLocation::GetChunkCount() const
+{
+    return ChunkCount;
 }
 
 Stroka TLocation::GetChunkFileName(const TChunkId& chunkId) const
@@ -220,8 +229,8 @@ std::vector<TChunkDescriptor> TLocation::Scan()
         }
     }
 
-    std::vector<TChunkDescriptor> result;
-    result.reserve(chunkIds.size());
+    std::vector<TChunkDescriptor> descriptors;
+    descriptors.reserve(chunkIds.size());
 
     FOREACH (const auto& chunkId, chunkIds) {
         auto chunkDataFileName = GetChunkFileName(chunkId);
@@ -241,7 +250,7 @@ std::vector<TChunkDescriptor> TLocation::Scan()
             TChunkDescriptor descriptor;
             descriptor.Id = chunkId;
             descriptor.Size = chunkDataSize + chunkMetaSize;
-            result.push_back(descriptor);
+            descriptors.push_back(descriptor);
         } else if (!hasMeta) {
             LOG_WARNING("Missing meta file, removing data file: %s", ~chunkDataFileName);
             RemoveFile(chunkDataFileName);
@@ -251,7 +260,7 @@ std::vector<TChunkDescriptor> TLocation::Scan()
         }
     }
 
-    LOG_INFO("Done, %" PRISZT " chunks found", result.size());
+    LOG_INFO("Done, %" PRISZT " chunks found", descriptors.size());
 
     auto cellGuidPath = NFS::CombinePaths(path, CellGuidFileName);
     if (isexist(~cellGuidPath)) {
@@ -271,7 +280,7 @@ std::vector<TChunkDescriptor> TLocation::Scan()
         NFS::ForcePath(NFS::CombinePaths(GetPath(), Sprintf("%02x", hashByte)));
     }
 
-    return result;
+    return descriptors;
 }
 
 TFuture<void> TLocation::ScheduleChunkRemoval(TChunk* chunk)

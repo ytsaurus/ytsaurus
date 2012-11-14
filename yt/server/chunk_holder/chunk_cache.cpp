@@ -78,12 +78,16 @@ public:
 
     void Register(TCachedChunkPtr chunk)
     {
-        chunk->GetLocation()->UpdateUsedSpace(chunk->GetInfo().size());
+        auto location = chunk->GetLocation();
+        location->UpdateChunkCount(+1);
+        location->UpdateUsedSpace(+chunk->GetInfo().size());
     }
 
     void Unregister(TCachedChunkPtr chunk)
     {
-        chunk->GetLocation()->UpdateUsedSpace(-chunk->GetInfo().size());
+        auto location = chunk->GetLocation();
+        location->UpdateChunkCount(-1);
+        location->UpdateUsedSpace(-chunk->GetInfo().size());
     }
 
     void Put(TCachedChunkPtr chunk)

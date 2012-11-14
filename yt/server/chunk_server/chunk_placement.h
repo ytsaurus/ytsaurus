@@ -46,11 +46,9 @@ private:
 
     TLoadFactorMap LoadFactorMap;
     TIteratorMap IteratorMap;
-    yhash_map<TDataNode*, int> HintedSessionsMap;
 
-    bool IsFull(TDataNode* node) const;
-    int GetSessionCount(TDataNode* node) const;
-    bool IsValidUploadTarget(TDataNode* targetNode) const;
+    static bool IsFull(TDataNode* node);
+    static bool IsValidUploadTarget(TDataNode* targetNode);
     bool IsValidBalancingTarget(TDataNode* targetNode, TChunk *chunk) const;
 
 };

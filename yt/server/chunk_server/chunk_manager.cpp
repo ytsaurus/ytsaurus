@@ -592,10 +592,10 @@ public:
         FOREACH (const auto& key, keys) {
             const auto* node = NodeMap.Get(key);
             const auto& statistics = node->Statistics();
-            result.AvailbaleSpace += statistics.available_space();
-            result.UsedSpace += statistics.used_space();
-            result.ChunkCount += statistics.chunk_count();
-            result.SessionCount += statistics.session_count();
+            result.AvailbaleSpace += statistics.total_available_space();
+            result.UsedSpace += statistics.total_used_space();
+            result.ChunkCount += statistics.total_chunk_count();
+            result.SessionCount += statistics.total_session_count();
             result.OnlineNodeCount++;
         }
         return result;

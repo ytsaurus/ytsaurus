@@ -5,9 +5,9 @@
 #include "job.h"
 #include "job_list.h"
 
-#include <ytlib/misc/foreach.h>
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/config.h>
+
 #include <server/chunk_server/chunk_manager.h>
 
 #include <util/random/random.h>
@@ -38,7 +38,6 @@ void TChunkPlacement::OnNodeRegistered(TDataNode* node)
     double loadFactor = GetLoadFactor(node);
     auto it = LoadFactorMap.insert(MakePair(loadFactor, node));
     YCHECK(IteratorMap.insert(MakePair(node, it)).second);
-    YCHECK(HintedSessionsMap.insert(MakePair(node, 0)).second);
 }
 
 void TChunkPlacement::OnNodeUnregistered(TDataNode* node)
@@ -48,18 +47,18 @@ void TChunkPlacement::OnNodeUnregistered(TDataNode* node)
     auto preferenceIt = iteratorIt->second;
     LoadFactorMap.erase(preferenceIt);
     IteratorMap.erase(iteratorIt);
-    YCHECK(HintedSessionsMap.erase(node) == 1);
 }
 
 void TChunkPlacement::OnNodeUpdated(TDataNode* node)
 {
     OnNodeUnregistered(node);
     OnNodeRegistered(node);
+    node->SetHintedSessionCount(0);
 }
 
 void TChunkPlacement::OnSessionHinted(TDataNode* node)
 {
-    ++HintedSessionsMap[node];
+    node->SetHintedSessionCount(node->GetHintedSessionCount() + 1);
 }
 
 std::vector<TDataNode*> TChunkPlacement::GetUploadTargets(
@@ -96,7 +95,8 @@ std::vector<TDataNode*> TChunkPlacement::GetUploadTargets(
             IsValidUploadTarget(node) &&
             (!forbiddenAddresses || forbiddenAddresses->find(node->GetAddress()) == forbiddenAddresses->end()))
         {
-            feasibleNodes.push_back(std::make_pair(node, GetSessionCount(node)));
+
+            feasibleNodes.push_back(std::make_pair(node, node->GetTotalSessionCount()));
         }
     }
 
@@ -126,7 +126,7 @@ std::vector<TDataNode*> TChunkPlacement::GetUploadTargets(
             std::back_inserter(currentResult),
             sampleCount);
 
-        FOREACH(auto &feasibleNode, currentResult) {
+        FOREACH(const auto& feasibleNode, currentResult) {
             resultNodes.push_back(feasibleNode.first);
         }
 
@@ -216,7 +216,7 @@ TDataNode* TChunkPlacement::GetBalancingTarget(TChunk* chunk, double maxFillCoef
     return NULL;
 }
 
-bool TChunkPlacement::IsValidUploadTarget(TDataNode* targetNode) const
+bool TChunkPlacement::IsValidUploadTarget(TDataNode* targetNode)
 {
     if (targetNode->GetState() != ENodeState::Online) {
         // Do not upload anything to nodes before first heartbeat.
@@ -259,7 +259,7 @@ bool TChunkPlacement::IsValidBalancingTarget(TDataNode* targetNode, TChunk* chun
             return false;
         }
 
-        FOREACH (auto* job, sink->Jobs()) {
+        FOREACH (const auto* job, sink->Jobs()) {
             if (job->GetChunkId() == chunk->GetId()) {
                 // Do not balance to a node that is a replication target for the very same chunk.
                 return false;
@@ -299,29 +299,21 @@ std::vector<TChunk*> TChunkPlacement::GetBalancingChunks(TDataNode* node, int co
     return result;
 }
 
-int TChunkPlacement::GetSessionCount(TDataNode* node) const
-{
-    auto hintIt = HintedSessionsMap.find(node);
-    return hintIt == HintedSessionsMap.end() ? 0 : hintIt->second;
-}
-
 double TChunkPlacement::GetLoadFactor(TDataNode* node) const
 {
-    const auto& statistics = node->Statistics();
     return
         GetFillCoeff(node) +
-        Config->ActiveSessionsPenalityCoeff * (statistics.session_count() + GetSessionCount(node));
+        Config->ActiveSessionsPenalityCoeff * node->GetTotalSessionCount();
 }
 
 double TChunkPlacement::GetFillCoeff(TDataNode* node) const
 {
     const auto& statistics = node->Statistics();
-    return
-        (1.0 + statistics.used_space()) /
-        (1.0 + statistics.used_space() + statistics.available_space());
+    return statistics.total_used_space() /
+        (1.0 + statistics.total_used_space() + statistics.total_available_space());
 }
 
-bool TChunkPlacement::IsFull(TDataNode* node) const
+bool TChunkPlacement::IsFull(TDataNode* node)
 {
     return node->Statistics().full();
 }
