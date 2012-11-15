@@ -1186,13 +1186,13 @@ private:
 
             FOREACH (auto job, schedulingContext.StartedJobs()) {
                 const auto& jobId = job->GetId();
+                job->SetType(EJobType(job->GetSpec()->type()));
                 LOG_INFO("Starting job (Address: %s, JobType: %s, JobId: %s, Utilization: {%s}, OperationId: %s)",
                     ~job->GetNode()->GetAddress(),
                     ~job->GetType().ToString(),
                     ~jobId.ToString(),
                     ~FormatResources(job->GetSpec()->resource_utilization()),
                     ~job->GetOperation()->GetOperationId().ToString());
-                job->SetType(EJobType(job->GetSpec()->type()));
                 RegisterJob(job);
                 job->SetSpec(NULL);
             }
