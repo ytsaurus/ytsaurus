@@ -1250,7 +1250,7 @@ private:
 
     void CustomizeJobSpec(TJobInProgressPtr jip, NProto::TJobSpec* jobSpec) override
     {
-        auto* jobSpecExt = JobSpecTemplate.MutableExtension(NScheduler::NProto::TReduceJobSpecExt::reduce_job_spec_ext);
+        auto* jobSpecExt = jobSpec->MutableExtension(NScheduler::NProto::TReduceJobSpecExt::reduce_job_spec_ext);
         AddUserJobEnvironment(jobSpecExt->mutable_reducer_spec(), jip);
     }
 };
