@@ -13,8 +13,11 @@ def transaction_params(transaction=None, ping_ancestor_transactions=None):
 def add_transaction_params(params):
     return update(deepcopy(params), transaction_params())
 
-def start_transaction(parent_transaction=None, ping_ansector_transactions=None):
-    return make_request("start_tx", transaction_params(parent_transaction, ping_ansector_transactions))
+def start_transaction(parent_transaction=None, ping_ansector_transactions=None, timeout=None):
+    params = transaction_params(parent_transaction, ping_ansector_transactions)
+    if timeout is not None:
+        params["timeout"] = timeout
+    return make_request("start_tx", params)
 
 def abort_transaction(transaction, ping_ansector_transactions=None):
     return make_request("abort_tx", transaction_params(transaction, ping_ansector_transactions))
