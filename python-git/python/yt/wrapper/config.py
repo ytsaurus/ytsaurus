@@ -6,6 +6,7 @@ PROXY = "proxy.yt.yandex.net"
 ACCEPT_ENCODING = "identity, gzip"
 
 MAPREDUCE_MODE = True
+ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE = True
 DEFAULT_FORMAT = YamrFormat(has_subkey=True, lenval=False)
 USE_MAPREDUCE_STYLE_DESTINATION_FDS = False
 

@@ -14,13 +14,13 @@ if __name__ == "__main__":
         __zip.extractall("modules")
     sys.path = ["./modules"] + sys.path
     
-    import yt.dill as dill
+    import pickle
 
     # Magically replace out main module  by client side main
     sys.modules['__main__'] = imp.load_module(__main_module_name, open(__main_filename, 'U'), __main_filename, ('.py', 'U', 1))
     imp.reload(sys)
     
-    operation = dill.load(open(__operation_dump))
+    operation = pickle.load(open(__operation_dump))
     sys.stdout.writelines(itertools.chain(*itertools.imap(operation, sys.stdin.xreadlines())))
 
 

@@ -67,7 +67,7 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
     upload_file(open(filename), destination, yt_filename)
 
     # Set executable flag if need
-    if os.access(filename, os.X_OK):
+    if os.access(filename, os.X_OK) or config.ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE:
         set_attribute(destination, "executable", "true")
     return destination
 
