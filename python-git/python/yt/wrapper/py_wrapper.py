@@ -1,4 +1,4 @@
-from yt.dill import dump
+from pickle import dump
 
 from common import YtError
 
