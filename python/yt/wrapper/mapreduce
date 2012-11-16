@@ -24,6 +24,8 @@ from itertools import imap
 def die(message=None, return_code=1):
     if message is not None:
         print >>sys.stderr, message
+    if "ALWAYS_RAISE" in os.environ:
+        raise
     sys.exit(return_code)
 
 def check_prefix():
@@ -145,13 +147,14 @@ Examples:
     # TODO(ignat): add unsupported arguments
     action_stores = ["read", "write", "writesorted", "map", "reduce", "reducews", "drop",
                      "erase", "aborttx", "committx", "renewtx", "set", "get", "upload", "download",
-                     "createtable"]
+                     "createtable", "exists"]
     action_flags = ["version", "copy", "sort", "merge", "list", "listfiles", "starttx"]
 
-    add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "pingtx", "smartformat", "force", "executable"])
+    add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "pingtx",
+                                          "smartformat", "force", "executable"])
     add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec",
                                             "inputformat", "outputformat", "tx", "value",
-                                            "replicationfactor", "memlimit"])
+                                            "replicationfactor", "memlimit", "timeout"])
     add_multiple_args(parser, ["src", "dst", "dstappend", "file", "mapfile", "reducefile", "ytfile", "opt", "ytspec", "sortby", "reduceby"])
     add_integer_args(parser, ["jobcount", "threadcount", "chunksize", "jcmultiplier"])
 
@@ -165,13 +168,15 @@ Examples:
              "bound for the size of the chunk in write operation"),
             ("codec",
              "NEW! type of comression used while writing table, "
-             "possible values 'snappy', 'lz4', 'gzip_normal', "
-             "'gzip_best_compression', 'lz4', by default value "
-             "depends on yt installation."),
+             "possible values 'snappy', 'lz4', 'lz4_high_compression', "
+             "'gzip_normal', 'gzip_best_compression', 'quick_lz', "
+             "by default value depends on yt installation."),
             ("committx",
              "NEW! commit given transaction"),
             ("copy",
              "copy given tables to one destination table"),
+            ("createtable",
+             "NEW! creates empty table"),
             ("download",
              "NEW! download file from given path"),
             ("drop",
@@ -186,6 +191,8 @@ Examples:
              "OLD! this option do nothing"),
             ("erase",
              "NEW! delete the table, this option supports range specifications"),
+            ("exists",
+             "NEW! check table for existance"),
             ("file",
              "file for both map and reduce operations"),
             ("force",
@@ -258,6 +265,8 @@ Examples:
              "NEW! start transaction, returns transaction id"),
             ("subkey",
              "turn on yamr format with subkey"),
+            ("timeout",
+             "NEW! timeout for transaction"),
             ("threadcount",
              "OLD! this option do nothing"),
             ("tx",
@@ -430,12 +439,15 @@ Examples:
     if args.download is not None:
         writelines_silently(yt.download_file(args.download, response_type="iter_content"))
 
-    if args.set:
+    if args.exists is not None:
+        print yt.exists(args.exists)
+
+    if args.get is not None:
+        print json.dumps(yt.get(args.get, spec=spec), indent="  ")
+    if args.set is not None:
         if args.value is None:
             die("Value option is necessary for set command")
         yt.set(args.set, json.loads(args.value))
-    if args.get:
-        print json.dumps(yt.get(args.get))
 
     if args.starttx:
         print yt.start_transaction()

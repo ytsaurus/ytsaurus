@@ -143,7 +143,7 @@ protected:
         }
 
     protected:
-        void BuildSpecInputOutput(
+        void BuildInputOutputJobSpec(
             TJobInProgressPtr jip,
             NProto::TJobSpec* jobSpec)
         {
@@ -178,7 +178,7 @@ protected:
             NProto::TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->JobSpecTemplate);
-            BuildSpecInputOutput(jip, jobSpec);
+            BuildInputOutputJobSpec(jip, jobSpec);
         }
 
         virtual void OnJobStarted(TJobInProgressPtr jip) override
@@ -755,7 +755,7 @@ protected:
         virtual void BuildJobSpec(TJobInProgressPtr jip, NProto::TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->ManiacJobSpecTemplate);
-            BuildSpecInputOutput(jip, jobSpec);
+            BuildInputOutputJobSpec(jip, jobSpec);
         }
     };
 

@@ -13,13 +13,14 @@ from copy import deepcopy
 import simplejson as json
 
 
-def get(path, attributes=None, format=None):
+def get(path, attributes=None, format=None, spec=None):
     if attributes is None:
         attributes = []
     return make_request("get",
                         add_transaction_params({
                             "path": path,
-                            "attributes": attributes
+                            "attributes": attributes,
+                            "spec": {} if spec is None else spec
                         }),
                         format=format)
 
