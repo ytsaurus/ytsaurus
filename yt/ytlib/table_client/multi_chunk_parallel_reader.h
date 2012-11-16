@@ -27,26 +27,27 @@ public:
 
 private:
     using typename TBase::TProviderPtr;
-    using typename TBase::TReaderPtr;
+    using typename TBase::TSession;
     
     using TBase::State;
     using TBase::Logger;
-    using TBase::CurrentReader_;
+    using TBase::CurrentSession;
 
+    // Protects CompleteReaderCount, ReadySessions, CurrentSession.
     TSpinLock SpinLock;
-    std::vector<typename TBase::TReaderPtr> ReadyReaders;
-    std::vector<typename TBase::TReaderPtr> CompleteReaders;
+    std::vector<typename TBase::TSession> ReadySessions;
+    std::vector<typename TBase::TSession> CompleteSessions;
 
     int CompleteReaderCount;
 
     void OnReaderOpened(
-        const typename TBase::TReaderPtr& chunkReader, 
-        int inputChunkIndex, 
+        const typename TBase::TSession& session, 
         TError error) override;
-    void OnReaderReady(const typename TBase::TReaderPtr& chunkReader, TError error);
 
-    void ProcessReadyReader(typename TBase::TReaderPtr chunkReader);
-    void FinishReader(const typename TBase::TReaderPtr& chunkReader);
+    void OnReaderReady(const typename TBase::TSession& session, TError error);
+
+    void ProcessReadyReader(typename TBase::TSession session);
+    void FinishReader(const typename TBase::TSession& session);
 
 };
 

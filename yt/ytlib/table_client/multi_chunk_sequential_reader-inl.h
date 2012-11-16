@@ -26,9 +26,9 @@ TMultiChunkSequentialReader<TChunkReader>::TMultiChunkSequentialReader(
     LOG_DEBUG("Multi chunk sequential reader created (ChunkCount: %d)", 
         static_cast<int>(TBase::InputChunks.size()));
 
-    Readers.reserve(TBase::InputChunks.size());
+    Sessions.reserve(TBase::InputChunks.size());
     for (int i = 0; i < static_cast<int>(TBase::InputChunks.size()); ++i) {
-        Readers.push_back(NewPromise<typename TBase::TReaderPtr>());
+        Sessions.push_back(NewPromise<typename TBase::TSession>());
     }
 }
 
@@ -46,7 +46,7 @@ TAsyncError TMultiChunkSequentialReader<TChunkReader>::AsyncOpen()
 
     if (CurrentReaderIndex < TBase::InputChunks.size()) {
         State.StartOperation();
-        Readers[CurrentReaderIndex].Subscribe(
+        Sessions[CurrentReaderIndex].Subscribe(
             BIND(&TMultiChunkSequentialReader<TChunkReader>::SwitchCurrentChunk, MakeWeak(this))
             .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
     }
@@ -56,37 +56,35 @@ TAsyncError TMultiChunkSequentialReader<TChunkReader>::AsyncOpen()
 
 template <class TChunkReader>
 void TMultiChunkSequentialReader<TChunkReader>::OnReaderOpened(
-    const typename TBase::TReaderPtr& chunkReader,
-    int chunkIndex,
+    const typename TBase::TSession& session,
     TError error)
 {
     if (!error.IsOK()) {
         State.Fail(error);
-        Readers[CurrentReaderIndex].Set(typename TBase::TReaderPtr());
-        return;
+        Sessions[session.ChunkIndex].Set(session);
+        TBase::AddFailedChunk(session);
+    } else {
+        LOG_DEBUG("Chunk opened (ChunkIndex: %d)", session.ChunkIndex);
+        TBase::ProcessOpenedReader(session);
+        YCHECK(!Sessions[session.ChunkIndex].IsSet());
     }
-
-    LOG_DEBUG("Chunk opened (ChunkIndex: %d)", chunkIndex);
-
-    TBase::ProcessOpenedReader(chunkReader, chunkIndex);
-
-    YCHECK(!Readers[chunkIndex].IsSet());
-    Readers[chunkIndex].Set(chunkReader);
+    Sessions[session.ChunkIndex].Set(session);
 }
 
 template <class TChunkReader>
 void TMultiChunkSequentialReader<TChunkReader>::SwitchCurrentChunk(
-    typename TBase::TReaderPtr nextReader)
+    typename TBase::TSession nextSession)
 {
     if (CurrentReaderIndex > 0 && !TBase::ReaderProvider->KeepInMemory()) {
-        Readers[CurrentReaderIndex - 1].Reset();
+        auto reader = Sessions[CurrentReaderIndex - 1].Get().Reader;
+        reader.Reset();
     }
 
     LOG_DEBUG("Switching to reader %d", CurrentReaderIndex);
-    YCHECK(!TBase::CurrentReader_);
+    YCHECK(!TBase::CurrentSession.Reader);
 
-    if (nextReader) {
-        TBase::CurrentReader_ = nextReader;
+    if (nextSession.Reader) {
+        TBase::CurrentSession = nextSession;
         TBase::PrepareNextChunk();
 
         if (!ValidateReader())
@@ -100,16 +98,16 @@ void TMultiChunkSequentialReader<TChunkReader>::SwitchCurrentChunk(
 template <class TChunkReader>
 bool TMultiChunkSequentialReader<TChunkReader>::ValidateReader()
 {
-    if (!TBase::CurrentReader_->IsValid()) {
-        TBase::ProcessFinishedReader(TBase::CurrentReader_);
-        TBase::CurrentReader_.Reset();
+    if (!TBase::CurrentSession.Reader->IsValid()) {
+        TBase::ProcessFinishedReader(TBase::CurrentSession);
+        TBase::CurrentSession = typename TBase::TSession();
 
         ++CurrentReaderIndex;
         if (CurrentReaderIndex < TBase::InputChunks.size()) {
             if (!State.HasRunningOperation())
                 State.StartOperation();
 
-            Readers[CurrentReaderIndex].Subscribe(
+            Sessions[CurrentReaderIndex].Subscribe(
                 BIND(&TMultiChunkSequentialReader<TChunkReader>::SwitchCurrentChunk, MakeWeak(this))
                 .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
             return false;
@@ -125,18 +123,18 @@ bool TMultiChunkSequentialReader<TChunkReader>::FetchNextItem()
     YCHECK(!State.HasRunningOperation());
     YCHECK(IsValid());
 
-    if (TBase::CurrentReader_->FetchNextItem()) {
+    if (TBase::CurrentSession.Reader->FetchNextItem()) {
         if (!ValidateReader()) {
             return false;
         }
 
-        if (TBase::CurrentReader_) {
+        if (TBase::CurrentSession.Reader) {
             ++TBase::ItemIndex_;
         }
         return true;
     } else {
         State.StartOperation();
-        TBase::CurrentReader_->GetReadyEvent().Subscribe(
+        TBase::CurrentSession.Reader->GetReadyEvent().Subscribe(
             BIND(IgnoreResult(&TMultiChunkSequentialReader<TChunkReader>::OnItemFetched), MakeWeak(this)));
         return false;
     }
@@ -146,7 +144,11 @@ template <class TChunkReader>
 void TMultiChunkSequentialReader<TChunkReader>::OnItemFetched(TError error)
 {
     YCHECK(State.HasRunningOperation());
-    CHECK_ERROR(error);
+    if (!error.IsOK()) {
+        State.Fail(error);
+        TBase::AddFailedChunk(TBase::CurrentSession);
+        return;
+    }
 
     if (ValidateReader()) {
         ++TBase::ItemIndex_;
@@ -158,7 +160,7 @@ template <class TChunkReader>
 bool TMultiChunkSequentialReader<TChunkReader>::IsValid() const
 {
     YCHECK(!State.HasRunningOperation());
-    return TBase::CurrentReader_;
+    return TBase::CurrentSession.Reader;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

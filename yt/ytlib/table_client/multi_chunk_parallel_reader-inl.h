@@ -23,12 +23,12 @@ TMultiChunkParallelReader<TChunkReader>::TMultiChunkParallelReader(
         readerProvider)
     , CompleteReaderCount(0)
 {
-    ReadyReaders.reserve(std::min(
+    ReadySessions.reserve(std::min(
         static_cast<int>(TBase::InputChunks.size()), 
         TBase::Config->PrefetchWindow));
 
     if (TBase::ReaderProvider->KeepInMemory()) {
-        CompleteReaders.reserve(TBase::InputChunks.size());
+        CompleteSessions.reserve(TBase::InputChunks.size());
     }
 }
 
@@ -50,26 +50,29 @@ TAsyncError TMultiChunkParallelReader<TChunkReader>::AsyncOpen()
 
 template <class TChunkReader>
 void TMultiChunkParallelReader<TChunkReader>::OnReaderOpened(
-    const typename TBase::TReaderPtr& chunkReader, 
-    int inputChunkIndex,
+    const typename TBase::TSession& session, 
     TError error)
 {
     VERIFY_THREAD_AFFINITY(TBase::ReaderThread);
-    CHECK_ERROR(error);
+    if (!error.IsOK()) {
+        State.Fail(error);
+        TBase::AddFailedChunk(session);
+        return;
+    }
 
-    TBase::ProcessOpenedReader(chunkReader, inputChunkIndex);
-    ProcessReadyReader(chunkReader);
+    TBase::ProcessOpenedReader(session);
+    ProcessReadyReader(session);
 }
 
 template <class TChunkReader>
 void TMultiChunkParallelReader<TChunkReader>::ProcessReadyReader(
-    typename TBase::TReaderPtr chunkReader)
+    typename TBase::TSession session)
 {
-    if (!chunkReader->IsValid()) {
+    if (!session.Reader->IsValid()) {
         // Reader is not valid - shift window.
         TBase::PrepareNextChunk();
-        FinishReader(chunkReader);
-        chunkReader.Reset();
+        FinishReader(session);
+        session = typename TBase::TSession();
     }
 
     bool finishOperation = false;
@@ -77,49 +80,54 @@ void TMultiChunkParallelReader<TChunkReader>::ProcessReadyReader(
     {
         TGuard<TSpinLock> guard(SpinLock);
 
-        finishOperation = !CurrentReader_;
+        finishOperation = !CurrentSession.Reader;
 
-        if (!chunkReader) {
+        if (!session.Reader) {
             isReadingComplete = (++CompleteReaderCount == TBase::InputChunks.size());
-        } else if (!CurrentReader_) {
+        } else if (!CurrentSession.Reader) {
             ++TBase::ItemIndex_;
-            CurrentReader_ = chunkReader;
-        } else if (chunkReader) {
+            CurrentSession = session;
+        } else {
+            YCHECK(session.Reader);
             // This is quick operation - no reallocation here due to reserve in ctor.
-            ReadyReaders.push_back(chunkReader);
+            ReadySessions.push_back(session);
         }
     }
 
-    if ((chunkReader || isReadingComplete) && finishOperation) {
+    if ((session.Reader || isReadingComplete) && finishOperation) {
         YCHECK(State.HasRunningOperation());
-        YCHECK(!CurrentReader_ || IsValid());
+        YCHECK(!CurrentSession.Reader || IsValid());
         State.FinishOperation();
     }
 }
 
 template <class TChunkReader>
 void TMultiChunkParallelReader<TChunkReader>::FinishReader(
-    const typename TBase::TReaderPtr& chunkReader)
+    const typename TBase::TSession& session)
 {
     VERIFY_THREAD_AFFINITY(TBase::ReaderThread);
 
     LOG_DEBUG("Reader finished (CompleteReaderCount: %d)", CompleteReaderCount);
 
     if (TBase::ReaderProvider->KeepInMemory()) {
-        CompleteReaders.push_back(chunkReader);
+        CompleteSessions.push_back(session);
     }
-    TBase::ProcessFinishedReader(chunkReader);
+    TBase::ProcessFinishedReader(session);
 }
 
 template <class TChunkReader>
 void TMultiChunkParallelReader<TChunkReader>::OnReaderReady(
-    const typename TBase::TReaderPtr& chunkReader, 
+    const typename TBase::TSession& session, 
     TError error)
 {
     VERIFY_THREAD_AFFINITY(TBase::ReaderThread);
-    CHECK_ERROR(error);
+    if (!error.IsOK()) {
+        State.Fail(error);
+        TBase::AddFailedChunk(session);
+        return;
+    }
 
-    ProcessReadyReader(chunkReader);
+    ProcessReadyReader(session);
 }
 
 template <class TChunkReader>
@@ -129,8 +137,8 @@ bool TMultiChunkParallelReader<TChunkReader>::FetchNextItem()
     YASSERT(IsValid());
 
     bool isReaderComplete = false;
-    if (CurrentReader_->FetchNextItem()) {
-        if (CurrentReader_->IsValid()) {
+    if (CurrentSession.Reader->FetchNextItem()) {
+        if (CurrentSession.Reader->IsValid()) {
             ++TBase::ItemIndex_;
             return true;
         }
@@ -139,13 +147,13 @@ bool TMultiChunkParallelReader<TChunkReader>::FetchNextItem()
         NChunkClient::TDispatcher::Get()->GetReaderInvoker()->Invoke(BIND(
             &TMultiChunkParallelReader<TChunkReader>::FinishReader,
             MakeWeak(this),
-            CurrentReader_));
+            CurrentSession));
         TBase::PrepareNextChunk();
     } else {
-        CurrentReader_->GetReadyEvent().Subscribe(
+        CurrentSession.Reader->GetReadyEvent().Subscribe(
             BIND(&TMultiChunkParallelReader<TChunkReader>::OnReaderReady,
                 MakeWeak(this),
-                CurrentReader_)
+                CurrentSession)
             .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
     }
 
@@ -157,14 +165,14 @@ bool TMultiChunkParallelReader<TChunkReader>::FetchNextItem()
         }
     }
 
-    if (ReadyReaders.empty()) {
-        CurrentReader_.Reset();
+    if (ReadySessions.empty()) {
+        CurrentSession = typename TBase::TSession();
         State.StartOperation();
         return false;
     } else {
         ++TBase::ItemIndex_;
-        CurrentReader_ = ReadyReaders.back();
-        ReadyReaders.pop_back();
+        CurrentSession = ReadySessions.back();
+        ReadySessions.pop_back();
         return true;
     }
 }
@@ -175,8 +183,8 @@ bool TMultiChunkParallelReader<TChunkReader>::IsValid() const
     if (CompleteReaderCount == TBase::InputChunks.size())
         return false;
 
-    YCHECK(CurrentReader_);
-    YCHECK(CurrentReader_->IsValid());
+    YCHECK(CurrentSession.Reader);
+    YCHECK(CurrentSession.Reader->IsValid());
 
     return true;
 }

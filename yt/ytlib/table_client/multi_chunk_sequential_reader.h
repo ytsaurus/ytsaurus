@@ -28,13 +28,13 @@ public:
 private:
     using TBase::State;
     using TBase::Logger;
-    using TBase::CurrentReader_;
+    using TBase::CurrentSession;
 
-    std::vector< TPromise<typename TBase::TReaderPtr> > Readers;
+    std::vector< TPromise<typename TBase::TSession> > Sessions;
     int CurrentReaderIndex;
 
-    virtual void OnReaderOpened(const typename TBase::TReaderPtr& chunkReader, int chunkIndex, TError error) override;
-    void SwitchCurrentChunk(typename TBase::TReaderPtr nextReader);
+    virtual void OnReaderOpened(const typename TBase::TSession& session, TError error) override;
+    void SwitchCurrentChunk(typename TBase::TSession nextSession);
     bool ValidateReader();
     void OnItemFetched(TError error);
 

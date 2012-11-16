@@ -19,7 +19,6 @@ template <class TChunkReader>
 class TMultiChunkReaderBase
     : public virtual TRefCounted
 {
-    DEFINE_BYREF_RO_PROPERTY(TIntrusivePtr<TChunkReader>, CurrentReader);
     DEFINE_BYVAL_RO_PROPERTY(i64, ItemIndex);
     DEFINE_BYVAL_RO_PROPERTY(i64, ItemCount);
     DEFINE_BYVAL_RO_PROPERTY(bool, IsFetchingComplete);
@@ -34,14 +33,32 @@ public:
         std::vector<NProto::TInputChunk>&& inputChunks,
         const TProviderPtr& readerProvider);
 
+    const TIntrusivePtr<TChunkReader>& CurrentReader() const;
+
     virtual TAsyncError AsyncOpen() = 0;
     virtual bool FetchNextItem() = 0;
     TAsyncError GetReadyEvent();
+
+    std::vector<NChunkClient::TChunkId> GetFailedChunks() const;
 
     virtual bool IsValid() const = 0;
 
 protected:
     typedef TIntrusivePtr<TChunkReader> TReaderPtr;
+
+    struct TSession {
+        TReaderPtr Reader;
+        int ChunkIndex;
+
+        TSession()
+            : ChunkIndex(-1)
+        { }
+
+        TSession(TReaderPtr reader, int chunkIndex)
+            : Reader(reader)
+            , ChunkIndex(chunkIndex)
+        {}
+    };
 
     TTableReaderConfigPtr Config;
     NRpc::IChannelPtr MasterChannel;
@@ -51,20 +68,26 @@ protected:
 
     TProviderPtr ReaderProvider;
 
+    TSession CurrentSession;
+
     TAsyncStreamState State;
 
     int LastPreparedReader;
 
     TParallelAwaiterPtr FetchingCompleteAwaiter;
 
+    TSpinLock FailedChunksLock;
+    std::vector<NChunkClient::TChunkId> FailedChunks;
+
     NLog::TLogger& Logger;
     DECLARE_THREAD_AFFINITY_SLOT(ReaderThread);
 
-    virtual void OnReaderOpened(const TReaderPtr& chunkReader, int chunkIndex, TError error) = 0;
+    virtual void OnReaderOpened(const TSession& session, TError error) = 0;
 
     void PrepareNextChunk();
-    void ProcessOpenedReader(const TReaderPtr& reader, int inputChunkIndex);
-    void ProcessFinishedReader(const TReaderPtr& reader);
+    void ProcessOpenedReader(const TSession& session);
+    void ProcessFinishedReader(const  TSession& reader);
+    void AddFailedChunk(const TSession& session);
 
 };
 

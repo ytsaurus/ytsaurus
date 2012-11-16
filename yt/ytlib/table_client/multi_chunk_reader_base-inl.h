@@ -53,7 +53,9 @@ void TMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
         return;
     }
 
-    const auto& inputChunk = InputChunks[LastPreparedReader];
+    TSession session;
+    session.ChunkIndex = LastPreparedReader;
+    const auto& inputChunk = InputChunks[session.ChunkIndex];
     auto chunkId = NChunkClient::TChunkId::FromProto(inputChunk.slice().chunk_id());
 
     LOG_DEBUG("Opening chunk (ChunkIndex: %d, ChunkId: %s)", 
@@ -67,24 +69,22 @@ void TMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
         chunkId,
         FromProto<Stroka>(inputChunk.node_addresses()));
 
-    auto chunkReader = ReaderProvider->CreateNewReader(inputChunk, remoteReader);
-    chunkReader->AsyncOpen()
+    session.Reader = ReaderProvider->CreateNewReader(inputChunk, remoteReader);
+
+    session.Reader->AsyncOpen()
         .Subscribe(BIND(
             &TMultiChunkReaderBase<TChunkReader>::OnReaderOpened,
             MakeWeak(this),
-            chunkReader,
-            LastPreparedReader)
+            session)
         .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
 }
 
 template <class TChunkReader>
-void TMultiChunkReaderBase<TChunkReader>::ProcessOpenedReader(
-    const TReaderPtr& reader, 
-    int chunkIndex)
+void TMultiChunkReaderBase<TChunkReader>::ProcessOpenedReader(const TSession& session)
 {
-    LOG_DEBUG("Chunk opened (ChunkIndex: %d)", chunkIndex);
-    ItemCount_ += reader->GetRowCount() - InputChunks[chunkIndex].row_count();
-    FetchingCompleteAwaiter->Await(reader->GetFetchingCompleteEvent());
+    LOG_DEBUG("Chunk opened (ChunkIndex: %d)", session.ChunkIndex);
+    ItemCount_ += session.Reader->GetRowCount() - InputChunks[session.ChunkIndex].row_count();
+    FetchingCompleteAwaiter->Await(session.Reader->GetFetchingCompleteEvent());
     if (FetchingCompleteAwaiter->GetRequestCount() == InputChunks.size()) {
         auto this_ = MakeStrong(this);
         FetchingCompleteAwaiter->Complete(BIND([=]() { 
@@ -94,9 +94,25 @@ void TMultiChunkReaderBase<TChunkReader>::ProcessOpenedReader(
 }
 
 template <class TChunkReader>
-void TMultiChunkReaderBase<TChunkReader>::ProcessFinishedReader(const TReaderPtr& reader)
+void TMultiChunkReaderBase<TChunkReader>::ProcessFinishedReader(const TSession& session)
 {
-    ItemCount_ += reader->GetRowIndex() - reader->GetRowCount();
+    ItemCount_ += session.Reader->GetRowIndex() - session.Reader->GetRowCount();
+}
+
+template <class TChunkReader>
+void TMultiChunkReaderBase<TChunkReader>::AddFailedChunk(const TSession& session)
+{
+    auto chunkId = NChunkClient::TChunkId::FromProto(
+        InputChunks[session.ChunkIndex].slice().chunk_id());
+    TGuard<TSpinLock> guard(FailedChunksLock);
+    FailedChunks.push_back(chunkId);
+}
+
+template <class TChunkReader>
+std::vector<NChunkClient::TChunkId> TMultiChunkReaderBase<TChunkReader>::GetFailedChunks() const
+{
+    TGuard<TSpinLock> guard(FailedChunksLock);
+    return FailedChunks;
 }
 
 template <class TChunkReader>
@@ -104,6 +120,13 @@ TAsyncError TMultiChunkReaderBase<TChunkReader>::GetReadyEvent()
 {
     return State.GetOperationError();
 }
+
+template <class TChunkReader>
+const TIntrusivePtr<TChunkReader>& TMultiChunkReaderBase<TChunkReader>::CurrentReader() const
+{
+    return CurrentSession.Reader;
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
