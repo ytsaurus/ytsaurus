@@ -37,6 +37,7 @@ class OperationState(object):
         return self.name
 
 class Timeout(object):
+    """ Strategy to calculate timeout between responses while waiting operation"""
     def __init__(self, min_timeout, max_timeout, slowdown_coef):
         self.min_timeout = min_timeout
         self.max_timeout = max_timeout
@@ -62,6 +63,7 @@ def get_operation_progress(operation):
     return get_attribute(operation_path, "progress/jobs")
 
 class PrintOperationInfo(object):
+    """ Caches operation state and prints info by update"""
     def __init__(self):
         self.state = None
         self.progress = None
@@ -86,6 +88,8 @@ class PrintOperationInfo(object):
 
 
 def abort_operation(operation):
+    """ Aborts operation """
+    #TODO(ignat): remove check!?
     if not get_operation_state(operation).is_final():
         make_request("abort_op", {"operation_id": operation})
 
@@ -100,6 +104,7 @@ def wait_final_state(operation, timeout, print_info, action=lambda: None):
     return state
 
 def wait_operation(operation, timeout=None, print_progress=True):
+    """ Wait operation and abort operation in case of keyboard interrupt """
     if timeout is None:
         timeout = Timeout(config.WAIT_TIMEOUT / 5.0, config.WAIT_TIMEOUT, 0.1)
     print_info = PrintOperationInfo() if print_progress else lambda operation, state: None
@@ -155,9 +160,14 @@ def get_jobs_errors(operation, limit=None):
               if "error" in value["$attributes"])
     return "\n\n".join(map(format_error, prefix(errors, limit)))
 
-""" Waiting operation strategies """
+
+""" Strategy represents actions for processing already ran operation."""
 class WaitStrategy(object):
-    def __init__(self, files_to_delete=None, check_result=True, print_progress=True):
+    """
+    This strategy synchronously wait operation, print current progress and
+    remove files at the completion.
+    """
+    def __init__(self, check_result=True, print_progress=True):
         self.check_result = check_result
         self.print_progress = print_progress
 
@@ -168,7 +178,7 @@ class WaitStrategy(object):
             operation_result = get_operation_result(operation)
             jobs_errors = get_jobs_errors(operation)
             stderr = get_operation_stderr(operation)
-            # TODO: remove finalization when transactions would be buultin
+            # TODO: remove finalization when transactions would be builtin
             self.finalization()
             raise YtOperationFailedError(
                 "Operation {0} failed!\n"
@@ -181,7 +191,7 @@ class WaitStrategy(object):
                     stderr))
         self.finalization()
         #return operation_result, jobs_errors, stderr
-
+ 
 class AsyncStrategy(object):
     # TODO(improve this strategy)
     def __init__(self):
