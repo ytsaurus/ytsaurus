@@ -349,7 +349,7 @@ class YTEnv(unittest.TestCase):
         with open(config_path, "w") as f:
             f.write(json.dumps(proxy_config))
 
-        self._run(['run_proxy.sh', "-c", config_path], "proxy")
+        self._run(['run_proxy.sh', "-c", config_path, "-l", "/dev/null"], "proxy")
 
         def started():
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

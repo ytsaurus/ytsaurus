@@ -34,16 +34,21 @@ def read_content(response, type):
         return iter_lines(response)
     elif type == "iter_content":
         return response.iter_content(chunk_size=config.HTTP_CHUNK_SIZE)
+    elif type == "string":
+        return response.text
     else:
         raise YtError("Incorrent response type: " + type)
 
 class Response(object):
     def __init__(self, http_response):
+        def serialize(error):
+            return json.dumps(error.json, indent='  ')
+
         self.http_response = http_response
         if not str(http_response.status_code).startswith("2"):
-            self._error = http_response.json
+            self._error = serialize(http_response)
         elif http_response.headers.get("x-yt-response-code", 0) != 0:
-            self._error = http_response.headers["x-yt-error"].json
+            self._error = serialize(http_response.headers["x-yt-error"])
 
     def error(self):
         return self._error
@@ -90,6 +95,7 @@ def make_request(command_name, params,
         "list": "GET",
         "lock": "POST",
         "copy": "POST",
+        "move": "POST",
         "exists": "GET",
         "upload": "PUT",
         "download": "GET",

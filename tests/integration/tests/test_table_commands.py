@@ -278,6 +278,12 @@ class TestTableCommands(YTEnvSetup):
         remove('//tmp/t2')
         assert get_chunks() == []
 
+    def test_copy_to_the_same_table(self):
+        create('table', '//tmp/t')
+        write_str('//tmp/t', '{a=b}')
+        
+        with pytest.raises(YTError): copy('//tmp/t', '//tmp/t')
+
     def test_copy_tx(self):
         create('table', '//tmp/t')
         write_str('//tmp/t', '{a=b}')

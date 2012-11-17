@@ -1,14 +1,14 @@
 #!/usr/bin/python
 
-import yt.wrapper.config as config
+from yt.environment import YTEnv
 import yt.wrapper as yt
-from yt.wrapper import Record, YtError, YtResponseError, record_to_line, line_to_record, Table
+from yt.wrapper import Record, YtError, YtResponseError, record_to_line, line_to_record, TablePath
+import yt.wrapper.config as config
 from yt.common import flatten
 
-from yt.environment import YTEnv
+from yt.wrapper.tests.base import YtTestBase, TEST_DIR
 
 import os
-import logging
 import random
 import string
 import subprocess
@@ -18,50 +18,24 @@ from functools import partial
 import unittest
 
 LOCATION = os.path.dirname(os.path.abspath(__file__))
-def abspath(path):
-    return os.path.join(LOCATION, path)
+def _test_file_path(path):
+    return os.path.join(LOCATION, "files", path)
 
-TEST_DIR = "//home/tests"
+def _module_file_path(path):
+    return os.path.join(LOCATION, "..", path)
 
-LOCATION = os.path.dirname(os.path.abspath(__file__))
-
-class YtTest(YTEnv):
-    NUM_MASTERS = 1
-    NUM_NODES = 5
-    START_SCHEDULER = True
-    START_PROXY = True
-
+class MapreduceBehaviourTest(YtTestBase, YTEnv):
     @classmethod
     def setUpClass(cls):
-        if os.path.exists("test.log"):
-            os.remove("test.log")
-        logging.basicConfig(level=logging.WARNING)
-
-        ports = {
-            "master": 18001,
-            "node": 17001,
-            "scheduler": 18101,
-            "proxy": 18080,
-            "proxy_log": 18081}
-        # (TODO): remake this strange stuff.
-        cls.env = cls()
-        cls.env.set_environment("tests/sandbox", "tests/sandbox/pids.txt", ports)
-
-        config.PROXY = "localhost:%d" % ports["proxy"]
+        YtTestBase.setUpClass(YTEnv)
 
     @classmethod
     def tearDownClass(cls):
-        cls.env.clear_environment()
+        YtTestBase.tearDownClass()
 
     def setUp(self):
-        os.environ["PATH"] = ".:" + os.environ["PATH"]
-        yt.mkdir(TEST_DIR)
-
-        config.WAIT_TIMEOUT = 0.2
-        config.DEFAULT_STRATEGY = yt.WaitStrategy(print_progress=False)
-
-    def tearDown(self):
-        yt.remove(TEST_DIR)
+        super(MapreduceBehaviourTest, self).setUp()
+        config.set_mapreduce_mode()
 
     def read_records(self, table, format=None):
         return filter(None,
@@ -92,13 +66,13 @@ class YtTest(YTEnv):
 
     def run_capitilize_b(self, src, dst):
         yt.run_map("PYTHONPATH=. ./capitilize_b.py", src, dst,
-                   files=map(abspath, ["../config.py", "../common.py", "../record.py", "../format.py", "capitilize_b.py"]),
+                   files=map(_module_file_path, ["config.py", "common.py", "record.py", "format.py"]) + [_test_file_path("capitilize_b.py")],
                    format=yt.DsvFormat())
 
     def run_accumulate_c(self, src, dst):
         yt.run_reduce("PYTHONPATH=. ./accumulate_c.py", src, dst,
                       reduce_by="c",
-                      files=map(abspath, ["../config.py", "../common.py", "../record.py", "../format.py", "accumulate_c.py"]),
+                      files=map(_module_file_path, ["config.py", "common.py", "record.py", "format.py"]) + [_test_file_path("accumulate_c.py")],
                       format=yt.DsvFormat())
 
     def random_string(self, length):
@@ -124,7 +98,7 @@ class YtTest(YTEnv):
         self.assertEqual(yt.set(full_path, {}), None)
         self.assertTrue(yt.exists(full_path))
         self.assertEqual(yt.get(full_path), {})
-        self.assertEqual(yt.remove(half_path), None)
+        self.assertEqual(yt.remove(half_path, recursive=True), None)
         self.assertRaises(YtError, lambda: yt.remove(full_path))
 
     def test_read_write(self):
@@ -140,7 +114,7 @@ class YtTest(YTEnv):
         self.assertEqual(yt.get_attribute(table, "my_attr"), 10)
 
         # check rewrite case
-        yt.write_table(Table(table, append=True), records)
+        yt.write_table(TablePath(table, append=True), records)
         self.assertEqual(sorted(yt.read_table(table)), sorted(records + records))
 
     def test_huge_table(self):
@@ -171,7 +145,7 @@ class YtTest(YTEnv):
         self.assertEqual(sorted(self.temp_records()),
                          sorted(yt.read_table(other_table)))
 
-        yt.copy_table(table, Table(other_table, append=True))
+        yt.copy_table(table, TablePath(other_table, append=True))
         self.assertEqual(sorted(list(self.temp_records()) + list(self.temp_records())),
                          sorted(yt.read_table(other_table)))
 
@@ -180,7 +154,8 @@ class YtTest(YTEnv):
         self.assertEqual(list(yt.read_table(other_table)),
                          sorted(list(self.temp_records())))
 
-        self.assertRaises(YtError, lambda: yt.copy_table(table, table))
+        yt.copy_table(table, table)
+        self.assertFalse(yt.exists(table))
 
     def test_sort(self):
         table = self.create_temp_table()
@@ -219,13 +194,13 @@ class YtTest(YTEnv):
         other_table = TEST_DIR + "/temp_other"
         yt.run_map("PYTHONPATH=. ./my_op.py",
                    table, other_table,
-                   files=map(abspath, ["my_op.py", "helpers.py"]))
+                   files=map(_test_file_path, ["my_op.py", "helpers.py"]))
         self.assertEqual(2 * yt.records_count(table), yt.records_count(other_table))
 
         yt.sort_table(table)
         yt.run_reduce("./cpp_bin",
                       table, other_table,
-                      files=abspath("cpp_bin"))
+                      files=_test_file_path("cpp_bin"))
 
     def test_abort_operation(self):
         strategy = yt.AsyncStrategy()
@@ -233,7 +208,7 @@ class YtTest(YTEnv):
         other_table = TEST_DIR + "/temp_other"
         yt.run_map("PYTHONPATH=. ./my_op.py 10.0",
                    table, other_table,
-                   files=map(abspath, ["my_op.py", "helpers.py"]),
+                   files=map(_test_file_path, ["my_op.py", "helpers.py"]),
                    strategy=strategy)
 
         operation = strategy.operations[-1]
@@ -269,8 +244,8 @@ class YtTest(YTEnv):
 
         yt.run_map("PYTHONPATH=. ./many_output.py",
                    table,
-                   [other_table, Table(another_table, append=True), more_another_table],
-                   files=abspath("many_output.py"))
+                   [other_table, TablePath(another_table, append=True), more_another_table],
+                   files=_test_file_path("many_output.py"))
         self.assertEqual(yt.records_count(other_table), 1)
         self.assertEqual(yt.records_count(another_table), 11)
         self.assertEqual(yt.records_count(more_another_table), 1)
@@ -279,7 +254,7 @@ class YtTest(YTEnv):
         table = self.create_dsv_table()
         other_table = TEST_DIR + "/dsv_capital"
 
-        self.run_capitilize_b(Table(table, columns=["b"]), other_table)
+        self.run_capitilize_b(TablePath(table, columns=["b"]), other_table)
         recs = self.read_records(other_table, format=yt.DsvFormat())
 
         self.assertEqual(
@@ -291,17 +266,17 @@ class YtTest(YTEnv):
 
         yt.sort_table(table, sort_by=["b", "c"])
         self.assertEqual(
-            self.read_records(Table(table, lower_key="a", upper_key="n", columns=["b"]),
+            self.read_records(TablePath(table, lower_key="a", upper_key="n", columns=["b"]),
                               format=yt.DsvFormat()),
             [{"b": "ignat"}, {"b": "max"}])
 
         self.assertEqual(
-            self.read_records(Table(table, columns=["c"]),
+            self.read_records(TablePath(table, columns=["c"]),
                               format=yt.DsvFormat()),
             [{"c": "17.5"}, {"c": "0.5"}])
 
         self.assertEqual(
-            self.read_records(Table(table, columns=["b"], end_index=2),
+            self.read_records(TablePath(table, columns=["b"], end_index=2),
                               format=yt.DsvFormat()),
             [{"b": "ignat"}, {"b": "max"}])
 
@@ -333,20 +308,20 @@ class YtTest(YTEnv):
         another_table = TEST_DIR + "/temp_another"
         yt.run_map("PYTHONPATH=. ./my_op.py",
                    [table, other_table], another_table,
-                   files=map(abspath, ["my_op.py", "helpers.py"]))
+                   files=map(_test_file_path, ["my_op.py", "helpers.py"]))
         self.assertFalse(yt.exists(other_table))
 
     def test_file_operations(self):
         dest = []
         for i in xrange(2):
-            self.assertTrue(yt.smart_upload_file(abspath("my_op.py")).find("/my_op.py") != -1)
+            self.assertTrue(yt.smart_upload_file(_test_file_path("my_op.py")).find("/my_op.py") != -1)
 
         for d in dest:
             self.assertEqual(list(yt.download_file(dest)),
-                             open(abspath("my_op.py")).readlines())
+                             open(_test_file_path("my_op.py")).readlines())
 
         dest = TEST_DIR+"/file_dir/some_file"
-        yt.smart_upload_file(abspath("my_op.py"), destination=dest)
+        yt.smart_upload_file(_test_file_path("my_op.py"), destination=dest)
         self.assertEqual(yt.get_attribute(dest, "file_name"), "some_file")
 
     def test_map_reduce_operation(self):
@@ -361,7 +336,7 @@ class YtTest(YTEnv):
                 "c c\tc\tc c a\n"
             ])
         yt.run_map_reduce("./split.py", "./collect.py", input, output,
-                          map_files=abspath("split.py"), reduce_files=abspath("collect.py"))
+                          map_files=_test_file_path("split.py"), reduce_files=_test_file_path("collect.py"))
         self.assertEqual(
             sorted(list(yt.read_table(output))),
             sorted(["a\t\t2\n", "b\t\t1\n", "c\t\t6\n"]))
@@ -461,10 +436,10 @@ class YtTest(YTEnv):
         table = self.create_temp_table()
         self.assertEqual(yt.records_count(table), 10)
 
-        yt.erase_table(Table(table, start_index=0, end_index=5))
+        yt.erase_table(TablePath(table, start_index=0, end_index=5))
         self.assertEqual(yt.records_count(table), 5)
 
-        yt.erase_table(Table(table, start_index=0, end_index=5))
+        yt.erase_table(TablePath(table, start_index=0, end_index=5))
         self.assertEqual(yt.records_count(table), 0)
 
 

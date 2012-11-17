@@ -231,6 +231,9 @@ class TestCypressCommands(YTEnvSetup):
 
         remove('//tmp/a')
         assert get('//tmp/c/b/@path') == '//tmp/c/b'
+    
+    def test_copy_unexisting_path(self):
+        with pytest.raises(YTError): copy('//tmp/x', '//tmp/y')
 
     def test_move_simple(self):
         set('//tmp/a', 1)

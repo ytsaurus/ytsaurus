@@ -30,8 +30,7 @@ TSequentialReader::TSequentialReader(
 
     Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkReader->GetChunkId().ToString()));
 
-    YASSERT(ChunkReader);
-    YASSERT(blocks.size() > 0);
+    YCHECK(ChunkReader);
 
     LOG_DEBUG("Creating sequential reader (BlockCount: %d)", 
         static_cast<int>(blocks.size()));
@@ -57,9 +56,9 @@ TSharedRef TSequentialReader::GetBlock()
 {
     // No thread affinity - can be called from 
     // ContinueNextRow of NTableClient::TChunkReader.
-    YASSERT(!State.HasRunningOperation());
-    YASSERT(NextSequenceIndex > 0);
-    YASSERT(BlockWindow[NextSequenceIndex - 1].IsSet());
+    YCHECK(!State.HasRunningOperation());
+    YCHECK(NextSequenceIndex > 0);
+    YCHECK(BlockWindow[NextSequenceIndex - 1].IsSet());
 
     return BlockWindow[NextSequenceIndex - 1].Get();
 }
@@ -69,8 +68,8 @@ TAsyncError TSequentialReader::AsyncNextBlock()
     // No thread affinity - can be called from 
     // ContinueNextRow of NTableClient::TChunkReader.
 
-    YASSERT(HasNext());
-    YASSERT(!State.HasRunningOperation());
+    YCHECK(HasNext());
+    YCHECK(!State.HasRunningOperation());
 
     if (NextSequenceIndex > 0) {
         AsyncSemaphore.Release(BlockWindow[NextSequenceIndex - 1].Get().Size());
