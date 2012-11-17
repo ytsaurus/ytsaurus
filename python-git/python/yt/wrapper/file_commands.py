@@ -1,31 +1,26 @@
 import config
 from common import require, YtError
-from http import make_request, read_content
+from http import read_content
 from tree_commands import remove, exists, set_attribute, mkdir, find_free_subpath
-from transaction_commands import add_transaction_params
+from transaction_commands import _make_transactioned_request
 
 import os
 
 def download_file(path, response_type=None):
+    """
+    Downloads file from path.
+    Response type means the output format. By default it is line generator.
+    """
     if response_type is None: response_type = "iter_lines"
-    response = make_request(
-        "download",
-        add_transaction_params({
-            "path": path
-        }),
-        raw_response=True)
+    response = _make_transactioned_request("download", {"path": path}, raw_response=True)
     return read_content(response, response_type)
 
 def upload_file(stream, destination, yt_filename=None):
-    """ Simply uploads data from stream to destination and
-        set file_name attribute if yt_filename is specified"""
-    mkdir(os.path.dirname(destination))
-    make_request(
-        "upload",
-        add_transaction_params({
-            "path": destination
-        }),
-        data=stream)
+    """
+    Simply uploads data from stream to destination and
+    set file_name attribute if yt_filename is specified
+    """
+    _make_transactioned_request("upload", {"path": destination}, data=stream)
     if yt_filename is not None:
         set_attribute(destination, "file_name", yt_filename)
 
@@ -48,7 +43,7 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
             YtError("Incorrect file placement strategy " + placement_strategy))
 
     if destination is None:
-        mkdir(config.FILE_STORAGE)
+        mkdir(config.FILE_STORAGE, recursive=True)
         destination = os.path.join(config.FILE_STORAGE,
                                    os.path.basename(filename))
         if placement_strategy == "random":

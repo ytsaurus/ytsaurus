@@ -5,6 +5,7 @@ from common import YtError
 import os
 import sys
 import shutil
+import tempfile
 from zipfile import ZipFile
 
 LOCATION = os.path.dirname(os.path.abspath(__file__))
@@ -19,6 +20,7 @@ def module_relpath(module):
                 return rel_path
     raise YtError("Cannot determine relative path of module " + str(module))
     #!!! It is wrong solution, beacause modules can affect sys.path while importing
+    #!!! Do not delete it to prevent wrong refactoring in the future.
     # module_path = module.__file__
     #for path in sys.path:
     #    if module_path.startswith(path):
@@ -28,11 +30,11 @@ def module_relpath(module):
     #        return relpath
 
 def wrap(function):
-    function_filename = "/tmp/.operation.dump"
+    function_filename = tempfile.mkstemp(dir="/tmp", prefix=".operation.dump")[1]
     with open(function_filename, "w") as fout:
         dump(function, fout)
     
-    zip_filename = "/tmp/.modules.zip"
+    zip_filename = tempfile.mkstemp(dir="/tmp", prefix=".modules.zip")[1]
 
     # We don't use with statement for compatibility with python2.6
     zip = ZipFile(zip_filename, "w")
@@ -41,7 +43,7 @@ def wrap(function):
             zip.write(module.__file__, module_relpath(module))
     zip.close()
 
-    main_filename = "/tmp/_main_module.py"
+    main_filename = tempfile.mkstemp(dir="/tmp", prefix="_main_module.py")[1]
     shutil.copy(sys.modules['__main__'].__file__, main_filename)
 
     return ("python _py_runner.py {0} {1} {2} {3}".\
@@ -49,4 +51,5 @@ def wrap(function):
                        os.path.basename(zip_filename),
                        os.path.basename(main_filename),
                        "_main_module"),
-            [os.path.join(LOCATION, "_py_runner.py"), function_filename, zip_filename, main_filename])
+            os.path.join(LOCATION, "_py_runner.py"),
+            [function_filename, zip_filename, main_filename])

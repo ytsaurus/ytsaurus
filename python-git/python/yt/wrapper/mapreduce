@@ -8,7 +8,6 @@
 # -lock
 # -unlock
 
-from yt.wrapper.path_tools import split_table_ranges
 from yt.wrapper.common import flatten, unlist, first_not_none, bool_to_string
 import yt.wrapper.config as config
 import yt.wrapper as yt
@@ -100,12 +99,11 @@ def writelines_silently(lines):
 
 def get_smart_format(tables, smart_format_flag, has_subkey):
     def extract_format(table):
-        table = yt.to_table(table).name
-        table, ranges = split_table_ranges(table)
-        if ranges and ranges[0] == '{':
+        table = yt.to_table(table)
+        if table.specificators and table.specificators[0] == '{':
             return yt.RawFormat.from_yson("<line_prefix=tskv>dsv")
-        elif yt.has_attribute(table, "_format"):
-            return yt.RawFormat.from_tree(yt.get_attribute(table, "_format"))
+        elif yt.has_attribute(table.name, "_format"):
+            return yt.RawFormat.from_tree(yt.get_attribute(table.name, "_format"))
         else:
             return None
     if not(smart_format_flag or "SMART_FORMAT" in os.environ):
@@ -117,15 +115,13 @@ def get_smart_format(tables, smart_format_flag, has_subkey):
     formats = filter(None, formats)
     if formats:
         # Dirty hacks :(
-        if "has_subkey" in formats[0]._format.attributes:
+        if formats[0]._format in ["yamr", "yamred_dsv"]:
             formats[0]._format.attributes["has_subkey"] = bool_to_string(has_subkey)
         return formats[0]
 
 
 def main():
-    config.FORCE_SORT_IN_REDUCE = True
-    config.USE_MAPREDUCE_STYLE_DESTINATION_FDS = True
-    config.EXIT_WITHOUT_TRACEBACK = True
+    config.set_mapreduce_mode()
 
     parser = ArgumentParser(
         formatter_class=SortingHelpFormatter,
@@ -169,7 +165,7 @@ Examples:
     # TODO(ignat): add unsupported arguments
     action_stores = ["read", "write", "writesorted", "map", "reduce", "reducews", "drop",
                      "erase", "aborttx", "committx", "renewtx", "set", "get", "upload", "download",
-                     "createtable", "exists"]
+                     "createtable", "exists", "track"]
     action_flags = ["version", "copy", "sort", "merge", "list", "listfiles", "starttx"]
 
     add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "pingtx",
@@ -291,6 +287,8 @@ Examples:
              "NEW! timeout for transaction"),
             ("threadcount",
              "OLD! this option do nothing"),
+            ("track",
+             "NEW! track operation progress"),
             ("tx",
              "NEW! perform command in the context of the given transaction"),
             ("upload",
@@ -358,9 +356,9 @@ Examples:
 
     dst = []
     if args.dst is not None:
-        dst += map(partial(yt.Table, append=args.append), args.dst)
+        dst += map(partial(yt.TablePath, append=args.append), args.dst)
     if args.dstappend is not None:
-        dst += map(partial(yt.Table, append=True), args.dstappend)
+        dst += map(partial(yt.TablePath, append=True), args.dstappend)
     if not dst:
         dst = None
 
@@ -416,16 +414,16 @@ Examples:
     if args.read is not None:
         writelines_silently(
             yt.read_table(
-                yt.Table(args.read, lower_key=args.lowerkey, upper_key=args.upperkey),
+                yt.TablePath(args.read, lower_key=args.lowerkey, upper_key=args.upperkey),
                 format=inputformat,
                 response_type="iter_content"))
     if args.createtable is not None:
         yt.create_table(args.createtable)
     if args.write is not None:
-        args.write = yt.Table(args.write, append=args.append)
+        args.write = yt.TablePath(args.write, append=args.append)
         yt.write_table(args.write, sys.stdin, table_writer=table_writer, format=outputformat)
     if args.writesorted is not None:
-        args.writesorted = yt.Table(args.writesorted, append=args.append)
+        args.writesorted = yt.TablePath(args.writesorted, append=args.append)
         yt.write_table(args.writesorted, sys.stdin, table_writer=table_writer, format=outputformat)
         yt.set_attribute(args.writesorted.name, "sorted", "true")
     if mapreduce_case:
@@ -486,6 +484,10 @@ Examples:
         yt.abort_transaction(args.aborttx)
     if args.renewtx is not None:
         yt.renew_transaction(args.renewtx)
+
+    if args.track is not None:
+        config.KEYBOARD_ABORT = False
+        yt.WaitStrategy().process_operation("unknown", args.track)
 
     # Set _format for exisitng destination tables
     if args.smartformat:

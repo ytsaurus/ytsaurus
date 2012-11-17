@@ -1,10 +1,11 @@
 from common import bool_to_string
-from yt.yson import parse_string, yson_types, dumps
+from yt.yson import parse_string, yson_types
 import simplejson as json
 
 
 # TODO(ignat): Add custom field separator
 class Format(object):
+    """ Represents format to read/write and process records"""
     def to_input_http_header(self):
         return {"Content-Type": self._mime_type()}
 
@@ -50,7 +51,12 @@ class YamrFormat(Format):
                     {"has_subkey": bool_to_string(self.has_subkey),
                      "lenval": bool_to_string(self.lenval)}}
 
+class JsonFormat(Format):
+    def _mime_type(self):
+        return "application/json"
+
 class RawFormat(Format):
+    """Format represented by raw description: name + attributes"""
     @staticmethod
     def from_yson(str):
         format = RawFormat()
@@ -76,6 +82,3 @@ class RawFormat(Format):
     def to_str(self):
         return json.dumps(self.to_json())
 
-class JsonFormat(Format):
-    def _mime_type(self):
-        return "application/json"

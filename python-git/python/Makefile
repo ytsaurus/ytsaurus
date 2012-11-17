@@ -17,6 +17,9 @@ test: clean
 prepare:
 	cp yt/wrapper/mapreduce yt/wrapper/mapreduce-yt
 
+html:
+	sphinx-build -b html yt docs/_build/ 
+
 deb:
 	$(MAKE) test
 	$(MAKE) clean

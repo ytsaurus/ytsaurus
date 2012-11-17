@@ -1,15 +1,25 @@
 from yt.common import require, flatten, update, which, YtError
+from functools import partial
+
 
 EMPTY_GENERATOR = (i for i in [])
 
 class YtOperationFailedError(YtError):
+    """
+    Represents error that occurs when we synchronously wait operation that fails.
+    """
     pass
 
 class YtResponseError(YtError):
+    """
+    Represents error that occurs when we have error in http response.
+    """
     pass
 
-def compose(f, g):
-    return lambda x: f(g(x))
+def compose(*args):
+    def compose_two(f, g):
+        return lambda x: f(g(x))
+    return reduce(compose_two, args)
 
 def unlist(l):
     return l[0] if len(l) == 1 else l
@@ -65,3 +75,8 @@ def remove_attributes(tree):
 def first_not_none(iter):
     return filter(None, iter)[0]
 
+def get_value(value, default):
+    if value is None:
+        return default
+    else:
+        return value

@@ -43,6 +43,7 @@ class SubkeyedRecord(SimpleRecord):
 
 
 def Record(*args, **kws):
+    """Represents mapreduce-like record with key, subkey, value"""
     assert len(args) >= 2, "incorrect arguments count [ARGS: %s]" % repr(args)
     if len(args) < 3:
         return SimpleRecord(*args, **kws)
