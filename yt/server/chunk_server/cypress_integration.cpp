@@ -498,10 +498,10 @@ private:
         }
 
         if (key == "registered" || key == "online") {
-            auto state = key == "registered" ? ENodeState::Registered : ENodeState::Online;
+            auto expectedState = key == "registered" ? ENodeState::Registered : ENodeState::Online;
             BuildYsonFluently(consumer)
                 .DoListFor(chunkManager->GetNodes(), [=] (TFluentList fluent, TDataNode* node) {
-                    if (node->GetState() == state) {
+                    if (node->GetState() == expectedState) {
                         fluent.Item().Scalar(node->GetAddress());
                     }
                 });
