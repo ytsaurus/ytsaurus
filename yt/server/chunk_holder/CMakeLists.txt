@@ -5,6 +5,7 @@ set( SRCS
   ${BASE}/bootstrap.cpp
   ${BASE}/chunk.cpp
   ${BASE}/chunk_cache.cpp
+  ${BASE}/disk_health_checker.cpp
   ${BASE}/data_node_service.cpp
   ${BASE}/chunk_registry.cpp
   ${BASE}/chunk_store.cpp
@@ -23,6 +24,7 @@ set( HDRS
   ${BASE}/bootstrap.h
   ${BASE}/chunk.h
   ${BASE}/chunk_cache.h
+  ${BASE}/disk_health_checker.h
   ${BASE}/data_node_service.h
   ${BASE}/chunk_registry.h
   ${BASE}/chunk_store.h

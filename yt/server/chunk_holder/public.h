@@ -1,6 +1,7 @@
 #pragma once
 
 #include <ytlib/misc/common.h>
+
 #include <server/chunk_server/public.h>
 
 namespace NYT {
@@ -12,6 +13,9 @@ class TBootstrap;
 
 struct TLocationConfig;
 typedef TIntrusivePtr<TLocationConfig> TLocationConfigPtr;
+
+struct TDiskHealthCheckerConfig;
+typedef TIntrusivePtr<TDiskHealthCheckerConfig> TDiskHealthCheckerConfigPtr;
 
 struct TDataNodeConfig;
 typedef TIntrusivePtr<TDataNodeConfig> TDataNodeConfigPtr;

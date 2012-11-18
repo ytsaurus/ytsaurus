@@ -62,6 +62,31 @@ struct TLocationConfig
     }
 };
 
+//! Describes a configuration of TDiskHealthChecker.
+struct TDiskHealthCheckerConfig
+    : public TYsonSerializable
+{
+    //! Period between consequent checks.
+    TDuration CheckPeriod;
+
+    //! Size of the test file.
+    i64 TestSize;
+
+    //! Maximum time allowed for execution of a single check.
+    TDuration Timeout;
+
+    TDiskHealthCheckerConfig()
+    {
+        Register("check_period", CheckPeriod)
+            .Default(TDuration::Minutes(1));
+        Register("test_size", TestSize)
+            .InRange(0, (i64) 1024 * 1024 * 1024)
+            .Default((i64) 1024 * 1024);
+        Register("timeout", Timeout)
+            .Default(TDuration::Seconds(5));
+    }
+};
+
 //! Describes a configuration of TChunkHolder.
 struct TDataNodeConfig
     : public TYsonSerializable
