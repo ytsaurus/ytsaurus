@@ -135,8 +135,7 @@ void TTableWriter::Open()
                 channels = ConvertTo<TChannels>(channelsYson.Get());
             }
 
-            // COMPAT(babenko): eliminate default value
-            Config->ReplicationFactor = attributes.Get<int>("replication_factor", 3);
+            Config->ReplicationFactor = attributes.Get<int>("replication_factor");
         }
         
         if (KeyColumns.HasValue()) {
