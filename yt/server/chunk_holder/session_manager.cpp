@@ -461,7 +461,7 @@ TValueOrError<TChunkPtr> TSession::OnFileClosed(TError error)
         Writer->GetChunkInfo(),
         Bootstrap->GetMemoryUsageTracker());
     Bootstrap->GetChunkStore()->RegisterChunk(chunk);
-    return chunk;
+    return TStoredChunkPtr(chunk);
 }
 
 void TSession::ReleaseBlocks(int flushedBlockIndex)
