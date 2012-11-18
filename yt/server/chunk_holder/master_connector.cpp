@@ -132,13 +132,16 @@ NChunkServer::NProto::TNodeStatistics TMasterConnector::ComputeStatistics()
         locationStatistics->set_chunk_count(location->GetChunkCount());
         locationStatistics->set_session_count(location->GetSessionCount());
         locationStatistics->set_full(location->IsFull());
-        locationStatistics->set_enabled(true);
+        locationStatistics->set_enabled(location->IsEnabled());
 
-        totalAvailableSpace += location->GetAvailableSpace();
+        if (location->IsEnabled()) {
+            totalAvailableSpace += location->GetAvailableSpace();
+            full &= location->IsFull();
+        }
+
         totalUsedSpace += location->GetUsedSpace();
         totalChunkCount += location->GetChunkCount();
         totalSessionCount += location->GetSessionCount();
-        full &= location->IsFull();
     }
 
     nodeStatistics.set_total_available_space(totalAvailableSpace);

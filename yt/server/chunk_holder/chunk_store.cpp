@@ -36,7 +36,7 @@ void TChunkStore::Start()
 
     try {
         for (int i = 0; i < Config->StoreLocations.size(); ++i) {
-            auto& locationConfig = Config->StoreLocations[i];
+            auto locationConfig = Config->StoreLocations[i];
 
             auto location = New<TLocation>(
                 ELocationType::Store,
@@ -45,7 +45,8 @@ void TChunkStore::Start()
                 Bootstrap);
             Locations_.push_back(location);
 
-            FOREACH (const auto& descriptor, location->Scan()) {
+            auto descriptors = location->Initialize();
+            FOREACH (const auto& descriptor, descriptors) {
                 auto chunk = New<TStoredChunk>(
                     location, 
                     descriptor,
@@ -54,8 +55,8 @@ void TChunkStore::Start()
             }
         }
 
-        FOREACH(const auto& location, Locations_) {
-            auto cellGuid = location->GetCellGuid();
+        FOREACH (const auto& location, Locations_) {
+            const auto& cellGuid = location->GetCellGuid();
             if (cellGuid.IsEmpty())
                 continue;
 
@@ -69,7 +70,7 @@ void TChunkStore::Start()
         }
 
         if (!CellGuid.IsEmpty()) {
-            DoUpdateCellGuid();
+            DoSetCellGuid();
         }
 
     } catch (const std::exception& ex) {
@@ -128,7 +129,7 @@ TLocationPtr TChunkStore::GetNewChunkLocation()
 
     int minCount = Max<int>();
     FOREACH (const auto& location, Locations_) {
-        if (location->IsFull()) {
+        if (location->IsFull() || !location->IsEnabled()) {
             continue;
         }
         int count = location->GetSessionCount();
@@ -144,7 +145,7 @@ TLocationPtr TChunkStore::GetNewChunkLocation()
     if (candidates.empty()) {
         THROW_ERROR_EXCEPTION(
             TDataNodeServiceProxy::EErrorCode::OutOfSpace,
-            "All locations are full");
+            "All locations are either disabled or full");
     }
 
     return candidates[RandomNumber(candidates.size())];
@@ -165,16 +166,16 @@ int TChunkStore::GetChunkCount() const
     return ChunkMap.ysize();
 }
 
-void TChunkStore::UpdateCellGuid(const TGuid& cellGuid)
+void TChunkStore::SetCellGuid(const TGuid& cellGuid)
 {
     CellGuid = cellGuid;
-    DoUpdateCellGuid();
+    DoSetCellGuid();
 }
 
-void TChunkStore::DoUpdateCellGuid()
+void TChunkStore::DoSetCellGuid()
 {
-    FOREACH(auto& location, Locations_) {
-        location->UpdateCellGuid(CellGuid);
+    FOREACH (const auto& location, Locations_) {
+        location->SetCellGuid(CellGuid);
     }
 }
 

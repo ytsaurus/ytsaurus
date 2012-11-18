@@ -47,8 +47,8 @@ TBootstrap::TBootstrap(
     : Config(config)
     , NodeBootstrap(nodeBootstrap)
 {
-    YASSERT(config);
-    YASSERT(nodeBootstrap);
+    YCHECK(config);
+    YCHECK(nodeBootstrap);
 }
 
 TBootstrap::~TBootstrap()
@@ -89,7 +89,7 @@ void TBootstrap::Init()
     
     if (ChunkStore->GetCellGuid().IsEmpty() && !ChunkCache->GetCellGuid().IsEmpty()) {
         CellGuid = ChunkCache->GetCellGuid();
-        ChunkStore->UpdateCellGuid(CellGuid);
+        ChunkStore->SetCellGuid(CellGuid);
     }
 
     SessionManager = New<TSessionManager>(Config, this);
@@ -191,7 +191,7 @@ const TGuid& TBootstrap::GetCellGuid() const
 void TBootstrap::UpdateCellGuid(const TGuid& cellGuid)
 {
     CellGuid = cellGuid;
-    ChunkStore->UpdateCellGuid(CellGuid);
+    ChunkStore->SetCellGuid(CellGuid);
     ChunkCache->UpdateCellGuid(CellGuid);
 }
 

@@ -79,6 +79,9 @@ typedef TIntrusivePtr<TChunkRegistry> TChunkRegistryPtr;
 class TDataNodeService;
 typedef TIntrusivePtr<TDataNodeService> TChunkHolderServicePtr;
 
+class TDiskHealthChecker;
+typedef TIntrusivePtr<TDiskHealthChecker> TDiskHealthCheckerPtr;
+
 using NChunkClient::TChunkId;
 using NChunkServer::TJobId;
 using NChunkServer::EJobType;

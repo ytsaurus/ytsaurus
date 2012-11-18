@@ -54,7 +54,7 @@ public:
 
     const TGuid& GetCellGuid() const;
 
-    void UpdateCellGuid(const TGuid& cellGuid);
+    void SetCellGuid(const TGuid& cellGuid);
 
     //! Storage locations.
     DEFINE_BYREF_RO_PROPERTY(TLocations, Locations);
@@ -66,7 +66,7 @@ public:
     DEFINE_SIGNAL(void(TChunkPtr), ChunkRemoved);
 
 private:
-    void DoUpdateCellGuid();
+    void DoSetCellGuid();
 
     TDataNodeConfigPtr Config;
     TBootstrap* Bootstrap;

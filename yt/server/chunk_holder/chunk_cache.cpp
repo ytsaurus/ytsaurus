@@ -61,7 +61,7 @@ public:
             Bootstrap);
 
         try {
-            FOREACH (const auto& descriptor, Location->Scan()) {
+            FOREACH (const auto& descriptor, Location->Initialize()) {
                 auto chunk = New<TCachedChunk>(
                     Location,
                     descriptor,
@@ -125,7 +125,7 @@ public:
 
     void UpdateCellGuid(const TGuid& cellGuid)
     {
-        Location->UpdateCellGuid(cellGuid);
+        Location->SetCellGuid(cellGuid);
     }
 
 private:
@@ -357,18 +357,21 @@ TChunkCache::~TChunkCache()
 TCachedChunkPtr TChunkCache::FindChunk(const TChunkId& chunkId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
     return Impl->Find(chunkId);
 }
 
 TChunkCache::TChunks TChunkCache::GetChunks()
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
     return Impl->GetAll();
 }
 
 int TChunkCache::GetChunkCount()
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
     return Impl->GetSize();
 }
 
@@ -377,21 +380,26 @@ TChunkCache::TAsyncDownloadResult TChunkCache::DownloadChunk(
     const std::vector<Stroka>& seedAddresses)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
     return Impl->Download(chunkId, seedAddresses);
 }
 
-DELEGATE_SIGNAL(TChunkCache, void(TChunkPtr), ChunkAdded, *Impl);
-DELEGATE_SIGNAL(TChunkCache, void(TChunkPtr), ChunkRemoved, *Impl);
-
 const TGuid& TChunkCache::GetCellGuid() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return Impl->GetCellGuid();
 }
 
 void TChunkCache::UpdateCellGuid(const TGuid& cellGuid)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return Impl->UpdateCellGuid(cellGuid);
 }
+
+DELEGATE_SIGNAL(TChunkCache, void(TChunkPtr), ChunkAdded, *Impl);
+DELEGATE_SIGNAL(TChunkCache, void(TChunkPtr), ChunkRemoved, *Impl);
 
 ////////////////////////////////////////////////////////////////////////////////
 

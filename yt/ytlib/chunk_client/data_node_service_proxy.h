@@ -21,7 +21,7 @@ public:
     }
 
     DECLARE_ENUM(EErrorCode,
-        ((PutBlocksFailed)(101))
+        ((RemoteCallFailed)(101))
         ((NoSuchSession)(102))
         ((SessionAlreadyExists)(103))
         ((ChunkAlreadyExists)(104))
@@ -31,6 +31,7 @@ public:
         ((NoSuchChunk)(108))
         ((ChunkPrecachingFailed)(109))
         ((OutOfSpace)(110))
+        ((IOError)(111))
     );
 
     explicit TDataNodeServiceProxy(NRpc::IChannelPtr channel)

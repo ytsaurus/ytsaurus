@@ -5,8 +5,10 @@
 #include "reader_cache.h"
 #include "config.h"
 #include "bootstrap.h"
+#include "disk_health_checker.h"
 
 #include <ytlib/misc/fs.h>
+
 #include <ytlib/chunk_client/format.h>
 
 #include <util/folder/filelist.h>
@@ -23,6 +25,17 @@ static NLog::TLogger& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+void RemoveFileOrDie(const Stroka& fileName)
+{
+    if (!NFS::Remove(fileName)) {
+        LOG_FATAL("Error deleting %s", ~fileName.Quote());
+    }
+}
+
+} // namespace
+
 DECLARE_ENUM(ELocationQueue,
     (Data)
     (Meta)
@@ -37,7 +50,7 @@ TLocation::TLocation(
     , Id(id)
     , Config(config)
     , Bootstrap(bootstrap)
-    , CellGuid()
+    , Enabled(0)
     , AvailableSpace(0)
     , UsedSpace(0)
     , SessionCount(0)
@@ -57,7 +70,7 @@ ELocationType TLocation::GetType() const
     return Type;
 }
 
-Stroka TLocation::GetId() const
+const Stroka& TLocation::GetId() const
 {
     return Id;
 }
@@ -75,12 +88,14 @@ i64 TLocation::GetAvailableSpace() const
     try {
         AvailableSpace = NFS::GetAvailableSpace(path);
     } catch (const std::exception& ex) {
-        LOG_FATAL(ex, "Failed to compute available space");
+        LOG_ERROR(ex, "Failed to compute available space");
+        const_cast<TLocation*>(this)->Disable();
+        AvailableSpace = 0;
+        return 0;
     }
 
-    i64 remainingQuota = Max(static_cast<i64>(0), GetQuota() - GetUsedSpace());
-
-    AvailableSpace = Min(AvailableSpace, remainingQuota);
+    i64 remainingQuota = std::max(static_cast<i64>(0), GetQuota() - GetUsedSpace());
+    AvailableSpace = std::min(AvailableSpace, remainingQuota);
 
     return AvailableSpace;
 }
@@ -169,23 +184,25 @@ IInvokerPtr TLocation::GetWriteInvoker()
     return WriteQueue->GetInvoker();
 }
 
-namespace {
-
-void RemoveFile(const Stroka& fileName)
+bool TLocation::IsEnabled() const
 {
-    if (!NFS::Remove(fileName)) {
-        LOG_FATAL("Error deleting file %s", ~fileName.Quote());
-    }
+    return AtomicGet(Enabled) == 1;
 }
 
-} // namespace
+void TLocation::Disable()
+{
+    if (!AtomicCas(&Enabled, 0, 1))
+        return;
+
+    LOG_ERROR("Location disabled");
+}
 
 const TGuid& TLocation::GetCellGuid() 
 {
     return CellGuid;
 }
 
-void TLocation::UpdateCellGuid(const TGuid& newCellGuid)
+void TLocation::SetCellGuid(const TGuid& newCellGuid)
 {
     CellGuid = newCellGuid;
 
@@ -199,7 +216,7 @@ void TLocation::UpdateCellGuid(const TGuid& newCellGuid)
     LOG_INFO("Cell guid updated: %s", ~CellGuid.ToString());
 }
 
-std::vector<TChunkDescriptor> TLocation::Scan()
+std::vector<TChunkDescriptor> TLocation::Initialize()
 {
     auto path = GetPath();
 
@@ -239,7 +256,7 @@ std::vector<TChunkDescriptor> TLocation::Scan()
         bool hasMeta = fileNames.find(NFS::NormalizePathSeparators(chunkMetaFileName)) != fileNames.end();
         bool hasData = fileNames.find(NFS::NormalizePathSeparators(chunkDataFileName)) != fileNames.end();
 
-        YASSERT(hasMeta || hasData);
+        YCHECK(hasMeta || hasData);
 
         if (hasMeta && hasData) {
             i64 chunkDataSize = NFS::GetFileSize(chunkDataFileName);
@@ -253,10 +270,10 @@ std::vector<TChunkDescriptor> TLocation::Scan()
             descriptors.push_back(descriptor);
         } else if (!hasMeta) {
             LOG_WARNING("Missing meta file, removing data file: %s", ~chunkDataFileName);
-            RemoveFile(chunkDataFileName);
+            RemoveFileOrDie(chunkDataFileName);
         } else if (!hasData) {
             LOG_WARNING("Missing data file, removing meta file: %s", ~chunkMetaFileName);
-            RemoveFile(chunkMetaFileName);
+            RemoveFileOrDie(chunkMetaFileName);
         }
     }
 
@@ -280,27 +297,61 @@ std::vector<TChunkDescriptor> TLocation::Scan()
         NFS::ForcePath(NFS::CombinePaths(GetPath(), Sprintf("%02x", hashByte)));
     }
 
+    // Initialize and start health checker.
+    HealthChecker = New<TDiskHealthChecker>(
+        Bootstrap->GetConfig()->DiskHealthChecker,
+        GetPath(),
+        GetWriteInvoker());
+    HealthChecker->SubscribeFailed(BIND(&TLocation::OnHealthCheckFailed, Unretained(this)));
+    HealthChecker->Start();
+
+    AtomicSet(Enabled, 1);
+
     return descriptors;
 }
 
 TFuture<void> TLocation::ScheduleChunkRemoval(TChunk* chunk)
 {
-    auto id = chunk->GetId();
-    Stroka fileName = GetChunkFileName(id);
+    const auto& id = chunk->GetId();
+
+    Stroka dataFileName = GetChunkFileName(id);
+    Stroka metaFileName = dataFileName + ChunkMetaSuffix;
 
     LOG_INFO("Chunk removal scheduled (ChunkId: %s)", ~id.ToString());
 
     auto promise = NewPromise<void>();
     GetWriteInvoker()->Invoke(BIND([=] () mutable {
-        // TODO: retry on failure
         LOG_DEBUG("Started removing chunk files (ChunkId: %s)", ~id.ToString());
-        RemoveFile(fileName);
-        RemoveFile(fileName + ChunkMetaSuffix);
+
+        if (!NFS::Remove(dataFileName)) {
+            LOG_ERROR("Failed to remove %s", ~dataFileName.Quote());
+            Disable();
+        }
+
+        if (!NFS::Remove(metaFileName)) {
+            LOG_ERROR("Failed to remove %s", ~metaFileName.Quote());
+            Disable();
+        }
+
         LOG_DEBUG("Finished removing chunk files (ChunkId: %s)", ~id.ToString());
         promise.Set();
     }));
 
     return promise;
+}
+
+void TLocation::OnHealthCheckFailed()
+{
+    switch (Type) {
+        case ELocationType::Store:
+            Disable();
+            break;
+        case ELocationType::Cache:
+            LOG_FATAL("Cache location has failed");
+            break;
+        default:
+            YUNREACHABLE();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

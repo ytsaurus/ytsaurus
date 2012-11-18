@@ -59,7 +59,7 @@ void TDiskHealthChecker::OnCheckTimeout()
 
 TFuture<void> TDiskHealthChecker::RunCheck()
 {
-    LOG_DEBUG("Running disk health check: %s", ~Path);
+    LOG_DEBUG("Disk health check started: %s", ~Path);
 
     std::vector<ui8> writeData(Config->TestSize);
     std::vector<ui8> readData(Config->TestSize);
@@ -90,6 +90,8 @@ TFuture<void> TDiskHealthChecker::RunCheck()
         if (memcmp(readData.data(), writeData.data(), Config->TestSize) != 0) {
             THROW_ERROR_EXCEPTION("Test file is corrupt");
         }
+
+        LOG_DEBUG("Disk health check finished: %s", ~Path);
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Disk health check failed: %s", ~Path);
         RaiseFailed();

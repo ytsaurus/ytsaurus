@@ -34,8 +34,8 @@ TFileWriter::TFileWriter(const Stroka& fileName)
 
 void TFileWriter::Open()
 {
-    YASSERT(!IsOpen);
-    YASSERT(!IsClosed);
+    YCHECK(!IsOpen);
+    YCHECK(!IsClosed);
 
     ui32 oMode = CreateAlways | WrOnly | Seq | CloseOnExec;
     DataFile.Reset(new TFile(FileName + NFS::TempFileSuffix, oMode));
@@ -45,8 +45,8 @@ void TFileWriter::Open()
 
 bool TFileWriter::TryWriteBlock(const TSharedRef& block)
 {
-    YASSERT(IsOpen);
-    YASSERT(!IsClosed);
+    YCHECK(IsOpen);
+    YCHECK(!IsClosed);
 
     try {
         auto* blockInfo = BlocksExt.add_blocks();
@@ -151,17 +151,6 @@ TAsyncError TFileWriter::AsyncClose(const NChunkClient::NProto::TChunkMeta& chun
 }
 
 
-namespace {
-
-void RemoveFile(const Stroka& fileName)
-{
-    if (!NFS::Remove(fileName)) {
-        LOG_FATAL("Error deleting file %s", ~fileName.Quote());
-    }
-}
-
-} // namespace
-
 void TFileWriter::Abort()
 {
     if (!IsOpen) {
@@ -171,18 +160,18 @@ void TFileWriter::Abort()
     IsOpen = false;
 
     DataFile.Destroy();
-    RemoveFile(FileName + NFS::TempFileSuffix);
+    NFS::Remove(FileName + NFS::TempFileSuffix);
 }
 
 const TChunkInfo& TFileWriter::GetChunkInfo() const
 {
-    YASSERT(IsClosed);
+    YCHECK(IsClosed);
     return ChunkInfo;
 }
 
 const TChunkMeta& TFileWriter::GetChunkMeta() const
 {
-    YASSERT(IsClosed);
+    YCHECK(IsClosed);
     return ChunkMeta;
 }
 

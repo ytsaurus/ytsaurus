@@ -202,10 +202,15 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, FinishChunk)
     Bootstrap
         ->GetSessionManager()
         ->FinishSession(session, meta)
-        .Subscribe(BIND([=] (TChunkPtr chunk) {
-            auto chunkInfo = session->GetChunkInfo();
-            *response->mutable_chunk_info() = chunkInfo;
-            context->Reply();
+        .Subscribe(BIND([=] (TValueOrError<TChunkPtr> chunkOrError) {
+            if (chunkOrError.IsOK()) {
+                auto chunk = chunkOrError.Value();
+                auto chunkInfo = session->GetChunkInfo();
+                *response->mutable_chunk_info() = chunkInfo;
+                context->Reply();
+            } else {
+                context->Reply(chunkOrError);
+            }
         }));
 }
 
@@ -214,7 +219,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, PutBlocks)
     UNUSED(response);
 
     auto chunkId = TChunkId::FromProto(request->chunk_id());
-    i32 startBlockIndex = request->start_block_index();
+    int startBlockIndex = request->start_block_index();
     bool enableCaching = request->enable_caching();
 
     context->SetRequestInfo("ChunkId: %s, StartBlockIndex: %d, BlockCount: %d, EnableCaching: %s",
@@ -225,7 +230,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, PutBlocks)
 
     auto session = GetSession(chunkId);
 
-    i32 blockIndex = startBlockIndex;
+    int blockIndex = startBlockIndex;
     FOREACH (const auto& block, request->Attachments()) {
         session->PutBlock(blockIndex, block, enableCaching);
         ++blockIndex;
@@ -239,8 +244,8 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, SendBlocks)
     UNUSED(response);
 
     auto chunkId = TChunkId::FromProto(request->chunk_id());
-    i32 startBlockIndex = request->start_block_index();
-    i32 blockCount = request->block_count();
+    int startBlockIndex = request->start_block_index();
+    int blockCount = request->block_count();
     Stroka targetAddress = request->target_address();
 
     context->SetRequestInfo("ChunkId: %s, StartBlockIndex: %d, BlockCount: %d, TargetAddress: %s",
@@ -250,30 +255,17 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, SendBlocks)
         ~targetAddress);
 
     auto session = GetSession(chunkId);
-
-    auto startBlock = session->GetBlock(startBlockIndex);
-
-    TProxy proxy(ChannelCache.GetChannel(targetAddress));
-    auto putRequest = proxy.PutBlocks()
-        ->SetTimeout(Config->NodeRpcTimeout);
-    *putRequest->mutable_chunk_id() = chunkId.ToProto();
-    putRequest->set_start_block_index(startBlockIndex);
-    
-    for (int blockIndex = startBlockIndex; blockIndex < startBlockIndex + blockCount; ++blockIndex) {
-        auto block = session->GetBlock(blockIndex);
-        putRequest->Attachments().push_back(block);
-    }
-
-    putRequest->Invoke().Subscribe(
-        BIND([=] (TProxy::TRspPutBlocksPtr putResponse) {
-            if (putResponse->IsOK()) {
+    session
+        ->SendBlocks(startBlockIndex, blockCount, targetAddress)
+        .Subscribe(BIND([=] (TError error) {
+            if (error.IsOK()) {
                 context->Reply();
             } else {
                 context->Reply(TError(
-                    TDataNodeServiceProxy::EErrorCode::PutBlocksFailed,
+                    TDataNodeServiceProxy::EErrorCode::RemoteCallFailed,
                     "Error putting blocks to %s",
                     ~targetAddress)
-                    << putResponse->GetError());
+                    << error);
             }
         }));
 }
@@ -298,7 +290,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
 
     auto peerBlockTable = Bootstrap->GetPeerBlockTable();
     for (int index = 0; index < blockCount; ++index) {
-        i32 blockIndex = request->block_indexes(index);
+        int blockIndex = request->block_indexes(index);
         TBlockId blockId(chunkId, blockIndex);
         
         auto* blockInfo = response->add_blocks();
@@ -366,7 +358,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
             TPeerInfo peer(request->peer_address(), TInstant(request->peer_expiration_time()));
             for (int index = 0; index < blockCount; ++index) {
                 if (response->blocks(index).data_attached()) {
-                    i32 blockIndex = request->block_indexes(index);
+                    int blockIndex = request->block_indexes(index);
                     peerBlockTable->UpdatePeer(TBlockId(chunkId, blockIndex), peer);
                 }
             }
@@ -387,11 +379,9 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, FlushBlock)
 
     auto session = GetSession(chunkId);
 
-    session
-        ->FlushBlock(blockIndex)
-        .Subscribe(BIND([=] () {
-            context->Reply();
-        }));
+    session->FlushBlock(blockIndex).Subscribe(BIND([=] (TError error) {
+        context->Reply(error);
+    }));
 }
 
 DEFINE_RPC_SERVICE_METHOD(TDataNodeService, PingSession)
@@ -411,7 +401,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, PingSession)
 DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetChunkMeta)
 {
     auto chunkId = TChunkId::FromProto(request->chunk_id());
-    auto extensionTags = FromProto<i32>(request->extension_tags());
+    auto extensionTags = FromProto<int>(request->extension_tags());
     auto partitionTag =
         request->has_partition_tag()
         ? TNullable<int>(request->partition_tag())
@@ -545,7 +535,7 @@ void TDataNodeService::ProcessSample(
                     return part.column() < column;
             });
 
-            size += sizeof(i32); // part type
+            size += sizeof(int); // part type
             if (it != sample.parts().end() && it->column() == column) {
                 keyPart->set_type(it->key_part().type());
                 switch (it->key_part().type()) {

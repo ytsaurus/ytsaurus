@@ -101,7 +101,7 @@ private:
 
     void RegisterReadyEvent(TFuture<void> windowReady);
 
-    void OnNodeFailed(TNodePtr node);
+    void OnNodeFailed(TNodePtr node, const TError& error);
 
     void ShiftWindow();
 
@@ -148,17 +148,26 @@ struct TRemoteWriter::TNode
     : public TRefCounted
 {
     int Index;
-    bool IsAlive;
+    TError Error;
     const Stroka Address;
     TProxy Proxy;
     TPeriodicInvokerPtr PingInvoker;
 
     TNode(int index, const Stroka& address)
         : Index(index)
-        , IsAlive(true)
         , Address(address)
         , Proxy(NodeChannelCache->GetChannel(address))
     { }
+
+    bool IsAlive() const
+    {
+        return Error.IsOK();
+    }
+
+    void MarkFailed(const TError& error)
+    {
+        Error = error;
+    }
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -291,7 +300,7 @@ bool TRemoteWriter::TGroup::IsWritten() const
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
     for (int nodeIndex = 0; nodeIndex < IsSent.size(); ++nodeIndex) {
-        if (writer->Nodes[nodeIndex]->IsAlive && !IsSent[nodeIndex]) {
+        if (writer->Nodes[nodeIndex]->IsAlive() && !IsSent[nodeIndex]) {
             return false;
         }
     }
@@ -306,7 +315,7 @@ void TRemoteWriter::TGroup::PutGroup()
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
     int nodeIndex = 0;
-    while (!writer->Nodes[nodeIndex]->IsAlive) {
+    while (!writer->Nodes[nodeIndex]->IsAlive()) {
         ++nodeIndex;
         YCHECK(nodeIndex < writer->Nodes.size());
     }
@@ -377,7 +386,7 @@ void TRemoteWriter::TGroup::SendGroup(TNodePtr srcNode)
 
     for (int dstNodIndex = 0; dstNodIndex < IsSent.size(); ++dstNodIndex) {
         auto dstNod = writer->Nodes[dstNodIndex];
-        if (dstNod->IsAlive && !IsSent[dstNodIndex]) {
+        if (dstNod->IsAlive() && !IsSent[dstNodIndex]) {
             auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker());
             auto onResponse = BIND(
                 &TGroup::CheckSendResponse,
@@ -417,15 +426,16 @@ TRemoteWriter::TGroup::SendBlocks(
 
 void TRemoteWriter::TGroup::CheckSendResponse(
     TNodePtr srcNode,
-    TNodePtr dstNod,
+    TNodePtr dstNode,
     TRemoteWriter::TProxy::TRspSendBlocksPtr rsp)
 {
     auto writer = Writer.Lock();
     if (!writer)
         return;
 
-    if (rsp->GetError().GetCode() == EErrorCode::PutBlocksFailed) {
-        writer->OnNodeFailed(dstNod);
+    const auto& error = rsp->GetError();
+    if (error.GetCode() == EErrorCode::RemoteCallFailed) {
+        writer->OnNodeFailed(dstNode, error);
         return;
     }
 
@@ -433,7 +443,7 @@ void TRemoteWriter::TGroup::CheckSendResponse(
         &TGroup::OnSentBlocks, 
         Unretained(this), // No need for a smart pointer here -- we're invoking action directly.
         srcNode, 
-        dstNod);
+        dstNode);
 
     writer->CheckResponse<TRemoteWriter::TProxy::TRspSendBlocks>(
         srcNode, 
@@ -504,7 +514,7 @@ void TRemoteWriter::TGroup::Process()
     bool emptyHolderFound = false;
     for (int nodeIndex = 0; nodeIndex < IsSent.size(); ++nodeIndex) {
         auto node = writer->Nodes[nodeIndex];
-        if (node->IsAlive) {
+        if (node->IsAlive()) {
             if (IsSent[nodeIndex]) {
                 nodeWithBlocks = node;
             } else {
@@ -626,7 +636,7 @@ void TRemoteWriter::TImpl::ShiftWindow()
 
     auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker());
     FOREACH (auto node, Nodes) {
-        if (node->IsAlive) {
+        if (node->IsAlive()) {
             auto onSuccess = BIND(
                 &TImpl::OnBlockFlushed,
                 MakeWeak(this), 
@@ -723,27 +733,32 @@ void TRemoteWriter::TImpl::AddGroup(TGroupPtr group)
     }
 }
 
-void TRemoteWriter::TImpl::OnNodeFailed(TNodePtr node)
+void TRemoteWriter::TImpl::OnNodeFailed(TNodePtr node, const TError& error)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    if (!node->IsAlive)
+    if (!node->IsAlive())
         return;
 
-    node->IsAlive = false;
+    auto wrappedError = TError("Node failed: %s",
+        node->Address)
+        << error;
+    LOG_ERROR(wrappedError);
+
+    node->MarkFailed(wrappedError);
     --AliveNodeCount;
 
-    LOG_INFO("Node %s failed, %d nodes remaining",
-        ~node->Address,
-        AliveNodeCount);
-
     if (State.IsActive() && AliveNodeCount == 0) {
-        TError error(
+        TError cumulativeError(
             TError::Fail,
-            Sprintf("All target nodes [%s] have failed", ~JoinToString(Addresses)));
-        LOG_WARNING(error, "Chunk writer failed");
+            Sprintf("All target nodes have failed", ~JoinToString(Addresses)));
+        FOREACH (const auto node, Nodes) {
+            YCHECK(!node->IsAlive());
+            cumulativeError.InnerErrors().push_back(node->Error);
+        }
+        LOG_WARNING(cumulativeError, "Chunk writer failed");
         CancelAllPings();
-        State.Fail(error);
+        State.Fail(cumulativeError);
     }
 }
 
@@ -756,15 +771,13 @@ void TRemoteWriter::TImpl::CheckResponse(
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    if (rsp->IsOK()) {
-        metric->AddDelta(rsp->GetStartTime());
-        onSuccess.Run(rsp);
-    } else {
-        // TODO(babenko): retry?
-        LOG_ERROR(rsp->GetError(), "Error reported by node %s",
-            ~node->Address);
-        OnNodeFailed(node);
+    if (!rsp->IsOK()) {
+        OnNodeFailed(node, rsp->GetError());
+        return;
     }
+
+    metric->AddDelta(rsp->GetStartTime());
+    onSuccess.Run(rsp);
 }
 
 TRemoteWriter::TProxy::TInvStartChunk
@@ -819,7 +832,7 @@ void TRemoteWriter::TImpl::CloseSession()
 
     auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker());
     FOREACH (auto node, Nodes) {
-        if (node->IsAlive) {
+        if (node->IsAlive()) {
             auto onSuccess = BIND(
                 &TImpl::OnChunkFinished,
                 MakeWeak(this), 
@@ -1063,7 +1076,7 @@ const std::vector<Stroka> TRemoteWriter::TImpl::GetNodeAddresses() const
     VERIFY_THREAD_AFFINITY_ANY();
     std::vector<Stroka> addresses;
     FOREACH (auto node, Nodes) {
-        if (node->IsAlive) {
+        if (node->IsAlive()) {
             addresses.push_back(node->Address);
         }
     }

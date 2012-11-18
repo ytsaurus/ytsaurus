@@ -31,10 +31,12 @@ static NProfiling::TRateCounter WriteThroughputCounter("/chunk_io/write_throughp
 ////////////////////////////////////////////////////////////////////////////////
 
 TSession::TSession(
+    TDataNodeConfigPtr config,
     TBootstrap* bootstrap,
     const TChunkId& chunkId,
     TLocationPtr location)
-    : Bootstrap(bootstrap)
+    : Config(config)
+    , Bootstrap(bootstrap)
     , ChunkId(chunkId)
     , Location(location)
     , WindowStartIndex(0)
@@ -61,6 +63,8 @@ TSession::~TSession()
 
 void TSession::Start()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     LOG_DEBUG("Session started");
 
     WriteInvoker->Invoke(BIND(&TSession::DoOpenFile, MakeStrong(this)));
@@ -76,7 +80,12 @@ void TSession::DoOpenFile()
             Writer->Open();
         }
         catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Error opening chunk writer");
+            OnIOError(TError(
+                TDataNodeServiceProxy::EErrorCode::IOError,
+                "Error creating chunk: %s",
+                ~ToString(ChunkId))
+                << ex);
+            return;
         }
     }
 
@@ -85,73 +94,70 @@ void TSession::DoOpenFile()
 
 void TSession::SetLease(TLeaseManager::TLease lease)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     Lease = lease;
 }
 
 void TSession::RenewLease()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+    
     TLeaseManager::RenewLease(Lease);
 }
 
 void TSession::CloseLease()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+    
     TLeaseManager::CloseLease(Lease);
 }
 
 TChunkId TSession::GetChunkId() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return ChunkId;
 }
 
 TLocationPtr TSession::GetLocation() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return Location;
 }
 
 i64 TSession::GetSize() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return Size;
 }
 
 int TSession::GetWrittenBlockCount() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return WindowStartIndex;
 }
 
 TChunkInfo TSession::GetChunkInfo() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return Writer->GetChunkInfo();
 }
 
-TSharedRef TSession::GetBlock(i32 blockIndex)
-{
-    VerifyInWindow(blockIndex);
-
-    RenewLease();
-
-    const auto& slot = GetSlot(blockIndex);
-    if (slot.State == ESlotState::Empty) {
-        THROW_ERROR_EXCEPTION(
-            EErrorCode::WindowError,
-            "Trying to retrieve a block %d that is not received yet (WindowStart: %d)",
-            blockIndex,
-            WindowStartIndex);
-    }
-
-    LOG_DEBUG("Chunk block %d retrieved", blockIndex);
-
-    return slot.Block;
-}
-
 void TSession::PutBlock(
-    i32 blockIndex,
+    int blockIndex,
     const TSharedRef& data,
     bool enableCaching)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     TBlockId blockId(ChunkId, blockIndex);
 
     VerifyInWindow(blockIndex);
-
     RenewLease();
 
     if (!Location->HasEnoughSpace(data.Size())) {
@@ -189,8 +195,34 @@ void TSession::PutBlock(
     EnqueueWrites();
 }
 
+TAsyncError TSession::SendBlocks(
+    int startBlockIndex,
+    int blockCount,
+    const Stroka& targetAddress)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    TProxy proxy(ChannelCache.GetChannel(targetAddress));
+    proxy.SetDefaultTimeout(Config->NodeRpcTimeout);
+
+    auto req = proxy.PutBlocks();
+    *req->mutable_chunk_id() = ChunkId.ToProto();
+    req->set_start_block_index(startBlockIndex);
+
+    for (int blockIndex = startBlockIndex; blockIndex < startBlockIndex + blockCount; ++blockIndex) {
+        auto block = GetBlock(blockIndex);
+        req->Attachments().push_back(block);
+    }
+
+    return req->Invoke().Apply(BIND([=] (TProxy::TRspPutBlocksPtr rsp) {
+        return rsp->GetError();
+    }));
+}
+
 void TSession::EnqueueWrites()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     while (WriteIndex < Window.size()) {
         const auto& slot = GetSlot(WriteIndex);
         YCHECK(slot.State == ESlotState::Received || slot.State == ESlotState::Empty);
@@ -213,20 +245,31 @@ void TSession::EnqueueWrites()
     }
 }
 
-TVoid TSession::DoWriteBlock(const TSharedRef& block, i32 blockIndex)
+TError TSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
 {
+    VERIFY_THREAD_AFFINITY(WriterThread);
+
+    if (!Error.IsOK()) {
+        return Error;
+    }
+
     LOG_DEBUG("Started writing block %d", blockIndex);
 
     PROFILE_TIMING ("/chunk_io/block_write_time") {
         try {
             if (!Writer->TryWriteBlock(block)) {
+                // This will throw...
                 Sync(~Writer, &TFileWriter::GetReadyEvent);
+                // ... so we never get here.
                 YUNREACHABLE();
             }
         } catch (const std::exception& ex) {
             TBlockId blockId(ChunkId, blockIndex);
-            LOG_FATAL(ex, "Error writing chunk block %s",
-                ~blockId.ToString());
+            OnIOError(TError(
+                TDataNodeServiceProxy::EErrorCode::IOError,
+                "Error writing chunk block: %s",
+                ~blockId.ToString())
+                << ex);
         }
     }
 
@@ -235,23 +278,26 @@ TVoid TSession::DoWriteBlock(const TSharedRef& block, i32 blockIndex)
     Profiler.Enqueue("/chunk_io/block_write_size", block.Size());
     Profiler.Increment(WriteThroughputCounter, block.Size());
 
-    return TVoid();
+    return Error;
 }
 
-void TSession::OnBlockWritten(i32 blockIndex, TVoid)
+void TSession::OnBlockWritten(int blockIndex, TError error)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+    UNUSED(error);
+
     auto& slot = GetSlot(blockIndex);
-    YASSERT(slot.State == ESlotState::Received);
+    YCHECK(slot.State == ESlotState::Received);
     slot.State = ESlotState::Written;
-    slot.IsWritten.Set(TVoid());
+    slot.IsWritten.Set();
 }
 
-TFuture<void> TSession::FlushBlock(i32 blockIndex)
+TAsyncError TSession::FlushBlock(int blockIndex)
 {
     // TODO: verify monotonicity of blockIndex
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
     VerifyInWindow(blockIndex);
-
     RenewLease();
 
     const auto& slot = GetSlot(blockIndex);
@@ -271,17 +317,22 @@ TFuture<void> TSession::FlushBlock(i32 blockIndex)
         blockIndex));
 }
 
-void TSession::OnBlockFlushed(i32 blockIndex, TVoid)
+TError TSession::OnBlockFlushed(int blockIndex)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     ReleaseBlocks(blockIndex);
+    return Error;
 }
 
-TFuture<TChunkPtr> TSession::Finish(const TChunkMeta& chunkMeta)
+TFuture< TValueOrError<TChunkPtr> > TSession::Finish(const TChunkMeta& chunkMeta)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     CloseLease();
 
-    for (i32 blockIndex = WindowStartIndex; blockIndex < Window.size(); ++blockIndex) {
-        const TSlot& slot = GetSlot(blockIndex);
+    for (int blockIndex = WindowStartIndex; blockIndex < Window.size(); ++blockIndex) {
+        const auto& slot = GetSlot(blockIndex);
         if (slot.State != ESlotState::Empty) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::WindowError,
@@ -301,6 +352,8 @@ TFuture<TChunkPtr> TSession::Finish(const TChunkMeta& chunkMeta)
 
 void TSession::Cancel(const TError& error)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     LOG_DEBUG(error, "Session canceled");
 
     CloseLease();
@@ -309,61 +362,97 @@ void TSession::Cancel(const TError& error)
         .AsyncVia(Bootstrap->GetControlInvoker()));
 }
 
-TFuture<TVoid> TSession::AbortWriter()
+TAsyncError TSession::AbortWriter()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     return
         BIND(&TSession::DoAbortWriter, MakeStrong(this))
         .AsyncVia(WriteInvoker)
         .Run();
 }
 
-TVoid TSession::DoAbortWriter()
+TError TSession::DoAbortWriter()
 {
+    VERIFY_THREAD_AFFINITY(WriterThread);
+
+    if (!Error.IsOK()) {
+        return Error;
+    }
+
     LOG_DEBUG("Started aborting chunk writer");
 
     PROFILE_TIMING ("/chunk_io/chunk_abort_time") {
-        Writer->Abort();
+        try {
+            Writer->Abort();
+        } catch (const std::exception& ex) {
+            OnIOError(TError(
+                TDataNodeServiceProxy::EErrorCode::IOError,
+                "Error aborting chunk: %s",
+                ~ToString(ChunkId))
+                << ex);
+        }
         Writer.Reset();
     }
 
     LOG_DEBUG("Finished aborting chunk writer");
 
-    return TVoid();
+    return Error;
 }
 
-TVoid TSession::OnWriterAborted(TVoid)
+TError TSession::OnWriterAborted(TError error)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     ReleaseSpaceOccupiedByBlocks();
-    return TVoid();
+    return error;
 }
 
-TFuture<TVoid> TSession::CloseFile(const TChunkMeta& chunkMeta)
+TAsyncError TSession::CloseFile(const TChunkMeta& chunkMeta)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     return
         BIND(&TSession::DoCloseFile,MakeStrong(this), chunkMeta)
         .AsyncVia(WriteInvoker)
         .Run();
 }
 
-TVoid TSession::DoCloseFile(const TChunkMeta& chunkMeta)
+TError TSession::DoCloseFile(const TChunkMeta& chunkMeta)
 {
+    VERIFY_THREAD_AFFINITY(WriterThread);
+
+    if (!Error.IsOK()) {
+        return Error;
+    }
+
     LOG_DEBUG("Started closing chunk writer");
 
     PROFILE_TIMING ("/chunk_io/chunk_writer_close_time") {
         try {
             Sync(~Writer, &TFileWriter::AsyncClose, chunkMeta);
         } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Error closing chunk writer");
+            OnIOError(TError(
+                TDataNodeServiceProxy::EErrorCode::IOError,
+                "Error closing chunk: %s",
+                ~ToString(ChunkId))
+                << ex);
         }
     }
 
     LOG_DEBUG("Finished closing chunk writer");
 
-    return TVoid();
+    return Error;
 }
 
-TChunkPtr TSession::OnFileClosed(TVoid)
+TValueOrError<TChunkPtr> TSession::OnFileClosed(TError error)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    if (!error.IsOK()) {
+        return error;
+    }
+
     ReleaseSpaceOccupiedByBlocks();
     auto chunk = New<TStoredChunk>(
         Location, 
@@ -375,13 +464,14 @@ TChunkPtr TSession::OnFileClosed(TVoid)
     return chunk;
 }
 
-void TSession::ReleaseBlocks(i32 flushedBlockIndex)
+void TSession::ReleaseBlocks(int flushedBlockIndex)
 {
-    YASSERT(WindowStartIndex <= flushedBlockIndex);
+    VERIFY_THREAD_AFFINITY(ControlThread);
+    YCHECK(WindowStartIndex <= flushedBlockIndex);
 
     while (WindowStartIndex <= flushedBlockIndex) {
         auto& slot = GetSlot(WindowStartIndex);
-        YASSERT(slot.State == ESlotState::Written);
+        YCHECK(slot.State == ESlotState::Written);
         slot.Block = TSharedRef();
         slot.IsWritten.Reset();
         ++WindowStartIndex;
@@ -391,13 +481,17 @@ void TSession::ReleaseBlocks(i32 flushedBlockIndex)
         WindowStartIndex);
 }
 
-bool TSession::IsInWindow(i32 blockIndex)
+bool TSession::IsInWindow(int blockIndex)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     return blockIndex >= WindowStartIndex;
 }
 
-void TSession::VerifyInWindow(i32 blockIndex)
+void TSession::VerifyInWindow(int blockIndex)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     if (!IsInWindow(blockIndex)) {
         THROW_ERROR_EXCEPTION(
             EErrorCode::WindowError,
@@ -408,9 +502,10 @@ void TSession::VerifyInWindow(i32 blockIndex)
     }
 }
 
-TSession::TSlot& TSession::GetSlot(i32 blockIndex)
+TSession::TSlot& TSession::GetSlot(int blockIndex)
 {
-    YASSERT(IsInWindow(blockIndex));
+    VERIFY_THREAD_AFFINITY(ControlThread);
+    YCHECK(IsInWindow(blockIndex));
     
     Window.reserve(blockIndex + 1);
 
@@ -424,9 +519,63 @@ TSession::TSlot& TSession::GetSlot(i32 blockIndex)
     return Window[blockIndex];
 }
 
+TSharedRef TSession::GetBlock(int blockIndex)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    VerifyInWindow(blockIndex);
+
+    RenewLease();
+
+    const auto& slot = GetSlot(blockIndex);
+    if (slot.State == ESlotState::Empty) {
+        THROW_ERROR_EXCEPTION(
+            EErrorCode::WindowError,
+            "Trying to retrieve a block %d that is not received yet (WindowStart: %d)",
+            blockIndex,
+            WindowStartIndex);
+    }
+
+    LOG_DEBUG("Chunk block %d retrieved", blockIndex);
+
+    return slot.Block;
+}
+
+void TSession::MarkAllSlotsWritten()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    // Mark all slots as written to notify all guys waiting on Flush.
+    FOREACH (auto& slot, Window) {
+        if (!slot.IsWritten.IsSet()) {
+            slot.IsWritten.Set();
+        }
+    }
+}
+
 void TSession::ReleaseSpaceOccupiedByBlocks()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     Location->UpdateUsedSpace(-Size);
+}
+
+void TSession::OnIOError(const TError& error)
+{
+    VERIFY_THREAD_AFFINITY(WriterThread);
+
+    if (!Error.IsOK())
+        return;
+
+    Error = error;
+
+    LOG_ERROR(Error, "Session failed");
+
+    Bootstrap->GetControlInvoker()->Invoke(BIND(
+        &TSession::MarkAllSlotsWritten,
+        MakeStrong(this)));
+
+    Location->Disable();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -457,7 +606,7 @@ TSessionPtr TSessionManager::StartSession(const TChunkId& chunkId)
 {
     auto location = Bootstrap->GetChunkStore()->GetNewChunkLocation();
 
-    auto session = New<TSession>(Bootstrap, chunkId, location);
+    auto session = New<TSession>(Config, Bootstrap, chunkId, location);
     session->Start();
 
     auto lease = TLeaseManager::CreateLease(
@@ -488,7 +637,7 @@ void TSessionManager::CancelSession(TSessionPtr session, const TError& error)
         ~chunkId.ToString());
 }
 
-TFuture<TChunkPtr> TSessionManager::FinishSession(
+TFuture< TValueOrError<TChunkPtr> > TSessionManager::FinishSession(
     TSessionPtr session, 
     const TChunkMeta& chunkMeta)
 {
@@ -500,12 +649,12 @@ TFuture<TChunkPtr> TSessionManager::FinishSession(
             session));
 }
 
-TChunkPtr TSessionManager::OnSessionFinished(TSessionPtr session, TChunkPtr chunk)
+TValueOrError<TChunkPtr> TSessionManager::OnSessionFinished(TSessionPtr session, TValueOrError<TChunkPtr> chunkOrError)
 {
-    YCHECK(SessionMap.erase(chunk->GetId()) == 1);
+    YCHECK(SessionMap.erase(session->GetChunkId()) == 1);
     AtomicDecrement(SessionCount);
     LOG_INFO("Session finished (ChunkId: %s)", ~session->GetChunkId().ToString());
-    return chunk;
+    return chunkOrError;
 }
 
 void TSessionManager::OnLeaseExpired(TSessionPtr session)

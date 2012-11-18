@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <ytlib/misc/lease_manager.h>
+#include <ytlib/misc/thread_affinity.h>
 
 #include <ytlib/logging/tagged_logger.h>
 
@@ -20,6 +21,7 @@ class TSession
 {
 public:
     TSession(
+        TDataNodeConfigPtr config,
         TBootstrap* bootstrap,
         const TChunkId& chunkId,
         TLocationPtr location);
@@ -43,14 +45,17 @@ public:
     //! Returns the info of the just-uploaded chunk
     NChunkClient::NProto::TChunkInfo GetChunkInfo() const;
 
-    //! Returns a block that is still in the session window.
-    TSharedRef GetBlock(i32 blockIndex);
-
     //! Puts a block into the window.
     void PutBlock(
-        i32 blockIndex,
+        int blockIndex,
         const TSharedRef& data,
         bool enableCaching);
+
+    //! Sends a range of blocks (from the current window) to another data node.
+    TAsyncError SendBlocks(
+        int startBlockIndex,
+        int blockCount,
+        const Stroka& targetAddress);
 
     //! Flushes a block and moves the window
     /*!
@@ -58,7 +63,7 @@ public:
      * when the actual flush happens. Once a block is flushed, the next block becomes
      * the first one in the window.
      */
-    TFuture<void> FlushBlock(i32 blockIndex);
+    TAsyncError FlushBlock(int blockIndex);
 
     //! Renews the lease.
     void RenewLease();
@@ -79,23 +84,25 @@ private:
     {
         TSlot()
             : State(ESlotState::Empty)
-            , IsWritten(NewPromise<TVoid>())
+            , IsWritten(NewPromise<void>())
         { }
 
         ESlotState State;
         TSharedRef Block;
-        TPromise<TVoid> IsWritten;
+        TPromise<void> IsWritten;
     };
 
     typedef std::vector<TSlot> TWindow;
 
+    TDataNodeConfigPtr Config;
     TBootstrap* Bootstrap;
     TChunkId ChunkId;
     TLocationPtr Location;
 
+    TError Error;
     TWindow Window;
-    i32 WindowStartIndex;
-    i32 WriteIndex;
+    int WindowStartIndex;
+    int WriteIndex;
     i64 Size;
 
     Stroka FileName;
@@ -107,35 +114,43 @@ private:
 
     NLog::TTaggedLogger Logger;
 
-    TFuture<TChunkPtr> Finish(const NChunkClient::NProto::TChunkMeta& chunkMeta);
+    TFuture< TValueOrError<TChunkPtr> > Finish(const NChunkClient::NProto::TChunkMeta& chunkMeta);
     void Cancel(const TError& error);
 
     void SetLease(TLeaseManager::TLease lease);
     void CloseLease();
 
-    bool IsInWindow(i32 blockIndex);
-    void VerifyInWindow(i32 blockIndex);
-    TSlot& GetSlot(i32 blockIndex);
-    void ReleaseBlocks(i32 flushedBlockIndex);
+    bool IsInWindow(int blockIndex);
+    void VerifyInWindow(int blockIndex);
+    TSlot& GetSlot(int blockIndex);
+    void ReleaseBlocks(int flushedBlockIndex);
+    TSharedRef GetBlock(int blockIndex);
+    void MarkAllSlotsWritten();
 
     void OpenFile();
     void DoOpenFile();
 
-    TFuture<TVoid> AbortWriter();
-    TVoid DoAbortWriter();
-    TVoid OnWriterAborted(TVoid);
+    TAsyncError AbortWriter();
+    TError DoAbortWriter();
+    TError OnWriterAborted(TError error);
 
-    TFuture<TVoid> CloseFile(const NChunkClient::NProto::TChunkMeta& chunkMeta);
-    TVoid DoCloseFile(const NChunkClient::NProto::TChunkMeta& chunkMeta);
-    TChunkPtr OnFileClosed(TVoid);
+    TAsyncError CloseFile(const NChunkClient::NProto::TChunkMeta& chunkMeta);
+    TError DoCloseFile(const NChunkClient::NProto::TChunkMeta& chunkMeta);
+    TValueOrError<TChunkPtr> OnFileClosed(TError error);
 
     void EnqueueWrites();
-    TVoid DoWriteBlock(const TSharedRef& block, i32 blockIndex);
-    void OnBlockWritten(i32 blockIndex, TVoid);
+    TError DoWriteBlock(const TSharedRef& block, int blockIndex);
+    void OnBlockWritten(int blockIndex, TError error);
 
-    void OnBlockFlushed(i32 blockIndex, TVoid);
+    TError OnBlockFlushed(int blockIndex);
 
     void ReleaseSpaceOccupiedByBlocks();
+
+    void OnIOError(const TError& error);
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+    DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -159,7 +174,7 @@ public:
     /*!
      * The call returns a result that gets set when the session is finished.
      */
-    TFuture<TChunkPtr> FinishSession(
+    TFuture< TValueOrError<TChunkPtr> > FinishSession(
         TSessionPtr session,
         const NChunkClient::NProto::TChunkMeta& chunkMeta);
 
@@ -192,7 +207,7 @@ private:
     TAtomic SessionCount;
 
     void OnLeaseExpired(TSessionPtr session);
-    TChunkPtr OnSessionFinished(TSessionPtr session, TChunkPtr chunk);
+    TValueOrError<TChunkPtr> OnSessionFinished(TSessionPtr session, TValueOrError<TChunkPtr> chunkOrError);
 
 };
 

@@ -147,6 +147,9 @@ struct TDataNodeConfig
     //! Keeps chunk peering information.
     TPeerBlockTableConfigPtr PeerBlockTable;
 
+    //! Runs periodic checks against disks.
+    TDiskHealthCheckerConfigPtr DiskHealthChecker;
+
     //! Constructs a default instance.
     /*!
      *  By default, no master connection is configured. The holder will operate in
@@ -185,9 +188,11 @@ struct TDataNodeConfig
             .DefaultNew();
         Register("cache_sequential_reader", CacheSequentialReader)
             .DefaultNew();
+        Register("replication_remote_writer", ReplicationRemoteWriter)
+            .DefaultNew();
         Register("peer_block_table", PeerBlockTable)
             .DefaultNew();
-        Register("replication_remote_writer", ReplicationRemoteWriter)
+        Register("disk_health_checker", DiskHealthChecker)
             .DefaultNew();
     }
 };

@@ -74,8 +74,14 @@ public:
                     reader->Open();
                     cookie.EndInsert(reader);
                 } catch (const std::exception& ex) {
-                    LOG_FATAL(ex, "Error opening chunk (ChunkId: %s)",
-                        ~chunkId.ToString());
+                    auto error = TError(
+                        TDataNodeServiceProxy::EErrorCode::IOError,
+                        "Error opening chunk: %s",
+                        ~chunkId.ToString())
+                        << ex;
+                    cookie.Cancel(error);
+                    chunk->GetLocation()->Disable();
+                    return error;
                 }
             }
 

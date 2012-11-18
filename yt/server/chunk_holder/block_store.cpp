@@ -209,7 +209,7 @@ private:
         auto blockSize = blockInfo.size();
         
         AtomicAdd(PendingReadSize_, blockSize);
-        LOG_DEBUG("Pending read size increased (BlockSize: %d, PendingReadSize: %" PRISZT,
+        LOG_DEBUG("Pending read size increased (BlockSize: %d, PendingReadSize: %" PRISZT ")",
             blockSize,
             PendingReadSize_);
 
@@ -222,8 +222,15 @@ private:
             try {
                 data = reader->ReadBlock(blockId.BlockIndex);
             } catch (const std::exception& ex) {
-                LOG_FATAL(ex, "Error reading chunk block (BlockId: %s)",
-                    ~blockId.ToString());
+                auto error = TError(
+                    TDataNodeServiceProxy::EErrorCode::IOError,
+                    "Error reading chunk block: %s",
+                    ~blockId.ToString())
+                    << ex;
+                chunk->ReleaseReadLock();
+                cookie->Cancel(error);
+                chunk->GetLocation()->Disable();
+                return;
             }
         }
 
@@ -241,7 +248,7 @@ private:
         if (!data) {
             cookie->Cancel(TError(
                 TDataNodeServiceProxy::EErrorCode::NoSuchBlock,
-                Sprintf("No such block (BlockId: %s)", ~blockId.ToString())));
+                Sprintf("No such chunk block: %s", ~blockId.ToString())));
             return;
         }
 

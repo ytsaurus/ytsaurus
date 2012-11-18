@@ -10,7 +10,6 @@ namespace NChunkHolder {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 DECLARE_ENUM(ELocationType,
     (Store)
     (Cache)
@@ -33,13 +32,17 @@ public:
     ELocationType GetType() const;
 
     //! Returns string id.
-    Stroka GetId() const;
+    const Stroka& GetId() const;
 
+    //! Returns the cell guid. If no tag file was found and #UpdateCellGuid was not called
+    //! then empty guid is returned.
     const TGuid& GetCellGuid();
-    void UpdateCellGuid(const TGuid& guid);
+    
+    //! Sets the cell guid and overwrites the tag file.
+    void SetCellGuid(const TGuid& guid);
 
     //! Scan the location directory removing orphaned files and returning the list of found chunks.
-    std::vector<TChunkDescriptor> Scan();
+    std::vector<TChunkDescriptor> Initialize();
 
     //! Updates #UsedSpace and #AvailalbleSpace
     void UpdateUsedSpace(i64 size);
@@ -102,11 +105,19 @@ public:
     //! Returns an invoker for writing chunks.
     IInvokerPtr GetWriteInvoker();
 
+    //! Returns True iff the location is enabled.
+    bool IsEnabled() const;
+
+    //! Marks location as disabled.
+    void Disable();
+
 private:
     ELocationType Type;
     Stroka Id;
     TLocationConfigPtr Config;
     TBootstrap* Bootstrap;
+
+    TAtomic Enabled;
 
     TGuid CellGuid;
 
@@ -118,7 +129,12 @@ private:
     TFairShareActionQueuePtr ReadQueue;
     TActionQueuePtr WriteQueue;
 
+    TDiskHealthCheckerPtr HealthChecker;
+
     mutable NLog::TTaggedLogger Logger;
+
+    void OnHealthCheckFailed();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
