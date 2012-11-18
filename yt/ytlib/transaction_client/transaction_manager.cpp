@@ -30,19 +30,19 @@ class TTransactionManager::TTransaction
     : public ITransaction
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(bool, PingAncestorTransactions)
+    DEFINE_BYVAL_RO_PROPERTY(bool, PingAncestors)
 
     TTransaction(
         NRpc::IChannelPtr cellChannel,
         const TTransactionId& parentId,
         TTransactionManagerPtr owner,
-        bool pingAncestorTransactions = false)
+        bool pingAncestors)
         : Owner(owner)
         , Proxy(cellChannel)
         , State(EState::Active)
-        , IsOwning(false)
+        , AutoAbort(false)
         , ParentId(parentId)
-        , PingAncestorTransactions_(pingAncestorTransactions)
+        , PingAncestors_(pingAncestors)
         , Aborted(NewPromise<void>())
     {
         YCHECK(cellChannel);
@@ -53,14 +53,14 @@ public:
         NRpc::IChannelPtr cellChannel,
         TTransactionManagerPtr owner,
         const TTransactionId& id,
-        bool pingAncestorTransactions = false)
+        bool pingAncestors)
         : Owner(owner)
         , Proxy(cellChannel)
         , State(EState::Active)
         , ParentId(NullTransactionId)
         , Id(id)
         , Aborted(NewPromise<void>())
-        , PingAncestorTransactions_(pingAncestorTransactions)
+        , PingAncestors_(pingAncestors)
     {
         YCHECK(cellChannel);
         YCHECK(owner);
@@ -68,7 +68,7 @@ public:
 
     ~TTransaction()
     {
-        if (IsOwning && State == EState::Active) {
+        if (AutoAbort && State == EState::Active) {
             InvokeAbort(false);
         }
     }
@@ -100,19 +100,19 @@ public:
         Id = TTransactionId::FromProto(rsp->object_id());
 
         State = EState::Active;
-        IsOwning = true;
+        AutoAbort = true;
 
         LOG_INFO("Transaction started (TransactionId: %s)", ~Id.ToString());
     }
 
-    void Attach(bool takeOwnership)
+    void Attach(bool autoAbort)
     {
-        LOG_INFO("Transaction attached (TransactionId: %s, TakeOwnership: %s)",
-            ~Id.ToString(),
-            ~FormatBool(takeOwnership));
-
         State = EState::Active;
-        IsOwning = takeOwnership;
+        AutoAbort = autoAbort;
+
+        LOG_INFO("Transaction attached (TransactionId: %s, AutoAbort: %s)",
+            ~Id.ToString(),
+            ~FormatBool(autoAbort));
     }
 
     TTransactionId GetId() const override
@@ -257,7 +257,7 @@ private:
     //! Protects state transitions.
     TSpinLock SpinLock;
     EState State;
-    bool IsOwning;
+    bool AutoAbort;
     TTransactionId ParentId;
 
     TTransactionId Id;
@@ -306,7 +306,8 @@ TTransactionManager::TTransactionManager(
 ITransactionPtr TTransactionManager::Start(
     IAttributeDictionary* attributes,
     const TTransactionId& parentId,
-    bool pingAncestorTransactions)
+    bool ping,
+    bool pingAncestors)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -314,19 +315,23 @@ ITransactionPtr TTransactionManager::Start(
         Channel,
         parentId,
         this,
-        pingAncestorTransactions);
+        pingAncestors);
     transaction->Start(attributes);
 
     RegisterTransaction(transaction);
-    SendPing(transaction->GetId());
+
+    if (ping) {
+        SendPing(transaction->GetId());
+    }
 
     return transaction;
 }
 
 ITransactionPtr TTransactionManager::Attach(
     const TTransactionId& id,
-    bool takeOwnership,
-    bool pingAncestorTransactions)
+    bool autoAbort,
+    bool ping,
+    bool pingAncestors)
 {
     // Try to find it among existing
     auto transaction = FindTransaction(id);
@@ -335,11 +340,18 @@ ITransactionPtr TTransactionManager::Attach(
     }
 
     // Not found, create a new one.
-    transaction = New<TTransaction>(Channel, this, id, pingAncestorTransactions);
-    transaction->Attach(takeOwnership);
+    transaction = New<TTransaction>(
+        Channel,
+        this,
+        id,
+        pingAncestors);
+    transaction->Attach(autoAbort);
 
     RegisterTransaction(transaction);
-    SendPing(transaction->GetId());
+
+    if (ping) {
+        SendPing(transaction->GetId());
+    }
 
     return transaction;
 }
@@ -388,7 +400,7 @@ void TTransactionManager::SendPing(const TTransactionId& id)
     LOG_DEBUG("Renewing transaction lease (TransactionId: %s)", ~id.ToString());
 
     auto req = TTransactionYPathProxy::RenewLease(FromObjectId(id));
-    req->set_renew_ancestors(transaction->GetPingAncestorTransactions());
+    req->set_renew_ancestors(transaction->GetPingAncestors());
     ObjectProxy.Execute(req).Subscribe(BIND(
         &TThis::OnPingResponse,
         MakeStrong(this),

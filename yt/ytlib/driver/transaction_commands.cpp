@@ -29,6 +29,7 @@ void TStartTransactionCommand::DoExecute()
     auto newTransaction = transactionManager->Start(
         ~attributes,
         Request->TransactionId,
+        true,
         Request->PingAncestorTransactions);
 
     BuildYsonFluently(~Context->CreateOutputConsumer())
