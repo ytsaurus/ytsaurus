@@ -741,7 +741,7 @@ void TRemoteWriter::TImpl::OnNodeFailed(TNodePtr node, const TError& error)
         return;
 
     auto wrappedError = TError("Node failed: %s",
-        node->Address)
+        ~node->Address)
         << error;
     LOG_ERROR(wrappedError);
 
