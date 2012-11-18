@@ -533,8 +533,8 @@ private:
         {
             auto req = TTransactionYPathProxy::CreateObject(
                 operation->GetUserTransaction()
-                ? RootTransactionPath
-                : FromObjectId(operation->GetUserTransaction()->GetId()));
+                ? FromObjectId(operation->GetUserTransaction()->GetId())
+                : RootTransactionPath);
             req->set_type(EObjectType::Transaction);
             NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "start_tx");
