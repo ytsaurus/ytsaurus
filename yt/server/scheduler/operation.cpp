@@ -16,14 +16,14 @@ using namespace NTransactionClient;
 TOperation::TOperation(
     const TOperationId& operationId,
     EOperationType type,
-    const TTransactionId& transactionId,
+    ITransactionPtr userTransaction,
     NYTree::IMapNodePtr spec,
     TInstant startTime,
     EOperationState state)
     : OperationId_(operationId)
     , Type_(type)
     , State_(state)
-    , TransactionId_(transactionId)
+    , UserTransaction_(userTransaction)
     , Spec_(spec)
     , StartTime_(startTime)
     , FinishedPromise(NewPromise<void>())

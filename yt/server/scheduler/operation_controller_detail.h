@@ -97,12 +97,11 @@ protected:
     // Total resources used by all running jobs.
     NProto::TNodeResources UsedResources;
 
-    // The primary transaction for the whole operation (nested inside operation's transaction).
-    NTransactionClient::ITransactionPtr PrimaryTransaction;
-    // The transaction for reading input tables (nested inside the primary one).
+    // The transaction for reading input tables (nested inside scheduler transaction).
     // These tables are locked with Snapshot mode.
     NTransactionClient::ITransactionPtr InputTransaction;
-    // The transaction for writing output tables (nested inside the primary one).
+
+    // The transaction for writing output tables (nested inside scheduler transaction).
     // These tables are locked with Shared mode.
     NTransactionClient::ITransactionPtr OutputTransaction;
 
@@ -309,28 +308,21 @@ protected:
     // Here comes the preparation pipeline.
 
     // Round 1:
-    // - Start primary transaction.
-
-    NObjectClient::TObjectServiceProxy::TInvExecuteBatch StartPrimaryTransaction();
-
-    void OnPrimaryTransactionStarted(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
-
-    // Round 2:
     // - Start input transaction.
     // - Start output transaction.
 
-    NObjectClient::TObjectServiceProxy::TInvExecuteBatch StartSeconaryTransactions();
+    NObjectClient::TObjectServiceProxy::TInvExecuteBatch StartIOTransactions();
 
-    void OnSecondaryTransactionsStarted(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
+    void OnIOTransactionsStarted(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
-    // Round 3:
+    // Round 2:
     // - Get input table ids
     // - Get output table ids
     NObjectClient::TObjectServiceProxy::TInvExecuteBatch GetObjectIds();
 
     void OnObjectIdsReceived(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
-    // Round 4:
+    // Round 3:
     // - Fetch input tables.
     // - Lock input tables.
     // - Lock output tables.
@@ -348,7 +340,6 @@ protected:
     //! Extensibility point for handling additional info from master.
     virtual void OnCustomInputsRecieved(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
-
     // Round 4.
     // - (Custom)
     virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline);
@@ -364,7 +355,7 @@ protected:
     // - Attach chunk trees.
     // - Commit input transaction.
     // - Commit output transaction.
-    // - Commit primary transaction.
+    // - Commit scheduler transaction.
 
     NObjectClient::TObjectServiceProxy::TInvExecuteBatch CommitOutputs();
     void OnOutputsCommitted(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);

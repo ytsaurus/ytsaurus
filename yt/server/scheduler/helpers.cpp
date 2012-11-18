@@ -12,6 +12,7 @@ namespace NYT {
 namespace NScheduler {
 
 using namespace NYTree;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -19,7 +20,8 @@ void BuildOperationAttributes(TOperationPtr operation, IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .Item("operation_type").Scalar(operation->GetType())
-        .Item("transaction_id").Scalar(operation->GetTransactionId())
+        .Item("user_transaction_id").Scalar(operation->GetUserTransaction() ? operation->GetUserTransaction()->GetId() : NullTransactionId)
+        .Item("scheduler_transaction_id").Scalar(operation->GetUserTransaction() ? operation->GetSchedulerTransaction()->GetId() : NullTransactionId)
         .Item("state").Scalar(FormatEnum(operation->GetState()))
         .Item("start_time").Scalar(operation->GetStartTime())
         .Item("spec").Node(operation->GetSpec());

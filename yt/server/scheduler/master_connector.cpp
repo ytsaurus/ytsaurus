@@ -163,7 +163,7 @@ public:
     DEFINE_SIGNAL(void(TObjectServiceProxy::TRspExecuteBatchPtr), WatcherResponse);
     DEFINE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
     DEFINE_SIGNAL(void(), MasterDisconnected);
-    DEFINE_SIGNAL(void(TOperationPtr operation), PrimaryTransactionAborted);
+    DEFINE_SIGNAL(void(TOperationPtr operation), UserTransactionAborted);
 
 private:
     TSchedulerConfigPtr Config;
@@ -271,7 +271,6 @@ private:
 
 
     class TRegistrationPipeline
-
         : public TRefCounted
     {
     public:
@@ -352,22 +351,7 @@ private:
         // - Request operations and their states.
         TObjectServiceProxy::TInvExecuteBatch Round3(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
         {
-            THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
-            {
-                auto rsp = batchRsp->GetResponse("take_lock");
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error taking lock");
-                LOG_INFO("Scheduler lock taken");
-            }
-            {
-                auto rsp = batchRsp->GetResponse("set_scheduler_address");
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error setting scheduler address");
-                LOG_INFO("Scheduler address set");
-            }
-            {
-                auto rsp = batchRsp->GetResponse("set_orchid_address");
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error setting orchid address");
-                LOG_INFO("Orchid address set");
-            }
+            THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
 
             auto batchReq = Proxy.ExecuteBatch();
             {
@@ -427,6 +411,7 @@ private:
         }
 
         // Round 5:
+        // - Abort previous incarnations of scheduler transactions.
         // - Reset operation nodes.
         TObjectServiceProxy::TInvExecuteBatch Round5(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
         {
@@ -442,7 +427,7 @@ private:
                     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting operation attributes (OperationId: %s)",
                         ~ToString(operationId));
                     auto operationNode = ConvertToNode(TYsonString(rsp->value()));
-                    auto operation = ParseOperationYson(operationId, operationNode->Attributes());
+                    auto operation = Owner->ParseOperationYson(operationId, operationNode->Attributes());
                     Result.Operations.push_back(operation);
                 }
             }
@@ -451,9 +436,17 @@ private:
             FOREACH (auto operation, Result.Operations) {
                 operation->SetState(EOperationState::Reviving);
 
-                auto req = TYPathProxy::Set(GetOperationPath(operation->GetOperationId()));
-                req->set_value(BuildOperationYson(operation).Data());
-                batchReq->AddRequest(req, "reset_op");
+                if (operation->GetSchedulerTransaction()) {
+                    auto req = TTransactionYPathProxy::Abort(FromObjectId(operation->GetSchedulerTransaction()->GetId()));
+                    batchReq->AddRequest(req, "abort_scheduler_tx");
+                    operation->SetSchedulerTransaction(NULL);
+                }
+
+                {
+                    auto req = TYPathProxy::Set(GetOperationPath(operation->GetOperationId()));
+                    req->set_value(BuildOperationYson(operation).Data());
+                    batchReq->AddRequest(req, "reset_op");
+                }
             }
 
             return batchReq->Invoke();
@@ -463,7 +456,7 @@ private:
         // - Watcher requests.
         TObjectServiceProxy::TInvExecuteBatch Round6(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
         {
-            THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
+            THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
 
             auto batchReq = Proxy.ExecuteBatch();
             Owner->WatcherRequest_.Fire(batchReq);
@@ -474,8 +467,8 @@ private:
         // - Relax :)
         TMasterHandshakeResult Round7(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
         {
-            auto error = batchRsp->GetCumulativeError();
-            THROW_ERROR_EXCEPTION_IF_FAILED(error);
+            THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
+
             Result.WatcherResponses = batchRsp;
             return Result;
         }
@@ -520,15 +513,33 @@ private:
             .EndMap();
     }
 
-    static TOperationPtr ParseOperationYson(const TOperationId& operationId, const IAttributeDictionary& attributes)
+    TOperationPtr ParseOperationYson(const TOperationId& operationId, const IAttributeDictionary& attributes)
     {
-        return New<TOperation>(
+        auto transactionManager = Bootstrap->GetTransactionManager();
+        
+        // COMPAT(babenko): remove default
+        auto userTransactionId = attributes.Get<TTransactionId>("user_transaction_id", NullTransactionId);
+        auto userTransaction =
+            userTransactionId == NullTransactionId
+            ? NULL
+            : transactionManager->Attach(userTransactionId, false, false, false);
+
+        // COMPAT(babenko): remove default
+        auto schedulerTransactionId = attributes.Get<TTransactionId>("scheduler_transaction_id", NullTransactionId);
+        auto schedulerTransaction =
+            schedulerTransactionId == NullTransactionId
+            ? NULL
+            : transactionManager->Attach(schedulerTransactionId, false, false, false);
+
+        auto operation = New<TOperation>(
             operationId,
             attributes.Get<EOperationType>("operation_type"),
-            attributes.Get<TTransactionId>("transaction_id"),
+            userTransaction,
             attributes.Get<INodePtr>("spec")->AsMap(),
             attributes.Get<TInstant>("start_time"),
             attributes.Get<EOperationState>("state"));
+        operation->SetSchedulerTransaction(schedulerTransaction);
+        return operation;
     }
 
     static TYsonString BuildJobYson(TJobPtr job)
@@ -604,9 +615,9 @@ private:
         yhash_set<TTransactionId> transactionIdsSet;
         auto operations = Bootstrap->GetScheduler()->GetOperations();
         FOREACH (auto operation, operations) {
-            auto transactionId = operation->GetTransactionId();
-            if (transactionId != NullTransactionId) {
-                transactionIdsSet.insert(transactionId);
+            auto transaction = operation->GetUserTransaction();
+            if (transaction) {
+                transactionIdsSet.insert(transaction->GetId());
             }
         }
 
@@ -657,8 +668,9 @@ private:
         // Collect the list of operations corresponding to dead transactions.
         auto operations = Bootstrap->GetScheduler()->GetOperations();
         FOREACH (auto operation, operations) {
-            if (deadTransactionIds.find(operation->GetTransactionId()) != deadTransactionIds.end()) {
-                PrimaryTransactionAborted_.Fire(operation);
+            auto transaction = operation->GetUserTransaction();
+            if (transaction && deadTransactionIds.find(transaction->GetId()) != deadTransactionIds.end()) {
+                UserTransactionAborted_.Fire(operation);
             }
         }
     }
@@ -981,7 +993,7 @@ DELEGATE_SIGNAL(TMasterConnector, void(TObjectServiceProxy::TReqExecuteBatchPtr)
 DELEGATE_SIGNAL(TMasterConnector, void(TObjectServiceProxy::TRspExecuteBatchPtr), WatcherResponse, *Impl);
 DELEGATE_SIGNAL(TMasterConnector, void(const TMasterHandshakeResult& result), MasterConnected, *Impl);
 DELEGATE_SIGNAL(TMasterConnector, void(), MasterDisconnected, *Impl);
-DELEGATE_SIGNAL(TMasterConnector, void(TOperationPtr operation), PrimaryTransactionAborted, *Impl)
+DELEGATE_SIGNAL(TMasterConnector, void(TOperationPtr operation), UserTransactionAborted, *Impl)
 
 ////////////////////////////////////////////////////////////////////
 

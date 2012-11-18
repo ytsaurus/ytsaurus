@@ -38,6 +38,8 @@
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/fluent.h>
 
+#include <ytlib/meta_state/rpc_helpers.h>
+
 #include <server/cell_scheduler/config.h>
 #include <server/cell_scheduler/bootstrap.h>
 
@@ -184,8 +186,8 @@ public:
             &TThis::OnMasterDisconnected,
             Unretained(this)));
 
-        MasterConnector->SubscribePrimaryTransactionAborted(BIND(
-            &TThis::OnPrimaryTransactionAborted,
+        MasterConnector->SubscribeUserTransactionAborted(BIND(
+            &TThis::OnUserTransactionAborted,
             Unretained(this)));
 
         MasterConnector->Start();
@@ -384,12 +386,12 @@ private:
     }
 
 
-    void OnPrimaryTransactionAborted(TOperationPtr operation)
+    void OnUserTransactionAborted(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         LOG_INFO("Operation belongs to an expired transaction %s, aborting (OperationId: %s)",
-            ~operation->GetTransactionId().ToString(),
+            ~operation->GetUserTransaction()->GetId().ToString(),
             ~operation->GetOperationId().ToString());
 
         AbortOperation(operation, TError("Operation transaction has been expired or was aborted"));
@@ -477,12 +479,18 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        // Attach user transaction if any. Don't ping it.
+        auto userTransaction =
+            transactionId == NullTransactionId
+            ? NULL
+            : GetTransactionManager()->Attach(transactionId, false, false, false);
+
         // Create operation object.
         auto operationId = TOperationId::Create();
         auto operation = New<TOperation>(
             operationId,
             type,
-            transactionId,
+            userTransaction,
             spec,
             TInstant::Now());
 
@@ -507,9 +515,49 @@ private:
         operation->SetState(EOperationState::Preparing);
 
         return StartAsyncPipeline(controller->GetCancelableControlInvoker())
+            ->Add(BIND(&TThis::StartSchedulerTransaction, MakeStrong(this), operation))
+            ->Add(BIND(&TThis::OnSchedulerTransactionStarted, MakeStrong(this), operation))
             ->Add(BIND(&TMasterConnector::CreateOperationNode, ~MasterConnector, operation))
             ->Add(BIND(&TThis::OnOperationNodeCreated, MakeStrong(this), operation))
             ->Run();
+    }
+
+    TObjectServiceProxy::TInvExecuteBatch StartSchedulerTransaction(TOperationPtr operation)
+    {
+        LOG_INFO("Starting scheduler transaction (OperationId: %s)",
+            ~operation->GetOperationId().ToString());
+
+        TObjectServiceProxy proxy(GetMasterChannel());
+        auto batchReq = proxy.ExecuteBatch();
+
+        {
+            auto req = TTransactionYPathProxy::CreateObject(
+                operation->GetUserTransaction()
+                ? RootTransactionPath
+                : FromObjectId(operation->GetUserTransaction()->GetId()));
+            req->set_type(EObjectType::Transaction);
+            NMetaState::GenerateRpcMutationId(req);
+            batchReq->AddRequest(req, "start_tx");
+        }
+
+        return batchReq->Invoke();
+    }
+
+    void OnSchedulerTransactionStarted(TOperationPtr operation, TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    {
+        auto error = batchRsp->GetCumulativeError();
+        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error starting scheduler transaction");
+
+        {
+            auto createTxRsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("create_tx");
+            auto schedulerTransactionId = TObjectId::FromProto(createTxRsp->object_id());
+            auto schedulerTransaction = GetTransactionManager()->Attach(schedulerTransactionId, true, true, false);
+            operation->SetSchedulerTransaction(schedulerTransaction);
+
+            LOG_INFO("Scheduler transaction is %s (OperationId: %s)",
+                ~ToString(schedulerTransactionId),
+                ~ToString(operation->GetOperationId()));
+        }
     }
 
     TOperationPtr OnOperationNodeCreated(TOperationPtr operation)
@@ -564,13 +612,15 @@ private:
         YCHECK(Operations.empty());
         FOREACH (auto operation, operations) {
             LOG_INFO("Reviving operation (OperationId: %s)", ~operation->GetOperationId().ToString());
-            
+
             auto controller = CreateController(~operation);
             operation->SetController(controller);
 
             RegisterOperation(operation);
 
             StartAsyncPipeline(controller->GetCancelableControlInvoker())
+                ->Add(BIND(&TThis::StartSchedulerTransaction, MakeStrong(this), operation))
+                ->Add(BIND(&TThis::OnSchedulerTransactionStarted, MakeStrong(this), operation))
                 ->Add(BIND(&IOperationController::Revive, controller))
                 ->Add(BIND(&TThis::OnOperationRevived, MakeStrong(this), operation))
                 ->Run();

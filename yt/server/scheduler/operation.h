@@ -7,7 +7,7 @@
 
 #include <ytlib/ytree/node.h>
 
-#include <ytlib/transaction_client/public.h>
+#include <ytlib/transaction_client/transaction.h>
 
 #include <ytlib/scheduler/scheduler_service.pb.h>
 
@@ -26,7 +26,10 @@ class TOperation
     DEFINE_BYVAL_RW_PROPERTY(EOperationState, State);
 
     //! User-supplied transaction where the operation resides.
-    DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionId, TransactionId);
+    DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::ITransactionPtr, UserTransaction);
+
+    //! Scheduler-controlled transaction (nested in user transaction).
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::ITransactionPtr, SchedulerTransaction);
 
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, Spec);
 
@@ -57,7 +60,7 @@ public:
     TOperation(
         const TOperationId& operationId,
         EOperationType type,
-        const NTransactionClient::TTransactionId& transactionId,
+        NTransactionClient::ITransactionPtr userTransaction,
         NYTree::IMapNodePtr spec,
         TInstant startTime,
         EOperationState state = EOperationState::Initializing);

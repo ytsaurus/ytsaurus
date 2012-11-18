@@ -49,7 +49,7 @@ public:
     DECLARE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
     DECLARE_SIGNAL(void(), MasterDisconnected);
 
-    DECLARE_SIGNAL(void(TOperationPtr operation), PrimaryTransactionAborted);
+    DECLARE_SIGNAL(void(TOperationPtr operation), UserTransactionAborted);
 
 private:
     class TImpl;

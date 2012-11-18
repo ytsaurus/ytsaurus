@@ -369,10 +369,8 @@ TFuture<void> TOperationControllerBase::Prepare()
 
     auto this_ = MakeStrong(this);
     auto pipeline = StartAsyncPipeline(CancelableBackgroundInvoker)
-        ->Add(BIND(&TThis::StartPrimaryTransaction, MakeStrong(this)))
-        ->Add(BIND(&TThis::OnPrimaryTransactionStarted, MakeStrong(this)))
-        ->Add(BIND(&TThis::StartSeconaryTransactions, MakeStrong(this)))
-        ->Add(BIND(&TThis::OnSecondaryTransactionsStarted, MakeStrong(this)))
+        ->Add(BIND(&TThis::StartIOTransactions, MakeStrong(this)))
+        ->Add(BIND(&TThis::OnIOTransactionsStarted, MakeStrong(this)))
         ->Add(BIND(&TThis::GetObjectIds, MakeStrong(this)))
         ->Add(BIND(&TThis::OnObjectIdsReceived, MakeStrong(this)))
         ->Add(BIND(&TThis::RequestInputs, MakeStrong(this)))
@@ -841,10 +839,7 @@ void TOperationControllerBase::AbortTransactions()
 {
     LOG_INFO("Aborting transactions");
 
-    if (PrimaryTransaction) {
-        // The call is async.
-        PrimaryTransaction->Abort();
-    }
+    Operation->GetSchedulerTransaction()->Abort();
 
     // No need to abort the others.
 }
@@ -910,13 +905,13 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs()
     }
 
     {
-        auto req = TTransactionYPathProxy::Commit(FromObjectId(PrimaryTransaction->GetId()));
+        auto req = TTransactionYPathProxy::Commit(FromObjectId(Operation->GetSchedulerTransaction()->GetId()));
         NMetaState::GenerateRpcMutationId(req);
-        batchReq->AddRequest(req, "commit_primary_tx");
+        batchReq->AddRequest(req, "commit_scheduler_tx");
     }
 
     // We don't need pings any longer, detach the transactions.
-    PrimaryTransaction->Detach();
+    Operation->GetSchedulerTransaction()->Detach();
     InputTransaction->Detach();
     OutputTransaction->Detach();
 
@@ -954,66 +949,31 @@ void TOperationControllerBase::OnOutputsCommitted(TObjectServiceProxy::TRspExecu
     }
 
     {
-        auto rsp = batchRsp->GetResponse("commit_primary_tx");
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error committing primary transaction");
+        auto rsp = batchRsp->GetResponse("commit_scheduler_tx");
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error committing scheduler transaction");
     }
 
     LOG_INFO("Outputs committed");
 }
 
-TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::StartPrimaryTransaction()
+TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::StartIOTransactions()
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
-    LOG_INFO("Starting primary transaction");
+    LOG_INFO("Starting IO transactions");
 
     auto batchReq = ObjectProxy.ExecuteBatch();
+    const auto& schedulerTransactionId = Operation->GetSchedulerTransaction()->GetId();
 
     {
-        auto req = TTransactionYPathProxy::CreateObject(
-            Operation->GetTransactionId() == NullTransactionId
-            ? RootTransactionPath
-            : FromObjectId(Operation->GetTransactionId()));
-        req->set_type(EObjectType::Transaction);
-        NMetaState::GenerateRpcMutationId(req);
-        batchReq->AddRequest(req, "start_primary_tx");
-    }
-
-    return batchReq->Invoke();
-}
-
-void TOperationControllerBase::OnPrimaryTransactionStarted(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
-{
-    VERIFY_THREAD_AFFINITY(BackgroundThread);
-
-    THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error starting primary transaction");
-
-    {
-        auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_primary_tx");
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting primary transaction");
-        auto id = TTransactionId::FromProto(rsp->object_id());
-        LOG_INFO("Primary transaction is %s", ~id.ToString());
-        PrimaryTransaction = Host->GetTransactionManager()->Attach(id, true);
-    }
-}
-
-TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::StartSeconaryTransactions()
-{
-    VERIFY_THREAD_AFFINITY(BackgroundThread);
-
-    LOG_INFO("Starting secondary transactions");
-
-    auto batchReq = ObjectProxy.ExecuteBatch();
-
-    {
-        auto req = TTransactionYPathProxy::CreateObject(FromObjectId(PrimaryTransaction->GetId()));
+        auto req = TTransactionYPathProxy::CreateObject(FromObjectId(schedulerTransactionId));
         req->set_type(EObjectType::Transaction);
         NMetaState::GenerateRpcMutationId(req);
         batchReq->AddRequest(req, "start_in_tx");
     }
 
     {
-        auto req = TTransactionYPathProxy::CreateObject(FromObjectId(PrimaryTransaction->GetId()));
+        auto req = TTransactionYPathProxy::CreateObject(FromObjectId(schedulerTransactionId));
         req->set_type(EObjectType::Transaction);
         NMetaState::GenerateRpcMutationId(req);
         batchReq->AddRequest(req, "start_out_tx");
@@ -1022,11 +982,11 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::StartSeconaryTra
     return batchReq->Invoke();
 }
 
-void TOperationControllerBase::OnSecondaryTransactionsStarted(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+void TOperationControllerBase::OnIOTransactionsStarted(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
-    THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error starting secondary transactions");
+    THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error starting IO transactions");
 
     {
         auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_in_tx");
@@ -1188,7 +1148,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
         auto path = file.Path.GetPath();
         {
             auto req = TFileYPathProxy::FetchFile(path);
-            SetTransactionId(req, Operation->GetTransactionId());
+            SetTransactionId(req, Operation->GetUserTransaction()->GetId());
             batchReq->AddRequest(req, "fetch_files");
         }
     }
@@ -1351,8 +1311,7 @@ void TOperationControllerBase::CompletePreparation()
         Config,
         Host->GetMasterChannel(),
         CancelableControlInvoker,
-        Operation,
-        PrimaryTransaction->GetId());
+        Operation);
 }
 
 void TOperationControllerBase::OnPreparationCompleted()
