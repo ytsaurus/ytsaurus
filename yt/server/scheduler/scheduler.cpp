@@ -537,7 +537,7 @@ private:
                 : RootTransactionPath);
             req->set_type(EObjectType::Transaction);
             NMetaState::GenerateRpcMutationId(req);
-            batchReq->AddRequest(req, "start_tx");
+            batchReq->AddRequest(req, "create_tx");
         }
 
         return batchReq->Invoke();
