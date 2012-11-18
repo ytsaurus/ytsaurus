@@ -1148,7 +1148,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
         auto path = file.Path.GetPath();
         {
             auto req = TFileYPathProxy::FetchFile(path);
-            SetTransactionId(req, Operation->GetUserTransaction()->GetId());
+            SetTransactionId(req, InputTransaction->GetId());
             batchReq->AddRequest(req, "fetch_files");
         }
     }
