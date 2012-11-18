@@ -24,7 +24,6 @@ public:
 
     void Start();
 
-    bool HasActiveQuorum() const;
     bool IsPeerActive(TPeerId followerId) const;
 
     TFuture<void> GetActiveQuorum();

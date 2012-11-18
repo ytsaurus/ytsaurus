@@ -67,13 +67,6 @@ bool TFollowerTracker::IsPeerActive(TPeerId peerId) const
         status == EPeerStatus::Following;
 }
 
-bool TFollowerTracker::HasActiveQuorum() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return ActivePeerCount >= CellManager->GetQuorum();
-}
-
 TFuture<void> TFollowerTracker::GetActiveQuorum()
 {
     return ActiveQuorumPromise;

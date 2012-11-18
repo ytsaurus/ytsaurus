@@ -127,6 +127,7 @@ public:
         , StateInvoker(stateInvoker)
         , ReadOnly(false)
         , ControlStatus(EPeerStatus::Stopped)
+        , HasActiveQuorum_(false)
     {
         ChangeLogCache = New<TChangeLogCache>(Config->ChangeLogs);
 
@@ -214,12 +215,7 @@ public:
 
     virtual bool HasActiveQuorum() const override
     {
-        auto tracker = GetFollowerTracker();
-        if (!tracker) {
-            return false;
-        }
-
-        return tracker->HasActiveQuorum();
+        return HasActiveQuorum_;
     }
 
     virtual NElection::TEpochContextPtr GetEpochContext() const override
@@ -260,7 +256,9 @@ public:
                 .Item("elections").Do(BIND(&TElectionManager::GetMonitoringInfo, ElectionManager))
                 .DoIf(tracker, [=] (TFluentMap fluent) {
                     fluent
-                        .Item("has_quorum").Scalar(tracker->HasActiveQuorum())
+                        // COMPAT(babenko): notify Roman
+                        .Item("has_active_quorum").Scalar(HasActiveQuorum_)
+                        .Item("has_quorum").Scalar(HasActiveQuorum_)
                         .Item("active_followers").DoListFor(
                             0,
                             CellManager->GetPeerCount(),
@@ -300,11 +298,7 @@ public:
         }
 
         auto epochContext = EpochContext;
-        if (!epochContext ||
-            !epochContext->FollowerTracker ||
-            !epochContext->LeaderCommitter ||
-            !epochContext->FollowerTracker->HasActiveQuorum())
-        {
+        if (!epochContext || !HasActiveQuorum_) {
             return MakeFuture(TValueOrError<TMutationResponse>(TError(
                 ECommitCode::NoQuorum,
                 "No active quorum")));
@@ -330,6 +324,7 @@ public:
     IInvokerPtr StateInvoker;
     TAtomic ReadOnly;
     EPeerStatus ControlStatus;
+    bool HasActiveQuorum_;
 
     NElection::TElectionManagerPtr ElectionManager;
     TChangeLogCachePtr ChangeLogCache;
@@ -820,8 +815,8 @@ public:
             THROW_ERROR_EXCEPTION(EErrorCode::InvalidStatus, "Not a leader");
         }
 
-        if (!HasActiveQuorum()) {
-            THROW_ERROR_EXCEPTION(EErrorCode::InvalidStatus, "Not active quorum");
+        if (!HasActiveQuorum_) {
+            THROW_ERROR_EXCEPTION(EErrorCode::InvalidStatus, "No active quorum");
         }
 
         BuildSnapshotDistributed(epochContext).Subscribe(
@@ -887,8 +882,8 @@ public:
 
     TFuture<TSnapshotBuilder::TResultOrError> BuildSnapshotDistributed(TEpochContextPtr epochContext)
     {
-        YASSERT(DecoratedState->GetStatus() == EPeerStatus::Leading);
-        YASSERT(HasActiveQuorum());
+        YCHECK(DecoratedState->GetStatus() == EPeerStatus::Leading);
+        YCHECK(HasActiveQuorum_);
 
         epochContext->LeaderCommitter->Flush(true);
         return epochContext->SnapshotBuilder->BuildSnapshotDistributed();
@@ -1020,6 +1015,8 @@ public:
         LOG_INFO("Active quorum established");
 
         ActiveQuorumEstablished_.Fire();
+
+        HasActiveQuorum_ = true;
     }
 
 
@@ -1041,6 +1038,8 @@ public:
     void DoStateStopLeading()
     {
         VERIFY_THREAD_AFFINITY(StateThread);
+
+        HasActiveQuorum_ = false;
 
         StopLeading_.Fire();
 
