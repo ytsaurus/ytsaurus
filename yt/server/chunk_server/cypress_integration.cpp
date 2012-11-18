@@ -457,6 +457,7 @@ private:
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override
     {
         attributes->push_back("offline");
+        attributes->push_back("banned");
         attributes->push_back("registered");
         attributes->push_back("online");
         attributes->push_back("unconfirmed");
@@ -477,7 +478,19 @@ private:
         if (key == "offline") {
             BuildYsonFluently(consumer)
                 .DoListFor(GetKeys(), [=] (TFluentList fluent, Stroka address) {
-                    if (!chunkManager->FindNodeByAddress(address)) {
+                    if (!chunkManager->FindNodeByAddress(address) &&
+                        !GetChild(address)->Attributes().Get<bool>("banned", false))
+                    {
+                        fluent.Item().Scalar(address);
+                    }
+            });
+            return true;
+        }
+
+        if (key == "banned") {
+            BuildYsonFluently(consumer)
+                .DoListFor(GetKeys(), [=] (TFluentList fluent, Stroka address) {
+                    if (GetChild(address)->Attributes().Get<bool>("banned", false)) {
                         fluent.Item().Scalar(address);
                     }
             });
