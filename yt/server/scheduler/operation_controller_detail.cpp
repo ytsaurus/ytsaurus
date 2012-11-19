@@ -370,7 +370,7 @@ TFuture<void> TOperationControllerBase::Prepare()
     auto this_ = MakeStrong(this);
     auto pipeline = StartAsyncPipeline(CancelableBackgroundInvoker)
         ->Add(BIND(&TThis::StartIOTransactions, MakeStrong(this)))
-        ->Add(BIND(&TThis::OnIOTransactionsStarted, MakeStrong(this)))
+        ->Add(BIND(&TThis::OnIOTransactionsStarted, MakeStrong(this)), CancelableControlInvoker)
         ->Add(BIND(&TThis::GetObjectIds, MakeStrong(this)))
         ->Add(BIND(&TThis::OnObjectIdsReceived, MakeStrong(this)))
         ->Add(BIND(&TThis::RequestInputs, MakeStrong(this)))
