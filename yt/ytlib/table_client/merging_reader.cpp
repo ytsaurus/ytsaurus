@@ -129,6 +129,16 @@ public:
         return total;
     }
 
+    virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const override
+    {
+        std::vector<NChunkClient::TChunkId> result;
+        FOREACH(auto reader, Readers) {
+            auto part = reader->GetFailedChunks();
+            result.insert(result.end(), part.begin(), part.end());
+        }
+        return result;
+    }
+
 private:
     std::vector<TTableChunkSequenceReaderPtr> Readers;
     std::vector<TTableChunkSequenceReader*> ReaderHeap;

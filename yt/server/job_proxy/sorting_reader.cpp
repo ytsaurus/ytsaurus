@@ -101,6 +101,11 @@ public:
         return ReadRowCount;
     }
 
+    virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const override
+    {
+        return Reader->GetFailedChunks();
+    }
+
 private:
     typedef TMultiChunkParallelReader<TPartitionChunkReader> TReader;
     typedef TIntrusivePtr<TReader> TReaderPtr;

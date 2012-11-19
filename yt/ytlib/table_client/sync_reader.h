@@ -7,6 +7,7 @@
 #include <ytlib/misc/nullable.h>
 
 #include <ytlib/ytree/public.h>
+#include <ytlib/chunk_client/public.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -25,6 +26,8 @@ struct ISyncReader
     //! Returns the key of the current row.
     //! Not all implementations support this call.
     virtual const TNonOwningKey& GetKey() const = 0;
+
+    virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const = 0;
 
     virtual i64 GetRowIndex() const = 0;
     virtual i64 GetRowCount() const = 0;
@@ -72,6 +75,11 @@ public:
     virtual i64 GetRowCount() const
     {
         return AsyncReader->GetItemCount();
+    }
+
+    virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const
+    {
+        return AsyncReader->GetFailedChunks();
     }
 
     /*

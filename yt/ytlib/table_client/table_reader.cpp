@@ -120,6 +120,11 @@ i64 TTableReader::GetRowCount() const
     return Reader->GetItemCount();
 }
 
+std::vector<NChunkClient::TChunkId> TTableReader::GetFailedChunks() const
+{
+    return Reader->GetFailedChunks();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient
