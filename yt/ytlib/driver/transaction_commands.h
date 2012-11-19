@@ -19,7 +19,6 @@ class TStartTransactionCommand
 public:
     explicit TStartTransactionCommand(ICommandContext* host)
         : TTransactedCommandBase(host)
-        , TUntypedCommandBase(host)
     { }
 
 private:
@@ -40,7 +39,6 @@ class TRenewTransactionCommand
 public:
     explicit TRenewTransactionCommand(ICommandContext* host)
         : TTransactedCommandBase(host)
-        , TUntypedCommandBase(host)
     { }
 
 private:
@@ -61,7 +59,6 @@ class TCommitTransactionCommand
 public:
     explicit TCommitTransactionCommand(ICommandContext* host)
         : TTransactedCommandBase(host)
-        , TUntypedCommandBase(host)
     { }
 
 private:
@@ -82,7 +79,6 @@ class TAbortTransactionCommand
 public:
     explicit TAbortTransactionCommand(ICommandContext* host)
         : TTransactedCommandBase(host)
-        , TUntypedCommandBase(host)
     { }
 
 private:

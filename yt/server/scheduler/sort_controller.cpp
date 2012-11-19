@@ -63,9 +63,9 @@ public:
         , CompletedPartitionCount(0)
         , IntermediateSortJobCounter(false)
         , FinalSortJobCounter(false)
-        , UnorderedMergeJobCounter(false)
         , SortStartThresholdReached(false)
         , MergeStartThresholdReached(false)
+        , UnorderedMergeJobCounter(false)
         , SimpleSort(false)
         , PartitionTask(New<TPartitionTask>(this))
     { }

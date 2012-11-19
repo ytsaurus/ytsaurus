@@ -13,8 +13,8 @@ TJob::TJob(
     const Stroka& Address,
     const std::vector<Stroka>& targetAddresses,
     TInstant startTime)
-    : Type_(type)
-    , TObjectWithIdBase(jobId)
+    : TObjectWithIdBase(jobId)
+    , Type_(type)
     , ChunkId_(chunkId)
     , Address_(Address)
     , TargetAddresses_(targetAddresses)

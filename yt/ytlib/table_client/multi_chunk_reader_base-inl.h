@@ -26,17 +26,17 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
     NChunkClient::IBlockCachePtr blockCache,
     std::vector<NProto::TInputChunk>&& inputChunks,
     const TProviderPtr& readerProvider)
-    : Config(config)
+    : ItemIndex_(0)
+    , ItemCount_(0)
+    , IsFetchingComplete_(false)
+    , Config(config)
     , MasterChannel(masterChannel)
     , BlockCache(blockCache)
     , InputChunks(inputChunks)
     , ReaderProvider(readerProvider)
+    , LastPreparedReader(-1)
     , FetchingCompleteAwaiter(New<TParallelAwaiter>())
     , Logger(TableReaderLogger)
-    , LastPreparedReader(-1)
-    , ItemIndex_(0)
-    , ItemCount_(0)
-    , IsFetchingComplete_(false)
 {
     FOREACH(const auto& inputChunk, InputChunks) {
         ItemCount_ += inputChunk.row_count();

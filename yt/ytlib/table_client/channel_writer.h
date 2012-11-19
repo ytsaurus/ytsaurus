@@ -14,8 +14,8 @@ namespace NTableClient {
 class TChannelWriter
     : public TRefCounted
 {
-    DEFINE_BYVAL_RW_PROPERTY(int, HeapIndex);
     DEFINE_BYVAL_RO_PROPERTY(int, BufferIndex);
+    DEFINE_BYVAL_RW_PROPERTY(int, HeapIndex);
 
 public:
     static const int MaxReserveSize;
@@ -52,6 +52,7 @@ private:
 
     TChunkedOutputStream RangeSizes;
     int RangeOffset;
+    bool WriteRangeSizes;
 
     //! Is fixed column with corresponding index already set in the current row.
     std::vector<bool> IsColumnUsed;
@@ -65,7 +66,6 @@ private:
     //! Number of rows in the current unflushed buffer.
     int CurrentRowCount;
 
-    bool WriteRangeSizes;
 
 };
 

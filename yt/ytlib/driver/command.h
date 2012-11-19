@@ -99,7 +99,7 @@ protected:
 
 template <class TRequest>
 class TTypedCommandBase
-    : public virtual TUntypedCommandBase
+    : public TUntypedCommandBase
 {
 public:
     explicit TTypedCommandBase(ICommandContext* context)
@@ -139,7 +139,6 @@ class TTransactedCommandBase
 public:
     explicit TTransactedCommandBase(ICommandContext* context)
         : TTypedCommandBase<TRequest>(context)
-        , TUntypedCommandBase(context)
     { }
 
 protected:

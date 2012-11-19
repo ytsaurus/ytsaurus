@@ -56,8 +56,8 @@ public:
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
         : TWeightLimitedCache<TBlockId, TCachedBlock>(config->MaxCachedBlocksSize)
-        , Bootstrap(bootstrap)
         , PendingReadSize_(0)
+        , Bootstrap(bootstrap)
     {
         auto result = Bootstrap->GetMemoryUsageTracker().TryAcquire(
             NCellNode::EMemoryConsumer::BlockCache,

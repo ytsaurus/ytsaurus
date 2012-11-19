@@ -39,8 +39,8 @@ TCounterBase::TCounterBase(const TYPath& path, TDuration interval)
 TRateCounter::TRateCounter(const TYPath& path, TDuration interval)
     : TCounterBase(path, interval)
     , Value(0)
-    , LastTime(0)
     , LastValue(0)
+    , LastTime(0)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -68,8 +68,8 @@ void TAggregateCounter::ResetAggregation()
 
 TProfiler::TProfiler(const TYPath& pathPrefix, bool selfProfiling)
     : PathPrefix_(pathPrefix)
-    , SelfProfiling(selfProfiling)
     , Enabled_(true)
+    , SelfProfiling(selfProfiling)
 { }
 
 void TProfiler::Enqueue(const TYPath& path, TValue value)

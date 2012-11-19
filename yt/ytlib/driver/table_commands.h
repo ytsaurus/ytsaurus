@@ -33,7 +33,6 @@ class TReadCommand
 public:
     explicit TReadCommand(ICommandContext* host)
         : TTransactedCommandBase(host)
-        , TUntypedCommandBase(host)
     { }
 
 private:
@@ -67,7 +66,6 @@ class TWriteCommand
 public:
     explicit TWriteCommand(ICommandContext* host)
         : TTransactedCommandBase(host)
-        , TUntypedCommandBase(host)
     { }
 
 private:

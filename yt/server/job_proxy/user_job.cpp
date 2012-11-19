@@ -82,11 +82,11 @@ public:
         const NScheduler::NProto::TUserJobSpec& userJobSpec,
         TAutoPtr<TUserJobIO> userJobIO)
         : TJob(host)
-        , UserJobSpec(userJobSpec)
         , JobIO(userJobIO)
-        , ProcessId(-1)
+        , UserJobSpec(userJobSpec)
         , InputThread(InputThreadFunc, (void*) this)
         , OutputThread(OutputThreadFunc, (void*) this)
+        , ProcessId(-1)
     { }
 
     virtual NScheduler::NProto::TJobResult Run() override

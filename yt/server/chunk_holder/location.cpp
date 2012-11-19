@@ -55,9 +55,9 @@ TLocation::TLocation(
     , UsedSpace(0)
     , SessionCount(0)
     , ChunkCount(0)
-    , Logger(DataNodeLogger)
     , ReadQueue(New<TFairShareActionQueue>(ELocationQueue::GetDomainNames(), Sprintf("Read:%s", ~Id)))
     , WriteQueue(New<TActionQueue>(Sprintf("Write:%s", ~Id)))
+    , Logger(DataNodeLogger)
 {
     Logger.AddTag(Sprintf("Path: %s", ~Config->Path));
 }

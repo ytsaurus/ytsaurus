@@ -37,12 +37,12 @@ public:
         const TTransactionId& parentId,
         TTransactionManagerPtr owner,
         bool pingAncestors)
-        : Owner(owner)
+        : PingAncestors_(pingAncestors)
+        , Owner(owner)
         , Proxy(cellChannel)
         , State(EState::Active)
         , AutoAbort(false)
         , ParentId(parentId)
-        , PingAncestors_(pingAncestors)
         , Aborted(NewPromise<void>())
     {
         YCHECK(cellChannel);
@@ -54,13 +54,13 @@ public:
         TTransactionManagerPtr owner,
         const TTransactionId& id,
         bool pingAncestors)
-        : Owner(owner)
+        : PingAncestors_(pingAncestors)
+        , Owner(owner)
         , Proxy(cellChannel)
         , State(EState::Active)
         , ParentId(NullTransactionId)
         , Id(id)
         , Aborted(NewPromise<void>())
-        , PingAncestors_(pingAncestors)
     {
         YCHECK(cellChannel);
         YCHECK(owner);

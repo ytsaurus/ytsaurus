@@ -258,8 +258,9 @@ private:
     TChannel Channel;
 
     int SessionCount;
-    bool Finished;
     bool Completed;
+    bool Finished;
+
 
     void Reply()
     {

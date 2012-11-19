@@ -26,7 +26,6 @@ class TDownloadCommand
 public:
     explicit TDownloadCommand(ICommandContext* host)
         : TTransactedCommandBase(host)
-        , TUntypedCommandBase(host)
     { }
 
 private:
@@ -54,7 +53,6 @@ class TUploadCommand
 public:
     explicit TUploadCommand(ICommandContext* host)
         : TTransactedCommandBase(host)
-        , TUntypedCommandBase(host)
     { }
 
 private:

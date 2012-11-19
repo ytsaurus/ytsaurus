@@ -33,7 +33,6 @@ class TGetCommand
 public:
     explicit TGetCommand(ICommandContext* context)
         : TTransactedCommandBase(context)
-        , TUntypedCommandBase(context)
    { }
 
 private:
@@ -62,7 +61,6 @@ class TSetCommand
 public:
     explicit TSetCommand(ICommandContext* context)
         : TTransactedCommandBase(context)
-        , TUntypedCommandBase(context)
     { }
 
 private:
@@ -91,7 +89,6 @@ class TRemoveCommand
 public:
     explicit TRemoveCommand(ICommandContext* context)
         : TTransactedCommandBase(context)
-        , TUntypedCommandBase(context)
     { }
 
 private:
@@ -123,7 +120,6 @@ class TListCommand
 public:
     explicit TListCommand(ICommandContext* context)
         : TTransactedCommandBase(context)
-        , TUntypedCommandBase(context)
     { }
 
 private:
@@ -154,7 +150,6 @@ class TCreateCommand
 public:
     explicit TCreateCommand(ICommandContext* context)
         : TTransactedCommandBase(context)
-        , TUntypedCommandBase(context)
    { }
 
 private:
@@ -185,7 +180,6 @@ class TLockCommand
 public:
     explicit TLockCommand(ICommandContext* context)
         : TTransactedCommandBase(context)
-        , TUntypedCommandBase(context)
     { }
 
 private:
@@ -216,7 +210,6 @@ class TCopyCommand
 public:
     explicit TCopyCommand(ICommandContext* context)
         : TTransactedCommandBase(context)
-        , TUntypedCommandBase(context)
     { }
 
 private:
@@ -247,7 +240,6 @@ class TMoveCommand
 public:
     explicit TMoveCommand(ICommandContext* context)
         : TTransactedCommandBase(context)
-        , TUntypedCommandBase(context)
     { }
 
 private:
@@ -276,7 +268,6 @@ class TExistsCommand
 public:
     explicit TExistsCommand(ICommandContext* context)
         : TTransactedCommandBase(context)
-        , TUntypedCommandBase(context)
    { }
 
 private:

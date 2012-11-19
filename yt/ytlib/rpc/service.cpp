@@ -51,9 +51,9 @@ TServiceBase::TActiveRequest::TActiveRequest(
     : Id(id)
     , ReplyBus(MoveRV(replyBus))
     , RuntimeInfo(runtimeInfo)
-    , Timer(timer)
     , RunningSync(false)
     , Completed(false)
+    , Timer(timer)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

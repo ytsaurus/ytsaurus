@@ -21,9 +21,9 @@ static NLog::TLogger& Logger = RpcClientLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TProxyBase::TProxyBase(IChannelPtr channel, const Stroka& serviceName)
-    : Channel(channel)
+    : DefaultTimeout_(channel->GetDefaultTimeout())
     , ServiceName(serviceName)
-    , DefaultTimeout_(channel->GetDefaultTimeout())
+    , Channel(channel)
 {
     YASSERT(channel);
 }
@@ -35,12 +35,12 @@ TClientRequest::TClientRequest(
     const Stroka& path,
     const Stroka& verb,
     bool oneWay)
-    : Path(path)
+    : Heavy_(false)
+    , Channel(channel)
+    , Path(path)
     , Verb(verb)
     , RequestId(TRequestId::Create())
     , OneWay(oneWay)
-    , Heavy_(false)
-    , Channel(channel)
     , Attributes_(CreateEphemeralAttributes())
 {
     YASSERT(channel);

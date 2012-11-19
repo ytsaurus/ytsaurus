@@ -547,8 +547,6 @@ private:
     NChunkClient::IAsyncReaderPtr AsyncReader;
     TWeakPtr<TTableChunkReader> ChunkReader;
 
-    NLog::TTaggedLogger Logger;
-
     TChannel Channel;
 
     NProto::TReadLimit StartLimit;
@@ -566,6 +564,8 @@ private:
      */
     std::vector<i64> StartRows;
     bool HasRangeRequest;
+
+    NLog::TTaggedLogger Logger;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -692,14 +692,14 @@ TTableChunkReader::TTableChunkReader(TSequentialReaderConfigPtr config,
     TReaderOptions options)
     : SequentialReader(NULL)
     , Channel(channel)
-    , CurrentRowIndex(-1)
-    , PartitionTag(partitionTag)
-    , StartRowIndex(0)
-    , EndRowIndex(0)
     , Options(options)
     , RowAttributes(rowAttributes)
-    , SuccessResult(MakePromise(TError()))
+    , CurrentRowIndex(-1)
+    , StartRowIndex(0)
+    , EndRowIndex(0)
+    , PartitionTag(partitionTag)
     , OnRowFetchedCallback(BIND(&TTableChunkReader::OnRowFetched, MakeWeak(this)))
+    , SuccessResult(MakePromise(TError()))
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(chunkReader);

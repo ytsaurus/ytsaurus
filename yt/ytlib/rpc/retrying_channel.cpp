@@ -37,8 +37,8 @@ public:
     virtual void Terminate(const TError& error) override;
 
 private:
-    TRetryingChannelConfigPtr Config;
     IChannelPtr UnderlyingChannel;
+    TRetryingChannelConfigPtr Config;
 
 };
 

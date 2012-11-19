@@ -87,12 +87,15 @@ struct TRateCounter
         const NYPath::TYPath& path = "",
         TDuration interval = TDuration::MilliSeconds(1000));
 
-    //! The time when the last sample was queued (in ticks).
-    TCpuInstant LastTime;
     //! The current counter's value.
     TValue Value;
+
     //! The counter's value at the moment of the last sampling.
     TValue LastValue;
+
+    //! The time when the last sample was queued (in ticks).
+    TCpuInstant LastTime;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

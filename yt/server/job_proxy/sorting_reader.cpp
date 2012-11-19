@@ -53,11 +53,11 @@ public:
         , KeyColumnCount(static_cast<int>(KeyColumns.size()))
         , OnNetworkReleased(onNetworkReleased)
         , IsValid_(true)
+        , TotalRowCount(0)
+        , ReadRowCount(0)
         , CurrentKey(KeyColumnCount)
         , SortComparer(this)
         , MergeComparer(this)
-        , TotalRowCount(0)
-        , ReadRowCount(0)
     {
         srand(time(NULL));
         std::random_shuffle(chunks.begin(), chunks.end());

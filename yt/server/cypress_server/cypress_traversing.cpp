@@ -147,8 +147,8 @@ private:
 public:
     TNodeTraverser(TBootstrap* bootstrap, ICypressNodeVisitorPtr visitor)
         : Bootstrap(bootstrap)
-        , TransactionId(NullTransactionId)
         , Visitor(visitor)
+        , TransactionId(NullTransactionId)
     {  }
 
     void Run(ICypressNodeProxyPtr rootNode) 

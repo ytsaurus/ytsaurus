@@ -24,13 +24,13 @@ TPartitionChunkReader::TPartitionChunkReader(
     const NChunkClient::IAsyncReaderPtr& asyncReader,
     int partitionTag,
     ECodecId codecId)
-    : SequentialConfig(sequentialReader)
+    : RowCount_(0)
+    , SequentialConfig(sequentialReader)
     , AsyncReader(asyncReader)
+    , CurrentRowIndex(0)
     , PartitionTag(partitionTag)
     , CodecId(codecId)
     , Logger(TableReaderLogger)
-    , CurrentRowIndex(0)
-    , RowCount_(0)
 { }
 
 TAsyncError TPartitionChunkReader::AsyncOpen()

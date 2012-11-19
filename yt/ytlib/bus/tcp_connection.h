@@ -62,8 +62,6 @@ public:
     DECLARE_SIGNAL(void(TError), Terminated);
 
 private:
-    TPromise<TError> TerminatedPromise;
-
     struct TQueuedMessage
     {
         TQueuedMessage()
@@ -152,6 +150,8 @@ private:
 
     TBlob ReadBuffer;
     TPacketDecoder Decoder;
+
+    TPromise<TError> TerminatedPromise;
 
     TLockFreeQueue<TQueuedMessage> QueuedMessages;
     std::queue<TQueuedPacket*> QueuedPackets;

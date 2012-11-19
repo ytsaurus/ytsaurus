@@ -112,11 +112,11 @@ public:
         TFairShareStrategyConfigPtr config,
         ISchedulerStrategyHost* host,
         TOperationPtr operation)
-        : Config(config)
-        , Host(host)
-        , Operation_(operation)
+        : Operation_(operation)
         , Pool_(NULL)
         , Starving_(false)
+        , Config(config)
+        , Host(host)
     { }
 
 

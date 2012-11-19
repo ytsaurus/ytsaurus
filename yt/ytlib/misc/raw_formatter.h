@@ -124,8 +124,8 @@ public:
 private:
     char Buffer[N];
     char* const Begin;
-    char* const End;
     char* Cursor;
+    char* const End;
 
 };
 

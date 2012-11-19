@@ -26,8 +26,8 @@ public:
 private:
     const int MaxReserveSize;
 
-    size_t CompleteSize;
     int CurrentReserveSize;
+    size_t CompleteSize;
 
     std::vector<TSharedRef> CompleteChunks;
     TBlob IncompleteChunk;

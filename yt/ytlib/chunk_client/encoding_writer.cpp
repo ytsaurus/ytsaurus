@@ -16,13 +16,13 @@ static NLog::TLogger& Logger = ChunkWriterLogger;
 ///////////////////////////////////////////////////////////////////////////////
 
 TEncodingWriter::TEncodingWriter(TEncodingWriterConfigPtr config, IAsyncWriterPtr asyncWriter)
-    : Config(config)
+    : UncompressedSize_(0)
+    , CompressedSize_(0)
+    , CompressionRatio_(config->DefaultCompressionRatio)
+    , Config(config)
     , AsyncWriter(asyncWriter)
     , CompressionInvoker(CreateSerializedInvoker(TDispatcher::Get()->GetCompressionInvoker()))
     , Semaphore(Config->EncodeWindowSize)
-    , UncompressedSize_(0)
-    , CompressedSize_(0)
-    , CompressionRatio_(config->DefaultCompressionRatio)
     , Codec(GetCodec(Config->CodecId))
     , WritePending(
         BIND(&TEncodingWriter::WritePendingBlocks, MakeWeak(this))

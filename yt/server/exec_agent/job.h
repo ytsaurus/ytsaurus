@@ -110,8 +110,6 @@ private:
 
     double Progress;
 
-    NJobProxy::TJobProxyConfigPtr ProxyConfig;
-
     std::vector<NChunkHolder::TCachedChunkPtr> CachedChunks;
 
     IProxyControllerPtr ProxyController;
@@ -120,6 +118,8 @@ private:
     TSpinLock ResultLock;
     TNullable<NScheduler::NProto::TJobResult> JobResult;
     TPromise<void> JobFinished;
+
+    NJobProxy::TJobProxyConfigPtr ProxyConfig;
 
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);

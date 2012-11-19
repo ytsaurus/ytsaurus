@@ -38,11 +38,11 @@ TTableWriter::TTableWriter(
     , TransactionId(transaction ? transaction->GetId() : NullTransactionId)
     , TransactionManager(transactionManager)
     , RichPath(richPath)
+    , KeyColumns(keyColumns)
     , IsOpen(false)
     , IsClosed(false)
     , ObjectProxy(masterChannel)
     , Logger(TableWriterLogger)
-    , KeyColumns(keyColumns)
 {
     YCHECK(config);
     YCHECK(masterChannel);

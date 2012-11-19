@@ -7,8 +7,8 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 TYsonProducer::TYsonProducer(TYsonCallback callback, EYsonType type)
-    : Callback(callback)
-    , Type_(type)
+    : Type_(type)
+    , Callback(callback)
 {
     YASSERT(!Callback.IsNull());
 }

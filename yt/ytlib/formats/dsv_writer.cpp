@@ -17,12 +17,12 @@ TDsvWriter::TDsvWriter(
     TOutputStream* stream,
     EYsonType type,
     TDsvFormatConfigPtr config)
-    : Stream(stream)
+    : Type(type)
+    , Stream(stream)
     , Config(config)
     , InsideFirstLine(true)
     , InsideFirstItem(true)
     , AllowBeginMap(true)
-    , Type(type)
 {
     if (!Config) {
         Config = New<TDsvFormatConfig>();

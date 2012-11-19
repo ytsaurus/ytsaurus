@@ -40,8 +40,8 @@ protected:
 
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, DefaultTimeout);
 
-    IChannelPtr Channel;
     Stroka ServiceName;
+    IChannelPtr Channel;
 };          
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -87,6 +87,7 @@ protected:
     Stroka Verb;
     TRequestId RequestId;
     bool OneWay;
+
     TAutoPtr<NYTree::IAttributeDictionary> Attributes_;
 
     TClientRequest(

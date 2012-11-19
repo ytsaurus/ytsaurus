@@ -22,7 +22,6 @@ using namespace NYTree;
 
 TSchedulerCommandBase::TSchedulerCommandBase(ICommandContext* context)
     : TTransactedCommandBase(context)
-    , TUntypedCommandBase(context)
 { }
 
 void TSchedulerCommandBase::StartOperation(EOperationType type)
@@ -50,9 +49,8 @@ void TSchedulerCommandBase::StartOperation(EOperationType type)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMapCommand::TMapCommand(ICommandContext* host)
-    : TSchedulerCommandBase(host)
-    , TUntypedCommandBase(host)
+TMapCommand::TMapCommand(ICommandContext* context)
+    : TSchedulerCommandBase(context)
 { }
 
 void TMapCommand::DoExecute()
@@ -64,7 +62,6 @@ void TMapCommand::DoExecute()
 
 TMergeCommand::TMergeCommand(ICommandContext* context)
     : TSchedulerCommandBase(context)
-    , TUntypedCommandBase(context)
 { }
 
 void TMergeCommand::DoExecute()
@@ -76,7 +73,6 @@ void TMergeCommand::DoExecute()
 
 TSortCommand::TSortCommand(ICommandContext* context)
     : TSchedulerCommandBase(context)
-    , TUntypedCommandBase(context)
 { }
 
 void TSortCommand::DoExecute()
@@ -88,7 +84,6 @@ void TSortCommand::DoExecute()
 
 TEraseCommand::TEraseCommand(ICommandContext* context)
     : TSchedulerCommandBase(context)
-    , TUntypedCommandBase(context)
 { }
 
 void TEraseCommand::DoExecute()
@@ -100,7 +95,6 @@ void TEraseCommand::DoExecute()
 
 TReduceCommand::TReduceCommand(ICommandContext* context)
     : TSchedulerCommandBase(context)
-    , TUntypedCommandBase(context)
 { }
 
 void TReduceCommand::DoExecute()
@@ -112,7 +106,6 @@ void TReduceCommand::DoExecute()
 
 TMapReduceCommand::TMapReduceCommand(ICommandContext* context)
     : TSchedulerCommandBase(context)
-    , TUntypedCommandBase(context)
 { }
 
 void TMapReduceCommand::DoExecute()
@@ -124,7 +117,6 @@ void TMapReduceCommand::DoExecute()
 
 TAbortOperationCommand::TAbortOperationCommand(ICommandContext* context)
     : TTransactedCommandBase(context)
-    , TUntypedCommandBase(context)
 { }
 
 void TAbortOperationCommand::DoExecute()

@@ -24,12 +24,12 @@ TChannelWriter::TChannelWriter(
     // this buffer gives additional overhead for 
     // partition chunks, but it is very small: 1K per partition
     , RangeSizes(writeRangeSizes ? RangeSizesChunk : 1)
-    , IsColumnUsed(fixedColumnCount)
-    , CurrentRowCount(0)
-    , WriteRangeSizes(writeRangeSizes)
     , RangeOffset(0)
+    , WriteRangeSizes(writeRangeSizes)
+    , IsColumnUsed(fixedColumnCount)
     , CurrentSize(0)
     , Capacity(0)
+    , CurrentRowCount(0)
 { 
     InitCapacity();
 }
