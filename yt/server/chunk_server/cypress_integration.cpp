@@ -479,7 +479,7 @@ private:
             BuildYsonFluently(consumer)
                 .DoListFor(GetKeys(), [=] (TFluentList fluent, Stroka address) {
                     if (!chunkManager->FindNodeByAddress(address) &&
-                        !GetChild(address)->Attributes().Get<bool>("banned", false))
+                        !this->GetChild(address)->Attributes().Get<bool>("banned", false))
                     {
                         fluent.Item().Scalar(address);
                     }
@@ -490,7 +490,7 @@ private:
         if (key == "banned") {
             BuildYsonFluently(consumer)
                 .DoListFor(GetKeys(), [=] (TFluentList fluent, Stroka address) {
-                    if (GetChild(address)->Attributes().Get<bool>("banned", false)) {
+                    if (this->GetChild(address)->Attributes().Get<bool>("banned", false)) {
                         fluent.Item().Scalar(address);
                     }
             });
