@@ -47,6 +47,8 @@ public:
     virtual void OnJobFailed(TJobPtr job) override;
     virtual void OnJobAborted(TJobPtr job) override;
 
+    virtual void OnNodeOffline(TExecNodePtr node) override;
+
     virtual void Abort() override;
 
     virtual TJobPtr ScheduleJob(

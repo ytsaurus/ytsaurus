@@ -551,6 +551,12 @@ void TOperationControllerBase::Abort()
     LOG_INFO("Operation aborted");
 }
 
+
+void TOperationControllerBase::OnNodeOffline(TExecNodePtr node)
+{
+    LOG_INFO("Node has gone offline");
+}
+
 TJobPtr TOperationControllerBase::ScheduleJob(
     ISchedulingContext* context,
     bool isStarving)

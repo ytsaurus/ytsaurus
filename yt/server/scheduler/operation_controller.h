@@ -174,6 +174,9 @@ struct IOperationController
     //! Called during preemption to notify the controller that a job has been aborted.
     virtual void OnJobAborted(TJobPtr job) = 0;
 
+    //! Notifies the controller that a node has gone offline.
+    virtual void OnNodeOffline(TExecNodePtr node) = 0;
+
     //! Called during heartbeat processing to request actions the node must perform.
     virtual TJobPtr ScheduleJob(
         ISchedulingContext* context,

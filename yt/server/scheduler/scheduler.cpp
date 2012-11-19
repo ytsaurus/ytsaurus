@@ -461,6 +461,8 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         LOG_INFO("Node offline: %s", ~address);
+
+        // Tell each controller that node is offline.
     
         auto node = GetNode(address);
         UnregisterNode(node);
@@ -726,6 +728,10 @@ private:
             UnregisterJob(job);
         }
         YCHECK(Nodes.erase(node->GetAddress()) == 1);
+
+        FOREACH (const auto& pair, Operations) {
+            pair.second->GetController()->OnNodeOffline(node);
+        }
     }
 
     
