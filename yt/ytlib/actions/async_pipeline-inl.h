@@ -217,7 +217,7 @@ TIntrusivePtr<
         >::TValueType
     >
 >
-TAsyncPipeline<T>::Add(TCallback<Signature> func)
+TAsyncPipeline<T>::Add(TCallback<Signature> func, IInvokerPtr invoker)
 {
     typedef typename TAsyncPipelineSignatureCracker<Signature>::ReturnType ReturnType;
     typedef typename TAsyncPipelineSignatureCracker<Signature>::ArgType ArgType;
@@ -225,8 +225,8 @@ TAsyncPipeline<T>::Add(TCallback<Signature> func)
 
     auto wrappedFunc = BIND(&TAsyncPipelineHelpers<ArgType, ReturnType>::Wrapper, func);
 
-    if (Invoker) {
-        wrappedFunc = wrappedFunc.AsyncVia(Invoker);
+    if (invoker) {
+        wrappedFunc = wrappedFunc.AsyncVia(invoker);
     }
 
     auto lazy = Lazy;
@@ -235,6 +235,22 @@ TAsyncPipeline<T>::Add(TCallback<Signature> func)
     });
 
     return New<typename ResultType::TElementType>(Invoker, newLazy);
+}
+
+template <class T>
+template <class Signature>
+TIntrusivePtr<
+    TAsyncPipeline<
+        typename TValueOrErrorHelpers<
+            typename NYT::NDetail::TFutureHelper<
+                typename TAsyncPipelineSignatureCracker<Signature>::ReturnType
+            >::TValueType
+        >::TValueType
+    >
+>
+TAsyncPipeline<T>::Add(TCallback<Signature> func)
+{
+    return Add(func, Invoker);
 }
 
 inline TIntrusivePtr< TAsyncPipeline<void> > StartAsyncPipeline(IInvokerPtr invoker)

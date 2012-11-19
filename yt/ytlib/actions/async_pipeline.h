@@ -37,6 +37,20 @@ public:
     >
     Add(TCallback<Signature> func);
 
+
+    //! Overrides default invoker.
+    template <class Signature>
+    TIntrusivePtr<
+        TAsyncPipeline<
+            typename TValueOrErrorHelpers<
+                typename NYT::NDetail::TFutureHelper<
+                    typename TAsyncPipelineSignatureCracker<Signature>::ReturnType
+                >::TValueType
+            >::TValueType
+        >
+    >
+    Add(TCallback<Signature> func, IInvokerPtr invoker);
+
 private:
     IInvokerPtr Invoker;
     TCallback< TFuture< TValueOrError<T> >() > Lazy;
