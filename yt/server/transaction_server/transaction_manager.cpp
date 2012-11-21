@@ -66,7 +66,7 @@ private:
 
     TTransactionManager::TPtr Owner;
 
-    virtual void GetSystemAttributes(std::vector<TAttributeInfo>* attributes)
+    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override
     {
         attributes->push_back("state");
         attributes->push_back("parent_id");
@@ -79,7 +79,7 @@ private:
         TBase::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
+    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const override
     {
         const auto* transaction = GetTypedImpl();
         
@@ -144,7 +144,7 @@ private:
         return TBase::GetSystemAttribute(key, consumer);
     }
 
-    virtual void DoInvoke(NRpc::IServiceContextPtr context)
+    virtual void DoInvoke(NRpc::IServiceContextPtr context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Commit);
         DISPATCH_YPATH_SERVICE_METHOD(Abort);
