@@ -1,4 +1,4 @@
-from pickle import dump
+from pickling import dump
 
 from common import YtError
 
