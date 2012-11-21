@@ -82,7 +82,13 @@ void TChunkStore::Start()
 
 void TChunkStore::RegisterChunk(TStoredChunkPtr chunk)
 {
-    YCHECK(ChunkMap.insert(MakePair(chunk->GetId(), chunk)).second);
+    auto res = ChunkMap.insert(MakePair(chunk->GetId(), chunk));
+    if (!res.second) {
+        auto oldChunk = res.first->second;
+        LOG_FATAL("Duplicate chunk (Current chunk: %s; previous chunk: %s)",
+            ~chunk->GetLocation()->GetChunkFileName(chunk->GetId()),
+            ~oldChunk->GetLocation()->GetChunkFileName(oldChunk->GetId()));
+    }
 
     auto location = chunk->GetLocation();
     location->UpdateChunkCount(+1);
