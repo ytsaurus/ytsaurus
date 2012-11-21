@@ -369,14 +369,19 @@ class YtTest(YTEnv):
     def test_python_operations(self):
         def func(rec):
             yield rec.strip() + "aaaaaaaaaa\n"
+        
+        def func_smart(rec):
+            rec = yt.line_to_record(rec)
+            rec.key = "xxx"
+            yield yt.record_to_line(rec)
 
         table = self.create_temp_table()
         other_table = TEST_DIR + "/temp_other"
-        yt.run_map(func, table, other_table)
-
-        self.assertEqual(
-            sorted(list(yt.read_table(other_table))),
-            sorted(list(chain(*imap(func, self.temp_records())))))
+        for f in [func, func_smart]:
+            yt.run_map(f, table, other_table)
+            self.assertEqual(
+                sorted(list(yt.read_table(other_table))),
+                sorted(list(chain(*imap(f, self.temp_records())))))
 
     def test_empty_output_table_deletion(self):
         table = self.create_temp_table()
