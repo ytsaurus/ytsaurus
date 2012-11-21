@@ -3,6 +3,7 @@
 #include "public.h"
 #include "config.h"
 #include "helpers.h"
+#include "dsv_symbols.h"
 
 #include <ytlib/misc/enum.h>
 
@@ -24,9 +25,7 @@ public:
     explicit TDsvWriter(
         TOutputStream* stream,
         NYTree::EYsonType type = NYTree::EYsonType::ListFragment,
-        // TODO(ignat): replace default value with YCHECK.
-        // Default value is used in tests.
-        TDsvFormatConfigPtr config = NULL);
+        TDsvFormatConfigPtr config = New<TDsvFormatConfig>());
     ~TDsvWriter();
 
     // IYsonConsumer overrides.
@@ -44,21 +43,23 @@ public:
     virtual void OnEndAttributes() override;
 
 private:
-    NYTree::EYsonType Type;
-
     TOutputStream* Stream;
+    NYTree::EYsonType Type;
     TDsvFormatConfigPtr Config;
+
+    TDsvSymbolTable SymbolTable;
 
     bool InsideFirstLine;
     bool InsideFirstItem;
-
-    void EscapeAndWrite(const TStringBuf& key, const bool* IsStopSymbol);
-    const char* FindNextEscapedSymbol(const char* begin, const char* end, const bool* IsStopSymbol);
 
     bool AllowBeginList;
     bool AllowBeginMap;
 
     NYTree::TLexer Lexer;
+
+    void EscapeAndWrite(const TStringBuf& key, const bool* IsStopSymbol);
+    const char* FindNextEscapedSymbol(const char* begin, const char* end, const bool* IsStopSymbol);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -17,7 +17,7 @@ namespace NFormats {
  */
 TAutoPtr<NYTree::IParser> CreateParserForDsv(
     NYTree::IYsonConsumer* consumer,
-    TDsvFormatConfigPtr config = NULL,
+    TDsvFormatConfigPtr config = New<TDsvFormatConfig>(),
     bool wrapWithMap = true);
 
 ////////////////////////////////////////////////////////////////////////////////

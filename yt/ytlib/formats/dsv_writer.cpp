@@ -17,22 +17,17 @@ TDsvWriter::TDsvWriter(
     TOutputStream* stream,
     EYsonType type,
     TDsvFormatConfigPtr config)
-    : Type(type)
-    , Stream(stream)
+    : Stream(stream)
+    , Type(type)
     , Config(config)
+    , SymbolTable(Config)
     , InsideFirstLine(true)
     , InsideFirstItem(true)
+    , AllowBeginList(Type == EYsonType::Node)
     , AllowBeginMap(true)
 {
-    if (!Config) {
-        Config = New<TDsvFormatConfig>();
-    }
-    if (Type == EYsonType::Node) {
-        AllowBeginList = true;
-    } else {
-        AllowBeginList = false;
-    }
-    InitDsvSymbols(Config);
+    YCHECK(Stream);
+    YCHECK(Config);
 }
 
 TDsvWriter::~TDsvWriter()
@@ -40,7 +35,7 @@ TDsvWriter::~TDsvWriter()
 
 void TDsvWriter::OnStringScalar(const TStringBuf& value)
 {
-    EscapeAndWrite(value, IsValueStopSymbol);
+    EscapeAndWrite(value, SymbolTable.IsValueStopSymbol);
 }
 
 void TDsvWriter::OnIntegerScalar(i64 value)
@@ -103,7 +98,7 @@ void TDsvWriter::OnKeyedItem(const TStringBuf& key)
         Stream->Write(Config->FieldSeparator);
     }
 
-    EscapeAndWrite(key, IsKeyStopSymbol);
+    EscapeAndWrite(key, SymbolTable.IsKeyStopSymbol);
     Stream->Write(Config->KeyValueSeparator);
 
     InsideFirstItem = false;
@@ -130,14 +125,14 @@ void TDsvWriter::OnEndAttributes()
 void TDsvWriter::EscapeAndWrite(const TStringBuf& key, const bool* isStopSymbol)
 {
     if (Config->EnableEscaping) {
-        auto current = key.begin();
-        auto end = key.end();
+        auto* current = key.begin();
+        auto* end = key.end();
         while (current != end) {
-            auto next = FindNextEscapedSymbol(current, end, isStopSymbol);
+            auto* next = FindNextEscapedSymbol(current, end, isStopSymbol);
             Stream->Write(current, next - current);
             if (next != end) {
                 Stream->Write(Config->EscapingSymbol);
-                Stream->Write(EscapingTable[static_cast<ui8>(*next)]);
+                Stream->Write(SymbolTable.EscapingTable[static_cast<ui8>(*next)]);
                 ++next;
             }
             current = next;
@@ -152,7 +147,7 @@ const char* TDsvWriter::FindNextEscapedSymbol(
     const char* end,
     const bool* isStopSymbol)
 {
-    for (auto current = begin; current != end; ++current) {
+    for (auto* current = begin; current != end; ++current) {
         if (isStopSymbol[static_cast<ui8>(*current)]) {
             return current;
         }

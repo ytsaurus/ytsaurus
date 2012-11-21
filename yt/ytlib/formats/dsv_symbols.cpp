@@ -6,17 +6,13 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// It is used instead functions for optimization dsv performance
-char EscapingTable[256] = {};
-char UnEscapingTable[256] = {};
-bool IsKeyStopSymbol[256] = {};
-bool IsValueStopSymbol[256] = {};
-
-void InitDsvSymbols(const TDsvFormatConfigPtr& config)
+TDsvSymbolTable::TDsvSymbolTable(TDsvFormatConfigPtr config)
 {
+    YCHECK(config);
+
     for (int i = 0; i < 256; ++i) {
         EscapingTable[i] = i;
-        UnEscapingTable[i] = i;
+        UnescapingTable[i] = i;
         IsKeyStopSymbol[i] = false;
         IsValueStopSymbol[i] = false;
     }
@@ -36,9 +32,9 @@ void InitDsvSymbols(const TDsvFormatConfigPtr& config)
     EscapingTable['\n'] = 'n';
     EscapingTable['\t'] = 't';
 
-    UnEscapingTable['0'] = '\0';
-    UnEscapingTable['t'] = '\t';
-    UnEscapingTable['n'] = '\n';
+    UnescapingTable['0'] = '\0';
+    UnescapingTable['t'] = '\t';
+    UnescapingTable['n'] = '\n';
 }
 
 ////////////////////////////////////////////////////////////////////////////////

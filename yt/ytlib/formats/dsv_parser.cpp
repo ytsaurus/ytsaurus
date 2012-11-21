@@ -26,6 +26,16 @@ private:
     TDsvFormatConfigPtr Config;
     bool WrapWithMap;
 
+    TDsvSymbolTable SymbolTable;
+
+    bool NewRecordStarted;
+    bool ExpectingEscapedChar;
+
+    int RecordCount;
+    int FieldCount;
+
+    Stroka CurrentToken;
+
     const char* Consume(const char* begin, const char* end);
     const char* FindStopPosition(const char* begin, const char* end) const;
 
@@ -43,30 +53,25 @@ private:
 
     EState GetStartState() const;
 
-    bool NewRecordStarted;
-    bool ExpectingEscapedChar;
-
-    int RecordCount;
-    int FieldCount;
-
-    Stroka CurrentToken;
 };
 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDsvParser::TDsvParser(IYsonConsumer* consumer, TDsvFormatConfigPtr config, bool wrapWithMap)
+TDsvParser::TDsvParser(
+    IYsonConsumer* consumer,
+    TDsvFormatConfigPtr config,
+    bool wrapWithMap)
     : Consumer(consumer)
     , Config(config)
     , WrapWithMap(wrapWithMap)
+    , SymbolTable(Config)
     , State(GetStartState())
     , NewRecordStarted(!WrapWithMap)
     , ExpectingEscapedChar(false)
     , RecordCount(1)
     , FieldCount(1)
-{
-    InitDsvSymbols(Config);
-}
+{ }
 
 void TDsvParser::Read(const TStringBuf& data)
 {
@@ -107,7 +112,7 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
         return begin + 1;
     }
     if (ExpectingEscapedChar) {
-        CurrentToken.append(UnEscapingTable[static_cast<ui8>(*begin)]);
+        CurrentToken.append(SymbolTable.UnescapingTable[static_cast<ui8>(*begin)]);
         ExpectingEscapedChar = false;
         return begin + 1;
     }
@@ -120,7 +125,7 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
     }
 
     if (*next == '\0') {
-        THROW_ERROR_EXCEPTION("Found unescaped \\0 symbol")
+        THROW_ERROR_EXCEPTION("Unescaped \\0 symbol in DSV")
             << TErrorAttribute("record_index", RecordCount)
             << TErrorAttribute("field_index", FieldCount);
     }
@@ -181,17 +186,17 @@ void TDsvParser::FinishRecord()
 
 const char* TDsvParser::FindStopPosition(const char* begin, const char* end) const
 {
-    bool* IsStopSymbol =
-        (State == EState::InsideKey) ?
-        IsKeyStopSymbol :
-        IsValueStopSymbol;
+    const bool* isStopSymbol =
+        State == EState::InsideKey
+        ? SymbolTable.IsKeyStopSymbol
+        : SymbolTable.IsValueStopSymbol;
 
-    auto current = begin;
-    for ( ; current < end; ++current) {
-        if (IsStopSymbol[static_cast<ui8>(*current)]) {
+    for (auto* current = begin; current < end; ++current) {
+        if (isStopSymbol[static_cast<ui8>(*current)]) {
             return current;
         }
     }
+
     return end;
 }
 

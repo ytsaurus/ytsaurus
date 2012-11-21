@@ -7,12 +7,15 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern char EscapingTable[256];
-extern char UnEscapingTable[256];
-extern bool IsKeyStopSymbol[256];
-extern bool IsValueStopSymbol[256];
+struct TDsvSymbolTable
+{
+    explicit TDsvSymbolTable(TDsvFormatConfigPtr config);
 
-void InitDsvSymbols(const TDsvFormatConfigPtr& config);
+    char EscapingTable[256];
+    char UnescapingTable[256];
+    bool IsKeyStopSymbol[256];
+    bool IsValueStopSymbol[256];
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
