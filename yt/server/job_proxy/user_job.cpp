@@ -248,9 +248,16 @@ private:
         return NULL;
     }
 
-    void ProcessPipes(std::vector<TDataPipePtr>& pipes)
+    void ProcessPipes(std::vector<IDataPipePtr>& pipes)
     {
         // TODO(babenko): rewrite using libuv
+        auto setError = [&] (const TError& error) {
+            TGuard<TSpinLock> guard(SpinLock);
+            if (JobExitError.IsOK()) {
+                JobExitError = error;
+            }
+        };
+
         try {
             int activePipeCount = pipes.size();
 
@@ -281,7 +288,17 @@ private:
             epoll_event events[maxEvents];
             memset(events, 0, maxEvents * sizeof(epoll_event));
 
-            while (activePipeCount > 0 && JobExitError.IsOK()) {
+            while (activePipeCount > 0) {
+                bool isOK = true;
+                {
+                    TGuard<TSpinLock> guard(SpinLock);
+                    isOK = JobExitError.IsOK();
+                }
+
+                if (!isOK) {
+                    THROW_ERROR(JobExitError);
+                }
+
                 LOG_TRACE("Waiting on epoll, %d pipes active", activePipeCount);
 
                 int epollResult = epoll_wait(epollFd, &events[0], maxEvents, -1);
@@ -305,61 +322,55 @@ private:
 
             SafeClose(epollFd);
         } catch (const std::exception& ex) {
-            TGuard<TSpinLock> guard(SpinLock);
-            if (JobExitError.IsOK()) {
-                JobExitError = ex;
-            }
+            setError(TError(ex));
         } catch (...) {
-            TGuard<TSpinLock> guard(SpinLock);
-            if (JobExitError.IsOK()) {
-                JobExitError = TError("Unknown error during job IO");
-            }
+            setError(TError("Unknown error during job IO"));
+        }
+
+        FOREACH(auto& pipe, pipes) {
+            // Close can throw exception which will cause JobProxy death.
+            // For now let's assume it is unrecoverable.
+            // Anyway, system seems to be in a very bad state if this happens.
+            pipe->CloseHandles();
         }
     }
 
     void DoJobIO()
     {
-        try {
-            InputThread.Start();
-            OutputThread.Start();
-            OutputThread.Join();
-            InputThread.Detach();
+        InputThread.Start();
+        OutputThread.Start();
+        OutputThread.Join();
 
-            // Finish all output pipes before waitpid.
-            FOREACH (auto& pipe, OutputPipes) {
-                pipe->Finish();
-            }
+        // If user process fais, InputThread may be blocked on epoll
+        // because reading end of input pipes is left open to 
+        // check that all data was consumed.
+        InputThread.Detach();
 
-            int status = 0;
-            int waitpidResult = waitpid(ProcessId, &status, 0);
-            if (waitpidResult < 0) {
-                THROW_ERROR_EXCEPTION("waitpid failed")
-                    << TError::FromSystem();
-            }
+        int status = 0;
+        int waitpidResult = waitpid(ProcessId, &status, 0);
+        if (waitpidResult < 0) {
+            THROW_ERROR_EXCEPTION("waitpid failed")
+                << TError::FromSystem();
+        }
 
-            if (!JobExitError.IsOK()) {
-                THROW_ERROR_EXCEPTION("User job IO failed")
-                    << JobExitError;
-            }
+        if (!JobExitError.IsOK()) {
+            THROW_ERROR_EXCEPTION("User job IO failed")
+                << JobExitError;
+        }
 
-            JobExitError = StatusToError(status);
-            if (!JobExitError.IsOK()) {
-                THROW_ERROR_EXCEPTION("User job failed")
-                    << JobExitError;
-            }
+        JobExitError = StatusToError(status);
+        if (!JobExitError.IsOK()) {
+            THROW_ERROR_EXCEPTION("User job failed")
+                << JobExitError;
+        }
 
-            FOREACH (auto& pipe, InputPipes) {
-                pipe->Finish();
-            }
-        } catch (...) {
-            // Try to close output pipes despite any errors.
-            FOREACH (auto& pipe, OutputPipes) {
-                try {
-                    pipe->Finish();
-                } catch (...) 
-                { }
-            }
-            throw;
+        // Stderr output pipe finishes first.
+        FOREACH (auto& pipe, OutputPipes) {
+            pipe->Finish();
+        }
+
+        FOREACH (auto& pipe, InputPipes) {
+            pipe->Finish();
         }
     }
 
@@ -415,8 +426,8 @@ private:
     TAutoPtr<TUserJobIO> JobIO;
     NScheduler::NProto::TUserJobSpec UserJobSpec;
 
-    std::vector<TDataPipePtr> InputPipes;
-    std::vector<TDataPipePtr> OutputPipes;
+    std::vector<IDataPipePtr> InputPipes;
+    std::vector<IDataPipePtr> OutputPipes;
 
     TThread InputThread;
     TThread OutputThread;

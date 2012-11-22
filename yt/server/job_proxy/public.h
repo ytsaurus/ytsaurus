@@ -21,7 +21,7 @@ typedef TIntrusivePtr<IJob> TJobPtr;
 struct IJobHost;
 
 struct IDataPipe;
-typedef TIntrusivePtr<IDataPipe> TDataPipePtr;
+typedef TIntrusivePtr<IDataPipe> IDataPipePtr;
 
 class TErrorOutput;
 

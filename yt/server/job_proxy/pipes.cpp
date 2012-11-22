@@ -259,7 +259,6 @@ bool TOutputPipe::ProcessData(ui32 epollEvent)
 
             continue;
         } else if (size == 0) {
-            Close();
             return false;
         } else { // size < 0
             switch (errno) {
@@ -270,7 +269,6 @@ bool TOutputPipe::ProcessData(ui32 epollEvent)
                     // retry
                     break;
                 default:
-                    Close();
                     return false;
             }
         }
@@ -279,24 +277,15 @@ bool TOutputPipe::ProcessData(ui32 epollEvent)
     return true;
 }
 
-void TOutputPipe::Close()
+void TOutputPipe::CloseHandles()
 {
-    if (IsClosed)
-        return;
-
     SafeClose(Pipe.ReadFd);
     LOG_DEBUG("Output pipe closed (JobDescriptor: %d)", JobDescriptor);
-    IsClosed = true;
 }
 
 void TOutputPipe::Finish()
 {
-    if (!IsFinished) {
-        Close();
-
-        IsFinished = true;
-        OutputStream->Finish();
-    }
+    OutputStream->Finish();
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -366,67 +355,63 @@ bool TInputPipe::ProcessData(ui32 epollEvents)
     if (IsFinished)
         return false;
 
-    try {
-        while (true) {
-            if (Position == Buffer->GetSize()) {
-                Position = 0;
-                Buffer->Clear();
-                while (HasData && Buffer->GetSize() < PipeBufferSize) {
-                    HasData = TableProducer->ProduceRow();
-                }
+    while (true) {
+        if (Position == Buffer->GetSize()) {
+            Position = 0;
+            Buffer->Clear();
+            while (HasData && Buffer->GetSize() < PipeBufferSize) {
+                HasData = TableProducer->ProduceRow();
             }
-
-            if (Position == Buffer->GetSize()) {
-                YCHECK(!HasData);
-                SafeClose(Pipe.WriteFd);
-                LOG_TRACE("Input pipe finished writing (JobDescriptor: %d)", JobDescriptor);
-                return false;
-            }
-
-            YASSERT(Position < Buffer->GetSize());
-
-            auto res = ::write(Pipe.WriteFd, Buffer->Begin() + Position, Buffer->GetSize() - Position);
-            LOG_TRACE("Written %" PRIPDT " bytes to input pipe (JobDescriptor: %d)", res, JobDescriptor);
-
-            if (res < 0)  {
-                if (errno == EAGAIN) {
-                    // Pipe blocked, pause writing.
-                    return true;
-                } else {
-                    // Error with pipe.
-                    THROW_ERROR_EXCEPTION("Writing to pipe failed (fd: %d, job fd: %d)",
-                        Pipe.WriteFd,
-                        JobDescriptor)
-                        << TError::FromSystem();
-                }
-            }
-
-            Position += res;
-            YASSERT(Position <= Buffer->GetSize());
         }
-    } catch (...) {
-        ::close(Pipe.WriteFd);
-        throw;
+
+        if (Position == Buffer->GetSize()) {
+            YCHECK(!HasData);
+            SafeClose(Pipe.WriteFd);
+            LOG_TRACE("Input pipe finished writing (JobDescriptor: %d)", JobDescriptor);
+            return false;
+        }
+
+        YASSERT(Position < Buffer->GetSize());
+
+        auto res = ::write(Pipe.WriteFd, Buffer->Begin() + Position, Buffer->GetSize() - Position);
+        LOG_TRACE("Written %" PRIPDT " bytes to input pipe (JobDescriptor: %d)", res, JobDescriptor);
+
+        if (res < 0)  {
+            if (errno == EAGAIN) {
+                // Pipe blocked, pause writing.
+                return true;
+            } else {
+                // Error with pipe.
+                THROW_ERROR_EXCEPTION("Writing to pipe failed (fd: %d, job fd: %d)",
+                    Pipe.WriteFd,
+                    JobDescriptor)
+                    << TError::FromSystem();
+            }
+        }
+
+        Position += res;
+        YASSERT(Position <= Buffer->GetSize());
     }
+
+}
+
+void TInputPipe::CloseHandles()
+{
+    LOG_DEBUG("Input pipe closed (JobDescriptor: %d)", JobDescriptor);
+    SafeClose(Pipe.WriteFd);
 }
 
 void TInputPipe::Finish()
 {
-    // TODO(babenko): eliminate copy-paste
-    if (IsFinished)
-        return;
-
-    IsFinished = true;
-    if (HasData) {
-        THROW_ERROR_EXCEPTION("Some data was not consumed by job (fd: %d, job fd: %d)",
-            Pipe.WriteFd,
-            JobDescriptor);
+    bool dataConsumed = !HasData;
+    if (dataConsumed) {
+        char buffer;
+        // Try to read some data from the pipe.
+        ssize_t res = read(Pipe.ReadFd, &buffer, 1);
+        dataConsumed = res > 0;
     }
 
-    // Try to read some data from the pipe.
-    char buffer;
-    ssize_t res = read(Pipe.ReadFd, &buffer, 1);
-    if (res > 0) {
+    if (!dataConsumed) {
         THROW_ERROR_EXCEPTION("Some data was not consumed by job (fd: %d, job fd: %d)",
             Pipe.WriteFd,
             JobDescriptor);

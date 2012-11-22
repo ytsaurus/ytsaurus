@@ -62,6 +62,9 @@ struct IDataPipe
      *  \returns false if pipe is closed, otherwise true.
      */
     virtual bool ProcessData(ui32 epollEvent) = 0;
+
+    //! Should be called once.
+    virtual void CloseHandles() = 0;
     virtual void Finish() = 0;
 };
 
@@ -76,14 +79,15 @@ public:
         TOutputStream* output, 
         int jobDescriptor);
 
-    void PrepareJobDescriptors();
-    void PrepareProxyDescriptors();
+    void PrepareJobDescriptors() override;
+    void PrepareProxyDescriptors() override;
 
-    int GetEpollDescriptor() const;
-    int GetEpollFlags() const;
+    int GetEpollDescriptor() const override;
+    int GetEpollFlags() const override;
 
-    bool ProcessData(ui32 epollEvent);
-    void Finish();
+    bool ProcessData(ui32 epollEvent) override;
+    void CloseHandles() override;
+    void Finish() override;
 
 private:
     TOutputStream* OutputStream;
@@ -93,7 +97,6 @@ private:
     bool IsFinished;
     bool IsClosed;
 
-    void Close();
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -113,14 +116,16 @@ public:
         TAutoPtr<NYTree::IYsonConsumer> consumer,
         int jobDescriptor);
 
-    void PrepareJobDescriptors();
-    void PrepareProxyDescriptors();
+    void PrepareJobDescriptors() override;
+    void PrepareProxyDescriptors() override;
 
-    int GetEpollDescriptor() const;
-    int GetEpollFlags() const;
+    int GetEpollDescriptor() const override;
+    int GetEpollFlags() const override;
 
-    bool ProcessData(ui32 epollEvents);
-    void Finish();
+    bool ProcessData(ui32 epollEvents) override;
+
+    void CloseHandles() override;
+    void Finish() override;
 
 private:
     TPipe Pipe;
