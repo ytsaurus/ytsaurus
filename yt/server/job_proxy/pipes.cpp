@@ -366,7 +366,6 @@ bool TInputPipe::ProcessData(ui32 epollEvents)
 
         if (Position == Buffer->GetSize()) {
             YCHECK(!HasData);
-            SafeClose(Pipe.WriteFd);
             LOG_TRACE("Input pipe finished writing (JobDescriptor: %d)", JobDescriptor);
             return false;
         }
@@ -408,16 +407,16 @@ void TInputPipe::Finish()
         char buffer;
         // Try to read some data from the pipe.
         ssize_t res = read(Pipe.ReadFd, &buffer, 1);
-        dataConsumed = res > 0;
+        dataConsumed = res <= 0;
     }
+
+    SafeClose(Pipe.ReadFd);
 
     if (!dataConsumed) {
         THROW_ERROR_EXCEPTION("Some data was not consumed by job (fd: %d, job fd: %d)",
             Pipe.WriteFd,
             JobDescriptor);
     }
-
-    SafeClose(Pipe.ReadFd);
 }
 
 ////////////////////////////////////////////////////////////////////

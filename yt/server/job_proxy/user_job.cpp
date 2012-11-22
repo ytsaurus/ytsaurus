@@ -103,24 +103,19 @@ public:
         }
 
         NScheduler::NProto::TJobResult result;
-        try {
-            if (ProcessId == 0) {
-                // Child process.
-                StartJob();
-                YUNREACHABLE();
-            }
 
-            LOG_DEBUG("Job process started");
-
-            DoJobIO();
-
-            LOG_DEBUG("Job process finished successfully");
-            ToProto(result.mutable_error(), JobExitError);
-        } catch (const std::exception& ex) {
-            TError error(ex);
-            LOG_ERROR(error, "Job failed");
-            ToProto(result.mutable_error(), error);
+        if (ProcessId == 0) {
+            // Child process.
+            StartJob();
+            YUNREACHABLE();
         }
+
+        LOG_INFO("Job process started");
+
+        DoJobIO();
+
+        LOG_INFO(JobExitError, "Job process completed");
+        ToProto(result.mutable_error(), JobExitError);
 
         // ToDo(psushin): fix this strange volleyball with StderrChunkId.
         // Keep reference to ErrorOutput in user_job_io.
@@ -248,16 +243,23 @@ private:
         return NULL;
     }
 
+    void SetError(const TError& error)
+    {
+        if (error.IsOK()) {
+            return;
+        }
+
+        TGuard<TSpinLock> guard(SpinLock);
+        if (JobExitError.IsOK()) {
+            JobExitError = TError("User job failed");
+        };
+
+        JobExitError << error;
+    }
+
     void ProcessPipes(std::vector<IDataPipePtr>& pipes)
     {
         // TODO(babenko): rewrite using libuv
-        auto setError = [&] (const TError& error) {
-            TGuard<TSpinLock> guard(SpinLock);
-            if (JobExitError.IsOK()) {
-                JobExitError = error;
-            }
-        };
-
         try {
             int activePipeCount = pipes.size();
 
@@ -322,9 +324,9 @@ private:
 
             SafeClose(epollFd);
         } catch (const std::exception& ex) {
-            setError(TError(ex));
+            SetError(TError(ex));
         } catch (...) {
-            setError(TError("Unknown error during job IO"));
+            SetError(TError("Unknown error during job IO"));
         }
 
         FOREACH(auto& pipe, pipes) {
@@ -349,28 +351,26 @@ private:
         int status = 0;
         int waitpidResult = waitpid(ProcessId, &status, 0);
         if (waitpidResult < 0) {
-            THROW_ERROR_EXCEPTION("waitpid failed")
-                << TError::FromSystem();
+            SetError(TError("waitpid failed") << TError::FromSystem());
+        } else {
+            SetError(StatusToError(status));
         }
 
-        if (!JobExitError.IsOK()) {
-            THROW_ERROR_EXCEPTION("User job IO failed")
-                << JobExitError;
-        }
-
-        JobExitError = StatusToError(status);
-        if (!JobExitError.IsOK()) {
-            THROW_ERROR_EXCEPTION("User job failed")
-                << JobExitError;
-        }
+        auto finishPipe = [&] (IDataPipePtr pipe) {
+            try {
+                pipe->Finish();
+            } catch (const std::exception& ex) {
+                SetError(TError(ex));
+            }
+        };
 
         // Stderr output pipe finishes first.
         FOREACH (auto& pipe, OutputPipes) {
-            pipe->Finish();
+            finishPipe(pipe);
         }
 
         FOREACH (auto& pipe, InputPipes) {
-            pipe->Finish();
+            finishPipe(pipe);
         }
     }
 

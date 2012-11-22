@@ -38,6 +38,7 @@ private:
     NFileClient::TFileWriterConfigPtr Config;
     NRpc::IChannelPtr MasterChannel;
     NTransactionClient::TTransactionId TransactionId;
+    bool IsClosed;
 
     TAutoPtr<NFileClient::TFileChunkOutput> FileWriter;
 };
