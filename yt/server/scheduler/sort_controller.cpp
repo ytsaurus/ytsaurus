@@ -866,6 +866,25 @@ protected:
     }
 
 
+    void OnNodeOffline(TExecNodePtr node) override
+    {
+        if (SortStartThresholdReached) {
+            std::vector<TPartitionPtr> affectedPartitions;
+            auto failedAddress = node->GetAddress();
+
+            LOG_DEBUG("Node %s gone offline, reassigning partitions", ~failedAddress);
+            FOREACH (auto partition, Partitions) {
+                if (partition->AssignedAddress == failedAddress) {
+                    affectedPartitions.push_back(partition);
+                }
+            }
+
+            LOG_DEBUG("Reassigning %d partitions", static_cast<int>(affectedPartitions.size()));
+
+            AssignPartitions(affectedPartitions);
+        }
+    }
+
     void RegisterOutputChunkTrees(TJobInProgressPtr jip, TPartition* partition)
     {
         TOperationControllerBase::RegisterOutputChunkTrees(jip, partition->Index);
@@ -937,7 +956,7 @@ protected:
         LOG_INFO("Sort start threshold reached");
 
         SortStartThresholdReached = true;
-        AssignPartitions();
+        AssignPartitions(Partitions);
         AddSortTasksPendingHints();
     }
 
@@ -977,7 +996,7 @@ protected:
         }
     }
 
-    void AssignPartitions()
+    void AssignPartitions(const std::vector<TPartitionPtr>& partitions)
     {
         auto nodes = Host->GetExecNodes();
         if (nodes.empty()) {
@@ -1002,7 +1021,7 @@ protected:
             nodeHeap.push_back(node);
         }
 
-        auto sortedPartitions = Partitions;
+        auto sortedPartitions = partitions;
         std::sort(sortedPartitions.begin(), sortedPartitions.end(), comparePartitions);
 
         // This is actually redundant since all values are 0.
