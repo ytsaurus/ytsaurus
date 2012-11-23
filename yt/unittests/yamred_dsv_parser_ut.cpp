@@ -61,6 +61,29 @@ TEST(TYamredDsvParserTest, Simple)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TEST(TYamredDsvParserTest, EmptyField)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    InSequence dummy;
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("key"));
+        EXPECT_CALL(Mock, OnStringScalar(""));
+        EXPECT_CALL(Mock, OnKeyedItem("a"));
+        EXPECT_CALL(Mock, OnStringScalar("b"));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    Stroka input = "\ta=b\n";
+    
+    auto config = New<TYamredDsvFormatConfig>();
+    config->KeyColumnNames.push_back("key");
+
+    ParseYamredDsv(input, &Mock, config);
+}
+
+////////////////////////////////////////////////////////////////////////////////
             
 } // namespace NFormats
 } // namespace NYT

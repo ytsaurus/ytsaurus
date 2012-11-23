@@ -43,9 +43,14 @@ private:
         // Feel the power of arcadia util.
         // How elegent it cuts string using the sharp axe!
         Stroka delimiter(Config->YamrKeysSeparator);
+        Stroka wholeFieldStroka(wholeField.begin(), wholeField.end());
         auto fields = splitStroku(
-            Stroka(wholeField.begin(), wholeField.end()),
+            wholeFieldStroka,
             delimiter.begin());
+        // Fixing bug in arcadia logic
+        if (wholeFieldStroka.length() == 0) {
+            fields = VectorStrok(1, "");
+        }
         
         if (fields.size() != fieldNames.size()) {
             THROW_ERROR_EXCEPTION("Invalid number of key fields in YAMRed DSV: expected %d, actual %d",
