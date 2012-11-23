@@ -990,7 +990,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::StartIOTransacti
 
 void TOperationControllerBase::OnIOTransactionsStarted(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
 {
-    VERIFY_THREAD_AFFINITY(BackgroundThread);
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
     THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error starting IO transactions");
 
