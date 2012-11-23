@@ -153,7 +153,7 @@ Examples:
     add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "pingtx",
                                           "smartformat", "force", "executable"])
     add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec",
-                                            "inputformat", "outputformat", "tx", "value",
+                                            "format", "inputformat", "outputformat", "tx", "value",
                                             "replicationfactor", "memlimit", "timeout"])
     add_multiple_args(parser, ["src", "dst", "dstappend", "file", "mapfile", "reducefile", "ytfile", "opt", "ytspec", "sortby", "reduceby"])
     add_integer_args(parser, ["jobcount", "threadcount", "chunksize", "jcmultiplier"])
@@ -361,9 +361,8 @@ Examples:
             die("Input table have differents format attributes: " + repr(input_formats))
         inputformat = yt.RawFormat.from_tree(input_formats[0])
 
-
-    inputformat = parse_format(args.inputformat)
-    outputformat = parse_format(args.outputformat)
+    inputformat = parse_format(args.inputformat if args.inputformat is not None else args.format)
+    outputformat = parse_format(args.outputformat if args.outputformat is not None else args.format)
 
     if args.tx is not None:
         config.TRANSACTION = args.tx
@@ -389,15 +388,16 @@ Examples:
         writelines_silently(
             yt.read_table(
                 yt.Table(args.read, lower_key=args.lowerkey, upper_key=args.upperkey),
+                format=inputformat,
                 response_type="iter_content"))
     if args.createtable is not None:
         yt.create_table(args.createtable)
     if args.write is not None:
         args.write = yt.Table(args.write, append=args.append)
-        yt.write_table(args.write, sys.stdin, table_writer=table_writer)
+        yt.write_table(args.write, sys.stdin, table_writer=table_writer, format=outputformat)
     if args.writesorted is not None:
         args.writesorted = yt.Table(args.writesorted, append=args.append)
-        yt.write_table(args.writesorted, sys.stdin, table_writer=table_writer)
+        yt.write_table(args.writesorted, sys.stdin, table_writer=table_writer, format=outputformat)
         yt.set_attribute(args.writesorted.name, "sorted", "true")
     if mapreduce_case:
         yt.run_map_reduce(args.map, args.reduce, args.src, dst,
