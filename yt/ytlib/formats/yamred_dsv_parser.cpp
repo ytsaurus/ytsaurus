@@ -44,9 +44,10 @@ private:
         // How elegent it cuts string using the sharp axe!
         Stroka delimiter(Config->YamrKeysSeparator);
         Stroka wholeFieldStroka(wholeField.begin(), wholeField.end());
-        auto fields = splitStroku(
+        VectorStrok fields = splitStroku(
             wholeFieldStroka,
-            delimiter.begin());
+            delimiter.begin(),
+            /*maxFields*/ fieldNames.size());
         // Fixing bug in arcadia logic
         if (wholeFieldStroka.length() == 0) {
             fields = VectorStrok(1, "");

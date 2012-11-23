@@ -71,14 +71,18 @@ TEST(TYamredDsvParserTest, EmptyField)
     EXPECT_CALL(Mock, OnBeginMap());
         EXPECT_CALL(Mock, OnKeyedItem("key"));
         EXPECT_CALL(Mock, OnStringScalar(""));
+        EXPECT_CALL(Mock, OnKeyedItem("subkey"));
+        EXPECT_CALL(Mock, OnStringScalar("0 1"));
         EXPECT_CALL(Mock, OnKeyedItem("a"));
         EXPECT_CALL(Mock, OnStringScalar("b"));
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input = "\ta=b\n";
+    Stroka input = "\t0 1\ta=b\n";
     
     auto config = New<TYamredDsvFormatConfig>();
+    config->HasSubkey = true;
     config->KeyColumnNames.push_back("key");
+    config->SubkeyColumnNames.push_back("subkey");
 
     ParseYamredDsv(input, &Mock, config);
 }
