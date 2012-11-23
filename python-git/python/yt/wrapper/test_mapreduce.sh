@@ -129,6 +129,10 @@ if __name__ == '__main__':
     done
 
     rm reformat.py
+
+    echo "{k=1;v=2}" | ./mapreduce -format yson -write "ignat/table"
+    # TODO: We need to check equality in order independent manner
+    check "v=2\tk=1" "`./mapreduce -format dsv -read "ignat/table"`"
 }
 
 test_transactions()
