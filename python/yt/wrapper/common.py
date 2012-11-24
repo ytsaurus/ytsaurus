@@ -61,3 +61,7 @@ def remove_attributes(tree):
         return map(remove_attributes, tree)
     else:
         return tree
+
+def first_not_none(iter):
+    return filter(None, iter)[0]
+
