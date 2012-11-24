@@ -203,8 +203,31 @@ test_stderr()
 
 test_smart_format()
 {
-    echo -e "key=1\tvalue=2" | ./mapreduce -smartformat -dsv -write "ignat/smart_x"
-    ./mapreduce -smartformat -map "cat" -src "ignat/smart_x" -dst "ignat/smart_y"
+    export SMART_FORMAT=1
+    ./mapreduce -createtable "ignat/smart_x"
+    ./mapreduce -set "ignat/smart_x/@_format" \
+        -value '{
+    "$value":"yamred_dsv",
+    "$attributes":{
+        "key_column_names":["x","y"],
+        "subkey_column_names":["subkey"],
+        "has_subkey":"true"
+    }
+}'
+
+    # test read/write
+    echo -e "1 2\t\tz=10" | ./mapreduce -write "ignat/smart_x"
+    check "1 2\t\tz=10" "`./mapreduce -read "ignat/smart_x"`"
+    # test columns
+    ranged_table='ignat/smart_x{x,z}'
+    check "tskv\tz=10\tx=1" "`./mapreduce -read ${ranged_table}`"
+
+    unset SMART_FORMAT
+    # write in yamr
+    echo -e "1 2\t\tz=10" | ./mapreduce -write "ignat/smart_y"
+    # convert to yamred_dsv
+    ./mapreduce -smartformat -map "cat" -src "ignat/smart_y" -dst "ignat/smart_x"
+    check "1 2\t\tz=10" "`./mapreduce -smartformat -read "ignat/smart_x"`"
 }
 
 test_drop()

@@ -81,6 +81,9 @@ def get_attribute(path, attribute, default=None):
         return default
     return get("%s/@%s" % (path, attribute))
 
+def has_attribute(path, attribute):
+    return exists("%s/@%s" % (path, attribute))
+
 def set_attribute(path, attribute, value):
     return set("%s/@%s" % (path, attribute), value)
 
