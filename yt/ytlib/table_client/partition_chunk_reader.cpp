@@ -38,14 +38,13 @@ TAsyncError TPartitionChunkReader::AsyncOpen()
     State.StartOperation();
 
     Logger.AddTag(Sprintf("ChunkId: %s", ~AsyncReader->GetChunkId().ToString()));
-    LOG_DEBUG("Initializing partition chunk reader");
 
     std::vector<int> tags;
     tags.push_back(TProtoExtensionTag<NProto::TChannelsExt>::Value);
 
-    AsyncReader->AsyncGetChunkMeta(PartitionTag, &tags)
-        .Subscribe(
-            BIND(&TPartitionChunkReader::OnGotMeta, MakeWeak(this))
+    LOG_INFO("Requesting chunk meta");
+    AsyncReader->AsyncGetChunkMeta(PartitionTag, &tags).Subscribe(
+        BIND(&TPartitionChunkReader::OnGotMeta, MakeWeak(this))
             .Via(NChunkClient::TDispatcher::Get()->GetReaderInvoker()));
 
     return State.GetOperationError();
@@ -54,23 +53,20 @@ TAsyncError TPartitionChunkReader::AsyncOpen()
 void TPartitionChunkReader::OnGotMeta(NChunkClient::IAsyncReader::TGetMetaResult result)
 {
     if (!result.IsOK()) {
-        LOG_WARNING(result, "Failed to download chunk meta");
-        State.Fail(result);
+        OnFail(result);
         return;
     }
 
-    LOG_DEBUG("Chunk meta received");
+    LOG_INFO("Chunk meta received");
 
     if (result.Value().type() != EChunkType::Table) {
         LOG_FATAL("Invalid chunk type %d", result.Value().type());
     }
 
     if (result.Value().version() != FormatVersion) {
-        auto error = TError("Invalid chunk format version: expected: %d, actual: %d", 
+        OnFail(TError("Invalid chunk format version: expected: %d, actual: %d", 
             FormatVersion,
-            result.Value().version());
-        LOG_ERROR(error);
-        State.Fail(error);
+            result.Value().version()));
         return;
     }
 
@@ -95,7 +91,7 @@ void TPartitionChunkReader::OnGotMeta(NChunkClient::IAsyncReader::TGetMetaResult
         AsyncReader,
         CodecId);
 
-    LOG_DEBUG("Reading %d blocks for partition %d", 
+    LOG_INFO("Reading %d blocks for partition %d", 
         static_cast<int>(blockSequence.size()),
         PartitionTag);
 
@@ -117,7 +113,7 @@ void TPartitionChunkReader::OnNextBlock(TError error)
         return;
     }
 
-    LOG_DEBUG("Switching to next block, current row count %" PRId64, CurrentRowIndex);
+    LOG_DEBUG("Switching to next block at row %" PRId64, CurrentRowIndex);
 
     Blocks.push_back(SequentialReader->GetBlock());
     YCHECK(Blocks.back().Size() > 0);
@@ -213,6 +209,12 @@ TFuture<void> TPartitionChunkReader::GetFetchingCompleteEvent()
 i64 TPartitionChunkReader::GetRowIndex() const
 {
     return CurrentRowIndex;
+}
+
+void TPartitionChunkReader::OnFail(const TError& error)
+{
+    LOG_WARNING(error);
+    State.Fail(error);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

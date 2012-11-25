@@ -140,7 +140,7 @@ public:
     void Initialize()
     {
         auto chunkReader = ChunkReader.Lock();
-        YASSERT(chunkReader);
+        YCHECK(chunkReader);
 
         Logger.AddTag(Sprintf("ChunkId: %s", ~AsyncReader->GetChunkId().ToString()));
 
@@ -161,6 +161,8 @@ public:
             tags.push_back(TProtoExtensionTag<NProto::TKeyColumnsExt>::Value);
         }
 
+        LOG_INFO("Requesting chunk meta");
+
         AsyncReader->AsyncGetChunkMeta(Null, &tags).Subscribe(
             BIND(&TRegularInitializer::OnGotMeta, MakeStrong(this))
             .Via(TDispatcher::Get()->GetReaderInvoker()));
@@ -169,6 +171,7 @@ public:
 private:
     void OnFail(const TError& error, TTableChunkReaderPtr chunkReader) 
     {
+        LOG_WARNING(error);
         chunkReader->Initializer.Reset();
         chunkReader->ReaderState.Fail(error);
     }
@@ -180,10 +183,7 @@ private:
             return;
 
         if (!result.IsOK()) {
-            auto error = TError("Failed to download chunk meta")
-                << result;
-            LOG_WARNING(error);
-            OnFail(error, chunkReader);
+            OnFail(result, chunkReader);
             return;
         }
 
@@ -197,7 +197,6 @@ private:
             auto error = TError("Invalid chunk format version (Expected: %d, Actual: %d)", 
                 FormatVersion,
                 result.Value().version());
-            LOG_WARNING(error);
             OnFail(error, chunkReader);
             return;
         }
@@ -224,7 +223,6 @@ private:
             if (!miscExt.sorted()) {
                 auto error = TError("Received key range read request for an unsorted chunk %s",
                     ~AsyncReader->GetChunkId().ToString());
-                LOG_WARNING(error);
                 OnFail(error, chunkReader);
                 return;
             }
@@ -232,7 +230,7 @@ private:
             chunkReader->KeyColumnsExt = GetProtoExtension<NProto::TKeyColumnsExt>(
                 result.Value().extensions());
 
-            YASSERT(chunkReader->KeyColumnsExt.values_size() > 0);
+            YCHECK(chunkReader->KeyColumnsExt.values_size() > 0);
             for (int i = 0; i < chunkReader->KeyColumnsExt.values_size(); ++i) {
                 const auto& column = chunkReader->KeyColumnsExt.values(i);
                 Channel.AddColumn(column);
@@ -298,7 +296,7 @@ private:
         ChannelsExt = GetProtoExtension<NProto::TChannelsExt>(result.Value().extensions());
 
         SelectChannels(chunkReader);
-        YASSERT(SelectedChannels.size() > 0);
+        YCHECK(SelectedChannels.size() > 0);
 
         LOG_DEBUG("Selected channels [%s]", ~JoinToString(SelectedChannels));
 
@@ -316,7 +314,7 @@ private:
 
         chunkReader->SequentialReader->AsyncNextBlock().Subscribe(
             BIND(&TRegularInitializer::OnStartingBlockReceived, MakeWeak(this), 0)
-            .Via(TDispatcher::Get()->GetReaderInvoker()));
+                .Via(TDispatcher::Get()->GetReaderInvoker()));
     }
 
     void SelectChannels(TTableChunkReaderPtr chunkReader)
@@ -333,7 +331,7 @@ private:
 
         auto remainder = Channel;
         for (int channelIdx = 0; channelIdx < ChunkChannels.size(); ++channelIdx) {
-            auto& currentChannel = ChunkChannels[channelIdx];
+            const auto& currentChannel = ChunkChannels[channelIdx];
             if (currentChannel.Overlaps(remainder)) {
                 remainder -= currentChannel;
                 SelectedChannels.push_back(channelIdx);
@@ -379,7 +377,7 @@ private:
             i64 lastRow = 0;
             while (true) {
                 ++blockIndex;
-                YASSERT(blockIndex < static_cast<int>(protoChannel.blocks_size()));
+                YCHECK(blockIndex < static_cast<int>(protoChannel.blocks_size()));
                 const auto& protoBlock = protoChannel.blocks(blockIndex);
 
                 startRow = lastRow;
@@ -420,7 +418,7 @@ private:
             std::pop_heap(blockHeap.begin(), blockHeap.end());
             blockHeap.pop_back();
 
-            YASSERT(nextBlockIndex <= protoChannel.blocks_size());
+            YCHECK(nextBlockIndex <= protoChannel.blocks_size());
 
             if (currentBlock.LastRow >= chunkReader->EndRowIndex) {
                 FOREACH (auto& block, blockHeap) {
@@ -453,10 +451,8 @@ private:
     void OnStartingBlockReceived(int selectedChannelIndex, TError error)
     {
         auto chunkReader = ChunkReader.Lock();
-        if (!chunkReader) {
-            LOG_DEBUG("Chunk reader canceled during initialization");
+        if (!chunkReader)
             return;
-        }
 
         auto& channelIdx = SelectedChannels[selectedChannelIndex];
 
@@ -528,7 +524,7 @@ private:
                 if (!chunkReader->DoNextRow()) {
                     chunkReader->RowState.GetOperationError().Subscribe(
                         BIND(&TRegularInitializer::ValidateRow, MakeWeak(this))
-                        .Via(TDispatcher::Get()->GetReaderInvoker()));
+                            .Via(TDispatcher::Get()->GetReaderInvoker()));
                     return;
                 }
             } else {
@@ -566,6 +562,7 @@ private:
     bool HasRangeRequest;
 
     NLog::TTaggedLogger Logger;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -587,15 +584,16 @@ public:
     void Initialize()
     {
         auto chunkReader = ChunkReader.Lock();
-        YASSERT(chunkReader);
+        YCHECK(chunkReader);
 
         Logger.AddTag(Sprintf("ChunkId: %s", ~AsyncReader->GetChunkId().ToString()));
-        LOG_DEBUG("Initializing partition table chunk reader");
 
         std::vector<int> tags;
         tags.reserve(10);
         tags.push_back(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
         tags.push_back(TProtoExtensionTag<NProto::TChannelsExt>::Value);
+
+        LOG_INFO("Requesting chunk meta");
 
         AsyncReader->AsyncGetChunkMeta(chunkReader->PartitionTag, &tags)
             .Subscribe(
@@ -610,20 +608,15 @@ public:
             return;
 
         if (!result.IsOK()) {
-            auto error = TError("Failed to download chunk meta")
-                << result;
-            LOG_WARNING(error);
-            OnFail(error, chunkReader);
+            OnFail(result, chunkReader);
             return;
         }
 
-        LOG_DEBUG("Chunk meta received");
+        LOG_INFO("Chunk meta received");
 
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(
             result.Value().extensions());
-
-        YASSERT(miscExt.row_count() > 0);
-
+        YCHECK(miscExt.row_count() > 0);
 
         auto channelsExt = GetProtoExtension<NProto::TChannelsExt>(result.Value().extensions());
 
@@ -702,7 +695,7 @@ TTableChunkReader::TTableChunkReader(TSequentialReaderConfigPtr config,
     , SuccessResult(MakePromise(TError()))
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YASSERT(chunkReader);
+    YCHECK(chunkReader);
 
     if (PartitionTag == DefaultPartitionTag) {
         Initializer = New<TRegularInitializer>(
@@ -739,13 +732,13 @@ bool TTableChunkReader::FetchNextItem()
     YASSERT(!ReaderState.HasRunningOperation());
     YASSERT(!Initializer);
 
-    if (!DoNextRow()) {
-        ReaderState.StartOperation();
-        RowState.GetOperationError().Subscribe(OnRowFetchedCallback);
-        return false;
-    } else {
+    if (DoNextRow()) {
         return true;
     }
+
+    ReaderState.StartOperation();
+    RowState.GetOperationError().Subscribe(OnRowFetchedCallback);
+    return false;
 }
 
 void TTableChunkReader::OnRowFetched(TError error)
@@ -776,7 +769,7 @@ bool TTableChunkReader::ContinueNextRow(
     TError error)
 {
     if (!error.IsOK()) {
-        YASSERT(RowState.HasRunningOperation());
+        YCHECK(RowState.HasRunningOperation());
         RowState.Fail(error);
         // This return value doesn't matter.
         return true;
@@ -795,7 +788,7 @@ bool TTableChunkReader::ContinueNextRow(
     while (channelIndex < ChannelReaders.size()) {
         auto& channel = ChannelReaders[channelIndex];
         if (!channel->NextRow()) {
-            YASSERT(SequentialReader->HasNext());
+            YCHECK(SequentialReader->HasNext());
 
             RowState.StartOperation();
 
@@ -868,7 +861,6 @@ const TNonOwningKey& TTableChunkReader::GetKey() const
 {
     YASSERT(!ReaderState.HasRunningOperation());
     YASSERT(!Initializer);
-
     YASSERT(Options.ReadKey);
 
     return CurrentKey;
