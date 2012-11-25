@@ -300,10 +300,6 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
         
         auto* blockInfo = response->add_blocks();
 
-        // Determine if the block is present with zero IO.
-        bool hasBlock = hasCompleteChunk || blockStore->FindBlock(blockId);
-        blockInfo->set_has_block(hasBlock);
-
         if (throttling) {
             // Cannot send the actual data to the client due to throttling.
             // Let's try to suggest some other peers.
@@ -346,13 +342,9 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
 
     awaiter->Complete(BIND([=] () {
         // Compute statistics.
-        int hasBlocks = 0;
         int blocksWithData = 0;
         int blocksWithPeers = 0;
         FOREACH (const auto& blockInfo, response->blocks()) {
-            if (blockInfo.has_block()) {
-                ++hasBlocks;
-            }
             if (blockInfo.data_attached()) {
                 ++blocksWithData;
             }
@@ -361,9 +353,8 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
             }
         }
 
-        context->SetResponseInfo("HasCompleteChunk: %s, HasBlocks: %d, BlocksWithData: %d, BlocksWithPeers: %d",
+        context->SetResponseInfo("HasCompleteChunk: %s, BlocksWithData: %d, BlocksWithPeers: %d",
             ~FormatBool(response->has_complete_chunk()),
-            hasBlocks,
             blocksWithData,
             blocksWithPeers);
 
