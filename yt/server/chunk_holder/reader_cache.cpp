@@ -6,6 +6,7 @@
 #include "location.h"
 
 #include <ytlib/chunk_client/file_reader.h>
+
 #include <ytlib/misc/cache.h>
 
 #include <util/folder/dirut.h>
@@ -61,7 +62,8 @@ public:
             if (!isexist(~fileName)) {
                 cookie.Cancel(TGetReaderResult(TError(
                     EErrorCode::NoSuchChunk,
-                    Sprintf("No such chunk: %s", ~chunkId.ToString()))));
+                    "No such chunk: %s",
+                    ~chunkId.ToString())));
             }
 
             LOG_DEBUG("Started opening chunk reader (LocationId: %s, ChunkId: %s)",

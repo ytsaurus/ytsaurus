@@ -153,7 +153,6 @@ void TDataNodeService::OnGotChunkMeta(TCtxGetChunkMetaPtr context, TNullable<int
     context->Reply();
 }
 
-
 bool TDataNodeService::CheckThrottling() const
 {
     i64 responseDataSize = NBus::TTcpDispatcher::Get()->GetStatistics().PendingOutSize;
@@ -283,6 +282,12 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
 
     bool throttling = CheckThrottling();
 
+    auto chunkStore = Bootstrap->GetChunkStore();
+    auto blockStore = Bootstrap->GetBlockStore();
+
+    bool hasCompleteChunk = chunkStore->FindChunk(chunkId);
+    response->set_has_complete_chunk(hasCompleteChunk);
+
     response->Attachments().resize(blockCount);
 
     // NB: All callbacks should be handled in the control thread.
@@ -295,9 +300,13 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
         
         auto* blockInfo = response->add_blocks();
 
+        // Determine if the block is present with zero IO.
+        bool hasBlock = hasCompleteChunk || blockStore->FindBlock(blockId);
+        blockInfo->set_has_block(hasBlock);
+
         if (throttling) {
             // Cannot send the actual data to the client due to throttling.
-            // But let's try to provide a hint a least.
+            // Let's try to suggest some other peers.
             blockInfo->set_data_attached(false);
             const auto& peers = peerBlockTable->GetPeers(blockId);
             if (!peers.empty()) {
@@ -312,18 +321,18 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
             // Fetch the actual data (either from cache or from disk).
             LOG_DEBUG("GetBlocks: Fetching block %d", blockIndex);
             awaiter->Await(
-                Bootstrap->GetBlockStore()->GetBlock(blockId, enableCaching),
+                blockStore->GetBlock(blockId, enableCaching),
                 BIND([=] (TBlockStore::TGetBlockResult result) {
                     if (result.IsOK()) {
                         // Attach the real data.
                         blockInfo->set_data_attached(true);
                         auto block = result.Value();
                         response->Attachments()[index] = block->GetData();
-                        LOG_DEBUG("GetBlocks: Block fetched (BlockIndex: %d)", blockIndex);
+                        LOG_DEBUG("GetBlocks: Fetched block %d", blockIndex);
                     } else if (result.GetCode() == TDataNodeServiceProxy::EErrorCode::NoSuchChunk) {
                         // This is really sad. We neither have the full chunk nor this particular block.
                         blockInfo->set_data_attached(false);
-                        LOG_DEBUG("GetBlocks: Chunk is missing, block is not cached (BlockIndex: %d)", blockIndex);
+                        LOG_DEBUG("GetBlocks: Chunk is missing, block %d is not cached", blockIndex);
                     } else {
                         // Something went wrong while fetching the block.
                         // The most probable cause is that a non-existing block was requested for a chunk
@@ -337,17 +346,24 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
 
     awaiter->Complete(BIND([=] () {
         // Compute statistics.
+        int hasBlocks = 0;
         int blocksWithData = 0;
         int blocksWithPeers = 0;
         FOREACH (const auto& blockInfo, response->blocks()) {
+            if (blockInfo.has_block()) {
+                ++hasBlocks;
+            }
             if (blockInfo.data_attached()) {
                 ++blocksWithData;
-            } else if (blockInfo.peer_addresses_size() != 0) {
+            }
+            if (blockInfo.peer_addresses_size() != 0) {
                 ++blocksWithPeers;
             }
         }
 
-        context->SetResponseInfo("BlocksWithData: %d, BlocksWithPeers: %d",
+        context->SetResponseInfo("HasCompleteChunk: %s, HasBlocks: %d, BlocksWithData: %d, BlocksWithPeers: %d",
+            ~FormatBool(response->has_complete_chunk()),
+            hasBlocks,
             blocksWithData,
             blocksWithPeers);
 
@@ -358,8 +374,8 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
             TPeerInfo peer(request->peer_address(), TInstant(request->peer_expiration_time()));
             for (int index = 0; index < blockCount; ++index) {
                 if (response->blocks(index).data_attached()) {
-                    int blockIndex = request->block_indexes(index);
-                    peerBlockTable->UpdatePeer(TBlockId(chunkId, blockIndex), peer);
+                    TBlockId blockId(chunkId, request->block_indexes(index));
+                    peerBlockTable->UpdatePeer(blockId, peer);
                 }
             }
         }

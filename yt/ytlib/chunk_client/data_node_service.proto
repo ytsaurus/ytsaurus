@@ -85,9 +85,11 @@ message TRspGetBlocks
     {
         required bool data_attached = 1;
         repeated string peer_addresses = 2;
+        required bool has_block = 3;
     }
 
     repeated TBlockInfo blocks = 1;
+    required bool has_complete_chunk = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -297,7 +297,7 @@ void TCacheBase<TKey, TValue, THash>::OnRemoved(TValue* value)
 }
 
 template <class TKey, class TValue, class THash>
-i32 TCacheBase<TKey, TValue, THash>::GetSize() const
+int TCacheBase<TKey, TValue, THash>::GetSize() const
 {
     return Size;
 }
@@ -385,7 +385,7 @@ void TCacheBase<TKey, TValue, THash>::TInsertCookie::EndInsert(TValuePtr value)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey, class TValue, class THash>
-TSizeLimitedCache<TKey, TValue, THash>::TSizeLimitedCache(i32 maxSize)
+TSizeLimitedCache<TKey, TValue, THash>::TSizeLimitedCache(int maxSize)
     : MaxSize(maxSize)
 { }
 

@@ -60,7 +60,7 @@ struct TRemoteReaderConfig
         Register("pass_backoff_time", PassBackoffTime)
             .Default(TDuration::Seconds(1));
         Register("pass_count", PassCount)
-            .Default(2);
+            .Default(60);
         Register("fetch_from_peers", FetchFromPeers)
             .Default(true);
         Register("publish_peer", PublishPeer)

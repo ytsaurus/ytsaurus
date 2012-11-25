@@ -50,7 +50,7 @@ public:
     typedef TPromise<TValuePtrOrError> TAsyncValuePtrOrErrorPromise;
 
     void Clear();
-    i32 GetSize() const;
+    int GetSize() const;
     TValuePtr Find(const TKey& key);
     std::vector<TValuePtr> GetAll();
 
@@ -120,7 +120,7 @@ private:
     TValueMap ValueMap;
     TItemMap ItemMap;
     TItemList LruList;
-    i32 Size;
+    int Size;
 
     void EndInsert(TValuePtr value, TInsertCookie* cookie);
     void CancelInsert(const TKey& key, const TError& error);
@@ -137,12 +137,12 @@ class TSizeLimitedCache
     : public TCacheBase<TKey, TValue, THash>
 {
 protected:
-    TSizeLimitedCache(i32 maxSize);
+    TSizeLimitedCache(int maxSize);
 
     virtual bool NeedTrim() const;
 
 private:
-    i32 MaxSize;
+    int MaxSize;
 
 };
 

@@ -41,7 +41,7 @@ TCachedBlock::TCachedBlock(
 
 TCachedBlock::~TCachedBlock()
 {
-    LOG_DEBUG("Purged cached block (BlockId: %s)", ~GetKey().ToString());
+    LOG_DEBUG("Cached block purged: %s", ~GetKey().ToString());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -81,7 +81,7 @@ public:
                 auto block = New<TCachedBlock>(blockId, data, sourceAddress);
                 cookie.EndInsert(block);
 
-                LOG_DEBUG("Block is put into cache (BlockId: %s, BlockSize: %" PRISZT ", SourceAddress: %s)",
+                LOG_DEBUG("Block is put into cache: %s (Size: %" PRISZT ", SourceAddress: %s)",
                     ~blockId.ToString(),
                     data.Size(),
                     ~ToString(sourceAddress));
@@ -103,11 +103,11 @@ public:
             auto block = result.Value();
 
             if (!TRef::CompareContent(data, block->GetData())) {
-                LOG_FATAL("Trying to cache a block for which a different cached copy already exists (BlockId: %s)",
+                LOG_FATAL("Trying to cache a block for which a different cached copy already exists: %s",
                     ~blockId.ToString());
             }
             
-            LOG_DEBUG("Block is resurrected in cache (BlockId: %s)", ~blockId.ToString());
+            LOG_DEBUG("Block is resurrected in cache: %s", ~blockId.ToString());
 
             return block;
         }
@@ -117,16 +117,28 @@ public:
         const TBlockId& blockId,
         bool enableCaching)
     {
-        auto chunk = Bootstrap->GetChunkRegistry()->FindChunk(blockId.ChunkId);
+        // During block peering, data nodes exchange individual blocks, not the complete chunks.
+        // Thus the cache may contain a block not bound to any chunk in the registry.
+        // Handle these "free" blocks first.
+        // If none is found then look for the owning chunk.
+        
+        auto freeBlock = Find(blockId);
+        if (freeBlock) {
+            LogCacheHit(freeBlock);
+            return MakeFuture(TGetBlockResult(freeBlock));
+        }
 
+        auto chunk = Bootstrap->GetChunkRegistry()->FindChunk(blockId.ChunkId);
         if (!chunk) {
             return MakeFuture(TGetBlockResult(TError(
                 TDataNodeServiceProxy::EErrorCode::NoSuchChunk,
-                Sprintf("No such chunk (ChunkId: %s)", ~blockId.ChunkId.ToString()))));
+                "No such chunk: %s",
+                ~blockId.ChunkId.ToString())));
         }
 
         if (!chunk->TryAcquireReadLock()) {
-            return MakeFuture(TGetBlockResult(TError("Cannot read chunk block %s: chunk is scheduled for removal",
+            return MakeFuture(TGetBlockResult(TError(
+                "Cannot read chunk block %s: chunk is scheduled for removal",
                 ~blockId.ToString())));
         }
 
@@ -136,7 +148,7 @@ public:
             return cookie->GetValue().Apply(BIND(&TStoreImpl::OnCacheHit, MakeStrong(this)));
         }
      
-        LOG_DEBUG("Block cache miss (BlockId: %s)", ~blockId.ToString());
+        LOG_DEBUG("Block cache miss: %s", ~blockId.ToString());
 
         chunk
             ->GetLocation()
@@ -152,24 +164,6 @@ public:
         return cookie->GetValue();
     }
 
-    TCachedBlockPtr Find(const TBlockId& blockId)
-    {
-        auto asyncResult = Lookup(blockId);
-        if (!asyncResult) {
-            LOG_DEBUG("Block cache miss (BlockId: %s)", ~blockId.ToString());
-            return NULL;            
-        }
-
-        TNullable<TGetBlockResult> maybeResult = asyncResult.TryGet();
-        if (maybeResult && maybeResult->IsOK()) {
-            LOG_DEBUG("Block cache hit (BlockId: %s)", ~blockId.ToString());
-            return maybeResult->Value();
-        } else {
-            LOG_DEBUG("Block cache miss (BlockId: %s)", ~blockId.ToString());
-            return NULL;
-        }
-    }
-
 private:
     TBootstrap* Bootstrap;
 
@@ -181,9 +175,7 @@ private:
     TGetBlockResult OnCacheHit(TGetBlockResult result)
     {
         if (result.IsOK()) {
-            auto cachedBlock = result.Value();
-            Profiler.Increment(CacheReadThroughputCounter, cachedBlock->GetData().Size());
-            LOG_DEBUG("Block cache hit (BlockId: %s)", ~cachedBlock->GetKey().ToString());
+            LogCacheHit(result.Value());
         }
         return result;
     }
@@ -213,9 +205,9 @@ private:
             blockSize,
             PendingReadSize_);
 
-        LOG_DEBUG("Started reading block (LocationId: %s, BlockId: %s)",
-            ~chunk->GetLocation()->GetId(),
-            ~blockId.ToString());
+        LOG_DEBUG("Started reading block: %s (LocationId: %s)",
+            ~blockId.ToString(),
+            ~chunk->GetLocation()->GetId());
 
         TSharedRef data;
         PROFILE_TIMING ("/chunk_io/block_read_time") {
@@ -234,9 +226,9 @@ private:
             }
         }
 
-        LOG_DEBUG("Finished reading block (LocationId: %s, BlockId: %s)",
-            ~chunk->GetLocation()->GetId(),
-            ~blockId.ToString());
+        LOG_DEBUG("Finished reading block: %s (LocationId: %s)",
+            ~blockId.ToString(),
+            ~chunk->GetLocation()->GetId());
 
         chunk->ReleaseReadLock();
         
@@ -248,7 +240,8 @@ private:
         if (!data) {
             cookie->Cancel(TError(
                 TDataNodeServiceProxy::EErrorCode::NoSuchBlock,
-                Sprintf("No such chunk block: %s", ~blockId.ToString())));
+                "No such chunk block: %s",
+                ~blockId.ToString()));
             return;
         }
 
@@ -261,6 +254,12 @@ private:
 
         Profiler.Enqueue("/chunk_io/block_read_size", blockSize);
         Profiler.Increment(ReadThroughputCounter, blockSize);
+    }
+
+    void LogCacheHit(TCachedBlockPtr block)
+    {
+        Profiler.Increment(CacheReadThroughputCounter, block->GetData().Size());
+        LOG_DEBUG("Block cache hit: %s", ~block->GetKey().ToString());
     }
 };
 
