@@ -623,7 +623,7 @@ private:
         if (!reader)
             return;
 
-        LOG_INFO("Response received peer %s", ~address);
+        LOG_INFO("Response received from %s", ~address);
 
         size_t blockCount = req->block_indexes_size();
         YCHECK(rsp->blocks_size() == blockCount);
