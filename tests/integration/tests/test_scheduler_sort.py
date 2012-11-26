@@ -159,13 +159,14 @@ class TestSchedulerSortCommands(YTEnvSetup):
         output = '//tmp/out'
         create('table', input)
         create('table', output)
-        write(input, [{'key': num} for num in xrange(5, 0, -1)])
+        write(input, [{'key': num} for num in xrange(20, 0, -1)])
 
         args = {'in_': [input], 'out' : output, 'sort_by' : 'key'}
         args.update(kwargs)
     
         sort(**args)
-        assert read(output) == [{'key': num} for num in xrange(1, 6)]
+        assert get('//tmp/out/@sorted') == 'true'
+        assert read(output) == [{'key': num} for num in xrange(1, 21)]
 
     def test_one_partition_no_merge(self):
         self.sort_with_options(opt='/spec/partition_count=1')
@@ -175,6 +176,9 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
     def test_two_partitions_no_merge(self):
         self.sort_with_options(opt='/spec/partition_count=2')
+
+    def test_ten_partitions_no_merge(self):
+        self.sort_with_options(opt='/spec/partition_count=10')
 
     def test_two_partitions_with_merge(self):
         self.sort_with_options(opt=['/spec/partition_count=2', '/spec/max_weight_per_sort_job=1'])
