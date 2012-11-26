@@ -41,10 +41,9 @@ int ParseListIndex(const TStringBuf& token)
 
 Stroka ToYPathLiteral(const Stroka& value)
 {
-    YCHECK(!value.empty());
     static const char* HexChars = "0123456789abcdef";
     Stroka result;
-    result.reserve(value.length() + 10);
+    result.reserve(value.length() + 16);
     FOREACH (char ch, value) {
         if (ch == '\\' || ch == '/' || ch == '@' || ch == '&' || ch == '[' || ch == '{') {
             result.append('\\');
