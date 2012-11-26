@@ -29,7 +29,7 @@ var version;
 try {
     version = JSON.parse(fs.readFileSync(__dirname + "/../package.json"));
 } catch (ex) {
-    version = { version : "(development)", dependencies : {} };
+    version = { version : "(development)", versionFull: "(development)", dependencies : {} };
 }
 
 // Hoist variable declaration.
@@ -124,7 +124,7 @@ dynamic_server = connect()
         "use strict";
         req.on("end", function() {
             rsp.setHeader("Content-Type", "text/plain");
-            rsp.end(version);
+            rsp.end(version.versionFull);
         });
     })
     .use("/__config__", function(req, rsp) {
