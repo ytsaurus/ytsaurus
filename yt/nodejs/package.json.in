@@ -20,7 +20,7 @@
     "winston": "0.6.2",
     "winstond": "0.0.2",
     "winston-nssocket": "0.1.0",
-    "uid-number": "0.0.3",
+    "uid-number": "0.0.3"
   },
   "devDependencies": {
     "chai": "*",
