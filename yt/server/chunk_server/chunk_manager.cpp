@@ -385,7 +385,8 @@ public:
     void AttachToChunkList(
         TChunkList* chunkList,
         const TChunkTreeRef* childrenBegin,
-        const TChunkTreeRef* childrenEnd)
+        const TChunkTreeRef* childrenEnd,
+        bool resetSorted)
     {
         auto objectManager = Bootstrap->GetObjectManager();
         chunkList->IncrementVersion();
@@ -411,25 +412,34 @@ public:
             [&] (TChunkList* current) {
                 ++delta.Rank;
                 current->Statistics().Accumulate(delta);
-                current->SortedBy().clear();
+                if (resetSorted) {
+                    current->SortedBy().clear();
+                }
             });
     }
 
     void AttachToChunkList(
         TChunkList* chunkList,
-        const std::vector<TChunkTreeRef>& children)
+        const std::vector<TChunkTreeRef>& children,
+        bool resetSorted)
     {
         AttachToChunkList(
             chunkList,
             &*children.begin(),
-            &*children.begin() + children.size());
+            &*children.begin() + children.size(),
+            resetSorted);
     }
 
     void AttachToChunkList(
         TChunkList* chunkList,
-        TChunkTreeRef childRef)
+        TChunkTreeRef childRef,
+        bool resetSorted)
     {
-        AttachToChunkList(chunkList, &childRef, &childRef + 1);
+        AttachToChunkList(
+            chunkList,
+            &childRef,
+            &childRef + 1,
+            resetSorted);
     }
 
 
@@ -1776,14 +1786,6 @@ TChunkList* TChunkManager::CreateChunkList()
     return Impl->CreateChunkList();
 }
 
-void TChunkManager::AttachToChunkList(
-    TChunkList* chunkList,
-    const TChunkTreeRef* childrenBegin,
-    const TChunkTreeRef* childrenEnd)
-{
-    Impl->AttachToChunkList(chunkList, childrenBegin, childrenEnd);
-}
-
 void TChunkManager::ConfirmChunk(
     TChunk* chunk,
     const std::vector<Stroka>& addresses,
@@ -1799,16 +1801,27 @@ void TChunkManager::ConfirmChunk(
 
 void TChunkManager::AttachToChunkList(
     TChunkList* chunkList,
-    const std::vector<TChunkTreeRef>& children)
+    const TChunkTreeRef* childrenBegin,
+    const TChunkTreeRef* childrenEnd,
+    bool resetSorted)
 {
-    Impl->AttachToChunkList(chunkList, children);
+    Impl->AttachToChunkList(chunkList, childrenBegin, childrenEnd, resetSorted);
 }
 
 void TChunkManager::AttachToChunkList(
     TChunkList* chunkList,
-    const TChunkTreeRef childRef)
+    const std::vector<TChunkTreeRef>& children,
+    bool resetSorted)
 {
-    Impl->AttachToChunkList(chunkList, childRef);
+    Impl->AttachToChunkList(chunkList, children, resetSorted);
+}
+
+void TChunkManager::AttachToChunkList(
+    TChunkList* chunkList,
+    const TChunkTreeRef childRef,
+    bool resetSorted)
+{
+    Impl->AttachToChunkList(chunkList, childRef, resetSorted);
 }
 
 void TChunkManager::RebalanceChunkTree(TChunkList* chunkList)

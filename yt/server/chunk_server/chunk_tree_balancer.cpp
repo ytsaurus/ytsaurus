@@ -82,7 +82,7 @@ void TChunkTreeBalancer::Rebalance(TChunkList* root)
 
     // Replace the children list.
     chunkManager->ClearChunkList(root);
-    chunkManager->AttachToChunkList(root, newChildren);
+    chunkManager->AttachToChunkList(root, newChildren, false);
 
     // Release the temporary references added above.
     FOREACH (auto childRef, oldChildren) {

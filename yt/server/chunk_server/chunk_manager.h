@@ -91,13 +91,16 @@ public:
     void AttachToChunkList(
         TChunkList* chunkList,
         const TChunkTreeRef* childrenBegin,
-        const TChunkTreeRef* childrenEnd);
+        const TChunkTreeRef* childrenEnd,
+        bool resetSorted = true);
     void AttachToChunkList(
         TChunkList* chunkList,
-        const std::vector<TChunkTreeRef>& children);
+        const std::vector<TChunkTreeRef>& children,
+        bool resetSorted = true);
     void AttachToChunkList(
         TChunkList* chunkList,
-        const TChunkTreeRef childRef);
+        const TChunkTreeRef childRef,
+        bool resetSorted = true);
 
     void RebalanceChunkTree(TChunkList* chunkList);
 
