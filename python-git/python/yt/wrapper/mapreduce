@@ -9,7 +9,7 @@
 # -unlock
 
 from yt.wrapper.path_tools import split_table_ranges
-from yt.wrapper.common import flatten, unlist, first_not_none
+from yt.wrapper.common import flatten, unlist, first_not_none, bool_to_string
 import yt.wrapper.config as config
 import yt.wrapper as yt
 
@@ -98,7 +98,7 @@ def writelines_silently(lines):
     except:
         raise
 
-def get_smart_format(tables, smart_format_flag):
+def get_smart_format(tables, smart_format_flag, has_subkey):
     def extract_format(table):
         table = yt.to_table(table).name
         table, ranges = split_table_ranges(table)
@@ -116,6 +116,9 @@ def get_smart_format(tables, smart_format_flag):
         die("Tables have different attribute _format: " + repr(formats))
     formats = filter(None, formats)
     if formats:
+        # Dirty hacks :(
+        if "has_subkey" in formats[0]._format.attributes:
+            formats[0]._format.attributes["has_subkey"] = bool_to_string(has_subkey)
         return formats[0]
 
 
@@ -380,12 +383,12 @@ Examples:
             vars(args)[option] = yt.RawFormat.from_yson(vars(args)[option])
 
     inputformat = first_not_none(
-        [get_smart_format([args.src, args.read], args.smartformat),
+        [get_smart_format([args.src, args.read], args.smartformat, args.subkey),
          args.format,
          args.inputformat,
          config.DEFAULT_FORMAT])
     outputformat = first_not_none(
-        [get_smart_format([dst, args.write], args.smartformat),
+        [get_smart_format([dst, args.write], args.smartformat, args.subkey),
          args.format,
          args.outputformat,
          config.DEFAULT_FORMAT])
