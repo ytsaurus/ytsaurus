@@ -159,7 +159,8 @@ class TestSchedulerSortCommands(YTEnvSetup):
         output = '//tmp/out'
         create('table', input)
         create('table', output)
-        write(input, [{'key': num} for num in xrange(20, 0, -1)])
+        for i in xrange(20, 0, -1):
+            write(input, [{'key': i}])
 
         args = {'in_': [input], 'out' : output, 'sort_by' : 'key'}
         args.update(kwargs)
