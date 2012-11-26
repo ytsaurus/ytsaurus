@@ -635,8 +635,7 @@ private:
             const auto& blockInfo = rsp->blocks(index);
             if (blockInfo.data_attached()) {
                 LOG_INFO("Received data for block %d",
-                    blockIndex,
-                    ~address);
+                    blockIndex);
                 auto block = rsp->Attachments()[index];
                 YCHECK(block);
                 
@@ -660,7 +659,8 @@ private:
         }
 
         if (IsSeed(address) && !rsp->has_complete_chunk()) {
-            LOG_INFO("Seed %s does not contain the chunk");
+            LOG_INFO("Seed %s does not contain the chunk",
+                ~address);
             BanPeer(address);
         }
     }
