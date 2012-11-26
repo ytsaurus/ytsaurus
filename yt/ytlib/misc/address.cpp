@@ -36,9 +36,7 @@ Stroka GetLocalHostName()
     if (hostName[0] == 0) {
         auto info = gethostbyname(::GetHostName());
         if (!info) {
-            // Do not create error here, because it calls 
-            // GetLocalHostName to capture origin attributes
-            ythrow yexception() << "Unable to determine local host name";
+            THROW_ERROR_EXCEPTION("Unable to determine local host name");
         }
         strcpy(hostName, info->h_name);
     }
