@@ -120,13 +120,26 @@ dynamic_server = connect()
             }
         });
     })
+    .use("/__version__", function(req, rsp) {
+        "use strict";
+        req.on("end", function() {
+            rsp.setHeader("Content-Type", "text/plain");
+            rsp.end(version);
+        });
+    })
     .use("/__config__", function(req, rsp) {
         "use strict";
-        req.on("end", function() { rsp.end(JSON.stringify(config)); });
+        req.on("end", function() {
+            rsp.setHeader("Content-Type", "application/json");
+            rsp.end(JSON.stringify(config));
+        });
     })
     .use("/__env__", function(req, rsp) {
         "use strict";
-        req.on("end", function() { rsp.end(JSON.stringify(process.env)); });
+        req.on("end", function() {
+            rsp.setHeader("Content-Type", "application/json");
+            rsp.end(JSON.stringify(process.env));
+        });
     })
     .use("/", function(req, rsp, next) {
         "use strict";
