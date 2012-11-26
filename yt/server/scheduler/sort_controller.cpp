@@ -627,8 +627,9 @@ protected:
 
         virtual void AddInputLocalityHint(TChunkStripePtr stripe) override
         {
-            UNUSED(stripe);
-            // See #GetLocality.
+            if (Controller->SimpleSort) {
+                TTask::AddInputLocalityHint(stripe);
+            }
         }
     };
 
