@@ -1,5 +1,6 @@
 // Dependencies.
 var fs = require("fs");
+var cluster = require("cluster");
 
 var connect = require("connect");
 var node_static = require("node-static");
@@ -15,6 +16,10 @@ var logger = new winston.Logger({
         new winston_nssocket.Nssocket({
             host : config.log_address,
             port : config.log_port
+        }),
+        new winston.transports.Console({
+            level : 'error',
+            timestamp : true
         })
     ]
 });
@@ -27,14 +32,67 @@ try {
     version = { version : "(development)", dependencies : {} };
 }
 
-// Fire up.
-logger.info("Starting HTTP proxy worker", { pid : process.pid });
-console.error("Starting worker (PID: %s)", process.pid);
+// Hoist variable declaration.
+var static_server;
+var dynamic_server;
 
-// Yield application server.
-var static_server = new node_static.Server(config.user_interface, { cache : 4 * 3600 });
+var violentlyDieTriggered = false;
+var violentlyDie = function violentDeath() {
+    if (violentlyDieTriggered) { return; }
+    violentlyDieTriggered = true;
 
-module.exports = connect()
+    logger.error("Dying", { wid : cluster.worker.id, pid : process.pid });
+    process.send({ type: "stopped" });
+
+    process.nextTick(function() {
+        cluster.worker.disconnect();
+        cluster.worker.destroy();
+    });
+};
+
+var gracefullyDieTriggered = false;
+var gracefullyDie = function gracefulDeath() {
+    if (gracefullyDieTriggered) { return; }
+    gracefullyDieTriggered = true;
+
+    logger.error("Prepairing to die", { wid : cluster.worker.id, pid : process.pid });
+    process.send({ type : "stopping" });
+
+    if (dynamic_server && dynamic_server.close) {
+        dynamic_server.close(violentlyDie);
+    } else {
+        violentlyDie();
+    }
+};
+
+// Fire up the heart.
+(function sendHeartbeat() {
+    process.send({ type : "heartbeat" });
+    setTimeout(sendHeartbeat, 1000);
+})();
+
+// Setup message handlers.
+process.on("message", function(message) {
+    if (!message || !message.type) {
+        return; // Improper message format.
+    }
+
+    switch (message.type) {
+        case "gracefullyDie":
+            gracefullyDie();
+            break;
+        case "violentlyDie":
+            violentlyDie();
+            break;
+    }
+});
+
+// Fire up the head.
+logger.error("Starting HTTP proxy worker", { wid : cluster.worker.id, pid : process.pid });
+
+// Setup application server.
+static_server = new node_static.Server(config.user_interface, { cache : 4 * 3600 });
+dynamic_server = connect()
     .use(connect.favicon())
     .use(yt.YtAssignRequestId())
     .use(yt.YtLogRequest(logger))
@@ -87,4 +145,13 @@ module.exports = connect()
         "use strict";
         rsp.writeHead(404, { "Content-Type" : "text/plain" });
         rsp.end("Invalid URI " + JSON.stringify(req.url) + ". Please refer to documentation at http://wiki.yandex-team.ru/YT/ to learn more about HTTP API.");
-    });
+    })
+    .listen(config.port, config.address, function() {
+        logger.error("Worker is listening", {
+            wid : cluster.worker.id,
+            pid : process.pid
+        });
+        process.send({ type : "alive" });
+    })
+    .on("close", violentlyDie);
+
