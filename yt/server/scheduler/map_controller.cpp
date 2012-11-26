@@ -10,13 +10,13 @@
 
 #include <ytlib/table_client/schema.h>
 
-#include <server/job_proxy/config.h>
-
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <ytlib/transaction_client/transaction.h>
 
 #include <ytlib/table_client/key.h>
+
+#include <server/job_proxy/config.h>
 
 #include <cmath>
 
@@ -156,6 +156,7 @@ private:
     typedef TIntrusivePtr<TMapTask> TMapTaskPtr;
 
     TMapTaskPtr MapTask;
+    TJobIOConfigPtr JobIOConfig;
     TJobSpec JobSpecTemplate;
 
 
@@ -209,6 +210,7 @@ private:
                 Spec->JobCount,
                 MapTask->ChunkCounter().GetTotal());
             
+            InitJobIOConfig();
             InitJobSpecTemplate();
 
             LOG_INFO("Inputs processed (DataSize: %" PRId64 ", ChunkCount: %" PRId64 ", JobCount: %d)",
@@ -239,6 +241,12 @@ private:
 
     // Unsorted helpers.
 
+    void InitJobIOConfig() 
+    {
+        JobIOConfig = CloneYsonSerializable(Spec->JobIO);
+        InitFinalOutputConfig(JobIOConfig);
+    }
+
     void InitJobSpecTemplate()
     {
         JobSpecTemplate.set_type(EJobType::Map);
@@ -252,7 +260,7 @@ private:
 
         *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
-        JobSpecTemplate.set_io_config(ConvertToYsonString(Spec->JobIO).Data());
+        JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
     }
 
 };

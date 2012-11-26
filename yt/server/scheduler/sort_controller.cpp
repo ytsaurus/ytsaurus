@@ -1423,35 +1423,28 @@ private:
 
     void InitJobIOConfigs() 
     {
-        {
-            PartitionJobIOConfig = CloneYsonSerializable(Spec->PartitionJobIO);
-            InitIntermediateOutputConfig(PartitionJobIOConfig);
-        }
+        PartitionJobIOConfig = CloneYsonSerializable(Spec->PartitionJobIO);
+        InitIntermediateOutputConfig(PartitionJobIOConfig);
 
-        {
-            IntermediateSortJobIOConfig = CloneYsonSerializable(Spec->SortJobIO);
-            if (!SimpleSort) {
-                InitIntermediateInputConfig(IntermediateSortJobIOConfig);
-            }
-            InitIntermediateOutputConfig(IntermediateSortJobIOConfig);
+        IntermediateSortJobIOConfig = CloneYsonSerializable(Spec->SortJobIO);
+        if (!SimpleSort) {
+            InitIntermediateInputConfig(IntermediateSortJobIOConfig);
         }
+        InitIntermediateOutputConfig(IntermediateSortJobIOConfig);
 
-        {
-            FinalSortJobIOConfig = CloneYsonSerializable(Spec->SortJobIO);
-            if (!SimpleSort) {
-                InitIntermediateInputConfig(FinalSortJobIOConfig);
-            }   
-        }
+        FinalSortJobIOConfig = CloneYsonSerializable(Spec->SortJobIO);
+        if (!SimpleSort) {
+            InitIntermediateInputConfig(FinalSortJobIOConfig);
+        }   
+        InitFinalOutputConfig(FinalSortJobIOConfig);
 
-        {
-            SortedMergeJobIOConfig = CloneYsonSerializable(Spec->MergeJobIO);
-            InitIntermediateInputConfig(SortedMergeJobIOConfig);
-        }
+        SortedMergeJobIOConfig = CloneYsonSerializable(Spec->MergeJobIO);
+        InitIntermediateInputConfig(SortedMergeJobIOConfig);
+        InitFinalOutputConfig(SortedMergeJobIOConfig);
 
-        {
-            UnorderedMergeJobIOConfig = CloneYsonSerializable(Spec->MergeJobIO);
-            InitIntermediateInputConfig(UnorderedMergeJobIOConfig);
-        }
+        UnorderedMergeJobIOConfig = CloneYsonSerializable(Spec->MergeJobIO);
+        InitIntermediateInputConfig(UnorderedMergeJobIOConfig);
+        InitFinalOutputConfig(UnorderedMergeJobIOConfig);
     }
 
     void InitJobSpecTemplates()

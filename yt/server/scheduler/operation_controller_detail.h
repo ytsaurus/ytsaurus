@@ -136,6 +136,7 @@ protected:
             : Clear(false)
             , Overwrite(false)
             , LockMode(NCypressClient::ELockMode::Shared)
+            , ReplicationFactor(0)
         { }
 
         bool Clear;
@@ -143,6 +144,7 @@ protected:
         NCypressClient::ELockMode LockMode;
         TNullable< std::vector<Stroka> > KeyColumns;
         NYTree::TYsonString Channels;
+        int ReplicationFactor;
 
         // Chunk list for appending the output.
         NChunkClient::TChunkListId OutputChunkListId;
@@ -450,9 +452,10 @@ protected:
 
     static void AddUserJobEnvironment(NScheduler::NProto::TUserJobSpec* proto, TJobInProgressPtr jip);
 
-    static void InitIntermediateOutputConfig(TJobIOConfigPtr config);
-
     static void InitIntermediateInputConfig(TJobIOConfigPtr config);
+
+    static void InitIntermediateOutputConfig(TJobIOConfigPtr config);
+    void InitFinalOutputConfig(TJobIOConfigPtr config);
 
 private:
     TChunkListPoolPtr ChunkListPool;

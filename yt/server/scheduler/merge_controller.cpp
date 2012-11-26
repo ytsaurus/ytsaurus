@@ -81,6 +81,9 @@ protected:
     //! The total data size accumulated in #CurrentTaskStripes.
     i64 CurrentTaskDataSize;
 
+    //! Customized job IO config.
+    TJobIOConfigPtr JobIOConfig;
+
     //! The template for starting new jobs.
     TJobSpec JobSpecTemplate;
 
@@ -393,6 +396,7 @@ protected:
         // Init counters.
         TotalJobCount = static_cast<int>(MergeTasks.size());
 
+        InitJobIOConfig();
         InitJobSpecTemplate();
 
         LOG_INFO("Inputs processed (DataSize: %" PRId64 ", ChunkCount: %" PRId64 ", JobCount: %d)",
@@ -485,11 +489,19 @@ protected:
         return combineChunks ? IsLargeCompleteChunk(inputChunk) : IsCompleteChunk(inputChunk);
     }
 
+    //! Initializes #JobIOConfig.
+    void InitJobIOConfig() 
+    {
+        JobIOConfig = CloneYsonSerializable(SpecBase->JobIO);
+        InitFinalOutputConfig(JobIOConfig);
+    }
+
     //! Initializes #JobSpecTemplate.
     virtual void InitJobSpecTemplate() = 0;
 
     virtual void CustomizeJobSpec(TJobInProgressPtr jip, NProto::TJobSpec* jobSpec) 
     { }
+
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -547,7 +559,7 @@ private:
 
         *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
-        JobSpecTemplate.set_io_config(ConvertToYsonString(Spec->JobIO).Data());
+        JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
     }
 };
 
@@ -628,7 +640,7 @@ private:
 
         *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
-        JobSpecTemplate.set_io_config(ConvertToYsonString(Spec->JobIO).Data());
+        JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
     }
 
 };
@@ -715,7 +727,7 @@ private:
             ToProto(jobSpecExt->mutable_key_columns(), table.KeyColumns.Get());
         }
 
-        JobSpecTemplate.set_io_config(ConvertToYsonString(Spec->JobIO).Data());
+        JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
     }
 
 };
@@ -1149,7 +1161,7 @@ private:
         auto* jobSpecExt = JobSpecTemplate.MutableExtension(NScheduler::NProto::TMergeJobSpecExt::merge_job_spec_ext);
         ToProto(jobSpecExt->mutable_key_columns(), KeyColumns);
 
-        JobSpecTemplate.set_io_config(ConvertToYsonString(Spec->JobIO).Data());
+        JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
 
         ManiacJobSpecTemplate.CopyFrom(JobSpecTemplate);
         ManiacJobSpecTemplate.set_type(EJobType::UnorderedMerge);
@@ -1243,7 +1255,7 @@ private:
             Spec->Reducer,
             Files);
 
-        JobSpecTemplate.set_io_config(ConvertToYsonString(Spec->JobIO).Data());
+        JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
 
         ManiacJobSpecTemplate.CopyFrom(JobSpecTemplate);
     }
