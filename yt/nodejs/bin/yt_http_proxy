@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 
 // Standard modules.
+var cluster = require("cluster");
 var fs = require("fs");
 var http = require("http");
 
 // NPM modules.
 var optimist = require("optimist");
 var uid_number = require("uid-number");
-var up = require("up");
 var winstond = require("winstond");
 
 var Q = require("q");
@@ -176,7 +176,7 @@ function provideWinstonTransport() {
     } else {
         return Q.fcall(function() {
             console.error("Setting up logging to console");
-            return new winstond.transports.Console({ timestamp : true, raw : true });
+            return new winstond.transports.Console({ timestamp : true, raw : false, colorize : true });
         });
     }
 }
@@ -197,45 +197,30 @@ function createLogger() {
     return Q.fcall(provideWinstonTransport).then(provideWinstonLogger);
 }
 
-function createServer() {
-    return Q.fcall(function() {
-        console.error("Proxy is listening on address '%s' on port '%s'", config.address, config.port);
-        return http.Server().listen(config.port, config.address);
-    });
-}
-
-function runProxy(logger, server) {
+function runProxy(logger) {
     process.env.YT_PROXY_CONFIGURATION = JSON.stringify(config);
     process.env.YT_PROXY_VERSION = JSON.stringify(version);
     process.env.YT_PROXY_MASTER = process.pid.toString();
 
-    var facade = up(server, __dirname + "/../lib/worker.js", {
-        numWorkers: config.number_of_workers,
-        workerTimeout: "15m",
-        minExpectedLifetime: "15s",
-        keepAlive: true,
-        assumeReady: false,
-        title: "YtHttpProxy"
+    var master = new (require(__dirname + "/../lib/master.js").that)(
+        logger, config.number_of_workers, {
+            exec : __dirname + "/../lib/worker.js",
+            args : []
     });
 
-    process.on("SIGUSR1", function() {
-        if (profiler) {
-            var snapshot = "snap-" + (new Date()).toISOString();
-            profiler.takeSnapshot(snapshot);
-        }
-    });
+    logger.error("Starting HTTP proxy master", { pid : process.pid });
 
-    process.on("SIGUSR2", function() {
-        logger.info("Reloading workers", { pid : process.pid });
-        console.error("*** SIGUSR2 received; reloading...");
-        facade.reload();
-    });
+    master.kickstart();
 
-    logger.info("Starting HTTP proxy master", { pid : process.pid });
-    console.error("Starting master (PID: %s)", process.pid);
+    process.on("SIGUSR1", master.debug.bind(master));
+    process.on("SIGUSR2", master.restartWorkers.bind(master));
+
+    process.on("SIGINT",  master.shutdownWorkers.bind(master));
+    process.on("SIGTERM", master.shutdownWorkers.bind(master));
+    process.on("SIGKILL", master.shutdownWorkers.bind(master));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 // Magic line.
-Q.all([ createLogger(), createServer() ]).spread(runProxy).end();
+Q.all([ createLogger() ]).spread(runProxy).end();
