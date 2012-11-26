@@ -565,6 +565,7 @@ public:
     }
 
     const yhash_set<TChunkId>& LostChunkIds() const;
+    const yhash_set<TChunkId>& LostVitalChunkIds() const;
     const yhash_set<TChunkId>& OverreplicatedChunkIds() const;
     const yhash_set<TChunkId>& UnderreplicatedChunkIds() const;
 
@@ -1580,6 +1581,7 @@ DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, JobList, TJobList, TChunkId, JobL
 DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, Job, TJob, TJobId, JobMap)
 
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, LostChunkIds, *ChunkReplicator);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, LostVitalChunkIds, *ChunkReplicator);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, OverreplicatedChunkIds, *ChunkReplicator);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, UnderreplicatedChunkIds, *ChunkReplicator);
 
@@ -1617,6 +1619,7 @@ TObjectId TChunkManager::TChunkTypeHandler::Create(
     auto* chunk = Owner->CreateChunk();
     chunk->SetReplicationFactor(requestExt->replication_factor());
     chunk->SetMovable(requestExt->movable());
+    chunk->SetVital(requestExt->vital());
 
     if (Owner->IsLeader()) {
         auto preferredHostName =
@@ -1632,13 +1635,14 @@ TObjectId TChunkManager::TChunkTypeHandler::Create(
             responseExt->add_node_addresses(node->GetAddress());
         }
 
-        LOG_DEBUG_UNLESS(Owner->IsRecovery(), "Allocated nodes for new chunk (ChunkId: %s, Addresses: [%s], PreferredHostName: %s, ReplicationFactor: %d, UploadReplicationFactor: %d, Movable: %s)",
+        LOG_DEBUG_UNLESS(Owner->IsRecovery(), "Allocated nodes for new chunk (ChunkId: %s, Addresses: [%s], PreferredHostName: %s, ReplicationFactor: %d, UploadReplicationFactor: %d, Movable: %s, Vital: %s)",
             ~chunk->GetId().ToString(),
             ~JoinToString(responseExt->node_addresses()),
             ~ToString(preferredHostName),
             requestExt->replication_factor(),
             requestExt->upload_replication_factor(),
-            ~FormatBool(requestExt->movable()));
+            ~FormatBool(requestExt->movable()),
+            ~FormatBool(requestExt->vital()));
     }
 
     return chunk->GetId();
@@ -1877,6 +1881,7 @@ DELEGATE_SIGNAL(TChunkManager, void(const TDataNode*), NodeRegistered, *Impl);
 DELEGATE_SIGNAL(TChunkManager, void(const TDataNode*), NodeUnregistered, *Impl);
 
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunkId>, LostChunkIds, *Impl);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunkId>, LostVitalChunkIds, *Impl);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunkId>, OverreplicatedChunkIds, *Impl);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunkId>, UnderreplicatedChunkIds, *Impl);
 

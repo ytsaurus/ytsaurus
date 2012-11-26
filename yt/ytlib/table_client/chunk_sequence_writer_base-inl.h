@@ -96,6 +96,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::CreateNextSession()
     reqExt->set_replication_factor(ReplicationFactor);
     reqExt->set_upload_replication_factor(UploadReplicationFactor);
     reqExt->set_movable(Config->ChunksMovable);
+    reqExt->set_vital(Config->ChunksVital);
 
     objectProxy.Execute(req).Subscribe(
         BIND(&TChunkSequenceWriterBase::OnChunkCreated, MakeWeak(this))

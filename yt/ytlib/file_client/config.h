@@ -25,6 +25,7 @@ struct TFileWriterConfig
     int UploadReplicationFactor;
 
     bool ChunkMovable;
+    bool ChunkVital;
 
     TFileWriterConfig()
     {
@@ -40,6 +41,8 @@ struct TFileWriterConfig
             .Default(2)
             .GreaterThanOrEqual(1);
         Register("chunk_movable", ChunkMovable)
+            .Default(true);
+        Register("chunk_vital", ChunkVital)
             .Default(true);
     }
 };

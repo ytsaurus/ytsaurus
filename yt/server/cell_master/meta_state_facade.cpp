@@ -310,6 +310,12 @@ private:
 
             CreateYPath(
                 rootService,
+                "//sys/vital_lost_chunks",
+                transactionId,
+                EObjectType::LostVitalChunkMap);
+
+            CreateYPath(
+                rootService,
                 "//sys/overreplicated_chunks",
                 transactionId,
                 EObjectType::OverreplicatedChunkMap);

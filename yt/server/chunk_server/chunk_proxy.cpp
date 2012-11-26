@@ -61,6 +61,7 @@ private:
         attributes->push_back("stored_locations");
         attributes->push_back("replication_factor");
         attributes->push_back("movable");
+        attributes->push_back("vital");
         attributes->push_back("master_meta_size");
         attributes->push_back(TAttributeInfo("owning_nodes", true, true));
         attributes->push_back(TAttributeInfo("size", chunk->IsConfirmed()));
@@ -120,6 +121,12 @@ private:
         if (key == "movable") {
             BuildYsonFluently(consumer)
                 .Scalar(chunk->GetMovable());
+            return true;
+        }
+
+        if (key == "vital") {
+            BuildYsonFluently(consumer)
+                .Scalar(chunk->GetVital());
             return true;
         }
 

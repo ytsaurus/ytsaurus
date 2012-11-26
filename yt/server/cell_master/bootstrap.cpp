@@ -191,10 +191,11 @@ void TBootstrap::Run()
         GetControlInvoker());
     RpcServer->RegisterService(orchidRpcService);
 
-    CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this));
-    CypressManager->RegisterHandler(CreateLostChunkMapTypeHandler(this));
-    CypressManager->RegisterHandler(CreateOverreplicatedChunkMapTypeHandler(this));
-    CypressManager->RegisterHandler(CreateUnderreplicatedChunkMapTypeHandler(this));
+    CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::ChunkMap));
+    CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LostChunkMap));
+    CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LostVitalChunkMap));
+    CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::UnderreplicatedChunkMap));
+    CypressManager->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::OverreplicatedChunkMap));
     CypressManager->RegisterHandler(CreateChunkListMapTypeHandler(this));
     CypressManager->RegisterHandler(CreateTransactionMapTypeHandler(this));
     CypressManager->RegisterHandler(CreateOrchidTypeHandler(this));

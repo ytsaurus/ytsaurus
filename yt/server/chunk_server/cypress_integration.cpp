@@ -42,35 +42,30 @@ static NLog::TLogger& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(EChunkFilter,
-    (All)
-    (Lost)
-    (Overreplicated)
-    (Underreplicated)
-);
-
 class TVirtualChunkMap
     : public TVirtualMapBase
 {
 public:
-    TVirtualChunkMap(TBootstrap* bootstrap, EChunkFilter filter)
+    TVirtualChunkMap(TBootstrap* bootstrap, EObjectType objectType)
         : Bootstrap(bootstrap)
-        , Filter(filter)
+        , ObjectType(objectType)
     { }
 
 private:
     TBootstrap* Bootstrap;
-    EChunkFilter Filter;
+    EObjectType ObjectType;
 
     const yhash_set<TChunkId>& GetFilteredChunkIds() const
     {
         auto chunkManager = Bootstrap->GetChunkManager();
-        switch (Filter) {
-            case EChunkFilter::Lost:
+        switch (ObjectType) {
+            case EObjectType::LostChunkMap:
                 return chunkManager->LostChunkIds();
-            case EChunkFilter::Overreplicated:
+            case EObjectType::LostVitalChunkMap:
+                return chunkManager->LostVitalChunkIds();
+            case EObjectType::OverreplicatedChunkMap:
                 return chunkManager->OverreplicatedChunkIds();
-            case EChunkFilter::Underreplicated:
+            case EObjectType::UnderreplicatedChunkMap:
                 return chunkManager->UnderreplicatedChunkIds();
             default:
                 YUNREACHABLE();
@@ -79,7 +74,7 @@ private:
 
     bool CheckFilter(const TChunkId& chunkId) const
     {
-        if (Filter == EChunkFilter::All) {
+        if (ObjectType == EObjectType::ChunkMap) {
             return true;
         }
 
@@ -89,7 +84,7 @@ private:
 
     virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
     {
-        if (Filter == EChunkFilter::All) {
+        if (ObjectType == EObjectType::ChunkMap) {
             const auto& chunkIds = Bootstrap->GetChunkManager()->GetChunkIds(sizeLimit);
             return ConvertToStrings(chunkIds.begin(), chunkIds.end(), sizeLimit);
         } else {
@@ -100,7 +95,7 @@ private:
 
     virtual size_t GetSize() const override
     {
-        if (Filter == EChunkFilter::All) {
+        if (ObjectType == EObjectType::ChunkMap) {
             return Bootstrap->GetChunkManager()->GetChunkCount();
         } else {
             return GetFilteredChunkIds().size();
@@ -125,33 +120,12 @@ private:
 
 INodeTypeHandlerPtr CreateChunkMapTypeHandler(
     TBootstrap* bootstrap,
-    EObjectType objectType,
-    EChunkFilter filter)
+    EObjectType objectType)
 {
     YCHECK(bootstrap);
 
-    auto service = New<TVirtualChunkMap>(bootstrap, filter);
+    auto service = New<TVirtualChunkMap>(bootstrap, objectType);
     return CreateVirtualTypeHandler(bootstrap, objectType, service, true);
-}
-
-INodeTypeHandlerPtr CreateChunkMapTypeHandler(TBootstrap* bootstrap)
-{
-    return CreateChunkMapTypeHandler(bootstrap, EObjectType::ChunkMap, EChunkFilter::All);
-}
-
-INodeTypeHandlerPtr CreateLostChunkMapTypeHandler(TBootstrap* bootstrap)
-{
-    return CreateChunkMapTypeHandler(bootstrap, EObjectType::LostChunkMap, EChunkFilter::Lost);
-}
-
-INodeTypeHandlerPtr CreateOverreplicatedChunkMapTypeHandler(TBootstrap* bootstrap)
-{
-    return CreateChunkMapTypeHandler(bootstrap, EObjectType::OverreplicatedChunkMap, EChunkFilter::Overreplicated);
-}
-
-INodeTypeHandlerPtr CreateUnderreplicatedChunkMapTypeHandler(TBootstrap* bootstrap)
-{
-    return CreateChunkMapTypeHandler(bootstrap, EObjectType::UnderreplicatedChunkMap, EChunkFilter::Underreplicated);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

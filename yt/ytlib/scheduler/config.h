@@ -35,6 +35,7 @@ struct TJobIOConfig
         // We do not provide much fault tolerance for stderr by default.
         ErrorFileWriter->ReplicationFactor = 1;
         ErrorFileWriter->UploadReplicationFactor = 1;
+        ErrorFileWriter->ChunkVital = false;
     }
 };
 

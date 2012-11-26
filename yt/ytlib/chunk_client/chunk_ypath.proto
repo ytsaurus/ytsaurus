@@ -49,6 +49,8 @@ message TReqCreateChunkExt
 
     // Can this chunk be balanced to other nodes?
     optional bool movable = 4 [default = true];
+
+    required bool vital = 5 [default = false];
 }
 
 message TRspCreateChunkExt

@@ -74,6 +74,7 @@ DECLARE_ENUM(EObjectType,
     ((NodeMap)(408))
     ((Node)(410))
     ((Orchid)(412))
+    ((LostVitalChunkMap)(413))
 );
 
 //! Valid types are supposed to be in range [0, MaxObjectType - 1].

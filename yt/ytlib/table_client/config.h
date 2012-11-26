@@ -69,6 +69,8 @@ struct TTableWriterConfig
     int UploadReplicationFactor;
 
     bool ChunksMovable;
+    bool ChunksVital;
+
     bool PreferLocalHost;
 
     TTableWriterConfig()
@@ -87,6 +89,8 @@ struct TTableWriterConfig
             .GreaterThanOrEqual(1)
             .Default(2);
         Register("chunks_movable", ChunksMovable)
+            .Default(true);
+        Register("chunks_vital", ChunksVital)
             .Default(true);
         Register("prefer_local_host", PreferLocalHost)
             .Default(true);

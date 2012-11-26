@@ -25,6 +25,7 @@ class TChunk
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TChunkInfo, ChunkInfo);
     DEFINE_BYVAL_RW_PROPERTY(i16, ReplicationFactor);
     DEFINE_BYVAL_RW_PROPERTY(bool, Movable);
+    DEFINE_BYVAL_RW_PROPERTY(bool, Vital);
 
     typedef TSmallVector<TChunkList*, 2> TParents;
     DEFINE_BYREF_RW_PROPERTY(TParents, Parents);

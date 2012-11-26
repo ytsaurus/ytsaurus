@@ -72,6 +72,7 @@ void TFileChunkOutput::Open()
         reqExt->set_upload_replication_factor(UploadReplicationFactor);
         reqExt->set_replication_factor(ReplicationFactor);
         reqExt->set_movable(Config->ChunkMovable);
+        reqExt->set_vital(Config->ChunkVital);
 
         auto rsp = proxy.Execute(req).Get();
         if (!rsp->IsOK()) {

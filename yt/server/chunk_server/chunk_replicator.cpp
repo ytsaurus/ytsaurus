@@ -125,6 +125,7 @@ void TChunkReplicator::OnChunkRemoved(const TChunk* chunk)
 {
     auto chunkId = chunk->GetId();
     LostChunkIds_.erase(chunkId);
+    LostVitalChunkIds_.erase(chunkId);
     UnderreplicatedChunkIds_.erase(chunkId);
     OverreplicatedChunkIds_.erase(chunkId);
 }
@@ -515,12 +516,17 @@ void TChunkReplicator::Refresh(const TChunk* chunk)
     }
     auto chunkId = chunk->GetId();
     LostChunkIds_.erase(chunkId);
+    LostVitalChunkIds_.erase(chunkId);
     OverreplicatedChunkIds_.erase(chunkId);
     UnderreplicatedChunkIds_.erase(chunkId);
 
     auto chunkManager = Bootstrap->GetChunkManager();
     if (statistics.StoredCount == 0) {
         LostChunkIds_.insert(chunkId);
+
+        if (chunk->GetVital()) {
+            LostVitalChunkIds_.insert(chunkId);
+        }
 
         LOG_TRACE("Chunk %s is lost: %d replicas needed but only %s exist",
             ~chunkId.ToString(),

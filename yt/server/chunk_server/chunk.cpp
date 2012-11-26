@@ -25,6 +25,7 @@ TChunk::TChunk(const TChunkId& id)
     : TObjectWithIdBase(id)
     , ReplicationFactor_(1)
     , Movable_(true)
+    , Vital_(true)
 {
     // Initialize required proto fields, otherwise #Save would fail.
     ChunkInfo_.set_size(UnknownSize);
@@ -63,6 +64,7 @@ void TChunk::Save(const NCellMaster::TSaveContext& context) const
     SaveProto(output, ChunkMeta_);
     ::Save(output, ReplicationFactor_);
     ::Save(output, Movable_);
+    ::Save(output, Vital_);
     SaveObjectRefs(output, Parents_);
     ::Save(output, StoredLocations_);
     SaveNullableSet(output, CachedLocations_);
@@ -77,6 +79,10 @@ void TChunk::Load(const NCellMaster::TLoadContext& context)
     LoadProto(input, ChunkMeta_);
     ::Load(input, ReplicationFactor_);
     ::Load(input, Movable_);
+    // COMPAT(psushin)
+    if (context.GetVersion() >= 4) {
+        ::Load(input, Vital_);
+    }
     LoadObjectRefs(input, Parents_, context);
     ::Load(input, StoredLocations_);
     LoadNullableSet(input, CachedLocations_);

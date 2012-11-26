@@ -10,13 +10,7 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NCypressServer::INodeTypeHandlerPtr CreateChunkMapTypeHandler(NCellMaster::TBootstrap* bootstrap);
-
-NCypressServer::INodeTypeHandlerPtr CreateLostChunkMapTypeHandler(NCellMaster::TBootstrap* bootstrap);
-
-NCypressServer::INodeTypeHandlerPtr CreateOverreplicatedChunkMapTypeHandler(NCellMaster::TBootstrap* bootstrap);
-
-NCypressServer::INodeTypeHandlerPtr CreateUnderreplicatedChunkMapTypeHandler(NCellMaster::TBootstrap* bootstrap);
+NCypressServer::INodeTypeHandlerPtr CreateChunkMapTypeHandler(NCellMaster::TBootstrap* bootstrap, NObjectClient::EObjectType objectType);
 
 NCypressServer::INodeTypeHandlerPtr CreateChunkListMapTypeHandler(NCellMaster::TBootstrap* bootstrap);
 

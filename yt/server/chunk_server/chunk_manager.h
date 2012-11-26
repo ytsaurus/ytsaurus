@@ -127,6 +127,7 @@ public:
         ::google::protobuf::RepeatedPtrField< TProtoStringType>* addresses,
         const TChunk* chunk);
 
+    const yhash_set<TChunkId>& LostVitalChunkIds() const;
     const yhash_set<TChunkId>& LostChunkIds() const;
     const yhash_set<TChunkId>& OverreplicatedChunkIds() const;
     const yhash_set<TChunkId>& UnderreplicatedChunkIds() const;

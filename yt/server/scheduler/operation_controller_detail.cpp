@@ -1641,6 +1641,7 @@ void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr conf
 
     // Don't move intermediate chunks.
     config->TableWriter->ChunksMovable = false;
+    config->TableWriter->ChunksVital = false;
 }
 
 void TOperationControllerBase::InitIntermediateInputConfig(TJobIOConfigPtr config)
