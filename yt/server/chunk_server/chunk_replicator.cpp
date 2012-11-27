@@ -158,7 +158,7 @@ void TChunkReplicator::ProcessExistingJobs(
         const auto* job = chunkManager->FindJob(jobId);
 
         if (!job) {
-            LOG_WARNING("Stopping unknown or obsolete job %s on %s",
+            LOG_WARNING("Stopping unknown or obsolete job (JobId: %s, Address: %s)",
                 ~jobId.ToString(),
                 ~node->GetAddress());
             TJobStopInfo stopInfo;
@@ -182,7 +182,8 @@ void TChunkReplicator::ProcessExistingJobs(
                     default:
                         YUNREACHABLE();
                 }
-                LOG_INFO("Job %s is running on %s",
+
+                LOG_INFO("Job is running (JobId: %s, Address: %s)",
                     ~jobId.ToString(),
                     ~node->GetAddress());
 
@@ -191,14 +192,26 @@ void TChunkReplicator::ProcessExistingJobs(
                     *stopInfo.mutable_job_id() = jobId.ToProto();
                     jobsToStop->push_back(stopInfo);
 
-                    LOG_WARNING("Job %s has timed out on %s after %s",
+                    LOG_WARNING("Job timed out (JobId: %s, Address: %s, Duration: %s)",
                         ~jobId.ToString(),
                         ~node->GetAddress(),
                         ~ToString(TInstant::Now() - job->GetStartTime()));
                 }
                 break;
 
-            case EJobState::Completed:
+            case EJobState::Completed: {
+                TJobStopInfo stopInfo;
+                *stopInfo.mutable_job_id() = jobId.ToProto();
+                jobsToStop->push_back(stopInfo);
+
+                ScheduleChunkRefresh(job->GetChunkId());
+
+                LOG_INFO("Job completed (JobId: %s, Address: %s)",
+                    ~jobId.ToString(),
+                    ~node->GetAddress());
+                break;
+            }
+                                    
             case EJobState::Failed: {
                 TJobStopInfo stopInfo;
                 *stopInfo.mutable_job_id() = jobId.ToProto();
@@ -206,9 +219,10 @@ void TChunkReplicator::ProcessExistingJobs(
 
                 ScheduleChunkRefresh(job->GetChunkId());
 
-                LOG_INFO("Job %s has %s on %s",
+                LOG_WARNING(
+                    FromProto(jobInfo.error()),
+                    "Job failed (JobId: %s, Address: %s)",
                     ~jobId.ToString(),
-                    jobState == EJobState::Completed ? "completed" : "failed",
                     ~node->GetAddress());
                 break;
             }
@@ -226,7 +240,7 @@ void TChunkReplicator::ProcessExistingJobs(
             *stopInfo.mutable_job_id() = jobId.ToProto();
             jobsToStop->push_back(stopInfo);
 
-            LOG_WARNING("Job %s is missing on %s",
+            LOG_WARNING("Job is missing (JobId: %s, Address: %s)",
                 ~jobId.ToString(),
                 ~node->GetAddress());
         }
@@ -309,7 +323,7 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleBalancingJob(
     auto chunkId = chunk->GetId();
 
     if (IsRefreshScheduled(chunkId)) {
-        LOG_DEBUG("Chunk %s we're about to balance is scheduled for another refresh",
+        LOG_TRACE("Chunk %s we're about to balance is scheduled for another refresh",
             ~chunkId.ToString());
         return EScheduleFlags::None;
     }
@@ -317,7 +331,14 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleBalancingJob(
     double maxFillCoeff =
         ChunkPlacement->GetFillCoeff(sourceNode) -
         Config->ChunkReplicator->MinBalancingFillCoeffDiff;
-    auto targetNode = ChunkPlacement->GetBalancingTarget(chunk, maxFillCoeff);
+
+    if (ChunkPlacement->HasBalancingTargets(maxFillCoeff)) {
+        LOG_DEBUG("No suitable target nodes with fill < %ld to balance chunks",
+            maxFillCoeff);
+        return EScheduleFlags::None;
+    }
+
+    auto* targetNode = ChunkPlacement->GetBalancingTarget(chunk, maxFillCoeff);
     if (targetNode == NULL) {
         LOG_DEBUG("No suitable target nodes to balance chunk %s",
             ~chunkId.ToString());
@@ -350,12 +371,13 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleRemovalJob(
     std::vector<TJobStartInfo>* jobsToStart)
 {
     if (IsRefreshScheduled(chunkId)) {
-        LOG_DEBUG("Chunk %s we're about to remove is scheduled for another refresh",
+        LOG_TRACE("Chunk %s we're about to remove is scheduled for another refresh",
             ~chunkId.ToString());
         return EScheduleFlags::None;
     }
     
     auto jobId = TJobId::Create();
+
     TJobStartInfo startInfo;
     *startInfo.mutable_job_id() = jobId.ToProto();
     startInfo.set_type(EJobType::Remove);
@@ -386,9 +408,8 @@ void TChunkReplicator::ScheduleNewJobs(
         auto& chunksToReplicate = nodeInfo->ChunksToReplicate;
         auto it = chunksToReplicate.begin();
         while (it != chunksToReplicate.end()) {
-            auto jt = it;
-            ++jt;
-            const auto& chunkId = *it;
+            auto jt = it++;
+            const auto& chunkId = *jt;
             if (maxReplicationJobsToStart == 0) {
                 break;
             }
@@ -397,9 +418,8 @@ void TChunkReplicator::ScheduleNewJobs(
                 --maxReplicationJobsToStart;
             }
             if (flags & EScheduleFlags::Purged) {
-                chunksToReplicate.erase(it);
+                chunksToReplicate.erase(jt);
             }
-            it = jt;
         }
     }
 
@@ -424,9 +444,8 @@ void TChunkReplicator::ScheduleNewJobs(
         auto& chunksToRemove = nodeInfo->ChunksToRemove;
         auto it = chunksToRemove.begin();
         while (it != chunksToRemove.end()) {
-            const auto& chunkId = *it;
-            auto jt = it;
-            ++jt;
+            auto jt = it++;
+            const auto& chunkId = *jt;
             if (maxRemovalJobsToStart == 0) {
                 break;
             }
@@ -435,9 +454,8 @@ void TChunkReplicator::ScheduleNewJobs(
                 --maxRemovalJobsToStart;
             }
             if (flags & EScheduleFlags::Purged) {
-                chunksToRemove.erase(it);
+                chunksToRemove.erase(jt);
             }
-            it = jt;
         }
     }
 }

@@ -34,10 +34,13 @@ public:
     EJobType GetType() const;
 
     //! Returns the id.
-    TJobId GetJobId() const;
+    const TJobId& GetJobId() const;
 
     //! Returns the current state.
     EJobState GetState() const;
+
+    //! Returns the error (only valid for failed jobs).
+    const TError& GetError() const;
 
     //! Returns data nod addresses where the chunk is being replicated to.
     std::vector<Stroka> GetTargetAddresses() const;
@@ -56,6 +59,8 @@ private:
     NChunkClient::IAsyncWriterPtr Writer;
     TCancelableContextPtr CancelableContext;
     IInvokerPtr CancelableInvoker;
+
+    TError Error;
     
     NLog::TTaggedLogger Logger;
 

@@ -56,7 +56,7 @@ EJobType TJob::GetType() const
     return JobType;
 }
 
-TJobId TJob::GetJobId() const
+const TJobId& TJob::GetJobId() const
 {
     return JobId;
 }
@@ -64,6 +64,11 @@ TJobId TJob::GetJobId() const
 EJobState TJob::GetState() const
 {
     return State;
+}
+
+const TError& TJob::GetError() const
+{
+    return Error;
 }
 
 std::vector<Stroka> TJob::GetTargetAddresses() const
@@ -205,7 +210,8 @@ void TJob::SetCompleted()
 void TJob::SetFailed(const TError& error)
 {
     State = EJobState::Failed;
-    LOG_ERROR(error, "Job failed");
+    Error = error;
+    LOG_ERROR(Error, "Job failed");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

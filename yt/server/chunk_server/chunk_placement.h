@@ -31,21 +31,28 @@ public:
         int count,
         const yhash_set<Stroka>* forbiddenAddresses,
         Stroka* preferredHostName);
-    std::vector<TDataNode*> GetReplicationTargets(const TChunk* chunk, int count);
+    
     std::vector<TDataNode*> GetRemovalTargets(const TChunk* chunk, int count);
+
+    std::vector<TDataNode*> GetReplicationTargets(const TChunk* chunk, int count);
     TDataNode* GetReplicationSource(const TChunk* chunk);
+
     std::vector<TChunk*> GetBalancingChunks(TDataNode* node, int count);
+    bool HasBalancingTargets(double maxFillCoeff);
     TDataNode* GetBalancingTarget(TChunk *chunk, double maxFillCoeff);
    
 private:
-    typedef ymultimap<double, TDataNode*> TLoadFactorMap;
-    typedef yhash_map<TDataNode*, TLoadFactorMap::iterator> TIteratorMap;
+    typedef ymultimap<double, TDataNode*> TCoeffToNode;
+    typedef yhash_map<TDataNode*, TCoeffToNode::iterator> TNodeToCoeffIt;
 
     TChunkManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
 
-    TLoadFactorMap LoadFactorMap;
-    TIteratorMap IteratorMap;
+    TCoeffToNode LoadFactorToNode;
+    TNodeToCoeffIt NodeToLoadFactorIt;
+
+    TCoeffToNode FillCoeffToNode;
+    TNodeToCoeffIt NodeToFillCoeffIt;
 
     static bool IsFull(TDataNode* node);
     static bool IsValidUploadTarget(TDataNode* targetNode);

@@ -231,6 +231,9 @@ void TMasterConnector::SendIncrementalHeartbeat()
         auto* info = request->add_jobs();
         *info->mutable_job_id() = job->GetJobId().ToProto();
         info->set_state(job->GetState());
+        if (job->GetState() == EJobState::Failed) {
+            ToProto(info->mutable_error(), job->GetError());
+        }
     }
 
     request->Invoke().Subscribe(

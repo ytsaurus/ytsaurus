@@ -1,6 +1,7 @@
 package NYT.NChunkServer.NProto;
 
 import "yt/ytlib/misc/guid.proto";
+import "yt/ytlib/misc/error.proto";
 import "yt/ytlib/chunk_client/chunk.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,6 +43,7 @@ message TJobInfo
 {
     required NYT.NProto.TGuid job_id = 1;
     required int32 state = 2;
+    optional NYT.NProto.TError error = 3;
 }
 
 message TJobStartInfo

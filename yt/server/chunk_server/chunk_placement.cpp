@@ -35,18 +35,34 @@ TChunkPlacement::TChunkPlacement(
 
 void TChunkPlacement::OnNodeRegistered(TDataNode* node)
 {
-    double loadFactor = GetLoadFactor(node);
-    auto it = LoadFactorMap.insert(MakePair(loadFactor, node));
-    YCHECK(IteratorMap.insert(MakePair(node, it)).second);
+    {
+        double loadFactor = GetLoadFactor(node);
+        auto it = LoadFactorToNode.insert(std::make_pair(loadFactor, node));
+        YCHECK(NodeToLoadFactorIt.insert(std::make_pair(node, it)).second);
+    }
+    {
+        double fillCoeff = GetFillCoeff(node);
+        auto it = FillCoeffToNode.insert(std::make_pair(fillCoeff, node));
+        YCHECK(NodeToFillCoeffIt.insert(std::make_pair(node, it)).second);
+    }
 }
 
 void TChunkPlacement::OnNodeUnregistered(TDataNode* node)
 {
-    auto iteratorIt = IteratorMap.find(node);
-    YASSERT(iteratorIt != IteratorMap.end());
-    auto preferenceIt = iteratorIt->second;
-    LoadFactorMap.erase(preferenceIt);
-    IteratorMap.erase(iteratorIt);
+    {
+        auto itIt = NodeToLoadFactorIt.find(node);
+        YCHECK(itIt != NodeToLoadFactorIt.end());
+        auto it = itIt->second;
+        LoadFactorToNode.erase(it);
+        NodeToLoadFactorIt.erase(itIt);
+    }
+    {
+        auto itIt = NodeToFillCoeffIt.find(node);
+        YCHECK(itIt != NodeToFillCoeffIt.end());
+        auto it = itIt->second;
+        FillCoeffToNode.erase(it);
+        NodeToFillCoeffIt.erase(itIt);
+    }
 }
 
 void TChunkPlacement::OnNodeUpdated(TDataNode* node)
@@ -73,7 +89,7 @@ std::vector<TDataNode*> TChunkPlacement::GetUploadTargets(
 
     typedef std::pair<TDataNode*, int> TFeasibleNode;
     std::vector<TFeasibleNode> feasibleNodes;
-    feasibleNodes.reserve(LoadFactorMap.size());
+    feasibleNodes.reserve(LoadFactorToNode.size());
 
     TDataNode* preferredNode = NULL;
 
@@ -89,7 +105,7 @@ std::vector<TDataNode*> TChunkPlacement::GetUploadTargets(
     }
 
     // Put other feasible nodes to feasibleNodes.
-    FOREACH (auto& pair, LoadFactorMap) {
+    FOREACH (auto& pair, LoadFactorToNode) {
         auto* node = pair.second;
         if (node != preferredNode &&
             IsValidUploadTarget(node) &&
@@ -171,17 +187,17 @@ TDataNode* TChunkPlacement::GetReplicationSource(const TChunk* chunk)
 std::vector<TDataNode*> TChunkPlacement::GetRemovalTargets(const TChunk* chunk, int count)
 {
     // Construct a list of (nodeId, loadFactor) pairs.
-    typedef TPair<TDataNode*, double> TCandidatePair;
-    std::vector<TCandidatePair> candidates;
+    typedef std::pair<TDataNode*, double> TCandidatePair;
+    TSmallVector<TCandidatePair, 10> candidates;
     auto chunkManager = Bootstrap->GetChunkManager();
     candidates.reserve(chunk->StoredLocations().size());
     FOREACH (auto nodeId, chunk->StoredLocations()) {
         auto* node = chunkManager->GetNode(nodeId);
-        double loadFactor = GetFillCoeff(node);
-        candidates.push_back(MakePair(node, loadFactor));
+        double fillCoeff = GetFillCoeff(node);
+        candidates.push_back(MakePair(node, fillCoeff));
     }
 
-    // Sort by loadFactor in descending order.
+    // Sort by fillCoeff in descending order.
     std::sort(
         candidates.begin(),
         candidates.end(),
@@ -201,10 +217,19 @@ std::vector<TDataNode*> TChunkPlacement::GetRemovalTargets(const TChunk* chunk, 
     return result;
 }
 
+bool TChunkPlacement::HasBalancingTargets(double maxFillCoeff)
+{
+    if (FillCoeffToNode.empty())
+        return false;
+
+    auto* node = FillCoeffToNode.begin()->second;
+    return GetFillCoeff(node) < maxFillCoeff;
+}
+
 TDataNode* TChunkPlacement::GetBalancingTarget(TChunk* chunk, double maxFillCoeff)
 {
     auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH (const auto& pair, LoadFactorMap) {
+    FOREACH (const auto& pair, FillCoeffToNode) {
         auto node = pair.second;
         if (GetFillCoeff(node) > maxFillCoeff) {
             break;
