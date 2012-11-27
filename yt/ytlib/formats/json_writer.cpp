@@ -62,8 +62,8 @@ TJsonWriter::TJsonWriter(TOutputStream* output, TJsonFormatConfigPtr config)
         output,
         Config->Format == EJsonFormat::Pretty));
     JsonWriter = ~UnderlyingJsonWriter;
-    HasAttributes_ = false;
-    InAttributesBalance_ = 0;
+    HasAttributes = false;
+    InAttributesBalance = 0;
 }
 
 TJsonWriter::~TJsonWriter()
@@ -74,42 +74,40 @@ TJsonWriter::~TJsonWriter()
 void TJsonWriter::EnterNode()
 {
     if (Config->AttributesMode == EJsonAttributesMode::Never) {
-        HasAttributes_ = false;
-    }
-    else if (Config->AttributesMode == EJsonAttributesMode::OnDemand) {
+        HasAttributes = false;
+    } else if (Config->AttributesMode == EJsonAttributesMode::OnDemand) {
         // Do nothing
-    }
-    else if (Config->AttributesMode == EJsonAttributesMode::Always) {
-        if (!HasAttributes_) {
+    } else if (Config->AttributesMode == EJsonAttributesMode::Always) {
+        if (!HasAttributes) {
             JsonWriter->OpenMap();
             JsonWriter->Write("$attributes");
             JsonWriter->OpenMap();
             JsonWriter->CloseMap();
         }
-        HasAttributes_ = true;
+        HasAttributes = true;
     }
-    HasUnfoldedStructureStack_.push_back(HasAttributes_);
+    HasUnfoldedStructureStack.push_back(HasAttributes);
 
-    if (HasAttributes_) {
+    if (HasAttributes) {
         JsonWriter->Write("$value");
-        HasAttributes_ = false;
+        HasAttributes = false;
     }
 }
 
 void TJsonWriter::LeaveNode()
 {
-    YCHECK(!HasUnfoldedStructureStack_.empty());
-    if (HasUnfoldedStructureStack_.back()) {
+    YCHECK(!HasUnfoldedStructureStack.empty());
+    if (HasUnfoldedStructureStack.back()) {
         // Close map of the {$attributes, $value}
         JsonWriter->CloseMap();
     }
-    HasUnfoldedStructureStack_.pop_back();
+    HasUnfoldedStructureStack.pop_back();
 }
 
 bool TJsonWriter::IsWriteAllowed()
 {
     if (Config->AttributesMode == EJsonAttributesMode::Never) {
-        return InAttributesBalance_ == 0;
+        return InAttributesBalance == 0;
     }
     return true;
 }
@@ -194,7 +192,7 @@ void TJsonWriter::OnEndMap()
 
 void TJsonWriter::OnBeginAttributes()
 {
-    InAttributesBalance_ += 1;
+    InAttributesBalance += 1;
     if (Config->AttributesMode != EJsonAttributesMode::Never) {
         JsonWriter->OpenMap();
         JsonWriter->Write("$attributes");
@@ -204,9 +202,9 @@ void TJsonWriter::OnBeginAttributes()
 
 void TJsonWriter::OnEndAttributes()
 {
-    InAttributesBalance_ -= 1;
+    InAttributesBalance -= 1;
     if (Config->AttributesMode != EJsonAttributesMode::Never) {
-        HasAttributes_ = true;
+        HasAttributes = true;
         JsonWriter->CloseMap();
     }
 }

@@ -83,9 +83,9 @@ private:
     void LeaveNode();
     bool IsWriteAllowed();
 
-    std::vector<bool> HasUnfoldedStructureStack_;
-    int InAttributesBalance_;
-    bool HasAttributes_;
+    std::vector<bool> HasUnfoldedStructureStack;
+    int InAttributesBalance;
+    bool HasAttributes;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

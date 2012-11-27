@@ -66,11 +66,11 @@ TDsvParser::TDsvParser(
     , Config(config)
     , WrapWithMap(wrapWithMap)
     , SymbolTable(Config)
-    , State(GetStartState())
-    , NewRecordStarted(!WrapWithMap)
+    , NewRecordStarted(!wrapWithMap)
     , ExpectingEscapedChar(false)
     , RecordCount(1)
     , FieldCount(1)
+    , State(GetStartState())
 { }
 
 void TDsvParser::Read(const TStringBuf& data)
