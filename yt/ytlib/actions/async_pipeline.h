@@ -21,7 +21,7 @@ public:
 
     TAsyncPipeline(
         IInvokerPtr invoker,
-        TCallback< TFuture< TValueOrError<T> >() > head);
+        TCallback< TFuture< TValueOrError<T> >() > lazy);
 
     TFuture< TValueOrError<T> > Run();
 
@@ -37,8 +37,6 @@ public:
     >
     Add(TCallback<Signature> func);
 
-
-    //! Overrides default invoker.
     template <class Signature>
     TIntrusivePtr<
         TAsyncPipeline<

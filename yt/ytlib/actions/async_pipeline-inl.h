@@ -195,9 +195,9 @@ struct TAsyncPipelineHelpers<void, ReturnType>
 template <class T>
 TAsyncPipeline<T>::TAsyncPipeline(
     IInvokerPtr invoker,
-    TCallback< TFuture< TValueOrError<T> >() > head)
+    TCallback< TFuture< TValueOrError<T> >() > lazy)
     : Invoker(invoker)
-    , Lazy(head)
+    , Lazy(lazy)
 { }
 
 template <class T>
