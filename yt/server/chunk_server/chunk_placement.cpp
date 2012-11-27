@@ -177,7 +177,7 @@ std::vector<TDataNode*> TChunkPlacement::GetRemovalTargets(const TChunk* chunk, 
     candidates.reserve(chunk->StoredLocations().size());
     FOREACH (auto nodeId, chunk->StoredLocations()) {
         auto* node = chunkManager->GetNode(nodeId);
-        double loadFactor = GetLoadFactor(node);
+        double loadFactor = GetFillCoeff(node);
         candidates.push_back(MakePair(node, loadFactor));
     }
 
