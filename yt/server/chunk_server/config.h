@@ -102,7 +102,7 @@ struct TChunkManagerConfig
             .Default(10000);
 
         Register("active_sessions_penality_coeff", ActiveSessionsPenalityCoeff)
-            .Default(0.1);
+            .Default(0.0001);
 
         Register("chunk_replicator", ChunkReplicator)
             .DefaultNew();
