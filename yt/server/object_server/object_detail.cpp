@@ -222,9 +222,7 @@ void TObjectProxyBase::ForwardToLeader(IServiceContextPtr context)
     auto metaStateManager = Bootstrap->GetMetaStateFacade()->GetManager();
     auto epochContext = metaStateManager->GetEpochContext();
 
-    LOG_DEBUG("Forwarding request to leader (RequestId: %s, LeaderId: %d)",
-        ~context->GetRequestId().ToString(),
-        epochContext->LeaderId);
+    LOG_DEBUG("Forwarding request to leader");
 
     auto cellManager = metaStateManager->GetCellManager();
     auto channel = cellManager->GetMasterChannel(epochContext->LeaderId);
@@ -251,8 +249,7 @@ void TObjectProxyBase::OnLeaderResponse(IServiceContextPtr context, NBus::IMessa
     NRpc::NProto::TResponseHeader responseHeader;
     YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
     auto error = FromProto(responseHeader.error());
-    LOG_DEBUG(error, "Received response for forwarded request (RequestId: %s)",
-        ~context->GetRequestId().ToString());
+    LOG_DEBUG(error, "Received response for forwarded request");
     context->Reply(responseMessage);
 }
 
