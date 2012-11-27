@@ -551,16 +551,16 @@ void TChunkReplicator::Refresh(const TChunk* chunk)
             nodeInfo->ChunksToRemove.insert(chunk->GetId());
         }
 
-        std::vector<Stroka> addreses;
+        std::vector<Stroka> addresses;
         FOREACH (auto node, nodes) {
-            addreses.push_back(node->GetAddress());
+            addresses.push_back(node->GetAddress());
         }
 
         LOG_DEBUG("Chunk %s is over-replicated: %s replicas exist but only %d needed, removal is scheduled on [%s]",
             ~chunkId.ToString(),
             ~ToString(statistics),
             statistics.ReplicationFactor,
-            ~JoinToString(addreses));
+            ~JoinToString(addresses));
     } else if (statistics.StoredCount + statistics.PlusCount < statistics.ReplicationFactor) {
         UnderreplicatedChunkIds_.insert(chunkId);
 
