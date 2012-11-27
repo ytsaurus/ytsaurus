@@ -156,8 +156,9 @@ private:
 
     virtual void DoInvoke(NRpc::IServiceContextPtr context) override
     {
-        if (RequireLeader) {
-            Bootstrap->GetMetaStateFacade()->ValidateActiveLeader();
+        auto metaStateFacade = Bootstrap->GetMetaStateFacade();
+        if (RequireLeader && !metaStateFacade->GetManager()->GetMutationContext()) {
+            metaStateFacade->ValidateActiveLeader();
         }
         TBase::DoInvoke(context);
     }
