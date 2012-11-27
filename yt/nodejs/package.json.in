@@ -3,7 +3,7 @@
   "name": "yt",
   "description": "YT Bindings",
   "version": "@YT_VERSION_MAJOR@.@YT_VERSION_MINOR@.@YT_VERSION_PATCH@",
-  "versionFull": "@YT_VERSION",
+  "versionFull": "@YT_VERSION@",
   "homepage": "http://wiki.yandex-team.ru/YT",
   "repository": {
     "type": "git",
