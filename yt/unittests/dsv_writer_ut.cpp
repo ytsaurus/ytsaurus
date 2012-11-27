@@ -40,6 +40,43 @@ TEST(TDsvWriterTest, SimpleTabular)
     EXPECT_EQ(output, outputStream.Str());
 }
 
+TEST(TDsvWriterTest, TabularWithAttributes)
+{
+    TStringStream outputStream;
+    auto config = New<TDsvFormatConfig>();
+    config->PrintAttributes = true;
+
+    TDsvWriter writer(&outputStream, EYsonType::ListFragment, config);
+
+    writer.OnListItem();
+    writer.OnBeginAttributes();
+        writer.OnKeyedItem("index");
+        writer.OnIntegerScalar(10);
+        writer.OnKeyedItem("name");
+        writer.OnStringScalar("table");
+    writer.OnEndAttributes();
+
+    writer.OnBeginMap();
+        writer.OnKeyedItem("foo");
+        writer.OnStringScalar("bar");
+    writer.OnEndMap();
+
+    writer.OnListItem();
+    writer.OnBeginAttributes();
+    writer.OnEndAttributes();
+
+    writer.OnBeginMap();
+        writer.OnKeyedItem("value");
+        writer.OnStringScalar("ninja");
+    writer.OnEndMap();
+
+    Stroka output =
+        "@index=10\t@name=table\tfoo=bar\n"
+        "value=ninja\n";
+
+    EXPECT_EQ(output, outputStream.Str());
+}
+
 TEST(TDsvWriterTest, StringScalar)
 {
     TStringStream outputStream;
@@ -75,7 +112,6 @@ TEST(TDsvWriterTest, ListContainingDifferentTypes)
         "\n"
         "a=10\tb=c\n";
 
-    Cout << outputStream.Str();
     EXPECT_EQ(output, outputStream.Str());
 }
 
@@ -123,6 +159,7 @@ TEST(TDsvWriterTest, WithoutEsacping)
 
     EXPECT_EQ(outputStream.Str(), output);
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // OnRaw tests:

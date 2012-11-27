@@ -23,6 +23,7 @@ TDsvWriter::TDsvWriter(
     , SymbolTable(Config)
     , InsideFirstLine(true)
     , InsideFirstItem(true)
+    , InsideAttributes(false)
     , AllowBeginList(Type == EYsonType::Node)
     , AllowBeginMap(true)
 {
@@ -72,6 +73,7 @@ void TDsvWriter::OnListItem()
     }
 
     InsideFirstLine = false;
+    InsideFirstItem = true;
 }
 
 void TDsvWriter::OnEndList()
@@ -88,14 +90,16 @@ void TDsvWriter::OnBeginMap()
     }
     AllowBeginMap = false;
     AllowBeginList = false;
-
-    InsideFirstItem = true;
 }
 
 void TDsvWriter::OnKeyedItem(const TStringBuf& key)
 {
     if (!InsideFirstItem || Config->LinePrefix) {
         Stream->Write(Config->FieldSeparator);
+    }
+
+    if (InsideAttributes && Config->PrintAttributes) {
+        Stream->Write(Config->AttributesPrefix);
     }
 
     EscapeAndWrite(key, SymbolTable.IsKeyStopSymbol);
@@ -114,12 +118,18 @@ void TDsvWriter::OnEndMap()
 
 void TDsvWriter::OnBeginAttributes()
 {
-    THROW_ERROR_EXCEPTION("Attributes are not supported by DSV");
+    if (!Config->PrintAttributes) {
+        THROW_ERROR_EXCEPTION("Attributes are not supported by DSV");
+    }
+    InsideAttributes = true;
 }
 
 void TDsvWriter::OnEndAttributes()
 {
-    YUNREACHABLE();
+    if (!Config->PrintAttributes) {
+        YUNREACHABLE();
+    }
+    InsideAttributes = false;
 }
 
 void TDsvWriter::EscapeAndWrite(const TStringBuf& key, const bool* isStopSymbol)

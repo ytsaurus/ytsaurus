@@ -51,6 +51,7 @@ private:
 
     bool InsideFirstLine;
     bool InsideFirstItem;
+    bool InsideAttributes;
 
     bool AllowBeginList;
     bool AllowBeginMap;
