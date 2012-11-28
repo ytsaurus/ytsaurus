@@ -628,37 +628,38 @@ void TChunkReplicator::OnRefresh()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    if (!RefreshList.empty()) {
-        LOG_DEBUG("Incremental chunk refresh started");
-
-        int refreshedCount = 0;
-        PROFILE_TIMING ("/incremental_chunk_refresh_time") {
-            auto chunkManager = Bootstrap->GetChunkManager();
-            auto now = GetCpuInstant();
-            for (int i = 0; i < Config->MaxChunksPerRefresh; ++i) {
-                if (RefreshList.empty())
-                    break;
-
-                const auto& entry = RefreshList.front();
-                if (entry.When > now)
-                    break;
-
-                auto* chunk = chunkManager->FindChunk(entry.ChunkId);
-                if (chunk && chunk->IsAlive()) {
-                    Refresh(chunk);
-                    ++refreshedCount;
-                }
-
-                YCHECK(RefreshSet.erase(entry.ChunkId) == 1);
-                RefreshList.pop_front();
-            }
-        }
-
-        ProfileRefreshList();
-
-        LOG_DEBUG("Incremental chunk refresh completed, %d chunks processed",
-            refreshedCount);
+    if (RefreshList.empty()) {
+        RefreshInvoker->ScheduleNext();
+        return;
     }
+
+    int refreshedCount = 0;
+    PROFILE_TIMING ("/incremental_refresh_time") {
+        auto chunkManager = Bootstrap->GetChunkManager();
+        auto now = GetCpuInstant();
+        for (int i = 0; i < Config->MaxChunksPerRefresh; ++i) {
+            if (RefreshList.empty())
+                break;
+
+            const auto& entry = RefreshList.front();
+            if (entry.When > now)
+                break;
+
+            auto* chunk = chunkManager->FindChunk(entry.ChunkId);
+            if (chunk && chunk->IsAlive()) {
+                Refresh(chunk);
+                ++refreshedCount;
+            }
+
+            YCHECK(RefreshSet.erase(entry.ChunkId) == 1);
+            RefreshList.pop_front();
+        }
+    }
+
+    ProfileRefreshList();
+
+    LOG_DEBUG("Incremental chunk refresh completed, %d chunks processed",
+        refreshedCount);
 
     RefreshInvoker->ScheduleNext();
 }
@@ -805,18 +806,21 @@ void TChunkReplicator::OnRFUpdate()
     // Extract up to GCObjectsPerMutation objects and post a mutation.
     auto chunkManager = Bootstrap->GetChunkManager();
     NProto::TMetaReqUpdateChunkReplicationFactor request;
-    while (!RFUpdateList.empty() && request.updates_size() < Config->MaxChunksPerRFUpdate) {
-        auto chunkId = RFUpdateList.front();
-        RFUpdateList.pop_front();
-        YCHECK(RFUpdateSet.erase(chunkId) == 1);
 
-        auto* chunk = chunkManager->FindChunk(chunkId);
-        if (chunk && chunk->IsAlive()) {
-            int replicationFactor = ComputeReplicationFactor(chunk);
-            if (chunk->GetReplicationFactor() != replicationFactor) {
-                auto* update = request.add_updates();
-                *update->mutable_chunk_id() = chunkId.ToProto();
-                update->set_replication_factor(replicationFactor);
+    PROFILE_TIMING ("/rf_update_time") {
+        while (!RFUpdateList.empty() && request.updates_size() < Config->MaxChunksPerRFUpdate) {
+            auto chunkId = RFUpdateList.front();
+            RFUpdateList.pop_front();
+            YCHECK(RFUpdateSet.erase(chunkId) == 1);
+
+            auto* chunk = chunkManager->FindChunk(chunkId);
+            if (chunk && chunk->IsAlive()) {
+                int replicationFactor = ComputeReplicationFactor(chunk);
+                if (chunk->GetReplicationFactor() != replicationFactor) {
+                    auto* update = request.add_updates();
+                    *update->mutable_chunk_id() = chunkId.ToProto();
+                    update->set_replication_factor(replicationFactor);
+                }
             }
         }
     }
