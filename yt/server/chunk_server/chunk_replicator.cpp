@@ -48,6 +48,8 @@ TChunkReplicator::TChunkReplicator(
     , ChunkPlacement(chunkPlacement)
     , NodeLeaseTracker(nodeLeaseTracker)
     , ChunkRefreshDelay(DurationToCpuDuration(config->ChunkRefreshDelay))
+    , RefreshListSizeCounter("/refresh_list_size")
+    , RFUpdateListSizeCounter("/rf_update_list_size")
 {
     YCHECK(config);
     YCHECK(bootstrap);
@@ -619,6 +621,7 @@ void TChunkReplicator::ScheduleChunkRefresh(const TChunkId& chunkId)
     entry.When = GetCpuInstant() + ChunkRefreshDelay;
     RefreshList.push_back(entry);
     RefreshSet.insert(chunkId);
+    ProfileRefreshList();
 }
 
 void TChunkReplicator::OnRefresh()
@@ -650,6 +653,8 @@ void TChunkReplicator::OnRefresh()
                 RefreshList.pop_front();
             }
         }
+
+        ProfileRefreshList();
 
         LOG_DEBUG("Incremental chunk refresh completed, %d chunks processed",
             refreshedCount);
@@ -784,6 +789,7 @@ void TChunkReplicator::ScheduleRFUpdate(const TChunk* chunk)
     const auto& id = chunk->GetId();
     if (RFUpdateSet.insert(id).second) {
         RFUpdateList.push_back(id);
+        ProfileRFUpdateList();
     }
 }
 
@@ -814,6 +820,8 @@ void TChunkReplicator::OnRFUpdate()
             }
         }
     }
+
+    ProfileRFUpdateList();
 
     if (request.updates_size() > 0) {
         LOG_DEBUG("Starting RF update for %d chunks", request.updates_size());
@@ -907,6 +915,16 @@ TChunkList* TChunkReplicator::FollowParentLinks(TChunkList* chunkList)
         chunkList = *parents.begin();
     }
     return chunkList;
+}
+
+void TChunkReplicator::ProfileRefreshList()
+{
+    Profiler.Aggregate(RefreshListSizeCounter, RefreshList.size());
+}
+
+void TChunkReplicator::ProfileRFUpdateList()
+{
+    Profiler.Aggregate(RFUpdateListSizeCounter, RFUpdateList.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

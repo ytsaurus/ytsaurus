@@ -8,7 +8,7 @@
 #include <ytlib/misc/periodic_invoker.h>
 #include <ytlib/misc/error.h>
 
-#include <ytlib/profiling/public.h>
+#include <ytlib/profiling/profiler.h>
 
 #include <server/cell_master/public.h>
 
@@ -65,6 +65,9 @@ private:
 
     NProfiling::TCpuDuration ChunkRefreshDelay;
     TNullable<bool> LastEnabled;
+
+    NProfiling::TAggregateCounter RefreshListSizeCounter;
+    NProfiling::TAggregateCounter RFUpdateListSizeCounter;
 
     struct TRefreshEntry
     {
@@ -153,6 +156,9 @@ private:
     //! Follows upward parent links.
     //! Stops when some owning nodes are discovered or parents become ambiguous.
     TChunkList* FollowParentLinks(TChunkList* chunkList);
+
+    void ProfileRefreshList();
+    void ProfileRFUpdateList();
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 
