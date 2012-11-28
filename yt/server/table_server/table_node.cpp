@@ -211,10 +211,16 @@ protected:
             return;
         }
 
+        bool isTopmostCommit = !originatingNode->GetId().IsBranched();
+
         if (branchedMode == ETableUpdateMode::Overwrite) {
             YCHECK(originatingChunkList->OwningNodes().erase(originatingNode) == 1);
             YCHECK(branchedChunkList->OwningNodes().insert(originatingNode).second);
             originatingNode->SetChunkList(branchedChunkList);
+
+            if (isTopmostCommit && metaStateManager->IsLeader()) {
+                chunkManager->ScheduleRFUpdate(branchedChunkList);
+            }
 
             objectManager->UnrefObject(originatingChunkList);
         } else if ((originatingMode == ETableUpdateMode::None || originatingMode == ETableUpdateMode::Overwrite) &&
@@ -233,6 +239,10 @@ protected:
          
             chunkManager->AttachToChunkList(newOriginatingChunkList, originatingChunkList);
             chunkManager->AttachToChunkList(newOriginatingChunkList, deltaRef);
+
+            if (isTopmostCommit && metaStateManager->IsLeader()) {
+                chunkManager->ScheduleRFUpdate(deltaRef);
+            }
 
             objectManager->UnrefObject(originatingChunkList);
             objectManager->UnrefObject(branchedChunkList);
@@ -258,6 +268,9 @@ protected:
             chunkManager->AttachToChunkList(newDeltaChunkList, originatingChunkList->Children()[1]);
             chunkManager->AttachToChunkList(newDeltaChunkList, branchedChunkList->Children()[1]);
 
+            // Not a topmost commit -- no RF update here.
+            YCHECK(!isTopmostCommit);
+
             objectManager->UnrefObject(originatingChunkList);
             objectManager->UnrefObject(branchedChunkList);
 
@@ -265,22 +278,16 @@ protected:
             YUNREACHABLE();
         }
 
-        if (originatingNode->GetId().IsBranched()) {
+        if (isTopmostCommit) {
+            // Originating mode must remain None.
+            // Rebalance when the topmost transaction commits.
+            chunkManager->RebalanceChunkTree(originatingNode->GetChunkList());
+        } else {
             // Set proper originating mode.
             originatingNode->SetUpdateMode(
                 originatingMode == ETableUpdateMode::Overwrite || branchedMode == ETableUpdateMode::Overwrite
                 ? ETableUpdateMode::Overwrite
                 : ETableUpdateMode::Append);
-        } else {
-            // Originating mode must always remains None.
-            // Rebalance and schedule RF update when the topmost transaction commits.
-            auto* newOriginatingChunkList = originatingNode->GetChunkList();
-
-            chunkManager->RebalanceChunkTree(newOriginatingChunkList);
-
-            if (metaStateManager->IsLeader()) {
-                chunkManager->ScheduleRFUpdate(newOriginatingChunkList);
-            }
         }
     }
 
