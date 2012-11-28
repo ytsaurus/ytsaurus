@@ -3,6 +3,7 @@
 #include "common.h"
 #include "property.h"
 
+#include <ytlib/misc/preprocessor.h>
 #include <ytlib/misc/error.pb.h>
 
 #include <ytlib/actions/future.h>
@@ -155,8 +156,16 @@ TException&& operator <<= (TException&& ex, const TError& error)
     THROW_ERROR ::NYT::TError(__VA_ARGS__)
 
 #define THROW_ERROR_EXCEPTION_IF_FAILED(error, ...) \
-    if (!(error).IsOK()) \
-        THROW_ERROR ::NYT::TError(__VA_ARGS__) << (error)
+    if ((error).IsOK()) {\
+    } \
+    else { \
+        auto PP_CONCAT(wrapperError_, __LINE__) = ::NYT::TError(__VA_ARGS__); \
+        if (PP_CONCAT(wrapperError_, __LINE__).IsOK()) { \
+            THROW_ERROR (error); \
+        } else { \
+            THROW_ERROR PP_CONCAT(wrapperError_, __LINE__) << (error); \
+        } \
+    }\
 
 ////////////////////////////////////////////////////////////////////////////////
 
