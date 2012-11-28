@@ -89,8 +89,12 @@ public:
         setReq->set_value(BuildOperationYson(operation).Data());
 
         return proxy.Execute(setReq).Apply(
-            BIND(&TImpl::OnOperationNodeCreated, MakeStrong(this), operation)
-                .AsyncVia(Bootstrap->GetControlInvoker()));
+            BIND(
+                &TImpl::OnOperationNodeCreated,
+                MakeStrong(this),
+                operation,
+                CancelableContext)
+            .AsyncVia(Bootstrap->GetControlInvoker()));
     }
 
     TFuture<void> FlushOperationNode(TOperationPtr operation)
@@ -840,6 +844,7 @@ private:
 
     TError OnOperationNodeCreated(
         TOperationPtr operation,
+        TCancelableContextPtr context,
         TYPathProxy::TRspSetPtr rsp)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -848,14 +853,20 @@ private:
         auto error = rsp->GetError();
 
         if (!error.IsOK()) {
-            LOG_ERROR(error, "Error creating operation node (OperationId: %s)",
-                ~operationId.ToString());
-            RemoveUpdateList(operation);
-            return error;
+            auto wrappedError = TError("Error creating operation node (OperationId: %s)",
+                ~ToString(operationId))
+                << error;
+
+            if (!context->IsCanceled()) {
+                RemoveUpdateList(operation);
+            }
+
+            LOG_WARNING(wrappedError);
+            return wrappedError;
         }
 
         LOG_INFO("Operation node created (OperationId: %s)",
-            ~operationId.ToString());
+            ~ToString(operationId));
 
         return TError();
     }
