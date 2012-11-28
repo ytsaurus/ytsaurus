@@ -36,10 +36,10 @@ Stroka GetLocalHostName()
     if (hostName[0] == 0) {
         auto info = gethostbyname(::GetHostName());
         if (!info) {
-            // TError and related stuff will call GetLocalHostName so
-            // we avoid deadlock here.
-            guard.Release();
+            // TError and related stuff will call GetLocalHostName.
+            // Release the spinlock to avoid deadlock here.
             strcpy(hostName, "<unknown>");
+            guard.Release();
 
             THROW_ERROR_EXCEPTION("Unable to determine local host name");
         }
