@@ -1,6 +1,6 @@
-PYTHON=`which python`
-PROJECT=`dpkg-parsechangelog | awk -F': ' '$1 == "Source" { print $2; }'`
-BUILDIR=$(CURDIR)/debian/$(PROJECT)
+PYTHON ?= `which python`
+PROJECT = `dpkg-parsechangelog | awk -F': ' '$1 == "Source" { print $2; }'`
+BUILDIR = $(CURDIR)/debian/$(PROJECT)
 
 all:
 	@echo "make source - Create source package"
@@ -23,7 +23,7 @@ deb:
 	$(MAKE) deb_without_test
 
 egg: prepare
-	EGG=1 python setup.py bdist_egg
+	EGG=1 $(PYTHON) setup.py bdist_egg
 	cp dist/*.egg .
 
 deb_without_test: clean
