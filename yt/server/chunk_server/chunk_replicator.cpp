@@ -815,13 +815,15 @@ void TChunkReplicator::OnRFUpdate()
         }
     }
 
-    LOG_DEBUG("Starting RF update for %d chunks", request.updates_size());
+    if (request.updates_size() > 0) {
+        LOG_DEBUG("Starting RF update for %d chunks", request.updates_size());
 
-    chunkManager
-        ->CreateUpdateChunkReplicationFactorMutation(request)
-        ->OnSuccess(BIND(&TChunkReplicator::OnRFUpdateCommitSucceeded, MakeWeak(this)))
-        ->OnError(BIND(&TChunkReplicator::OnRFUpdateCommitFailed, MakeWeak(this)))
-        ->PostCommit();
+        chunkManager
+            ->CreateUpdateChunkReplicationFactorMutation(request)
+            ->OnSuccess(BIND(&TChunkReplicator::OnRFUpdateCommitSucceeded, MakeWeak(this)))
+            ->OnError(BIND(&TChunkReplicator::OnRFUpdateCommitFailed, MakeWeak(this)))
+            ->PostCommit();
+    }
 }
 
 void TChunkReplicator::OnRFUpdateCommitSucceeded()
