@@ -226,10 +226,14 @@ private:
         auto chunkManager = Bootstrap->GetChunkManager();
 
         const auto* chunk = GetTypedImpl();
-        chunkManager->FillNodeAddresses(response->mutable_node_addresses(), chunk);
 
-        context->SetResponseInfo("NodeAddresses: [%s]",
-            ~JoinToString(response->node_addresses()));
+        auto addresses = chunkManager->GetChunkAddresses(chunk);
+        FOREACH (const auto& address, addresses) {
+            response->add_node_addresses(address);
+        }
+
+        context->SetResponseInfo("Addresses: [%s]",
+            ~JoinToString(addresses));
 
         context->Reply();
     }
@@ -257,7 +261,10 @@ private:
         inputChunk->set_uncompressed_data_size(miscExt.uncompressed_data_size());
 
         if (request->fetch_node_addresses()) {
-            chunkManager->FillNodeAddresses(inputChunk->mutable_node_addresses(), chunk);
+            auto addresses = chunkManager->GetChunkAddresses(chunk);
+            FOREACH (const auto& address, addresses) {
+                inputChunk->add_node_addresses(address);
+            }
         }
 
         context->Reply();

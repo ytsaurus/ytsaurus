@@ -77,14 +77,14 @@ void TChunkPlacement::OnSessionHinted(TDataNode* node)
     node->SetHintedSessionCount(node->GetHintedSessionCount() + 1);
 }
 
-std::vector<TDataNode*> TChunkPlacement::GetUploadTargets(
+TSmallVector<TDataNode*, TypicalReplicationFactor> TChunkPlacement::GetUploadTargets(
     int count,
-    const yhash_set<Stroka>* forbiddenAddresses,
+    const TSmallSet<Stroka, TypicalReplicationFactor>* forbiddenAddresses,
     Stroka* preferredHostName)
 {
     // TODO: check replication fan-in for replication jobs
 
-    std::vector<TDataNode*> resultNodes;
+    TSmallVector<TDataNode*, TypicalReplicationFactor> resultNodes;
     resultNodes.reserve(count);
 
     typedef std::pair<TDataNode*, int> TFeasibleNode;
@@ -109,7 +109,7 @@ std::vector<TDataNode*> TChunkPlacement::GetUploadTargets(
         auto* node = pair.second;
         if (node != preferredNode &&
             IsValidUploadTarget(node) &&
-            (!forbiddenAddresses || forbiddenAddresses->find(node->GetAddress()) == forbiddenAddresses->end()))
+            (!forbiddenAddresses || forbiddenAddresses->count(node->GetAddress())))
         {
 
             feasibleNodes.push_back(std::make_pair(node, node->GetTotalSessionCount()));
@@ -133,7 +133,7 @@ std::vector<TDataNode*> TChunkPlacement::GetUploadTargets(
             ++groupSize;
         }
 
-        int sampleCount = Min(count, groupSize);
+        int sampleCount = std::min(count, groupSize);
 
         std::vector<TFeasibleNode> currentResult;
         RandomSampleN(
@@ -153,9 +153,11 @@ std::vector<TDataNode*> TChunkPlacement::GetUploadTargets(
     return resultNodes;
 }
 
-std::vector<TDataNode*> TChunkPlacement::GetReplicationTargets(const TChunk* chunk, int count)
+TSmallVector<TDataNode*, TypicalReplicationFactor> TChunkPlacement::GetReplicationTargets(
+    const TChunk* chunk,
+    int count)
 {
-    yhash_set<Stroka> forbiddenAddresses;
+    TSmallSet<Stroka, TypicalReplicationFactor> forbiddenAddresses;
 
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (auto nodeId, chunk->StoredLocations()) {
@@ -184,11 +186,13 @@ TDataNode* TChunkPlacement::GetReplicationSource(const TChunk* chunk)
     return Bootstrap->GetChunkManager()->GetNode(locations[index]);
 }
 
-std::vector<TDataNode*> TChunkPlacement::GetRemovalTargets(const TChunk* chunk, int count)
+TSmallVector<TDataNode*, TypicalReplicationFactor> TChunkPlacement::GetRemovalTargets(
+    const TChunk* chunk,
+    int count)
 {
     // Construct a list of (nodeId, loadFactor) pairs.
     typedef std::pair<TDataNode*, double> TCandidatePair;
-    TSmallVector<TCandidatePair, 10> candidates;
+    TSmallVector<TCandidatePair, TypicalReplicationFactor> candidates;
     auto chunkManager = Bootstrap->GetChunkManager();
     candidates.reserve(chunk->StoredLocations().size());
     FOREACH (auto nodeId, chunk->StoredLocations()) {
@@ -206,7 +210,7 @@ std::vector<TDataNode*> TChunkPlacement::GetRemovalTargets(const TChunk* chunk, 
         });
 
     // Take first count nodes.
-    std::vector<TDataNode*> result;
+    TSmallVector<TDataNode*, TypicalReplicationFactor> result;
     result.reserve(count);
     FOREACH (const auto& pair, candidates) {
         if (static_cast<int>(result.size()) >= count) {
@@ -214,11 +218,15 @@ std::vector<TDataNode*> TChunkPlacement::GetRemovalTargets(const TChunk* chunk, 
         }
         result.push_back(pair.first);
     }
+
     return result;
 }
 
 bool TChunkPlacement::HasBalancingTargets(double maxFillCoeff)
 {
+    if (maxFillCoeff < 0)
+        return false;
+
     if (FillCoeffToNode.empty())
         return false;
 

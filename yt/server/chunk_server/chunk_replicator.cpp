@@ -320,6 +320,7 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleReplicationJob(
 TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleBalancingJob(
     TDataNode* sourceNode,
     TChunk* chunk,
+    double maxFillCoeff,
     std::vector<TJobStartInfo>* jobsToStart)
 {
     auto chunkId = chunk->GetId();
@@ -327,16 +328,6 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleBalancingJob(
     if (IsRefreshScheduled(chunkId)) {
         LOG_TRACE("Chunk %s we're about to balance is scheduled for another refresh",
             ~chunkId.ToString());
-        return EScheduleFlags::None;
-    }
-
-    double maxFillCoeff =
-        ChunkPlacement->GetFillCoeff(sourceNode) -
-        Config->ChunkReplicator->MinBalancingFillCoeffDiff;
-
-    if (ChunkPlacement->HasBalancingTargets(maxFillCoeff)) {
-        LOG_DEBUG("No suitable target nodes with fill < %ld to balance chunks",
-            maxFillCoeff);
         return EScheduleFlags::None;
     }
 
@@ -426,15 +417,18 @@ void TChunkReplicator::ScheduleNewJobs(
     }
 
     // Schedule balancing jobs.
+    double sourceFillCoeff = ChunkPlacement->GetFillCoeff(node);
+    double targetFillCoeff = sourceFillCoeff - Config->ChunkReplicator->MinBalancingFillCoeffDiff;
     if (maxReplicationJobsToStart > 0 &&
-        ChunkPlacement->GetFillCoeff(node) > Config->ChunkReplicator->MinBalancingFillCoeff)
+        sourceFillCoeff > Config->ChunkReplicator->MinBalancingFillCoeff &&
+        ChunkPlacement->HasBalancingTargets(targetFillCoeff))
     {
         auto chunksToBalance = ChunkPlacement->GetBalancingChunks(node, maxReplicationJobsToStart);
         FOREACH (auto* chunk, chunksToBalance) {
             if (maxReplicationJobsToStart == 0) {
                 break;
             }
-            auto flags = ScheduleBalancingJob(node, chunk, jobsToStart);
+            auto flags = ScheduleBalancingJob(node, chunk, targetFillCoeff, jobsToStart);
             if (flags & EScheduleFlags::Scheduled) {
                 --maxReplicationJobsToStart;
             }

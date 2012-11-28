@@ -68,7 +68,10 @@ using NObjectClient::TTransactionId;
 using NObjectClient::NullTransactionId;
 
 typedef i32 TNodeId;
-const i32 InvalidNodeId = -1;
+const TNodeId InvalidNodeId = -1;
+
+//! Used as an expected upper bound in TSmallVector.
+const int TypicalReplicationFactor = 4;
 
 ////////////////////////////////////////////////////////////////////////////////
 

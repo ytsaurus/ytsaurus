@@ -31,7 +31,7 @@ class TChunk
     DEFINE_BYREF_RW_PROPERTY(TParents, Parents);
 
     // This is usually small, e.g. has the length of 3.
-    typedef TSmallVector<TNodeId, 3> TStoredLocations;
+    typedef TSmallVector<TNodeId, TypicalReplicationFactor> TStoredLocations;
     DEFINE_BYREF_RO_PROPERTY(TStoredLocations, StoredLocations);
 
     // This list is usually empty.

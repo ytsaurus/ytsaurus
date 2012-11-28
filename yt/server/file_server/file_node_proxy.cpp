@@ -216,16 +216,19 @@ DEFINE_RPC_SERVICE_METHOD(TFileNodeProxy, FetchFile)
     const auto* chunk = chunkRef.AsChunk();
 
     *response->mutable_chunk_id() = chunkId.ToProto();
-    chunkManager->FillNodeAddresses(response->mutable_node_addresses(), chunk);
+    auto addresses = chunkManager->GetChunkAddresses(chunk);
+    FOREACH (const auto& address, addresses) {
+        response->add_node_addresses(address);
+    }
 
     response->set_executable(IsExecutable());
     response->set_file_name(GetFileName());
 
-    context->SetResponseInfo("ChunkId: %s, FileName: %s, Executable: %s, NodeAddresses: [%s]",
+    context->SetResponseInfo("ChunkId: %s, FileName: %s, Executable: %s, Addresses: [%s]",
         ~chunkId.ToString(),
         ~response->file_name(),
         ~ToString(response->executable()),
-        ~JoinToString(response->node_addresses()));
+        ~JoinToString(addresses));
 
     context->Reply();
 }

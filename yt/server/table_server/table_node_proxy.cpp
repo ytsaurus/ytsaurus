@@ -288,7 +288,10 @@ private:
         *inputChunk->mutable_channel() = Channel.ToProto();
 
         if (Context->Request().fetch_node_addresses()) {
-            chunkManager->FillNodeAddresses(inputChunk->mutable_node_addresses(), chunk);
+            auto addresses = chunkManager->GetChunkAddresses(chunk);
+            FOREACH (const auto& address, addresses) {
+                inputChunk->add_node_addresses(address);
+            }
         }
 
         if (Context->Request().fetch_all_meta_extensions()) {

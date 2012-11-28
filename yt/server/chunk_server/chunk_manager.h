@@ -3,13 +3,19 @@
 #include "public.h"
 #include "chunk_service_proxy.h"
 
-#include <server/chunk_server/chunk_manager.pb.h>
+#include <ytlib/misc/small_vector.h>
+
 #include <ytlib/actions/signal.h>
+
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/mutation.h>
 #include <ytlib/meta_state/map.h>
-#include <server/cell_master/public.h>
+
 #include <ytlib/rpc/service.h>
+
+#include <server/chunk_server/chunk_manager.pb.h>
+
+#include <server/cell_master/public.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -81,8 +87,8 @@ public:
 
     const TReplicationSink* FindReplicationSink(const Stroka& address);
 
-    std::vector<TDataNode*> AllocateUploadTargets(
-        int nodeCount,
+    TSmallVector<TDataNode*, TypicalReplicationFactor> AllocateUploadTargets(
+        int count,
         TNullable<Stroka> preferredHostName);
 
     TChunk* CreateChunk();
@@ -120,15 +126,9 @@ public:
 
     bool IsReplicatorEnabled();
 
-    void ScheduleRFUpdate(TChunkTreeRef REF);
+    void ScheduleRFUpdate(TChunkTreeRef ref);
 
-        //! Fills a given protobuf structure with the list of data node addresses.
-    /*!
-     *  Not too nice but seemingly fast.
-     */
-    void FillNodeAddresses(
-        ::google::protobuf::RepeatedPtrField< TProtoStringType>* addresses,
-        const TChunk* chunk);
+    TSmallVector<Stroka, TypicalReplicationFactor> GetChunkAddresses(const TChunk* chunk);
 
     const yhash_set<TChunkId>& LostVitalChunkIds() const;
     const yhash_set<TChunkId>& LostChunkIds() const;

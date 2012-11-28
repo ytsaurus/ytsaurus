@@ -2,6 +2,9 @@
 
 #include "public.h"
 
+#include <ytlib/misc/small_vector.h>
+#include <ytlib/misc/small_set.h>
+
 #include <server/cell_master/public.h>
 
 namespace NYT {
@@ -26,19 +29,23 @@ public:
     double GetLoadFactor(TDataNode* node) const;
     double GetFillCoeff(TDataNode* node) const;
 
-    // TODO(babenko): consider using small vectors here
-    std::vector<TDataNode*> GetUploadTargets(
+    TSmallVector<TDataNode*, TypicalReplicationFactor> GetUploadTargets(
         int count,
-        const yhash_set<Stroka>* forbiddenAddresses,
+        const TSmallSet<Stroka, TypicalReplicationFactor>* forbiddenAddresses,
         Stroka* preferredHostName);
     
-    std::vector<TDataNode*> GetRemovalTargets(const TChunk* chunk, int count);
+    TSmallVector<TDataNode*, TypicalReplicationFactor> GetRemovalTargets(
+        const TChunk* chunk,
+        int count);
 
-    std::vector<TDataNode*> GetReplicationTargets(const TChunk* chunk, int count);
+    TSmallVector<TDataNode*, TypicalReplicationFactor> GetReplicationTargets(
+        const TChunk* chunk,
+        int count);
+
     TDataNode* GetReplicationSource(const TChunk* chunk);
 
-    std::vector<TChunk*> GetBalancingChunks(TDataNode* node, int count);
     bool HasBalancingTargets(double maxFillCoeff);
+    std::vector<TChunk*> GetBalancingChunks(TDataNode* node, int count);
     TDataNode* GetBalancingTarget(TChunk *chunk, double maxFillCoeff);
    
 private:

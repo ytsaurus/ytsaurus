@@ -292,12 +292,12 @@ public:
         return it == ReplicationSinkMap.end() ? NULL : &it->second;
     }
 
-    std::vector<TDataNode*> AllocateUploadTargets(
-        int nodeCount,
+    TSmallVector<TDataNode*, TypicalReplicationFactor> AllocateUploadTargets(
+        int count,
         TNullable<Stroka> preferredHostName)
     {
         auto nodes = ChunkPlacement->GetUploadTargets(
-            nodeCount,
+            count,
             NULL,
             preferredHostName.GetPtr());
         FOREACH (auto* node, nodes) {
@@ -579,21 +579,23 @@ public:
     const yhash_set<TChunkId>& OverreplicatedChunkIds() const;
     const yhash_set<TChunkId>& UnderreplicatedChunkIds() const;
 
-    void FillNodeAddresses(
-        ::google::protobuf::RepeatedPtrField<TProtoStringType>* addresses,
-        const TChunk* chunk)
+    TSmallVector<Stroka, TypicalReplicationFactor> GetChunkAddresses(const TChunk* chunk)
     {
+        TSmallVector<Stroka, TypicalReplicationFactor> result;
+
         FOREACH (auto nodeId, chunk->StoredLocations()) {
             const auto* node = GetNode(nodeId);
-            addresses->Add()->assign(node->GetAddress());
+            result.push_back(node->GetAddress());
         }
 
         if (~chunk->CachedLocations()) {
             FOREACH (auto nodeId, *chunk->CachedLocations()) {
                 const auto* node = GetNode(nodeId);
-                addresses->Add()->assign(node->GetAddress());
+                result.push_back(node->GetAddress());
             }
         }
+
+        return result;
     }
 
     TTotalNodeStatistics GetTotalNodeStatistics()
@@ -1733,11 +1735,11 @@ const TReplicationSink* TChunkManager::FindReplicationSink(const Stroka& address
     return Impl->FindReplicationSink(address);
 }
 
-std::vector<TDataNode*> TChunkManager::AllocateUploadTargets(
-    int nodeCount,
+TSmallVector<TDataNode*, TypicalReplicationFactor> TChunkManager::AllocateUploadTargets(
+    int count,
     TNullable<Stroka> preferredHostName)
 {
-    return Impl->AllocateUploadTargets(nodeCount, preferredHostName);
+    return Impl->AllocateUploadTargets(count, preferredHostName);
 }
 
 TMutationPtr TChunkManager::CreateRegisterNodeMutation(
@@ -1857,11 +1859,9 @@ void TChunkManager::ScheduleRFUpdate(TChunkTreeRef ref)
     Impl->ScheduleRFUpdate(ref);
 }
 
-void TChunkManager::FillNodeAddresses(
-    ::google::protobuf::RepeatedPtrField< TProtoStringType>* addresses,
-    const TChunk* chunk)
+TSmallVector<Stroka, TypicalReplicationFactor> TChunkManager::GetChunkAddresses(const TChunk* chunk)
 {
-    Impl->FillNodeAddresses(addresses, chunk);
+    return Impl->GetChunkAddresses(chunk);
 }
 
 TTotalNodeStatistics TChunkManager::GetTotalNodeStatistics()

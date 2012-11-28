@@ -118,6 +118,7 @@ private:
     EScheduleFlags ScheduleBalancingJob(
         TDataNode* sourceNode,
         TChunk* chunk,
+        double maxFillCoeff,
         std::vector<NProto::TJobStartInfo>* jobsToStart);
     EScheduleFlags ScheduleRemovalJob(
         TDataNode* node,
