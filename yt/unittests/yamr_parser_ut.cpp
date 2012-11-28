@@ -2,6 +2,7 @@
 
 #include <ytlib/formats/yamr_parser.h>
 #include <ytlib/ytree/yson_consumer-mock.h>
+#include <ytlib/ytree/null_yson_consumer.h>
 
 #include <contrib/testing/framework.h>
 
@@ -146,8 +147,18 @@ TEST(TYamrParserTest, IncompleteRows)
     config->HasSubkey = true;
 
     ParseYamr(input, &Mock, config);
-    
-    EXPECT_THROW(ParseYamr("key\n", &Mock, config), std::exception);
+}
+
+TEST(TYamrParserTest, IncorrectIncompleteRows)
+{
+    auto Null = NYTree::GetNullYsonConsumer();
+
+    auto config = New<TYamrFormatConfig>();
+    config->HasSubkey = false;
+
+    EXPECT_THROW(ParseYamr("\n", Null, config), std::exception);
+    EXPECT_THROW(ParseYamr("key\n", Null, config), std::exception);
+    EXPECT_THROW(ParseYamr("key\tvalue\nkey\n", Null, config), std::exception);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -263,6 +274,6 @@ TEST(TYamrLenvalParserTest, EmptyFields)
 
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 } // namespace NFormats
 } // namespace NYT
