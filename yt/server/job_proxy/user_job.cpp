@@ -254,7 +254,7 @@ private:
             JobExitError = TError("User job failed");
         };
 
-        JobExitError << error;
+        JobExitError = JobExitError << error;
     }
 
     void ProcessPipes(std::vector<IDataPipePtr>& pipes)
