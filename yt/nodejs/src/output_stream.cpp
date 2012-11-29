@@ -307,6 +307,47 @@ void TNodeJSOutputStream::DoWrite(const void* data, size_t length)
         return;
     }
 
+    WritePrologue();
+
+    char* buffer = new char[length];
+    YASSERT(buffer);
+
+    ::memcpy(buffer, data, length);
+
+    WriteEpilogue(buffer, length);
+}
+
+void TNodeJSOutputStream::DoWriteV(const TPart* parts, size_t count)
+{
+    THREAD_AFFINITY_IS_ANY();
+
+    if (parts == NULL || count == 0) {
+        return;
+    }
+
+    WritePrologue();
+
+    size_t offset = 0;
+    size_t length = 0;
+
+    for (size_t i = 0; i < count; ++i) {
+        length += parts[i].len;
+    }
+
+    char* buffer = new char[length];
+    YASSERT(buffer);
+
+    for (size_t i = 0; i < count; ++i) {
+        const auto& part = parts[i];
+        ::memcpy(buffer + offset, part.buf, part.len);
+        offset += part.len;
+    }
+
+    WriteEpilogue(buffer, length);
+}
+
+void TNodeJSOutputStream::WritePrologue()
+{
     Conditional.Await([&] () -> bool {
         return AtomicGet(IsDestroyed_) || (AtomicGet(BytesInFlight) < HighWatermark);
     });
@@ -314,12 +355,10 @@ void TNodeJSOutputStream::DoWrite(const void* data, size_t length)
     if (AtomicGet(IsDestroyed_)) {
         THROW_ERROR_EXCEPTION("TNodeJSOutputStream was terminated");
     }
+}
 
-    char* buffer = new char[length];
-    YASSERT(buffer);
-
-    ::memcpy(buffer, data, length);
-
+void TNodeJSOutputStream::WriteEpilogue(char* buffer, size_t length)
+{
     TOutputPart part;
     part.Buffer = buffer;
     part.Length = length;
@@ -332,7 +371,6 @@ void TNodeJSOutputStream::DoWrite(const void* data, size_t length)
     // In case of TNodeJSDriver an instance TNodeJSInputStack holds a lock
     // and TNodeJSDriver implementation guarantees that all Write() calls
     // are within scope of the lock.
-
     EmitAndStifleOnData();
 }
 
