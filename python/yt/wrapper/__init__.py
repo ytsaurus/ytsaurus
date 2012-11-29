@@ -12,5 +12,5 @@ from file_commands import download_file, upload_file, smart_upload_file
 from transaction_commands import \
     start_transaction, abort_transaction, \
     commit_transaction, renew_transaction, \
-    lock
+    lock, Transaction
 from requests import HTTPError, ConnectionError

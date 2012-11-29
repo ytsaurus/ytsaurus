@@ -64,8 +64,12 @@ public:
 protected:
     // C++ API.
     void DoWrite(const void* buffer, size_t length) override;
+    void DoWriteV(const TPart* parts, size_t count) override;
 
 private:
+    void WritePrologue();
+    void WriteEpilogue(char* buffer, size_t length);
+
     void DisposeBuffers();
 
 private:
@@ -77,7 +81,7 @@ private:
     TAtomic BytesInFlight;
     TAtomic BytesEnqueued;
     TAtomic BytesDequeued;
-    
+
     const ui64 LowWatermark;
     const ui64 HighWatermark;
 
