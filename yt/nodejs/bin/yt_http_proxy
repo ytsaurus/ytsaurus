@@ -212,12 +212,32 @@ function runProxy(logger) {
 
     master.kickstart();
 
+    var cc1 = new Date(),
+        cc2 = new Date(),
+        cc3 = new Date();
+
+    process.on("SIGINT", function() {
+        cc3 = cc2; cc2 = cc1; cc1 = new Date();
+        var n = ((cc1 - cc2) < 1000 ? 1 : 0) +
+                ((cc1 - cc3) < 1000 ? 1 : 0);
+        switch (n) {
+            case 0:
+                master.restartWorkers();
+                break;
+            case 1:
+                master.shutdownWorkers();
+                break;
+            case 2:
+                process.exit(0);
+                break;
+        }
+    });
+
     process.on("SIGUSR1", master.debug.bind(master));
     process.on("SIGUSR2", master.restartWorkers.bind(master));
 
-    process.on("SIGINT",  master.shutdownWorkers.bind(master));
-    process.on("SIGTERM", master.shutdownWorkers.bind(master));
-    process.on("SIGKILL", master.shutdownWorkers.bind(master));
+    // process.on("SIGTERM", master.shutdownWorkers.bind(master));
+    // process.on("SIGKILL", master.shutdownWorkers.bind(master));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
