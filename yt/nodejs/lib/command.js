@@ -222,7 +222,7 @@ YtCommand.prototype._epilogue = function(err) {
     }
 
     if (err.getCode()) {
-        this.logger.error("Done (failure)", {
+        this.logger.info("Done (failure)", {
             request_id : this.req.uuid,
             bytes_in   : this.bytes_in,
             bytes_out  : this.bytes_out,
@@ -673,7 +673,7 @@ YtCommand.prototype._execute = function(cb) {
         function(args) {
             var response = args[0];
 
-            self.logger.error(
+            self.logger.info(
                 "Command '" + self.name + "' successfully executed",
                 { request_id : self.req.uuid, response : response });
 
@@ -692,7 +692,7 @@ YtCommand.prototype._execute = function(cb) {
             return response;
         },
         function(err) {
-            self.logger.error(
+            self.logger.info(
                 "Command '" + self.name + "' has failed to execute",
                 { request_id : self.req.uuid, response : err });
 
