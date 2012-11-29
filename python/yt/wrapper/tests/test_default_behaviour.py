@@ -191,3 +191,16 @@ class DefaultYtTest(YtTestBase, YTEnv):
 
         self.assertRaises(yt.YtError, lambda: yt.run_map("cat", [table, table + "xxx"], other_table))
 
+    def test_sort(self):
+        table = TEST_DIR + "/table"
+        other_table = TEST_DIR + "/other_table"
+        yt.write_table(table, ["y=2\n", "x=1\n"])
+
+        self.assertRaises(yt.YtError, lambda: yt.sort_table([table, other_table], other_table, sort_by=["y"]))
+
+        yt.sort_table(table, other_table, sort_by=["y"])
+        self.assertEqual(["x=1\n", "y=2\n"], list(yt.read_table(other_table)))
+
+        yt.sort_table(table, sort_by=["x"])
+        self.assertEqual(["y=2\n", "x=1\n"], list(yt.read_table(table)))
+
