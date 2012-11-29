@@ -10,16 +10,12 @@
 
 #include <ytlib/meta_state/rpc_helpers.h>
 
-#include <ytlib/logging/log.h>
-
 namespace NYT {
 namespace NDriver {
 
 using namespace NYTree;
 using namespace NCypressClient;
 using namespace NObjectClient;
-
-static NLog::TLogger Logger("Driver");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -215,9 +211,6 @@ void TExistsCommand::DoExecute()
         ReplyError(rsp->GetError());
     }
     else {
-        LOG_INFO("Response to request Exists by path %s: %s",
-            ~Request->Path.GetPath(),
-            ~ConvertTo<Stroka>(rsp->value()));
         ReplySuccess(ConvertToYsonString(rsp->value()));
     }
 }

@@ -483,6 +483,8 @@ void TSupportsAttributes::ExistsAttribute(
 
     DoExistsAttribute(path).Subscribe(BIND([=] (bool result) {
         response->set_value(result);
+        context->SetResponseInfo(
+            Sprintf("Response for Exists: %s", ~ToString(result)));
         context->Reply();
     }));
 }
