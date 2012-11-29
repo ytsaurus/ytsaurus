@@ -98,7 +98,7 @@ void TDsvWriter::OnKeyedItem(const TStringBuf& key)
         Stream->Write(Config->FieldSeparator);
     }
 
-    if (InsideAttributes && Config->PrintAttributes) {
+    if (InsideAttributes && Config->WithAttributes) {
         Stream->Write(Config->AttributesPrefix);
     }
 
@@ -118,7 +118,7 @@ void TDsvWriter::OnEndMap()
 
 void TDsvWriter::OnBeginAttributes()
 {
-    if (!Config->PrintAttributes) {
+    if (!Config->WithAttributes) {
         THROW_ERROR_EXCEPTION("Attributes are not supported by DSV");
     }
     InsideAttributes = true;
@@ -126,7 +126,7 @@ void TDsvWriter::OnBeginAttributes()
 
 void TDsvWriter::OnEndAttributes()
 {
-    if (!Config->PrintAttributes) {
+    if (!Config->WithAttributes) {
         YUNREACHABLE();
     }
     InsideAttributes = false;

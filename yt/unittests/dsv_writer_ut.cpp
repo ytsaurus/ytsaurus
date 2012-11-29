@@ -44,7 +44,7 @@ TEST(TDsvWriterTest, TabularWithAttributes)
 {
     TStringStream outputStream;
     auto config = New<TDsvFormatConfig>();
-    config->PrintAttributes = true;
+    config->WithAttributes = true;
 
     TDsvWriter writer(&outputStream, EYsonType::ListFragment, config);
 

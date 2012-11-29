@@ -20,7 +20,7 @@ struct TDsvFormatConfig
     bool EnableEscaping;
     char EscapingSymbol;
 
-    bool PrintAttributes;
+    bool WithAttributes;
     Stroka AttributesPrefix;
 
     // Escaping rules (EscapingSymbol is '\\')
@@ -43,9 +43,9 @@ struct TDsvFormatConfig
             .Default(true);
         Register("escaping_symbol", EscapingSymbol)
             .Default('\\');
-        Register("print_attributes", PrintAttributes)
+        Register("with_attributes", WithAttributes)
             .Default(false);
-        Register("AttributesPrefix", AttributesPrefix)
+        Register("attributes_prefix", AttributesPrefix)
             .Default("@");
     }
 };
