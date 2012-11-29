@@ -109,9 +109,8 @@ TSmallVector<TDataNode*, TypicalReplicationFactor> TChunkPlacement::GetUploadTar
         auto* node = pair.second;
         if (node != preferredNode &&
             IsValidUploadTarget(node) &&
-            (!forbiddenAddresses || forbiddenAddresses->count(node->GetAddress())))
+            !(forbiddenAddresses && forbiddenAddresses->count(node->GetAddress())))
         {
-
             feasibleNodes.push_back(std::make_pair(node, node->GetTotalSessionCount()));
         }
     }
