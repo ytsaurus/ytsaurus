@@ -849,7 +849,7 @@ void TChunkReplicator::OnRFUpdateCommitFailed(const TError& error)
 
 int TChunkReplicator::ComputeReplicationFactor(const TChunk* chunk)
 {
-    int result = 0;
+    int result = chunk->GetReplicationFactor();
     
     // Unique number used to distinguish already visited chunk lists.
     auto mark = TChunkList::GenerateVisitMark();
@@ -873,11 +873,6 @@ int TChunkReplicator::ComputeReplicationFactor(const TChunk* chunk)
         }
     }
 
-    if (queue.empty()) {
-        // Better leave the chunk as is.
-        return chunk->GetReplicationFactor();
-    }
-    
     // The main BFS loop.
     while (frontIndex < queue.size()) {
         auto* chunkList = queue[frontIndex++];
