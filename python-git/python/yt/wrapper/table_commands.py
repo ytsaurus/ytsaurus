@@ -191,7 +191,9 @@ def create_table(path, recursive=None):
 
 def create_temp_table(path=None, prefix=None):
     """ Creates temporary table by given path with given prefix """
-    if path is None: path = config.TEMP_TABLES_STORAGE
+    if path is None:
+        path = config.TEMP_TABLES_STORAGE
+        mkdir(path, recursive=True)
     require(exists(path), YtError("You cannot create table in unexisting path"))
     if prefix is not None:
         path = os.path.join(path, prefix)
