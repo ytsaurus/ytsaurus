@@ -328,6 +328,17 @@ class TestCypressCommands(YTEnvSetup):
         commit_transaction(tx)
         assert get('//tmp') == {}
 
+    def test_map_locks7(self):
+    	set('//tmp/a', 1)
+
+    	tx = start_transaction()
+    	remove('//tmp/a', tx = tx)
+    	set('//tmp/a', 2, tx = tx)
+    	remove('//tmp/a', tx = tx)
+    	commit_transaction(tx)
+
+    	assert get('//tmp') == {}   	
+
     def test_attr_locks1(self):
         tx = start_transaction()
         set('//tmp/@a', 1, tx = tx)
