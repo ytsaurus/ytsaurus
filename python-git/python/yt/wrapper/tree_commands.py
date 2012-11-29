@@ -104,7 +104,7 @@ def mkdir(path, recursive=None):
     Creates directiry. By default parent directory should exist.
     """
     if recursive is None:
-        recursive = config.MKDIR_RECURSIVE
+        recursive = config.CREATE_RECURSIVE
     if recursive:
         create = False
         for dir in dirs(path):
