@@ -25,7 +25,7 @@ def _filter_empty_tables(tables):
 
 def _prepare_source_tables(tables):
     tables = map(to_table, flatten(tables))
-    if config.UNEXISTING_AS_EMPTY:
+    if config.TREAT_UNEXISTING_AS_EMPTY:
         tables = _filter_empty_tables(tables)
     return tables
 
@@ -184,7 +184,7 @@ class Buffer(object):
 def create_table(path, recursive=None):
     """ Creates empty table, use recursive for automatically creaation the path """
     if recursive is None:
-        recursive = config.MKDIR_RECURSIVE
+        recursive = config.CREATE_RECURSIVE
     if recursive:
         mkdir(os.path.dirname(path), True)
     _make_transactioned_request("create", {"path": path, "type": "table"})
@@ -244,7 +244,7 @@ def read_table(table, format=None, response_type=None):
     """
     table = to_table(table)
     format = _prepare_format(format)
-    if config.UNEXISTING_AS_EMPTY and not exists(table.name):
+    if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table.name):
         return EMPTY_GENERATOR
     response = _make_transactioned_request(
         "read",
@@ -265,7 +265,7 @@ def copy_table(source_table, destination_table, replace=True):
     """
     if config.REPLACE_TABLES_WHILE_COPY_OR_MOVE: replace = True
     source_tables = _prepare_source_tables(source_table)
-    if config.UNEXISTING_AS_EMPTY and len(source_tables) == 0:
+    if config.TREAT_UNEXISTING_AS_EMPTY and len(source_tables) == 0:
         return
     destination_table = to_table(destination_table)
     if _are_nodes(source_tables, destination_table):
@@ -285,7 +285,7 @@ def move_table(source_table, destination_table, replace=True):
     """
     if config.REPLACE_TABLES_WHILE_COPY_OR_MOVE: replace = True
     source_tables = _prepare_source_tables(source_table)
-    if config.UNEXISTING_AS_EMPTY and len(source_tables) == 0:
+    if config.TREAT_UNEXISTING_AS_EMPTY and len(source_tables) == 0:
         return
     destination_table = to_table(destination_table)
     if _are_nodes(source_tables, destination_table):
@@ -308,14 +308,14 @@ def erase_table(table, strategy=None):
     of records in the table.
     """
     table = to_table(table)
-    if config.UNEXISTING_AS_EMPTY and not exists(table.get_name()):
+    if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table.get_name()):
         return
     _make_operation_request("erase", {"table_path": table.get_name(use_ranges=True)}, strategy)
 
 def records_count(table):
     """Return number of records in the table"""
     table = to_name(table)
-    if config.UNEXISTING_AS_EMPTY and not exists(table):
+    if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table):
         print "INSIDE"
         return 0
     return get_attribute(table, "row_count")
@@ -323,7 +323,7 @@ def records_count(table):
 def get_size(table):
     """Return uncompressed size of the table"""
     table = to_name(table)
-    if config.UNEXISTING_AS_EMPTY and not exists(table):
+    if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table):
         return 0
     return get_attribute(table, "uncompressed_data_size")
 
@@ -332,7 +332,7 @@ def is_empty(table):
     return records_count(to_name(table)) == 0
 
 def get_sorted_by(table):
-    default = [] if config.UNEXISTING_AS_EMPTY else None
+    default = [] if config.TREAT_UNEXISTING_AS_EMPTY else None
     return get_attribute(to_name(table), "sorted_by", default=default)
 
 def is_sorted(table):
