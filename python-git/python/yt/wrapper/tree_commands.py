@@ -84,7 +84,7 @@ def remove(path, recursive=False, check_existance=False):
         return
     if not recursive:
         # TODO: remake for command argument
-        require(get_type(path) in ["table", "file"],
+        require(get_type(path) != "map_node",
                 YtError("Can not delete directory, set recursive=True"))
 
     _make_transactioned_request("remove", {"path": path})
