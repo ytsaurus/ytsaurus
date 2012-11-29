@@ -331,8 +331,9 @@ def is_empty(table):
     """Check table for the emptiness"""
     return records_count(to_name(table)) == 0
 
-def get_sorted_by(table):
-    default = [] if config.TREAT_UNEXISTING_AS_EMPTY else None
+def get_sorted_by(table, default=None):
+    if default is None:
+        default = [] if config.TREAT_UNEXISTING_AS_EMPTY else None
     return get_attribute(to_name(table), "sorted_by", default=default)
 
 def is_sorted(table):
@@ -375,7 +376,9 @@ def sort_table(source_table, destination_table=None, sort_by=None, strategy=None
 
     sort_by = _prepare_sort_by(sort_by)
     source_table = _prepare_source_tables(source_table)
-    if all(is_prefix(sort_by, get_sorted_by(table.name)) for table in source_table):
+    for table in source_table:
+        require(exists(table.get_name()), YtError("Table %s should exist" % table))
+    if all(is_prefix(sort_by, get_sorted_by(table.name, [])) for table in source_table):
         #(TODO) Hack detected: make something with it
         if len(source_table) > 0:
             merge_tables(source_table, destination_table, "sorted",
