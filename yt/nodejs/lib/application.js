@@ -38,6 +38,7 @@ exports.that = function YtApplication(logger, config) {
 
     return function(req, rsp) {
         var pause = utils.Pause(req);
+        req.connection.setNoDelay(true); // Disable Nagle.
         return (new YtCommand(
             logger, driver, watcher, read_only, pause, req, rsp
         )).dispatch();
