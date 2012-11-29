@@ -424,7 +424,9 @@ YtCommand.prototype._getOutputFormat = function() {
 
         if (!result_mime) {
             this.rsp.statusCode = 406;
-            throw new YtError("Could not determine feasible Content-Type given Accept constraints.");
+            throw new YtError(
+                "Could not determine feasible Content-Type given Accept constraints." +
+                " Candidates are: " + _MIME_BY_OUTPUT_TYPE[this.descriptor.output_type_as_integer].join(", ") + ".");
         }
 
         result_format = _MIME_TO_FORMAT[result_mime];
@@ -468,7 +470,9 @@ YtCommand.prototype._getOutputCompression = function() {
 
         if (!result_mime) {
             this.rsp.statusCode = 415;
-            throw new YtError("Could not determine feasible Content-Encoding given Accept-Encoding constraints.");
+            throw new YtError(
+                "Could not determine feasible Content-Encoding given Accept-Encoding constraints." +
+                " Candidates are: " + _ENCODING_ALL.join(", ") + ".");
         }
 
         result_compression = _ENCODING_TO_COMPRESSION[result_mime];
