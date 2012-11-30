@@ -124,6 +124,14 @@ struct TExecuteRequest
         DriverRequest.OutputStream = OutputStack.Top();
     }
 
+    void Flush()
+    {
+        FOREACH (auto* current, OutputStack)
+        {
+            current->Flush();
+        }
+    }
+
     void Finish()
     {
         FOREACH (auto* current, OutputStack)
@@ -479,6 +487,21 @@ void TNodeJSDriver::ExecuteAfter(uv_work_t* workRequest)
 
     TExecuteRequest* request = container_of(workRequest, TExecuteRequest, Request);
 
+    auto* nodejsInputStream = request->InputStack.GetBaseStream();
+    auto* nodejsOutputStream = request->OutputStack.GetBaseStream();
+
+    try {
+        request->Flush();
+    } catch (const std::exception& ex) {
+        LOG_DEBUG(TError(ex), "Ignoring exception while closing driver output stream");
+    }
+
+    if (nodejsOutputStream->GetBytesEnqueued() == 0) {
+        // In this case we have to prematurely destroy the stream to avoid
+        // writing middleware-induced framing overhead.
+        nodejsOutputStream->DoDestroy();
+    }
+
     try {
         request->Finish();
     } catch (const std::exception& ex) {
@@ -506,13 +529,13 @@ void TNodeJSDriver::ExecuteAfter(uv_work_t* workRequest)
             // them precisely in V8. Therefore we pass them as strings
             // because they are used only for debugging purposes.
             length = ToString(
-                request->InputStack.GetBaseStream()->GetBytesEnqueued(),
+                nodejsInputStream->GetBytesEnqueued(),
                 buffer,
                 sizeof(buffer));
             args[2] = String::New(buffer, length);
 
             length = ToString(
-                request->OutputStack.GetBaseStream()->GetBytesEnqueued(),
+                nodejsOutputStream->GetBytesEnqueued(),
                 buffer,
                 sizeof(buffer));
             args[3] = String::New(buffer, length);
