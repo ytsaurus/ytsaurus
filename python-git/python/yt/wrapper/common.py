@@ -1,7 +1,6 @@
 from yt.common import require, flatten, update, which, YtError
 from functools import partial
 
-
 EMPTY_GENERATOR = (i for i in [])
 
 class YtOperationFailedError(YtError):

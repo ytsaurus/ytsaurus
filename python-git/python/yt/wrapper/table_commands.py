@@ -1,6 +1,7 @@
 import config
 import py_wrapper
 from common import flatten, require, YtError, unlist, update, EMPTY_GENERATOR, parse_bool, is_prefix, get_value, compose
+from version import VERSION
 from http import read_content
 from table import TablePath, to_table, to_name
 from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, move, mkdir, find_free_subpath
@@ -11,7 +12,6 @@ import os
 import sys
 import types
 import logger
-from copy import deepcopy
 
 """ Auxiliary methods """
 def _filter_empty_tables(tables):
@@ -120,13 +120,14 @@ def _add_user_command_spec(op_type, binary, input_format, output_format, files, 
     spec)
     return spec, files + additional_files
 
-def _add_user_spec(params):
-    result = deepcopy(params)
-    result["spec"] = update(
-        params.get("spec", {}),
-        {"mr_user": os.environ.get("MR_USER", ""),
-         "system_user": os.environ.get("USER", "")})
-    return result
+def _add_user_spec(spec):
+    return update(
+        {
+            "mr_user": os.environ.get("MR_USER", ""),
+            "system_user": os.environ.get("USER", ""),
+            "version": VERSION
+        },
+        spec)
 
 def _add_input_output_spec(source_table, destination_table, spec):
     def get_input_name(table):
@@ -234,7 +235,7 @@ def write_table(table, lines, format=None, table_writer=None):
                             format=format)
                     break
                 except YtError as err:
-                    print >>sys.stderr, "Retry", i + 1, "failed with message", err.value
+                    print >>sys.stderr, "Retry", i + 1, "failed with message", str(err)
                     if i + 1 == config.WRITE_RETRIES_COUNT:
                         raise
             started = True
