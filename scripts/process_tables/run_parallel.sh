@@ -1,7 +1,7 @@
 #!/bin/sh -ex
 
 if [ -z "$1" -o -z "$2" -o -z "$3" ]; then
-    echo "Usage: merge.sh {binary} {number_of_threads} {log}"
+    echo "Usage: run_parallel.sh {binary} {number_of_threads} {log}"
     exit 1
 fi
 

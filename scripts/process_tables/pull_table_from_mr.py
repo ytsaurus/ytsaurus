@@ -15,7 +15,7 @@ if __name__ == "__main__":
     parser.add_argument("--server-port", default="8013")
     parser.add_argument("--http-port", default="13013")
     parser.add_argument("--record-threshold", default=10 ** 7)
-    parser.add_argument("--force", default=False)
+    parser.add_argument("--force", action="store_true", default=False)
     
     args = parser.parse_args()
 
@@ -51,7 +51,8 @@ if __name__ == "__main__":
                 input_format=yt.YamrFormat(lenval=False, has_subkey=False),
                 output_format=yt.YamrFormat(lenval=True, has_subkey=True),
                 files="mapreduce",
-                spec={"job_count": len(ranges)})
+                spec={"job_count": len(ranges),
+                      "min_data_size_per_job": 1})
 
         # TODO: add checksum checking 
         if yt.records_count(destination) != count:
