@@ -44,6 +44,8 @@ exports.that = function YtHostDiscovery(hosts) {
         var accept = req.headers["accept"];
         var accepted_type;
 
+        rsp.setHeader("Access-Control-Allow-Origin", "*");
+
         if (typeof(accept) === "string") {
             accepted_type = utils.bestAcceptedType(
                 [ "application/json", "text/plain" ],
