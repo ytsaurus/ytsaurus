@@ -723,9 +723,9 @@ void TCypressManager::ReleaseLock(ICypressNode* trunkNode, TTransaction* transac
 {
     YCHECK(trunkNode->Locks().erase(transaction) == 1);
 
-    LOG_INFO_UNLESS(IsRecovery(), "Node unlocked (NodeId: %s, TransactionId: %s)",
-        ~trunkNode->GetId().ToString(),
-        ~transaction->GetId().ToString());
+    TVersionedNodeId versionedId(trunkNode->GetId().ObjectId, transaction->GetId());
+    LOG_INFO_UNLESS(IsRecovery(), "Node unlocked (NodeId: %s)",
+        ~versionedId.ToString());
 }
 
 ICypressNode* TCypressManager::LockVersionedNode(
