@@ -14,6 +14,9 @@ static Persistent<String> OnDataSymbol;
 
 void DeleteCallback(char* data, void* hint)
 {
+    // God bless the C++ compiler.
+    const int hintAsInt = static_cast<int>(reinterpret_cast<size_t>(hint));
+    v8::V8::AdjustAmountOfExternalAllocatedMemory(-hintAsInt);
     delete[] data;
 }
 
@@ -62,7 +65,7 @@ void TNodeJSOutputStream::Initialize(Handle<Object> target)
     ConstructorTemplate->SetClassName(String::NewSymbol("TNodeJSOutputStream"));
 
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Pull", TNodeJSOutputStream::Pull);
-    
+
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Drain", TNodeJSOutputStream::Drain);
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Destroy", TNodeJSOutputStream::Destroy);
 
@@ -159,8 +162,10 @@ Handle<Value> TNodeJSOutputStream::DoPull()
         }
 
         node::Buffer* buffer =
-            node::Buffer::New(part.Buffer, part.Length, DeleteCallback, NULL);
+            node::Buffer::New(part.Buffer, part.Length, DeleteCallback, (void*)part.Length);
         parts->Set(i, buffer->handle_);
+
+        v8::V8::AdjustAmountOfExternalAllocatedMemory(+(int)part.Length);
 
         AtomicAdd(BytesDequeued, part.Length);
         auto transientSize = AtomicSub(BytesInFlight, part.Length);
@@ -197,7 +202,7 @@ void TNodeJSOutputStream::DoDrain()
     THREAD_AFFINITY_IS_V8();
 
     YASSERT(!AtomicGet(IsDestroyed_));
-    
+
     IgniteOnData();
 }
 
