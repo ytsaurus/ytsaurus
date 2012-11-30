@@ -64,9 +64,8 @@ exports.that = function YtHostDiscovery(hosts) {
                     "Content-Type" : "text/plain"
                 });
             } else {
-                // TODO: Emit 406 or 416 here.
-                // Unsupported
-                (function(){} ());
+                rsp.statusCode = 406;
+                rsp.end();
             }
         } else {
             body = JSON.stringify(body);
