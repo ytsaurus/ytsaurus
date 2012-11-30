@@ -90,6 +90,12 @@ class TablePath(object):
     def __hash__(self):
         return hash(self.name)
 
+    def __str__(self):
+        return self.get_name(use_ranges=True)
+    
+    def __repr__(self):
+        return str(self)
+
 def to_table(object):
     if isinstance(object, TablePath):
         return object

@@ -44,6 +44,8 @@ exports.that = function YtHostDiscovery(hosts) {
         var accept = req.headers["accept"];
         var accepted_type;
 
+        rsp.setHeader("Access-Control-Allow-Origin", "*");
+
         if (typeof(accept) === "string") {
             accepted_type = utils.bestAcceptedType(
                 [ "application/json", "text/plain" ],
@@ -62,9 +64,8 @@ exports.that = function YtHostDiscovery(hosts) {
                     "Content-Type" : "text/plain"
                 });
             } else {
-                // TODO: Emit 406 or 416 here.
-                // Unsupported
-                (function(){} ());
+                rsp.statusCode = 406;
+                rsp.end();
             }
         } else {
             body = JSON.stringify(body);

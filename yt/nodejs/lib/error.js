@@ -70,6 +70,11 @@ YtError.prototype.withMessage = function(message) {
 
 // Getters.
 
+YtError.prototype.isOK = function() {
+    "use strict";
+    return this.code === 0;
+};
+
 YtError.prototype.getCode = function() {
     "use strict";
     return this.code;

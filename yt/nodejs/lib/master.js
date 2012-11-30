@@ -91,8 +91,8 @@ YtClusterHandle.prototype.postponeDeath = function(timeout) {
 
 YtClusterHandle.prototype.certifyDeath = function() {
     this.logger.error("Worker is dead", {
-        wid : this.worker.id,
-        pid : this.worker.process.pid,
+        wid : this.worker ? this.worker.id : null,
+        pid : this.worker ? this.worker.process.pid : null,
         handle : this.toString()
     });
 
