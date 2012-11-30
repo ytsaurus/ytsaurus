@@ -185,7 +185,7 @@ YtCommand.prototype.dispatch = function() {
         .fail(function(err) {
             return YtError.ensureWrapped(
                 err,
-                "Unhandled error in command pipeline");
+                "Unhandled error in the command pipeline");
         })
         .then(self._epilogue.bind(self))
         .end();
@@ -208,11 +208,12 @@ YtCommand.prototype._epilogue = function(err) {
     "use strict";
     this.__DBG("_epilogue");
 
-    var sent_headers = !!this.rsp._header;
-
+    var  sent_headers = !!this.rsp._header;
     if (!sent_headers) {
         this.rsp.removeHeader("Trailer");
         this.rsp.setHeader("X-YT-Error", err.toJson());
+        this.rsp.setHeader("X-YT-Response-Code", err.getCode());
+        this.rsp.setHeader("X-YT-Response-Message", err.getMessage());
     } else {
         this.rsp.addTrailers({
             "X-YT-Error" : err.toJson(),
@@ -221,14 +222,14 @@ YtCommand.prototype._epilogue = function(err) {
         });
     }
 
-    if (err.getCode()) {
-        this.logger.info("Done (failure)", {
-            request_id : this.req.uuid,
-            bytes_in   : this.bytes_in,
-            bytes_out  : this.bytes_out,
-            error      : err,
-        });
+    this.logger.info("Done (" + (err.isOK() ? "success" : "failure") + ")", {
+        request_id : this.req.uuid,
+        bytes_in   : this.bytes_in,
+        bytes_out  : this.bytes_out,
+        error      : err
+    });
 
+    if (err.getCode()) {
         if (!sent_headers) {
             if (!this.rsp.statusCode ||
                 (this.rsp.statusCode >= 200 && this.rsp.statusCode < 300))
@@ -238,13 +239,6 @@ YtCommand.prototype._epilogue = function(err) {
             this._dispatchAsJson(err.toJson());
         }
     } else {
-        this.logger.info("Done (success)", {
-            request_id : this.req.uuid,
-            bytes_in   : this.bytes_in,
-            bytes_out  : this.bytes_out,
-            error      : err
-        });
-
         if (!sent_headers) {
             this.rsp.statusCode = 200;
         }
