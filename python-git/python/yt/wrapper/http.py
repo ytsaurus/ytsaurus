@@ -42,11 +42,11 @@ def read_content(response, type):
 class Response(object):
     def __init__(self, http_response):
         def serialize(error):
-            return json.dumps(error.json, indent='  ')
+            return json.dumps(error, indent='  ')
 
         self.http_response = http_response
         if not str(http_response.status_code).startswith("2"):
-            self._error = serialize(http_response)
+            self._error = serialize(http_response.json)
         elif http_response.headers.get("x-yt-response-code", 0) != 0:
             self._error = serialize(http_response.headers["x-yt-error"])
 
