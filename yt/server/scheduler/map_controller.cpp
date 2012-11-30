@@ -74,6 +74,7 @@ private:
         explicit TMapTask(TMapController* controller)
             : TTask(controller)
             , Controller(controller)
+            , StartRowIndex(0)
         {
             ChunkPool = CreateUnorderedChunkPool();
         }
@@ -112,6 +113,7 @@ private:
 
     private:
         TMapController* Controller;
+        i64 StartRowIndex;
 
         virtual int GetChunkListCountPerJob() const override
         {
@@ -134,7 +136,11 @@ private:
             AddOutputSpecs(jobSpec, jip);
 
             auto* jobSpecExt = jobSpec->MutableExtension(TMapJobSpecExt::map_job_spec_ext);
-            Controller->AddUserJobEnvironment(jobSpecExt->mutable_mapper_spec(), jip);
+            Controller->AddUserJobEnvironment(
+                jobSpecExt->mutable_mapper_spec(), 
+                jip, 
+                StartRowIndex);
+            StartRowIndex += jip->PoolResult->TotalRowCount;
         }
 
         virtual void OnJobCompleted(TJobInProgressPtr jip) override

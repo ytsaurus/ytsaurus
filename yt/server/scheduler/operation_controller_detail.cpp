@@ -1624,10 +1624,12 @@ void TOperationControllerBase::InitUserJobSpec(
 
 void TOperationControllerBase::AddUserJobEnvironment(
     NScheduler::NProto::TUserJobSpec* proto,
-    TJobInProgressPtr jip)
+    TJobInProgressPtr jip,
+    i64 startRowIndex)
 {
     proto->add_environment(Sprintf("YT_JOB_INDEX=%d", jip->JobIndex));
     proto->add_environment(Sprintf("YT_JOB_ID=%s", ~jip->Job->GetId().ToString()));
+    proto->add_environment(Sprintf("YT_START_ROW_INDEX=%"PRId64, startRowIndex));
 }
 
 void TOperationControllerBase::InitIntermediateInputConfig(TJobIOConfigPtr config)

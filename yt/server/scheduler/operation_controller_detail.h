@@ -450,7 +450,10 @@ protected:
         TUserJobSpecPtr config,
         const std::vector<TUserFile>& files);
 
-    static void AddUserJobEnvironment(NScheduler::NProto::TUserJobSpec* proto, TJobInProgressPtr jip);
+    static void AddUserJobEnvironment(
+        NScheduler::NProto::TUserJobSpec* proto, 
+        TJobInProgressPtr jip,
+        i64 startRowCount);
 
     static void InitIntermediateInputConfig(TJobIOConfigPtr config);
 

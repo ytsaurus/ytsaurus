@@ -61,6 +61,9 @@ struct TPoolExtractionResult
     int LocalChunkCount;
     int RemoteChunkCount;
 
+    // Upper bound on row count in extraction result.
+    i64 TotalRowCount;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

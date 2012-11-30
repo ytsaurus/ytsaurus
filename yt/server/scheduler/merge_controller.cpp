@@ -1189,6 +1189,7 @@ public:
         TOperation* operation)
         : TSortedMergeControllerBase(config, spec, host, operation)
         , Spec(spec)
+        , StartRowCount(0)
     { }
 
     virtual NProto::TNodeResources GetMinNeededResources() override
@@ -1205,6 +1206,7 @@ public:
 
 private:
     TReduceOperationSpecPtr Spec;
+    i64 StartRowCount;
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {
@@ -1263,7 +1265,8 @@ private:
     void CustomizeJobSpec(TJobInProgressPtr jip, NProto::TJobSpec* jobSpec) override
     {
         auto* jobSpecExt = jobSpec->MutableExtension(NScheduler::NProto::TReduceJobSpecExt::reduce_job_spec_ext);
-        AddUserJobEnvironment(jobSpecExt->mutable_reducer_spec(), jip);
+        AddUserJobEnvironment(jobSpecExt->mutable_reducer_spec(), jip, StartRowCount);
+        StartRowCount += jip->PoolResult->TotalRowCount;
     }
 };
 

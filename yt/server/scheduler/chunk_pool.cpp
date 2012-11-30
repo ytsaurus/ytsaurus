@@ -72,6 +72,7 @@ TPoolExtractionResult::TPoolExtractionResult()
     , TotalChunkCount(0)
     , LocalChunkCount(0)
     , RemoteChunkCount(0)
+    , TotalRowCount(0)
 { }
 
 void TPoolExtractionResult::AddStripe(TChunkStripePtr stripe, const Stroka& address)
@@ -80,6 +81,7 @@ void TPoolExtractionResult::AddStripe(TChunkStripePtr stripe, const Stroka& addr
     TotalChunkCount += stripe->Chunks.size();
     FOREACH (const auto& chunk, stripe->Chunks) {
         TotalDataSize += chunk.DataSizeOverride;
+        TotalRowCount += chunk.RowCountOverride;
         const auto& chunkAddresses = chunk.InputChunk->node_addresses();
         if (std::find_if(
             chunkAddresses.begin(),
@@ -102,6 +104,7 @@ void TPoolExtractionResult::AddStripe(TChunkStripePtr stripe)
     RemoteChunkCount += stripe->Chunks.size();
     FOREACH (const auto& chunk, stripe->Chunks) {
         TotalDataSize += chunk.DataSizeOverride;
+        TotalRowCount += chunk.RowCountOverride;
     }
 }
 

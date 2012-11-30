@@ -1674,6 +1674,8 @@ public:
             host,
             operation)
         , Spec(spec)
+        , MapStartRowCount(0)
+        , ReduceStartRowCount(0)
     { }
 
 private:
@@ -1681,6 +1683,9 @@ private:
 
     std::vector<TUserFile> MapperFiles;
     std::vector<TUserFile> ReducerFiles;
+
+    i64 MapStartRowCount;
+    i64 ReduceStartRowCount;
 
 
     // Custom bits of preparation pipeline.
@@ -1924,14 +1929,16 @@ private:
         switch (jobSpec->type()) {
         case EJobType::PartitionMap: {
             auto* jobSpecExt = jobSpec->MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
-            AddUserJobEnvironment(jobSpecExt->mutable_mapper_spec(), jip);
+            AddUserJobEnvironment(jobSpecExt->mutable_mapper_spec(), jip, MapStartRowCount);
+            MapStartRowCount += jip->PoolResult->TotalRowCount;
             break;
         }
 
         case EJobType::PartitionReduce:
         case EJobType::SortedReduce: {
             auto* jobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-            AddUserJobEnvironment(jobSpecExt->mutable_reducer_spec(), jip);
+            AddUserJobEnvironment(jobSpecExt->mutable_reducer_spec(), jip, ReduceStartRowCount);
+            ReduceStartRowCount += jip->PoolResult->TotalRowCount;
             break;
         }
 
