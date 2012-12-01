@@ -498,7 +498,10 @@ protected:
         NYPath::TYPath ProfilingPath;
 
         //! Increments with each method call.
-        NProfiling::TRateCounter RequestCounter;
+        NProfiling::TAggregateCounter RequestCounter;
+
+        //! The number of currently queued requests.
+        NProfiling::TAggregateCounter QueueSizeCounter;
     };
 
     typedef TIntrusivePtr<TRuntimeMethodInfo> TRuntimeMethodInfoPtr;
@@ -565,6 +568,13 @@ protected:
 
     //! Replies #error to every request in #ActiveRequests, clears the latter one.
     void CancelActiveRequests(const TError& error);
+
+    //! Returns a reference to TRuntimeMethodInfo for a given method's name
+    //! or |NULL| if no such method is registered.
+    TRuntimeMethodInfoPtr FindMethodInfo(const Stroka& method);
+
+    //! Similar to #FindMethodInfo but fails if no method is found.
+    TRuntimeMethodInfoPtr GetMethodInfo(const Stroka& method);
 
 private:
     class TServiceContext;

@@ -40,7 +40,8 @@ TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     const TYPath& profilingPath)
     : Descriptor(descriptor)
     , ProfilingPath(profilingPath)
-    , RequestCounter(profilingPath + "/request_rate")
+    , RequestCounter(profilingPath + "/request_count")
+    , QueueSizeCounter(profilingPath + "/queue_size")
 { }
 
 TServiceBase::TActiveRequest::TActiveRequest(
@@ -149,16 +150,16 @@ void TServiceBase::OnRequest(
 
     TGuard<TSpinLock> guard(SpinLock);
 
-    auto methodIt = RuntimeMethodInfos.find(verb);
-    if (methodIt == RuntimeMethodInfos.end()) {
+    auto runtimeInfo = FindMethodInfo(verb);
+    if (!runtimeInfo) {
         guard.Release();
 
         auto error = TError(
             EErrorCode::NoSuchVerb,
-            "Unknown verb %s:%s (RequestId: %s)",
+            "Unknown verb %s:%s",
             ~ServiceName,
-            ~verb,
-            ~ToString(requestId));
+            ~verb)
+            << TErrorAttribute("request_id", requestId);
         LOG_WARNING(error);
         if (!oneWay) {
             auto errorMessage = CreateErrorResponseMessage(requestId, error);
@@ -168,18 +169,17 @@ void TServiceBase::OnRequest(
         return;
     }
 
-    auto runtimeInfo = methodIt->second;
     if (runtimeInfo->Descriptor.OneWay != oneWay) {
         guard.Release();
 
         auto error = TError(
             EErrorCode::ProtocolError,
-            "One-way flag mismatch for verb %s:%s: expected %s, actual %s (RequestId: %s)",
+            "One-way flag mismatch for verb %s:%s: expected %s, actual %s",
             ~ServiceName,
             ~verb,
             ~FormatBool(runtimeInfo->Descriptor.OneWay),
-            ~FormatBool(oneWay),
-            ~ToString(requestId));
+            ~FormatBool(oneWay))
+            << TErrorAttribute("request_id", requestId);
         LOG_WARNING(error);
         if (!header.one_way()) {
             auto errorMessage = CreateErrorResponseMessage(requestId, error);
@@ -189,7 +189,7 @@ void TServiceBase::OnRequest(
         return;
     }
 
-    Profiler.Increment(runtimeInfo->RequestCounter);
+    Profiler.Increment(runtimeInfo->RequestCounter, +1);
     auto timer = Profiler.TimingStart(runtimeInfo->ProfilingPath + "/time");
 
     auto activeRequest = New<TActiveRequest>(
@@ -208,6 +208,7 @@ void TServiceBase::OnRequest(
 
     if (!oneWay) {
         YCHECK(ActiveRequests.insert(activeRequest).second);
+        Profiler.Increment(runtimeInfo->QueueSizeCounter, +1);
     }
 
     guard.Release();
@@ -268,15 +269,14 @@ void TServiceBase::OnInvocationPrepared(
         }
     });
 
-    auto invoker = activeRequest->RuntimeInfo->Descriptor.Invoker;
+    const auto& runtimeInfo = activeRequest->RuntimeInfo;
+    auto invoker = runtimeInfo->Descriptor.Invoker;
     if (!invoker) {
         invoker = DefaultInvoker;
     }
 
     if (!invoker->Invoke(MoveRV(wrappedHandler))) {
-        context->Reply(TError(
-            EErrorCode::Unavailable,
-            "Service unavailable"));
+        context->Reply(TError(EErrorCode::Unavailable, "Service unavailable"));
     }
 }
 
@@ -303,6 +303,7 @@ void TServiceBase::OnResponse(TActiveRequestPtr activeRequest, IMessagePtr messa
         activeRequest->Completed = true;
 
         if (active) {
+            Profiler.Increment(activeRequest->RuntimeInfo->QueueSizeCounter, -1);
             activeRequest->ReplyBus->Send(MoveRV(message));
         }
 
@@ -319,11 +320,10 @@ void TServiceBase::OnResponse(TActiveRequestPtr activeRequest, IMessagePtr messa
 void TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor)
 {
     TGuard<TSpinLock> guard(SpinLock);
-
     auto path = "/services/" + ServiceName + "/methods/" +  descriptor.Verb;
     auto info = New<TRuntimeMethodInfo>(descriptor, path);
     // Failure here means that such verb is already registered.
-    YCHECK(RuntimeMethodInfos.insert(MakePair(descriptor.Verb, info)).second);
+    YCHECK(RuntimeMethodInfos.insert(std::make_pair(descriptor.Verb, info)).second);
 }
 
 void TServiceBase::CancelActiveRequests(const TError& error)
@@ -335,9 +335,24 @@ void TServiceBase::CancelActiveRequests(const TError& error)
     }
 
     FOREACH (auto activeRequest, requestsToCancel) {
+        Profiler.Increment(activeRequest->RuntimeInfo->QueueSizeCounter, -1);
+
         auto errorMessage = CreateErrorResponseMessage(activeRequest->Id, error);
         activeRequest->ReplyBus->Send(errorMessage);
     }
+}
+
+TServiceBase::TRuntimeMethodInfoPtr TServiceBase::FindMethodInfo(const Stroka& method)
+{
+    auto it = RuntimeMethodInfos.find(method);
+    return it == RuntimeMethodInfos.end() ? NULL : it->second;
+}
+
+TServiceBase::TRuntimeMethodInfoPtr TServiceBase::GetMethodInfo(const Stroka& method)
+{
+    auto info = FindMethodInfo(method);
+    YCHECK(info);
+    return info;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
