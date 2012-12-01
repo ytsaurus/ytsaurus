@@ -8,6 +8,7 @@
 #include <ytlib/misc/string.h>
 
 #include <ytlib/ytree/ypath_client.h>
+#include <ytlib/ytree/serialize.h>
 
 #include <ytlib/bus/bus.h>
 
