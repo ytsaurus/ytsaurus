@@ -561,7 +561,7 @@ protected:
     ~TServiceBase();
 
     //! Registers a method.
-    void RegisterMethod(const TMethodDescriptor& descriptor);
+    TRuntimeMethodInfoPtr RegisterMethod(const TMethodDescriptor& descriptor);
 
     //! Prepares the handler to invocation.
     virtual TClosure PrepareHandler(IServiceContextPtr context, TClosure handler);

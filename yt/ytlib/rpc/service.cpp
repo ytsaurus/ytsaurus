@@ -317,13 +317,14 @@ void TServiceBase::OnResponse(TActiveRequestPtr activeRequest, IMessagePtr messa
     }
 }
 
-void TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor)
+TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor)
 {
     TGuard<TSpinLock> guard(SpinLock);
     auto path = "/services/" + ServiceName + "/methods/" +  descriptor.Verb;
-    auto info = New<TRuntimeMethodInfo>(descriptor, path);
+    auto runtimeInfo = New<TRuntimeMethodInfo>(descriptor, path);
     // Failure here means that such verb is already registered.
-    YCHECK(RuntimeMethodInfos.insert(std::make_pair(descriptor.Verb, info)).second);
+    YCHECK(RuntimeMethodInfos.insert(std::make_pair(descriptor.Verb, runtimeInfo)).second);
+    return runtimeInfo;
 }
 
 void TServiceBase::CancelActiveRequests(const TError& error)
@@ -350,9 +351,9 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::FindMethodInfo(const Stroka& m
 
 TServiceBase::TRuntimeMethodInfoPtr TServiceBase::GetMethodInfo(const Stroka& method)
 {
-    auto info = FindMethodInfo(method);
-    YCHECK(info);
-    return info;
+    auto runtimeInfo = FindMethodInfo(method);
+    YCHECK(runtimeInfo);
+    return runtimeInfo;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
