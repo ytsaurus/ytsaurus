@@ -273,7 +273,9 @@ if [ "$b" != "0" ]; then
     rm -rf $CHECKOUT_DIRECTORY/tests/integration/tests.sandbox/*
 fi
 
+# Some preparation
 cd "$CHECKOUT_DIRECTORY/python/yt/wrapper" && make
+cd "$CHECKOUT_DIRECTORY/python" && make version
 run_python_test "$CHECKOUT_DIRECTORY/python" "python_libraries"
 
 tc "blockOpened name='JavaScript Tests'"
