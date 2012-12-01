@@ -27,13 +27,17 @@ void BuildOperationAttributes(TOperationPtr operation, IYsonConsumer* consumer)
         .Item("spec").Node(operation->GetSpec());
 }
 
-void BuildJobAttributes(TJobPtr job, NYTree::IYsonConsumer* consumer)
+void BuildJobAttributes(TJobPtr job, IYsonConsumer* consumer)
 {
     auto state = job->GetState();
     BuildYsonMapFluently(consumer)
         .Item("job_type").Scalar(FormatEnum(job->GetType()))
         .Item("state").Scalar(FormatEnum(state))
         .Item("address").Scalar(job->GetNode()->GetAddress())
+        .Item("start_time").Scalar(ToString(job->GetStartTime()))
+        .DoIf(job->GetFinishTime(), [=] (TFluentMap fluent) {
+            fluent.Item("finish_time").Scalar(job->GetFinishTime().Get());
+        })
         .DoIf(state == EJobState::Failed, [=] (TFluentMap fluent) {
             auto error = FromProto(job->Result().error());
             fluent.Item("error").Scalar(error);

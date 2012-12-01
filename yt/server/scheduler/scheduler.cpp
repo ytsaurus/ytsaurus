@@ -824,7 +824,7 @@ private:
             operation->GetController()->OnJobAborted(job);
         }
 
-        UpdateFinishedJobNode(job);
+        OnJobFinished(job);
     }
 
 
@@ -854,7 +854,7 @@ private:
                 operation->GetController()->OnJobCompleted(job);
             }
 
-            UpdateFinishedJobNode(job);
+            OnJobFinished(job);
         }
 
         UnregisterJob(job);
@@ -873,7 +873,7 @@ private:
                 operation->GetController()->OnJobFailed(job);
             }
 
-            UpdateFinishedJobNode(job);
+            OnJobFinished(job);
         }
 
         UnregisterJob(job);
@@ -896,44 +896,48 @@ private:
                 operation->GetController()->OnJobAborted(job);
             }
 
-            UpdateFinishedJobNode(job);
+            OnJobFinished(job);
         }
 
         UnregisterJob(job);
     }
 
 
-    void UpdateFinishedJobNode(TJobPtr job)
+    void OnJobFinished(TJobPtr job)
     {
-        const auto& result = job->Result();
+        job->SetFinishTime(TInstant::Now());
 
+        const auto& result = job->Result();
         if (result.HasExtension(TMapJobResultExt::map_job_result_ext)) {
             const auto& resultExt = result.GetExtension(TMapJobResultExt::map_job_result_ext);
-            ProcessFinishedJob(job, resultExt.mapper_result());
+            ProcessFinishedJobResult(job, resultExt.mapper_result());
         } else if (result.HasExtension(TReduceJobResultExt::reduce_job_result_ext)) {
             const auto& resultExt = result.GetExtension(TReduceJobResultExt::reduce_job_result_ext);
-            ProcessFinishedJob(job, resultExt.reducer_result());
+            ProcessFinishedJobResult(job, resultExt.reducer_result());
         } else if (result.HasExtension(TPartitionJobResultExt::partition_job_result_ext)) {
             const auto& resultExt = result.GetExtension(TPartitionJobResultExt::partition_job_result_ext);
             if (resultExt.has_mapper_result()) {
-                ProcessFinishedJob(job, resultExt.mapper_result());
+                ProcessFinishedJobResult(job, resultExt.mapper_result());
             }
         } else {
             // Dummy empty job result without stderr.
             static TUserJobResult jobResult;
-            ProcessFinishedJob(job, jobResult);
+            ProcessFinishedJobResult(job, jobResult);
         }
     }
 
-    void ProcessFinishedJob(TJobPtr job, const TUserJobResult& result)
+    void ProcessFinishedJobResult(TJobPtr job, const TUserJobResult& result)
     {
-        if (result.has_stderr_chunk_id()) {
-            auto chunkId = TChunkId::FromProto(result.stderr_chunk_id());
-            MasterConnector->CreateJobNode(job, chunkId);
-        } else if (job->GetState() == EJobState::Failed) {
-            MasterConnector->CreateJobNode(job, NullChunkId);
+        auto stderrChunkId =
+            result.has_stderr_chunk_id()
+            ? TChunkId::FromProto(result.stderr_chunk_id())
+            : NullChunkId;
+
+        if (job->GetState() == EJobState::Failed || stderrChunkId != NullChunkId) {
+            MasterConnector->CreateJobNode(job, stderrChunkId);
         }
     }
+
 
     void InitStrategy()
     {

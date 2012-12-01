@@ -28,6 +28,10 @@ class TJob
     //! The time when the job was started.
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
 
+    //! The time when the job was finished.
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, FinishTime);
+
+    //! Job result returned by node.
     DEFINE_BYREF_RW_PROPERTY(NProto::TJobResult, Result);
 
     //! Some rough approximation that is updated with every heartbeat.
