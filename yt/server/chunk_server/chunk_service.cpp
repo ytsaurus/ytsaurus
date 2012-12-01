@@ -4,8 +4,13 @@
 #include "node.h"
 #include "node_authority.h"
 #include "private.h"
+#include "config.h"
 
 #include <ytlib/misc/string.h>
+
+#include <ytlib/meta_state/rpc_helpers.h>
+
+#include <ytlib/profiling/profiler.h>
 
 #include <server/object_server/object_manager.h>
 
@@ -15,10 +20,6 @@
 #include <server/transaction_server/transaction_manager.h>
 
 #include <server/chunk_server/chunk_manager.h>
-
-#include <ytlib/meta_state/rpc_helpers.h>
-
-#include <ytlib/profiling/profiler.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -37,14 +38,17 @@ static NProfiling::TProfiler& Profiler = ChunkServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkService::TChunkService(TBootstrap* bootstrap)
+TChunkService::TChunkService(
+    TChunkManagerConfigPtr config,
+    TBootstrap* bootstrap)
     : TMetaStateServiceBase(
         bootstrap,
         TChunkServiceProxy::GetServiceName(),
         ChunkServerLogger.GetCategory())
+    , Config(config)
 {
     RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterNode));
-    RegisterMethod(
+    FullHeartbeatMethodInfo = RegisterMethod(
         RPC_SERVICE_METHOD_DESC(FullHeartbeat)
             .SetRequestHeavy(true)
             .SetInvoker(bootstrap->GetMetaStateFacade()->GetGuardedInvoker(EStateThreadQueue::ChunkMaintenance)));
@@ -111,6 +115,13 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterNode)
 
     ValidateAuthorization(address);
 
+    if (FullHeartbeatMethodInfo->QueueSizeCounter.Current > Config->MaxFullHeartbeatQueueSize) {
+        context->Reply(TError(
+            NRpc::EErrorCode::Unavailable,
+            "Full heartbeat queue size limit reached"));
+        return;
+    }
+        
     TMetaReqRegisterNode registerReq;
     registerReq.set_address(address);
     *registerReq.mutable_incarnation_id() = incarnationId.ToProto();

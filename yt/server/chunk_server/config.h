@@ -78,6 +78,10 @@ struct TChunkManagerConfig
     TDuration ChunkRFUpdatePeriod;
     int MaxChunksPerRFUpdate;
 
+    //! Limit for the number of queued FullHeartbeat requests before
+    //! RegisterNode starts replying EErrorCode::Unavailable.
+    int MaxFullHeartbeatQueueSize;
+
     TChunkReplicatorConfigPtr ChunkReplicator;
     
     TChunkManagerConfig()
@@ -106,6 +110,10 @@ struct TChunkManagerConfig
 
         Register("chunk_replicator", ChunkReplicator)
             .DefaultNew();
+
+        Register("max_full_heartbeat_queue_size", MaxFullHeartbeatQueueSize)
+            .Default(10)
+            .GreaterThan(0);
     }
 };
 

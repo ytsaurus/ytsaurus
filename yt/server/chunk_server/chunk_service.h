@@ -16,11 +16,17 @@ class TChunkService
     : public NCellMaster::TMetaStateServiceBase
 {
 public:
-    explicit TChunkService(NCellMaster::TBootstrap* bootstrap);
+    explicit TChunkService(
+        TChunkManagerConfigPtr config,
+        NCellMaster::TBootstrap* bootstrap);
 
 private:
     typedef TChunkService TThis;
     typedef TChunkServiceProxy::EErrorCode EErrorCode;
+
+    TChunkManagerConfigPtr Config;
+
+    TRuntimeMethodInfoPtr FullHeartbeatMethodInfo;
 
     TDataNode* GetNode(TNodeId nodeId);
 

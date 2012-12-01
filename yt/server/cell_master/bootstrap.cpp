@@ -155,7 +155,7 @@ void TBootstrap::Run()
 
     ChunkManager = New<TChunkManager>(Config->Chunks, this);
 
-    auto chunkService = New<TChunkService>(this);
+    auto chunkService = New<TChunkService>(Config->Chunks, this);
     RpcServer->RegisterService(chunkService);
 
     auto monitoringManager = New<TMonitoringManager>();
