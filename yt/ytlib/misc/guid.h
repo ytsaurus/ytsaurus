@@ -6,6 +6,8 @@
 
 #include <ytlib/misc/guid.pb.h>
 
+#include <ytlib/ytree/public.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,11 +50,8 @@ struct TGuid
     static TGuid FromProto(const NProto::TGuid& protoGuid);
 };
 
-// TODO: consider removing TGuid::ToString
-inline Stroka ToString(const TGuid& guid)
-{
-    return guid.ToString();
-}
+// TODO(babenko): consider removing TGuid::ToString
+Stroka ToString(const TGuid& guid);
 
 bool operator == (const TGuid &a, const TGuid &b);
 bool operator != (const TGuid &a, const TGuid &b);

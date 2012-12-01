@@ -3,6 +3,8 @@
 
 #include <ytlib/misc/error.h>
 
+#include <ytlib/ytree/yson_consumer.h>
+
 #include <util/datetime/cputimer.h>
 
 #include <util/system/atomic.h>
@@ -290,9 +292,19 @@ NProto::TGuid TGuid::ToProto() const
     return protoGuid;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+Stroka ToString(const TGuid& guid)
+{
+    return guid.ToString();
+}
+
 bool operator == (const TGuid& lhs, const TGuid& rhs)
 {
-    return memcmp(&lhs, &rhs, sizeof (lhs)) == 0;
+    return lhs.Parts[0] == rhs.Parts[0] &&
+           lhs.Parts[1] == rhs.Parts[1] &&
+           lhs.Parts[2] == rhs.Parts[2] &&
+           lhs.Parts[3] == rhs.Parts[3];
 }
 
 bool operator != (const TGuid& lhs, const TGuid& rhs)
