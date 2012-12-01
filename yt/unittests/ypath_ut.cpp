@@ -214,7 +214,7 @@ TEST_F(TYPathTest, LsOnUnsupportedNodes)
     });
 
     EXPECT_ANY_THROW({
-        Set("entity", "<>");
+        Set("entity", "#");
         List("entity");
     });
 }

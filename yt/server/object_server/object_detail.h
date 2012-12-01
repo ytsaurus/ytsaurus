@@ -171,7 +171,7 @@ protected:
     {
         UNUSED(request);
 
-        response->set_value("<>");
+        response->set_value("#");
         context->Reply();
     }
 
