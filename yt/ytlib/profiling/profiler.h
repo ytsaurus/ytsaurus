@@ -33,7 +33,7 @@ DECLARE_ENUM(ETimerMode,
 /*!
  *  Keeps the timing start time and the last checkpoint time.
  *
- *  Thread safety: single
+ *  Thread affinity: single-threaded
  */
 struct TTimer
 {
