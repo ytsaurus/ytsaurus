@@ -57,7 +57,7 @@ class TestResourceLeak(YTEnvSetup):
     def _check_no_temp_file(self, chunk_store):
         for root, dirs, files in os.walk(chunk_store):
             for file in files:
-                assert not file.endswith('~'), 'Found temporary file: ' + file  
+                assert not file.endswith('~') or file == 'health_check~', 'Found temporary file: ' + file  
 
     # should be called on empty nodes
     def test_canceled_upload(self):
