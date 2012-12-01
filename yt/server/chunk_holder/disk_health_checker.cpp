@@ -14,7 +14,7 @@ namespace NChunkHolder {
 
 static NLog::TLogger& Logger = DataNodeLogger;
 static NProfiling::TProfiler& Profiler = DataNodeProfiler;
-static const char* TestFileName = "health_check.tmp";
+static const char* TestFileName = "health_check.tmp~";
 
 ////////////////////////////////////////////////////////////////////////////////
 
