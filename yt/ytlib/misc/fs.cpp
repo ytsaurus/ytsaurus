@@ -276,8 +276,8 @@ void MakeSymbolicLink(const Stroka& filePath, const Stroka& linkPath)
         THROW_ERROR_EXCEPTION(
             "Failed to link %s to %s",
             ~filePath.Quote(),
-            ~linkPath.Quote(),
-            GetLastError());
+            ~linkPath.Quote())
+            << TError::FromSystem();
     }
 }
 
