@@ -36,16 +36,23 @@ struct TLocationConfig
     //! (If not initialized then indicates to occupy all available space on drive).
     TNullable<i64> Quota;
 
-    //! The location is considered to be full when left space is less than #LowWatermark.
+    //! Minimum size the disk partition must have to make this location usable.
+    TNullable<i64> MinDiskSpace;
+
+    //! The location is considered to be full when available space becomes less than #LowWatermark.
     i64 LowWatermark;
 
-    //! All uploads to the location are aborted when left space is less than #HighWatermark.
+    //! All uploads to the location are aborted when available space becomes less than #HighWatermark.
     i64 HighWatermark;
 
     TLocationConfig()
     {
-        Register("path", Path).NonEmpty();
-        Register("quota", Quota).Default(TNullable<i64>());
+        Register("path", Path)
+            .NonEmpty();
+        Register("quota", Quota)
+            .Default(TNullable<i64>());
+        Register("min_disk_space", MinDiskSpace)
+            .Default(TNullable<i64>());
         Register("low_watermark", LowWatermark)
             .GreaterThanOrEqual(0)
             .Default((i64) 20 * 1024 * 1024 * 1024); // 20 Gb

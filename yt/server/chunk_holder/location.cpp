@@ -86,7 +86,8 @@ i64 TLocation::GetAvailableSpace() const
     auto path = GetPath();
     
     try {
-        AvailableSpace = NFS::GetAvailableSpace(path);
+        auto statistics = NFS::GetDiskSpaceStatistics(path);
+        AvailableSpace = statistics.AvailableSpace;
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Failed to compute available space");
         const_cast<TLocation*>(this)->Disable();
@@ -98,6 +99,19 @@ i64 TLocation::GetAvailableSpace() const
     AvailableSpace = std::min(AvailableSpace, remainingQuota);
 
     return AvailableSpace;
+}
+
+i64 TLocation::GetTotalSpace() const
+{
+    auto path = GetPath();
+    try {
+        auto statistics = NFS::GetDiskSpaceStatistics(path);
+        return statistics.TotalSpace;
+    } catch (const std::exception& ex) {
+        LOG_ERROR(ex, "Failed to compute total space");
+        const_cast<TLocation*>(this)->Disable();
+        return 0;
+    }
 }
 
 TBootstrap* TLocation::GetBootstrap() const
@@ -112,7 +126,7 @@ i64 TLocation::GetUsedSpace() const
 
 i64 TLocation::GetQuota() const
 {
-    return Config->Quota.Get(Max<i64>());
+    return Config->Quota.Get(std::numeric_limits<i64>::max());
 }
 
 double TLocation::GetLoadFactor() const
@@ -220,6 +234,17 @@ std::vector<TChunkDescriptor> TLocation::Initialize()
 {
     auto path = GetPath();
 
+    if (Config->MinDiskSpace) {
+        i64 minSpace = Config->MinDiskSpace.Get();
+        i64 totalSpace = GetTotalSpace();
+        if (totalSpace < minSpace) {
+            THROW_ERROR_EXCEPTION("Min disk space requirement is not met at %s: required %" PRId64 ", actual %" PRId64,
+                ~path.Quote(),
+                minSpace,
+                totalSpace);
+        }
+    }
+
     LOG_INFO("Scanning storage location");
 
     NFS::ForcePath(path);
@@ -229,7 +254,7 @@ std::vector<TChunkDescriptor> TLocation::Initialize()
     yhash_set<TChunkId> chunkIds;
 
     TFileList fileList;
-    fileList.Fill(path, TStringBuf(), TStringBuf(), Max<int>());
+    fileList.Fill(path, TStringBuf(), TStringBuf(), std::numeric_limits<int>::max());
     i32 size = fileList.Size();
     for (i32 i = 0; i < size; ++i) {
         Stroka fileName = fileList.Next();
@@ -286,7 +311,7 @@ std::vector<TChunkDescriptor> TLocation::Initialize()
         if (TGuid::FromString(cellGuidString, &CellGuid)) {
             LOG_INFO("Cell guid: %s", ~cellGuidString);
         } else {
-            LOG_FATAL("Failed to parse cell guid: %s", ~cellGuidString);
+            THROW_ERROR_EXCEPTION("Failed to parse cell guid: %s", ~cellGuidString);
         }
     } else {
         LOG_INFO("Cell guid not found");

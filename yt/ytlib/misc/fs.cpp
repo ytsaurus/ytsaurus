@@ -39,7 +39,7 @@ static NLog::TLogger Logger("FS");
 
 bool Remove(const Stroka& name)
 {
-#if defined(_win_)
+#ifdef _win_
     return DeleteFile(~name);
 #else
     struct stat sb;
@@ -106,7 +106,7 @@ Stroka GetFileNameWithoutExtension(const Stroka& path)
 
 void CleanTempFiles(const Stroka& path)
 {
-    LOG_INFO("Cleaning temp files in %s", ~path.Quote());
+    LOG_INFO("Cleaning temp files in directory: %s", ~path);
 
     if (!isexist(~path))
         return;
@@ -117,40 +117,38 @@ void CleanTempFiles(const Stroka& path)
     for (i32 i = 0; i < size; ++i) {
         Stroka fileName = NFS::CombinePaths(path, fileList.Next());
         if (fileName.has_suffix(TempFileSuffix)) {
-            LOG_INFO("Removing file %s", ~fileName);
+            LOG_INFO("Removing temp file: %s", ~fileName);
             if (!NFS::Remove(~fileName)) {
-                LOG_ERROR("Error removing %s",  ~fileName);
+                LOG_ERROR("Error removing temp file: %s",  ~fileName);
             }
         }
     }
 }
 
-i64 GetAvailableSpace(const Stroka& path)
+TDiskSpaceStatistics GetDiskSpaceStatistics(const Stroka& path)
 {
-#if !defined( _win_)
-    struct statfs fsData;
-    int result = statfs(~path, &fsData);
-    i64 availableSpace = (i64) fsData.f_bavail * fsData.f_bsize;
-#else
-    ui64 freeBytes;
-    int result = GetDiskFreeSpaceExA(
+    TDiskSpaceStatistics result;
+
+#ifdef _win_
+    bool ok = GetDiskFreeSpaceEx(
         ~path,
-        (PULARGE_INTEGER)&freeBytes,
-        (PULARGE_INTEGER)NULL,
-        (PULARGE_INTEGER)NULL);
-    i64 availableSpace = freeBytes;
+        (PULARGE_INTEGER) &result.AvailableSpace,
+        (PULARGE_INTEGER) &result.TotalSpace,
+        (PULARGE_INTEGER) NULL) != 0;
+#else
+    struct statfs fsData;
+    bool ok = statfs(~path, &fsData) == 0;
+    result.TotalSpace = (i64) fsData.f_blocks * fsData.f_bsize;
+    result.AvailableSpace = (i64) fsData.f_bavail * fsData.f_bsize;
 #endif
 
-#if !defined(_win_)
-    if (result != 0) {
-#else
-    if (result == 0) {
-#endif
-        THROW_ERROR_EXCEPTION("Failed to get available disk space at %s (error code: %d)", 
-            ~path.Quote(),
-            result);
+    if (!ok) {
+        THROW_ERROR_EXCEPTION("Failed to get disk space statistics for %s", 
+            ~path.Quote())
+            << TError::FromSystem();
     }
-    return availableSpace;
+
+    return result;
 }
 
 void ForcePath(const Stroka& path, int mode)
@@ -173,7 +171,7 @@ i64 GetFileSize(const Stroka& path)
 #else
     if (handle == INVALID_HANDLE_VALUE) {
 #endif
-        THROW_ERROR_EXCEPTION("Failed to get the size of file %s",
+        THROW_ERROR_EXCEPTION("Failed to get the size of %s",
             ~path.Quote());
     }
 
@@ -253,13 +251,13 @@ void SetExecutableMode(const Stroka& path, bool executable)
     int mode = S_IRUSR | S_IWUSR;
     if (executable)
         mode |= S_IXUSR;
-    auto res = chmod(~path, mode);
-    if (res != 0) {
+    bool = chmod(~path, mode) == 0;
+    if (!ok) {
         THROW_ERROR_EXCEPTION(
-            "Failed to change mode %d for file %s (Error: %s)",
+            "Failed to set mode %d for %s",
             mode,
-            ~path,
-            strerror(errno));
+            ~path.Quote())
+            << TError::FromSystem();
     }
 #endif
 }
@@ -269,24 +267,18 @@ void MakeSymbolicLink(const Stroka& filePath, const Stroka& linkPath)
 #ifdef _win_
     // From MSDN: If the function succeeds, the return value is nonzero.
     // If the function fails, the return value is zero. To get extended error information, call GetLastError.
-    auto res = !CreateSymbolicLink(~linkPath, ~filePath, (DWORD)0);
-    if (res == 0) {
+    bool ok = CreateSymbolicLink(~linkPath, ~filePath, 0) != 0;
+#else
+    bool ok = symlink(~filePath, ~linkPath) == 0;
+#endif
+
+    if (!ok) {
         THROW_ERROR_EXCEPTION(
-            "Failed to link %s to %s (Error: %d)",
+            "Failed to link %s to %s",
             ~filePath.Quote(),
             ~linkPath.Quote(),
             GetLastError());
     }
-#else
-    auto res = symlink(~filePath, ~linkPath);
-    if (res != 0) {
-        THROW_ERROR_EXCEPTION(
-            "Failed to link %s to %s (Error: %s)",
-            ~filePath.Quote(),
-            ~linkPath.Quote(),
-            strerror(errno));
-    }
-#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////

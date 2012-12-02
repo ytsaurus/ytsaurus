@@ -53,7 +53,12 @@ public:
     TFuture<void> ScheduleChunkRemoval(TChunk* chunk);
 
     //! Updates #AvailalbleSpace with a system call and returns the result.
+    //! Never throws.
     i64 GetAvailableSpace() const;
+
+    //! Returns the total space on the disk drive where the location resides.
+    //! Never throws.
+    i64 GetTotalSpace() const;
 
     //! Returns the bootstrap.
     TBootstrap* GetBootstrap() const;
