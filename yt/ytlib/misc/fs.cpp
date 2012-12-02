@@ -251,7 +251,7 @@ void SetExecutableMode(const Stroka& path, bool executable)
     int mode = S_IRUSR | S_IWUSR;
     if (executable)
         mode |= S_IXUSR;
-    bool = chmod(~path, mode) == 0;
+    bool ok = chmod(~path, mode) == 0;
     if (!ok) {
         THROW_ERROR_EXCEPTION(
             "Failed to set mode %d for %s",
