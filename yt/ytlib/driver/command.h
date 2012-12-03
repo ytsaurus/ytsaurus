@@ -162,7 +162,11 @@ protected:
             return NULL;
         }
         bool pingAncestorTransactions = this->Request->PingAncestorTransactions;
-        return this->Context->GetTransactionManager()->Attach(transactionId, false, pingAncestorTransactions);
+        return this->Context->GetTransactionManager()->Attach(
+            transactionId, 
+            false, 
+            true, 
+            pingAncestorTransactions);
     }
 
 };
