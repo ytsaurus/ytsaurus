@@ -113,7 +113,7 @@ protected:
         }
         {
             int value = 1;
-            setsockopt(Socket, SOL_SOCKET, SO_KEEPALIVE, (const char*) &value, sizeof(value));
+            setsockopt(clientSocket, SOL_SOCKET, SO_KEEPALIVE, (const char*) &value, sizeof(value));
         }
     }
 
