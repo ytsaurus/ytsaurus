@@ -382,29 +382,51 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
             << TError::FromSystem();
     }
 
-    // TODO(babenko): check results
     if (family == AF_INET6) {
-        int flag = 0;
-        setsockopt(Socket, IPPROTO_IPV6, IPV6_V6ONLY, (const char*) &flag, sizeof(flag));
+        int value = 0;
+        if (setsockopt(Socket, IPPROTO_IPV6, IPV6_V6ONLY, (const char*) &value, sizeof(value)) != 0) {
+            THROW_ERROR_EXCEPTION("Failed to configure IPv6 protocol")
+                << TError::FromSystem();
+        }
     }
 
     {
-        int flag = 1;
-        setsockopt(Socket, IPPROTO_TCP, TCP_NODELAY, (const char*) &flag, sizeof(flag));
+        int value = 1;
+        if (setsockopt(Socket, IPPROTO_TCP, TCP_NODELAY, (const char*) &value, sizeof(value)) != 0) {
+            THROW_ERROR_EXCEPTION("Failed to disable TCP delay")
+                << TError::FromSystem();
+        }
     }
 
 #if !defined(_WIN32) && !defined(__APPLE__)
     {
-        setsockopt(Socket, SOL_SOCKET, SO_PRIORITY, (const char*) &Priority, sizeof(Priority));
+        if (setsockopt(Socket, SOL_SOCKET, SO_PRIORITY, (const char*) &Priority, sizeof(Priority)) != 0) {
+            THROW_ERROR_EXCEPTION("Failed to set socket priority")
+                << TError::FromSystem();
+        }
     }
 #endif
 
+    {
+        int value = 1;
+        if (setsockopt(Socket, SOL_SOCKET, SO_KEEPALIVE, (const char*) &value, sizeof(value)) != 0) {
+            THROW_ERROR_EXCEPTION("Failed to enable keep alive")
+                << TError::FromSystem();
+        }
+    }
+
+    {
 #ifdef _WIN32
-    unsigned long dummy = 1;
-    ioctlsocket(Socket, FIONBIO, &dummy);
+        unsigned long value = 1;
+        int result = ioctlsocket(Socket, FIONBIO, &value);
 #else
-    fcntl(Socket, F_SETFL, O_NONBLOCK);
+        int result = fcntl(Socket, F_SETFL, O_NONBLOCK);
 #endif
+        if (result != 0) {
+            THROW_ERROR_EXCEPTION("Failed to enable nonblocking mode")
+                << TError::FromSystem();
+        }
+    }
 
     int result;
     PROFILE_TIMING ("/connect_time") {

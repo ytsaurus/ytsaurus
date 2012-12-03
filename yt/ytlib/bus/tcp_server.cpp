@@ -108,8 +108,12 @@ protected:
     virtual void InitClientSocket(SOCKET clientSocket)
     {
         {
-            int flag = 1;
-            setsockopt(clientSocket, IPPROTO_TCP, TCP_NODELAY, (const char*) &flag, sizeof(flag));
+            int value = 1;
+            setsockopt(clientSocket, IPPROTO_TCP, TCP_NODELAY, (const char*) &value, sizeof(value));
+        }
+        {
+            int value = 1;
+            setsockopt(Socket, SOL_SOCKET, SO_KEEPALIVE, (const char*) &value, sizeof(value));
         }
     }
 
