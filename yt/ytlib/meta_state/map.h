@@ -1,39 +1,37 @@
 #pragma once
 
 #include "public.h"
-
 #include "composite_meta_state.h"
 
 #include <ytlib/misc/thread_affinity.h>
-#include <ytlib/actions/future.h>
 
 namespace NYT {
 namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Default traits for cloning, saving and loading values.
+//! Default traits creating values.
 template <class TKey, class TValue>
 struct TDefaultMetaMapTraits
 {
     TAutoPtr<TValue> Create(const TKey& key) const;
 };
 
-//! Snapshottable map used to store various meta-state tables.
+//! Map type used to store various meta-state tables.
 /*!
  *  \tparam TKey Key type.
  *  \tparam TValue Value type.
  *  \tparam THash Hash function for keys.
- *  \tparam TTraits Traits for cloning, saving and loading values.
+ *  \tparam TTraits Traits for creating values.
  * 
  *  \note
  *  All public methods must be called from a single thread.
  * 
- *  TODO: this is not true, write about Traits
  *  TValue type must have the following methods:
- *          TAutoPtr<TValue> Clone();
- *          void Save(TOutputStream* output);
- *          static TAutoPtr<TValue> Load(TInputStream* input);
+ *  \code
+ *      void Save(const TContext& context);
+ *      void Load(const TContext& context);
+ *  \endcode   
  */
 template <
     class TKey,
@@ -48,6 +46,7 @@ public:
     typedef yhash_map<TKey, TValue*, THash> TMap;
     typedef typename TMap::iterator TIterator;
     typedef typename TMap::iterator TConstIterator;
+    typedef TPair<TKey, TValue*> TItem;
 
     explicit TMetaStateMap(const TTraits& traits = TTraits());
 
@@ -166,20 +165,11 @@ private:
     //! Slot for the thread in which all the public methods are called.
     DECLARE_THREAD_AFFINITY_SLOT(UserThread);
     
-    /*!
-     * When no snapshot is being written this is the actual map we're working with.
-     * When a snapshot is being created this map is kept read-only and
-     * #PatchMap is used to store the changes.
-     */
     TMap Map;
 
     //! Traits for creating values.
     TTraits Traits;
-
-    //! Current map size.
-    int Size;
     
-    typedef TPair<TKey, TValue*> TItem;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

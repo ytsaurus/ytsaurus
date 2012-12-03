@@ -23,7 +23,7 @@ public:
         : Bootstrap(bootstrap)
         , Map(map)
     {
-        YASSERT(map);
+        YCHECK(map);
     }
 
     virtual bool Exists(const TObjectId& id) override
@@ -32,19 +32,19 @@ public:
         return obj && obj->IsAlive();
     }
 
-    virtual i32 RefObject(const TObjectId& id) override
+    virtual int RefObject(const TObjectId& id) override
     {
         auto* obj = Map->Get(id);
         return obj->RefObject();
     }
 
-    virtual i32 UnrefObject(const TObjectId& id) override
+    virtual int UnrefObject(const TObjectId& id) override
     {
         auto* obj = Map->Get(id);
         return obj->UnrefObject();
     }
 
-    virtual i32 GetObjectRefCounter(const TObjectId& id) override
+    virtual int GetObjectRefCounter(const TObjectId& id) override
     {
         auto* obj = Map->Get(id);
         return obj->GetObjectRefCounter();

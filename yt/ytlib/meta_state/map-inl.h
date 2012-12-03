@@ -19,7 +19,6 @@ TAutoPtr<TValue> TDefaultMetaMapTraits<TKey, TValue>::Create(const TKey& key) co
 template <class TKey, class TValue, class TTraits, class THash>
 TMetaStateMap<TKey, TValue, TTraits, THash>::TMetaStateMap(const TTraits& traits)
     : Traits(traits)
-    , Size(0)
 { }
 
 template <class TKey, class TValue, class TTraits, class THash>
@@ -38,7 +37,6 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::Insert(const TKey& key, TValue
 
     YASSERT(value);
     YCHECK(Map.insert(MakePair(key, value)).second);
-    ++Size;
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
@@ -88,7 +86,6 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::Remove(const TKey& key)
     YASSERT(it != Map.end());
     delete it->second;
     Map.erase(it);
-    --Size;
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
@@ -100,7 +97,6 @@ TValue* TMetaStateMap<TKey, TValue, TTraits, THash>::Release(const TKey& key)
     YASSERT(it != Map.end());
     TValue* value = it->second;
     Map.erase(it);
-    --Size;
     return value;
 }
 
@@ -121,7 +117,6 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::Clear()
         delete pair.second;
     }
     Map.clear();
-    Size = 0;
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
@@ -129,7 +124,7 @@ int TMetaStateMap<TKey, TValue, TTraits, THash>::GetSize() const
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
-    return Size;
+    return static_cast<int>(Map.size());
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
@@ -138,7 +133,7 @@ std::vector<TKey> TMetaStateMap<TKey, TValue, TTraits, THash>::GetKeys(size_t si
     VERIFY_THREAD_AFFINITY(UserThread);
 
     std::vector<TKey> keys;
-    keys.reserve(Min(static_cast<size_t>(Size), sizeLimit));
+    keys.reserve(std::min(Map.size(), sizeLimit));
 
     FOREACH (const auto& pair, Map) {
         if (keys.size() == sizeLimit) {
@@ -147,7 +142,7 @@ std::vector<TKey> TMetaStateMap<TKey, TValue, TTraits, THash>::GetKeys(size_t si
         keys.push_back(pair.first);
     }
 
-    YASSERT(keys.size() == Min(static_cast<size_t>(Size), sizeLimit));
+    YCHECK(keys.size() == std::min(Map.size(), sizeLimit));
 
     return keys;
 }
@@ -158,7 +153,7 @@ std::vector<TValue*> TMetaStateMap<TKey, TValue, TTraits, THash>::GetValues(size
     VERIFY_THREAD_AFFINITY(UserThread);
 
     std::vector<TValue*> values;
-    values.reserve(Min(static_cast<size_t>(Size), sizeLimit));
+    values.reserve(std::min(Map.size(), sizeLimit));
 
     FOREACH (auto& pair, Map) {
         values.push_back(pair.second);
@@ -167,7 +162,7 @@ std::vector<TValue*> TMetaStateMap<TKey, TValue, TTraits, THash>::GetValues(size
         }
     }
 
-    YASSERT(values.size() == Min(static_cast<size_t>(Size), sizeLimit));
+    YCHECK(values.size() == std::min(Map.size(), sizeLimit));
 
     return values;
 }
@@ -216,16 +211,15 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadKeys(const TLoadContext& c
     auto* input = context.GetInput();
 
     Map.clear();
-    Size = ::LoadSize(input);
+    size_t size = ::LoadSize(input);
     
     TKey previousKey;
-    for (i32 index = 0; index < Size; ++index) {
+    for (size_t index = 0; index < size; ++index) {
         TKey key;
         ::Load(input, key);
 
-        if (index > 0) {
-            YASSERT(previousKey < key);
-        }
+        YASSERT(index == 0 || previousKey < key);
+
         previousKey = key;
 
         auto value = Traits.Create(key);
