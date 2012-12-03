@@ -328,7 +328,6 @@ private:
             }
 
             auto batchReq = Proxy.ExecuteBatch();
-            auto schedulerAddress = Owner->Bootstrap->GetPeerAddress();
             {
                 auto req = TCypressYPathProxy::Lock("//sys/scheduler/lock");
                 SetTransactionId(req, Owner->LockTransaction);
@@ -348,6 +347,7 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
 
             auto batchReq = Proxy.ExecuteBatch();
+            auto schedulerAddress = Owner->Bootstrap->GetPeerAddress();
             {
                 auto req = TYPathProxy::Set("//sys/scheduler/@address");
                 req->set_value(ConvertToYsonString(TRawString(schedulerAddress)).Data());
