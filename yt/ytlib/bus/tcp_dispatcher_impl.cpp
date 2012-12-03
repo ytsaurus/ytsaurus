@@ -19,7 +19,7 @@ static NProfiling::TProfiler& Profiler = BusProfiler;
 
 Stroka GetLocalBusPath(int port)
 {
-    return Sprintf("/var/run/yt-local-bus-%d", port);
+    return Sprintf("/var/run/yt/local-bus-%d", port);
 }
 
 TNetworkAddress GetLocalBusAddress(int port)
