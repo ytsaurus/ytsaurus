@@ -428,18 +428,20 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
         }
     }
 
-    int result;
-    PROFILE_TIMING ("/connect_time") {
-        do {
-            result = connect(Socket, netAddress.GetSockAddr(), netAddress.GetLength());
-        } while (result < 0 && errno == EINTR);
-    }
+    {
+        int result;
+        PROFILE_TIMING ("/connect_time") {
+            do {
+                result = connect(Socket, netAddress.GetSockAddr(), netAddress.GetLength());
+            } while (result < 0 && errno == EINTR);
+        }
 
-    if (result != 0) {
-        int error = LastSystemError();
-        if (IsSocketError(error)) {
-            THROW_ERROR_EXCEPTION("Error connecting to %s", ~Address)
-                << TError::FromSystem(error);
+        if (result != 0) {
+            int error = LastSystemError();
+            if (IsSocketError(error)) {
+                THROW_ERROR_EXCEPTION("Error connecting to %s", ~Address)
+                    << TError::FromSystem(error);
+            }
         }
     }
 }
