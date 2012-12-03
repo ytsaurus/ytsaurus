@@ -112,14 +112,12 @@ class TestSchedulerMapCommands(YTEnvSetup):
         upload(file1, '{value=42};\n')
         upload(file2, '{a=b};\n')
 
-        # check attributes @file_name
-        set(file2 + '/@file_name', 'my_file.txt')
         command= "cat > /dev/null; cat some_file.txt; cat my_file.txt"
 
         map(in_='//tmp/t1',
             out='//tmp/t2',
             command=command,
-            file=[file1, file2])
+            file=[file1, "<file_name=my_file.txt>" + file2])
 
         assert read('//tmp/t2') == [{'value': 42}, {'a': 'b'}]
 

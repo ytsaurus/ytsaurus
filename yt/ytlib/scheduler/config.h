@@ -58,6 +58,7 @@ struct TUserJobSpec
     Stroka Command;
     
     std::vector<NYPath::TRichYPath> FilePaths;
+    std::vector<NYPath::TRichYPath> TableFilePaths;
 
     TNullable<NFormats::TFormat> Format;
     TNullable<NFormats::TFormat> InputFormat;
@@ -72,6 +73,8 @@ struct TUserJobSpec
     {
         Register("command", Command);
         Register("file_paths", FilePaths)
+            .Default();
+        Register("table_file_paths", TableFilePaths)
             .Default();
         Register("format", Format)
             .Default();

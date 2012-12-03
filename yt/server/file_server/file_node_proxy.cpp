@@ -68,6 +68,7 @@ bool TFileNodeProxy::IsExecutable()
 
 Stroka TFileNodeProxy::GetFileName()
 {
+    // TODO(ignat): Remake wrapper and than delete this option
     auto fileName = Attributes().Find<Stroka>("file_name");
     if (fileName) {
         return *fileName;

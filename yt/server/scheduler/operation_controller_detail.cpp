@@ -1335,6 +1335,9 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 auto rsp = fetchFilesRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching files");
                 
+                if (file.Path.Attributes().Contains("file_name")) {
+                    rsp->set_file_name(file.Path.Attributes().Get<Stroka>("file_name"));
+                }
                 file.FetchResponse = rsp;
                 LOG_INFO("File %s consists of chunk %s",
                     ~file.Path.GetPath(),
