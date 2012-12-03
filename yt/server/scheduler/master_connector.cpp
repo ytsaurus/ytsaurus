@@ -336,16 +336,6 @@ private:
                 GenerateRpcMutationId(req);
                 batchReq->AddRequest(req, "take_lock");
             }
-            {
-                auto req = TYPathProxy::Set("//sys/scheduler/@address");
-                req->set_value(ConvertToYsonString(TRawString(schedulerAddress)).Data());
-                batchReq->AddRequest(req, "set_scheduler_address");
-            }
-            {
-                auto req = TYPathProxy::Set("//sys/scheduler/orchid&/@remote_address");
-                req->set_value(ConvertToYsonString(TRawString(schedulerAddress)).Data());
-                batchReq->AddRequest(req, "set_orchid_address");
-            }
             return batchReq->Invoke();
         }
 
@@ -358,6 +348,16 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
 
             auto batchReq = Proxy.ExecuteBatch();
+            {
+                auto req = TYPathProxy::Set("//sys/scheduler/@address");
+                req->set_value(ConvertToYsonString(TRawString(schedulerAddress)).Data());
+                batchReq->AddRequest(req, "set_scheduler_address");
+            }
+            {
+                auto req = TYPathProxy::Set("//sys/scheduler/orchid&/@remote_address");
+                req->set_value(ConvertToYsonString(TRawString(schedulerAddress)).Data());
+                batchReq->AddRequest(req, "set_orchid_address");
+            }
             {
                 auto req = TYPathProxy::List(GetOperationsPath());
                 auto* attributeFilter = req->mutable_attribute_filter();
