@@ -5,6 +5,7 @@
 #include <ytlib/actions/signal.h>
 
 #include <ytlib/misc/periodic_invoker.h>
+#include <ytlib/misc/error.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -36,10 +37,10 @@ private:
     TAtomic FailedLock;
 
     void OnCheck();
-    void OnCheckSuccess();
+    void OnCheckCompleted(TError error);
     void OnCheckTimeout();
 
-    TFuture<void> RunCheck();
+    TAsyncError RunCheck();
 
     void RaiseFailed();
 

@@ -41,14 +41,15 @@ void TDiskHealthChecker::OnCheck()
     auto this_ = MakeStrong(this);
     RunCheck().Subscribe(
         Config->Timeout,
-        BIND(&TDiskHealthChecker::OnCheckSuccess, MakeStrong(this)),
+        BIND(&TDiskHealthChecker::OnCheckCompleted, MakeStrong(this)),
         BIND(&TDiskHealthChecker::OnCheckTimeout, MakeStrong(this)));
 }
 
-
-void TDiskHealthChecker::OnCheckSuccess()
+void TDiskHealthChecker::OnCheckCompleted(TError error)
 {
-    PeriodicInvoker->ScheduleNext();
+    if (error.IsOK()) {
+        PeriodicInvoker->ScheduleNext();
+    }
 }
 
 void TDiskHealthChecker::OnCheckTimeout()
@@ -57,7 +58,7 @@ void TDiskHealthChecker::OnCheckTimeout()
     RaiseFailed();
 }
 
-TFuture<void> TDiskHealthChecker::RunCheck()
+TAsyncError TDiskHealthChecker::RunCheck()
 {
     LOG_DEBUG("Disk health check started: %s", ~Path);
 
@@ -92,12 +93,14 @@ TFuture<void> TDiskHealthChecker::RunCheck()
         }
 
         LOG_DEBUG("Disk health check finished: %s", ~Path);
+
+        return MakeFuture(TError());
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Disk health check failed: %s", ~Path);
         RaiseFailed();
-    }
 
-    return MakeFuture();
+        return MakeFuture(TError(ex));
+    }
 }
 
 void TDiskHealthChecker::RaiseFailed()
