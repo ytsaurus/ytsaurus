@@ -3,7 +3,6 @@
 #include "public.h"
 #include "file_reader_base.h"
 
-#include <ytlib/file_client/file_reader_base.h>
 #include <ytlib/object_client/object_service_proxy.h>
 
 namespace NYT {
