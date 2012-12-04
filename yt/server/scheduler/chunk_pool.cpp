@@ -33,13 +33,10 @@ void TChunkStripe::GetStatistics(i64* totalDataSize, i64* totalRowCount)
         *totalRowCount = 0;
     }
     FOREACH (auto chunk, Chunks) {
-        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunk->extensions());
-        if (totalDataSize) {
-            *totalDataSize += miscExt.uncompressed_data_size();
-        }
-        if (totalRowCount) {
-            *totalRowCount += miscExt.row_count();
-        }
+        i64 dataSize, rowCount;
+        chunk->GetStatistics(&dataSize, &rowCount);
+        *totalDataSize += dataSize;
+        *totalRowCount += rowCount;
     }
 }
 
@@ -572,11 +569,12 @@ private:
     void Register(TChunkStripePtr stripe)
     {
         FOREACH (const auto& chunk, stripe->Chunks) {
-            auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunk->extensions());
+            i64 dataSize, rowCount;
+            chunk->GetStatistics(&dataSize, &rowCount);
             FOREACH (const auto& address, chunk->node_addresses()) {
                 auto& entry = LocalChunks[address];
                 YCHECK(entry.Stripes.insert(stripe).second);
-                entry.TotalDataSize += miscExt.uncompressed_data_size();
+                entry.TotalDataSize += dataSize;
             }
         }
 
@@ -586,11 +584,12 @@ private:
     void Unregister(TChunkStripePtr stripe)
     {
         FOREACH (const auto& chunk, stripe->Chunks) {
-            auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunk->extensions());
+            i64 dataSize, rowCount;
+            chunk->GetStatistics(&dataSize, &rowCount);
             FOREACH (const auto& address, chunk->node_addresses()) {
                 auto& entry = LocalChunks[address];
                 YCHECK(entry.Stripes.erase(stripe) == 1);
-                entry.TotalDataSize -= miscExt.uncompressed_data_size();
+                entry.TotalDataSize -= dataSize;
             }
         }
 

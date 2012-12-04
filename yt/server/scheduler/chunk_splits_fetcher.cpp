@@ -70,7 +70,10 @@ void TChunkSplitsFetcher::CreateNewRequest(const Stroka& address)
 bool TChunkSplitsFetcher::AddChunkToRequest(NTableClient::TRefCountedInputChunkPtr chunk)
 {
     auto chunkId = TChunkId::FromProto(chunk->slice().chunk_id());
-    if (chunk->uncompressed_data_size() < Spec->JobSliceDataSize) {
+
+    i64 dataSize, rowCount;
+    chunk->GetStatistics(&dataSize, &rowCount);
+    if (dataSize < Spec->JobSliceDataSize) {
         LOG_DEBUG("Chunk split added (ChunkId: %s, TableIndex: %d)", 
             ~ToString(chunkId),
             chunk->TableIndex);

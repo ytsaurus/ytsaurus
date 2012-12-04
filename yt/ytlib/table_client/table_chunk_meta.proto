@@ -93,15 +93,16 @@ message TChannelsExt
     repeated TChunkChannel items = 1;
 }
 
+// Used within sliced input chunks to override sizes provided in TMiscExt.
+message TSizeOverrideExt
+{
+    required int64 row_count = 1;
+    required int64 uncompressed_data_size = 2;
+}
+
 message TPartitionsExt
 {
-    message TPartitionAttributes
-    {
-        required int64 row_count = 1;
-        required int64 uncompressed_data_size = 2;
-    }
-
-    repeated TPartitionAttributes partitions = 1;
+    repeated TSizeOverrideExt partitions = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

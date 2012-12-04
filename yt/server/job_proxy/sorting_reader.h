@@ -23,7 +23,8 @@ NTableClient::ISyncReaderPtr CreateSortingReader(
     NChunkClient::IBlockCachePtr blockCache,
     const NTableClient::TKeyColumns& keyColumns,
     TClosure onNetworkReleased,
-    std::vector<NTableClient::NProto::TInputChunk>&& chunks);
+    std::vector<NTableClient::NProto::TInputChunk>&& chunks,
+    int estimatedRowCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 

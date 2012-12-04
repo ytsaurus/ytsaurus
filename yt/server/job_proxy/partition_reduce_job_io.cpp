@@ -60,7 +60,8 @@ public:
             blockCache,
             keyColumns,
             BIND(&IJobHost::ReleaseNetwork, Host),
-            MoveRV(chunks));
+            MoveRV(chunks),
+            JobSpec.row_count());
         reader->Open();
 
         // ToDo(psushin): init all inputs in constructor, get rid of this check.

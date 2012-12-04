@@ -307,8 +307,6 @@ private:
         }
 
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunk->ChunkMeta().extensions());
-        inputChunk->set_uncompressed_data_size(miscExt.uncompressed_data_size());
-        inputChunk->set_row_count(miscExt.row_count());
 
         auto* slice = inputChunk->mutable_slice();
         *slice->mutable_chunk_id() = chunk->GetId().ToProto();

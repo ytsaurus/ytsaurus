@@ -552,6 +552,8 @@ struct TRefCountedInputChunk
 
     TRefCountedInputChunk(const TRefCountedInputChunk& other);
 
+    void GetStatistics(i64* uncompressedDataSize, i64* rowCount) const;
+
     // Used in scheduler to remember the origin of the chunk.
     int TableIndex;
 };

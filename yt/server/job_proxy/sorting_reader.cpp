@@ -48,11 +48,13 @@ public:
         NChunkClient::IBlockCachePtr blockCache,
         const TKeyColumns& keyColumns,
         TClosure onNetworkReleased,
-        std::vector<NTableClient::NProto::TInputChunk>&& chunks)
+        std::vector<NTableClient::NProto::TInputChunk>&& chunks,
+        int estimatedRowCount)
         : KeyColumns(keyColumns)
         , KeyColumnCount(static_cast<int>(KeyColumns.size()))
         , OnNetworkReleased(onNetworkReleased)
         , IsValid_(true)
+        , EstimatedRowCount(estimatedRowCount)
         , TotalRowCount(0)
         , ReadRowCount(0)
         , CurrentKey(KeyColumnCount)
@@ -213,7 +215,6 @@ private:
         PROFILE_TIMING ("/reduce/init_time") {
             Sync(~Reader, &TReader::AsyncOpen);
 
-            EstimatedRowCount = Reader->GetItemCount();
             EstimatedBucketCount = (EstimatedRowCount + SortBucketSize - 1) / SortBucketSize;
             LOG_INFO("Input size estimated (RowCount: %d, BucketCount: %d)",
                 EstimatedRowCount,
@@ -428,7 +429,8 @@ ISyncReaderPtr CreateSortingReader(
     NChunkClient::IBlockCachePtr blockCache,
     const TKeyColumns& keyColumns,
     TClosure onNetworkReleased,
-    std::vector<NTableClient::NProto::TInputChunk>&& chunks)
+    std::vector<NTableClient::NProto::TInputChunk>&& chunks,
+    int estimatedRowCount)
 {
     return New<TSortingReader>(
         config,
@@ -436,7 +438,8 @@ ISyncReaderPtr CreateSortingReader(
         blockCache,
         keyColumns,
         onNetworkReleased,
-        MoveRV(chunks));
+        MoveRV(chunks),
+        estimatedRowCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

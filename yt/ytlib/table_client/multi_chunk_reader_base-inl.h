@@ -10,6 +10,7 @@
 #include <ytlib/chunk_client/remote_reader.h>
 #include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/chunk_client/dispatcher.h>
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/actions/parallel_awaiter.h>
 #include <ytlib/rpc/channel.h>
 #include <ytlib/misc/protobuf_helpers.h>
@@ -39,7 +40,8 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
     , Logger(TableReaderLogger)
 {
     FOREACH(const auto& inputChunk, InputChunks) {
-        ItemCount_ += inputChunk.row_count();
+        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(inputChunk.extensions());
+        ItemCount_ += miscExt.row_count();
     }
 }
 
@@ -83,7 +85,9 @@ template <class TChunkReader>
 void TMultiChunkReaderBase<TChunkReader>::ProcessOpenedReader(const TSession& session)
 {
     LOG_DEBUG("Chunk opened (ChunkIndex: %d)", session.ChunkIndex);
-    ItemCount_ += session.Reader->GetRowCount() - InputChunks[session.ChunkIndex].row_count();
+    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(
+        InputChunks[session.ChunkIndex].extensions());
+    ItemCount_ += session.Reader->GetRowCount() - miscExt.row_count();
     FetchingCompleteAwaiter->Await(session.Reader->GetFetchingCompleteEvent());
     if (FetchingCompleteAwaiter->GetRequestCount() == InputChunks.size()) {
         auto this_ = MakeStrong(this);

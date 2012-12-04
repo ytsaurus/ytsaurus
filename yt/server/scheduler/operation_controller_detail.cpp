@@ -1388,7 +1388,9 @@ void TOperationControllerBase::SliceChunks(
 {
     *totalDataSize = 0;
     FOREACH (auto inputChunk, inputChunks) {
-        *totalDataSize += inputChunk->uncompressed_data_size();
+        i64 dataSize, rowCount;
+        inputChunk->GetStatistics(&dataSize, &rowCount);
+        *totalDataSize += dataSize;
     }
 
     i64 sliceDataSize =
@@ -1403,8 +1405,11 @@ void TOperationControllerBase::SliceChunks(
     // Ensure that no input chunk has size larger than sliceSize.
     FOREACH (auto inputChunk, inputChunks) {
         auto chunkId = TChunkId::FromProto(inputChunk->slice().chunk_id());
-        if (inputChunk->uncompressed_data_size() > sliceDataSize) {
-            int sliceCount = (int) std::ceil((double) inputChunk->uncompressed_data_size() / (double) sliceDataSize);
+        i64 dataSize, rowCount;
+        inputChunk->GetStatistics(&dataSize, &rowCount);
+
+        if (dataSize > sliceDataSize) {
+            int sliceCount = (int) std::ceil((double) dataSize / (double) sliceDataSize);
             auto slicedInputChunks = SliceChunkEvenly(*inputChunk, sliceCount);
             FOREACH (auto slicedInputChunk, slicedInputChunks) {
                 auto stripe = New<TChunkStripe>(slicedInputChunk);

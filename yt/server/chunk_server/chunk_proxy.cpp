@@ -257,8 +257,6 @@ private:
         inputChunk->mutable_extensions()->CopyFrom(chunk->ChunkMeta().extensions());
 
         auto miscExt = GetProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
-        inputChunk->set_row_count(miscExt.row_count());
-        inputChunk->set_uncompressed_data_size(miscExt.uncompressed_data_size());
 
         if (request->fetch_node_addresses()) {
             auto addresses = chunkManager->GetChunkAddresses(chunk);

@@ -936,11 +936,13 @@ protected:
                     auto& nextEndpoint = Endpoints[nextIndex];
 
                     if (nextEndpoint.Type == EEndpointType::Maniac && nextEndpoint.Key == endpoint.Key) {
+                        i64 dataSize, rowCount;
+                        nextEndpoint.InputChunk->GetStatistics(&dataSize, &rowCount);
                         if (IsLargeCompleteChunk(nextEndpoint.InputChunk)) {
-                            completeLargeManiacSize += nextEndpoint.InputChunk->uncompressed_data_size();
+                            completeLargeManiacSize += dataSize;
                             completeLargeChunks.push_back(nextEndpoint.InputChunk);
                         } else {
-                            partialManiacSize += nextEndpoint.InputChunk->uncompressed_data_size();
+                            partialManiacSize += dataSize;
                             partialChunks.push_back(nextEndpoint.InputChunk);
                         }
                     } else {

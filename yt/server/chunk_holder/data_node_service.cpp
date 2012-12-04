@@ -763,8 +763,11 @@ void TDataNodeService::MakeChunkSplits(
             UpdateProtoExtension(currentSplit->mutable_extensions(), boundaryKeysExt);
 
             endRowIndex = beginIt->row_index();
-            currentSplit->set_row_count(endRowIndex - startRowIndex);
-            currentSplit->set_uncompressed_data_size(dataSize);
+
+            NTableClient::NProto::TSizeOverrideExt sizeOverride;
+            sizeOverride.set_row_count(endRowIndex - startRowIndex);
+            sizeOverride.set_uncompressed_data_size(dataSize);
+            UpdateProtoExtension(currentSplit->mutable_extensions(), sizeOverride);
 
             key = GetSuccessorKey(key);
             *currentSplit->mutable_slice()->mutable_end_limit()->mutable_key() = key;
@@ -777,9 +780,13 @@ void TDataNodeService::MakeChunkSplits(
 
     UpdateProtoExtension(currentSplit->mutable_extensions(), boundaryKeysExt);
     endRowIndex = (--endIt)->row_index();
-    currentSplit->set_row_count(endRowIndex - startRowIndex);
-    currentSplit->set_uncompressed_data_size(
-        dataSize + (std::distance(beginIt, endIt) - 1) * dataSizeBetweenSamples);
+
+    NTableClient::NProto::TSizeOverrideExt sizeOverride;
+    sizeOverride.set_row_count(endRowIndex - startRowIndex);
+    sizeOverride.set_uncompressed_data_size(dataSize + 
+        (std::distance(beginIt, endIt) - 1) * dataSizeBetweenSamples);
+    UpdateProtoExtension(currentSplit->mutable_extensions(), sizeOverride);
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////

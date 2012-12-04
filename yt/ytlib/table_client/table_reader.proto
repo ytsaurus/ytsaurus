@@ -43,14 +43,7 @@ message TInputChunk
     // This enables,  e.g., the client to distinguish between several tables coming through a single input stream.
     optional bytes row_attributes = 5 [default = ""];
 
-    // Sometimes the party constructing an instance of TInputChunk has
-    // a much more precise information about the data size and the row count.
-    // A typical example is the scheduler preparing the input for a sort job.
-    // Here's a place for such overrides.
-    required int64 uncompressed_data_size = 6;
-    required int64 row_count = 7;
-
-    optional int32 partition_tag = 8 [default = -1];
+    optional int32 partition_tag = 6 [default = -1];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

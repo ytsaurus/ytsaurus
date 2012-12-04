@@ -98,6 +98,8 @@ public:
             std::vector<ui32> valueIndexBuffer;
             std::vector<ui32> rowIndexBuffer;
 
+            auto estimatedRowCount = Host->GetJobSpec().row_count();
+
             LOG_INFO("Initializing");
             {
                 for (int i = 0; i < KeyColumns.size(); ++i) {
@@ -108,9 +110,9 @@ public:
                 Sync(~Reader, &TReader::AsyncOpen);
 
                 valueBuffer.reserve(1000000);
-                keyBuffer.reserve(Reader->GetItemCount() * keyColumnCount);
-                valueIndexBuffer.reserve(Reader->GetItemCount() + 1);
-                rowIndexBuffer.reserve(Reader->GetItemCount());
+                keyBuffer.reserve(estimatedRowCount * keyColumnCount);
+                valueIndexBuffer.reserve(estimatedRowCount + 1);
+                rowIndexBuffer.reserve(estimatedRowCount);
 
                 // Add fake row.
                 valueIndexBuffer.push_back(0);
@@ -219,7 +221,7 @@ public:
 
     double GetProgress() const override
     {
-        i64 total = Reader->GetItemCount();
+        i64 total = Host->GetJobSpec().row_count();
         if (total == 0) {
             LOG_WARNING("GetProgress: empty total");
             return 0;

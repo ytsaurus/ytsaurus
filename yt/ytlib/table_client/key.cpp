@@ -3,6 +3,7 @@
 
 #include <ytlib/misc/string.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -113,6 +114,19 @@ TRefCountedInputChunk::TRefCountedInputChunk(const TRefCountedInputChunk& other)
     TableIndex = other.TableIndex;
 }
 
+void TRefCountedInputChunk::GetStatistics(i64* uncompressedDataSize, i64* rowCount) const
+{
+    auto sizeOverrideExt = FindProtoExtension<NTableClient::NProto::TSizeOverrideExt>(extensions());
+    if (!sizeOverrideExt) {
+        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(extensions());
+        *uncompressedDataSize = miscExt.uncompressed_data_size();
+        *rowCount = miscExt.row_count();
+    } else {
+        *uncompressedDataSize = sizeOverrideExt->uncompressed_data_size();
+        *rowCount = sizeOverrideExt->row_count();
+    }
+}
+
 TRefCountedInputChunkPtr SliceChunk(
     const TRefCountedInputChunk& chunk,
     const TNullable<NProto::TKey>& startKey /*= Null*/,
@@ -139,7 +153,8 @@ std::vector<TRefCountedInputChunkPtr> SliceChunkEvenly(const TRefCountedInputChu
 
     std::vector<TRefCountedInputChunkPtr> result;
 
-    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(inputChunk.extensions());
+    i64 dataSize, rowCount;
+    inputChunk.GetStatistics(&dataSize, &rowCount);
 
     const auto& startLimit = inputChunk.slice().start_limit();
     // Inclusive.
@@ -147,9 +162,9 @@ std::vector<TRefCountedInputChunkPtr> SliceChunkEvenly(const TRefCountedInputChu
 
     const auto& endLimit = inputChunk.slice().end_limit();
     // Exclusive.
-    i64 endRowIndex = endLimit.has_row_index() ? endLimit.row_index() : miscExt.row_count();
+    i64 endRowIndex = endLimit.has_row_index() ? endLimit.row_index() : rowCount;
 
-    i64 rowCount = endRowIndex - startRowIndex;
+    rowCount = endRowIndex - startRowIndex;
 
     for (int i = 0; i < count; ++i) {
         i64 sliceStartRowIndex = startRowIndex + rowCount * i / count;
@@ -160,8 +175,10 @@ std::vector<TRefCountedInputChunkPtr> SliceChunkEvenly(const TRefCountedInputChu
             slicedChunk->mutable_slice()->mutable_end_limit()->set_row_index(sliceEndRowIndex);
 
             // This is merely an approximation.
-            slicedChunk->set_uncompressed_data_size(inputChunk.uncompressed_data_size() / count + 1);
-            slicedChunk->set_row_count(sliceEndRowIndex - sliceStartRowIndex);
+            NTableClient::NProto::TSizeOverrideExt sizeOverride;
+            sizeOverride.set_row_count(sliceEndRowIndex - sliceStartRowIndex);
+            sizeOverride.set_uncompressed_data_size(dataSize / count + 1);
+            UpdateProtoExtension(slicedChunk->mutable_extensions(), sizeOverride);
 
             result.push_back(slicedChunk);
         }
@@ -178,9 +195,7 @@ TRefCountedInputChunkPtr CreateCompleteChunk(TRefCountedInputChunkPtr inputChunk
     chunk->mutable_slice()->mutable_end_limit()->clear_key();
     chunk->mutable_slice()->mutable_end_limit()->clear_row_index();
 
-    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(inputChunk->extensions());
-    chunk->set_uncompressed_data_size(miscExt.uncompressed_data_size());
-    chunk->set_row_count(miscExt.row_count());
+    RemoveProtoExtension<NTableClient::NProto::TSizeOverrideExt>(chunk->mutable_extensions());
     return chunk;
 }
 
