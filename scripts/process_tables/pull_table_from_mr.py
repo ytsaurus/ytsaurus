@@ -14,7 +14,7 @@ if __name__ == "__main__":
     parser.add_argument("--server", default="redwood.yandex.ru")
     parser.add_argument("--server-port", default="8013")
     parser.add_argument("--http-port", default="13013")
-    parser.add_argument("--record-threshold", default=10 ** 7)
+    parser.add_argument("--record-threshold", type=int, default=10 ** 7)
     parser.add_argument("--force", action="store_true", default=False)
     
     args = parser.parse_args()
@@ -43,7 +43,7 @@ if __name__ == "__main__":
                 'while true; do '
                     'IFS="\t" read -r start end; '
                     'if [ "$?" != "0" ]; then break; fi; '
-                    './mapreduce -server {}:{} -read {}:[$start,$end] -lenval -subkey; '
+                    './mapreduce -opt net_table=fastbone -server {}:{} -read {}:[$start,$end] -lenval -subkey; '
                 'done;'.\
                     format(args.server, args.server_port, table),
                 temp_table,
