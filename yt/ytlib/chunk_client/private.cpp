@@ -12,6 +12,8 @@ namespace NChunkClient {
 NLog::TLogger ChunkReaderLogger("ChunkReader");
 NLog::TLogger ChunkWriterLogger("ChunkWriter");
 
+TLazyHolder<NRpc::TChannelCache> NodeChannelCache;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient

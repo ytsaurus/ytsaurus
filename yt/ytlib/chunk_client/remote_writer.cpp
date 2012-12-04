@@ -2,7 +2,7 @@
 #include "remote_writer.h"
 #include "config.h"
 #include "dispatcher.h"
-#include "holder_channel_cache.h"
+#include "private.h"
 #include "chunk_meta_extensions.h"
 
 #include <ytlib/misc/serialize.h>

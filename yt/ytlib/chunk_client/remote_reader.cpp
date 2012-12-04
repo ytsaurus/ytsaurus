@@ -3,7 +3,7 @@
 #include "remote_reader.h"
 #include "async_reader.h"
 #include "block_cache.h"
-#include "holder_channel_cache.h"
+#include "private.h"
 #include "block_id.h"
 #include "chunk_ypath_proxy.h"
 #include "data_node_service_proxy.h"

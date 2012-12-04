@@ -2,7 +2,7 @@
 
 #include <ytlib/misc/lazy_ptr.h>
 
-#include <ytlib/actions/action_queue.h>
+#include <ytlib/rpc/channel_cache.h>
 
 #include <ytlib/logging/log.h>
 
@@ -13,6 +13,8 @@ namespace NChunkClient {
 
 extern NLog::TLogger ChunkReaderLogger;
 extern NLog::TLogger ChunkWriterLogger;
+
+extern TLazyHolder<NRpc::TChannelCache> NodeChannelCache;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -8,7 +8,6 @@ set( SRCS
   ${BASE}/encoding_writer.cpp
   ${BASE}/file_reader.cpp
   ${BASE}/file_writer.cpp
-  ${BASE}/holder_channel_cache.cpp
   ${BASE}/private.cpp
   ${BASE}/public.cpp
   ${BASE}/remote_reader.cpp
@@ -31,7 +30,6 @@ set( HDRS
   ${BASE}/file_reader.h
   ${BASE}/file_writer.h
   ${BASE}/format.h
-  ${BASE}/holder_channel_cache.h
   ${BASE}/private.h
   ${BASE}/public.h
   ${BASE}/remote_reader.h
