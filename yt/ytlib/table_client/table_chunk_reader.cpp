@@ -917,16 +917,21 @@ TTableChunkReaderPtr TTableChunkReaderProvider::CreateNewReader(
     const NChunkClient::IAsyncReaderPtr& chunkReader)
 {
     const auto& slice = inputChunk.slice();
+
+    Stroka rowAttributes;
+    if (inputChunk.has_table_index()) {
+        rowAttributes = Sprintf("table_index=%d", inputChunk.table_index());
+    }
+
     return New<TTableChunkReader>(
         Config,
         TChannel::FromProto(inputChunk.channel()),
         chunkReader,
         slice.start_limit(),
         slice.end_limit(),
-        // TODO(ignat) yson type ?
-        NYTree::TYsonString(inputChunk.row_attributes()),
+        NYTree::TYsonString(rowAttributes),
         inputChunk.partition_tag(),
-        Options); // ToDo(psushin): pass row attributes here.
+        Options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

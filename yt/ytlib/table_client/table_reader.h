@@ -50,6 +50,7 @@ public:
 
     virtual const TRow* GetRow() override;
     virtual const TNonOwningKey& GetKey() const override;
+    virtual const NYTree::TYsonString& GetRowAttributes() const override;
 
     virtual i64 GetRowIndex() const override;
     virtual i64 GetRowCount() const override;

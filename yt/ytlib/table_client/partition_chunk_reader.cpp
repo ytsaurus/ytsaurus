@@ -217,6 +217,12 @@ void TPartitionChunkReader::OnFail(const TError& error)
     State.Fail(error);
 }
 
+const NYTree::TYsonString& TPartitionChunkReader::GetRowAttributes() const
+{
+    static NYTree::TYsonString s;
+    return s;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TPartitionChunkReaderProvider::TPartitionChunkReaderProvider(

@@ -119,7 +119,7 @@ private:
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->JobSpecTemplate);
-            AddSequentialInputSpec(jobSpec, joblet);
+            AddSequentialInputSpec(jobSpec, joblet, Controller->Spec->EnableTableIndex);
             AddOutputSpecs(jobSpec, joblet);
 
             joblet->StartRowIndex = StartRowIndex;

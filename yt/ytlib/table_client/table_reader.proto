@@ -39,9 +39,8 @@ message TInputChunk
 
     required NYT.NProto.TExtensionSet extensions = 4;
 
-    // When this value is given the reader inserts this YSON map as attributes at every row.
-    // This enables,  e.g., the client to distinguish between several tables coming through a single input stream.
-    optional bytes row_attributes = 5 [default = ""];
+    // When this value is given the reader inserts "table_index" as a row attribute.
+    optional int32 table_index = 5;
 
     optional int32 partition_tag = 6 [default = -1];
 }

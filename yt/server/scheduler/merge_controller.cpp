@@ -145,7 +145,7 @@ protected:
     protected:
         void BuildInputOutputJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)
         {
-            AddParallelInputSpec(jobSpec, joblet);
+            AddParallelInputSpec(jobSpec, joblet, Controller->EnableTableIndex());
             AddOutputSpecs(jobSpec, joblet);
             Controller->CustomizeJobSpec(joblet, jobSpec);
         }
@@ -259,9 +259,9 @@ protected:
     //! Add chunk to the current task's pool.
     void AddPendingChunk(TRefCountedInputChunkPtr inputChunk)
     {
-        auto stripe = CurrentTaskStripes[inputChunk->TableIndex];
+        auto stripe = CurrentTaskStripes[inputChunk->table_index()];
         if (!stripe) {
-            stripe = CurrentTaskStripes[inputChunk->TableIndex] = New<TChunkStripe>();
+            stripe = CurrentTaskStripes[inputChunk->table_index()] = New<TChunkStripe>();
         }
 
         i64 chunkDataSize;
@@ -278,7 +278,7 @@ protected:
             ~chunkId.ToString(),
             PartitionCount,
             static_cast<int>(Tasks.size()),
-            inputChunk->TableIndex,
+            inputChunk->table_index(),
             chunkDataSize);
     }
 
@@ -331,7 +331,7 @@ protected:
                     LOG_DEBUG("Processing chunk (ChunkId: %s, DataSize: %" PRId64 ", TableIndex: %d)",
                         ~chunkId.ToString(),
                         chunkDataSize,
-                        rcInputChunk->TableIndex);
+                        rcInputChunk->table_index());
                 }
             }
 
@@ -467,6 +467,11 @@ protected:
 
     virtual void CustomizeJobSpec(TJobletPtr joblet, NProto::TJobSpec* jobSpec) 
     { }
+
+    virtual bool EnableTableIndex() const 
+    {
+        return false;
+    }
 
 };
 
@@ -865,7 +870,7 @@ protected:
                     {
                         // Trying to reconstruct passthrough chunk from chunk slices.
                         auto chunkId = TChunkId::FromProto(endpoint.InputChunk->slice().chunk_id());
-                        auto tableIndex = endpoint.InputChunk->TableIndex;
+                        auto tableIndex = endpoint.InputChunk->table_index();
                         auto nextIndex = currentIndex;
                         while (true) {
                             ++nextIndex;
@@ -873,7 +878,7 @@ protected:
                                 break;
                             }
                             auto nextChunkId = TChunkId::FromProto(Endpoints[nextIndex].InputChunk->slice().chunk_id());
-                            auto nextTableIndex = Endpoints[nextIndex].InputChunk->TableIndex;
+                            auto nextTableIndex = Endpoints[nextIndex].InputChunk->table_index();
                             if (nextChunkId != chunkId || tableIndex != nextTableIndex) {
                                 break;
                             }
@@ -1237,6 +1242,11 @@ private:
 
         auto* jobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
         AddUserJobEnvironment(jobSpecExt->mutable_reducer_spec(), joblet);
+    }
+
+    bool EnableTableIndex() const override
+    {
+        return Spec->EnableTableIndex;
     }
 };
 

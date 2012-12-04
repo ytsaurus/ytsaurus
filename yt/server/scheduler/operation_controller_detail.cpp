@@ -246,24 +246,26 @@ void TOperationControllerBase::TTask::AddInputLocalityHint(TChunkStripePtr strip
 
 void TOperationControllerBase::TTask::AddSequentialInputSpec(
     NScheduler::NProto::TJobSpec* jobSpec,
-    TJobletPtr joblet)
+    TJobletPtr joblet,
+    bool enableTableIndex)
 {
     auto* inputSpec = jobSpec->add_input_specs();
     auto list = joblet->InputStripeList;
     FOREACH (const auto& stripe, list->Stripes) {
-        AddInputChunks(inputSpec, stripe, list->PartitionTag);
+        AddInputChunks(inputSpec, stripe, list->PartitionTag, enableTableIndex);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
 }
 
 void TOperationControllerBase::TTask::AddParallelInputSpec(
     NScheduler::NProto::TJobSpec* jobSpec,
-    TJobletPtr joblet)
+    TJobletPtr joblet,
+    bool enableTableIndex)
 {
     auto list = joblet->InputStripeList;
     FOREACH (const auto& stripe, list->Stripes) {
         auto* inputSpec = jobSpec->add_input_specs();
-        AddInputChunks(inputSpec, stripe, list->PartitionTag);
+        AddInputChunks(inputSpec, stripe, list->PartitionTag, enableTableIndex);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
 }
@@ -308,11 +310,15 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
 void TOperationControllerBase::TTask::AddInputChunks(
     NScheduler::NProto::TTableInputSpec* inputSpec,
     TChunkStripePtr stripe,
-    TNullable<int> partitionTag)
+    TNullable<int> partitionTag,
+    bool enableTableIndex)
 {
     FOREACH (const auto& stripeChunk, stripe->Chunks) {
         auto* inputChunk = inputSpec->add_chunks();
         *inputChunk = *stripeChunk;
+        if (!enableTableIndex) {
+            inputChunk->clear_table_index();
+        }
         if (partitionTag) {
             inputChunk->set_partition_tag(partitionTag.Get());
         }
@@ -1432,9 +1438,10 @@ std::vector<TRefCountedInputChunkPtr> TOperationControllerBase::CollectInputChun
 {
     // TODO(babenko): set row_attributes
     std::vector<TRefCountedInputChunkPtr> result;
-    FOREACH (const auto& table, InputTables) {
+    for (int tableIndex = 0; tableIndex < InputTables.size(); ++tableIndex) {
+        const auto& table = InputTables[tableIndex];
         FOREACH (const auto& inputChunk, table.FetchResponse->chunks()) {
-            result.push_back(New<TRefCountedInputChunk>(inputChunk));
+            result.push_back(New<TRefCountedInputChunk>(inputChunk, tableIndex));
         }
     }
     return result;

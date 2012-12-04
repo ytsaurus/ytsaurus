@@ -271,8 +271,14 @@ protected:
         void AddPendingHint();
         virtual void AddInputLocalityHint(TChunkStripePtr stripe);
 
-        static void AddSequentialInputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
-        static void AddParallelInputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
+        static void AddSequentialInputSpec(
+            NScheduler::NProto::TJobSpec* jobSpec, 
+            TJobletPtr joblet,
+            bool enableTableIndex = false);
+        static void AddParallelInputSpec(
+            NScheduler::NProto::TJobSpec* jobSpec, 
+            TJobletPtr joblet,
+            bool enableTableIndex = false);
         
         void AddOutputSpecs(NScheduler::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
         void AddIntermediateOutputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
@@ -283,7 +289,8 @@ protected:
         static void AddInputChunks(
             NScheduler::NProto::TTableInputSpec* inputSpec,
             TChunkStripePtr stripe,
-            TNullable<int> partitionTag);
+            TNullable<int> partitionTag,
+            bool enableTableIndex);
 
         static void UpdateInputSpecTotals(
             NScheduler::NProto::TJobSpec* jobSpec,

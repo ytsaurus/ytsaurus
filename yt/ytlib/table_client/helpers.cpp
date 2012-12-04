@@ -14,19 +14,18 @@ using namespace NChunkClient::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 TRefCountedInputChunk::TRefCountedInputChunk(const TInputChunk& other, int tableIndex)
-    : TableIndex(tableIndex)
 {
     CopyFrom(other);
+    set_table_index(tableIndex);
 }
 
 TRefCountedInputChunk::TRefCountedInputChunk(TInputChunk&& other, int tableIndex)
-    : TableIndex(tableIndex)
 {
     Swap(&other);
+    set_table_index(tableIndex);
 }
 
 TRefCountedInputChunk::TRefCountedInputChunk(const TRefCountedInputChunk& other)
-    : TableIndex(other.TableIndex)
 {
     CopyFrom(other);
 }

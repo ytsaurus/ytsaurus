@@ -25,9 +25,6 @@ struct TRefCountedInputChunk
         int tableIndex = 0);
 
     TRefCountedInputChunk(const TRefCountedInputChunk& other);
-
-    // Used by scheduler to remember the chunk origin.
-    int TableIndex;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

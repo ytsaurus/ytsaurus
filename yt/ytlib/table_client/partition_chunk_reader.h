@@ -60,6 +60,8 @@ public:
 
     i64 GetRowIndex() const;
 
+    const NYTree::TYsonString& GetRowAttributes() const;
+
     //! Must be called after AsyncOpen has finished.
     TFuture<void> GetFetchingCompleteEvent();
 

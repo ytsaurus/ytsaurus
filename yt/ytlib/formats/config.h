@@ -44,7 +44,7 @@ struct TDsvFormatConfig
         Register("escaping_symbol", EscapingSymbol)
             .Default('\\');
         Register("with_attributes", WithAttributes)
-            .Default(false);
+            .Default(true);
         Register("attributes_prefix", AttributesPrefix)
             .Default("@");
     }

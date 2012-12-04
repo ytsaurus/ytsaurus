@@ -125,6 +125,11 @@ std::vector<NChunkClient::TChunkId> TTableReader::GetFailedChunks() const
     return Reader->GetFailedChunks();
 }
 
+const NYTree::TYsonString& TTableReader::GetRowAttributes() const override
+{
+    return Reader->CurrentReader()->GetRowAttributes();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

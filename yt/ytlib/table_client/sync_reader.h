@@ -28,6 +28,7 @@ struct ISyncReader
     virtual const TNonOwningKey& GetKey() const = 0;
 
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const = 0;
+    virtual const NYTree::TYsonString& GetRowAttributes() const = 0;
 
     virtual i64 GetRowIndex() const = 0;
     virtual i64 GetRowCount() const = 0;
@@ -82,11 +83,10 @@ public:
         return AsyncReader->GetFailedChunks();
     }
 
-    /*
     const NYTree::TYsonString& GetRowAttributes() const
     {
-        return AsyncReader->GetRowAttributes();
-    }*/
+        return AsyncReader->CurrentReader()->GetRowAttributes();
+    }
 
 private:
     TIntrusivePtr<TAsyncReader> AsyncReader;

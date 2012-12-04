@@ -103,6 +103,8 @@ struct TMapOperationSpec
     TDuration LocalityTimeout;
     TJobIOConfigPtr JobIO;
 
+    bool EnableTableIndex;
+
     TMapOperationSpec()
     {
         Register("mapper", Mapper);
@@ -125,6 +127,8 @@ struct TMapOperationSpec
             .Default(TDuration::Seconds(5));
         Register("job_io", JobIO)
             .DefaultNew();
+        Register("enable_table_index", EnableTableIndex)
+            .Default(false);
 
         JobIO->TableReader->PrefetchWindow = 10;
     }
@@ -238,6 +242,7 @@ struct TReduceOperationSpec
     std::vector<NYPath::TRichYPath> InputTablePaths;
     std::vector<NYPath::TRichYPath> OutputTablePaths;
     TNullable< std::vector<Stroka> > ReduceBy;
+    bool EnableTableIndex;
 
     TReduceOperationSpec()
     {
@@ -246,6 +251,8 @@ struct TReduceOperationSpec
         Register("output_table_paths", OutputTablePaths);
         Register("reduce_by", ReduceBy)
             .Default();
+        Register("enable_table_index", EnableTableIndex)
+            .Default(false);
     }
 };
 
@@ -405,6 +412,8 @@ struct TMapReduceOperationSpec
     TJobIOConfigPtr SortJobIO;
     TJobIOConfigPtr ReduceJobIO;
 
+    bool EnableTableIndex;
+
     TMapReduceOperationSpec()
     {
         Register("output_table_paths", OutputTablePaths);
@@ -437,6 +446,8 @@ struct TMapReduceOperationSpec
             .GreaterThan(0);
         Register("map_locality_timeout", PartitionLocalityTimeout)
             .Default(TDuration::Seconds(5));
+        Register("enable_table_index", EnableTableIndex)
+            .Default(false);
 
         // The following settings are inherited from base but make no sense for map-reduce:
         //   SortJobSliceDataSize

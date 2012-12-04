@@ -78,7 +78,7 @@ bool TChunkSplitsFetcher::AddChunkToRequest(NTableClient::TRefCountedInputChunkP
     if (dataSize < Spec->JobSliceDataSize) {
         LOG_DEBUG("Chunk split added (ChunkId: %s, TableIndex: %d)", 
             ~ToString(chunkId),
-            chunk->TableIndex);
+            chunk->table_index());
         ChunkSplits.push_back(chunk);
         return false;
     } else {
@@ -111,7 +111,7 @@ TError TChunkSplitsFetcher::ProcessResponseItem(
         index);
 
     FOREACH (const auto& splittedChunk, splittedChunks.input_chunks()) {
-        ChunkSplits.push_back(New<TRefCountedInputChunk>(splittedChunk, inputChunk->TableIndex));
+        ChunkSplits.push_back(New<TRefCountedInputChunk>(splittedChunk, inputChunk->table_index()));
     }
 
     return TError();

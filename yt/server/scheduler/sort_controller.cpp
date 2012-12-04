@@ -255,7 +255,7 @@ protected:
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->PartitionJobSpecTemplate);
-            AddSequentialInputSpec(jobSpec, joblet);
+            AddSequentialInputSpec(jobSpec, joblet, Controller->EnableTableIndex());
             AddIntermediateOutputSpec(jobSpec, joblet);
             Controller->CustomizeJobSpec(joblet, jobSpec);
         }
@@ -486,7 +486,7 @@ protected:
                 AddOutputSpecs(jobSpec, joblet);
             }
 
-            AddSequentialInputSpec(jobSpec, joblet);
+            AddSequentialInputSpec(jobSpec, joblet, Controller->EnableTableIndex());
             Controller->CustomizeJobSpec(joblet, jobSpec);
         }
 
@@ -655,7 +655,7 @@ protected:
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->SortedMergeJobSpecTemplate);
-            AddParallelInputSpec(jobSpec, joblet);
+            AddParallelInputSpec(jobSpec, joblet, Controller->EnableTableIndex());
             AddOutputSpecs(jobSpec, joblet);
             Controller->CustomizeJobSpec(joblet, jobSpec);
         }
@@ -752,7 +752,7 @@ protected:
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->UnorderedMergeJobSpecTemplate);
-            AddSequentialInputSpec(jobSpec, joblet);
+            AddSequentialInputSpec(jobSpec, joblet, Controller->EnableTableIndex());
             AddOutputSpecs(jobSpec, joblet);
             Controller->CustomizeJobSpec(joblet, jobSpec);
 
@@ -994,6 +994,11 @@ protected:
 
     virtual void CustomizeJobSpec(TJobletPtr joblet, NProto::TJobSpec* jobSpec)
     { }
+
+    virtual bool EnableTableIndex() const
+    {
+        return false;
+    }
 
 
     // Resource management.
@@ -1848,6 +1853,11 @@ private:
                 // For other jobs do nothing.
                 break;
         }
+    }
+
+    virtual bool EnableTableIndex() const override
+    {
+        return Spec->EnableTableIndex;
     }
 
     // Resource management.

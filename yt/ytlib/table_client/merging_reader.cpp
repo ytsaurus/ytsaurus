@@ -120,6 +120,11 @@ public:
         return total;
     }
 
+    virtual const NYTree::TYsonString& GetRowAttributes() const override
+    {
+        return ReaderHeap.front()->CurrentReader()->GetRowAttributes();
+    }
+
     virtual i64 GetRowIndex() const override
     {
         i64 total = 0;

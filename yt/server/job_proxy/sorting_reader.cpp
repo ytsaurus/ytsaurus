@@ -108,6 +108,11 @@ public:
         return Reader->GetFailedChunks();
     }
 
+    virtual NYTree::TYsonString& GetRowAttributes() const override
+    {
+        Reader->CurrentReader()->GetRowAttributes();
+    }
+
 private:
     typedef TMultiChunkParallelReader<TPartitionChunkReader> TReader;
     typedef TIntrusivePtr<TReader> TReaderPtr;

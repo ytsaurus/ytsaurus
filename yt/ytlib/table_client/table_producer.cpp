@@ -22,14 +22,16 @@ TTableProducer::TTableProducer(
 
 bool TTableProducer::ProduceRow()
 {
-    /*const auto& attributes = Reader->GetRowAttributes();
-    if (!attributes.empty())
-        Consumer->OnRaw(Reader->GetRowAttributes(), EYsonType::Node);
-    */
-
     auto row = Reader->GetRow();
     if (!row) {
         return false;
+    }
+
+    const auto& attributes = Reader->GetRowAttributes();
+    if (!attributes.Data().empty()) {
+        Consumer->OnBeginAttributes();
+        Consumer->OnRaw(attributes.Data(), EYsonType::MapFragment);
+        Consumer->OnEndAttributes();
     }
 
     Consumer->OnListItem();
