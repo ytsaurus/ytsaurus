@@ -108,9 +108,9 @@ public:
         return Reader->GetFailedChunks();
     }
 
-    virtual NYTree::TYsonString& GetRowAttributes() const override
+    virtual const NYTree::TYsonString& GetRowAttributes() const override
     {
-        Reader->CurrentReader()->GetRowAttributes();
+        return Reader->CurrentReader()->GetRowAttributes();
     }
 
 private:
