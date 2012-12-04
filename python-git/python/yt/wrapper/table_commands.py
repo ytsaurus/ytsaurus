@@ -125,7 +125,7 @@ def _add_user_spec(spec):
         {
             "mr_user": os.environ.get("MR_USER", ""),
             "system_user": os.environ.get("USER", ""),
-            "version": VERSION
+            "wrapper_version": VERSION
         },
         spec)
 
