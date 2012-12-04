@@ -19,6 +19,7 @@ def get_master_config():
     };
     "max_changes_between_snapshots" = 1000000;
     "max_batch_delay" = 0;
+    "leader_committer" = { "rpc_timeout" = 10000; };
   };
   transactions = {
     default_transaction_timeout = 300000;
