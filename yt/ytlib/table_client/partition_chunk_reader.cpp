@@ -172,6 +172,8 @@ bool TPartitionChunkReader::IsValid() const
 
 bool TPartitionChunkReader::FetchNextItem()
 {
+    YASSERT(IsValid());
+
     if (!NextRow() && SequentialReader->HasNext()) {
         State.StartOperation();
         SequentialReader->AsyncNextBlock().Subscribe(BIND(
