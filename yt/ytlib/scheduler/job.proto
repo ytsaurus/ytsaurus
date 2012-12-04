@@ -36,6 +36,9 @@ message TTableOutputSpec
 
     // If non-empty then the output is expected to be sorted accordingly.
     repeated string key_columns = 3;
+
+    // Replication factor taken from the attributes of the output table.
+    optional replication_factor = 4;
 }
 
 // Sent from the scheduler to an exec node.
