@@ -13,11 +13,12 @@ namespace NScheduler {
 class TProgressCounter
 {
 public:
-    explicit TProgressCounter(bool totalEnabled = true);
+    TProgressCounter();
+    explicit TProgressCounter(i64 total);
 
+    void Set(i64 total);
     bool IsTotalEnabled() const;
 
-    void Set(i64 value);
     void Increment(i64 value);
     void Finalize();
 
@@ -27,13 +28,13 @@ public:
     i64 GetPending() const;
     i64 GetFailed() const;
     i64 GetAborted() const;
+    i64 GetLost() const;
 
     void Start(i64 count);
     void Completed(i64 count);
     void Failed(i64 count);
-    void Abort(i64 count);
-
-    void ToYson(NYTree::IYsonConsumer* consumer) const;
+    void Aborted(i64 count);
+    void Lost(i64 count);
 
 private:
     bool TotalEnabled;
@@ -43,10 +44,12 @@ private:
     i64 Pending_;
     i64 Failed_;
     i64 Aborted_;
+    i64 Lost_;
 
 };
 
 Stroka ToString(const TProgressCounter& counter);
+void Serialize(const TProgressCounter& counter, NYTree::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

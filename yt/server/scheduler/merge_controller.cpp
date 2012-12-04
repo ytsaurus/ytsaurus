@@ -52,31 +52,33 @@ public:
         TOperation* operation)
         : TOperationControllerBase(config, host, operation)
         , SpecBase(spec)
-        , TotalJobCount(0)
         , CurrentTaskDataSize(0)
         , PartitionCount(0)
+        , TotalChunkCount(0)
+        , TotalDataSize(0)
         , MaxDataSizePerJob(0)
     { }
 
     virtual TNodeResources GetMinNeededResources() override
     {
-        return MergeTasks.empty()
+        return Tasks.empty()
             ? InfiniteNodeResources()
-            : MergeTasks[0]->GetMinNeededResources();
+            : Tasks[0]->GetMinNeededResources();
     }
 
 protected:
     TMergeOperationSpecBasePtr SpecBase;
 
-    // Counters.
-    int TotalJobCount;
-    TProgressCounter DataSizeCounter;
-    TProgressCounter ChunkCounter;
-
     //! For each input table, the corresponding entry holds the stripe
     //! containing the chunks collected so far. Empty stripes are never stored explicitly
     //! and are denoted by |NULL|.
     std::vector<TChunkStripePtr> CurrentTaskStripes;
+
+    //! The total number of chunks for processing.
+    i64 TotalChunkCount;
+
+    //! The total data size for processing.
+    i64 TotalDataSize;
 
     //! The total data size accumulated in #CurrentTaskStripes.
     i64 CurrentTaskDataSize;
@@ -121,11 +123,6 @@ protected:
                 : Sprintf("Merge(%d,%d)", TaskIndex, PartitionIndex);
         }
 
-        virtual int GetPendingJobCount() const override
-        {
-            return ChunkPool->IsPending() ? 1 : 0;
-        }
-
         virtual TDuration GetLocalityTimeout() const override
         {
             return Controller->SpecBase->LocalityTimeout;
@@ -146,81 +143,57 @@ protected:
         }
 
     protected:
-        void BuildInputOutputJobSpec(
-            TJobInProgressPtr jip,
-            NProto::TJobSpec* jobSpec)
+        void BuildInputOutputJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)
         {
-            AddParallelInputSpec(jobSpec, jip);
-            AddOutputSpecs(jobSpec, jip);
-            Controller->CustomizeJobSpec(jip, jobSpec);
+            AddParallelInputSpec(jobSpec, joblet);
+            AddOutputSpecs(jobSpec, joblet);
+            Controller->CustomizeJobSpec(joblet, jobSpec);
         }
 
     private:
         TMergeControllerBase* Controller;
 
-        //! The position in |MergeTasks|. 
+        TAutoPtr<IChunkPool> ChunkPool;
+
+        //! The position in #TMergeControllerBase::Tasks. 
         int TaskIndex;
 
-        //! The position in |TOutputTable::PartitionIds| where the 
-        //! output of this task must be placed.
+        //! Key for #TOutputTable::OutputChunkTreeIds.
         int PartitionIndex;
 
+
+        virtual IChunkPoolInput* GetChunkPoolInput() const override
+        {
+            return ~ChunkPool;
+        }
+
+        virtual IChunkPoolOutput* GetChunkPoolOutput() const override
+        {
+            return ~ChunkPool;
+        }
 
         virtual int GetChunkListCountPerJob() const override
         {
             return Controller->OutputTables.size();
         }
 
-        virtual TNullable<i64> GetJobDataSizeThreshold() const override
-        {
-            return Null;
-        }
-
-        virtual void BuildJobSpec(
-            TJobInProgressPtr jip,
-            NProto::TJobSpec* jobSpec) override
+        virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->JobSpecTemplate);
-            BuildInputOutputJobSpec(jip, jobSpec);
+            BuildInputOutputJobSpec(joblet, jobSpec);
         }
 
-        virtual void OnJobStarted(TJobInProgressPtr jip) override
+        virtual void OnJobCompleted(TJobletPtr joblet) override
         {
-            TTask::OnJobStarted(jip);
+            TTask::OnJobCompleted(joblet);
 
-            Controller->ChunkCounter.Start(jip->PoolResult->TotalChunkCount);
-            Controller->DataSizeCounter.Start(jip->PoolResult->TotalDataSize);
-        }
-
-        virtual void OnJobCompleted(TJobInProgressPtr jip) override
-        {
-            TTask::OnJobCompleted(jip);
-
-            Controller->ChunkCounter.Completed(jip->PoolResult->TotalChunkCount);
-            Controller->DataSizeCounter.Completed(jip->PoolResult->TotalDataSize);
-            Controller->RegisterOutputChunkTrees(jip, PartitionIndex);
-        }
-
-        virtual void OnJobFailed(TJobInProgressPtr jip) override
-        {
-            TTask::OnJobFailed(jip);
-
-            Controller->ChunkCounter.Failed(jip->PoolResult->TotalChunkCount);
-            Controller->DataSizeCounter.Failed(jip->PoolResult->TotalDataSize);
-        }
-
-        virtual void OnJobAborted(TJobInProgressPtr jip) override
-        {
-            TTask::OnJobAborted(jip);
-
-            Controller->ChunkCounter.Abort(jip->PoolResult->TotalChunkCount);
-            Controller->DataSizeCounter.Abort(jip->PoolResult->TotalDataSize);
+            Controller->RegisterOutputChunkTrees(joblet, PartitionIndex);
         }
     };
 
     typedef TIntrusivePtr<TMergeTask> TMergeTaskPtr;
 
-    std::vector<TMergeTaskPtr> MergeTasks;
+    std::vector<TMergeTaskPtr> Tasks;
 
     //! Resizes #CurrentTaskStripes appropriately and sets all its entries to |NULL|.
     void ClearCurrentTaskStripes()
@@ -235,15 +208,16 @@ protected:
 
         FOREACH (auto stripe, CurrentTaskStripes) {
             if (stripe) {
-                task->AddStripe(stripe);
+                task->AddInput(stripe);
             }
         }
+        task->FinishInput();
 
         ++PartitionCount;
-        MergeTasks.push_back(task);
+        Tasks.push_back(task);
 
         LOG_DEBUG("Task finished (Task: %d, TaskDataSize: %" PRId64 ")",
-            static_cast<int>(MergeTasks.size()) - 1,
+            static_cast<int>(Tasks.size()) - 1,
             CurrentTaskDataSize);
 
         CurrentTaskDataSize = 0;
@@ -255,7 +229,7 @@ protected:
     {
         auto task = New<TMergeTask>(
             this,
-            static_cast<int>(MergeTasks.size()),
+            static_cast<int>(Tasks.size()),
             PartitionCount);
 
         EndTask(task);
@@ -285,29 +259,27 @@ protected:
     //! Add chunk to the current task's pool.
     void AddPendingChunk(TRefCountedInputChunkPtr inputChunk)
     {
-        // Merge is IO-bound, use data size as weight.
-        auto miscExt = GetProtoExtension<TMiscExt>(inputChunk->extensions());
-        i64 dataSize = miscExt.uncompressed_data_size();
-        i64 rowCount = miscExt.row_count();
-
         auto stripe = CurrentTaskStripes[inputChunk->TableIndex];
         if (!stripe) {
             stripe = CurrentTaskStripes[inputChunk->TableIndex] = New<TChunkStripe>();
         }
 
-        DataSizeCounter.Increment(dataSize);
-        ChunkCounter.Increment(1);
+        auto miscExt = GetProtoExtension<TMiscExt>(inputChunk->extensions());
+        i64 dataSize = miscExt.uncompressed_data_size();
+
+        TotalDataSize += dataSize;
+        ++TotalChunkCount;
+
         CurrentTaskDataSize += dataSize;
-        stripe->AddChunk(inputChunk, dataSize, rowCount);
+        stripe->Chunks.push_back(inputChunk);
 
         auto chunkId = TChunkId::FromProto(inputChunk->slice().chunk_id());
-        LOG_DEBUG("Pending chunk added (ChunkId: %s, Partition: %d, Task: %d, TableIndex: %d, DataSize: %" PRId64 ", RowCount: %" PRId64 ")",
+        LOG_DEBUG("Pending chunk added (ChunkId: %s, Partition: %d, Task: %d, TableIndex: %d, DataSize: %" PRId64 ")",
             ~chunkId.ToString(),
             PartitionCount,
-            static_cast<int>(MergeTasks.size()),
+            static_cast<int>(Tasks.size()),
             inputChunk->TableIndex,
-            dataSize,
-            rowCount);
+            dataSize);
     }
 
     //! Add chunk directly to the output.
@@ -360,16 +332,17 @@ protected:
                 const auto& table = InputTables[tableIndex];
                 FOREACH (auto& inputChunk, *table.FetchResponse->mutable_chunks()) {
                     auto chunkId = TChunkId::FromProto(inputChunk.slice().chunk_id());
+
                     auto miscExt = GetProtoExtension<TMiscExt>(inputChunk.extensions());
                     i64 dataSize = miscExt.uncompressed_data_size();
-                    i64 rowCount = miscExt.row_count();
-                    auto chunk = New<TRefCountedInputChunk>(inputChunk, tableIndex);
-                    LOG_DEBUG("Processing chunk (ChunkId: %s, DataSize: %" PRId64 ", RowCount: %" PRId64 ", TableIndex: %d)",
+
+                    auto rcInputChunk = New<TRefCountedInputChunk>(inputChunk, tableIndex);
+                    LOG_DEBUG("Processing chunk (ChunkId: %s, DataSize: %" PRId64 ", TableIndex: %d)",
                         ~chunkId.ToString(),
                         dataSize,
-                        rowCount,
-                        chunk->TableIndex);
-                    chunks.push_back(chunk);
+                        rcInputChunk->TableIndex);
+
+                    chunks.push_back(rcInputChunk);
                     totalDataSize += dataSize;
                 }
             }
@@ -378,7 +351,7 @@ protected:
                 SpecBase->MaxDataSizePerJob, 
                 static_cast<i64>(std::ceil((double) totalDataSize / Config->MaxJobCount)));
 
-            FOREACH(auto& chunk, chunks) {
+            FOREACH (auto chunk, chunks) {
                 ProcessInputChunk(chunk);
             }
         }
@@ -387,25 +360,25 @@ protected:
     void FinishPreparation()
     {
         // Check for trivial inputs.
-        if (ChunkCounter.GetTotal() == 0) {
+        if (Tasks.empty()) {
             LOG_INFO("Trivial merge");
             OnOperationCompleted();
             return;
         }
 
         // Init counters.
-        TotalJobCount = static_cast<int>(MergeTasks.size());
+        JobCounter.Set(static_cast<int>(Tasks.size()));
 
         InitJobIOConfig();
         InitJobSpecTemplate();
 
-        LOG_INFO("Inputs processed (DataSize: %" PRId64 ", ChunkCount: %" PRId64 ", JobCount: %d)",
-            DataSizeCounter.GetTotal(),
-            ChunkCounter.GetTotal(),
-            TotalJobCount);
+        LOG_INFO("Inputs processed (DataSize: %" PRId64 ", ChunkCount: %" PRId64 ", JobCount: %" PRId64 ")",
+            TotalDataSize,
+            TotalChunkCount,
+            JobCounter.GetTotal());
 
         // Kick-start the tasks.
-        FOREACH (const auto task, MergeTasks) {
+        FOREACH (auto task, Tasks) {
             AddTaskPendingHint(task);
         }
     }
@@ -428,12 +401,13 @@ protected:
     virtual void LogProgress() override
     {
         LOG_DEBUG("Progress: "
-            "Jobs = {T: %d, R: %d, C: %d, P: %d, F: %d}",
-            TotalJobCount,
-            RunningJobCount,
-            CompletedJobCount,
+            "Jobs = {T: %d, R: %d, C: %d, P: %d, F: %d, A: %d}",
+            JobCounter.GetTotal(),
+            JobCounter.GetRunning(),
+            JobCounter.GetCompleted(),
             GetPendingJobCount(),
-            FailedJobCount);
+            JobCounter.GetFailed(),
+            JobCounter.GetAborted());
     }
 
 
@@ -448,13 +422,15 @@ protected:
 
     static bool IsStartingSlice(TRefCountedInputChunkPtr inputChunk)
     {
-        return !inputChunk->slice().start_limit().has_key() &&
+        return
+            !inputChunk->slice().start_limit().has_key() &&
             !inputChunk->slice().start_limit().has_row_index();
     }
 
     static bool IsEndingSlice(TRefCountedInputChunkPtr inputChunk)
     {
-        return !inputChunk->slice().end_limit().has_key() &&
+        return
+            !inputChunk->slice().end_limit().has_key() &&
             !inputChunk->slice().end_limit().has_row_index();
     }
 
@@ -499,7 +475,7 @@ protected:
     //! Initializes #JobSpecTemplate.
     virtual void InitJobSpecTemplate() = 0;
 
-    virtual void CustomizeJobSpec(TJobInProgressPtr jip, NProto::TJobSpec* jobSpec) 
+    virtual void CustomizeJobSpec(TJobletPtr joblet, NProto::TJobSpec* jobSpec) 
     { }
 
 };
@@ -764,10 +740,10 @@ protected:
     private:
         TSortedMergeControllerBase* Controller;
 
-        virtual void BuildJobSpec(TJobInProgressPtr jip, NProto::TJobSpec* jobSpec) override
+        virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->ManiacJobSpecTemplate);
-            BuildInputOutputJobSpec(jip, jobSpec);
+            BuildInputOutputJobSpec(joblet, jobSpec);
         }
     };
 
@@ -1055,7 +1031,7 @@ protected:
     {
         auto task = New<TManiacTask>(
             this, 
-            static_cast<int>(MergeTasks.size()),
+            static_cast<int>(Tasks.size()),
             PartitionCount);
 
         EndTask(task);
@@ -1262,11 +1238,14 @@ private:
         ManiacJobSpecTemplate.CopyFrom(JobSpecTemplate);
     }
 
-    void CustomizeJobSpec(TJobInProgressPtr jip, NProto::TJobSpec* jobSpec) override
+    void CustomizeJobSpec(TJobletPtr joblet, NProto::TJobSpec* jobSpec) override
     {
         auto* jobSpecExt = jobSpec->MutableExtension(NScheduler::NProto::TReduceJobSpecExt::reduce_job_spec_ext);
-        AddUserJobEnvironment(jobSpecExt->mutable_reducer_spec(), jip, StartRowCount);
-        StartRowCount += jip->PoolResult->TotalRowCount;
+        AddUserJobEnvironment(
+        	jobSpecExt->mutable_reducer_spec(),
+        	joblet,
+        	StartRowCount);
+        StartRowCount += joblet->PoolResult->TotalRowCount;
     }
 };
 

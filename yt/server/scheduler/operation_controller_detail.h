@@ -8,6 +8,7 @@
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/nullable.h>
+#include <ytlib/misc/id_generator.h>
 
 #include <ytlib/logging/tagged_logger.h>
 
@@ -88,13 +89,10 @@ protected:
     bool Running;
 
     // Job counters.
-    int RunningJobCount;
-    int CompletedJobCount;
-    int FailedJobCount;
-    int AbortedJobCount;
+    TProgressCounter JobCounter;
 
     // Increments each time a new job is scheduled.
-    int CurrentJobCount;
+    TIdGenerator<int> JobIndexGenerator;
 
     // Total resources used by all running jobs.
     NProto::TNodeResources UsedResources;
@@ -171,26 +169,28 @@ protected:
     class TTask;
     typedef TIntrusivePtr<TTask> TTaskPtr;
 
-    struct TJobInProgress;
-    typedef TIntrusivePtr<TJobInProgress> TJobInProgressPtr;
+    struct TJoblet;
+    typedef TIntrusivePtr<TJoblet> TJobletPtr;
 
-    // Jobs in progress.
-    struct TJobInProgress
+    struct TJoblet
         : public TIntrinsicRefCounted
     {
-        explicit TJobInProgress(TTaskPtr task, int jobIndex)
+        explicit TJoblet(TTaskPtr task, int jobIndex)
             : Task(task)
             , JobIndex(jobIndex)
+            , OutputCookie(IChunkPoolOutput::NullCookie)
         { }
 
         TTaskPtr Task;
-        TJobPtr Job;
         int JobIndex;
-        TPoolExtractionResultPtr PoolResult;
+
+        TJobPtr Job;
+        TChunkStripeListPtr InputStripeList;
+        IChunkPoolOutput::TCookie OutputCookie;
         std::vector<NChunkClient::TChunkListId> ChunkListIds;
     };
 
-    yhash_map<TJobPtr, TJobInProgressPtr> JobsInProgress;
+    yhash_map<TJobPtr, TJobletPtr> JobsInProgress;
 
     // The set of all input chunks. Used in #OnChunkFailed.
     yhash_set<NChunkClient::TChunkId> InputChunkIds;
@@ -206,7 +206,7 @@ protected:
         virtual Stroka GetId() const = 0;
         virtual int GetPriority() const;
 
-        virtual int GetPendingJobCount() const = 0;
+        virtual int GetPendingJobCount() const;
         int GetPendingJobCountDelta();
 
         virtual NProto::TNodeResources GetTotalNeededResources() const;
@@ -220,26 +220,28 @@ protected:
 
         virtual NProto::TNodeResources GetMinNeededResources() const = 0;
         virtual NProto::TNodeResources GetAvgNeededResources() const;
-        virtual NProto::TNodeResources GetNeededResources(TJobInProgressPtr jip) const;
+        virtual NProto::TNodeResources GetNeededResources(TJobletPtr joblet) const;
 
         DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, DelayedTime);
 
-        virtual void AddStripe(TChunkStripePtr stripe);
-        void AddStripes(const std::vector<TChunkStripePtr>& stripes);
+        virtual void AddInput(TChunkStripePtr stripe);
+        void AddInput(const std::vector<TChunkStripePtr>& stripes);
+        void FinishInput();
 
         TJobPtr ScheduleJob(ISchedulingContext* context);
 
-        virtual void OnJobCompleted(TJobInProgressPtr jip);
-        virtual void OnJobFailed(TJobInProgressPtr jip);
-        virtual void OnJobAborted(TJobInProgressPtr jip);
+        virtual void OnJobCompleted(TJobletPtr joblet);
+        virtual void OnJobFailed(TJobletPtr joblet);
+        virtual void OnJobAborted(TJobletPtr joblet);
 
         virtual void OnTaskCompleted();
 
         bool IsPending() const;
         bool IsCompleted() const;
 
-        const TProgressCounter& DataSizeCounter() const;
-        const TProgressCounter& ChunkCounter() const;
+        i64 GetTotalDataSize() const;
+        i64 GetCompletedDataSize() const;
+        i64 GetPendingDataSize() const;
 
     private:
         TOperationControllerBase* Controller;
@@ -248,28 +250,26 @@ protected:
 
     protected:
         NLog::TTaggedLogger& Logger;
-        TAutoPtr<IChunkPool> ChunkPool;
 
-        virtual TNullable<i64> GetJobDataSizeThreshold() const = 0;
+        virtual IChunkPoolInput* GetChunkPoolInput() const = 0;
+        virtual IChunkPoolOutput* GetChunkPoolOutput() const = 0;
 
         virtual void BuildJobSpec(
-            TJobInProgressPtr jip,
+            TJobletPtr joblet,
             NProto::TJobSpec* jobSpec) = 0;
 
-        virtual void OnJobStarted(TJobInProgressPtr jip);
+        virtual void OnJobStarted(TJobletPtr joblet);
 
         void AddPendingHint();
         virtual void AddInputLocalityHint(TChunkStripePtr stripe);
 
-        static i64 GetJobDataSizeThresholdGeneric(int pendingJobCount, i64 pendingWeight);
-
-        void AddSequentialInputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobInProgressPtr jip);
-        void AddParallelInputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobInProgressPtr jip);
-        void AddOutputSpecs(NScheduler::NProto::TJobSpec* jobSpec, TJobInProgressPtr jip);
-        void AddIntermediateOutputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobInProgressPtr jip);
+        void AddSequentialInputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
+        void AddParallelInputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
+        void AddOutputSpecs(NScheduler::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
+        void AddIntermediateOutputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
 
     private:
-        void ReleaseFailedJob(TJobInProgressPtr jip);
+        void ReleaseFailedJob(TJobletPtr joblet);
         void AddInputChunks(NScheduler::NProto::TTableInputSpec* inputSpec, TChunkStripePtr stripe);
     };
 
@@ -305,8 +305,8 @@ protected:
     DECLARE_THREAD_AFFINITY_SLOT(BackgroundThread);
 
     // Jobs in progress management.
-    void RegisterJobInProgress(TJobInProgressPtr jip);
-    TJobInProgressPtr GetJobInProgress(TJobPtr job);
+    void RegisterJobInProgress(TJobletPtr joblet);
+    TJobletPtr GetJobInProgress(TJobPtr job);
     void RemoveJobInProgress(TJobPtr job);
 
     // Here comes the preparation pipeline.
@@ -417,7 +417,7 @@ protected:
         int key,
         int tableIndex);
     void RegisterOutputChunkTrees(
-        TJobInProgressPtr jip,
+        TJobletPtr joblet,
         int key);
 
     bool HasEnoughChunkLists(int requestedCount);
@@ -433,10 +433,13 @@ protected:
     //! processing. Each stripe receives exactly one chunk (as suitable for most
     //! jobs except merge). Tries to slice chunks into smaller parts if
     //! sees necessary based on #desiredJobCount and #maxWeightPerJob.
-    std::vector<TChunkStripePtr> PrepareChunkStripes(
+    void SliceChunks(
         const std::vector<NTableClient::TRefCountedInputChunkPtr>& inputChunks,
         TNullable<int> jobCount,
-        i64 jobSliceWeight);
+        i64 jobSliceWeight,
+        std::vector<TChunkStripePtr>* stripes,
+        i64* totalDataSize,
+        int* totalChunkCount);
 
     int SuggestJobCount(
         i64 totalDataSize,
@@ -452,7 +455,7 @@ protected:
 
     static void AddUserJobEnvironment(
         NScheduler::NProto::TUserJobSpec* proto, 
-        TJobInProgressPtr jip,
+        TJobletPtr joblet,
         i64 startRowCount);
 
     static void InitIntermediateInputConfig(TJobIOConfigPtr config);

@@ -55,6 +55,11 @@ TOperationControllerBase::TTask::TTask(TOperationControllerBase* controller)
     , Logger(Controller->Logger)
 { }
 
+int TOperationControllerBase::TTask::GetPendingJobCount() const
+{
+    return GetChunkPoolOutput()->GetPendingJobCount();
+}
+
 int TOperationControllerBase::TTask::GetPendingJobCountDelta()
 {
     int oldValue = CachedPendingJobCount;
@@ -81,7 +86,7 @@ TNodeResources TOperationControllerBase::TTask::GetTotalNeededResources() const
 
 i64 TOperationControllerBase::TTask::GetLocality(const Stroka& address) const
 {
-    return ChunkPool->GetLocality(address);
+    return GetChunkPoolOutput()->GetLocality(address);
 }
 
 bool TOperationControllerBase::TTask::IsStrictlyLocal() const
@@ -94,18 +99,23 @@ int TOperationControllerBase::TTask::GetPriority() const
     return 0;
 }
 
-void TOperationControllerBase::TTask::AddStripe(TChunkStripePtr stripe)
+void TOperationControllerBase::TTask::AddInput(TChunkStripePtr stripe)
 {
-    ChunkPool->Add(stripe);
+    GetChunkPoolInput()->Add(stripe);
     AddInputLocalityHint(stripe);
     AddPendingHint();
 }
 
-void TOperationControllerBase::TTask::AddStripes(const std::vector<TChunkStripePtr>& stripes)
+void TOperationControllerBase::TTask::AddInput(const std::vector<TChunkStripePtr>& stripes)
 {
     FOREACH (auto stripe, stripes) {
-        AddStripe(stripe);
+        AddInput(stripe);
     }
+}
+
+void TOperationControllerBase::TTask::FinishInput()
+{
+    GetChunkPoolInput()->Finish();
 }
 
 TJobPtr TOperationControllerBase::TTask::ScheduleJob(ISchedulingContext* context)
@@ -114,92 +124,100 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(ISchedulingContext* context
         return NULL;
     }
 
-    auto jip = New<TJobInProgress>(this, Controller->CurrentJobCount);
-    ++Controller->CurrentJobCount;
+    auto joblet = New<TJoblet>(this, Controller->JobIndexGenerator.Next());
 
     auto address = context->GetNode()->GetAddress();
-    auto dataSizeThreshold = GetJobDataSizeThreshold();
-    jip->PoolResult = ChunkPool->Extract(address, dataSizeThreshold);
+    auto* chunkPoolOutput = GetChunkPoolOutput();
+    joblet->OutputCookie = chunkPoolOutput->Extract(address);
 
-    // Compute the actual utilization for this JIP and check it
+    // Compute the actual utilization for this joblet and check it
     // against the the limits. This is the last chance to give up.
-    auto neededResources = GetNeededResources(jip);
+    auto neededResources = GetNeededResources(joblet);
     auto node = context->GetNode();
     if (!node->HasEnoughResources(neededResources)) {
-        ChunkPool->OnFailed(jip->PoolResult);
+        chunkPoolOutput->Failed(joblet->OutputCookie);
         return NULL;
     }
 
-    LOG_DEBUG("Job chunks extracted (TotalCount: %d, LocalCount: %d, ExtractedDataSize: %" PRId64 ", DataSizeThreshold: %s)",
-        jip->PoolResult->TotalChunkCount,
-        jip->PoolResult->LocalChunkCount,
-        jip->PoolResult->TotalDataSize,
-        ~ToString(dataSizeThreshold));
+    joblet->InputStripeList = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
+    LOG_DEBUG("Job chunks extracted (TotalCount: %d, LocalCount: %d, DataSize: %" PRId64 ", RowCount: %" PRId64 ")",
+        joblet->InputStripeList->TotalChunkCount,
+        joblet->InputStripeList->LocalChunkCount,
+        joblet->InputStripeList->TotalDataSize,
+        joblet->InputStripeList->TotalRowCount);
 
     auto job = context->BeginStartJob(Controller->Operation);
-    jip->Job = job;
-    auto* jobSpec = jip->Job->GetSpec();
-    BuildJobSpec(jip, jobSpec);
+    joblet->Job = job;
+
+    auto* jobSpec = joblet->Job->GetSpec();
+    BuildJobSpec(joblet, jobSpec);
     *jobSpec->mutable_resource_utilization() = neededResources;
     context->EndStartJob(job);
 
-    Controller->RegisterJobInProgress(jip);
+    Controller->RegisterJobInProgress(joblet);
 
-    OnJobStarted(jip);
+    OnJobStarted(joblet);
 
-    return jip->Job;
+    return joblet->Job;
 }
 
 bool TOperationControllerBase::TTask::IsPending() const
 {
-    return ChunkPool->IsPending();
+    return GetChunkPoolOutput()->GetPendingJobCount() > 0;
 }
 
 bool TOperationControllerBase::TTask::IsCompleted() const
 {
-    return ChunkPool->IsCompleted();
+    return GetChunkPoolOutput()->IsCompleted();
 }
 
-const TProgressCounter& TOperationControllerBase::TTask::DataSizeCounter() const
+i64 TOperationControllerBase::TTask::GetTotalDataSize() const
 {
-    return ChunkPool->DataSizeCounter();
+    return GetChunkPoolOutput()->GetTotalDataSize();
 }
 
-const TProgressCounter& TOperationControllerBase::TTask::ChunkCounter() const
+i64 TOperationControllerBase::TTask::GetCompletedDataSize() const
 {
-    return ChunkPool->ChunkCounter();
+    return GetChunkPoolOutput()->GetCompletedDataSize();
 }
 
-void TOperationControllerBase::TTask::OnJobStarted(TJobInProgressPtr jip)
+i64 TOperationControllerBase::TTask::GetPendingDataSize() const
 {
-    UNUSED(jip);
+    return GetChunkPoolOutput()->GetPendingDataSize();
 }
 
-void TOperationControllerBase::TTask::OnJobCompleted(TJobInProgressPtr jip)
+void TOperationControllerBase::TTask::OnJobStarted(TJobletPtr joblet)
 {
-    ChunkPool->OnCompleted(jip->PoolResult);
+    UNUSED(joblet);
 }
 
-void TOperationControllerBase::TTask::ReleaseFailedJob(TJobInProgressPtr jip)
+void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet)
 {
-    ChunkPool->OnFailed(jip->PoolResult);
+    GetChunkPoolOutput()->Completed(joblet->OutputCookie);
+}
 
-    Controller->ReleaseChunkLists(jip->ChunkListIds);
+void TOperationControllerBase::TTask::ReleaseFailedJob(TJobletPtr joblet)
+{
+    auto* chunkPoolOutput = GetChunkPoolOutput();
+    chunkPoolOutput->Failed(joblet->OutputCookie);
 
-    FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
+    Controller->ReleaseChunkLists(joblet->ChunkListIds);
+
+    auto list = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
+    FOREACH (const auto& stripe, list->Stripes) {
         AddInputLocalityHint(stripe);
     }
     AddPendingHint();
 }
 
-void TOperationControllerBase::TTask::OnJobFailed(TJobInProgressPtr jip)
+void TOperationControllerBase::TTask::OnJobFailed(TJobletPtr joblet)
 {
-    ReleaseFailedJob(jip);
+    ReleaseFailedJob(joblet);
 }
 
-void TOperationControllerBase::TTask::OnJobAborted(TJobInProgressPtr jip)
+void TOperationControllerBase::TTask::OnJobAborted(TJobletPtr joblet)
 {
-    ReleaseFailedJob(jip);
+    ReleaseFailedJob(joblet);
 }
 
 void TOperationControllerBase::TTask::OnTaskCompleted()
@@ -217,26 +235,21 @@ void TOperationControllerBase::TTask::AddInputLocalityHint(TChunkStripePtr strip
     Controller->AddTaskLocalityHint(this, stripe);
 }
 
-i64 TOperationControllerBase::TTask::GetJobDataSizeThresholdGeneric(int pendingJobCount, i64 pendingDataSize)
-{
-    return static_cast<i64>(std::ceil((double) pendingDataSize / pendingJobCount));
-}
-
 void TOperationControllerBase::TTask::AddSequentialInputSpec(
     NScheduler::NProto::TJobSpec* jobSpec,
-    TJobInProgressPtr jip)
+    TJobletPtr joblet)
 {
     auto* inputSpec = jobSpec->add_input_specs();
-    FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
+    FOREACH (const auto& stripe, joblet->InputStripeList->Stripes) {
         AddInputChunks(inputSpec, stripe);
     }
 }
 
 void TOperationControllerBase::TTask::AddParallelInputSpec(
     NScheduler::NProto::TJobSpec* jobSpec,
-    TJobInProgressPtr jip)
+    TJobletPtr joblet)
 {
-    FOREACH (const auto& stripe, jip->PoolResult->Stripes) {
+    FOREACH (const auto& stripe, joblet->InputStripeList->Stripes) {
         auto* inputSpec = jobSpec->add_input_specs();
         AddInputChunks(inputSpec, stripe);
     }
@@ -244,25 +257,25 @@ void TOperationControllerBase::TTask::AddParallelInputSpec(
 
 void TOperationControllerBase::TTask::AddOutputSpecs(
     NScheduler::NProto::TJobSpec* jobSpec,
-    TJobInProgressPtr jip)
+    TJobletPtr joblet)
 {
     FOREACH (const auto& table, Controller->OutputTables) {
         auto* outputSpec = jobSpec->add_output_specs();
         outputSpec->set_channels(table.Channels.Data());
         auto chunkListId = Controller->ExtractChunkList();
-        jip->ChunkListIds.push_back(chunkListId);
+        joblet->ChunkListIds.push_back(chunkListId);
         *outputSpec->mutable_chunk_list_id() = chunkListId.ToProto();
     }
 }
 
 void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     NScheduler::NProto::TJobSpec* jobSpec,
-    TJobInProgressPtr jip)
+    TJobletPtr joblet)
 {
     auto* outputSpec = jobSpec->add_output_specs();
     outputSpec->set_channels("[]");
     auto chunkListId = Controller->ExtractChunkList();
-    jip->ChunkListIds.push_back(chunkListId);
+    joblet->ChunkListIds.push_back(chunkListId);
     *outputSpec->mutable_chunk_list_id() = chunkListId.ToProto();
 }
 
@@ -270,11 +283,8 @@ void TOperationControllerBase::TTask::AddInputChunks(
     NScheduler::NProto::TTableInputSpec* inputSpec,
     TChunkStripePtr stripe)
 {
-    FOREACH (const auto& weightedChunk, stripe->Chunks) {
-        auto* inputChunk = inputSpec->add_chunks();
-        *inputChunk = *weightedChunk.InputChunk;
-        inputChunk->set_uncompressed_data_size(weightedChunk.DataSizeOverride);
-        inputChunk->set_row_count(weightedChunk.RowCountOverride);
+    FOREACH (const auto& chunk, stripe->Chunks) {
+        *inputSpec->add_chunks() = *chunk;
     }
 }
 
@@ -283,9 +293,9 @@ TNodeResources TOperationControllerBase::TTask::GetAvgNeededResources() const
     return GetMinNeededResources();
 }
 
-TNodeResources TOperationControllerBase::TTask::GetNeededResources(TJobInProgressPtr jip) const
+TNodeResources TOperationControllerBase::TTask::GetNeededResources(TJobletPtr joblet) const
 {
-    UNUSED(jip);
+    UNUSED(joblet);
     return GetMinNeededResources();
 }
 
@@ -305,11 +315,6 @@ TOperationControllerBase::TOperationControllerBase(
     , CancelableBackgroundInvoker(CancelableContext->CreateInvoker(Host->GetBackgroundInvoker()))
     , Active(false)
     , Running(false)
-    , RunningJobCount(0)
-    , CompletedJobCount(0)
-    , FailedJobCount(0)
-    , AbortedJobCount(0)
-    , CurrentJobCount(0)
     , UsedResources(ZeroNodeResources())
     , PendingTaskInfos(MaxTaskPriority + 1)
     , CachedPendingJobCount(0)
@@ -451,23 +456,22 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    --RunningJobCount;
-    ++CompletedJobCount;
+    JobCounter.Completed(1);
 
     UsedResources -= job->ResourceUtilization();
 
-    auto jip = GetJobInProgress(job);
-    jip->Task->OnJobCompleted(jip);
+    auto joblet = GetJobInProgress(job);
+    joblet->Task->OnJobCompleted(joblet);
     
     RemoveJobInProgress(job);
 
     LogProgress();
 
-    if (jip->Task->IsCompleted()) {
-        jip->Task->OnTaskCompleted();
+    if (joblet->Task->IsCompleted()) {
+        joblet->Task->OnTaskCompleted();
     }
 
-    if (RunningJobCount == 0 && GetPendingJobCount() == 0) {
+    if (JobCounter.GetRunning() == 0 && GetPendingJobCount() == 0) {
         OnOperationCompleted();
     }
 }
@@ -476,19 +480,18 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    --RunningJobCount;
-    ++FailedJobCount;
+    JobCounter.Failed(1);
 
     UsedResources -= job->ResourceUtilization();
 
-    auto jip = GetJobInProgress(job);
-    jip->Task->OnJobFailed(jip);
+    auto joblet = GetJobInProgress(job);
+    joblet->Task->OnJobFailed(joblet);
 
     RemoveJobInProgress(job);
 
     LogProgress();
 
-    if (FailedJobCount >= Config->FailedJobsLimit) {
+    if (JobCounter.GetFailed() >= Config->FailedJobsLimit) {
         OnOperationFailed(TError("Failed jobs limit %d has been reached",
             Config->FailedJobsLimit));
     }
@@ -502,13 +505,12 @@ void TOperationControllerBase::OnJobAborted(TJobPtr job)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    --RunningJobCount;
-    ++AbortedJobCount;
+    JobCounter.Aborted(1);
 
     UsedResources -= job->ResourceUtilization();
 
-    auto jip = GetJobInProgress(job);
-    jip->Task->OnJobAborted(jip);
+    auto joblet = GetJobInProgress(job);
+    joblet->Task->OnJobAborted(joblet);
 
     RemoveJobInProgress(job);
 
@@ -583,7 +585,7 @@ TJobPtr TOperationControllerBase::ScheduleJob(
         return NULL;
     }
 
-    ++RunningJobCount;
+    JobCounter.Start(1);
     LogProgress();
     return job;
 }
@@ -641,8 +643,7 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, const Stroka& 
 void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe)
 {
     FOREACH (const auto& chunk, stripe->Chunks) {
-        const auto& inputChunk = chunk.InputChunk;
-        FOREACH (const auto& address, inputChunk->node_addresses()) {
+        FOREACH (const auto& address, chunk->node_addresses()) {
             DoAddTaskLocalityHint(task, address);
         }
     }
@@ -819,6 +820,8 @@ void TOperationControllerBase::OnOperationCompleted()
 
     YCHECK(Active);
     LOG_INFO("Operation completed");
+
+    JobCounter.Finalize();
 
     Running = false;
 
@@ -1375,27 +1378,25 @@ std::vector<TRefCountedInputChunkPtr> TOperationControllerBase::CollectInputTabl
     return result;
 }
 
-std::vector<TChunkStripePtr> TOperationControllerBase::PrepareChunkStripes(
+void TOperationControllerBase::SliceChunks(
     const std::vector<TRefCountedInputChunkPtr>& inputChunks,
     TNullable<int> jobCount,
-    i64 jobSliceDataSize)
+    i64 jobSliceDataSize,
+    std::vector<TChunkStripePtr>* stripes,
+    i64* totalDataSize,
+    int* totalChunkCount)
 {
-    i64 sliceDataSize = jobSliceDataSize;
-    if (jobCount) {
-        i64 totalDataSize = 0;
-        FOREACH (auto inputChunk, inputChunks) {
-            totalDataSize += inputChunk->uncompressed_data_size();
-        }
-        sliceDataSize = std::min(sliceDataSize, totalDataSize / jobCount.Get() + 1);
+    *totalDataSize = 0;
+    FOREACH (auto inputChunk, inputChunks) {
+        *totalDataSize += inputChunk->uncompressed_data_size();
     }
 
-    YCHECK(sliceDataSize > 0);
+    i64 sliceDataSize =
+        jobCount
+        ? std::min(sliceDataSize, *totalDataSize / jobCount.Get() + 1)
+        : jobSliceDataSize;
 
-    LOG_DEBUG("Preparing chunk stripes (ChunkCount: %d, JobCount: %s, JobSliceDataSize: %" PRId64 ", SliceDataSize: %" PRId64 ")",
-        static_cast<int>(inputChunks.size()),
-        ~ToString(jobCount),
-        jobSliceDataSize,
-        sliceDataSize);
+    YCHECK(sliceDataSize > 0);
 
     std::vector<TChunkStripePtr> result;
 
@@ -1420,10 +1421,14 @@ std::vector<TChunkStripePtr> TOperationControllerBase::PrepareChunkStripes(
         }
     }
 
-    LOG_DEBUG("Chunk stripes prepared (StripeCount: %d)",
-        static_cast<int>(result.size()));
+    *totalChunkCount = static_cast<int>(stripes->size());
 
-    return result;
+    LOG_DEBUG("Sliced chunks prepared (InputChunkCount: %d, SlicedChunkCount: %d, JobCount: %s, JobSliceDataSize: %" PRId64 ", SliceDataSize: %" PRId64 ")",
+        static_cast<int>(inputChunks.size()),
+        *totalChunkCount,
+        ~ToString(jobCount),
+        jobSliceDataSize,
+        sliceDataSize);
 }
 
 std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNullable< std::vector<Stroka> >& keyColumns)
@@ -1494,11 +1499,11 @@ void TOperationControllerBase::RegisterOutputChunkTree(
 }
 
 void TOperationControllerBase::RegisterOutputChunkTrees(
-    TJobInProgressPtr jip,
+    TJobletPtr joblet,
     int key)
 {
     for (int tableIndex = 0; tableIndex < static_cast<int>(OutputTables.size()); ++tableIndex) {
-        RegisterOutputChunkTree(jip->ChunkListIds[tableIndex], key, tableIndex);
+        RegisterOutputChunkTree(joblet->ChunkListIds[tableIndex], key, tableIndex);
     }
 }
 
@@ -1512,12 +1517,12 @@ TChunkListId TOperationControllerBase::ExtractChunkList()
     return ChunkListPool->Extract();
 }
 
-void TOperationControllerBase::RegisterJobInProgress(TJobInProgressPtr jip)
+void TOperationControllerBase::RegisterJobInProgress(TJobletPtr joblet)
 {
-    YCHECK(JobsInProgress.insert(MakePair(jip->Job, jip)).second);
+    YCHECK(JobsInProgress.insert(MakePair(joblet->Job, joblet)).second);
 }
 
-TOperationControllerBase::TJobInProgressPtr TOperationControllerBase::GetJobInProgress(TJobPtr job)
+TOperationControllerBase::TJobletPtr TOperationControllerBase::GetJobInProgress(TJobPtr job)
 {
     auto it = JobsInProgress.find(job);
     YCHECK(it != JobsInProgress.end());
@@ -1533,12 +1538,13 @@ void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .Item("jobs").BeginMap()
-            .Item("total").Scalar(CompletedJobCount + RunningJobCount + GetPendingJobCount())
+            .Item("total").Scalar(JobCounter.GetCompleted() + JobCounter.GetRunning() + GetPendingJobCount())
             .Item("pending").Scalar(GetPendingJobCount())
-            .Item("running").Scalar(RunningJobCount)
-            .Item("completed").Scalar(CompletedJobCount)
-            .Item("failed").Scalar(FailedJobCount)
-            .Item("aborted").Scalar(AbortedJobCount)
+            .Item("running").Scalar(JobCounter.GetRunning())
+            .Item("completed").Scalar(JobCounter.GetCompleted())
+            .Item("failed").Scalar(JobCounter.GetFailed())
+            .Item("aborted").Scalar(JobCounter.GetAborted())
+            .Item("lost").Scalar(JobCounter.GetLost())
         .EndMap();
 }
 
@@ -1624,7 +1630,7 @@ void TOperationControllerBase::InitUserJobSpec(
 
 void TOperationControllerBase::AddUserJobEnvironment(
     NScheduler::NProto::TUserJobSpec* proto,
-    TJobInProgressPtr jip,
+   TJobletPtr joblet)
     i64 startRowIndex)
 {
     proto->add_environment(Sprintf("YT_JOB_INDEX=%d", jip->JobIndex));

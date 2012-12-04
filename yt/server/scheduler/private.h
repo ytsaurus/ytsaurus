@@ -23,8 +23,8 @@ namespace NScheduler {
 struct TChunkStripe;
 typedef TIntrusivePtr<TChunkStripe> TChunkStripePtr;
 
-struct TPoolExtractionResult;
-typedef TIntrusivePtr<TPoolExtractionResult> TPoolExtractionResultPtr;
+struct TChunkStripeList;
+typedef TIntrusivePtr<TChunkStripeList> TChunkStripeListPtr;
 
 class TUnorderedChunkPool;
 class TAtomicChunkPool;

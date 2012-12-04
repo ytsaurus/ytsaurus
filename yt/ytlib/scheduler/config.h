@@ -272,12 +272,14 @@ struct TSortOperationSpecBase
     i64 MinPartitionDataSize;
     i64 MaxPartitionDataSize;
 
-    //! Maximum amount of (uncompressed) data to be given to a single sort job.
-    i64 MaxDataSizePerSortJob;
+    //! Minimum amount of (uncompressed) data to be given to a single sort job.
+    //! Used for adjusting #SortJobCount.
+    //! Only applies to simple sort.
+    i64 MinDataSizePerSortJob;
 
-    //! Maximum amount of (uncompressed) data to be given to a single unordered merge job
-    //! that takes care of a maniac partition.
-    i64 MaxDataSizePerUnorderedMergeJob;
+    //! Maximum amount of (uncompressed) data to be given to a single sort job
+    //! or to a single unordered merge job taking care of a maniac partition.
+    i64 MaxDataSizePerSortJob;
 
     double ShuffleStartThreshold;
     double MergeStartThreshold;
@@ -299,6 +301,9 @@ struct TSortOperationSpecBase
             .GreaterThan(0);
         Register("max_partition_data_size", MaxPartitionDataSize)
             .Default((i64) 750 * 1024 * 1024)
+            .GreaterThan(0);
+        Register("min_data_size_per_sort_job", MinDataSizePerSortJob)
+            .Default((i64) 128 * 1024 * 1024)
             .GreaterThan(0);
         Register("max_data_size_per_sort_job", MaxDataSizePerSortJob)
             .Default((i64) 1024 * 1024 * 1024)
@@ -366,9 +371,6 @@ struct TSortOperationSpec
             .Default((i64) 128 * 1024 * 1024)
             .GreaterThan(0);
         Register("max_data_size_per_partition_job", MaxDataSizePerPartitionJob)
-            .Default((i64) 1024 * 1024 * 1024)
-            .GreaterThan(0);
-        Register("max_data_size_per_unordered_merge_job", MaxDataSizePerUnorderedMergeJob)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
         Register("partition_locality_timeout", PartitionLocalityTimeout)

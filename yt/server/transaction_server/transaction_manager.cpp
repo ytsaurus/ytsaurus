@@ -42,7 +42,7 @@ class TTransactionManager::TTransactionProxy
     : public NObjectServer::TUnversionedObjectProxyBase<TTransaction>
 {
 public:
-    TTransactionProxy(TTransactionManager* owner, const TTransactionId& id)
+    TTransactionProxy(TTransactionManagerPtr owner, const TTransactionId& id)
         : TBase(owner->Bootstrap, id, &owner->TransactionMap)
         , Owner(owner)
     {

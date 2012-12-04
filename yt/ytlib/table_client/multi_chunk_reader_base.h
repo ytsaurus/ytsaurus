@@ -39,14 +39,15 @@ public:
     virtual bool FetchNextItem() = 0;
     TAsyncError GetReadyEvent();
 
-    std::vector<NChunkClient::TChunkId> GetFailedChunks() const;
+    const std::vector<NChunkClient::TChunkId>& GetFailedChunks() const;
 
     virtual bool IsValid() const = 0;
 
 protected:
     typedef TIntrusivePtr<TChunkReader> TReaderPtr;
 
-    struct TSession {
+    struct TSession
+    {
         TReaderPtr Reader;
         int ChunkIndex;
 
@@ -57,7 +58,7 @@ protected:
         TSession(TReaderPtr reader, int chunkIndex)
             : Reader(reader)
             , ChunkIndex(chunkIndex)
-        {}
+        { }
     };
 
     TTableReaderConfigPtr Config;

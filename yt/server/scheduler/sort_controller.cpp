@@ -61,13 +61,9 @@ public:
         , TotalInputRowCount(0)
         , TotalInputValueCount(0)
         , CompletedPartitionCount(0)
-        , IntermediateSortJobCounter(false)
-        , FinalSortJobCounter(false)
         , SortStartThresholdReached(false)
         , MergeStartThresholdReached(false)
-        , UnorderedMergeJobCounter(false)
         , SimpleSort(false)
-        , PartitionTask(New<TPartitionTask>(this))
     { }
 
     virtual TNodeResources GetMinNeededResources() override
@@ -139,10 +135,8 @@ protected:
             , SortTask(New<TSortTask>(controller, this))
             , SortedMergeTask(New<TSortedMergeTask>(controller, this))
             , UnorderedMergeTask(New<TUnorderedMergeTask>(controller, this))
-        {
-            TotalAttributes.set_uncompressed_data_size(0);
-            TotalAttributes.set_row_count(0);
-        }
+            , ChunkPoolOutput(NULL)
+        { }
 
         //! Sequential index (zero based).
         int Index;
@@ -156,9 +150,6 @@ protected:
         //! Does the partition consist of rows with the same key?
         bool Maniac;
 
-        //! Accumulated attributes.
-        NTableClient::NProto::TPartitionsExt::TPartitionAttributes TotalAttributes;
-
         //! The only node where sorting and merging must take place (in case of multiple partitions).
         Stroka AssignedAddress;
 
@@ -166,6 +157,9 @@ protected:
         TSortTaskPtr SortTask;
         TSortedMergeTaskPtr SortedMergeTask;
         TUnorderedMergeTaskPtr UnorderedMergeTask;
+
+        // Chunk pool output obtained from the shuffle pool.
+        IChunkPoolOutput* ChunkPoolOutput;
     };
 
     typedef TIntrusivePtr<TPartition> TPartitionPtr;
@@ -188,6 +182,9 @@ protected:
     TJobIOConfigPtr SortedMergeJobIOConfig;
     TJobIOConfigPtr UnorderedMergeJobIOConfig;
 
+    TAutoPtr<IShuffleChunkPool> ShufflePool;
+    TAutoPtr<IChunkPool> SimpleSortPool;
+
     TPartitionTaskPtr PartitionTask;
     
     //! Implements partition phase for sort operations and map phase for map-reduce operations.
@@ -199,7 +196,9 @@ protected:
             : TTask(controller)
             , Controller(controller)
         {
-            ChunkPool = CreateUnorderedChunkPool();
+            ChunkPool = CreateUnorderedChunkPool(
+                Controller->PartitionJobCounter.GetTotal(),
+                Controller->Spec->MaxDataSizePerPartitionJob);
         }
 
         virtual Stroka GetId() const override
@@ -210,14 +209,6 @@ protected:
         virtual int GetPriority() const override
         {
             return 0;
-        }
-
-        virtual int GetPendingJobCount() const override
-        {
-            return
-                IsPending() 
-                ? Controller->PartitionJobCounter.GetPending()
-                : 0;
         }
 
         virtual TDuration GetLocalityTimeout() const override
@@ -236,107 +227,94 @@ protected:
             if (jobCount == 0) {
                 return ZeroNodeResources();
             }
-            i64 dataSizePerJob = ChunkPool->DataSizeCounter().GetPending() / jobCount;
+            i64 dataSizePerJob = GetPendingDataSize() / jobCount;
             return Controller->GetPartitionResources(dataSizePerJob);
         }
 
-        virtual TNodeResources GetNeededResources(TJobInProgressPtr jip) const override
+        virtual TNodeResources GetNeededResources(TJobletPtr joblet) const override
         {
-            return Controller->GetPartitionResources(jip->PoolResult->TotalDataSize);
+            return Controller->GetPartitionResources(joblet->InputStripeList->TotalDataSize);
         }
 
     private:
         TSortControllerBase* Controller;
+
+        TAutoPtr<IChunkPool> ChunkPool;
+
+        
+        virtual IChunkPoolInput* GetChunkPoolInput() const override
+        {
+            return ~ChunkPool;
+        }
+
+        virtual IChunkPoolOutput* GetChunkPoolOutput() const override
+        {
+            return ~ChunkPool;
+        }
 
         virtual int GetChunkListCountPerJob() const override
         {
             return 1;
         }
 
-        virtual TNullable<i64> GetJobDataSizeThreshold() const override
-        {
-            return GetJobDataSizeThresholdGeneric(
-                GetPendingJobCount(),
-                DataSizeCounter().GetPending());
-        }
-
-        virtual void BuildJobSpec(
-            TJobInProgressPtr jip,
-            TJobSpec* jobSpec) override
+        virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->PartitionJobSpecTemplate);
-            AddSequentialInputSpec(jobSpec, jip);
-            AddIntermediateOutputSpec(jobSpec, jip);
-            Controller->CustomizeJobSpec(jip, jobSpec);
+            AddSequentialInputSpec(jobSpec, joblet);
+            AddIntermediateOutputSpec(jobSpec, joblet);
+            Controller->CustomizeJobSpec(joblet, jobSpec);
         }
 
-        virtual void OnJobStarted(TJobInProgressPtr jip) override
+        virtual void OnJobStarted(TJobletPtr joblet) override
         {
             Controller->PartitionJobCounter.Start(1);
 
-            TTask::OnJobStarted(jip);
+            TTask::OnJobStarted(joblet);
         }
 
-        virtual void OnJobCompleted(TJobInProgressPtr jip) override
+        virtual void OnJobCompleted(TJobletPtr joblet) override
         {
-            TTask::OnJobCompleted(jip);
+            TTask::OnJobCompleted(joblet);
 
             Controller->PartitionJobCounter.Completed(1);
 
-            auto* resultExt = jip->Job->Result().MutableExtension(TPartitionJobResultExt::partition_job_result_ext);
-            FOREACH (auto& partitionChunk, *resultExt->mutable_chunks()) {
-                // We're keeping chunk information received from partition jobs to populate sort pools.
-                // TPartitionsExt is, however, quite heavy.
-                // Deserialize it and then drop its protobuf copy immediately.
-                auto partitionsExt = GetProtoExtension<NTableClient::NProto::TPartitionsExt>(partitionChunk.extensions());
-                RemoveProtoExtension<NTableClient::NProto::TPartitionsExt>(partitionChunk.mutable_extensions());
+            auto* resultExt = joblet->Job->Result().MutableExtension(TPartitionJobResultExt::partition_job_result_ext);
+            auto stripe = New<TChunkStripe>();
+            FOREACH (auto& inputChunk, *resultExt->mutable_chunks()) {
+                auto rcInputChunk = New<TRefCountedInputChunk>(inputChunk);
+                stripe->Chunks.push_back(rcInputChunk);
+            }
 
-                auto rcPartitionChunk = New<TRefCountedInputChunk>(partitionChunk);
+            Controller->ShufflePool->GetInput()->Add(stripe);
 
-                YCHECK(partitionsExt.partitions_size() == Controller->Partitions.size());
-                LOG_TRACE("Job partition attributes received");
-                for (int index = 0; index < partitionsExt.partitions_size(); ++index) {
-                    const auto& jobPartitionAttributes = partitionsExt.partitions(index);
-                    LOG_TRACE("Partition[%d] = {%s}", index, ~jobPartitionAttributes.DebugString());
+            // Drop TPartitionsExt, they are no longer needed.
+            FOREACH (auto inputChunk, stripe->Chunks) {
+                RemoveProtoExtension<NTableClient::NProto::TPartitionsExt>(inputChunk->mutable_extensions());
+            }
 
-                    // Add up attributes.
-                    auto partition = Controller->Partitions[index];
-                    auto& totalAttributes = partition->TotalAttributes;
-                    totalAttributes.set_uncompressed_data_size(
-                        totalAttributes.uncompressed_data_size() +
-                        jobPartitionAttributes.uncompressed_data_size());
-                    totalAttributes.set_row_count(
-                        totalAttributes.row_count() +
-                        jobPartitionAttributes.row_count());
-
-                    if (jobPartitionAttributes.uncompressed_data_size() > 0) {
-                        auto stripe = New<TChunkStripe>(
-                            rcPartitionChunk,
-                            jobPartitionAttributes.uncompressed_data_size(),
-                            jobPartitionAttributes.row_count());
-                        auto destinationTask = partition->Maniac
-                            ? TTaskPtr(partition->UnorderedMergeTask)
-                            : TTaskPtr(partition->SortTask);
-                        destinationTask->AddStripe(stripe);
-                    }
-                }
+            // Kick-start sort and unordered merge tasks.
+            FOREACH (auto partition, Controller->Partitions) {
+                auto task = partition->Maniac
+                    ? TTaskPtr(partition->UnorderedMergeTask)
+                    : TTaskPtr(partition->SortTask);
+                Controller->AddTaskPendingHint(task);
             }
 
             Controller->CheckSortStartThreshold();
         }
 
-        virtual void OnJobFailed(TJobInProgressPtr jip) override
+        virtual void OnJobFailed(TJobletPtr joblet) override
         {
             Controller->PartitionJobCounter.Failed(1);
 
-            TTask::OnJobFailed(jip);
+            TTask::OnJobFailed(joblet);
         }
 
-        virtual void OnJobAborted(TJobInProgressPtr jip) override
+        virtual void OnJobAborted(TJobletPtr joblet) override
         {
-            Controller->PartitionJobCounter.Abort(1);
+            Controller->PartitionJobCounter.Aborted(1);
 
-            TTask::OnJobAborted(jip);
+            TTask::OnJobAborted(joblet);
         }
 
         virtual void OnTaskCompleted() override
@@ -344,20 +322,20 @@ protected:
             TTask::OnTaskCompleted();
 
             Controller->PartitionJobCounter.Finalize();
+            Controller->ShufflePool->GetInput()->Finish();
 
             // Dump totals.
-            LOG_DEBUG("Partition totals collected");
-            for (int index = 0; index < static_cast<int>(Controller->Partitions.size()); ++index) {
-                LOG_DEBUG("Partition[%d] = {%s}",
-                    index,
-                    ~Controller->Partitions[index]->TotalAttributes.DebugString());
-            }
-
             // Mark empty partitions are completed.
+            LOG_DEBUG("Partition sizes collected");
             FOREACH (auto partition, Controller->Partitions) {
-                if (partition->TotalAttributes.uncompressed_data_size() == 0) {
+                i64 dataSize = partition->ChunkPoolOutput->GetTotalDataSize();
+                if (dataSize == 0) {
                     LOG_DEBUG("Partition %d is empty", partition->Index);
-                    Controller->OnPartitionCompeted(partition);
+                    Controller->OnPartitionCompleted(partition);
+                } else {
+                    LOG_DEBUG("Partition[%d] = %" PRId64,
+                        partition->Index,
+                        dataSize);
                 }
             }
 
@@ -398,7 +376,7 @@ protected:
             // Report locality proportional to the pending data size.
             // This facilitates uniform sort progress across partitions.
             // Never return 0 since this is a local task.
-            i64 pendingDataSize = DataSizeCounter().GetPending();
+            i64 pendingDataSize = GetPendingDataSize();
             return pendingDataSize == 0 ? 1 : pendingDataSize;
         }
 
@@ -427,9 +405,7 @@ protected:
     public:
         TSortTask(TSortControllerBase* controller, TPartition* partition)
             : TPartitionBoundTask(controller, partition)
-        {
-            ChunkPool = CreateUnorderedChunkPool(Controller->SimpleSort);
-        }
+        { }
 
         virtual Stroka GetId() const override
         {
@@ -448,16 +424,7 @@ protected:
                 return 0;
             }
 
-            // Compute pending job count based on pooled data size and data size per job.
-            // If partition phase is completed, take any remaining data.
-            // If partition phase is still in progress, only take size exceeding size per job.
-            i64 dataSize = ChunkPool->DataSizeCounter().GetPending();
-            i64 dataSizePerJob = Controller->Spec->MaxDataSizePerSortJob;
-            double fractionalJobCount = (double) dataSize / dataSizePerJob;
-            return
-                Controller->PartitionTask->IsCompleted()
-                ? static_cast<int>(ceil(fractionalJobCount))
-                : static_cast<int>(floor(fractionalJobCount));
+            return TTask::GetPendingJobCount();
         }
 
         virtual TNodeResources GetMinNeededResources() const override
@@ -471,20 +438,23 @@ protected:
             if (jobCount == 0) {
                 return ZeroNodeResources();
             }
-            i64 dataSizePerJob = ChunkPool->DataSizeCounter().GetPending() / jobCount;
+            i64 dataSizePerJob = GetPendingDataSize() / jobCount;
             return GetNeededResourcesForDataSize(dataSizePerJob);
         }
 
-        virtual TNodeResources GetNeededResources(TJobInProgressPtr jip) const override
+        virtual TNodeResources GetNeededResources(TJobletPtr joblet) const override
         {
-            return GetNeededResourcesForDataSize(jip->PoolResult->TotalDataSize);
+            return GetNeededResourcesForDataSize(joblet->InputStripeList->TotalDataSize);
         }
 
-        virtual void AddStripe(TChunkStripePtr stripe) override
+        using TTask::AddInput;
+
+        virtual void AddInput(TChunkStripePtr stripe) override
         {
-            i64 oldTotal = ChunkPool->DataSizeCounter().GetTotal();
-            TPartitionBoundTask::AddStripe(stripe);
-            i64 newTotal = ChunkPool->DataSizeCounter().GetTotal();
+            auto* chunkPoolOutput = GetChunkPoolOutput();
+            i64 oldTotal = chunkPoolOutput->GetTotalDataSize();
+            TPartitionBoundTask::AddInput(stripe);
+            i64 newTotal = chunkPoolOutput->GetTotalDataSize();
             Controller->SortDataSizeCounter.Increment(newTotal - oldTotal);
         }
 
@@ -496,6 +466,22 @@ protected:
         }
 
     private:
+        virtual IChunkPoolInput* GetChunkPoolInput() const override
+        {
+            return
+                Controller->SimpleSort
+                ? ~Controller->SimpleSortPool
+                : Controller->ShufflePool->GetInput();
+        }
+
+        virtual IChunkPoolOutput* GetChunkPoolOutput() const override
+        {
+            return
+                Controller->SimpleSort
+                ? ~Controller->SimpleSortPool
+                : Partition->ChunkPoolOutput;
+        }
+
         TNodeResources GetNeededResourcesForDataSize(i64 dataSize) const
         {
             i64 rowCount = Controller->GetRowCountEstimate(Partition, dataSize);
@@ -518,25 +504,18 @@ protected:
                 : Controller->OutputTables.size();
         }
 
-        virtual TNullable<i64> GetJobDataSizeThreshold() const override
-        {
-            return Controller->Spec->MaxDataSizePerSortJob;
-        }
-
-        virtual void BuildJobSpec(
-            TJobInProgressPtr jip,
-            TJobSpec* jobSpec) override
+        virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             if (Controller->IsSortedMergeNeeded(Partition)) {
                 jobSpec->CopyFrom(Controller->IntermediateSortJobSpecTemplate);
-                AddIntermediateOutputSpec(jobSpec, jip);
+                AddIntermediateOutputSpec(jobSpec, joblet);
             } else {
                 jobSpec->CopyFrom(Controller->FinalSortJobSpecTemplate);
-                AddOutputSpecs(jobSpec, jip);
+                AddOutputSpecs(jobSpec, joblet);
             }
 
-            AddSequentialInputSpec(jobSpec, jip);
-            Controller->CustomizeJobSpec(jip, jobSpec);
+            AddSequentialInputSpec(jobSpec, joblet);
+            Controller->CustomizeJobSpec(joblet, jobSpec);
 
             if (!Controller->SimpleSort) {
                 auto* inputSpec = jobSpec->mutable_input_specs(0);
@@ -546,13 +525,13 @@ protected:
             }
         }
 
-        virtual void OnJobStarted(TJobInProgressPtr jip) override
+        virtual void OnJobStarted(TJobletPtr joblet) override
         {
-            TPartitionBoundTask::OnJobStarted(jip);
+            TPartitionBoundTask::OnJobStarted(joblet);
 
             YCHECK(!Partition->Maniac);
 
-            Controller->SortDataSizeCounter.Start(jip->PoolResult->TotalDataSize);
+            Controller->SortDataSizeCounter.Start(joblet->InputStripeList->TotalDataSize);
 
             if (Controller->IsSortedMergeNeeded(Partition)) {
                 Controller->IntermediateSortJobCounter.Start(1);
@@ -561,37 +540,37 @@ protected:
             }
         }
 
-        virtual void OnJobCompleted(TJobInProgressPtr jip) override
+        virtual void OnJobCompleted(TJobletPtr joblet) override
         {
-            TPartitionBoundTask::OnJobCompleted(jip);
+            TPartitionBoundTask::OnJobCompleted(joblet);
 
-            Controller->SortDataSizeCounter.Completed(jip->PoolResult->TotalDataSize);
+            Controller->SortDataSizeCounter.Completed(joblet->InputStripeList->TotalDataSize);
 
             if (Controller->IsSortedMergeNeeded(Partition)) {
                 Controller->IntermediateSortJobCounter.Completed(1);
 
                 // Sort outputs in large partitions are queued for further merge.
                 // Construct a stripe consisting of sorted chunks and put it into the pool.
-                const auto& resultExt = jip->Job->Result().GetExtension(TSortJobResultExt::sort_job_result_ext);
+                const auto& resultExt = joblet->Job->Result().GetExtension(TSortJobResultExt::sort_job_result_ext);
                 auto stripe = New<TChunkStripe>();
                 FOREACH (const auto& inputChunk, resultExt.chunks()) {
-                    stripe->AddChunk(New<TRefCountedInputChunk>(inputChunk));
+                    stripe->Chunks.push_back(New<TRefCountedInputChunk>(inputChunk));
                 }
-                Partition->SortedMergeTask->AddStripe(stripe);
+                Partition->SortedMergeTask->AddInput(stripe);
             } else {
                 Controller->FinalSortJobCounter.Completed(1);
 
                 // Sort outputs in small partitions go directly to the output.
-                Controller->RegisterOutputChunkTrees(jip, Partition);
-                Controller->OnPartitionCompeted(Partition);
+                Controller->RegisterOutputChunkTrees(joblet, Partition);
+                Controller->OnPartitionCompleted(Partition);
             }
 
             Controller->CheckMergeStartThreshold();
         }
 
-        virtual void OnJobFailed(TJobInProgressPtr jip) override
+        virtual void OnJobFailed(TJobletPtr joblet) override
         {
-            Controller->SortDataSizeCounter.Failed(jip->PoolResult->TotalDataSize);
+            Controller->SortDataSizeCounter.Failed(joblet->InputStripeList->TotalDataSize);
 
             if (Controller->IsSortedMergeNeeded(Partition)) {
                 Controller->IntermediateSortJobCounter.Failed(1);
@@ -599,20 +578,20 @@ protected:
                 Controller->FinalSortJobCounter.Failed(1);
             }
 
-            TPartitionBoundTask::OnJobFailed(jip);
+            TPartitionBoundTask::OnJobFailed(joblet);
         }
 
-        virtual void OnJobAborted(TJobInProgressPtr jip) override
+        virtual void OnJobAborted(TJobletPtr joblet) override
         {
-            Controller->SortDataSizeCounter.Abort(jip->PoolResult->TotalDataSize);
+            Controller->SortDataSizeCounter.Aborted(joblet->InputStripeList->TotalDataSize);
 
             if (Controller->IsSortedMergeNeeded(Partition)) {
-                Controller->IntermediateSortJobCounter.Abort(1);
+                Controller->IntermediateSortJobCounter.Aborted(1);
             } else {
-                Controller->FinalSortJobCounter.Abort(1);
+                Controller->FinalSortJobCounter.Aborted(1);
             }
 
-            TPartitionBoundTask::OnJobAborted(jip);
+            TPartitionBoundTask::OnJobAborted(joblet);
         }
 
         virtual void OnTaskCompleted() override
@@ -653,6 +632,10 @@ protected:
             return Controller->Spec->MergeLocalityTimeout;
         }
 
+        virtual void OnTaskCompleted() override
+        {
+            Controller->OnPartitionCompleted(Partition);
+        }
     };
 
     //! Implements sorted merge phase for sort operations and
@@ -678,71 +661,75 @@ protected:
                 return 0;
             }
 
-            return
-                Controller->IsSortedMergeNeeded(Partition) &&
-                Partition->SortTask->IsCompleted() &&
-                IsPending()
-                ? 1 : 0;
+            if (!Controller->IsSortedMergeNeeded(Partition)) {
+                return 0;
+            }
+
+            return TTask::GetPendingJobCount();
         }
 
         virtual TNodeResources GetMinNeededResources() const override
         {
-            return Controller->GetSortedMergeResources(ChunkPool->StripeCounter().GetTotal());
+            return Controller->GetSortedMergeResources(ChunkPool->GetTotalStripeCount());
         }
 
     private:
+        TAutoPtr<IChunkPool> ChunkPool;
+
+        virtual IChunkPoolInput* GetChunkPoolInput() const override
+        {
+            return ~ChunkPool;
+        }
+
+        virtual IChunkPoolOutput* GetChunkPoolOutput() const override
+        {
+            return ~ChunkPool;
+        }
+
         virtual int GetChunkListCountPerJob() const override
         {
             return Controller->OutputTables.size();
         }
 
-        virtual TNullable<i64> GetJobDataSizeThreshold() const override
-        {
-            return Null;
-        }
-
-        virtual void BuildJobSpec(
-            TJobInProgressPtr jip,
-            TJobSpec* jobSpec) override
+        virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->SortedMergeJobSpecTemplate);
-            AddParallelInputSpec(jobSpec, jip);
-            AddOutputSpecs(jobSpec, jip);
-            Controller->CustomizeJobSpec(jip, jobSpec);
+            AddParallelInputSpec(jobSpec, joblet);
+            AddOutputSpecs(jobSpec, joblet);
+            Controller->CustomizeJobSpec(joblet, jobSpec);
         }
 
-        virtual void OnJobStarted(TJobInProgressPtr jip) override
+        virtual void OnJobStarted(TJobletPtr joblet) override
         {
             YCHECK(!Partition->Maniac);
 
             Controller->SortedMergeJobCounter.Start(1);
 
-            TMergeTask::OnJobStarted(jip);
+            TMergeTask::OnJobStarted(joblet);
         }
 
-        virtual void OnJobCompleted(TJobInProgressPtr jip) override
+        virtual void OnJobCompleted(TJobletPtr joblet) override
         {
-            TMergeTask::OnJobCompleted(jip);
+            TMergeTask::OnJobCompleted(joblet);
 
             Controller->SortedMergeJobCounter.Completed(1);
-            Controller->RegisterOutputChunkTrees(jip, Partition);
-            YCHECK(ChunkPool->IsCompleted());
-            Controller->OnPartitionCompeted(Partition);
+            Controller->RegisterOutputChunkTrees(joblet, Partition);
         }
 
-        virtual void OnJobFailed(TJobInProgressPtr jip) override
+        virtual void OnJobFailed(TJobletPtr joblet) override
         {
             Controller->SortedMergeJobCounter.Failed(1);
 
-            TMergeTask::OnJobFailed(jip);
+            TMergeTask::OnJobFailed(joblet);
         }
 
-        virtual void OnJobAborted(TJobInProgressPtr jip) override
+        virtual void OnJobAborted(TJobletPtr joblet) override
         {
-            Controller->SortedMergeJobCounter.Abort(1);
+            Controller->SortedMergeJobCounter.Aborted(1);
 
-            TMergeTask::OnJobAborted(jip);
+            TMergeTask::OnJobAborted(joblet);
         }
+
     };
 
     //! Implements unordered merge of maniac partitions for sort operation.
@@ -753,9 +740,7 @@ protected:
     public:
         TUnorderedMergeTask(TSortControllerBase* controller, TPartition* partition)
             : TMergeTask(controller, partition)
-        {
-            ChunkPool = CreateUnorderedChunkPool();
-        }
+        { }
 
         virtual Stroka GetId() const override
         {
@@ -772,9 +757,7 @@ protected:
                 return 0;
             }
 
-            i64 dataSize = ChunkPool->DataSizeCounter().GetPending();
-            i64 dataSizePerJob = Controller->Spec->MaxDataSizePerUnorderedMergeJob;
-            return static_cast<int>(ceil((double) dataSize / dataSizePerJob));
+            return TTask::GetPendingJobCount();
         }
 
         virtual i64 GetLocality(const Stroka& address) const override
@@ -794,24 +777,27 @@ protected:
         }
 
     private:
+        virtual IChunkPoolInput* GetChunkPoolInput() const override
+        {
+            return Controller->ShufflePool->GetInput();
+        }
+
+        virtual IChunkPoolOutput* GetChunkPoolOutput() const override
+        {
+            return Partition->ChunkPoolOutput;
+        }
+
         virtual int GetChunkListCountPerJob() const override
         {
             return 1;
         }
 
-        virtual TNullable<i64> GetJobDataSizeThreshold() const override
-        {
-            return Controller->Spec->MaxDataSizePerUnorderedMergeJob;
-        }
-
-        virtual void BuildJobSpec(
-            TJobInProgressPtr jip,
-            TJobSpec* jobSpec) override
+        virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->UnorderedMergeJobSpecTemplate);
-            AddSequentialInputSpec(jobSpec, jip);
-            AddOutputSpecs(jobSpec, jip);
-            Controller->CustomizeJobSpec(jip, jobSpec);
+            AddSequentialInputSpec(jobSpec, joblet);
+            AddOutputSpecs(jobSpec, joblet);
+            Controller->CustomizeJobSpec(joblet, jobSpec);
 
             if (!Controller->SimpleSort) {
                 auto* inputSpec = jobSpec->mutable_input_specs(0);
@@ -821,44 +807,58 @@ protected:
             }
         }
 
-        virtual void OnJobStarted(TJobInProgressPtr jip) override
+        virtual void OnJobStarted(TJobletPtr joblet) override
         {
             YCHECK(Partition->Maniac);
 
             Controller->UnorderedMergeJobCounter.Start(1);
 
-            TMergeTask::OnJobStarted(jip);
+            TMergeTask::OnJobStarted(joblet);
         }
 
-        virtual void OnJobCompleted(TJobInProgressPtr jip) override
+        virtual void OnJobCompleted(TJobletPtr joblet) override
         {
-            TMergeTask::OnJobCompleted(jip);
+            TMergeTask::OnJobCompleted(joblet);
 
             Controller->UnorderedMergeJobCounter.Completed(1);
-            Controller->RegisterOutputChunkTrees(jip, Partition);
-            if (ChunkPool->IsCompleted()) {
-                Controller->OnPartitionCompeted(Partition);
-            }
+            Controller->RegisterOutputChunkTrees(joblet, Partition);
         }
 
-        virtual void OnJobFailed(TJobInProgressPtr jip) override
+        virtual void OnJobFailed(TJobletPtr joblet) override
         {
             Controller->UnorderedMergeJobCounter.Failed(1);
 
-            TMergeTask::OnJobFailed(jip);
+            TMergeTask::OnJobFailed(joblet);
         }
 
-        virtual void OnJobAborted(TJobInProgressPtr jip) override
+        virtual void OnJobAborted(TJobletPtr joblet) override
         {
-            Controller->UnorderedMergeJobCounter.Abort(1);
+            Controller->UnorderedMergeJobCounter.Aborted(1);
 
-            TMergeTask::OnJobAborted(jip);
+            TMergeTask::OnJobAborted(joblet);
         }
     };
 
 
     // Init/finish.
 
+    void InitShufflePool()
+    {
+        ShufflePool = CreateShuffleChunkPool(
+            static_cast<int>(Partitions.size()),
+            Spec->MaxDataSizePerSortJob);
+
+        FOREACH (auto partition, Partitions) {
+            partition->ChunkPoolOutput = ShufflePool->GetOutput(partition->Index);
+        }
+    }
+
+    void InitSimpleSortPool(int sortJobCount)
+    {
+        SimpleSortPool = CreateUnorderedChunkPool(
+            sortJobCount,
+            Spec->MaxDataSizePerSortJob);
+    }
     
     virtual void OnOperationCompleted() override
     {
@@ -888,10 +888,10 @@ protected:
 
     void RegisterOutputChunkTrees(TJobInProgressPtr jip, TPartition* partition)
     {
-        TOperationControllerBase::RegisterOutputChunkTrees(jip, partition->Index);
+        TOperationControllerBase::RegisterOutputChunkTrees(joblet, partition->Index);
     }
 
-    void OnPartitionCompeted(TPartitionPtr partition)
+    void OnPartitionCompleted(TPartitionPtr partition)
     {
         YCHECK(!partition->Completed);
         partition->Completed = true;
@@ -921,28 +921,14 @@ protected:
 
     bool IsSortedMergeNeededImpl(TPartitionPtr partition) const
     {
-        if (partition->Maniac) {
-            return false;
-        }
-
-        const auto& dataSizeCounter = partition->SortTask->DataSizeCounter();
-
-        if (dataSizeCounter.GetPending() >= Spec->MaxDataSizePerSortJob && !PartitionTask->IsCompleted()) {
-            return true;
-        }
-
-        if (dataSizeCounter.GetCompleted() + dataSizeCounter.GetRunning() > 0 && dataSizeCounter.GetPending() > 0) {
-            return true;
-        }
-
-        return false;
+        return
+            !partition->Maniac &&
+            partition->ChunkPoolOutput->GetTotalJobCount() > 1;
     }
 
     bool IsUnorderedMergeNeeded(TPartitionPtr partition)
     {
-        return
-            partition->Maniac &&
-            PartitionTask->IsCompleted();
+        return partition->Maniac && PartitionTask->IsCompleted();
     }
 
     void CheckSortStartThreshold()
@@ -950,8 +936,7 @@ protected:
         if (SortStartThresholdReached)
             return;
 
-        const auto& partitionDataSizeCounter = PartitionTask->DataSizeCounter();
-        if (partitionDataSizeCounter.GetCompleted() < partitionDataSizeCounter.GetTotal() * Spec->ShuffleStartThreshold)
+        if (PartitionTask->GetCompletedDataSize() < PartitionTask->GetTotalDataSize() * Spec->ShuffleStartThreshold)
             return;
 
         LOG_INFO("Sort start threshold reached");
@@ -1005,20 +990,20 @@ protected:
             return;
         }
 
-        yhash_map<TExecNodePtr, i64> nodeToLoad;
+        yhash_map<TExecNodePtr, i64> nodeToDataSize;
         std::vector<TExecNodePtr> nodeHeap;
 
-        auto compareNodes = [&] (TExecNodePtr lhs, TExecNodePtr rhs) {
-            return nodeToLoad[lhs] > nodeToLoad[rhs];
+        auto compareNodes = [&] (const TExecNodePtr& lhs, const TExecNodePtr& rhs) {
+            return nodeToDataSize[lhs] > nodeToDataSize[rhs];
         };
 
-        auto comparePartitions = [&] (TPartitionPtr lhs, TPartitionPtr rhs) {
-            return lhs->TotalAttributes.uncompressed_data_size() >
-                   rhs->TotalAttributes.uncompressed_data_size();
+        auto comparePartitions = [&] (const TPartitionPtr& lhs, const TPartitionPtr& rhs) {
+            return lhs->ChunkPoolOutput->GetTotalDataSize() >
+                   rhs->ChunkPoolOutput->GetTotalDataSize();
         };
 
         FOREACH (auto node, nodes) {
-            YCHECK(nodeToLoad.insert(std::make_pair(node, 0)).second);
+            YCHECK(nodeToDataSize.insert(std::make_pair(node, 0)).second);
             nodeHeap.push_back(node);
         }
 
@@ -1037,7 +1022,7 @@ protected:
             AddTaskLocalityHint(partition->SortTask, address);
             AddTaskLocalityHint(partition->SortedMergeTask, address);
 
-            nodeToLoad[node] += partition->TotalAttributes.uncompressed_data_size();
+            nodeToDataSize[node] += partition->ChunkPoolOutput->GetTotalDataSize();
 
             std::pop_heap(nodeHeap.begin(), nodeHeap.end(), compareNodes);
             std::push_heap(nodeHeap.begin(), nodeHeap.end(), compareNodes);
@@ -1048,14 +1033,14 @@ protected:
         }
 
         LOG_DEBUG("Partitions assigned");
-        FOREACH (const auto& pair, nodeToLoad) {
+        FOREACH (const auto& pair, nodeToDataSize) {
             LOG_DEBUG("Node %s -> %" PRId64,
                 ~pair.first->GetAddress(),
                 pair.second);
         }
     }
 
-    virtual void CustomizeJobSpec(TJobInProgressPtr jip, NProto::TJobSpec* jobSpec)
+    virtual void CustomizeJobSpec(TJobletPtr joblet, NProto::TJobSpec* jobSpec)
     { }
 
 
@@ -1105,11 +1090,12 @@ protected:
 
     i64 GetRowCountEstimate(TPartitionPtr partition, i64 dataSize) const
     {
-        i64 totalDataSize = partition->TotalAttributes.uncompressed_data_size();
+        auto* chunkPoolOutput = ShufflePool->GetOutput(partition->Index);
+        i64 totalDataSize = chunkPoolOutput->GetTotalDataSize();
         if (totalDataSize == 0) {
             return 0;
         }
-        i64 totalRowCount = partition->TotalAttributes.row_count();
+        i64 totalRowCount = chunkPoolOutput->GetTotalRowCount();
         return static_cast<i64>((double) totalRowCount * dataSize / totalDataSize);
     }
 
@@ -1293,20 +1279,31 @@ private:
 
     void BuildSinglePartition()
     {
-        // Create a single partition.
-        Partitions.resize(1);
-        auto partition = Partitions[0] = New<TPartition>(this, 0);
-
-        // Put all input chunks into this unique partition.
-        auto inputChunks = CollectInputTablesChunks();
-        auto stripes = PrepareChunkStripes(
-            inputChunks,
+        std::vector<TChunkStripePtr> stripes;
+        i64 totalDataSize;
+        int totalChunkCount;
+        SliceChunks(
+            CollectInputTablesChunks(),
             Spec->SortJobCount,
-            Spec->SortJobSliceDataSize);
-        partition->SortTask->AddStripes(stripes);
+            Spec->SortJobSliceDataSize,
+            &stripes,
+            &totalDataSize,
+            &totalChunkCount);
 
-        // Can be zero but better be pessimists.
-        SortedMergeJobCounter.Set(1);
+        // Choose sort job count and initialize the pool.
+        int sortJobCount = SuggestJobCount(
+            totalDataSize,
+            Spec->MinDataSizePerSortJob,
+            Spec->MaxDataSizePerSortJob,
+            Spec->SortJobCount,
+            totalChunkCount);
+        InitSimpleSortPool(sortJobCount);
+
+        // Create the fake partition.
+        auto partition = New<TPartition>(this, 0);
+        Partitions.push_back(partition);
+        partition->SortTask->AddInput(stripes);
+        partition->SortTask->FinishInput();
 
         LOG_INFO("Sorting without partitioning");
 
@@ -1379,28 +1376,39 @@ private:
             }
         }
 
+        // Construct shuffle pool.
+        ShufflePool = CreateShuffleChunkPool(
+            partitionCount,
+            Spec->MaxDataSizePerSortJob);
+
         // Populate the partition pool.
-        auto inputChunks = CollectInputTablesChunks();
-        auto stripes = PrepareChunkStripes(
-            inputChunks,
+        std::vector<TChunkStripePtr> stripes;
+        i64 totalDataSize;
+        int totalChunkCount;
+        SliceChunks(
+            CollectInputTablesChunks(),
             Spec->PartitionJobCount,
-            Spec->PartitionJobSliceDataSize);
-        PartitionTask->AddStripes(stripes);
+            Spec->PartitionJobSliceDataSize,
+            &stripes,
+            &totalDataSize,
+            &totalChunkCount);
+        PartitionTask->AddInput(stripes);
+        PartitionTask->FinishInput();
 
         LOG_INFO("Inputs processed (DataSize: %" PRId64 ", ChunkCount: %" PRId64 ")",
-            PartitionTask->DataSizeCounter().GetTotal(),
-            PartitionTask->ChunkCounter().GetTotal());
+            totalDataSize,
+            totalChunkCount);
 
         // Init counters.
         PartitionJobCounter.Set(SuggestJobCount(
-            PartitionTask->DataSizeCounter().GetTotal(),
+            PartitionTask->GetTotalDataSize(),
             Spec->MinDataSizePerPartitionJob,
             Spec->MaxDataSizePerPartitionJob,
             Spec->PartitionJobCount,
-            PartitionTask->ChunkCounter().GetTotal()));
+            totalChunkCount));
 
         LOG_INFO("Sorting with partitioning (PartitionCount: %d, PartitionJobCount: %" PRId64 ")",
-            static_cast<int>(Partitions.size()),
+            partitionCount,
             PartitionJobCounter.GetTotal());
 
         // Kick-start the partition task.
@@ -1602,7 +1610,7 @@ private:
     virtual void LogProgress() override
     {
         LOG_DEBUG("Progress: "
-            "Jobs = {R: %d, C: %d, P: %d, F: %d}, "
+            "Jobs = {R: %d, C: %d, P: %d, F: %d, L: %d}, "
             "Partitions = {T: %d, C: %d}, "
             "PartitionJobs = {%s}, "
             "IntermediateSortJobs = {%s}, "
@@ -1610,10 +1618,12 @@ private:
             "SortedMergeJobs = {%s}, "
             "UnorderedMergeJobs = {%s}",
             // Jobs
-            RunningJobCount,
-            CompletedJobCount,
+            JobCounter.GetRunning(),
+            JobCounter.GetCompleted(),
             GetPendingJobCount(),
-            FailedJobCount,
+            JobCounter.GetFailed(),
+            JobCounter.GetAborted(),
+            JobCounter.GetLost(),
             // Partitions
             static_cast<int>(Partitions.size()),
             CompletedPartitionCount,
@@ -1637,11 +1647,11 @@ private:
                 .Item("total").Scalar(Partitions.size())
                 .Item("completed").Scalar(CompletedPartitionCount)
             .EndMap()
-            .Item("partition_jobs").Do(BIND(&TProgressCounter::ToYson, &PartitionJobCounter))
-            .Item("intermediate_sort_jobs").Do(BIND(&TProgressCounter::ToYson, &IntermediateSortJobCounter))
-            .Item("final_sort_jobs").Do(BIND(&TProgressCounter::ToYson, &FinalSortJobCounter))
-            .Item("sorted_merge_jobs").Do(BIND(&TProgressCounter::ToYson, &SortedMergeJobCounter))
-            .Item("unordered_merge_jobs").Do(BIND(&TProgressCounter::ToYson, &UnorderedMergeJobCounter));
+            .Item("partition_jobs").Scalar(PartitionJobCounter)
+            .Item("intermediate_sort_jobs").Scalar(IntermediateSortJobCounter)
+            .Item("final_sort_jobs").Scalar(FinalSortJobCounter)
+            .Item("sorted_merge_jobs").Scalar(SortedMergeJobCounter)
+            .Item("unordered_merge_jobs").Scalar(UnorderedMergeJobCounter);
     }
 
 };
@@ -1810,26 +1820,35 @@ private:
             Partitions.push_back(New<TPartition>(this, index));
         }
 
-        // Populate the partition pool.
-        auto inputChunks = CollectInputTablesChunks();
-        auto stripes = PrepareChunkStripes(
-            inputChunks,
+        InitShufflePool();
+
+        std::vector<TChunkStripePtr> stripes;
+        i64 totalDataSize;
+        int totalChunkCount;
+        SliceChunks(
+            CollectInputTablesChunks(),
             Spec->PartitionJobCount,
-            Spec->PartitionJobSliceDataSize);
-        PartitionTask->AddStripes(stripes);
+            Spec->PartitionJobSliceDataSize,
+            &stripes,
+            &totalDataSize,
+            &totalChunkCount);
 
         // Init counters.
         PartitionJobCounter.Set(SuggestJobCount(
-            PartitionTask->DataSizeCounter().GetTotal(),
+            totalDataSize,
             Spec->MinDataSizePerPartitionJob,
             Spec->MaxDataSizePerPartitionJob,
             Spec->PartitionJobCount,
-            PartitionTask->ChunkCounter().GetTotal()));
+            totalChunkCount));
+
+        PartitionTask = New<TPartitionTask>(this);
+        PartitionTask->AddInput(stripes);
+        PartitionTask->FinishInput();
 
         LOG_INFO("Inputs processed (DataSize: %" PRId64 ", ChunkCount: %" PRId64 ", PartitionCount: %d, PartitionJobCount: %" PRId64 ")",
-            PartitionTask->DataSizeCounter().GetTotal(),
-            PartitionTask->ChunkCounter().GetTotal(),
-            static_cast<int>(Partitions.size()),
+            totalDataSize,
+            totalChunkCount,
+            partitionCount,
             PartitionJobCounter.GetTotal());
 
         // Kick-start the partition task.
@@ -1924,12 +1943,15 @@ private:
         }
     }
 
-    void CustomizeJobSpec(TJobInProgressPtr jip, NProto::TJobSpec* jobSpec) override
+    void CustomizeJobSpec(TJobletPtr joblet, NProto::TJobSpec* jobSpec) override
     {
         switch (jobSpec->type()) {
         case EJobType::PartitionMap: {
             auto* jobSpecExt = jobSpec->MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
-            AddUserJobEnvironment(jobSpecExt->mutable_mapper_spec(), jip, MapStartRowCount);
+            AddUserJobEnvironment(
+            	jobSpecExt->mutable_mapper_spec(),
+            	jip,
+            	MapStartRowCount);
             MapStartRowCount += jip->PoolResult->TotalRowCount;
             break;
         }
@@ -1937,7 +1959,10 @@ private:
         case EJobType::PartitionReduce:
         case EJobType::SortedReduce: {
             auto* jobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-            AddUserJobEnvironment(jobSpecExt->mutable_reducer_spec(), jip, ReduceStartRowCount);
+            AddUserJobEnvironment(
+            	jobSpecExt->mutable_reducer_spec(),
+            	jip,
+            	ReduceStartRowCount);
             ReduceStartRowCount += jip->PoolResult->TotalRowCount;
             break;
         }
@@ -2047,17 +2072,18 @@ private:
     virtual void LogProgress() override
     {
         LOG_DEBUG("Progress: "
-            "Jobs = {R: %d, C: %d, P: %d, F: %d}, "
+            "Jobs = {R: %d, C: %d, P: %d, F: %d, A: %d}, "
             "Partitions = {T: %d, C: %d}, "
             "MapJobs = {%s}, "
             "SortJobs = {%s}, "
             "PartitionReduceJobs = {%s}, "
             "SortedReduceJobs = {%s}",
             // Jobs
-            RunningJobCount,
-            CompletedJobCount,
+            JobCounter.GetRunning(),
+            JobCounter.GetCompleted(),
             GetPendingJobCount(),
-            FailedJobCount,
+            JobCounter.GetFailed(),
+            JobCounter.GetAborted(),
             // Partitions
             static_cast<int>(Partitions.size()),
             CompletedPartitionCount,
@@ -2079,10 +2105,10 @@ private:
                 .Item("total").Scalar(Partitions.size())
                 .Item("completed").Scalar(CompletedPartitionCount)
             .EndMap()
-            .Item("map_jobs").Do(BIND(&TProgressCounter::ToYson, &PartitionJobCounter))
-            .Item("sort_jobs").Do(BIND(&TProgressCounter::ToYson, &IntermediateSortJobCounter))
-            .Item("partition_reduce_jobs").Do(BIND(&TProgressCounter::ToYson, &FinalSortJobCounter))
-            .Item("sorted_reduce_jobs").Do(BIND(&TProgressCounter::ToYson, &SortedMergeJobCounter));
+            .Item("map_jobs").Scalar(PartitionJobCounter)
+            .Item("sort_jobs").Scalar(IntermediateSortJobCounter)
+            .Item("partition_reduce_jobs").Scalar(FinalSortJobCounter)
+            .Item("sorted_reduce_jobs").Scalar(SortedMergeJobCounter);
     }
 
 

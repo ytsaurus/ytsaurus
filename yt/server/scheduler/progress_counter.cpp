@@ -11,26 +11,36 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////
 
-TProgressCounter::TProgressCounter(bool totalEnabled)
-    : TotalEnabled(totalEnabled)
+TProgressCounter::TProgressCounter()
+    : TotalEnabled(false)
     , Total_(0)
     , Running_(0)
     , Completed_(0)
     , Pending_(0)
     , Failed_(0)
     , Aborted_(0)
+    , Lost_(0)
 { }
+
+TProgressCounter::TProgressCounter(i64 total)
+{
+    Set(total);
+}
+
+void TProgressCounter::Set(i64 total)
+{
+    TotalEnabled = true;
+    Running_ = 0;
+    Completed_ = 0;
+    Pending_ = total;
+    Failed_ = 0;
+    Aborted_ = 0;
+    Lost_ = 0;
+}
 
 bool TProgressCounter::IsTotalEnabled() const
 {
     return TotalEnabled;
-}
-
-void TProgressCounter::Set(i64 value)
-{
-    YCHECK(TotalEnabled);
-    Total_ = value;
-    Pending_ = value;
 }
 
 void TProgressCounter::Increment(i64 value)
@@ -72,6 +82,11 @@ i64 TProgressCounter::GetAborted() const
     return Aborted_;
 }
 
+i64 TProgressCounter::GetLost() const
+{
+    return Lost_;
+}
+
 void TProgressCounter::Start(i64 count)
 {
     if (TotalEnabled) {
@@ -98,7 +113,7 @@ void TProgressCounter::Failed(i64 count)
     }
 }
 
-void TProgressCounter::Abort(i64 count)
+void TProgressCounter::Aborted(i64 count)
 {
     YCHECK(Running_ >= count);
     Running_ -= count;
@@ -108,43 +123,54 @@ void TProgressCounter::Abort(i64 count)
     }
 }
 
-void TProgressCounter::ToYson(NYTree::IYsonConsumer* consumer) const
+void TProgressCounter::Lost(i64 count)
 {
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .DoIf(TotalEnabled, [&] (TFluentMap fluent) {
-                fluent
-                    .Item("total").Scalar(Total_)
-                    .Item("pending").Scalar(Pending_);
-            })
-            .Item("running").Scalar(Running_)
-            .Item("completed").Scalar(Completed_)
-            .Item("failed").Scalar(Failed_)
-            .Item("aborted").Scalar(Aborted_)
-        .EndMap();
+    YCHECK(Completed_ >= count);
+    Completed_ -= count;
+    Lost_ += count;
+    if (TotalEnabled) {
+        Pending_ += count;
+    }
 }
 
 void TProgressCounter::Finalize()
 {
     if (TotalEnabled) {
-        YCHECK(Running_ == 0);
         Total_ = Completed_;
         Pending_ = 0;
+        Running_ = 0;
     }
+}
+
+void Serialize(const TProgressCounter& counter, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .DoIf(counter.IsTotalEnabled(), [&] (TFluentMap fluent) {
+                fluent
+                    .Item("total").Scalar(counter.GetTotal())
+                    .Item("pending").Scalar(counter.GetPending());
+            })
+            .Item("running").Scalar(counter.GetRunning())
+            .Item("completed").Scalar(counter.GetCompleted())
+            .Item("failed").Scalar(counter.GetFailed())
+            .Item("aborted").Scalar(counter.GetAborted())
+            .Item("lost").Scalar(counter.GetLost())
+        .EndMap();
 }
 
 Stroka ToString(const TProgressCounter& counter)
 {
     return
         counter.IsTotalEnabled()
-        ? Sprintf("T: %" PRId64 ", R: %" PRId64 ", C: %" PRId64 ", P: %" PRId64 ", F: %" PRId64 ", A: %" PRId64,
+        ? Sprintf("T: %" PRId64 ", R: %" PRId64 ", C: %" PRId64 ", P: %" PRId64 ", F: %" PRId64 ", A: %" PRId64 ", L: %d" PRId64,
             counter.GetTotal(),
             counter.GetRunning(),
             counter.GetCompleted(),
             counter.GetPending(),
             counter.GetFailed(),
             counter.GetAborted())
-        : Sprintf("R: %" PRId64 ", C: %" PRId64 ", F: %" PRId64 ", A: %" PRId64,
+        : Sprintf("R: %" PRId64 ", C: %" PRId64 ", F: %" PRId64 ", A: %" PRId64 ", L: %" PRId64,
             counter.GetRunning(),
             counter.GetCompleted(),
             counter.GetFailed(),
