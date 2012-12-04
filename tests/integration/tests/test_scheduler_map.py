@@ -50,7 +50,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         op_id = map('--dont_track', in_='//tmp/t1', out='//tmp/t2', command=command)
         track_op(op_id)
 
-    	assert read('//tmp/t2') == [{'operation' : op_id}, {'job_index' : 0}]
+        assert read('//tmp/t2') == [{'operation' : op_id}, {'job_index' : 0}]
         check_all_stderrs(op_id, 'stderr')
 
     # check that stderr is captured for failed jobs
