@@ -190,7 +190,8 @@ class WaitStrategy(object):
                     jobs_errors,
                     stderr))
         self.finalization()
-        #return operation_result, jobs_errors, stderr
+        if config.PRINT_STDERRS:
+            logger.info(get_operation_stderr(operation))
  
 class AsyncStrategy(object):
     # TODO(improve this strategy)
