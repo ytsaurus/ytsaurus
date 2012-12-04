@@ -390,7 +390,7 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
         }
     }
 
-    {
+    if (family != AF_UNIX) {
         int value = 1;
         if (setsockopt(Socket, IPPROTO_TCP, TCP_NODELAY, (const char*) &value, sizeof(value)) != 0) {
             THROW_ERROR_EXCEPTION("Failed to disable TCP delay")
@@ -407,7 +407,7 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
     }
 #endif
 
-    {
+    if (family != AF_UNIX) {
         int value = 1;
         if (setsockopt(Socket, SOL_SOCKET, SO_KEEPALIVE, (const char*) &value, sizeof(value)) != 0) {
             THROW_ERROR_EXCEPTION("Failed to enable keep alive")
