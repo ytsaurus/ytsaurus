@@ -25,7 +25,7 @@
 
 #include <ytlib/scheduler/config.h>
 
-#include <ytlib/table_client/key.h>
+#include <ytlib/table_client/helpers.h>
 
 #include <ytlib/meta_state/rpc_helpers.h>
 
@@ -115,7 +115,10 @@ void TOperationControllerBase::TTask::AddInput(const std::vector<TChunkStripePtr
 
 void TOperationControllerBase::TTask::FinishInput()
 {
+    LOG_DEBUG("Task input finished (Task: %s)", ~GetId());
+
     GetChunkPoolInput()->Finish();
+    AddPendingHint();
 }
 
 TJobPtr TOperationControllerBase::TTask::ScheduleJob(ISchedulingContext* context)
@@ -129,6 +132,11 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(ISchedulingContext* context
     auto address = context->GetNode()->GetAddress();
     auto* chunkPoolOutput = GetChunkPoolOutput();
     joblet->OutputCookie = chunkPoolOutput->Extract(address);
+    if (joblet->OutputCookie == IChunkPoolOutput::NullCookie) {
+        return NULL;
+    }
+
+    joblet->InputStripeList = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
 
     // Compute the actual utilization for this joblet and check it
     // against the the limits. This is the last chance to give up.
@@ -139,7 +147,6 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(ISchedulingContext* context
         return NULL;
     }
 
-    joblet->InputStripeList = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
     LOG_DEBUG("Job chunks extracted (TotalCount: %d, LocalCount: %d, DataSize: %" PRId64 ", RowCount: %" PRId64 ")",
         joblet->InputStripeList->TotalChunkCount,
         joblet->InputStripeList->LocalChunkCount,
@@ -196,10 +203,9 @@ void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet)
     GetChunkPoolOutput()->Completed(joblet->OutputCookie);
 }
 
-void TOperationControllerBase::TTask::ReleaseFailedJob(TJobletPtr joblet)
+void TOperationControllerBase::TTask::ReleaseFailedJobResources(TJobletPtr joblet)
 {
     auto* chunkPoolOutput = GetChunkPoolOutput();
-    chunkPoolOutput->Failed(joblet->OutputCookie);
 
     Controller->ReleaseChunkLists(joblet->ChunkListIds);
 
@@ -207,17 +213,20 @@ void TOperationControllerBase::TTask::ReleaseFailedJob(TJobletPtr joblet)
     FOREACH (const auto& stripe, list->Stripes) {
         AddInputLocalityHint(stripe);
     }
+
+    chunkPoolOutput->Failed(joblet->OutputCookie);
+
     AddPendingHint();
 }
 
 void TOperationControllerBase::TTask::OnJobFailed(TJobletPtr joblet)
 {
-    ReleaseFailedJob(joblet);
+    ReleaseFailedJobResources(joblet);
 }
 
 void TOperationControllerBase::TTask::OnJobAborted(TJobletPtr joblet)
 {
-    ReleaseFailedJob(joblet);
+    ReleaseFailedJobResources(joblet);
 }
 
 void TOperationControllerBase::TTask::OnTaskCompleted()
@@ -240,19 +249,36 @@ void TOperationControllerBase::TTask::AddSequentialInputSpec(
     TJobletPtr joblet)
 {
     auto* inputSpec = jobSpec->add_input_specs();
-    FOREACH (const auto& stripe, joblet->InputStripeList->Stripes) {
-        AddInputChunks(inputSpec, stripe);
+    auto list = joblet->InputStripeList;
+    FOREACH (const auto& stripe, list->Stripes) {
+        AddInputChunks(inputSpec, stripe, list->PartitionTag);
     }
+    UpdateInputSpecTotals(jobSpec, joblet);
 }
 
 void TOperationControllerBase::TTask::AddParallelInputSpec(
     NScheduler::NProto::TJobSpec* jobSpec,
     TJobletPtr joblet)
 {
-    FOREACH (const auto& stripe, joblet->InputStripeList->Stripes) {
+    auto list = joblet->InputStripeList;
+    FOREACH (const auto& stripe, list->Stripes) {
         auto* inputSpec = jobSpec->add_input_specs();
-        AddInputChunks(inputSpec, stripe);
+        AddInputChunks(inputSpec, stripe, list->PartitionTag);
     }
+    UpdateInputSpecTotals(jobSpec, joblet);
+}
+
+void TOperationControllerBase::TTask::UpdateInputSpecTotals(
+    NScheduler::NProto::TJobSpec* jobSpec,
+    TJobletPtr joblet)
+{
+    auto list = joblet->InputStripeList;
+    jobSpec->set_input_uncompressed_data_size(
+        jobSpec->input_uncompressed_data_size() +
+        list->TotalDataSize);
+    jobSpec->set_input_row_count(
+        jobSpec->input_row_count() +
+        list->TotalRowCount);
 }
 
 void TOperationControllerBase::TTask::AddOutputSpecs(
@@ -281,10 +307,15 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
 
 void TOperationControllerBase::TTask::AddInputChunks(
     NScheduler::NProto::TTableInputSpec* inputSpec,
-    TChunkStripePtr stripe)
+    TChunkStripePtr stripe,
+    TNullable<int> partitionTag)
 {
-    FOREACH (const auto& chunk, stripe->Chunks) {
-        *inputSpec->add_chunks() = *chunk;
+    FOREACH (const auto& stripeChunk, stripe->Chunks) {
+        auto* inputChunk = inputSpec->add_chunks();
+        *inputChunk = *stripeChunk;
+        if (partitionTag) {
+            inputChunk->set_partition_tag(partitionTag.Get());
+        }
     }
 }
 
@@ -315,6 +346,10 @@ TOperationControllerBase::TOperationControllerBase(
     , CancelableBackgroundInvoker(CancelableContext->CreateInvoker(Host->GetBackgroundInvoker()))
     , Active(false)
     , Running(false)
+    , TotalInputChunkCount(0)
+    , TotalInputDataSize(0)
+    , TotalInputRowCount(0)
+    , TotalInputValueCount(0)
     , UsedResources(ZeroNodeResources())
     , PendingTaskInfos(MaxTaskPriority + 1)
     , CachedPendingJobCount(0)
@@ -598,10 +633,10 @@ void TOperationControllerBase::OnTaskUpdated(TTaskPtr task)
 
     CachedNeededResources += task->GetTotalNeededResourcesDelta();
 
-    LOG_DEBUG_IF(newJobCount != oldJobCount, "Pending job count updated (Task: %s, Count: %d -> %d, NeededResources: {%s})",
-        ~task->GetId(),
+    LOG_DEBUG_IF(newJobCount != oldJobCount, "Pending job count updated: %d -> %d (Task: %s, NeededResources: {%s})",
         oldJobCount,
         newJobCount,
+        ~task->GetId(),
         ~FormatResources(CachedNeededResources));
 }
 
@@ -1310,17 +1345,44 @@ void TOperationControllerBase::OnCustomInputsRecieved(TObjectServiceProxy::TRspE
     UNUSED(batchRsp);
 }
 
-void TOperationControllerBase::CompletePreparation()
+TFuture<void> TOperationControllerBase::CompletePreparation()
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
-    LOG_INFO("Completing preparation");
+    FOREACH (const auto& table, InputTables) {
+        FOREACH (const auto& chunk, table.FetchResponse->chunks()) {
+            i64 chunkDataSize;
+            i64 chunkRowCount;
+            i64 chunkValueCount;
+            NTableClient::GetStatistics(chunk, &chunkDataSize, &chunkRowCount, &chunkValueCount);
+
+            TotalInputDataSize += chunkDataSize;
+            TotalInputRowCount += chunkRowCount;
+            TotalInputValueCount += chunkValueCount;
+            ++TotalInputChunkCount;
+        }
+    }
+
+    LOG_INFO("Input totals collected (ChunkCount: %d, DataSize: %" PRId64 ", RowCount: % " PRId64 ", ValueCount: %" PRId64 ")",
+        TotalInputChunkCount,
+        TotalInputDataSize,
+        TotalInputRowCount,
+        TotalInputValueCount);
+
+    // Check for empty inputs.
+    if (TotalInputChunkCount == 0) {
+        LOG_INFO("Empty input");
+        OnOperationCompleted();
+        return NewPromise<void>();
+    }
 
     ChunkListPool = New<TChunkListPool>(
         Config,
         Host->GetMasterChannel(),
         CancelableControlInvoker,
         Operation);
+
+    return MakeFuture();
 }
 
 void TOperationControllerBase::OnPreparationCompleted()
@@ -1366,7 +1428,7 @@ void TOperationControllerBase::OnChunkListsReleased(TObjectServiceProxy::TRspExe
     }
 }
 
-std::vector<TRefCountedInputChunkPtr> TOperationControllerBase::CollectInputTablesChunks()
+std::vector<TRefCountedInputChunkPtr> TOperationControllerBase::CollectInputChunks()
 {
     // TODO(babenko): set row_attributes
     std::vector<TRefCountedInputChunkPtr> result;
@@ -1378,62 +1440,54 @@ std::vector<TRefCountedInputChunkPtr> TOperationControllerBase::CollectInputTabl
     return result;
 }
 
-void TOperationControllerBase::SliceChunks(
-    const std::vector<TRefCountedInputChunkPtr>& inputChunks,
+std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(
     TNullable<int> jobCount,
-    i64 jobSliceDataSize,
-    std::vector<TChunkStripePtr>* stripes,
-    i64* totalDataSize,
-    int* totalChunkCount)
+    i64 jobSliceDataSize)
 {
-    *totalDataSize = 0;
-    FOREACH (auto inputChunk, inputChunks) {
-        i64 dataSize, rowCount;
-        inputChunk->GetStatistics(&dataSize, &rowCount);
-        *totalDataSize += dataSize;
-    }
+    auto inputChunks = CollectInputChunks();
 
     i64 sliceDataSize =
         jobCount
-        ? std::min(sliceDataSize, *totalDataSize / jobCount.Get() + 1)
+        ? std::min(jobSliceDataSize, TotalInputDataSize / jobCount.Get() + 1)
         : jobSliceDataSize;
 
     YCHECK(sliceDataSize > 0);
 
-    std::vector<TChunkStripePtr> result;
-
     // Ensure that no input chunk has size larger than sliceSize.
+    std::vector<TChunkStripePtr> stripes;
     FOREACH (auto inputChunk, inputChunks) {
         auto chunkId = TChunkId::FromProto(inputChunk->slice().chunk_id());
-        i64 dataSize, rowCount;
-        inputChunk->GetStatistics(&dataSize, &rowCount);
+        
+        i64 dataSize;
+        GetStatistics(*inputChunk, &dataSize);
 
         if (dataSize > sliceDataSize) {
             int sliceCount = (int) std::ceil((double) dataSize / (double) sliceDataSize);
-            auto slicedInputChunks = SliceChunkEvenly(*inputChunk, sliceCount);
+            auto slicedInputChunks = SliceChunkEvenly(inputChunk, sliceCount);
             FOREACH (auto slicedInputChunk, slicedInputChunks) {
                 auto stripe = New<TChunkStripe>(slicedInputChunk);
-                result.push_back(stripe);
+                stripes.push_back(stripe);
             }
             LOG_TRACE("Slicing chunk (ChunkId: %s, SliceCount: %d)",
                 ~chunkId.ToString(),
                 sliceCount);
         } else {
             auto stripe = New<TChunkStripe>(inputChunk);
-            result.push_back(stripe);
+            stripes.push_back(stripe);
             LOG_TRACE("Taking whole chunk (ChunkId: %s)",
                 ~chunkId.ToString());
         }
     }
 
-    *totalChunkCount = static_cast<int>(stripes->size());
 
     LOG_DEBUG("Sliced chunks prepared (InputChunkCount: %d, SlicedChunkCount: %d, JobCount: %s, JobSliceDataSize: %" PRId64 ", SliceDataSize: %" PRId64 ")",
         static_cast<int>(inputChunks.size()),
-        *totalChunkCount,
+        static_cast<int>(stripes.size()),
         ~ToString(jobCount),
         jobSliceDataSize,
         sliceDataSize);
+
+    return stripes;
 }
 
 std::vector<Stroka> TOperationControllerBase::CheckInputTablesSorted(const TNullable< std::vector<Stroka> >& keyColumns)
@@ -1510,6 +1564,16 @@ void TOperationControllerBase::RegisterOutputChunkTrees(
     for (int tableIndex = 0; tableIndex < static_cast<int>(OutputTables.size()); ++tableIndex) {
         RegisterOutputChunkTree(joblet->ChunkListIds[tableIndex], key, tableIndex);
     }
+}
+
+TChunkStripePtr TOperationControllerBase::BuildIntermediateChunkStripe(
+    google::protobuf::RepeatedPtrField<NTableClient::NProto::TInputChunk>* inputChunks)
+{
+    auto stripe = New<TChunkStripe>();
+    FOREACH (auto& inputChunk, *inputChunks) {
+        stripe->Chunks.push_back(New<TRefCountedInputChunk>(MoveRV(inputChunk)));
+    }
+    return stripe;
 }
 
 bool TOperationControllerBase::HasEnoughChunkLists(int requestedCount)
@@ -1635,12 +1699,13 @@ void TOperationControllerBase::InitUserJobSpec(
 
 void TOperationControllerBase::AddUserJobEnvironment(
     NScheduler::NProto::TUserJobSpec* proto,
-   TJobletPtr joblet)
-    i64 startRowIndex)
+    TJobletPtr joblet)
 {
-    proto->add_environment(Sprintf("YT_JOB_INDEX=%d", jip->JobIndex));
-    proto->add_environment(Sprintf("YT_JOB_ID=%s", ~jip->Job->GetId().ToString()));
-    proto->add_environment(Sprintf("YT_START_ROW_INDEX=%" PRId64, startRowIndex));
+    proto->add_environment(Sprintf("YT_JOB_INDEX=%d", joblet->JobIndex));
+    proto->add_environment(Sprintf("YT_JOB_ID=%s", ~joblet->Job->GetId().ToString()));
+    if (joblet->StartRowIndex >= 0) {
+        proto->add_environment(Sprintf("YT_START_ROW_INDEX=%" PRId64, joblet->StartRowIndex));
+    }
 }
 
 void TOperationControllerBase::InitIntermediateInputConfig(TJobIOConfigPtr config)

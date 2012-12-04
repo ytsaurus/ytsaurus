@@ -783,7 +783,8 @@ void TDataNodeService::MakeChunkSplits(
 
     NTableClient::NProto::TSizeOverrideExt sizeOverride;
     sizeOverride.set_row_count(endRowIndex - startRowIndex);
-    sizeOverride.set_uncompressed_data_size(dataSize + 
+    sizeOverride.set_uncompressed_data_size(
+        dataSize + 
         (std::distance(beginIt, endIt) - 1) * dataSizeBetweenSamples);
     UpdateProtoExtension(currentSplit->mutable_extensions(), sizeOverride);
 

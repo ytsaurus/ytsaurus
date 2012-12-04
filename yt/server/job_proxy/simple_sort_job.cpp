@@ -98,7 +98,7 @@ public:
             std::vector<ui32> valueIndexBuffer;
             std::vector<ui32> rowIndexBuffer;
 
-            auto estimatedRowCount = Host->GetJobSpec().row_count();
+            auto estimatedRowCount = Host->GetJobSpec().input_row_count();
 
             LOG_INFO("Initializing");
             {
@@ -221,7 +221,7 @@ public:
 
     double GetProgress() const override
     {
-        i64 total = Host->GetJobSpec().row_count();
+        i64 total = Host->GetJobSpec().input_row_count();
         if (total == 0) {
             LOG_WARNING("GetProgress: empty total");
             return 0;

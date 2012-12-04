@@ -7,13 +7,14 @@
 #include "samples_fetcher.h"
 #include "chunk_info_collector.h"
 #include "job_resources.h"
+#include "helpers.h"
 
 #include <ytlib/misc/string.h>
 
 #include <ytlib/ytree/fluent.h>
 
 #include <ytlib/table_client/schema.h>
-#include <ytlib/table_client/key.h>
+#include <ytlib/table_client/helpers.h>
 #include <ytlib/table_client/channel_writer.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
@@ -57,12 +58,12 @@ public:
         : TOperationControllerBase(config, host, operation)
         , Spec(spec)
         , Config(config)
-        , TotalInputDataSize(0)
-        , TotalInputRowCount(0)
-        , TotalInputValueCount(0)
         , CompletedPartitionCount(0)
+        , SortDataSizeCounter(0)
         , SortStartThresholdReached(false)
         , MergeStartThresholdReached(false)
+        , SortedMergeJobCounter(0)
+        , UnorderedMergeJobCounter(0)
         , SimpleSort(false)
     { }
 
@@ -83,11 +84,6 @@ private:
 
 protected:
     TSchedulerConfigPtr Config;
-
-    // Totals.
-    i64 TotalInputDataSize;
-    i64 TotalInputRowCount;
-    i64 TotalInputValueCount;
 
     // Counters.
     int CompletedPartitionCount;
@@ -130,7 +126,7 @@ protected:
         TPartition(TSortControllerBase* controller, int index)
             : Index(index)
             , Completed(false)
-            , SortedMergeNeeded(false)
+            , CachedSortedMergeNeeded(false)
             , Maniac(false)
             , SortTask(New<TSortTask>(controller, this))
             , SortedMergeTask(New<TSortedMergeTask>(controller, this))
@@ -145,7 +141,8 @@ protected:
         bool Completed;
 
         //! Do we need to run merge tasks for this partition?
-        bool SortedMergeNeeded;
+        //! Cached value, updated by #IsSortedMergeNeeded.
+        bool CachedSortedMergeNeeded;
 
         //! Does the partition consist of rows with the same key?
         bool Maniac;
@@ -196,9 +193,7 @@ protected:
             : TTask(controller)
             , Controller(controller)
         {
-            ChunkPool = CreateUnorderedChunkPool(
-                Controller->PartitionJobCounter.GetTotal(),
-                Controller->Spec->MaxDataSizePerPartitionJob);
+            ChunkPool = CreateUnorderedChunkPool(Controller->PartitionJobCounter.GetTotal());
         }
 
         virtual Stroka GetId() const override
@@ -279,18 +274,13 @@ protected:
             Controller->PartitionJobCounter.Completed(1);
 
             auto* resultExt = joblet->Job->Result().MutableExtension(TPartitionJobResultExt::partition_job_result_ext);
-            auto stripe = New<TChunkStripe>();
-            FOREACH (auto& inputChunk, *resultExt->mutable_chunks()) {
-                auto rcInputChunk = New<TRefCountedInputChunk>(inputChunk);
-                stripe->Chunks.push_back(rcInputChunk);
-            }
 
+            auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_chunks());
             Controller->ShufflePool->GetInput()->Add(stripe);
 
-            // Drop TPartitionsExt, they are no longer needed.
-            FOREACH (auto inputChunk, stripe->Chunks) {
-                RemoveProtoExtension<NTableClient::NProto::TPartitionsExt>(inputChunk->mutable_extensions());
-            }
+            i64 stripeDataSize;
+            GetStatistics(stripe, &stripeDataSize);
+            Controller->SortDataSizeCounter.Increment(stripeDataSize);
 
             // Kick-start sort and unordered merge tasks.
             FOREACH (auto partition, Controller->Partitions) {
@@ -447,24 +437,6 @@ protected:
             return GetNeededResourcesForDataSize(joblet->InputStripeList->TotalDataSize);
         }
 
-        using TTask::AddInput;
-
-        virtual void AddInput(TChunkStripePtr stripe) override
-        {
-            auto* chunkPoolOutput = GetChunkPoolOutput();
-            i64 oldTotal = chunkPoolOutput->GetTotalDataSize();
-            TPartitionBoundTask::AddInput(stripe);
-            i64 newTotal = chunkPoolOutput->GetTotalDataSize();
-            Controller->SortDataSizeCounter.Increment(newTotal - oldTotal);
-        }
-
-        bool IsCompleted() const
-        {
-            return
-                Controller->PartitionTask->IsCompleted() &&
-                TPartitionBoundTask::IsCompleted();
-        }
-
     private:
         virtual IChunkPoolInput* GetChunkPoolInput() const override
         {
@@ -516,13 +488,6 @@ protected:
 
             AddSequentialInputSpec(jobSpec, joblet);
             Controller->CustomizeJobSpec(joblet, jobSpec);
-
-            if (!Controller->SimpleSort) {
-                auto* inputSpec = jobSpec->mutable_input_specs(0);
-                FOREACH (auto& chunk, *inputSpec->mutable_chunks()) {
-                    chunk.set_partition_tag(Partition->Index);
-                }
-            }
         }
 
         virtual void OnJobStarted(TJobletPtr joblet) override
@@ -551,11 +516,8 @@ protected:
 
                 // Sort outputs in large partitions are queued for further merge.
                 // Construct a stripe consisting of sorted chunks and put it into the pool.
-                const auto& resultExt = joblet->Job->Result().GetExtension(TSortJobResultExt::sort_job_result_ext);
-                auto stripe = New<TChunkStripe>();
-                FOREACH (const auto& inputChunk, resultExt.chunks()) {
-                    stripe->Chunks.push_back(New<TRefCountedInputChunk>(inputChunk));
-                }
+                auto* resultExt = joblet->Job->Result().MutableExtension(TSortJobResultExt::sort_job_result_ext);
+                auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_chunks());
                 Partition->SortedMergeTask->AddInput(stripe);
             } else {
                 Controller->FinalSortJobCounter.Completed(1);
@@ -600,7 +562,10 @@ protected:
 
             // Kick-start the corresponding merge task.
             if (Controller->IsSortedMergeNeeded(Partition)) {
-                Controller->AddTaskPendingHint(Partition->SortedMergeTask);
+                Partition->SortedMergeTask->FinishInput();
+            }
+            if (Partition->Maniac) {
+                Partition->UnorderedMergeTask->FinishInput();
             }
         }
 
@@ -658,10 +623,6 @@ protected:
         virtual int GetPendingJobCount() const override
         {
             if (!Controller->MergeStartThresholdReached) {
-                return 0;
-            }
-
-            if (!Controller->IsSortedMergeNeeded(Partition)) {
                 return 0;
             }
 
@@ -750,10 +711,6 @@ protected:
         virtual int GetPendingJobCount() const override
         {
             if (!Controller->MergeStartThresholdReached) {
-                return 0;
-            }
-
-            if (!Controller->IsUnorderedMergeNeeded(Partition)) {
                 return 0;
             }
 
@@ -855,9 +812,7 @@ protected:
 
     void InitSimpleSortPool(int sortJobCount)
     {
-        SimpleSortPool = CreateUnorderedChunkPool(
-            sortJobCount,
-            Spec->MaxDataSizePerSortJob);
+        SimpleSortPool = CreateUnorderedChunkPool(sortJobCount);
     }
     
     virtual void OnOperationCompleted() override
@@ -886,7 +841,7 @@ protected:
         }
     }
 
-    void RegisterOutputChunkTrees(TJobInProgressPtr jip, TPartition* partition)
+    void RegisterOutputChunkTrees(TJobletPtr joblet, TPartition* partition)
     {
         TOperationControllerBase::RegisterOutputChunkTrees(joblet, partition->Index);
     }
@@ -903,32 +858,26 @@ protected:
 
     bool IsSortedMergeNeeded(TPartitionPtr partition) const
     {
-        // Check for cached value.
-        if (partition->SortedMergeNeeded) {
+        if (SimpleSort) {
+            return false;
+        }
+
+        if (partition->Maniac) {
+            return false;
+        }
+
+        if (partition->CachedSortedMergeNeeded) {
             return true;
         }
 
-        bool mergeNeeded = IsSortedMergeNeededImpl(partition);
-
-        if (mergeNeeded) {
-            LOG_DEBUG("Partition needs sorted merge (Partition: %d)", partition->Index);
-            SortedMergeJobCounter.Increment(1);
-            partition->SortedMergeNeeded = true;
+        if (partition->ChunkPoolOutput->GetTotalJobCount() <= 1 && PartitionTask->IsCompleted()) {
+            return false;
         }
 
-        return mergeNeeded;
-    }
-
-    bool IsSortedMergeNeededImpl(TPartitionPtr partition) const
-    {
-        return
-            !partition->Maniac &&
-            partition->ChunkPoolOutput->GetTotalJobCount() > 1;
-    }
-
-    bool IsUnorderedMergeNeeded(TPartitionPtr partition)
-    {
-        return partition->Maniac && PartitionTask->IsCompleted();
+        LOG_DEBUG("Partition needs sorted merge (Partition: %d)", partition->Index);
+        SortedMergeJobCounter.Increment(1);
+        partition->CachedSortedMergeNeeded = true;
+        return true;
     }
 
     void CheckSortStartThreshold()
@@ -948,6 +897,9 @@ protected:
 
     void CheckMergeStartThreshold()
     {
+        if (SimpleSort)
+            return;
+
         if (MergeStartThresholdReached)
             return;
 
@@ -1090,12 +1042,11 @@ protected:
 
     i64 GetRowCountEstimate(TPartitionPtr partition, i64 dataSize) const
     {
-        auto* chunkPoolOutput = ShufflePool->GetOutput(partition->Index);
-        i64 totalDataSize = chunkPoolOutput->GetTotalDataSize();
+        i64 totalDataSize = partition->ChunkPoolOutput->GetTotalDataSize();
         if (totalDataSize == 0) {
             return 0;
         }
-        i64 totalRowCount = chunkPoolOutput->GetTotalRowCount();
+        i64 totalRowCount = partition->ChunkPoolOutput->GetTotalRowCount();
         return static_cast<i64>((double) totalRowCount * dataSize / totalDataSize);
     }
 
@@ -1182,42 +1133,19 @@ private:
 
     TFuture< TValueOrError<void> > RequestSamples()
     {
-        SamplesFetcher = New<TSamplesFetcher>(
-            Config,
-            Spec,
-            Operation->GetOperationId());
-
-        SamplesCollector = New<TSamplesCollector>(
-            SamplesFetcher,
-            Host->GetBackgroundInvoker());
-
         PROFILE_TIMING ("/input_processing_time") {
-            LOG_INFO("Processing inputs");
+            SamplesFetcher = New<TSamplesFetcher>(
+                Config,
+                Spec,
+                Operation->GetOperationId());
 
-            int chunkCount = 0;
-            FOREACH (const auto& table, InputTables) {
-                FOREACH (const auto& chunk, table.FetchResponse->chunks()) {
-                    auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
-                    TotalInputDataSize += miscExt.uncompressed_data_size();
-                    TotalInputRowCount += miscExt.row_count();
-                    TotalInputValueCount += miscExt.value_count();
+            SamplesCollector = New<TSamplesCollector>(
+                SamplesFetcher,
+                Host->GetBackgroundInvoker());
 
-                    auto refCountedChunk = New<TRefCountedInputChunk>(chunk);
-                    SamplesCollector->AddChunk(refCountedChunk);
-                    ++chunkCount;
-                }
-            }
-
-            LOG_INFO("Totals collected (DataSize: %" PRId64 ", RowCount: % " PRId64 ", ValueCount: %" PRId64 ")",
-                TotalInputDataSize,
-                TotalInputRowCount,
-                TotalInputValueCount);
-
-            // Check for empty inputs.
-            if (chunkCount == 0) {
-                LOG_INFO("Empty input");
-                OnOperationCompleted();
-                return NewPromise< TValueOrError<void> >();
+            auto chunks = CollectInputChunks();
+            FOREACH (auto chunk, chunks) {
+                SamplesCollector->AddChunk(chunk);
             }
 
             SamplesFetcher->SetDesiredSampleCount(SuggestPartitionCount() * Spec->SamplesPerPartition);
@@ -1279,33 +1207,32 @@ private:
 
     void BuildSinglePartition()
     {
-        std::vector<TChunkStripePtr> stripes;
-        i64 totalDataSize;
-        int totalChunkCount;
-        SliceChunks(
-            CollectInputTablesChunks(),
+        auto stripes = SliceInputChunks(
             Spec->SortJobCount,
-            Spec->SortJobSliceDataSize,
-            &stripes,
-            &totalDataSize,
-            &totalChunkCount);
+            Spec->SortJobSliceDataSize);
+
+        // Initialize counters.
+        PartitionJobCounter.Set(0);
+        SortDataSizeCounter.Set(TotalInputDataSize);
 
         // Choose sort job count and initialize the pool.
         int sortJobCount = SuggestJobCount(
-            totalDataSize,
+            TotalInputDataSize,
             Spec->MinDataSizePerSortJob,
             Spec->MaxDataSizePerSortJob,
             Spec->SortJobCount,
-            totalChunkCount);
+            static_cast<int>(stripes.size()));
         InitSimpleSortPool(sortJobCount);
 
         // Create the fake partition.
         auto partition = New<TPartition>(this, 0);
         Partitions.push_back(partition);
+        partition->ChunkPoolOutput = ~SimpleSortPool;
         partition->SortTask->AddInput(stripes);
         partition->SortTask->FinishInput();
 
-        LOG_INFO("Sorting without partitioning");
+        LOG_INFO("Sorting without partitioning (SortJobCount: %d)",
+            sortJobCount);
 
         // Kick-start the sort task.
         SortStartThresholdReached = true;
@@ -1368,7 +1295,8 @@ private:
                     lastPartition->Index,
                     skippedCount);
 
-                lastPartition->Maniac= true;
+                lastPartition->Maniac = true;
+                UnorderedMergeJobCounter.Increment(1);
                 YCHECK(skippedCount >= 1);
 
                 auto successorKey = GetSuccessorKey(*sampleKey);
@@ -1376,36 +1304,22 @@ private:
             }
         }
 
-        // Construct shuffle pool.
-        ShufflePool = CreateShuffleChunkPool(
-            partitionCount,
-            Spec->MaxDataSizePerSortJob);
+        InitShufflePool();
 
-        // Populate the partition pool.
-        std::vector<TChunkStripePtr> stripes;
-        i64 totalDataSize;
-        int totalChunkCount;
-        SliceChunks(
-            CollectInputTablesChunks(),
+        auto stripes = SliceInputChunks(
             Spec->PartitionJobCount,
-            Spec->PartitionJobSliceDataSize,
-            &stripes,
-            &totalDataSize,
-            &totalChunkCount);
-        PartitionTask->AddInput(stripes);
-        PartitionTask->FinishInput();
+            Spec->PartitionJobSliceDataSize);
 
-        LOG_INFO("Inputs processed (DataSize: %" PRId64 ", ChunkCount: %" PRId64 ")",
-            totalDataSize,
-            totalChunkCount);
-
-        // Init counters.
         PartitionJobCounter.Set(SuggestJobCount(
-            PartitionTask->GetTotalDataSize(),
+            TotalInputDataSize,
             Spec->MinDataSizePerPartitionJob,
             Spec->MaxDataSizePerPartitionJob,
             Spec->PartitionJobCount,
-            totalChunkCount));
+            static_cast<int>(stripes.size())));
+
+        PartitionTask = New<TPartitionTask>(this);
+        PartitionTask->AddInput(stripes);
+        PartitionTask->FinishInput();
 
         LOG_INFO("Sorting with partitioning (PartitionCount: %d, PartitionJobCount: %" PRId64 ")",
             partitionCount,
@@ -1610,7 +1524,7 @@ private:
     virtual void LogProgress() override
     {
         LOG_DEBUG("Progress: "
-            "Jobs = {R: %d, C: %d, P: %d, F: %d, L: %d}, "
+            "Jobs = {R: % " PRId64 ", C: %" PRId64 ", P: %d, F: %" PRId64 ", A: %" PRId64 ", L: %" PRId64 "}, "
             "Partitions = {T: %d, C: %d}, "
             "PartitionJobs = {%s}, "
             "IntermediateSortJobs = {%s}, "
@@ -1684,8 +1598,8 @@ public:
             host,
             operation)
         , Spec(spec)
-        , MapStartRowCount(0)
-        , ReduceStartRowCount(0)
+        , MapStartRowIndex(0)
+        , ReduceStartRowIndex(0)
     { }
 
 private:
@@ -1694,8 +1608,8 @@ private:
     std::vector<TUserFile> MapperFiles;
     std::vector<TUserFile> ReducerFiles;
 
-    i64 MapStartRowCount;
-    i64 ReduceStartRowCount;
+    i64 MapStartRowIndex;
+    i64 ReduceStartRowIndex;
 
 
     // Custom bits of preparation pipeline.
@@ -1764,31 +1678,6 @@ private:
     TFuture<void> ProcessInputs()
     {
         PROFILE_TIMING ("/input_processing_time") {
-            LOG_INFO("Processing inputs");
-
-            int chunkCount = 0;
-            FOREACH (const auto& table, InputTables) {
-                FOREACH (const auto& chunk, table.FetchResponse->chunks()) {
-                    auto miscExt = GetProtoExtension<TMiscExt>(chunk.extensions());
-                    TotalInputDataSize += miscExt.uncompressed_data_size();
-                    TotalInputRowCount += miscExt.row_count();
-                    TotalInputValueCount += miscExt.value_count();
-                    ++chunkCount;
-                }
-            }
-
-            LOG_INFO("Totals collected (DataSize: %" PRId64 ", RowCount: % " PRId64 ", ValueCount: %" PRId64 ")",
-                TotalInputDataSize,
-                TotalInputRowCount,
-                TotalInputValueCount);
-
-            // Check for empty inputs.
-            if (chunkCount == 0) {
-                LOG_INFO("Empty input");
-                OnOperationCompleted();
-                return NewPromise<void>();
-            }
-
             BuildPartitions();
             InitJobSpecTemplates();
         }
@@ -1822,32 +1711,22 @@ private:
 
         InitShufflePool();
 
-        std::vector<TChunkStripePtr> stripes;
-        i64 totalDataSize;
-        int totalChunkCount;
-        SliceChunks(
-            CollectInputTablesChunks(),
+        auto stripes = SliceInputChunks(
             Spec->PartitionJobCount,
-            Spec->PartitionJobSliceDataSize,
-            &stripes,
-            &totalDataSize,
-            &totalChunkCount);
+            Spec->PartitionJobSliceDataSize);
 
-        // Init counters.
         PartitionJobCounter.Set(SuggestJobCount(
-            totalDataSize,
+            TotalInputDataSize,
             Spec->MinDataSizePerPartitionJob,
             Spec->MaxDataSizePerPartitionJob,
             Spec->PartitionJobCount,
-            totalChunkCount));
+            static_cast<int>(stripes.size())));
 
         PartitionTask = New<TPartitionTask>(this);
         PartitionTask->AddInput(stripes);
         PartitionTask->FinishInput();
 
-        LOG_INFO("Inputs processed (DataSize: %" PRId64 ", ChunkCount: %" PRId64 ", PartitionCount: %d, PartitionJobCount: %" PRId64 ")",
-            totalDataSize,
-            totalChunkCount,
+        LOG_INFO("Map-reducing with partitioning (PartitionCount: %d, PartitionJobCount: %" PRId64 ")",
             partitionCount,
             PartitionJobCounter.GetTotal());
 
@@ -1943,33 +1822,31 @@ private:
         }
     }
 
-    void CustomizeJobSpec(TJobletPtr joblet, NProto::TJobSpec* jobSpec) override
+    virtual void CustomizeJobSpec(TJobletPtr joblet, NProto::TJobSpec* jobSpec) override
     {
         switch (jobSpec->type()) {
-        case EJobType::PartitionMap: {
-            auto* jobSpecExt = jobSpec->MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
-            AddUserJobEnvironment(
-            	jobSpecExt->mutable_mapper_spec(),
-            	jip,
-            	MapStartRowCount);
-            MapStartRowCount += jip->PoolResult->TotalRowCount;
-            break;
-        }
+            case EJobType::PartitionMap: {
+                joblet->StartRowIndex = MapStartRowIndex;
+                MapStartRowIndex += joblet->InputStripeList->TotalRowCount;
 
-        case EJobType::PartitionReduce:
-        case EJobType::SortedReduce: {
-            auto* jobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-            AddUserJobEnvironment(
-            	jobSpecExt->mutable_reducer_spec(),
-            	jip,
-            	ReduceStartRowCount);
-            ReduceStartRowCount += jip->PoolResult->TotalRowCount;
-            break;
-        }
+                auto* jobSpecExt = jobSpec->MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
+                AddUserJobEnvironment(jobSpecExt->mutable_mapper_spec(), joblet);
+                break;
+            }
 
-        default:
-            // For other jobs do nothing.
-            break;
+            case EJobType::PartitionReduce:
+            case EJobType::SortedReduce: {
+                joblet->StartRowIndex = ReduceStartRowIndex;
+                ReduceStartRowIndex += joblet->InputStripeList->TotalRowCount;
+
+                auto* jobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+                AddUserJobEnvironment(jobSpecExt->mutable_reducer_spec(), joblet);
+                break;
+            }
+
+            default:
+                // For other jobs do nothing.
+                break;
         }
     }
 
@@ -2072,7 +1949,7 @@ private:
     virtual void LogProgress() override
     {
         LOG_DEBUG("Progress: "
-            "Jobs = {R: %d, C: %d, P: %d, F: %d, A: %d}, "
+            "Jobs = {R: %" PRId64 ", C: %" PRId64 ", P: %d, F: %" PRId64", A: %" PRId64 ", L: %" PRId64 "}, "
             "Partitions = {T: %d, C: %d}, "
             "MapJobs = {%s}, "
             "SortJobs = {%s}, "
@@ -2084,6 +1961,7 @@ private:
             GetPendingJobCount(),
             JobCounter.GetFailed(),
             JobCounter.GetAborted(),
+            JobCounter.GetLost(),
             // Partitions
             static_cast<int>(Partitions.size()),
             CompletedPartitionCount,

@@ -12,40 +12,35 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TChunkInfoFetcher>
-TChunkInfoCollector<TChunkInfoFetcher>::TChunkInfoCollector(
-    TChunkInfoFetcherPtr fetcher,
+template <class TFetcher>
+TChunkInfoCollector<TFetcher>::TChunkInfoCollector(
+    TFetcherPtr fetcher,
     IInvokerPtr invoker)
-    : ChunkInfoFetcher(fetcher)
+    : Fetcher(fetcher)
     , Invoker(invoker)
     , Promise(NewPromise< TValueOrError<void> >())
 { }
 
-template <class TChunkInfoFetcher>
-void TChunkInfoCollector<TChunkInfoFetcher>::AddChunk(
+template <class TFetcher>
+void TChunkInfoCollector<TFetcher>::AddChunk(
     NTableClient::TRefCountedInputChunkPtr chunk)
 {
     YCHECK(UnfetchedChunkIndexes.insert(static_cast<int>(Chunks.size())).second);
     Chunks.push_back(chunk);
 }
 
-template <class TChunkInfoFetcher>
-TFuture< TValueOrError<void> > TChunkInfoCollector<TChunkInfoFetcher>::Run()
+template <class TFetcher>
+TFuture< TValueOrError<void> > TChunkInfoCollector<TFetcher>::Run()
 {
-    if (ChunkInfoFetcher->Prepare(Chunks)) {
-        SendRequests();
-    } else {
-        // No collecting is required.
-        Promise.Set(TError());
-    }
-
+    Fetcher->Prepare(Chunks);
+    SendRequests();
     return Promise;
 }
 
-template <class TChunkInfoFetcher>
-void TChunkInfoCollector<TChunkInfoFetcher>::SendRequests()
+template <class TFetcher>
+void TChunkInfoCollector<TFetcher>::SendRequests()
 {
-    auto& Logger = ChunkInfoFetcher->GetLogger();
+    auto& Logger = Fetcher->GetLogger();
 
     // Construct address -> chunk* map.
     typedef yhash_map<Stroka, std::vector<int> > TAddressToChunkIndexes;
@@ -89,7 +84,7 @@ void TChunkInfoCollector<TChunkInfoFetcher>::SendRequests()
     FOREACH (const auto& it, addressIts) {
         auto address = it->first;
 
-        ChunkInfoFetcher->CreateNewRequest(address);
+        Fetcher->CreateNewRequest(address);
 
         auto& addressChunkIndexes = it->second;
         std::vector<int> requestChunkIndexes;
@@ -98,7 +93,7 @@ void TChunkInfoCollector<TChunkInfoFetcher>::SendRequests()
                 YCHECK(requestedChunkIndexes.insert(chunkIndex).second);
 
                 auto& chunk = Chunks[chunkIndex];
-                if (ChunkInfoFetcher->AddChunkToRequest(chunk)) {
+                if (Fetcher->AddChunkToRequest(chunk)) {
                     requestChunkIndexes.push_back(chunkIndex);
                 } else {
                     // We are not going to fetch info for this chunk.
@@ -114,28 +109,28 @@ void TChunkInfoCollector<TChunkInfoFetcher>::SendRequests()
                 ~address);
 
             awaiter->Await(
-                ChunkInfoFetcher->InvokeRequest(),
+                Fetcher->InvokeRequest(),
                 BIND(
-                    &TChunkInfoCollector<TChunkInfoFetcher>::OnResponse,
+                    &TChunkInfoCollector<TFetcher>::OnResponse,
                     MakeStrong(this),
                     address,
                     Passed(MoveRV(requestChunkIndexes))));
         }
     }
     awaiter->Complete(BIND(
-        &TChunkInfoCollector<TChunkInfoFetcher>::OnEndRound, 
+        &TChunkInfoCollector<TFetcher>::OnEndRound, 
         MakeStrong(this)));
 
-    LOG_INFO("%d requests sent", awaiter->GetRequestCount());
+    LOG_INFO("Done, %d requests sent", awaiter->GetRequestCount());
 }
 
-template <class TChunkInfoFetcher>
-void TChunkInfoCollector<TChunkInfoFetcher>::OnResponse(
+template <class TFetcher>
+void TChunkInfoCollector<TFetcher>::OnResponse(
     const Stroka& address,
     std::vector<int> chunkIndexes,
-    typename TChunkInfoFetcher::TResponsePtr rsp)
+    typename TFetcher::TResponsePtr rsp)
 {
-    auto& Logger = ChunkInfoFetcher->GetLogger();
+    auto& Logger = Fetcher->GetLogger();
 
     if (rsp->IsOK()) {
         for (int index = 0; index < static_cast<int>(chunkIndexes.size()); ++index) {
@@ -143,7 +138,7 @@ void TChunkInfoCollector<TChunkInfoFetcher>::OnResponse(
             auto& chunk = Chunks[chunkIndex];
             auto chunkId = NChunkServer::TChunkId::FromProto(chunk->slice().chunk_id());
 
-            auto result = ChunkInfoFetcher->ProcessResponseItem(rsp, index, chunk);
+            auto result = Fetcher->ProcessResponseItem(rsp, index, chunk);
             if (result.IsOK()) {
                 YCHECK(UnfetchedChunkIndexes.erase(chunkIndex) == 1);
             } else {
@@ -161,10 +156,10 @@ void TChunkInfoCollector<TChunkInfoFetcher>::OnResponse(
     }
 }
 
-template <class TChunkInfoFetcher>
-void TChunkInfoCollector<TChunkInfoFetcher>::OnEndRound()
+template <class TFetcher>
+void TChunkInfoCollector<TFetcher>::OnEndRound()
 {
-    auto& Logger = ChunkInfoFetcher->GetLogger();
+    auto& Logger = Fetcher->GetLogger();
 
     if (UnfetchedChunkIndexes.empty()) {
         LOG_INFO("All info is fetched");

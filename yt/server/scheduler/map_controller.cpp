@@ -47,7 +47,6 @@ public:
         TOperation* operation)
         : TOperationControllerBase(config, host, operation)
         , Spec(spec)
-        , TotalJobCount(0)
     { }
 
     virtual TNodeResources GetMinNeededResources() override
@@ -61,12 +60,6 @@ public:
 private:
     TMapOperationSpecPtr Spec;
 
-    //! Overrides the spec limit to prevent huge job counts.
-    i64 MaxDataSizePerJob;
-
-    // Counters.
-    int TotalJobCount;
-
     class TMapTask
         : public TTask
     {
@@ -75,9 +68,7 @@ private:
             : TTask(controller)
             , Controller(controller)
         {
-            ChunkPool = CreateUnorderedChunkPool(
-                Controller->JobCounter.GetTotal(),
-                Controller->Spec->MaxDataSizePerJob);
+            ChunkPool = CreateUnorderedChunkPool(Controller->JobCounter.GetTotal());
         }
 
         virtual Stroka GetId() const override
@@ -131,12 +122,11 @@ private:
             AddSequentialInputSpec(jobSpec, joblet);
             AddOutputSpecs(jobSpec, joblet);
 
+            joblet->StartRowIndex = StartRowIndex;
+            StartRowIndex += joblet->InputStripeList->TotalRowCount;
+            
             auto* jobSpecExt = jobSpec->MutableExtension(TMapJobSpecExt::map_job_spec_ext);
-            Controller->AddUserJobEnvironment(
-                jobSpecExt->mutable_mapper_spec(), 
-                joblet, 
-                StartRowIndex);
-            StartRowIndex += joblet->PoolResult->TotalRowCount;
+            Controller->AddUserJobEnvironment(jobSpecExt->mutable_mapper_spec(), joblet);
         }
 
         virtual void OnJobCompleted(TJobletPtr joblet) override
@@ -179,31 +169,16 @@ private:
     TFuture<void> ProcessInputs()
     {
         PROFILE_TIMING ("/input_processing_time") {
-            LOG_INFO("Processing inputs");
-            
-            std::vector<TChunkStripePtr> stripes;
-            i64 totalDataSize;
-            int totalChunkCount;
-            SliceChunks(
-                CollectInputTablesChunks(),
+            auto stripes = SliceInputChunks(
                 Spec->JobCount,
-                Spec->JobSliceDataSize,
-                &stripes,
-                &totalDataSize,
-                &totalChunkCount);
-
-            if (stripes.empty()) {
-                LOG_INFO("Empty input");
-                OnOperationCompleted();
-                return NewPromise<void>();
-            }
+                Spec->JobSliceDataSize);
 
             JobCounter.Set(SuggestJobCount(
-                MapTask->GetTotalDataSize(),
+                TotalInputDataSize,
                 Spec->MinDataSizePerJob,
                 Spec->MaxDataSizePerJob,
                 Spec->JobCount,
-                totalChunkCount));
+                static_cast<int>(stripes.size())));
 
             MapTask = New<TMapTask>(this);
             MapTask->AddInput(stripes);
@@ -212,9 +187,7 @@ private:
             InitJobIOConfig();
             InitJobSpecTemplate();
 
-            LOG_INFO("Inputs processed (DataSize: %" PRId64 ", ChunkCount: %" PRId64 ", JobCount: %" PRId64 ")",
-                totalDataSize,
-                totalChunkCount,
+            LOG_INFO("Inputs processed (JobCount: %" PRId64 ")",
                 JobCounter.GetTotal());
 
             // Kick-start the map task.
@@ -229,7 +202,7 @@ private:
     virtual void LogProgress() override
     {
         LOG_DEBUG("Progress: "
-            "Jobs = {T: %"PRId64", R: %"PRId64", C: %"PRId64", P: %"PRId64", F: %"PRId64", A: %"PRId64"}",
+            "Jobs = {T: %"PRId64", R: %"PRId64", C: %"PRId64", P: %d, F: %"PRId64", A: %"PRId64"}",
             JobCounter.GetTotal(),
             JobCounter.GetRunning(),
             JobCounter.GetCompleted(),

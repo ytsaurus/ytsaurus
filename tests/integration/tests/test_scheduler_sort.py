@@ -167,22 +167,22 @@ class TestSchedulerSortCommands(YTEnvSetup):
     
         sort(**args)
         assert get('//tmp/out/@sorted') == 'true'
-        assert read(output) == [{'key': num} for num in xrange(1, 21)]
+        assert read(output) == [{'key': i} for i in xrange(1, 21)]
 
     def test_one_partition_no_merge(self):
-        self.sort_with_options(opt='/spec/partition_count=1')
+        self.sort_with_options()
 
     def test_one_partition_with_merge(self):
-        self.sort_with_options(opt=['/spec/partition_count=1', '/spec/max_weight_per_sort_job=1'])
+        self.sort_with_options(opt=['/spec/max_data_size_per_sort_job=1'])
 
     def test_two_partitions_no_merge(self):
-        self.sort_with_options(opt='/spec/partition_count=2')
+        self.sort_with_options(opt=['/spec/partition_count=2', '/spec/min_partition_data_size=1'])
 
     def test_ten_partitions_no_merge(self):
         self.sort_with_options(opt='/spec/partition_count=10')
 
     def test_two_partitions_with_merge(self):
-        self.sort_with_options(opt=['/spec/partition_count=2', '/spec/max_weight_per_sort_job=1'])
+        self.sort_with_options(opt=['/spec/partition_count=2', '/spec/min_partition_data_size=1', '/spec/max_data_size_per_sort_job=1'])
 
     def test_inplace_sort(self):
         create('table', '//tmp/t')

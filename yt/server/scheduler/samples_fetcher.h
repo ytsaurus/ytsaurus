@@ -32,7 +32,7 @@ public:
 
     void SetDesiredSampleCount(int desiredSampleCount);
 
-    bool Prepare(const std::vector<NTableClient::TRefCountedInputChunkPtr>& chunks);
+    void Prepare(const std::vector<NTableClient::TRefCountedInputChunkPtr>& chunks);
 
     void CreateNewRequest(const Stroka& address);
 

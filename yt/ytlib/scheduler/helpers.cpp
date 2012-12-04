@@ -1,8 +1,6 @@
 #include "stdafx.h"
 #include "helpers.h"
 
-#include <ytlib/ytree/fluent.h>
-
 #include <ytlib/ypath/token.h>
 
 namespace NYT {

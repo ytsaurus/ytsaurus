@@ -61,7 +61,7 @@ public:
             keyColumns,
             BIND(&IJobHost::ReleaseNetwork, Host),
             MoveRV(chunks),
-            JobSpec.row_count());
+            JobSpec.input_row_count());
         reader->Open();
 
         // ToDo(psushin): init all inputs in constructor, get rid of this check.

@@ -544,38 +544,6 @@ NProto::TKey GetSuccessorKey(const NProto::TKey& key);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRefCountedInputChunk
-    : public TIntrinsicRefCounted
-    , public NTableClient::NProto::TInputChunk
-{
-    explicit TRefCountedInputChunk(const NProto::TInputChunk& other, int tableIndex = 0);
-
-    TRefCountedInputChunk(const TRefCountedInputChunk& other);
-
-    void GetStatistics(i64* uncompressedDataSize, i64* rowCount) const;
-
-    // Used in scheduler to remember the origin of the chunk.
-    int TableIndex;
-};
-
-//! Constructs a new chunk by slicing the original one and restricting
-//! it to a given range. The original chunk may already contain non-trivial limits.
-TRefCountedInputChunkPtr SliceChunk(
-    const TRefCountedInputChunk& chunk,
-    const TNullable<NProto::TKey>& startKey = Null,
-    const TNullable<NProto::TKey>& endKey = Null);
-
-//! Tries to split the given chunk into #count
-//! parts of almost equal size.
-/*!
- *  May return less parts than requested.
- */
-std::vector<TRefCountedInputChunkPtr> SliceChunkEvenly(const TRefCountedInputChunk& chunk, int count);
-
-TRefCountedInputChunkPtr CreateCompleteChunk(TRefCountedInputChunkPtr inputChunk);
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NTableClient
 } // namespace NYT
 

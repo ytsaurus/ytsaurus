@@ -4,28 +4,29 @@
 
 #include <ytlib/misc/error.h>
 
+#include <ytlib/table_client/helpers.h>
 
 namespace NYT {
 namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TChunkInfoFetcher>
+template <class TFetcher>
 class TChunkInfoCollector
     : public TRefCounted
 {
 public:
-    typedef TIntrusivePtr<TChunkInfoFetcher> TChunkInfoFetcherPtr;
+    typedef TIntrusivePtr<TFetcher> TFetcherPtr;
 
     TChunkInfoCollector(
-        TChunkInfoFetcherPtr fetcher,
+        TFetcherPtr fetcher,
         IInvokerPtr invoker);
 
     void AddChunk(NTableClient::TRefCountedInputChunkPtr chunk);
     TFuture< TValueOrError<void> > Run();
 
 private:
-    TChunkInfoFetcherPtr ChunkInfoFetcher;
+    TFetcherPtr Fetcher;
     IInvokerPtr Invoker;
 
     TPromise< TValueOrError<void> > Promise;
@@ -47,7 +48,7 @@ private:
     void OnResponse(
         const Stroka& address,
         std::vector<int> chunkIndexes,
-        typename TChunkInfoFetcher::TResponsePtr rsp);
+        typename TFetcher::TResponsePtr rsp);
     void OnEndRound();
 };
 

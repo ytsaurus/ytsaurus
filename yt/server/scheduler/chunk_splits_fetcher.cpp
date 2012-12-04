@@ -2,7 +2,7 @@
 #include "chunk_splits_fetcher.h"
 #include "private.h"
 
-#include <ytlib/table_client/key.h>
+#include <ytlib/table_client/helpers.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
@@ -46,9 +46,10 @@ NLog::TTaggedLogger& TChunkSplitsFetcher::GetLogger()
     return Logger;
 }
 
-bool TChunkSplitsFetcher::Prepare(const std::vector<NTableClient::TRefCountedInputChunkPtr>& chunks)
+void TChunkSplitsFetcher::Prepare(const std::vector<NTableClient::TRefCountedInputChunkPtr>& chunks)
 {
-    return true;
+    LOG_INFO("Started fetching chunk splits (ChunkCount: %d)",
+        static_cast<int>(chunks.size()));
 }
 
 std::vector<TRefCountedInputChunkPtr>& TChunkSplitsFetcher::GetChunkSplits()
@@ -71,13 +72,13 @@ bool TChunkSplitsFetcher::AddChunkToRequest(NTableClient::TRefCountedInputChunkP
 {
     auto chunkId = TChunkId::FromProto(chunk->slice().chunk_id());
 
-    i64 dataSize, rowCount;
-    chunk->GetStatistics(&dataSize, &rowCount);
+    i64 dataSize;
+    GetStatistics(*chunk, &dataSize);
+
     if (dataSize < Spec->JobSliceDataSize) {
         LOG_DEBUG("Chunk split added (ChunkId: %s, TableIndex: %d)", 
             ~ToString(chunkId),
             chunk->TableIndex);
-
         ChunkSplits.push_back(chunk);
         return false;
     } else {

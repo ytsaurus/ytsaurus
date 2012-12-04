@@ -1,8 +1,9 @@
 #include "stdafx.h"
 #include "samples_fetcher.h"
 #include "private.h"
+#include "chunk_pool.h"
 
-#include <ytlib/table_client/key.h>
+#include <ytlib/table_client/helpers.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
@@ -51,14 +52,19 @@ NLog::TTaggedLogger& TSamplesFetcher::GetLogger()
     return Logger;
 }
 
-bool TSamplesFetcher::Prepare(const std::vector<NTableClient::TRefCountedInputChunkPtr>& chunks)
+void TSamplesFetcher::Prepare(const std::vector<NTableClient::TRefCountedInputChunkPtr>& chunks)
 {
     YCHECK(DesiredSampleCount > 0);
 
+    LOG_INFO("Started fetching chunk samples (ChunkCount: %d, DesiredSampleCount: %d)",
+        static_cast<int>(chunks.size()),
+        DesiredSampleCount);
+
     i64 totalSize = 0;
     FOREACH(const auto& chunk, chunks) {
-        auto miscExt = GetProtoExtension<TMiscExt>(chunk->extensions());
-        totalSize += miscExt.uncompressed_data_size();
+        i64 chunkDataSize;
+        GetStatistics(*chunk, &chunkDataSize);
+        totalSize += chunkDataSize;
     }
     YCHECK(totalSize > 0);
 
@@ -68,7 +74,6 @@ bool TSamplesFetcher::Prepare(const std::vector<NTableClient::TRefCountedInputCh
         SizeBetweenSamples = totalSize / DesiredSampleCount;
     }
     CurrentSize = SizeBetweenSamples;
-    return true;
 }
 
 const std::vector<TKey>& TSamplesFetcher::GetSamples() const
@@ -88,8 +93,10 @@ void TSamplesFetcher::CreateNewRequest(const Stroka& address)
 
 bool TSamplesFetcher::AddChunkToRequest(NTableClient::TRefCountedInputChunkPtr chunk)
 {
-    auto miscExt = GetProtoExtension<TMiscExt>(chunk->extensions());
-    CurrentSize += miscExt.uncompressed_data_size();
+    i64 chunkDataSize;
+    GetStatistics(*chunk, &chunkDataSize);
+
+    CurrentSize += chunkDataSize;
     i64 sampleCount = CurrentSize / SizeBetweenSamples;
 
     if (sampleCount > CurrentSampleCount) {

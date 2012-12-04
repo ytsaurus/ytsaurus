@@ -30,6 +30,7 @@ TProgressCounter::TProgressCounter(i64 total)
 void TProgressCounter::Set(i64 total)
 {
     TotalEnabled = true;
+    Total_ = total;
     Running_ = 0;
     Completed_ = 0;
     Pending_ = total;
@@ -163,18 +164,20 @@ Stroka ToString(const TProgressCounter& counter)
 {
     return
         counter.IsTotalEnabled()
-        ? Sprintf("T: %" PRId64 ", R: %" PRId64 ", C: %" PRId64 ", P: %" PRId64 ", F: %" PRId64 ", A: %" PRId64 ", L: %d" PRId64,
+        ? Sprintf("T: %" PRId64 ", R: %" PRId64 ", C: %" PRId64 ", P: %" PRId64 ", F: %" PRId64 ", A: %" PRId64 ", L: %" PRId64,
             counter.GetTotal(),
             counter.GetRunning(),
             counter.GetCompleted(),
             counter.GetPending(),
             counter.GetFailed(),
-            counter.GetAborted())
+            counter.GetAborted(),
+            counter.GetLost())
         : Sprintf("R: %" PRId64 ", C: %" PRId64 ", F: %" PRId64 ", A: %" PRId64 ", L: %" PRId64,
             counter.GetRunning(),
             counter.GetCompleted(),
             counter.GetFailed(),
-            counter.GetAborted());
+            counter.GetAborted(),
+            counter.GetLost());
 }
 
 ////////////////////////////////////////////////////////////////////

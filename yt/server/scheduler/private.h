@@ -26,13 +26,15 @@ typedef TIntrusivePtr<TChunkStripe> TChunkStripePtr;
 struct TChunkStripeList;
 typedef TIntrusivePtr<TChunkStripeList> TChunkStripeListPtr;
 
-class TUnorderedChunkPool;
-class TAtomicChunkPool;
-
 class TChunkListPool;
 typedef TIntrusivePtr<TChunkListPool> TChunkListPoolPtr;
 
-template <class TChunkInfoFetcher>
+struct IChunkPoolInput;
+struct IChunkPoolOutput;
+struct IChunkPool;
+struct IShuffleChunkPool;
+
+template <class TFetcher>
 class TChunkInfoCollector;
 
 class TSamplesFetcher;

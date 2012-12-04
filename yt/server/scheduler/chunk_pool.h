@@ -18,8 +18,7 @@ struct TChunkStripe
 {
     TChunkStripe();
     explicit TChunkStripe(NTableClient::TRefCountedInputChunkPtr inputChunk);
-
-    void GetStatistics(i64* totalDataSize, i64* totalRowCount);
+    explicit TChunkStripe(const TChunkStripe& other);
 
     TSmallVector<NTableClient::TRefCountedInputChunkPtr, 1> Chunks;
 };
@@ -31,13 +30,10 @@ struct TChunkStripeList
 {
     TChunkStripeList();
 
-    bool TryAddStripe(
-        TChunkStripePtr stripe,
-        const TNullable<Stroka>& address = Null,
-        i64 dataSizeThreshold = std::numeric_limits<i64>::max());
-
     std::vector<TChunkStripePtr> Stripes;
     
+    TNullable<int> PartitionTag;
+
     i64 TotalDataSize;
     i64 TotalRowCount;
 
@@ -45,15 +41,11 @@ struct TChunkStripeList
     int LocalChunkCount;
     int NonLocalChunkCount;
 
-    // Upper bound on row count in extraction result.
-    i64 TotalRowCount;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IChunkPoolInput
-    : public virtual TIntrinsicRefCounted
 {
     virtual ~IChunkPoolInput()
     { }
@@ -73,7 +65,6 @@ struct IChunkPoolInput
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IChunkPoolOutput
-    : public virtual TIntrinsicRefCounted
 {
     virtual ~IChunkPoolOutput()
     { }
@@ -113,9 +104,7 @@ struct IChunkPool
 
 TAutoPtr<IChunkPool> CreateAtomicChunkPool();
 
-TAutoPtr<IChunkPool> CreateUnorderedChunkPool(
-    int jobCount,
-    i64 dataSizeThreshold);
+TAutoPtr<IChunkPool> CreateUnorderedChunkPool(int jobCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -131,6 +120,19 @@ struct IShuffleChunkPool
 TAutoPtr<IShuffleChunkPool> CreateShuffleChunkPool(
     int partitionCount,
     i64 dataSizeThreshold);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void GetStatistics(
+    const TChunkStripePtr& stripe,
+    i64* totalDataSize = NULL,
+    i64* totalRowCount = NULL);
+
+bool TryAddStripeToList(
+    const TChunkStripePtr& stripe,
+    const TChunkStripeListPtr& list,
+    const TNullable<Stroka>& address = Null,
+    i64 dataSizeThreshold = std::numeric_limits<i64>::max());
 
 ////////////////////////////////////////////////////////////////////////////////
 

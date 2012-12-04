@@ -88,6 +88,12 @@ protected:
     // Remains True as long as the operation can schedule new jobs.
     bool Running;
 
+    // Totals.
+    int TotalInputChunkCount;
+    i64 TotalInputDataSize;
+    i64 TotalInputRowCount;
+    i64 TotalInputValueCount;
+
     // Job counters.
     TProgressCounter JobCounter;
 
@@ -178,11 +184,13 @@ protected:
         explicit TJoblet(TTaskPtr task, int jobIndex)
             : Task(task)
             , JobIndex(jobIndex)
+            , StartRowIndex(-1)
             , OutputCookie(IChunkPoolOutput::NullCookie)
         { }
 
         TTaskPtr Task;
         int JobIndex;
+        i64 StartRowIndex;
 
         TJobPtr Job;
         TChunkStripeListPtr InputStripeList;
@@ -224,7 +232,7 @@ protected:
 
         DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, DelayedTime);
 
-        virtual void AddInput(TChunkStripePtr stripe);
+        void AddInput(TChunkStripePtr stripe);
         void AddInput(const std::vector<TChunkStripePtr>& stripes);
         void FinishInput();
 
@@ -263,14 +271,23 @@ protected:
         void AddPendingHint();
         virtual void AddInputLocalityHint(TChunkStripePtr stripe);
 
-        void AddSequentialInputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
-        void AddParallelInputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
+        static void AddSequentialInputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
+        static void AddParallelInputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
+        
         void AddOutputSpecs(NScheduler::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
         void AddIntermediateOutputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
 
     private:
-        void ReleaseFailedJob(TJobletPtr joblet);
-        void AddInputChunks(NScheduler::NProto::TTableInputSpec* inputSpec, TChunkStripePtr stripe);
+        void ReleaseFailedJobResources(TJobletPtr joblet);
+
+        static void AddInputChunks(
+            NScheduler::NProto::TTableInputSpec* inputSpec,
+            TChunkStripePtr stripe,
+            TNullable<int> partitionTag);
+
+        static void UpdateInputSpecTotals(
+            NScheduler::NProto::TJobSpec* jobSpec,
+            TJobletPtr joblet);
     };
 
     struct TPendingTaskInfo
@@ -349,8 +366,10 @@ protected:
     virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline);
 
     // Round 5.
+    // - Collect totals.
+    // - Check for empty inputs.
     // - Init chunk list pool.
-    void CompletePreparation();
+    TFuture<void> CompletePreparation();
     void OnPreparationCompleted();
 
     // Here comes the completion pipeline.
@@ -412,6 +431,7 @@ protected:
     static bool CheckKeyColumnsCompatible(
         const std::vector<Stroka>& fullColumns,
         const std::vector<Stroka>& prefixColumns);
+
     void RegisterOutputChunkTree(
         const NChunkServer::TChunkTreeId& chunkTreeId,
         int key,
@@ -420,6 +440,9 @@ protected:
         TJobletPtr joblet,
         int key);
 
+    static TChunkStripePtr BuildIntermediateChunkStripe(
+        google::protobuf::RepeatedPtrField<NTableClient::NProto::TInputChunk>* inputChunks);
+
     bool HasEnoughChunkLists(int requestedCount);
     NChunkClient::TChunkListId ExtractChunkList();
 
@@ -427,19 +450,15 @@ protected:
     void ReleaseChunkLists(const std::vector<NChunkClient::TChunkListId>& ids);
 
     //! Returns the list of all input chunks collected from all input tables.
-    std::vector<NTableClient::TRefCountedInputChunkPtr> CollectInputTablesChunks();
+    std::vector<NTableClient::TRefCountedInputChunkPtr> CollectInputChunks();
 
     //! Converts a list of input chunks into a list of chunk stripes for further
     //! processing. Each stripe receives exactly one chunk (as suitable for most
     //! jobs except merge). Tries to slice chunks into smaller parts if
-    //! sees necessary based on #desiredJobCount and #maxWeightPerJob.
-    void SliceChunks(
-        const std::vector<NTableClient::TRefCountedInputChunkPtr>& inputChunks,
+    //! sees necessary based on #jobCount and #jobSliceWeight.
+    std::vector<TChunkStripePtr> SliceInputChunks(
         TNullable<int> jobCount,
-        i64 jobSliceWeight,
-        std::vector<TChunkStripePtr>* stripes,
-        i64* totalDataSize,
-        int* totalChunkCount);
+        i64 jobSliceWeight);
 
     int SuggestJobCount(
         i64 totalDataSize,
@@ -455,8 +474,7 @@ protected:
 
     static void AddUserJobEnvironment(
         NScheduler::NProto::TUserJobSpec* proto, 
-        TJobletPtr joblet,
-        i64 startRowCount);
+        TJobletPtr joblet);
 
     static void InitIntermediateInputConfig(TJobIOConfigPtr config);
 

@@ -106,7 +106,8 @@ struct TMapOperationSpec
     TMapOperationSpec()
     {
         Register("mapper", Mapper);
-        Register("input_table_paths", InputTablePaths);
+        Register("input_table_paths", InputTablePaths)
+            .NonEmpty();
         Register("output_table_paths", OutputTablePaths);
         Register("job_count", JobCount)
             .Default()

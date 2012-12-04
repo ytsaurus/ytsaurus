@@ -101,6 +101,9 @@ template <class TChunkReader>
 void TMultiChunkReaderBase<TChunkReader>::ProcessFinishedReader(const TSession& session)
 {
     ItemCount_ += session.Reader->GetRowIndex() - session.Reader->GetRowCount();
+    LOG_DEBUG("BUG! chunkid = %s, row count = %" PRId64,
+        ~ToString(NChunkClient::TChunkId::FromProto(InputChunks[session.ChunkIndex].slice().chunk_id())),
+        session.Reader->GetRowIndex());
 }
 
 template <class TChunkReader>

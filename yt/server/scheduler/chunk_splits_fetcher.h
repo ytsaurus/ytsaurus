@@ -31,8 +31,7 @@ public:
         const TOperationId& operationId,
         const NTableClient::TKeyColumns& keyColumns);
 
-    // If returns false, no further collecting is required.
-    bool Prepare(const std::vector<NTableClient::TRefCountedInputChunkPtr>& chunks);
+    void Prepare(const std::vector<NTableClient::TRefCountedInputChunkPtr>& chunks);
 
     void CreateNewRequest(const Stroka& address);
 

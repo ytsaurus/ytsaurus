@@ -86,7 +86,7 @@ public:
             std::vector<const char*> rowPtrBuffer;
             std::vector<ui32> rowIndexHeap;
 
-            i64 estimatedRowCount = Host->GetJobSpec().row_count();
+            i64 estimatedRowCount = Host->GetJobSpec().input_row_count();
 
             LOG_INFO("Initializing");
             {
@@ -271,7 +271,7 @@ public:
 
     double GetProgress() const override
     {
-        i64 total = Host->GetJobSpec().row_count();
+        i64 total = Host->GetJobSpec().input_row_count();
         if (total == 0) {
             LOG_WARNING("GetProgress: empty total");
             return 0;
