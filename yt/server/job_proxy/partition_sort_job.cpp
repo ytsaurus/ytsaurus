@@ -162,7 +162,7 @@ public:
             i64 totalRowCount = rowIndexHeap.size();
             LOG_INFO("Total row count: %" PRId64, totalRowCount);
 
-            YCHECK(totalRowCount <= estimatedRowCount);
+            YCHECK(totalRowCount == estimatedRowCount);
 
             LOG_INFO("Writing");
             {
