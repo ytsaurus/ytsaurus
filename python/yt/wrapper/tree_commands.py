@@ -159,7 +159,7 @@ def search(root="/", node_type=None, path_filter=None, object_filter=None, attri
     result = []
     def walk(path, object):
         object_type = object["$attributes"]["type"]
-        if (node_type is None or object_type == node_type) and \
+        if (node_type is None or object_type in flatten(node_type)) and \
            (object_filter is None or object_filter(object)) and \
            (path_filter is None or path_filter(path)):
             # TODO(ignat): bad solution, because of embedded attributes
