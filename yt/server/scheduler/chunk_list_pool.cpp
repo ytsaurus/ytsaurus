@@ -37,8 +37,6 @@ TChunkListPool::TChunkListPool(
     YCHECK(operation);
 
     Logger.AddTag(Sprintf("OperationId: %s", ~operation->GetOperationId().ToString()));
-
-    AllocateMore();
 }
 
 bool TChunkListPool::HasEnough(int requestedCount)
