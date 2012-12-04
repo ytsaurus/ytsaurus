@@ -99,6 +99,9 @@ struct TSchedulerConfig
 
     //! Approximate maximum number of jobs per operation.
     int MaxJobCount;
+    
+    //! Approximate maximum number of jobs per operation.
+    ui64 TableFileSizeLimit;
 
     NYTree::INodePtr MapOperationSpec;
     NYTree::INodePtr ReduceOperationSpec;
@@ -172,6 +175,9 @@ struct TSchedulerConfig
 
         Register("environment", Environment)
             .Default(yhash_map<Stroka, Stroka>());
+
+        Register("table_file_size_limit", TableFileSizeLimit)
+            .Default(2 * (ui64)1024 * 1024 * 1024);
     }
 };
 

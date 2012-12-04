@@ -4,6 +4,7 @@
 #include "slot.h"
 #include "environment.h"
 #include "private.h"
+#include "bootstrap.h"
 
 #include <ytlib/misc/fs.h>
 #include <ytlib/misc/assert.h>
@@ -13,6 +14,15 @@
 #include <ytlib/transaction_client/transaction.h>
 
 #include <ytlib/file_client/file_ypath_proxy.h>
+
+#include <ytlib/table_client/table_producer.h>
+#include <ytlib/table_client/table_reader.h>
+#include <ytlib/table_client/table_chunk_reader.h>
+#include <ytlib/table_client/multi_chunk_sequential_reader.h>
+#include <ytlib/table_client/config.h>
+
+
+#include <ytlib/chunk_client/client_block_cache.h>
 
 #include <server/chunk_holder/chunk.h>
 #include <server/chunk_holder/location.h>
@@ -31,6 +41,7 @@ using namespace NRpc;
 using namespace NJobProxy;
 using namespace NYTree;
 using namespace NYson;
+using namespace NTableClient;
 using NChunkClient::TChunkId;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -38,19 +49,18 @@ using NChunkClient::TChunkId;
 TJob::TJob(
     const TJobId& jobId,
     TJobSpec&& jobSpec,
-    TJobProxyConfigPtr proxyConfig,
-    NChunkHolder::TChunkCachePtr chunkCache)
+    TBootstrap* bootstrap)
     : JobId(jobId)
     , JobSpec(jobSpec)
     // Use initial utilization provided by the scheduler.
     , ResourceUtilization(JobSpec.resource_utilization())
     , Logger(ExecAgentLogger)
-    , ChunkCache(chunkCache)
+    , Bootstrap(bootstrap)
+    , ChunkCache(bootstrap->GetChunkCache())
     , JobState(EJobState::Waiting)
     , JobPhase(EJobPhase::Created)
     , Progress(0.0)
     , JobFinished(NewPromise<void>())
-    , ProxyConfig(proxyConfig)
 {
     Logger.AddTag(Sprintf("JobId: %s", ~jobId.ToString()));
 }
@@ -103,11 +113,11 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
             return;
         }
 
-        auto proxyConfig = CloneYsonSerializable(ProxyConfig);
+        auto proxyConfig = CloneYsonSerializable(Bootstrap->GetJobProxyConfig());
         proxyConfig->JobIO = ioConfig;
 
         auto proxyConfigPath = NFS::CombinePaths(
-            Slot->GetWorkingDirectory(), 
+            Slot->GetWorkingDirectory(),
             ProxyConfigFileName);
 
         TFile file(proxyConfigPath, CreateAlways | WrOnly | Seq | CloseOnExec);
@@ -129,7 +139,7 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
             Slot->GetWorkingDirectory());
     } catch (const std::exception& ex) {
         auto wrappedError = TError(
-            "Failed to create proxy controller for environment %s", 
+            "Failed to create proxy controller for environment %s",
             ~environmentType.Quote())
             << ex;
         DoAbort(wrappedError, EJobState::Failed);
@@ -167,13 +177,29 @@ void TJob::PrepareUserJob(
 {
     FOREACH (const auto& fetchRsp, userJobSpec.files()) {
         auto chunkId = TChunkId::FromProto(fetchRsp.chunk_id());
-        LOG_INFO("Downloading user file (FileName: %s, ChunkId: %s)", 
+        LOG_INFO("Downloading user file (FileName: %s, ChunkId: %s)",
             ~fetchRsp.file_name(),
             ~chunkId.ToString());
         awaiter->Await(
-            ChunkCache->DownloadChunk(chunkId), 
+            ChunkCache->DownloadChunk(chunkId),
             BIND(&TJob::OnChunkDownloaded, MakeWeak(this), fetchRsp));
     }
+
+    FOREACH (const auto& rsp, userJobSpec.table_files()) {
+        LOG_INFO("Downloading user table file %s", ~rsp.file_name());
+
+        auto downloadTableAwaiter = New<TParallelAwaiter>(Slot->GetInvoker());
+        FOREACH (const auto chunk, rsp.table().chunks()) {
+            auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
+            downloadTableAwaiter->Await(ChunkCache->DownloadChunk(chunkId));
+        }
+
+        auto promise = NewPromise<void>();
+        downloadTableAwaiter->Complete(
+            BIND(&TJob::OnTableDownloaded, MakeWeak(this), rsp, promise));
+        awaiter->Await(promise);
+    }
+
 }
 
 void TJob::OnChunkDownloaded(
@@ -191,7 +217,7 @@ void TJob::OnChunkDownloaded(
 
     if (!result.IsOK()) {
         auto wrappedError = TError(
-            "Failed to download user file %s", 
+            "Failed to download user file %s",
             ~fileName.Quote())
             << result;
         DoAbort(wrappedError, EJobState::Failed, false);
@@ -202,12 +228,12 @@ void TJob::OnChunkDownloaded(
 
     try {
         Slot->MakeLink(
-            fileName, 
-            CachedChunks.back()->GetFileName(), 
+            fileName,
+            CachedChunks.back()->GetFileName(),
             fetchRsp.executable());
     } catch (const std::exception& ex) {
         auto wrappedError = TError(
-            "Failed to create a symlink for %s", 
+            "Failed to create a symlink for %s",
             ~fileName.Quote())
             << ex;
         DoAbort(wrappedError, EJobState::Failed, false);
@@ -216,6 +242,65 @@ void TJob::OnChunkDownloaded(
 
     LOG_INFO("User file downloaded successfully (FileName: %s)",
         ~fileName);
+}
+
+void TJob::OnTableDownloaded(
+    const NYT::NScheduler::NProto::TTableFile& tableFileRsp,
+    TPromise<void> promise)
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    if (JobPhase > EJobPhase::Cleanup) {
+        return;
+    }
+    YCHECK(JobPhase == EJobPhase::PreparingSandbox);
+
+    // Preparing chunks
+    std::vector<NTableClient::NProto::TInputChunk> chunks;
+    chunks.insert(
+        chunks.end(),
+        tableFileRsp.table().chunks().begin(),
+        tableFileRsp.table().chunks().end());
+    FOREACH(auto& chunk, chunks) {
+        chunk.clear_node_addresses();
+        chunk.add_node_addresses(Bootstrap->GetPeerAddress());
+    }
+
+    // Creating table reader
+    auto config = New<TTableReaderConfig>();
+    auto blockCache = NChunkClient::CreateClientBlockCache(
+        New<NChunkClient::TClientBlockCacheConfig>());
+    auto reader = New<TTableChunkSequenceReader>(
+        config,
+        Bootstrap->GetMasterChannel(),
+        blockCache,
+        MoveRV(chunks),
+        New<TTableChunkReaderProvider>(config));
+
+    auto syncReader = CreateSyncReader(reader);
+    syncReader->Open();
+
+    auto tableProducer = BIND(&ProduceYson, syncReader);
+
+    auto fileName = tableFileRsp.file_name();
+    try {
+        Slot->MakeFile(
+            fileName,
+            tableProducer,
+            ConvertTo<NFormats::TFormat>(TYsonString(tableFileRsp.format())));
+    } catch (const std::exception& ex) {
+        auto wrappedError = TError(
+            "Failed to write user table file %s",
+            ~fileName.Quote())
+            << ex;
+        DoAbort(wrappedError, EJobState::Failed, false);
+        return;
+    }
+
+    LOG_INFO("User table file downloaded successfully (FileName: %s)",
+        ~fileName);
+
+    promise.Set();
 }
 
 void TJob::RunJobProxy()
@@ -275,7 +360,7 @@ void TJob::OnJobExit(TError error)
     Slot->Clean();
 
     JobPhase = EJobPhase::Completed;
-        
+
     if (JobResult->error().code() == TError::OK) {
         JobState = EJobState::Completed;
     } else {

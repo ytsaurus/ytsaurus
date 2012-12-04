@@ -97,6 +97,7 @@ public:
     virtual ICypressNode* GetTrunkNode() const override;
 
     virtual NYTree::ENodeType GetType() const override;
+    
 
     virtual NYTree::ICompositeNodePtr GetParent() const override;
     virtual void SetParent(NYTree::ICompositeNodePtr parent) override;

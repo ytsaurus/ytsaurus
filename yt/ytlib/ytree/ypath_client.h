@@ -150,6 +150,9 @@ template <class TTypedRequest>
 TIntrusivePtr<typename TTypedRequest::TTypedResponse>
 SyncExecuteVerb(IYPathServicePtr service, TIntrusivePtr<TTypedRequest> request);
 
+//! Synchronously executes |GetKey| verb. Throws if an error has occurred.
+Stroka SyncYPathGetKey(IYPathServicePtr service, const TYPath& path);
+
 //! Asynchronously executes |Get| verb. 
 TFuture< TValueOrError<TYsonString> > AsyncYPathGet(
     IYPathServicePtr service,

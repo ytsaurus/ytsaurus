@@ -41,8 +41,7 @@ public:
     TJob(
         const TJobId& jobId,
         NScheduler::NProto::TJobSpec&& jobSpec,
-        NJobProxy::TJobProxyConfigPtr proxyConfig,
-        NChunkHolder::TChunkCachePtr chunkCache);
+        TBootstrap* bootstrap);
 
     void Start(TEnvironmentManagerPtr environmentManager, TSlotPtr slot);
 
@@ -78,6 +77,9 @@ private:
     void OnChunkDownloaded(
         const NFileClient::NProto::TRspFetchFile& fetchRsp,
         TValueOrError<NChunkHolder::TCachedChunkPtr> result);
+    void OnTableDownloaded(
+        const NYT::NScheduler::NProto::TTableFile& tableFileRsp,
+        TPromise<void> promise);
 
     void RunJobProxy();
     void SetResult(const TError& error);
@@ -101,6 +103,8 @@ private:
 
     NLog::TTaggedLogger Logger;
 
+    TBootstrap* Bootstrap;
+
     NChunkHolder::TChunkCachePtr ChunkCache;
 
     TSlotPtr Slot;
@@ -120,7 +124,6 @@ private:
     TPromise<void> JobFinished;
 
     NJobProxy::TJobProxyConfigPtr ProxyConfig;
-
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 };

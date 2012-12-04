@@ -134,7 +134,7 @@ bool TYPathServiceBase::IsWriteRequest(IServiceContextPtr context) const
     { \
         UNUSED(request); \
         UNUSED(response); \
-        NYTree::ThrowVerbNotSuppored(context->GetVerb()); \
+        NYTree::ThrowVerbNotSuppored(context->GetVerb(), "Self"); \
     } \
     \
     void TSupports##verb::verb##Recursive(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context) \
@@ -142,7 +142,7 @@ bool TYPathServiceBase::IsWriteRequest(IServiceContextPtr context) const
         UNUSED(path); \
         UNUSED(request); \
         UNUSED(response); \
-        NYTree::ThrowVerbNotSuppored(context->GetVerb()); \
+        NYTree::ThrowVerbNotSuppored(context->GetVerb(), "Recursive"); \
     } \
     \
     void TSupports##verb::verb##Attribute(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context) \
@@ -150,9 +150,10 @@ bool TYPathServiceBase::IsWriteRequest(IServiceContextPtr context) const
         UNUSED(path); \
         UNUSED(request); \
         UNUSED(response); \
-        NYTree::ThrowVerbNotSuppored(context->GetVerb()); \
+        NYTree::ThrowVerbNotSuppored(context->GetVerb(), "Attribute"); \
     }
 
+IMPLEMENT_SUPPORTS_VERB(GetKey)
 IMPLEMENT_SUPPORTS_VERB(Get)
 IMPLEMENT_SUPPORTS_VERB(Set)
 IMPLEMENT_SUPPORTS_VERB(List)

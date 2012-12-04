@@ -3,7 +3,10 @@
 #include "private.h"
 
 #include <ytlib/misc/fs.h>
+#include <ytlib/ytree/yson_producer.h>
+
 #include <util/folder/dirut.h>
+#include <util/stream/file.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -36,7 +39,7 @@ void TSlot::Acquire()
     IsFree_ = false;
 }
 
-bool TSlot::IsFree() const 
+bool TSlot::IsFree() const
 {
     return IsFree_;
 }
@@ -74,13 +77,30 @@ void TSlot::InitSandbox()
 }
 
 void TSlot::MakeLink(
-    const Stroka& linkName, 
-    const Stroka& targetPath, 
+    const Stroka& linkName,
+    const Stroka& targetPath,
     bool isExecutable)
 {
     auto linkPath = NFS::CombinePaths(SandboxPath, linkName);
     NFS::MakeSymbolicLink(targetPath, linkPath);
     NFS::SetExecutableMode(linkPath, isExecutable);
+}
+
+
+void TSlot::MakeFile(
+    const Stroka& fileName,
+    NYTree::TYsonProducer producer,
+    const NFormats::TFormat& format)
+{
+    TFileOutput fileOutput(NFS::CombinePaths(SandboxPath, fileName));
+
+    producer.Run(
+        CreateConsumerForFormat(
+            format,
+            NFormats::EDataType::Tabular,
+            &fileOutput).Get());
+
+    fileOutput.Finish();
 }
 
 const Stroka& TSlot::GetWorkingDirectory() const

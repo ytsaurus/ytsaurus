@@ -55,6 +55,7 @@ protected:
         virtual void verb##Attribute(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context); \
     }
 
+DECLARE_SUPPORTS_VERB(GetKey);
 DECLARE_SUPPORTS_VERB(Get);
 DECLARE_SUPPORTS_VERB(Set);
 DECLARE_SUPPORTS_VERB(List);

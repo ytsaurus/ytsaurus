@@ -21,6 +21,7 @@
 
 #include <ytlib/cypress_client/public.h>
 #include <ytlib/ytree/ypath_client.h>
+#include <ytlib/ytree/yson_string.h>
 
 #include <server/chunk_server/public.h>
 
@@ -171,6 +172,17 @@ protected:
 
     std::vector<TUserFile> Files;
 
+    // Table files.
+    struct TUserTableFile
+    {
+        NYPath::TRichYPath Path;
+        NTableClient::TTableYPathProxy::TRspFetchPtr FetchResponse;
+        Stroka FileName;
+        NYTree::TYsonString Format;
+    };
+
+    std::vector<TUserTableFile> TableFiles;
+
     // Forward declarations.
 
     class TTask;
@@ -220,9 +232,9 @@ protected:
 
         virtual NProto::TNodeResources GetTotalNeededResources() const;
         NProto::TNodeResources GetTotalNeededResourcesDelta();
-        
+
         virtual int GetChunkListCountPerJob() const = 0;
-        
+
         virtual TDuration GetLocalityTimeout() const = 0;
         virtual i64 GetLocality(const Stroka& address) const;
         virtual bool IsStrictlyLocal() const;
@@ -273,11 +285,11 @@ protected:
         virtual void AddInputLocalityHint(TChunkStripePtr stripe);
 
         static void AddSequentialInputSpec(
-            NScheduler::NProto::TJobSpec* jobSpec, 
+            NScheduler::NProto::TJobSpec* jobSpec,
             TJobletPtr joblet,
             bool enableTableIndex = false);
         static void AddParallelInputSpec(
-            NScheduler::NProto::TJobSpec* jobSpec, 
+            NScheduler::NProto::TJobSpec* jobSpec,
             TJobletPtr joblet,
             bool enableTableIndex = false);
         
@@ -396,13 +408,15 @@ protected:
 
     //! Called to extract input table paths from the spec.
     virtual std::vector<NYPath::TRichYPath> GetInputTablePaths() const = 0;
-    
+
     //! Called to extract output table paths from the spec.
     virtual std::vector<NYPath::TRichYPath> GetOutputTablePaths() const = 0;
-    
+
     //! Called to extract file paths from the spec.
     virtual std::vector<NYPath::TRichYPath> GetFilePaths() const;
 
+    //! Called to extract table file paths from the spec.
+    virtual std::vector<NYPath::TRichYPath> GetTableFilePaths() const;
 
     //! Called when a job is unable to read a chunk.
     void OnChunkFailed(const NChunkClient::TChunkId& chunkId);
@@ -422,7 +436,7 @@ protected:
      */
     void OnInputChunkFailed(const NChunkClient::TChunkId& chunkId);
 
-    
+
     // Abort is not a pipeline really :)
 
     void AbortTransactions();
@@ -478,10 +492,11 @@ protected:
     void InitUserJobSpec(
         NScheduler::NProto::TUserJobSpec* proto,
         TUserJobSpecPtr config,
-        const std::vector<TUserFile>& files);
+        const std::vector<TUserFile>& files,
+        const std::vector<TUserTableFile>& tableFiles);
 
     static void AddUserJobEnvironment(
-        NScheduler::NProto::TUserJobSpec* proto, 
+        NScheduler::NProto::TUserJobSpec* proto,
         TJobletPtr joblet);
 
     static void InitIntermediateInputConfig(TJobIOConfigPtr config);

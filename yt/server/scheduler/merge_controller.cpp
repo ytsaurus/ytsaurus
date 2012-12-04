@@ -127,7 +127,7 @@ protected:
         {
             return Controller->SpecBase->LocalityTimeout;
         }
-        
+
         virtual NProto::TNodeResources GetMinNeededResources() const override
         {
             TNodeResources result;
@@ -155,7 +155,7 @@ protected:
 
         TAutoPtr<IChunkPool> ChunkPool;
 
-        //! The position in #TMergeControllerBase::Tasks. 
+        //! The position in #TMergeControllerBase::Tasks.
         int TaskIndex;
 
         //! Key for #TOutputTable::OutputChunkTreeIds.
@@ -202,7 +202,7 @@ protected:
         CurrentTaskStripes.resize(InputTables.size());
     }
 
-    void EndTask(TMergeTaskPtr task) 
+    void EndTask(TMergeTaskPtr task)
     {
         YCHECK(HasActiveTask());
 
@@ -223,7 +223,7 @@ protected:
         CurrentTaskDataSize = 0;
         ClearCurrentTaskStripes();
     }
-    
+
     //! Finishes the current task.
     void EndTask()
     {
@@ -336,7 +336,7 @@ protected:
             }
 
             MaxDataSizePerJob = std::max(
-                SpecBase->MaxDataSizePerJob, 
+                SpecBase->MaxDataSizePerJob,
                 static_cast<i64>(std::ceil((double) totalDataSize / Config->MaxJobCount)));
 
             FOREACH (auto chunk, chunks) {
@@ -456,7 +456,7 @@ protected:
     }
 
     //! Initializes #JobIOConfig.
-    void InitJobIOConfig() 
+    void InitJobIOConfig()
     {
         JobIOConfig = CloneYsonSerializable(SpecBase->JobIO);
         InitFinalOutputConfig(JobIOConfig);
@@ -465,10 +465,10 @@ protected:
     //! Initializes #JobSpecTemplate.
     virtual void InitJobSpecTemplate() = 0;
 
-    virtual void CustomizeJobSpec(TJobletPtr joblet, NProto::TJobSpec* jobSpec) 
+    virtual void CustomizeJobSpec(TJobletPtr joblet, NProto::TJobSpec* jobSpec)
     { }
 
-    virtual bool EnableTableIndex() const 
+    virtual bool EnableTableIndex() const
     {
         return false;
     }
@@ -741,7 +741,7 @@ protected:
         }
     };
 
-    DECLARE_ENUM(EEndpointType, 
+    DECLARE_ENUM(EEndpointType,
         (Left)
         (Maniac)
         (Right)
@@ -756,7 +756,7 @@ protected:
     };
 
     std::vector<TKeyEndpoint> Endpoints;
-    
+
     //! The actual (adjusted) key columns.
     std::vector<Stroka> KeyColumns;
 
@@ -834,7 +834,7 @@ protected:
         BuildTasks();
     }
 
-    void BuildTasks() 
+    void BuildTasks()
     {
         // Compute components consisting of overlapping chunks.
         // Combine small tasks, if requested so.
@@ -864,7 +864,7 @@ protected:
 
             switch (endpoint.Type) {
                 case EEndpointType::Left:
-                    if (openedChunks.empty() && 
+                    if (openedChunks.empty() &&
                         IsStartingSlice(*endpoint.InputChunk) &&
                         AllowPassthroughChunks())
                     {
@@ -1026,7 +1026,7 @@ protected:
     void EndManiacTask()
     {
         auto task = New<TManiacTask>(
-            this, 
+            this,
             static_cast<int>(Tasks.size()),
             PartitionCount);
 
@@ -1048,8 +1048,8 @@ protected:
             ~ConvertToYsonString(KeyColumns, NYson::EYsonFormat::Text).Data());
 
         ChunkSplitsFetcher = New<TChunkSplitsFetcher>(
-            Config, 
-            SpecBase, 
+            Config,
+            SpecBase,
             Operation->GetOperationId(),
             KeyColumns);
 
@@ -1195,6 +1195,11 @@ private:
         return Spec->Reducer->FilePaths;
     }
 
+    virtual std::vector<TRichYPath> GetTableFilePaths() const override
+    {
+        return Spec->Reducer->TableFilePaths;
+    }
+
     virtual bool IsPassthroughChunk(const TInputChunk& inputChunk) override
     {
         YUNREACHABLE();
@@ -1228,7 +1233,8 @@ private:
         InitUserJobSpec(
             jobSpecExt->mutable_reducer_spec(),
             Spec->Reducer,
-            Files);
+            Files,
+            TableFiles);
 
         JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
 
@@ -1258,28 +1264,28 @@ IOperationControllerPtr CreateMergeController(
     TOperation* operation)
 {
     auto baseSpec = ParseOperationSpec<TMergeOperationSpec>(
-        operation, 
+        operation,
         NYTree::GetEphemeralNodeFactory()->CreateMap());
 
     switch (baseSpec->Mode) {
         case EMergeMode::Unordered:
         {
             auto spec = ParseOperationSpec<TUnorderedMergeOperationSpec>(
-                operation, 
+                operation,
                 config->UnorderedMergeOperationSpec);
             return New<TUnorderedMergeController>(config, spec, host, operation);
         }
         case EMergeMode::Ordered:
         {
             auto spec = ParseOperationSpec<TOrderedMergeOperationSpec>(
-                operation, 
+                operation,
                 config->OrderedMergeOperationSpec);
             return New<TOrderedMergeController>(config, spec, host, operation);
         }
         case EMergeMode::Sorted:
         {
             auto spec = ParseOperationSpec<TSortedMergeOperationSpec>(
-                operation, 
+                operation,
                 config->SortedMergeOperationSpec);
             return New<TSortedMergeController>(config, spec, host, operation);
         }

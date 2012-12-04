@@ -1,6 +1,7 @@
 package NYT.NScheduler.NProto;
 
 import "yt/ytlib/chunk_client/chunk.proto";
+import "yt/ytlib/table_client/table_ypath.proto";
 import "yt/ytlib/table_client/table_reader.proto";
 import "yt/ytlib/table_client/table_chunk_meta.proto";
 import "yt/ytlib/file_client/file_ypath.proto";
@@ -47,7 +48,7 @@ message TJobSpec
 {
     required int32 type = 1;
 
-    // Configuration for IO during job execution.    
+    // Configuration for IO during job execution.
     required bytes io_config = 2;
 
     // The transaction used for writing output chunks.
@@ -98,11 +99,23 @@ message TJobProgress
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TTableFile
+{
+    required NYT.NTableClient.NProto.TRspFetch table = 1;
+
+    required string format = 2;
+
+    required string file_name = 3;
+}
+
 // Specification for starting user code during a job.
 message TUserJobSpec
 {
     // Additional files to be placed into the sandbox.
     repeated NYT.NFileClient.NProto.TRspFetchFile files = 1;
+
+    // Additional tables to be placed into the sandbox.
+    repeated TTableFile table_files = 6;
 
     // The user command to be executed.
     required string shell_command = 2;

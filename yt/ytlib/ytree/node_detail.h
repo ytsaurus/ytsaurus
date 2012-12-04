@@ -16,6 +16,7 @@ namespace NYTree {
 
 class TNodeBase
     : public virtual TYPathServiceBase
+    , public virtual TSupportsGetKey
     , public virtual TSupportsGet
     , public virtual TSupportsSet
     , public virtual TSupportsRemove
@@ -59,6 +60,7 @@ protected:
     
     virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
 
+    virtual void GetKeySelf(TReqGetKey* request, TRspGetKey* response, TCtxGetKeyPtr context) override;
     virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context) override;
     virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemovePtr context) override;
     virtual void ExistsSelf(TReqExists* request, TRspExists* response, TCtxExistsPtr context) override;

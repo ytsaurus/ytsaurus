@@ -15,6 +15,7 @@ void ThrowNoSuchAttribute(const Stroka& key);
 void ThrowNoSuchSystemAttribute(const Stroka& key);
 void ThrowNoSuchUserAttribute(const Stroka& key);
 void ThrowVerbNotSuppored(const Stroka& verb);
+void ThrowVerbNotSuppored(const Stroka& verb, const Stroka& resolveType);
 void ThrowVerbNotSuppored(IConstNodePtr node, const Stroka& verb);
 void ThrowCannotHaveChildren(IConstNodePtr node);
 void ThrowCannotRemoveAttribute(const Stroka& key);

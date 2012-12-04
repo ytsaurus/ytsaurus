@@ -34,6 +34,7 @@ private:
     TCLAP::MultiArg<NYPath::TRichYPath> OutArg;
     TCLAP::ValueArg<Stroka> CommandArg;
     TCLAP::MultiArg<NYPath::TRichYPath> FileArg;
+    TCLAP::MultiArg<NYPath::TRichYPath> TableFileArg;
 
     virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
@@ -112,6 +113,7 @@ private:
     TCLAP::MultiArg<NYPath::TRichYPath> OutArg;
     TCLAP::ValueArg<Stroka> CommandArg;
     TCLAP::MultiArg<NYPath::TRichYPath> FileArg;
+    TCLAP::MultiArg<NYPath::TRichYPath> TableFileArg;
     TCLAP::ValueArg<Stroka> ReduceByArg;
 
     virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
@@ -132,8 +134,10 @@ private:
     TCLAP::MultiArg<NYPath::TRichYPath> OutArg;
     TCLAP::ValueArg<Stroka> MapperCommandArg;
     TCLAP::MultiArg<NYPath::TRichYPath> MapperFileArg;
+    TCLAP::MultiArg<NYPath::TRichYPath> MapperTableFileArg;
     TCLAP::ValueArg<Stroka> ReducerCommandArg;
     TCLAP::MultiArg<NYPath::TRichYPath> ReducerFileArg;
+    TCLAP::MultiArg<NYPath::TRichYPath> ReducerTableFileArg;
     TCLAP::ValueArg<Stroka> SortByArg;
     TCLAP::ValueArg<Stroka> ReduceByArg;
 

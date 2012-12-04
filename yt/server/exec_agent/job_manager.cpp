@@ -177,8 +177,7 @@ void TJobManager::CreateJob(
     auto job = New<TJob>(
         jobId,
         MoveRV(jobSpec),
-        Bootstrap->GetJobProxyConfig(),
-        Bootstrap->GetChunkCache());
+        Bootstrap);
 
     YCHECK(Jobs.insert(std::make_pair(jobId, job)).second);
     ScheduleStart();

@@ -271,6 +271,12 @@ TFuture< TValueOrError<TYsonString> > AsyncYPathGet(
             }));
 }
 
+Stroka SyncYPathGetKey(IYPathServicePtr service, const TYPath& path)
+{
+    auto request = TYPathProxy::GetKey(path);
+    return ExecuteVerb(service, request).Get()->value();
+}
+
 TYsonString SyncYPathGet(
     IYPathServicePtr service,
     const TYPath& path,

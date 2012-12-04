@@ -1613,7 +1613,10 @@ private:
     TMapReduceOperationSpecPtr Spec;
 
     std::vector<TUserFile> MapperFiles;
+    std::vector<TUserTableFile> MapperTableFiles;
+    
     std::vector<TUserFile> ReducerFiles;
+    std::vector<TUserTableFile> ReducerTableFiles;
 
     i64 MapStartRowIndex;
     i64 ReduceStartRowIndex;
@@ -1644,6 +1647,7 @@ private:
 
     virtual std::vector<TRichYPath> GetFilePaths() const override
     {
+        //TODO(ignat): separate it for MapFilePaths and ReduceFilePaths
         // Combine mapper and reducer files into a single collection.
         std::vector<TRichYPath> result;
         if (Spec->Mapper) {
@@ -1658,23 +1662,44 @@ private:
             Spec->Reducer->FilePaths.end());
         return result;
     }
+    
+    virtual std::vector<TRichYPath> GetTableFilePaths() const override
+    {
+        // Combine mapper and reducer files into a single collection.
+        std::vector<TRichYPath> result;
+        if (Spec->Mapper) {
+            result.insert(
+                result.end(),
+                Spec->Mapper->TableFilePaths.begin(),
+                Spec->Mapper->TableFilePaths.end());
+        }
+        result.insert(
+            result.end(),
+            Spec->Reducer->TableFilePaths.begin(),
+            Spec->Reducer->TableFilePaths.end());
+        return result;
+    }
 
     virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) override
     {
         // Separate mapper and reducer files.
-        auto it = Files.begin();
+        auto filesIt = Files.begin();
+        auto tableFilesIt = TableFiles.begin();
         
         if (Spec->Mapper) {
             for (int i = 0; i < static_cast<int>(Spec->Mapper->FilePaths.size()); ++i) {
-                MapperFiles.push_back(*it++);
+                MapperFiles.push_back(*filesIt++);
+                MapperTableFiles.push_back(*tableFilesIt++);
             }
         }
 
         for (int i = 0; i < static_cast<int>(Spec->Reducer->FilePaths.size()); ++i) {
-            ReducerFiles.push_back(*it++);
+            ReducerFiles.push_back(*filesIt++);
+            ReducerTableFiles.push_back(*tableFilesIt++);
         }
 
-        YCHECK(it == Files.end());
+        YCHECK(filesIt == Files.end());
+        YCHECK(tableFilesIt == TableFiles.end());
     }
 
     virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline) override
@@ -1780,7 +1805,8 @@ private:
                 InitUserJobSpec(
                     specExt->mutable_mapper_spec(),
                     Spec->Mapper,
-                    MapperFiles);
+                    MapperFiles,
+                    MapperTableFiles);
             } else {
                 PartitionJobSpecTemplate.set_type(EJobType::Partition);
             }
@@ -1808,7 +1834,8 @@ private:
             InitUserJobSpec(
                 specExt->mutable_reducer_spec(),
                 Spec->Reducer,
-                ReducerFiles);
+                ReducerFiles,
+                ReducerTableFiles);
 
             FinalSortJobSpecTemplate.set_io_config(ConvertToYsonString(FinalSortJobIOConfig).Data());
         }
@@ -1823,7 +1850,8 @@ private:
             InitUserJobSpec(
                 specExt->mutable_reducer_spec(),
                 Spec->Reducer,
-                ReducerFiles);
+                ReducerFiles,
+                ReducerTableFiles);
 
             SortedMergeJobSpecTemplate.set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).Data());
         }

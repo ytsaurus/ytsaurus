@@ -35,6 +35,7 @@ bool TNodeBase::IsWriteRequest(IServiceContextPtr context) const
 
 void TNodeBase::DoInvoke(IServiceContextPtr context)
 {
+    DISPATCH_YPATH_SERVICE_METHOD(GetKey);
     DISPATCH_YPATH_SERVICE_METHOD(Get);
     DISPATCH_YPATH_SERVICE_METHOD(Set);
     DISPATCH_YPATH_SERVICE_METHOD(Remove);
@@ -60,6 +61,37 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
     response->set_value(stream.Str());
     context->Reply();
 }
+
+void TNodeBase::GetKeySelf(TReqGetKey* request, TRspGetKey* response, TCtxGetKeyPtr context)
+{
+    UNUSED(request);
+
+    context->SetResponseInfo("Get Key request");
+    
+    auto parent = GetParent();
+    if (!parent) {
+        THROW_ERROR_EXCEPTION("Node has no parent");
+    }
+
+    Stroka key;
+    switch (parent->GetType()) {
+        case ENodeType::Map:
+            key = parent->AsMap()->GetChildKey(this);
+        break;
+
+        case ENodeType::List:
+            key = ToString(parent->AsList()->GetChildIndex(this));
+        break;
+
+        default:
+            YUNREACHABLE();
+    }
+
+    response->set_value(key);
+
+    context->Reply();
+}
+
 
 void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemovePtr context)
 {

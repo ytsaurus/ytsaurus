@@ -62,11 +62,13 @@ TMapExecutor::TMapExecutor()
     , OutArg("", "out", "output table path", false, "YPATH")
     , CommandArg("", "command", "mapper shell command", true, "", "STRING")
     , FileArg("", "file", "additional file path", false, "YPATH")
+    , TableFileArg("", "table_file", "additional table file path", false, "YPATH")
 {
     CmdLine.add(InArg);
     CmdLine.add(OutArg);
     CmdLine.add(CommandArg);
     CmdLine.add(FileArg);
+    CmdLine.add(TableFileArg);
 }
 
 void TMapExecutor::BuildArgs(IYsonConsumer* consumer)
@@ -74,6 +76,7 @@ void TMapExecutor::BuildArgs(IYsonConsumer* consumer)
     auto inputs = PreprocessYPaths(InArg.getValue());
     auto outputs = PreprocessYPaths(OutArg.getValue());
     auto files = PreprocessYPaths(FileArg.getValue());
+    auto tableFiles = PreprocessYPaths(TableFileArg.getValue());
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()
@@ -82,6 +85,7 @@ void TMapExecutor::BuildArgs(IYsonConsumer* consumer)
             .Item("mapper").BeginMap()
                 .Item("command").Scalar(CommandArg.getValue())
                 .Item("file_paths").List(files)
+                .Item("table_file_paths").List(tableFiles)
             .EndMap()
         .EndMap();
 
@@ -224,6 +228,7 @@ TReduceExecutor::TReduceExecutor()
     , OutArg("", "out", "output table path", false, "YPATH")
     , CommandArg("", "command", "reducer shell command", true, "", "STRING")
     , FileArg("", "file", "additional file path", false, "YPATH")
+    , TableFileArg("", "table_file", "additional table file path", false, "YPATH")
     , ReduceByArg("", "reduce_by", "columns to reduce by"
         "(if omitted then all input tables are assumed to have same key columns)",
         false, "", "YSON_LIST_FRAGMENT")
@@ -232,6 +237,7 @@ TReduceExecutor::TReduceExecutor()
     CmdLine.add(OutArg);
     CmdLine.add(CommandArg);
     CmdLine.add(FileArg);
+    CmdLine.add(TableFileArg);
     CmdLine.add(ReduceByArg);
 }
 
@@ -240,6 +246,7 @@ void TReduceExecutor::BuildArgs(IYsonConsumer* consumer)
     auto inputs = PreprocessYPaths(InArg.getValue());
     auto outputs = PreprocessYPaths(OutArg.getValue());
     auto files = PreprocessYPaths(FileArg.getValue());
+    auto tableFiles = PreprocessYPaths(TableFileArg.getValue());
     auto reduceBy = ConvertTo< std::vector<Stroka> >(TYsonString(ReduceByArg.getValue(), EYsonType::ListFragment));
 
     BuildYsonMapFluently(consumer)
@@ -252,6 +259,7 @@ void TReduceExecutor::BuildArgs(IYsonConsumer* consumer)
             .Item("reducer").BeginMap()
                 .Item("command").Scalar(CommandArg.getValue())
                 .Item("file_paths").List(files)
+                .Item("table_file_paths").List(tableFiles)
             .EndMap()
         .EndMap();
 
@@ -275,8 +283,10 @@ TMapReduceExecutor::TMapReduceExecutor()
     , OutArg("", "out", "output table path", false, "YPATH")
     , MapperCommandArg("", "mapper_command", "mapper shell command", false, "", "STRING")
     , MapperFileArg("", "mapper_file", "additional mapper file path", false, "YPATH")
+    , MapperTableFileArg("", "mapper_table_file", "additional mapper table file path", false, "YPATH")
     , ReducerCommandArg("", "reducer_command", "reducer shell command", true, "", "STRING")
     , ReducerFileArg("", "reducer_file", "additional reducer file path", false, "YPATH")
+    , ReducerTableFileArg("", "reducer_table_file", "additional reducer table file path", false, "YPATH")
     , SortByArg("", "sort_by", "columns to sort by", true, "", "YSON_LIST_FRAGMENT")
     , ReduceByArg("", "reduce_by", "columns to reduce by (if not specified then assumed to be equal to \"sort_by\")", false, "", "YSON_LIST_FRAGMENT")
 {
@@ -284,8 +294,10 @@ TMapReduceExecutor::TMapReduceExecutor()
     CmdLine.add(OutArg);
     CmdLine.add(MapperCommandArg);
     CmdLine.add(MapperFileArg);
+    CmdLine.add(MapperTableFileArg);
     CmdLine.add(ReducerCommandArg);
     CmdLine.add(ReducerFileArg);
+    CmdLine.add(ReducerTableFileArg);
     CmdLine.add(SortByArg);
     CmdLine.add(ReduceByArg);
 }
@@ -296,6 +308,8 @@ void TMapReduceExecutor::BuildArgs(IYsonConsumer* consumer)
     auto outputs = PreprocessYPaths(OutArg.getValue());
     auto mapperFiles = PreprocessYPaths(MapperFileArg.getValue());
     auto reducerFiles = PreprocessYPaths(ReducerFileArg.getValue());
+    auto mapperTableFiles = PreprocessYPaths(MapperTableFileArg.getValue());
+    auto reducerTableFiles = PreprocessYPaths(ReducerTableFileArg.getValue());
     auto sortBy = ConvertTo< std::vector<Stroka> >(TYsonString(SortByArg.getValue(), EYsonType::ListFragment));
     auto reduceBy = ConvertTo< std::vector<Stroka> >(TYsonString(ReduceByArg.getValue(), EYsonType::ListFragment));
 
@@ -313,11 +327,13 @@ void TMapReduceExecutor::BuildArgs(IYsonConsumer* consumer)
                     .Item("mapper").BeginMap()
                         .Item("command").Scalar(MapperCommandArg.getValue())
                         .Item("file_paths").List(mapperFiles)
+                        .Item("table_file_paths").List(mapperTableFiles)
                     .EndMap();
             })
             .Item("reducer").BeginMap()
                 .Item("command").Scalar(ReducerCommandArg.getValue())
                 .Item("file_paths").List(reducerFiles)
+                .Item("table_file_paths").List(reducerTableFiles)
             .EndMap()
        .EndMap();
 
@@ -344,7 +360,7 @@ TAbortOpExecutor::TAbortOpExecutor()
 
 void TAbortOpExecutor::BuildArgs(IYsonConsumer* consumer)
 {
-    BuildYsonMapFluently(consumer)  
+    BuildYsonMapFluently(consumer)
         .Item("operation_id").Scalar(OpArg.getValue());
 
     TRequestExecutor::BuildArgs(consumer);

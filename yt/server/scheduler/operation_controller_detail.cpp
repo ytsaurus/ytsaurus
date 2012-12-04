@@ -369,7 +369,7 @@ TOperationControllerBase::TOperationControllerBase(
 void TOperationControllerBase::Initialize()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    
+
     LOG_INFO("Initializing operation");
 
     FOREACH (const auto& path, GetInputTablePaths()) {
@@ -393,6 +393,12 @@ void TOperationControllerBase::Initialize()
         TUserFile file;
         file.Path = path;
         Files.push_back(file);
+    }
+
+    FOREACH (const auto& path, GetTableFilePaths()) {
+        TUserTableFile file;
+        file.Path = path;
+        TableFiles.push_back(file);
     }
 
     try {
@@ -505,7 +511,7 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
 
     auto joblet = GetJobInProgress(job);
     joblet->Task->OnJobCompleted(joblet);
-    
+
     RemoveJobInProgress(job);
 
     LogProgress();
@@ -611,7 +617,7 @@ TJobPtr TOperationControllerBase::ScheduleJob(
     bool isStarving)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
- 
+
     if (!Running) {
         LOG_TRACE("Operation is not running, scheduling request ignored");
         return NULL;
@@ -1205,6 +1211,31 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
         }
     }
 
+    FOREACH (const auto& file, TableFiles) {
+        auto path = file.Path.GetPath();
+        LOG_INFO("Enqueing requests for fetching table file %s", ~path);
+        {
+            {
+                auto req = TTableYPathProxy::Fetch(path);
+                req->set_fetch_all_meta_extensions(true);
+                SetTransactionId(req, InputTransaction->GetId());
+                batchReq->AddRequest(req, "fetch_table_files_chunks");
+            }
+
+            {
+                auto req = TYPathProxy::GetKey(path);
+                SetTransactionId(req, InputTransaction->GetId());
+                batchReq->AddRequest(req, "fetch_table_files_names");
+            }
+
+            {
+                auto req = TYPathProxy::Get(path + "/@uncompressed_data_size");
+                SetTransactionId(req, InputTransaction->GetId());
+                batchReq->AddRequest(req, "fetch_table_files_sizes");
+            }
+        }
+    }
+
     RequestCustomInputs(batchReq);
 
     return batchReq->Invoke();
@@ -1226,7 +1257,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 auto rsp = lockInRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error locking input table %s",
                     ~table.Path.GetPath());
-                
+
                 LOG_INFO("Input table %s locked",
                     ~table.Path.GetPath());
             }
@@ -1234,7 +1265,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 auto rsp = fetchInRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching input input table %s",
                     ~table.Path.GetPath());
-                
+
                 table.FetchResponse = rsp;
                 FOREACH (const auto& chunk, rsp->chunks()) {
                     auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
@@ -1253,10 +1284,10 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 auto rsp = getInAttributesRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting attributes for input table %s",
                     ~table.Path.GetPath());
-                
+
                 auto node = ConvertToNode(TYsonString(rsp->value()));
                 const auto& attributes = node->Attributes();
-                
+
                 if (attributes.Get<bool>("sorted")) {
                     table.KeyColumns = attributes.Get< std::vector<Stroka> >("sorted_by");
                     LOG_INFO("Input table %s is sorted by %s",
@@ -1281,7 +1312,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 auto rsp = lockOutRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error locking output table %s",
                     ~table.Path.GetPath());
-                
+
                 LOG_INFO("Output table %s locked",
                     ~table.Path.GetPath());
             }
@@ -1289,15 +1320,15 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 auto rsp = getOutAttributesRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting attributes for output table %s",
                     ~table.Path.GetPath());
-                
+
                 auto node = ConvertToNode(TYsonString(rsp->value()));
                 const auto& attributes = node->Attributes();
-                
+
                 table.Channels = attributes.GetYson("channels");
                 LOG_INFO("Output table %s has channels %s",
                     ~table.Path.GetPath(),
                     ~ConvertToYsonString(table.Channels, EYsonFormat::Text).Data());
-                
+
                 i64 initialRowCount = attributes.Get<i64>("row_count");
                 if (initialRowCount > 0 && table.Clear && !table.Overwrite) {
                     THROW_ERROR_EXCEPTION("Output table %s must be empty (use \"overwrite\" attribute to force clearing it)",
@@ -1310,7 +1341,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 auto rsp = clearOutRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error clearing output table %s",
                     ~table.Path.GetPath());
-                
+
                 LOG_INFO("Output table %s cleared",
                     ~table.Path.GetPath());
             }
@@ -1318,7 +1349,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 auto rsp = getOutChunkListRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting output chunk list for table %s",
                     ~table.Path.GetPath());
-                
+
                 table.OutputChunkListId = TChunkListId::FromProto(rsp->chunk_list_id());
                 LOG_INFO("Output table %s has output chunk list %s",
                     ~table.Path.GetPath(),
@@ -1334,7 +1365,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
             {
                 auto rsp = fetchFilesRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching files");
-                
+
                 if (file.Path.Attributes().Contains("file_name")) {
                     rsp->set_file_name(file.Path.Attributes().Get<Stroka>("file_name"));
                 }
@@ -1343,6 +1374,35 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                     ~file.Path.GetPath(),
                     ~TChunkId::FromProto(rsp->chunk_id()).ToString());
             }
+        }
+    }
+
+    {
+        auto fetchTableFilesSizesRsps = batchRsp->GetResponses<TTableYPathProxy::TRspGet>("fetch_table_files_sizes");
+        auto fetchTableFilesRsps = batchRsp->GetResponses<TTableYPathProxy::TRspFetch>("fetch_table_files_chunks");
+        auto fetchTableFilesNamesRsps = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("fetch_table_files_names");
+        for (int index = 0; index < static_cast<int>(TableFiles.size()); ++index) {
+            auto& file = TableFiles[index];
+
+            auto sizeRsp = fetchTableFilesSizesRsps[index];
+            THROW_ERROR_EXCEPTION_IF_FAILED(*sizeRsp, "Error fetching size of table files");
+            if (ConvertTo<ui64>(TYsonString(sizeRsp->value())) > Config->TableFileSizeLimit) {
+                THROW_ERROR_EXCEPTION(
+                    "Table file size exceeds the limit " PRIu64,
+                    Config->TableFileSizeLimit);
+            }
+
+            auto fetchRsp = fetchTableFilesRsps[index];
+            THROW_ERROR_EXCEPTION_IF_FAILED(*fetchRsp, "Error fetching chunks of table files");
+            file.FetchResponse = fetchRsp;
+
+            auto getKeyRsp = fetchTableFilesNamesRsps[index];
+            THROW_ERROR_EXCEPTION_IF_FAILED(*getKeyRsp, "Error fetching names of table files");
+            file.FileName = getKeyRsp->value();
+            if (file.Path.Attributes().Contains("file_name")) {
+                file.FileName = file.Path.Attributes().Get<Stroka>("file_name");
+            }
+            file.Format = file.Path.Attributes().GetYson("format");
         }
     }
 
@@ -1474,7 +1534,7 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(
     std::vector<TChunkStripePtr> stripes;
     FOREACH (auto inputChunk, inputChunks) {
         auto chunkId = TChunkId::FromProto(inputChunk->slice().chunk_id());
-        
+
         i64 dataSize;
         GetStatistics(*inputChunk, &dataSize);
 
@@ -1648,6 +1708,11 @@ std::vector<TRichYPath> TOperationControllerBase::GetFilePaths() const
     return std::vector<TRichYPath>();
 }
 
+std::vector<TRichYPath> TOperationControllerBase::GetTableFilePaths() const
+{
+    return std::vector<TRichYPath>();
+}
+
 int TOperationControllerBase::SuggestJobCount(
     i64 totalDataSize,
     i64 minDataSizePerJob,
@@ -1668,7 +1733,8 @@ int TOperationControllerBase::SuggestJobCount(
 void TOperationControllerBase::InitUserJobSpec(
     NScheduler::NProto::TUserJobSpec* proto,
     TUserJobSpecPtr config,
-    const std::vector<TUserFile>& files)
+    const std::vector<TUserFile>& files,
+    const std::vector<TUserTableFile>& tableFiles)
 {
     proto->set_shell_command(config->Command);
 
@@ -1705,12 +1771,19 @@ void TOperationControllerBase::InitUserJobSpec(
     // Local environment.
     fillEnvironment(config->Environment);
 
-    proto->add_environment(Sprintf("YT_OPERATION_ID=%s", 
+    proto->add_environment(Sprintf("YT_OPERATION_ID=%s",
         ~Operation->GetOperationId().ToString()));
 
     // TODO(babenko): think about per-job files
     FOREACH (const auto& file, files) {
         *proto->add_files() = *file.FetchResponse;
+    }
+
+    FOREACH (const auto& file, tableFiles) {
+        auto table_file = proto->add_table_files();
+        *table_file->mutable_table() = *file.FetchResponse;
+        table_file->set_file_name(file.FileName);
+        table_file->set_format(file.Format.Data());
     }
 }
 

@@ -65,7 +65,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         # if all jobs failed then operation is also failed
         with pytest.raises(YTError): track_op(op_id)
-        
+
         check_all_stderrs(op_id, 'stderr')
 
     def test_invalid_output_record(self):
@@ -106,8 +106,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create('table', '//tmp/t2')
         write_str('//tmp/t1', '{foo=bar}')
 
-        file1 = '//tmp/some_file.txt' 
-        file2 = '//tmp/renamed_file.txt' 
+        file1 = '//tmp/some_file.txt'
+        file2 = '//tmp/renamed_file.txt'
 
         upload(file1, '{value=42};\n')
         upload(file2, '{a=b};\n')
@@ -120,6 +120,24 @@ class TestSchedulerMapCommands(YTEnvSetup):
             file=[file1, "<file_name=my_file.txt>" + file2])
 
         assert read('//tmp/t2') == [{'value': 42}, {'a': 'b'}]
+
+    def test_with_user_table_files(self):
+        create('table', '//tmp/input')
+        write_str('//tmp/input', '{foo=bar}')
+
+        create('table', '//tmp/output')
+
+        create('table', '//tmp/table_file')
+        write_str('//tmp/table_file', '{text=info}')
+
+        command= "cat > /dev/null; cat table_file;"
+
+        map(in_='//tmp/input',
+            out='//tmp/output',
+            command=command,
+            table_file=["<format=yson>//tmp/table_file"])
+
+        assert read('//tmp/output') == [{'text': 'info'}]
 
 
     def test_many_output_tables(self):
@@ -265,13 +283,13 @@ cat > /dev/null; echo {hello=world}
             file='//tmp/mapper.sh')
 
         assert read('//tmp/t_out') == [{'hello': 'world'}]
-    
+
     def test_abort_op(self):
         create('table', '//tmp/t')
         write_str('//tmp/t', '{foo=bar}')
 
         op_id = map('--dont_track',
-            in_='//tmp/t', 
+            in_='//tmp/t',
             out='//tmp/t',
             command="sleep 2")
 

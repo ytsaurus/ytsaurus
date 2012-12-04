@@ -125,7 +125,7 @@ private:
 
             joblet->StartRowIndex = StartRowIndex;
             StartRowIndex += joblet->InputStripeList->TotalRowCount;
-            
+
             auto* jobSpecExt = jobSpec->MutableExtension(TMapJobSpecExt::map_job_spec_ext);
             Controller->AddUserJobEnvironment(jobSpecExt->mutable_mapper_spec(), joblet);
         }
@@ -137,7 +137,7 @@ private:
             Controller->RegisterOutputChunkTrees(joblet, 0);
         }
     };
-    
+
     typedef TIntrusivePtr<TMapTask> TMapTaskPtr;
 
     TMapTaskPtr MapTask;
@@ -160,6 +160,11 @@ private:
     virtual std::vector<TRichYPath> GetFilePaths() const override
     {
         return Spec->Mapper->FilePaths;
+    }
+
+    virtual std::vector<TRichYPath> GetTableFilePaths() const override
+    {
+        return Spec->Mapper->TableFilePaths;
     }
 
     virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline) override
@@ -215,7 +220,7 @@ private:
 
     // Unsorted helpers.
 
-    void InitJobIOConfig() 
+    void InitJobIOConfig()
     {
         JobIOConfig = CloneYsonSerializable(Spec->JobIO);
         InitFinalOutputConfig(JobIOConfig);
@@ -226,11 +231,12 @@ private:
         JobSpecTemplate.set_type(EJobType::Map);
 
         auto* jobSpecExt = JobSpecTemplate.MutableExtension(TMapJobSpecExt::map_job_spec_ext);
-        
+
         InitUserJobSpec(
             jobSpecExt->mutable_mapper_spec(),
             Spec->Mapper,
-            Files);
+            Files,
+            TableFiles);
 
         *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 

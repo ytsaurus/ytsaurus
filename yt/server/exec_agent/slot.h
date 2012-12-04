@@ -4,6 +4,8 @@
 
 #include <ytlib/actions/action_queue.h>
 
+#include <ytlib/formats/format.h>
+
 namespace NYT {
 namespace NExecAgent {
 
@@ -32,6 +34,12 @@ public:
         const Stroka& linkName, 
         const Stroka& targetPath,
         bool isExecutable);
+
+    //! Writes data from produce to fileName 
+    void MakeFile(
+        const Stroka& fileName,
+        NYTree::TYsonProducer producer,
+        const NFormats::TFormat& format);
 
     const Stroka& GetWorkingDirectory() const;
 
