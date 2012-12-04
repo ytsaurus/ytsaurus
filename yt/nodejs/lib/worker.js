@@ -34,6 +34,7 @@ try {
 
 // Hoist variable declaration.
 var static_server;
+var static_server_new;
 var dynamic_server;
 
 var violentlyDieTriggered = false;
@@ -100,7 +101,10 @@ process.on("message", function(message) {
 logger.info("Starting HTTP proxy worker", { wid : cluster.worker.id, pid : process.pid });
 
 // Setup application server.
-static_server = new node_static.Server(config.user_interface, { cache : 4 * 3600 });
+// COMPAT(sandello): Remove this.
+static_server = new node_static.Server("/usr/share/yt", { cache : 4 * 3600 });
+static_server_new = new node_static.Server("/usr/share/yt_new", { cache : 4 * 3600 });
+
 dynamic_server = connect()
     .use(connect.favicon())
     .use(yt.YtAssignRequestId())
@@ -114,6 +118,15 @@ dynamic_server = connect()
         }
         req.on("end", function() {
             static_server.serve(req, rsp);
+        });
+    })
+    .use("/ui-new", function(req, rsp, next) {
+        "use strict";
+        if (req.url === "/") {
+            req.url = "index.html";
+        }
+        req.on("end", function() {
+            static_server_new.serve(req, rsp);
         });
     })
     .use("/_check_availability_time", function(req, rsp, next) {
