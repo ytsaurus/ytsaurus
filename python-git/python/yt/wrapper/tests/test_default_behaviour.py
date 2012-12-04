@@ -204,3 +204,23 @@ class DefaultYtTest(YtTestBase, YTEnv):
         yt.sort_table(table, sort_by=["x"])
         self.assertEqual(["y=2\n", "x=1\n"], list(yt.read_table(table)))
 
+    def test_printing_stderr(self):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, ["x=1\n"])
+
+        # Prepare
+        yt.config.PRINT_STDERRS = True
+        old = yt.logger.info
+        output = []
+        def print_info(msg, *args, **kwargs):
+            output.append(msg)
+        yt.logger.info = print_info
+
+        yt.run_map("cat 1>&2", table, table)
+
+        # Return settings back
+        yt.logger.info = old
+        yt.config.PRINT_STDERRS = False
+
+        self.assertTrue(any(map(lambda line: line.find("x=1") != -1, output)))
+
