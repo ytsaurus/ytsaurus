@@ -34,7 +34,7 @@ public:
 
     T Next()
     {
-        return static_cast<T>(AtomicIncrement(Current));
+        return static_cast<T>(AtomicIncrement(Current)) - 1;
     }
 
     void Reset()
