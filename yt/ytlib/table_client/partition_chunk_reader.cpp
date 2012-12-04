@@ -24,7 +24,8 @@ TPartitionChunkReader::TPartitionChunkReader(
     const NChunkClient::IAsyncReaderPtr& asyncReader,
     int partitionTag,
     ECodecId codecId)
-    : RowCount_(0)
+    : RowPointer_(NULL)
+    , RowCount_(0)
     , SequentialConfig(sequentialReader)
     , AsyncReader(asyncReader)
     , CurrentRowIndex(0)
