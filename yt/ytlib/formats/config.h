@@ -95,6 +95,9 @@ struct TYamrFormatConfig
     char FieldSeparator;
     char RecordSeparator;
 
+    // make sense only in writer
+    bool EnableTableIndex;
+
     TYamrFormatConfig()
     {
         Register("has_subkey", HasSubkey)
@@ -111,6 +114,8 @@ struct TYamrFormatConfig
             .Default('\t');
         Register("rs", RecordSeparator)
             .Default('\n');
+        Register("enable_table_index", EnableTableIndex)
+            .Default(false);
     }
 };
 

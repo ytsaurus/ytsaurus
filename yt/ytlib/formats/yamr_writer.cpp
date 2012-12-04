@@ -16,6 +16,7 @@ TYamrWriter::TYamrWriter(TOutputStream* stream, TYamrFormatConfigPtr config)
     : Stream(stream)
     , Config(config)
     , AllowBeginMap(true)
+    , ExpectTableIndex(false)
     , State(EState::None)
 {
     if (!Config) {
@@ -28,7 +29,12 @@ TYamrWriter::~TYamrWriter()
 
 void TYamrWriter::OnIntegerScalar(i64 value)
 {
-    RememberItem(ToString(value), true);
+    if (!ExpectTableIndex) {
+        RememberItem(ToString(value), true);
+    } else {
+        WritePod(*Stream, static_cast<i16>(value));
+        ExpectTableIndex = false;
+    }
 }
 
 void TYamrWriter::OnDoubleScalar(double value)
@@ -79,6 +85,8 @@ void TYamrWriter::OnKeyedItem(const TStringBuf& key)
         State = EState::ExpectingSubkey;
     } else if (key == Config->Value) {
         State = EState::ExpectingValue;
+    } else if (key == "table_index") {
+        ExpectTableIndex = true;
     }
 }
 
@@ -90,12 +98,16 @@ void TYamrWriter::OnEndMap()
 
 void TYamrWriter::OnBeginAttributes()
 {
-    THROW_ERROR_EXCEPTION("Attributes are not supported by YAMR");
+    if (!Config->EnableTableIndex) {
+        THROW_ERROR_EXCEPTION("Attributes are not supported by YAMR");
+    }
 }
 
 void TYamrWriter::OnEndAttributes()
 {
-    YUNREACHABLE();
+    if (!Config->EnableTableIndex) {
+        YUNREACHABLE();
+    }
 }
 
 void TYamrWriter::RememberItem(const TStringBuf& item, bool takeOwnership)

@@ -122,6 +122,33 @@ TEST(TYamrWriterTest, SkippedValues)
     EXPECT_THROW(DoWrite(), std::exception);
 }
 
+TEST(TYamrWriterTest, SimpleWithTableIndex)
+{
+    TStringStream outputStream;
+    auto config = New<TYamrFormatConfig>();
+    config->EnableTableIndex = true;
+    TYamrWriter writer(&outputStream, config);
+
+    writer.OnListItem();
+    writer.OnBeginAttributes();
+        writer.OnKeyedItem("table_index");
+        writer.OnIntegerScalar(1);
+    writer.OnEndAttributes();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("key");
+        writer.OnStringScalar("key1");
+        writer.OnKeyedItem("value");
+        writer.OnStringScalar("value1");
+    writer.OnEndMap();
+
+    Stroka output = Stroka(
+        "\x01\x00" "key1" "\t" "value1" "\n"
+        , 2 + 4 + 1 + 6 + 1
+    );
+
+    EXPECT_EQ(output, outputStream.Str());
+}
+
 TEST(TYamrWriterTest, Lenval)
 {
     TStringStream outputStream;
@@ -216,6 +243,37 @@ TEST(TYamrWriterTest, LenvalWithoutFields)
 
     EXPECT_EQ(output, outputStream.Str());
 }
+
+TEST(TYamrWriterTest, LenvalWithTableIndex)
+{
+    TStringStream outputStream;
+    auto config = New<TYamrFormatConfig>();
+    config->Lenval = true;
+    config->EnableTableIndex = true;
+    TYamrWriter writer(&outputStream, config);
+
+    writer.OnListItem();
+    writer.OnBeginAttributes();
+        writer.OnKeyedItem("table_index");
+        writer.OnIntegerScalar(0);
+    writer.OnEndAttributes();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("key");
+        writer.OnStringScalar("key1");
+        writer.OnKeyedItem("value");
+        writer.OnStringScalar("value1");
+    writer.OnEndMap();
+
+    Stroka output = Stroka(
+        "\x00\x00"
+        "\x04\x00\x00\x00" "key1"
+        "\x06\x00\x00\x00" "value1"
+        , 2 + 2 * 4 + 4 + 6
+    );
+
+    EXPECT_EQ(output, outputStream.Str());
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
             

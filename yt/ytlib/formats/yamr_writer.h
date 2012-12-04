@@ -55,6 +55,8 @@ private:
 
     void RememberItem(const TStringBuf& item, bool takeOwnership);
 
+    bool ExpectTableIndex;
+
     void WriteRow();
     void WriteInLenvalMode(const TStringBuf& value);
 
