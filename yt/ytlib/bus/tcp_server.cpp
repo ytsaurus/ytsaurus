@@ -187,7 +187,10 @@ protected:
                     &clientAddressLen, 
                     SOCK_CLOEXEC);
 #else
-                clientSocket = accept(ServerSocket, clientAddress.GetSockAddr(), &clientAddressLen);
+                clientSocket = accept(
+                    ServerSocket,
+                    clientAddress.GetSockAddr(),
+                    &clientAddressLen);
 #endif
             }
 

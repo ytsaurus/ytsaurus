@@ -30,7 +30,9 @@ TNetworkAddress GetLocalBusAddress(int port)
     strncpy(sockAddr.sun_path + 1, ~name, name.length());
     return TNetworkAddress(
         *reinterpret_cast<sockaddr*>(&sockAddr),
-        name.length() + sizeof (char) + sizeof (short));
+        sizeof (sockAddr.sun_family) +
+        sizeof (char) + 
+        name.length());
 #endif
 }
 
