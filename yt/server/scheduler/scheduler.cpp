@@ -714,6 +714,13 @@ private:
     void RegisterNode(TExecNodePtr node)
     {
         YCHECK(Nodes.insert(MakePair(node->GetAddress(), node)).second);    
+
+        FOREACH (const auto& pair, Operations) {
+            auto operation = pair.second;
+            if (operation->GetState() == EOperationState::Running) {
+                operation->GetController()->OnNodeOnline(node);
+            }
+        }
     }
 
     void UnregisterNode(TExecNodePtr node)
@@ -721,7 +728,7 @@ private:
         // Make a copy, the collection will be modified.
         auto jobs = node->Jobs();
         FOREACH (auto job, jobs) {
-            LOG_INFO("Aborting job on an offline node %s (JobId: %s, OperationId: %s)",
+            LOG_INFO("Aborting job on an offline node: %s (JobId: %s, OperationId: %s)",
                 ~node->GetAddress(),
                 ~job->GetId().ToString(),
                 ~job->GetOperation()->GetOperationId().ToString());
@@ -731,7 +738,10 @@ private:
         YCHECK(Nodes.erase(node->GetAddress()) == 1);
 
         FOREACH (const auto& pair, Operations) {
-            pair.second->GetController()->OnNodeOffline(node);
+            auto operation = pair.second;
+            if (operation->GetState() == EOperationState::Running) {
+                operation->GetController()->OnNodeOffline(node);
+            }
         }
     }
 
