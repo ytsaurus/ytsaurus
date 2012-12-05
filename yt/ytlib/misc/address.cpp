@@ -166,8 +166,8 @@ Stroka ToString(const TNetworkAddress& address, bool withPort)
             auto* typedAddr = reinterpret_cast<const sockaddr_un*>(sockAddr);
             return
                 typedAddr->sun_path[0] == 0
-                ? Sprintf("unix://[%s]", Stroka(typedAddr->sun_path + 1))
-                : Sprintf("unix://%s", Stroka(typedAddr->sun_path));
+                ? Sprintf("unix://[%s]", typedAddr->sun_path + 1)
+                : Sprintf("unix://%s", typedAddr->sun_path);
         }
 #endif
         case AF_INET: {
