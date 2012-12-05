@@ -117,7 +117,7 @@ TNetworkAddress::TNetworkAddress(const TNetworkAddress& other, int port)
 
 TNetworkAddress::TNetworkAddress(const sockaddr& other, socklen_t length)
 {
-    Length = length < 0 ? GetGenericLength(other) : length;
+    Length = length == 0 ? GetGenericLength(other) : length;
     memcpy(&Storage, &other, Length);
 }
 

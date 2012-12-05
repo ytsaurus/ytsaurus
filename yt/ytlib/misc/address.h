@@ -44,7 +44,7 @@ class TNetworkAddress
 public:
     TNetworkAddress();
     TNetworkAddress(const TNetworkAddress& other, int port);
-    explicit TNetworkAddress(const sockaddr& other, socklen_t length = -1);
+    explicit TNetworkAddress(const sockaddr& other, socklen_t length = 0);
 
     sockaddr* GetSockAddr();
     const sockaddr* GetSockAddr() const;
