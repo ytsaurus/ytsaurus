@@ -1,4 +1,5 @@
 import config
+import logger
 from http import make_request
 from common import update, bool_to_string
 
@@ -46,7 +47,7 @@ class Transaction(object):
     >    ....
     >    with Transaction():
     >        ....
-    >        yt.run_map(...) 
+    >        yt.run_map(...)
     >
     Caution: if you use this class then do not use directly methods *_transaction.
     """
@@ -54,17 +55,27 @@ class Transaction(object):
 
     def __init__(self):
         Transaction.stack.append(start_transaction())
-        self._renew()
+        self._update_global_config()
 
     def __enter__(self):
         pass
 
     def __exit__(self, type, value, traceback):
-        operation = commit_transaction if type is None else abort_transaction
-        operation(Transaction.stack.pop())
-        self._renew()
+        transaction = Transaction.stack.pop()
+        if type is None:
+            commit_transaction(transaction)
+        else:
+            logger.warning(
+                "Error: (type=%s, value=%s, traceback=%s), aborting transaction %s ...",
+                type,
+                value,
+                traceback,
+                transaction)
+            abort_transaction(transaction)
 
-    def _renew(self):
+        self._update_global_config()
+
+    def _update_global_config(self):
         if Transaction.stack:
             config.TRANSACTION = Transaction.stack[-1]
             config.PING_ANSECTOR_TRANSACTIONS = True
