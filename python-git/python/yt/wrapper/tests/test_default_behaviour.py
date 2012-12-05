@@ -224,3 +224,9 @@ class DefaultYtTest(YtTestBase, YTEnv):
 
         self.assertTrue(any(map(lambda line: line.find("x=1") != -1, output)))
 
+    def test_write_many_chunks(self):
+        yt.config.WRITE_BUFFER_SIZE = 1
+        table = TEST_DIR + "/table"
+        yt.write_table(table, (x for x in ["x=1\n", "y=2\n", "z=3\n"]))
+        yt.write_table(table, (x for x in ["x=1\n", "y=2\n", "z=3\n"]))
+        yt.write_table(table, (x for x in ["x=1\n", "y=2\n", "z=3\n"]))

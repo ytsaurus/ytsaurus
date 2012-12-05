@@ -42,7 +42,7 @@ def read_content(response, type):
 class Response(object):
     def __init__(self, http_response):
         def serialize(error):
-            return json.dumps(error, indent='  ')
+            return json.dumps(error, indent=2)
 
         self.http_response = http_response
         if not str(http_response.status_code).startswith("2"):

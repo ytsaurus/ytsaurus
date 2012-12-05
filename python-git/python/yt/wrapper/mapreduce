@@ -470,7 +470,7 @@ Examples:
         print yt.exists(args.exists)
 
     if args.get is not None:
-        print json.dumps(yt.get(args.get, spec=spec), indent="  ")
+        print json.dumps(yt.get(args.get, spec=spec), indent=2)
     if args.set is not None:
         if args.value is None:
             die("Value option is necessary for set command")
@@ -514,5 +514,5 @@ if __name__ == "__main__":
     except yt.HTTPError as error:
         die("Connection was broken: " + str(error))
     except Exception:
-        traceback.print_exc(file=sys.stdout)
+        traceback.print_exc(file=sys.stderr)
         die()
