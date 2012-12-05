@@ -827,16 +827,17 @@ protected:
     {
         if (SortStartThresholdReached) {
             std::vector<TPartitionPtr> affectedPartitions;
-            auto failedAddress = node->GetAddress();
+            const auto& failedAddress = node->GetAddress();
 
-            LOG_DEBUG("Node %s gone offline, reassigning partitions", ~failedAddress);
             FOREACH (auto partition, Partitions) {
                 if (partition->AssignedAddress == failedAddress) {
                     affectedPartitions.push_back(partition);
                 }
             }
 
-            LOG_DEBUG("Reassigning %d partitions", static_cast<int>(affectedPartitions.size()));
+            LOG_WARNING("Reassigning %d partitions due to failure of %s",
+                static_cast<int>(affectedPartitions.size()),
+                ~failedAddress);
 
             AssignPartitions(affectedPartitions);
         }
