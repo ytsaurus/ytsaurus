@@ -13,8 +13,6 @@
 
 #include <ytlib/rpc/error.h>
 
-#include <util/folder/dirut.h>
-
 #include <errno.h>
 
 #ifndef _win_
@@ -346,18 +344,6 @@ private:
 
     virtual void CreateServerSocket() override
     {
-        auto path = GetLocalBusPath(Config->Port);
-        if (isexist(~path)) {
-            if (unlink(~path) != 0) {
-                int error = LastSystemError();
-                if (isexist(~path)) {
-                    THROW_ERROR_EXCEPTION("Failed to unlink the local socket file %s",
-                        ~path.Quote())
-                        << TError::FromSystem(error);
-                }
-            }
-        }
-
         int type = SOCK_STREAM;
 
 #ifdef _linux_
@@ -379,12 +365,6 @@ private:
                 THROW_ERROR_EXCEPTION("Failed to bind a local server socket")
                     << TError::FromSystem();
             }
-        }
-
-        if (chmod(~path, 0664) != 0) {
-            THROW_ERROR_EXCEPTION("Failed to update permissions of the local socket file %s",
-                ~path.Quote())
-                << TError::FromSystem();
         }
     }
 };
@@ -487,7 +467,7 @@ IBusServerPtr CreateTcpBusServer(TTcpBusServerConfigPtr config)
 {
     std::vector<IBusServerPtr> servers;
     servers.push_back(New< TTcpBusServerProxy<TTcpBusServer> >(config));
-#ifndef _win_
+#ifdef _linux_
     servers.push_back(New< TTcpBusServerProxy<TLocalBusServer> >(config));
 #endif
     return New<TCompositeBusServer>(servers);

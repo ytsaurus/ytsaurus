@@ -171,7 +171,7 @@ private:
     void Cleanup();
 
     void SyncOpen();
-    static bool IsLocal(const TStringBuf& hostName, int port);
+    static bool IsLocal(const TStringBuf& hostName);
     void SyncResolve();
     void SyncClose(const TError& error);
 

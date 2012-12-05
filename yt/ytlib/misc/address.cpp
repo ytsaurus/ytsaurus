@@ -95,6 +95,7 @@ TNetworkAddress::TNetworkAddress()
 {
     memset(&Storage, 0, sizeof (Storage));
     Storage.ss_family = AF_UNSPEC;
+    Length = sizeof (Storage);
 }
 
 TNetworkAddress::TNetworkAddress(const TNetworkAddress& other, int port)
@@ -103,18 +104,21 @@ TNetworkAddress::TNetworkAddress(const TNetworkAddress& other, int port)
     switch (Storage.ss_family) {
         case AF_INET:
             reinterpret_cast<sockaddr_in*>(&Storage)->sin_port = htons(port);
+            Length = sizeof (sockaddr_in);
             break;
         case AF_INET6:
             reinterpret_cast<sockaddr_in6*>(&Storage)->sin6_port = htons(port);
+            Length = sizeof (sockaddr_in6);
             break;
         default:
             YUNREACHABLE();
     }
 }
 
-TNetworkAddress::TNetworkAddress(const sockaddr& other)
+TNetworkAddress::TNetworkAddress(const sockaddr& other, socklen_t length)
 {
-    memcpy(&Storage, &other, GetLength(other));
+    Length = length < 0 ? GetGenericLength(other) : length;
+    memcpy(&Storage, &other, Length);
 }
 
 sockaddr* TNetworkAddress::GetSockAddr()
@@ -127,7 +131,7 @@ const sockaddr* TNetworkAddress::GetSockAddr() const
     return reinterpret_cast<const sockaddr*>(&Storage);
 }
 
-socklen_t TNetworkAddress::GetLength(const sockaddr& sockAddr)
+socklen_t TNetworkAddress::GetGenericLength(const sockaddr& sockAddr)
 {
     switch (sockAddr.sa_family) {
 #ifdef _linux_
@@ -146,7 +150,7 @@ socklen_t TNetworkAddress::GetLength(const sockaddr& sockAddr)
 
 socklen_t TNetworkAddress::GetLength() const
 {
-    return GetLength(*reinterpret_cast<const sockaddr*>(&Storage));
+    return Length;
 }
 
 Stroka ToString(const TNetworkAddress& address, bool withPort)
@@ -157,10 +161,13 @@ Stroka ToString(const TNetworkAddress& address, bool withPort)
     int port = 0;
     bool ipv6 = false;
     switch (sockAddr->sa_family) {
-#ifndef _win_
+#ifdef _linux_
         case AF_UNIX: {
             auto* typedAddr = reinterpret_cast<const sockaddr_un*>(sockAddr);
-            return "unix://" + Stroka(typedAddr->sun_path);
+            return
+                typedAddr->sun_path[0] == 0
+                ? Sprintf("unix://[%s]", Stroka(typedAddr->sun_path + 1))
+                : Sprintf("unix://%s", Stroka(typedAddr->sun_path));
         }
 #endif
         case AF_INET: {

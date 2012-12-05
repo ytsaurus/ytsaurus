@@ -225,7 +225,7 @@ void TTcpConnection::SyncResolve()
         return;
     }
 
-    if (IsLocal(hostName, Port)) {
+    if (IsLocal(hostName)) {
         LOG_DEBUG("Address resolved as local, connecting");
 
         auto netAddress = GetLocalBusAddress(Port);
@@ -240,20 +240,13 @@ void TTcpConnection::SyncResolve()
     }
 }
 
-bool TTcpConnection::IsLocal(const TStringBuf& hostName, int port)
+bool TTcpConnection::IsLocal(const TStringBuf& hostName)
 {
 #ifdef _win_
+    UNUSED(hostName);
     return false;
 #else
-    if (hostName != GetLocalHostName()) {
-        return false;
-    }
-     
-    if (!isexist(~GetLocalBusPath(port))) {
-        return false;
-    }
-
-    return true;
+    return hostName == GetLocalHostName();
 #endif
 }
 
