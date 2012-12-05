@@ -202,7 +202,7 @@ private:
     virtual void LogProgress() override
     {
         LOG_DEBUG("Progress: "
-            "Jobs = {T: %"PRId64", R: %"PRId64", C: %"PRId64", P: %d, F: %"PRId64", A: %"PRId64"}",
+            "Jobs = {T: %" PRId64", R: %" PRId64", C: %" PRId64", P: %d, F: %" PRId64", A: %" PRId64"}",
             JobCounter.GetTotal(),
             JobCounter.GetRunning(),
             JobCounter.GetCompleted(),
