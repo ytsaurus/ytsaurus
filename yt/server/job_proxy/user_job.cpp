@@ -292,14 +292,11 @@ private:
             memset(events, 0, maxEvents * sizeof(epoll_event));
 
             while (activePipeCount > 0) {
-                bool isOK = true;
                 {
                     TGuard<TSpinLock> guard(SpinLock);
-                    isOK = JobExitError.IsOK();
-                }
-
-                if (!isOK) {
-                    THROW_ERROR(JobExitError);
+                    if (!JobExitError.IsOK()) {
+                        break;
+                    }
                 }
 
                 LOG_TRACE("Waiting on epoll, %d pipes active", activePipeCount);
