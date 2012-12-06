@@ -80,21 +80,9 @@ private:
     void UnregisterTransaction(const TTransactionId& id);
     TTransactionPtr FindTransaction(const TTransactionId& id);
 
-    void SchedulePing(TTransactionPtr transaction);
-    void SendPing(const TTransactionId& id);
-
-    void OnPingResponse(
-        const TTransactionId& id,
-        TIntrusivePtr<NTransactionClient::TTransactionYPathProxy::TRspRenewLease> rsp);
-
     TTransactionManagerConfigPtr Config;
     NRpc::IChannelPtr Channel;
     NObjectClient::TObjectServiceProxy ObjectProxy;
-
-    TSpinLock SpinLock;
-
-    typedef yhash_map<TTransactionId, TWeakPtr<TTransaction> > TTransactionMap;
-    TTransactionMap TransactionMap;
 
 };
 

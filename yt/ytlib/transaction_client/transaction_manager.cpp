@@ -30,39 +30,19 @@ class TTransactionManager::TTransaction
     : public ITransaction
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(bool, PingAncestors)
-
     TTransaction(
-        NRpc::IChannelPtr cellChannel,
-        const TTransactionId& parentId,
         TTransactionManagerPtr owner,
+        bool autoAbort,
+        bool ping,
         bool pingAncestors)
-        : PingAncestors_(pingAncestors)
-        , Owner(owner)
-        , Proxy(cellChannel)
-        , State(EState::Active)
+        : Owner(owner)
         , AutoAbort(false)
-        , ParentId(parentId)
-        , Aborted(NewPromise<void>())
-    {
-        YCHECK(cellChannel);
-        YCHECK(owner);
-    }
-
-    TTransaction(
-        NRpc::IChannelPtr cellChannel,
-        TTransactionManagerPtr owner,
-        const TTransactionId& id,
-        bool pingAncestors)
-        : PingAncestors_(pingAncestors)
-        , Owner(owner)
-        , Proxy(cellChannel)
+        , Ping(ping)
+        , PingAncestors(pingAncestors)
+        , Proxy(owner->Channel)
         , State(EState::Active)
-        , ParentId(NullTransactionId)
-        , Id(id)
         , Aborted(NewPromise<void>())
     {
-        YCHECK(cellChannel);
         YCHECK(owner);
     }
 
@@ -73,17 +53,17 @@ public:
         }
     }
 
-    void Start(IAttributeDictionary* attributes)
+    void Start(const TTransactionId& parentId, IAttributeDictionary* attributes)
     {
         LOG_INFO("Starting transaction");
 
         auto transactionPath =
-            ParentId == NullTransactionId
+            parentId == NullTransactionId
             ? RootTransactionPath
-            : FromObjectId(ParentId);
+            : FromObjectId(parentId);
         auto req = TTransactionYPathProxy::CreateObject(transactionPath);
         req->set_type(EObjectType::Transaction);
-        if (ParentId != NullTransactionId) {
+        if (parentId != NullTransactionId) {
             NMetaState::GenerateRpcMutationId(req);
         }
         if (attributes) {
@@ -102,17 +82,30 @@ public:
         State = EState::Active;
         AutoAbort = true;
 
-        LOG_INFO("Transaction started (TransactionId: %s)", ~Id.ToString());
+        LOG_INFO("Transaction started: %s (Ping: %s, PingAncestors: %s)",
+            ~Id.ToString(),
+            ~FormatBool(Ping),
+            ~FormatBool(PingAncestors));
+
+        if (Ping) {
+            SendPing();
+        }
     }
 
-    void Attach(bool autoAbort)
+    void Attach(const TTransactionId& id)
     {
         State = EState::Active;
-        AutoAbort = autoAbort;
+        Id = id;
 
-        LOG_INFO("Transaction attached (TransactionId: %s, AutoAbort: %s)",
+        LOG_INFO("Transaction attached: %s (AutoAbort: %s, Ping: %s, PingAncestors: %s)",
             ~Id.ToString(),
-            ~FormatBool(autoAbort));
+            ~FormatBool(AutoAbort),
+            ~FormatBool(Ping),
+            ~FormatBool(PingAncestors));
+
+        if (Ping) {
+            SendPing();
+        }
     }
 
     TTransactionId GetId() const override
@@ -221,27 +214,6 @@ public:
         YUNREACHABLE();
     }
 
-    void HandleAbort()
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        {
-            TGuard<TSpinLock> guard(SpinLock);
-            if (State != EState::Active) {
-                return;
-            }
-            State = EState::Aborted;
-        }
-
-        FireAbort();
-    }
-
-    TTransactionId GetParentId() const
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-        return ParentId;
-    }
-
 private:
     DECLARE_ENUM(EState,
         (Active)
@@ -252,18 +224,58 @@ private:
     );
 
     TTransactionManagerPtr Owner;
+    bool AutoAbort;
+    bool Ping;
+    bool PingAncestors;
+
     TObjectServiceProxy Proxy;
 
     //! Protects state transitions.
     TSpinLock SpinLock;
     EState State;
-    bool AutoAbort;
-    TTransactionId ParentId;
-
-    TTransactionId Id;
     TPromise<void> Aborted;
 
+    TTransactionId Id;
+
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
+
+
+    void SchedulePing()
+    {
+        TDelayedInvoker::Submit(
+            BIND(&TTransaction::SendPing, MakeStrong(this)),
+            Owner->Config->PingPeriod);
+    }
+    
+    void SendPing()
+    {
+        LOG_DEBUG("Renewing transaction lease: %s", ~Id.ToString());
+
+        auto req = TTransactionYPathProxy::RenewLease(FromObjectId(Id));
+        req->set_renew_ancestors(PingAncestors);
+        Owner->ObjectProxy.Execute(req).Subscribe(BIND(
+            &TTransaction::OnPingResponse,
+            MakeStrong(this)));
+    }
+
+    void OnPingResponse(TTransactionYPathProxy::TRspRenewLeasePtr rsp)
+    {
+        if (!rsp->IsOK()) {
+            if (rsp->GetError().GetCode() == EYPathErrorCode::ResolveError) {
+                LOG_WARNING("Transaction has expired or was aborted: %s",
+                    ~Id.ToString());
+                HandleAbort();
+            } else {
+                LOG_WARNING(*rsp, "Error renewing transaction lease: %s",
+                    ~Id.ToString());
+            }
+            return;
+        }
+
+        LOG_DEBUG("Transaction lease renewed: %s", ~Id.ToString());
+
+        SchedulePing();
+    }
 
 
     void InvokeAbort(bool wait)
@@ -289,6 +301,21 @@ private:
         Aborted.Set();
     }
 
+    void HandleAbort()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            if (State != EState::Active) {
+                return;
+            }
+            State = EState::Aborted;
+        }
+
+        FireAbort();
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -301,6 +328,7 @@ TTransactionManager::TTransactionManager(
     , ObjectProxy(channel)
 {
     YCHECK(channel);
+    YCHECK(config);
 }
 
 ITransactionPtr TTransactionManager::Start(
@@ -312,18 +340,11 @@ ITransactionPtr TTransactionManager::Start(
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto transaction = New<TTransaction>(
-        Channel,
-        parentId,
         this,
+        true,
+        ping,
         pingAncestors);
-    transaction->Start(attributes);
-
-    RegisterTransaction(transaction);
-
-    if (ping) {
-        SendPing(transaction->GetId());
-    }
-
+    transaction->Start(parentId, attributes);
     return transaction;
 }
 
@@ -333,105 +354,15 @@ ITransactionPtr TTransactionManager::Attach(
     bool ping,
     bool pingAncestors)
 {
-    // Try to find it among existing
-    auto transaction = FindTransaction(id);
-    if (transaction) {
-        return transaction;
-    }
+    VERIFY_THREAD_AFFINITY_ANY();
 
-    // Not found, create a new one.
-    transaction = New<TTransaction>(
-        Channel,
+    auto transaction = New<TTransaction>(
         this,
-        id,
+        autoAbort,
+        ping,
         pingAncestors);
-    transaction->Attach(autoAbort);
-
-    RegisterTransaction(transaction);
-
-    if (ping) {
-        SendPing(transaction->GetId());
-    }
-
+    transaction->Attach(id);
     return transaction;
-}
-
-void TTransactionManager::RegisterTransaction(TTransactionPtr transaction)
-{
-    TGuard<TSpinLock> guard(SpinLock);
-    YCHECK(TransactionMap.insert(MakePair(transaction->GetId(), transaction)).second);
-    LOG_DEBUG("Registered transaction %s", ~transaction->GetId().ToString());
-}
-
-void TTransactionManager::UnregisterTransaction(const TTransactionId& id)
-{
-    TGuard<TSpinLock> guard(SpinLock);
-    TransactionMap.erase(id);
-}
-
-TTransactionManager::TTransactionPtr TTransactionManager::FindTransaction(const TTransactionId& id)
-{
-    TGuard<TSpinLock> guard(SpinLock);
-    auto it = TransactionMap.find(id);
-    if (it == TransactionMap.end()) {
-        return NULL;
-    }
-    auto transaction = it->second.Lock();
-    if (!transaction) {
-        TransactionMap.erase(it);
-    }
-    return transaction;
-}
-
-void TTransactionManager::SchedulePing(TTransactionPtr transaction)
-{
-    TDelayedInvoker::Submit(
-        BIND(&TThis::SendPing, MakeStrong(this), transaction->GetId()),
-        Config->PingPeriod);
-}
-
-void TTransactionManager::SendPing(const TTransactionId& id)
-{
-    auto transaction = FindTransaction(id);
-    if (!transaction) {
-        return;
-    }
-
-    LOG_DEBUG("Renewing transaction lease (TransactionId: %s)", ~id.ToString());
-
-    auto req = TTransactionYPathProxy::RenewLease(FromObjectId(id));
-    req->set_renew_ancestors(transaction->GetPingAncestors());
-    ObjectProxy.Execute(req).Subscribe(BIND(
-        &TThis::OnPingResponse,
-        MakeStrong(this),
-        id));
-}
-
-void TTransactionManager::OnPingResponse(
-    const TTransactionId& id,
-    TTransactionYPathProxy::TRspRenewLeasePtr rsp)
-{
-    auto transaction = FindTransaction(id);
-    if (!transaction) {
-        return;
-    }
-
-    if (!rsp->IsOK()) {
-        UnregisterTransaction(id);
-        if (rsp->GetError().GetCode() == EYPathErrorCode::ResolveError) {
-            LOG_WARNING("Transaction has expired or was aborted (TransactionId: %s)",
-                ~id.ToString());
-            transaction->HandleAbort();
-        } else {
-            LOG_WARNING(rsp->GetError(), "Error renewing transaction lease (TransactionId: %s)",
-                ~id.ToString());
-        }
-        return;
-    }
-
-    LOG_DEBUG("Transaction lease renewed (TransactionId: %s)", ~id.ToString());
-
-    SchedulePing(transaction);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
