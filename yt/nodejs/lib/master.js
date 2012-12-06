@@ -33,7 +33,26 @@ function YtClusterHandle(logger, worker) {
     this.updated_at = new Date();
     this.timeout_at = null;
 
+    this.__cached_wid = undefined;
+    this.__cached_pid = undefined;
+
     this.postponeDeath(2000); // Initial startup should be fast; 2 seconds is enough.
+};
+
+YtClusterHandle.prototype.getWid = function() {
+    if (!this.__cached_wid) {
+        this.__cached_wid = this.worker ? this.worker.id : -1;
+    } else {
+        return this.__cached_wid;
+    }
+};
+
+YtClusterHandle.prototype.getPid = function() {
+    if (!this.__cached_pid) {
+        this.__cached_pid = this.worker ? this.worker.process.pid : -1;
+    } else {
+        return this.__cached_pid;
+    }
 };
 
 YtClusterHandle.prototype.kill = function() {
@@ -54,8 +73,8 @@ YtClusterHandle.prototype.destroy = function() {
 
 YtClusterHandle.prototype.toString = function() {
     return require("util").format("<YtClusterHandle wid=%s pid=%s state=%s>",
-        this.worker.id,
-        this.worker.process.pid,
+        this.getWid(),
+        this.getPid(),
         this.state);
 };
 
@@ -91,8 +110,8 @@ YtClusterHandle.prototype.postponeDeath = function(timeout) {
 
 YtClusterHandle.prototype.certifyDeath = function() {
     this.logger.error("Worker is dead", {
-        wid : this.worker ? this.worker.id : null,
-        pid : this.worker ? this.worker.process.pid : null,
+        wid : this.getWid(),
+        pid : this.getPid(),
         handle : this.toString()
     });
 
@@ -158,7 +177,7 @@ function YtClusterMaster(logger, number_of_workers, cluster_options) {
 
 YtClusterMaster.prototype.kickstart = function() {
     while (this.countWorkers()[0] < this.workers_expected) {
-        this.spawnWorker();
+        this.spawnNewWorker();
     }
 };
 
@@ -183,7 +202,7 @@ YtClusterMaster.prototype.countWorkers = function() {
     return [ n_total, n_young ];
 };
 
-YtClusterMaster.prototype.spawnWorker = function() {
+YtClusterMaster.prototype.spawnNewWorker = function() {
     var worker = cluster.fork();
     var handle = this.workers_handles[worker.id] =
         new YtClusterHandle(this.logger, worker);
@@ -192,7 +211,7 @@ YtClusterMaster.prototype.spawnWorker = function() {
     this.logger.error("Spawned young worker", { handle : handle.toString() });
 };
 
-YtClusterMaster.prototype.killWorker = function() {
+YtClusterMaster.prototype.killOldWorker = function() {
     var  p, handle;
     for (p in this.workers_handles) {
         if (this.workers_handles.hasOwnProperty(p)) {
@@ -239,11 +258,11 @@ YtClusterMaster.prototype.respawnWorkers = function() {
     }
 
     if (will_spawn) {
-        this.spawnWorker();
+        this.spawnNewWorker();
     }
 
     if (will_kill) {
-        this.killWorker();
+        this.killOldWorker();
     }
 
     if (will_reschedule) {
