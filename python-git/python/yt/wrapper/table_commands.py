@@ -398,7 +398,7 @@ def sort_table(source_table, destination_table=None, sort_by=None, strategy=None
     spec = compose(
         _add_user_spec,
         lambda _: prepare_job_count(source_table, _),
-        lambda _: _add_table_writer_spec("sort_job_io", table_writer, _),
+        lambda _: _add_table_writer_spec(["sort_job_io", "merge_job_io"], table_writer, _),
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"sort_by": sort_by}, _),
         lambda _: get_value(_, {})
