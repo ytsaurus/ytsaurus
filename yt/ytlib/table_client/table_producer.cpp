@@ -28,6 +28,8 @@ bool TTableProducer::ProduceRow()
         return false;
     }
 
+    Consumer->OnListItem();
+
     const auto& attributes = Reader->GetRowAttributes();
     if (!attributes.Data().empty()) {
         Consumer->OnBeginAttributes();
@@ -35,7 +37,6 @@ bool TTableProducer::ProduceRow()
         Consumer->OnEndAttributes();
     }
 
-    Consumer->OnListItem();
     Consumer->OnBeginMap();
     FOREACH (auto& pair, *row) {
         Consumer->OnKeyedItem(pair.first);
