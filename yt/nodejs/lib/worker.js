@@ -18,7 +18,7 @@ var logger = new winston.Logger({
             port : config.log_port
         }),
         new winston.transports.Console({
-            level : 'error',
+            level : "info",
             timestamp : true
         })
     ]
@@ -41,7 +41,7 @@ var violentlyDie = function violentDeath() {
     if (violentlyDieTriggered) { return; }
     violentlyDieTriggered = true;
 
-    logger.error("Dying", { wid : cluster.worker.id, pid : process.pid });
+    logger.info("Dying", { wid : cluster.worker.id, pid : process.pid });
     process.send({ type: "stopped" });
 
     process.nextTick(function() {
@@ -56,7 +56,7 @@ var gracefullyDie = function gracefulDeath() {
     if (gracefullyDieTriggered) { return; }
     gracefullyDieTriggered = true;
 
-    logger.error("Prepairing to die", { wid : cluster.worker.id, pid : process.pid });
+    logger.info("Prepairing to die", { wid : cluster.worker.id, pid : process.pid });
     process.send({ type : "stopping" });
 
     if (dynamic_server && dynamic_server.close) {
@@ -97,7 +97,7 @@ process.on("message", function(message) {
 });
 
 // Fire up the head.
-logger.error("Starting HTTP proxy worker", { wid : cluster.worker.id, pid : process.pid });
+logger.info("Starting HTTP proxy worker", { wid : cluster.worker.id, pid : process.pid });
 
 // Setup application server.
 static_server = new node_static.Server(config.user_interface, { cache : 4 * 3600 });
@@ -169,7 +169,7 @@ dynamic_server = connect()
         rsp.end("Invalid URI " + JSON.stringify(req.url) + ". Please refer to documentation at http://wiki.yandex-team.ru/YT/ to learn more about HTTP API.");
     })
     .listen(config.port, config.address, function() {
-        logger.error("Worker is listening", {
+        logger.info("Worker is listening", {
             wid : cluster.worker.id,
             pid : process.pid
         });

@@ -12,7 +12,7 @@ exports.that = function YtLogRequest(logger) {
             req._logging = true;
         }
 
-        logger.info("Handling request", {
+        logger.debug("Handling request", {
             request_id     : req.uuid,
             method         : req.method,
             url            : req.originalUrl,
@@ -39,7 +39,7 @@ exports.that = function YtLogRequest(logger) {
             rsp.end = end;
             rsp.end(chunk, encoding);
 
-            logger.info("Handled request", {
+            logger.debug("Handled request", {
                 request_id   : req.uuid,
                 request_time : new Date() - req._start_time,
                 status       : rsp.statusCode,

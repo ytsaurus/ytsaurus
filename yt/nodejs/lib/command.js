@@ -221,7 +221,7 @@ YtCommand.prototype._epilogue = function(result) {
         });
     }
 
-    this.logger.info("Done (" + (result.isOK() ? "success" : "failure") + ")", {
+    this.logger.debug("Done (" + (result.isOK() ? "success" : "failure") + ")", {
         request_id : this.req.uuid,
         bytes_in   : this.bytes_in,
         bytes_out  : this.bytes_out,
@@ -665,13 +665,13 @@ YtCommand.prototype._execute = function(cb) {
         this.parameters)
     .spread(
         function(result) {
-            self.logger.info(
+            self.logger.debug(
                 "Command '" + self.name + "' successfully executed",
                 { request_id : self.req.uuid, result : result });
             return arguments;
         },
         function(result) {
-            self.logger.info(
+            self.logger.debug(
                 "Command '" + self.name + "' has failed to execute",
                 { request_id : self.req.uuid, result : result });
             return arguments;

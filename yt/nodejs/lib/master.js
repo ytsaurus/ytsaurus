@@ -112,7 +112,7 @@ YtClusterHandle.prototype.postponeDeath = function(timeout) {
 };
 
 YtClusterHandle.prototype.certifyDeath = function() {
-    this.logger.error("Worker is dead", {
+    this.logger.info("Worker is dead", {
         wid : this.getWid(),
         pid : this.getPid(),
         handle : this.toString()
@@ -162,7 +162,7 @@ function YtClusterMaster(logger, number_of_workers, cluster_options) {
             !self.workers_handles.hasOwnProperty(worker.id),
             "Received |message| event from the dead worker");
 
-        self.logger.error("Worker has exited", {
+        self.logger.info("Worker has exited", {
             wid    : worker.id,
             pid    : worker.process.pid,
             code   : code,
@@ -211,7 +211,7 @@ YtClusterMaster.prototype.spawnNewWorker = function() {
         new YtClusterHandle(this.logger, worker);
 
     worker.on("message", handle.handleMessage.bind(handle));
-    this.logger.error("Spawned young worker", { handle : handle.toString() });
+    this.logger.info("Spawned young worker", { handle : handle.toString() });
 };
 
 YtClusterMaster.prototype.killOldWorker = function() {
@@ -221,7 +221,7 @@ YtClusterMaster.prototype.killOldWorker = function() {
             handle = this.workers_handles[p];
             if (!handle.young) {
                 handle.kill();
-                this.logger.error("Killed old worker", {
+                this.logger.info("Killed old worker", {
                     handle : handle.toString()
                 });
             }
@@ -286,7 +286,7 @@ YtClusterMaster.prototype.scheduleRespawnWorkers = function() {
 };
 
 YtClusterMaster.prototype.restartWorkers = function() {
-    this.logger.error("Starting rolling restart of workers");
+    this.logger.info("Starting rolling restart of workers");
     for (var i in this.workers_handles) {
         this.workers_handles[i].young = false;
     }
@@ -295,7 +295,7 @@ YtClusterMaster.prototype.restartWorkers = function() {
 
 YtClusterMaster.prototype.shutdownWorkers = function() {
     // NB: Rely an actual cluster state, not on |this.workers_handles|.
-    this.logger.error("Starting graceful shutdown");
+    this.logger.info("Starting graceful shutdown");
     for (var i in cluster.workers) {
         cluster.workers[i].send({ type : "gracefullyDie" });
     }
@@ -310,10 +310,10 @@ YtClusterMaster.prototype.shutdownWorkersLoop = function() {
     // NB: Rely an actual cluster state, not on |this.workers_handles|.
     var n = Object.keys(cluster.workers).length;
     if (n > 0) {
-        this.logger.error("There are " + n + " workers alive", { n : n });
+        this.logger.info("There are " + n + " workers alive", { n : n });
         setTimeout(this.shutdownWorkersLoop.bind(this), 1000);
     } else {
-        this.logger.error("All workers gone");
+        this.logger.info("All workers gone");
         process.exit();
     }
 };
