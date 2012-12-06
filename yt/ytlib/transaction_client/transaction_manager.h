@@ -76,10 +76,6 @@ private:
 
     typedef TTransactionManager TThis;
 
-    void RegisterTransaction(TTransactionPtr transaction);
-    void UnregisterTransaction(const TTransactionId& id);
-    TTransactionPtr FindTransaction(const TTransactionId& id);
-
     TTransactionManagerConfigPtr Config;
     NRpc::IChannelPtr Channel;
     NObjectClient::TObjectServiceProxy ObjectProxy;

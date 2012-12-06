@@ -196,9 +196,6 @@ public:
             }
         }
 
-        Owner->UnregisterTransaction(Id);
-        Owner.Reset();
-
         LOG_INFO("Transaction detached (TransactionId: %s)", ~Id.ToString());
     }
 
