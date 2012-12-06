@@ -4,6 +4,12 @@
 
 #include <ytlib/logging/log_manager.h>
 
+#include <ytlib/profiling/profiling_manager.h>
+
+#include <ytlib/bus/tcp_dispatcher.h>
+
+#include <ytlib/rpc/dispatcher.h>
+
 #include <ytlib/chunk_client/dispatcher.h>
 
 extern "C" {
@@ -113,6 +119,23 @@ Handle<Value> ConfigureSingletons(const Arguments& args)
     return Undefined();
 }
 
+Handle<Value> ShutdownSingletons(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    YASSERT(args.Length());
+
+    NLog::TLogManager::Get()->Shutdown();
+    NBus::TTcpDispatcher::Get()->Shutdown();
+    NRpc::TDispatcher::Get()->Shutdown();
+    NChunkClient::TDispatcher::Get()->Shutdown();
+    NProfiling::TProfilingManager::Get()->Shutdown();
+    TDelayedInvoker::Shutdown();
+
+    return Undefined();
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -128,6 +151,9 @@ void InitializeCommon(Handle<Object> target)
     target->Set(
         String::NewSymbol("ConfigureSingletons"),
         FunctionTemplate::New(ConfigureSingletons)->GetFunction());
+    target->Set(
+        String::NewSymbol("ShutdownSingletons"),
+        FunctionTemplate::New(ShutdownSingletons)->GetFunction());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

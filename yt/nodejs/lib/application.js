@@ -23,6 +23,7 @@ exports.that = function YtApplication(logger, config) {
     __DBG("New");
 
     binding.ConfigureSingletons(config.proxy);
+    process.on("exit", binding.ShutdownSingletons);
 
     if (typeof(config.low_watermark) === "undefined") {
         config.low_watermark = parseInt(0.80 * config.memory_limit, 10);
