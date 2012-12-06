@@ -239,7 +239,7 @@ private:
     void SchedulePing()
     {
         TDelayedInvoker::Submit(
-            BIND(&TTransaction::SendPing, MakeStrong(this)),
+            BIND(&TTransaction::SendPing, MakeWeak(this)),
             Owner->Config->PingPeriod);
     }
     
@@ -251,7 +251,7 @@ private:
         req->set_renew_ancestors(PingAncestors);
         Owner->ObjectProxy.Execute(req).Subscribe(BIND(
             &TTransaction::OnPingResponse,
-            MakeStrong(this)));
+            MakeWeak(this)));
     }
 
     void OnPingResponse(TTransactionYPathProxy::TRspRenewLeasePtr rsp)
