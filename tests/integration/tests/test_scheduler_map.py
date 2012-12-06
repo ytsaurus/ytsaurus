@@ -283,4 +283,25 @@ cat > /dev/null; echo {hello=world}
         assert get(path) == 'aborted'
 
 
+    def test_table_index(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+        create('table', '//tmp/out')
+
+        write_str('//tmp/t1', '{foo=bar}')
+        write_str('//tmp/t2', '{ninja=value}')
+
+        map(in_=['//tmp/t1', '//tmp/t2'],
+            out='//tmp/out',
+            command="cat >&2",
+            opt=[ \
+                # '/spec/mapper/format = <enable_table_index=true>dsv', \
+                '/spec/enable_table_index = true'])
+
+        raw_input()
+        expected = [{'@table_index': '0', 'foo': 'bar'},
+                    {'@table_index': '1', 'ninja': 'value'}]
+        self.assertItemsEqual(read('//tmp/out'), expected)
+
+
 
