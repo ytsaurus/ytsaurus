@@ -54,7 +54,7 @@ TEST(TReadVarIntTest, Overflow)
     Stroka input("\x80\x80\x80\x80\x80\x80\x80\x80\x80\x80\x01", 11);
     TStringInput inputStream(input);
     ui64 value;
-    ASSERT_DEATH(ReadVarUInt64(&inputStream, &value), ".*");
+    EXPECT_ANY_THROW(ReadVarUInt64(&inputStream, &value));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
