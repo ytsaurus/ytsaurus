@@ -80,7 +80,6 @@ public:
         Id = TTransactionId::FromProto(rsp->object_id());
 
         State = EState::Active;
-        AutoAbort = true;
 
         LOG_INFO("Transaction started: %s (Ping: %s, PingAncestors: %s)",
             ~Id.ToString(),
@@ -196,7 +195,7 @@ public:
             }
         }
 
-        LOG_INFO("Transaction detached (TransactionId: %s)", ~Id.ToString());
+        LOG_INFO("Transaction detached: %s", ~Id.ToString());
     }
 
     void SubscribeAborted(const TCallback<void()>& handler) override
