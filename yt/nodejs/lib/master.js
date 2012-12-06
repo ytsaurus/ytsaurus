@@ -83,10 +83,13 @@ YtClusterHandle.prototype.handleMessage = function(message) {
         return; // Improper message format.
     }
 
-    this.postponeDeath(5000);
+    if (this.state === "alive") {
+        this.postponeDeath(5000);
+    }
 
     switch (message.type) {
         case "heartbeat":
+            this.worker.send({ type : "heartbeat" });
             break;
         case "alive":
         case "stopping":

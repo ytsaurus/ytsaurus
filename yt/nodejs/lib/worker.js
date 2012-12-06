@@ -47,7 +47,7 @@ var violentlyDie = function violentDeath() {
     process.nextTick(function() {
         cluster.worker.disconnect();
         cluster.worker.destroy();
-        process.abort();
+        process.exit();
     });
 };
 
@@ -72,6 +72,8 @@ var gracefullyDie = function gracefulDeath() {
     setTimeout(sendHeartbeat, 1000);
 })();
 
+var supervisor_liveness = setTimeout(gracefullyDie, 15000);
+
 // Setup message handlers.
 process.on("message", function(message) {
     if (!message || !message.type) {
@@ -79,6 +81,12 @@ process.on("message", function(message) {
     }
 
     switch (message.type) {
+        case "heartbeat":
+            if (supervisor_liveness) {
+                clearTimeout(supervisor_liveness);
+            }
+            supervisor_liveness = setTimeout(gracefullyDie, 15000);
+            break;
         case "gracefullyDie":
             gracefullyDie();
             break;
