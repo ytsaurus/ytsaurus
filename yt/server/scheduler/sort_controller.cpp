@@ -484,7 +484,7 @@ protected:
                 AddIntermediateOutputSpec(jobSpec, joblet);
             } else {
                 jobSpec->CopyFrom(Controller->FinalSortJobSpecTemplate);
-                AddOutputSpecs(jobSpec, joblet);
+                AddFinalOutputSpecs(jobSpec, joblet);
             }
 
             AddSequentialInputSpec(jobSpec, joblet, Controller->EnableTableIndex());
@@ -657,7 +657,7 @@ protected:
         {
             jobSpec->CopyFrom(Controller->SortedMergeJobSpecTemplate);
             AddParallelInputSpec(jobSpec, joblet, Controller->EnableTableIndex());
-            AddOutputSpecs(jobSpec, joblet);
+            AddFinalOutputSpecs(jobSpec, joblet);
             Controller->CustomizeJobSpec(joblet, jobSpec);
         }
 
@@ -754,7 +754,7 @@ protected:
         {
             jobSpec->CopyFrom(Controller->UnorderedMergeJobSpecTemplate);
             AddSequentialInputSpec(jobSpec, joblet, Controller->EnableTableIndex());
-            AddOutputSpecs(jobSpec, joblet);
+            AddFinalOutputSpecs(jobSpec, joblet);
             Controller->CustomizeJobSpec(joblet, jobSpec);
 
             if (!Controller->SimpleSort) {

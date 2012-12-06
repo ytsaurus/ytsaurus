@@ -284,13 +284,14 @@ void TOperationControllerBase::TTask::UpdateInputSpecTotals(
         list->TotalRowCount);
 }
 
-void TOperationControllerBase::TTask::AddOutputSpecs(
+void TOperationControllerBase::TTask::AddFinalOutputSpecs(
     NScheduler::NProto::TJobSpec* jobSpec,
     TJobletPtr joblet)
 {
     FOREACH (const auto& table, Controller->OutputTables) {
         auto* outputSpec = jobSpec->add_output_specs();
         outputSpec->set_channels(table.Channels.Data());
+        outputSpec->set_replication_factor(table.ReplicationFactor);
         auto chunkListId = Controller->ExtractChunkList();
         joblet->ChunkListIds.push_back(chunkListId);
         *outputSpec->mutable_chunk_list_id() = chunkListId.ToProto();
@@ -1744,12 +1745,7 @@ void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr conf
 
 void TOperationControllerBase::InitFinalOutputConfig(TJobIOConfigPtr config)
 {
-    // TODO(babenko): use per-output replication factors
-    if (OutputTables.empty())
-        return;
-
-    const auto& table = OutputTables[0];
-    config->TableWriter->ReplicationFactor = table.ReplicationFactor;
+    UNUSED(config);
 }
 
 ////////////////////////////////////////////////////////////////////

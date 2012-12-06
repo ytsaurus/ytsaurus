@@ -121,7 +121,7 @@ private:
         {
             jobSpec->CopyFrom(Controller->JobSpecTemplate);
             AddSequentialInputSpec(jobSpec, joblet, Controller->Spec->EnableTableIndex);
-            AddOutputSpecs(jobSpec, joblet);
+            AddFinalOutputSpecs(jobSpec, joblet);
 
             joblet->StartRowIndex = StartRowIndex;
             StartRowIndex += joblet->InputStripeList->TotalRowCount;

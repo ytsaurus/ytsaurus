@@ -281,7 +281,7 @@ protected:
             TJobletPtr joblet,
             bool enableTableIndex = false);
         
-        void AddOutputSpecs(NScheduler::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
+        void AddFinalOutputSpecs(NScheduler::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
         void AddIntermediateOutputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
 
     private:

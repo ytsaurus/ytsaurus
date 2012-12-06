@@ -146,7 +146,7 @@ protected:
         void BuildInputOutputJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)
         {
             AddParallelInputSpec(jobSpec, joblet, Controller->EnableTableIndex());
-            AddOutputSpecs(jobSpec, joblet);
+            AddFinalOutputSpecs(jobSpec, joblet);
             Controller->CustomizeJobSpec(joblet, jobSpec);
         }
 
