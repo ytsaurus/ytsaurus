@@ -55,6 +55,7 @@ private:
 
     bool AllowBeginList;
     bool AllowBeginMap;
+    bool AllowAttributes;
 
     NYson::TLexer Lexer;
 

@@ -25,8 +25,9 @@ TDsvWriter::TDsvWriter(
     , InsideFirstLine(true)
     , InsideFirstItem(true)
     , InsideAttributes(false)
-    , AllowBeginList(Type == EYsonType::Node)
+    , AllowBeginList(type == EYsonType::Node)
     , AllowBeginMap(true)
+    , AllowAttributes(true)
 {
     YCHECK(Stream);
     YCHECK(Config);
@@ -57,7 +58,7 @@ void TDsvWriter::OnEntity()
 
 void TDsvWriter::OnBeginList()
 {
-    if (!AllowBeginList) {
+    if (!AllowBeginList || InsideAttributes) {
         THROW_ERROR_EXCEPTION("Embedded lists are not supported by DSV");
     }
     AllowBeginList = false;
@@ -86,11 +87,12 @@ void TDsvWriter::OnEndList()
 
 void TDsvWriter::OnBeginMap()
 {
-    if (!AllowBeginMap) {
+    if (!AllowBeginMap || InsideAttributes) {
         THROW_ERROR_EXCEPTION("Embedded maps are not supported by DSV");
     }
     AllowBeginMap = false;
     AllowBeginList = false;
+    AllowAttributes = false;
 }
 
 void TDsvWriter::OnKeyedItem(const TStringBuf& key)
@@ -112,6 +114,7 @@ void TDsvWriter::OnKeyedItem(const TStringBuf& key)
 void TDsvWriter::OnEndMap()
 {
     AllowBeginMap = true;
+    AllowAttributes = true;
     if (Type == EYsonType::ListFragment) {
         Stream->Write(Config->RecordSeparator);
     }
@@ -119,7 +122,7 @@ void TDsvWriter::OnEndMap()
 
 void TDsvWriter::OnBeginAttributes()
 {
-    if (!Config->WithAttributes) {
+    if (!Config->WithAttributes || !AllowAttributes) {
         THROW_ERROR_EXCEPTION("Attributes are not supported by DSV");
     }
     InsideAttributes = true;

@@ -161,7 +161,6 @@ TEST(TDsvWriterTest, WithoutEsacping)
     EXPECT_EQ(outputStream.Str(), output);
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 // OnRaw tests:
 
