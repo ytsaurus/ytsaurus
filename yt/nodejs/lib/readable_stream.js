@@ -60,12 +60,7 @@ YtReadableStream.prototype._consumeData = function() {
 
     var i, chunk, result = this._binding.Pull();
 
-    if (typeof(result) === "undefined") {
-        this.__DBG("Bindings (OutputStream) -> Pull <- undefined");
-        return;
-    } else {
-        this.__DBG("Bindings (OutputStream) -> Pull <- " + result.length);
-    }
+    this.__DBG("Bindings (OutputStream) -> Pull");
 
     for (i = 0; i < result.length; ++i) {
         chunk = result[i];

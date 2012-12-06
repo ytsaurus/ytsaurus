@@ -211,7 +211,7 @@ YtClusterMaster.prototype.spawnNewWorker = function() {
         new YtClusterHandle(this.logger, worker);
 
     worker.on("message", handle.handleMessage.bind(handle));
-    this.logger.info("Spawned young worker", { handle : handle.toString() });
+    this.logger.info("Spawned young worker");
 };
 
 YtClusterMaster.prototype.killOldWorker = function() {
