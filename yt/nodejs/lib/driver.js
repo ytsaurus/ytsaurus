@@ -25,6 +25,15 @@ function promisinglyPipe(source, destination)
 
     var deferred = Q.defer();
 
+    var uuid = null;
+    var debug = function(){};
+
+    if (__DBG.UUID) {
+        uuid = __DBG.UUID.v4();
+        debug = function(x) { __DBG("Pipe " + uuid + " -> " + x); };
+        debug("New");
+    }
+
     function on_data(chunk) {
         if (destination.writable && destination.write(chunk) === false) {
             source.pause();
@@ -34,6 +43,7 @@ function promisinglyPipe(source, destination)
     source.on("data", on_data);
 
     function on_drain() {
+        debug("on_drain");
         if (source.readable) {
             source.resume();
         }
@@ -42,15 +52,19 @@ function promisinglyPipe(source, destination)
     destination.on("drain", on_drain);
 
     function on_end() {
+        debug("Piping has ended");
         deferred.resolve();
     }
     function on_source_close() {
+        debug("Source stream has been closed");
         deferred.reject(new YtError("Source stream in the pipe has been closed."));
     }
     function on_destination_close() {
+        debug("Destination stream has been closed");
         deferred.reject(new YtError("Destination stream in the pipe has been closed."));
     }
     function on_error(err) {
+        debug("An error occured");
         cleanup();
         deferred.reject(err);
     }
@@ -63,6 +77,8 @@ function promisinglyPipe(source, destination)
     destination.on("error", on_error);
 
     function cleanup() {
+        debug("Cleaning up");
+
         source.removeListener("data", on_data);
         destination.removeListener("drain", on_drain);
 
@@ -132,48 +148,53 @@ YtDriver.prototype.execute = function(name,
 
     var input_pipe_promise = Q.when(
         promisinglyPipe(input_stream, wrapped_input_stream),
-        function() { wrapped_input_stream.end(); },
+        function() {
+            self.__DBG("execute -> input_pipe_promise has been resolved");
+            wrapped_input_stream.end();
+        },
         function(err) {
+            self.__DBG("execute -> input_pipe_promise has been rejected");
             input_stream.destroy();
             wrapped_input_stream.destroy();
-            return YtError.ensureWrapped(err);
+            deferred.reject(new YtError("Input pipe has been cancelled", err));
         });
 
     var output_pipe_promise = Q.when(
         promisinglyPipe(wrapped_output_stream, output_stream),
-        function() { }, // Do not close |output_stream| here since we have to write out trailers.
+        function() {
+            // Do not close |output_stream| here since we have to write out trailers.
+            self.__DBG("execute -> output_pipe_promise has been resolved");
+        },
         function(err) {
+            self.__DBG("execute -> output_pipe_promise has been rejected");
             output_stream.destroy();
             wrapped_output_stream.destroy();
-            return YtError.ensureWrapped(err);
+            deferred.reject(new YtError("Output pipe has been cancelled", err));
         });
 
     this._binding.Execute(name,
         wrapped_input_stream._binding, input_compression, input_format,
         wrapped_output_stream._binding, output_compression, output_format,
-        parameters, function(err)
+        parameters, function(result)
     {
         self.__DBG("execute -> (on-execute callback)");
         // XXX(sandello): Can we move |_endSoon| to C++?
         wrapped_output_stream._endSoon();
-        if (err) {
-            deferred.reject(new YtError("Unable to execute driver command", err));
+
+        if (result.code === 0) {
+            self.__DBG("execute -> execute_promise has been resolved");
+            deferred.resolve(Array.prototype.slice.call(arguments));
         } else {
-            deferred.resolve(Array.prototype.slice.call(arguments, 1));
+            wrapped_input_stream.destroy();
+            wrapped_output_stream.destroy();
+            self.__DBG("execute -> execute_promise has been rejected");
+            deferred.reject(result);
         }
     });
 
-    // Probably, pipe promises could abort the pipeline, but whatever,
-    // Execute() promise will be rejected upon pipe failure.
     return Q
         .all([ deferred.promise, input_pipe_promise, output_pipe_promise ])
-        .spread(function(result, ir, or) {
-            if (result instanceof YtError) {
-                if (ir) { result.inner_errors.push(ir); }
-                if (or) { result.inner_errors.push(or); }
-            }
-            return result;
-        });
+        .spread(function(result, ir, or) { return result; });
 };
 
 YtDriver.prototype.find_command_descriptor = function(command_name) {

@@ -137,7 +137,6 @@ function YtCommand(logger, driver, watcher, read_only, pause, req, rsp) {
 
     this.name = undefined;
     this.parameters = undefined;
-    this.result = undefined;
     this.descriptor = undefined;
 
     this.input_compression = undefined;
@@ -204,43 +203,43 @@ YtCommand.prototype._dispatchAsJson = function(body) {
     this.rsp.end(body);
 };
 
-YtCommand.prototype._epilogue = function(err) {
+YtCommand.prototype._epilogue = function(result) {
     "use strict";
     this.__DBG("_epilogue");
 
     var  sent_headers = !!this.rsp._header;
     if (!sent_headers) {
         this.rsp.removeHeader("Trailer");
-        this.rsp.setHeader("X-YT-Error", err.toJson());
-        this.rsp.setHeader("X-YT-Response-Code", err.getCode());
-        this.rsp.setHeader("X-YT-Response-Message", err.getMessage());
+        this.rsp.setHeader("X-YT-Error", result.toJson());
+        this.rsp.setHeader("X-YT-Response-Code", result.getCode());
+        this.rsp.setHeader("X-YT-Response-Message", result.getMessage());
     } else {
         this.rsp.addTrailers({
-            "X-YT-Error" : err.toJson(),
-            "X-YT-Response-Code" : err.getCode(),
-            "X-YT-Response-Message" : err.getMessage()
+            "X-YT-Error" : result.toJson(),
+            "X-YT-Response-Code" : result.getCode(),
+            "X-YT-Response-Message" : result.getMessage()
         });
     }
 
-    this.logger.info("Done (" + (err.isOK() ? "success" : "failure") + ")", {
+    this.logger.info("Done (" + (result.isOK() ? "success" : "failure") + ")", {
         request_id : this.req.uuid,
         bytes_in   : this.bytes_in,
         bytes_out  : this.bytes_out,
-        error      : err
+        result     : result
     });
 
-    if (err.getCode()) {
+    if (result.isOK()) {
+        if (!sent_headers) {
+            this.rsp.statusCode = 200;
+        }
+    } else {
         if (!sent_headers) {
             if (!this.rsp.statusCode ||
                 (this.rsp.statusCode >= 200 && this.rsp.statusCode < 300))
             {
                 this.rsp.statusCode = 400;
             }
-            this._dispatchAsJson(err.toJson());
-        }
-    } else {
-        if (!sent_headers) {
-            this.rsp.statusCode = 200;
+            this._dispatchAsJson(result.toJson());
         }
     }
 
@@ -663,35 +662,34 @@ YtCommand.prototype._execute = function(cb) {
     return this.driver.execute(this.name,
         this.input_stream, this.input_compression, this.input_format,
         this.output_stream, this.output_compression, this.output_format,
-        this.parameters).then(
-        function(args) {
-            var response = args[0];
-
+        this.parameters)
+    .spread(
+        function(result) {
             self.logger.info(
                 "Command '" + self.name + "' successfully executed",
-                { request_id : self.req.uuid, response : response });
-
-            self.result    = response;
-            self.bytes_in  = args[1];
-            self.bytes_out = args[2];
-
-            if (response.code === 0) {
-                self.rsp.statusCode = 200;
-            } else if (response.code < 0) {
-                self.rsp.statusCode = 500;
-            } else if (response.code > 0) {
-                self.rsp.statusCode = 400;
-            }
-
-            return response;
+                { request_id : self.req.uuid, result : result });
+            return arguments;
         },
-        function(err) {
+        function(result) {
             self.logger.info(
                 "Command '" + self.name + "' has failed to execute",
-                { request_id : self.req.uuid, response : err });
+                { request_id : self.req.uuid, result : result });
+            return arguments;
+        })
+    .spread(function(result, bytes_in, bytes_out) {
+        self.bytes_in  = bytes_in;
+        self.bytes_out = bytes_out;
 
-            return new YtError("Unexpected error while calling IDriver::Execute()", err);
-        });
+        if (result.code === 0) {
+            self.rsp.statusCode = 200;
+        } else if (result.code < 0) {
+            self.rsp.statusCode = 500;
+        } else if (result.code > 0) {
+            self.rsp.statusCode = 400;
+        }
+
+        return result;
+    });
 };
 
 ////////////////////////////////////////////////////////////////////////////////

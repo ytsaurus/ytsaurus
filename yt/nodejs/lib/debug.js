@@ -5,6 +5,7 @@ exports.TraceEvent = function(object, sname, ename) {
 
 exports.TraceReadableStream = function(stream, name) {
     "use strict";
+    exports.TraceEvent(stream, name, "data");
     exports.TraceEvent(stream, name, "end");
     exports.TraceEvent(stream, name, "error");
     exports.TraceEvent(stream, name, "close");
@@ -21,12 +22,16 @@ exports.TraceWritableStream = function(stream, name) {
 exports.TraceSocket = function(socket, name) {
     "use strict";
     exports.TraceEvent(socket, name, "connect");
+    exports.TraceEvent(socket, name, "data");
     exports.TraceEvent(socket, name, "end");
     exports.TraceEvent(socket, name, "timeout");
     exports.TraceEvent(socket, name, "drain");
     exports.TraceEvent(socket, name, "error");
     exports.TraceEvent(socket, name, "close");
+};
 
+exports.TraceSocketActivity = function(socket, name) {
+    "use strict";
     setTimeout(function inner() {
         console.log("--? %s : Peer=%s:%s Recv=%s Send=%s Buffer=%s",
             name, socket.remoteAddress, socket.remotePort,

@@ -50,8 +50,6 @@ struct TExecuteRequest
 
     Persistent<Function> Callback;
 
-    TError Error;
-
     TDriverRequest DriverRequest;
     TDriverResponse DriverResponse;
 
@@ -460,23 +458,18 @@ void TNodeJSDriver::ExecuteWork(uv_work_t* workRequest)
 
     TExecuteRequest* request = container_of(workRequest, TExecuteRequest, Request);
 
-    try {
-        if (request->Host->Echo) {
-            TTempBuf buffer;
-            auto inputStream = request->DriverRequest.InputStream;
-            auto outputStream = request->DriverRequest.OutputStream;
+    if (LIKELY(!request->Host->Echo)) {
+        request->DriverResponse = request->Host->Driver->Execute(request->DriverRequest);
+    } else {
+        TTempBuf buffer;
+        auto inputStream = request->DriverRequest.InputStream;
+        auto outputStream = request->DriverRequest.OutputStream;
 
-            while (size_t bytesRead = inputStream->Read(buffer.Data(), buffer.Size())) {
-                outputStream->Write(buffer.Data(), bytesRead);
-            }
-
-            request->DriverResponse = TDriverResponse();
-        } else {
-            request->DriverResponse = request->Host->Driver->Execute(request->DriverRequest);
+        while (size_t bytesRead = inputStream->Read(buffer.Data(), buffer.Size())) {
+            outputStream->Write(buffer.Data(), bytesRead);
         }
-    } catch (const std::exception& ex) {
-        request->Error = TError("Caught unknown exception while executing driver request") << TError(ex);
-        LOG_ERROR(request->Error);
+
+        request->DriverResponse = TDriverResponse();
     }
 }
 
@@ -508,50 +501,44 @@ void TNodeJSDriver::ExecuteAfter(uv_work_t* workRequest)
         LOG_DEBUG(TError(ex), "Ignoring exception while closing driver output stream");
     }
 
-    {
-        char buffer[32]; // This should be enough to stringify ui64.
-        size_t length;
+    char buffer[32]; // This should be enough to stringify ui64.
+    size_t length;
 
-        TryCatch catcher;
+    TryCatch catcher;
 
-        Handle<Value> args[] = {
-            Local<Value>::New(v8::Null()),
-            Local<Value>::New(v8::Null()),
-            Local<Value>::New(v8::Null()),
-            Local<Value>::New(v8::Null())
-        };
+    Handle<Value> args[] = {
+        Local<Value>::New(v8::Null()),
+        Local<Value>::New(v8::Null()),
+        Local<Value>::New(v8::Null())
+    };
 
-        if (!request->Error.IsOK()) {
-            args[0] = ConvertErrorToV8(request->Error);
-        } else {
-            args[1] = ConvertErrorToV8(request->DriverResponse.Error);
-            // XXX(sandello): Since counters are ui64 we cannot represent
-            // them precisely in V8. Therefore we pass them as strings
-            // because they are used only for debugging purposes.
-            length = ToString(
-                nodejsInputStream->GetBytesEnqueued(),
-                buffer,
-                sizeof(buffer));
-            args[2] = String::New(buffer, length);
+    args[0] = ConvertErrorToV8(request->DriverResponse.Error);
 
-            length = ToString(
-                nodejsOutputStream->GetBytesEnqueued(),
-                buffer,
-                sizeof(buffer));
-            args[3] = String::New(buffer, length);
-        }
+    // XXX(sandello): Since counters are ui64 we cannot represent
+    // them precisely in V8. Therefore we pass them as strings
+    // because they are used only for debugging purposes.
+    length = ToString(
+        nodejsInputStream->GetBytesEnqueued(),
+        buffer,
+        sizeof(buffer));
+    args[1] = String::New(buffer, length);
 
-        request->Callback->Call(
-            Context::GetCurrent()->Global(),
-            ARRAY_SIZE(args),
-            args);
+    length = ToString(
+        nodejsOutputStream->GetBytesEnqueued(),
+        buffer,
+        sizeof(buffer));
+    args[2] = String::New(buffer, length);
 
-        if (catcher.HasCaught()) {
-            node::FatalException(catcher);
-        }
-    }
+    request->Callback->Call(
+        Context::GetCurrent()->Global(),
+        ARRAY_SIZE(args),
+        args);
 
     delete request;
+
+    if (catcher.HasCaught()) {
+        node::FatalException(catcher);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

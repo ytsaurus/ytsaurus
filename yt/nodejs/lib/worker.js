@@ -47,6 +47,7 @@ var violentlyDie = function violentDeath() {
     process.nextTick(function() {
         cluster.worker.disconnect();
         cluster.worker.destroy();
+        process.abort();
     });
 };
 
