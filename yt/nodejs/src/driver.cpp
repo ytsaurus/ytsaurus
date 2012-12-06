@@ -118,8 +118,8 @@ struct TExecuteRequest
     {
         Request.data = this;
 
-        DriverRequest.InputStream = InputStack.Top();
-        DriverRequest.OutputStream = OutputStack.Top();
+        DriverRequest.InputStream = &InputStack;
+        DriverRequest.OutputStream = &OutputStack;
     }
 
     void Flush()
@@ -480,25 +480,16 @@ void TNodeJSDriver::ExecuteAfter(uv_work_t* workRequest)
 
     TExecuteRequest* request = container_of(workRequest, TExecuteRequest, Request);
 
-    auto* nodejsInputStream = request->InputStack.GetBaseStream();
-    auto* nodejsOutputStream = request->OutputStack.GetBaseStream();
-
-    try {
-        request->Flush();
-    } catch (const std::exception& ex) {
-        LOG_DEBUG(TError(ex), "Ignoring exception while closing driver output stream");
-    }
-
-    if (nodejsOutputStream->GetBytesEnqueued() == 0) {
+    if (!request->OutputStack.HasAnyData()) {
         // In this case we have to prematurely destroy the stream to avoid
         // writing middleware-induced framing overhead.
-        nodejsOutputStream->DoDestroy();
-    }
-
-    try {
-        request->Finish();
-    } catch (const std::exception& ex) {
-        LOG_DEBUG(TError(ex), "Ignoring exception while closing driver output stream");
+        request->OutputStack.GetBaseStream()->DoDestroy();
+    } else {
+        try {
+            request->Finish();
+        } catch (const std::exception& ex) {
+            LOG_DEBUG(TError(ex), "Ignoring exception while closing driver output stream");
+        }
     }
 
     char buffer[32]; // This should be enough to stringify ui64.
@@ -517,12 +508,14 @@ void TNodeJSDriver::ExecuteAfter(uv_work_t* workRequest)
     // XXX(sandello): Since counters are ui64 we cannot represent
     // them precisely in V8. Therefore we pass them as strings
     // because they are used only for debugging purposes.
+    auto* nodejsInputStream = request->InputStack.GetBaseStream();
     length = ToString(
         nodejsInputStream->GetBytesEnqueued(),
         buffer,
         sizeof(buffer));
     args[1] = String::New(buffer, length);
 
+    auto* nodejsOutputStream = request->OutputStack.GetBaseStream();
     length = ToString(
         nodejsOutputStream->GetBytesEnqueued(),
         buffer,

@@ -9,6 +9,7 @@ namespace NYT {
 
 TNodeJSOutputStack::TNodeJSOutputStack(TNodeJSOutputStream* base)
     : TGrowingStreamStack(base)
+    , HasAnyData_(false)
 {
     THREAD_AFFINITY_IS_V8();
     YASSERT(base == Bottom());
@@ -52,8 +53,14 @@ void TNodeJSOutputStack::AddCompression(ECompression compression)
     Add<TBufferedOutput>()->SetPropagateMode(true);
 }
 
+bool TNodeJSOutputStack::HasAnyData()
+{
+    return HasAnyData_;
+}
+
 void TNodeJSOutputStack::DoWrite(const void* buffer, size_t length)
 {
+    HasAnyData_ = true;
     return Top()->Write(buffer, length);
 }
 
