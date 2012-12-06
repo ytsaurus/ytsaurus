@@ -293,12 +293,11 @@ cat > /dev/null; echo {hello=world}
 
         map(in_=['//tmp/t1', '//tmp/t2'],
             out='//tmp/out',
-            command="cat >&2",
+            command="cat",
             opt=[ \
-                # '/spec/mapper/format = <enable_table_index=true>dsv', \
-                '/spec/enable_table_index = true'])
+                '/spec/mapper/format=dsv', \
+                '/spec/enable_table_index=true'])
 
-        raw_input()
         expected = [{'@table_index': '0', 'foo': 'bar'},
                     {'@table_index': '1', 'ninja': 'value'}]
         self.assertItemsEqual(read('//tmp/out'), expected)

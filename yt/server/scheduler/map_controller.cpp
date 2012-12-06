@@ -67,6 +67,7 @@ private:
         explicit TMapTask(TMapController* controller)
             : TTask(controller)
             , Controller(controller)
+            , StartRowIndex(0)
         {
             ChunkPool = CreateUnorderedChunkPool(Controller->JobCounter.GetTotal());
         }

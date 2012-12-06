@@ -19,7 +19,8 @@ void TFormatsConsumerBase::OnRaw(const TStringBuf& yson, EYsonType type)
 {
     // OnRaw is supported only on nodes
     if (type != EYsonType::Node) {
-        YUNIMPLEMENTED();
+        TYsonConsumerBase::OnRaw(yson, type);
+        return;
     }
 
     // For peformance reason try to consume only one token first
