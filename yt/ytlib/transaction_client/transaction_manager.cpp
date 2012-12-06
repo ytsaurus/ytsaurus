@@ -36,7 +36,7 @@ public:
         bool ping,
         bool pingAncestors)
         : Owner(owner)
-        , AutoAbort(false)
+        , AutoAbort(autoAbort)
         , Ping(ping)
         , PingAncestors(pingAncestors)
         , Proxy(owner->Channel)
