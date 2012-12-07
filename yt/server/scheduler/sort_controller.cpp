@@ -1689,12 +1689,16 @@ private:
         if (Spec->Mapper) {
             for (int i = 0; i < static_cast<int>(Spec->Mapper->FilePaths.size()); ++i) {
                 MapperFiles.push_back(*filesIt++);
+            }
+            for (int i = 0; i < static_cast<int>(Spec->Mapper->TableFilePaths.size()); ++i) {
                 MapperTableFiles.push_back(*tableFilesIt++);
             }
         }
 
         for (int i = 0; i < static_cast<int>(Spec->Reducer->FilePaths.size()); ++i) {
             ReducerFiles.push_back(*filesIt++);
+        }
+        for (int i = 0; i < static_cast<int>(Spec->Reducer->TableFilePaths.size()); ++i) {
             ReducerTableFiles.push_back(*tableFilesIt++);
         }
 

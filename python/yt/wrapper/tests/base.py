@@ -9,6 +9,9 @@ TEST_DIR = "//home/tests"
 class YtTestBase(object):
     @classmethod
     def setUpClass(cls, test_class):
+        reload(yt)
+        reload(config)
+
         logging.basicConfig(level=logging.WARNING)
 
         test_class.NUM_MASTERS = 1
