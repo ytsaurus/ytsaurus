@@ -171,6 +171,29 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
     awaiter->Complete(BIND(&TJob::RunJobProxy, MakeWeak(this)));
 }
 
+TPromise<void> TJob::PrepareDownloadingTableFile(
+    const NYT::NScheduler::NProto::TTableFile& rsp)
+{
+    std::vector<TChunkId> chunkIds;
+    FOREACH (const auto chunk, rsp.table().chunks()) {
+        chunkIds.push_back(TChunkId::FromProto(chunk.slice().chunk_id()));
+    }
+    
+    LOG_INFO(
+        "Downloading user table file (FileName: %s, ChunkIds: %s)",
+        ~rsp.file_name(),
+        ~JoinToString(chunkIds));
+
+    auto awaiter = New<TParallelAwaiter>(Slot->GetInvoker());
+    FOREACH (const auto& chunkId, chunkIds) {
+        awaiter->Await(ChunkCache->DownloadChunk(chunkId));
+    }
+
+    auto promise = NewPromise<void>();
+    awaiter->Complete(BIND(&TJob::OnTableDownloaded, MakeWeak(this), rsp, promise));
+    return promise;
+}
+
 void TJob::PrepareUserJob(
     const NScheduler::NProto::TUserJobSpec& userJobSpec,
     TParallelAwaiterPtr awaiter)
@@ -186,18 +209,7 @@ void TJob::PrepareUserJob(
     }
 
     FOREACH (const auto& rsp, userJobSpec.table_files()) {
-        LOG_INFO("Downloading user table file %s", ~rsp.file_name());
-
-        auto downloadTableAwaiter = New<TParallelAwaiter>(Slot->GetInvoker());
-        FOREACH (const auto chunk, rsp.table().chunks()) {
-            auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
-            downloadTableAwaiter->Await(ChunkCache->DownloadChunk(chunkId));
-        }
-
-        auto promise = NewPromise<void>();
-        downloadTableAwaiter->Complete(
-            BIND(&TJob::OnTableDownloaded, MakeWeak(this), rsp, promise));
-        awaiter->Await(promise);
+        awaiter->Await(PrepareDownloadingTableFile(rsp));
     }
 
 }
@@ -281,13 +293,14 @@ void TJob::OnTableDownloaded(
     syncReader->Open();
 
     auto tableProducer = BIND(&ProduceYson, syncReader);
+    auto format = ConvertTo<NFormats::TFormat>(TYsonString(tableFileRsp.format()));
 
     auto fileName = tableFileRsp.file_name();
     try {
         Slot->MakeFile(
             fileName,
             tableProducer,
-            ConvertTo<NFormats::TFormat>(TYsonString(tableFileRsp.format())));
+            format);
     } catch (const std::exception& ex) {
         auto wrappedError = TError(
             "Failed to write user table file %s",

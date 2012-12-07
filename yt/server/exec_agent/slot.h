@@ -35,7 +35,7 @@ public:
         const Stroka& targetPath,
         bool isExecutable);
 
-    //! Writes data from produce to fileName 
+    //! Writes data from produce to #fileName 
     void MakeFile(
         const Stroka& fileName,
         NYTree::TYsonProducer producer,

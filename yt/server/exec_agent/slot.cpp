@@ -99,8 +99,6 @@ void TSlot::MakeFile(
             format,
             NFormats::EDataType::Tabular,
             &fileOutput).Get());
-
-    fileOutput.Finish();
 }
 
 const Stroka& TSlot::GetWorkingDirectory() const

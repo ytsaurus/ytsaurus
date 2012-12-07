@@ -77,11 +77,11 @@ void TNodeBase::GetKeySelf(TReqGetKey* request, TRspGetKey* response, TCtxGetKey
     switch (parent->GetType()) {
         case ENodeType::Map:
             key = parent->AsMap()->GetChildKey(this);
-        break;
+            break;
 
         case ENodeType::List:
             key = ToString(parent->AsList()->GetChildIndex(this));
-        break;
+            break;
 
         default:
             YUNREACHABLE();
@@ -91,7 +91,6 @@ void TNodeBase::GetKeySelf(TReqGetKey* request, TRspGetKey* response, TCtxGetKey
 
     context->Reply();
 }
-
 
 void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemovePtr context)
 {

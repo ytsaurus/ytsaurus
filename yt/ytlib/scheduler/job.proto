@@ -103,7 +103,7 @@ message TTableFile
 {
     required NYT.NTableClient.NProto.TRspFetch table = 1;
 
-    required string format = 2;
+    required bytes format = 2;
 
     required string file_name = 3;
 }

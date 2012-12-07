@@ -1386,9 +1386,12 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
 
             auto sizeRsp = fetchTableFilesSizesRsps[index];
             THROW_ERROR_EXCEPTION_IF_FAILED(*sizeRsp, "Error fetching size of table files");
-            if (ConvertTo<ui64>(TYsonString(sizeRsp->value())) > Config->TableFileSizeLimit) {
+            auto tableSize = ConvertTo<i64>(TYsonString(sizeRsp->value()));
+            if (tableSize > Config->TableFileSizeLimit) {
                 THROW_ERROR_EXCEPTION(
-                    "Table file size exceeds the limit " PRIu64,
+                    "Table file %s is too large: " PRIu64 " > " PRIu64,
+                    ~file.Path.GetPath(),
+                    tableSize,
                     Config->TableFileSizeLimit);
             }
 
@@ -1403,6 +1406,18 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 file.FileName = file.Path.Attributes().Get<Stroka>("file_name");
             }
             file.Format = file.Path.Attributes().GetYson("format");
+            
+            std::vector<TChunkId> chunkIds;
+            FOREACH (const auto chunk, file.FetchResponse->chunks()) {
+                chunkIds.push_back(TChunkId::FromProto(chunk.slice().chunk_id()));
+            }
+    
+            LOG_INFO(
+                "Table file %s has file_name %s, format %s and consists of chunks %s",
+                ~file.Path.GetPath(),
+                ~file.FileName,
+                ~file.Format.Data(),
+                ~JoinToString(chunkIds));
         }
     }
 

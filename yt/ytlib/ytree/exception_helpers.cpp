@@ -86,9 +86,9 @@ void ThrowVerbNotSuppored(const Stroka& verb, const Stroka& resolveType)
 {
     THROW_ERROR_EXCEPTION(
         NRpc::EErrorCode::NoSuchVerb,
-        "Verb is not supported while resolving %s: %s",
-        ~resolveType,
-        ~verb);
+        "Verb is not supported: %s",
+        ~verb)
+            << TErrorAttribute("Mode", TYsonString(resolveType));
 }
 
 void ThrowCannotHaveChildren(IConstNodePtr node)

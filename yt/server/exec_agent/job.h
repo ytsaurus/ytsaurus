@@ -71,9 +71,13 @@ public:
 
 private:
     void DoStart(TEnvironmentManagerPtr environmentManager);
+    
     void PrepareUserJob(
         const NScheduler::NProto::TUserJobSpec& userJobSpec,
         TParallelAwaiterPtr awaiter);
+    TPromise<void> PrepareDownloadingTableFile(
+        const NYT::NScheduler::NProto::TTableFile& rsp);
+    
     void OnChunkDownloaded(
         const NFileClient::NProto::TRspFetchFile& fetchRsp,
         TValueOrError<NChunkHolder::TCachedChunkPtr> result);
