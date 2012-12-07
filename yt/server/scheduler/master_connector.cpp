@@ -387,7 +387,8 @@ private:
                     if (state == EOperationState::Initializing ||
                         state == EOperationState::Preparing ||
                         state == EOperationState::Reviving ||
-                        state == EOperationState::Running)
+                        state == EOperationState::Running ||
+                        state == EOperationState::Completing)
                     {
                         OperationIds.push_back(id);
                     }
