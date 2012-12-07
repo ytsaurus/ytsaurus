@@ -35,13 +35,17 @@ exports.that = function YtApplication(logger, config) {
 
     var driver = new YtDriver(false, config);
     var watcher = new YtEioWatcher(logger, config);
+    var fqdn = config.fqdn;
     var read_only = config.read_only;
+
+    __DBG("FQDN = " + fqdn);
+    __DBG("RO = " + read_only);
 
     return function(req, rsp) {
         var pause = utils.Pause(req);
         req.connection.setNoDelay(true); // Disable Nagle.
         return (new YtCommand(
-            logger, driver, watcher, read_only, pause, req, rsp
+            logger, driver, watcher, fqdn, read_only, pause, req, rsp
         )).dispatch();
     };
 };

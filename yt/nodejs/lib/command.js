@@ -111,7 +111,7 @@ var _PREDEFINED_YSON_FORMAT = new binding.TNodeJSNode({ $value : "yson" });
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtCommand(logger, driver, watcher, read_only, pause, req, rsp) {
+function YtCommand(logger, driver, watcher, fqdn, read_only, pause, req, rsp) {
     "use strict";
     if (__DBG.UUID) {
         this.__DBG  = function(x) { __DBG(this.__UUID + " -> " + x); };
@@ -123,6 +123,7 @@ function YtCommand(logger, driver, watcher, read_only, pause, req, rsp) {
     this.logger = logger;
     this.driver = driver;
     this.watcher = watcher;
+    this.fqdn = fqdn;
     this.read_only = read_only;
     this.pause = pause;
 
@@ -166,6 +167,7 @@ YtCommand.prototype.dispatch = function() {
     Q
         .fcall(function() {
             self._getName();
+            self._redirectForMarkedRequests();
             self._getDescriptor();
             self._checkHttpMethod();
             self._checkReadOnlyAndHeavy();
@@ -263,6 +265,32 @@ YtCommand.prototype._getName = function() {
     if (!/^[a-z_]+$/.test(this.name)) {
         throw new YtError("Malformed command name " + JSON.stringify(this.name) + ".");
     }
+};
+
+// COMPAT(sandello): Rework me after all clients upgrade to a new protocol.
+YtCommand.prototype._redirectForMarkedRequests = function() {
+    "use strict";
+    this.__DBG("_redirectForMarkedRequests");
+
+    if (this.name === "read_direct" || this.name === "write_direct") {
+        this.name = this.name.substr(0, this.name.length - 7);
+    } else {
+        return;
+    }
+
+    this.req.parsedUrl.pathname = '/' + this.name;
+    var target = 'http://' + this.fqdn + '/api' + url.format(this.req.parsedUrl);
+
+    this.rsp.statusCode = 307;
+    this.rsp.shouldKeepAlive = false;
+    this.rsp.removeHeader("Transfer-Encoding");
+    this.rsp.removeHeader("Content-Encoding");
+    this.rsp.removeHeader("Vary");
+    this.rsp.setHeader("Connection", "close");
+    this.rsp.setHeader("Location", target);
+    this.rsp.end();
+
+    throw new YtError();
 };
 
 YtCommand.prototype._getDescriptor = function() {
