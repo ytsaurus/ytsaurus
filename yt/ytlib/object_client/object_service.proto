@@ -1,5 +1,7 @@
 package NYT.NObjectClient.NProto;
 
+import "yt/ytlib/misc/guid.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqExecute
@@ -10,6 +12,10 @@ message TReqExecute
     // This array contains the lengths of those part sequences.
     // In particular, its length is just the number of encaplusated YPath requests.
     repeated int32 part_counts = 1;
+
+    // A vector of transaction ids that must be alive
+    // in order for the request to be executed.
+    repeated NYT.NProto.TGuid prerequisite_transaction_ids = 2;
 }
 
 message TRspExecute

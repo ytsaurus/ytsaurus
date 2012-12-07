@@ -113,34 +113,45 @@ TObjectServiceProxy::TReqExecuteBatch::AddRequest(
     const Stroka& key)
 {
     if (!key.empty()) {
-        int index = Body.part_counts_size();
-        KeyToIndexes.insert(MakePair(key, index));
+        int index = static_cast<int>(PartCounts.size());
+        KeyToIndexes.insert(std::make_pair(key, index));
     }
 
     if (innerRequest) {
         auto innerMessage = innerRequest->Serialize();
         const auto& innerParts = innerMessage->GetParts();
-        Body.add_part_counts(static_cast<int>(innerParts.size()));
+        PartCounts.push_back(static_cast<int>(innerParts.size()));
         Attachments_.insert(
             Attachments_.end(),
             innerParts.begin(),
             innerParts.end());
     } else {
-        Body.add_part_counts(0);
+        PartCounts.push_back(0);
     }
 
     return this;
 }
 
+TObjectServiceProxy::TReqExecuteBatchPtr TObjectServiceProxy::TReqExecuteBatch::SetTimeout(
+    TNullable<TDuration> timeout)
+{
+    TClientRequest::SetTimeout(timeout);
+    return this;
+}
+
 int TObjectServiceProxy::TReqExecuteBatch::GetSize() const
 {
-    return Body.part_counts_size();
+    return static_cast<int>(PartCounts.size());
 }
 
 TSharedRef TObjectServiceProxy::TReqExecuteBatch::SerializeBody() const
 {
+    NProto::TReqExecute req;
+    ToProto(req.mutable_part_counts(), PartCounts);
+    ToProto(req.mutable_prerequisite_transaction_ids(), PrerequisiteTransactionIds_);
+
     TSharedRef data;
-    YCHECK(SerializeToProtoWithEnvelope(Body, &data));
+    YCHECK(SerializeToProtoWithEnvelope(req, &data));
     return data;
 }
 
@@ -222,6 +233,15 @@ std::vector<NYTree::TYPathResponsePtr> TObjectServiceProxy::TRspExecuteBatch::Ge
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+Stroka TObjectServiceProxy::GetServiceName()
+{
+    return "ObjectService";
+}
+
+TObjectServiceProxy::TObjectServiceProxy(IChannelPtr channel)
+    : TProxyBase(channel, GetServiceName())
+{ }
 
 TFuture<IMessagePtr> TObjectServiceProxy::Execute(IMessagePtr innerRequestMessage)
 {

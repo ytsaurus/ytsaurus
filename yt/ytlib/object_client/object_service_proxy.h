@@ -4,6 +4,8 @@
 
 #include <ytlib/ytree/ypath_client.h>
 
+#include <ytlib/transaction_client/public.h>
+
 #include <ytlib/object_client/object_service.pb.h>
 
 namespace NYT {
@@ -15,16 +17,9 @@ class TObjectServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    typedef TIntrusivePtr<TObjectServiceProxy> TPtr;
+    static Stroka GetServiceName();
 
-    static Stroka GetServiceName()
-    {
-        return "ObjectService";
-    }
-
-    explicit TObjectServiceProxy(NRpc::IChannelPtr channel)
-        : TProxyBase(channel, GetServiceName())
-    { }
+    explicit TObjectServiceProxy(NRpc::IChannelPtr channel);
 
     DEFINE_RPC_PROXY_METHOD(NProto, Execute);
     DEFINE_RPC_PROXY_METHOD(NProto, GCCollect);
@@ -50,20 +45,21 @@ public:
     class TReqExecuteBatch
         : public NRpc::TClientRequest
     {
+        //! A vector of transaction ids that must be alive
+        //! in order for the request to be executed.
+        DEFINE_BYVAL_RW_PROPERTY(std::vector<NTransactionClient::TTransactionId>, PrerequisiteTransactionIds);
+
     public:
         TReqExecuteBatch(
             NRpc::IChannelPtr channel,
             const Stroka& path,
             const Stroka& verb);
 
+        //! Runs asynchronous invocation. 
         TFuture<TRspExecuteBatchPtr> Invoke();
 
-        // Overrides base method for fluent use.
-        TIntrusivePtr<TReqExecuteBatch> SetTimeout(TNullable<TDuration> timeout)
-        {
-            TClientRequest::SetTimeout(timeout);
-            return this;
-        }
+        //! Overrides base method for fluent use.
+        TIntrusivePtr<TReqExecuteBatch> SetTimeout(TNullable<TDuration> timeout);
 
         //! Adds an individual request into the batch.
         /*!
@@ -86,7 +82,7 @@ public:
     private:
         typedef std::multimap<Stroka, int> TKeyToIndexes;
 
-        NProto::TRspExecute Body;
+        std::vector<int> PartCounts;
         TKeyToIndexes KeyToIndexes;
         std::vector<TError> RetryErrors;
 

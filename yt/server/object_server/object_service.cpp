@@ -10,6 +10,9 @@
 
 #include <ytlib/actions/parallel_awaiter.h>
 
+#include <server/transaction_server/transaction.h>
+#include <server/transaction_server/transaction_manager.h>
+
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
 
@@ -21,6 +24,7 @@ using namespace NRpc;
 using namespace NBus;
 using namespace NYTree;
 using namespace NCypressServer;
+using namespace NTransactionServer;
 using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,6 +77,26 @@ private:
         if (!awaiter)
             return;
 
+        // Validate prerequisite transactions.
+        auto transactionManager = Owner->Bootstrap->GetTransactionManager();
+        FOREACH (const auto& protoId, request.prerequisite_transaction_ids()) {
+            auto id = TTransactionId::FromProto(protoId);
+            const auto* transaction = transactionManager->FindTransaction(id);
+            if (!transaction) {
+                Reply(TError(
+                    "Prerequisite transaction is missing: %s",
+                    ~ToString(id)));
+                return;
+            }
+            if (transaction->GetState() != ETransactionState::Active) {
+                Reply(TError(
+                    "Prerequisite transaction is not active: %s",
+                    ~ToString(id)));
+                return;
+            }
+        }
+
+        // Execute another portion of requests.
         while (CurrentRequestIndex < request.part_counts_size()) {
             int partCount = request.part_counts(CurrentRequestIndex);
             if (partCount == 0) {
