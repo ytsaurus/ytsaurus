@@ -53,7 +53,7 @@ class Transaction(object):
     """
     stack = []
 
-    def __init__(self, timeout=60):
+    def __init__(self, timeout=60 * 1000):
         Transaction.stack.append(start_transaction(timeout=timeout))
         self._update_global_config()
 
