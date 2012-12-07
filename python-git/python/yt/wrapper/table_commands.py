@@ -229,6 +229,8 @@ def write_table(table, lines, format=None, table_writer=None):
                 params["table_writer"] = table_writer
             for i in xrange(config.WRITE_RETRIES_COUNT):
                 try:
+                    # TODO(ignat): buffer.get() may work very long.
+                    # We should ping transaction here or use timeout in reading buffer.
                     with Transaction():
                         _make_transactioned_request(
                             "write",
