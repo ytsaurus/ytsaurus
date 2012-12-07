@@ -47,7 +47,7 @@ public:
     {
         //! A vector of transaction ids that must be alive
         //! in order for the request to be executed.
-        DEFINE_BYVAL_RW_PROPERTY(std::vector<NTransactionClient::TTransactionId>, PrerequisiteTransactionIds);
+        DEFINE_BYREF_RW_PROPERTY(std::vector<NTransactionClient::TTransactionId>, PrerequisiteTransactionIds);
 
     public:
         TReqExecuteBatch(
