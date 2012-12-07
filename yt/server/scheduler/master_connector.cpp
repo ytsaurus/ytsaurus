@@ -56,6 +56,7 @@ public:
         NCellScheduler::TBootstrap* bootstrap)
         : Config(config)
         , Bootstrap(bootstrap)
+        , Proxy(Bootstrap->GetMasterChannel())
         , Connected(false)
     { }
 
@@ -83,12 +84,14 @@ public:
 
         auto* list = CreateUpdateList(operation);
 
-        TObjectServiceProxy proxy(list->SerializedChannel);
+        auto batchReq = StartBatchRequest(list);
+        {
+            auto req = TYPathProxy::Set(GetOperationPath(id));
+            req->set_value(BuildOperationYson(operation).Data());
+            batchReq->AddRequest(req);
+        }
 
-        auto setReq = TYPathProxy::Set(GetOperationPath(id));
-        setReq->set_value(BuildOperationYson(operation).Data());
-
-        return proxy.Execute(setReq).Apply(
+        return batchReq->Invoke().Apply(
             BIND(
                 &TImpl::OnOperationNodeCreated,
                 MakeStrong(this),
@@ -111,8 +114,7 @@ public:
         list->State = EUpdateListState::Flushing;
 
         // Create a batch update for this particular operation.
-        TObjectServiceProxy proxy(list->SerializedChannel);
-        auto batchReq = proxy.ExecuteBatch();
+        auto batchReq = StartBatchRequest(list);
         PrepareOperationUpdate(list, batchReq);
 
         batchReq->Invoke().Apply(
@@ -136,8 +138,7 @@ public:
         list->State = EUpdateListState::Finalizing;
 
         // Create a batch update for this particular operation.
-        TObjectServiceProxy proxy(list->SerializedChannel);
-        auto batchReq = proxy.ExecuteBatch();
+        auto batchReq = StartBatchRequest(list);
         PrepareOperationUpdate(list, batchReq);
 
         batchReq->Invoke().Subscribe(
@@ -173,6 +174,8 @@ private:
     TSchedulerConfigPtr Config;
     NCellScheduler::TBootstrap* Bootstrap;
 
+    TObjectServiceProxy Proxy;
+
     TCancelableContextPtr CancelableContext;
     IInvokerPtr CancelableControlInvoker;
 
@@ -200,7 +203,7 @@ private:
             , State(EUpdateListState::Active)
             , FlushedPromise(NewPromise<void>())
             , FinalizedPromise(NewPromise<void>())
-            , SerializedChannel(CreateSerializedChannel(masterChannel))
+            , Proxy(CreateSerializedChannel(masterChannel))
         { }
 
         TOperationPtr Operation;
@@ -208,7 +211,7 @@ private:
         EUpdateListState State;
         TPromise<void> FlushedPromise;
         TPromise<void> FinalizedPromise;
-        IChannelPtr SerializedChannel;
+        TObjectServiceProxy Proxy;
     };
 
     yhash_map<TOperationId, TUpdateList> UpdateLists;
@@ -280,7 +283,6 @@ private:
     public:
         explicit TRegistrationPipeline(TIntrusivePtr<TImpl> owner)
             : Owner(owner)
-            , Proxy(owner->Bootstrap->GetMasterChannel())
         { }
 
         TAsyncPipeline<TMasterHandshakeResult>::TPtr Create()
@@ -297,7 +299,6 @@ private:
 
     private:
         TIntrusivePtr<TImpl> Owner;
-        TObjectServiceProxy Proxy;
         std::vector<TOperationId> OperationIds;
         TMasterHandshakeResult Result;
 
@@ -305,7 +306,7 @@ private:
         // - Start lock transaction.
         TObjectServiceProxy::TInvExecuteBatch Round1()
         {
-            auto batchReq = Proxy.ExecuteBatch();
+            auto batchReq = Owner->StartBatchRequest(false);
             {
                 auto req = TTransactionYPathProxy::CreateObject(RootTransactionPath);
                 req->set_type(EObjectType::Transaction);
@@ -327,7 +328,7 @@ private:
                 LOG_INFO("Lock transaction is %s", ~ToString(transactionId));
             }
 
-            auto batchReq = Proxy.ExecuteBatch();
+            auto batchReq = Owner->StartBatchRequest();
             {
                 auto req = TCypressYPathProxy::Lock("//sys/scheduler/lock");
                 SetTransactionId(req, Owner->LockTransaction);
@@ -346,7 +347,7 @@ private:
         {
             THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
 
-            auto batchReq = Proxy.ExecuteBatch();
+            auto batchReq = Owner->StartBatchRequest();
             auto schedulerAddress = Owner->Bootstrap->GetPeerAddress();
             {
                 auto req = TYPathProxy::Set("//sys/scheduler/@address");
@@ -395,7 +396,7 @@ private:
                 }
             }
 
-            auto batchReq = Proxy.ExecuteBatch();
+            auto batchReq = Owner->StartBatchRequest();
             {
                 LOG_INFO("Fetching attributes for %d unfinished operations",
                     static_cast<int>(OperationIds.size()));
@@ -437,7 +438,7 @@ private:
                 }
             }
 
-            auto batchReq = Proxy.ExecuteBatch();
+            auto batchReq = Owner->StartBatchRequest();
             FOREACH (auto operation, Result.Operations) {
                 operation->SetState(EOperationState::Reviving);
 
@@ -463,7 +464,7 @@ private:
         {
             THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
 
-            auto batchReq = Proxy.ExecuteBatch();
+            auto batchReq = Owner->StartBatchRequest();
             Owner->WatcherRequest_.Fire(batchReq);
             return batchReq->Invoke();
         }
@@ -481,6 +482,27 @@ private:
     };
 
 
+    TObjectServiceProxy::TReqExecuteBatchPtr StartBatchRequest(bool requireTransaction = true)
+    {
+        return DoStartBatchRequest(&Proxy, requireTransaction);
+    }
+
+    TObjectServiceProxy::TReqExecuteBatchPtr StartBatchRequest(TUpdateList* list, bool requireTransaction = true)
+    {
+        return DoStartBatchRequest(&list->Proxy, requireTransaction);
+    }
+
+    TObjectServiceProxy::TReqExecuteBatchPtr DoStartBatchRequest(TObjectServiceProxy* proxy, bool requireTransaction = true)
+    {
+        auto req = proxy->ExecuteBatch();
+        if (requireTransaction) {
+            YCHECK(LockTransaction);
+            req->PrerequisiteTransactionIds().push_back(LockTransaction->GetId());
+        }
+        return req;
+    }
+
+
     void Disconnect()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -491,6 +513,7 @@ private:
         LOG_WARNING("Master disconnected");
 
         Connected = false;
+        LockTransaction.Reset();
         ClearUpdateLists();
         StopRefresh();
         CancelableContext->Cancel();
@@ -628,8 +651,7 @@ private:
 
         // Invoke GetId verbs for these transactions to see if they are alive.
         std::vector<TTransactionId> transactionIdsList;
-        TObjectServiceProxy proxy(Bootstrap->GetMasterChannel());
-        auto batchReq = proxy.ExecuteBatch();
+        auto batchReq = StartBatchRequest();
         FOREACH (const auto& id, transactionIdsSet) {
             auto checkReq = TObjectYPathProxy::GetId(FromObjectId(id));
             transactionIdsList.push_back(id);
@@ -729,8 +751,7 @@ private:
                 LOG_DEBUG("Updating operation node (OperationId: %s)",
                     ~ToString(operation->GetOperationId()));
 
-                TObjectServiceProxy proxy(list.SerializedChannel);
-                auto batchReq = proxy.ExecuteBatch();
+                auto batchReq = StartBatchRequest(&list);
                 PrepareOperationUpdate(&list, batchReq);
 
                 awaiter->Await(
@@ -846,12 +867,12 @@ private:
     TError OnOperationNodeCreated(
         TOperationPtr operation,
         TCancelableContextPtr context,
-        TYPathProxy::TRspSetPtr rsp)
+        TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto operationId = operation->GetOperationId();
-        auto error = rsp->GetError();
+        auto error = batchRsp->GetCumulativeError();
 
         if (!error.IsOK()) {
             auto wrappedError = TError("Error creating operation node (OperationId: %s)",
@@ -933,8 +954,7 @@ private:
         LOG_INFO("Updating watchers");
 
         // Create a batch update for all operations.
-        TObjectServiceProxy proxy(Bootstrap->GetMasterChannel());
-        auto batchReq = proxy.ExecuteBatch();
+        auto batchReq = StartBatchRequest();
         WatcherRequest_.Fire(batchReq);
         batchReq->Invoke().Subscribe(
             BIND(&TImpl::OnWatchersUpdated, MakeStrong(this))
