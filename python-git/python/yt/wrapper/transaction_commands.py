@@ -53,8 +53,8 @@ class Transaction(object):
     """
     stack = []
 
-    def __init__(self):
-        Transaction.stack.append(start_transaction())
+    def __init__(self, timeout=60):
+        Transaction.stack.append(start_transaction(timeout=timeout))
         self._update_global_config()
 
     def __enter__(self):
