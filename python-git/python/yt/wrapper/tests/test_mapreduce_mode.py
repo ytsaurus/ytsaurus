@@ -442,6 +442,11 @@ class MapreduceBehaviourTest(YtTestBase, YTEnv):
         yt.erase_table(TablePath(table, start_index=0, end_index=5))
         self.assertEqual(yt.records_count(table), 0)
 
+    def test_empty_file_is_not_uploaded(self):
+        table = self.create_temp_table()
+        yt.run_map('cat > /dev/null; [ -e empty ] || echo -e "1\t2"', table, table, files=_test_file_path("empty"))
+        self.assertEqual(yt.records_count(table), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
