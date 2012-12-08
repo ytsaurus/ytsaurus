@@ -246,7 +246,7 @@ private:
                 Owner->Config->CacheSequentialReader,
                 MoveRV(blockSequence),
                 RemoteReader,
-                ECodecId::None);
+                ECodec::None);
 
             BlockIndex = 0;
             FetchNextBlock();

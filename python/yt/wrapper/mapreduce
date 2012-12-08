@@ -400,7 +400,7 @@ Examples:
 
     table_writer = {}
     if args.codec is not None:
-        table_writer["codec_id"] = args.codec
+        table_writer["codec"] = args.codec
     if not table_writer:
         table_writer = None
 

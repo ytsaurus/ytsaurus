@@ -118,7 +118,7 @@ bool DeserializeFromProto(
 bool SerializeToProtoWithEnvelope(
     const google::protobuf::Message& message,
     TSharedRef* data,
-    ECodecId codecId = ECodecId::None);
+    ECodec codecId = ECodec::None);
 
 //! Unwraps a chunk of memory obtained from #SerializeToProtoWithEnvelope
 //! and deserializes it into a protobuf message.

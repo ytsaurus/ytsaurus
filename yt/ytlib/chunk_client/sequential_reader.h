@@ -42,7 +42,7 @@ public:
         // ToDo: use move semantics
         std::vector<TBlockInfo>&& blocks,
         IAsyncReaderPtr chunkReader,
-        ECodecId codecId);
+        ECodec codecId);
 
     bool HasNext() const;
 

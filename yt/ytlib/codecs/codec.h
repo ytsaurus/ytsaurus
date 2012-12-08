@@ -6,7 +6,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ECodecId,
+DECLARE_ENUM(ECodec,
     ((None)(0))
     ((Snappy)(1))
     ((GzipNormal)(2))
@@ -34,7 +34,7 @@ struct ICodec
 
 
 //! Returns a codec for the registered id.
-ICodec* GetCodec(ECodecId id);
+ICodec* GetCodec(ECodec id);
 
 ////////////////////////////////////////////////////////////////////////////////
 

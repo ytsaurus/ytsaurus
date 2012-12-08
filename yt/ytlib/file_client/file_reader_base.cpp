@@ -98,7 +98,7 @@ void TFileReaderBase::Open(
         Config,
         MoveRV(blockSequence),
         remoteReader,
-        ECodecId(miscExt.codec_id()));
+        ECodec(miscExt.codec()));
 
     LOG_INFO("File reader opened");
 

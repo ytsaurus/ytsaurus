@@ -119,7 +119,7 @@ public:
         const Stroka& verb,
         bool oneWay)
         : TClientRequest(channel, path, verb, oneWay)
-        , Codec(ECodecId::None)
+        , Codec(ECodec::None)
     { }
 
     TFuture< TIntrusivePtr<TResponse> > Invoke()
@@ -137,7 +137,7 @@ public:
         return this;
     }
 
-    TIntrusivePtr<TTypedClientRequest> SetCodec(ECodecId codec)
+    TIntrusivePtr<TTypedClientRequest> SetCodec(ECodec codec)
     {
         Codec = codec;
         return this;
@@ -150,7 +150,7 @@ public:
     }
 
 private:
-    ECodecId Codec;
+    ECodec Codec;
 
     virtual TSharedRef SerializeBody() const override
     {

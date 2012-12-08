@@ -70,10 +70,10 @@ TDataNodeService::TDataNodeService(
     RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer)
         .SetOneWay(true));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableSamples)
-        .SetResponseCodec(ECodecId::Snappy)
+        .SetResponseCodec(ECodec::Snappy)
         .SetResponseHeavy(true));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkSplits)
-        .SetResponseCodec(ECodecId::Snappy)
+        .SetResponseCodec(ECodec::Snappy)
         .SetResponseHeavy(true));
 }
 

@@ -47,7 +47,7 @@ public:
         const NChunkClient::TSequentialReaderConfigPtr& sequentialReader,
         const NChunkClient::IAsyncReaderPtr& asyncReader,
         int partitionTag,
-        ECodecId codecId);
+        ECodec codecId);
 
     TAsyncError AsyncOpen();
 
@@ -71,7 +71,7 @@ private:
 
     i64 CurrentRowIndex;
     int PartitionTag;
-    ECodecId CodecId;
+    ECodec CodecId;
 
     TAsyncStreamState State;
     NChunkClient::TSequentialReaderPtr SequentialReader;

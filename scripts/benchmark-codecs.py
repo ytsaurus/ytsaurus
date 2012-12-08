@@ -57,7 +57,7 @@ for codec in codecs:
 
 	output =  output_dir + '/' + codec
 	start = dt.datetime.now()
-	yt.write_table(output, rows, yt.YsonFormat(), {"codec_id": codec})
+	yt.write_table(output, rows, yt.YsonFormat(), {"codec": codec})
 	finish = dt.datetime.now()
 	write_time = (finish - start).total_seconds()
 

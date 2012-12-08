@@ -9,7 +9,7 @@ if __name__ == "__main__":
         "//home/ignat/tables_to_merge", 
         lambda table: \
             yt.merge_tables(table, table, "unordered",
-                            table_writer={"codec_id":"gzip_best_compression"},
+                            table_writer={"codec":"gzip_best_compression"},
                             spec={"combine_chunks":"true"})
     )
 

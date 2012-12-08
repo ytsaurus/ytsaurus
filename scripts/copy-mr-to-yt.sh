@@ -55,7 +55,7 @@ time MR_USER=tmp \
     -file ./yt \
     -file ./yt.bin \
     -file ./yt.conf \
-    -map "bash yt write --config yt.conf --config_opt \"/table_writer/codec_id=$codec\" --tx \"$tx\" --format \"<lenval=true;has_subkey=true>yamr\" '$target'"
+    -map "bash yt write --config yt.conf --config_opt \"/table_writer/codec=$codec\" --tx \"$tx\" --format \"<lenval=true;has_subkey=true>yamr\" '$target'"
 
 success=$?
 

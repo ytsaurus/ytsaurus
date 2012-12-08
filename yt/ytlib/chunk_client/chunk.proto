@@ -46,7 +46,7 @@ message TMiscExt
     // Number of rows in this chunk (tables only).
     optional int64 row_count = 2 [default = 0];
 
-    optional int32 codec_id = 3 [default = 0];
+    optional int32 codec = 3 [default = 0];
 
     // Indicates if the chunk contains a sorted rowset (tables only).
     optional bool sorted = 4 [default = false];

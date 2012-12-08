@@ -185,7 +185,7 @@ struct THandlerInvocationOptions
     THandlerInvocationOptions()
         : HeavyRequest(false)
         , HeavyResponse(false)
-        , ResponseCodec(ECodecId::None)
+        , ResponseCodec(ECodec::None)
     { }
 
     //! Should we be deserializing the request in a separate thread?
@@ -195,7 +195,7 @@ struct THandlerInvocationOptions
     bool HeavyResponse;
 
     //! The codec to compress response body.
-    ECodecId ResponseCodec;
+    ECodec ResponseCodec;
 
 };
 
@@ -477,7 +477,7 @@ protected:
             return *this;
         }
 
-        TMethodDescriptor& SetResponseCodec(ECodecId value)
+        TMethodDescriptor& SetResponseCodec(ECodec value)
         {
             Options.ResponseCodec = value;
             return *this;

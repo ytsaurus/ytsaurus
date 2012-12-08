@@ -178,7 +178,7 @@ struct TEncodingWriterConfig
 {
     i64 EncodeWindowSize;
 
-    ECodecId CodecId;
+    ECodec Codec;
 
     double DefaultCompressionRatio;
 
@@ -187,8 +187,8 @@ struct TEncodingWriterConfig
         Register("encode_window_size", EncodeWindowSize)
             .Default(4 * 1024 * 1024)
             .GreaterThan(0);
-        Register("codec_id", CodecId)
-            .Default(ECodecId::None);
+        Register("codec", Codec)
+            .Default(ECodec::None);
         Register("default_compression_ratio", DefaultCompressionRatio)
             .Default(0.2);
     }

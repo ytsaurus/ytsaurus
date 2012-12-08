@@ -254,12 +254,12 @@ class TestTableCommands(YTEnvSetup):
 
     def test_codec_in_writer(self):
         create('table', '//tmp/table')
-        write_str('//tmp/table', '{b="hello"}', opt="/table_writer/codec_id=gzip_best_compression")
+        write_str('//tmp/table', '{b="hello"}', opt="/table_writer/codec=gzip_best_compression")
 
         assert read('//tmp/table') == [{"b":"hello"}]
 
         chunk_id = get("//tmp/table/@chunk_ids/0")
-        assert get('#%s/@codec_id' % chunk_id) == "gzip_best_compression"
+        assert get('#%s/@codec' % chunk_id) == "gzip_best_compression"
 
     def test_copy(self):
         create('table', '//tmp/t')

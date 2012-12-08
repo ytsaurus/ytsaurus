@@ -71,7 +71,7 @@ private:
         attributes->push_back(TAttributeInfo("compressed_data_size", chunk->IsConfirmed() && miscExt->has_compressed_data_size()));
         attributes->push_back(TAttributeInfo("uncompressed_data_size", chunk->IsConfirmed() && miscExt->has_uncompressed_data_size()));
         attributes->push_back(TAttributeInfo("data_weight", chunk->IsConfirmed() && miscExt->has_data_weight()));
-        attributes->push_back(TAttributeInfo("codec_id", chunk->IsConfirmed() && miscExt->has_codec_id()));
+        attributes->push_back(TAttributeInfo("codec", chunk->IsConfirmed() && miscExt->has_codec()));
         attributes->push_back(TAttributeInfo("row_count", chunk->IsConfirmed() && miscExt->has_row_count()));
         attributes->push_back(TAttributeInfo("value_count", chunk->IsConfirmed() && miscExt->has_value_count()));
         attributes->push_back(TAttributeInfo("sorted", chunk->IsConfirmed() && miscExt->has_sorted()));
@@ -184,9 +184,9 @@ private:
                 return true;
             }
 
-            if (key == "codec_id") {
+            if (key == "codec") {
                 BuildYsonFluently(consumer)
-                    .Scalar(CamelCaseToUnderscoreCase(ECodecId(miscExt.codec_id()).ToString()));
+                    .Scalar(CamelCaseToUnderscoreCase(ECodec(miscExt.codec()).ToString()));
                 return true;
             }
 

@@ -52,7 +52,7 @@ struct TChunkWriterConfig
             .GreaterThanOrEqual(1024 * 1024)
             .Default(32 * 1024 * 1024);
 
-        CodecId = ECodecId::Lz4;
+        Codec = ECodec::Lz4;
     }
 };
 

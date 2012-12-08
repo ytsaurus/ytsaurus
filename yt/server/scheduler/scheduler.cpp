@@ -160,7 +160,7 @@ public:
             RPC_SERVICE_METHOD_DESC(Heartbeat)
                 .SetRequestHeavy(true)
                 .SetResponseHeavy(true)
-                .SetResponseCodec(ECodecId::Lz4)
+                .SetResponseCodec(ECodec::Lz4)
                 .SetInvoker(Bootstrap->GetControlInvoker(EControlQueue::Heartbeat)));
 
         ProfilingInvoker = New<TPeriodicInvoker>(

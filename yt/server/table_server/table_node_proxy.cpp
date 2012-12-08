@@ -463,7 +463,7 @@ public:
         const auto& chunkMeta = chunk->ChunkMeta();
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkMeta.extensions());
 
-        CodecInfo[ECodecId(miscExt.codec_id())].Accumulate(chunk->GetStatistics());
+        CodecInfo[ECodec(miscExt.codec())].Accumulate(chunk->GetStatistics());
     }
 
     virtual void OnFinish() override
@@ -485,7 +485,7 @@ public:
     }
 
 private:
-    typedef yhash_map<ECodecId, TChunkTreeStatistics> TCodecInfoMap;
+    typedef yhash_map<ECodec, TChunkTreeStatistics> TCodecInfoMap;
     TCodecInfoMap CodecInfo;
 
 };

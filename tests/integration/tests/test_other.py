@@ -123,7 +123,7 @@ class TestAsyncAttributes(YTEnvSetup):
         table = '//tmp/t'
         create('table', table)
 
-        write_str(table, '{foo=bar}', opt='/table_writer/codec_id=snappy')
+        write_str(table, '{foo=bar}', opt='/table_writer/codec=snappy')
 
         for i in xrange(8):
             merge(in_=[table, table], out=table)

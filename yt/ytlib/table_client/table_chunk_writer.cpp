@@ -44,7 +44,7 @@ TTableChunkWriter::TTableChunkWriter(
     YCHECK(config);
     YCHECK(chunkWriter);
 
-    MiscExt.set_codec_id(Config->CodecId);
+    MiscExt.set_codec(Config->Codec);
 
     // Init trash channel.
     auto trashChannel = TChannel::Universal();

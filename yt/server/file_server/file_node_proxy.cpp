@@ -102,7 +102,7 @@ void TFileNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attribute
     attributes->push_back("size");
     attributes->push_back("compressed_size");
     attributes->push_back("compression_ratio");
-    attributes->push_back("codec_id");
+    attributes->push_back("codec");
     attributes->push_back("chunk_list_id");
     attributes->push_back("chunk_id");
     attributes->push_back("replication_factor");
@@ -139,8 +139,8 @@ bool TFileNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consum
         return true;
     }
 
-    if (key == "codec_id") {
-        auto codecId = ECodecId(miscExt.codec_id());
+    if (key == "codec") {
+        auto codecId = ECodec(miscExt.codec());
         BuildYsonFluently(consumer)
             .Scalar(CamelCaseToUnderscoreCase(codecId.ToString()));
         return true;

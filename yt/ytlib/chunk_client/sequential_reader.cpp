@@ -15,7 +15,7 @@ TSequentialReader::TSequentialReader(
     TSequentialReaderConfigPtr config,
     std::vector<TBlockInfo>&& blocks,
     IAsyncReaderPtr chunkReader,
-    ECodecId codecId)
+    ECodec codecId)
     : BlockSequence(blocks)
     , Config(config)
     , ChunkReader(chunkReader)

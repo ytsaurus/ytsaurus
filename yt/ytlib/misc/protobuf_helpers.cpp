@@ -37,11 +37,11 @@ struct TSerializedMessageFixedHeader
 bool SerializeToProtoWithEnvelope(
     const google::protobuf::Message& message,
     TSharedRef* data,
-    ECodecId codecId)
+    ECodec codecId)
 {
     NProto::TSerializedMessageEnvelope envelope;
-    if (codecId != ECodecId::None) {
-        envelope.set_codec_id(codecId);   
+    if (codecId != ECodec::None) {
+        envelope.set_codec(codecId);   
     }
 
     size_t messageSize = message.ByteSize();
@@ -101,7 +101,7 @@ bool DeserializeFromProtoWithEnvelope(
         const_cast<char*>(sourceMessage),
         fixedHeader->MessageSize));
 
-    auto codecId = ECodecId(envelope.codec_id());
+    auto codecId = ECodec(envelope.codec());
     auto codec = GetCodec(codecId);
     auto serializedMessage = codec->Decompress(compressedMessage);
 

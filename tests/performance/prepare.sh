@@ -34,7 +34,7 @@ spec = {'job_count': $JOBCOUNT,
         #    {'map_job_io':
         #        {'chunk_sequence_writer':
         #            {'chunk_writer':
-        #                {'codec_id': 'none'}
+        #                {'codec': 'none'}
         #            }
         #        }
         #    }

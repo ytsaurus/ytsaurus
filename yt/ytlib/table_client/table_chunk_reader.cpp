@@ -306,7 +306,7 @@ private:
             SequentialConfig,
             MoveRV(blockSequence),
             AsyncReader,
-            ECodecId(miscExt.codec_id()));
+            ECodec(miscExt.codec()));
 
         LOG_DEBUG("Reading %d blocks", static_cast<int>(blockSequence.size()));
 
@@ -650,7 +650,7 @@ public:
             SequentialConfig,
             MoveRV(blockSequence),
             AsyncReader,
-            ECodecId(miscExt.codec_id()));
+            ECodec(miscExt.codec()));
 
         LOG_DEBUG("Reading %d blocks for partition %d", 
             static_cast<int>(blockSequence.size()),

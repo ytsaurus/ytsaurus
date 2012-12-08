@@ -19,7 +19,7 @@ struct TFileWriterConfig
     : public NChunkClient::TRemoteWriterConfig
 {
     i64 BlockSize;
-    ECodecId CodecId;
+    ECodec Codec;
 
     int ReplicationFactor;
     int UploadReplicationFactor;
@@ -32,8 +32,8 @@ struct TFileWriterConfig
         Register("block_size", BlockSize)
             .Default(1024 * 1024)
             .GreaterThan(0);
-        Register("codec_id", CodecId)
-            .Default(ECodecId::None);
+        Register("codec", Codec)
+            .Default(ECodec::None);
         Register("replication_factor", ReplicationFactor)
             .Default(3)
             .GreaterThanOrEqual(1);

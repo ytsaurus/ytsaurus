@@ -156,7 +156,7 @@ private:
 
 } // namespace NCodec
 
-ICodec* GetCodec(ECodecId id)
+ICodec* GetCodec(ECodec id)
 {
     using namespace NCodec;
 
@@ -185,25 +185,25 @@ ICodec* GetCodec(ECodecId id)
     );
 
     switch (id) {
-        case ECodecId::None:
+        case ECodec::None:
             return RefCountedSingleton<NCodec::TNoneCodec>().Get();
 
-        case ECodecId::Snappy:
+        case ECodec::Snappy:
             return RefCountedSingleton<NCodec::TSnappyCodec>().Get();
 
-        case ECodecId::GzipNormal:
+        case ECodec::GzipNormal:
             return GzipCodecNormal.Get();
 
-        case ECodecId::GzipBestCompression:
+        case ECodec::GzipBestCompression:
             return GzipCodecBestCompression.Get();
 
-        case ECodecId::Lz4:
+        case ECodec::Lz4:
             return Lz4.Get();
 
-        case ECodecId::Lz4HighCompression:
+        case ECodec::Lz4HighCompression:
             return Lz4HighCompression.Get();
 
-        case ECodecId::QuickLz:
+        case ECodec::QuickLz:
             return RefCountedSingleton<NCodec::TQuickLzCodec>().Get();
 
         default:
