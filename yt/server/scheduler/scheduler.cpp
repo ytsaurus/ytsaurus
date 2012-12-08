@@ -784,13 +784,12 @@ private:
             proxy.Execute(req).Subscribe(
                 BIND(&TThis::OnSchedulerTransactionCommitted, MakeStrong(this), operation)
                     .Via(GetControlInvoker()));
+            // No more pings.
+            transaction->Detach();
         } else {
             // Fire-and-forget.
             transaction->Abort();
         }
-
-        // No more pings.
-        transaction->Detach();
 
         // Cleanup.
         operation->SetFinished();
