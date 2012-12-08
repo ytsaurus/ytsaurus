@@ -1190,14 +1190,13 @@ private:
         return Spec->OutputTablePaths;
     }
 
-    virtual std::vector<TRichYPath> GetFilePaths() const override
+    virtual std::vector<TPathWithStage> GetFilePaths() const override
     {
-        return Spec->Reducer->FilePaths;
-    }
-
-    virtual std::vector<TRichYPath> GetTableFilePaths() const override
-    {
-        return Spec->Reducer->TableFilePaths;
+        std::vector<TPathWithStage> result;
+        FOREACH (const auto& path, Spec->Reducer->FilePaths) {
+            result.push_back(std::make_pair(path, EOperationStage::Reduce));
+        }
+        return result;
     }
 
     virtual bool IsPassthroughChunk(const TInputChunk& inputChunk) override

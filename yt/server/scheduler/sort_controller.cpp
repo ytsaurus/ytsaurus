@@ -1645,65 +1645,38 @@ private:
         return Spec->OutputTablePaths;
     }
 
-    virtual std::vector<TRichYPath> GetFilePaths() const override
+    virtual std::vector<TPathWithStage> GetFilePaths() const override
     {
-        //TODO(ignat): separate it for MapFilePaths and ReduceFilePaths
         // Combine mapper and reducer files into a single collection.
-        std::vector<TRichYPath> result;
+        std::vector<TPathWithStage> result;
         if (Spec->Mapper) {
-            result.insert(
-                result.end(),
-                Spec->Mapper->FilePaths.begin(),
-                Spec->Mapper->FilePaths.end());
+            FOREACH (const auto& path, Spec->Mapper->FilePaths) {
+                result.push_back(std::make_pair(path, EOperationStage::Map));
+            }
         }
-        result.insert(
-            result.end(),
-            Spec->Reducer->FilePaths.begin(),
-            Spec->Reducer->FilePaths.end());
+        FOREACH (const auto& path, Spec->Reducer->FilePaths) {
+            result.push_back(std::make_pair(path, EOperationStage::Reduce));
+        }
         return result;
     }
     
-    virtual std::vector<TRichYPath> GetTableFilePaths() const override
-    {
-        // Combine mapper and reducer files into a single collection.
-        std::vector<TRichYPath> result;
-        if (Spec->Mapper) {
-            result.insert(
-                result.end(),
-                Spec->Mapper->TableFilePaths.begin(),
-                Spec->Mapper->TableFilePaths.end());
-        }
-        result.insert(
-            result.end(),
-            Spec->Reducer->TableFilePaths.begin(),
-            Spec->Reducer->TableFilePaths.end());
-        return result;
-    }
-
     virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) override
     {
-        // Separate mapper and reducer files.
-        auto filesIt = Files.begin();
-        auto tableFilesIt = TableFiles.begin();
+        FOREACH (const auto& file, Files) {
+            if (file.Stage == EOperationStage::Map) {
+                MapperFiles.push_back(file);
+            } else {
+                ReducerFiles.push_back(file);
+            }
+        }
         
-        if (Spec->Mapper) {
-            for (int i = 0; i < static_cast<int>(Spec->Mapper->FilePaths.size()); ++i) {
-                MapperFiles.push_back(*filesIt++);
+        FOREACH (const auto& file, TableFiles) {
+            if (file.Stage == EOperationStage::Map) {
+                MapperTableFiles.push_back(file);
+            } else {
+                ReducerTableFiles.push_back(file);
             }
-            for (int i = 0; i < static_cast<int>(Spec->Mapper->TableFilePaths.size()); ++i) {
-                MapperTableFiles.push_back(*tableFilesIt++);
-            }
         }
-
-        for (int i = 0; i < static_cast<int>(Spec->Reducer->FilePaths.size()); ++i) {
-            ReducerFiles.push_back(*filesIt++);
-        }
-        for (int i = 0; i < static_cast<int>(Spec->Reducer->TableFilePaths.size()); ++i) {
-            ReducerTableFiles.push_back(*tableFilesIt++);
-        }
-
-        YCHECK(filesIt == Files.end());
-        YCHECK(tableFilesIt == TableFiles.end());
     }
 
     virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline) override

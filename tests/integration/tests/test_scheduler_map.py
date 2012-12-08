@@ -102,9 +102,10 @@ class TestSchedulerMapCommands(YTEnvSetup):
         check('//tmp/t3', 10, 5) # number of jobs can't be more that number of chunks
 
     def test_with_user_files(self):
-        create('table', '//tmp/t1')
-        create('table', '//tmp/t2')
-        write_str('//tmp/t1', '{foo=bar}')
+        create('table', '//tmp/input')
+        write_str('//tmp/input', '{foo=bar}')
+
+        create('table', '//tmp/output')
 
         file1 = '//tmp/some_file.txt'
         file2 = '//tmp/renamed_file.txt'
@@ -112,33 +113,17 @@ class TestSchedulerMapCommands(YTEnvSetup):
         upload(file1, '{value=42};\n')
         upload(file2, '{a=b};\n')
 
-        command= "cat > /dev/null; cat some_file.txt; cat my_file.txt"
-
-        map(in_='//tmp/t1',
-            out='//tmp/t2',
-            command=command,
-            file=[file1, "<file_name=my_file.txt>" + file2])
-
-        assert read('//tmp/t2') == [{'value': 42}, {'a': 'b'}]
-
-    def test_with_user_table_files(self):
-        create('table', '//tmp/input')
-        write_str('//tmp/input', '{foo=bar}')
-
-        create('table', '//tmp/output')
-
         create('table', '//tmp/table_file')
         write_str('//tmp/table_file', '{text=info}')
 
-        command= "cat > /dev/null; cat table_file;"
+        command= "cat > /dev/null; cat some_file.txt; cat my_file.txt; cat table_file;"
 
         map(in_='//tmp/input',
             out='//tmp/output',
             command=command,
-            table_file=["<format=yson>//tmp/table_file"])
+            file=[file1, "<file_name=my_file.txt>" + file2, "<format=yson>//tmp/table_file"])
 
-        assert read('//tmp/output') == [{'text': 'info'}]
-
+        assert read('//tmp/t2') == [{'value': 42}, {'a': 'b'}, {"text": "info"}]
 
     def test_many_output_tables(self):
         output_tables = ['//tmp/t%d' % i for i in range(3)]

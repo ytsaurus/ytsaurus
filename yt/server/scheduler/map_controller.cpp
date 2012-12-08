@@ -157,14 +157,13 @@ private:
         return Spec->OutputTablePaths;
     }
 
-    virtual std::vector<TRichYPath> GetFilePaths() const override
+    virtual std::vector<TPathWithStage> GetFilePaths() const override
     {
-        return Spec->Mapper->FilePaths;
-    }
-
-    virtual std::vector<TRichYPath> GetTableFilePaths() const override
-    {
-        return Spec->Mapper->TableFilePaths;
+        std::vector<TPathWithStage> result;
+        FOREACH (const auto& path, Spec->Mapper->FilePaths) {
+            result.push_back(std::make_pair(path, EOperationStage::Map));
+        }
+        return result;
     }
 
     virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline) override

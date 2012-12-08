@@ -389,18 +389,6 @@ void TOperationControllerBase::Initialize()
         OutputTables.push_back(table);
     }
 
-    FOREACH (const auto& path, GetFilePaths()) {
-        TUserFile file;
-        file.Path = path;
-        Files.push_back(file);
-    }
-
-    FOREACH (const auto& path, GetTableFilePaths()) {
-        TUserTableFile file;
-        file.Path = path;
-        TableFiles.push_back(file);
-    }
-
     try {
         DoInitialize();
     } catch (const std::exception& ex) {
@@ -427,6 +415,8 @@ TFuture<void> TOperationControllerBase::Prepare()
         ->Add(BIND(&TThis::OnIOTransactionsStarted, MakeStrong(this)), CancelableControlInvoker)
         ->Add(BIND(&TThis::GetObjectIds, MakeStrong(this)))
         ->Add(BIND(&TThis::OnObjectIdsReceived, MakeStrong(this)))
+        ->Add(BIND(&TThis::GetInputTypes, MakeStrong(this)))
+        ->Add(BIND(&TThis::OnInputTypesReceived, MakeStrong(this)))
         ->Add(BIND(&TThis::RequestInputs, MakeStrong(this)))
         ->Add(BIND(&TThis::OnInputsReceived, MakeStrong(this)))
         ->Add(BIND(&TThis::CompletePreparation, MakeStrong(this)));
@@ -1117,6 +1107,101 @@ void TOperationControllerBase::OnObjectIdsReceived(TObjectServiceProxy::TRspExec
     LOG_INFO("Object ids received");
 }
 
+TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::GetInputTypes()
+{
+    VERIFY_THREAD_AFFINITY(BackgroundThread);
+
+    LOG_INFO("Getting input types");
+
+    auto batchReq = ObjectProxy.ExecuteBatch();
+
+
+    FOREACH (const auto& table, InputTables) {
+        auto req = TObjectYPathProxy::Get(FromObjectId(table.ObjectId) + "/@type");
+        SetTransactionId(req, InputTransaction);
+        batchReq->AddRequest(req, "get_input_types");
+    }
+
+    FOREACH (const auto& table, OutputTables) {
+        auto req = TObjectYPathProxy::Get(FromObjectId(table.ObjectId) + "/@type");
+        SetTransactionId(req, InputTransaction);
+        batchReq->AddRequest(req, "get_output_types");
+    }
+
+    FOREACH (const auto& pair, GetFilePaths()) {
+        const auto& path = pair.first;
+        auto req = TObjectYPathProxy::Get(path.GetPath() + "/@type");
+        SetTransactionId(req, InputTransaction);
+        batchReq->AddRequest(req, "get_file_types");
+    }
+
+    return batchReq->Invoke();
+}
+
+void TOperationControllerBase::OnInputTypesReceived(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+{
+    VERIFY_THREAD_AFFINITY(BackgroundThread);
+
+    THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error getting input types");
+
+    {
+        auto getInputTypes = batchRsp->GetResponses<TObjectYPathProxy::TRspGet>("get_input_types");
+        for (int index = 0; index < static_cast<int>(InputTables.size()); ++index) {
+            auto& table = InputTables[index];
+            auto rsp = getInputTypes[index];
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting type for input %s",
+                ~table.Path.GetPath());
+
+            auto type = ConvertTo<Stroka>(TYsonString(rsp->value()));
+            if (type != "table") {
+                THROW_ERROR_EXCEPTION("Input %s should be table", ~table.Path.GetPath());
+            }
+        }
+    }
+
+    {
+        auto getOutputTypes = batchRsp->GetResponses<TObjectYPathProxy::TRspGet>("get_output_types");
+        for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
+            auto& table = OutputTables[index];
+            auto rsp = getOutputTypes[index];
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting type for output %s",
+                ~table.Path.GetPath());
+
+            auto type = ConvertTo<Stroka>(TYsonString(rsp->value()));
+            if (type != "table") {
+                THROW_ERROR_EXCEPTION("Output %s should be table", ~table.Path.GetPath());
+            }
+        }
+    }
+
+    {
+        auto paths = GetFilePaths();
+        auto getFileTypes = batchRsp->GetResponses<TObjectYPathProxy::TRspGet>("get_file_types");
+        for (int index = 0; index < static_cast<int>(paths.size()); ++index) {
+            auto path = paths[index].first;
+            auto stage = paths[index].second;
+            auto rsp = getFileTypes[index];
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting type for file %s", ~path.GetPath());
+
+            auto type = ConvertTo<Stroka>(TYsonString(rsp->value()));
+            if (type == "file") {
+                Files.push_back(TUserFile());
+                Files.back().Path = path;
+                Files.back().Stage = stage;
+            } else if (type == "table") {
+                TableFiles.push_back(TUserTableFile());
+                TableFiles.back().Path = path;
+                TableFiles.back().Stage = stage;
+            }
+            else {
+                THROW_ERROR_EXCEPTION("Incorrect type %s of file %s", ~rsp->value(), ~path.GetPath());
+            }
+        }
+    }
+
+    LOG_INFO("Input types received");
+}
+
 TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
@@ -1395,12 +1480,12 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 file.FileName = file.Path.Attributes().Get<Stroka>("file_name");
             }
             file.Format = file.Path.Attributes().GetYson("format");
-            
+
             std::vector<TChunkId> chunkIds;
             FOREACH (const auto chunk, file.FetchResponse->chunks()) {
                 chunkIds.push_back(TChunkId::FromProto(chunk.slice().chunk_id()));
             }
-    
+
             LOG_INFO(
                 "Table file %s has file_name %s, format %s and consists of chunks %s",
                 ~file.Path.GetPath(),
@@ -1707,14 +1792,9 @@ void TOperationControllerBase::BuildResultYson(IYsonConsumer* consumer)
         .EndMap();
 }
 
-std::vector<TRichYPath> TOperationControllerBase::GetFilePaths() const
+std::vector<TOperationControllerBase::TPathWithStage> TOperationControllerBase::GetFilePaths() const
 {
-    return std::vector<TRichYPath>();
-}
-
-std::vector<TRichYPath> TOperationControllerBase::GetTableFilePaths() const
-{
-    return std::vector<TRichYPath>();
+    return std::vector<TPathWithStage>();
 }
 
 int TOperationControllerBase::SuggestJobCount(

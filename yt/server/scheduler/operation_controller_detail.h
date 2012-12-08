@@ -162,12 +162,20 @@ protected:
     };
 
     std::vector<TOutputTable> OutputTables;
+    
+    
+    //! Marks file path with stage of operation 
+    DECLARE_ENUM(EOperationStage,
+        (Map)
+        (Reduce)
+    );
 
     // Files.
     struct TUserFile
     {
         NYPath::TRichYPath Path;
         NFileClient::TFileYPathProxy::TRspFetchFilePtr FetchResponse;
+        EOperationStage Stage;
     };
 
     std::vector<TUserFile> Files;
@@ -179,6 +187,7 @@ protected:
         NTableClient::TTableYPathProxy::TRspFetchPtr FetchResponse;
         Stroka FileName;
         NYTree::TYsonString Format;
+        EOperationStage Stage;
     };
 
     std::vector<TUserTableFile> TableFiles;
@@ -362,8 +371,15 @@ protected:
     NObjectClient::TObjectServiceProxy::TInvExecuteBatch GetObjectIds();
 
     void OnObjectIdsReceived(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
-
+    
     // Round 3:
+    // - Request file types
+    // - Check that input and output are tables
+    NObjectClient::TObjectServiceProxy::TInvExecuteBatch GetInputTypes();
+    
+    void OnInputTypesReceived(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
+
+    // Round 4:
     // - Fetch input tables.
     // - Lock input tables.
     // - Lock output tables.
@@ -373,6 +389,7 @@ protected:
     // - (Custom)
 
     NObjectClient::TObjectServiceProxy::TInvExecuteBatch RequestInputs();
+    
     void OnInputsReceived(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
     //! Extensibility point for requesting additional info from master.
@@ -381,11 +398,11 @@ protected:
     //! Extensibility point for handling additional info from master.
     virtual void OnCustomInputsRecieved(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
-    // Round 4.
+    // Round 5.
     // - (Custom)
     virtual TAsyncPipeline<void>::TPtr CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline);
 
-    // Round 5.
+    // Round 6.
     // - Collect totals.
     // - Check for empty inputs.
     // - Init chunk list pool.
@@ -412,11 +429,10 @@ protected:
     //! Called to extract output table paths from the spec.
     virtual std::vector<NYPath::TRichYPath> GetOutputTablePaths() const = 0;
 
+    typedef std::pair<NYPath::TRichYPath, EOperationStage> TPathWithStage;
+    
     //! Called to extract file paths from the spec.
-    virtual std::vector<NYPath::TRichYPath> GetFilePaths() const;
-
-    //! Called to extract table file paths from the spec.
-    virtual std::vector<NYPath::TRichYPath> GetTableFilePaths() const;
+    virtual std::vector<TPathWithStage> GetFilePaths() const;
 
     //! Called when a job is unable to read a chunk.
     void OnChunkFailed(const NChunkClient::TChunkId& chunkId);
