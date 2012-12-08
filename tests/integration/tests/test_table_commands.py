@@ -393,7 +393,7 @@ class TestTableCommands(YTEnvSetup):
     		write('//tmp/t', {'a' : 'b'})
     	set('//tmp/t/@replication_factor', 4)
     	sleep(3)
-    	_check_replication_factor('//tmp/t', 4)
+    	self._check_replication_factor('//tmp/t', 4)
 
     def test_replication_factor_update2(self):
     	create('table', '//tmp/t')
@@ -403,5 +403,5 @@ class TestTableCommands(YTEnvSetup):
     	set('//tmp/t/@replication_factor', 4)
     	commit_transaction(tx)
     	sleep(3)
-    	_check_replication_factor('//tmp/t', 4)
+    	self._check_replication_factor('//tmp/t', 4)
         
