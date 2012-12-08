@@ -804,7 +804,12 @@ private:
         // Set state.
         {
             auto req = TYPathProxy::Set(operationPath + "/@state");
-            req->set_value(ConvertToYsonString(operation->GetState()).Data());
+            auto state = operation->GetState();
+            req->set_value(ConvertToYsonString(state).Data());
+            // Set 'completed' state inside scheduler transaction to guarantee atomicity.
+            if (state == EOperationState::Completed) {
+                SetTransactionId(req, operation->GetSchedulerTransaction());
+            }
             batchReq->AddRequest(req);
         }
 
