@@ -401,11 +401,12 @@ Examples:
     table_writer = {}
     if args.codec is not None:
         table_writer["codec_id"] = args.codec
-    if args.replicationfactor is not None:
-        table_writer["replicationfactor"] = args.replicationfactor
-        table_writer["upload_replicationfactor"] = args.replicationfactor
     if not table_writer:
         table_writer = None
+
+    replication_factor = args.replicationfactor
+    if replication_factor is not None:
+        replication_factor = int(args.replicationfactor)
 
     if args.list:
         writelines_silently(imap(add_eoln, list_all_entities("table")))
@@ -421,10 +422,12 @@ Examples:
         yt.create_table(args.createtable)
     if args.write is not None:
         args.write = yt.TablePath(args.write, append=args.append)
-        yt.write_table(args.write, sys.stdin, table_writer=table_writer, format=outputformat)
+        yt.write_table(args.write, sys.stdin, format=outputformat,
+                       replication_factor=replication_factor, table_writer=table_writer)
     if args.writesorted is not None:
         args.writesorted = yt.TablePath(args.writesorted, append=args.append)
-        yt.write_table(args.writesorted, sys.stdin, table_writer=table_writer, format=outputformat)
+        yt.write_table(args.writesorted, sys.stdin, format=outputformat,
+                       replication_factor=replication_factor, table_writer=table_writer)
         yt.set_attribute(args.writesorted.name, "sorted", "true")
     if mapreduce_case:
         yt.run_map_reduce(args.map, args.reduce, args.src, dst,
@@ -432,17 +435,20 @@ Examples:
                           map_file_paths=args.ytfile, reduce_file_paths=args.ytfile,
                           input_format=inputformat, output_format=outputformat,
                           sort_by=args.sortby, reduce_by=args.reduceby,
-                          table_writer=table_writer, spec=spec)
+                          table_writer=table_writer, replication_factor=replication_factor,
+                          spec=spec)
     elif args.map is not None:
         yt.run_map(args.map, args.src, dst, files=map_files, file_paths=args.ytfile,
                    input_format=inputformat, output_format=outputformat,
-                   table_writer=table_writer, spec=spec)
+                   table_writer=table_writer, replication_factor=args.replicationfactor,
+                   spec=spec)
     elif args.reduce is not None or args.reducews is not None:
         op = args.reduce if args.reduce is not None else args.reducews
         yt.run_reduce(op, args.src, dst, files=reduce_files, file_paths=args.ytfile,
                       input_format=inputformat, output_format=outputformat,
                       reduce_by=args.reduceby,
-                      table_writer=table_writer, spec=spec)
+                      table_writer=table_writer, replication_factor=replication_factor,
+                      spec=spec)
     if args.drop is not None:
         if yt.exists(args.drop):
             if not args.force and yt.get_type(args.drop) not in ["table", "file"]:
@@ -451,9 +457,11 @@ Examples:
     if args.copy:
         yt.copy_table(args.src, unlist(dst))
     if args.sort:
-        yt.sort_table(args.src, unlist(dst), table_writer=table_writer, sort_by=args.sortby, spec=spec)
+        yt.sort_table(args.src, unlist(dst), table_writer=table_writer, sort_by=args.sortby,
+                      replication_factor=replication_factor, spec=spec)
     if args.merge:
-        yt.merge_tables(args.src, unlist(dst), mode="sorted", table_writer=table_writer, spec=spec)
+        yt.merge_tables(args.src, unlist(dst), mode="sorted", table_writer=table_writer,
+                        replication_factor=replication_factor, spec=spec)
 
     if args.erase is not None:
         yt.erase_table(args.erase)
