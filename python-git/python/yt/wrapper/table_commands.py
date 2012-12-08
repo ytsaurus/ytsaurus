@@ -96,11 +96,15 @@ def _prepare_binary(binary):
     else:
         return binary, []
 
-def _prepare_destination_tables(tables):
+def _prepare_destination_tables(tables, replication_factor):
     tables = map(to_table, flatten(tables))
     for table in tables:
         if not exists(table.name):
-            create_table(table.name)
+            create_table(table.name, replication_factor=replication_factor)
+        else:
+            require(replication_factor is None,
+                    YtError("Cannot append to table %s with set replication factor" %
+                            table))
     return tables
 
 def _add_user_command_spec(op_type, binary, input_format, output_format, files, file_paths, fds_count, spec):
@@ -184,13 +188,17 @@ class Buffer(object):
         return self._empty
 
 """ Common table methods """
-def create_table(path, recursive=None):
+def create_table(path, recursive=None, replication_factor=None, attributes=None):
     """ Creates empty table, use recursive for automatically creaation the path """
     if recursive is None:
         recursive = config.CREATE_RECURSIVE
     if recursive:
         mkdir(os.path.dirname(path), True)
-    _make_transactioned_request("create", {"path": path, "type": "table"})
+
+    attributes = get_value(attributes, {})
+    if replication_factor is not None:
+        attributes["replication_factor"] = replication_factor
+    _make_transactioned_request("create", update(attributes, {"path": path, "type": "table"}))
 
 def create_temp_table(path=None, prefix=None):
     """ Creates temporary table by given path with given prefix """
@@ -208,7 +216,7 @@ def create_temp_table(path=None, prefix=None):
     return name
 
 
-def write_table(table, lines, format=None, table_writer=None):
+def write_table(table, lines, format=None, table_writer=None, replication_factor=None):
     """
     Writes lines to table. It is made under transaction by chunks of fixed size.
     Each chunks is written with retries.
@@ -217,7 +225,10 @@ def write_table(table, lines, format=None, table_writer=None):
     format = _prepare_format(format)
     with Transaction():
         if not exists(table.name):
-            create_table(table.name)
+            create_table(table.name, replication_factor=replication_factor)
+        else:
+            require(replication_factor is None,
+                    YtError("Cannot write to existing table %s with set replication factor" % to_name(table)))
 
         started = False
         buffer = Buffer(lines)
@@ -349,13 +360,14 @@ def is_sorted(table):
     else:
         return parse_bool(get_attribute(to_name(table), "sorted", default="false"))
 
-def merge_tables(source_table, destination_table, mode, strategy=None, table_writer=None, spec=None):
+def merge_tables(source_table, destination_table, mode,
+                 strategy=None, table_writer=None, replication_factor=None, spec=None):
     """
     Merge source tables and write it to destination table.
     Mode should be 'unordered', 'ordered', or 'sorted'.
     """
     source_table = _prepare_source_tables(source_table)
-    destination_table = unlist(_prepare_destination_tables(destination_table))
+    destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor))
 
     spec = compose(
         _add_user_spec,
@@ -368,7 +380,8 @@ def merge_tables(source_table, destination_table, mode, strategy=None, table_wri
     _make_operation_request("merge", spec, strategy, finalizer=None)
 
 
-def sort_table(source_table, destination_table=None, sort_by=None, strategy=None, table_writer=None, spec=None):
+def sort_table(source_table, destination_table=None, sort_by=None,
+               strategy=None, table_writer=None, replication_factor=None, spec=None):
     """
     Sort source table. If destination table is not specified, than it equals to source table.
     """
@@ -396,7 +409,7 @@ def sort_table(source_table, destination_table=None, sort_by=None, strategy=None
                 YtError("You must specify destination sort table "
                         "in case of multiple source tables"))
         destination_table = source_table[0]
-    destination_table = unlist(_prepare_destination_tables(destination_table))
+    destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor))
 
     spec = compose(
         _add_user_spec,
@@ -425,7 +438,7 @@ class Finalizer(object):
 
 def run_map_reduce(mapper, reducer, source_table, destination_table,
                    format=None, input_format=None, output_format=None,
-                   strategy=None, table_writer=None, spec=None,
+                   strategy=None, table_writer=None, spec=None, replication_factor=None,
                    map_files=None, reduce_files=None,
                    map_file_paths=None, reduce_file_paths=None,
                    sort_by=None, reduce_by=None):
@@ -445,7 +458,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
         return spec
 
     source_table = _prepare_source_tables(source_table)
-    destination_table = _prepare_destination_tables(destination_table)
+    destination_table = _prepare_destination_tables(destination_table, replication_factor)
 
     input_format, output_format = _prepare_formats(format, input_format, output_format)
 
@@ -467,7 +480,9 @@ def run_operation(binary, source_table, destination_table,
                   files=None, file_paths=None,
                   format=None, input_format=None, output_format=None,
                   strategy=None,
-                  table_writer=None, spec=None,
+                  table_writer=None,
+                  replication_factor=None,
+                  spec=None,
                   op_name=None,
                   reduce_by=None):
     def prepare_job_count(spec, source_table):
@@ -507,7 +522,7 @@ def run_operation(binary, source_table, destination_table,
         else:
             reduce_by = _prepare_reduce_by(reduce_by)
 
-    destination_table = _prepare_destination_tables(destination_table)
+    destination_table = _prepare_destination_tables(destination_table, replication_factor)
     input_format, output_format = _prepare_formats(format, input_format, output_format)
 
     op_type = None
