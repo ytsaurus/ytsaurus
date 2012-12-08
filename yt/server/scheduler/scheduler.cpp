@@ -773,38 +773,48 @@ private:
         ToProto(operation->Result().mutable_error(), error);
     }
 
-    void FinishOperation(TOperationPtr operation)
+
+    void CommitSchedulerTransaction(TOperationPtr operation)
     {
-        // Either commit or abort scheduler transaction depending on the outcome.
         TObjectServiceProxy proxy(GetMasterChannel());
         auto transaction = operation->GetSchedulerTransaction();
-        if (operation->GetState() == EOperationState::Completed) {
-            auto req = TTransactionYPathProxy::Commit(FromObjectId(transaction->GetId()));
-            NMetaState::GenerateRpcMutationId(req);
-            proxy.Execute(req).Subscribe(
-                BIND(&TThis::OnSchedulerTransactionCommitted, MakeStrong(this), operation)
-                    .Via(GetControlInvoker()));
-            // No more pings.
-            transaction->Detach();
-        } else {
-            // Fire-and-forget.
-            transaction->Abort();
-        }
-
-        // Cleanup.
-        operation->SetFinished();
-        operation->SetController(NULL);
-        operation->SetSchedulerTransaction(NULL);
-        UnregisterOperation(operation);
+        auto req = TTransactionYPathProxy::Commit(FromObjectId(transaction->GetId()));
+        NMetaState::GenerateRpcMutationId(req);
+        proxy.Execute(req).Subscribe(
+            BIND(&TThis::OnSchedulerTransactionCommitted, MakeStrong(this), operation)
+            .Via(GetControlInvoker()));
+        transaction->Detach();
     }
 
     void OnSchedulerTransactionCommitted(TOperationPtr operation, TTransactionYPathProxy::TRspCommitPtr rsp)
     {
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error committing scheduler transaction");
+        if (!rsp->IsOK()) {
+            LOG_ERROR(*rsp, "Error committing scheduler transaction");
+            return;
+        }
 
         LOG_INFO("Scheduler transaction committed (OperationId: %s)",
             ~ToString(operation->GetOperationId()));
+
+        FinishOperation(operation);
     }
+
+    void AbortSchedulerTransaction(TOperationPtr operation)
+    {
+        // Fire-and-forget.
+        auto transaction = operation->GetSchedulerTransaction();
+        transaction->Abort();
+        
+        FinishOperation(operation);
+    }
+
+    void FinishOperation(TOperationPtr operation)
+    {
+        operation->SetFinished();
+        operation->SetController(NULL);
+        UnregisterOperation(operation);
+    }
+
 
 
     void RegisterJob(TJobPtr job)
