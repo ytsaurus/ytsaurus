@@ -123,7 +123,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
             command=command,
             file=[file1, "<file_name=my_file.txt>" + file2, "<format=yson>//tmp/table_file"])
 
-        assert read('//tmp/t2') == [{'value': 42}, {'a': 'b'}, {"text": "info"}]
+        assert read('//tmp/output') == [{'value': 42}, {'a': 'b'}, {"text": "info"}]
 
     def test_many_output_tables(self):
         output_tables = ['//tmp/t%d' % i for i in range(3)]
