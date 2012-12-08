@@ -966,14 +966,8 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs()
         batchReq->AddRequest(req, "commit_out_tx");
     }
 
-    {
-        auto req = TTransactionYPathProxy::Commit(FromObjectId(Operation->GetSchedulerTransaction()->GetId()));
-        NMetaState::GenerateRpcMutationId(req);
-        batchReq->AddRequest(req, "commit_scheduler_tx");
-    }
-
+    // NB: Scheduler transaction is committed by TScheduler.
     // We don't need pings any longer, detach the transactions.
-    Operation->GetSchedulerTransaction()->Detach();
     InputTransaction->Detach();
     OutputTransaction->Detach();
 

@@ -525,42 +525,33 @@ private:
             ->Run();
     }
 
-    TObjectServiceProxy::TInvExecuteBatch StartSchedulerTransaction(TOperationPtr operation)
+    TFuture<TTransactionYPathProxy::TRspCreateObjectPtr> StartSchedulerTransaction(TOperationPtr operation)
     {
         LOG_INFO("Starting scheduler transaction (OperationId: %s)",
             ~operation->GetOperationId().ToString());
 
         TObjectServiceProxy proxy(GetMasterChannel());
-        auto batchReq = proxy.ExecuteBatch();
+        auto req = TTransactionYPathProxy::CreateObject(
+            operation->GetUserTransaction()
+            ? FromObjectId(operation->GetUserTransaction()->GetId())
+            : RootTransactionPath);
+        req->set_type(EObjectType::Transaction);
+        NMetaState::GenerateRpcMutationId(req);
 
-        {
-            auto req = TTransactionYPathProxy::CreateObject(
-                operation->GetUserTransaction()
-                ? FromObjectId(operation->GetUserTransaction()->GetId())
-                : RootTransactionPath);
-            req->set_type(EObjectType::Transaction);
-            NMetaState::GenerateRpcMutationId(req);
-            batchReq->AddRequest(req, "create_tx");
-        }
-
-        return batchReq->Invoke();
+        return proxy.Execute(req);
     }
 
-    void OnSchedulerTransactionStarted(TOperationPtr operation, TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    void OnSchedulerTransactionStarted(TOperationPtr operation, TTransactionYPathProxy::TRspCreateObjectPtr rsp)
     {
-        auto error = batchRsp->GetCumulativeError();
-        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error starting scheduler transaction");
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting scheduler transaction");
 
-        {
-            auto createTxRsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("create_tx");
-            auto schedulerTransactionId = TObjectId::FromProto(createTxRsp->object_id());
-            auto schedulerTransaction = GetTransactionManager()->Attach(schedulerTransactionId, true, true, false);
-            operation->SetSchedulerTransaction(schedulerTransaction);
+        auto schedulerTransactionId = TObjectId::FromProto(rsp->object_id());
+        auto schedulerTransaction = GetTransactionManager()->Attach(schedulerTransactionId, true, true, false);
+        operation->SetSchedulerTransaction(schedulerTransaction);
 
-            LOG_INFO("Scheduler transaction is %s (OperationId: %s)",
-                ~ToString(schedulerTransactionId),
-                ~ToString(operation->GetOperationId()));
-        }
+        LOG_INFO("Scheduler transaction is %s (OperationId: %s)",
+            ~ToString(schedulerTransactionId),
+            ~ToString(operation->GetOperationId()));
     }
 
     TOperationPtr OnOperationNodeCreated(TOperationPtr operation)
@@ -784,9 +775,36 @@ private:
 
     void FinishOperation(TOperationPtr operation)
     {
+        // Either commit or abort scheduler transaction depending on the outcome.
+        TObjectServiceProxy proxy(GetMasterChannel());
+        auto transaction = operation->GetSchedulerTransaction();
+        if (operation->GetState() == EOperationState::Completed) {
+            auto req = TTransactionYPathProxy::Commit(FromObjectId(transaction->GetId()));
+            NMetaState::GenerateRpcMutationId(req);
+            proxy.Execute(req).Subscribe(
+                BIND(&TThis::OnSchedulerTransactionCommitted, MakeStrong(this), operation)
+                    .Via(GetControlInvoker()));
+        } else {
+            // Fire-and-forget.
+            transaction->Abort();
+        }
+
+        // No more pings.
+        transaction->Detach();
+
+        // Cleanup.
         operation->SetFinished();
         operation->SetController(NULL);
+        operation->SetSchedulerTransaction(NULL);
         UnregisterOperation(operation);
+    }
+
+    void OnSchedulerTransactionCommitted(TOperationPtr operation, TTransactionYPathProxy::TRspCommitPtr rsp)
+    {
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error committing scheduler transaction");
+
+        LOG_INFO("Scheduler transaction committed (OperationId: %s)",
+            ~ToString(operation->GetOperationId()));
     }
 
 
