@@ -63,8 +63,10 @@ test_base_functionality()
 
 test_codec()
 {
-    ./mapreduce -write "ignat/temp" -codec "none" <table_file
     ./mapreduce -write "ignat/temp" -codec "gzip_best_compression" -replicationfactor 5 <table_file
+    check 5 "`./mapreduce -get "ignat/temp/@replication_factor"`"
+    
+    ./mapreduce -write "ignat/temp" -codec "none" <table_file
 }
 
 test_many_output_tables()
