@@ -631,7 +631,7 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
 
     if (key == "replication_factor") {
         BuildYsonFluently(consumer)
-            .Scalar(node->GetOwningReplicationFactor());
+            .Scalar(node->GetReplicationFactor());
         return true;
     }
 
@@ -683,8 +683,11 @@ bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& v
     auto chunkManager = Bootstrap->GetChunkManager();
 
     if (key == "replication_factor") {
+        if (Transaction) {
+            THROW_ERROR_EXCEPTION("Value cannot be altered inside transaction");
+        }
+
         int replicationFactor = ConvertTo<int>(value);
-        
         const int MinReplicationFactor = 1;
         const int MaxReplicationFactor = 10;
         if (replicationFactor < MinReplicationFactor || replicationFactor > MaxReplicationFactor) {
@@ -693,16 +696,14 @@ bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& v
                 MaxReplicationFactor);
         }
         
-        if (Transaction) {
-            THROW_ERROR_EXCEPTION("Value cannot be altered inside transaction");
-        }
-
         auto* node = GetThisTypedMutableImpl();
         YCHECK(node->GetTrunkNode() == node);
-        node->SetReplicationFactor(replicationFactor);
 
-        if (IsLeader()) {
-            chunkManager->ScheduleRFUpdate(node->GetChunkList());
+        if (node->GetReplicationFactor() != replicationFactor) {
+            node->SetReplicationFactor(replicationFactor);
+            if (IsLeader()) {
+                chunkManager->ScheduleRFUpdate(node->GetChunkList());
+            }
         }
 
         return true;

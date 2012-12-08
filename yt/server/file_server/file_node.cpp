@@ -164,6 +164,8 @@ protected:
         branchedNode->SetChunkList(chunkList);
         Bootstrap->GetObjectManager()->RefObject(chunkList);
         YCHECK(chunkList->OwningNodes().insert(branchedNode).second);
+
+        branchedNode->SetReplicationFactor(originatingNode->GetReplicationFactor());
     }
 
     virtual void DoMerge(TFileNode* originatingNode, TFileNode* branchedNode) override

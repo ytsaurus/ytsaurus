@@ -159,10 +159,13 @@ protected:
         branchedNode->SetChunkList(chunkList);
         objectManager->RefObject(branchedNode->GetChunkList());
         YCHECK(branchedNode->GetChunkList()->OwningNodes().insert(branchedNode).second);
+
+        branchedNode->SetReplicationFactor(originatingNode->GetReplicationFactor());
         
-        LOG_DEBUG_UNLESS(IsRecovery(), "Table node branched (BranchedNodeId: %s, ChunkListId: %s)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Table node branched (BranchedNodeId: %s, ChunkListId: %s, ReplicationFactor: %d)",
             ~branchedNode->GetId().ToString(),
-            ~originatingNode->GetChunkList()->GetId().ToString());
+            ~originatingNode->GetChunkList()->GetId().ToString(),
+            originatingNode->GetReplicationFactor());
     }
 
     virtual void DoMerge(TTableNode* originatingNode, TTableNode* branchedNode) override
@@ -178,15 +181,17 @@ protected:
         MergeChunkLists(originatingNode, branchedNode);
 
         LOG_DEBUG_UNLESS(IsRecovery(),
-            "Table node merged (OriginatingNodeId: %s, OriginatingChunkListId: %s, OriginatingUpdateMode: %s, "
-            "BranchedNodeId: %s, BranchedChunkListId: %s, BranchedUpdateMode: %s, "
+            "Table node merged (OriginatingNodeId: %s, OriginatingChunkListId: %s, OriginatingUpdateMode: %s, OriginatingReplicationFactor: %d, "
+            "BranchedNodeId: %s, BranchedChunkListId: %s, BranchedUpdateMode: %s, BranchedReplicationFactor: %d"
             "NewOriginatingChunkListId: %s, NewOriginatingUpdateMode: %s)",
             ~originatingNode->GetId().ToString(),
             ~originatingChunkListId.ToString(),
             ~originatingUpdateMode.ToString(),
+            originatingNode->GetReplicationFactor(),
             ~branchedNode->GetId().ToString(),
             ~branchedChunkListId.ToString(),
             ~branchedUpdateMode.ToString(),
+            branchedNode->GetReplicationFactor(),
             ~originatingNode->GetChunkList()->GetId().ToString(),
             ~originatingNode->GetUpdateMode().ToString());
     }
@@ -212,13 +217,17 @@ protected:
         }
 
         bool isTopmostCommit = !originatingNode->GetId().IsBranched();
+        bool isRFUpdateNeeded =
+            isTopmostCommit &&
+            originatingNode->GetReplicationFactor() != branchedNode->GetReplicationFactor() &&
+            metaStateManager->IsLeader();
 
         if (branchedMode == ETableUpdateMode::Overwrite) {
             YCHECK(originatingChunkList->OwningNodes().erase(originatingNode) == 1);
             YCHECK(branchedChunkList->OwningNodes().insert(originatingNode).second);
             originatingNode->SetChunkList(branchedChunkList);
 
-            if (isTopmostCommit && metaStateManager->IsLeader()) {
+            if (isRFUpdateNeeded) {
                 chunkManager->ScheduleRFUpdate(branchedChunkList);
             }
 
@@ -240,7 +249,7 @@ protected:
             chunkManager->AttachToChunkList(newOriginatingChunkList, originatingChunkList);
             chunkManager->AttachToChunkList(newOriginatingChunkList, deltaRef);
 
-            if (isTopmostCommit && metaStateManager->IsLeader()) {
+            if (isRFUpdateNeeded) {
                 chunkManager->ScheduleRFUpdate(deltaRef);
             }
 
