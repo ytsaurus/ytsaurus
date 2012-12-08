@@ -1004,11 +1004,6 @@ void TOperationControllerBase::OnOutputsCommitted(TObjectServiceProxy::TRspExecu
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error committing output transaction");
     }
 
-    {
-        auto rsp = batchRsp->GetResponse("commit_scheduler_tx");
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error committing scheduler transaction");
-    }
-
     LOG_INFO("Outputs committed");
 }
 
