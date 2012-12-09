@@ -795,8 +795,6 @@ private:
 
         LOG_INFO("Scheduler transaction committed (OperationId: %s)",
             ~ToString(operation->GetOperationId()));
-
-        FinishOperation(operation);
     }
 
     void AbortSchedulerTransaction(TOperationPtr operation)
@@ -804,9 +802,8 @@ private:
         // Fire-and-forget.
         auto transaction = operation->GetSchedulerTransaction();
         transaction->Abort();
-        
-        FinishOperation(operation);
     }
+
 
     void FinishOperation(TOperationPtr operation)
     {
@@ -1033,6 +1030,7 @@ private:
             ->Add(BIND(&TThis::SetOperationFinalState, MakeStrong(this), operation, EOperationState::Completed, TError()))
             ->Add(BIND(&TThis::CommitSchedulerTransaction, MakeStrong(this), operation))
             ->Add(BIND(&TMasterConnector::FinalizeOperationNode, ~MasterConnector, operation))
+            ->Add(BIND(&TThis::FinishOperation, MakeStrong(this), operation))
             ->Run();
     }
 
@@ -1056,6 +1054,7 @@ private:
             ->Add(BIND(&TThis::SetOperationFinalState, MakeStrong(this), operation, finalState, error))
             ->Add(BIND(&TThis::AbortSchedulerTransaction, MakeStrong(this), operation))
             ->Add(BIND(&TMasterConnector::FinalizeOperationNode, ~MasterConnector, operation))
+            ->Add(BIND(&TThis::FinishOperation, MakeStrong(this), operation))
             ->Run();
     }
 
