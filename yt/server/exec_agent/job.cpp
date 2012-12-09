@@ -184,13 +184,30 @@ TPromise<void> TJob::PrepareDownloadingTableFile(
         ~rsp.file_name(),
         ~JoinToString(chunkIds));
 
+    TSharedPtr<TDownloadedChunks> chunks(new TDownloadedChunks());
+
     auto awaiter = New<TParallelAwaiter>(Slot->GetInvoker());
     FOREACH (const auto& chunkId, chunkIds) {
-        awaiter->Await(ChunkCache->DownloadChunk(chunkId));
+        awaiter->Await(
+            ChunkCache->DownloadChunk(chunkId),
+            BIND([=](NChunkHolder::TChunkCache::TDownloadResult result) {
+                if (!result.IsOK()) {
+                    auto wrappedError = TError(
+                        "Failed to download chunk %s of table %s",
+                        ~chunkId.ToString(),
+                        ~rsp.file_name().Quote())
+                        << result;
+                    DoAbort(wrappedError, EJobState::Failed, false);
+                    return;
+                }
+                
+                chunks->push_back(result);
+            })
+        );
     }
 
     auto promise = NewPromise<void>();
-    awaiter->Complete(BIND(&TJob::OnTableDownloaded, MakeWeak(this), rsp, promise));
+    awaiter->Complete(BIND(&TJob::OnTableDownloaded, MakeWeak(this), rsp, chunks, promise));
     return promise;
 }
 
@@ -258,8 +275,11 @@ void TJob::OnChunkDownloaded(
 
 void TJob::OnTableDownloaded(
     const NYT::NScheduler::NProto::TTableFile& tableFileRsp,
+    TSharedPtr< std::vector<NChunkHolder::TChunkCache::TDownloadResult> > downloadedChunks,
     TPromise<void> promise)
 {
+    UNUSED(downloadedChunks);
+
     VERIFY_THREAD_AFFINITY(JobThread);
 
     if (JobPhase > EJobPhase::Cleanup) {

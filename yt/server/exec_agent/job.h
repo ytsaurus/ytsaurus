@@ -81,8 +81,11 @@ private:
     void OnChunkDownloaded(
         const NFileClient::NProto::TRspFetchFile& fetchRsp,
         TValueOrError<NChunkHolder::TCachedChunkPtr> result);
+    
+    typedef std::vector< TValueOrError<NChunkHolder::TCachedChunkPtr> > TDownloadedChunks;
     void OnTableDownloaded(
         const NYT::NScheduler::NProto::TTableFile& tableFileRsp,
+        TSharedPtr<TDownloadedChunks> downloadedChunks,
         TPromise<void> promise);
 
     void RunJobProxy();
