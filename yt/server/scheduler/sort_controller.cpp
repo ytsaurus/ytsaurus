@@ -872,7 +872,7 @@ protected:
             return true;
         }
 
-        if (partition->ChunkPoolOutput->GetPendingJobCount() == 0) {
+        if (partition->SortTask->GetPendingJobCount() == 0) {
             return false;
         }
 
