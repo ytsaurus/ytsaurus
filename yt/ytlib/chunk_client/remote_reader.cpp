@@ -775,8 +775,9 @@ private:
         *request->mutable_chunk_id() = reader->ChunkId.ToProto();
         request->set_all_extension_tags(AllExtensionTags);
 
-        if (PartitionTag)
+        if (PartitionTag) {
             request->set_partition_tag(PartitionTag.Get());
+        }
 
         ToProto(request->mutable_extension_tags(), ExtensionTags);
         request->Invoke().Subscribe(
