@@ -6,6 +6,7 @@
 #include "location.h"
 #include "chunk_store.h"
 #include "chunk_cache.h"
+#include "chunk_registry.h"
 #include "block_store.h"
 #include "peer_block_table.h"
 #include "session_manager.h"
@@ -111,7 +112,7 @@ TSessionPtr TDataNodeService::GetSession(const TChunkId& chunkId)
 
 TChunkPtr TDataNodeService::GetChunk(const TChunkId& chunkId)
 {
-    auto chunk = Bootstrap->GetChunkStore()->FindChunk(chunkId);
+    auto chunk = Bootstrap->GetChunkRegistry()->FindChunk(chunkId);
     if (!chunk) {
         THROW_ERROR_EXCEPTION(
             EErrorCode::NoSuchChunk,
