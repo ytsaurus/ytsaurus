@@ -1287,7 +1287,6 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
 
     FOREACH (const auto& file, TableFiles) {
         auto path = file.Path.GetPath();
-        LOG_INFO("Enqueing requests for fetching table file %s", ~path);
         {
             {
                 auto req = TTableYPathProxy::Fetch(path);

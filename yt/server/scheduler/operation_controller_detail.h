@@ -164,7 +164,7 @@ protected:
     std::vector<TOutputTable> OutputTables;
     
     
-    //! Marks file path with stage of operation 
+    //! Describes which part of the operation needs a particular file.
     DECLARE_ENUM(EOperationStage,
         (Map)
         (Reduce)
