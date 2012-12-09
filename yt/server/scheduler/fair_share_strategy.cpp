@@ -692,7 +692,8 @@ public:
 
             double utilizationRatio = element->GetUtilizationRatio();
             if (utilizationRatio > Config->MinPreemptionRatio &&
-                utilizationRatio > element->Attributes().FairShareRatio * Config->PreemptionTolerance)
+                utilizationRatio > element->Attributes().FairShareRatio * Config->PreemptionTolerance &&
+                utilizationRatio > element->Attributes().AdjustedMinShareRatio)
             {
                 preemptableJobs.push_back(job);
                 node->ResourceUtilizationDiscount() += job->ResourceUtilization();
