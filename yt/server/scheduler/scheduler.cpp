@@ -813,7 +813,6 @@ private:
     }
 
 
-
     void RegisterJob(TJobPtr job)
     {
         ++JobTypeCounters[job->GetType()];
@@ -1116,7 +1115,6 @@ private:
                 })
             .EndMap();
     }
-
 
 
     // RPC handlers
