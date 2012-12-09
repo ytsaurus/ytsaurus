@@ -385,12 +385,7 @@ private:
                 FOREACH (auto operationNode, operationsList->GetChildren()) {
                     auto id = TOperationId::FromString(operationNode->GetValue<Stroka>());
                     auto state = operationNode->Attributes().Get<EOperationState>("state");
-                    if (state == EOperationState::Initializing ||
-                        state == EOperationState::Preparing ||
-                        state == EOperationState::Reviving ||
-                        state == EOperationState::Running ||
-                        state == EOperationState::Completing)
-                    {
+                    if (IsOperationInProgress(state)) {
                         OperationIds.push_back(id);
                     }
                 }

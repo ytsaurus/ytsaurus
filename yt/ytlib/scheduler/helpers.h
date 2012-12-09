@@ -17,6 +17,7 @@ NYPath::TYPath GetStdErrPath(const TOperationId& operationId, const TJobId& jobI
 
 bool IsOperationFinished(EOperationState state);
 bool IsOperationFinishing(EOperationState state);
+bool IsOperationInProgress(EOperationState state);
 
 ////////////////////////////////////////////////////////////////////////////////
 
