@@ -872,6 +872,10 @@ protected:
             return true;
         }
 
+        if (partition->ChunkPoolOutput->GetPendingJobCount() == 0) {
+            return false;
+        }
+
         if (partition->ChunkPoolOutput->GetTotalJobCount() <= 1 && PartitionTask->IsCompleted()) {
             return false;
         }
