@@ -1031,8 +1031,8 @@ private:
             ->Add(BIND(&TMasterConnector::FlushOperationNode, ~MasterConnector, operation))
             ->Add(BIND(&IOperationController::Commit, controller))
             ->Add(BIND(&TThis::SetOperationFinalState, MakeStrong(this), operation, EOperationState::Completed, TError()))
-            ->Add(BIND(&TMasterConnector::FinalizeOperationNode, ~MasterConnector, operation))
             ->Add(BIND(&TThis::CommitSchedulerTransaction, MakeStrong(this), operation))
+            ->Add(BIND(&TMasterConnector::FinalizeOperationNode, ~MasterConnector, operation))
             ->Run();
     }
 
@@ -1054,8 +1054,8 @@ private:
             ->Add(BIND(&TMasterConnector::FlushOperationNode, ~MasterConnector, operation))
             ->Add(BIND(&IOperationController::Abort, controller))
             ->Add(BIND(&TThis::SetOperationFinalState, MakeStrong(this), operation, finalState, error))
-            ->Add(BIND(&TMasterConnector::FinalizeOperationNode, ~MasterConnector, operation))
             ->Add(BIND(&TThis::AbortSchedulerTransaction, MakeStrong(this), operation))
+            ->Add(BIND(&TMasterConnector::FinalizeOperationNode, ~MasterConnector, operation))
             ->Run();
     }
 
