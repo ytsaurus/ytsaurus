@@ -84,7 +84,7 @@ void TMasterConnector::ForceRegister()
 
 void TMasterConnector::DoForceRegister()
 {
-    VERIFY_THREAD_AFFINITY(Control);
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
     Disconnect();
     OnHeartbeat();
