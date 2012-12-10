@@ -13,9 +13,10 @@ source:
 test: clean
 	$(PYTHON) setup.py test
 
+VERSION=$(shell dpkg-parsechangelog | grep "Version:" | awk '{print $$2}')
+
 version:
-	version=`dpkg-parsechangelog | grep "Version:" | awk '{print $2}'`
-	echo "VERSION='${version}'" > yt/wrapper/version.py
+	echo "VERSION='$${VERSION}'" > yt/wrapper/version.py
 
 prepare: version
 	cp yt/wrapper/mapreduce yt/wrapper/mapreduce-yt
