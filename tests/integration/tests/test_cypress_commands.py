@@ -229,7 +229,7 @@ class TestCypressCommands(YTEnvSetup):
         copy('//tmp/a', '//tmp/b')
         assert get('//tmp/b/@count') == 2
 
-    def test_copy_simple4(self):
+    def test_copy_simple5(self):
         set("//tmp/a", { 'b' : 1 })
         assert get('//tmp/a/b/@path') == '//tmp/a/b'
 
