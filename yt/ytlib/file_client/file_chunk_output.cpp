@@ -223,7 +223,6 @@ void TFileChunkOutput::FlushBlock()
 
 TChunkId TFileChunkOutput::GetChunkId() const
 {
-    YCHECK(ChunkId != NullChunkId);
     return ChunkId;
 }
 
