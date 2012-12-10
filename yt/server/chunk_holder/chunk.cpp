@@ -227,12 +227,12 @@ TFuture<void> TChunk::ScheduleRemoval()
 
 void TChunk::DoRemoveChunk()
 {
-        EvictChunkReader();
+    EvictChunkReader();
 
-        auto this_ = MakeStrong(this);
-        Location_->ScheduleChunkRemoval(this).Subscribe(BIND([=] () {
-            this_->RemovedEvent.Set();
-        }));
+    auto this_ = MakeStrong(this);
+    Location_->ScheduleChunkRemoval(this).Subscribe(BIND([=] () {
+        this_->RemovedEvent.Set();
+    }));
 }
 
 void TChunk::EvictChunkReader()
