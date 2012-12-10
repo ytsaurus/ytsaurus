@@ -278,9 +278,8 @@ void TMapNodeTypeHandler::DoClone(
         
         clonedChildNode->SetParentId(clonedNode->GetId().ObjectId);
         objectManager->RefObject(clonedChildNode);
+        ++clonedNode->ChildCountDelta();
     }
-
-    YASSERT(clonedNode->ChildCountDelta() == 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

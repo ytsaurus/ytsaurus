@@ -269,9 +269,9 @@ public:
     virtual NObjectClient::EObjectType GetObjectType() const override;
     virtual const TVersionedNodeId& GetId() const override;
 
-    virtual i32 RefObject() override;
-    virtual i32 UnrefObject() override;
-    virtual i32 GetObjectRefCounter() const override;
+    virtual int RefObject() override;
+    virtual int UnrefObject() override;
+    virtual int GetObjectRefCounter() const override;
     virtual bool IsAlive() const override;
 
     virtual int GetOwningReplicationFactor() const override;
@@ -422,7 +422,7 @@ class TMapNode
 
     DEFINE_BYREF_RW_PROPERTY(TKeyToChild, KeyToChild);
     DEFINE_BYREF_RW_PROPERTY(TChildToKey, ChildToKey);
-    DEFINE_BYREF_RW_PROPERTY(i32, ChildCountDelta);
+    DEFINE_BYREF_RW_PROPERTY(int, ChildCountDelta);
 
 public:
     explicit TMapNode(const TVersionedNodeId& id);
