@@ -630,31 +630,22 @@ void TMapNodeProxy::Clear()
     // Construct children list.
     auto keyToChild = GetMapNodeChildren(Bootstrap, Id, Transaction);
 
-    // Take exclusive locks for children.
+    // Take shared locks for children.
     typedef std::pair<Stroka, ICypressNode*> TChild;
     std::vector<TChild> children;
     children.reserve(keyToChild.size());
     FOREACH (const auto& pair, keyToChild) {
         LockThisImpl(TLockRequest::SharedChild(pair.first));
-        auto* child = LockImpl(pair.second);
-        children.push_back(std::make_pair(pair.first, child));
+        auto* childImpl = LockImpl(pair.second);
+        children.push_back(std::make_pair(pair.first, childImpl));
     }
 
-    // Detach children.
-    // Insert tombstones.
+    // Insert tombstones (if in transaction).
     FOREACH (const auto& pair, children) {
         const auto& key = pair.first;
-        auto* child = pair.second;
-        const auto& childId = child->GetId().ObjectId;
-        if (impl->KeyToChild().find(key) != impl->KeyToChild().end()) {
-            YCHECK(impl->KeyToChild().erase(key) == 1);
-            YCHECK(impl->ChildToKey().erase(childId) == 1);
-            DetachChild(child, true);
-        } else {
-            YCHECK(impl->KeyToChild().insert(std::make_pair(key, NullObjectId)).second);
-            DetachChild(child, false);
-        }
-        --impl->ChildCountDelta();
+        auto* childImpl = pair.second;
+        const auto& childId = childImpl->GetId().ObjectId;
+        DoRemoveChild(impl, key, childId, childImpl);
     }
 
     SetModified();
@@ -689,6 +680,7 @@ std::vector< TPair<Stroka, INodePtr> > TMapNodeProxy::GetChildren() const
     FOREACH (const auto& pair, keyToChild) {
         result.push_back(std::make_pair(pair.first, GetProxy(pair.second)));
     }
+
     return result;
 }
 
@@ -700,6 +692,7 @@ std::vector<Stroka> TMapNodeProxy::GetKeys() const
     FOREACH (const auto& pair, keyToChild) {
         result.push_back(pair.first);
     }
+
     return result;
 }
 
@@ -723,12 +716,13 @@ bool TMapNodeProxy::AddChild(INodePtr child, const Stroka& key)
     auto* childImpl = LockImpl(childId);
 
     impl->KeyToChild()[key] = childId;
-    YCHECK(impl->ChildToKey().insert(MakePair(childId, key)).second);
+    YCHECK(impl->ChildToKey().insert(std::make_pair(childId, key)).second);
     ++impl->ChildCountDelta();
 
     AttachChild(childImpl);
 
     SetModified();
+
     return true;
 }
 
@@ -742,19 +736,10 @@ bool TMapNodeProxy::RemoveChild(const Stroka& key)
     const auto& childId = versionedChildId.ObjectId;
     auto* childImpl = LockImpl(childId, ELockMode::Exclusive, true);
     auto* impl = LockThisTypedImpl(TLockRequest::SharedChild(key));
-
-    if (versionedChildId.TransactionId == GetObjectId(Transaction)) {
-        YCHECK(impl->KeyToChild().erase(key) == 1);
-        YCHECK(impl->ChildToKey().erase(childId) == 1);
-        DetachChild(childImpl, true);
-    } else {
-        YCHECK(impl->KeyToChild().insert(MakePair(key, NullObjectId)).second);
-        DetachChild(childImpl, false);
-    }
-
-    --impl->ChildCountDelta();
-
+    DoRemoveChild(impl, key, childId, childImpl);
+    
     SetModified();
+
     return true;
 }
 
@@ -765,18 +750,7 @@ void TMapNodeProxy::RemoveChild(INodePtr child)
 
     auto* childImpl = LockImpl(childId, ELockMode::Exclusive, true);
     auto* impl = LockThisTypedImpl(TLockRequest::SharedChild(key));
-
-    auto it = impl->ChildToKey().find(childId);
-    if (it != impl->ChildToKey().end()) {
-        YCHECK(impl->KeyToChild().erase(key) == 1);
-        YCHECK(impl->ChildToKey().erase(childId) == 1);
-        DetachChild(childImpl, true);
-    } else {
-        YCHECK(impl->KeyToChild().insert(MakePair(key, NullObjectId)).second);
-        DetachChild(childImpl, false);
-    }
-
-    --impl->ChildCountDelta();
+    DoRemoveChild(impl, key, childId, childImpl);
 
     SetModified();
 }
@@ -795,10 +769,15 @@ void TMapNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
     auto* newChildImpl = LockImpl(newChildId);
 
     auto* impl = LockThisTypedImpl(TLockRequest::SharedChild(key));
-    impl->KeyToChild()[key] = newChildId;
-    bool ownsOldChild = impl->KeyToChild().find(key) != impl->KeyToChild().end();
+
+    auto& keyToChild = impl->KeyToChild();
+    auto& childToKey = impl->ChildToKey();
+
+    bool ownsOldChild = keyToChild.find(key) != keyToChild.end();
     DetachChild(oldChildImpl, ownsOldChild);
-    YCHECK(impl->ChildToKey().insert(MakePair(newChildId, key)).second);    
+
+    keyToChild[key] = newChildId;
+    YCHECK(childToKey.insert(std::make_pair(newChildId, key)).second);    
     AttachChild(newChildImpl);
 
     SetModified();
@@ -845,6 +824,32 @@ IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(
     IServiceContextPtr context)
 {
     return TMapNodeMixin::ResolveRecursive(path, context);
+}
+
+void TMapNodeProxy::DoRemoveChild(
+    TMapNode* impl,
+    const Stroka& key,
+    const TNodeId& childId,
+    ICypressNode* childImpl)
+{
+    auto& keyToChild = impl->KeyToChild();
+    auto& childToKey = impl->ChildToKey();
+    if (Transaction) {
+        auto it = keyToChild.find(key);
+        if (it == keyToChild.end()) {
+            YCHECK(keyToChild.insert(std::make_pair(key, NullObjectId)).second);
+            YCHECK(childToKey.erase(childId) == 1);
+            DetachChild(childImpl, false);
+        } else {
+            it->second = NullObjectId;
+            DetachChild(childImpl, true);
+        }
+    } else {
+        YCHECK(keyToChild.erase(key) == 1);
+        YCHECK(childToKey.erase(childId) == 1);
+        DetachChild(childImpl, true);
+    }
+    --impl->ChildCountDelta();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -915,7 +920,7 @@ void TListNodeProxy::AddChild(INodePtr child, int beforeIndex /*= -1*/)
     auto* childImpl = LockImpl(childId);
 
     if (beforeIndex < 0) {
-        YCHECK(impl->ChildToIndex().insert(MakePair(childId, list.size())).second);
+        YCHECK(impl->ChildToIndex().insert(std::make_pair(childId, list.size())).second);
         list.push_back(childId);
     } else {
         // Update indices.
@@ -924,7 +929,7 @@ void TListNodeProxy::AddChild(INodePtr child, int beforeIndex /*= -1*/)
         }
 
         // Insert the new child.
-        YCHECK(impl->ChildToIndex().insert(MakePair(childId, beforeIndex)).second);
+        YCHECK(impl->ChildToIndex().insert(std::make_pair(childId, beforeIndex)).second);
         list.insert(list.begin() + beforeIndex, childId);
     }
 
@@ -987,7 +992,7 @@ void TListNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
 
     impl->IndexToChild()[index] = newChildId;
     impl->ChildToIndex().erase(it);
-    YCHECK(impl->ChildToIndex().insert(MakePair(newChildId, index)).second);
+    YCHECK(impl->ChildToIndex().insert(std::make_pair(newChildId, index)).second);
     AttachChild(newChildImpl);
 
     SetModified();

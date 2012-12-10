@@ -36,7 +36,8 @@ yhash_map<Stroka, TNodeId> GetMapNodeChildren(
             const auto* mapNode = static_cast<const TMapNode*>(node);
             FOREACH (const auto& pair, mapNode->KeyToChild()) {
                 if (pair.second == NullObjectId) {
-                    YCHECK(result.erase(pair.first) == 1);
+                    // NB: key may be absent.
+                    result.erase(pair.first);
                 } else {
                     result[pair.first] = pair.second;
                 }

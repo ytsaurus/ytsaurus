@@ -458,6 +458,12 @@ private:
     virtual void SetRecursive(const NYPath::TYPath& path, NYTree::INodePtr value) override;
     virtual IYPathService::TResolveResult ResolveRecursive(const NYPath::TYPath& path, NRpc::IServiceContextPtr context) override;
 
+    void DoRemoveChild(
+        TMapNode* impl,
+        const Stroka& key,
+        const TNodeId& childId,
+        ICypressNode* childImpl);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

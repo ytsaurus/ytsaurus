@@ -133,7 +133,7 @@ void TMapNode::Load(const NCellMaster::TLoadContext& context)
     LoadMap(input, KeyToChild());
     FOREACH (const auto& pair, KeyToChild()) {
         if (pair.second != NullObjectId) {
-            ChildToKey().insert(MakePair(pair.second, pair.first));
+            ChildToKey().insert(std::make_pair(pair.second, pair.first));
         }
     }
 }
@@ -185,48 +185,52 @@ void TMapNodeTypeHandler::DoMerge(
     auto cypressManager = Bootstrap->GetCypressManager();
 
     const auto& originatingId = originatingNode->GetId();
-    FOREACH (const auto& pair, branchedNode->KeyToChild()) {
-        auto it = originatingNode->KeyToChild().find(pair.first);
-        if (it == originatingNode->KeyToChild().end()) {
-            YCHECK(originatingNode->KeyToChild().insert(pair).second);
-        } else {
-            if (it->second != NullObjectId) {
-                objectManager->UnrefObject(it->second);
-                YCHECK(originatingNode->ChildToKey().erase(it->second) == 1);
-            }
-            it->second = pair.second;
-            
-            if (pair.second == NullObjectId) {
-                auto originatingTransaction =
-                    originatingId.TransactionId == NullTransactionId
-                    ? NULL
-                    : transactionManager->GetTransaction(originatingId.TransactionId);
-                auto transactions = transactionManager->GetTransactionPath(originatingTransaction);
-                bool contains = false;
-                FOREACH (const auto* currentTransaction, transactions) {
-                    if (currentTransaction == originatingTransaction) {
-                        continue;
-                    }
-                    const auto* node = cypressManager->GetVersionedNode(originatingId.ObjectId, currentTransaction);
-                    const auto& map = static_cast<const TMapNode*>(node)->KeyToChild();
-                    auto innerIt = map.find(pair.first);
-                    if (innerIt != map.end()) {
-                        if (innerIt->second != NullObjectId) {
-                            contains = true;
-                        }
-                        break;
-                    }
-                }
-                if (!contains) {
-                    originatingNode->KeyToChild().erase(it);
-                }
-            }
+    auto& keyToChild = originatingNode->KeyToChild();
+    auto& childToKey = originatingNode->ChildToKey();
 
-        }
-        if (pair.second != NullObjectId) {
-            YCHECK(originatingNode->ChildToKey().insert(MakePair(pair.second, pair.first)).second);
+    FOREACH (const auto& pair, branchedNode->KeyToChild()) {
+        const auto& key = pair.first;
+        const auto& childId = pair.second;
+
+        auto it = keyToChild.find(key);
+        if (childId == NullObjectId) {
+            // Branched: tombstone
+            if (it == keyToChild.end()) {
+                // Originating: missing
+                if (originatingId.IsBranched()) {
+                    YCHECK(keyToChild.insert(std::make_pair(key, NullObjectId)).second);
+                }
+            } else if (it->second == NullObjectId) {
+                // Originating: tombstone
+            } else {
+                // Originating: present
+                objectManager->UnrefObject(it->second);
+                YCHECK(childToKey.erase(it->second) == 1);
+                if (originatingId.IsBranched()) {
+                    it->second = NullObjectId;
+                } else {
+                    keyToChild.erase(it);
+                }
+            }
+        } else {
+            if (it == keyToChild.end()) {
+                // Originating: missing
+                YCHECK(childToKey.insert(std::make_pair(childId, key)).second);
+                YCHECK(keyToChild.insert(std::make_pair(key, childId)).second);
+            } else if (it->second == NullObjectId) {
+                // Originating: tombstone
+                it->second = childId;;
+                YCHECK(childToKey.insert(std::make_pair(childId, key)).second);
+            } else {
+                // Originating: present
+                objectManager->UnrefObject(it->second);
+                YCHECK(childToKey.erase(it->second) == 1);
+                YCHECK(childToKey.insert(std::make_pair(childId, key)).second);
+                it->second = childId;;
+            }
         }
     }
+
     originatingNode->ChildCountDelta() += branchedNode->ChildCountDelta();
 }
 
