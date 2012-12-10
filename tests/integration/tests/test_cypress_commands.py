@@ -223,6 +223,13 @@ class TestCypressCommands(YTEnvSetup):
         assert get('//tmp/b/@x') == 'y'
 
     def test_copy_simple4(self):
+        set('//tmp/a', {'x1' : 'y1', 'x2' : 'y2'})
+        assert get('//tmp/a/@count') == 2
+
+        copy('//tmp/a', '//tmp/b')
+        assert get('//tmp/b/@count') == 2
+
+    def test_copy_simple4(self):
         set("//tmp/a", { 'b' : 1 })
         assert get('//tmp/a/b/@path') == '//tmp/a/b'
 
@@ -329,15 +336,15 @@ class TestCypressCommands(YTEnvSetup):
         assert get('//tmp') == {}
 
     def test_map_locks7(self):
-    	set('//tmp/a', 1)
+        set('//tmp/a', 1)
 
-    	tx = start_transaction()
-    	remove('//tmp/a', tx = tx)
-    	set('//tmp/a', 2, tx = tx)
-    	remove('//tmp/a', tx = tx)
-    	commit_transaction(tx)
+        tx = start_transaction()
+        remove('//tmp/a', tx = tx)
+        set('//tmp/a', 2, tx = tx)
+        remove('//tmp/a', tx = tx)
+        commit_transaction(tx)
 
-    	assert get('//tmp') == {}   	
+        assert get('//tmp') == {}       
 
     def test_attr_locks1(self):
         tx = start_transaction()
