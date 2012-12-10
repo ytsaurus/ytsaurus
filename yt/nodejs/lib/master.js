@@ -112,13 +112,13 @@ YtClusterHandle.prototype.postponeDeath = function(timeout) {
 };
 
 YtClusterHandle.prototype.certifyDeath = function() {
-    this.logger.info("Worker is dead", {
-        wid : this.getWid(),
-        pid : this.getPid(),
-        handle : this.toString()
-    });
-
     try {
+        this.logger.info("Worker is dead", {
+            wid : this.getWid(),
+            pid : this.getPid(),
+        handle : this.toString()
+        });
+
         this.worker.send("violentlyDie");
         this.worker.disconnect();
         this.worker.process.kill("SIGKILL");
