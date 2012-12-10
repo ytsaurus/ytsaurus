@@ -6,6 +6,7 @@
 #include "config.h"
 #include "bootstrap.h"
 #include "disk_health_checker.h"
+#include "master_connector.h"
 
 #include <ytlib/misc/fs.h>
 
@@ -209,6 +210,8 @@ void TLocation::Disable()
         return;
 
     LOG_ERROR("Location disabled");
+
+    Bootstrap->GetMasterConnector()->ForceRegister();
 }
 
 const TGuid& TLocation::GetCellGuid() 

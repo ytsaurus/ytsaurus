@@ -52,7 +52,7 @@ void TMasterConnector::Start()
 {
     Proxy.Reset(new TProxy(Bootstrap->GetMasterChannel()));
 
-    // Chunk store callbacks are always called in Control thead.
+    // Chunk store callbacks are always called in Control thread.
     Bootstrap->GetChunkStore()->SubscribeChunkAdded(BIND(
         &TMasterConnector::OnChunkAdded,
         MakeWeak(this)));
@@ -73,6 +73,23 @@ void TMasterConnector::Start()
         RandomDuration(Config->HeartbeatSplay));
 }
 
+void TMasterConnector::ForceRegister()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    ControlInvoker->Invoke(BIND(
+        &TMasterConnector::DoForceRegister,
+        MakeStrong(this)));
+}
+
+void TMasterConnector::DoForceRegister()
+{
+    VERIFY_THREAD_AFFINITY(Control);
+
+    Disconnect();
+    OnHeartbeat();
+}
+
 void TMasterConnector::ScheduleHeartbeat()
 {
     TDelayedInvoker::Submit(
@@ -84,6 +101,7 @@ void TMasterConnector::ScheduleHeartbeat()
 void TMasterConnector::OnHeartbeat()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
+
     switch (State) {
         case EState::Offline:
             SendRegister();

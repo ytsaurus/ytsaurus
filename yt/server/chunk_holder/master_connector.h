@@ -27,6 +27,14 @@ public:
     //! Starts interaction with master.
     void Start();
 
+    //! Forces a new registration round and a full heartbeat to be sent.
+    /*!
+     *  Thread affinity: any
+     *  
+     *  Typically called when a location goes down.
+     */
+    void ForceRegister();
+
 private:
     typedef NChunkServer::TChunkServiceProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
@@ -89,6 +97,9 @@ private:
 
     //! Sends out an incremental heartbeat.
     void SendIncrementalHeartbeat();
+
+    //! Similar to #ForceRegister but handled in Control thread.
+    void DoForceRegister();
 
     //! Constructs a protobuf info for an added chunk.
     static NChunkServer::NProto::TChunkAddInfo GetAddInfo(const TChunkPtr chunk);

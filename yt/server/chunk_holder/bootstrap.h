@@ -34,6 +34,7 @@ public:
     TBlockStorePtr GetBlockStore();
     TPeerBlockTablePtr GetPeerBlockTable() const;
     TReaderCachePtr GetReaderCache() const;
+    TMasterConnectorPtr GetMasterConnector() const;
     NRpc::IChannelPtr GetMasterChannel() const;
     Stroka GetPeerAddress() const;
     TMemoryUsageTracker<NCellNode::EMemoryConsumer>& GetMemoryUsageTracker();

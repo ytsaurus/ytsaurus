@@ -173,6 +173,11 @@ TReaderCachePtr TBootstrap::GetReaderCache() const
     return ReaderCache;
 }
 
+TMasterConnectorPtr TBootstrap::GetMasterConnector() const
+{
+    return MasterConnector;
+}
+
 IChannelPtr TBootstrap::GetMasterChannel() const
 {
     return NodeBootstrap->GetMasterChannel();
