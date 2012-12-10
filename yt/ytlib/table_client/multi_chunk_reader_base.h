@@ -73,6 +73,8 @@ protected:
 
     TAsyncStreamState State;
 
+    // Protects LastPreparedReader;
+    TSpinLock NextChunkLock;
     int LastPreparedReader;
 
     TParallelAwaiterPtr FetchingCompleteAwaiter;

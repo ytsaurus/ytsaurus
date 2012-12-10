@@ -50,18 +50,24 @@ void TMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
 {
     int chunkSlicesSize = static_cast<int>(InputChunks.size());
 
-    LastPreparedReader = std::min(LastPreparedReader + 1, chunkSlicesSize);
-    if (LastPreparedReader == chunkSlicesSize) {
-        return;
+    int chunkIndex = -1;
+
+    {
+        TGuard<TSpinLock> guard(NextChunkLock);
+        LastPreparedReader = std::min(LastPreparedReader + 1, chunkSlicesSize);
+        if (LastPreparedReader == chunkSlicesSize) {
+            return;
+        }
+        chunkIndex = LastPreparedReader;
     }
 
     TSession session;
-    session.ChunkIndex = LastPreparedReader;
-    const auto& inputChunk = InputChunks[session.ChunkIndex];
+    session.ChunkIndex = chunkIndex;
+    const auto& inputChunk = InputChunks[chunkIndex];
     auto chunkId = NChunkClient::TChunkId::FromProto(inputChunk.slice().chunk_id());
 
-    LOG_DEBUG("Opening chunk (ChunkIndex: %d, ChunkId: %s)", 
-        LastPreparedReader,
+    LOG_DEBUG("Opening chunk (ChunkIndex: %d, ChunkId: %s)",
+        chunkIndex,
         ~chunkId.ToString());
 
     auto remoteReader = CreateRemoteReader(
@@ -91,8 +97,8 @@ void TMultiChunkReaderBase<TChunkReader>::ProcessOpenedReader(const TSession& se
     FetchingCompleteAwaiter->Await(session.Reader->GetFetchingCompleteEvent());
     if (FetchingCompleteAwaiter->GetRequestCount() == InputChunks.size()) {
         auto this_ = MakeStrong(this);
-        FetchingCompleteAwaiter->Complete(BIND([=]() { 
-            this_->IsFetchingComplete_ = true; 
+        FetchingCompleteAwaiter->Complete(BIND([=]() {
+            this_->IsFetchingComplete_ = true;
         }));
     }
 }

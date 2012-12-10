@@ -16,15 +16,15 @@ TMultiChunkParallelReader<TChunkReader>::TMultiChunkParallelReader(
     std::vector<NProto::TInputChunk>&& inputChunks,
     const typename TBase::TProviderPtr& readerProvider)
     : TMultiChunkReaderBase<TChunkReader>(
-        config, 
-        masterChannel, 
-        blockCache, 
-        MoveRV(inputChunks), 
+        config,
+        masterChannel,
+        blockCache,
+        MoveRV(inputChunks),
         readerProvider)
     , CompleteReaderCount(0)
 {
     ReadySessions.reserve(std::min(
-        static_cast<int>(TBase::InputChunks.size()), 
+        static_cast<int>(TBase::InputChunks.size()),
         TBase::Config->PrefetchWindow));
 
     if (TBase::ReaderProvider->KeepInMemory()) {
@@ -50,7 +50,7 @@ TAsyncError TMultiChunkParallelReader<TChunkReader>::AsyncOpen()
 
 template <class TChunkReader>
 void TMultiChunkParallelReader<TChunkReader>::OnReaderOpened(
-    const typename TBase::TSession& session, 
+    const typename TBase::TSession& session,
     TError error)
 {
     VERIFY_THREAD_AFFINITY(TBase::ReaderThread);
@@ -117,7 +117,7 @@ void TMultiChunkParallelReader<TChunkReader>::FinishReader(
 
 template <class TChunkReader>
 void TMultiChunkParallelReader<TChunkReader>::OnReaderReady(
-    const typename TBase::TSession& session, 
+    const typename TBase::TSession& session,
     TError error)
 {
     VERIFY_THREAD_AFFINITY(TBase::ReaderThread);
