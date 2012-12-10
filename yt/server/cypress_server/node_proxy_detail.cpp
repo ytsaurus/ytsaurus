@@ -838,10 +838,10 @@ void TMapNodeProxy::DoRemoveChild(
         auto it = keyToChild.find(key);
         if (it == keyToChild.end()) {
             YCHECK(keyToChild.insert(std::make_pair(key, NullObjectId)).second);
-            YCHECK(childToKey.erase(childId) == 1);
             DetachChild(childImpl, false);
         } else {
             it->second = NullObjectId;
+            YCHECK(childToKey.erase(childId) == 1);
             DetachChild(childImpl, true);
         }
     } else {
