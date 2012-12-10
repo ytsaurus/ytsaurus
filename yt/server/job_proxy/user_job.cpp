@@ -28,7 +28,7 @@
 #ifdef _linux_
 
 #include <unistd.h>
-#include <sys/types.h> 
+#include <sys/types.h>
 #include <sys/time.h>
 #include <sys/wait.h>
 
@@ -145,7 +145,7 @@ private:
         // in job processes:
         // fd == 3 * (N - 1) for the N-th input table (if exists)
         // fd == 3 * (N - 1) + 1 for the N-th output table (if exists)
-        // fd == 2 for the error stream 
+        // fd == 2 for the error stream
         // e. g.
         // 0 - first input table
         // 1 - first output table
@@ -153,7 +153,7 @@ private:
         // 3 - second input
         // 4 - second output
         // etc.
-        // 
+        //
         // A special option (ToDo(psushin): which one?) enables concatenating
         // all input streams into fd == 0.
 
@@ -164,7 +164,7 @@ private:
         YASSERT(maxReservedDescriptor > 0);
 
         // To avoid descriptor collisions between pipes on this, proxy side,
-        // and "standard" descriptor numbers in forked job (see comments above) 
+        // and "standard" descriptor numbers in forked job (see comments above)
         // we ensure that lower 3 * N descriptors are allocated before creating pipes.
 
         std::vector<int> reservedDescriptors;
@@ -191,8 +191,8 @@ private:
             for (int i = 0; i < JobIO->GetInputCount(); ++i) {
                 TAutoPtr<TBlobOutput> buffer(new TBlobOutput());
                 TAutoPtr<IYsonConsumer> consumer = CreateConsumerForFormat(
-                    format, 
-                    EDataType::Tabular, 
+                    format,
+                    EDataType::Tabular,
                     buffer.Get());
 
                 createPipe(pipe);
@@ -228,7 +228,7 @@ private:
         LOG_DEBUG("Pipes initialized");
     }
 
-    static void* InputThreadFunc(void* param) 
+    static void* InputThreadFunc(void* param)
     {
         NThread::SetCurrentThreadName("JobProxyInput");
         TIntrusivePtr<TUserJob> job = (TUserJob*)param;
@@ -236,7 +236,7 @@ private:
         return NULL;
     }
 
-    static void* OutputThreadFunc(void* param) 
+    static void* OutputThreadFunc(void* param)
     {
         NThread::SetCurrentThreadName("JobProxyOutput");
         TIntrusivePtr<TUserJob> job = (TUserJob*)param;
@@ -341,11 +341,6 @@ private:
         OutputThread.Start();
         OutputThread.Join();
 
-        // If user process fais, InputThread may be blocked on epoll
-        // because reading end of input pipes is left open to 
-        // check that all data was consumed.
-        InputThread.Detach();
-
         int status = 0;
         int waitpidResult = waitpid(ProcessId, &status, 0);
         if (waitpidResult < 0) {
@@ -370,6 +365,12 @@ private:
         FOREACH (auto& pipe, InputPipes) {
             finishPipe(pipe);
         }
+
+        // If user process fais, InputThread may be blocked on epoll
+        // because reading end of input pipes is left open to
+        // check that all data was consumed. That is why we should join the
+        // thread after pipe finish.
+        InputThread.Join();
     }
 
     // Called from the forked process.
@@ -398,16 +399,16 @@ private:
 
             // do not search the PATH, inherit environment
             execle("/bin/sh",
-                "/bin/sh", 
-                "-c", 
-                ~cmd, 
+                "/bin/sh",
+                "-c",
+                ~cmd,
                 (void*)NULL,
                 envp.data());
 
             int _errno = errno;
 
             fprintf(stderr, "Failed to exec job (/bin/sh -c '%s'): %s\n",
-                ~cmd, 
+                ~cmd,
                 strerror(_errno));
 
             // TODO(babenko): extract error code constant
