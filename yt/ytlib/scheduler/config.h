@@ -56,7 +56,7 @@ struct TUserJobSpec
     : public TYsonSerializable
 {
     Stroka Command;
-    
+
     std::vector<NYPath::TRichYPath> FilePaths;
 
     TNullable<NFormats::TFormat> Format;
@@ -64,7 +64,7 @@ struct TUserJobSpec
     TNullable<NFormats::TFormat> OutputFormat;
 
     yhash_map<Stroka, Stroka> Environment;
-    
+
     int CpuLimit;
     i64 MemoryLimit;
 
@@ -185,7 +185,8 @@ struct TMergeOperationSpec
 
     TMergeOperationSpec()
     {
-        Register("input_table_paths", InputTablePaths);
+        Register("input_table_paths", InputTablePaths)
+            .NonEmpty();
         Register("output_table_path", OutputTablePath);
         Register("combine_chunks", CombineChunks)
             .Default(false);
@@ -200,7 +201,7 @@ struct TMergeOperationSpec
 
 struct TUnorderedMergeOperationSpec
     : public TMergeOperationSpec
-{ 
+{
     TUnorderedMergeOperationSpec()
     {
         JobIO->TableReader->PrefetchWindow = 10;
@@ -209,7 +210,7 @@ struct TUnorderedMergeOperationSpec
 
 struct TOrderedMergeOperationSpec
     : public TMergeOperationSpec
-{ 
+{
 
 };
 
@@ -247,7 +248,8 @@ struct TReduceOperationSpec
     TReduceOperationSpec()
     {
         Register("reducer", Reducer);
-        Register("input_table_paths", InputTablePaths);
+        Register("input_table_paths", InputTablePaths)
+            .NonEmpty();
         Register("output_table_paths", OutputTablePaths);
         Register("reduce_by", ReduceBy)
             .Default();
@@ -300,7 +302,8 @@ struct TSortOperationSpecBase
 
     TSortOperationSpecBase()
     {
-        Register("input_table_paths", InputTablePaths);
+        Register("input_table_paths", InputTablePaths)
+            .NonEmpty();
         Register("partition_count", PartitionCount)
             .Default()
             .GreaterThan(0);
@@ -334,7 +337,7 @@ struct TSortOperationSpec
     : public TSortOperationSpecBase
 {
     NYPath::TRichYPath OutputTablePath;
-    
+
     std::vector<Stroka> SortBy;
 
     // Desired number of samples per partition.
