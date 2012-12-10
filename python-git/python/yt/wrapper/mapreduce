@@ -9,6 +9,7 @@
 # -unlock
 
 from yt.wrapper.common import flatten, unlist, first_not_none, bool_to_string
+from yt.wrapper.version import VERSION
 import yt.wrapper.config as config
 import yt.wrapper as yt
 
@@ -325,7 +326,7 @@ Examples:
     if actions_count != 1 and not mapreduce_case:
         die("You should pass exactly one action", 1)
     if args.version:
-        die("Version: YT wrapper", 0)
+        die("Version: YT wrapper " + VERSION, 0)
 
     if args.chunksize is not None:
         config.WRITE_BUFFER_SIZE = args.chunksize
