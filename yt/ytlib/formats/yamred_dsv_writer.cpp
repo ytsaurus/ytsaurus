@@ -66,6 +66,7 @@ void TYamredDsvWriter::OnBeginMap()
         THROW_ERROR_EXCEPTION("Embedded maps are not supported by YAMRed DSV");
     }
     AllowBeginMap = false;
+    IsValueEmpty = true;
 
     KeyFields.clear();
     SubkeyFields.clear();
