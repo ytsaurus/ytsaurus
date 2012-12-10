@@ -238,7 +238,38 @@ class TestCypressCommands(YTEnvSetup):
 
         remove('//tmp/a')
         assert get('//tmp/c/b/@path') == '//tmp/c/b'
+
+    def test_copy_tx1(self):
+        tx = start_transaction()
+
+        set('//tmp/a', {'x1' : 'y1', 'x2' : 'y2'}, tx=tx)
+        assert get('//tmp/a/@count', tx=tx) == 2
+
+        copy('//tmp/a', '//tmp/b', tx=tx)
+        assert get('//tmp/b/@count', tx=tx) == 2
+
+        commit_transaction(tx)
     
+        assert get('//tmp/a/@count') == 2
+        assert get('//tmp/b/@count') == 2
+
+    def test_copy_tx2(self):
+        set('//tmp/a', {'x1' : 'y1', 'x2' : 'y2'})
+
+        tx = start_transaction()
+
+        remove('//tmp/a/x1', tx=tx)
+        assert get('//tmp/a/@count', tx=tx) == 1
+
+        copy('//tmp/a', '//tmp/b', tx=tx)
+        assert get('//tmp/b/@count', tx=tx) == 1
+
+        commit_transaction(tx)
+
+        assert get('//tmp/a/@count') == 1
+        assert get('//tmp/b/@count') == 1
+        
+
     def test_copy_unexisting_path(self):
         with pytest.raises(YTError): copy('//tmp/x', '//tmp/y')
 
