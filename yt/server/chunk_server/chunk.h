@@ -51,7 +51,7 @@ public:
 
     void AddLocation(TNodeId nodeId, bool cached);
     void RemoveLocation(TNodeId nodeId, bool cached);
-    std::vector<TNodeId> GetLocations() const;
+    TSmallVector<TNodeId, TypicalReplicationFactor> GetLocations() const;
 
     bool ValidateChunkInfo(const NChunkClient::NProto::TChunkInfo& chunkInfo) const;
     bool IsConfirmed() const;

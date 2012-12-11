@@ -235,7 +235,7 @@ void TChunkReplicator::ProcessExistingJobs(
     }
 
     // Check for missing jobs
-    FOREACH (auto job, node->Jobs()) {
+    FOREACH (auto* job, node->Jobs()) {
         auto jobId = job->GetId();
         if (runningJobIds.find(jobId) == runningJobIds.end()) {
             TJobStopInfo stopInfo;
@@ -472,33 +472,35 @@ TChunkReplicator::TReplicaStatistics TChunkReplicator::GetReplicaStatistics(cons
 
     auto chunkManager = Bootstrap->GetChunkManager();
     const auto* jobList = chunkManager->FindJobList(chunk->GetId());
-    if (jobList) {
-        yhash_set<Stroka> storedAddresses(result.StoredCount);
-        FOREACH (auto nodeId, chunk->StoredLocations()) {
-            const auto& node = chunkManager->GetNode(nodeId);
-            storedAddresses.insert(node->GetAddress());
-        }
+    if (!jobList) {
+        return result;
+    }
 
-        FOREACH (auto& job, jobList->Jobs()) {
-            switch (job->GetType()) {
-                case EJobType::Replicate: {
-                    FOREACH (const auto& address, job->TargetAddresses()) {
-                        if (storedAddresses.find(address) == storedAddresses.end()) {
-                            ++result.PlusCount;
-                        }
+    TSmallSet<Stroka, TypicalReplicationFactor> storedAddresses;
+    FOREACH (auto nodeId, chunk->StoredLocations()) {
+        const auto& node = chunkManager->GetNode(nodeId);
+        storedAddresses.insert(node->GetAddress());
+    }
+
+    FOREACH (auto* job, jobList->Jobs()) {
+        switch (job->GetType()) {
+            case EJobType::Replicate: {
+                FOREACH (const auto& address, job->TargetAddresses()) {
+                    if (!storedAddresses.count(address)) {
+                        ++result.PlusCount;
                     }
-                    break;
                 }
+                break;
+            }
 
-                case EJobType::Remove:
-                    if (storedAddresses.find(job->GetAddress()) != storedAddresses.end()) {
-                        ++result.MinusCount;
-                    }
-                    break;
-
-                default:
-                    YUNREACHABLE();
+            case EJobType::Remove:
+                if (storedAddresses.count(job->GetAddress())) {
+                    ++result.MinusCount;
                 }
+                break;
+
+            default:
+                YUNREACHABLE();
         }
     }
 
@@ -519,16 +521,17 @@ void TChunkReplicator::Refresh(const TChunk* chunk)
     if (!chunk->IsConfirmed())
         return;
 
+    auto chunkId = chunk->GetId();
     auto statistics = GetReplicaStatistics(chunk);
 
     FOREACH (auto nodeId, chunk->StoredLocations()) {
         auto* nodeInfo = FindNodeInfo(nodeId);
         if (nodeInfo) {
-            nodeInfo->ChunksToReplicate.erase(chunk->GetId());
-            nodeInfo->ChunksToRemove.erase(chunk->GetId());
+            nodeInfo->ChunksToReplicate.erase(chunkId);
+            nodeInfo->ChunksToRemove.erase(chunkId);
         }
     }
-    auto chunkId = chunk->GetId();
+
     LostChunkIds_.erase(chunkId);
     LostVitalChunkIds_.erase(chunkId);
     OverreplicatedChunkIds_.erase(chunkId);

@@ -119,9 +119,9 @@ void TChunk::RemoveLocation(TNodeId nodeId, bool cached)
     }
 }
 
-std::vector<TNodeId> TChunk::GetLocations() const
+TSmallVector<TNodeId, TypicalReplicationFactor> TChunk::GetLocations() const
 {
-    std::vector<TNodeId> result(StoredLocations_.begin(), StoredLocations_.end());
+    TSmallVector<TNodeId, TypicalReplicationFactor> result(StoredLocations_.begin(), StoredLocations_.end());
     if (~CachedLocations_) {
         result.insert(result.end(), CachedLocations_->begin(), CachedLocations_->end());
     }
@@ -138,16 +138,17 @@ bool TChunk::ValidateChunkInfo(const NChunkClient::NProto::TChunkInfo& chunkInfo
     if (ChunkInfo_.size() == UnknownSize)
         return true;
 
-    /*
-    Switched off for now.
     if (chunkInfo.has_meta_checksum() && ChunkInfo_.has_meta_checksum() &&
         ChunkInfo_.meta_checksum() != chunkInfo.meta_checksum())
     {
         return false;
     }
-    */
+ 
+    if (ChunkInfo_.size() != chunkInfo.size()) {
+        return false;
+    }
 
-    return ChunkInfo_.size() == chunkInfo.size();
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

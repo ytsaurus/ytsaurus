@@ -179,7 +179,7 @@ TSmallVector<TDataNode*, TypicalReplicationFactor> TChunkPlacement::GetReplicati
 TDataNode* TChunkPlacement::GetReplicationSource(const TChunk* chunk)
 {
     // Right now we are just picking a random location (including cached ones).
-    const auto& locations = chunk->GetLocations();
+    auto locations = chunk->GetLocations();
     YCHECK(!locations.empty());
     int index = RandomNumber<size_t>(locations.size());
     return Bootstrap->GetChunkManager()->GetNode(locations[index]);
