@@ -352,7 +352,7 @@ private:
         CancelableConnectionControlInvoker = CancelableConnectionContext->CreateInvoker(
             Bootstrap->GetControlInvoker());
 
-        RegisterAndReviveOperations(result.Operations);
+        ReviveOperations(result.Operations);
     }
 
     void OnMasterDisconnected()
@@ -496,21 +496,18 @@ private:
             userTransaction,
             spec,
             TInstant::Now());
+        operation->SetState(EOperationState::Initializing);
 
         LOG_INFO("Starting operation (OperationType: %s, OperationId: %s, TransactionId: %s)",
             ~type.ToString(),
-            ~operationId.ToString(),
-            ~transactionId.ToString());
+            ~ToString(operationId),
+            ~ToString(transactionId));
 
         IOperationControllerPtr controller;
         try {
             controller = CreateController(~operation);
             operation->SetController(controller);
-            operation->SetState(EOperationState::Initializing);
-
-            // The operation owns the controller but not vice versa.
-            // Hence we use raw pointers inside controllers.
-            InitializeOperation(operation);
+            controller->Initialize();
         } catch (const std::exception& ex) {
             return MakeFuture(TStartResult(TError("Operation has failed to start") << ex));
         }
@@ -591,48 +588,57 @@ private:
     }
 
 
-    void InitializeOperation(TOperationPtr operation)
-    {
-        if (Nodes.empty()) {
-            THROW_ERROR_EXCEPTION("No online exec nodes to start operation");
-        }
-
-        operation->GetController()->Initialize();
-    }
-
-    void RegisterAndReviveOperations(const std::vector<TOperationPtr>& operations)
+    void ReviveOperations(const std::vector<TOperationPtr>& operations)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         
         YCHECK(Operations.empty());
         FOREACH (auto operation, operations) {
-            LOG_INFO("Reviving operation (OperationId: %s)", ~operation->GetOperationId().ToString());
-
-            auto controller = CreateController(~operation);
-            operation->SetController(controller);
-
-            RegisterOperation(operation);
-
-            StartAsyncPipeline(controller->GetCancelableControlInvoker())
-                ->Add(BIND(&TThis::StartSchedulerTransaction, MakeStrong(this), operation))
-                ->Add(BIND(&TThis::OnSchedulerTransactionStarted, MakeStrong(this), operation))
-                ->Add(BIND(&IOperationController::Revive, controller))
-                ->Add(BIND(&TThis::OnOperationRevived, MakeStrong(this), operation))
-                ->Run();
+            ReviveOperation(operation);
         }
     }
 
-    void OnOperationRevived(TOperationPtr operation)
+    void ReviveOperation(TOperationPtr operation)
+    {
+        LOG_INFO("Reviving operation (OperationId: %s)", ~operation->GetOperationId().ToString());
+
+        IOperationControllerPtr controller;
+        try {
+            controller = CreateController(~operation);
+        } catch (const std::exception& ex) {
+            SetOperationFinalState(operation, EOperationState::Failed, ex);
+            MasterConnector->FinalizeRevivingOperationNode(operation);
+            return;
+        }
+
+        operation->SetController(controller);
+        RegisterOperation(operation);
+
+        StartAsyncPipeline(controller->GetCancelableControlInvoker())
+            ->Add(BIND(&TThis::StartSchedulerTransaction, MakeStrong(this), operation))
+            ->Add(BIND(&TThis::OnSchedulerTransactionStarted, MakeStrong(this), operation))
+            ->Add(BIND(&IOperationController::Revive, controller))
+            ->Run().Subscribe(BIND(&TThis::OnOperationRevived, MakeStrong(this), operation));
+    }
+
+    void OnOperationRevived(TOperationPtr operation, TValueOrError<void> error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (operation->GetState() != EOperationState::Reviving)
             return;
 
+        if (!error.IsOK()) {
+            SetOperationFinalState(operation, EOperationState::Failed, error);
+            MasterConnector->FinalizeRevivingOperationNode(operation);
+            return;
+        }
+
         operation->SetState(EOperationState::Running);
 
+        auto id = operation->GetOperationId();
         LOG_INFO("Operation has been revived and is now running (OperationId: %s)", 
-            ~operation->GetOperationId().ToString());
+            ~ToString(id));
     }
 
 
@@ -678,7 +684,7 @@ private:
 
         auto operation = FindOperation(id);
         if (!operation) {
-            THROW_ERROR_EXCEPTION("No such operation: %s", ~id.ToString());
+            THROW_ERROR_EXCEPTION("No such operation: %s", ~ToString(id));
         }
         return operation;
     }
@@ -1144,7 +1150,7 @@ private:
         
         context->SetRequestInfo("Type: %s, TransactionId: %s",
             ~type.ToString(),
-            ~transactionId.ToString());
+            ~ToString(transactionId));
 
         ValidateConnected();
 
@@ -1160,7 +1166,7 @@ private:
             auto operation = result.Value();
             auto id = operation->GetOperationId();
             *response->mutable_operation_id() = id.ToProto();
-            context->SetResponseInfo("OperationId: %s", ~id.ToString());
+            context->SetResponseInfo("OperationId: %s", ~ToString(id));
             context->Reply();
         }));
     }
@@ -1169,7 +1175,7 @@ private:
     {
         auto operationId = TTransactionId::FromProto(request->operation_id());
 
-        context->SetRequestInfo("OperationId: %s", ~operationId.ToString());
+        context->SetRequestInfo("OperationId: %s", ~ToString(operationId));
 
         ValidateConnected();
 
@@ -1188,7 +1194,7 @@ private:
         auto operationId = TTransactionId::FromProto(request->operation_id());
         auto timeout = TDuration(request->timeout());
         context->SetRequestInfo("OperationId: %s, Timeout: %s",
-            ~operationId.ToString(),
+            ~ToString(operationId),
             ~ToString(timeout));
 
         ValidateConnected();
@@ -1286,7 +1292,7 @@ private:
                 LOG_INFO("Starting job (Address: %s, JobType: %s, JobId: %s, Utilization: {%s}, OperationId: %s)",
                     ~job->GetNode()->GetAddress(),
                     ~job->GetType().ToString(),
-                    ~jobId.ToString(),
+                    ~ToString(jobId),
                     ~FormatResources(job->GetSpec()->resource_utilization()),
                     ~job->GetOperation()->GetOperationId().ToString());
                 RegisterJob(job);
@@ -1321,7 +1327,7 @@ private:
         NLog::TTaggedLogger Logger(SchedulerLogger);
         Logger.AddTag(Sprintf("Address: %s, JobId: %s",
             ~address,
-            ~jobId.ToString()));
+            ~ToString(jobId)));
 
         auto job = FindJob(jobId);
         if (!job) {
@@ -1415,7 +1421,7 @@ private:
                     LOG_INFO("Aborting job (Address: %s, JobType: %s, JobId: %s, OperationId: %s)",
                         ~job->GetNode()->GetAddress(),
                         ~job->GetType().ToString(),
-                        ~jobId.ToString(),
+                        ~ToString(jobId),
                         ~operation->GetOperationId().ToString());
                     *response->add_jobs_to_abort() = jobId.ToProto();
                 } else {

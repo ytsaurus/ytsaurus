@@ -390,6 +390,9 @@ void TOperationControllerBase::Initialize()
     }
 
     try {
+        if (Host->GetExecNodes().empty()) {
+            THROW_ERROR_EXCEPTION("No online exec nodes to start operation");
+        }
         DoInitialize();
     } catch (const std::exception& ex) {
         LOG_INFO(ex, "Operation has failed to initialize");

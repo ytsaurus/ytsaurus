@@ -148,6 +148,23 @@ public:
         return list->FinalizedPromise;
     }
 
+    void FinalizeRevivingOperationNode(TOperationPtr operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected);
+
+        auto id = operation->GetOperationId();
+        LOG_INFO("Finalizing reviving operation node (OperationId: %s)",
+            ~ToString(id));
+
+        auto batchReq = StartBatchRequest();
+        PrepareOperationUpdate(operation, batchReq);
+
+        batchReq->Invoke().Subscribe(
+            BIND(&TImpl::OnRevivingOperationNodeFinalized, MakeStrong(this), operation)
+                .Via(CancelableControlInvoker));
+    }
+
 
     void CreateJobNode(TJobPtr job, const NChunkClient::TChunkId& chunkId)
     {
@@ -789,10 +806,9 @@ private:
 
 
     void PrepareOperationUpdate(
-        TUpdateList* list,
+        TOperationPtr operation,
         TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
-        auto operation = list->Operation;
         auto state = operation->GetState();
         auto operationPath = GetOperationPath(operation->GetOperationId());
 
@@ -829,6 +845,15 @@ private:
             req->set_value(ConvertToYsonString(operation->GetEndTime().Get()).Data());
             batchReq->AddRequest(req);
         }
+    }
+
+    void PrepareOperationUpdate(
+        TUpdateList* list,
+        TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
+    {
+        auto operation = list->Operation;
+
+        PrepareOperationUpdate(operation, batchReq);
 
         // Create jobs.
         FOREACH (const auto& pair, list->PendingJobs) {
@@ -894,6 +919,7 @@ private:
         TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected);
 
         auto operationId = operation->GetOperationId();
 
@@ -919,6 +945,7 @@ private:
         TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected);
 
         auto operationId = operation->GetOperationId();
 
@@ -939,6 +966,27 @@ private:
         list->FinalizedPromise.Set();
 
         RemoveUpdateList(operation);
+    }
+
+    void OnRevivingOperationNodeFinalized(
+        TOperationPtr operation,
+        TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected);
+
+        auto id = operation->GetOperationId();
+        auto error = batchRsp->GetCumulativeError();
+
+        if (!error.IsOK()) {
+            LOG_WARNING(error, "Error finalizing reviving operation node (OperationId: %s)",
+                ~ToString(id));
+            Disconnect();
+            return;
+        }
+
+        LOG_INFO("Reviving operation node finalized (OperationId: %s)",
+            ~ToString(id));
     }
 
 
@@ -1010,6 +1058,11 @@ TFuture<void> TMasterConnector::FlushOperationNode(TOperationPtr operation)
 TFuture<void> TMasterConnector::FinalizeOperationNode(TOperationPtr operation)
 {
     return Impl->FinalizeOperationNode(operation);
+}
+
+void TMasterConnector::FinalizeRevivingOperationNode(TOperationPtr operation)
+{
+    return Impl->FinalizeRevivingOperationNode(operation);
 }
 
 void TMasterConnector::CreateJobNode(TJobPtr job, const NChunkClient::TChunkId& chunkId)
