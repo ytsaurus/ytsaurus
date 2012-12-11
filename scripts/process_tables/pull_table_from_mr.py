@@ -16,8 +16,11 @@ if __name__ == "__main__":
     parser.add_argument("--http-port", default="13013")
     parser.add_argument("--record-threshold", type=int, default=10 ** 7)
     parser.add_argument("--force", action="store_true", default=False)
+    parser.add_argument("--fastbone", action="store_true", default=False)
     
     args = parser.parse_args()
+
+    use_fastbone = "-opt net_table=fastbone" if args.fastbone else ""
 
     def records_count(table):
         """ Parse record count from the url """ 
@@ -29,7 +32,7 @@ if __name__ == "__main__":
     def import_table(table):
         temp_table = yt.create_temp_table(prefix=os.path.basename(table))
         count = records_count(table)
-        ranges = [(i * args.record_threshold, i + min(count, (i + 1) * args.record_threshold))
+        ranges = [(i * args.record_threshold, min(count, (i + 1) * args.record_threshold))
                   for i in xrange((count - 1) / args.record_threshold + 1)]
         yt.write_table(temp_table,
                        ["\t".join(map(str, range)) + "\n" for range in ranges],
@@ -43,15 +46,16 @@ if __name__ == "__main__":
                 'while true; do '
                     'IFS="\t" read -r start end; '
                     'if [ "$?" != "0" ]; then break; fi; '
-                    './mapreduce -opt net_table=fastbone -server {}:{} -read {}:[$start,$end] -lenval -subkey; '
+                    './mapreduce -server {}:{} {} -read {}:[$start,$end] -lenval -subkey; '
                 'done;'.\
-                    format(args.server, args.server_port, table),
+                    format(args.server, args.server_port, use_fastbone, table),
                 temp_table,
                 destination,
                 input_format=yt.YamrFormat(lenval=False, has_subkey=False),
                 output_format=yt.YamrFormat(lenval=True, has_subkey=True),
                 files="mapreduce",
                 spec={"job_count": len(ranges),
+                      # To force job count
                       "min_data_size_per_job": 1})
 
         # TODO: add checksum checking 
