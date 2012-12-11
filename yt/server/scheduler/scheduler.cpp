@@ -502,11 +502,12 @@ private:
             ~operationId.ToString(),
             ~transactionId.ToString());
 
-        auto controller = CreateController(~operation);
-        operation->SetController(controller);
-        operation->SetState(EOperationState::Initializing);
-
+        IOperationControllerPtr controller;
         try {
+            controller = CreateController(~operation);
+            operation->SetController(controller);
+            operation->SetState(EOperationState::Initializing);
+
             // The operation owns the controller but not vice versa.
             // Hence we use raw pointers inside controllers.
             InitializeOperation(operation);
