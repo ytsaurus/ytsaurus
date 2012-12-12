@@ -1,7 +1,7 @@
 import config
 import logger
 from http import make_request
-from common import update, bool_to_string
+from common import update, bool_to_string, get_value
 
 from copy import deepcopy
 
@@ -53,7 +53,8 @@ class Transaction(object):
     """
     stack = []
 
-    def __init__(self, timeout=60 * 1000):
+    def __init__(self, timeout=None):
+        timeout = get_value(timeout, config.TRANSACTION_TIMEOUT)
         Transaction.stack.append(start_transaction(timeout=timeout))
         self._update_global_config()
 
