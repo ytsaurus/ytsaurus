@@ -43,13 +43,13 @@ from collections import Iterable, Mapping
 __all__ = ["dump", "dumps"]
 
 def dump(obj, fp, check_circular=True, encoding='utf-8', indent=None):
-    '''Serialize ``obj`` as a YSON formatted stream to ``fp`` (a
+    '''Serialize ``obj`` as a Yson formatted stream to ``fp`` (a
     ``.write()``-supporting file-like object).'''
     fp.write(dumps(obj, check_circular, encoding, indent))
 
      
 def dumps(obj, check_circular=True, encoding='utf-8', indent=None):
-    '''Serialize ``obj`` as a YSON formatted string'''
+    '''Serialize ``obj`` as a Yson formatted string'''
     d = Dumper(check_circular, encoding, indent)
     return d.dumps(obj)
 
@@ -81,7 +81,7 @@ class Dumper(object):
         elif isinstance(obj, Iterable):
             result = self._dump_list(obj)
         else:
-            raise TypeError(repr(obj) + " is not YSON serializable.")
+            raise TypeError(repr(obj) + " is not Yson serializable.")
         self._level -= 1    
         return attributes + result
 
@@ -97,7 +97,7 @@ class Dumper(object):
         result = ['{', self._format.nextline()]
         for k, v in obj.items():
             if not isinstance(k, basestring):
-                raise TypeError("Only string can be YSON map key. Key: %s" % repr(obj))
+                raise TypeError("Only string can be Yson map key. Key: %s" % repr(obj))
 
             @self._circular_check(v)
             def process_item():
@@ -127,7 +127,7 @@ class Dumper(object):
         result = ['<', self._format.nextline()]
         for k, v in obj.items():
             if not isinstance(k, basestring):
-                raise TypeError("Only string can be YSON map key. Key: %s" % repr(obj))
+                raise TypeError("Only string can be Yson map key. Key: %s" % repr(obj))
 
             @self._circular_check(v)
             def process_item():

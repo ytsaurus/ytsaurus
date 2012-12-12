@@ -51,7 +51,7 @@ def print_bash(obj, level):
             first = False
         stdout.write(options.map_end)
     else:
-        # TODO: use here some YSONException instead of Exception
+        # TODO: use here some YsonException instead of Exception
         raise Exception("Unknown type: %s" % type(obj))
 
 def go_by_path(obj, path):
