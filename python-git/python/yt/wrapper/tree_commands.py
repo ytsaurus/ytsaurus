@@ -89,16 +89,6 @@ def remove(path, recursive=False, check_existance=False):
 
     _make_transactioned_request("remove", {"path": path})
 
-def remove_with_empty_dirs(path):
-    """
-    Removes path and all empty dirs that appear after deletion.
-    """
-    while True:
-        remove(path, recursive=True)
-        path = os.path.dirname(path)
-        if path == "//" or list(path):
-            break
-
 def mkdir(path, recursive=None):
     """
     Creates directiry. By default parent directory should exist.
