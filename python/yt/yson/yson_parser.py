@@ -5,7 +5,7 @@ from StringIO import StringIO
 
 __all__ = ["parse", "parse_string"]
 
-class YSONParseError(ValueError):
+class YsonParseError(ValueError):
     def __init__(self, message, (line_index, position, offset)):
         ValueError.__init__(self, _format_message(message, line_index, position, offset))
         self.message = message
@@ -27,7 +27,7 @@ _INT64_MARKER = chr(1)
 _DOUBLE_MARKER = chr(2)
 _STRING_MARKER = chr(3)
 
-class YSONParserBase(object):
+class YsonParserBase(object):
     def __init__(self, stream):
         self._line_index = 1
         self._position = 1
@@ -65,7 +65,7 @@ class YSONParserBase(object):
         for i in xrange(char_count):
             ch = self._read_char(True)
             if not ch:
-                raise YSONParseError(
+                raise YsonParseError(
                     "Premature end-of-stream while reading byte %d out of %d" % (i + 1, char_count),
                     self._get_position_info())
             result += ch
@@ -74,12 +74,12 @@ class YSONParserBase(object):
     def _expect_char(self, expected_ch):
         read_ch = self._read_char()
         if not read_ch:
-            raise YSONParseError(
-                "Premature end-of-stream expecting '%s' in YSON" % expected_ch,
+            raise YsonParseError(
+                "Premature end-of-stream expecting '%s' in Yson" % expected_ch,
                 self._get_position_info())
         if read_ch != expected_ch:
-            raise YSONParseError(
-                "Found '%s' while expecting '%s' in YSON" % (read_ch, expected_ch),
+            raise YsonParseError(
+                "Found '%s' while expecting '%s' in Yson" % (read_ch, expected_ch),
                 self._get_position_info())
 
     def _skip_whitespaces(self):
@@ -89,16 +89,16 @@ class YSONParserBase(object):
     def _read_string(self):
         ch = self._peek_char()
         if not ch:
-            raise YSONParseError(
-                "Premature end-of-stream while expecting string literal in YSON",
+            raise YsonParseError(
+                "Premature end-of-stream while expecting string literal in Yson",
                 self._get_position_info())
         if ch == _STRING_MARKER:
             return self._read_binary_string()
         if ch == '"':
             return self._read_quoted_string()
         if not ch.isalpha() and not ch == '_' and not ch == '%':
-            raise YSONParseError(
-                "Expecting string literal but found %s in YSON" % ch,
+            raise YsonParseError(
+                "Expecting string literal but found %s in Yson" % ch,
                 self._get_position_info())
         return self._read_unquoted_string()
 
@@ -114,14 +114,14 @@ class YSONParserBase(object):
         while read_next:
             ch = self._read_char()
             if not ch:
-                raise YSONParseError(
-                    "Premature end-of-stream while reading varinteger in YSON",
+                raise YsonParseError(
+                    "Premature end-of-stream while reading varinteger in Yson",
                     self._get_position_info())
             byte = ord(ch)
             result |= (byte & 0x7F) << (7 * count)
             if result > 2 ** 64 - 1:
-                raise YSONParseError(
-                    "Varinteger is too large for Int64 in YSON",
+                raise YsonParseError(
+                    "Varinteger is too large for Int64 in Yson",
                     self._get_position_info())
             count += 1
             read_next = byte & 0x80 != 0
@@ -136,8 +136,8 @@ class YSONParserBase(object):
         while True:
             ch = self._read_char()
             if not ch:
-                raise YSONParseError(
-                    "Premature end-of-stream while reading string literal in YSON",
+                raise YsonParseError(
+                    "Premature end-of-stream while reading string literal in Yson",
                     self._get_position_info())
             if ch == '"' and not pending_next_char:
                 break
@@ -168,8 +168,8 @@ class YSONParserBase(object):
             self._read_char()
             result += ch
         if not result:
-            raise YSONParseError(
-                "Premature end-of-stream while parsing numeric literal in YSON",
+            raise YsonParseError(
+                "Premature end-of-stream while parsing numeric literal in Yson",
                 self._get_position_info())
         return result
 
@@ -181,8 +181,8 @@ class YSONParserBase(object):
         self._skip_whitespaces()
         ch = self._peek_char()
         if not ch:
-            raise YSONParseError(
-                "Premature end-of-stream in YSON",
+            raise YsonParseError(
+                "Premature end-of-stream in Yson",
                 self._get_position_info())
         elif ch == '[':
             result = self._parse_list()
@@ -209,11 +209,11 @@ class YSONParserBase(object):
             result = self._parse_string()
 
         else:
-            raise YSONParseError(
-                "Unexpected character %s in YSON" % ch,
+            raise YsonParseError(
+                "Unexpected character %s in Yson" % ch,
                 self._get_position_info())
 
-        return yson_types.convert_to_YSON_type(result, attributes)
+        return yson_types.convert_to_yson_type(result, attributes)
 
     def _parse_list(self):
         self._expect_char('[')
@@ -240,15 +240,15 @@ class YSONParserBase(object):
                 break
             key = self._read_string()
             if not key:
-                raise YSONParseError(
-                    "Empty map item name in YSON",
+                raise YsonParseError(
+                    "Empty map item name in Yson",
                     self._get_position_info())
             self._skip_whitespaces()
             self._expect_char('=')
             value = self._parse_any()
             if key in result:
-                raise YSONParseError(
-                    "Repeated map key '%s' in YSON" % key,
+                raise YsonParseError(
+                    "Repeated map key '%s' in Yson" % key,
                     self._get_position_info())
             result[key] = value
             self._skip_whitespaces()
@@ -285,15 +285,15 @@ class YSONParserBase(object):
                 if result > 2 ** 63 - 1 or result < -(2 ** 63):
                     raise ValueError()
             except ValueError:
-                raise YSONParseError(
-                    "Failed to parse Int64 literal %s in YSON" % string,
+                raise YsonParseError(
+                    "Failed to parse Int64 literal %s in Yson" % string,
                     self._get_position_info())
         else:
             try:
                 result = float(string)
             except ValueError:
-                raise YSONParseError(
-                    "Failed to parse Double literal %s in YSON" % string,
+                raise YsonParseError(
+                    "Failed to parse Double literal %s in Yson" % string,
                     self._get_position_info())
         return result
 
@@ -310,15 +310,15 @@ class YSONParserBase(object):
                 break
             key = self._read_string()
             if not key:
-                raise YSONParseError(
-                    "Empty attribute name in YSON",
+                raise YsonParseError(
+                    "Empty attribute name in Yson",
                     self._get_position_info())
             self._skip_whitespaces()
             self._expect_char('=')
             value = self._parse_any()
             if key in result:
-                raise YSONParseError(
-                    "Repeated attribute '%s' in YSON" % key,
+                raise YsonParseError(
+                    "Repeated attribute '%s' in Yson" % key,
                     self._get_position_info())
             result[key] = value
             self._skip_whitespaces()
@@ -328,22 +328,22 @@ class YSONParserBase(object):
         self._expect_char('>')
         return result
 
-class YSONParser(YSONParserBase):
+class YsonParser(YsonParserBase):
     def __init__(self, stream):
-        super(YSONParser, self).__init__(stream)
+        super(YsonParser, self).__init__(stream)
 
     def parse(self):
         result = self._parse_any()
         self._skip_whitespaces()
         if self._peek_char():
-            raise YSONParseError(
-                "Unexpected symbol %s while expecting end-of-stream in YSON" % self._peek_char(),
+            raise YsonParseError(
+                "Unexpected symbol %s while expecting end-of-stream in Yson" % self._peek_char(),
                 self._get_position_info())
         return result
 
-class YSONFragmentedParser(YSONParserBase):
+class YsonFragmentedParser(YsonParserBase):
     def __init__(self, stream):
-        super(YSONFragmentedParser, self).__init__(stream)
+        super(YsonFragmentedParser, self).__init__(stream)
 
     def has_next(self):
         self._skip_whitespaces()
@@ -352,10 +352,15 @@ class YSONFragmentedParser(YSONParserBase):
     def parse_next(self):
         return self._parse_any()
 
+def loads(string):
+    return parse_string(string)
+
+# This method is deprecated
 def parse(stream):
-    parser = YSONParser(stream)
+    parser = YsonParser(stream)
     return parser.parse()
 
+# This method is deprecated
 def parse_string(string):
     return parse(StringIO(string))
 
