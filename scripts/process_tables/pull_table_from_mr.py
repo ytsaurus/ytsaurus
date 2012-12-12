@@ -10,7 +10,7 @@ from argparse import ArgumentParser
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--destination", default="//home/copy_test")
+    parser.add_argument("--destination", default="//home/redwood")
     parser.add_argument("--server", default="redwood.yandex.ru")
     parser.add_argument("--server-port", default="8013")
     parser.add_argument("--http-port", default="13013")
@@ -24,7 +24,7 @@ if __name__ == "__main__":
 
     def records_count(table):
         """ Parse record count from the url """ 
-        http_content = sh.curl("{}:{}/debug?info=table&table={}".format(args.server, args.http_port, table))
+        http_content = sh.curl("{}:{}/debug?info=table&table={}".format(args.server, args.http_port, table)).stdout
         records_line = filter(lambda line: line.find("Records") != -1,  http_content.split("\n"))[0]
         records_line = records_line.replace("</b>", "").replace(",", "")
         return int(records_line.split("Records:")[1].split()[0])

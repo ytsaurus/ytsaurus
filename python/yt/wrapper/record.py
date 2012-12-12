@@ -49,9 +49,15 @@ def Record(*args, **kws):
         return SimpleRecord(*args, **kws)
     return SubkeyedRecord(*args[:3], **kws)
 
+
 """ Methods for records convertion """
 # TODO(ignat): builtin full support of this methods to read/write and python operations
 def record_to_line(rec, eoln=True, format=None):
+    def escape_dsv(value):
+        escape_dict = {'\\': '\\\\', '\n': '\\n', '\t': '\\t', '=': '\\=', '\0': '\\0'}
+        for sym, escaped in escape_dict:
+            value = value.replace(sym, escaped)
+        return value
     if format is None: format = config.DEFAULT_FORMAT
     
     if isinstance(format, YamrFormat):
@@ -62,7 +68,7 @@ def record_to_line(rec, eoln=True, format=None):
             fields = [rec.key, rec.value]
         body = "\t".join(fields)
     elif isinstance(format, DsvFormat):
-        body = "\t".join("=".join(map(str, item)) for item in rec.iteritems())
+        body = "\t".join("=".join(map(escape_dsv, map(str, item))) for item in rec.iteritems())
     elif isinstance(format, YsonFormat):
         body = yson.dumps(rec) + ";"
     else:
@@ -79,6 +85,6 @@ def line_to_record(line, format=None):
     elif isinstance(format, DsvFormat):
         return dict(field.split("=", 1) for field in line.strip("\n").split("\t") if field)
     elif isinstance(format, YsonFormat):
-        return yson.parse_string(line.rstrip(";\n"))
+        return yson.loads(line.rstrip(";\n"))
     else:
         raise YtError("Can not convert line to record with format " + repr(format))
