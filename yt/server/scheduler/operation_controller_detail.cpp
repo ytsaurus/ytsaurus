@@ -1811,7 +1811,7 @@ int TOperationControllerBase::SuggestJobCount(
     i64 result = configJobCount.Get(minSuggestion);
     result = std::min(result, static_cast<i64>(chunkCount));
     result = std::min(result, maxSuggestion);
-    result = std::max(result, 1LL);
+    result = std::max(result, static_cast<i64>(1));
     result = std::min(result, static_cast<i64>(Config->MaxJobCount));
     return static_cast<int>(result);
 }
