@@ -114,7 +114,10 @@ dynamic_server = connect()
     .use("/ui", function(req, rsp, next) {
         "use strict";
         if (req.url === "/") {
-            req.url = "index.html";
+            rsp.statusCode = 302;
+            rsp.setHeader("Location", "/ui-new/");
+            rsp.end();
+            return;
         }
         req.on("end", function() {
             static_server.serve(req, rsp);
