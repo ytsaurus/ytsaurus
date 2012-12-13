@@ -16,7 +16,7 @@ test: clean
 VERSION=$(shell dpkg-parsechangelog | grep "Version:" | awk '{print $$2}')
 
 version:
-	echo "VERSION='$${VERSION}'" > yt/wrapper/version.py
+	echo "VERSION='$(VERSION)'" > yt/wrapper/version.py
 
 prepare: version
 	cp yt/wrapper/mapreduce yt/wrapper/mapreduce-yt

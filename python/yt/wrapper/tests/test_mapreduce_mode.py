@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 from yt.environment import YTEnv
+from yt.wrapper.table_commands import copy_table, move_table
 import yt.wrapper as yt
 from yt.wrapper import Record, YtError, YtResponseError, record_to_line, line_to_record, TablePath
 import yt.wrapper.config as config
@@ -137,25 +138,29 @@ class MapreduceBehaviourTest(YtTestBase, YTEnv):
         other_table = TEST_DIR + "/temp_other"
         yt.create_table(other_table)
 
-        yt.copy_table(table, other_table)
+        copy_table(table, other_table)
         self.assertEqual(sorted(self.temp_records()),
                          sorted(yt.read_table(other_table)))
 
-        yt.copy_table(table, other_table)
+        copy_table(table, other_table)
         self.assertEqual(sorted(self.temp_records()),
                          sorted(yt.read_table(other_table)))
 
-        yt.copy_table(table, TablePath(other_table, append=True))
+        copy_table(table, TablePath(other_table, append=True))
         self.assertEqual(sorted(list(self.temp_records()) + list(self.temp_records())),
                          sorted(yt.read_table(other_table)))
 
-        yt.move_table(table, other_table)
+        move_table(table, other_table)
         self.assertFalse(yt.exists(table))
         self.assertEqual(list(yt.read_table(other_table)),
                          sorted(list(self.temp_records())))
 
-        yt.copy_table(table, table)
+        copy_table(table, table)
         self.assertFalse(yt.exists(table))
+
+        embedded_path = TEST_DIR + "dir/other_dir/table"
+        copy_table(table, embedded_path)
+        self.assertTrue(embedded_path)
 
     def test_sort(self):
         table = self.create_temp_table()
@@ -188,7 +193,7 @@ class MapreduceBehaviourTest(YtTestBase, YTEnv):
         self.assertEqual(len(result), 1)
         self.assertEqual(str(result[0]), table)
         self.assertEqual(result[0].attributes['my_attribute'], {'000': 10})
-        
+
     def test_operations(self):
         table = self.create_temp_table()
         other_table = TEST_DIR + "/temp_other"
@@ -240,7 +245,7 @@ class MapreduceBehaviourTest(YtTestBase, YTEnv):
         other_table = TEST_DIR + "/temp_other"
         another_table = TEST_DIR + "/temp_another"
         more_another_table = TEST_DIR + "/temp_more_another"
-        yt.copy_table(table, another_table)
+        copy_table(table, another_table)
 
         yt.run_map("PYTHONPATH=. ./many_output.py",
                    table,
@@ -344,7 +349,7 @@ class MapreduceBehaviourTest(YtTestBase, YTEnv):
     def disabled_test_python_operations(self):
         def func(rec):
             yield rec.strip() + "aaaaaaaaaa\n"
-        
+
         def func_smart(rec):
             rec = yt.line_to_record(rec)
             rec.key = "xxx"
@@ -414,13 +419,13 @@ class MapreduceBehaviourTest(YtTestBase, YTEnv):
         result_table = TEST_DIR + "/result"
 
         yt.sort_table(table)
-        yt.copy_table(table, other_table)
+        copy_table(table, other_table)
         self.assertTrue(yt.is_sorted(other_table))
 
         yt.sort_table([table, other_table], result_table)
         self.assertTrue(yt.is_sorted(result_table))
         self.assertEqual(yt.records_count(result_table), 20)
-    
+
     def test_sort_of_one_sorted_table(self):
         table = self.create_temp_table()
         other_table = TEST_DIR + "/temp_other"

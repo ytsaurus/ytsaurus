@@ -294,6 +294,12 @@ if __name__ == '__main__':
     rm -f my_reducer.py order.py
 }
 
+test_empty_destination()
+{
+    ./mapreduce -write "ignat/empty_table" </dev/null
+    check_failed './mapreduce -map "cat" -src "ignat/empty_table"'
+}
+
 prepare_table_files
 test_sortby_reduceby
 test_base_functionality
@@ -310,5 +316,6 @@ test_stderr
 test_smart_format
 test_drop
 test_create_table
+test_empty_destination
 
 rm -f table_file big_file

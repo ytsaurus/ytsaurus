@@ -55,7 +55,7 @@ def Record(*args, **kws):
 def record_to_line(rec, eoln=True, format=None):
     def escape_dsv(value):
         escape_dict = {'\\': '\\\\', '\n': '\\n', '\t': '\\t', '=': '\\=', '\0': '\\0'}
-        for sym, escaped in escape_dict:
+        for sym, escaped in escape_dict.items():
             value = value.replace(sym, escaped)
         return value
     if format is None: format = config.DEFAULT_FORMAT

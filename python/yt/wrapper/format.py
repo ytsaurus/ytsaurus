@@ -1,6 +1,8 @@
-from common import bool_to_string
-from yt.yson import parse_string, yson_types
+from common import bool_to_string, get_value
+from yt.yson import loads, yson_types
 import simplejson as json
+
+import sys
 
 
 # TODO(ignat): Add custom field separator
@@ -24,16 +26,17 @@ class DsvFormat(Format):
         return "dsv"
 
 class YsonFormat(Format):
-    def __init__(self):
+    def __init__(self, format=None):
+        self.format = get_value(format, "pretty")
         pass
 
     def _mime_type(self):
-        return "application/x-yt-yson-text"
+        return "application/x-yt-yson-" + self.format
 
     def to_json(self):
         return {"$value": "yson",
                 "$attributes":
-                    {"format": "text" }}
+                    {"format": self.format}}
 
 class YamrFormat(Format):
     def __init__(self, has_subkey, lenval):
@@ -58,15 +61,21 @@ class JsonFormat(Format):
 class RawFormat(Format):
     """Format represented by raw description: name + attributes"""
     @staticmethod
-    def from_yson(str):
+    def from_yson(yson):
         format = RawFormat()
-        format._format = parse_string(str)
+        format._format = yson
+        return format
+
+    @staticmethod
+    def from_yson_string(str):
+        format = RawFormat()
+        format._format = loads(str)
         return format
 
     @staticmethod
     def from_tree(tree):
         format = RawFormat()
-        format._format = yson_types.convert_to_YSON_type_from_tree(tree)
+        format._format = yson_types.convert_to_yson_type_from_tree(tree)
         return format
 
     def to_input_http_header(self):
@@ -76,6 +85,7 @@ class RawFormat(Format):
         return {"X-YT-Output-Format": self.to_str()}
 
     def to_json(self):
+        print >>sys.stderr, type(self._format), self._format
         return {"$value": str(self._format),
                 "$attributes": self._format.attributes}
 
