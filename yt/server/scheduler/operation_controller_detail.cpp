@@ -1806,14 +1806,14 @@ int TOperationControllerBase::SuggestJobCount(
     TNullable<int> configJobCount,
     int chunkCount)
 {
-    int minSuggestion = static_cast<int>(std::ceil((double) totalDataSize / maxDataSizePerJob));
-    int maxSuggestion = static_cast<int>(std::ceil((double) totalDataSize / minDataSizePerJob));
-    int result = configJobCount.Get(minSuggestion);
-    result = std::min(result, chunkCount);
+    i64 minSuggestion = static_cast<i64>(std::ceil((double) totalDataSize / maxDataSizePerJob));
+    i64 maxSuggestion = static_cast<i64>(std::ceil((double) totalDataSize / minDataSizePerJob));
+    i64 result = configJobCount.Get(minSuggestion);
+    result = std::min(result, static_cast<i64>(chunkCount));
     result = std::min(result, maxSuggestion);
-    result = std::max(result, 1);
-    result = std::min(result, Config->MaxJobCount);
-    return result;
+    result = std::max(result, 1LL);
+    result = std::min(result, static_cast<i64>(Config->MaxJobCount));
+    return static_cast<int>(result);
 }
 
 void TOperationControllerBase::InitUserJobSpec(
