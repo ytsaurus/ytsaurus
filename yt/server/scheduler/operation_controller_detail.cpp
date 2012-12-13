@@ -163,7 +163,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(ISchedulingContext* context
     *jobSpec->mutable_resource_utilization() = neededResources;
     context->EndStartJob(job);
 
-    Controller->RegisterJobInProgress(joblet);
+    Controller->RegisterJoblet(joblet);
 
     OnJobStarted(joblet);
 
@@ -519,10 +519,10 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
 
     UsedResources -= job->ResourceUtilization();
 
-    auto joblet = GetJobInProgress(job);
+    auto joblet = GetJoblet(job);
     joblet->Task->OnJobCompleted(joblet);
 
-    RemoveJobInProgress(job);
+    RemoveJoblet(job);
 
     LogProgress();
 
@@ -543,10 +543,10 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
 
     UsedResources -= job->ResourceUtilization();
 
-    auto joblet = GetJobInProgress(job);
+    auto joblet = GetJoblet(job);
     joblet->Task->OnJobFailed(joblet);
 
-    RemoveJobInProgress(job);
+    RemoveJoblet(job);
 
     LogProgress();
 
@@ -568,10 +568,10 @@ void TOperationControllerBase::OnJobAborted(TJobPtr job)
 
     UsedResources -= job->ResourceUtilization();
 
-    auto joblet = GetJobInProgress(job);
+    auto joblet = GetJoblet(job);
     joblet->Task->OnJobAborted(joblet);
 
-    RemoveJobInProgress(job);
+    RemoveJoblet(job);
 
     LogProgress();
 }
@@ -1852,19 +1852,19 @@ TChunkListId TOperationControllerBase::ExtractChunkList()
     return ChunkListPool->Extract();
 }
 
-void TOperationControllerBase::RegisterJobInProgress(TJobletPtr joblet)
+void TOperationControllerBase::RegisterJoblet(TJobletPtr joblet)
 {
-    YCHECK(JobsInProgress.insert(MakePair(joblet->Job, joblet)).second);
+    YCHECK(JobsInProgress.insert(std::make_pair(joblet->Job, joblet)).second);
 }
 
-TOperationControllerBase::TJobletPtr TOperationControllerBase::GetJobInProgress(TJobPtr job)
+TOperationControllerBase::TJobletPtr TOperationControllerBase::GetJoblet(TJobPtr job)
 {
     auto it = JobsInProgress.find(job);
     YCHECK(it != JobsInProgress.end());
     return it->second;
 }
 
-void TOperationControllerBase::RemoveJobInProgress(TJobPtr job)
+void TOperationControllerBase::RemoveJoblet(TJobPtr job)
 {
     YCHECK(JobsInProgress.erase(job) == 1);
 }

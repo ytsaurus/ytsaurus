@@ -361,9 +361,9 @@ protected:
     DECLARE_THREAD_AFFINITY_SLOT(BackgroundThread);
 
     // Jobs in progress management.
-    void RegisterJobInProgress(TJobletPtr joblet);
-    TJobletPtr GetJobInProgress(TJobPtr job);
-    void RemoveJobInProgress(TJobPtr job);
+    void RegisterJoblet(TJobletPtr joblet);
+    TJobletPtr GetJoblet(TJobPtr job);
+    void RemoveJoblet(TJobPtr job);
 
     // Here comes the preparation pipeline.
 
