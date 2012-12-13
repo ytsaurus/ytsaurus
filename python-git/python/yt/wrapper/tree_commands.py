@@ -1,10 +1,10 @@
 import config
 from common import YtError, require, parse_bool, flatten, get_value
 from path_tools import dirs, split_table_ranges
-from format import JsonFormat
+from format import JsonFormat, YsonFormat
 from transaction_commands import _make_transactioned_request
 
-from yt.yson.yson_types import YSONString
+from yt.yson.yson_types import YsonString
 
 import os
 import string
@@ -27,20 +27,20 @@ def get(path, attributes=None, format=None, spec=None):
             "attributes": get_value(attributes, []),
             "spec": {} if spec is None else spec
         },
-        format=format)
+        format=get_value(format, YsonFormat()))
 
 def set(path, value):
     """
     Sets the value by path. Value should json-able object.
     """
-    return _make_transactioned_request(
+    _make_transactioned_request(
         "set",
         {"path": path},
         data=json.dumps(value),
         format=JsonFormat())
 
 def copy(source_path, destination_path):
-    return _make_transactioned_request(
+    _make_transactioned_request(
         "copy",
         {
             "source_path": source_path,
@@ -48,14 +48,14 @@ def copy(source_path, destination_path):
         })
 
 def move(source_path, destination_path):
-    return _make_transactioned_request(
+    _make_transactioned_request(
         "move",
         {
             "source_path": source_path,
             "destination_path": destination_path
         })
 
-def list(path, max_size=1000):
+def list(path, max_size=1000, format=None):
     """
     Lists all items in the path. Paht should be map_node or list_node.
     In case of map_node it returns keys of the node.
@@ -65,7 +65,8 @@ def list(path, max_size=1000):
         {
             "path": path,
             "max_size": max_size
-        })
+        },
+        format=get_value(format, YsonFormat()))
 
 def exists(path):
     """
@@ -148,17 +149,15 @@ def search(root="/", node_type=None, path_filter=None, object_filter=None, attri
     """
     result = []
     def walk(path, object):
-        object_type = object["$attributes"]["type"]
+        object_type = object.attributes["type"]
         if (node_type is None or object_type in flatten(node_type)) and \
            (object_filter is None or object_filter(object)) and \
            (path_filter is None or path_filter(path)):
-            # TODO(ignat): bad solution, because of embedded attributes
-            # have wrong represantation
-            rich_path = YSONString(path)
-            rich_path.attributes = object["$attributes"]
-            result.append(rich_path)
-        if object_type == "map_node" and object["$value"] is not None:
-            for key, value in object["$value"].iteritems():
+            yson_path = YsonString(path)
+            yson_path.attributes = object.attributes
+            result.append(yson_path)
+        if isinstance(object, dict):
+            for key, value in object.iteritems():
                 walk('%s/%s' % (path, key), value)
     if attributes is None: attributes = []
     copy_attributes = deepcopy(flatten(attributes))
@@ -166,4 +165,12 @@ def search(root="/", node_type=None, path_filter=None, object_filter=None, attri
 
     walk(root, get(root, attributes=copy_attributes))
     return result
+
+def remove_with_empty_dirs(path):
+    """ Removes path and all empty dirs that appear after deletion.  """
+    while True:
+        remove(path, recursive=True)
+        path = os.path.dirname(path)
+        if path == "//" or list(path):
+            break
 

@@ -97,6 +97,10 @@ def _prepare_binary(binary):
         return binary, []
 
 def _prepare_destination_tables(tables, replication_factor):
+    if tables is None:
+        if config.THROW_ON_EMPTY_DST_LIST:
+            raise YtError("Destination tables are absent")
+        return []
     tables = map(to_table, flatten(tables))
     for table in tables:
         if not exists(table.name):
@@ -290,6 +294,7 @@ def copy_table(source_table, destination_table, replace=True):
         if replace and exists(destination_table.get_name()) and to_name(source_tables[0]) != to_name(destination_table):
             # in copy destination should be absent
             remove(destination_table.get_name())
+        mkdir(os.path.basename(destination_table.get_name()), recursive=True)
         copy(source_tables[0].get_name(), destination_table.get_name())
     else:
         source_names = [table.get_name() for table in source_tables]
@@ -360,7 +365,7 @@ def is_sorted(table):
     else:
         return parse_bool(get_attribute(to_name(table), "sorted", default="false"))
 
-def merge_tables(source_table, destination_table, mode,
+def merge_tables(source_table, destination_table, mode=None,
                  strategy=None, table_writer=None, replication_factor=None, spec=None):
     """
     Merge source tables and write it to destination table.
@@ -373,7 +378,7 @@ def merge_tables(source_table, destination_table, mode,
         _add_user_spec,
         lambda _: _add_table_writer_spec("job_io", table_writer, _),
         lambda _: _add_input_output_spec(source_table, destination_table, _),
-        lambda _: update({"mode": mode}, _),
+        lambda _: update({"mode": get_value(mode, "unordered")}, _),
         lambda _: get_value(_, {})
     )(spec)
 
@@ -434,7 +439,7 @@ class Finalizer(object):
             for table in filter(is_empty, map(to_name, self.output_tables)):
                 remove_with_empty_dirs(table)
         for file in self.files:
-            remove_with_empty_dirs(file)
+            remove(file)
 
 def run_map_reduce(mapper, reducer, source_table, destination_table,
                    format=None, input_format=None, output_format=None,
@@ -500,25 +505,28 @@ def run_operation(binary, source_table, destination_table,
 
     source_table = _prepare_source_tables(source_table)
     if op_name == "reduce":
-        are_input_tables_sorted =  all(
-            is_prefix(_prepare_reduce_by(reduce_by), get_sorted_by(table.name, []))
-            for table in source_table)
-        if not are_input_tables_sorted:
-            run_map_reduce(
-                mapper=None,
-                reducer=binary,
-                reduce_files=files,
-                reduce_file_paths=file_paths,
-                source_table=source_table,
-                destination_table=destination_table,
-                format=format,
-                input_format=input_format,
-                output_format=output_format,
-                table_writer=table_writer,
-                reduce_by=reduce_by,
-                sort_by=reduce_by,
-                spec=spec)
-            return
+        if config.RUN_MAP_REDUCE_IF_SOURCE_IS_NOT_SORTED:
+            are_input_tables_sorted =  all(
+                is_prefix(_prepare_reduce_by(reduce_by), get_sorted_by(table.name, []))
+                for table in source_table)
+            if not are_input_tables_sorted:
+                run_map_reduce(
+                    mapper=None,
+                    reducer=binary,
+                    reduce_files=files,
+                    reduce_file_paths=file_paths,
+                    source_table=source_table,
+                    destination_table=destination_table,
+                    format=format,
+                    input_format=input_format,
+                    output_format=output_format,
+                    table_writer=table_writer,
+                    reduce_by=reduce_by,
+                    sort_by=reduce_by,
+                    spec=spec)
+                return
+            else:
+                reduce_by = _prepare_reduce_by(reduce_by)
         else:
             reduce_by = _prepare_reduce_by(reduce_by)
 

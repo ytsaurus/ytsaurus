@@ -8,10 +8,14 @@
 # -lock
 # -unlock
 
+from yt.wrapper.table_commands import copy_table
+from yt.wrapper.tree_commands import remove_with_empty_dirs
+
 from yt.wrapper.common import flatten, unlist, first_not_none, bool_to_string
 from yt.wrapper.version import VERSION
 import yt.wrapper.config as config
 import yt.wrapper as yt
+import yt.yson as yson
 
 import os
 import sys
@@ -47,14 +51,6 @@ def remove_prefix(table):
     if "PREFIX" in config.__dict__ and table.startswith(config.PREFIX):
         return table[len(config.PREFIX):]
     return table
-
-def remove_with_empty_dirs(path):
-    """ Removes path and all empty dirs that appear after deletion.  """
-    while True:
-        yt.remove(path, recursive=True)
-        path = os.path.dirname(path)
-        if path == "//" or yt.list(path):
-            break
 
 def list_all_entities(type):
     check_prefix()
@@ -110,9 +106,9 @@ def get_smart_format(tables, smart_format_flag, has_subkey):
     def extract_format(table):
         table = yt.to_table(table)
         if table.specificators and table.specificators[0] == '{':
-            return yt.RawFormat.from_yson("<line_prefix=tskv>dsv")
+            return yt.RawFormat.from_yson(yson.loads("<line_prefix=tskv>dsv"))
         elif yt.has_attribute(table.name, "_format"):
-            return yt.RawFormat.from_tree(yt.get_attribute(table.name, "_format"))
+            return yt.RawFormat.from_yson(yt.get_attribute(table.name, "_format"))
         else:
             return None
     if not(smart_format_flag or "SMART_FORMAT" in os.environ):
@@ -387,7 +383,7 @@ Examples:
 
     for option in ["format", "inputformat", "outputformat"]:
         if vars(args)[option] is not None:
-            vars(args)[option] = yt.RawFormat.from_yson(vars(args)[option])
+            vars(args)[option] = yt.RawFormat.from_yson_string(vars(args)[option])
 
     inputformat = first_not_none(
         [get_smart_format([args.src, args.read], args.smartformat, args.subkey),
@@ -464,7 +460,7 @@ Examples:
                 die("You are trying to remove object of type " + yt.get_type(args.drop))
             remove_with_empty_dirs(args.drop)
     if args.copy:
-        yt.copy_table(args.src, unlist(dst))
+        copy_table(args.src, unlist(dst))
     if args.sort:
         yt.sort_table(args.src, unlist(dst), table_writer=table_writer, sort_by=args.sortby,
                       replication_factor=replication_factor, spec=spec)

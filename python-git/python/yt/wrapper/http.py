@@ -2,11 +2,14 @@ import config
 from common import YtError, YtResponseError, require
 from format import JsonFormat
 
+import yt.yson as yson
+
 import requests
 
 import sys
 import logger
 import simplejson as json
+
 
 def iter_lines(response):
     """
@@ -57,10 +60,17 @@ class Response(object):
         return not hasattr(self, "_error")
 
     def is_json(self):
-        return self.http_response["content-type"] == "application/json"
+        return self.http_response.headers["content-type"] == "application/json"
+
+    def is_yson(self):
+        content_type = self.http_response.headers["content-type"]
+        return isinstance(content_type, str) and content_type.startswith("application/x-yt-yson")
 
     def json(self):
         return self.http_response.json
+
+    def yson(self):
+        return yson.loads(self.content())
 
     def content(self):
         return self.http_response.content
@@ -152,10 +162,12 @@ def make_request(command_name, params,
     if response.is_ok():
         if raw_response:
             return response.http_response
-        elif response.is_json:
+        elif response.is_json():
             return response.json()
+        elif response.is_yson():
+            return response.yson()
         else:
-            response.content()
+            return response.content()
     else:
         message = "Response to request {0} with headers {1} contains error: {2}".\
                   format(url, headers, response.error())

@@ -85,7 +85,7 @@ class DefaultYtTest(YtTestBase, YTEnv):
             TEST_DIR,
             attributes=["row_count"],
             object_filter=\
-                lambda x: x.get("$attributes", {}).get("row_count", -1) == 0)
+                lambda x: x.attributes.get("row_count", -1) == 0)
         self.assertEqual(set(res),
                          {TEST_DIR + "/dir/table"})
 
@@ -136,25 +136,26 @@ class DefaultYtTest(YtTestBase, YTEnv):
         yt.create_table(table)
         self.assertEqual([], list(yt.read_table(table)))
 
-        self.assertRaises(yt.YtError, lambda: yt.copy_table(table, table))
+        self.assertRaises(yt.YtError, lambda: yt.copy(table, table))
+        self.assertRaises(yt.YtError, lambda: yt.move(table, table))
 
-        yt.move_table(table, table)
-        self.assertEqual([], list(yt.read_table(table)))
-
-        self.assertRaises(yt.YtError, lambda: yt.copy_table(table, other_table))
-        self.assertRaises(yt.YtError, lambda: yt.move_table(table, other_table))
+        self.assertRaises(yt.YtError, lambda: yt.copy(table, other_table))
+        self.assertRaises(yt.YtError, lambda: yt.move(table, other_table))
 
         yt.mkdir(dir)
+        yt.copy(table, other_table)
 
-        yt.copy_table(table, other_table)
         self.assertTrue(yt.exists(table))
         self.assertTrue(yt.exists(other_table))
 
-        yt.move_table(table, other_table)
+        # Remove it after fixes in move
+        yt.remove(other_table)
+
+        yt.move(table, other_table)
         self.assertFalse(yt.exists(table))
         self.assertTrue(yt.exists(other_table))
 
-    def test_many_copy_move(self):
+    def test_merge(self):
         tableX = TEST_DIR + "/tableX"
         tableY = TEST_DIR + "/tableY"
         dir = TEST_DIR + "/dir"
@@ -163,19 +164,13 @@ class DefaultYtTest(YtTestBase, YTEnv):
         yt.write_table(tableX, ["x=1\n"])
         yt.write_table(tableY, ["y=2\n"])
 
-        self.assertRaises(yt.YtError, lambda: yt.copy_table([tableX, tableY], res_table))
-        self.assertRaises(yt.YtError, lambda: yt.move_table([tableX, tableY], res_table))
+        self.assertRaises(yt.YtError, lambda: yt.merge_tables([tableX, tableY], res_table))
+        self.assertRaises(yt.YtError, lambda: yt.merge_tables([tableX, tableY], res_table))
 
         yt.mkdir(dir)
-        yt.copy_table([tableX, tableY], res_table)
+        yt.merge_tables([tableX, tableY], res_table)
         self.check(["x=1\n"], yt.read_table(tableX))
         self.check(["y=2\n"], yt.read_table(tableY))
-        self.check(["x=1\n", "y=2\n"], yt.read_table(res_table))
-
-        yt.remove(res_table)
-        yt.move_table([tableX, tableY], res_table)
-        self.assertFalse(yt.exists(tableX))
-        self.assertFalse(yt.exists(tableY))
         self.check(["x=1\n", "y=2\n"], yt.read_table(res_table))
 
     def test_run_operation(self):
