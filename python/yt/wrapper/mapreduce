@@ -177,7 +177,7 @@ Examples:
                                           "smartformat", "force", "executable"])
     add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec",
                                             "format", "inputformat", "outputformat", "tx", "value",
-                                            "replicationfactor", "memlimit", "timeout"])
+                                            "replicationfactor", "memlimit", "timeout", "title"])
     add_multiple_args(parser, ["src", "dst", "dstappend", "file", "mapfile", "reducefile", "ytfile", "opt", "ytspec", "sortby", "reduceby"])
     add_integer_args(parser, ["jobcount", "threadcount", "chunksize", "jcmultiplier"])
 
@@ -290,6 +290,8 @@ Examples:
              "turn on yamr format with subkey"),
             ("timeout",
              "NEW! timeout for transaction"),
+            ("title",
+             "NEW! title of the operation to print in the web interface"),
             ("threadcount",
              "OLD! this option do nothing"),
             ("track",
@@ -349,6 +351,9 @@ Examples:
     if vars(args)["ytspec"] is not None:
         for spec_arg in args.ytspec:
             spec.update(json.loads(spec_arg))
+
+    if args.title is not None:
+        spec["title"] = args.title
 
     # Fix table names
     for option in ["src", "dst", "dstappend", "ytfile"]:
