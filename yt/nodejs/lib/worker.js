@@ -8,7 +8,6 @@ var winston = require("winston");
 var winston_nssocket = require("winston-nssocket");
 
 var yt = require("yt");
-var utils = require("utils");
 
 // Load configuration and set up logging.
 var config = JSON.parse(process.env.YT_PROXY_CONFIGURATION);
