@@ -110,7 +110,9 @@ def wait_operation(operation, timeout=None, print_progress=True, finalize=lambda
     print_info = PrintOperationInfo() if print_progress else lambda operation, state: None
 
     try:
-        return wait_final_state(operation, timeout, print_info)
+        result = wait_final_state(operation, timeout, print_info)
+        finalize()
+        return result
     except KeyboardInterrupt:
         if config.KEYBOARD_ABORT:
             while True:
@@ -126,8 +128,6 @@ def wait_operation(operation, timeout=None, print_progress=True, finalize=lambda
         raise
     except Exception:
         raise
-    finalize()
-
 
 def get_operation_stderr(operation, limit=None):
     if limit is None: limit = config.ERRORS_TO_PRINT_LIMIT
