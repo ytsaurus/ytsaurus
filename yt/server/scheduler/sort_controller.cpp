@@ -1071,12 +1071,12 @@ protected:
     int SuggestPartitionCount() const
     {
         YCHECK(TotalInputDataSize > 0);
-        int minSuggestion = static_cast<int>(ceil((double) TotalInputDataSize / Spec->MaxPartitionDataSize));
-        int maxSuggestion = static_cast<int>(ceil((double) TotalInputDataSize / Spec->MinPartitionDataSize));
-        int result = Spec->PartitionCount.Get(minSuggestion);
+        i64 minSuggestion = static_cast<i64>(ceil((double) TotalInputDataSize / Spec->MaxPartitionDataSize));
+        i64 maxSuggestion = static_cast<i64>(ceil((double) TotalInputDataSize / Spec->MinPartitionDataSize));
+        i64 result = Spec->PartitionCount.Get(minSuggestion);
         result = std::min(result, maxSuggestion);
-        result = std::max(result, 1);
-        return result;
+        result = std::max(result, (i64)1);
+        return static_cast<int>(result);
     }
 };
 
