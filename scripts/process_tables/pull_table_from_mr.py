@@ -14,7 +14,7 @@ if __name__ == "__main__":
     parser.add_argument("--server", default="redwood.yandex.ru")
     parser.add_argument("--server-port", default="8013")
     parser.add_argument("--http-port", default="13013")
-    parser.add_argument("--record-threshold", type=int, default=10 ** 7)
+    parser.add_argument("--record-threshold", type=int, default=10 ** 6) # 10 ** 7)
     parser.add_argument("--force", action="store_true", default=False)
     parser.add_argument("--fastbone", action="store_true", default=False)
     
@@ -54,7 +54,7 @@ if __name__ == "__main__":
                 input_format=yt.YamrFormat(lenval=False, has_subkey=False),
                 output_format=yt.YamrFormat(lenval=True, has_subkey=True),
                 files="mapreduce",
-                spec={"job_count": len(ranges),
+                spec={"job_count": 10, #len(ranges),
                       # To force job count
                       "min_data_size_per_job": 1})
 
