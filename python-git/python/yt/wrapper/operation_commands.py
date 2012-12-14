@@ -103,7 +103,7 @@ def wait_final_state(operation, timeout, print_info, action=lambda: None):
         timeout.wait()
     return state
 
-def wait_operation(operation, timeout=None, print_progress=True):
+def wait_operation(operation, timeout=None, print_progress=True, finalize=lambda: None):
     """ Wait operation and abort operation in case of keyboard interrupt """
     if timeout is None:
         timeout = Timeout(config.WAIT_TIMEOUT / 5.0, config.WAIT_TIMEOUT, 0.1)
@@ -119,13 +119,14 @@ def wait_operation(operation, timeout=None, print_progress=True):
                                      Timeout(1.0, 1.0, 0.0),
                                      print_info,
                                      lambda: abort_operation(operation))
+                    finalize()
                 except KeyboardInterrupt:
                     pass
                 break
         raise
     except Exception:
         raise
-
+    finalize()
 
 
 def get_operation_stderr(operation, limit=None):
@@ -171,13 +172,12 @@ class WaitStrategy(object):
 
     def process_operation(self, type, operation, finalization=None):
         self.finalization = finalization if finalization is not None else lambda: None
-        state = wait_operation(operation, print_progress=self.print_progress)
+        state = wait_operation(operation, print_progress=self.print_progress, finalize=self.finalization)
         if self.check_result and state.is_failed():
             operation_result = get_operation_result(operation)
             jobs_errors = get_jobs_errors(operation)
             stderr = get_operation_stderr(operation)
             # TODO: remove finalization when transactions would be builtin
-            self.finalization()
             raise YtOperationFailedError(
                 "Operation {0} failed!\n"
                 "Operation result: {1}\n\n"
@@ -187,7 +187,6 @@ class WaitStrategy(object):
                     operation_result,
                     jobs_errors,
                     stderr))
-        self.finalization()
         if config.PRINT_STDERRS:
             logger.info(get_operation_stderr(operation))
  
