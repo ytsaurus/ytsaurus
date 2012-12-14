@@ -159,11 +159,21 @@ protected:
         //! Keys are used when the output is sorted (e.g. in sort operations).
         //! Trees are sorted w.r.t. key and appended to #OutputChunkListId.
         std::multimap<int, NChunkServer::TChunkTreeId> OutputChunkTreeIds;
+
+
+        struct TEndpoint
+        {
+            NTableClient::NProto::TKey Key;
+            bool Left;
+            int ChunkTreeKey;
+        };
+
+        std::vector<TEndpoint> Endpoints;
     };
 
     std::vector<TOutputTable> OutputTables;
-    
-    
+
+
     //! Describes which part of the operation needs a particular file.
     DECLARE_ENUM(EOperationStage,
         (Map)
@@ -301,7 +311,7 @@ protected:
             NScheduler::NProto::TJobSpec* jobSpec,
             TJobletPtr joblet,
             bool enableTableIndex = false);
-        
+
         void AddFinalOutputSpecs(NScheduler::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
         void AddIntermediateOutputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
 
@@ -371,12 +381,12 @@ protected:
     NObjectClient::TObjectServiceProxy::TInvExecuteBatch GetObjectIds();
 
     void OnObjectIdsReceived(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
-    
+
     // Round 3:
     // - Request file types
     // - Check that input and output are tables
     NObjectClient::TObjectServiceProxy::TInvExecuteBatch GetInputTypes();
-    
+
     void OnInputTypesReceived(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
     // Round 4:
@@ -389,7 +399,7 @@ protected:
     // - (Custom)
 
     NObjectClient::TObjectServiceProxy::TInvExecuteBatch RequestInputs();
-    
+
     void OnInputsReceived(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
     //! Extensibility point for requesting additional info from master.
@@ -430,7 +440,7 @@ protected:
     virtual std::vector<NYPath::TRichYPath> GetOutputTablePaths() const = 0;
 
     typedef std::pair<NYPath::TRichYPath, EOperationStage> TPathWithStage;
-    
+
     //! Called to extract file paths from the spec.
     virtual std::vector<TPathWithStage> GetFilePaths() const;
 
@@ -464,6 +474,9 @@ protected:
 
     // Unsorted helpers.
 
+    // Enables sorted output from user jobs.
+    virtual bool SupportsSortedOutput() const;
+
     std::vector<Stroka> CheckInputTablesSorted(
         const TNullable< std::vector<Stroka> >& keyColumns);
     static bool CheckKeyColumnsCompatible(
@@ -474,9 +487,15 @@ protected:
         const NChunkServer::TChunkTreeId& chunkTreeId,
         int key,
         int tableIndex);
+    void RegisterOutputChunkTree(
+        const NChunkServer::TChunkTreeId& chunkTreeId,
+        int key,
+        int tableIndex,
+        TOutputTable& table);
     void RegisterOutputChunkTrees(
         TJobletPtr joblet,
-        int key);
+        int key,
+        const NProto::TUserJobResult* userJobResult = NULL);
 
     static TChunkStripePtr BuildIntermediateChunkStripe(
         google::protobuf::RepeatedPtrField<NTableClient::NProto::TInputChunk>* inputChunks);

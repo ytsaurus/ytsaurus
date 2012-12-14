@@ -187,7 +187,14 @@ protected:
         {
             TTask::OnJobCompleted(joblet);
 
-            Controller->RegisterOutputChunkTrees(joblet, PartitionIndex);
+            const TUserJobResult* userJobResult = NULL;
+            if (joblet->Job->Result().HasExtension(TReduceJobResultExt::reduce_job_result_ext)) {
+                userJobResult = &joblet->Job->Result()
+                    .GetExtension(TReduceJobResultExt::reduce_job_result_ext)
+                    .reducer_result();
+            }
+
+            Controller->RegisterOutputChunkTrees(joblet, PartitionIndex, userJobResult);
         }
     };
 
@@ -750,7 +757,6 @@ protected:
     struct TKeyEndpoint
     {
         EEndpointType Type;
-        int TableIndex;
         NTableClient::NProto::TKey Key;
         TRefCountedInputChunkPtr InputChunk;
     };
@@ -1207,6 +1213,11 @@ private:
     virtual bool AllowPassthroughChunks() override
     {
         return false;
+    }
+
+    virtual bool SupportsSortedOutput() const override
+    {
+        return true;
     }
 
     virtual bool IsLargeEnoughToPassthrough(const TInputChunk& inputChunk) override

@@ -37,9 +37,9 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
         reduce(
             in_ = ['//tmp/in1', '//tmp/in2'],
-            out = ['//tmp/out'],
+            out = ['<sorted_by=[key]>//tmp/out'],
             command = 'cat')
-               
+
         assert read('//tmp/out') == \
             [
                 {'key': -1,'value': 5},
@@ -52,8 +52,8 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 {'key': 7, 'value': 4}
             ]
 
-        assert get('//tmp/out/@sorted') == 'false'
-        
+        assert get('//tmp/out/@sorted') == 'true'
+
     def test_empty_in(self):
         create('table', '//tmp/in')
 
@@ -67,9 +67,9 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             in_ = '//tmp/in',
             out = '//tmp/out',
             command = 'cat')
-        
+
         assert read('//tmp/out') == []
-    
+
     def test_unsorted_input(self):
         create('table', '//tmp/in')
         create('table', '//tmp/out')

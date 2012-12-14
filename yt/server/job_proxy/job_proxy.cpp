@@ -63,7 +63,7 @@ void TJobProxy::OnHeartbeatResponse(TSupervisorServiceProxy::TRspOnJobProgressPt
 {
     if (!rsp->IsOK()) {
         // NB: user process is not killed here.
-        // Good user processes are supposed to die themselves 
+        // Good user processes are supposed to die themselves
         // when io pipes are closed.
         // Bad processes will die at container shutdown.
         LOG_ERROR(*rsp, "Error sending heartbeat to supervisor");
@@ -98,7 +98,7 @@ void TJobProxy::Run()
 {
     HeartbeatInvoker = New<TPeriodicInvoker>(
         GetSyncInvoker(),
-        BIND(&TJobProxy::SendHeartbeat, MakeWeak(this)), 
+        BIND(&TJobProxy::SendHeartbeat, MakeWeak(this)),
         Config->HeartbeatPeriod);
 
     try {
@@ -120,6 +120,14 @@ void TJobProxy::Run()
                 const auto& jobSpecExt = jobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
                 auto userJobIO = CreateSortedReduceJobIO(Config->JobIO, Config->Masters, jobSpec);
                 Job = CreateUserJob(this, jobSpecExt.reducer_spec(), userJobIO);
+                break;
+            }
+
+            case EJobType::PartitionMap: {
+                const auto& jobSpecExt = jobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
+                YCHECK(jobSpecExt.has_mapper_spec());
+                auto userJobIO = CreatePartitionMapJobIO(Config->JobIO, Config->Masters, jobSpec);
+                Job = CreateUserJob(this, jobSpecExt.mapper_spec(), userJobIO);
                 break;
             }
 
@@ -157,14 +165,6 @@ void TJobProxy::Run()
             case EJobType::Partition:
                 Job = CreatePartitionJob(this);
                 break;
-
-            case EJobType::PartitionMap: {
-                const auto& jobSpecExt = jobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
-                YCHECK(jobSpecExt.has_mapper_spec());
-                auto userJobIO = CreatePartitionMapJobIO(Config->JobIO, Config->Masters, jobSpec);
-                Job = CreateUserJob(this, jobSpecExt.mapper_spec(), userJobIO);
-                break;
-            }
 
             default:
                 YUNREACHABLE();
@@ -217,7 +217,7 @@ TNodeResources TJobProxy::GetResourceUtilization()
     return ResourceUtilization;
 }
 
-void TJobProxy::SetResourceUtilization(const TNodeResources& utilization) 
+void TJobProxy::SetResourceUtilization(const TNodeResources& utilization)
 {
     ResourceUtilization = utilization;
 

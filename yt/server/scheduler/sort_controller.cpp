@@ -89,7 +89,7 @@ protected:
     // Counters.
     int CompletedPartitionCount;
     TProgressCounter PartitionJobCounter;
-    
+
     // Sort job counters.
     TProgressCounter IntermediateSortJobCounter;
     TProgressCounter FinalSortJobCounter;
@@ -98,7 +98,7 @@ protected:
     // Start thresholds.
     bool SortStartThresholdReached;
     bool MergeStartThresholdReached;
-    
+
     // Sorted merge job counters.
     mutable TProgressCounter SortedMergeJobCounter;
 
@@ -184,7 +184,7 @@ protected:
     TAutoPtr<IChunkPool> SimpleSortPool;
 
     TPartitionTaskPtr PartitionTask;
-    
+
     //! Implements partition phase for sort operations and map phase for map-reduce operations.
     class TPartitionTask
         : public TTask
@@ -237,7 +237,7 @@ protected:
 
         TAutoPtr<IChunkPool> ChunkPool;
 
-        
+
         virtual IChunkPoolInput* GetChunkPoolInput() const override
         {
             return ~ChunkPool;
@@ -362,7 +362,7 @@ protected:
         {
             if (Controller->SimpleSort) {
                 return TTask::GetLocality(address);
-            } 
+            }
 
             // Report locality proportional to the pending data size.
             // This facilitates uniform sort progress across partitions.
@@ -815,7 +815,7 @@ protected:
     {
         SimpleSortPool = CreateUnorderedChunkPool(sortJobCount);
     }
-    
+
     virtual void OnOperationCompleted() override
     {
         YCHECK(CompletedPartitionCount == Partitions.size());
@@ -845,7 +845,14 @@ protected:
 
     void RegisterOutputChunkTrees(TJobletPtr joblet, TPartition* partition)
     {
-        TOperationControllerBase::RegisterOutputChunkTrees(joblet, partition->Index);
+        const TUserJobResult* userJobResult = NULL;
+        if (joblet->Job->Result().HasExtension(TReduceJobResultExt::reduce_job_result_ext)) {
+            userJobResult = &joblet->Job->Result()
+                .GetExtension(TReduceJobResultExt::reduce_job_result_ext)
+                .reducer_result();
+        }
+
+        TOperationControllerBase::RegisterOutputChunkTrees(joblet, partition->Index, userJobResult);
     }
 
     void OnPartitionCompleted(TPartitionPtr partition)
@@ -927,7 +934,7 @@ protected:
             if (!partition->Maniac) {
                 AddTaskPendingHint(partition->SortTask);
             }
-        }   
+        }
     }
 
     void AddMergeTasksPendingHints()
@@ -970,7 +977,7 @@ protected:
 
         // This is actually redundant since all values are 0.
         std::make_heap(nodeHeap.begin(), nodeHeap.end(), compareNodes);
-        
+
         LOG_DEBUG("Assigning partitions");
         FOREACH (auto partition, sortedPartitions) {
             auto node = nodeHeap.front();
@@ -1026,7 +1033,7 @@ protected:
         i64 dataSize,
         i64 rowCount,
         i64 valueCount) const = 0;
-    
+
     virtual TNodeResources GetPartitionSortResources(
         TPartitionPtr partition,
         i64 dataSize,
@@ -1184,7 +1191,7 @@ private:
 
         std::sort(
             SortedSamples.begin(),
-            SortedSamples.end(), 
+            SortedSamples.end(),
             [] (const NTableClient::NProto::TKey* lhs, const NTableClient::NProto::TKey* rhs) {
                 return CompareKeys(*lhs, *rhs) < 0;
             }
@@ -1208,7 +1215,7 @@ private:
         SimpleSort = partitionCount == 1;
 
         InitJobIOConfigs();
-        
+
         if (SimpleSort) {
             BuildSinglePartition();
         } else {
@@ -1280,7 +1287,7 @@ private:
         //   lastPartition = Partitions.back()
         //   lastKey = PartitionKeys.back()
         //   lastPartition receives keys in [lastKey, ...)
-        //   
+        //
         // Initially PartitionKeys is empty so lastKey is assumed to be -inf.
 
         // Take partition keys evenly.
@@ -1354,7 +1361,7 @@ private:
         }
     }
 
-    void InitJobIOConfigs() 
+    void InitJobIOConfigs()
     {
         PartitionJobIOConfig = CloneYsonSerializable(Spec->PartitionJobIO);
         InitIntermediateOutputConfig(PartitionJobIOConfig);
@@ -1368,7 +1375,7 @@ private:
         FinalSortJobIOConfig = CloneYsonSerializable(Spec->SortJobIO);
         if (!SimpleSort) {
             InitIntermediateInputConfig(FinalSortJobIOConfig);
-        }   
+        }
         InitFinalOutputConfig(FinalSortJobIOConfig);
 
         SortedMergeJobIOConfig = CloneYsonSerializable(Spec->MergeJobIO);
@@ -1395,7 +1402,7 @@ private:
 
             PartitionJobSpecTemplate.set_io_config(ConvertToYsonString(PartitionJobIOConfig).Data());
         }
-        
+
         {
             TJobSpec sortJobSpecTemplate;
             sortJobSpecTemplate.set_type(SimpleSort ? EJobType::SimpleSort : EJobType::PartitionSort);
@@ -1410,7 +1417,7 @@ private:
             FinalSortJobSpecTemplate = sortJobSpecTemplate;
             FinalSortJobSpecTemplate.set_io_config(ConvertToYsonString(FinalSortJobIOConfig).Data());
         }
-        
+
         {
             SortedMergeJobSpecTemplate.set_type(EJobType::SortedMerge);
             *SortedMergeJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
@@ -1455,9 +1462,9 @@ private:
         result.set_slots(1);
         result.set_cpu(1);
         result.set_memory(
-            // NB: due to large MaxBufferSize for partition that was accounted in buffer size 
+            // NB: due to large MaxBufferSize for partition that was accounted in buffer size
             // we eliminate number of output streams to zero.
-            GetIOMemorySize(PartitionJobIOConfig, 1, 0) + 
+            GetIOMemorySize(PartitionJobIOConfig, 1, 0) +
             bufferSize +
             GetFootprintMemorySize());
         return result;
@@ -1618,7 +1625,7 @@ private:
 
     std::vector<TUserFile> MapperFiles;
     std::vector<TUserTableFile> MapperTableFiles;
-    
+
     std::vector<TUserFile> ReducerFiles;
     std::vector<TUserTableFile> ReducerTableFiles;
 
@@ -1663,7 +1670,7 @@ private:
         }
         return result;
     }
-    
+
     virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) override
     {
         FOREACH (const auto& file, Files) {
@@ -1673,7 +1680,7 @@ private:
                 ReducerFiles.push_back(file);
             }
         }
-        
+
         FOREACH (const auto& file, TableFiles) {
             if (file.Stage == EOperationStage::Map) {
                 MapperTableFiles.push_back(file);
@@ -1776,11 +1783,11 @@ private:
     {
         {
             *PartitionJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
-            
+
             auto* specExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
             specExt->set_partition_count(Partitions.size());
             ToProto(specExt->mutable_key_columns(), Spec->ReduceBy);
-            
+
             if (Spec->Mapper) {
                 PartitionJobSpecTemplate.set_type(EJobType::PartitionMap);
                 InitUserJobSpec(
@@ -1883,9 +1890,9 @@ private:
     {
         i64 reserveSize = NTableClient::TChannelWriter::MaxReserveSize * static_cast<i64>(Partitions.size());
         i64 bufferSize = std::min(
-            reserveSize + PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()), 
+            reserveSize + PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()),
             PartitionJobIOConfig->TableWriter->MaxBufferSize);
-        i64 windowSize = PartitionJobIOConfig->TableWriter->WindowSize + 
+        i64 windowSize = PartitionJobIOConfig->TableWriter->WindowSize +
             PartitionJobIOConfig->TableWriter->EncodeWindowSize;
 
         TNodeResources result;
@@ -1893,7 +1900,7 @@ private:
         if (Spec->Mapper) {
             bufferSize += windowSize;
             result.set_cpu(Spec->Mapper->CpuLimit);
-            result.set_memory(GetIOMemorySize(PartitionJobIOConfig, 1, 0) + 
+            result.set_memory(GetIOMemorySize(PartitionJobIOConfig, 1, 0) +
                 bufferSize +
                 Spec->Mapper->MemoryLimit +
                 GetFootprintMemorySize());
@@ -1902,7 +1909,7 @@ private:
             bufferSize += windowSize;
             result.set_cpu(1);
             result.set_memory(
-                GetIOMemorySize(PartitionJobIOConfig, 1, 0) + 
+                GetIOMemorySize(PartitionJobIOConfig, 1, 0) +
                 bufferSize +
                 GetFootprintMemorySize());
         }
@@ -1962,6 +1969,11 @@ private:
     virtual TNodeResources GetUnorderedMergeResources() const override
     {
         YUNREACHABLE();
+    }
+
+    virtual bool SupportsSortedOutput() const override
+    {
+        return true;
     }
 
 

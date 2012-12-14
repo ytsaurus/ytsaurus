@@ -49,7 +49,7 @@ public:
     }
 
     virtual ISyncWriterPtr CreateTableOutput(
-        int index) const override
+        int index) override
     {
         YCHECK(index == 0);
 

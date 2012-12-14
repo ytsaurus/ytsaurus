@@ -71,6 +71,22 @@ bool TChunkSequenceWriterBase<TChunkWriter>::TryWriteRow(const TRow& row)
 }
 
 template <class TChunkWriter>
+bool TChunkSequenceWriterBase<TChunkWriter>::TryWriteRowUnsafe(const TRow& row)
+{
+    if (!CurrentSession.ChunkWriter) {
+        return false;
+    }
+
+    if (!CurrentSession.ChunkWriter->TryWriteRowUnsafe(row)) {
+        return false;
+    }
+
+    OnRowWritten();
+
+    return true;
+}
+
+template <class TChunkWriter>
 void TChunkSequenceWriterBase<TChunkWriter>::CreateNextSession()
 {
     YCHECK(!NextSession);
@@ -195,13 +211,13 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnRowWritten()
         return;
     }
 
-    if (CurrentSession.ChunkWriter->GetCurrentSize() > Config->DesiredChunkSize) 
+    if (CurrentSession.ChunkWriter->GetCurrentSize() > Config->DesiredChunkSize)
     {
         i64 currentDataSize = CompleteChunkSize + CurrentSession.ChunkWriter->GetCurrentSize();
         auto expectedInputSize = currentDataSize * std::max(.0, 1. - Progress);
 
-        if (expectedInputSize > Config->DesiredChunkSize || 
-            CurrentSession.ChunkWriter->GetCurrentSize() > 2 * Config->DesiredChunkSize) 
+        if (expectedInputSize > Config->DesiredChunkSize ||
+            CurrentSession.ChunkWriter->GetCurrentSize() > 2 * Config->DesiredChunkSize)
         {
             LOG_DEBUG("Switching to next chunk: too much data (TransactionId: %s, currentSessionSize: %" PRId64 ", ExpectedInputSize: %lf)",
                 ~TransactionId.ToString(),
@@ -252,7 +268,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::FinishCurrentSession()
 
         auto finishResult = NewPromise<TError>();
         CloseChunksAwaiter->Await(finishResult.ToFuture(), BIND(
-            &TChunkSequenceWriterBase::OnChunkFinished, 
+            &TChunkSequenceWriterBase::OnChunkFinished,
             MakeWeak(this),
             CurrentSession.RemoteWriter->GetChunkId()));
 
@@ -439,7 +455,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnClose(
     State.FinishOperation();
 }
 
-template <class TChunkWriter> 
+template <class TChunkWriter>
 const std::vector<NProto::TInputChunk>& TChunkSequenceWriterBase<TChunkWriter>::GetWrittenChunks() const
 {
     return WrittenChunks;
@@ -451,13 +467,13 @@ i64 TChunkSequenceWriterBase<TChunkWriter>::GetRowCount() const
     return RowCount;
 }
 
-template <class TChunkWriter> 
+template <class TChunkWriter>
 const TNullable<TKeyColumns>& TChunkSequenceWriterBase<TChunkWriter>::GetKeyColumns() const
 {
     return KeyColumns;
 }
 
-template <class TChunkWriter> 
+template <class TChunkWriter>
 TAsyncError TChunkSequenceWriterBase<TChunkWriter>::GetReadyEvent()
 {
     if (State.HasRunningOperation()) {
@@ -470,5 +486,5 @@ TAsyncError TChunkSequenceWriterBase<TChunkWriter>::GetReadyEvent()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT 
+} // namespace NYT
 } // namespace NTableClient

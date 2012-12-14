@@ -37,11 +37,11 @@ public:
     virtual double GetProgress() const;
 
     virtual TAutoPtr<NTableClient::TTableProducer> CreateTableInput(
-        int index, 
+        int index,
         NYson::IYsonConsumer* consumer);
 
     virtual NTableClient::ISyncWriterPtr CreateTableOutput(
-        int index) const;
+        int index);
 
     virtual TAutoPtr<TErrorOutput> CreateErrorOutput() const;
 
@@ -57,12 +57,13 @@ protected:
     NChunkClient::TChunkId StderrChunkId;
 
     std::vector<NTableClient::ISyncReaderPtr> Inputs;
+    std::vector<NTableClient::TTableChunkSequenceWriterPtr> Outputs;
 
     NLog::TLogger& Logger;
 
     template <template <typename> class TMultiChunkReader>
     TAutoPtr<NTableClient::TTableProducer> DoCreateTableInput(
-        int index, 
+        int index,
         NYson::IYsonConsumer* consumer);
 
     void PopulateUserJobResult(NScheduler::NProto::TUserJobResult* result);

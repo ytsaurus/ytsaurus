@@ -134,7 +134,8 @@ private:
         {
             TTask::OnJobCompleted(joblet);
 
-            Controller->RegisterOutputChunkTrees(joblet, 0);
+            auto& userJobResult = joblet->Job->Result().GetExtension(TMapJobResultExt::map_job_result_ext);
+            Controller->RegisterOutputChunkTrees(joblet, joblet->JobIndex, &userJobResult.mapper_result());
         }
     };
 
@@ -218,6 +219,11 @@ private:
 
 
     // Unsorted helpers.
+
+    virtual bool SupportsSortedOutput() const override
+    {
+        return true;
+    }
 
     void InitJobIOConfig()
     {

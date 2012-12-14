@@ -11,10 +11,6 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger& Logger = TableWriterLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TTableChunkSequenceWriter::TTableChunkSequenceWriter(
     TTableWriterConfigPtr config,
     NRpc::IChannelPtr masterChannel,
@@ -23,13 +19,17 @@ TTableChunkSequenceWriter::TTableChunkSequenceWriter(
     const TChannels& channels,
     const TNullable<TKeyColumns>& keyColumns)
     : TChunkSequenceWriterBase<TTableChunkWriter>(
-        config, 
-        masterChannel, 
-        transactionId, 
+        config,
+        masterChannel,
+        transactionId,
         parentChunkList,
         keyColumns)
     , Channels(channels)
-{ }
+{
+    // Create keys.
+    BoundaryKeys.mutable_start();
+    BoundaryKeys.mutable_end();
+}
 
 TTableChunkSequenceWriter::~TTableChunkSequenceWriter()
 { }
@@ -54,6 +54,26 @@ void TTableChunkSequenceWriter::InitCurrentSession(TSession nextSession)
     TChunkSequenceWriterBase<TTableChunkWriter>::InitCurrentSession(nextSession);
 }
 
+bool TTableChunkSequenceWriter::TryWriteRow(const TRow& row)
+{
+    if (!CurrentSession.ChunkWriter) {
+        return false;
+    }
+
+    if (!CurrentSession.ChunkWriter->TryWriteRow(row)) {
+        return false;
+    }
+
+    // Collect boundary keys only in safe writer.
+    if (GetRowCount() == 0) {
+        *BoundaryKeys.mutable_start() = CurrentSession.ChunkWriter->GetLastKey().ToProto();
+    }
+
+    OnRowWritten();
+
+    return true;
+}
+
 bool TTableChunkSequenceWriter::TryWriteRowUnsafe(const TRow& row, const TNonOwningKey& key)
 {
     if (!CurrentSession.ChunkWriter) {
@@ -69,22 +89,24 @@ bool TTableChunkSequenceWriter::TryWriteRowUnsafe(const TRow& row, const TNonOwn
     return true;
 }
 
-bool TTableChunkSequenceWriter::TryWriteRowUnsafe(const TRow& row)
+TAsyncError TTableChunkSequenceWriter::AsyncClose()
 {
-    if (!CurrentSession.ChunkWriter) {
-        return false;
-    }
+    *BoundaryKeys.mutable_end() = CurrentSession.ChunkWriter->GetLastKey().ToProto();
 
-    if (!CurrentSession.ChunkWriter->TryWriteRowUnsafe(row)) {
-        return false;
-    }
+    LOG_DEBUG_IF(
+        KeyColumns,
+        "Writer boundary keys (Start: %s, End: %s)",
+        ~ToString(BoundaryKeys.start()),
+        ~ToString(BoundaryKeys.end()));
+    return TBase::AsyncClose();
+}
 
-    OnRowWritten();
-
-    return true;
+const NProto::TBoundaryKeysExt& TTableChunkSequenceWriter::GetBoundaryKeys() const
+{
+    return BoundaryKeys;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT 
+} // namespace NYT
 } // namespace NTableClient

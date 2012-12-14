@@ -40,14 +40,16 @@ public:
     ~TChunkSequenceWriterBase();
 
     TAsyncError AsyncOpen();
-    TAsyncError AsyncClose();
+    virtual TAsyncError AsyncClose();
 
     TAsyncError GetReadyEvent();
 
-    bool TryWriteRow(const TRow& row);
+    virtual bool TryWriteRow(const TRow& row);
+    virtual bool TryWriteRowUnsafe(const TRow& row);
+
     void SetProgress(double progress);
 
-    /*! 
+    /*!
      *  To get consistent data, should be called only when the writer is closed.
      */
     const std::vector<NProto::TInputChunk>& GetWrittenChunks() const;
@@ -135,7 +137,6 @@ protected:
     TSpinLock WrittenChunksGuard;
     std::vector<NProto::TInputChunk> WrittenChunks;
 
-private:
     NLog::TLogger& Logger;
 
 };

@@ -60,9 +60,9 @@ public:
 
         auto provider = New<TTableChunkReaderProvider>(config->JobIO->TableReader);
         Reader = New<TReader>(
-            config->JobIO->TableReader, 
-            masterChannel, 
-            blockCache, 
+            config->JobIO->TableReader,
+            masterChannel,
+            blockCache,
             MoveRV(chunks),
             provider);
 
@@ -98,7 +98,7 @@ public:
             LOG_INFO("Partitioning");
             {
                 while (Reader->IsValid()) {
-                    while (!Writer->TryWriteRow(Reader->CurrentReader()->GetRow())) {
+                    while (!Writer->TryWriteRowUnsafe(Reader->CurrentReader()->GetRow())) {
                         Sync(~Writer, &TPartitionChunkSequenceWriter::GetReadyEvent);
                     }
                     if (!Reader->FetchNextItem()) {

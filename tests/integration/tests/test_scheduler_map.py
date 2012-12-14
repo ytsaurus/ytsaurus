@@ -82,6 +82,53 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 opt='/spec/mapper/format=yamr',
                 command=command)
 
+    def test_sorted_output(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+        write_str('//tmp/t1', '{key=foo;value=ninja}')
+        write_str('//tmp/t1', '{key=foo;value=ninja}')
+
+        command = '''cat >/dev/null; k1="$YT_JOB_INDEX"0; k2="$YT_JOB_INDEX"1; echo "{key=$k1; value=one}; {key=$k2; value=two}"'''
+
+        map(in_='//tmp/t1',
+            out='<sorted_by=[key]>//tmp/t2',
+            command=command,
+           opt=['/spec/job_count=2', '/spec/min_data_size_per_job=1'])
+
+        assert get('//tmp/t2/@sorted') == 'true'
+        assert get('//tmp/t2/@sorted_by') == ['key']
+        assert read('//tmp/t2') == [{'key':0 , 'value':'one'}, {'key':1, 'value':'two'}, {'key':10, 'value':'one'}, {'key':11, 'value':'two'}]
+
+    def test_sorted_output_overlap(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+        write_str('//tmp/t1', '{key=foo;value=ninja}')
+        write_str('//tmp/t1', '{key=foo;value=ninja}')
+
+        command = 'cat >/dev/null; echo "{key=1; value=one}; {key=2; value=two}"'
+
+        with pytest.raises(YTError):
+            map(
+                in_='//tmp/t1',
+                out='<sorted_by=[key]>//tmp/t2',
+                command=command,
+                opt=['/spec/job_count=2', '/spec/min_data_size_per_job=1'])
+
+    def test_sorted_output_job_failure(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+        write_str('//tmp/t1', '{key=foo;value=ninja}')
+        write_str('//tmp/t1', '{key=foo;value=ninja}')
+
+        command = 'cat >/dev/null; echo {key=2; value=one}; {key=1; value=two}'
+
+        with pytest.raises(YTError):
+            map(
+                in_='//tmp/t1',
+                out='<sorted_by=[key]>//tmp/t2',
+                command=command,
+                opt=['/spec/job_count=2', '/spec/min_data_size_per_job=1'])
+
     def test_job_count(self):
         create('table', '//tmp/t1')
         for i in xrange(5):

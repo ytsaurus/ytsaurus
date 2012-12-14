@@ -29,7 +29,7 @@ using namespace NChunkServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 TUserJobIO::TUserJobIO(
-    TJobIOConfigPtr ioConfig, 
+    TJobIOConfigPtr ioConfig,
     NMetaState::TMasterDiscoveryConfigPtr mastersConfig,
     const NScheduler::NProto::TJobSpec& jobSpec)
     : IOConfig(ioConfig)
@@ -57,7 +57,7 @@ int TUserJobIO::GetOutputCount() const
     return JobSpec.output_specs_size();
 }
 
-ISyncWriterPtr TUserJobIO::CreateTableOutput(int index) const
+ISyncWriterPtr TUserJobIO::CreateTableOutput(int index)
 {
     YCHECK(index >= 0 && index < GetOutputCount());
 
@@ -66,15 +66,21 @@ ISyncWriterPtr TUserJobIO::CreateTableOutput(int index) const
     Stroka channelsString = JobSpec.output_specs(index).channels();
     YCHECK(!channelsString.empty());
     auto channels = ConvertTo<TChannels>(TYsonString(channelsString));
+
+    auto keyColumns = FromProto<Stroka>(JobSpec.output_specs(index).key_columns());
     auto chunkSequenceWriter = New<TTableChunkSequenceWriter>(
         IOConfig->TableWriter,
         MasterChannel,
         TTransactionId::FromProto(JobSpec.output_transaction_id()),
         TChunkListId::FromProto(JobSpec.output_specs(index).chunk_list_id()),
-        channels);
+        channels,
+        keyColumns.empty() ? Null : MakeNullable(keyColumns));
 
     auto syncWriter = CreateSyncWriter(chunkSequenceWriter);
     syncWriter->Open();
+
+    YCHECK(Outputs.size() == index);
+    Outputs.push_back(chunkSequenceWriter);
 
     return syncWriter;
 }
@@ -102,8 +108,8 @@ double TUserJobIO::GetProgress() const
 TAutoPtr<TErrorOutput> TUserJobIO::CreateErrorOutput() const
 {
     return new TErrorOutput(
-        IOConfig->ErrorFileWriter, 
-        MasterChannel, 
+        IOConfig->ErrorFileWriter,
+        MasterChannel,
         TTransactionId::FromProto(JobSpec.output_transaction_id()));
 }
 
@@ -117,6 +123,10 @@ void TUserJobIO::PopulateUserJobResult(TUserJobResult* result)
 {
     if (StderrChunkId != NullChunkId) {
         *result->mutable_stderr_chunk_id() = StderrChunkId.ToProto();
+    }
+
+    FOREACH (const auto& writer, Outputs) {
+        *result->add_output_boundary_keys() = writer->GetBoundaryKeys();
     }
 }
 

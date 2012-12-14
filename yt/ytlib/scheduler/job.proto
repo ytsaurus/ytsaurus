@@ -85,14 +85,6 @@ message TJobResult
     extensions 100 to max;
 }
 
-// Used for reordering chunks from jobs that produce sorted output.
-message TOutputBoundaryKeys
-{
-    required int32 table_index = 1;
-    required NYT.NTableClient.NProto.TKey start = 2;
-    required NYT.NTableClient.NProto.TKey end = 3;
-}
-
 message TJobProgress
 {
 }
@@ -134,6 +126,9 @@ message TUserJobSpec
 message TUserJobResult
 {
     optional NYT.NProto.TGuid stderr_chunk_id = 1;
+
+    // Used for reordering chunks from operations that produce sorted output.
+    repeated NTableClient.NProto.TBoundaryKeysExt output_boundary_keys = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -298,7 +293,6 @@ message TReduceJobResultExt
         optional TReduceJobResultExt reduce_job_result_ext = 104;
     }
 
-    repeated TOutputBoundaryKeys boundary_keys = 1;
     required TUserJobResult reducer_result = 2;
 }
 

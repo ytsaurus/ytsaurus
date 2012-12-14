@@ -334,7 +334,7 @@ private:
         FOREACH (auto jobType, EJobType::GetDomainValues()) {
             Profiler.Enqueue("/job_count/" + FormatEnum(EJobType(jobType)), JobTypeCounters[jobType]);
         }
-        
+
         Profiler.Enqueue("/job_count/total", Jobs.size());
         Profiler.Enqueue("/operation_count", Operations.size());
         Profiler.Enqueue("/node_count", Nodes.size());
@@ -464,7 +464,7 @@ private:
         LOG_INFO("Node offline: %s", ~address);
 
         // Tell each controller that node is offline.
-    
+
         auto node = GetNode(address);
         UnregisterNode(node);
 
@@ -579,7 +579,7 @@ private:
 
         operation->SetState(EOperationState::Running);
 
-        LOG_INFO("Operation has been prepared and is now running (OperationId: %s)", 
+        LOG_INFO("Operation has been prepared and is now running (OperationId: %s)",
             ~operation->GetOperationId().ToString());
 
         // From this moment on the controller is fully responsible for the
@@ -591,7 +591,7 @@ private:
     void ReviveOperations(const std::vector<TOperationPtr>& operations)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        
+
         YCHECK(Operations.empty());
         FOREACH (auto operation, operations) {
             ReviveOperation(operation);
@@ -637,7 +637,7 @@ private:
         operation->SetState(EOperationState::Running);
 
         auto id = operation->GetOperationId();
-        LOG_INFO("Operation has been revived and is now running (OperationId: %s)", 
+        LOG_INFO("Operation has been revived and is now running (OperationId: %s)",
             ~ToString(id));
     }
 
@@ -663,7 +663,7 @@ private:
         LOG_INFO(error, "Aborting operation (OperationId: %s, State: %s)",
             ~operation->GetOperationId().ToString(),
             ~operation->GetState().ToString());
-                
+
         DoOperationFailed(operation, EOperationState::Aborting, EOperationState::Aborted, error);
 
         return operation->GetFinished();
@@ -711,7 +711,7 @@ private:
 
     void RegisterNode(TExecNodePtr node)
     {
-        YCHECK(Nodes.insert(MakePair(node->GetAddress(), node)).second);    
+        YCHECK(Nodes.insert(MakePair(node->GetAddress(), node)).second);
 
         FOREACH (const auto& pair, Operations) {
             auto operation = pair.second;
@@ -743,7 +743,7 @@ private:
         }
     }
 
-    
+
     void RegisterOperation(TOperationPtr operation)
     {
         YCHECK(Operations.insert(MakePair(operation->GetOperationId(), operation)).second);
@@ -829,7 +829,7 @@ private:
         YCHECK(job->GetNode()->Jobs().insert(job).second);
 
         JobStarted_.Fire(job);
-        
+
         LOG_DEBUG("Job registered (JobId: %s, OperationId: %s)",
             ~job->GetId().ToString(),
             ~job->GetOperation()->GetOperationId().ToString());
@@ -1013,7 +1013,7 @@ private:
                 YUNREACHABLE();
         }
     }
-    
+
 
     void DoOperationCompleted(TOperationPtr operation)
     {
@@ -1028,7 +1028,7 @@ private:
         AbortOperationJobs(operation);
 
         operation->SetState(EOperationState::Completing);
-        
+
         auto controller = operation->GetController();
         StartAsyncPipeline(controller->GetCancelableControlInvoker())
             ->Add(BIND(&TMasterConnector::FlushOperationNode, ~MasterConnector, operation))
@@ -1044,18 +1044,24 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (operation->IsFinishedState() || operation->IsFinishingState()) {
+        if (operation->IsFinishedState() || operation->GetState() == EOperationState::Failing) {
             // Safe to call OnOperationFailed multiple times, just ignore it.
             return;
         }
 
-        AbortOperationJobs(operation);
+        auto pipeline = StartAsyncPipeline(CancelableConnectionControlInvoker);
+        if (!operation->IsFinishingState()) {
 
-        operation->SetState(pendingState);
+            AbortOperationJobs(operation);
+            operation->SetState(pendingState);
+
+            // Do not call FlushOperationNode if we are already in finishing state.
+            pipeline = pipeline
+                ->Add(BIND(&TMasterConnector::FlushOperationNode, ~MasterConnector, operation));
+        }
 
         auto controller = operation->GetController();
-        StartAsyncPipeline(CancelableConnectionControlInvoker)
-            ->Add(BIND(&TMasterConnector::FlushOperationNode, ~MasterConnector, operation))
+        pipeline
             ->Add(BIND(&IOperationController::Abort, controller))
             ->Add(BIND(&TThis::SetOperationFinalState, MakeStrong(this), operation, finalState, error))
             ->Add(BIND(&TThis::AbortSchedulerTransaction, MakeStrong(this), operation))
@@ -1147,7 +1153,7 @@ private:
             THROW_ERROR_EXCEPTION("Error parsing operation spec")
                 << ex;
         }
-        
+
         context->SetRequestInfo("Type: %s, TransactionId: %s",
             ~type.ToString(),
             ~ToString(transactionId));
@@ -1323,7 +1329,7 @@ private:
         const auto& address = request->address();
         auto jobId = TJobId::FromProto(jobStatus->job_id());
         auto state = EJobState(jobStatus->state());
-            
+
         NLog::TTaggedLogger Logger(SchedulerLogger);
         Logger.AddTag(Sprintf("Address: %s, JobId: %s",
             ~address,
@@ -1368,7 +1374,7 @@ private:
         }
 
         auto operation = job->GetOperation();
-        
+
         Logger.AddTag(Sprintf("JobType: %s, State: %s, OperationId: %s",
             ~job->GetType().ToString(),
             ~state.ToString(),
