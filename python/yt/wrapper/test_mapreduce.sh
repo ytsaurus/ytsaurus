@@ -300,6 +300,12 @@ test_empty_destination()
     check_failed './mapreduce -map "cat" -src "ignat/empty_table"'
 }
 
+test_dsv_reduce()
+{
+    echo -e "x=10\nx=0" | ./mapreduce -dsv -write "ignat/empty_table"
+    ./mapreduce -dsv -reduce "cat" -reduceby "x" -src "ignat/empty_table" -dst "ignat/empty_table" 
+}
+
 prepare_table_files
 test_sortby_reduceby
 test_base_functionality
@@ -317,5 +323,6 @@ test_smart_format
 test_drop
 test_create_table
 test_empty_destination
+test_dsv_reduce
 
 rm -f table_file big_file
