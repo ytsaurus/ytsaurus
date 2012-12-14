@@ -8,6 +8,18 @@
 var util = require("util");
 var stream = require("stream");
 
+// Redirects unless original URL is not a directory.
+exports.redirectUnlessDirectory = function(req, rsp) {
+    if (req.originalUrl.substr(-1) !== "/") {
+        rsp.statusCode = 301;
+        rsp.setHeader("Location", req.originalUrl + "/");
+        rsp.end();
+        return true;
+    } else {
+        return false;
+    }
+};
+
 // Checks whether MIME pattern |mime| matches actual MIME type |actual|.
 exports.matches = function(mime, actual) {
     "use strict";
