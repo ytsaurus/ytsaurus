@@ -385,6 +385,8 @@ Examples:
         if args.lenval or args.subkey:
             die("Options subkey and lenval are mutually exclusive with dsv option")
         config.DEFAULT_FORMAT = yt.DsvFormat()
+        # Try it if occur problem with reduce_by and sort_by
+        #config.USE_YAMR_SORT_REDUCE_COLUMNS = False
 
     for option in ["format", "inputformat", "outputformat"]:
         if vars(args)[option] is not None:
