@@ -89,7 +89,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
              out='//tmp/t_out',
              sort_by='foo')
 
-    def test_megalomaniac(self):
+    def test_maniac(self):
         v1 = {'key' : 'aaa'}
         v2 = {'key' : 'bb'}
         v3 = {'key' : 'bbxx'}
@@ -97,16 +97,17 @@ class TestSchedulerSortCommands(YTEnvSetup):
         v5 = {'key' : 'zzz'}
 
         create('table', '//tmp/t_in')
-        write('//tmp/t_in', [v3, v5, v1, v2, v4]) # some random order
+        for i in xrange(0, 10):
+            write('//tmp/t_in', [v3, v5, v1, v2, v4]) # some random order
 
         create('table', '//tmp/t_out')
 
         sort(in_='//tmp/t_in',
              out='//tmp/t_out',
              sort_by='missing_key',
-         opt='/spec/partition_count=2')
+             opt=['/spec/partition_count=5', '/spec/min_partition_data_size=1'])
 
-        assert len(read('//tmp/t_out')) == 5 # check only the number of raws
+        assert len(read('//tmp/t_out')) == 50
 
     def test_composite_key(self):
         v1 = {'key': -7, 'subkey': 'bar', 'value': 'v1'}

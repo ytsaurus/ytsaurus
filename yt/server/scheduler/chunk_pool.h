@@ -118,8 +118,7 @@ struct IShuffleChunkPool
 };
 
 TAutoPtr<IShuffleChunkPool> CreateShuffleChunkPool(
-    int partitionCount,
-    i64 dataSizeThreshold);
+    const std::vector<i64>& dataSizeThresholds);
 
 ////////////////////////////////////////////////////////////////////////////////
 

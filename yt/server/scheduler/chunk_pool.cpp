@@ -581,14 +581,11 @@ class TShuffleChunkPool
     , public IShuffleChunkPool
 {
 public:
-    explicit TShuffleChunkPool(
-        int partitionCount,
-        i64 dataSizeThreshold)
-        : DataSizeThreshold(dataSizeThreshold)
+    explicit TShuffleChunkPool(const std::vector<i64>& dataSizeThresholds)
     {
-        Outputs.resize(partitionCount);
-        for (int index = 0; index < partitionCount; ++index) {
-            Outputs[index] = new TOutput(this, index);
+        Outputs.resize(dataSizeThresholds.size());
+        for (int index = 0; index < static_cast<int>(dataSizeThresholds.size()); ++index) {
+            Outputs[index] = new TOutput(this, index, dataSizeThresholds[index]);
         }
     }
 
@@ -689,15 +686,17 @@ public:
     }
 
 private:
-    i64 DataSizeThreshold;
-
     class TOutput
         : public TChunkPoolOutputBase
     {
     public:
-        explicit TOutput(TShuffleChunkPool* owner, int partitionIndex)
+        explicit TOutput(
+            TShuffleChunkPool* owner,
+            int partitionIndex,
+            i64 dataSizeThreshold)
             : Owner(owner)
             , PartitionIndex(partitionIndex)
+            , DataSizeThreshold(dataSizeThreshold)
         {
             NewRun();
         }
@@ -717,7 +716,7 @@ private:
         {
             auto* run = &Runs.back();
             if (run->ElementaryIndexBegin != run->ElementaryIndexEnd &&
-                run->TotalDataSize + dataSize > Owner->DataSizeThreshold)
+                run->TotalDataSize + dataSize > DataSizeThreshold)
             {
                 FinishLastRun();
                 NewRun();
@@ -859,6 +858,7 @@ private:
 
         TShuffleChunkPool* Owner;
         int PartitionIndex;
+        i64 DataSizeThreshold;
 
         DECLARE_ENUM(ERunState,
             (Initializing)
@@ -953,12 +953,9 @@ private:
 };
 
 TAutoPtr<IShuffleChunkPool> CreateShuffleChunkPool(
-    int partitionCount,
-    i64 dataSizeThreshold)
+    const std::vector<i64>& dataSizeThresholds)
 {
-    return new TShuffleChunkPool(
-        partitionCount,
-        dataSizeThreshold);
+    return new TShuffleChunkPool(dataSizeThresholds);
 }
 
 ////////////////////////////////////////////////////////////////////

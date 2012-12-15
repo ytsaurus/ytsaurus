@@ -282,17 +282,23 @@ protected:
             auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_chunks());
             Controller->ShufflePool->GetInput()->Add(stripe);
 
-            i64 stripeDataSize;
-            GetStatistics(stripe, &stripeDataSize);
-            Controller->SortDataSizeCounter.Increment(stripeDataSize);
 
             // Kick-start sort and unordered merge tasks.
+            // Compute sort data size delta.
+            i64 oldSortDataSize = Controller->SortDataSizeCounter.GetTotal();
+            i64 newSortDataSize = 0;
             FOREACH (auto partition, Controller->Partitions) {
-                auto task = partition->Maniac
-                    ? TTaskPtr(partition->UnorderedMergeTask)
-                    : TTaskPtr(partition->SortTask);
-                Controller->AddTaskPendingHint(task);
+                if (partition->Maniac) {
+                    Controller->AddTaskPendingHint(partition->UnorderedMergeTask);
+                } else {
+                    newSortDataSize += partition->ChunkPoolOutput->GetTotalDataSize();
+                    Controller->AddTaskPendingHint(partition->SortTask);
+                }
             }
+            LOG_DEBUG("Sort data size updated: %" PRId64 " -> %" PRId64,
+                oldSortDataSize,
+                newSortDataSize);
+            Controller->SortDataSizeCounter.Increment(newSortDataSize - oldSortDataSize);
 
             Controller->CheckSortStartThreshold();
         }
@@ -333,10 +339,10 @@ protected:
                 }
             }
 
+            Controller->CheckMergeStartThreshold();
+
             // Kick-start sort and unordered merge tasks.
             Controller->AddSortTasksPendingHints();
-
-            Controller->CheckMergeStartThreshold();
             Controller->AddMergeTasksPendingHints();
         }
     };
@@ -515,9 +521,6 @@ protected:
             if (Controller->IsSortedMergeNeeded(Partition)) {
                 Partition->SortedMergeTask->FinishInput();
             }
-            if (Partition->Maniac) {
-                Partition->UnorderedMergeTask->FinishInput();
-            }
         }
 
     };
@@ -544,6 +547,11 @@ protected:
                 return 0;
             }
 
+            // Maniac partitions are never sorted (even if the pool suggests some jobs).
+            if (Partition->Maniac) {
+                return 0;
+            }
+            
             return TTask::GetPendingJobCount();
         }
 
@@ -727,7 +735,13 @@ protected:
 
         virtual int GetPendingJobCount() const override
         {
+            // Check if enough sort jobs are completed.
             if (!Controller->MergeStartThresholdReached) {
+                return 0;
+            }
+
+            // Regular (non-maniac) partitions are never merged (even if the pool suggests some jobs).
+            if (!Partition->Maniac) {
                 return 0;
             }
 
@@ -818,9 +832,14 @@ protected:
 
     void InitShufflePool()
     {
-        ShufflePool = CreateShuffleChunkPool(
-            static_cast<int>(Partitions.size()),
-            Spec->MaxDataSizePerSortJob);
+        std::vector<i64> dataSizeThresholds;
+        for (int index = 0; index < static_cast<int>(Partitions.size()); ++index) {
+            dataSizeThresholds.push_back(
+                Partitions[index]->Maniac
+                ? std::numeric_limits<i64>::max()
+                : Spec->MaxDataSizePerSortJob);
+        }
+        ShufflePool = CreateShuffleChunkPool(dataSizeThresholds);
 
         FOREACH (auto partition, Partitions) {
             partition->ChunkPoolOutput = ShufflePool->GetOutput(partition->Index);
@@ -911,6 +930,9 @@ protected:
 
     void CheckSortStartThreshold()
     {
+        if (SimpleSort)
+            return;
+
         if (SortStartThresholdReached)
             return;
 
