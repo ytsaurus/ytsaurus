@@ -706,9 +706,11 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, const Stroka& 
 
 void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe)
 {
-    FOREACH (const auto& chunk, stripe->Chunks) {
-        FOREACH (const auto& address, chunk->node_addresses()) {
-            DoAddTaskLocalityHint(task, address);
+    if (!task->IsStrictlyLocal()) {
+        FOREACH (const auto& chunk, stripe->Chunks) {
+            FOREACH (const auto& address, chunk->node_addresses()) {
+                DoAddTaskLocalityHint(task, address);
+            }
         }
     }
     OnTaskUpdated(task);

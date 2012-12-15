@@ -129,7 +129,10 @@ protected:
             , Completed(false)
             , CachedSortedMergeNeeded(false)
             , Maniac(false)
-            , SortTask(New<TSortTask>(controller, this))
+            , SortTask(
+                controller->SimpleSort
+                ? TSortTaskPtr(New<TSimpleSortTask>(controller, this))
+                : TSortTaskPtr(New<TPartitionSortTask>(controller, this)))
             , SortedMergeTask(New<TSortedMergeTask>(controller, this))
             , UnorderedMergeTask(New<TUnorderedMergeTask>(controller, this))
             , ChunkPoolOutput(NULL)
@@ -349,46 +352,13 @@ protected:
             , Partition(partition)
         { }
 
-        virtual TDuration GetLocalityTimeout() const override
-        {
-            if (Controller->SimpleSort) {
-                return GetSimpleLocalityTimeout();
-            }
-
-            return TDuration::Zero();
-        }
-
-        virtual i64 GetLocality(const Stroka& address) const override
-        {
-            if (Controller->SimpleSort) {
-                return TTask::GetLocality(address);
-            }
-
-            // Report locality proportional to the pending data size.
-            // This facilitates uniform sort progress across partitions.
-            // Never return 0 since this is a local task.
-            i64 pendingDataSize = GetPendingDataSize();
-            return pendingDataSize == 0 ? 1 : pendingDataSize;
-        }
-
-        virtual bool IsStrictlyLocal() const override
-        {
-            if (Controller->SimpleSort) {
-                return TTask::IsStrictlyLocal();
-            }
-
-            return true;
-        }
-
     protected:
         TSortControllerBase* Controller;
         TPartition* Partition;
 
-        virtual TDuration GetSimpleLocalityTimeout() const = 0;
-
     };
 
-    //! Implements sort phase (either simple or partitioned) for sort operations
+    //! Base class implementing sort phase for sort operations
     //! and partition reduce phase for map-reduce operations.
     class TSortTask
         : public TPartitionBoundTask
@@ -398,24 +368,9 @@ protected:
             : TPartitionBoundTask(controller, partition)
         { }
 
-        virtual Stroka GetId() const override
-        {
-            return Sprintf("Sort(%d)", Partition->Index);
-        }
-
         virtual int GetPriority() const override
         {
             return 1;
-        }
-
-        virtual int GetPendingJobCount() const override
-        {
-            // Check if enough partition jobs are completed.
-            if (!Controller->SortStartThresholdReached) {
-                return 0;
-            }
-
-            return TTask::GetPendingJobCount();
         }
 
         virtual TNodeResources GetMinNeededResources() const override
@@ -463,11 +418,6 @@ protected:
                 Controller->SimpleSort
                 ? Controller->GetSimpleSortResources(dataSize, rowCount, valueCount)
                 : Controller->GetPartitionSortResources(Partition, dataSize, rowCount);
-        }
-
-        virtual TDuration GetSimpleLocalityTimeout() const override
-        {
-            return Controller->Spec->SortLocalityTimeout;
         }
 
         virtual int GetChunkListCountPerJob() const override
@@ -570,11 +520,74 @@ protected:
             }
         }
 
-        virtual void AddInputLocalityHint(TChunkStripePtr stripe) override
+    };
+
+    //! Implements partition sort for sort operations and
+    //! partition reduce phase for map-reduce operations.
+    class TPartitionSortTask
+        : public TSortTask
+    {
+    public:
+        TPartitionSortTask(TSortControllerBase* controller, TPartition* partition)
+            : TSortTask(controller, partition)
+        { }
+
+        virtual Stroka GetId() const override
         {
-            if (Controller->SimpleSort) {
-                TTask::AddInputLocalityHint(stripe);
+            return Sprintf("Sort(%d)", Partition->Index);
+        }
+
+        virtual int GetPendingJobCount() const override
+        {
+            // Check if enough partition jobs are completed.
+            if (!Controller->SortStartThresholdReached) {
+                return 0;
             }
+
+            return TTask::GetPendingJobCount();
+        }
+
+        virtual TDuration GetLocalityTimeout() const override
+        {
+            return TDuration::Zero();
+        }
+
+        virtual bool IsStrictlyLocal() const override
+        {
+            return true;
+        }
+
+        virtual i64 GetLocality(const Stroka& address) const override
+        {
+            return
+                address == Partition->AssignedAddress
+                // Report locality proportional to the pending data size.
+                // This facilitates uniform sort progress across partitions.
+                // Never return 0 to avoid removing the hint.
+                ? std::max(GetPendingDataSize(), static_cast<i64>(1))
+                // Return zero for wrong addresses.
+                : 0;
+        }
+
+    };
+
+    //! Implements simple sort phase for sort operations.
+    class TSimpleSortTask
+        : public TSortTask
+    {
+    public:
+        TSimpleSortTask(TSortControllerBase* controller, TPartition* partition)
+            : TSortTask(controller, partition)
+        { }
+
+        virtual Stroka GetId() const override
+        {
+            return "SimpleSort";
+        }
+
+        virtual TDuration GetLocalityTimeout() const override
+        {
+            return Controller->Spec->SimpleSortLocalityTimeout;
         }
     };
 
@@ -592,12 +605,15 @@ protected:
             return 2;
         }
 
-    protected:
-        virtual TDuration GetSimpleLocalityTimeout() const override
+        virtual TDuration GetLocalityTimeout() const override
         {
-            return Controller->Spec->MergeLocalityTimeout;
+            return
+                Controller->SimpleSort
+                ? Controller->Spec->SimpleMergeLocalityTimeout
+                : Controller->Spec->MergeLocalityTimeout;
         }
 
+    protected:
         virtual void OnTaskCompleted() override
         {
             Controller->OnPartitionCompleted(Partition);

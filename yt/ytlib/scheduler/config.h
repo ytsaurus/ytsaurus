@@ -295,7 +295,8 @@ struct TSortOperationSpecBase
     double MergeStartThreshold;
 
     TDuration PartitionLocalityTimeout;
-    TDuration SortLocalityTimeout;
+    TDuration SimpleSortLocalityTimeout;
+    TDuration SimpleMergeLocalityTimeout;
     TDuration MergeLocalityTimeout;
 
     int ShuffleNetworkLimit;
@@ -386,10 +387,12 @@ struct TSortOperationSpec
             .GreaterThan(0);
         Register("partition_locality_timeout", PartitionLocalityTimeout)
             .Default(TDuration::Seconds(5));
-        Register("sort_locality_timeout", SortLocalityTimeout)
+        Register("simple_sort_locality_timeout", SimpleSortLocalityTimeout)
             .Default(TDuration::Seconds(10));
-        Register("merge_locality_timeout", MergeLocalityTimeout)
+        Register("simple_merge_locality_timeout", SimpleMergeLocalityTimeout)
             .Default(TDuration::Seconds(10));
+        Register("partition_merge_locality_timeout", MergeLocalityTimeout)
+            .Default(TDuration::Minutes(10));
 
         PartitionJobIO->TableReader->PrefetchWindow = 10;
         PartitionJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
@@ -449,14 +452,16 @@ struct TMapReduceOperationSpec
             .GreaterThan(0);
         Register("map_locality_timeout", PartitionLocalityTimeout)
             .Default(TDuration::Seconds(5));
+        Register("sorted_reduce_locality_timeout", MergeLocalityTimeout)
+            .Default(TDuration::Minutes(10));
         Register("enable_table_index", EnableTableIndex)
             .Default(false);
 
         // The following settings are inherited from base but make no sense for map-reduce:
         //   SortJobSliceDataSize
         //   MaxDataSizePerUnorderedMergeJob
-        //   SortLocalityTimeout
-        //   MergeLocalityTimeout
+        //   SimpleSortLocalityTimeout
+        //   SimpleMergeLocalityTimeout
 
         MapJobIO->TableReader->PrefetchWindow = 10;
         MapJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB

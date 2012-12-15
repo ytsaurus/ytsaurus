@@ -301,7 +301,7 @@ protected:
         virtual void OnJobStarted(TJobletPtr joblet);
 
         void AddPendingHint();
-        virtual void AddInputLocalityHint(TChunkStripePtr stripe);
+        void AddInputLocalityHint(TChunkStripePtr stripe);
 
         static void AddSequentialInputSpec(
             NScheduler::NProto::TJobSpec* jobSpec,
