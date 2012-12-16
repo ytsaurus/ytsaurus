@@ -1029,8 +1029,9 @@ protected:
             nodeToDataSize[node] += partition->ChunkPoolOutput->GetTotalDataSize();
             std::push_heap(nodeHeap.begin(), nodeHeap.end(), compareNodes);
 
-            LOG_DEBUG("Partition assigned: %d -> %s",
+            LOG_DEBUG("Partition assigned: %d (DataSize: %" PRId64 ") -> %s",
                 partition->Index,
+                partition->ChunkPoolOutput->GetTotalDataSize(),
                 ~address);
         }
 
