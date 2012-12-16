@@ -542,16 +542,14 @@ protected:
 
         virtual int GetPendingJobCount() const override
         {
-            // Check if enough partition jobs are completed.
             if (!Controller->SortStartThresholdReached) {
                 return 0;
             }
 
-            // Maniac partitions are never sorted (even if the pool suggests some jobs).
             if (Partition->Maniac) {
                 return 0;
             }
-            
+
             return TTask::GetPendingJobCount();
         }
 
@@ -651,6 +649,10 @@ protected:
                 return 0;
             }
 
+            if (Partition->Maniac) {
+                return 0;
+            }
+
             return TTask::GetPendingJobCount();
         }
 
@@ -735,12 +737,10 @@ protected:
 
         virtual int GetPendingJobCount() const override
         {
-            // Check if enough sort jobs are completed.
             if (!Controller->MergeStartThresholdReached) {
                 return 0;
             }
 
-            // Regular (non-maniac) partitions are never merged (even if the pool suggests some jobs).
             if (!Partition->Maniac) {
                 return 0;
             }
