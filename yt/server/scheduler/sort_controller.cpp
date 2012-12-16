@@ -1025,9 +1025,8 @@ protected:
             AddTaskLocalityHint(partition->SortTask, address);
             AddTaskLocalityHint(partition->SortedMergeTask, address);
 
-            nodeToDataSize[node] += partition->ChunkPoolOutput->GetTotalDataSize();
-
             std::pop_heap(nodeHeap.begin(), nodeHeap.end(), compareNodes);
+            nodeToDataSize[node] += partition->ChunkPoolOutput->GetTotalDataSize();
             std::push_heap(nodeHeap.begin(), nodeHeap.end(), compareNodes);
 
             LOG_DEBUG("Partition assigned: %d -> %s",
