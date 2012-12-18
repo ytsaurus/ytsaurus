@@ -78,6 +78,8 @@ TEST(TYamrWriterTest, NonStringValues)
 
     writer.OnListItem();
     writer.OnBeginMap();
+        writer.OnKeyedItem("subkey");
+        writer.OnDoubleScalar(0.1);
         writer.OnKeyedItem("key");
         writer.OnStringScalar("integer");
         writer.OnKeyedItem("value");
@@ -86,14 +88,16 @@ TEST(TYamrWriterTest, NonStringValues)
 
     writer.OnListItem();
     writer.OnBeginMap();
-        writer.OnKeyedItem("subkey");
-        writer.OnStringScalar("double");
         writer.OnKeyedItem("value");
         writer.OnDoubleScalar(10);
+        writer.OnKeyedItem("subkey");
+        writer.OnStringScalar("double");
+        writer.OnKeyedItem("key");
+        writer.OnStringScalar("");
     writer.OnEndMap();
 
     Stroka output =
-        "integer\t\t42\n"
+        "integer\t0.1\t42\n"
         "\tdouble\t10.\n";
 
     EXPECT_EQ(output, outputStream.Str());
@@ -205,6 +209,8 @@ TEST(TYamrWriterTest, LenvalWithoutFields)
     writer.OnBeginMap();
         writer.OnKeyedItem("value");
         writer.OnStringScalar("value1");
+        writer.OnKeyedItem("subkey");
+        writer.OnStringScalar("");
         writer.OnKeyedItem("key");
         writer.OnStringScalar("key1");
     writer.OnEndMap();
@@ -213,6 +219,8 @@ TEST(TYamrWriterTest, LenvalWithoutFields)
     writer.OnBeginMap();
         writer.OnKeyedItem("subkey");
         writer.OnStringScalar("subkey2");
+        writer.OnKeyedItem("value");
+        writer.OnStringScalar("");
         writer.OnKeyedItem("key");
         writer.OnStringScalar("key2");
     writer.OnEndMap();
@@ -221,13 +229,15 @@ TEST(TYamrWriterTest, LenvalWithoutFields)
     writer.OnBeginMap();
         writer.OnKeyedItem("value");
         writer.OnStringScalar("value3");
+        writer.OnKeyedItem("key");
+        writer.OnStringScalar("");
         writer.OnKeyedItem("subkey");
         writer.OnStringScalar("subkey3");
     writer.OnEndMap();
 
     Stroka output = Stroka(
         "\x04\x00\x00\x00" "key1"
-        "\x00\x00\x00\x00"
+        "\x00\x00\x00\x00" ""
         "\x06\x00\x00\x00" "value1"
 
         "\x04\x00\x00\x00" "key2"

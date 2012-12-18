@@ -146,7 +146,7 @@ void TYamrWriter::RememberItem(const TStringBuf& item, bool takeOwnership)
 
 void TYamrWriter::WriteRow()
 {
-    if (!Key && !Value && !(Subkey && Config->HasSubkey)) {
+    if (!Key || !Value || (!Subkey && Config->HasSubkey)) {
         THROW_ERROR_EXCEPTION("Empty YAMR row");
     }
 
