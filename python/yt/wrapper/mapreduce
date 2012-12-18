@@ -113,7 +113,7 @@ def get_smart_format(tables, smart_format_flag, has_subkey):
             return None
     if not(smart_format_flag or "SMART_FORMAT" in os.environ):
         return None
-    tables = flatten(filter(None, tables))
+    tables = filter(lambda x: yt.exists(yt.to_name(x)), filter(None, flatten(tables)))
     formats = map(extract_format, tables)
     if formats and any(format != formats[0] for format in formats):
         die("Tables have different attribute _format: " + repr(formats))
@@ -157,7 +157,7 @@ Examples:
                 -dst "ignat/reduced"
 
     Use already uploaded files:
-            ./mapreduce -upload my_mapper.py -dst ignat/mapper.py
+            ./mapreduce -upload mapper.py < ignat/mapper.py
             ./mapreduce -subkey -map "./mapper.py" -ytfile "ignat/mapper.py" -src "ignat/temp" -dst "ignat/mapped"
 
     Use attrbiutes:
@@ -344,6 +344,8 @@ Examples:
         config.PROXY = args.server
     if args.prefix is not None:
         config.PREFIX = args.prefix
+    if args.timeout is not None:
+        config.TRANSACTION_TIMEOUT = int(args.timeout)
 
     spec = {}
     if args.jobcount is not None:
