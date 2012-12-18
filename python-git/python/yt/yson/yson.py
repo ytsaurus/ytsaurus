@@ -40,6 +40,8 @@ Simple examples:
 
 from collections import Iterable, Mapping
 
+from yson_types import YsonEntity
+
 __all__ = ["dump", "dumps"]
 
 def dump(obj, fp, check_circular=True, encoding='utf-8', indent=None):
@@ -80,6 +82,8 @@ class Dumper(object):
             result = self._dump_map(obj)
         elif isinstance(obj, Iterable):
             result = self._dump_list(obj)
+        elif isinstance(obj, YsonEntity):
+            result = "null"
         else:
             raise TypeError(repr(obj) + " is not Yson serializable.")
         self._level -= 1    
