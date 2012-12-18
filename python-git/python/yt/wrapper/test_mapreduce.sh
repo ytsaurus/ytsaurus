@@ -318,7 +318,17 @@ test_slow_write()
     check_failed 'gen_data 3 | ./mapreduce -write "ignat/some_table" -timeout 1000'
 }
 
+test_dstsorted()
+{
+    echo -e "x\t10\ny\t15" | ./mapreduce -writesorted ignat/some_table
+    check '"true"' "`./mapreduce -get ignat/some_table/@sorted`"
+
+    ./mapreduce -reduce "grep x" -src ignat/some_table -dstsorted ignat/some_table
+    check '"true"' "`./mapreduce -get ignat/some_table/@sorted`"
+}
+
 prepare_table_files
+test_dstsorted
 test_sortby_reduceby
 test_base_functionality
 test_codec

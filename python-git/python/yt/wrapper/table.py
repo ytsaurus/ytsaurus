@@ -9,11 +9,14 @@ class TablePath(object):
     lower_key, upper_key -- tuple of strings to identify range of records
     start_index, end_index
     """
-    def __init__(self, name, append=False, columns=None,
+    def __init__(self, name,
+                 append=False, sorted_by=None,
+                 columns=None,
                  lower_key=None, upper_key=None,
                  start_index=None, end_index=None):
         self.name, self.specificators = split_table_ranges(name)
         self.append = append
+        self.sorted_by = sorted_by
         self.columns = columns
         self.lower_key = lower_key
         self.upper_key = upper_key
@@ -66,12 +69,12 @@ class TablePath(object):
                     (name, ":".join(map(index_to_str, [self.start_index, self.end_index])))
 
         if use_overwrite:
+            attributes = {"overwrite": bool_to_string(not self.append)}
+            if self.sorted_by is not None:
+                attributes["sorted_by"] = self.sorted_by
             name = {
                 "$value": name,
-                "$attributes": {
-                    "overwrite": bool_to_string(not self.append)
-                }
-            }
+                "$attributes": attributes}
 
         return name
 
