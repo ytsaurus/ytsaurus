@@ -3,7 +3,6 @@
 # Options that not yet implemented:
 # -fs
 # -rs
-# -dstsorted
 # -timelimit
 # -lock
 # -unlock
@@ -11,7 +10,7 @@
 from yt.wrapper.table_commands import copy_table
 from yt.wrapper.tree_commands import remove_with_empty_dirs
 
-from yt.wrapper.common import flatten, unlist, first_not_none, bool_to_string
+from yt.wrapper.common import flatten, unlist, first_not_none, bool_to_string, dump_to_json
 from yt.wrapper.version import VERSION
 import yt.wrapper.config as config
 import yt.wrapper as yt
@@ -178,7 +177,7 @@ Examples:
     add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec",
                                             "format", "inputformat", "outputformat", "tx", "value",
                                             "replicationfactor", "memlimit", "timeout", "title"])
-    add_multiple_args(parser, ["src", "dst", "dstappend", "file", "mapfile", "reducefile", "ytfile", "opt", "ytspec", "sortby", "reduceby"])
+    add_multiple_args(parser, ["src", "dst", "dstappend", "dstsorted", "file", "mapfile", "reducefile", "ytfile", "opt", "ytspec", "sortby", "reduceby"])
     add_integer_args(parser, ["jobcount", "threadcount", "chunksize", "jcmultiplier"])
 
     add_help_messages(parser,
@@ -208,6 +207,8 @@ Examples:
              "destination table, option can be passed multiple times"),
             ("dstappend",
              "destination table in append mode, option can be passed multiple times"),
+            ("dstsorted",
+             "check that output of your operation to this table is sorted"),
             ("dsv",
              "NEW! use delimited separated value format"),
             ("dynallocmode",
@@ -358,7 +359,7 @@ Examples:
         spec["title"] = args.title
 
     # Fix table names
-    for option in ["src", "dst", "dstappend", "ytfile"]:
+    for option in ["src", "dst", "dstappend", "dstsorted", "ytfile"]:
         if vars(args)[option] is not None:
             vars(args)[option] = map(add_prefix, vars(args)[option])
     for option in ["read", "write", "writesorted", "drop", "get", "set", "download", "upload", "createtable"]:
@@ -371,6 +372,8 @@ Examples:
         dst += map(partial(yt.TablePath, append=args.append), args.dst)
     if args.dstappend is not None:
         dst += map(partial(yt.TablePath, append=True), args.dstappend)
+    if args.dstsorted is not None:
+        dst += map(partial(yt.TablePath, sorted_by=["key", "subkey"]), args.dstsorted)
     if not dst:
         dst = None
 
@@ -439,10 +442,11 @@ Examples:
         yt.write_table(args.write, sys.stdin, format=outputformat,
                        replication_factor=replication_factor, table_writer=table_writer)
     if args.writesorted is not None:
-        args.writesorted = yt.TablePath(args.writesorted, append=args.append)
+        args.writesorted = yt.TablePath(args.writesorted, append=args.append, sorted_by=["key", "subkey"])
         yt.write_table(args.writesorted, sys.stdin, format=outputformat,
                        replication_factor=replication_factor, table_writer=table_writer)
-        yt.set_attribute(args.writesorted.name, "sorted", "true")
+        # TODO: sorted_by has no proper support now. Delete it with remaking in system.
+        yt.sort_table(args.writesorted.get_name())
     if mapreduce_case:
         yt.run_map_reduce(args.map, args.reduce, args.src, dst,
                           map_files=map_files, reduce_files=reduce_files,
@@ -492,7 +496,7 @@ Examples:
         print yt.exists(args.exists)
 
     if args.get is not None:
-        print json.dumps(yt.get(args.get, spec=spec), indent=2)
+        print dump_to_json(yt.get(args.get, spec=spec))
     if args.set is not None:
         if args.value is None:
             die("Value option is necessary for set command")

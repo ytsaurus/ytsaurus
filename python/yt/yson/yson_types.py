@@ -1,6 +1,9 @@
 #!/usr/bin/python
 #!-*-coding:utf-8-*-
 
+import copy
+from itertools import imap
+
 class YsonType(object):
     def __init__(self, *kargs, **kwargs):
         self.attributes = {}
@@ -67,4 +70,15 @@ def convert_to_yson_type_from_tree(tree):
     if has_attrs and tree["$attributes"]:
         result.attributes = convert_to_yson_type_from_tree(tree["$attributes"])
     return result
+
+def simplify(tree):
+    if isinstance(tree, dict):
+        return YsonMap((k, simplify(v)) for k, v in tree.iteritems())
+    elif isinstance(tree, list):
+        return YsonList(imap(simplify, tree))
+    elif isinstance(tree, YsonEntity):
+        return None
+    else:
+        return copy.deepcopy(tree)
+
 
