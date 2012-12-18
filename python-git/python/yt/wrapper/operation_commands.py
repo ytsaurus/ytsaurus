@@ -1,6 +1,6 @@
 import config
 import logger
-from common import require, YtError, YtOperationFailedError, prefix
+from common import require, YtError, YtOperationFailedError, prefix, dump_to_json
 from http import make_request
 from tree_commands import get_attribute, exists, search, get
 from file_commands import download_file
@@ -143,13 +143,12 @@ def get_operation_result(operation):
     return get_attribute(operation_path, "result")
 
 def get_jobs_errors(operation, limit=None):
-    def format_error(error):
-        return json.dumps(error, indent=2)
-        #return "{0}\n{1}".format(
-        #            error["message"],
-        #            "\n".join("{0}: {1}".format(k, v)
-        #                for k, v in error.iteritems()
-        #                if k != "message"))
+    #def format_error(error):
+    #    return "{0}\n{1}".format(
+    #                error["message"],
+    #                "\n".join("{0}: {1}".format(k, v)
+    #                    for k, v in error.iteritems()
+    #                    if k != "message"))
 
     if limit is None: limit = config.ERRORS_TO_PRINT_LIMIT
     jobs_path = os.path.join(OPERATIONS_PATH, operation, "jobs")
@@ -157,7 +156,7 @@ def get_jobs_errors(operation, limit=None):
         return ""
     jobs = get(jobs_path, attributes=["error"])
     errors = filter(None, [job.attributes.get("error") for job in jobs.values()])
-    return "\n\n".join(map(format_error, prefix(errors, limit)))
+    return "\n\n".join(map(dump_to_json, prefix(errors, limit)))
 
 
 """ Strategy represents actions for processing already ran operation."""

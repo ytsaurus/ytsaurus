@@ -1,5 +1,9 @@
 from yt.common import require, flatten, update, which, YtError
+import yt.yson as yson
+
 from functools import partial
+import simplejson as json
+
 
 EMPTY_GENERATOR = (i for i in [])
 
@@ -80,3 +84,6 @@ def get_value(value, default):
         return default
     else:
         return value
+
+def dump_to_json(obj):
+    return json.dumps(yson.simplify(obj), indent=2)
