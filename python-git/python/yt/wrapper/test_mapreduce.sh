@@ -231,7 +231,7 @@ test_smart_format()
     # write in yamr
     echo -e "1 2\t\tz=10" | ./mapreduce -write "ignat/smart_y"
     # convert to yamred_dsv
-    ./mapreduce -smartformat -map "cat" -src "ignat/smart_y" -dst "ignat/smart_x"
+    ./mapreduce -smartformat -map "cat" -src "ignat/smart_y" -src "fake" -dst "ignat/smart_x"
     check "1 2\tz=10" "`./mapreduce -smartformat -read "ignat/smart_x"`"
 }
 
@@ -306,6 +306,18 @@ test_dsv_reduce()
     ./mapreduce -dsv -reduce "cat" -reduceby "x" -src "ignat/empty_table" -dst "ignat/empty_table" 
 }
 
+test_slow_write()
+{
+    gen_data()
+    {
+        sleep $1
+        echo -e "a\tb"
+    }
+    ./mapreduce -drop "ignat/some_table"
+    gen_data 1 | ./mapreduce -write "ignat/some_table" -timeout 2000
+    check_failed 'gen_data 3 | ./mapreduce -write "ignat/some_table" -timeout 1000'
+}
+
 prepare_table_files
 test_sortby_reduceby
 test_base_functionality
@@ -324,5 +336,6 @@ test_drop
 test_create_table
 test_empty_destination
 test_dsv_reduce
+test_slow_write
 
 rm -f table_file big_file
