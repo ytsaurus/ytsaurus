@@ -130,8 +130,10 @@ def find_free_subpath(path):
     Searches free node started with path.
     Path can have form {dir}/{prefix}.
     """
-    if not path.endswith("/") and not exists(path):
-        return path
+    # Temporary comment it because of race condirtion while uploading file
+    # TODO(ignat): Uncomment it with apperance of proper locking
+    #if not path.endswith("/") and not exists(path):
+    #    return path
     LENGTH = 10
     char_set = string.ascii_lowercase + string.ascii_uppercase + string.digits
     while True:
