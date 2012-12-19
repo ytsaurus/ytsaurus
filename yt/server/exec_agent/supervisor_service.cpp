@@ -43,6 +43,7 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, GetJobSpec)
 
     auto job = Bootstrap->GetJobManager()->GetJob(jobId);
     *response->mutable_job_spec() = job->GetSpec();
+    *response->mutable_resource_limits() = job->GetResourceLimits();
 
     context->Reply();
 }

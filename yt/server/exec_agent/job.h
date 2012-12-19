@@ -51,6 +51,7 @@ public:
 
     const TJobId& GetId() const;
 
+    const NScheduler::NProto::TNodeResources& GetResourceLimits() const;
     const NScheduler::NProto::TJobSpec& GetSpec();
 
     NScheduler::EJobState GetState() const;
@@ -107,6 +108,7 @@ private:
     const NScheduler::NProto::TJobSpec JobSpec;
 
     TSpinLock ResourcesLock;
+    NScheduler::NProto::TNodeResources ResourceLimits;
     NScheduler::NProto::TNodeResources ResourceUsage;
 
     NLog::TTaggedLogger Logger;

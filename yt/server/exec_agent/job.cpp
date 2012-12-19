@@ -53,6 +53,7 @@ TJob::TJob(
     TBootstrap* bootstrap)
     : JobId(jobId)
     , JobSpec(jobSpec)
+    , ResourceLimits(resourceLimits)
     , ResourceUsage(resourceLimits)
     , Logger(ExecAgentLogger)
     , Bootstrap(bootstrap)
@@ -444,6 +445,11 @@ EJobState TJob::GetState() const
 EJobPhase TJob::GetPhase() const
 {
     return JobPhase;
+}
+
+const TNodeResources& TJob::GetResourceLimits() const
+{
+    return ResourceLimits;
 }
 
 TNodeResources TJob::GetResourceUsage() const
