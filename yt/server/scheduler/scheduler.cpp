@@ -161,7 +161,8 @@ public:
                 .SetRequestHeavy(true)
                 .SetResponseHeavy(true)
                 .SetResponseCodec(ECodec::Lz4)
-                .SetInvoker(Bootstrap->GetControlInvoker(EControlQueue::Heartbeat)));
+                .SetInvoker(Bootstrap->GetControlInvoker(EControlQueue::Heartbeat))
+                .SetMaxQueueSize(Config->MaxHeartbeatQueueSize));
 
         ProfilingInvoker = New<TPeriodicInvoker>(
             Bootstrap->GetControlInvoker(),
