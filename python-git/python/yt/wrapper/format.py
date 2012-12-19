@@ -39,20 +39,34 @@ class YsonFormat(Format):
                     {"format": self.format}}
 
 class YamrFormat(Format):
-    def __init__(self, has_subkey, lenval):
+    def __init__(self, has_subkey, lenval, field_separator=None, record_separator=None):
+        self.field_separator = get_value(field_separator, '\t')
+        self.record_separator = get_value(record_separator, '\n')
         self.has_subkey = has_subkey
         self.lenval = lenval
 
-    def _mime_type(self):
-        return "application/x-yamr%s-%s" % \
-            ("-subkey" if self.has_subkey else "",
-             "lenval" if self.lenval else "delimited")
+    #def _mime_type(self):
+    #    return "application/x-yamr%s-%s" % \
+    #        ("-subkey" if self.has_subkey else "",
+    #         "lenval" if self.lenval else "delimited")
+
+    def to_input_http_header(self):
+        return {"X-YT-Input-Format": self.to_str()}
+
+    def to_output_http_header(self):
+        return {"X-YT-Output-Format": self.to_str()}
 
     def to_json(self):
         return {"$value": "yamr",
-                "$attributes":
-                    {"has_subkey": bool_to_string(self.has_subkey),
-                     "lenval": bool_to_string(self.lenval)}}
+                "$attributes": {
+                    "has_subkey": bool_to_string(self.has_subkey),
+                    "lenval": bool_to_string(self.lenval),
+                    "fs": self.field_separator,
+                    "rs": self.record_separator}
+               }
+
+    def to_str(self):
+        return json.dumps(self.to_json())
 
 class JsonFormat(Format):
     def _mime_type(self):
