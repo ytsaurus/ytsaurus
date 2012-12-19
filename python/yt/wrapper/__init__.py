@@ -1,6 +1,6 @@
 from common import YtError, YtOperationFailedError, YtResponseError 
 from record import Record, record_to_line, line_to_record
-from format import DsvFormat, YamrFormat, YsonFormat, RawFormat
+from format import DsvFormat, YamrFormat, YsonFormat, RawFormat, JsonFormat
 from table import TablePath, to_table, to_name
 from tree_commands import set, get, list, exists, remove, search, mkdir, copy, move, get_type, \
                           has_attribute, get_attribute, set_attribute, list_attributes

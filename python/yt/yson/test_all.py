@@ -117,7 +117,7 @@ class TestYsonParser(unittest.TestCase):
         self.assertFalse(p.has_next())
 
     def test_convert(self):
-        x = yson_types.convert_to_yson_type_from_tree({
+        x = yson_types.convert_to_yson_tree({
             "$value": {
                 "x": {
                     "$value": 10,
@@ -136,7 +136,7 @@ class TestYsonParser(unittest.TestCase):
         self.assertEqual(x, {"x": 10, "y": 11})
         self.assertEqual(x.attributes, "abc")
 
-        self.assertEqual(yson_types.convert_to_yson_type_from_tree("abc"), "abc")
+        self.assertEqual(yson_types.convert_to_yson_tree("abc"), "abc")
                 
 
 if __name__ == "__main__":
