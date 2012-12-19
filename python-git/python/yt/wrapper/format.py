@@ -73,9 +73,9 @@ class RawFormat(Format):
         return format
 
     @staticmethod
-    def from_tree(tree):
+    def from_tree(json_tree):
         format = RawFormat()
-        format._format = yson_types.convert_to_yson_type_from_tree(tree)
+        format._format = yson_types.convert_to_yson_tree(json_tree)
         return format
 
     def to_input_http_header(self):
