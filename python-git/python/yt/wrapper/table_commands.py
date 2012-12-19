@@ -396,7 +396,8 @@ def sort_table(source_table, destination_table=None, sort_by=None,
         return update(
             {"partition_job_count": _calc_job_count(source_table, max_data=config.MAX_SIZE_PER_JOB),
              "partition_count": _calc_job_count(source_table, max_data=config.MAX_SIZE_PER_JOB/2),
-             "min_data_size_per_sort_job": config.MIN_SIZE_PER_JOB},
+             "min_data_size_per_partition_job": config.MIN_SIZE_PER_JOB,
+             "min_data_size_per_sort_job": 2 * config.MIN_SIZE_PER_JOB},
             spec)
 
     sort_by = _prepare_sort_by(sort_by)
@@ -455,7 +456,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                 {"map_job_count": map_job_count,
                  "partition_count": max(1, map_job_count / 2),
                  "min_data_size_per_map_job": config.MIN_SIZE_PER_JOB,
-                 "min_data_size_per_partition_job": 2 * config.MIN_SIZE_PER_JOB},
+                 "min_data_size_per_sort_job": 2 * config.MIN_SIZE_PER_JOB},
                 spec)
         return spec
 
