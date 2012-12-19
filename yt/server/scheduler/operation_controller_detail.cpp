@@ -166,6 +166,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(ISchedulingContext* context
         jobType,
         resourceLimits,
         jobSpecBuilder);
+    joblet->Job = job;
 
     LOG_DEBUG("Job scheduled (JobId: %s, OperationId: %s, JobType: %s, Address: %s, Task: %s, JobIndex: %d, ChunkCount: %d (%d local), DataSize: %" PRId64 ", RowCount: %" PRId64 ", ResourceLimilts: {%s})",
         ~ToString(job->GetId()),
@@ -191,7 +192,6 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(ISchedulingContext* context
     PrepareJoblet(joblet);
     Controller->CustomizeJoblet(joblet);
 
-    joblet->Job = job;
     Controller->RegisterJoblet(joblet);
 
     OnJobStarted(joblet);
