@@ -19,8 +19,7 @@ def _make_transactioned_request(command_name, params, **kwargs):
 
 def start_transaction(parent_transaction=None, ping_ansector_transactions=None, timeout=None):
     params = transaction_params(parent_transaction, ping_ansector_transactions)
-    if timeout is not None:
-        params["timeout"] = timeout
+    params["timeout"] = get_value(timeout, config.TRANSACTION_TIMEOUT)
     return make_request("start_tx", params)
 
 def abort_transaction(transaction, ping_ansector_transactions=None):
@@ -53,8 +52,13 @@ class Transaction(object):
     """
     stack = []
 
+    initial_transaction = "0-0-0-0"
+    initial_ping_ansector_transactions = False
+
     def __init__(self, timeout=None):
-        timeout = get_value(timeout, config.TRANSACTION_TIMEOUT)
+        if not Transaction.stack:
+            Transaction.initial_transaction = config.TRANSACTION
+            Transaction.initial_ping_ansector_transactions = config.PING_ANSECTOR_TRANSACTIONS
         Transaction.stack.append(start_transaction(timeout=timeout))
         self._update_global_config()
 
@@ -81,5 +85,5 @@ class Transaction(object):
             config.TRANSACTION = Transaction.stack[-1]
             config.PING_ANSECTOR_TRANSACTIONS = True
         else:
-            config.TRANSACTION = "0-0-0-0"
-            config.PING_ANSECTOR_TRANSACTIONS = False
+            config.TRANSACTION = Transaction.initial_transaction
+            config.PING_ANSECTOR_TRANSACTIONS = Transaction.initial_ping_ansector_transactions
