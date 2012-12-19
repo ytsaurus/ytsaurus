@@ -106,12 +106,12 @@ function ask(method, path, additional_options, done, callback) {
 
 describe("host discovery", function() {
     before(function() {
-        this.server = spawnServer([]);
+        // this.server = spawnServer([]);
     });
 
     after(function() {
-        this.server.close();
-        this.server = null;
+        // this.server.close();
+        // this.server = null;
     });
 
     it("should produce randomized result");
