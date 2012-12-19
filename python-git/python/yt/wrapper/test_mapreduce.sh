@@ -64,7 +64,7 @@ test_base_functionality()
 test_codec()
 {
     ./mapreduce -write "ignat/temp" -codec "none" <table_file
-    
+
     # We cannot write to existing table with replication factor
     ./mapreduce -drop "ignat/temp"
     ./mapreduce -write "ignat/temp" -codec "gzip_best_compression" -replicationfactor 5 <table_file
@@ -226,6 +226,7 @@ test_smart_format()
     # test columns
     ranged_table='ignat/smart_x{x,z}'
     check "tskv\tz=10\tx=1" "`./mapreduce -read ${ranged_table}`"
+    check "z=10\tx=1" "`./mapreduce -read ${ranged_table} -dsv`"
 
     unset SMART_FORMAT
     # write in yamr
@@ -273,7 +274,7 @@ if __name__ == '__main__':
         print 'c3=%s	c2=%d' % (key, num)
     " >my_reducer.py
     chmod +x my_reducer.py
-    
+
     echo -e "#!/usr/bin/env python
 import sys
 
@@ -303,7 +304,7 @@ test_empty_destination()
 test_dsv_reduce()
 {
     echo -e "x=10\nx=0" | ./mapreduce -dsv -write "ignat/empty_table"
-    ./mapreduce -dsv -reduce "cat" -reduceby "x" -src "ignat/empty_table" -dst "ignat/empty_table" 
+    ./mapreduce -dsv -reduce "cat" -reduceby "x" -src "ignat/empty_table" -dst "ignat/empty_table"
 }
 
 test_slow_write()
@@ -327,8 +328,35 @@ test_dstsorted()
     check '"true"' "`./mapreduce -get ignat/some_table/@sorted`"
 }
 
+test_custom_fs_rs()
+{
+    echo -e "x y z" | ./mapreduce -fs " " -write ignat/some_table
+    check "`echo -e "x\ty z"`" "`./mapreduce -read ignat/some_table`"
+}
+
+test_write_with_tx()
+{
+    gen_data()
+    {
+        sleep $1
+        echo -e "a\tb"
+    }
+    ./mapreduce -drop "ignat/some_table"
+
+    TX=`./mapreduce -starttx`
+    gen_data 2 | ./mapreduce -write "ignat/some_table" -tx $TX &
+
+    sleep 1
+    check "0" "`./mapreduce -read "ignat/some_table" | wc -l`"
+
+    sleep 2
+    check "0" "`./mapreduce -read "ignat/some_table" | wc -l`"
+
+    ./mapreduce -committx $TX
+    check "1" "`./mapreduce -read "ignat/some_table" | wc -l`"
+}
+
 prepare_table_files
-test_dstsorted
 test_sortby_reduceby
 test_base_functionality
 test_codec
@@ -347,5 +375,8 @@ test_create_table
 test_empty_destination
 test_dsv_reduce
 test_slow_write
+test_dstsorted
+test_custom_fs_rs
+test_write_with_tx
 
 rm -f table_file big_file

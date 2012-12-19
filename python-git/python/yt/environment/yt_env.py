@@ -360,7 +360,7 @@ class YTEnv(unittest.TestCase):
             except:
                 return False
 
-        self._wait_for(started)
+        self._wait_for(started, name="proxy")
 
     def _wait_for(self, condition, max_wait_time=20, sleep_quantum=0.5, name=""):
         current_wait_time = 0

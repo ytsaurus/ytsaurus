@@ -176,7 +176,7 @@ Examples:
                                           "smartformat", "force", "executable"])
     add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec",
                                             "format", "inputformat", "outputformat", "tx", "value",
-                                            "replicationfactor", "memlimit", "timeout", "title"])
+                                            "replicationfactor", "memlimit", "timeout", "title", "fs", "rs"])
     add_multiple_args(parser, ["src", "dst", "dstappend", "dstsorted", "file", "mapfile", "reducefile", "ytfile", "opt", "ytspec", "sortby", "reduceby"])
     add_integer_args(parser, ["jobcount", "threadcount", "chunksize", "jcmultiplier"])
 
@@ -221,6 +221,8 @@ Examples:
              "file for both map and reduce operations"),
             ("force",
              "force removing object of any type"),
+            ("fs",
+             "field separator for yamr format"),
             ("get",
              "NEW! returns subtree at given path in json format"),
             ("inputformat",
@@ -270,6 +272,8 @@ Examples:
              "NEW! renew given transaction"),
             ("replicationfactor",
              "NEW! specifies replication factor of tables to write"),
+            ("rs",
+             "record separator for yamr format"),
             ("server",
              "address of the proxy "
              "(port usually equals to 80 and can be omitted)"),
@@ -385,11 +389,15 @@ Examples:
     map_files = to_list(args.file) + to_list(args.mapfile)
     reduce_files = to_list(args.file) + to_list(args.reducefile)
 
-    config.DEFAULT_FORMAT = config.YamrFormat(lenval=args.lenval, has_subkey=args.subkey)
+    config.DEFAULT_FORMAT = config.YamrFormat(lenval=args.lenval,
+                                              has_subkey=args.subkey,
+                                              field_separator=args.fs,
+                                              record_separator=args.rs)
     if args.dsv:
         if args.lenval or args.subkey:
             die("Options subkey and lenval are mutually exclusive with dsv option")
-        config.DEFAULT_FORMAT = yt.DsvFormat()
+        args.dsv = yt.DsvFormat()
+        #config.DEFAULT_FORMAT = yt.DsvFormat()
         # Try it if occur problem with reduce_by and sort_by
         #config.USE_YAMR_SORT_REDUCE_COLUMNS = False
 
@@ -398,14 +406,16 @@ Examples:
             vars(args)[option] = yt.RawFormat.from_yson_string(vars(args)[option])
 
     inputformat = first_not_none(
-        [get_smart_format([args.src, args.read], args.smartformat, args.subkey),
-         args.format,
+        [args.format,
          args.inputformat,
+         args.dsv,
+         get_smart_format([args.src, args.read], args.smartformat, args.subkey),
          config.DEFAULT_FORMAT])
     outputformat = first_not_none(
-        [get_smart_format([dst, args.write], args.smartformat, args.subkey),
-         args.format,
+        [args.format,
          args.outputformat,
+         args.dsv,
+         get_smart_format([dst, args.write], args.smartformat, args.subkey),
          config.DEFAULT_FORMAT])
 
     if args.tx is not None:
