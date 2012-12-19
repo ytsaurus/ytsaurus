@@ -256,12 +256,16 @@ protected:
             return 1;
         }
 
+        virtual EJobType GetJobType() const override
+        {
+            return EJobType(Controller->PartitionJobSpecTemplate.type());
+        }
+
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->PartitionJobSpecTemplate);
-            AddSequentialInputSpec(jobSpec, joblet, Controller->EnableTableIndex());
+            AddSequentialInputSpec(jobSpec, joblet, Controller->IsTableIndexEnabled());
             AddIntermediateOutputSpec(jobSpec, joblet);
-            Controller->CustomizeJobSpec(joblet, jobSpec);
         }
 
         virtual void OnJobStarted(TJobletPtr joblet) override
@@ -433,6 +437,14 @@ protected:
                 : Controller->OutputTables.size();
         }
 
+        virtual EJobType GetJobType() const override
+        {
+            return EJobType(
+                Controller->IsSortedMergeNeeded(Partition)
+                ? Controller->IntermediateSortJobSpecTemplate.type()
+                : Controller->FinalSortJobSpecTemplate.type());
+        }
+
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             if (Controller->IsSortedMergeNeeded(Partition)) {
@@ -443,8 +455,7 @@ protected:
                 AddFinalOutputSpecs(jobSpec, joblet);
             }
 
-            AddSequentialInputSpec(jobSpec, joblet, Controller->EnableTableIndex());
-            Controller->CustomizeJobSpec(joblet, jobSpec);
+            AddSequentialInputSpec(jobSpec, joblet, Controller->IsTableIndexEnabled());
         }
 
         virtual void OnJobStarted(TJobletPtr joblet) override
@@ -679,12 +690,16 @@ protected:
             return Controller->OutputTables.size();
         }
 
+        virtual EJobType GetJobType() const override
+        {
+            return EJobType(Controller->SortedMergeJobSpecTemplate.type());
+        }
+
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->SortedMergeJobSpecTemplate);
-            AddParallelInputSpec(jobSpec, joblet, Controller->EnableTableIndex());
+            AddParallelInputSpec(jobSpec, joblet, Controller->IsTableIndexEnabled());
             AddFinalOutputSpecs(jobSpec, joblet);
-            Controller->CustomizeJobSpec(joblet, jobSpec);
         }
 
         virtual void OnJobStarted(TJobletPtr joblet) override
@@ -780,12 +795,16 @@ protected:
             return 1;
         }
 
+        virtual EJobType GetJobType() const override
+        {
+            return EJobType(Controller->UnorderedMergeJobSpecTemplate.type());
+        }
+
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->UnorderedMergeJobSpecTemplate);
-            AddSequentialInputSpec(jobSpec, joblet, Controller->EnableTableIndex());
+            AddSequentialInputSpec(jobSpec, joblet, Controller->IsTableIndexEnabled());
             AddFinalOutputSpecs(jobSpec, joblet);
-            Controller->CustomizeJobSpec(joblet, jobSpec);
 
             if (!Controller->SimpleSort) {
                 auto* inputSpec = jobSpec->mutable_input_specs(0);
@@ -857,8 +876,7 @@ protected:
         TOperationControllerBase::OnOperationCompleted();
     }
 
-
-    void OnNodeOffline(TExecNodePtr node) override
+    virtual void OnNodeOffline(TExecNodePtr node) override
     {
         if (SortStartThresholdReached) {
             std::vector<TPartitionPtr> affectedPartitions;
@@ -1043,10 +1061,7 @@ protected:
         }
     }
 
-    virtual void CustomizeJobSpec(TJobletPtr joblet, NProto::TJobSpec* jobSpec)
-    { }
-
-    virtual bool EnableTableIndex() const
+    virtual bool IsTableIndexEnabled() const
     {
         return false;
     }
@@ -1883,13 +1898,29 @@ private:
         }
     }
 
+    virtual void CustomizeJoblet(TJobletPtr joblet) override
+    {
+        switch (joblet->Job->GetType()) {
+            case EJobType::PartitionMap:
+                joblet->StartRowIndex = MapStartRowIndex;
+                MapStartRowIndex += joblet->InputStripeList->TotalRowCount;
+                break;
+
+            case EJobType::PartitionReduce:
+            case EJobType::SortedReduce:
+                joblet->StartRowIndex = ReduceStartRowIndex;
+                ReduceStartRowIndex += joblet->InputStripeList->TotalRowCount;
+                break;
+
+            default:
+                break;
+        }
+    }
+
     virtual void CustomizeJobSpec(TJobletPtr joblet, NProto::TJobSpec* jobSpec) override
     {
         switch (jobSpec->type()) {
             case EJobType::PartitionMap: {
-                joblet->StartRowIndex = MapStartRowIndex;
-                MapStartRowIndex += joblet->InputStripeList->TotalRowCount;
-
                 auto* jobSpecExt = jobSpec->MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
                 AddUserJobEnvironment(jobSpecExt->mutable_mapper_spec(), joblet);
                 break;
@@ -1897,21 +1928,17 @@ private:
 
             case EJobType::PartitionReduce:
             case EJobType::SortedReduce: {
-                joblet->StartRowIndex = ReduceStartRowIndex;
-                ReduceStartRowIndex += joblet->InputStripeList->TotalRowCount;
-
                 auto* jobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
                 AddUserJobEnvironment(jobSpecExt->mutable_reducer_spec(), joblet);
                 break;
             }
 
             default:
-                // For other jobs do nothing.
                 break;
         }
     }
 
-    virtual bool EnableTableIndex() const override
+    virtual bool IsTableIndexEnabled() const override
     {
         return Spec->EnableTableIndex;
     }
@@ -2009,7 +2036,7 @@ private:
         YUNREACHABLE();
     }
 
-    virtual bool SupportsSortedOutput() const override
+    virtual bool IsSortedOutputSupported() const override
     {
         return true;
     }

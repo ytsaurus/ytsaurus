@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "job.h"
 
 #include <ytlib/misc/error.h>
 
@@ -92,8 +93,11 @@ struct ISchedulingContext
 
     virtual const std::vector<TJobPtr>& RunningJobs() const = 0;
 
-    virtual TJobPtr BeginStartJob(TOperationPtr operation) = 0;
-    virtual void EndStartJob(TJobPtr job) = 0;
+    virtual TJobPtr StartJob(
+        TOperationPtr operation,
+        EJobType type,
+        const NProto::TNodeResources& resourceLimits,
+        TJobSpecBuilder specBuilder) = 0;
 
     virtual void PreemptJob(TJobPtr job) = 0;
 };

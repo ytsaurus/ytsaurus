@@ -13,6 +13,7 @@ message TReqGetJobSpec
 message TRspGetJobSpec
 {
     required NScheduler.NProto.TJobSpec job_spec = 1;
+    required NScheduler.NProto.TNodeResources resource_limits = 2;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -41,7 +42,7 @@ message TReqOnJobProgress
 message TReqOnResourcesReleased
 {
     required NYT.NProto.TGuid job_id = 1;
-    required NScheduler.NProto.TNodeResources utilization = 2;
+    required NScheduler.NProto.TNodeResources resource_usage = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

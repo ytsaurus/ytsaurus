@@ -43,7 +43,7 @@ void BuildJobAttributes(TJobPtr job, NYson::IYsonConsumer* consumer)
 void BuildExecNodeAttributes(TExecNodePtr node, NYson::IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
-        .Item("resource_utilization").Scalar(node->ResourceUtilization())
+        .Item("resource_usage").Scalar(node->ResourceUsage())
         .Item("resource_limits").Scalar(node->ResourceLimits());
 }
 

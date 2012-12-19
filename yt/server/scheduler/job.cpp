@@ -12,16 +12,20 @@ namespace NScheduler {
 
 TJob::TJob(
     const TJobId& id,
+    EJobType type,
     TOperationPtr operation,
     TExecNodePtr node,
-    TInstant startTime)
+    TInstant startTime,
+    const NProto::TNodeResources& resourceUsage,
+    TJobSpecBuilder specBuilder)
     : Id_(id)
+    , Type_(type)
     , Operation_(~operation)
     , Node_(node)
     , StartTime_(startTime)
     , State_(EJobState::Waiting)
-    , Spec_(NULL)
-    , ResourceUtilization_(ZeroNodeResources())
+    , ResourceUsage_(resourceUsage)
+    , SpecBuilder_(MoveRV(specBuilder))
 { }
 
 ////////////////////////////////////////////////////////////////////

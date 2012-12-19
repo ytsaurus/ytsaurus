@@ -19,6 +19,9 @@
 
 #include <ytlib/actions/action_queue.h>
 #include <ytlib/actions/async_pipeline.h>
+#include <ytlib/actions/parallel_awaiter.h>
+
+#include <ytlib/rpc/dispatcher.h>
 
 #include <ytlib/logging/tagged_logger.h>
 
@@ -77,46 +80,38 @@ class TScheduler::TSchedulingContext
 public:
     TSchedulingContext(
         TExecNodePtr node,
-        const std::vector<TJobPtr>& runningJobs,
-        NProto::TRspHeartbeat* response)
+        const std::vector<TJobPtr>& runningJobs)
         : Node_(node)
         , RunningJobs_(runningJobs)
-        , Response(response)
     { }
 
-
-    virtual TJobPtr BeginStartJob(TOperationPtr operation) override
+    virtual TJobPtr StartJob(
+        TOperationPtr operation,
+        EJobType type,
+        const NProto::TNodeResources& resourceLimits,
+        TJobSpecBuilder specBuilder) override
     {
-        auto id = TJobId::Create();
         auto job = New<TJob>(
-            id,
+            TJobId::Create(),
+            type,
             operation,
             Node_,
-            TInstant::Now());
+            TInstant::Now(),
+            resourceLimits,
+            specBuilder);
 
-        auto* jobInfo = Response->add_jobs_to_start();
-        *jobInfo->mutable_job_id() = id.ToProto();
-
-        job->SetSpec(jobInfo->mutable_spec());
-
+        Node_->ResourceUsage() += resourceLimits;
         YCHECK(StartedJobs_.insert(job).second);
 
         return job;
     }
-
-    virtual void EndStartJob(TJobPtr job) override
-    {
-        job->ResourceUtilization() = job->GetSpec()->resource_utilization();
-        job->GetNode()->ResourceUtilization() += job->ResourceUtilization();
-    }
-
 
     virtual void PreemptJob(TJobPtr job) override
     {
         YCHECK(StartedJobs_.find(job) == StartedJobs_.end());
         YCHECK(job->GetNode() == Node_);
         YCHECK(PreemptedJobs_.insert(job).second);
-        job->GetNode()->ResourceUtilization() -= job->ResourceUtilization();
+        job->GetNode()->ResourceUsage() -= job->ResourceUsage();
     }
 
 private:
@@ -144,10 +139,10 @@ public:
         , BackgroundQueue(New<TActionQueue>("Background"))
         , MasterConnector(new TMasterConnector(Config, Bootstrap))
         , TotalResourceLimitsProfiler(Profiler.GetPathPrefix() + "/total_resource_limits")
-        , TotalResourceUtilizationProfiler(Profiler.GetPathPrefix() + "/total_resource_utilization")
+        , TotalResourceUsageProfiler(Profiler.GetPathPrefix() + "/total_resource_usage")
         , JobTypeCounters(EJobType::GetDomainSize())
         , TotalResourceLimits(ZeroNodeResources())
-        , TotalResourceUtilization(ZeroNodeResources())
+        , TotalResourceUsage(ZeroNodeResources())
     {
         YCHECK(config);
         YCHECK(bootstrap);
@@ -318,12 +313,12 @@ private:
     TJobMap Jobs;
 
     NProfiling::TProfiler TotalResourceLimitsProfiler;
-    NProfiling::TProfiler TotalResourceUtilizationProfiler;
+    NProfiling::TProfiler TotalResourceUsageProfiler;
     std::vector<int> JobTypeCounters;
     TPeriodicInvokerPtr ProfilingInvoker;
 
     NProto::TNodeResources TotalResourceLimits;
-    NProto::TNodeResources TotalResourceUtilization;
+    NProto::TNodeResources TotalResourceUsage;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -341,7 +336,7 @@ private:
         Profiler.Enqueue("/node_count", Nodes.size());
 
         ProfileResources(TotalResourceLimitsProfiler, TotalResourceLimits);
-        ProfileResources(TotalResourceUtilizationProfiler, TotalResourceUtilization);
+        ProfileResources(TotalResourceUsageProfiler, TotalResourceUsage);
     }
 
 
@@ -455,7 +450,7 @@ private:
         RegisterNode(node);
 
         TotalResourceLimits += node->ResourceLimits();
-        TotalResourceUtilization += node->ResourceUtilization();
+        TotalResourceUsage += node->ResourceUsage();
     }
 
     void OnNodeOffline(const Stroka& address)
@@ -470,7 +465,7 @@ private:
         UnregisterNode(node);
 
         TotalResourceLimits -= node->ResourceLimits();
-        TotalResourceUtilization -= node->ResourceUtilization();
+        TotalResourceUsage -= node->ResourceUsage();
     }
 
 
@@ -1080,7 +1075,7 @@ private:
             .BeginMap()
                 .Item("cell").BeginMap()
                     .Item("resource_limits").Scalar(TotalResourceLimits)
-                    .Item("resource_utilization").Scalar(TotalResourceUtilization)
+                    .Item("resource_usage").Scalar(TotalResourceUsage)
                 .EndMap()
                 .Item("operations").DoMapFor(Operations, [=] (TFluentMap fluent, TOperationMap::value_type pair) {
                     BuildOperationYson(pair.second, fluent);
@@ -1227,12 +1222,12 @@ private:
     {
         const auto& address = request->address();
         const auto& resourceLimits = request->resource_limits();
-        const auto& resourceUtilization = request->resource_utilization();
+        const auto& resourceUsage = request->resource_usage();
 
-        context->SetRequestInfo("Address: %s, JobCount: %d, Utilization: {%s}",
+        context->SetRequestInfo("Address: %s, JobCount: %d, ResourceUsage: {%s}",
             ~address,
             request->jobs_size(),
-            ~FormatResourceUtilization(resourceUtilization, resourceLimits));
+            ~FormatResourceUsage(resourceUsage, resourceLimits));
 
         ValidateConnected();
 
@@ -1243,10 +1238,10 @@ private:
         }
 
         TotalResourceLimits -= node->ResourceLimits();
-        TotalResourceUtilization -= node->ResourceUtilization();
+        TotalResourceUsage -= node->ResourceUsage();
 
         node->ResourceLimits() = resourceLimits;
-        node->ResourceUtilization() = resourceUtilization;
+        node->ResourceUsage() = resourceUsage;
 
         std::vector<TJobPtr> runningJobs;
         bool hasWaitingJobs = false;
@@ -1284,42 +1279,55 @@ private:
             }
         }
 
+        TSchedulingContext schedulingContext(node, runningJobs);
+        
         if (hasWaitingJobs) {
             LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
         } else {
             LOG_DEBUG("Scheduling new jobs");
-            TSchedulingContext schedulingContext(node, runningJobs, response);
             PROFILE_TIMING ("/schedule_time") {
                 Strategy->ScheduleJobs(&schedulingContext);
-            }
-
-            FOREACH (auto job, schedulingContext.StartedJobs()) {
-                const auto& jobId = job->GetId();
-                job->SetType(EJobType(job->GetSpec()->type()));
-                LOG_INFO("Starting job (Address: %s, JobType: %s, JobId: %s, Utilization: {%s}, OperationId: %s)",
-                    ~job->GetNode()->GetAddress(),
-                    ~job->GetType().ToString(),
-                    ~ToString(jobId),
-                    ~FormatResources(job->GetSpec()->resource_utilization()),
-                    ~job->GetOperation()->GetOperationId().ToString());
-                RegisterJob(job);
-                job->SetSpec(NULL);
-            }
-
-            FOREACH (auto job, schedulingContext.PreemptedJobs()) {
-                const auto& jobId = job->GetId();
-                LOG_DEBUG("Job preempted (JobId: %s, OperationId: %s)",
-                    ~job->GetId().ToString(),
-                    ~job->GetOperation()->GetOperationId().ToString());
-                *response->add_jobs_to_abort() = jobId.ToProto();
-                AbortJob(job, TError("Job preempted"));
             }
         }
 
         TotalResourceLimits += node->ResourceLimits();
-        TotalResourceUtilization += node->ResourceUtilization();
+        TotalResourceUsage += node->ResourceUsage();
 
-        context->Reply();
+        FOREACH (auto job, schedulingContext.PreemptedJobs()) {
+            const auto& jobId = job->GetId();
+            LOG_DEBUG("Job preempted (JobId: %s, OperationId: %s)",
+                ~job->GetId().ToString(),
+                ~job->GetOperation()->GetOperationId().ToString());
+            *response->add_jobs_to_abort() = jobId.ToProto();
+            AbortJob(job, TError("Job preempted"));
+        }
+
+        auto awaiter = New<TParallelAwaiter>();
+        auto specBuilderInvoker = NRpc::TDispatcher::Get()->GetPoolInvoker();
+
+        FOREACH (auto job, schedulingContext.StartedJobs()) {
+            RegisterJob(job);
+
+            auto jobId = job->GetId();
+            auto operationId = job->GetOperation()->GetOperationId();
+
+            auto* startInfo = response->add_jobs_to_start();
+            *startInfo->mutable_job_id() = jobId.ToProto();
+            *startInfo->mutable_resource_limits() = job->ResourceUsage();
+
+            // Build spec asynchronously.
+            awaiter->Await(
+                BIND(job->GetSpecBuilder(), startInfo->mutable_spec())
+                    .AsyncVia(specBuilderInvoker)
+                    .Run());
+
+            // Release to avoid circular references.
+            job->SetSpecBuilder(TJobSpecBuilder());
+        }
+
+        awaiter->Complete(BIND([=] () {
+            context->Reply();
+        }));
     }
 
     TJobPtr ProcessJobHeartbeat(

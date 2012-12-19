@@ -688,7 +688,7 @@ public:
 
             auto element = GetOperationElement(operation);
             discountedElements.insert(element);
-            element->UtilizationDiscount() += job->ResourceUtilization();
+            element->UtilizationDiscount() += job->ResourceUsage();
 
             double utilizationRatio = element->GetUtilizationRatio();
             if (utilizationRatio > Config->MinPreemptionRatio &&
@@ -696,7 +696,7 @@ public:
                 utilizationRatio > element->Attributes().AdjustedMinShareRatio)
             {
                 preemptableJobs.push_back(job);
-                node->ResourceUtilizationDiscount() += job->ResourceUtilization();
+                node->ResourceUsageDiscount() += job->ResourceUsage();
             }
         }
 
@@ -704,7 +704,7 @@ public:
         bool needsPreemption = RootElement->ScheduleJobs(context, true);
 
         // Reset discounts.
-        node->ResourceUtilizationDiscount() = ZeroNodeResources();
+        node->ResourceUsageDiscount() = ZeroNodeResources();
         FOREACH (auto element, discountedElements) {
             element->UtilizationDiscount() = ZeroNodeResources();
         }
@@ -719,7 +719,7 @@ public:
                 });
 
             FOREACH (auto job, preemptableJobs) {
-                if (Dominates(node->ResourceLimits(), node->ResourceUtilization())) {
+                if (Dominates(node->ResourceLimits(), node->ResourceUsage())) {
                     break;
                 }
                 context->PreemptJob(job);
@@ -1013,7 +1013,7 @@ private:
         BuildYsonMapFluently(consumer)
             .Item("scheduling_rank").Scalar(attributes.Rank)
             .Item("resource_demand").Scalar(element->GetDemand())
-            .Item("resource_utilization").Scalar(element->GetUtilization())
+            .Item("resource_usage").Scalar(element->GetUtilization())
             .Item("dominant_resource").Scalar(attributes.DominantResource)
             .Item("weight").Scalar(element->GetWeight())
             .Item("min_share_ratio").Scalar(element->GetMinShareRatio())

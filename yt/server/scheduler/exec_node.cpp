@@ -13,14 +13,14 @@ namespace NScheduler {
 TExecNode::TExecNode(const Stroka& address)
     : Address_(address)
     , ResourceLimits_(ZeroNodeResources())
-    , ResourceUtilization_(ZeroNodeResources())
+    , ResourceUsage_(ZeroNodeResources())
 { }
 
 bool TExecNode::HasEnoughResources(const NProto::TNodeResources& neededResources) const
 {
     return Dominates(
-        ResourceLimits_ + ResourceUtilizationDiscount_,
-        ResourceUtilization_ + neededResources);
+        ResourceLimits_ + ResourceUsageDiscount_,
+        ResourceUsage_ + neededResources);
 }
 
 bool TExecNode::HasSpareResources() const

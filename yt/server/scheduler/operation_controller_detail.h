@@ -227,7 +227,20 @@ protected:
         TJobPtr Job;
         TChunkStripeListPtr InputStripeList;
         IChunkPoolOutput::TCookie OutputCookie;
+
+        //! All chunk lists allocated for this job.
+        /*!
+         *  For jobs with intermediate output this list typically contains one element.
+         *  For jobs with final output this list typically contains one element per each output table.
+         */
         std::vector<NChunkClient::TChunkListId> ChunkListIds;
+
+        //! Chunk lists allocated but still not used.
+        /*!
+         *  Chunk lists are obtained from the controller and are initially put into both #ChunkListIds
+         *  and #PooledChunkListIds. Afterwards they are extracted with |pop_back| from the latter.
+         */
+        std::vector<NChunkClient::TChunkListId> PooledChunkListIds;
     };
 
     yhash_map<TJobPtr, TJobletPtr> JobsInProgress;
@@ -294,9 +307,9 @@ protected:
         virtual IChunkPoolInput* GetChunkPoolInput() const = 0;
         virtual IChunkPoolOutput* GetChunkPoolOutput() const = 0;
 
-        virtual void BuildJobSpec(
-            TJobletPtr joblet,
-            NProto::TJobSpec* jobSpec) = 0;
+        virtual EJobType GetJobType() const = 0;
+        virtual void PrepareJoblet(TJobletPtr joblet);
+        virtual void BuildJobSpec(TJobletPtr joblet, NProto::TJobSpec* jobSpec) = 0;
 
         virtual void OnJobStarted(TJobletPtr joblet);
 
@@ -329,6 +342,9 @@ protected:
             TJobletPtr joblet);
     };
 
+    virtual void CustomizeJoblet(TJobletPtr joblet);
+    virtual void CustomizeJobSpec(TJobletPtr joblet, NProto::TJobSpec* jobSpec);
+    
     struct TPendingTaskInfo
     {
         yhash_set<TTaskPtr> GlobalTasks;
@@ -475,7 +491,7 @@ protected:
     // Unsorted helpers.
 
     // Enables sorted output from user jobs.
-    virtual bool SupportsSortedOutput() const;
+    virtual bool IsSortedOutputSupported() const;
 
     std::vector<Stroka> CheckInputTablesSorted(
         const TNullable< std::vector<Stroka> >& keyColumns);

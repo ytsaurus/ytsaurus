@@ -34,6 +34,7 @@ public:
     //! Starts a new job.
     void CreateJob(
         const TJobId& jobId,
+        const NScheduler::NProto::TNodeResources& resourceLimits,
         NScheduler::NProto::TJobSpec& jobSpec);
 
     //! Stops a job.
@@ -57,11 +58,11 @@ public:
     //! Returns a list of all currently known jobs.
     std::vector<TJobPtr> GetJobs();
 
-    //! Maximum allowed resource utilization.
+    //! Maximum allowed resource usage.
     NScheduler::NProto::TNodeResources GetResourceLimits();
 
-    //! Current resource utilization.
-    NScheduler::NProto::TNodeResources GetResourceUtilization();
+    //! Current resource usage.
+    NScheduler::NProto::TNodeResources GetResourceUsage();
 
 private:
     TJobManagerConfigPtr Config;

@@ -25,21 +25,21 @@ static const i64 LowWatermarkMemorySize = (i64) 512 * 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////
 
-Stroka FormatResourceUtilization(
-    const TNodeResources& utilization,
+Stroka FormatResourceUsage(
+    const TNodeResources& usage,
     const TNodeResources& limits)
 {
     return Sprintf("Slots: %d/%d, Cpu: %d/%d, Memory: %d/%d, Network: %d/%d",
         // Slots
-        utilization.slots(),
+        usage.slots(),
         limits.slots(),
         // Cpu
-        utilization.cpu(),
+        usage.cpu(),
         limits.cpu(),
         // Memory (in MB)
-        static_cast<int>(utilization.memory() / (1024 * 1024)),
+        static_cast<int>(usage.memory() / (1024 * 1024)),
         static_cast<int>(limits.memory() / (1024 * 1024)),
-        utilization.network(),
+        usage.network(),
         limits.network());
 }
 

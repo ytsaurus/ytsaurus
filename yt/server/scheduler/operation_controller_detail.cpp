@@ -125,11 +125,13 @@ void TOperationControllerBase::TTask::FinishInput()
 
 TJobPtr TOperationControllerBase::TTask::ScheduleJob(ISchedulingContext* context)
 {
-    if (!Controller->HasEnoughChunkLists(GetChunkListCountPerJob())) {
+    int chunkListCount = GetChunkListCountPerJob();
+    if (!Controller->HasEnoughChunkLists(chunkListCount)) {
         return NULL;
     }
 
-    auto joblet = New<TJoblet>(this, Controller->JobIndexGenerator.Next());
+    int jobIndex = Controller->JobIndexGenerator.Next();
+    auto joblet = New<TJoblet>(this, jobIndex);
 
     auto address = context->GetNode()->GetAddress();
     auto* chunkPoolOutput = GetChunkPoolOutput();
@@ -140,29 +142,56 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(ISchedulingContext* context
 
     joblet->InputStripeList = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
 
-    // Compute the actual utilization for this joblet and check it
+    // Compute the actual usage for this joblet and check it
     // against the the limits. This is the last chance to give up.
-    auto neededResources = GetNeededResources(joblet);
+    auto resourceLimits = GetNeededResources(joblet);
     auto node = context->GetNode();
-    if (!node->HasEnoughResources(neededResources)) {
+    if (!node->HasEnoughResources(resourceLimits)) {
         chunkPoolOutput->Failed(joblet->OutputCookie);
         return NULL;
     }
 
-    LOG_DEBUG("Job chunks extracted (TotalCount: %d, LocalCount: %d, DataSize: %" PRId64 ", RowCount: %" PRId64 ")",
+    auto jobType = GetJobType();
+
+    // Async part.
+    auto this_ = MakeStrong(this);
+    auto jobSpecBuilder = BIND([=] (TJobSpec* jobSpec) -> TVoid {
+        this_->BuildJobSpec(joblet, jobSpec);
+        this_->Controller->CustomizeJobSpec(joblet, jobSpec);
+        return TVoid();
+    });
+
+    auto job = context->StartJob(
+        Controller->Operation,
+        jobType,
+        resourceLimits,
+        jobSpecBuilder);
+
+    LOG_DEBUG("Job scheduled (JobId: %s, OperationId: %s, JobType: %s, Address: %s, Task: %s, JobIndex: %d, ChunkCount: %d (%d local), DataSize: %" PRId64 ", RowCount: %" PRId64 ", ResourceLimilts: {%s})",
+        ~ToString(job->GetId()),
+        ~ToString(Controller->Operation->GetOperationId()),
+        ~jobType.ToString(),
+        ~node->GetAddress(),
+        ~GetId(),
+        jobIndex,
         joblet->InputStripeList->TotalChunkCount,
         joblet->InputStripeList->LocalChunkCount,
         joblet->InputStripeList->TotalDataSize,
-        joblet->InputStripeList->TotalRowCount);
+        joblet->InputStripeList->TotalRowCount,
+        ~FormatResources(resourceLimits));
 
-    auto job = context->BeginStartJob(Controller->Operation);
+    // Prepare chunk lists.
+    for (int index = 0; index < chunkListCount; ++index) {
+        auto id = Controller->ExtractChunkList();
+        joblet->ChunkListIds.push_back(id);
+        joblet->PooledChunkListIds.push_back(id);
+    }
+
+    // Sync part.
+    PrepareJoblet(joblet);
+    Controller->CustomizeJoblet(joblet);
+
     joblet->Job = job;
-
-    auto* jobSpec = joblet->Job->GetSpec();
-    BuildJobSpec(joblet, jobSpec);
-    *jobSpec->mutable_resource_utilization() = neededResources;
-    context->EndStartJob(job);
-
     Controller->RegisterJoblet(joblet);
 
     OnJobStarted(joblet);
@@ -193,6 +222,11 @@ i64 TOperationControllerBase::TTask::GetCompletedDataSize() const
 i64 TOperationControllerBase::TTask::GetPendingDataSize() const
 {
     return GetChunkPoolOutput()->GetPendingDataSize();
+}
+
+void TOperationControllerBase::TTask::PrepareJoblet(TJobletPtr joblet)
+{
+    UNUSED(joblet);
 }
 
 void TOperationControllerBase::TTask::OnJobStarted(TJobletPtr joblet)
@@ -291,13 +325,16 @@ void TOperationControllerBase::TTask::AddFinalOutputSpecs(
 {
     FOREACH (const auto& table, Controller->OutputTables) {
         auto* outputSpec = jobSpec->add_output_specs();
+    
         outputSpec->set_channels(table.Channels.Data());
         outputSpec->set_replication_factor(table.ReplicationFactor);
         if (table.KeyColumns) {
             ToProto(outputSpec->mutable_key_columns(), *table.KeyColumns);
         }
-        auto chunkListId = Controller->ExtractChunkList();
-        joblet->ChunkListIds.push_back(chunkListId);
+
+        auto chunkListId = joblet->PooledChunkListIds.back();
+        joblet->PooledChunkListIds.pop_back();
+
         *outputSpec->mutable_chunk_list_id() = chunkListId.ToProto();
     }
 }
@@ -307,9 +344,12 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     TJobletPtr joblet)
 {
     auto* outputSpec = jobSpec->add_output_specs();
+
     outputSpec->set_channels("[]");
-    auto chunkListId = Controller->ExtractChunkList();
-    joblet->ChunkListIds.push_back(chunkListId);
+
+    auto chunkListId = joblet->PooledChunkListIds.back();
+    joblet->PooledChunkListIds.pop_back();
+
     *outputSpec->mutable_chunk_list_id() = chunkListId.ToProto();
 }
 
@@ -393,10 +433,8 @@ void TOperationControllerBase::Initialize()
 
         table.KeyColumns = path.Attributes().Find< std::vector<Stroka> >("sorted_by");
         if (table.KeyColumns) {
-            if (!SupportsSortedOutput()) {
-                THROW_ERROR_EXCEPTION(
-                    "Operation doesn't support sorted output (Path: %s)",
-                    ~ToString(path).Quote());
+            if (!IsSortedOutputSupported()) {
+                THROW_ERROR_EXCEPTION("Sorted outputs are not supported");
             } else {
                 table.Clear = true;
                 table.LockMode = ELockMode::Exclusive;
@@ -501,14 +539,14 @@ TFuture<void> TOperationControllerBase::Commit()
 
 void TOperationControllerBase::OnJobStarted(TJobPtr job)
 {
-    UsedResources += job->ResourceUtilization();
+    UsedResources += job->ResourceUsage();
 }
 
 void TOperationControllerBase::OnJobRunning(TJobPtr job, const NProto::TJobStatus& status)
 {
-    UsedResources -= job->ResourceUtilization();
-    job->ResourceUtilization() = status.resource_utilization();
-    UsedResources += job->ResourceUtilization();
+    UsedResources -= job->ResourceUsage();
+    job->ResourceUsage() = status.resource_usage();
+    UsedResources += job->ResourceUsage();
 }
 
 void TOperationControllerBase::OnJobCompleted(TJobPtr job)
@@ -517,7 +555,7 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
 
     JobCounter.Completed(1);
 
-    UsedResources -= job->ResourceUtilization();
+    UsedResources -= job->ResourceUsage();
 
     auto joblet = GetJoblet(job);
     joblet->Task->OnJobCompleted(joblet);
@@ -541,7 +579,7 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
 
     JobCounter.Failed(1);
 
-    UsedResources -= job->ResourceUtilization();
+    UsedResources -= job->ResourceUsage();
 
     auto joblet = GetJoblet(job);
     joblet->Task->OnJobFailed(joblet);
@@ -566,7 +604,7 @@ void TOperationControllerBase::OnJobAborted(TJobPtr job)
 
     JobCounter.Aborted(1);
 
-    UsedResources -= job->ResourceUtilization();
+    UsedResources -= job->ResourceUsage();
 
     auto joblet = GetJoblet(job);
     joblet->Task->OnJobAborted(joblet);
@@ -654,6 +692,17 @@ TJobPtr TOperationControllerBase::ScheduleJob(
     return job;
 }
 
+void TOperationControllerBase::CustomizeJoblet(TJobletPtr joblet)
+{
+    UNUSED(joblet);
+}
+
+void TOperationControllerBase::CustomizeJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)
+{
+    UNUSED(joblet);
+    UNUSED(jobSpec);
+}
+
 void TOperationControllerBase::OnTaskUpdated(TTaskPtr task)
 {
     int oldJobCount = CachedPendingJobCount;
@@ -719,8 +768,8 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePt
 bool TOperationControllerBase::HasEnoughResources(TExecNodePtr node)
 {
     return Dominates(
-        node->ResourceLimits() + node->ResourceUtilizationDiscount(),
-        node->ResourceUtilization() + GetMinNeededResources());
+        node->ResourceLimits() + node->ResourceUsageDiscount(),
+        node->ResourceUsage() + GetMinNeededResources());
 }
 
 bool TOperationControllerBase::HasEnoughResources(TTaskPtr task, TExecNodePtr node)
@@ -952,7 +1001,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs()
                 }
             };
 
-            if (table.KeyColumns && SupportsSortedOutput()) {
+            if (table.KeyColumns && IsSortedOutputSupported()) {
                 // Sorted output generated by user operation requires to rearrange job outputs.
                 YCHECK(table.Endpoints.size() % 2 == 0);
 
@@ -1775,7 +1824,7 @@ bool TOperationControllerBase::CheckKeyColumnsCompatible(
     return true;
 }
 
-bool TOperationControllerBase::SupportsSortedOutput() const
+bool TOperationControllerBase::IsSortedOutputSupported() const
 {
     return false;
 }
@@ -1812,7 +1861,7 @@ void TOperationControllerBase::RegisterOutputChunkTrees(
         auto& table = OutputTables[tableIndex];
         RegisterOutputChunkTree(joblet->ChunkListIds[tableIndex], key, tableIndex, table);
 
-        if (table.KeyColumns && SupportsSortedOutput()) {
+        if (table.KeyColumns && IsSortedOutputSupported()) {
             YCHECK(userJobResult);
             auto& boundaryKeys = userJobResult->output_boundary_keys(tableIndex);
             YCHECK(boundaryKeys.start() <= boundaryKeys.end());
@@ -2003,7 +2052,6 @@ void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr conf
     config->TableWriter->ChunksMovable = false;
     config->TableWriter->ChunksVital = false;
 }
-
 
 void TOperationControllerBase::InitFinalOutputConfig(TJobIOConfigPtr config)
 {

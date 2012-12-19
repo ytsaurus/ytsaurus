@@ -23,17 +23,17 @@ class TExecNode
     //! Resource limits, as reported by the node.
     DEFINE_BYREF_RW_PROPERTY(NProto::TNodeResources, ResourceLimits);
 
-    //! The most recent resource utilization, as reported by the node.
+    //! The most recent resource usage, as reported by the node.
     /*!
      *  Some fields are also updated by the scheduler strategy to
      *  reflect recent job set changes.
      *  E.g. when the scheduler decides to
      *  start a new job it decrements the appropriate counters. 
      */
-    DEFINE_BYREF_RW_PROPERTY(NProto::TNodeResources, ResourceUtilization);
+    DEFINE_BYREF_RW_PROPERTY(NProto::TNodeResources, ResourceUsage);
 
     //! Used during preemption to allow second-chance scheduling.
-    DEFINE_BYREF_RW_PROPERTY(NProto::TNodeResources, ResourceUtilizationDiscount);
+    DEFINE_BYREF_RW_PROPERTY(NProto::TNodeResources, ResourceUsageDiscount);
 
     bool HasEnoughResources(const NProto::TNodeResources& neededResources) const;
     bool HasSpareResources() const;

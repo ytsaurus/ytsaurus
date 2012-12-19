@@ -23,7 +23,7 @@ DECLARE_ENUM(EResourceType,
     (Network)
 );
 
-Stroka FormatResourceUtilization(const NProto::TNodeResources& utilization, const NProto::TNodeResources& limits);
+Stroka FormatResourceUsage(const NProto::TNodeResources& usage, const NProto::TNodeResources& limits);
 Stroka FormatResources(const NProto::TNodeResources& resources);
 
 void ProfileResources(NProfiling::TProfiler& profiler, const NProto::TNodeResources& resources);

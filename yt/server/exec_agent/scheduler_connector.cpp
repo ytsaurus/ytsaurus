@@ -40,7 +40,7 @@ void TSchedulerConnector::Start()
         Config->HeartbeatSplay);
 
     // Schedule an out-of-order heartbeat whenever a job finishes
-    // or its resource utilization is updated.
+    // or its resource usage is updated.
     Bootstrap->GetJobManager()->SubscribeResourcesUpdated(BIND(
         &TPeriodicInvoker::ScheduleOutOfBand,
         HeartbeatInvoker));
@@ -56,7 +56,7 @@ void TSchedulerConnector::SendHeartbeat()
     auto req = Proxy.Heartbeat();
     req->set_address(Bootstrap->GetPeerAddress());
     *req->mutable_resource_limits() = jobManager->GetResourceLimits();
-    *req->mutable_resource_utilization() = jobManager->GetResourceUtilization();
+    *req->mutable_resource_usage() = jobManager->GetResourceUsage();
 
     auto jobs = Bootstrap->GetJobManager()->GetJobs();
     FOREACH (auto job, jobs) {
@@ -68,7 +68,7 @@ void TSchedulerConnector::SendHeartbeat()
         jobStatus->set_progress(job->GetProgress());
         switch (state) {
             case EJobState::Running:
-                *jobStatus->mutable_resource_utilization() = job->GetResourceUtilization();
+                *jobStatus->mutable_resource_usage() = job->GetResourceUsage();
                 break;
 
             case EJobState::Completed:
@@ -87,10 +87,10 @@ void TSchedulerConnector::SendHeartbeat()
         BIND(&TSchedulerConnector::OnHeartbeatResponse, MakeStrong(this))
         .Via(ControlInvoker));
 
-    LOG_INFO("Scheduler heartbeat sent (JobCount: %d, Utilization: {%s})",
+    LOG_INFO("Scheduler heartbeat sent (JobCount: %d, ResourceUsage: {%s})",
         req->jobs_size(),
-        ~FormatResourceUtilization(
-            req->resource_utilization(),
+        ~FormatResourceUsage(
+            req->resource_usage(),
             req->resource_limits()));
 }
 
@@ -125,9 +125,10 @@ void TSchedulerConnector::OnHeartbeatResponse(TSchedulerServiceProxy::TRspHeartb
 
 void TSchedulerConnector::StartJob(TJobStartInfo& info)
 {
-    auto jobId = TJobId::FromProto(info.job_id());
-    auto* spec = info.mutable_spec();
-    Bootstrap->GetJobManager()->CreateJob(jobId, *spec);
+    Bootstrap->GetJobManager()->CreateJob(
+        TJobId::FromProto(info.job_id()),
+        info.resource_limits(),
+        *info.mutable_spec());
 }
 
 void TSchedulerConnector::AbortJob(const TJobId& jobId)

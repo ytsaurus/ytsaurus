@@ -18,8 +18,8 @@ struct IJobHost
     virtual TJobProxyConfigPtr GetConfig() = 0;
     virtual const NScheduler::NProto::TJobSpec& GetJobSpec() = 0;
 
-    virtual NScheduler::NProto::TNodeResources GetResourceUtilization() = 0;
-    virtual void SetResourceUtilization(const NScheduler::NProto::TNodeResources& utilization) = 0;
+    virtual NScheduler::NProto::TNodeResources GetResourceUsage() = 0;
+    virtual void SetResourceUsage(const NScheduler::NProto::TNodeResources& usage) = 0;
 
     virtual void ReleaseNetwork() = 0;
 };

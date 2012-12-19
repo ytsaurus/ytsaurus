@@ -38,8 +38,8 @@ TJobManager::TJobManager(
     , ResourcesUpdatedFlag(false)
     , SpareResources(GetResourceLimits())
 {
-    YASSERT(config);
-    YASSERT(bootstrap);
+    YCHECK(config);
+    YCHECK(bootstrap);
 }
 
 void TJobManager::Initialize()
@@ -98,12 +98,12 @@ TNodeResources TJobManager::GetResourceLimits()
     return result;
 }
 
-TNodeResources TJobManager::GetResourceUtilization()
+TNodeResources TJobManager::GetResourceUsage()
 {
     auto result = ZeroNodeResources();
     FOREACH (const auto& pair, Jobs) {
-        auto jobUtilization = pair.second->GetResourceUtilization();
-        result += jobUtilization;
+        auto usage = pair.second->GetResourceUsage();
+        result += usage;
     }
 
     const auto& tracker = Bootstrap->GetMemoryUsageTracker();
@@ -124,7 +124,7 @@ void TJobManager::StartWaitingJobs()
             continue;
 
         SpareResources.set_memory(tracker.GetFree());
-        auto& jobResources = job->GetSpec().resource_utilization();
+        auto jobResources = job->GetResourceUsage();
 
         if (Dominates(SpareResources, jobResources)) {
             auto error = tracker.TryAcquire(
@@ -166,6 +166,7 @@ void TJobManager::StartWaitingJobs()
 
 void TJobManager::CreateJob(
     const TJobId& jobId,
+    const NScheduler::NProto::TNodeResources& resourceLimits,
     NScheduler::NProto::TJobSpec& jobSpec)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -176,6 +177,7 @@ void TJobManager::CreateJob(
 
     auto job = New<TJob>(
         jobId,
+        resourceLimits,
         MoveRV(jobSpec),
         Bootstrap);
 

@@ -72,13 +72,13 @@ message TJobStatus
     required int32 phase = 3;
     required double progress = 4;
     optional TJobResult result = 5;
-    optional TNodeResources resource_utilization = 6;
+    optional TNodeResources resource_usage = 6;
 }
 
 message TReqHeartbeat
 {
     required string address = 1;
-    required TNodeResources resource_utilization = 2;
+    required TNodeResources resource_usage = 2;
     required TNodeResources resource_limits = 3;
     repeated TJobStatus jobs = 4;
 }
@@ -87,6 +87,8 @@ message TJobStartInfo
 {
     required NYT.NProto.TGuid job_id = 1;
     required TJobSpec spec = 2;
+    // Resource limits as predicted by the scheduler.
+    required TNodeResources resource_limits = 3;
 }
 
 message TRspHeartbeat

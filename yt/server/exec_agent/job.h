@@ -40,6 +40,7 @@ class TJob
 public:
     TJob(
         const TJobId& jobId,
+        const NScheduler::NProto::TNodeResources& resourceLimits,
         NScheduler::NProto::TJobSpec&& jobSpec,
         TBootstrap* bootstrap);
 
@@ -55,13 +56,13 @@ public:
     NScheduler::EJobState GetState() const;
     NScheduler::EJobPhase GetPhase() const;
 
-    NScheduler::NProto::TNodeResources GetResourceUtilization() const;
+    NScheduler::NProto::TNodeResources GetResourceUsage() const;
 
-    //! Notifies the exec agent that job 
-    /*
-     * New utilization should not exceed initial utilization.
+    //! Notifies the exec agent that job resource usage is changed.
+    /*!
+     *  New usage should not exceed the previous one.
      */
-    void ReleaseResources(const NScheduler::NProto::TNodeResources& newUtilization);
+    void ReleaseResources(const NScheduler::NProto::TNodeResources& newUsage);
 
     double GetProgress() const;
     void UpdateProgress(double progress);
@@ -106,7 +107,7 @@ private:
     const NScheduler::NProto::TJobSpec JobSpec;
 
     TSpinLock ResourcesLock;
-    NScheduler::NProto::TNodeResources ResourceUtilization;
+    NScheduler::NProto::TNodeResources ResourceUsage;
 
     NLog::TTaggedLogger Logger;
 

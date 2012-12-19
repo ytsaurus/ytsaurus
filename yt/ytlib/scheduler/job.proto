@@ -60,14 +60,11 @@ message TJobSpec
     // Job output.
     repeated TTableOutputSpec output_specs = 5;
 
-    // Expected resource utilization.
-    required TNodeResources resource_utilization = 6;
-
     // Total input uncompressed data size estimate.
-    optional int64 input_uncompressed_data_size = 7 [default = 0];
+    optional int64 input_uncompressed_data_size = 6 [default = 0];
 
     // Total input row count estimate.
-    optional int64 input_row_count = 8 [default = 0];
+    optional int64 input_row_count = 7 [default = 0];
 
     extensions 100 to max;
 }

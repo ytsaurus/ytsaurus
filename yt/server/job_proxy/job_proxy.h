@@ -47,14 +47,14 @@ private:
     TPeriodicInvokerPtr HeartbeatInvoker;
 
     NScheduler::NProto::TJobSpec JobSpec;
-    NScheduler::NProto::TNodeResources ResourceUtilization;
+    NScheduler::NProto::TNodeResources ResourceUsage;
 
     // IJobHost implementation.
     virtual TJobProxyConfigPtr GetConfig() override;
     virtual const NScheduler::NProto::TJobSpec& GetJobSpec() override;
 
-    virtual NScheduler::NProto::TNodeResources GetResourceUtilization() override;
-    virtual void SetResourceUtilization(const NScheduler::NProto::TNodeResources& utilization) override;
+    virtual NScheduler::NProto::TNodeResources GetResourceUsage() override;
+    virtual void SetResourceUsage(const NScheduler::NProto::TNodeResources& usage) override;
 
     virtual void ReleaseNetwork() override;
 };

@@ -145,9 +145,8 @@ protected:
     protected:
         void BuildInputOutputJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)
         {
-            AddParallelInputSpec(jobSpec, joblet, Controller->EnableTableIndex());
+            AddParallelInputSpec(jobSpec, joblet, Controller->IsTableIndexEnabled());
             AddFinalOutputSpecs(jobSpec, joblet);
-            Controller->CustomizeJobSpec(joblet, jobSpec);
         }
 
     private:
@@ -175,6 +174,11 @@ protected:
         virtual int GetChunkListCountPerJob() const override
         {
             return Controller->OutputTables.size();
+        }
+
+        virtual EJobType GetJobType() const override
+        {
+            return EJobType(Controller->JobSpecTemplate.type());
         }
 
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
@@ -472,10 +476,7 @@ protected:
     //! Initializes #JobSpecTemplate.
     virtual void InitJobSpecTemplate() = 0;
 
-    virtual void CustomizeJobSpec(TJobletPtr joblet, NProto::TJobSpec* jobSpec)
-    { }
-
-    virtual bool EnableTableIndex() const
+    virtual bool IsTableIndexEnabled() const
     {
         return false;
     }
@@ -1215,7 +1216,7 @@ private:
         return false;
     }
 
-    virtual bool SupportsSortedOutput() const override
+    virtual bool IsSortedOutputSupported() const override
     {
         return true;
     }
@@ -1251,16 +1252,19 @@ private:
         ManiacJobSpecTemplate.CopyFrom(JobSpecTemplate);
     }
 
-    void CustomizeJobSpec(TJobletPtr joblet, NProto::TJobSpec* jobSpec) override
+    virtual void CustomizeJoblet(TJobletPtr joblet) override
     {
         joblet->StartRowIndex = StartRowIndex;
         StartRowIndex += joblet->InputStripeList->TotalRowCount;
+    }
 
+    virtual void CustomizeJobSpec(TJobletPtr joblet, NProto::TJobSpec* jobSpec) override
+    {
         auto* jobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
         AddUserJobEnvironment(jobSpecExt->mutable_reducer_spec(), joblet);
     }
 
-    bool EnableTableIndex() const override
+    virtual bool IsTableIndexEnabled() const override
     {
         return Spec->EnableTableIndex;
     }

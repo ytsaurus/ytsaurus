@@ -22,6 +22,8 @@
 
 #include <ytlib/rpc/bus_channel.h>
 
+#include <server/scheduler/job_resources.h>
+
 namespace NYT {
 namespace NJobProxy {
 
@@ -29,6 +31,7 @@ using namespace NScheduler;
 using namespace NExecAgent;
 using namespace NBus;
 using namespace NRpc;
+using namespace NScheduler;
 using namespace NScheduler::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -88,10 +91,13 @@ void TJobProxy::RetrieveJobSpec()
             << rsp->GetError();
     }
 
-    LOG_INFO("Job spec received\n%s", ~rsp->job_spec().DebugString());
-
     JobSpec = rsp->job_spec();
-    ResourceUtilization = JobSpec.resource_utilization();
+    ResourceUsage = rsp->resource_limits();
+
+    LOG_INFO("Job spec received (JobType: %s, ResourceLimits: %s)\n%s",
+        ~EJobType(rsp->job_spec().type()).ToString(),
+        ~FormatResources(rsp->resource_limits()),
+        ~rsp->job_spec().DebugString());
 }
 
 void TJobProxy::Run()
@@ -212,27 +218,27 @@ const TJobSpec& TJobProxy::GetJobSpec()
     return JobSpec;
 }
 
-TNodeResources TJobProxy::GetResourceUtilization()
+TNodeResources TJobProxy::GetResourceUsage()
 {
-    return ResourceUtilization;
+    return ResourceUsage;
 }
 
-void TJobProxy::SetResourceUtilization(const TNodeResources& utilization)
+void TJobProxy::SetResourceUsage(const TNodeResources& usage)
 {
-    ResourceUtilization = utilization;
+    ResourceUsage = usage;
 
     // Fire-and-forget.
     auto req = SupervisorProxy->OnResourcesReleased();
     *req->mutable_job_id() = JobId.ToProto();
-    *req->mutable_utilization() = ResourceUtilization;
+    *req->mutable_resource_usage() = ResourceUsage;
     req->Invoke();
 }
 
 void TJobProxy::ReleaseNetwork()
 {
-    auto utilization = GetResourceUtilization();
-    utilization.set_network(0);
-    SetResourceUtilization(utilization);
+    auto usage = GetResourceUsage();
+    usage.set_network(0);
+    SetResourceUsage(usage);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

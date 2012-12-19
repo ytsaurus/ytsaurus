@@ -76,14 +76,14 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnJobProgress)
 DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnResourcesReleased)
 {
     auto jobId = TJobId::FromProto(request->job_id());
-    const auto& utilization = request->utilization();
+    const auto& resourceUsage = request->resource_usage();
 
-    context->SetRequestInfo("JobId: %s, Utilization: {%s}",
+    context->SetRequestInfo("JobId: %s, ResourceUsage: {%s}",
         ~jobId.ToString(),
-        ~FormatResources(utilization));
+        ~FormatResources(resourceUsage));
 
     auto job = Bootstrap->GetJobManager()->GetJob(jobId);
-    job->ReleaseResources(utilization);
+    job->ReleaseResources(resourceUsage);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

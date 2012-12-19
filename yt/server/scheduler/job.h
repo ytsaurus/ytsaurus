@@ -12,12 +12,14 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+typedef TCallback<TVoid(NProto::TJobSpec* jobSpec)> TJobSpecBuilder;
+
 class TJob
     : public TRefCounted
 {
     DEFINE_BYVAL_RO_PROPERTY(TJobId, Id);
 
-    DEFINE_BYVAL_RW_PROPERTY(EJobType, Type);
+    DEFINE_BYVAL_RO_PROPERTY(EJobType, Type);
 
     //! The operation the job belongs to.
     DEFINE_BYVAL_RO_PROPERTY(TOperation*, Operation);
@@ -37,22 +39,25 @@ class TJob
     //! Some rough approximation that is updated with every heartbeat.
     DEFINE_BYVAL_RW_PROPERTY(EJobState, State);
 
-    //! Only valid during the heartbeat during which the job was started.
-    DEFINE_BYVAL_RW_PROPERTY(NProto::TJobSpec*, Spec);
-
-    //! Captures utilization limits suggested by the scheduler.
+    //! Current resources usage limits.
     /*!
-     *  Receives a copy of |GetSpec()->resource_utilization()|.
+     *  Initially captures the limits suggested by the scheduler.
      *  May change afterwards on heartbeats.
      */
-    DEFINE_BYREF_RW_PROPERTY(NProto::TNodeResources, ResourceUtilization);
+    DEFINE_BYREF_RW_PROPERTY(NProto::TNodeResources, ResourceUsage);
+
+    //! Asynchronous spec builder callback.
+    DEFINE_BYVAL_RW_PROPERTY(TJobSpecBuilder, SpecBuilder);
 
 public:
     TJob(
         const TJobId& id,
+        EJobType type,
         TOperationPtr operation,
         TExecNodePtr node,
-        TInstant startTime);
+        TInstant startTime,
+        const NProto::TNodeResources& resourceUsage,
+        TJobSpecBuilder specBuilder);
 
 };
 

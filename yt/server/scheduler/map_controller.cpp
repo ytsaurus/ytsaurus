@@ -47,6 +47,7 @@ public:
         TOperation* operation)
         : TOperationControllerBase(config, host, operation)
         , Spec(spec)
+        , StartRowIndex(0)
     { }
 
     virtual TNodeResources GetMinNeededResources() override
@@ -59,6 +60,7 @@ public:
 
 private:
     TMapOperationSpecPtr Spec;
+    i64 StartRowIndex;
 
     class TMapTask
         : public TTask
@@ -67,7 +69,6 @@ private:
         explicit TMapTask(TMapController* controller)
             : TTask(controller)
             , Controller(controller)
-            , StartRowIndex(0)
         {
             ChunkPool = CreateUnorderedChunkPool(Controller->JobCounter.GetTotal());
         }
@@ -98,7 +99,6 @@ private:
 
     private:
         TMapController* Controller;
-        i64 StartRowIndex;
 
         TAutoPtr<IChunkPool> ChunkPool;
 
@@ -117,14 +117,16 @@ private:
             return Controller->OutputTables.size();
         }
 
+        virtual EJobType GetJobType() const override
+        {
+            return EJobType(Controller->JobSpecTemplate.type());
+        }
+
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->JobSpecTemplate);
             AddSequentialInputSpec(jobSpec, joblet, Controller->Spec->EnableTableIndex);
             AddFinalOutputSpecs(jobSpec, joblet);
-
-            joblet->StartRowIndex = StartRowIndex;
-            StartRowIndex += joblet->InputStripeList->TotalRowCount;
 
             auto* jobSpecExt = jobSpec->MutableExtension(TMapJobSpecExt::map_job_spec_ext);
             Controller->AddUserJobEnvironment(jobSpecExt->mutable_mapper_spec(), joblet);
@@ -137,6 +139,7 @@ private:
             auto& userJobResult = joblet->Job->Result().GetExtension(TMapJobResultExt::map_job_result_ext);
             Controller->RegisterOutputChunkTrees(joblet, joblet->JobIndex, &userJobResult.mapper_result());
         }
+
     };
 
     typedef TIntrusivePtr<TMapTask> TMapTaskPtr;
@@ -203,6 +206,13 @@ private:
         return MakeFuture();
     }
 
+    virtual void CustomizeJoblet(TJobletPtr joblet) override
+    {
+        joblet->StartRowIndex = StartRowIndex;
+        StartRowIndex += joblet->InputStripeList->TotalRowCount;
+    }
+
+
     // Progress reporting.
 
     virtual void LogProgress() override
@@ -220,7 +230,7 @@ private:
 
     // Unsorted helpers.
 
-    virtual bool SupportsSortedOutput() const override
+    virtual bool IsSortedOutputSupported() const override
     {
         return true;
     }

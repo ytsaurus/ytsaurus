@@ -48,12 +48,12 @@ using NChunkClient::TChunkId;
 
 TJob::TJob(
     const TJobId& jobId,
+    const NScheduler::NProto::TNodeResources& resourceLimits,
     TJobSpec&& jobSpec,
     TBootstrap* bootstrap)
     : JobId(jobId)
     , JobSpec(jobSpec)
-    // Use initial utilization provided by the scheduler.
-    , ResourceUtilization(JobSpec.resource_utilization())
+    , ResourceUsage(resourceLimits)
     , Logger(ExecAgentLogger)
     , Bootstrap(bootstrap)
     , ChunkCache(bootstrap->GetChunkCache())
@@ -446,27 +446,27 @@ EJobPhase TJob::GetPhase() const
     return JobPhase;
 }
 
-TNodeResources TJob::GetResourceUtilization() const
+TNodeResources TJob::GetResourceUsage() const
 {
     TGuard<TSpinLock> guard(ResourcesLock);
-    return ResourceUtilization;
+    return ResourceUsage;
 }
 
-void TJob::ReleaseResources(const TNodeResources& newUtilization)
+void TJob::ReleaseResources(const TNodeResources& newUsage)
 {
     TGuard<TSpinLock> guard(ResourcesLock);
-    auto oldUtilization = ResourceUtilization;
+    auto oldUsage = ResourceUsage;
 
     LOG_FATAL_IF(
-        JobState == EJobState::Running && !Dominates(oldUtilization, newUtilization),
-        "Job resource utilization has increased: old value {%s}, new value {%s}",
-        ~FormatResources(ResourceUtilization),
-        ~FormatResources(newUtilization));
+        JobState == EJobState::Running && !Dominates(oldUsage, newUsage),
+        "Job resource usage has increased: old value {%s}, new value {%s}",
+        ~FormatResources(ResourceUsage),
+        ~FormatResources(newUsage));
 
-    if (newUtilization != oldUtilization) {
-        ResourceUtilization = newUtilization;
+    if (newUsage != oldUsage) {
+        ResourceUsage = newUsage;
         guard.Release();
-        ResourcesReleased_.Fire(oldUtilization, newUtilization);
+        ResourcesReleased_.Fire(oldUsage, newUsage);
     }
 }
 
