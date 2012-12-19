@@ -10,7 +10,7 @@
 from yt.wrapper.table_commands import copy_table
 from yt.wrapper.tree_commands import remove_with_empty_dirs
 
-from yt.wrapper.common import flatten, unlist, first_not_none, bool_to_string, dump_to_json
+from yt.wrapper.common import flatten, unlist, first_not_none, bool_to_string
 from yt.wrapper.version import VERSION
 import yt.wrapper.config as config
 import yt.wrapper as yt
@@ -496,7 +496,7 @@ Examples:
         print yt.exists(args.exists)
 
     if args.get is not None:
-        print dump_to_json(yt.get(args.get, spec=spec))
+        print json.dumps(yt.get(args.get, spec=spec, format=yt.JsonFormat()), indent=2)
     if args.set is not None:
         if args.value is None:
             die("Value option is necessary for set command")
