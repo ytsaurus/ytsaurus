@@ -34,6 +34,7 @@ TServiceBase::TMethodDescriptor::TMethodDescriptor(
     : Verb(verb)
     , Handler(MoveRV(handler))
     , OneWay(false)
+    , MaxQueueSize(100000)
 { }
 
 TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
@@ -180,6 +181,24 @@ void TServiceBase::OnRequest(
             ~verb,
             ~FormatBool(runtimeInfo->Descriptor.OneWay),
             ~FormatBool(oneWay))
+            << TErrorAttribute("request_id", requestId);
+        LOG_WARNING(error);
+        if (!header.one_way()) {
+            auto errorMessage = CreateErrorResponseMessage(requestId, error);
+            replyBus->Send(errorMessage);
+        }
+
+        return;
+    }
+
+    // Not actually atomic but should work fine as long as some small error is OK.
+    if (runtimeInfo->QueueSizeCounter.Current > runtimeInfo->Descriptor.MaxQueueSize) {
+        guard.Release();
+
+        auto error = TError(
+            EErrorCode::Unavailable,
+            "Request queue limit %d reached",
+            runtimeInfo->Descriptor.MaxQueueSize)
             << TErrorAttribute("request_id", requestId);
         LOG_WARNING(error);
         if (!header.one_way()) {

@@ -453,6 +453,9 @@ protected:
         //! Options to pass to the handler.
         THandlerInvocationOptions Options;
 
+        //! Maximum number of concurrent requests waiting in queue.
+        int MaxQueueSize;
+
         TMethodDescriptor& SetInvoker(IInvokerPtr value)
         {
             Invoker = value;
@@ -480,6 +483,12 @@ protected:
         TMethodDescriptor& SetResponseCodec(ECodec value)
         {
             Options.ResponseCodec = value;
+            return *this;
+        }
+
+        TMethodDescriptor& SetMaxQueueSize(int value)
+        {
+            MaxQueueSize = value;
             return *this;
         }
     };
