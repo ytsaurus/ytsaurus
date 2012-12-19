@@ -234,13 +234,6 @@ protected:
          *  For jobs with final output this list typically contains one element per each output table.
          */
         std::vector<NChunkClient::TChunkListId> ChunkListIds;
-
-        //! Chunk lists allocated but still not used.
-        /*!
-         *  Chunk lists are obtained from the controller and are initially put into both #ChunkListIds
-         *  and #PooledChunkListIds. Afterwards they are extracted with |pop_back| from the latter.
-         */
-        std::vector<NChunkClient::TChunkListId> PooledChunkListIds;
     };
 
     yhash_map<TJobPtr, TJobletPtr> JobsInProgress;

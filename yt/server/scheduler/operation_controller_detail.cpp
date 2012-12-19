@@ -185,7 +185,6 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(ISchedulingContext* context
     for (int index = 0; index < chunkListCount; ++index) {
         auto id = Controller->ExtractChunkList();
         joblet->ChunkListIds.push_back(id);
-        joblet->PooledChunkListIds.push_back(id);
     }
 
     // Sync part.
@@ -323,19 +322,16 @@ void TOperationControllerBase::TTask::AddFinalOutputSpecs(
     NScheduler::NProto::TJobSpec* jobSpec,
     TJobletPtr joblet)
 {
-    FOREACH (const auto& table, Controller->OutputTables) {
+    YCHECK(joblet->ChunkListIds.size() == Controller->OutputTables.size());
+    for (int index = 0; index < static_cast<int>(Controller->OutputTables.size()); ++index) {
+        const auto& table = Controller->OutputTables[index];
         auto* outputSpec = jobSpec->add_output_specs();
-    
         outputSpec->set_channels(table.Channels.Data());
         outputSpec->set_replication_factor(table.ReplicationFactor);
         if (table.KeyColumns) {
             ToProto(outputSpec->mutable_key_columns(), *table.KeyColumns);
         }
-
-        auto chunkListId = joblet->PooledChunkListIds.back();
-        joblet->PooledChunkListIds.pop_back();
-
-        *outputSpec->mutable_chunk_list_id() = chunkListId.ToProto();
+        *outputSpec->mutable_chunk_list_id() = joblet->ChunkListIds[index].ToProto();
     }
 }
 
@@ -343,14 +339,10 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     NScheduler::NProto::TJobSpec* jobSpec,
     TJobletPtr joblet)
 {
+    YCHECK(joblet->ChunkListIds.size() == 1);
     auto* outputSpec = jobSpec->add_output_specs();
-
     outputSpec->set_channels("[]");
-
-    auto chunkListId = joblet->PooledChunkListIds.back();
-    joblet->PooledChunkListIds.pop_back();
-
-    *outputSpec->mutable_chunk_list_id() = chunkListId.ToProto();
+    *outputSpec->mutable_chunk_list_id() = joblet->ChunkListIds[0].ToProto();
 }
 
 void TOperationControllerBase::TTask::AddInputChunks(
