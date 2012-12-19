@@ -158,8 +158,8 @@ test_transactions()
 test_range_map()
 {
     ./mapreduce -subkey -write "ignat/temp" <table_file
-    ./mapreduce -subkey -map 'awk '"'"'{sum+=$1+$2} END {print "\t\t"sum}'"'" -src "ignat/temp{key,subkey}" -dst "ignat/sum"
-    check "\t12" "`./mapreduce -read "ignat/sum"`"
+    ./mapreduce -map 'awk '"'"'{sum+=$1+$2} END {print "\t"sum}'"'" -src "ignat/temp{key,value}" -dst "ignat/sum"
+    check "\t14" "`./mapreduce -read "ignat/sum"`"
 }
 
 test_uploaded_files()
