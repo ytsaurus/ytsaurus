@@ -352,6 +352,8 @@ test_write_with_tx()
     sleep 2
     check "0" "`./mapreduce -read "ignat/some_table" | wc -l`"
 
+    wait
+
     ./mapreduce -committx $TX
     check "1" "`./mapreduce -read "ignat/some_table" | wc -l`"
 }
