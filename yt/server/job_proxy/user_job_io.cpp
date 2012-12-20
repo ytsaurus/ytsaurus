@@ -12,6 +12,7 @@
 #include <ytlib/table_client/schema.h>
 
 #include <ytlib/meta_state/master_channel.h>
+
 #include <ytlib/scheduler/config.h>
 
 namespace NYT {

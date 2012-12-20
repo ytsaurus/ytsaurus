@@ -124,7 +124,7 @@ struct IOperationController
 
     //! Called by a scheduler in response to IOperationHost::OnOperationCompleted.
     /*!
-     *  The controller must the transactions related to the operation.
+     *  The controller must commit the transactions related to the operation.
      */
     virtual TFuture<void> Commit() = 0;
 
