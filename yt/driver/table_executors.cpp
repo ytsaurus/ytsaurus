@@ -57,12 +57,13 @@ void TWriteExecutor::BuildArgs(IYsonConsumer* consumer)
         UseStdIn = false;
     }
 
+    if (!sortedBy.empty()) {
+        path.Attributes().Set("sorted_by", sortedBy);
+    }
+
     BuildYsonMapFluently(consumer)
         .Item("do").Scalar("write")
-        .Item("path").Scalar(path)
-        .DoIf(!sortedBy.empty(), [=] (TFluentMap fluent) {
-            fluent.Item("sorted_by").List(sortedBy);
-        });
+        .Item("path").Scalar(path);
 
     TTransactedExecutor::BuildArgs(consumer);
 }

@@ -58,7 +58,7 @@ void TWriteCommand::DoExecute()
         GetTransaction(false),
         Context->GetTransactionManager(),
         Request->Path,
-        Request->SortedBy);
+        Request->Path.Attributes().Find<TKeyColumns>("sorted_by"));
 
     writer->Open();
 

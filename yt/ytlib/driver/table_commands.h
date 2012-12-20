@@ -51,8 +51,6 @@ struct TWriteRequest
     TWriteRequest()
     {
         Register("path", Path);
-        Register("sorted_by", SortedBy)
-            .Default();
         Register("table_writer", TableWriterConfig)
             .Default(NULL);
     }

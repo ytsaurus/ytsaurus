@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 
 # Options that not yet implemented:
-# -fs
-# -rs
 # -timelimit
 # -lock
 # -unlock
@@ -452,7 +450,7 @@ Examples:
         yt.write_table(args.write, sys.stdin, format=outputformat,
                        replication_factor=replication_factor, table_writer=table_writer)
     if args.writesorted is not None:
-        args.writesorted = yt.TablePath(args.writesorted, append=args.append, sorted_by=["key", "subkey"])
+        args.writesorted = yt.TablePath(args.writesorted, append=args.append)#, sorted_by=["key", "subkey"])
         yt.write_table(args.writesorted, sys.stdin, format=outputformat,
                        replication_factor=replication_factor, table_writer=table_writer)
         # TODO: sorted_by has no proper support now. Delete it with remaking in system.
