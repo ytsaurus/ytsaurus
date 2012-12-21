@@ -109,8 +109,10 @@ dynamic_server = connect()
     .use(connect.favicon())
     .use(yt.YtAssignRequestId())
     .use(yt.YtLogRequest(logger))
-    .use("/api", yt.YtApplication(logger, config))
+    .use("/auth", yt.YtAuthenticationApplication(logger, config))
     .use("/hosts", yt.YtHostDiscovery(config.neighbours))
+    .use(yt.YtBlackbox(logger, config))
+    .use("/api", yt.YtApplication(logger, config))
     .use("/ui", function(req, rsp, next) {
         "use strict";
         if (req.url === "/") {

@@ -1,0 +1,20 @@
+<div class="jumbotron">
+  {{#error}}
+  <h1>Ошибка</h1>
+  <p class="lead">{{error.message}}</p>
+  {{/error}}
+  {{^error}}
+  <p class="lead">Это ваш аутентификационный токен.</p>
+  <h2>{{token}}</h2>
+  <p class="lead">Сохраните его и никому никогда не показывайте.<span class="muted">*</span></p>
+  <p class="muted">*&nbsp;&#151;&nbsp;за исключением случаев, угрожающих вашему здоровью.</p>
+  {{/error}}
+</div>
+<hr>
+<div class="row-fluid">
+  <div class="span12">
+    <p>
+      <a href="index">Вернуться назад</a>.
+    </p>
+  </div>
+</div>
