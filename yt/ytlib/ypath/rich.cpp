@@ -74,14 +74,13 @@ TRichYPath& TRichYPath::operator = (const TRichYPath& other)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
+/*
 namespace {
 
 void ThrowUnexpectedToken(const TToken& token)
 {
     THROW_ERROR_EXCEPTION("Token is unexpected");
 }
-
 
 TRichYPath ParseAttributes(const Stroka& str)
 {
@@ -308,7 +307,7 @@ void TTableNodeProxy::ParseYPath(
     tokenizer.CurrentToken().CheckType(ETokenType::EndOfStream);
 }
 
-} // anonymous namespace
+} // namespace
 
 static TRichYPath TRichYPath::Parse(const Stroka& str)
 {
@@ -316,7 +315,7 @@ static TRichYPath TRichYPath::Parse(const Stroka& str)
     auto richYPath = ParseAttributes(str);
 
 }
-
+*/
 ////////////////////////////////////////////////////////////////////////////////
 
 Stroka ToString(const TRichYPath& path)
