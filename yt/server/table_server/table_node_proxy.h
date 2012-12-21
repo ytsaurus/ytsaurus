@@ -54,12 +54,6 @@ private:
 
     virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
 
-    void ParseYPath(
-        const NYPath::TYPath& path,
-        NTableClient::TChannel* channel,
-        NTableClient::NProto::TReadLimit* lowerBound,
-        NTableClient::NProto::TReadLimit* upperBound);
-
     NChunkServer::TChunkList* EnsureNodeMutable(TTableNode* node);
     void ClearNode(TTableNode* node);
 
