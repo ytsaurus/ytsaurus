@@ -712,6 +712,19 @@ bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& v
     return TBase::SetSystemAttribute(key, value);
 }
 
+void TTableNodeProxy::ParseYPath(
+    const TYPath& path,
+    TChannel* channel,
+    TReadLimit* lowerBound,
+    TReadLimit* upperBound)
+{
+    TTokenizer tokenizer(path);
+    tokenizer.ParseNext();
+    ParseChannel(tokenizer, channel);
+    ParseRowLimits(tokenizer, lowerBound, upperBound);
+    tokenizer.CurrentToken().CheckType(ETokenType::EndOfStream);
+}
+
 TChunkList* TTableNodeProxy::EnsureNodeMutable(TTableNode* node)
 {
     switch (node->GetUpdateMode()) {
@@ -805,10 +818,9 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
 
     const auto* node = GetThisTypedImpl();
 
-    auto attributes = context->GetPath().Attributes();
-    auto channel = attributes.Get("columns", TChannel::Empty());
-    auto lowerLimit = attributes.Get("lower_limit", TReadLimit());
-    auto upperLimit = attributes.Get("upper_limit", TReadLimit());
+    auto channel = TChannel::Empty();
+    TReadLimit lowerLimit, upperLimit;
+    ParseYPath(context->GetPath(), &channel, &lowerLimit, &upperLimit);
     auto* chunkList = node->GetChunkList();
 
     auto visitor = New<TFetchChunkVisitor>(
