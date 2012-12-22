@@ -1,8 +1,9 @@
 import config
 from common import YtError, require, parse_bool, flatten, get_value
-from path_tools import dirs, split_table_ranges
+from path_tools import dirs
 from format import JsonFormat, YsonFormat
 from transaction_commands import _make_transactioned_request
+from table import prepare_path
 
 from yt.yson.yson_types import YsonString
 
@@ -23,7 +24,7 @@ def get(path, attributes=None, format=None, spec=None):
     return _make_transactioned_request(
         "get",
         {
-            "path": path,
+            "path": prepare_path(path),
             "attributes": get_value(attributes, []),
             "spec": {} if spec is None else spec
         },
@@ -35,7 +36,7 @@ def set(path, value):
     """
     _make_transactioned_request(
         "set",
-        {"path": path},
+        {"path": prepare_path(path)},
         data=json.dumps(value),
         format=JsonFormat())
 
@@ -43,16 +44,16 @@ def copy(source_path, destination_path):
     _make_transactioned_request(
         "copy",
         {
-            "source_path": source_path,
-            "destination_path": destination_path
+            "source_path": prepare_path(source_path),
+            "destination_path": prepare_path(destination_path)
         })
 
 def move(source_path, destination_path):
     _make_transactioned_request(
         "move",
         {
-            "source_path": source_path,
-            "destination_path": destination_path
+            "source_path": prepare_path(source_path),
+            "destination_path": prepare_path(destination_path)
         })
 
 def list(path, max_size=1000, format=None):
@@ -63,7 +64,7 @@ def list(path, max_size=1000, format=None):
     return _make_transactioned_request(
         "list",
         {
-            "path": path,
+            "path": prepare_path(path),
             "max_size": max_size
         },
         format=get_value(format, YsonFormat()))
@@ -75,7 +76,7 @@ def exists(path):
     return parse_bool(
         _make_transactioned_request(
             "exists",
-             {"path": split_table_ranges(path)[0]}))
+             {"path": prepare_path(path)}))
 
 def remove(path, recursive=False, check_existance=False):
     """
@@ -88,7 +89,7 @@ def remove(path, recursive=False, check_existance=False):
         require(get_type(path) != "map_node",
                 YtError("Can not delete directory, set recursive=True"))
 
-    _make_transactioned_request("remove", {"path": path})
+    _make_transactioned_request("remove", {"path": prepare_path(path)})
 
 def mkdir(path, recursive=None):
     """
@@ -104,7 +105,7 @@ def mkdir(path, recursive=None):
             if create:
                 mkdir(dir, False)
     else:
-        _make_transactioned_request("create", {"path": path, "type": "map_node"})
+        _make_transactioned_request("create", {"path": prepare_path(path), "type": "map_node"})
 
 # TODO: maybe remove this methods
 def get_attribute(path, attribute, default=None):

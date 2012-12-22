@@ -98,6 +98,7 @@ if __name__ == '__main__':
 test_chunksize()
 {
     ./mapreduce -write "ignat/temp" -chunksize 1 <table_file
+    ./mapreduce -get "ignat/temp/@"
     check 2 "`./mapreduce -get "ignat/temp/@chunk_count"`"
 }
 
@@ -360,6 +361,14 @@ test_write_with_tx()
     check "1" "`./mapreduce -read "ignat/some_table" | wc -l`"
 }
 
+test_table_file()
+{
+    echo "x=0" | ./mapreduce -dsv -write "ignat/input"
+    echo "field=10" | ./mapreduce -dsv -write "ignat/dictionary"
+    ./mapreduce -map "cat >/dev/null; cat dictionary" -dsv -src "ignat/input" -dst "ignat/output" -ytfile "<format=dsv>ignat/dictionary"
+    check "field=10" "`./mapreduce -dsv -read "ignat/output"`"
+}
+
 prepare_table_files
 test_sortby_reduceby
 test_base_functionality
@@ -382,5 +391,6 @@ test_slow_write
 test_dstsorted
 test_custom_fs_rs
 test_write_with_tx
+test_table_file
 
 rm -f table_file big_file
