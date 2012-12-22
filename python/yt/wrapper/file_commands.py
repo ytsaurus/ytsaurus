@@ -3,6 +3,7 @@ from common import require, YtError
 from http import read_content
 from tree_commands import remove, exists, set_attribute, mkdir, find_free_subpath
 from transaction_commands import _make_transactioned_request
+from table import prepare_path
 
 import os
 
@@ -12,7 +13,7 @@ def download_file(path, response_type=None):
     Response type means the output format. By default it is line generator.
     """
     if response_type is None: response_type = "iter_lines"
-    response = _make_transactioned_request("download", {"path": path}, raw_response=True)
+    response = _make_transactioned_request("download", {"path": prepare_path(path)}, raw_response=True)
     return read_content(response, response_type)
 
 def upload_file(stream, destination, yt_filename=None):
@@ -20,7 +21,7 @@ def upload_file(stream, destination, yt_filename=None):
     Simply uploads data from stream to destination and
     set file_name attribute if yt_filename is specified
     """
-    _make_transactioned_request("upload", {"path": destination}, data=stream)
+    _make_transactioned_request("upload", {"path": prepare_path(destination)}, data=stream)
     if yt_filename is not None:
         set_attribute(destination, "file_name", yt_filename)
 

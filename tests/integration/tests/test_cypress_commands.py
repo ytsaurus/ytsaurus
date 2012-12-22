@@ -484,7 +484,6 @@ class TestCypressCommands(YTEnvSetup):
         self.assertEqual(exists("//tmp"), "true")
         self.assertEqual(exists("//tmp/a"), "false")
         self.assertEqual(exists("//tmp/a/f/e"), "false")
-        self.assertEqual(exists("//tmp/a[fdjk]"), "false")
 
         set("//tmp/a", {})
         self.assertEqual(exists("//tmp/a"), "true")

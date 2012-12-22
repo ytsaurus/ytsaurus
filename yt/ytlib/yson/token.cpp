@@ -22,16 +22,9 @@ ETokenType CharToTokenType(char ch)
         case '>': return ETokenType::RightAngle;
         case '(': return ETokenType::LeftParenthesis;
         case ')': return ETokenType::RightParenthesis;
-        case '/': return ETokenType::Slash;
-        case '@': return ETokenType::At;
-        case '!': return ETokenType::Bang;
         case '+': return ETokenType::Plus;
-        case '^': return ETokenType::Caret;
         case ':': return ETokenType::Colon;
         case ',': return ETokenType::Comma;
-        case '~': return ETokenType::Tilde;
-        case '&': return ETokenType::Ampersand;
-        case '*': return ETokenType::Asterisk;
         default:  return ETokenType::EndOfStream;
     }
 }
@@ -50,16 +43,9 @@ char TokenTypeToChar(ETokenType type)
         case ETokenType::RightAngle:        return '>';
         case ETokenType::LeftParenthesis:   return '(';
         case ETokenType::RightParenthesis:  return ')';
-        case ETokenType::Slash:             return '/';
-        case ETokenType::At:                return '@';
-        case ETokenType::Bang:              return '!';
         case ETokenType::Plus:              return '+';
-        case ETokenType::Caret:             return '^';
         case ETokenType::Colon:             return ':';
         case ETokenType::Comma:             return ',';
-        case ETokenType::Tilde:             return '~';
-        case ETokenType::Ampersand:         return '&';
-        case ETokenType::Asterisk:          return '*';
         default:                            YUNREACHABLE();
     }
 }

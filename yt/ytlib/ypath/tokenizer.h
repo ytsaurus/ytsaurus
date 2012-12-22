@@ -21,6 +21,7 @@ public:
 
     ETokenType GetType() const;
     const TStringBuf& GetToken() const;
+    TYPath GetPrefix() const;
     TYPath GetSuffix() const;
     TYPath GetInput() const;
     const Stroka& GetLiteralValue() const;

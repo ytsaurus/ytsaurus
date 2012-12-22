@@ -7,7 +7,6 @@
 #include "tree_visitor.h"
 #include "tree_builder.h"
 #include "ypath_client.h"
-#include "ypath_format.h"
 
 #include <ytlib/yson/yson_writer.h>
 #include <ytlib/yson/tokenizer.h>

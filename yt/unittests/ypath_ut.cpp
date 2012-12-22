@@ -13,9 +13,12 @@
 #include <ytlib/yson/yson_writer.h>
 #include <ytlib/ytree/ephemeral_node_factory.h>
 
+#include <ytlib/ypath/rich.h>
+
 #include <contrib/testing/framework.h>
 
 #include <util/string/vector.h>
+
 
 namespace NYT {
 namespace NYTree {
@@ -291,6 +294,56 @@ TEST_F(TYPathTest, InvalidCases)
 
     // remove non-existing child
     EXPECT_ANY_THROW(Remove("/a"));
+}
+
+TEST_F(TYPathTest, ParseRichYPath1)
+{
+    auto path = NYPath::TRichYPath::Parse("<a=b>//home/ignat{a,b}[1:2]");
+    EXPECT_EQ(path.GetPath(), "//home/ignat");
+    EXPECT_TRUE(
+        AreNodesEqual(
+            ConvertToNode(path.Attributes()),
+            ConvertToNode(TYsonString("{a=b;channel=[a;b];upper_limit=[2];lower_limit=[1]}"))));
+}
+
+TEST_F(TYPathTest, ParseRichYPath2)
+{
+    auto path = NYPath::TRichYPath::Parse("<a=b>//home");
+    EXPECT_EQ(path.GetPath(), "//home");
+    EXPECT_TRUE(
+        AreNodesEqual(
+            ConvertToNode(path.Attributes()),
+            ConvertToNode(TYsonString("{a=b}"))));
+}
+
+TEST_F(TYPathTest, ParseRichYPath3)
+{
+    auto path = NYPath::TRichYPath::Parse("//home");
+    EXPECT_EQ(path.GetPath(), "//home");
+    EXPECT_TRUE(
+        AreNodesEqual(
+            ConvertToNode(path.Attributes()),
+            ConvertToNode(EmptyAttributes())));
+}
+
+TEST_F(TYPathTest, ParseRichYPath4)
+{
+    auto path = NYPath::TRichYPath::Parse("//home[:]");
+    EXPECT_EQ(path.GetPath(), "//home");
+    EXPECT_TRUE(
+        AreNodesEqual(
+            ConvertToNode(path.Attributes()),
+            ConvertToNode(EmptyAttributes())));
+}
+
+TEST_F(TYPathTest, ParseRichYPath5)
+{
+    auto path = NYPath::TRichYPath::Parse("//home[(x, y):(a, b)]");
+    EXPECT_EQ(path.GetPath(), "//home");
+    EXPECT_TRUE(
+        AreNodesEqual(
+            ConvertToNode(path.Attributes()),
+            ConvertToNode(TYsonString("{lower_limit=[x;y];upper_limit=[a;b]}"))));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

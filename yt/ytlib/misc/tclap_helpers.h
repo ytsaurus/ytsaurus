@@ -11,8 +11,6 @@
 
 #include <ytlib/yson/yson_writer.h>
 
-#include <ytlib/ypath/rich.h>
-
 #include <tclap/CmdLine.h>
 
 namespace TCLAP {
@@ -53,12 +51,6 @@ struct ArgTraits< NYT::TNullable<T> >
     typedef ValueLike ValueCategory;
 };
 
-template <>
-struct ArgTraits< NYT::NYPath::TRichYPath >
-{
-    typedef ValueLike ValueCategory;
-};
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -74,12 +66,6 @@ std::istringstream& operator >> (std::istringstream& input, TEnumBase<T>& mode);
 
 template <class T>
 std::istringstream& operator >> (std::istringstream& input, TNullable<T>& nullable);
-
-namespace NYPath {
-
-std::istringstream& operator >> (std::istringstream& input, NYPath::TRichYPath& path);
-
-} // namespace NYPath
 
 // TODO(babenko): move to inl
 

@@ -4,6 +4,7 @@ set( SRCS
   ${BASE}/command.cpp
   ${BASE}/cypress_commands.cpp
   ${BASE}/driver.cpp
+  ${BASE}/etc_commands.cpp
   ${BASE}/file_commands.cpp
   ${BASE}/private.cpp
   ${BASE}/scheduler_commands.cpp
@@ -15,6 +16,7 @@ set( HDRS
   ${BASE}/config.h
   ${BASE}/cypress_commands.h
   ${BASE}/driver.h
+  ${BASE}/etc_commands.h
   ${BASE}/file_commands.h
   ${BASE}/private.h
   ${BASE}/public.h

@@ -209,17 +209,10 @@ TEST_F(TLexerTest, SpecialValues)
     TestSpecialValue(">", ETokenType::RightAngle);
     TestSpecialValue("(", ETokenType::LeftParenthesis);
     TestSpecialValue(")", ETokenType::RightParenthesis);
-    TestSpecialValue("/", ETokenType::Slash);
-    TestSpecialValue("@", ETokenType::At);
     TestSpecialValue("#", ETokenType::Hash);
-    TestSpecialValue("!", ETokenType::Bang);
     TestSpecialValue("+", ETokenType::Plus);
-    TestSpecialValue("^", ETokenType::Caret);
     TestSpecialValue(":", ETokenType::Colon);
     TestSpecialValue(",", ETokenType::Comma);
-    TestSpecialValue("~", ETokenType::Tilde);
-    TestSpecialValue("&", ETokenType::Ampersand);
-    TestSpecialValue("*", ETokenType::Asterisk);
 }
 
 TEST_F(TLexerTest, IncorrectChars)

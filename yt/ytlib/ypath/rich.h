@@ -20,8 +20,10 @@ public:
     TRichYPath(const char* path);
     TRichYPath(const TYPath& path);
     TRichYPath(const TYPath& path, const NYTree::IAttributeDictionary& attributes);
-    
     TRichYPath& operator = (const TRichYPath& other);
+    
+    static TRichYPath Parse(const Stroka& str);
+    TRichYPath Simplify() const;
 
     const TYPath& GetPath() const;
     void SetPath(const TYPath& path);

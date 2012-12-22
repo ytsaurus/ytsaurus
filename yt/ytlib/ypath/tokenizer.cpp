@@ -1,5 +1,6 @@
 #include "tokenizer.h"
 
+#include <ytlib/yson/token.h>
 #include <ytlib/misc/error.h>
 
 namespace NYT {
@@ -32,6 +33,18 @@ ETokenType TTokenizer::Advance()
     Type_ = ETokenType::Literal;
     bool proceed = true;
     while (proceed && current != Input_.end()) {
+        auto token = NYson::CharToTokenType(*current);
+        if (token == NYson::ETokenType::LeftBracket ||
+            token == NYson::ETokenType::LeftBrace)
+        {
+            if (current == Input_.begin()) {
+                Type_ = ETokenType::Range;
+                current = Input_.end();
+            }
+            proceed = false;
+            continue;
+        }
+
         switch (*current) {
             case '/':
             case '@':
@@ -46,12 +59,6 @@ ETokenType TTokenizer::Advance()
                     }
                     return Type_;
                 }
-                proceed = false;
-                break;
-
-            // TODO(babenko): legacy
-            case '[':
-            case '{':
                 proceed = false;
                 break;
 
@@ -163,6 +170,11 @@ ETokenType TTokenizer::GetType() const
 const TStringBuf& TTokenizer::GetToken() const
 {
     return Token_;
+}
+
+TYPath TTokenizer::GetPrefix() const
+{
+    return TYPath(Path_.begin(), Input_.begin());
 }
 
 TYPath TTokenizer::GetSuffix() const

@@ -7,6 +7,7 @@
 
 from yt.wrapper.table_commands import copy_table
 from yt.wrapper.tree_commands import remove_with_empty_dirs
+from yt.wrapper.table import check_prefix
 
 from yt.wrapper.common import flatten, unlist, first_not_none, bool_to_string
 from yt.wrapper.version import VERSION
@@ -30,26 +31,14 @@ def die(message=None, return_code=1):
         raise
     sys.exit(return_code)
 
-def check_prefix():
-    if not "PREFIX" in config.__dict__:
-        die("You should set variable YT_PREFIX or option -prefix or use absolute paths.")
-    if not config.PREFIX.startswith("//"):
-        die("Prefix should starts with //")
-    if not config.PREFIX.endswith("/"):
-        die("Prefix should ends with /")
-
-def add_prefix(table):
-    if table.startswith("//"):
-        return table
-    check_prefix()
-    return config.PREFIX + table
-
 def remove_prefix(table):
     if "PREFIX" in config.__dict__ and table.startswith(config.PREFIX):
         return table[len(config.PREFIX):]
     return table
 
 def list_all_entities(type):
+    if config.PREFIX is None:
+        die("You should specify PREFIX for list command")
     check_prefix()
     tables = yt.search(config.PREFIX[:-1], type,
                        path_filter=lambda path: path.startswith(config.PREFIX))
@@ -102,7 +91,7 @@ def writelines_silently(lines):
 def get_smart_format(tables, smart_format_flag, has_subkey):
     def extract_format(table):
         table = yt.to_table(table)
-        if table.specificators and table.specificators[0] == '{':
+        if "channel" in table.name.attributes:
             return yt.RawFormat.from_yson(yson.loads("<line_prefix=tskv>dsv"))
         elif yt.has_attribute(table.name, "_format"):
             return yt.RawFormat.from_yson(yt.get_attribute(table.name, "_format"))
@@ -344,8 +333,6 @@ Examples:
         config.WRITE_BUFFER_SIZE = args.chunksize
     if "YT_PROXY" in os.environ:
         config.PROXY = os.environ["YT_PROXY"]
-    if "YT_PREFIX" in os.environ:
-        config.PREFIX = os.environ["YT_PREFIX"]
     if args.server is not None:
         config.PROXY = args.server
     if args.prefix is not None:
@@ -362,15 +349,6 @@ Examples:
 
     if args.title is not None:
         spec["title"] = args.title
-
-    # Fix table names
-    for option in ["src", "dst", "dstappend", "dstsorted", "ytfile"]:
-        if vars(args)[option] is not None:
-            vars(args)[option] = map(add_prefix, vars(args)[option])
-    for option in ["read", "write", "writesorted", "drop", "get", "set", "download", "upload", "createtable"]:
-        if vars(args)[option] is not None:
-            vars(args)[option] = add_prefix(vars(args)[option])
-
 
     dst = []
     if args.dst is not None:
@@ -459,7 +437,7 @@ Examples:
         yt.write_table(args.writesorted, sys.stdin, format=outputformat,
                        replication_factor=replication_factor, table_writer=table_writer)
         # TODO: sorted_by has no proper support now. Delete it with remaking in system.
-        yt.run_sort(args.writesorted.get_name())
+        yt.run_sort(args.writesorted)
     if mapreduce_case:
         yt.run_map_reduce(args.map, args.reduce, args.src, dst,
                           map_files=map_files, reduce_files=reduce_files,

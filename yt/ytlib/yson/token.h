@@ -27,19 +27,12 @@ DECLARE_ENUM(ETokenType,
     (RightBrace) // }
     (LeftAngle) // <
     (RightAngle) // >
-    // YPath
+    // Table ranges
     (LeftParenthesis) // (
     (RightParenthesis) // )
-    (Slash) // /
-    (At) // @
-    (Bang) // !
     (Plus) // +
-    (Caret) // ^
     (Colon) // :
     (Comma) // ,
-    (Tilde) // ~
-    (Ampersand) // &
-    (Asterisk) // *
 );
 
 ////////////////////////////////////////////////////////////////////////////////

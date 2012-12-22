@@ -2,6 +2,7 @@
 #include "attributes.h"
 #include "attribute_helpers.h"
 #include "exception_helpers.h"
+#include "ephemeral_node_factory.h"
 
 namespace NYT {
 namespace NYTree {
@@ -55,6 +56,26 @@ void IAttributeDictionary::Clear()
 bool IAttributeDictionary::Contains(const Stroka& key) const
 {
     return FindYson(key);
+}
+
+TAutoPtr<IAttributeDictionary> IAttributeDictionary::FromMap(IMapNodePtr node)
+{
+    auto attributes = CreateEphemeralAttributes();
+    auto children = node->GetChildren();
+    for (int i = 0; i < children.size(); ++i) {
+        attributes->SetYson(children[i].first, ConvertToYsonString(children[i].second));
+    }
+    return attributes;
+}
+
+IMapNodePtr IAttributeDictionary::ToMap() const
+{
+    auto map = GetEphemeralNodeFactory()->CreateMap();
+    auto keys = List();
+    FOREACH(const auto& key, keys) {
+        map->AddChild(ConvertToNode(GetYson(key)), key);
+    }
+    return map;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -3,8 +3,10 @@
 #include "public.h"
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
+#include <ytlib/table_client/table_reader.pb.h>
 
 #include <ytlib/ytree/public.h>
+#include <ytlib/yson/yson_consumer.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -64,6 +66,7 @@ public:
     static TChannel FromProto(const NProto::TChannel& protoChannel);
 
     const std::vector<Stroka>& GetColumns() const;
+    const std::vector<TRange>& GetRanges() const;
 
     //! Returns the channel containing all possible columns.
     static const TChannel& Universal();
@@ -81,7 +84,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Serialize(const TChannel& channel, NYson::IYsonConsumer* consumer);
 void Deserialize(TChannel& channel, NYTree::INodePtr node);
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto {
+
+void Serialize(const NProto::TReadLimit& readLimit, NYson::IYsonConsumer* consumer);
+void Deserialize(NProto::TReadLimit& readLimit, NYTree::INodePtr node);
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

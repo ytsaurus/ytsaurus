@@ -4,6 +4,7 @@
 #include "command.h"
 #include "transaction_commands.h"
 #include "cypress_commands.h"
+#include "etc_commands.h"
 #include "file_commands.h"
 #include "table_commands.h"
 #include "scheduler_commands.h"
@@ -93,6 +94,8 @@ public:
         REGISTER(TReduceCommand,            "reduce",      Null,       Structured, true,  false);
         REGISTER(TMapReduceCommand,         "map_reduce",  Null,       Structured, true,  false);
         REGISTER(TAbortOperationCommand,    "abort_op",    Null,       Null,       true,  false);
+        
+        REGISTER(TParseYPathCommand,        "parse_ypath", Null,       Structured, false,  false);
 #undef REGISTER
     }
 

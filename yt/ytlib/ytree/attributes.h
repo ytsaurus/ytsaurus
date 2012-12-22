@@ -57,7 +57,10 @@ struct IAttributeDictionary
     
     //! Constructs an instance from a map node (by serializing the values).
     static TAutoPtr<IAttributeDictionary> FromMap(IMapNodePtr node);
-
+    
+    //! Converts attributes to map node.
+    IMapNodePtr ToMap() const;
+    
     //! Adds more attributes from another map node.
     void MergeFrom(const IMapNodePtr other);
 

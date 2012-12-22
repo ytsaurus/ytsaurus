@@ -2,7 +2,6 @@
 #include "ypath_client.h"
 #include "ypath_proxy.h"
 #include "ypath_detail.h"
-#include "ypath_format.h"
 #include "attribute_helpers.h"
 
 #include <ytlib/yson/yson_format.h>

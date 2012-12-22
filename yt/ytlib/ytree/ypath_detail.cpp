@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "ypath_detail.h"
 #include "ypath_client.h"
-#include "ypath_format.h"
 #include "node_detail.h"
 
 #include <ytlib/ytree/convert.h>

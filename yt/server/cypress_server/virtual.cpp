@@ -3,8 +3,6 @@
 
 #include <ytlib/misc/singleton.h>
 
-#include <ytlib/ytree/ypath_format.h>
-
 #include <server/cypress_server/node_detail.h>
 #include <server/cypress_server/node_proxy_detail.h>
 

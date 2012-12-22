@@ -282,7 +282,7 @@ class TestTableCommands(YTEnvSetup):
     def test_copy_to_the_same_table(self):
         create('table', '//tmp/t')
         write_str('//tmp/t', '{a=b}')
-        
+
         with pytest.raises(YTError): copy('//tmp/t', '//tmp/t')
 
     def test_copy_tx(self):
@@ -315,7 +315,7 @@ class TestTableCommands(YTEnvSetup):
 
     def test_transaction_staff(self):
         create("table", "//tmp/table_xxx")
-        
+
         tx = start_transaction()
         remove("//tmp/table_xxx", tx=tx)
         inner_tx = start_transaction(tx=tx)
@@ -324,22 +324,21 @@ class TestTableCommands(YTEnvSetup):
     def test_exists(self):
         self.assertEqual(exists("//tmp/t"), "false")
         self.assertEqual(exists("<overwrite=true>//tmp/t"), "false")
-        
+
         create("table", "//tmp/t")
         self.assertEqual(exists("//tmp/t"), "true")
         self.assertEqual(exists("<overwrite=true>//tmp/t"), "true")
         # These cases are not supported yet because of future changes in the table grammar
-        #self.assertEqual(exists("//tmp/t[:#100]"), "true")
+        self.assertEqual(exists("//tmp/t[:#100]"), "true")
         #self.assertEqual(exists("//tmp/t/xxx"), "false")
         self.assertEqual(exists("//tmp/t/@"), "true")
         self.assertEqual(exists("//tmp/t/@chunk_ids"), "true")
-        self.assertEqual(exists("//tmp/t/@chunk_ids[0]"), "false")
 
     def test_invalid_channels_in_create(self):
         with pytest.raises(YTError): create('table', '//tmp/t', opt='channels=123')
 
     def test_replication_factor_attr(self):
-        create('table', '//tmp/t')      
+        create('table', '//tmp/t')
         assert get('//tmp/t/@replication_factor') == 3
 
         with pytest.raises(YTError): remove('//tmp/t/@replication_factor')
@@ -385,7 +384,7 @@ class TestTableCommands(YTEnvSetup):
     	chunk_ids = get(path + '/@chunk_ids')
     	for id in chunk_ids:
     		assert get('#' + id + '/@replication_factor') == expected_rf
-    	
+
     def test_replication_factor_update1(self):
     	create('table', '//tmp/t')
     	for i in xrange(0, 5):
@@ -403,4 +402,4 @@ class TestTableCommands(YTEnvSetup):
     	commit_transaction(tx)
     	sleep(3)
     	self._check_replication_factor('//tmp/t', 4)
-        
+

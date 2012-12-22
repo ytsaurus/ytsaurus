@@ -10,8 +10,6 @@
 #include <ytlib/ytree/ephemeral_node_factory.h>
 #include <ytlib/yson/yson_parser.h>
 #include <ytlib/yson/tokenizer.h>
-#include <ytlib/ytree/ypath_format.h>
-
 #include <ytlib/ypath/token.h>
 
 #include <ytlib/table_client/table_ypath_proxy.h>
@@ -46,172 +44,6 @@ using namespace NSecurityServer;
 
 using NTableClient::NProto::TReadLimit;
 using NTableClient::NProto::TKey;
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
-void ThrowUnexpectedToken(const TToken& token)
-{
-    THROW_ERROR_EXCEPTION("Token is unexpected");
-}
-
-void ParseChannel(TTokenizer& tokenizer, TChannel* channel)
-{
-    if (tokenizer.GetCurrentType() == BeginColumnSelectorToken) {
-        tokenizer.ParseNext();
-        *channel = TChannel::Empty();
-        while (tokenizer.GetCurrentType() != EndColumnSelectorToken) {
-            Stroka begin;
-            bool isRange = false;
-            switch (tokenizer.GetCurrentType()) {
-                case ETokenType::String:
-                    begin.assign(tokenizer.CurrentToken().GetStringValue());
-                    tokenizer.ParseNext();
-                    if (tokenizer.GetCurrentType() == RangeToken) {
-                        isRange = true;
-                        tokenizer.ParseNext();
-                    }
-                    break;
-                case RangeToken:
-                    isRange = true;
-                    tokenizer.ParseNext();
-                    break;
-                default:
-                    ThrowUnexpectedToken(tokenizer.CurrentToken());
-                    YUNREACHABLE();
-            }
-            if (isRange) {
-                switch (tokenizer.GetCurrentType()) {
-                    case ETokenType::String: {
-                        Stroka end(tokenizer.CurrentToken().GetStringValue());
-                        channel->AddRange(begin, end);
-                        tokenizer.ParseNext();
-                        break;
-                    }
-                    case ColumnSeparatorToken:
-                    case EndColumnSelectorToken:
-                        channel->AddRange(TRange(begin));
-                        break;
-                    default:
-                        ThrowUnexpectedToken(tokenizer.CurrentToken());
-                        YUNREACHABLE();
-                }
-            } else {
-                channel->AddColumn(begin);
-            }
-            switch (tokenizer.GetCurrentType()) {
-                case ColumnSeparatorToken:
-                    tokenizer.ParseNext();
-                    break;
-                case EndColumnSelectorToken:
-                    break;
-                default:
-                    ThrowUnexpectedToken(tokenizer.CurrentToken());
-                    YUNREACHABLE();
-            }
-        }
-        tokenizer.ParseNext();
-    } else {
-        *channel = TChannel::Universal();
-    }
-}
-
-void ParseKeyPart(
-    TTokenizer& tokenizer,
-    TKey* key)
-{
-    auto *keyPart = key->add_parts();
-
-    switch (tokenizer.GetCurrentType()) {
-        case ETokenType::String: {
-            auto value = tokenizer.CurrentToken().GetStringValue();
-            keyPart->set_str_value(value.begin(), value.size());
-            keyPart->set_type(EKeyPartType::String);
-            break;
-        }
-
-        case ETokenType::Integer: {
-            auto value = tokenizer.CurrentToken().GetIntegerValue();
-            keyPart->set_int_value(value);
-            keyPart->set_type(EKeyPartType::Integer);
-            break;
-        }
-
-        case ETokenType::Double: {
-            auto value = tokenizer.CurrentToken().GetDoubleValue();
-            keyPart->set_double_value(value);
-            keyPart->set_type(EKeyPartType::Double);
-            break;
-        }
-
-        default:
-            ThrowUnexpectedToken(tokenizer.CurrentToken());
-            break;
-    }
-    tokenizer.ParseNext();
-}
-
-void ParseRowLimit(
-    TTokenizer& tokenizer,
-    ETokenType separator,
-    TReadLimit* limit)
-{
-    if (tokenizer.GetCurrentType() == separator) {
-        tokenizer.ParseNext();
-        return;
-    }
-
-    switch (tokenizer.GetCurrentType()) {
-        case RowIndexMarkerToken:
-            tokenizer.ParseNext();
-            limit->set_row_index(tokenizer.CurrentToken().GetIntegerValue());
-            tokenizer.ParseNext();
-            break;
-
-        case BeginTupleToken:
-            tokenizer.ParseNext();
-            limit->mutable_key();
-            while (tokenizer.GetCurrentType() != EndTupleToken) {
-                ParseKeyPart(tokenizer, limit->mutable_key());
-                switch (tokenizer.GetCurrentType()) {
-                    case KeySeparatorToken:
-                        tokenizer.ParseNext();
-                        break;
-                    case EndTupleToken:
-                        break;
-                    default:
-                        ThrowUnexpectedToken(tokenizer.CurrentToken());
-                        YUNREACHABLE();
-                }
-            }
-            tokenizer.ParseNext();
-            break;
-
-        default:
-            ParseKeyPart(tokenizer, limit->mutable_key());
-            break;
-    }
-
-    tokenizer.CurrentToken().CheckType(separator);
-    tokenizer.ParseNext();
-}
-
-void ParseRowLimits(
-    TTokenizer& tokenizer,
-    TReadLimit* lowerLimit,
-    TReadLimit* upperLimit)
-{
-    *lowerLimit = TReadLimit();
-    *upperLimit = TReadLimit();
-    if (tokenizer.GetCurrentType() == BeginRowSelectorToken) {
-        tokenizer.ParseNext();
-        ParseRowLimit(tokenizer, RangeToken, lowerLimit);
-        ParseRowLimit(tokenizer, EndRowSelectorToken, upperLimit);
-    }
-}
-
-} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -769,19 +601,6 @@ bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& v
     return TBase::SetSystemAttribute(key, value);
 }
 
-void TTableNodeProxy::ParseYPath(
-    const TYPath& path,
-    TChannel* channel,
-    TReadLimit* lowerBound,
-    TReadLimit* upperBound)
-{
-    TTokenizer tokenizer(path);
-    tokenizer.ParseNext();
-    ParseChannel(tokenizer, channel);
-    ParseRowLimits(tokenizer, lowerBound, upperBound);
-    tokenizer.CurrentToken().CheckType(ETokenType::EndOfStream);
-}
-
 DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, PrepareForUpdate)
 {
     if (!Transaction) {
@@ -871,9 +690,10 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
 
     const auto* node = GetThisTypedImpl();
 
-    auto channel = TChannel::Empty();
-    TReadLimit lowerLimit, upperLimit;
-    ParseYPath(context->GetPath(), &channel, &lowerLimit, &upperLimit);
+    auto attributes = ConvertToAttributes(TYsonString(request->Attributes().GetYson("path_attributes")));
+    auto channel = attributes->Get("channel", TChannel::Universal());
+    auto lowerLimit = attributes->Get("lower_limit", TReadLimit());
+    auto upperLimit = attributes->Get("upper_limit", TReadLimit());
     auto* chunkList = node->GetChunkList();
 
     auto visitor = New<TFetchChunkVisitor>(

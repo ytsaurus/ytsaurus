@@ -55,9 +55,7 @@ void TTableReader::Open()
 
     LOG_INFO("Fetching table info");
     
-    auto path = RichPath.GetPath();
-    
-    auto fetchReq = TTableYPathProxy::Fetch(path);
+    auto fetchReq = TTableYPathProxy::Fetch(RichPath);
     SetTransactionId(fetchReq, TransactionId);
     fetchReq->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
     fetchReq->set_fetch_node_addresses(true);

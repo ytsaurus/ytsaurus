@@ -1,11 +1,13 @@
 #include "stdafx.h"
 #include "schema.h"
+#include "key.h"
 
 #include <ytlib/misc/error.h>
 #include <ytlib/misc/foreach.h>
 
 #include <ytlib/ytree/node.h>
 #include <ytlib/ytree/convert.h>
+#include <ytlib/ytree/fluent.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -84,8 +86,8 @@ bool TRange::Contains(const TRange& range) const
 
 bool TRange::Overlaps(const TRange& range) const
 {
-    return 
-        ( Begin_ <= range.Begin_ && (IsInfinite() || range.Begin_ <  End_) ) || 
+    return
+        ( Begin_ <= range.Begin_ && (IsInfinite() || range.Begin_ <  End_) ) ||
         ( Begin_ <  range.End_   && (IsInfinite() || range.End_   <= End_) ) ||
         ( Begin_ >= range.Begin_ && (range.IsInfinite() || range.End_ > Begin_) );
 }
@@ -233,6 +235,11 @@ const std::vector<Stroka>& TChannel::GetColumns() const
     return Columns_;
 }
 
+const std::vector<TRange>& TChannel::GetRanges() const
+{
+    return Ranges_;
+}
+
 bool TChannel::IsEmpty() const
 {
     return Columns_.empty() && Ranges_.empty();
@@ -244,7 +251,7 @@ TChannel CreateUniversal()
 {
     TChannel result;
     result.AddRange(TRange(""));
-    return result;   
+    return result;
 }
 
 TChannel CreateEmpty()
@@ -292,7 +299,7 @@ TChannel& operator -= (TChannel& lhs, const TChannel& rhs)
             if (!lhsRange.Overlaps(rhsRange)) {
                 newRanges.push_back(lhsRange);
                 continue;
-            } 
+            }
 
             if (lhsRange.Begin() < rhsRange.Begin()) {
                 newRanges.push_back(TRange(lhsRange.Begin(), rhsRange.Begin()));
@@ -371,6 +378,98 @@ void Deserialize(TChannel& channel, INodePtr node)
         }
     }
 }
+
+void Serialize(const TChannel& channel, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginList()
+        .DoFor(channel.GetColumns(), [] (TFluentList fluent, Stroka column) {
+            fluent.Item().Value(column);
+        })
+        .DoFor(channel.GetRanges(), [] (TFluentList fluent, const TRange& range) {
+            fluent.Item()
+                .BeginList()
+                    .Item().Value(range.Begin())
+                    .DoIf(!range.IsInfinite(), [&] (TFluentList fluent) {fluent
+                        .Item().Value(range.End());
+                    })
+                .EndList();
+        })
+        .EndList();
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto {
+
+void Serialize(const NProto::TReadLimit& readLimit, NYson::IYsonConsumer* consumer)
+{
+    if (readLimit.has_row_index()) {
+        if (readLimit.has_key()) {
+            THROW_ERROR_EXCEPTION("Key or row index must absent in read limit");
+        }
+        consumer->OnIntegerScalar(readLimit.row_index());
+    }
+    else if (readLimit.has_key()) {
+        YCHECK(!readLimit.has_row_index());
+        consumer->OnBeginList();
+        FOREACH(const auto& part, readLimit.key().parts()) {
+            consumer->OnListItem();
+            switch (part.type()) {
+                case EKeyPartType::String:
+                    consumer->OnStringScalar(part.str_value());
+                    break;
+                case EKeyPartType::Integer:
+                    consumer->OnIntegerScalar(part.int_value());
+                    break;
+                case EKeyPartType::Double:
+                    consumer->OnDoubleScalar(part.double_value());
+                    break;
+            }
+        }
+        consumer->OnEndList();
+    }
+    else {
+        THROW_ERROR_EXCEPTION("Cannot serialize empty read limit");
+    }
+}
+
+void Deserialize(NProto::TReadLimit& readLimit, INodePtr node)
+{
+    if (node->GetType() == ENodeType::Integer) {
+        readLimit.set_row_index(node->GetValue<i64>());
+    }
+    else if (node->GetType() == ENodeType::List) {
+        auto key = readLimit.mutable_key();
+        auto nodeList = node->AsList();
+        for (int i = 0; i < nodeList->GetChildCount(); ++i) {
+            auto child = nodeList->FindChild(i);
+            auto keyPart = key->add_parts();
+            switch (child->GetType()) {
+                case ENodeType::String:
+                    keyPart->set_type(EKeyPartType::String);
+                    keyPart->set_str_value(child->GetValue<Stroka>());
+                    break;
+                case ENodeType::Integer:
+                    keyPart->set_type(EKeyPartType::Integer);
+                    keyPart->set_int_value(child->GetValue<i64>());
+                    break;
+                case ENodeType::Double:
+                    keyPart->set_type(EKeyPartType::Double);
+                    keyPart->set_double_value(child->GetValue<double>());
+                    break;
+                default:
+                    THROW_ERROR_EXCEPTION("Unexpected key part type: %s", ~child->GetType().ToString());
+            }
+        }
+    }
+    else {
+        THROW_ERROR_EXCEPTION("Unexpected read limit type: %s", ~node->GetType().ToString());
+    }
+}
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

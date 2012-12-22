@@ -1,6 +1,7 @@
 #pragma once
 
 #include "config.h"
+#include "io_helpers.h"
 
 #include <ytlib/misc/tclap_helpers.h>
 

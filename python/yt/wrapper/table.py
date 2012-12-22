@@ -1,6 +1,19 @@
 from common import flatten, require, YtError, bool_to_string
-from path_tools import split_table_ranges
+from config import PREFIX
+from http import make_request
+from format import YsonFormat
 
+from yt.yson import YsonString
+
+def check_prefix(prefix):
+    require(prefix.startswith("//"),
+            YtError("PREFIX should starts with //"))
+    require(prefix.endswith("/"),
+            YtError("PREFIX should ends with /"))
+
+def _parse_ypath(path):
+    return make_request("parse_ypath", {"path": path}, format=YsonFormat())
+    
 class TablePath(object):
     """
     Represents path to table with attributes:
@@ -13,79 +26,60 @@ class TablePath(object):
                  append=False, sorted_by=None,
                  columns=None,
                  lower_key=None, upper_key=None,
-                 start_index=None, end_index=None):
-        self.name, self.specificators = split_table_ranges(name)
-        self.append = append
-        self.sorted_by = sorted_by
-        self.columns = columns
-        self.lower_key = lower_key
-        self.upper_key = upper_key
-        self.start_index = start_index
-        self.end_index = end_index
-        require(not (self.specificators and (columns is not None or
-                                             lower_key is not None or
-                                             upper_key is not None or
-                                             start_index is not None or
-                                             end_index is not None)),
-                YtError("You should not use ranges both in the name and in the variables"))
+                 start_index=None, end_index=None,
+                 simplify=True):
+        self._append = append
+        if simplify:
+            self.name = _parse_ypath(name)
+        else:
+            self.name = YsonString(name)
 
-        self.has_index = start_index is not None or end_index is not None
-        self.has_key = lower_key is not None or upper_key is not None
-        require(not (self.has_index and self.has_key),
+        if self.name != "/" and not self.name.startswith("//"):
+            require(PREFIX is not None,
+                    YtError("Path (%s) should be absolute or you should specify prefix" % self.name))
+            require(PREFIX.startswith("//"),
+                    YtError("PREFIX should starts with //"))
+            require(PREFIX.endswith("/"),
+                    YtError("PREFIX should ends with /"))
+            # TODO(ignat): refactor YsonString to fix this hack
+            attributes = self.name.attributes
+            self.name = YsonString(PREFIX + self.name)
+            self.name.attributes = attributes
+
+        attributes = self.name.attributes
+        attributes["overwrite"] = bool_to_string(not append)
+        if sorted_by is not None:
+            attributes["sorted_by"] = sorted_by
+        if columns is not None:
+            attributes["channel"] = columns
+
+        has_index = start_index is not None or end_index is not None
+        has_key = lower_key is not None or upper_key is not None
+        require(not (has_index and has_key),
                 YtError("You could not specify key bound and index bound simultaneously"))
+        if lower_key is not None:
+            attributes["lower_limit"] = flatten(lower_key)
+        if upper_key is not None:
+            attributes["upper_limit"] = flatten(upper_key)
+        if start_index is not None:
+            attributes["lower_limit"] = start_index
+        if end_index is not None:
+            attributes["upper_limit"] = end_index
 
-    def get_name(self, use_ranges=False, use_overwrite=False):
-        def column_to_str(column):
-            column = flatten(column)
-            require(len(column) <= 2,
-                    YtError("Incorrect column " + str(column)))
-            if len(column) == 1:
-                return column[0]
-            else:
-                return ":".join(column)
+    @property
+    def append(self):
+        return self._append
 
-        def key_to_str(key):
-            if key is None:
-                return ""
-            return '("%s")' % ",".join(flatten(key))
-
-        def index_to_str(index):
-            if index is None:
-                return ""
-            return '#%d' % index
-
-        name = self.name
-        if use_ranges:
-            name = name + self.specificators
-            if self.columns is not None:
-                name = "%s{%s}" % \
-                    (name, ",".join(map(column_to_str, self.columns)))
-            if self.has_key:
-                name = "%s[%s]" % \
-                    (name, ":".join(map(key_to_str, [self.lower_key, self.upper_key])))
-
-            if self.has_index:
-                name = "%s[%s]" % \
-                    (name, ":".join(map(index_to_str, [self.start_index, self.end_index])))
-
-        if use_overwrite:
-            attributes = {"overwrite": bool_to_string(not self.append)}
-            if self.sorted_by is not None:
-                attributes["sorted_by"] = self.sorted_by
-            name = {
-                "$value": name,
-                "$attributes": attributes}
-
-        return name
+    @append.setter
+    def append(self, value):
+        self._append = value
+        self.name.attributes["overwrite"] = bool_to_string(not self._append)
 
     def has_delimiters(self):
-        return \
-            self.columns is not None or \
-            self.lower_key is not None or \
-            self.upper_key is not None or \
-            self.start_index is not None or \
-            self.end_index is not None
+        return any(key in self.name.attributes for key in ["channel", "lower_limit", "upper_limit"])
 
+    def get_json(self):
+        return {"$value": str(self.name), "$attributes": self.name.attributes}
 
     def __eq__(self, other):
         return self.name == other.name
@@ -94,8 +88,8 @@ class TablePath(object):
         return hash(self.name)
 
     def __str__(self):
-        return self.get_name(use_ranges=True)
-    
+        return str(self.name)
+
     def __repr__(self):
         return str(self)
 
@@ -106,4 +100,8 @@ def to_table(object):
         return TablePath(object)
 
 def to_name(object):
-    return to_table(object).get_name()
+    return to_table(object).name
+
+def prepare_path(object):
+    return to_table(object).get_json()
+

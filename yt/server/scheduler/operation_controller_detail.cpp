@@ -1385,7 +1385,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
         }
         {
             // NB: Use table.Path here, otherwise path suffix is ignored.
-            auto req = TTableYPathProxy::Fetch(table.Path.GetPath());
+            auto req = TTableYPathProxy::Fetch(table.Path);
             SetTransactionId(req, InputTransaction);
             req->set_fetch_node_addresses(true);
             req->set_fetch_all_meta_extensions(true);
@@ -1442,7 +1442,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
     }
 
     FOREACH (const auto& file, TableFiles) {
-        auto path = file.Path.GetPath();
+        auto path = file.Path;
         {
             {
                 auto req = TTableYPathProxy::Fetch(path);
@@ -1458,7 +1458,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             }
 
             {
-                auto req = TYPathProxy::Get(path + "/@uncompressed_data_size");
+                auto req = TYPathProxy::Get(file.Path.GetPath() + "/@uncompressed_data_size");
                 SetTransactionId(req, InputTransaction->GetId());
                 batchReq->AddRequest(req, "fetch_table_files_sizes");
             }

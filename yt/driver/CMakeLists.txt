@@ -5,6 +5,7 @@ set( SRCS
   ${BASE}/cypress_executors.cpp
   ${BASE}/executor.cpp
   ${BASE}/file_executors.cpp
+  ${BASE}/io_helpers.cpp
   ${BASE}/main.cpp
   ${BASE}/operation_tracker.cpp
   ${BASE}/preprocess.cpp
@@ -19,6 +20,7 @@ set( HDRS
   ${BASE}/cypress_executors.h
   ${BASE}/executor.h
   ${BASE}/file_executors.h
+  ${BASE}/io_helpers.h
   ${BASE}/operation_tracker.h
   ${BASE}/preprocess.h
   ${BASE}/scheduler_executors.h

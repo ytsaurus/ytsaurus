@@ -21,6 +21,7 @@ DECLARE_ENUM(ETokenType,
     (At)
     (StartOfStream)
     (EndOfStream)
+    (Range)
 );
 
 Stroka ToYPathLiteral(const Stroka& value);

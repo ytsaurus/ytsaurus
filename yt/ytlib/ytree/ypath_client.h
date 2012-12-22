@@ -12,6 +12,8 @@
 
 #include <ytlib/rpc/client.h>
 
+#include <ytlib/ypath/rich.h>
+
 namespace NYT {
 namespace NYTree {
 
@@ -113,10 +115,12 @@ protected:
     typedef TIntrusivePtr<TReq##method> TReq##method##Ptr; \
     typedef TIntrusivePtr<TRsp##method> TRsp##method##Ptr; \
     \
-    static TReq##method##Ptr method(const NYT::NYPath::TYPath& path  = "") \
+    static TReq##method##Ptr method(const NYT::NYPath::TRichYPath& path = "") \
     { \
         auto req = New<TReq##method>(#method); \
-        req->SetPath(path); \
+        auto simplified = path.Simplify(); \
+        req->SetPath(simplified.GetPath()); \
+        req->Attributes().SetYson("path_attributes", ConvertToYsonString(simplified.Attributes())); \
         return req; \
     }
 
