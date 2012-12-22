@@ -3,7 +3,7 @@ import py_wrapper
 from common import flatten, require, YtError, unlist, update, EMPTY_GENERATOR, parse_bool, is_prefix, get_value, compose
 from version import VERSION
 from http import read_content
-from table import TablePath, to_table, to_name
+from table import TablePath, to_table, to_name, prepare_path
 from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, move, mkdir, find_free_subpath
 from file_commands import smart_upload_file
 from transaction_commands import _make_transactioned_request, PingableTransaction
@@ -123,7 +123,7 @@ def _add_user_command_spec(op_type, binary, input_format, output_format, files, 
                 "input_format": input_format.to_json(),
                 "output_format": output_format.to_json(),
                 "command": binary,
-                "file_paths": flatten(files + additional_files + get_value(file_paths, [])),
+                "file_paths": flatten(files + additional_files + map(prepare_path, get_value(file_paths, []))),
                 "memory_limit": config.MEMORY_LIMIT
             }
         },
@@ -141,9 +141,9 @@ def _add_user_spec(spec):
 
 def _add_input_output_spec(source_table, destination_table, spec):
     def get_input_name(table):
-        return table.get_name(use_ranges=True)
+        return table.get_json()
     def get_output_name(table):
-        return table.get_name(use_overwrite=True)
+        return table.get_json()
     
     spec = update({"input_table_paths": map(get_input_name, source_table)}, spec)
     if isinstance(destination_table, TablePath):
@@ -205,21 +205,24 @@ class Buffer(object):
 """ Common table methods """
 def create_table(path, recursive=None, replication_factor=None, attributes=None):
     """ Creates empty table, use recursive for automatically creaation the path """
+    table = TablePath(path)
     if recursive is None:
         recursive = config.CREATE_RECURSIVE
     if recursive:
-        mkdir(os.path.dirname(path), True)
+        mkdir(os.path.dirname(table.name), True)
 
     attributes = get_value(attributes, {})
     if replication_factor is not None:
         attributes["replication_factor"] = replication_factor
-    _make_transactioned_request("create", {"path": path, "type": "table", "attributes": attributes})
+    _make_transactioned_request("create", {"path": table.name, "type": "table", "attributes": attributes})
 
 def create_temp_table(path=None, prefix=None):
     """ Creates temporary table by given path with given prefix """
     if path is None:
         path = config.TEMP_TABLES_STORAGE
         mkdir(path, recursive=True)
+    else:
+        path = to_name(path)
     require(exists(path), YtError("You cannot create table in unexisting path"))
     if prefix is not None:
         path = os.path.join(path, prefix)
@@ -250,7 +253,7 @@ def write_table(table, lines, format=None, table_writer=None, replication_factor
         while not buffer.empty():
             if started:
                 table.append = True
-            params = {"path": table.get_name(use_overwrite=True)}
+            params = {"path": table.get_json()}
             if table_writer is not None:
                 params["table_writer"] = table_writer
             for i in xrange(config.WRITE_RETRIES_COUNT):
@@ -280,7 +283,7 @@ def read_table(table, format=None, response_type=None):
     response = _make_transactioned_request(
         "read",
         {
-            "path": table.get_name(use_ranges=True)
+            "path": table.get_json()
         },
         format=format,
         raw_response=True)
@@ -300,13 +303,13 @@ def copy_table(source_table, destination_table, replace=True):
         return
     destination_table = to_table(destination_table)
     if _are_nodes(source_tables, destination_table):
-        if replace and exists(destination_table.get_name()) and to_name(source_tables[0]) != to_name(destination_table):
+        if replace and exists(destination_table.name) and to_name(source_tables[0]) != to_name(destination_table):
             # in copy destination should be absent
-            remove(destination_table.get_name())
-        mkdir(os.path.dirname(destination_table.get_name()), recursive=True)
-        copy(source_tables[0].get_name(), destination_table.get_name())
+            remove(destination_table.name)
+        mkdir(os.path.dirname(destination_table.name), recursive=True)
+        copy(source_tables[0].name, destination_table.name)
     else:
-        source_names = [table.get_name() for table in source_tables]
+        source_names = [table.name for table in source_tables]
         mode = "sorted" if all(map(is_sorted, source_names)) else "ordered"
         run_merge(source_tables, destination_table, mode)
 
@@ -323,15 +326,15 @@ def move_table(source_table, destination_table, replace=True):
     if _are_nodes(source_tables, destination_table):
         if source_tables[0] == destination_table:
             return
-        if replace and exists(destination_table.get_name()):
-            remove(destination_table.get_name())
-        move(source_tables[0].get_name(), destination_table.get_name())
+        if replace and exists(destination_table.name):
+            remove(destination_table.name)
+        move(source_tables[0].name, destination_table.name)
     else:
         copy_table(source_table, destination_table)
         for table in source_tables:
             if to_name(table) == to_name(destination_table):
                 continue
-            remove(table.get_name())
+            remove(table.name)
 
 def run_erase(table, strategy=None):
     """
@@ -340,9 +343,9 @@ def run_erase(table, strategy=None):
     of records in the table.
     """
     table = to_table(table)
-    if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table.get_name()):
+    if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table.name):
         return
-    _make_operation_request("erase", {"table_path": table.get_name(use_ranges=True)}, strategy)
+    _make_operation_request("erase", {"table_path": table.get_json()}, strategy)
 
 def erase_table(table, strategy=None):
     """ DEPRECATED: use run_erase"""
@@ -421,7 +424,7 @@ def run_sort(source_table, destination_table=None, sort_by=None,
     sort_by = _prepare_sort_by(sort_by)
     source_table = _prepare_source_tables(source_table)
     for table in source_table:
-        require(exists(table.get_name()), YtError("Table %s should exist" % table))
+        require(exists(table.name), YtError("Table %s should exist" % table))
     if all(is_prefix(sort_by, get_sorted_by(table.name, [])) for table in source_table):
         #(TODO) Hack detected: make something with it
         if len(source_table) > 0:
