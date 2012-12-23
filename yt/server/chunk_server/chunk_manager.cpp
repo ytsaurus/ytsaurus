@@ -1091,11 +1091,6 @@ private:
         FOREACH (auto& pair, JobMap) {
             RegisterReplicationSinks(pair.second);
         }
-
-        // COMPAT(babenko)
-        if (context.GetVersion() < 4) {
-            ScheduleRecomputeStatistics();
-        }
     }
 
     virtual void Clear() override

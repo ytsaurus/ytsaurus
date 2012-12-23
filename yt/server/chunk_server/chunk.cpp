@@ -88,10 +88,7 @@ void TChunk::Load(const NCellMaster::TLoadContext& context)
     LoadProto(input, ChunkMeta_);
     ::Load(input, ReplicationFactor_);
     ::Load(input, Movable_);
-    // COMPAT(psushin)
-    if (context.GetVersion() >= 4) {
-        ::Load(input, Vital_);
-    }
+    ::Load(input, Vital_);
     LoadObjectRefs(input, Parents_, context);
     ::Load(input, StoredLocations_);
     LoadNullableSet(input, CachedLocations_);
