@@ -73,6 +73,7 @@ struct IChunkPoolOutput
     static const TCookie NullCookie = -1;
 
     virtual i64 GetTotalDataSize() const = 0;
+    virtual i64 GetRunningDataSize() const = 0;
     virtual i64 GetCompletedDataSize() const = 0;
     virtual i64 GetPendingDataSize() const = 0;
 

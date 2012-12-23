@@ -146,6 +146,11 @@ public:
         return DataSizeCounter.GetTotal();
     }
 
+    virtual i64 GetRunningDataSize() const override
+    {
+        return DataSizeCounter.GetRunning();
+    }
+
     virtual i64 GetCompletedDataSize() const override
     {
         return DataSizeCounter.GetCompleted();

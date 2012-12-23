@@ -45,6 +45,9 @@ using namespace NChunkClient::NProto;
 static NLog::TLogger& Logger(OperationLogger);
 static NProfiling::TProfiler Profiler("/operations/sort");
 
+//! Maximum number of buckets for partition sizes aggregation.
+static const int MaxAggregatedPartitionBuckets = 100;
+
 ////////////////////////////////////////////////////////////////////
 
 class TSortControllerBase
@@ -1138,6 +1141,67 @@ protected:
         result = std::max(result, (i64)1);
         return static_cast<int>(result);
     }
+
+    static std::vector<i64> AggregateValues(const std::vector<i64>& values, int maxBuckets)
+    {
+        if (values.size() < maxBuckets) {
+            return values;
+        }
+
+        std::vector<i64> result(maxBuckets);
+        for (int i = 0; i < maxBuckets; ++i) {
+            int lo = static_cast<int>(i * values.size() / maxBuckets);
+            int hi = static_cast<int>((i + 1) * values.size() / maxBuckets);
+            i64 sum = 0;
+            for (int j = lo; j < hi; ++j) {
+                sum += values[j];
+            }
+            result[i] = sum / (hi - lo);
+        }
+
+        return result;
+    }
+
+    std::vector<i64> GetAggregatedTotalPartitionSizes() const
+    {
+        std::vector<i64> sizes(Partitions.size());
+        for (int i = 0; i < static_cast<int>(Partitions.size()); ++i) {
+            sizes[i] = Partitions[i]->ChunkPoolOutput->GetTotalDataSize();
+        }
+        return AggregateValues(sizes, MaxAggregatedPartitionBuckets);
+    }
+
+    std::vector<i64> GetAggregatedCompletedPartitionSizes() const
+    {
+        std::vector<i64> sizes(Partitions.size());
+        for (int i = 0; i < static_cast<int>(Partitions.size()); ++i) {
+            sizes[i] = Partitions[i]->ChunkPoolOutput->GetCompletedDataSize();
+        }
+        return AggregateValues(sizes, MaxAggregatedPartitionBuckets);
+    }
+
+    std::vector<i64> GetAggregatedRunningPartitionSizes() const
+    {
+        std::vector<i64> sizes(Partitions.size());
+        for (int i = 0; i < static_cast<int>(Partitions.size()); ++i) {
+            sizes[i] = Partitions[i]->ChunkPoolOutput->GetRunningDataSize();
+        }
+        return AggregateValues(sizes, MaxAggregatedPartitionBuckets);
+    }
+
+    void BuildPartitionsProgressYson(IYsonConsumer* consumer) const
+    {
+        BuildYsonMapFluently(consumer)
+            .Item("partitions").BeginMap()
+                .Item("total").Scalar(Partitions.size())
+                .Item("completed").Scalar(CompletedPartitionCount)
+            .EndMap()
+            .Item("partition_sizes").BeginMap()
+                .Item("total").Scalar(GetAggregatedTotalPartitionSizes())
+                .Item("running").Scalar(GetAggregatedRunningPartitionSizes())
+                .Item("completed").Scalar(GetAggregatedCompletedPartitionSizes())
+            .EndMap();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -1628,10 +1692,7 @@ private:
     {
         TSortControllerBase::BuildProgressYson(consumer);
         BuildYsonMapFluently(consumer)
-            .Item("partitions").BeginMap()
-                .Item("total").Scalar(Partitions.size())
-                .Item("completed").Scalar(CompletedPartitionCount)
-            .EndMap()
+            .Do(BIND(&TSortController::BuildPartitionsProgressYson, Unretained(this)))
             .Item("partition_jobs").Scalar(PartitionJobCounter)
             .Item("intermediate_sort_jobs").Scalar(IntermediateSortJobCounter)
             .Item("final_sort_jobs").Scalar(FinalSortJobCounter)
@@ -2077,10 +2138,7 @@ private:
     {
         TSortControllerBase::BuildProgressYson(consumer);
         BuildYsonMapFluently(consumer)
-            .Item("partitions").BeginMap()
-                .Item("total").Scalar(Partitions.size())
-                .Item("completed").Scalar(CompletedPartitionCount)
-            .EndMap()
+            .Do(BIND(&TMapReduceController::BuildPartitionsProgressYson, Unretained(this)))
             .Item("map_jobs").Scalar(PartitionJobCounter)
             .Item("sort_jobs").Scalar(IntermediateSortJobCounter)
             .Item("partition_reduce_jobs").Scalar(FinalSortJobCounter)
