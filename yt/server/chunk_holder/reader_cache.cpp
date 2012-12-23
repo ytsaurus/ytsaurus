@@ -34,13 +34,14 @@ public:
         , ChunkId(chunkId)
     { }
 
-    virtual TChunkId GetChunkId() const
+    virtual TChunkId GetChunkId() const override
     {
         return ChunkId;
     }
 
 private:
     TChunkId ChunkId;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -70,7 +71,7 @@ public:
                 ~chunk->GetLocation()->GetId(),
                 ~chunkId.ToString());
 
-            PROFILE_TIMING ("/chunk_io/chunk_reader_open_time") {
+            PROFILE_TIMING ("/chunk_reader_open_time") {
                 try {
                     auto reader = New<TCachedReader>(chunkId, fileName);
                     reader->Open();

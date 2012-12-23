@@ -162,7 +162,6 @@ class TSessionManager
 public:
     typedef std::vector<TSessionPtr> TSessions;
 
-    //! Constructs a manager.
     TSessionManager(
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap);
@@ -172,7 +171,7 @@ public:
 
     //! Completes an earlier opened upload session.
     /*!
-     * The call returns a result that gets set when the session is finished.
+     *  The call returns a result that gets set when the session is finished.
      */
     TFuture< TValueOrError<TChunkPtr> > FinishSession(
         TSessionPtr session,
@@ -180,7 +179,7 @@ public:
 
     //! Cancels an earlier opened upload session.
     /*!
-     * Chunk file is closed asynchronously, however the call returns immediately.
+     *  Chunk file is closed asynchronously, however the call returns immediately.
      */
     void CancelSession(TSessionPtr session, const TError& error);
 
@@ -189,9 +188,15 @@ public:
 
     //! Returns the number of currently active session.
     /*!
-     * Thread safe.
+     *  Thread affinity: any
      */
     int GetSessionCount() const;
+
+    //! Returns the number of bytes pending for write.
+    /*!
+     *  Thread affinity: any
+     */
+    i64 GetPendingWriteSize() const;
 
     //! Returns the list of all registered sessions.
     TSessions GetSessions() const;
@@ -205,9 +210,12 @@ private:
     typedef yhash_map<TChunkId, TSessionPtr> TSessionMap;
     TSessionMap SessionMap;
     TAtomic SessionCount;
+    TAtomic PendingWriteSize;
 
     void OnLeaseExpired(TSessionPtr session);
     TValueOrError<TChunkPtr> OnSessionFinished(TSessionPtr session, TValueOrError<TChunkPtr> chunkOrError);
+
+    void UpdatePendingWriteSize(i64 delta);
 
 };
 

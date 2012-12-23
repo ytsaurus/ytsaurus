@@ -3,6 +3,8 @@
 #include "public.h"
 #include "chunk.h"
 
+#include <ytlib/misc/periodic_invoker.h>
+
 #include <ytlib/rpc/service.h>
 
 #include <ytlib/actions/action_queue.h>
@@ -32,6 +34,8 @@ private:
     TDataNodeConfigPtr Config;
     TActionQueuePtr WorkerThread;
     TBootstrap* Bootstrap;
+
+    TPeriodicInvokerPtr ProfilingInvoker;
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, StartChunk);
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, FinishChunk);
@@ -66,7 +70,13 @@ private:
 
     void OnGotChunkMeta(TCtxGetChunkMetaPtr context, TNullable<int> artitionTag, TChunk::TGetMetaResult result);
 
-    bool CheckThrottling() const;
+    i64 GetPendingReadSize() const;
+    i64 GetPendingWriteSize() const;
+
+    bool IsReadThrottling() const;
+    bool IsWriteThrottling() const;
+
+    void OnProfiling();
 
 };
 

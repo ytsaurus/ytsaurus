@@ -133,8 +133,11 @@ struct TDataNodeConfig
     //! Updated expiration timeout (see TPeerBlockUpdater).
     TDuration PeerUpdateExpirationTimeout;
 
-    //! Data block responses are throttled when the out-queue reaches this size.
-    i64 ResponseThrottlingSize;
+    //! Read requests are throttled when pending read size (including bus buffers) reaches this limit.
+    i64 ReadThrottlingSize;
+
+    //! Write requests are throttled when pending write size reaches this limit.
+    i64 WriteThrottlingSize;
 
     //! Regular storage locations.
     std::vector<TLocationConfigPtr> StoreLocations;
@@ -184,9 +187,13 @@ struct TDataNodeConfig
             .Default(TDuration::Seconds(30));
         Register("peer_update_expiration_timeout", PeerUpdateExpirationTimeout)
             .Default(TDuration::Seconds(40));
-        Register("response_throttling_size", ResponseThrottlingSize)
+        Register("read_throttling_size", ReadThrottlingSize)
             .GreaterThan(0)
-            .Default(500 * 1024 * 1024);
+            .Default((i64) 512 * 1024 * 1024);
+        Register("write_throttling_size", WriteThrottlingSize)
+            .GreaterThan(0)
+            // TODO(babenko): provide some meaningful default
+            .Default((i64) 100 * 1024 * 1024 * 1024);
         Register("store_locations", StoreLocations)
             .NonEmpty();
         Register("cache_location", CacheLocation)

@@ -124,7 +124,7 @@ TAsyncError TChunk::ReadMeta()
                 ~this_->Id_.ToString());
 
             NChunkClient::TFileReaderPtr reader;
-            PROFILE_TIMING ("/chunk_io/meta_read_time") {
+            PROFILE_TIMING ("/meta_read_time") {
                 auto readerCache = this_->Location_->GetBootstrap()->GetReaderCache();
                 auto result = readerCache->GetReader(this_);
                 if (!result.IsOK()) {

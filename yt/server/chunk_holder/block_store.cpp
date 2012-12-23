@@ -25,8 +25,8 @@ using namespace NChunkClient::NProto;
 static NLog::TLogger& Logger = DataNodeLogger;
 static NProfiling::TProfiler& Profiler = DataNodeProfiler;
 
-static NProfiling::TRateCounter ReadThroughputCounter("/chunk_io/read_throughput");
-static NProfiling::TRateCounter CacheReadThroughputCounter("/chunk_io/cache_read_throughput");
+static NProfiling::TRateCounter ReadThroughputCounter("/read_throughput");
+static NProfiling::TRateCounter CacheReadThroughputCounter("/cache_read_throughput");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -210,7 +210,7 @@ private:
             ~chunk->GetLocation()->GetId());
 
         TSharedRef data;
-        PROFILE_TIMING ("/chunk_io/block_read_time") {
+        PROFILE_TIMING ("/block_read_time") {
             try {
                 data = reader->ReadBlock(blockId.BlockIndex);
             } catch (const std::exception& ex) {
@@ -252,7 +252,7 @@ private:
             Remove(blockId);
         }
 
-        Profiler.Enqueue("/chunk_io/block_read_size", blockSize);
+        Profiler.Enqueue("/block_read_size", blockSize);
         Profiler.Increment(ReadThroughputCounter, blockSize);
     }
 

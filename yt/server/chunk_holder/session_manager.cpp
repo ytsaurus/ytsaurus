@@ -26,7 +26,7 @@ using namespace NChunkClient::NProto;
 static NLog::TLogger& Logger = DataNodeLogger;
 static NProfiling::TProfiler& Profiler = DataNodeProfiler;
 
-static NProfiling::TRateCounter WriteThroughputCounter("/chunk_io/write_throughput");
+static NProfiling::TRateCounter WriteThroughputCounter("/write_throughput");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,7 +74,7 @@ void TSession::DoOpenFile()
 {
     LOG_DEBUG("Started opening chunk writer");
     
-    PROFILE_TIMING ("/chunk_io/chunk_writer_open_time") {
+    PROFILE_TIMING ("/chunk_writer_open_time") {
         try {
             Writer = New<TFileWriter>(FileName);
             Writer->Open();
@@ -229,6 +229,8 @@ void TSession::EnqueueWrites()
         if (slot.State == ESlotState::Empty)
             break;
 
+        Bootstrap->GetSessionManager()->UpdatePendingWriteSize(slot.Block.Size());
+
         BIND(
             &TSession::DoWriteBlock,
             MakeStrong(this),
@@ -255,7 +257,7 @@ TError TSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
 
     LOG_DEBUG("Started writing block %d", blockIndex);
 
-    PROFILE_TIMING ("/chunk_io/block_write_time") {
+    PROFILE_TIMING ("/block_write_time") {
         try {
             if (!Writer->TryWriteBlock(block)) {
                 // This will throw...
@@ -275,7 +277,7 @@ TError TSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
 
     LOG_DEBUG("Finished writing block %d", blockIndex);
 
-    Profiler.Enqueue("/chunk_io/block_write_size", block.Size());
+    Profiler.Enqueue("/block_write_size", block.Size());
     Profiler.Increment(WriteThroughputCounter, block.Size());
 
     return Error;
@@ -289,7 +291,8 @@ void TSession::OnBlockWritten(int blockIndex, TError error)
     auto& slot = GetSlot(blockIndex);
     YCHECK(slot.State == ESlotState::Received);
     slot.State = ESlotState::Written;
-    slot.IsWritten.Set();
+    slot.IsWritten.Set();   
+    Bootstrap->GetSessionManager()->UpdatePendingWriteSize(-slot.Block.Size());
 }
 
 TAsyncError TSession::FlushBlock(int blockIndex)
@@ -382,7 +385,7 @@ TError TSession::DoAbortWriter()
 
     LOG_DEBUG("Started aborting chunk writer");
 
-    PROFILE_TIMING ("/chunk_io/chunk_abort_time") {
+    PROFILE_TIMING ("/chunk_abort_time") {
         try {
             Writer->Abort();
         } catch (const std::exception& ex) {
@@ -428,7 +431,7 @@ TError TSession::DoCloseFile(const TChunkMeta& chunkMeta)
 
     LOG_DEBUG("Started closing chunk writer");
 
-    PROFILE_TIMING ("/chunk_io/chunk_writer_close_time") {
+    PROFILE_TIMING ("/chunk_writer_close_time") {
         try {
             Sync(~Writer, &TFileWriter::AsyncClose, chunkMeta);
         } catch (const std::exception& ex) {
@@ -586,6 +589,7 @@ TSessionManager::TSessionManager(
     : Config(config)
     , Bootstrap(bootstrap)
     , SessionCount(0)
+    , PendingWriteSize(0)
 {
     YCHECK(config);
     YCHECK(bootstrap);
@@ -670,10 +674,20 @@ int TSessionManager::GetSessionCount() const
     return SessionCount;
 }
 
+i64 TSessionManager::GetPendingWriteSize() const
+{
+    return static_cast<i64>(PendingWriteSize);
+}
+
+void TSessionManager::UpdatePendingWriteSize(i64 delta)
+{
+    AtomicIncrement(PendingWriteSize, delta);
+}
+
 TSessionManager::TSessions TSessionManager::GetSessions() const
 {
     TSessions result;
-    YCHECK(SessionMap.ysize() == SessionCount);
+    YCHECK(SessionMap.size() == SessionCount);
     result.reserve(SessionMap.ysize());
     FOREACH (const auto& pair, SessionMap) {
         result.push_back(pair.second);
@@ -682,7 +696,6 @@ TSessionManager::TSessions TSessionManager::GetSessions() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 } // namespace NChunkHolder
 } // namespace NYT

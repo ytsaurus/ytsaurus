@@ -42,6 +42,8 @@ using namespace NTableClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = DataNodeLogger;
+static NProfiling::TProfiler& Profiler = DataNodeProfiler;
+static TDuration ProfilingPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,6 +78,12 @@ TDataNodeService::TDataNodeService(
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkSplits)
         .SetResponseCodec(ECodec::Snappy)
         .SetResponseHeavy(true));
+
+    ProfilingInvoker = New<TPeriodicInvoker>(
+        Bootstrap->GetControlInvoker(),
+        BIND(&TDataNodeService::OnProfiling, Unretained(this)),
+        ProfilingPeriod);
+    ProfilingInvoker->Start();
 }
 
 void TDataNodeService::ValidateNoSession(const TChunkId& chunkId)
@@ -154,17 +162,49 @@ void TDataNodeService::OnGotChunkMeta(TCtxGetChunkMetaPtr context, TNullable<int
     context->Reply();
 }
 
-bool TDataNodeService::CheckThrottling() const
+i64 TDataNodeService::GetPendingReadSize() const
 {
-    i64 responseDataSize = NBus::TTcpDispatcher::Get()->GetStatistics().PendingOutSize;
-    i64 pendingReadSize = Bootstrap->GetBlockStore()->GetPendingReadSize();
-    i64 pendingSize = responseDataSize + pendingReadSize;
-    if (pendingSize > Config->ResponseThrottlingSize) {
-        LOG_DEBUG("Throttling is active (PendingSize: %" PRId64 ")", pendingSize);
+    return
+        NBus::TTcpDispatcher::Get()->GetStatistics().PendingOutSize +
+        Bootstrap->GetBlockStore()->GetPendingReadSize();
+}
+
+i64 TDataNodeService::GetPendingWriteSize() const
+{
+    return Bootstrap->GetSessionManager()->GetPendingWriteSize();
+}
+
+bool TDataNodeService::IsReadThrottling() const
+{
+    i64 pendingSize = GetPendingReadSize();
+    if (pendingSize > Config->ReadThrottlingSize) {
+        LOG_DEBUG("Read throttling is active: %" PRId64 " > %" PRId64,
+            pendingSize,
+            Config->ReadThrottlingSize);
         return true;
     } else {
         return false;
     }
+}
+
+bool TDataNodeService::IsWriteThrottling() const
+{
+    i64 pendingSize = GetPendingWriteSize();
+    if (pendingSize > Config->WriteThrottlingSize) {
+        LOG_DEBUG("Write throttling is active: %" PRId64 " > %" PRId64,
+            pendingSize,
+            Config->WriteThrottlingSize);
+        return true;
+    } else {
+        return false;
+    }
+}
+
+void TDataNodeService::OnProfiling()
+{
+    Profiler.Enqueue("/pending_read_size", GetPendingReadSize());
+    Profiler.Enqueue("/pending_write_size", GetPendingWriteSize());
+    Profiler.Enqueue("/session_count", Bootstrap->GetSessionManager()->GetSessionCount());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -217,6 +257,11 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, FinishChunk)
 DEFINE_RPC_SERVICE_METHOD(TDataNodeService, PutBlocks)
 {
     UNUSED(response);
+
+    if (IsWriteThrottling()) {
+        context->Reply(TError(NRpc::EErrorCode::Unavailable, "Write throttling is active"));
+        return;
+    }
 
     auto chunkId = TChunkId::FromProto(request->chunk_id());
     int startBlockIndex = request->start_block_index();
@@ -281,7 +326,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
         ~JoinToString(request->block_indexes()),
         ~FormatBool(enableCaching));
 
-    bool throttling = CheckThrottling();
+    bool isThrottling = IsReadThrottling();
 
     auto chunkStore = Bootstrap->GetChunkStore();
     auto blockStore = Bootstrap->GetBlockStore();
@@ -301,7 +346,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
         
         auto* blockInfo = response->add_blocks();
 
-        if (throttling) {
+        if (isThrottling) {
             // Cannot send the actual data to the client due to throttling.
             // Let's try to suggest some other peers.
             blockInfo->set_data_attached(false);
