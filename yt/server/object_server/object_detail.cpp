@@ -94,10 +94,14 @@ TObjectWithIdBase::TObjectWithIdBase(const TObjectId& id)
 ////////////////////////////////////////////////////////////////////////////////
 
 TStagedObjectBase::TStagedObjectBase()
+    : StagingTransaction_(NULL)
+    , StagingAccount_(NULL)
 { }
 
 TStagedObjectBase::TStagedObjectBase(const TObjectId& id)
     : TObjectWithIdBase(id)
+    , StagingTransaction_(NULL)
+    , StagingAccount_(NULL)
 { }
 
 void TStagedObjectBase::Save(const NCellMaster::TSaveContext& context) const
