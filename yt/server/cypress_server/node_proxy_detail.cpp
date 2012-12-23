@@ -592,7 +592,8 @@ TNodeFactory::TNodeFactory(
     , Account(account)
 {
     YCHECK(bootstrap);
-    YCHECK(account);
+    // COMPAT(babenko)
+    //YCHECK(account);
 }
 
 TNodeFactory::~TNodeFactory()
