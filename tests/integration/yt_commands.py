@@ -170,6 +170,12 @@ def build_snapshot(*args, **kw):
 def gc_collect():
     command('gc_collect')
 
+def create_account(name):
+    command('create', 'account', opt=['/attributes/name=' + name])
+
+def remove_account(name):
+    remove('//sys/accounts/' + name)
+
 #########################################
 
 def get(path, **kw):
@@ -191,7 +197,6 @@ def write(path, value, **kw):
     return write_str(path, output, **kw)
 
 #########################################
-
 # Helpers:
 
 def table2py(yson):
@@ -210,5 +215,9 @@ def get_transactions():
 def get_chunks():
     gc_collect()
     return ls('//sys/chunks')
+
+def get_accounts():
+    gc_collect()
+    return ls('//sys/accounts')
 
 #########################################

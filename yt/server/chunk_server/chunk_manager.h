@@ -30,10 +30,11 @@ class TChunkManager
     : public TRefCounted
 {
 public:
-    //! Creates an instance.
     TChunkManager(
         TChunkManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
+
+    void Initialize();
 
     ~TChunkManager();
 

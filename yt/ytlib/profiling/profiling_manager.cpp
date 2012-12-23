@@ -277,7 +277,7 @@ private:
     }
 };
 
-// TODO(babenko): make yson serializable
+// TODO(babenko): make configurable
 const TDuration TProfilingManager::TImpl::MaxKeepInterval = TDuration::Seconds(60);
 
 ////////////////////////////////////////////////////////////////////////////////

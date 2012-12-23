@@ -6,8 +6,8 @@
 #include <ytlib/ytree/public.h>
 
 #include <ytlib/table_client/schema.h>
-
 #include <ytlib/table_client/table_ypath.pb.h>
+
 #include <server/chunk_server/public.h>
 
 #include <server/cypress_server/node_proxy_detail.h>
@@ -35,7 +35,7 @@ public:
     
     virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
 
-    virtual NCypressServer::TClusterResources GetResourceUsage() const override;
+    virtual NSecurityServer::TClusterResources GetResourceUsage() const override;
 
 private:
     typedef NCypressServer::TCypressNodeProxyBase<NYTree::IEntityNode, TTableNode> TBase;

@@ -69,12 +69,18 @@ public:
             MoveRV(chunks),
             provider);
 
+        auto transactionId = TTransactionId::FromProto(jobSpec.output_transaction_id());
+        const auto& outputSpec = jobSpec.output_specs(0);
+        auto account = outputSpec.has_account() ? TNullable<Stroka>(outputSpec.account()) : Null;
+        auto chunkListId = TChunkListId::FromProto(outputSpec.chunk_list_id());
+        auto channels = ConvertTo<TChannels>(TYsonString(outputSpec.channels()));
         Writer = New<TTableChunkSequenceWriter>(
             config->JobIO->TableWriter,
             masterChannel,
-            TTransactionId::FromProto(jobSpec.output_transaction_id()),
-            TChunkListId::FromProto(jobSpec.output_specs(0).chunk_list_id()),
-            ConvertTo<TChannels>(TYsonString(jobSpec.output_specs(0).channels())),
+            transactionId,
+            account,
+            chunkListId,
+            channels,
             KeyColumns);
     }
 

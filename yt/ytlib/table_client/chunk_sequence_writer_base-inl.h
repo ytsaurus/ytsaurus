@@ -29,6 +29,7 @@ TChunkSequenceWriterBase<TChunkWriter>::TChunkSequenceWriterBase(
     TTableWriterConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     const NObjectClient::TTransactionId& transactionId,
+    const TNullable<Stroka>& account,
     const NChunkClient::TChunkListId& parentChunkList,
     const TNullable<TKeyColumns>& keyColumns)
     : Config(config)
@@ -36,7 +37,8 @@ TChunkSequenceWriterBase<TChunkWriter>::TChunkSequenceWriterBase(
     , UploadReplicationFactor(std::min(Config->ReplicationFactor, Config->UploadReplicationFactor))
     , MasterChannel(masterChannel)
     , TransactionId(transactionId)
-    , ParentChunkList(parentChunkList)
+    , Account(account)
+    , ParentChunkListId(parentChunkList)
     , KeyColumns(keyColumns)
     , RowCount(0)
     , Progress(0)
@@ -104,6 +106,9 @@ void TChunkSequenceWriterBase<TChunkWriter>::CreateNextSession()
         NCypressClient::FromObjectId(TransactionId));
     NMetaState::GenerateRpcMutationId(req);
     req->set_type(NObjectClient::EObjectType::Chunk);
+    if (Account) {
+        req->set_account(Account.Get());
+    }
 
     auto* reqExt = req->MutableExtension(NChunkClient::NProto::TReqCreateChunkExt::create_chunk);
     if (Config->PreferLocalHost) {
@@ -407,20 +412,11 @@ void TChunkSequenceWriterBase<TChunkWriter>::AttachChunks()
     auto batchReq = objectProxy.ExecuteBatch();
 
     FOREACH(const auto& inputChunk, WrittenChunks) {
-        {
-            auto req = NChunkClient::TChunkListYPathProxy::Attach(
-                NCypressClient::FromObjectId(ParentChunkList));
-            *req->add_children_ids() = inputChunk.slice().chunk_id();
-            NMetaState::GenerateRpcMutationId(req);
-            batchReq->AddRequest(req);
-        }
-        {
-            auto req = NTransactionClient::TTransactionYPathProxy::ReleaseObject(
-                NCypressClient::FromObjectId(TransactionId));
-            *req->mutable_object_id() = inputChunk.slice().chunk_id();
-            NMetaState::GenerateRpcMutationId(req);
-            batchReq->AddRequest(req);
-        }
+        auto req = NChunkClient::TChunkListYPathProxy::Attach(
+            NCypressClient::FromObjectId(ParentChunkListId));
+        *req->add_children_ids() = inputChunk.slice().chunk_id();
+        NMetaState::GenerateRpcMutationId(req);
+        batchReq->AddRequest(req);
     }
 
     batchReq->Invoke().Subscribe(BIND(

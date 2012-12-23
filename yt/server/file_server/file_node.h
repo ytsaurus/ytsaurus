@@ -1,8 +1,12 @@
 #pragma once
 
-#include <server/cell_master/public.h>
 #include <ytlib/misc/property.h>
+
 #include <server/cypress_server/node_detail.h>
+
+#include <server/cell_master/public.h>
+
+#include <server/security_server/cluster_resources.h>
 
 namespace NYT {
 namespace NFileServer {
@@ -21,6 +25,8 @@ public:
     virtual int GetOwningReplicationFactor() const override;
 
     virtual NObjectClient::EObjectType GetObjectType() const override;
+
+    virtual NSecurityServer::TClusterResources GetResourceUsage() const override;
 
     virtual void Save(const NCellMaster::TSaveContext& context) const override;
     virtual void Load(const NCellMaster::TLoadContext& context) override;

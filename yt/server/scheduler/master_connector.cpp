@@ -341,7 +341,12 @@ private:
                 auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_lock_tx");
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting lock transaction");
                 auto transactionId = TTransactionId::FromProto(rsp->object_id());
-                Owner->LockTransaction = Owner->Bootstrap->GetTransactionManager()->Attach(transactionId, true);
+                
+                TTransactionAttachOptions options(transactionId);
+                options.AutoAbort = true;
+                auto transactionManager = Owner->Bootstrap->GetTransactionManager();
+                Owner->LockTransaction = transactionManager->Attach(options);
+                
                 LOG_INFO("Lock transaction is %s", ~ToString(transactionId));
             }
 
@@ -557,19 +562,25 @@ private:
     {
         auto transactionManager = Bootstrap->GetTransactionManager();
         
-        // COMPAT(babenko): remove default
-        auto userTransactionId = attributes.Get<TTransactionId>("user_transaction_id", NullTransactionId);
+        auto userTransactionId = attributes.Get<TTransactionId>("user_transaction_id");
+        TTransactionAttachOptions userAttachOptions(userTransactionId);
+        userAttachOptions.AutoAbort = false;
+        userAttachOptions.Ping = false;
+        userAttachOptions.PingAncestors = false;
         auto userTransaction =
             userTransactionId == NullTransactionId
             ? NULL
-            : transactionManager->Attach(userTransactionId, false, false, false);
+            : transactionManager->Attach(userAttachOptions);
 
-        // COMPAT(babenko): remove default
-        auto schedulerTransactionId = attributes.Get<TTransactionId>("scheduler_transaction_id", NullTransactionId);
+        auto schedulerTransactionId = attributes.Get<TTransactionId>("scheduler_transaction_id");
+        TTransactionAttachOptions schedulerAttachOptions(schedulerTransactionId);
+        schedulerAttachOptions.AutoAbort = false;
+        schedulerAttachOptions.Ping = false;
+        schedulerAttachOptions.PingAncestors = false;
         auto schedulerTransaction =
             schedulerTransactionId == NullTransactionId
             ? NULL
-            : transactionManager->Attach(schedulerTransactionId, false, false, false);
+            : transactionManager->Attach(schedulerAttachOptions);
 
         auto operation = New<TOperation>(
             operationId,

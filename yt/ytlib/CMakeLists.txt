@@ -22,6 +22,7 @@ set( DIRS
   driver
   formats
   scheduler
+  security_client
 )
 
 foreach( _d_ ${DIRS} )

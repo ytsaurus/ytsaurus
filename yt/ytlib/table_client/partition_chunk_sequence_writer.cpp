@@ -19,14 +19,16 @@ TPartitionChunkSequenceWriter::TPartitionChunkSequenceWriter(
     TTableWriterConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     const NTransactionClient::TTransactionId& transactionId,
-    const NChunkClient::TChunkListId& parentChunkList,
+    const TNullable<Stroka>& account,
+    const NChunkClient::TChunkListId& parentChunkListId,
     const TKeyColumns& keyColumns,
     IPartitioner* partitioner)
     : TChunkSequenceWriterBase<TPartitionChunkWriter>(
         config, 
         masterChannel, 
         transactionId, 
-        parentChunkList,
+        account,
+        parentChunkListId,
         keyColumns)
     , Partitioner(partitioner)
 { }

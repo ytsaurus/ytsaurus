@@ -132,13 +132,17 @@ private:
 struct TCreateRequest
     : public TTransactedRequest
 {
-    NYPath::TRichYPath Path;
+    TNullable<NYPath::TRichYPath> Path;
     NObjectClient::EObjectType Type;
+    NYTree::INodePtr Attributes;
 
     TCreateRequest()
     {
-        Register("path", Path);
+        Register("path", Path)
+            .Default(Null);
         Register("type", Type);
+        Register("attributes", Attributes)
+            .Default(NULL);
     }
 };
 

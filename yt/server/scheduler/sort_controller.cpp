@@ -59,7 +59,7 @@ public:
         TSortOperationSpecBasePtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TOperationControllerBase(config, host, operation)
+        : TOperationControllerBase(config, spec, host, operation)
         , Spec(spec)
         , Config(config)
         , CompletedPartitionCount(0)

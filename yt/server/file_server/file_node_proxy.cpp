@@ -1,12 +1,15 @@
 #include "stdafx.h"
 #include "file_node_proxy.h"
+
+#include <ytlib/misc/string.h>
+
+#include <ytlib/codecs/codec.h>
+
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk.pb.h>
 
 #include <server/chunk_server/chunk.h>
 #include <server/chunk_server/chunk_list.h>
-#include <ytlib/misc/string.h>
-#include <ytlib/codecs/codec.h>
 
 namespace NYT {
 namespace NFileServer {
@@ -16,10 +19,11 @@ using namespace NCypressServer;
 using namespace NYTree;
 using namespace NYson;
 using namespace NRpc;
-using namespace NChunkClient::NProto;
 using namespace NObjectServer;
 using namespace NCellMaster;
 using namespace NTransactionServer;
+using namespace NSecurityServer;
+using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -173,7 +177,7 @@ bool TFileNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& va
 
     if (key == "replication_factor") {
         if (Transaction) {
-            THROW_ERROR_EXCEPTION("Value cannot be altered inside transaction");
+            THROW_ERROR_EXCEPTION("Attribute cannot be altered inside transaction");
         }
 
         int replicationFactor = ConvertTo<int>(value);
@@ -190,6 +194,10 @@ bool TFileNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& va
 
         if (node->GetReplicationFactor() != replicationFactor) {
             node->SetReplicationFactor(replicationFactor);
+
+            auto securityManager = Bootstrap->GetSecurityManager();
+            securityManager->UpdateAccountNodeUsage(node);
+
             if (IsLeader()) {
                 chunkManager->ScheduleRFUpdate(node->GetChunkList());
             }

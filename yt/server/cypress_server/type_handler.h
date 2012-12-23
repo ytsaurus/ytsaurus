@@ -63,9 +63,11 @@ struct INodeTypeHandler
      */
     virtual TAutoPtr<ICypressNode> Create(
         NTransactionServer::TTransaction* transaction,
-        NYTree::IAttributeDictionary* attributes,
         TReqCreate* request,
         TRspCreate* response) = 0;
+
+    //! Called during node creation to populate default attributes that are missing.
+    virtual void SetDefaultAttributes(NYTree::IAttributeDictionary* attributes) = 0;
 
     //! Performs cleanup on node destruction.
     /*!

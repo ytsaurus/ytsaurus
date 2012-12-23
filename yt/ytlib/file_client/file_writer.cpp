@@ -32,12 +32,14 @@ TFileWriter::TFileWriter(
     NRpc::IChannelPtr masterChannel,
     ITransactionPtr transaction,
     TTransactionManagerPtr transactionManager,
-    const TYPath& path)
+    const TYPath& path,
+    IAttributeDictionary* attributes)
     : Config(config)
     , MasterChannel(masterChannel)
     , Transaction(transaction)
     , TransactionManager(transactionManager)
     , Path(path)
+    , Attributes(attributes ? attributes->Clone() : CreateEphemeralAttributes())
     , Logger(FileWriterLogger)
 {
     YASSERT(transactionManager);
@@ -46,6 +48,8 @@ TFileWriter::TFileWriter(
         ~Path,
         transaction ? ~transaction->GetId().ToString() : "None"));
 
+    Attributes->Set("replication_factor", Config->ReplicationFactor);
+    
     if (Transaction) {
         ListenTransaction(Transaction);
     }
@@ -60,9 +64,10 @@ void TFileWriter::Open()
 
     LOG_INFO("Creating upload transaction");
     try {
-        UploadTransaction = TransactionManager->Start(
-            NULL,
-            Transaction ? Transaction->GetId() : NullTransactionId);
+        TTransactionStartOptions options;
+        options.ParentId = Transaction ? Transaction->GetId() : NullTransactionId;
+        options.EnableUncommittedAccounting = false;
+        UploadTransaction = TransactionManager->Start(options);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error creating upload transaction")
             << ex;
@@ -100,9 +105,7 @@ void TFileWriter::Close()
         auto* reqExt = req->MutableExtension(NFileClient::NProto::TReqCreateFileExt::create_file);
         *reqExt->mutable_chunk_id() = Writer->GetChunkId().ToProto();
 
-        auto attributes = CreateEphemeralAttributes();
-        attributes->Set("replication_factor", Config->ReplicationFactor);
-        ToProto(req->mutable_node_attributes(), *attributes);
+        ToProto(req->mutable_node_attributes(), *Attributes);
         
         auto rsp = proxy.Execute(req).Get();
         if (!rsp->IsOK()) {

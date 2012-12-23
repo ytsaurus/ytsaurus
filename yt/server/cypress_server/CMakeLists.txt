@@ -1,7 +1,6 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/server/cypress_server )
 set( SRCS
-  ${BASE}/cluster_resources.cpp
   ${BASE}/cypress_manager.cpp
   ${BASE}/helpers.cpp
   ${BASE}/lock.cpp
@@ -13,7 +12,6 @@ set( SRCS
   ${BASE}/cypress_traversing.cpp
 )
 set( HDRS
-  ${BASE}/cluster_resources.h
   ${BASE}/cypress_manager.h
   ${BASE}/helpers.h
   ${BASE}/lock.h

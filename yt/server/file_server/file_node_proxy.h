@@ -30,7 +30,7 @@ public:
     bool IsExecutable();
     Stroka GetFileName();
 
-    virtual NCypressServer::TClusterResources GetResourceUsage() const override;
+    virtual NSecurityServer::TClusterResources GetResourceUsage() const override;
 
 private:
     typedef NCypressServer::TCypressNodeProxyBase<NYTree::IEntityNode, TFileNode> TBase;
@@ -41,7 +41,7 @@ private:
         const Stroka& key,
         const TNullable<NYTree::TYsonString>& oldValue,
         const TNullable<NYTree::TYsonString>& newValue) override;
-    bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
+    virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
     virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
 

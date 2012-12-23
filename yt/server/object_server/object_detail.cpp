@@ -24,6 +24,10 @@
 
 #include <server/cypress_server/virtual.h>
 
+#include <server/transaction_server/transaction.h>
+
+#include <server/security_server/account.h>
+
 #include <stdexcept>
 
 namespace NYT {
@@ -44,19 +48,19 @@ TObjectBase::TObjectBase()
     : RefCounter(0)
 { }
 
-i32 TObjectBase::RefObject()
+int TObjectBase::RefObject()
 {
     YASSERT(RefCounter >= 0);
     return ++RefCounter;
 }
 
-i32 TObjectBase::UnrefObject()
+int TObjectBase::UnrefObject()
 {
     YASSERT(RefCounter > 0);
     return --RefCounter;
 }
 
-i32 TObjectBase::GetObjectRefCounter() const
+int TObjectBase::GetObjectRefCounter() const
 {
     return RefCounter;
 }
@@ -66,7 +70,7 @@ bool TObjectBase::IsAlive() const
     return RefCounter > 0;
 }
 
-void TObjectBase::Save(const NMetaState::TSaveContext& context) const
+void TObjectBase::Save(const NCellMaster::TSaveContext& context) const
 {
     auto* output = context.GetOutput();
     ::Save(output, RefCounter);
@@ -86,6 +90,41 @@ TObjectWithIdBase::TObjectWithIdBase()
 TObjectWithIdBase::TObjectWithIdBase(const TObjectId& id)
     : Id_(id)
 { }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TStagedObjectBase::TStagedObjectBase()
+{ }
+
+TStagedObjectBase::TStagedObjectBase(const TObjectId& id)
+    : TObjectWithIdBase(id)
+{ }
+
+void TStagedObjectBase::Save(const NCellMaster::TSaveContext& context) const
+{
+    TObjectWithIdBase::Save(context);
+
+    auto* output = context.GetOutput();
+    SaveObjectRef(output, StagingTransaction_);
+    SaveObjectRef(output, StagingAccount_);
+}
+
+void TStagedObjectBase::Load(const NCellMaster::TLoadContext& context)
+{
+    TObjectWithIdBase::Load(context);
+    
+    auto* input = context.GetInput();
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 5) {
+        LoadObjectRef(input, StagingTransaction_, context);
+        LoadObjectRef(input, StagingAccount_, context);
+    }
+}
+
+bool TStagedObjectBase::IsStaged() const
+{
+    return StagingTransaction_ && StagingAccount_;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -351,6 +390,55 @@ bool TObjectProxyBase::IsLeader() const
 void TObjectProxyBase::ValidateActiveLeader() const
 {
     Bootstrap->GetMetaStateFacade()->ValidateActiveLeader();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TNonversionedObjectProxyNontemplateBase::TNonversionedObjectProxyNontemplateBase(
+    NCellMaster::TBootstrap* bootstrap,
+    const TObjectId& id)
+    : TObjectProxyBase(bootstrap, id)
+{
+    YASSERT(bootstrap);
+}
+
+bool TNonversionedObjectProxyNontemplateBase::IsWriteRequest(IServiceContextPtr context) const 
+{
+    DECLARE_YPATH_SERVICE_WRITE_METHOD(Remove);
+    return TObjectProxyBase::IsWriteRequest(context);
+}
+
+void TNonversionedObjectProxyNontemplateBase::DoInvoke(IServiceContextPtr context)
+{
+    DISPATCH_YPATH_SERVICE_METHOD(Remove);
+    TObjectProxyBase::DoInvoke(context);
+}
+
+void TNonversionedObjectProxyNontemplateBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
+{
+    UNUSED(request);
+
+    response->set_value("#");
+    context->Reply();
+}
+
+void TNonversionedObjectProxyNontemplateBase::ValidateRemoval()
+{
+    THROW_ERROR_EXCEPTION("Object cannot be removed explicitly");
+}
+
+DEFINE_RPC_SERVICE_METHOD(TNonversionedObjectProxyNontemplateBase, Remove)
+{
+    ValidateRemoval();
+
+    auto objectManager = Bootstrap->GetObjectManager();
+    if (objectManager->GetObjectRefCounter(Id) != 1) {
+        THROW_ERROR_EXCEPTION("Object is in use");
+    }
+
+    objectManager->UnrefObject(Id);
+
+    context->Reply();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

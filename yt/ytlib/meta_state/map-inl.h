@@ -89,13 +89,13 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::Remove(const TKey& key)
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
-TValue* TMetaStateMap<TKey, TValue, TTraits, THash>::Release(const TKey& key)
+TAutoPtr<TValue> TMetaStateMap<TKey, TValue, TTraits, THash>::Release(const TKey& key)
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
     auto it = Map.find(key);
     YASSERT(it != Map.end());
-    TValue* value = it->second;
+    auto* value = it->second;
     Map.erase(it);
     return value;
 }

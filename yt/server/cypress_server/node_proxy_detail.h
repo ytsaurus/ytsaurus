@@ -22,6 +22,8 @@
 
 #include <server/transaction_server/transaction.h>
 
+#include <server/security_server/public.h>
+
 namespace NYT {
 namespace NCypressServer {
 
@@ -33,7 +35,8 @@ class TNodeFactory
 public:
     TNodeFactory(
         NCellMaster::TBootstrap* bootstrap,
-        NTransactionServer::TTransaction* transaction);
+        NTransactionServer::TTransaction* transaction,
+        NSecurityServer::TAccount* account);
     ~TNodeFactory();
 
     virtual NYTree::IStringNodePtr CreateString() override;
@@ -46,6 +49,8 @@ public:
 private:
     NCellMaster::TBootstrap* Bootstrap;
     NTransactionServer::TTransaction* Transaction;
+    NSecurityServer::TAccount* Account;
+
     std::vector<TNodeId> CreatedNodeIds;
 
     ICypressNodeProxyPtr DoCreate(NObjectClient::EObjectType type);
@@ -111,7 +116,7 @@ public:
         NYson::IYsonConsumer* consumer,
         const NYTree::TAttributeFilter& filter) const override;
 
-    virtual TClusterResources GetResourceUsage() const override;
+    virtual NSecurityServer::TClusterResources GetResourceUsage() const override;
 
 protected:
     INodeTypeHandlerPtr TypeHandler;
@@ -126,11 +131,9 @@ protected:
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override;
     virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) const override;
     virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) const override;
+    virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
     virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
-
-    DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, Lock);
-    DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, Create);
 
     const ICypressNode* GetImpl(const TNodeId& nodeId) const;
     ICypressNode* GetMutableImpl(const TNodeId& nodeId);
@@ -159,6 +162,11 @@ protected:
     virtual TAutoPtr<NYTree::IAttributeDictionary> DoCreateUserAttributes() override;
     
     void SetModified();
+
+
+    DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, Lock);
+    DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, Create);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -366,6 +374,8 @@ protected:
         context->SetRequestInfo("Type: %s", ~type.ToString());
 
         auto cypressManager = this->Bootstrap->GetCypressManager();
+        auto securityManager = this->Bootstrap->GetSecurityManager();
+
         auto creativePath = this->GetCreativePath(context->GetPath());
 
         auto handler = cypressManager->FindHandler(type);
@@ -379,9 +389,12 @@ protected:
             ? NYTree::FromProto(request->node_attributes())
             : NYTree::CreateEphemeralAttributes();
 
+        auto* node = this->GetThisImpl();
+        auto* account = node->GetTrunkNode()->GetAccount();
         auto* newNode = cypressManager->CreateNode(
             handler,
             this->Transaction,
+            account,
             ~attributes,
             request,
             response);

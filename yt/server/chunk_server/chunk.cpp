@@ -12,6 +12,7 @@ namespace NChunkServer {
 
 using namespace NCellMaster;
 using namespace NObjectServer;
+using namespace NSecurityServer;
 using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,7 +23,7 @@ const i64 TChunk::UnknownSize = -1;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunk::TChunk(const TChunkId& id)
-    : TObjectWithIdBase(id)
+    : TStagedObjectBase(id)
     , ReplicationFactor_(1)
     , Movable_(true)
     , Vital_(true)
@@ -55,9 +56,17 @@ TChunkTreeStatistics TChunk::GetStatistics() const
     return result;
 }
 
+TClusterResources TChunk::GetResourceUsage() const
+{
+    return
+        IsConfirmed()
+        ? TClusterResources(ChunkInfo_.size() * ReplicationFactor_)
+        : ZeroClusterResources();
+}
+
 void TChunk::Save(const NCellMaster::TSaveContext& context) const
 {
-    TObjectWithIdBase::Save(context);
+    TStagedObjectBase::Save(context);
     
     auto* output = context.GetOutput();
     SaveProto(output, ChunkInfo_);
@@ -72,7 +81,7 @@ void TChunk::Save(const NCellMaster::TSaveContext& context) const
 
 void TChunk::Load(const NCellMaster::TLoadContext& context)
 {
-    TObjectWithIdBase::Load(context);
+    TStagedObjectBase::Load(context);
     
     auto* input = context.GetInput();
     LoadProto(input, ChunkInfo_);

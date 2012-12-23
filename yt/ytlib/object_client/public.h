@@ -38,7 +38,7 @@ DECLARE_ENUM(EObjectType,
     // Does not represent any actual type.
     ((Null)(0))
 
-    // The following are unversioned objects.
+    // The following are non-versioned objects.
     // These must be created by sending TTransactionYPathProxy::CreateObject to a transaction.
     // Except for EObjectType::Transaction, the latter transaction cannot be null.
     
@@ -52,8 +52,12 @@ DECLARE_ENUM(EObjectType,
     ((Chunk)(100))
     ((ChunkList)(101))
 
+    // Security
+    ((Account)(500))
+
     // The following are versioned objects AKA Cypress nodes.
     // These must be created by calling TCypressYPathProxy::Create.
+    // NB: When adding a new type, don't forget to update IsVersionedType.
 
     // Static nodes
     ((StringNode)(300))
@@ -75,6 +79,7 @@ DECLARE_ENUM(EObjectType,
     ((Node)(410))
     ((Orchid)(412))
     ((LostVitalChunkMap)(413))
+    ((AccountMap)(414))
 );
 
 //! Valid types are supposed to be in range [0, MaxObjectType - 1].
@@ -82,7 +87,10 @@ DECLARE_ENUM(EObjectType,
  *  \note
  *  An upper bound will do.
  */
-const int MaxObjectType = 1 << 16;
+const int MaxObjectType = 1000;
+
+//! Checks if the given type is versioned, i.e. represents a Cypress node.
+bool IsTypeVersioned(EObjectType type);
 
 //! Extracts the type component from an id.
 EObjectType TypeFromId(const TObjectId& id);
@@ -93,6 +101,12 @@ TObjectId MakeId(
     TCellId cellId,
     ui64 counter,
     ui32 hash);
+
+//! Constructs a id corresponding to well-known (usually singleton) entities.
+TObjectId MakeWellKnownId(
+    EObjectType type,
+    TCellId cellId,
+    ui64 counter = 0xffffffffffffffff);
 
 ////////////////////////////////////////////////////////////////////////////////
 

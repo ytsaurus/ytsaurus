@@ -11,6 +11,8 @@
 
 #include <server/cypress_server/cypress_manager.h>
 
+#include <server/security_server/security_manager.h>
+
 namespace NYT {
 namespace NCellMaster {
 
@@ -18,6 +20,7 @@ using namespace NObjectServer;
 using namespace NTransactionServer;
 using namespace NChunkServer;
 using namespace NCypressServer;
+using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,7 +28,8 @@ NMetaState::TVersionValidator SnapshotVersionValidator()
 {
     static auto result = BIND([] (int version) {
         YCHECK(version == 3 ||
-               version == 4);
+               version == 4 ||
+               version == 5);
     });
     return result;
 }
@@ -58,6 +62,12 @@ template <>
 ICypressNode* TLoadContext::Get(const TVersionedObjectId& id) const
 {
     return Bootstrap_->GetCypressManager()->GetNode(id);
+}
+
+template <>
+TAccount* TLoadContext::Get(const TObjectId& id) const
+{
+    return Bootstrap_->GetSecurityManager()->GetAccount(id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

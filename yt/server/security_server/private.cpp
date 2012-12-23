@@ -1,13 +1,15 @@
 #include "stdafx.h"
-#include "public.h"
+#include "private.h"
 
 namespace NYT {
-namespace NChunkServer {
+namespace NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+NLog::TLogger SecurityServerLogger("Security");
+NProfiling::TProfiler SecurityServerProfiler("/security");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkServer
 } // namespace NYT
-

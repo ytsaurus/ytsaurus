@@ -45,7 +45,7 @@ public:
         TMapOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TOperationControllerBase(config, host, operation)
+        : TOperationControllerBase(config, spec, host, operation)
         , Spec(spec)
         , StartRowIndex(0)
     { }

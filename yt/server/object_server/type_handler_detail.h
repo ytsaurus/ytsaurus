@@ -5,7 +5,10 @@
 #include "object_manager.h"
 
 #include <ytlib/meta_state/map.h>
+
 #include <server/cell_master/public.h>
+
+#include <server/transaction_server/public.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -55,16 +58,18 @@ public:
         NTransactionServer::TTransaction* transaction) override
     {
         UNUSED(transaction);
-        return New< TUnversionedObjectProxyBase<TObject> >(Bootstrap, id, Map);
+        return New< TNonversionedObjectProxyBase<TObject> >(Bootstrap, id, Map);
     }
 
     virtual TObjectId Create(
         NTransactionServer::TTransaction* transaction,
+        NSecurityServer::TAccount* account,
         NYTree::IAttributeDictionary* attributes,
         TReqCreateObject* request,
         TRspCreateObject* response) override
     {
         UNUSED(transaction);
+        UNUSED(account);
         UNUSED(attributes);
         UNUSED(request);
         UNUSED(response);
@@ -73,16 +78,20 @@ public:
             ~FormatEnum(GetType()));
     }
 
-    virtual bool IsTransactionRequired() const override
-    {
-        return true;
-    }
-
     virtual void Destroy(const TObjectId& objectId) override
     {
         // Remove the object from the map but keep it alive.
         TAutoPtr<TObject> objHolder(Map->Release(objectId));
         DoDestroy(~objHolder);
+    }
+
+    virtual void Unstage(
+        const TObjectId& objectId,
+        NTransactionServer::TTransaction* transaction,
+        bool recursive) override
+    {
+        auto* obj = Map->Get(objectId);
+        DoUnstage(obj, transaction, recursive);
     }
 
 protected:
@@ -93,6 +102,16 @@ protected:
     virtual void DoDestroy(TObject* obj)
     {
         UNUSED(obj);
+    }
+
+    virtual void DoUnstage(
+        TObject* obj,
+        NTransactionServer::TTransaction* transaction,
+        bool recursive)
+    {
+        UNUSED(obj);
+        UNUSED(transaction);
+        UNUSED(recursive);
     }
 };
 

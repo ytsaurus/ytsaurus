@@ -19,7 +19,7 @@ using namespace NObjectServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkListProxy
-    : public TUnversionedObjectProxyBase<TChunkList>
+    : public TNonversionedObjectProxyBase<TChunkList>
 {
 public:
     TChunkListProxy(
@@ -38,7 +38,7 @@ public:
     }
 
 private:
-    typedef TUnversionedObjectProxyBase<TChunkList> TBase;
+    typedef TNonversionedObjectProxyBase<TChunkList> TBase;
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override
     {
@@ -84,7 +84,7 @@ private:
     virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) const override
     {
         auto chunkManager = Bootstrap->GetChunkManager();
-        const auto* chunkList = GetTypedImpl();
+        const auto* chunkList = GetThisTypedImpl();
 
         if (key == "children_ids") {
             BuildYsonFluently(consumer)
@@ -149,7 +149,7 @@ private:
             childrenRefs.push_back(childRef);
         }
 
-        auto* chunkList = GetTypedImpl();
+        auto* chunkList = GetThisTypedImpl();
         chunkManager->AttachToChunkList(chunkList, childrenRefs);
 
         context->Reply();

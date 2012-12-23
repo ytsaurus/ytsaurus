@@ -9,6 +9,7 @@
 #include <server/transaction_server/public.h>
 #include <server/chunk_server/public.h>
 #include <server/cypress_server/public.h>
+#include <server/security_server/public.h>
 
 namespace NYT {
 namespace NCellMaster {
@@ -20,7 +21,7 @@ DECLARE_ENUM(ESavePriority,
     (Values)
 );
 
-const int CurrentSnapshotVersion = 4;
+const int CurrentSnapshotVersion = 5;
 NMetaState::TVersionValidator SnapshotVersionValidator();
 
 struct TLoadContext
@@ -53,6 +54,9 @@ NChunkServer::TJob* TLoadContext::Get(const NObjectClient::TObjectId& id) const;
 
 template <>
 NCypressServer::ICypressNode* TLoadContext::Get(const NObjectClient::TVersionedObjectId& id) const;
+
+template <>
+NSecurityServer::TAccount* TLoadContext::Get(const NObjectClient::TObjectId& id) const;
 
 ////////////////////////////////////////////////////////////////////////////////
 

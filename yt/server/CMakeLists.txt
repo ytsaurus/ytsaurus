@@ -14,6 +14,7 @@ set( DIRS
   exec_agent
   job_proxy
   orchid
+  security_server
 )
 
 foreach( _d_ ${DIRS} )

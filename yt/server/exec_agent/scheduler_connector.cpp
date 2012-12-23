@@ -125,10 +125,11 @@ void TSchedulerConnector::OnHeartbeatResponse(TSchedulerServiceProxy::TRspHeartb
 
 void TSchedulerConnector::StartJob(TJobStartInfo& info)
 {
-    Bootstrap->GetJobManager()->CreateJob(
-        TJobId::FromProto(info.job_id()),
-        info.resource_limits(),
-        *info.mutable_spec());
+    auto jobManager = Bootstrap->GetJobManager();
+    auto jobId = TJobId::FromProto(info.job_id());
+    const auto& resourceLimits = info.resource_limits();
+    auto* spec = info.mutable_spec();
+    jobManager->CreateJob(jobId, resourceLimits, *spec);
 }
 
 void TSchedulerConnector::AbortJob(const TJobId& jobId)

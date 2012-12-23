@@ -35,6 +35,7 @@ message TReqCreateObject
 {
     required int32 type = 1;
     optional NYT.NYTree.NProto.TAttributes object_attributes = 2;
+    optional string account = 3;
 
     extensions 100 to max;
 }
@@ -48,12 +49,34 @@ message TRspCreateObject
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqReleaseObject
+message TReqUnstageObject
 {
     required NYT.NProto.TGuid object_id = 1;
+    required bool recursive = 2;
 }
 
-message TRspReleaseObject
+message TRspUnstageObject
 { }
+
+////////////////////////////////////////////////////////////////////////////////
+
+// CreateObject extension.
+
+message TReqCreateTransactionExt
+{
+    extend NYT.NTransactionClient.NProto.TReqCreateObject
+    {
+        optional TReqCreateTransactionExt create_transaction = 101;
+    }
+
+    // Transaction timeout (in ms).
+    optional int32 timeout = 1;
+
+    // Enable including uncommitted resources into account resource usage.
+    optional bool enable_uncommitted_accounting = 2 [default = true];
+
+    // Enable including staged resources into account resource usage.
+    optional bool enable_staged_accounting = 3 [default = true];
+}
 
 ////////////////////////////////////////////////////////////////////////////////

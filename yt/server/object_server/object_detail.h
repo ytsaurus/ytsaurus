@@ -16,6 +16,12 @@
 #include <ytlib/object_client/object_ypath.pb.h>
 
 #include <server/cell_master/public.h>
+#include <server/cell_master/serialization_context.h>
+
+#include <server/transaction_server/public.h>
+
+#include <server/security_server/public.h>
+
 
 namespace NYT {
 namespace NObjectServer {
@@ -42,19 +48,19 @@ public:
      *  
      *  \returns the decremented counter.
      */
-    i32 UnrefObject();
+    int UnrefObject();
 
     //! Returns the current reference counter.
-    i32 GetObjectRefCounter() const;
+    int GetObjectRefCounter() const;
 
     //! Returns True iff the reference counter is non-zero.
     bool IsAlive() const;
 
 protected:
-    void Save(const NMetaState::TSaveContext& context) const;
+    void Save(const NCellMaster::TSaveContext& context) const;
     void Load(const NCellMaster::TLoadContext& context);
 
-    i32 RefCounter;
+    int RefCounter;
 
 };
 
@@ -68,6 +74,26 @@ class TObjectWithIdBase
 public:
     TObjectWithIdBase();
     explicit TObjectWithIdBase(const TObjectId& id);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TStagedObjectBase
+    : public TObjectWithIdBase
+{
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, StagingTransaction);
+    DEFINE_BYVAL_RW_PROPERTY(NSecurityServer::TAccount*, StagingAccount);
+
+public:
+    TStagedObjectBase();
+    explicit TStagedObjectBase(const TObjectId& id);
+
+    void Save(const NCellMaster::TSaveContext& context) const;
+    void Load(const NCellMaster::TLoadContext& context);
+
+    //! Returns True if the object is the staging area of some transaction.
+    bool IsStaged() const;
 
 };
 
@@ -89,6 +115,7 @@ public:
 protected:
     TObjectManagerPtr ObjectManager;
     TObjectId ObjectId;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -147,44 +174,60 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TObject>
-class TUnversionedObjectProxyBase
+class TNonversionedObjectProxyNontemplateBase
     : public TObjectProxyBase
+{
+public:
+    TNonversionedObjectProxyNontemplateBase(
+        NCellMaster::TBootstrap* bootstrap,
+        const TObjectId& id);
+
+    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
+
+protected:
+    virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
+
+    virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context) override;
+
+    virtual void ValidateRemoval();
+
+    DECLARE_RPC_SERVICE_METHOD(NYTree::NProto, Remove);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TObject>
+class TNonversionedObjectProxyBase
+    : public TNonversionedObjectProxyNontemplateBase
 {
 public:
     typedef typename NMetaState::TMetaStateMap<TObjectId, TObject> TMap;
 
-    TUnversionedObjectProxyBase(
+    TNonversionedObjectProxyBase(
         NCellMaster::TBootstrap* bootstrap,
         const TObjectId& id,
         TMap* map)
-        : TObjectProxyBase(bootstrap, id)
+        : TNonversionedObjectProxyNontemplateBase(bootstrap, id)
         , Map(map)
     {
-        YCHECK(map);
+        YASSERT(map);
     }
 
 protected:
     TMap* Map;
 
-    virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context) override
-    {
-        UNUSED(request);
 
-        response->set_value("#");
-        context->Reply();
-    }
-
-
-    const TObject* GetTypedImpl() const
+    const TObject* GetThisTypedImpl() const
     {
         return Map->Get(GetId());
     }
 
-    TObject* GetTypedImpl()
+    TObject* GetThisTypedImpl()
     {
         return Map->Get(GetId());
     }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -16,6 +16,9 @@
 
 #include <server/object_server/object_detail.h>
 
+#include <server/security_server/account.h>
+#include <server/security_server/security_manager.h>
+
 #include <server/cell_master/public.h>
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
@@ -78,26 +81,32 @@ public:
 
     virtual TAutoPtr<ICypressNode> Create(
         NTransactionServer::TTransaction* transaction,
-        NYTree::IAttributeDictionary* attributes,
         TReqCreate* request,
         TRspCreate* response) override
     {
         // TODO(babenko): Release is needed due to cast to ICypressNode.
         return DoCreate(
             transaction,
-            attributes,
             request,
             response).Release();
     }
 
+    virtual void SetDefaultAttributes(NYTree::IAttributeDictionary* attributes) override
+    {
+        UNUSED(attributes);
+    }
+
     virtual void Destroy(ICypressNode* node) override
     {
-        auto id = node->GetId();
         auto objectManager = Bootstrap->GetObjectManager();
+
+        // Remove user attributes, if any.
+        auto id = node->GetId();
         if (objectManager->FindAttributes(id)) {
             objectManager->RemoveAttributes(id);
         }
 
+        // Run custom destruction.
         DoDestroy(dynamic_cast<TImpl*>(node));
     }
 
@@ -106,6 +115,8 @@ public:
         NTransactionServer::TTransaction* transaction,
         ELockMode mode) override
     {
+        auto objectManager = Bootstrap->GetObjectManager();
+
         auto originatingId = originatingNode->GetId();
         auto branchedId = TVersionedNodeId(originatingId.ObjectId, GetObjectId(transaction));
 
@@ -116,9 +127,10 @@ public:
         branchedNode->SetModificationTime(originatingNode->GetModificationTime());
         branchedNode->SetLockMode(mode);
         branchedNode->SetTrunkNode(originatingNode->GetTrunkNode());
+        branchedNode->SetTransaction(transaction);
 
         // Branch user attributes.
-        Bootstrap->GetObjectManager()->BranchAttributes(originatingId, branchedId);
+        objectManager->BranchAttributes(originatingId, branchedId);
         
         // Run custom branching.
         DoBranch(dynamic_cast<const TImpl*>(originatingNode), ~branchedNode);
@@ -130,12 +142,14 @@ public:
         ICypressNode* originatingNode,
         ICypressNode* branchedNode) override
     {
+        auto objectManager = Bootstrap->GetObjectManager();
+
         auto originatingId = originatingNode->GetId();
         auto branchedId = branchedNode->GetId();
         YASSERT(branchedId.IsBranched());
 
         // Merge user attributes.
-        Bootstrap->GetObjectManager()->MergeAttributes(originatingId, branchedId);
+        objectManager->MergeAttributes(originatingId, branchedId);
 
         // Merge parent id.
         originatingNode->SetParentId(branchedNode->GetParentId());
@@ -159,7 +173,6 @@ public:
         ICypressNode* sourceNode,
         NTransactionServer::TTransaction* transaction) override
     {
-        auto cypressManager = Bootstrap->GetCypressManager();
         auto objectManager = Bootstrap->GetObjectManager();
 
         auto type = GetObjectType();
@@ -182,19 +195,20 @@ protected:
 
     virtual TAutoPtr<TImpl> DoCreate(
         NTransactionServer::TTransaction* transaction,
-        NYTree::IAttributeDictionary* attributes,
         TReqCreate* request,
         TRspCreate* response)
     {
         UNUSED(transaction);
-        UNUSED(attributes);
         UNUSED(request);
         UNUSED(response);
 
         auto objectManager = Bootstrap->GetObjectManager();
+     
         auto nodeId = objectManager->GenerateId(GetObjectType());
+        
         TAutoPtr<TImpl> node(new TImpl(nodeId));
         node->SetTrunkNode(~node);
+        
         return node;
     }
 
@@ -254,14 +268,16 @@ class TCypressNodeBase
     : public NObjectServer::TObjectBase
     , public ICypressNode
 {
-    // This also overrides appropriate methods from ICypressNode.
+    // Some of these properties also provide overrides for ICypressNode.
     DEFINE_BYREF_RW_PROPERTY(TLockMap, Locks);
-
     DEFINE_BYVAL_RW_PROPERTY(TNodeId, ParentId);
     DEFINE_BYVAL_RW_PROPERTY(ELockMode, LockMode);
     DEFINE_BYVAL_RW_PROPERTY(ICypressNode*, TrunkNode);
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, Transaction);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, CreationTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, ModificationTime);
+    DEFINE_BYVAL_RW_PROPERTY(NSecurityServer::TAccount*, Account);
+    DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TClusterResources, CachedResourceUsage);
 
 public:
     explicit TCypressNodeBase(const TVersionedNodeId& id);
@@ -275,6 +291,8 @@ public:
     virtual bool IsAlive() const override;
 
     virtual int GetOwningReplicationFactor() const override;
+
+    virtual NSecurityServer::TClusterResources GetResourceUsage() const override;
 
     virtual void Save(const NCellMaster::TSaveContext& context) const override;
     virtual void Load(const NCellMaster::TLoadContext& context) override;

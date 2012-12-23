@@ -11,6 +11,8 @@
 
 #include <server/object_server/public.h>
 
+#include <server/security_server/cluster_resources.h>
+
 namespace NYT {
 namespace NCypressServer {
 
@@ -35,9 +37,7 @@ struct ICypressNode
     //! Returns the composite (versioned) id of the node.
     virtual const TVersionedNodeId& GetId() const = 0;
 
-    //! Gets the lock mode.
     virtual ELockMode GetLockMode() const = 0;
-    //! Sets the lock mode.
     virtual void SetLockMode(ELockMode mode) = 0;
 
     //! Returns the trunk node, i.e. for a node with id |(objectId, transactionId)| returns
@@ -46,6 +46,11 @@ struct ICypressNode
     //! Used internally to set the trunk node during branching.
     virtual void SetTrunkNode(ICypressNode* trunkNode) = 0;
 
+    //! Returns the transaction for which the node is branched (NULL if in trunk).
+    virtual NTransactionServer::TTransaction* GetTransaction() const = 0;
+    //! Used internally to set the transaction during branching.
+    virtual void SetTransaction(NTransactionServer::TTransaction* transaction) = 0;
+
     //! Gets the parent node id.
     virtual TNodeId GetParentId() const = 0;
     //! Sets the parent node id.
@@ -53,9 +58,8 @@ struct ICypressNode
 
     typedef yhash_map<NTransactionServer::TTransaction*, TLock> TLockMap;
 
-    //! Gets an immutable reference to transaction-to-lock map.
+    // Transaction-to-lock map.
     virtual const TLockMap& Locks() const = 0;
-    //! Gets a mutable reference to transaction-to-lock map.
     virtual TLockMap& Locks() = 0;
     
     virtual TInstant GetCreationTime() const = 0;
@@ -65,16 +69,32 @@ struct ICypressNode
     virtual void SetModificationTime(TInstant value) = 0;
 
     //! Increments the reference counter, returns the incremented value.
-    virtual i32 RefObject() = 0;
+    virtual int RefObject() = 0;
     //! Decrements the reference counter, returns the decremented value.
-    virtual i32 UnrefObject() = 0;
+    virtual int UnrefObject() = 0;
     //! Returns the current reference counter value.
-    virtual i32 GetObjectRefCounter() const = 0;
+    virtual int GetObjectRefCounter() const = 0;
     //! Returns True iff the reference counter is positive.
     virtual bool IsAlive() const = 0;
 
     //! Implemented by nodes that own chunk trees (i.e. files and tables).
     virtual int GetOwningReplicationFactor() const = 0;
+
+    virtual NSecurityServer::TAccount* GetAccount() const = 0;
+    virtual void SetAccount(NSecurityServer::TAccount* account) = 0;
+
+    //! Returns resources used by the object.
+    /*!
+     *  For branched nodes this is typically a delta from the baseline.
+     *  Values returned by #ICypressNode::GetResourceUsage are used for accounting.
+     *
+     *  \see #ICypressNodeProxy::GetResourceUsage
+     */
+    virtual NSecurityServer::TClusterResources GetResourceUsage() const = 0;
+
+    // Resource usage last observed by Security Manager.
+    virtual const NSecurityServer::TClusterResources& CachedResourceUsage() const = 0;
+    virtual NSecurityServer::TClusterResources& CachedResourceUsage() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

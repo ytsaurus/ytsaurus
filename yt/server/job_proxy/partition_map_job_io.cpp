@@ -55,11 +55,16 @@ public:
 
         LOG_DEBUG("Opening partitioned output");
 
+        auto transactionId = TTransactionId::FromProto(JobSpec.output_transaction_id());
+        const auto& outputSpec = JobSpec.output_specs(0);
+        auto account = outputSpec.has_account() ? TNullable<Stroka>(outputSpec.account()) : Null;
+        auto chunkListId = TChunkListId::FromProto(outputSpec.chunk_list_id());
         Writer = New<TPartitionChunkSequenceWriter>(
             IOConfig->TableWriter,
             MasterChannel,
-            TTransactionId::FromProto(JobSpec.output_transaction_id()),
-            TChunkListId::FromProto(JobSpec.output_specs(0).chunk_list_id()),
+            transactionId,
+            account,
+            chunkListId,
             KeyColumns,
             ~Partitioner);
 

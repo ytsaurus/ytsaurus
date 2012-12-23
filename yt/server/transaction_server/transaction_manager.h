@@ -17,6 +17,10 @@
 
 #include <server/cell_master/public.h>
 
+#include <server/object_server/type_handler.h>
+
+#include <server/security_server/security_manager.h>
+
 namespace NYT {
 namespace NTransactionServer {
 
@@ -36,20 +40,18 @@ class TTransactionManager
     DEFINE_SIGNAL(void(TTransaction*), TransactionAborted);
 
 public:
-    typedef TIntrusivePtr<TTransactionManager> TPtr;
-
     //! Creates an instance.
     TTransactionManager(
         TTransactionManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
-    void Init();
+    void Inititialize();
 
     NObjectServer::IObjectProxyPtr GetRootTransactionProxy();
 
-    TTransaction* Start(TTransaction* parent, TNullable<TDuration> timeout);
-    void Commit(TTransaction* transaction);
-    void Abort(TTransaction* transaction);
+    TTransaction* StartTransaction(TTransaction* parent, TNullable<TDuration> timeout);
+    void CommitTransaction(TTransaction* transaction);
+    void AbortTransaction(TTransaction* transaction);
     void RenewLease(const TTransaction* transaction, bool renewAncestors = false);
 
     DECLARE_METAMAP_ACCESSORS(Transaction, TTransaction, TTransactionId);
@@ -57,6 +59,19 @@ public:
     //! Returns the list of all transaction ids on the path up to the root.
     //! This list includes #transactionId itself and #NullTransactionId.
     std::vector<TTransaction*> GetTransactionPath(TTransaction* transaction) const;
+
+    NObjectServer::TObjectId CreateObject(
+        NTransactionServer::TTransaction* transaction,
+        NSecurityServer::TAccount* account,
+        NObjectServer::EObjectType type,
+        NYTree::IAttributeDictionary* attributes,
+        NObjectServer::IObjectTypeHandler::TReqCreateObject* request,
+        NObjectServer::IObjectTypeHandler::TRspCreateObject* response);
+
+    void UnstageObject(
+        TTransaction* transaction,
+        const NObjectServer::TObjectId& objectId,
+        bool recursive);
 
 private:
     typedef TTransactionManager TThis;

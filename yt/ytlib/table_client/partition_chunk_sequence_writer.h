@@ -17,7 +17,8 @@ public:
         TTableWriterConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         const NTransactionClient::TTransactionId& transactionId,
-        const NChunkClient::TChunkListId& parentChunkList,
+        const TNullable<Stroka>& account,
+        const NChunkClient::TChunkListId& parentChunkListId,
         const TKeyColumns& keyColumns,
         IPartitioner* partitioner);
 

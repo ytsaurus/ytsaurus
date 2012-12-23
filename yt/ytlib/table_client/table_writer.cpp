@@ -63,7 +63,10 @@ void TTableWriter::Open()
 
     LOG_INFO("Creating upload transaction");
     try {
-        UploadTransaction = TransactionManager->Start(NULL, TransactionId);
+        TTransactionStartOptions options;
+        options.ParentId = TransactionId;
+        options.EnableUncommittedAccounting = false;
+        UploadTransaction = TransactionManager->Start(options);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error creating upload transaction")
             << ex;
@@ -77,6 +80,7 @@ void TTableWriter::Open()
     LOG_INFO("Requesting table info");
     TChunkListId chunkListId;
     TChannels channels;
+    TNullable<Stroka> account;
     {
         auto batchReq = ObjectProxy.ExecuteBatch();
 
@@ -96,6 +100,7 @@ void TTableWriter::Open()
             if (KeyColumns.HasValue()) {
                 attributeFilter.Keys.push_back("row_count");
             }
+            attributeFilter.Keys.push_back("account");
             *req->mutable_attribute_filter() = ToProto(attributeFilter);
             batchReq->AddRequest(req, "get_attributes");
         }
@@ -136,6 +141,8 @@ void TTableWriter::Open()
             }
 
             Config->ReplicationFactor = attributes.Get<int>("replication_factor");
+
+            account = attributes.Find<Stroka>("account");
         }
         
         if (KeyColumns.HasValue()) {
@@ -165,6 +172,7 @@ void TTableWriter::Open()
         Config, 
         MasterChannel,
         uploadTransactionId,
+        account,
         chunkListId,
         channels,
         KeyColumns);

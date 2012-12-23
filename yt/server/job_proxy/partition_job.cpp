@@ -76,12 +76,18 @@ public:
             Partitioner = CreateHashPartitioner(jobSpecExt.partition_count());
         }
 
+        auto transactionId = TTransactionId::FromProto(jobSpec.output_transaction_id());
+        const auto& outputSpec = jobSpec.output_specs(0);
+        auto account = outputSpec.has_account() ? TNullable<Stroka>(outputSpec.account()) : Null;
+        auto chunkListId = TChunkListId::FromProto(outputSpec.chunk_list_id());
+        auto keyColumns = FromProto<Stroka>(jobSpecExt.key_columns());
         Writer = New<TPartitionChunkSequenceWriter>(
             config->JobIO->TableWriter,
             masterChannel,
-            TTransactionId::FromProto(jobSpec.output_transaction_id()),
-            TChunkListId::FromProto(jobSpec.output_specs(0).chunk_list_id()),
-            FromProto<Stroka>(jobSpecExt.key_columns()),
+            transactionId,
+            account,
+            chunkListId,
+            keyColumns,
             ~Partitioner);
     }
 

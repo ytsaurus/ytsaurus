@@ -5,6 +5,8 @@
 
 #include <ytlib/ytree/fluent.h>
 
+#include <server/security_server/account.h>
+
 #include <server/cell_master/serialization_context.h>
 #include <server/cell_master/bootstrap.h>
 
@@ -15,6 +17,7 @@ using namespace NYTree;
 using namespace NTransactionServer;
 using namespace NCellMaster;
 using namespace NObjectClient;
+using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,8 +43,11 @@ TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id)
     : ParentId_(NullObjectId)
     , LockMode_(ELockMode::None)
     , TrunkNode_(NULL)
+    , Transaction_(NULL)
     , CreationTime_(0)
     , ModificationTime_(0)
+    , Account_(NULL)
+    , CachedResourceUsage_(ZeroClusterResources())
     , Id(id)
 { }
 
@@ -55,19 +61,19 @@ const TVersionedNodeId& TCypressNodeBase::GetId() const
     return Id;
 }
 
-i32 TCypressNodeBase::RefObject()
+int TCypressNodeBase::RefObject()
 {
     YASSERT(!Id.IsBranched());
     return TObjectBase::RefObject();
 }
 
-i32 TCypressNodeBase::UnrefObject()
+int TCypressNodeBase::UnrefObject()
 {
     YASSERT(!Id.IsBranched());
     return TObjectBase::UnrefObject();
 }
 
-i32 TCypressNodeBase::GetObjectRefCounter() const
+int TCypressNodeBase::GetObjectRefCounter() const
 {
     return TObjectBase::GetObjectRefCounter();
 }
@@ -92,6 +98,8 @@ void TCypressNodeBase::Save(const NCellMaster::TSaveContext& context) const
     ::Save(output, LockMode_);
     ::Save(output, CreationTime_);
     ::Save(output, ModificationTime_);
+    SaveObjectRef(output, Account_);
+    NSecurityServer::Save(output, CachedResourceUsage_);
 }
 
 void TCypressNodeBase::Load(const TLoadContext& context)
@@ -104,8 +112,24 @@ void TCypressNodeBase::Load(const TLoadContext& context)
     ::Load(input, LockMode_);
     ::Load(input, CreationTime_);
     ::Load(input, ModificationTime_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 5) {
+        LoadObjectRef(input, Account_, context);
+        NSecurityServer::Load(input, CachedResourceUsage_);
+    }
 
-    TrunkNode_ = Id.IsBranched() ? context.Get<ICypressNode>(TVersionedObjectId(Id.ObjectId)) : this;
+    if (Id.IsBranched()) {
+        TrunkNode_ = context.Get<ICypressNode>(TVersionedObjectId(Id.ObjectId));
+        Transaction_ = context.Get<TTransaction>(Id.TransactionId);
+    } else {
+        TrunkNode_ = this;
+        Transaction_ = NULL;
+    }
+}
+
+TClusterResources TCypressNodeBase::GetResourceUsage() const 
+{
+    return ZeroClusterResources();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

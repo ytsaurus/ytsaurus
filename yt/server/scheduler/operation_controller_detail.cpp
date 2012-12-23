@@ -328,6 +328,9 @@ void TOperationControllerBase::TTask::AddFinalOutputSpecs(
         auto* outputSpec = jobSpec->add_output_specs();
         outputSpec->set_channels(table.Channels.Data());
         outputSpec->set_replication_factor(table.ReplicationFactor);
+        if (table.Account) {
+            outputSpec->set_account(table.Account.Get());
+        }
         if (table.KeyColumns) {
             ToProto(outputSpec->mutable_key_columns(), *table.KeyColumns);
         }
@@ -378,6 +381,7 @@ TNodeResources TOperationControllerBase::TTask::GetNeededResources(TJobletPtr jo
 
 TOperationControllerBase::TOperationControllerBase(
     TSchedulerConfigPtr config,
+    TOperationSpecBasePtr specBase,
     IOperationHost* host,
     TOperation* operation)
     : Config(config)
@@ -398,6 +402,7 @@ TOperationControllerBase::TOperationControllerBase(
     , PendingTaskInfos(MaxTaskPriority + 1)
     , CachedPendingJobCount(0)
     , CachedNeededResources(ZeroNodeResources())
+    , SpecBase(specBase)
 {
     Logger.AddTag(Sprintf("OperationId: %s", ~operation->GetOperationId().ToString()));
 }
@@ -1137,12 +1142,15 @@ void TOperationControllerBase::OnIOTransactionsStarted(TObjectServiceProxy::TRsp
 
     THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error starting IO transactions");
 
+    auto transactionManager = Host->GetTransactionManager();
     {
         auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_in_tx");
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting input transaction");
         auto id = TTransactionId::FromProto(rsp->object_id());
         LOG_INFO("Input transaction is %s", ~id.ToString());
-        InputTransaction = Host->GetTransactionManager()->Attach(id, true);
+        TTransactionAttachOptions options(id);
+        options.Ping = true;
+        InputTransaction = transactionManager->Attach(options);
     }
 
     {
@@ -1150,7 +1158,9 @@ void TOperationControllerBase::OnIOTransactionsStarted(TObjectServiceProxy::TRsp
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting output transaction");
         auto id = TTransactionId::FromProto(rsp->object_id());
         LOG_INFO("Output transaction is %s", ~id.ToString());
-        OutputTransaction = Host->GetTransactionManager()->Attach(id, true);
+        TTransactionAttachOptions options(id);
+        options.Ping = true;
+        OutputTransaction = transactionManager->Attach(options);
     }
 }
 
@@ -1363,6 +1373,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             attributeFilter.Keys.push_back("channels");
             attributeFilter.Keys.push_back("row_count");
             attributeFilter.Keys.push_back("replication_factor");
+            attributeFilter.Keys.push_back("account");
             *req->mutable_attribute_filter() = ToProto(attributeFilter);
             batchReq->AddRequest(req, "get_out_attributes");
         }
@@ -1517,6 +1528,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 }
 
                 table.ReplicationFactor = attributes.Get<int>("replication_factor");
+                table.Account = attributes.Find<Stroka>("account");
             }
             if (table.Clear) {
                 auto rsp = clearOutRsps[index];
@@ -1681,8 +1693,9 @@ void TOperationControllerBase::ReleaseChunkLists(const std::vector<TChunkListId>
 {
     auto batchReq = ObjectProxy.ExecuteBatch();
     FOREACH (const auto& id, ids) {
-        auto req = TTransactionYPathProxy::ReleaseObject();
+        auto req = TTransactionYPathProxy::UnstageObject();
         *req->mutable_object_id() = id.ToProto();
+        req->set_recursive(true);
         NMetaState::GenerateRpcMutationId(req);
         batchReq->AddRequest(req);
     }

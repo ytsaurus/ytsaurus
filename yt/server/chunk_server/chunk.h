@@ -19,7 +19,7 @@ namespace NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunk
-    : public NObjectServer::TObjectWithIdBase
+    : public NObjectServer::TStagedObjectBase
 {
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TChunkMeta, ChunkMeta);
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TChunkInfo, ChunkInfo);
@@ -45,6 +45,7 @@ public:
     ~TChunk();
 
     TChunkTreeStatistics GetStatistics() const;
+    NSecurityServer::TClusterResources GetResourceUsage() const;
 
     void Save(const NCellMaster::TSaveContext& context) const;
     void Load(const NCellMaster::TLoadContext& context);

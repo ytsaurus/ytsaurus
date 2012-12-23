@@ -21,7 +21,6 @@ set( SRCS
   ${BASE}/node_lease_tracker.cpp
   ${BASE}/node_statistics.cpp
   ${BASE}/private.cpp
-  ${BASE}/public.cpp
 )
 set( HDRS
   ${BASE}/chunk.h

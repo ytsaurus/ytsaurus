@@ -34,30 +34,33 @@ public:
 private:
     TBootstrap* Bootstrap;
 
-    virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const
+    virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
     {
-        const auto& ids = Bootstrap->GetTransactionManager()->GetTransactionIds(sizeLimit);
+        auto transactionManager = Bootstrap->GetTransactionManager();
+        auto ids = transactionManager->GetTransactionIds(sizeLimit);
         return ConvertToStrings(ids.begin(), ids.end(), sizeLimit);
     }
 
-    virtual size_t GetSize() const
+    virtual size_t GetSize() const override
     {
-        return Bootstrap->GetTransactionManager()->GetTransactionCount();
+        auto transactionManager = Bootstrap->GetTransactionManager();
+        return transactionManager->GetTransactionCount();
     }
 
-    virtual IYPathServicePtr GetItemService(const TStringBuf& key) const
+    virtual IYPathServicePtr GetItemService(const TStringBuf& key) const override
     {
         auto id = TTransactionId::FromString(key);
         if (TypeFromId(id) != EObjectType::Transaction) {
             return NULL;
         }
-        return Bootstrap->GetObjectManager()->FindProxy(id);
+        auto objectManager = Bootstrap->GetObjectManager();
+        return objectManager->FindProxy(id);
     }
 };
 
 INodeTypeHandlerPtr CreateTransactionMapTypeHandler(TBootstrap* bootstrap)
 {
-    YASSERT(bootstrap);
+    YCHECK(bootstrap);
 
     return CreateVirtualTypeHandler(
         bootstrap,

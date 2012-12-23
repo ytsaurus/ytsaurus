@@ -131,7 +131,7 @@ Stroka TListExecutor::GetCommandName() const
 
 TCreateExecutor::TCreateExecutor()
     : TypeArg("type", "type of node", true, NObjectClient::EObjectType::Null, "NODE_TYPE")
-    , PathArg("path", "object path to create", true, TRichYPath(""), "YPATH")
+    , PathArg("path", "object path to create", false, TRichYPath(""), "YPATH")
 {
     CmdLine.add(TypeArg);
     CmdLine.add(PathArg);
@@ -139,10 +139,15 @@ TCreateExecutor::TCreateExecutor()
 
 void TCreateExecutor::BuildArgs(IYsonConsumer* consumer)
 {
-    auto path = PreprocessYPath(PathArg.getValue());
+    auto path =
+        PathArg.isSet()
+        ? TNullable<TRichYPath>(PreprocessYPath(PathArg.getValue()))
+        : Null;
 
     BuildYsonMapFluently(consumer)
-        .Item("path").Scalar(path)
+        .DoIf(path, [&] (TFluentMap fluent) {
+            fluent.Item("path").Scalar(path.Get());
+        })
         .Item("type").Scalar(TypeArg.getValue().ToString());
 
     TTransactedExecutor::BuildArgs(consumer);

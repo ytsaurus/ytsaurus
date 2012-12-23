@@ -38,10 +38,13 @@ struct TUploadRequest
     : public TTransactedRequest
 {
     NYPath::TYPath Path;
+    NYTree::INodePtr Attributes;
 
     TUploadRequest()
     {
         Register("path", Path);
+        Register("attributes", Attributes)
+            .Default(NULL);
     }
 };
 

@@ -5,7 +5,7 @@
 #include <ytlib/yson/public.h>
 
 namespace NYT {
-namespace NCypressServer {
+namespace NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,13 +25,24 @@ struct TClusterResources
 
 void Serialize(const TClusterResources& resources, NYson::IYsonConsumer* consumer);
 
+void Save(TOutputStream* output, const TClusterResources& resources);
+void Load(TInputStream* input, TClusterResources& resources);
+
 const TClusterResources& ZeroClusterResources();
 
 TClusterResources& operator += (TClusterResources& lhs, const TClusterResources& rhs);
 TClusterResources  operator +  (const TClusterResources& lhs, const TClusterResources& rhs);
 
+TClusterResources& operator -= (TClusterResources& lhs, const TClusterResources& rhs);
+TClusterResources  operator -  (const TClusterResources& lhs, const TClusterResources& rhs);
+
+TClusterResources& operator *= (TClusterResources& lhs, i64 rhs);
+TClusterResources  operator *  (const TClusterResources& lhs, i64 rhs);
+
+TClusterResources  operator -  (const TClusterResources& resources);
+
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NObjectServer
+} // namespace NSecurityServer
 } // namespace NYT
 

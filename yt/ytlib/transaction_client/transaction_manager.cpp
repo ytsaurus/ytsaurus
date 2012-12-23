@@ -30,15 +30,11 @@ class TTransactionManager::TTransaction
     : public ITransaction
 {
 public:
-    TTransaction(
-        TTransactionManagerPtr owner,
-        bool autoAbort,
-        bool ping,
-        bool pingAncestors)
+    explicit TTransaction(TTransactionManagerPtr owner)
         : Owner(owner)
-        , AutoAbort(autoAbort)
-        , Ping(ping)
-        , PingAncestors(pingAncestors)
+        , AutoAbort(false)
+        , Ping(false)
+        , PingAncestors(false)
         , Proxy(owner->Channel)
         , State(EState::Active)
         , Aborted(NewPromise<void>())
@@ -53,21 +49,30 @@ public:
         }
     }
 
-    void Start(const TTransactionId& parentId, IAttributeDictionary* attributes)
+    void Start(const TTransactionStartOptions& options)
     {
         LOG_INFO("Starting transaction");
 
+        AutoAbort = true;
+        Ping = options.Ping;
+        PingAncestors = options.PingAncestors;
+
         auto transactionPath =
-            parentId == NullTransactionId
+            options.ParentId == NullTransactionId
             ? RootTransactionPath
-            : FromObjectId(parentId);
+            : FromObjectId(options.ParentId);
+
         auto req = TTransactionYPathProxy::CreateObject(transactionPath);
+        auto* reqExt = req->MutableExtension(NProto::TReqCreateTransactionExt::create_transaction);
+
         req->set_type(EObjectType::Transaction);
-        if (parentId != NullTransactionId) {
-            NMetaState::GenerateRpcMutationId(req);
+        if (options.Timeout) {
+            reqExt->set_timeout(options.Timeout.Get().MilliSeconds());
         }
-        if (attributes) {
-            ToProto(req->mutable_object_attributes(), *attributes);
+        reqExt->set_enable_uncommitted_accounting(options.EnableUncommittedAccounting);
+        reqExt->set_enable_staged_accounting(options.EnableStagedAccounting);
+        if (options.ParentId != NullTransactionId) {
+            NMetaState::GenerateRpcMutationId(req);
         }
 
         auto rsp = Proxy.Execute(req).Get();
@@ -91,10 +96,14 @@ public:
         }
     }
 
-    void Attach(const TTransactionId& id)
+    void Attach(const TTransactionAttachOptions& options)
     {
+        Id = options.Id;
+        AutoAbort = options.AutoAbort;
+        Ping = options.Ping;
+        PingAncestors = options.PingAncestors;
+
         State = EState::Active;
-        Id = id;
 
         LOG_INFO("Transaction attached: %s (AutoAbort: %s, Ping: %s, PingAncestors: %s)",
             ~Id.ToString(),
@@ -327,37 +336,21 @@ TTransactionManager::TTransactionManager(
     YCHECK(config);
 }
 
-ITransactionPtr TTransactionManager::Start(
-    IAttributeDictionary* attributes,
-    const TTransactionId& parentId,
-    bool ping,
-    bool pingAncestors)
+ITransactionPtr TTransactionManager::Start(const TTransactionStartOptions& options)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto transaction = New<TTransaction>(
-        this,
-        true,
-        ping,
-        pingAncestors);
-    transaction->Start(parentId, attributes);
+    auto transaction = New<TTransaction>(this);
+    transaction->Start(options);
     return transaction;
 }
 
-ITransactionPtr TTransactionManager::Attach(
-    const TTransactionId& id,
-    bool autoAbort,
-    bool ping,
-    bool pingAncestors)
+ITransactionPtr TTransactionManager::Attach(const TTransactionAttachOptions& options)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto transaction = New<TTransaction>(
-        this,
-        autoAbort,
-        ping,
-        pingAncestors);
-    transaction->Attach(id);
+    auto transaction = New<TTransaction>(this);
+    transaction->Attach(options);
     return transaction;
 }
 

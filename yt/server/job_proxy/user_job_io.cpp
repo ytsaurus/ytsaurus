@@ -64,16 +64,18 @@ ISyncWriterPtr TUserJobIO::CreateTableOutput(int index)
 
     LOG_DEBUG("Opening output %d", index);
 
-    Stroka channelsString = JobSpec.output_specs(index).channels();
-    YCHECK(!channelsString.empty());
-    auto channels = ConvertTo<TChannels>(TYsonString(channelsString));
-
-    auto keyColumns = FromProto<Stroka>(JobSpec.output_specs(index).key_columns());
+    auto transactionId = TTransactionId::FromProto(JobSpec.output_transaction_id());
+    const auto& outputSpec = JobSpec.output_specs(index);
+    auto account = outputSpec.has_account() ? TNullable<Stroka>(outputSpec.account()) : Null;
+    auto chunkListId = TChunkListId::FromProto(outputSpec.chunk_list_id());
+    auto channels = ConvertTo<TChannels>(TYsonString(outputSpec.channels()));
+    auto keyColumns = FromProto<Stroka>(outputSpec.key_columns());
     auto chunkSequenceWriter = New<TTableChunkSequenceWriter>(
         IOConfig->TableWriter,
         MasterChannel,
-        TTransactionId::FromProto(JobSpec.output_transaction_id()),
-        TChunkListId::FromProto(JobSpec.output_specs(index).chunk_list_id()),
+        transactionId,
+        account,
+        chunkListId,
         channels,
         keyColumns.empty() ? Null : MakeNullable(keyColumns));
 

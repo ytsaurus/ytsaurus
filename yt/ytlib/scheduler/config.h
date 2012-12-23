@@ -44,8 +44,12 @@ struct TJobIOConfig
 struct TOperationSpecBase
     : public TYsonSerializable
 {
+    Stroka TmpAccount;
+
     TOperationSpecBase()
     {
+        Register("tmp_account", TmpAccount)
+            .Default("tmp");
         SetKeepOptions(true);
     }
 };

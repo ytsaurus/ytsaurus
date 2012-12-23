@@ -70,6 +70,7 @@ using namespace NObjectClient;
 using namespace NYTree;
 using namespace NCellMaster;
 using namespace NCypressServer;
+using namespace NSecurityServer;
 using namespace NChunkClient::NProto;
 using namespace NChunkServer::NProto;
 
@@ -85,13 +86,25 @@ class TChunkManager::TChunkTypeHandler
 public:
     explicit TChunkTypeHandler(TImpl* owner);
 
-    virtual EObjectType GetType() override
+    virtual EObjectType GetType() const override
     {
         return EObjectType::Chunk;
     }
 
+    virtual EObjectTransactionMode GetTransactionMode() const override
+    {
+        return EObjectTransactionMode::Required;
+    }
+
+    virtual EObjectAccountMode GetAccountMode() const override
+    {
+        // TODO(babenko): must be required
+        return EObjectAccountMode::Optional;
+    }
+
     virtual TObjectId Create(
         TTransaction* transaction,
+        TAccount* account,
         IAttributeDictionary* attributes,
         TReqCreateObject* request,
         TRspCreateObject* response) override;
@@ -104,6 +117,7 @@ private:
     TImpl* Owner;
 
     virtual void DoDestroy(TChunk* chunk) override;
+    virtual void DoUnstage(TChunk* obj, TTransaction* transaction, bool recursive) override;
 
 };
 
@@ -115,13 +129,24 @@ class TChunkManager::TChunkListTypeHandler
 public:
     explicit TChunkListTypeHandler(TImpl* owner);
 
-    virtual EObjectType GetType() override
+    virtual EObjectType GetType() const override
     {
         return EObjectType::ChunkList;
     }
 
+    virtual EObjectTransactionMode GetTransactionMode() const override
+    {
+        return EObjectTransactionMode::Required;
+    }
+
+    virtual EObjectAccountMode GetAccountMode() const override
+    {
+        return EObjectAccountMode::Forbidden;
+    }
+
     virtual TObjectId Create(
         TTransaction* transaction,
+        TAccount* account,
         IAttributeDictionary* attributes,
         TReqCreateObject* request,
         TRspCreateObject* response) override;
@@ -134,13 +159,14 @@ private:
     TImpl* Owner;
 
     virtual void DoDestroy(TChunkList* chunkList) override;
+    virtual void DoUnstage(TChunkList* chunkList, TTransaction* transaction, bool recursive) override;
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkManager::TImpl
-    : public NMetaState::TMetaStatePart
+    : public TMetaStatePart
 {
 public:
     TImpl(
@@ -174,7 +200,7 @@ public:
 
         {
             NCellMaster::TLoadContext context;
-            context.SetBootstrap(bootstrap);
+            context.SetBootstrap(Bootstrap);
 
             RegisterLoader(
                 "ChunkManager.Keys",
@@ -204,13 +230,15 @@ public:
                 BIND(&TImpl::SaveValues, MakeStrong(this)),
                 context);
         }
-
-        {
-            auto objectManager = bootstrap->GetObjectManager();
-            objectManager->RegisterHandler(New<TChunkTypeHandler>(this));
-            objectManager->RegisterHandler(New<TChunkListTypeHandler>(this));
-        }
     }
+
+    void Initialize()
+    {
+        auto objectManager = Bootstrap->GetObjectManager();
+        objectManager->RegisterHandler(New<TChunkTypeHandler>(this));
+        objectManager->RegisterHandler(New<TChunkListTypeHandler>(this));
+    }
+
 
     TMutationPtr CreateRegisterNodeMutation(
         const TMetaReqRegisterNode& request)
@@ -497,6 +525,15 @@ public:
             }
         }
 
+        // Increase staged resource usage.
+        if (chunk->IsStaged()) {
+            auto* stagingTransaction = chunk->GetStagingTransaction();
+            auto* stagingAccount = chunk->GetStagingAccount();
+            auto securityManager = Bootstrap->GetSecurityManager();
+            auto delta = chunk->GetResourceUsage();
+            securityManager->UpdateAccountStagingUsage(stagingTransaction, stagingAccount, delta);
+        }
+
         if (IsLeader()) {
             ChunkReplicator->ScheduleChunkRefresh(id);
         }
@@ -724,10 +761,14 @@ private:
     yhash_map<Stroka, TReplicationSink> ReplicationSinkMap;
 
 
-
     void DestroyChunk(TChunk* chunk)
     {
         auto chunkId = chunk->GetId();
+
+        // Decrease staging resource usage.
+        if (chunk->IsStaged()) {
+            UnstageChunk(chunk);
+        }
 
         // Unregister chunk replicas from all known locations.
         FOREACH (auto nodeId, chunk->StoredLocations()) {
@@ -764,6 +805,35 @@ private:
         FOREACH (auto childRef, chunkList->Children()) {
             ResetChunkTreeParent(chunkList, childRef);
             objectManager->UnrefObject(childRef);
+        }
+    }
+
+
+    void UnstageChunk(TChunk* chunk)
+    {
+        if (chunk->IsStaged() && chunk->IsConfirmed()) {
+            auto* stagingTransaction = chunk->GetStagingTransaction();
+            auto* stagingAccount = chunk->GetStagingAccount();
+            auto securityManager = Bootstrap->GetSecurityManager();
+            auto delta = -chunk->GetResourceUsage();
+            securityManager->UpdateAccountStagingUsage(stagingTransaction, stagingAccount, delta);
+        }
+
+        chunk->SetStagingTransaction(NULL);
+        chunk->SetStagingAccount(NULL);
+    }
+
+    void UnstageChunkList(
+        TChunkList* chunkList,
+        TTransaction* transaction,
+        bool recursive)
+    {
+        if (!recursive)
+            return;
+
+        auto transactionManager = Bootstrap->GetTransactionManager();
+        FOREACH (auto childRef, chunkList->Children()) {
+            transactionManager->UnstageObject(transaction, childRef.GetId(), true);
         }
     }
 
@@ -946,6 +1016,8 @@ private:
             int replicationFactor = update.replication_factor();
             auto* chunk = FindChunk(chunkId);
             if (chunk && chunk->IsAlive() && chunk->GetReplicationFactor() != replicationFactor) {
+                // NB: Updating RF for staged chunks is forbidden.
+                YCHECK(!chunk->IsStaged());
                 chunk->SetReplicationFactor(replicationFactor);
                 if (IsLeader()) {
                     ChunkReplicator->ScheduleChunkRefresh(chunk->GetId());
@@ -1618,11 +1690,11 @@ IObjectProxyPtr TChunkManager::TChunkTypeHandler::GetProxy(
 
 TObjectId TChunkManager::TChunkTypeHandler::Create(
     TTransaction* transaction,
+    TAccount* account,
     IAttributeDictionary* attributes,
     TReqCreateObject* request,
     TRspCreateObject* response)
 {
-    UNUSED(transaction);
     UNUSED(attributes);
 
     const auto* requestExt = &request->GetExtension(TReqCreateChunkExt::create_chunk);
@@ -1632,6 +1704,8 @@ TObjectId TChunkManager::TChunkTypeHandler::Create(
     chunk->SetReplicationFactor(requestExt->replication_factor());
     chunk->SetMovable(requestExt->movable());
     chunk->SetVital(requestExt->vital());
+    chunk->SetStagingTransaction(transaction);
+    chunk->SetStagingAccount(account);
 
     if (Owner->IsLeader()) {
         auto preferredHostName =
@@ -1647,8 +1721,13 @@ TObjectId TChunkManager::TChunkTypeHandler::Create(
             responseExt->add_node_addresses(node->GetAddress());
         }
 
-        LOG_DEBUG_UNLESS(Owner->IsRecovery(), "Allocated nodes for new chunk (ChunkId: %s, Addresses: [%s], PreferredHostName: %s, ReplicationFactor: %d, UploadReplicationFactor: %d, Movable: %s, Vital: %s)",
+        LOG_DEBUG_UNLESS(Owner->IsRecovery(),
+            "Allocated nodes for new chunk "
+            "(ChunkId: %s, TransactionId: %s, Account: %s, Addresses: [%s], "
+            "PreferredHostName: %s, ReplicationFactor: %d, UploadReplicationFactor: %d, Movable: %s, Vital: %s)",
             ~chunk->GetId().ToString(),
+            ~transaction->GetId().ToString(),
+            account ? ~account->GetName() : "<Null>",
             ~JoinToString(responseExt->node_addresses()),
             ~ToString(preferredHostName),
             requestExt->replication_factor(),
@@ -1663,6 +1742,16 @@ TObjectId TChunkManager::TChunkTypeHandler::Create(
 void TChunkManager::TChunkTypeHandler::DoDestroy(TChunk* chunk)
 {
     Owner->DestroyChunk(chunk);
+}
+
+void TChunkManager::TChunkTypeHandler::DoUnstage(
+    TChunk* obj,
+    TTransaction* transaction,
+    bool recursive)
+{
+    UNUSED(transaction);
+    UNUSED(recursive);
+    Owner->UnstageChunk(obj);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1686,11 +1775,13 @@ IObjectProxyPtr TChunkManager::TChunkListTypeHandler::GetProxy(
 
 TObjectId TChunkManager::TChunkListTypeHandler::Create(
     TTransaction* transaction,
+    TAccount* account,
     IAttributeDictionary* attributes,
     TReqCreateObject* request,
     TRspCreateObject* response)
 {
     UNUSED(transaction);
+    UNUSED(account);
     UNUSED(attributes);
     UNUSED(request);
     UNUSED(response);
@@ -1704,6 +1795,14 @@ void TChunkManager::TChunkListTypeHandler::DoDestroy(TChunkList* chunkList)
     Owner->DestroyChunkList(chunkList);
 }
 
+void TChunkManager::TChunkListTypeHandler::DoUnstage(
+    TChunkList* obj,
+    TTransaction* transaction,
+    bool recursive)
+{
+    Owner->UnstageChunkList(obj, transaction, recursive);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkManager::TChunkManager(
@@ -1711,6 +1810,11 @@ TChunkManager::TChunkManager(
     TBootstrap* bootstrap)
     : Impl(New<TImpl>(config, bootstrap))
 { }
+
+void TChunkManager::Initialize()
+{
+    Impl->Initialize();
+}
 
 TChunkManager::~TChunkManager()
 { }

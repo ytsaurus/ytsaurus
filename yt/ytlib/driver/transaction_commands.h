@@ -9,7 +9,15 @@ namespace NDriver {
 
 struct TStartTransactionRequest
     : public TTransactedRequest
-{ };
+{
+    TNullable<TDuration> Timeout;
+
+    TStartTransactionRequest()
+    {
+        Register("timeout", Timeout)
+            .Default(Null);
+    }
+};
 
 typedef TIntrusivePtr<TStartTransactionRequest> TStartRequestPtr;
 

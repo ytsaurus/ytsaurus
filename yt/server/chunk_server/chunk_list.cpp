@@ -61,7 +61,7 @@ void TChunkList::Load(const NCellMaster::TLoadContext& context)
     LoadObjectRefs(input, OwningNodes_, context);
     NChunkServer::Load(Statistics_, context);
     ::Load(input, SortedBy_);
-    // TODO(babenko): compat
+    // COMPAT(babenko)
     if (context.GetVersion() <= 3) {
         bool dummy;
         ::Load(input, dummy);

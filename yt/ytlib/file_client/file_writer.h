@@ -2,13 +2,18 @@
 
 #include "public.h"
 
+#include <ytlib/misc/ref.h>
+
 #include <ytlib/ytree/public.h>
+
 #include <ytlib/cypress_client/public.h>
+
 #include <ytlib/transaction_client/public.h>
 #include <ytlib/transaction_client/transaction_listener.h>
+
 #include <ytlib/rpc/public.h>
+
 #include <ytlib/logging/tagged_logger.h>
-#include <ytlib/misc/ref.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -30,7 +35,8 @@ public:
         NRpc::IChannelPtr masterChannel,
         NTransactionClient::ITransactionPtr transaction,
         NTransactionClient::TTransactionManagerPtr transactionManager,
-        const NYPath::TYPath& path);
+        const NYPath::TYPath& path,
+        NYTree::IAttributeDictionary* attributes = NULL);
 
     //! Destroys an instance.
     ~TFileWriter();
@@ -59,6 +65,7 @@ private:
     NTransactionClient::TTransactionManagerPtr TransactionManager;
     NTransactionClient::ITransactionPtr UploadTransaction;
     NYPath::TYPath Path;
+    TAutoPtr<NYTree::IAttributeDictionary> Attributes;
 
     TAutoPtr<TFileChunkOutput> Writer;
 

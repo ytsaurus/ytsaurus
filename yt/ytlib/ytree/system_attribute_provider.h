@@ -53,6 +53,13 @@ struct ISystemAttributeProvider
      *  \returns False if there is no writable system attribute with the given key.
      */
     virtual bool SetSystemAttribute(const Stroka& key, const TYsonString& value) = 0;
+
+
+    // Extension methods.
+
+    //! Returns an instance of TAttributeInfo matching a given #key or |NULL| if no such
+    //! system attribute is known.
+    TAttributeInfo* FindSystemAttributeInfo(const Stroka& key);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -102,7 +102,6 @@ struct TBlockInfo
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(babenko): eliminate
 template <template <typename T> class TComparator>
 struct TTableChunkReader::TIndexComparator
 {

@@ -7,27 +7,42 @@
 
 #include <ytlib/rpc/service.h>
 
-#include <server/transaction_server/public.h>
 #include <ytlib/transaction_client/transaction_ypath.pb.h>
+
+#include <server/transaction_server/public.h>
+
+#include <server/security_server/public.h>
 
 namespace NYT {
 namespace NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_ENUM(EObjectTransactionMode,
+    (Required)
+    (Forbidden)
+    (Optional)
+);
+
+DECLARE_ENUM(EObjectAccountMode,
+    (Required)
+    (Forbidden)
+    (Optional)
+);
+
 //! Provides a bridge between TObjectManager and concrete object implementations.
 struct IObjectTypeHandler
     : public virtual TRefCounted
 {
     //! Returns the object type handled by the handler.
-    virtual EObjectType GetType() = 0;
+    virtual EObjectType GetType() const = 0;
 
     //! Returns true iff an object with the given id exists.
     virtual bool Exists(const TObjectId& id) = 0;
 
-    virtual i32 RefObject(const TObjectId& id) = 0;
-    virtual i32 UnrefObject(const TObjectId& id) = 0;
-    virtual i32 GetObjectRefCounter(const TObjectId& id) = 0;
+    virtual int RefObject(const TObjectId& id) = 0;
+    virtual int UnrefObject(const TObjectId& id) = 0;
+    virtual int GetObjectRefCounter(const TObjectId& id) = 0;
 
     //! Given a versioned object id, constructs a proxy for it.
     //! The object with the given id must exist.
@@ -50,6 +65,7 @@ struct IObjectTypeHandler
      */
     virtual TObjectId Create(
         NTransactionServer::TTransaction* transaction,
+        NSecurityServer::TAccount* account,
         NYTree::IAttributeDictionary* attributes,
         TReqCreateObject* request,
         TRspCreateObject* response) = 0;
@@ -57,8 +73,21 @@ struct IObjectTypeHandler
     //! Performs the necessary cleanup.
     virtual void Destroy(const TObjectId& objectId) = 0;
 
-    //! Indicates if a valid transaction is required to create a instance.
-    virtual bool IsTransactionRequired() const = 0;
+    //! Clears staging information of a given object.
+    /*!
+     *  If #recursive is True then also releases all child objects.
+     *  
+     */
+    virtual void Unstage(
+        const TObjectId& objectId,
+        NTransactionServer::TTransaction* transaction,
+        bool recursive) = 0;
+
+    //! Specifies if a valid transaction is required or allowed to create a instance.
+    virtual EObjectTransactionMode GetTransactionMode() const = 0;
+
+    //! Specifies if a valid account is required or allowed to create a instance.
+    virtual EObjectAccountMode GetAccountMode() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

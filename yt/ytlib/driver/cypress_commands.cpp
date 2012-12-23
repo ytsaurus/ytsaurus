@@ -17,6 +17,7 @@ namespace NDriver {
 using namespace NYTree;
 using namespace NCypressClient;
 using namespace NObjectClient;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -105,24 +106,62 @@ void TListCommand::DoExecute()
 void TCreateCommand::DoExecute()
 {
     TObjectServiceProxy proxy(Context->GetMasterChannel());
-    auto req = TCypressYPathProxy::Create(Request->Path.GetPath());
-    req->set_type(Request->Type);
-    SetTransactionId(req, GetTransactionId(false));
-    NMetaState::GenerateRpcMutationId(req);
 
-    auto attributes = ConvertToAttributes(Request->GetOptions());
-    ToProto(req->mutable_node_attributes(), *attributes);
+    if (IsTypeVersioned(Request->Type)) {
+        if (!Request->Path) {
+            THROW_ERROR_EXCEPTION("Object type is versioned, Cypress path required");
+        }
 
-    auto rsp = proxy.Execute(req).Get();
-    if (!rsp->IsOK()) {
-        ReplyError(rsp->GetError());
-        return;
+        auto req = TCypressYPathProxy::Create(Request->Path.Get().GetPath());
+        req->set_type(Request->Type);
+        SetTransactionId(req, GetTransactionId(false));
+        NMetaState::GenerateRpcMutationId(req);
+
+        if (Request->Attributes) {
+            auto attributes = ConvertToAttributes(Request->Attributes);
+            ToProto(req->mutable_node_attributes(), *attributes);
+        }
+
+        auto rsp = proxy.Execute(req).Get();
+        if (!rsp->IsOK()) {
+            ReplyError(rsp->GetError());
+            return;
+        }
+
+        auto consumer = Context->CreateOutputConsumer();
+        auto nodeId = TNodeId::FromProto(rsp->node_id());
+        BuildYsonFluently(~consumer)
+            .Scalar(nodeId);
+
+    } else {
+        if (Request->Path) {
+            THROW_ERROR_EXCEPTION("Object type is nonversioned, Cypress path is not required");
+        }
+
+        auto transactionId = GetTransactionId(false);
+        auto req = TTransactionYPathProxy::CreateObject(
+            transactionId == NullTransactionId
+            ? RootTransactionPath
+            : FromObjectId(transactionId));
+        req->set_type(Request->Type);
+        NMetaState::GenerateRpcMutationId(req);
+
+        if (Request->Attributes) {
+            auto attributes = ConvertToAttributes(Request->Attributes);
+            ToProto(req->mutable_object_attributes(), *attributes);
+        }
+
+        auto rsp = proxy.Execute(req).Get();
+        if (!rsp->IsOK()) {
+            ReplyError(rsp->GetError());
+            return;
+        }
+
+        auto consumer = Context->CreateOutputConsumer();
+        auto objectId = TNodeId::FromProto(rsp->object_id());
+        BuildYsonFluently(~consumer)
+            .Scalar(objectId);
     }
-
-    auto consumer = Context->CreateOutputConsumer();
-    auto nodeId = TNodeId::FromProto(rsp->node_id());
-    BuildYsonFluently(~consumer)
-        .Scalar(nodeId);
 }
 
 //////////////////////////////////////////////////////////////////////////////////

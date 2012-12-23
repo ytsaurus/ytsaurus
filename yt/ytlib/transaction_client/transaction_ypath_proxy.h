@@ -21,7 +21,7 @@ struct TTransactionYPathProxy
     DEFINE_YPATH_PROXY_METHOD(NProto, RenewLease);
 
     DEFINE_YPATH_PROXY_METHOD(NProto, CreateObject);
-    DEFINE_YPATH_PROXY_METHOD(NProto, ReleaseObject);
+    DEFINE_YPATH_PROXY_METHOD(NProto, UnstageObject);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

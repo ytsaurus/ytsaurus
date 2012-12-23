@@ -10,11 +10,6 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/id_generator.h>
 
-#include <server/cell_master/public.h>
-
-#include <server/transaction_server/transaction.h>
-#include <server/transaction_server/transaction_manager.h>
-
 #include <ytlib/ytree/ypath_service.h>
 #include <ytlib/ytree/tree_builder.h>
 
@@ -24,6 +19,13 @@
 #include <ytlib/meta_state/mutation.h>
 
 #include <server/object_server/object_manager.h>
+
+#include <server/cell_master/public.h>
+
+#include <server/transaction_server/transaction.h>
+#include <server/transaction_server/transaction_manager.h>
+
+#include <server/security_server/public.h>
 
 namespace NYT {
 namespace NCypressServer {
@@ -35,6 +37,8 @@ class TCypressManager
 {
 public:
     explicit TCypressManager(NCellMaster::TBootstrap* bootstrap);
+
+    void Initialize();
 
     void RegisterHandler(INodeTypeHandlerPtr handler);
     INodeTypeHandlerPtr FindHandler(NObjectClient::EObjectType type);
@@ -55,6 +59,7 @@ public:
     ICypressNode* CreateNode(
         INodeTypeHandlerPtr handler,
         NTransactionServer::TTransaction* transaction,
+        NSecurityServer::TAccount* account,
         NYTree::IAttributeDictionary* attributes,
         TReqCreate* request,
         TRspCreate* response);
@@ -121,8 +126,8 @@ public:
 
     void RegisterNode(
         NTransactionServer::TTransaction* transaction,
-        NYTree::IAttributeDictionary* attributes,
-        TAutoPtr<ICypressNode> node);
+        TAutoPtr<ICypressNode> node,
+		NYTree::IAttributeDictionary* attributes = NULL);
 
     DECLARE_METAMAP_ACCESSORS(Node, ICypressNode, TVersionedNodeId);
 
@@ -156,9 +161,9 @@ private:
 
     yhash_map<TNodeId, INodeBehaviorPtr> NodeBehaviors;
 
-    i32 RefNode(const TNodeId& nodeId);
-    i32 UnrefNode(const TNodeId& nodeId);
-    i32 GetNodeRefCounter(const TNodeId& nodeId);
+    int RefNode(const TNodeId& nodeId);
+    int UnrefNode(const TNodeId& nodeId);
+    int GetNodeRefCounter(const TNodeId& nodeId);
     void DestroyNode(const TNodeId& nodeId);
 
     // TMetaStatePart overrides.
@@ -180,6 +185,7 @@ private:
         NTransactionServer::TTransaction* transaction,
         ICypressNode* branchedNode);
     void RemoveBranchedNodes(NTransactionServer::TTransaction* transaction);
+    void RemoveBranchedNode(ICypressNode* branchedNode);
     void ReleaseCreatedNodes(NTransactionServer::TTransaction* transaction);
     void PromoteLocks(NTransactionServer::TTransaction* transaction);
     void PromoteLock(TLock* lock, NTransactionServer::TTransaction* parentTransaction);

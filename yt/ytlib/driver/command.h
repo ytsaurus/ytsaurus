@@ -156,16 +156,18 @@ protected:
         if (required && this->Request->TransactionId == NTransactionClient::NullTransactionId) {
             THROW_ERROR_EXCEPTION("Transaction is required");
         }
+        
         auto transactionId = this->Request->TransactionId;
         if (transactionId == NTransactionClient::NullTransactionId) {
             return NULL;
         }
-        bool pingAncestorTransactions = this->Request->PingAncestorTransactions;
-        return this->Context->GetTransactionManager()->Attach(
-            transactionId, 
-            false, 
-            true, 
-            pingAncestorTransactions);
+
+        NTransactionClient::TTransactionAttachOptions options(transactionId);
+        options.AutoAbort = false;
+        options.Ping = true;
+        options.PingAncestors = this->Request->PingAncestorTransactions;
+        auto transactionManager = this->Context->GetTransactionManager();
+        return transactionManager->Attach(options);
     }
 
 };

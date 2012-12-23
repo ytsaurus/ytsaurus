@@ -24,18 +24,19 @@ using namespace NObjectClient;
 
 void TStartTransactionCommand::DoExecute()
 {
-    auto attributes = ConvertToAttributes(Request->GetOptions());
+    TTransactionStartOptions options;
+    options.Timeout = Request->Timeout;
+    options.ParentId = Request->TransactionId;
+    options.Ping = true;
+    options.PingAncestors = Request->PingAncestorTransactions;
+
     auto transactionManager = Context->GetTransactionManager();
-    auto newTransaction = transactionManager->Start(
-        ~attributes,
-        Request->TransactionId,
-        true,
-        Request->PingAncestorTransactions);
+    auto transaction = transactionManager->Start(options);
 
     BuildYsonFluently(~Context->CreateOutputConsumer())
-        .Scalar(newTransaction->GetId());
+        .Scalar(transaction->GetId());
 
-    newTransaction->Detach();
+    transaction->Detach();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

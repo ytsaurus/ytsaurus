@@ -338,6 +338,12 @@ private:
                 transactionId,
                 EObjectType::TransactionMap);
 
+            CreateYPath(
+                rootService,
+                "//sys/accounts",
+                transactionId,
+                EObjectType::AccountMap);
+
             SetYPath(
                 rootService,
                 "//tmp",

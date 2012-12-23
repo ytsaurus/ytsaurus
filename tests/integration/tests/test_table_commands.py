@@ -339,9 +339,8 @@ class TestTableCommands(YTEnvSetup):
         with pytest.raises(YTError): create('table', '//tmp/t', opt='channels=123')
 
     def test_replication_factor_attr(self):
-        create('table', '//tmp/t')
-        
-        get('//tmp/t/@replication_factor')
+        create('table', '//tmp/t')      
+        assert get('//tmp/t/@replication_factor') == 3
 
         with pytest.raises(YTError): remove('//tmp/t/@replication_factor')
         with pytest.raises(YTError): set('//tmp/t/@replication_factor', 0)

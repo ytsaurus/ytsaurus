@@ -21,6 +21,7 @@ using namespace NChunkServer;
 using namespace NObjectServer;
 using namespace NTableClient;
 using namespace NTransactionServer;
+using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,6 +68,35 @@ void TTableNode::Load(const NCellMaster::TLoadContext& context)
     ::Load(input, ReplicationFactor_);
 }
 
+TClusterResources TTableNode::GetResourceUsage() const 
+{
+    const TChunkList* chunkList;
+    switch (UpdateMode_) {
+        case ETableUpdateMode::None:
+            if (Id.IsBranched()) {
+                return ZeroClusterResources();
+            }
+            chunkList = ChunkList_;
+            break;
+
+        case ETableUpdateMode::Append: {
+            const auto& children = ChunkList_->Children();
+            YCHECK(children.size() == 2);
+            chunkList = children[1].AsChunkList();
+        }
+
+        case ETableUpdateMode::Overwrite:
+            chunkList = ChunkList_;
+            break;
+
+        default:
+            YUNREACHABLE();
+    }
+    return TClusterResources(
+        chunkList->Statistics().DiskSpace *
+        GetOwningReplicationFactor());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableNodeTypeHandler
@@ -79,6 +109,16 @@ public:
         : TBase(bootstrap)
     { }
 
+    void SetDefaultAttributes(IAttributeDictionary* attributes) override
+    {
+        if (!attributes->Contains("channels")) {
+            attributes->SetYson("channels", TYsonString("[]"));
+        }
+        if (!attributes->Contains("replication_factor")) {
+            attributes->Set("replication_factor", 3);
+        }
+    }
+
     EObjectType GetObjectType()
     {
         return EObjectType::Table;
@@ -87,42 +127,6 @@ public:
     ENodeType GetNodeType()
     {
         return ENodeType::Entity;
-    }
-
-    virtual TAutoPtr<ICypressNode> Create(
-        TTransaction* transaction,
-        IAttributeDictionary* attributes,
-        TReqCreate* request,
-        TRspCreate* response) override
-    {
-        YCHECK(request);
-        UNUSED(transaction);
-        UNUSED(response);
-
-        auto chunkManager = Bootstrap->GetChunkManager();
-        auto objectManager = Bootstrap->GetObjectManager();
-
-        // Adjust attributes:
-        // - channels
-        if (!attributes->Contains("channels")) {
-            attributes->SetYson("channels", TYsonString("[]"));
-        }
-        // - replication_factor
-        int replicationFactor = attributes->Get<int>("replication_factor", 3);
-        attributes->Remove("replication_factor");
-
-        auto node = TBase::DoCreate(transaction, attributes, request, response);
-
-        node->SetReplicationFactor(replicationFactor);
-
-        // Create an empty chunk list and reference it from the node.
-        auto* chunkList = chunkManager->CreateChunkList();
-        node->SetChunkList(chunkList);
-        YCHECK(chunkList->OwningNodes().insert(~node).second);
-        objectManager->RefObject(chunkList);
-
-        // TODO(babenko): Release is needed due to cast to ICypressNode.
-        return node.Release();
     }
 
     virtual ICypressNodeProxyPtr GetProxy(
@@ -137,6 +141,29 @@ public:
     }
 
 protected:
+    virtual TAutoPtr<TTableNode> DoCreate(
+        TTransaction* transaction,
+        TReqCreate* request,
+        TRspCreate* response) override
+    {
+        YCHECK(request);
+        UNUSED(transaction);
+        UNUSED(response);
+
+        auto chunkManager = Bootstrap->GetChunkManager();
+        auto objectManager = Bootstrap->GetObjectManager();
+
+        auto node = TBase::DoCreate(transaction, request, response);
+
+        // Create an empty chunk list and reference it from the node.
+        auto* chunkList = chunkManager->CreateChunkList();
+        node->SetChunkList(chunkList);
+        YCHECK(chunkList->OwningNodes().insert(~node).second);
+        objectManager->RefObject(chunkList);
+
+        return node;
+    }
+
     virtual void DoDestroy(TTableNode* node) override
     {
         TBase::DoDestroy(node);

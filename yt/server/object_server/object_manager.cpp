@@ -89,7 +89,7 @@ public:
 
     IMessagePtr GetResponseMessage()
     {
-        YASSERT(Replied);
+        YCHECK(Replied);
         if (!ResponseMessage) {
             ResponseMessage = CreateResponseMessage(this);
         }
@@ -212,14 +212,6 @@ TObjectManager::TObjectManager(
     YCHECK(config);
     YCHECK(bootstrap);
 
-    auto transactionManager = bootstrap->GetTransactionManager();
-    transactionManager->SubscribeTransactionCommitted(BIND(
-        &TThis::OnTransactionCommitted,
-        MakeStrong(this)));
-    transactionManager->SubscribeTransactionAborted(BIND(
-        &TThis::OnTransactionAborted,
-        MakeStrong(this)));
-    
     {
         NCellMaster::TLoadContext context;
         context.SetBootstrap(Bootstrap);
@@ -259,7 +251,7 @@ TObjectManager::TObjectManager(
         static_cast<int>(config->CellId));
 }
 
-void TObjectManager::Start()
+void TObjectManager::Initialize()
 {
     GarbageCollector->Start();
 }
@@ -598,9 +590,8 @@ void TObjectManager::MergeAttributes(
     }
 
     if (!originatingAttributes) {
-        Attributes.Insert(
-            originatingId,
-            Attributes.Release(branchedId));
+        auto attributeSet = Attributes.Release(branchedId);
+        Attributes.Insert(originatingId, attributeSet.Release());
     } else {
         FOREACH (const auto& pair, branchedAttributes->Attributes()) {
             if (!pair.second && !originatingId.IsBranched()) {
@@ -755,40 +746,6 @@ void TObjectManager::DestroyObject(const TObjectId& id)
     LOG_DEBUG_UNLESS(IsRecovery(), "Object destroyed (Type: %s, Id: %s)",
         ~handler->GetType().ToString(),
         ~id.ToString());
-}
-
-void TObjectManager::OnTransactionCommitted(TTransaction* transaction)
-{
-    if (transaction->GetParent()) {
-        PromoteCreatedObjects(transaction);
-    } else {
-        ReleaseCreatedObjects(transaction);
-    }
-}
-
-void TObjectManager::OnTransactionAborted(TTransaction* transaction)
-{
-    ReleaseCreatedObjects(transaction);
-}
-
-void TObjectManager::PromoteCreatedObjects(TTransaction* transaction)
-{
-    auto* parentTransaction = transaction->GetParent();
-    auto objectManager = Bootstrap->GetObjectManager();
-    FOREACH (const auto& objectId, transaction->CreatedObjectIds()) {
-        YCHECK(parentTransaction->CreatedObjectIds().insert(objectId).second);
-    }
-    transaction->CreatedObjectIds().clear();
-}
-
-void TObjectManager::ReleaseCreatedObjects(TTransaction* transaction)
-{
-    auto objectManager = Bootstrap->GetObjectManager();
-    FOREACH (const auto& objectId, transaction->CreatedObjectIds()) {
-        objectManager->UnrefObject(objectId);
-    }
-
-    transaction->CreatedObjectIds().clear();
 }
 
 DEFINE_METAMAP_ACCESSORS(TObjectManager, Attributes, TAttributeSet, TVersionedObjectId, Attributes)

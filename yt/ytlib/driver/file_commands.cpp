@@ -45,12 +45,18 @@ void TUploadCommand::DoExecute()
 {
     auto config = Context->GetConfig()->FileWriter;
 
+    auto attribubtes =
+        Request->Attributes
+        ? ConvertToAttributes(Request->Attributes)
+        : CreateEphemeralAttributes();
+
     auto writer = New<TFileWriter>(
         config,
         Context->GetMasterChannel(),
         GetTransaction(false),
         Context->GetTransactionManager(),
-        Request->Path);
+        Request->Path,
+        ~attribubtes);
     writer->Open();
 
     auto input = Context->GetRequest()->InputStream;

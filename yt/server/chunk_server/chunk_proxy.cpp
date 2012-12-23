@@ -29,7 +29,7 @@ using namespace NChunkClient::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkProxy
-    : public TUnversionedObjectProxyBase<TChunk>
+    : public TNonversionedObjectProxyBase<TChunk>
 {
 public:
     TChunkProxy(
@@ -48,11 +48,11 @@ public:
     }
 
 private:
-    typedef TUnversionedObjectProxyBase<TChunk> TBase;
+    typedef TNonversionedObjectProxyBase<TChunk> TBase;
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override
     {
-        const auto* chunk = GetTypedImpl();
+        const auto* chunk = GetThisTypedImpl();
         auto miscExt = FindProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
 
         YCHECK(!chunk->IsConfirmed() || miscExt);
@@ -81,7 +81,7 @@ private:
     virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const override
     {
         auto chunkManager = Bootstrap->GetChunkManager();
-        const auto* chunk = GetTypedImpl();
+        const auto* chunk = GetThisTypedImpl();
 
         if (key == "confirmed") {
             BuildYsonFluently(consumer)
@@ -226,7 +226,7 @@ private:
 
         auto chunkManager = Bootstrap->GetChunkManager();
 
-        const auto* chunk = GetTypedImpl();
+        const auto* chunk = GetThisTypedImpl();
 
         auto addresses = chunkManager->GetChunkAddresses(chunk);
         FOREACH (const auto& address, addresses) {
@@ -244,7 +244,7 @@ private:
         UNUSED(request);
 
         auto chunkManager = Bootstrap->GetChunkManager();
-        const auto* chunk = GetTypedImpl();
+        const auto* chunk = GetThisTypedImpl();
 
         if (chunk->ChunkMeta().type() != EChunkType::Table) {
             THROW_ERROR_EXCEPTION("Unable to execute Fetch verb for non-table chunk");
@@ -282,7 +282,7 @@ private:
             request->chunk_info().size(),
             ~JoinToString(addresses));
 
-        auto* chunk = GetTypedImpl();
+        auto* chunk = GetThisTypedImpl();
 
         // Skip chunks that are already confirmed.
         if (chunk->IsConfirmed()) {

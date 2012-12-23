@@ -38,12 +38,11 @@ class TObjectManager
     : public NMetaState::TMetaStatePart
 {
 public:
-    //! Initializes a new instance.
     TObjectManager(
         TObjectManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
-    void Start();
+    void Initialize();
 
     //! Registers a new type handler.
     /*!
@@ -178,11 +177,6 @@ private:
     virtual void Clear() override;
 
     void ReplayVerb(const NProto::TMetaReqExecute& request);
-
-    void OnTransactionCommitted(NTransactionServer::TTransaction* transaction);
-    void OnTransactionAborted(NTransactionServer::TTransaction* transaction);
-    void PromoteCreatedObjects(NTransactionServer::TTransaction* transaction);
-    void ReleaseCreatedObjects(NTransactionServer::TTransaction* transaction);
 
     void OnObjectReferenced(const TObjectId& id, i32 refCounter);
     void OnObjectUnreferenced(const TObjectId& id, i32 refCounter);

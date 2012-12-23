@@ -36,6 +36,7 @@ class TOperationControllerBase
 public:
     TOperationControllerBase(
         TSchedulerConfigPtr config,
+        TOperationSpecBasePtr specBase,
         IOperationHost* host,
         TOperation* operation);
 
@@ -151,6 +152,7 @@ protected:
         TNullable< std::vector<Stroka> > KeyColumns;
         NYTree::TYsonString Channels;
         int ReplicationFactor;
+        TNullable<Stroka> Account;
 
         // Chunk list for appending the output.
         NChunkClient::TChunkListId OutputChunkListId;
@@ -549,6 +551,7 @@ protected:
     void InitFinalOutputConfig(TJobIOConfigPtr config);
 
 private:
+    TOperationSpecBasePtr SpecBase;
     TChunkListPoolPtr ChunkListPool;
 
     void OnChunkListsReleased(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);

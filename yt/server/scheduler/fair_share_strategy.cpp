@@ -93,7 +93,7 @@ struct ISchedulableElement
     virtual double GetMinShareRatio() const = 0;
     
     virtual TNodeResources GetDemand() const = 0;
-    virtual TNodeResources GetUtilization() const = 0;
+    virtual TNodeResources GetUsage() const = 0;
 
 };
 
@@ -183,31 +183,31 @@ public:
         return controller->GetUsedResources() + controller->GetNeededResources();
     }
 
-    virtual TNodeResources GetUtilization() const override
+    virtual TNodeResources GetUsage() const override
     {
         auto controller = Operation_->GetController();
         return controller->GetUsedResources();
     }
 
 
-    double GetUtilizationRatio() const
+    double GetUsageRatio() const
     {
         const auto& attributes = Attributes();
-        auto utilization = GetUtilization() - UtilizationDiscount_;
-        i64 dominantUtilization = GetResource(utilization, attributes.DominantResource);
+        auto usage = GetUsage() - UsageDiscount_;
+        i64 dominantUsage = GetResource(usage, attributes.DominantResource);
         i64 dominantLimits = GetResource(Host->GetTotalResourceLimits(), attributes.DominantResource);
-        return dominantLimits == 0 ? 1.0 : (double) dominantUtilization / dominantLimits;
+        return dominantLimits == 0 ? 1.0 : (double) dominantUsage / dominantLimits;
     }
 
     EOperationStatus GetStatus() const
     {
-        double utilizationRatio = GetUtilizationRatio();
+        double usageRatio = GetUsageRatio();
 
-        if (utilizationRatio < Attributes_.AdjustedMinShareRatio * Config->MinShareTolerance) {
+        if (usageRatio < Attributes_.AdjustedMinShareRatio * Config->MinShareTolerance) {
             return EOperationStatus::BelowMinShare;
         }
 
-        if (utilizationRatio < Attributes_.FairShareRatio * Config->FairShareTolerance) {
+        if (usageRatio < Attributes_.FairShareRatio * Config->FairShareTolerance) {
             return EOperationStatus::BelowFairShare;
         }
 
@@ -222,7 +222,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, BelowMinShareSince);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, BelowFairShareSince);
     DEFINE_BYVAL_RW_PROPERTY(bool, Starving);
-    DEFINE_BYREF_RW_PROPERTY(TNodeResources, UtilizationDiscount);
+    DEFINE_BYREF_RW_PROPERTY(TNodeResources, UsageDiscount);
 
 private:
     TFairShareStrategyConfigPtr Config;
@@ -478,16 +478,10 @@ protected:
                 }
 
                 if (lhsNeedy && rhsNeedy) {
-                    double lhsUseToTotalRatio = GetUtilizationToLimitsRatio(lhs);
-                    double rhsUseToTotalRatio = GetUtilizationToLimitsRatio(rhs);
-                    return lhsUseToTotalRatio < rhsUseToTotalRatio;
+                    return GetUsageToLimitsRatio(lhs) < GetUsageToLimitsRatio(rhs);
                 }
 
-                {
-                    double lhsUseToWeightRatio = GetUtilizationToLimitsRatio(lhs);
-                    double rhsUseToWeightRatio = GetUtilizationToLimitsRatio(rhs);
-                    return lhsUseToWeightRatio < rhsUseToWeightRatio;
-                }
+                return GetUsageToWeightRatio(lhs) < GetUsageToWeightRatio(rhs);
             });
     }
 
@@ -496,25 +490,25 @@ protected:
     {
         const auto& attributes = element->Attributes();
         i64 dominantDemand = GetResource(element->GetDemand(), attributes.DominantResource);
-        i64 dominantUtilization = GetResource(element->GetUtilization(), attributes.DominantResource);
+        i64 dominantUsage = GetResource(element->GetUsage(), attributes.DominantResource);
         i64 dominantLimits = GetResource(Host->GetTotalResourceLimits(), attributes.DominantResource);
-        return dominantUtilization < dominantDemand && dominantUtilization < dominantLimits * attributes.AdjustedMinShareRatio;
+        return dominantUsage < dominantDemand && dominantUsage < dominantLimits * attributes.AdjustedMinShareRatio;
     }
 
-    double GetUtilizationToLimitsRatio(ISchedulableElementPtr element) const
+    double GetUsageToLimitsRatio(ISchedulableElementPtr element) const
     {
         const auto& attributes = element->Attributes();
-        i64 dominantUtilization = GetResource(element->GetUtilization(), attributes.DominantResource);
+        i64 dominantUsage = GetResource(element->GetUsage(), attributes.DominantResource);
         i64 dominantLimits = GetResource(Host->GetTotalResourceLimits(), attributes.DominantResource);
-        return dominantLimits == 0 ? 0.0 : (double) dominantUtilization / dominantLimits;
+        return dominantLimits == 0 ? 0.0 : (double) dominantUsage / dominantLimits;
     }
 
-    static double GetUtilizationToWeightRatio(ISchedulableElementPtr element)
+    static double GetUsageToWeightRatio(ISchedulableElementPtr element)
     {
         const auto& attributes = element->Attributes();
-        i64 dominantUtilization = GetResource(element->GetUtilization(), attributes.DominantResource);
+        i64 dominantUsage = GetResource(element->GetUsage(), attributes.DominantResource);
         i64 weight = attributes.Weight;
-        return weight == 0 ? 1.0 : (double) dominantUtilization / weight;
+        return weight == 0 ? 1.0 : (double) dominantUsage / weight;
     }
 
 
@@ -600,11 +594,11 @@ public:
         return result;
     }
 
-    virtual TNodeResources GetUtilization() const override
+    virtual TNodeResources GetUsage() const override
     {
         auto result = ZeroNodeResources();
         FOREACH (auto child, Children) {
-            result += child->GetUtilization();
+            result += child->GetUsage();
         }
         return result;
     }
@@ -676,7 +670,7 @@ public:
         // First-chance scheduling.
         RootElement->ScheduleJobs(context, false);
 
-        // Compute discount to node utilization.
+        // Compute discount to node usage.
         auto node = context->GetNode();
         yhash_set<TOperationElementPtr> discountedElements;
         std::vector<TJobPtr> preemptableJobs;
@@ -688,12 +682,12 @@ public:
 
             auto element = GetOperationElement(operation);
             discountedElements.insert(element);
-            element->UtilizationDiscount() += job->ResourceUsage();
+            element->UsageDiscount() += job->ResourceUsage();
 
-            double utilizationRatio = element->GetUtilizationRatio();
-            if (utilizationRatio > Config->MinPreemptionRatio &&
-                utilizationRatio > element->Attributes().FairShareRatio * Config->PreemptionTolerance &&
-                utilizationRatio > element->Attributes().AdjustedMinShareRatio)
+            double usageRatio = element->GetUsageRatio();
+            if (usageRatio > Config->MinPreemptionRatio &&
+                usageRatio > element->Attributes().FairShareRatio * Config->PreemptionTolerance &&
+                usageRatio > element->Attributes().AdjustedMinShareRatio)
             {
                 preemptableJobs.push_back(job);
                 node->ResourceUsageDiscount() += job->ResourceUsage();
@@ -706,7 +700,7 @@ public:
         // Reset discounts.
         node->ResourceUsageDiscount() = ZeroNodeResources();
         FOREACH (auto element, discountedElements) {
-            element->UtilizationDiscount() = ZeroNodeResources();
+            element->UsageDiscount() = ZeroNodeResources();
         }
 
         // Preempt jobs if needed.
@@ -737,7 +731,7 @@ public:
             .Item("start_time").Scalar(element->GetStartTime())
             .Item("scheduling_status").Scalar(element->GetStatus())
             .Item("starving").Scalar(element->GetStarving())
-            .Item("utilization_ratio").Scalar(element->GetUtilizationRatio())
+            .Item("usage_ratio").Scalar(element->GetUsageRatio())
             .Do(BIND(&TFairShareStrategy::BuildElementYson, pool, element));
     }
 
@@ -1013,7 +1007,7 @@ private:
         BuildYsonMapFluently(consumer)
             .Item("scheduling_rank").Scalar(attributes.Rank)
             .Item("resource_demand").Scalar(element->GetDemand())
-            .Item("resource_usage").Scalar(element->GetUtilization())
+            .Item("resource_usage").Scalar(element->GetUsage())
             .Item("dominant_resource").Scalar(attributes.DominantResource)
             .Item("weight").Scalar(element->GetWeight())
             .Item("min_share_ratio").Scalar(element->GetMinShareRatio())

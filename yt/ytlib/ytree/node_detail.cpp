@@ -152,6 +152,7 @@ void TCompositeNodeMixin::SetRecursive(
     auto factory = CreateFactory();
     auto value = ConvertToNode(TYsonString(request->value()), ~factory);
     SetRecursive(path, value);
+
     context->Reply();
 }
 

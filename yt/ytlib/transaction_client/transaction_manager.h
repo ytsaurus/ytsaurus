@@ -2,15 +2,48 @@
 
 #include "public.h"
 
-#include <ytlib/ytree/public.h>
-
 #include <ytlib/object_client/object_service_proxy.h>
+
 #include <ytlib/transaction_client//transaction_ypath_proxy.h>
 
 namespace NYT {
 namespace NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+//! Describes settings for a newly created transaction.
+struct TTransactionStartOptions
+{
+    TTransactionStartOptions()
+        : Ping(true)
+        , PingAncestors(false)
+        , EnableUncommittedAccounting(true)
+        , EnableStagedAccounting(true)
+    { }
+
+    TNullable<TDuration> Timeout;
+    TTransactionId ParentId;
+    bool Ping;
+    bool PingAncestors;
+    bool EnableUncommittedAccounting;
+    bool EnableStagedAccounting;
+};
+
+//! Describes settings used for attaching to existing transactions.
+struct TTransactionAttachOptions
+{
+    explicit TTransactionAttachOptions(const TTransactionId& id)
+        : Id(id)
+        , AutoAbort(true)
+        , Ping(true)
+        , PingAncestors(false)
+    { }
+
+    TTransactionId Id;
+    bool AutoAbort;
+    bool Ping;
+    bool PingAncestors;
+};
 
 //! Controls transactions at client-side.
 /*!
@@ -33,42 +66,34 @@ public:
     //! Starts a new transaction.
     /*!
      *
-     *  If #ping is True then the transaction manager will be renewing
+     *  If |options.Ping| is True then Transaction Manager will be renewing
      *  the lease of this transaction.
      *
-     *  If #pingAncestors is True then the transaction manager will be renewing
+     *  If |options.PingAncestors| is True then Transaction Manager will be renewing
      *  the leases of all ancestors of this transaction.
      *
      *  \note
      *  This call does not block.
      *  Thread affinity: any.
      */
-    ITransactionPtr Start(
-        NYTree::IAttributeDictionary* attributes = NULL,
-        const TTransactionId& parentId = NullTransactionId,
-        bool ping = true,
-        bool pingAncestors = false);
+    ITransactionPtr Start(const TTransactionStartOptions& options);
 
     //! Attaches to an existing transaction.
     /*!
-     *  If #autoAbort is True then the transaction object will be aborted
-     *  (if not committed) at the end of its lifetime.
+     *  If |options.AutoAbort| is True then the transaction will be aborted
+     *  (if not already committed) at the end of its lifetime.
      *
-     *  If #ping is True then the transaction manager will be renewing
+     *  If |options.Ping| is True then Transaction Manager will be renewing
      *  the lease of this transaction.
      *
-     *  If #pingAncestors is True then the transaction manager will be renewing
+     *  If |options.PingAncestors| is True then Transaction Manager will be renewing
      *  the leases of all ancestors of this transaction.
      *  
      *  \note
      *  This call may block.
      *  Thread affinity: any.
      */
-    ITransactionPtr Attach(
-        const TTransactionId& id,
-        bool autoAbort,
-        bool ping = true,
-        bool pingAncestors = false);
+    ITransactionPtr Attach(const TTransactionAttachOptions& options);
 
 private:
     class TTransaction;

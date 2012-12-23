@@ -18,6 +18,7 @@ using namespace NCypressServer;
 using namespace NChunkServer;
 using namespace NTransactionServer;
 using namespace NObjectServer;
+using namespace NSecurityServer;
 using namespace NCypressClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -62,6 +63,19 @@ void TFileNode::Load(const NCellMaster::TLoadContext& context)
     ::Load(input, ReplicationFactor_);
 }
 
+TClusterResources TFileNode::GetResourceUsage() const 
+{
+    if (Id.IsBranched()) {
+        return ZeroClusterResources();
+    }
+
+    if (!ChunkList_) {
+        return ZeroClusterResources();
+    }
+
+    return TClusterResources(ChunkList_->Statistics().DiskSpace * ReplicationFactor_);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileNodeTypeHandler
@@ -84,9 +98,20 @@ public:
         return ENodeType::Entity;
     }
 
-    virtual TAutoPtr<ICypressNode> Create(
+    virtual ICypressNodeProxyPtr GetProxy(
+        ICypressNode* trunkNode,
+        TTransaction* transaction) override
+    {
+        return New<TFileNodeProxy>(
+            this,
+            Bootstrap,
+            transaction,
+            trunkNode);
+    }
+
+protected:
+    virtual TAutoPtr<TFileNode> DoCreate(
         NTransactionServer::TTransaction* transaction,
-        IAttributeDictionary* attributes,
         TReqCreate* request,
         TRspCreate* response) override
     {
@@ -113,14 +138,7 @@ public:
             THROW_ERROR_EXCEPTION("File chunk is not confirmed: %s", ~chunkId.ToString());
         }
 
-        // Adjust attributes:
-        // - replciation_factor
-        int replicationFactor = attributes->Get<int>("replication_factor", 3);
-        attributes->Remove("replication_factor");
-
-        auto node = TBase::DoCreate(transaction, attributes, request, response);
-
-        node->SetReplicationFactor(replicationFactor);
+        auto node = TBase::DoCreate(transaction, request, response);
 
         auto* chunkList = chunkManager->CreateChunkList();
         node->SetChunkList(chunkList);
@@ -131,22 +149,9 @@ public:
         children.push_back(TChunkTreeRef(chunk));
         chunkManager->AttachToChunkList(chunkList, children);
 
-        // TODO(babenko): Release is needed due to cast to ICypressNode.
-        return node.Release();
+        return node;
     }
 
-    virtual ICypressNodeProxyPtr GetProxy(
-        ICypressNode* trunkNode,
-        TTransaction* transaction) override
-    {
-        return New<TFileNodeProxy>(
-            this,
-            Bootstrap,
-            transaction,
-            trunkNode);
-    }
-
-protected:
     virtual void DoDestroy(TFileNode* node) override
     {
         TBase::DoDestroy(node);

@@ -5,6 +5,9 @@
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
+#include <server/security_server/account.h>
+#include <server/security_server/security_manager.h>
+
 namespace NYT {
 namespace NCypressServer {
 
@@ -14,6 +17,7 @@ using namespace NRpc;
 using namespace NObjectServer;
 using namespace NCellMaster;
 using namespace NTransactionServer;
+using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -177,7 +181,7 @@ private:
 
 };
 
-}
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -201,7 +205,9 @@ TCypressNodeProxyNontemplateBase::TCypressNodeProxyNontemplateBase(
 
 INodeFactoryPtr TCypressNodeProxyNontemplateBase::CreateFactory() const
 {
-    return New<TNodeFactory>(Bootstrap, Transaction);
+    const auto* impl = GetThisImpl();
+    auto* account = impl->GetTrunkNode()->GetAccount();
+    return New<TNodeFactory>(Bootstrap, Transaction, account);
 }
 
 IYPathResolverPtr TCypressNodeProxyNontemplateBase::GetResolver() const
@@ -321,6 +327,30 @@ TAsyncError TCypressNodeProxyNontemplateBase::GetSystemAttributeAsync(
     return TObjectProxyBase::GetSystemAttributeAsync(key, consumer);
 }
 
+bool TCypressNodeProxyNontemplateBase::SetSystemAttribute(const Stroka& key, const TYsonString& value)
+{
+    if (key == "account") {
+        if (Transaction) {
+            THROW_ERROR_EXCEPTION("Attribute cannot be altered inside transaction");
+        }
+
+        auto securityManager = Bootstrap->GetSecurityManager();
+
+        auto name = ConvertTo<Stroka>(value);
+        auto* account = securityManager->FindAccountByName(name);
+        if (!account) {
+            THROW_ERROR_EXCEPTION("No such account: %s", ~name);
+        }
+
+        auto* node = GetThisMutableImpl();
+        securityManager->SetAccount(node, account);
+
+        return true;
+    }
+
+    return TObjectProxyBase::SetSystemAttribute(key, value);
+}
+
 TVersionedObjectId TCypressNodeProxyNontemplateBase::GetVersionedId() const 
 {
     return TVersionedObjectId(Id, GetObjectId(Transaction));
@@ -336,6 +366,9 @@ void TCypressNodeProxyNontemplateBase::ListSystemAttributes(std::vector<TAttribu
     attributes->push_back("modification_time");
     attributes->push_back("resource_usage");
     attributes->push_back(TAttributeInfo("recursive_resource_usage", true, true));
+    // COMPAT(babenko): account must always be present
+    const auto* node = GetThisImpl();
+    attributes->push_back(TAttributeInfo("account", node->GetAccount()));
     TObjectProxyBase::ListSystemAttributes(attributes);
 }
 
@@ -402,6 +435,12 @@ bool TCypressNodeProxyNontemplateBase::GetSystemAttribute(
         return true;
     }
 
+    if (key == "account" && node->GetAccount()) {
+        BuildYsonFluently(consumer)
+            .Scalar(node->GetAccount()->GetName());
+        return true;
+    }
+
     return TObjectProxyBase::GetSystemAttribute(key, consumer);
 }
 
@@ -411,42 +450,6 @@ void TCypressNodeProxyNontemplateBase::DoInvoke(NRpc::IServiceContextPtr context
     DISPATCH_YPATH_SERVICE_METHOD(Lock);
     DISPATCH_YPATH_SERVICE_METHOD(Create);
     TNodeBase::DoInvoke(context);
-}
-
-DEFINE_RPC_SERVICE_METHOD(TCypressNodeProxyNontemplateBase, Lock)
-{
-    auto mode = ELockMode(request->mode());
-
-    context->SetRequestInfo("Mode: %s", ~mode.ToString());
-    if (mode != ELockMode::Snapshot &&
-        mode != ELockMode::Shared &&
-        mode != ELockMode::Exclusive)
-    {
-        THROW_ERROR_EXCEPTION("Invalid lock mode: %s",
-            ~mode.ToString());
-    }
-
-    if (!Transaction) {
-        THROW_ERROR_EXCEPTION("Cannot take a lock outside of a transaction");
-    }
-
-    auto cypressManager = Bootstrap->GetCypressManager();
-    cypressManager->LockVersionedNode(Id, Transaction, mode);
-
-    context->Reply();
-}
-
-DEFINE_RPC_SERVICE_METHOD(TCypressNodeProxyNontemplateBase, Create)
-{
-    UNUSED(request);
-    UNUSED(response);
-
-    NYPath::TTokenizer tokenizer(context->GetPath());
-    if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-        THROW_ERROR_EXCEPTION("Node already exists: %s", ~this->GetPath());
-    }
-
-    ThrowVerbNotSuppored(this, context->GetVerb());
 }
 
 const ICypressNode* TCypressNodeProxyNontemplateBase::GetImpl(const TNodeId& nodeId) const
@@ -511,7 +514,9 @@ TNodeId TCypressNodeProxyNontemplateBase::GetNodeId(IConstNodePtr node)
 void TCypressNodeProxyNontemplateBase::AttachChild(ICypressNode* child)
 {
     child->SetParentId(Id);
-    Bootstrap->GetObjectManager()->RefObject(child);
+
+    auto objectManager = Bootstrap->GetObjectManager();
+    objectManager->RefObject(child);
 }
 
 void TCypressNodeProxyNontemplateBase::DetachChild(ICypressNode* child, bool unref)
@@ -540,15 +545,54 @@ TClusterResources TCypressNodeProxyNontemplateBase::GetResourceUsage() const
     return ZeroClusterResources();
 }
 
+DEFINE_RPC_SERVICE_METHOD(TCypressNodeProxyNontemplateBase, Lock)
+{
+    auto mode = ELockMode(request->mode());
+
+    context->SetRequestInfo("Mode: %s", ~mode.ToString());
+    if (mode != ELockMode::Snapshot &&
+        mode != ELockMode::Shared &&
+        mode != ELockMode::Exclusive)
+    {
+        THROW_ERROR_EXCEPTION("Invalid lock mode: %s",
+            ~mode.ToString());
+    }
+
+    if (!Transaction) {
+        THROW_ERROR_EXCEPTION("Cannot take a lock outside of a transaction");
+    }
+
+    auto cypressManager = Bootstrap->GetCypressManager();
+    cypressManager->LockVersionedNode(Id, Transaction, mode);
+
+    context->Reply();
+}
+
+DEFINE_RPC_SERVICE_METHOD(TCypressNodeProxyNontemplateBase, Create)
+{
+    UNUSED(request);
+    UNUSED(response);
+
+    NYPath::TTokenizer tokenizer(context->GetPath());
+    if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
+        THROW_ERROR_EXCEPTION("Node already exists: %s", ~this->GetPath());
+    }
+
+    ThrowVerbNotSuppored(this, context->GetVerb());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TNodeFactory::TNodeFactory(
     TBootstrap* bootstrap,
-    TTransaction* transaction)
+    TTransaction* transaction,
+    TAccount* account)
     : Bootstrap(bootstrap)
     , Transaction(transaction)
+    , Account(account)
 {
     YCHECK(bootstrap);
+    YCHECK(account);
 }
 
 TNodeFactory::~TNodeFactory()
@@ -563,14 +607,19 @@ ICypressNodeProxyPtr TNodeFactory::DoCreate(EObjectType type)
 {
     auto cypressManager = Bootstrap->GetCypressManager();
     auto objectManager = Bootstrap->GetObjectManager();
+    auto securityManager = Bootstrap->GetSecurityManager();
    
     auto handler = cypressManager->GetHandler(type);
   
-    auto  node = handler->Create(Transaction, NULL, NULL, NULL);
+    auto  node = handler->Create(Transaction, NULL, NULL);
     auto* node_ = ~node;
     const auto& nodeId = node_->GetId().ObjectId;
 
-    cypressManager->RegisterNode(Transaction, NULL, node);
+    cypressManager->RegisterNode(Transaction, node);
+
+    if (!node_->GetAccount()) {
+        securityManager->SetAccount(node_, Account);
+    }
     
     objectManager->RefObject(node_);
     CreatedNodeIds.push_back(nodeId);

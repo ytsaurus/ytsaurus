@@ -4,7 +4,6 @@
 
 #include <ytlib/misc/string.h>
 
-#include <ytlib/transaction_client/transaction_ypath.pb.h>
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
 #include <ytlib/ytree/ephemeral_node_factory.h>
@@ -22,6 +21,9 @@
 #include <server/cell_master/config.h>
 #include <server/cell_master/meta_state_facade.h>
 
+#include <server/security_server/security_manager.h>
+#include <server/security_server/account.h>
+
 namespace NYT {
 namespace NTransactionServer {
 
@@ -32,6 +34,8 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NCypressServer;
 using namespace NTransactionClient;
+using namespace NSecurityServer;
+using namespace NTransactionClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,7 +44,7 @@ static NLog::TLogger Logger("TransactionServer");
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransactionManager::TTransactionProxy
-    : public NObjectServer::TUnversionedObjectProxyBase<TTransaction>
+    : public NObjectServer::TNonversionedObjectProxyBase<TTransaction>
 {
 public:
     TTransactionProxy(TTransactionManagerPtr owner, const TTransactionId& id)
@@ -55,7 +59,7 @@ public:
         DECLARE_YPATH_SERVICE_WRITE_METHOD(Commit);
         DECLARE_YPATH_SERVICE_WRITE_METHOD(Abort);
         DECLARE_YPATH_SERVICE_WRITE_METHOD(CreateObject);
-        DECLARE_YPATH_SERVICE_WRITE_METHOD(ReleaseObject);
+        DECLARE_YPATH_SERVICE_WRITE_METHOD(UnstageObject);
         // NB: RenewLease is not logged and thus is not considered to be a write
         // request. It can only be served at leaders though, so its handler explicitly
         // checks the status.
@@ -63,30 +67,52 @@ public:
     }
 
 private:
-    typedef TUnversionedObjectProxyBase<TTransaction> TBase;
+    typedef TNonversionedObjectProxyBase<TTransaction> TBase;
 
-    TTransactionManager::TPtr Owner;
+    TTransactionManagerPtr Owner;
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override
     {
         attributes->push_back("state");
+        attributes->push_back("timeout");
+        attributes->push_back("uncommitted_accounting_enabled");
+        attributes->push_back("staged_accounting_enabled");
         attributes->push_back("parent_id");
         attributes->push_back("start_time");
         attributes->push_back("nested_transaction_ids");
-        attributes->push_back("created_object_ids");
-        attributes->push_back("created_node_ids");
+        attributes->push_back("staged_object_ids");
+        attributes->push_back("staged_node_ids");
         attributes->push_back("branched_node_ids");
         attributes->push_back("locked_node_ids");
+        attributes->push_back("resource_usage");
         TBase::ListSystemAttributes(attributes);
     }
 
     virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const override
     {
-        const auto* transaction = GetTypedImpl();
+        const auto* transaction = GetThisTypedImpl();
         
         if (key == "state") {
             BuildYsonFluently(consumer)
                 .Scalar(FormatEnum(transaction->GetState()));
+            return true;
+        }
+
+        if (key == "timeout") {
+            BuildYsonFluently(consumer)
+                .Scalar(transaction->GetTimeout());
+            return true;
+        }
+
+        if (key == "uncommitted_accounting_enabled") {
+            BuildYsonFluently(consumer)
+                .Scalar(transaction->GetUncommittedAccountingEnabled());
+            return true;
+        }
+
+        if (key == "staged_accounting_enabled") {
+            BuildYsonFluently(consumer)
+                .Scalar(transaction->GetStagedAccountingEnabled());
             return true;
         }
 
@@ -110,17 +136,17 @@ private:
             return true;
         }
 
-        if (key == "created_object_ids") {
+        if (key == "staged_object_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(transaction->CreatedObjectIds(), [=] (TFluentList fluent, const TTransactionId& id) {
+                .DoListFor(transaction->StagedObjectIds(), [=] (TFluentList fluent, const TTransactionId& id) {
                     fluent.Item().Scalar(id);
                 });
             return true;
         }
 
-        if (key == "created_node_ids") {
+        if (key == "staged_node_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(transaction->CreatedNodes(), [=] (TFluentList fluent, const ICypressNode* node) {
+                .DoListFor(transaction->StagedNodes(), [=] (TFluentList fluent, const ICypressNode* node) {
                     fluent.Item().Scalar(node->GetId().ObjectId);
                 });
             return true;
@@ -138,7 +164,17 @@ private:
             BuildYsonFluently(consumer)
                 .DoListFor(transaction->LockedNodes(), [=] (TFluentList fluent, const ICypressNode* node) {
                     fluent.Item().Scalar(node->GetId().ObjectId);
-            });
+                });
+            return true;
+        }
+
+        if (key == "resource_usage") {
+            BuildYsonFluently(consumer)
+                .DoMapFor(transaction->AccountResourceUsage(), [=] (TFluentMap fluent, const TTransaction::TAccountResourcesMap::value_type& pair) {
+                    const auto* account = pair.first;
+                    const auto& usage = pair.second;
+                    fluent.Item(account->GetName()).Scalar(usage);
+                });
             return true;
         }
 
@@ -151,7 +187,7 @@ private:
         DISPATCH_YPATH_SERVICE_METHOD(Abort);
         DISPATCH_YPATH_SERVICE_METHOD(RenewLease);
         DISPATCH_YPATH_SERVICE_METHOD(CreateObject);
-        DISPATCH_YPATH_SERVICE_METHOD(ReleaseObject);
+        DISPATCH_YPATH_SERVICE_METHOD(UnstageObject);
         TBase::DoInvoke(context);
     }
 
@@ -170,17 +206,27 @@ private:
         }
     }
 
+    TAccount* GetAccount(const Stroka& name)
+    {
+        auto securityManager = Bootstrap->GetSecurityManager();
+        auto* account = securityManager->FindAccountByName(name);
+        if (!account) {
+            THROW_ERROR_EXCEPTION("No such account: %s", ~name);
+        }
+        return account;
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, Commit)
     {
         UNUSED(request);
         UNUSED(response);
 
         ValidateTransactionNotNull();
-        auto* transaction = GetTypedImpl();
+        auto* transaction = GetThisTypedImpl();
         ValidateTransactionIsActive(transaction);
 
         context->SetRequestInfo("");
-        Owner->Commit(transaction);
+        Owner->CommitTransaction(transaction);
         context->Reply();
     }
 
@@ -190,11 +236,11 @@ private:
         UNUSED(response);
 
         ValidateTransactionNotNull();
-        auto* transaction = GetTypedImpl();
+        auto* transaction = GetThisTypedImpl();
         ValidateTransactionIsActive(transaction);
 
         context->SetRequestInfo("");
-        Owner->Abort(transaction);
+        Owner->AbortTransaction(transaction);
         context->Reply();
     }
 
@@ -209,7 +255,7 @@ private:
 
         ValidateTransactionNotNull();
 
-        auto* transaction = GetTypedImpl();
+        auto* transaction = GetThisTypedImpl();
         ValidateTransactionIsActive(transaction);
 
         Owner->RenewLease(transaction, renewAncestors);
@@ -224,76 +270,50 @@ private:
             ~GetId().ToString(),
             ~type.ToString());
 
-        auto* transaction = GetId() == NullTransactionId ? NULL : GetTypedImpl();
-
+        auto* transaction = GetId() == NullTransactionId ? NULL : GetThisTypedImpl();
         if (transaction) {
             ValidateTransactionIsActive(transaction);
         }
 
-        auto objectManager = Owner->Bootstrap->GetObjectManager();
-        auto handler = objectManager->FindHandler(type);
-        if (!handler) {
-            THROW_ERROR_EXCEPTION("Unknown object type: %s",
-                ~type.ToString());
-        }
-
-        if (handler->IsTransactionRequired() && !transaction) {
-            THROW_ERROR_EXCEPTION("Cannot create an instance of %s outside of a transaction",
-                ~FormatEnum(type).Quote());
-        }
+        auto* account = request->has_account() ? GetAccount(request->account()) : NULL;
 
         auto attributes =
             request->has_object_attributes()
             ? FromProto(request->object_attributes())
             : CreateEphemeralAttributes();
 
-        auto objectId = handler->Create(transaction, ~attributes, request, response);
+        auto transactionManager = Owner->Bootstrap->GetTransactionManager();
+        auto objectId = transactionManager->CreateObject(
+            transaction,
+            account,
+            type,
+            ~attributes,
+            request,
+            response);
 
         *response->mutable_object_id() = objectId.ToProto();
-
-        auto attributeKeys = attributes->List();
-        if (!attributeKeys.empty()) {
-            // Copy attributes. Quick and dirty.
-            auto* attributeSet = objectManager->FindAttributes(objectId);
-            if (!attributeSet) {
-                attributeSet = objectManager->CreateAttributes(objectId);
-            }
-            
-            FOREACH (const auto& key, attributeKeys) {
-                YCHECK(attributeSet->Attributes().insert(MakePair(
-                    key,
-                    attributes->GetYson(key))).second);
-            }
-        }
-
-        if (transaction) {
-            YCHECK(transaction->CreatedObjectIds().insert(objectId).second);
-            objectManager->RefObject(objectId);
-        }
 
         context->SetResponseInfo("ObjectId: %s", ~objectId.ToString());
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, ReleaseObject)
+    DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, UnstageObject)
     {
         UNUSED(response);
 
         auto objectId = TObjectId::FromProto(request->object_id());
-        context->SetRequestInfo("ObjectId: %s", ~objectId.ToString());
+        bool recursive = request->recursive();
+        context->SetRequestInfo("ObjectId: %s, Recursive: %s",
+            ~objectId.ToString(),
+            ~FormatBool(recursive));
 
         ValidateTransactionNotNull();
-        auto* transaction = GetTypedImpl();
+
+        auto* transaction = GetThisTypedImpl();
         ValidateTransactionIsActive(transaction);
 
-        if (transaction->CreatedObjectIds().erase(objectId) != 1) {
-            THROW_ERROR_EXCEPTION("Object %s does not belong to transaction %s",
-                ~objectId.ToString(),
-                ~transaction->GetId().ToString());
-        }
-
-        auto objectManager = Owner->Bootstrap->GetObjectManager();
-        objectManager->UnrefObject(objectId);
+        auto transactionManager = Owner->Bootstrap->GetTransactionManager();
+        transactionManager->UnstageObject(transaction, objectId, recursive);
 
         context->Reply();
     }
@@ -310,39 +330,53 @@ public:
         , Owner(owner)
     { }
 
-    virtual EObjectType GetType()
+    virtual EObjectType GetType() const override
     {
         return EObjectType::Transaction;
     }
 
+    virtual EObjectTransactionMode GetTransactionMode() const override
+    {
+        return EObjectTransactionMode::Optional;
+    }
+
+    virtual EObjectAccountMode GetAccountMode() const override
+    {
+        return EObjectAccountMode::Forbidden;
+    }
+
     virtual TObjectId Create(
         TTransaction* parent,
+        TAccount* account,
         IAttributeDictionary* attributes,
         TReqCreateObject* request,
-        TRspCreateObject* response)
+        TRspCreateObject* response) override
     {
+        UNUSED(account);
         UNUSED(response);
 
-        auto timeout = attributes->Find<TDuration>("timeout");
-        auto* transaction = Owner->Start(parent, timeout);
+        const auto* requestExt = &request->GetExtension(TReqCreateTransactionExt::create_transaction);
+        auto timeout =
+            requestExt->has_timeout()
+            ? TNullable<TDuration>(TDuration::MilliSeconds(requestExt->timeout()))
+            : Null;
+        auto* transaction = Owner->StartTransaction(parent, timeout);
+        transaction->SetUncommittedAccountingEnabled(requestExt->enable_uncommitted_accounting());
+        transaction->SetStagedAccountingEnabled(requestExt->enable_staged_accounting());
         return transaction->GetId();
     }
 
     virtual IObjectProxyPtr GetProxy(
         const TObjectId& id,
-        NTransactionServer::TTransaction* transaction)
+        NTransactionServer::TTransaction* transaction) override
     {
         UNUSED(transaction);
         return New<TTransactionProxy>(Owner, id);
     }
 
-    virtual bool IsTransactionRequired() const
-    {
-        return false;
-    }
-
 private:
     TTransactionManager* Owner;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -393,13 +427,13 @@ TTransactionManager::TTransactionManager(
     }
 }
 
-void TTransactionManager::Init()
+void TTransactionManager::Inititialize()
 {
     auto objectManager = Bootstrap->GetObjectManager();
     objectManager->RegisterHandler(New<TTransactionTypeHandler>(this));
 }
 
-TTransaction* TTransactionManager::Start(TTransaction* parent, TNullable<TDuration> timeout)
+TTransaction* TTransactionManager::StartTransaction(TTransaction* parent, TNullable<TDuration> timeout)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -419,6 +453,8 @@ TTransaction* TTransactionManager::Start(TTransaction* parent, TNullable<TDurati
     }
 
     auto actualTimeout = GetActualTimeout(timeout);
+    transaction->SetTimeout(actualTimeout);
+
     if (IsLeader()) {
         CreateLease(transaction, actualTimeout);
     }
@@ -441,7 +477,7 @@ TTransaction* TTransactionManager::Start(TTransaction* parent, TNullable<TDurati
     return transaction;
 }
 
-void TTransactionManager::Commit(TTransaction* transaction)
+void TTransactionManager::CommitTransaction(TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -468,7 +504,7 @@ void TTransactionManager::Commit(TTransaction* transaction)
     LOG_INFO_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %s)", ~id.ToString());
 }
 
-void TTransactionManager::Abort(TTransaction* transaction)
+void TTransactionManager::AbortTransaction(TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -478,7 +514,7 @@ void TTransactionManager::Abort(TTransaction* transaction)
 
     auto nestedTransactions = transaction->NestedTransactions();
     FOREACH (auto* nestedTransaction, nestedTransactions) {
-        Abort(nestedTransaction);
+        AbortTransaction(nestedTransaction);
     }
     YCHECK(transaction->NestedTransactions().empty());
 
@@ -499,6 +535,13 @@ void TTransactionManager::FinishTransaction(TTransaction* transaction)
 {
     auto objectManager = Bootstrap->GetObjectManager();
 
+    FOREACH (const auto& objectId, transaction->StagedObjectIds()) {
+        auto handler = objectManager->GetHandler(objectId);
+        handler->Unstage(objectId, transaction, false);
+        objectManager->UnrefObject(objectId);
+    }
+    transaction->StagedObjectIds().clear();
+    
     auto* parent = transaction->GetParent();
     if (parent) {
         YCHECK(parent->NestedTransactions().erase(transaction) == 1);
@@ -531,6 +574,114 @@ void TTransactionManager::DoRenewLease(const TTransaction* transaction)
     auto it = LeaseMap.find(transaction->GetId());
     YCHECK(it != LeaseMap.end());
     TLeaseManager::RenewLease(it->second);
+}
+
+TObjectId TTransactionManager::CreateObject(
+    TTransaction* transaction,
+    TAccount* account,
+    EObjectType type,
+    IAttributeDictionary* attributes,
+    IObjectTypeHandler::TReqCreateObject* request,
+    IObjectTypeHandler::TRspCreateObject* response)
+{
+    auto objectManager = Bootstrap->GetObjectManager();
+    auto handler = objectManager->FindHandler(type);
+    if (!handler) {
+        THROW_ERROR_EXCEPTION("Unknown object type: %s",
+            ~type.ToString());
+    }
+
+    auto transactionMode = handler->GetTransactionMode();
+    switch (transactionMode) {
+        case EObjectTransactionMode::Required:
+            if (!transaction) {
+                THROW_ERROR_EXCEPTION("Cannot create an instance of %s outside of a transaction",
+                    ~FormatEnum(type).Quote());
+            }
+            break;
+
+        case EObjectTransactionMode::Forbidden:
+            if (transaction) {
+                THROW_ERROR_EXCEPTION("Cannot create an instance of %s inside of a transaction",
+                    ~FormatEnum(type).Quote());
+            }
+            break;
+
+        case EObjectTransactionMode::Optional:
+            break;
+
+        default:
+            YUNREACHABLE();
+    }
+
+    auto accountMode = handler->GetAccountMode();
+    switch (accountMode) {
+        case EObjectAccountMode::Required:
+            if (!account) {
+                THROW_ERROR_EXCEPTION("Cannot create an instance of %s without an account",
+                    ~FormatEnum(type).Quote());
+            }
+            break;
+
+        case EObjectAccountMode::Forbidden:
+            if (account) {
+                THROW_ERROR_EXCEPTION("Cannot create an instance of %s with an account",
+                    ~FormatEnum(type).Quote());
+            }
+            break;
+
+        case EObjectAccountMode::Optional:
+            break;
+
+        default:
+            YUNREACHABLE();
+    }
+
+    auto objectId = handler->Create(
+        transaction,
+        account,
+        attributes,
+        request,
+        response);
+
+    auto attributeKeys = attributes->List();
+    if (!attributeKeys.empty()) {
+        // Copy attributes. Quick and dirty.
+        auto* attributeSet = objectManager->FindAttributes(objectId);
+        if (!attributeSet) {
+            attributeSet = objectManager->CreateAttributes(objectId);
+        }
+            
+        FOREACH (const auto& key, attributeKeys) {
+            YCHECK(attributeSet->Attributes().insert(MakePair(
+                key,
+                attributes->GetYson(key))).second);
+        }
+    }
+
+    if (transaction) {
+        YCHECK(transaction->StagedObjectIds().insert(objectId).second);
+        objectManager->RefObject(objectId);
+    }
+
+    return objectId;
+}
+
+void TTransactionManager::UnstageObject(
+    TTransaction* transaction,
+    const TObjectId& objectId,
+    bool recursive)
+{
+    if (transaction->StagedObjectIds().erase(objectId) != 1) {
+        THROW_ERROR_EXCEPTION("Object %s does not belong to transaction %s",
+            ~objectId.ToString(),
+            ~transaction->GetId().ToString());
+    }
+
+    auto objectManager = Bootstrap->GetObjectManager();
+    auto handler = objectManager->GetHandler(objectId);
+    handler->Unstage(objectId, transaction, recursive);
+    objectManager->UnrefObject(objectId);
 }
 
 void TTransactionManager::SaveKeys(const NCellMaster::TSaveContext& context)
@@ -575,12 +726,10 @@ void TTransactionManager::OnActiveQuorumEstablished()
 {
     auto objectManager = Bootstrap->GetObjectManager();
     FOREACH (const auto& pair, TransactionMap) {
-        const auto& id = pair.first;
         const auto* transaction = pair.second;
         if (transaction->GetState() == ETransactionState::Active) {
-            auto proxy = objectManager->GetProxy(id, NULL);
-            auto timeout = proxy->Attributes().Find<TDuration>("timeout");
-            CreateLease(transaction, GetActualTimeout(timeout));
+            auto actualTimeout = GetActualTimeout(transaction->GetTimeout());
+            CreateLease(transaction, actualTimeout);
         }
     }
 }

@@ -91,12 +91,14 @@ public:
         const NProto::TNodeResources& resourceLimits,
         TJobSpecBuilder specBuilder) override
     {
+    	auto id = TJobId::Create();
+    	auto startTime = TInstant::Now();
         auto job = New<TJob>(
-            TJobId::Create(),
+            id,
             type,
             operation,
             Node_,
-            TInstant::Now(),
+            startTime,
             resourceLimits,
             specBuilder);
 
@@ -479,10 +481,14 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         // Attach user transaction if any. Don't ping it.
+        TTransactionAttachOptions userAttachOptions(transactionId);
+        userAttachOptions.AutoAbort = false;
+        userAttachOptions.Ping = false;
+        userAttachOptions.PingAncestors = false;
         auto userTransaction =
             transactionId == NullTransactionId
             ? NULL
-            : GetTransactionManager()->Attach(transactionId, false, false, false);
+            : GetTransactionManager()->Attach(userAttachOptions);
 
         // Create operation object.
         auto operationId = TOperationId::Create();
@@ -540,7 +546,11 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting scheduler transaction");
 
         auto schedulerTransactionId = TObjectId::FromProto(rsp->object_id());
-        auto schedulerTransaction = GetTransactionManager()->Attach(schedulerTransactionId, true, true, false);
+        TTransactionAttachOptions schedulerAttachOptions(schedulerTransactionId);
+        schedulerAttachOptions.AutoAbort = true;
+        schedulerAttachOptions.Ping = true;
+        schedulerAttachOptions.PingAncestors = false;
+        auto schedulerTransaction = GetTransactionManager()->Attach(schedulerAttachOptions);
         operation->SetSchedulerTransaction(schedulerTransaction);
 
         LOG_INFO("Scheduler transaction is %s (OperationId: %s)",

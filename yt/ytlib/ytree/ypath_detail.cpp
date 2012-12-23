@@ -568,10 +568,6 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
         }
 
         if (attribute) {
-            if (!attribute->IsPresent) {
-                ThrowCannotSetSystemAttribute(key);
-            }
-
             if (attribute->IsOpaque) {
                 ThrowCannotSetOpaqueAttribute(key);
             }
@@ -654,7 +650,16 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
         auto userYson = userAttributes ? userAttributes->FindYson(key) : TNullable<TYsonString>(Null);
         if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
             if (!userYson) {
-                ThrowNoSuchUserAttribute(key);
+                if (systemAttributeProvider) {
+                    auto* attributeInfo = systemAttributeProvider->FindSystemAttributeInfo(key);
+                    if (attributeInfo) {
+                        ThrowCannotRemoveAttribute(key);
+                    } else {
+                        ThrowNoSuchUserAttribute(key);
+                    }
+                } else {
+                    ThrowNoSuchUserAttribute(key);
+                }
             }
 
             GuardedValidateUserAttributeUpdate(key, userYson, Null);

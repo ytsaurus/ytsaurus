@@ -48,7 +48,6 @@ class YTEnvSetup(YTEnv):
         os.chdir(path_to_test_case)
         if self.Env.NUM_MASTERS > 0:
             self.transactions_at_start = set(yt_commands.get_transactions())
-            yt_commands.set_str('//tmp', '{}')
 
     def teardown_method(self, method):
         if self.Env.NUM_MASTERS > 0:
@@ -56,14 +55,24 @@ class YTEnvSetup(YTEnv):
             txs_to_abort = current_txs.difference(self.transactions_at_start)
             self._abort_transactions(list(txs_to_abort))
 
+            yt_commands.set_str('//tmp', '{}')
+
+            accounts = yt_commands.get_accounts()
+            self._remove_accounts(accounts)
+
     def _abort_transactions(self, tx_ids):
         if tx_ids:
-            logging.info('Aborting {0} txs'.format(tx_ids))
+            logging.info('Aborting {0} txs' % tx_ids)
         for tx in tx_ids:
             try:
                 yt_commands.abort_transaction(tx)
             except:
                 pass
+
+    def _remove_accounts(self, accounts):
+        for account in accounts:
+            if account != 'sys' and account != 'tmp':
+                yt_commands.remove_account(account)
 
 # decorator form
 ATTRS = [

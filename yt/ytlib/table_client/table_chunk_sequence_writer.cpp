@@ -15,14 +15,16 @@ TTableChunkSequenceWriter::TTableChunkSequenceWriter(
     TTableWriterConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     const TTransactionId& transactionId,
-    const TChunkListId& parentChunkList,
+    const TNullable<Stroka>&  account,
+    const TChunkListId& parentChunkListId,
     const TChannels& channels,
     const TNullable<TKeyColumns>& keyColumns)
     : TChunkSequenceWriterBase<TTableChunkWriter>(
         config,
         masterChannel,
         transactionId,
-        parentChunkList,
+        account,
+        parentChunkListId,
         keyColumns)
     , Channels(channels)
 {

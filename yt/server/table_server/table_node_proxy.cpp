@@ -37,6 +37,7 @@ using namespace NObjectServer;
 using namespace NTableClient;
 using namespace NCellMaster;
 using namespace NTransactionServer;
+using namespace NSecurityServer;
 
 using NTableClient::NProto::TReadLimit;
 using NTableClient::NProto::TKey;
@@ -701,6 +702,10 @@ bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& v
 
         if (node->GetReplicationFactor() != replicationFactor) {
             node->SetReplicationFactor(replicationFactor);
+
+            auto securityManager = Bootstrap->GetSecurityManager();
+            securityManager->UpdateAccountNodeUsage(node);
+
             if (IsLeader()) {
                 chunkManager->ScheduleRFUpdate(node->GetChunkList());
             }
