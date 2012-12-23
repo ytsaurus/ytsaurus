@@ -239,16 +239,13 @@ TAsyncError TRecovery::ReplayChangeLogs(
 
         // Check if the current state contains some mutations that are redundant.
         // If so, clear the state and restart recovery.
-        if (isLast) {
-            auto currentVersion = DecoratedState->GetVersion();
-            if (currentVersion.RecordCount > targetVersion.RecordCount) {
-                DecoratedState->Clear();
-                return MakeFuture(TError("Current version is %s while only %d mutations are expected, forcing clear restart",
-                    ~currentVersion.ToString(),
-                    targetVersion.RecordCount));
-            }
-
-            YCHECK(changeLog->GetRecordCount() == targetVersion.RecordCount);
+        auto currentVersion = DecoratedState->GetVersion();
+        YCHECK(currentVersion.SegmentId == changeLog->GetId());
+        if (currentVersion.RecordCount > changeLog->GetRecordCount()) {
+            DecoratedState->Clear();
+            return MakeFuture(TError("Current version is %s while only %d mutations are expected, forcing clear restart",
+                ~currentVersion.ToString(),
+                targetVersion.RecordCount));
         }
 
         ReplayChangeLog(*changeLog, changeLog->GetRecordCount());
