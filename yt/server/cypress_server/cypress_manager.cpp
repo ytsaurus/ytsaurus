@@ -347,6 +347,7 @@ ICypressNode* TCypressManager::CreateNode(
     RegisterNode(transaction, node, attributes);
 
     // Set account (if not given in attributes).
+    // COMPAT(babenko)
     if (!node_->GetAccount() && account) {
         auto securityManager = Bootstrap->GetSecurityManager();
         securityManager->SetAccount(node_, account);
