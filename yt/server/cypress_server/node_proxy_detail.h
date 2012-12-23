@@ -343,7 +343,7 @@ protected:
     {
         if (key == "count") {
             NYTree::BuildYsonFluently(consumer)
-                .Scalar(this->GetChildCount());
+                .Value(this->GetChildCount());
             return true;
         }
 

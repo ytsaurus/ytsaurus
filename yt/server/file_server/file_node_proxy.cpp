@@ -125,13 +125,13 @@ bool TFileNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consum
     auto miscExt = GetProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
     if (key == "size") {
         BuildYsonFluently(consumer)
-            .Scalar(statistics.UncompressedDataSize);
+            .Value(statistics.UncompressedDataSize);
         return true;
     }
 
     if (key == "compressed_size") {
         BuildYsonFluently(consumer)
-            .Scalar(statistics.CompressedDataSize);
+            .Value(statistics.CompressedDataSize);
         return true;
     }
 
@@ -139,32 +139,32 @@ bool TFileNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consum
         double ratio = statistics.UncompressedDataSize > 0 ?
             static_cast<double>(statistics.CompressedDataSize) / statistics.UncompressedDataSize : 0;
         BuildYsonFluently(consumer)
-            .Scalar(ratio);
+            .Value(ratio);
         return true;
     }
 
     if (key == "codec") {
         auto codecId = ECodec(miscExt.codec());
         BuildYsonFluently(consumer)
-            .Scalar(CamelCaseToUnderscoreCase(codecId.ToString()));
+            .Value(CamelCaseToUnderscoreCase(codecId.ToString()));
         return true;
     }
 
     if (key == "chunk_list_id") {
         BuildYsonFluently(consumer)
-            .Scalar(chunkList->GetId().ToString());
+            .Value(chunkList->GetId().ToString());
         return true;
     }
 
     if (key == "chunk_id") {
         BuildYsonFluently(consumer)
-            .Scalar(chunkRef.GetId().ToString());
+            .Value(chunkRef.GetId().ToString());
         return true;
     }
 
     if (key == "replication_factor") {
         BuildYsonFluently(consumer)
-            .Scalar(node->GetReplicationFactor());
+            .Value(node->GetReplicationFactor());
         return true;
     }
 

@@ -125,14 +125,14 @@ void TRefCountedTracker::GetMonitoringInfo(IYsonConsumer* consumer)
             .Item("statistics").DoListFor(items, [] (TFluentList fluent, TItem item) {
                 fluent
                     .Item().BeginMap()
-                        .Item("name").Scalar(DemangleCxxName(item.Key->name()))
-                        .Item("created").Scalar(static_cast<i64>(item.CreatedObjects))
-                        .Item("alive").Scalar(static_cast<i64>(item.AliveObjects))
+                        .Item("name").Value(DemangleCxxName(item.Key->name()))
+                        .Item("created").Value(static_cast<i64>(item.CreatedObjects))
+                        .Item("alive").Value(static_cast<i64>(item.AliveObjects))
                     .EndMap();
             })
             .Item("total").BeginMap()
-                .Item("created").Scalar(totalCreated)
-                .Item("alive").Scalar(totalAlive)
+                .Item("created").Value(totalCreated)
+                .Item("alive").Value(totalAlive)
             .EndMap()
         .EndMap();
 }

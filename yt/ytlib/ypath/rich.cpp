@@ -93,7 +93,7 @@ void Serialize(const TRichYPath& richPath, NYson::IYsonConsumer* consumer)
         .BeginAttributes()
             .Items(richPath.Attributes())
         .EndAttributes()
-        .Scalar(richPath.GetPath());
+        .Value(richPath.GetPath());
 }
 
 void Deserialize(TRichYPath& richPath, INodePtr node)

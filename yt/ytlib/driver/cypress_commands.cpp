@@ -131,7 +131,7 @@ void TCreateCommand::DoExecute()
         auto consumer = Context->CreateOutputConsumer();
         auto nodeId = TNodeId::FromProto(rsp->node_id());
         BuildYsonFluently(~consumer)
-            .Scalar(nodeId);
+            .Value(nodeId);
 
     } else {
         if (Request->Path) {
@@ -160,7 +160,7 @@ void TCreateCommand::DoExecute()
         auto consumer = Context->CreateOutputConsumer();
         auto objectId = TNodeId::FromProto(rsp->object_id());
         BuildYsonFluently(~consumer)
-            .Scalar(objectId);
+            .Value(objectId);
     }
 }
 
@@ -203,7 +203,7 @@ void TCopyCommand::DoExecute()
     auto consumer = Context->CreateOutputConsumer();
     auto nodeId = TNodeId::FromProto(rsp->object_id());
     BuildYsonFluently(~consumer)
-        .Scalar(nodeId.ToString());
+        .Value(nodeId.ToString());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

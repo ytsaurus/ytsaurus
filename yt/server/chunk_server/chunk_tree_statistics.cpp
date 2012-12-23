@@ -41,14 +41,14 @@ void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* con
 {
     NYTree::BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("row_count").Scalar(statistics.RowCount)
-            .Item("uncompressed_data_size").Scalar(statistics.UncompressedDataSize)
-            .Item("compressed_data_size").Scalar(statistics.CompressedDataSize)
-            .Item("data_weight").Scalar(statistics.DataWeight)
-            .Item("disk_space").Scalar(statistics.DiskSpace)
-            .Item("chunk_count").Scalar(statistics.ChunkCount)
-            .Item("chunk_list_count").Scalar(statistics.ChunkListCount)
-            .Item("rank").Scalar(statistics.Rank)
+            .Item("row_count").Value(statistics.RowCount)
+            .Item("uncompressed_data_size").Value(statistics.UncompressedDataSize)
+            .Item("compressed_data_size").Value(statistics.CompressedDataSize)
+            .Item("data_weight").Value(statistics.DataWeight)
+            .Item("disk_space").Value(statistics.DiskSpace)
+            .Item("chunk_count").Value(statistics.ChunkCount)
+            .Item("chunk_list_count").Value(statistics.ChunkListCount)
+            .Item("rank").Value(statistics.Rank)
         .EndMap();
 }
 

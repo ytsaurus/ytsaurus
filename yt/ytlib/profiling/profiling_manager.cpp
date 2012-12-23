@@ -121,9 +121,9 @@ private:
                 const auto& sample = *it;
                 fluent
                     .Item().BeginMap()
-                        .Item("id").Scalar(sample.Id)
-                        .Item("time").Scalar(static_cast<i64>(sample.Time.MicroSeconds()))
-                        .Item("value").Scalar(sample.Value)
+                        .Item("id").Value(sample.Id)
+                        .Item("time").Value(static_cast<i64>(sample.Time.MicroSeconds()))
+                        .Item("value").Value(sample.Value)
                     .EndMap();
             }).Data());
         context->Reply();

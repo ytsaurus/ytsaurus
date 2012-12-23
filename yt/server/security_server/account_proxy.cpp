@@ -59,19 +59,19 @@ private:
 
         if (key == "name") {
             BuildYsonFluently(consumer)
-                .Scalar(account->GetName());
+                .Value(account->GetName());
             return true;
         }
 
         if (key == "resource_usage") {
             BuildYsonFluently(consumer)
-                .Scalar(account->ResourceUsage());
+                .Value(account->ResourceUsage());
             return true;
         }
 
         if (key == "node_count") {
             BuildYsonFluently(consumer)
-                .Scalar(account->NodeCount());
+                .Value(account->NodeCount());
             return true;
         }
 

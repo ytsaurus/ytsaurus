@@ -292,7 +292,7 @@ private:
                     EObjectType::Orchid,
                     BuildYsonStringFluently()
                         .BeginMap()
-                            .Item("remote_address").Scalar(address)
+                            .Item("remote_address").Value(address)
                         .EndMap());
             }
 

@@ -52,12 +52,12 @@ class TFluentYsonBuilder
 {
 private:
     template <class T>
-    static void WriteScalar(NYson::IYsonConsumer* consumer, const T& value)
+    static void WriteValue(NYson::IYsonConsumer* consumer, const T& value)
     {
         Consume(value, consumer);
     }
 
-    static void WriteScalar(NYson::IYsonConsumer* consumer, const Stroka& value)
+    static void WriteValue(NYson::IYsonConsumer* consumer, const Stroka& value)
     {
         Consume(TRawString(value), consumer);
     }
@@ -176,9 +176,9 @@ public:
         }
 
         template <class T>
-        TUnwrappedParent Scalar(T value)
+        TUnwrappedParent Value(T value)
         {
-            WriteScalar(this->Consumer, value);
+            WriteValue(this->Consumer, value);
             return this->GetUnwrappedParent();
         }
 
@@ -206,7 +206,7 @@ public:
             this->Consumer->OnBeginList();
             FOREACH (const auto& item, collection) {
                 this->Consumer->OnListItem();
-                WriteScalar(this->Consumer, item);
+                WriteValue(this->Consumer, item);
             }
             this->Consumer->OnEndList();
             return this->GetUnwrappedParent();

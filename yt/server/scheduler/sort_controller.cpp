@@ -1193,13 +1193,13 @@ protected:
     {
         BuildYsonMapFluently(consumer)
             .Item("partitions").BeginMap()
-                .Item("total").Scalar(Partitions.size())
-                .Item("completed").Scalar(CompletedPartitionCount)
+                .Item("total").Value(Partitions.size())
+                .Item("completed").Value(CompletedPartitionCount)
             .EndMap()
             .Item("partition_sizes").BeginMap()
-                .Item("total").Scalar(GetAggregatedTotalPartitionSizes())
-                .Item("running").Scalar(GetAggregatedRunningPartitionSizes())
-                .Item("completed").Scalar(GetAggregatedCompletedPartitionSizes())
+                .Item("total").Value(GetAggregatedTotalPartitionSizes())
+                .Item("running").Value(GetAggregatedRunningPartitionSizes())
+                .Item("completed").Value(GetAggregatedCompletedPartitionSizes())
             .EndMap();
     }
 };
@@ -1693,11 +1693,11 @@ private:
         TSortControllerBase::BuildProgressYson(consumer);
         BuildYsonMapFluently(consumer)
             .Do(BIND(&TSortController::BuildPartitionsProgressYson, Unretained(this)))
-            .Item("partition_jobs").Scalar(PartitionJobCounter)
-            .Item("intermediate_sort_jobs").Scalar(IntermediateSortJobCounter)
-            .Item("final_sort_jobs").Scalar(FinalSortJobCounter)
-            .Item("sorted_merge_jobs").Scalar(SortedMergeJobCounter)
-            .Item("unordered_merge_jobs").Scalar(UnorderedMergeJobCounter);
+            .Item("partition_jobs").Value(PartitionJobCounter)
+            .Item("intermediate_sort_jobs").Value(IntermediateSortJobCounter)
+            .Item("final_sort_jobs").Value(FinalSortJobCounter)
+            .Item("sorted_merge_jobs").Value(SortedMergeJobCounter)
+            .Item("unordered_merge_jobs").Value(UnorderedMergeJobCounter);
     }
 
 };
@@ -2139,10 +2139,10 @@ private:
         TSortControllerBase::BuildProgressYson(consumer);
         BuildYsonMapFluently(consumer)
             .Do(BIND(&TMapReduceController::BuildPartitionsProgressYson, Unretained(this)))
-            .Item("map_jobs").Scalar(PartitionJobCounter)
-            .Item("sort_jobs").Scalar(IntermediateSortJobCounter)
-            .Item("partition_reduce_jobs").Scalar(FinalSortJobCounter)
-            .Item("sorted_reduce_jobs").Scalar(SortedMergeJobCounter);
+            .Item("map_jobs").Value(PartitionJobCounter)
+            .Item("sort_jobs").Value(IntermediateSortJobCounter)
+            .Item("partition_reduce_jobs").Value(FinalSortJobCounter)
+            .Item("sorted_reduce_jobs").Value(SortedMergeJobCounter);
     }
 
 

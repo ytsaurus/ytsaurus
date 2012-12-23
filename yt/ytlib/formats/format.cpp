@@ -63,7 +63,7 @@ void Serialize(const TFormat& value, IYsonConsumer* consumer)
         .BeginAttributes()
             .Items(value.Attributes())
         .EndAttributes()
-        .Scalar(value.GetType());
+        .Value(value.GetType());
 }
 
 void Deserialize(TFormat& value, INodePtr node)

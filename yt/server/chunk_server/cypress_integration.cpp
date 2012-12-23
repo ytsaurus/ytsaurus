@@ -259,7 +259,7 @@ private:
         if (key == "state") {
             auto state = node ? node->GetState() : ENodeState(ENodeState::Offline);
             BuildYsonFluently(consumer)
-                .Scalar(FormatEnum(state));
+                .Value(FormatEnum(state));
             return true;
         }
 
@@ -267,13 +267,13 @@ private:
             if (key == "confirmed") {
                 ValidateActiveLeader();
                 BuildYsonFluently(consumer)
-                    .Scalar(FormatBool(Bootstrap->GetChunkManager()->IsNodeConfirmed(node)));
+                    .Value(FormatBool(Bootstrap->GetChunkManager()->IsNodeConfirmed(node)));
                 return true;
             }
 
             if (key == "incarnation_id") {
                 BuildYsonFluently(consumer)
-                    .Scalar(node->GetIncarnationId());
+                    .Value(node->GetIncarnationId());
                 return true;
             }
 
@@ -281,20 +281,20 @@ private:
                 const auto& nodeStatistics = node->Statistics();
                 BuildYsonFluently(consumer)
                     .BeginMap()
-                        .Item("total_available_space").Scalar(nodeStatistics.total_available_space())
-                        .Item("total_used_space").Scalar(nodeStatistics.total_used_space())
-                        .Item("total_chunk_count").Scalar(nodeStatistics.total_chunk_count())
-                        .Item("total_session_count").Scalar(node->GetTotalSessionCount())
-                        .Item("full").Scalar(nodeStatistics.full())
+                        .Item("total_available_space").Value(nodeStatistics.total_available_space())
+                        .Item("total_used_space").Value(nodeStatistics.total_used_space())
+                        .Item("total_chunk_count").Value(nodeStatistics.total_chunk_count())
+                        .Item("total_session_count").Value(node->GetTotalSessionCount())
+                        .Item("full").Value(nodeStatistics.full())
                         .Item("locations").DoListFor(nodeStatistics.locations(), [] (TFluentList fluent, const NProto::TLocationStatistics& locationStatistics) {
                             fluent
                                 .Item().BeginMap()
-                                    .Item("available_space").Scalar(locationStatistics.available_space())
-                                    .Item("used_space").Scalar(locationStatistics.used_space())
-                                    .Item("chunk_count").Scalar(locationStatistics.chunk_count())
-                                    .Item("session_count").Scalar(locationStatistics.session_count())
-                                    .Item("full").Scalar(locationStatistics.full())
-                                    .Item("enabled").Scalar(locationStatistics.enabled())
+                                    .Item("available_space").Value(locationStatistics.available_space())
+                                    .Item("used_space").Value(locationStatistics.used_space())
+                                    .Item("chunk_count").Value(locationStatistics.chunk_count())
+                                    .Item("session_count").Value(locationStatistics.session_count())
+                                    .Item("full").Value(locationStatistics.full())
+                                    .Item("enabled").Value(locationStatistics.enabled())
                                 .EndMap();
                         })
                     .EndMap();
@@ -458,7 +458,7 @@ private:
                     if (!chunkManager->FindNodeByAddress(address) &&
                         !this->GetChild(address)->Attributes().Get<bool>("banned", false))
                     {
-                        fluent.Item().Scalar(address);
+                        fluent.Item().Value(address);
                     }
             });
             return true;
@@ -468,7 +468,7 @@ private:
             BuildYsonFluently(consumer)
                 .DoListFor(GetKeys(), [=] (TFluentList fluent, Stroka address) {
                     if (this->GetChild(address)->Attributes().Get<bool>("banned", false)) {
-                        fluent.Item().Scalar(address);
+                        fluent.Item().Value(address);
                     }
             });
             return true;
@@ -479,7 +479,7 @@ private:
             BuildYsonFluently(consumer)
                 .DoListFor(chunkManager->GetNodes(), [=] (TFluentList fluent, TDataNode* node) {
                     if (node->GetState() == expectedState) {
-                        fluent.Item().Scalar(node->GetAddress());
+                        fluent.Item().Value(node->GetAddress());
                     }
                 });
             return true;
@@ -491,7 +491,7 @@ private:
             BuildYsonFluently(consumer)
                 .DoListFor(chunkManager->GetNodes(), [=] (TFluentList fluent, TDataNode* node) {
                     if (chunkManager->IsNodeConfirmed(node) == state) {
-                        fluent.Item().Scalar(node->GetAddress());
+                        fluent.Item().Value(node->GetAddress());
                     }
                 });
             return true;
@@ -500,38 +500,38 @@ private:
         auto statistics = chunkManager->GetTotalNodeStatistics();
         if (key == "available_space") {
             BuildYsonFluently(consumer)
-                .Scalar(statistics.AvailbaleSpace);
+                .Value(statistics.AvailbaleSpace);
             return true;
         }
 
         if (key == "used_space") {
             BuildYsonFluently(consumer)
-                .Scalar(statistics.UsedSpace);
+                .Value(statistics.UsedSpace);
             return true;
         }
 
         if (key == "chunk_count") {
             BuildYsonFluently(consumer)
-                .Scalar(statistics.ChunkCount);
+                .Value(statistics.ChunkCount);
             return true;
         }
 
         if (key == "session_count") {
             BuildYsonFluently(consumer)
-                .Scalar(statistics.SessionCount);
+                .Value(statistics.SessionCount);
             return true;
         }
 
         if (key == "online_holder_count") {
             BuildYsonFluently(consumer)
-                .Scalar(statistics.OnlineNodeCount);
+                .Value(statistics.OnlineNodeCount);
             return true;
         }
 
         if (key == "chunk_replicator_enabled") {
             ValidateActiveLeader();
             BuildYsonFluently(consumer)
-                .Scalar(chunkManager->IsReplicatorEnabled());
+                .Value(chunkManager->IsReplicatorEnabled());
             return true;
         }
 

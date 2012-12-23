@@ -74,7 +74,7 @@ void TUploadCommand::DoExecute()
 
     auto id = writer->GetNodeId();
     BuildYsonFluently(~Context->CreateOutputConsumer())
-        .Scalar(id.ToString());
+        .Value(id.ToString());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

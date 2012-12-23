@@ -1084,8 +1084,8 @@ private:
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("cell").BeginMap()
-                    .Item("resource_limits").Scalar(TotalResourceLimits)
-                    .Item("resource_usage").Scalar(TotalResourceUsage)
+                    .Item("resource_limits").Value(TotalResourceLimits)
+                    .Item("resource_usage").Value(TotalResourceUsage)
                 .EndMap()
                 .Item("operations").DoMapFor(Operations, [=] (TFluentMap fluent, TOperationMap::value_type pair) {
                     BuildOperationYson(pair.second, fluent);
@@ -1107,7 +1107,7 @@ private:
                     .Do(BIND(&ISchedulerStrategy::BuildOperationProgressYson, ~Strategy, operation))
                 .EndMap()
                 .Item("running_jobs").BeginAttributes()
-                    .Item("opaque").Scalar("true")
+                    .Item("opaque").Value("true")
                 .EndAttributes()
                 .DoMapFor(operation->Jobs(), [=] (TFluentMap fluent, TJobPtr job) {
                     BuildJobYson(job, fluent);

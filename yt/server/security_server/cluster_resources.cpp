@@ -22,7 +22,7 @@ void Serialize(const TClusterResources& resources, NYson::IYsonConsumer* consume
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("disk_space").Scalar(resources.DiskSpace)
+            .Item("disk_space").Value(resources.DiskSpace)
         .EndMap();
 }
 

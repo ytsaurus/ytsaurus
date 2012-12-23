@@ -341,19 +341,19 @@ bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* cons
 {
     if (key == "id") {
         BuildYsonFluently(consumer)
-            .Scalar(GetId().ToString());
+            .Value(GetId().ToString());
         return true;
     }
 
     if (key == "type") {
         BuildYsonFluently(consumer)
-            .Scalar(CamelCaseToUnderscoreCase(TypeFromId(Id).ToString()));
+            .Value(CamelCaseToUnderscoreCase(TypeFromId(Id).ToString()));
         return true;
     }
 
     if (key == "ref_counter") {
         BuildYsonFluently(consumer)
-            .Scalar(Bootstrap->GetObjectManager()->GetObjectRefCounter(Id));
+            .Value(Bootstrap->GetObjectManager()->GetObjectRefCounter(Id));
         return true;
     }
 

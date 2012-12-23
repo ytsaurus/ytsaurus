@@ -477,9 +477,9 @@ public:
                 // TODO(panin): maybe use here the same method as in attributes
                 fluent
                     .Item(FormatEnum(pair.first)).BeginMap()
-                        .Item("chunk_count").Scalar(statistics.ChunkCount)
-                        .Item("uncompressed_data_size").Scalar(statistics.UncompressedDataSize)
-                        .Item("compressed_data_size").Scalar(statistics.CompressedDataSize)
+                        .Item("chunk_count").Value(statistics.ChunkCount)
+                        .Item("uncompressed_data_size").Value(statistics.UncompressedDataSize)
+                        .Item("compressed_data_size").Value(statistics.CompressedDataSize)
                     .EndMap();
             });
         Promise.Set(TError());
@@ -572,25 +572,25 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
 
     if (key == "chunk_list_id") {
         BuildYsonFluently(consumer)
-            .Scalar(chunkList->GetId().ToString());
+            .Value(chunkList->GetId().ToString());
         return true;
     }
 
     if (key == "chunk_count") {
         BuildYsonFluently(consumer)
-            .Scalar(statistics.ChunkCount);
+            .Value(statistics.ChunkCount);
         return true;
     }
 
     if (key == "uncompressed_data_size") {
         BuildYsonFluently(consumer)
-            .Scalar(statistics.UncompressedDataSize);
+            .Value(statistics.UncompressedDataSize);
         return true;
     }
 
     if (key == "compressed_data_size") {
         BuildYsonFluently(consumer)
-            .Scalar(statistics.CompressedDataSize);
+            .Value(statistics.CompressedDataSize);
         return true;
     }
 
@@ -600,25 +600,25 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
             ? static_cast<double>(statistics.CompressedDataSize) / statistics.UncompressedDataSize
             : 0;
         BuildYsonFluently(consumer)
-            .Scalar(ratio);
+            .Value(ratio);
         return true;
     }
 
     if (key == "row_count") {
         BuildYsonFluently(consumer)
-            .Scalar(statistics.RowCount);
+            .Value(statistics.RowCount);
         return true;
     }
 
     if (key == "sorted") {
         BuildYsonFluently(consumer)
-            .Scalar(!chunkList->SortedBy().empty());
+            .Value(!chunkList->SortedBy().empty());
         return true;
     }
 
     if (key == "update_mode") {
         BuildYsonFluently(consumer)
-            .Scalar(FormatEnum(node->GetUpdateMode()));
+            .Value(FormatEnum(node->GetUpdateMode()));
         return true;
     }
 
@@ -632,7 +632,7 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
 
     if (key == "replication_factor") {
         BuildYsonFluently(consumer)
-            .Scalar(node->GetReplicationFactor());
+            .Value(node->GetReplicationFactor());
         return true;
     }
 

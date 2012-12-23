@@ -727,11 +727,11 @@ public:
         auto element = GetOperationElement(operation);
         auto pool = element->GetPool();
         BuildYsonMapFluently(consumer)
-            .Item("pool").Scalar(pool->GetId())
-            .Item("start_time").Scalar(element->GetStartTime())
-            .Item("scheduling_status").Scalar(element->GetStatus())
-            .Item("starving").Scalar(element->GetStarving())
-            .Item("usage_ratio").Scalar(element->GetUsageRatio())
+            .Item("pool").Value(pool->GetId())
+            .Item("start_time").Value(element->GetStartTime())
+            .Item("scheduling_status").Value(element->GetStatus())
+            .Item("starving").Value(element->GetStarving())
+            .Item("usage_ratio").Value(element->GetUsageRatio())
             .Do(BIND(&TFairShareStrategy::BuildElementYson, pool, element));
     }
 
@@ -744,7 +744,7 @@ public:
                 auto config = pool->GetConfig();
                 fluent
                     .Item(id).BeginMap()
-                        .Item("mode").Scalar(config->Mode)
+                        .Item("mode").Value(config->Mode)
                         .Do(BIND(&TFairShareStrategy::BuildElementYson, RootElement, pool))
                     .EndMap();
             });
@@ -1005,15 +1005,15 @@ private:
     {
         const auto& attributes = element->Attributes();
         BuildYsonMapFluently(consumer)
-            .Item("scheduling_rank").Scalar(attributes.Rank)
-            .Item("resource_demand").Scalar(element->GetDemand())
-            .Item("resource_usage").Scalar(element->GetUsage())
-            .Item("dominant_resource").Scalar(attributes.DominantResource)
-            .Item("weight").Scalar(element->GetWeight())
-            .Item("min_share_ratio").Scalar(element->GetMinShareRatio())
-            .Item("adjusted_min_share_ratio").Scalar(attributes.AdjustedMinShareRatio)
-            .Item("demand_ratio").Scalar(attributes.DemandRatio)
-            .Item("fair_share_ratio").Scalar(attributes.FairShareRatio);
+            .Item("scheduling_rank").Value(attributes.Rank)
+            .Item("resource_demand").Value(element->GetDemand())
+            .Item("resource_usage").Value(element->GetUsage())
+            .Item("dominant_resource").Value(attributes.DominantResource)
+            .Item("weight").Value(element->GetWeight())
+            .Item("min_share_ratio").Value(element->GetMinShareRatio())
+            .Item("adjusted_min_share_ratio").Value(attributes.AdjustedMinShareRatio)
+            .Item("demand_ratio").Value(attributes.DemandRatio)
+            .Item("fair_share_ratio").Value(attributes.FairShareRatio);
     }
 
 };

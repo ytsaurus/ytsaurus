@@ -475,18 +475,18 @@ void TElectionManager::GetMonitoringInfo(NYson::IYsonConsumer* consumer)
     auto epochContext = EpochContext;
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("state").Scalar(FormatEnum(State))
+            .Item("state").Value(FormatEnum(State))
             .Item("peers").BeginList()
                 .DoFor(0, CellManager->GetPeerCount(), [=] (TFluentList fluent, TPeerId id) {
-                    fluent.Item().Scalar(CellManager->GetPeerAddress(id));
+                    fluent.Item().Value(CellManager->GetPeerAddress(id));
                 })
             .EndList()
             .DoIf(epochContext, [&] (TFluentMap fluent) {
                 fluent
-                    .Item("leader_id").Scalar(epochContext->LeaderId)
-                    .Item("epoch_id").Scalar(epochContext->EpochId);
+                    .Item("leader_id").Value(epochContext->LeaderId)
+                    .Item("epoch_id").Value(epochContext->EpochId);
             })
-            .Item("vote_id").Scalar(VoteId)
+            .Item("vote_id").Value(VoteId)
         .EndMap();
 }
 

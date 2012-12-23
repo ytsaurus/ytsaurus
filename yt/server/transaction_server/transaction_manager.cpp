@@ -94,44 +94,44 @@ private:
         
         if (key == "state") {
             BuildYsonFluently(consumer)
-                .Scalar(FormatEnum(transaction->GetState()));
+                .Value(FormatEnum(transaction->GetState()));
             return true;
         }
 
         if (key == "timeout") {
             BuildYsonFluently(consumer)
-                .Scalar(transaction->GetTimeout());
+                .Value(transaction->GetTimeout());
             return true;
         }
 
         if (key == "uncommitted_accounting_enabled") {
             BuildYsonFluently(consumer)
-                .Scalar(transaction->GetUncommittedAccountingEnabled());
+                .Value(transaction->GetUncommittedAccountingEnabled());
             return true;
         }
 
         if (key == "staged_accounting_enabled") {
             BuildYsonFluently(consumer)
-                .Scalar(transaction->GetStagedAccountingEnabled());
+                .Value(transaction->GetStagedAccountingEnabled());
             return true;
         }
 
         if (key == "parent_id") {
             BuildYsonFluently(consumer)
-                .Scalar(GetObjectId(transaction->GetParent()).ToString());
+                .Value(GetObjectId(transaction->GetParent()).ToString());
             return true;
         }
 
         if (key == "start_time") {
             BuildYsonFluently(consumer)
-                .Scalar(ToString(transaction->GetStartTime()));
+                .Value(ToString(transaction->GetStartTime()));
             return true;
         }
 
         if (key == "nested_transaction_ids") {
             BuildYsonFluently(consumer)
                 .DoListFor(transaction->NestedTransactions(), [=] (TFluentList fluent, TTransaction* nestedTransaction) {
-                    fluent.Item().Scalar(nestedTransaction->GetId());
+                    fluent.Item().Value(nestedTransaction->GetId());
                 });
             return true;
         }
@@ -139,7 +139,7 @@ private:
         if (key == "staged_object_ids") {
             BuildYsonFluently(consumer)
                 .DoListFor(transaction->StagedObjectIds(), [=] (TFluentList fluent, const TTransactionId& id) {
-                    fluent.Item().Scalar(id);
+                    fluent.Item().Value(id);
                 });
             return true;
         }
@@ -147,7 +147,7 @@ private:
         if (key == "staged_node_ids") {
             BuildYsonFluently(consumer)
                 .DoListFor(transaction->StagedNodes(), [=] (TFluentList fluent, const ICypressNode* node) {
-                    fluent.Item().Scalar(node->GetId().ObjectId);
+                    fluent.Item().Value(node->GetId().ObjectId);
                 });
             return true;
         }
@@ -155,7 +155,7 @@ private:
         if (key == "branched_node_ids") {
             BuildYsonFluently(consumer)
                 .DoListFor(transaction->BranchedNodes(), [=] (TFluentList fluent, const ICypressNode* node) {
-                    fluent.Item().Scalar(node->GetId().ObjectId);
+                    fluent.Item().Value(node->GetId().ObjectId);
             });
             return true;
         }
@@ -163,7 +163,7 @@ private:
         if (key == "locked_node_ids") {
             BuildYsonFluently(consumer)
                 .DoListFor(transaction->LockedNodes(), [=] (TFluentList fluent, const ICypressNode* node) {
-                    fluent.Item().Scalar(node->GetId().ObjectId);
+                    fluent.Item().Value(node->GetId().ObjectId);
                 });
             return true;
         }
@@ -173,7 +173,7 @@ private:
                 .DoMapFor(transaction->AccountResourceUsage(), [=] (TFluentMap fluent, const TTransaction::TAccountResourcesMap::value_type& pair) {
                     const auto* account = pair.first;
                     const auto& usage = pair.second;
-                    fluent.Item(account->GetName()).Scalar(usage);
+                    fluent.Item(account->GetName()).Value(usage);
                 });
             return true;
         }

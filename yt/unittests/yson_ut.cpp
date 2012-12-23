@@ -135,40 +135,40 @@ TEST_F(TYsonTest, UpdateNodes)
     auto base = BuildYsonNodeFluently()
         .BeginMap()
             .Item("key_a")
-            .Scalar(0)
+            .Value(0)
 
             .Item("key_b")
             .BeginAttributes()
                 .Item("attr")
-                .Scalar("some_attr")
+                .Value("some_attr")
             .EndAttributes()
-            .Scalar(3.0)
+            .Value(3.0)
 
             .Item("key_c")
             .BeginMap()
                 .Item("ignat")
-                .Scalar(70.0)
+                .Value(70.0)
             .EndMap()
         .EndMap();
 
     auto patch = BuildYsonNodeFluently()
         .BeginMap()
             .Item("key_a")
-            .Scalar(100)
+            .Value(100)
 
             .Item("key_b")
-            .Scalar(0.0)
+            .Value(0.0)
 
             .Item("key_c")
             .BeginMap()
                 .Item("max")
-                .Scalar(75.0)
+                .Value(75.0)
             .EndMap()
 
             .Item("key_d")
             .BeginMap()
                 .Item("x")
-                .Scalar("y")
+                .Value("y")
             .EndMap()
         .EndMap();
 

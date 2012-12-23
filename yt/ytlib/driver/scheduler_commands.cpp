@@ -45,7 +45,7 @@ void TSchedulerCommandBase::StartOperation(EOperationType type)
     }
 
     ReplySuccess(BuildYsonStringFluently()
-        .Scalar(operationId));
+        .Value(operationId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

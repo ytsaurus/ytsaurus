@@ -381,7 +381,7 @@ bool TCypressNodeProxyNontemplateBase::GetSystemAttribute(
 
     if (key == "parent_id") {
         BuildYsonFluently(consumer)
-            .Scalar(node->GetParentId().ToString());
+            .Value(node->GetParentId().ToString());
         return true;
     }
 
@@ -390,8 +390,8 @@ bool TCypressNodeProxyNontemplateBase::GetSystemAttribute(
             .DoListFor(trunkNode->Locks(), [=] (TFluentList fluent, const ICypressNode::TLockMap::value_type& pair) {
                 fluent.Item()
                     .BeginMap()
-                    .Item("mode").Scalar(pair.second.Mode)
-                    .Item("transaction_id").Scalar(pair.first->GetId())
+                    .Item("mode").Value(pair.second.Mode)
+                    .Item("transaction_id").Value(pair.first->GetId())
                     .DoIf(!pair.second.ChildKeys.empty(), [=] (TFluentMap fluent) {
                         fluent
                             .Item("child_keys").List(pair.second.ChildKeys);
@@ -407,37 +407,37 @@ bool TCypressNodeProxyNontemplateBase::GetSystemAttribute(
 
     if (key == "lock_mode") {
         BuildYsonFluently(consumer)
-            .Scalar(FormatEnum(node->GetLockMode()));
+            .Value(FormatEnum(node->GetLockMode()));
         return true;
     }
 
     if (key == "path") {
         BuildYsonFluently(consumer)
-            .Scalar(GetPath());
+            .Value(GetPath());
         return true;
     }
 
     if (key == "creation_time") {
         BuildYsonFluently(consumer)
-            .Scalar(node->GetCreationTime().ToString());
+            .Value(node->GetCreationTime().ToString());
         return true;
     }
 
     if (key == "modification_time") {
         BuildYsonFluently(consumer)
-            .Scalar(node->GetModificationTime().ToString());
+            .Value(node->GetModificationTime().ToString());
         return true;
     }
 
     if (key == "resource_usage") {
         BuildYsonFluently(consumer)
-            .Scalar(GetResourceUsage());
+            .Value(GetResourceUsage());
         return true;
     }
 
     if (key == "account" && node->GetAccount()) {
         BuildYsonFluently(consumer)
-            .Scalar(node->GetAccount()->GetName());
+            .Value(node->GetAccount()->GetName());
         return true;
     }
 

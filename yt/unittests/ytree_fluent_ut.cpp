@@ -33,7 +33,7 @@ TYPED_TEST_P(TYTreeFluentStringScalarTest, Ok)
 
     TypeParam passedScalar = "Hello World";
     BuildYsonFluently(&mock)
-        .Scalar(passedScalar);
+        .Value(passedScalar);
 }
 
 typedef Types<const char*, Stroka> TYTreeFluentStringScalarTestTypes;
@@ -67,7 +67,7 @@ TYPED_TEST_P(TYTreeFluentIntegerScalarTest, Ok)
 
     TypeParam passedScalar = 42;
     BuildYsonFluently(&mock)
-        .Scalar(passedScalar);
+        .Value(passedScalar);
 }
 
 typedef Types<i8, ui8, i16, ui16, i32, ui32, i64>
@@ -99,7 +99,7 @@ TYPED_TEST_P(TYTreeFluentFloatScalarTest, Ok)
 
     TypeParam passedScalar = 3.14f;
     BuildYsonFluently(&mock)
-        .Scalar(passedScalar);
+        .Value(passedScalar);
 }
 
 typedef Types<float, double>
@@ -143,10 +143,10 @@ TEST(TYTreeFluentMapTest, Simple)
     BuildYsonFluently(&mock)
         .BeginMap()
             .Item("foo")
-            .Scalar(10)
+            .Value(10)
 
             .Item("bar")
-            .Scalar(20)
+            .Value(20)
         .EndMap();
 }
 
@@ -189,11 +189,11 @@ TEST(TYTreeFluentMapTest, Nested)
             .Item("foo")
             .BeginMap()
                 .Item("xxx")
-                .Scalar(17)
+                .Value(17)
             .EndMap()
 
             .Item("bar")
-            .Scalar(42)
+            .Value(42)
         .EndMap();
 }
 
@@ -231,10 +231,10 @@ TEST(TYTreeFluentListTest, Simple)
     BuildYsonFluently(&mock)
         .BeginList()
             .Item()
-            .Scalar("foo")
+            .Value("foo")
 
             .Item()
-            .Scalar("bar")
+            .Value("bar")
         .EndList();
 }
 
@@ -280,11 +280,11 @@ TEST(TYTreeFluentListTest, Nested)
             .Item()
             .BeginList()
                 .Item()
-                .Scalar("foo")
+                .Value("foo")
             .EndList()
 
             .Item()
-            .Scalar("bar")
+            .Value("bar")
         .EndList();
 }
 
@@ -348,14 +348,14 @@ TEST(TYTreeFluentTest, Complex)
             // 0
             .Item()
             .BeginAttributes()
-                .Item("attr1").Scalar(-1)
-                .Item("attr2").Scalar(-2)
+                .Item("attr1").Value(-1)
+                .Item("attr2").Value(-2)
             .EndAttributes()
-            .Scalar(42)
+            .Value(42)
 
             // 1
             .Item()
-            .Scalar(17)
+            .Value(17)
 
             // 2
             .Item()
@@ -365,24 +365,24 @@ TEST(TYTreeFluentTest, Complex)
             // 3
             .Item()
             .BeginAttributes()
-                .Item("hot").Scalar("chocolate")
+                .Item("hot").Value("chocolate")
             .EndAttributes()
             .BeginList()
-                .Item().Scalar("hello")
-                .Item().Scalar("world")
+                .Item().Value("hello")
+                .Item().Value("world")
             .EndList()
 
             // 4
             .Item()
             .BeginMap()
-                .Item("aaa").Scalar(1)
-                .Item("bbb").Scalar(2)
+                .Item("aaa").Value(1)
+                .Item("bbb").Value(2)
             .EndMap()
 
             // 5
             .Item()
             .BeginAttributes()
-                .Item("type").Scalar("extra")
+                .Item("type").Value("extra")
             .EndAttributes()
             .Entity()
         .EndList();

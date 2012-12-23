@@ -34,7 +34,7 @@ void TStartTransactionCommand::DoExecute()
     auto transaction = transactionManager->Start(options);
 
     BuildYsonFluently(~Context->CreateOutputConsumer())
-        .Scalar(transaction->GetId());
+        .Value(transaction->GetId());
 
     transaction->Detach();
 }

@@ -89,7 +89,7 @@ private:
         if (key == "children_ids") {
             BuildYsonFluently(consumer)
                 .DoListFor(chunkList->Children(), [=] (TFluentList fluent, TChunkTreeRef chunkRef) {
-                    fluent.Item().Scalar(chunkRef.GetId());
+                    fluent.Item().Value(chunkRef.GetId());
             });
             return true;
         }
@@ -97,7 +97,7 @@ private:
         if (key == "parent_ids") {
             BuildYsonFluently(consumer)
                 .DoListFor(chunkList->Parents(), [=] (TFluentList fluent, TChunkList* chunkList) {
-                    fluent.Item().Scalar(chunkList->GetId());
+                    fluent.Item().Value(chunkList->GetId());
             });
             return true;
         }
@@ -106,7 +106,7 @@ private:
 
         if (key == "statistics") {
             BuildYsonFluently(consumer)
-                .Scalar(statistics);
+                .Value(statistics);
             return true;
         }
 
@@ -118,7 +118,7 @@ private:
         if (key == "owning_nodes") {
             auto paths = chunkManager->GetOwningNodes(const_cast<TChunkList*>(chunkList));
             BuildYsonFluently(consumer)
-                .Scalar(paths);
+                .Value(paths);
             return true;
         }
 

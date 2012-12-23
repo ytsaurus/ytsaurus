@@ -150,14 +150,14 @@ void Serialize(const TProgressCounter& counter, IYsonConsumer* consumer)
         .BeginMap()
             .DoIf(counter.IsTotalEnabled(), [&] (TFluentMap fluent) {
                 fluent
-                    .Item("total").Scalar(counter.GetTotal())
-                    .Item("pending").Scalar(counter.GetPending());
+                    .Item("total").Value(counter.GetTotal())
+                    .Item("pending").Value(counter.GetPending());
             })
-            .Item("running").Scalar(counter.GetRunning())
-            .Item("completed").Scalar(counter.GetCompleted())
-            .Item("failed").Scalar(counter.GetFailed())
-            .Item("aborted").Scalar(counter.GetAborted())
-            .Item("lost").Scalar(counter.GetLost())
+            .Item("running").Value(counter.GetRunning())
+            .Item("completed").Value(counter.GetCompleted())
+            .Item("failed").Value(counter.GetFailed())
+            .Item("aborted").Value(counter.GetAborted())
+            .Item("lost").Value(counter.GetLost())
         .EndMap();
 }
 

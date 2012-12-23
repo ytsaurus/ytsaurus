@@ -25,7 +25,7 @@ void TUploadExecutor::BuildArgs(IYsonConsumer* consumer)
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
-        .Item("path").Scalar(path);
+        .Item("path").Value(path);
 
     TTransactedExecutor::BuildArgs(consumer);
 }
@@ -48,7 +48,7 @@ void TDownloadExecutor::BuildArgs(IYsonConsumer* consumer)
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
-        .Item("path").Scalar(path);
+        .Item("path").Value(path);
 
     TTransactedExecutor::BuildArgs(consumer);
 }

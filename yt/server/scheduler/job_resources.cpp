@@ -319,10 +319,10 @@ void Serialize(const TNodeResources& resources, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("slots").Scalar(resources.slots())
-            .Item("cpu").Scalar(resources.cpu())
-            .Item("memory").Scalar(resources.memory())
-            .Item("network").Scalar(resources.network())
+            .Item("slots").Value(resources.slots())
+            .Item("cpu").Value(resources.cpu())
+            .Item("memory").Value(resources.memory())
+            .Item("network").Value(resources.network())
         .EndMap();
 }
 

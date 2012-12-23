@@ -1929,13 +1929,13 @@ void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .Item("jobs").BeginMap()
-            .Item("total").Scalar(JobCounter.GetCompleted() + JobCounter.GetRunning() + GetPendingJobCount())
-            .Item("pending").Scalar(GetPendingJobCount())
-            .Item("running").Scalar(JobCounter.GetRunning())
-            .Item("completed").Scalar(JobCounter.GetCompleted())
-            .Item("failed").Scalar(JobCounter.GetFailed())
-            .Item("aborted").Scalar(JobCounter.GetAborted())
-            .Item("lost").Scalar(JobCounter.GetLost())
+            .Item("total").Value(JobCounter.GetCompleted() + JobCounter.GetRunning() + GetPendingJobCount())
+            .Item("pending").Value(GetPendingJobCount())
+            .Item("running").Value(JobCounter.GetRunning())
+            .Item("completed").Value(JobCounter.GetCompleted())
+            .Item("failed").Value(JobCounter.GetFailed())
+            .Item("aborted").Value(JobCounter.GetAborted())
+            .Item("lost").Value(JobCounter.GetLost())
         .EndMap();
 }
 
@@ -1944,7 +1944,7 @@ void TOperationControllerBase::BuildResultYson(IYsonConsumer* consumer)
     auto error = FromProto(Operation->Result().error());
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("error").Scalar(error)
+            .Item("error").Value(error)
         .EndMap();
 }
 

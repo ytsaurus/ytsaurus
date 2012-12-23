@@ -251,21 +251,21 @@ public:
 
         BuildYsonFluently(consumer)
             .BeginMap()
-                .Item("status").Scalar(FormatEnum(ControlStatus))
-                .Item("version").Scalar(DecoratedState->GetVersionAsync().ToString())
-                .Item("reachable_version").Scalar(DecoratedState->GetReachableVersionAsync().ToString())
+                .Item("status").Value(FormatEnum(ControlStatus))
+                .Item("version").Value(DecoratedState->GetVersionAsync().ToString())
+                .Item("reachable_version").Value(DecoratedState->GetReachableVersionAsync().ToString())
                 .Item("elections").Do(BIND(&TElectionManager::GetMonitoringInfo, ElectionManager))
                 .DoIf(tracker, [=] (TFluentMap fluent) {
                     fluent
                         // COMPAT(babenko): notify Roman
-                        .Item("has_active_quorum").Scalar(HasActiveQuorum_)
-                        .Item("has_quorum").Scalar(HasActiveQuorum_)
+                        .Item("has_active_quorum").Value(HasActiveQuorum_)
+                        .Item("has_quorum").Value(HasActiveQuorum_)
                         .Item("active_followers").DoListFor(
                             0,
                             CellManager->GetPeerCount(),
                             [=] (TFluentList fluent, TPeerId id) {
                                 if (tracker->IsPeerActive(id)) {
-                                    fluent.Item().Scalar(id);
+                                    fluent.Item().Value(id);
                                 }
                             });
                 })

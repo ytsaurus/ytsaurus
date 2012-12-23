@@ -25,7 +25,7 @@ void TGetExecutor::BuildArgs(IYsonConsumer* consumer)
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
-        .Item("path").Scalar(path)
+        .Item("path").Value(path)
         .Item("attributes").List(AttributeArg);
 
     TTransactedExecutor::BuildArgs(consumer);
@@ -58,7 +58,7 @@ void TSetExecutor::BuildArgs(IYsonConsumer* consumer)
     }
 
     BuildYsonMapFluently(consumer)
-        .Item("path").Scalar(path);
+        .Item("path").Value(path);
 
     TTransactedExecutor::BuildArgs(consumer);
 }
@@ -91,7 +91,7 @@ void TRemoveExecutor::BuildArgs(IYsonConsumer* consumer)
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
-        .Item("path").Scalar(path);
+        .Item("path").Value(path);
 
     TTransactedExecutor::BuildArgs(consumer);
 }
@@ -116,7 +116,7 @@ void TListExecutor::BuildArgs(IYsonConsumer* consumer)
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
-        .Item("path").Scalar(path)
+        .Item("path").Value(path)
         .Item("attributes").List(AttributeArg);
 
     TTransactedExecutor::BuildArgs(consumer);
@@ -146,9 +146,9 @@ void TCreateExecutor::BuildArgs(IYsonConsumer* consumer)
 
     BuildYsonMapFluently(consumer)
         .DoIf(path, [&] (TFluentMap fluent) {
-            fluent.Item("path").Scalar(path.Get());
+            fluent.Item("path").Value(path.Get());
         })
-        .Item("type").Scalar(TypeArg.getValue().ToString());
+        .Item("type").Value(TypeArg.getValue().ToString());
 
     TTransactedExecutor::BuildArgs(consumer);
 }
@@ -174,8 +174,8 @@ void TLockExecutor::BuildArgs(IYsonConsumer* consumer)
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
-        .Item("path").Scalar(path)
-        .Item("mode").Scalar(ModeArg.getValue().ToString());
+        .Item("path").Value(path)
+        .Item("mode").Value(ModeArg.getValue().ToString());
 
     TTransactedExecutor::BuildArgs(consumer);
 }
@@ -202,8 +202,8 @@ void TCopyExecutor::BuildArgs(IYsonConsumer* consumer)
     auto destinationPath = PreprocessYPath(DestinationPathArg.getValue());
 
     BuildYsonMapFluently(consumer)
-        .Item("source_path").Scalar(sourcePath)
-        .Item("destination_path").Scalar(destinationPath);
+        .Item("source_path").Value(sourcePath)
+        .Item("destination_path").Value(destinationPath);
 
     TTransactedExecutor::BuildArgs(consumer);
 }
@@ -230,8 +230,8 @@ void TMoveExecutor::BuildArgs(IYsonConsumer* consumer)
     auto destinationPath = PreprocessYPath(DestinationPathArg.getValue());
 
     BuildYsonMapFluently(consumer)
-        .Item("source_path").Scalar(sourcePath)
-        .Item("destination_path").Scalar(destinationPath);
+        .Item("source_path").Value(sourcePath)
+        .Item("destination_path").Value(destinationPath);
 
     TTransactedExecutor::BuildArgs(consumer);
 }
@@ -254,7 +254,7 @@ void TExistsExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
-    BuildYsonMapFluently(consumer).Item("path").Scalar(path);
+    BuildYsonMapFluently(consumer).Item("path").Value(path);
 
     TTransactedExecutor::BuildArgs(consumer);
 }

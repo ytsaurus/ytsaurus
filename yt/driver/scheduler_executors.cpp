@@ -80,7 +80,7 @@ void TMapExecutor::BuildArgs(IYsonConsumer* consumer)
             .Item("input_table_paths").List(inputs)
             .Item("output_table_paths").List(outputs)
             .Item("mapper").BeginMap()
-                .Item("command").Scalar(CommandArg.getValue())
+                .Item("command").Value(CommandArg.getValue())
                 .Item("file_paths").List(files)
             .EndMap()
         .EndMap();
@@ -125,9 +125,9 @@ void TMergeExecutor::BuildArgs(IYsonConsumer* consumer)
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()
             .Item("input_table_paths").List(inputs)
-            .Item("output_table_path").Scalar(outupts)
-            .Item("mode").Scalar(FormatEnum(ModeArg.getValue().Get()))
-            .Item("combine_chunks").Scalar(CombineArg.getValue())
+            .Item("output_table_path").Value(outupts)
+            .Item("mode").Value(FormatEnum(ModeArg.getValue().Get()))
+            .Item("combine_chunks").Value(CombineArg.getValue())
             .DoIf(!mergeBy.empty(), [=] (TFluentMap fluent) {
                 fluent.Item("merge_by").List(mergeBy);
             })
@@ -167,7 +167,7 @@ void TSortExecutor::BuildArgs(IYsonConsumer* consumer)
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()
             .Item("input_table_paths").List(inputs)
-            .Item("output_table_path").Scalar(outputs)
+            .Item("output_table_path").Value(outputs)
             .Item("sort_by").List(sortBy)
         .EndMap();
 
@@ -200,8 +200,8 @@ void TEraseExecutor::BuildArgs(IYsonConsumer* consumer)
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()
-            .Item("table_path").Scalar(path)
-            .Item("combine_chunks").Scalar(CombineArg.getValue())
+            .Item("table_path").Value(path)
+            .Item("combine_chunks").Value(CombineArg.getValue())
         .EndMap();
 
     TTransactedExecutor::BuildArgs(consumer);
@@ -250,7 +250,7 @@ void TReduceExecutor::BuildArgs(IYsonConsumer* consumer)
                 fluent.Item("reduce_by").List(reduceBy);
             })
             .Item("reducer").BeginMap()
-                .Item("command").Scalar(CommandArg.getValue())
+                .Item("command").Value(CommandArg.getValue())
                 .Item("file_paths").List(files)
             .EndMap()
         .EndMap();
@@ -311,12 +311,12 @@ void TMapReduceExecutor::BuildArgs(IYsonConsumer* consumer)
             .DoIf(!MapperCommandArg.getValue().empty(), [&] (TFluentMap fluent) {
                 fluent
                     .Item("mapper").BeginMap()
-                        .Item("command").Scalar(MapperCommandArg.getValue())
+                        .Item("command").Value(MapperCommandArg.getValue())
                         .Item("file_paths").List(mapperFiles)
                     .EndMap();
             })
             .Item("reducer").BeginMap()
-                .Item("command").Scalar(ReducerCommandArg.getValue())
+                .Item("command").Value(ReducerCommandArg.getValue())
                 .Item("file_paths").List(reducerFiles)
             .EndMap()
        .EndMap();
@@ -345,7 +345,7 @@ TAbortOpExecutor::TAbortOpExecutor()
 void TAbortOpExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
-        .Item("operation_id").Scalar(OpArg.getValue());
+        .Item("operation_id").Value(OpArg.getValue());
 
     TRequestExecutor::BuildArgs(consumer);
 }

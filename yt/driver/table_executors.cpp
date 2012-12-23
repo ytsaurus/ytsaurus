@@ -22,8 +22,8 @@ void TReadExecutor::BuildArgs(IYsonConsumer* consumer)
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
-        .Item("do").Scalar("read")
-        .Item("path").Scalar(path);
+        .Item("do").Value("read")
+        .Item("path").Value(path);
 
     TTransactedExecutor::BuildArgs(consumer);
 }
@@ -62,8 +62,8 @@ void TWriteExecutor::BuildArgs(IYsonConsumer* consumer)
     }
 
     BuildYsonMapFluently(consumer)
-        .Item("do").Scalar("write")
-        .Item("path").Scalar(path);
+        .Item("do").Value("write")
+        .Item("path").Value(path);
 
     TTransactedExecutor::BuildArgs(consumer);
 }

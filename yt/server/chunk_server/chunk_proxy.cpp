@@ -85,7 +85,7 @@ private:
 
         if (key == "confirmed") {
             BuildYsonFluently(consumer)
-                .Scalar(FormatBool(chunk->IsConfirmed()));
+                .Value(FormatBool(chunk->IsConfirmed()));
             return true;
         }
 
@@ -94,7 +94,7 @@ private:
                 BuildYsonFluently(consumer)
                     .DoListFor(*chunk->CachedLocations(), [=] (TFluentList fluent, TNodeId nodeId) {
                         const auto& node = chunkManager->GetNode(nodeId);
-                        fluent.Item().Scalar(node->GetAddress());
+                        fluent.Item().Value(node->GetAddress());
                     });
             } else {
                 BuildYsonFluently(consumer)
@@ -108,39 +108,39 @@ private:
             BuildYsonFluently(consumer)
                 .DoListFor(chunk->StoredLocations(), [=] (TFluentList fluent, TNodeId nodeId) {
                     const auto& node = chunkManager->GetNode(nodeId);
-                    fluent.Item().Scalar(node->GetAddress());
+                    fluent.Item().Value(node->GetAddress());
                 });
             return true;
         }
 
         if (key == "replication_factor") {
             BuildYsonFluently(consumer)
-                .Scalar(chunk->GetReplicationFactor());
+                .Value(chunk->GetReplicationFactor());
             return true;
         }
 
         if (key == "movable") {
             BuildYsonFluently(consumer)
-                .Scalar(chunk->GetMovable());
+                .Value(chunk->GetMovable());
             return true;
         }
 
         if (key == "vital") {
             BuildYsonFluently(consumer)
-                .Scalar(chunk->GetVital());
+                .Value(chunk->GetVital());
             return true;
         }
 
         if (key == "master_meta_size") {
             BuildYsonFluently(consumer)
-                .Scalar(chunk->ChunkMeta().ByteSize());
+                .Value(chunk->ChunkMeta().ByteSize());
             return true;
         }
 
         if (key == "owning_nodes") {
             auto paths = chunkManager->GetOwningNodes(TChunkTreeRef(const_cast<TChunk*>(chunk)));
             BuildYsonFluently(consumer)
-                .Scalar(paths);
+                .Value(paths);
             return true;
         }
 
@@ -149,62 +149,62 @@ private:
 
             if (key == "size") {
                 BuildYsonFluently(consumer)
-                    .Scalar(chunk->ChunkInfo().size());
+                    .Value(chunk->ChunkInfo().size());
                 return true;
             }
 
             if (key == "chunk_type") {
                 auto type = EChunkType(chunk->ChunkMeta().type());
                 BuildYsonFluently(consumer)
-                    .Scalar(CamelCaseToUnderscoreCase(type.ToString()));
+                    .Value(CamelCaseToUnderscoreCase(type.ToString()));
                 return true;
             }
 
             if (key == "meta_size") {
                 BuildYsonFluently(consumer)
-                    .Scalar(miscExt.meta_size());
+                    .Value(miscExt.meta_size());
                 return true;
             }
 
             if (key == "compressed_data_size") {
                 BuildYsonFluently(consumer)
-                    .Scalar(miscExt.compressed_data_size());
+                    .Value(miscExt.compressed_data_size());
                 return true;
             }
 
             if (key == "uncompressed_data_size") {
                 BuildYsonFluently(consumer)
-                    .Scalar(miscExt.uncompressed_data_size());
+                    .Value(miscExt.uncompressed_data_size());
                 return true;
             }
 
             if (key == "data_weight") {
                 BuildYsonFluently(consumer)
-                    .Scalar(miscExt.data_weight());
+                    .Value(miscExt.data_weight());
                 return true;
             }
 
             if (key == "codec") {
                 BuildYsonFluently(consumer)
-                    .Scalar(CamelCaseToUnderscoreCase(ECodec(miscExt.codec()).ToString()));
+                    .Value(CamelCaseToUnderscoreCase(ECodec(miscExt.codec()).ToString()));
                 return true;
             }
 
             if (key == "row_count") {
                 BuildYsonFluently(consumer)
-                    .Scalar(miscExt.row_count());
+                    .Value(miscExt.row_count());
                 return true;
             }
 
             if (key == "value_count") {
                 BuildYsonFluently(consumer)
-                    .Scalar(miscExt.value_count());
+                    .Value(miscExt.value_count());
                 return true;
             }
 
             if (key == "sorted") {
                 BuildYsonFluently(consumer)
-                    .Scalar(FormatBool(miscExt.sorted()));
+                    .Value(FormatBool(miscExt.sorted()));
                 return true;
             }
         }

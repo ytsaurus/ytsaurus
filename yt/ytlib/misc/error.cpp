@@ -326,17 +326,17 @@ void Serialize(const TError& error, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("code").Scalar(error.GetCode())
-            .Item("message").Scalar(error.GetMessage())
+            .Item("code").Value(error.GetCode())
+            .Item("message").Value(error.GetMessage())
             .Item("attributes").DoMapFor(error.Attributes().List(), [&] (TFluentMap fluent, const Stroka& key) {
                 fluent
-                    .Item(key).Scalar(error.Attributes().GetYson(key));
+                    .Item(key).Value(error.Attributes().GetYson(key));
             })
             .DoIf(!error.InnerErrors().empty(), [&] (TFluentMap fluent) {
                 fluent
                     .Item("inner_errors").DoListFor(error.InnerErrors(), [=] (TFluentList fluent, const TError& innerError) {
                         fluent
-                            .Item().Scalar(innerError);
+                            .Item().Value(innerError);
                     });
             })
         .EndMap();

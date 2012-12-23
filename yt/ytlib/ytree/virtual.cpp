@@ -121,7 +121,7 @@ bool TVirtualMapBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
 {
     if (key == "count") {
         BuildYsonFluently(consumer)
-            .Scalar(static_cast<i64>(GetSize()));
+            .Value(static_cast<i64>(GetSize()));
         return true;
     }
 
