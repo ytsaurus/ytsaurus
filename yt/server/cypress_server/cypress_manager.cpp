@@ -372,7 +372,7 @@ ICypressNode* TCypressManager::CloneNode(
     auto clonedNode_ = ~clonedNode;
     RegisterNode(transaction, clonedNode);
 
-    auto* account = sourceNode->GetTrunkNode()->GetAccount();
+    auto* account = sourceNode->GetAccount();
     securityManager->SetAccount(clonedNode_, account);
 
     return LockVersionedNode(clonedNode_, transaction, ELockMode::Exclusive);
@@ -924,7 +924,7 @@ ICypressNode* TCypressManager::BranchNode(
     objectManager->RefObject(branchedNode_);
     
     // Update resource usage.
-    auto* account = node->GetTrunkNode()->GetAccount();
+    auto* account = node->GetAccount();
     securityManager->SetAccount(branchedNode_, account);
 
     LOG_INFO_UNLESS(IsRecovery(), "Node branched (NodeId: %s, TransactionId: %s, Mode: %s)",
@@ -1123,9 +1123,6 @@ void TCypressManager::MergeNode(TTransaction* transaction, ICypressNode* branche
     if (branchedNode->GetLockMode() != ELockMode::Snapshot) {
         auto* originatingNode = NodeMap.Get(originatingId);
 
-        auto oldOriginatingUsage = originatingNode->GetResourceUsage();
-        auto branchedUsage = branchedNode->GetResourceUsage();
-
         // Merge changes back.
         handler->Merge(originatingNode, branchedNode);
 
@@ -1144,8 +1141,6 @@ void TCypressManager::MergeNode(TTransaction* transaction, ICypressNode* branche
 
         LOG_INFO_UNLESS(IsRecovery(), "Node merged (NodeId: %s)", ~branchedId.ToString());
     } else {
-        auto branchedUsage = branchedNode->GetResourceUsage();
-
         // Destroy the branched copy.
         handler->Destroy(branchedNode);
 
@@ -1188,7 +1183,6 @@ void TCypressManager::RemoveBranchedNode(ICypressNode* branchedNode)
 
     auto handler = GetHandler(branchedNode);
 
-    auto branchedUsage = branchedNode->GetResourceUsage();
     auto branchedNodeId = branchedNode->GetId();
 
     // Update resource usage.

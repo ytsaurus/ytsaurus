@@ -390,7 +390,7 @@ protected:
             : NYTree::CreateEphemeralAttributes();
 
         auto* node = this->GetThisImpl();
-        auto* account = node->GetTrunkNode()->GetAccount();
+        auto* account = node->GetAccount();
         auto* newNode = cypressManager->CreateNode(
             handler,
             this->Transaction,

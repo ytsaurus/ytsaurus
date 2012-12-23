@@ -225,7 +225,6 @@ public:
             return;
 
         auto objectManager = Bootstrap->GetObjectManager();
-        auto resourceUsage = node->GetResourceUsage();
 
         auto* transactionUsage = FindTransactionAccountUsage(node);
         if (transactionUsage) {

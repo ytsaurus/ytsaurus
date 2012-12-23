@@ -206,7 +206,7 @@ TCypressNodeProxyNontemplateBase::TCypressNodeProxyNontemplateBase(
 INodeFactoryPtr TCypressNodeProxyNontemplateBase::CreateFactory() const
 {
     const auto* impl = GetThisImpl();
-    auto* account = impl->GetTrunkNode()->GetAccount();
+    auto* account = impl->GetAccount();
     return New<TNodeFactory>(Bootstrap, Transaction, account);
 }
 

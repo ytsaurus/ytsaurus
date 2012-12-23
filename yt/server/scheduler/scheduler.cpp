@@ -1317,11 +1317,8 @@ private:
         FOREACH (auto job, schedulingContext.StartedJobs()) {
             RegisterJob(job);
 
-            auto jobId = job->GetId();
-            auto operationId = job->GetOperation()->GetOperationId();
-
             auto* startInfo = response->add_jobs_to_start();
-            *startInfo->mutable_job_id() = jobId.ToProto();
+            *startInfo->mutable_job_id() = job->GetId().ToProto();
             *startInfo->mutable_resource_limits() = job->ResourceUsage();
 
             // Build spec asynchronously.
