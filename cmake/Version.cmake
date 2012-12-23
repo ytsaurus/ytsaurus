@@ -1,6 +1,6 @@
 # Set the build version
 set(YT_VERSION_MAJOR 0)
-set(YT_VERSION_MINOR 10)
+set(YT_VERSION_MINOR 11)
 set(YT_VERSION_PATCH 0)
 
 if (NOT YT_BUILD_NUMBER)
