@@ -202,7 +202,7 @@ def create_table(path, recursive=None, replication_factor=None, attributes=None)
     attributes = get_value(attributes, {})
     if replication_factor is not None:
         attributes["replication_factor"] = replication_factor
-    _make_transactioned_request("create", update(attributes, {"path": path, "type": "table"}))
+    _make_transactioned_request("create", {"path": path, "type": "table", "attributes": attributes})
 
 def create_temp_table(path=None, prefix=None):
     """ Creates temporary table by given path with given prefix """
