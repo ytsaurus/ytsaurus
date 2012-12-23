@@ -618,7 +618,8 @@ ICypressNodeProxyPtr TNodeFactory::DoCreate(EObjectType type)
 
     cypressManager->RegisterNode(Transaction, node);
 
-    if (!node_->GetAccount()) {
+    // COMPAT(babenko)
+    if (!node_->GetAccount() && Account) {
         securityManager->SetAccount(node_, Account);
     }
     
