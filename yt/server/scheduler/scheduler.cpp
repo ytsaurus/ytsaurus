@@ -64,8 +64,7 @@ using NChunkClient::NullChunkId;
 
 static NLog::TLogger& Logger = SchedulerLogger;
 static NProfiling::TProfiler& Profiler = SchedulerProfiler;
-
-static TDuration ProfilingPreiod = TDuration::Seconds(1);
+static TDuration ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////
 
@@ -164,7 +163,7 @@ public:
         ProfilingInvoker = New<TPeriodicInvoker>(
             Bootstrap->GetControlInvoker(),
             BIND(&TThis::OnProfiling, MakeWeak(this)),
-            ProfilingPreiod);
+            ProfilingPeriod);
     }
 
     void Start()
