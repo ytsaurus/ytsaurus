@@ -16,6 +16,8 @@ TAccount::TAccount(const TAccountId& id)
 
 void TAccount::Save(const NCellMaster::TSaveContext& context) const
 {
+    TObjectWithIdBase::Save(context);
+
     auto* output = context.GetOutput();
     ::Save(output, Name_);
     NSecurityServer::Save(output, ResourceUsage_);
@@ -24,6 +26,8 @@ void TAccount::Save(const NCellMaster::TSaveContext& context) const
 
 void TAccount::Load(const NCellMaster::TLoadContext& context)
 {
+    TObjectWithIdBase::Load(context);
+
     auto* input = context.GetInput();
     ::Load(input, Name_);
     NSecurityServer::Load(input, ResourceUsage_);

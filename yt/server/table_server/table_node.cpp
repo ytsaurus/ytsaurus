@@ -109,7 +109,7 @@ public:
         : TBase(bootstrap)
     { }
 
-    void SetDefaultAttributes(IAttributeDictionary* attributes) override
+    virtual void SetDefaultAttributes(IAttributeDictionary* attributes) override
     {
         if (!attributes->Contains("channels")) {
             attributes->SetYson("channels", TYsonString("[]"));
@@ -119,12 +119,12 @@ public:
         }
     }
 
-    EObjectType GetObjectType()
+    virtual EObjectType GetObjectType() override
     {
         return EObjectType::Table;
     }
 
-    ENodeType GetNodeType()
+    virtual ENodeType GetNodeType() override
     {
         return ENodeType::Entity;
     }

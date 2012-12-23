@@ -213,79 +213,89 @@ private:
             // All initialization will be happening within this transaction.
             auto transactionId = StartTransaction();
 
-            TYsonString emptyMap("{}");
-            TYsonString emptyOpaqueMap("<opaque = true>{}");
-
-            SetYPath(
+            CreateNode(
                 rootService,
                 "//sys",
                 transactionId,
-                emptyMap);
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("cell_id").Value(cellId)
+                        .Item("cell_guid").Value(cellGuid)
+                    .EndMap());
 
-            SetYPath(
-                rootService,
-                "//sys/@cell_id",
-                transactionId,
-                ConvertToYsonString(cellId));
-
-            SetYPath(
-                rootService,
-                "//sys/@cell_guid",
-                transactionId,
-                ConvertToYsonString(cellGuid));
-
-            SetYPath(
+            CreateNode(
                 rootService,
                 "//sys/scheduler",
                 transactionId,
-                emptyOpaqueMap);
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
 
-            SetYPath(
+            CreateNode(
                 rootService,
                 "//sys/scheduler/lock",
                 transactionId,
-                emptyMap);
+                EObjectType::MapNode);
 
-            SetYPath(
+            CreateNode(
                 rootService,
                 "//sys/scheduler/pools",
                 transactionId,
-                emptyOpaqueMap);
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
 
-            CreateYPath(
+            CreateNode(
                 rootService,
                 "//sys/scheduler/orchid",
                 transactionId,
                 EObjectType::Orchid);
 
-            SetYPath(
+            CreateNode(
                 rootService,
                 "//sys/operations",
                 transactionId,
-                emptyOpaqueMap);
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
 
-            CreateYPath(
+            CreateNode(
                 rootService,
                 "//sys/nodes",
                 transactionId,
                 EObjectType::NodeMap,
-                TYsonString("{opaque=true}"));
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
 
-            SetYPath(
+            CreateNode(
                 rootService,
                 "//sys/masters",
                 transactionId,
-                emptyOpaqueMap);
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
 
             FOREACH (const auto& address, Bootstrap->GetConfig()->MetaState->Cell->Addresses) {
                 auto addressPath = "/" + ToYPathLiteral(address);
-                SetYPath(
+
+                CreateNode(
                     rootService,
                     "//sys/masters" + addressPath,
                     transactionId,
-                    emptyMap);
+                    EObjectType::MapNode);
 
-                CreateYPath(
+                CreateNode(
                     rootService,
                     "//sys/masters" + addressPath + "/orchid",
                     transactionId,
@@ -296,65 +306,74 @@ private:
                         .EndMap());
             }
 
-            CreateYPath(
+            CreateNode(
                 rootService,
                 "//sys/chunks",
                 transactionId,
                 EObjectType::ChunkMap);
 
-            CreateYPath(
+            CreateNode(
                 rootService,
                 "//sys/lost_chunks",
                 transactionId,
                 EObjectType::LostChunkMap);
 
-            CreateYPath(
+            CreateNode(
                 rootService,
                 "//sys/vital_lost_chunks",
                 transactionId,
                 EObjectType::LostVitalChunkMap);
 
-            CreateYPath(
+            CreateNode(
                 rootService,
                 "//sys/overreplicated_chunks",
                 transactionId,
                 EObjectType::OverreplicatedChunkMap);
 
-            CreateYPath(
+            CreateNode(
                 rootService,
                 "//sys/underreplicated_chunks",
                 transactionId,
                 EObjectType::UnderreplicatedChunkMap);
 
-            CreateYPath(
+            CreateNode(
                 rootService,
                 "//sys/chunk_lists",
                 transactionId,
                 EObjectType::ChunkListMap);
 
-            CreateYPath(
+            CreateNode(
                 rootService,
                 "//sys/transactions",
                 transactionId,
                 EObjectType::TransactionMap);
 
-            CreateYPath(
+            CreateNode(
                 rootService,
                 "//sys/accounts",
                 transactionId,
                 EObjectType::AccountMap);
 
-            SetYPath(
+            CreateNode(
                 rootService,
                 "//tmp",
                 transactionId,
-                emptyMap);
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                        .Item("account").Value("tmp")
+                    .EndMap());
 
-            SetYPath(
+            CreateNode(
                 rootService,
                 "//home",
                 transactionId,
-                emptyMap);
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
 
             CommitTransaction(transactionId);
         } catch (const std::exception& ex) {
@@ -390,8 +409,7 @@ private:
         SyncExecuteVerb(service, req);
     }
 
-    // TODO(babenko): consider moving somewhere
-    static void CreateYPath(
+    static void CreateNode(
         IYPathServicePtr service,
         const TYPath& path,
         const TTransactionId& transactionId,
@@ -402,18 +420,6 @@ private:
         SetTransactionId(req, transactionId);
         req->set_type(type);
         ToProto(req->mutable_node_attributes(), *ConvertToAttributes(attributes));
-        SyncExecuteVerb(service, req);
-    }
-
-    static void SetYPath(
-        IYPathServicePtr service,
-        const TYPath& path,
-        const TTransactionId& transactionId,
-        const TYsonString& value)
-    {
-        auto req = TYPathProxy::Set(path);
-        SetTransactionId(req, transactionId);
-        req->set_value(value.Data());
         SyncExecuteVerb(service, req);
     }
 };

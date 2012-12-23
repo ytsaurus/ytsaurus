@@ -45,7 +45,7 @@ void TUploadCommand::DoExecute()
 {
     auto config = Context->GetConfig()->FileWriter;
 
-    auto attribubtes =
+    auto attributes =
         Request->Attributes
         ? ConvertToAttributes(Request->Attributes)
         : CreateEphemeralAttributes();
@@ -56,7 +56,7 @@ void TUploadCommand::DoExecute()
         GetTransaction(false),
         Context->GetTransactionManager(),
         Request->Path,
-        ~attribubtes);
+        ~attributes);
     writer->Open();
 
     auto input = Context->GetRequest()->InputStream;

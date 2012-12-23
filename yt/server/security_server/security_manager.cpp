@@ -160,10 +160,17 @@ public:
         return it == AccountNameMap.end() ? NULL : it->second;
     }
 
+
     TAccount* GetSysAccount()
     {
-        YASSERT(SysAccount);
+        YCHECK(SysAccount);
         return SysAccount;
+    }
+
+    TAccount* GetTmpAccount()
+    {
+        YCHECK(TmpAccount);
+        return TmpAccount;
     }
 
 
@@ -171,6 +178,9 @@ public:
     {
         YCHECK(node);
         YCHECK(account);
+
+        if (!IsUncommittedAccountingEnabled(node))
+            return;
 
         auto* oldAccount = node->GetAccount();
         if (oldAccount == account)
@@ -207,6 +217,9 @@ public:
 
     void ResetAccount(ICypressNode* node)
     {
+        if (!IsUncommittedAccountingEnabled(node))
+            return;
+
         auto* account = node->GetAccount();
         if (!account)
             return;
@@ -231,12 +244,11 @@ public:
 
     void UpdateAccountNodeUsage(ICypressNode* node)
     {
-        auto* account = node->GetAccount();
-        if (!account)
+        if (!IsUncommittedAccountingEnabled(node))
             return;
 
-        auto* transaction = node->GetTransaction();
-        if (transaction && !transaction->GetUncommittedAccountingEnabled())
+        auto* account = node->GetAccount();
+        if (!account)
             return;
 
         auto* transactionUsage = FindTransactionAccountUsage(node);
@@ -259,7 +271,7 @@ public:
         TAccount* account,
         const TClusterResources& delta)
     {
-        if (!transaction->GetStagedAccountingEnabled())
+        if (!IsStagedAccountingEnabled(transaction))
             return;
        
         account->ResourceUsage() += delta;
@@ -281,6 +293,18 @@ private:
     
     TAccountId TmpAccountId;
     TAccount* TmpAccount;
+
+
+    static bool IsUncommittedAccountingEnabled(ICypressNode* node)
+    {
+        auto* transaction = node->GetTransaction();
+        return !transaction || transaction->GetUncommittedAccountingEnabled();
+    }
+
+    static bool IsStagedAccountingEnabled(TTransaction* transaction)
+    {
+        return transaction->GetStagedAccountingEnabled();
+    }
 
 
     TAccount* DoCreateAccount(const TAccountId& id, const Stroka& name)
@@ -424,6 +448,11 @@ TAccount* TSecurityManager::FindAccountByName(const Stroka& name)
 TAccount* TSecurityManager::GetSysAccount()
 {
     return Impl->GetSysAccount();
+}
+
+TAccount* TSecurityManager::GetTmpAccount()
+{
+    return Impl->GetTmpAccount();
 }
 
 void TSecurityManager::SetAccount(ICypressNode* node, TAccount* account)

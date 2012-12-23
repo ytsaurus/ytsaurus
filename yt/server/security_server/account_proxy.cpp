@@ -40,8 +40,10 @@ private:
     virtual void ValidateRemoval() override
     {
         auto securityManager = Bootstrap->GetSecurityManager();
-        if (Id == securityManager->GetSysAccount()->GetId()) {
-            THROW_ERROR_EXCEPTION("Cannot remove system account");
+        if (Id == securityManager->GetSysAccount()->GetId() ||
+            Id == securityManager->GetTmpAccount()->GetId())
+        {
+            THROW_ERROR_EXCEPTION("Cannot remove a built-in account");
         }
     }
 

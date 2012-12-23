@@ -84,16 +84,23 @@ class TFileNodeTypeHandler
 public:
     typedef TCypressNodeTypeHandlerBase<TFileNode> TBase;
 
-    TFileNodeTypeHandler(TBootstrap* bootstrap)
+    explicit TFileNodeTypeHandler(TBootstrap* bootstrap)
         : TBase(bootstrap)
     { }
 
-    EObjectType GetObjectType()
+    virtual void SetDefaultAttributes(IAttributeDictionary* attributes) override
+    {
+        if (!attributes->Contains("replication_factor")) {
+            attributes->Set("replication_factor", 3);
+        }
+    }
+
+    virtual EObjectType GetObjectType() override
     {
         return EObjectType::File;
     }
 
-    ENodeType GetNodeType()
+    virtual ENodeType GetNodeType() override
     {
         return ENodeType::Entity;
     }
@@ -145,9 +152,7 @@ protected:
         YCHECK(chunkList->OwningNodes().insert(~node).second);
         objectManager->RefObject(chunkList);
 
-        std::vector<TChunkTreeRef> children;
-        children.push_back(TChunkTreeRef(chunk));
-        chunkManager->AttachToChunkList(chunkList, children);
+        chunkManager->AttachToChunkList(chunkList, TChunkTreeRef(chunk));
 
         return node;
     }

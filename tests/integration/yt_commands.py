@@ -42,13 +42,13 @@ def send_data(process, data=None):
     print stdout
     return stdout.strip('\n')
 
-def command(name, *args, **kw):
-    process = run_command(name, *args, **kw)
+def command(name, *args, **kwargs):
+    process = run_command(name, *args, **kwargs)
     return send_data(process)
 
-def convert_to_yt_args(*args, **kw):
+def convert_to_yt_args(*args, **kwargs):
     all_args = list(args)
-    for k, v in kw.items():
+    for k, v in kwargs.items():
         # workaround to deal with 'in' as keyword
         if k == 'in_': k = 'in'
 
@@ -63,8 +63,8 @@ def convert_to_yt_args(*args, **kw):
 def quote(s):
     return "'" + s + "'"
 
-def run_command(name, *args, **kw):
-    all_args = [name] + convert_to_yt_args(*args, **kw)
+def run_command(name, *args, **kwargs):
+    all_args = [name] + convert_to_yt_args(*args, **kwargs)
     debug_string =  'yt ' + ' '.join(quote(s) for s in all_args)
     print debug_string
 
@@ -78,94 +78,94 @@ def run_command(name, *args, **kw):
 
 ###########################################################################
 
-def lock(path, **kw):
-    return command('lock', path, **kw)
+def lock(path, **kwargs):
+    return command('lock', path, **kwargs)
 
-def get_str(path, **kw):
-    return command('get', path, **kw)
+def get_str(path, **kwargs):
+    return command('get', path, **kwargs)
 
-def remove(path, **kw):
-    return command('remove', path, **kw)
+def remove(path, **kwargs):
+    return command('remove', path, **kwargs)
 
-def set_str(path, value, **kw):
-    return command('set', path, value, **kw)
+def set_str(path, value, **kwargs):
+    return command('set', path, value, **kwargs)
 
-def ls_str(path, **kw):
-    return command('list', path, **kw)
+def ls_str(path, **kwargs):
+    return command('list', path, **kwargs)
 
-def create(object_type, path, **kw):
-    return command('create', object_type, path, **kw)
+def create(object_type, path, **kwargs):
+    return command('create', object_type, path, **kwargs)
 
-def copy(source_path, destination_path, **kw):
-    return command('copy', source_path, destination_path, **kw)
+def copy(source_path, destination_path, **kwargs):
+    return command('copy', source_path, destination_path, **kwargs)
 
-def move(source_path, destination_path, **kw):
-    return command('move', source_path, destination_path, **kw)
+def move(source_path, destination_path, **kwargs):
+    return command('move', source_path, destination_path, **kwargs)
 
-def exists(path, **kw):
-    res = command('exists', path, **kw)
+def exists(path, **kwargs):
+    res = command('exists', path, **kwargs)
     return yson2py(res)
 
-def read_str(path, **kw):
-    return command('read', path, **kw)
+def read_str(path, **kwargs):
+    return command('read', path, **kwargs)
 
-def write_str(path, value, **kw):
-    return command('write', path, value, **kw)
+def write_str(path, value, **kwargs):
+    return command('write', path, value, **kwargs)
 
-def start_transaction(**kw):
-    out = command('start_tx', **kw)
+def start_transaction(**kwargs):
+    out = command('start_tx', **kwargs)
     return out.replace('"', '').strip('\n')
 
-def commit_transaction(tx, **kw):
-    return command('commit_tx', tx, **kw)
+def commit_transaction(tx, **kwargs):
+    return command('commit_tx', tx, **kwargs)
 
-def renew_transaction(tx, *args, **kw):
-    return command('renew_tx', tx, *args, **kw)
+def renew_transaction(tx, *args, **kwargs):
+    return command('renew_tx', tx, *args, **kwargs)
 
-def abort_transaction(tx, **kw):
-    return command('abort_tx', tx, **kw)
+def abort_transaction(tx, **kwargs):
+    return command('abort_tx', tx, **kwargs)
 
-def upload(path, data, **kw): 
-    process =  run_command('upload', path, **kw)
+def upload(path, data, **kwargs): 
+    process =  run_command('upload', path, **kwargs)
     return send_data(process, data)
 
-def upload_file(path, file_name, **kw):
+def upload_file(path, file_name, **kwargs):
     with open(file_name, 'rt') as f:
-        return upload(path, f.read(), **kw)
+        return upload(path, f.read(), **kwargs)
 
-def download(path, **kw):
-    return command('download', path, **kw)
+def download(path, **kwargs):
+    return command('download', path, **kwargs)
 
-def start_op(op_type, *args, **kw):
-    out = command(op_type, *args, **kw)
+def start_op(op_type, *args, **kwargs):
+    out = command(op_type, *args, **kwargs)
     return out.replace('"', '').strip('\n')
 
-def map(*args, **kw):
-    return start_op('map', *args, **kw)
+def map(*args, **kwargs):
+    return start_op('map', *args, **kwargs)
 
-def merge(*args, **kw):
-    return start_op('merge', *args, **kw)
+def merge(*args, **kwargs):
+    return start_op('merge', *args, **kwargs)
 
-def reduce(*args, **kw):
-    return start_op('reduce', *args, **kw)
+def reduce(*args, **kwargs):
+    return start_op('reduce', *args, **kwargs)
 
-def map_reduce(*args, **kw):
-    return start_op('map_reduce', *args, **kw)
+def map_reduce(*args, **kwargs):
+    return start_op('map_reduce', *args, **kwargs)
 
-def erase(path, *args, **kw):
-    return start_op('erase', path, *args, **kw)
+def erase(path, *args, **kwargs):
+    return start_op('erase', path, *args, **kwargs)
 
-def sort(*args, **kw):
-    return start_op('sort', *args, **kw)
+def sort(*args, **kwargs):
+    return start_op('sort', *args, **kwargs)
 
-def track_op(op, **kw):
-    command('track_op', op, **kw)
+def track_op(op, **kwargs):
+    command('track_op', op, **kwargs)
 
-def abort_op(op, **kw):
-    command('abort_op', op, **kw)
+def abort_op(op, **kwargs):
+    command('abort_op', op, **kwargs)
 
-def build_snapshot(*args, **kw):
-    command('build_snapshot', *args, **kw)
+def build_snapshot(*args, **kwargs):
+    command('build_snapshot', *args, **kwargs)
 
 def gc_collect():
     command('gc_collect')
@@ -178,23 +178,23 @@ def remove_account(name):
 
 #########################################
 
-def get(path, **kw):
-    return yson2py(get_str(path, **kw))
+def get(path, **kwargs):
+    return yson2py(get_str(path, **kwargs))
 
-def ls(path, **kw):
-    return yson2py(ls_str(path, **kw))
+def ls(path, **kwargs):
+    return yson2py(ls_str(path, **kwargs))
 
-def set(path, value, **kw):
-    return set_str(path, py2yson(value), **kw)
+def set(path, value, **kwargs):
+    return set_str(path, py2yson(value), **kwargs)
 
-def read(path, **kw):
-    return table2py(read_str(path, **kw))
+def read(path, **kwargs):
+    return table2py(read_str(path, **kwargs))
 
-def write(path, value, **kw):
+def write(path, value, **kwargs):
     output = py2yson(value)
     if isinstance(value, list):
         output = output[1:-1] # remove surrounding [ ]
-    return write_str(path, output, **kw)
+    return write_str(path, output, **kwargs)
 
 #########################################
 # Helpers:

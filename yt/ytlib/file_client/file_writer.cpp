@@ -42,7 +42,7 @@ TFileWriter::TFileWriter(
     , Attributes(attributes ? attributes->Clone() : CreateEphemeralAttributes())
     , Logger(FileWriterLogger)
 {
-    YASSERT(transactionManager);
+    YCHECK(transactionManager);
 
     Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
         ~Path,
