@@ -81,6 +81,15 @@ install(
 )
 
 install(
+  DIRECTORY static/
+  DESTINATION lib/node_modules/yt/static
+  COMPONENT nodejs
+  FILES_MATCHING
+    PATTERN "*.css"
+    PATTERN "*.mustache"
+)
+
+install(
   FILES index.js
   DESTINATION lib/node_modules/yt
   COMPONENT nodejs
