@@ -16,7 +16,7 @@ using namespace NCellMaster;
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransaction::TTransaction(const TTransactionId& id)
-    : TObjectWithIdBase(id)
+    : TUnversionedObjectBase(id)
     , UncommittedAccountingEnabled_(false)
     , StagedAccountingEnabled_(false)
     , Parent_(NULL)
@@ -25,7 +25,7 @@ TTransaction::TTransaction(const TTransactionId& id)
 
 void TTransaction::Save(const NCellMaster::TSaveContext& context) const
 {
-    TObjectWithIdBase::Save(context);
+    TUnversionedObjectBase::Save(context);
 
     auto* output = context.GetOutput();
     ::Save(output, State_);
@@ -44,7 +44,7 @@ void TTransaction::Save(const NCellMaster::TSaveContext& context) const
 
 void TTransaction::Load(const NCellMaster::TLoadContext& context)
 {
-    TObjectWithIdBase::Load(context);
+    TUnversionedObjectBase::Load(context);
 
     auto* input = context.GetInput();
     ::Load(input, State_);

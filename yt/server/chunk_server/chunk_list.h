@@ -29,7 +29,7 @@ struct TVersionedChunkListId
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkList
-    : public NObjectServer::TObjectWithIdBase
+    : public NObjectServer::TUnversionedObjectBase
 {
     DEFINE_BYREF_RW_PROPERTY(std::vector<TChunkTreeRef>, Children);
 

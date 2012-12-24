@@ -26,7 +26,7 @@ struct TObjectManagerConfig;
 typedef TIntrusivePtr<TObjectManagerConfig> TObjectManagerConfigPtr;
 
 class TObjectBase;
-class TObjectWithIdBase;
+class TUnversionedObjectBase;
 
 struct IObjectProxy;
 typedef TIntrusivePtr<IObjectProxy> IObjectProxyPtr;
@@ -50,7 +50,7 @@ struct TObjectIdTraits
 template <class T>
 struct TObjectIdTraits<
     T,
-    typename NMpl::TEnableIfC< NMpl::TIsConvertible<T, TObjectWithIdBase*>::Value >::TType>
+    typename NMpl::TEnableIfC< NMpl::TIsConvertible<T, TUnversionedObjectBase*>::Value >::TType>
 {
     typedef TObjectId TId;
 };
@@ -63,7 +63,7 @@ struct TObjectIdTraits<
 template <class T>
 TObjectId GetObjectId(
     T object,
-    typename NMpl::TEnableIf< NMpl::TIsConvertible<T, const TObjectWithIdBase*>, void* >::TType = NULL)
+    typename NMpl::TEnableIf< NMpl::TIsConvertible<T, const TUnversionedObjectBase*>, void* >::TType = NULL)
 {
     return object ? object->GetId() : NullObjectId;
 }

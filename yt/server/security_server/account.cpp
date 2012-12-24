@@ -9,14 +9,14 @@ namespace NSecurityServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 TAccount::TAccount(const TAccountId& id)
-    : TObjectWithIdBase(id)
+    : TUnversionedObjectBase(id)
     , ResourceUsage_(ZeroClusterResources())
     , NodeCount_(0)
 { }
 
 void TAccount::Save(const NCellMaster::TSaveContext& context) const
 {
-    TObjectWithIdBase::Save(context);
+    TUnversionedObjectBase::Save(context);
 
     auto* output = context.GetOutput();
     ::Save(output, Name_);
@@ -26,7 +26,7 @@ void TAccount::Save(const NCellMaster::TSaveContext& context) const
 
 void TAccount::Load(const NCellMaster::TLoadContext& context)
 {
-    TObjectWithIdBase::Load(context);
+    TUnversionedObjectBase::Load(context);
 
     auto* input = context.GetInput();
     ::Load(input, Name_);

@@ -363,7 +363,7 @@ void TObjectManager::RefObject(const TVersionedNodeId& id)
     RefObject(id.ObjectId);
 }
 
-void TObjectManager::RefObject(TObjectWithIdBase* object)
+void TObjectManager::RefObject(TUnversionedObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -383,10 +383,10 @@ void TObjectManager::RefObject(TChunkTreeRef ref)
 {
     switch (ref.GetType()) {
         case EObjectType::Chunk:
-            RefObject((TObjectWithIdBase*) ref.AsChunk());
+            RefObject((TUnversionedObjectBase*) ref.AsChunk());
             break;
         case EObjectType::ChunkList:
-            RefObject((TObjectWithIdBase*) ref.AsChunkList());
+            RefObject((TUnversionedObjectBase*) ref.AsChunkList());
             break;
         default:
             YUNREACHABLE();
@@ -406,7 +406,7 @@ void TObjectManager::UnrefObject(const TVersionedNodeId& id)
     UnrefObject(id.ObjectId);
 }
 
-void TObjectManager::UnrefObject(TObjectWithIdBase* object)
+void TObjectManager::UnrefObject(TUnversionedObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
@@ -428,10 +428,10 @@ void TObjectManager::UnrefObject(TChunkTreeRef ref)
 {
     switch (ref.GetType()) {
         case EObjectType::Chunk:
-            UnrefObject(static_cast<TObjectWithIdBase*>(ref.AsChunk()));
+            UnrefObject(static_cast<TUnversionedObjectBase*>(ref.AsChunk()));
             break;
         case EObjectType::ChunkList:
-            UnrefObject(static_cast<TObjectWithIdBase*>(ref.AsChunkList()));
+            UnrefObject(static_cast<TUnversionedObjectBase*>(ref.AsChunkList()));
             break;
         default:
             YUNREACHABLE();
