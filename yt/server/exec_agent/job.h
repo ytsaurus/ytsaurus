@@ -73,17 +73,17 @@ public:
 
 private:
     void DoStart(TEnvironmentManagerPtr environmentManager);
-    
+
     void PrepareUserJob(
         const NScheduler::NProto::TUserJobSpec& userJobSpec,
         TParallelAwaiterPtr awaiter);
     TPromise<void> PrepareDownloadingTableFile(
         const NYT::NScheduler::NProto::TTableFile& rsp);
-    
+
     void OnChunkDownloaded(
         const NFileClient::NProto::TRspFetchFile& fetchRsp,
         TValueOrError<NChunkHolder::TCachedChunkPtr> result);
-    
+
     typedef std::vector< TValueOrError<NChunkHolder::TCachedChunkPtr> > TDownloadedChunks;
     void OnTableDownloaded(
         const NYT::NScheduler::NProto::TTableFile& tableFileRsp,
@@ -100,8 +100,8 @@ private:
     void OnJobExit(TError error);
 
     void DoAbort(
-        const TError& error, 
-        NScheduler::EJobState resultState, 
+        const TError& error,
+        NScheduler::EJobState resultState,
         bool killJobProxy = false);
 
     const TJobId JobId;
@@ -135,6 +135,7 @@ private:
 
     NJobProxy::TJobProxyConfigPtr ProxyConfig;
 
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 };
 

@@ -63,12 +63,18 @@ TJob::TJob(
     , Progress(0.0)
     , JobFinished(NewPromise<void>())
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
     Logger.AddTag(Sprintf("JobId: %s", ~jobId.ToString()));
 }
 
 void TJob::Start(TEnvironmentManagerPtr environmentManager, TSlotPtr slot)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
     YCHECK(!Slot);
+
+    if (JobState != EJobState::Waiting) {
+        return;
+    }
 
     JobState = EJobState::Running;
 
@@ -179,7 +185,7 @@ TPromise<void> TJob::PrepareDownloadingTableFile(
     FOREACH (const auto chunk, rsp.table().chunks()) {
         chunkIds.push_back(TChunkId::FromProto(chunk.slice().chunk_id()));
     }
-    
+
     LOG_INFO(
         "Downloading user table file (FileName: %s, ChunkIds: %s)",
         ~rsp.file_name(),
@@ -201,7 +207,7 @@ TPromise<void> TJob::PrepareDownloadingTableFile(
                     DoAbort(wrappedError, EJobState::Failed, false);
                     return;
                 }
-                
+
                 chunks->push_back(result);
             })
         );
@@ -478,13 +484,20 @@ void TJob::ReleaseResources(const TNodeResources& newUsage)
 
 void TJob::Abort(const TError& error)
 {
-    JobState = EJobState::Aborting;
-    Slot->GetInvoker()->Invoke(BIND(
-        &TJob::DoAbort,
-        MakeStrong(this),
-        error,
-        EJobState::Aborted,
-        true));
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    if (JobState == EJobState::Waiting) {
+        YCHECK(!Slot);
+        JobState == EJobState::Aborted;
+    } else {
+        JobState = EJobState::Aborting;
+        Slot->GetInvoker()->Invoke(BIND(
+            &TJob::DoAbort,
+            MakeStrong(this),
+            error,
+            EJobState::Aborted,
+            true));
+    }
 }
 
 void TJob::DoAbort(const TError& error, EJobState resultState, bool killJobProxy)
