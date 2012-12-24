@@ -28,23 +28,34 @@ public:
     ~TChangeLog();
 
     //! Opens existing changelog.
-    //! Throws exception on failure.
+    //! Throws an exception on failure.
     void Open();
+
     //! Creates new changelog.
-    //! Throws exception on failure.
+    //! Throws an exception on failure.
     void Create(int prevRecordCount, const TEpochId& epoch);
+
     //! Finalizes current changelog.
     void Finalize();
-    //! Reverts the effects of #FInalize, that is marks a finalize changelog as opened.
+
+    //! Reverts the effects of #Finalize, that is marks a finalize changelog as opened.
     //! Debug method, use it with care.
     void Definalize();
 
     //! Appends records to the changelog.
     void Append(int firstRecordId, const std::vector<TSharedRef>& records);
+    
     //! Flushes the changelog.
     void Flush();
+
     //! Reads #recordCount records starting from record with id #firstRecordId.
-    void Read(int firstRecordId, int recordCount, std::vector<TSharedRef>* result);
+    //! Stops if more than #maxSizes bytes are read.
+    void Read(
+        int firstRecordId,
+        int recordCount,
+        i64 maxSize,
+        std::vector<TSharedRef>* result);
+    
     //! Deletes all records with id greater or equal than #atRecordId.
     void Truncate(int truncatedRecordCount);
 

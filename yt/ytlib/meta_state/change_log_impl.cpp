@@ -47,34 +47,41 @@ void TChangeLog::TImpl::Append(const std::vector<TSharedRef>& records)
     }
 }
 
-void TChangeLog::TImpl::Append(int firstRecordId, const std::vector<TSharedRef>& records)
+void TChangeLog::TImpl::Append(int firstRecordIndex, const std::vector<TSharedRef>& records)
 {
-    YCHECK(firstRecordId == RecordCount);
+    YCHECK(firstRecordIndex == RecordCount);
     Append(records);
 }
 
 void TChangeLog::TImpl::Append(const TSharedRef& recordData)
 {
-    int recordId = RecordCount;
-    TRecordHeader header(recordId, recordData.Size(), GetChecksum(recordData));
+    int recordIndex = RecordCount;
+    TRecordHeader header(recordIndex, recordData.Size(), GetChecksum(recordData));
 
     int readSize = 0;
     readSize += AppendPodPadded(*File, header);
     readSize += AppendPadded(*File, recordData);
 
-    ProcessRecord(recordId, readSize);
+    ProcessRecord(recordIndex, readSize);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TChangeLog::TImpl::Read(int firstRecordId, int recordCount, std::vector<TSharedRef>* records)
+void TChangeLog::TImpl::Read(
+    int firstRecordIndex,
+    int recordCount,
+    i64 maxSize,
+    std::vector<TSharedRef>* records)
 {
-    // Check stupid conditions.
-    YCHECK(firstRecordId >= 0);
+    // Sanity check.
+    YCHECK(firstRecordIndex >= 0);
     YCHECK(recordCount >= 0);
     YCHECK(State != EState::Uninitialized);
 
-    LOG_DEBUG("Reading records %d-%d", firstRecordId, firstRecordId + recordCount - 1);
+    LOG_DEBUG("Reading records %d-%d (MaxSize: %" PRId64 ")",
+        firstRecordIndex,
+        firstRecordIndex + recordCount - 1,
+        maxSize);
 
     // Prevent search in empty index.
     if (Index.empty()) {
@@ -82,28 +89,33 @@ void TChangeLog::TImpl::Read(int firstRecordId, int recordCount, std::vector<TSh
         return;
     }
 
-    recordCount = std::min(recordCount, RecordCount - firstRecordId);
-    int lastRecordId = firstRecordId + recordCount;
+    recordCount = std::min(recordCount, RecordCount - firstRecordIndex);
+    int lastRecordIndex = firstRecordIndex + recordCount;
 
     // Read envelope piece of changelog.
-    auto envelope = ReadEnvelope(firstRecordId, lastRecordId);
+    auto envelope = ReadEnvelope(firstRecordIndex, lastRecordIndex);
 
     // Read records from envelope data and save them to the records.
-    records->resize(recordCount);
-    TMemoryInput inputStream(envelope.Blob.Begin(), envelope.Length());
-    for (int recordId = envelope.StartRecordId(); recordId < envelope.EndRecordId(); ++recordId) {
+    // TODO(babenko): this is suboptimal since for small maxSize values we actually read way more than needed.
+    i64 readSize = 0;    
+    TMemoryInput inputStream(envelope.Blob.Begin(), envelope.GetLength());
+    for (int recordIndex = envelope.GetStartRecordIndex();
+         recordIndex < envelope.GetEndRecordIndex() && readSize <= maxSize;
+         ++recordIndex)
+    {
         // Read and check header.
         TRecordHeader header;
         ReadPodPadded(inputStream, header);
-        YCHECK(header.RecordId == recordId);
+        YCHECK(header.RecordIndex == recordIndex);
 
         // Save and pad data.
         TSharedRef data(envelope.Blob, TRef(const_cast<char*>(inputStream.Buf()), header.DataLength));
         inputStream.Skip(AlignUp(header.DataLength));
 
         // Add data to the records.
-        if (recordId >= firstRecordId && recordId < lastRecordId) {
-            (*records)[recordId - firstRecordId] = data;
+        if (recordIndex >= firstRecordIndex && recordIndex < lastRecordIndex) {
+            records->push_back(data);
+            readSize += data.Size();
         }
     }
 }
@@ -219,15 +231,15 @@ void TChangeLog::TImpl::Truncate(int truncatedRecordCount)
     if (truncatedRecordCount == 0) {
         Index.clear();
     } else {
-        auto cutBound = (envelope.LowerBound.RecordId == truncatedRecordCount) ? envelope.LowerBound : envelope.UpperBound;
+        auto cutBound = (envelope.LowerBound.RecordIndex == truncatedRecordCount) ? envelope.LowerBound : envelope.UpperBound;
         auto indexPosition =
             std::lower_bound(Index.begin(), Index.end(), cutBound) - Index.begin();
         Index.resize(indexPosition);
     }
     
     i64 readSize = 0;
-    TMemoryInput inputStream(envelope.Blob.Begin(), envelope.Length());
-    for (int i = envelope.StartRecordId(); i < truncatedRecordCount; ++i) {
+    TMemoryInput inputStream(envelope.Blob.Begin(), envelope.GetLength());
+    for (int i = envelope.GetStartRecordIndex(); i < truncatedRecordCount; ++i) {
         TRecordHeader header;
         readSize += ReadPodPadded(inputStream, header);
         auto alignedSize = AlignUp(header.DataLength);
@@ -237,7 +249,7 @@ void TChangeLog::TImpl::Truncate(int truncatedRecordCount)
 
     RecordCount = truncatedRecordCount;
     CurrentBlockSize = readSize;
-    CurrentFilePosition = envelope.StartPosition() + readSize;
+    CurrentFilePosition = envelope.GetStartPosition() + readSize;
     {
         TGuard<TMutex> guard(Mutex);
         IndexFile->Resize(sizeof(TLogIndexHeader) + Index.size() * sizeof(TLogIndexRecord));
@@ -370,8 +382,8 @@ TNullable<TRecordInfo> ReadRecord(TCheckableFileReader<Stream>& input)
 
     auto checksum = GetChecksum(data);
     LOG_FATAL_UNLESS(header.Checksum == checksum,
-        "Incorrect checksum of record %d", header.RecordId);
-    return TRecordInfo(header.RecordId, readSize);
+        "Incorrect checksum of record %d", header.RecordIndex);
+    return TRecordInfo(header.RecordIndex, readSize);
 }
 
 // Calculates maximal correct prefix of index.
@@ -382,11 +394,11 @@ size_t GetMaxCorrectIndexPrefix(const std::vector<TLogIndexRecord>& index, TBuff
     for (int i = 0; i < index.size(); ++i) {
         bool correct;
         if (i == 0) {
-            correct = index[i].FilePosition == sizeof(TLogHeader) && index[i].RecordId == 0;
+            correct = index[i].FilePosition == sizeof(TLogHeader) && index[i].RecordIndex == 0;
         } else {
             correct =
                 index[i].FilePosition > index[i - 1].FilePosition &&
-                index[i].RecordId > index[i - 1].RecordId;
+                index[i].RecordIndex > index[i - 1].RecordIndex;
         }
         if (!correct) {
             break;
@@ -418,23 +430,23 @@ size_t GetMaxCorrectIndexPrefix(const std::vector<TLogIndexRecord>& index, TBuff
 } // anonymous namespace
 
 
-void TChangeLog::TImpl::ProcessRecord(int recordId, int readSize)
+void TChangeLog::TImpl::ProcessRecord(int recordIndex, int readSize)
 {
     if (CurrentBlockSize >= IndexBlockSize || RecordCount == 0) {
         // Add index record in two cases:
         // 1) processing first record;
         // 2) size of records since previous index record is more than IndexBlockSize.
-        YCHECK(Index.empty() || Index.back().RecordId != recordId);
+        YCHECK(Index.empty() || Index.back().RecordIndex != recordIndex);
 
         CurrentBlockSize = 0;
-        Index.push_back(TLogIndexRecord(recordId, CurrentFilePosition));
+        Index.push_back(TLogIndexRecord(recordIndex, CurrentFilePosition));
         {
             TGuard<TMutex> guard(Mutex);
             WritePod(*IndexFile, Index.back());
             RefreshIndexHeader();
         }
-        LOG_DEBUG("Changelog index record added (RecordId: %d, Offset: %" PRId64 ")",
-            recordId, CurrentFilePosition);
+        LOG_DEBUG("Changelog index record added (Index: %d, Offset: %" PRId64 ")",
+            recordIndex, CurrentFilePosition);
     }
     // Record appended successfully.
     CurrentBlockSize += readSize;
@@ -507,7 +519,7 @@ void TChangeLog::TImpl::ReadChangeLogUntilEnd()
         recordInfo = ReadRecord(checkableFile);
         // It should be correct because we have already check index.
         YASSERT(recordInfo);
-        RecordCount = Index.back().RecordId + 1;
+        RecordCount = Index.back().RecordIndex + 1;
         CurrentFilePosition += recordInfo->TotalSize;
     }
 
@@ -517,11 +529,11 @@ void TChangeLog::TImpl::ReadChangeLogUntilEnd()
         if (!recordInfo || recordInfo->Id != RecordCount) {
             // Broken changelog case.
             if (State == EState::Finalized) {
-                LOG_ERROR("Finalized changelog contains a broken record (RecordId: %d, Offset: %" PRId64 ")",
+                LOG_ERROR("Finalized changelog contains a broken record (Index: %d, Offset: %" PRId64 ")",
                     RecordCount,
                     CurrentFilePosition);
             } else {
-                LOG_ERROR("Broken record found, changelog trimmed (RecordId: %d, Offset: %" PRId64 ")",
+                LOG_ERROR("Broken record found, changelog trimmed (Index: %d, Offset: %" PRId64 ")",
                     RecordCount,
                     CurrentFilePosition);
             }
@@ -557,24 +569,23 @@ typename std::vector<T>::const_iterator FirstGreater(const std::vector<T>& vec, 
 
 } // anonymous namesapce
 
-TChangeLog::TImpl::TEnvelopeData TChangeLog::TImpl::ReadEnvelope(int firstRecordId, int lastRecordId)
+TChangeLog::TImpl::TEnvelopeData TChangeLog::TImpl::ReadEnvelope(int firstRecordIndex, int lastRecordIndex)
 {
     TEnvelopeData result;
-    result.LowerBound = *LastNotGreater(Index, TLogIndexRecord(firstRecordId, -1));
-    auto it = FirstGreater(Index, TLogIndexRecord(lastRecordId, -1));
+    result.LowerBound = *LastNotGreater(Index, TLogIndexRecord(firstRecordIndex, -1));
+    auto it = FirstGreater(Index, TLogIndexRecord(lastRecordIndex, -1));
     result.UpperBound =
         it != Index.end() ?
         *it :
         TLogIndexRecord(RecordCount, CurrentFilePosition);
-
+    result.Blob = TSharedRef(result.GetLength());
     {
-        result.Blob = TSharedRef(result.Length());
         TGuard<TMutex> guard(Mutex);
         size_t bytesRead = File->Pread(
             result.Blob.Begin(),
-            result.Length(),
-            result.StartPosition());
-        YCHECK(bytesRead == result.Length());
+            result.GetLength(),
+            result.GetStartPosition());
+        YCHECK(bytesRead == result.GetLength());
     }
     return result;
 }

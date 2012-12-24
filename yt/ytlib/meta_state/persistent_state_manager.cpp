@@ -341,7 +341,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        i32 snapshotId = request->snapshot_id();
+        int snapshotId = request->snapshot_id();
 
         context->SetRequestInfo("SnapshotId: %d", snapshotId);
 
@@ -373,9 +373,10 @@ public:
 
         UNUSED(response);
 
-        i32 snapshotId = request->snapshot_id();
+        int snapshotId = request->snapshot_id();
         i64 offset = request->offset();
-        i32 length = request->length();
+        // TODO(babenko): consider making i64
+        int length = request->length();
 
         context->SetRequestInfo("SnapshotId: %d, Offset: %" PRId64 ", Length: %d",
             snapshotId,
@@ -428,7 +429,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        i32 changeLogId = request->change_log_id();
+        int changeLogId = request->change_log_id();
 
         context->SetRequestInfo("ChangeLogId: %d",
             changeLogId);
@@ -439,7 +440,7 @@ public:
         }
 
         auto changeLog = result.Value();
-        i32 recordCount = changeLog->GetRecordCount();
+        int recordCount = changeLog->GetRecordCount();
 
         response->set_record_count(recordCount);
 
@@ -453,16 +454,16 @@ public:
 
         UNUSED(response);
 
-        i32 changeLogId = request->change_log_id();
-        i32 startRecordId = request->start_record_id();
-        i32 recordCount = request->record_count();
+        int changeLogId = request->change_log_id();
+        int startRecordIndex = request->start_record_index();
+        int recordCount = request->record_count();
 
-        context->SetRequestInfo("ChangeLogId: %d, StartRecordId: %d, RecordCount: %d",
+        context->SetRequestInfo("ChangeLogId: %d, StartRecordIndex: %d, RecordCount: %d",
             changeLogId,
-            startRecordId,
+            startRecordIndex,
             recordCount);
 
-        YCHECK(startRecordId >= 0);
+        YCHECK(startRecordIndex >= 0);
         YCHECK(recordCount >= 0);
 
         auto result = ChangeLogCache->Get(changeLogId);
@@ -474,21 +475,25 @@ public:
             &TThis::DoReadChangeLog,
             MakeStrong(this),
             result.Value(),
-            startRecordId,
+            startRecordIndex,
             recordCount)));
     }
 
     void DoReadChangeLog(
         TCachedAsyncChangeLogPtr changeLog,
-        i32 startRecordId,
-        i32 recordCount,
+        int startRecordIndex,
+        int recordCount,
         TCtxReadChangeLogPtr context)
     {
         VERIFY_THREAD_AFFINITY(IOThread);
 
         std::vector<TSharedRef> recordData;
         try {
-            changeLog->Read(startRecordId, recordCount, &recordData);
+            changeLog->Read(
+                startRecordIndex,
+                recordCount,
+                Config->MaxChangeLogReadSize,
+                &recordData);
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "IO error while reading changelog %d",
                 changeLog->GetId());
@@ -506,8 +511,8 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto epochId = TEpochId::FromProto(request->epoch_id());
-        i32 segmentId = request->segment_id();
-        i32 recordCount = request->record_count();
+        int segmentId = request->segment_id();
+        int recordCount = request->record_count();
         TMetaVersion version(segmentId, recordCount);
 
         context->SetRequestInfo("EpochId: %s, Version: %s",
@@ -584,8 +589,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        i32 segmentId = request->segment_id();
-        i32 recordCount = request->record_count();
+        int segmentId = request->segment_id();
+        int recordCount = request->record_count();
         auto version = TMetaVersion(segmentId, recordCount);
         auto epochId = TEpochId::FromProto(request->epoch_id());
 
@@ -651,8 +656,8 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto epochId = TEpochId::FromProto(request->epoch_id());
-        i32 segmentId = request->segment_id();
-        i32 recordCount = request->record_count();
+        int segmentId = request->segment_id();
+        int recordCount = request->record_count();
         auto version = TMetaVersion(segmentId, recordCount);
         bool createSnapshot = request->create_snapshot();
 
@@ -765,10 +770,10 @@ public:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, LookupSnapshot)
     {
-        i32 maxSnapshotId = request->max_snapshot_id();
+        int maxSnapshotId = request->max_snapshot_id();
         context->SetRequestInfo("MaxSnapshotId: %d", maxSnapshotId);
 
-        i32 snapshotId = SnapshotStore->LookupLatestSnapshot(maxSnapshotId);
+        int snapshotId = SnapshotStore->LookupLatestSnapshot(maxSnapshotId);
 
         response->set_snapshot_id(snapshotId);
         context->SetResponseInfo("SnapshotId: %d", snapshotId);

@@ -50,18 +50,18 @@ static_assert(sizeof(TLogHeader) == 36, "Binary size of TLogHeader has changed."
 
 struct TRecordHeader
 {
-    int RecordId;
+    int RecordIndex;
     int DataLength;
     TChecksum Checksum;
 
     TRecordHeader()
-        : RecordId(0)
+        : RecordIndex(0)
         , DataLength(0)
         , Checksum(0)
     { }
 
-    TRecordHeader(int recordId, int dataLength, TChecksum checksum)
-        : RecordId(recordId)
+    TRecordHeader(int recordIndex, int dataLength, TChecksum checksum)
+        : RecordIndex(recordIndex)
         , DataLength(dataLength)
         , Checksum(checksum)
     { }
@@ -96,22 +96,22 @@ static_assert(sizeof(TLogIndexHeader) == 16, "Binary size of TLogIndexHeader has
 struct TLogIndexRecord
 {
     i64 FilePosition;
-    int RecordId;
+    int RecordIndex;
 
-    TLogIndexRecord(int recordId, i64 filePosition):
+    TLogIndexRecord(int recordIndex, i64 filePosition):
         FilePosition(filePosition),
-        RecordId(recordId)
+        RecordIndex(recordIndex)
     { }
 
     //! This initializer is necessary only for reading TLogIndexRecord.
     TLogIndexRecord():
         FilePosition(-1),
-        RecordId(-1)
+        RecordIndex(-1)
     { }
 
     bool operator < (const TLogIndexRecord& other) const
     {
-        return RecordId < other.RecordId;
+        return RecordIndex < other.RecordIndex;
     }
 };
 
@@ -137,11 +137,15 @@ public:
     void Create(int previousRecordCount, const TEpochId& epoch);
 
     void Append(const std::vector<TSharedRef>&);
-    void Append(int firstRecordId, const std::vector<TSharedRef>&);
+    void Append(int firstRecordIndex, const std::vector<TSharedRef>&);
     void Append(const TSharedRef& ref);
 
     void Flush();
-    void Read(int firstRecordId, int recordCount, std::vector<TSharedRef>* records);
+    void Read(
+        int firstRecordIndex,
+        int recordCount,
+        i64 maxSize,
+        std::vector<TSharedRef>* records);
     void Truncate(int recordCount);
 
     void Finalize();
@@ -162,24 +166,24 @@ private:
 
     struct TEnvelopeData
     {
-        i64 Length() const
+        i64 GetLength() const
         {
             return UpperBound.FilePosition - LowerBound.FilePosition;
         }
 
-        i64 StartPosition() const
+        i64 GetStartPosition() const
         {
             return LowerBound.FilePosition;
         }
 
-        i64 StartRecordId() const
+        i64 GetStartRecordIndex() const
         {
-            return LowerBound.RecordId;
+            return LowerBound.RecordIndex;
         }
 
-        i64 EndRecordId() const
+        i64 GetEndRecordIndex() const
         {
-            return UpperBound.RecordId;
+            return UpperBound.RecordIndex;
         }
 
         TLogIndexRecord LowerBound;
@@ -191,7 +195,7 @@ private:
     /*! Checks correctness of record id, updates the index, record count,
      *  current block size and current file position.
      */
-    void ProcessRecord(int recordId, int readSize);
+    void ProcessRecord(int recordIndex, int readSize);
 
     //! Refresh index header and update current number of records.
     void RefreshIndexHeader();
@@ -199,8 +203,8 @@ private:
     //! Reads maximal correct prefix of index, truncate bad index records.
     void ReadIndex();
 
-    //! Reads piece of changelog that contains firstRecordId and lastRecordId.
-    TEnvelopeData ReadEnvelope(int firstRecordId, int lastRecordId);
+    //! Reads piece of changelog containing both #firstRecordIndex and #lastRecordIndex.
+    TEnvelopeData ReadEnvelope(int firstRecordIndex, int lastRecordIndex);
 
     //! Reads changelog starting from the last indexed record until the end of file.
     void ReadChangeLogUntilEnd();

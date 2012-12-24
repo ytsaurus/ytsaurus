@@ -117,7 +117,7 @@ TError TChangeLogDownloader::DownloadChangeLog(
 
         auto req = proxy.ReadChangeLog();
         req->set_change_log_id(version.SegmentId);
-        req->set_start_record_id(downloadedRecordCount);
+        req->set_start_record_index(downloadedRecordCount);
         req->set_record_count(desiredChunkSize);
 
         auto rsp = req->Invoke().Get();

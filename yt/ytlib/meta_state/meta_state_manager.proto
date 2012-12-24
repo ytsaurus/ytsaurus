@@ -32,7 +32,7 @@ message TRspReadSnapshot
 message TReqReadChangeLog
 {
     required int32 change_log_id = 1;
-    required int32 start_record_id = 2;
+    required int32 start_record_index = 2;
     required int32 record_count = 3;
 }
 

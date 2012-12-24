@@ -43,45 +43,70 @@ protected:
     virtual void TearDown()
     { }
 
-public:
-    static void CheckRecord(ui32 data, std::vector<TSharedRef>& result)
-    {
-        EXPECT_EQ(1, result.size());
-        TSharedRef record = result[0];
-        EXPECT_EQ(sizeof(data), record.Size());
-        EXPECT_EQ(       data , *(reinterpret_cast<ui32*>(record.Begin())));
-    }
 };
 
-TVoid ReadRecord(TAsyncChangeLog* asyncChangeLog, ui32 recordId) {
+namespace {
+
+static void CheckRecord(i32 data, const TSharedRef& record)
+{
+    EXPECT_EQ(sizeof(data), record.Size());
+    EXPECT_EQ(       data , *(reinterpret_cast<const i32*>(record.Begin())));
+}
+
+TVoid ReadRecord(TAsyncChangeLog* asyncChangeLog, i32 recordIndex)
+{
     std::vector<TSharedRef> result;
     result.clear();
-    asyncChangeLog->Read(recordId, 1, &result);
-    TAsyncChangeLogTest::CheckRecord(recordId, result);
+    asyncChangeLog->Read(recordIndex, 1, std::numeric_limits<i64>::max(), &result);
+    EXPECT_EQ(1, result.size());
+    CheckRecord(recordIndex, result[0]);
     return TVoid();
 }
 
-TSharedRef CreateSharedRef(ui32 data)
+TSharedRef MakeData(i32 data)
 {
-    TBlob blob(sizeof(ui32));
-    *reinterpret_cast<ui32*>(&*blob.begin()) = static_cast<ui32>(data);
+    TBlob blob(sizeof(i32));
+    *reinterpret_cast<i32*>(&*blob.begin()) = static_cast<i32>(data);
     return TSharedRef(MoveRV(blob));
 }
 
-TEST_F(TAsyncChangeLogTest, ReadLastOnes)
+} // namespace
+
+TEST_F(TAsyncChangeLogTest, ReadTrailingRecords)
 {
-    ui32 recordCount = 10000;
+    int recordCount = 10000;
     TFuture<TVoid> result;
-    for (ui32 recordId = 0; recordId < recordCount; ++recordId) {
-        auto flushResult = AsyncChangeLog->Append(recordId, CreateSharedRef(recordId));
-        if (recordId % 1000 == 0) {
+    for (int recordIndex = 0; recordIndex < recordCount; ++recordIndex) {
+        auto flushResult = AsyncChangeLog->Append(recordIndex, MakeData(recordIndex));
+        if (recordIndex % 1000 == 0) {
             flushResult.Get();
         }
-        if (recordId % 10 == 0) {
-            result = BIND(&ReadRecord, ~AsyncChangeLog, recordId).AsyncVia(Invoker).Run();
+        if (recordIndex % 10 == 0) {
+            result = BIND(&ReadRecord, ~AsyncChangeLog, recordIndex).AsyncVia(Invoker).Run();
         }
     }
     result.Get();
+}
+
+TEST_F(TAsyncChangeLogTest, ReadWithSizeLimit)
+{
+    for (int recordIndex = 0; recordIndex < 40; ++recordIndex) {
+        AsyncChangeLog->Append(recordIndex, MakeData(recordIndex));
+    }
+
+    auto check = [&] (int maxSize) {
+        std::vector<TSharedRef> records;
+        AsyncChangeLog->Read(0, 1000, maxSize, &records);
+        EXPECT_EQ(records.size(), maxSize / sizeof(i32) + 1);
+        for (int recordIndex = 0; recordIndex < static_cast<int>(records.size()); ++recordIndex) {
+            CheckRecord(recordIndex, records[recordIndex]);
+        }
+    };
+
+    check(1);
+    check(10);
+    check(40);
+    check(100);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

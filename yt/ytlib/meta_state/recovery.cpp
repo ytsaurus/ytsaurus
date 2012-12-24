@@ -282,7 +282,7 @@ void TRecovery::ReplayChangeLog(
         changeLog.GetId());
 
     std::vector<TSharedRef> records;
-    changeLog.Read(startRecordId, recordCount, &records);
+    changeLog.Read(startRecordId, recordCount, std::numeric_limits<i64>::max(), &records);
     if (records.size() != recordCount) {
         LOG_FATAL("Not enough records in changelog %d: expected %d, found %d (StartRecordId: %d)",
             changeLog.GetId(),

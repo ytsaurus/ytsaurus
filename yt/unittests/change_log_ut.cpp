@@ -86,7 +86,7 @@ protected:
         i32 logRecordCount)
     {
         std::vector<TSharedRef> records;
-        changeLog->Read(firstRecordId, recordCount, &records);
+        changeLog->Read(firstRecordId, recordCount, std::numeric_limits<i64>::max(), &records);
 
         i32 expectedRecordCount =
             firstRecordId >= logRecordCount ?
@@ -306,7 +306,7 @@ TEST_F(TChangeLogTest, DISABLED_Profiling)
             TChangeLogPtr changeLog = OpenChangeLog();
             NProfiling::TScopedTimer timer;
             std::vector<TSharedRef> records;
-            changeLog->Read(0, recordsCount, &records);
+            changeLog->Read(0, recordsCount, std::numeric_limits<i64>::max(), &records);
             std::cerr << "Read full changelog of size " << recordsCount <<
                 ", time " << ToString(timer.GetElapsed()) << std::endl;
 

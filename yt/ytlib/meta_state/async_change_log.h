@@ -41,13 +41,13 @@ public:
      * Note that promise is not fulfilled when an error occurs.
      * In this case the promise is never fulfilled.
      *
-     * \param recordId Consecutive record id.
+     * \param recordIndex Sequential record index.
      * \param data Actual record content.
      * \returns Promise to fulfill when the record is flushed.
      *
      * \see TChangeLog::Append
      */
-    TFuture<void> Append(int recordId, const TSharedRef& data);
+    TFuture<void> Append(int recordIndex, const TSharedRef& data);
 
     //! Flushes the changelog.
     //! \see TChangeLog::Flush
@@ -56,7 +56,11 @@ public:
     //! Reads records from the changelog.
     //! \see TChangeLog::Read
     //! Size of result can be less than recordCount
-    void Read(int firstRecordId, int recordCount, std::vector<TSharedRef>* result) const;
+    void Read(
+        int firstRecordIndex,
+        int recordCount,
+        i64 maxSize,
+        std::vector<TSharedRef>* result) const;
 
     //! Truncates the changelog at the specified record.
     //! \see TChangeLog::Truncate

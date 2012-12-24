@@ -200,6 +200,9 @@ struct TPersistentStateManagerConfig
      */
     TNullable<int> MaxChangesBetweenSnapshots;
 
+    //! Maximum number of bytes to read in a single |ReadChangeLog| request.
+    i64 MaxChangeLogReadSize;
+
     //! Default timeout for RPC requests.
     TDuration RpcTimeout;
 
@@ -227,6 +230,9 @@ struct TPersistentStateManagerConfig
         Register("snapshots", Snapshots);
         Register("max_changes_between_snapshots", MaxChangesBetweenSnapshots)
             .Default()
+            .GreaterThan(0);
+        Register("max_changelog_read_size", MaxChangeLogReadSize)
+            .Default((i64) 128 * 1024 * 1024)
             .GreaterThan(0);
         Register("rpc_timeout", RpcTimeout)
             .Default(TDuration::MilliSeconds(3000));

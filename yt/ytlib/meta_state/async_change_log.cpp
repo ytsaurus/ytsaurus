@@ -35,22 +35,22 @@ public:
         , Promise(NewPromise<void>())
     { }
 
-    TFuture<void> Append(int recordId, const TSharedRef& data)
+    TFuture<void> Append(int recordIndex, const TSharedRef& data)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         TGuard<TSpinLock> guard(SpinLock);
 
-        if (recordId != DoGetRecordCount()) {
+        if (recordIndex != DoGetRecordCount()) {
             LOG_FATAL("Unexpected record id in changelog %d: expected %d, got %d",
                 ChangeLog->GetId(),
                 DoGetRecordCount(),
-                recordId);
+                recordIndex);
         }
 
         AppendQueue.push_back(data);
 
-        YASSERT(!Promise.IsNull());
+        YCHECK(!Promise.IsNull());
         return Promise;
     }
 
@@ -62,10 +62,10 @@ public:
         {
             TGuard<TSpinLock> guard(SpinLock);
 
-            YASSERT(FlushQueue.empty());
+            YCHECK(FlushQueue.empty());
             FlushQueue.swap(AppendQueue);
 
-            YASSERT(!Promise.IsNull());
+            YCHECK(!Promise.IsNull());
             promise = Promise;
             Promise = NewPromise<void>();
         }
@@ -137,12 +137,17 @@ public:
     }
 
     // Can return less records than recordCount
-    void Read(int firstRecordId, int recordCount, std::vector<TSharedRef>* result)
+    void Read(int recordIndex, int recordCount, i64 maxSize, std::vector<TSharedRef>* result)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        // First in-memory record index.
         int flushedRecordCount;
 
+        // Number of bytes in records already added to result.
+        i64 resultSize = 0;
+
+        // First take in-memory records (tail part).
         PROFILE_TIMING ("/changelog_read_copy_time") {
             TGuard<TSpinLock> guard(SpinLock);
             flushedRecordCount = FlushedRecordCount; 
@@ -150,37 +155,37 @@ public:
             CopyRecords(
                 FlushedRecordCount,
                 FlushQueue,
-                firstRecordId,
+                recordIndex,
                 recordCount,
-                result);
+                maxSize,
+                result,
+                &resultSize);
 
             CopyRecords(
                 FlushedRecordCount + FlushQueue.size(),
                 AppendQueue,
-                firstRecordId,
+                recordIndex,
                 recordCount,
-                result);
+                maxSize,
+                result,
+                &resultSize);
         }
 
+        // Then take on-disk records, if needed (head part).
         PROFILE_TIMING ("/changelog_read_io_time") {
-            if (firstRecordId < flushedRecordCount) {
-                std::vector<TSharedRef> buffer;
-                int neededRecordCount = Min(
-                    recordCount,
-                    flushedRecordCount - firstRecordId);
-                ChangeLog->Read(firstRecordId, neededRecordCount, &buffer);
-                YASSERT(buffer.size() == neededRecordCount);
-
-                buffer.insert(
-                    buffer.end(),
-                    result->begin(),
-                    result->end());
-
-                result->swap(buffer);
+            if (recordIndex < flushedRecordCount) {
+                std::vector<TSharedRef> diskResult;
+                int neededRecordCount = std::min(recordCount, flushedRecordCount - recordIndex);
+                i64 neededSize = maxSize - resultSize;
+                ChangeLog->Read(recordIndex, neededRecordCount, neededSize, &diskResult);
+                // Combine head + tail.
+                diskResult.insert(diskResult.end(), result->begin(), result->end());
+                result->swap(diskResult);
             }
         }
 
         Profiler.Enqueue("/changelog_read_record_count", result->size());
+        Profiler.Enqueue("/changelog_read_size", resultSize);
     }
 
 private:
@@ -191,22 +196,22 @@ private:
     }
 
     static void CopyRecords(
-        int firstRecordId,
+        int firstRecordIndex,
         const std::vector<TSharedRef>& records,
-        int neededFirstRecordId,
+        int firstNeededRecordIndex,
         int neededRecordCount,
-        std::vector<TSharedRef>* result)
+        i64 maxSize,
+        std::vector<TSharedRef>* result,
+        i64* resultSize)
     {
-        int size = records.size();
-        int begin = neededFirstRecordId - firstRecordId;
-        int end = neededFirstRecordId + neededRecordCount - firstRecordId;
-        auto beginIt = records.begin() + Min(Max(begin, 0), size);
-        auto endIt = records.begin() + Min(Max(end, 0), size);
-        if (endIt != beginIt) {
-            result->insert(
-                result->end(),
-                beginIt,
-                endIt);
+        int size = static_cast<int>(records.size());
+        int beginIndex = firstNeededRecordIndex - firstRecordIndex;
+        int endIndex = firstNeededRecordIndex + neededRecordCount - firstRecordIndex;
+        auto beginIt = records.begin() + std::min(std::max(beginIndex, 0), size);
+        auto endIt = records.begin() + std::min(std::max(endIndex, 0), size);
+        for (auto it = beginIt; it != endIt && *resultSize <= maxSize; ++it) {
+            result->push_back(*it);
+            *resultSize += it->Size();
         }
     }
     
@@ -248,14 +253,14 @@ public:
 
     TFuture<void> Append(
         TChangeLogPtr changeLog,
-        int recordId,
+        int recordIndex,
         const TSharedRef& data)
     {
         LOG_TRACE("Async changelog record is enqueued at version %s",
-            ~TMetaVersion(changeLog->GetId(), recordId).ToString());
+            ~TMetaVersion(changeLog->GetId(), recordIndex).ToString());
 
         auto queue = GetQueueAndLock(changeLog);
-        auto result = queue->Append(recordId, data);
+        auto result = queue->Append(recordIndex, data);
         UnlockQueue(queue);
         WakeupEvent.Signal();
 
@@ -267,13 +272,14 @@ public:
 
     void Read(
         TChangeLogPtr changeLog,
-        int firstRecordId,
+        int recordIndex,
         int recordCount,
+        i64 maxSize,
         std::vector<TSharedRef>* result)
     {
-        YASSERT(firstRecordId >= 0);
-        YASSERT(recordCount >= 0);
-        YASSERT(result);
+        YCHECK(recordIndex >= 0);
+        YCHECK(recordCount >= 0);
+        YCHECK(result);
 
         if (recordCount == 0) {
             return;
@@ -281,11 +287,11 @@ public:
 
         auto queue = FindQueueAndLock(changeLog);
         if (queue) {
-            queue->Read(firstRecordId, recordCount, result);
+            queue->Read(recordIndex, recordCount, maxSize, result);
             UnlockQueue(queue);
         } else {
             PROFILE_TIMING ("/changelog_read_io_time") {
-                changeLog->Read(firstRecordId, recordCount, result);
+                changeLog->Read(recordIndex, recordCount, maxSize, result);
             }
         }
     }
@@ -477,10 +483,10 @@ TAsyncChangeLog::~TAsyncChangeLog()
 { }
 
 TFuture<void> TAsyncChangeLog::Append(
-    int recordId,
+    int recordIndex,
     const TSharedRef& data)
 {
-    return TImpl::Get()->Append(ChangeLog, recordId, data);
+    return TImpl::Get()->Append(ChangeLog, recordIndex, data);
 }
 
 void TAsyncChangeLog::Finalize()
@@ -493,9 +499,13 @@ void TAsyncChangeLog::Flush()
     TImpl::Get()->Flush(ChangeLog);
 }
 
-void TAsyncChangeLog::Read(int firstRecordId, int recordCount, std::vector<TSharedRef>* result) const
+void TAsyncChangeLog::Read(
+    int firstRecordIndex,
+    int recordCount,
+    i64 maxSize,
+    std::vector<TSharedRef>* result) const
 {
-    TImpl::Get()->Read(ChangeLog, firstRecordId, recordCount, result);
+    TImpl::Get()->Read(ChangeLog, firstRecordIndex, recordCount, maxSize, result);
 }
 
 int TAsyncChangeLog::GetId() const

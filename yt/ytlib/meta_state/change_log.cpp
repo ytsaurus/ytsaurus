@@ -75,9 +75,9 @@ void TChangeLog::Flush()
     Impl->Flush();
 }
 
-void TChangeLog::Read(int firstRecordId, int recordCount, std::vector<TSharedRef>* result)
+void TChangeLog::Read(int firstRecordId, int recordCount, i64 maxSize, std::vector<TSharedRef>* result)
 {
-    Impl->Read(firstRecordId, recordCount, result);
+    Impl->Read(firstRecordId, recordCount, maxSize, result);
 }
 
 void TChangeLog::Truncate(int truncatedRecordCount)
