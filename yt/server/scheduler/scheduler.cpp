@@ -535,8 +535,8 @@ private:
             ? FromObjectId(operation->GetUserTransaction()->GetId())
             : RootTransactionPath);
         req->set_type(EObjectType::Transaction);
+        req->MutableExtension(NProto::TReqCreateTransactionExt::create_transaction);
         NMetaState::GenerateRpcMutationId(req);
-
         return proxy.Execute(req);
     }
 

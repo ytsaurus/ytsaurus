@@ -1122,6 +1122,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::StartIOTransacti
     {
         auto req = TTransactionYPathProxy::CreateObject(FromObjectId(schedulerTransactionId));
         req->set_type(EObjectType::Transaction);
+        req->MutableExtension(NProto::TReqCreateTransactionExt::create_transaction);
         NMetaState::GenerateRpcMutationId(req);
         batchReq->AddRequest(req, "start_in_tx");
     }
@@ -1129,6 +1130,8 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::StartIOTransacti
     {
         auto req = TTransactionYPathProxy::CreateObject(FromObjectId(schedulerTransactionId));
         req->set_type(EObjectType::Transaction);
+        auto* reqExt = req->MutableExtension(NProto::TReqCreateTransactionExt::create_transaction);
+        reqExt->set_enable_uncommitted_accounting(false);
         NMetaState::GenerateRpcMutationId(req);
         batchReq->AddRequest(req, "start_out_tx");
     }
