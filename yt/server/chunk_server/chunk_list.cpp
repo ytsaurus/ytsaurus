@@ -21,7 +21,7 @@ TVersionedChunkListId::TVersionedChunkListId(const TChunkListId& id, int version
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkList::TChunkList(const TChunkListId& id)
-    : TObjectWithIdBase(id)
+    : TUnversionedObjectBase(id)
     , Version_(0)
     , VisitMark_(0)
 {
@@ -40,7 +40,7 @@ TVersionedChunkListId TChunkList::GetVersionedId() const
 
 void TChunkList::Save(const NCellMaster::TSaveContext& context) const
 {
-    TObjectWithIdBase::Save(context);
+    TUnversionedObjectBase::Save(context);
     
     auto* output = context.GetOutput();
     SaveObjectRefs(output, Children_);
@@ -53,7 +53,7 @@ void TChunkList::Save(const NCellMaster::TSaveContext& context) const
 
 void TChunkList::Load(const NCellMaster::TLoadContext& context)
 {
-    TObjectWithIdBase::Load(context);
+    TUnversionedObjectBase::Load(context);
     
     auto* input = context.GetInput();
     LoadObjectRefs(input, Children_, context);

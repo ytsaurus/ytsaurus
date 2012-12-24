@@ -66,27 +66,25 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TObjectWithIdBase
+class TUnversionedObjectBase
     : public TObjectBase
 {
     DEFINE_BYVAL_RO_PROPERTY(TObjectId, Id);
 
 public:
-    TObjectWithIdBase();
-    explicit TObjectWithIdBase(const TObjectId& id);
+    explicit TUnversionedObjectBase(const TObjectId& id);
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStagedObjectBase
-    : public TObjectWithIdBase
+    : public TUnversionedObjectBase
 {
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, StagingTransaction);
     DEFINE_BYVAL_RW_PROPERTY(NSecurityServer::TAccount*, StagingAccount);
 
 public:
-    TStagedObjectBase();
     explicit TStagedObjectBase(const TObjectId& id);
 
     void Save(const NCellMaster::TSaveContext& context) const;

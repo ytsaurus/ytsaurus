@@ -84,29 +84,21 @@ void TObjectBase::Load(const NCellMaster::TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TObjectWithIdBase::TObjectWithIdBase()
-{ }
-
-TObjectWithIdBase::TObjectWithIdBase(const TObjectId& id)
+TUnversionedObjectBase::TUnversionedObjectBase(const TObjectId& id)
     : Id_(id)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStagedObjectBase::TStagedObjectBase()
-    : StagingTransaction_(NULL)
-    , StagingAccount_(NULL)
-{ }
-
 TStagedObjectBase::TStagedObjectBase(const TObjectId& id)
-    : TObjectWithIdBase(id)
+    : TUnversionedObjectBase(id)
     , StagingTransaction_(NULL)
     , StagingAccount_(NULL)
 { }
 
 void TStagedObjectBase::Save(const NCellMaster::TSaveContext& context) const
 {
-    TObjectWithIdBase::Save(context);
+    TUnversionedObjectBase::Save(context);
 
     auto* output = context.GetOutput();
     SaveObjectRef(output, StagingTransaction_);
@@ -115,7 +107,7 @@ void TStagedObjectBase::Save(const NCellMaster::TSaveContext& context) const
 
 void TStagedObjectBase::Load(const NCellMaster::TLoadContext& context)
 {
-    TObjectWithIdBase::Load(context);
+    TUnversionedObjectBase::Load(context);
     
     auto* input = context.GetInput();
     // COMPAT(babenko)

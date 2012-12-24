@@ -71,14 +71,14 @@ public:
     //! Adds a reference.
     void RefObject(const TObjectId& id);
     void RefObject(const TVersionedObjectId& id);
-    void RefObject(TObjectWithIdBase* object);
+    void RefObject(TUnversionedObjectBase* object);
     void RefObject(NCypressServer::ICypressNode* node);
     void RefObject(NChunkServer::TChunkTreeRef ref);
 
     //! Removes a reference.
     void UnrefObject(const TObjectId& id);
     void UnrefObject(const TVersionedObjectId& id);
-    void UnrefObject(TObjectWithIdBase* object);
+    void UnrefObject(TUnversionedObjectBase* object);
     void UnrefObject(NCypressServer::ICypressNode* node);
     void UnrefObject(NChunkServer::TChunkTreeRef ref);
 
