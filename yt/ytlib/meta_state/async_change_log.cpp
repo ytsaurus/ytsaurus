@@ -144,9 +144,6 @@ public:
         // First in-memory record index.
         int flushedRecordCount;
 
-        // Number of bytes in records already added to result.
-        i64 resultSize = 0;
-
         // First take in-memory records (tail part).
         PROFILE_TIMING ("/changelog_read_copy_time") {
             TGuard<TSpinLock> guard(SpinLock);
@@ -157,18 +154,14 @@ public:
                 FlushQueue,
                 recordIndex,
                 recordCount,
-                maxSize,
-                result,
-                &resultSize);
+                result);
 
             CopyRecords(
                 FlushedRecordCount + FlushQueue.size(),
                 AppendQueue,
                 recordIndex,
                 recordCount,
-                maxSize,
-                result,
-                &resultSize);
+                result);
         }
 
         // Then take on-disk records, if needed (head part).
@@ -176,12 +169,22 @@ public:
             if (recordIndex < flushedRecordCount) {
                 std::vector<TSharedRef> diskResult;
                 int neededRecordCount = std::min(recordCount, flushedRecordCount - recordIndex);
-                i64 neededSize = maxSize - resultSize;
-                ChangeLog->Read(recordIndex, neededRecordCount, neededSize, &diskResult);
+                ChangeLog->Read(recordIndex, neededRecordCount, maxSize, &diskResult);
                 // Combine head + tail.
                 diskResult.insert(diskResult.end(), result->begin(), result->end());
                 result->swap(diskResult);
             }
+        }
+
+        // Trim to enforce size limit.
+        i64 resultSize = 0;
+        {
+            auto it = result->begin();
+            while (it != result->end() && resultSize <= maxSize) {
+                resultSize += it->Size();
+                ++it;
+            }
+            result->erase(it, result->end());
         }
 
         Profiler.Enqueue("/changelog_read_record_count", result->size());
@@ -198,23 +201,22 @@ private:
     static void CopyRecords(
         int firstRecordIndex,
         const std::vector<TSharedRef>& records,
-        int firstNeededRecordIndex,
+        int neededFirstRecordIndex,
         int neededRecordCount,
-        i64 maxSize,
-        std::vector<TSharedRef>* result,
-        i64* resultSize)
+        std::vector<TSharedRef>* result)
     {
-        int size = static_cast<int>(records.size());
-        int beginIndex = firstNeededRecordIndex - firstRecordIndex;
-        int endIndex = firstNeededRecordIndex + neededRecordCount - firstRecordIndex;
+        int size = records.size();
+        int beginIndex = neededFirstRecordIndex - firstRecordIndex;
+        int endIndex = neededFirstRecordIndex + neededRecordCount - firstRecordIndex;
         auto beginIt = records.begin() + std::min(std::max(beginIndex, 0), size);
         auto endIt = records.begin() + std::min(std::max(endIndex, 0), size);
-        for (auto it = beginIt; it != endIt && *resultSize <= maxSize; ++it) {
-            result->push_back(*it);
-            *resultSize += it->Size();
+        if (endIt != beginIt) {
+            result->insert(
+                result->end(),
+                beginIt,
+                endIt);
         }
-    }
-    
+    }    
     TChangeLogPtr ChangeLog;
     
     TSpinLock SpinLock;
