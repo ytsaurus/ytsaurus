@@ -7,7 +7,7 @@ var http = require("http");
 
 var Q = require("q");
 
-var config = {
+var konfig = {
     oauth: {
         mount: "/auth",
         host: "oauth.yandex-team.ru",
@@ -53,6 +53,7 @@ function makeHttpRequest(method, host, path, timeout, headers, body) {
 }
 
 function YtBlackbox(logger) { // TODO: Inject |config|
+    var config = konfig.blackbox;
     function httpUnauthorized(rsp) {
         rsp.writeHead(401, { "WWW-Authenticate" : "OAuth scope=\"yt:api\"" });
         rsp.end();
@@ -122,6 +123,7 @@ function YtBlackbox(logger) { // TODO: Inject |config|
 };
 
 function YtAuthenticationApplication(logger) { // TODO: Inject |config|
+    var config = konfig.oauth;
     var template_index = mustache.compile(fs.readFileSync(
         __dirname + "/../static/auth-index.mustache").toString());
     var template_layout = mustache.compile(fs.readFileSync(
