@@ -146,13 +146,17 @@ void TYamrWriter::RememberItem(const TStringBuf& item, bool takeOwnership)
 
 void TYamrWriter::WriteRow()
 {
-    if (!Key || !Value) {
-        THROW_ERROR_EXCEPTION("Empty YAMR row");
+    if (!Key) {
+        THROW_ERROR_EXCEPTION("Column %s is missing in YAMR record", ~Config->Key);
     }
 
-    TStringBuf key = Key ? *Key : "";
+    if (!Value) {
+        THROW_ERROR_EXCEPTION("Column %s is missing in YAMR record", ~Config->Value);
+    }
+
+    TStringBuf key = *Key;
     TStringBuf subkey = Subkey ? *Subkey : "";
-    TStringBuf value = Value ? *Value : "";
+    TStringBuf value = *Value;
 
     if (!Config->Lenval) {
         Stream->Write(key);

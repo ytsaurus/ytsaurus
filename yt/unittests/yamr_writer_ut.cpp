@@ -69,6 +69,37 @@ TEST(TYamrWriterTest, SimpleWithSubkey)
     EXPECT_EQ(output, outputStream.Str());
 }
 
+TEST(TYamrWriterTest, WritingWithoutSubkey)
+{
+    TStringStream outputStream;
+    TYamrWriter writer(&outputStream);
+
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("key");
+        writer.OnStringScalar("key1");
+        writer.OnKeyedItem("subkey");
+        writer.OnStringScalar("subkey1");
+        writer.OnKeyedItem("value");
+        writer.OnStringScalar("value1");
+    writer.OnEndMap();
+
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("key");
+        writer.OnStringScalar("key2");
+        writer.OnKeyedItem("subkey");
+        writer.OnStringScalar("subkey2");
+        writer.OnKeyedItem("value");
+        writer.OnStringScalar("value2");
+    writer.OnEndMap();
+
+    Stroka output =
+        "key1\tvalue1\n"
+        "key2\tvalue2\n";
+    EXPECT_EQ(output, outputStream.Str());
+}
+
 TEST(TYamrWriterTest, NonStringValues)
 {
     TStringStream outputStream;
@@ -103,8 +134,7 @@ TEST(TYamrWriterTest, NonStringValues)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-
-TEST(TYamrWriterTest, SkippedValues)
+TEST(TYamrWriterTest, SkippedKey)
 {
     TStringStream outputStream;
     TYamrWriter writer(&outputStream);
@@ -114,16 +144,45 @@ TEST(TYamrWriterTest, SkippedValues)
         writer.OnBeginMap();
             writer.OnKeyedItem("key");
             writer.OnStringScalar("foo");
-            writer.OnKeyedItem("value");
-            writer.OnStringScalar("bar");
-        writer.OnEndMap();
-
-        writer.OnListItem();
-        writer.OnBeginMap();
         writer.OnEndMap();
     };
 
     EXPECT_THROW(DoWrite(), std::exception);
+}
+
+TEST(TYamrWriterTest, SkippedValue)
+{
+    TStringStream outputStream;
+    TYamrWriter writer(&outputStream);
+
+    auto DoWrite = [&]() {
+        writer.OnListItem();
+        writer.OnBeginMap();
+            writer.OnKeyedItem("value");
+            writer.OnStringScalar("bar");
+        writer.OnEndMap();
+    };
+
+    EXPECT_THROW(DoWrite(), std::exception);
+}
+
+TEST(TYamrWriterTest, SubkeyCouldBeSkipped)
+{
+    TStringStream outputStream;
+    auto config = New<TYamrFormatConfig>();
+    config->HasSubkey = true;
+    TYamrWriter writer(&outputStream, config);
+
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("value");
+        writer.OnStringScalar("bar");
+        writer.OnKeyedItem("key");
+        writer.OnStringScalar("foo");
+    writer.OnEndMap();
+
+    Stroka output = "foo\t\tbar\n";
+    EXPECT_EQ(output, outputStream.Str());
 }
 
 TEST(TYamrWriterTest, SimpleWithTableIndex)
