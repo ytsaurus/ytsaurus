@@ -150,6 +150,7 @@ dynamic_server = connect()
     .use("/__version__", function(req, rsp) {
         "use strict";
         req.on("end", function() {
+            rsp.setHeader("Access-Control-Allow-Origin", "*");
             rsp.setHeader("Content-Type", "text/plain");
             rsp.end(version.versionFull);
         });
@@ -157,6 +158,7 @@ dynamic_server = connect()
     .use("/__config__", function(req, rsp) {
         "use strict";
         req.on("end", function() {
+            rsp.setHeader("Access-Control-Allow-Origin", "*");
             rsp.setHeader("Content-Type", "application/json");
             rsp.end(JSON.stringify(config));
         });
@@ -164,6 +166,7 @@ dynamic_server = connect()
     .use("/__env__", function(req, rsp) {
         "use strict";
         req.on("end", function() {
+            rsp.setHeader("Access-Control-Allow-Origin", "*");
             rsp.setHeader("Content-Type", "application/json");
             rsp.end(JSON.stringify(process.env));
         });
