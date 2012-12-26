@@ -15,6 +15,10 @@
 
 #include <server/object_server/object_detail.h>
 
+#include <server/transaction_server/transaction.h>
+
+#include <server/security_server/account.h>
+
 #include <server/cell_master/bootstrap.h>
 
 namespace NYT {
@@ -75,6 +79,8 @@ private:
         attributes->push_back(TAttributeInfo("row_count", chunk->IsConfirmed() && miscExt->has_row_count()));
         attributes->push_back(TAttributeInfo("value_count", chunk->IsConfirmed() && miscExt->has_value_count()));
         attributes->push_back(TAttributeInfo("sorted", chunk->IsConfirmed() && miscExt->has_sorted()));
+        attributes->push_back(TAttributeInfo("staging_transaction_id", chunk->IsStaged()));
+        attributes->push_back(TAttributeInfo("staging_account", chunk->IsStaged()));
         TBase::ListSystemAttributes(attributes);
     }
 
@@ -205,6 +211,20 @@ private:
             if (key == "sorted") {
                 BuildYsonFluently(consumer)
                     .Value(FormatBool(miscExt.sorted()));
+                return true;
+            }
+        }
+
+        if (chunk->IsStaged()) {
+            if (key == "staging_transaction_id") {
+                BuildYsonFluently(consumer)
+                    .Value(chunk->GetStagingTransaction()->GetId());
+                return true;
+            }
+
+            if (key == "staging_account") {
+                BuildYsonFluently(consumer)
+                    .Value(chunk->GetStagingAccount()->GetName());
                 return true;
             }
         }
