@@ -22,11 +22,13 @@ TChunkListPool::TChunkListPool(
     TSchedulerConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     IInvokerPtr controlInvoker,
-    TOperationPtr operation)
+    const TOperationId& operationId,
+    const NTransactionClient::TTransactionId& transactionId)
     : Config(config)
     , MasterChannel(masterChannel)
     , ControlInvoker(controlInvoker)
-    , Operation(operation)
+    , OperationId(operationId)
+    , TransactionId(transactionId)
     , Logger(OperationLogger)
     , RequestInProgress(false)
     , LastSuccessCount(-1)
@@ -34,9 +36,8 @@ TChunkListPool::TChunkListPool(
     YCHECK(config);
     YCHECK(masterChannel);
     YCHECK(controlInvoker);
-    YCHECK(operation);
 
-    Logger.AddTag(Sprintf("OperationId: %s", ~operation->GetOperationId().ToString()));
+    Logger.AddTag(Sprintf("OperationId: %s", ~ToString(operationId)));
 }
 
 bool TChunkListPool::HasEnough(int requestedCount)
@@ -85,7 +86,7 @@ void TChunkListPool::AllocateMore()
     auto batchReq = objectProxy.ExecuteBatch();
 
     for (int index = 0; index < count; ++index) {
-        auto req = TTransactionYPathProxy::CreateObject(FromObjectId(Operation->GetSchedulerTransaction()->GetId()));
+        auto req = TTransactionYPathProxy::CreateObject(FromObjectId(TransactionId));
         req->set_type(EObjectType::ChunkList);
         batchReq->AddRequest(req);
     }

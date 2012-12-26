@@ -23,7 +23,8 @@ public:
         TSchedulerConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         IInvokerPtr controlInvoker,
-        TOperationPtr operation);
+        const TOperationId& operationId,
+        const NTransactionClient::TTransactionId& transactionId);
 
     bool HasEnough(int requestedCount);
     NChunkClient::TChunkListId Extract();
@@ -32,7 +33,8 @@ private:
     TSchedulerConfigPtr Config;
     NRpc::IChannelPtr MasterChannel;
     IInvokerPtr ControlInvoker;
-    TOperationPtr Operation;
+    TOperationId OperationId;
+    NTransactionClient::TTransactionId TransactionId;
 
     NLog::TTaggedLogger Logger;
     bool RequestInProgress;

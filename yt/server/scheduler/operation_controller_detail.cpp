@@ -1669,7 +1669,8 @@ TFuture<void> TOperationControllerBase::CompletePreparation()
         Config,
         Host->GetMasterChannel(),
         CancelableControlInvoker,
-        Operation);
+        Operation->GetOperationId(),
+        OutputTransaction->GetId());
 
     return MakeFuture();
 }
