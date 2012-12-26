@@ -119,8 +119,7 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TObjectProxyBase
-    : public virtual NYTree::TYPathServiceBase
-    , public virtual NYTree::TSupportsAttributes
+    : public virtual NYTree::TSupportsAttributes
     , public virtual NYTree::ISystemAttributeProvider
     , public virtual IObjectProxy
 {
@@ -133,6 +132,9 @@ public:
     virtual NYTree::IAttributeDictionary& Attributes() override;
     virtual const NYTree::IAttributeDictionary& Attributes() const override;
     virtual void Invoke(NRpc::IServiceContextPtr context) override;
+    virtual void SerializeAttributes(
+        NYson::IYsonConsumer* consumer,
+        const NYTree::TAttributeFilter& filter) const override;
 
 protected:
     NCellMaster::TBootstrap* Bootstrap;

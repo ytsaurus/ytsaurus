@@ -105,6 +105,12 @@ bool TYPathServiceBase::IsWriteRequest(IServiceContextPtr context) const
     return false;
 }
 
+void TYPathServiceBase::SerializeAttributes(NYson::IYsonConsumer* consumer, const TAttributeFilter& filter) const
+{
+    UNUSED(consumer);
+    UNUSED(filter);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 #define IMPLEMENT_SUPPORTS_VERB(verb) \
@@ -958,6 +964,14 @@ public:
     {
         UNUSED(context);
         YUNREACHABLE();
+    }
+
+    // TODO(panin): remove this when getting rid of IAttributeProvider
+    virtual void SerializeAttributes(
+        NYson::IYsonConsumer* consumer,
+        const TAttributeFilter& filter) const override
+    {
+        UnderlyingService->SerializeAttributes(consumer, filter);
     }
 
 private:

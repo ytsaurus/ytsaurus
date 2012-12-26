@@ -466,13 +466,19 @@ class TestCypressCommands(YTEnvSetup):
         assert get_str("//tmp/a/@attr/key") == '<"embedded_attr"="emb">"value"'
         assert get_str("//tmp/a/@attr/key/@embedded_attr") == '"emb"'
 
-    def test_get_with_attributes(self):
+    def test_get_with_attributes1(self):
         set('//tmp/a', {})
         assert get_str('//tmp', attr=['type']) == '<"type"="map_node">{"a"=<"type"="map_node">{}}'
 
     def test_list_with_attributes(self):
         set('//tmp/a', {})
         assert ls_str('//tmp', attr=['type']) == '[<"type"="map_node">"a"]'
+
+    def test_get_list_with_attributes_virtual_maps(self):
+        tx = start_transaction()
+        assert get_str('//sys/transactions', attr=['state']) == '{"%s"=<"state"="active">#}' % tx
+        assert ls_str('//sys/transactions', attr=['state']) == '[<"state"="active">"%s"]' % tx
+        abort_transaction(tx)
 
     def test_exists(self):
         self.assertEqual(exists("//tmp"), "true")

@@ -112,10 +112,6 @@ public:
     virtual NYTree::IAttributeDictionary& Attributes() override;
     virtual const NYTree::IAttributeDictionary& Attributes() const override;
 
-    virtual void SerializeAttributes(
-        NYson::IYsonConsumer* consumer,
-        const NYTree::TAttributeFilter& filter) const override;
-
     virtual NSecurityServer::TClusterResources GetResourceUsage() const override;
 
 protected:

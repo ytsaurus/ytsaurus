@@ -65,6 +65,14 @@ public:
         return UnderlyingService->IsWriteRequest(context);
     }
 
+    // TODO(panin): remove this when getting rid of IAttributeProvider
+    virtual void SerializeAttributes(
+        NYson::IYsonConsumer* consumer,
+        const TAttributeFilter& filter) const override
+    {
+        UnderlyingService->SerializeAttributes(consumer, filter);
+    }
+
 private:
     Stroka FileName;
     INodePtr Root;
@@ -118,6 +126,14 @@ public:
     virtual bool IsWriteRequest(IServiceContextPtr context) const override
     {
         UNUSED(context);
+        YUNREACHABLE();
+    }
+
+    // TODO(panin): remove this when getting rid of IAttributeProvider
+    virtual void SerializeAttributes(
+        NYson::IYsonConsumer* consumer,
+        const TAttributeFilter& filter) const override
+    {
         YUNREACHABLE();
     }
 

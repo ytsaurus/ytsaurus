@@ -55,6 +55,11 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr co
 {
     YASSERT(!NYson::TTokenizer(context->GetPath()).ParseNext());
 
+    auto attributeFilter =
+        request->has_attribute_filter()
+        ? FromProto(request->attribute_filter())
+        : TAttributeFilter::None;
+
     size_t max_size = request->Attributes().Get<int>("max_size", DefaultMaxSize);
 
     auto keys = GetKeys(max_size);
@@ -75,6 +80,8 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr co
     writer.OnBeginMap();
     FOREACH (const auto& key, keys) {
         writer.OnKeyedItem(key);
+        auto service = GetItemService(key);
+        service->SerializeAttributes(&writer, attributeFilter);
         writer.OnEntity();
     }
     writer.OnEndMap();
@@ -86,6 +93,11 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr co
 void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPtr context)
 {
     size_t maxSize = request->Attributes().Get<int>("max_size", DefaultMaxSize);
+
+    auto attributeFilter =
+        request->has_attribute_filter()
+        ? FromProto(request->attribute_filter())
+        : TAttributeFilter::None;
 
     auto keys = GetKeys(maxSize);
     size_t size = GetSize();
@@ -104,6 +116,8 @@ void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPt
     writer.OnBeginList();
     FOREACH (const auto& key, keys) {
         writer.OnListItem();
+        auto service = GetItemService(key);
+        service->SerializeAttributes(&writer, attributeFilter);
         writer.OnStringScalar(key);
     }
     writer.OnEndList();
