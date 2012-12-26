@@ -1289,7 +1289,7 @@ private:
         }
 
         TSchedulingContext schedulingContext(node, runningJobs);
-        
+
         if (hasWaitingJobs) {
             LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
         } else {

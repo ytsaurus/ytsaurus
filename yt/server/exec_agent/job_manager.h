@@ -62,7 +62,7 @@ public:
     NScheduler::NProto::TNodeResources GetResourceLimits();
 
     //! Current resource usage.
-    NScheduler::NProto::TNodeResources GetResourceUsage();
+    NScheduler::NProto::TNodeResources GetResourceUsage(bool includeWaiting = true);
 
 private:
     TJobManagerConfigPtr Config;
@@ -74,14 +74,12 @@ private:
     bool StartScheduled;
     bool ResourcesUpdatedFlag;
 
-    NScheduler::NProto::TNodeResources SpareResources;
-
     TSlotPtr GetFreeSlot();
 
     void ScheduleStart();
     void OnJobFinished(TJobPtr job);
     void OnResourcesReleased(
-        const NScheduler::NProto::TNodeResources& oldResources, 
+        const NScheduler::NProto::TNodeResources& oldResources,
         const NScheduler::NProto::TNodeResources& newResources);
     void StartWaitingJobs();
 
@@ -90,5 +88,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NExexNode 
+} // namespace NExexNode
 } // namespace NYT

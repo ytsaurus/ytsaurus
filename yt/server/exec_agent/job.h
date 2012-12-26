@@ -44,23 +44,50 @@ public:
         NScheduler::NProto::TJobSpec&& jobSpec,
         TBootstrap* bootstrap);
 
+    /*!
+        \note Thread affinity: control thread.
+     */
     void Start(TEnvironmentManagerPtr environmentManager, TSlotPtr slot);
 
     //! Kills the job if it is running.
+    /*!
+        \note Thread affinity: control thread.
+     */
     void Abort(const TError& error);
 
+    /*!
+        \note Thread affinity: any.
+     */
     const TJobId& GetId() const;
 
+    /*!
+        \note Thread affinity: any.
+     */
     const NScheduler::NProto::TNodeResources& GetResourceLimits() const;
-    const NScheduler::NProto::TJobSpec& GetSpec();
 
+    /*!
+        \note Thread affinity: any.
+     */
+    const NScheduler::NProto::TJobSpec& GetSpec() const;
+
+    /*!
+        \note Thread affinity: any.
+     */
     NScheduler::EJobState GetState() const;
+
+    /*!
+        \note Thread affinity: any.
+     */
     NScheduler::EJobPhase GetPhase() const;
 
+    /*!
+        \note Thread affinity: any.
+     */
     NScheduler::NProto::TNodeResources GetResourceUsage() const;
 
     //! Notifies the exec agent that job resource usage is changed.
     /*!
+     *  \note Thread affinity: any.
      *  New usage should not exceed the previous one.
      */
     void ReleaseResources(const NScheduler::NProto::TNodeResources& newUsage);
@@ -68,7 +95,14 @@ public:
     double GetProgress() const;
     void UpdateProgress(double progress);
 
+    /*!
+        \note Thread affinity: any.
+     */
     const NScheduler::NProto::TJobResult& GetResult() const;
+
+    /*!
+        \note Thread affinity: any.
+     */
     void SetResult(const NScheduler::NProto::TJobResult& jobResult);
 
 private:
@@ -106,9 +140,9 @@ private:
 
     const TJobId JobId;
     const NScheduler::NProto::TJobSpec JobSpec;
+    const NScheduler::NProto::TNodeResources ResourceLimits;
 
     TSpinLock ResourcesLock;
-    NScheduler::NProto::TNodeResources ResourceLimits;
     NScheduler::NProto::TNodeResources ResourceUsage;
 
     NLog::TTaggedLogger Logger;

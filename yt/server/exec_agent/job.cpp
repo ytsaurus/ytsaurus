@@ -415,7 +415,7 @@ const TJobId& TJob::GetId() const
     return JobId;
 }
 
-const TJobSpec& TJob::GetSpec()
+const TJobSpec& TJob::GetSpec() const
 {
     return JobSpec;
 }
@@ -489,8 +489,8 @@ void TJob::Abort(const TError& error)
     if (JobState == EJobState::Waiting) {
         YCHECK(!Slot);
         JobState == EJobState::Aborted;
+        ReleaseResources(ZeroNodeResources());
     } else {
-        JobState = EJobState::Aborting;
         Slot->GetInvoker()->Invoke(BIND(
             &TJob::DoAbort,
             MakeStrong(this),
@@ -508,6 +508,8 @@ void TJob::DoAbort(const TError& error, EJobState resultState, bool killJobProxy
         JobState = resultState;
         return;
     }
+
+    JobState = EJobState::Aborting;
 
     YCHECK(JobPhase < EJobPhase::Cleanup);
 

@@ -36,7 +36,6 @@ TJobManager::TJobManager(
     , Bootstrap(bootstrap)
     , StartScheduled(false)
     , ResourcesUpdatedFlag(false)
-    , SpareResources(GetResourceLimits())
 {
     YCHECK(config);
     YCHECK(bootstrap);
@@ -98,16 +97,17 @@ TNodeResources TJobManager::GetResourceLimits()
     return result;
 }
 
-TNodeResources TJobManager::GetResourceUsage()
+TNodeResources TJobManager::GetResourceUsage(bool includeWaiting)
 {
     auto result = ZeroNodeResources();
     FOREACH (const auto& pair, Jobs) {
+        if (!includeWaiting && pair.second->GetState() == EJobState::Waiting) {
+            continue;
+        }
+
         auto usage = pair.second->GetResourceUsage();
         result += usage;
     }
-
-    const auto& tracker = Bootstrap->GetMemoryUsageTracker();
-    result.set_memory(tracker.GetUsed(EMemoryConsumer::Job));
 
     return result;
 }
@@ -123,20 +123,24 @@ void TJobManager::StartWaitingJobs()
         if (job->GetState() != EJobState::Waiting)
             continue;
 
-        SpareResources.set_memory(tracker.GetFree());
+        auto usedResources = GetResourceUsage(false);
+        {
+            auto memoryToRelease = tracker.GetUsed(EMemoryConsumer::Job) - usedResources.memory();
+            YCHECK(memoryToRelease >= 0);
+            tracker.Release(EMemoryConsumer::Job, memoryToRelease);
+        }
+
+        auto spareResources = GetResourceLimits() - usedResources;
         auto jobResources = job->GetResourceUsage();
 
-        if (Dominates(SpareResources, jobResources)) {
-            auto error = tracker.TryAcquire(
-                NCellNode::EMemoryConsumer::Job, 
-                jobResources.memory());
+        if (Dominates(spareResources, jobResources)) {
+            auto error = tracker.TryAcquire(EMemoryConsumer::Job, jobResources.memory());
 
             if (error.IsOK()) {
                 LOG_INFO("Starting job (JobId: %s)", ~job->GetId().ToString());
-                SpareResources -= jobResources;
                 auto slot = GetFreeSlot();
                 job->SubscribeResourcesReleased(BIND(
-                    &TJobManager::OnResourcesReleased, 
+                    &TJobManager::OnResourcesReleased,
                     MakeWeak(this)).Via(Bootstrap->GetControlInvoker()));
                 slot->Acquire();
                 job->Start(Bootstrap->GetEnvironmentManager(), slot);
@@ -146,13 +150,15 @@ void TJobManager::StartWaitingJobs()
             } else {
                 LOG_DEBUG(
                     error,
-                    "Not enough memory to start waiting job (JobId: %s)", 
+                    "Not enough memory to start waiting job (JobId: %s)",
                     ~job->GetId().ToString());
             }
         } else {
             LOG_DEBUG(
-                "Not enough resources to start waiting job (JobId: %s)", 
-                ~job->GetId().ToString());
+                "Not enough resources to start waiting job (JobId: %s, SpareResources: %s, JobResources: %s)",
+                ~job->GetId().ToString(),
+                ~FormatResources(spareResources),
+                ~FormatResources(jobResources));
         }
     }
 
@@ -226,7 +232,8 @@ void TJobManager::RemoveJob(const TJobId& jobId)
     LOG_INFO("Job removal requested (JobId: %s)", ~jobId.ToString());
     auto job = FindJob(jobId);
     if (job) {
-        YASSERT(job->GetPhase() > EJobPhase::Cleanup);
+        YCHECK(job->GetPhase() > EJobPhase::Cleanup);
+        YCHECK(job->GetResourceUsage() == ZeroNodeResources());
         YCHECK(Jobs.erase(jobId) == 1);
     } else {
         LOG_WARNING("Requested to remove an unknown job (JobId: %s)", ~jobId.ToString());
@@ -237,13 +244,6 @@ void TJobManager::OnResourcesReleased(const TNodeResources& oldResources, const 
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (oldResources.memory() > newResources.memory()) {
-        Bootstrap->GetMemoryUsageTracker().Release(
-            NCellNode::EMemoryConsumer::Job, 
-            oldResources.memory() - newResources.memory());
-    }
-
-    SpareResources += oldResources - newResources;
     ResourcesUpdatedFlag = true;
     ScheduleStart();
 }
