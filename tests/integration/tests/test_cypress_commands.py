@@ -466,7 +466,7 @@ class TestCypressCommands(YTEnvSetup):
         assert get_str("//tmp/a/@attr/key") == '<"embedded_attr"="emb">"value"'
         assert get_str("//tmp/a/@attr/key/@embedded_attr") == '"emb"'
 
-    def test_get_with_attributes1(self):
+    def test_get_with_attributes(self):
         set('//tmp/a', {})
         assert get_str('//tmp', attr=['type']) == '<"type"="map_node">{"a"=<"type"="map_node">{}}'
 
