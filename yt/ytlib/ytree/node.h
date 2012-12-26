@@ -41,7 +41,6 @@ struct IYPathResolver
 struct INode
     : public virtual IYPathService
     , public virtual IAttributeOwner
-    , public virtual IAttributeProvider
 {
     //! Returns the static type of the node.
     virtual ENodeType GetType() const = 0;

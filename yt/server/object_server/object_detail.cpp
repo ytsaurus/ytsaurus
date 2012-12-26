@@ -242,6 +242,58 @@ void TObjectProxyBase::Invoke(IServiceContextPtr context)
         BIND(&TObjectProxyBase::GuardedInvoke, MakeStrong(this)));
 }
 
+void TObjectProxyBase::SerializeAttributes(
+    IYsonConsumer* consumer,
+    const TAttributeFilter& filter) const
+{
+    if (filter.Mode == EAttributeFilterMode::None ||
+        filter.Mode == EAttributeFilterMode::MatchingOnly && filter.Keys.empty())
+        return;
+
+    const auto& userAttributes = Attributes();
+
+    auto userKeys = userAttributes.List();
+
+    std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
+    ListSystemAttributes(&systemAttributes);
+
+    yhash_set<Stroka> matchingKeys(filter.Keys.begin(), filter.Keys.end());
+
+    bool seenMatching = false;
+
+    FOREACH (const auto& key, userKeys) {
+        if (filter.Mode == EAttributeFilterMode::All || matchingKeys.find(key) != matchingKeys.end()) {
+            if (!seenMatching) {
+                consumer->OnBeginAttributes();
+                seenMatching = true;
+            }
+            consumer->OnKeyedItem(key);
+            consumer->OnRaw(userAttributes.GetYson(key).Data(), EYsonType::Node);
+        }
+    }
+
+    FOREACH (const auto& attribute, systemAttributes) {
+        if (attribute.IsPresent &&
+            (filter.Mode == EAttributeFilterMode::All || matchingKeys.find(attribute.Key) != matchingKeys.end()))
+        {
+            if (!seenMatching) {
+                consumer->OnBeginAttributes();
+                seenMatching = true;
+            }
+            consumer->OnKeyedItem(attribute.Key);
+            if (attribute.IsOpaque) {
+                consumer->OnEntity();
+            } else {
+                YCHECK(GetSystemAttribute(attribute.Key, consumer));
+            }
+        }
+    }
+
+    if (seenMatching) {
+        consumer->OnEndAttributes();
+    }
+}
+
 void TObjectProxyBase::GuardedInvoke(IServiceContextPtr context)
 {
     try {

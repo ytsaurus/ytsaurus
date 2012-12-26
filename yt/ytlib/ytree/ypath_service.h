@@ -1,7 +1,9 @@
 #pragma once
 
 #include "public.h"
+
 #include <ytlib/yson/yson_consumer.h>
+#include <ytlib/ytree/attribute_provider.h>
 
 #include <ytlib/rpc/public.h>
 #include <ytlib/misc/property.h>
@@ -31,6 +33,7 @@ DECLARE_ENUM(EYPathErrorCode,
  */
 struct IYPathService
     : public virtual TRefCounted
+    , public virtual IAttributeProvider
 {
     class TResolveResult
     {

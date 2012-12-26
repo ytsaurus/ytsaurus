@@ -474,6 +474,12 @@ class TestCypressCommands(YTEnvSetup):
         set('//tmp/a', {})
         assert ls_str('//tmp', attr=['type']) == '[<"type"="map_node">"a"]'
 
+    def test_get_list_with_attributes_virtual_maps(self):
+        tx = start_transaction()
+        assert get_str('//sys/transactions', attr=['state']) == '{"%s"=<"state"="active">#}' % tx
+        assert ls_str('//sys/transactions', attr=['state']) == '[<"state"="active">"%s"]' % tx
+        abort_transaction(tx)
+
     def test_exists(self):
         self.assertEqual(exists("//tmp"), "true")
         self.assertEqual(exists("//tmp/a"), "false")
