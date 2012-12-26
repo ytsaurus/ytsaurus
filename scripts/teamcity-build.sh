@@ -185,6 +185,8 @@ if [[ ( $WITH_PACKAGE = "YES" ) && ( $WITH_DEPLOY = "YES" ) ]]; then
     tc "setParameter name='yt.package_ticket' value='$package_ticket'"
 fi
 
+[[ -d ARTIFACTS ]] && (cd ARTIFACTS && ls -1t . | tac | head -n -10 | xargs rm -f)
+
 set +e
 a=0
 
