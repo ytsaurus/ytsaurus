@@ -21,7 +21,7 @@ void BuildOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* con
     BuildYsonMapFluently(consumer)
         .Item("operation_type").Value(operation->GetType())
         .Item("user_transaction_id").Value(operation->GetUserTransaction() ? operation->GetUserTransaction()->GetId() : NullTransactionId)
-        .Item("scheduler_transaction_id").Value(operation->GetUserTransaction() ? operation->GetSchedulerTransaction()->GetId() : NullTransactionId)
+        .Item("scheduler_transaction_id").Value(operation->GetSchedulerTransaction() ? operation->GetSchedulerTransaction()->GetId() : NullTransactionId)
         .Item("state").Value(FormatEnum(operation->GetState()))
         .Item("start_time").Value(operation->GetStartTime())
         .Item("spec").Node(operation->GetSpec());
