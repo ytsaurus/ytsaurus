@@ -345,6 +345,8 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     YCHECK(joblet->ChunkListIds.size() == 1);
     auto* outputSpec = jobSpec->add_output_specs();
     outputSpec->set_channels("[]");
+    outputSpec->set_replication_factor(1);
+    outputSpec->set_account(Controller->SpecBase->TmpAccount);
     *outputSpec->mutable_chunk_list_id() = joblet->ChunkListIds[0].ToProto();
 }
 
