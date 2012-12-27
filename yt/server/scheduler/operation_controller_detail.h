@@ -36,7 +36,7 @@ class TOperationControllerBase
 public:
     TOperationControllerBase(
         TSchedulerConfigPtr config,
-        TOperationSpecBasePtr specBase,
+        TOperationSpecBasePtr spec,
         IOperationHost* host,
         TOperation* operation);
 
@@ -55,9 +55,7 @@ public:
 
     virtual void Abort() override;
 
-    virtual TJobPtr ScheduleJob(
-        ISchedulingContext* context,
-        bool isStarving) override;
+    virtual TJobPtr ScheduleJob(ISchedulingContext* context) override;
 
     virtual TCancelableContextPtr GetCancelableContext() override;
     virtual IInvokerPtr GetCancelableControlInvoker() override;
@@ -264,7 +262,7 @@ protected:
 
         virtual TDuration GetLocalityTimeout() const = 0;
         virtual i64 GetLocality(const Stroka& address) const;
-        virtual bool IsStrictlyLocal() const;
+        virtual bool HasInputLocality();
 
         virtual NProto::TNodeResources GetMinNeededResources() const = 0;
         virtual NProto::TNodeResources GetAvgNeededResources() const;
@@ -309,7 +307,7 @@ protected:
         virtual void OnJobStarted(TJobletPtr joblet);
 
         void AddPendingHint();
-        void AddInputLocalityHint(TChunkStripePtr stripe);
+        void AddLocalityHint(const Stroka& address);
 
         static void AddSequentialInputSpec(
             NScheduler::NProto::TJobSpec* jobSpec,
@@ -326,7 +324,7 @@ protected:
     private:
         void ReleaseFailedJobResources(TJobletPtr joblet);
 
-        static void AddInputChunks(
+        static void AddChunksToInputSpec(
             NScheduler::NProto::TTableInputSpec* inputSpec,
             TChunkStripePtr stripe,
             TNullable<int> partitionTag,
@@ -342,8 +340,15 @@ protected:
     
     struct TPendingTaskInfo
     {
-        yhash_set<TTaskPtr> GlobalTasks;
-        yhash_map<Stroka, yhash_set<TTaskPtr>> AddressToLocalTasks;
+        // All non-local tasks.
+        yhash_set<TTaskPtr> NonLocalTasks;
+        // Non-local tasks that may possibly be ready (but a delayed check is still needed).
+        std::vector<TTaskPtr> CandidateTasks;
+        // Non-local tasks keyed by deadline.
+        std::multimap<TInstant, TTaskPtr> DelayedTasks;
+
+        // Local tasks keyed by address.
+        yhash_map<Stroka, yhash_set<TTaskPtr>> LocalTasks;
     };
 
     static const int MaxTaskPriority = 2;
@@ -358,14 +363,15 @@ protected:
     void AddTaskLocalityHint(TTaskPtr task, const Stroka& address);
     void AddTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe);
     void AddTaskPendingHint(TTaskPtr task);
+    void ResetTaskLocalityDelays();
     TPendingTaskInfo* GetPendingTaskInfo(TTaskPtr task);
 
-    bool HasEnoughResources(TExecNodePtr node);
     bool HasEnoughResources(TTaskPtr task, TExecNodePtr node);
 
-    TJobPtr DoScheduleJob(
-        ISchedulingContext* context,
-        bool isStarving);
+    TJobPtr DoScheduleJob(ISchedulingContext* context);
+    TJobPtr DoScheduleLocalJob(ISchedulingContext* context);
+    TJobPtr DoScheduleNonLocalJob(ISchedulingContext* context);
+
     void OnJobStarted(TJobPtr job);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
@@ -551,7 +557,7 @@ protected:
     void InitFinalOutputConfig(TJobIOConfigPtr config);
 
 private:
-    TOperationSpecBasePtr SpecBase;
+    TOperationSpecBasePtr Spec;
     TChunkListPoolPtr ChunkListPool;
 
     void OnChunkListsReleased(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);

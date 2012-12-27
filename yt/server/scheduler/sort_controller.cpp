@@ -71,18 +71,6 @@ public:
         , SimpleSort(false)
     { }
 
-    virtual TNodeResources GetMinNeededResources() override
-    {
-        if (PartitionTask && PartitionTask->IsPending()) {
-            return PartitionTask->GetMinNeededResources();
-        }
-        if (!Partitions.empty()) {
-            return Partitions[0]->SortTask->GetMinNeededResources();
-        }
-
-        return InfiniteNodeResources();
-    }
-
 private:
     TSortOperationSpecBasePtr Spec;
 
@@ -154,8 +142,8 @@ protected:
         //! Does the partition consist of rows with the same key?
         bool Maniac;
 
-        //! The only node where sorting and merging must take place (in case of multiple partitions).
-        Stroka AssignedAddress;
+        //! Number of sorted bytes residing at a given node.
+        yhash_map<Stroka, i64> AddressToSortedDataSize;
 
         // Tasks.
         TSortTaskPtr SortTask;
@@ -406,7 +394,7 @@ protected:
             return GetNeededResourcesForDataSize(joblet->InputStripeList->TotalDataSize);
         }
 
-    private:
+    protected:
         virtual IChunkPoolInput* GetChunkPoolInput() const override
         {
             return
@@ -569,24 +557,35 @@ protected:
 
         virtual TDuration GetLocalityTimeout() const override
         {
-            return TDuration::Zero();
-        }
-
-        virtual bool IsStrictlyLocal() const override
-        {
-            return true;
+            return
+                Partition->AddressToSortedDataSize.empty()
+                ? TDuration::Zero()
+                : Controller->Spec->SortLocalityTimeout;
         }
 
         virtual i64 GetLocality(const Stroka& address) const override
         {
-            return
-                address == Partition->AssignedAddress
-                // Report locality proportional to the pending data size.
-                // This facilitates uniform sort progress across partitions.
-                // Never return 0 to avoid removing the hint.
-                ? std::max(GetPendingDataSize(), static_cast<i64>(1))
-                // Return zero for wrong addresses.
-                : 0;
+            auto it = Partition->AddressToSortedDataSize.find(address);
+            return it == Partition->AddressToSortedDataSize.end() ? 0 : it->second;
+        }
+
+    private:
+        virtual bool HasInputLocality() override
+        {
+            return false;
+        }
+
+        virtual void OnJobStarted(TJobletPtr joblet) override
+        {
+            // Increase data size for this address to ensure subsequent sort jobs
+            // to be scheduled to this very node.
+            auto address = joblet->Job->GetNode()->GetAddress();
+            Partition->AddressToSortedDataSize[address] += joblet->InputStripeList->TotalDataSize;
+            
+            // Also add a hint.
+            AddLocalityHint(address);
+
+            TSortTask::OnJobStarted(joblet);
         }
 
     };
@@ -625,19 +624,12 @@ protected:
             return 2;
         }
 
-        virtual TDuration GetLocalityTimeout() const override
-        {
-            return
-                Controller->SimpleSort
-                ? Controller->Spec->SimpleMergeLocalityTimeout
-                : Controller->Spec->MergeLocalityTimeout;
-        }
-
-    protected:
+    private:
         virtual void OnTaskCompleted() override
         {
             Controller->OnPartitionCompleted(Partition);
         }
+
     };
 
     //! Implements sorted merge phase for sort operations and
@@ -668,6 +660,14 @@ protected:
             }
 
             return TTask::GetPendingJobCount();
+        }
+
+        virtual TDuration GetLocalityTimeout() const override
+        {
+            return
+                Controller->SimpleSort
+                ? Controller->Spec->SimpleMergeLocalityTimeout
+                : Controller->Spec->MergeLocalityTimeout;
         }
 
         virtual TNodeResources GetMinNeededResources() const override
@@ -768,13 +768,14 @@ protected:
 
         virtual i64 GetLocality(const Stroka& address) const override
         {
-            // Unordered merge job does not respect locality.
+            // Locality is unimportant.
             return 0;
         }
 
-        virtual bool IsStrictlyLocal() const override
+        virtual TDuration GetLocalityTimeout() const override
         {
-            return false;
+            // Makes no sense to wait.
+            return TDuration::Zero();
         }
 
         virtual TNodeResources GetMinNeededResources() const override
@@ -791,6 +792,11 @@ protected:
         virtual IChunkPoolOutput* GetChunkPoolOutput() const override
         {
             return Partition->ChunkPoolOutput;
+        }
+
+        virtual bool HasInputLocality() override
+        {
+            return false;
         }
 
         virtual int GetChunkListCountPerJob() const override
@@ -847,6 +853,7 @@ protected:
 
             TMergeTask::OnJobAborted(joblet);
         }
+
     };
 
 
@@ -877,26 +884,6 @@ protected:
     {
         YCHECK(CompletedPartitionCount == Partitions.size());
         TOperationControllerBase::OnOperationCompleted();
-    }
-
-    virtual void OnNodeOffline(TExecNodePtr node) override
-    {
-        if (SortStartThresholdReached) {
-            std::vector<TPartitionPtr> affectedPartitions;
-            const auto& failedAddress = node->GetAddress();
-
-            FOREACH (auto partition, Partitions) {
-                if (partition->AssignedAddress == failedAddress) {
-                    affectedPartitions.push_back(partition);
-                }
-            }
-
-            LOG_WARNING("Reassigning %d partitions due to failure of %s",
-                static_cast<int>(affectedPartitions.size()),
-                ~failedAddress);
-
-            AssignPartitions(affectedPartitions);
-        }
     }
 
     void RegisterOutputChunkTrees(TJobletPtr joblet, TPartition* partition)
@@ -963,7 +950,6 @@ protected:
         LOG_INFO("Sort start threshold reached");
 
         SortStartThresholdReached = true;
-        AssignPartitions(Partitions);
         AddSortTasksPendingHints();
     }
 
@@ -1003,64 +989,6 @@ protected:
                 ? TTaskPtr(partition->UnorderedMergeTask)
                 : TTaskPtr(partition->SortedMergeTask);
             AddTaskPendingHint(taskToKick);
-        }
-    }
-
-    void AssignPartitions(const std::vector<TPartitionPtr>& partitions)
-    {
-        auto nodes = Host->GetExecNodes();
-        if (nodes.empty()) {
-            OnOperationFailed(TError("No online exec nodes to assign partitions"));
-            return;
-        }
-
-        yhash_map<TExecNodePtr, i64> nodeToDataSize;
-        std::vector<TExecNodePtr> nodeHeap;
-
-        auto compareNodes = [&] (const TExecNodePtr& lhs, const TExecNodePtr& rhs) {
-            return nodeToDataSize[lhs] > nodeToDataSize[rhs];
-        };
-
-        auto comparePartitions = [&] (const TPartitionPtr& lhs, const TPartitionPtr& rhs) {
-            return lhs->ChunkPoolOutput->GetTotalDataSize() >
-                   rhs->ChunkPoolOutput->GetTotalDataSize();
-        };
-
-        FOREACH (auto node, nodes) {
-            YCHECK(nodeToDataSize.insert(std::make_pair(node, 0)).second);
-            nodeHeap.push_back(node);
-        }
-
-        auto sortedPartitions = partitions;
-        std::sort(sortedPartitions.begin(), sortedPartitions.end(), comparePartitions);
-
-        // This is actually redundant since all values are 0.
-        std::make_heap(nodeHeap.begin(), nodeHeap.end(), compareNodes);
-
-        LOG_DEBUG("Assigning partitions");
-        FOREACH (auto partition, sortedPartitions) {
-            auto node = nodeHeap.front();
-            auto address = node->GetAddress();
-
-            partition->AssignedAddress = address;
-            AddTaskLocalityHint(partition->SortTask, address);
-            AddTaskLocalityHint(partition->SortedMergeTask, address);
-
-            std::pop_heap(nodeHeap.begin(), nodeHeap.end(), compareNodes);
-            nodeToDataSize[node] += partition->ChunkPoolOutput->GetTotalDataSize();
-            std::push_heap(nodeHeap.begin(), nodeHeap.end(), compareNodes);
-
-            LOG_DEBUG("Partition assigned: %d (DataSize: %" PRId64 ") -> %s",
-                partition->Index,
-                partition->ChunkPoolOutput->GetTotalDataSize(),
-                ~address);
-        }
-
-        LOG_DEBUG("Partitions assigned");
-        FOREACH (const auto& pair, nodeToDataSize) {
-            LOG_DEBUG("Node %s -> %" PRId64,
-                ~pair.first->GetAddress(),
-                pair.second);
         }
     }
 

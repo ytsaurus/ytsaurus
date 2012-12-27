@@ -163,9 +163,6 @@ struct IOperationController
     //! Returns the total resources that are additionally needed.
     virtual NProto::TNodeResources GetNeededResources() = 0;
 
-    //! Returns the minimum resources (per node) enabling to start a job.
-    virtual NProto::TNodeResources GetMinNeededResources() = 0;
-    
     //! Called during heartbeat processing to notify the controller that a job is running.
     virtual void OnJobRunning(TJobPtr job, const NProto::TJobStatus& status) = 0;
 
@@ -185,9 +182,7 @@ struct IOperationController
     virtual void OnNodeOffline(TExecNodePtr node) = 0;
 
     //! Called during heartbeat processing to request actions the node must perform.
-    virtual TJobPtr ScheduleJob(
-        ISchedulingContext* context,
-        bool isStarving) = 0;
+    virtual TJobPtr ScheduleJob(ISchedulingContext* context) = 0;
 
     //! Called to construct a YSON representing the current progress.
     virtual void BuildProgressYson(NYson::IYsonConsumer* consumer) = 0;

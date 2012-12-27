@@ -398,7 +398,7 @@ private:
         auto service = Bootstrap->GetObjectManager()->GetRootService();
         auto req = TTransactionYPathProxy::CreateObject(RootTransactionPath);
         req->set_type(EObjectType::Transaction);
-        req->MutableExtension(NProto::TReqCreateTransactionExt::create_transaction);
+        req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
         auto rsp = SyncExecuteVerb(service, req);
         return TTransactionId::FromProto(rsp->object_id());
     }

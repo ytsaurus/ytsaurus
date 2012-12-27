@@ -138,7 +138,7 @@ public:
                 break;
             }
 
-            auto job = controller->ScheduleJob(context, Starving_);
+            auto job = controller->ScheduleJob(context);
             if (!job) {
                 // The first failure means that no more jobs can be scheduled.
                 break;

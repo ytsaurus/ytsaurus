@@ -50,14 +50,6 @@ public:
         , StartRowIndex(0)
     { }
 
-    virtual TNodeResources GetMinNeededResources() override
-    {
-        return MapTask
-            ? MapTask->GetMinNeededResources()
-            : InfiniteNodeResources();
-    }
-
-
 private:
     TMapOperationSpecPtr Spec;
     i64 StartRowIndex;

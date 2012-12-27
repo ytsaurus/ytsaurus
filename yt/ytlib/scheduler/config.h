@@ -298,9 +298,11 @@ struct TSortOperationSpecBase
     double ShuffleStartThreshold;
     double MergeStartThreshold;
 
-    TDuration PartitionLocalityTimeout;
     TDuration SimpleSortLocalityTimeout;
     TDuration SimpleMergeLocalityTimeout;
+
+    TDuration PartitionLocalityTimeout;
+    TDuration SortLocalityTimeout;
     TDuration MergeLocalityTimeout;
 
     int ShuffleNetworkLimit;
@@ -389,14 +391,16 @@ struct TSortOperationSpec
         Register("max_data_size_per_partition_job", MaxDataSizePerPartitionJob)
             .Default((i64) 1024 * 1024 * 1024)
             .GreaterThan(0);
+        Register("simple_sort_locality_timeout", SimpleSortLocalityTimeout)
+            .Default(TDuration::Seconds(5));
+        Register("simple_merge_locality_timeout", SimpleMergeLocalityTimeout)
+            .Default(TDuration::Seconds(5));
         Register("partition_locality_timeout", PartitionLocalityTimeout)
             .Default(TDuration::Seconds(5));
-        Register("simple_sort_locality_timeout", SimpleSortLocalityTimeout)
-            .Default(TDuration::Seconds(10));
-        Register("simple_merge_locality_timeout", SimpleMergeLocalityTimeout)
-            .Default(TDuration::Seconds(10));
-        Register("partition_merge_locality_timeout", MergeLocalityTimeout)
-            .Default(TDuration::Minutes(10));
+        Register("sort_locality_timeout", SortLocalityTimeout)
+            .Default(TDuration::Minutes(1));
+        Register("merge_locality_timeout", MergeLocalityTimeout)
+            .Default(TDuration::Minutes(1));
 
         PartitionJobIO->TableReader->PrefetchWindow = 10;
         PartitionJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
@@ -456,8 +460,10 @@ struct TMapReduceOperationSpec
             .GreaterThan(0);
         Register("map_locality_timeout", PartitionLocalityTimeout)
             .Default(TDuration::Seconds(5));
-        Register("sorted_reduce_locality_timeout", MergeLocalityTimeout)
-            .Default(TDuration::Minutes(10));
+        Register("sort_locality_timeout", SortLocalityTimeout)
+            .Default(TDuration::Minutes(1));
+        Register("reduce_locality_timeout", MergeLocalityTimeout)
+            .Default(TDuration::Minutes(1));
         Register("enable_table_index", EnableTableIndex)
             .Default(false);
 

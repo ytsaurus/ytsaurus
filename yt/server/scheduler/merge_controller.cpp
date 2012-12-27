@@ -51,7 +51,7 @@ public:
         IOperationHost* host,
         TOperation* operation)
         : TOperationControllerBase(config, spec, host, operation)
-        , SpecBase(spec)
+        , Spec(spec)
         , TotalChunkCount(0)
         , TotalDataSize(0)
         , CurrentTaskDataSize(0)
@@ -59,15 +59,8 @@ public:
         , MaxDataSizePerJob(0)
     { }
 
-    virtual TNodeResources GetMinNeededResources() override
-    {
-        return Tasks.empty()
-            ? InfiniteNodeResources()
-            : Tasks[0]->GetMinNeededResources();
-    }
-
 protected:
-    TMergeOperationSpecBasePtr SpecBase;
+    TMergeOperationSpecBasePtr Spec;
 
     //! For each input table, the corresponding entry holds the stripe
     //! containing the chunks collected so far. Empty stripes are never stored explicitly
@@ -125,7 +118,7 @@ protected:
 
         virtual TDuration GetLocalityTimeout() const override
         {
-            return Controller->SpecBase->LocalityTimeout;
+            return Controller->Spec->LocalityTimeout;
         }
 
         virtual NProto::TNodeResources GetMinNeededResources() const override
@@ -135,7 +128,7 @@ protected:
             result.set_cpu(1);
             result.set_memory(
                 GetIOMemorySize(
-                    Controller->SpecBase->JobIO,
+                    Controller->Spec->JobIO,
                     Controller->GetInputTablePaths().size(),
                     1) +
                 GetFootprintMemorySize());
@@ -347,7 +340,7 @@ protected:
             }
 
             MaxDataSizePerJob = std::max(
-                SpecBase->MaxDataSizePerJob,
+                Spec->MaxDataSizePerJob,
                 static_cast<i64>(std::ceil((double) totalDataSize / Config->MaxJobCount)));
 
             FOREACH (auto chunk, chunks) {
@@ -453,7 +446,7 @@ protected:
 
         // ChunkSequenceWriter may actually produce a chunk a bit smaller than DesiredChunkSize,
         // so we have to be more flexible here.
-        if (0.9 * chunkDataSize >= SpecBase->JobIO->TableWriter->DesiredChunkSize) {
+        if (0.9 * chunkDataSize >= Spec->JobIO->TableWriter->DesiredChunkSize) {
             return true;
         }
 
@@ -469,7 +462,7 @@ protected:
     //! Initializes #JobIOConfig.
     void InitJobIOConfig()
     {
-        JobIOConfig = CloneYsonSerializable(SpecBase->JobIO);
+        JobIOConfig = CloneYsonSerializable(Spec->JobIO);
         InitFinalOutputConfig(JobIOConfig);
     }
 
@@ -1056,7 +1049,7 @@ protected:
 
         ChunkSplitsFetcher = New<TChunkSplitsFetcher>(
             Config,
-            SpecBase,
+            Spec,
             Operation->GetOperationId(),
             KeyColumns);
 
@@ -1170,18 +1163,6 @@ public:
         , Spec(spec)
         , StartRowIndex(0)
     { }
-
-    virtual NProto::TNodeResources GetMinNeededResources() override
-    {
-        TNodeResources result;
-        result.set_slots(1);
-        result.set_cpu(Spec->Reducer->CpuLimit);
-        result.set_memory(
-            GetIOMemorySize(Spec->JobIO, Spec->InputTablePaths.size(), Spec->OutputTablePaths.size()) +
-            Spec->Reducer->MemoryLimit +
-            GetFootprintMemorySize());
-        return result;
-    }
 
 private:
     TReduceOperationSpecPtr Spec;

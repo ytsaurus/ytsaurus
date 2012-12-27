@@ -91,9 +91,9 @@ i64 TOperationControllerBase::TTask::GetLocality(const Stroka& address) const
     return GetChunkPoolOutput()->GetLocality(address);
 }
 
-bool TOperationControllerBase::TTask::IsStrictlyLocal() const
+bool TOperationControllerBase::TTask::HasInputLocality()
 {
-    return false;
+    return true;
 }
 
 int TOperationControllerBase::TTask::GetPriority() const
@@ -104,7 +104,9 @@ int TOperationControllerBase::TTask::GetPriority() const
 void TOperationControllerBase::TTask::AddInput(TChunkStripePtr stripe)
 {
     GetChunkPoolInput()->Add(stripe);
-    AddInputLocalityHint(stripe);
+    if (HasInputLocality()) {
+        Controller->AddTaskLocalityHint(this, stripe);
+    }
     AddPendingHint();
 }
 
@@ -246,7 +248,7 @@ void TOperationControllerBase::TTask::ReleaseFailedJobResources(TJobletPtr joble
 
     auto list = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
     FOREACH (const auto& stripe, list->Stripes) {
-        AddInputLocalityHint(stripe);
+        Controller->AddTaskLocalityHint(this, stripe);
     }
 
     chunkPoolOutput->Failed(joblet->OutputCookie);
@@ -274,9 +276,9 @@ void TOperationControllerBase::TTask::AddPendingHint()
     Controller->AddTaskPendingHint(this);
 }
 
-void TOperationControllerBase::TTask::AddInputLocalityHint(TChunkStripePtr stripe)
+void TOperationControllerBase::TTask::AddLocalityHint(const Stroka& address)
 {
-    Controller->AddTaskLocalityHint(this, stripe);
+    Controller->AddTaskLocalityHint(this, address);
 }
 
 void TOperationControllerBase::TTask::AddSequentialInputSpec(
@@ -287,7 +289,7 @@ void TOperationControllerBase::TTask::AddSequentialInputSpec(
     auto* inputSpec = jobSpec->add_input_specs();
     auto list = joblet->InputStripeList;
     FOREACH (const auto& stripe, list->Stripes) {
-        AddInputChunks(inputSpec, stripe, list->PartitionTag, enableTableIndex);
+        AddChunksToInputSpec(inputSpec, stripe, list->PartitionTag, enableTableIndex);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
 }
@@ -300,7 +302,7 @@ void TOperationControllerBase::TTask::AddParallelInputSpec(
     auto list = joblet->InputStripeList;
     FOREACH (const auto& stripe, list->Stripes) {
         auto* inputSpec = jobSpec->add_input_specs();
-        AddInputChunks(inputSpec, stripe, list->PartitionTag, enableTableIndex);
+        AddChunksToInputSpec(inputSpec, stripe, list->PartitionTag, enableTableIndex);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
 }
@@ -346,11 +348,11 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     auto* outputSpec = jobSpec->add_output_specs();
     outputSpec->set_channels("[]");
     outputSpec->set_replication_factor(1);
-    outputSpec->set_account(Controller->SpecBase->TmpAccount);
+    outputSpec->set_account(Controller->Spec->TmpAccount);
     *outputSpec->mutable_chunk_list_id() = joblet->ChunkListIds[0].ToProto();
 }
 
-void TOperationControllerBase::TTask::AddInputChunks(
+void TOperationControllerBase::TTask::AddChunksToInputSpec(
     NScheduler::NProto::TTableInputSpec* inputSpec,
     TChunkStripePtr stripe,
     TNullable<int> partitionTag,
@@ -383,7 +385,7 @@ TNodeResources TOperationControllerBase::TTask::GetNeededResources(TJobletPtr jo
 
 TOperationControllerBase::TOperationControllerBase(
     TSchedulerConfigPtr config,
-    TOperationSpecBasePtr specBase,
+    TOperationSpecBasePtr spec,
     IOperationHost* host,
     TOperation* operation)
     : Config(config)
@@ -404,7 +406,7 @@ TOperationControllerBase::TOperationControllerBase(
     , PendingTaskInfos(MaxTaskPriority + 1)
     , CachedPendingJobCount(0)
     , CachedNeededResources(ZeroNodeResources())
-    , SpecBase(specBase)
+    , Spec(spec)
 {
     Logger.AddTag(Sprintf("OperationId: %s", ~operation->GetOperationId().ToString()));
 }
@@ -539,6 +541,7 @@ TFuture<void> TOperationControllerBase::Commit()
 void TOperationControllerBase::OnJobStarted(TJobPtr job)
 {
     UsedResources += job->ResourceUsage();
+    JobCounter.Start(1);
 }
 
 void TOperationControllerBase::OnJobRunning(TJobPtr job, const NProto::TJobStatus& status)
@@ -659,9 +662,7 @@ void TOperationControllerBase::OnNodeOffline(TExecNodePtr node)
     UNUSED(node);
 }
 
-TJobPtr TOperationControllerBase::ScheduleJob(
-    ISchedulingContext* context,
-    bool isStarving)
+TJobPtr TOperationControllerBase::ScheduleJob(ISchedulingContext* context)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -675,18 +676,12 @@ TJobPtr TOperationControllerBase::ScheduleJob(
         return NULL;
     }
 
-    // Make a course check to see if the node has enough resources.
-    auto node = context->GetNode();
-    if (!HasEnoughResources(node)) {
-        return NULL;
-    }
-
-    auto job = DoScheduleJob(context, isStarving);
+    auto job = DoScheduleJob(context);
     if (!job) {
         return NULL;
     }
 
-    JobCounter.Start(1);
+    OnJobStarted(job);
     LogProgress();
     return job;
 }
@@ -719,9 +714,10 @@ void TOperationControllerBase::OnTaskUpdated(TTaskPtr task)
 
 void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
 {
-    if (!task->IsStrictlyLocal() && task->GetPendingJobCount() > 0) {
+    if (task->GetPendingJobCount() > 0) {
         auto* info = GetPendingTaskInfo(task);
-        if (info->GlobalTasks.insert(task).second) {
+        if (info->NonLocalTasks.insert(task).second) {
+            info->CandidateTasks.push_back(task);
             LOG_DEBUG("Task pending hint added (Task: %s)",
                 ~task->GetId());
         }
@@ -732,7 +728,7 @@ void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
 void TOperationControllerBase::DoAddTaskLocalityHint(TTaskPtr task, const Stroka& address)
 {
     auto* info = GetPendingTaskInfo(task);
-    if (info->AddressToLocalTasks[address].insert(task).second) {
+    if (info->LocalTasks[address].insert(task).second) {
         LOG_TRACE("Task locality hint added (Task: %s, Address: %s)",
             ~task->GetId(),
             ~address);
@@ -754,21 +750,23 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, const Stroka& 
 
 void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe)
 {
-    if (!task->IsStrictlyLocal()) {
-        FOREACH (const auto& chunk, stripe->Chunks) {
-            FOREACH (const auto& address, chunk->node_addresses()) {
-                DoAddTaskLocalityHint(task, address);
-            }
+    FOREACH (const auto& chunk, stripe->Chunks) {
+        FOREACH (const auto& address, chunk->node_addresses()) {
+            DoAddTaskLocalityHint(task, address);
         }
     }
     OnTaskUpdated(task);
 }
 
-bool TOperationControllerBase::HasEnoughResources(TExecNodePtr node)
+void TOperationControllerBase::ResetTaskLocalityDelays()
 {
-    return Dominates(
-        node->ResourceLimits() + node->ResourceUsageDiscount(),
-        node->ResourceUsage() + GetMinNeededResources());
+    LOG_DEBUG("Task locality delays are reset");
+    FOREACH (auto& info, PendingTaskInfos) {
+        FOREACH (const auto& pair, info.DelayedTasks) {
+            info.CandidateTasks.push_back(pair.second);
+        }
+        info.DelayedTasks.clear();
+    }
 }
 
 bool TOperationControllerBase::HasEnoughResources(TTaskPtr task, TExecNodePtr node)
@@ -776,18 +774,31 @@ bool TOperationControllerBase::HasEnoughResources(TTaskPtr task, TExecNodePtr no
     return node->HasEnoughResources(task->GetMinNeededResources());
 }
 
-TJobPtr TOperationControllerBase::DoScheduleJob(
-    ISchedulingContext* context,
-    bool isStarving)
+TJobPtr TOperationControllerBase::DoScheduleJob(ISchedulingContext* context)
 {
-    // First try to find a local task for this node.
+    auto localJob = DoScheduleLocalJob(context);
+    if (localJob) {
+        return localJob;
+    }
+
+    auto nonLocalJob = DoScheduleNonLocalJob(context);
+    if (nonLocalJob) {
+        return nonLocalJob;
+    }
+
+    return NULL;
+}
+
+TJobPtr TOperationControllerBase::DoScheduleLocalJob(ISchedulingContext* context)
+{
     auto now = TInstant::Now();
     auto node = context->GetNode();
     auto address = node->GetAddress();
+
     for (int priority = static_cast<int>(PendingTaskInfos.size()) - 1; priority >= 0; --priority) {
         auto& info = PendingTaskInfos[priority];
-        auto localTasksIt = info.AddressToLocalTasks.find(address);
-        if (localTasksIt == info.AddressToLocalTasks.end()) {
+        auto localTasksIt = info.LocalTasks.find(address);
+        if (localTasksIt == info.LocalTasks.end()) {
             continue;
         }
 
@@ -800,7 +811,7 @@ TJobPtr TOperationControllerBase::DoScheduleJob(
             auto jt = it++;
             auto task = *jt;
 
-            // Make sure that the task is ready to launch jobs.
+            // Make sure that the task have positive locality.
             // Remove pending hint if not.
             i64 locality = task->GetLocality(address);
             if (locality <= 0) {
@@ -829,72 +840,102 @@ TJobPtr TOperationControllerBase::DoScheduleJob(
         }
 
         if (bestTask) {
+            LOG_DEBUG("Attempting to schedule a local job (Task: %s, Address: %s, Priority: %d, Locality: %" PRId64 ")",
+                ~bestTask->GetId(),
+                ~address,
+                priority,
+                bestLocality);
             auto job = bestTask->ScheduleJob(context);
             if (job) {
-                auto delayedTime = bestTask->GetDelayedTime();
-                LOG_DEBUG("Scheduled a local job (Task: %s, Address: %s, Priority: %d, Locality: %" PRId64 ", Delay: %s)",
-                    ~bestTask->GetId(),
-                    ~address,
-                    priority,
-                    bestLocality,
-                    delayedTime ? ~ToString(now - delayedTime.Get()) : "Null");
                 bestTask->SetDelayedTime(Null);
                 OnTaskUpdated(bestTask);
-                OnJobStarted(job);
                 return job;
             }
         }
     }
+    return NULL;
+}
 
-    // Next look for other (global) tasks.
+TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(ISchedulingContext* context)
+{
+    auto now = TInstant::Now();
+    auto node = context->GetNode();
+    auto address = node->GetAddress();
+
     for (int priority = static_cast<int>(PendingTaskInfos.size()) - 1; priority >= 0; --priority) {
         auto& info = PendingTaskInfos[priority];
-        auto& globalTasks = info.GlobalTasks;
-        auto it = globalTasks.begin();
-        while (it != globalTasks.end()) {
-            auto jt = it++;
-            auto task = *jt;
+        auto& nonLocalTasks = info.NonLocalTasks;
+        auto& candidateTasks = info.CandidateTasks;
+        auto& delayedTasks = info.DelayedTasks;
 
-            // Make sure that the task is ready to launch jobs.
-            // Remove pending hint if not.
-            if (task->GetPendingJobCount() == 0) {
-                LOG_DEBUG("Task pending hint removed (Task: %s)", ~task->GetId());
-                globalTasks.erase(jt);
-                OnTaskUpdated(task);
-                continue;
-            }
+        auto eraseCandidate = [&] (int index) {
+            std::swap(candidateTasks[index], candidateTasks.back());
+            candidateTasks.erase(candidateTasks.end() - 1, candidateTasks.end());
+        };
 
-            if (!HasEnoughResources(task, node)) {
-                continue;
+        // Move tasks from delayed to candidates.
+        while (!delayedTasks.empty()) {
+            auto it = delayedTasks.begin();
+            auto deadline = it->first;
+            auto task = it->second;
+            if (now < deadline) {
+                break;
             }
+            delayedTasks.erase(it);
+            candidateTasks.push_back(task);
+            LOG_DEBUG("Task delay deadline reached (Task: %s)", ~task->GetId());
+        }
 
-            // Use delayed execution unless starving.
-            bool mustWait = false;
-            auto delayedTime = task->GetDelayedTime();
-            if (delayedTime) {
-                mustWait = delayedTime.Get() + task->GetLocalityTimeout() > now;
-            } else {
-                task->SetDelayedTime(now);
-                mustWait = true;
-            }
-            if (!isStarving && mustWait) {
-                continue;
-            }
+        // Consider candidates.
+        {
+            int taskIndex = 0;
+            while (taskIndex < static_cast<int>(candidateTasks.size())) {
+                auto task = candidateTasks[taskIndex];
 
-            auto job = task->ScheduleJob(context);
-            if (job) {
-                LOG_DEBUG("Scheduled a non-local job (Task: %s, Address: %s, Priority: %d, Delay: %s)",
+                // Make sure that the task is ready to launch jobs.
+                // Remove pending hint if not.
+                if (task->GetPendingJobCount() == 0) {
+                    LOG_DEBUG("Task pending hint removed (Task: %s)", ~task->GetId());
+
+                    eraseCandidate(taskIndex);
+                    YCHECK(nonLocalTasks.erase(task) == 1);
+                    OnTaskUpdated(task);
+                    continue;
+                }
+
+                if (!HasEnoughResources(task, node)) {
+                    ++taskIndex;
+                    continue;
+                }
+
+                if (!task->GetDelayedTime()) {
+                    task->SetDelayedTime(now);
+                }
+
+                auto deadline = task->GetDelayedTime().Get() + task->GetLocalityTimeout();
+                if (deadline > now) {
+                    delayedTasks.insert(std::make_pair(deadline, task));
+                    eraseCandidate(taskIndex);
+                    LOG_DEBUG("Task delayed (Task: %s, Deadline: %s)",
+                        ~task->GetId(),
+                        ~ToString(deadline));
+                    continue;
+                }
+
+                LOG_DEBUG("Attempting to schedule a non-local job (Task: %s, Address: %s, Priority: %d)",
                     ~task->GetId(),
                     ~address,
-                    priority,
-                    delayedTime ? ~ToString(now - delayedTime.Get()) : "Null");
-                OnTaskUpdated(task);
-                OnJobStarted(job);
-                return job;
+                    priority);
+                auto job = task->ScheduleJob(context);
+                if (job) {
+                    OnTaskUpdated(task);
+                    return job;
+                }
+
+                ++taskIndex;
             }
         }
     }
-
     return NULL;
 }
 
@@ -1124,7 +1165,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::StartIOTransacti
     {
         auto req = TTransactionYPathProxy::CreateObject(FromObjectId(schedulerTransactionId));
         req->set_type(EObjectType::Transaction);
-        req->MutableExtension(NProto::TReqCreateTransactionExt::create_transaction);
+        req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
         NMetaState::GenerateRpcMutationId(req);
         batchReq->AddRequest(req, "start_in_tx");
     }
@@ -1132,7 +1173,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::StartIOTransacti
     {
         auto req = TTransactionYPathProxy::CreateObject(FromObjectId(schedulerTransactionId));
         req->set_type(EObjectType::Transaction);
-        auto* reqExt = req->MutableExtension(NProto::TReqCreateTransactionExt::create_transaction);
+        auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
         reqExt->set_enable_uncommitted_accounting(false);
         NMetaState::GenerateRpcMutationId(req);
         batchReq->AddRequest(req, "start_out_tx");
