@@ -165,6 +165,11 @@ public:
         }
     }
 
+    std::vector<NChunkClient::TChunkId> GetFailedChunks() const override
+    {
+        return Reader->GetFailedChunks();
+    }
+
 private:
     ISyncReaderPtr Reader;
     TTableChunkSequenceWriterPtr Writer;

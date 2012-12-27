@@ -63,9 +63,9 @@ public:
 
         auto provider = New<TPartitionChunkReaderProvider>(config->JobIO->TableReader);
         Reader = New<TReader>(
-            config->JobIO->TableReader, 
-            masterChannel, 
-            blockCache, 
+            config->JobIO->TableReader,
+            masterChannel,
+            blockCache,
             std::move(chunks),
             provider);
 
@@ -293,6 +293,11 @@ public:
             LOG_DEBUG("GetProgress: %lf", progress);
             return progress;
         }
+    }
+
+    std::vector<NChunkClient::TChunkId> GetFailedChunks() const override
+    {
+        return Reader->GetFailedChunks();
     }
 
 private:

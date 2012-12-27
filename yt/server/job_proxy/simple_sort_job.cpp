@@ -71,9 +71,9 @@ public:
         auto provider = New<TTableChunkReaderProvider>(config->JobIO->TableReader, options);
 
         Reader = New<TReader>(
-            config->JobIO->TableReader, 
-            masterChannel, 
-            blockCache, 
+            config->JobIO->TableReader,
+            masterChannel,
+            blockCache,
             std::move(chunks),
             provider);
 
@@ -156,12 +156,12 @@ public:
             LOG_INFO("Sorting");
 
             std::sort(
-                rowIndexBuffer.begin(), 
+                rowIndexBuffer.begin(),
                 rowIndexBuffer.end(),
                 [&] (ui32 lhs, ui32 rhs) -> bool {
                     for (int i = 0; i < keyColumnCount; ++i) {
                         auto res = CompareSmallKeyParts(
-                            keyBuffer[lhs * keyColumnCount + i], 
+                            keyBuffer[lhs * keyColumnCount + i],
                             keyBuffer[rhs * keyColumnCount + i]);
 
                         if (res < 0)
@@ -189,7 +189,7 @@ public:
 
                     auto rowIndex = rowIndexBuffer[progressIndex];
                     for (auto valueIndex = valueIndexBuffer[rowIndex];
-                        valueIndex < valueIndexBuffer[rowIndex + 1]; 
+                        valueIndex < valueIndexBuffer[rowIndex + 1];
                         ++valueIndex)
                     {
                         row.push_back(valueBuffer[valueIndex]);
@@ -239,6 +239,11 @@ public:
             LOG_DEBUG("GetProgress: %lf", progress);
             return progress;
         }
+    }
+
+    std::vector<NChunkClient::TChunkId> GetFailedChunks() const override
+    {
+        return Reader->GetFailedChunks();
     }
 
 private:

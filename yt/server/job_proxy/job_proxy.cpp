@@ -192,6 +192,8 @@ void TJobProxy::Run()
 
         TJobResult result;
         ToProto(result.mutable_error(), TError(ex));
+        ToProto(result.mutable_failed_chunk_ids(), Job->GetFailedChunks());
+
         ReportResult(result);
     }
 }

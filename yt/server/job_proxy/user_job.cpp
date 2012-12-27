@@ -134,6 +134,11 @@ public:
         return JobIO->GetProgress();
     }
 
+    std::vector<NChunkClient::TChunkId> GetFailedChunks() const override
+    {
+        return JobIO->GetFailedChunks();
+    }
+
 private:
     void InitPipes()
     {
