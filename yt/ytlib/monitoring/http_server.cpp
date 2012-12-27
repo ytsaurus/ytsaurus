@@ -129,8 +129,11 @@ public:
     void Start()
     {
         if (!Server->Start()) {
+            // TODO(babenko): switch it back
+            /*
             THROW_ERROR_EXCEPTION("Failed to start HTTP server")
                 << TError::FromSystem(Server->GetErrorCode());
+             */
         }
     }
 
