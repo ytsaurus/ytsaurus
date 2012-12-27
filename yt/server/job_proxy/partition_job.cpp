@@ -140,6 +140,11 @@ public:
         }
     }
 
+    std::vector<NChunkClient::TChunkId> GetFailedChunks() const override
+    {
+        return Reader->GetFailedChunks();
+    }
+
 private:
     TIntrusivePtr<TReader> Reader;
     TPartitionChunkSequenceWriterPtr Writer;

@@ -78,7 +78,7 @@ public:
         }
 
         {
-            const auto& mergeSpec = jobSpec.GetExtension(TMergeJobSpecExt::merge_job_spec_ext); 
+            const auto& mergeSpec = jobSpec.GetExtension(TMergeJobSpecExt::merge_job_spec_ext);
 
             // ToDo(psushin): estimate row count for writer.
             auto transactionId = TTransactionId::FromProto(jobSpec.output_transaction_id());
@@ -140,6 +140,11 @@ public:
             LOG_DEBUG("GetProgress: %lf", progress);
             return progress;
         }
+    }
+
+    std::vector<NChunkClient::TChunkId> GetFailedChunks() const override
+    {
+        return Reader->GetFailedChunks();
     }
 
 private:
