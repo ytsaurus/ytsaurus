@@ -49,19 +49,19 @@ function e {
 }
 
 function mr_table_rowcount {
-    curl -s "http://redwood.yandex.ru:13013/json?info=table&table=$1"|grep recordCount|grep -o -e '[0-9]\+'
+    curl -s "http://${MRSERVER}:13013/json?info=table&table=$1"|grep recordCount|grep -o -e '[0-9]\+'
 }
 
 function mr_table_chunkcount {
-    curl -s "http://redwood.yandex.ru:13013/json?info=table&table=$1"|grep chunkCount|grep -o -e '[0-9]\+'
+    curl -s "http://${MRSERVER}:13013/json?info=table&table=$1"|grep chunkCount|grep -o -e '[0-9]\+'
 }
 
 function mr_table_size {
-    curl -s "http://redwood.yandex.ru:13013/json?info=table&table=$1"|grep size|grep -o -e '[0-9]\+'
+    curl -s "http://${MRSERVER}:13013/json?info=table&table=$1"|grep size|grep -o -e '[0-9]\+'
 }
 
 function mr_table_is_sorted {
-    local sorted=$(curl -s "http://redwood.yandex.ru:13013/json?info=table&table=$1"|grep sorted|grep -o 'yes\|no') 
+    local sorted=$(curl -s "http://${MRSERVER}:13013/json?info=table&table=$1"|grep sorted|grep -o 'yes\|no') 
     if [ "$sorted" = "yes" ]; then
         echo 1
     else
@@ -106,7 +106,7 @@ function push_table_hosts2hosts {
     local tx=$3
     local codec=$4
     ./mapreduce \
-        -server "redwood.yandex.ru:8013" \
+        -server "${MRSERVER}:8013" \
         -opt user=tmp \
         -src "$source" -dst tmp/null \
         -subkey -lenval \
@@ -132,7 +132,7 @@ function push_table_hosts2proxies_mapreduce_yt {
     local tx=$3
     local codec=$4
     ./mapreduce \
-        -server "redwood.yandex.ru:8013" \
+        -server "${MRSERVER}:8013" \
         -opt user=tmp \
         -src "$source" -dst tmp/null \
         -subkey -lenval \
@@ -148,7 +148,7 @@ function push_table_hosts2proxies_raw_curl {
     local tx=$3
     local codec=$4
     ./mapreduce \
-        -server "redwood.yandex.ru:8013" \
+        -server "${MRSERVER}:8013" \
         -opt user=tmp \
         -src "$source" -dst tmp/null \
         -subkey -lenval \
@@ -170,7 +170,7 @@ function push_table_hosts2proxies_curl {
     local tx=$3
     local codec=$4
     ./mapreduce \
-        -server "redwood.yandex.ru:8013" \
+        -server "${MRSERVER}:8013" \
         -opt user=tmp \
         -src "$source" -dst tmp/null \
         -subkey \
@@ -189,7 +189,7 @@ function push_table_hosts2proxies_splitter_curl {
     local tx=$3
     local codec=$4
     ./mapreduce \
-        -server "redwood.yandex.ru:8013" \
+        -server "${MRSERVER}:8013" \
         -opt user=tmp \
         -src "$source" -dst tmp/null \
         -subkey \
