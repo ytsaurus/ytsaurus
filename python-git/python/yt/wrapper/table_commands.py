@@ -6,7 +6,7 @@ from http import read_content
 from table import TablePath, to_table, to_name
 from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, move, mkdir, find_free_subpath
 from file_commands import smart_upload_file
-from transaction_commands import _make_transactioned_request, Transaction
+from transaction_commands import _make_transactioned_request, PingableTransaction
 
 import os
 import sys
@@ -227,7 +227,7 @@ def write_table(table, lines, format=None, table_writer=None, replication_factor
     """
     table = to_table(table)
     format = _prepare_format(format)
-    with Transaction():
+    with PingableTransaction():
         if not exists(table.name):
             create_table(table.name, replication_factor=replication_factor)
         else:
@@ -244,9 +244,7 @@ def write_table(table, lines, format=None, table_writer=None, replication_factor
                 params["table_writer"] = table_writer
             for i in xrange(config.WRITE_RETRIES_COUNT):
                 try:
-                    # TODO(ignat): buffer.get() may work very long.
-                    # We should ping transaction here or use timeout in reading buffer.
-                    with Transaction():
+                    with PingableTransaction():
                         _make_transactioned_request(
                             "write",
                             params,
@@ -333,7 +331,8 @@ def erase_table(table, strategy=None):
     table = to_table(table)
     if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table.get_name()):
         return
-    _make_operation_request("erase", {"table_path": table.get_name(use_ranges=True)}, strategy)
+    with PingableTransaction():
+        _make_operation_request("erase", {"table_path": table.get_name(use_ranges=True)}, strategy)
 
 def records_count(table):
     """Return number of records in the table"""
@@ -382,7 +381,8 @@ def merge_tables(source_table, destination_table, mode=None,
         lambda _: get_value(_, {})
     )(spec)
 
-    _make_operation_request("merge", spec, strategy, finalizer=None)
+    with PingableTransaction():
+        _make_operation_request("merge", spec, strategy, finalizer=None)
 
 
 def sort_table(source_table, destination_table=None, sort_by=None,
@@ -428,7 +428,8 @@ def sort_table(source_table, destination_table=None, sort_by=None,
         lambda _: get_value(_, {})
     )(spec)
 
-    _make_operation_request("sort", spec, strategy, finalizer=None)
+    with PingableTransaction():
+        _make_operation_request("sort", spec, strategy, finalizer=None)
 
 
 """ Map and reduce methods """
@@ -483,7 +484,8 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
         lambda _: get_value(_, {})
     )(spec)
 
-    _make_operation_request("map_reduce", spec, strategy, Finalizer(run_map_reduce.files_to_remove, destination_table))
+    with PingableTransaction():
+        _make_operation_request("map_reduce", spec, strategy, Finalizer(run_map_reduce.files_to_remove, destination_table))
 
 def run_operation(binary, source_table, destination_table,
                   files=None, file_paths=None,
@@ -551,7 +553,8 @@ def run_operation(binary, source_table, destination_table,
         lambda _: get_value(_, {})
     )(spec)
 
-    _make_operation_request(op_name, spec, strategy, Finalizer(run_operation.files, destination_table))
+    with PingableTransaction():
+        _make_operation_request(op_name, spec, strategy, Finalizer(run_operation.files, destination_table))
 
 def run_map(binary, source_table, destination_table, **kwargs):
     kwargs["op_name"] = "map"

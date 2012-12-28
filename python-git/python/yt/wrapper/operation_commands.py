@@ -189,6 +189,7 @@ class WaitStrategy(object):
         if config.PRINT_STDERRS:
             logger.info(get_operation_stderr(operation))
  
+# TODO(ignat): Fix interaction with transactions
 class AsyncStrategy(object):
     # TODO(improve this strategy)
     def __init__(self):
