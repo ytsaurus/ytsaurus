@@ -1,0 +1,131 @@
+#!/usr/bin/python
+#
+# Splits file (stream) into pieces.
+# Goes after split utility from coreutils.
+#
+# -map "mrsplit -C512M --subkey --gzip 9 --command 'curl...'"
+# or
+# mrsplit -C512M --command 'gzip -9 | cat $FILE'
+#
+# curl -X PUT -T- {WRITE_URL}
+#   -H "Content-Type: application/x-yamr-subkey-lenval"
+#   -H "Accept: text/tab-separated-values"
+#   -H "Transfer-Encoding: chunked"
+#   -H "Content-Encoding: gzip"
+
+import os
+import struct
+import subprocess
+
+LEN = struct.Struct('i')
+LEN_SIZE = LEN.size
+
+class EOF(Exception):
+    pass
+
+def read_lenval(bytebuf, f):
+    ''' Reads single length-then-value block.
+    Assumes that stream f stands right at length part.
+    '''
+    part = f.read(LEN_SIZE)
+    n = len(part)
+    if n == LEN_SIZE:
+        size = LEN.unpack(part)[0]
+        value = f.read(size)
+        if len(value) < size:
+            raise EOFError('val error: expected %d bytes, got %d' % (size, len(value)))
+        bytebuf[0] += part
+        bytebuf[0] += value
+    elif n == 0:
+        raise EOF()
+    elif n < LEN_SIZE:
+        raise EOFError('len error: expected %d bytes, got %d' % (LEN_SIZE, n))
+
+def read_lenval_line(inp):
+    while True:
+        bytebuf = ['']
+        try:
+            read_lenval(bytebuf, inp)
+        except EOF:
+            #EOF right at a triple border is a sign of stream's end
+            yield None
+        try:
+            read_lenval(bytebuf, inp)
+            read_lenval(bytebuf, inp)
+            yield bytebuf[0]
+        except EOF:
+            #EOF in the middle of the triple means format error of input data
+            raise EOFError('Bad lenval format: EOF in the middle of a record')
+
+
+def split_line_bytes(f, size, command):
+
+    namebase = 'x'
+    suffixlen = 2
+
+    def create_subprocess(filename):
+        os.environ['FILE'] = filename
+        return subprocess.Popen(command, shell=True,
+                stdin=subprocess.PIPE,
+                bufsize=-1, # buffered with system default bufsize
+                close_fds=True,
+                )
+
+    def write_to_parts():
+        count = 0
+        while True:
+            xfered = 0
+            filename = '%s%0*d' % (namebase, suffixlen, count)
+            p = create_subprocess(filename)
+
+            p.poll()
+            if p.returncode is not None:
+                sys.exit(p.returncode)
+
+            try:
+                while xfered < size:
+                    #TODO: add polling of child's status, to see if its still alive
+                    line = (yield)
+                    p.stdin.write(line)
+                    xfered += len(line)
+            finally:
+                p.stdin.close()
+                p.wait()
+                if p.returncode != 0:
+                    sys.exit(p.returncode)
+                #print >>sys.stderr, "transferred %d into %s" % (xfered, filename)
+
+            count += 1
+
+
+    writer = write_to_parts()
+    writer.next()
+
+    reader = read_lenval_line(f)
+    line = reader.next()
+    while line is not None:
+        writer.send(line)
+        line = reader.next()
+
+    writer.close()
+
+    return 0
+
+
+if __name__ == '__main__':
+    import profile_support
+    import argparse
+    parser = argparse.ArgumentParser(description='Split input into pieces.',
+            parents=[profile_support.argparser],
+            )
+    parser.add_argument('-C', '--line-bytes', dest='size', action='store',
+                      help='')
+    parser.add_argument('--filter', dest='command', action='store',
+                      metavar='COMMAND',
+                      help='write to shell COMMAND; file name is $FILE')
+    args = parser.parse_args()
+
+    import sys
+    input = sys.stdin
+    with profile_support.profiler(args, os.path.basename(__file__)):
+        split_line_bytes(input, int(args.size), args.command)

@@ -1,0 +1,36 @@
+#!/bin/bash
+
+set -e
+
+. ./ytface.sh
+
+QUEUE=//tmp/redwood-push-queue
+
+tx=$(start_tx 120000)
+
+set +e
+until lock $QUEUE $tx 2>/dev/null; do
+    sleep 1
+done
+set -e
+
+LIST=$(_get $QUEUE $tx)
+SIZE=$(echo "$LIST" | wc -l)
+
+HEAD=$(echo "$LIST" | head -n1)
+LIST=$(echo "$LIST" | tail -n$(($SIZE - 1)))
+
+function format_as_yson_list {
+    awk 'BEGIN{a=0;print "["}!/^$/{if (a > 0) {print ";"}; printf $0; a+=1}END{print "\n]"}' 
+}
+
+if echo -e "$LIST" | format_as_yson_list | _set $QUEUE $tx; then
+    commit_tx $tx
+    if [ -n "$HEAD" ]; then
+        echo "$HEAD"
+    fi
+else
+    abort_tx $tx
+    exit 1
+fi
+

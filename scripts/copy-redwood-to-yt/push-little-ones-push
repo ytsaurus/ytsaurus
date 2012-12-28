@@ -1,0 +1,72 @@
+#/bin/bash
+
+while getopts "S" opt; do
+    case $opt in
+        S)
+            DISABLE_SPLITTER=1
+        ;;
+        \?)
+            exit 1
+        ;;
+    esac
+done
+shift $((OPTIND-1))
+
+if [ $# -lt 4 ]; then
+    echo "expected 4 positional arguments, got $#"
+    exit 1
+fi
+target=$1
+parenttx=$2
+codec=$3
+ratelimit=$4
+shift 4
+
+. ./ytface.sh
+
+function datestamp {
+    date +%Y-%m-%dT%H:%M:%S.%N
+}
+function log {
+    echo "$(datestamp) ---- $1"
+}
+function e {
+    log "$*"
+    "$@"
+}
+
+#CHUNKSIZE=536870912
+CHUNKSIZE=104857600
+
+log "start_tx 10000 $parenttx"
+tx=$(start_tx 10000 $parenttx)
+log "$tx start"
+
+WRITER=$(cat <<END
+YTPROXY=$(curl -s 'http://proxy-fb.yt.yandex.net/hosts' | sed 's/[",]/\n/g' | grep 'yt.yandex.net' | head -n1)
+. ./ytface.sh
+gzip -9 -c | write_lenval_gzip $target $tx $codec --limit-rate $ratelimit
+END
+)
+
+if [ -v DISABLE_SPLITTER ]; then
+    e bash -c "$WRITER"
+else
+    PYTHONPATH=. e python ./mr-split --line-bytes=$CHUNKSIZE --filter "bash -c '$WRITER'"
+fi
+
+if [ $? -eq 0 ]; then
+    #FIXME: even if curl returned, nested write transaction that proxy creates
+    # are still active and not committed
+    # workaround is to just wait some time and use a retry scheme
+    sleep 2 
+    log "$tx commit"
+    while commit_tx $tx |& grep -q 'active nested transaction'; do
+        log "cant commit, nested write transaction is still active, will retry in 5 seconds"
+        sleep 5 
+    done
+else
+    log "$tx abort"
+    abort_tx $tx
+    exit 1
+fi
