@@ -207,7 +207,7 @@ class MapreduceBehaviourTest(YtTestBase, YTEnv):
                       table, other_table,
                       files=_test_file_path("cpp_bin"))
 
-    def test_abort_operation(self):
+    def DISABLE_test_abort_operation(self):
         strategy = yt.AsyncStrategy()
         table = self.create_temp_table()
         other_table = TEST_DIR + "/temp_other"

@@ -316,7 +316,9 @@ test_slow_write()
     }
     ./mapreduce -drop "ignat/some_table"
     gen_data 1 | ./mapreduce -write "ignat/some_table" -timeout 2000
-    check_failed 'gen_data 3 | ./mapreduce -write "ignat/some_table" -timeout 1000'
+    check "`echo -e "a\tb"`" "`./mapreduce -read "ignat/some_table"`"
+    gen_data 5 | ./mapreduce -write "ignat/some_table" -timeout 1000
+    check "`echo -e "a\tb"`" "`./mapreduce -read "ignat/some_table"`"
 }
 
 test_dstsorted()
