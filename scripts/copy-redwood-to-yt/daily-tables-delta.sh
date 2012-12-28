@@ -58,16 +58,18 @@ if [ -n $YTFACE ]; then
     . ./ytface.sh
 fi
 
+MRSERVER=${MRSERVER:-redwood.yandex.ru}
+
 # get lists of tables at redwood:$sourcedir/ and yt:$targetdir/
 function mr_list_tables {
     # mapreduce table lists returns already sorted (?)
-    ./mapreduce -server redwood.yandex.ru:8013 -list -prefix $1 | sed -e 's#^'$1/'##'
+    ./mapreduce -server ${MRSERVER}:8013 -list -prefix $1 | sed -e 's#^'$1/'##'
 }
 function mr_table_size {
-    curl -s "http://redwood.yandex.ru:13013/json?info=table&table=$1"|grep size|grep -o -e '[0-9]\+'
+    curl -s "http://${MRSERVER}:13013/json?info=table&table=$1"|grep size|grep -o -e '[0-9]\+'
 }
 function mr_table_rowcount {
-    curl -s "http://redwood.yandex.ru:13013/json?info=table&table=$1"|grep recordCount|grep -o -e '[0-9]\+'
+    curl -s "http://${MRSERVER}:13013/json?info=table&table=$1"|grep recordCount|grep -o -e '[0-9]\+'
 }
 
 SRCLIST=$(mr_list_tables $sourcedir | grep $pattern)

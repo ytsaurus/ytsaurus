@@ -35,7 +35,9 @@ logfile="log.${sourcedir//\//+}.$(date +%Y%m%dT%H%M%S)"
 tablefile="tables.${sourcedir//\//+}.$(date +%Y%m%dT%H%M%S)"
 LOGGING=${LOGGING:+">> $logfile 2>&1"}
 
-./mapreduce -list -server redwood:8013 -prefix $sourcedir > $tablefile
+MRSERVER=${MRSERVER:-redwood.yandex.ru}
+
+./mapreduce -list -server ${MRSERVER} -prefix $sourcedir > $tablefile
     
 for from in `cat $tablefile`; do
     to=$targetdir/$from
