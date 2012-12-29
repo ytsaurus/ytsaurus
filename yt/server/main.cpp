@@ -64,7 +64,6 @@ public:
         , Scheduler("", "scheduler", "start scheduler")
         , JobProxy("", "job-proxy", "start job proxy")
         , JobId("", "job-id", "job id (for job proxy mode)", false, "", "ID")
-        , Port("", "port", "port to listen", false, -1, "PORT")
         , Config("", "config", "configuration file", false, "", "FILE")
         , ConfigTemplate("", "config-template", "print configuration file template")
     {
@@ -73,7 +72,6 @@ public:
         CmdLine.add(Scheduler);
         CmdLine.add(JobProxy);
         CmdLine.add(JobId);
-        CmdLine.add(Port);
         CmdLine.add(Config);
         CmdLine.add(ConfigTemplate);
     }
@@ -86,7 +84,6 @@ public:
     TCLAP::SwitchArg JobProxy;
 
     TCLAP::ValueArg<Stroka> JobId;
-    TCLAP::ValueArg<int> Port;
     TCLAP::ValueArg<Stroka> Config;
     TCLAP::SwitchArg ConfigTemplate;
 };
@@ -108,7 +105,6 @@ EExitCode GuardedMain(int argc, const char* argv[])
     bool printConfigTemplate = parser.ConfigTemplate.getValue();
 
     Stroka configFileName = parser.Config.getValue();
-    int port = parser.Port.getValue();
 
     int modeCount = 0;
     if (isCellNode) {
@@ -165,13 +161,6 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
         try {
             config->Load(configNode, false);
-
-            // Override RPC port.
-            // TODO(babenko): enable overriding arbitrary options from the command line
-            if (port >= 0) {
-                config->RpcPort = port;
-            }
-
             config->Validate();
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing cell node configuration")
@@ -194,12 +183,6 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
         try {
             config->Load(configNode, false);
-
-            // Override RPC port.
-            if (port >= 0) {
-                config->MetaState->Cell->RpcPort = port;
-            }
-
             config->Validate();
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing cell master configuration")
@@ -222,11 +205,6 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
         try {
             config->Load(configNode);
-
-            // Override RPC port.
-            if (port >= 0) {
-                config->RpcPort = port;
-            }
             config->Validate();
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing cell scheduler configuration")
