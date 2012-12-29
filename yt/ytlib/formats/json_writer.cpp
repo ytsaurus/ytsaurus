@@ -13,6 +13,7 @@ namespace NYT {
 namespace NFormats {
 
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,18 +53,27 @@ bool IsValidUtf8(const unsigned char* buffer, size_t length)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJsonWriter::TJsonWriter(TOutputStream* output, TJsonFormatConfigPtr config)
+TJsonWriter::TJsonWriter(TOutputStream* output,
+    NYson::EYsonType type,
+    TJsonFormatConfigPtr config)
     : Config(config)
+    , Type(type)
+    , Flushed(false)
 {
-    if (!Config) {
-        Config = New<TJsonFormatConfig>();
+    if (Type == EYsonType::MapFragment) {
+        THROW_ERROR_EXCEPTION("Map fragments are not supported by Json");
     }
+
     UnderlyingJsonWriter.Reset(new NJson::TJsonWriter(
         output,
         Config->Format == EJsonFormat::Pretty));
     JsonWriter = ~UnderlyingJsonWriter;
     HasAttributes = false;
     InAttributesBalance = 0;
+
+    if (Type == EYsonType::ListFragment) {
+        JsonWriter->OpenArray();
+    }
 }
 
 TJsonWriter::~TJsonWriter()
@@ -230,7 +240,13 @@ void TJsonWriter::WriteStringScalar(const TStringBuf &value)
 
 void TJsonWriter::Flush()
 {
-    JsonWriter->Flush();
+    if (!Flushed) {
+        if (Type == EYsonType::ListFragment) {
+            JsonWriter->CloseArray();
+        }
+        JsonWriter->Flush();
+        Flushed = true;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

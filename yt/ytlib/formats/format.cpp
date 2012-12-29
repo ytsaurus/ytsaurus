@@ -160,12 +160,9 @@ TAutoPtr<IYsonConsumer> CreateConsumerForJson(
     const IAttributeDictionary& attributes,
     TOutputStream* output)
 {
-    if (dataType != EDataType::Structured) {
-        THROW_ERROR_EXCEPTION("JSON is supported only for Structured data");
-    }
     auto config = New<TJsonFormatConfig>();
     config->Load(ConvertToNode(&attributes)->AsMap());
-    return new TJsonWriter(output, config);
+    return new TJsonWriter(output, DataTypeToYsonType(dataType), config);
 }
 
 TAutoPtr<IYsonConsumer> CreateConsumerForDsv(

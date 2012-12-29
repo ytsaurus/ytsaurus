@@ -9,6 +9,8 @@
 namespace NYT {
 namespace NFormats {
 
+using namespace NYson;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 inline Stroka SurroundWithQuotes(const Stroka& s)
@@ -292,7 +294,7 @@ TEST(TJsonWriterTest, NeverAttributes)
     TStringStream outputStream;
     auto config = New<TJsonFormatConfig>();
     config->AttributesMode = EJsonAttributesMode::Never;
-    TJsonWriter writer(&outputStream, config);
+    TJsonWriter writer(&outputStream, EYsonType::Node, config);
 
     writer.OnBeginAttributes();
         writer.OnKeyedItem("foo");
@@ -325,7 +327,7 @@ TEST(TJsonWriterTest, AlwaysAttributes)
     TStringStream outputStream;
     auto config = New<TJsonFormatConfig>();
     config->AttributesMode = EJsonAttributesMode::Always;
-    TJsonWriter writer(&outputStream, config);
+    TJsonWriter writer(&outputStream, EYsonType::Node, config);
 
     writer.OnBeginAttributes();
         writer.OnKeyedItem("foo");
@@ -358,6 +360,40 @@ TEST(TJsonWriterTest, AlwaysAttributes)
                 "}"
             "}"
         "}";
+    EXPECT_EQ(output, outputStream.Str());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TJsonWriterTest, StructuredData)
+{
+    TStringStream outputStream;
+    auto config = New<TJsonFormatConfig>();
+    TJsonWriter writer(&outputStream, EYsonType::ListFragment, config);
+
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("integer");
+        writer.OnIntegerScalar(42);
+        writer.OnKeyedItem("string");
+        writer.OnStringScalar("some");
+    writer.OnEndMap();
+
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("foo");
+        writer.OnStringScalar("bar");
+        writer.OnKeyedItem("one");
+        writer.OnIntegerScalar(1);
+    writer.OnEndMap();
+    writer.Flush();
+
+    Stroka output =
+        "["
+            "{\"integer\":42,\"string\":\"some\"},"
+            "{\"foo\":\"bar\",\"one\":1}"
+        "]";
+
     EXPECT_EQ(output, outputStream.Str());
 }
 

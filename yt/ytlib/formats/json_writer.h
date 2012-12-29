@@ -15,8 +15,9 @@ namespace NFormats {
 
 // YSON-to-JSON Mapping Conventions
 //
-// * List fragments and map fragments (which exist in YSON) are not supported.
+// * Map fragment (which exists in YSON) is not supported.
 // * Boolean type (which exists in JSON) is not supported.
+// * List fragments are enclosed in Array.
 // * Other types (without attributes) are mapped almost as is:
 //      YSON <----> JSON
 //    * List <---> Array
@@ -48,7 +49,9 @@ class TJsonWriter
     : public NYson::TYsonConsumerBase
 {
 public:
-    explicit TJsonWriter(TOutputStream* output, TJsonFormatConfigPtr config = NULL);
+    explicit TJsonWriter(TOutputStream* output,
+        NYson::EYsonType type = NYson::EYsonType::Node,
+        TJsonFormatConfigPtr config = New<TJsonFormatConfig>());
     ~TJsonWriter();
 
     void Flush();
@@ -76,6 +79,8 @@ private:
     THolder<NJson::TJsonWriter> UnderlyingJsonWriter;
     NJson::TJsonWriter* JsonWriter;
     TJsonFormatConfigPtr Config;
+    NYson::EYsonType Type;
+    bool Flushed;
 
     void WriteStringScalar(const TStringBuf& value);
 

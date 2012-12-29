@@ -66,7 +66,7 @@ DECLARE_ENUM(EJsonAttributesMode,
 struct TJsonFormatConfig
     : public TYsonSerializable
 {
-    bool Format;
+    EJsonFormat Format;
     EJsonAttributesMode AttributesMode;
 
     TJsonFormatConfig()
