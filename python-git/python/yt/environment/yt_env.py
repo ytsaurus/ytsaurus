@@ -148,12 +148,11 @@ class YTEnv(unittest.TestCase):
         self.process_to_kill.append((p, name))
         self._append_pid(p.pid)
 
-    def _run_ytserver(self, service_name, configs, start_port):
+    def _run_ytserver(self, service_name, configs):
         for i in xrange(len(configs)):
             self._run([
                 'ytserver', "--" + service_name,
-                '--config', configs[i],
-                '--port', str(start_port + i)],
+                '--config', configs[i]],
                 "%s-%d" % (service_name, i))
 
     def _kill_previously_run_services(self):
@@ -177,7 +176,7 @@ class YTEnv(unittest.TestCase):
         short_hostname = socket.gethostname()
         hostname = socket.gethostbyname_ex(short_hostname)[0]
 
-        self._master_addresses = ["%s:%s" % (hostname, self._ports["master"] + i)
+        self._master_addresses = ["%s:%s" % (hostname, self._ports["master"] + 2*i)
                                   for i in xrange(self.NUM_MASTERS)]
         self._master_configs = []
 
@@ -186,12 +185,18 @@ class YTEnv(unittest.TestCase):
 
         if prepare_files:
             os.mkdir(os.path.join(self.path_to_run, 'master'))
+
+        current_port = self._ports["master"]
         for i in xrange(self.NUM_MASTERS):
             config = configs.get_master_config()
 
             current = os.path.join(self.path_to_run, 'master', str(i))
             if prepare_files:
                 os.mkdir(current)
+
+            config['meta_state']['cell']['rpc_port'] = current_port
+            config['monitoring_port'] = current_port + 1
+            current_port += 2
 
             config['meta_state']['cell']['addresses'] = self._master_addresses
             config['meta_state']['changelogs']['path'] = \
@@ -213,7 +218,7 @@ class YTEnv(unittest.TestCase):
             config_paths.append(config_path)
 
 
-        self._run_ytserver('master', config_paths, self._ports["master"])
+        self._run_ytserver('master', config_paths)
 
         def masters_ready():
             good_marker = "World initialization completed"
@@ -244,11 +249,17 @@ class YTEnv(unittest.TestCase):
         config_paths = []
 
         os.mkdir(os.path.join(self.path_to_run, 'node'))
+
+        current_port = self._ports["node"]
         for i in xrange(self.NUM_NODES):
             config = configs.get_node_config()
 
             current = os.path.join(self.path_to_run, 'node', str(i))
             os.mkdir(current)
+
+            config['rpc_port'] = current_port
+            config['monitoring_port'] = current_port + 1
+            current_port += 2
 
             config['masters']['addresses'] = self._master_addresses
             config['data_node']['cache_location']['path'] = \
@@ -272,7 +283,7 @@ class YTEnv(unittest.TestCase):
             write_config(config, config_path)
             config_paths.append(config_path)
 
-        self._run_ytserver('node', config_paths, self._ports["node"])
+        self._run_ytserver('node', config_paths)
 
 
         def all_nodes_ready():
@@ -309,12 +320,16 @@ class YTEnv(unittest.TestCase):
         config['masters']['addresses'] = self._master_addresses
         init_logging(config['logging'], current, 'scheduler')
 
+        current_port = self._ports["scheduler"]
+        config['rpc_port'] = current_port
+        config['monitoring_port'] = current_port + 1
+
         self.modify_scheduler_config(config)
         update(config, self.DELTA_SCHEDULER_CONFIG)
         config_path = os.path.join(current, 'scheduler_config.yson')
         write_config(config, config_path)
 
-        self._run_ytserver('scheduler', [config_path], self._ports["scheduler"])
+        self._run_ytserver('scheduler', [config_path])
 
         def scheduler_ready():
             good_marker = 'Master connected'
