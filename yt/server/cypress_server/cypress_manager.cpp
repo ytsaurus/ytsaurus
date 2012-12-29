@@ -925,7 +925,7 @@ ICypressNode* TCypressManager::BranchNode(
     transaction->BranchedNodes().push_back(branchedNode_);
 
     // The branched node holds an implicit reference to its originator.
-    objectManager->RefObject(branchedNode_);
+    objectManager->RefObject(node);
     
     // Update resource usage.
     auto* account = node->GetAccount();

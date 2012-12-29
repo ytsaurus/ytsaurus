@@ -50,6 +50,9 @@ typedef TIntrusivePtr<TSchedulerConnectorConfig> TSchedulerConnectorConfigPtr;
 class TExecAgentConfig;
 typedef TIntrusivePtr<TExecAgentConfig> TExecAgentConfigPtr;
 
+class TResourceLimitsConfig;
+typedef TIntrusivePtr<TResourceLimitsConfig> TResourceLimitsConfigPtr;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NExecAgent

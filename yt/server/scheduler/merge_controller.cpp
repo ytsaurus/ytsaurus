@@ -390,9 +390,9 @@ protected:
 
     // Progress reporting.
 
-    virtual void LogProgress() override
+    virtual Stroka GetLoggingProgress() override
     {
-        LOG_DEBUG("Progress: "
+        return Sprintf(
             "Jobs = {T: %" PRId64 ", R: %" PRId64 ", C: %" PRId64 ", P: %d, F: %" PRId64 ", A: %" PRId64 "}",
             JobCounter.GetTotal(),
             JobCounter.GetRunning(),

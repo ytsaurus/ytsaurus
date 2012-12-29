@@ -91,6 +91,8 @@ struct ISchedulingContext
 
     virtual TExecNodePtr GetNode() const = 0;
 
+    virtual const std::vector<TJobPtr>& StartedJobs() const = 0;
+    virtual const std::vector<TJobPtr>& PreemptedJobs() const = 0;
     virtual const std::vector<TJobPtr>& RunningJobs() const = 0;
 
     virtual TJobPtr StartJob(
@@ -157,9 +159,6 @@ struct IOperationController
     //! Returns the number of jobs the controller still needs to start right away.
     virtual int GetPendingJobCount() = 0;
 
-    //! Returns the total resources that are currently used.
-    virtual NProto::TNodeResources GetUsedResources() = 0;
-
     //! Returns the total resources that are additionally needed.
     virtual NProto::TNodeResources GetNeededResources() = 0;
 
@@ -182,13 +181,19 @@ struct IOperationController
     virtual void OnNodeOffline(TExecNodePtr node) = 0;
 
     //! Called during heartbeat processing to request actions the node must perform.
-    virtual TJobPtr ScheduleJob(ISchedulingContext* context) = 0;
+    virtual TJobPtr ScheduleJob(
+        ISchedulingContext* context,
+        const NProto::TNodeResources& jobLimits) = 0;
 
     //! Called to construct a YSON representing the current progress.
     virtual void BuildProgressYson(NYson::IYsonConsumer* consumer) = 0;
 
+    //! Provides a string describing operation status and statistics.
+    virtual Stroka GetLoggingProgress() = 0;
+
     //! Called for finished operations to construct a YSON representing the result.
     virtual void BuildResultYson(NYson::IYsonConsumer* consumer) = 0;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

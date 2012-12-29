@@ -55,14 +55,13 @@ public:
 
     virtual void Abort() override;
 
-    virtual TJobPtr ScheduleJob(ISchedulingContext* context) override;
+    virtual TJobPtr ScheduleJob(ISchedulingContext* context, const NProto::TNodeResources& jobLimits) override;
 
     virtual TCancelableContextPtr GetCancelableContext() override;
     virtual IInvokerPtr GetCancelableControlInvoker() override;
     virtual IInvokerPtr GetCancelableBackgroundInvoker() override;
 
     virtual int GetPendingJobCount() override;
-    virtual NProto::TNodeResources GetUsedResources() override;
     virtual NProto::TNodeResources GetNeededResources() override;
 
     virtual void BuildProgressYson(NYson::IYsonConsumer* consumer) override;
@@ -100,9 +99,6 @@ protected:
 
     // Increments each time a new job is scheduled.
     TIdGenerator<int> JobIndexGenerator;
-
-    // Total resources used by all running jobs.
-    NProto::TNodeResources UsedResources;
 
     // The transaction for reading input tables (nested inside scheduler transaction).
     // These tables are locked with Snapshot mode.
@@ -274,7 +270,7 @@ protected:
         void AddInput(const std::vector<TChunkStripePtr>& stripes);
         void FinishInput();
 
-        TJobPtr ScheduleJob(ISchedulingContext* context);
+        TJobPtr ScheduleJob(ISchedulingContext* context, const NProto::TNodeResources& jobLimits);
 
         virtual void OnJobCompleted(TJobletPtr joblet);
         virtual void OnJobFailed(TJobletPtr joblet);
@@ -366,11 +362,11 @@ protected:
     void ResetTaskLocalityDelays();
     TPendingTaskInfo* GetPendingTaskInfo(TTaskPtr task);
 
-    bool HasEnoughResources(TTaskPtr task, TExecNodePtr node);
+    bool CheckJobLimits(TTaskPtr task, const NProto::TNodeResources& jobLimits);
 
-    TJobPtr DoScheduleJob(ISchedulingContext* context);
-    TJobPtr DoScheduleLocalJob(ISchedulingContext* context);
-    TJobPtr DoScheduleNonLocalJob(ISchedulingContext* context);
+    TJobPtr DoScheduleJob(ISchedulingContext* context, const NProto::TNodeResources& jobLimits);
+    TJobPtr DoScheduleLocalJob(ISchedulingContext* context, const NProto::TNodeResources& jobLimits);
+    TJobPtr DoScheduleNonLocalJob(ISchedulingContext* context, const NProto::TNodeResources& jobLimits);
 
     void OnJobStarted(TJobPtr job);
 
@@ -448,7 +444,6 @@ protected:
     void OnOutputsCommitted(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
     virtual void DoInitialize();
-    virtual void LogProgress() = 0;
 
     //! Called to extract input table paths from the spec.
     virtual std::vector<NYPath::TRichYPath> GetInputTablePaths() const = 0;

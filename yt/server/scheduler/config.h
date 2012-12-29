@@ -24,8 +24,6 @@ struct TFairShareStrategyConfig
 
     double MinShareTolerance;
     double FairShareTolerance;
-
-    double PreemptionTolerance;
     double MinPreemptionRatio;
 
     TFairShareStrategyConfig()
@@ -45,10 +43,6 @@ struct TFairShareStrategyConfig
         Register("fair_share_tolerance", FairShareTolerance)
             .InRange(0.0, 1.0)
             .Default(0.7);
-
-        Register("preemption_tolerance", PreemptionTolerance)
-            .InRange(0.0, 1.0)
-            .Default(0.9);
         Register("min_preemption_ratio", MinPreemptionRatio)
             .InRange(0.0, 1.0)
             .Default(0.01);

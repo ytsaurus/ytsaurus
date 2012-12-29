@@ -68,60 +68,6 @@ static TDuration ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////
 
-class TScheduler::TSchedulingContext
-    : public ISchedulingContext
-{
-    DEFINE_BYVAL_RO_PROPERTY(TExecNodePtr, Node);
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TJobPtr>, StartedJobs);
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TJobPtr>, PreemptedJobs);
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, RunningJobs);
-
-public:
-    TSchedulingContext(
-        TExecNodePtr node,
-        const std::vector<TJobPtr>& runningJobs)
-        : Node_(node)
-        , RunningJobs_(runningJobs)
-    { }
-
-    virtual TJobPtr StartJob(
-        TOperationPtr operation,
-        EJobType type,
-        const NProto::TNodeResources& resourceLimits,
-        TJobSpecBuilder specBuilder) override
-    {
-    	auto id = TJobId::Create();
-    	auto startTime = TInstant::Now();
-        auto job = New<TJob>(
-            id,
-            type,
-            operation,
-            Node_,
-            startTime,
-            resourceLimits,
-            specBuilder);
-
-        Node_->ResourceUsage() += resourceLimits;
-        YCHECK(StartedJobs_.insert(job).second);
-
-        return job;
-    }
-
-    virtual void PreemptJob(TJobPtr job) override
-    {
-        YCHECK(StartedJobs_.find(job) == StartedJobs_.end());
-        YCHECK(job->GetNode() == Node_);
-        YCHECK(PreemptedJobs_.insert(job).second);
-        job->GetNode()->ResourceUsage() -= job->ResourceUsage();
-    }
-
-private:
-    NProto::TRspHeartbeat* Response;
-
-};
-
-////////////////////////////////////////////////////////////////////
-
 class TScheduler::TImpl
     : public NRpc::TServiceBase
     , public IOperationHost
@@ -218,8 +164,9 @@ public:
     DEFINE_SIGNAL(void(TOperationPtr), OperationStarted);
     DEFINE_SIGNAL(void(TOperationPtr), OperationFinished);
 
-    DEFINE_SIGNAL(void(TJobPtr), JobStarted);
-    DEFINE_SIGNAL(void(TJobPtr), JobFinished);
+    DEFINE_SIGNAL(void(TJobPtr job), JobStarted);
+    DEFINE_SIGNAL(void(TJobPtr job), JobFinished);
+    DEFINE_SIGNAL(void(TJobPtr, const NProto::TNodeResources& resourcesDelta), JobUpdated);
 
 
     virtual TMasterConnector* GetMasterConnector() override
@@ -587,6 +534,8 @@ private:
         LOG_INFO("Operation has been prepared and is now running (OperationId: %s)",
             ~operation->GetOperationId().ToString());
 
+        LogOperationProgress(operation);
+
         // From this moment on the controller is fully responsible for the
         // operation's fate. It will eventually call #OnOperationCompleted or
         // #OnOperationFailed to inform the scheduler about the outcome.
@@ -776,6 +725,17 @@ private:
         LOG_DEBUG("Operation unregistered (OperationId: %s)", ~operation->GetOperationId().ToString());
     }
 
+    void LogOperationProgress(TOperationPtr operation)
+    {
+        if (operation->GetState() != EOperationState::Running)
+            return;
+
+        LOG_DEBUG("Progress: %s, %s (OperationId: %s)",
+            ~operation->GetController()->GetLoggingProgress(),
+            ~Strategy->GetOperationLoggingProgress(operation),
+            ~ToString(operation->GetOperationId()));
+    }
+
     void SetOperationFinalState(TOperationPtr operation, EOperationState state, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -833,6 +793,8 @@ private:
         YCHECK(job->GetOperation()->Jobs().insert(job).second);
         YCHECK(job->GetNode()->Jobs().insert(job).second);
 
+        job->GetNode()->ResourceUsage() += job->ResourceUsage();
+        
         JobStarted_.Fire(job);
 
         LOG_DEBUG("Job registered (JobId: %s, OperationId: %s)",
@@ -871,6 +833,19 @@ private:
         }
 
         OnJobFinished(job);
+    }
+
+    void PreemptJob(TJobPtr job)
+    {
+        LOG_DEBUG("Job preempted (JobId: %s, OperationId: %s)",
+            ~job->GetId().ToString(),
+            ~job->GetOperation()->GetOperationId().ToString());
+
+        job->GetNode()->ResourceUsage() -= job->ResourceUsage();
+        JobUpdated_.Fire(job, -job->ResourceUsage());
+        job->ResourceUsage() = ZeroNodeResources();
+
+        AbortJob(job, TError("Job preempted"));
     }
 
 
@@ -1135,6 +1110,11 @@ private:
     }
 
 
+    TAutoPtr<ISchedulingContext> CreateSchedulingContext(
+        TExecNodePtr node,
+        const std::vector<TJobPtr>& runningJobs);
+
+
     // RPC handlers
     void ValidateConnected()
     {
@@ -1254,6 +1234,7 @@ private:
 
         std::vector<TJobPtr> runningJobs;
         bool hasWaitingJobs = false;
+        yhash_set<TOperationPtr> operationsToLog;
         PROFILE_TIMING ("/analysis_time") {
             auto missingJobs = node->Jobs();
 
@@ -1265,6 +1246,11 @@ private:
                 if (job) {
                     YCHECK(missingJobs.erase(job) == 1);
                     switch (job->GetState()) {
+                        case EJobState::Completed:
+                        case EJobState::Failed:
+                        case EJobState::Aborted:
+                            operationsToLog.insert(job->GetOperation());
+                            break;
                         case EJobState::Running:
                             runningJobs.push_back(job);
                             break;
@@ -1288,35 +1274,27 @@ private:
             }
         }
 
-        TSchedulingContext schedulingContext(node, runningJobs);
+        auto schedulingContext = CreateSchedulingContext(node, runningJobs);
 
         if (hasWaitingJobs) {
             LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
         } else {
             LOG_DEBUG("Scheduling new jobs");
             PROFILE_TIMING ("/schedule_time") {
-                Strategy->ScheduleJobs(&schedulingContext);
+                Strategy->ScheduleJobs(~schedulingContext);
             }
         }
 
         TotalResourceLimits += node->ResourceLimits();
         TotalResourceUsage += node->ResourceUsage();
 
-        FOREACH (auto job, schedulingContext.PreemptedJobs()) {
-            const auto& jobId = job->GetId();
-            LOG_DEBUG("Job preempted (JobId: %s, OperationId: %s)",
-                ~job->GetId().ToString(),
-                ~job->GetOperation()->GetOperationId().ToString());
-            *response->add_jobs_to_abort() = jobId.ToProto();
-            AbortJob(job, TError("Job preempted"));
+        FOREACH (auto job, schedulingContext->PreemptedJobs()) {
+            *response->add_jobs_to_abort() = job->GetId().ToProto();
         }
 
         auto awaiter = New<TParallelAwaiter>();
         auto specBuilderInvoker = NRpc::TDispatcher::Get()->GetPoolInvoker();
-
-        FOREACH (auto job, schedulingContext.StartedJobs()) {
-            RegisterJob(job);
-
+        FOREACH (auto job, schedulingContext->StartedJobs()) {
             auto* startInfo = response->add_jobs_to_start();
             *startInfo->mutable_job_id() = job->GetId().ToProto();
             *startInfo->mutable_resource_limits() = job->ResourceUsage();
@@ -1329,11 +1307,16 @@ private:
 
             // Release to avoid circular references.
             job->SetSpecBuilder(TJobSpecBuilder());
+            operationsToLog.insert(job->GetOperation());
         }
 
         awaiter->Complete(BIND([=] () {
             context->Reply();
         }));
+
+        FOREACH (auto operation, operationsToLog) {
+            LogOperationProgress(operation);
+        }
     }
 
     TJobPtr ProcessJobHeartbeat(
@@ -1447,11 +1430,15 @@ private:
                     *response->add_jobs_to_abort() = jobId.ToProto();
                 } else {
                     switch (state) {
-                        case EJobState::Running:
+                        case EJobState::Running: {
                             LOG_DEBUG("Job is running");
                             job->SetState(state);
                             OnJobRunning(job, *jobStatus);
+                            auto delta = jobStatus->resource_usage() - job->ResourceUsage();
+                            JobUpdated_.Fire(job, delta);
+                            job->ResourceUsage() = jobStatus->resource_usage();
                             break;
+                        }
 
                         case EJobState::Waiting:
                             LOG_DEBUG("Job is waiting");
@@ -1477,6 +1464,70 @@ private:
     }
 
 };
+
+////////////////////////////////////////////////////////////////////
+
+class TScheduler::TSchedulingContext
+    : public ISchedulingContext
+{
+    DEFINE_BYVAL_RO_PROPERTY(TExecNodePtr, Node);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, StartedJobs);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, PreemptedJobs);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, RunningJobs);
+
+public:
+    TSchedulingContext(
+        TImpl* owner,
+        TExecNodePtr node,
+        const std::vector<TJobPtr>& runningJobs)
+        : Node_(node)
+        , RunningJobs_(runningJobs)
+        , Owner(owner)
+    { }
+
+
+    virtual TJobPtr StartJob(
+        TOperationPtr operation,
+        EJobType type,
+        const NProto::TNodeResources& resourceLimits,
+        TJobSpecBuilder specBuilder) override
+    {
+    	auto id = TJobId::Create();
+    	auto startTime = TInstant::Now();
+        auto job = New<TJob>(
+            id,
+            type,
+            operation,
+            Node_,
+            startTime,
+            resourceLimits,
+            specBuilder);
+        StartedJobs_.push_back(job);
+        Owner->RegisterJob(job);
+        return job;
+    }
+
+    virtual void PreemptJob(TJobPtr job) override
+    {
+        YCHECK(job->GetNode() == Node_);
+        PreemptedJobs_.push_back(job);
+        Owner->PreemptJob(job);
+    }
+
+private:
+    TImpl* Owner;
+
+};
+
+TAutoPtr<ISchedulingContext> TScheduler::TImpl::CreateSchedulingContext(
+    TExecNodePtr node,
+    const std::vector<TJobPtr>& runningJobs)
+{
+    return new TSchedulingContext(
+        this,
+        node,
+        runningJobs);
+}
 
 ////////////////////////////////////////////////////////////////////
 

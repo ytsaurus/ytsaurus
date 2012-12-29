@@ -27,6 +27,12 @@ public:
         UNUSED(consumer);
     }
 
+    virtual Stroka GetOperationLoggingProgress(TOperationPtr operation) override
+    {
+        UNUSED(operation);
+        return "";
+    }
+
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override
     {
         UNUSED(consumer);

@@ -72,8 +72,6 @@ struct TResourceLimitsConfig
     }
 };
 
-typedef TIntrusivePtr<TResourceLimitsConfig> TResourceLimitsConfigPtr;
-
 struct TJobManagerConfig
     : public TYsonSerializable
 {

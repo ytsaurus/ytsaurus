@@ -1584,9 +1584,9 @@ private:
 
     // Progress reporting.
 
-    virtual void LogProgress() override
+    virtual Stroka GetLoggingProgress() override
     {
-        LOG_DEBUG("Progress: "
+        return Sprintf(
             "Jobs = {R: % " PRId64 ", C: %" PRId64 ", P: %d, F: %" PRId64 ", A: %" PRId64 ", L: %" PRId64 "}, "
             "Partitions = {T: %d, C: %d}, "
             "PartitionJobs = {%s}, "
@@ -2033,9 +2033,9 @@ private:
 
     // Progress reporting.
 
-    virtual void LogProgress() override
+    virtual Stroka GetLoggingProgress() override
     {
-        LOG_DEBUG("Progress: "
+        return Sprintf(
             "Jobs = {R: %" PRId64 ", C: %" PRId64 ", P: %d, F: %" PRId64", A: %" PRId64 ", L: %" PRId64 "}, "
             "Partitions = {T: %d, C: %d}, "
             "MapJobs = {%s}, "

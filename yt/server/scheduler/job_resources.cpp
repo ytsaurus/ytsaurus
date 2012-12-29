@@ -136,6 +136,16 @@ TNodeResources& operator *= (TNodeResources& lhs, double rhs)
     return lhs;
 }
 
+TNodeResources  operator -  (const TNodeResources& resources)
+{
+    TNodeResources result;
+    result.set_slots(-resources.slots());
+    result.set_cpu(-resources.cpu());
+    result.set_memory(-resources.memory());
+    result.set_network(-resources.network());
+    return result;
+}
+
 bool operator == (const NProto::TNodeResources& a, const NProto::TNodeResources& b)
 {
     return a.slots() == b.slots() &&
@@ -247,6 +257,23 @@ void SetResource(NProto::TNodeResources& resources, EResourceType type, i64 valu
     }
 }
 
+double GetMinResourceRatio(
+    const NProto::TNodeResources& nominator,
+    const NProto::TNodeResources& denominator)
+{
+    double result = 1.0;
+    auto update = [&] (i64 a, i64 b) {
+        if (b > 0) {
+            result = std::min(result, (double) a / b);
+        }
+    };
+    update(nominator.slots(), denominator.slots());
+    update(nominator.cpu(), denominator.cpu());
+    update(nominator.memory(), denominator.memory());
+    update(nominator.network(), denominator.network());
+    return result;
+}
+
 TNodeResources GetZeroNodeResources()
 {
     TNodeResources result;
@@ -266,10 +293,10 @@ const TNodeResources& ZeroNodeResources()
 TNodeResources GetInfiniteResources()
 {
     TNodeResources result;
-    result.set_slots(1000);
-    result.set_cpu(1000);
-    result.set_memory((i64) 1024 * 1024 * 1024 * 1024);
-    result.set_network(1000);
+    result.set_slots(1000000);
+    result.set_cpu(1000000);
+    result.set_memory((i64) 1000000000000000000);
+    result.set_network(1000000);
     return result;
 }
 

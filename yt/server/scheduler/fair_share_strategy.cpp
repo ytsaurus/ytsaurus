@@ -58,6 +58,7 @@ struct TSchedulableAttributes
         , DemandRatio(0.0)
         , FairShareRatio(0.0)
         , AdjustedMinShareRatio(0.0)
+        , MaxShareRatio(1.0)
     { }
 
     int Rank;
@@ -66,6 +67,7 @@ struct TSchedulableAttributes
     double DemandRatio;
     double FairShareRatio;
     double AdjustedMinShareRatio;
+    double MaxShareRatio;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -73,7 +75,8 @@ struct TSchedulableAttributes
 struct ISchedulerElement
     : public virtual TRefCounted
 {
-    virtual void Update(double limitsRatio) = 0;
+    virtual void Update() = 0;
+
     virtual bool ScheduleJobs(
         ISchedulingContext* context,
         bool starvingOnly) = 0;
@@ -93,7 +96,35 @@ struct ISchedulableElement
     virtual double GetMinShareRatio() const = 0;
     
     virtual TNodeResources GetDemand() const = 0;
-    virtual TNodeResources GetUsage() const = 0;
+
+    virtual const NProto::TNodeResources& ResourceUsage() const = 0;
+    virtual const NProto::TNodeResources& ResourceUsageDiscount() const = 0;
+    virtual const NProto::TNodeResources& ResourceLimits() const = 0;
+
+    virtual double GetUsageRatio() const = 0;
+};
+
+////////////////////////////////////////////////////////////////////
+
+class TSchedulableElementBase
+    : public ISchedulableElement
+{
+public:
+    TSchedulableElementBase(ISchedulerStrategyHost* host)
+        : Host(host)
+    { }
+
+    double GetUsageRatio() const override
+    {
+        const auto& attributes = Attributes();
+        auto usage = ResourceUsage() - ResourceUsageDiscount();
+        i64 dominantUsage = GetResource(usage, attributes.DominantResource);
+        i64 dominantLimits = GetResource(Host->GetTotalResourceLimits(), attributes.DominantResource);
+        return dominantLimits == 0 ? 1.0 : (double) dominantUsage / dominantLimits;
+    }
+
+private:
+    ISchedulerStrategyHost* Host;
 
 };
 
@@ -106,58 +137,29 @@ DECLARE_ENUM(EOperationStatus,
 );
 
 class TOperationElement
-    : public ISchedulableElement
+    : public TSchedulableElementBase
 {
 public:
     explicit TOperationElement(
         TFairShareStrategyConfigPtr config,
         ISchedulerStrategyHost* host,
         TOperationPtr operation)
-        : Operation_(operation)
+        : TSchedulableElementBase(host)
+        , Operation_(operation)
         , Pool_(NULL)
         , Starving_(false)
+        , ResourceUsage_(ZeroNodeResources())
+        , ResourceUsageDiscount_(ZeroNodeResources())
         , Config(config)
-        , Host(host)
     { }
 
 
     virtual bool ScheduleJobs(
         ISchedulingContext* context,
-        bool starvingOnly) override
-    {
-        if (starvingOnly && !Starving_) {
-            return false;
-        }
+        bool starvingOnly) override;
 
-        auto node = context->GetNode();
-        auto controller = Operation_->GetController();
-
-        bool result =  false;
-        while (Operation_->GetState() == EOperationState::Running) {
-            if (!node->HasSpareResources()) {
-                break;
-            }
-
-            auto job = controller->ScheduleJob(context);
-            if (!job) {
-                // The first failure means that no more jobs can be scheduled.
-                break;
-            }
-
-            result = true;
-            
-            // Allow at most one job in starvingOnly mode.
-            if (starvingOnly) {
-                break;
-            }
-        }
-        return result;
-    }
-
-    virtual void Update(double limitsRatio) override
-    {
-        UNUSED(limitsRatio);
-    }
+    virtual void Update() override
+    { }
 
     virtual TInstant GetStartTime() const override
     {
@@ -180,24 +182,14 @@ public:
     virtual TNodeResources GetDemand() const override
     {
         auto controller = Operation_->GetController();
-        return controller->GetUsedResources() + controller->GetNeededResources();
+        return ResourceUsage_ + controller->GetNeededResources();
     }
 
-    virtual TNodeResources GetUsage() const override
+    virtual const NProto::TNodeResources& ResourceLimits() const
     {
-        auto controller = Operation_->GetController();
-        return controller->GetUsedResources();
+        return InfiniteNodeResources();
     }
 
-
-    double GetUsageRatio() const
-    {
-        const auto& attributes = Attributes();
-        auto usage = GetUsage() - UsageDiscount_;
-        i64 dominantUsage = GetResource(usage, attributes.DominantResource);
-        i64 dominantLimits = GetResource(Host->GetTotalResourceLimits(), attributes.DominantResource);
-        return dominantLimits == 0 ? 1.0 : (double) dominantUsage / dominantLimits;
-    }
 
     EOperationStatus GetStatus() const
     {
@@ -222,11 +214,11 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, BelowMinShareSince);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, BelowFairShareSince);
     DEFINE_BYVAL_RW_PROPERTY(bool, Starving);
-    DEFINE_BYREF_RW_PROPERTY(TNodeResources, UsageDiscount);
+    DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsage);
+    DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsageDiscount);
 
 private:
     TFairShareStrategyConfigPtr Config;
-    ISchedulerStrategyHost* Host;
 
 };
 
@@ -239,13 +231,10 @@ public:
     explicit TCompositeSchedulerElement(ISchedulerStrategyHost* host)
         : Host(host)
         , Mode(ESchedulingMode::Fifo)
-        , LimitsRatio(0.0)
     { }
 
-    virtual void Update(double limitsRatio) override
+    virtual void Update() override
     {
-        LimitsRatio = limitsRatio;
-
         ComputeFairShares();
     }
 
@@ -303,14 +292,12 @@ protected:
     
     yhash_set<ISchedulableElementPtr> Children;
     
-    double LimitsRatio;
-
-
     void ComputeFairShares()
     {
         // Choose dominant resource types.
         // Precache weights.
         // Precache min share ratios and compute their sum.
+        // Compute max share ratios.
         // Compute demand ratios and their sum.
         double demandRatioSum = 0.0;
         double minShareRatioSum = 0.0;
@@ -319,27 +306,33 @@ protected:
             auto& attributes = child->Attributes();
 
             auto demand = child->GetDemand();
+            auto limits = Min(totalLimits, child->ResourceLimits());
+            
             attributes.DominantResource = GetDominantResource(demand, totalLimits);
-            i64 dominantLimits = GetResource(totalLimits, attributes.DominantResource);
+
+            i64 dominantTotalLimits = GetResource(totalLimits, attributes.DominantResource);
             i64 dominantDemand = GetResource(demand, attributes.DominantResource);
-            attributes.DemandRatio = dominantLimits == 0 ? 0.0 : (double) dominantDemand / dominantLimits;
+
+            attributes.DemandRatio = dominantTotalLimits == 0 ? 0.0 : (double) dominantDemand / dominantTotalLimits;
             demandRatioSum += attributes.DemandRatio;
+
+            attributes.MaxShareRatio = GetMinResourceRatio(limits, totalLimits);
 
             attributes.Weight = child->GetWeight();
 
             if (dominantDemand > 0) {
-                attributes.AdjustedMinShareRatio = child->GetMinShareRatio() * LimitsRatio;
+                attributes.AdjustedMinShareRatio = child->GetMinShareRatio() * Attributes_.AdjustedMinShareRatio;
                 minShareRatioSum += attributes.AdjustedMinShareRatio;
             } else {
                 attributes.AdjustedMinShareRatio = 0.0;
             }
         }
 
-        // Scale down weights if needed.
-        if (minShareRatioSum > LimitsRatio) {
+        // Scale down min shares, if needed.
+        if (minShareRatioSum > Attributes_.AdjustedMinShareRatio) {
             FOREACH (auto child, Children) {
                 auto& attributes = child->Attributes();
-                attributes.AdjustedMinShareRatio *= (LimitsRatio / minShareRatioSum);
+                attributes.AdjustedMinShareRatio *= (Attributes_.AdjustedMinShareRatio / minShareRatioSum);
             }
         }
 
@@ -348,7 +341,7 @@ protected:
         if (Mode == ESchedulingMode::Fifo) {
             // Easy case -- the first child get everything, others get none.
             SetFifoFairShares();
-        } else if (demandRatioSum <= LimitsRatio) {
+        } else if (demandRatioSum <= Attributes_.FairShareRatio) {
             // Easy case -- just give everyone what he needs.
             SetDemandedFairShares();
         } else {
@@ -358,8 +351,7 @@ protected:
 
         // Propagate updates to children.
         FOREACH (auto child, Children) {
-            auto& attributes = child->Attributes();           
-            child->Update(attributes.FairShareRatio);
+            child->Update();
         }
     }
 
@@ -367,7 +359,7 @@ protected:
     {
         FOREACH (auto child, Children) {
             auto& attributes = child->Attributes();
-            attributes.FairShareRatio = attributes.Rank == 0 ? LimitsRatio : 0.0;
+            attributes.FairShareRatio = attributes.Rank == 0 ? Attributes_.FairShareRatio : 0.0;
         }
     }
 
@@ -381,12 +373,15 @@ protected:
 
     void ComputeFairSharesByFitting()
     {
-        auto computeFairShareRatio = [&] (double fitFactor, const TSchedulableAttributes& attributes) -> double {
+        auto computeFairShareRatio = [&] (double fitFactor, ISchedulableElementPtr element) -> double {
+            const auto& attributes = element->Attributes();
             double result = attributes.Weight * fitFactor;
             // Never give less than promised by min share.
             result = std::max(result, attributes.AdjustedMinShareRatio);
             // Never give more than demanded.
             result = std::min(result, attributes.DemandRatio);
+            // Never give more than max share allows.
+            result = std::min(result, attributes.MaxShareRatio);
             return result;
         };
 
@@ -397,20 +392,20 @@ protected:
             double fitFactor = (fitFactorLo + fitFactorHi) / 2.0;
             double fairShareRatioSum = 0.0;
             FOREACH (auto child, Children) {
-                fairShareRatioSum += computeFairShareRatio(fitFactor, child->Attributes());
+                fairShareRatioSum += computeFairShareRatio(fitFactor, child);
             }
-            if (fairShareRatioSum < LimitsRatio) {
+            if (fairShareRatioSum < Attributes_.FairShareRatio) {
                 fitFactorLo = fitFactor;
             } else {
                 fitFactorHi = fitFactor;
             }
         }
 
-        // Compute fair share ratios.
+        // Compute actual fair share ratios from fit factor.
         double fitFactor = (fitFactorLo + fitFactorHi) / 2.0;
         FOREACH (auto child, Children) {
             auto& attributes = child->Attributes();
-            attributes.FairShareRatio = computeFairShareRatio(fitFactor, attributes);
+            attributes.FairShareRatio = computeFairShareRatio(fitFactor, child);
         }
     }
 
@@ -490,7 +485,7 @@ protected:
     {
         const auto& attributes = element->Attributes();
         i64 dominantDemand = GetResource(element->GetDemand(), attributes.DominantResource);
-        i64 dominantUsage = GetResource(element->GetUsage(), attributes.DominantResource);
+        i64 dominantUsage = GetResource(element->ResourceUsage(), attributes.DominantResource);
         i64 dominantLimits = GetResource(Host->GetTotalResourceLimits(), attributes.DominantResource);
         return dominantUsage < dominantDemand && dominantUsage < dominantLimits * attributes.AdjustedMinShareRatio;
     }
@@ -498,7 +493,7 @@ protected:
     double GetUsageToLimitsRatio(ISchedulableElementPtr element) const
     {
         const auto& attributes = element->Attributes();
-        i64 dominantUsage = GetResource(element->GetUsage(), attributes.DominantResource);
+        i64 dominantUsage = GetResource(element->ResourceUsage(), attributes.DominantResource);
         i64 dominantLimits = GetResource(Host->GetTotalResourceLimits(), attributes.DominantResource);
         return dominantLimits == 0 ? 0.0 : (double) dominantUsage / dominantLimits;
     }
@@ -506,7 +501,7 @@ protected:
     static double GetUsageToWeightRatio(ISchedulableElementPtr element)
     {
         const auto& attributes = element->Attributes();
-        i64 dominantUsage = GetResource(element->GetUsage(), attributes.DominantResource);
+        i64 dominantUsage = GetResource(element->ResourceUsage(), attributes.DominantResource);
         i64 weight = attributes.Weight;
         return weight == 0 ? 1.0 : (double) dominantUsage / weight;
     }
@@ -526,13 +521,17 @@ protected:
 
 class TPool
     : public TCompositeSchedulerElement
-    , public virtual ISchedulableElement
+    , public TSchedulableElementBase
 {
 public:
     TPool(
         ISchedulerStrategyHost* host,
         const Stroka& id)
         : TCompositeSchedulerElement(host)
+        , TSchedulableElementBase(host)
+        , ResourceUsage_(ZeroNodeResources())
+        , ResourceUsageDiscount_(ZeroNodeResources())
+        , ResourceLimits_(InfiniteNodeResources())
         , Id(id)
     {
         SetDefaultConfig();
@@ -560,6 +559,17 @@ public:
         Config = newConfig;
         SetMode(Config->Mode);
         DefaultConfigured = false;
+
+        ResourceLimits_ = InfiniteNodeResources();
+        if (Config->MaxSlots) {
+            ResourceLimits_.set_slots(Config->MaxSlots.Get());
+        }
+        if (Config->MaxCpu) {
+            ResourceLimits_.set_cpu(Config->MaxCpu.Get());
+        }
+        if (Config->MaxMemory) {
+            ResourceLimits_.set_memory(Config->MaxMemory.Get());
+        }
     }
 
     void SetDefaultConfig()
@@ -594,14 +604,10 @@ public:
         return result;
     }
 
-    virtual TNodeResources GetUsage() const override
-    {
-        auto result = ZeroNodeResources();
-        FOREACH (auto child, Children) {
-            result += child->GetUsage();
-        }
-        return result;
-    }
+
+    DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsage);
+    DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsageDiscount);
+    DEFINE_BYREF_RO_PROPERTY(TNodeResources, ResourceLimits);
 
 private:
     Stroka Id;
@@ -621,6 +627,8 @@ public:
         : TCompositeSchedulerElement(host)
     {
         SetMode(ESchedulingMode::FairShare);
+        Attributes_.FairShareRatio = 1.0;
+        Attributes_.AdjustedMinShareRatio = 1.0;
     }
 
 };
@@ -642,6 +650,7 @@ public:
 
         Host->SubscribeJobStarted(BIND(&TFairShareStrategy::OnJobStarted, this));
         Host->SubscribeJobFinished(BIND(&TFairShareStrategy::OnJobFinished, this));
+        Host->SubscribeJobUpdated(BIND(&TFairShareStrategy::OnJobUpdated, this));
 
         auto* masterConnector = Host->GetMasterConnector();
         masterConnector->SubscribeWatcherRequest(BIND(&TFairShareStrategy::OnPoolsRequest, this));
@@ -650,47 +659,44 @@ public:
         RootElement = New<TRootElement>(Host);
     }
 
+
     virtual void ScheduleJobs(ISchedulingContext* context) override
     {
-        // Run periodic update.
         auto now = TInstant::Now();
+        auto node = context->GetNode();
+
+        // Run periodic update.
         if (!LastUpdateTime || now > LastUpdateTime.Get() + Config->FairShareUpdatePeriod) {
             PROFILE_TIMING ("/fair_share_update_time") {
                 // The root element get the whole cluster.
-                RootElement->Update(1.0);
-
-                // Update starvation flags for all operations.
-                FOREACH (const auto& pair, OperationToElement) {
-                    CheckForStarvation(pair.second);
-                }
+                RootElement->Update();
             }
             LastUpdateTime = now;
+        }
+
+        // Update starvation flags for all operations.
+        FOREACH (const auto& pair, OperationToElement) {
+            CheckForStarvation(pair.second);
         }
 
         // First-chance scheduling.
         RootElement->ScheduleJobs(context, false);
 
         // Compute discount to node usage.
-        auto node = context->GetNode();
-        yhash_set<TOperationElementPtr> discountedElements;
+        yhash_set<TOperationElementPtr> discountedOperations;
+        yhash_set<TPoolPtr> discountedPools;
         std::vector<TJobPtr> preemptableJobs;
         FOREACH (auto job, context->RunningJobs()) {
             auto operation = job->GetOperation();
-            if (operation->GetState() != EOperationState::Running) {
-                continue;
-            }
-
-            auto element = GetOperationElement(operation);
-            discountedElements.insert(element);
-            element->UsageDiscount() += job->ResourceUsage();
-
-            double usageRatio = element->GetUsageRatio();
-            if (usageRatio > Config->MinPreemptionRatio &&
-                usageRatio > element->Attributes().FairShareRatio * Config->PreemptionTolerance &&
-                usageRatio > element->Attributes().AdjustedMinShareRatio)
-            {
-                preemptableJobs.push_back(job);
+            auto operationElement = GetOperationElement(operation);
+            operationElement->ResourceUsageDiscount() += job->ResourceUsage();
+            discountedOperations.insert(operationElement);
+            if (IsJobPreemptable(job)) {
+                auto* pool = operationElement->GetPool();
+                discountedPools.insert(pool);
                 node->ResourceUsageDiscount() += job->ResourceUsage();
+                pool->ResourceUsageDiscount() += job->ResourceUsage();
+                preemptableJobs.push_back(job);
             }
         }
 
@@ -699,25 +705,50 @@ public:
 
         // Reset discounts.
         node->ResourceUsageDiscount() = ZeroNodeResources();
-        FOREACH (auto element, discountedElements) {
-            element->UsageDiscount() = ZeroNodeResources();
+        FOREACH (auto operationElement, discountedOperations) {
+            operationElement->ResourceUsageDiscount() = ZeroNodeResources();
+        }
+        FOREACH (auto pool, discountedPools) {
+            pool->ResourceUsageDiscount() = ZeroNodeResources();
         }
 
         // Preempt jobs if needed.
-        if (needsPreemption) {
-            std::sort(
-                preemptableJobs.begin(),
-                preemptableJobs.end(),
-                [] (const TJobPtr& lhs, const TJobPtr& rhs) {
-                    return lhs->GetStartTime() > rhs->GetStartTime();
-                });
+        if (!needsPreemption)
+            return;
 
-            FOREACH (auto job, preemptableJobs) {
-                if (Dominates(node->ResourceLimits(), node->ResourceUsage())) {
-                    break;
-                }
-                context->PreemptJob(job);
+        std::sort(
+            preemptableJobs.begin(),
+            preemptableJobs.end(),
+            [] (const TJobPtr& lhs, const TJobPtr& rhs) {
+                return lhs->GetStartTime() > rhs->GetStartTime();
+            });
+
+        auto checkPoolLimits = [&] (TJobPtr job) -> bool {
+            auto operation = job->GetOperation();
+            auto operationElement = GetOperationElement(operation);
+            auto* pool = operationElement->GetPool();
+            return Dominates(pool->ResourceLimits(), pool->ResourceUsage());
+        };
+
+        auto checkAllLimits = [&] () -> bool {
+            if (!Dominates(node->ResourceLimits(), node->ResourceUsage())) {
+                return false;
             }
+
+            FOREACH (auto job, context->StartedJobs()) {
+                if (!checkPoolLimits(job)) {
+                    return false;
+                }
+            }
+
+            return true;
+        };
+
+        FOREACH (auto job, preemptableJobs) {
+            if (checkAllLimits())
+                break;
+
+            context->PreemptJob(job);
         }
     }
 
@@ -735,6 +766,23 @@ public:
             .Do(BIND(&TFairShareStrategy::BuildElementYson, pool, element));
     }
 
+    virtual Stroka GetOperationLoggingProgress(TOperationPtr operation) override
+    {
+        auto element = GetOperationElement(operation);
+        const auto& attributes = element->Attributes();
+        return Sprintf(
+            "Scheduling = {Status: %s, Rank: %d, DominantResource: %s, Demand: %.4lf, "
+            "Usage: %.4lf, FairShare: %.4lf, AdjustedMinShare: %.4lf, MaxShare: %.4lf}",
+            ~element->GetStatus().ToString(),
+            attributes.Rank,
+            ~attributes.DominantResource.ToString(),
+            attributes.DemandRatio,
+            element->GetUsageRatio(),
+            attributes.FairShareRatio,
+            attributes.AdjustedMinShareRatio,
+            attributes.MaxShareRatio);
+    }
+
     virtual void BuildOrchidYson(IYsonConsumer* consumer) override
     {
         BuildYsonMapFluently(consumer)
@@ -742,9 +790,11 @@ public:
                 const auto& id = pair.first;
                 auto pool = pair.second;
                 auto config = pool->GetConfig();
+                const auto& attributes = pool->Attributes();
                 fluent
                     .Item(id).BeginMap()
                         .Item("mode").Value(config->Mode)
+                        .Item("max_share_ratio").Value(attributes.MaxShareRatio)
                         .Do(BIND(&TFairShareStrategy::BuildElementYson, RootElement, pool))
                     .EndMap();
             });
@@ -765,6 +815,29 @@ private:
 
     TRootElementPtr RootElement;
     TNullable<TInstant> LastUpdateTime;
+
+
+    bool IsJobPreemptable(TJobPtr job)
+    {
+        auto operation = job->GetOperation();
+        if (operation->GetState() != EOperationState::Running) {
+            return false;
+        }
+
+        auto element = GetOperationElement(operation);
+
+        double usageRatio = element->GetUsageRatio();
+        if (usageRatio < Config->MinPreemptionRatio) {
+            return false;
+        }
+
+        const auto& attributes = element->Attributes();
+        if (usageRatio < attributes.AdjustedMinShareRatio) {
+            return false;
+        }
+
+        return true;
+    }
 
 
     void OnOperationStarted(TOperationPtr operation)
@@ -792,6 +865,7 @@ private:
 
         operationElement->SetPool(~pool);
         pool->AddChild(operationElement);
+        pool->ResourceUsage() += operationElement->ResourceUsage();
 
         LOG_INFO("Operation added to pool (OperationId: %s, PoolId: %s)",
             ~ToString(operation->GetOperationId()),
@@ -800,11 +874,12 @@ private:
 
     void OnOperationFinished(TOperationPtr operation)
     {
-        auto element = GetOperationElement(operation);
-        auto pool = element->GetPool();
+        auto operationElement = GetOperationElement(operation);
+        auto pool = operationElement->GetPool();
 
         YCHECK(OperationToElement.erase(operation) == 1);
-        pool->RemoveChild(element);
+        pool->RemoveChild(operationElement);
+        pool->ResourceUsage() -= operationElement->ResourceUsage();
 
         LOG_INFO("Operation removed from pool (OperationId: %s, PoolId: %s)",
             ~ToString(operation->GetOperationId()),
@@ -820,6 +895,8 @@ private:
     {
         auto it = JobList.insert(JobList.begin(), job);
         YCHECK(JobToIterator.insert(std::make_pair(job, it)).second);
+
+        UpdateResourceUsage(job, job->ResourceUsage());
     }
 
     void OnJobFinished(TJobPtr job)
@@ -828,6 +905,13 @@ private:
         YASSERT(it != JobToIterator.end());
         JobList.erase(it->second);
         JobToIterator.erase(it);
+
+        UpdateResourceUsage(job, -job->ResourceUsage());
+    }
+
+    void OnJobUpdated(TJobPtr job, const NProto::TNodeResources& resourcesDelta)
+    {
+        UpdateResourceUsage(job, resourcesDelta);
     }
 
 
@@ -998,6 +1082,14 @@ private:
     }
 
 
+    void UpdateResourceUsage(TJobPtr job, const NProto::TNodeResources& resourcesDelta)
+    {
+        auto operationElement = GetOperationElement(job->GetOperation());
+        operationElement->ResourceUsage() += resourcesDelta;
+        operationElement->GetPool()->ResourceUsage() += resourcesDelta;
+    }
+
+
     static void BuildElementYson(
         TCompositeSchedulerElementPtr composite,
         ISchedulableElementPtr element,
@@ -1007,7 +1099,7 @@ private:
         BuildYsonMapFluently(consumer)
             .Item("scheduling_rank").Value(attributes.Rank)
             .Item("resource_demand").Value(element->GetDemand())
-            .Item("resource_usage").Value(element->GetUsage())
+            .Item("resource_usage").Value(element->ResourceUsage())
             .Item("dominant_resource").Value(attributes.DominantResource)
             .Item("weight").Value(element->GetWeight())
             .Item("min_share_ratio").Value(element->GetMinShareRatio())
@@ -1017,6 +1109,42 @@ private:
     }
 
 };
+
+bool TOperationElement::ScheduleJobs(
+    ISchedulingContext* context,
+    bool starvingOnly)
+{
+    if (starvingOnly && !Starving_) {
+        return false;
+    }
+
+    auto node = context->GetNode();
+    auto controller = Operation_->GetController();
+
+    bool result =  false;
+    while (Operation_->GetState() == EOperationState::Running) {
+        if (!node->HasSpareResources()) {
+            break;
+        }
+
+        auto poolLimits = Pool_->ResourceLimits() - Pool_->ResourceUsage() + Pool_->ResourceUsageDiscount();
+        auto nodeLimits = node->ResourceLimits() - node->ResourceUsage() + node->ResourceUsageDiscount();
+        auto jobLimits = Min(poolLimits, nodeLimits);
+        auto job = controller->ScheduleJob(context, jobLimits);
+        if (!job) {
+            // The first failure means that no more jobs can be scheduled.
+            break;
+        }
+
+        result = true;
+
+        // Allow at most one job in starvingOnly mode.
+        if (starvingOnly) {
+            break;
+        }
+    }
+    return result;
+}
 
 TAutoPtr<ISchedulerStrategy> CreateFairShareStrategy(
     TFairShareStrategyConfigPtr config,

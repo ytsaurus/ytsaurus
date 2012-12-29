@@ -116,6 +116,7 @@ public:
         ELockMode mode) override
     {
         auto objectManager = Bootstrap->GetObjectManager();
+        auto securityManager = Bootstrap->GetSecurityManager();
 
         auto originatingId = originatingNode->GetId();
         auto branchedId = TVersionedNodeId(originatingId.ObjectId, GetObjectId(transaction));

@@ -333,7 +333,7 @@ struct TSortOperationSpecBase
             .Default(0.9)
             .InRange(0.0, 1.0);
         Register("shuffle_network_limit", ShuffleNetworkLimit)
-            .Default(20);
+            .Default(10);
     }
 
 };
@@ -499,7 +499,12 @@ struct TPoolConfig
 {
     double Weight;
     double MinShareRatio;
+    
     ESchedulingMode Mode;
+
+    TNullable<int> MaxSlots;
+    TNullable<int> MaxCpu;
+    TNullable<i64> MaxMemory;
 
     TPoolConfig()
     {
@@ -509,8 +514,19 @@ struct TPoolConfig
         Register("min_share_ratio", MinShareRatio)
             .Default(0.0)
             .InRange(0.0, 1.0);
+
         Register("mode", Mode)
             .Default(ESchedulingMode::Fifo);
+        
+        Register("max_slots", MaxSlots)
+            .Default(Null)
+            .GreaterThanOrEqual(0);
+        Register("max_cpu", MaxCpu)
+            .Default(Null)
+            .GreaterThanOrEqual(0);
+        Register("max_memory", MaxMemory)
+            .Default(Null)
+            .GreaterThanOrEqual(0);
     }
 };
 
@@ -535,7 +551,7 @@ struct TPooledOperationSpec
             .Default(1.0)
             .GreaterThanOrEqual(1.0);
         Register("min_share_ratio", MinShareRatio)
-            .Default(0.0)
+            .Default(1.0)
             .InRange(0.0, 1.0);
 
         Register("min_share_preemption_timeout", MinSharePreemptionTimeout)

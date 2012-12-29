@@ -179,24 +179,27 @@ public:
         YCHECK(node);
         YCHECK(account);
 
-        if (!IsUncommittedAccountingEnabled(node))
-            return;
-
         auto* oldAccount = node->GetAccount();
         if (oldAccount == account)
             return;
 
         auto objectManager = Bootstrap->GetObjectManager();
 
+        bool isAccountingEnabled = IsUncommittedAccountingEnabled(node);
+
         if (oldAccount) {
-            auto* oldTransactionUsage = FindTransactionAccountUsage(node);
-            if (oldTransactionUsage) {
-                (*oldTransactionUsage) -= node->CachedResourceUsage();
+            if (isAccountingEnabled) {
+                auto* oldTransactionUsage = FindTransactionAccountUsage(node);
+                if (oldTransactionUsage) {
+                    *oldTransactionUsage -= node->CachedResourceUsage();
+                }
             }
 
             objectManager->UnrefObject(oldAccount);
 
-            oldAccount->ResourceUsage() -= node->CachedResourceUsage();
+            if (isAccountingEnabled) {
+                oldAccount->ResourceUsage() -= node->CachedResourceUsage();
+            }
 
             --oldAccount->NodeCount();
         }
@@ -204,12 +207,14 @@ public:
         node->SetAccount(account);
         objectManager->RefObject(account);
 
-        node->CachedResourceUsage() = node->GetResourceUsage();
-        account->ResourceUsage() += node->CachedResourceUsage();
+        if (isAccountingEnabled) {
+            node->CachedResourceUsage() = node->GetResourceUsage();
+            account->ResourceUsage() += node->CachedResourceUsage();
 
-        auto* newTransactionUsage = FindTransactionAccountUsage(node);
-        if (newTransactionUsage) {
-            (*newTransactionUsage) += node->CachedResourceUsage();
+            auto* newTransactionUsage = FindTransactionAccountUsage(node);
+            if (newTransactionUsage) {
+                *newTransactionUsage += node->CachedResourceUsage();
+            }
         }
 
         ++account->NodeCount();
@@ -217,25 +222,28 @@ public:
 
     void ResetAccount(ICypressNode* node)
     {
-        if (!IsUncommittedAccountingEnabled(node))
-            return;
-
         auto* account = node->GetAccount();
         if (!account)
             return;
 
         auto objectManager = Bootstrap->GetObjectManager();
 
-        auto* transactionUsage = FindTransactionAccountUsage(node);
-        if (transactionUsage) {
-            *transactionUsage -= node->CachedResourceUsage();
+        bool isAccountingEnabled = IsUncommittedAccountingEnabled(node);
+
+        if (isAccountingEnabled) {
+            auto* transactionUsage = FindTransactionAccountUsage(node);
+            if (transactionUsage) {
+                *transactionUsage -= node->CachedResourceUsage();
+            }
         }
 
         node->SetAccount(NULL);
         objectManager->UnrefObject(account);
 
-        account->ResourceUsage() -= node->CachedResourceUsage();
-        node->CachedResourceUsage() = ZeroClusterResources();
+        if (isAccountingEnabled) {
+            account->ResourceUsage() -= node->CachedResourceUsage();
+            node->CachedResourceUsage() = ZeroClusterResources();
+        }
 
         --account->NodeCount();
     }
@@ -243,11 +251,11 @@ public:
 
     void UpdateAccountNodeUsage(ICypressNode* node)
     {
-        if (!IsUncommittedAccountingEnabled(node))
-            return;
-
         auto* account = node->GetAccount();
         if (!account)
+            return;
+
+        if (IsUncommittedAccountingEnabled(node))
             return;
 
         auto* transactionUsage = FindTransactionAccountUsage(node);

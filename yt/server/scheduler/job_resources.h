@@ -39,6 +39,8 @@ NProto::TNodeResources  operator *  (const NProto::TNodeResources& lhs, double r
 NProto::TNodeResources& operator *= (NProto::TNodeResources& lhs, i64 rhs);
 NProto::TNodeResources& operator *= (NProto::TNodeResources& lhs, double rhs);
 
+NProto::TNodeResources  operator -  (const NProto::TNodeResources& resources);
+
 bool operator == (const NProto::TNodeResources& a, const NProto::TNodeResources& b);
 bool operator != (const NProto::TNodeResources& a, const NProto::TNodeResources& b);
 
@@ -59,6 +61,10 @@ void SetResource(
     NProto::TNodeResources& resources,
     EResourceType type,
     i64 value);
+
+double GetMinResourceRatio(
+    const NProto::TNodeResources& nominator,
+    const NProto::TNodeResources& denominator);
 
 const NProto::TNodeResources& ZeroNodeResources();
 const NProto::TNodeResources& InfiniteNodeResources();

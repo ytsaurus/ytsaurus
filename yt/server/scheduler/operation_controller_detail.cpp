@@ -125,7 +125,9 @@ void TOperationControllerBase::TTask::FinishInput()
     AddPendingHint();
 }
 
-TJobPtr TOperationControllerBase::TTask::ScheduleJob(ISchedulingContext* context)
+TJobPtr TOperationControllerBase::TTask::ScheduleJob(
+    ISchedulingContext* context,
+    const NProto::TNodeResources& jobLimits)
 {
     int chunkListCount = GetChunkListCountPerJob();
     if (!Controller->HasEnoughChunkLists(chunkListCount)) {
@@ -146,9 +148,8 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(ISchedulingContext* context
 
     // Compute the actual usage for this joblet and check it
     // against the the limits. This is the last chance to give up.
-    auto resourceLimits = GetNeededResources(joblet);
-    auto node = context->GetNode();
-    if (!node->HasEnoughResources(resourceLimits)) {
+    auto neededResources = GetNeededResources(joblet);
+    if (!Dominates(jobLimits, neededResources)) {
         chunkPoolOutput->Failed(joblet->OutputCookie);
         return NULL;
     }
@@ -163,25 +164,24 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(ISchedulingContext* context
         return TVoid();
     });
 
-    auto job = context->StartJob(
+    joblet->Job = context->StartJob(
         Controller->Operation,
         jobType,
-        resourceLimits,
+        neededResources,
         jobSpecBuilder);
-    joblet->Job = job;
 
-    LOG_DEBUG("Job scheduled (JobId: %s, OperationId: %s, JobType: %s, Address: %s, Task: %s, JobIndex: %d, ChunkCount: %d (%d local), DataSize: %" PRId64 ", RowCount: %" PRId64 ", ResourceLimilts: {%s})",
-        ~ToString(job->GetId()),
+    LOG_DEBUG("Job scheduled (JobId: %s, OperationId: %s, JobType: %s, Address: %s, Task: %s, JobIndex: %d, ChunkCount: %d (%d local), DataSize: %" PRId64 ", RowCount: %" PRId64 ", ResourceLimits: {%s})",
+        ~ToString(joblet->Job->GetId()),
         ~ToString(Controller->Operation->GetOperationId()),
         ~jobType.ToString(),
-        ~node->GetAddress(),
+        ~context->GetNode()->GetAddress(),
         ~GetId(),
         jobIndex,
         joblet->InputStripeList->TotalChunkCount,
         joblet->InputStripeList->LocalChunkCount,
         joblet->InputStripeList->TotalDataSize,
         joblet->InputStripeList->TotalRowCount,
-        ~FormatResources(resourceLimits));
+        ~FormatResources(neededResources));
 
     // Prepare chunk lists.
     for (int index = 0; index < chunkListCount; ++index) {
@@ -402,7 +402,6 @@ TOperationControllerBase::TOperationControllerBase(
     , TotalInputDataSize(0)
     , TotalInputRowCount(0)
     , TotalInputValueCount(0)
-    , UsedResources(ZeroNodeResources())
     , PendingTaskInfos(MaxTaskPriority + 1)
     , CachedPendingJobCount(0)
     , CachedNeededResources(ZeroNodeResources())
@@ -540,15 +539,15 @@ TFuture<void> TOperationControllerBase::Commit()
 
 void TOperationControllerBase::OnJobStarted(TJobPtr job)
 {
-    UsedResources += job->ResourceUsage();
+    UNUSED(job);
+
     JobCounter.Start(1);
 }
 
 void TOperationControllerBase::OnJobRunning(TJobPtr job, const NProto::TJobStatus& status)
 {
-    UsedResources -= job->ResourceUsage();
-    job->ResourceUsage() = status.resource_usage();
-    UsedResources += job->ResourceUsage();
+    UNUSED(job);
+    UNUSED(status);
 }
 
 void TOperationControllerBase::OnJobCompleted(TJobPtr job)
@@ -557,14 +556,10 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
 
     JobCounter.Completed(1);
 
-    UsedResources -= job->ResourceUsage();
-
     auto joblet = GetJoblet(job);
     joblet->Task->OnJobCompleted(joblet);
 
     RemoveJoblet(job);
-
-    LogProgress();
 
     if (joblet->Task->IsCompleted()) {
         joblet->Task->OnTaskCompleted();
@@ -581,14 +576,10 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
 
     JobCounter.Failed(1);
 
-    UsedResources -= job->ResourceUsage();
-
     auto joblet = GetJoblet(job);
     joblet->Task->OnJobFailed(joblet);
 
     RemoveJoblet(job);
-
-    LogProgress();
 
     if (JobCounter.GetFailed() >= Config->FailedJobsLimit) {
         OnOperationFailed(TError("Failed jobs limit %d has been reached",
@@ -606,14 +597,10 @@ void TOperationControllerBase::OnJobAborted(TJobPtr job)
 
     JobCounter.Aborted(1);
 
-    UsedResources -= job->ResourceUsage();
-
     auto joblet = GetJoblet(job);
     joblet->Task->OnJobAborted(joblet);
 
     RemoveJoblet(job);
-
-    LogProgress();
 }
 
 void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
@@ -662,7 +649,9 @@ void TOperationControllerBase::OnNodeOffline(TExecNodePtr node)
     UNUSED(node);
 }
 
-TJobPtr TOperationControllerBase::ScheduleJob(ISchedulingContext* context)
+TJobPtr TOperationControllerBase::ScheduleJob(
+    ISchedulingContext* context,
+    const NProto::TNodeResources& jobLimits)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -676,13 +665,13 @@ TJobPtr TOperationControllerBase::ScheduleJob(ISchedulingContext* context)
         return NULL;
     }
 
-    auto job = DoScheduleJob(context);
+    auto job = DoScheduleJob(context, jobLimits);
     if (!job) {
         return NULL;
     }
 
     OnJobStarted(job);
-    LogProgress();
+    
     return job;
 }
 
@@ -769,19 +758,21 @@ void TOperationControllerBase::ResetTaskLocalityDelays()
     }
 }
 
-bool TOperationControllerBase::HasEnoughResources(TTaskPtr task, TExecNodePtr node)
+bool TOperationControllerBase::CheckJobLimits(TTaskPtr task, const NProto::TNodeResources& jobLimits)
 {
-    return node->HasEnoughResources(task->GetMinNeededResources());
+    return Dominates(jobLimits, task->GetMinNeededResources());
 }
 
-TJobPtr TOperationControllerBase::DoScheduleJob(ISchedulingContext* context)
+TJobPtr TOperationControllerBase::DoScheduleJob(
+    ISchedulingContext* context,
+    const NProto::TNodeResources& jobLimits)
 {
-    auto localJob = DoScheduleLocalJob(context);
+    auto localJob = DoScheduleLocalJob(context, jobLimits);
     if (localJob) {
         return localJob;
     }
 
-    auto nonLocalJob = DoScheduleNonLocalJob(context);
+    auto nonLocalJob = DoScheduleNonLocalJob(context, jobLimits);
     if (nonLocalJob) {
         return nonLocalJob;
     }
@@ -789,7 +780,9 @@ TJobPtr TOperationControllerBase::DoScheduleJob(ISchedulingContext* context)
     return NULL;
 }
 
-TJobPtr TOperationControllerBase::DoScheduleLocalJob(ISchedulingContext* context)
+TJobPtr TOperationControllerBase::DoScheduleLocalJob(
+    ISchedulingContext* context,
+    const NProto::TNodeResources& jobLimits)
 {
     auto now = TInstant::Now();
     auto node = context->GetNode();
@@ -826,7 +819,7 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(ISchedulingContext* context
                 continue;
             }
 
-            if (!HasEnoughResources(task, node)) {
+            if (!CheckJobLimits(task, jobLimits)) {
                 continue;
             }
 
@@ -840,12 +833,13 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(ISchedulingContext* context
         }
 
         if (bestTask) {
-            LOG_DEBUG("Attempting to schedule a local job (Task: %s, Address: %s, Priority: %d, Locality: %" PRId64 ")",
+            LOG_DEBUG("Attempting to schedule a local job (Task: %s, Address: %s, Priority: %d, Locality: %" PRId64 ", JobLimits: {%s})",
                 ~bestTask->GetId(),
                 ~address,
                 priority,
-                bestLocality);
-            auto job = bestTask->ScheduleJob(context);
+                bestLocality,
+                ~FormatResources(jobLimits));
+            auto job = bestTask->ScheduleJob(context, jobLimits);
             if (job) {
                 bestTask->SetDelayedTime(Null);
                 OnTaskUpdated(bestTask);
@@ -856,7 +850,9 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(ISchedulingContext* context
     return NULL;
 }
 
-TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(ISchedulingContext* context)
+TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
+    ISchedulingContext* context,
+    const NProto::TNodeResources& jobLimits)
 {
     auto now = TInstant::Now();
     auto node = context->GetNode();
@@ -903,7 +899,7 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(ISchedulingContext* cont
                     continue;
                 }
 
-                if (!HasEnoughResources(task, node)) {
+                if (!CheckJobLimits(task, jobLimits)) {
                     ++taskIndex;
                     continue;
                 }
@@ -922,11 +918,12 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(ISchedulingContext* cont
                     continue;
                 }
 
-                LOG_DEBUG("Attempting to schedule a non-local job (Task: %s, Address: %s, Priority: %d)",
+                LOG_DEBUG("Attempting to schedule a non-local job (Task: %s, Address: %s, Priority: %d, JobLimits: {%s})",
                     ~task->GetId(),
                     ~address,
-                    priority);
-                auto job = task->ScheduleJob(context);
+                    priority,
+                    ~FormatResources(jobLimits));
+                auto job = task->ScheduleJob(context, jobLimits);
                 if (job) {
                     OnTaskUpdated(task);
                     return job;
@@ -957,11 +954,6 @@ IInvokerPtr TOperationControllerBase::GetCancelableBackgroundInvoker()
 int TOperationControllerBase::GetPendingJobCount()
 {
     return CachedPendingJobCount;
-}
-
-NProto::TNodeResources TOperationControllerBase::GetUsedResources()
-{
-    return UsedResources;
 }
 
 NProto::TNodeResources TOperationControllerBase::GetNeededResources()
@@ -1064,20 +1056,19 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs()
                     auto& leftEndpoint = table.Endpoints[2 * outputIndex];
                     auto& rightEndpoint = table.Endpoints[2 * outputIndex + 1];
                     if (leftEndpoint.ChunkTreeKey != rightEndpoint.ChunkTreeKey) {
-                        auto error = TError(
-                            "Ouput table %s is not sorted: overlapping job outputs.",
+                        auto error = TError("Output table %s is not sorted: job outputs have overlapping key ranges",
                             ~table.Path.GetPath());
 
                         LOG_DEBUG(error);
                         THROW_ERROR error;
                     }
 
-                    auto res = table.OutputChunkTreeIds.equal_range(leftEndpoint.ChunkTreeKey);
-                    auto it = res.first;
+                    auto pair = table.OutputChunkTreeIds.equal_range(leftEndpoint.ChunkTreeKey);
+                    auto it = pair.first;
                     addChunkTree(it->second);
                     // In user operations each ChunkTreeKey corresponds to a single OutputChunkTreeId.
                     // Let's check it.
-                    YCHECK(++it == res.second);
+                    YCHECK(++it == pair.second);
                 }
             } else {
                 FOREACH (const auto& pair, table.OutputChunkTreeIds) {
@@ -1563,10 +1554,6 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 const auto& attributes = node->Attributes();
 
                 table.Channels = attributes.GetYson("channels");
-                LOG_INFO("Output table %s has channels %s",
-                    ~table.Path.GetPath(),
-                    ~ConvertToYsonString(table.Channels, EYsonFormat::Text).Data());
-
                 i64 initialRowCount = attributes.Get<i64>("row_count");
                 if (initialRowCount > 0 && table.Clear && !table.Overwrite) {
                     THROW_ERROR_EXCEPTION("Output table %s must be empty (use \"overwrite\" attribute to force clearing it)",
@@ -1575,6 +1562,12 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
 
                 table.ReplicationFactor = attributes.Get<int>("replication_factor");
                 table.Account = attributes.Find<Stroka>("account");
+
+                LOG_INFO("Output table %s attributes received (Channels: %s, ReplicationFactor: %d, Account: %s)",
+                    ~table.Path.GetPath(),
+                    ~ConvertToYsonString(table.Channels, EYsonFormat::Text).Data(),
+                    table.ReplicationFactor,
+                    ~ToString(table.Account));
             }
             if (table.Clear) {
                 auto rsp = clearOutRsps[index];
@@ -1609,7 +1602,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                     rsp->set_file_name(file.Path.Attributes().Get<Stroka>("file_name"));
                 }
                 file.FetchResponse = rsp;
-                LOG_INFO("File %s consists of chunk %s",
+                LOG_INFO("File %s attributes received (ChunkId: %s)",
                     ~file.Path.GetPath(),
                     ~TChunkId::FromProto(rsp->chunk_id()).ToString());
             }
@@ -1622,41 +1615,41 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
         auto fetchTableFilesNamesRsps = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("fetch_table_files_names");
         for (int index = 0; index < static_cast<int>(TableFiles.size()); ++index) {
             auto& file = TableFiles[index];
-
-            auto sizeRsp = fetchTableFilesSizesRsps[index];
-            THROW_ERROR_EXCEPTION_IF_FAILED(*sizeRsp, "Error fetching size of table files");
-            auto tableSize = ConvertTo<i64>(TYsonString(sizeRsp->value()));
-            if (tableSize > Config->TableFileSizeLimit) {
-                THROW_ERROR_EXCEPTION(
-                    "Table file %s is too large: " PRIu64 " > " PRIu64,
+            {
+                auto rsp = fetchTableFilesSizesRsps[index];
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching size of table files");
+                i64 tableSize = ConvertTo<i64>(TYsonString(rsp->value()));
+                if (tableSize > Config->TableFileSizeLimit) {
+                    THROW_ERROR_EXCEPTION(
+                        "Table file %s exceeds the size limit: " PRId64 " > " PRId64,
+                        ~file.Path.GetPath(),
+                        tableSize,
+                        Config->TableFileSizeLimit);
+                }
+            }
+            {
+                auto rsp = fetchTableFilesRsps[index];
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching chunks of table files");
+                file.FetchResponse = rsp;
+            }
+            {
+                auto rsp = fetchTableFilesNamesRsps[index];
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching names of table files");
+                auto key = ConvertTo<Stroka>(TYsonString(rsp->value()));
+                file.FileName = file.Path.Attributes().Get<Stroka>("file_name", key);
+                file.Format = file.Path.Attributes().GetYson("format");
+            }
+            {
+                std::vector<TChunkId> chunkIds;
+                FOREACH (const auto& chunk, file.FetchResponse->chunks()) {
+                    chunkIds.push_back(TChunkId::FromProto(chunk.slice().chunk_id()));
+                }
+                LOG_INFO("Table file %s attributes received (FileName: %s, Format: %s, ChunkIds: [%s])",
                     ~file.Path.GetPath(),
-                    tableSize,
-                    Config->TableFileSizeLimit);
+                    ~file.FileName,
+                    ~file.Format.Data(),
+                    ~JoinToString(chunkIds));
             }
-
-            auto fetchRsp = fetchTableFilesRsps[index];
-            THROW_ERROR_EXCEPTION_IF_FAILED(*fetchRsp, "Error fetching chunks of table files");
-            file.FetchResponse = fetchRsp;
-
-            auto getKeyRsp = fetchTableFilesNamesRsps[index];
-            THROW_ERROR_EXCEPTION_IF_FAILED(*getKeyRsp, "Error fetching names of table files");
-            file.FileName = getKeyRsp->value();
-            if (file.Path.Attributes().Contains("file_name")) {
-                file.FileName = file.Path.Attributes().Get<Stroka>("file_name");
-            }
-            file.Format = file.Path.Attributes().GetYson("format");
-
-            std::vector<TChunkId> chunkIds;
-            FOREACH (const auto chunk, file.FetchResponse->chunks()) {
-                chunkIds.push_back(TChunkId::FromProto(chunk.slice().chunk_id()));
-            }
-
-            LOG_INFO(
-                "Table file %s has file_name %s, format %s and consists of chunks %s",
-                ~file.Path.GetPath(),
-                ~file.FileName,
-                ~file.Format.Data(),
-                ~JoinToString(chunkIds));
         }
     }
 
