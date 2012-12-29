@@ -320,7 +320,7 @@ private:
 
             CreateNode(
                 rootService,
-                "//sys/vital_lost_chunks",
+                "//sys/lost_vital_chunks",
                 transactionId,
                 EObjectType::LostVitalChunkMap);
 
