@@ -255,7 +255,7 @@ public:
         if (!account)
             return;
 
-        if (IsUncommittedAccountingEnabled(node))
+        if (!IsUncommittedAccountingEnabled(node))
             return;
 
         auto* transactionUsage = FindTransactionAccountUsage(node);
