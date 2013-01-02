@@ -28,7 +28,7 @@ struct IChunkVisitor
     : public virtual TRefCounted
 {
     virtual void OnChunk(
-        const TChunk* chunk, 
+        TChunk* chunk, 
         const NTableClient::NProto::TReadLimit& startLimit,
         const NTableClient::NProto::TReadLimit& endLimit) = 0;
 

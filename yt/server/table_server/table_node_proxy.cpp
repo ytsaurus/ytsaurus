@@ -272,7 +272,7 @@ private:
     }
 
     virtual void OnChunk(
-        const TChunk* chunk, 
+        TChunk* chunk, 
         const TReadLimit& startLimit,
         const TReadLimit& endLimit) override
     {
@@ -420,7 +420,7 @@ public:
     }
 
     virtual void OnChunk(
-        const TChunk* chunk, 
+        TChunk* chunk, 
         const NTableClient::NProto::TReadLimit& startLimit,
         const NTableClient::NProto::TReadLimit& endLimit) override
     {
@@ -453,7 +453,7 @@ public:
     { }
 
     virtual void OnChunk(
-        const TChunk* chunk,
+        TChunk* chunk,
         const TReadLimit& startLimit,
         const TReadLimit& endLimit) override
     {

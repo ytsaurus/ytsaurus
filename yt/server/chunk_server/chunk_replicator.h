@@ -38,14 +38,15 @@ public:
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunkId>, UnderreplicatedChunkIds);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunkId>, OverreplicatedChunkIds);
 
-    void OnNodeRegistered(const TDataNode* node);
-    void OnNodeUnregistered(const TDataNode* node);
+    void OnNodeRegistered(TDataNode* node);
+    void OnNodeUnregistered(TDataNode* node);
 
-    void OnChunkRemoved(const TChunk* chunk);
+    void OnChunkRemoved(TChunk* chunk);
 
     void ScheduleChunkRefresh(const TChunkId& chunkId);
 
-    void ScheduleChunkRemoval(const TDataNode* node, const TChunkId& chunkId);
+    void ScheduleChunkRemoval(TDataNode* node, TChunk* chunk);
+    void ScheduleUnknownChunkRemoval(TDataNode* node, const TChunkId& chunkId);
 
     void ScheduleRFUpdate(TChunkTreeRef ref);
 
@@ -83,21 +84,8 @@ private:
     yhash_set<TChunkId> RFUpdateSet;
     std::deque<TChunkId> RFUpdateList;
 
-    struct TNodeInfo
-    {
-        typedef yhash_set<TChunkId> TChunkIds;
-        TChunkIds ChunksToReplicate;
-        TChunkIds ChunksToRemove;
-    };
-
-    typedef yhash_map<TNodeId, TNodeInfo> TNodeInfoMap;
-    TNodeInfoMap NodeInfoMap;
-
-    TNodeInfo* FindNodeInfo(TNodeId nodeId);
-    TNodeInfo* GetNodeInfo(TNodeId nodeId);
-
     void ProcessExistingJobs(
-        const TDataNode* node,
+        TDataNode* node,
         const std::vector<NProto::TJobInfo>& runningJobs,
         std::vector<NProto::TJobStopInfo>* jobsToStop,
         int* replicationJobCount,
@@ -113,7 +101,7 @@ private:
 
     EScheduleFlags ScheduleReplicationJob(
         TDataNode* sourceNode,
-        const TChunkId& chunkId,
+        TChunk* chunk,
         std::vector<NProto::TJobStartInfo>* jobsToStart);
     EScheduleFlags ScheduleBalancingJob(
         TDataNode* sourceNode,
@@ -139,20 +127,21 @@ private:
         int MinusCount;
     };
 
-    TReplicaStatistics GetReplicaStatistics(const TChunk* chunk);
+    TReplicaStatistics GetReplicaStatistics(const TChunk& chunk);
     static Stroka ToString(const TReplicaStatistics& statistics);
 
     void OnRefresh();
-    void Refresh(const TChunk* chunk);
+    void Refresh(TChunk* chunk);
+    static int ComputeReplicationPriority(const TReplicaStatistics& statistics);
 
-    void ScheduleRFUpdate(const TChunk* chunk);
-    void ScheduleRFUpdate(const TChunkList* chunkList);
+    void ScheduleRFUpdate(TChunk* chunk);
+    void ScheduleRFUpdate(TChunkList* chunkList);
     void OnRFUpdate();
     void OnRFUpdateCommitSucceeded();
     void OnRFUpdateCommitFailed(const TError& error);
 
     //! Computes the actual replication factor the chunk must have.
-    int ComputeReplicationFactor(const TChunk* chunk);
+    int ComputeReplicationFactor(const TChunk& chunk);
 
     //! Follows upward parent links.
     //! Stops when some owning nodes are discovered or parents become ambiguous.

@@ -73,6 +73,14 @@ const TNodeId InvalidNodeId = -1;
 //! Used as an expected upper bound in TSmallVector.
 const int TypicalReplicationFactor = 4;
 
+//! The number of supported replication priorities.
+//! The smaller the more urgent.
+/*! current RF == 1 -> priority = 0
+ *  current RF == 2 -> priority = 1
+ *  current RF >= 3 -> priority = 2
+ */
+const int ReplicationPriorities = 3;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkServer

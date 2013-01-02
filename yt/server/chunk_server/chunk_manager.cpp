@@ -1323,12 +1323,11 @@ private:
 
     void ScheduleChunkReplicaRemoval(TNodeId nodeId, TChunk* chunk, bool cached)
     {
-        auto chunkId = chunk->GetId();
         auto* node = GetNode(nodeId);
         node->RemoveChunk(chunk, cached);
 
         if (!cached && IsLeader()) {
-            ChunkReplicator->ScheduleChunkRemoval(node, chunkId);
+            ChunkReplicator->ScheduleChunkRemoval(node, chunk);
         }
     }
 
@@ -1340,7 +1339,7 @@ private:
 
     void RemoveChunkReplica(TDataNode* node, TChunk* chunk, bool cached, ERemoveReplicaReason reason)
     {
-        auto chunkId = chunk->GetId();
+        const auto& chunkId = chunk->GetId();
         auto nodeId = node->GetId();
 
         if (reason == ERemoveReplicaReason::IncrementalHeartbeat && !node->HasChunk(chunk, cached)) {
@@ -1427,10 +1426,11 @@ private:
         bool removeFromNode,
         bool removeFromJobList)
     {
+        auto chunkId = job->GetChunkId();
         auto jobId = job->GetId();
 
         if (removeFromJobList) {
-            auto* jobList = GetJobList(job->GetChunkId());
+            auto* jobList = GetJobList(chunkId);
             jobList->RemoveJob(job);
             DropJobListIfEmpty(jobList);
         }
@@ -1443,7 +1443,7 @@ private:
         }
 
         if (IsLeader()) {
-            ChunkReplicator->ScheduleChunkRefresh(job->GetChunkId());
+            ChunkReplicator->ScheduleChunkRefresh(chunkId);
         }
 
         UnregisterReplicationSinks(job);
@@ -1478,7 +1478,7 @@ private:
                 ~FormatBool(cached));
 
             if (IsLeader()) {
-                ChunkReplicator->ScheduleChunkRemoval(node, chunkId);
+                ChunkReplicator->ScheduleUnknownChunkRemoval(node, chunkId);
             }
 
             return;
