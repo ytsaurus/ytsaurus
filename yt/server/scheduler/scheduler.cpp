@@ -363,9 +363,8 @@ private:
         // Examine the list of nodes returned by master and figure out the difference.
 
         yhash_set<Stroka> existingAddresses;
-        auto nodes = Bootstrap->GetScheduler()->GetExecNodes();
-        FOREACH (auto node, nodes) {
-            YCHECK(existingAddresses.insert(node->GetAddress()).second);
+        FOREACH (const auto& pair, Nodes) {
+            YCHECK(existingAddresses.insert(pair.first).second);
         }
 
         FOREACH (const auto& address, newAddresses) {
