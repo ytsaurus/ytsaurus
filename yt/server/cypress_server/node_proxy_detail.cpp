@@ -314,9 +314,8 @@ void TCypressNodeProxyNontemplateBase::ListSystemAttributes(std::vector<TAttribu
     attributes->push_back("modification_time");
     attributes->push_back("resource_usage");
     attributes->push_back(TAttributeInfo("recursive_resource_usage", true, true));
-    // COMPAT(babenko): account must always be present
     const auto* node = GetThisImpl();
-    attributes->push_back(TAttributeInfo("account", node->GetAccount()));
+    attributes->push_back("account");
     TObjectProxyBase::ListSystemAttributes(attributes);
 }
 
@@ -540,8 +539,7 @@ TNodeFactory::TNodeFactory(
     , Account(account)
 {
     YCHECK(bootstrap);
-    // COMPAT(babenko)
-    //YCHECK(account);
+    YCHECK(account);
 }
 
 TNodeFactory::~TNodeFactory()
@@ -566,8 +564,7 @@ ICypressNodeProxyPtr TNodeFactory::DoCreate(EObjectType type)
 
     cypressManager->RegisterNode(Transaction, node);
 
-    // COMPAT(babenko)
-    if (!node_->GetAccount() && Account) {
+    if (!node_->GetAccount()) {
         securityManager->SetAccount(node_, Account);
     }
     

@@ -335,6 +335,7 @@ ICypressNode* TCypressManager::CreateNode(
     TRspCreate* response)
 {
     YCHECK(handler);
+    YCHECK(account);
     YCHECK(request);
     YCHECK(response);
 
@@ -347,8 +348,7 @@ ICypressNode* TCypressManager::CreateNode(
     RegisterNode(transaction, node, attributes);
 
     // Set account (if not given in attributes).
-    // COMPAT(babenko)
-    if (!node_->GetAccount() && account) {
+    if (!node_->GetAccount()) {
         auto securityManager = Bootstrap->GetSecurityManager();
         securityManager->SetAccount(node_, account);
     }
@@ -374,10 +374,7 @@ ICypressNode* TCypressManager::CloneNode(
     RegisterNode(transaction, clonedNode);
 
     auto* account = sourceNode->GetAccount();
-    // COMPAT(babenko)
-    if (account) {
-        securityManager->SetAccount(clonedNode_, account);
-    }
+    securityManager->SetAccount(clonedNode_, account);
 
     return LockVersionedNode(clonedNode_, transaction, ELockMode::Exclusive);
 }
@@ -929,10 +926,7 @@ ICypressNode* TCypressManager::BranchNode(
     
     // Update resource usage.
     auto* account = node->GetAccount();
-    // COMPAT(babenko)
-    if (account) {
-        securityManager->SetAccount(branchedNode_, account);
-    }
+    securityManager->SetAccount(branchedNode_, account);
 
     LOG_INFO_UNLESS(IsRecovery(), "Node branched (NodeId: %s, TransactionId: %s, Mode: %s)",
         ~id.ToString(),
