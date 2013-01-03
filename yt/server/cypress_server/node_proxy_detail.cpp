@@ -315,7 +315,6 @@ void TCypressNodeProxyNontemplateBase::ListSystemAttributes(std::vector<TAttribu
     attributes->push_back("modification_time");
     attributes->push_back("resource_usage");
     attributes->push_back(TAttributeInfo("recursive_resource_usage", true, true));
-    const auto* node = GetThisImpl();
     attributes->push_back("account");
     TObjectProxyBase::ListSystemAttributes(attributes);
 }
