@@ -78,12 +78,19 @@ const Stroka& TLocation::GetId() const
 
 void TLocation::UpdateUsedSpace(i64 size)
 {
+    if (!Enabled)
+        return;
+
     UsedSpace += size;
     AvailableSpace -= size;
 }
 
 i64 TLocation::GetAvailableSpace() const
 {
+    if (!Enabled) {
+        return 0;
+    }
+
     auto path = GetPath();
     
     try {
@@ -104,6 +111,10 @@ i64 TLocation::GetAvailableSpace() const
 
 i64 TLocation::GetTotalSpace() const
 {
+    if (!Enabled) {
+        return 0;
+    }
+
     auto path = GetPath();
     try {
         auto statistics = NFS::GetDiskSpaceStatistics(path);
@@ -134,11 +145,7 @@ double TLocation::GetLoadFactor() const
 {
     i64 used = GetUsedSpace();
     i64 quota = GetQuota();
-    if (used >= quota) {
-        return 1.0;
-    } else {
-        return (double) used / quota;
-    }
+    return used >= quota ? 1.0 : (double) used / quota;
 }
 
 Stroka TLocation::GetPath() const
@@ -148,6 +155,9 @@ Stroka TLocation::GetPath() const
 
 void TLocation::UpdateSessionCount(int delta)
 {
+    if (!Enabled)
+        return;
+
     SessionCount += delta;
 }
 
@@ -158,6 +168,9 @@ int TLocation::GetSessionCount() const
 
 void TLocation::UpdateChunkCount(int delta)
 {
+    if (!Enabled)
+        return;
+
     ChunkCount += delta;
 }
 
@@ -210,6 +223,12 @@ void TLocation::Disable()
         return;
 
     LOG_ERROR("Location disabled");
+    
+    AvailableSpace = 0;
+    UsedSpace = 0;
+    SessionCount = 0;
+    ChunkCount = 0;
+
     Disabled_.Fire();
 }
 
