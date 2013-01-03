@@ -784,7 +784,6 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
     ISchedulingContext* context,
     const NProto::TNodeResources& jobLimits)
 {
-    auto now = TInstant::Now();
     auto node = context->GetNode();
     auto address = node->GetAddress();
 
