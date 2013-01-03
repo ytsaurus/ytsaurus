@@ -20,13 +20,13 @@ TMemoryUsageTracker<EMemoryConsumer>::TMemoryUsageTracker(i64 totalMemory, Strok
     , Logger("MemoryUsage")
 {
     FOREACH(auto value, EMemoryConsumer::GetDomainValues()) {
-        // MemoryConsumer enum must be contiguous, without gaps.
+        // EMemoryConsumer enum must be contiguous, without gaps.
         YCHECK(value < EMemoryConsumer::GetDomainSize());
     }
 
     UsedMemory.resize(EMemoryConsumer::GetDomainSize(), 0);
-    for (int i = 0; i < EMemoryConsumer::GetDomainSize(); ++i) {
-        ConsumerCounters.push_back(TAggregateCounter(FormatEnum(EMemoryConsumer(i))));
+    for (int value = 0; value < EMemoryConsumer::GetDomainSize(); ++value) {
+        ConsumerCounters.push_back(TAggregateCounter("/" + FormatEnum(EMemoryConsumer(value))));
     }
 }
 
