@@ -75,6 +75,11 @@
     #pragma warning (disable: 4250)
 #endif
 
+// A temporary workaround until we switch to a fresh GCC version.
+#if defined(__GNUC__) && (__GNUC__ < 4 || __GNUC_MINOR__ < 7)
+    #define nullptr NULL
+#endif
+
 #include "assert.h"
 #include "rvalue.h"
 #include "intrusive_ptr.h"
