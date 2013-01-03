@@ -210,8 +210,7 @@ void TLocation::Disable()
         return;
 
     LOG_ERROR("Location disabled");
-
-    Bootstrap->GetMasterConnector()->ForceRegister();
+    Disabled_.Fire();
 }
 
 const TGuid& TLocation::GetCellGuid() 

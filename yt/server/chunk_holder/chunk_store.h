@@ -66,8 +66,6 @@ public:
     DEFINE_SIGNAL(void(TChunkPtr), ChunkRemoved);
 
 private:
-    void DoSetCellGuid();
-
     TDataNodeConfigPtr Config;
     TBootstrap* Bootstrap;
 
@@ -75,6 +73,9 @@ private:
     TChunkMap ChunkMap;
 
     TGuid CellGuid;
+
+    void DoSetCellGuid();
+    void OnLocationDisabled(TLocationPtr location);
 
 };
 

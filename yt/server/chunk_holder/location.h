@@ -3,6 +3,8 @@
 #include "public.h"
 
 #include <ytlib/actions/action_queue.h>
+#include <ytlib/actions/signal.h>
+
 #include <ytlib/logging/tagged_logger.h>
 
 namespace NYT {
@@ -113,8 +115,14 @@ public:
     //! Returns True iff the location is enabled.
     bool IsEnabled() const;
 
-    //! Marks location as disabled.
+    //! Marks the location as disabled.
     void Disable();
+
+    //! Raised when the location gets disabled.
+    /*!
+     *  Raises at most once in an unspecified thread.
+     */
+    DEFINE_SIGNAL(void(), Disabled);
 
 private:
     ELocationType Type;

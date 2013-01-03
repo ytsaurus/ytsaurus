@@ -5,6 +5,7 @@
 #include "chunk.h"
 #include "chunk_store.h"
 #include "bootstrap.h"
+#include "master_connector.h"
 
 #include <ytlib/chunk_client/data_node_service_proxy.h>
 
@@ -43,6 +44,11 @@ void TChunkStore::Start()
                 "store" + ToString(i),
                 locationConfig,
                 Bootstrap);
+
+            location->SubscribeDisabled(
+                BIND(&TChunkStore::OnLocationDisabled, Unretained(this), location)
+                    .Via(Bootstrap->GetControlInvoker()));
+
             Locations_.push_back(location);
 
             auto descriptors = location->Initialize();
@@ -113,8 +119,8 @@ TFuture<void> TChunkStore::RemoveChunk(TStoredChunkPtr chunk)
     auto promise = NewPromise<void>();
     chunk->ScheduleRemoval().Subscribe(
         BIND([=] () mutable {
-            auto chunkId = chunk->GetId();
-            YCHECK(ChunkMap.erase(chunkId) == 1);
+            // NB: No result check here, the location might got disabled.
+            ChunkMap.erase(chunk->GetId());
 
             auto location = chunk->GetLocation();
             location->UpdateChunkCount(-1);
@@ -189,6 +195,30 @@ void TChunkStore::DoSetCellGuid()
 const TGuid& TChunkStore::GetCellGuid() const
 {
     return CellGuid;
+}
+
+void TChunkStore::OnLocationDisabled(TLocationPtr location)
+{
+    // Scan through all chunks and remove those residing on this dead location.
+    {
+        LOG_INFO("Started cleaning up chunk map");
+        int count = 0;
+        auto it = ChunkMap.begin();
+        while (it != ChunkMap.end()) {
+            auto jt = it++;
+            auto chunk = jt->second;
+            if (chunk->GetLocation() == location) {
+                ChunkMap.erase(jt);
+            }
+        }
+        LOG_INFO("Chunk map cleaned, %d chunks removed", count);
+    }
+
+    // Schedule an out-of-order heartbeat to notify the master about the disaster.
+    {
+        auto masterConnector = Bootstrap->GetMasterConnector();
+        masterConnector->ForceRegister();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

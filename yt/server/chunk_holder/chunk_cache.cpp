@@ -60,6 +60,8 @@ public:
             Config->CacheLocation,
             Bootstrap);
 
+        Location->SubscribeDisabled(BIND(&TImpl::OnLocationDisabled, Unretained(this)));
+
         try {
             FOREACH (const auto& descriptor, Location->Initialize()) {
                 auto chunk = New<TCachedChunk>(
@@ -136,22 +138,29 @@ private:
     DEFINE_SIGNAL(void(TChunkPtr), ChunkAdded);
     DEFINE_SIGNAL(void(TChunkPtr), ChunkRemoved);
 
-    virtual i64 GetWeight(TCachedChunk* chunk) const
+    virtual i64 GetWeight(TCachedChunk* chunk) const override
     {
         return chunk->GetInfo().size();
     }
 
-    virtual void OnAdded(TCachedChunk* value)
+    virtual void OnAdded(TCachedChunk* value) override
     {
         TBase::OnAdded(value);
         ChunkAdded_.Fire(value);
     }
     
-    virtual void OnRemoved(TCachedChunk* value)
+    virtual void OnRemoved(TCachedChunk* value) override
     {
         TBase::OnRemoved(value);
         ChunkRemoved_.Fire(value);
     }
+
+
+    void OnLocationDisabled()
+    {
+        LOG_FATAL("Cannot proceed with cache location disabled");
+    }
+
 
     class TDownloadSession
         : public TRefCounted
