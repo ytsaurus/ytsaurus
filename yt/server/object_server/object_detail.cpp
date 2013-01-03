@@ -110,11 +110,8 @@ void TStagedObjectBase::Load(const NCellMaster::TLoadContext& context)
     TUnversionedObjectBase::Load(context);
     
     auto* input = context.GetInput();
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 5) {
-        LoadObjectRef(input, StagingTransaction_, context);
-        LoadObjectRef(input, StagingAccount_, context);
-    }
+    LoadObjectRef(input, StagingTransaction_, context);
+    LoadObjectRef(input, StagingAccount_, context);
 }
 
 bool TStagedObjectBase::IsStaged() const

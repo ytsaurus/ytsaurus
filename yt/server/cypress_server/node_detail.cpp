@@ -112,11 +112,8 @@ void TCypressNodeBase::Load(const TLoadContext& context)
     ::Load(input, LockMode_);
     ::Load(input, CreationTime_);
     ::Load(input, ModificationTime_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 5) {
-        LoadObjectRef(input, Account_, context);
-        NSecurityServer::Load(input, CachedResourceUsage_);
-    }
+    LoadObjectRef(input, Account_, context);
+    NSecurityServer::Load(input, CachedResourceUsage_);
 
     if (Id.IsBranched()) {
         TrunkNode_ = context.Get<ICypressNode>(TVersionedObjectId(Id.ObjectId));

@@ -48,12 +48,9 @@ void TTransaction::Load(const NCellMaster::TLoadContext& context)
 
     auto* input = context.GetInput();
     ::Load(input, State_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 5) {
-        ::Load(input, Timeout_);
-        ::Load(input, UncommittedAccountingEnabled_);
-        ::Load(input, StagedAccountingEnabled_);
-    }
+    ::Load(input, Timeout_);
+    ::Load(input, UncommittedAccountingEnabled_);
+    ::Load(input, StagedAccountingEnabled_);
     LoadObjectRefs(input, NestedTransactions_, context);
     LoadObjectRef(input, Parent_, context);
     ::Load(input, StartTime_);
@@ -61,10 +58,7 @@ void TTransaction::Load(const NCellMaster::TLoadContext& context)
     LoadObjectRefs(input, LockedNodes_, context);
     LoadObjectRefs(input, BranchedNodes_, context);
     LoadObjectRefs(input, StagedNodes_, context);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 5) {
-        LoadObjectRefs(input, AccountResourceUsage_, context);
-    }
+    LoadObjectRefs(input, AccountResourceUsage_, context);
 }
 
 bool TTransaction::IsActive() const
