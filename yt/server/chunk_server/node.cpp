@@ -23,7 +23,7 @@ TDataNode::TDataNode(
     , Address_(address)
     , IncarnationId_(incarnationId)
     , HintedSessionCount_(0)
-    , ChunksToReplicate_(ReplicationPriorities)
+    , ChunksToReplicate_(ReplicationPriorityCount)
 { }
 
 TDataNode::TDataNode(TNodeId id)

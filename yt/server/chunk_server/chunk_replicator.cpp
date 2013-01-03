@@ -613,7 +613,7 @@ void TChunkReplicator::Refresh(TChunk* chunk)
 int TChunkReplicator::ComputeReplicationPriority(const TReplicaStatistics& statistics)
 {
     YASSERT(statistics.StoredCount);
-    return std::min(statistics.StoredCount, ReplicationPriorities) - 1;
+    return std::min(statistics.StoredCount, ReplicationPriorityCount) - 1;
 }
 
 void TChunkReplicator::ScheduleChunkRefresh(const TChunkId& chunkId)

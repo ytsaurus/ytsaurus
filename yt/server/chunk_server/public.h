@@ -79,7 +79,7 @@ const int TypicalReplicationFactor = 4;
  *  current RF == 2 -> priority = 1
  *  current RF >= 3 -> priority = 2
  */
-const int ReplicationPriorities = 3;
+const int ReplicationPriorityCount = 3;
 
 ////////////////////////////////////////////////////////////////////////////////
 

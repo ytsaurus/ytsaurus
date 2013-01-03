@@ -77,15 +77,16 @@ void TChunkStore::Start()
         LOG_FATAL(ex, "Failed to initialize storage locations");
     }
 
-    LOG_INFO("Chunk store scan completed, %d chunks found", ChunkMap.ysize());
+    LOG_INFO("Chunk store scan complete, %d chunks found",
+        GetChunkCount());
 }
 
 void TChunkStore::RegisterChunk(TStoredChunkPtr chunk)
 {
-    auto res = ChunkMap.insert(MakePair(chunk->GetId(), chunk));
-    if (!res.second) {
-        auto oldChunk = res.first->second;
-        LOG_FATAL("Duplicate chunk (Current chunk: %s; previous chunk: %s)",
+    auto result = ChunkMap.insert(std::make_pair(chunk->GetId(), chunk));
+    if (!result.second) {
+        auto oldChunk = result.first->second;
+        LOG_FATAL("Duplicate chunk (Current: %s, Previous: %s)",
             ~chunk->GetLocation()->GetChunkFileName(chunk->GetId()),
             ~oldChunk->GetLocation()->GetChunkFileName(oldChunk->GetId()));
     }
@@ -160,7 +161,7 @@ TLocationPtr TChunkStore::GetNewChunkLocation()
 TChunkStore::TChunks TChunkStore::GetChunks() const
 {
     TChunks result;
-    result.reserve(ChunkMap.ysize());
+    result.reserve(ChunkMap.size());
     FOREACH (const auto& pair, ChunkMap) {
         result.push_back(pair.second);
     }
@@ -169,7 +170,7 @@ TChunkStore::TChunks TChunkStore::GetChunks() const
 
 int TChunkStore::GetChunkCount() const
 {
-    return ChunkMap.ysize();
+    return static_cast<int>(ChunkMap.size());
 }
 
 void TChunkStore::SetCellGuid(const TGuid& cellGuid)
