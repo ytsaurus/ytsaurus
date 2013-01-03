@@ -111,10 +111,6 @@ i64 TLocation::GetAvailableSpace() const
 
 i64 TLocation::GetTotalSpace() const
 {
-    if (!IsEnabled()) {
-        return 0;
-    }
-
     auto path = GetPath();
     try {
         auto statistics = NFS::GetDiskSpaceStatistics(path);
