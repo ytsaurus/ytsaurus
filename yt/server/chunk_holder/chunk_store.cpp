@@ -209,6 +209,7 @@ void TChunkStore::OnLocationDisabled(TLocationPtr location)
             auto chunk = jt->second;
             if (chunk->GetLocation() == location) {
                 ChunkMap.erase(jt);
+                ++count;
             }
         }
         LOG_INFO("Chunk map cleaned, %d chunks removed", count);
