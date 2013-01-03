@@ -120,7 +120,7 @@ public:
 
     //! Raised when the location gets disabled.
     /*!
-     *  Raises at most once in an unspecified thread.
+     *  Raised at most once in Control thread.
      */
     DEFINE_SIGNAL(void(), Disabled);
 
@@ -147,6 +147,7 @@ private:
     mutable NLog::TTaggedLogger Logger;
 
     void OnHealthCheckFailed();
+    void DoDisable();
 
 };
 

@@ -45,9 +45,7 @@ void TChunkStore::Start()
                 locationConfig,
                 Bootstrap);
 
-            location->SubscribeDisabled(
-                BIND(&TChunkStore::OnLocationDisabled, Unretained(this), location)
-                    .Via(Bootstrap->GetControlInvoker()));
+            location->SubscribeDisabled(BIND(&TChunkStore::OnLocationDisabled, Unretained(this), location));
 
             Locations_.push_back(location);
 

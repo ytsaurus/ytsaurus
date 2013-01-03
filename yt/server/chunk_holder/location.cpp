@@ -78,7 +78,7 @@ const Stroka& TLocation::GetId() const
 
 void TLocation::UpdateUsedSpace(i64 size)
 {
-    if (!Enabled)
+    if (!IsEnabled())
         return;
 
     UsedSpace += size;
@@ -87,7 +87,7 @@ void TLocation::UpdateUsedSpace(i64 size)
 
 i64 TLocation::GetAvailableSpace() const
 {
-    if (!Enabled) {
+    if (!IsEnabled()) {
         return 0;
     }
 
@@ -111,7 +111,7 @@ i64 TLocation::GetAvailableSpace() const
 
 i64 TLocation::GetTotalSpace() const
 {
-    if (!Enabled) {
+    if (!IsEnabled()) {
         return 0;
     }
 
@@ -155,7 +155,7 @@ Stroka TLocation::GetPath() const
 
 void TLocation::UpdateSessionCount(int delta)
 {
-    if (!Enabled)
+    if (!IsEnabled())
         return;
 
     SessionCount += delta;
@@ -168,7 +168,7 @@ int TLocation::GetSessionCount() const
 
 void TLocation::UpdateChunkCount(int delta)
 {
-    if (!Enabled)
+    if (!IsEnabled())
         return;
 
     ChunkCount += delta;
@@ -222,8 +222,14 @@ void TLocation::Disable()
     if (!AtomicCas(&Enabled, 0, 1))
         return;
 
+    Bootstrap->GetControlInvoker()->Invoke(
+        BIND(&TLocation::DoDisable, MakeStrong(this)));
+}
+
+void TLocation::DoDisable()
+{
     LOG_ERROR("Location disabled");
-    
+
     AvailableSpace = 0;
     UsedSpace = 0;
     SessionCount = 0;
