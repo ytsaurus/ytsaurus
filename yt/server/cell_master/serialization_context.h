@@ -6,9 +6,14 @@
 
 #include <ytlib/meta_state/composite_meta_state.h>
 
+#include <server/object_server/public.h>
+
 #include <server/transaction_server/public.h>
+
 #include <server/chunk_server/public.h>
+
 #include <server/cypress_server/public.h>
+
 #include <server/security_server/public.h>
 
 namespace NYT {
@@ -41,6 +46,9 @@ struct TSaveContext
 { };
 
 template <>
+NObjectServer::TObjectBase* TLoadContext::Get(const NObjectClient::TObjectId& id) const;
+
+template <>
 NTransactionServer::TTransaction* TLoadContext::Get(const NObjectClient::TObjectId& id) const;
 
 template <>
@@ -53,7 +61,10 @@ template <>
 NChunkServer::TJob* TLoadContext::Get(const NObjectClient::TObjectId& id) const;
 
 template <>
-NCypressServer::ICypressNode* TLoadContext::Get(const NObjectClient::TVersionedObjectId& id) const;
+NCypressServer::TCypressNodeBase* TLoadContext::Get(const NCypressClient::TNodeId& id) const;
+
+template <>
+NCypressServer::TCypressNodeBase* TLoadContext::Get(const NCypressClient::TVersionedNodeId& id) const;
 
 template <>
 NSecurityServer::TAccount* TLoadContext::Get(const NObjectClient::TObjectId& id) const;

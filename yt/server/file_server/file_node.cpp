@@ -40,11 +40,6 @@ int TFileNode::GetOwningReplicationFactor() const
     return trunkNode->GetReplicationFactor();
 }
 
-EObjectType TFileNode::GetObjectType() const
-{
-    return EObjectType::File;
-}
-
 void TFileNode::Save(const NCellMaster::TSaveContext& context) const
 {
     TCypressNodeBase::Save(context);
@@ -65,7 +60,7 @@ void TFileNode::Load(const NCellMaster::TLoadContext& context)
 
 TClusterResources TFileNode::GetResourceUsage() const 
 {
-    if (Id.IsBranched()) {
+    if (Transaction_) {
         return ZeroClusterResources();
     }
 
@@ -105,8 +100,9 @@ public:
         return ENodeType::Entity;
     }
 
-    virtual ICypressNodeProxyPtr GetProxy(
-        ICypressNode* trunkNode,
+protected:
+    virtual ICypressNodeProxyPtr DoGetProxy(
+        TFileNode* trunkNode,
         TTransaction* transaction) override
     {
         return New<TFileNodeProxy>(
@@ -116,7 +112,6 @@ public:
             trunkNode);
     }
 
-protected:
     virtual TAutoPtr<TFileNode> DoCreate(
         NTransactionServer::TTransaction* transaction,
         TReqCreate* request,

@@ -55,20 +55,17 @@ public:
         return EObjectAccountMode::Forbidden;
     }
 
-    virtual TObjectId Create(
+    virtual TObjectBase* Create(
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
         TReqCreateObject* request,
         TRspCreateObject* response) override;
 
-    virtual IObjectProxyPtr GetProxy(
-        const TObjectId& id,
-        TTransaction* transaction) override;
-
 private:
     TImpl* Owner;
 
+    virtual IObjectProxyPtr DoGetProxy(TAccount* account, TTransaction* transaction) override;
     virtual void DoDestroy(TAccount* account) override;
 
 };
@@ -84,8 +81,8 @@ public:
             bootstrap->GetMetaStateFacade()->GetManager(),
             bootstrap->GetMetaStateFacade()->GetState())
         , Bootstrap(bootstrap)
-        , SysAccount(NULL)
-        , TmpAccount(NULL)
+        , SysAccount(nullptr)
+        , TmpAccount(nullptr)
     {
         YCHECK(bootstrap);
 
@@ -157,7 +154,7 @@ public:
     TAccount* FindAccountByName(const Stroka& name)
     {
         auto it = AccountNameMap.find(name);
-        return it == AccountNameMap.end() ? NULL : it->second;
+        return it == AccountNameMap.end() ? nullptr : it->second;
     }
 
 
@@ -174,7 +171,7 @@ public:
     }
 
 
-    void SetAccount(ICypressNode* node, TAccount* account)
+    void SetAccount(TCypressNodeBase* node, TAccount* account)
     {
         YCHECK(node);
         YCHECK(account);
@@ -220,7 +217,7 @@ public:
         ++account->NodeCount();
     }
 
-    void ResetAccount(ICypressNode* node)
+    void ResetAccount(TCypressNodeBase* node)
     {
         auto* account = node->GetAccount();
         if (!account)
@@ -237,7 +234,7 @@ public:
             }
         }
 
-        node->SetAccount(NULL);
+        node->SetAccount(nullptr);
         objectManager->UnrefObject(account);
 
         if (isAccountingEnabled) {
@@ -249,7 +246,7 @@ public:
     }
 
 
-    void UpdateAccountNodeUsage(ICypressNode* node)
+    void UpdateAccountNodeUsage(TCypressNodeBase* node)
     {
         auto* account = node->GetAccount();
         if (!account)
@@ -302,7 +299,7 @@ private:
     TAccount* TmpAccount;
 
 
-    static bool IsUncommittedAccountingEnabled(ICypressNode* node)
+    static bool IsUncommittedAccountingEnabled(TCypressNodeBase* node)
     {
         auto* transaction = node->GetTransaction();
         return !transaction || transaction->GetUncommittedAccountingEnabled();
@@ -328,16 +325,16 @@ private:
         return account;
     }
 
-    TClusterResources* FindTransactionAccountUsage(ICypressNode* node)
+    TClusterResources* FindTransactionAccountUsage(TCypressNodeBase* node)
     {
         auto* account = node->GetAccount();
         if (!account) {
-            return NULL;
+            return nullptr;
         }
 
         auto* transaction = node->GetTransaction();
         if (!transaction) {
-            return NULL;
+            return nullptr;
         }
 
         return GetTransactionAccountUsage(transaction, account);
@@ -403,7 +400,7 @@ TSecurityManager::TAccountTypeHandler::TAccountTypeHandler(TImpl* owner)
     , Owner(owner)
 { }
 
-TObjectId TSecurityManager::TAccountTypeHandler::Create(
+TObjectBase* TSecurityManager::TAccountTypeHandler::Create(
     TTransaction* transaction,
     TAccount* account,
     IAttributeDictionary* attributes,
@@ -417,15 +414,15 @@ TObjectId TSecurityManager::TAccountTypeHandler::Create(
 
     auto name = attributes->Get<Stroka>("name");
     auto* newAccount = Owner->CreateAccount(name);
-    return newAccount->GetId();
+    return newAccount;
 }
 
-IObjectProxyPtr TSecurityManager::TAccountTypeHandler::GetProxy(
-    const TObjectId& id,
+IObjectProxyPtr TSecurityManager::TAccountTypeHandler::DoGetProxy(
+    TAccount* account,
     TTransaction* transaction)
 {
     UNUSED(transaction);
-    return CreateAccountProxy(Owner->Bootstrap, id, &Owner->AccountMap);
+    return CreateAccountProxy(Owner->Bootstrap, account, &Owner->AccountMap);
 }
 
 void TSecurityManager::TAccountTypeHandler::DoDestroy(TAccount* account)
@@ -462,17 +459,17 @@ TAccount* TSecurityManager::GetTmpAccount()
     return Impl->GetTmpAccount();
 }
 
-void TSecurityManager::SetAccount(ICypressNode* node, TAccount* account)
+void TSecurityManager::SetAccount(TCypressNodeBase* node, TAccount* account)
 {
     Impl->SetAccount(node, account);
 }
 
-void TSecurityManager::ResetAccount(ICypressNode* node)
+void TSecurityManager::ResetAccount(TCypressNodeBase* node)
 {
     Impl->ResetAccount(node);    
 }
 
-void TSecurityManager::UpdateAccountNodeUsage(ICypressNode* node)
+void TSecurityManager::UpdateAccountNodeUsage(TCypressNodeBase* node)
 {
     Impl->UpdateAccountNodeUsage(node);
 }

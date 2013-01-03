@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "cypress_integration.h"
+#include "transaction.h"
 
 #include <ytlib/misc/string.h>
 
@@ -37,8 +38,9 @@ private:
     virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
     {
         auto transactionManager = Bootstrap->GetTransactionManager();
-        auto ids = transactionManager->GetTransactionIds(sizeLimit);
-        return ConvertToStrings(ids.begin(), ids.end(), sizeLimit);
+        auto ids = ToObjectIds(transactionManager->GetTransactions(sizeLimit));
+        // NB: No size limit is needed here.
+        return ConvertToStrings(ids.begin(), ids.end());
     }
 
     virtual size_t GetSize() const override
@@ -47,14 +49,17 @@ private:
         return transactionManager->GetTransactionCount();
     }
 
-    virtual IYPathServicePtr GetItemService(const TStringBuf& key) const override
+    virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
     {
+        auto transactionManager = Bootstrap->GetTransactionManager();
         auto id = TTransactionId::FromString(key);
-        if (TypeFromId(id) != EObjectType::Transaction) {
-            return NULL;
+        auto* transaction = transactionManager->FindTransaction(id);
+        if (!transaction || !transaction->IsAlive()) {
+            return nullptr;
         }
+
         auto objectManager = Bootstrap->GetObjectManager();
-        return objectManager->FindProxy(id);
+        return objectManager->GetProxy(transaction);
     }
 };
 

@@ -24,8 +24,6 @@ public:
 
     virtual int GetOwningReplicationFactor() const override;
 
-    virtual NObjectClient::EObjectType GetObjectType() const override;
-
     virtual NSecurityServer::TClusterResources GetResourceUsage() const override;
 
     virtual void Save(const NCellMaster::TSaveContext& context) const override;

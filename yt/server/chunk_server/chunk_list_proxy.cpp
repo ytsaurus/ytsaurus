@@ -25,8 +25,8 @@ public:
     TChunkListProxy(
         NCellMaster::TBootstrap* bootstrap,
         TMap* map,
-        const TChunkListId& id)
-        : TBase(bootstrap, id, map)
+        TChunkList* chunkList)
+        : TBase(bootstrap, chunkList, map)
     {
         Logger = ChunkServerLogger;
     }
@@ -160,12 +160,12 @@ private:
 IObjectProxyPtr CreateChunkListProxy(
     NCellMaster::TBootstrap* bootstrap,
     NMetaState::TMetaStateMap<TChunkListId, TChunkList>* map,
-    const TChunkListId& id)
+    TChunkList* chunkList)
 {
     return New<TChunkListProxy>(
         bootstrap,
         map,
-        id);
+        chunkList);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

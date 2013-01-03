@@ -20,9 +20,7 @@ typedef TIntrusivePtr<INodeBehavior> INodeBehaviorPtr;
 struct INodeTypeHandler;
 typedef TIntrusivePtr<INodeTypeHandler> INodeTypeHandlerPtr;
 
-struct ICypressNode;
-
-struct IOwningCypressNode;
+class TCypressNodeBase;
 
 struct ICypressNodeProxy;
 typedef TIntrusivePtr<ICypressNodeProxy> ICypressNodeProxyPtr;

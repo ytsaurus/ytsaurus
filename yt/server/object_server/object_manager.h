@@ -1,14 +1,14 @@
 #pragma once
 
 #include "public.h"
-#include "attribute_set.h"
-#include "type_handler.h"
 
 #include <ytlib/misc/thread_affinity.h>
 
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/map.h>
 #include <ytlib/meta_state/mutation.h>
+
+#include <ytlib/profiling/profiler.h>
 
 #include <server/cell_master/public.h>
 
@@ -20,12 +20,11 @@
 
 #include <server/chunk_server/chunk_tree_ref.h>
 
-#include <ytlib/profiling/profiler.h>
-
-#include <queue>
-
 namespace NYT {
 namespace NObjectServer {
+
+// WinAPI is great.
+#undef GetObject
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,14 +49,14 @@ public:
      */
     void RegisterHandler(IObjectTypeHandlerPtr handler);
 
-    //! Returns the handler for a given type or NULL if the type is unknown.
+    //! Returns the handler for a given type or |nullptr| if the type is unknown.
     IObjectTypeHandlerPtr FindHandler(EObjectType type) const;
 
     //! Returns the handler for a given type.
     IObjectTypeHandlerPtr GetHandler(EObjectType type) const;
     
-    //! Returns the handler for a given id.
-    IObjectTypeHandlerPtr GetHandler(const TObjectId& id) const;
+    //! Returns the handler for a given object.
+    IObjectTypeHandlerPtr GetHandler(TObjectBase* object) const;
 
     //! Returns the cell id.
     TCellId GetCellId() const;
@@ -69,34 +68,23 @@ public:
     TObjectId GenerateId(EObjectType type);
 
     //! Adds a reference.
-    void RefObject(const TObjectId& id);
-    void RefObject(const TVersionedObjectId& id);
-    void RefObject(TUnversionedObjectBase* object);
-    void RefObject(NCypressServer::ICypressNode* node);
+    void RefObject(TObjectBase* object);
     void RefObject(NChunkServer::TChunkTreeRef ref);
 
     //! Removes a reference.
-    void UnrefObject(const TObjectId& id);
-    void UnrefObject(const TVersionedObjectId& id);
-    void UnrefObject(TUnversionedObjectBase* object);
-    void UnrefObject(NCypressServer::ICypressNode* node);
+    void UnrefObject(TObjectBase* object);
     void UnrefObject(NChunkServer::TChunkTreeRef ref);
 
-    //! Returns the current reference counter.
-    i32 GetObjectRefCounter(const TObjectId& id);
+    //! Finds object by id, returns |nullptr| if nothing is found.
+    TObjectBase* FindObject(const TObjectId& id);
 
-    //! Returns True if an object with the given #id exists.
-    bool ObjectExists(const TObjectId& id);
+    //! Finds object by id, fails if nothing is found.
+    TObjectBase* GetObject(const TObjectId& id);
 
-    //! Returns a proxy for the object with the given versioned id or NULL if there's no such object.
-    IObjectProxyPtr FindProxy(
-        const TObjectId& id,
-        NTransactionServer::TTransaction* transaction = NULL);
-
-    //! Returns a proxy for the object with the given versioned id or NULL. Fails if there's no such object.
+    //! Returns a proxy for the object with the given versioned id.
     IObjectProxyPtr GetProxy(
-        const TObjectId& id,
-        NTransactionServer::TTransaction* transaction = NULL);
+        TObjectBase* object,
+        NTransactionServer::TTransaction* transaction = nullptr);
 
     //! Creates a new empty attribute set.
     TAttributeSet* CreateAttributes(const TVersionedObjectId& id);
@@ -177,9 +165,6 @@ private:
     virtual void Clear() override;
 
     void ReplayVerb(const NProto::TMetaReqExecute& request);
-
-    void OnObjectReferenced(const TObjectId& id, i32 refCounter);
-    void OnObjectUnreferenced(const TObjectId& id, i32 refCounter);
 
     void DestroyObjects(const NProto::TMetaReqDestroyObjects& request);
     void DestroyObject(const TObjectId& id);

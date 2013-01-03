@@ -116,9 +116,16 @@ private:
                 continue;
             } else {
                 const auto& nodeId = entry.Children[childIndex];
-                auto nodeProxy = cypressManager->FindVersionedNodeProxy(nodeId, transaction);
+                auto* trunkNode = cypressManager->FindNode(TVersionedNodeId(nodeId));
+                if (!trunkNode) {
+                    Visitor->OnError(TError("No such node: %s", 
+                        ~nodeId.ToString()));
+                    return;
+                }
 
+                auto nodeProxy = cypressManager->GetVersionedNodeProxy(trunkNode, transaction);
                 VisitNode(nodeProxy);
+
                 ++currentNodeCount;
             }
          }

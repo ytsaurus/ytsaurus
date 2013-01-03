@@ -24,6 +24,7 @@ public:
 
     NObjectClient::EObjectType GetType() const;
 
+    NObjectServer::TObjectBase* AsObject() const;
     TChunk* AsChunk() const;
     TChunkList* AsChunkList() const;
 
@@ -57,12 +58,6 @@ struct hash<NYT::NChunkServer::TChunkTreeRef>
 
 namespace NYT {
 namespace NObjectServer {
-
-template <>
-struct TObjectIdTraits<NChunkServer::TChunkTreeRef, void>
-{
-    typedef TObjectId TId;
-};
 
 inline TObjectId GetObjectId(const NChunkServer::TChunkTreeRef& object)
 {

@@ -132,10 +132,7 @@ struct TVersionedObjectId
     TVersionedObjectId();
 
     //! Initializes an instance by given node. Sets #TransactionId to #NullTransactionId.
-    /*!
-     *  Can be used for implicit conversion from TNodeId to TVersionedNodeId.
-     */
-    TVersionedObjectId(const TObjectId& objectId);
+    explicit TVersionedObjectId(const TObjectId& objectId);
 
     //! Initializes an instance by given node and transaction ids.
     TVersionedObjectId(const TObjectId& objectId, const TTransactionId& transactionId);

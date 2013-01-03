@@ -15,6 +15,7 @@
 #include <server/cypress_server/cypress_manager.h>
 
 #include <server/object_server/type_handler_detail.h>
+#include <server/object_server/attribute_set.h>
 
 #include <server/cell_master/serialization_context.h>
 #include <server/cell_master/bootstrap.h>
@@ -28,6 +29,7 @@ namespace NYT {
 namespace NTransactionServer {
 
 using namespace NCellMaster;
+using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NMetaState;
 using namespace NYTree;
@@ -47,8 +49,8 @@ class TTransactionManager::TTransactionProxy
     : public NObjectServer::TNonversionedObjectProxyBase<TTransaction>
 {
 public:
-    TTransactionProxy(TTransactionManagerPtr owner, const TTransactionId& id)
-        : TBase(owner->Bootstrap, id, &owner->TransactionMap)
+    TTransactionProxy(TTransactionManagerPtr owner, TTransaction* transaction)
+        : TBase(owner->Bootstrap, transaction, &owner->TransactionMap)
         , Owner(owner)
     {
         Logger = NTransactionServer::Logger;
@@ -138,32 +140,32 @@ private:
 
         if (key == "staged_object_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(transaction->StagedObjectIds(), [=] (TFluentList fluent, const TTransactionId& id) {
-                    fluent.Item().Value(id);
+                .DoListFor(transaction->StagedObjects(), [=] (TFluentList fluent, const TObjectBase* object) {
+                    fluent.Item().Value(object->GetId());
                 });
             return true;
         }
 
         if (key == "staged_node_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(transaction->StagedNodes(), [=] (TFluentList fluent, const ICypressNode* node) {
-                    fluent.Item().Value(node->GetId().ObjectId);
+                .DoListFor(transaction->StagedNodes(), [=] (TFluentList fluent, const TCypressNodeBase* node) {
+                    fluent.Item().Value(node->GetId());
                 });
             return true;
         }
 
         if (key == "branched_node_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(transaction->BranchedNodes(), [=] (TFluentList fluent, const ICypressNode* node) {
-                    fluent.Item().Value(node->GetId().ObjectId);
+                .DoListFor(transaction->BranchedNodes(), [=] (TFluentList fluent, const TCypressNodeBase* node) {
+                    fluent.Item().Value(node->GetId());
             });
             return true;
         }
 
         if (key == "locked_node_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(transaction->LockedNodes(), [=] (TFluentList fluent, const ICypressNode* node) {
-                    fluent.Item().Value(node->GetId().ObjectId);
+                .DoListFor(transaction->LockedNodes(), [=] (TFluentList fluent, const TCypressNodeBase* node) {
+                    fluent.Item().Value(node->GetId());
                 });
             return true;
         }
@@ -193,7 +195,7 @@ private:
 
     void ValidateTransactionNotNull()
     {
-        if (GetId() == NullTransactionId) {
+        if (!Object) {
             THROW_ERROR_EXCEPTION("Non-null transaction must be provided");
         }
     }
@@ -312,8 +314,14 @@ private:
         auto* transaction = GetThisTypedImpl();
         ValidateTransactionIsActive(transaction);
 
+        auto objectManager = Bootstrap->GetObjectManager();
+        auto* object = objectManager->FindObject(objectId);
+        if (!object) {
+            THROW_ERROR_EXCEPTION("No such object: %s", ~ToString(objectId));
+        }
+
         auto transactionManager = Owner->Bootstrap->GetTransactionManager();
-        transactionManager->UnstageObject(transaction, objectId, recursive);
+        transactionManager->UnstageObject(transaction, object, recursive);
 
         context->Reply();
     }
@@ -345,7 +353,7 @@ public:
         return EObjectAccountMode::Forbidden;
     }
 
-    virtual TObjectId Create(
+    virtual TUnversionedObjectBase* Create(
         TTransaction* parent,
         TAccount* account,
         IAttributeDictionary* attributes,
@@ -363,19 +371,17 @@ public:
         auto* transaction = Owner->StartTransaction(parent, timeout);
         transaction->SetUncommittedAccountingEnabled(requestExt->enable_uncommitted_accounting());
         transaction->SetStagedAccountingEnabled(requestExt->enable_staged_accounting());
-        return transaction->GetId();
-    }
-
-    virtual IObjectProxyPtr GetProxy(
-        const TObjectId& id,
-        NTransactionServer::TTransaction* transaction) override
-    {
-        UNUSED(transaction);
-        return New<TTransactionProxy>(Owner, id);
+        return transaction;
     }
 
 private:
     TTransactionManager* Owner;
+
+    virtual IObjectProxyPtr DoGetProxy(TTransaction* object, TTransaction* transaction) override
+    {
+        UNUSED(transaction);
+        return New<TTransactionProxy>(Owner, object);
+    }
 
 };
 
@@ -443,13 +449,13 @@ TTransaction* TTransactionManager::StartTransaction(TTransaction* parent, TNulla
     auto* transaction = new TTransaction(id);
     TransactionMap.Insert(id, transaction);
 
-    // Every active transaction has a fake reference to it.
-    objectManager->RefObject(id);
+    // Every active transaction has a fake reference to itself.
+    objectManager->RefObject(transaction);
     
     if (parent) {
         transaction->SetParent(parent);
         YCHECK(parent->NestedTransactions().insert(transaction).second);
-        objectManager->RefObject(id);
+        objectManager->RefObject(transaction);
     }
 
     auto actualTimeout = GetActualTimeout(timeout);
@@ -535,12 +541,12 @@ void TTransactionManager::FinishTransaction(TTransaction* transaction)
 {
     auto objectManager = Bootstrap->GetObjectManager();
 
-    FOREACH (const auto& objectId, transaction->StagedObjectIds()) {
-        auto handler = objectManager->GetHandler(objectId);
-        handler->Unstage(objectId, transaction, false);
-        objectManager->UnrefObject(objectId);
+    FOREACH (auto* object, transaction->StagedObjects()) {
+        auto handler = objectManager->GetHandler(object);
+        handler->Unstage(object, transaction, false);
+        objectManager->UnrefObject(object);
     }
-    transaction->StagedObjectIds().clear();
+    transaction->StagedObjects().clear();
     
     auto* parent = transaction->GetParent();
     if (parent) {
@@ -637,19 +643,20 @@ TObjectId TTransactionManager::CreateObject(
             YUNREACHABLE();
     }
 
-    auto objectId = handler->Create(
+    auto* object = handler->Create(
         transaction,
         account,
         attributes,
         request,
         response);
+    const auto& objectId = object->GetId();
 
     auto attributeKeys = attributes->List();
     if (!attributeKeys.empty()) {
         // Copy attributes. Quick and dirty.
-        auto* attributeSet = objectManager->FindAttributes(objectId);
+        auto* attributeSet = objectManager->FindAttributes(TVersionedObjectId(objectId));
         if (!attributeSet) {
-            attributeSet = objectManager->CreateAttributes(objectId);
+            attributeSet = objectManager->CreateAttributes(TVersionedObjectId(objectId));
         }
             
         FOREACH (const auto& key, attributeKeys) {
@@ -660,8 +667,8 @@ TObjectId TTransactionManager::CreateObject(
     }
 
     if (transaction) {
-        YCHECK(transaction->StagedObjectIds().insert(objectId).second);
-        objectManager->RefObject(objectId);
+        YCHECK(transaction->StagedObjects().insert(object).second);
+        objectManager->RefObject(object);
     }
 
     return objectId;
@@ -669,19 +676,19 @@ TObjectId TTransactionManager::CreateObject(
 
 void TTransactionManager::UnstageObject(
     TTransaction* transaction,
-    const TObjectId& objectId,
+    TObjectBase* object,
     bool recursive)
 {
-    if (transaction->StagedObjectIds().erase(objectId) != 1) {
+    if (transaction->StagedObjects().erase(object) != 1) {
         THROW_ERROR_EXCEPTION("Object %s does not belong to transaction %s",
-            ~objectId.ToString(),
+            ~object->GetId().ToString(),
             ~transaction->GetId().ToString());
     }
 
     auto objectManager = Bootstrap->GetObjectManager();
-    auto handler = objectManager->GetHandler(objectId);
-    handler->Unstage(objectId, transaction, recursive);
-    objectManager->UnrefObject(objectId);
+    auto handler = objectManager->GetHandler(object);
+    handler->Unstage(object, transaction, recursive);
+    objectManager->UnrefObject(object);
 }
 
 void TTransactionManager::SaveKeys(const NCellMaster::TSaveContext& context)
@@ -764,10 +771,12 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto objectManager = Bootstrap->GetObjectManager();
-    auto proxy = objectManager->FindProxy(id);
-    if (!proxy)
+    auto* transaction = FindTransaction(id);
+    if (!transaction)
         return;
+
+    auto objectManager = Bootstrap->GetObjectManager();
+    auto proxy = objectManager->GetProxy(transaction);
 
     LOG_INFO("Transaction has expired (TransactionId: %s)", ~id.ToString());
 
@@ -785,7 +794,8 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
 
 IObjectProxyPtr TTransactionManager::GetRootTransactionProxy()
 {
-    return New<TTransactionProxy>(this, NullTransactionId);
+    // TODO(babenko): remove cast when GCC supports native nullptr
+    return New<TTransactionProxy>(this, (TTransaction*) nullptr);
 }
 
 std::vector<TTransaction*> TTransactionManager::GetTransactionPath(TTransaction* transaction) const

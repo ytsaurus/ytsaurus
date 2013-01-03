@@ -26,42 +26,24 @@ public:
         : Bootstrap(bootstrap)
         , Map(map)
     {
+        YCHECK(bootstrap);
         YCHECK(map);
     }
 
-    virtual bool Exists(const TObjectId& id) override
+    virtual NObjectServer::TObjectBase* FindObject(const TObjectId& id) override
     {
-        auto* obj = Map->Find(id);
-        return obj && obj->IsAlive();
-    }
-
-    virtual int RefObject(const TObjectId& id) override
-    {
-        auto* obj = Map->Get(id);
-        return obj->RefObject();
-    }
-
-    virtual int UnrefObject(const TObjectId& id) override
-    {
-        auto* obj = Map->Get(id);
-        return obj->UnrefObject();
-    }
-
-    virtual int GetObjectRefCounter(const TObjectId& id) override
-    {
-        auto* obj = Map->Get(id);
-        return obj->GetObjectRefCounter();
+        auto* object = Map->Find(id);
+        return object && object->IsAlive() ? object : NULL;
     }
 
     virtual IObjectProxyPtr GetProxy(
-        const TObjectId& id,
+        TObjectBase* object,
         NTransactionServer::TTransaction* transaction) override
     {
-        UNUSED(transaction);
-        return New< TNonversionedObjectProxyBase<TObject> >(Bootstrap, id, Map);
+        return DoGetProxy(static_cast<TObject*>(object), transaction);
     }
 
-    virtual TObjectId Create(
+    virtual TObjectBase* Create(
         NTransactionServer::TTransaction* transaction,
         NSecurityServer::TAccount* account,
         NYTree::IAttributeDictionary* attributes,
@@ -78,20 +60,19 @@ public:
             ~FormatEnum(GetType()));
     }
 
-    virtual void Destroy(const TObjectId& objectId) override
+    virtual void Destroy(const TObjectId& id) override
     {
         // Remove the object from the map but keep it alive.
-        TAutoPtr<TObject> objHolder(Map->Release(objectId));
-        DoDestroy(~objHolder);
+        auto object = Map->Release(id);
+        DoDestroy(static_cast<TObject*>(~object));
     }
 
     virtual void Unstage(
-        const TObjectId& objectId,
+        TObjectBase* object,
         NTransactionServer::TTransaction* transaction,
         bool recursive) override
     {
-        auto* obj = Map->Get(objectId);
-        DoUnstage(obj, transaction, recursive);
+        DoUnstage(static_cast<TObject*>(object), transaction, recursive);
     }
 
 protected:
@@ -99,17 +80,25 @@ protected:
     // We store map by a raw pointer. In most cases this should be OK.
     TMap* Map;
 
-    virtual void DoDestroy(TObject* obj)
+    virtual IObjectProxyPtr DoGetProxy(
+        TObject* object,
+        NTransactionServer::TTransaction* transaction)
     {
-        UNUSED(obj);
+        UNUSED(transaction);
+        return New< TNonversionedObjectProxyBase<TObject> >(Bootstrap, object, Map);
+    }
+
+    virtual void DoDestroy(TObject* object)
+    {
+        UNUSED(object);
     }
 
     virtual void DoUnstage(
-        TObject* obj,
+        TObject* object,
         NTransactionServer::TTransaction* transaction,
         bool recursive)
     {
-        UNUSED(obj);
+        UNUSED(object);
         UNUSED(transaction);
         UNUSED(recursive);
     }

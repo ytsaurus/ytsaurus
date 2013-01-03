@@ -2,15 +2,18 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/server/object_server )
 set( SRCS
   ${BASE}/attribute_set.cpp
+  ${BASE}/object.cpp
   ${BASE}/object_detail.cpp
   ${BASE}/object_manager.cpp
   ${BASE}/object_service.cpp
   ${BASE}/private.cpp
   ${BASE}/gc.cpp
+  ${BASE}/type_handler.cpp
 )
 set( HDRS
   ${BASE}/attribute_set.h
   ${BASE}/config.h
+  ${BASE}/object.h
   ${BASE}/object_detail.h
   ${BASE}/object_manager.h
   ${BASE}/object_proxy.h

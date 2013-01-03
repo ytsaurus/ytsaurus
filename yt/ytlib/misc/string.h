@@ -43,7 +43,7 @@ Stroka JoinToString(const TCollection& items, Stroka delimiter = ", ")
 }
 
 template <class TIter>
-std::vector<Stroka> ConvertToStrings(TIter begin, TIter end, size_t maxSize)
+std::vector<Stroka> ConvertToStrings(TIter begin, TIter end, size_t maxSize = std::numeric_limits<size_t>::max())
 {
     std::vector<Stroka> result;
     for (auto it = begin; it != end; ++it) {

@@ -16,7 +16,7 @@ namespace NChunkServer {
 NObjectServer::IObjectProxyPtr CreateChunkListProxy(
     NCellMaster::TBootstrap* bootstrap,
     NMetaState::TMetaStateMap<TChunkListId, TChunkList>* map,
-    const TChunkListId& id);
+    TChunkList* chunkList);
 
 ////////////////////////////////////////////////////////////////////////////////
 

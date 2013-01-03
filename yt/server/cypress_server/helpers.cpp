@@ -12,16 +12,17 @@ namespace NYT {
 namespace NCypressServer {
 
 using namespace NObjectClient;
+using namespace NObjectServer;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-yhash_map<Stroka, TNodeId> GetMapNodeChildren(
+yhash_map<Stroka, TCypressNodeBase*> GetMapNodeChildren(
     NCellMaster::TBootstrap* bootstrap,
-    const TNodeId& nodeId,
+    TCypressNodeBase* trunkNode,
     NTransactionServer::TTransaction* transaction)
 {
-    yhash_map<Stroka, TNodeId> result;
+    yhash_map<Stroka, TCypressNodeBase*> result;
 
     auto cypressManager = bootstrap->GetCypressManager();
     auto transactionManager = bootstrap->GetTransactionManager();
@@ -30,12 +31,12 @@ yhash_map<Stroka, TNodeId> GetMapNodeChildren(
     std::reverse(transactions.begin(), transactions.end());
 
     FOREACH (const auto* currentTransaction, transactions) {
-        TVersionedObjectId versionedId(nodeId, GetObjectId(currentTransaction));
+        TVersionedObjectId versionedId(trunkNode->GetId(), GetObjectId(currentTransaction));
         const auto* node = cypressManager->FindNode(versionedId);
         if (node) {
             const auto* mapNode = static_cast<const TMapNode*>(node);
             FOREACH (const auto& pair, mapNode->KeyToChild()) {
-                if (pair.second == NullObjectId) {
+                if (!pair.second) {
                     // NB: key may be absent.
                     result.erase(pair.first);
                 } else {
@@ -48,9 +49,9 @@ yhash_map<Stroka, TNodeId> GetMapNodeChildren(
     return result;
 }
 
-TVersionedNodeId FindMapNodeChild(
+TCypressNodeBase* FindMapNodeChild(
     NCellMaster::TBootstrap* bootstrap,
-    const TNodeId& nodeId,
+    TCypressNodeBase* trunkNode,
     NTransactionServer::TTransaction* transaction,
     const Stroka& key)
 {
@@ -60,23 +61,23 @@ TVersionedNodeId FindMapNodeChild(
     auto transactions = transactionManager->GetTransactionPath(transaction);
 
     FOREACH (const auto* currentTransaction, transactions) {
-        TVersionedObjectId versionedId(nodeId, GetObjectId(currentTransaction));
+        TVersionedObjectId versionedId(trunkNode->GetId(), GetObjectId(currentTransaction));
         const auto* node = cypressManager->FindNode(versionedId);
         if (node) {
             const auto* mapNode = static_cast<const TMapNode*>(node);
             auto it = mapNode->KeyToChild().find(key);
             if (it != mapNode->KeyToChild().end()) {
-                return TVersionedNodeId(it->second, GetObjectId(transaction));
+                return it->second;
             }
         }
     }
 
-    return TVersionedNodeId(NullObjectId, NullTransactionId);
+    return nullptr;
 }
 
 yhash_map<Stroka, NYTree::TYsonString> GetNodeAttributes(
     NCellMaster::TBootstrap* bootstrap,
-    const TNodeId& nodeId,
+    TCypressNodeBase* trunkNode,
     NTransactionServer::TTransaction* transaction)
 {
     yhash_map<Stroka, TYsonString> result;
@@ -88,7 +89,7 @@ yhash_map<Stroka, NYTree::TYsonString> GetNodeAttributes(
     std::reverse(transactions.begin(), transactions.end());
 
     FOREACH (const auto* currentTransaction, transactions) {
-        NObjectServer::TVersionedObjectId versionedId(nodeId, NObjectServer::GetObjectId(currentTransaction));
+        TVersionedObjectId versionedId(trunkNode->GetId(), GetObjectId(currentTransaction));
         const auto* userAttributes = objectManager->FindAttributes(versionedId);
         if (userAttributes) {
             FOREACH (const auto& pair, userAttributes->Attributes()) {

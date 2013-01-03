@@ -58,48 +58,38 @@ public:
         return Type;
     }
 
-    virtual bool Exists(const TObjectId& id) override
+    virtual TObjectBase* FindObject(const TObjectId& id) override
     {
-        auto* node = CypressManager->FindNode(id);
-        return node && node->IsAlive();
-    }
-
-    virtual int RefObject(const TObjectId& id) override
-    {
-        return CypressManager->RefNode(id);
-    }
-
-    virtual int UnrefObject(const TObjectId& id) override
-    {
-        return CypressManager->UnrefNode(id);
-    }
-
-    virtual int GetObjectRefCounter(const TObjectId& id) override
-    {
-        return CypressManager->GetNodeRefCounter(id);
+        return CypressManager->FindNode(TVersionedNodeId(id));
     }
 
     virtual void Destroy(const TObjectId& id) override
     {
-        CypressManager->DestroyNode(id);
+        auto* node = CypressManager->GetNode(TVersionedNodeId(id));
+        CypressManager->DestroyNode(node);
     }
 
-    virtual void Unstage(const TObjectId& objectId, TTransaction* transaction, bool recursive) override
+    virtual void Unstage(
+        TObjectBase* object,
+        TTransaction* transaction,
+        bool recursive) override
     {
-        UNUSED(objectId);
+        UNUSED(object);
         UNUSED(transaction);
         UNUSED(recursive);
         YUNREACHABLE();
     }
 
     virtual IObjectProxyPtr GetProxy(
-        const TObjectId& id,
+        TObjectBase* object,
         TTransaction* transaction) override
     {
-        return CypressManager->GetVersionedNodeProxy(id, transaction);
+        return CypressManager->GetVersionedNodeProxy(
+            static_cast<TCypressNodeBase*>(object),
+            transaction);
     }
 
-    virtual TObjectId Create(
+    virtual TUnversionedObjectBase* Create(
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
@@ -155,11 +145,11 @@ public:
         }
 
         auto cypressManager = Bootstrap->GetCypressManager();
-        auto root = cypressManager->FindVersionedNodeProxy(
-            cypressManager->GetRootNodeId(),
+        auto rootProxy = cypressManager->GetVersionedNodeProxy(
+            cypressManager->GetRootNode(),
             Transaction);
 
-        return GetNodeByYPath(root, path.substr(1));
+        return GetNodeByYPath(rootProxy, path.substr(1));
     }
 
     virtual TYPath GetPath(INodePtr node) override
@@ -190,9 +180,8 @@ public:
         UNUSED(context);
 
         auto cypressManager = Bootstrap->GetCypressManager();
-        auto service = cypressManager->GetVersionedNodeProxy(
-            cypressManager->GetRootNodeId());
-        return TResolveResult::There(service, path);
+        auto rootProxy = cypressManager->GetVersionedNodeProxy(cypressManager->GetRootNode());
+        return TResolveResult::There(rootProxy, path);
     }
 
 private:
@@ -206,10 +195,11 @@ TCypressManager::TNodeMapTraits::TNodeMapTraits(TCypressManager* cypressManager)
     : CypressManager(cypressManager)
 { }
 
-TAutoPtr<ICypressNode> TCypressManager::TNodeMapTraits::Create(const TVersionedNodeId& id) const
+TAutoPtr<TCypressNodeBase> TCypressManager::TNodeMapTraits::Create(const TVersionedNodeId& id) const
 {
     auto type = TypeFromId(id.ObjectId);
-    return CypressManager->GetHandler(type)->Instantiate(id);
+    auto handler = CypressManager->GetHandler(type);
+    return handler->Instantiate(id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -221,6 +211,7 @@ TCypressManager::TCypressManager(TBootstrap* bootstrap)
     , Bootstrap(bootstrap)
     , NodeMap(TNodeMapTraits(this))
     , TypeToHandler(MaxObjectType)
+    , RootNode(nullptr)
 {
     YCHECK(bootstrap);
     VERIFY_INVOKER_AFFINITY(bootstrap->GetMetaStateFacade()->GetInvoker(), StateThread);
@@ -306,7 +297,7 @@ INodeTypeHandlerPtr TCypressManager::FindHandler(EObjectType type)
 
     int typeValue = type.ToValue();
     if (typeValue < 0 || typeValue >= MaxObjectType) {
-        return NULL;
+        return nullptr;
     }
 
     return TypeToHandler[typeValue];
@@ -321,12 +312,12 @@ INodeTypeHandlerPtr TCypressManager::GetHandler(EObjectType type)
     return handler;
 }
 
-INodeTypeHandlerPtr TCypressManager::GetHandler(const ICypressNode* node)
+INodeTypeHandlerPtr TCypressManager::GetHandler(const TCypressNodeBase* node)
 {
-    return GetHandler(node->GetObjectType());
+    return GetHandler(TypeFromId(node->GetId()));
 }
 
-ICypressNode* TCypressManager::CreateNode(
+TCypressNodeBase* TCypressManager::CreateNode(
     INodeTypeHandlerPtr handler,
     TTransaction* transaction,
     TAccount* account,
@@ -345,7 +336,7 @@ ICypressNode* TCypressManager::CreateNode(
    
     // Make a rawptr copy and transfer the ownership.
     auto node_ = ~node;
-    RegisterNode(transaction, node, attributes);
+    RegisterNode(node, transaction, attributes);
 
     // Set account (if not given in attributes).
     if (!node_->GetAccount()) {
@@ -353,13 +344,13 @@ ICypressNode* TCypressManager::CreateNode(
         securityManager->SetAccount(node_, account);
     }
 
-    *response->mutable_node_id() = node_->GetId().ObjectId.ToProto();
+    *response->mutable_node_id() = node_->GetId().ToProto();
 
     return LockVersionedNode(node_, transaction, ELockMode::Exclusive);
 }
 
-ICypressNode* TCypressManager::CloneNode(
-    ICypressNode* sourceNode,
+TCypressNodeBase* TCypressManager::CloneNode(
+    TCypressNodeBase* sourceNode,
     TTransaction* transaction)
 {
     YCHECK(sourceNode);
@@ -371,7 +362,7 @@ ICypressNode* TCypressManager::CloneNode(
 
     // Make a rawptr copy and transfer the ownership.
     auto clonedNode_ = ~clonedNode;
-    RegisterNode(transaction, clonedNode);
+    RegisterNode(clonedNode, transaction);
 
     auto* account = sourceNode->GetAccount();
     securityManager->SetAccount(clonedNode_, account);
@@ -379,35 +370,39 @@ ICypressNode* TCypressManager::CloneNode(
     return LockVersionedNode(clonedNode_, transaction, ELockMode::Exclusive);
 }
 
-void TCypressManager::CreateNodeBehavior(const TNodeId& id)
+void TCypressManager::CreateNodeBehavior(TCypressNodeBase* trunkNode)
 {
-    auto handler = GetHandler(TypeFromId(id));
-    auto behavior = handler->CreateBehavior(id);
+    YASSERT(trunkNode->IsTrunk());
+
+    auto handler = GetHandler(trunkNode);
+    auto behavior = handler->CreateBehavior(trunkNode);
     if (!behavior)
         return;
 
-    YCHECK(NodeBehaviors.insert(std::make_pair(id, behavior)).second);
+    YCHECK(NodeBehaviors.insert(std::make_pair(trunkNode, behavior)).second);
 
-    LOG_DEBUG("Node behavior created (NodeId: %s)",  ~id.ToString());
+    LOG_DEBUG("Node behavior created (NodeId: %s)",  ~trunkNode->GetId().ToString());
 }
 
-void TCypressManager::DestroyNodeBehavior(const TNodeId& id)
+void TCypressManager::DestroyNodeBehavior(TCypressNodeBase* trunkNode)
 {
-    auto it = NodeBehaviors.find(id);
+    YASSERT(trunkNode->IsTrunk());
+
+    auto it = NodeBehaviors.find(trunkNode);
     if (it == NodeBehaviors.end())
         return;
 
     it->second->Destroy();
     NodeBehaviors.erase(it);
 
-    LOG_DEBUG("Node behavior destroyed (NodeId: %s)", ~id.ToString());
+    LOG_DEBUG("Node behavior destroyed (NodeId: %s)", ~trunkNode->GetId().ToString());
 }
 
-const TNodeId& TCypressManager::GetRootNodeId() const
+TCypressNodeBase* TCypressManager::GetRootNode() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return RootNodeId;
+    return RootNode;
 }
 
 IYPathServicePtr TCypressManager::GetRootService() const
@@ -424,83 +419,57 @@ IYPathResolverPtr TCypressManager::CreateResolver(TTransaction* transaction)
     return New<TYPathResolver>(Bootstrap, transaction);
 }
 
-ICypressNode* TCypressManager::FindVersionedNode(
-    const TNodeId& nodeId,
-    const TTransaction* transaction)
+TCypressNodeBase* TCypressManager::FindNode(
+    TCypressNodeBase* trunkNode,
+    NTransactionServer::TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
+    YASSERT(trunkNode->IsTrunk());
 
+    // Fast path -- no transaction.
+    if (!transaction) {
+        return trunkNode;
+    }
+
+    TVersionedNodeId versionedId(trunkNode->GetId(), GetObjectId(transaction));
+    return FindNode(versionedId);
+}
+
+TCypressNodeBase* TCypressManager::GetVersionedNode(
+    TCypressNodeBase* trunkNode,
+    TTransaction* transaction)
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+    YASSERT(trunkNode->IsTrunk());
+    
     auto* currentTransaction = transaction;
     while (true) {
-        auto* currentNode = FindNode(TVersionedNodeId(nodeId, GetObjectId(currentTransaction)));
+        auto* currentNode = FindNode(trunkNode, currentTransaction);
         if (currentNode) {
             return currentNode;
         }
-
-        if (!currentTransaction) {
-            // Looks like there's no such node at all.
-            return NULL;
-        }
-
-        // Move to the parent transaction.
         currentTransaction = currentTransaction->GetParent();
     }
 }
 
-ICypressNode* TCypressManager::GetVersionedNode(
-    const TNodeId& nodeId,
-    const TTransaction* transaction)
-{
-    auto* node = FindVersionedNode(nodeId, transaction);
-    YCHECK(node);
-    return node;
-}
-
-ICypressNodeProxyPtr TCypressManager::FindVersionedNodeProxy(
-    const TNodeId& id,
+ICypressNodeProxyPtr TCypressManager::GetVersionedNodeProxy(
+    TCypressNodeBase* trunkNode,
     TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
+    YASSERT(trunkNode->IsTrunk());
 
-    auto* node = FindVersionedNode(id, transaction);
-    if (!node) {
-        return NULL;
-    }
-
-    return GetHandler(node)->GetProxy(
-        node->GetTrunkNode(),
-        transaction);
-}
-
-ICypressNodeProxyPtr TCypressManager::GetVersionedNodeProxy(
-    const TNodeId& nodeId,
-    TTransaction* transaction)
-{
-    auto proxy = FindVersionedNodeProxy(nodeId, transaction);
-    YCHECK(proxy);
-    return proxy;
-}
-
-ICypressNodeProxyPtr TCypressManager::GetVersionedNodeProxy(
-    const TVersionedNodeId& versionedId)
-{
-    auto transactionManager = Bootstrap->GetTransactionManager();
-    auto* transaction =
-        versionedId.TransactionId == NullTransactionId
-        ?  NULL
-        : transactionManager->GetTransaction(versionedId.TransactionId);
-    return GetVersionedNodeProxy(versionedId.ObjectId, transaction);
+    auto handler = GetHandler(trunkNode);
+    return handler->GetProxy(trunkNode, transaction);
 }
 
 void TCypressManager::ValidateLock(
-    ICypressNode* trunkNode,
+    TCypressNodeBase* trunkNode,
     TTransaction* transaction,
     const TLockRequest& request,
     bool* isMandatory)
 {
-    YCHECK(isMandatory);
-
-    auto nodeId = trunkNode->GetId().ObjectId;
+    YASSERT(trunkNode->IsTrunk());
 
     // Snapshot locks can only be taken inside a transaction.
     if (request.Mode == ELockMode::Snapshot && !transaction) {
@@ -521,7 +490,7 @@ void TCypressManager::ValidateLock(
             if (existingLock.Mode == ELockMode::Snapshot) {
                 THROW_ERROR_EXCEPTION("Cannot take %s lock for node %s since %s lock is already taken by the same transaction",
                     ~FormatEnum(request.Mode).Quote(),
-                    ~GetNodePath(nodeId, transaction),
+                    ~GetNodePath(trunkNode, transaction),
                     ~FormatEnum(existingLock.Mode).Quote());
             }
         }
@@ -543,7 +512,7 @@ void TCypressManager::ValidateLock(
         {
             THROW_ERROR_EXCEPTION("Cannot take %s lock for node %s since %s lock is taken by descendant transaction %s",
                 ~FormatEnum(request.Mode).Quote(),
-                ~GetNodePath(nodeId, transaction),
+                ~GetNodePath(trunkNode, transaction),
                 ~FormatEnum(existingLock.Mode).Quote(),
                 ~existingTransaction->GetId().ToString());
         }
@@ -555,7 +524,7 @@ void TCypressManager::ValidateLock(
             {
                 THROW_ERROR_EXCEPTION("Cannot take %s lock for node %s since %s lock is taken by concurrent transaction %s",
                     ~FormatEnum(request.Mode).Quote(),
-                    ~GetNodePath(nodeId, transaction),
+                    ~GetNodePath(trunkNode, transaction),
                     ~FormatEnum(existingLock.Mode).Quote(),
                     ~existingTransaction->GetId().ToString());
             }
@@ -568,7 +537,7 @@ void TCypressManager::ValidateLock(
                     THROW_ERROR_EXCEPTION("Cannot take %s lock for child %s of node %s since %s lock is taken by concurrent transaction %s",
                         ~FormatEnum(request.Mode).Quote(),
                         ~request.ChildKey.Get().Quote(),
-                        ~GetNodePath(nodeId, transaction),
+                        ~GetNodePath(trunkNode, transaction),
                         ~FormatEnum(existingLock.Mode).Quote(),
                         ~existingTransaction->GetId().ToString());
                 }
@@ -578,7 +547,7 @@ void TCypressManager::ValidateLock(
                     THROW_ERROR_EXCEPTION("Cannot take %s lock for attribute %s of node %s since %s lock is taken by concurrent transaction %s",
                         ~FormatEnum(request.Mode).Quote(),
                         ~request.AttributeKey.Get().Quote(),
-                        ~GetNodePath(nodeId, transaction),
+                        ~GetNodePath(trunkNode, transaction),
                         ~FormatEnum(existingLock.Mode).Quote(),
                         ~existingTransaction->GetId().ToString());
                 }
@@ -587,11 +556,11 @@ void TCypressManager::ValidateLock(
     }
 
     // If we're outside of a transaction then the lock is not needed.
-    *isMandatory = (transaction != NULL);
+    *isMandatory = (transaction != nullptr);
 }
 
 void TCypressManager::ValidateLock(
-    ICypressNode* trunkNode,
+    TCypressNodeBase* trunkNode,
     TTransaction* transaction,
     const TLockRequest& request)
 {
@@ -645,11 +614,12 @@ bool TCypressManager::IsConcurrentTransaction(TTransaction* transaction1, TTrans
         !IsParentTransaction(transaction2, transaction1);
 }
 
-ICypressNode* TCypressManager::AcquireLock(
-    ICypressNode* trunkNode,
+TCypressNodeBase* TCypressManager::AcquireLock(
+    TCypressNodeBase* trunkNode,
     TTransaction* transaction,
     const TLockRequest& request)
 {
+    YASSERT(trunkNode->IsTrunk());
     YCHECK(transaction);
 
     DoAcquireLock(trunkNode, transaction, request);
@@ -664,8 +634,7 @@ ICypressNode* TCypressManager::AcquireLock(
     }
 
     // Branch node, if needed.
-    auto nodeId = trunkNode->GetId().ObjectId;
-    auto* branchedNode = FindNode(TVersionedNodeId(nodeId, transaction->GetId()));
+    auto* branchedNode = FindNode(trunkNode, transaction);
     if (branchedNode) {
         if (branchedNode->GetLockMode() < request.Mode) {
             branchedNode->SetLockMode(request.Mode);
@@ -673,13 +642,13 @@ ICypressNode* TCypressManager::AcquireLock(
         return branchedNode;
     }
 
-    ICypressNode* originatingNode;
+    TCypressNodeBase* originatingNode;
     std::vector<TTransaction*> intermediateTransactions;
     // Walk up to the root, find originatingNode, construct the list of
     // intermediate transactions.
     auto* currentTransaction = transaction;
     while (true) {
-        originatingNode = FindNode(TVersionedNodeId(nodeId, GetObjectId(currentTransaction)));
+        originatingNode = FindNode(trunkNode, currentTransaction);
         if (originatingNode) {
             break;
         }
@@ -708,11 +677,13 @@ ICypressNode* TCypressManager::AcquireLock(
 }
 
 TLock* TCypressManager::DoAcquireLock(
-    ICypressNode* trunkNode,
+    TCypressNodeBase* trunkNode,
     TTransaction* transaction,
     const TLockRequest& request)
 {
-    TVersionedNodeId versionedId(trunkNode->GetId().ObjectId, transaction->GetId());
+    YASSERT(trunkNode->IsTrunk());
+
+    TVersionedNodeId versionedId(trunkNode->GetId(), transaction->GetId());
     TLock* lock;
     auto it = trunkNode->Locks().find(transaction);
     if (it == trunkNode->Locks().end()) {
@@ -755,41 +726,34 @@ TLock* TCypressManager::DoAcquireLock(
     return lock;
 }
 
-void TCypressManager::ReleaseLock(ICypressNode* trunkNode, TTransaction* transaction)
+void TCypressManager::ReleaseLock(TCypressNodeBase* trunkNode, TTransaction* transaction)
 {
+    YASSERT(trunkNode->IsTrunk());
+
     YCHECK(trunkNode->Locks().erase(transaction) == 1);
 
-    TVersionedNodeId versionedId(trunkNode->GetId().ObjectId, transaction->GetId());
+    TVersionedNodeId versionedId(trunkNode->GetId(), transaction->GetId());
     LOG_INFO_UNLESS(IsRecovery(), "Node unlocked (NodeId: %s)",
         ~versionedId.ToString());
 }
 
-ICypressNode* TCypressManager::LockVersionedNode(
-    const TNodeId& nodeId,
-    TTransaction* transaction,
-    const TLockRequest& request,
-    bool recursive)
-{
-    auto* trunkNode = GetNode(nodeId);
-    return LockVersionedNode(trunkNode, transaction, request, recursive);
-}
-
-ICypressNode* TCypressManager::LockVersionedNode(
-    ICypressNode* node,
+TCypressNodeBase* TCypressManager::LockVersionedNode(
+    TCypressNodeBase* trunkNode,
     TTransaction* transaction,
     const TLockRequest& request,
     bool recursive)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
+    YASSERT(trunkNode->IsTrunk());
     YCHECK(request.Mode != ELockMode::None);
 
     TSubtreeNodes nodesToLock;
     if (recursive) {
         YCHECK(!request.ChildKey);
         YCHECK(!request.AttributeKey);
-        ListSubtreeNodeIds(node, transaction, &nodesToLock);
+        ListSubtreeNodeIds(trunkNode, transaction, &nodesToLock);
     } else {
-        nodesToLock.push_back(node);
+        nodesToLock.push_back(trunkNode);
     }
 
     // Validate all potentials lock to see if we need to take at least one of them.
@@ -802,7 +766,7 @@ ICypressNode* TCypressManager::LockVersionedNode(
     }
 
     if (!isMandatory) {
-        return GetVersionedNode(node->GetId().ObjectId, transaction);
+        return GetVersionedNode(trunkNode, transaction);
     }
 
     if (!transaction) {
@@ -810,10 +774,10 @@ ICypressNode* TCypressManager::LockVersionedNode(
             ~FormatEnum(request.Mode).Quote());
     }
 
-    ICypressNode* lockedNode = NULL;
+    TCypressNodeBase* lockedNode = nullptr;
     FOREACH (auto* child, nodesToLock) {
         auto* lockedChild = AcquireLock(child->GetTrunkNode(), transaction, request);
-        if (child == node) {
+        if (child == trunkNode) {
             lockedNode = lockedChild;
         }
     }
@@ -823,14 +787,16 @@ ICypressNode* TCypressManager::LockVersionedNode(
 }
 
 void TCypressManager::SetModified(
-    const TNodeId& nodeId,
+    TCypressNodeBase* trunkNode,
     TTransaction* transaction)
 {
+    VERIFY_THREAD_AFFINITY(StateThread);
+    YASSERT(trunkNode->IsTrunk());
+
     // Failure here means that the node wasn't indeed locked,
     // which is strange given that we're about to mark it as modified.
-    auto* node = GetNode(TVersionedNodeId(
-        nodeId,
-        GetObjectId(transaction)));
+    TVersionedNodeId versionedId(trunkNode->GetId(), GetObjectId(transaction));
+    auto* node = GetNode(versionedId);
 
     auto objectManager = Bootstrap->GetObjectManager();
     auto* mutationContext = Bootstrap
@@ -842,14 +808,17 @@ void TCypressManager::SetModified(
 }
 
 void TCypressManager::RegisterNode(
+    TAutoPtr<TCypressNodeBase> node,
     TTransaction* transaction,
-    TAutoPtr<ICypressNode> node,
     IAttributeDictionary* attributes)
 {
-    auto nodeId = node->GetId().ObjectId;
-    YCHECK(node->GetId().TransactionId == NullTransactionId);
+    VERIFY_THREAD_AFFINITY(StateThread);
+    YASSERT(node->IsTrunk());
+
+    const auto& nodeId = node->GetId();
     
     auto objectManager = Bootstrap->GetObjectManager();
+
     auto* mutationContext = Bootstrap
         ->GetMetaStateFacade()
         ->GetManager()
@@ -859,14 +828,14 @@ void TCypressManager::RegisterNode(
     node->SetModificationTime(mutationContext->GetTimestamp());
 
     auto node_ = node.Get();
-    NodeMap.Insert(nodeId, node.Release());
+    NodeMap.Insert(TVersionedNodeId(nodeId), node.Release());
 
     // TODO(babenko): setting attributes here, in RegisterNode
     // is somewhat weird. Moving this logic to some other place, however,
     // complicates the code since we need to worry about possible
     // exceptions thrown from custom attribute validators.
     if (attributes) {
-        auto proxy = GetVersionedNodeProxy(nodeId, NULL);
+        auto proxy = GetVersionedNodeProxy(node_, nullptr);
         try {
             auto keys = attributes->List();
             FOREACH (const auto& key, keys) {
@@ -877,8 +846,9 @@ void TCypressManager::RegisterNode(
                 }
             }
         } catch (...) {
-            GetHandler(node_)->Destroy(node_);
-            NodeMap.Remove(nodeId);
+            auto handler = GetHandler(node_);
+            handler->Destroy(node_);
+            NodeMap.Remove(TVersionedNodeId(nodeId));
             throw;
         }
     }
@@ -889,43 +859,45 @@ void TCypressManager::RegisterNode(
     }
 
     LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %s, Type: %s)",
-        ~node_->GetId().ToString(),
+        ~nodeId.ToString(),
         ~TypeFromId(nodeId).ToString());
 
     if (IsLeader()) {
-        CreateNodeBehavior(nodeId);
+        CreateNodeBehavior(node_);
     }
 }
 
-ICypressNode* TCypressManager::BranchNode(
-    ICypressNode* node,
+TCypressNodeBase* TCypressManager::BranchNode(
+    TCypressNodeBase* originatingNode,
     TTransaction* transaction,
     ELockMode mode)
 {
-    YCHECK(node);
+    YCHECK(originatingNode);
     YCHECK(transaction);
     VERIFY_THREAD_AFFINITY(StateThread);
 
     auto objectManager = Bootstrap->GetObjectManager();
     auto securityManager = Bootstrap->GetSecurityManager();
     
-    auto id = node->GetId();
+    const auto& id = originatingNode->GetId();
 
     // Create a branched node and initialize its state.
-    auto handler = GetHandler(node);
-    auto branchedNode = handler->Branch(node, transaction, mode);
+    auto handler = GetHandler(originatingNode);
+    auto branchedNode = handler->Branch(originatingNode, transaction, mode);
     YCHECK(branchedNode->GetLockMode() == mode);
     auto* branchedNode_ = branchedNode.Release();
-    NodeMap.Insert(TVersionedNodeId(id.ObjectId, transaction->GetId()), branchedNode_);
+
+    TVersionedNodeId versionedId(id, transaction->GetId());
+    NodeMap.Insert(versionedId, branchedNode_);
 
     // Register the branched node with the transaction.
     transaction->BranchedNodes().push_back(branchedNode_);
 
     // The branched node holds an implicit reference to its originator.
-    objectManager->RefObject(node);
+    objectManager->RefObject(originatingNode->GetTrunkNode());
     
     // Update resource usage.
-    auto* account = node->GetAccount();
+    auto* account = originatingNode->GetAccount();
     securityManager->SetAccount(branchedNode_, account);
 
     LOG_INFO_UNLESS(IsRecovery(), "Node branched (NodeId: %s, TransactionId: %s, Mode: %s)",
@@ -958,6 +930,8 @@ void TCypressManager::LoadValues(const NCellMaster::TLoadContext& context)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     NodeMap.LoadValues(context);
+
+    RootNode = GetNode(TVersionedNodeId(RootNodeId));
 }
 
 void TCypressManager::Clear()
@@ -969,12 +943,12 @@ void TCypressManager::Clear()
     NodeMap.Clear();
 
     // Create the root.
-    auto* root = new TMapNode(GetRootNodeId());
-    root->SetTrunkNode(root);
-    root->SetAccount(securityManager->GetSysAccount());
+    RootNode = new TMapNode(TVersionedNodeId(RootNodeId));
+    RootNode->SetTrunkNode(RootNode);
+    RootNode->SetAccount(securityManager->GetSysAccount());
 
-    NodeMap.Insert(root->GetId(), root);
-    YCHECK(root->RefObject() == 1);
+    NodeMap.Insert(TVersionedNodeId(RootNodeId), RootNode);
+    YCHECK(RootNode->RefObject() == 1);
 }
 
 void TCypressManager::OnLeaderRecoveryComplete()
@@ -982,7 +956,7 @@ void TCypressManager::OnLeaderRecoveryComplete()
     YCHECK(NodeBehaviors.empty());
     FOREACH (const auto& pair, NodeMap) {
         if (!pair.first.IsBranched()) {
-            CreateNodeBehavior(pair.first.ObjectId);
+            CreateNodeBehavior(pair.second);
         }
     }
 }
@@ -995,42 +969,21 @@ void TCypressManager::OnStopLeading()
     NodeBehaviors.clear();
 }
 
-int TCypressManager::RefNode(const TNodeId& nodeId)
+void TCypressManager::DestroyNode(TCypressNodeBase* trunkNode)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-
-    auto* node = NodeMap.Get(nodeId);
-    return node->RefObject();
-}
-
-int TCypressManager::UnrefNode(const TNodeId& nodeId)
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    auto* node = NodeMap.Get(nodeId);
-    return node->UnrefObject();
-}
-
-void TCypressManager::DestroyNode(const TNodeId& nodeId)
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
+    YASSERT(trunkNode->IsTrunk());
 
     auto securityManager = Bootstrap->GetSecurityManager();
 
-    DestroyNodeBehavior(nodeId);
+    DestroyNodeBehavior(trunkNode);
     
-    auto node = NodeMap.Release(nodeId);
+    auto nodeHolder = NodeMap.Release(trunkNode->GetVersionedId());
 
-    securityManager->ResetAccount(~node);
+    securityManager->ResetAccount(trunkNode);
 
-    auto handler = GetHandler(~node);
-    handler->Destroy(~node);
-}
-
-int TCypressManager::GetNodeRefCounter(const TNodeId& nodeId)
-{
-    const auto* node = NodeMap.Get(nodeId);
-    return node->GetObjectRefCounter();
+    auto handler = GetHandler(trunkNode);
+    handler->Destroy(trunkNode);
 }
 
 void TCypressManager::OnTransactionCommitted(TTransaction* transaction)
@@ -1060,27 +1013,29 @@ void TCypressManager::ReleaseLocks(TTransaction* transaction)
 }
 
 void TCypressManager::ListSubtreeNodeIds(
-    ICypressNode* root,
+    TCypressNodeBase* trunkNode,
     TTransaction* transaction,
     TSubtreeNodes* subtreeNodes)
 {
+    YASSERT(trunkNode->IsTrunk());
+
     auto transactionManager = Bootstrap->GetTransactionManager();
     
-    auto rootId = root->GetId().ObjectId;
-    subtreeNodes->push_back(root);  
+    const auto& rootId = trunkNode->GetId();
+    subtreeNodes->push_back(trunkNode);  
     switch (TypeFromId(rootId)) {
         case EObjectType::MapNode: {
             auto transactions = transactionManager->GetTransactionPath(transaction);
             std::reverse(transactions.begin(), transactions.end());
 
-            yhash_map<Stroka, ICypressNode*> children;
-            FOREACH (const auto* currentTransaction, transactions) {
+            yhash_map<Stroka, TCypressNodeBase*> children;
+            FOREACH (auto* currentTransaction, transactions) {
                 TVersionedObjectId versionedId(rootId, GetObjectId(currentTransaction));
                 const auto* node = FindNode(versionedId);
                 if (node) {
                     const auto* mapNode = static_cast<const TMapNode*>(node);
                     FOREACH (const auto& pair, mapNode->KeyToChild()) {
-                        if (pair.second == NullObjectId) {
+                        if (!pair.second) {
                             YCHECK(children.erase(pair.first) == 1);
                         } else {
                             auto* child = GetVersionedNode(pair.second, currentTransaction);
@@ -1097,7 +1052,7 @@ void TCypressManager::ListSubtreeNodeIds(
         }
 
         case EObjectType::ListNode: {
-            auto* listRoot = static_cast<TListNode*>(root);
+            auto* listRoot = static_cast<TListNode*>(trunkNode);
             FOREACH (const auto& childId, listRoot->IndexToChild()) {
                 auto* child = GetVersionedNode(childId, transaction);
                 ListSubtreeNodeIds(child, transaction, subtreeNodes);
@@ -1110,14 +1065,17 @@ void TCypressManager::ListSubtreeNodeIds(
     }
 }
 
-void TCypressManager::MergeNode(TTransaction* transaction, ICypressNode* branchedNode)
+void TCypressManager::MergeNode(
+    TTransaction* transaction,
+    TCypressNodeBase* branchedNode)
 {
     auto objectManager = Bootstrap->GetObjectManager();
     auto securityManager = Bootstrap->GetSecurityManager();
 
     auto handler = GetHandler(branchedNode);
     
-    auto branchedId = branchedNode->GetId();
+    auto* trunkNode = branchedNode->GetTrunkNode();
+    auto branchedId = branchedNode->GetVersionedId();
     auto* parentTransaction = transaction->GetParent();
     auto originatingId = TVersionedNodeId(branchedId.ObjectId, GetObjectId(parentTransaction));
 
@@ -1132,7 +1090,7 @@ void TCypressManager::MergeNode(TTransaction* transaction, ICypressNode* branche
         // (We don't have any mutation context at hand to provide a synchronized timestamp.)
         // Later on, Cypress is initialized and filled with nodes.
         // At this point we set the root's creation time.
-        if (originatingId == GetRootNodeId() && !parentTransaction) {
+        if (trunkNode == RootNode && !parentTransaction) {
             originatingNode->SetCreationTime(originatingNode->GetModificationTime());
         }
 
@@ -1152,7 +1110,7 @@ void TCypressManager::MergeNode(TTransaction* transaction, ICypressNode* branche
     }
 
     // Drop the implicit reference to the originator.
-    objectManager->UnrefObject(originatingId);
+    objectManager->UnrefObject(trunkNode);
 
     // Remove the branched copy.
     NodeMap.Remove(branchedId);
@@ -1177,20 +1135,21 @@ void TCypressManager::ReleaseCreatedNodes(TTransaction* transaction)
     transaction->StagedNodes().clear();
 }
 
-void TCypressManager::RemoveBranchedNode(ICypressNode* branchedNode)
+void TCypressManager::RemoveBranchedNode(TCypressNodeBase* branchedNode)
 {
     auto objectManager = Bootstrap->GetObjectManager();
     auto securityManager = Bootstrap->GetSecurityManager();
 
     auto handler = GetHandler(branchedNode);
 
-    auto branchedNodeId = branchedNode->GetId();
+    auto* trunkNode = branchedNode->GetTrunkNode();
+    auto branchedNodeId = branchedNode->GetVersionedId();
 
     // Update resource usage.
     securityManager->ResetAccount(branchedNode);
 
     // Drop the implicit reference to the originator.
-    objectManager->UnrefObject(branchedNodeId);
+    objectManager->UnrefObject(trunkNode);
 
     // Remove the node.
     handler->Destroy(branchedNode);
@@ -1208,14 +1167,16 @@ void TCypressManager::RemoveBranchedNodes(TTransaction* transaction)
 }
 
 TYPath TCypressManager::GetNodePath(
-    const TNodeId& nodeId,
+    TCypressNodeBase* trunkNode,
     TTransaction* transaction)
 {
-    auto proxy = GetVersionedNodeProxy(nodeId, transaction);
+    YASSERT(trunkNode->IsTrunk());
+
+    auto proxy = GetVersionedNodeProxy(trunkNode, transaction);
     return proxy->GetResolver()->GetPath(proxy);
 }
 
-DEFINE_METAMAP_ACCESSORS(TCypressManager, Node, ICypressNode, TVersionedNodeId, NodeMap);
+DEFINE_METAMAP_ACCESSORS(TCypressManager, Node, TCypressNodeBase, TVersionedNodeId, NodeMap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

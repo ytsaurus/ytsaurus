@@ -51,13 +51,14 @@ class Server(Base):
                 
 class Master(WinNode, Server):
         address = Subclass(MasterAddresses)
-        params = Template('--master --config %(config_path)s --port %(port)d')
+        params = Template('--master --config %(config_path)s')
 
         config = Template({
                 'meta_state' : {
+                        'monitoring_port' : r'%(port)d',
                         'cell' : {
                                 'addresses' : MasterAddresses,
-                                'rpc_port' : 8001
+                                'rpc_port' : int(r'%(port)d')
                         },
                         'snapshots' : {
                             'path' : r'%(work_dir)s\snapshots'

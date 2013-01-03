@@ -28,6 +28,8 @@ typedef TIntrusivePtr<TObjectManagerConfig> TObjectManagerConfigPtr;
 class TObjectBase;
 class TUnversionedObjectBase;
 
+class TAttributeSet;
+
 struct IObjectProxy;
 typedef TIntrusivePtr<IObjectProxy> IObjectProxyPtr;
 
@@ -42,33 +44,5 @@ typedef TIntrusivePtr<TGarbageCollector> TGarbageCollectorPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
             
-//! Provides means for choosing appropriate object id type from object type.
-template <class T, class = void>
-struct TObjectIdTraits
-{ };
-
-template <class T>
-struct TObjectIdTraits<
-    T,
-    typename NMpl::TEnableIfC< NMpl::TIsConvertible<T, TUnversionedObjectBase*>::Value >::TType>
-{
-    typedef TObjectId TId;
-};
-
-//! Returns the id of an object (which may be NULL).
-/*!
- * This function is specialized for other object-like entities,
- * e.g. see #NYT::NChunkServer::TChunkTreeRef.
- */
-template <class T>
-TObjectId GetObjectId(
-    T object,
-    typename NMpl::TEnableIf< NMpl::TIsConvertible<T, const TUnversionedObjectBase*>, void* >::TType = NULL)
-{
-    return object ? object->GetId() : NullObjectId;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NObjectServer
 } // namespace NYT

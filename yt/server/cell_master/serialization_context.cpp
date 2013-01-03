@@ -33,6 +33,12 @@ NMetaState::TVersionValidator SnapshotVersionValidator()
 }
 
 template <>
+TObjectBase* TLoadContext::Get(const TObjectId& id) const
+{
+    return Bootstrap_->GetObjectManager()->GetObject(id);
+}
+
+template <>
 TTransaction* TLoadContext::Get(const TObjectId& id) const
 {
     return Bootstrap_->GetTransactionManager()->GetTransaction(id);
@@ -57,7 +63,13 @@ TJob* TLoadContext::Get(const TObjectId& id) const
 }
 
 template <>
-ICypressNode* TLoadContext::Get(const TVersionedObjectId& id) const
+TCypressNodeBase* TLoadContext::Get(const NCypressClient::TNodeId& id) const
+{
+    return Bootstrap_->GetCypressManager()->GetNode(TVersionedNodeId(id));
+}
+
+template <>
+TCypressNodeBase* TLoadContext::Get(const TVersionedNodeId& id) const
 {
     return Bootstrap_->GetCypressManager()->GetNode(id);
 }

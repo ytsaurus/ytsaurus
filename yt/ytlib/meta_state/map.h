@@ -203,7 +203,6 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
 #define DECLARE_METAMAP_ACCESSORS(entityName, entityType, idType) \
     entityType* Find ## entityName(const idType& id); \
     entityType* Get ## entityName(const idType& id); \
-    std::vector<idType> Get ## entityName ## Ids(size_t sizeLimit = Max<size_t>()); \
     std::vector<entityType*> Get ## entityName ## s(size_t sizeLimit = Max<size_t>()); \
     int Get ## entityName ## Count() const;
 
@@ -216,11 +215,6 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
     entityType* declaringType::Get ## entityName(const idType& id) \
     { \
         return (map).Get(id); \
-    } \
-    \
-    std::vector<idType> declaringType::Get ## entityName ## Ids(size_t sizeLimit) \
-    { \
-        return (map).GetKeys(sizeLimit); \
     } \
     \
     std::vector<entityType*> declaringType::Get ## entityName ##s(size_t sizeLimit) \
@@ -242,11 +236,6 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
     entityType* declaringType::Get ## entityName(const idType& id) \
     { \
         return (delegateTo).Get ## entityName(id); \
-    } \
-    \
-    std::vector<idType> declaringType::Get ## entityName ## Ids(size_t sizeLimit) \
-    { \
-        return (delegateTo).Get ## entityName ## Ids(sizeLimit); \
     } \
     \
     std::vector<entityType*> declaringType::Get ## entityName ## s(size_t sizeLimit) \

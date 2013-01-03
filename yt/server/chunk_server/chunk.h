@@ -13,6 +13,8 @@
 
 #include <server/object_server/object_detail.h>
 
+#include <server/security_server/cluster_resources.h>
+
 namespace NYT {
 namespace NChunkServer {
 

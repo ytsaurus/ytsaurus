@@ -52,7 +52,6 @@ public:
         TBootstrap* bootstrap)
         : Config(config)
         , Bootstrap(bootstrap)
-        , Root(NULL)
     {
         YCHECK(config);
         YCHECK(bootstrap);
@@ -132,14 +131,10 @@ public:
 
     bool IsInitialized() const
     {
-        if (!Root) {
-            auto cypressManager = Bootstrap->GetCypressManager();
-            const auto& rootId = cypressManager->GetRootNodeId();
-            Root = dynamic_cast<TMapNode*>(cypressManager->FindNode(rootId));
-            LOG_FATAL_IF(!Root, "Missing Cypress root node %s; a possible reason could be that cell id has been changed",
-                ~ToString(rootId));
-        }
-        return !Root->KeyToChild().empty();
+        auto cypressManager = Bootstrap->GetCypressManager();
+        auto* root = dynamic_cast<TMapNode*>(cypressManager->GetRootNode());
+        YCHECK(root);
+        return !root->KeyToChild().empty();
     }
 
     void ValidateInitialized()
@@ -158,9 +153,6 @@ private:
     IMetaStateManagerPtr MetaStateManager;
     std::vector<IInvokerPtr> GuardedInvokers;
     std::vector<IInvokerPtr> EpochInvokers;
-
-    mutable TMapNode* Root;
-
 
     void OnStartEpoch()
     {
@@ -376,17 +368,20 @@ private:
                     .EndMap());
 
             CommitTransaction(transactionId);
+
+            LOG_INFO("World initialization completed");
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "World initialization failed");
         }
-
-        LOG_INFO("World initialization completed");
     }
 
     void AbortTransactions()
     {
-        auto transactionIds = Bootstrap->GetTransactionManager()->GetTransactionIds();
-        auto service = Bootstrap->GetObjectManager()->GetRootService();
+        auto transactionManager = Bootstrap->GetTransactionManager();
+        auto transactionIds = ToObjectIds(transactionManager->GetTransactions());
+
+        auto objectManager = Bootstrap->GetObjectManager();
+        auto service = objectManager->GetRootService();
         FOREACH (const auto& transactionId, transactionIds) {
             auto req = TTransactionYPathProxy::Abort(FromObjectId(transactionId));
             SyncExecuteVerb(service, req);

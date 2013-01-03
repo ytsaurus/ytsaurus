@@ -43,7 +43,7 @@ public:
     void RegisterHandler(INodeTypeHandlerPtr handler);
     INodeTypeHandlerPtr FindHandler(NObjectClient::EObjectType type);
     INodeTypeHandlerPtr GetHandler(NObjectClient::EObjectType type);
-    INodeTypeHandlerPtr GetHandler(const ICypressNode* node);
+    INodeTypeHandlerPtr GetHandler(const TCypressNodeBase* node);
 
     typedef NRpc::TTypedServiceRequest<NCypressClient::NProto::TReqCreate> TReqCreate;
     typedef NRpc::TTypedServiceResponse<NCypressClient::NProto::TRspCreate> TRspCreate;
@@ -56,7 +56,7 @@ public:
      *  - Registers the new node.
      *  - Locks it with exclusive mode.
      */
-    ICypressNode* CreateNode(
+    TCypressNodeBase* CreateNode(
         INodeTypeHandlerPtr handler,
         NTransactionServer::TTransaction* transaction,
         NSecurityServer::TAccount* account,
@@ -71,65 +71,50 @@ public:
      *  - Registers the cloned node.
      *  - Locks the cloned node with exclusive mode.
      */
-    ICypressNode* CloneNode(
-        ICypressNode* sourceNode,
+    TCypressNodeBase* CloneNode(
+        TCypressNodeBase* sourceNode,
         NTransactionServer::TTransaction* transaction);
 
-    //! Returns the id of the root node.
-    /*!
-     *  \note
-     *  This id depends on cell id.
-     */
-    const TNodeId& GetRootNodeId() const;
+    //! Returns the root node.
+    TCypressNodeBase* GetRootNode() const;
 
     //! Returns a service representing the root.
     //! This service is fully thread-safe.
     NYTree::IYPathServicePtr GetRootService() const;
 
     //! Creates a resolver that provides a view in the context of a given transaction.
-    NYTree::IYPathResolverPtr CreateResolver(NTransactionServer::TTransaction* transaction = NULL);
+    NYTree::IYPathResolverPtr CreateResolver(NTransactionServer::TTransaction* transaction = nullptr);
 
-    ICypressNode* FindVersionedNode(
-        const TNodeId& nodeId,
-        const NTransactionServer::TTransaction* transaction);
+    //! Similar to |FindNode| provided by |DECLARE_METAMAP_ACCESSORS| but
+    //! specially optimized for the case of null transaction.
+    TCypressNodeBase* FindNode(
+        TCypressNodeBase* trunkNode,
+        NTransactionServer::TTransaction* transaction);
 
-    ICypressNode* GetVersionedNode(
-        const TNodeId& nodeId,
-        const NTransactionServer::TTransaction* transaction);
-
-    ICypressNodeProxyPtr FindVersionedNodeProxy(
-        const TNodeId& nodeId,
-        NTransactionServer::TTransaction* transaction = NULL);
+    TCypressNodeBase* GetVersionedNode(
+        TCypressNodeBase* trunkNode,
+        NTransactionServer::TTransaction* transaction);
 
     ICypressNodeProxyPtr GetVersionedNodeProxy(
-        const TNodeId& nodeId,
-        NTransactionServer::TTransaction* transaction = NULL);
+        TCypressNodeBase* trunkNode,
+        NTransactionServer::TTransaction* transaction = nullptr);
 
-    ICypressNodeProxyPtr GetVersionedNodeProxy(
-        const TVersionedNodeId& versionedId);
-
-    ICypressNode* LockVersionedNode(
-        const TNodeId& nodeId,
-        NTransactionServer::TTransaction* transaction,
-        const TLockRequest& request,
-        bool recursive = false);
-
-    ICypressNode* LockVersionedNode(
-        ICypressNode* node,
+    TCypressNodeBase* LockVersionedNode(
+        TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction,
         const TLockRequest& request,
         bool recursive = false);
 
     void SetModified(
-        const TNodeId& nodeId,
+        TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction);
 
     void RegisterNode(
+        TAutoPtr<TCypressNodeBase> node,
         NTransactionServer::TTransaction* transaction,
-        TAutoPtr<ICypressNode> node,
-		NYTree::IAttributeDictionary* attributes = NULL);
+		NYTree::IAttributeDictionary* attributes = nullptr);
 
-    DECLARE_METAMAP_ACCESSORS(Node, ICypressNode, TVersionedNodeId);
+    DECLARE_METAMAP_ACCESSORS(Node, TCypressNodeBase, TVersionedNodeId);
 
 private:
     typedef TCypressManager TThis;
@@ -143,7 +128,7 @@ private:
     public:
         explicit TNodeMapTraits(TCypressManager* cypressManager);
 
-        TAutoPtr<ICypressNode> Create(const TVersionedNodeId& id) const;
+        TAutoPtr<TCypressNodeBase> Create(const TVersionedNodeId& id) const;
 
     private:
         TCypressManager* CypressManager;
@@ -152,19 +137,17 @@ private:
     
     NCellMaster::TBootstrap* Bootstrap;
 
-    NMetaState::TMetaStateMap<TVersionedNodeId, ICypressNode, TNodeMapTraits> NodeMap;
+    NMetaState::TMetaStateMap<TVersionedNodeId, TCypressNodeBase, TNodeMapTraits> NodeMap;
 
     std::vector<INodeTypeHandlerPtr> TypeToHandler;
 
     TNodeId RootNodeId;
+    TCypressNodeBase* RootNode;
     NYTree::IYPathServicePtr RootService;
 
-    yhash_map<TNodeId, INodeBehaviorPtr> NodeBehaviors;
+    yhash_map<TCypressNodeBase*, INodeBehaviorPtr> NodeBehaviors;
 
-    int RefNode(const TNodeId& nodeId);
-    int UnrefNode(const TNodeId& nodeId);
-    int GetNodeRefCounter(const TNodeId& nodeId);
-    void DestroyNode(const TNodeId& nodeId);
+    void DestroyNode(TCypressNodeBase* trunkNode);
 
     // TMetaStatePart overrides.
     virtual void OnLeaderRecoveryComplete() override;
@@ -183,23 +166,23 @@ private:
     void MergeNodes(NTransactionServer::TTransaction* transaction);
     void MergeNode(
         NTransactionServer::TTransaction* transaction,
-        ICypressNode* branchedNode);
+        TCypressNodeBase* branchedNode);
     void RemoveBranchedNodes(NTransactionServer::TTransaction* transaction);
-    void RemoveBranchedNode(ICypressNode* branchedNode);
+    void RemoveBranchedNode(TCypressNodeBase* branchedNode);
     void ReleaseCreatedNodes(NTransactionServer::TTransaction* transaction);
     void PromoteLocks(NTransactionServer::TTransaction* transaction);
     void PromoteLock(TLock* lock, NTransactionServer::TTransaction* parentTransaction);
 
-    void CreateNodeBehavior(const TNodeId& id);
-    void DestroyNodeBehavior(const TNodeId& id);
+    void CreateNodeBehavior(TCypressNodeBase* trunkNode);
+    void DestroyNodeBehavior(TCypressNodeBase* trunkNode);
 
     void ValidateLock(
-        ICypressNode* trunkNode,
+        TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction,
         const TLockRequest& request,
         bool* isMandatory);
     void ValidateLock(
-        ICypressNode* trunkNode,
+        TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction,
         const TLockRequest& request);
     bool IsRedundantLock(
@@ -213,31 +196,31 @@ private:
         NTransactionServer::TTransaction* transaction1,
         NTransactionServer::TTransaction* transaction2);
 
-    ICypressNode* AcquireLock(
-        ICypressNode* trunkNode,
+    TCypressNodeBase* AcquireLock(
+        TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction,
         const TLockRequest& request);
     TLock* DoAcquireLock(
-        ICypressNode* trunkNode,
+        TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction,
         const TLockRequest& request);
     void ReleaseLock(
-        ICypressNode* trunkNode,
+        TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction);
 
-    typedef TSmallVector<ICypressNode*, 1> TSubtreeNodes;
+    typedef TSmallVector<TCypressNodeBase*, 1> TSubtreeNodes;
     void ListSubtreeNodeIds(
-        ICypressNode* root,
+        TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction,
         TSubtreeNodes* nodes);
 
-   ICypressNode* BranchNode(
-       ICypressNode* node,
+   TCypressNodeBase* BranchNode(
+       TCypressNodeBase* originatingNode,
        NTransactionServer::TTransaction* transaction,
        ELockMode mode);
 
     NYPath::TYPath GetNodePath(
-       const TNodeId& nodeId,
+       TCypressNodeBase* trunkNode,
        NTransactionServer::TTransaction* transaction);
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);

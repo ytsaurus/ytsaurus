@@ -40,7 +40,7 @@ void TNodeLeaseTracker::OnNodeRegistered(const TDataNode* node, bool recovery)
         GetTimeout(node, nodeInfo),
         BIND(&TNodeLeaseTracker::OnExpired, MakeStrong(this), node->GetId())
             .Via(metaStateFacade->GetEpochInvoker(EStateThreadQueue::ChunkMaintenance)));
-    YCHECK(NodeInfoMap.insert(MakePair(node->GetId(), nodeInfo)).second);
+    YCHECK(NodeInfoMap.insert(std::make_pair(node->GetId(), nodeInfo)).second);
 }
 
 void TNodeLeaseTracker::OnNodeOnline(const TDataNode* node, bool recovery)

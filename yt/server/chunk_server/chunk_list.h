@@ -41,7 +41,7 @@ class TChunkList
     DEFINE_BYREF_RW_PROPERTY(std::vector<i64>, RowCountSums);
     DEFINE_BYREF_RW_PROPERTY(yhash_multiset<TChunkList*>, Parents);
     DEFINE_BYREF_RW_PROPERTY(TChunkTreeStatistics, Statistics);
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<NCypressServer::ICypressNode*>, OwningNodes);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<NCypressServer::TCypressNodeBase*>, OwningNodes);
     
     // A tuple of key columns. If empty then the chunk list is not sorted.
     DEFINE_BYREF_RW_PROPERTY(std::vector<Stroka>, SortedBy);

@@ -336,7 +336,7 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleBalancingJob(
     }
 
     auto* targetNode = ChunkPlacement->GetBalancingTarget(chunk, maxFillCoeff);
-    if (targetNode == NULL) {
+    if (!targetNode) {
         LOG_DEBUG("No suitable target nodes to balance chunk %s",
             ~chunkId.ToString());
         return EScheduleFlags::None;

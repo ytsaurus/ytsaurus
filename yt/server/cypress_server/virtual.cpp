@@ -141,7 +141,7 @@ public:
         INodeTypeHandlerPtr typeHandler,
         TBootstrap* bootstrap,
         TTransaction* transaction,
-        ICypressNode* trunkNode,
+        TVirtualNode* trunkNode,
         IYPathServicePtr service,
         bool requireLeader)
         : TBase(
@@ -200,20 +200,6 @@ public:
         , RequireLeader(requireLeader)
     { }
 
-    virtual ICypressNodeProxyPtr GetProxy(
-        ICypressNode* trunkNode,
-        TTransaction* transaction) override
-    {
-        auto service = Producer.Run(trunkNode, transaction);
-        return New<TVirtualNodeProxy>(
-            this,
-            Bootstrap,
-            transaction,
-            trunkNode,
-            service,
-            RequireLeader);
-    }
-
     virtual EObjectType GetObjectType() override
     {
         return ObjectType;
@@ -228,6 +214,21 @@ private:
     TYPathServiceProducer Producer;
     EObjectType ObjectType;
     bool RequireLeader;
+
+    virtual ICypressNodeProxyPtr DoGetProxy(
+        TVirtualNode* trunkNode,
+        TTransaction* transaction) override
+    {
+        auto service = Producer.Run(trunkNode, transaction);
+        return New<TVirtualNodeProxy>(
+            this,
+            Bootstrap,
+            transaction,
+            trunkNode,
+            service,
+            RequireLeader);
+    }
+
 
 };
 
@@ -253,7 +254,7 @@ INodeTypeHandlerPtr CreateVirtualTypeHandler(
     return CreateVirtualTypeHandler(
         bootstrap,
         objectType,
-        BIND([=] (ICypressNode* trunkNode, TTransaction* transaction) -> IYPathServicePtr {
+        BIND([=] (TCypressNodeBase* trunkNode, TTransaction* transaction) -> IYPathServicePtr {
             UNUSED(trunkNode);
             UNUSED(transaction);
             return service;

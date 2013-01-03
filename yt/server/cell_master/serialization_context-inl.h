@@ -8,6 +8,8 @@
 
 #include <server/chunk_server/chunk_tree_ref.h>
 
+#include <server/object_server/object.h>
+
 #include <server/cypress_server/node.h>
 
 // Some forward declarations.
@@ -38,7 +40,7 @@ inline void SetObjectRefImpl(
     T*& object,
     const TLoadContext& context)
 {
-    object = id == NObjectServer::NullObjectId ? NULL : context.Get<T>(id);
+    object = id == typename NObjectServer::TObjectIdTraits<T*>::TId() ? nullptr : context.Get<T>(id);
 }
 
 inline void SetObjectRefImpl(

@@ -31,7 +31,7 @@ TFileNodeProxy::TFileNodeProxy(
     INodeTypeHandlerPtr typeHandler,
     TBootstrap* bootstrap,
     TTransaction* transaction,
-    ICypressNode* trunkNode)
+    TFileNode* trunkNode)
     : TCypressNodeProxyBase<IEntityNode, TFileNode>(
         typeHandler,
         bootstrap,
@@ -190,7 +190,7 @@ bool TFileNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& va
         }
 
         auto* node = GetThisTypedMutableImpl();
-        YCHECK(node->GetTrunkNode() == node);
+        YCHECK(node->IsTrunk());
 
         if (node->GetReplicationFactor() != replicationFactor) {
             node->SetReplicationFactor(replicationFactor);

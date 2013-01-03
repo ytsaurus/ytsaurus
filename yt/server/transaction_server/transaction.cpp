@@ -19,8 +19,8 @@ TTransaction::TTransaction(const TTransactionId& id)
     : TUnversionedObjectBase(id)
     , UncommittedAccountingEnabled_(false)
     , StagedAccountingEnabled_(false)
-    , Parent_(NULL)
-    , StartTime_(TInstant::Max())
+    , Parent_(nullptr)
+    , StartTime_(TInstant::Zero())
 { }
 
 void TTransaction::Save(const NCellMaster::TSaveContext& context) const
@@ -35,7 +35,7 @@ void TTransaction::Save(const NCellMaster::TSaveContext& context) const
     SaveObjectRefs(output, NestedTransactions_);
     SaveObjectRef(output, Parent_);
     ::Save(output, StartTime_);
-    SaveSet(output, StagedObjectIds_);
+    SaveObjectRefs(output, StagedObjects_);
     SaveObjectRefs(output, LockedNodes_);
     SaveObjectRefs(output, BranchedNodes_);
     SaveObjectRefs(output, StagedNodes_);
@@ -54,7 +54,7 @@ void TTransaction::Load(const NCellMaster::TLoadContext& context)
     LoadObjectRefs(input, NestedTransactions_, context);
     LoadObjectRef(input, Parent_, context);
     ::Load(input, StartTime_);
-    LoadSet(input, StagedObjectIds_);
+    LoadObjectRefs(input, StagedObjects_, context);
     LoadObjectRefs(input, LockedNodes_, context);
     LoadObjectRefs(input, BranchedNodes_, context);
     LoadObjectRefs(input, StagedNodes_, context);

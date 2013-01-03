@@ -35,7 +35,7 @@ void TChunkList::IncrementVersion()
 
 TVersionedChunkListId TChunkList::GetVersionedId() const
 {
-    return TVersionedChunkListId(Id_, Version_);
+    return TVersionedChunkListId(Id, Version_);
 }
 
 void TChunkList::Save(const NCellMaster::TSaveContext& context) const

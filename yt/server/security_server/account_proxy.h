@@ -14,7 +14,7 @@ namespace NSecurityServer {
 
 NObjectServer::IObjectProxyPtr CreateAccountProxy(
     NCellMaster::TBootstrap* bootstrap,
-    const TAccountId& id,
+    TAccount* account,
     TAccountMetaMap* map);
 
 ////////////////////////////////////////////////////////////////////////////////

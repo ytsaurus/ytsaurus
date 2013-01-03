@@ -497,7 +497,7 @@ TTableNodeProxy::TTableNodeProxy(
     INodeTypeHandlerPtr typeHandler,
     TBootstrap* bootstrap,
     TTransaction* transaction,
-    ICypressNode* trunkNode)
+    TTableNode* trunkNode)
     : TCypressNodeProxyBase<IEntityNode, TTableNode>(
         typeHandler,
         bootstrap,
@@ -698,7 +698,7 @@ bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& v
         }
         
         auto* node = GetThisTypedMutableImpl();
-        YCHECK(node->GetTrunkNode() == node);
+        YCHECK(node->IsTrunk());
 
         if (node->GetReplicationFactor() != replicationFactor) {
             node->SetReplicationFactor(replicationFactor);

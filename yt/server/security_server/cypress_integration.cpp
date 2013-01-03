@@ -33,7 +33,7 @@ public:
 private:
     TBootstrap* Bootstrap;
 
-    virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const
+    virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
     {
         auto securityManager = Bootstrap->GetSecurityManager();
         auto accounts = securityManager->GetAccounts(sizeLimit);
@@ -47,21 +47,22 @@ private:
         return result;
     }
 
-    virtual size_t GetSize() const
+    virtual size_t GetSize() const override
     {
         auto securityManager = Bootstrap->GetSecurityManager();
         return securityManager->GetAccountCount();
     }
 
-    virtual IYPathServicePtr GetItemService(const TStringBuf& key) const
+    virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
     {
         auto securityManager = Bootstrap->GetSecurityManager();
         auto* account = securityManager->FindAccountByName(Stroka(key));
-        if (!account) {
-            return NULL;
+        if (!account || !account->IsAlive()) {
+            return nullptr;
         }
+
         auto objectManager = Bootstrap->GetObjectManager();
-        return objectManager->FindProxy(account->GetId());
+        return objectManager->GetProxy(account);
     }
 };
 

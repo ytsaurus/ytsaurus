@@ -37,17 +37,16 @@ struct IObjectTypeHandler
     //! Returns the object type handled by the handler.
     virtual EObjectType GetType() const = 0;
 
-    //! Returns true iff an object with the given id exists.
-    virtual bool Exists(const TObjectId& id) = 0;
+    //! Finds object by id, returns |NULL| if nothing is found.
+    virtual TObjectBase* FindObject(const TObjectId& id) = 0;
 
-    virtual int RefObject(const TObjectId& id) = 0;
-    virtual int UnrefObject(const TObjectId& id) = 0;
-    virtual int GetObjectRefCounter(const TObjectId& id) = 0;
+    //! Finds object by id, fails is nothing is found.
+    TObjectBase* GetObject(const TObjectId& id);
 
     //! Given a versioned object id, constructs a proxy for it.
     //! The object with the given id must exist.
     virtual IObjectProxyPtr GetProxy(
-        const TObjectId& id,
+        TObjectBase* object,
         NTransactionServer::TTransaction* transaction) = 0;
 
     typedef NRpc::TTypedServiceRequest<NTransactionClient::NProto::TReqCreateObject> TReqCreateObject;
@@ -63,7 +62,7 @@ struct IObjectTypeHandler
      *  Once #Create is completed, all request attributes are copied to object attributes.
      *  The handler may alter the request appropriately to control this process.
      */
-    virtual TObjectId Create(
+    virtual TObjectBase* Create(
         NTransactionServer::TTransaction* transaction,
         NSecurityServer::TAccount* account,
         NYTree::IAttributeDictionary* attributes,
@@ -71,7 +70,7 @@ struct IObjectTypeHandler
         TRspCreateObject* response) = 0;
 
     //! Performs the necessary cleanup.
-    virtual void Destroy(const TObjectId& objectId) = 0;
+    virtual void Destroy(const TObjectId& id) = 0;
 
     //! Clears staging information of a given object.
     /*!
@@ -79,7 +78,7 @@ struct IObjectTypeHandler
      *  
      */
     virtual void Unstage(
-        const TObjectId& objectId,
+        TObjectBase* object,
         NTransactionServer::TTransaction* transaction,
         bool recursive) = 0;
 

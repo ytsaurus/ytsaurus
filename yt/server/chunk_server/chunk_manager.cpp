@@ -102,22 +102,19 @@ public:
         return EObjectAccountMode::Optional;
     }
 
-    virtual TObjectId Create(
+    virtual TObjectBase* Create(
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
         TReqCreateObject* request,
         TRspCreateObject* response) override;
 
-    virtual IObjectProxyPtr GetProxy(
-        const TObjectId& id,
-        TTransaction* transaction) override;
-
 private:
     TImpl* Owner;
 
+    virtual IObjectProxyPtr DoGetProxy(TChunk* chunk, TTransaction* transaction) override;
     virtual void DoDestroy(TChunk* chunk) override;
-    virtual void DoUnstage(TChunk* obj, TTransaction* transaction, bool recursive) override;
+    virtual void DoUnstage(TChunk* chunk, TTransaction* transaction, bool recursive) override;
 
 };
 
@@ -144,20 +141,17 @@ public:
         return EObjectAccountMode::Forbidden;
     }
 
-    virtual TObjectId Create(
+    virtual TObjectBase* Create(
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
         TReqCreateObject* request,
         TRspCreateObject* response) override;
 
-    virtual IObjectProxyPtr GetProxy(
-        const TObjectId& id,
-        TTransaction* transaction) override;
-
 private:
     TImpl* Owner;
 
+    virtual IObjectProxyPtr DoGetProxy(TChunkList* chunkList, TTransaction* transaction) override;
     virtual void DoDestroy(TChunkList* chunkList) override;
     virtual void DoUnstage(TChunkList* chunkList, TTransaction* transaction, bool recursive) override;
 
@@ -704,13 +698,13 @@ public:
     {
         auto cypressManager = Bootstrap->GetCypressManager();
 
-        yhash_set<ICypressNode*> owningNodes;
+        yhash_set<TCypressNodeBase*> owningNodes;
         yhash_set<TChunkTreeRef> visitedRefs;
         GetOwningNodes(ref, visitedRefs, &owningNodes);
 
         std::vector<TYPath> paths;
         FOREACH (auto* node, owningNodes) {
-            auto proxy = cypressManager->GetVersionedNodeProxy(node->GetId());
+            auto proxy = cypressManager->GetVersionedNodeProxy(node);
             auto path = proxy->GetPath();
             paths.push_back(path);
         }
@@ -833,7 +827,7 @@ private:
 
         auto transactionManager = Bootstrap->GetTransactionManager();
         FOREACH (auto childRef, chunkList->Children()) {
-            transactionManager->UnstageObject(transaction, childRef.GetId(), true);
+            transactionManager->UnstageObject(transaction, childRef.AsObject(), true);
         }
     }
 
@@ -1565,8 +1559,8 @@ private:
         switch (job->GetType()) {
             case EJobType::Replicate: {
                 FOREACH (const auto& address, job->TargetAddresses()) {
-                    auto& sink = GetOrCreateReplicationSink(address);
-                    YCHECK(sink.Jobs().insert(job).second);
+                    auto* sink = GetOrCreateReplicationSink(address);
+                    YCHECK(sink->Jobs().insert(job).second);
                 }
                 break;
             }
@@ -1584,8 +1578,8 @@ private:
         switch (job->GetType()) {
             case EJobType::Replicate: {
                 FOREACH (const auto& address, job->TargetAddresses()) {
-                    auto& sink = GetOrCreateReplicationSink(address);
-                    YCHECK(sink.Jobs().erase(job) == 1);
+                    auto* sink = GetOrCreateReplicationSink(address);
+                    YCHECK(sink->Jobs().erase(job) == 1);
                     DropReplicationSinkIfEmpty(sink);
                 }
                 break;
@@ -1599,25 +1593,25 @@ private:
         }
     }
 
-    TReplicationSink& GetOrCreateReplicationSink(const Stroka& address)
+    TReplicationSink* GetOrCreateReplicationSink(const Stroka& address)
     {
         auto it = ReplicationSinkMap.find(address);
         if (it != ReplicationSinkMap.end()) {
-            return it->second;
+            return &it->second;
         }
 
         auto pair = ReplicationSinkMap.insert(MakePair(address, TReplicationSink(address)));
         YCHECK(pair.second);
 
-        return pair.first->second;
+        return &pair.first->second;
     }
 
-    void DropReplicationSinkIfEmpty(const TReplicationSink& sink)
+    void DropReplicationSinkIfEmpty(const TReplicationSink* sink)
     {
-        if (sink.Jobs().empty()) {
+        if (sink->Jobs().empty()) {
             // NB: Do not try to inline this variable! erase() will destroy the object
             // and will access the key afterwards.
-            auto address = sink.GetAddress();
+            auto address = sink->GetAddress();
             YCHECK(ReplicationSinkMap.erase(address) == 1);
         }
     }
@@ -1626,7 +1620,7 @@ private:
     static void GetOwningNodes(
         TChunkTreeRef ref,
         yhash_set<TChunkTreeRef>& visitedRefs,
-        yhash_set<ICypressNode*>* owningNodes)
+        yhash_set<TCypressNodeBase*>* owningNodes)
     {
         if (!visitedRefs.insert(ref).second) {
             return;
@@ -1671,8 +1665,8 @@ TChunkManager::TChunkTypeHandler::TChunkTypeHandler(TImpl* owner)
     , Owner(owner)
 { }
 
-IObjectProxyPtr TChunkManager::TChunkTypeHandler::GetProxy(
-    const TObjectId& id,
+IObjectProxyPtr TChunkManager::TChunkTypeHandler::DoGetProxy(
+    TChunk* chunk,
     TTransaction* transaction)
 {
     UNUSED(transaction);
@@ -1680,10 +1674,10 @@ IObjectProxyPtr TChunkManager::TChunkTypeHandler::GetProxy(
     return CreateChunkProxy(
         Bootstrap,
         &Owner->ChunkMap,
-        id);
+        chunk);
 }
 
-TObjectId TChunkManager::TChunkTypeHandler::Create(
+TObjectBase* TChunkManager::TChunkTypeHandler::Create(
     TTransaction* transaction,
     TAccount* account,
     IAttributeDictionary* attributes,
@@ -1731,7 +1725,7 @@ TObjectId TChunkManager::TChunkTypeHandler::Create(
             ~FormatBool(requestExt->vital()));
     }
 
-    return chunk->GetId();
+    return chunk;
 }
 
 void TChunkManager::TChunkTypeHandler::DoDestroy(TChunk* chunk)
@@ -1740,13 +1734,14 @@ void TChunkManager::TChunkTypeHandler::DoDestroy(TChunk* chunk)
 }
 
 void TChunkManager::TChunkTypeHandler::DoUnstage(
-    TChunk* obj,
+    TChunk* chunk,
     TTransaction* transaction,
     bool recursive)
 {
     UNUSED(transaction);
     UNUSED(recursive);
-    Owner->UnstageChunk(obj);
+
+    Owner->UnstageChunk(chunk);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1756,8 +1751,8 @@ TChunkManager::TChunkListTypeHandler::TChunkListTypeHandler(TImpl* owner)
     , Owner(owner)
 { }
 
-IObjectProxyPtr TChunkManager::TChunkListTypeHandler::GetProxy(
-    const TObjectId& id,
+IObjectProxyPtr TChunkManager::TChunkListTypeHandler::DoGetProxy(
+    TChunkList* chunkList,
     TTransaction* transaction)
 {
     UNUSED(transaction);
@@ -1765,10 +1760,10 @@ IObjectProxyPtr TChunkManager::TChunkListTypeHandler::GetProxy(
     return CreateChunkListProxy(
         Bootstrap,
         &Owner->ChunkListMap,
-        id);
+        chunkList);
 }
 
-TObjectId TChunkManager::TChunkListTypeHandler::Create(
+TObjectBase* TChunkManager::TChunkListTypeHandler::Create(
     TTransaction* transaction,
     TAccount* account,
     IAttributeDictionary* attributes,
@@ -1781,8 +1776,7 @@ TObjectId TChunkManager::TChunkListTypeHandler::Create(
     UNUSED(request);
     UNUSED(response);
 
-    auto* chunkList = Owner->CreateChunkList();
-    return chunkList->GetId();
+    return Owner->CreateChunkList();
 }
 
 void TChunkManager::TChunkListTypeHandler::DoDestroy(TChunkList* chunkList)

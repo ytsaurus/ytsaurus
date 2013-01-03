@@ -1,8 +1,10 @@
 #include "stdafx.h"
 #include "object_manager.h"
+#include "object.h"
 #include "config.h"
 #include "private.h"
 #include "gc.h"
+#include "attribute_set.h"
 
 #include <ytlib/misc/delayed_invoker.h>
 
@@ -121,7 +123,7 @@ public:
         auto objectManager = Bootstrap->GetObjectManager();
         auto transactionManager = Bootstrap->GetTransactionManager();
 
-        TTransaction* transaction = NULL;
+        TTransaction* transaction = nullptr;
         auto transactionId = GetTransactionId(context);
         if (transactionId != NullTransactionId) {
             transaction = transactionManager->FindTransaction(transactionId);
@@ -139,8 +141,8 @@ public:
                 THROW_ERROR_EXCEPTION("YPath cannot be empty");
 
             case NYPath::ETokenType::Slash: {
-                auto root = cypressManager->FindVersionedNodeProxy(
-                    cypressManager->GetRootNodeId(),
+                auto root = cypressManager->GetVersionedNodeProxy(
+                    cypressManager->GetRootNode(),
                     transaction);
                 return TResolveResult::There(root, tokenizer.GetSuffix());
             }
@@ -157,11 +159,18 @@ public:
                     THROW_ERROR_EXCEPTION("Error parsing object id: %s", ~objectIdString);
                 }
 
-                auto proxy = objectManager->FindProxy(objectId, transaction);
-                if (!proxy) {
+                // TODO(babenko): special handling for null transaction
+                if (objectId == NullObjectId && !transaction) {
+                    auto proxy = Bootstrap->GetTransactionManager()->GetRootTransactionProxy();
+                    return TResolveResult::There(proxy, tokenizer.GetSuffix());
+                }
+
+                auto* object = objectManager->FindObject(objectId);
+                if (!object) {
                     THROW_ERROR_EXCEPTION("No such object: %s", ~ToString(objectId));
                 }
 
+                auto proxy = objectManager->GetProxy(object, transaction);
                 return TResolveResult::There(proxy, tokenizer.GetSuffix());
             }
 
@@ -286,7 +295,7 @@ IObjectTypeHandlerPtr TObjectManager::FindHandler(EObjectType type) const
 
     int typeValue = type.ToValue();
     if (typeValue < 0 || typeValue >= MaxObjectType) {
-        return NULL;
+        return nullptr;
     }
 
     return TypeToHandler[typeValue];
@@ -301,9 +310,9 @@ IObjectTypeHandlerPtr TObjectManager::GetHandler(EObjectType type) const
     return handler;
 }
 
-IObjectTypeHandlerPtr TObjectManager::GetHandler(const TObjectId& id) const
+IObjectTypeHandlerPtr TObjectManager::GetHandler(TObjectBase* obj) const
 {
-    return GetHandler(TypeFromId(id));
+    return GetHandler(TypeFromId(obj->GetId()));
 }
 
 TCellId TObjectManager::GetCellId() const
@@ -358,116 +367,57 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
     return id;
 }
 
-void TObjectManager::RefObject(const TObjectId& id)
+void TObjectManager::RefObject(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-
-    int refCounter = GetHandler(id)->RefObject(id);
-    OnObjectReferenced(id, refCounter);
-}
-
-void TObjectManager::RefObject(const TVersionedNodeId& id)
-{
-    RefObject(id.ObjectId);
-}
-
-void TObjectManager::RefObject(TUnversionedObjectBase* object)
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
+    YASSERT(object->IsTrunk());
 
     int refCounter = object->RefObject();
-    OnObjectReferenced(object->GetId(), refCounter);
-}
-
-void TObjectManager::RefObject(ICypressNode* node)
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    int refCounter = node->GetTrunkNode()->RefObject();
-    OnObjectReferenced(node->GetId().ObjectId, refCounter);
+    LOG_DEBUG_UNLESS(IsRecovery(), "Object referenced (Id: %s, RefCounter: %d)",
+        ~object->GetId().ToString(),
+        refCounter);
 }
 
 void TObjectManager::RefObject(TChunkTreeRef ref)
 {
     switch (ref.GetType()) {
         case EObjectType::Chunk:
-            RefObject((TUnversionedObjectBase*) ref.AsChunk());
+            RefObject(ref.AsChunk());
             break;
         case EObjectType::ChunkList:
-            RefObject((TUnversionedObjectBase*) ref.AsChunkList());
+            RefObject(ref.AsChunkList());
             break;
         default:
             YUNREACHABLE();
     }
 }
 
-void TObjectManager::UnrefObject(const TObjectId& id)
+void TObjectManager::UnrefObject(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-
-    int refCounter = GetHandler(id)->UnrefObject(id);
-    OnObjectUnreferenced(id, refCounter);
-}
-
-void TObjectManager::UnrefObject(const TVersionedNodeId& id)
-{
-    UnrefObject(id.ObjectId);
-}
-
-void TObjectManager::UnrefObject(TUnversionedObjectBase* object)
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
+    YASSERT(object->IsTrunk());
 
     int refCounter = object->UnrefObject();
-    const auto& id = object->GetId();
-    OnObjectUnreferenced(id, refCounter);
-}
+    LOG_DEBUG_UNLESS(IsRecovery(), "Object unreferenced (Id: %s, RefCounter: %d)",
+        ~object->GetId().ToString(),
+        refCounter);
 
-void TObjectManager::UnrefObject(ICypressNode* node)
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    int refCounter = node->GetTrunkNode()->UnrefObject();
-    const auto& id = node->GetId();
-    OnObjectUnreferenced(id.ObjectId, refCounter);
+    if (refCounter == 0) {
+        GarbageCollector->Enqueue(object->GetId());
+    }
 }
 
 void TObjectManager::UnrefObject(TChunkTreeRef ref)
 {
     switch (ref.GetType()) {
         case EObjectType::Chunk:
-            UnrefObject(static_cast<TUnversionedObjectBase*>(ref.AsChunk()));
+            UnrefObject(ref.AsChunk());
             break;
         case EObjectType::ChunkList:
-            UnrefObject(static_cast<TUnversionedObjectBase*>(ref.AsChunkList()));
+            UnrefObject(ref.AsChunkList());
             break;
         default:
             YUNREACHABLE();
-    }
-}
-
-int TObjectManager::GetObjectRefCounter(const TObjectId& id)
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-
-    return GetHandler(id)->GetObjectRefCounter(id);
-}
-
-void TObjectManager::OnObjectReferenced(const TObjectId& id, int refCounter)
-{
-    LOG_DEBUG_UNLESS(IsRecovery(), "Object referenced (Id: %s, RefCounter: %d)",
-        ~id.ToString(),
-        refCounter);
-}
-
-void TObjectManager::OnObjectUnreferenced(const TObjectId& id, int refCounter)
-{
-    LOG_DEBUG_UNLESS(IsRecovery(), "Object unreferenced (Id: %s, RefCounter: %d)",
-        ~id.ToString(),
-        refCounter);
-
-    if (refCounter == 0) {
-        GarbageCollector->Enqueue(id);
     }
 }
 
@@ -515,48 +465,42 @@ void TObjectManager::OnStopRecovery()
     Profiler.SetEnabled(true);
 }
 
-bool TObjectManager::ObjectExists(const TObjectId& id)
+TObjectBase* TObjectManager::FindObject(const TObjectId& id)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-    
+
     auto handler = FindHandler(TypeFromId(id));
-    return handler ? handler->Exists(id) : false;
+    if (!handler) {
+        return nullptr;
+    }
+
+    return handler->FindObject(id);
 }
 
-IObjectProxyPtr TObjectManager::FindProxy(
-    const TObjectId& id,
-    TTransaction* transaction)
+TObjectBase* TObjectManager::GetObject(const TObjectId& id)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    // (NullObjectId, NullTransaction) means the root transaction.
-    if (id == NullObjectId && !transaction) {
-        return Bootstrap->GetTransactionManager()->GetRootTransactionProxy();
-    }
-
-    auto type = TypeFromId(id);
-
-    auto handler = FindHandler(type);
-    if (!handler) {
-        return NULL;
-    }
-
-    if (!handler->Exists(id)) {
-        return NULL;
-    }
-
-    return handler->GetProxy(id, transaction);
+    auto* object = FindObject(id);
+    YCHECK(object);
+    return object;
 }
 
 IObjectProxyPtr TObjectManager::GetProxy(
-    const TObjectId& id,
+    TObjectBase* object,
     TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
+    YCHECK(object);
+    YCHECK(object->IsAlive());
 
-    auto proxy = FindProxy(id, transaction);
-    YCHECK(proxy);
-    return proxy;
+    const auto& id = object->GetId();
+    auto handler = FindHandler(TypeFromId(id));
+    if (!handler) {
+        return nullptr;
+    }
+
+    return handler->GetProxy(object, transaction);
 }
 
 TAttributeSet* TObjectManager::CreateAttributes(const TVersionedObjectId& id)
@@ -711,7 +655,7 @@ void TObjectManager::ReplayVerb(const TMetaReqExecute& request)
     auto transactionManager = Bootstrap->GetTransactionManager();
     auto* transaction =
         transactionId == NullTransactionId
-        ?  NULL
+        ? nullptr
         : transactionManager->GetTransaction(transactionId);
 
     std::vector<TSharedRef> parts(request.request_parts_size());
@@ -727,7 +671,16 @@ void TObjectManager::ReplayVerb(const TMetaReqExecute& request)
         requestMessage,
         "",
         TYPathResponseHandler());
-    auto proxy = GetProxy(objectId, transaction);
+
+    // TODO(babenko): special handling for null transaction
+    if (objectId == NullObjectId && !transaction) {
+        auto proxy = Bootstrap->GetTransactionManager()->GetRootTransactionProxy();
+        proxy->Invoke(context);
+        return;
+    }
+
+    auto* object = GetObject(objectId);
+    auto proxy = GetProxy(object, transaction);
     proxy->Invoke(context);
 }
 
@@ -746,7 +699,7 @@ void TObjectManager::DestroyObjects(const NProto::TMetaReqDestroyObjects& reques
 
 void TObjectManager::DestroyObject(const TObjectId& id)
 {
-    auto handler = GetHandler(id);
+    auto handler = GetHandler(TypeFromId(id));
     handler->Destroy(id);
     
     Profiler.Increment(DestroyedObjectCounter, +1);

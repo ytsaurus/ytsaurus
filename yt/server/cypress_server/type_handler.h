@@ -43,7 +43,7 @@ struct INodeTypeHandler
      *  \return The constructed proxy.
      */
     virtual ICypressNodeProxyPtr GetProxy(
-        ICypressNode* trunkNode,
+        TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction) = 0;
 
     //! Returns the (dynamic) node type.
@@ -53,7 +53,7 @@ struct INodeTypeHandler
     virtual NYTree::ENodeType GetNodeType() = 0;
 
     //! Create an empty instance of the node (used during snapshot deserialization).
-    virtual TAutoPtr<ICypressNode> Instantiate(const TVersionedNodeId& id) = 0;
+    virtual TAutoPtr<TCypressNodeBase> Instantiate(const TVersionedNodeId& id) = 0;
 
     typedef NRpc::TTypedServiceRequest<NCypressClient::NProto::TReqCreate> TReqCreate;
     typedef NRpc::TTypedServiceResponse<NCypressClient::NProto::TRspCreate> TRspCreate;
@@ -61,7 +61,7 @@ struct INodeTypeHandler
     /*!
      *  This is called during |Create|.
      */
-    virtual TAutoPtr<ICypressNode> Create(
+    virtual TAutoPtr<TCypressNodeBase> Create(
         NTransactionServer::TTransaction* transaction,
         TReqCreate* request,
         TRspCreate* response) = 0;
@@ -75,7 +75,7 @@ struct INodeTypeHandler
      *  A typical implementation will release the resources held by the node,
      *  decrement the ref-counters of its children etc.
      */
-    virtual void Destroy(ICypressNode* node) = 0;
+    virtual void Destroy(TCypressNodeBase* node) = 0;
 
     //! Branches a node into a given transaction.
     /*!
@@ -84,8 +84,8 @@ struct INodeTypeHandler
      *  \param mode The lock mode for which the node is being branched.
      *  \returns The branched node.
      */
-    virtual TAutoPtr<ICypressNode> Branch(
-        const ICypressNode* node,
+    virtual TAutoPtr<TCypressNodeBase> Branch(
+        const TCypressNodeBase* originatingNode,
         NTransactionServer::TTransaction* transaction,
         ELockMode mode) = 0;
 
@@ -97,17 +97,17 @@ struct INodeTypeHandler
      *  #branchedNode is non-const for performance reasons (i.e. to swap the data instead of copying).
      */
     virtual void Merge(
-        ICypressNode* originatingNode,
-        ICypressNode* branchedNode) = 0;
+        TCypressNodeBase* originatingNode,
+        TCypressNodeBase* branchedNode) = 0;
 
     //! Constructs a deep copy of the node.
-    virtual TAutoPtr<ICypressNode> Clone(
-        ICypressNode* sourceNode,
+    virtual TAutoPtr<TCypressNodeBase> Clone(
+        TCypressNodeBase* sourceNode,
         NTransactionServer::TTransaction* transaction) = 0;
 
     //! Creates a behavior associated with the node.
     //! The method may return NULL if no behavior is needed.
-    virtual INodeBehaviorPtr CreateBehavior(const TNodeId& id) = 0;
+    virtual INodeBehaviorPtr CreateBehavior(TCypressNodeBase* trunkNode) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

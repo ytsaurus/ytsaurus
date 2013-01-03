@@ -15,14 +15,14 @@
 #include <ytlib/meta_state/meta_state_manager.h>
 
 #include <server/object_server/object_detail.h>
+#include <server/object_server/attribute_set.h>
 
 #include <server/security_server/account.h>
 #include <server/security_server/security_manager.h>
 
-#include <server/cell_master/public.h>
 #include <server/cell_master/bootstrap.h>
-#include <server/cell_master/meta_state_facade.h>
 #include <server/cell_master/serialization_context.h>
+#include <server/cell_master/meta_state_facade.h>
 
 namespace NYT {
 namespace NCypressServer {
@@ -36,26 +36,29 @@ class TNodeBehaviorBase
 public:
     TNodeBehaviorBase(
         NCellMaster::TBootstrap* bootstrap,
-        const TNodeId& nodeId)
+        TImpl* trunkNode)
         : Bootstrap(bootstrap)
-        , NodeId(nodeId)
-    { }
+        , TrunkNode(trunkNode)
+    {
+        YASSERT(trunkNode->IsTrunk());
+    }
 
     virtual void Destroy() override
     { }
 
 protected:
     NCellMaster::TBootstrap* Bootstrap;
-    TNodeId NodeId;
+    TImpl* TrunkNode;
 
-    TImpl* GetImpl()
+    TImpl* GetImpl() const
     {
-        return Bootstrap->GetCypressManager()->GetNode(NodeId);
+        return TrunkNode;
     }
 
-    TIntrusivePtr<TProxy> GetProxy()
+    TIntrusivePtr<TProxy> GetProxy() const
     {
-        auto proxy = Bootstrap->GetCypressManager()->GetVersionedNodeProxy(NodeId);
+        auto cypressManager = Bootstrap->GetCypressManager();
+        auto proxy = cypressManager->GetVersionedNodeProxy(TrunkNode);
         auto* typedProxy = dynamic_cast<TProxy*>(~proxy);
         YCHECK(typedProxy);
         return typedProxy;
@@ -74,12 +77,19 @@ public:
         : Bootstrap(bootstrap)
     { }
 
-    virtual TAutoPtr<ICypressNode> Instantiate(const TVersionedNodeId& id) override
+    virtual ICypressNodeProxyPtr GetProxy(
+        TCypressNodeBase* trunkNode,
+        NTransactionServer::TTransaction* transaction) override
+    {
+        return DoGetProxy(dynamic_cast<TImpl*>(trunkNode), transaction);
+    }
+
+    virtual TAutoPtr<TCypressNodeBase> Instantiate(const TVersionedNodeId& id) override
     {
         return new TImpl(id);
     }
 
-    virtual TAutoPtr<ICypressNode> Create(
+    virtual TAutoPtr<TCypressNodeBase> Create(
         NTransactionServer::TTransaction* transaction,
         TReqCreate* request,
         TRspCreate* response) override
@@ -96,12 +106,12 @@ public:
         UNUSED(attributes);
     }
 
-    virtual void Destroy(ICypressNode* node) override
+    virtual void Destroy(TCypressNodeBase* node) override
     {
         auto objectManager = Bootstrap->GetObjectManager();
 
         // Remove user attributes, if any.
-        auto id = node->GetId();
+        auto id = node->GetVersionedId();
         if (objectManager->FindAttributes(id)) {
             objectManager->RemoveAttributes(id);
         }
@@ -110,20 +120,20 @@ public:
         DoDestroy(dynamic_cast<TImpl*>(node));
     }
 
-    virtual TAutoPtr<ICypressNode> Branch(
-        const ICypressNode* originatingNode,
+    virtual TAutoPtr<TCypressNodeBase> Branch(
+        const TCypressNodeBase* originatingNode,
         NTransactionServer::TTransaction* transaction,
         ELockMode mode) override
     {
         auto objectManager = Bootstrap->GetObjectManager();
         auto securityManager = Bootstrap->GetSecurityManager();
 
-        auto originatingId = originatingNode->GetId();
+        auto originatingId = originatingNode->GetVersionedId();
         auto branchedId = TVersionedNodeId(originatingId.ObjectId, GetObjectId(transaction));
 
         // Create a branched copy.
         TAutoPtr<TImpl> branchedNode(new TImpl(branchedId));
-        branchedNode->SetParentId(originatingNode->GetParentId());
+        branchedNode->SetParent(originatingNode->GetParent());
         branchedNode->SetCreationTime(originatingNode->GetCreationTime());
         branchedNode->SetModificationTime(originatingNode->GetModificationTime());
         branchedNode->SetLockMode(mode);
@@ -140,20 +150,20 @@ public:
     }
 
     virtual void Merge(
-        ICypressNode* originatingNode,
-        ICypressNode* branchedNode) override
+        TCypressNodeBase* originatingNode,
+        TCypressNodeBase* branchedNode) override
     {
         auto objectManager = Bootstrap->GetObjectManager();
 
-        auto originatingId = originatingNode->GetId();
-        auto branchedId = branchedNode->GetId();
+        auto originatingId = originatingNode->GetVersionedId();
+        auto branchedId = branchedNode->GetVersionedId();
         YASSERT(branchedId.IsBranched());
 
         // Merge user attributes.
         objectManager->MergeAttributes(originatingId, branchedId);
 
         // Merge parent id.
-        originatingNode->SetParentId(branchedNode->GetParentId());
+        originatingNode->SetParent(branchedNode->GetParent());
 
         // Merge modification time.
         if (branchedNode->GetModificationTime() > originatingNode->GetModificationTime()) {
@@ -164,14 +174,13 @@ public:
         DoMerge(dynamic_cast<TImpl*>(originatingNode), dynamic_cast<TImpl*>(branchedNode));
     }
 
-    virtual INodeBehaviorPtr CreateBehavior(const TNodeId& id) override
+    virtual INodeBehaviorPtr CreateBehavior(TCypressNodeBase* trunkNode) override
     {
-        UNUSED(id);
-        return NULL;
+        return DoCreateBehavior(dynamic_cast<TImpl*>(trunkNode));
     }
 
-    virtual TAutoPtr<ICypressNode> Clone(
-        ICypressNode* sourceNode,
+    virtual TAutoPtr<TCypressNodeBase> Clone(
+        TCypressNodeBase* sourceNode,
         NTransactionServer::TTransaction* transaction) override
     {
         auto objectManager = Bootstrap->GetObjectManager();
@@ -179,7 +188,7 @@ public:
         auto type = GetObjectType();
         auto clonedId = objectManager->GenerateId(type);
 
-        auto clonedNode = Instantiate(clonedId);
+        auto clonedNode = Instantiate(TVersionedNodeId(clonedId));
         clonedNode->SetTrunkNode(~clonedNode);
 
         DoClone(
@@ -194,6 +203,10 @@ public:
 protected:
     NCellMaster::TBootstrap* Bootstrap;
 
+    virtual ICypressNodeProxyPtr DoGetProxy(
+        TImpl* trunkNode,
+        NTransactionServer::TTransaction* transaction) = 0;
+
     virtual TAutoPtr<TImpl> DoCreate(
         NTransactionServer::TTransaction* transaction,
         TReqCreate* request,
@@ -205,7 +218,7 @@ protected:
 
         auto objectManager = Bootstrap->GetObjectManager();
      
-        auto nodeId = objectManager->GenerateId(GetObjectType());
+        auto nodeId = TVersionedNodeId(objectManager->GenerateId(GetObjectType()));
         
         TAutoPtr<TImpl> node(new TImpl(nodeId));
         node->SetTrunkNode(~node);
@@ -234,6 +247,12 @@ protected:
         UNUSED(branchedNode);
     }
 
+    virtual INodeBehaviorPtr DoCreateBehavior(TImpl* trunkNode)
+    {
+        UNUSED(trunkNode);
+        return nullptr;
+    }
+
     virtual void DoClone(
         TImpl* sourceNode,
         TImpl* clonedNode,
@@ -242,11 +261,11 @@ protected:
         // Copy attributes directly to suppress validation.
         auto objectManager = Bootstrap->GetObjectManager();
 
-        auto keyToAttribute = GetNodeAttributes(Bootstrap, sourceNode->GetId().ObjectId, transaction);
+        auto keyToAttribute = GetNodeAttributes(Bootstrap, sourceNode->GetTrunkNode(), transaction);
         if (keyToAttribute.empty())
             return;
 
-        auto* clonedAttributes = objectManager->CreateAttributes(clonedNode->GetId());
+        auto* clonedAttributes = objectManager->CreateAttributes(clonedNode->GetVersionedId());
 
         FOREACH (const auto& pair, keyToAttribute) {
             YCHECK(clonedAttributes->Attributes().insert(pair).second);
@@ -260,46 +279,6 @@ protected:
 
 private:
     typedef TCypressNodeTypeHandlerBase<TImpl> TThis;
-
-};
-
-//////////////////////////////////////////////////////////////////////////////// 
-
-class TCypressNodeBase
-    : public NObjectServer::TObjectBase
-    , public ICypressNode
-{
-    // Some of these properties also provide overrides for ICypressNode.
-    DEFINE_BYREF_RW_PROPERTY(TLockMap, Locks);
-    DEFINE_BYVAL_RW_PROPERTY(TNodeId, ParentId);
-    DEFINE_BYVAL_RW_PROPERTY(ELockMode, LockMode);
-    DEFINE_BYVAL_RW_PROPERTY(ICypressNode*, TrunkNode);
-    DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, Transaction);
-    DEFINE_BYVAL_RW_PROPERTY(TInstant, CreationTime);
-    DEFINE_BYVAL_RW_PROPERTY(TInstant, ModificationTime);
-    DEFINE_BYVAL_RW_PROPERTY(NSecurityServer::TAccount*, Account);
-    DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TClusterResources, CachedResourceUsage);
-
-public:
-    explicit TCypressNodeBase(const TVersionedNodeId& id);
-
-    virtual NObjectClient::EObjectType GetObjectType() const override;
-    virtual const TVersionedNodeId& GetId() const override;
-
-    virtual int RefObject() override;
-    virtual int UnrefObject() override;
-    virtual int GetObjectRefCounter() const override;
-    virtual bool IsAlive() const override;
-
-    virtual int GetOwningReplicationFactor() const override;
-
-    virtual NSecurityServer::TClusterResources GetResourceUsage() const override;
-
-    virtual void Save(const NCellMaster::TSaveContext& context) const override;
-    virtual void Load(const NCellMaster::TLoadContext& context) override;
-
-protected:
-    TVersionedNodeId Id;
 
 };
 
@@ -376,7 +355,7 @@ class TScalarNodeTypeHandler
     : public TCypressNodeTypeHandlerBase< TScalarNode<TValue> >
 {
 public:
-    TScalarNodeTypeHandler(NCellMaster::TBootstrap* bootstrap)
+    explicit TScalarNodeTypeHandler(NCellMaster::TBootstrap* bootstrap)
         : TBase(bootstrap)
     { }
 
@@ -390,12 +369,12 @@ public:
         return NDetail::TCypressScalarTypeTraits<TValue>::NodeType;
     }
 
-    virtual ICypressNodeProxyPtr GetProxy(
-        ICypressNode* trunkNode,
-        NTransactionServer::TTransaction* transaction) override;
-
 protected:
     typedef TCypressNodeTypeHandlerBase< TScalarNode<TValue> > TBase;
+
+    virtual ICypressNodeProxyPtr DoGetProxy(
+        TScalarNode<TValue>* trunkNode,
+        NTransactionServer::TTransaction* transaction) override;
 
     virtual void DoBranch(
         const TScalarNode<TValue>* originatingNode,
@@ -436,8 +415,8 @@ typedef TScalarNodeTypeHandler<double> TDoubleNodeTypeHandler;
 class TMapNode
     : public TCypressNodeBase
 {
-    typedef yhash_map<Stroka, TNodeId> TKeyToChild;
-    typedef yhash_map<TNodeId, Stroka> TChildToKey;
+    typedef yhash_map<Stroka, TCypressNodeBase*> TKeyToChild;
+    typedef yhash_map<TCypressNodeBase*, Stroka> TChildToKey;
 
     DEFINE_BYREF_RW_PROPERTY(TKeyToChild, KeyToChild);
     DEFINE_BYREF_RW_PROPERTY(TChildToKey, ChildToKey);
@@ -462,13 +441,13 @@ public:
     virtual NObjectClient::EObjectType GetObjectType() override;
     virtual NYTree::ENodeType GetNodeType() override;
 
-    virtual ICypressNodeProxyPtr GetProxy(
-        ICypressNode* trunkNode,
-        NTransactionServer::TTransaction* transaction) override;
-
 private:
     typedef TMapNodeTypeHandler TThis;
     typedef TCypressNodeTypeHandlerBase<TMapNode> TBase;
+
+    virtual ICypressNodeProxyPtr DoGetProxy(
+        TMapNode* trunkNode,
+        NTransactionServer::TTransaction* transaction) override;
 
     virtual void DoDestroy(TMapNode* node) override;
 
@@ -491,8 +470,8 @@ private:
 class TListNode
     : public TCypressNodeBase
 {
-    typedef std::vector<TNodeId> TIndexToChild;
-    typedef yhash_map<TNodeId, int> TChildToIndex;
+    typedef std::vector<TCypressNodeBase*> TIndexToChild;
+    typedef yhash_map<TCypressNodeBase*, int> TChildToIndex;
 
     DEFINE_BYREF_RW_PROPERTY(TIndexToChild, IndexToChild);
     DEFINE_BYREF_RW_PROPERTY(TChildToIndex, ChildToIndex);
@@ -516,13 +495,13 @@ public:
     virtual NObjectClient::EObjectType GetObjectType() override;
     virtual NYTree::ENodeType GetNodeType() override;
 
-    virtual ICypressNodeProxyPtr GetProxy(
-        ICypressNode* trunkNode,
-        NTransactionServer::TTransaction* transaction) override;
-
 private:
     typedef TListNodeTypeHandler TThis;
     typedef TCypressNodeTypeHandlerBase<TListNode> TBase;
+
+    virtual ICypressNodeProxyPtr DoGetProxy(
+        TListNode* trunkNode,
+        NTransactionServer::TTransaction* transaction) override;
 
     virtual void DoDestroy(TListNode* node) override;
 

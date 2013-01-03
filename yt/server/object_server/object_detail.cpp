@@ -2,6 +2,7 @@
 #include "object_detail.h"
 #include "object_manager.h"
 #include "object_service.h"
+#include "attribute_set.h"
 
 #include <ytlib/misc/string.h>
 
@@ -44,48 +45,8 @@ using namespace NMetaState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TObjectBase::TObjectBase()
-    : RefCounter(0)
-{ }
-
-int TObjectBase::RefObject()
-{
-    YASSERT(RefCounter >= 0);
-    return ++RefCounter;
-}
-
-int TObjectBase::UnrefObject()
-{
-    YASSERT(RefCounter > 0);
-    return --RefCounter;
-}
-
-int TObjectBase::GetObjectRefCounter() const
-{
-    return RefCounter;
-}
-
-bool TObjectBase::IsAlive() const
-{
-    return RefCounter > 0;
-}
-
-void TObjectBase::Save(const NCellMaster::TSaveContext& context) const
-{
-    auto* output = context.GetOutput();
-    ::Save(output, RefCounter);
-}
-
-void TObjectBase::Load(const NCellMaster::TLoadContext& context)
-{
-    auto* input = context.GetInput();
-    ::Load(input, RefCounter);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TUnversionedObjectBase::TUnversionedObjectBase(const TObjectId& id)
-    : Id_(id)
+    : TObjectBase(id)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -131,7 +92,7 @@ TUserAttributeDictionary::TUserAttributeDictionary(
 std::vector<Stroka> TUserAttributeDictionary::List() const
 {
     std::vector<Stroka> keys;
-    const auto* attributeSet = ObjectManager->FindAttributes(ObjectId);
+    const auto* attributeSet = ObjectManager->FindAttributes(TVersionedObjectId(ObjectId));
     if (attributeSet) {
         FOREACH (const auto& pair, attributeSet->Attributes()) {
             // Attribute cannot be empty (i.e. deleted) in null transaction.
@@ -144,7 +105,7 @@ std::vector<Stroka> TUserAttributeDictionary::List() const
 
 TNullable<TYsonString> TUserAttributeDictionary::FindYson(const Stroka& key) const
 {
-    const auto* attributeSet = ObjectManager->FindAttributes(ObjectId);
+    const auto* attributeSet = ObjectManager->FindAttributes(TVersionedObjectId(ObjectId));
     if (!attributeSet) {
         return Null;
     }
@@ -161,16 +122,16 @@ void TUserAttributeDictionary::SetYson(
     const Stroka& key,
     const NYTree::TYsonString& value)
 {
-    auto* attributeSet = ObjectManager->FindAttributes(ObjectId);
+    auto* attributeSet = ObjectManager->FindAttributes(TVersionedObjectId(ObjectId));
     if (!attributeSet) {
-        attributeSet = ObjectManager->CreateAttributes(ObjectId);
+        attributeSet = ObjectManager->CreateAttributes(TVersionedObjectId(ObjectId));
     }
     attributeSet->Attributes()[key] = value;
 }
 
 bool TUserAttributeDictionary::Remove(const Stroka& key)
 {
-    auto* attributeSet = ObjectManager->FindAttributes(ObjectId);
+    auto* attributeSet = ObjectManager->FindAttributes(TVersionedObjectId(ObjectId));
     if (!attributeSet) {
         return false;
     }
@@ -182,7 +143,7 @@ bool TUserAttributeDictionary::Remove(const Stroka& key)
     YASSERT(it->second);
     attributeSet->Attributes().erase(it);
     if (attributeSet->Attributes().empty()) {
-        ObjectManager->RemoveAttributes(ObjectId);
+        ObjectManager->RemoveAttributes(TVersionedObjectId(ObjectId));
     }
     return true;
 }
@@ -191,17 +152,25 @@ bool TUserAttributeDictionary::Remove(const Stroka& key)
 
 TObjectProxyBase::TObjectProxyBase(
     TBootstrap* bootstrap,
-    const TObjectId& id)
+    TObjectBase* object)
     : Bootstrap(bootstrap)
-    , Id(id)
-{ }
+    , Object(object)
+{
+    YASSERT(bootstrap);
+    // TODO(babenko): special handling for null transaction
+    //YASSERT(object);
+}
 
 TObjectProxyBase::~TObjectProxyBase()
 { }
 
 const TObjectId& TObjectProxyBase::GetId() const
 {
-    return Id;
+    // TODO(babenko): special handling for null transaction
+    if (!Object) {
+        return NullObjectId;
+    }
+    return Object->GetId();
 }
 
 IAttributeDictionary& TObjectProxyBase::Attributes()
@@ -226,7 +195,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, GetId)
         }
     }
 
-    *response->mutable_object_id() = Id.ToProto();
+    *response->mutable_object_id() = GetId().ToProto();
     context->Reply();
 }
 
@@ -372,7 +341,7 @@ TAutoPtr<IAttributeDictionary> TObjectProxyBase::DoCreateUserAttributes()
 {
     return new TUserAttributeDictionary(
         Bootstrap->GetObjectManager(),
-        Id);
+        GetId());
 }
 
 void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* names) const
@@ -392,13 +361,13 @@ bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* cons
 
     if (key == "type") {
         BuildYsonFluently(consumer)
-            .Value(CamelCaseToUnderscoreCase(TypeFromId(Id).ToString()));
+            .Value(CamelCaseToUnderscoreCase(TypeFromId(GetId()).ToString()));
         return true;
     }
 
     if (key == "ref_counter") {
         BuildYsonFluently(consumer)
-            .Value(Bootstrap->GetObjectManager()->GetObjectRefCounter(Id));
+            .Value(Object->GetObjectRefCounter());
         return true;
     }
 
@@ -419,7 +388,11 @@ bool TObjectProxyBase::SetSystemAttribute(const Stroka& key, const TYsonString& 
 
 TVersionedObjectId TObjectProxyBase::GetVersionedId() const
 {
-    return Id;
+    // TODO(babenko): special hanlding for null transaction
+    if (!Object) {
+        return TVersionedObjectId();
+    }
+    return TVersionedObjectId(Object->GetId());
 }
 
 bool TObjectProxyBase::IsRecovery() const
@@ -441,11 +414,9 @@ void TObjectProxyBase::ValidateActiveLeader() const
 
 TNonversionedObjectProxyNontemplateBase::TNonversionedObjectProxyNontemplateBase(
     NCellMaster::TBootstrap* bootstrap,
-    const TObjectId& id)
-    : TObjectProxyBase(bootstrap, id)
-{
-    YASSERT(bootstrap);
-}
+    TObjectBase* object)
+    : TObjectProxyBase(bootstrap, object)
+{ }
 
 bool TNonversionedObjectProxyNontemplateBase::IsWriteRequest(IServiceContextPtr context) const 
 {
@@ -476,12 +447,12 @@ DEFINE_RPC_SERVICE_METHOD(TNonversionedObjectProxyNontemplateBase, Remove)
 {
     ValidateRemoval();
 
-    auto objectManager = Bootstrap->GetObjectManager();
-    if (objectManager->GetObjectRefCounter(Id) != 1) {
+    if (Object->GetObjectRefCounter() != 1) {
         THROW_ERROR_EXCEPTION("Object is in use");
     }
 
-    objectManager->UnrefObject(Id);
+    auto objectManager = Bootstrap->GetObjectManager();
+    objectManager->UnrefObject(Object);
 
     context->Reply();
 }

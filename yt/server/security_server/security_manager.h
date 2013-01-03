@@ -30,7 +30,7 @@ public:
     DECLARE_METAMAP_ACCESSORS(Account, TAccount, TAccountId);
 
 
-    //! Returns an account with a given name (|NULL| if none).
+    //! Returns an account with a given name (|nullptr| if none).
     TAccount* FindAccountByName(const Stroka& name);
 
     //! Returns the "sys" built-in account.
@@ -41,14 +41,14 @@ public:
 
 
     //! Assigns node to a given account, updates the total resource usage.
-    void SetAccount(NCypressServer::ICypressNode* node, TAccount* account);
+    void SetAccount(NCypressServer::TCypressNodeBase* node, TAccount* account);
 
     //! Removes account association (if any) from the node.
-    void ResetAccount(NCypressServer::ICypressNode* node);
+    void ResetAccount(NCypressServer::TCypressNodeBase* node);
 
 
     //! Updates the account to accommodate recent changes in #node resource usage.
-    void UpdateAccountNodeUsage(NCypressServer::ICypressNode* node);
+    void UpdateAccountNodeUsage(NCypressServer::TCypressNodeBase* node);
 
     //! Updates the staging resource usage for a given account.
     void UpdateAccountStagingUsage(

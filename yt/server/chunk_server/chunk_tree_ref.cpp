@@ -64,6 +64,16 @@ EObjectType TChunkTreeRef::GetType() const
     }
 }
 
+TObjectBase* TChunkTreeRef::AsObject() const
+{
+    switch (Cookie & TypeMask) {
+        case NullType:      return nullptr;
+        case ChunkType:     return CookieToAddress<TChunk>(Cookie);
+        case ChunkListType: return CookieToAddress<TChunkList>(Cookie);
+        default:            YUNREACHABLE();
+    }
+}
+
 TChunk* TChunkTreeRef::AsChunk() const
 {
     YASSERT(GetType() == EObjectType::Chunk);
@@ -79,6 +89,7 @@ TChunkList* TChunkTreeRef::AsChunkList() const
 TChunkTreeId TChunkTreeRef::GetId() const
 {
     switch (Cookie & TypeMask) {
+        case NullType:      return NullChunkTreeId;
         case ChunkType:     return AsChunk()->GetId();
         case ChunkListType: return AsChunkList()->GetId();
         default:            YUNREACHABLE();

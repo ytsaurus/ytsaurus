@@ -39,8 +39,8 @@ public:
     TChunkProxy(
         NCellMaster::TBootstrap* bootstrap,
         TMap* map,
-        const TChunkId& id)
-        : TBase(bootstrap, id, map)
+        TChunk* chunk)
+        : TBase(bootstrap, chunk, map)
     {
         Logger = ChunkServerLogger;
     }
@@ -314,7 +314,7 @@ private:
         // Use the size reported by the client, but check it for consistency first.
         if (!chunk->ValidateChunkInfo(request->chunk_info())) {
             LOG_FATAL("Invalid chunk info reported by client (ChunkId: %s, ExpectedInfo: {%s}, ReceivedInfo: {%s})",
-                ~Id.ToString(),
+                ~chunk->GetId().ToString(),
                 ~chunk->ChunkInfo().DebugString(),
                 ~request->chunk_info().DebugString());
         }
@@ -332,12 +332,12 @@ private:
 IObjectProxyPtr CreateChunkProxy(
     NCellMaster::TBootstrap* bootstrap,
     NMetaState::TMetaStateMap<TChunkId, TChunk>* map,
-    const TChunkId& id)
+    TChunk* chunk)
 {
     return New<TChunkProxy>(
         bootstrap,
         map,
-        id);
+        chunk);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

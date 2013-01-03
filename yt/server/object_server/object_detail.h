@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "object.h"
 #include "object_proxy.h"
 #include "object_manager.h"
 
@@ -16,7 +17,6 @@
 #include <ytlib/object_client/object_ypath.pb.h>
 
 #include <server/cell_master/public.h>
-#include <server/cell_master/serialization_context.h>
 
 #include <server/transaction_server/public.h>
 
@@ -25,56 +25,6 @@
 
 namespace NYT {
 namespace NObjectServer {
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TObjectBase
-    : private TNonCopyable
-{
-public:
-    TObjectBase();
-
-    //! Increments the object's reference counter.
-    /*!
-     *  \returns the incremented counter.
-     */
-    int RefObject();
-
-    //! Decrements the object's reference counter.
-    /*!
-     *  \note
-     *  Objects do not self-destruct, it's callers responsibility to check
-     *  if the counter reaches zero.
-     *  
-     *  \returns the decremented counter.
-     */
-    int UnrefObject();
-
-    //! Returns the current reference counter.
-    int GetObjectRefCounter() const;
-
-    //! Returns True iff the reference counter is non-zero.
-    bool IsAlive() const;
-
-protected:
-    void Save(const NCellMaster::TSaveContext& context) const;
-    void Load(const NCellMaster::TLoadContext& context);
-
-    int RefCounter;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TUnversionedObjectBase
-    : public TObjectBase
-{
-    DEFINE_BYVAL_RO_PROPERTY(TObjectId, Id);
-
-public:
-    explicit TUnversionedObjectBase(const TObjectId& id);
-
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -124,7 +74,7 @@ class TObjectProxyBase
     , public virtual IObjectProxy
 {
 public:
-    TObjectProxyBase(NCellMaster::TBootstrap* bootstrap, const TObjectId& id);
+    TObjectProxyBase(NCellMaster::TBootstrap* bootstrap, TObjectBase* object);
     ~TObjectProxyBase();
 
     // IObjectProxy members
@@ -138,7 +88,7 @@ public:
 
 protected:
     NCellMaster::TBootstrap* Bootstrap;
-    TObjectId Id;
+    TObjectBase* Object;
     TAutoPtr<NYTree::IAttributeDictionary> UserAttributes;
 
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, GetId);
@@ -180,7 +130,7 @@ class TNonversionedObjectProxyNontemplateBase
 public:
     TNonversionedObjectProxyNontemplateBase(
         NCellMaster::TBootstrap* bootstrap,
-        const TObjectId& id);
+        TObjectBase* object);
 
     virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
 
@@ -206,9 +156,9 @@ public:
 
     TNonversionedObjectProxyBase(
         NCellMaster::TBootstrap* bootstrap,
-        const TObjectId& id,
+        TObject* object,
         TMap* map)
-        : TNonversionedObjectProxyNontemplateBase(bootstrap, id)
+        : TNonversionedObjectProxyNontemplateBase(bootstrap, object)
         , Map(map)
     {
         YASSERT(map);
@@ -220,12 +170,12 @@ protected:
 
     const TObject* GetThisTypedImpl() const
     {
-        return Map->Get(GetId());
+        return static_cast<const TObject*>(Object);
     }
 
     TObject* GetThisTypedImpl()
     {
-        return Map->Get(GetId());
+        return static_cast<TObject*>(Object);
     }
 
 };

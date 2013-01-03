@@ -5,7 +5,6 @@
 #include <ytlib/misc/property.h>
 
 #include <server/cell_master/public.h>
-#include <server/cell_master/serialization_context.h>
 
 namespace NYT {
 namespace NChunkServer {

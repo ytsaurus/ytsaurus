@@ -26,12 +26,9 @@ class TAccountProxy
 public:
     TAccountProxy(
         NCellMaster::TBootstrap* bootstrap,
-        const TAccountId& id,
+        TAccount* account,
         TAccountMetaMap* map)
-        : TBase(
-            bootstrap,
-            id,
-            map)
+        : TBase(bootstrap, account, map)
     { }
 
 private:
@@ -40,8 +37,8 @@ private:
     virtual void ValidateRemoval() override
     {
         auto securityManager = Bootstrap->GetSecurityManager();
-        if (Id == securityManager->GetSysAccount()->GetId() ||
-            Id == securityManager->GetTmpAccount()->GetId())
+        if (GetThisTypedImpl() == securityManager->GetSysAccount() ||
+            GetThisTypedImpl() == securityManager->GetTmpAccount())
         {
             THROW_ERROR_EXCEPTION("Cannot remove a built-in account");
         }
@@ -89,12 +86,12 @@ private:
 
 IObjectProxyPtr CreateAccountProxy(
     NCellMaster::TBootstrap* bootstrap,
-    const TAccountId& id,
+    TAccount* account,
     TAccountMetaMap* map)
 {
     return New<TAccountProxy>(
         bootstrap,
-        id,
+        account,
         map);
 }
 

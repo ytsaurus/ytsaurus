@@ -57,7 +57,7 @@ public:
     DECLARE_METAMAP_ACCESSORS(Transaction, TTransaction, TTransactionId);
 
     //! Returns the list of all transaction ids on the path up to the root.
-    //! This list includes #transactionId itself and #NullTransactionId.
+    //! This list includes #transaction itself and |nullptr|.
     std::vector<TTransaction*> GetTransactionPath(TTransaction* transaction) const;
 
     NObjectServer::TObjectId CreateObject(
@@ -70,7 +70,7 @@ public:
 
     void UnstageObject(
         TTransaction* transaction,
-        const NObjectServer::TObjectId& objectId,
+        NObjectServer::TObjectBase* object,
         bool recursive);
 
 private:

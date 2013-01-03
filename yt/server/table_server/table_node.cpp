@@ -3,13 +3,14 @@
 #include "table_node_proxy.h"
 #include "common.h"
 
+#include <ytlib/table_client/schema.h>
+
 #include <server/chunk_server/chunk.h>
 #include <server/chunk_server/chunk_list.h>
 #include <server/chunk_server/chunk_manager.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/serialization_context.h>
-#include <ytlib/table_client/schema.h>
 
 namespace NYT {
 namespace NTableServer {
@@ -73,7 +74,7 @@ TClusterResources TTableNode::GetResourceUsage() const
     const TChunkList* chunkList;
     switch (UpdateMode_) {
         case ETableUpdateMode::None:
-            if (Id.IsBranched()) {
+            if (Transaction_) {
                 return ZeroClusterResources();
             }
             chunkList = ChunkList_;
@@ -129,8 +130,9 @@ public:
         return ENodeType::Entity;
     }
 
-    virtual ICypressNodeProxyPtr GetProxy(
-        ICypressNode* trunkNode,
+protected:
+    virtual ICypressNodeProxyPtr DoGetProxy(
+        TTableNode* trunkNode,
         TTransaction* transaction) override
     {
         return New<TTableNodeProxy>(
@@ -140,7 +142,6 @@ public:
             trunkNode);
     }
 
-protected:
     virtual TAutoPtr<TTableNode> DoCreate(
         TTransaction* transaction,
         TReqCreate* request,
@@ -243,7 +244,7 @@ protected:
             return;
         }
 
-        bool isTopmostCommit = !originatingNode->GetId().IsBranched();
+        bool isTopmostCommit = !originatingNode->GetTransaction();
         bool isRFUpdateNeeded =
             isTopmostCommit &&
             originatingNode->GetReplicationFactor() != branchedNode->GetReplicationFactor() &&

@@ -27,7 +27,7 @@ public:
         NCypressServer::INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
         NTransactionServer::TTransaction* transaction,
-        NCypressServer::ICypressNode* trunkNode);
+        TTableNode* trunkNode);
 
     virtual TResolveResult Resolve(
         const NYPath::TYPath& path,

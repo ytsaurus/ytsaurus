@@ -28,7 +28,7 @@ public:
 private:
     TIntrusivePtr<TCollection> Collection;
 
-    virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const
+    virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
     {
         auto chunks = Collection->GetChunks();
         std::vector<Stroka> keys;
@@ -41,17 +41,17 @@ private:
         return keys;
     }
 
-    virtual size_t GetSize() const
+    virtual size_t GetSize() const override
     {
         return Collection->GetChunkCount();
     }
 
-    virtual IYPathServicePtr GetItemService(const TStringBuf& key) const
+    virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
     {
         auto id = TChunkId::FromString(key);
         auto chunk = Collection->FindChunk(id);
         if (!chunk) {
-            return NULL;
+            return nullptr;
         }
 
         return IYPathService::FromProducer(BIND([=] (IYsonConsumer* consumer) {

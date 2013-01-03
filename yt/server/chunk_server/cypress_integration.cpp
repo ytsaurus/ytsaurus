@@ -3,6 +3,8 @@
 #include "node.h"
 #include "node_statistics.h"
 #include "private.h"
+#include "chunk.h"
+#include "chunk_list.h"
 
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/nullable.h>
@@ -17,6 +19,7 @@
 
 #include <server/cypress_server/virtual.h>
 #include <server/cypress_server/node_proxy_detail.h>
+
 #include <server/chunk_server/chunk_manager.h>
 #include <server/chunk_server/node_authority.h>
 
@@ -75,49 +78,58 @@ private:
         }
     }
 
-    bool CheckFilter(const TChunkId& chunkId) const
+    bool CheckFilter(const TChunkId& id) const
     {
+        if (TypeFromId(id) != EObjectType::Chunk) {
+            return nullptr;
+        }
+
         if (ObjectType == EObjectType::ChunkMap) {
             return true;
         }
 
-        const auto& chunkIds = GetFilteredChunkIds();
-        return chunkIds.find(chunkId) != chunkIds.end();
+        const auto& ids = GetFilteredChunkIds();
+        return ids.find(id) != ids.end();
     }
 
     virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
     {
         if (ObjectType == EObjectType::ChunkMap) {
-            const auto& chunkIds = Bootstrap->GetChunkManager()->GetChunkIds(sizeLimit);
-            return ConvertToStrings(chunkIds.begin(), chunkIds.end(), sizeLimit);
+            auto chunkManager = Bootstrap->GetChunkManager();
+            auto ids = ToObjectIds(chunkManager->GetChunks(sizeLimit));
+            // NB: No size limit is needed here.
+            return ConvertToStrings(ids.begin(), ids.end());
         } else {
-            const auto& chunkIds = GetFilteredChunkIds();
-            return ConvertToStrings(chunkIds.begin(), chunkIds.end(), sizeLimit);
+            const auto& ids = GetFilteredChunkIds();
+            return ConvertToStrings(ids.begin(), ids.end(), sizeLimit);
         }
     }
 
     virtual size_t GetSize() const override
     {
         if (ObjectType == EObjectType::ChunkMap) {
-            return Bootstrap->GetChunkManager()->GetChunkCount();
+            auto chunkManager = Bootstrap->GetChunkManager();
+            return chunkManager->GetChunkCount();
         } else {
             return GetFilteredChunkIds().size();
         }
     }
 
-    virtual IYPathServicePtr GetItemService(const TStringBuf& key) const override
+    virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
     {
         auto id = TChunkId::FromString(key);
-
-        if (TypeFromId(id) != EObjectType::Chunk) {
-            return NULL;
-        }
-
         if (!CheckFilter(id)) {
-            return NULL;
+            return nullptr;
         }
 
-        return Bootstrap->GetObjectManager()->FindProxy(id);
+        auto chunkManager = Bootstrap->GetChunkManager();
+        auto* chunk = chunkManager->FindChunk(id);
+        if (!chunk || !chunk->IsAlive()) {
+            return nullptr;
+        }
+        
+        auto objectManager = Bootstrap->GetObjectManager();
+        return objectManager->GetProxy(chunk);
     }
 };
 
@@ -146,8 +158,10 @@ private:
 
     virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
     {
-        const auto& chunkListIds = Bootstrap->GetChunkManager()->GetChunkListIds(sizeLimit);
-        return ConvertToStrings(chunkListIds.begin(), chunkListIds.end(), sizeLimit);
+        auto chunkManager = Bootstrap->GetChunkManager();
+        auto ids = ToObjectIds(chunkManager->GetChunkLists(sizeLimit));
+        // NB: No size limit is needed here.
+        return ConvertToStrings(ids.begin(), ids.end());
     }
 
     virtual size_t GetSize() const override
@@ -155,13 +169,17 @@ private:
         return Bootstrap->GetChunkManager()->GetChunkListCount();
     }
 
-    virtual IYPathServicePtr GetItemService(const TStringBuf& key) const override
+    virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
     {
+        auto chunkManager = Bootstrap->GetChunkManager();
         auto id = TChunkListId::FromString(key);
-        if (TypeFromId(id) != EObjectType::ChunkList) {
-            return NULL;
+        auto* chunkList = chunkManager->FindChunkList(id);
+        if (!chunkList || !chunkList->IsAlive()) {
+            return nullptr;
         }
-        return Bootstrap->GetObjectManager()->FindProxy(id);
+
+        auto objectManager = Bootstrap->GetObjectManager();
+        return objectManager->GetProxy(chunkList);
     }
 };
 
@@ -219,15 +237,15 @@ INodeAuthorityPtr CreateNodeAuthority(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNodeProxy
+class TDataNodeProxy
     : public TMapNodeProxy
 {
 public:
-    TNodeProxy(
+    TDataNodeProxy(
         INodeTypeHandlerPtr typeHandler,
         TBootstrap* bootstrap,
         NTransactionServer::TTransaction* transaction,
-        ICypressNode* trunkNode)
+        TMapNode* trunkNode)
         : TMapNodeProxy(
             typeHandler,
             bootstrap,
@@ -333,11 +351,12 @@ public:
         return EObjectType::Node;
     }
 
-    virtual ICypressNodeProxyPtr GetProxy(
-        ICypressNode* trunkNode,
+private:
+    virtual ICypressNodeProxyPtr DoGetProxy(
+        TMapNode* trunkNode,
         TTransaction* transaction) override
     {
-        return New<TNodeProxy>(
+        return New<TDataNodeProxy>(
             this,
             Bootstrap,
             transaction,
@@ -358,8 +377,8 @@ class TNodeMapBehavior
     : public TNodeBehaviorBase<TMapNode, TMapNodeProxy>
 {
 public:
-    TNodeMapBehavior(TBootstrap* bootstrap, const NCypressServer::TNodeId& nodeId)
-        : TNodeBehaviorBase<TMapNode, TMapNodeProxy>(bootstrap, nodeId)
+    TNodeMapBehavior(TBootstrap* bootstrap, TMapNode* trunkNode)
+        : TNodeBehaviorBase<TMapNode, TMapNodeProxy>(bootstrap, trunkNode)
     {
         bootstrap->GetChunkManager()->SubscribeNodeRegistered(BIND(
             &TNodeMapBehavior::OnRegistered,
@@ -388,16 +407,13 @@ private:
         if (proxy->FindChild(address))
             return;
 
-        auto cypressManager = Bootstrap->GetCypressManager();
-        auto service = cypressManager->GetVersionedNodeProxy(NodeId);
-
         // TODO(babenko): make a single transaction
         // TODO(babenko): check for errors and retry
 
         {
             auto req = TCypressYPathProxy::Create("/" + ToYPathLiteral(address));
             req->set_type(EObjectType::Node);
-            ExecuteVerb(service, req);
+            ExecuteVerb(proxy, req);
         }
 
         {
@@ -408,21 +424,21 @@ private:
             attributes->Set("remote_address", address);
             ToProto(req->mutable_node_attributes(), *attributes);
 
-            ExecuteVerb(service, req);
+            ExecuteVerb(proxy, req);
         }
     }
 
 };
 
-class TNodeMapProxy
+class TDataNodeMapProxy
     : public TMapNodeProxy
 {
 public:
-    TNodeMapProxy(
+    TDataNodeMapProxy(
         INodeTypeHandlerPtr typeHandler,
         TBootstrap* bootstrap,
         NTransactionServer::TTransaction* transaction,
-        ICypressNode* trunkNode)
+        TMapNode* trunkNode)
         : TMapNodeProxy(
             typeHandler,
             bootstrap,
@@ -552,22 +568,23 @@ public:
         return EObjectType::NodeMap;
     }
     
-    virtual ICypressNodeProxyPtr GetProxy(
-        ICypressNode* trunkNode,
+private:
+    virtual ICypressNodeProxyPtr DoGetProxy(
+        TMapNode* trunkNode,
         TTransaction* transaction) override
     {
-        return New<TNodeMapProxy>(
+        return New<TDataNodeMapProxy>(
             this,
             Bootstrap,
             transaction,
             trunkNode);
     }
 
-    virtual INodeBehaviorPtr CreateBehavior(
-        const NCypressServer::TNodeId& nodeId) override
+    virtual INodeBehaviorPtr DoCreateBehavior(TMapNode* trunkNode) override
     {
-        return New<TNodeMapBehavior>(Bootstrap, nodeId);
+        return New<TNodeMapBehavior>(Bootstrap, trunkNode);
     }
+
 };
 
 INodeTypeHandlerPtr CreateNodeMapTypeHandler(TBootstrap* bootstrap)

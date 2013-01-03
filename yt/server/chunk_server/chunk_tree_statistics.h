@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <ytlib/ytree/public.h>
+#include <ytlib/yson/public.h>
 
-#include <server/cell_master/serialization_context.h>
+#include <server/cell_master/public.h>
 
 namespace NYT {
 namespace NChunkServer {

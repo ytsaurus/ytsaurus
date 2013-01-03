@@ -8,8 +8,6 @@
 #include <ytlib/ytree/ephemeral_node_factory.h>
 #include <ytlib/ytree/ypath_detail.h>
 
-#include <server/cypress_server/virtual.h>
-
 #include <ytlib/orchid/orchid_service_proxy.h>
 
 #include <ytlib/rpc/channel.h>
@@ -21,8 +19,10 @@
 #include <server/cell_master/bootstrap.h>
 
 #include <server/object_server/object_manager.h>
+#include <server/object_server/object_proxy.h>
 
 #include <server/cypress_server/node.h>
+#include <server/cypress_server/virtual.h>
 
 namespace NYT {
 namespace NOrchid {
@@ -50,12 +50,14 @@ class TOrchidYPathService
 public:
     TOrchidYPathService(
         TBootstrap* bootstrap,
-        ICypressNode* node,
+        TCypressNodeBase* trunkNode,
         TTransaction* transaction)
         : Bootstrap(bootstrap)
-        , Node(node)
+        , TrunkNode(trunkNode)
         , Transaction(transaction)
-    { }
+    {
+        YASSERT(trunkNode->IsTrunk());
+    }
 
     TResolveResult Resolve(
         const TYPath& path,
@@ -129,13 +131,13 @@ public:
 
 private:
     TBootstrap* Bootstrap;
-    ICypressNode* Node;
+    TCypressNodeBase* TrunkNode;
     TTransaction* Transaction;
 
     TOrchidManifest::TPtr LoadManifest()
     {
         auto objectManager = Bootstrap->GetObjectManager();
-        auto proxy = objectManager->GetProxy(Node->GetId().ObjectId, Transaction);
+        auto proxy = objectManager->GetProxy(TrunkNode, Transaction);
         auto manifest = New<TOrchidManifest>();
         auto manifestNode = ConvertToNode(proxy->Attributes());
         try {
@@ -181,7 +183,7 @@ INodeTypeHandlerPtr CreateOrchidTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::Orchid,
-        BIND([=] (ICypressNode* trunkNode, TTransaction* transaction) -> IYPathServicePtr {
+        BIND([=] (TCypressNodeBase* trunkNode, TTransaction* transaction) -> IYPathServicePtr {
             return New<TOrchidYPathService>(bootstrap, trunkNode, transaction);
         }));
 }

@@ -41,7 +41,7 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(
     tokenizer.Advance();
     tokenizer.Expect(NYPath::ETokenType::Literal);
     auto key = tokenizer.GetLiteralValue();
-    auto service = GetItemService(key);
+    auto service = FindItemService(key);
     if (!service) {
         // TODO(babenko): improve diagnostics
         THROW_ERROR_EXCEPTION("Node has no child with key: %s",
@@ -67,8 +67,6 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr co
 
     TStringStream stream;
     TYsonWriter writer(&stream, EYsonFormat::Binary);
-    // TODO(MRoizner): use fluent
-    BuildYsonFluently(&writer);
 
     if (keys.size() != size) {
         writer.OnBeginAttributes();
@@ -79,10 +77,12 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr co
 
     writer.OnBeginMap();
     FOREACH (const auto& key, keys) {
-        writer.OnKeyedItem(key);
-        auto service = GetItemService(key);
-        service->SerializeAttributes(&writer, attributeFilter);
-        writer.OnEntity();
+        auto service = FindItemService(key);
+        if (service) {
+            writer.OnKeyedItem(key);
+            service->SerializeAttributes(&writer, attributeFilter);
+            writer.OnEntity();
+        }
     }
     writer.OnEndMap();
 
@@ -115,10 +115,12 @@ void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPt
 
     writer.OnBeginList();
     FOREACH (const auto& key, keys) {
-        writer.OnListItem();
-        auto service = GetItemService(key);
-        service->SerializeAttributes(&writer, attributeFilter);
-        writer.OnStringScalar(key);
+        auto service = FindItemService(key);
+        if (service) {
+            writer.OnListItem();
+            service->SerializeAttributes(&writer, attributeFilter);
+            writer.OnStringScalar(key);
+        }
     }
     writer.OnEndList();
 

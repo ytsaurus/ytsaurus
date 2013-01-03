@@ -13,20 +13,20 @@ namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-yhash_map<Stroka, TNodeId> GetMapNodeChildren(
+yhash_map<Stroka, TCypressNodeBase*> GetMapNodeChildren(
     NCellMaster::TBootstrap* bootstrap,
-    const TNodeId& nodeId,
+    TCypressNodeBase* trunkNode,
     NTransactionServer::TTransaction* transaction);
 
-TVersionedNodeId FindMapNodeChild(
+TCypressNodeBase* FindMapNodeChild(
     NCellMaster::TBootstrap* bootstrap,
-    const TNodeId& nodeId,
+    TCypressNodeBase* trunkNode,
     NTransactionServer::TTransaction* transaction,
     const Stroka& key);
 
 yhash_map<Stroka, NYTree::TYsonString> GetNodeAttributes(
     NCellMaster::TBootstrap* bootstrap,
-    const TNodeId& nodeId,
+    TCypressNodeBase* trunkNode,
     NTransactionServer::TTransaction* transaction);
 
 ////////////////////////////////////////////////////////////////////////////////

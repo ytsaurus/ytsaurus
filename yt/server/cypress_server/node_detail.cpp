@@ -3,10 +3,6 @@
 #include "node_proxy_detail.h"
 #include "helpers.h"
 
-#include <ytlib/ytree/fluent.h>
-
-#include <server/security_server/account.h>
-
 #include <server/cell_master/serialization_context.h>
 #include <server/cell_master/bootstrap.h>
 
@@ -17,7 +13,6 @@ using namespace NYTree;
 using namespace NTransactionServer;
 using namespace NCellMaster;
 using namespace NObjectClient;
-using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,98 +34,6 @@ namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id)
-    : ParentId_(NullObjectId)
-    , LockMode_(ELockMode::None)
-    , TrunkNode_(NULL)
-    , Transaction_(NULL)
-    , CreationTime_(0)
-    , ModificationTime_(0)
-    , Account_(NULL)
-    , CachedResourceUsage_(ZeroClusterResources())
-    , Id(id)
-{ }
-
-EObjectType TCypressNodeBase::GetObjectType() const
-{
-    return TypeFromId(Id.ObjectId);
-}
-
-const TVersionedNodeId& TCypressNodeBase::GetId() const
-{
-    return Id;
-}
-
-int TCypressNodeBase::RefObject()
-{
-    YASSERT(!Id.IsBranched());
-    return TObjectBase::RefObject();
-}
-
-int TCypressNodeBase::UnrefObject()
-{
-    YASSERT(!Id.IsBranched());
-    return TObjectBase::UnrefObject();
-}
-
-int TCypressNodeBase::GetObjectRefCounter() const
-{
-    return TObjectBase::GetObjectRefCounter();
-}
-
-bool TCypressNodeBase::IsAlive() const 
-{
-    return TObjectBase::IsAlive();
-}
-
-int TCypressNodeBase::GetOwningReplicationFactor() const 
-{
-    YUNREACHABLE();
-}
-
-void TCypressNodeBase::Save(const NCellMaster::TSaveContext& context) const
-{
-    TObjectBase::Save(context);
-
-    auto* output = context.GetOutput();
-    SaveObjectRefs(output, Locks_);
-    ::Save(output, ParentId_);
-    ::Save(output, LockMode_);
-    ::Save(output, CreationTime_);
-    ::Save(output, ModificationTime_);
-    SaveObjectRef(output, Account_);
-    NSecurityServer::Save(output, CachedResourceUsage_);
-}
-
-void TCypressNodeBase::Load(const TLoadContext& context)
-{
-    TObjectBase::Load(context);
-
-    auto* input = context.GetInput();
-    LoadObjectRefs(input, Locks_, context);
-    ::Load(input, ParentId_);
-    ::Load(input, LockMode_);
-    ::Load(input, CreationTime_);
-    ::Load(input, ModificationTime_);
-    LoadObjectRef(input, Account_, context);
-    NSecurityServer::Load(input, CachedResourceUsage_);
-
-    if (Id.IsBranched()) {
-        TrunkNode_ = context.Get<ICypressNode>(TVersionedObjectId(Id.ObjectId));
-        Transaction_ = context.Get<TTransaction>(Id.TransactionId);
-    } else {
-        TrunkNode_ = this;
-        Transaction_ = NULL;
-    }
-}
-
-TClusterResources TCypressNodeBase::GetResourceUsage() const 
-{
-    return ZeroClusterResources();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TMapNode::TMapNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
     , ChildCountDelta_(0)
@@ -142,7 +45,16 @@ void TMapNode::Save(const NCellMaster::TSaveContext& context) const
 
     auto* output = context.GetOutput();
     ::Save(output, ChildCountDelta_);
-    SaveMap(output, KeyToChild());
+    // TODO(babenko): refactor when new serialization API is ready
+    auto keyIts = GetSortedIterators(KeyToChild_);
+    SaveSize(output, keyIts.size());
+    FOREACH (auto it, keyIts) {
+        const auto& key = it->first;
+        NYT::Save(output, key);
+        const auto* node = it->second;
+        auto id = node ? node->GetId() : NullObjectId;
+        NYT::Save(output, id);
+    }
 }
 
 void TMapNode::Load(const NCellMaster::TLoadContext& context)
@@ -151,11 +63,16 @@ void TMapNode::Load(const NCellMaster::TLoadContext& context)
 
     auto* input = context.GetInput();
     ::Load(input, ChildCountDelta_);
-    LoadMap(input, KeyToChild());
-    FOREACH (const auto& pair, KeyToChild()) {
-        if (pair.second != NullObjectId) {
-            ChildToKey().insert(std::make_pair(pair.second, pair.first));
-        }
+    // TODO(babenko): refactor when new serialization API is ready
+    size_t count = LoadSize(input);
+    for (size_t index = 0; index != count; ++index) {
+        Stroka key;
+        ::Load(input, key);
+        TNodeId id;
+        NYT::Load(input, id);
+        auto* node = id == NullObjectId ? NULL : context.Get<TCypressNodeBase>(id);
+        YCHECK(KeyToChild_.insert(std::make_pair(key, node)).second);
+        YCHECK(ChildToKey_.insert(std::make_pair(node, key)).second);
     }
 }
 
@@ -182,8 +99,9 @@ void TMapNodeTypeHandler::DoDestroy(TMapNode* node)
     // Drop references to the children.
     auto objectManager = Bootstrap->GetObjectManager();
     FOREACH (const auto& pair, node->KeyToChild()) {
-        if (pair.second != NullObjectId) {
-            objectManager->UnrefObject(pair.second);
+        auto* node = pair.second;
+        if (node) {
+            objectManager->UnrefObject(node);
         }
     }
 }
@@ -205,49 +123,51 @@ void TMapNodeTypeHandler::DoMerge(
     auto transactionManager = Bootstrap->GetTransactionManager();
     auto cypressManager = Bootstrap->GetCypressManager();
 
-    const auto& originatingId = originatingNode->GetId();
+    bool isOriginatingNodeBranched = originatingNode->GetTransaction();
+
     auto& keyToChild = originatingNode->KeyToChild();
     auto& childToKey = originatingNode->ChildToKey();
 
     FOREACH (const auto& pair, branchedNode->KeyToChild()) {
         const auto& key = pair.first;
-        const auto& childId = pair.second;
+        auto* childTrunkNode = pair.second;
 
         auto it = keyToChild.find(key);
-        if (childId == NullObjectId) {
+        if (childTrunkNode) {
+            if (it == keyToChild.end()) {
+                // Originating: missing
+                YCHECK(childToKey.insert(std::make_pair(childTrunkNode, key)).second);
+                YCHECK(keyToChild.insert(std::make_pair(key, childTrunkNode)).second);
+            } else if (it->second) {
+                // Originating: present
+                objectManager->UnrefObject(it->second);
+                YCHECK(childToKey.erase(it->second) == 1);
+                YCHECK(childToKey.insert(std::make_pair(childTrunkNode, key)).second);
+                it->second = childTrunkNode;;
+            } else {
+                // Originating: tombstone
+                it->second = childTrunkNode;
+                YCHECK(childToKey.insert(std::make_pair(childTrunkNode, key)).second);
+            }
+        } else {
             // Branched: tombstone
             if (it == keyToChild.end()) {
                 // Originating: missing
-                if (originatingId.IsBranched()) {
-                    YCHECK(keyToChild.insert(std::make_pair(key, NullObjectId)).second);
+                if (isOriginatingNodeBranched) {
+                    // TODO(babenko): remove cast when GCC supports native nullptr
+                    YCHECK(keyToChild.insert(std::make_pair(key, (TCypressNodeBase*) nullptr)).second);
                 }
-            } else if (it->second == NullObjectId) {
-                // Originating: tombstone
-            } else {
+            } else if (it->second) {
                 // Originating: present
                 objectManager->UnrefObject(it->second);
                 YCHECK(childToKey.erase(it->second) == 1);
-                if (originatingId.IsBranched()) {
-                    it->second = NullObjectId;
+                if (isOriginatingNodeBranched) {
+                    it->second = nullptr;
                 } else {
                     keyToChild.erase(it);
                 }
-            }
-        } else {
-            if (it == keyToChild.end()) {
-                // Originating: missing
-                YCHECK(childToKey.insert(std::make_pair(childId, key)).second);
-                YCHECK(keyToChild.insert(std::make_pair(key, childId)).second);
-            } else if (it->second == NullObjectId) {
-                // Originating: tombstone
-                it->second = childId;;
-                YCHECK(childToKey.insert(std::make_pair(childId, key)).second);
             } else {
-                // Originating: present
-                objectManager->UnrefObject(it->second);
-                YCHECK(childToKey.erase(it->second) == 1);
-                YCHECK(childToKey.insert(std::make_pair(childId, key)).second);
-                it->second = childId;;
+                // Originating: tombstone
             }
         }
     }
@@ -255,12 +175,10 @@ void TMapNodeTypeHandler::DoMerge(
     originatingNode->ChildCountDelta() += branchedNode->ChildCountDelta();
 }
 
-ICypressNodeProxyPtr TMapNodeTypeHandler::GetProxy(
-    ICypressNode* trunkNode,
+ICypressNodeProxyPtr TMapNodeTypeHandler::DoGetProxy(
+    TMapNode* trunkNode,
     TTransaction* transaction)
 {
-    YASSERT(!trunkNode->GetId().IsBranched());
-    YASSERT(trunkNode->GetTrunkNode() == trunkNode);
     return New<TMapNodeProxy>(
         this,
         Bootstrap,
@@ -275,14 +193,14 @@ void TMapNodeTypeHandler::DoClone(
 {
     TBase::DoClone(sourceNode, clonedNode, transaction);
 
-    auto keyToChildMap = GetMapNodeChildren(Bootstrap, sourceNode->GetId().ObjectId, transaction);
-    std::vector< std::pair<Stroka, TNodeId> > keyToChildList(keyToChildMap.begin(), keyToChildMap.end());
+    auto keyToChildMap = GetMapNodeChildren(Bootstrap, sourceNode->GetTrunkNode(), transaction);
+    std::vector< std::pair<Stroka, TCypressNodeBase*> > keyToChildList(keyToChildMap.begin(), keyToChildMap.end());
 
     // Sort children by key to ensure deterministic ids generation.
     std::sort(
         keyToChildList.begin(),
         keyToChildList.end(),
-        [] (const std::pair<Stroka, TNodeId>& lhs, const std::pair<Stroka, TNodeId>& rhs) {
+        [] (const std::pair<Stroka, TCypressNodeBase*>& lhs, const std::pair<Stroka, TCypressNodeBase*>& rhs) {
             return lhs.first < rhs.first;
         });
 
@@ -291,18 +209,18 @@ void TMapNodeTypeHandler::DoClone(
 
     FOREACH (const auto& pair, keyToChildList) {
         const auto& key = pair.first;
-        const auto& childId = pair.second;
+        auto* childTrunkNode = pair.second;
         
-        auto* childNode = cypressManager->GetVersionedNode(childId, transaction);
+        auto* childNode = cypressManager->GetVersionedNode(childTrunkNode, transaction);
         
         auto* clonedChildNode = cypressManager->CloneNode(childNode, transaction);
-        const auto& clonedChildId = clonedChildNode->GetId().ObjectId;
+        auto* clonedTrunkChildNode = clonedChildNode->GetTrunkNode();
 
-        YCHECK(clonedNode->KeyToChild().insert(std::make_pair(key, clonedChildId)).second);
-        YCHECK(clonedNode->ChildToKey().insert(std::make_pair(clonedChildId, key)).second);
+        YCHECK(clonedNode->KeyToChild().insert(std::make_pair(key, clonedTrunkChildNode)).second);
+        YCHECK(clonedNode->ChildToKey().insert(std::make_pair(clonedTrunkChildNode, key)).second);
         
-        clonedChildNode->SetParentId(clonedNode->GetId().ObjectId);
-        objectManager->RefObject(clonedChildNode);
+        clonedChildNode->SetParent(clonedNode->GetTrunkNode());
+        objectManager->RefObject(clonedTrunkChildNode);
         ++clonedNode->ChildCountDelta();
     }
 }
@@ -318,7 +236,11 @@ void TListNode::Save(const NCellMaster::TSaveContext& context) const
     TCypressNodeBase::Save(context);
 
     auto* output = context.GetOutput();
-    ::Save(output, IndexToChild());
+    // TODO(babenko): refactor when new serialization API is ready
+    SaveSize(output, IndexToChild_.size());
+    FOREACH (auto* node, IndexToChild_) {
+        NYT::Save(output, node->GetId());
+    }
 }
 
 void TListNode::Load(const NCellMaster::TLoadContext& context)
@@ -326,9 +248,15 @@ void TListNode::Load(const NCellMaster::TLoadContext& context)
     TCypressNodeBase::Load(context);
 
     auto* input = context.GetInput();
-    ::Load(input, IndexToChild());
-    for (int i = 0; i < IndexToChild().size(); ++i) {
-        ChildToIndex()[IndexToChild()[i]] = i;
+    // TODO(babenko): refactor when new serialization API is ready
+    size_t count = LoadSize(input);
+    IndexToChild_.resize(count);
+    for (size_t index = 0; index != count; ++index) {
+        TNodeId id;
+        NYT::Load(input, id);
+        auto* node = context.Get<TCypressNodeBase>(id);
+        IndexToChild_[index] = node;
+        YCHECK(ChildToIndex_.insert(std::make_pair(node, index)).second);
     }
 }
 
@@ -348,8 +276,8 @@ ENodeType TListNodeTypeHandler::GetNodeType()
     return ENodeType::List;
 }
 
-ICypressNodeProxyPtr TListNodeTypeHandler::GetProxy(
-    ICypressNode* trunkNode,
+ICypressNodeProxyPtr TListNodeTypeHandler::DoGetProxy(
+    TListNode* trunkNode,
     TTransaction* transaction)
 {
     return New<TListNodeProxy>(
@@ -365,8 +293,8 @@ void TListNodeTypeHandler::DoDestroy(TListNode* node)
 
     // Drop references to the children.
     auto objectManager = Bootstrap->GetObjectManager();
-    FOREACH (const auto& nodeId, node->IndexToChild()) {
-        objectManager->UnrefObject(nodeId);
+    FOREACH (auto* node, node->IndexToChild()) {
+        objectManager->UnrefObject(node);
     }
 }
 
@@ -381,8 +309,8 @@ void TListNodeTypeHandler::DoBranch(
 
     // Reference all children.
     auto objectManager = Bootstrap->GetObjectManager();
-    FOREACH (const auto& nodeId, originatingNode->IndexToChild()) {
-        objectManager->RefObject(nodeId);
+    FOREACH (auto* node, originatingNode->IndexToChild()) {
+        objectManager->RefObject(node);
     }
 }
 
@@ -394,8 +322,8 @@ void TListNodeTypeHandler::DoMerge(
 
     // Drop all references held by the originator.
     auto objectManager = Bootstrap->GetObjectManager();
-    FOREACH (const auto& nodeId, originatingNode->IndexToChild()) {
-        objectManager->UnrefObject(nodeId);
+    FOREACH (auto* node, originatingNode->IndexToChild()) {
+        objectManager->UnrefObject(node);
     }
 
     // Replace the child list with the branched copy.
@@ -415,17 +343,15 @@ void TListNodeTypeHandler::DoClone(
 
     const auto& indexToChild = sourceNode->IndexToChild();
     for (int index = 0; index < indexToChild.size(); ++index) {
-        const auto& childId = indexToChild[index];
-        auto* childNode = cypressManager->GetVersionedNode(childId, transaction);
-
+        auto* childNode = indexToChild[index];
         auto* clonedChildNode = cypressManager->CloneNode(childNode, transaction);
-        const auto& clonedChildId = clonedChildNode->GetId().ObjectId;
+        auto* clonedChildTrunkNode = clonedChildNode->GetTrunkNode();
 
-        clonedNode->IndexToChild().push_back(clonedChildId);
-        YCHECK(clonedNode->ChildToIndex().insert(std::make_pair(clonedChildId, index)).second);
+        clonedNode->IndexToChild().push_back(clonedChildTrunkNode);
+        YCHECK(clonedNode->ChildToIndex().insert(std::make_pair(clonedChildTrunkNode, index)).second);
 
-        clonedChildNode->SetParentId(clonedNode->GetId().ObjectId);
-        objectManager->RefObject(clonedChildNode);
+        clonedChildNode->SetParent(clonedNode->GetTrunkNode());
+        objectManager->RefObject(clonedChildTrunkNode);
     }
 }
 
