@@ -140,7 +140,7 @@ TLocationPtr TChunkStore::GetNewChunkLocation()
     std::vector<TLocationPtr> candidates;
     candidates.reserve(Locations_.size());
 
-    int minCount = Max<int>();
+    int minCount = std::numeric_limits<int>::max();
     FOREACH (const auto& location, Locations_) {
         if (location->IsFull() || !location->IsEnabled()) {
             continue;
