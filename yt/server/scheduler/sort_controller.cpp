@@ -24,6 +24,8 @@
 
 #include <ytlib/transaction_client/transaction.h>
 
+#include <util/random/random.h>
+
 #include <cmath>
 
 namespace NYT {
