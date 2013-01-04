@@ -195,15 +195,13 @@ public:
     {
         double usageRatio = GetUsageRatio();
 
-        if (usageRatio < Attributes_.AdjustedMinShareRatio * Config->MinShareTolerance) {
-            return EOperationStatus::BelowMinShare;
-        }
-
         if (usageRatio < Attributes_.FairShareRatio * Config->FairShareTolerance) {
-            return EOperationStatus::BelowFairShare;
+            return usageRatio < Attributes_.AdjustedMinShareRatio
+                   ? EOperationStatus::BelowMinShare
+                   : EOperationStatus::BelowFairShare;
+        } else {
+            return EOperationStatus::Normal;
         }
-
-        return EOperationStatus::Normal;
     }
 
 
