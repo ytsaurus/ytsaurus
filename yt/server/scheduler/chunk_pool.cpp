@@ -549,7 +549,6 @@ private:
     {
         i64 idealDataSizePerJob = GetTotalDataSize() / GetTotalJobCount();
         i64 pendingJobCount = GetPendingJobCount();
-        i64 pendingDataSize = GetPendingDataSize();
 
         size_t oldSize = list->Stripes.size();
         for (auto it = begin; it != end; ++it) {
@@ -559,8 +558,10 @@ private:
             i64 stripeRowCount;
             GetStatistics(stripe, &stripeDataSize, &stripeRowCount);
             
+            i64 pendingDataSize = GetPendingDataSize() - list->TotalDataSize;
+
             bool take;
-            if (pendingJobCount == 1) {
+            if (pendingJobCount == 1 || list->TotalDataSize == 0) {
                 take = true;
             } else {
                 i64 takeSizePerJob = (pendingDataSize - stripeDataSize) / (pendingJobCount - 1);
@@ -570,7 +571,8 @@ private:
 
             if (take) {
                 AddStripeToList(stripe, stripeDataSize, stripeRowCount, list, address);
-                pendingDataSize -= stripeDataSize;
+            } else {
+                break;
             }
         }
         size_t newSize = list->Stripes.size();
