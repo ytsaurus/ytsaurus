@@ -252,7 +252,11 @@ public:
 
         ExtractedList = New<TChunkStripeList>();
         FOREACH (const auto& suspendableStripe, Stripes) {
-            YCHECK(TryAddStripeToList(suspendableStripe.GetStripe(), ExtractedList, address));
+            auto stripe = suspendableStripe.GetStripe();
+            i64 stripeDataSize;
+            i64 stripeRowCount;
+            GetStatistics(stripe, &stripeDataSize, &stripeRowCount);
+            AddStripeToList(stripe, stripeDataSize, stripeRowCount, ExtractedList, address);
         }
 
         DataSizeCounter.Start(ExtractedList->TotalDataSize);
@@ -394,21 +398,15 @@ public:
 
     virtual IChunkPoolOutput::TCookie Extract(const Stroka& address) override
     {
+        YCHECK(Finished);
+
         TChunkStripeListPtr list;
         IChunkPoolOutput::TCookie cookie;
 
         if (LostCookies.empty()) {
-            int pendingJobCount = GetPendingJobCount();
-            i64 pendingDataSize = GetPendingDataSize();
-
-            if (pendingJobCount == 0) {
+            if (GetPendingDataSize() == 0) {
                 return IChunkPoolOutput::NullCookie;
             }
-
-            i64 threshold =
-                pendingJobCount > 1
-                ? static_cast<i64>(std::ceil((double) pendingDataSize / pendingJobCount))
-                : std::numeric_limits<i64>::max();
 
             cookie = OutputCookieGenerator.Next();
             list = New<TChunkStripeList>();
@@ -422,7 +420,6 @@ public:
                     list,
                     entry.Stripes.begin(),
                     entry.Stripes.end(),
-                    threshold,
                     address);
             }
 
@@ -431,7 +428,6 @@ public:
                 list,
                 GlobalChunks.begin(),
                 GlobalChunks.end(),
-                threshold,
                 address);
         } else {
             cookie = LostCookies.back();
@@ -549,16 +545,35 @@ private:
         TChunkStripeListPtr list,
         const TIterator& begin,
         const TIterator& end,
-        i64 dataSizeThreshold,
         const Stroka& address)
     {
+        i64 idealDataSizePerJob = GetTotalDataSize() / GetTotalJobCount();
+
         size_t oldSize = list->Stripes.size();
         for (auto it = begin; it != end; ++it) {
-            if (!TryAddStripeToList(*it, list, address, dataSizeThreshold)) {
-                break;
+            const auto& stripe = *it;
+            
+            i64 stripeDataSize;
+            i64 stripeRowCount;
+            GetStatistics(stripe, &stripeDataSize, &stripeRowCount);
+            
+            i64 pendingJobCount = GetPendingJobCount();
+            i64 pendingDataSize = GetPendingDataSize();
+            
+            bool take;
+            if (pendingJobCount == 1) {
+            } else {
+                i64 takeSizePerJob = (pendingDataSize - stripeDataSize) / (pendingJobCount - 1);
+                i64 skipSizePerJob = pendingDataSize / (pendingJobCount - 1);
+                take = abs(idealDataSizePerJob - takeSizePerJob) < abs(idealDataSizePerJob - skipSizePerJob);
+            }
+
+            if (take) {
+                AddStripeToList(stripe, stripeDataSize, stripeRowCount, list, address);
             }
         }
         size_t newSize = list->Stripes.size();
+
         for (size_t index = oldSize; index < newSize; ++index) {
             Unregister(list->Stripes[index]);
         }
@@ -990,22 +1005,14 @@ void GetStatistics(
     }
 }
 
-bool TryAddStripeToList(
+void AddStripeToList(
     const TChunkStripePtr& stripe,
+    i64 stripeDataSize,
+    i64 stripeRowCount,
     const TChunkStripeListPtr& list,
-    const TNullable<Stroka>& address,
-    i64 dataSizeThreshold)
+    const TNullable<Stroka>& address)
 {
-    i64 stripeDataSize;
-    i64 stripeRowCount;
-    GetStatistics(stripe, &stripeDataSize, &stripeRowCount);
-
-    if (list->TotalChunkCount > 0 && list->TotalDataSize + stripeDataSize > dataSizeThreshold) {
-        return false;
-    }
-
     list->Stripes.push_back(stripe);
-    
     list->TotalDataSize += stripeDataSize;
     list->TotalRowCount += stripeRowCount;
 
@@ -1027,8 +1034,6 @@ bool TryAddStripeToList(
     } else {
         list->NonLocalChunkCount += stripe->Chunks.size();
     }
-
-    return true;
 }
 
 ////////////////////////////////////////////////////////////////////

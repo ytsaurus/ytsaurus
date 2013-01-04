@@ -128,11 +128,12 @@ void GetStatistics(
     i64* totalDataSize = NULL,
     i64* totalRowCount = NULL);
 
-bool TryAddStripeToList(
+void AddStripeToList(
     const TChunkStripePtr& stripe,
+    i64 stripeDataSize,
+    i64 stripeRowCount,
     const TChunkStripeListPtr& list,
-    const TNullable<Stroka>& address = Null,
-    i64 dataSizeThreshold = std::numeric_limits<i64>::max());
+    const TNullable<Stroka>& address = Null);
 
 ////////////////////////////////////////////////////////////////////////////////
 
