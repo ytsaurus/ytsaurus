@@ -303,6 +303,7 @@ struct TSortOperationSpecBase
 
     TDuration PartitionLocalityTimeout;
     TDuration SortLocalityTimeout;
+    TDuration SortSplay;
     TDuration MergeLocalityTimeout;
 
     int ShuffleNetworkLimit;
@@ -332,6 +333,10 @@ struct TSortOperationSpecBase
         Register("merge_start_threshold", MergeStartThreshold)
             .Default(0.9)
             .InRange(0.0, 1.0);
+        Register("sort_locality_timeout", SortLocalityTimeout)
+            .Default(TDuration::Minutes(1));
+        Register("sort_splay", SortSplay)
+            .Default(TDuration::Seconds(5));
         Register("shuffle_network_limit", ShuffleNetworkLimit)
             .Default(10);
     }
@@ -397,8 +402,6 @@ struct TSortOperationSpec
             .Default(TDuration::Seconds(5));
         Register("partition_locality_timeout", PartitionLocalityTimeout)
             .Default(TDuration::Seconds(5));
-        Register("sort_locality_timeout", SortLocalityTimeout)
-            .Default(TDuration::Minutes(1));
         Register("merge_locality_timeout", MergeLocalityTimeout)
             .Default(TDuration::Minutes(1));
 
@@ -460,8 +463,6 @@ struct TMapReduceOperationSpec
             .GreaterThan(0);
         Register("map_locality_timeout", PartitionLocalityTimeout)
             .Default(TDuration::Seconds(5));
-        Register("sort_locality_timeout", SortLocalityTimeout)
-            .Default(TDuration::Minutes(1));
         Register("reduce_locality_timeout", MergeLocalityTimeout)
             .Default(TDuration::Minutes(1));
         Register("enable_table_index", EnableTableIndex)

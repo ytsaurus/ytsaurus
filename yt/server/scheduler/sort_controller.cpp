@@ -559,7 +559,7 @@ protected:
         {
             return
                 Partition->AddressToSortedDataSize.empty()
-                ? TDuration::Zero()
+                ? RandomDuration(Controller->Spec->SortSplay)
                 : Controller->Spec->SortLocalityTimeout;
         }
 
