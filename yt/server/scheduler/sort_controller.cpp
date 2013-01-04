@@ -1086,7 +1086,7 @@ protected:
             for (int j = lo; j < hi; ++j) {
                 sum += values[j];
             }
-            result[i] = sum / (hi - lo);
+            result[i] = sum * values.size() / (hi - lo) / maxBuckets;
         }
 
         return result;
