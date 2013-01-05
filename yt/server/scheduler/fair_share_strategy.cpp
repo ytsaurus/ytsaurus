@@ -1120,11 +1120,7 @@ bool TOperationElement::ScheduleJobs(
     auto controller = Operation_->GetController();
 
     bool result =  false;
-    while (Operation_->GetState() == EOperationState::Running) {
-        if (!node->HasSpareResources()) {
-            break;
-        }
-
+    while (Operation_->GetState() == EOperationState::Running && context->CanStartMoreJobs()) {
         auto poolLimits = Pool_->ResourceLimits() - Pool_->ResourceUsage() + Pool_->ResourceUsageDiscount();
         auto nodeLimits = node->ResourceLimits() - node->ResourceUsage() + node->ResourceUsageDiscount();
         auto jobLimits = Min(poolLimits, nodeLimits);
@@ -1141,6 +1137,7 @@ bool TOperationElement::ScheduleJobs(
             break;
         }
     }
+
     return result;
 }
 

@@ -89,11 +89,14 @@ struct TSchedulerConfig
     //! Maximum number of partitions during sort, ever.
     int MaxPartitionCount;
 
-    //! Approximate maximum number of jobs per operation.
+    //! Maximum number of jobs per operation (an approximation!).
     int MaxJobCount;
     
-    //! Approximate maximum number of jobs per operation.
+    //! Maximum size of table allowed to be passed as a file to jobs.
     i64 TableFileSizeLimit;
+
+    //! Maximum number of jobs to start within a single heartbeat.
+    TNullable<int> MaxJobStartsPerHeartbeat;
 
     NYTree::INodePtr MapOperationSpec;
     NYTree::INodePtr ReduceOperationSpec;
@@ -144,6 +147,11 @@ struct TSchedulerConfig
         Register("max_partition_count", MaxPartitionCount)
             .Default(2000)
             .GreaterThan(0);
+        Register("table_file_size_limit", TableFileSizeLimit)
+            .Default((i64) 2 * 1024 * 1024 * 1024);
+        Register("max_job_starts_per_heartbeat", MaxJobStartsPerHeartbeat)
+            .Default()
+            .GreaterThan(0);
 
         auto factory = NYTree::GetEphemeralNodeFactory();
         Register("map_operation_spec", MapOperationSpec)
@@ -169,9 +177,6 @@ struct TSchedulerConfig
 
         Register("environment", Environment)
             .Default(yhash_map<Stroka, Stroka>());
-
-        Register("table_file_size_limit", TableFileSizeLimit)
-            .Default(2 * (i64)1024 * 1024 * 1024);
     }
 };
 

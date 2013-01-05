@@ -1485,6 +1485,20 @@ public:
     { }
 
 
+    virtual bool CanStartMoreJobs() const override
+    {
+        if (!Node_->HasSpareResources()) {
+            return false;
+        }
+
+        auto maxJobStarts = Owner->Config->MaxJobStartsPerHeartbeat;
+        if (maxJobStarts && StartedJobs_.size() >= maxJobStarts.Get()) {
+            return false;
+        }
+
+        return true;
+    }
+
     virtual TJobPtr StartJob(
         TOperationPtr operation,
         EJobType type,

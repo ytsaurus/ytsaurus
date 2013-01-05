@@ -95,6 +95,8 @@ struct ISchedulingContext
     virtual const std::vector<TJobPtr>& PreemptedJobs() const = 0;
     virtual const std::vector<TJobPtr>& RunningJobs() const = 0;
 
+    virtual bool CanStartMoreJobs() const = 0;
+
     virtual TJobPtr StartJob(
         TOperationPtr operation,
         EJobType type,
