@@ -303,7 +303,7 @@ struct TSortOperationSpecBase
 
     TDuration PartitionLocalityTimeout;
     TDuration SortLocalityTimeout;
-    TDuration SortSplay;
+    TDuration SortAssignmentTimeout;
     TDuration MergeLocalityTimeout;
 
     int ShuffleNetworkLimit;
@@ -335,7 +335,7 @@ struct TSortOperationSpecBase
             .InRange(0.0, 1.0);
         Register("sort_locality_timeout", SortLocalityTimeout)
             .Default(TDuration::Minutes(1));
-        Register("sort_splay", SortSplay)
+        Register("sort_assignment_timeout", SortAssignmentTimeout)
             .Default(TDuration::Seconds(5));
         Register("shuffle_network_limit", ShuffleNetworkLimit)
             .Default(10);

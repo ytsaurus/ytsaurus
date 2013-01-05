@@ -24,8 +24,6 @@
 
 #include <ytlib/transaction_client/transaction.h>
 
-#include <util/random/random.h>
-
 #include <cmath>
 
 namespace NYT {
@@ -128,7 +126,7 @@ protected:
                 : TSortTaskPtr(New<TPartitionSortTask>(controller, this)))
             , SortedMergeTask(New<TSortedMergeTask>(controller, this))
             , UnorderedMergeTask(New<TUnorderedMergeTask>(controller, this))
-            , ChunkPoolOutput(NULL)
+            , ChunkPoolOutput(nullptr)
         { }
 
         //! Sequential index (zero based).
@@ -145,7 +143,7 @@ protected:
         bool Maniac;
 
         //! Number of sorted bytes residing at a given node.
-        yhash_map<Stroka, i64> AddressToSortedDataSize;
+        yhash_map<Stroka, i64> AddressToLocality;
 
         // Tasks.
         TSortTaskPtr SortTask;
@@ -154,6 +152,9 @@ protected:
 
         // Chunk pool output obtained from the shuffle pool.
         IChunkPoolOutput* ChunkPoolOutput;
+
+        //! A statically assigned partition address, if any.
+        TNullable<Stroka> AssignedAddress;
     };
 
     typedef TIntrusivePtr<TPartition> TPartitionPtr;
@@ -336,6 +337,7 @@ protected:
                 }
             }
 
+            Controller->AssignPartitions();
             Controller->CheckMergeStartThreshold();
 
             // Kick-start sort and unordered merge tasks.
@@ -560,15 +562,21 @@ protected:
         virtual TDuration GetLocalityTimeout() const override
         {
             return
-                Partition->AddressToSortedDataSize.empty()
-                ? RandomDuration(Controller->Spec->SortSplay)
+                Partition->AssignedAddress
+                ? Controller->Spec->SortAssignmentTimeout
                 : Controller->Spec->SortLocalityTimeout;
         }
 
         virtual i64 GetLocality(const Stroka& address) const override
         {
-            auto it = Partition->AddressToSortedDataSize.find(address);
-            return it == Partition->AddressToSortedDataSize.end() ? 0 : it->second;
+            if (Partition->AssignedAddress && Partition->AssignedAddress.Get() == address) {
+                // Handle initially assigned address.
+                return 1;
+            } else {
+                // Handle data-driven locality.
+                auto it = Partition->AddressToLocality.find(address);
+                return it == Partition->AddressToLocality.end() ? 0 : it->second;
+            }
         }
 
     private:
@@ -582,9 +590,12 @@ protected:
             // Increase data size for this address to ensure subsequent sort jobs
             // to be scheduled to this very node.
             auto address = joblet->Job->GetNode()->GetAddress();
-            Partition->AddressToSortedDataSize[address] += joblet->InputStripeList->TotalDataSize;
+            Partition->AddressToLocality[address] += joblet->InputStripeList->TotalDataSize;
+
+            // Don't rely on static assignment anymore.
+            Partition->AssignedAddress = Null;
             
-            // Also add a hint.
+            // Also add a hint to ensure that subsequent jobs are also scheduled here.
             AddLocalityHint(address);
 
             TSortTask::OnJobStarted(joblet);
@@ -861,6 +872,89 @@ protected:
 
     // Init/finish.
 
+    void AssignPartitions()
+    {
+        struct TAssignedNode
+            : public TIntrinsicRefCounted
+        {
+            TAssignedNode(TExecNodePtr node, double weight)
+                : Node(node)
+                , Weight(weight)
+                , AssignedDataSize(0)
+            { }
+
+            TExecNodePtr Node;
+            double Weight;
+            i64 AssignedDataSize;
+        };
+
+        typedef TIntrusivePtr<TAssignedNode> TAssignedNodePtr;
+
+        auto compareNodes = [&] (const TAssignedNodePtr& lhs, const TAssignedNodePtr& rhs) {
+            return lhs->AssignedDataSize / lhs->Weight > rhs->AssignedDataSize / rhs->Weight;
+        };
+
+        auto comparePartitions = [&] (const TPartitionPtr& lhs, const TPartitionPtr& rhs) {
+            return lhs->ChunkPoolOutput->GetTotalDataSize() > rhs->ChunkPoolOutput->GetTotalDataSize();
+        };
+
+        LOG_DEBUG("Examining online nodes");
+
+        std::vector<TAssignedNodePtr> nodeHeap;
+        FOREACH (auto node, Host->GetExecNodes()) {
+            const auto& resourceUsage = node->ResourceUsage();
+            const auto& resourceLimits = node->ResourceLimits();
+            double weight = GetMinResourceRatio(resourceLimits - resourceUsage, resourceLimits);
+            if (weight > 0) {
+                auto assignedNode = New<TAssignedNode>(node, weight);
+                nodeHeap.push_back(assignedNode);
+            }
+        }
+
+        std::vector<TPartitionPtr> partitionsToAssign;
+        FOREACH (auto partition, Partitions) {
+            // Only take partitions for which no jobs are launched yet.
+            if (partition->AddressToLocality.empty()) {
+                partitionsToAssign.push_back(partition);
+            }
+        }
+        std::sort(partitionsToAssign.begin(), partitionsToAssign.end(), comparePartitions);
+
+        // This is actually redundant since all values are 0.
+        std::make_heap(nodeHeap.begin(), nodeHeap.end(), compareNodes);
+
+        LOG_DEBUG("Assigning partitions");
+
+        FOREACH (auto partition, partitionsToAssign) {
+            auto node = nodeHeap.front();
+            auto address = node->Node->GetAddress();
+
+            partition->AssignedAddress = address;
+            AddTaskLocalityHint(partition->SortTask, address);
+
+            std::pop_heap(nodeHeap.begin(), nodeHeap.end(), compareNodes);
+            node->AssignedDataSize += partition->ChunkPoolOutput->GetTotalDataSize();
+            std::push_heap(nodeHeap.begin(), nodeHeap.end(), compareNodes);
+
+            LOG_DEBUG("Partition assigned (Index: %d, DataSize: %" PRId64 ", Address: %s)",
+                partition->Index,
+                partition->ChunkPoolOutput->GetTotalDataSize(),
+                ~address);
+        }
+
+        FOREACH (auto node, nodeHeap) {
+            if (node->AssignedDataSize > 0) {
+                LOG_DEBUG("Node used (Address: %s, Weight: %.4lf, AssignedDataSize: %" PRId64 ", AdjustedDataSize: %" PRId64 ")",
+                    ~node->Node->GetAddress(),
+                    node->Weight,
+                    node->AssignedDataSize,
+                    static_cast<i64>(node->AssignedDataSize / node->Weight));
+            }
+        }
+
+        LOG_DEBUG("Partitions assigned");
+    }
+
     void InitShufflePool()
     {
         std::vector<i64> dataSizeThresholds;
@@ -890,7 +984,7 @@ protected:
 
     void RegisterOutputChunkTrees(TJobletPtr joblet, TPartition* partition)
     {
-        const TUserJobResult* userJobResult = NULL;
+        const TUserJobResult* userJobResult = nullptr;
         if (joblet->Job->Result().HasExtension(TReduceJobResultExt::reduce_job_result_ext)) {
             userJobResult = &joblet->Job->Result()
                 .GetExtension(TReduceJobResultExt::reduce_job_result_ext)
