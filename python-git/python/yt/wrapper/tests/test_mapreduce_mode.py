@@ -207,7 +207,7 @@ class MapreduceBehaviourTest(YtTestBase, YTEnv):
                       table, other_table,
                       files=_test_file_path("cpp_bin"))
 
-    def DISABLE_test_abort_operation(self):
+    def test_abort_operation(self):
         strategy = yt.AsyncStrategy()
         table = self.create_temp_table()
         other_table = TEST_DIR + "/temp_other"
@@ -216,9 +216,11 @@ class MapreduceBehaviourTest(YtTestBase, YTEnv):
                    files=map(_test_file_path, ["my_op.py", "helpers.py"]),
                    strategy=strategy)
 
-        operation = strategy.operations[-1]
+        type, operation, finalization = strategy.operations[-1]
         yt.abort_operation(operation)
         self.assertEqual(yt.get_operation_state(operation), "aborted")
+
+        finalization()
 
 
     def test_dsv(self):
