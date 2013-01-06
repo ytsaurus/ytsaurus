@@ -176,7 +176,6 @@ class WaitStrategy(object):
             operation_result = get_operation_result(operation)
             jobs_errors = get_jobs_errors(operation)
             stderr = get_operation_stderr(operation)
-            # TODO: remove finalization when transactions would be builtin
             raise YtOperationFailedError(
                 "Operation {0} failed!\n"
                 "Operation result: {1}\n\n"
@@ -195,8 +194,8 @@ class AsyncStrategy(object):
     def __init__(self):
         self.operations = []
 
-    def process_operation(self, type, operation, files_to_remove):
-        self.operations.append(operation)
+    def process_operation(self, type, operation, finalization):
+        self.operations.append(tuple([type, operation, finalization]))
 
     def get_last_operation(self):
         return self.operations[-1]
