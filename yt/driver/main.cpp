@@ -198,7 +198,7 @@ private:
     void RegisterExecutor(TExecutorPtr executor)
     {
         auto name = executor->GetCommandName();
-        YCHECK(Executors.insert(MakePair(name, executor)).second);
+        YCHECK(Executors.insert(std::make_pair(name, executor)).second);
     }
 
     TExecutorPtr GetExecutor(const Stroka& commandName)
