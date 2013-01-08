@@ -360,8 +360,7 @@ void Deserialize(TError& error, NYTree::INodePtr node)
     auto innerErrorsNode = mapNode->FindChild("inner_errors");
     if (innerErrorsNode) {
         FOREACH (auto innerErrorNode, innerErrorsNode->AsList()->GetChildren()) {
-            TError innerError;
-            Deserialize(innerError, innerErrorNode);
+            auto innerError = ConvertTo<TError>(innerErrorNode);
             error.InnerErrors().push_back(innerError);
         }
     }

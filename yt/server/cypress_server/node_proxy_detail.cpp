@@ -175,7 +175,7 @@ private:
 
     virtual void OnCompleted() override
     {
-        Serialize(ResourceUsage, Consumer);
+        Consume(ResourceUsage, Consumer);
         Result.Set(TError());
     }
 
