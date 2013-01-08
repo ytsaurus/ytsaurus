@@ -830,7 +830,7 @@ private:
         }
 
         const auto& attributes = element->Attributes();
-        if (usageRatio < attributes.AdjustedMinShareRatio) {
+        if (usageRatio < attributes.FairShareRatio) {
             return false;
         }
 
