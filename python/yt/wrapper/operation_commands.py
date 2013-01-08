@@ -7,7 +7,6 @@ from file_commands import download_file
 
 import os
 from time import sleep
-import simplejson as json
 
 OPERATIONS_PATH = "//sys/operations"
 
