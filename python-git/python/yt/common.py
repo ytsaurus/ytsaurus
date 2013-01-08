@@ -1,5 +1,5 @@
 import collections
-from itertools import chain, imap
+from itertools import chain
 import types
 import os
 
@@ -35,6 +35,4 @@ def flatten(obj, list_types=(list, tuple, set, types.GeneratorType)):
     if isinstance(obj, list_types):
         return list(chain(*map(flatten, obj)))
     return [obj]
-
-
 

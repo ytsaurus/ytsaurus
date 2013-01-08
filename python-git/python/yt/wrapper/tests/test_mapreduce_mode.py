@@ -348,7 +348,7 @@ class MapreduceBehaviourTest(YtTestBase, YTEnv):
             sorted(list(yt.read_table(output))),
             sorted(["a\t\t2\n", "b\t\t1\n", "c\t\t6\n"]))
 
-    def disabled_test_python_operations(self):
+    def test_python_operations(self):
         def func(rec):
             yield rec.strip() + "aaaaaaaaaa\n"
 
@@ -359,6 +359,7 @@ class MapreduceBehaviourTest(YtTestBase, YTEnv):
 
         table = self.create_temp_table()
         other_table = TEST_DIR + "/temp_other"
+
         for f in [func, func_smart]:
             yt.run_map(f, table, other_table)
             self.assertEqual(
