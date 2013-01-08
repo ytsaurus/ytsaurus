@@ -1685,6 +1685,14 @@ TObjectBase* TChunkManager::TChunkTypeHandler::Create(
     TRspCreateObject* response)
 {
     UNUSED(attributes);
+    
+    // TODO(babenko): account must be required
+    if (account && account->IsDiskSpaceOverLimit()) {
+        THROW_ERROR_EXCEPTION("Account is over disk space: %s",
+            ~account->GetName())
+            << TErrorAttribute("usage", account->ResourceUsage().DiskSpace)
+            << TErrorAttribute("limit", account->ResourceLimits().DiskSpace);
+    }
 
     const auto* requestExt = &request->GetExtension(TReqCreateChunkExt::create_chunk);
     auto* responseExt = response->MutableExtension(TRspCreateChunkExt::create_chunk);
