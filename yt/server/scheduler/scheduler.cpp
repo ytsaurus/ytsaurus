@@ -1278,7 +1278,6 @@ private:
         if (hasWaitingJobs) {
             LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
         } else {
-            LOG_DEBUG("Scheduling new jobs");
             PROFILE_TIMING ("/schedule_time") {
                 Strategy->ScheduleJobs(~schedulingContext);
             }

@@ -678,9 +678,11 @@ public:
         }
 
         // First-chance scheduling.
+        LOG_DEBUG("Scheduling new jobs");
         RootElement->ScheduleJobs(context, false);
 
         // Compute discount to node usage.
+        LOG_DEBUG("Looking for preemptable jobs");
         yhash_set<TOperationElementPtr> discountedOperations;
         yhash_set<TPoolPtr> discountedPools;
         std::vector<TJobPtr> preemptableJobs;
@@ -695,10 +697,13 @@ public:
                 node->ResourceUsageDiscount() += job->ResourceUsage();
                 pool->ResourceUsageDiscount() += job->ResourceUsage();
                 preemptableJobs.push_back(job);
+                LOG_DEBUG("Job is preemptable (JobId: %s)",
+                    ~ToString(job->GetId()));
             }
         }
 
         // Second-chance scheduling.
+        LOG_DEBUG("Scheduling new jobs with preemption");
         bool needsPreemption = RootElement->ScheduleJobs(context, true);
 
         // Reset discounts.
