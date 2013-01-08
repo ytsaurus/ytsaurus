@@ -244,7 +244,7 @@ class TestAccounts(YTEnvSetup):
         create_account('max')
         self._set_account_disk_space_limit('max', 1000000)
 
-        create('//tmp/t', 'table')
+        create('table', '//tmp/t')
         set('//tmp/t/@account', 'max')
 
         write('/tmp/t', {'a' : 'b'})
