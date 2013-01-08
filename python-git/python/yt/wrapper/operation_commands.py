@@ -170,8 +170,8 @@ class WaitStrategy(object):
         self.print_progress = print_progress
 
     def process_operation(self, type, operation, finalization=None):
-        self.finalization = finalization if finalization is not None else lambda: None
-        state = wait_operation(operation, print_progress=self.print_progress, finalize=self.finalization)
+        finalization = finalization if finalization is not None else lambda: None
+        state = wait_operation(operation, print_progress=self.print_progress, finalize=finalization)
         if self.check_result and state.is_failed():
             operation_result = get_operation_result(operation)
             jobs_errors = get_jobs_errors(operation)
