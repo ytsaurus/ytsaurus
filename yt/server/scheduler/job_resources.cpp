@@ -191,34 +191,20 @@ EResourceType GetDominantResource(
     const NProto::TNodeResources& demand,
     const NProto::TNodeResources& limits)
 {
-    auto result = EResourceType::Cpu;
-    double minRatio = -1.0;
-
-    if (limits.cpu() > 0) {
-        double newRatio = (double) demand.cpu() / limits.cpu();
-        if (newRatio > minRatio) {
-            result = EResourceType::Cpu;
-            minRatio = newRatio;
+    auto maxType = EResourceType::Cpu;
+    double maxRatio = 0.0;
+    auto update = [&] (i64 a, i64 b, EResourceType type) {
+        if (b > 0) {
+            double ratio = (double) a / b;
+            if (ratio > maxRatio) {
+                maxRatio = ratio;
+                maxType = type;
+            }
         }
-    }
-
-    if (limits.memory() > 0) {
-        double newRatio = (double) demand.memory() / limits.memory();
-        if (newRatio > minRatio) {
-            result = EResourceType::Memory;
-            minRatio = newRatio;
-        }
-    }
-
-    if (limits.network() > 0) {
-        double newRatio = (double) demand.network() / limits.network();
-        if (newRatio > minRatio) {
-            result = EResourceType::Network;
-            minRatio = newRatio;
-        }
-    }
-
-    return result;
+    };
+    update(demand.cpu(), limits.cpu(), EResourceType::Cpu);
+    update(demand.memory(), limits.memory(), EResourceType::Memory);
+    return maxType;
 }
 
 i64 GetResource(const NProto::TNodeResources& resources, EResourceType type)
