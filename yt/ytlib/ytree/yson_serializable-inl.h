@@ -329,7 +329,7 @@ DEFINE_VALIDATOR(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-NConfig::TParameter<T>& TYsonSerializable::Register(const Stroka& parameterName, T& value)
+NConfig::TParameter<T>& TYsonSerializableLite::Register(const Stroka& parameterName, T& value)
 {
     auto parameter = New< NConfig::TParameter<T> >(value);
     YCHECK(Parameters.insert(
@@ -358,7 +358,7 @@ TIntrusivePtr<T> UpdateYsonSerializable(
     using NYTree::ConvertTo;
 
     if (patch) {
-        return ConvertTo<TIntrusivePtr<T>>(UpdateNode(ConvertTo<INodePtr>(obj), patch));
+        return ConvertTo< TIntrusivePtr<T> >(UpdateNode(ConvertTo<INodePtr>(obj), patch));
     } else {
         return CloneYsonSerializable(obj);
     }

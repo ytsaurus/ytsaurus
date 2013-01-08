@@ -14,17 +14,17 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonSerializable::TYsonSerializable()
+TYsonSerializableLite::TYsonSerializableLite()
     : KeepOptions_(false)
 { }
 
-IMapNodePtr TYsonSerializable::GetOptions() const
+IMapNodePtr TYsonSerializableLite::GetOptions() const
 {
     YCHECK(KeepOptions_);
     return Options;
 }
 
-std::vector<Stroka> TYsonSerializable::GetRegisteredKeys() const
+std::vector<Stroka> TYsonSerializableLite::GetRegisteredKeys() const
 {
     std::vector<Stroka> result;
     FOREACH (const auto& pair, Parameters) {
@@ -33,9 +33,9 @@ std::vector<Stroka> TYsonSerializable::GetRegisteredKeys() const
     return result;
 }
 
-void TYsonSerializable::Load(INodePtr node, bool validate, const TYPath& path)
+void TYsonSerializableLite::Load(INodePtr node, bool validate, const TYPath& path)
 {
-    YASSERT(node);
+    YCHECK(node);
 
     auto mapNode = node->AsMap();
     FOREACH (const auto& pair, Parameters) {
@@ -63,7 +63,7 @@ void TYsonSerializable::Load(INodePtr node, bool validate, const TYPath& path)
     OnLoaded();
 }
 
-void TYsonSerializable::Validate(const TYPath& path) const
+void TYsonSerializableLite::Validate(const TYPath& path) const
 {
     FOREACH (auto pair, Parameters) {
         pair.second->Validate(path + "/" + pair.first);
@@ -76,13 +76,13 @@ void TYsonSerializable::Validate(const TYPath& path) const
     }
 }
 
-void TYsonSerializable::DoValidate() const
+void TYsonSerializableLite::DoValidate() const
 { }
 
-void TYsonSerializable::OnLoaded()
+void TYsonSerializableLite::OnLoaded()
 { }
 
-void TYsonSerializable::Save(IYsonConsumer* consumer) const
+void TYsonSerializableLite::Save(IYsonConsumer* consumer) const
 {
     consumer->OnBeginMap();
     FOREACH (const auto& pair, Parameters) {
@@ -98,12 +98,12 @@ void TYsonSerializable::Save(IYsonConsumer* consumer) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Serialize(const TYsonSerializable& value, IYsonConsumer* consumer)
+void Serialize(const TYsonSerializableLite& value, IYsonConsumer* consumer)
 {
     value.Save(consumer);
 }
 
-void Deserialize(TYsonSerializable& value, INodePtr node)
+void Deserialize(TYsonSerializableLite& value, INodePtr node)
 {
     value.Load(node, false);
 }

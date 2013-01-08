@@ -76,11 +76,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYsonSerializable
-    : public TRefCounted
+class TYsonSerializableLite
 {
 public:
-    TYsonSerializable();
+    TYsonSerializableLite();
 
     void Load(NYTree::INodePtr node, bool validate = true, const NYPath::TYPath& path = "");
     void Validate(const NYPath::TYPath& path = "") const;
@@ -111,11 +110,18 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TYsonSerializable
+    : public TRefCounted
+    , public TYsonSerializableLite
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
 TIntrusivePtr<T> CloneYsonSerializable(TIntrusivePtr<T> obj);
 
-void Serialize(const TYsonSerializable& value, NYson::IYsonConsumer* consumer);
-void Deserialize(TYsonSerializable& value, NYTree::INodePtr node);
+void Serialize(const TYsonSerializableLite& value, NYson::IYsonConsumer* consumer);
+void Deserialize(TYsonSerializableLite& value, NYTree::INodePtr node);
 
 template <class T>
 TIntrusivePtr<T> UpdateYsonSerializable(
