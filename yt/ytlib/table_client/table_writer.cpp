@@ -80,7 +80,7 @@ void TTableWriter::Open()
     LOG_INFO("Requesting table info");
     TChunkListId chunkListId;
     TChannels channels;
-    TNullable<Stroka> account;
+    Stroka account;
     {
         auto batchReq = ObjectProxy.ExecuteBatch();
 
@@ -142,7 +142,7 @@ void TTableWriter::Open()
 
             Config->ReplicationFactor = attributes.Get<int>("replication_factor");
 
-            account = attributes.Find<Stroka>("account");
+            account = attributes.Get<Stroka>("account");
         }
         
         if (KeyColumns.HasValue()) {
