@@ -1491,7 +1491,7 @@ public:
             return false;
         }
 
-        auto maxJobStarts = Owner->Config->MaxJobStartsPerHeartbeat;
+        auto maxJobStarts = Owner->Config->MaxStartedJobPerHeartbeat;
         if (maxJobStarts && StartedJobs_.size() >= maxJobStarts.Get()) {
             return false;
         }
