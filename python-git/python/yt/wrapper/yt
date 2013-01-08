@@ -1,0 +1,225 @@
+#!/usr/bin/env python
+
+# TODO(ignat): make parser for format option
+
+from argparse import ArgumentParser
+
+import yt.wrapper as yt
+
+import os
+import sys
+import traceback
+
+def die(message=None, return_code=1):
+    if message is not None:
+        print >>sys.stderr, message
+    if "ALWAYS_RAISE" in os.environ:
+        raise
+    sys.exit(return_code)
+
+def writelines_silently(lines):
+    try:
+        for line in lines:
+            sys.stdout.write(line)
+    except IOError:
+        sys.exit(1)
+    except:
+        raise
+
+
+def ls_args(parser):
+    parser.add_argument("path")
+    parser.add_argument("-l", action="store_true", default=False)
+
+def ls(args):
+    list = yt.list(args.path)
+    for elem in list:
+        path = args.path + "/" + elem
+        if args.l:
+            size = yt.get(path + "/@recursive_resource_usage/disk_space")
+            date, time = yt.get(path + "/@modification_time").split("T")
+            time = time[:5]
+            sys.stdout.write("%18r %10s %5s " % (size, date, time))
+        print elem
+
+
+def cat_args(parser):
+    parser.add_argument("path")
+    parser.add_argument("--format")
+
+def cat(args):
+    type = yt.get(args.path + "/@type")
+    if type == "file":
+        writelines_silently(yt.download_file(args.path, response_type="iter_content"))
+    elif type == "table":
+        if args.format is None:
+            die("You should specify --format for table")
+        writelines_silently(yt.read_table(args.path, format=args.format, response_type="iter_content"))
+    else:
+        die("Incorrect node type " + type)
+
+
+def rm_args(parser):
+    parser.add_argument("path")
+    parser.add_argument("-r", action="store_true", default=False)
+
+def rm(args):
+    yt.remove(args.path, recursive=args.r)
+
+
+def mkdir_args(parser):
+    parser.add_argument("path")
+    parser.add_argument("-p", action="store_true", default=False)
+
+def mkdir(args):
+    yt.mkdir(args.path, recursive=args.p)
+
+
+def cp_args(parser):
+    parser.add_argument("src")
+    parser.add_argument("dst")
+
+def cp(args):
+    yt.copy(args.src, args.dst)
+
+
+def mv_args(parser):
+    parser.add_argument("src")
+    parser.add_argument("dst")
+
+def mv(args):
+    yt.move(args.src, args.dst)
+
+
+def upload_args(parser):
+    parser.add_argument("path")
+    parser.add_argument("--executable", action="store_true", default=False)
+    parser.add_argument("--format")
+    parser.add_argument("--type")
+
+def upload(args):
+    if args.type == "file":
+        if args.format is not None:
+            die("Format should absent for files")
+        yt.upload_file(sys.stdin.read(), args.path)
+        if args.executable:
+            yt.set(args.path + "/@executable", "true")
+    elif args.type == "table":
+        yt.write_table(args.path, sys.stdin, format=yt.RawFormat.from_yson_string(args.format))
+    else:
+        die("Incorrect type: " + args.type)
+
+
+def erase_args(parser):
+    parser.add_argument("path")
+
+def erase(args):
+    yt.run_erase(args.path)
+
+def merge_args(parser):
+    parser.add_argument("--src", action="append")
+    parser.add_argument("--dst")
+    parser.add_argument("--mode", default="unordered")
+
+def merge(args):
+    yt.run_merge(args.src, args.dst, args.mode)
+
+def sort_args(parser):
+    parser.add_argument("--src", action="append")
+    parser.add_argument("--dst")
+    parser.add_argument("--key", action="append")
+
+def sort(args):
+    yt.run_sort(args.src, args.dst, args.key)
+
+def operation_args(parser):
+    parser.add_argument("command")
+    parser.add_argument("--src", action="append")
+    parser.add_argument("--dst", action="append")
+    parser.add_argument("--file", action="append")
+    parser.add_argument("--local-file", action="append")
+    parser.add_argument("--format")
+
+def map_args(parser):
+    operation_args(parser)
+
+def map(args):
+    yt.run_map(args.command, args.src, args.dst, file_paths=args.file, files=args.local_file, format=yt.RawFormat.from_yson_string(args.format))
+
+def reduce_args(parser):
+    operation_args(parser)
+    parser.add_option("--key", action="append")
+
+def reduce(args):
+    yt.run_reduce(args.command, args.src, args.dst, file_paths=args.file, files=args.local_file, format=yt.RawFormat.from_yson_string(args.format), reduce_by=args.key)
+
+def start_tx_args(parser):
+    pass
+
+def start_tx(args):
+    sys.stdout.write(yt.start_transaction())
+
+def commit_tx_args(parser):
+    parser.add_option("tx")
+
+def commit_tx(args):
+    yt.commit_transaction(args.tx)
+
+def abort_tx_args(parser):
+    parser.add_option("tx")
+
+def abort_tx(args):
+    yt.abort_transaction(args.tx)
+
+def ping_tx_args(parser):
+    parser.add_option("tx")
+
+def ping_tx(args):
+    yt.ping_transaction(args.tx)
+
+def abort_args(parser):
+    parser.add_option("op")
+
+def abort(args):
+    yt.abort_operation(args.op)
+
+
+def main():
+    commands = ["ls", "cat", "rm", "mkdir", "cp", "mv", "upload", #"touch", "download",
+                "erase", "sort", "merge", "map", "reduce", "map_reduce", "abort",
+                "start_tx", "commit_tx", "abort_tx", "ping_tx"]
+    if len(sys.argv) == 1 or sys.argv[1] in ["-h", "--help", "?"]:
+        die("Shell utility to running commands in YT system. Commands:\n" + "\n\t".join(sorted(commands)))
+    
+    command = sys.argv[1]
+    del sys.argv[1]
+    if command not in commands:
+        die("Incorrect command " + command)
+
+    parser = ArgumentParser()
+    parser.add_argument("--tx")
+    parser.add_argument("--ping-ancestor-transactions", action="store_true", default=False)
+    globals()[command + "_args"](parser)
+    
+    args = parser.parse_args()
+    if args.tx is not None:
+        yt.config.TRANSACTION = args.tx
+        yt.config.PING_ANCESTOR_TRANSACTIONS = args.ping_ancestor_transactions
+    globals()[command](args)
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        die("Shutdown requested... exiting")
+    except yt.YtOperationFailedError as error:
+        die(str(error))
+    except yt.YtResponseError as error:
+        die(str(error))
+    except yt.ConnectionError as error:
+        die("Connection problem: " + str(error))
+    except yt.HTTPError as error:
+        die("Connection was broken: " + str(error))
+    except Exception:
+        traceback.print_exc(file=sys.stderr)
+        die()
