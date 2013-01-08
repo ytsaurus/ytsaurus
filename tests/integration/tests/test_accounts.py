@@ -224,7 +224,7 @@ class TestAccounts(YTEnvSetup):
 
     def test_disk_space1(self):
     	create_account('max')
-    	assert get('//sys/accounts/max/@resource_limit/disk_space_over_limit', 'false')
+    	assert get('//sys/accounts/max/@resource_limit/disk_space_over_limit') == 'false'
     	set('//sys/accounts/max/@resource_limit/disk_space', 1000)
     	set('//sys/accounts/max/@resource_limit/disk_space', 2000)
     	set('//sys/accounts/max/@resource_limit/disk_space', 0)
