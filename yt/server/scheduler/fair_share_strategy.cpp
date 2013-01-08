@@ -865,7 +865,7 @@ private:
         pool->AddChild(operationElement);
         pool->ResourceUsage() += operationElement->ResourceUsage();
 
-        LOG_INFO("Operation added to pool (OperationId: %s, PoolId: %s)",
+        LOG_INFO("Operation added to pool (OperationId: %s, Pool: %s)",
             ~ToString(operation->GetOperationId()),
             ~pool->GetId());
     }
@@ -879,7 +879,7 @@ private:
         pool->RemoveChild(operationElement);
         pool->ResourceUsage() -= operationElement->ResourceUsage();
 
-        LOG_INFO("Operation removed from pool (OperationId: %s, PoolId: %s)",
+        LOG_INFO("Operation removed from pool (OperationId: %s, Pool: %s)",
             ~ToString(operation->GetOperationId()),
             ~pool->GetId());
 
