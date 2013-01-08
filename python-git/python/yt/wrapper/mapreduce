@@ -454,7 +454,7 @@ Examples:
         yt.write_table(args.writesorted, sys.stdin, format=outputformat,
                        replication_factor=replication_factor, table_writer=table_writer)
         # TODO: sorted_by has no proper support now. Delete it with remaking in system.
-        yt.sort_table(args.writesorted.get_name())
+        yt.run_sort(args.writesorted.get_name())
     if mapreduce_case:
         yt.run_map_reduce(args.map, args.reduce, args.src, dst,
                           map_files=map_files, reduce_files=reduce_files,
@@ -483,14 +483,14 @@ Examples:
     if args.copy:
         copy_table(args.src, unlist(dst))
     if args.sort:
-        yt.sort_table(args.src, unlist(dst), table_writer=table_writer, sort_by=args.sortby,
+        yt.run_sort(args.src, unlist(dst), table_writer=table_writer, sort_by=args.sortby,
                       replication_factor=replication_factor, spec=spec)
     if args.merge:
-        yt.merge_tables(args.src, unlist(dst), mode="sorted", table_writer=table_writer,
-                        replication_factor=replication_factor, spec=spec)
+        yt.run_merge(args.src, unlist(dst), mode="sorted", table_writer=table_writer,
+                     replication_factor=replication_factor, spec=spec)
 
     if args.erase is not None:
-        yt.erase_table(args.erase)
+        yt.run_erase(args.erase)
     if args.upload is not None:
         if yt.exists(args.upload) and yt.get_type(args.upload) == "file":
             remove_with_empty_dirs(args.upload)
