@@ -13,7 +13,7 @@ namespace NSecurityServer {
 struct TClusterResources
 {
     TClusterResources();
-    explicit TClusterResources(i64 diskSpace);
+    static TClusterResources FromDiskSpace(i64 diskSpace);
 
     //! Space occupied on data nodes in bytes.
     /*!
@@ -24,6 +24,7 @@ struct TClusterResources
 };
 
 void Serialize(const TClusterResources& resources, NYson::IYsonConsumer* consumer);
+void Deserialize(TClusterResources& value, NYTree::INodePtr node);
 
 void Save(TOutputStream* output, const TClusterResources& resources);
 void Load(TInputStream* input, TClusterResources& resources);

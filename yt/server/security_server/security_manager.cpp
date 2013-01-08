@@ -385,8 +385,13 @@ private:
         AccountMap.Clear();
         AccountNameMap.clear();
 
+        // sys, 1 TB disk space
         SysAccount = DoCreateAccount(SysAccountId, "sys");
+        SysAccount->ResourceLimits() = TClusterResources::FromDiskSpace((i64) 1024 * 1024 * 1024 * 1024);
+
+        // tmp, 1 TB disk space
         TmpAccount = DoCreateAccount(TmpAccountId, "tmp");
+        TmpAccount->ResourceLimits() = TClusterResources::FromDiskSpace((i64) 1024 * 1024 * 1024 * 1024);
     }
 
 };

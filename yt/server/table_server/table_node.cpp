@@ -93,9 +93,9 @@ TClusterResources TTableNode::GetResourceUsage() const
         default:
             YUNREACHABLE();
     }
-    return TClusterResources(
-        chunkList->Statistics().DiskSpace *
-        GetOwningReplicationFactor());
+
+    i64 diskSpace = chunkList->Statistics().DiskSpace * GetOwningReplicationFactor();
+    return TClusterResources::FromDiskSpace(diskSpace);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

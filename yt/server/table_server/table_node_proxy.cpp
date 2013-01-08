@@ -541,7 +541,7 @@ TClusterResources TTableNodeProxy::GetResourceUsage() const
     const auto* node = GetThisTypedImpl();
     const auto* chunkList = node->GetChunkList();
     i64 diskSpace = chunkList->Statistics().DiskSpace * node->GetReplicationFactor();
-    return TClusterResources(diskSpace);
+    return TClusterResources::FromDiskSpace(diskSpace);
 }
 
 void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const

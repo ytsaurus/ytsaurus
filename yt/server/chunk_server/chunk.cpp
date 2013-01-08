@@ -61,7 +61,7 @@ TClusterResources TChunk::GetResourceUsage() const
 {
     return
         IsConfirmed()
-        ? TClusterResources(ChunkInfo_.size() * ReplicationFactor_)
+        ? TClusterResources::FromDiskSpace(ChunkInfo_.size() * ReplicationFactor_)
         : ZeroClusterResources();
 }
 

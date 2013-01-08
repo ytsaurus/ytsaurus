@@ -48,7 +48,9 @@ private:
     {
         attributes->push_back("name");
         attributes->push_back("resource_usage");
+        attributes->push_back("resource_limits");
         attributes->push_back("node_count");
+        attributes->push_back("disk_space_over_limit");
         TBase::ListSystemAttributes(attributes);
     }
 
@@ -68,9 +70,21 @@ private:
             return true;
         }
 
+        if (key == "resource_limits") {
+            BuildYsonFluently(consumer)
+                .Value(account->ResourceLimits());
+            return true;
+        }
+
         if (key == "node_count") {
             BuildYsonFluently(consumer)
                 .Value(account->NodeCount());
+            return true;
+        }
+
+        if (key == "disk_space_over_limit") {
+            BuildYsonFluently(consumer)
+                .Value(account->IsDiskSpaceOverLimit());
             return true;
         }
 
@@ -79,6 +93,13 @@ private:
 
     bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override
     {
+        auto* account = GetThisTypedImpl();
+
+        if (key == "resource_limits") {
+            account->ResourceLimits() = ConvertTo<TClusterResources>(value);
+            return true;
+        }
+
         return TBase::SetSystemAttribute(key, value);
     }
 

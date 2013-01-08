@@ -221,3 +221,12 @@ class TestAccounts(YTEnvSetup):
         assert self._get_account_node_count('max') == 0
         assert self._get_account_disk_space('tmp') == space
         assert self._get_account_disk_space('max') == 0
+
+    def test_disk_space1(self):
+    	create_account('max')
+    	assert get('//sys/accounts/max/@resource_limit/disk_space_over_limit', 'false')
+    	set('//sys/accounts/max/@resource_limit/disk_space', 1000)
+    	set('//sys/accounts/max/@resource_limit/disk_space', 2000)
+    	set('//sys/accounts/max/@resource_limit/disk_space', 0)
+    	assert get('//sys/accounts/max/@resource_limit/disk_space_over_limit', 'false')
+    	with pytest.raises(YTError): set('//sys/accounts/max/@resource_limit/disk_space', -1)

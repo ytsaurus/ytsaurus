@@ -19,6 +19,7 @@ class TAccount
 {
     DEFINE_BYVAL_RW_PROPERTY(Stroka, Name);
     DEFINE_BYREF_RW_PROPERTY(TClusterResources, ResourceUsage);
+    DEFINE_BYREF_RW_PROPERTY(TClusterResources, ResourceLimits);
     DEFINE_BYREF_RW_PROPERTY(int, NodeCount);
 
 public:
@@ -26,6 +27,9 @@ public:
 
     void Save(const NCellMaster::TSaveContext& context) const;
     void Load(const NCellMaster::TLoadContext& context);
+
+    bool IsDiskSpaceOverLimit() const;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -68,7 +68,8 @@ TClusterResources TFileNode::GetResourceUsage() const
         return ZeroClusterResources();
     }
 
-    return TClusterResources(ChunkList_->Statistics().DiskSpace * ReplicationFactor_);
+    i64 diskSpace = ChunkList_->Statistics().DiskSpace * ReplicationFactor_;
+    return TClusterResources::FromDiskSpace(diskSpace);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
