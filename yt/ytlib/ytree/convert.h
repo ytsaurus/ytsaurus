@@ -36,8 +36,8 @@ TAutoPtr<IAttributeDictionary> ConvertToAttributes(const T& value);
 template <class TTo>
 TTo ConvertTo(INodePtr node);
 
-template <class TTo, class T>
-TTo ConvertTo(const T& value);
+template <class TTo, class TFrom>
+TTo ConvertTo(const TFrom& value);
 
 ////////////////////////////////////////////////////////////////////////////////
 

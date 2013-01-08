@@ -120,8 +120,8 @@ TTo ConvertTo(INodePtr node)
     return result;
 }
 
-template <class TTo, class T>
-TTo ConvertTo(const T& value)
+template <class TTo, class TFrom>
+TTo ConvertTo(const TFrom& value)
 {
     return ConvertTo<TTo>(ConvertToNode(value));
 }
