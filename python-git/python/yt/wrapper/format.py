@@ -99,7 +99,6 @@ class RawFormat(Format):
         return {"X-YT-Output-Format": self.to_str()}
 
     def to_json(self):
-        print >>sys.stderr, type(self._format), self._format
         return {"$value": str(self._format),
                 "$attributes": self._format.attributes}
 
