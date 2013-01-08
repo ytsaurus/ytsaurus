@@ -195,7 +195,7 @@ public:
     {
         double usageRatio = GetUsageRatio();
 
-        if (usageRatio < Attributes_.FairShareRatio * Config->FairShareTolerance) {
+        if (usageRatio < Attributes_.FairShareRatio * Spec_->FairShareStarvationTolerance) {
             return usageRatio < Attributes_.AdjustedMinShareRatio
                    ? EOperationStatus::BelowMinShare
                    : EOperationStatus::BelowFairShare;
@@ -828,6 +828,7 @@ private:
         }
 
         auto element = GetOperationElement(operation);
+        auto spec = element->GetSpec();
 
         double usageRatio = element->GetUsageRatio();
         if (usageRatio < Config->MinPreemptionRatio) {
@@ -835,7 +836,7 @@ private:
         }
 
         const auto& attributes = element->Attributes();
-        if (usageRatio < attributes.FairShareRatio) {
+        if (usageRatio < attributes.FairShareRatio * spec->FairSharePreemptionTolerance) {
             return false;
         }
 

@@ -538,10 +538,13 @@ struct TPooledOperationSpec
 {
     TNullable<Stroka> Pool;
     double Weight;
-    double MinShareRatio;
 
     TDuration MinSharePreemptionTimeout;
+    double MinShareRatio;
+
     TDuration FairSharePreemptionTimeout;
+    double FairShareStarvationTolerance;
+    double FairSharePreemptionTolerance;
 
     TPooledOperationSpec()
     {
@@ -551,14 +554,21 @@ struct TPooledOperationSpec
         Register("weight", Weight)
             .Default(1.0)
             .GreaterThanOrEqual(1.0);
+    
+        Register("min_share_preemption_timeout", MinSharePreemptionTimeout)
+            .Default(TDuration::Seconds(15));
         Register("min_share_ratio", MinShareRatio)
             .Default(1.0)
             .InRange(0.0, 1.0);
 
-        Register("min_share_preemption_timeout", MinSharePreemptionTimeout)
-            .Default(TDuration::Seconds(15));
         Register("fair_share_preemption_timeout", FairSharePreemptionTimeout)
             .Default(TDuration::Seconds(30));
+        Register("fair_share_starvation_tolerance", FairShareStarvationTolerance)
+            .InRange(0.0, 1.0)
+            .Default(0.8);
+        Register("fair_share_preemption_tolerance", FairSharePreemptionTolerance)
+            .InRange(0.0, 1.0)
+            .Default(0.9);
     }
 };
 
