@@ -11,7 +11,7 @@ class TestAccounts(YTEnvSetup):
     START_SCHEDULER = False
 
 
-    def _get_account_disk_space_usage(self, account):
+    def _get_account_disk_space(self, account):
         return get('//sys/accounts/{0}/@resource_usage/disk_space'.format(account))
 
     def _get_account_disk_space_limit(self, account):
