@@ -11,8 +11,17 @@ class TestAccounts(YTEnvSetup):
     START_SCHEDULER = False
 
 
-    def _get_account_disk_space(self, account):
+    def _get_account_disk_space_usage(self, account):
         return get('//sys/accounts/{0}/@resource_usage/disk_space'.format(account))
+
+    def _get_account_disk_space_limit(self, account):
+        return get('//sys/accounts/{0}/@resource_limits/disk_space'.format(account))
+
+    def _set_account_disk_space_limit(self, account, value):
+        set('//sys/accounts/{0}/@resource_usage/disk_space'.format(account), value)
+
+    def _is_account_over_disk_space(self, account):
+        return get('//sys/accounts/{0}/@is_over_disk_space'.format(account))
 
     def _get_account_node_count(self, account):
         return get('//sys/accounts/{0}/@node_count'.format(account))
@@ -222,11 +231,31 @@ class TestAccounts(YTEnvSetup):
         assert self._get_account_disk_space('tmp') == space
         assert self._get_account_disk_space('max') == 0
 
-    def test_disk_space1(self):
-    	create_account('max')
-    	assert get('//sys/accounts/max/@resource_limit/disk_space_over_limit') == 'false'
-    	set('//sys/accounts/max/@resource_limit/disk_space', 1000)
-    	set('//sys/accounts/max/@resource_limit/disk_space', 2000)
-    	set('//sys/accounts/max/@resource_limit/disk_space', 0)
-    	assert get('//sys/accounts/max/@resource_limit/disk_space_over_limit') == 'false'
-    	with pytest.raises(YTError): set('//sys/accounts/max/@resource_limit/disk_space', -1)
+    def test_disk_space_limits1(self):
+        create_account('max')
+        assert get('//sys/accounts/max/@resource_limits/disk_space_over_limit') == 'false'
+        self._set_account_disk_space_limit('max', 1000)
+        self._set_account_disk_space_limit('max', 2000)
+        self._set_account_disk_space_limit('max', 0)
+        assert self._is_account_over_disk_space('max') == 'false'
+        with pytest.raises(YTError): self._set_account_disk_space_limit('max', -1)
+
+    def test_disk_space_limits2(self):
+        create_account('max')
+        self._set_account_disk_space_limit('max', 1000000)
+
+        create('//tmp/t', 'table')
+        set('//tmp/t/@account', 'max')
+
+        write('/tmp/t', {'a' : 'b'})
+        assert self._is_account_over_disk_space('max') == 'false'
+        
+        self._set_account_disk_space_limit('max', 0)
+        assert self._is_account_over_disk_space('max') == 'true'
+        with pytest.raises(YTError): write('/tmp/t', {'a' : 'b'}) 
+
+        self._set_account_disk_space_limit('max', self._get_account_disk_space('max'))
+        assert self._is_account_over_disk_space('max') == 'false'
+        write('/tmp/t', {'a' : 'b'}) 
+        assert self._is_account_over_disk_space('max') == 'true'
+
