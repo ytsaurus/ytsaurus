@@ -6,6 +6,7 @@ from tree_commands import set, get, list, exists, remove, search, mkdir, copy, m
                           has_attribute, get_attribute, set_attribute, list_attributes
 from table_commands import create_table, create_temp_table, write_table, read_table, \
                            records_count, is_sorted, \
+                           run_erase, run_sort, run_merge, \
                            erase_table, sort_table, merge_tables, \
                            run_map, run_reduce, run_map_reduce
 from operation_commands import get_operation_state, abort_operation, WaitStrategy, AsyncStrategy

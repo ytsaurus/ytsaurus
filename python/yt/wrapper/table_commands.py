@@ -305,7 +305,7 @@ def copy_table(source_table, destination_table, replace=True):
     else:
         source_names = [table.get_name() for table in source_tables]
         mode = "sorted" if all(map(is_sorted, source_names)) else "ordered"
-        merge_tables(source_tables, destination_table, mode)
+        run_merge(source_tables, destination_table, mode)
 
 def move_table(source_table, destination_table, replace=True):
     """
@@ -330,7 +330,7 @@ def move_table(source_table, destination_table, replace=True):
                 continue
             remove(table.get_name())
 
-def erase_table(table, strategy=None):
+def run_erase(table, strategy=None):
     """
     Erase table. It differs from remove command.
     Erase only remove given content. You can erase range
@@ -340,6 +340,10 @@ def erase_table(table, strategy=None):
     if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table.get_name()):
         return
     _make_operation_request("erase", {"table_path": table.get_name(use_ranges=True)}, strategy)
+
+def erase_table(table, strategy=None):
+    """ DEPRECATED: use run_erase"""
+    run_erase(table, strategy)
 
 def records_count(table):
     """Return number of records in the table"""
@@ -371,8 +375,8 @@ def is_sorted(table):
     else:
         return parse_bool(get_attribute(to_name(table), "sorted", default="false"))
 
-def merge_tables(source_table, destination_table, mode=None,
-                 strategy=None, table_writer=None, replication_factor=None, spec=None):
+def run_merge(source_table, destination_table, mode=None,
+              strategy=None, table_writer=None, replication_factor=None, spec=None):
     """
     Merge source tables and write it to destination table.
     Mode should be 'unordered', 'ordered', or 'sorted'.
@@ -390,9 +394,13 @@ def merge_tables(source_table, destination_table, mode=None,
 
     _make_operation_request("merge", spec, strategy, finalizer=None)
 
+def merge_tables(source_table, destination_table, mode=None,
+                 strategy=None, table_writer=None, replication_factor=None, spec=None):
+    """ DEPRECATED: use run_merge"""
+    run_merge(source_table, destination_table, mode, strategy, table_writer, replication_factor, spec)
 
-def sort_table(source_table, destination_table=None, sort_by=None,
-               strategy=None, table_writer=None, replication_factor=None, spec=None):
+def run_sort(source_table, destination_table=None, sort_by=None,
+             strategy=None, table_writer=None, replication_factor=None, spec=None):
     """
     Sort source table. If destination table is not specified, than it equals to source table.
     """
@@ -414,8 +422,8 @@ def sort_table(source_table, destination_table=None, sort_by=None,
     if all(is_prefix(sort_by, get_sorted_by(table.name, [])) for table in source_table):
         #(TODO) Hack detected: make something with it
         if len(source_table) > 0:
-            merge_tables(source_table, destination_table, "sorted",
-                         strategy=strategy, table_writer=table_writer, spec=spec)
+            run_merge(source_table, destination_table, "sorted",
+                      strategy=strategy, table_writer=table_writer, spec=spec)
         return
 
     if destination_table is None:
@@ -435,6 +443,11 @@ def sort_table(source_table, destination_table=None, sort_by=None,
     )(spec)
 
     _make_operation_request("sort", spec, strategy, finalizer=None)
+
+def sort_table(source_table, destination_table=None, sort_by=None,
+               strategy=None, table_writer=None, replication_factor=None, spec=None):
+    """ DEPRECATED: use run_sort"""
+    run_sort(source_table, destination_table, sort_by, strategy, table_writer, replication_factor, spec)
 
 
 """ Map and reduce methods """

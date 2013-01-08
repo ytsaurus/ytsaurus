@@ -6,9 +6,9 @@ import yt.wrapper as yt
 
 def merge(table):
     try:
-        yt.merge_tables(table, table, "unordered",
-                        table_writer={"codec":"gzip_best_compression"},
-                        spec={"combine_chunks":"true"})
+        yt.run_merge(table, table, "unordered",
+                     table_writer={"codec":"gzip_best_compression"},
+                     spec={"combine_chunks":"true"})
     except yt.YtError as e:
         print "Failed to merge table %s with error %s" % (table, repr(e))
 

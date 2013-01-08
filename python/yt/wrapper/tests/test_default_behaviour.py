@@ -123,7 +123,7 @@ class DefaultYtTest(YtTestBase, YTEnv):
         self.assertEqual(0, yt.records_count(table))
         self.check([], yt.read_table(table, format=yt.DsvFormat()))
 
-        yt.erase_table(table)
+        yt.run_erase(table)
         self.assertEqual(0, yt.records_count(table))
 
         yt.remove(dir, recursive=True)
@@ -164,11 +164,11 @@ class DefaultYtTest(YtTestBase, YTEnv):
         yt.write_table(tableX, ["x=1\n"])
         yt.write_table(tableY, ["y=2\n"])
 
-        self.assertRaises(yt.YtError, lambda: yt.merge_tables([tableX, tableY], res_table))
-        self.assertRaises(yt.YtError, lambda: yt.merge_tables([tableX, tableY], res_table))
+        self.assertRaises(yt.YtError, lambda: yt.run_merge([tableX, tableY], res_table))
+        self.assertRaises(yt.YtError, lambda: yt.run_merge([tableX, tableY], res_table))
 
         yt.mkdir(dir)
-        yt.merge_tables([tableX, tableY], res_table)
+        yt.run_merge([tableX, tableY], res_table)
         self.check(["x=1\n"], yt.read_table(tableX))
         self.check(["y=2\n"], yt.read_table(tableY))
         self.check(["x=1\n", "y=2\n"], yt.read_table(res_table))
@@ -191,12 +191,12 @@ class DefaultYtTest(YtTestBase, YTEnv):
         other_table = TEST_DIR + "/other_table"
         yt.write_table(table, ["y=2\n", "x=1\n"])
 
-        self.assertRaises(yt.YtError, lambda: yt.sort_table([table, other_table], other_table, sort_by=["y"]))
+        self.assertRaises(yt.YtError, lambda: yt.run_sort([table, other_table], other_table, sort_by=["y"]))
 
-        yt.sort_table(table, other_table, sort_by=["y"])
+        yt.run_sort(table, other_table, sort_by=["y"])
         self.assertEqual(["x=1\n", "y=2\n"], list(yt.read_table(other_table)))
 
-        yt.sort_table(table, sort_by=["x"])
+        yt.run_sort(table, sort_by=["x"])
         self.assertEqual(["y=2\n", "x=1\n"], list(yt.read_table(table)))
 
     def test_printing_stderr(self):

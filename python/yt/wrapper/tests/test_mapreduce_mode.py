@@ -165,18 +165,18 @@ class MapreduceBehaviourTest(YtTestBase, YTEnv):
     def test_sort(self):
         table = self.create_temp_table()
         files_count = len(list(yt.list(TEST_DIR)))
-        yt.sort_table(table)
+        yt.run_sort(table)
         self.assertEqual(len(list(yt.list(TEST_DIR))), files_count)
         self.assertEqual(self.read_records(table)[0].key, "0")
         self.assertEqual(sorted(list(self.temp_records())),
                          list(yt.read_table(table)))
         self.assertTrue(yt.is_sorted(table))
 
-        yt.sort_table(table, sort_by=["subkey"])
+        yt.run_sort(table, sort_by=["subkey"])
         self.assertEqual(self.read_records(table)[0].subkey, "a")
 
         unexisting_table = TEST_DIR + "/unexisting"
-        yt.sort_table(unexisting_table)
+        yt.run_sort(unexisting_table)
         self.assertFalse(yt.exists(unexisting_table))
 
     def test_attributes(self):
@@ -202,7 +202,7 @@ class MapreduceBehaviourTest(YtTestBase, YTEnv):
                    files=map(_test_file_path, ["my_op.py", "helpers.py"]))
         self.assertEqual(2 * yt.records_count(table), yt.records_count(other_table))
 
-        yt.sort_table(table)
+        yt.run_sort(table)
         yt.run_reduce("./cpp_bin",
                       table, other_table,
                       files=_test_file_path("cpp_bin"))
@@ -271,7 +271,7 @@ class MapreduceBehaviourTest(YtTestBase, YTEnv):
             sorted([rec["c"] for rec in recs if "c" in rec]),
             [])
 
-        yt.sort_table(table, sort_by=["b", "c"])
+        yt.run_sort(table, sort_by=["b", "c"])
         self.assertEqual(
             self.read_records(TablePath(table, lower_key="a", upper_key="n", columns=["b"]),
                               format=yt.DsvFormat()),
@@ -295,18 +295,18 @@ class MapreduceBehaviourTest(YtTestBase, YTEnv):
         table = self.create_temp_table()
         other_table = TEST_DIR + "/temp_other"
         another_table = TEST_DIR + "/temp_another"
-        yt.sort_table(table)
+        yt.run_sort(table)
         self.assertTrue(yt.is_sorted(table))
-        yt.merge_tables(table, other_table, mode="sorted")
+        yt.run_merge(table, other_table, mode="sorted")
         self.assertTrue(yt.is_sorted(other_table))
-        yt.merge_tables([table, other_table], another_table, mode="sorted")
+        yt.run_merge([table, other_table], another_table, mode="sorted")
         self.assertTrue(yt.is_sorted(another_table))
         self.assertEqual(yt.records_count(another_table), 20)
 
     def test_digit_names(self):
         table = TEST_DIR + '/123'
         yt.write_table(table, self.temp_records())
-        yt.sort_table(table)
+        yt.run_sort(table)
         self.assertEqual(self.read_records(table)[0].key, "0")
 
     def test_empty_input_tables(self):
@@ -421,11 +421,11 @@ class MapreduceBehaviourTest(YtTestBase, YTEnv):
         other_table = TEST_DIR + "/temp_other"
         result_table = TEST_DIR + "/result"
 
-        yt.sort_table(table)
+        yt.run_sort(table)
         copy_table(table, other_table)
         self.assertTrue(yt.is_sorted(other_table))
 
-        yt.sort_table([table, other_table], result_table)
+        yt.run_sort([table, other_table], result_table)
         self.assertTrue(yt.is_sorted(result_table))
         self.assertEqual(yt.records_count(result_table), 20)
 
@@ -433,21 +433,21 @@ class MapreduceBehaviourTest(YtTestBase, YTEnv):
         table = self.create_temp_table()
         other_table = TEST_DIR + "/temp_other"
 
-        yt.sort_table(table)
+        yt.run_sort(table)
         self.assertTrue(yt.is_sorted(table))
 
-        yt.sort_table([table], other_table)
+        yt.run_sort([table], other_table)
         self.assertTrue(yt.is_sorted(other_table))
         self.assertEqual(yt.records_count(other_table), 10)
 
-    def test_erase_table(self):
+    def test_erase(self):
         table = self.create_temp_table()
         self.assertEqual(yt.records_count(table), 10)
 
-        yt.erase_table(TablePath(table, start_index=0, end_index=5))
+        yt.run_erase(TablePath(table, start_index=0, end_index=5))
         self.assertEqual(yt.records_count(table), 5)
 
-        yt.erase_table(TablePath(table, start_index=0, end_index=5))
+        yt.run_erase(TablePath(table, start_index=0, end_index=5))
         self.assertEqual(yt.records_count(table), 0)
 
     def test_empty_file_is_not_uploaded(self):
