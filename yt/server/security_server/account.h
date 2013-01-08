@@ -28,7 +28,7 @@ public:
     void Save(const NCellMaster::TSaveContext& context) const;
     void Load(const NCellMaster::TLoadContext& context);
 
-    bool IsDiskSpaceOverLimit() const;
+    bool IsOverDiskSpace() const;
 
 };
 

@@ -1687,7 +1687,7 @@ TObjectBase* TChunkManager::TChunkTypeHandler::Create(
     UNUSED(attributes);
     
     // TODO(babenko): account must be required
-    if (account && account->IsDiskSpaceOverLimit()) {
+    if (account && account->IsOverDiskSpace()) {
         THROW_ERROR_EXCEPTION("Account is over disk space: %s",
             ~account->GetName())
             << TErrorAttribute("usage", account->ResourceUsage().DiskSpace)

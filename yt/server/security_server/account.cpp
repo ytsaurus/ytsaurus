@@ -40,7 +40,7 @@ void TAccount::Load(const NCellMaster::TLoadContext& context)
     ::Load(input, NodeCount_);
 }
 
-bool TAccount::IsDiskSpaceOverLimit() const
+bool TAccount::IsOverDiskSpace() const
 {
     return ResourceUsage_.DiskSpace > ResourceLimits_.DiskSpace;
 }

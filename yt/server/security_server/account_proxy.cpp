@@ -82,7 +82,7 @@ private:
             return true;
         }
 
-        if (key == "disk_space_over_limit") {
+        if (key == "over_disk_space") {
             BuildYsonFluently(consumer)
                 .Value(account->IsDiskSpaceOverLimit());
             return true;
