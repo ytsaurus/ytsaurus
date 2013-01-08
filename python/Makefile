@@ -22,7 +22,13 @@ prepare: version
 	cp yt/wrapper/mapreduce yt/wrapper/mapreduce-yt
 
 html:
-	sphinx-build -b html yt docs/_build/ 
+	rm -rf docs
+	mkdir docs
+	sphinx-apidoc -F -o docs yt
+	sphinx-build -b html docs docs/_build/ 
+	#sudo cp -r docs/_build/* /usr/share/nginx/www/python_api
+
+
 
 deb:
 	$(MAKE) test
