@@ -228,5 +228,5 @@ class TestAccounts(YTEnvSetup):
     	set('//sys/accounts/max/@resource_limit/disk_space', 1000)
     	set('//sys/accounts/max/@resource_limit/disk_space', 2000)
     	set('//sys/accounts/max/@resource_limit/disk_space', 0)
-    	assert get('//sys/accounts/max/@resource_limit/disk_space_over_limit', 'false')
+    	assert get('//sys/accounts/max/@resource_limit/disk_space_over_limit') == 'false'
     	with pytest.raises(YTError): set('//sys/accounts/max/@resource_limit/disk_space', -1)
