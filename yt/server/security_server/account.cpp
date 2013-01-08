@@ -33,6 +33,7 @@ void TAccount::Load(const NCellMaster::TLoadContext& context)
     auto* input = context.GetInput();
     ::Load(input, Name_);
     NSecurityServer::Load(input, ResourceUsage_);
+    // COMPAT(babenko)
     if (context.GetVersion() >= 6) {
         NSecurityServer::Load(input, ResourceLimits_);
     }
