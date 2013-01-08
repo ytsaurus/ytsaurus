@@ -18,10 +18,10 @@ class TestAccounts(YTEnvSetup):
         return get('//sys/accounts/{0}/@resource_limits/disk_space'.format(account))
 
     def _set_account_disk_space_limit(self, account, value):
-        set('//sys/accounts/{0}/@resource_usage/disk_space'.format(account), value)
+        set('//sys/accounts/{0}/@resource_limits/disk_space'.format(account), value)
 
     def _is_account_over_disk_space(self, account):
-        return get('//sys/accounts/{0}/@is_over_disk_space'.format(account))
+        return get('//sys/accounts/{0}/@over_disk_space'.format(account))
 
     def _get_account_node_count(self, account):
         return get('//sys/accounts/{0}/@node_count'.format(account))
