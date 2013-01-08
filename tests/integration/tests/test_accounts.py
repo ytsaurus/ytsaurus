@@ -247,15 +247,15 @@ class TestAccounts(YTEnvSetup):
         create('table', '//tmp/t')
         set('//tmp/t/@account', 'max')
 
-        write('/tmp/t', {'a' : 'b'})
+        write('//tmp/t', {'a' : 'b'})
         assert self._is_account_over_disk_space('max') == 'false'
         
         self._set_account_disk_space_limit('max', 0)
         assert self._is_account_over_disk_space('max') == 'true'
-        with pytest.raises(YTError): write('/tmp/t', {'a' : 'b'}) 
+        with pytest.raises(YTError): write('//tmp/t', {'a' : 'b'}) 
 
         self._set_account_disk_space_limit('max', self._get_account_disk_space('max'))
         assert self._is_account_over_disk_space('max') == 'false'
-        write('/tmp/t', {'a' : 'b'}) 
+        write('//tmp/t', {'a' : 'b'}) 
         assert self._is_account_over_disk_space('max') == 'true'
 
