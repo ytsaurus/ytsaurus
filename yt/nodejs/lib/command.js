@@ -630,40 +630,25 @@ YtCommand.prototype._checkPermissions = function() {
 
         // Collect all paths mentioned within a request.
         // This is an approximation, but a decent one.
-        try {
-            if (typeof(this.parameters.path) === "string") {
-                paths.push(this.parameters.path);
+        function collectFrom(ypath) {
+            try {
+                var tmp = self.parameters.Traverse(ypath).Get();
+                if (typeof(tmp) === "string") {
+                    paths.push(tmp);
+                } else if (tmp instanceof Array) {
+                    for (var i = 0, n = tmp.length; i < n; ++i) {
+                        paths.push(tmp[i]);
+                    }
+                }
+            } catch(err) {
             }
-        } catch(err) {
         }
 
-        try {
-            if (typeof(this.parameters.spec.input_table_path) === "string") {
-                paths.push(this.parameters.spec.input_table_path);
-            }
-        } catch(err) {
-        }
-
-        try {
-            this.parameters.spec.input_table_paths.forEach(function(path) {
-                if (typeof(path) === "string") { paths.push(path); }
-            });
-        } catch(err) {
-        }
-
-        try {
-            if (typeof(this.parameters.spec.output_table_path) === "string") {
-                paths.push(this.parameters.spec.output_table_path);
-            }
-        } catch(err) {
-        }
-
-        try {
-            this.parameters.spec.output_table_paths.forEach(function(path) {
-                if (typeof(path) === "string") { paths.push(path); }
-            });
-        } catch(err) {
-        }
+        collectFrom("/path");
+        collectFrom("/spec/input_table_path");
+        collectFrom("/spec/input_table_paths");
+        collectFrom("/spec/output_table_path");
+        collectFrom("/spec/output_table_paths");
 
         paths.forEach(function(path) {
             if (!RE_WRITABLE.test(path)) {
