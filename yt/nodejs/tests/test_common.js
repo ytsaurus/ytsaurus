@@ -110,11 +110,20 @@ describe("conversion specifics", function() {
     });
 });
 
+describe("traversing", function() {
+    it("should throw exception on non-existing key", function() {
+        var node = new binding.TNodeJSNode({ a: 1 });
+        expect(function() {
+            node.Traverse("/nonexistent");
+        }).to.throw(Error);
+    });
+});
+
 describe("merging", function() {
     it("should properly merge disjoint key sets", function() {
-        var node_a = new binding.TNodeJSNode({ a: 1, b: 2});
-        var node_b = new binding.TNodeJSNode({ c: 3, d: 4});
-        var node_c = new binding.TNodeJSNode({ e: 5, f: 6});
+        var node_a = new binding.TNodeJSNode({ a: 1, b: 2 });
+        var node_b = new binding.TNodeJSNode({ c: 3, d: 4 });
+        var node_c = new binding.TNodeJSNode({ e: 5, f: 6 });
         var result = binding.CreateMergedNode(node_a, node_b, node_c);
         result.Traverse("/a").Print().should.eql("1");
         result.Traverse("/b").Print().should.eql("2");
@@ -124,9 +133,9 @@ describe("merging", function() {
         result.Traverse("/f").Print().should.eql("6");
     });
     it("should properly merge overlapping key sets", function() {
-        var node_a = new binding.TNodeJSNode({ a: 1, b: 2});
-        var node_b = new binding.TNodeJSNode({ b: 3, c: 4});
-        var node_c = new binding.TNodeJSNode({ c: 5, d: 6});
+        var node_a = new binding.TNodeJSNode({ a: 1, b: 2 });
+        var node_b = new binding.TNodeJSNode({ b: 3, c: 4 });
+        var node_c = new binding.TNodeJSNode({ c: 5, d: 6 });
         var result = binding.CreateMergedNode(node_a, node_b, node_c);
         result.Traverse("/a").Print().should.eql("1");
         result.Traverse("/b").Print().should.eql("3");
