@@ -547,10 +547,8 @@ private:
         const TIterator& end,
         const Stroka& address)
     {
-        i64 idealDataSizePerJob = GetTotalDataSize() / GetTotalJobCount();
-        
+        i64 idealDataSizePerJob = GetTotalDataSize() / GetTotalJobCount();     
         i64 pendingJobCount = GetPendingJobCount();
-        i64 pendingDataSize = GetPendingDataSize();
 
         size_t oldSize = list->Stripes.size();
         for (auto it = begin; it != end; ++it) {
@@ -560,6 +558,8 @@ private:
             i64 stripeRowCount;
             GetStatistics(stripe, &stripeDataSize, &stripeRowCount);
             
+            i64 pendingDataSize = GetPendingDataSize() - list->TotalDataSize;
+
             bool take;
             if (pendingJobCount == 1 || list->TotalDataSize == 0) {
                 take = true;
@@ -573,7 +573,6 @@ private:
                 break;
 
             AddStripeToList(stripe, stripeDataSize, stripeRowCount, list, address);
-            pendingDataSize -= stripeDataSize;
         }
         size_t newSize = list->Stripes.size();
 
