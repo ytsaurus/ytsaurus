@@ -164,7 +164,6 @@ private:
     // Protects #JobResult.
     TSpinLock ResultLock;
     TNullable<NScheduler::NProto::TJobResult> JobResult;
-    TPromise<void> JobFinished;
 
     NJobProxy::TJobProxyConfigPtr ProxyConfig;
 

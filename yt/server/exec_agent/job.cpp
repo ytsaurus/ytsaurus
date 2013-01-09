@@ -61,7 +61,6 @@ TJob::TJob(
     , JobState(EJobState::Waiting)
     , JobPhase(EJobPhase::Created)
     , Progress(0.0)
-    , JobFinished(NewPromise<void>())
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
     Logger.AddTag(Sprintf("JobId: %s", ~jobId.ToString()));
