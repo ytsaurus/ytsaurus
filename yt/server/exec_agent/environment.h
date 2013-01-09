@@ -24,7 +24,7 @@ struct IProxyController
     /*!
      *  Is safe to be called anytime.
      *  Kills job proxy if it is running.
-     *  
+     *
      *  Must be called from the same thread as #Run.
      */
     virtual void Kill(const TError& error) throw() = 0;
@@ -41,7 +41,7 @@ struct IProxyController
 ////////////////////////////////////////////////////////////////////////////////
 
 /*!
- *  Environment builder represents method of proxy execution 
+ *  Environment builder represents method of proxy execution
  *  (e.g simple fork or within container) and related mechanisms of
  *  monitoring, isolation etc.
  */
@@ -51,7 +51,8 @@ struct IEnvironmentBuilder
     virtual IProxyControllerPtr CreateProxyController(
         NYTree::INodePtr config,
         const TJobId& jobId,
-        const Stroka& workingDirectory) = 0;
+        const Stroka& workingDirectory,
+        i64 jobProxyMemoryLimit) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

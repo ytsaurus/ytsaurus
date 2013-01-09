@@ -15,6 +15,7 @@
 
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/resource.h>
 
 #endif
 
@@ -24,6 +25,8 @@ namespace NExecAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ExecAgentLogger;
+
+static const double LimitMultiplier = 1.25;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,9 +39,10 @@ public:
     { }
 
     IProxyControllerPtr CreateProxyController(
-        NYTree::INodePtr config, 
-        const TJobId& jobId, 
-        const Stroka& workingDirectory) override;
+        NYTree::INodePtr config,
+        const TJobId& jobId,
+        const Stroka& workingDirectory,
+        i64 jobProxyMemoryLimit) override;
 
 private:
     friend class TUnsafeProxyController;
@@ -80,10 +84,12 @@ public:
         const Stroka& proxyPath,
         const TJobId& jobId,
         const Stroka& workingDirectory,
+        i64 memoryLimit,
         TUnsafeEnvironmentBuilder* envBuilder)
         : ProxyPath(proxyPath)
         , WorkingDirectory(workingDirectory)
         , JobId(jobId)
+        , MemoryLimit(memoryLimit)
         , Logger(ExecAgentLogger)
         , ProcessId(-1)
         , EnvironmentBuilder(envBuilder)
@@ -93,11 +99,11 @@ public:
         Logger.AddTag(Sprintf("JobId: %s", ~jobId.ToString()));
     }
 
-    void Run() 
+    void Run()
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        LOG_INFO("Starting job proxy in unsafe environment (WorkDir: %s)", 
+        LOG_INFO("Starting job proxy in unsafe environment (WorkDir: %s)",
             ~WorkingDirectory);
 
         //ToDo(psushin): Remove this mutex when libc is fixed.
@@ -117,13 +123,26 @@ public:
             dup2(fd, STDERR_FILENO);
 
             // Separate process group for that job - required in non-container mode only.
-            setpgid(0, 0); 
+            setpgid(0, 0);
+
+            auto memoryLimit = static_cast<rlim_t>(MemoryLimit * LimitMultiplier);
+            struct rlimit rlimit = {memoryLimit, memoryLimit};
+
+            auto res = setrlimit(RLIMIT_AS, &rlimit);
+            if (res) {
+                fprintf(stderr, "Failed to set resource limits (JobId: %s, MemoryLimit: %"PRId64" Error: %s)\n",
+                ~JobId.ToString(),
+                memoryLimit,
+                strerror(errno));
+
+                _exit(8);
+            }
 
             // Search the PATH, inherit environment.
             execlp(
-                ~ProxyPath, 
-                ~ProxyPath, 
-                "--job-proxy", 
+                ~ProxyPath,
+                ~ProxyPath,
+                "--job-proxy",
                 "--config", ~ProxyConfigFileName,
                 "--job-id", ~JobId.ToString(),
                 (void*) NULL);
@@ -155,10 +174,10 @@ public:
         ControllerThread.Detach();
     }
 
-    void Kill(const TError& error) throw() 
+    void Kill(const TError& error) throw()
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-        
+
         LOG_INFO(error, "Killing job");
 
         SetError(error);
@@ -186,7 +205,7 @@ public:
         OnExit.Subscribe(callback);
     }
 
-    void UnsubscribeExited(const TCallback<void(TError)>& callback) 
+    void UnsubscribeExited(const TCallback<void(TError)>& callback)
     {
         YUNIMPLEMENTED();
     }
@@ -248,6 +267,7 @@ private:
     const Stroka ProxyPath;
     const Stroka WorkingDirectory;
     const TJobId JobId;
+    const i64 MemoryLimit;
 
     NLog::TTaggedLogger Logger;
 
@@ -279,7 +299,7 @@ public:
         Logger.AddTag(Sprintf("JobId: %s", ~jobId.ToString()));
     }
 
-    void Run() 
+    void Run()
     {
         ControllerThread.Start();
         ControllerThread.Detach();
@@ -287,18 +307,18 @@ public:
         LOG_INFO("Running dummy job");
     }
 
-    void Kill(const TError& error) 
+    void Kill(const TError& error)
     {
         LOG_INFO("Killing dummy job");
         OnExit.Get();
     }
 
-    void SubscribeExited(const TCallback<void(TError)>& callback) 
+    void SubscribeExited(const TCallback<void(TError)>& callback)
     {
         OnExit.Subscribe(callback);
     }
 
-    void UnsubscribeExited(const TCallback<void(TError)>& callback) 
+    void UnsubscribeExited(const TCallback<void(TError)>& callback)
     {
         YUNIMPLEMENTED();
     }
@@ -331,12 +351,13 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IProxyControllerPtr TUnsafeEnvironmentBuilder::CreateProxyController(
-    NYTree::INodePtr config, 
-    const TJobId& jobId, 
-    const Stroka& workingDirectory)
+    NYTree::INodePtr config,
+    const TJobId& jobId,
+    const Stroka& workingDirectory,
+    i64 jobProxyMemoryLimit)
 {
 #ifndef _win_
-    return New<TUnsafeProxyController>(ProxyPath, jobId, workingDirectory, this);
+    return New<TUnsafeProxyController>(ProxyPath, jobId, workingDirectory, jobProxyMemoryLimit, this);
 #else
     UNUSED(config);
     UNUSED(workingDirectory);

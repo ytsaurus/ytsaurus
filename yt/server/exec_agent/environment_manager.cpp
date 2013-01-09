@@ -18,16 +18,17 @@ TEnvironmentManager::TEnvironmentManager(TEnvironmentManagerConfigPtr config)
 { }
 
 void TEnvironmentManager::Register(
-    const Stroka& envType, 
+    const Stroka& envType,
     IEnvironmentBuilderPtr envBuilder)
 {
     YCHECK(Builders.insert(MakePair(envType, envBuilder)).second);
 }
 
 IProxyControllerPtr TEnvironmentManager::CreateProxyController(
-    const Stroka& envName, 
-    const TJobId& jobId, 
-    const Stroka& workingDirectory)
+    const Stroka& envName,
+    const TJobId& jobId,
+    const Stroka& workingDirectory,
+    i64 jobProxyMemoryLimit)
 {
     auto env = Config->FindEnvironment(envName);
 
@@ -39,7 +40,8 @@ IProxyControllerPtr TEnvironmentManager::CreateProxyController(
     return it->second->CreateProxyController(
         env->GetOptions(),
         jobId,
-        workingDirectory);
+        workingDirectory,
+        jobProxyMemoryLimit);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

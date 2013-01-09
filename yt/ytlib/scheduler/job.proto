@@ -120,6 +120,7 @@ message TUserJobSpec
 
     repeated string environment = 5;
 
+    required int64 memory_limit = 7;
 }
 
 // User code result.

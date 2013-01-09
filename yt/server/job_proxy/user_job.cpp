@@ -31,6 +31,7 @@
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/wait.h>
+#include <sys/resource.h>
 
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -50,6 +51,8 @@ using namespace NScheduler;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = JobProxyLogger;
+
+static const double LimitMultiplier = 1.25;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -396,6 +399,18 @@ private:
                 envp[i] = ~UserJobSpec.environment(i);
             }
             envp[UserJobSpec.environment_size()] = NULL;
+
+            auto memoryLimit = static_cast<rlim_t>(UserJobSpec.memory_limit() * LimitMultiplier);
+            struct rlimit rlimit = {memoryLimit, memoryLimit};
+
+            auto res = setrlimit(RLIMIT_AS, &rlimit);
+            if (res) {
+                fprintf(stderr, "Failed to set resource limits (MemoryLimit: %"PRId64" Error: %s)\n",
+                memoryLimit,
+                strerror(errno));
+
+                _exit(8);
+            }
 
             // do not search the PATH, inherit environment
             execle("/bin/sh",

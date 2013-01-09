@@ -135,6 +135,31 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
 
     JobPhase = EJobPhase::PreparingProxy;
 
+    i64 proxyMemoryLimit = GetResourceLimits().memory();
+    const NScheduler::NProto::TUserJobSpec* userJobSpec = nullptr;
+    {
+        if (JobSpec.HasExtension(TMapJobSpecExt::map_job_spec_ext)) {
+            const auto& jobSpecExt = JobSpec.GetExtension(TMapJobSpecExt::map_job_spec_ext);
+            userJobSpec = &jobSpecExt.mapper_spec();
+        }
+
+        if (JobSpec.HasExtension(TReduceJobSpecExt::reduce_job_spec_ext)) {
+            const auto& jobSpecExt = JobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+            userJobSpec = &jobSpecExt.reducer_spec();
+        }
+
+        if (JobSpec.HasExtension(TPartitionJobSpecExt::partition_job_spec_ext)) {
+            const auto& jobSpecExt = JobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
+            if (jobSpecExt.has_mapper_spec()) {
+                userJobSpec = &jobSpecExt.mapper_spec();
+            }
+        }
+
+        if (userJobSpec) {
+            proxyMemoryLimit -= userJobSpec->memory_limit();
+        }
+    }
+
     Stroka environmentType = "default";
     try {
         ProxyController = environmentManager->CreateProxyController(
@@ -143,7 +168,8 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
             //jobSpec.operation_spec().environment(),
             environmentType,
             JobId,
-            Slot->GetWorkingDirectory());
+            Slot->GetWorkingDirectory(),
+            proxyMemoryLimit);
     } catch (const std::exception& ex) {
         auto wrappedError = TError(
             "Failed to create proxy controller for environment %s",
@@ -157,22 +183,8 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
     Slot->InitSandbox();
 
     auto awaiter = New<TParallelAwaiter>(Slot->GetInvoker());
-
-    if (JobSpec.HasExtension(TMapJobSpecExt::map_job_spec_ext)) {
-        const auto& jobSpecExt = JobSpec.GetExtension(TMapJobSpecExt::map_job_spec_ext);
-        PrepareUserJob(jobSpecExt.mapper_spec(), awaiter);
-    }
-
-    if (JobSpec.HasExtension(TReduceJobSpecExt::reduce_job_spec_ext)) {
-        const auto& jobSpecExt = JobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-        PrepareUserJob(jobSpecExt.reducer_spec(), awaiter);
-    }
-
-    if (JobSpec.HasExtension(TPartitionJobSpecExt::partition_job_spec_ext)) {
-        const auto& jobSpecExt = JobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
-        if (jobSpecExt.has_mapper_spec()) {
-            PrepareUserJob(jobSpecExt.mapper_spec(), awaiter);
-        }
+    if (userJobSpec) {
+        PrepareUserJob(*userJobSpec, awaiter);
     }
 
     awaiter->Complete(BIND(&TJob::RunJobProxy, MakeWeak(this)));

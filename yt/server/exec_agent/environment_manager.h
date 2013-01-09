@@ -16,10 +16,11 @@ public:
     IProxyControllerPtr CreateProxyController(
         const Stroka& envName,
         const TJobId& jobId,
-        const Stroka& workingDirectory);
+        const Stroka& workingDirectory,
+        i64 jobProxyMemoryLimit);
 
     void Register(
-        const Stroka& envType, 
+        const Stroka& envType,
         IEnvironmentBuilderPtr envBuilder);
 
 private:

@@ -675,7 +675,7 @@ TJobPtr TOperationControllerBase::ScheduleJob(
     }
 
     OnJobStarted(job);
-    
+
     return job;
 }
 
@@ -2012,6 +2012,7 @@ void TOperationControllerBase::InitUserJobSpec(
     const std::vector<TUserTableFile>& tableFiles)
 {
     proto->set_shell_command(config->Command);
+    proto->set_memory_limit(config->MemoryLimit);
 
     {
         // Set input and output format.
