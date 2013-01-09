@@ -1,15 +1,15 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/python/yt/driver )
 set( SRCS
-    ${BASE}/driver.cpp
-    ${BASE}/stream.cpp
-    ${BASE}/serialize.cpp
+  ${BASE}/driver.cpp
+  ${BASE}/serialize.cpp
+  ${BASE}/stream.cpp
 )
 
 set( HDRS
-    ${BASE}/common.h
-    ${BASE}/stream.h
-    ${BASE}/serialize.h
+  ${BASE}/common.h
+  ${BASE}/serialize.h
+  ${BASE}/stream.h
 )
 
 
