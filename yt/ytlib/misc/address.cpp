@@ -285,17 +285,25 @@ TAddressResolver* TAddressResolver::Get()
     return Singleton<TAddressResolver>();
 }
 
-TFuture< TValueOrError<TNetworkAddress> > TAddressResolver::Resolve(const Stroka& hostName)
+TFuture< TValueOrError<TNetworkAddress> > TAddressResolver::Resolve(const Stroka& address)
 {
+    // Try to interpret address as IPV4 or IPV6 address
+    {
+        TNetworkAddress networkAddress;
+        if (TNetworkAddress::TryParse(address, &networkAddress)) {
+            return MakeFuture(TValueOrError<TNetworkAddress>(networkAddress));
+        }
+    }
+
     // Cache lookup.
     {
         TGuard<TSpinLock> guard(SpinLock);
-        auto it = Cache.find(hostName);
+        auto it = Cache.find(address);
         if (it != Cache.end()) {
             auto result = it->second;
             guard.Release();
             LOG_DEBUG("Address cache hit: %s -> %s",
-                ~hostName,
+                ~address,
                 ~ToString(result));
             return MakeFuture(TValueOrError<TNetworkAddress>(result));
         }
@@ -303,7 +311,7 @@ TFuture< TValueOrError<TNetworkAddress> > TAddressResolver::Resolve(const Stroka
 
     // Run async resolution.
     return
-        BIND(&TAddressResolver::DoResolve, this, hostName)
+        BIND(&TAddressResolver::DoResolve, this, address)
         .AsyncVia(AddressResolverQueue->GetInvoker())
         .Run();
 }
