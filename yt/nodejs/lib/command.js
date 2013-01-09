@@ -630,7 +630,7 @@ YtCommand.prototype._checkPermissions = function() {
 
         // Collect all paths mentioned within a request.
         // This is an approximation, but a decent one.
-        function collectFrom(ypath) {
+        var collectFrom = function(ypath) {
             try {
                 var tmp = self.parameters.Traverse(ypath).Get();
                 if (typeof(tmp) === "string") {

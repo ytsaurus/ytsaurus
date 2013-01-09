@@ -138,6 +138,8 @@ void ConsumeV8Value(Handle<Value> value, IYsonConsumer* consumer)
 
 Handle<Value> ProduceV8(INodePtr node)
 {
+    THREAD_AFFINITY_IS_V8();
+
     if (!node) {
         return v8::Null();
     }
@@ -155,23 +157,25 @@ Handle<Value> ProduceV8(INodePtr node)
         }
         case ENodeType::Map: {
             auto children = node->AsMap()->GetChildren();
-            auto value = Object::New();
+            auto result = Object::New();
             FOREACH (const auto& pair, children) {
                 const auto& key = pair.First();
                 const auto& value = pair.Second();
-                value.Set(
+                result->Set(
                     String::New(key.c_str(), key.length()),
                     ProduceV8(value));
             }
+            return result;
         }
         case ENodeType::List: {
             auto children = node->AsList()->GetChildren();
-            auto value = Array::New(children.size());
+            auto result = Array::New(children.size());
             for (size_t i = 0; i < children.size(); ++i) {
-                value.Set(
+                result->Set(
                     Integer::New(i),
                     ProduceV8(children[i]));
             }
+            return result;
         }
         default:
             return v8::Undefined();

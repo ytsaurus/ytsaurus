@@ -110,12 +110,12 @@ describe("conversion specifics", function() {
 
     it("should properly pass integers back and forth", function() {
         var node = new binding.TNodeJSNode(
-            "{\"a\":0,\"b\":4294967295,\"c\":-4294967296}",
+            "{\"a\":0,\"b\":2147483647,\"c\":-2147483648}",
             binding.ECompression_None,
             binding.CreateV8Node("json"));
         node.Traverse("/a").Get().should.eql(0);
-        node.Traverse("/b").Get().should.eql(4294967295);
-        node.Traverse("/c").Get().should.eql(-4294967296);
+        node.Traverse("/b").Get().should.eql(2147483647);
+        node.Traverse("/c").Get().should.eql(-2147483648);
     });
 
     it("should properly pass lists back and forth", function() {
