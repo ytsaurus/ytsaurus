@@ -39,6 +39,7 @@ var dynamic_server;
 
 var violentlyDieTriggered = false;
 var violentlyDie = function violentDeath() {
+    "use strict";
     if (violentlyDieTriggered) { return; }
     violentlyDieTriggered = true;
 
@@ -54,6 +55,7 @@ var violentlyDie = function violentDeath() {
 
 var gracefullyDieTriggered = false;
 var gracefullyDie = function gracefulDeath() {
+    "use strict";
     if (gracefullyDieTriggered) { return; }
     gracefullyDieTriggered = true;
 
@@ -69,14 +71,16 @@ var gracefullyDie = function gracefulDeath() {
 
 // Fire up the heart.
 (function sendHeartbeat() {
+    "use strict";
     process.send({ type : "heartbeat" });
     setTimeout(sendHeartbeat, 1000);
-})();
+}());
 
 var supervisor_liveness = setTimeout(gracefullyDie, 15000);
 
 // Setup message handlers.
 process.on("message", function(message) {
+    "use strict";
     if (!message || !message.type) {
         return; // Improper message format.
     }
@@ -190,6 +194,7 @@ dynamic_server = connect()
         rsp.end("Invalid URI " + JSON.stringify(req.url) + ". Please refer to documentation at http://wiki.yandex-team.ru/YT/ to learn more about HTTP API.");
     })
     .listen(config.port, config.address, function() {
+        "use strict";
         logger.info("Worker is listening", {
             wid : cluster.worker.id,
             pid : process.pid

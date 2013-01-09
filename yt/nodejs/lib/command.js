@@ -642,7 +642,7 @@ YtCommand.prototype._checkPermissions = function() {
                 }
             } catch(err) {
             }
-        }
+        };
 
         collectFrom("/path");
         collectFrom("/spec/input_table_path");

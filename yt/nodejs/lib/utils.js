@@ -10,6 +10,7 @@ var stream = require("stream");
 
 // Redirects unless original URL is not a directory.
 exports.redirectUnlessDirectory = function(req, rsp) {
+    "use strict";
     if (req.originalUrl.substr(-1) !== "/") {
         rsp.statusCode = 301;
         rsp.setHeader("Location", req.originalUrl + "/");
