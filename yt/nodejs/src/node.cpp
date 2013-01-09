@@ -41,6 +41,8 @@ void ConsumeV8Object(Handle<Object> object, IYsonConsumer* consumer);
 void ConsumeV8ObjectProperties(Handle<Object> object, IYsonConsumer* consumer);
 void ConsumeV8Value(Handle<Value> value, IYsonConsumer* consumer);
 
+Handle<Value> ProduceV8(INodePtr node);
+
 // Define.
 void ConsumeV8Array(Handle<Array> array, IYsonConsumer* consumer)
 {
@@ -134,6 +136,26 @@ void ConsumeV8Value(Handle<Value> value, IYsonConsumer* consumer)
     }
 }
 
+Handle<Value> ProduceV8(INodePtr node)
+{
+    if (!node) {
+        return v8::Null();
+    }
+
+    switch (node->GetType()) {
+        case ENodeType::String: {
+            auto value = node->GetValue<Stroka>();
+            return String::New(value.c_str(), value.length());
+        }
+        case ENodeType::Integer: {
+            auto value = node->GetValue<i64>();
+            return Integer::New(value);
+        }
+        default:
+            return v8::Undefined();
+    }
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -213,6 +235,7 @@ void TNodeJSNode::Initialize(Handle<Object> target)
     ConstructorTemplate->SetClassName(String::NewSymbol("TNodeJSNode"));
 
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Print", TNodeJSNode::Print);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Traverse", TNodeJSNode::Traverse);
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Get", TNodeJSNode::Get);
 
     target->Set(
@@ -382,7 +405,7 @@ Handle<Value> TNodeJSNode::Print(const Arguments& args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TNodeJSNode::Get(const Arguments& args)
+Handle<Value> TNodeJSNode::Traverse(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -405,6 +428,19 @@ Handle<Value> TNodeJSNode::Get(const Arguments& args)
     ObjectWrap::Unwrap<TNodeJSNode>(handle)->SetNode(MoveRV(node));
 
     return scope.Close(MoveRV(handle));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Handle<Value> TNodeJSNode::Get(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    YASSERT(args.Length() == 0);
+
+    INodePtr node = TNodeJSNode::Node(args.This());
+    return scope.Close(ProduceV8(MoveRV(node)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -32,6 +32,7 @@ public:
     static v8::Handle<v8::Value> CreateV8(const v8::Arguments& args);
 
     static v8::Handle<v8::Value> Print(const v8::Arguments& args);
+    static v8::Handle<v8::Value> Traverse(const v8::Arguments& args);
     static v8::Handle<v8::Value> Get(const v8::Arguments& args);
 
     // Synchronous C++ API.

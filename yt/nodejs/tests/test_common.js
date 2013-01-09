@@ -94,9 +94,19 @@ describe("conversion specifics", function() {
             "{\"key\":5000000000,\"min\":-9223372036854775807,\"max\":9223372036854775807}",
             binding.ECompression_None,
             binding.CreateV8Node("json"));
-        node.Get("/key").Print().should.eql("5000000000");
-        node.Get("/min").Print().should.eql("-9223372036854775807");
-        node.Get("/max").Print().should.eql( "9223372036854775807");
+        node.Traverse("/key").Print().should.eql("5000000000");
+        node.Traverse("/min").Print().should.eql("-9223372036854775807");
+        node.Traverse("/max").Print().should.eql( "9223372036854775807");
+    });
+
+    it("should properly pass strings and integers back and forth", function() {
+        var node = new binding.TNodeJSNode(
+            "{\"a\":\"hello\",\"b\":\"world\",\"c\":0}",
+            binding.ECompression_None,
+            binding.CreateV8Node("json"));
+        node.Traverse("/a").Get().should.eql("hello");
+        node.Traverse("/b").Get().should.eql("world");
+        node.Traverse("/c").Get().should.eql(0);
     });
 });
 
@@ -106,21 +116,21 @@ describe("merging", function() {
         var node_b = new binding.TNodeJSNode({ c: 3, d: 4});
         var node_c = new binding.TNodeJSNode({ e: 5, f: 6});
         var result = binding.CreateMergedNode(node_a, node_b, node_c);
-        result.Get("/a").Print().should.eql("1");
-        result.Get("/b").Print().should.eql("2");
-        result.Get("/c").Print().should.eql("3");
-        result.Get("/d").Print().should.eql("4");
-        result.Get("/e").Print().should.eql("5");
-        result.Get("/f").Print().should.eql("6");
+        result.Traverse("/a").Print().should.eql("1");
+        result.Traverse("/b").Print().should.eql("2");
+        result.Traverse("/c").Print().should.eql("3");
+        result.Traverse("/d").Print().should.eql("4");
+        result.Traverse("/e").Print().should.eql("5");
+        result.Traverse("/f").Print().should.eql("6");
     });
     it("should properly merge overlapping key sets", function() {
         var node_a = new binding.TNodeJSNode({ a: 1, b: 2});
         var node_b = new binding.TNodeJSNode({ b: 3, c: 4});
         var node_c = new binding.TNodeJSNode({ c: 5, d: 6});
         var result = binding.CreateMergedNode(node_a, node_b, node_c);
-        result.Get("/a").Print().should.eql("1");
-        result.Get("/b").Print().should.eql("3");
-        result.Get("/c").Print().should.eql("5");
-        result.Get("/d").Print().should.eql("6");
+        result.Traverse("/a").Print().should.eql("1");
+        result.Traverse("/b").Print().should.eql("3");
+        result.Traverse("/c").Print().should.eql("5");
+        result.Traverse("/d").Print().should.eql("6");
     });
 });
