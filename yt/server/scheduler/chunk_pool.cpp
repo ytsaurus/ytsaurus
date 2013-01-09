@@ -569,11 +569,10 @@ private:
                 take = abs(idealDataSizePerJob - takeSizePerJob) < abs(idealDataSizePerJob - skipSizePerJob);
             }
 
-            if (take) {
-                AddStripeToList(stripe, stripeDataSize, stripeRowCount, list, address);
-            } else {
+            if (!take)
                 break;
-            }
+
+            AddStripeToList(stripe, stripeDataSize, stripeRowCount, list, address);
         }
         size_t newSize = list->Stripes.size();
 

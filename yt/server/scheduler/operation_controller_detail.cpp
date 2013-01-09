@@ -246,9 +246,11 @@ void TOperationControllerBase::TTask::ReleaseFailedJobResources(TJobletPtr joble
 
     Controller->ReleaseChunkLists(joblet->ChunkListIds);
 
-    auto list = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
-    FOREACH (const auto& stripe, list->Stripes) {
-        Controller->AddTaskLocalityHint(this, stripe);
+    if (HasInputLocality()) {
+        auto list = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
+        FOREACH (const auto& stripe, list->Stripes) {
+            Controller->AddTaskLocalityHint(this, stripe);
+        }
     }
 
     chunkPoolOutput->Failed(joblet->OutputCookie);
