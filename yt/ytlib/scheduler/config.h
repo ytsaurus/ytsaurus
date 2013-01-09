@@ -554,6 +554,7 @@ struct TPooledOperationSpec
         Register("weight", Weight)
             .Default(1.0)
             .GreaterThanOrEqual(1.0);
+
         Register("min_share_preemption_timeout", MinSharePreemptionTimeout)
             .Default(TDuration::Seconds(15));
         Register("min_share_ratio", MinShareRatio)
