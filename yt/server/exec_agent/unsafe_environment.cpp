@@ -126,14 +126,14 @@ public:
             setpgid(0, 0);
 
             auto memoryLimit = static_cast<rlim_t>(MemoryLimit * LimitMultiplier);
-            struct rlimit rlimit = {memoryLimit, memoryLimit};
+            struct rlimit rlimit = {memoryLimit, RLIM_INFINITY};
 
             auto res = setrlimit(RLIMIT_AS, &rlimit);
             if (res) {
                 fprintf(stderr, "Failed to set resource limits (JobId: %s, MemoryLimit: %"PRId64" Error: %s)\n",
-                ~JobId.ToString(),
-                memoryLimit,
-                strerror(errno));
+                    ~JobId.ToString(),
+                    memoryLimit,
+                    strerror(errno));
 
                 _exit(8);
             }
