@@ -67,7 +67,7 @@ void ConsumeV8Object(Handle<Object> object, IYsonConsumer* consumer)
         if (object->Has(SpecialAttributesKey)) {
             auto attributes = object->Get(SpecialAttributesKey);
             if (!attributes->IsObject()) {
-                THROW_ERROR_EXCEPTION("Attributes in have to be a V8 object");
+                THROW_ERROR_EXCEPTION("Attributes are have to be a V8 object");
                 return;
             }
 
