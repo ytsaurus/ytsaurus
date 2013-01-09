@@ -162,6 +162,7 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
 
     Stroka environmentType = "default";
     try {
+        YCHECK(proxyMemoryLimit > 0);
         ProxyController = environmentManager->CreateProxyController(
             //XXX(psushin): execution environment type must not be directly
             // selectable by user -- it is more of the global cluster setting

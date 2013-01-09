@@ -401,13 +401,14 @@ private:
             envp[UserJobSpec.environment_size()] = NULL;
 
             auto memoryLimit = static_cast<rlim_t>(UserJobSpec.memory_limit() * LimitMultiplier);
-            struct rlimit rlimit = {memoryLimit, memoryLimit};
+            struct rlimit rlimit = {memoryLimit, RLIM_INFINITY};
 
             auto res = setrlimit(RLIMIT_AS, &rlimit);
+
             if (res) {
                 fprintf(stderr, "Failed to set resource limits (MemoryLimit: %"PRId64" Error: %s)\n",
-                memoryLimit,
-                strerror(errno));
+                    rlimit.rlim_max,
+                    strerror(errno));
 
                 _exit(8);
             }
