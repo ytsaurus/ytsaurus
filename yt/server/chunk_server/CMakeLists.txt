@@ -2,11 +2,11 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/server/chunk_server )
 set( SRCS
   ${BASE}/chunk.cpp
-  ${BASE}/chunk_proxy.cpp
   ${BASE}/chunk_list.cpp
   ${BASE}/chunk_list_proxy.cpp
   ${BASE}/chunk_manager.cpp
   ${BASE}/chunk_placement.cpp
+  ${BASE}/chunk_proxy.cpp
   ${BASE}/chunk_replicator.cpp
   ${BASE}/chunk_service.cpp
   ${BASE}/chunk_tree_balancer.cpp
@@ -24,11 +24,11 @@ set( SRCS
 )
 set( HDRS
   ${BASE}/chunk.h
-  ${BASE}/chunk_proxy.h
   ${BASE}/chunk_list.h
   ${BASE}/chunk_list_proxy.h
   ${BASE}/chunk_manager.h
   ${BASE}/chunk_placement.h
+  ${BASE}/chunk_proxy.h
   ${BASE}/chunk_replicator.h
   ${BASE}/chunk_service.h
   ${BASE}/chunk_service_proxy.h

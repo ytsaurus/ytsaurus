@@ -4,6 +4,7 @@ set( SRCS
   ${BASE}/channel_reader.cpp
   ${BASE}/channel_writer.cpp
   ${BASE}/chunk_writer_base.cpp
+  ${BASE}/helpers.cpp
   ${BASE}/key.cpp
   ${BASE}/merging_reader.cpp
   ${BASE}/partition_chunk_reader.cpp
@@ -22,7 +23,6 @@ set( SRCS
   ${BASE}/table_reader.cpp
   ${BASE}/table_writer.cpp
   ${BASE}/value.cpp
-  ${BASE}/helpers.cpp
 )
 
 set( HDRS
@@ -34,6 +34,7 @@ set( HDRS
   ${BASE}/chunk_sequence_writer_base.h
   ${BASE}/chunk_writer_base.h
   ${BASE}/config.h
+  ${BASE}/helpers.h
   ${BASE}/key.h
   ${BASE}/merging_reader.h
   ${BASE}/multi_chunk_parallel_reader-inl.h
@@ -61,7 +62,6 @@ set( HDRS
   ${BASE}/table_writer.h
   ${BASE}/table_ypath_proxy.h
   ${BASE}/value.h
-  ${BASE}/helpers.h
 )
 
 list(APPEND YT_SOURCE_FILES

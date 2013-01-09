@@ -2,6 +2,7 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/server/cypress_server )
 set( SRCS
   ${BASE}/cypress_manager.cpp
+  ${BASE}/cypress_traversing.cpp
   ${BASE}/helpers.cpp
   ${BASE}/lock.cpp
   ${BASE}/node.cpp
@@ -9,10 +10,10 @@ set( SRCS
   ${BASE}/node_proxy.cpp
   ${BASE}/node_proxy_detail.cpp
   ${BASE}/virtual.cpp
-  ${BASE}/cypress_traversing.cpp
 )
 set( HDRS
   ${BASE}/cypress_manager.h
+  ${BASE}/cypress_traversing.h
   ${BASE}/helpers.h
   ${BASE}/lock.h
   ${BASE}/node.h
@@ -22,7 +23,6 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/type_handler.h
   ${BASE}/virtual.h
-  ${BASE}/cypress_traversing.h
 )
 
 list(APPEND YT_SOURCE_FILES

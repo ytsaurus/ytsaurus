@@ -4,8 +4,8 @@ set( SRCS
   ${BASE}/public.cpp
 )
 set( HDRS
-  ${BASE}/public.h
   ${BASE}/account_ypath_proxy.h
+  ${BASE}/public.h
 )
 
 list(APPEND YT_SOURCE_FILES

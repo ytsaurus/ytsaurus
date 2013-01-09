@@ -5,10 +5,10 @@ set( SRCS
   ${BASE}/bootstrap.cpp
   ${BASE}/chunk.cpp
   ${BASE}/chunk_cache.cpp
-  ${BASE}/disk_health_checker.cpp
-  ${BASE}/data_node_service.cpp
   ${BASE}/chunk_registry.cpp
   ${BASE}/chunk_store.cpp
+  ${BASE}/data_node_service.cpp
+  ${BASE}/disk_health_checker.cpp
   ${BASE}/job_executor.cpp
   ${BASE}/location.cpp
   ${BASE}/master_connector.cpp
@@ -24,11 +24,11 @@ set( HDRS
   ${BASE}/bootstrap.h
   ${BASE}/chunk.h
   ${BASE}/chunk_cache.h
-  ${BASE}/disk_health_checker.h
-  ${BASE}/data_node_service.h
   ${BASE}/chunk_registry.h
   ${BASE}/chunk_store.h
   ${BASE}/config.h
+  ${BASE}/data_node_service.h
+  ${BASE}/disk_health_checker.h
   ${BASE}/job_executor.h
   ${BASE}/location.h
   ${BASE}/master_connector.h

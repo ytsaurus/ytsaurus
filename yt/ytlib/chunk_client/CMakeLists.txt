@@ -19,12 +19,12 @@ set( HDRS
   ${BASE}/async_writer.h
   ${BASE}/block_cache.h
   ${BASE}/block_id.h
-  ${BASE}/data_node_service_proxy.h
   ${BASE}/chunk_list_ypath_proxy.h
   ${BASE}/chunk_meta_extensions.h
   ${BASE}/chunk_ypath_proxy.h
   ${BASE}/client_block_cache.h
   ${BASE}/config.h
+  ${BASE}/data_node_service_proxy.h
   ${BASE}/dispatcher.h
   ${BASE}/encoding_writer.h
   ${BASE}/file_reader.h
