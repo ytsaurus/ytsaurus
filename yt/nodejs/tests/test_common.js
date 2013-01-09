@@ -99,14 +99,39 @@ describe("conversion specifics", function() {
         node.Traverse("/max").Print().should.eql( "9223372036854775807");
     });
 
-    it("should properly pass strings and integers back and forth", function() {
+    it("should properly pass strings back and forth", function() {
         var node = new binding.TNodeJSNode(
-            "{\"a\":\"hello\",\"b\":\"world\",\"c\":0}",
+            "{\"a\":\"hello\",\"b\":\"world\"}",
             binding.ECompression_None,
             binding.CreateV8Node("json"));
         node.Traverse("/a").Get().should.eql("hello");
         node.Traverse("/b").Get().should.eql("world");
-        node.Traverse("/c").Get().should.eql(0);
+    });
+
+    it("should properly pass integers back and forth", function() {
+        var node = new binding.TNodeJSNode(
+            "{\"a\":0,\"b\":4294967295,\"c\":-4294967296}",
+            binding.ECompression_None,
+            binding.CreateV8Node("json"));
+        node.Traverse("/a").Get().should.eql(0);
+        node.Traverse("/b").Get().should.eql(4294967295);
+        node.Traverse("/c").Get().should.eql(-4294967296);
+    });
+
+    it("should properly pass lists back and forth", function() {
+        var node = new binding.TNodeJSNode(
+            "[13,\"hello\",42,\"world\"]",
+            binding.ECompression_None,
+            binding.CreateV8Node("json"));
+        node.Get().should.eql([13, "hello", 42, "world"]);
+    });
+
+    it("should properly pass lists back and forth", function() {
+        var node = new binding.TNodeJSNode(
+            "{\"a\":0,\"b\":1}",
+            binding.ECompression_None,
+            binding.CreateV8Node("json"));
+        node.Get().should.eql({ a : 0, b : 1 });
     });
 });
 

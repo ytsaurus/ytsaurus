@@ -148,8 +148,30 @@ Handle<Value> ProduceV8(INodePtr node)
             return String::New(value.c_str(), value.length());
         }
         case ENodeType::Integer: {
-            auto value = node->GetValue<i64>();
-            return Integer::New(value);
+            return Integer::New(node->GetValue<i64>());
+        }
+        case ENodeType::Double: {
+            return Number::New(node->GetValue<double>());
+        }
+        case ENodeType::Map: {
+            auto children = node->AsMap()->GetChildren();
+            auto value = Object::New();
+            FOREACH (const auto& pair, children) {
+                const auto& key = pair.First();
+                const auto& value = pair.Second();
+                value.Set(
+                    String::New(key.c_str(), key.length()),
+                    ProduceV8(value));
+            }
+        }
+        case ENodeType::List: {
+            auto children = node->AsList()->GetChildren();
+            auto value = Array::New(children.size());
+            for (size_t i = 0; i < children.size(); ++i) {
+                value.Set(
+                    Integer::New(i),
+                    ProduceV8(children[i]));
+            }
         }
         default:
             return v8::Undefined();
