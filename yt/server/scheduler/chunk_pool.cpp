@@ -548,7 +548,9 @@ private:
         const Stroka& address)
     {
         i64 idealDataSizePerJob = GetTotalDataSize() / GetTotalJobCount();
+        
         i64 pendingJobCount = GetPendingJobCount();
+        i64 pendingDataSize = GetPendingDataSize();
 
         size_t oldSize = list->Stripes.size();
         for (auto it = begin; it != end; ++it) {
@@ -558,21 +560,20 @@ private:
             i64 stripeRowCount;
             GetStatistics(stripe, &stripeDataSize, &stripeRowCount);
             
-            i64 pendingDataSize = GetPendingDataSize() - list->TotalDataSize;
-
             bool take;
             if (pendingJobCount == 1 || list->TotalDataSize == 0) {
                 take = true;
             } else {
                 i64 takeSizePerJob = (pendingDataSize - stripeDataSize) / (pendingJobCount - 1);
                 i64 skipSizePerJob = pendingDataSize / (pendingJobCount - 1);
-                take = abs(idealDataSizePerJob - takeSizePerJob) < abs(idealDataSizePerJob - skipSizePerJob);
+                take = std::abs(idealDataSizePerJob - takeSizePerJob) < std::abs(idealDataSizePerJob - skipSizePerJob);
             }
 
             if (!take)
                 break;
 
             AddStripeToList(stripe, stripeDataSize, stripeRowCount, list, address);
+            pendingDataSize -= stripeDataSize;
         }
         size_t newSize = list->Stripes.size();
 
