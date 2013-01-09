@@ -13,7 +13,7 @@ Logging = {
             {
                 'type' : 'raw',
                 'file_name' : "%(debug_log_path)s"
-            }, 
+            },
         'file' :
             {
                 'type' : "file",
@@ -45,20 +45,23 @@ MasterAddresses = opts.limit_iter('--masters',
 
 class Base(AggrBase):
         path = opts.get_string('--name', 'control')
-        
+
 class Server(Base):
         bin_path = os.path.join(build_dir, r'bin\Debug\ytserver.exe')
-                
+
+        @propmethod
+        def monport(cls):
+            return cls.port + 1000
+
 class Master(WinNode, Server):
         address = Subclass(MasterAddresses)
         params = Template('--master --config %(config_path)s')
 
         config = Template({
                 'meta_state' : {
-                        'monitoring_port' : r'%(port)d',
                         'cell' : {
                                 'addresses' : MasterAddresses,
-                                'rpc_port' : int(r'%(port)d')
+                                'rpc_port' : r'%(port)d'
                         },
                         'snapshots' : {
                             'path' : r'%(work_dir)s\snapshots'
@@ -66,29 +69,30 @@ class Master(WinNode, Server):
                         'changelogs' : {
                             'path' : r'%(work_dir)s\changelogs'
                         }
-                },                      
+                },
+                'monitoring_port' : r'%(monport)d',
                 'logging' : Logging
         })
-        
+
         def run(cls, fd):
                 print >>fd, 'mkdir %s' % cls.config['meta_state']['snapshots']['path']
                 print >>fd, 'mkdir %s' % cls.config['meta_state']['changelogs']['path']
                 print >>fd, cls.run_tmpl
-                
+
         def clean(cls, fd):
                 print >>fd, 'del %s' % cls.log_path
                 print >>fd, 'del %s' % cls.debug_log_path
                 print >>fd, r'del /Q %s\*' % cls.config['meta_state']['snapshots']['path']
                 print >>fd, r'del /Q %s\*' % cls.config['meta_state']['changelogs']['path']
-        
-        
+
+
 class Holder(WinNode, Server):
         address = Subclass(opts.limit_iter('--holders',
             ['%s:%d' % (socket.getfqdn(), p) for p in range(9000, 9100)]))
-        
-        params = Template('--node --config %(config_path)s --port %(port)d')
-        
-        config = Template({ 
+
+        params = Template('--node --config %(config_path)s')
+
+        config = Template({
             'masters' : {
               'addresses' : MasterAddresses
             },
@@ -114,9 +118,11 @@ class Holder(WinNode, Server):
                     }
                 }
             },
+            'rpc_port' : r'%(port)d',
+            'monitoring_port' : r'%(monport)d',
             'logging' : Logging
         })
-        
+
         def clean(cls, fd):
                 print >>fd, 'del %s' % cls.log_path
                 print >>fd, 'del %s' % cls.debug_log_path
