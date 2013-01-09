@@ -50,6 +50,9 @@ public:
     const sockaddr* GetSockAddr() const;
     socklen_t GetLength() const;
 
+    static bool TryParse(const TStringBuf& address, TNetworkAddress* networkAddress);
+    static TNetworkAddress Parse(const TStringBuf& address);
+
 private:
     sockaddr_storage Storage;
     socklen_t Length;

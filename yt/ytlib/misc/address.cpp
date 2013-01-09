@@ -153,6 +153,63 @@ socklen_t TNetworkAddress::GetLength() const
     return Length;
 }
 
+bool TNetworkAddress::TryParse(const TStringBuf& address, TNetworkAddress* networkAddress)
+{
+    try {
+        *networkAddress = Parse(address);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+TNetworkAddress TNetworkAddress::Parse(const TStringBuf& address)
+{
+    int closingBracketIndex = address.find(']');
+    if (closingBracketIndex == Stroka::npos || address[0] != '[') {
+        THROW_ERROR_EXCEPTION("Address %s is malformed, format [<addr>](:<port>) expected",
+            ~Stroka(address).Quote());
+    }
+
+    int colonIndex = address.find(':', closingBracketIndex + 1);
+    TNullable<int> port;
+    if (colonIndex != Stroka::npos) {
+        try {
+            port = FromString<int>(address.substr(colonIndex + 1));
+        } catch (const std::exception) {
+            THROW_ERROR_EXCEPTION("Port number in address %s is malformed",
+                ~Stroka(address).Quote());
+        }
+    }
+
+    Stroka ipAddress = Stroka(address.substr(1, closingBracketIndex - 1));
+    {
+        // try to parse as ipv4
+        struct sockaddr_in sa;
+        if (inet_pton(AF_INET, ~ipAddress, &sa.sin_addr) == 1) {
+            if (port) {
+                sa.sin_port = htons(*port);
+            }
+            sa.sin_family = AF_INET;
+            return TNetworkAddress(*reinterpret_cast<sockaddr*>(&sa));
+        }
+    }
+    {
+        // try to parse as ipv6
+        struct sockaddr_in6 sa;
+        if (inet_pton(AF_INET6, ipAddress.c_str(), &(sa.sin6_addr))) {
+            if (port) {
+                sa.sin6_port = htons(*port);
+            }
+            sa.sin6_family = AF_INET6;
+            return TNetworkAddress(*reinterpret_cast<sockaddr*>(&sa));
+        }
+    }
+
+    THROW_ERROR_EXCEPTION("Address %s is not a valid IPV4 or IPV6 address",
+        ~Stroka(ipAddress).Quote());
+}
+
 Stroka ToString(const TNetworkAddress& address, bool withPort)
 {
     const auto& sockAddr = address.GetSockAddr();
