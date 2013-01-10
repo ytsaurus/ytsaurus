@@ -3,11 +3,13 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/server/file_server )
 set( SRCS
   ${BASE}/file_node.cpp
   ${BASE}/file_node_proxy.cpp
+  ${BASE}/public.cpp
   ${BASE}/private.cpp
 )
 set( HDRS
   ${BASE}/file_node.h
   ${BASE}/file_node_proxy.h
+  ${BASE}/public.h
   ${BASE}/private.h
 )
 

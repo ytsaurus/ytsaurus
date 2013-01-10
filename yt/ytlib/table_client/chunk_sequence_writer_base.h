@@ -34,7 +34,7 @@ public:
         TTableWriterConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         const NTransactionClient::TTransactionId& transactionId,
-        const TNullable<Stroka>& account,
+        const Stroka& account,
         const NChunkClient::TChunkListId& parentChunkListId,
         const TNullable<TKeyColumns>& keyColumns);
 
@@ -118,7 +118,7 @@ protected:
     const int UploadReplicationFactor;
     const NRpc::IChannelPtr MasterChannel;
     const NObjectClient::TTransactionId TransactionId;
-    const TNullable<Stroka> Account;
+    const Stroka Account;
     const NChunkClient::TChunkListId ParentChunkListId;
     const TNullable<TKeyColumns> KeyColumns;
 

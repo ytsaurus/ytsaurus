@@ -5,6 +5,7 @@
 
 #include <server/chunk_server/chunk.h>
 #include <server/chunk_server/chunk_list.h>
+#include <server/chunk_server/chunk_manager.h>
 
 #include <server/cell_master/serialization_context.h>
 #include <server/cell_master/bootstrap.h>
@@ -19,6 +20,7 @@ using namespace NChunkServer;
 using namespace NTransactionServer;
 using namespace NObjectServer;
 using namespace NSecurityServer;
+using namespace NFileClient;
 using namespace NCypressClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,6 +32,7 @@ static NLog::TLogger& Logger = FileServerLogger;
 TFileNode::TFileNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
     , ChunkList_(NULL)
+    , UpdateMode_(EFileUpdateMode::None)
     , ReplicationFactor_(0)
 { }
 
@@ -46,6 +49,7 @@ void TFileNode::Save(const NCellMaster::TSaveContext& context) const
 
     auto* output = context.GetOutput();
     SaveObjectRef(output, ChunkList_);
+    ::Save(output, UpdateMode_);
     ::Save(output, ReplicationFactor_);
 }
 
@@ -55,6 +59,9 @@ void TFileNode::Load(const NCellMaster::TLoadContext& context)
 
     auto* input = context.GetInput();
     LoadObjectRef(input, ChunkList_, context);
+    if (context.GetVersion() >= 6) {
+        ::Load(input, UpdateMode_);
+    }
     ::Load(input, ReplicationFactor_);
 }
 
@@ -106,7 +113,7 @@ protected:
         TFileNode* trunkNode,
         TTransaction* transaction) override
     {
-        return New<TFileNodeProxy>(
+        return CreateFileNodeProxy(
             this,
             Bootstrap,
             transaction,
@@ -125,30 +132,32 @@ protected:
         auto chunkManager = Bootstrap->GetChunkManager();
         auto objectManager = Bootstrap->GetObjectManager();
 
-        if (!request->HasExtension(NFileClient::NProto::TReqCreateFileExt::create_file)) {
-            THROW_ERROR_EXCEPTION("Missing request extension");
-        }
-
-        const auto& requestExt = request->GetExtension(NFileClient::NProto::TReqCreateFileExt::create_file);
-        auto chunkId = TChunkId::FromProto(requestExt.chunk_id());
-
-        auto* chunk = chunkManager->FindChunk(chunkId);
-        if (!chunk || !chunk->IsAlive()) {
-            THROW_ERROR_EXCEPTION("No such chunk: %s", ~chunkId.ToString());
-        }
-
-        if (!chunk->IsConfirmed()) {
-            THROW_ERROR_EXCEPTION("File chunk is not confirmed: %s", ~chunkId.ToString());
-        }
-
         auto node = TBase::DoCreate(transaction, request, response);
+
+        TChunk* chunk = nullptr;
+
+        if (request->HasExtension(NFileClient::NProto::TReqCreateFileExt::create_file)) {
+            const auto& requestExt = request->GetExtension(NFileClient::NProto::TReqCreateFileExt::create_file);
+            auto chunkId = TChunkId::FromProto(requestExt.chunk_id());
+
+            chunk = chunkManager->FindChunk(chunkId);
+            if (!chunk || !chunk->IsAlive()) {
+                THROW_ERROR_EXCEPTION("No such chunk: %s", ~chunkId.ToString());
+            }
+
+            if (!chunk->IsConfirmed()) {
+                THROW_ERROR_EXCEPTION("File chunk is not confirmed: %s", ~chunkId.ToString());
+            }
+        }
 
         auto* chunkList = chunkManager->CreateChunkList();
         node->SetChunkList(chunkList);
         YCHECK(chunkList->OwningNodes().insert(~node).second);
         objectManager->RefObject(chunkList);
 
-        chunkManager->AttachToChunkList(chunkList, TChunkTreeRef(chunk));
+        if (chunk) {
+            chunkManager->AttachToChunkList(chunkList, TChunkTreeRef(chunk));
+        }
 
         return node;
     }
@@ -166,21 +175,90 @@ protected:
     {
         TBase::DoBranch(originatingNode, branchedNode);
         
+        auto objectManager = Bootstrap->GetObjectManager();
+
         auto* chunkList = originatingNode->GetChunkList();
         branchedNode->SetChunkList(chunkList);
-        Bootstrap->GetObjectManager()->RefObject(chunkList);
+        objectManager->RefObject(chunkList);
         YCHECK(chunkList->OwningNodes().insert(branchedNode).second);
 
         branchedNode->SetReplicationFactor(originatingNode->GetReplicationFactor());
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "File node branched (BranchedNodeId: %s, ChunkListId: %s, ReplicationFactor: %d)",
+            ~branchedNode->GetId().ToString(),
+            ~originatingNode->GetChunkList()->GetId().ToString(),
+            originatingNode->GetReplicationFactor());
     }
 
     virtual void DoMerge(TFileNode* originatingNode, TFileNode* branchedNode) override
     {
         TBase::DoMerge(originatingNode, branchedNode);
 
-        auto* chunkList = branchedNode->GetChunkList();
-        YCHECK(chunkList->OwningNodes().erase(branchedNode) == 1);
-        Bootstrap->GetObjectManager()->UnrefObject(chunkList);
+        auto* originatingChunkList = originatingNode->GetChunkList();
+        auto originatingChunkListId = originatingChunkList->GetId();
+        auto originatingUpdateMode = originatingNode->GetUpdateMode();
+
+        auto* branchedChunkList = branchedNode->GetChunkList();
+        auto branchedChunkListId = branchedNode->GetChunkList()->GetId();
+        auto branchedUpdateMode = branchedNode->GetUpdateMode();
+
+        MergeChunkLists(originatingNode, branchedNode);
+
+        LOG_DEBUG_UNLESS(IsRecovery(),
+            "File node merged (OriginatingNodeId: %s, OriginatingChunkListId: %s, OriginatingUpdateMode: %s, OriginatingReplicationFactor: %d, "
+            "BranchedNodeId: %s, BranchedChunkListId: %s, BranchedUpdateMode: %s, BranchedReplicationFactor: %d, "
+            "NewOriginatingChunkListId: %s, NewOriginatingUpdateMode: %s)",
+            ~originatingNode->GetId().ToString(),
+            ~originatingChunkListId.ToString(),
+            ~originatingUpdateMode.ToString(),
+            originatingNode->GetReplicationFactor(),
+            ~branchedNode->GetId().ToString(),
+            ~branchedChunkListId.ToString(),
+            ~branchedUpdateMode.ToString(),
+            branchedNode->GetReplicationFactor(),
+            ~originatingNode->GetChunkList()->GetId().ToString(),
+            ~originatingNode->GetUpdateMode().ToString());
+    }
+
+    void MergeChunkLists(TFileNode* originatingNode, TFileNode* branchedNode)
+    {
+        auto objectManager = Bootstrap->GetObjectManager();
+        auto chunkManager = Bootstrap->GetChunkManager();
+        auto metaStateManager = Bootstrap->GetMetaStateFacade()->GetManager();
+
+        auto* originatingChunkList = originatingNode->GetChunkList();
+        auto originatingMode = originatingNode->GetUpdateMode();
+
+        auto* branchedChunkList = branchedNode->GetChunkList();
+        auto branchedMode = branchedNode->GetUpdateMode();
+
+        YCHECK(branchedChunkList->OwningNodes().erase(branchedNode) == 1);
+
+        // Check if we have anything to do at all.
+        if (branchedMode == EFileUpdateMode::None) {
+            objectManager->UnrefObject(branchedChunkList);
+            return;
+        }
+
+        bool isTopmostCommit = !originatingNode->GetTransaction();
+        bool isRFUpdateNeeded =
+            isTopmostCommit &&
+            originatingNode->GetReplicationFactor() != branchedNode->GetReplicationFactor() &&
+            metaStateManager->IsLeader();
+
+        YCHECK(branchedMode == EFileUpdateMode::Overwrite);
+        YCHECK(originatingChunkList->OwningNodes().erase(originatingNode) == 1);
+        YCHECK(branchedChunkList->OwningNodes().insert(originatingNode).second);
+        originatingNode->SetChunkList(branchedChunkList);
+        objectManager->UnrefObject(originatingChunkList);
+
+        if (isRFUpdateNeeded) {
+            chunkManager->ScheduleRFUpdate(branchedChunkList);
+        }
+
+        if (!isTopmostCommit) {
+            originatingNode->SetUpdateMode(EFileUpdateMode::Overwrite);
+        }
     }
 
     virtual void DoClone(

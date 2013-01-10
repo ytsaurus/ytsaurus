@@ -259,3 +259,21 @@ class TestAccounts(YTEnvSetup):
         write('//tmp/t', {'a' : 'b'}) 
         assert self._is_account_over_disk_space('max') == 'true'
 
+    def test_disk_space_limits3(self):
+        create_account('max')
+        self._set_account_disk_space_limit('max', 1000000)
+
+        content = "some_data"
+
+        upload('//tmp/f1', content, opt=['/attributes/account=max'])
+        assert self._is_account_over_disk_space('max') == 'false'
+        
+        self._set_account_disk_space_limit('max', 0)
+        assert self._is_account_over_disk_space('max') == 'true'
+        with pytest.raises(YTError): upload('//tmp/f2', content, opt=['/attributes/account=max'])
+
+        self._set_account_disk_space_limit('max', self._get_account_disk_space('max'))
+        assert self._is_account_over_disk_space('max') == 'false'
+        upload('//tmp/f3', content, opt=['/attributes/account=max'])
+        assert self._is_account_over_disk_space('max') == 'true'
+

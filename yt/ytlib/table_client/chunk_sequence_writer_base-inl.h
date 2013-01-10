@@ -29,7 +29,7 @@ TChunkSequenceWriterBase<TChunkWriter>::TChunkSequenceWriterBase(
     TTableWriterConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     const NObjectClient::TTransactionId& transactionId,
-    const TNullable<Stroka>& account,
+    const Stroka& account,
     const NChunkClient::TChunkListId& parentChunkList,
     const TNullable<TKeyColumns>& keyColumns)
     : Config(config)
@@ -106,9 +106,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::CreateNextSession()
         NCypressClient::FromObjectId(TransactionId));
     NMetaState::GenerateRpcMutationId(req);
     req->set_type(NObjectClient::EObjectType::Chunk);
-    if (Account) {
-        req->set_account(Account.Get());
-    }
+    req->set_account(Account);
 
     auto* reqExt = req->MutableExtension(NChunkClient::NProto::TReqCreateChunkExt::create_chunk);
     if (Config->PreferLocalHost) {

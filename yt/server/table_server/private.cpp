@@ -1,18 +1,15 @@
 #include "stdafx.h"
-#include "public.h"
+#include "private.h"
 
 namespace NYT {
-namespace NSecurityClient {
+namespace NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAccountId NullAccountId(0, 0, 0, 0);
-
-Stroka TmpAccountName("tmp");
-Stroka SysAccountName("sys");
+NLog::TLogger TableServerLogger("TableServer");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityClient
+} // namespace NTableServer
 } // namespace NYT
 

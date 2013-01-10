@@ -8,6 +8,8 @@
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
+#include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
+
 #include <ytlib/file_client/file_ypath_proxy.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
@@ -77,7 +79,74 @@ void TFileWriter::Open()
     LOG_INFO("Upload transaction created (TransactionId: %s)",
         ~UploadTransaction->GetId().ToString());
 
-    Writer = new TFileChunkOutput(Config, MasterChannel, UploadTransaction->GetId());
+    TObjectServiceProxy proxy(MasterChannel);
+    
+    LOG_INFO("Creating file node");
+    {
+        auto req = TCypressYPathProxy::Create(Path);
+        NMetaState::GenerateRpcMutationId(req);
+        SetTransactionId(req, UploadTransaction);
+        req->set_type(EObjectType::File);
+        ToProto(req->mutable_node_attributes(), *Attributes);
+
+        auto rsp = proxy.Execute(req).Get();
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error creating file node");
+
+        NodeId = NCypressClient::TNodeId::FromProto(rsp->node_id());
+    }
+    LOG_INFO("File node created (NodeId: %s)", ~NodeId.ToString());
+
+    LOG_INFO("Requesting file info");
+    {
+        auto batchReq = proxy.ExecuteBatch();
+
+        {
+            auto req = TCypressYPathProxy::Get(FromObjectId(NodeId));
+            SetTransactionId(req, UploadTransaction);
+            TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
+            attributeFilter.Keys.push_back("replication_factor");
+            attributeFilter.Keys.push_back("account");
+            *req->mutable_attribute_filter() = ToProto(attributeFilter);
+            batchReq->AddRequest(req, "get_attributes");
+        }
+
+        {
+            auto req = TFileYPathProxy::PrepareForUpdate(FromObjectId(NodeId));
+            NMetaState::GenerateRpcMutationId(req);
+            SetTransactionId(req, UploadTransaction);
+            batchReq->AddRequest(req, "prepare_for_update");
+        }
+
+        auto batchRsp = batchReq->Invoke().Get();
+        THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error preparing node for update");
+
+        {
+            auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting file attributes");
+
+            auto node = ConvertToNode(TYsonString(rsp->value()));
+            const auto& attributes = node->Attributes();
+
+            Config->ReplicationFactor = attributes.Get<int>("replication_factor");
+
+            Account = attributes.Get<Stroka>("account");
+        }
+
+        {
+            auto rsp = batchRsp->GetResponse<TFileYPathProxy::TRspPrepareForUpdate>("prepare_for_update");
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error preparing node for update");
+            ChunkListId = TChunkListId::FromProto(rsp->chunk_list_id());
+        }
+    }
+    LOG_INFO("File info received (Account: %s, ChunkListId: %s)",
+        ~Account,
+        ~ChunkListId.ToString());
+
+    Writer = new TFileChunkOutput(
+        Config,
+        MasterChannel,
+        UploadTransaction->GetId(),
+        Account);
     Writer->Open();
 }
 
@@ -93,29 +162,18 @@ void TFileWriter::Close()
 
     Writer->Finish();
 
-    LOG_INFO("Creating file node");
+    TObjectServiceProxy proxy(MasterChannel);
+    auto chunkId = Writer->GetChunkId();
+
+    LOG_INFO("Attaching chunk (ChunkId: %s)", ~ToString(chunkId));
     {
-        TObjectServiceProxy proxy(MasterChannel);
-        auto req = TCypressYPathProxy::Create(Path);
-        NMetaState::GenerateRpcMutationId(req);
-        SetTransactionId(req, Transaction);
-
-        req->set_type(EObjectType::File);
-
-        auto* reqExt = req->MutableExtension(NFileClient::NProto::TReqCreateFileExt::create_file);
-        *reqExt->mutable_chunk_id() = Writer->GetChunkId().ToProto();
-
-        ToProto(req->mutable_node_attributes(), *Attributes);
+        auto req = TChunkListYPathProxy::Attach(FromObjectId(ChunkListId));
+        *req->add_children_ids() = chunkId.ToProto();
         
         auto rsp = proxy.Execute(req).Get();
-        if (!rsp->IsOK()) {
-            THROW_ERROR_EXCEPTION("Error creating file node")
-                << rsp->GetError();
-        }
-
-        NodeId = NCypressClient::TNodeId::FromProto(rsp->node_id());
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error attaching chunk");
     }
-    LOG_INFO("File node created (NodeId: %s)", ~NodeId.ToString());
+    LOG_INFO("Chunk attached");
 
     LOG_INFO("Committing upload transaction");
     try {

@@ -1,18 +1,16 @@
-#include "stdafx.h"
-#include "public.h"
+#pragma once
+
+#include <ytlib/misc/common.h>
 
 namespace NYT {
-namespace NSecurityClient {
+namespace NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAccountId NullAccountId(0, 0, 0, 0);
-
-Stroka TmpAccountName("tmp");
-Stroka SysAccountName("sys");
+class TTableNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityClient
+} // namespace NTableServer
 } // namespace NYT
 

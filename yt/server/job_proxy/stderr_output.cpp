@@ -9,6 +9,8 @@
 
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
+#include <ytlib/security_client/public.h>
+
 #include <ytlib/rpc/channel.h>
 
 namespace NYT {
@@ -43,7 +45,11 @@ void TErrorOutput::DoWrite(const void* buf, size_t len)
     if (!FileWriter) {
         LOG_DEBUG("Opening stderr stream");
 
-        FileWriter = new TFileChunkOutput(Config, MasterChannel, TransactionId);
+        FileWriter = new TFileChunkOutput(
+            Config,
+            MasterChannel,
+            TransactionId,
+            NSecurityClient::SysAccountName);
         FileWriter->Open();
 
         LOG_DEBUG("Stderr stream opened");

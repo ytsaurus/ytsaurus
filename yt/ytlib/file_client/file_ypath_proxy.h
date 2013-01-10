@@ -11,9 +11,16 @@ namespace NFileClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_ENUM(EFileUpdateMode,
+    (None)
+    (Overwrite)
+);
+
 struct TFileYPathProxy
     : NYTree::TYPathProxy
 {
+    DEFINE_YPATH_PROXY_METHOD(NProto, PrepareForUpdate);
+    // TODO(babenko): rename back to Fetch
     DEFINE_YPATH_PROXY_METHOD(NProto, FetchFile);
 };
 

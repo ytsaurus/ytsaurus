@@ -15,7 +15,7 @@ TTableChunkSequenceWriter::TTableChunkSequenceWriter(
     TTableWriterConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     const TTransactionId& transactionId,
-    const TNullable<Stroka>&  account,
+    const Stroka&  account,
     const TChunkListId& parentChunkListId,
     const TChannels& channels,
     const TNullable<TKeyColumns>& keyColumns)

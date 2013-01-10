@@ -2,6 +2,8 @@
 
 #include <ytlib/misc/property.h>
 
+#include <ytlib/table_client/table_ypath_proxy.h>
+
 #include <server/cypress_server/node_detail.h>
 
 #include <server/cell_master/public.h>
@@ -13,17 +15,11 @@ namespace NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ETableUpdateMode,
-    (None)
-    (Append)
-    (Overwrite)
-);
-
 class TTableNode
     : public NCypressServer::TCypressNodeBase
 {
     DEFINE_BYVAL_RW_PROPERTY(NChunkServer::TChunkList*, ChunkList);
-    DEFINE_BYVAL_RW_PROPERTY(ETableUpdateMode, UpdateMode);
+    DEFINE_BYVAL_RW_PROPERTY(NTableClient::ETableUpdateMode, UpdateMode);
     DEFINE_BYVAL_RW_PROPERTY(int, ReplicationFactor);
 
 public:

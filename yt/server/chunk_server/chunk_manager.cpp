@@ -98,8 +98,7 @@ public:
 
     virtual EObjectAccountMode GetAccountMode() const override
     {
-        // TODO(babenko): must be required
-        return EObjectAccountMode::Optional;
+        return EObjectAccountMode::Required;
     }
 
     virtual TObjectBase* Create(

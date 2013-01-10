@@ -12,6 +12,9 @@ namespace NSecurityClient {
 typedef NObjectClient::TObjectId TAccountId;
 extern TAccountId NullAccountId;
 
+extern Stroka TmpAccountName;
+extern Stroka SysAccountName;
+
 ////////////////////////////////////////////////////////////////////////////////
     
 } // namespace NSecurityClient

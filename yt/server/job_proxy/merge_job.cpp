@@ -81,7 +81,7 @@ public:
         // ToDo(psushin): estimate row count for writer.
         auto transactionId = TTransactionId::FromProto(jobSpec.output_transaction_id());
         const auto& outputSpec = jobSpec.output_specs(0);
-        auto account = outputSpec.has_account() ? TNullable<Stroka>(outputSpec.account()) : Null;
+        auto account = outputSpec.account();
         auto chunkListId = TChunkListId::FromProto(outputSpec.chunk_list_id());
         auto channels = ConvertTo<TChannels>(TYsonString(outputSpec.channels()));
         Writer = New<TTableChunkSequenceWriter>(

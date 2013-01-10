@@ -42,7 +42,7 @@ message TTableOutputSpec
     optional int32 replication_factor = 4;
 
     // Account taken from the attributes of the output table.
-    optional string account = 5;
+    required string account = 5;
 }
 
 // Sent from the scheduler to an exec node.

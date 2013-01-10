@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "table_node.h"
 #include "table_node_proxy.h"
-#include "common.h"
+#include "private.h"
 
 #include <ytlib/table_client/schema.h>
 
@@ -135,7 +135,7 @@ protected:
         TTableNode* trunkNode,
         TTransaction* transaction) override
     {
-        return New<TTableNodeProxy>(
+        return CreateTableNodeProxy(
             this,
             Bootstrap,
             transaction,
@@ -210,7 +210,7 @@ protected:
 
         LOG_DEBUG_UNLESS(IsRecovery(),
             "Table node merged (OriginatingNodeId: %s, OriginatingChunkListId: %s, OriginatingUpdateMode: %s, OriginatingReplicationFactor: %d, "
-            "BranchedNodeId: %s, BranchedChunkListId: %s, BranchedUpdateMode: %s, BranchedReplicationFactor: %d"
+            "BranchedNodeId: %s, BranchedChunkListId: %s, BranchedUpdateMode: %s, BranchedReplicationFactor: %d, "
             "NewOriginatingChunkListId: %s, NewOriginatingUpdateMode: %s)",
             ~originatingNode->GetId().ToString(),
             ~originatingChunkListId.ToString(),

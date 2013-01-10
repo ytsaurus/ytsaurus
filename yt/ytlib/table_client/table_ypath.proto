@@ -7,10 +7,12 @@ import "yt/ytlib/misc/guid.proto";
 
 // Branches the table returning the new root chunk list
 // where all new chunks must be added to.
-message TReqGetChunkListForUpdate
-{ }
+message TReqPrepareForUpdate
+{
+    required int32 mode = 1;
+}
 
-message TRspGetChunkListForUpdate
+message TRspPrepareForUpdate
 {
     required NYT.NProto.TGuid chunk_list_id = 1;
 }
@@ -46,16 +48,6 @@ message TReqSetSorted
 }
 
 message TRspSetSorted
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Removes all chunks from the table.
-// The table gets "exclusive" lock.
-message TReqClear
-{ }
-
-message TRspClear
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

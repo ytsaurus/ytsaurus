@@ -1,6 +1,10 @@
 #pragma once
 
+#include "public.h"
+
 #include <ytlib/misc/property.h>
+
+#include <ytlib/file_client/file_ypath_proxy.h>
 
 #include <server/cypress_server/node_detail.h>
 
@@ -17,6 +21,7 @@ class TFileNode
     : public NCypressServer::TCypressNodeBase
 {
     DEFINE_BYVAL_RW_PROPERTY(NChunkServer::TChunkList*, ChunkList);
+    DEFINE_BYVAL_RW_PROPERTY(NFileClient::EFileUpdateMode, UpdateMode);
     DEFINE_BYVAL_RW_PROPERTY(int, ReplicationFactor);
 
 public:

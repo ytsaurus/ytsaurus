@@ -20,7 +20,7 @@ public:
         TTableWriterConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         const NTransactionClient::TTransactionId& transactionId,
-        const TNullable<Stroka>&  account,
+        const Stroka&  account,
         const NChunkClient::TChunkListId& parentChunkListId,
         const TChannels& channels,
         const TNullable<TKeyColumns>& keyColumns = Null);

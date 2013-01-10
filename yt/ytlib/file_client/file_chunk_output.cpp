@@ -34,12 +34,14 @@ using namespace NChunkClient::NProto;
 TFileChunkOutput::TFileChunkOutput(
     TFileWriterConfigPtr config,
     NRpc::IChannelPtr masterChannel,
-    TTransactionId transactionId)
+    const TTransactionId& transactionId,
+    const Stroka& account)
     : Config(config)
     , ReplicationFactor(Config->ReplicationFactor)
     , UploadReplicationFactor(std::min(Config->ReplicationFactor, Config->UploadReplicationFactor))
     , MasterChannel(masterChannel)
     , TransactionId(transactionId)
+    , Account(account)
     , IsOpen(false)
     , Size(0)
     , BlockCount(0)
@@ -53,7 +55,9 @@ TFileChunkOutput::TFileChunkOutput(
 
 void TFileChunkOutput::Open()
 {
-    LOG_INFO("Opening file chunk output (ReplicationFactor: %d, UploadReplicationFactor: %d)",
+    LOG_INFO("Opening file chunk output (TransactionId: %s, Account: %s, ReplicationFactor: %d, UploadReplicationFactor: %d)",
+        ~ToString(TransactionId),
+        ~Account,
         Config->ReplicationFactor,
         Config->UploadReplicationFactor);
 
@@ -65,6 +69,7 @@ void TFileChunkOutput::Open()
 
         auto req = TTransactionYPathProxy::CreateObject(FromObjectId(TransactionId));
         req->set_type(EObjectType::Chunk);
+        req->set_account(Account);
         NMetaState::GenerateRpcMutationId(req);
 
         auto* reqExt = req->MutableExtension(TReqCreateChunkExt::create_chunk);

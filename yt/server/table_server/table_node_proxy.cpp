@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "table_node_proxy.h"
+#include "table_node.h"
+#include "private.h"
 
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/serialize.h>
@@ -12,18 +14,21 @@
 
 #include <ytlib/ypath/token.h>
 
-#include <server/chunk_server/chunk.h>
-#include <server/chunk_server/chunk_list.h>
-#include <server/chunk_server/chunk_manager.h>
-#include <server/chunk_server/chunk_tree_traversing.h>
-
-#include <server/cell_master/bootstrap.h>
-
+#include <ytlib/table_client/table_ypath_proxy.h>
 #include <ytlib/table_client/schema.h>
 #include <ytlib/table_client/key.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+
+#include <server/chunk_server/chunk.h>
+#include <server/chunk_server/chunk_list.h>
+#include <server/chunk_server/chunk_manager.h>
+#include <server/chunk_server/chunk_tree_traversing.h>
+
+#include <server/cypress_server/node_proxy_detail.h>
+
+#include <server/cell_master/bootstrap.h>
 
 namespace NYT {
 namespace NTableServer {
@@ -207,6 +212,55 @@ void ParseRowLimits(
 }
 
 } // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTableNodeProxy
+    : public TCypressNodeProxyBase<IEntityNode, TTableNode>
+{
+public:
+    TTableNodeProxy(
+        NCypressServer::INodeTypeHandlerPtr typeHandler,
+        NCellMaster::TBootstrap* bootstrap,
+        NTransactionServer::TTransaction* transaction,
+        TTableNode* trunkNode);
+
+    virtual TResolveResult Resolve(
+        const NYPath::TYPath& path,
+        NRpc::IServiceContextPtr context) override;
+
+    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
+
+    virtual NSecurityServer::TClusterResources GetResourceUsage() const override;
+
+private:
+    typedef NCypressServer::TCypressNodeProxyBase<NYTree::IEntityNode, TTableNode> TBase;
+
+    class TFetchChunkVisitor;
+    typedef TIntrusivePtr<TFetchChunkVisitor> TFetchChunkProcessorPtr;
+
+    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override;
+    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) const override;
+    virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) const override;
+    virtual void ValidateUserAttributeUpdate(
+        const Stroka& key,
+        const TNullable<NYTree::TYsonString>& oldValue,
+        const TNullable<NYTree::TYsonString>& newValue) override;
+    virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
+
+    virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
+
+    void ParseYPath(
+        const NYPath::TYPath& path,
+        NTableClient::TChannel* channel,
+        NTableClient::NProto::TReadLimit* lowerBound,
+        NTableClient::NProto::TReadLimit* upperBound);
+
+    DECLARE_RPC_SERVICE_METHOD(NTableClient::NProto, PrepareForUpdate);
+    DECLARE_RPC_SERVICE_METHOD(NTableClient::NProto, Fetch);
+    DECLARE_RPC_SERVICE_METHOD(NTableClient::NProto, SetSorted);
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -507,10 +561,9 @@ TTableNodeProxy::TTableNodeProxy(
 
 void TTableNodeProxy::DoInvoke(IServiceContextPtr context)
 {
-    DISPATCH_YPATH_SERVICE_METHOD(GetChunkListForUpdate);
+    DISPATCH_YPATH_SERVICE_METHOD(PrepareForUpdate);
     DISPATCH_YPATH_HEAVY_SERVICE_METHOD(Fetch);
     DISPATCH_YPATH_SERVICE_METHOD(SetSorted);
-    DISPATCH_YPATH_SERVICE_METHOD(Clear);
     TBase::DoInvoke(context);
 }
 
@@ -530,9 +583,8 @@ IYPathService::TResolveResult TTableNodeProxy::Resolve(
 
 bool TTableNodeProxy::IsWriteRequest(IServiceContextPtr context) const
 {
-    DECLARE_YPATH_SERVICE_WRITE_METHOD(GetChunkListForUpdate);
+    DECLARE_YPATH_SERVICE_WRITE_METHOD(PrepareForUpdate);
     DECLARE_YPATH_SERVICE_WRITE_METHOD(SetSorted);
-    DECLARE_YPATH_SERVICE_WRITE_METHOD(Clear);
     return TBase::IsWriteRequest(context);
 }
 
@@ -730,20 +782,30 @@ void TTableNodeProxy::ParseYPath(
     tokenizer.CurrentToken().CheckType(ETokenType::EndOfStream);
 }
 
-TChunkList* TTableNodeProxy::EnsureNodeMutable(TTableNode* node)
+DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, PrepareForUpdate)
 {
-    switch (node->GetUpdateMode()) {
-        case ETableUpdateMode::Append:
-            YCHECK(node->GetChunkList()->Children().size() == 2);
-            return node->GetChunkList()->Children()[1].AsChunkList();
+    if (!Transaction) {
+        THROW_ERROR_EXCEPTION("Transaction required");
+    }
 
-        case ETableUpdateMode::Overwrite:
-            return node->GetChunkList();
+    auto mode = ETableUpdateMode(request->mode());
+    YCHECK(mode == ETableUpdateMode::Append || mode == ETableUpdateMode::Overwrite);
 
-        case ETableUpdateMode::None: {
-            auto chunkManager = Bootstrap->GetChunkManager();
-            auto objectManager = Bootstrap->GetObjectManager();
+    context->SetRequestInfo("Mode: %s", ~mode.ToString());
 
+    auto* node = LockThisTypedImpl(mode == ETableUpdateMode::Append ? ELockMode::Shared : ELockMode::Exclusive);
+
+    if (node->GetUpdateMode() != ETableUpdateMode::None) {
+        THROW_ERROR_EXCEPTION("Node is already in %s mode",
+            ~FormatEnum(node->GetUpdateMode()).Quote());
+    }
+
+    auto chunkManager = Bootstrap->GetChunkManager();
+    auto objectManager = Bootstrap->GetObjectManager();
+
+    TChunkList* resultChunkList;
+    switch (mode) {
+        case ETableUpdateMode::Append: {
             auto* snapshotChunkList = node->GetChunkList();
 
             auto* newChunkList = chunkManager->CreateChunkList();
@@ -759,60 +821,46 @@ TChunkList* TTableNodeProxy::EnsureNodeMutable(TTableNode* node)
             auto* deltaChunkList = chunkManager->CreateChunkList();
             chunkManager->AttachToChunkList(newChunkList, deltaChunkList);
 
-            node->SetUpdateMode(ETableUpdateMode::Append);
-
             objectManager->UnrefObject(snapshotChunkList);
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Table node is switched to append mode (NodeId: %s, NewChunkListId: %s, SnapshotChunkListId: %s, DeltaChunkListId: %s)",
+            resultChunkList = deltaChunkList;
+
+            LOG_DEBUG_UNLESS(IsRecovery(), "Table node is switched to \"append\" mode (NodeId: %s, NewChunkListId: %s, SnapshotChunkListId: %s, DeltaChunkListId: %s)",
                 ~node->GetId().ToString(),
                 ~newChunkList->GetId().ToString(),
                 ~snapshotChunkList->GetId().ToString(),
                 ~deltaChunkList->GetId().ToString());
-            return deltaChunkList;
+            break;
+        }
+
+        case ETableUpdateMode::Overwrite: {
+            auto* oldChunkList = node->GetChunkList();
+            YCHECK(oldChunkList->OwningNodes().erase(node) == 1);
+            objectManager->UnrefObject(oldChunkList);
+
+            auto* newChunkList = chunkManager->CreateChunkList();
+            YCHECK(newChunkList->OwningNodes().insert(node).second);
+            node->SetChunkList(newChunkList);
+            objectManager->RefObject(newChunkList);
+
+            resultChunkList = newChunkList;
+
+            LOG_DEBUG_UNLESS(IsRecovery(), "Table node is switched to \"overwrite\" mode (NodeId: %s, NewChunkListId: %s)",
+                ~node->GetId().ToString(),
+                ~newChunkList->GetId().ToString());
+            break;
         }
 
         default:
             YUNREACHABLE();
     }
-}
 
-void TTableNodeProxy::ClearNode(TTableNode* node)
-{
-    auto chunkManager = Bootstrap->GetChunkManager();
-    auto objectManager = Bootstrap->GetObjectManager();
-
-    auto* oldChunkList = node->GetChunkList();
-    YCHECK(oldChunkList->OwningNodes().erase(node) == 1);
-    objectManager->UnrefObject(oldChunkList);
-
-    auto* newChunkList = chunkManager->CreateChunkList();
-    YCHECK(newChunkList->OwningNodes().insert(node).second);
-    node->SetChunkList(newChunkList);
-    objectManager->RefObject(newChunkList);
-
-    node->SetUpdateMode(ETableUpdateMode::Overwrite);
-
-    LOG_DEBUG_UNLESS(IsRecovery(), "Table node is cleared and switched to overwrite mode (NodeId: %s, NewChunkListId: %s)",
-        ~node->GetId().ToString(),
-        ~newChunkList->GetId().ToString());
-}
-
-DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, GetChunkListForUpdate)
-{
-    UNUSED(request);
-    context->SetRequestInfo("");
-
-    if (!Transaction) {
-        THROW_ERROR_EXCEPTION("Transaction required");
-    }
-
-    auto* node = LockThisTypedImpl(ELockMode::Shared);
-    const auto* chunkList = EnsureNodeMutable(node);
-
-    *response->mutable_chunk_list_id() = chunkList->GetId().ToProto();
-    context->SetResponseInfo("ChunkListId: %s", ~chunkList->GetId().ToString());
+    node->SetUpdateMode(mode);
 
     SetModified();
+
+    *response->mutable_chunk_list_id() = resultChunkList->GetId().ToProto();
+    context->SetResponseInfo("ChunkListId: %s", ~resultChunkList->GetId().ToString());
 
     context->Reply();
 }
@@ -867,17 +915,19 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, SetSorted)
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Clear)
+////////////////////////////////////////////////////////////////////////////////
+
+ICypressNodeProxyPtr CreateTableNodeProxy(
+    NCypressServer::INodeTypeHandlerPtr typeHandler,
+    NCellMaster::TBootstrap* bootstrap,
+    NTransactionServer::TTransaction* transaction,
+    TTableNode* trunkNode)
 {
-    context->SetRequestInfo("");
-
-    auto* node = LockThisTypedImpl();
-
-    ClearNode(node);
-
-    SetModified();
-
-    context->Reply();
+    return New<TTableNodeProxy>(
+        typeHandler,
+        bootstrap,
+        transaction,
+        trunkNode);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

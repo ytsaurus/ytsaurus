@@ -1,12 +1,15 @@
-#include "stdafx.h"
-#include "common.h"
+#pragma once
+
+#include "public.h"
+
+#include <ytlib/logging/log.h>
 
 namespace NYT {
 namespace NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NLog::TLogger TableServerLogger("TableServer");
+extern NLog::TLogger TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

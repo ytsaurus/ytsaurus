@@ -27,6 +27,7 @@ using namespace NObjectServer;
 using namespace NTransactionServer;
 using namespace NYTree;
 using namespace NCypressServer;
+using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -386,11 +387,11 @@ private:
         AccountNameMap.clear();
 
         // sys, 1 TB disk space
-        SysAccount = DoCreateAccount(SysAccountId, "sys");
+        SysAccount = DoCreateAccount(SysAccountId, SysAccountName);
         SysAccount->ResourceLimits() = TClusterResources::FromDiskSpace((i64) 1024 * 1024 * 1024 * 1024);
 
         // tmp, 1 TB disk space
-        TmpAccount = DoCreateAccount(TmpAccountId, "tmp");
+        TmpAccount = DoCreateAccount(TmpAccountId, TmpAccountName);
         TmpAccount->ResourceLimits() = TClusterResources::FromDiskSpace((i64) 1024 * 1024 * 1024 * 1024);
     }
 

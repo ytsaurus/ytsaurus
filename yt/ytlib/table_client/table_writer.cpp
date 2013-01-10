@@ -28,8 +28,8 @@ using namespace NChunkClient;
 TTableWriter::TTableWriter(
     TTableWriterConfigPtr config,
     NRpc::IChannelPtr masterChannel,
-    NTransactionClient::ITransactionPtr transaction,
-    NTransactionClient::TTransactionManagerPtr transactionManager,
+    ITransactionPtr transaction,
+    TTransactionManagerPtr transactionManager,
     const NYPath::TRichYPath& richPath,
     const TNullable<TKeyColumns>& keyColumns)
     : Config(config)
@@ -76,6 +76,8 @@ void TTableWriter::Open()
     LOG_INFO("Upload transaction created (TransactionId: %s)", ~uploadTransactionId.ToString());
 
     auto path = RichPath.GetPath();
+    bool overwrite = RichPath.Attributes().Get<bool>("overwrite", false);
+    bool clear = KeyColumns.HasValue() || overwrite;
 
     LOG_INFO("Requesting table info");
     TChunkListId chunkListId;
@@ -83,13 +85,6 @@ void TTableWriter::Open()
     Stroka account;
     {
         auto batchReq = ObjectProxy.ExecuteBatch();
-
-        if (KeyColumns.HasValue() || RichPath.Attributes().Get<bool>("overwrite", false)) {
-            auto req = TTableYPathProxy::Clear(path);
-            SetTransactionId(req, uploadTransactionId);
-            NMetaState::GenerateRpcMutationId(req);
-            batchReq->AddRequest(req, "clear");
-        }
 
         {
             auto req = TCypressYPathProxy::Get(path);
@@ -106,31 +101,25 @@ void TTableWriter::Open()
         }
 
         {
-            auto req = TTableYPathProxy::GetChunkListForUpdate(path);
+            auto req = TTableYPathProxy::PrepareForUpdate(path);
             SetTransactionId(req, uploadTransactionId);
             NMetaState::GenerateRpcMutationId(req);
-            batchReq->AddRequest(req, "get_chunk_list_for_update");
+            req->set_mode(clear ? ETableUpdateMode::Overwrite : ETableUpdateMode::Append);
+            batchReq->AddRequest(req, "prepare_for_update");
         }
 
         auto batchRsp = batchReq->Invoke().Get();
-        if (!batchRsp->IsOK()) {
-            THROW_ERROR_EXCEPTION("Error requesting table info")
-                << batchRsp->GetError();
-        }
+        THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error requesting table info");
 
         {
             auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
-            if (!rsp->IsOK()) {
-                THROW_ERROR_EXCEPTION("Error requesting table attributes")
-                    << rsp->GetError();
-            }
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting table attributes");
 
             auto node = ConvertToNode(TYsonString(rsp->value()));
             const auto& attributes = node->Attributes();
 
-            if (KeyColumns.HasValue()) {
-                i64 rowCount = attributes.Get<i64>("row_count");
-                if (rowCount > 0) {
+            if (KeyColumns.HasValue() && !overwrite) {
+                if (attributes.Get<i64>("row_count") > 0) {
                     THROW_ERROR_EXCEPTION("Cannot write sorted data into a non-empty table");
                 }
             }
@@ -141,26 +130,13 @@ void TTableWriter::Open()
             }
 
             Config->ReplicationFactor = attributes.Get<int>("replication_factor");
-
+            
             account = attributes.Get<Stroka>("account");
         }
         
-        if (KeyColumns.HasValue()) {
-            {
-                auto rsp = batchRsp->FindResponse("clear");
-                if (rsp && !rsp->IsOK()) {
-                    THROW_ERROR_EXCEPTION("Error clearing table")
-                        << rsp->GetError();
-                }
-            }
-        }
-
         {
-            auto rsp = batchRsp->GetResponse<TTableYPathProxy::TRspGetChunkListForUpdate>("get_chunk_list_for_update");
-            if (!rsp->IsOK()) {
-                THROW_ERROR_EXCEPTION("Error requesting chunk list id")
-                    << rsp->GetError();
-            }
+            auto rsp = batchRsp->GetResponse<TTableYPathProxy::TRspPrepareForUpdate>("prepare_for_update");
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error preparing for update");
             chunkListId = TChunkListId::FromProto(rsp->chunk_list_id());
         }
     }
@@ -229,10 +205,8 @@ void TTableWriter::Close()
         ToProto(req->mutable_key_columns(), keyColumns);
 
         auto rsp = ObjectProxy.Execute(req).Get();
-        if (!rsp->IsOK()) {
-            THROW_ERROR_EXCEPTION("Error marking table as sorted")
-                << rsp->GetError();
-        }
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error marking table as sorted");
+
         LOG_INFO("Table is marked as sorted");
     }
 

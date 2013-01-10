@@ -29,7 +29,8 @@ public:
     TFileChunkOutput(
         TFileWriterConfigPtr config,
         NRpc::IChannelPtr masterChannel,
-        NObjectClient::TTransactionId transactionId);
+        const NObjectClient::TTransactionId& transactionId,
+        const Stroka& account);
 
     ~TFileChunkOutput() throw();
 
@@ -54,6 +55,7 @@ private:
 
     NRpc::IChannelPtr MasterChannel;
     NObjectClient::TTransactionId TransactionId;
+    Stroka Account;
 
     bool IsOpen;
     i64 Size;

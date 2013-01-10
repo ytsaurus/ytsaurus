@@ -1415,21 +1415,12 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             *req->mutable_attribute_filter() = ToProto(attributeFilter);
             batchReq->AddRequest(req, "get_out_attributes");
         }
-        if (table.Clear) {
-            LOG_INFO("Output table %s will be cleared", ~table.Path.GetPath());
-            auto req = TTableYPathProxy::Clear(path);
+        {
+            auto req = TTableYPathProxy::PrepareForUpdate(path);
             SetTransactionId(req, OutputTransaction);
             NMetaState::GenerateRpcMutationId(req);
-            batchReq->AddRequest(req, "clear_out");
-        } else {
-            // Even if |Clear| is False we still add a dummy request
-            // to keep "clear_out" requests aligned with output tables.
-            batchReq->AddRequest(NULL, "clear_out");
-        }
-        {
-            auto req = TTableYPathProxy::GetChunkListForUpdate(path);
-            SetTransactionId(req, OutputTransaction);
-            batchReq->AddRequest(req, "get_out_chunk_list");
+            req->set_mode(table.Clear ? ETableUpdateMode::Overwrite : ETableUpdateMode::Append);
+            batchReq->AddRequest(req, "prepare_for_update");
         }
     }
 
@@ -1533,9 +1524,8 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
 
     {
         auto lockOutRsps = batchRsp->GetResponses<TCypressYPathProxy::TRspLock>("lock_out");
-        auto clearOutRsps = batchRsp->GetResponses<TTableYPathProxy::TRspClear>("clear_out");
-        auto getOutChunkListRsps = batchRsp->GetResponses<TTableYPathProxy::TRspGetChunkListForUpdate>("get_out_chunk_list");
         auto getOutAttributesRsps = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_out_attributes");
+        auto prepareForUpdateRsps = batchRsp->GetResponses<TTableYPathProxy::TRspPrepareForUpdate>("prepare_for_update");
         for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
             auto& table = OutputTables[index];
             {
@@ -1570,17 +1560,9 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                     table.ReplicationFactor,
                     ~ToString(table.Account));
             }
-            if (table.Clear) {
-                auto rsp = clearOutRsps[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error clearing output table %s",
-                    ~table.Path.GetPath());
-
-                LOG_INFO("Output table %s cleared",
-                    ~table.Path.GetPath());
-            }
             {
-                auto rsp = getOutChunkListRsps[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting output chunk list for table %s",
+                auto rsp = prepareForUpdateRsps[index];
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error preparing output table %s for update",
                     ~table.Path.GetPath());
 
                 table.OutputChunkListId = TChunkListId::FromProto(rsp->chunk_list_id());

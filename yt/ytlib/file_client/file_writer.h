@@ -8,6 +8,8 @@
 
 #include <ytlib/cypress_client/public.h>
 
+#include <ytlib/chunk_client/public.h>
+
 #include <ytlib/transaction_client/public.h>
 #include <ytlib/transaction_client/transaction_listener.h>
 
@@ -72,6 +74,9 @@ private:
     NLog::TTaggedLogger Logger;
 
     NCypressClient::TNodeId NodeId;
+    Stroka Account;
+    NChunkClient::TChunkListId ChunkListId;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

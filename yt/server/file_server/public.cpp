@@ -2,17 +2,12 @@
 #include "public.h"
 
 namespace NYT {
-namespace NSecurityClient {
+namespace NFileServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAccountId NullAccountId(0, 0, 0, 0);
-
-Stroka TmpAccountName("tmp");
-Stroka SysAccountName("sys");
-
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NSecurityClient
+} // namespace NFileServer
 } // namespace NYT
 

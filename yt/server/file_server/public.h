@@ -1,17 +1,16 @@
 #pragma once
 
 #include <ytlib/misc/common.h>
-#include <ytlib/logging/log.h>
 
 namespace NYT {
-namespace NTableServer {
+namespace NFileServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern NLog::TLogger TableServerLogger;
+class TFileNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableServer
+} // namespace NFileServer
 } // namespace NYT
 
