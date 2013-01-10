@@ -181,7 +181,7 @@ function push_table_hosts2proxies_curl {
         -file push-little-ones-push \
         -file mr-split \
         -file profile_support.py \
-        -map "bash -c './push-little-ones-push -S $target $tx $codec $jobratelimit >&2'"
+        -map "bash -c 'FASTBONE=${FASTBONE} ./push-little-ones-push -S $target $tx $codec $jobratelimit >&2'"
 }
 function push_table_hosts2proxies_splitter_curl {
     local source=$1
@@ -200,7 +200,7 @@ function push_table_hosts2proxies_splitter_curl {
         -file push-little-ones-push \
         -file mr-split \
         -file profile_support.py \
-        -map "bash -c './push-little-ones-push $target $tx $codec $jobratelimit >&2'"
+        -map "bash -c 'FASTBONE=${FASTBONE} ./push-little-ones-push $target $tx $codec $jobratelimit >&2'"
 }
 
 timemark=$(date +%s)

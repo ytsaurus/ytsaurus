@@ -1,3 +1,4 @@
+
 #!/bin/bash
 
 YTFACE=${YTFACE:-"auto"}
@@ -31,6 +32,7 @@ if [ "$YTFACE" == "curl" ]; then
         local body=$(echo "$x" | head -n-1)
 
         if [ $status -ne 200 ] && [ $status -ne 202 ]; then
+            echo "Error status: $status" >&2
             [[ -n "$body" ]] && echo "$body" >&2
             return 1
         fi
@@ -76,8 +78,21 @@ if [ "$YTFACE" == "curl" ]; then
     }
     function _path_exists {
         local R=$(_curl -H 'X-YT-Output-Format: "dsv"' "$APIBASE/exists?path=$1""${2:+&transaction_id=$2}")
-        $R
+        if [ "$R" == "true" ]; then
+            return 0;
+        else
+            return 1;
+        fi
     }
+    function _is_table {
+        local R=$(_curl -H 'X-YT-Output-Format: "dsv"' "$APIBASE/get?path=$1/@type""${2:+&transaction_id=$2}")
+        if [ "$R" == "table" ]; then
+            return 0;
+        else
+            return 1;
+        fi
+    }
+
     function _create_dir {
         if ! _path_exists $1 $2; then
             _create_dir $(dirname $1) $2
@@ -96,7 +111,11 @@ if [ "$YTFACE" == "curl" ]; then
     }
     function drop_table {
         if _path_exists $1 $2; then
-            _curl -X POST "$APIBASE/remove?path=$1""${2:+&transaction_id=$2}"
+            if _is_table $1 $2; then
+                _curl -X POST "$APIBASE/remove?path=$1""${2:+&transaction_id=$2}"
+            else
+                return 1;
+            fi
         fi
     }
     function move_path {

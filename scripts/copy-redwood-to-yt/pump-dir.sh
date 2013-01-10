@@ -2,13 +2,14 @@
 
 set -e
 
-while getopts "nA:B:al" opt; do
+TABLES_TO_PUSH="diff"
+while getopts "nal" opt; do
     case $opt in
         n)
             DRYRUN_SWITCH=echo
         ;;
         a)
-            DIFF="-c clone"
+            TABLES_TO_PUSH="all"
         ;;
         l)
             LOGGING="enabled"
@@ -36,12 +37,19 @@ tablefile="tables.${sourcedir//\//+}.$(date +%Y%m%dT%H%M%S)"
 LOGGING=${LOGGING:+">> $logfile 2>&1"}
 
 MRSERVER=${MRSERVER:-redwood.yandex.ru}
+FASTBONE=${FASTBONE:-1}
 
-./mapreduce -list -server ${MRSERVER}:8013 -prefix $sourcedir > $tablefile
-    
-for from in `cat $tablefile`; do
+if [ "${TABLES_TO_PUSH}" == "all" ]; then
+    ./mapreduce -list -server ${MRSERVER}:8013 -prefix $sourcedir > $tablefile
+else
+    ./show-dir-diff.sh $sourcedir $targetdir > $tablefile
+fi
+
+set +e
+
+for from in `tac $tablefile`; do
     to=$targetdir/$from
     echo "$from $to" | xargs -n2 -I% $DRYRUN_SWITCH \
-        sh -c "./copy-redwood-to-yt.sh -f gzip_best_compression % $LOGGING"
+        sh -c "./copy-redwood-to-yt.sh -f gzip_best_compression % $LOGGING || true" 
 done
 

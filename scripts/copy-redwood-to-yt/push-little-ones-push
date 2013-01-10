@@ -42,14 +42,20 @@ log "start_tx 10000 $parenttx"
 tx=$(start_tx 10000 $parenttx)
 log "$tx start"
 
+if [ "${FASTBONE}" == "1" ]; then
+    FB="-fb"
+else
+    FB=""
+fi
+
 WRITER=$(cat <<END
-YTPROXY=$(curl -s 'http://proxy-fb.yt.yandex.net/hosts' | sed 's/[",]/\n/g' | grep 'yt.yandex.net' | head -n1)
+YTPROXY=$(curl -s 'http://proxy${FB}.yt.yandex.net/hosts' | sed 's/[",]/\n/g' | grep 'yt.yandex.net' | head -n1)
 . ./ytface.sh
 gzip -9 -c | write_lenval_gzip $target $tx $codec --limit-rate $ratelimit
 END
 )
 
-if [ -v DISABLE_SPLITTER ]; then
+if [ "$DISABLE_SPLITTER" == "1" ]; then
     e bash -c "$WRITER"
 else
     PYTHONPATH=. e python ./mr-split --line-bytes=$CHUNKSIZE --filter "bash -c '$WRITER'"
