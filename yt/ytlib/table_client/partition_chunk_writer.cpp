@@ -38,9 +38,19 @@ TPartitionChunkWriter::TPartitionChunkWriter(
     }
     *ChannelsExt.add_items()->mutable_channel() = TChannel::Universal().ToProto();
 
+    int upperReserveLimit = TChannelWriter::MaxUpperReserveLimit;
+    {
+        int averageBufferSize = config->MaxBufferSize / Partitioner->GetPartitionCount() / 2;
+        while (upperReserveLimit > averageBufferSize) {
+            upperReserveLimit >>= 1;
+        }
+
+        YCHECK(upperReserveLimit >= TChannelWriter::MinUpperReserveLimit);
+    }
+
     for (int partitionTag = 0; partitionTag < Partitioner->GetPartitionCount(); ++partitionTag) {
         // Write range column sizes to effectively skip during reading.
-        Buffers.push_back(New<TChannelWriter>(partitionTag, 0, true));
+        Buffers.push_back(New<TChannelWriter>(partitionTag, 0, true, upperReserveLimit));
         BuffersHeap.push_back(~Buffers.back());
         CurrentBufferCapacity += Buffers.back()->GetCapacity();
 
@@ -53,8 +63,8 @@ TPartitionChunkWriter::TPartitionChunkWriter(
 
     BasicMetaSize =
         ChannelsExt.ByteSize() +
-        sizeof(i64) * Partitioner->GetPartitionCount() + 
-        sizeof(NChunkClient::NProto::TMiscExt) + 
+        sizeof(i64) * Partitioner->GetPartitionCount() +
+        sizeof(NChunkClient::NProto::TMiscExt) +
         sizeof(NChunkClient::NProto::TChunkMeta);
 
     CheckBufferCapacity();
@@ -137,9 +147,9 @@ void TPartitionChunkWriter::PrepareBlock()
     blockInfo->set_partition_tag(partitionTag);
     blockInfo->set_block_index(CurrentBlockIndex);
 
-    LOG_DEBUG("Emitting block for partition %d (BlockIndex: %d, RowCount: %" PRId64 ")", 
-        partitionTag, 
-        CurrentBlockIndex, 
+    LOG_DEBUG("Emitting block for partition %d (BlockIndex: %d, RowCount: %" PRId64 ")",
+        partitionTag,
+        CurrentBlockIndex,
         channelWriter->GetCurrentRowCount());
 
     ++CurrentBlockIndex;

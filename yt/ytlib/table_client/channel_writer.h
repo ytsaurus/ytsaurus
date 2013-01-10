@@ -18,14 +18,16 @@ class TChannelWriter
     DEFINE_BYVAL_RW_PROPERTY(int, HeapIndex);
 
 public:
-    static const int MaxReserveSize;
+    static const int MaxUpperReserveLimit;
+    static const int MinUpperReserveLimit;
 
     typedef TIntrusivePtr<TChannelWriter> TPtr;
 
     TChannelWriter(
         int bufferIndex,
         int fixedColumnCount,
-        bool writeRangeSizes = false);
+        bool writeRangeSizes = false,
+        int upperReserveLimit = MaxUpperReserveLimit);
 
     void WriteFixed(int fixedIndex, const TStringBuf& value);
     void WriteRange(const TStringBuf& name, const TStringBuf& value);
@@ -65,7 +67,6 @@ private:
 
     //! Number of rows in the current unflushed buffer.
     int CurrentRowCount;
-
 
 };
 

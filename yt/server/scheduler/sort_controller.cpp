@@ -594,7 +594,7 @@ protected:
 
             // Don't rely on static assignment anymore.
             Partition->AssignedAddress = Null;
-            
+
             // Also add a hint to ensure that subsequent jobs are also scheduled here.
             AddLocalityHint(address);
 
@@ -1049,6 +1049,18 @@ protected:
         AddSortTasksPendingHints();
     }
 
+    static void CheckPartitionWriterBuffer(int partitionCount, NTableClient::TTableWriterConfigPtr config)
+    {
+        auto averageBufferSize = config->MaxBufferSize / partitionCount / 2;
+        if (averageBufferSize < NTableClient::TChannelWriter::MinUpperReserveLimit) {
+            i64 minAppropriateSize = partitionCount * 2 * NTableClient::TChannelWriter::MinUpperReserveLimit;
+            THROW_ERROR_EXCEPTION(
+                "Too small table writer buffer size for partitioner (MaxBufferSize: %"PRId64"). Min appropriate buffer size is %"PRId64,
+                averageBufferSize,
+                minAppropriateSize);
+        }
+    }
+
     void CheckMergeStartThreshold()
     {
         if (SimpleSort)
@@ -1357,6 +1369,8 @@ private:
 
         InitJobIOConfigs();
 
+        CheckPartitionWriterBuffer(partitionCount, PartitionJobIOConfig->TableWriter);
+
         if (SimpleSort) {
             BuildSinglePartition();
         } else {
@@ -1596,7 +1610,7 @@ private:
             dataSize);
 
         bufferSize = std::min(
-            bufferSize + NTableClient::TChannelWriter::MaxReserveSize * static_cast<i64>(Partitions.size()),
+            bufferSize + NTableClient::TChannelWriter::MaxUpperReserveLimit * static_cast<i64>(Partitions.size()),
             PartitionJobIOConfig->TableWriter->MaxBufferSize);
 
         TNodeResources result;
@@ -1857,7 +1871,10 @@ private:
 
         YCHECK(partitionCount >= 2);
 
-        InitJobIOConfigs(partitionCount);
+        InitJobIOConfigs();
+
+        CheckPartitionWriterBuffer(partitionCount, PartitionJobIOConfig->TableWriter);
+
         BuildMultiplePartitions(partitionCount);
     }
 
@@ -1892,7 +1909,7 @@ private:
         AddTaskPendingHint(PartitionTask);
     }
 
-    void InitJobIOConfigs(int partitionCount)
+    void InitJobIOConfigs()
     {
         {
             // This is not a typo!
@@ -2038,7 +2055,7 @@ private:
     virtual TNodeResources GetPartitionResources(
         i64 dataSize) const override
     {
-        i64 reserveSize = NTableClient::TChannelWriter::MaxReserveSize * static_cast<i64>(Partitions.size());
+        i64 reserveSize = NTableClient::TChannelWriter::MaxUpperReserveLimit * static_cast<i64>(Partitions.size());
         i64 bufferSize = std::min(
             reserveSize + PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()),
             PartitionJobIOConfig->TableWriter->MaxBufferSize);
