@@ -36,10 +36,11 @@ def ls(args):
     for elem in list:
         path = args.path + "/" + elem
         if args.l:
+            type = yt.get(path + "/@type")
             size = yt.get(path + "/@recursive_resource_usage/disk_space")
             date, time = yt.get(path + "/@modification_time").split("T")
             time = time[:5]
-            sys.stdout.write("%18r %10s %5s " % (size, date, time))
+            sys.stdout.write("%10s %18r %10s %5s " % (type, size, date, time))
         print elem
 
 
