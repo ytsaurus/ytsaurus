@@ -510,8 +510,6 @@ TSession::TSlot& TSession::GetSlot(int blockIndex)
     VERIFY_THREAD_AFFINITY(ControlThread);
     YCHECK(IsInWindow(blockIndex));
     
-    Window.reserve(blockIndex + 1);
-
     while (Window.size() <= blockIndex) {
         // NB: do not use resize here! 
         // Newly added slots must get a fresh copy of IsWritten promise.
