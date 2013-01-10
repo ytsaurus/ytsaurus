@@ -475,7 +475,7 @@ void TJob::ReleaseResources(const TNodeResources& newUsage)
         ~FormatResources(ResourceUsage),
         ~FormatResources(newUsage));
 
-    if (newUsage != oldUsage) {
+    if (Dominates(oldUsage, newUsage) && newUsage != oldUsage) {
         ResourceUsage = newUsage;
         guard.Release();
         ResourcesReleased_.Fire(oldUsage, newUsage);
