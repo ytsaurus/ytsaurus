@@ -6,6 +6,7 @@ SPHINXOPTS    =
 SPHINXBUILD   = sphinx-build
 PAPER         =
 BUILDDIR      = build
+PROJECTDIR    = ../
 
 # Internal variables.
 PAPEROPT_a4     = -D latex_paper_size=a4
@@ -24,6 +25,14 @@ help:
 	@echo "  latexpdf   to make LaTeX files and run them through pdflatex"
 	@echo "  changes    to make an overview of all changed/added/deprecated items"
 	@echo "  linkcheck  to check all external links for integrity"
+
+gh-pages: clean html
+	(cd $(PROJECTDIR) && git clean -f)
+	(cd $(PROJECTDIR) && git checkout gh-pages)
+	cp -r $(BUILDDIR)/html/* $(PROJECTDIR)
+	(cd $(PROJECTDIR) && git add -A)
+	(cd $(PROJECTDIR) && git commit -m "Generated gh-pages for `git log master -1 --pretty=short --abbrev-commit`")
+	(cd $(PROJECTDIR) && git checkout master)
 
 clean:
 	-rm -rf $(BUILDDIR)/*
