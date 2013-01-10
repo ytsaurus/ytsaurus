@@ -1055,7 +1055,7 @@ protected:
         if (averageBufferSize < NTableClient::TChannelWriter::MinUpperReserveLimit) {
             i64 minAppropriateSize = partitionCount * 2 * NTableClient::TChannelWriter::MinUpperReserveLimit;
             THROW_ERROR_EXCEPTION(
-                "Too small table writer buffer size for partitioner (MaxBufferSize: %"PRId64"). Min appropriate buffer size is %"PRId64,
+                "Too small table writer buffer size for partitioner (MaxBufferSize: %" PRId64 "). Min appropriate buffer size is %" PRId64,
                 averageBufferSize,
                 minAppropriateSize);
         }
