@@ -45,8 +45,7 @@ public:
 
     void ScheduleChunkRefresh(const TChunkId& chunkId);
 
-    void ScheduleChunkRemoval(TDataNode* node, TChunk* chunk);
-    void ScheduleUnknownChunkRemoval(TDataNode* node, const TChunkId& chunkId);
+    void ScheduleChunkRemoval(TDataNode* node, const TChunkId& chunkdId);
 
     void ScheduleRFUpdate(TChunkTreeRef ref);
 
@@ -101,7 +100,7 @@ private:
 
     EScheduleFlags ScheduleReplicationJob(
         TDataNode* sourceNode,
-        TChunk* chunk,
+        const TChunkId& chunkId,
         std::vector<NProto::TJobStartInfo>* jobsToStart);
     EScheduleFlags ScheduleBalancingJob(
         TDataNode* sourceNode,

@@ -136,18 +136,12 @@ void TChunkReplicator::OnChunkRemoved(TChunk* chunk)
     OverreplicatedChunkIds_.erase(chunkId);
 }
 
-void TChunkReplicator::ScheduleChunkRemoval(TDataNode* node, TChunk* chunk)
-{
-    node->ChunksToRemove().insert(chunk->GetId());
-
-    FOREACH (auto& chunksToReplicate, node->ChunksToReplicate()) {
-        chunksToReplicate.erase(chunk);
-    }
-}
-
-void TChunkReplicator::ScheduleUnknownChunkRemoval(TDataNode* node, const TChunkId& chunkId)
+void TChunkReplicator::ScheduleChunkRemoval(TDataNode* node, const TChunkId& chunkId)
 {
     node->ChunksToRemove().insert(chunkId);
+    FOREACH (auto& chunksToReplicate, node->ChunksToReplicate()) {
+        chunksToReplicate.erase(chunkId);
+    }
 }
 
 void TChunkReplicator::ProcessExistingJobs(
@@ -267,10 +261,14 @@ bool TChunkReplicator::IsRefreshScheduled(const TChunkId& chunkId)
 
 TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleReplicationJob(
     TDataNode* sourceNode,
-    TChunk* chunk,
+    const TChunkId& chunkId,
     std::vector<TJobStartInfo>* jobsToStart)
 {
-    const auto& chunkId = chunk->GetId();
+    auto chunkManager = Bootstrap->GetChunkManager();
+    auto* chunk = chunkManager->FindChunk(chunkId);
+    if (!chunk) {
+        return EScheduleFlags::Purged;
+    }
 
     if (IsRefreshScheduled(chunkId)) {
         LOG_TRACE("Chunk %s we're about to replicate is scheduled for another refresh",
@@ -529,7 +527,7 @@ void TChunkReplicator::Refresh(TChunk* chunk)
         auto* node = chunkManager->FindNode(nodeId);
         if (node) {
             FOREACH (auto& chunksToReplicate, node->ChunksToReplicate()) {
-                chunksToReplicate.erase(chunk);
+                chunksToReplicate.erase(chunkId);
             }
             node->ChunksToRemove().erase(chunkId);
         }
@@ -595,7 +593,7 @@ void TChunkReplicator::Refresh(TChunk* chunk)
         auto* node = ChunkPlacement->GetReplicationSource(chunk);
 
         int priority = ComputeReplicationPriority(statistics);
-        node->ChunksToReplicate()[priority].insert(chunk);
+        node->ChunksToReplicate()[priority].insert(chunkId);
 
         LOG_DEBUG("Chunk %s is under-replicated: %s replicas exist but %d needed, replication is scheduled on %s",
             ~chunkId.ToString(),
@@ -688,11 +686,12 @@ bool TChunkReplicator::IsEnabled()
         }
     }
 
-    if (config->MaxLostChunkFraction)
-    {
-        auto chunkManager = Bootstrap->GetChunkManager();
+    auto chunkManager = Bootstrap->GetChunkManager();
+    int chunkCount = chunkManager->GetChunkCount();
+    int lostChunkCount = chunkManager->LostChunkIds().size();
+    if (config->MaxLostChunkFraction && chunkCount > 0) {
         double needFraction = config->MaxLostChunkFraction.Get();
-        double gotFraction = (double) chunkManager->LostChunkIds().size() / chunkManager->GetChunkCount();
+        double gotFraction = (double) lostChunkCount / chunkCount;
         if (gotFraction > needFraction) {
             if (!LastEnabled || LastEnabled.Get()) {
                 LOG_INFO("Chunk replicator disabled: too many lost chunks, needed <= %lf but got %lf",

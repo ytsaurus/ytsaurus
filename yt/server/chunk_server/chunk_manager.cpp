@@ -1320,7 +1320,7 @@ private:
         node->RemoveChunk(chunk, cached);
 
         if (!cached && IsLeader()) {
-            ChunkReplicator->ScheduleChunkRemoval(node, chunk);
+            ChunkReplicator->ScheduleChunkRemoval(node, chunk->GetId());
         }
     }
 
@@ -1471,7 +1471,7 @@ private:
                 ~FormatBool(cached));
 
             if (IsLeader()) {
-                ChunkReplicator->ScheduleUnknownChunkRemoval(node, chunkId);
+                ChunkReplicator->ScheduleChunkRemoval(node, chunkId);
             }
 
             return;

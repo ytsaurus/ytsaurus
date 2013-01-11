@@ -36,7 +36,7 @@ class TDataNode
     DEFINE_BYVAL_RW_PROPERTY(int, HintedSessionCount);
 
     //! Indexed by priority.
-    typedef std::vector< yhash_set<TChunk*> > TChunksToReplicate;
+    typedef std::vector< yhash_set<TChunkId> > TChunksToReplicate;
     DEFINE_BYREF_RW_PROPERTY(TChunksToReplicate, ChunksToReplicate);
 
     //! NB: Ids are used instead of raw pointers since these chunks are typically already dead.
