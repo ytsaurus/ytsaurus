@@ -31,7 +31,7 @@ Logging = {
 }
 
 
-MasterAddresses = opts.limit_iter('--masters', ['meta01-00%dg.yt.yandex.net:9000' % i for i in xrange(1, 4)])
+MasterAddresses = opts.limit_iter('--masters', ['meta01-00%de.yt.yandex.net:9000' % i for i in xrange(1, 4)])
 
 class Base(AggrBase):
     path = opts.get_string('--name', 'control')
@@ -136,7 +136,7 @@ class Holder(Server):
     
     @propmethod
     def host(cls):
-        return 'n01-0%dg.yt.yandex.net' % (650 + cls.nodeid)
+        return 'n01-0%03de.yt.yandex.net' % (1 + cls.nodeid)
     
     params = Template('--node --config %(config_path)s')
 
