@@ -171,7 +171,7 @@ Examples:
     action_flags = ["version", "copy", "sort", "merge", "list", "listfiles", "starttx"]
 
     add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "pingtx",
-                                          "smartformat", "force", "executable"])
+                                          "smartformat", "force", "executable", "detached"])
     add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec",
                                             "format", "inputformat", "outputformat", "tx", "value",
                                             "replicationfactor", "memlimit", "timeout", "title", "fs", "rs"])
@@ -197,6 +197,9 @@ Examples:
              "copy given tables to one destination table"),
             ("createtable",
              "NEW! creates empty table"),
+            ("detached",
+             "NEW! run operation in detached mode. Operation continues even"
+             "if connection from client would be broken"),
             ("download",
              "NEW! download file from given path"),
             ("drop",
@@ -422,6 +425,8 @@ Examples:
 
     if args.memlimit is not None:
         config.MEMORY_LIMIT = int(args.memlimit)
+
+    config.DETACHED = args.detached
 
     table_writer = {}
     if args.codec is not None:
