@@ -50,7 +50,7 @@ private:
         attributes->push_back("resource_usage");
         attributes->push_back("resource_limits");
         attributes->push_back("node_count");
-        attributes->push_back("disk_space_over_limit");
+        attributes->push_back("over_disk_space");
         TBase::ListSystemAttributes(attributes);
     }
 
