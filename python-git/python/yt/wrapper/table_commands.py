@@ -161,15 +161,18 @@ def _add_table_writer_spec(job_types, table_writer, spec):
 def _make_operation_request(command_name, spec, strategy, finalizer=None, verbose=False):
     operation = _make_transactioned_request(command_name, {"spec": spec}, verbose=verbose)
 
-    transaction = PingableTransaction()
-    transaction.__enter__()
+    common_finalizer = finalizer
+    if not config.DETACHED:
+        transaction = PingableTransaction()
+        transaction.__enter__()
 
-    def envelope_finalizer(finalizer, transaction):
-        transaction.__exit__(None, None, None)
-        if finalizer is not None:
-            finalizer()
+        def envelope_finalizer(finalizer, transaction):
+            transaction.__exit__(None, None, None)
+            if finalizer is not None:
+                finalizer()
+        common_finalizer = lambda: envelope_finalizer(finalizer, transaction)
     
-    get_value(strategy, config.DEFAULT_STRATEGY).process_operation(command_name, operation, lambda: envelope_finalizer(finalizer, transaction))
+    get_value(strategy, config.DEFAULT_STRATEGY).process_operation(command_name, operation, common_finalizer)
 
 class Buffer(object):
     """ Reads line iterator by chunks """

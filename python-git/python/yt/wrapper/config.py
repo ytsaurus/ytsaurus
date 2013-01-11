@@ -33,6 +33,7 @@ FILE_STORAGE = "//tmp/yt_wrapper/file_storage"
 TEMP_TABLES_STORAGE = "//tmp/yt_wrapper/table_storage"
 
 KEYBOARD_ABORT = True
+DETACHED = False
 
 TRANSACTION = "0-0-0-0"
 PING_ANSECTOR_TRANSACTIONS = False
