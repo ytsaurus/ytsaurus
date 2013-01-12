@@ -88,7 +88,7 @@ struct TUserJobSpec
         Register("cpu_limit", CpuLimit)
             .Default(1);
         Register("memory_limit", MemoryLimit)
-            .Default((i64) 1024 * 1024 * 1024);
+            .Default((i64) 256 * 1024 * 1024);
     }
 };
 
@@ -500,7 +500,7 @@ struct TPoolConfig
 {
     double Weight;
     double MinShareRatio;
-    
+
     ESchedulingMode Mode;
 
     TNullable<int> MaxSlots;
@@ -518,7 +518,7 @@ struct TPoolConfig
 
         Register("mode", Mode)
             .Default(ESchedulingMode::Fifo);
-        
+
         Register("max_slots", MaxSlots)
             .Default(Null)
             .GreaterThanOrEqual(0);
@@ -554,7 +554,6 @@ struct TPooledOperationSpec
         Register("weight", Weight)
             .Default(1.0)
             .GreaterThanOrEqual(1.0);
-    
         Register("min_share_preemption_timeout", MinSharePreemptionTimeout)
             .Default(TDuration::Seconds(15));
         Register("min_share_ratio", MinShareRatio)

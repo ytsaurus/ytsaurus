@@ -85,7 +85,8 @@ private:
                 Controller->Spec->JobIO,
                 1,
                 Controller->Spec->OutputTablePaths.size()) +
-                GetFootprintMemorySize());
+                GetFootprintMemorySize() +
+                Controller->Spec->Mapper->MemoryLimit);
             return result;
         }
 

@@ -131,7 +131,8 @@ protected:
                     Controller->Spec->JobIO,
                     Controller->GetInputTablePaths().size(),
                     1) +
-                GetFootprintMemorySize());
+                GetFootprintMemorySize() +
+                Controller->GetAdditionalMemorySize());
             return result;
         }
 
@@ -428,6 +429,11 @@ protected:
 
     //! Returns True if the chunk can be included into the output as-is.
     virtual bool IsPassthroughChunk(const TInputChunk& inputChunk) = 0;
+
+    virtual i64 GetAdditionalMemorySize() const
+    {
+        return 0;
+    }
 
     //! Returns True iff the chunk is complete and is large enough.
     bool IsLargeCompleteChunk(const TInputChunk& inputChunk)
@@ -1200,6 +1206,11 @@ private:
     virtual bool IsSortedOutputSupported() const override
     {
         return true;
+    }
+
+    virtual i64 GetAdditionalMemorySize() const override
+    {
+        return Spec->Reducer->MemoryLimit;
     }
 
     virtual bool IsLargeEnoughToPassthrough(const TInputChunk& inputChunk) override
