@@ -39,7 +39,7 @@ def remove_prefix(table):
 def list_all_entities(type):
     if config.PREFIX is None:
         die("You should specify PREFIX for list command")
-    check_prefix()
+    check_prefix(config.PREFIX)
     tables = yt.search(config.PREFIX[:-1], type,
                        path_filter=lambda path: path.startswith(config.PREFIX))
     return sorted(map(remove_prefix, tables))

@@ -3,6 +3,7 @@ import logger
 from http import make_request
 from common import update, bool_to_string, get_value, require, YtError
 
+from datetime import datetime, timedelta
 from copy import deepcopy
 from time import sleep
 from threading import Thread
@@ -91,31 +92,40 @@ class Transaction(object):
             config.PING_ANSECTOR_TRANSACTIONS = Transaction.initial_ping_ansector_transactions
 
 class PingTransaction(Thread):
-    def __init__(self, transaction, delay=0.5):
+    def __init__(self, transaction, delay):
         super(PingTransaction, self).__init__()
         self.transaction = transaction
         self.delay = delay
         self.is_running = True
+        self.step = 0.1
 
     def __enter__(self):
         self.start()
 
     def __exit__(self, type, value, traceback):
         self.is_running = False
-        self.join(0.1 + self.delay)
+        # 5.0 seconds correction for waiting response from renew
+        self.join(5.0 + self.step)
         require(not self.is_alive(), YtError("Pinging thread is not terminated correctly"))
 
     def run(self):
         while self.is_running:
             renew_transaction(self.transaction)
-            sleep(self.delay)
+            start_time = datetime.now()
+            while datetime.now() - start_time > timedelta(seconds=self.delay):
+                sleep(self.step)
+                if not self.running:
+                    return
 
 class PingableTransaction(object):
+    def __init__(self, timeout=None):
+        self.timeout = get_value(timeout, config.TRANSACTION_TIMEOUT)
+
     def __enter__(self):
-        self.transaction = Transaction()
+        self.transaction = Transaction(self.timeout)
         self.transaction.__enter__()
 
-        self.ping = PingTransaction(config.TRANSACTION)
+        self.ping = PingTransaction(config.TRANSACTION, self.timeout / 10)
         self.ping.__enter__()
 
     def __exit__(self, type, value, traceback):

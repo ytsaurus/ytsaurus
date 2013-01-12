@@ -163,7 +163,7 @@ def _make_operation_request(command_name, spec, strategy, finalizer=None, verbos
 
     common_finalizer = finalizer
     if not config.DETACHED:
-        transaction = PingableTransaction()
+        transaction = PingableTransaction(config.OPERATION_TRANSACTION_TIMEOUT)
         transaction.__enter__()
 
         def envelope_finalizer(finalizer, transaction):
@@ -241,7 +241,7 @@ def write_table(table, lines, format=None, table_writer=None, replication_factor
     """
     table = to_table(table)
     format = _prepare_format(format)
-    with PingableTransaction():
+    with PingableTransaction(config.WRITE_TRANSACTION_TIMEOUT):
         if not exists(table.name):
             create_table(table.name, replication_factor=replication_factor)
         else:
@@ -258,7 +258,7 @@ def write_table(table, lines, format=None, table_writer=None, replication_factor
                 params["table_writer"] = table_writer
             for i in xrange(config.WRITE_RETRIES_COUNT):
                 try:
-                    with PingableTransaction():
+                    with PingableTransaction(config.WRITE_TRANSACTION_TIMEOUT):
                         _make_transactioned_request(
                             "write",
                             params,
