@@ -17,7 +17,7 @@ class TChunkRegistry
 {
 public:
     //! Initializes a new instance.
-    TChunkRegistry(TBootstrap* bootstrap);
+    explicit TChunkRegistry(TBootstrap* bootstrap);
 
     //! Finds chunk by id. Returns NULL if no chunk exists.
     TChunkPtr FindChunk(const TChunkId& chunkId) const;
