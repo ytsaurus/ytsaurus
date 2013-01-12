@@ -391,7 +391,7 @@ bool TCypressNodeProxyNontemplateBase::GetSystemAttribute(
         return true;
     }
 
-    if (key == "account" && node->GetAccount()) {
+    if (key == "account") {
         BuildYsonFluently(consumer)
             .Value(node->GetAccount()->GetName());
         return true;
