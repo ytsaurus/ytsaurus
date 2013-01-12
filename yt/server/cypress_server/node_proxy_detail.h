@@ -207,19 +207,19 @@ public:
 protected:
     const TImpl* GetThisTypedImpl() const
     {
-        return dynamic_cast<const TImpl*>(GetThisImpl());
+        return dynamic_cast<const TImpl*>(this->GetThisImpl());
     }
 
     TImpl* GetThisTypedMutableImpl()
     {
-        return dynamic_cast<TImpl*>(GetThisMutableImpl());
+        return dynamic_cast<TImpl*>(this->GetThisMutableImpl());
     }
 
     TImpl* LockThisTypedImpl(
         const TLockRequest& request = ELockMode::Exclusive,
         bool recursive = false)
     {
-        return dynamic_cast<TImpl*>(LockThisImpl(request, recursive));
+        return dynamic_cast<TImpl*>(this->LockThisImpl(request, recursive));
     }
 };
 
