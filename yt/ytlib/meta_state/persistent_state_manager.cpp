@@ -257,9 +257,7 @@ public:
                 .Item("elections").Do(BIND(&TElectionManager::GetMonitoringInfo, ElectionManager))
                 .DoIf(tracker, [=] (TFluentMap fluent) {
                     fluent
-                        // COMPAT(babenko): notify Roman
                         .Item("has_active_quorum").Value(HasActiveQuorum_)
-                        .Item("has_quorum").Value(HasActiveQuorum_)
                         .Item("active_followers").DoListFor(
                             0,
                             CellManager->GetPeerCount(),
