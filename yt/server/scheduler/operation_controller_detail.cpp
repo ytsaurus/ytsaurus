@@ -1385,7 +1385,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             // Construct rich YPath for fetch.
             auto attributes = table.Path.Attributes().Clone();
             if (table.ComplementFetch) {
-                attributes->Set("complement", attributes->Get("complement", false));
+                attributes->Set("complement", !attributes->Get("complement", false));
             }
             TRichYPath fetchPath(table.Path.GetPath(), *attributes);
             auto req = TTableYPathProxy::Fetch(fetchPath);
