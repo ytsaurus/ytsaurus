@@ -694,6 +694,8 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
     auto channel = attributes->Get("channel", TChannel::Universal());
     auto lowerLimit = attributes->Get("lower_limit", TReadLimit());
     auto upperLimit = attributes->Get("upper_limit", TReadLimit());
+    bool complement = attributes->Get("complement", false);
+
     auto* chunkList = node->GetChunkList();
 
     auto visitor = New<TFetchChunkVisitor>(
@@ -702,11 +704,10 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
         context, 
         channel);
 
-    if (request->negate()) {
+    if (complement) {
         if (lowerLimit.has_row_index() || lowerLimit.has_key()) {
             visitor->StartSession(TReadLimit(), lowerLimit);
         }
-
         if (upperLimit.has_row_index() || upperLimit.has_key()) {
             visitor->StartSession(upperLimit, TReadLimit());
         }

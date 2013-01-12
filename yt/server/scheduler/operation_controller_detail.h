@@ -119,11 +119,11 @@ protected:
         : public TTableBase
     {
         TInputTable()
-            : NegateFetch(false)
+            : ComplementFetch(false)
         { }
 
         NTableClient::TTableYPathProxy::TRspFetchPtr FetchResponse;
-        bool NegateFetch;
+        bool ComplementFetch;
         TNullable< std::vector<Stroka> > KeyColumns;
     };
 

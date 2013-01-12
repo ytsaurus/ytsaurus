@@ -1385,12 +1385,16 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             batchReq->AddRequest(req, "lock_in");
         }
         {
-            // NB: Use table.Path here, otherwise path suffix is ignored.
-            auto req = TTableYPathProxy::Fetch(table.Path);
+            // Construct rich YPath for fetch.
+            auto attributes = table.Path.Attributes().Clone();
+            if (table.ComplementFetch) {
+                attributes->Set("complement", attributes->Get("complement", false));
+            }
+            TRichYPath fetchPath(table.Path.GetPath(), *attributes);
+            auto req = TTableYPathProxy::Fetch(fetchPath);
             SetTransactionId(req, InputTransaction);
             req->set_fetch_node_addresses(true);
             req->set_fetch_all_meta_extensions(true);
-            req->set_negate(table.NegateFetch);
             batchReq->AddRequest(req, "fetch_in");
         }
         {

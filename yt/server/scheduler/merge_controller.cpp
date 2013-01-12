@@ -667,7 +667,7 @@ private:
         // For erase operation the rowset specified by the user must actually be negated.
         {
             auto& table = InputTables[0];
-            table.NegateFetch = true;
+            table.ComplementFetch = true;
         }
         // ...and the output table must be cleared (regardless of "overwrite" attribute).
         {
