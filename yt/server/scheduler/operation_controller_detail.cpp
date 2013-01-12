@@ -1222,15 +1222,12 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::GetObjectIds()
     FOREACH (const auto& table, InputTables) {
         auto req = TObjectYPathProxy::GetId(table.Path.GetPath());
         SetTransactionId(req, InputTransaction);
-        req->set_allow_nonempty_path_suffix(true);
         batchReq->AddRequest(req, "get_in_id");
     }
 
     FOREACH (const auto& table, OutputTables) {
         auto req = TObjectYPathProxy::GetId(table.Path.GetPath());
         SetTransactionId(req, InputTransaction);
-        // TODO(babenko): should we allow this?
-        req->set_allow_nonempty_path_suffix(true);
         batchReq->AddRequest(req, "get_out_id");
     }
 

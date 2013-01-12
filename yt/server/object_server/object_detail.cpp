@@ -185,16 +185,7 @@ const IAttributeDictionary& TObjectProxyBase::Attributes() const
 
 DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, GetId)
 {
-    context->SetRequestInfo("AllowNonemptyPathSuffix: ",
-        ~FormatBool(request->allow_nonempty_path_suffix()));
-
-    if (!request->allow_nonempty_path_suffix()) {
-        NYPath::TTokenizer tokenizer(context->GetPath());
-        if (tokenizer.Advance() != NYPath::ETokenType::EndOfStream) {
-            THROW_ERROR_EXCEPTION("Unexpected path suffix: %s", ~context->GetPath());
-        }
-    }
-
+    context->SetRequestInfo("");
     *response->mutable_object_id() = GetId().ToProto();
     context->Reply();
 }

@@ -57,10 +57,6 @@ public:
         NTransactionServer::TTransaction* transaction,
         TTableNode* trunkNode);
 
-    virtual TResolveResult Resolve(
-        const NYPath::TYPath& path,
-        NRpc::IServiceContextPtr context) override;
-
     virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
 
     virtual NSecurityServer::TClusterResources GetResourceUsage() const override;
@@ -397,20 +393,6 @@ void TTableNodeProxy::DoInvoke(IServiceContextPtr context)
     DISPATCH_YPATH_HEAVY_SERVICE_METHOD(Fetch);
     DISPATCH_YPATH_SERVICE_METHOD(SetSorted);
     TBase::DoInvoke(context);
-}
-
-IYPathService::TResolveResult TTableNodeProxy::Resolve(
-    const TYPath& path,
-    IServiceContextPtr context)
-{
-    // |Fetch| and |GetId| can actually handle path suffix while others can't.
-    // NB: |GetId| "handles" suffixes by ignoring them
-    // (provided |allow_nonempty_path_suffix| is True).
-    const auto& verb = context->GetVerb();
-    if (verb == "GetId" || verb == "Fetch") {
-        return TResolveResult::Here(path);
-    }
-    return TCypressNodeProxyBase::Resolve(path, context);
 }
 
 bool TTableNodeProxy::IsWriteRequest(IServiceContextPtr context) const
