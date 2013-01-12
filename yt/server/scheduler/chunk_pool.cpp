@@ -547,7 +547,7 @@ private:
         const TIterator& end,
         const Stroka& address)
     {
-        i64 idealDataSizePerJob = GetPendingDataSize() / GetPendingJobCount();
+        i64 idealDataSizePerJob = std::max(static_cast<i64>(1), GetPendingDataSize() / GetPendingJobCount());
 
         size_t oldSize = list->Stripes.size();
         for (auto it = begin; it != end && list->TotalDataSize <= idealDataSizePerJob; ++it) {
