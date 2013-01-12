@@ -37,6 +37,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TClusterResources, CachedResourceUsage);
 
     explicit TCypressNodeBase(const TVersionedNodeId& id);
+    virtual ~TCypressNodeBase();
 
     //! Returns the composite (versioned) id of the node.
     TVersionedNodeId GetVersionedId() const;

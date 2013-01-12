@@ -30,6 +30,9 @@ TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id)
     , TransactionId(id.TransactionId)
 { }
 
+TCypressNodeBase::~TCypressNodeBase()
+{ }
+
 TVersionedNodeId TCypressNodeBase::GetVersionedId() const
 {
     return TVersionedNodeId(Id, TransactionId);
