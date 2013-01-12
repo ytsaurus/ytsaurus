@@ -563,6 +563,8 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
 
     RemoveJoblet(job);
 
+    OnTaskUpdated(joblet->Task);
+
     if (joblet->Task->IsCompleted()) {
         joblet->Task->OnTaskCompleted();
     }
@@ -696,10 +698,9 @@ void TOperationControllerBase::OnTaskUpdated(TTaskPtr task)
 
     CachedNeededResources += task->GetTotalNeededResourcesDelta();
 
-    LOG_DEBUG_IF(newJobCount != oldJobCount, "Pending job count updated: %d -> %d (Task: %s, NeededResources: {%s})",
+    LOG_DEBUG_IF(newJobCount != oldJobCount, "Pending job count updated (JobCount: %d -> %d, NeededResources: {%s})",
         oldJobCount,
         newJobCount,
-        ~task->GetId(),
         ~FormatResources(CachedNeededResources));
 }
 
