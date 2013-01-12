@@ -170,7 +170,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
         neededResources,
         jobSpecBuilder);
 
-    LOG_DEBUG("Job scheduled (JobId: %s, OperationId: %s, JobType: %s, Address: %s, Task: %s, JobIndex: %d, ChunkCount: %d (%d local), DataSize: %" PRId64 ", RowCount: %" PRId64 ", ResourceLimits: {%s})",
+    LOG_INFO("Job scheduled (JobId: %s, OperationId: %s, JobType: %s, Address: %s, Task: %s, JobIndex: %d, ChunkCount: %d (%d local), DataSize: %" PRId64 ", RowCount: %" PRId64 ", ResourceLimits: {%s})",
         ~ToString(joblet->Job->GetId()),
         ~ToString(Controller->Operation->GetOperationId()),
         ~jobType.ToString(),
