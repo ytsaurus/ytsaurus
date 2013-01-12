@@ -48,7 +48,7 @@ using NTableClient::NProto::TKey;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableNodeProxy
-    : public TCypressNodeProxyBase<IEntityNode, TTableNode>
+    : public TCypressNodeProxyBase<TCypressNodeProxyNontemplateBase, IEntityNode, TTableNode>
 {
 public:
     TTableNodeProxy(
@@ -66,7 +66,7 @@ public:
     virtual NSecurityServer::TClusterResources GetResourceUsage() const override;
 
 private:
-    typedef NCypressServer::TCypressNodeProxyBase<NYTree::IEntityNode, TTableNode> TBase;
+    typedef TCypressNodeProxyBase<TCypressNodeProxyNontemplateBase, IEntityNode, TTableNode> TBase;
 
     class TFetchChunkVisitor;
     typedef TIntrusivePtr<TFetchChunkVisitor> TFetchChunkProcessorPtr;
@@ -384,7 +384,7 @@ TTableNodeProxy::TTableNodeProxy(
     TBootstrap* bootstrap,
     TTransaction* transaction,
     TTableNode* trunkNode)
-    : TCypressNodeProxyBase<IEntityNode, TTableNode>(
+    : TBase(
         typeHandler,
         bootstrap,
         transaction,

@@ -31,7 +31,7 @@ using namespace NChunkClient::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileNodeProxy
-    : public TCypressNodeProxyBase<IEntityNode, TFileNode>
+    : public TCypressNodeProxyBase<TCypressNodeProxyNontemplateBase, IEntityNode, TFileNode>
 {
 public:
     TFileNodeProxy(
@@ -39,11 +39,11 @@ public:
         NCellMaster::TBootstrap* bootstrap,
         TTransaction* transaction,
         TFileNode* trunkNode)
-        : TCypressNodeProxyBase<IEntityNode, TFileNode>(
-        typeHandler,
-        bootstrap,
-        transaction,
-        trunkNode)
+        : TBase(
+            typeHandler,
+            bootstrap,
+            transaction,
+            trunkNode)
     { }
 
     virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override
@@ -61,7 +61,7 @@ public:
     }
 
 private:
-    typedef NCypressServer::TCypressNodeProxyBase<IEntityNode, TFileNode> TBase;
+    typedef NCypressServer::TCypressNodeProxyBase<TCypressNodeProxyNontemplateBase, IEntityNode, TFileNode> TBase;
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override
     {

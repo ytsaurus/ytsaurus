@@ -5,6 +5,14 @@
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
+#include <ytlib/ytree/ypath_detail.h>
+#include <ytlib/ytree/node_detail.h>
+#include <ytlib/ytree/convert.h>
+#include <ytlib/ytree/ephemeral_node_factory.h>
+#include <ytlib/ytree/fluent.h>
+
+#include <ytlib/ypath/tokenizer.h>
+
 #include <server/security_server/account.h>
 #include <server/security_server/security_manager.h>
 
@@ -614,6 +622,52 @@ DEFINE_RPC_SERVICE_METHOD(TCypressNodeProxyNontemplateBase, Copy)
     *response->mutable_object_id() = clonedTrunkImpl->GetId().ToProto();
 
     context->Reply();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCompositeCypressNodeProxyNontemplateBase::TCompositeCypressNodeProxyNontemplateBase(
+    INodeTypeHandlerPtr typeHandler,
+    NCellMaster::TBootstrap* bootstrap,
+    TTransaction* transaction,
+    TCypressNodeBase* trunkNode )
+    : TCypressNodeProxyNontemplateBase(
+        typeHandler,
+        bootstrap,
+        transaction,
+        trunkNode)
+{ }
+
+TIntrusivePtr<const NYTree::ICompositeNode> TCompositeCypressNodeProxyNontemplateBase::AsComposite() const 
+{
+    return this;
+}
+
+TIntrusivePtr<NYTree::ICompositeNode> TCompositeCypressNodeProxyNontemplateBase::AsComposite()
+{
+    return this;
+}
+
+void TCompositeCypressNodeProxyNontemplateBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const 
+{
+    attributes->push_back("count");
+    TCypressNodeProxyNontemplateBase::ListSystemAttributes(attributes);
+}
+
+bool TCompositeCypressNodeProxyNontemplateBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const 
+{
+    if (key == "count") {
+        NYTree::BuildYsonFluently(consumer)
+            .Value(this->GetChildCount());
+        return true;
+    }
+
+    return TCypressNodeProxyNontemplateBase::GetSystemAttribute(key, consumer);
+}
+
+bool TCompositeCypressNodeProxyNontemplateBase::CanHaveChildren() const 
+{
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

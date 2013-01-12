@@ -3,6 +3,8 @@
 
 #include <ytlib/misc/singleton.h>
 
+#include <ytlib/ypath/tokenizer.h>
+
 #include <server/cypress_server/node_detail.h>
 #include <server/cypress_server/node_proxy_detail.h>
 
@@ -130,11 +132,9 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVirtualNodeProxy
-    : public TCypressNodeProxyBase<IEntityNode, TVirtualNode>
+    : public TCypressNodeProxyBase<TCypressNodeProxyNontemplateBase, IEntityNode, TVirtualNode>
 {
 public:
-    typedef TCypressNodeProxyBase<IEntityNode, TVirtualNode> TBase;
-
     TVirtualNodeProxy(
         INodeTypeHandlerPtr typeHandler,
         TBootstrap* bootstrap,
@@ -165,6 +165,8 @@ public:
     }
 
 private:
+    typedef TCypressNodeProxyBase<TCypressNodeProxyNontemplateBase, IEntityNode, TVirtualNode> TBase;
+
     IYPathServicePtr Service;
     bool RequireLeader;
 

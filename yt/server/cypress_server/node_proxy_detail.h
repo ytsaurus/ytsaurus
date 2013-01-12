@@ -4,23 +4,14 @@
 #include "node_detail.h"
 
 #include <ytlib/ytree/node.h>
-#include <ytlib/ytree/ypath_service.h>
-#include <ytlib/ytree/ypath_detail.h>
-#include <ytlib/ytree/node_detail.h>
-#include <ytlib/ytree/convert.h>
-#include <ytlib/ytree/ephemeral_node_factory.h>
-#include <ytlib/ytree/fluent.h>
-
-#include <ytlib/ypath/tokenizer.h>
 
 #include <ytlib/cypress_client/cypress_ypath.pb.h>
 
 #include <server/object_server/public.h>
-#include <server/object_server/object_detail.h>
 
 #include <server/cell_master/public.h>
 
-#include <server/transaction_server/transaction.h>
+#include <server/transaction_server/public.h>
 
 #include <server/security_server/public.h>
 
@@ -171,9 +162,33 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class IBase, class TImpl>
-class TCypressNodeProxyBase
+class TCompositeCypressNodeProxyNontemplateBase
     : public TCypressNodeProxyNontemplateBase
+    , public virtual NYTree::ICompositeNode
+{
+public:
+    virtual TIntrusivePtr<const NYTree::ICompositeNode> AsComposite() const override;
+    virtual TIntrusivePtr<NYTree::ICompositeNode> AsComposite() override;
+
+protected:
+    TCompositeCypressNodeProxyNontemplateBase(
+        INodeTypeHandlerPtr typeHandler,
+        NCellMaster::TBootstrap* bootstrap,
+        NTransactionServer::TTransaction* transaction,
+        TCypressNodeBase* trunkNode);
+
+    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override;
+    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) const override;
+
+    virtual bool CanHaveChildren() const override;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TBase, class IBase, class TImpl>
+class TCypressNodeProxyBase
+    : public TBase
     , public virtual IBase
 {
 public:
@@ -182,7 +197,7 @@ public:
         NCellMaster::TBootstrap* bootstrap,
         NTransactionServer::TTransaction* transaction,
         TImpl* trunkNode)
-        : TCypressNodeProxyNontemplateBase(
+        : TBase(
             typeHandler,
             bootstrap,
             transaction,
@@ -212,7 +227,7 @@ protected:
 
 template <class TValue, class IBase, class TImpl>
 class TScalarNodeProxy
-    : public TCypressNodeProxyBase<IBase, TImpl>
+    : public TCypressNodeProxyBase<TCypressNodeProxyNontemplateBase, IBase, TImpl>
 {
 public:
     TScalarNodeProxy(
@@ -239,7 +254,7 @@ public:
     }
 
 private:
-    typedef TCypressNodeProxyBase<IBase, TImpl> TBase;
+    typedef TCypressNodeProxyBase<TCypressNodeProxyNontemplateBase, IBase, TImpl> TBase;
 
 };
 
@@ -285,64 +300,8 @@ DECLARE_SCALAR_TYPE(Double, double)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class IBase, class TImpl>
-class TCompositeNodeProxyBase
-    : public TCypressNodeProxyBase<IBase, TImpl>
-{
-public:
-    virtual TIntrusivePtr<const NYTree::ICompositeNode> AsComposite() const override
-    {
-        return this;
-    }
-
-    virtual TIntrusivePtr<NYTree::ICompositeNode> AsComposite() override
-    {
-        return this;
-    }
-
-protected:
-    typedef TCypressNodeProxyBase<IBase, TImpl> TBase;
-
-    TCompositeNodeProxyBase(
-        INodeTypeHandlerPtr typeHandler,
-        NCellMaster::TBootstrap* bootstrap,
-        NTransactionServer::TTransaction* transaction,
-        TImpl* trunkNode)
-        : TBase(
-            typeHandler,
-            bootstrap,
-            transaction,
-            trunkNode)
-    { }
-
-    virtual void ListSystemAttributes(std::vector<typename TBase::TAttributeInfo>* attributes) const override
-    {
-        attributes->push_back("count");
-        TBase::ListSystemAttributes(attributes);
-    }
-
-    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) const override
-    {
-        if (key == "count") {
-            NYTree::BuildYsonFluently(consumer)
-                .Value(this->GetChildCount());
-            return true;
-        }
-
-        return TBase::GetSystemAttribute(key, consumer);
-    }
-
-    virtual bool CanHaveChildren() const override
-    {
-        return true;
-    }
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TMapNodeProxy
-    : public TCompositeNodeProxyBase<NYTree::IMapNode, TMapNode>
+    : public TCypressNodeProxyBase<TCompositeCypressNodeProxyNontemplateBase, NYTree::IMapNode, TMapNode>
     , public NYTree::TMapNodeMixin
 {
     YTREE_NODE_TYPE_OVERRIDES(Map)
@@ -366,7 +325,7 @@ public:
     virtual Stroka GetChildKey(NYTree::IConstNodePtr child) override;
 
 private:
-    typedef TCompositeNodeProxyBase<NYTree::IMapNode, TMapNode> TBase;
+    typedef TCypressNodeProxyBase<TCompositeCypressNodeProxyNontemplateBase, NYTree::IMapNode, TMapNode> TBase;
 
     virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
     virtual void SetChild(const NYPath::TYPath& path, NYTree::INodePtr value) override;
@@ -382,7 +341,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TListNodeProxy
-    : public TCompositeNodeProxyBase<NYTree::IListNode, TListNode>
+    : public TCypressNodeProxyBase<TCompositeCypressNodeProxyNontemplateBase, NYTree::IListNode, TListNode>
     , public NYTree::TListNodeMixin
 {
     YTREE_NODE_TYPE_OVERRIDES(List)
@@ -405,7 +364,7 @@ public:
     virtual int GetChildIndex(NYTree::IConstNodePtr child) override;
 
 private:
-    typedef TCompositeNodeProxyBase<NYTree::IListNode, TListNode> TBase;
+    typedef TCypressNodeProxyBase<TCompositeCypressNodeProxyNontemplateBase, NYTree::IListNode, TListNode> TBase;
 
     virtual void SetChild(
         const NYPath::TYPath& path,
