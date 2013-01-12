@@ -18,6 +18,7 @@ void ThrowVerbNotSuppored(const Stroka& verb);
 void ThrowVerbNotSuppored(const Stroka& verb, const Stroka& resolveType);
 void ThrowVerbNotSuppored(IConstNodePtr node, const Stroka& verb);
 void ThrowCannotHaveChildren(IConstNodePtr node);
+void ThrowAlreadyExists(IConstNodePtr node);
 void ThrowCannotRemoveAttribute(const Stroka& key);
 void ThrowCannotSetSystemAttribute(const Stroka& key);
 void ThrowCannotSetOpaqueAttribute(const Stroka& key);

@@ -157,9 +157,15 @@ protected:
     
     void SetModified();
 
+    NYPath::TYPath PrepareRecursiveChildPath(const NYPath::TYPath& path);
+    ICypressNodeProxyPtr ResolveSourcePath(const NYPath::TYPath& path);
+
+    virtual bool CanHaveChildren() const;
+    virtual void SetChild(const NYPath::TYPath& path, NYTree::INodePtr value);
 
     DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, Lock);
     DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, Create);
+    DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, Copy);
 
 };
 
@@ -309,24 +315,6 @@ protected:
             trunkNode)
     { }
 
-    virtual void SetRecursive(
-        const NYPath::TYPath& path,
-        NYTree::INodePtr value) = 0;
-
-    virtual void DoInvoke(NRpc::IServiceContextPtr context) override
-    {
-        DISPATCH_YPATH_SERVICE_METHOD(Create);
-        DISPATCH_YPATH_SERVICE_METHOD(Copy);
-        TBase::DoInvoke(context);
-    }
-
-    virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override
-    {
-        DECLARE_YPATH_SERVICE_WRITE_METHOD(Create);
-        DECLARE_YPATH_SERVICE_WRITE_METHOD(Copy);
-        return TBase::IsWriteRequest(context);
-    }
-
     virtual void ListSystemAttributes(std::vector<typename TBase::TAttributeInfo>* attributes) const override
     {
         attributes->push_back("count");
@@ -344,90 +332,9 @@ protected:
         return TBase::GetSystemAttribute(key, consumer);
     }
 
-    NYPath::TYPath GetCreativePath(const NYPath::TYPath& path) const
+    virtual bool CanHaveChildren() const override
     {
-        NYPath::TTokenizer tokenizer(path);
-        if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-            THROW_ERROR_EXCEPTION("Node already exists: %s",
-                ~this->GetPath());
-        }
-
-        tokenizer.Expect(NYPath::ETokenType::Slash);
-        return tokenizer.GetSuffix();
-    }
-
-    ICypressNodeProxyPtr ResolveSourcePath(const NYPath::TYPath& path)
-    {
-        auto sourceNode = this->GetResolver()->ResolvePath(path);
-        return dynamic_cast<ICypressNodeProxy*>(~sourceNode);
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, Create)
-    {
-        auto type = NObjectClient::EObjectType(request->type());
-        context->SetRequestInfo("Type: %s", ~type.ToString());
-
-        auto cypressManager = this->Bootstrap->GetCypressManager();
-        auto securityManager = this->Bootstrap->GetSecurityManager();
-
-        auto creativePath = this->GetCreativePath(context->GetPath());
-
-        auto handler = cypressManager->FindHandler(type);
-        if (!handler) {
-            THROW_ERROR_EXCEPTION("Unknown object type: %s",
-                ~type.ToString());
-        }
-
-        auto attributes =
-            request->has_node_attributes()
-            ? NYTree::FromProto(request->node_attributes())
-            : NYTree::CreateEphemeralAttributes();
-
-        auto* node = this->GetThisImpl();
-        auto* account = node->GetAccount();
-        auto* newNode = cypressManager->CreateNode(
-            handler,
-            this->Transaction,
-            account,
-            ~attributes,
-            request,
-            response);
-
-        auto newProxy = cypressManager->GetVersionedNodeProxy(
-            newNode->GetTrunkNode(),
-            this->Transaction);
-        
-        this->SetRecursive(creativePath, newProxy);
-
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, Copy)
-    {
-        auto sourcePath = request->source_path();
-        context->SetRequestInfo("SourcePath: %s", ~sourcePath);
-
-        auto creativePath = this->GetCreativePath(context->GetPath());
-
-        auto sourceProxy = this->ResolveSourcePath(sourcePath);
-        if (sourceProxy->GetId() == this->GetId()) {
-            THROW_ERROR_EXCEPTION("Cannot copy a node to its child");
-        }
-
-        auto* trunkSourceImpl = sourceProxy->GetTrunkNode();
-        auto* sourceImpl = const_cast<TCypressNodeBase*>(this->GetImpl(trunkSourceImpl));
-        auto cypressManager = this->Bootstrap->GetCypressManager();
-        auto* clonedImpl = cypressManager->CloneNode(
-            sourceImpl,
-            this->Transaction);
-        auto* clonedTrunkImpl = clonedImpl->GetTrunkNode();
-        auto clonedProxy = this->GetProxy(clonedTrunkImpl);
-
-        this->SetRecursive(creativePath, clonedProxy);
-
-        *response->mutable_object_id() = clonedTrunkImpl->GetId().ToProto();
-
-        context->Reply();
+        return true;
     }
 
 };
@@ -462,7 +369,7 @@ private:
     typedef TCompositeNodeProxyBase<NYTree::IMapNode, TMapNode> TBase;
 
     virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
-    virtual void SetRecursive(const NYPath::TYPath& path, NYTree::INodePtr value) override;
+    virtual void SetChild(const NYPath::TYPath& path, NYTree::INodePtr value) override;
     virtual IYPathService::TResolveResult ResolveRecursive(const NYPath::TYPath& path, NRpc::IServiceContextPtr context) override;
 
     void DoRemoveChild(
@@ -500,7 +407,7 @@ public:
 private:
     typedef TCompositeNodeProxyBase<NYTree::IListNode, TListNode> TBase;
 
-    virtual void SetRecursive(
+    virtual void SetChild(
         const NYPath::TYPath& path,
         NYTree::INodePtr value);
     virtual IYPathService::TResolveResult ResolveRecursive(

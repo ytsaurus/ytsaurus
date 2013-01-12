@@ -97,6 +97,12 @@ void ThrowCannotHaveChildren(IConstNodePtr node)
         ~GetNodePathHelper(node));
 }
 
+void ThrowAlreadyExists(IConstNodePtr node)
+{
+    THROW_ERROR_EXCEPTION("%s already exists",
+        ~GetNodePathHelper(node));
+}
+
 void ThrowCannotRemoveAttribute(const Stroka& key)
 {
     THROW_ERROR_EXCEPTION("Attribute cannot be removed: %s",

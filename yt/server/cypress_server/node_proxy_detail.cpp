@@ -250,7 +250,8 @@ void TCypressNodeProxyNontemplateBase::SetParent(ICompositeNodePtr parent)
 bool TCypressNodeProxyNontemplateBase::IsWriteRequest(NRpc::IServiceContextPtr context) const 
 {
     DECLARE_YPATH_SERVICE_WRITE_METHOD(Lock);
-    // NB: Create is not considered a write verb since it always fails here.
+    DECLARE_YPATH_SERVICE_WRITE_METHOD(Create);
+    DECLARE_YPATH_SERVICE_WRITE_METHOD(Copy);
     return TNodeBase::IsWriteRequest(context);
 }
 
@@ -396,6 +397,7 @@ void TCypressNodeProxyNontemplateBase::DoInvoke(NRpc::IServiceContextPtr context
     DISPATCH_YPATH_SERVICE_METHOD(GetId);
     DISPATCH_YPATH_SERVICE_METHOD(Lock);
     DISPATCH_YPATH_SERVICE_METHOD(Create);
+    DISPATCH_YPATH_SERVICE_METHOD(Copy);
     TNodeBase::DoInvoke(context);
 }
 
@@ -484,6 +486,40 @@ void TCypressNodeProxyNontemplateBase::SetModified()
     cypressManager->SetModified(TrunkNode, Transaction);
 }
 
+TYPath TCypressNodeProxyNontemplateBase::PrepareRecursiveChildPath(const TYPath& path)
+{
+    NYPath::TTokenizer tokenizer(path);
+    if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
+        ThrowAlreadyExists(this);
+    }
+
+    tokenizer.Expect(NYPath::ETokenType::Slash);
+
+    if (!CanHaveChildren()) {
+        ThrowCannotHaveChildren(this);
+    }
+
+    return tokenizer.GetSuffix();
+}
+
+ICypressNodeProxyPtr TCypressNodeProxyNontemplateBase::ResolveSourcePath(const TYPath& path)
+{
+    auto sourceNode = this->GetResolver()->ResolvePath(path);
+    return dynamic_cast<ICypressNodeProxy*>(~sourceNode);
+}
+
+bool TCypressNodeProxyNontemplateBase::CanHaveChildren() const
+{
+    return false;
+}
+
+void TCypressNodeProxyNontemplateBase::SetChild(const TYPath& path, INodePtr value)
+{
+    UNUSED(path);
+    UNUSED(value);
+    YUNREACHABLE();
+}
+
 TClusterResources TCypressNodeProxyNontemplateBase::GetResourceUsage() const 
 {
     return ZeroClusterResources();
@@ -514,15 +550,70 @@ DEFINE_RPC_SERVICE_METHOD(TCypressNodeProxyNontemplateBase, Lock)
 
 DEFINE_RPC_SERVICE_METHOD(TCypressNodeProxyNontemplateBase, Create)
 {
-    UNUSED(request);
-    UNUSED(response);
+    auto childPath = PrepareRecursiveChildPath(context->GetPath());
 
-    NYPath::TTokenizer tokenizer(context->GetPath());
-    if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-        THROW_ERROR_EXCEPTION("Node already exists: %s", ~this->GetPath());
+    auto type = EObjectType(request->type());
+    context->SetRequestInfo("Type: %s", ~type.ToString());
+
+    auto cypressManager = Bootstrap->GetCypressManager();
+    auto securityManager = Bootstrap->GetSecurityManager();
+
+    auto handler = cypressManager->FindHandler(type);
+    if (!handler) {
+        THROW_ERROR_EXCEPTION("Unknown object type: %s",
+            ~type.ToString());
     }
 
-    ThrowVerbNotSuppored(this, context->GetVerb());
+    auto attributes =
+        request->has_node_attributes()
+        ? FromProto(request->node_attributes())
+        : CreateEphemeralAttributes();
+
+    auto* node = GetThisImpl();
+    auto* account = node->GetAccount();
+    auto* newNode = cypressManager->CreateNode(
+        handler,
+        Transaction,
+        account,
+        ~attributes,
+        request,
+        response);
+
+    auto newProxy = cypressManager->GetVersionedNodeProxy(
+        newNode->GetTrunkNode(),
+        Transaction);
+
+    SetChild(childPath, newProxy);
+
+    context->Reply();
+}
+
+DEFINE_RPC_SERVICE_METHOD(TCypressNodeProxyNontemplateBase, Copy)
+{
+    auto sourcePath = request->source_path();
+    auto targetPath = PrepareRecursiveChildPath(context->GetPath());
+
+    context->SetRequestInfo("SourcePath: %s", ~sourcePath);
+
+    auto sourceProxy = ResolveSourcePath(sourcePath);
+    if (sourceProxy->GetId() == GetId()) {
+        THROW_ERROR_EXCEPTION("Cannot copy a node to its child");
+    }
+
+    auto* trunkSourceImpl = sourceProxy->GetTrunkNode();
+    auto* sourceImpl = const_cast<TCypressNodeBase*>(GetImpl(trunkSourceImpl));
+    auto cypressManager = Bootstrap->GetCypressManager();
+    auto* clonedImpl = cypressManager->CloneNode(
+        sourceImpl,
+        Transaction);
+    auto* clonedTrunkImpl = clonedImpl->GetTrunkNode();
+    auto clonedProxy = GetProxy(clonedTrunkImpl);
+
+    SetChild(targetPath, clonedProxy);
+
+    *response->mutable_object_id() = clonedTrunkImpl->GetId().ToProto();
+
+    context->Reply();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -810,9 +901,9 @@ void TMapNodeProxy::DoInvoke(NRpc::IServiceContextPtr context)
     TBase::DoInvoke(context);
 }
 
-void TMapNodeProxy::SetRecursive(const TYPath& path, INodePtr value)
+void TMapNodeProxy::SetChild(const TYPath& path, INodePtr value)
 {
-    TMapNodeMixin::SetRecursive(path, value);
+    TMapNodeMixin::SetChild(path, value);
 }
 
 IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(
@@ -1008,9 +1099,9 @@ int TListNodeProxy::GetChildIndex(IConstNodePtr child)
     return it->second;
 }
 
-void TListNodeProxy::SetRecursive(const TYPath& path, INodePtr value)
+void TListNodeProxy::SetChild(const TYPath& path, INodePtr value)
 {
-    TListNodeMixin::SetRecursive(path, value);
+    TListNodeMixin::SetChild(path, value);
 }
 
 IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(

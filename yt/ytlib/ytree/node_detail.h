@@ -93,7 +93,7 @@ protected:
         TRspSet* response,
         TCtxSetPtr context) override;
 
-    virtual void SetRecursive(
+    virtual void SetChild(
         const TYPath& path,
         INodePtr value) = 0;
 };
@@ -115,7 +115,7 @@ protected:
         TRspList* response,
         TCtxListPtr context) override;
 
-    virtual void SetRecursive(
+    virtual void SetChild(
         const TYPath& path,
         INodePtr value) override;
 };
@@ -131,7 +131,7 @@ protected:
         const TYPath& path,
         NRpc::IServiceContextPtr context) override;
 
-    void SetRecursive(
+    void SetChild(
         const TYPath& path,
         INodePtr value);
 
