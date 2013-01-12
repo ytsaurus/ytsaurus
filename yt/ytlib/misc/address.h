@@ -50,7 +50,7 @@ public:
     const sockaddr* GetSockAddr() const;
     socklen_t GetLength() const;
 
-    static bool TryParse(const TStringBuf& address, TNetworkAddress* networkAddress);
+    static TValueOrError<TNetworkAddress> TryParse(const TStringBuf& address);
     static TNetworkAddress Parse(const TStringBuf& address);
 
 private:

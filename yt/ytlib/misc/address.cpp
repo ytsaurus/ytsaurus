@@ -153,21 +153,11 @@ socklen_t TNetworkAddress::GetLength() const
     return Length;
 }
 
-bool TNetworkAddress::TryParse(const TStringBuf& address, TNetworkAddress* networkAddress)
-{
-    try {
-        *networkAddress = Parse(address);
-        return true;
-    } catch (...) {
-        return false;
-    }
-}
-
-TNetworkAddress TNetworkAddress::Parse(const TStringBuf& address)
+TValueOrError<TNetworkAddress> TNetworkAddress::TryParse(const TStringBuf& address)
 {
     int closingBracketIndex = address.find(']');
     if (closingBracketIndex == Stroka::npos || address[0] != '[') {
-        THROW_ERROR_EXCEPTION("Address %s is malformed, format [<addr>](:<port>) expected",
+        return TError("Address %s is malformed, expected [<addr>](:<port>) format",
             ~Stroka(address).Quote());
     }
 
@@ -177,7 +167,7 @@ TNetworkAddress TNetworkAddress::Parse(const TStringBuf& address)
         try {
             port = FromString<int>(address.substr(colonIndex + 1));
         } catch (const std::exception) {
-            THROW_ERROR_EXCEPTION("Port number in address %s is malformed",
+            return TError("Port number in address %s is malformed",
                 ~Stroka(address).Quote());
         }
     }
@@ -206,8 +196,15 @@ TNetworkAddress TNetworkAddress::Parse(const TStringBuf& address)
         }
     }
 
-    THROW_ERROR_EXCEPTION("Address %s is not a valid IPV4 or IPV6 address",
+    return TError("Address %s is neither a valid IPv4 or IPv6 address",
         ~Stroka(ipAddress).Quote());
+}
+
+TNetworkAddress TNetworkAddress::Parse(const TStringBuf& address)
+{
+    auto result = TryParse(address);
+    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    return result.Value();
 }
 
 Stroka ToString(const TNetworkAddress& address, bool withPort)
@@ -287,15 +284,15 @@ TAddressResolver* TAddressResolver::Get()
 
 TFuture< TValueOrError<TNetworkAddress> > TAddressResolver::Resolve(const Stroka& address)
 {
-    // Try to interpret address as IPV4 or IPV6 address
+    // Check if |address| parses into a valid IPv4 or IPv6 address.
     {
-        TNetworkAddress networkAddress;
-        if (TNetworkAddress::TryParse(address, &networkAddress)) {
-            return MakeFuture(TValueOrError<TNetworkAddress>(networkAddress));
+        auto result = TNetworkAddress::TryParse(address);
+        if (result.IsOK()) {
+            return MakeFuture(result);
         }
     }
 
-    // Cache lookup.
+    // Lookup cache.
     {
         TGuard<TSpinLock> guard(SpinLock);
         auto it = Cache.find(address);
