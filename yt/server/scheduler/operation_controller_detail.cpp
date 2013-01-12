@@ -834,12 +834,16 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
         }
 
         if (bestTask) {
-            LOG_DEBUG("Attempting to schedule a local job (Task: %s, Address: %s, Priority: %d, Locality: %" PRId64 ", JobLimits: {%s})",
+            LOG_DEBUG(
+                "Attempting to schedule a local job (Task: %s, Address: %s, Priority: %d, Locality: %" PRId64 ", JobLimits: {%s}, "
+                "PendingDataSize: %" PRId64 ", PendingJobCount: %d)",
                 ~bestTask->GetId(),
                 ~address,
                 priority,
                 bestLocality,
-                ~FormatResources(jobLimits));
+                ~FormatResources(jobLimits),
+                bestTask->GetPendingDataSize(),
+                bestTask->GetPendingJobCount());
             auto job = bestTask->ScheduleJob(context, jobLimits);
             if (job) {
                 bestTask->SetDelayedTime(Null);
@@ -919,11 +923,15 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
                     continue;
                 }
 
-                LOG_DEBUG("Attempting to schedule a non-local job (Task: %s, Address: %s, Priority: %d, JobLimits: {%s})",
+                LOG_DEBUG(
+                    "Attempting to schedule a non-local job (Task: %s, Address: %s, Priority: %d, JobLimits: {%s}, "
+                    "PendingDataSize: %" PRId64 ", PendingJobCount: %d)",
                     ~task->GetId(),
                     ~address,
                     priority,
-                    ~FormatResources(jobLimits));
+                    ~FormatResources(jobLimits),
+                    task->GetPendingDataSize(),
+                    task->GetPendingJobCount());
                 auto job = task->ScheduleJob(context, jobLimits);
                 if (job) {
                     OnTaskUpdated(task);
