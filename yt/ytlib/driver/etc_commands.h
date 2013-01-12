@@ -11,6 +11,7 @@ struct TParseYPathRequest
     : public TRequestBase
 {
     Stroka Path;
+
     TParseYPathRequest()
     {
         Register("path", Path);
