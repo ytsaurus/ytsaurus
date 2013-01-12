@@ -199,7 +199,7 @@ protected:
         auto originatingUpdateMode = originatingNode->GetUpdateMode();
 
         auto* branchedChunkList = branchedNode->GetChunkList();
-        auto branchedChunkListId = branchedNode->GetChunkList()->GetId();
+        auto branchedChunkListId = branchedChunkList->GetId();
         auto branchedUpdateMode = branchedNode->GetUpdateMode();
 
         MergeChunkLists(originatingNode, branchedNode);
