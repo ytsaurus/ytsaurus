@@ -520,7 +520,7 @@ void TChunkReplicator::Refresh(TChunk* chunk)
     if (!chunk->IsConfirmed())
         return;
 
-    const auto& chunkId = chunk->GetId();
+    auto chunkId = chunk->GetId();
 
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (auto nodeId, chunk->StoredLocations()) {
@@ -610,7 +610,7 @@ void TChunkReplicator::Refresh(TChunk* chunk)
 
 int TChunkReplicator::ComputeReplicationPriority(const TReplicaStatistics& statistics)
 {
-    YASSERT(statistics.StoredCount);
+    YASSERT(statistics.StoredCount > 0);
     return std::min(statistics.StoredCount, ReplicationPriorityCount) - 1;
 }
 
