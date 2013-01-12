@@ -3,9 +3,11 @@
 #include "tokenizer.h"
 
 #include <ytlib/misc/error.h>
+
 #include <ytlib/yson/yson_consumer.h>
 #include <ytlib/yson/tokenizer.h>
 #include <ytlib/yson/token.h>
+
 #include <ytlib/ytree/fluent.h>
 
 #include <ytlib/table_client/key.h>
@@ -105,7 +107,6 @@ void ThrowUnexpectedToken(const TToken& token)
     THROW_ERROR_EXCEPTION("Token is unexpected: %s", ~token.ToString());
 }
 
-
 Stroka ParseAttributes(const Stroka& str, IAttributeDictionary* attributes)
 {
     if (!str.empty() && str[0] == TokenTypeToChar(NYson::ETokenType::LeftAngle)) {
@@ -144,7 +145,7 @@ Stroka ParseAttributes(const Stroka& str, IAttributeDictionary* attributes)
             }
         }
 
-        NYTree::TYsonString attrYson(
+        TYsonString attrYson(
             str.substr(attrStartPosition, attrEndPosition - attrStartPosition),
             NYson::EYsonType::MapFragment);
         attributes->MergeFrom(*ConvertToAttributes(attrYson));
@@ -365,7 +366,7 @@ Stroka ToString(const TRichYPath& path)
         path.GetPath();
 }
 
-void Serialize(const TRichYPath& richPath, NYson::IYsonConsumer* consumer)
+void Serialize(const TRichYPath& richPath, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginAttributes()
