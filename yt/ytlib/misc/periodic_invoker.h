@@ -50,13 +50,14 @@ private:
     TDuration Period;
     TDuration Splay;
 
-    bool Started;
-    bool Busy;
-    bool OutOfBandRequested;
+    TAtomic Started;
+    TAtomic Busy;
+    TAtomic OutOfBandRequested;
     TDelayedInvoker::TCookie Cookie;
 
     void PostDelayedCallback(TDuration delay);
     void PostCallback();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

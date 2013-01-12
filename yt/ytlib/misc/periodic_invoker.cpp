@@ -26,27 +26,27 @@ TPeriodicInvoker::TPeriodicInvoker(
 
 void TPeriodicInvoker::Start()
 {
-    if (Started)
+    if (!AtomicCas(&Started, true, false))
         return;
 
-    Started = true;
     PostDelayedCallback(RandomDuration(Splay));
 }
 
 void TPeriodicInvoker::Stop()
 {
-    if (!Started)
+    if (!AtomicCas(&Started, false, true))
         return;
 
-    Started = false;
     TDelayedInvoker::CancelAndClear(Cookie);
 }
 
 void TPeriodicInvoker::ScheduleOutOfBand()
 {
-    YCHECK(Started);
-    if (Busy) {
-        OutOfBandRequested = true;
+    if (!AtomicGet(Started))
+        return;
+
+    if (AtomicGet(Busy)) {
+        AtomicSet(OutOfBandRequested, true);
     } else {
         PostCallback();
     }
@@ -54,11 +54,12 @@ void TPeriodicInvoker::ScheduleOutOfBand()
 
 void TPeriodicInvoker::ScheduleNext()
 {
-    YCHECK(Started);
-    YCHECK(Busy);
-    Busy = false;
-    if (OutOfBandRequested) {
-        OutOfBandRequested = false;
+    if (!AtomicGet(Started))
+        return;
+
+    YCHECK(AtomicCas(&Busy, false, true));
+
+    if (AtomicCas(&OutOfBandRequested, false, true)) {
         PostCallback();
     } else {
         PostDelayedCallback(Period);
@@ -77,8 +78,8 @@ void TPeriodicInvoker::PostCallback()
 {
     auto this_ = MakeStrong(this);
     bool result = Invoker->Invoke(BIND([this, this_] () {
-        if (Started && !Busy) {
-            Busy = true;
+        if (AtomicGet(Started) && !AtomicGet(Busy)) {
+            AtomicSet(Busy, true);
             TDelayedInvoker::CancelAndClear(Cookie);
             Callback.Run();
         }
