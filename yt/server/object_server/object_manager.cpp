@@ -166,7 +166,7 @@ public:
                 }
 
                 auto* object = objectManager->FindObject(objectId);
-                if (!object) {
+                if (!object || !object->IsAlive()) {
                     THROW_ERROR_EXCEPTION("No such object: %s", ~ToString(objectId));
                 }
 

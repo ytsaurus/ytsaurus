@@ -32,8 +32,7 @@ public:
 
     virtual NObjectServer::TObjectBase* FindObject(const TObjectId& id) override
     {
-        auto* object = Map->Find(id);
-        return object && object->IsAlive() ? object : NULL;
+        return Map->Find(id);
     }
 
     virtual IObjectProxyPtr GetProxy(
