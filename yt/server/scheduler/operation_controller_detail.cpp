@@ -1004,9 +1004,11 @@ void TOperationControllerBase::AbortTransactions()
 {
     LOG_INFO("Aborting transactions");
 
-    Operation->GetSchedulerTransaction()->Abort();
-
-    // No need to abort the others.
+    // Abort the top-most scheduler transaction, if any.
+    auto schedulerTransaction = Operation->GetSchedulerTransaction();
+    if (schedulerTransaction) {
+        schedulerTransaction->Abort();
+    }
 }
 
 TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs()
