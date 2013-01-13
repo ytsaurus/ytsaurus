@@ -538,8 +538,7 @@ private:
             return true;
         }
 
-        // COMPAT(babenko): notify Roman
-        if (key == "online_node_count" || key == "online_holder_count") {
+        if (key == "online_node_count") {
             BuildYsonFluently(consumer)
                 .Value(statistics.OnlineNodeCount);
             return true;
