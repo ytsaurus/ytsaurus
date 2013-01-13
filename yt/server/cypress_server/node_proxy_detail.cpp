@@ -320,7 +320,8 @@ TVersionedObjectId TCypressNodeProxyNontemplateBase::GetVersionedId() const
 
 void TCypressNodeProxyNontemplateBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const 
 {
-    attributes->push_back("parent_id");
+    const auto* node = GetThisImpl();
+    attributes->push_back(TAttributeInfo("parent_id", node->GetParent()));
     attributes->push_back("locks");
     attributes->push_back("lock_mode");
     attributes->push_back(TAttributeInfo("path", true, true));
@@ -329,7 +330,6 @@ void TCypressNodeProxyNontemplateBase::ListSystemAttributes(std::vector<TAttribu
     attributes->push_back("resource_usage");
     attributes->push_back(TAttributeInfo("recursive_resource_usage", true, true));
     // COMPAT(babenko)
-    const auto* node = GetThisImpl();
     attributes->push_back(TAttributeInfo("account", node->GetAccount()));
     TObjectProxyBase::ListSystemAttributes(attributes);
 }
@@ -341,7 +341,7 @@ bool TCypressNodeProxyNontemplateBase::GetSystemAttribute(
     const auto* node = GetThisImpl();
     const auto* trunkNode = node->GetTrunkNode();
 
-    if (key == "parent_id") {
+    if (key == "parent_id" && node->GetParent()) {
         BuildYsonFluently(consumer)
             .Value(node->GetParent()->GetId().ToString());
         return true;
