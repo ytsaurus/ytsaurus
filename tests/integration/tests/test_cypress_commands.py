@@ -9,6 +9,10 @@ class TestCypressCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 0
 
+    def test_root(self):
+        # should not crash
+        get('//@')
+
     def test_invalid_cases(self):
         # path not starting with /
         with pytest.raises(YTError): set('a', 20)

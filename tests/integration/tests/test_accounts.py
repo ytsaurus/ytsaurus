@@ -56,6 +56,10 @@ class TestAccounts(YTEnvSetup):
         set('//tmp/a', {})
         assert get('//tmp/a/@account') == 'tmp'
 
+    def test_account_attr2(self):
+        # should not crash
+        get('//sys/accounts/tmp/@')
+
     def test_account_attr3(self):
         set('//tmp/a', {'x' : 1, 'y' : 2})
         assert get('//tmp/a/@account') == 'tmp'
