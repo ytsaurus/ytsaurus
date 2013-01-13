@@ -772,7 +772,7 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     auto* transaction = FindTransaction(id);
-    if (!transaction)
+    if (!transaction || !transaction->IsActive())
         return;
 
     auto objectManager = Bootstrap->GetObjectManager();
