@@ -923,6 +923,8 @@ void TCypressManager::LoadKeys(const NCellMaster::TLoadContext& context)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     NodeMap.LoadKeys(context);
+
+    RootNode = GetNode(TVersionedNodeId(RootNodeId));
 }
 
 void TCypressManager::LoadValues(const NCellMaster::TLoadContext& context)
@@ -930,8 +932,6 @@ void TCypressManager::LoadValues(const NCellMaster::TLoadContext& context)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     NodeMap.LoadValues(context);
-
-    RootNode = GetNode(TVersionedNodeId(RootNodeId));
 }
 
 void TCypressManager::Clear()
