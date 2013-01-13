@@ -324,7 +324,9 @@ void TCypressNodeProxyNontemplateBase::ListSystemAttributes(std::vector<TAttribu
     attributes->push_back("modification_time");
     attributes->push_back("resource_usage");
     attributes->push_back(TAttributeInfo("recursive_resource_usage", true, true));
-    attributes->push_back("account");
+    // COMPAT(babenko)
+    const auto* node = GetThisImpl();
+    attributes->push_back(TAttributeInfo("account", node->GetAccount()));
     TObjectProxyBase::ListSystemAttributes(attributes);
 }
 
@@ -391,7 +393,8 @@ bool TCypressNodeProxyNontemplateBase::GetSystemAttribute(
         return true;
     }
 
-    if (key == "account") {
+    // COMPAT(babenko)
+    if (key == "account" && node->GetAccount()) {
         BuildYsonFluently(consumer)
             .Value(node->GetAccount()->GetName());
         return true;
