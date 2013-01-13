@@ -92,7 +92,7 @@ struct TSchedulerConfig
     i64 TableFileSizeLimit;
 
     //! Maximum number of jobs to start within a single heartbeat.
-    TNullable<int> MaxStartedJobPerHeartbeat;
+    TNullable<int> MaxStartedJobsPerHeartbeat;
 
     NYTree::INodePtr MapOperationSpec;
     NYTree::INodePtr ReduceOperationSpec;
@@ -145,7 +145,7 @@ struct TSchedulerConfig
             .GreaterThan(0);
         Register("table_file_size_limit", TableFileSizeLimit)
             .Default((i64) 2 * 1024 * 1024 * 1024);
-        Register("max_started_jobs_per_heartbeat", MaxStartedJobPerHeartbeat)
+        Register("max_started_jobs_per_heartbeat", MaxStartedJobsPerHeartbeat)
             .Default()
             .GreaterThan(0);
 
