@@ -22,13 +22,21 @@ TDataNode::TDataNode(
     : Id_(id)
     , Address_(address)
     , IncarnationId_(incarnationId)
-    , HintedSessionCount_(0)
-    , ChunksToReplicate_(ReplicationPriorityCount)
-{ }
+{
+    Init();
+}
 
 TDataNode::TDataNode(TNodeId id)
     : Id_(id)
-{ }
+{
+    Init();
+}
+
+void TDataNode::Init()
+{
+    ChunksToReplicate_.resize(ReplicationPriorityCount);
+    HintedSessionCount_ = 0;
+}
 
 void TDataNode::Save(const NCellMaster::TSaveContext& context) const
 {

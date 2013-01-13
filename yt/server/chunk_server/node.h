@@ -66,6 +66,9 @@ public:
     void RemoveJob(TJob* id);
 
     int GetTotalSessionCount() const;
+
+private:
+    void Init();
     
 };
 
