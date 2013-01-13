@@ -329,6 +329,7 @@ private:
     TClusterResources* FindTransactionAccountUsage(TCypressNodeBase* node)
     {
         auto* account = node->GetAccount();
+        // COMPAT(babenko)
         if (!account) {
             return nullptr;
         }

@@ -216,6 +216,10 @@ INodeFactoryPtr TCypressNodeProxyNontemplateBase::CreateFactory() const
 {
     const auto* impl = GetThisImpl();
     auto* account = impl->GetAccount();
+    // COMPAT(babenko)
+    if (!account) {
+        account = Bootstrap->GetSecurityManager()->GetSysAccount();
+    }
     return New<TNodeFactory>(Bootstrap, Transaction, account);
 }
 
@@ -582,6 +586,10 @@ DEFINE_RPC_SERVICE_METHOD(TCypressNodeProxyNontemplateBase, Create)
 
     auto* node = GetThisImpl();
     auto* account = node->GetAccount();
+    // COMPAT(babenko)
+    if (!account) {
+        account = securityManager->GetSysAccount();
+    }
     auto* newNode = cypressManager->CreateNode(
         handler,
         Transaction,

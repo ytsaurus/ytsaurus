@@ -365,6 +365,10 @@ TCypressNodeBase* TCypressManager::CloneNode(
     RegisterNode(clonedNode, transaction);
 
     auto* account = sourceNode->GetAccount();
+    // COMPAT(babenko)
+    if (!account) {
+        account = securityManager->GetSysAccount();
+    }
     securityManager->SetAccount(clonedNode_, account);
 
     return LockVersionedNode(clonedNode_, transaction, ELockMode::Exclusive);
@@ -898,6 +902,10 @@ TCypressNodeBase* TCypressManager::BranchNode(
     
     // Update resource usage.
     auto* account = originatingNode->GetAccount();
+    // COMPAT(babenko)
+    if (!account) {
+        account = securityManager->GetSysAccount();
+    }
     securityManager->SetAccount(branchedNode_, account);
 
     LOG_INFO_UNLESS(IsRecovery(), "Node branched (NodeId: %s, TransactionId: %s, Mode: %s)",
