@@ -26,6 +26,10 @@ def writelines_silently(lines):
     except:
         raise
 
+class ParseFormat(Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, yt.RawFormat.from_yson_string(values))
+
 
 def ls_args(parser):
     parser.add_argument("path")
@@ -60,7 +64,7 @@ def find(args):
 
 def cat_args(parser):
     parser.add_argument("path")
-    parser.add_argument("--format")
+    parser.add_argument("--format", action=ParseFormat)
 
 def cat(args):
     type = yt.get(args.path + "/@type")
@@ -128,7 +132,7 @@ def mv(args):
 def upload_args(parser):
     parser.add_argument("path")
     parser.add_argument("--executable", action="store_true", default=False)
-    parser.add_argument("--format")
+    parser.add_argument("--format", action=ParseFormat)
     parser.add_argument("--type")
 
 def upload(args):
@@ -139,7 +143,7 @@ def upload(args):
         if args.executable:
             yt.set(args.path + "/@executable", "true")
     elif args.type == "table":
-        yt.write_table(args.path, sys.stdin, format=yt.RawFormat.from_yson_string(args.format))
+        yt.write_table(args.path, sys.stdin, format=args.format)
     else:
         die("Incorrect type: " + args.type)
 
@@ -168,9 +172,6 @@ def sort(args):
 
 
 def format_args(parser):
-    def ParseFormat(Action):
-        def __call__(self, parser, namespace, values, option_string=None):
-            setattr(namespace, self.dest, yt.RawFormat.from_yson_string(values))
     parser.add_argument("--format", action=ParseFormat)
     parser.add_argument("--input-format", action=ParseFormat)
     parser.add_argument("--output-format", action=ParseFormat)
