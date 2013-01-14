@@ -7,26 +7,24 @@
 --------------------------------------
 
 * `yt raw {direct_command}` выполняет команду к драйверу напрямую.
-* `ls {path} [-l]` перечисляет объекты в директории (при указанной опции `-a` также печатает размеры объектов и права).
-* `find {path} --name {pattern} [--type {table|file|all}]` ищет объекты в данном каталоге по данному паттерну (можно поддержать произвольный regexp, но лучше сделать также, как в линуксовой утилите). !!Решили, что пока не нужна!!
+* `ls {path} [-l]` перечисляет объекты в директории (при указанной опции `-l` также печатает различные характеристики объектов: тип, аккаунт, размер, дата последней модификации).
+* `find {path} --name {pattern} [--type {table|file}]` ищет объекты в данном каталоге по данному паттерну (реализована на основе fnmatch).
 * `cat {path} [--format {format}]` читает заданную таблицу или файл (если объект является таблицей, то параметр `format` обязателен).
 * `rm {path} [-r]` удаляет объект по указанному пути. Если указано опция `-r`, то удаляет каталог рекурсивно.
 * `mkdir {path} [-p]` создает по пути `{path}` директорию. Путь не должен существовать, однако его `basename` должен быть существуещей директорией. Если указана опция `-p`, то позволяет создавать сразу несколько вложенных директорий.
 * `cp {from} {to}` копирует узел по адресу {from} в узел по адресу {to}.
 * `mv {from} {to}` перемещает узел по адресу {from} в узел по адресу {to}.
-* `touch {path}` создает пустую таблицу по пути `path` !!ambigious: из названия непонятно это пустой файл, или пустая таблицы!!.
-* `upload {path} --type file|table [--format {format}] [--executable] [--filename {filename}]` записывает данные из входного потока в файл или таблицу по пути `path`, для таблицы обязательна опция `format`, опции `--executable` и `--filename` работают только для файлов. !!или не стоит смешивать заливку таблиц и файлов?!!
-* `download {path} [--format {format}]` --читает данные из таблицы, или файла, для таблицы обязательна опция `format`.-- !!Тоже самое, что cat!!
-* `erase {table}`
+* `upload {path} --type file|table [--format {format}] [--executable] [--filename {filename}]` записывает данные из входного потока в файл или таблицу по пути `path`, для таблицы обязательна опция `format`, опции `--executable`. 
 
 Команды запуска операций
 ------------------------
 
-* `sort --keys {keys} --src {table} --dst {table}`
+* `erase {table}`
+* `sort --sort-by {keys} --src {table} --dst {table}`
 * `merge --mode {mode} --src {table} [...] --dst {table} [...]`
-* `map|reduce {command} --format {format} --src {table} [...] --dst {table} [...] [--file {file} ...] [--local-file {file} ...] [--keys {keys}]`
-* `map_reduce ...`
-* `abort {op_id}`
+* `map|reduce {command} --format {format} --src {table} [...] --dst {table} [...] [--file {file} ...] [--local-file {file} ...] [--reduce-by {keys}]`
+* `map_reduce [--mapper {mapper}] --reducer {reducer} --src {table} [...] --dst {table} [...] --reduce-by {reduce_by} [...] --sort-by {sort_by} [...] [--map-file {file} ...] ...`
+* `abort_op {op_id}`
 
 Append mode предлагается сделать частью имени таблицы выставлять одним из следующих образов:
 
@@ -42,10 +40,10 @@ Append mode предлагается сделать частью имени та
 
 У всех команд (в частности перечисленных выше, будут опции `--tx` и `--ping-ancestor-transactions`.
 
-* `start_tx` начинает транзакцию и возвращает её ID.
-* `commit_tx {tx}`
-* `abort_tx {tx}`
-* `ping_tx {tx}`
+* `start-tx` начинает транзакцию и возвращает её ID.
+* `commit-tx {tx}`
+* `abort-tx {tx}`
+* `ping-tx {tx}`
 
 TODO
 ====
