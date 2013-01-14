@@ -4,7 +4,7 @@ from common import flatten, require, YtError, unlist, update, EMPTY_GENERATOR, p
 from version import VERSION
 from http import read_content
 from table import TablePath, to_table, to_name, prepare_path
-from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, move, mkdir, find_free_subpath
+from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, move, mkdir, find_free_subpath, create
 from file_commands import smart_upload_file
 from transaction_commands import _make_transactioned_request, PingableTransaction
 
@@ -214,7 +214,7 @@ def create_table(path, recursive=None, replication_factor=None, attributes=None)
     attributes = get_value(attributes, {})
     if replication_factor is not None:
         attributes["replication_factor"] = replication_factor
-    _make_transactioned_request("create", {"path": table.name, "type": "table", "attributes": attributes})
+    create("table", table.name, attributes)
 
 def create_temp_table(path=None, prefix=None):
     """ Creates temporary table by given path with given prefix """
