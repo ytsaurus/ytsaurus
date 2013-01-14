@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 
-# TODO(ignat): make parser for format option
-
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Action
 
 import yt.wrapper as yt
 
 import os
 import sys
 import traceback
+import simplejson as json
+import fnmatch
 
 def die(message=None, return_code=1):
     if message is not None:
@@ -36,13 +36,27 @@ def ls(args):
     for elem in list:
         path = args.path + "/" + elem
         if args.l:
-            type = yt.get(path + "/@type")
+            attrs = yt.get(path + "/@")
+            type = attrs["type"]
+            user = attrs["account"]
             size = yt.get(path + "/@recursive_resource_usage/disk_space")
             date, time = yt.get(path + "/@modification_time").split("T")
             time = time[:5]
-            sys.stdout.write("%10s %18r %10s %5s " % (type, size, date, time))
+            sys.stdout.write("%10s %20s %18r %10s %5s " % (type, user, size, date, time))
         print elem
 
+def find_args(parser):
+    parser.add_argument("path")
+    parser.add_argument("--name")
+    parser.add_argument("--type")
+
+def find(args):
+    path_filter = None
+    if args.name is not None:
+        path_filter = lambda path: fnmatch.fnmatch(path, args.name)
+    res = yt.search(args.path, node_type=args.type, path_filter=path_filter)
+    for table in res:
+        print table
 
 def cat_args(parser):
     parser.add_argument("path")
@@ -59,6 +73,25 @@ def cat(args):
     else:
         die("Incorrect node type " + type)
 
+def create_args(parser):
+    parser.add_argument("type")
+    parser.add_argument("path")
+
+def create(args):
+    yt.create(args.type, args.path)
+
+def get_args(parser):
+    parser.add_argument("path")
+
+def get(args):
+    print json.dumps(yt.get(args.path), indent=2)
+
+def set_args(parser):
+    parser.add_argument("path")
+    parser.add_argument("value")
+
+def set(args):
+    yt.set(args.path, args.value)
 
 def rm_args(parser):
     parser.add_argument("path")
@@ -128,10 +161,19 @@ def merge(args):
 def sort_args(parser):
     parser.add_argument("--src", action="append")
     parser.add_argument("--dst")
-    parser.add_argument("--key", action="append")
+    parser.add_argument("--sort-by", action="append")
 
 def sort(args):
-    yt.run_sort(args.src, args.dst, args.key)
+    yt.run_sort(args.src, args.dst, args.sort_by)
+
+
+def format_args(parser):
+    def ParseFormat(Action):
+        def __call__(self, parser, namespace, values, option_string=None):
+            setattr(namespace, self.dest, yt.RawFormat.from_yson_string(values))
+    parser.add_argument("--format", action=ParseFormat)
+    parser.add_argument("--input-format", action=ParseFormat)
+    parser.add_argument("--output-format", action=ParseFormat)
 
 def operation_args(parser):
     parser.add_argument("command")
@@ -139,20 +181,49 @@ def operation_args(parser):
     parser.add_argument("--dst", action="append")
     parser.add_argument("--file", action="append")
     parser.add_argument("--local-file", action="append")
-    parser.add_argument("--format")
+    format_args(parser)
 
 def map_args(parser):
     operation_args(parser)
 
 def map(args):
-    yt.run_map(args.command, args.src, args.dst, file_paths=args.file, files=args.local_file, format=yt.RawFormat.from_yson_string(args.format))
+    yt.run_map(args.command, args.src, args.dst, file_paths=args.file, files=args.local_file,
+               format=args.format, input_format=args.input_format, output_format=args.output_format)
 
 def reduce_args(parser):
     operation_args(parser)
-    parser.add_option("--key", action="append")
+    parser.add_argument("--reduce-by", action="append")
 
 def reduce(args):
-    yt.run_reduce(args.command, args.src, args.dst, file_paths=args.file, files=args.local_file, format=yt.RawFormat.from_yson_string(args.format), reduce_by=args.key)
+    yt.run_reduce(args.command, args.src, args.dst, file_paths=args.file, files=args.local_file, reduce_by=args.reduce_by,
+                  format=args.format, input_format=args.input_format, output_format=args.output_format)
+
+def map_reduce_args(parser):
+    parser.add_argument("--mapper")
+    parser.add_argument("--reducer")
+    parser.add_argument("--src", action="append")
+    parser.add_argument("--dst", action="append")
+    parser.add_argument("--map-file", action="append")
+    parser.add_argument("--map-local-file", action="append")
+    parser.add_argument("--reduce-file", action="append")
+    parser.add_argument("--reduce-local-file", action="append")
+    parser.add_argument("--reduce-by", action="append")
+    parser.add_argument("--sort-by", action="append")
+    format_args(parser)
+
+def map_reduce(args):
+    yt.run_map_reduce(args.mapper, args.reducer, args.src, args.dst,
+                      map_files=args.map_local_files, map_file_paths=args.map_files,
+                      reduce_files=args.reduce_local_files, reduce_file_paths=args.reduce_files,
+                      reduce_by=args.reduce_by, sort_by=args.sort_by,
+                      format=args.format, input_format=args.input_format, output_format=args.output_format)
+ 
+
+def abort_op_args(parser):
+    parser.add_option("op")
+
+def abort_op(args):
+    yt.abort_operation(args.op)
 
 def start_tx_args(parser):
     pass
@@ -178,17 +249,11 @@ def ping_tx_args(parser):
 def ping_tx(args):
     yt.ping_transaction(args.tx)
 
-def abort_args(parser):
-    parser.add_option("op")
-
-def abort(args):
-    yt.abort_operation(args.op)
-
 
 def main():
-    commands = ["ls", "cat", "rm", "mkdir", "cp", "mv", "upload", #"touch", "download",
-                "erase", "sort", "merge", "map", "reduce", "map_reduce", "abort",
-                "start_tx", "commit_tx", "abort_tx", "ping_tx"]
+    commands = ["ls", "cat", "rm", "mkdir", "cp", "mv", "upload", "create", "get", "set", "find",
+                "erase", "sort", "merge", "map", "reduce", "map-reduce", "abort-op",
+                "start-tx", "commit-tx", "abort-tx", "ping-tx"]
     if len(sys.argv) == 1 or sys.argv[1] in ["-h", "--help", "?"]:
         die("Shell utility to running commands in YT system. Commands:\n" + "\n\t".join(sorted(commands)))
     
@@ -196,6 +261,7 @@ def main():
     del sys.argv[1]
     if command not in commands:
         die("Incorrect command " + command)
+    command = command.replace("-", "_")
 
     parser = ArgumentParser()
     parser.add_argument("--tx")

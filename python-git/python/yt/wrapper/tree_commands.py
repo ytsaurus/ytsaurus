@@ -91,6 +91,9 @@ def remove(path, recursive=False, check_existance=False):
 
     _make_transactioned_request("remove", {"path": prepare_path(path)})
 
+def create(type, path, attributes=None):
+    _make_transactioned_request("create", {"path": prepare_path(path), "type": type, "attributes": get_value(attributes, {})})
+
 def mkdir(path, recursive=None):
     """
     Creates directiry. By default parent directory should exist.
@@ -98,14 +101,14 @@ def mkdir(path, recursive=None):
     if recursive is None:
         recursive = config.CREATE_RECURSIVE
     if recursive:
-        create = False
+        should_create = False
         for dir in dirs(path):
-            if not create and not exists(dir):
-                create = True
-            if create:
+            if not should_create and not exists(dir):
+                should_create = True
+            if should_create:
                 mkdir(dir, False)
     else:
-        _make_transactioned_request("create", {"path": prepare_path(path), "type": "map_node"})
+        create("map_node", path)
 
 # TODO: maybe remove this methods
 def get_attribute(path, attribute, default=None):
@@ -150,8 +153,15 @@ def search(root="/", node_type=None, path_filter=None, object_filter=None, attri
 
     It doesn't processed opaque nodes.
     """
+    if attributes is None: attributes = []
+    copy_attributes = deepcopy(flatten(attributes))
+    copy_attributes.append("type")
+    copy_attributes.append("opaque")
+
     result = []
-    def walk(path, object):
+    def walk(path, object, ignore_opaque=False):
+        if object.attributes.get("opaque", False) and not ignore_opaque:
+            walk(path, get(path, attributes=copy_attributes), True)
         object_type = object.attributes["type"]
         if (node_type is None or object_type in flatten(node_type)) and \
            (object_filter is None or object_filter(object)) and \
@@ -159,14 +169,12 @@ def search(root="/", node_type=None, path_filter=None, object_filter=None, attri
             yson_path = YsonString(path)
             yson_path.attributes = object.attributes
             result.append(yson_path)
-        if isinstance(object, dict):
+
+        if object_type == "map_node":
             for key, value in object.iteritems():
                 walk('%s/%s' % (path, key), value)
-    if attributes is None: attributes = []
-    copy_attributes = deepcopy(flatten(attributes))
-    copy_attributes.append("type")
 
-    walk(root, get(root, attributes=copy_attributes))
+    walk(root, get(root, attributes=copy_attributes), True)
     return result
 
 def remove_with_empty_dirs(path):
