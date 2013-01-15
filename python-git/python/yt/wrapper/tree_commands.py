@@ -1,6 +1,5 @@
 import config
 from common import YtError, require, parse_bool, flatten, get_value
-from path_tools import dirs
 from format import JsonFormat, YsonFormat
 from transaction_commands import _make_transactioned_request
 from table import prepare_path
