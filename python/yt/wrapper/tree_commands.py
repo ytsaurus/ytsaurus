@@ -145,7 +145,7 @@ def find_free_subpath(path):
         if not exists(name):
             return name
 
-def search(root="/", node_type=None, path_filter=None, object_filter=None, attributes=None):
+def search(root="/", node_type=None, path_filter=None, object_filter=None, attributes=None, exclude=None, depth_bound=None):
     """
     Searches all objects in root that have specified node_type,
     satisfy path and object filters. Returns list of the objects.
@@ -153,15 +153,20 @@ def search(root="/", node_type=None, path_filter=None, object_filter=None, attri
 
     It doesn't processed opaque nodes.
     """
-    if attributes is None: attributes = []
-    copy_attributes = deepcopy(flatten(attributes))
-    copy_attributes.append("type")
-    copy_attributes.append("opaque")
+    attributes = deepcopy(flatten(get_value(attributes, [])))
+    attributes.append("type")
+    attributes.append("opaque")
+
+    exclude = deepcopy(flatten(get_value(exclude, [])))
+    exclude.append("//sys")
 
     result = []
-    def walk(path, object, ignore_opaque=False):
+    def walk(path, object, depth, ignore_opaque=False):
+        if path in exclude or depth > depth_bound:
+            return
         if object.attributes.get("opaque", False) and not ignore_opaque:
-            walk(path, get(path, attributes=copy_attributes), True)
+            walk(path, get(path, attributes=attributes), depth, True)
+            return
         object_type = object.attributes["type"]
         if (node_type is None or object_type in flatten(node_type)) and \
            (object_filter is None or object_filter(object)) and \
@@ -172,9 +177,9 @@ def search(root="/", node_type=None, path_filter=None, object_filter=None, attri
 
         if object_type == "map_node":
             for key, value in object.iteritems():
-                walk('%s/%s' % (path, key), value)
+                walk('%s/%s' % (path, key), value, depth + 1)
 
-    walk(root, get(root, attributes=copy_attributes), True)
+    walk(root, get(root, attributes=attributes), 0, True)
     return result
 
 def remove_with_empty_dirs(path):
