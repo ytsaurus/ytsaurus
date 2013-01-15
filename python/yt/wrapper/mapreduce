@@ -153,7 +153,6 @@ Examples:
 """
     )
 
-    # TODO(ignat): add unsupported arguments
     action_stores = ["read", "write", "writesorted", "map", "reduce", "reducews", "drop",
                      "erase", "aborttx", "committx", "renewtx", "set", "get", "upload", "download",
                      "createtable", "exists", "track"]
@@ -331,8 +330,6 @@ Examples:
 
     if args.chunksize is not None:
         config.WRITE_BUFFER_SIZE = args.chunksize
-    if "YT_PROXY" in os.environ:
-        config.PROXY = os.environ["YT_PROXY"]
     if args.server is not None:
         config.PROXY = args.server
     if args.prefix is not None:

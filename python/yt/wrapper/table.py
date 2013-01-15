@@ -1,7 +1,7 @@
 from common import flatten, require, YtError, bool_to_string
-from config import PREFIX
 from http import make_request
 from format import YsonFormat
+import config
 
 from yt.yson import YsonString
 
@@ -35,15 +35,16 @@ class TablePath(object):
             self.name = YsonString(name)
 
         if self.name != "/" and not self.name.startswith("//"):
-            require(PREFIX is not None,
+            prefix = config.PREFIX
+            require(prefix,
                     YtError("Path (%s) should be absolute or you should specify prefix" % self.name))
-            require(PREFIX.startswith("//"),
-                    YtError("PREFIX should starts with //"))
-            require(PREFIX.endswith("/"),
-                    YtError("PREFIX should ends with /"))
+            require(prefix.startswith("//"),
+                    YtError("PREFIX '%s' should starts with //" % prefix))
+            require(prefix.endswith("/"),
+                    YtError("PREFIX '%s' should ends with /" % prefix))
             # TODO(ignat): refactor YsonString to fix this hack
             attributes = self.name.attributes
-            self.name = YsonString(PREFIX + self.name)
+            self.name = YsonString(prefix + self.name)
             self.name.attributes = attributes
 
         attributes = self.name.attributes
