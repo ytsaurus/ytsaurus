@@ -94,15 +94,28 @@ def remove(path, recursive=False, check_existance=False):
 def create(type, path, attributes=None):
     _make_transactioned_request("create", {"path": prepare_path(path), "type": type, "attributes": get_value(attributes, {})})
 
-def mkdir(path, recursive=None):
+def _dirs(path):
+    prefix = ""
+    if path.startswith("//"):
+        prefix = "//"
+    names = path.strip("/").split("/")
+    res = []
+    for i in xrange(1, len(names) + 1):
+        res.append(prefix + "/".join(names[0:i]))
+    return res
+    
+
+def mkdir(path, recursive=None, create_prefix=True):
     """
     Creates directiry. By default parent directory should exist.
     """
     if recursive is None:
         recursive = config.CREATE_RECURSIVE
     if recursive:
+        if config.PREFIX and create_prefix:
+            mkdir(config.PREFIX, recursive=True, create_prefix=False)
         should_create = False
-        for dir in dirs(path):
+        for dir in _dirs(path):
             if not should_create and not exists(dir):
                 should_create = True
             if should_create:
@@ -160,9 +173,10 @@ def search(root="/", node_type=None, path_filter=None, object_filter=None, attri
     exclude = deepcopy(flatten(get_value(exclude, [])))
     exclude.append("//sys")
 
+
     result = []
     def walk(path, object, depth, ignore_opaque=False):
-        if path in exclude or depth > depth_bound:
+        if path in exclude or (depth_bound is not None and depth > depth_bound):
             return
         if object.attributes.get("opaque", False) and not ignore_opaque:
             walk(path, get(path, attributes=attributes), depth, True)
