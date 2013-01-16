@@ -357,7 +357,9 @@ describe("output stream interface", function() {
     });
 });
 
-describe("high-level streams", function() {
+describe("high-level interoperation", function() {
+    it("should properly compress/decompress data");
+
     it("should play nice together", function(done) {
         var readable = new YtReadableStream(100, 1000);
         var writable = new YtWritableStream(100, 1000);
