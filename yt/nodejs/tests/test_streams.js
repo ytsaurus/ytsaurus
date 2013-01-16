@@ -44,7 +44,7 @@ function generateString(target_length) {
 
 describe("input stream interface", function() {
     beforeEach(function() {
-        this.stream = new binding.TNodeJSInputStream(100, 1000);
+        this.stream = new binding.TInputStreamWrap(100, 1000);
         this.reader = new binding.TInputStreamStub();
         this.reader.Reset(this.stream);
 
@@ -260,7 +260,7 @@ describe("input stream interface", function() {
 
 describe("output stream interface", function() {
     beforeEach(function() {
-        this.stream = new binding.TNodeJSOutputStream(100, 1000);
+        this.stream = new binding.TOutputStreamWrap(100, 1000);
         this.writer = new binding.TOutputStreamStub();
         this.writer.Reset(this.stream);
 

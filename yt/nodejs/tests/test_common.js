@@ -7,7 +7,7 @@ var binding = require("../lib/ytnode");
         return (binding.CreateV8Node(value)).Print();
     } ],
     [ "json to yson", function(value) {
-        return (new binding.TNodeJSNode(
+        return (new binding.TNodeWrap(
             JSON.stringify(value),
             binding.ECompression_None,
             binding.CreateV8Node("json"))).Print();
@@ -90,7 +90,7 @@ var binding = require("../lib/ytnode");
 
 describe("conversion specifics", function() {
     it("should properly convert i64 via our internals", function() {
-        var node = new binding.TNodeJSNode(
+        var node = new binding.TNodeWrap(
             "{\"key\":5000000000,\"min\":-9223372036854775807,\"max\":9223372036854775807}",
             binding.ECompression_None,
             binding.CreateV8Node("json"));
@@ -100,7 +100,7 @@ describe("conversion specifics", function() {
     });
 
     it("should properly pass strings back and forth", function() {
-        var node = new binding.TNodeJSNode(
+        var node = new binding.TNodeWrap(
             "{\"a\":\"hello\",\"b\":\"world\"}",
             binding.ECompression_None,
             binding.CreateV8Node("json"));
@@ -109,7 +109,7 @@ describe("conversion specifics", function() {
     });
 
     it("should properly pass integers back and forth", function() {
-        var node = new binding.TNodeJSNode(
+        var node = new binding.TNodeWrap(
             "{\"a\":0,\"b\":2147483647,\"c\":-2147483648}",
             binding.ECompression_None,
             binding.CreateV8Node("json"));
@@ -119,7 +119,7 @@ describe("conversion specifics", function() {
     });
 
     it("should properly pass lists back and forth", function() {
-        var node = new binding.TNodeJSNode(
+        var node = new binding.TNodeWrap(
             "[13,\"hello\",42,\"world\"]",
             binding.ECompression_None,
             binding.CreateV8Node("json"));
@@ -127,7 +127,7 @@ describe("conversion specifics", function() {
     });
 
     it("should properly pass lists back and forth", function() {
-        var node = new binding.TNodeJSNode(
+        var node = new binding.TNodeWrap(
             "{\"a\":0,\"b\":1}",
             binding.ECompression_None,
             binding.CreateV8Node("json"));
@@ -137,7 +137,7 @@ describe("conversion specifics", function() {
 
 describe("traversing", function() {
     it("should throw exception on non-existing key", function() {
-        var node = new binding.TNodeJSNode({ a: 1 });
+        var node = new binding.TNodeWrap({ a: 1 });
         expect(function() {
             node.Traverse("/nonexistent");
         }).to.throw(Error);
@@ -146,9 +146,9 @@ describe("traversing", function() {
 
 describe("merging", function() {
     it("should properly merge disjoint key sets", function() {
-        var node_a = new binding.TNodeJSNode({ a: 1, b: 2 });
-        var node_b = new binding.TNodeJSNode({ c: 3, d: 4 });
-        var node_c = new binding.TNodeJSNode({ e: 5, f: 6 });
+        var node_a = new binding.TNodeWrap({ a: 1, b: 2 });
+        var node_b = new binding.TNodeWrap({ c: 3, d: 4 });
+        var node_c = new binding.TNodeWrap({ e: 5, f: 6 });
         var result = binding.CreateMergedNode(node_a, node_b, node_c);
         result.Traverse("/a").Print().should.eql("1");
         result.Traverse("/b").Print().should.eql("2");
@@ -158,9 +158,9 @@ describe("merging", function() {
         result.Traverse("/f").Print().should.eql("6");
     });
     it("should properly merge overlapping key sets", function() {
-        var node_a = new binding.TNodeJSNode({ a: 1, b: 2 });
-        var node_b = new binding.TNodeJSNode({ b: 3, c: 4 });
-        var node_c = new binding.TNodeJSNode({ c: 5, d: 6 });
+        var node_a = new binding.TNodeWrap({ a: 1, b: 2 });
+        var node_b = new binding.TNodeWrap({ b: 3, c: 4 });
+        var node_c = new binding.TNodeWrap({ c: 5, d: 6 });
         var result = binding.CreateMergedNode(node_a, node_b, node_c);
         result.Traverse("/a").Print().should.eql("1");
         result.Traverse("/b").Print().should.eql("3");
