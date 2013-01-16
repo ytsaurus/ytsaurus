@@ -7,6 +7,8 @@ namespace NNodeJS {
 
 COMMON_V8_USES
 
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 class TReadString
@@ -47,7 +49,7 @@ public:
 
 private:
     char*  Buffer;
-    size_t Length;           
+    size_t Length;
 };
 
 struct TReadRequest
@@ -92,9 +94,9 @@ struct TReadRequest
 
 } // namespace
 
-Persistent<FunctionTemplate> TInputStreamStub::ConstructorTemplate;
-
 ////////////////////////////////////////////////////////////////////////////////
+
+Persistent<FunctionTemplate> TInputStreamStub::ConstructorTemplate;
 
 TInputStreamStub::TInputStreamStub()
     : node::ObjectWrap()
@@ -226,8 +228,6 @@ Handle<Value> TInputStreamStub::ReadSynchronously(const Arguments& args)
 
     return scope.Close(String::NewExternal(string));
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 Handle<Value> TInputStreamStub::Read(const Arguments& args)
 {

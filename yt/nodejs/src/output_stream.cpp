@@ -9,7 +9,11 @@ namespace NNodeJS {
 
 COMMON_V8_USES
 
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
+
+static const int MaxPartsPerPull = 8;
 
 static Persistent<String> OnDataSymbol;
 
@@ -21,13 +25,11 @@ void DeleteCallback(char* data, void* hint)
     delete[] data;
 }
 
-static const int MaxPartsPerPull = 8;
-
 } // namespace
 
-Persistent<FunctionTemplate> TNodeJSOutputStream::ConstructorTemplate;
-
 ////////////////////////////////////////////////////////////////////////////////
+
+Persistent<FunctionTemplate> TNodeJSOutputStream::ConstructorTemplate;
 
 TNodeJSOutputStream::TNodeJSOutputStream(ui64 lowWatermark, ui64 highWatermark)
     : TNodeJSStreamBase()

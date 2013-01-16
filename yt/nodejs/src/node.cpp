@@ -187,8 +187,6 @@ Handle<Value> ProduceV8(INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Persistent<FunctionTemplate> TNodeJSNode::ConstructorTemplate;
-
 INodePtr ConvertV8ValueToNode(Handle<Value> value)
 {
     THREAD_AFFINITY_IS_V8();
@@ -232,6 +230,8 @@ INodePtr ConvertV8BytesToNode(const char* buffer, size_t length, ECompression co
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+Persistent<FunctionTemplate> TNodeJSNode::ConstructorTemplate;
 
 TNodeJSNode::TNodeJSNode(INodePtr node)
     : node::ObjectWrap()
@@ -288,7 +288,7 @@ bool TNodeJSNode::HasInstance(Handle<Value> value)
         ConstructorTemplate->HasInstance(value->ToObject());
 }
 
-INodePtr TNodeJSNode::Node(Handle<Value> value)
+INodePtr TNodeJSNode::UnwrapNode(Handle<Value> value)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -324,7 +324,7 @@ Handle<Value> TNodeJSNode::New(const Arguments& args)
             EXPECT_THAT_HAS_INSTANCE(args[2], TNodeJSNode);
 
             ECompression compression = (ECompression)args[1]->Uint32Value();
-            INodePtr format = TNodeJSNode::Node(args[2]);
+            INodePtr format = TNodeJSNode::UnwrapNode(args[2]);
 
             auto arg = args[0];
             if (node::Buffer::HasInstance(arg)) {
@@ -377,7 +377,7 @@ Handle<Value> TNodeJSNode::CreateMerged(const Arguments& args)
                 EXPECT_THAT_HAS_INSTANCE(arg, TNodeJSNode);
             }
 
-            delta = TNodeJSNode::Node(args[i]);
+            delta = TNodeJSNode::UnwrapNode(args[i]);
             result = result ? UpdateNode(MoveRV(result), MoveRV(delta)) : MoveRV(delta);
         }
     } catch (const std::exception& ex) {
@@ -422,7 +422,7 @@ Handle<Value> TNodeJSNode::Print(const Arguments& args)
 
     YASSERT(args.Length() == 0);
 
-    INodePtr node = TNodeJSNode::Node(args.This());
+    INodePtr node = TNodeJSNode::UnwrapNode(args.This());
 
     auto string = ConvertToYsonString(node, EYsonFormat::Text);
     auto handle = String::New(string.Data().c_str(), string.Data().length());
@@ -441,7 +441,7 @@ Handle<Value> TNodeJSNode::Traverse(const Arguments& args)
 
     EXPECT_THAT_IS(args[0], String);
 
-    INodePtr node = TNodeJSNode::Node(args.This());
+    INodePtr node = TNodeJSNode::UnwrapNode(args.This());
     String::AsciiValue pathValue(args[0]->ToString());
     TStringBuf path(*pathValue, pathValue.length());
 
@@ -466,7 +466,7 @@ Handle<Value> TNodeJSNode::Get(const Arguments& args)
 
     YASSERT(args.Length() == 0);
 
-    INodePtr node = TNodeJSNode::Node(args.This());
+    INodePtr node = TNodeJSNode::UnwrapNode(args.This());
     return scope.Close(ProduceV8(MoveRV(node)));
 }
 

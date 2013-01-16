@@ -47,9 +47,9 @@ struct TWriteRequest
 
 } // namespace
 
-Persistent<FunctionTemplate> TOutputStreamStub::ConstructorTemplate;
-
 ////////////////////////////////////////////////////////////////////////////////
+
+Persistent<FunctionTemplate> TOutputStreamStub::ConstructorTemplate;
 
 TOutputStreamStub::TOutputStreamStub()
     : node::ObjectWrap()

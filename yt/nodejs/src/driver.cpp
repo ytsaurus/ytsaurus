@@ -40,6 +40,14 @@ namespace {
 
 NLog::TLogger Logger("HttpProxy");
 
+static Persistent<String> DescriptorName;
+static Persistent<String> DescriptorInputType;
+static Persistent<String> DescriptorInputTypeAsInteger;
+static Persistent<String> DescriptorOutputType;
+static Persistent<String> DescriptorOutputTypeAsInteger;
+static Persistent<String> DescriptorIsVolatile;
+static Persistent<String> DescriptorIsHeavy;
+
 // TODO(sandello): Refactor this huge mess.
 struct TExecuteRequest
 {
@@ -141,14 +149,6 @@ struct TExecuteRequest
     }
 };
 
-static Persistent<String> DescriptorName;
-static Persistent<String> DescriptorInputType;
-static Persistent<String> DescriptorInputTypeAsInteger;
-static Persistent<String> DescriptorOutputType;
-static Persistent<String> DescriptorOutputTypeAsInteger;
-static Persistent<String> DescriptorIsVolatile;
-static Persistent<String> DescriptorIsHeavy;
-
 Local<Object> ConvertCommandDescriptorToV8Object(const TCommandDescriptor& descriptor)
 {
     THREAD_AFFINITY_IS_V8();
@@ -188,9 +188,9 @@ Local<Object> ConvertCommandDescriptorToV8Object(const TCommandDescriptor& descr
 
 } // namespace
 
-Persistent<FunctionTemplate> TNodeJSDriver::ConstructorTemplate;
-
 ////////////////////////////////////////////////////////////////////////////////
+
+Persistent<FunctionTemplate> TNodeJSDriver::ConstructorTemplate;
 
 TNodeJSDriver::TNodeJSDriver(bool echo, Handle<Object> configObject)
     : node::ObjectWrap()

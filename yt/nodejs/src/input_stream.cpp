@@ -11,10 +11,9 @@ namespace NNodeJS {
 
 COMMON_V8_USES
 
-namespace {
+////////////////////////////////////////////////////////////////////////////////
 
-void DoNothing()
-{ }
+namespace {
 
 static Persistent<String> OnDrainSymbol;
 static Persistent<String> ActiveQueueSizeSymbol;
@@ -24,9 +23,9 @@ static const unsigned int NumberOfSpins = 4;
 
 } // namespace
 
-Persistent<FunctionTemplate> TNodeJSInputStream::ConstructorTemplate;
-
 ////////////////////////////////////////////////////////////////////////////////
+
+Persistent<FunctionTemplate> TNodeJSInputStream::ConstructorTemplate;
 
 TNodeJSInputStream::TNodeJSInputStream(ui64 lowWatermark, ui64 highWatermark)
     : TNodeJSStreamBase()
