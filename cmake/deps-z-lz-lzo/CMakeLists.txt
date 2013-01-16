@@ -13,6 +13,7 @@ add_library( ytext-lz4 ${LTYPE}
 
 add_library( ytext-minilzo ${LTYPE}
   ${BASE}/minilzo.c
+  ${BASE}/minilzo_crc.c
 )
 
 add_library( ytext-quicklz ${LTYPE}
