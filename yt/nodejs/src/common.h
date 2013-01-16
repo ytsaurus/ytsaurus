@@ -97,19 +97,19 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t DefaultStreamBufferSize = 64 * 1024;
+static const size_t DefaultStreamBufferSize = 1 << 16;
 
 DECLARE_ENUM(ECompression,
     (None)
     (Gzip)
     (Deflate)
+    (LZOP)
     (LZO)
     (LZF)
     (Snappy)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 void InitializeCommon(v8::Handle<v8::Object> target);
 

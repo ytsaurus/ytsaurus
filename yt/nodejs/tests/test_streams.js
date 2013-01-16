@@ -293,7 +293,6 @@ describe("output stream interface", function() {
             // Since this is an off-V8-scheduled callback all data should be in place.
             var pulled_chunks = this.stream.Pull();
             var chunks = pulled_chunks.filter(function(x) { return !!x; });
-
             expect(chunks.length).to.be.equal(2);
             expect(chunks[0].toString()).to.be.equal("hello");
             expect(chunks[1].toString()).to.be.equal("dolly");

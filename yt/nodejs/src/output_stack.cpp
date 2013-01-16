@@ -2,6 +2,7 @@
 
 #include <util/stream/zlib.h>
 #include <util/stream/lz.h>
+#include <util/stream/lzop.h>
 
 namespace NYT {
 
@@ -36,6 +37,9 @@ void TNodeJSOutputStack::AddCompression(ECompression compression)
             break;
         case ECompression::Deflate:
             Add<TZLibCompress>(ZLib::ZLib, 4, DefaultStreamBufferSize);
+            break;
+        case ECompression::LZOP:
+            Add<TLzopCompress>(DefaultStreamBufferSize);
             break;
         case ECompression::LZO:
             Add<TLzoCompress>(DefaultStreamBufferSize);

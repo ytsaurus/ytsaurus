@@ -90,12 +90,16 @@ _MIME_BY_OUTPUT_TYPE[binding.EDataType_Tabular] = [
 
 // This mapping defines how Content-Encoding and Accept-Encoding map onto YT compressors.
 var _ENCODING_TO_COMPRESSION = {
-    "gzip"     : binding.ECompression_Gzip,
-    "deflate"  : binding.ECompression_Deflate,
-    "identity" : binding.ECompression_None
+    "gzip"      : binding.ECompression_Gzip,
+    "deflate"   : binding.ECompression_Deflate,
+    "x-lzop"    : binding.ECompression_LZOP,
+    "y-lzo"     : binding.ECompression_LZO,
+    "y-lzf"     : binding.ECompression_LZF,
+    "y-snappy"  : binding.ECompression_Snappy,
+    "identity"  : binding.ECompression_None
 };
 
-var _ENCODING_ALL = [ "gzip", "deflate", "identity" ];
+var _ENCODING_ALL = Object.keys(_ENCODING_TO_COMPRESSION);
 
 var _PREDEFINED_JSON_FORMAT = new binding.TNodeJSNode({ $value : "json" });
 var _PREDEFINED_YSON_FORMAT = new binding.TNodeJSNode({ $value : "yson" });
@@ -503,6 +507,9 @@ YtCommand.prototype._getOutputCompression = function() {
         result_mime = utils.bestAcceptedEncoding(
             _ENCODING_ALL,
             header);
+
+        // XXX(sandello): This is not implemented yet.
+        if (result_mime === "x-lzop") { result_mime = undefined; }
 
         if (!result_mime) {
             this.rsp.statusCode = 415;
