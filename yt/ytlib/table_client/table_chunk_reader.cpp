@@ -40,7 +40,7 @@ public:
     virtual void Initialize() = 0;
 
 protected:
-    void OnFail(const TError& error, TTableChunkReaderPtr chunkReader) 
+    void OnFail(const TError& error, TTableChunkReaderPtr chunkReader)
     {
         chunkReader->Initializer.Reset();
         chunkReader->ReaderState.Fail(error);
@@ -72,7 +72,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Represents element of the heap used to determine 
+//! Represents element of the heap used to determine
 //! block reading order. (see TInitializer::GetBlockReadingOrder).
 struct TBlockInfo
 {
@@ -84,14 +84,14 @@ struct TBlockInfo
     bool operator< (const TBlockInfo& rhs)
     {
         return
-            LastRow > rhs.LastRow || 
+            LastRow > rhs.LastRow ||
             (LastRow == rhs.LastRow && ChannelIndex > rhs.ChannelIndex);
     }
 
     TBlockInfo(
-        int chunkBlockIndex, 
-        int channelBlockIndex, 
-        int channelIdx, 
+        int chunkBlockIndex,
+        int channelBlockIndex,
+        int channelIdx,
         i64 lastRow)
         : ChunkBlockIndex(chunkBlockIndex)
         , ChannelBlockIndex(channelBlockIndex)
@@ -122,7 +122,7 @@ class TTableChunkReader::TRegularInitializer
 public:
     TRegularInitializer(
         TSequentialReaderConfigPtr config,
-        TTableChunkReaderPtr chunkReader, 
+        TTableChunkReaderPtr chunkReader,
         NChunkClient::IAsyncReaderPtr asyncReader,
         const NProto::TReadLimit& startLimit,
         const NProto::TReadLimit& endLimit)
@@ -168,7 +168,7 @@ public:
     }
 
 private:
-    void OnFail(const TError& error, TTableChunkReaderPtr chunkReader) 
+    void OnFail(const TError& error, TTableChunkReaderPtr chunkReader)
     {
         LOG_WARNING(error);
         chunkReader->Initializer.Reset();
@@ -193,7 +193,7 @@ private:
         }
 
         if (result.Value().version() != FormatVersion) {
-            auto error = TError("Invalid chunk format version (Expected: %d, Actual: %d)", 
+            auto error = TError("Invalid chunk format version (Expected: %d, Actual: %d)",
                 FormatVersion,
                 result.Value().version());
             OnFail(error, chunkReader);
@@ -253,9 +253,9 @@ private:
                 std::reverse_iterator<TSampleIter> rbegin(indexExt.items().end());
                 std::reverse_iterator<TSampleIter> rend(indexExt.items().begin());
                 auto it = std::upper_bound(
-                    rbegin, 
-                    rend, 
-                    StartLimit.key(), 
+                    rbegin,
+                    rend,
+                    StartLimit.key(),
                     TIndexComparator<std::greater>());
 
                 if (it != rend) {
@@ -267,14 +267,14 @@ private:
                 chunkReader->EndValidator.Reset(new TKeyValidator(EndLimit.key(), false));
 
                 auto it = std::upper_bound(
-                    indexExt.items().begin(), 
-                    indexExt.items().end(), 
-                    EndLimit.key(), 
+                    indexExt.items().begin(),
+                    indexExt.items().end(),
+                    EndLimit.key(),
                     TIndexComparator<std::less>());
 
                 if (it != indexExt.items().end()) {
                     chunkReader->EndRowIndex = std::min(
-                        it->row_index(), 
+                        it->row_index(),
                         chunkReader->EndRowIndex);
                 }
             }
@@ -360,14 +360,14 @@ private:
         if (resultIdx < 0)
             return false;
 
-        SelectedChannels.push_back(resultIdx); 
+        SelectedChannels.push_back(resultIdx);
         return true;
     }
 
     void SelectOpeningBlocks(
         TTableChunkReaderPtr chunkReader,
-        std::vector<TSequentialReader::TBlockInfo>& result, 
-        std::vector<TBlockInfo>& blockHeap) 
+        std::vector<TSequentialReader::TBlockInfo>& result,
+        std::vector<TBlockInfo>& blockHeap)
     {
         FOREACH (auto channelIdx, SelectedChannels) {
             const auto& protoChannel = ChannelsExt.items(channelIdx);
@@ -390,7 +390,7 @@ private:
                         lastRow));
 
                     result.push_back(TSequentialReader::TBlockInfo(
-                        protoBlock.block_index(), 
+                        protoBlock.block_index(),
                         protoBlock.block_size()));
                     StartRows.push_back(startRow);
                     break;
@@ -428,7 +428,7 @@ private:
 
             while (nextBlockIndex < protoChannel.blocks_size()) {
                 const auto& protoBlock = protoChannel.blocks(nextBlockIndex);
-                
+
                 lastRow += protoBlock.row_count();
                 blockHeap.push_back(TBlockInfo(
                     protoBlock.block_index(),
@@ -438,7 +438,7 @@ private:
 
                 std::push_heap(blockHeap.begin(), blockHeap.end());
                 result.push_back(TSequentialReader::TBlockInfo(
-                    protoBlock.block_index(), 
+                    protoBlock.block_index(),
                     protoBlock.block_size()));
                 break;
             }
@@ -458,7 +458,7 @@ private:
         LOG_DEBUG("Fetched starting block for channel %d", channelIdx);
 
         if (!error.IsOK()) {
-            auto error = TError("Failed to download starting block for channel %d", 
+            auto error = TError("Failed to download starting block for channel %d",
                 channelIdx);
             OnFail(error, chunkReader);
             return;
@@ -472,9 +472,9 @@ private:
             chunkReader->FetchedBlocks.push_back(decompressedBlock);
         channelReader->SetBlock(decompressedBlock);
 
-        for (i64 rowIndex = StartRows[selectedChannelIndex]; 
-            rowIndex < chunkReader->StartRowIndex; 
-            ++rowIndex) 
+        for (i64 rowIndex = StartRows[selectedChannelIndex];
+            rowIndex < chunkReader->StartRowIndex;
+            ++rowIndex)
         {
             YCHECK(channelReader->NextRow());
         }
@@ -485,8 +485,8 @@ private:
         if (selectedChannelIndex < SelectedChannels.size()) {
             chunkReader->SequentialReader->AsyncNextBlock()
                 .Subscribe(BIND(
-                    &TRegularInitializer::OnStartingBlockReceived, 
-                    MakeWeak(this), 
+                    &TRegularInitializer::OnStartingBlockReceived,
+                    MakeWeak(this),
                     selectedChannelIndex)
                 .Via(TDispatcher::Get()->GetReaderInvoker()));
         } else {
@@ -572,7 +572,7 @@ class TTableChunkReader::TPartitionInitializer
 public:
     TPartitionInitializer(
         TSequentialReaderConfigPtr config,
-        TTableChunkReaderPtr chunkReader, 
+        TTableChunkReaderPtr chunkReader,
         NChunkClient::IAsyncReaderPtr asyncReader)
         : SequentialConfig(config)
         , AsyncReader(asyncReader)
@@ -628,7 +628,7 @@ public:
                 const auto& blockInfo = channelsExt.items(0).blocks(i);
                 if (chunkReader->PartitionTag == blockInfo.partition_tag()) {
                     blockSequence.push_back(TSequentialReader::TBlockInfo(
-                        blockInfo.block_index(), 
+                        blockInfo.block_index(),
                         blockInfo.block_size()));
 
                     rowCount += blockInfo.row_count();
@@ -640,6 +640,7 @@ public:
 
         if (blockSequence.empty()) {
             LOG_DEBUG("Nothing to read for partition %d", chunkReader->PartitionTag);
+            chunkReader->CurrentRowIndex = chunkReader->EndRowIndex;
             chunkReader->Initializer.Reset();
             chunkReader->ReaderState.FinishOperation();
             return;
@@ -651,7 +652,7 @@ public:
             AsyncReader,
             ECodec(miscExt.codec()));
 
-        LOG_DEBUG("Reading %d blocks for partition %d", 
+        LOG_DEBUG("Reading %d blocks for partition %d",
             static_cast<int>(blockSequence.size()),
             chunkReader->PartitionTag);
 
@@ -660,7 +661,7 @@ public:
 
         chunkReader->DoNextRow();
         chunkReader->RowState.GetOperationError().Subscribe(BIND(
-            &TTableChunkReader::OnRowFetched, 
+            &TTableChunkReader::OnRowFetched,
             chunkReader));
 
         chunkReader->Initializer.Reset();
@@ -698,15 +699,15 @@ TTableChunkReader::TTableChunkReader(TSequentialReaderConfigPtr config,
 
     if (PartitionTag == DefaultPartitionTag) {
         Initializer = New<TRegularInitializer>(
-            config, 
-            this, 
-            chunkReader, 
-            startLimit, 
+            config,
+            this,
+            chunkReader,
+            startLimit,
             endLimit);
     } else {
         Initializer = New<TPartitionInitializer>(
-            config, 
-            this, 
+            config,
+            this,
             chunkReader);
     }
 }
@@ -912,7 +913,7 @@ bool TTableChunkReaderProvider::KeepInMemory() const
 }
 
 TTableChunkReaderPtr TTableChunkReaderProvider::CreateNewReader(
-    const NProto::TInputChunk& inputChunk, 
+    const NProto::TInputChunk& inputChunk,
     const NChunkClient::IAsyncReaderPtr& chunkReader)
 {
     const auto& slice = inputChunk.slice();
