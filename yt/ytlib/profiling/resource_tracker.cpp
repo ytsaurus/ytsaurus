@@ -4,6 +4,7 @@
 #include "timing.h"
 
 #include <ytlib/misc/fs.h>
+#include <ytlib/misc/proc.h>
 
 #include <ytlib/ypath/token.h>
 
@@ -106,17 +107,12 @@ void TResourceTracker::EnqueueCpuUsage()
 
 void TResourceTracker::EnqueueMemoryUsage()
 {
-    VectorStrok memoryStatFields;
     try {
-        TIFStream memoryStatFile("/proc/self/statm");
-        memoryStatFields = splitStroku(memoryStatFile.ReadLine(), " ");
+        Profiler.Enqueue("/total/memory", GetProcessRss());
     } catch (const TIoException&) {
         // Ignore all IO exceptions.
         return;
     }
-
-    i64 residentSetSize = FromString<i64>(memoryStatFields[1]);
-    Profiler.Enqueue("/total/memory", residentSetSize);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

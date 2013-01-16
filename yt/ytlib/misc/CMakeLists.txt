@@ -22,6 +22,7 @@ set( SRCS
   ${BASE}/new.cpp
   ${BASE}/pattern_formatter.cpp
   ${BASE}/periodic_invoker.cpp
+  ${BASE}/proc.cpp
   ${BASE}/protobuf_helpers.cpp
   ${BASE}/random.cpp
   ${BASE}/ref.cpp
@@ -80,6 +81,7 @@ set( HDRS
   ${BASE}/pattern_formatter.h
   ${BASE}/periodic_invoker.h
   ${BASE}/preprocessor.h
+  ${BASE}/proc.h
   ${BASE}/property.h
   ${BASE}/protobuf_helpers-inl.h
   ${BASE}/protobuf_helpers.h

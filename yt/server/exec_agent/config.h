@@ -78,12 +78,18 @@ struct TJobManagerConfig
     TResourceLimitsConfigPtr ResourceLimits;
     Stroka SlotLocation;
 
+    // User IDs from StartUid to StartUid + SlotLocation are used
+    // to run user jobs if job control is enabled.
+    int StartUserId;
+
     TJobManagerConfig()
     {
         Register("resource_limits", ResourceLimits)
             .DefaultNew();
         Register("slot_location", SlotLocation)
             .NonEmpty();
+        Register("start_user_id", StartUserId)
+            .Default(10000);
     }
 };
 
@@ -119,6 +125,12 @@ struct TExecAgentConfig
 
     NYTree::INodePtr JobProxyLogging;
     TDuration SupervisorRpcTimeout;
+    TDuration MemoryWatchdogPeriod;
+
+    // When set, exec agent doesn't start if it doesn't have
+    // root privileges which allow calling setuid and enforcing
+    // pseudouser based restrictions on job control.
+    bool EnforceJobControl;
 
     TExecAgentConfig()
     {
@@ -132,6 +144,10 @@ struct TExecAgentConfig
             .Default(NULL);
         Register("supervisor_rpc_timeout", SupervisorRpcTimeout)
             .Default(TDuration::Seconds(60));
+        Register("memory_watchdog_period", MemoryWatchdogPeriod)
+            .Default(TDuration::Seconds(1));
+        Register("enforse_job_control", EnforceJobControl)
+            .Default(false);
     }
 };
 

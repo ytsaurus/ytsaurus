@@ -23,7 +23,7 @@ public:
         TExecAgentConfigPtr config,
         NCellNode::TBootstrap* nodeBootstrap);
     ~TBootstrap();
-    
+
     void Init();
 
     TExecAgentConfigPtr GetConfig() const;
@@ -36,10 +36,13 @@ public:
     NChunkHolder::TChunkCachePtr GetChunkCache() const;
     NJobProxy::TJobProxyConfigPtr GetJobProxyConfig() const;
     NCellNode::TNodeMemoryTracker& GetMemoryUsageTracker();
+    bool IsJobControlEnabled() const;
 
 private:
     TExecAgentConfigPtr Config;
     NCellNode::TBootstrap* NodeBootstrap;
+
+    bool JobControlEnabled;
 
     TJobManagerPtr JobManager;
     TEnvironmentManagerPtr EnvironmentManager;

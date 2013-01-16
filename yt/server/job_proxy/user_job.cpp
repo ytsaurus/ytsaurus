@@ -21,6 +21,11 @@
 
 #include <ytlib/rpc/channel.h>
 
+#include <ytlib/actions/invoker_util.h>
+
+#include <ytlib/misc/proc.h>
+#include <ytlib/misc/periodic_invoker.h>
+
 #include <util/folder/dirut.h>
 
 #include <errno.h>
@@ -28,6 +33,7 @@
 #ifdef _linux_
 
 #include <unistd.h>
+#include <signal.h>
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/wait.h>
@@ -58,25 +64,6 @@ static const double LimitMultiplier = 1.25;
 
 #ifdef _linux_
 
-// ToDo(psushin): set sigint handler?
-// ToDo(psushin): extract to a separate file.
-TError StatusToError(int status)
-{
-    if (WIFEXITED(status) && (WEXITSTATUS(status) == 0)) {
-        return TError();
-    } else if (WIFSIGNALED(status)) {
-        return TError("Process terminated by signal %d",  WTERMSIG(status));
-    } else if (WIFSTOPPED(status)) {
-        return TError("Process stopped by signal %d",  WSTOPSIG(status));
-    } else if (WIFEXITED(status)) {
-        return TError("Process exited with value %d",  WEXITSTATUS(status));
-    } else {
-        return TError("Status %d", status);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TUserJob
     : public TJob
 {
@@ -91,7 +78,12 @@ public:
         , InputThread(InputThreadFunc, (void*) this)
         , OutputThread(OutputThreadFunc, (void*) this)
         , ProcessId(-1)
-    { }
+    {
+        MemoryWatchdog = New<TPeriodicInvoker>(
+            GetSyncInvoker(),
+            BIND(&TUserJob::CheckMemoryConsumption, MakeWeak(this)),
+            Host->GetConfig()->MemoryWatchdogPeriod);
+    }
 
     virtual NScheduler::NProto::TJobResult Run() override
     {
@@ -100,7 +92,7 @@ public:
 
         InitPipes();
 
-        ProcessId = fork();
+        ProcessId = GuardedFork();
         if (ProcessId < 0) {
             THROW_ERROR_EXCEPTION("Failed to start the job: fork failed")
                 << TError::FromSystem();
@@ -116,7 +108,9 @@ public:
 
         LOG_INFO("Job process started");
 
+        MemoryWatchdog->Start();
         DoJobIO();
+        MemoryWatchdog->Stop();
 
         LOG_INFO(JobExitError, "Job process completed");
         ToProto(result.mutable_error(), JobExitError);
@@ -413,6 +407,13 @@ private:
                 _exit(8);
             }
 
+            if (config->UserId > 0) {
+                // Set unprivileged uid and gid for user process.
+                YCHECK(setuid(0) == 0);
+                YCHECK(setgid(config->UserId) == 0);
+                YCHECK(setuid(config->UserId) == 0);
+            }
+
             // do not search the PATH, inherit environment
             execle("/bin/sh",
                 "/bin/sh",
@@ -437,6 +438,41 @@ private:
         }
     }
 
+    void Kill()
+    {
+        auto uid = Host->GetConfig()->UserId;
+        KillallByUser(uid);
+    }
+
+    void CheckMemoryConsumption()
+    {
+        auto uid = Host->GetConfig()->UserId;
+        if (uid <= 0) {
+            return;
+        }
+
+        try {
+            auto rss = GetUserRss(uid);
+            LOG_DEBUG(
+                "Checking memory consumption (MemoryLimit: %" PRId64 ", RSS: %" PRId64 ")",
+                UserJobSpec.memory_limit(),
+                rss);
+
+            if (rss > UserJobSpec.memory_limit()) {
+                SetError(TError(
+                    "Memory limit exceeded (MemoryLimit: %" PRId64 ", RSS: %" PRId64 ")",
+                    UserJobSpec.memory_limit(),
+                    rss));
+                Kill();
+            } else {
+                MemoryWatchdog->ScheduleNext();
+            }
+        } catch (const std::exception& ex) {
+            SetError(TError(ex));
+            Kill();
+        }
+    }
+
 
     TAutoPtr<TUserJobIO> JobIO;
     NScheduler::NProto::TUserJobSpec UserJobSpec;
@@ -449,6 +485,8 @@ private:
 
     TSpinLock SpinLock;
     TError JobExitError;
+
+    TPeriodicInvokerPtr MemoryWatchdog;
 
     TAutoPtr<TErrorOutput> ErrorOutput;
     std::vector< TAutoPtr<TOutputStream> > TableOutput;

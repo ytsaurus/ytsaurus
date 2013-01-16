@@ -15,6 +15,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
     START_SCHEDULER = True
+    
+    DELTA_NODE_CONFIG = {'exec_agent' : {'memory_watchdog_period': 100}}
 
     def test_empty_table(self):
         create('table', '//tmp/t1')
@@ -295,6 +297,37 @@ print '{hello=world}'
             opt='/spec/mapper/input_format=<has_subkey=true>yamr')
 
         assert read('//tmp/t_out') == [{'hello': 'world'}]
+
+
+    def test_memory_limit(self):
+        create('table', '//tmp/t_in')
+        write_str('//tmp/t_in', '{value=value;subkey=subkey;key=key;a=another}')
+
+        mapper = \
+"""
+import time
+a = list()
+while True:
+    a.append(''.join(['xxx'] * 10000))
+    time.sleep(0.01)
+"""
+        upload('//tmp/mapper.py', mapper)
+
+        create('table', '//tmp/t_out')
+
+        op_id = map('--dont_track', 
+             in_='//tmp/t_in',
+             out='//tmp/t_out',
+             command="python mapper.py",
+             file='//tmp/mapper.py',
+             opt='/spec/mapper/environment/PYTHONUSERBASE="/home/psushin"')
+
+        import time
+        time.sleep(360)
+
+        # if all jobs failed then operation is also failed
+        with pytest.raises(YTError): track_op(op_id)
+        # ToDo: check job error messages.
 
     def test_executable_mapper(self):
         create('table', '//tmp/t_in')

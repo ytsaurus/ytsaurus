@@ -24,6 +24,9 @@ struct TJobProxyConfig
     NMetaState::TMasterDiscoveryConfigPtr Masters;
     TDuration SupervisorRpcTimeout;
     TDuration HeartbeatPeriod;
+    TDuration MemoryWatchdogPeriod;
+
+    int UserId;
 
     NScheduler::TJobIOConfigPtr JobIO;
     NYTree::INodePtr Logging;
@@ -38,6 +41,10 @@ struct TJobProxyConfig
             .Default(TDuration::Seconds(30));
         Register("heartbeat_period", HeartbeatPeriod)
             .Default(TDuration::Seconds(5));
+        Register("memory_watchdog_period", MemoryWatchdogPeriod)
+            .Default(TDuration::Seconds(1));
+        Register("user_id", UserId).
+            Default(-1);
         Register("job_io", JobIO)
             .DefaultNew();
         Register("logging", Logging)

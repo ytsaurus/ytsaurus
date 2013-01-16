@@ -122,6 +122,7 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
 
         auto proxyConfig = CloneYsonSerializable(Bootstrap->GetJobProxyConfig());
         proxyConfig->JobIO = ioConfig;
+        proxyConfig->UserId = Slot->GetUserId();
 
         auto proxyConfigPath = NFS::CombinePaths(
             Slot->GetWorkingDirectory(),
@@ -537,8 +538,7 @@ void TJob::DoAbort(const TError& error, EJobState resultState, bool killJobProxy
 
     if (jobPhase >= EJobPhase::StartedProxy && killJobProxy) {
         try {
-            LOG_INFO("Killing job");
-            ProxyController->Kill(error);
+            ProxyController->Kill(Slot->GetUserId(), error);
         } catch (const std::exception& ex) {
             // NB: Retries should be done inside proxy controller (if makes sense).
             LOG_FATAL(ex, "Failed to kill job");

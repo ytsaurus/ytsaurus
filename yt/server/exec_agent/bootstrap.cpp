@@ -30,6 +30,10 @@ using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static NLog::TLogger& Logger = ExecAgentLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TBootstrap::TBootstrap(
     TExecAgentConfigPtr config,
     NCellNode::TBootstrap* nodeBootstrap)
@@ -47,6 +51,7 @@ void TBootstrap::Init()
 {
     JobProxyConfig = New<NJobProxy::TJobProxyConfig>();
     JobProxyConfig->SupervisorRpcTimeout = Config->SupervisorRpcTimeout;
+    JobProxyConfig->MemoryWatchdogPeriod = Config->MemoryWatchdogPeriod;
     JobProxyConfig->Logging = Config->JobProxyLogging;
     JobProxyConfig->SandboxName = SandboxName;
     JobProxyConfig->Masters = NodeBootstrap->GetConfig()->Masters;
@@ -54,6 +59,23 @@ void TBootstrap::Init()
     JobProxyConfig->SupervisorConnection->Address = NodeBootstrap->GetPeerAddress();
     // TODO(babenko): consider making this priority configurable
     JobProxyConfig->SupervisorConnection->Priority = 6;
+
+    JobControlEnabled = false;
+#ifdef _unix_
+    uid_t ruid, euid, suid;
+    YCHECK(getresuid(&ruid, &euid, &suid) == 0);
+    if (suid == 0) {
+        JobControlEnabled = true;
+    }
+#endif
+
+    if (!JobControlEnabled) {
+        if (Config->EnforceJobControl) {
+            LOG_FATAL("Job control disabled, must run as root.");
+        } else {
+            LOG_WARNING("Job control disabled, cannot kill jobs and use memory limits watcher.");
+        }
+    }
 
     JobManager = New<TJobManager>(Config->JobManager, this);
     JobManager->Initialize();
@@ -66,6 +88,11 @@ void TBootstrap::Init()
 
     SchedulerConnector = New<TSchedulerConnector>(Config->SchedulerConnector, this);
     SchedulerConnector->Start();
+}
+
+bool TBootstrap::IsJobControlEnabled() const
+{
+    return JobControlEnabled;
 }
 
 TExecAgentConfigPtr TBootstrap::GetConfig() const

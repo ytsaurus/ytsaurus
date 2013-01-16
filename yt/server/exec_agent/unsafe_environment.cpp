@@ -4,6 +4,7 @@
 #include "private.h"
 
 #include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/proc.h>
 #include <ytlib/logging/tagged_logger.h>
 
 #include <util/system/execpath.h>
@@ -48,33 +49,11 @@ private:
     friend class TUnsafeProxyController;
 
     Stroka ProxyPath;
-    TMutex ForkMutex;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifndef _win_
-
-namespace {
-
-TError StatusToError(int status)
-{
-    if (WIFEXITED(status) && (WEXITSTATUS(status) == 0)) {
-        return TError();
-    } else if (WIFSIGNALED(status)) {
-        return TError("Process terminated by signal %d",  WTERMSIG(status));
-    } else if (WIFSTOPPED(status)) {
-        return TError("Process stopped by signal %d",  WSTOPSIG(status));
-    } else if (WIFEXITED(status)) {
-        return TError("Process exited with value %d",  WEXITSTATUS(status));
-    } else {
-        return TError("Unknown status %d", status);
-    }
-}
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TUnsafeProxyController
     : public IProxyController
@@ -106,9 +85,7 @@ public:
         LOG_INFO("Starting job proxy in unsafe environment (WorkDir: %s)",
             ~WorkingDirectory);
 
-        //ToDo(psushin): Remove this mutex when libc is fixed.
-        EnvironmentBuilder->ForkMutex.Acquire();
-        ProcessId = fork();
+        ProcessId = GuardedFork();
 
         if (ProcessId == 0) {
             // ToDo(psushin): pass errors to parent process
@@ -123,7 +100,7 @@ public:
             dup2(fd, STDERR_FILENO);
 
             // Separate process group for that job - required in non-container mode only.
-            setpgid(0, 0);
+            //setpgid(0, 0);
 
             auto memoryLimit = static_cast<rlim_t>(MemoryLimit * LimitMultiplier);
             struct rlimit rlimit = {memoryLimit, RLIM_INFINITY};
@@ -157,8 +134,6 @@ public:
             _exit(7);
         }
 
-        EnvironmentBuilder->ForkMutex.Release();
-
         if (ProcessId < 0) {
             THROW_ERROR_EXCEPTION("Failed to start job proxy: fork failed")
                 << TError::FromSystem();
@@ -174,18 +149,18 @@ public:
         ControllerThread.Detach();
     }
 
-    void Kill(const TError& error) throw()
+    void Kill(int uid, const TError& error) throw()
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        LOG_INFO(error, "Killing job");
+        LOG_INFO(error, "Killing job in unsafe environment (UID: %d)", uid);
 
         SetError(error);
 
         if (ProcessId < 0)
             return;
 
-        auto result = killpg(ProcessId, 9);
+        auto result = kill(ProcessId, 9);
         if (result != 0) {
             switch (errno) {
                 case ESRCH:
@@ -194,6 +169,14 @@ public:
                 default:
                     LOG_FATAL("Failed to kill job: killpg failed (errno: %s)", strerror(errno));
                     break;
+            }
+        }
+
+        if (uid > 0) {
+            try {
+                KillallByUser(uid);
+            } catch (const std::exception& ex) {
+                LOG_FATAL(TError(ex));
             }
         }
 

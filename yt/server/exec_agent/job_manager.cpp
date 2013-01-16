@@ -49,7 +49,11 @@ void TJobManager::Initialize()
     for (int slotIndex = 0; slotIndex < Config->ResourceLimits->Slots; ++slotIndex) {
         auto slotName = ToString(slotIndex);
         auto slotPath = NFS::CombinePaths(Config->SlotLocation, slotName);
-        Slots.push_back(New<TSlot>(slotPath, slotIndex));
+
+        int uid = Bootstrap->IsJobControlEnabled()
+            ? Config->StartUserId + slotIndex
+            : -1;
+        Slots.push_back(New<TSlot>(slotPath, slotIndex, uid));
         Slots.back()->Clean();
     }
 }

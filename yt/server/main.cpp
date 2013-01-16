@@ -256,6 +256,14 @@ int Main(int argc, const char* argv[])
     SigEmptySet(&sigset);
     SigAddSet(&sigset, SIGHUP);
     SigProcMask(SIG_BLOCK, &sigset, NULL);
+
+    uid_t ruid, euid, suid;
+    YCHECK(getresuid(&ruid, &euid, &suid) == 0);
+    if (euid == 0) {
+        // if effective uid == 0 (e. g. set-uid-root), make
+        // saved = effective, effective = real
+        YCHECK(setresuid(ruid, ruid, euid) == 0);
+    }
 #endif
 
     int exitCode;

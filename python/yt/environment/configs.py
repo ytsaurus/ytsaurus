@@ -73,6 +73,9 @@ def get_scheduler_config():
     scheduler = {
         strategy = fair_share;
         failed_jobs_limit = 10;
+        environment = {
+             PYTHONUSERBASE = "/tmp"
+        };
     };
     logging = {
         rules = [

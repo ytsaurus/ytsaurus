@@ -37,7 +37,8 @@ void TFileWriter::Open()
     YCHECK(!IsOpen);
     YCHECK(!IsClosed);
 
-    ui32 oMode = CreateAlways | WrOnly | Seq | CloseOnExec;
+    ui32 oMode = CreateAlways | WrOnly | Seq | CloseOnExec |
+        AR | AWUser | AWGroup;
     DataFile.Reset(new TFile(FileName + NFS::TempFileSuffix, oMode));
 
     IsOpen = true;
@@ -100,7 +101,7 @@ TAsyncError TFileWriter::AsyncClose(const NChunkClient::NProto::TChunkMeta& chun
     // Write meta.
     ChunkMeta.CopyFrom(chunkMeta);
     UpdateProtoExtension(ChunkMeta.mutable_extensions(), BlocksExt);
-    
+
     TSharedRef metaData;
     YCHECK(SerializeToProtoWithEnvelope(ChunkMeta, &metaData));
 
@@ -113,7 +114,7 @@ TAsyncError TFileWriter::AsyncClose(const NChunkClient::NProto::TChunkMeta& chun
     try {
         TFile chunkMetaFile(
             chunkMetaFileName + NFS::TempFileSuffix,
-            CreateAlways | WrOnly | Seq | CloseOnExec);
+            CreateAlways | WrOnly | Seq | CloseOnExec | ARUser | ARGroup | AWUser | AWGroup);
 
         WritePod(chunkMetaFile, header);
         chunkMetaFile.Write(metaData.Begin(), metaData.Size());

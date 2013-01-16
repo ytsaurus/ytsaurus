@@ -27,7 +27,7 @@ struct IProxyController
      *
      *  Must be called from the same thread as #Run.
      */
-    virtual void Kill(const TError& error) throw() = 0;
+    virtual void Kill(int uid, const TError& error) throw() = 0;
 
     DECLARE_INTERFACE_SIGNAL(void(TError), Exited);
 

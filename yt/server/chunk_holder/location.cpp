@@ -24,6 +24,8 @@ using namespace NChunkClient;
 
 static NLog::TLogger& Logger = DataNodeLogger;
 
+const int Permissions = 0751;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -92,7 +94,7 @@ i64 TLocation::GetAvailableSpace() const
     }
 
     auto path = GetPath();
-    
+
     try {
         auto statistics = NFS::GetDiskSpaceStatistics(path);
         AvailableSpace = statistics.AvailableSpace;
@@ -234,7 +236,7 @@ void TLocation::DoDisable()
     Disabled_.Fire();
 }
 
-const TGuid& TLocation::GetCellGuid() 
+const TGuid& TLocation::GetCellGuid()
 {
     return CellGuid;
 }
@@ -270,7 +272,8 @@ std::vector<TChunkDescriptor> TLocation::Initialize()
 
     LOG_INFO("Scanning storage location");
 
-    NFS::ForcePath(path);
+    // Others cannot list chunk_store and chunk_cache dirs.
+    NFS::ForcePath(path, Permissions);
     NFS::CleanTempFiles(path);
 
     yhash_set<Stroka> fileNames;
@@ -342,7 +345,7 @@ std::vector<TChunkDescriptor> TLocation::Initialize()
 
     // Force subdirectories.
     for (int hashByte = 0; hashByte <= 0xff; ++hashByte) {
-        NFS::ForcePath(NFS::CombinePaths(GetPath(), Sprintf("%02x", hashByte)));
+        NFS::ForcePath(NFS::CombinePaths(GetPath(), Sprintf("%02x", hashByte)), Permissions);
     }
 
     // Initialize and start health checker.

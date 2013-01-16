@@ -15,9 +15,10 @@ class TSlot
     : public TRefCounted
 {
 public:
-    TSlot(const Stroka& path, int id);
+    TSlot(const Stroka& path, int id, int userId);
 
     bool IsFree() const;
+    int GetUserId() const;
 
     void Acquire();
     void InitSandbox();
@@ -31,11 +32,11 @@ public:
      *  Throws if operation fails.
      */
     void MakeLink(
-        const Stroka& linkName, 
+        const Stroka& linkName,
         const Stroka& targetPath,
         bool isExecutable);
 
-    //! Writes data from produce to #fileName 
+    //! Writes data from produce to #fileName
     void MakeFile(
         const Stroka& fileName,
         NYTree::TYsonProducer producer,
@@ -49,6 +50,8 @@ private:
 
     Stroka Path;
     Stroka SandboxPath;
+
+    int UserId;
 
     TActionQueuePtr SlotThread;
 };

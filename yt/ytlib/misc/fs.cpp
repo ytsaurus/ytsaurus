@@ -143,7 +143,7 @@ TDiskSpaceStatistics GetDiskSpaceStatistics(const Stroka& path)
 #endif
 
     if (!ok) {
-        THROW_ERROR_EXCEPTION("Failed to get disk space statistics for %s", 
+        THROW_ERROR_EXCEPTION("Failed to get disk space statistics for %s",
             ~path.Quote())
             << TError::FromSystem();
     }
@@ -248,9 +248,9 @@ void SetExecutableMode(const Stroka& path, bool executable)
     UNUSED(path);
     UNUSED(executable);
 #else
-    int mode = S_IRUSR | S_IWUSR;
+    int mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH;
     if (executable)
-        mode |= S_IXUSR;
+        mode |= S_IXOTH;
     bool ok = chmod(~path, mode) == 0;
     if (!ok) {
         THROW_ERROR_EXCEPTION(
