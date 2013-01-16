@@ -201,6 +201,8 @@ YtCommand.prototype._dispatchAsJson = function(body) {
     this.rsp.removeHeader("Vary");
     this.rsp.setHeader("Content-Type", "application/json");
     this.rsp.setHeader("Content-Length", body.length);
+    this.rsp.setHeader("Connection", "close");
+    this.rsp.shouldKeepAlive = false;
     this.rsp.writeHead(this.rsp.statusCode);
     this.rsp.end(body);
 };
