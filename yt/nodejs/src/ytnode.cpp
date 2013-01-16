@@ -8,6 +8,7 @@
 #include "driver.h"
 
 namespace NYT {
+namespace NNodeJS {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,6 +37,7 @@ void ExportYT(Handle<Object> target)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NNodeJS
 } // namespace NYT
 
-NODE_MODULE(ytnode, NYT::ExportYT)
+NODE_MODULE(ytnode, NYT::NNodeJS::ExportYT)

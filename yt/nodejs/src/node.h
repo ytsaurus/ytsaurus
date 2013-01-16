@@ -5,6 +5,7 @@
 #include <ytlib/ytree/public.h>
 
 namespace NYT {
+namespace NNodeJS {
 
 NYTree::INodePtr ConvertV8ValueToNode(v8::Handle<v8::Value> value);
 NYTree::INodePtr ConvertV8BytesToNode(const char* buffer, size_t length, ECompression compression, NYTree::INodePtr format);
@@ -51,4 +52,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NNodeJS
 } // namespace NYT

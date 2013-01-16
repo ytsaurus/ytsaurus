@@ -3,6 +3,7 @@
 #include <ytlib/misc/error.h>
 
 namespace NYT {
+namespace NNodeJS {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,7 +28,6 @@ static const int MaxPartsPerPull = 8;
 Persistent<FunctionTemplate> TNodeJSOutputStream::ConstructorTemplate;
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 TNodeJSOutputStream::TNodeJSOutputStream(ui64 lowWatermark, ui64 highWatermark)
     : TNodeJSStreamBase()
@@ -391,4 +391,5 @@ void TNodeJSOutputStream::DisposeBuffers()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NNodeJS
 } // namespace NYT
