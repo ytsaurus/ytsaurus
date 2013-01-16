@@ -186,6 +186,7 @@ set( ST_SRCS
   ${ST_BASE}/printf.cpp
   ${ST_BASE}/format.cpp
   ${ST_BASE}/lz.cpp
+  ${ST_BASE}/lzop.cpp
     
   ${ST_BASE}/aligned.h
   ${ST_BASE}/base.h
