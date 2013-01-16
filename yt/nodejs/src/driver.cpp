@@ -256,16 +256,26 @@ void TNodeJSDriver::Initialize(Handle<Object> target)
         ConstructorTemplate->GetFunction());
 
     auto compressionValues = ECompression::GetDomainValues();
+    Local<Array> compressionMapping = Array::New();
     FOREACH (auto& value, compressionValues) {
         Stroka key = Stroka::Join("ECompression_", ECompression::GetLiteralByValue(value));
-        target->Set(String::NewSymbol(~key), Integer::New(value));
+        auto keyHandle = String::NewSymbol(key.c_str());
+        auto valueHandle = Integer::New(value);
+        target->Set(keyHandle, valueHandle);
+        compressionMapping->Set(valueHandle, keyHandle);
     }
+    target->Set(String::NewSymbol("ECompression"), compressionMapping);
 
     auto dataTypeValues = EDataType::GetDomainValues();
+    Local<Array> dataTypeMapping = Array::New();
     FOREACH (auto& value, dataTypeValues) {
         Stroka key = Stroka::Join("EDataType_", EDataType::GetLiteralByValue(value));
-        target->Set(String::NewSymbol(~key), Integer::New(value));
+        auto keyHandle = String::NewSymbol(key.c_str());
+        auto valueHandle = Integer::New(value);
+        target->Set(keyHandle, valueHandle);
+        dataTypeMapping->Set(valueHandle, keyHandle);
     }
+    target->Set(String::NewSymbol("EDataType"), dataTypeMapping);
 }
 
 bool TNodeJSDriver::HasInstance(Handle<Value> value)

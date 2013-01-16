@@ -614,9 +614,9 @@ YtCommand.prototype._logRequest = function() {
         name                    : this.name,
         parameters              : this.parameters.Print(),
         input_format            : this.input_format.Print(),
-        input_compression       : this.input_compression,
+        input_compression       : binding.ECompression[this.input_compression],
         output_format           : this.output_format.Print(),
-        output_compression      : this.output_compression
+        output_compression      : binding.ECompression[this.output_compression]
     });
 };
 
