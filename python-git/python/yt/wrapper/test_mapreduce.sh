@@ -179,17 +179,17 @@ if __name__ == '__main__':
     " >my_mapper.py
     chmod +x my_mapper.py
 
-    ./mapreduce -drop ignat/mapper.py
+    ./mapreduce -drop ignat/dir/mapper.py
     initial_number_of_files="`./mapreduce -listfiles | wc -l`"
 
-    ./mapreduce -upload ignat/mapper.py -executable < my_mapper.py
-    cat my_mapper.py | ./mapreduce -upload ignat/mapper.py -executable
-    ./mapreduce -download ignat/mapper.py > my_mapper_copy.py
+    ./mapreduce -upload ignat/dir/mapper.py -executable < my_mapper.py
+    cat my_mapper.py | ./mapreduce -upload ignat/dir/mapper.py -executable
+    ./mapreduce -download ignat/dir/mapper.py > my_mapper_copy.py
     diff my_mapper.py my_mapper_copy.py
 
     check $((1 + ${initial_number_of_files})) "`./mapreduce -listfiles | wc -l`"
 
-    ./mapreduce -subkey -map "./mapper.py" -ytfile "ignat/mapper.py" -src "ignat/temp" -dst "ignat/mapped"
+    ./mapreduce -subkey -map "./mapper.py" -ytfile "ignat/dir/mapper.py" -src "ignat/temp" -dst "ignat/mapped"
     check 5 "`./mapreduce -subkey -read "ignat/mapped" | wc -l`"
 
     rm -f my_mapper.py my_mapper_copy.py
