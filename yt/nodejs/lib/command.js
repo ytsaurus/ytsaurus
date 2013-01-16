@@ -425,7 +425,9 @@ YtCommand.prototype._getInputCompression = function() {
         if (_ENCODING_TO_COMPRESSION.hasOwnProperty(header)) {
             result = _ENCODING_TO_COMPRESSION[header];
         } else {
-            throw new YtError("Unsupported Content-Encoding " + JSON.stringify(header) + ".");
+            throw new YtError(
+                "Unsupported Content-Encoding " + JSON.stringify(header) + "." +
+                " Candidates are: " + _ENCODING_ALL.join(", ") + ".");
         }
     }
 
