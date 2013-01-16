@@ -10,12 +10,12 @@ namespace NNodeJS {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNodeJSDriver
+class TDriverWrap
     : public node::ObjectWrap
 {
 protected:
-    TNodeJSDriver(bool echo, v8::Handle<v8::Object> configObject);
-    ~TNodeJSDriver();
+    TDriverWrap(bool echo, v8::Handle<v8::Object> configObject);
+    ~TDriverWrap();
 
 public:
     using node::ObjectWrap::Ref;
@@ -47,8 +47,8 @@ private:
     const bool Echo;
 
 private:
-    TNodeJSDriver(const TNodeJSDriver&);
-    TNodeJSDriver& operator=(const TNodeJSDriver&);
+    TDriverWrap(const TDriverWrap&);
+    TDriverWrap& operator=(const TDriverWrap&);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

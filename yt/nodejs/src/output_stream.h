@@ -14,13 +14,13 @@ namespace NNodeJS {
 //! This class adheres to TOutputStream interface as a C++ object and
 //! simultaneously provides 'readable stream' interface stubs as a JS object
 //! thus effectively acting as a bridge from C++ to JS.
-class TNodeJSOutputStream
+class TOutputStreamWrap
     : public TNodeJSStreamBase
     , public TOutputStream
 {
 protected:
-    TNodeJSOutputStream(ui64 lowWatermark, ui64 highWatermark);
-    ~TNodeJSOutputStream() throw();
+    TOutputStreamWrap(ui64 lowWatermark, ui64 highWatermark);
+    ~TOutputStreamWrap() throw();
 
 public:
     using node::ObjectWrap::Ref;
@@ -90,20 +90,20 @@ private:
     TLockFreeQueue<TOutputPart> Queue;
 
 private:
-    TNodeJSOutputStream(const TNodeJSOutputStream&);
-    TNodeJSOutputStream& operator=(const TNodeJSOutputStream&);
+    TOutputStreamWrap(const TOutputStreamWrap&);
+    TOutputStreamWrap& operator=(const TOutputStreamWrap&);
 };
 
-inline void TNodeJSOutputStream::EmitAndStifleOnData()
+inline void TOutputStreamWrap::EmitAndStifleOnData()
 {
     if (AtomicCas(&IsPaused_, 1, 0)) {
         // Post to V8 thread.
         AsyncRef(false);
-        EIO_PUSH(TNodeJSOutputStream::AsyncOnData, this);
+        EIO_PUSH(TOutputStreamWrap::AsyncOnData, this);
     }
 }
 
-inline void TNodeJSOutputStream::IgniteOnData()
+inline void TOutputStreamWrap::IgniteOnData()
 {
     if (AtomicCas(&IsPaused_, 0, 1)) {
         if (!Queue.IsEmpty()) {

@@ -41,7 +41,7 @@ function YtReadableStream(low_watermark, high_watermark) {
 
     var self = this;
 
-    this._binding = new binding.TNodeJSOutputStream(low_watermark, high_watermark);
+    this._binding = new binding.TOutputStreamWrap(low_watermark, high_watermark);
     this._binding.on_data = function() {
         self.__DBG("Bindings (OutputStream) -> on_data");
         self._consumeData();

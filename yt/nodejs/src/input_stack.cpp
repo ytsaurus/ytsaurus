@@ -9,7 +9,7 @@ namespace NNodeJS {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeJSInputStack::TNodeJSInputStack(TNodeJSInputStream* base)
+TNodeJSInputStack::TNodeJSInputStack(TInputStreamWrap* base)
     : TGrowingStreamStack(base)
 {
     THREAD_AFFINITY_IS_V8();
@@ -22,9 +22,9 @@ TNodeJSInputStack::~TNodeJSInputStack() throw()
     GetBaseStream()->AsyncUnref();
 }
 
-TNodeJSInputStream* TNodeJSInputStack::GetBaseStream()
+TInputStreamWrap* TNodeJSInputStack::GetBaseStream()
 {
-    return static_cast<TNodeJSInputStream*>(Bottom());
+    return static_cast<TInputStreamWrap*>(Bottom());
 }
 
 void TNodeJSInputStack::AddCompression(ECompression compression)

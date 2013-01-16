@@ -25,9 +25,9 @@ static const unsigned int NumberOfSpins = 4;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Persistent<FunctionTemplate> TNodeJSInputStream::ConstructorTemplate;
+Persistent<FunctionTemplate> TInputStreamWrap::ConstructorTemplate;
 
-TNodeJSInputStream::TNodeJSInputStream(ui64 lowWatermark, ui64 highWatermark)
+TInputStreamWrap::TInputStreamWrap(ui64 lowWatermark, ui64 highWatermark)
     : TNodeJSStreamBase()
     , IsPushable(1)
     , IsReadable(1)
@@ -44,14 +44,14 @@ TNodeJSInputStream::TNodeJSInputStream(ui64 lowWatermark, ui64 highWatermark)
     YCHECK(LowWatermark < HighWatermark);
 }
 
-TNodeJSInputStream::~TNodeJSInputStream() throw()
+TInputStreamWrap::~TInputStreamWrap() throw()
 {
     THREAD_AFFINITY_IS_V8();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TNodeJSInputStream::Initialize(Handle<Object> target)
+void TInputStreamWrap::Initialize(Handle<Object> target)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -61,22 +61,22 @@ void TNodeJSInputStream::Initialize(Handle<Object> target)
     InactiveQueueSizeSymbol = NODE_PSYMBOL("inactive_queue_size");
 
     ConstructorTemplate = Persistent<FunctionTemplate>::New(
-        FunctionTemplate::New(TNodeJSInputStream::New));
+        FunctionTemplate::New(TInputStreamWrap::New));
 
     ConstructorTemplate->InstanceTemplate()->SetInternalFieldCount(1);
-    ConstructorTemplate->SetClassName(String::NewSymbol("TNodeJSInputStream"));
+    ConstructorTemplate->SetClassName(String::NewSymbol("TInputStreamWrap"));
 
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Push", TNodeJSInputStream::Push);
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Sweep", TNodeJSInputStream::Sweep);
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "End", TNodeJSInputStream::End);
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Destroy", TNodeJSInputStream::Destroy);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Push", TInputStreamWrap::Push);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Sweep", TInputStreamWrap::Sweep);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "End", TInputStreamWrap::End);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Destroy", TInputStreamWrap::Destroy);
 
     target->Set(
-        String::NewSymbol("TNodeJSInputStream"),
+        String::NewSymbol("TInputStreamWrap"),
         ConstructorTemplate->GetFunction());
 }
 
-bool TNodeJSInputStream::HasInstance(Handle<Value> value)
+bool TInputStreamWrap::HasInstance(Handle<Value> value)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -88,7 +88,7 @@ bool TNodeJSInputStream::HasInstance(Handle<Value> value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TNodeJSInputStream::New(const Arguments& args)
+Handle<Value> TInputStreamWrap::New(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -101,9 +101,9 @@ Handle<Value> TNodeJSInputStream::New(const Arguments& args)
     ui64 lowWatermark = args[0]->Uint32Value();
     ui64 highWatermark = args[1]->Uint32Value();
 
-    TNodeJSInputStream* stream = NULL;
+    TInputStreamWrap* stream = NULL;
     try {
-        stream = new TNodeJSInputStream(lowWatermark, highWatermark);
+        stream = new TInputStreamWrap(lowWatermark, highWatermark);
         stream->Wrap(args.This());
 
         stream->handle_->Set(
@@ -127,14 +127,14 @@ Handle<Value> TNodeJSInputStream::New(const Arguments& args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TNodeJSInputStream::Push(const Arguments& args)
+Handle<Value> TInputStreamWrap::Push(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     // Unwrap.
-    TNodeJSInputStream* stream =
-        ObjectWrap::Unwrap<TNodeJSInputStream>(args.This());
+    TInputStreamWrap* stream =
+        ObjectWrap::Unwrap<TInputStreamWrap>(args.This());
 
     // Validate arguments.
     YASSERT(args.Length() == 3);
@@ -151,7 +151,7 @@ Handle<Value> TNodeJSInputStream::Push(const Arguments& args)
         /* length */ args[2]->Uint32Value()));
 }
 
-Handle<Value> TNodeJSInputStream::DoPush(Persistent<Value> handle, char* buffer, size_t offset, size_t length)
+Handle<Value> TInputStreamWrap::DoPush(Persistent<Value> handle, char* buffer, size_t offset, size_t length)
 {
     THREAD_AFFINITY_IS_V8();
 
@@ -185,14 +185,14 @@ Handle<Value> TNodeJSInputStream::DoPush(Persistent<Value> handle, char* buffer,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TNodeJSInputStream::End(const Arguments& args)
+Handle<Value> TInputStreamWrap::End(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     // Unwrap.
-    TNodeJSInputStream* stream =
-        ObjectWrap::Unwrap<TNodeJSInputStream>(args.This());
+    TInputStreamWrap* stream =
+        ObjectWrap::Unwrap<TInputStreamWrap>(args.This());
 
     // Validate arguments.
     YASSERT(args.Length() == 0);
@@ -203,7 +203,7 @@ Handle<Value> TNodeJSInputStream::End(const Arguments& args)
     return Undefined();
 }
 
-void TNodeJSInputStream::DoEnd()
+void TInputStreamWrap::DoEnd()
 {
     THREAD_AFFINITY_IS_V8();
 
@@ -219,14 +219,14 @@ void TNodeJSInputStream::DoEnd()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TNodeJSInputStream::Destroy(const Arguments& args)
+Handle<Value> TInputStreamWrap::Destroy(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     // Unwrap.
-    TNodeJSInputStream* stream =
-        ObjectWrap::Unwrap<TNodeJSInputStream>(args.This());
+    TInputStreamWrap* stream =
+        ObjectWrap::Unwrap<TInputStreamWrap>(args.This());
 
     // Validate arguments.
     YASSERT(args.Length() == 0);
@@ -237,7 +237,7 @@ Handle<Value> TNodeJSInputStream::Destroy(const Arguments& args)
     return Undefined();
 }
 
-void TNodeJSInputStream::DoDestroy()
+void TInputStreamWrap::DoDestroy()
 {
     THREAD_AFFINITY_IS_V8();
 
@@ -266,14 +266,14 @@ struct TAlreadyLockedOps {
     }
 };
 
-Handle<Value> TNodeJSInputStream::Sweep(const Arguments& args)
+Handle<Value> TInputStreamWrap::Sweep(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     // Unwrap.
-    TNodeJSInputStream* stream =
-        ObjectWrap::Unwrap<TNodeJSInputStream>(args.This());
+    TInputStreamWrap* stream =
+        ObjectWrap::Unwrap<TInputStreamWrap>(args.This());
 
     // Validate arguments.
     YASSERT(args.Length() == 0);
@@ -284,17 +284,17 @@ Handle<Value> TNodeJSInputStream::Sweep(const Arguments& args)
     return Undefined();
 }
 
-int TNodeJSInputStream::AsyncSweep(eio_req* request)
+int TInputStreamWrap::AsyncSweep(eio_req* request)
 {
     THREAD_AFFINITY_IS_V8();
-    TNodeJSInputStream* stream = static_cast<TNodeJSInputStream*>(request->data);
+    TInputStreamWrap* stream = static_cast<TInputStreamWrap*>(request->data);
     AtomicSet(stream->SweepRequestPending, 0);
     stream->DoSweep();
     stream->AsyncUnref();
     return 0;
 }
 
-void TNodeJSInputStream::DoSweep()
+void TInputStreamWrap::DoSweep()
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -328,14 +328,14 @@ void TNodeJSInputStream::DoSweep()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TNodeJSInputStream::Drain(const Arguments& args)
+Handle<Value> TInputStreamWrap::Drain(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     // Unwrap.
-    TNodeJSInputStream* stream =
-        ObjectWrap::Unwrap<TNodeJSInputStream>(args.This());
+    TInputStreamWrap* stream =
+        ObjectWrap::Unwrap<TInputStreamWrap>(args.This());
 
     // Validate arguments.
     YASSERT(args.Length() == 0);
@@ -346,17 +346,17 @@ Handle<Value> TNodeJSInputStream::Drain(const Arguments& args)
     return Undefined();
 }
 
-int TNodeJSInputStream::AsyncDrain(eio_req* request)
+int TInputStreamWrap::AsyncDrain(eio_req* request)
 {
     THREAD_AFFINITY_IS_V8();
-    TNodeJSInputStream* stream = static_cast<TNodeJSInputStream*>(request->data);
+    TInputStreamWrap* stream = static_cast<TInputStreamWrap*>(request->data);
     AtomicSet(stream->DrainRequestPending, 0);
     stream->DoDrain();
     stream->AsyncUnref();
     return 0;
 }
 
-void TNodeJSInputStream::DoDrain()
+void TInputStreamWrap::DoDrain()
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -368,7 +368,7 @@ void TNodeJSInputStream::DoDrain()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t TNodeJSInputStream::DoRead(void* data, size_t length)
+size_t TInputStreamWrap::DoRead(void* data, size_t length)
 {
     THREAD_AFFINITY_IS_ANY();
 
@@ -432,8 +432,8 @@ size_t TNodeJSInputStream::DoRead(void* data, size_t length)
 
     // (A note on Enqueue*() functions below.)
     // We require that calling party holds a synchronous lock on the stream.
-    // In case of TNodeJSDriver an instance TNodeJSInputStack holds a lock
-    // and TNodeJSDriver implementation guarantees that all Read() calls
+    // In case of TDriverWrap an instance TNodeJSInputStack holds a lock
+    // and TDriverWrap implementation guarantees that all Read() calls
     // are within scope of the lock.
 
     if (!InactiveQueue.empty()) {
@@ -451,7 +451,7 @@ size_t TNodeJSInputStream::DoRead(void* data, size_t length)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TNodeJSInputStream::UpdateV8Properties()
+void TInputStreamWrap::UpdateV8Properties()
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -467,7 +467,7 @@ void TNodeJSInputStream::UpdateV8Properties()
         (v8::PropertyAttribute)(v8::ReadOnly | v8::DontDelete));
 }
 
-void TNodeJSInputStream::DisposeHandles(std::deque<TInputPart*>* queue)
+void TInputStreamWrap::DisposeHandles(std::deque<TInputPart*>* queue)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;

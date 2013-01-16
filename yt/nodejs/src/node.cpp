@@ -231,23 +231,23 @@ INodePtr ConvertV8BytesToNode(const char* buffer, size_t length, ECompression co
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Persistent<FunctionTemplate> TNodeJSNode::ConstructorTemplate;
+Persistent<FunctionTemplate> TNodeWrap::ConstructorTemplate;
 
-TNodeJSNode::TNodeJSNode(INodePtr node)
+TNodeWrap::TNodeWrap(INodePtr node)
     : node::ObjectWrap()
     , Node_(MoveRV(node))
 {
     THREAD_AFFINITY_IS_V8();
 }
 
-TNodeJSNode::~TNodeJSNode() throw()
+TNodeWrap::~TNodeWrap() throw()
 {
     THREAD_AFFINITY_IS_V8();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TNodeJSNode::Initialize(Handle<Object> target)
+void TNodeWrap::Initialize(Handle<Object> target)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -256,29 +256,29 @@ void TNodeJSNode::Initialize(Handle<Object> target)
     SpecialAttributesKey = NODE_PSYMBOL("$attributes");
 
     ConstructorTemplate = Persistent<FunctionTemplate>::New(
-        FunctionTemplate::New(TNodeJSNode::New));
+        FunctionTemplate::New(TNodeWrap::New));
 
     ConstructorTemplate->InstanceTemplate()->SetInternalFieldCount(1);
-    ConstructorTemplate->SetClassName(String::NewSymbol("TNodeJSNode"));
+    ConstructorTemplate->SetClassName(String::NewSymbol("TNodeWrap"));
 
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Print", TNodeJSNode::Print);
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Traverse", TNodeJSNode::Traverse);
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Get", TNodeJSNode::Get);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Print", TNodeWrap::Print);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Traverse", TNodeWrap::Traverse);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Get", TNodeWrap::Get);
 
     target->Set(
-        String::NewSymbol("TNodeJSNode"),
+        String::NewSymbol("TNodeWrap"),
         ConstructorTemplate->GetFunction());
 
     target->Set(
         String::NewSymbol("CreateMergedNode"),
-        FunctionTemplate::New(TNodeJSNode::CreateMerged)->GetFunction());
+        FunctionTemplate::New(TNodeWrap::CreateMerged)->GetFunction());
 
     target->Set(
         String::NewSymbol("CreateV8Node"),
-        FunctionTemplate::New(TNodeJSNode::CreateV8)->GetFunction());
+        FunctionTemplate::New(TNodeWrap::CreateV8)->GetFunction());
 }
 
-bool TNodeJSNode::HasInstance(Handle<Value> value)
+bool TNodeWrap::HasInstance(Handle<Value> value)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -288,15 +288,15 @@ bool TNodeJSNode::HasInstance(Handle<Value> value)
         ConstructorTemplate->HasInstance(value->ToObject());
 }
 
-INodePtr TNodeJSNode::UnwrapNode(Handle<Value> value)
+INodePtr TNodeWrap::UnwrapNode(Handle<Value> value)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    return ObjectWrap::Unwrap<TNodeJSNode>(value->ToObject())->GetNode();
+    return ObjectWrap::Unwrap<TNodeWrap>(value->ToObject())->GetNode();
 }
 
-Handle<Value> TNodeJSNode::New(const Arguments& args)
+Handle<Value> TNodeWrap::New(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -317,14 +317,14 @@ Handle<Value> TNodeJSNode::New(const Arguments& args)
                 node = NULL;
             } else {
                 THROW_ERROR_EXCEPTION(
-                    "1-ary constructor of TNodeJSNode can consume either Object or String or Null or Undefined");
+                    "1-ary constructor of TNodeWrap can consume either Object or String or Null or Undefined");
             }
         } else if (args.Length() == 3) {
             EXPECT_THAT_IS(args[1], Uint32);
-            EXPECT_THAT_HAS_INSTANCE(args[2], TNodeJSNode);
+            EXPECT_THAT_HAS_INSTANCE(args[2], TNodeWrap);
 
             ECompression compression = (ECompression)args[1]->Uint32Value();
-            INodePtr format = TNodeJSNode::UnwrapNode(args[2]);
+            INodePtr format = TNodeWrap::UnwrapNode(args[2]);
 
             auto arg = args[0];
             if (node::Buffer::HasInstance(arg)) {
@@ -342,14 +342,14 @@ Handle<Value> TNodeJSNode::New(const Arguments& args)
                     format);
             } else {
                 THROW_ERROR_EXCEPTION(
-                    "3-ary constructor of TNodeJSNode can consume either String or Buffer with compression (Uint32) and format (TNodeJSNode)");
+                    "3-ary constructor of TNodeWrap can consume either String or Buffer with compression (Uint32) and format (TNodeWrap)");
             }
         } else {
             THROW_ERROR_EXCEPTION(
-                "There are only 0-ary, 1-ary and 3-ary constructors of TNodeJSNode");
+                "There are only 0-ary, 1-ary and 3-ary constructors of TNodeWrap");
         }
 
-        THolder<TNodeJSNode> wrappedNode(new TNodeJSNode(node));
+        THolder<TNodeWrap> wrappedNode(new TNodeWrap(node));
         wrappedNode.Release()->Wrap(args.This());
 
         return args.This();
@@ -360,7 +360,7 @@ Handle<Value> TNodeJSNode::New(const Arguments& args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TNodeJSNode::CreateMerged(const Arguments& args)
+Handle<Value> TNodeWrap::CreateMerged(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -374,10 +374,10 @@ Handle<Value> TNodeJSNode::CreateMerged(const Arguments& args)
             if (arg->IsNull() || arg->IsUndefined()) {
                 continue;
             } else {
-                EXPECT_THAT_HAS_INSTANCE(arg, TNodeJSNode);
+                EXPECT_THAT_HAS_INSTANCE(arg, TNodeWrap);
             }
 
-            delta = TNodeJSNode::UnwrapNode(args[i]);
+            delta = TNodeWrap::UnwrapNode(args[i]);
             result = result ? UpdateNode(MoveRV(result), MoveRV(delta)) : MoveRV(delta);
         }
     } catch (const std::exception& ex) {
@@ -385,14 +385,14 @@ Handle<Value> TNodeJSNode::CreateMerged(const Arguments& args)
     }
 
     Local<Object> handle = ConstructorTemplate->GetFunction()->NewInstance();
-    ObjectWrap::Unwrap<TNodeJSNode>(handle)->SetNode(MoveRV(result));
+    ObjectWrap::Unwrap<TNodeWrap>(handle)->SetNode(MoveRV(result));
 
     return scope.Close(MoveRV(handle));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TNodeJSNode::CreateV8(const Arguments& args)
+Handle<Value> TNodeWrap::CreateV8(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -408,21 +408,21 @@ Handle<Value> TNodeJSNode::CreateV8(const Arguments& args)
     }
 
     Local<Object> handle = ConstructorTemplate->GetFunction()->NewInstance();
-    ObjectWrap::Unwrap<TNodeJSNode>(handle)->SetNode(MoveRV(node));
+    ObjectWrap::Unwrap<TNodeWrap>(handle)->SetNode(MoveRV(node));
 
     return scope.Close(MoveRV(handle));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TNodeJSNode::Print(const Arguments& args)
+Handle<Value> TNodeWrap::Print(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     YASSERT(args.Length() == 0);
 
-    INodePtr node = TNodeJSNode::UnwrapNode(args.This());
+    INodePtr node = TNodeWrap::UnwrapNode(args.This());
 
     auto string = ConvertToYsonString(node, EYsonFormat::Text);
     auto handle = String::New(string.Data().c_str(), string.Data().length());
@@ -432,7 +432,7 @@ Handle<Value> TNodeJSNode::Print(const Arguments& args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TNodeJSNode::Traverse(const Arguments& args)
+Handle<Value> TNodeWrap::Traverse(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -441,7 +441,7 @@ Handle<Value> TNodeJSNode::Traverse(const Arguments& args)
 
     EXPECT_THAT_IS(args[0], String);
 
-    INodePtr node = TNodeJSNode::UnwrapNode(args.This());
+    INodePtr node = TNodeWrap::UnwrapNode(args.This());
     String::AsciiValue pathValue(args[0]->ToString());
     TStringBuf path(*pathValue, pathValue.length());
 
@@ -452,37 +452,37 @@ Handle<Value> TNodeJSNode::Traverse(const Arguments& args)
     }
 
     Local<Object> handle = ConstructorTemplate->GetFunction()->NewInstance();
-    ObjectWrap::Unwrap<TNodeJSNode>(handle)->SetNode(MoveRV(node));
+    ObjectWrap::Unwrap<TNodeWrap>(handle)->SetNode(MoveRV(node));
 
     return scope.Close(MoveRV(handle));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TNodeJSNode::Get(const Arguments& args)
+Handle<Value> TNodeWrap::Get(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     YASSERT(args.Length() == 0);
 
-    INodePtr node = TNodeJSNode::UnwrapNode(args.This());
+    INodePtr node = TNodeWrap::UnwrapNode(args.This());
     return scope.Close(ProduceV8(MoveRV(node)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-INodePtr TNodeJSNode::GetNode()
+INodePtr TNodeWrap::GetNode()
 {
     return Node_;
 }
 
-const INodePtr TNodeJSNode::GetNode() const
+const INodePtr TNodeWrap::GetNode() const
 {
     return Node_;
 }
 
-void TNodeJSNode::SetNode(INodePtr node)
+void TNodeWrap::SetNode(INodePtr node)
 {
     Node_ = MoveRV(node);
 }

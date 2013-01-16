@@ -173,8 +173,8 @@ Handle<Value> TInputStreamStub::Reset(const Arguments& args)
             break;
 
         case 1:
-            EXPECT_THAT_HAS_INSTANCE(args[0], TNodeJSInputStream);
-            auto* stream = ObjectWrap::Unwrap<TNodeJSInputStream>(args[0].As<Object>());
+            EXPECT_THAT_HAS_INSTANCE(args[0], TInputStreamWrap);
+            auto* stream = ObjectWrap::Unwrap<TInputStreamWrap>(args[0].As<Object>());
             host->Stack = new TNodeJSInputStack(stream);
             break;
     }

@@ -128,8 +128,8 @@ Handle<Value> TOutputStreamStub::Reset(const Arguments& args)
             break;
 
         case 1:
-            EXPECT_THAT_HAS_INSTANCE(args[0], TNodeJSOutputStream);
-            auto* stream = ObjectWrap::Unwrap<TNodeJSOutputStream>(args[0].As<Object>());
+            EXPECT_THAT_HAS_INSTANCE(args[0], TOutputStreamWrap);
+            auto* stream = ObjectWrap::Unwrap<TOutputStreamWrap>(args[0].As<Object>());
             host->Stack = new TNodeJSOutputStack(stream);
             break;
     }

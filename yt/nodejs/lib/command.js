@@ -23,45 +23,45 @@ if (process.env.NODE_DEBUG && /YT(ALL|APP)/.test(process.env.NODE_DEBUG)) {
 
 // This mapping defines how MIME types map onto YT format specifications.
 var _MIME_TO_FORMAT = {
-    "application/json" : new binding.TNodeJSNode({
+    "application/json" : new binding.TNodeWrap({
         $value : "json"
     }),
-    "application/x-yamr-delimited" : new binding.TNodeJSNode({
+    "application/x-yamr-delimited" : new binding.TNodeWrap({
         $attributes : { lenval : false, has_subkey : false },
         $value : "yamr",
     }),
-    "application/x-yamr-lenval" : new binding.TNodeJSNode({
+    "application/x-yamr-lenval" : new binding.TNodeWrap({
         $attributes : { lenval : true, has_subkey : false },
         $value : "yamr"
     }),
-    "application/x-yamr-subkey-delimited" : new binding.TNodeJSNode({
+    "application/x-yamr-subkey-delimited" : new binding.TNodeWrap({
         $attributes : { lenval : false, has_subkey : true },
         $value : "yamr"
     }),
-    "application/x-yamr-subkey-lenval" : new binding.TNodeJSNode({
+    "application/x-yamr-subkey-lenval" : new binding.TNodeWrap({
         $attributes : { lenval : true, has_subkey : true },
         $value : "yamr"
     }),
-    "application/x-yt-yson-binary" : new binding.TNodeJSNode({
+    "application/x-yt-yson-binary" : new binding.TNodeWrap({
         $attributes : { format : "binary" },
         $value : "yson"
     }),
-    "application/x-yt-yson-pretty" : new binding.TNodeJSNode({
+    "application/x-yt-yson-pretty" : new binding.TNodeWrap({
         $attributes : { format : "pretty" },
         $value : "yson"
     }),
-    "application/x-yt-yson-text" : new binding.TNodeJSNode({
+    "application/x-yt-yson-text" : new binding.TNodeWrap({
         $attributes : { format : "text" },
         $value : "yson"
     }),
-    "text/csv" : new binding.TNodeJSNode({
+    "text/csv" : new binding.TNodeWrap({
         $attributes : { record_separator : ",", key_value_separator : ":" },
         $value : "dsv"
     }),
-    "text/tab-separated-values" : new binding.TNodeJSNode({
+    "text/tab-separated-values" : new binding.TNodeWrap({
         $value : "dsv"
     }),
-    "text/x-tskv" : new binding.TNodeJSNode({
+    "text/x-tskv" : new binding.TNodeWrap({
         $attributes : { line_prefix : "tskv" },
         $value : "dsv"
     })
@@ -101,8 +101,8 @@ var _ENCODING_TO_COMPRESSION = {
 
 var _ENCODING_ALL = Object.keys(_ENCODING_TO_COMPRESSION);
 
-var _PREDEFINED_JSON_FORMAT = new binding.TNodeJSNode({ $value : "json" });
-var _PREDEFINED_YSON_FORMAT = new binding.TNodeJSNode({ $value : "yson" });
+var _PREDEFINED_JSON_FORMAT = new binding.TNodeWrap({ $value : "json" });
+var _PREDEFINED_YSON_FORMAT = new binding.TNodeWrap({ $value : "yson" });
 
 // === HTTP Status Codes
 // http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html
@@ -396,7 +396,7 @@ YtCommand.prototype._getInputFormat = function() {
     header = this.req.headers["x-yt-input-format"];
     if (typeof(header) === "string") {
         try {
-            result = new binding.TNodeJSNode(
+            result = new binding.TNodeWrap(
                 header.trim(),
                 binding.ECompression_None,
                 _PREDEFINED_JSON_FORMAT);
@@ -479,7 +479,7 @@ YtCommand.prototype._getOutputFormat = function() {
     if (typeof(header) === "string") {
         try {
             result_mime = "application/octet-stream";
-            result_format = new binding.TNodeJSNode(
+            result_format = new binding.TNodeWrap(
                 header.trim(),
                 binding.ECompression_None,
                 _PREDEFINED_JSON_FORMAT);
@@ -541,7 +541,7 @@ YtCommand.prototype._captureParameters = function() {
 
     try {
         parameters_from_url = utils.numerify(qs.parse(this.req.parsedUrl.query));
-        parameters_from_url = new binding.TNodeJSNode(parameters_from_url);
+        parameters_from_url = new binding.TNodeWrap(parameters_from_url);
     } catch(err) {
         throw new YtError("Unable to parse parameters from the query string.", err);
     }
@@ -549,7 +549,7 @@ YtCommand.prototype._captureParameters = function() {
     try {
         header = this.req.headers["x-yt-parameters"];
         if (typeof(header) === "string") {
-            parameters_from_header = new binding.TNodeJSNode(
+            parameters_from_header = new binding.TNodeWrap(
                 header,
                 binding.ECompression_None,
                 _PREDEFINED_JSON_FORMAT);
@@ -595,7 +595,7 @@ YtCommand.prototype._captureBody = function() {
         try {
             var body = buffertools.concat.apply(undefined, chunks);
             if (body.length) {
-                deferred.resolve(new binding.TNodeJSNode(
+                deferred.resolve(new binding.TNodeWrap(
                     body,
                     self.input_compression,
                     self.input_format));

@@ -13,10 +13,10 @@ class TNodeJSInputStack
     , public TGrowingStreamStack<TInputStream, 3>
 {
 public:
-    TNodeJSInputStack(TNodeJSInputStream* base);
+    TNodeJSInputStack(TInputStreamWrap* base);
     virtual ~TNodeJSInputStack() throw();
 
-    TNodeJSInputStream* GetBaseStream();
+    TInputStreamWrap* GetBaseStream();
 
     void AddCompression(ECompression compression);
 

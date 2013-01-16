@@ -13,10 +13,10 @@ class TNodeJSOutputStack
     , public TGrowingStreamStack<TOutputStream, 3>
 {
 public:
-    TNodeJSOutputStack(TNodeJSOutputStream* base);
+    TNodeJSOutputStack(TOutputStreamWrap* base);
     virtual ~TNodeJSOutputStack() throw();
 
-    TNodeJSOutputStream* GetBaseStream();
+    TOutputStreamWrap* GetBaseStream();
 
     void AddCompression(ECompression compression);
 

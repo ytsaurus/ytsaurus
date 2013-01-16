@@ -52,7 +52,7 @@ static Persistent<String> DescriptorIsHeavy;
 struct TExecuteRequest
 {
     uv_work_t Request;
-    TNodeJSDriver* Host;
+    TDriverWrap* Host;
 
     TNodeJSInputStack InputStack;
     TNodeJSOutputStack OutputStack;
@@ -63,9 +63,9 @@ struct TExecuteRequest
     TDriverResponse DriverResponse;
 
     TExecuteRequest(
-        TNodeJSDriver* host,
-        TNodeJSInputStream* inputStream,
-        TNodeJSOutputStream* outputStream,
+        TDriverWrap* host,
+        TInputStreamWrap* inputStream,
+        TOutputStreamWrap* outputStream,
         Handle<Function> callback)
         : Host(host)
         , InputStack(inputStream)
@@ -87,12 +87,12 @@ struct TExecuteRequest
         Host->Unref();
     }
 
-    TNodeJSInputStream* GetNodeJSInputStream()
+    TInputStreamWrap* GetNodeJSInputStream()
     {
         return InputStack.GetBaseStream();
     }
 
-    TNodeJSOutputStream* GetNodeJSOutputStream()
+    TOutputStreamWrap* GetNodeJSOutputStream()
     {
         return OutputStack.GetBaseStream();
     }
@@ -190,9 +190,9 @@ Local<Object> ConvertCommandDescriptorToV8Object(const TCommandDescriptor& descr
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Persistent<FunctionTemplate> TNodeJSDriver::ConstructorTemplate;
+Persistent<FunctionTemplate> TDriverWrap::ConstructorTemplate;
 
-TNodeJSDriver::TNodeJSDriver(bool echo, Handle<Object> configObject)
+TDriverWrap::TDriverWrap(bool echo, Handle<Object> configObject)
     : node::ObjectWrap()
     , Echo(echo)
 {
@@ -222,14 +222,14 @@ TNodeJSDriver::TNodeJSDriver(bool echo, Handle<Object> configObject)
     }
 }
 
-TNodeJSDriver::~TNodeJSDriver()
+TDriverWrap::~TDriverWrap()
 {
     THREAD_AFFINITY_IS_V8();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TNodeJSDriver::Initialize(Handle<Object> target)
+void TDriverWrap::Initialize(Handle<Object> target)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -243,17 +243,17 @@ void TNodeJSDriver::Initialize(Handle<Object> target)
     DescriptorIsHeavy = NODE_PSYMBOL("is_heavy");
 
     ConstructorTemplate = Persistent<FunctionTemplate>::New(
-        FunctionTemplate::New(TNodeJSDriver::New));
+        FunctionTemplate::New(TDriverWrap::New));
 
     ConstructorTemplate->InstanceTemplate()->SetInternalFieldCount(1);
-    ConstructorTemplate->SetClassName(String::NewSymbol("TNodeJSDriver"));
+    ConstructorTemplate->SetClassName(String::NewSymbol("TDriverWrap"));
 
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Execute", TNodeJSDriver::Execute);
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "FindCommandDescriptor", TNodeJSDriver::FindCommandDescriptor);
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "GetCommandDescriptors", TNodeJSDriver::GetCommandDescriptors);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Execute", TDriverWrap::Execute);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "FindCommandDescriptor", TDriverWrap::FindCommandDescriptor);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "GetCommandDescriptors", TDriverWrap::GetCommandDescriptors);
 
     target->Set(
-        String::NewSymbol("TNodeJSDriver"),
+        String::NewSymbol("TDriverWrap"),
         ConstructorTemplate->GetFunction());
 
     auto compressionValues = ECompression::GetDomainValues();
@@ -279,7 +279,7 @@ void TNodeJSDriver::Initialize(Handle<Object> target)
     target->Set(String::NewSymbol("EDataType"), dataTypeMapping);
 }
 
-bool TNodeJSDriver::HasInstance(Handle<Value> value)
+bool TDriverWrap::HasInstance(Handle<Value> value)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -289,7 +289,7 @@ bool TNodeJSDriver::HasInstance(Handle<Value> value)
         ConstructorTemplate->HasInstance(value->ToObject());
 }
 
-Handle<Value> TNodeJSDriver::New(const Arguments& args)
+Handle<Value> TDriverWrap::New(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -299,9 +299,9 @@ Handle<Value> TNodeJSDriver::New(const Arguments& args)
     EXPECT_THAT_IS(args[0], Boolean);
     EXPECT_THAT_IS(args[1], Object);
 
-    TNodeJSDriver* host = NULL;
+    TDriverWrap* host = NULL;
     try {
-        host = new TNodeJSDriver(
+        host = new TDriverWrap(
             args[0]->BooleanValue(),
             args[1].As<Object>());
         host->Wrap(args.This());
@@ -322,14 +322,14 @@ Handle<Value> TNodeJSDriver::New(const Arguments& args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TNodeJSDriver::FindCommandDescriptor(const Arguments& args)
+Handle<Value> TDriverWrap::FindCommandDescriptor(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     // Unwrap.
-    TNodeJSDriver* driver =
-        ObjectWrap::Unwrap<TNodeJSDriver>(args.This());
+    TDriverWrap* driver =
+        ObjectWrap::Unwrap<TDriverWrap>(args.This());
 
     // Validate arguments.
     YASSERT(args.Length() == 1);
@@ -340,7 +340,7 @@ Handle<Value> TNodeJSDriver::FindCommandDescriptor(const Arguments& args)
     return scope.Close(driver->DoFindCommandDescriptor(args[0].As<String>()));
 }
 
-Handle<Value> TNodeJSDriver::DoFindCommandDescriptor(Handle<String> commandNameHandle)
+Handle<Value> TDriverWrap::DoFindCommandDescriptor(Handle<String> commandNameHandle)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -359,14 +359,14 @@ Handle<Value> TNodeJSDriver::DoFindCommandDescriptor(Handle<String> commandNameH
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TNodeJSDriver::GetCommandDescriptors(const Arguments& args)
+Handle<Value> TDriverWrap::GetCommandDescriptors(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     // Unwrap.
-    TNodeJSDriver* driver =
-        ObjectWrap::Unwrap<TNodeJSDriver>(args.This());
+    TDriverWrap* driver =
+        ObjectWrap::Unwrap<TDriverWrap>(args.This());
 
     // Validate arguments.
     YASSERT(args.Length() == 0);
@@ -375,7 +375,7 @@ Handle<Value> TNodeJSDriver::GetCommandDescriptors(const Arguments& args)
     return scope.Close(driver->DoGetCommandDescriptors());
 }
 
-Handle<Value> TNodeJSDriver::DoGetCommandDescriptors()
+Handle<Value> TDriverWrap::DoGetCommandDescriptors()
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -393,7 +393,7 @@ Handle<Value> TNodeJSDriver::DoGetCommandDescriptors()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
+Handle<Value> TDriverWrap::Execute(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -403,35 +403,35 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
 
     EXPECT_THAT_IS(args[0], String); // CommandName
 
-    EXPECT_THAT_HAS_INSTANCE(args[1], TNodeJSInputStream); // InputStream
+    EXPECT_THAT_HAS_INSTANCE(args[1], TInputStreamWrap); // InputStream
     EXPECT_THAT_IS(args[2], Uint32); // InputCompression
-    EXPECT_THAT_HAS_INSTANCE(args[3], TNodeJSNode); // InputFormat
+    EXPECT_THAT_HAS_INSTANCE(args[3], TNodeWrap); // InputFormat
 
-    EXPECT_THAT_HAS_INSTANCE(args[4], TNodeJSOutputStream); // OutputStream
+    EXPECT_THAT_HAS_INSTANCE(args[4], TOutputStreamWrap); // OutputStream
     EXPECT_THAT_IS(args[5], Uint32); // OutputCompression
-    EXPECT_THAT_HAS_INSTANCE(args[6], TNodeJSNode); // OutputFormat)
+    EXPECT_THAT_HAS_INSTANCE(args[6], TNodeWrap); // OutputFormat)
 
-    EXPECT_THAT_HAS_INSTANCE(args[7], TNodeJSNode); // Parameters
+    EXPECT_THAT_HAS_INSTANCE(args[7], TNodeWrap); // Parameters
     EXPECT_THAT_IS(args[8], Function); // Callback
 
     // Unwrap arguments.
-    TNodeJSDriver* host = ObjectWrap::Unwrap<TNodeJSDriver>(args.This());
+    TDriverWrap* host = ObjectWrap::Unwrap<TDriverWrap>(args.This());
 
     String::AsciiValue commandName(args[0]);
 
-    TNodeJSInputStream* inputStream =
-        ObjectWrap::Unwrap<TNodeJSInputStream>(args[1].As<Object>());
+    TInputStreamWrap* inputStream =
+        ObjectWrap::Unwrap<TInputStreamWrap>(args[1].As<Object>());
     ECompression inputCompression =
         (ECompression)args[2]->Uint32Value();
-    INodePtr inputFormat = TNodeJSNode::Node(args[3]);
+    INodePtr inputFormat = TNodeWrap::UnwrapNode(args[3]);
 
-    TNodeJSOutputStream* outputStream =
-        ObjectWrap::Unwrap<TNodeJSOutputStream>(args[4].As<Object>());
+    TOutputStreamWrap* outputStream =
+        ObjectWrap::Unwrap<TOutputStreamWrap>(args[4].As<Object>());
     ECompression outputCompression =
         (ECompression)args[5]->Uint32Value();
-    INodePtr outputFormat = TNodeJSNode::Node(args[6]);
+    INodePtr outputFormat = TNodeWrap::UnwrapNode(args[6]);
 
-    INodePtr parameters = TNodeJSNode::Node(args[7]);
+    INodePtr parameters = TNodeWrap::UnwrapNode(args[7]);
     Local<Function> callback = args[8].As<Function>();
 
     // Build an atom of work.
@@ -458,12 +458,12 @@ Handle<Value> TNodeJSDriver::Execute(const Arguments& args)
 
     uv_queue_work(
         uv_default_loop(), &request->Request,
-        TNodeJSDriver::ExecuteWork, TNodeJSDriver::ExecuteAfter);
+        TDriverWrap::ExecuteWork, TDriverWrap::ExecuteAfter);
 
     return Undefined();
 }
 
-void TNodeJSDriver::ExecuteWork(uv_work_t* workRequest)
+void TDriverWrap::ExecuteWork(uv_work_t* workRequest)
 {
     THREAD_AFFINITY_IS_UV();
 
@@ -484,7 +484,7 @@ void TNodeJSDriver::ExecuteWork(uv_work_t* workRequest)
     }
 }
 
-void TNodeJSDriver::ExecuteAfter(uv_work_t* workRequest)
+void TDriverWrap::ExecuteAfter(uv_work_t* workRequest)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;

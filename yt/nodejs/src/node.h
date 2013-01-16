@@ -13,14 +13,14 @@ NYTree::INodePtr ConvertV8BytesToNode(const char* buffer, size_t length, ECompre
 ////////////////////////////////////////////////////////////////////////////////
 
 //! This class wraps INodePtr and allows interoperation between V8 and YT.
-class TNodeJSNode
+class TNodeWrap
     : public node::ObjectWrap
 {
 protected:
-    TNodeJSNode(NYTree::INodePtr node);
+    TNodeWrap(NYTree::INodePtr node);
 
 public:
-    ~TNodeJSNode() throw();
+    ~TNodeWrap() throw();
 
     static v8::Persistent<v8::FunctionTemplate> ConstructorTemplate;
     static void Initialize(v8::Handle<v8::Object> target);
@@ -47,8 +47,8 @@ protected:
     NYTree::INodePtr Node_;
 
 private:
-    TNodeJSNode(const TNodeJSNode&);
-    TNodeJSNode& operator=(const TNodeJSNode&);
+    TNodeWrap(const TNodeWrap&);
+    TNodeWrap& operator=(const TNodeWrap&);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

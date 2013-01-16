@@ -29,9 +29,9 @@ void DeleteCallback(char* data, void* hint)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Persistent<FunctionTemplate> TNodeJSOutputStream::ConstructorTemplate;
+Persistent<FunctionTemplate> TOutputStreamWrap::ConstructorTemplate;
 
-TNodeJSOutputStream::TNodeJSOutputStream(ui64 lowWatermark, ui64 highWatermark)
+TOutputStreamWrap::TOutputStreamWrap(ui64 lowWatermark, ui64 highWatermark)
     : TNodeJSStreamBase()
     , IsPaused_(0)
     , IsDestroyed_(0)
@@ -44,7 +44,7 @@ TNodeJSOutputStream::TNodeJSOutputStream(ui64 lowWatermark, ui64 highWatermark)
     THREAD_AFFINITY_IS_V8();
 }
 
-TNodeJSOutputStream::~TNodeJSOutputStream() throw()
+TOutputStreamWrap::~TOutputStreamWrap() throw()
 {
     THREAD_AFFINITY_IS_V8();
 
@@ -53,7 +53,7 @@ TNodeJSOutputStream::~TNodeJSOutputStream() throw()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TNodeJSOutputStream::Initialize(Handle<Object> target)
+void TOutputStreamWrap::Initialize(Handle<Object> target)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -61,26 +61,26 @@ void TNodeJSOutputStream::Initialize(Handle<Object> target)
     OnDataSymbol = NODE_PSYMBOL("on_data");
 
     ConstructorTemplate = Persistent<FunctionTemplate>::New(
-        FunctionTemplate::New(TNodeJSOutputStream::New));
+        FunctionTemplate::New(TOutputStreamWrap::New));
 
     ConstructorTemplate->InstanceTemplate()->SetInternalFieldCount(1);
-    ConstructorTemplate->SetClassName(String::NewSymbol("TNodeJSOutputStream"));
+    ConstructorTemplate->SetClassName(String::NewSymbol("TOutputStreamWrap"));
 
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Pull", TNodeJSOutputStream::Pull);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Pull", TOutputStreamWrap::Pull);
 
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Drain", TNodeJSOutputStream::Drain);
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Destroy", TNodeJSOutputStream::Destroy);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Drain", TOutputStreamWrap::Drain);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Destroy", TOutputStreamWrap::Destroy);
 
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "IsEmpty", TNodeJSOutputStream::IsEmpty);
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "IsPaused", TNodeJSOutputStream::IsPaused);
-    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "IsDestroyed", TNodeJSOutputStream::IsDestroyed);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "IsEmpty", TOutputStreamWrap::IsEmpty);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "IsPaused", TOutputStreamWrap::IsPaused);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "IsDestroyed", TOutputStreamWrap::IsDestroyed);
 
     target->Set(
-        String::NewSymbol("TNodeJSOutputStream"),
+        String::NewSymbol("TOutputStreamWrap"),
         ConstructorTemplate->GetFunction());
 }
 
-bool TNodeJSOutputStream::HasInstance(Handle<Value> value)
+bool TOutputStreamWrap::HasInstance(Handle<Value> value)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -92,7 +92,7 @@ bool TNodeJSOutputStream::HasInstance(Handle<Value> value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TNodeJSOutputStream::New(const Arguments& args)
+Handle<Value> TOutputStreamWrap::New(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
@@ -105,9 +105,9 @@ Handle<Value> TNodeJSOutputStream::New(const Arguments& args)
     ui64 lowWatermark = args[0]->Uint32Value();
     ui64 highWatermark = args[1]->Uint32Value();
 
-    TNodeJSOutputStream* stream = NULL;
+    TOutputStreamWrap* stream = NULL;
     try {
-        stream = new TNodeJSOutputStream(lowWatermark, highWatermark);
+        stream = new TOutputStreamWrap(lowWatermark, highWatermark);
         stream->Wrap(args.This());
 
         stream->handle_->Set(
@@ -131,14 +131,14 @@ Handle<Value> TNodeJSOutputStream::New(const Arguments& args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TNodeJSOutputStream::Pull(const Arguments& args)
+Handle<Value> TOutputStreamWrap::Pull(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     // Unwrap.
-    TNodeJSOutputStream* stream =
-        ObjectWrap::Unwrap<TNodeJSOutputStream>(args.This());
+    TOutputStreamWrap* stream =
+        ObjectWrap::Unwrap<TOutputStreamWrap>(args.This());
 
     // Validate arguments.
     YASSERT(args.Length() == 0);
@@ -147,7 +147,7 @@ Handle<Value> TNodeJSOutputStream::Pull(const Arguments& args)
     return scope.Close(stream->DoPull());
 }
 
-Handle<Value> TNodeJSOutputStream::DoPull()
+Handle<Value> TOutputStreamWrap::DoPull()
 {
     THREAD_AFFINITY_IS_V8();
 
@@ -181,14 +181,14 @@ Handle<Value> TNodeJSOutputStream::DoPull()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TNodeJSOutputStream::Drain(const Arguments& args)
+Handle<Value> TOutputStreamWrap::Drain(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     // Unwrap.
-    TNodeJSOutputStream* stream =
-        ObjectWrap::Unwrap<TNodeJSOutputStream>(args.This());
+    TOutputStreamWrap* stream =
+        ObjectWrap::Unwrap<TOutputStreamWrap>(args.This());
 
     // Validate arguments.
     YASSERT(args.Length() == 0);
@@ -199,7 +199,7 @@ Handle<Value> TNodeJSOutputStream::Drain(const Arguments& args)
     return Undefined();
 }
 
-void TNodeJSOutputStream::DoDrain()
+void TOutputStreamWrap::DoDrain()
 {
     THREAD_AFFINITY_IS_V8();
 
@@ -210,14 +210,14 @@ void TNodeJSOutputStream::DoDrain()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TNodeJSOutputStream::Destroy(const Arguments& args)
+Handle<Value> TOutputStreamWrap::Destroy(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     // Unwrap.
-    TNodeJSOutputStream* stream =
-        ObjectWrap::Unwrap<TNodeJSOutputStream>(args.This());
+    TOutputStreamWrap* stream =
+        ObjectWrap::Unwrap<TOutputStreamWrap>(args.This());
 
     // Validate arguments.
     YASSERT(args.Length() == 0);
@@ -228,7 +228,7 @@ Handle<Value> TNodeJSOutputStream::Destroy(const Arguments& args)
     return Undefined();
 }
 
-void TNodeJSOutputStream::DoDestroy()
+void TOutputStreamWrap::DoDestroy()
 {
     THREAD_AFFINITY_IS_V8();
 
@@ -242,14 +242,14 @@ void TNodeJSOutputStream::DoDestroy()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Handle<Value> TNodeJSOutputStream::IsEmpty(const Arguments& args)
+Handle<Value> TOutputStreamWrap::IsEmpty(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     // Unwrap.
-    TNodeJSOutputStream* stream =
-        ObjectWrap::Unwrap<TNodeJSOutputStream>(args.This());
+    TOutputStreamWrap* stream =
+        ObjectWrap::Unwrap<TOutputStreamWrap>(args.This());
 
     // Validate arguments.
     YASSERT(args.Length() == 0);
@@ -258,14 +258,14 @@ Handle<Value> TNodeJSOutputStream::IsEmpty(const Arguments& args)
     return scope.Close(Boolean::New(stream->Queue.IsEmpty()));
 }
 
-Handle<Value> TNodeJSOutputStream::IsDestroyed(const Arguments& args)
+Handle<Value> TOutputStreamWrap::IsDestroyed(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     // Unwrap.
-    TNodeJSOutputStream* stream =
-        ObjectWrap::Unwrap<TNodeJSOutputStream>(args.This());
+    TOutputStreamWrap* stream =
+        ObjectWrap::Unwrap<TOutputStreamWrap>(args.This());
 
     // Validate arguments.
     YASSERT(args.Length() == 0);
@@ -274,14 +274,14 @@ Handle<Value> TNodeJSOutputStream::IsDestroyed(const Arguments& args)
     return scope.Close(Boolean::New(AtomicGet(stream->IsDestroyed_)));
 }
 
-Handle<Value> TNodeJSOutputStream::IsPaused(const Arguments& args)
+Handle<Value> TOutputStreamWrap::IsPaused(const Arguments& args)
 {
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
     // Unwrap.
-    TNodeJSOutputStream* stream =
-        ObjectWrap::Unwrap<TNodeJSOutputStream>(args.This());
+    TOutputStreamWrap* stream =
+        ObjectWrap::Unwrap<TOutputStreamWrap>(args.This());
 
     // Validate arguments.
     YASSERT(args.Length() == 0);
@@ -292,11 +292,11 @@ Handle<Value> TNodeJSOutputStream::IsPaused(const Arguments& args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int TNodeJSOutputStream::AsyncOnData(eio_req* request)
+int TOutputStreamWrap::AsyncOnData(eio_req* request)
 {
     THREAD_AFFINITY_IS_V8();
 
-    TNodeJSOutputStream* stream = static_cast<TNodeJSOutputStream*>(request->data);
+    TOutputStreamWrap* stream = static_cast<TOutputStreamWrap*>(request->data);
     node::MakeCallback(stream->handle_, OnDataSymbol, 0, NULL);
 
     stream->AsyncUnref();
@@ -306,7 +306,7 @@ int TNodeJSOutputStream::AsyncOnData(eio_req* request)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TNodeJSOutputStream::DoWrite(const void* data, size_t length)
+void TOutputStreamWrap::DoWrite(const void* data, size_t length)
 {
     THREAD_AFFINITY_IS_ANY();
 
@@ -324,7 +324,7 @@ void TNodeJSOutputStream::DoWrite(const void* data, size_t length)
     WriteEpilogue(buffer, length);
 }
 
-void TNodeJSOutputStream::DoWriteV(const TPart* parts, size_t count)
+void TOutputStreamWrap::DoWriteV(const TPart* parts, size_t count)
 {
     THREAD_AFFINITY_IS_ANY();
 
@@ -353,18 +353,18 @@ void TNodeJSOutputStream::DoWriteV(const TPart* parts, size_t count)
     WriteEpilogue(buffer, length);
 }
 
-void TNodeJSOutputStream::WritePrologue()
+void TOutputStreamWrap::WritePrologue()
 {
     Conditional.Await([&] () -> bool {
         return AtomicGet(IsDestroyed_) || (AtomicGet(BytesInFlight) < HighWatermark);
     });
 
     if (AtomicGet(IsDestroyed_)) {
-        THROW_ERROR_EXCEPTION("TNodeJSOutputStream was terminated");
+        THROW_ERROR_EXCEPTION("TOutputStreamWrap was terminated");
     }
 }
 
-void TNodeJSOutputStream::WriteEpilogue(char* buffer, size_t length)
+void TOutputStreamWrap::WriteEpilogue(char* buffer, size_t length)
 {
     TOutputPart part;
     part.Buffer = buffer;
@@ -375,15 +375,15 @@ void TNodeJSOutputStream::WriteEpilogue(char* buffer, size_t length)
     AtomicAdd(BytesEnqueued, length);
 
     // We require that calling party holds a synchronous lock on the stream.
-    // In case of TNodeJSDriver an instance TNodeJSInputStack holds a lock
-    // and TNodeJSDriver implementation guarantees that all Write() calls
+    // In case of TDriverWrap an instance TNodeJSInputStack holds a lock
+    // and TDriverWrap implementation guarantees that all Write() calls
     // are within scope of the lock.
     EmitAndStifleOnData();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TNodeJSOutputStream::DisposeBuffers()
+void TOutputStreamWrap::DisposeBuffers()
 {
     TOutputPart part;
     while (Queue.Dequeue(&part)) {

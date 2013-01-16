@@ -24,15 +24,15 @@ void ExportYT(Handle<Object> target)
     InitializeCommon(target);
     InitializeError(target);
 
-    TNodeJSNode::Initialize(target);
+    TNodeWrap::Initialize(target);
 
-    TNodeJSInputStream::Initialize(target);
-    TNodeJSOutputStream::Initialize(target);
+    TInputStreamWrap::Initialize(target);
+    TOutputStreamWrap::Initialize(target);
 
     TInputStreamStub::Initialize(target);
     TOutputStreamStub::Initialize(target);
 
-    TNodeJSDriver::Initialize(target);
+    TDriverWrap::Initialize(target);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

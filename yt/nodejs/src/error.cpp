@@ -47,11 +47,11 @@ Handle<Value> SpawnBasicYtError(const Arguments& args)
 
     EXPECT_THAT_IS(args[0], Uint32);
     EXPECT_THAT_IS(args[1], String);
-    EXPECT_THAT_HAS_INSTANCE(args[2], TNodeJSNode);
+    EXPECT_THAT_HAS_INSTANCE(args[2], TNodeWrap);
 
     auto code = args[0]->Uint32Value();
     String::AsciiValue message (args[1]);
-    auto attributes = TNodeJSNode::Node(args[2])->AsMap();
+    auto attributes = TNodeWrap::UnwrapNode(args[2])->AsMap();
 
     TError fakeError;
     fakeError.SetCode(code);

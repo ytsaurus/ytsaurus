@@ -12,13 +12,13 @@ namespace NNodeJS {
 //! This class adheres to TInputStream interface as a C++ object and
 //! simultaneously provides 'writable stream' interface stubs as a JS object
 //! thus effectively acting as a bridge from JS to C++.
-class TNodeJSInputStream
+class TInputStreamWrap
     : public TNodeJSStreamBase
     , public TInputStream
 {
 protected:
-    TNodeJSInputStream(ui64 lowWatermark, ui64 highWatermark);
-    ~TNodeJSInputStream() throw();
+    TInputStreamWrap(ui64 lowWatermark, ui64 highWatermark);
+    ~TInputStreamWrap() throw();
 
 public:
     static v8::Persistent<v8::FunctionTemplate> ConstructorTemplate;
@@ -90,23 +90,23 @@ private:
     std::deque<TInputPart*> InactiveQueue;
 
 private:
-    TNodeJSInputStream(const TNodeJSInputStream&);
-    TNodeJSInputStream& operator=(const TNodeJSInputStream&);
+    TInputStreamWrap(const TInputStreamWrap&);
+    TInputStreamWrap& operator=(const TInputStreamWrap&);
 };
 
-inline void TNodeJSInputStream::EnqueueSweep(bool withinV8)
+inline void TInputStreamWrap::EnqueueSweep(bool withinV8)
 {
     if (AtomicCas(&SweepRequestPending, 1, 0)) {
         AsyncRef(withinV8);
-        EIO_PUSH(TNodeJSInputStream::AsyncSweep, this);
+        EIO_PUSH(TInputStreamWrap::AsyncSweep, this);
     }
 }
 
-inline void TNodeJSInputStream::EnqueueDrain(bool withinV8)
+inline void TInputStreamWrap::EnqueueDrain(bool withinV8)
 {
     if (AtomicCas(&DrainRequestPending, 1, 0)) {
         AsyncRef(withinV8);
-        EIO_PUSH(TNodeJSInputStream::AsyncDrain, this);
+        EIO_PUSH(TInputStreamWrap::AsyncDrain, this);
     }
 }
 
