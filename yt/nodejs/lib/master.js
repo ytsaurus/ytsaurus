@@ -5,7 +5,7 @@ var cluster = require("cluster");
 var __DBG;
 var __DIE;
 
-if (process.env.NODE_DEBUG && /YT(ALL|APP)/.test(process.env.NODE_DEBUG)) {
+if (process.env.NODE_DEBUG && /YT(ALL|CLUSTER)/.test(process.env.NODE_DEBUG)) {
     __DBG = function(x) { "use strict"; console.error("YT Cluster Master:", x); };
     __DBG.$ = true;
 } else {
@@ -89,7 +89,9 @@ YtClusterHandle.prototype.handleMessage = function(message) {
 
     switch (message.type) {
         case "heartbeat":
-            this.worker.send({ type : "heartbeat" });
+            if (!__DBG.$) {
+                this.worker.send({ type : "heartbeat" });
+            }
             break;
         case "alive":
         case "stopping":
@@ -103,6 +105,10 @@ YtClusterHandle.prototype.handleMessage = function(message) {
 };
 
 YtClusterHandle.prototype.postponeDeath = function(timeout) {
+    if (__DBG.$) {
+        return;
+    }
+
     if (this.timeout_at) {
         clearTimeout(this.timeout_at);
     }
@@ -116,7 +122,7 @@ YtClusterHandle.prototype.certifyDeath = function() {
         this.logger.info("Worker is dead", {
             wid : this.getWid(),
             pid : this.getPid(),
-        handle : this.toString()
+            handle : this.toString()
         });
 
         this.worker.send("violentlyDie");

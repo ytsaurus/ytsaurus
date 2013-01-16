@@ -9,6 +9,15 @@ var winston_nssocket = require("winston-nssocket");
 
 var yt = require("yt");
 
+// Debugging stuff.
+if (process.env.NODE_DEBUG && /YT(ALL|CLUSTER)/.test(process.env.NODE_DEBUG)) {
+    __DBG = function(x) { "use strict"; console.error("YT Cluster Worker:", x); };
+    __DBG.$ = true;
+} else {
+    __DBG = function(){};
+    __DBG.$ = false;
+}
+
 // Load configuration and set up logging.
 var config = JSON.parse(process.env.YT_PROXY_CONFIGURATION);
 var logger = new winston.Logger({
@@ -70,13 +79,17 @@ var gracefullyDie = function gracefulDeath() {
 };
 
 // Fire up the heart.
-(function sendHeartbeat() {
-    "use strict";
-    process.send({ type : "heartbeat" });
-    setTimeout(sendHeartbeat, 1000);
-}());
+var supervisor_liveness;
 
-var supervisor_liveness = setTimeout(gracefullyDie, 15000);
+if (!__DBG.$) {
+    (function sendHeartbeat() {
+        "use strict";
+        process.send({ type : "heartbeat" });
+        setTimeout(sendHeartbeat, 1000);
+    }());
+
+    supervisor_liveness = setTimeout(gracefullyDie, 15000);
+}
 
 // Setup message handlers.
 process.on("message", function(message) {
