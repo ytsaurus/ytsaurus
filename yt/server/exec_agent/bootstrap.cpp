@@ -71,7 +71,7 @@ void TBootstrap::Init()
 
     if (!JobControlEnabled) {
         if (Config->EnforceJobControl) {
-            LOG_FATAL("Job control disabled, must run as root.");
+            LOG_FATAL("Job control disabled, please run as root.");
         } else {
             LOG_WARNING("Job control disabled, cannot kill jobs and use memory limits watcher.");
         }

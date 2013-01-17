@@ -59,7 +59,8 @@ i64 GetUserRss(int uid)
         }
     }
 
-    YCHECK(pclose(fd) == 0);
+    // ToDo(psushin): consider checking pclose errors.
+    pclose(fd);
     return result * 1024;
 }
 

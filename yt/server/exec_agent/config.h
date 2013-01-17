@@ -146,7 +146,7 @@ struct TExecAgentConfig
             .Default(TDuration::Seconds(60));
         Register("memory_watchdog_period", MemoryWatchdogPeriod)
             .Default(TDuration::Seconds(1));
-        Register("enforse_job_control", EnforceJobControl)
+        Register("enforce_job_control", EnforceJobControl)
             .Default(false);
     }
 };
