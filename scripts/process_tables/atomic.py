@@ -27,14 +27,16 @@ def atomic_push(list, value):
 
 def process_tasks_from_list(list, action):
     while True:
-        value = atomic_pop(list)
-        if value is None:
-            break
+        value = None
         try:
+            value = atomic_pop(list)
+            if value is None:
+                break
             print >>sys.stderr, "Processing value", value
             action(value)
-        except Exception as e:
+        except (Exception, KeyboardInterrupt) as e:
             print >>sys.stderr, "Crashed with error", e
-            atomic_push(list, value)
+            if value is not None:
+                atomic_push(list, value)
             break
 

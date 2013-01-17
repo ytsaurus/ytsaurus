@@ -83,7 +83,7 @@ def remove(path, recursive=False, check_existance=False):
     """
     if check_existance and not exists(path):
         return
-    if not recursive:
+    if not recursive and exists(path):
         # TODO: remake for command argument
         require(get_type(path) != "map_node",
                 YtError("Can not delete directory, set recursive=True"))

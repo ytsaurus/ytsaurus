@@ -45,7 +45,11 @@ def main():
         count = records_count(table)
         sorted = is_sorted(table)
 
-        servers = args.proxy if args.proxy is not None else ["%s:%s" % (args.server, args.server_port)]
+        has_proxy = args.proxy is not None
+        if has_proxy:
+            servers = ["%s:%s" % (proxy, args.http_port) for proxy in args.proxy]
+        else:
+            servers = ["%s:%s" % (args.server, args.server_port)]
         ranges = []
         for i in xrange((count - 1) / args.record_threshold + 1):
             server = servers[i % len(servers)]
@@ -58,7 +62,7 @@ def main():
                        format=yt.YamrFormat(lenval=False, has_subkey=True))
 
         destination = os.path.join(args.destination, table)
-        if args.force:
+        if args.force and yt.exists(destination):
             yt.remove(destination)
         yt.create_table(destination, recursive=True)
 
@@ -70,15 +74,21 @@ def main():
         if args.codec is not None:
             table_writer["codec"] = args.codec
 
+        if has_proxy:
+            command = 'curl "http://${{server}}/table/{}?subkey=1&lenval=1&startindex=${{start}}&endindex=${{end}}"'.format(table)
+        else:
+            command = './mapreduce -server $server {} -read {}:[$start,$end] -lenval -subkey'.format(use_fastbone, table)
         yt.run_map(
                 'while true; do '
                     'IFS="\t" read -r server start end; '
                     'if [ "$?" != "0" ]; then break; fi; '
-                    './mapreduce -server $server {} -read {}:[$start,$end] -lenval -subkey; '
-                'done;'.format(use_fastbone, table),
+                    'set -e; '
+                    '{};'
+                    'set +e; '
+                'done;'.format(command),
                 temp_table,
                 destination,
-                input_format=yt.YamrFormat(lenval=False, has_subkey=False),
+                input_format=yt.YamrFormat(lenval=False, has_subkey=True),
                 output_format=yt.YamrFormat(lenval=True, has_subkey=True),
                 files="mapreduce",
                 table_writer=table_writer,
