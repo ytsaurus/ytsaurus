@@ -107,7 +107,7 @@ public:
 
             auto res = setrlimit(RLIMIT_AS, &rlimit);
             if (res) {
-                fprintf(stderr, "Failed to set resource limits (JobId: %s, MemoryLimit: %"PRId64" Error: %s)\n",
+                fprintf(stderr, "Failed to set resource limits (JobId: %s, MemoryLimit: %" PRId64 " Error: %s)\n",
                     ~JobId.ToString(),
                     memoryLimit,
                     strerror(errno));
