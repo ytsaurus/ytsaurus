@@ -321,7 +321,7 @@ private:
         YCHECK(AccountNameMap.insert(std::make_pair(account->GetName(), account)).second);
 
         // Make the fake reference.
-        account->RefObject();
+        YCHECK(account->RefObject() == 1);
 
         return account;
     }
