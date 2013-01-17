@@ -34,6 +34,96 @@ namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TNontemplateCypressNodeTypeHandlerBase::TNontemplateCypressNodeTypeHandlerBase(
+    NCellMaster::TBootstrap* bootstrap)
+    : Bootstrap(bootstrap)
+{ }
+
+bool TNontemplateCypressNodeTypeHandlerBase::IsRecovery() const
+{
+    return Bootstrap->GetMetaStateFacade()->GetManager()->IsRecovery();
+}
+
+void TNontemplateCypressNodeTypeHandlerBase::DestroyCore(TCypressNodeBase* node)
+{
+    auto objectManager = Bootstrap->GetObjectManager();
+
+    // Remove user attributes, if any.
+    auto id = node->GetVersionedId();
+    if (objectManager->FindAttributes(id)) {
+        objectManager->RemoveAttributes(id);
+    }
+}
+
+void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
+    const TCypressNodeBase* originatingNode,
+    TCypressNodeBase* branchedNode,
+    TTransaction* transaction,
+    ELockMode mode)
+{
+    auto objectManager = Bootstrap->GetObjectManager();
+    auto securityManager = Bootstrap->GetSecurityManager();
+
+    // Copy basic properties.
+    branchedNode->SetParent(originatingNode->GetParent());
+    branchedNode->SetCreationTime(originatingNode->GetCreationTime());
+    branchedNode->SetModificationTime(originatingNode->GetModificationTime());
+    branchedNode->SetLockMode(mode);
+    branchedNode->SetTrunkNode(originatingNode->GetTrunkNode());
+    branchedNode->SetTransaction(transaction);
+
+    // Branch user attributes.
+    objectManager->BranchAttributes(originatingNode->GetVersionedId(), branchedNode->GetVersionedId());
+}
+
+void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
+    TCypressNodeBase* originatingNode,
+    TCypressNodeBase* branchedNode)
+{
+    auto objectManager = Bootstrap->GetObjectManager();
+
+    auto originatingId = originatingNode->GetVersionedId();
+    auto branchedId = branchedNode->GetVersionedId();
+    YASSERT(branchedId.IsBranched());
+
+    // Merge user attributes.
+    objectManager->MergeAttributes(originatingId, branchedId);
+
+    // Merge parent id.
+    originatingNode->SetParent(branchedNode->GetParent());
+
+    // Merge modification time.
+    if (branchedNode->GetModificationTime() > originatingNode->GetModificationTime()) {
+        originatingNode->SetModificationTime(branchedNode->GetModificationTime());
+    }
+}
+
+TAutoPtr<TCypressNodeBase> TNontemplateCypressNodeTypeHandlerBase::CloneCore(
+    TCypressNodeBase* sourceNode,
+    TTransaction* transaction)
+{
+    auto objectManager = Bootstrap->GetObjectManager();
+
+    auto type = GetObjectType();
+    auto clonedId = objectManager->GenerateId(type);
+
+    auto clonedNode = Instantiate(TVersionedNodeId(clonedId));
+    clonedNode->SetTrunkNode(~clonedNode);
+
+    // Copy attributes directly to suppress validation.
+    auto keyToAttribute = GetNodeAttributes(Bootstrap, sourceNode->GetTrunkNode(), transaction);
+    if (!keyToAttribute.empty()) {
+        auto* clonedAttributes = objectManager->CreateAttributes(clonedNode->GetVersionedId());
+        FOREACH (const auto& pair, keyToAttribute) {
+            YCHECK(clonedAttributes->Attributes().insert(pair).second);
+        }
+    }
+
+    return clonedNode;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TMapNode::TMapNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
     , ChildCountDelta_(0)

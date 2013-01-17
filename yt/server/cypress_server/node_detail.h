@@ -68,13 +68,44 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TImpl>
-class TCypressNodeTypeHandlerBase
+class TNontemplateCypressNodeTypeHandlerBase
     : public INodeTypeHandler
 {
 public:
+    explicit TNontemplateCypressNodeTypeHandlerBase(NCellMaster::TBootstrap* bootstrap);
+
+protected:
+    NCellMaster::TBootstrap* Bootstrap;
+
+    bool IsRecovery() const;
+
+    void DestroyCore(TCypressNodeBase* node);
+
+    void BranchCore(
+        const TCypressNodeBase* originatingNode,
+        TCypressNodeBase* branchedNode,
+        NTransactionServer::TTransaction* transaction,
+        ELockMode mode);
+
+    void MergeCore(
+        TCypressNodeBase* originatingNode,
+        TCypressNodeBase* branchedNode);
+
+    TAutoPtr<TCypressNodeBase> CloneCore(
+        TCypressNodeBase* sourceNode,
+        NTransactionServer::TTransaction* transaction);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TImpl>
+class TCypressNodeTypeHandlerBase
+    : public TNontemplateCypressNodeTypeHandlerBase
+{
+public:
     explicit TCypressNodeTypeHandlerBase(NCellMaster::TBootstrap* bootstrap)
-        : Bootstrap(bootstrap)
+        : TNontemplateCypressNodeTypeHandlerBase(bootstrap)
     { }
 
     virtual ICypressNodeProxyPtr GetProxy(
@@ -108,15 +139,10 @@ public:
 
     virtual void Destroy(TCypressNodeBase* node) override
     {
-        auto objectManager = Bootstrap->GetObjectManager();
+        // Run core stuff.
+        DestroyCore(node);
 
-        // Remove user attributes, if any.
-        auto id = node->GetVersionedId();
-        if (objectManager->FindAttributes(id)) {
-            objectManager->RemoveAttributes(id);
-        }
-
-        // Run custom destruction.
+        // Run custom stuff.
         DoDestroy(dynamic_cast<TImpl*>(node));
     }
 
@@ -125,26 +151,22 @@ public:
         NTransactionServer::TTransaction* transaction,
         ELockMode mode) override
     {
-        auto objectManager = Bootstrap->GetObjectManager();
-        auto securityManager = Bootstrap->GetSecurityManager();
-
+        // Instantiate a branched copy.
         auto originatingId = originatingNode->GetVersionedId();
         auto branchedId = TVersionedNodeId(originatingId.ObjectId, GetObjectId(transaction));
-
-        // Create a branched copy.
         TAutoPtr<TImpl> branchedNode(new TImpl(branchedId));
-        branchedNode->SetParent(originatingNode->GetParent());
-        branchedNode->SetCreationTime(originatingNode->GetCreationTime());
-        branchedNode->SetModificationTime(originatingNode->GetModificationTime());
-        branchedNode->SetLockMode(mode);
-        branchedNode->SetTrunkNode(originatingNode->GetTrunkNode());
-        branchedNode->SetTransaction(transaction);
 
-        // Branch user attributes.
-        objectManager->BranchAttributes(originatingId, branchedId);
+        // Run core stuff.
+        BranchCore(
+            originatingNode,
+            ~branchedNode,
+            transaction,
+            mode);
         
-        // Run custom branching.
-        DoBranch(dynamic_cast<const TImpl*>(originatingNode), ~branchedNode);
+        // Run custom stuff.
+        DoBranch(
+            dynamic_cast<const TImpl*>(originatingNode),
+            ~branchedNode);
 
         return branchedNode.Release();
     }
@@ -153,25 +175,15 @@ public:
         TCypressNodeBase* originatingNode,
         TCypressNodeBase* branchedNode) override
     {
-        auto objectManager = Bootstrap->GetObjectManager();
+        // Run core stuff.
+        MergeCore(
+            originatingNode,
+            branchedNode);
 
-        auto originatingId = originatingNode->GetVersionedId();
-        auto branchedId = branchedNode->GetVersionedId();
-        YASSERT(branchedId.IsBranched());
-
-        // Merge user attributes.
-        objectManager->MergeAttributes(originatingId, branchedId);
-
-        // Merge parent id.
-        originatingNode->SetParent(branchedNode->GetParent());
-
-        // Merge modification time.
-        if (branchedNode->GetModificationTime() > originatingNode->GetModificationTime()) {
-            originatingNode->SetModificationTime(branchedNode->GetModificationTime());
-        }
-
-        // Run custom merging.
-        DoMerge(dynamic_cast<TImpl*>(originatingNode), dynamic_cast<TImpl*>(branchedNode));
+        // Run custom stuff.
+        DoMerge(
+            dynamic_cast<TImpl*>(originatingNode),
+            dynamic_cast<TImpl*>(branchedNode));
     }
 
     virtual INodeBehaviorPtr CreateBehavior(TCypressNodeBase* trunkNode) override
@@ -183,14 +195,12 @@ public:
         TCypressNodeBase* sourceNode,
         NTransactionServer::TTransaction* transaction) override
     {
-        auto objectManager = Bootstrap->GetObjectManager();
+        // Run core stuff.
+        auto clonedNode = CloneCore(
+            sourceNode,
+            transaction);
 
-        auto type = GetObjectType();
-        auto clonedId = objectManager->GenerateId(type);
-
-        auto clonedNode = Instantiate(TVersionedNodeId(clonedId));
-        clonedNode->SetTrunkNode(~clonedNode);
-
+        // Run custom stuff.
         DoClone(
             dynamic_cast<TImpl*>(sourceNode),
             dynamic_cast<TImpl*>(~clonedNode),
@@ -201,8 +211,6 @@ public:
 
 
 protected:
-    NCellMaster::TBootstrap* Bootstrap;
-
     virtual ICypressNodeProxyPtr DoGetProxy(
         TImpl* trunkNode,
         NTransactionServer::TTransaction* transaction) = 0;
@@ -258,23 +266,9 @@ protected:
         TImpl* clonedNode,
         NTransactionServer::TTransaction* transaction)
     {
-        // Copy attributes directly to suppress validation.
-        auto objectManager = Bootstrap->GetObjectManager();
-
-        auto keyToAttribute = GetNodeAttributes(Bootstrap, sourceNode->GetTrunkNode(), transaction);
-        if (keyToAttribute.empty())
-            return;
-
-        auto* clonedAttributes = objectManager->CreateAttributes(clonedNode->GetVersionedId());
-
-        FOREACH (const auto& pair, keyToAttribute) {
-            YCHECK(clonedAttributes->Attributes().insert(pair).second);
-        }
-    }
-
-    bool IsRecovery() const
-    {
-        return Bootstrap->GetMetaStateFacade()->GetManager()->IsRecovery();
+        UNUSED(sourceNode);
+        UNUSED(clonedNode);
+        UNUSED(transaction);
     }
 
 private:
