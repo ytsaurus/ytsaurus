@@ -59,6 +59,9 @@ void TNontemplateCypressNodeTypeHandlerBase::DestroyCore(TCypressNodeBase* node)
         ancestor->ResetParent();
     }
     node->ImmediateAncestors().clear();
+
+    // Remove self from immediate ancestors.
+    node->SetParent(nullptr);
 }
 
 void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
@@ -95,8 +98,9 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
     // Merge user attributes.
     objectManager->MergeAttributes(originatingId, branchedId);
 
-    // Merge parent id.
+    // Merge parent.
     originatingNode->SetParent(branchedNode->GetParent());
+    branchedNode->SetParent(nullptr);
 
     // Merge modification time.
     if (branchedNode->GetModificationTime() > originatingNode->GetModificationTime()) {
