@@ -249,8 +249,10 @@ void SetExecutableMode(const Stroka& path, bool executable)
     UNUSED(executable);
 #else
     int mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH;
-    if (executable)
+    if (executable) {
         mode |= S_IXOTH;
+        mode |= S_IXUSR;
+    }
     bool ok = chmod(~path, mode) == 0;
     if (!ok) {
         THROW_ERROR_EXCEPTION(

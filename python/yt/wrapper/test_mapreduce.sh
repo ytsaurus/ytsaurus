@@ -369,6 +369,13 @@ test_table_file()
     check "field=10" "`./mapreduce -dsv -read "ignat/output"`"
 }
 
+test_unexisting_input_tables()
+{
+    echo "x=0" | ./mapreduce -dsv -write "ignat/output"
+    ./mapreduce -map "cat" -src "ignat/unexisting1" -src "ignat/unexisting2" -dst "ignat/output"
+    check "" "`./mapreduce -read ignat/output`"
+}
+
 prepare_table_files
 test_sortby_reduceby
 test_base_functionality
@@ -392,5 +399,6 @@ test_dstsorted
 test_custom_fs_rs
 test_write_with_tx
 test_table_file
+test_unexisting_input_tables
 
 rm -f table_file big_file

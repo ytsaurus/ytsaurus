@@ -6,6 +6,7 @@ import yt.wrapper as yt
 
 import os
 import sh
+import sys
 from argparse import ArgumentParser
 
 def main():
@@ -36,11 +37,21 @@ def main():
     def is_sorted(table):
         """ Parse sorted from the html """
         http_content = sh.curl("{}:{}/debug?info=table&table={}".format(args.server, args.http_port, table)).stdout
-        records_line = filter(lambda line: line.find("Sorted") != -1,  http_content.split("\n"))[0]
-        records_line = records_line.replace("</b>", "")
-        return records_line.split("Sorted:")[1].strip().lower() == "yes"
+        sorted_line = filter(lambda line: line.find("Sorted") != -1,  http_content.split("\n"))[0]
+        sorted_line = sorted_line.replace("</b>", "")
+        return sorted_line.split("Sorted:")[1].strip().lower() == "yes"
+
+    def is_empty(table):
+        """ Parse whether table is empty from html """
+        http_content = sh.curl("{}:{}/debug?info=table&table={}".format(args.server, args.http_port, table)).stdout
+        empty_lines = filter(lambda line: line.find("is empty") != -1,  http_content.split("\n"))
+        return empty_lines and empty_lines[0].startswith("Table is empty")
 
     def import_table(table):
+        if is_empty(table):
+            print >>sys.stderr, "Table {} is empty".format(table)
+            return
+
         temp_table = yt.create_temp_table(prefix=os.path.basename(table))
         count = records_count(table)
         sorted = is_sorted(table)

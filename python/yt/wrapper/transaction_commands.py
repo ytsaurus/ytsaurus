@@ -112,9 +112,9 @@ class PingTransaction(Thread):
         while self.is_running:
             renew_transaction(self.transaction)
             start_time = datetime.now()
-            while datetime.now() - start_time > timedelta(seconds=self.delay):
+            while datetime.now() - start_time < timedelta(seconds=self.delay):
                 sleep(self.step)
-                if not self.running:
+                if not self.is_running:
                     return
 
 class PingableTransaction(object):
