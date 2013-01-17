@@ -23,7 +23,7 @@ inline void AppendToBlob(TBlob& blob, const void* buffer, size_t length)
     ::memcpy(&*(blob.end() - length), buffer, length);
 }
 
-//! A non-owning reference to a k of memory.
+//! A non-owning reference to a block of memory.
 /*!
  *  This is merely a |(start, size)| pair.
  */
