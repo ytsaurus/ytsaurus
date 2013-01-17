@@ -427,11 +427,6 @@ def run_sort(source_table, destination_table=None, sort_by=None,
 
     sort_by = _prepare_sort_by(sort_by)
     source_table = _prepare_source_tables(source_table)
-    if config.TREAT_UNEXISTING_AS_EMPTY and not source_table:
-        destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor))
-        _remove_tables([destination_table])
-        return
-
     for table in source_table:
         require(exists(table.name), YtError("Table %s should exist" % table))
     if all(is_prefix(sort_by, get_sorted_by(table.name, [])) for table in source_table):
@@ -447,7 +442,10 @@ def run_sort(source_table, destination_table=None, sort_by=None,
                         "in case of multiple source tables"))
         destination_table = source_table[0]
     destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor))
-
+    
+    if config.TREAT_UNEXISTING_AS_EMPTY and not source_table:
+        _remove_tables([destination_table])
+        return
 
     spec = compose(
         _add_user_spec,
