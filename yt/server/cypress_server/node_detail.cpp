@@ -90,7 +90,7 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
 
     auto originatingId = originatingNode->GetVersionedId();
     auto branchedId = branchedNode->GetVersionedId();
-    YASSERT(branchedId.IsBranched());
+    YCHECK(branchedId.IsBranched());
 
     // Merge user attributes.
     objectManager->MergeAttributes(originatingId, branchedId);
@@ -166,7 +166,7 @@ void TMapNode::Load(const NCellMaster::TLoadContext& context)
         ::Load(input, key);
         TNodeId id;
         NYT::Load(input, id);
-        auto* node = id == NullObjectId ? NULL : context.Get<TCypressNodeBase>(id);
+        auto* node = id == NullObjectId ? nullptr : context.Get<TCypressNodeBase>(id);
         YCHECK(KeyToChild_.insert(std::make_pair(key, node)).second);
         YCHECK(ChildToKey_.insert(std::make_pair(node, key)).second);
     }
