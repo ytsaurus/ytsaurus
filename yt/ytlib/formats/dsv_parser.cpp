@@ -193,11 +193,17 @@ const char* TDsvParser::FindStopPosition(const char* begin, const char* end) con
         ? SymbolTable.IsKeyStopSymbol
         : SymbolTable.IsValueStopSymbol;
 
-    for (auto* current = begin; current < end; ++current) {
-        if (isStopSymbol[static_cast<ui8>(*current)]) {
-            return current;
-        }
-    }
+    // XXX(sandello): Manual loop unrolling saves about 8% CPU.
+    const char* current = begin;
+#define DO_1  if (isStopSymbol[static_cast<ui8>(*current)]) { return current; } ++current;
+#define DO_4  DO_1 DO_1 DO_1 DO_1
+#define DO_16 DO_4 DO_4 DO_4 DO_4
+    while(current + 16 < end) { DO_16; }
+    while(current + 4  < end) { DO_4;  }
+    while(current      < end) { DO_1;  }
+#undef DO_1
+#undef DO_4
+#undef DO_16
 
     return end;
 }
