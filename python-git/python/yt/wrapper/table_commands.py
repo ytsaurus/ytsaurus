@@ -4,7 +4,7 @@ from common import flatten, require, YtError, unlist, update, EMPTY_GENERATOR, p
 from version import VERSION
 from http import read_content
 from table import TablePath, to_table, to_name, prepare_path
-from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, move, mkdir, find_free_subpath, create
+from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, move, mkdir, find_free_subpath, create, get_type
 from file_commands import smart_upload_file
 from transaction_commands import _make_transactioned_request, PingableTransaction
 
@@ -111,6 +111,11 @@ def _prepare_destination_tables(tables, replication_factor):
                             table))
     return tables
 
+def _remove_tables(tables):
+    for table in tables:
+        if exists(table) and get_type(table) == "table":
+            remove(table)
+
 def _add_user_command_spec(op_type, binary, input_format, output_format, files, file_paths, fds_count, spec):
     if binary is None:
         return spec, []
@@ -144,7 +149,7 @@ def _add_input_output_spec(source_table, destination_table, spec):
         return table.get_json()
     def get_output_name(table):
         return table.get_json()
-    
+
     spec = update({"input_table_paths": map(get_input_name, source_table)}, spec)
     if isinstance(destination_table, TablePath):
         spec = update({"output_table_path": get_output_name(destination_table)}, spec)
@@ -159,8 +164,6 @@ def _add_table_writer_spec(job_types, table_writer, spec):
     return spec
 
 def _make_operation_request(command_name, spec, strategy, finalizer=None, verbose=False):
-    operation = _make_transactioned_request(command_name, {"spec": spec}, verbose=verbose)
-
     common_finalizer = finalizer
     if not config.DETACHED:
         transaction = PingableTransaction(config.OPERATION_TRANSACTION_TIMEOUT)
@@ -171,7 +174,8 @@ def _make_operation_request(command_name, spec, strategy, finalizer=None, verbos
             if finalizer is not None:
                 finalizer()
         common_finalizer = lambda: envelope_finalizer(finalizer, transaction)
-    
+
+    operation = _make_transactioned_request(command_name, {"spec": spec}, verbose=verbose)
     get_value(strategy, config.DEFAULT_STRATEGY).process_operation(command_name, operation, common_finalizer)
 
 class Buffer(object):
@@ -423,6 +427,11 @@ def run_sort(source_table, destination_table=None, sort_by=None,
 
     sort_by = _prepare_sort_by(sort_by)
     source_table = _prepare_source_tables(source_table)
+    if config.TREAT_UNEXISTING_AS_EMPTY and not source_table:
+        destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor))
+        _remove_tables([destination_table])
+        return
+
     for table in source_table:
         require(exists(table.name), YtError("Table %s should exist" % table))
     if all(is_prefix(sort_by, get_sorted_by(table.name, [])) for table in source_table):
@@ -438,6 +447,7 @@ def run_sort(source_table, destination_table=None, sort_by=None,
                         "in case of multiple source tables"))
         destination_table = source_table[0]
     destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor))
+
 
     spec = compose(
         _add_user_spec,
@@ -493,6 +503,10 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
 
     source_table = _prepare_source_tables(source_table)
     destination_table = _prepare_destination_tables(destination_table, replication_factor)
+
+    if config.TREAT_UNEXISTING_AS_EMPTY and not source_table:
+        _remove_tables([destination_table])
+        return
 
     input_format, output_format = _prepare_formats(format, input_format, output_format)
 
@@ -561,6 +575,10 @@ def run_operation(binary, source_table, destination_table,
 
     destination_table = _prepare_destination_tables(destination_table, replication_factor)
     input_format, output_format = _prepare_formats(format, input_format, output_format)
+
+    if config.TREAT_UNEXISTING_AS_EMPTY and not source_table:
+        _remove_tables(destination_table)
+        return
 
     op_type = None
     if op_name == "map": op_type = "mapper"
