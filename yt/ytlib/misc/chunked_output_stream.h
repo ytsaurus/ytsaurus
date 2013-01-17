@@ -14,8 +14,8 @@ class TChunkedOutputStream
 {
 public:
     TChunkedOutputStream(
-        int maxReserveSize = 64 * 1024, 
-        int initialReserveSize = 1024);
+        size_t maxReserveSize = 64 * 1024,
+        size_t initialReserveSize = 4 * 1024);
 
     ~TChunkedOutputStream() throw();
 
@@ -24,15 +24,15 @@ public:
     size_t GetCapacity() const;
 
 private:
-    const int MaxReserveSize;
+    virtual void DoWrite(const void* buf, size_t len) override;
 
-    int CurrentReserveSize;
+    const size_t MaxReserveSize;
+    size_t CurrentReserveSize;
+
     size_t CompleteSize;
 
-    std::vector<TSharedRef> CompleteChunks;
     TBlob IncompleteChunk;
-
-    void DoWrite(const void* buf, size_t len);
+    std::vector<TSharedRef> CompleteChunks;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

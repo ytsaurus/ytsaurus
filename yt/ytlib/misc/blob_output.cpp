@@ -6,22 +6,21 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 TBlobOutput::TBlobOutput()
-{ }
+{
+    Reserve(1);
+}
 
 TBlobOutput::TBlobOutput(size_t capacity)
 {
-    Blob.reserve(capacity);
+    Reserve(capacity);
 }
 
 TBlobOutput::~TBlobOutput() throw()
 { }
 
-void TBlobOutput::DoWrite(const void* buf, size_t len)
+void TBlobOutput::DoWrite(const void* buffer, size_t length)
 {
-    Blob.insert(
-        Blob.end(),
-        static_cast<const char*>(buf),
-        static_cast<const char*>(buf) + len);
+    AppendToBlob(Blob, buffer, length);
 }
 
 const char* TBlobOutput::Begin() const
@@ -34,9 +33,9 @@ size_t TBlobOutput::GetSize() const
     return Blob.size();
 }
 
-void TBlobOutput::Reserve(size_t size)
+void TBlobOutput::Reserve(size_t capacity)
 {
-    Blob.reserve(size);
+    Blob.reserve(RoundUp(capacity));
 }
 
 void TBlobOutput::Clear()

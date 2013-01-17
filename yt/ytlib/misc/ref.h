@@ -3,6 +3,7 @@
 #include "common.h"
 
 #include <util/stream/str.h>
+#include <util/system/info.h>
 
 namespace NYT {
 
@@ -10,7 +11,19 @@ namespace NYT {
 
 typedef std::vector<char> TBlob;
 
-//! A non-owning reference to a block of memory.
+inline size_t RoundUp(size_t bytes) {
+    static const size_t PageSize = NSystemInfo::GetPageSize();
+    YASSERT(PageSize & (PageSize - 1) == 0);
+    return (bytes + PageSize - 1) & (~(PageSize - 1));
+}
+
+inline void AppendToBlob(TBlob& blob, const void* buffer, size_t length)
+{
+    blob.resize(blob.size() + length);
+    ::memcpy(&*(blob.end() - length), buffer, length);
+}
+
+//! A non-owning reference to a k of memory.
 /*!
  *  This is merely a |(start, size)| pair.
  */

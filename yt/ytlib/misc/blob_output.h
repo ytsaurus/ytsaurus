@@ -26,15 +26,14 @@ public:
     const char* Begin() const;
     size_t GetSize() const;
 
-    void Reserve(size_t size);
+    void Reserve(size_t capacity);
     void Clear();
     TSharedRef Flush();
 
 private:
-    void DoWrite(const void* buf, size_t len);
+    virtual void DoWrite(const void* buf, size_t len) override;
 
     TBlob Blob;
-
 };
 
 ///////////////////////////////////////////////////////////////////////////////
