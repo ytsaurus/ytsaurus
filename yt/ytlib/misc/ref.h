@@ -14,7 +14,7 @@ typedef std::vector<char> TBlob;
 inline size_t RoundUp(size_t bytes)
 {
     static const size_t PageSize = NSystemInfo::GetPageSize();
-    YASSERT(PageSize & (PageSize - 1) == 0);
+    YASSERT((PageSize & (PageSize - 1)) == 0);
     return (bytes + PageSize - 1) & (~(PageSize - 1));
 }
 
