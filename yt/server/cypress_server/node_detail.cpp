@@ -53,6 +53,12 @@ void TNontemplateCypressNodeTypeHandlerBase::DestroyCore(TCypressNodeBase* node)
     if (objectManager->FindAttributes(id)) {
         objectManager->RemoveAttributes(id);
     }
+
+    // Reset parent links from immediate ancestors.
+    FOREACH (auto* ancestor, node->ImmediateAncestors()) {
+        ancestor->ResetParent();
+    }
+    node->ImmediateAncestors().clear();
 }
 
 void TNontemplateCypressNodeTypeHandlerBase::BranchCore(

@@ -19,7 +19,6 @@ using namespace NTransactionServer;
 
 TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id)
     : TObjectBase(id.ObjectId)
-    , Parent_(nullptr)
     , LockMode_(ELockMode::None)
     , TrunkNode_(nullptr)
     , Transaction_(nullptr)
@@ -27,11 +26,36 @@ TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id)
     , ModificationTime_(0)
     , Account_(nullptr)
     , CachedResourceUsage_(ZeroClusterResources())
+    , Parent_(nullptr)
     , TransactionId(id.TransactionId)
 { }
 
 TCypressNodeBase::~TCypressNodeBase()
 { }
+
+TCypressNodeBase* TCypressNodeBase::GetParent() const
+{
+    return Parent_;
+}
+
+void TCypressNodeBase::SetParent(TCypressNodeBase* newParent)
+{
+    if (Parent_ == newParent)
+        return;
+
+    if (Parent_) {
+        YCHECK(Parent_->ImmediateAncestors().erase(this) == 1);
+    }
+    Parent_ = newParent;
+    if (Parent_) {
+        YCHECK(Parent_->ImmediateAncestors().insert(this).second);
+    }
+}
+
+void TCypressNodeBase::ResetParent()
+{
+    Parent_ = nullptr;
+}
 
 TVersionedNodeId TCypressNodeBase::GetVersionedId() const
 {

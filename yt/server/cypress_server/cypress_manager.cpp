@@ -940,6 +940,15 @@ void TCypressManager::LoadValues(const NCellMaster::TLoadContext& context)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     NodeMap.LoadValues(context);
+
+    // Reconstruct immediate ancestor sets.
+    FOREACH (const auto& pair, NodeMap) {
+        auto* node = pair.second;
+        auto* parent = node->GetParent();
+        if (parent) {
+            YCHECK(parent->ImmediateAncestors().insert(node).second);
+        }
+    }
 }
 
 void TCypressManager::Clear()
