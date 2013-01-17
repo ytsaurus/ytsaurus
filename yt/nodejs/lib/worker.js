@@ -151,6 +151,13 @@ dynamic_server = connect()
             static_server_new.serve(req, rsp);
         });
     })
+    .use("/ping", function(req, rsp, next) {
+        "use strict";
+        req.on("end", function() {
+            rsp.writeHead(200, { "Content-Length" : 0 });
+            rsp.end();
+        });
+    })
     .use("/_check_availability_time", function(req, rsp, next) {
         "use strict";
         fs.readFile("/var/lock/yt_check_availability_time", function(err, data) {
