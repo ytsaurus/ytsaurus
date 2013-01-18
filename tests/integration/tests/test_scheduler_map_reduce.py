@@ -4,13 +4,13 @@ from yt_env_setup import YTEnvSetup, TOOLS_ROOTDIR
 from yt_commands import *
 
 import os
-import unittest
+
 
 from collections import defaultdict
 
 ##################################################################
 
-class TestSchedulerMapReduceCommands(YTEnvSetup, unittest.TestCase):
+class TestSchedulerMapReduceCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
     START_SCHEDULER = True

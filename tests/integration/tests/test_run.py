@@ -1,31 +1,31 @@
 from yt_env_setup import YTEnvSetup
 
-import unittest
+
 
 ##################################################################
 
-class TestRunNothing(YTEnvSetup, unittest.TestCase):
+class TestRunNothing(YTEnvSetup):
     NUM_MASTERS = 0
     NUM_NODES = 0
 
     def test(self):
         assert True
 
-class TestRunMaster(YTEnvSetup, unittest.TestCase):
+class TestRunMaster(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 0
 
     def test(self):
         assert True
 
-class TestRunNode(YTEnvSetup, unittest.TestCase):
+class TestRunNode(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
 
     def test(self):
         assert True
 
-class TestRunScheduler(YTEnvSetup, unittest.TestCase):
+class TestRunScheduler(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 0
     START_SCHEDULER = True
@@ -33,7 +33,7 @@ class TestRunScheduler(YTEnvSetup, unittest.TestCase):
     def test(self):
         assert True
 
-class TestRunAll(YTEnvSetup, unittest.TestCase):
+class TestRunAll(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
     START_SCHEDULER = True

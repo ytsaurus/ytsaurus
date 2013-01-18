@@ -4,11 +4,11 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
 import time
-import unittest
+
 
 ##################################################################
 
-class TestTxCommands(YTEnvSetup, unittest.TestCase):
+class TestTxCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 0
 

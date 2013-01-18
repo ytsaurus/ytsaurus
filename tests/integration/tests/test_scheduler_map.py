@@ -3,7 +3,7 @@ import pytest
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
-import unittest
+
 ##################################################################
 
 #TODO(panin): refactor
@@ -12,7 +12,7 @@ def check_all_stderrs(op_id, expected):
     for job_id in ls(jobs_path):
         assert download(jobs_path + '/' + job_id + '/stderr') == expected
 
-class TestSchedulerMapCommands(YTEnvSetup, unittest.TestCase):
+class TestSchedulerMapCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
     START_SCHEDULER = True

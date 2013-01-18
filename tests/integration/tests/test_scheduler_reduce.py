@@ -3,10 +3,10 @@ import pytest
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
-import unittest
+
 ##################################################################
 
-class TestSchedulerReduceCommands(YTEnvSetup, unittest.TestCase):
+class TestSchedulerReduceCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
     START_SCHEDULER = True
