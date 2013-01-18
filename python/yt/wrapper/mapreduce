@@ -234,6 +234,8 @@ Examples:
              "specifies map operation command"),
             ("mapfile",
              "NEW! file for the map stage of mapreduce operation"),
+            ("memlimit",
+             "Memory limit for user job in Mb."),
             ("merge",
              "merge given tables"),
             ("opt",
@@ -399,7 +401,7 @@ Examples:
     config.PING_ANSECTOR_TRANSACTIONS = args.pingtx
 
     if args.memlimit is not None:
-        config.MEMORY_LIMIT = int(args.memlimit)
+        config.MEMORY_LIMIT = int(args.memlimit * config.MB)
 
     config.DETACHED = args.detached
 
