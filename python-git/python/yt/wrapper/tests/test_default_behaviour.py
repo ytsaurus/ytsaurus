@@ -8,7 +8,7 @@ import yt.wrapper as yt
 import sys
 from StringIO import StringIO
 
-class DefaultYtTest(YtTestBase, YTEnv):
+class DefaultYtTest(YtTestBase, YTEnv, unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         YtTestBase.setUpClass(YTEnv)

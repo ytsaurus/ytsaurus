@@ -28,7 +28,7 @@ def write_with_flush(data):
     sys.stdout.write(data)
     sys.stdout.flush()
 
-class YTEnv(unittest.TestCase):
+class YTEnv(object):
     NUM_MASTERS = 3
     NUM_NODES = 5
     START_SCHEDULER = False
@@ -37,10 +37,6 @@ class YTEnv(unittest.TestCase):
     DELTA_MASTER_CONFIG = {}
     DELTA_NODE_CONFIG = {}
     DELTA_SCHEDULER_CONFIG = {}
-
-    # needed for compatibility with unittest.TestCase
-    def runTest(self):
-        pass
 
     # to be redefiened in successors
     def modify_master_config(self, config):
