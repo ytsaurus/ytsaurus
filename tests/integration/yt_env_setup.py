@@ -74,8 +74,8 @@ class YTEnvSetup(YTEnv):
             if account != 'sys' and account != 'tmp':
                 yt_commands.remove_account(account)
 
-    def assertItemsEqual(actual, expected):
-        assert list(actual) == list(expected)
+    def assertItemsEqual(self, actual, expected, msg=""):
+        assert list(actual) == list(expected), msg
 
 # decorator form
 ATTRS = [
