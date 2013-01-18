@@ -8,6 +8,7 @@ import os
 import sh
 import sys
 from argparse import ArgumentParser
+from urllib import quote_plus
 
 def main():
     parser = ArgumentParser()
@@ -86,7 +87,7 @@ def main():
             table_writer["codec"] = args.codec
 
         if has_proxy:
-            command = 'curl "http://${{server}}/table/{}?subkey=1&lenval=1&startindex=${{start}}&endindex=${{end}}"'.format(table)
+            command = 'curl "http://${{server}}/table/{}?subkey=1&lenval=1&startindex=${{start}}&endindex=${{end}}"'.format(quote_plus(table))
         else:
             command = './mapreduce -server $server {} -read {}:[$start,$end] -lenval -subkey'.format(use_fastbone, table)
         yt.run_map(
@@ -94,7 +95,7 @@ def main():
                     'IFS="\t" read -r server start end; '
                     'if [ "$?" != "0" ]; then break; fi; '
                     'set -e; '
-                    '{};'
+                    '{}; '
                     'set +e; '
                 'done;'.format(command),
                 temp_table,
