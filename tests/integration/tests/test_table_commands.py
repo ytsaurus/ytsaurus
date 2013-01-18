@@ -4,9 +4,10 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import *
 from time import sleep
 
+import unittest
 ##################################################################
 
-class TestTableCommands(YTEnvSetup):
+class TestTableCommands(YTEnvSetup, unittest.TestCase):
     NUM_MASTERS = 3
     NUM_NODES = 5
 

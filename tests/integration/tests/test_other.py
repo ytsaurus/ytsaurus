@@ -5,10 +5,11 @@ from yt_commands import *
 
 import time
 import os
+import unittest
 
 ##################################################################
 
-class TestOrchid(YTEnvSetup):
+class TestOrchid(YTEnvSetup, unittest.TestCase):
     NUM_MASTERS = 3
     NUM_NODES = 5
     START_SCHEDULER = True
@@ -48,7 +49,7 @@ class TestOrchid(YTEnvSetup):
 ###################################################################################
 
 # TODO(panin): unite with next
-class TestResourceLeak(YTEnvSetup):
+class TestResourceLeak(YTEnvSetup, unittest.TestCase):
     NUM_MASTERS = 1
     NUM_NODES = 3
 
@@ -77,7 +78,7 @@ class TestResourceLeak(YTEnvSetup):
             self._check_no_temp_file(chunk_store_path)
 
 # TODO(panin): check chunks
-class TestResourceLeak2(YTEnvSetup):
+class TestResourceLeak2(YTEnvSetup, unittest.TestCase):
     NUM_MASTERS = 1
     NUM_NODES = 5
 
@@ -101,7 +102,7 @@ class TestResourceLeak2(YTEnvSetup):
 
 ###################################################################################
 
-class TestVirtualMaps(YTEnvSetup):
+class TestVirtualMaps(YTEnvSetup, unittest.TestCase):
     NUM_MASTERS = 3
     NUM_NODES = 0
 
@@ -114,7 +115,7 @@ class TestVirtualMaps(YTEnvSetup):
 ###################################################################################
 
 
-class TestAsyncAttributes(YTEnvSetup):
+class TestAsyncAttributes(YTEnvSetup, unittest.TestCase):
     NUM_MASTERS = 1
     NUM_NODES = 3
     START_SCHEDULER = True

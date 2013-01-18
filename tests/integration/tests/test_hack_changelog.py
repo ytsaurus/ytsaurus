@@ -5,8 +5,9 @@ from yt_commands import *
 
 import os
 import subprocess
+import unittest
 
-class TestHackChangelog(YTEnvSetup):
+class TestHackChangelog(YTEnvSetup, unittest.TestCase):
     NUM_MASTERS = 1
     NUM_NODES = 0
 

@@ -1,9 +1,10 @@
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
+import unittest
 ##################################################################
 
-class TestSnapshot(YTEnvSetup):
+class TestSnapshot(YTEnvSetup, unittest.TestCase):
     NUM_MASTERS = 1
     NUM_NODES = 0
     START_SCHEDULER = False

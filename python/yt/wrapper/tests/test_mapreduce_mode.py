@@ -25,7 +25,7 @@ def _test_file_path(path):
 def _module_file_path(path):
     return os.path.join(LOCATION, "..", path)
 
-class MapreduceBehaviourTest(YtTestBase, YTEnv):
+class MapreduceBehaviourTest(YtTestBase, YTEnv, unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         YtTestBase.setUpClass(YTEnv)

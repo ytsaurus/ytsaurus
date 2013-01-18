@@ -3,9 +3,10 @@ import pytest
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
+import unittest
 ##################################################################
 
-class TestAccounts(YTEnvSetup):
+class TestAccounts(YTEnvSetup, unittest.TestCase):
     NUM_MASTERS = 1
     NUM_NODES = 3
     START_SCHEDULER = False

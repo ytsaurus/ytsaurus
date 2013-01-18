@@ -3,6 +3,7 @@ import pytest
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
+import unittest
 ##################################################################
 
 def check_memory_limit(op_id):
@@ -11,7 +12,7 @@ def check_memory_limit(op_id):
         inner_errors = get(jobs_path + '/' + job_id + '/@error/inner_errors')
         assert 'Memory limit exceeded' in inner_errors[0]['message']
 
-class TestSchedulerMemoryLimits(YTEnvSetup):
+class TestSchedulerMemoryLimits(YTEnvSetup, unittest.TestCase):
     NUM_MASTERS = 3
     NUM_NODES = 5
     START_SCHEDULER = True
