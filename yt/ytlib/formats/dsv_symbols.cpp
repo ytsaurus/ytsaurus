@@ -113,7 +113,7 @@ static inline const char* FindNextSymbol(
 {
     // XXX(sandello): Manual loop unrolling saves about 8% CPU.
     const char* current = begin;
-#define DO_1  if (isStopSymbol[static_cast<ui8>(*current)]) { return current; } ++current;
+#define DO_1  if (matchTable[static_cast<ui8>(*current)]) { return current; } ++current;
 #define DO_4  DO_1 DO_1 DO_1 DO_1
 #define DO_16 DO_4 DO_4 DO_4 DO_4
     while (current + 16 < end) { DO_16; }
