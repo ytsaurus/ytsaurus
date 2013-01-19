@@ -5,21 +5,17 @@ from yt.environment import YTEnv
 import yt.wrapper.config as config
 import yt.wrapper as yt
 
-import sys
 from StringIO import StringIO
 
-class DefaultYtTest(YtTestBase, YTEnv, unittest.TestCase):
+class TestDefaultBehaviour(YtTestBase, YTEnv):
     @classmethod
-    def setUpClass(cls):
-        YtTestBase.setUpClass(YTEnv)
-
-    @classmethod
-    def tearDownClass(cls):
-        YtTestBase.tearDownClass()
-
-    def setUp(self):
-        super(DefaultYtTest, self).setUp()
+    def setup_class(cls):
+        YtTestBase._setup_class(YTEnv)
         yt.config.DEFAULT_FORMAT = yt.format.DsvFormat()
+
+    @classmethod
+    def teardown_class(cls):
+        YtTestBase._teardown_class()
 
     # Check equality of records in dsv format
     def check(self, recordsA, recordsB):
@@ -29,6 +25,7 @@ class DefaultYtTest(YtTestBase, YTEnv, unittest.TestCase):
 
 
     def test_get_set_exists(self):
+        print "FORMAT", yt.config.DEFAULT_FORMAT
         self.assertTrue(yt.get("/"))
         self.assertTrue(len(yt.list("/")) > 1)
         self.assertRaises(yt.YtError, lambda: yt.get("//none"))

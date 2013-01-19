@@ -16,8 +16,6 @@ import subprocess
 from itertools import imap, izip, starmap, chain
 from functools import partial
 
-import unittest
-
 LOCATION = os.path.dirname(os.path.abspath(__file__))
 def _test_file_path(path):
     return os.path.join(LOCATION, "files", path)
@@ -25,18 +23,14 @@ def _test_file_path(path):
 def _module_file_path(path):
     return os.path.join(LOCATION, "..", path)
 
-class MapreduceBehaviourTest(YtTestBase, YTEnv, unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        YtTestBase.setUpClass(YTEnv)
-
-    @classmethod
-    def tearDownClass(cls):
-        YtTestBase.tearDownClass()
-
-    def setUp(self):
-        super(MapreduceBehaviourTest, self).setUp()
+class TestMapreduceMode(YtTestBase, YTEnv):
+    def setup_class(cls):
+        YtTestBase._setup_class(YTEnv)
         config.set_mapreduce_mode()
+
+    @classmethod
+    def teardown_class(cls):
+        YtTestBase._teardown_class()
 
     def read_records(self, table, format=None):
         return filter(None,
@@ -454,9 +448,5 @@ class MapreduceBehaviourTest(YtTestBase, YTEnv, unittest.TestCase):
         table = self.create_temp_table()
         yt.run_map('cat > /dev/null; [ -e empty ] || echo -e "1\t2"', table, table, files=_test_file_path("empty"))
         self.assertEqual(yt.records_count(table), 1)
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
