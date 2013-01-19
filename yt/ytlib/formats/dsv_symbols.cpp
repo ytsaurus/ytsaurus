@@ -57,7 +57,6 @@ static inline const char* FindNextSymbol(
         //
         // See http://software.intel.com/sites/default/files/m/0/3/c/d/4/18187-d9156103.pdf
         //
-        //
         // In our case we are doing the following:
         //   - _SIDD_UBYTE_OPS - matching unsigned bytes,
         //   - _SIDD_CMP_EQUAL_ANY - comparing any byte from %xmm0 with any byte of %xmm1,
