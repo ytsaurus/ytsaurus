@@ -17,6 +17,10 @@ const char _m128i_shift_right[31] = {
     -1, -1, -1, -1, -1, -1, -1
 };
 
+//! This method performs an "aligned" load of |p| into 128-bit register.
+//! If |p| is not aligned then the returned value will contain a (byte-)prefix
+//! of memory region pointed by |p| truncated at the first 16-byte boundary.
+//! The length of the result is stored into |length|.
 static inline __m128i AlignedPrefixLoad(const void* p, int* length)
 {
     int offset = (size_t)p & 15; *length = 16 - offset;
@@ -46,10 +50,27 @@ static inline const char* FindNextSymbol(
     __m128i value = AlignedPrefixLoad(current, &tmp);
 
     do {
-        // XXX(sandello): This compiles down to a single "pcmpestri $0x20,%xmm0,%xmm1"
-        // instruction, because |result| is written to %ecx and |result2|
-        // is written to CFlag, but CFlag checking is cheaper.
+        // In short, PCMPxSTRx instruction takes two 128-bit registers with
+        // packed bytes and performs string comparsion on them with user-defined
+        // strategy. As the result PCMPxSTRx produces a lot of stuff, i. e.
+        // match bit-mask, LSB or MSB of that bit-mask, and a few flags.
+        //
         // See http://software.intel.com/sites/default/files/m/0/3/c/d/4/18187-d9156103.pdf
+        //
+        //
+        // In our case we are doing the following:
+        //   - _SIDD_UBYTE_OPS - matching unsigned bytes,
+        //   - _SIDD_CMP_EQUAL_ANY - comparing any byte from %xmm0 with any byte of %xmm1,
+        //   - _SIDD_MASKED_POSITIVE_POLARITY - are interested only in proper bytes with positive matches,
+        //   - _SIDD_LEAST_SIGNIFICANT - are interested in the index of least significant match position.
+        //
+        // In human terms this means "find position of first occurrence of
+        // any byte from %xmm0 in %xmm1".
+        //
+        // XXX(sandello): These intrinsics compile down to a single
+        // "pcmpestri $0x20,%xmm0,%xmm1" instruction, because |result| is written
+        // to %ecx and |result2| is (simultaneously) written to CFlag.
+        // We are interested in CFlag because it is cheaper to check.
         result = _mm_cmpestri(
             symbols,
             count,
