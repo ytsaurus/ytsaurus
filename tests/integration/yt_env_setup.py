@@ -6,10 +6,6 @@ from functools import wraps
 from yt.environment import YTEnv
 
 import yt_commands
-import collections
-
-from unittest.util import unorderable_list_difference
-
 SANDBOX_ROOTDIR = os.path.abspath('tests.sandbox')
 TOOLS_ROOTDIR = os.path.abspath('tools')
 PIDS_FILENAME = os.path.join(SANDBOX_ROOTDIR, 'pids.txt')
@@ -76,34 +72,6 @@ class YTEnvSetup(YTEnv):
         for account in accounts:
             if account != 'sys' and account != 'tmp':
                 yt_commands.remove_account(account)
-
-    def assertItemsEqual(self, actual_seq, expected_seq):
-        # It is simplified version of the same method of unittest.TestCase
-        try:
-            actual = collections.Counter(iter(actual_seq))
-            expected = collections.Counter(iter(expected_seq))
-        except TypeError:
-            # Unsortable items (example: set(), complex(), ...)
-            actual = list(actual_seq)
-            expected = list(expected_seq)
-            missing, unexpected = unorderable_list_difference(expected, actual)
-        else:
-            if actual == expected:
-                return
-            missing = list(expected - actual)
-            unexpected = list(actual - expected)
-
-        assert not missing, 'Expected, but missing:\n    %s' % repr(missing)
-        assert not unexpected, 'Unexpected, but present:\n    %s' % repr(unexpected)
-
-    def assertEqual(self, actual, expected, msg=""):
-        self.assertTrue(actual == expected, msg)
-    
-    def assertTrue(self, expr, msg=""):
-        assert expr, msg
-
-    def assertFalse(self, expr, msg):
-        assert not expr, msg
 
 # decorator form
 ATTRS = [

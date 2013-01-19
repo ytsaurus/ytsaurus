@@ -8,7 +8,7 @@ TEST_DIR = "//home/tests"
 
 class YtTestBase(object):
     @classmethod
-    def setUpClass(cls, test_class):
+    def _setup_class(cls, test_class):
         reload(yt)
         reload(config)
 
@@ -32,16 +32,16 @@ class YtTestBase(object):
         config.PROXY = "localhost:%d" % ports["proxy"]
 
     @classmethod
-    def tearDownClass(cls):
+    def _teardown_class(cls):
         cls.env.clear_environment()
 
-    def setUp(self):
+    def setup(self):
         os.environ["PATH"] = ".:" + os.environ["PATH"]
         yt.mkdir(TEST_DIR, recursive=True)
 
         config.WAIT_TIMEOUT = 0.2
         config.DEFAULT_STRATEGY = yt.WaitStrategy(print_progress=False)
 
-    def tearDown(self):
+    def teardown(self):
         yt.remove(TEST_DIR, recursive=True)
 

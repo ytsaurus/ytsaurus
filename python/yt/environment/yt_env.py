@@ -3,8 +3,6 @@ import configs
 from yt.common import update
 import yt.yson as yson
 
-import unittest
-
 import logging
 import os
 import re
@@ -15,6 +13,11 @@ import shutil
 import subprocess
 import sys
 import simplejson as json
+import collections
+
+from unittest.util import unorderable_list_difference
+from unittest.case import _AssertRaisesContext
+
 
 def init_logging(node, path, name):
     for key, suffix in [('file', '.log'), ('raw', '.debug.log')]:
@@ -29,6 +32,8 @@ def write_with_flush(data):
     sys.stdout.flush()
 
 class YTEnv(object):
+    failureException = Exception
+
     NUM_MASTERS = 3
     NUM_NODES = 5
     START_SCHEDULER = False
@@ -126,7 +131,7 @@ class YTEnv(object):
             if not p_ok: ok = False
             message += p_message
 
-        assert ok, message
+        #assert ok, message
 
     def _append_pid(self, pid):
         self.pids_file.write(str(pid) + '\n')
@@ -385,3 +390,38 @@ class YTEnv(object):
             current_wait_time += sleep_quantum
         assert False, "%s still not ready after %s seconds" % (name, max_wait_time)
 
+    # Unittest is painfull to integrate, so we simply reimplement some methods
+    def assertItemsEqual(self, actual_seq, expected_seq):
+        # It is simplified version of the same method of unittest.TestCase
+        try:
+            actual = collections.Counter(iter(actual_seq))
+            expected = collections.Counter(iter(expected_seq))
+        except TypeError:
+            # Unsortable items (example: set(), complex(), ...)
+            actual = list(actual_seq)
+            expected = list(expected_seq)
+            missing, unexpected = unorderable_list_difference(expected, actual)
+        else:
+            if actual == expected:
+                return
+            missing = list(expected - actual)
+            unexpected = list(actual - expected)
+
+        assert not missing, 'Expected, but missing:\n    %s' % repr(missing)
+        assert not unexpected, 'Unexpected, but present:\n    %s' % repr(unexpected)
+
+    def assertEqual(self, actual, expected, msg=""):
+        self.assertTrue(actual == expected, msg)
+    
+    def assertTrue(self, expr, msg=""):
+        assert expr, msg
+
+    def assertFalse(self, expr, msg=""):
+        assert not expr, msg
+
+    def assertRaises(self, excClass, callableObj=None, *args, **kwargs):
+        context = _AssertRaisesContext(excClass, self)
+        if callableObj is None:
+            return context
+        with context:
+            callableObj(*args, **kwargs)
