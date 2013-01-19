@@ -17,10 +17,16 @@ const char _m128i_shift_right[31] = {
     -1, -1, -1, -1, -1, -1, -1
 };
 
-//! This method performs an "aligned" load of |p| into 128-bit register.
-//! If |p| is not aligned then the returned value will contain a (byte-)prefix
-//! of memory region pointed by |p| truncated at the first 16-byte boundary.
-//! The length of the result is stored into |length|.
+// This method performs an "aligned" load of |p| into 128-bit register.
+// If |p| is not aligned then the returned value will contain a (byte-)prefix
+// of memory region pointed by |p| truncated at the first 16-byte boundary.
+// The length of the result is stored into |length|.
+//
+// Note that real motivation for this method is to avoid accidental page faults
+// with direct unaligend reads. I. e., if you have 4 bytes at the end of a page
+// then unaligned read will read 16 - 4 = 12 bytes from the next page causing
+// a page fault; if the next page is unmapped this will incur a segmentation
+// fault and terminate the process.
 static inline __m128i AlignedPrefixLoad(const void* p, int* length)
 {
     int offset = (size_t)p & 15; *length = 16 - offset;
