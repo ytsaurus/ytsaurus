@@ -39,7 +39,6 @@ private:
     Stroka CurrentToken;
 
     const char* Consume(const char* begin, const char* end);
-    const char* FindStopPosition(const char* begin, const char* end) const;
 
     void StartRecordIfNeeded();
     void FinishRecord();
@@ -56,7 +55,6 @@ private:
     EState GetStartState() const;
 
 };
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -119,8 +117,10 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
         return begin + 1;
     }
 
-    // Read until stop symbol
-    auto next = FindStopPosition(begin, end);
+    // Read until first stop symbol.
+    auto next = State == EState::InsideKey
+        ? SymbolTable.FindNextKeyStop(begin, end)
+        : SymbolTable.FindNextValueStop(begin, end);
     CurrentToken.append(begin, next);
     if (next == end || *next == Config->EscapingSymbol) {
         return next;
@@ -131,7 +131,6 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
             << TErrorAttribute("record_index", RecordCount)
             << TErrorAttribute("field_index", FieldCount);
     }
-
 
     // Here, we have finished reading prefix, key or value
     if (State == EState::InsidePrefix) {
@@ -184,28 +183,6 @@ void TDsvParser::FinishRecord()
 
     RecordCount += 1;
     FieldCount = 1;
-}
-
-const char* TDsvParser::FindStopPosition(const char* begin, const char* end) const
-{
-    const bool* isStopSymbol =
-        State == EState::InsideKey
-        ? SymbolTable.IsKeyStopSymbol
-        : SymbolTable.IsValueStopSymbol;
-
-    // XXX(sandello): Manual loop unrolling saves about 8% CPU.
-    const char* current = begin;
-#define DO_1  if (isStopSymbol[static_cast<ui8>(*current)]) { return current; } ++current;
-#define DO_4  DO_1 DO_1 DO_1 DO_1
-#define DO_16 DO_4 DO_4 DO_4 DO_4
-    while(current + 16 < end) { DO_16; }
-    while(current + 4  < end) { DO_4;  }
-    while(current      < end) { DO_1;  }
-#undef DO_1
-#undef DO_4
-#undef DO_16
-
-    return end;
 }
 
 void TDsvParser::ValidatePrefix(const Stroka& prefix) const

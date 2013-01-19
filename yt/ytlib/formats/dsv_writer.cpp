@@ -38,7 +38,7 @@ TDsvWriter::~TDsvWriter()
 
 void TDsvWriter::OnStringScalar(const TStringBuf& value)
 {
-    EscapeAndWrite(value, SymbolTable.IsValueStopSymbol);
+    EscapeAndWrite(value, false);
 }
 
 void TDsvWriter::OnIntegerScalar(i64 value)
@@ -105,7 +105,7 @@ void TDsvWriter::OnKeyedItem(const TStringBuf& key)
         Stream->Write(Config->AttributesPrefix);
     }
 
-    EscapeAndWrite(key, SymbolTable.IsKeyStopSymbol);
+    EscapeAndWrite(key, true);
     Stream->Write(Config->KeyValueSeparator);
 
     InsideFirstItem = false;
@@ -136,37 +136,28 @@ void TDsvWriter::OnEndAttributes()
     InsideAttributes = false;
 }
 
-void TDsvWriter::EscapeAndWrite(const TStringBuf& key, const bool* isStopSymbol)
+void TDsvWriter::EscapeAndWrite(const TStringBuf& string, bool inKey)
 {
     if (Config->EnableEscaping) {
-        auto* current = key.begin();
-        auto* end = key.end();
-        while (current != end) {
-            auto* next = FindNextEscapedSymbol(current, end, isStopSymbol);
-            Stream->Write(current, next - current);
+        auto* begin = string.begin();
+        auto* end = string.end();
+        auto* next = begin;
+        for (; begin != end; begin = next) {
+            next = inKey
+                ? SymbolTable.FindNextKeyStop(begin, end)
+                : SymbolTable.FindNextValueStop(begin, end);
+
+            Stream->Write(begin, next - begin);
+
             if (next != end) {
                 Stream->Write(Config->EscapingSymbol);
                 Stream->Write(SymbolTable.EscapingTable[static_cast<ui8>(*next)]);
                 ++next;
             }
-            current = next;
         }
     } else {
-        Stream->Write(key);
+        Stream->Write(string);
     }
-}
-
-const char* TDsvWriter::FindNextEscapedSymbol(
-    const char* begin,
-    const char* end,
-    const bool* isStopSymbol)
-{
-    for (auto* current = begin; current != end; ++current) {
-        if (isStopSymbol[static_cast<ui8>(*current)]) {
-            return current;
-        }
-    }
-    return end;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
