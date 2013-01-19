@@ -4,7 +4,7 @@ import yt.wrapper.config as config
 import os
 import logging
 
-TEST_DIR = "//home/tests"
+TEST_DIR = "//home/wrapper_tests"
 
 class YtTestBase(object):
     @classmethod
