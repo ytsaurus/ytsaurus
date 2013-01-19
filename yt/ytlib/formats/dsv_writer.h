@@ -59,9 +59,7 @@ private:
 
     NYson::TLexer Lexer;
 
-    void EscapeAndWrite(const TStringBuf& key, const bool* IsStopSymbol);
-    const char* FindNextEscapedSymbol(const char* begin, const char* end, const bool* IsStopSymbol);
-
+    void EscapeAndWrite(const TStringBuf& string, bool inKey);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
