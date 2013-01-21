@@ -82,9 +82,9 @@ private:
             result.set_cpu(Controller->Spec->Mapper->CpuLimit);
             result.set_memory(
                 GetIOMemorySize(
-                Controller->Spec->JobIO,
-                1,
-                Controller->Spec->OutputTablePaths.size()) +
+                    Controller->Spec->JobIO,
+                    1,
+                    Controller->Spec->OutputTablePaths.size()) +
                 GetFootprintMemorySize() +
                 Controller->Spec->Mapper->MemoryLimit);
             return result;

@@ -124,12 +124,18 @@ protected:
         virtual NProto::TNodeResources GetMinNeededResources() const override
         {
             TNodeResources result;
+
+            int inputTables = 1;
+            if (Controller->JobSpecTemplate.type() == EJobType::SortedMerge) {
+                inputTables = Controller->GetInputTablePaths().size();
+            }
+
             result.set_slots(1);
             result.set_cpu(1);
             result.set_memory(
                 GetIOMemorySize(
                     Controller->Spec->JobIO,
-                    Controller->GetInputTablePaths().size(),
+                    inputTables,
                     1) +
                 GetFootprintMemorySize() +
                 Controller->GetAdditionalMemorySize());
