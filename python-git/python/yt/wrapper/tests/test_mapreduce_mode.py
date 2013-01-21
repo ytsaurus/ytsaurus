@@ -10,6 +10,7 @@ from yt.common import flatten
 from yt.wrapper.tests.base import YtTestBase, TEST_DIR
 
 import os
+import sys
 import random
 import string
 import subprocess
@@ -343,9 +344,11 @@ class TestMapreduceMode(YtTestBase, YTEnv):
             sorted(["a\t\t2\n", "b\t\t1\n", "c\t\t6\n"]))
 
     def test_python_operations(self):
+        @yt.raw
         def func(rec):
             yield rec.strip() + "aaaaaaaaaa\n"
 
+        @yt.raw
         def func_smart(rec):
             rec = yt.line_to_record(rec)
             rec.key = "xxx"
@@ -368,6 +371,7 @@ class TestMapreduceMode(YtTestBase, YTEnv):
         self.assertFalse(yt.exists(TEST_DIR + "/ttt"))
 
     def test_reformatting(self):
+        @yt.raw
         def reformat(rec):
             values = rec.strip().split("\t", 2)
             yield "\t".join("=".join([k, v]) for k, v in zip(["k", "s", "v"], values))

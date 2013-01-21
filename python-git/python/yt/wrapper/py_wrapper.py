@@ -33,12 +33,16 @@ def module_relpath(module):
     #            relpath = relpath[1:]
     #        return relpath
 
-def wrap(function):
+def wrap(function, operation_type, reduce_by=None):
+    assert operation_type in ["mapper", "reducer"]
     function_filename = tempfile.mkstemp(dir="/tmp", prefix=".operation.dump")[1]
     with open(function_filename, "w") as fout:
-        dump(function, fout)
+        attributes = function.attributes if hasattr(function, "attributes") else {}
+        dump((function, attributes, operation_type, reduce_by), fout)
 
     zip_filename = tempfile.mkstemp(dir="/tmp", prefix=".modules.zip")[1]
+
+    shutil.copy(function_filename, "//home/ignat/dump")
 
     # We don't use with statement for compatibility with python2.6
     with ZipFile(zip_filename, "w") as zip:
@@ -63,11 +67,25 @@ def wrap(function):
     finally:
         config_shelve.close()
 
-    return ("python _py_runner.py {0} {1} {2} {3} {4}".\
-                format(os.path.basename(function_filename),
-                       os.path.basename(zip_filename),
-                       os.path.basename(main_filename),
-                       "_main_module",
-                       os.path.basename(config_filename)),
+    return ("python _py_runner.py " + " ".join([
+                os.path.basename(function_filename),
+                os.path.basename(zip_filename),
+                os.path.basename(main_filename),
+                "_main_module",
+                os.path.basename(config_filename)]),
             os.path.join(LOCATION, "_py_runner.py"),
             [function_filename, zip_filename, main_filename, config_filename])
+
+def _init_attributes(func):
+    if not hasattr(func, "attributes"):
+        func.attributes = {}
+
+def aggregator(func):
+    _init_attributes(func)
+    func.attributes["is_aggregator"] = True
+    return func
+
+def raw(func):
+    _init_attributes(func)
+    func.attributes["is_raw"] = True
+    return func
