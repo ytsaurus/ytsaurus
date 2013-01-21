@@ -346,14 +346,14 @@ protected:
                 }
             }
 
-            
-            int JobCount = Config->MaxJobCount;
-            if (Spec->JobCount) {
-                JobCount = std::min(JobCount, *Spec->JobCount);
-            }
-            MaxDataSizePerJob = std::max(
+            auto jobCount = SuggestJobCount(
+                totalDataSize,
+                1,
                 Spec->MaxDataSizePerJob,
-                static_cast<i64>(std::ceil((double) totalDataSize / JobCount)));
+                Spec->JobCount,
+                chunks.size());
+
+            MaxDataSizePerJob = static_cast<i64>(std::ceil((double) totalDataSize / jobCount));
 
             FOREACH (auto chunk, chunks) {
                 ProcessInputChunk(chunk);
