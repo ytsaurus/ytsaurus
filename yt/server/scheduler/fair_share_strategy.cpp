@@ -471,7 +471,7 @@ protected:
                 }
 
                 if (lhsNeedy && rhsNeedy) {
-                    return GetUsageToLimitsRatio(lhs) < GetUsageToLimitsRatio(rhs);
+                    return GetUsageToMinShareRatio(lhs) < GetUsageToMinShareRatio(rhs);
                 }
 
                 return GetUsageToWeightRatio(lhs) < GetUsageToWeightRatio(rhs);
@@ -481,27 +481,23 @@ protected:
 
     bool IsNeedy(ISchedulableElementPtr element) const
     {
-        const auto& attributes = element->Attributes();
-        i64 dominantDemand = GetResource(element->GetDemand(), attributes.DominantResource);
-        i64 dominantUsage = GetResource(element->ResourceUsage(), attributes.DominantResource);
-        i64 dominantLimits = GetResource(Host->GetTotalResourceLimits(), attributes.DominantResource);
-        return dominantUsage < dominantDemand && dominantUsage < dominantLimits * attributes.AdjustedMinShareRatio;
+        double usageRatio = element->GetUsageRatio();
+        double minShareRatio = element->Attributes().AdjustedMinShareRatio;
+        return minShareRatio > 1e-3 && usageRatio < minShareRatio;
     }
 
-    double GetUsageToLimitsRatio(ISchedulableElementPtr element) const
+    double GetUsageToMinShareRatio(ISchedulableElementPtr element) const
     {
-        const auto& attributes = element->Attributes();
-        i64 dominantUsage = GetResource(element->ResourceUsage(), attributes.DominantResource);
-        i64 dominantLimits = GetResource(Host->GetTotalResourceLimits(), attributes.DominantResource);
-        return dominantLimits == 0 ? 0.0 : (double) dominantUsage / dominantLimits;
+        double usageRatio = element->GetUsageRatio();
+        double minShareRatio = element->Attributes().AdjustedMinShareRatio;
+        return usageRatio / minShareRatio;
     }
 
     static double GetUsageToWeightRatio(ISchedulableElementPtr element)
     {
-        const auto& attributes = element->Attributes();
-        i64 dominantUsage = GetResource(element->ResourceUsage(), attributes.DominantResource);
-        i64 weight = attributes.Weight;
-        return weight == 0 ? 1.0 : (double) dominantUsage / weight;
+        double usageRatio = element->GetUsageRatio();
+        double weight = element->Attributes().Weight;
+        return usageRatio / weight;
     }
 
 
