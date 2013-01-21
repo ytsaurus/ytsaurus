@@ -46,7 +46,7 @@ TCachedBlock::~TCachedBlock()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBlockStore::TStoreImpl 
+class TBlockStore::TStoreImpl
     : public TWeightLimitedCache<TBlockId, TCachedBlock>
 {
 public:
@@ -106,7 +106,7 @@ public:
                 LOG_FATAL("Trying to cache a block for which a different cached copy already exists: %s",
                     ~blockId.ToString());
             }
-            
+
             LOG_DEBUG("Block is resurrected in cache: %s", ~blockId.ToString());
 
             return block;
@@ -121,7 +121,7 @@ public:
         // Thus the cache may contain a block not bound to any chunk in the registry.
         // Handle these "free" blocks first.
         // If none is found then look for the owning chunk.
-        
+
         auto freeBlock = Find(blockId);
         if (freeBlock) {
             LogCacheHit(freeBlock);
@@ -147,8 +147,15 @@ public:
             chunk->ReleaseReadLock();
             return cookie->GetValue().Apply(BIND(&TStoreImpl::OnCacheHit, MakeStrong(this)));
         }
-     
+
         LOG_DEBUG("Block cache miss: %s", ~blockId.ToString());
+
+        i32 blockSize = -1;
+        auto* meta = chunk->GetCachedMeta();
+
+        if (meta) {
+            blockSize = IncreasePendingSize(*meta, blockId.BlockIndex);
+        }
 
         chunk
             ->GetLocation()
@@ -159,8 +166,9 @@ public:
                 chunk,
                 blockId,
                 cookie,
+                blockSize,
                 enableCaching));
-        
+
         return cookie->GetValue();
     }
 
@@ -170,6 +178,29 @@ private:
     virtual i64 GetWeight(TCachedBlock* block) const
     {
         return block->GetData().Size();
+    }
+
+    i32 IncreasePendingSize(const NChunkClient::NProto::TChunkMeta& chunkMeta, int blockIndex)
+    {
+        const auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
+        const auto& blockInfo = blocksExt.blocks(blockIndex);
+        auto blockSize = blockInfo.size();
+
+        AtomicAdd(PendingReadSize_, blockSize);
+
+        LOG_DEBUG("Pending read size increased (BlockSize: %d, PendingReadSize: %" PRISZT ")",
+            blockSize,
+            PendingReadSize_);
+
+        return blockSize;
+    }
+
+    void DecreasePendingSize(i32 blockSize)
+    {
+        AtomicSub(PendingReadSize_, blockSize);
+        LOG_DEBUG("Pending read size decreased (BlockSize: %d, PendingReadSize: %" PRISZT,
+            blockSize,
+            PendingReadSize_);
     }
 
     TGetBlockResult OnCacheHit(TGetBlockResult result)
@@ -184,26 +215,25 @@ private:
         TChunkPtr chunk,
         const TBlockId& blockId,
         TSharedPtr<TInsertCookie, TAtomicCounter> cookie,
+        i32 blockSize,
         bool enableCaching)
     {
         auto readerResult = Bootstrap->GetReaderCache()->GetReader(chunk);
         if (!readerResult.IsOK()) {
             chunk->ReleaseReadLock();
             cookie->Cancel(readerResult);
+            if (blockSize > 0) {
+                DecreasePendingSize(blockSize);
+            }
             return;
         }
 
         auto reader = readerResult.Value();
 
-        const auto& chunkMeta = reader->GetChunkMeta();
-        const auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
-        const auto& blockInfo = blocksExt.blocks(blockId.BlockIndex);
-        auto blockSize = blockInfo.size();
-        
-        AtomicAdd(PendingReadSize_, blockSize);
-        LOG_DEBUG("Pending read size increased (BlockSize: %d, PendingReadSize: %" PRISZT ")",
-            blockSize,
-            PendingReadSize_);
+        if (blockSize < 0) {
+            const auto& chunkMeta = reader->GetChunkMeta();
+            blockSize = IncreasePendingSize(chunkMeta, blockId.BlockIndex);
+        }
 
         LOG_DEBUG("Started reading block: %s (LocationId: %s)",
             ~blockId.ToString(),
@@ -222,6 +252,7 @@ private:
                 chunk->ReleaseReadLock();
                 cookie->Cancel(error);
                 chunk->GetLocation()->Disable();
+                DecreasePendingSize(blockSize);
                 return;
             }
         }
@@ -231,11 +262,8 @@ private:
             ~chunk->GetLocation()->GetId());
 
         chunk->ReleaseReadLock();
-        
-        AtomicSub(PendingReadSize_, blockSize);
-        LOG_DEBUG("Pending read size decreased (BlockSize: %d, PendingReadSize: %" PRISZT,
-            blockSize,
-            PendingReadSize_);
+
+        DecreasePendingSize(blockSize);
 
         if (!data) {
             cookie->Cancel(TError(

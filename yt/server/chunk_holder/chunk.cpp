@@ -25,9 +25,9 @@ static NProfiling::TProfiler& Profiler = DataNodeProfiler;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunk::TChunk(
-    TLocationPtr location, 
-    const TChunkId& id, 
-    const TChunkMeta& chunkMeta, 
+    TLocationPtr location,
+    const TChunkId& id,
+    const TChunkMeta& chunkMeta,
     const TChunkInfo& chunkInfo,
     TNodeMemoryTracker& memoryUsageTracker)
     : Id_(id)
@@ -62,7 +62,7 @@ void TChunk::Initialize()
 }
 
 TChunk::~TChunk()
-{ 
+{
     if (HasMeta) {
         MemoryUsageTracker.Release(NCellNode::EMemoryConsumer::ChunkMeta, Meta.SpaceUsed());
     }
@@ -101,12 +101,18 @@ TChunk::TAsyncGetMetaResult TChunk::GetMeta(const std::vector<int>* tags)
             if (!error.IsOK()) {
                 return error;
             }
-            
+
             YCHECK(HasMeta);
             return tags_
                 ? FilterChunkMetaExtensions(Meta, tags_.Get())
                 : Meta;
         }).AsyncVia(invoker));
+}
+
+const NChunkClient::NProto::TChunkMeta* TChunk::GetCachedMeta() const
+{
+    TGuard<TSpinLock> guard(SpinLock);
+    return HasMeta ? &Meta : nullptr;
 }
 
 TAsyncError TChunk::ReadMeta()
@@ -253,8 +259,8 @@ TStoredChunk::TStoredChunk(
 { }
 
 TStoredChunk::TStoredChunk(
-    TLocationPtr location, 
-    const TChunkDescriptor& descriptor, 
+    TLocationPtr location,
+    const TChunkDescriptor& descriptor,
     TNodeMemoryTracker& memoryUsageTracker)
     : TChunk(location, descriptor, memoryUsageTracker)
 { }

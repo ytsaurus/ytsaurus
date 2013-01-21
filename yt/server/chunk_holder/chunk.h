@@ -59,10 +59,17 @@ public:
     /*!
      *  \param tags The list of extension tags to return. If NULL
      *  then all extensions are returned.
-     *  
+     *
      *  \note The meta is fetched asynchronously and is cached.
      */
     TAsyncGetMetaResult GetMeta(const std::vector<int>* tags = NULL);
+
+    //! Returns chunk meta.
+    /*!
+        If chunk meta not cached, returns NULL.
+        Pointer is alive while
+     */
+    const NChunkClient::NProto::TChunkMeta* GetCachedMeta() const;
 
     //! Tries to acquire a read lock and increments the lock counter.
     /*!
@@ -97,10 +104,10 @@ private:
     TAsyncError ReadMeta();
 
     mutable TSpinLock SpinLock;
-    
+
     mutable volatile bool HasMeta;
     mutable NChunkClient::NProto::TChunkMeta Meta;
-    
+
     int ReadLockCounter;
     bool RemovalScheduled;
     TPromise<void> RemovedEvent;
