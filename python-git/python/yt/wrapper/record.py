@@ -72,7 +72,7 @@ def record_to_line(rec, eoln=True, format=None):
     elif isinstance(format, YsonFormat):
         body = yson.dumps(rec) + ";"
     else:
-        raise YtError("Can not convert record to line with format " + repr(format))
+        raise YtError("Unrecognized format " + repr(format))
     if eoln:
         body = body + "\n"
     return body
@@ -87,4 +87,14 @@ def line_to_record(line, format=None):
     elif isinstance(format, YsonFormat):
         return yson.loads(line.rstrip(";\n"))
     else:
-        raise YtError("Can not convert line to record with format " + repr(format))
+        raise YtError("Unrecognized format " + repr(format))
+
+def extract_key(rec, fields):
+    if format is None: format = config.DEFAULT_FORMAT
+
+    if isinstance(format, YamrFormat):
+        return rec.key
+    elif isinstance(format, DsvFormat) or isinstance(format, YsonFormat):
+        return dict((key, rec[key]) for key in fields if key in rec)
+    else:
+        raise YtError("Unrecognized format " + repr(format))

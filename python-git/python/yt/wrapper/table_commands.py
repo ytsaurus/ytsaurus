@@ -85,9 +85,9 @@ def _prepare_format(format):
             YtError("You should specify format"))
     return format
 
-def _prepare_binary(binary):
+def _prepare_binary(binary, operation_type, reduce_by=None):
     if isinstance(binary, types.FunctionType):
-        binary, binary_file, files = py_wrapper.wrap(binary)
+        binary, binary_file, files = py_wrapper.wrap(binary, operation_type, reduce_by)
         uploaded_files = _prepare_files([binary_file] + files)
         if config.REMOVE_TEMP_FILES:
             for file in files:
@@ -116,11 +116,11 @@ def _remove_tables(tables):
         if exists(table) and get_type(table) == "table":
             remove(table)
 
-def _add_user_command_spec(op_type, binary, input_format, output_format, files, file_paths, fds_count, spec):
+def _add_user_command_spec(op_type, binary, input_format, output_format, files, file_paths, fds_count, reduce_by, spec):
     if binary is None:
         return spec, []
     files = _prepare_files(files)
-    binary, additional_files = _prepare_binary(binary)
+    binary, additional_files = _prepare_binary(binary, op_type, reduce_by)
     binary = _add_output_fd_redirect(binary, fds_count)
     spec = update(
         {
@@ -515,8 +515,8 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"sort_by": _prepare_sort_by(sort_by),
                           "reduce_by": _prepare_reduce_by(reduce_by)}, _),
-        lambda _: memorize_files(*_add_user_command_spec("mapper", mapper, input_format, output_format, map_files, map_file_paths, 1, _)),
-        lambda _: memorize_files(*_add_user_command_spec("reducer", reducer, input_format, output_format, reduce_files, reduce_file_paths, len(destination_table), _)),
+        lambda _: memorize_files(*_add_user_command_spec("mapper", mapper, input_format, output_format, map_files, map_file_paths, 1, None, _)),
+        lambda _: memorize_files(*_add_user_command_spec("reducer", reducer, input_format, output_format, reduce_files, reduce_file_paths, len(destination_table), reduce_by, _)),
         lambda _: get_value(_, {})
     )(spec)
 
@@ -588,7 +588,7 @@ def run_operation(binary, source_table, destination_table,
         lambda _: _add_table_writer_spec("job_io", table_writer, _),
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"reduce_by": _prepare_reduce_by(reduce_by)}, _) if op_name == "reduce" else _,
-        lambda _: memorize_files(*_add_user_command_spec(op_type, binary, input_format, output_format, files, file_paths, len(destination_table), _)),
+        lambda _: memorize_files(*_add_user_command_spec(op_type, binary, input_format, output_format, files, file_paths, len(destination_table), reduce_by, _)),
         lambda _: get_value(_, {})
     )(spec)
 

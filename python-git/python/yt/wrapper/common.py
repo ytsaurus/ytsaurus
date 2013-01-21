@@ -16,6 +16,8 @@ class YtOperationFailedError(YtError):
 class YtResponseError(YtError):
     """
     Represents error that occurs when we have error in http response.
+
+    You should never caught this error.
     """
     pass
 

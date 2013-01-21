@@ -1,7 +1,7 @@
 import config
 import logger
 from http import make_request
-from common import update, bool_to_string, get_value, require, YtError
+from common import update, bool_to_string, get_value, require, YtError, YtResponseError
 
 from datetime import datetime, timedelta
 from copy import deepcopy
@@ -70,18 +70,19 @@ class Transaction(object):
 
     def __exit__(self, type, value, traceback):
         transaction = Transaction.stack.pop()
-        if type is None:
-            commit_transaction(transaction)
-        else:
-            logger.warning(
-                "Error: (type=%s, value=%s, traceback=%s), aborting transaction %s ...",
-                type,
-                value,
-                traceback,
-                transaction)
-            abort_transaction(transaction)
-
-        self._update_global_config()
+        try:
+            if type is None:
+                commit_transaction(transaction)
+            else:
+                logger.warning(
+                    "Error: (type=%s, value=%s, traceback=%s), aborting transaction %s ...",
+                    type,
+                    value,
+                    traceback,
+                    transaction)
+                abort_transaction(transaction)
+        finally:
+            self._update_global_config()
 
     def _update_global_config(self):
         if Transaction.stack:
