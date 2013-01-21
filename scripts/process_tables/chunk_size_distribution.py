@@ -19,14 +19,14 @@ if __name__ == "__main__":
     tables_to_merge = []
 
     for dir in ["//home", "//statbox"]:
-        for table in yt.search(dir, node_type="table", attributes=["uncompressed_data_size", "chunk_count"]):
+        for table in yt.search(dir, node_type="table", attributes=["compressed_data_size", "chunk_count"]):
             if args.filter_out is not None and any(word in table for word in args.filter_out):
                 continue
             
             chunk_count = int(table.attributes["chunk_count"])
             if chunk_count == 0: continue
 
-            weight = float(table.attributes["uncompressed_data_size"]) / float(chunk_count)
+            weight = float(table.attributes["compressed_data_size"]) / float(chunk_count)
 
             if args.calculate_chunk_sizes:
                 sizes += [weight] * chunk_count

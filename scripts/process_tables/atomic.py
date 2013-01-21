@@ -16,7 +16,8 @@ def atomic_pop(list, retries_count=10, delay=5.0):
                 value = yt.get(list + "/-1")
                 yt.remove(list + "/-1", recursive=True)
                 return value
-            except yt.YtError as e:
+            # We hope that it is cannot take lock error
+            except yt.YtResponseError as e:
                 print >>sys.stderr, "Error", e
                 print >>sys.stderr, "Cannot take lock, waiting for %f second..." % delay
                 sleep(random.uniform(0.1, delay))

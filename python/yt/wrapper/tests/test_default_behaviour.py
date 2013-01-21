@@ -25,7 +25,6 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
 
 
     def test_get_set_exists(self):
-        print "FORMAT", yt.config.DEFAULT_FORMAT
         self.assertTrue(yt.get("/"))
         self.assertTrue(len(yt.list("/")) > 1)
         self.assertRaises(yt.YtError, lambda: yt.get("//none"))
@@ -191,10 +190,10 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
         self.assertRaises(yt.YtError, lambda: yt.run_sort([table, other_table], other_table, sort_by=["y"]))
 
         yt.run_sort(table, other_table, sort_by=["y"])
-        self.assertEqual(["x=1\n", "y=2\n"], list(yt.read_table(other_table)))
+        self.assertItemsEqual(["x=1\n", "y=2\n"], yt.read_table(other_table))
 
         yt.run_sort(table, sort_by=["x"])
-        self.assertEqual(["y=2\n", "x=1\n"], list(yt.read_table(table)))
+        self.assertItemsEqual(["y=2\n", "x=1\n"], yt.read_table(table))
 
     def test_printing_stderr(self):
         table = TEST_DIR + "/table"
@@ -222,3 +221,16 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
         yt.write_table(table, (x for x in ["x=1\n", "y=2\n", "z=3\n"]))
         yt.write_table(table, (x for x in ["x=1\n", "y=2\n", "z=3\n"]))
         yt.write_table(table, (x for x in ["x=1\n", "y=2\n", "z=3\n"]))
+
+    def test_python_operations(self):
+        def change_x(rec):
+            if "x" in rec:
+                rec["x"] = int(rec["x"]) + 1
+            yield rec
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, ["x=1\n", "y=2\n"])
+        yt.run_map(change_x, table, table)
+
+        self.assertItemsEqual(["x=2\n", "y=2\n"], yt.read_table(table))
+        

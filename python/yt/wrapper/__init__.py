@@ -1,5 +1,5 @@
 from common import YtError, YtOperationFailedError, YtResponseError 
-from record import Record, record_to_line, line_to_record
+from record import Record, record_to_line, line_to_record, extract_key
 from format import DsvFormat, YamrFormat, YsonFormat, RawFormat, JsonFormat
 from table import TablePath, to_table, to_name
 from tree_commands import set, get, list, exists, remove, search, mkdir, copy, move, get_type, create, \
@@ -15,4 +15,5 @@ from transaction_commands import \
     start_transaction, abort_transaction, \
     commit_transaction, renew_transaction, \
     lock, Transaction
+from py_wrapper import aggregator, raw
 from requests import HTTPError, ConnectionError
