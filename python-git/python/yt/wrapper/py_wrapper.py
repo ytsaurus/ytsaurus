@@ -42,8 +42,6 @@ def wrap(function, operation_type, reduce_by=None):
 
     zip_filename = tempfile.mkstemp(dir="/tmp", prefix=".modules.zip")[1]
 
-    shutil.copy(function_filename, "//home/ignat/dump")
-
     # We don't use with statement for compatibility with python2.6
     with ZipFile(zip_filename, "w") as zip:
         for module in sys.modules.values():
