@@ -149,6 +149,8 @@ struct TMergeOperationSpecBase
     //! be larger.
     i64 MaxDataSizePerJob;
 
+    TNullable<int> JobCount;
+
     i64 JobSliceDataSize;
 
     TDuration LocalityTimeout;
@@ -158,6 +160,9 @@ struct TMergeOperationSpecBase
     {
         Register("max_data_size_per_job", MaxDataSizePerJob)
             .Default((i64) 1024 * 1024 * 1024)
+            .GreaterThan(0);
+        Register("job_count", JobCount)
+            .Default()
             .GreaterThan(0);
         Register("locality_timeout", LocalityTimeout)
             .Default(TDuration::Seconds(5));
