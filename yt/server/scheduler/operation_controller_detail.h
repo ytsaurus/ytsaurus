@@ -534,7 +534,7 @@ protected:
         i64 minDataSizePerJob,
         i64 maxDataSizePerJob,
         TNullable<int> configJobCount,
-        int chunkCount);
+        TNullable<int> chunkCount);
 
     void InitUserJobSpec(
         NScheduler::NProto::TUserJobSpec* proto,

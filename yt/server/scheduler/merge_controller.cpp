@@ -351,7 +351,7 @@ protected:
                 1,
                 Spec->MaxDataSizePerJob,
                 Spec->JobCount,
-                chunks.size());
+                Null);
 
             MaxDataSizePerJob = static_cast<i64>(std::ceil((double) totalDataSize / jobCount));
 

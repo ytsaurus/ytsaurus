@@ -1993,12 +1993,14 @@ int TOperationControllerBase::SuggestJobCount(
     i64 minDataSizePerJob,
     i64 maxDataSizePerJob,
     TNullable<int> configJobCount,
-    int chunkCount)
+    TNullable<int> chunkCount)
 {
     i64 minSuggestion = static_cast<i64>(std::ceil((double) totalDataSize / maxDataSizePerJob));
     i64 maxSuggestion = static_cast<i64>(std::ceil((double) totalDataSize / minDataSizePerJob));
     i64 result = configJobCount.Get(minSuggestion);
-    result = std::min(result, static_cast<i64>(chunkCount));
+    if (chunkCount) {
+        result = std::min(result, static_cast<i64>(*chunkCount));
+    }
     result = std::min(result, maxSuggestion);
     result = std::max(result, static_cast<i64>(1));
     result = std::min(result, static_cast<i64>(Config->MaxJobCount));
