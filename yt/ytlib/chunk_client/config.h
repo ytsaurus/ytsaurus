@@ -60,7 +60,7 @@ struct TRemoteReaderConfig
         Register("pass_backoff_time", PassBackoffTime)
             .Default(TDuration::Seconds(3));
         Register("pass_count", PassCount)
-            .Default(60);
+            .Default(500);
         Register("fetch_from_peers", FetchFromPeers)
             .Default(true);
         Register("publish_peer", PublishPeer)
@@ -173,7 +173,7 @@ struct TRemoteWriterConfig
 
 ///////////////////////////////////////////////////////////////////////////////
 
-struct TEncodingWriterConfig 
+struct TEncodingWriterConfig
     : public virtual TYsonSerializable
 {
     i64 EncodeWindowSize;
