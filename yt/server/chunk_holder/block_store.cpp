@@ -197,6 +197,7 @@ private:
 
     void DecreasePendingSize(i32 blockSize)
     {
+        YCHECK(blockSize >= 0);
         AtomicSub(PendingReadSize_, blockSize);
         LOG_DEBUG("Pending read size decreased (BlockSize: %d, PendingReadSize: %" PRISZT,
             blockSize,
