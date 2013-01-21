@@ -54,6 +54,7 @@ static inline const char* FindNextSymbol(
     int result, result2, tmp;
 
     __m128i value = AlignedPrefixLoad(current, &tmp);
+    tmp = Min(tmp, length);
 
     do {
         // In short, PCMPxSTRx instruction takes two 128-bit registers with
