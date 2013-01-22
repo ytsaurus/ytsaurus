@@ -67,7 +67,7 @@ public:
     //! Returns chunk meta.
     /*!
         If chunk meta not cached, returns NULL.
-        Pointer is alive while
+        Pointer is assumed to be alive while you hold the chunk.
      */
     const NChunkClient::NProto::TChunkMeta* GetCachedMeta() const;
 

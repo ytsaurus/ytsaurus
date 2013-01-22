@@ -150,7 +150,7 @@ public:
 
         LOG_DEBUG("Block cache miss: %s", ~blockId.ToString());
 
-        i32 blockSize = -1;
+        i64 blockSize = -1;
         auto* meta = chunk->GetCachedMeta();
 
         if (meta) {
@@ -180,7 +180,7 @@ private:
         return block->GetData().Size();
     }
 
-    i32 IncreasePendingSize(const NChunkClient::NProto::TChunkMeta& chunkMeta, int blockIndex)
+    i64 IncreasePendingSize(const NChunkClient::NProto::TChunkMeta& chunkMeta, int blockIndex)
     {
         const auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
         const auto& blockInfo = blocksExt.blocks(blockIndex);
@@ -195,7 +195,7 @@ private:
         return blockSize;
     }
 
-    void DecreasePendingSize(i32 blockSize)
+    void DecreasePendingSize(i64 blockSize)
     {
         YCHECK(blockSize >= 0);
         AtomicSub(PendingReadSize_, blockSize);
@@ -216,7 +216,7 @@ private:
         TChunkPtr chunk,
         const TBlockId& blockId,
         TSharedPtr<TInsertCookie, TAtomicCounter> cookie,
-        i32 blockSize,
+        i64 blockSize,
         bool enableCaching)
     {
         auto readerResult = Bootstrap->GetReaderCache()->GetReader(chunk);
