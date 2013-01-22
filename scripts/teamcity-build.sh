@@ -134,6 +134,10 @@ make -j 1
 
 tc "blockClosed name='make'"
 
+# set set-uid-bit for ytserver
+sudo chown root $WORKING_DIRECTORY/bin/ytserver
+sudo chmod 4755 $WORKING_DIRECTORY/bin/ytserver
+
 package_version=
 package_ticket=
 
