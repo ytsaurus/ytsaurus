@@ -49,7 +49,7 @@ class Response(object):
 
         self.http_response = http_response
         if not str(http_response.status_code).startswith("2"):
-            self._error = serialize(http_response.json)
+            self._error = serialize(http_response.json())
         elif int(http_response.headers.get("x-yt-response-code", 0)) != 0:
             self._error = serialize(json.loads(http_response.headers["x-yt-error"]))
 
@@ -67,7 +67,7 @@ class Response(object):
         return isinstance(content_type, str) and content_type.startswith("application/x-yt-yson")
 
     def json(self):
-        return self.http_response.json
+        return self.http_response.json()
 
     def yson(self):
         return yson.loads(self.content())
@@ -155,7 +155,6 @@ def make_request(command_name, params,
             url=url,
             method=http_method[command_name],
             headers=headers,
-            prefetch=False,
             data=data,
             files=files))
 

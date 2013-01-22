@@ -190,18 +190,18 @@ class Buffer(object):
         sep = "" if self._has_eoln else "\n"
         if isinstance(self._lines_iterator, types.ListType):
             self._empty = True
-            return sep.join(self._lines_iterator)
+            for line in self._lines_iterator:
+                yield line + sep if sep else line
+            return
         read_bytes = 0
-        result = []
         while read_bytes < bytes:
             try:
                 line = self._lines_iterator.next()
+                yield line + sep if sep else line
             except StopIteration:
                 self._empty = True
-                return sep.join(result)
+                break
             read_bytes += len(line)
-            result.append(line)
-        return sep.join(result)
 
     def empty(self):
         return self._empty
