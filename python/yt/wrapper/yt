@@ -139,7 +139,7 @@ def upload(args):
     if args.type == "file":
         if args.format is not None:
             die("Format should absent for files")
-        yt.upload_file(sys.stdin.read(), args.path)
+        yt.upload_file(sys.stdin, args.path)
         if args.executable:
             yt.set(args.path + "/@executable", "true")
     elif args.type == "table":
