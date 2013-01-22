@@ -14,13 +14,14 @@ void SafeDup2(int oldFd, int newFd);
 void SafeClose(int fd, bool ignoreInvalidFd = false);
 int SafePipe(int fd[2]);
 void SafeMakeNonblocking(int fd);
+void ChmodJobDescriptor(int fd, int permissions);
 
 // Ensures that descriptor is open and CLOEXEC flag is not set.
 void CheckJobDescriptor(int fd);
 
 ////////////////////////////////////////////////////////////////////
 
-struct TPipe 
+struct TPipe
 {
     int ReadFd;
     int WriteFd;
@@ -76,7 +77,7 @@ class TOutputPipe
 public:
     TOutputPipe(
         int fd[2],
-        TOutputStream* output, 
+        TOutputStream* output,
         int jobDescriptor);
 
     void PrepareJobDescriptors() override;
@@ -111,8 +112,8 @@ public:
      */
     TInputPipe(
         int fd[2],
-        TAutoPtr<NTableClient::TTableProducer> tableProducer, 
-        TAutoPtr<TBlobOutput> buffer, 
+        TAutoPtr<NTableClient::TTableProducer> tableProducer,
+        TAutoPtr<TBlobOutput> buffer,
         TAutoPtr<NYson::IYsonConsumer> consumer,
         int jobDescriptor);
 

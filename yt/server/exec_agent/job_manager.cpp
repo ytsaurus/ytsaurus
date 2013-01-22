@@ -52,7 +52,7 @@ void TJobManager::Initialize()
 
         int uid = Bootstrap->IsJobControlEnabled()
             ? Config->StartUserId + slotIndex
-            : -1;
+            : EmptyUserId;
         Slots.push_back(New<TSlot>(slotPath, slotIndex, uid));
         Slots.back()->Clean();
     }

@@ -2,6 +2,8 @@
 
 #include "proc.h"
 
+#include <util/folder/dirut.h>
+
 #include <util/stream/file.h>
 #include <util/string/vector.h>
 
@@ -81,6 +83,9 @@ void KillallByUser(int uid)
 {
     YCHECK(uid > 0);
     auto pid = GuardedFork();
+
+    // We are forking here in order not to give the root priviledges to the parent process ever,
+    // because we cannot know what other threads are doing.
     if (pid == 0) {
         // Child process
         YCHECK(setuid(0) == 0);
@@ -119,6 +124,49 @@ void KillallByUser(int uid)
     }
 }
 
+void RemoveDirAsRoot(const Stroka& path)
+{
+    auto pid = GuardedFork();
+    // We are forking here in order not to give the root priviledges to the parent process ever,
+    // because we cannot know what other threads are doing.
+    if (pid == 0) {
+        // Child process
+        YCHECK(setuid(0) == 0);
+        try {
+            RemoveDirWithContents(path);
+        } catch (...) {
+            _exit(1);
+        }
+        _exit(0);
+    }
+
+    auto throwError = [=] (Stroka msg, TError error) {
+        THROW_ERROR_EXCEPTION(
+            "Failed to remove directory %s: %s",
+            ~path,
+            ~msg) << error;
+    };
+
+    // Parent process
+    if (pid < 0) {
+        throwError("fork failed", TError::FromSystem());
+    }
+
+    int status = 0;
+    {
+        int result = waitpid(pid, &status, WUNTRACED);
+        if (result < 0) {
+            throwError("waitpid failed", TError());
+        }
+        YCHECK(result == pid);
+    }
+
+    auto statusError = StatusToError(status);
+    if (!statusError.IsOK()) {
+        throwError("waitpid failed", statusError);
+    }
+}
+
 TError StatusToError(int status)
 {
     if (WIFEXITED(status) && (WEXITSTATUS(status) == 0)) {
@@ -152,6 +200,11 @@ TError StatusToError(int status)
 }
 
 i64 GetUserRss(int uid)
+{
+    YUNIMPLEMENTED();
+}
+
+void RemoveDirAsRoot(const Stroka& path)
 {
     YUNIMPLEMENTED();
 }

@@ -3,6 +3,7 @@
 #include "private.h"
 
 #include <ytlib/misc/fs.h>
+#include <ytlib/misc/proc.h>
 #include <ytlib/ytree/yson_producer.h>
 
 #include <util/folder/dirut.h>
@@ -54,7 +55,10 @@ void TSlot::Clean()
 {
     try {
         if (isexist(~SandboxPath)) {
-            RemoveDirWithContents(SandboxPath);
+            if (UserId == EmptyUserId)
+                RemoveDirWithContents(SandboxPath);
+            else
+                RemoveDirAsRoot(SandboxPath);
         }
         IsClean = true;
     } catch (const std::exception& ex) {
@@ -73,7 +77,7 @@ void TSlot::InitSandbox()
 {
     YASSERT(!IsFree_);
     try {
-        NFS::ForcePath(SandboxPath);
+        NFS::ForcePath(SandboxPath, 777);
     } catch (const std::exception& ex) {
         LOG_FATAL(ex, "Failed to create sandbox directory: %s",
             ~SandboxPath.Quote());

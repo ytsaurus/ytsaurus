@@ -14,6 +14,8 @@ extern NProfiling::TProfiler ExecAgentProfiler;
 extern const Stroka SandboxName;
 extern const Stroka ProxyConfigFileName;
 
+extern const int EmptyUserId;
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NExecAgent

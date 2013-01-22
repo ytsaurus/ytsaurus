@@ -16,6 +16,7 @@
 #endif
 #if defined(_linux_)
     #include <sys/epoll.h>
+    #include <sys/stat.h>
 #endif
 
 #if defined(_win_)
@@ -82,7 +83,7 @@ void SafeClose(int fd, bool ignoreInvalidFd)
 {
     while (true) {
         auto res = close(fd);
-        if (res == -1) { 
+        if (res == -1) {
             switch (errno) {
             case EINTR:
                 break;
@@ -142,6 +143,18 @@ void CheckJobDescriptor(int fd)
     }
 }
 
+void ChmodJobDescriptor(int fd, int permissions)
+{
+    auto procPath = Sprintf("/proc/self/fd/%d", fd);
+    auto res = chmod(~procPath, permissions);
+
+    if (res == -1) {
+        THROW_ERROR_EXCEPTION("Failed to chmod job descriptor (fd: %d, permissions: %d)", fd, permissions)
+            << TError::FromSystem();
+    }
+}
+
+
 #elif defined _win_
 
 // Streaming jobs are not supposed to work on windows for now.
@@ -176,13 +189,18 @@ void CheckJobDescriptor(int fd)
     YUNIMPLEMENTED();
 }
 
+void ChmodJobDescriptor(int fd, int permissions)
+{
+    YUNIMPLEMENTED();
+}
+
 #endif
 
 ////////////////////////////////////////////////////////////////////
 
 TOutputPipe::TOutputPipe(
     int fd[2],
-    TOutputStream* output, 
+    TOutputStream* output,
     int jobDescriptor)
     : OutputStream(output)
     , JobDescriptor(jobDescriptor)
@@ -203,6 +221,8 @@ void TOutputPipe::PrepareJobDescriptors()
     SafeDup2(Pipe.WriteFd, JobDescriptor);
     SafeClose(Pipe.WriteFd);
 
+    ChmodJobDescriptor(JobDescriptor, S_IRUSR | S_IRGRP | S_IROTH | S_IWUSR | S_IWGRP | S_IWOTH);
+
     CheckJobDescriptor(JobDescriptor);
 }
 
@@ -214,7 +234,7 @@ void TOutputPipe::PrepareProxyDescriptors()
     SafeMakeNonblocking(Pipe.ReadFd);
 }
 
-int TOutputPipe::GetEpollDescriptor() const 
+int TOutputPipe::GetEpollDescriptor() const
 {
     YASSERT(!IsFinished);
 
@@ -293,7 +313,7 @@ void TOutputPipe::Finish()
 TInputPipe::TInputPipe(
     int fd[2],
     TAutoPtr<NTableClient::TTableProducer> tableProducer,
-    TAutoPtr<TBlobOutput> buffer, 
+    TAutoPtr<TBlobOutput> buffer,
     TAutoPtr<NYson::IYsonConsumer> consumer,
     int jobDescriptor)
     : Pipe(fd)
@@ -321,6 +341,8 @@ void TInputPipe::PrepareJobDescriptors()
 
     SafeDup2(Pipe.ReadFd, JobDescriptor);
     SafeClose(Pipe.ReadFd);
+
+    ChmodJobDescriptor(JobDescriptor, S_IRUSR | S_IRGRP | S_IROTH | S_IWUSR | S_IWGRP | S_IWOTH);
 
     CheckJobDescriptor(JobDescriptor);
 }
