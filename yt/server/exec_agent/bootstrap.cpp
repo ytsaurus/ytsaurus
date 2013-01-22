@@ -22,6 +22,11 @@
 #include <server/chunk_holder/config.h>
 #include <server/chunk_holder/chunk_cache.h>
 
+#ifdef _unix_
+#include <sys/types.h>
+#include <sys/stat.h>
+#endif
+
 namespace NYT {
 namespace NExecAgent {
 
@@ -67,6 +72,7 @@ void TBootstrap::Init()
     if (suid == 0) {
         JobControlEnabled = true;
     }
+    umask(0000);
 #endif
 
     if (!JobControlEnabled) {
