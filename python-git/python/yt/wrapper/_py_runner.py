@@ -29,7 +29,7 @@ def main():
     __operation, __attributes, __operation_type, __keys = load(open(__operation_dump))
 
     import yt.wrapper.config as config
-    config_shelve = shelve.open(__config_dump_filename)
+    config_shelve = shelve.open(__config_dump_filename, flag='r')
     try:
         for key, value in config_shelve.iteritems():
             config.__dict__[key] = value
