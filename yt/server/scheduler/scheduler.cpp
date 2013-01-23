@@ -1144,6 +1144,9 @@ private:
             ~type.ToString(),
             ~ToString(transactionId));
 
+        // FIXME(babenko): remove this once aborting user transaction no longer causes master disconnection
+        transactionId = NullTransactionId;
+
         ValidateConnected();
 
         StartOperation(
