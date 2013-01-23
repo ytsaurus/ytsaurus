@@ -199,7 +199,7 @@ private:
     {
         YCHECK(blockSize >= 0);
         AtomicSub(PendingReadSize_, blockSize);
-        LOG_DEBUG("Pending read size decreased (BlockSize: %" PRId64, PendingReadSize: %" PRISZT,
+        LOG_DEBUG("Pending read size decreased (BlockSize: %" PRId64 ", PendingReadSize: %" PRISZT,
             blockSize,
             PendingReadSize_);
     }
