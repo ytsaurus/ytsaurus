@@ -791,9 +791,8 @@ void TMapNodeProxy::Clear()
     // Insert tombstones (if in transaction).
     FOREACH (const auto& pair, children) {
         const auto& key = pair.first;
-        auto* node = pair.second;
-        auto* trunkNode = node->GetTrunkNode();
-        DoRemoveChild(impl, key, trunkNode);
+        auto* child = pair.second;
+        DoRemoveChild(impl, key, child);
     }
 
     SetModified();
@@ -859,10 +858,11 @@ bool TMapNodeProxy::AddChild(INodePtr child, const Stroka& key)
     }
 
     auto* impl = LockThisTypedImpl(TLockRequest::SharedChild(key));
-    auto* childImpl = LockImpl(ToProxy(child)->GetTrunkNode());
+    auto* trunkChildImpl = ToProxy(child)->GetTrunkNode();
+    auto* childImpl = LockImpl(trunkChildImpl);
 
-    impl->KeyToChild()[key] = childImpl->GetTrunkNode();
-    YCHECK(impl->ChildToKey().insert(std::make_pair(childImpl->GetTrunkNode(), key)).second);
+    impl->KeyToChild()[key] = trunkChildImpl;
+    YCHECK(impl->ChildToKey().insert(std::make_pair(trunkChildImpl, key)).second);
     ++impl->ChildCountDelta();
 
     AttachChild(childImpl);
@@ -880,11 +880,8 @@ bool TMapNodeProxy::RemoveChild(const Stroka& key)
     }
 
     auto* childImpl = LockImpl(trunkChildImpl, ELockMode::Exclusive, true);
-    auto* childTrunkImpl = childImpl->GetTrunkNode();
-
     auto* impl = LockThisTypedImpl(TLockRequest::SharedChild(key));
-    
-    DoRemoveChild(impl, key, childTrunkImpl);
+    DoRemoveChild(impl, key, childImpl);
     
     SetModified();
 
@@ -897,11 +894,8 @@ void TMapNodeProxy::RemoveChild(INodePtr child)
     auto* trunkChildImpl = ToProxy(child)->GetTrunkNode();
 
     auto* childImpl = LockImpl(trunkChildImpl, ELockMode::Exclusive, true);
-    auto* childTrunkImpl = childImpl->GetTrunkNode();
-
     auto* impl = LockThisTypedImpl(TLockRequest::SharedChild(key));
-    
-    DoRemoveChild(impl, key, childTrunkImpl);
+    DoRemoveChild(impl, key, childImpl);
 
     SetModified();
 }
@@ -981,10 +975,9 @@ IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(
 void TMapNodeProxy::DoRemoveChild(
     TMapNode* impl,
     const Stroka& key,
-    TCypressNodeBase* trunkChildImpl)
+    TCypressNodeBase* childImpl)
 {
-    YASSERT(trunkChildImpl->IsTrunk());
-
+    auto* trunkChildImpl = childImpl->GetTrunkNode();
     auto& keyToChild = impl->KeyToChild();
     auto& childToKey = impl->ChildToKey();
     if (Transaction) {
@@ -992,16 +985,16 @@ void TMapNodeProxy::DoRemoveChild(
         if (it == keyToChild.end()) {
             // TODO(babenko): remove cast when GCC supports native nullptr
             YCHECK(keyToChild.insert(std::make_pair(key, (TCypressNodeBase*) nullptr)).second);
-            DetachChild(trunkChildImpl, false);
+            DetachChild(childImpl, false);
         } else {
             it->second = nullptr;
             YCHECK(childToKey.erase(trunkChildImpl) == 1);
-            DetachChild(trunkChildImpl, true);
+            DetachChild(childImpl, true);
         }
     } else {
         YCHECK(keyToChild.erase(key) == 1);
         YCHECK(childToKey.erase(trunkChildImpl) == 1);
-        DetachChild(trunkChildImpl, true);
+        DetachChild(childImpl, true);
     }
     --impl->ChildCountDelta();
 }
@@ -1024,12 +1017,13 @@ void TListNodeProxy::Clear()
 {
     auto* impl = LockThisTypedImpl();
 
-    // Validate locks and obtain impls first.
+    // Lock children and collect impls.
     std::vector<TCypressNodeBase*> children;
-    FOREACH (const auto& nodeId, impl->IndexToChild()) {
-        children.push_back(LockImpl(nodeId));
+    FOREACH (auto* child, impl->IndexToChild()) {
+        children.push_back(LockImpl(child));
     }
 
+    // Detach children.
     FOREACH (auto* child, children) {
         DetachChild(child, true);
     }
@@ -1052,8 +1046,8 @@ std::vector<INodePtr> TListNodeProxy::GetChildren() const
     const auto* impl = GetThisTypedImpl();
     const auto& indexToChild = impl->IndexToChild();
     result.reserve(indexToChild.size());
-    FOREACH (const auto& nodeId, indexToChild) {
-        result.push_back(GetProxy(nodeId));
+    FOREACH (auto* child, indexToChild) {
+        result.push_back(GetProxy(child));
     }
     return result;
 }
