@@ -432,7 +432,7 @@ private:
         userAttachOptions.PingAncestors = false;
         auto userTransaction =
             transactionId == NullTransactionId
-            ? NULL
+            ? nullptr
             : GetTransactionManager()->Attach(userAttachOptions);
 
         // Create operation object.
@@ -628,7 +628,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto it = Operations.find(id);
-        return it == Operations.end() ? NULL : it->second;
+        return it == Operations.end() ? nullptr : it->second;
     }
 
     TOperationPtr GetOperation(const TOperationId& id)
@@ -645,7 +645,7 @@ private:
     TExecNodePtr FindNode(const Stroka& address)
     {
         auto it = Nodes.find(address);
-        return it == Nodes.end() ? NULL : it->second;
+        return it == Nodes.end() ? nullptr : it->second;
     }
 
     TExecNodePtr GetNode(const Stroka& address)
@@ -658,7 +658,7 @@ private:
     TJobPtr FindJob(const TJobId& jobId)
     {
         auto it = Jobs.find(jobId);
-        return it == Jobs.end() ? NULL : it->second;
+        return it == Jobs.end() ? nullptr : it->second;
     }
 
 
@@ -772,14 +772,16 @@ private:
     {
         // Fire-and-forget.
         auto transaction = operation->GetSchedulerTransaction();
-        transaction->Abort();
+        if (transaction) {
+            transaction->Abort();
+        }
     }
 
 
     void FinishOperation(TOperationPtr operation)
     {
         operation->SetFinished();
-        operation->SetController(NULL);
+        operation->SetController(nullptr);
         UnregisterOperation(operation);
     }
 
@@ -1366,7 +1368,7 @@ private:
                 default:
                     YUNREACHABLE();
             }
-            return NULL;
+            return nullptr;
         }
 
         auto operation = job->GetOperation();
@@ -1391,7 +1393,7 @@ private:
                 LOG_WARNING("Job status report was expected from %s, abort scheduled",
                     ~expectedAddress);
             }
-            return NULL;
+            return nullptr;
         }
 
         switch (state) {

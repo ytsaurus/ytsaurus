@@ -460,10 +460,11 @@ private:
             FOREACH (auto operation, Result.Operations) {
                 operation->SetState(EOperationState::Reviving);
 
-                if (operation->GetSchedulerTransaction()) {
-                    auto req = TTransactionYPathProxy::Abort(FromObjectId(operation->GetSchedulerTransaction()->GetId()));
+                auto schedulerTransaction = operation->GetSchedulerTransaction();
+                if (schedulerTransaction) {
+                    auto req = TTransactionYPathProxy::Abort(FromObjectId(schedulerTransaction->GetId()));
                     batchReq->AddRequest(req, "abort_scheduler_tx");
-                    operation->SetSchedulerTransaction(NULL);
+                    operation->SetSchedulerTransaction(nullptr);
                 }
 
                 {
@@ -570,7 +571,7 @@ private:
         userAttachOptions.PingAncestors = false;
         auto userTransaction =
             userTransactionId == NullTransactionId
-            ? NULL
+            ? nullptr
             : transactionManager->Attach(userAttachOptions);
 
         auto schedulerTransactionId = attributes.Get<TTransactionId>("scheduler_transaction_id");
@@ -580,7 +581,7 @@ private:
         schedulerAttachOptions.PingAncestors = false;
         auto schedulerTransaction =
             schedulerTransactionId == NullTransactionId
-            ? NULL
+            ? nullptr
             : transactionManager->Attach(schedulerAttachOptions);
 
         auto operation = New<TOperation>(
