@@ -27,8 +27,11 @@ DECLARE_ENUM(ETraversingError,
 struct IChunkVisitor
     : public virtual TRefCounted
 {
-    virtual void OnChunk(
-        TChunk* chunk, 
+    /*!
+     *  \note Return false to break off traversing.
+     */
+    virtual bool OnChunk(
+        TChunk* chunk,
         const NTableClient::NProto::TReadLimit& startLimit,
         const NTableClient::NProto::TReadLimit& endLimit) = 0;
 

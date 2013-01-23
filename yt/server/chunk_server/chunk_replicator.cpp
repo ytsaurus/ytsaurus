@@ -110,7 +110,7 @@ void TChunkReplicator::OnNodeRegistered(TDataNode* node)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     node->ChunksToRemove().clear();
-    
+
     FOREACH (auto& chunksToReplicate, node->ChunksToReplicate()) {
         chunksToReplicate.clear();
     }
@@ -218,7 +218,7 @@ void TChunkReplicator::ProcessExistingJobs(
                     ~node->GetAddress());
                 break;
             }
-                                    
+
             case EJobState::Failed: {
                 TJobStopInfo stopInfo;
                 *stopInfo.mutable_job_id() = jobId.ToProto();
@@ -341,7 +341,7 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleBalancingJob(
     }
 
     ChunkPlacement->OnSessionHinted(targetNode);
-    
+
     auto jobId = TJobId::Create();
     TJobStartInfo startInfo;
     *startInfo.mutable_job_id() = jobId.ToProto();
@@ -370,7 +370,7 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleRemovalJob(
             ~chunkId.ToString());
         return EScheduleFlags::None;
     }
-    
+
     auto jobId = TJobId::Create();
 
     TJobStartInfo startInfo;
@@ -752,8 +752,8 @@ void TChunkReplicator::ScheduleRFUpdate(TChunkList* chunkList)
         TChunkReplicatorPtr Replicator;
         TChunkList* Root;
 
-        virtual void OnChunk(
-            TChunk* chunk, 
+        virtual bool OnChunk(
+            TChunk* chunk,
             const NTableClient::NProto::TReadLimit& startLimit,
             const NTableClient::NProto::TReadLimit& endLimit) override
         {
@@ -761,6 +761,7 @@ void TChunkReplicator::ScheduleRFUpdate(TChunkList* chunkList)
             UNUSED(endLimit);
 
             Replicator->ScheduleRFUpdate(chunk);
+            return true;
         }
 
         virtual void OnError(const TError& error) override
@@ -847,7 +848,7 @@ void TChunkReplicator::OnRFUpdateCommitFailed(const TError& error)
 int TChunkReplicator::ComputeReplicationFactor(const TChunk& chunk)
 {
     int result = chunk.GetReplicationFactor();
-    
+
     // Unique number used to distinguish already visited chunk lists.
     auto mark = TChunkList::GenerateVisitMark();
 
@@ -887,7 +888,7 @@ int TChunkReplicator::ComputeReplicationFactor(const TChunk& chunk)
             }
         }
     }
-    
+
     return result;
 }
 

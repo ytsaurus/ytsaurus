@@ -99,7 +99,7 @@ public:
     TFetchChunkVisitor(
         NCellMaster::TBootstrap* bootstrap,
         const TChunkList* chunkList,
-        TCtxFetchPtr context, 
+        TCtxFetchPtr context,
         const TChannel& channel)
         : Bootstrap(bootstrap)
         , ChunkList(chunkList)
@@ -124,7 +124,7 @@ public:
             upperBound);
     }
 
-    void Complete() 
+    void Complete()
     {
         VERIFY_THREAD_AFFINITY(StateThread);
         YCHECK(!Completed);
@@ -153,8 +153,8 @@ private:
         Finished = true;
     }
 
-    virtual void OnChunk(
-        TChunk* chunk, 
+    virtual bool OnChunk(
+        TChunk* chunk,
         const TReadLimit& startLimit,
         const TReadLimit& endLimit) override
     {
@@ -165,7 +165,7 @@ private:
         if (!chunk->IsConfirmed()) {
             ReplyError(TError("Cannot fetch a table containing an unconfirmed chunk %s",
                 ~chunk->GetId().ToString()));
-            return;
+            return false;
         }
 
         auto* inputChunk = Context->Response().add_chunks();
@@ -197,6 +197,8 @@ private:
 
         *slice->mutable_start_limit() = startLimit;
         *slice->mutable_end_limit() = endLimit;
+
+        return true;
     }
 
     virtual void OnError(const TError& error) override
@@ -301,17 +303,19 @@ public:
         Consumer->OnBeginList();
     }
 
-    virtual void OnChunk(
-        TChunk* chunk, 
+    virtual bool OnChunk(
+        TChunk* chunk,
         const NTableClient::NProto::TReadLimit& startLimit,
         const NTableClient::NProto::TReadLimit& endLimit) override
     {
         VERIFY_THREAD_AFFINITY(StateThread);
         UNUSED(startLimit);
         UNUSED(endLimit);
-        
+
         Consumer->OnListItem();
         Consumer->OnStringScalar(chunk->GetId().ToString());
+
+        return true;
     }
 
     virtual void OnFinish() override
@@ -334,7 +338,7 @@ public:
         : TChunkVisitorBase(bootstrap, chunkList, consumer)
     { }
 
-    virtual void OnChunk(
+    virtual bool OnChunk(
         TChunk* chunk,
         const TReadLimit& startLimit,
         const TReadLimit& endLimit) override
@@ -347,6 +351,7 @@ public:
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkMeta.extensions());
 
         CodecInfo[ECodec(miscExt.codec())].Accumulate(chunk->GetStatistics());
+        return true;
     }
 
     virtual void OnFinish() override
@@ -402,7 +407,7 @@ bool TTableNodeProxy::IsWriteRequest(IServiceContextPtr context) const
     return TBase::IsWriteRequest(context);
 }
 
-TClusterResources TTableNodeProxy::GetResourceUsage() const 
+TClusterResources TTableNodeProxy::GetResourceUsage() const
 {
     const auto* node = GetThisTypedImpl();
     const auto* chunkList = node->GetChunkList();
@@ -505,7 +510,7 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
     return TBase::GetSystemAttribute(key, consumer);
 }
 
-TAsyncError TTableNodeProxy::GetSystemAttributeAsync(const Stroka& key, IYsonConsumer* consumer) const 
+TAsyncError TTableNodeProxy::GetSystemAttributeAsync(const Stroka& key, IYsonConsumer* consumer) const
 {
     const auto* node = GetThisTypedImpl();
     const auto* chunkList = node->GetChunkList();
@@ -562,7 +567,7 @@ bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& v
                 MinReplicationFactor,
                 MaxReplicationFactor);
         }
-        
+
         auto* node = GetThisTypedMutableImpl();
         YCHECK(node->IsTrunk());
 
@@ -683,7 +688,7 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
     auto visitor = New<TFetchChunkVisitor>(
         Bootstrap,
         chunkList,
-        context, 
+        context,
         channel);
 
     if (complement) {

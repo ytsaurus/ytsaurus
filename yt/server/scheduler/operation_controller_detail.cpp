@@ -1496,7 +1496,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
             }
             {
                 auto rsp = fetchInRsps[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching input input table %s",
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching input table %s",
                     ~table.Path.GetPath());
 
                 table.FetchResponse = rsp;

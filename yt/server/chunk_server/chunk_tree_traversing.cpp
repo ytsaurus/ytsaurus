@@ -139,14 +139,14 @@ protected:
             auto* chunkList = chunkManager->FindChunkList(versionedId.Id);
             if (!chunkList || !chunkList->IsAlive()) {
                 Visitor->OnError(TError(
-                    ETraversingError::Retriable, 
+                    ETraversingError::Retriable,
                     "Missing chunk list: %s",
                     ~ToString(versionedId.Id)));
                 return;
             }
             if (chunkList->GetVersion() != versionedId.Version) {
                 Visitor->OnError(TError(
-                    ETraversingError::Retriable, 
+                    ETraversingError::Retriable,
                     "Chunk list %s version mismatch: expected %d but found %d",
                     ~ToString(versionedId.Id),
                     versionedId.Version,
@@ -164,8 +164,8 @@ protected:
             TReadLimit childUpperBound;
 
             auto getChildLowerRowIndex = [&] () {
-                return stackEntry.ChildIndex == 0 
-                    ? 0 
+                return stackEntry.ChildIndex == 0
+                    ? 0
                     : chunkList->RowCountSums()[stackEntry.ChildIndex - 1];
             };
 
@@ -203,17 +203,17 @@ protected:
             NTableClient::NProto::TReadLimit subtreeStartLimit;
             NTableClient::NProto::TReadLimit subtreeEndLimit;
             GetSubtreeLimits(
-                stackEntry, 
-                childLowerBound, 
-                childUpperBound, 
-                &subtreeStartLimit, 
+                stackEntry,
+                childLowerBound,
+                childUpperBound,
+                &subtreeStartLimit,
                 &subtreeEndLimit);
 
             switch (child.GetType()) {
                 case EObjectType::ChunkList: {
                     auto index = GetStartChild(child.AsChunkList(), subtreeStartLimit);
                     Stack.push_back(TStackEntry(
-                        child.AsChunkList()->GetVersionedId(), 
+                        child.AsChunkList()->GetVersionedId(),
                         index,
                         subtreeStartLimit,
                         subtreeEndLimit));
@@ -221,7 +221,9 @@ protected:
                 }
 
                 case EObjectType::Chunk:
-                    Visitor->OnChunk(child.AsChunk(), subtreeStartLimit, subtreeEndLimit);
+                    if (!Visitor->OnChunk(child.AsChunk(), subtreeStartLimit, subtreeEndLimit)) {
+                        return;
+                    }
                     ++visitedChunkCount;
                     break;
 
@@ -280,7 +282,7 @@ protected:
     }
 
     void GetSubtreeLimits(
-        const TStackEntry& stackEntry, 
+        const TStackEntry& stackEntry,
         const TReadLimit& childLowerBound,
         const TReadLimit& childUpperBound,
         TReadLimit* startLimit,
@@ -293,22 +295,22 @@ protected:
             }
         }
 
-        if (stackEntry.UpperBound.has_row_index() && 
-            stackEntry.UpperBound.row_index() < childUpperBound.row_index()) 
+        if (stackEntry.UpperBound.has_row_index() &&
+            stackEntry.UpperBound.row_index() < childUpperBound.row_index())
         {
             i64 newUpperBound = stackEntry.UpperBound.row_index() - childLowerBound.row_index();
             YCHECK(newUpperBound > 0);
             endLimit->set_row_index(newUpperBound);
         }
 
-        if (stackEntry.LowerBound.has_key() && 
-            stackEntry.LowerBound.key() > childLowerBound.key()) 
+        if (stackEntry.LowerBound.has_key() &&
+            stackEntry.LowerBound.key() > childLowerBound.key())
         {
             *startLimit->mutable_key() = stackEntry.LowerBound.key();
         }
 
-        if (stackEntry.UpperBound.has_key() && 
-            stackEntry.UpperBound.key() < childUpperBound.key()) 
+        if (stackEntry.UpperBound.has_key() &&
+            stackEntry.UpperBound.key() < childUpperBound.key())
         {
             *endLimit->mutable_key() = stackEntry.UpperBound.key();
         }
