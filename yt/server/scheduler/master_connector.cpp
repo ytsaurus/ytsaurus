@@ -668,9 +668,11 @@ private:
         yhash_set<TTransactionId> transactionIdsSet;
         auto operations = Bootstrap->GetScheduler()->GetOperations();
         FOREACH (auto operation, operations) {
-            auto transaction = operation->GetUserTransaction();
-            if (transaction) {
-                transactionIdsSet.insert(transaction->GetId());
+            if (operation->GetState() == EOperationState::Running) {
+                auto transaction = operation->GetUserTransaction();
+                if (transaction) {
+                    transactionIdsSet.insert(transaction->GetId());
+                }
             }
         }
 
@@ -720,9 +722,11 @@ private:
         // Collect the list of operations corresponding to dead transactions.
         auto operations = Bootstrap->GetScheduler()->GetOperations();
         FOREACH (auto operation, operations) {
-            auto transaction = operation->GetUserTransaction();
-            if (transaction && deadTransactionIds.find(transaction->GetId()) != deadTransactionIds.end()) {
-                UserTransactionAborted_.Fire(operation);
+            if (operation->GetState() == EOperationState::Running) {
+                auto transaction = operation->GetUserTransaction();
+                if (transaction && deadTransactionIds.find(transaction->GetId()) != deadTransactionIds.end()) {
+                    UserTransactionAborted_.Fire(operation);
+                }
             }
         }
     }
