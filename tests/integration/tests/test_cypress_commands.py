@@ -273,7 +273,6 @@ class TestCypressCommands(YTEnvSetup):
 
         assert get('//tmp/a/@count') == 1
         assert get('//tmp/b/@count') == 1
-        
 
     def test_copy_unexisting_path(self):
         with pytest.raises(YTError): copy('//tmp/x', '//tmp/y')
@@ -505,3 +504,12 @@ class TestCypressCommands(YTEnvSetup):
         self.assertEqual(exists("//sys/operations"), "true")
         self.assertEqual(exists("//sys/xxx"), "false")
         self.assertEqual(exists("//sys/operations/xxx"), "false")
+
+    def test_remove_tx1(self):
+        set('//tmp/a', 1)
+        assert get('//tmp/@id') == get('//tmp/a/@parent_id')
+        tx = start_transaction()
+        remove('//tmp/a', tx=tx)
+        assert get('//tmp/@id') == get('//tmp/a/@parent_id')
+        abort_transaction(tx)
+        assert get('//tmp/@id') == get('//tmp/a/@parent_id')
