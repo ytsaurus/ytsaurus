@@ -227,7 +227,6 @@ protected:
         auto metaStateManager = Bootstrap->GetMetaStateFacade()->GetManager();
 
         auto* originatingChunkList = originatingNode->GetChunkList();
-        auto originatingMode = originatingNode->GetUpdateMode();
 
         auto* branchedChunkList = branchedNode->GetChunkList();
         auto branchedMode = branchedNode->GetUpdateMode();
