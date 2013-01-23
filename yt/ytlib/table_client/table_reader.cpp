@@ -54,11 +54,11 @@ void TTableReader::Open()
     LOG_INFO("Opening table reader");
 
     LOG_INFO("Fetching table info");
-    
+
     auto fetchReq = TTableYPathProxy::Fetch(RichPath);
     SetTransactionId(fetchReq, TransactionId);
     fetchReq->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-    fetchReq->set_fetch_node_addresses(true);
+    // ToDo(psushin): enable ignoring lost chunks.
 
     auto fetchRsp = Proxy.Execute(fetchReq).Get();
     if (!fetchRsp->IsOK()) {
@@ -103,7 +103,7 @@ const TRow* TTableReader::GetRow()
     return Reader->IsValid() ? &(Reader->CurrentReader()->GetRow()) : NULL;
 }
 
-const TNonOwningKey& TTableReader::GetKey() const 
+const TNonOwningKey& TTableReader::GetKey() const
 {
     YUNREACHABLE();
 }

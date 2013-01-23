@@ -45,11 +45,14 @@ struct TOperationSpecBase
     : public TYsonSerializable
 {
     Stroka TmpAccount;
+    bool IgnoreLostChunks;
 
     TOperationSpecBase()
     {
         Register("tmp_account", TmpAccount)
             .Default("tmp");
+        Register("ignore_lost_chunks", IgnoreLostChunks)
+            .Default(false);
         SetKeepOptions(true);
     }
 };

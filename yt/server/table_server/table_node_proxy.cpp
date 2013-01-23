@@ -171,11 +171,15 @@ private:
         auto* inputChunk = Context->Response().add_chunks();
         *inputChunk->mutable_channel() = Channel.ToProto();
 
-        if (Context->Request().fetch_node_addresses()) {
-            auto addresses = chunkManager->GetChunkAddresses(chunk);
-            FOREACH (const auto& address, addresses) {
-                inputChunk->add_node_addresses(address);
-            }
+        auto addresses = chunkManager->GetChunkAddresses(chunk);
+        if (addresses.empty() && !Context->Request().ignore_lost_chunks()) {
+            ReplyError(TError("Chunk is lost %s",
+                ~chunk->GetId().ToString()));
+            return false;
+        }
+
+        FOREACH (const auto& address, addresses) {
+            inputChunk->add_node_addresses(address);
         }
 
         if (Context->Request().fetch_all_meta_extensions()) {

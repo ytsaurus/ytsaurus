@@ -22,11 +22,14 @@ message TRspPrepareForUpdate
 // Returns info describing a given portion of table.
 message TReqFetch
 {
-    optional bool fetch_node_addresses = 1 [default = false];
     optional bool fetch_all_meta_extensions = 2 [default = false];
 
     // Not yet supported.
     repeated int32 extension_tags = 3;
+
+    // When set master omits the lost chunks in the reply.
+    // Otherwise request fails in presence of the lost chunks.
+    optional bool ignore_lost_chunks = 4 [default = false];
 }
 
 message TRspFetch

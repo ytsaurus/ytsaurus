@@ -279,11 +279,9 @@ private:
 
         auto miscExt = GetProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
 
-        if (request->fetch_node_addresses()) {
-            auto addresses = chunkManager->GetChunkAddresses(chunk);
-            FOREACH (const auto& address, addresses) {
-                inputChunk->add_node_addresses(address);
-            }
+        auto addresses = chunkManager->GetChunkAddresses(chunk);
+        FOREACH (const auto& address, addresses) {
+            inputChunk->add_node_addresses(address);
         }
 
         context->Reply();

@@ -1392,8 +1392,8 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             TRichYPath fetchPath(table.Path.GetPath(), *attributes);
             auto req = TTableYPathProxy::Fetch(fetchPath);
             SetTransactionId(req, InputTransaction);
-            req->set_fetch_node_addresses(true);
             req->set_fetch_all_meta_extensions(true);
+            req->set_ignore_lost_chunks(Spec->IgnoreLostChunks);
             batchReq->AddRequest(req, "fetch_in");
         }
         {
@@ -1502,11 +1502,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 table.FetchResponse = rsp;
                 FOREACH (const auto& chunk, rsp->chunks()) {
                     auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
-                    if (chunk.node_addresses_size() == 0) {
-                        THROW_ERROR_EXCEPTION("Chunk %s in input table %s is lost",
-                            ~chunkId.ToString(),
-                            ~table.Path.GetPath());
-                    }
+                    YCHECK(chunk.node_addresses_size() > 0);
                     InputChunkIds.insert(chunkId);
                 }
                 LOG_INFO("Input table %s has %d chunks",
