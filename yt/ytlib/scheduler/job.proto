@@ -118,9 +118,13 @@ message TUserJobSpec
     // Output format description (in YSON).
     required string output_format = 4;
 
+    // Environment strings (K=V format) for starting user process.
     repeated string environment = 5;
 
+    // Memory limit for user process, in bytes.
     required int64 memory_limit = 7;
+
+    required NYT.NProto.TGuid stderr_transaction_id = 8;
 }
 
 // User code result.
