@@ -18,7 +18,7 @@ using namespace NJobProxy;
 
 //! Additive term for each job memory usage.
 //! Accounts for job proxy process and other lightweight stuff.
-static const i64 FootprintMemorySize = (i64) 512 * 1024 * 1024;
+static const i64 FootprintMemorySize = (i64) 256 * 1024 * 1024;
 
 //! Nodes having less free memory are considered fully occupied.
 static const i64 LowWatermarkMemorySize = (i64) 512 * 1024 * 1024;
