@@ -140,7 +140,8 @@ def _add_user_spec(spec):
         {
             "mr_user": os.environ.get("MR_USER", ""),
             "system_user": os.environ.get("USER", ""),
-            "wrapper_version": VERSION
+            "wrapper_version": VERSION,
+            "pool": os.environ.get("USER", "default")
         },
         spec)
 

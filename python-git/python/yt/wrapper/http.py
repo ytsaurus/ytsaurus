@@ -10,7 +10,6 @@ import sys
 import logger
 import simplejson as json
 
-
 def iter_lines(response):
     """
     Iterates over the response data, one line at a time.  This avoids reading
@@ -156,7 +155,8 @@ def make_request(command_name, params,
             method=http_method[command_name],
             headers=headers,
             data=data,
-            files=files))
+            files=files,
+            timeout=config.CONNECTION_TIMEOUT))
 
     print_info("Response header %r", response.http_response.headers)
     if response.is_ok():
