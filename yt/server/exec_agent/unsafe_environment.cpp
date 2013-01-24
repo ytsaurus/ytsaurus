@@ -27,8 +27,6 @@ namespace NExecAgent {
 
 static NLog::TLogger& Logger = ExecAgentLogger;
 
-static const double LimitMultiplier = 1.25;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUnsafeEnvironmentBuilder
@@ -102,14 +100,14 @@ public:
             // Separate process group for that job - required in non-container mode only.
             //setpgid(0, 0);
 
-            auto memoryLimit = static_cast<rlim_t>(MemoryLimit * LimitMultiplier);
+            auto memoryLimit = static_cast<rlim_t>(MemoryLimit);
             struct rlimit rlimit = {memoryLimit, RLIM_INFINITY};
 
             auto res = setrlimit(RLIMIT_AS, &rlimit);
             if (res) {
                 fprintf(stderr, "Failed to set resource limits (JobId: %s, MemoryLimit: %" PRId64 " Error: %s)\n",
                     ~JobId.ToString(),
-                    memoryLimit,
+                    MemoryLimit,
                     strerror(errno));
 
                 _exit(8);

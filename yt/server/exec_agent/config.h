@@ -132,6 +132,8 @@ struct TExecAgentConfig
     // pseudouser based restrictions on job control.
     bool EnforceJobControl;
 
+    double MemoryLimitMultiplier;
+
     TExecAgentConfig()
     {
         Register("job_manager", JobManager)
@@ -148,6 +150,8 @@ struct TExecAgentConfig
             .Default(TDuration::Seconds(1));
         Register("enforce_job_control", EnforceJobControl)
             .Default(false);
+        Register("memory_limit_multiplier", MemoryLimitMultiplier)
+            .Default(2.0);
     }
 };
 

@@ -171,7 +171,7 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
             environmentType,
             JobId,
             Slot->GetWorkingDirectory(),
-            proxyMemoryLimit);
+            static_cast<i64>(proxyMemoryLimit * Bootstrap->GetConfig()->MemoryLimitMultiplier));
     } catch (const std::exception& ex) {
         auto wrappedError = TError(
             "Failed to create proxy controller for environment %s",

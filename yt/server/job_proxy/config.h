@@ -25,6 +25,7 @@ struct TJobProxyConfig
     TDuration SupervisorRpcTimeout;
     TDuration HeartbeatPeriod;
     TDuration MemoryWatchdogPeriod;
+    double MemoryLimitMultiplier;
 
     int UserId;
 
@@ -43,6 +44,8 @@ struct TJobProxyConfig
             .Default(TDuration::Seconds(5));
         Register("memory_watchdog_period", MemoryWatchdogPeriod)
             .Default(TDuration::Seconds(1));
+        Register("memory_limit_multiplier", MemoryLimitMultiplier)
+            .Default(2.0);
         Register("user_id", UserId).
             Default(-1);
         Register("job_io", JobIO)

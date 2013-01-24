@@ -58,6 +58,7 @@ void TBootstrap::Init()
     JobProxyConfig->SupervisorRpcTimeout = Config->SupervisorRpcTimeout;
     JobProxyConfig->MemoryWatchdogPeriod = Config->MemoryWatchdogPeriod;
     JobProxyConfig->Logging = Config->JobProxyLogging;
+    JobProxyConfig->MemoryLimitMultiplier = Config->MemoryLimitMultiplier;
     JobProxyConfig->SandboxName = SandboxName;
     JobProxyConfig->Masters = NodeBootstrap->GetConfig()->Masters;
     JobProxyConfig->SupervisorConnection = New<NBus::TTcpBusClientConfig>();

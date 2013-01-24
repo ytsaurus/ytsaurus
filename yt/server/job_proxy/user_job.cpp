@@ -58,8 +58,6 @@ using namespace NScheduler;
 
 static NLog::TLogger& Logger = JobProxyLogger;
 
-static const double LimitMultiplier = 1.25;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifdef _linux_
@@ -396,7 +394,7 @@ private:
             }
             envp[UserJobSpec.environment_size()] = NULL;
 
-            auto memoryLimit = static_cast<rlim_t>(UserJobSpec.memory_limit() * LimitMultiplier);
+            auto memoryLimit = static_cast<rlim_t>(UserJobSpec.memory_limit() * config->MemoryLimitMultiplier);
             struct rlimit rlimit = {memoryLimit, RLIM_INFINITY};
 
             auto res = setrlimit(RLIMIT_AS, &rlimit);
