@@ -290,7 +290,7 @@ public:
         LOG_INFO("Running dummy job");
     }
 
-    void Kill(const TError& error)
+    void Kill(int uid, const TError& error)
     {
         LOG_INFO("Killing dummy job");
         OnExit.Get();

@@ -9,6 +9,7 @@
 #include <ytlib/meta_state/public.h>
 
 #include <ytlib/table_client/public.h>
+#include <ytlib/transaction_client/public.h>
 
 #include <server/chunk_server/public.h>
 
@@ -43,7 +44,7 @@ public:
     virtual NTableClient::ISyncWriterPtr CreateTableOutput(
         int index);
 
-    virtual TAutoPtr<TErrorOutput> CreateErrorOutput() const;
+    virtual TAutoPtr<TErrorOutput> CreateErrorOutput(const NTransactionClient::TTransactionId& txId) const;
 
     void SetStderrChunkId(const NChunkClient::TChunkId& chunkId);
 

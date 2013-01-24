@@ -179,7 +179,8 @@ private:
 
         int pipe[2];
         createPipe(pipe);
-        ErrorOutput = JobIO->CreateErrorOutput();
+        ErrorOutput = JobIO->CreateErrorOutput(
+            NTransactionClient::TTransactionId::FromProto(UserJobSpec.stderr_transaction_id()));
         OutputPipes.push_back(New<TOutputPipe>(pipe, ~ErrorOutput, STDERR_FILENO));
 
         // Make pipe for each input and each output table.

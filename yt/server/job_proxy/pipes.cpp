@@ -143,8 +143,9 @@ void CheckJobDescriptor(int fd)
     }
 }
 
-void ChmodJobDescriptor(int fd, int permissions)
+void ChmodJobDescriptor(int fd)
 {
+    const int permissions = S_IRUSR | S_IRGRP | S_IROTH | S_IWUSR | S_IWGRP | S_IWOTH;
     auto procPath = Sprintf("/proc/self/fd/%d", fd);
     auto res = chmod(~procPath, permissions);
 
@@ -189,7 +190,7 @@ void CheckJobDescriptor(int fd)
     YUNIMPLEMENTED();
 }
 
-void ChmodJobDescriptor(int fd, int permissions)
+void ChmodJobDescriptor(int fd)
 {
     YUNIMPLEMENTED();
 }
@@ -221,7 +222,7 @@ void TOutputPipe::PrepareJobDescriptors()
     SafeDup2(Pipe.WriteFd, JobDescriptor);
     SafeClose(Pipe.WriteFd);
 
-    ChmodJobDescriptor(JobDescriptor, S_IRUSR | S_IRGRP | S_IROTH | S_IWUSR | S_IWGRP | S_IWOTH);
+    ChmodJobDescriptor(JobDescriptor);
 
     CheckJobDescriptor(JobDescriptor);
 }
@@ -342,7 +343,7 @@ void TInputPipe::PrepareJobDescriptors()
     SafeDup2(Pipe.ReadFd, JobDescriptor);
     SafeClose(Pipe.ReadFd);
 
-    ChmodJobDescriptor(JobDescriptor, S_IRUSR | S_IRGRP | S_IROTH | S_IWUSR | S_IWGRP | S_IWOTH);
+    ChmodJobDescriptor(JobDescriptor);
 
     CheckJobDescriptor(JobDescriptor);
 }
