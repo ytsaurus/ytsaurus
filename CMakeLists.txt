@@ -88,7 +88,7 @@ add_subdirectory(library/json)
 
 add_subdirectory(yt)
 
-if (YT_BUILD_ENABLE_PYLIB)
+if (YT_BUILD_ENABLE_PYTHON)
   add_subdirectory(python/yt/driver)
 endif()
 
