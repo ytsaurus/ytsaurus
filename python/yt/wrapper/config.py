@@ -2,6 +2,7 @@ from format import YamrFormat
 
 import os
 #import sys
+import requests
 
 PROXY = "proxy.yt.yandex.net"
 
@@ -51,6 +52,9 @@ MIN_SIZE_PER_JOB = 16 * MB
 USE_SHORT_OPERATION_INFO = False
 
 WRITE_RETRIES_COUNT = 3
+
+CONNECTION_TIMEOUT = 30.0
+requests.adapters.DEFAULT_RETRIES = 10
 
 def set_mapreduce_mode():
     global MAPREDUCE_MODE, ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE, USE_MAPREDUCE_STYLE_DESTINATION_FDS
