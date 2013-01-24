@@ -62,7 +62,7 @@ void TChunkedOutputStream::DoWrite(const void* buffer, size_t length)
         CurrentReserveSize = std::min(2 * CurrentReserveSize, MaxReserveSize);
 
         IncompleteChunk.reserve(std::max(RoundUp(spaceRequired), CurrentReserveSize));
-        AppendToBlob(IncompleteChunk, buffer + spaceAvailable, spaceRequired);
+        AppendToBlob(IncompleteChunk, static_cast<const char*>(buffer) + spaceAvailable, spaceRequired);
     }
 }
 
