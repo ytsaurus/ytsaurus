@@ -1,14 +1,18 @@
 import config
-from common import YtError, YtResponseError, require
+from common import YtError, YtResponseError, YtTokenError, require
 from format import JsonFormat
 
 import yt.yson as yson
 
 import requests
 
+import os
 import sys
 import logger
+import string
 import simplejson as json
+from datetime import date
+from termcolor import colored
 
 def iter_lines(response):
     """
@@ -48,6 +52,12 @@ class Response(object):
 
         self.http_response = http_response
         if not str(http_response.status_code).startswith("2"):
+            # 401 is case of incorrect token
+            if http_response.status_code == 401:
+                raise YtTokenError(
+                    "Your authentication token was rejected by the server (X-YT-Request-ID: %s).\n"
+                    "Please refer to http://proxy.yt.yandex.net/auth/ for obtaining a valid token or contact us at yt@yandex-team.ru." % 
+                    http_response.headers.get("X-YT-Request-ID", "absent"))
             self._error = serialize(http_response.json())
         elif int(http_response.headers.get("x-yt-response-code", 0)) != 0:
             self._error = serialize(json.loads(http_response.headers["x-yt-error"]))
@@ -74,6 +84,15 @@ class Response(object):
     def content(self):
         return self.http_response.content
 
+def get_token():
+    token = None
+    if os.path.isfile("~/.yt_token"):
+        token = open("~/.yt_token").read().strip()
+    token = os.environ.get("YT_TOKEN", token)
+    if token is not None:
+        require(all(c in string.hexdigits for c in token),
+                YtTokenError("You have an improper authentication token in ~/.yt_token.\n"
+                             "Please refer to http://proxy.yt.yandex.net/auth/ for obtaining a valid token."))
 
 def make_request(command_name, params,
                  data=None, format=None, verbose=False, proxy=None,
@@ -84,6 +103,8 @@ def make_request(command_name, params,
         to get, read, write, create ...
         Returns response content, raw_response option force
         to return request.Response instance"""
+    requests.adapters.DEFAULT_RETRIES = 10
+    make_request.SHOW_TOKEN_WARNING = False
     def print_info(msg, *args, **kwargs):
         # Verbose option is used for debugging because it is more
         # selective than logging
@@ -144,6 +165,29 @@ def make_request(command_name, params,
         headers.update(format.to_output_http_header())
     else:
         headers.update(JsonFormat().to_output_http_header())
+    
+    token = get_token()
+    if token is None:
+        if not make_request.SHOW_TOKEN_WARNING:
+            make_request.SHOW_TOKEN_WARNING = True
+            print_message = False
+            exit = False
+            color = None
+            if date.today() > date(2012, 02, 01):
+                print_message = True
+                color = "yellow"
+            if date.today() > date(2012, 02, 07):
+                print_message = True
+                exit = True
+                color = "red"
+            if print_message:
+                print >>sys.stderr, colored(color, "Please obtain an authentication token as soon as possible.")
+                print >>sys.stderr, "Refer to http://proxy.yt.yandex.net/auth/ for instructions."
+                if exit:
+                    sys.exit(1)
+    else:
+        headers["Authorization"] = "OAuth " + token
+
     print_info("Headers: %r", headers)
     print_info("Params: %r", params)
     if http_method[command_name] != "PUT":
