@@ -83,6 +83,7 @@ add_subdirectory(cmake/deps-protobuf)
 add_subdirectory(cmake/deps-ev)
 add_subdirectory(cmake/deps-z-lz-lzo)
 add_subdirectory(cmake/deps-pycxx)
+add_subdirectory(cmake/deps-jerasure)
 
 add_subdirectory(contrib/yajl)
 add_subdirectory(library/json)
