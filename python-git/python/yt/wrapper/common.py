@@ -21,6 +21,9 @@ class YtResponseError(YtError):
     """
     pass
 
+def YtTokenError(YtError):
+    pass
+
 def compose(*args):
     def compose_two(f, g):
         return lambda x: f(g(x))
