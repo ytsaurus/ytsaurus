@@ -87,7 +87,10 @@ add_subdirectory(contrib/yajl)
 add_subdirectory(library/json)
 
 add_subdirectory(yt)
-add_subdirectory(python/yt/driver)
+
+if (YT_BUILD_ENABLE_PYLIB)
+  add_subdirectory(python/yt/driver)
+endif()
 
 install(
   FILES scripts/colorize-log.py
