@@ -66,7 +66,7 @@ void TBootstrap::Init()
     JobProxyConfig->SupervisorConnection->Priority = 6;
 
     JobControlEnabled = false;
-#ifdef _unix_
+#if defined(_unix_) and not defined(_darwin_)
     uid_t ruid, euid, suid;
     YCHECK(getresuid(&ruid, &euid, &suid) == 0);
     if (suid == 0) {

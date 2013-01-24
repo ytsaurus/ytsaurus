@@ -116,7 +116,7 @@ elseif (CMAKE_COMPILER_IS_GNUCXX)
   # Note that inlined version of memcmp is not used due to performance regressions in GCC.
   # http://gcc.gnu.org/bugzilla/show_bug.cgi?id=43052
   # http://gcc.gnu.org/onlinedocs/gcc-4.1.2/gcc/Other-Builtins.html
-  set( ARCH_FLAGS "-march=native -msse -msse2 -msse3 -msse4 -msse4.1 -msse4.2" )
+  set( ARCH_FLAGS "-march=native -msse -msse2 -msse3 -msse4 -msse4.1 -msse4.2 -mno-avx" )
   set( ARCH_FLAGS "${ARCH_FLAGS} -fno-builtin-memcmp  -fno-builtin-memcpy  -fno-builtin-memset")
   set( ARCH_FLAGS "${ARCH_FLAGS} -fno-builtin-strcat  -fno-builtin-strchr  -fno-builtin-strcmp")
   set( ARCH_FLAGS "${ARCH_FLAGS} -fno-builtin-strcpy  -fno-builtin-strcspn -fno-builtin-strlen")

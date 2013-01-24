@@ -257,6 +257,7 @@ int Main(int argc, const char* argv[])
     SigAddSet(&sigset, SIGHUP);
     SigProcMask(SIG_BLOCK, &sigset, NULL);
 
+#ifndef _darwin_
     uid_t ruid, euid, suid;
     YCHECK(getresuid(&ruid, &euid, &suid) == 0);
     if (euid == 0) {
@@ -264,7 +265,8 @@ int Main(int argc, const char* argv[])
         // saved = effective, effective = real
         YCHECK(setresuid(ruid, ruid, euid) == 0);
     }
-#endif
+#endif /* ! _darwin_ */
+#endif /* _unix_ */
 
     int exitCode;
     try {
