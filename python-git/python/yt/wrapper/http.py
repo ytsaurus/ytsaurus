@@ -173,10 +173,10 @@ def make_request(command_name, params,
             print_message = False
             exit = False
             color = None
-            if date.today() > date(2012, 02, 01):
+            if date.today() > date(2013, 02, 01):
                 print_message = True
                 color = "yellow"
-            if date.today() > date(2012, 02, 07):
+            if date.today() > date(2013, 02, 07):
                 print_message = True
                 exit = True
                 color = "red"
