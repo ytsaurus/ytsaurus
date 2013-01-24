@@ -56,6 +56,8 @@ struct TSchedulerConfig
 
     TDuration WatchersUpdatePeriod;
 
+    TDuration LockTransactionTimeout;
+
     ESchedulerStrategy Strategy;
 
     //! Timeout used for direct RPC requests to nodes.
@@ -117,6 +119,8 @@ struct TSchedulerConfig
         Register("operations_update_period", OperationsUpdatePeriod)
             .Default(TDuration::Seconds(3));
         Register("watchers_update_period", WatchersUpdatePeriod)
+            .Default(TDuration::Seconds(15));
+        Register("lock_transaction_timeout", LockTransactionTimeout)
             .Default(TDuration::Seconds(15));
         Register("strategy", Strategy)
             .Default(ESchedulerStrategy::Null);

@@ -15,6 +15,7 @@
 
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/transaction.h>
+#include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -38,8 +39,7 @@ using namespace NChunkClient;
 using namespace NTransactionClient;
 using namespace NMetaState;
 using namespace NRpc;
-
-using NChunkClient::NullChunkId;
+using namespace NTransactionClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -328,6 +328,8 @@ private:
             {
                 auto req = TTransactionYPathProxy::CreateObject(RootTransactionPath);
                 req->set_type(EObjectType::Transaction);
+                auto* reqExt = req->MutableExtension(TReqCreateTransactionExt::create_transaction);
+                reqExt->set_timeout(Owner->Config->LockTransactionTimeout.MilliSeconds());
                 GenerateRpcMutationId(req);
                 batchReq->AddRequest(req, "start_lock_tx");
             }
