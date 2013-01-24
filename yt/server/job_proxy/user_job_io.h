@@ -44,7 +44,8 @@ public:
     virtual NTableClient::ISyncWriterPtr CreateTableOutput(
         int index);
 
-    virtual TAutoPtr<TErrorOutput> CreateErrorOutput(const NTransactionClient::TTransactionId& txId) const;
+    virtual TAutoPtr<TErrorOutput> CreateErrorOutput(
+        const NTransactionClient::TTransactionId& transactionId) const;
 
     void SetStderrChunkId(const NChunkClient::TChunkId& chunkId);
 

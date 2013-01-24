@@ -114,7 +114,6 @@ TAutoPtr<TErrorOutput> TUserJobIO::CreateErrorOutput(const TTransactionId& trans
         IOConfig->ErrorFileWriter,
         MasterChannel,
         transactionId);
-        //TTransactionId::FromProto(JobSpec.output_transaction_id()));
 }
 
 void TUserJobIO::SetStderrChunkId(const TChunkId& chunkId)
