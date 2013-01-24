@@ -1004,10 +1004,15 @@ void TOperationControllerBase::AbortTransactions()
 {
     LOG_INFO("Aborting transactions");
 
-    // Abort the top-most scheduler transaction, if any.
-    auto schedulerTransaction = Operation->GetSchedulerTransaction();
-    if (schedulerTransaction) {
-        schedulerTransaction->Abort();
+    // Abort scheduler transactions, if any.
+    auto syncTransaction = Operation->GetSyncSchedulerTransaction();
+    if (syncTransaction) {
+        syncTransaction->Abort();
+    }
+
+    auto asyncTransaction = Operation->GetAsyncSchedulerTransaction();
+    if (asyncTransaction) {
+        asyncTransaction->Abort();
     }
 }
 
@@ -1163,10 +1168,10 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::StartIOTransacti
     LOG_INFO("Starting IO transactions");
 
     auto batchReq = ObjectProxy.ExecuteBatch();
-    const auto& schedulerTransactionId = Operation->GetSchedulerTransaction()->GetId();
+    const auto& parentTransactionId = Operation->GetSyncSchedulerTransaction()->GetId();
 
     {
-        auto req = TTransactionYPathProxy::CreateObject(FromObjectId(schedulerTransactionId));
+        auto req = TTransactionYPathProxy::CreateObject(FromObjectId(parentTransactionId));
         req->set_type(EObjectType::Transaction);
         req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
         NMetaState::GenerateRpcMutationId(req);
@@ -1174,7 +1179,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::StartIOTransacti
     }
 
     {
-        auto req = TTransactionYPathProxy::CreateObject(FromObjectId(schedulerTransactionId));
+        auto req = TTransactionYPathProxy::CreateObject(FromObjectId(parentTransactionId));
         req->set_type(EObjectType::Transaction);
         auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
         reqExt->set_enable_uncommitted_accounting(false);
@@ -2004,13 +2009,14 @@ int TOperationControllerBase::SuggestJobCount(
 }
 
 void TOperationControllerBase::InitUserJobSpec(
-    NScheduler::NProto::TUserJobSpec* proto,
+    NScheduler::NProto::TUserJobSpec* jobSpec,
     TUserJobSpecPtr config,
     const std::vector<TUserFile>& files,
     const std::vector<TUserTableFile>& tableFiles)
 {
-    proto->set_shell_command(config->Command);
-    proto->set_memory_limit(config->MemoryLimit);
+    jobSpec->set_shell_command(config->Command);
+    jobSpec->set_memory_limit(config->MemoryLimit);
+    *jobSpec->mutable_stderr_transaction_id() = Operation->GetAsyncSchedulerTransaction()->GetId().ToProto();
 
     {
         // Set input and output format.
@@ -2029,13 +2035,13 @@ void TOperationControllerBase::InitUserJobSpec(
             outputFormat = config->OutputFormat.Get();
         }
 
-        proto->set_input_format(ConvertToYsonString(inputFormat).Data());
-        proto->set_output_format(ConvertToYsonString(outputFormat).Data());
+        jobSpec->set_input_format(ConvertToYsonString(inputFormat).Data());
+        jobSpec->set_output_format(ConvertToYsonString(outputFormat).Data());
     }
 
     auto fillEnvironment = [&] (yhash_map<Stroka, Stroka>& env) {
         FOREACH(const auto& pair, env) {
-            proto->add_environment(Sprintf("%s=%s", ~pair.first, ~pair.second));
+            jobSpec->add_environment(Sprintf("%s=%s", ~pair.first, ~pair.second));
         }
     };
 
@@ -2045,16 +2051,16 @@ void TOperationControllerBase::InitUserJobSpec(
     // Local environment.
     fillEnvironment(config->Environment);
 
-    proto->add_environment(Sprintf("YT_OPERATION_ID=%s",
+    jobSpec->add_environment(Sprintf("YT_OPERATION_ID=%s",
         ~Operation->GetOperationId().ToString()));
 
     // TODO(babenko): think about per-job files
     FOREACH (const auto& file, files) {
-        *proto->add_files() = *file.FetchResponse;
+        *jobSpec->add_files() = *file.FetchResponse;
     }
 
     FOREACH (const auto& file, tableFiles) {
-        auto table_file = proto->add_table_files();
+        auto table_file = jobSpec->add_table_files();
         *table_file->mutable_table() = *file.FetchResponse;
         table_file->set_file_name(file.FileName);
         table_file->set_format(file.Format.Data());

@@ -28,8 +28,18 @@ class TOperation
     //! User-supplied transaction where the operation resides.
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::ITransactionPtr, UserTransaction);
 
-    //! Scheduler-controlled transaction (nested in user transaction).
-    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::ITransactionPtr, SchedulerTransaction);
+    //! Transaction used for maintaining operation inputs and outputs.
+    /*!
+     *  SyncScheduler transaction is nested inside UserTransaction, if any.
+     *  Input and output transactions are nested inside SyncSchedulerTransaction.
+     */
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::ITransactionPtr, SyncSchedulerTransaction);
+
+    //! Transaction used for internal housekeeping, e.g. generating stderrs.
+    /*!
+     *  Not nested inside any other transaction.
+     */
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::ITransactionPtr, AsyncSchedulerTransaction);
 
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, Spec);
 

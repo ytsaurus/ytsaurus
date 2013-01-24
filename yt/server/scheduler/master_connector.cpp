@@ -88,6 +88,7 @@ public:
         {
             auto req = TYPathProxy::Set(GetOperationPath(id));
             req->set_value(BuildOperationYson(operation).Data());
+            GenerateRpcMutationId(req);
             batchReq->AddRequest(req);
         }
 
@@ -327,6 +328,7 @@ private:
             {
                 auto req = TTransactionYPathProxy::CreateObject(RootTransactionPath);
                 req->set_type(EObjectType::Transaction);
+                GenerateRpcMutationId(req);
                 batchReq->AddRequest(req, "start_lock_tx");
             }
             return batchReq->Invoke();
@@ -374,11 +376,13 @@ private:
             {
                 auto req = TYPathProxy::Set("//sys/scheduler/@address");
                 req->set_value(ConvertToYsonString(TRawString(schedulerAddress)).Data());
+                GenerateRpcMutationId(req);
                 batchReq->AddRequest(req, "set_scheduler_address");
             }
             {
                 auto req = TYPathProxy::Set("//sys/scheduler/orchid&/@remote_address");
                 req->set_value(ConvertToYsonString(TRawString(schedulerAddress)).Data());
+                GenerateRpcMutationId(req);
                 batchReq->AddRequest(req, "set_orchid_address");
             }
             {
@@ -460,16 +464,26 @@ private:
             FOREACH (auto operation, Result.Operations) {
                 operation->SetState(EOperationState::Reviving);
 
-                auto schedulerTransaction = operation->GetSchedulerTransaction();
-                if (schedulerTransaction) {
-                    auto req = TTransactionYPathProxy::Abort(FromObjectId(schedulerTransaction->GetId()));
-                    batchReq->AddRequest(req, "abort_scheduler_tx");
-                    operation->SetSchedulerTransaction(nullptr);
+                auto syncTransaction = operation->GetSyncSchedulerTransaction();
+                if (syncTransaction) {
+                    auto req = TTransactionYPathProxy::Abort(FromObjectId(syncTransaction->GetId()));
+                    GenerateRpcMutationId(req);
+                    batchReq->AddRequest(req, "abort_sync_scheduler_tx");
+                    operation->SetSyncSchedulerTransaction(nullptr);
+                }
+
+                auto asyncTransaction = operation->GetAsyncSchedulerTransaction();
+                if (asyncTransaction) {
+                    auto req = TTransactionYPathProxy::Abort(FromObjectId(asyncTransaction->GetId()));
+                    GenerateRpcMutationId(req);
+                    batchReq->AddRequest(req, "abort_async_scheduler_tx");
+                    operation->SetAsyncSchedulerTransaction(nullptr);
                 }
 
                 {
                     auto req = TYPathProxy::Set(GetOperationPath(operation->GetOperationId()));
                     req->set_value(BuildOperationYson(operation).Data());
+                    GenerateRpcMutationId(req);
                     batchReq->AddRequest(req, "reset_op");
                 }
             }
@@ -574,15 +588,27 @@ private:
             ? nullptr
             : transactionManager->Attach(userAttachOptions);
 
-        auto schedulerTransactionId = attributes.Get<TTransactionId>("scheduler_transaction_id");
-        TTransactionAttachOptions schedulerAttachOptions(schedulerTransactionId);
-        schedulerAttachOptions.AutoAbort = false;
-        schedulerAttachOptions.Ping = false;
-        schedulerAttachOptions.PingAncestors = false;
-        auto schedulerTransaction =
-            schedulerTransactionId == NullTransactionId
+        // COMPAT(babenko)
+        auto syncTransactionId = attributes.Get<TTransactionId>("sync_scheduler_transaction_id", NullTransactionId);
+        TTransactionAttachOptions syncAttachOptions(syncTransactionId);
+        syncAttachOptions.AutoAbort = false;
+        syncAttachOptions.Ping = false;
+        syncAttachOptions.PingAncestors = false;
+        auto syncTransaction =
+            syncTransactionId == NullTransactionId
             ? nullptr
-            : transactionManager->Attach(schedulerAttachOptions);
+            : transactionManager->Attach(syncAttachOptions);
+
+        // COMPAT(babenko)
+        auto asyncTransactionId = attributes.Get<TTransactionId>("async_scheduler_transaction_id", NullTransactionId);
+        TTransactionAttachOptions asyncAttachOptions(syncTransactionId);
+        asyncAttachOptions.AutoAbort = false;
+        asyncAttachOptions.Ping = false;
+        asyncAttachOptions.PingAncestors = false;
+        auto asyncTransaction =
+            asyncTransactionId == NullTransactionId
+            ? nullptr
+            : transactionManager->Attach(asyncAttachOptions);
 
         auto operation = New<TOperation>(
             operationId,
@@ -591,7 +617,9 @@ private:
             attributes.Get<INodePtr>("spec")->AsMap(),
             attributes.Get<TInstant>("start_time"),
             attributes.Get<EOperationState>("state"));
-        operation->SetSchedulerTransaction(schedulerTransaction);
+        operation->SetSyncSchedulerTransaction(syncTransaction);
+        operation->SetAsyncSchedulerTransaction(asyncTransaction);
+
         return operation;
     }
 
@@ -685,8 +713,7 @@ private:
             batchReq->AddRequest(checkReq, "check_tx");
         }
 
-        LOG_INFO("Refreshing %d transactions",
-            static_cast<int>(transactionIdsList.size()));
+        LOG_INFO("Refreshing transactions");
 
         batchReq->Invoke().Subscribe(
             BIND(&TImpl::OnTransactionsRefreshed, MakeStrong(this), transactionIdsList)

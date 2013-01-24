@@ -18,10 +18,14 @@ using namespace NTransactionClient;
 
 void BuildOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* consumer)
 {
+    auto userTransaction = operation->GetUserTransaction();
+    auto syncTransaction = operation->GetSyncSchedulerTransaction();
+    auto asyncTransaction = operation->GetAsyncSchedulerTransaction();
     BuildYsonMapFluently(consumer)
         .Item("operation_type").Value(operation->GetType())
-        .Item("user_transaction_id").Value(operation->GetUserTransaction() ? operation->GetUserTransaction()->GetId() : NullTransactionId)
-        .Item("scheduler_transaction_id").Value(operation->GetSchedulerTransaction() ? operation->GetSchedulerTransaction()->GetId() : NullTransactionId)
+        .Item("user_transaction_id").Value(userTransaction ? userTransaction : NullTransactionId)
+        .Item("sync_scheduler_transaction_id").Value(syncTransaction ? syncTransaction->GetId() : NullTransactionId)
+        .Item("async_scheduler_transaction_id").Value(asyncTransaction ? asyncTransaction->GetId() : NullTransactionId)
         .Item("state").Value(FormatEnum(operation->GetState()))
         .Item("start_time").Value(operation->GetStartTime())
         .Item("spec").Node(operation->GetSpec());

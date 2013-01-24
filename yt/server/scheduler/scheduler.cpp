@@ -55,6 +55,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NCellScheduler;
 using namespace NObjectClient;
+using namespace NMetaState;
 using namespace NScheduler::NProto;
 
 using NChunkClient::TChunkId;
@@ -463,43 +464,73 @@ private:
         operation->SetState(EOperationState::Preparing);
 
         return StartAsyncPipeline(controller->GetCancelableControlInvoker())
-            ->Add(BIND(&TThis::StartSchedulerTransaction, MakeStrong(this), operation))
+            ->Add(BIND(&TThis::StartSchedulerTransactions, MakeStrong(this), operation))
             ->Add(BIND(&TThis::OnSchedulerTransactionStarted, MakeStrong(this), operation))
             ->Add(BIND(&TMasterConnector::CreateOperationNode, ~MasterConnector, operation))
             ->Add(BIND(&TThis::OnOperationNodeCreated, MakeStrong(this), operation))
             ->Run();
     }
 
-    TFuture<TTransactionYPathProxy::TRspCreateObjectPtr> StartSchedulerTransaction(TOperationPtr operation)
+    TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> StartSchedulerTransactions(TOperationPtr operation)
     {
-        LOG_INFO("Starting scheduler transaction (OperationId: %s)",
+        LOG_INFO("Starting scheduler transactions (OperationId: %s)",
             ~operation->GetOperationId().ToString());
 
         TObjectServiceProxy proxy(GetMasterChannel());
-        auto req = TTransactionYPathProxy::CreateObject(
-            operation->GetUserTransaction()
-            ? FromObjectId(operation->GetUserTransaction()->GetId())
-            : RootTransactionPath);
-        req->set_type(EObjectType::Transaction);
-        req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
-        NMetaState::GenerateRpcMutationId(req);
-        return proxy.Execute(req);
+        auto batchReq = proxy.ExecuteBatch();
+
+        {
+            auto userTransaction = operation->GetUserTransaction();
+            auto req = TTransactionYPathProxy::CreateObject(
+                userTransaction
+                ? FromObjectId(userTransaction->GetId())
+                : RootTransactionPath);
+            req->set_type(EObjectType::Transaction);
+            req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
+            GenerateRpcMutationId(req);
+            batchReq->AddRequest(req, "start_sync_tx");
+        }
+
+        {
+            auto req = TTransactionYPathProxy::CreateObject(RootTransactionPath);
+            req->set_type(EObjectType::Transaction);
+            req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
+            GenerateRpcMutationId(req);
+            batchReq->AddRequest(req, "start_async_tx");
+        }
+
+        return batchReq->Invoke();
     }
 
-    void OnSchedulerTransactionStarted(TOperationPtr operation, TTransactionYPathProxy::TRspCreateObjectPtr rsp)
+    void OnSchedulerTransactionStarted(TOperationPtr operation, TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting scheduler transaction");
+        THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError(), "Error starting scheduler transactions");
 
-        auto schedulerTransactionId = TObjectId::FromProto(rsp->object_id());
-        TTransactionAttachOptions schedulerAttachOptions(schedulerTransactionId);
-        schedulerAttachOptions.AutoAbort = true;
-        schedulerAttachOptions.Ping = true;
-        schedulerAttachOptions.PingAncestors = false;
-        auto schedulerTransaction = GetTransactionManager()->Attach(schedulerAttachOptions);
-        operation->SetSchedulerTransaction(schedulerTransaction);
+        {
+            auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_sync_tx");
+            auto transactionid = TObjectId::FromProto(rsp->object_id());
+            TTransactionAttachOptions attachOptions(transactionid);
+            attachOptions.AutoAbort = true;
+            attachOptions.Ping = true;
+            attachOptions.PingAncestors = false;
+            auto transaction = GetTransactionManager()->Attach(attachOptions);
+            operation->SetSyncSchedulerTransaction(transaction);
+        }
 
-        LOG_INFO("Scheduler transaction is %s (OperationId: %s)",
-            ~ToString(schedulerTransactionId),
+        {
+            auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_async_tx");
+            auto transactionid = TObjectId::FromProto(rsp->object_id());
+            TTransactionAttachOptions attachOptions(transactionid);
+            attachOptions.AutoAbort = true;
+            attachOptions.Ping = true;
+            attachOptions.PingAncestors = false;
+            auto transaction = GetTransactionManager()->Attach(attachOptions);
+            operation->SetAsyncSchedulerTransaction(transaction);
+        }
+
+        LOG_INFO("Scheduler transactions started (SyncTransactionId: %s, AsyncTranasctionId: %s, OperationId: %s)",
+            ~ToString(operation->GetSyncSchedulerTransaction()->GetId()),
+            ~ToString(operation->GetAsyncSchedulerTransaction()->GetId()),
             ~ToString(operation->GetOperationId()));
     }
 
@@ -568,7 +599,7 @@ private:
         RegisterOperation(operation);
 
         StartAsyncPipeline(controller->GetCancelableControlInvoker())
-            ->Add(BIND(&TThis::StartSchedulerTransaction, MakeStrong(this), operation))
+            ->Add(BIND(&TThis::StartSchedulerTransactions, MakeStrong(this), operation))
             ->Add(BIND(&TThis::OnSchedulerTransactionStarted, MakeStrong(this), operation))
             ->Add(BIND(&IOperationController::Revive, controller))
             ->Run().Subscribe(BIND(&TThis::OnOperationRevived, MakeStrong(this), operation));
@@ -745,35 +776,55 @@ private:
     }
 
 
-    void CommitSchedulerTransaction(TOperationPtr operation)
+    void CommitSchedulerTransactions(TOperationPtr operation)
     {
         TObjectServiceProxy proxy(GetMasterChannel());
-        auto transaction = operation->GetSchedulerTransaction();
-        auto req = TTransactionYPathProxy::Commit(FromObjectId(transaction->GetId()));
-        NMetaState::GenerateRpcMutationId(req);
-        proxy.Execute(req).Subscribe(
-            BIND(&TThis::OnSchedulerTransactionCommitted, MakeStrong(this), operation)
-            .Via(GetControlInvoker()));
-        transaction->Detach();
+        auto batchReq = proxy.ExecuteBatch();
+
+        {
+            auto transaction = operation->GetSyncSchedulerTransaction();
+            auto req = TTransactionYPathProxy::Commit(FromObjectId(transaction->GetId()));
+            GenerateRpcMutationId(req);
+            transaction->Detach();
+            batchReq->AddRequest(req, "commit_sync_tx");
+        }
+
+        {
+            auto transaction = operation->GetAsyncSchedulerTransaction();
+            auto req = TTransactionYPathProxy::Commit(FromObjectId(transaction->GetId()));
+            GenerateRpcMutationId(req);
+            transaction->Detach();
+            batchReq->AddRequest(req, "commit_async_tx");
+        }
+
+        batchReq->Invoke().Subscribe(
+            BIND(&TThis::OnSchedulerTransactionsCommitted, MakeStrong(this), operation)
+                .Via(GetControlInvoker()));
     }
 
-    void OnSchedulerTransactionCommitted(TOperationPtr operation, TTransactionYPathProxy::TRspCommitPtr rsp)
+    void OnSchedulerTransactionsCommitted(TOperationPtr operation, TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
-        if (!rsp->IsOK()) {
-            LOG_ERROR(*rsp, "Error committing scheduler transaction");
+        auto error = batchRsp->GetCumulativeError();
+        if (!error.IsOK()) {
+            LOG_ERROR(error, "Error committing scheduler transactions");
             return;
         }
 
-        LOG_INFO("Scheduler transaction committed (OperationId: %s)",
+        LOG_INFO("Scheduler transactions committed (OperationId: %s)",
             ~ToString(operation->GetOperationId()));
     }
 
-    void AbortSchedulerTransaction(TOperationPtr operation)
+    void AbortSchedulerTransactions(TOperationPtr operation)
     {
         // Fire-and-forget.
-        auto transaction = operation->GetSchedulerTransaction();
-        if (transaction) {
-            transaction->Abort();
+        auto syncTransaction = operation->GetSyncSchedulerTransaction();
+        if (syncTransaction) {
+            syncTransaction->Abort();
+        }
+
+        auto asyncTransaction = operation->GetAsyncSchedulerTransaction();
+        if (asyncTransaction) {
+            asyncTransaction->Abort();
         }
     }
 
@@ -1015,7 +1066,7 @@ private:
             ->Add(BIND(&TMasterConnector::FlushOperationNode, ~MasterConnector, operation))
             ->Add(BIND(&IOperationController::Commit, controller))
             ->Add(BIND(&TThis::SetOperationFinalState, MakeStrong(this), operation, EOperationState::Completed, TError()))
-            ->Add(BIND(&TThis::CommitSchedulerTransaction, MakeStrong(this), operation))
+            ->Add(BIND(&TThis::CommitSchedulerTransactions, MakeStrong(this), operation))
             ->Add(BIND(&TMasterConnector::FinalizeOperationNode, ~MasterConnector, operation))
             ->Add(BIND(&TThis::FinishOperation, MakeStrong(this), operation))
             ->Run();
@@ -1045,7 +1096,7 @@ private:
         pipeline
             ->Add(BIND(&IOperationController::Abort, controller))
             ->Add(BIND(&TThis::SetOperationFinalState, MakeStrong(this), operation, finalState, error))
-            ->Add(BIND(&TThis::AbortSchedulerTransaction, MakeStrong(this), operation))
+            ->Add(BIND(&TThis::AbortSchedulerTransactions, MakeStrong(this), operation))
             ->Add(BIND(&TMasterConnector::FinalizeOperationNode, ~MasterConnector, operation))
             ->Add(BIND(&TThis::FinishOperation, MakeStrong(this), operation))
             ->Run();
