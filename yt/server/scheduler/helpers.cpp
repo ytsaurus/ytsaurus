@@ -23,7 +23,7 @@ void BuildOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* con
     auto asyncTransaction = operation->GetAsyncSchedulerTransaction();
     BuildYsonMapFluently(consumer)
         .Item("operation_type").Value(operation->GetType())
-        .Item("user_transaction_id").Value(userTransaction ? userTransaction : NullTransactionId)
+        .Item("user_transaction_id").Value(userTransaction ? userTransaction->GetId() : NullTransactionId)
         .Item("sync_scheduler_transaction_id").Value(syncTransaction ? syncTransaction->GetId() : NullTransactionId)
         .Item("async_scheduler_transaction_id").Value(asyncTransaction ? asyncTransaction->GetId() : NullTransactionId)
         .Item("state").Value(FormatEnum(operation->GetState()))
