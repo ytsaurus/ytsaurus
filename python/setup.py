@@ -19,7 +19,7 @@ class PyTest(TestCommand):
         subprocess.check_call("cd yt/wrapper && make clean", shell=True)
 
 def main():
-    requires =["requests>=0.13.3,<1.0.0", "simplejson"]
+    requires =["requests>=1.1.0", "simplejson", "termcolor"]
     if sys.version_info[:2] < (2, 6):
         requires.append("argparse")
 
