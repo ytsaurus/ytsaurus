@@ -13,10 +13,10 @@
 #if defined(_linux_) || defined(_darwin_)
     #include <unistd.h>
     #include <fcntl.h>
+    #include <sys/stat.h>
 #endif
 #if defined(_linux_)
     #include <sys/epoll.h>
-    #include <sys/stat.h>
 #endif
 
 #if defined(_win_)
@@ -35,7 +35,7 @@ static const int PipeBufferSize = 1 << 16;
 
 ////////////////////////////////////////////////////////////////////
 
-#ifdef _linux_
+#if defined(_linux_) || defined(_darwin_)
 
 int SafeDup(int oldFd)
 {
