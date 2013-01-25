@@ -401,7 +401,7 @@ Examples:
     config.PING_ANSECTOR_TRANSACTIONS = args.pingtx
 
     if args.memlimit is not None:
-        config.MEMORY_LIMIT = int(args.memlimit * config.MB)
+        config.MEMORY_LIMIT = int(args.memlimit) * config.MB
 
     config.DETACHED = args.detached
 
