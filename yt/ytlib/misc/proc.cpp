@@ -6,6 +6,8 @@
 
 #include <util/stream/file.h>
 #include <util/string/vector.h>
+#include <util/system/fs.h>
+#include <util/folder/iterator.h>
 
 #ifdef _unix_
 
@@ -124,19 +126,41 @@ void KillallByUser(int uid)
     }
 }
 
-void RemoveDirAsRoot(const Stroka& path)
+void RemoveDirAsRoot(Stroka path)
 {
+    // Allocation after fork can lead to a deadlock inside LFAlloc.
+    // To avoid allocation we list contents of the directory before fork.
+
+    // Copy-paste from RemoveDirWithContents (util/folder/dirut.cpp)
+    SlashFolderLocal(path);
+
+    TDirIterator dir(path);
+    std::vector<Stroka> contents;
+
+    for (TDirIterator::TIterator it = dir.Begin(); it != dir.End(); ++it) {
+        switch (it->fts_info) {
+            case FTS_F:
+            case FTS_DEFAULT:
+            case FTS_DP:
+            case FTS_SL:
+            case FTS_SLNONE:
+                contents.push_back(it->fts_path);
+                break;
+        }
+    }
+
     auto pid = GuardedFork();
     // We are forking here in order not to give the root priviledges to the parent process ever,
     // because we cannot know what other threads are doing.
     if (pid == 0) {
         // Child process
         YCHECK(setuid(0) == 0);
-        try {
-            RemoveDirWithContents(path);
-        } catch (...) {
-            _exit(1);
+        for (int i = 0; i < contents.size(); ++i) {
+            if (NFs::Remove(~contents[i])) {
+                _exit(1);
+            }
         }
+
         _exit(0);
     }
 
