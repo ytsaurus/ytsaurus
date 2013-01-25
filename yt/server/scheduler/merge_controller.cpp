@@ -125,17 +125,17 @@ protected:
         {
             TNodeResources result;
 
-            int inputTables = 1;
-            if (Controller->JobSpecTemplate.type() == EJobType::SortedMerge) {
-                inputTables = Controller->GetInputTablePaths().size();
-            }
+            int inputStreamCount =
+                Controller->JobSpecTemplate.type() == EJobType::SortedMerge
+                ? static_cast<int>(Controller->GetInputTablePaths().size())
+                : 1;
 
             result.set_slots(1);
             result.set_cpu(1);
             result.set_memory(
                 GetIOMemorySize(
                     Controller->Spec->JobIO,
-                    inputTables,
+                    inputStreamCount,
                     1) +
                 GetFootprintMemorySize() +
                 Controller->GetAdditionalMemorySize());
