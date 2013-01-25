@@ -20,7 +20,7 @@ void KillallByUser(int uid);
 
 TError StatusToError(int status);
 
-void RemoveDirAsRoot(const Stroka& path);
+void RemoveDirAsRoot(Stroka path);
 
 ////////////////////////////////////////////////////////////////////////////////
 
