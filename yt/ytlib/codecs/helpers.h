@@ -18,7 +18,7 @@ typedef snappy::Sink StreamSink;
 typedef snappy::Source StreamSource;
 typedef snappy::ByteArraySource ByteArraySource;
 
-size_t TotalLength(const std::vector<TSharedRef>& refs);
+size_t GetTotalSize(const std::vector<TSharedRef>& refs);
 TSharedRef MergeRefs(const std::vector<TSharedRef>& refs);
 
 typedef TCallback<void (StreamSource*, std::vector<char>*)> TConverter;

@@ -7,8 +7,8 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkedOutputStream::TChunkedOutputStream(size_t maxReserveSize, size_t initialReserveSize)
-    : MaxReserveSize(RoundUp(maxReserveSize))
-    , CurrentReserveSize(RoundUp(initialReserveSize))
+    : MaxReserveSize(RoundUpToPage(maxReserveSize))
+    , CurrentReserveSize(RoundUpToPage(initialReserveSize))
     , CompleteSize(0)
 {
     if (CurrentReserveSize > MaxReserveSize) {
@@ -25,7 +25,7 @@ TChunkedOutputStream::~TChunkedOutputStream() throw()
 
 std::vector<TSharedRef> TChunkedOutputStream::FlushBuffer()
 {
-    CompleteChunks.push_back(TSharedRef(MoveRV(IncompleteChunk)));
+    CompleteChunks.push_back(TSharedRef::FromBlob(MoveRV(IncompleteChunk)));
 
     YASSERT(IncompleteChunk.empty());
     CompleteSize = 0;
@@ -55,13 +55,13 @@ void TChunkedOutputStream::DoWrite(const void* buffer, size_t length)
         YASSERT(IncompleteChunk.size() == IncompleteChunk.capacity());
 
         CompleteSize += IncompleteChunk.size();
-        CompleteChunks.push_back(TSharedRef(MoveRV(IncompleteChunk)));
+        CompleteChunks.push_back(TSharedRef::FromBlob(MoveRV(IncompleteChunk)));
 
         YASSERT(IncompleteChunk.empty());
 
         CurrentReserveSize = std::min(2 * CurrentReserveSize, MaxReserveSize);
 
-        IncompleteChunk.reserve(std::max(RoundUp(spaceRequired), CurrentReserveSize));
+        IncompleteChunk.reserve(std::max(RoundUpToPage(spaceRequired), CurrentReserveSize));
         AppendToBlob(IncompleteChunk, static_cast<const char*>(buffer) + spaceAvailable, spaceRequired);
     }
 }

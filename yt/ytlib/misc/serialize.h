@@ -104,7 +104,7 @@ size_t AppendPadded(OutputStream& output, const TRef& ref)
 }
 
 template <class InputStream>
-size_t ReadPadded(InputStream& input, TRef& ref)
+size_t ReadPadded(InputStream& input, const TRef& ref)
 {
     input.Read(ref.Begin(), ref.Size());
     input.Skip(GetPaddingSize(ref.Size()));

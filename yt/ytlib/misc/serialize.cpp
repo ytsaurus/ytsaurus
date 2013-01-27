@@ -1,6 +1,9 @@
 #include "stdafx.h"
 #include "serialize.h"
+
 #include <ytlib/logging/log.h>
+
+#include <util/ysaveload.h>
 
 namespace NYT {
 
@@ -21,7 +24,7 @@ TSharedRef PackRefs(const std::vector<TSharedRef>& refs)
         size += ref.Size();
     }
 
-    TSharedRef result(size);
+    auto result = TSharedRef::Allocate(size);
     TMemoryOutput output(result.Begin(), result.Size());
 
     WritePod(output, static_cast<i32>(refs.size()));
@@ -37,16 +40,16 @@ void UnpackRefs(const TSharedRef& packedRef, std::vector<TSharedRef>* refs)
 {
     TMemoryInput input(packedRef.Begin(), packedRef.Size());
 
-    i32 refCount;
-    ReadPod(input, refCount);
-    YCHECK(refCount >= 0);
+    i32 count;
+    ::Load(&input, count);
+    YCHECK(count >= 0);
 
-    *refs = std::vector<TSharedRef>(refCount);
-    for (i32 i = 0; i < refCount; ++i) {
+    *refs = std::vector<TSharedRef>(count);
+    for (int index = 0; index < count; ++index) {
         i64 refSize;
-        ReadPod(input, refSize);
+        ::Load(&input, refSize);
         TRef ref(const_cast<char*>(input.Buf()), static_cast<size_t>(refSize));
-        (*refs)[i] = TSharedRef(packedRef, ref);
+        (*refs)[index] = packedRef.Slice(ref);
         input.Skip(refSize);
     }
 }

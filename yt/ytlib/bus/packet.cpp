@@ -140,7 +140,7 @@ void TPacketDecoder::NextMessagePartPhase()
 
         i32 partSize = PartSizes[PartIndex];
         if (partSize > 0) {
-            TSharedRef part(partSize);
+            auto part = TSharedRef::Allocate(partSize);
             BeginPhase(EPacketPhase::MessagePart, part.Begin(), part.Size());
             Parts.push_back(part);
             return;

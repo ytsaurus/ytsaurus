@@ -109,7 +109,7 @@ void TChangeLog::TImpl::Read(
         YCHECK(header.RecordIndex == recordIndex);
 
         // Save and pad data.
-        TSharedRef data(envelope.Blob, TRef(const_cast<char*>(inputStream.Buf()), header.DataLength));
+        auto data = envelope.Blob.Slice(TRef(const_cast<char*>(inputStream.Buf()), header.DataLength));
         inputStream.Skip(AlignUp(header.DataLength));
 
         // Add data to the records.
@@ -374,8 +374,8 @@ TNullable<TRecordInfo> ReadRecord(TCheckableFileReader<Stream>& input)
         return Null;
     }
 
-    TSharedRef data(header.DataLength);
-    readSize += ReadPadded(input, data.GetRef());
+    auto data = TSharedRef::Allocate(header.DataLength);
+    readSize += ReadPadded(input, data);
     if (!input.Success()) {
         return Null;
     }
@@ -389,7 +389,7 @@ TNullable<TRecordInfo> ReadRecord(TCheckableFileReader<Stream>& input)
 // Calculates maximal correct prefix of index.
 size_t GetMaxCorrectIndexPrefix(const std::vector<TLogIndexRecord>& index, TBufferedFile* changelogFile)
 {
-    // Check adequacy of index
+    // Check adequacy of index.
     size_t correctPrefixLength = 0;
     for (int i = 0; i < index.size(); ++i) {
         bool correct;
@@ -567,7 +567,7 @@ typename std::vector<T>::const_iterator FirstGreater(const std::vector<T>& vec, 
     return res;
 }
 
-} // anonymous namesapce
+} // anonymous namespace
 
 TChangeLog::TImpl::TEnvelopeData TChangeLog::TImpl::ReadEnvelope(int firstRecordIndex, int lastRecordIndex)
 {
@@ -578,7 +578,7 @@ TChangeLog::TImpl::TEnvelopeData TChangeLog::TImpl::ReadEnvelope(int firstRecord
         it != Index.end() ?
         *it :
         TLogIndexRecord(RecordCount, CurrentFilePosition);
-    result.Blob = TSharedRef(result.GetLength());
+    result.Blob = TSharedRef::Allocate(result.GetLength());
     {
         TGuard<TMutex> guard(Mutex);
         size_t bytesRead = File->Pread(

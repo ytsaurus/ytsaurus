@@ -39,7 +39,7 @@ protected:
     {
         TChangeLogPtr changeLog = New<TChangeLog>(TemporaryFile->Name(), 0, IndexSize);
         changeLog->Create(0, TEpochId());
-        std::vector<TSharedRef> records = MakeRecords<RecordType>(0, recordsCount);
+        auto records = MakeRecords<RecordType>(0, recordsCount);
         changeLog->Append(0, records);
         changeLog->Flush();
         return changeLog;
@@ -52,7 +52,7 @@ protected:
         for (i32 recordId = from; recordId < to; ++recordId) {
             TBlob blob(sizeof(RecordType));
             *reinterpret_cast<RecordType*>(&*blob.begin()) = static_cast<RecordType>(recordId);
-            records[recordId - from] = MoveRV(blob);
+            records[recordId - from] = TSharedRef::FromBlob(MoveRV(blob));
         }
         return records;
     }

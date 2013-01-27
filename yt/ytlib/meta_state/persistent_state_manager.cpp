@@ -404,18 +404,18 @@ public:
         IOQueue->GetInvoker()->Invoke(context->Wrap(BIND([=] () {
             VERIFY_THREAD_AFFINITY(IOThread);
 
-            TBlob data(length);
+            auto buffer = TSharedRef::Allocate(length);
             size_t bytesRead = 0;
             try {
                 snapshotFile->Seek(offset, sSet);
-                bytesRead = snapshotFile->Read(&*data.begin(), length);
+                bytesRead = snapshotFile->Read(buffer.Begin(), length);
             } catch (const std::exception& ex) {
                 LOG_FATAL(ex, "IO error while reading snapshot %d",
                     snapshotId);
             }
 
-            data.erase(data.begin() + bytesRead, data.end());
-            context->Response().Attachments().push_back(TSharedRef(MoveRV(data)));
+            auto data = buffer.Slice(TRef(buffer.Begin(), bytesRead));
+            context->Response().Attachments().push_back(data);
 
             context->SetResponseInfo("BytesRead: %" PRISZT, bytesRead);
 

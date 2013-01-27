@@ -8,7 +8,7 @@ namespace NYT {
 
 // Reference tracking relies on uniqueness of std::type_info objects.
 // Without uniqueness reference tracking is still functional but lacks precision
-// (i. e. some types may have duplicate entries in the accumulated table).
+// (i. e. some types may have duplicate slots in the accumulated table).
 // GCC guarantees std::type_info uniqueness starting from version 3.0
 // due to the so-called vague linking.
 //
@@ -22,51 +22,65 @@ public:
     typedef const std::type_info* TKey;
 
 private:
-    struct TItem
+    class TSlot
     {
+    public:
+        explicit TSlot(TKey key);
+
+        TKey GetKey() const;
+        Stroka GetName() const;
+
+        size_t GetObjectsAllocated() const;
+        size_t GetObjectsAlive() const;
+        size_t GetBytesAllocated() const;
+        size_t GetBytesAlive() const;
+
+    private:
         TKey Key;
-        TAtomic AliveObjects;
-        TAtomic CreatedObjects;
+        TAtomic ObjectsAllocated;
+        TAtomic BytesAllocated;
+        TAtomic ObjectsFreed;
+        TAtomic BytesFreed;
 
-        TItem(TKey key)
-            : Key(key)
-            , AliveObjects(0)
-            , CreatedObjects(0)
-        { }
+        friend class TRefCountedTracker;
+
     };
-
-public:
-    typedef TItem* TCookie;
 
 public:
     static TRefCountedTracker* Get();
 
-    TCookie GetCookie(TKey key);
+    void* GetCookie(TKey key);
 
-    inline void Register(TCookie cookie)
+    FORCED_INLINE void Allocate(void* cookie, size_t size)
     {
-        AtomicIncrement(cookie->AliveObjects);
-        AtomicIncrement(cookie->CreatedObjects);
+        auto* slot = static_cast<TSlot*>(cookie);
+        AtomicIncrement(slot->ObjectsAllocated);
+        AtomicAdd(slot->BytesAllocated, size);
     }
 
-    inline void Unregister(TCookie cookie)
+    FORCED_INLINE void Free(void* cookie, size_t size)
     {
-        AtomicDecrement(cookie->AliveObjects);
+        auto* slot = static_cast<TSlot*>(cookie);
+        AtomicIncrement(slot->ObjectsFreed);
+        AtomicAdd(slot->BytesFreed, size);
     }
 
-    Stroka GetDebugInfo(int sortByColumn = -1);
-    void GetMonitoringInfo(NYson::IYsonConsumer* consumer);
+    Stroka GetDebugInfo(int sortByColumn = -1) const;
+    void GetMonitoringInfo(NYson::IYsonConsumer* consumer) const;
 
-    i64 GetAliveObjects(TKey key);
-    i64 GetCreatedObjects(TKey key);
+    i64 GetObjectsAllocated(TKey key);
+    i64 GetObjectsAlive(TKey key);
+    i64 GetAllocatedBytes(TKey key);
+    i64 GetAliveBytes(TKey key);
 
 private:
-    std::vector<TItem> GetItems();
-    void SortItems(std::vector<TItem>& items, int sortByColumn);
-
-    typedef yhash_map<TKey, TItem> TStatistics; 
     TSpinLock SpinLock;
-    TStatistics Statistics;
+    yhash_map<TKey, TSlot> Statistics;
+
+    std::vector<TSlot> GetSnapshot() const;
+    static void SortSnapshot(std::vector<TSlot>& slots, int sortByColumn);
+
+    TSlot* GetSlot(TKey key);
 
 };
 
@@ -79,8 +93,10 @@ void DumpRefCountedTracker(int sortByColumn = -1);
 } // namespace NYT
 
 template <>
-struct TSingletonTraits<NYT::TRefCountedTracker> {
-    enum {
+struct TSingletonTraits<NYT::TRefCountedTracker>
+{
+    enum
+    {
         Priority = 1024
     };
 };

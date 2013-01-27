@@ -3,10 +3,7 @@
 #include "foreach.h"
 #include "demangle.h"
 
-#include <ytlib/ytree/node.h>
-#include <ytlib/ytree/ephemeral_node_factory.h>
 #include <ytlib/ytree/fluent.h>
-#include <ytlib/ytree/tree_builder.h>
 
 #include <algorithm>
 
@@ -17,12 +14,57 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TRefCountedTracker::TSlot::TSlot(TKey key)
+    : Key(key)
+    , ObjectsAllocated(0)
+    , BytesAllocated(0)
+    , ObjectsFreed(0)
+    , BytesFreed(0)
+{ }
+
+TRefCountedTracker::TKey TRefCountedTracker::TSlot::GetKey() const
+{
+    return Key;
+}
+
+Stroka TRefCountedTracker::TSlot::GetName() const
+{
+    return DemangleCxxName(Key->name());
+}
+
+size_t TRefCountedTracker::TSlot::GetObjectsAllocated() const
+{
+    return ObjectsAllocated;
+}
+
+size_t TRefCountedTracker::TSlot::GetObjectsAlive() const
+{
+    return ObjectsAllocated - ObjectsFreed;
+}
+
+size_t TRefCountedTracker::TSlot::GetBytesAllocated() const
+{
+    return BytesAllocated;
+}
+
+size_t TRefCountedTracker::TSlot::GetBytesAlive() const
+{
+    return BytesAllocated - BytesFreed;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TRefCountedTracker* TRefCountedTracker::Get()
 {
     return Singleton<TRefCountedTracker>();
 }
 
-TRefCountedTracker::TCookie TRefCountedTracker::GetCookie(TKey key)
+void* TRefCountedTracker::GetCookie(TKey key)
+{
+    return GetSlot(key);
+}
+
+TRefCountedTracker::TSlot* TRefCountedTracker::GetSlot(TKey key)
 {
     TGuard<TSpinLock> guard(SpinLock);
 
@@ -31,127 +73,178 @@ TRefCountedTracker::TCookie TRefCountedTracker::GetCookie(TKey key)
         return &it->second;
     }
 
-    return &Statistics.insert(MakePair(key, TItem(key))).first->second;
+    return &Statistics.insert(MakePair(key, TSlot(key))).first->second;
 }
 
-std::vector<TRefCountedTracker::TItem> TRefCountedTracker::GetItems()
+std::vector<TRefCountedTracker::TSlot> TRefCountedTracker::GetSnapshot() const 
 {
     TGuard<TSpinLock> guard(SpinLock);
-    std::vector<TItem> result;
-    FOREACH (auto pair, Statistics) {
+    std::vector<TSlot> result;
+    FOREACH (const auto& pair, Statistics) {
         result.push_back(pair.second);
     }
     return result;
 }
 
-void TRefCountedTracker::SortItems(std::vector<TItem>& items, int sortByColumn)
+void TRefCountedTracker::SortSnapshot(std::vector<TSlot>& slots, int sortByColumn)
 {
     switch (sortByColumn) {
-        case 3:
+        case 0:
+        default:
             std::sort(
-                items.begin(),
-                items.end(),
-                [] (const TItem& lhs, const TItem& rhs) {
-                    return TCharTraits<char>::Compare(lhs.Key->name(), rhs.Key->name()) < 0;
+                slots.begin(),
+                slots.end(),
+                [] (const TSlot& lhs, const TSlot& rhs) {
+                    return lhs.GetObjectsAlive() > rhs.GetObjectsAlive();
+                });
+            break;
+
+        case 1:
+            std::sort(
+                slots.begin(),
+                slots.end(),
+                [] (const TSlot& lhs, const TSlot& rhs) {
+                    return lhs.GetObjectsAllocated() > rhs.GetObjectsAllocated();
                 });
             break;
 
         case 2:
             std::sort(
-                items.begin(),
-                items.end(),
-                [] (const TItem& lhs, const TItem& rhs) {
-                    return lhs.CreatedObjects > rhs.CreatedObjects;
+                slots.begin(),
+                slots.end(),
+                [] (const TSlot& lhs, const TSlot& rhs) {
+                    return lhs.GetBytesAlive() > rhs.GetBytesAlive();
                 });
             break;
 
-        case 1:
-        default:
+        case 3:
             std::sort(
-                items.begin(),
-                items.end(),
-                [] (const TItem& lhs, const TItem& rhs) {
-                    return lhs.AliveObjects > rhs.AliveObjects;
+                slots.begin(),
+                slots.end(),
+                [] (const TSlot& lhs, const TSlot& rhs) {
+                    return lhs.GetBytesAllocated() > rhs.GetBytesAllocated();
+                });
+            break;
+
+        case 4:
+            std::sort(
+                slots.begin(),
+                slots.end(),
+                [] (const TSlot& lhs, const TSlot& rhs) {
+                    return strcmp(lhs.Key->name(), rhs.Key->name()) < 0;
                 });
             break;
     }
 }
 
-Stroka TRefCountedTracker::GetDebugInfo(int sortByColumn)
+Stroka TRefCountedTracker::GetDebugInfo(int sortByColumn) const
 {
-    auto items = GetItems();
-    SortItems(items, sortByColumn);
+    auto slots = GetSnapshot();
+    SortSnapshot(slots, sortByColumn);
 
     TStringStream stream;
-    i64 totalAlive = 0;
-    i64 totalCreated = 0;
 
-    stream << "Reference-Counted Object Statistics\n";
-    stream << "================================================================================\n";
-    stream << Sprintf("%10s %10s %s", "Alive", "Created", "Name") << "\n";
-    stream << "--------------------------------------------------------------------------------\n";
-    FOREACH (const auto& item, items) {
-        totalAlive += item.AliveObjects;
-        totalCreated += item.CreatedObjects;
+    size_t totalObjectsAlive = 0;
+    size_t totalObjectsAllocated = 0;
+    size_t totalBytesAlive = 0;
+    size_t totalBytesAllocated = 0;
 
-        stream
-            << Sprintf("%10" PRId64 " %10" PRId64 " %s",
-                (i64) item.AliveObjects,
-                (i64) item.CreatedObjects,
-                ~DemangleCxxName(item.Key->name()))
-            << "\n";
+    stream << Sprintf("%10s %10s %15s %15s %s\n",
+        "ObjAlive",
+        "ObjAllocated",
+        "BytesAlive",
+        "BytesAllocated",
+        "Name");
+    stream << "-------------------------------------------------------------------------------------------------------------\n";
+
+    FOREACH (const auto& slot, slots) {
+        totalObjectsAlive += slot.GetObjectsAlive();
+        totalObjectsAllocated += slot.GetObjectsAllocated();
+        totalBytesAlive += slot.GetBytesAlive();
+        totalBytesAllocated += slot.GetBytesAllocated();
+
+        stream << Sprintf("%10" PRISZT " %10" PRISZT " %15" PRISZT " %15" PRISZT " %s\n",
+            slot.GetObjectsAlive(),
+            slot.GetObjectsAllocated(),
+            slot.GetBytesAlive(),
+            slot.GetBytesAllocated(),
+            ~slot.GetName());
     }
-    stream << "--------------------------------------------------------------------------------\n";
-    stream << Sprintf("%10" PRId64 " %10" PRId64 " %s", totalAlive, totalCreated, "Total") << "\n";
-    stream << "================================================================================\n";
+    
+    stream << "-------------------------------------------------------------------------------------------------------------\n";
+    stream << Sprintf("%10" PRISZT " %10" PRISZT " %15" PRISZT " %15" PRISZT " %s\n",
+        totalObjectsAlive,
+        totalObjectsAllocated,
+        totalBytesAlive,
+        totalBytesAllocated,
+        "Total");
 
     return stream;
 }
 
-void TRefCountedTracker::GetMonitoringInfo(IYsonConsumer* consumer)
+void TRefCountedTracker::GetMonitoringInfo(IYsonConsumer* consumer) const
 {
-    auto items = GetItems();
-    SortItems(items, -1);
+    auto slots = GetSnapshot();
+    SortSnapshot(slots, -1);
     
-    i64 totalCreated = 0;
-    i64 totalAlive = 0;
-    FOREACH (const auto& item, items) {
-        totalCreated += item.CreatedObjects;
-        totalAlive += item.AliveObjects;
+    size_t totalObjectsAlive = 0;
+    size_t totalObjectsAllocated = 0;
+    size_t totalBytesAlive = 0;
+    size_t totalBytesAllocated = 0;
+
+    FOREACH (const auto& slot, slots) {
+        totalObjectsAlive += slot.GetObjectsAlive();
+        totalObjectsAllocated += slot.GetObjectsAllocated();
+        totalBytesAlive += slot.GetBytesAlive();
+        totalBytesAllocated += slot.GetBytesAllocated();
     }
 
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("statistics").DoListFor(items, [] (TFluentList fluent, TItem item) {
+            .Item("statistics").DoListFor(slots, [] (TFluentList fluent, const TSlot& slot) {
                 fluent
                     .Item().BeginMap()
-                        .Item("name").Value(DemangleCxxName(item.Key->name()))
-                        .Item("created").Value(static_cast<i64>(item.CreatedObjects))
-                        .Item("alive").Value(static_cast<i64>(item.AliveObjects))
+                        .Item("name").Value(slot.GetName())
+                        .Item("objects_alive").Value(slot.GetObjectsAlive())
+                        .Item("objects_allocated").Value(slot.GetObjectsAllocated())
+                        .Item("bytes_alive").Value(slot.GetBytesAlive())
+                        .Item("bytes_allocated").Value(slot.GetBytesAllocated())
                     .EndMap();
             })
             .Item("total").BeginMap()
-                .Item("created").Value(totalCreated)
-                .Item("alive").Value(totalAlive)
+                .Item("objects_alive").Value(totalObjectsAlive)
+                .Item("objects_allocated").Value(totalObjectsAllocated)
+                .Item("bytes_alive").Value(totalBytesAlive)
+                .Item("bytes_allocated").Value(totalBytesAllocated)
             .EndMap()
         .EndMap();
 }
 
-i64 TRefCountedTracker::GetAliveObjects(TKey key)
+i64 TRefCountedTracker::GetObjectsAllocated(TKey key)
 {
-    return GetCookie(key)->AliveObjects;
+    return GetSlot(key)->GetObjectsAllocated();
 }
 
-i64 TRefCountedTracker::GetCreatedObjects(TKey key)
+i64 TRefCountedTracker::GetObjectsAlive(TKey key)
 {
-    return GetCookie(key)->CreatedObjects;
+    return GetSlot(key)->GetObjectsAlive();
+}
+
+i64 TRefCountedTracker::GetAllocatedBytes(TKey key)
+{
+    return GetSlot(key)->GetBytesAllocated();
+}
+
+i64 TRefCountedTracker::GetAliveBytes(TKey key)
+{
+    return GetSlot(key)->GetBytesAlive();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void DumpRefCountedTracker(int sortByColumn)
 {
-    Cerr << TRefCountedTracker::Get()->GetDebugInfo(sortByColumn) << Endl;
+    fprintf(stderr, "%s", ~TRefCountedTracker::Get()->GetDebugInfo(sortByColumn));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

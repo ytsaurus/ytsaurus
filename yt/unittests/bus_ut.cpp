@@ -30,7 +30,7 @@ IMessagePtr CreateMessage(int numParts)
 IMessagePtr Serialize(Stroka str)
 {
     TBlob data(str.begin(), str.vend());
-    return CreateMessageFromPart(TSharedRef(MoveRV(data)));
+    return CreateMessageFromPart(TSharedRef::FromBlob(MoveRV(data)));
 }
 
 Stroka Deserialize(IMessagePtr message)

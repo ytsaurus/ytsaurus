@@ -8,7 +8,7 @@ namespace NCodec {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t TotalLength(const std::vector<TSharedRef>& refs)
+size_t GetTotalSize(const std::vector<TSharedRef>& refs)
 {
     size_t size = 0;
     FOREACH (const auto& ref, refs) {
@@ -19,9 +19,10 @@ size_t TotalLength(const std::vector<TSharedRef>& refs)
 
 TSharedRef MergeRefs(const std::vector<TSharedRef>& blocks)
 {
-    TSharedRef result(TotalLength(blocks));
+    size_t size = GetTotalSize(blocks);
+    auto result = TSharedRef::Allocate(size);
     size_t pos = 0;
-    FOREACH(const auto& block, blocks) {
+    FOREACH (const auto& block, blocks) {
         std::copy(block.Begin(), block.End(), result.Begin() + pos);
         pos += block.Size();
     }
@@ -31,9 +32,9 @@ TSharedRef MergeRefs(const std::vector<TSharedRef>& blocks)
 TSharedRef Apply(TConverter converter, const TSharedRef& ref)
 {
     ByteArraySource source(ref.Begin(), ref.Size());
-    std::vector<char> output;
+    TBlob output;
     converter.Run(&source, &output);
-    return TSharedRef(MoveRV(output));
+    return TSharedRef::FromBlob(MoveRV(output));
 }
 
 TSharedRef Apply(TConverter converter, const std::vector<TSharedRef>& refs)
@@ -42,16 +43,16 @@ TSharedRef Apply(TConverter converter, const std::vector<TSharedRef>& refs)
         return Apply(converter, refs.front());
     }
     VectorRefsSource source(refs);
-    std::vector<char> output;
+    TBlob output;
     converter.Run(&source, &output);
-    return TSharedRef(MoveRV(output));
+    return TSharedRef::FromBlob(MoveRV(output));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 VectorRefsSource::VectorRefsSource(const std::vector<TSharedRef>& blocks)
     : Blocks_(blocks)
-    , Available_(TotalLength(blocks))
+    , Available_(GetTotalSize(blocks))
     , Index_(0)
     , Position_(0)
 {

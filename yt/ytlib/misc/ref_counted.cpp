@@ -7,6 +7,49 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TRefCountedBase::TRefCountedBase()
+#ifdef ENABLE_REF_COUNTED_TRACKING
+    : TypeCookie(nullptr)
+    , InstanceSize(0)
+#endif
+{ }
+
+TRefCountedBase::~TRefCountedBase()
+{
+#ifdef ENABLE_REF_COUNTED_TRACKING
+    FinalizeTracking();
+#endif
+}
+
+#ifdef ENABLE_REF_COUNTED_TRACKING
+
+void TRefCountedBase::InitializeTracking(void* typeCookie, size_t instanceSize)
+{
+    YASSERT(!TypeCookie);
+    TypeCookie = typeCookie;
+
+    YASSERT(InstanceSize == 0);
+    YASSERT(instanceSize > 0);
+    InstanceSize = instanceSize;
+
+    TRefCountedTracker::Get()->Allocate(typeCookie, instanceSize);
+}
+
+void TRefCountedBase::FinalizeTracking()
+{
+    YASSERT(TypeCookie);
+    YASSERT(InstanceSize > 0);
+    TRefCountedTracker::Get()->Free(TypeCookie, InstanceSize);
+}
+
+#endif
+
+////////////////////////////////////////////////////////////////////////////////
+
+TExtrinsicRefCounted::TExtrinsicRefCounted()
+    : RefCounter(new NDetail::TRefCounter(this))
+{ }
+
 TExtrinsicRefCounted::~TExtrinsicRefCounted()
 {
     // There are two common mistakes that may lead to triggering the checks below:
@@ -16,45 +59,21 @@ TExtrinsicRefCounted::~TExtrinsicRefCounted()
     //   or declaring an instance with static or automatic durations.
     // - Throwing an exception from ctor.
     YASSERT(RefCounter->GetRefCount() == 0);
-#ifdef ENABLE_REF_COUNTED_TRACKING
-    YASSERT(Cookie);
-    TRefCountedTracker::Get()->Unregister(
-        static_cast<TRefCountedTracker::TCookie>(Cookie));
-#endif
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TIntrinsicRefCounted::TIntrinsicRefCounted()
+    : RefCounter(1)
+{ }
 
 TIntrinsicRefCounted::~TIntrinsicRefCounted()
 {
     // For failed assertions, see the comments in TExtrinsicRefCounted::~TExtrinsicRefCounted.
     YASSERT(NDetail::AtomicallyFetch(&RefCounter) == 0);
-#ifdef ENABLE_REF_COUNTED_TRACKING
-    YASSERT(Cookie);
-    TRefCountedTracker::Get()->Unregister(
-        static_cast<TRefCountedTracker::TCookie>(Cookie));
-#endif
 }
 
-#ifdef ENABLE_REF_COUNTED_TRACKING
-void TExtrinsicRefCounted::BindToCookie(void* cookie)
-{
-    YASSERT(RefCounter->GetRefCount() > 0);
-    YASSERT(!Cookie);
-    Cookie = cookie;
-
-    TRefCountedTracker::Get()->Register(
-        static_cast<TRefCountedTracker::TCookie>(Cookie));
-}
-
-void TIntrinsicRefCounted::BindToCookie(void* cookie)
-{
-    YASSERT(NDetail::AtomicallyFetch(&RefCounter) > 0);
-    YASSERT(!Cookie);
-    Cookie = cookie;
-
-    TRefCountedTracker::Get()->Register(
-        static_cast<TRefCountedTracker::TCookie>(Cookie));
-}
-#endif
+////////////////////////////////////////////////////////////////////////////////
 
 void NDetail::TRefCounter::Dispose()
 {
