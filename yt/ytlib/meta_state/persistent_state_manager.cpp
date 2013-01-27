@@ -404,7 +404,8 @@ public:
         IOQueue->GetInvoker()->Invoke(context->Wrap(BIND([=] () {
             VERIFY_THREAD_AFFINITY(IOThread);
 
-            auto buffer = TSharedRef::Allocate(length);
+            struct TSnapshotBlockTag { };
+            auto buffer = TSharedRef::Allocate<TSnapshotBlockTag>(length);
             size_t bytesRead = 0;
             try {
                 snapshotFile->Seek(offset, sSet);

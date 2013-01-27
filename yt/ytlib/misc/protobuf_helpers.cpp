@@ -13,7 +13,8 @@ using namespace google::protobuf::io;
 bool SerializeToProto(const google::protobuf::Message& message, TSharedRef* data)
 {
     size_t size = message.ByteSize();
-    *data = TSharedRef::Allocate(size);
+    struct TSerializedMessageTag { };
+    *data = TSharedRef::Allocate<TSerializedMessageTag>(size);
     return message.SerializeToArray(data->Begin(), size);
 }
 
@@ -45,7 +46,8 @@ bool SerializeToProtoWithEnvelope(
     }
 
     size_t messageSize = message.ByteSize();
-    auto serializedMessage = TSharedRef::Allocate(messageSize);
+    struct TSerializedMessageTag { };
+    auto serializedMessage = TSharedRef::Allocate<TSerializedMessageTag>(messageSize);
     if (!message.SerializeToArray(serializedMessage.Begin(), messageSize)) {
         return false;
     }
@@ -62,7 +64,7 @@ bool SerializeToProtoWithEnvelope(
         fixedHeader.HeaderSize +
         fixedHeader.MessageSize;
         
-    *data = TSharedRef::Allocate(totalSize);
+    *data = TSharedRef::Allocate<TSerializedMessageTag>(totalSize);
 
     char* targetFixedHeader = data->Begin();
     char* targetHeader = targetFixedHeader + sizeof (TSerializedMessageFixedHeader);

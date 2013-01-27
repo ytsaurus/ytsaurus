@@ -51,7 +51,8 @@ IMessagePtr CreateMessageFromPart(const TSharedRef& part)
 
 IMessagePtr CreateMessageFromParts(TBlob&& blob, const std::vector<TRef>& refs)
 {
-    auto sharedBlob = TSharedRef::FromBlob(MoveRV(blob));
+    struct TConstructedMessageTag { };
+    auto sharedBlob = TSharedRef::FromBlob<TConstructedMessageTag>(MoveRV(blob));
     std::vector<TSharedRef> parts(refs.size());
     for (int i = 0; i < static_cast<int>(refs.size()); ++i) {
         parts[i] = sharedBlob.Slice(refs[i]);

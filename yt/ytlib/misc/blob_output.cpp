@@ -5,6 +5,8 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TBlobOutputTag { };
+
 TBlobOutput::TBlobOutput()
 {
     Reserve(1);
@@ -45,7 +47,7 @@ void TBlobOutput::Clear()
 
 TSharedRef TBlobOutput::Flush()
 {
-    return TSharedRef::FromBlob(MoveRV(Blob));
+    return TSharedRef::FromBlob<TBlobOutputTag>(MoveRV(Blob));
 }
 
 const TBlob* TBlobOutput::GetBlob() const

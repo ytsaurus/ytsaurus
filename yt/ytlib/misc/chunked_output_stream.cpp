@@ -6,6 +6,8 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TChunkedOutputStreamTag { };
+
 TChunkedOutputStream::TChunkedOutputStream(size_t maxReserveSize, size_t initialReserveSize)
     : MaxReserveSize(RoundUpToPage(maxReserveSize))
     , CurrentReserveSize(RoundUpToPage(initialReserveSize))
@@ -25,7 +27,7 @@ TChunkedOutputStream::~TChunkedOutputStream() throw()
 
 std::vector<TSharedRef> TChunkedOutputStream::FlushBuffer()
 {
-    CompleteChunks.push_back(TSharedRef::FromBlob(MoveRV(IncompleteChunk)));
+    CompleteChunks.push_back(TSharedRef::FromBlob<TChunkedOutputStreamTag>(MoveRV(IncompleteChunk)));
 
     YASSERT(IncompleteChunk.empty());
     CompleteSize = 0;
@@ -55,7 +57,7 @@ void TChunkedOutputStream::DoWrite(const void* buffer, size_t length)
         YASSERT(IncompleteChunk.size() == IncompleteChunk.capacity());
 
         CompleteSize += IncompleteChunk.size();
-        CompleteChunks.push_back(TSharedRef::FromBlob(MoveRV(IncompleteChunk)));
+        CompleteChunks.push_back(TSharedRef::FromBlob<TChunkedOutputStreamTag>(MoveRV(IncompleteChunk)));
 
         YASSERT(IncompleteChunk.empty());
 

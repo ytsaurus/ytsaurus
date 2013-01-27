@@ -30,11 +30,11 @@ TSharedRef Apply(TConverter converter, const std::vector<TSharedRef>& refs);
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Implements snappy::Source interface over a vector of TSharedRef-s. 
-class VectorRefsSource
+class TVectorRefsSource
     : public StreamSource
 {
 public:
-    explicit VectorRefsSource(const std::vector<TSharedRef>& blocks);
+    explicit TVectorRefsSource(const std::vector<TSharedRef>& blocks);
 
     virtual size_t Available() const override;
 
@@ -53,11 +53,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class DynamicByteArraySink
+class TDynamicByteArraySink
     : public StreamSink
 {
 public:
-    explicit DynamicByteArraySink(std::vector<char>* output);
+    explicit TDynamicByteArraySink(std::vector<char>* output);
 
     virtual void Append(const char* data, size_t n) override;
 
@@ -81,7 +81,7 @@ inline void Read(StreamSource* source, char* data, size_t len)
     } while (current < len);
 }
 
-template<class T>
+template <class T>
 void ReadPod(StreamSource* source, T& value)
 {
     YCHECK(source->Available() >= sizeof(T));

@@ -211,7 +211,8 @@ void TFileChunkOutput::FlushBlock()
 
     LOG_INFO("Writing block (BlockIndex: %d)", BlockCount);
     try {
-        auto compressedBuffer = Codec->Compress(TSharedRef::FromBlob(MoveRV(Buffer)));
+        struct TCompressedFileChunkBlockTag { };
+        auto compressedBuffer = Codec->Compress(TSharedRef::FromBlob<TCompressedFileChunkBlockTag>(MoveRV(Buffer)));
 
         while (!Writer->TryWriteBlock(compressedBuffer)) {
             Sync(~Writer, &TRemoteWriter::GetReadyEvent);
