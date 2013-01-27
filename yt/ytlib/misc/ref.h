@@ -139,18 +139,6 @@ public:
     TSharedRef()
     { }
 
-    //! Copy ctor.
-    TSharedRef(const TSharedRef& other)
-        : Data(other.Data)
-        , Ref(other.Ref)
-    { }
-
-    //! Move ctor.
-    TSharedRef(TSharedRef&& other)
-        : Data(MoveRV(other.Data))
-        , Ref(other.Ref)
-    { }
-
     //! Allocates a new shared block of memory.
     template <class TTag>
     static TSharedRef Allocate(size_t size)
