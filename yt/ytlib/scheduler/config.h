@@ -525,7 +525,7 @@ struct TPoolConfig
             .InRange(0.0, 1.0);
 
         Register("mode", Mode)
-            .Default(ESchedulingMode::Fifo);
+            .Default(ESchedulingMode::FairShare);
 
         Register("max_slots", MaxSlots)
             .Default(Null)
