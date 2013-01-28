@@ -22,7 +22,6 @@ namespace {
 // This object tracks number of increments and decrements
 // to the reference counter (see traits specialization below).
 class TIntricateObject
-    : public TRefCountedBase
 {
 public:
     typedef TIntrusivePtr<TIntricateObject> TPtr;
@@ -59,6 +58,13 @@ private:
     TIntricateObject& operator=(const TIntricateObject&);
     TIntricateObject& operator=(TIntricateObject&&);
 };
+
+void InitializeTracking(TIntricateObject* object, void* cookie, size_t size)
+{
+    UNUSED(object);
+    UNUSED(cookie);
+    UNUSED(size);
+}
 
 MATCHER_P3(HasRefCounts, increments, decrements, zeros,
     "Reference counter " \
