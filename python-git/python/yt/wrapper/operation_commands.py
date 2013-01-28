@@ -1,6 +1,6 @@
 import config
 import logger
-from common import require, YtError, YtOperationFailedError, prefix, dump_to_json
+from common import require, YtError, YtOperationFailedError, prefix, dump_to_json, execute_handling_sigint
 from http import make_request
 from tree_commands import get_attribute, exists, search, get
 from file_commands import download_file
@@ -108,25 +108,21 @@ def wait_operation(operation, timeout=None, print_progress=True, finalize=lambda
         timeout = Timeout(config.WAIT_TIMEOUT / 5.0, config.WAIT_TIMEOUT, 0.1)
     print_info = PrintOperationInfo() if print_progress else lambda operation, state: None
 
-    try:
+    def wait():
         result = wait_final_state(operation, timeout, print_info)
         finalize()
         return result
-    except KeyboardInterrupt:
-        if config.KEYBOARD_ABORT:
-            while True:
-                try:
-                    wait_final_state(operation,
-                                     Timeout(1.0, 1.0, 0.0),
-                                     print_info,
-                                     lambda: abort_operation(operation))
-                    finalize()
-                except KeyboardInterrupt:
-                    pass
-                break
-        raise
-    except Exception:
-        raise
+
+    def abort():
+        if not config.KEYBOARD_ABORT:
+            return
+        wait_final_state(operation,
+                         Timeout(1.0, 1.0, 0.0),
+                         print_info,
+                         lambda: abort_operation(operation))
+        finalize()
+
+    return execute_handling_sigint(wait, abort)
 
 def get_operation_stderr(operation, limit=None):
     if limit is None: limit = config.ERRORS_TO_PRINT_LIMIT
@@ -186,7 +182,7 @@ class WaitStrategy(object):
                     stderr))
         if config.PRINT_STDERRS:
             logger.info(get_operation_stderr(operation))
- 
+
 # TODO(ignat): Fix interaction with transactions
 class AsyncStrategy(object):
     # TODO(improve this strategy)

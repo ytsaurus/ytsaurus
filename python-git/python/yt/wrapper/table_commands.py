@@ -1,6 +1,6 @@
 import config
 import py_wrapper
-from common import flatten, require, YtError, unlist, update, EMPTY_GENERATOR, parse_bool, is_prefix, get_value, compose
+from common import flatten, require, YtError, unlist, update, EMPTY_GENERATOR, parse_bool, is_prefix, get_value, compose, execute_handling_sigint
 from version import VERSION
 from http import read_content
 from table import TablePath, to_table, to_name, prepare_path
@@ -165,19 +165,27 @@ def _add_table_writer_spec(job_types, table_writer, spec):
     return spec
 
 def _make_operation_request(command_name, spec, strategy, finalizer=None, verbose=False):
-    common_finalizer = finalizer
+    def run_operation(finalizer):
+        operation = _make_transactioned_request(command_name, {"spec": spec}, verbose=verbose)
+        get_value(strategy, config.DEFAULT_STRATEGY).process_operation(command_name, operation, finalizer)
+
     if not config.DETACHED:
         transaction = PingableTransaction(config.OPERATION_TRANSACTION_TIMEOUT)
-        transaction.__enter__()
+        def run_in_transaction():
+            def envelope_finalizer():
+                if finalizer is not None:
+                    finalizer()
+                transaction.__exit__(None, None, None)
+            transaction.__enter__()
+            run_operation(envelope_finalizer)
 
-        def envelope_finalizer(finalizer, transaction):
+        def finish_transaction():
             transaction.__exit__(None, None, None)
-            if finalizer is not None:
-                finalizer()
-        common_finalizer = lambda: envelope_finalizer(finalizer, transaction)
 
-    operation = _make_transactioned_request(command_name, {"spec": spec}, verbose=verbose)
-    get_value(strategy, config.DEFAULT_STRATEGY).process_operation(command_name, operation, common_finalizer)
+        execute_handling_sigint(run_in_transaction, finish_transaction)
+    else:
+        run_operation(finalizer)
+
 
 class Buffer(object):
     """ Reads line iterator by chunks """
@@ -443,7 +451,7 @@ def run_sort(source_table, destination_table=None, sort_by=None,
                         "in case of multiple source tables"))
         destination_table = source_table[0]
     destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor))
-    
+
     if config.TREAT_UNEXISTING_AS_EMPTY and not source_table:
         _remove_tables([destination_table])
         return
