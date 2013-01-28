@@ -89,7 +89,7 @@ def main():
         if has_proxy:
             command = 'curl "http://${{server}}/table/{}?subkey=1&lenval=1&startindex=${{start}}&endindex=${{end}}"'.format(quote_plus(table))
         else:
-            command = './mapreduce -server $server {} -read {}:[$start,$end] -lenval -subkey'.format(use_fastbone, table)
+            command = 'MR_USER=tmp ./mapreduce -server $server {} -read {}:[$start,$end] -lenval -subkey'.format(use_fastbone, table)
         yt.run_map(
                 'while true; do '
                     'IFS="\t" read -r server start end; '
