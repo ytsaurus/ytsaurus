@@ -1,7 +1,7 @@
 import config
 import logger
 from http import make_request
-from common import update, bool_to_string, get_value, require, YtError, YtResponseError
+from common import update, bool_to_string, get_value, require, YtError
 
 from datetime import datetime, timedelta
 from copy import deepcopy
@@ -104,6 +104,7 @@ class PingTransaction(Thread):
         self.start()
 
     def __exit__(self, type, value, traceback):
+        logger.info("Terminate pinging thread")
         self.is_running = False
         # 5.0 seconds correction for waiting response from renew
         self.join(5.0 + self.step)

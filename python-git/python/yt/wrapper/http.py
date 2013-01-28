@@ -193,6 +193,10 @@ def make_request(command_name, params,
     if http_method[command_name] != "PUT":
         print_info("Body: %r", data)
 
+    stream = False
+    if command_name in ["read", "download"]:
+        stream = True
+
     response = Response(
         requests.request(
             url=url,
@@ -200,7 +204,8 @@ def make_request(command_name, params,
             headers=headers,
             data=data,
             files=files,
-            timeout=config.CONNECTION_TIMEOUT))
+            timeout=config.CONNECTION_TIMEOUT,
+            stream=stream))
 
     print_info("Response header %r", response.http_response.headers)
     if response.is_ok():
