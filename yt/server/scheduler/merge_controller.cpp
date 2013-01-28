@@ -548,6 +548,7 @@ private:
     virtual void InitJobSpecTemplate() override
     {
         JobSpecTemplate.set_type(EJobType::UnorderedMerge);
+        JobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
         *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
@@ -629,6 +630,7 @@ private:
     virtual void InitJobSpecTemplate() override
     {
         JobSpecTemplate.set_type(EJobType::OrderedMerge);
+        JobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
         *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
@@ -707,6 +709,7 @@ private:
     virtual void InitJobSpecTemplate() override
     {
         JobSpecTemplate.set_type(EJobType::OrderedMerge);
+        JobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
         *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
@@ -1147,6 +1150,7 @@ private:
     virtual void InitJobSpecTemplate() override
     {
         JobSpecTemplate.set_type(EJobType::SortedMerge);
+        JobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
         *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
@@ -1241,6 +1245,7 @@ private:
     virtual void InitJobSpecTemplate() override
     {
         JobSpecTemplate.set_type(EJobType::SortedReduce);
+        JobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
         *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 

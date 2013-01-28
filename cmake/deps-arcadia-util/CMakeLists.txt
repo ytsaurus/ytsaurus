@@ -16,7 +16,7 @@ set( SRCS
   ${BASE}/type.cpp
   ${BASE}/strip.cpp
   ${BASE}/pcdata.cpp
-    
+
   ${BASE}/cat.h
   ${BASE}/hex.h
   ${BASE}/scan.h
@@ -155,7 +155,7 @@ set( M_SRCS
   ${M_BASE}/mmapalloc.cpp
   ${M_BASE}/alloc.cpp
   ${M_BASE}/pool.cpp
-    
+
   ${M_BASE}/addstorage.h
   ${M_BASE}/gc.h
   ${M_BASE}/segmented_string_pool.h
@@ -187,7 +187,7 @@ set( ST_SRCS
   ${ST_BASE}/format.cpp
   ${ST_BASE}/lz.cpp
   ${ST_BASE}/lzop.cpp
-    
+
   ${ST_BASE}/aligned.h
   ${ST_BASE}/base.h
   ${ST_BASE}/ios.h
@@ -217,7 +217,7 @@ set( NW_SRCS
   ${NW_BASE}/socket.cpp
   ${NW_BASE}/address.cpp
   ${NW_BASE}/pair.cpp
-    
+
   ${NW_BASE}/ip.h
   ${NW_BASE}/pollerimpl.h
   ${NW_BASE}/sock.h
@@ -289,7 +289,7 @@ set( RN_SRCS
   ${RN_BASE}/random.cpp
   ${RN_BASE}/entropy.cpp
   ${RN_BASE}/rc4.cpp
-    
+
   ${RN_BASE}/mersenne.h
   ${RN_BASE}/mersenne32.h
   ${RN_BASE}/mersenne64.h
@@ -334,7 +334,7 @@ if (UNIX)
   # not important for Win, may be useful only for Unixes
   set( LFA_SRC ${CMAKE_SOURCE_DIR}/util/private/lfalloc/lf_allocX64.cpp )
 else()
-  set( LFA_SRC )
+  set( LFA_SRC ${CMAKE_SOURCE_DIR}/util/private/lfalloc/lf_allocX64_fake.cpp)
 endif()
 
 add_library( ytext-arcadia-util STATIC

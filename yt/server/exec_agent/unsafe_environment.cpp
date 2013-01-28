@@ -103,7 +103,7 @@ public:
             auto memoryLimit = static_cast<rlim_t>(MemoryLimit);
             struct rlimit rlimit = {memoryLimit, RLIM_INFINITY};
 
-            /*auto res = setrlimit(RLIMIT_AS, &rlimit);
+            auto res = setrlimit(RLIMIT_AS, &rlimit);
             if (res) {
                 fprintf(stderr, "Failed to set resource limits (JobId: %s, MemoryLimit: %" PRId64 " Error: %s)\n",
                     ~JobId.ToString(),
@@ -111,7 +111,7 @@ public:
                     strerror(errno));
 
                 _exit(8);
-            }*/
+            }
 
             // Search the PATH, inherit environment.
             execlp(

@@ -21,6 +21,8 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const int PageSize = 4096;
+
 i64 GetProcessRss(int pid)
 {
     Stroka path = "/proc/self/statm";
@@ -30,7 +32,7 @@ i64 GetProcessRss(int pid)
 
     TIFStream memoryStatFile(path);
     auto memoryStatFields = splitStroku(memoryStatFile.ReadLine(), " ");
-    return FromString<i64>(memoryStatFields[1]);
+    return FromString<i64>(memoryStatFields[1]) * PageSize;
 }
 
 #ifdef _unix_

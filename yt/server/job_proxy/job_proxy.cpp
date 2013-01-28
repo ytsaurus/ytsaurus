@@ -24,6 +24,11 @@
 
 #include <server/scheduler/job_resources.h>
 
+
+// Defined inside util/private/lf_alloc/lf_allocX64.cpp
+void SetLargeBlockLimit(int limit);
+
+
 namespace NYT {
 namespace NJobProxy {
 
@@ -113,6 +118,7 @@ void TJobProxy::Run()
         const auto& jobSpec = GetJobSpec();
         auto jobType = EJobType(jobSpec.type());
         NYT::NThread::SetCurrentThreadName(~jobType.ToString());
+        SetLargeBlockLimit(jobSpec.lfalloc_buffer_size());
 
         switch (jobType) {
             case EJobType::Map: {

@@ -71,6 +71,7 @@ const NProto::TNodeResources& InfiniteNodeResources();
 const NProto::TNodeResources& LowWatermarkNodeResources();
 
 i64 GetFootprintMemorySize();
+i64 GetLFAllocBufferSize();
 
 i64 GetIOMemorySize(
     TJobIOConfigPtr ioConfig,
