@@ -19,7 +19,7 @@ namespace {
 // Auxiliary types and functions.
 ////////////////////////////////////////////////////////////////////////////////
 
-// This object tracks number of incremenets and decrements
+// This object tracks number of increments and decrements
 // to the reference counter (see traits specialization below).
 class TIntricateObject
 {
@@ -35,12 +35,6 @@ public:
         : Increments(0)
         , Decrements(0)
         , Zeros(0)
-    { }
-
-    // TRefCountedTracker calls BindToCookie() on object creation.
-    // So we have to stub it. 
-    template <class T>
-    void BindToCookie(const T&)
     { }
 
     void Ref()
@@ -64,6 +58,13 @@ private:
     TIntricateObject& operator=(const TIntricateObject&);
     TIntricateObject& operator=(TIntricateObject&&);
 };
+
+void InitializeTracking(TIntricateObject* object, void* cookie, size_t size)
+{
+    UNUSED(object);
+    UNUSED(cookie);
+    UNUSED(size);
+}
 
 MATCHER_P3(HasRefCounts, increments, decrements, zeros,
     "Reference counter " \

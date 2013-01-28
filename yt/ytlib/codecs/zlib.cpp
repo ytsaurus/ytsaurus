@@ -59,7 +59,7 @@ void ZlibCompress(int level, StreamSource* source, std::vector<char>* output)
         WritePod(memoryOutput, available);
     }
 
-    DynamicByteArraySink sink(output);
+    TDynamicByteArraySink sink(output);
     ZlibCompress(source, &sink, level);
 }
 

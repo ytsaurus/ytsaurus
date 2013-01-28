@@ -125,17 +125,17 @@ protected:
         {
             TNodeResources result;
 
-            int inputTables = 1;
-            if (Controller->JobSpecTemplate.type() == EJobType::SortedMerge) {
-                inputTables = Controller->GetInputTablePaths().size();
-            }
+            int inputStreamCount =
+                Controller->JobSpecTemplate.type() == EJobType::SortedMerge
+                ? static_cast<int>(Controller->GetInputTablePaths().size())
+                : 1;
 
             result.set_slots(1);
             result.set_cpu(1);
             result.set_memory(
                 GetIOMemorySize(
                     Controller->Spec->JobIO,
-                    inputTables,
+                    inputStreamCount,
                     1) +
                 GetFootprintMemorySize() +
                 Controller->GetAdditionalMemorySize());
@@ -514,6 +514,9 @@ private:
 
     virtual bool IsPassthroughChunk(const TInputChunk& inputChunk) override
     {
+        if (!Spec->AllowPassthroughChunks)
+            return false;
+
         return IsPassthroughChunkImpl(inputChunk, Spec->CombineChunks);
     }
 
@@ -545,6 +548,7 @@ private:
     virtual void InitJobSpecTemplate() override
     {
         JobSpecTemplate.set_type(EJobType::UnorderedMerge);
+        JobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
         *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
@@ -626,6 +630,7 @@ private:
     virtual void InitJobSpecTemplate() override
     {
         JobSpecTemplate.set_type(EJobType::OrderedMerge);
+        JobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
         *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
@@ -704,6 +709,7 @@ private:
     virtual void InitJobSpecTemplate() override
     {
         JobSpecTemplate.set_type(EJobType::OrderedMerge);
+        JobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
         *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
@@ -1144,6 +1150,7 @@ private:
     virtual void InitJobSpecTemplate() override
     {
         JobSpecTemplate.set_type(EJobType::SortedMerge);
+        JobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
         *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
@@ -1238,6 +1245,7 @@ private:
     virtual void InitJobSpecTemplate() override
     {
         JobSpecTemplate.set_type(EJobType::SortedReduce);
+        JobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
         *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 

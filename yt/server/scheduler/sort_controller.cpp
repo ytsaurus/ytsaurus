@@ -1546,6 +1546,7 @@ private:
     {
         {
             PartitionJobSpecTemplate.set_type(EJobType::Partition);
+            PartitionJobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
             *PartitionJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
             auto* specExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
@@ -1561,6 +1562,7 @@ private:
         {
             TJobSpec sortJobSpecTemplate;
             sortJobSpecTemplate.set_type(SimpleSort ? EJobType::SimpleSort : EJobType::PartitionSort);
+            sortJobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
             *sortJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
             auto* specExt = sortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
@@ -1575,6 +1577,7 @@ private:
 
         {
             SortedMergeJobSpecTemplate.set_type(EJobType::SortedMerge);
+            SortedMergeJobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
             *SortedMergeJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
             auto* specExt = SortedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
@@ -1585,6 +1588,7 @@ private:
 
         {
             UnorderedMergeJobSpecTemplate.set_type(EJobType::UnorderedMerge);
+            UnorderedMergeJobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
             *UnorderedMergeJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
             auto* specExt = UnorderedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
@@ -1938,6 +1942,7 @@ private:
     {
         {
             *PartitionJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+            PartitionJobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
             auto* specExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
             specExt->set_partition_count(Partitions.size());
@@ -1959,6 +1964,7 @@ private:
 
         {
             IntermediateSortJobSpecTemplate.set_type(EJobType::PartitionSort);
+            IntermediateSortJobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
             *IntermediateSortJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
             auto* specExt = IntermediateSortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
@@ -1969,6 +1975,7 @@ private:
 
         {
             FinalSortJobSpecTemplate.set_type(EJobType::PartitionReduce);
+            FinalSortJobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
             *FinalSortJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
             auto* specExt = FinalSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
@@ -1985,6 +1992,7 @@ private:
 
         {
             SortedMergeJobSpecTemplate.set_type(EJobType::SortedReduce);
+            SortedMergeJobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
             *SortedMergeJobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
 
             auto* specExt = SortedMergeJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);

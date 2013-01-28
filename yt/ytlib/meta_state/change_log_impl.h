@@ -245,3 +245,5 @@ private:
 
 } // namespace NMetaState
 } // namespace NYT
+
+DECLARE_PODTYPE(NYT::NMetaState::TRecordHeader);

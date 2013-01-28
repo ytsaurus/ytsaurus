@@ -1,9 +1,7 @@
 #pragma once
 
 #include "common.h"
-
-#include <util/stream/str.h>
-#include <util/system/info.h>
+#include "new.h"
 
 namespace NYT {
 
@@ -11,18 +9,10 @@ namespace NYT {
 
 typedef std::vector<char> TBlob;
 
-inline size_t RoundUp(size_t bytes)
-{
-    static const size_t PageSize = NSystemInfo::GetPageSize();
-    YASSERT((PageSize & (PageSize - 1)) == 0);
-    return (bytes + PageSize - 1) & (~(PageSize - 1));
-}
+size_t RoundUpToPage(size_t bytes);
+void AppendToBlob(TBlob& blob, const void* buffer, size_t size);
 
-inline void AppendToBlob(TBlob& blob, const void* buffer, size_t length)
-{
-    blob.resize(blob.size() + length);
-    ::memcpy(&*(blob.end() - length), buffer, length);
-}
+////////////////////////////////////////////////////////////////////////////////
 
 //! A non-owning reference to a block of memory.
 /*!
@@ -31,9 +21,9 @@ inline void AppendToBlob(TBlob& blob, const void* buffer, size_t length)
 class TRef
 {
 public:
-    //! Creates a NULL reference with zero size.
+    //! Creates a null reference with zero size.
     TRef()
-        : Data(NULL)
+        : Data(nullptr)
         , Size_(0)
     { }
 
@@ -43,6 +33,13 @@ public:
         YASSERT(data || size == 0);
         Data = reinterpret_cast<char*>(data);
         Size_ = size;
+    }
+
+    //! Creates a reference for a given range of memory.
+    TRef(void* begin, void* end)
+    {
+        Data = reinterpret_cast<char*>(begin);
+        Size_ = reinterpret_cast<char*>(end) - Data;
     }
 
     //! Creates a non-owning reference for a given blob.
@@ -57,30 +54,21 @@ public:
         return TRef(const_cast<char*>(str.data()), str.length());
     }
 
-    //! Creates a non-owning reference for a given pod structure
-    template<class T>
+    //! Creates a non-owning reference for a given pod structure.
+    template <class T>
     static TRef FromPod(const T& data)
     {
-        // TODO(ignat): append constantibilty to TRef
-        return TRef(const_cast<T*>(&data), sizeof(data));
+        static_assert(TTypeTraits<T>::IsPod, "T must be a pod-type.");
+        // TODO(ignat): get rid of const_cast
+        return TRef(const_cast<T*>(&data), sizeof (data));
     }
 
-    const char* Begin() const
+    char* Begin() const
     {
         return Data;
     }
 
-    char* Begin()
-    {
-        return Data;
-    }
-
-    const char* End() const
-    {
-        return Data + Size_;
-    }
-
-    char* End()
+    char* End() const
     {
         return Data + Size_;
     }
@@ -121,15 +109,23 @@ public:
     //! Implicit conversion to bool.
     operator TUnspecifiedBoolType() const
     {
-        return Data ? &TRef::Data : NULL;
+        return Data ? &TRef::Data : nullptr;
     }
 
 private:
     char* Data;
     size_t Size_;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+//! Default tag type for memory blocks allocated via TSharedRef.
+/*!
+ *  Each newly allocated TSharedRef is associated with a tag type that
+ *  appears in ref-counted statistics.
+ */
+struct TDefaultSharedRefTag { };
 
 //! A reference of a shared block of memory.
 /*!
@@ -139,52 +135,72 @@ private:
 class TSharedRef
 {
 public:
-    //! Creates a NULL reference.
+    //! Creates a null reference.
     TSharedRef()
     { }
-    
-    explicit TSharedRef(size_t size)
-        : Blob(new TBlob(size))
-        , Ref(TRef::FromBlob(*Blob))
-    { }
+
+    //! Allocates a new shared block of memory.
+    template <class TTag>
+    static TSharedRef Allocate(size_t size)
+    {
+        auto result = AllocateImpl(size);
+#ifdef ENABLE_REF_COUNTED_TRACKING
+        void* cookie = ::NYT::NDetail::GetRefCountedTrackerCookie<TTag>();
+        result.Data->InitializeTracking(cookie);
+#endif
+        return result;
+    }
+
+    static TSharedRef Allocate(size_t size)
+    {
+        return Allocate<TDefaultSharedRefTag>(size);
+    }
 
     //! Creates a non-owning reference from TPtr. Use it with caution!
     static TSharedRef FromRefNonOwning(const TRef& ref)
     {
-        return TSharedRef(NULL, ref);
+        return TSharedRef(nullptr, ref);
     }
 
     //! Creates an owning reference by copying data from a given string.
+    template <class TTag>
     static TSharedRef FromString(const Stroka& str)
     {
-        TSharedRef ref(str.length());
-        std::copy(str.begin(), str.end(), ref.Begin());
-        return ref;
+        auto result = TSharedRef::Allocate<TTag>(str.length());
+        std::copy(str.begin(), str.end(), result.Begin());
+        return result;
     }
 
+    static TSharedRef FromString(const Stroka& str)
+    {
+        return FromString<TDefaultSharedRefTag>(str);
+    }
 
     //! Creates a reference to the whole blob taking the ownership of its content.
-    TSharedRef(TBlob&& blob)
-        : Blob(new TBlob())
+    template <class TTag>
+    static TSharedRef FromBlob(TBlob&& blob)
     {
-        Blob->swap(blob);
-        Ref = TRef::FromBlob(*Blob);
+        auto result = FromBlobImpl(MoveRV(blob));
+#ifdef ENABLE_REF_COUNTED_TRACKING
+        void* cookie = ::NYT::NDetail::GetRefCountedTrackerCookie<TTag>();
+        result.Data->InitializeTracking(cookie);
+#endif
+        return result;
     }
 
-    //! Creates a reference from another shared reference a reference to a portion of its data.
-    TSharedRef(const TSharedRef& sharedRef, const TRef& ref)
-        : Blob(sharedRef.Blob)
-        , Ref(ref)
+    static TSharedRef FromBlob(TBlob&& blob)
     {
-        YASSERT(Ref.Begin() >= &*Blob->begin() && Ref.End() <= &*Blob->end());
+        return FromBlob<TDefaultSharedRefTag>(MoveRV(blob));
     }
 
-    TRef& GetRef()
+    //! Creates a reference to a portion of currently held data.
+    TSharedRef Slice(const TRef& sliceRef) const
     {
-        return Ref;
+        YASSERT(sliceRef.Begin() >= Ref.Begin() && sliceRef.End() <= Ref.End());
+        return TSharedRef(Data, sliceRef);
     }
 
-    operator TRef() const
+    operator const TRef&() const
     {
         return Ref;
     }
@@ -227,7 +243,7 @@ public:
     //! Compares the pointer (not the content!) for equality.
     bool operator == (const TSharedRef& other) const
     {
-        return Blob == other.Blob && Ref == other.Ref;
+        return Data == other.Data && Ref == other.Ref;
     }
 
     //! Compares the pointer (not the content!) for inequality.
@@ -240,23 +256,42 @@ public:
     typedef TRef TSharedRef::*TUnspecifiedBoolType;
     operator TUnspecifiedBoolType() const
     {
-        return Ref ? &TSharedRef::Ref : NULL;
+        return Ref ? &TSharedRef::Ref : nullptr;
     }
 
 private:
-    typedef TSharedPtr<TBlob, TAtomicCounter> TBlobPtr;
+    struct TData
+        : public TIntrinsicRefCounted
+    {
+        explicit TData(TBlob&& blob);
+        ~TData();
+        
+        TBlob Blob;
 
-    TSharedRef(const TBlobPtr& blob, const TRef& ref)
-        : Blob(blob)
+#ifdef ENABLE_REF_COUNTED_TRACKING
+        void* Cookie;
+
+        void InitializeTracking(void* cookie);
+        void FinalizeTracking();
+#endif
+    };
+
+    typedef TIntrusivePtr<TData> TDataPtr;
+
+    TDataPtr Data;
+    TRef Ref;
+
+    TSharedRef(TDataPtr data, const TRef& ref)
+        : Data(MoveRV(data))
         , Ref(ref)
     { }
 
-    TBlobPtr Blob;
-    TRef Ref;
+    static TSharedRef AllocateImpl(size_t size);
+    static TSharedRef FromBlobImpl(TBlob&& blob);
+
 };
 
 void Save(TOutputStream* output, const NYT::TSharedRef& ref);
-
 void Load(TInputStream* input, NYT::TSharedRef& ref);
 
 ////////////////////////////////////////////////////////////////////////////////

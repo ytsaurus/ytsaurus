@@ -6,6 +6,8 @@ $var n = 20 $$ The maximum arity.
 
 #include <typeinfo>
 
+#include <util/system/defaults.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -69,6 +71,16 @@ namespace NDetail {
 
 void* GetRefCountedTrackerCookie(const void* key);
 
+template <class T>
+FORCED_INLINE void* GetRefCountedTrackerCookie()
+{
+    static void* cookie = nullptr;
+    if (UNLIKELY(!cookie)) {
+        cookie = ::NYT::NDetail::GetRefCountedTrackerCookie(&typeid(T));
+    }
+    return cookie;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDetail
@@ -76,27 +88,18 @@ void* GetRefCountedTrackerCookie(const void* key);
 #ifdef ENABLE_REF_COUNTED_TRACKING
 
 #define REF_COUNTED_NEW_PROLOGUE() \
-    static void* cookie = NULL; \
-    do { \
-        if (UNLIKELY(cookie == NULL)) { \
-            cookie = ::NYT::NDetail::GetRefCountedTrackerCookie(&typeid(TType)); \
-        } \
-    } while(0)
+    void* cookie = ::NYT::NDetail::GetRefCountedTrackerCookie<TType>()
 
 #define REF_COUNTED_NEW_EPILOGUE() \
-    do { \
-        result->BindToCookie(cookie); \
-    } while(0)
+    InitializeTracking(result.Get(), cookie, sizeof (TType))
 
 #else // !ENABLE_REF_COUNTED_TRACKING
 
 #define REF_COUNTED_NEW_PROLOGUE() \
-    do { \
-    } while(0)
+    (void) 0
 
 #define REF_COUNTED_NEW_EPILOGUE() \
-    do { \
-    } while(0)
+    (void) 0
 
 #endif // ENABLE_REF_COUNTED_TRACKING
 

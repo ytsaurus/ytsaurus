@@ -31,6 +31,8 @@
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/data_node_service.pb.h>
 
+#include <cmath>
+
 namespace NYT {
 namespace NChunkHolder {
 

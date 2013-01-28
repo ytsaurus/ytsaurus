@@ -28,7 +28,7 @@ function( NODE target type )
 endfunction()
 
 include_directories(
-  "/usr/local/Cellar/node/0.8.2/include/node"
+  "/usr/local/include/node"
   "/usr/include/nodejs"
 )
 

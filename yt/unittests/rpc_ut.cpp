@@ -79,11 +79,9 @@ Stroka StringFromSharedRef(const TSharedRef& sharedRef)
     return Stroka(sharedRef.Begin(), sharedRef.Begin() + sharedRef.Size());
 }
 
-
 TSharedRef SharedRefFromString(const Stroka& s)
 {
-    TBlob blob(s.begin(), s.end());
-    return MoveRV(blob);
+    return TSharedRef::FromString(s);
 }
 
 IChannelPtr CreateChannel(const Stroka& address)
@@ -290,7 +288,7 @@ DEFINE_RPC_SERVICE_METHOD(TMyService, ModifyAttachments)
     FOREACH(const auto& attachment, request->Attachments()) {
         std::vector<char> data(attachment.Begin(), attachment.End());
         data.push_back('_');
-        response->Attachments().push_back(MoveRV(data));
+        response->Attachments().push_back(TSharedRef::FromBlob(MoveRV(data)));
     }
     context->Reply();
 }

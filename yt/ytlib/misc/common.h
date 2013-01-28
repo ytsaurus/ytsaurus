@@ -43,14 +43,12 @@
 #undef ENABLE_REF_COUNTED_DEBUGGING
 
 #ifndef NDEBUG
+    // This define enables thread affinity check -- a user-defined verification ensuring
+    // that some functions are called from particular threads.
+    #define ENABLE_THREAD_AFFINITY_CHECK
 
-// This define enables thread affinity check -- a user-defined verification ensuring
-// that some functions are called from particular threads.
-#define ENABLE_THREAD_AFFINITY_CHECK
-
-// This define enables logging with TRACE level.
-#define ENABLE_TRACE_LOGGING
-
+    // This define enables logging with TRACE level.
+    #define ENABLE_TRACE_LOGGING
 #endif
 
 // This define enables tracking of bind location

@@ -5,12 +5,15 @@
 #include "job.h"
 #include "bootstrap.h"
 #include "private.h"
+#include "environment.h"
 #include "environment_manager.h"
 
 #include <ytlib/misc/fs.h>
 
 #include <server/job_proxy/config.h>
 
+#include <server/chunk_holder/chunk.h>
+#include <server/chunk_holder/location.h>
 #include <server/chunk_holder/chunk_cache.h>
 
 #include <server/scheduler/job_resources.h>

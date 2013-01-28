@@ -98,7 +98,8 @@ TSharedRef TFileReader::ReadBlock(int blockIndex)
     }
 
     const auto& blockInfo = blocksExt.blocks(blockIndex);
-    TSharedRef data(blockInfo.size());
+    struct TFileChunkBlockTag { };
+    auto data = TSharedRef::Allocate<TFileChunkBlockTag>(blockInfo.size());
     i64 offset = blockInfo.offset();
     DataFile->Pread(data.Begin(), data.Size(), offset);
 

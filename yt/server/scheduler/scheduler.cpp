@@ -695,7 +695,7 @@ private:
 
     void RegisterNode(TExecNodePtr node)
     {
-        YCHECK(Nodes.insert(MakePair(node->GetAddress(), node)).second);
+        YCHECK(Nodes.insert(std::make_pair(node->GetAddress(), node)).second);
 
         FOREACH (const auto& pair, Operations) {
             auto operation = pair.second;
@@ -730,7 +730,7 @@ private:
 
     void RegisterOperation(TOperationPtr operation)
     {
-        YCHECK(Operations.insert(MakePair(operation->GetOperationId(), operation)).second);
+        YCHECK(Operations.insert(std::make_pair(operation->GetOperationId(), operation)).second);
         OperationStarted_.Fire(operation);
 
         LOG_DEBUG("Operation registered (OperationId: %s)", ~operation->GetOperationId().ToString());
@@ -841,7 +841,7 @@ private:
     {
         ++JobTypeCounters[job->GetType()];
 
-        YCHECK(Jobs.insert(MakePair(job->GetId(), job)).second);
+        YCHECK(Jobs.insert(std::make_pair(job->GetId(), job)).second);
         YCHECK(job->GetOperation()->Jobs().insert(job).second);
         YCHECK(job->GetNode()->Jobs().insert(job).second);
 

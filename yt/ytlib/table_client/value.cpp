@@ -15,7 +15,6 @@ TValue::TValue(const TStringBuf& data)
 { }
 
 TValue::TValue()
-    : Data(NULL, 0)
 { }
 
 bool TValue::IsNull() const

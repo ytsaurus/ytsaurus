@@ -115,7 +115,7 @@ struct TSequentialReaderConfig
     virtual void DoValidate() const
     {
         if (GroupSize > WindowSize) {
-            THROW_ERROR_EXCEPTION("\"group_size\" cannot be larger than \"prefetch_window_size\"");
+            THROW_ERROR_EXCEPTION("\"group_size\" cannot be larger than \"window_size\"");
         }
     }
 };

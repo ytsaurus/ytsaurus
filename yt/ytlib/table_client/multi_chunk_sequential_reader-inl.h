@@ -16,14 +16,14 @@ TMultiChunkSequentialReader<TChunkReader>::TMultiChunkSequentialReader(
     std::vector<NProto::TInputChunk>&& inputChunks,
     const typename TBase::TProviderPtr& readerProvider)
     : TMultiChunkReaderBase<TChunkReader>(
-        config, 
+        config,
         masterChannel,
         blockCache,
         MoveRV(inputChunks),
         readerProvider)
     , CurrentReaderIndex(-1)
 {
-    LOG_DEBUG("Multi chunk sequential reader created (ChunkCount: %d)", 
+    LOG_DEBUG("Multi chunk sequential reader created (ChunkCount: %d)",
         static_cast<int>(TBase::InputChunks.size()));
 
     Sessions.reserve(TBase::InputChunks.size());
@@ -74,8 +74,7 @@ void TMultiChunkSequentialReader<TChunkReader>::SwitchCurrentChunk(
     typename TBase::TSession nextSession)
 {
     if (CurrentReaderIndex > 0 && !TBase::ReaderProvider->KeepInMemory()) {
-        auto reader = Sessions[CurrentReaderIndex - 1].Get().Reader;
-        reader.Reset();
+        Sessions[CurrentReaderIndex - 1].Reset();
     }
 
     LOG_DEBUG("Switching to reader %d", CurrentReaderIndex);

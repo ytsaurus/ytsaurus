@@ -237,6 +237,7 @@ private:
     void InitJobSpecTemplate()
     {
         JobSpecTemplate.set_type(EJobType::Map);
+        JobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
         auto* jobSpecExt = JobSpecTemplate.MutableExtension(TMapJobSpecExt::map_job_spec_ext);
 

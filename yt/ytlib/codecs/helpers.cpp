@@ -6,9 +6,11 @@
 namespace NYT {
 namespace NCodec {
 
+struct TCodecBlockTag { };
+
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t TotalLength(const std::vector<TSharedRef>& refs)
+size_t GetTotalSize(const std::vector<TSharedRef>& refs)
 {
     size_t size = 0;
     FOREACH (const auto& ref, refs) {
@@ -19,9 +21,11 @@ size_t TotalLength(const std::vector<TSharedRef>& refs)
 
 TSharedRef MergeRefs(const std::vector<TSharedRef>& blocks)
 {
-    TSharedRef result(TotalLength(blocks));
+    size_t size = GetTotalSize(blocks);
+    struct TMergedBlockTag { };
+    auto result = TSharedRef::Allocate<TMergedBlockTag>(size);
     size_t pos = 0;
-    FOREACH(const auto& block, blocks) {
+    FOREACH (const auto& block, blocks) {
         std::copy(block.Begin(), block.End(), result.Begin() + pos);
         pos += block.Size();
     }
@@ -31,9 +35,9 @@ TSharedRef MergeRefs(const std::vector<TSharedRef>& blocks)
 TSharedRef Apply(TConverter converter, const TSharedRef& ref)
 {
     ByteArraySource source(ref.Begin(), ref.Size());
-    std::vector<char> output;
+    TBlob output;
     converter.Run(&source, &output);
-    return TSharedRef(MoveRV(output));
+    return TSharedRef::FromBlob<TCodecBlockTag>(MoveRV(output));
 }
 
 TSharedRef Apply(TConverter converter, const std::vector<TSharedRef>& refs)
@@ -41,29 +45,29 @@ TSharedRef Apply(TConverter converter, const std::vector<TSharedRef>& refs)
     if (refs.size() == 1) {
         return Apply(converter, refs.front());
     }
-    VectorRefsSource source(refs);
-    std::vector<char> output;
+    TVectorRefsSource source(refs);
+    TBlob output;
     converter.Run(&source, &output);
-    return TSharedRef(MoveRV(output));
+    return TSharedRef::FromBlob<TCodecBlockTag>(MoveRV(output));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-VectorRefsSource::VectorRefsSource(const std::vector<TSharedRef>& blocks)
+TVectorRefsSource::TVectorRefsSource(const std::vector<TSharedRef>& blocks)
     : Blocks_(blocks)
-    , Available_(TotalLength(blocks))
+    , Available_(GetTotalSize(blocks))
     , Index_(0)
     , Position_(0)
 {
     SkipCompletedBlocks();
 }
 
-size_t VectorRefsSource::Available() const
+size_t TVectorRefsSource::Available() const
 {
     return Available_;
 }
 
-const char* VectorRefsSource::Peek(size_t* len)
+const char* TVectorRefsSource::Peek(size_t* len)
 {
     if (Index_ == Blocks_.size()) {
         *len = 0;
@@ -73,7 +77,7 @@ const char* VectorRefsSource::Peek(size_t* len)
     return Blocks_[Index_].Begin() + Position_;
 }
 
-void VectorRefsSource::Skip(size_t n)
+void TVectorRefsSource::Skip(size_t n)
 {
     while (n > 0 && Index_ < Blocks_.size()) {
         size_t toSkip = std::min(Blocks_[Index_].Size() - Position_, n);
@@ -86,7 +90,7 @@ void VectorRefsSource::Skip(size_t n)
     }
 }
 
-void VectorRefsSource::SkipCompletedBlocks()
+void TVectorRefsSource::SkipCompletedBlocks()
 {
     while (Index_ < Blocks_.size() && Position_ == Blocks_[Index_].Size()) {
         Index_ += 1;
@@ -96,11 +100,11 @@ void VectorRefsSource::SkipCompletedBlocks()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DynamicByteArraySink::DynamicByteArraySink(std::vector<char>* output)
+TDynamicByteArraySink::TDynamicByteArraySink(std::vector<char>* output)
     : Output_(output)
 { }
 
-void DynamicByteArraySink::Append(const char* data, size_t n)
+void TDynamicByteArraySink::Append(const char* data, size_t n)
 {
     size_t newSize = Output_->size() + n;
     if (newSize > Output_->capacity()) {

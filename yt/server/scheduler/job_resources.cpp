@@ -20,6 +20,8 @@ using namespace NJobProxy;
 //! Accounts for job proxy process and other lightweight stuff.
 static const i64 FootprintMemorySize = (i64) 256 * 1024 * 1024;
 
+static const i64 LFAllocBufferSize = (i64) 64 * 1024 * 1024;
+
 //! Nodes having less free memory are considered fully occupied.
 static const i64 LowWatermarkMemorySize = (i64) 512 * 1024 * 1024;
 
@@ -310,7 +312,12 @@ const TNodeResources& LowWatermarkNodeResources()
 
 i64 GetFootprintMemorySize()
 {
-    return FootprintMemorySize;
+    return FootprintMemorySize + GetLFAllocBufferSize();
+}
+
+i64 GetLFAllocBufferSize()
+{
+    return LFAllocBufferSize;
 }
 
 i64 GetIOMemorySize(
@@ -319,7 +326,7 @@ i64 GetIOMemorySize(
     int outputStreamCount)
 {
     return
-        ioConfig->TableReader->WindowSize * ioConfig->TableReader->PrefetchWindow * inputStreamCount +
+        ioConfig->TableReader->WindowSize * (ioConfig->TableReader->PrefetchWindow + 1) * inputStreamCount +
         (ioConfig->TableWriter->WindowSize + // remote chunk writer window
         ioConfig->TableWriter->EncodeWindowSize + // codec window
         ioConfig->TableWriter->MaxBufferSize) *

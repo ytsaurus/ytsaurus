@@ -59,6 +59,7 @@ using namespace NYTree;
 static NLog::TLogger Logger("Bootstrap");
 
 const i64 FootprintMemorySize = 1024L * 1024 * 1024;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TBootstrap::TBootstrap(
@@ -94,7 +95,7 @@ void TBootstrap::Run()
     }
 
     MasterChannel = CreateLeaderChannel(Config->Masters);
-    
+
     SchedulerChannel = CreateSchedulerChannel(
         Config->ExecAgent->SchedulerConnector->RpcTimeout,
         MasterChannel);

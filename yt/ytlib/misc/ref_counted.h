@@ -6,8 +6,15 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TRefCountedBase;
 class TExtrinsicRefCounted;
 class TIntrinsicRefCounted;
+
+// This is a reasonable default.
+// For performance-critical bits of code use TIntrinsicRefCounted instead.
+typedef TExtrinsicRefCounted TRefCounted;
+
+////////////////////////////////////////////////////////////////////////////////
 
 namespace NDetail {
     typedef intptr_t TNonVolatileCounter;
@@ -103,7 +110,7 @@ namespace NDetail {
     }
 #endif
 
-    //! An atomical reference counter for extrinsic reference counting.
+    //! An atomic reference counter for extrinsic reference counting.
     class TRefCounter
     {
     public:
@@ -198,25 +205,57 @@ namespace NDetail {
     };
 } // namespace NDetail
 
-//! Base for reference-counted objects with extrinsic reference counting.
-class TExtrinsicRefCounted
+////////////////////////////////////////////////////////////////////////////////
+
+#ifdef ENABLE_REF_COUNTED_TRACKING
+
+//! A helper called by #New to register the just-created instance.
+void InitializeTracking(TRefCountedBase* object, void* typeCookie, size_t instanceSize);
+
+#endif
+
+//! Base for any reference-counted.
+class TRefCountedBase
     : private TNonCopyable
 {
+protected:
+    TRefCountedBase();
+    virtual ~TRefCountedBase();
+
+#ifdef ENABLE_REF_COUNTED_TRACKING
+    void FinalizeTracking();
+#endif
+
+private:
+    friend void InitializeTracking(TRefCountedBase* object, void* typeCookie, size_t instanceSize);
+
+#ifdef ENABLE_REF_COUNTED_TRACKING
+    void* TypeCookie;
+    size_t InstanceSize;
+
+    void InitializeTracking(void* typeCookie, size_t instanceSize);
+#endif
+
+};
+
+#ifdef ENABLE_REF_COUNTED_TRACKING
+
+FORCED_INLINE void InitializeTracking(TRefCountedBase* object, void* typeCookie, size_t instanceSize)
+{
+    object->InitializeTracking(typeCookie, instanceSize);
+}
+
+#endif
+    
+////////////////////////////////////////////////////////////////////////////////
+
+//! Base for reference-counted objects with extrinsic reference counting.
+class TExtrinsicRefCounted
+    : public TRefCountedBase
+{
 public:
-    //! Constructs an instance.
-    TExtrinsicRefCounted()        
-        : RefCounter(new NDetail::TRefCounter(this))
-#ifdef ENABLE_REF_COUNTED_TRACKING
-        , Cookie(NULL)
-#endif
-    { }
-
+    TExtrinsicRefCounted();
     virtual ~TExtrinsicRefCounted();
-
-#ifdef ENABLE_REF_COUNTED_TRACKING
-    //! Called from #New functions to initialize the tracking cookie.
-    void BindToCookie(void* cookie);
-#endif
 
     //! Increments the reference counter.
     inline void Ref() const // noexcept
@@ -270,32 +309,16 @@ public:
 
 private:
     mutable NDetail::TRefCounter* RefCounter;
-#ifdef ENABLE_REF_COUNTED_TRACKING
-    void* Cookie;
-#endif
 
 };
 
 //! Base for reference-counted objects with intrinsic reference counting.
 class TIntrinsicRefCounted
-    : private TNonCopyable
+    : public TRefCountedBase
 {
 public:
-    //! Constructs an instance.
-    TIntrinsicRefCounted()
-        : RefCounter(1)
-#ifdef ENABLE_REF_COUNTED_TRACKING
-        , Cookie(NULL)
-#endif
-    { }
-
-    //! Destroys the instance.
+    TIntrinsicRefCounted();
     virtual ~TIntrinsicRefCounted();
-
-#ifdef ENABLE_REF_COUNTED_TRACKING
-    //! Called from #New functions to initialize the tracking cookie.
-    void BindToCookie(void* cookie);
-#endif
 
     //! Increments the reference counter.
     inline void Ref() const // noexcept
@@ -358,15 +381,8 @@ public:
 
 private:
     mutable NDetail::TVolatileCounter RefCounter;
-#ifdef ENABLE_REF_COUNTED_TRACKING
-    void* Cookie;
-#endif
 
 };
-
-// This is a reasonable default.
-// For performance-critical bits of code use TIntrinsicRefCounted instead.
-typedef TExtrinsicRefCounted TRefCounted;
 
 ////////////////////////////////////////////////////////////////////////////////
 
