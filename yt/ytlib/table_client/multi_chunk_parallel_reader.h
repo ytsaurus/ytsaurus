@@ -40,7 +40,7 @@ private:
 
     int CompleteReaderCount;
 
-    void OnReaderOpened(
+    virtual void OnReaderOpened(
         const typename TBase::TSession& session, 
         TError error) override;
 

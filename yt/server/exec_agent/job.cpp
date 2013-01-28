@@ -502,7 +502,7 @@ void TJob::Abort(const TError& error)
 
     if (JobState == EJobState::Waiting) {
         YCHECK(!Slot);
-        JobState == EJobState::Aborted;
+        JobState = EJobState::Aborted;
         ReleaseResources(ZeroNodeResources());
     } else {
         Slot->GetInvoker()->Invoke(BIND(
