@@ -514,6 +514,9 @@ private:
 
     virtual bool IsPassthroughChunk(const TInputChunk& inputChunk) override
     {
+        if (!Spec->AllowPassthroughChunks)
+            return false;
+
         return IsPassthroughChunkImpl(inputChunk, Spec->CombineChunks);
     }
 
