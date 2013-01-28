@@ -326,7 +326,7 @@ i64 GetIOMemorySize(
     int outputStreamCount)
 {
     return
-        ioConfig->TableReader->WindowSize * ioConfig->TableReader->PrefetchWindow * inputStreamCount +
+        ioConfig->TableReader->WindowSize * (ioConfig->TableReader->PrefetchWindow + 1) * inputStreamCount +
         (ioConfig->TableWriter->WindowSize + // remote chunk writer window
         ioConfig->TableWriter->EncodeWindowSize + // codec window
         ioConfig->TableWriter->MaxBufferSize) *
