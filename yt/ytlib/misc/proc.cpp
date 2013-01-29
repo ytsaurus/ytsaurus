@@ -21,11 +21,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-<<<<<<< HEAD
-=======
-static const size_t PageSize = NSystemInfo::GetPageSize();
-
->>>>>>> Get PageSize from util.
 i64 GetProcessRss(int pid)
 {
     Stroka path = "/proc/self/statm";
@@ -119,7 +114,7 @@ void KillallByUser(int uid)
     }
 }
 
-void RemoveDirAsRoot(const Stroka& path)
+void RemoveDirAsRoot(Stroka path)
 {
     // Allocation after fork can lead to a deadlock inside LFAlloc.
     // To avoid allocation we list contents of the directory before fork.
