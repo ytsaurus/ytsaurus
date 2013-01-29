@@ -21,7 +21,7 @@ static NLog::TLogger& Logger = MetaStateLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TFollowerTracker::TFollowerTracker(
-    TFollowerPingerConfigPtr config,
+    TFollowerTrackerConfigPtr config,
     TCellManagerPtr cellManager,
     TDecoratedMetaStatePtr decoratedState,
     const TEpochId& epoch,
