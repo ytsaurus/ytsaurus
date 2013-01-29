@@ -12,9 +12,9 @@ struct TTotalNodeStatistics
 {
     i64 AvailbaleSpace;
     i64 UsedSpace;
-    i32 ChunkCount;
-    i32 SessionCount;
-    i32 OnlineNodeCount;
+    int ChunkCount;
+    int SessionCount;
+    int OnlineNodeCount;
 
     TTotalNodeStatistics()
         : AvailbaleSpace(0)
