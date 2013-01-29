@@ -1,27 +1,25 @@
 #include "stdafx.h"
-
 #include "proc.h"
 
+#include <util/stream/file.h>
+
+#include <util/string/vector.h>
+
+#include <util/system/fs.h>
+#include <util/system/info.h>
+
+#include <util/folder/iterator.h>
 #include <util/folder/dirut.h>
 
-#include <util/stream/file.h>
-#include <util/string/vector.h>
-#include <util/system/fs.h>
-#include <util/folder/iterator.h>
-
 #ifdef _unix_
-
-#include <stdio.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-
+    #include <stdio.h>
+    #include <sys/types.h>
+    #include <sys/wait.h>
 #endif
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-static const int PageSize = 4096;
 
 i64 GetProcessRss(int pid)
 {
@@ -32,7 +30,7 @@ i64 GetProcessRss(int pid)
 
     TIFStream memoryStatFile(path);
     auto memoryStatFields = splitStroku(memoryStatFile.ReadLine(), " ");
-    return FromString<i64>(memoryStatFields[1]) * PageSize;
+    return FromString<i64>(memoryStatFields[1]) * NSystemInfo::GetPageSize();
 }
 
 #ifdef _unix_
