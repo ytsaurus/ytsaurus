@@ -27,6 +27,8 @@
 
 #include <ytlib/meta_state/rpc_helpers.h>
 
+#include <ytlib/security_client/public.h>
+
 #include <server/cell_scheduler/bootstrap.h>
 
 namespace NYT {
@@ -39,6 +41,7 @@ using namespace NChunkClient;
 using namespace NTransactionClient;
 using namespace NMetaState;
 using namespace NRpc;
+using namespace NSecurityClient;
 using namespace NTransactionClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
@@ -919,6 +922,7 @@ private:
 
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("replication_factor", 1);
+                attributes->Set("account", TmpAccountName);
                 ToProto(req->mutable_node_attributes(), *attributes);
 
                 auto* reqExt = req->MutableExtension(NFileClient::NProto::TReqCreateFileExt::create_file);
