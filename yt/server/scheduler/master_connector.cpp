@@ -170,7 +170,7 @@ public:
     }
 
 
-    void CreateJobNode(TJobPtr job, const NChunkClient::TChunkId& chunkId)
+    void CreateJobNode(TJobPtr job, const TChunkId& stdErrChunkId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
@@ -178,11 +178,11 @@ public:
         LOG_DEBUG("Creating job node (OperationId: %s, JobId: %s, StdErrChunkId: %s)",
             ~job->GetOperation()->GetOperationId().ToString(),
             ~job->GetId().ToString(),
-            ~chunkId.ToString());
+            ~stdErrChunkId.ToString());
 
         auto* list = GetUpdateList(job->GetOperation());
         YCHECK(list->State == EUpdateListState::Active);
-        list->PendingJobs.insert(std::make_pair(job, chunkId));
+        list->PendingJobs.insert(std::make_pair(job, stdErrChunkId));
     }
 
     DEFINE_SIGNAL(void(TObjectServiceProxy::TReqExecuteBatchPtr), WatcherRequest);
@@ -1115,9 +1115,9 @@ void TMasterConnector::FinalizeRevivingOperationNode(TOperationPtr operation)
     return Impl->FinalizeRevivingOperationNode(operation);
 }
 
-void TMasterConnector::CreateJobNode(TJobPtr job, const NChunkClient::TChunkId& chunkId)
+void TMasterConnector::CreateJobNode(TJobPtr job, const TChunkId& stdErrChunkId)
 {
-    return Impl->CreateJobNode(job, chunkId);
+    return Impl->CreateJobNode(job, stdErrChunkId);
 }
 
 DELEGATE_SIGNAL(TMasterConnector, void(TObjectServiceProxy::TReqExecuteBatchPtr), WatcherRequest, *Impl);

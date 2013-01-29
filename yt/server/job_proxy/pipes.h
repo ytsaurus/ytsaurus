@@ -42,8 +42,6 @@ struct TPipe
 struct IDataPipe
     : public virtual TRefCounted
 {
-    typedef TIntrusivePtr<IDataPipe> TPtr;
-
     /*!
      *  Called from job process after fork and before exec.
      *  Closes unused fds, remaps other to a proper number.
@@ -68,6 +66,8 @@ struct IDataPipe
     virtual void CloseHandles() = 0;
     virtual void Finish() = 0;
 };
+
+typedef TIntrusivePtr<IDataPipe> IDataPipePtr;
 
 ////////////////////////////////////////////////////////////////////
 

@@ -26,6 +26,7 @@ TOperation::TOperation(
     , UserTransaction_(userTransaction)
     , Spec_(spec)
     , StartTime_(startTime)
+    , StdErrCount_(0)
     , FinishedPromise(NewPromise<void>())
 { }
 

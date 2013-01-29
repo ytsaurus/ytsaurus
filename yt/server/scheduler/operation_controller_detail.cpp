@@ -585,9 +585,12 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
 
     RemoveJoblet(job);
 
-    if (JobCounter.GetFailed() >= Config->FailedJobsLimit) {
+    int failedJobCount = JobCounter.GetFailed();
+    int maxFailedJobCount = Spec->MaxFailedJobCount.Get(Config->MaxFailedJobCount);
+    if (failedJobCount > maxFailedJobCount) {
         OnOperationFailed(TError("Failed jobs limit %d has been reached",
-            Config->FailedJobsLimit));
+            maxFailedJobCount));
+        return;
     }
 
     FOREACH (const auto& chunkId, job->Result().failed_chunk_ids()) {
@@ -2016,7 +2019,15 @@ void TOperationControllerBase::InitUserJobSpec(
 {
     jobSpec->set_shell_command(config->Command);
     jobSpec->set_memory_limit(config->MemoryLimit);
-    *jobSpec->mutable_stderr_transaction_id() = Operation->GetAsyncSchedulerTransaction()->GetId().ToProto();
+
+    {
+        int stdErrCount = Operation->GetStdErrCount();
+        int maxStdErrCount = Spec->MaxStdErrCount.Get(Config->MaxStdErrCount);
+        if (stdErrCount < maxStdErrCount) {
+            auto stdErrTransactionId = Operation->GetAsyncSchedulerTransaction()->GetId();
+            *jobSpec->mutable_stderr_transaction_id() = stdErrTransactionId.ToProto();
+        }
+    }
 
     {
         // Set input and output format.

@@ -58,13 +58,16 @@ struct TSchedulerConfig
 
     TDuration LockTransactionTimeout;
 
-    ESchedulerStrategy Strategy;
-
     //! Timeout used for direct RPC requests to nodes.
     TDuration NodeRpcTimeout;
 
+    ESchedulerStrategy Strategy;
+
     //! Once this limit is reached the operation fails.
-    int FailedJobsLimit;
+    int MaxFailedJobCount;
+
+    //! Limits the number of stderrs the operation is allowed to produce.
+    int MaxStdErrCount;
 
     //! Number of chunk lists to be allocated when an operation starts.
     int ChunkListPreallocationCount;
@@ -112,6 +115,7 @@ struct TSchedulerConfig
     {
         Register("max_heartbeat_queue_size", MaxHeartbeatQueueSize)
             .Default(50);
+       
         Register("connect_retry_period", ConnectRetryPeriod)
             .Default(TDuration::Seconds(15));
         Register("transactions_refresh_period", TransactionsRefreshPeriod)
@@ -122,13 +126,20 @@ struct TSchedulerConfig
             .Default(TDuration::Seconds(15));
         Register("lock_transaction_timeout", LockTransactionTimeout)
             .Default(TDuration::Seconds(15));
-        Register("strategy", Strategy)
-            .Default(ESchedulerStrategy::Null);
         Register("node_rpc_timeout", NodeRpcTimeout)
             .Default(TDuration::Seconds(15));
-        Register("failed_jobs_limit", FailedJobsLimit)
+
+        
+        Register("strategy", Strategy)
+            .Default(ESchedulerStrategy::Null);
+        
+        Register("max_failed_job_count", MaxFailedJobCount)
             .Default(100)
             .GreaterThanOrEqual(0);
+        Register("max_stderr_count", MaxStdErrCount)
+            .Default(100)
+            .GreaterThanOrEqual(0);
+
         Register("chunk_list_preallocation_count", ChunkListPreallocationCount)
             .Default(128)
             .GreaterThanOrEqual(0);
@@ -141,14 +152,18 @@ struct TSchedulerConfig
         Register("chunk_list_allocation_multiplier", ChunkListAllocationMultiplier)
             .Default(2.0)
             .GreaterThan(1.0);
+        
         Register("max_children_per_attach_request", MaxChildrenPerAttachRequest)
             .Default(10000)
             .GreaterThan(0);
+
         Register("max_partition_count", MaxPartitionCount)
             .Default(2000)
             .GreaterThan(0);
+
         Register("table_file_size_limit", TableFileSizeLimit)
             .Default((i64) 2 * 1024 * 1024 * 1024);
+        
         Register("max_started_jobs_per_heartbeat", MaxStartedJobsPerHeartbeat)
             .Default()
             .GreaterThan(0);
