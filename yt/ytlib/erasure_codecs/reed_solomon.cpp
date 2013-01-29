@@ -1,24 +1,17 @@
 #include "reed_solomon.h"
+#include "helpers.h"
+#include "jerasure.h"
 
 #include <ytlib/misc/foreach.h>
 
 #include <contrib/libs/jerasure/cauchy.h>
 #include <contrib/libs/jerasure/jerasure.h>
 
+#include <iostream>
+
 namespace NYT {
 
 namespace NErasure {
-
-////////////////////////////////////////////////////////////////////////////////
-
-Schedule::Schedule(int** schedulePointer):
-    SchedulePointer_(schedulePointer)
-{ }
-
-Schedule::~Schedule()
-{
-    jerasure_free_schedule(SchedulePointer_);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
     
@@ -31,100 +24,47 @@ TCauchyReedSolomon::TCauchyReedSolomon(int blockCount, int parityCount, int word
     , Schedule_(jerasure_smart_bitmatrix_to_schedule(blockCount, parityCount, wordSize, BitMatrix_.Get()))
 { }
 
-std::vector<TSharedRef> TCauchyReedSolomon::Encode(const std::vector<TSharedRef>& blocks)
+std::vector<TSharedRef> TCauchyReedSolomon::Encode(const std::vector<TSharedRef>& blocks) const
 {
-    YCHECK(blocks.size() == BlockCount_);
-    
-    i64 blockLength = blocks.front().Size();
-    YCHECK(blockLength % WordSize_ == 0);
-
-    for (int i = 1; i < blocks.size(); ++i) {
-        YCHECK(blocks[i].Size() == blockLength);
-    }
-
-    std::vector<char*> blockPointers;
-    FOREACH(const auto& block, blocks) {
-        blockPointers.push_back(const_cast<char*>(block.Begin()));
-    }
-    
-    std::vector<TSharedRef> parities;
-    std::vector<char*> parityPointers;
-    for (int i = 0; i < BlockCount_; ++i) {
-        parities.push_back(TSharedRef(blockLength));
-        parityPointers.push_back(static_cast<char*>(parities[i].Begin()));
-    }
-
-    jerasure_schedule_encode(
-        BlockCount_,
-        ParityCount_,
-        WordSize_,
-        Schedule_.Get(),
-        blockPointers.data(),
-        parityPointers.data(),
-        blockLength,
-        sizeof(long));
-
-    return parities;
+    return ScheduleEncode(BlockCount_, ParityCount_, WordSize_, Schedule_, blocks);
 }
 
 std::vector<TSharedRef> TCauchyReedSolomon::Decode(
     const std::vector<TSharedRef>& blocks,
-    const std::vector<int>& erasedIndices)
+    const std::vector<int>& erasedIndices) const
 {
     if (erasedIndices.empty()) {
         return std::vector<TSharedRef>();
     }
-
-    YCHECK(blocks.size() == BlockCount_);
     
-    i64 blockLength = blocks.front().Size();
-    YCHECK(blockLength % WordSize_ == 0);
+    return BitMatrixDecode(BlockCount_, ParityCount_, WordSize_, BitMatrix_, blocks, erasedIndices);
+}
 
-    for (int i = 1; i < blocks.size(); ++i) {
-        YCHECK(blocks[i].Size() == blockLength);
-    }
-
-    std::vector<TSharedRef> repaired;
-
-    std::vector<char*> blockPointers;
-    std::vector<char*> parityPointers;
-    
-    int blockNumber = 0;
-    int erasureNumber = 0;
-    for (int i = 0; i < BlockCount_ + ParityCount_; ++i) {
-        char* ref;
-        if (erasureNumber < erasedIndices.size() && i == erasedIndices[erasureNumber]) {
-            repaired.push_back(TSharedRef(blockLength));
-            ref = repaired.back().Begin();
-            erasureNumber += 1;
-        }
-        else {
-            ref = const_cast<char*>(blocks[blockNumber++].Begin());
-        }
-        if (i < BlockCount_) {
-            blockPointers.push_back(ref);
-        }
-        else {
-            parityPointers.push_back(ref);
-        }
+TNullable<std::vector<int>> TCauchyReedSolomon::GetRecoveryIndices(const std::vector<int>& erasedIndices) const
+{
+    if (erasedIndices.empty()) {
+        return std::vector<int>();
     }
     
-    std::vector<int> preparedErasedIndices = erasedIndices;
-    preparedErasedIndices.push_back(-1);
-
-    jerasure_schedule_decode_lazy(
-        BlockCount_,
-        ParityCount_,
-        WordSize_,
-        BitMatrix_.Get(),
-        preparedErasedIndices.data(),
-        blockPointers.data(),
-        parityPointers.data(),
-        blockLength,
-        sizeof(long),
-        1);
+    std::vector<int> indices = erasedIndices;
+    sort(indices.begin(), indices.end());
+    indices.erase(unique(indices.begin(), indices.end()), indices.end());
     
-    return repaired;
+    if (indices.size() > ParityCount_) {
+        return Null;
+    }
+
+    return Difference(0, BlockCount_ + ParityCount_, indices);
+}
+
+int TCauchyReedSolomon::GetDataBlockCount() const
+{
+    return BlockCount_;
+}
+
+int TCauchyReedSolomon::GetParityBlockCount() const
+{
+    return ParityCount_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

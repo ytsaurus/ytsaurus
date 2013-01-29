@@ -7,11 +7,17 @@ include_directories(
 
 set( SRCS
   ${BASE}/codec.cpp
+  ${BASE}/helpers.cpp
+  ${BASE}/jerasure.cpp
+  ${BASE}/lrc.cpp
   ${BASE}/reed_solomon.cpp
 )
 
 set( HDRS
   ${BASE}/codec.h
+  ${BASE}/helpers.h
+  ${BASE}/jerasure.h
+  ${BASE}/lrc.h
   ${BASE}/reed_solomon.h
 )
 

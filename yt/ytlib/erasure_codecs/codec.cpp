@@ -1,5 +1,6 @@
 #include "codec.h"
 #include "reed_solomon.h"
+#include "lrc.h"
 
 #include <ytlib/misc/lazy_ptr.h>
 #include <ytlib/misc/singleton.h>
@@ -21,6 +22,15 @@ struct TCauchyReedSolomonWrapper
     { }
 };
 
+struct TLrcWrapper
+    : public TLrc
+    , public TRefCounted
+{
+    TLrcWrapper(int blockCount)
+        : TLrc(blockCount)
+    { }
+};
+
 } // anonymous namespace
 
 ICodec* GetCodec(ECodec id)
@@ -30,10 +40,18 @@ ICodec* GetCodec(ECodec id)
             return New<TCauchyReedSolomonWrapper>(6, 3, 8);
         })
     );
+    
+    static TLazyPtr<TLrcWrapper> Lrc(
+        BIND([] () {
+            return New<TLrcWrapper>(12);
+        })
+    );
 
     switch (id) {
         case ECodec::ReedSolomon3:
             return CauchyReedSolomon.Get();
+        case ECodec::Lrc:
+            return Lrc.Get();
         default:
             YUNREACHABLE();
     }
