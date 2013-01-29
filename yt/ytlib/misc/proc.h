@@ -1,4 +1,5 @@
 #pragma once
+
 #include "common.h"
 
 #include <ytlib/misc/error.h>
@@ -20,7 +21,7 @@ void KillallByUser(int uid);
 
 TError StatusToError(int status);
 
-void RemoveDirAsRoot(Stroka path);
+void RemoveDirAsRoot(const Stroka& path);
 
 ////////////////////////////////////////////////////////////////////////////////
 
