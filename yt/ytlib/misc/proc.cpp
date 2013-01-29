@@ -21,6 +21,11 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+<<<<<<< HEAD
+=======
+static const size_t PageSize = NSystemInfo::GetPageSize();
+
+>>>>>>> Get PageSize from util.
 i64 GetProcessRss(int pid)
 {
     Stroka path = "/proc/self/statm";
