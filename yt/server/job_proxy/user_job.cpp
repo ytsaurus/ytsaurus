@@ -113,7 +113,7 @@ public:
         LOG_INFO(JobExitError, "Job process completed");
         ToProto(result.mutable_error(), JobExitError);
 
-        if (ErrorOutput) {
+        if (~ErrorOutput) {
             // ToDo(psushin): fix this strange volleyball with StderrChunkId.
             // Keep reference to ErrorOutput in user_job_io.
             auto stderrChunkId = ErrorOutput->GetChunkId();
