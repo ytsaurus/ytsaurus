@@ -15,8 +15,6 @@ namespace NYT {
 i64 GetProcessRss(int pid = -1);
 i64 GetUserRss(int uid);
 
-int GuardedFork();
-
 void KillallByUser(int uid);
 
 TError StatusToError(int status);

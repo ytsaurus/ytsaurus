@@ -68,23 +68,11 @@ i64 GetUserRss(int uid)
     return result * 1024;
 }
 
-int GuardedFork()
-{
-    //ToDo(psushin): Remove this mutex when libc is fixed.
-    static TMutex ForkMutex;
-    ForkMutex.Acquire();
-    auto pid = fork();
-    if (pid != 0) {
-        ForkMutex.Release();
-    }
-    return pid;
-}
-
 // The caller must be sure that it has root privileges.
 void KillallByUser(int uid)
 {
     YCHECK(uid > 0);
-    auto pid = GuardedFork();
+    auto pid = fork();
 
     // We are forking here in order not to give the root priviledges to the parent process ever,
     // because we cannot know what other threads are doing.
@@ -149,8 +137,8 @@ void RemoveDirAsRoot(const Stroka& path)
         }
     }
 
-    auto pid = GuardedFork();
-    // We are forking here in order not to give the root priviledges to the parent process ever,
+    auto pid = fork();
+    // We are forking here in order not to give the root privileges to the parent process ever,
     // because we cannot know what other threads are doing.
     if (pid == 0) {
         // Child process
@@ -208,28 +196,27 @@ TError StatusToError(int status)
 
 #else
 
-int GuardedFork()
-{
-    YUNIMPLEMENTED();
-}
-
 void KillallByUser(int uid)
 {
+    UNUSED(uid);
     YUNIMPLEMENTED();
 }
 
 TError StatusToError(int status)
 {
+    UNUSED(status);
     YUNIMPLEMENTED();
 }
 
 i64 GetUserRss(int uid)
 {
+    UNUSED(uid);
     YUNIMPLEMENTED();
 }
 
 void RemoveDirAsRoot(const Stroka& path)
 {
+    UNUSED(path);
     YUNIMPLEMENTED();
 }
 

@@ -90,7 +90,7 @@ public:
 
         InitPipes();
 
-        ProcessId = GuardedFork();
+        ProcessId = fork();
         if (ProcessId < 0) {
             THROW_ERROR_EXCEPTION("Failed to start the job: fork failed")
                 << TError::FromSystem();

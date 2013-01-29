@@ -83,7 +83,7 @@ public:
         LOG_INFO("Starting job proxy in unsafe environment (WorkDir: %s)",
             ~WorkingDirectory);
 
-        ProcessId = GuardedFork();
+        ProcessId = fork();
 
         if (ProcessId == 0) {
             // ToDo(psushin): pass errors to parent process
