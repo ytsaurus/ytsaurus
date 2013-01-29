@@ -67,7 +67,7 @@ public:
 
     TChunkTreeRef GetChunkTree(const TChunkTreeId& id);
 
-        //! Fired when a node gets registered.
+    //! Fired when a node gets registered.
     /*!
      *  \note
      *  Only fired for leaders, not fired during recovery.
