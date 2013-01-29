@@ -172,6 +172,7 @@ public:
         , Bootstrap(bootstrap)
         , ChunkTreeBalancer(Bootstrap)
         , ChunkReplicaCount(0)
+        , RegisteredNodeCount(0)
         , NeedToRecomputeStatistics(false)
         , Profiler(ChunkServerProfiler)
         , AddChunkCounter("/add_chunk_rate")
@@ -631,9 +632,8 @@ public:
     TTotalNodeStatistics GetTotalNodeStatistics()
     {
         TTotalNodeStatistics result;
-        auto keys = NodeMap.GetKeys();
-        FOREACH (const auto& key, keys) {
-            const auto* node = NodeMap.Get(key);
+        FOREACH (const auto& pair, NodeMap) {
+            const auto* node = pair.second;
             const auto& statistics = node->Statistics();
             result.AvailbaleSpace += statistics.total_available_space();
             result.UsedSpace += statistics.total_used_space();
@@ -653,6 +653,11 @@ public:
     int GetChunkReplicaCount()
     {
         return ChunkReplicaCount;
+    }
+
+    int GetRegisteredNodeCount()
+    {
+        return RegisteredNodeCount;
     }
 
     bool IsReplicatorEnabled()
@@ -724,6 +729,7 @@ private:
     TChunkTreeBalancer ChunkTreeBalancer;
     
     int ChunkReplicaCount;
+    int RegisteredNodeCount;
 
     bool NeedToRecomputeStatistics;
 
@@ -863,6 +869,7 @@ private:
         NodeMap.Insert(nodeId, newNode);
         NodeAddressMap.insert(MakePair(address, newNode));
         NodeHostNameMap.insert(MakePair(Stroka(GetServiceHostName(address)), newNode));
+        ++RegisteredNodeCount;
 
         if (IsLeader()) {
             ChunkPlacement->OnNodeRegistered(newNode);
@@ -911,6 +918,8 @@ private:
 
             YCHECK(node->GetState() == ENodeState::Registered);
             node->SetState(ENodeState::Online);
+            --RegisteredNodeCount;
+
             node->Statistics() = statistics;
 
             if (IsLeader()) {
@@ -1091,6 +1100,7 @@ private:
         NodeIdGenerator.Reset();
         ChunkMap.Clear();
         ChunkReplicaCount = 0;
+        RegisteredNodeCount = 0;
         ChunkListMap.Clear();
         NodeMap.Clear();
         JobMap.Clear();
@@ -1265,6 +1275,11 @@ private:
                     }
                 }
             }
+
+            if (node->GetState() == ENodeState::Registered) {
+                --RegisteredNodeCount;
+            }
+
             NodeMap.Remove(nodeId);
         }
     }
@@ -1977,6 +1992,11 @@ bool TChunkManager::IsNodeConfirmed(const TDataNode* node)
 int TChunkManager::GetChunkReplicaCount()
 {
     return Impl->GetChunkReplicaCount();
+}
+
+int TChunkManager::GetRegisteredNodeCount()
+{
+    return Impl->GetRegisteredNodeCount();
 }
 
 std::vector<TYPath> TChunkManager::GetOwningNodes(TChunkTreeRef ref)

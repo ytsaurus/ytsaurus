@@ -143,6 +143,9 @@ public:
     //! Returns the total number of all chunk replicas.
     int GetChunkReplicaCount();
 
+    //! Returns the number of nodes in registered state.
+    int GetRegisteredNodeCount();
+
     std::vector<NYPath::TYPath> GetOwningNodes(TChunkTreeRef ref);
 
 private:
