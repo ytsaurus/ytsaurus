@@ -131,7 +131,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
 {
     int chunkListCount = GetChunkListCountPerJob();
     if (!Controller->HasEnoughChunkLists(chunkListCount)) {
-        return NULL;
+        return nullptr;
     }
 
     int jobIndex = Controller->JobIndexGenerator.Next();
@@ -141,7 +141,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
     auto* chunkPoolOutput = GetChunkPoolOutput();
     joblet->OutputCookie = chunkPoolOutput->Extract(address);
     if (joblet->OutputCookie == IChunkPoolOutput::NullCookie) {
-        return NULL;
+        return nullptr;
     }
 
     joblet->InputStripeList = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
@@ -151,7 +151,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
     auto neededResources = GetNeededResources(joblet);
     if (!Dominates(jobLimits, neededResources)) {
         chunkPoolOutput->Failed(joblet->OutputCookie);
-        return NULL;
+        return nullptr;
     }
 
     auto jobType = GetJobType();
@@ -666,17 +666,17 @@ TJobPtr TOperationControllerBase::ScheduleJob(
 
     if (!Running) {
         LOG_TRACE("Operation is not running, scheduling request ignored");
-        return NULL;
+        return nullptr;
     }
 
     if (GetPendingJobCount() == 0) {
         LOG_TRACE("No pending jobs left, scheduling request ignored");
-        return NULL;
+        return nullptr;
     }
 
     auto job = DoScheduleJob(context, jobLimits);
     if (!job) {
-        return NULL;
+        return nullptr;
     }
 
     OnJobStarted(job);
@@ -785,7 +785,7 @@ TJobPtr TOperationControllerBase::DoScheduleJob(
         return nonLocalJob;
     }
 
-    return NULL;
+    return nullptr;
 }
 
 TJobPtr TOperationControllerBase::DoScheduleLocalJob(
@@ -803,7 +803,7 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
         }
 
         i64 bestLocality = 0;
-        TTaskPtr bestTask = NULL;
+        TTaskPtr bestTask = nullptr;
 
         auto& localTasks = localTasksIt->second;
         auto it = localTasks.begin();
@@ -858,7 +858,7 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
             }
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
@@ -948,7 +948,7 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
             }
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 TCancelableContextPtr TOperationControllerBase::GetCancelableContext()
