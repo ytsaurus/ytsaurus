@@ -1197,7 +1197,7 @@ private:
         }
 
         PROFILE_TIMING ("/full_chunk_refresh_time") {
-            LOG_INFO("Starting full chunk refresh");
+            LOG_INFO("Full chunk refresh started");
             ChunkReplicator->Start();
             LOG_INFO("Full chunk refresh completed");
         }
