@@ -114,7 +114,7 @@ void KillallByUser(int uid)
     }
 }
 
-void RemoveDirAsRoot(Stroka path)
+void RemoveDirAsRoot(const Stroka& path)
 {
     // Allocation after fork can lead to a deadlock inside LFAlloc.
     // To avoid allocation we list contents of the directory before fork.
