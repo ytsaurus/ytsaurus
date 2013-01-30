@@ -121,7 +121,7 @@ void RemoveDirAsRoot(const Stroka& path)
 
     // Copy-paste from RemoveDirWithContents (util/folder/dirut.cpp)
     auto path_ = path;
-    SlashFolderLocal(path);
+    SlashFolderLocal(path_);
 
     TDirIterator dir(path_);
     std::vector<Stroka> contents;
