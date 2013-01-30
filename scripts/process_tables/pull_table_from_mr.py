@@ -10,7 +10,8 @@ import sys
 from argparse import ArgumentParser
 from urllib import quote_plus
 
-yt.config.MEMORY_LIMIT = 2000 * yt.config.MB
+yt.config.MEMORY_LIMIT = 2500 * yt.config.MB
+yt.config.DETACHED = True
 
 def main():
     parser = ArgumentParser()
