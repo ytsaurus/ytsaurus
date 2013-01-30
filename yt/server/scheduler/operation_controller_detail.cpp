@@ -54,6 +54,7 @@ TOperationControllerBase::TTask::TTask(TOperationControllerBase* controller)
     : Controller(controller)
     , CachedPendingJobCount(0)
     , CachedTotalNeededResources(ZeroNodeResources())
+    , LastDemandSanityCheckTime(TInstant::Zero())
     , Logger(Controller->Logger)
 { }
 
@@ -137,7 +138,8 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
     int jobIndex = Controller->JobIndexGenerator.Next();
     auto joblet = New<TJoblet>(this, jobIndex);
 
-    auto address = context->GetNode()->GetAddress();
+    auto node = context->GetNode();
+    auto address = node->GetAddress();
     auto* chunkPoolOutput = GetChunkPoolOutput();
     joblet->OutputCookie = chunkPoolOutput->Extract(address);
     if (joblet->OutputCookie == IChunkPoolOutput::NullCookie) {
@@ -150,6 +152,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
     // against the the limits. This is the last chance to give up.
     auto neededResources = GetNeededResources(joblet);
     if (!Dominates(jobLimits, neededResources)) {
+        CheckResourceDemandSanity(node, neededResources);
         chunkPoolOutput->Failed(joblet->OutputCookie);
         return nullptr;
     }
@@ -271,6 +274,39 @@ void TOperationControllerBase::TTask::OnJobAborted(TJobletPtr joblet)
 void TOperationControllerBase::TTask::OnTaskCompleted()
 {
     LOG_DEBUG("Task completed (Task: %s)", ~GetId());
+}
+
+void TOperationControllerBase::TTask::CheckResourceDemandSanity(
+    TExecNodePtr node,
+    const NProto::TNodeResources& neededResources)
+{
+    // The task is requesting more then some node is willing to provide it.
+    // Maybe it's OK and we should wait for some time.
+    // Or maybe it's not and the task is requesting something no one is able to provide.
+    
+    // First check if this very node has enough resources (including those currently
+    // allocated by other jobs).
+    if (Dominates(node->ResourceLimits(), neededResources))
+        return;
+
+    // Run sanity check to see if any node can provide enough resources.
+    // Don't run these checks too often to avoid jeopardizing performance.
+    auto now = TInstant::Now();
+    if (now < LastDemandSanityCheckTime + Controller->Config->ResourceDemandSanityCheckPeriod)
+        return;
+    LastDemandSanityCheckTime = now;
+
+    auto nodes = Controller->Host->GetExecNodes();
+    FOREACH (auto node, nodes) {
+        if (Dominates(node->ResourceLimits(), neededResources))
+            return;
+    }
+
+    // It seems nobody can satisfy the demand.
+    Controller->OnOperationFailed(
+        TError("No online exec node can satisfy the resource demand")
+            << TErrorAttribute("task", TRawString(GetId()))
+            << TErrorAttribute("needed_resources", neededResources));
 }
 
 void TOperationControllerBase::TTask::AddPendingHint()
@@ -766,9 +802,14 @@ void TOperationControllerBase::ResetTaskLocalityDelays()
     }
 }
 
-bool TOperationControllerBase::CheckJobLimits(TTaskPtr task, const NProto::TNodeResources& jobLimits)
+bool TOperationControllerBase::CheckJobLimits(TExecNodePtr node, TTaskPtr task, const NProto::TNodeResources& jobLimits)
 {
-    return Dominates(jobLimits, task->GetMinNeededResources());
+    auto neededResources = task->GetMinNeededResources();
+    if (Dominates(jobLimits, neededResources)) {
+        return true;
+    }
+    task->CheckResourceDemandSanity(node, neededResources);
+    return false;
 }
 
 TJobPtr TOperationControllerBase::DoScheduleJob(
@@ -826,7 +867,7 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
                 continue;
             }
 
-            if (!CheckJobLimits(task, jobLimits)) {
+            if (!CheckJobLimits(node, task, jobLimits)) {
                 continue;
             }
 
@@ -839,7 +880,7 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
             bestTask = task;
         }
 
-        if (bestTask) {
+        if (Running && bestTask) {
             LOG_DEBUG(
                 "Attempting to schedule a local job (Task: %s, Address: %s, Priority: %d, Locality: %" PRId64 ", JobLimits: {%s}, "
                 "PendingDataSize: %" PRId64 ", PendingJobCount: %d)",
@@ -910,7 +951,7 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
                     continue;
                 }
 
-                if (!CheckJobLimits(task, jobLimits)) {
+                if (!CheckJobLimits(node, task, jobLimits)) {
                     ++taskIndex;
                     continue;
                 }
@@ -929,19 +970,21 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
                     continue;
                 }
 
-                LOG_DEBUG(
-                    "Attempting to schedule a non-local job (Task: %s, Address: %s, Priority: %d, JobLimits: {%s}, "
-                    "PendingDataSize: %" PRId64 ", PendingJobCount: %d)",
-                    ~task->GetId(),
-                    ~address,
-                    priority,
-                    ~FormatResources(jobLimits),
-                    task->GetPendingDataSize(),
-                    task->GetPendingJobCount());
-                auto job = task->ScheduleJob(context, jobLimits);
-                if (job) {
-                    OnTaskUpdated(task);
-                    return job;
+                if (Running) {
+                    LOG_DEBUG(
+                        "Attempting to schedule a non-local job (Task: %s, Address: %s, Priority: %d, JobLimits: {%s}, "
+                        "PendingDataSize: %" PRId64 ", PendingJobCount: %d)",
+                        ~task->GetId(),
+                        ~address,
+                        priority,
+                        ~FormatResources(jobLimits),
+                        task->GetPendingDataSize(),
+                        task->GetPendingJobCount());
+                    auto job = task->ScheduleJob(context, jobLimits);
+                    if (job) {
+                        OnTaskUpdated(task);
+                        return job;
+                    }
                 }
 
                 ++taskIndex;

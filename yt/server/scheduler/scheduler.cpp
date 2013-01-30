@@ -358,7 +358,7 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting online nodes");
 
         auto newAddresses = ConvertTo< std::vector<Stroka> >(TYsonString(rsp->value()));
-        LOG_INFO("Exec nodes updated, %d nodes found",
+        LOG_INFO("Exec nodes updated, %d found",
             static_cast<int>(newAddresses.size()));
 
         // Examine the list of nodes returned by master and figure out the difference.

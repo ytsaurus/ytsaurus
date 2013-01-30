@@ -278,6 +278,10 @@ protected:
 
         virtual void OnTaskCompleted();
 
+        void CheckResourceDemandSanity(
+            TExecNodePtr node,
+            const NProto::TNodeResources& neededResources);
+
         bool IsPending() const;
         bool IsCompleted() const;
 
@@ -289,6 +293,7 @@ protected:
         TOperationControllerBase* Controller;
         int CachedPendingJobCount;
         NProto::TNodeResources CachedTotalNeededResources;
+        TInstant LastDemandSanityCheckTime;
 
     protected:
         NLog::TTaggedLogger& Logger;
@@ -362,7 +367,7 @@ protected:
     void ResetTaskLocalityDelays();
     TPendingTaskInfo* GetPendingTaskInfo(TTaskPtr task);
 
-    bool CheckJobLimits(TTaskPtr task, const NProto::TNodeResources& jobLimits);
+    bool CheckJobLimits(TExecNodePtr node, TTaskPtr task, const NProto::TNodeResources& jobLimits);
 
     TJobPtr DoScheduleJob(ISchedulingContext* context, const NProto::TNodeResources& jobLimits);
     TJobPtr DoScheduleLocalJob(ISchedulingContext* context, const NProto::TNodeResources& jobLimits);
