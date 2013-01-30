@@ -172,10 +172,15 @@ private:
         *inputChunk->mutable_channel() = Channel.ToProto();
 
         auto addresses = chunkManager->GetChunkAddresses(chunk);
-        if (addresses.empty() && !Context->Request().ignore_lost_chunks()) {
-            ReplyError(TError("Chunk is lost %s",
-                ~chunk->GetId().ToString()));
-            return false;
+        if (addresses.empty()) {
+            if (Context->Request().ignore_lost_chunks()) {
+                // Just ignore this chunk.
+                return true;
+            } else {
+                ReplyError(TError("Chunk is lost %s",
+                    ~chunk->GetId().ToString()));
+                return false;
+            }
         }
 
         FOREACH (const auto& address, addresses) {
