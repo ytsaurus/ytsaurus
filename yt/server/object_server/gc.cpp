@@ -124,12 +124,16 @@ void TGarbageCollector::Sweep()
 
     LOG_DEBUG("Starting GC sweep for %d objects", request.object_ids_size());
 
-    Bootstrap
+    bool result = Bootstrap
         ->GetObjectManager()
         ->CreateDestroyObjectsMutation(request)
         ->OnSuccess(BIND(&TGarbageCollector::OnCommitSucceeded, MakeWeak(this)))
         ->OnError(BIND(&TGarbageCollector::OnCommitFailed, MakeWeak(this)))
         ->PostCommit();
+
+    if (!result) {
+        SweepInvoker->ScheduleNext();
+    }
 }
 
 void TGarbageCollector::OnCommitSucceeded()
