@@ -34,7 +34,7 @@ FILE_STORAGE = "//tmp/yt_wrapper/file_storage"
 TEMP_TABLES_STORAGE = "//tmp/yt_wrapper/table_storage"
 
 KEYBOARD_ABORT = True
-DETACHED = False
+DETACHED = True
 
 PREFIX = ""
 
