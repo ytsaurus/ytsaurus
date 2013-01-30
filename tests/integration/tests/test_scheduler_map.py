@@ -53,7 +53,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         track_op(op_id)
 
         assert read('//tmp/t2') == [{'operation' : op_id}, {'job_index' : 0}]
-        self._check_all_stderrs(op_id, 'stderr', 10)
+        self._check_all_stderrs(op_id, 'stderr', 1)
 
     # check that stderr is captured for failed jobs
     def test_stderr_failed(self):
@@ -61,10 +61,9 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create('table', '//tmp/t2')
         write_str('//tmp/t1', '{foo=bar}')
 
-        command = "cat > /dev/null; echo stderr 1>&2; exit 125"
+        command = '''cat > /dev/null; echo stderr 1>&2; exit 125'''
 
-        op_id = map('--dont_track', in_='//tmp/t1', out='//tmp/t2', command=command)
-
+        op_id = map('--dont_track', op_id = map('--dont_track', in_='//tmp/t1', out='//tmp/t2', command=command)
         # if all jobs failed then operation is also failed
         with pytest.raises(YTError): track_op(op_id)
 
@@ -76,9 +75,12 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create('table', '//tmp/t2')
         write_str('//tmp/t1', '{foo=bar}')
 
-        command = '''cat > /dev/null; echo stderr 1>&2;'''
+        command = '''cat > /dev/null; echo stderr 1>&2; exit 125'''
 
-        map(in_='//tmp/t1', out='//tmp/t2', command=command, opt=['/spec/max_failed_job_count=5'])
+        op_id = map('--dont_track', in_='//tmp/t1', out='//tmp/t2', command=command, opt=['/spec/max_failed_job_count=5'])
+        # if all jobs failed then operation is also failed
+        with pytest.raises(YTError): track_op(op_id)
+
         self._check_all_stderrs(op_id, 'stderr', 5)
 
     def test_invalid_output_record(self):
