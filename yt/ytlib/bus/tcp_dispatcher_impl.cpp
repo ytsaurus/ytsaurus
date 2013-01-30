@@ -2,6 +2,8 @@
 #include "tcp_dispatcher_impl.h"
 #include "config.h"
 
+#include <ytlib/misc/thread.h>
+
 #ifndef _win_
     #include <sys/socket.h>
     #include <sys/un.h>
@@ -91,6 +93,12 @@ void TTcpDispatcher::TImpl::ThreadMain()
     NThread::SetCurrentThreadName("Bus");
 
     LOG_INFO("TCP bus dispatcher started");
+
+    if (NThread::RaiseCurrentThreadPriority()) {
+        LOG_INFO("TCP bus dispatcher thread priority raised successfully");
+    } else {
+        LOG_WARNING("Failed to raise TCP bus dispatcher thread priority");
+    }
 
     EventLoop.run(0);
 
