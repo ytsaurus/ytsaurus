@@ -63,7 +63,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         command = '''cat > /dev/null; echo stderr 1>&2; exit 125'''
 
-        op_id = map('--dont_track', op_id = map('--dont_track', in_='//tmp/t1', out='//tmp/t2', command=command)
+        op_id = map('--dont_track', in_='//tmp/t1', out='//tmp/t2', command=command)
         # if all jobs failed then operation is also failed
         with pytest.raises(YTError): track_op(op_id)
 
