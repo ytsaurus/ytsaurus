@@ -10,6 +10,8 @@ import sys
 from argparse import ArgumentParser
 from urllib import quote_plus
 
+yt.config.MEMORY_LIMIT = 2000 * yt.config.MB
+
 def main():
     parser = ArgumentParser()
     parser.add_argument("--tables")
@@ -78,9 +80,9 @@ def main():
             yt.remove(destination)
         yt.create_table(destination, recursive=True)
 
-        spec = {"min_data_size_per_job": 1}
-        if args.job_count is not None:
-            spec["job_count"] = args.job_count
+        if args.job_count is None:
+            args.job_count = len(ranges)
+        spec = {"min_data_size_per_job": 1, "job_count": args.job_count, "pool": "restricted"}
 
         table_writer = None
         if args.codec is not None:
@@ -89,13 +91,14 @@ def main():
         if has_proxy:
             command = 'curl "http://${{server}}/table/{}?subkey=1&lenval=1&startindex=${{start}}&endindex=${{end}}"'.format(quote_plus(table))
         else:
-            command = 'MR_USER=tmp ./mapreduce -server $server {} -read {}:[$start,$end] -lenval -subkey'.format(use_fastbone, table)
+            command = 'USER=yt MR_USER=tmp ./mapreduce -server $server {} -read {}:[$start,$end] -lenval -subkey'.format(use_fastbone, table)
         yt.run_map(
                 'while true; do '
                     'IFS="\t" read -r server start end; '
                     'if [ "$?" != "0" ]; then break; fi; '
                     'set -e; '
-                    '{}; '
+                    'echo "{0}" 1>&2; '
+                    '{0}; '
                     'set +e; '
                 'done;'.format(command),
                 temp_table,

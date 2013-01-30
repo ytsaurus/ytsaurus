@@ -45,14 +45,25 @@ struct TOperationSpecBase
     : public TYsonSerializable
 {
     Stroka TmpAccount;
+
     bool IgnoreLostChunks;
+
+    TNullable<int> MaxFailedJobCount;
+    TNullable<int> MaxStdErrCount;
 
     TOperationSpecBase()
     {
         Register("tmp_account", TmpAccount)
             .Default("tmp");
+
         Register("ignore_lost_chunks", IgnoreLostChunks)
             .Default(false);
+
+        Register("max_failed_job_count", MaxFailedJobCount)
+            .Default(Null);
+        Register("max_stderr_count", MaxStdErrCount)
+            .Default(Null);
+
         SetKeepOptions(true);
     }
 };

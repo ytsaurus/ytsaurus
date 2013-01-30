@@ -67,7 +67,7 @@ public:
 
     TChunkTreeRef GetChunkTree(const TChunkTreeId& id);
 
-        //! Fired when a node gets registered.
+    //! Fired when a node gets registered.
     /*!
      *  \note
      *  Only fired for leaders, not fired during recovery.
@@ -142,6 +142,9 @@ public:
 
     //! Returns the total number of all chunk replicas.
     int GetChunkReplicaCount();
+
+    //! Returns the number of nodes in registered state.
+    int GetRegisteredNodeCount();
 
     std::vector<NYPath::TYPath> GetOwningNodes(TChunkTreeRef ref);
 

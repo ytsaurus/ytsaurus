@@ -62,26 +62,34 @@ class Transaction(object):
         if not Transaction.stack:
             Transaction.initial_transaction = config.TRANSACTION
             Transaction.initial_ping_ansector_transactions = config.PING_ANSECTOR_TRANSACTIONS
-        Transaction.stack.append(start_transaction(timeout=timeout))
+
+        self.transaction_id = start_transaction(timeout=timeout)
+        Transaction.stack.append(self.transaction_id)
+
         self._update_global_config()
+
+        self.finished = False
 
     def __enter__(self):
         pass
 
     def __exit__(self, type, value, traceback):
-        transaction = Transaction.stack.pop()
+        if self.finished:
+            return
         try:
             if type is None:
-                commit_transaction(transaction)
+                commit_transaction(self.transaction_id)
             else:
                 logger.warning(
                     "Error: (type=%s, value=%s, traceback=%s), aborting transaction %s ...",
                     type,
                     value,
                     traceback,
-                    transaction)
-                abort_transaction(transaction)
+                    self.transaction_id)
+                abort_transaction(self.transaction_id)
         finally:
+            Transaction.stack.pop()
+            self.finished = True
             self._update_global_config()
 
     def _update_global_config(self):
@@ -104,20 +112,26 @@ class PingTransaction(Thread):
         self.start()
 
     def __exit__(self, type, value, traceback):
-        logger.info("Terminate pinging thread")
+        self.stop()
+
+    def stop(self):
         self.is_running = False
         # 5.0 seconds correction for waiting response from renew
         self.join(5.0 + self.step)
         require(not self.is_alive(), YtError("Pinging thread is not terminated correctly"))
 
     def run(self):
-        while self.is_running:
-            renew_transaction(self.transaction)
-            start_time = datetime.now()
-            while datetime.now() - start_time < timedelta(seconds=self.delay):
-                sleep(self.step)
-                if not self.is_running:
-                    return
+        try:
+            while self.is_running:
+                renew_transaction(self.transaction)
+                start_time = datetime.now()
+                while datetime.now() - start_time < timedelta(seconds=self.delay):
+                    sleep(self.step)
+                    if not self.is_running:
+                        return
+        except KeyboardInterrupt:
+            self.interrupt_main()
+
 
 class PingableTransaction(object):
     def __init__(self, timeout=None):
@@ -128,8 +142,8 @@ class PingableTransaction(object):
         self.transaction.__enter__()
 
         self.ping = PingTransaction(config.TRANSACTION, self.timeout / 10)
-        self.ping.__enter__()
+        self.ping.start()
 
     def __exit__(self, type, value, traceback):
-        self.ping.__exit__(type, value, traceback)
+        self.ping.stop()
         self.transaction.__exit__(type, value, traceback)

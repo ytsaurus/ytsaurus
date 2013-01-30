@@ -28,21 +28,21 @@
 
 #include <util/folder/dirut.h>
 
+#include <util/stream/null.h>
+
 #include <errno.h>
 
 #ifdef _linux_
+    #include <unistd.h>
+    #include <signal.h>
+    #include <sys/types.h>
+    #include <sys/time.h>
+    #include <sys/wait.h>
+    #include <sys/resource.h>
 
-#include <unistd.h>
-#include <signal.h>
-#include <sys/types.h>
-#include <sys/time.h>
-#include <sys/wait.h>
-#include <sys/resource.h>
-
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <sys/epoll.h>
-
+    #include <sys/stat.h>
+    #include <fcntl.h>
+    #include <sys/epoll.h>
 #endif
 
 namespace NYT {
@@ -77,7 +77,7 @@ public:
         , OutputThread(OutputThreadFunc, (void*) this)
         , ProcessId(-1)
     {
-        MemoryWatchdog = New<TPeriodicInvoker>(
+        MemoryWatchdogInvoker = New<TPeriodicInvoker>(
             GetSyncInvoker(),
             BIND(&TUserJob::CheckMemoryConsumption, MakeWeak(this)),
             Host->GetConfig()->MemoryWatchdogPeriod);
@@ -90,7 +90,7 @@ public:
 
         InitPipes();
 
-        ProcessId = GuardedFork();
+        ProcessId = fork();
         if (ProcessId < 0) {
             THROW_ERROR_EXCEPTION("Failed to start the job: fork failed")
                 << TError::FromSystem();
@@ -106,19 +106,21 @@ public:
 
         LOG_INFO("Job process started");
 
-        MemoryWatchdog->Start();
+        MemoryWatchdogInvoker->Start();
         DoJobIO();
-        MemoryWatchdog->Stop();
+        MemoryWatchdogInvoker->Stop();
 
         LOG_INFO(JobExitError, "Job process completed");
         ToProto(result.mutable_error(), JobExitError);
 
-        // ToDo(psushin): fix this strange volleyball with StderrChunkId.
-        // Keep reference to ErrorOutput in user_job_io.
-        auto stderrChunkId = ErrorOutput->GetChunkId();
-        if (stderrChunkId != NChunkServer::NullChunkId) {
-            JobIO->SetStderrChunkId(stderrChunkId);
-            LOG_INFO("Stderr chunk generated (ChunkId: %s)", ~stderrChunkId.ToString());
+        if (~ErrorOutput) {
+            // ToDo(psushin): fix this strange volleyball with StderrChunkId.
+            // Keep reference to ErrorOutput in user_job_io.
+            auto stderrChunkId = ErrorOutput->GetChunkId();
+            if (stderrChunkId != NChunkServer::NullChunkId) {
+                JobIO->SetStderrChunkId(stderrChunkId);
+                LOG_INFO("Stderr chunk generated (ChunkId: %s)", ~stderrChunkId.ToString());
+            }
         }
 
         JobIO->PopulateResult(&result);
@@ -178,9 +180,16 @@ private:
         int pipe[2];
         createPipe(pipe);
 
-        auto stderrTransactionId = NTransactionClient::TTransactionId::FromProto(UserJobSpec.stderr_transaction_id());
-        ErrorOutput = JobIO->CreateErrorOutput(stderrTransactionId);
-        OutputPipes.push_back(New<TOutputPipe>(pipe, ~ErrorOutput, STDERR_FILENO));
+        // Configure stderr pipe.
+        TOutputStream* stdErrOutput;
+        if (UserJobSpec.has_stderr_transaction_id()) {
+            auto stderrTransactionId = NTransactionClient::TTransactionId::FromProto(UserJobSpec.stderr_transaction_id());
+            ErrorOutput = JobIO->CreateErrorOutput(stderrTransactionId);
+            stdErrOutput = ~ErrorOutput;
+        } else {
+            stdErrOutput = &NullErrorOutput;
+        }
+        OutputPipes.push_back(New<TOutputPipe>(pipe, stdErrOutput, STDERR_FILENO));
 
         // Make pipe for each input and each output table.
         {
@@ -465,7 +474,7 @@ private:
                     rss));
                 Kill();
             } else {
-                MemoryWatchdog->ScheduleNext();
+                MemoryWatchdogInvoker->ScheduleNext();
             }
         } catch (const std::exception& ex) {
             SetError(TError(ex));
@@ -486,9 +495,10 @@ private:
     TSpinLock SpinLock;
     TError JobExitError;
 
-    TPeriodicInvokerPtr MemoryWatchdog;
+    TPeriodicInvokerPtr MemoryWatchdogInvoker;
 
     TAutoPtr<TErrorOutput> ErrorOutput;
+    TNullOutput NullErrorOutput;
     std::vector< TAutoPtr<TOutputStream> > TableOutput;
 
     int ProcessId;

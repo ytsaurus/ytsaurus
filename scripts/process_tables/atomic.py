@@ -9,10 +9,10 @@ def atomic_pop(list, retries_count=10, delay=5.0):
         for i in xrange(retries_count):
             print >>sys.stderr, "Trying to take lock, %d-th attempt..." % (i + 1)
             try:
-                yt.lock(list)
                 count = int(yt.get(list + "/@count"))
                 if not count:
                     return
+                yt.lock(list + "/-1")
                 value = yt.get(list + "/-1")
                 yt.remove(list + "/-1", recursive=True)
                 return value

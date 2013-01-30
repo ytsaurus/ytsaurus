@@ -1007,6 +1007,8 @@ private:
             : NullChunkId;
 
         if (job->GetState() == EJobState::Failed || stderrChunkId != NullChunkId) {
+            auto* operation = job->GetOperation();
+            operation->SetStdErrCount(operation->GetStdErrCount() + 1);
             MasterConnector->CreateJobNode(job, stderrChunkId);
         }
     }

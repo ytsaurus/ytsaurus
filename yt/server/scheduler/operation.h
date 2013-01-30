@@ -46,9 +46,13 @@ class TOperation
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, EndTime);
 
+    //! Number of stderrs generated so far.
+    DEFINE_BYVAL_RW_PROPERTY(int, StdErrCount);
+
     //! Currently existing jobs in the operation.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
 
+    //! Controller that owns the operation.
     DEFINE_BYVAL_RW_PROPERTY(IOperationControllerPtr, Controller);
 
     //! Operation result, becomes set when the operation finishes.

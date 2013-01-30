@@ -27,6 +27,8 @@
 
 #include <ytlib/meta_state/rpc_helpers.h>
 
+#include <ytlib/security_client/public.h>
+
 #include <server/cell_scheduler/bootstrap.h>
 
 namespace NYT {
@@ -39,6 +41,7 @@ using namespace NChunkClient;
 using namespace NTransactionClient;
 using namespace NMetaState;
 using namespace NRpc;
+using namespace NSecurityClient;
 using namespace NTransactionClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
@@ -167,7 +170,7 @@ public:
     }
 
 
-    void CreateJobNode(TJobPtr job, const NChunkClient::TChunkId& chunkId)
+    void CreateJobNode(TJobPtr job, const TChunkId& stdErrChunkId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
@@ -175,11 +178,11 @@ public:
         LOG_DEBUG("Creating job node (OperationId: %s, JobId: %s, StdErrChunkId: %s)",
             ~job->GetOperation()->GetOperationId().ToString(),
             ~job->GetId().ToString(),
-            ~chunkId.ToString());
+            ~stdErrChunkId.ToString());
 
         auto* list = GetUpdateList(job->GetOperation());
         YCHECK(list->State == EUpdateListState::Active);
-        list->PendingJobs.insert(std::make_pair(job, chunkId));
+        list->PendingJobs.insert(std::make_pair(job, stdErrChunkId));
     }
 
     DEFINE_SIGNAL(void(TObjectServiceProxy::TReqExecuteBatchPtr), WatcherRequest);
@@ -919,6 +922,7 @@ private:
 
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("replication_factor", 1);
+                attributes->Set("account", TmpAccountName);
                 ToProto(req->mutable_node_attributes(), *attributes);
 
                 auto* reqExt = req->MutableExtension(NFileClient::NProto::TReqCreateFileExt::create_file);
@@ -1111,9 +1115,9 @@ void TMasterConnector::FinalizeRevivingOperationNode(TOperationPtr operation)
     return Impl->FinalizeRevivingOperationNode(operation);
 }
 
-void TMasterConnector::CreateJobNode(TJobPtr job, const NChunkClient::TChunkId& chunkId)
+void TMasterConnector::CreateJobNode(TJobPtr job, const TChunkId& stdErrChunkId)
 {
-    return Impl->CreateJobNode(job, chunkId);
+    return Impl->CreateJobNode(job, stdErrChunkId);
 }
 
 DELEGATE_SIGNAL(TMasterConnector, void(TObjectServiceProxy::TReqExecuteBatchPtr), WatcherRequest, *Impl);

@@ -78,9 +78,13 @@ struct TChunkManagerConfig
     TDuration ChunkRFUpdatePeriod;
     int MaxChunksPerRFUpdate;
 
-    //! Limit for the number of queued FullHeartbeat requests before
+    //! Limit for the number of queued FullHeartbeat requests plus the number of registered nodes before
     //! RegisterNode starts replying EErrorCode::Unavailable.
-    int MaxFullHeartbeatQueueSize;
+    int FullHeartbeatQueueSoftLimit;
+
+    //! Limit for the number of queued FullHeartbeat requests before
+    //! FullHeartbeat starts replying EErrorCode::Unavailable.
+    int FullHeartbeatQueueHardLimit;
 
     TChunkReplicatorConfigPtr ChunkReplicator;
     
@@ -89,7 +93,7 @@ struct TChunkManagerConfig
         Register("online_node_timeout", OnlineNodeTimeout)
             .Default(TDuration::Seconds(60));
         Register("registered_node_timeout", RegisteredNodeTimeout)
-            .Default(TDuration::Seconds(180));
+            .Default(TDuration::Seconds(10));
         Register("unconfirmed_node_timeout", UnconfirmedNodeTimeout)
             .Default(TDuration::Seconds(30));
 
@@ -111,8 +115,11 @@ struct TChunkManagerConfig
         Register("chunk_replicator", ChunkReplicator)
             .DefaultNew();
 
-        Register("max_full_heartbeat_queue_size", MaxFullHeartbeatQueueSize)
-            .Default(10)
+        Register("full_heartbeat_queue_size_soft_limit", FullHeartbeatQueueSoftLimit)
+            .Default(20)
+            .GreaterThan(0);
+        Register("full_heartbeat_queue_size_hard_limit", FullHeartbeatQueueHardLimit)
+            .Default(30)
             .GreaterThan(0);
     }
 };

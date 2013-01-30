@@ -126,7 +126,9 @@ message TUserJobSpec
     // Memory limit for user process, in bytes.
     required int64 memory_limit = 7;
 
-    required NYT.NProto.TGuid stderr_transaction_id = 8;
+    // Transaction for creating stderr chunks.
+    // If not set then no stderrs are captured.
+    optional NYT.NProto.TGuid stderr_transaction_id = 8;
 }
 
 // User code result.

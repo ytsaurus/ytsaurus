@@ -42,7 +42,7 @@ public:
     TFuture<void> FinalizeOperationNode(TOperationPtr operation);
     void FinalizeRevivingOperationNode(TOperationPtr operation);
 
-    void CreateJobNode(TJobPtr job, const NChunkClient::TChunkId& chunkId);
+    void CreateJobNode(TJobPtr job, const NChunkClient::TChunkId& stdErrChunkId);
 
     DECLARE_SIGNAL(void(NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr), WatcherRequest);
     DECLARE_SIGNAL(void(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr), WatcherResponse);

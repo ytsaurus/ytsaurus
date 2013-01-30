@@ -377,10 +377,10 @@ public:
 private:
     TTransactionManager* Owner;
 
-    virtual IObjectProxyPtr DoGetProxy(TTransaction* object, TTransaction* transaction) override
+    virtual IObjectProxyPtr DoGetProxy(TTransaction* transaction, TTransaction* dummyTransaction) override
     {
-        UNUSED(transaction);
-        return New<TTransactionProxy>(Owner, object);
+        UNUSED(dummyTransaction);
+        return New<TTransactionProxy>(Owner, transaction);
     }
 
 };
@@ -516,8 +516,6 @@ void TTransactionManager::AbortTransaction(TTransaction* transaction)
 
     YCHECK(transaction->IsActive());
 
-    auto id = transaction->GetId();
-
     auto nestedTransactions = transaction->NestedTransactions();
     FOREACH (auto* nestedTransaction, nestedTransactions) {
         AbortTransaction(nestedTransaction);
@@ -534,7 +532,8 @@ void TTransactionManager::AbortTransaction(TTransaction* transaction)
 
     FinishTransaction(transaction);
 
-    LOG_INFO_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %s)", ~id.ToString());
+    LOG_INFO_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %s)",
+        ~ToString(transaction->GetId()));
 }
 
 void TTransactionManager::FinishTransaction(TTransaction* transaction)
@@ -552,6 +551,7 @@ void TTransactionManager::FinishTransaction(TTransaction* transaction)
     if (parent) {
         YCHECK(parent->NestedTransactions().erase(transaction) == 1);
         objectManager->UnrefObject(transaction);
+        transaction->SetParent(nullptr);
     }
 
     // Kill the fake reference.
