@@ -86,13 +86,15 @@ class Response(object):
 
 def get_token():
     token = None
-    if os.path.isfile("~/.yt_token"):
-        token = open("~/.yt_token").read().strip()
+    token_path = os.path.join(os.path.expanduser("~"), ".yt/token")
+    if os.path.isfile(token_path):
+        token = open(token_path).read().strip()
     token = os.environ.get("YT_TOKEN", token)
     if token is not None:
         require(all(c in string.hexdigits for c in token),
                 YtTokenError("You have an improper authentication token in ~/.yt_token.\n"
                              "Please refer to http://proxy.yt.yandex.net/auth/ for obtaining a valid token."))
+    return token
 
 def make_request(command_name, params,
                  data=None, format=None, verbose=False, proxy=None,
