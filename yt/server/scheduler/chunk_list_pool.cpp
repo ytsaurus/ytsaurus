@@ -66,6 +66,23 @@ TChunkListId TChunkListPool::Extract()
     return id;
 }
 
+void TChunkListPool::Release(const std::vector<TChunkListId>& ids)
+{
+    TObjectServiceProxy objectProxy(MasterChannel);
+    auto batchReq = objectProxy.ExecuteBatch();
+    FOREACH (const auto& id, ids) {
+        auto req = TTransactionYPathProxy::UnstageObject(FromObjectId(TransactionId));
+        *req->mutable_object_id() = id.ToProto();
+        req->set_recursive(true);
+        batchReq->AddRequest(req);
+    }
+
+    // Fire-and-forget.
+    // The subscriber is only needed to log the outcome.
+    batchReq->Invoke().Subscribe(
+        BIND(&TChunkListPool::OnChunkListsReleased, MakeStrong(this)));
+}
+
 void TChunkListPool::AllocateMore()
 {
     int count =
@@ -122,6 +139,14 @@ void TChunkListPool::OnChunkListsCreated(
     }
 
     LastSuccessCount = count;
+}
+
+void TChunkListPool::OnChunkListsReleased(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+{
+    auto error = batchRsp->GetCumulativeError();
+    if (!error.IsOK()) {
+        LOG_WARNING(error, "Error releasing chunk lists");
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

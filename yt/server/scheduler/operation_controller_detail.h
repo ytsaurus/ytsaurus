@@ -515,9 +515,6 @@ protected:
     bool HasEnoughChunkLists(int requestedCount);
     NChunkClient::TChunkListId ExtractChunkList();
 
-    void ReleaseChunkList(const NChunkClient::TChunkListId& id);
-    void ReleaseChunkLists(const std::vector<NChunkClient::TChunkListId>& ids);
-
     //! Returns the list of all input chunks collected from all input tables.
     std::vector<NTableClient::TRefCountedInputChunkPtr> CollectInputChunks();
 
@@ -554,8 +551,6 @@ protected:
 private:
     TOperationSpecBasePtr Spec;
     TChunkListPoolPtr ChunkListPool;
-
-    void OnChunkListsReleased(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
 };
 

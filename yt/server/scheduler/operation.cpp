@@ -27,6 +27,7 @@ TOperation::TOperation(
     , Spec_(spec)
     , StartTime_(startTime)
     , StdErrCount_(0)
+    , MaxStdErrCount_(0)
     , FinishedPromise(NewPromise<void>())
 { }
 

@@ -244,7 +244,7 @@ void TOperationControllerBase::TTask::ReleaseFailedJobResources(TJobletPtr joble
 {
     auto* chunkPoolOutput = GetChunkPoolOutput();
 
-    Controller->ReleaseChunkLists(joblet->ChunkListIds);
+    Controller->ChunkListPool->Release(joblet->ChunkListIds);
 
     if (HasInputLocality()) {
         auto list = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
@@ -463,7 +463,9 @@ void TOperationControllerBase::Initialize()
 }
 
 void TOperationControllerBase::DoInitialize()
-{ }
+{
+    Operation->SetMaxStdErrCount(Spec->MaxStdErrCount.Get(Config->MaxStdErrCount));
+}
 
 TFuture<void> TOperationControllerBase::Prepare()
 {
@@ -1721,37 +1723,6 @@ TAsyncPipeline<void>::TPtr TOperationControllerBase::CustomizePreparationPipelin
     return pipeline;
 }
 
-void TOperationControllerBase::ReleaseChunkList(const TChunkListId& id)
-{
-    std::vector<TChunkListId> ids;
-    ids.push_back(id);
-    ReleaseChunkLists(ids);
-}
-
-void TOperationControllerBase::ReleaseChunkLists(const std::vector<TChunkListId>& ids)
-{
-    auto batchReq = ObjectProxy.ExecuteBatch();
-    FOREACH (const auto& id, ids) {
-        auto req = TTransactionYPathProxy::UnstageObject();
-        *req->mutable_object_id() = id.ToProto();
-        req->set_recursive(true);
-        NMetaState::GenerateRpcMutationId(req);
-        batchReq->AddRequest(req);
-    }
-
-    // Fire-and-forget.
-    // The subscriber is only needed to log the outcome.
-    batchReq->Invoke().Subscribe(
-        BIND(&TThis::OnChunkListsReleased, MakeStrong(this)));
-}
-
-void TOperationControllerBase::OnChunkListsReleased(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
-{
-    if (!batchRsp->IsOK()) {
-        LOG_WARNING(*batchRsp, "Error releasing chunk lists");
-    }
-}
-
 std::vector<TRefCountedInputChunkPtr> TOperationControllerBase::CollectInputChunks()
 {
     // TODO(babenko): set row_attributes
@@ -2021,9 +1992,7 @@ void TOperationControllerBase::InitUserJobSpec(
     jobSpec->set_memory_limit(config->MemoryLimit);
 
     {
-        int stdErrCount = Operation->GetStdErrCount();
-        int maxStdErrCount = Spec->MaxStdErrCount.Get(Config->MaxStdErrCount);
-        if (stdErrCount < maxStdErrCount) {
+        if (Operation->GetStdErrCount() < Operation->GetMaxStdErrCount()) {
             auto stdErrTransactionId = Operation->GetAsyncSchedulerTransaction()->GetId();
             *jobSpec->mutable_stderr_transaction_id() = stdErrTransactionId.ToProto();
         }

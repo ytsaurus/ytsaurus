@@ -1006,10 +1006,58 @@ private:
             ? TChunkId::FromProto(result.stderr_chunk_id())
             : NullChunkId;
 
-        if (job->GetState() == EJobState::Failed || stderrChunkId != NullChunkId) {
-            auto* operation = job->GetOperation();
-            operation->SetStdErrCount(operation->GetStdErrCount() + 1);
+        // Create job node either if the job has failed or it has produced an stderr.
+        bool stdErrSaved = true;
+        if (ShouldCreateJobNode(job, stderrChunkId)) {
             MasterConnector->CreateJobNode(job, stderrChunkId);
+            if (stderrChunkId != NullChunkId) {
+                auto operation = job->GetOperation();
+                operation->SetStdErrCount(operation->GetStdErrCount() + 1);
+                stdErrSaved = true;
+            }
+        }
+
+        // Drop redundant stderr.
+        if (stderrChunkId != NullChunkId && !stdErrSaved) {
+            ReleaseStdErrChunk(job, stderrChunkId);
+        }
+    }
+
+    bool ShouldCreateJobNode(TJobPtr job, const TChunkId& stdErrChunkId)
+    {
+        if (job->GetState() == EJobState::Failed) {
+            return true;
+        }
+
+        auto operation = job->GetOperation();
+        if (stdErrChunkId != NullChunkId && operation->GetStdErrCount() < operation->GetMaxStdErrCount()) {
+            return true;
+        }
+
+        return false;
+    }
+
+    void ReleaseStdErrChunk(TJobPtr job, const TChunkId& chunkId)
+    {
+        TObjectServiceProxy proxy(GetMasterChannel());
+        auto transaction = job->GetOperation()->GetAsyncSchedulerTransaction();
+        if (!transaction)
+            return;
+
+        auto req = TTransactionYPathProxy::UnstageObject(FromObjectId(transaction->GetId()));
+        *req->mutable_object_id() = chunkId.ToProto();
+        req->set_recursive(false);
+        
+        // Fire-and-forget.
+        // The subscriber is only needed to log the outcome.
+        proxy.Execute(req).Subscribe(
+            BIND(&TThis::OnStdErrChunkReleased, MakeStrong(this)));
+    }
+
+    void OnStdErrChunkReleased(TTransactionYPathProxy::TRspUnstageObjectPtr rsp)
+    {
+        if (!rsp->IsOK()) {
+            LOG_WARNING(*rsp, "Error releasing stderr chunk");
         }
     }
 

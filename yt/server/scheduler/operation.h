@@ -49,6 +49,9 @@ class TOperation
     //! Number of stderrs generated so far.
     DEFINE_BYVAL_RW_PROPERTY(int, StdErrCount);
 
+    //! Maximum number of stderrs to capture.
+    DEFINE_BYVAL_RW_PROPERTY(int, MaxStdErrCount);
+
     //! Currently existing jobs in the operation.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
 
