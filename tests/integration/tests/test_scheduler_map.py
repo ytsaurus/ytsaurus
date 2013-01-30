@@ -17,8 +17,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
     NUM_NODES = 5
     START_SCHEDULER = True
 
-    DELTA_NODE_CONFIG = {'exec_agent' : {'memory_watchdog_period': 100}}
-
     def test_empty_table(self):
         create('table', '//tmp/t1')
         create('table', '//tmp/t2')
