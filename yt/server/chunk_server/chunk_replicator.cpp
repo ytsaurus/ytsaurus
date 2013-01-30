@@ -800,10 +800,12 @@ void TChunkReplicator::OnRFUpdate()
     NProto::TMetaReqUpdateChunkReplicationFactor request;
 
     PROFILE_TIMING ("/rf_update_time") {
-        while (!RFUpdateList.empty() && request.updates_size() < Config->MaxChunksPerRFUpdate) {
+        int count = 0;
+        while (!RFUpdateList.empty() && count < Config->MaxChunksPerRFUpdate) {
             auto chunkId = RFUpdateList.front();
             RFUpdateList.pop_front();
             YCHECK(RFUpdateSet.erase(chunkId) == 1);
+            ++count;
 
             auto* chunk = chunkManager->FindChunk(chunkId);
             if (chunk && chunk->IsAlive()) {
