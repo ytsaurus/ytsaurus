@@ -42,6 +42,7 @@ TNetworkAddress GetLocalBusAddress(int port)
 
 TTcpDispatcher::TImpl::TImpl()
     : Thread(ThreadFunc, (void*) this)
+    , ThreadStarted(NewPromise<void>())
     , Stopped(false)
     , StopWatcher(EventLoop)
     , RegisterWatcher(EventLoop)
@@ -61,6 +62,11 @@ TTcpDispatcher::TImpl::TImpl()
 TTcpDispatcher::TImpl::~TImpl()
 {
     Shutdown();
+}
+
+void TTcpDispatcher::TImpl::Initialize()
+{
+    ThreadStarted.Get();
 }
 
 void TTcpDispatcher::TImpl::Shutdown()
@@ -99,6 +105,8 @@ void TTcpDispatcher::TImpl::ThreadMain()
     } else {
         LOG_WARNING("Failed to raise TCP bus dispatcher thread priority");
     }
+
+    ThreadStarted.Set();
 
     EventLoop.run(0);
 
