@@ -6,12 +6,6 @@ from yt_commands import *
 
 ##################################################################
 
-#TODO(panin): refactor
-def check_all_stderrs(op_id, expected):
-    jobs_path = '//sys/operations/' + op_id + '/jobs'
-    for job_id in ls(jobs_path):
-        assert download(jobs_path + '/' + job_id + '/stderr') == expected
-
 class TestSchedulerMapCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
@@ -40,6 +34,13 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert read('//tmp/t1') == [{'foo': 'bar'}, {'foo': 'bar'}]
 
+    #TODO(panin): refactor
+    def _check_all_stderrs(self, op_id, expected_content, expected_count):
+        jobs_path = '//sys/operations/' + op_id + '/jobs'
+        assert get(jobs_path + '/@count') == expected_count
+        for job_id in ls(jobs_path):
+            assert download(jobs_path + '/' + job_id + '/stderr') == expected_content
+
     # check that stderr is captured for successfull job
     def test_stderr_ok(self):
         create('table', '//tmp/t1')
@@ -52,7 +53,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         track_op(op_id)
 
         assert read('//tmp/t2') == [{'operation' : op_id}, {'job_index' : 0}]
-        check_all_stderrs(op_id, 'stderr')
+        self._check_all_stderrs(op_id, 'stderr', 10)
 
     # check that stderr is captured for failed jobs
     def test_stderr_failed(self):
@@ -67,7 +68,18 @@ class TestSchedulerMapCommands(YTEnvSetup):
         # if all jobs failed then operation is also failed
         with pytest.raises(YTError): track_op(op_id)
 
-        check_all_stderrs(op_id, 'stderr')
+        self._check_all_stderrs(op_id, 'stderr', 10)
+
+    # check max_stderr_count
+    def test_stderr_limit(self):
+        create('table', '//tmp/t1')
+        create('table', '//tmp/t2')
+        write_str('//tmp/t1', '{foo=bar}')
+
+        command = '''cat > /dev/null; echo stderr 1>&2;'''
+
+        map(in_='//tmp/t1', out='//tmp/t2', command=command, opt=['/spec/max_failed_job_count=5'])
+        self._check_all_stderrs(op_id, 'stderr', 5)
 
     def test_invalid_output_record(self):
         create('table', '//tmp/t1')
