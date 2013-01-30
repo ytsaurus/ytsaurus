@@ -365,5 +365,12 @@ cat > /dev/null; echo {hello=world}
                     {'@table_index': '1', 'ninja': 'value'}]
         self.assertItemsEqual(read('//tmp/out'), expected)
 
+    def test_insane_demand(self):
+        create('table', '//tmp/t_in')
+        create('table', '//tmp/t_out')
 
+        write_str('//tmp/t_in', '{cool=stuff}')
 
+        with pytest.raises(YTError):
+            map(in_='//tmp/t_in', out='//tmp/t_out', command='cat',
+                opt=['/spec/mapper/memory_limit=1000000000000'])
