@@ -301,29 +301,29 @@ protected:
         double minShareRatioSum = 0.0;
         auto totalLimits = Host->GetTotalResourceLimits();
         FOREACH (auto child, Children) {
-            auto& attributes = child->Attributes();
+            auto& childAttributes = child->Attributes();
 
             auto demand = child->GetDemand();
+
             auto limits = Min(totalLimits, child->ResourceLimits());
+            childAttributes.MaxShareRatio = GetMinResourceRatio(limits, totalLimits);
             
-            attributes.DominantResource = GetDominantResource(demand, totalLimits);
+            childAttributes.DominantResource = GetDominantResource(demand, totalLimits);
 
-            i64 dominantTotalLimits = GetResource(totalLimits, attributes.DominantResource);
-            i64 dominantDemand = GetResource(demand, attributes.DominantResource);
+            i64 dominantTotalLimits = GetResource(totalLimits, childAttributes.DominantResource);
+            i64 dominantDemand = GetResource(demand, childAttributes.DominantResource);
+            childAttributes.DemandRatio = dominantTotalLimits == 0 ? 0.0 : (double) dominantDemand / dominantTotalLimits;
+            demandRatioSum += std::min(childAttributes.DemandRatio, childAttributes.MaxShareRatio);
 
-            attributes.DemandRatio = dominantTotalLimits == 0 ? 0.0 : (double) dominantDemand / dominantTotalLimits;
-            demandRatioSum += attributes.DemandRatio;
+            childAttributes.AdjustedMinShareRatio =
+                dominantDemand > 0 
+                ? std::min(
+                    child->GetMinShareRatio() * Attributes_.AdjustedMinShareRatio,
+                    childAttributes.MaxShareRatio)
+                : 0.0;
+            minShareRatioSum += childAttributes.AdjustedMinShareRatio;
 
-            attributes.MaxShareRatio = GetMinResourceRatio(limits, totalLimits);
-
-            attributes.Weight = child->GetWeight();
-
-            if (dominantDemand > 0) {
-                attributes.AdjustedMinShareRatio = child->GetMinShareRatio() * Attributes_.AdjustedMinShareRatio;
-                minShareRatioSum += attributes.AdjustedMinShareRatio;
-            } else {
-                attributes.AdjustedMinShareRatio = 0.0;
-            }
+            childAttributes.Weight = child->GetWeight();
         }
 
         // Scale down min shares, if needed.
@@ -365,7 +365,7 @@ protected:
     {
         FOREACH (auto child, Children) {
             auto& attributes = child->Attributes();
-            attributes.FairShareRatio = attributes.DemandRatio;
+            attributes.FairShareRatio = std::min(attributes.DemandRatio, attributes.MaxShareRatio);
         }
     }
 

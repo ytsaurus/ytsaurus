@@ -16,7 +16,7 @@ class TFollowerTracker
 {
 public:
     TFollowerTracker(
-        TFollowerPingerConfigPtr config,
+        TFollowerTrackerConfigPtr config,
         NElection::TCellManagerPtr cellManager,
         TDecoratedMetaStatePtr decoratedState,
         const TEpochId& epochId,
@@ -31,7 +31,7 @@ public:
 private:
     typedef TMetaStateManagerProxy TProxy;
 
-    TFollowerPingerConfigPtr Config;
+    TFollowerTrackerConfigPtr Config;
     NElection::TCellManagerPtr CellManager;
     TDecoratedMetaStatePtr DecoratedState;
     TEpochId EpochId;

@@ -40,8 +40,8 @@ typedef TIntrusivePtr<TChangeLogDownloaderConfig> TChangeLogDownloaderConfigPtr;
 struct TSnapshotDownloaderConfig;
 typedef TIntrusivePtr<TSnapshotDownloaderConfig> TSnapshotDownloaderConfigPtr;
 
-struct TFollowerPingerConfig;
-typedef TIntrusivePtr<TFollowerPingerConfig> TFollowerPingerConfigPtr;
+struct TFollowerTrackerConfig;
+typedef TIntrusivePtr<TFollowerTrackerConfig> TFollowerTrackerConfigPtr;
 
 struct TLeaderCommitterConfig;
 typedef TIntrusivePtr<TLeaderCommitterConfig> TLeaderCommitterConfigPtr;

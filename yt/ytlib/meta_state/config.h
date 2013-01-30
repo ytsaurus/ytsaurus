@@ -78,13 +78,13 @@ struct TSnapshotBuilderConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFollowerPingerConfig
+struct TFollowerTrackerConfig
     : public TYsonSerializable
 {
     TDuration PingInterval;
     TDuration RpcTimeout;
 
-    TFollowerPingerConfig()
+    TFollowerTrackerConfig()
     {
         Register("ping_interval", PingInterval)
             .GreaterThan(TDuration())
@@ -214,7 +214,7 @@ struct TPersistentStateManagerConfig
 
     TSnapshotDownloaderConfigPtr SnapshotDownloader;
 
-    TFollowerPingerConfigPtr FollowerTracker;
+    TFollowerTrackerConfigPtr FollowerTracker;
 
     TLeaderCommitterConfigPtr LeaderCommitter;
 
