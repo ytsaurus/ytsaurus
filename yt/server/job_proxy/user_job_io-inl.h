@@ -44,7 +44,7 @@ TAutoPtr<NTableClient::TTableProducer> TUserJobIO::DoCreateTableInput(
         IOConfig->TableReader,
         MasterChannel,
         blockCache,
-        MoveRV(chunks),
+        std::move(chunks),
         provider);
 
     auto syncReader = NTableClient::CreateSyncReader(reader);

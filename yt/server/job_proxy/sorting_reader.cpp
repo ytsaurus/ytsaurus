@@ -71,7 +71,7 @@ public:
             config,
             masterChannel, 
             blockCache, 
-            MoveRV(chunks),
+            std::move(chunks),
             provider);
     }
 
@@ -445,7 +445,7 @@ ISyncReaderPtr CreateSortingReader(
         blockCache,
         keyColumns,
         onNetworkReleased,
-        MoveRV(chunks),
+        std::move(chunks),
         estimatedRowCount);
 }
 

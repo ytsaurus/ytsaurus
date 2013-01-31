@@ -1946,7 +1946,7 @@ TChunkStripePtr TOperationControllerBase::BuildIntermediateChunkStripe(
 {
     auto stripe = New<TChunkStripe>();
     FOREACH (auto& inputChunk, *inputChunks) {
-        stripe->Chunks.push_back(New<TRefCountedInputChunk>(MoveRV(inputChunk)));
+        stripe->Chunks.push_back(New<TRefCountedInputChunk>(std::move(inputChunk)));
     }
     return stripe;
 }

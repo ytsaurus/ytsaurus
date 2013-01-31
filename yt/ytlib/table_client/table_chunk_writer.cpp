@@ -287,7 +287,7 @@ void TTableChunkWriter::PrepareBlock()
 
     CurrentBufferCapacity += channel->GetCapacity();
 
-    EncodingWriter->WriteBlock(MoveRV(blockParts));
+    EncodingWriter->WriteBlock(std::move(blockParts));
 }
 
 TTableChunkWriter::~TTableChunkWriter()

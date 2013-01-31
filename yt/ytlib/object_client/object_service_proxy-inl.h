@@ -24,7 +24,7 @@ TIntrusivePtr<TTypedResponse> TObjectServiceProxy::TRspExecuteBatch::GetResponse
     std::vector<TSharedRef> innerParts(
         Attachments_.begin() + beginIndex,
         Attachments_.begin() + endIndex);
-    auto innerMessage = NBus::CreateMessageFromParts(MoveRV(innerParts));
+    auto innerMessage = NBus::CreateMessageFromParts(std::move(innerParts));
     auto innerResponse = New<TTypedResponse>();
     innerResponse->Deserialize(innerMessage);
     return innerResponse;

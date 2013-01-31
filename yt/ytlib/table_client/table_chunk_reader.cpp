@@ -303,7 +303,7 @@ private:
 
         chunkReader->SequentialReader = New<TSequentialReader>(
             SequentialConfig,
-            MoveRV(blockSequence),
+            std::move(blockSequence),
             AsyncReader,
             ECodec(miscExt.codec()));
 
@@ -648,7 +648,7 @@ public:
 
         chunkReader->SequentialReader = New<TSequentialReader>(
             SequentialConfig,
-            MoveRV(blockSequence),
+            std::move(blockSequence),
             AsyncReader,
             ECodec(miscExt.codec()));
 

@@ -19,7 +19,7 @@ TMultiChunkParallelReader<TChunkReader>::TMultiChunkParallelReader(
         config,
         masterChannel,
         blockCache,
-        MoveRV(inputChunks),
+        std::move(inputChunks),
         readerProvider)
     , CompleteReaderCount(0)
 {

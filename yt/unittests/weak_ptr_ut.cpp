@@ -265,7 +265,7 @@ TEST_F(TWeakPtrTest, MoveSemantics)
 
     {
         EXPECT_THAT(*object, HasRefCounts(1, 2));
-        TIntricateObject::TWkPtr bar(MoveRV(foo));
+        TIntricateObject::TWkPtr bar(std::move(foo));
         EXPECT_THAT(*object, HasRefCounts(1, 2));
 
         EXPECT_EQ(TIntricateObject::TPtr(), foo.Lock());
@@ -277,7 +277,7 @@ TEST_F(TWeakPtrTest, MoveSemantics)
     {
         EXPECT_THAT(*object, HasRefCounts(1, 2));
         TIntricateObject::TWkPtr bar;
-        bar = MoveRV(foo);
+        bar = std::move(foo);
         EXPECT_THAT(*object, HasRefCounts(1, 2));
 
         EXPECT_EQ(TIntricateObject::TPtr(), foo.Lock());

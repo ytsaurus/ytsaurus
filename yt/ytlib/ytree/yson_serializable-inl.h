@@ -95,7 +95,7 @@ struct TLoadHelper<yhash_set<T>, void>
                 value,
                 listNode->GetChild(i),
                 path + "/" +  NYPath::ToYPathLiteral(i));
-            parameter.insert(MoveRV(value));
+            parameter.insert(std::move(value));
         }
     }
 };
@@ -114,7 +114,7 @@ struct TLoadHelper<yhash_map<Stroka, T>, void>
                 value,
                 pair.second,
                 path + "/" + NYPath::ToYPathLiteral(key));
-            parameter.insert(MakePair(key, MoveRV(value)));
+            parameter.insert(MakePair(key, std::move(value)));
         }
     }
 };
@@ -247,7 +247,7 @@ TParameter<T>& TParameter<T>::Default(const T& defaultValue)
 template <class T>
 TParameter<T>& TParameter<T>::Default(T&& defaultValue)
 {
-    Parameter = MoveRV(defaultValue);
+    Parameter = std::move(defaultValue);
     HasDefaultValue = true;
     return *this;
 }
@@ -261,7 +261,7 @@ TParameter<T>& TParameter<T>::DefaultNew()
 template <class T>
 TParameter<T>& TParameter<T>::CheckThat(TValidator validator)
 {
-    Validators.push_back(MoveRV(validator));
+    Validators.push_back(std::move(validator));
     return *this;
 }
 

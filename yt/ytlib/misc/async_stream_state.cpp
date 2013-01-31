@@ -128,7 +128,7 @@ void TAsyncStreamState::FinishOperation(const TError& error)
     if (error.IsOK()) {
         if (IsActive_ && CurrentError) {
             // Move constructor should eliminate redundant ref/unref.
-            auto currentError(MoveRV(CurrentError));
+            auto currentError(std::move(CurrentError));
             YASSERT(!CurrentError);
             // Always release guard before setting future with 
             // unknown subscribers.

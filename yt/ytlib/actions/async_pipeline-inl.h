@@ -86,7 +86,7 @@ struct TAsyncPipelineHelpers
 
         try {
             auto&& y = func.Run(x.Value());
-            return MakeFuture(WrappedReturnType(ForwardRV<ReturnType>(y)));
+            return MakeFuture(WrappedReturnType(std::forward<ReturnType>(y)));
         } catch (const std::exception& ex) {
             return MakeFuture(WrappedReturnType(ex));
         }

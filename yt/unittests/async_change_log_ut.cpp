@@ -67,7 +67,7 @@ TSharedRef MakeData(i32 data)
 {
     TBlob blob(sizeof(i32));
     *reinterpret_cast<i32*>(&*blob.begin()) = static_cast<i32>(data);
-    return TSharedRef::FromBlob(MoveRV(blob));
+    return TSharedRef::FromBlob(std::move(blob));
 }
 
 } // namespace

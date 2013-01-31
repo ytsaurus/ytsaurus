@@ -85,7 +85,7 @@ bool TStagedObjectBase::IsStaged() const
 TUserAttributeDictionary::TUserAttributeDictionary(
     TObjectManagerPtr objectManager,
     const TObjectId& objectId)
-    : ObjectManager(MoveRV(objectManager))
+    : ObjectManager(std::move(objectManager))
     , ObjectId(objectId)
 { }
 

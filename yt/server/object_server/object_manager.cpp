@@ -62,7 +62,7 @@ class TObjectManager::TServiceContextWrapper
 {
 public:
     explicit TServiceContextWrapper(IServiceContextPtr underlyingContext)
-        : NRpc::TServiceContextWrapper(MoveRV(underlyingContext))
+        : NRpc::TServiceContextWrapper(std::move(underlyingContext))
         , Replied(false)
     { }
 
@@ -666,7 +666,7 @@ void TObjectManager::ReplayVerb(const TMetaReqExecute& request)
         parts[partIndex] = TSharedRef::FromRefNonOwning(TRef(const_cast<char*>(part.begin()), part.size()));
     }
 
-    auto requestMessage = CreateMessageFromParts(MoveRV(parts));
+    auto requestMessage = CreateMessageFromParts(std::move(parts));
     auto context = CreateYPathContext(
         requestMessage,
         "",

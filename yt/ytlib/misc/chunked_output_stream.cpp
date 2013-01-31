@@ -27,13 +27,13 @@ TChunkedOutputStream::~TChunkedOutputStream() throw()
 
 std::vector<TSharedRef> TChunkedOutputStream::FlushBuffer()
 {
-    CompleteChunks.push_back(TSharedRef::FromBlob<TChunkedOutputStreamTag>(MoveRV(IncompleteChunk)));
+    CompleteChunks.push_back(TSharedRef::FromBlob<TChunkedOutputStreamTag>(std::move(IncompleteChunk)));
 
     YASSERT(IncompleteChunk.empty());
     CompleteSize = 0;
     IncompleteChunk.reserve(CurrentReserveSize);
 
-    return MoveRV(CompleteChunks);
+    return std::move(CompleteChunks);
 }
 
 size_t TChunkedOutputStream::GetSize() const
@@ -57,7 +57,7 @@ void TChunkedOutputStream::DoWrite(const void* buffer, size_t length)
         YASSERT(IncompleteChunk.size() == IncompleteChunk.capacity());
 
         CompleteSize += IncompleteChunk.size();
-        CompleteChunks.push_back(TSharedRef::FromBlob<TChunkedOutputStreamTag>(MoveRV(IncompleteChunk)));
+        CompleteChunks.push_back(TSharedRef::FromBlob<TChunkedOutputStreamTag>(std::move(IncompleteChunk)));
 
         YASSERT(IncompleteChunk.empty());
 

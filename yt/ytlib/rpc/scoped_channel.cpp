@@ -48,8 +48,8 @@ public:
     TScopedResponseHandler(
         IClientResponseHandlerPtr underlyingHandler,
         TScopedChannelPtr channel)
-        : UnderlyingHandler(MoveRV(underlyingHandler))
-        , Channel(MoveRV(channel))
+        : UnderlyingHandler(std::move(underlyingHandler))
+        , Channel(std::move(channel))
     { }
 
     void OnAcknowledgement() override
@@ -59,7 +59,7 @@ public:
     
     void OnResponse(NBus::IMessagePtr message) override
     {
-        UnderlyingHandler->OnResponse(MoveRV(message));
+        UnderlyingHandler->OnResponse(std::move(message));
         Channel->OnRequestCompleted();
     }
 
@@ -76,7 +76,7 @@ private:
 };
 
 TScopedChannel::TScopedChannel(IChannelPtr underlyingChannel)
-    : UnderlyingChannel(MoveRV(underlyingChannel))
+    : UnderlyingChannel(std::move(underlyingChannel))
     , Terminated(false)
     , OutstandingRequestCount(0)
     , OutstandingRequestsCompleted(NewPromise<void>())
@@ -106,8 +106,8 @@ void TScopedChannel::Send(
         }
         ++OutstandingRequestCount;
     }
-    auto scopedHandler = New<TScopedResponseHandler>(MoveRV(responseHandler), this);
-    UnderlyingChannel->Send(request, MoveRV(scopedHandler), timeout);
+    auto scopedHandler = New<TScopedResponseHandler>(std::move(responseHandler), this);
+    UnderlyingChannel->Send(request, std::move(scopedHandler), timeout);
 }
 
 void TScopedChannel::Terminate(const TError& error)

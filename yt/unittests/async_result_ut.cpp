@@ -26,7 +26,7 @@ TEST(TFutureTest, IsNull)
     EXPECT_FALSE(empty);
     EXPECT_TRUE(nonEmpty);
 
-    empty = MoveRV(nonEmpty);
+    empty = std::move(nonEmpty);
 
     EXPECT_TRUE(empty);
     EXPECT_FALSE(nonEmpty);
@@ -45,7 +45,7 @@ TEST(TFutureTest, IsNullVoid)
     EXPECT_FALSE(empty);
     EXPECT_TRUE(nonEmpty);
 
-    empty = MoveRV(nonEmpty);
+    empty = std::move(nonEmpty);
 
     EXPECT_TRUE(empty);
     EXPECT_FALSE(nonEmpty);

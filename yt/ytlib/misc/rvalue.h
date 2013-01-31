@@ -27,7 +27,7 @@ struct TIdentity {
 //! Implements #std::move<T>-like behaviour from C++11.
 template <class T>
 FORCED_INLINE typename NMpl::TRemoveReference<T>::TType&&
-MoveRV(T&& x) // noexcept
+std::move(T&& x) // noexcept
 {
     return static_cast<typename NMpl::TRemoveReference<T>::TType&&>(x);
 }

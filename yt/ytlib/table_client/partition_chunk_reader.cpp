@@ -89,7 +89,7 @@ void TPartitionChunkReader::OnGotMeta(NChunkClient::IAsyncReader::TGetMetaResult
 
     SequentialReader = New<TSequentialReader>(
         SequentialConfig,
-        MoveRV(blockSequence),
+        std::move(blockSequence),
         AsyncReader,
         CodecId);
 

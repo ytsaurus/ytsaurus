@@ -20,7 +20,7 @@ public:
     typedef TCallback<TIntrusivePtr<T>()> TFactory;
 
     explicit TLazyPtr(TFactory factory)
-        : Factory(MoveRV(factory))
+        : Factory(std::move(factory))
     { }
 
     T* Get() const throw()
@@ -64,7 +64,7 @@ public:
     typedef TCallback<T*()> TFactory;
 
     TLazyHolder(TFactory fabric)
-        : Factory(MoveRV(fabric))
+        : Factory(std::move(fabric))
     { }
 
     TLazyHolder()

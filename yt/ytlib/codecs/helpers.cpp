@@ -37,7 +37,7 @@ TSharedRef Apply(TConverter converter, const TSharedRef& ref)
     ByteArraySource source(ref.Begin(), ref.Size());
     TBlob output;
     converter.Run(&source, &output);
-    return TSharedRef::FromBlob<TCodecBlockTag>(MoveRV(output));
+    return TSharedRef::FromBlob<TCodecBlockTag>(std::move(output));
 }
 
 TSharedRef Apply(TConverter converter, const std::vector<TSharedRef>& refs)
@@ -48,7 +48,7 @@ TSharedRef Apply(TConverter converter, const std::vector<TSharedRef>& refs)
     TVectorRefsSource source(refs);
     TBlob output;
     converter.Run(&source, &output);
-    return TSharedRef::FromBlob<TCodecBlockTag>(MoveRV(output));
+    return TSharedRef::FromBlob<TCodecBlockTag>(std::move(output));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

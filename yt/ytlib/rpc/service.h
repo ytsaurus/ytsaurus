@@ -216,7 +216,7 @@ public:
         IServiceContextPtr context,
         const THandlerInvocationOptions& options)
         : Logger(RpcServerLogger)
-        , Context(MoveRV(context))
+        , Context(std::move(context))
         , Options(options)
     {
         YCHECK(Context);
@@ -312,7 +312,7 @@ public:
     explicit TTypedServiceContext(
         IServiceContextPtr context,
         const THandlerInvocationOptions& options)
-        : TBase(MoveRV(context), options)
+        : TBase(std::move(context), options)
     {
         Response_ = ObjectPool<TTypedResponse>().Allocate();
         Response_->Context = this->Context.Get();
@@ -388,7 +388,7 @@ private:
     {
         TSharedRef data;
         YCHECK(SerializeToProtoWithEnvelope(*Response_, &data, this->Options.ResponseCodec));
-        this->Context->SetResponseBody(MoveRV(data));
+        this->Context->SetResponseBody(std::move(data));
         this->Context->Reply(TError());
     }
 
@@ -410,7 +410,7 @@ public:
     explicit TOneWayTypedServiceContext(
         IServiceContextPtr context,
         const THandlerInvocationOptions& options)
-        : TBase(MoveRV(context), options)
+        : TBase(std::move(context), options)
     { }
 
     using TBase::Wrap;
@@ -626,7 +626,7 @@ private:
         ::NYT::NRpc::IServiceContextPtr context, \
         const ::NYT::NRpc::THandlerInvocationOptions& options) \
     { \
-        auto typedContext = New<TCtx##method>(MoveRV(context), options); \
+        auto typedContext = New<TCtx##method>(std::move(context), options); \
         typedContext->DeserializeRequest(); \
         return BIND([=] () { \
             this->method( \
@@ -663,7 +663,7 @@ private:
         ::NYT::NRpc::IServiceContextPtr context, \
         const ::NYT::NRpc::THandlerInvocationOptions& options) \
     { \
-        auto typedContext = New<TCtx##method>(MoveRV(context), options); \
+        auto typedContext = New<TCtx##method>(std::move(context), options); \
         typedContext->DeserializeRequest(); \
         return BIND([=] () { \
             this->method( \

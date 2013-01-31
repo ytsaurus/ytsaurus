@@ -35,7 +35,7 @@ IMessagePtr CreateRequestMessage(
         parts.push_back(attachment);
     }
 
-    return CreateMessageFromParts(MoveRV(parts));
+    return CreateMessageFromParts(std::move(parts));
 }
 
 IMessagePtr CreateResponseMessage(
@@ -57,7 +57,7 @@ IMessagePtr CreateResponseMessage(
         parts.push_back(attachment);
     }
 
-    return CreateMessageFromParts(MoveRV(parts));
+    return CreateMessageFromParts(std::move(parts));
 }
 
 IMessagePtr CreateResponseMessage(IServiceContextPtr context)
@@ -81,7 +81,7 @@ IMessagePtr CreateErrorResponseMessage(
 {
     TSharedRef headerData;
     YCHECK(SerializeToProto(header, &headerData));
-    return CreateMessageFromPart(MoveRV(headerData));
+    return CreateMessageFromPart(std::move(headerData));
 }
 
 IMessagePtr CreateErrorResponseMessage(

@@ -68,7 +68,7 @@ public:
                     config->JobIO->TableReader,
                     masterChannel,
                     blockCache,
-                    MoveRV(chunks),
+                    std::move(chunks),
                     provider);
 
                 readers.push_back(reader);

@@ -75,7 +75,7 @@ void TParallelAwaiter::Await(
             &TParallelAwaiter::OnResult<T>,
             MakeStrong(this),
             timerKey,
-            Passed(MoveRV(wrappedOnResult))));
+            Passed(std::move(wrappedOnResult))));
     }
 }
 
@@ -92,7 +92,7 @@ inline void TParallelAwaiter::Await(
             (void(TParallelAwaiter::*)(const NYPath::TYPath&, TCallback<void()>)) &TParallelAwaiter::OnResult,
             MakeStrong(this),
             timerKey,
-            Passed(MoveRV(wrappedOnResult))));
+            Passed(std::move(wrappedOnResult))));
     }
 }
 
@@ -101,14 +101,14 @@ void TParallelAwaiter::Await(
     TFuture<T> result,
     TCallback<void(T)> onResult)
 {
-    Await(MoveRV(result), "", MoveRV(onResult));
+    Await(std::move(result), "", std::move(onResult));
 }
 
 inline void TParallelAwaiter::Await(
     TFuture<void> result,
     TCallback<void()> onResult)
 {
-    Await(MoveRV(result), "", MoveRV(onResult));
+    Await(std::move(result), "", std::move(onResult));
 }
 
 inline void TParallelAwaiter::MaybeInvokeOnComplete(const Stroka& timerKey)
