@@ -168,11 +168,9 @@ private:
             return false;
         }
 
-        auto* inputChunk = Context->Response().add_chunks();
-        *inputChunk->mutable_channel() = Channel.ToProto();
-
         auto addresses = chunkManager->GetChunkAddresses(chunk);
         if (addresses.empty()) {
+            // NB: make the check before calling add_chunks, otherwise response can be malformed.
             if (Context->Request().ignore_lost_chunks()) {
                 // Just ignore this chunk.
                 return true;
@@ -182,6 +180,9 @@ private:
                 return false;
             }
         }
+
+        auto* inputChunk = Context->Response().add_chunks();
+        *inputChunk->mutable_channel() = Channel.ToProto();
 
         FOREACH (const auto& address, addresses) {
             inputChunk->add_node_addresses(address);
