@@ -197,7 +197,7 @@ void Deserialize(yhash_set<T>& value, INodePtr node)
     for (int i = 0; i < size; ++i) {
         T value;
         Deserialize(value, listNode->GetChild(i));
-        value.insert(MoveRV(value));
+        value.insert(std::move(value));
     }
 }
 
@@ -210,7 +210,7 @@ void Deserialize(yhash_map<Stroka, T>& value, INodePtr node)
         auto& key = pair.first;
         T value;
         Deserialize(value, pair.second);
-        value.insert(MakePair(key, MoveRV(value)));
+        value.insert(MakePair(key, std::move(value)));
     }
 }
 

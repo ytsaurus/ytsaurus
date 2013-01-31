@@ -64,13 +64,13 @@ void TSharedRef::TData::FinalizeTracking()
 TSharedRef TSharedRef::AllocateImpl(size_t size)
 {
     TBlob blob(size);
-    return FromBlobImpl(MoveRV(blob));
+    return FromBlobImpl(std::move(blob));
 }
 
 TSharedRef TSharedRef::FromBlobImpl(TBlob&& blob)
 {
     auto ref = TRef::FromBlob(blob);
-    auto data = New<TData>(MoveRV(blob));
+    auto data = New<TData>(std::move(blob));
     return TSharedRef(data, ref);
 }
 

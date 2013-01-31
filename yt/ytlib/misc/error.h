@@ -138,7 +138,7 @@ template <class TException>
 TException&& operator <<= (TException&& ex, const TError& error)
 {
     ex.Error() = error;
-    return MoveRV(ex);
+    return std::move(ex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -189,7 +189,7 @@ public:
     { }
 
     TValueOrError(T&& value)
-        : Value_(MoveRV(value))
+        : Value_(std::move(value))
     { }
 
     TValueOrError(const TValueOrError<T>& other)

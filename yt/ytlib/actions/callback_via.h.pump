@@ -57,7 +57,7 @@ $if ARITY != 0 [[,
             [[]]
 ]]
 $for ARG , 
-            [[ForwardRV<A$(ARG)>(a$(ARG))]]));
+            [[std::forward<A$(ARG)>(a$(ARG))]]));
     });
 }
 
@@ -90,7 +90,7 @@ TCallback<R($for ARG , [[A$(ARG)]])>::Via(
         this_.Run([[]]
 $if ARITY != 0 [[[[]]]]
 $for ARG ,
-            [[ForwardRV<A$(ARG)>(a$(ARG))]]);
+            [[std::forward<A$(ARG)>(a$(ARG))]]);
     });
     auto outer = BIND([=] ($for ARG , [[A$(ARG) a$(ARG)]]) {
         if (context->IsCanceled()) {
@@ -101,7 +101,7 @@ $if ARITY != 0 [[,
             [[]]
 ]]
 $for ARG , 
-            [[ForwardRV<A$(ARG)>(a$(ARG))]]));
+            [[std::forward<A$(ARG)>(a$(ARG))]]));
     });
     return outer;
 }
@@ -142,7 +142,7 @@ $if ARITY != 0 [[
                 [[]]
 ]]
 $for ARG ,
-                [[ForwardRV<A$(ARG)>(a$(ARG))]]));
+                [[std::forward<A$(ARG)>(a$(ARG))]]));
         });
         auto outer = BIND([=] ($for ARG , [[A$(ARG) a$(ARG)]]) -> FR {
             auto promise = NewPromise<
@@ -153,7 +153,7 @@ $if ARITY != 0 [[,
                 [[]]
 ]]
 $for ARG , 
-                [[ForwardRV<A$(ARG)>(a$(ARG))]]));
+                [[std::forward<A$(ARG)>(a$(ARG))]]));
             return promise.ToFuture();
         });
         return outer;
@@ -186,7 +186,7 @@ struct TAsyncViaHelper<true, U($for ARG , [[A$(ARG)]])>
         typedef typename NYT::NDetail::TFutureHelper<U>::TPromiseType PR;
 
         auto promiseSetter = BIND([] (PR promise, R value) mutable {
-            promise.Set(MoveRV(value));
+            promise.Set(std::move(value));
         });
         auto inner = BIND([=] (PR promise[[]]
 $if ARITY != 0 [[, ]]
@@ -197,7 +197,7 @@ $if ARITY != 0 [[
                 [[]]
 ]]
 $for ARG ,
-                [[ForwardRV<A$(ARG)>(a$(ARG))]])
+                [[std::forward<A$(ARG)>(a$(ARG))]])
                 .Subscribe(BIND(promiseSetter, promise));
         });
         auto outer = BIND([=] ($for ARG , [[A$(ARG) a$(ARG)]]) -> FR {
@@ -209,7 +209,7 @@ $if ARITY != 0 [[,
                 [[]]
 ]]
 $for ARG , 
-                [[ForwardRV<A$(ARG)>(a$(ARG))]]));
+                [[std::forward<A$(ARG)>(a$(ARG))]]));
             return promise;
         });
         return outer;
@@ -235,7 +235,7 @@ TCallback<U($for ARG , [[A$(ARG)]])>::AsyncVia(
     return NYT::NDetail::TAsyncViaHelper<
         NYT::NDetail::TFutureHelper<U>::WrappedInFuture,
         U($for ARG , [[A$(ARG)]])
-    >::Do(*this, MoveRV(invoker));
+    >::Do(*this, std::move(invoker));
 }
 
 

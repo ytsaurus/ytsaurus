@@ -45,7 +45,7 @@ struct TMutationFactory
         TResponse (TTarget::* method)(const TRequest& request))
     {
         return
-            New<TMutation>(MoveRV(metaStateManager), MoveRV(invoker))
+            New<TMutation>(std::move(metaStateManager), std::move(invoker))
             ->SetRequestData(request)
             ->SetAction(BIND([=] () {
                 TResponse response((target->*method)(request));
@@ -73,7 +73,7 @@ struct TMutationFactory<void>
         void (TTarget::* method)(const TRequest& request))
     {
         return
-            New<TMutation>(MoveRV(metaStateManager), MoveRV(invoker))
+            New<TMutation>(std::move(metaStateManager), std::move(invoker))
             ->SetRequestData(request)
             ->SetAction(BIND(method, Unretained(target), request));
     }
@@ -88,8 +88,8 @@ TMutationPtr CreateMutation(
     TResponse (TTarget::* method)(const TRequest& request))
 {
     return TMutationFactory<TResponse>::Create(
-        MoveRV(metaStateManager),
-        MoveRV(invoker),
+        std::move(metaStateManager),
+        std::move(invoker),
         target,
         request,
         method);

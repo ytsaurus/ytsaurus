@@ -12,8 +12,8 @@ namespace NMetaState {
 TMutation::TMutation(
     IMetaStateManagerPtr metaStateManager,
     IInvokerPtr stateInvoker)
-    : MetaStateManager(MoveRV(metaStateManager))
-    , StateInvoker(MoveRV(stateInvoker))
+    : MetaStateManager(std::move(metaStateManager))
+    , StateInvoker(std::move(stateInvoker))
 { }
 
 bool TMutation::PostCommit()
@@ -47,7 +47,7 @@ TMutationPtr TMutation::SetRequestData(const TSharedRef& data)
 
 TMutationPtr TMutation::SetAction(TClosure action)
 {
-    Request.Action = MoveRV(action);
+    Request.Action = std::move(action);
     return this;
 }
 
@@ -63,14 +63,14 @@ TMutationPtr TMutation::OnSuccess(TClosure onSuccess)
 TMutationPtr TMutation::OnSuccess(TCallback<void(const TMutationResponse&)> onSuccess)
 {
     YASSERT(OnSuccess_.IsNull());
-    OnSuccess_ = MoveRV(onSuccess);
+    OnSuccess_ = std::move(onSuccess);
     return this;
 }
 
 TMutationPtr TMutation::OnError(TCallback<void(const TError&)> onError)
 {
     YASSERT(OnError_.IsNull());
-    OnError_ = MoveRV(onError);
+    OnError_ = std::move(onError);
     return this;
 }
 

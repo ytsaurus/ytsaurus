@@ -180,7 +180,7 @@ public:
     template <class TTag>
     static TSharedRef FromBlob(TBlob&& blob)
     {
-        auto result = FromBlobImpl(MoveRV(blob));
+        auto result = FromBlobImpl(std::move(blob));
 #ifdef ENABLE_REF_COUNTED_TRACKING
         void* cookie = ::NYT::NDetail::GetRefCountedTrackerCookie<TTag>();
         result.Data->InitializeTracking(cookie);
@@ -190,7 +190,7 @@ public:
 
     static TSharedRef FromBlob(TBlob&& blob)
     {
-        return FromBlob<TDefaultSharedRefTag>(MoveRV(blob));
+        return FromBlob<TDefaultSharedRefTag>(std::move(blob));
     }
 
     //! Creates a reference to a portion of currently held data.
@@ -282,7 +282,7 @@ private:
     TRef Ref;
 
     TSharedRef(TDataPtr data, const TRef& ref)
-        : Data(MoveRV(data))
+        : Data(std::move(data))
         , Ref(ref)
     { }
 

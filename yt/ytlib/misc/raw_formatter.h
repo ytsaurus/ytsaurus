@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include <util/generic/stroka.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -20,9 +22,7 @@ public:
         : Begin(Buffer)
         , Cursor(Buffer)
         , End(Buffer + N)
-    {
-        std::fill(Buffer, Buffer + N, '\0');
-    }
+    { }
 
     TRawFormatter(char* buffer, int length)
         : Begin(buffer)
@@ -31,15 +31,21 @@ public:
     { }
 
     //! Returns an underlying cursor.
-    char *GetCursor()
+    char* GetCursor()
     {
         return Cursor;
     }
 
-    //! Returns an  pointer to the underlying buffer.
-    const char *GetData() const
+    //! Returns an pointer to the underlying buffer.
+    const char* GetData() const
     {
         return Begin;
+    }
+
+    //! Copies all written bytes into a string.
+    Stroka GetString() const
+    {
+        return Stroka(Begin, Cursor - Begin);
     }
 
     //! Returns the number of bytes written in the buffer.
@@ -69,6 +75,14 @@ public:
     {
         while (*string != '\0' && Cursor < End) {
             *Cursor++ = *string++;
+        }
+    }
+
+    //! Appends a single character and updated the internal cursor.
+    void AppendChar(char ch)
+    {
+        if (Cursor < End) {
+            *Cursor++ = ch;
         }
     }
 

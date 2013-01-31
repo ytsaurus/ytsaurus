@@ -75,7 +75,7 @@ TFileReader::AsyncReadBlocks(const std::vector<int>& blockIndexes)
         blocks.push_back(ReadBlock(blockIndex));
     }
 
-    return MakeFuture(TReadResult(MoveRV(blocks)));
+    return MakeFuture(TReadResult(std::move(blocks)));
 }
 
 TSharedRef TFileReader::ReadBlock(int blockIndex)

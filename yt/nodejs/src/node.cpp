@@ -224,7 +224,7 @@ INodePtr ConvertV8BytesToNode(const char* buffer, size_t length, ECompression co
     }
 
     return ConvertToNode(CreateProducerForFormat(
-        ConvertTo<TFormat>(MoveRV(format)),
+        ConvertTo<TFormat>(std::move(format)),
         EDataType::Structured,
         streamStack.Top()));
 }
@@ -235,7 +235,7 @@ Persistent<FunctionTemplate> TNodeWrap::ConstructorTemplate;
 
 TNodeWrap::TNodeWrap(INodePtr node)
     : node::ObjectWrap()
-    , Node_(MoveRV(node))
+    , Node_(std::move(node))
 {
     THREAD_AFFINITY_IS_V8();
 }
@@ -378,16 +378,16 @@ Handle<Value> TNodeWrap::CreateMerged(const Arguments& args)
             }
 
             delta = TNodeWrap::UnwrapNode(args[i]);
-            result = result ? UpdateNode(MoveRV(result), MoveRV(delta)) : MoveRV(delta);
+            result = result ? UpdateNode(std::move(result), std::move(delta)) : std::move(delta);
         }
     } catch (const std::exception& ex) {
         return ThrowException(ConvertErrorToV8(ex));
     }
 
     Local<Object> handle = ConstructorTemplate->GetFunction()->NewInstance();
-    ObjectWrap::Unwrap<TNodeWrap>(handle)->SetNode(MoveRV(result));
+    ObjectWrap::Unwrap<TNodeWrap>(handle)->SetNode(std::move(result));
 
-    return scope.Close(MoveRV(handle));
+    return scope.Close(std::move(handle));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -408,9 +408,9 @@ Handle<Value> TNodeWrap::CreateV8(const Arguments& args)
     }
 
     Local<Object> handle = ConstructorTemplate->GetFunction()->NewInstance();
-    ObjectWrap::Unwrap<TNodeWrap>(handle)->SetNode(MoveRV(node));
+    ObjectWrap::Unwrap<TNodeWrap>(handle)->SetNode(std::move(node));
 
-    return scope.Close(MoveRV(handle));
+    return scope.Close(std::move(handle));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -427,7 +427,7 @@ Handle<Value> TNodeWrap::Print(const Arguments& args)
     auto string = ConvertToYsonString(node, EYsonFormat::Text);
     auto handle = String::New(string.Data().c_str(), string.Data().length());
 
-    return scope.Close(MoveRV(handle));
+    return scope.Close(std::move(handle));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -446,15 +446,15 @@ Handle<Value> TNodeWrap::Traverse(const Arguments& args)
     TStringBuf path(*pathValue, pathValue.length());
 
     try {
-        node = GetNodeByYPath(MoveRV(node), Stroka(path));
+        node = GetNodeByYPath(std::move(node), Stroka(path));
     } catch (const std::exception& ex) {
         return ThrowException(ConvertErrorToV8(ex));
     }
 
     Local<Object> handle = ConstructorTemplate->GetFunction()->NewInstance();
-    ObjectWrap::Unwrap<TNodeWrap>(handle)->SetNode(MoveRV(node));
+    ObjectWrap::Unwrap<TNodeWrap>(handle)->SetNode(std::move(node));
 
-    return scope.Close(MoveRV(handle));
+    return scope.Close(std::move(handle));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -467,7 +467,7 @@ Handle<Value> TNodeWrap::Get(const Arguments& args)
     YASSERT(args.Length() == 0);
 
     INodePtr node = TNodeWrap::UnwrapNode(args.This());
-    return scope.Close(ProduceV8(MoveRV(node)));
+    return scope.Close(ProduceV8(std::move(node)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -484,7 +484,7 @@ const INodePtr TNodeWrap::GetNode() const
 
 void TNodeWrap::SetNode(INodePtr node)
 {
-    Node_ = MoveRV(node);
+    Node_ = std::move(node);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

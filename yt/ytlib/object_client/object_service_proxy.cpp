@@ -1,8 +1,6 @@
 #include "stdafx.h"
 #include "object_service_proxy.h"
 
-#include <ytlib/misc/rvalue.h>
-
 #include <ytlib/rpc/message.h>
 
 namespace NYT {

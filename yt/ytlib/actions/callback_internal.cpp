@@ -33,14 +33,14 @@ void* TCallbackBase::GetHandle() const
 
 void TCallbackBase::Swap(TCallbackBase& other)
 {
-    TIntrusivePtr<TBindStateBase> tempBindState = MoveRV(other.BindState);
-    TUntypedInvokeFunction tempUntypedInvoke = MoveRV(other.UntypedInvoke);
+    TIntrusivePtr<TBindStateBase> tempBindState = std::move(other.BindState);
+    TUntypedInvokeFunction tempUntypedInvoke = std::move(other.UntypedInvoke);
  
-    other.BindState = MoveRV(BindState);
-    other.UntypedInvoke = MoveRV(UntypedInvoke);
+    other.BindState = std::move(BindState);
+    other.UntypedInvoke = std::move(UntypedInvoke);
  
-    BindState = MoveRV(tempBindState);
-    UntypedInvoke = MoveRV(tempUntypedInvoke);
+    BindState = std::move(tempBindState);
+    UntypedInvoke = std::move(tempUntypedInvoke);
 }
 
 bool TCallbackBase::Equals(const TCallbackBase& other) const
@@ -56,12 +56,12 @@ TCallbackBase::TCallbackBase(const TCallbackBase& other)
 { }
 
 TCallbackBase::TCallbackBase(TCallbackBase&& other)
-    : BindState(MoveRV(other.BindState))
-    , UntypedInvoke(MoveRV(other.UntypedInvoke))
+    : BindState(std::move(other.BindState))
+    , UntypedInvoke(std::move(other.UntypedInvoke))
 { }
 
 TCallbackBase::TCallbackBase(TIntrusivePtr<TBindStateBase>&& bindState)
-    : BindState(MoveRV(bindState))
+    : BindState(std::move(bindState))
     , UntypedInvoke(NULL)
 {
     YASSERT(!BindState || BindState->GetRefCount() == 1);

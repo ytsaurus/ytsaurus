@@ -26,7 +26,7 @@ public:
         INodePtr root,
         IYPathServicePtr underlyingService)
         : FileName(fileName)
-        , Root(MoveRV(root))
+        , Root(std::move(root))
         , UnderlyingService(underlyingService)
     { }
 

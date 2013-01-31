@@ -168,7 +168,7 @@ void TPartitionChunkWriter::PrepareBlock()
     partitionAttributes->set_uncompressed_data_size(
         partitionAttributes->uncompressed_data_size() + size);
 
-    EncodingWriter->WriteBlock(MoveRV(blockParts));
+    EncodingWriter->WriteBlock(std::move(blockParts));
 }
 
 i64 TPartitionChunkWriter::GetCurrentSize() const

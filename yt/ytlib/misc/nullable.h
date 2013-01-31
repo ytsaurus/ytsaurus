@@ -1,10 +1,10 @@
 #pragma once
 
-#include "rvalue.h"
-
 #include <util/generic/utility.h>
 #include <util/string/cast.h>
 #include <util/ysaveload.h>
+
+#include "mpl.h"
 
 namespace NYT {
 
@@ -19,6 +19,7 @@ struct TNullHelper
 
 typedef int NDetail::TNullHelper::* TNull;
 
+// TODO(babenko): replace NULL with nullptr once all of our compilers support it natively
 const TNull Null = static_cast<TNull>(NULL);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,7 +41,7 @@ public:
 
     TNullable(T&& value)
         : HasValue_(true)
-        , Value(MoveRV(value))
+        , Value(std::move(value))
     { }
 
     TNullable(TNull)
@@ -60,7 +61,7 @@ public:
         TNullable<U>&& other,
         typename NMpl::TEnableIf<NMpl::TIsConvertible<U, T>, int>::TType = 0)
         : HasValue_(other.HasValue_)
-        , Value(MoveRV(other.Value))
+        , Value(std::move(other.Value))
     { }
     
     TNullable(bool condition, const T& value)
@@ -75,7 +76,7 @@ public:
         : HasValue_(false)
     {
         if (condition) {
-            Assign(MoveRV(value));
+            Assign(std::move(value));
         }
     }
 
@@ -87,7 +88,7 @@ public:
 
     TNullable& operator=(T&& value)
     {
-        Assign(MoveRV(value));
+        Assign(std::move(value));
         return *this;
     }
 
@@ -122,7 +123,7 @@ public:
     void Assign(T&& value)
     {
         HasValue_ = true;
-        Value = MoveRV(value);
+        Value = std::move(value);
     }
 
     void Assign(TNull)
@@ -149,7 +150,7 @@ public:
     {
         static_assert(NMpl::TIsConvertible<U, T>::Value, "U have to be convertible to T");
 
-        TNullable<T>(MoveRV(other)).Swap(*this);
+        TNullable<T>(std::move(other)).Swap(*this);
     }
 
     void Reset()
@@ -278,13 +279,13 @@ struct TNullableTraits< TIntrusivePtr<T> >
 template <class T>
 TNullable< typename NMpl::TDecay<T>::TType > MakeNullable(T&& value)
 {
-    return TNullable< typename NMpl::TDecay<T>::TType >(ForwardRV<T>(value));
+    return TNullable< typename NMpl::TDecay<T>::TType >(std::forward<T>(value));
 }
 
 template <class T>
 TNullable< typename NMpl::TDecay<T>::TType > MakeNullable(bool condition, T&& value)
 {
-    return TNullable< typename NMpl::TDecay<T>::TType >(condition, ForwardRV<T>(value));
+    return TNullable< typename NMpl::TDecay<T>::TType >(condition, std::forward<T>(value));
 }
 
 template <class T>
@@ -364,7 +365,7 @@ void Load(TInputStream* input, TNullable<T>& obj)
     if (hasValue) {
         T temp;
         Load(input, temp);
-        obj = MoveRV(temp);
+        obj = std::move(temp);
     }
 }
 

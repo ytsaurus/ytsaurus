@@ -68,7 +68,7 @@ public:
             config->JobIO->TableReader,
             masterChannel,
             blockCache,
-            MoveRV(inputChunks),
+            std::move(inputChunks),
             provider));
 
         if (jobSpec.HasExtension(TMergeJobSpecExt::merge_job_spec_ext)) {

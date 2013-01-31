@@ -56,7 +56,7 @@ public:
                 IOConfig->TableReader,
                 MasterChannel,
                 blockCache,
-                MoveRV(chunks),
+                std::move(chunks),
                 provider);
 
             readers.push_back(reader);

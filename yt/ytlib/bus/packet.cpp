@@ -150,7 +150,7 @@ void TPacketDecoder::NextMessagePartPhase()
         Parts.push_back(TSharedRef());
     }
 
-    Message = CreateMessageFromParts(MoveRV(Parts));
+    Message = CreateMessageFromParts(std::move(Parts));
     SetFinished();
 }
 

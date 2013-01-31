@@ -253,7 +253,7 @@ private:
 
             SequentialReader = New<TSequentialReader>(
                 Owner->Config->CacheSequentialReader,
-                MoveRV(blockSequence),
+                std::move(blockSequence),
                 RemoteReader,
                 ECodec::None);
 

@@ -96,7 +96,7 @@ void TFileReaderBase::Open(
 
     SequentialReader = New<TSequentialReader>(
         Config,
-        MoveRV(blockSequence),
+        std::move(blockSequence),
         remoteReader,
         ECodec(miscExt.codec()));
 

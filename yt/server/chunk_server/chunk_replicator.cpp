@@ -738,7 +738,7 @@ void TChunkReplicator::ScheduleRFUpdate(TChunkList* chunkList)
             TChunkReplicatorPtr replicator,
             TChunkList* root)
             : Bootstrap(bootstrap)
-            , Replicator(MoveRV(replicator))
+            , Replicator(std::move(replicator))
             , Root(root)
         { }
 

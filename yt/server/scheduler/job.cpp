@@ -25,7 +25,7 @@ TJob::TJob(
     , StartTime_(startTime)
     , State_(EJobState::Waiting)
     , ResourceUsage_(resourceUsage)
-    , SpecBuilder_(MoveRV(specBuilder))
+    , SpecBuilder_(std::move(specBuilder))
 { }
 
 ////////////////////////////////////////////////////////////////////

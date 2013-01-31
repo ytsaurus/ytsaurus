@@ -327,7 +327,7 @@ void TJob::OnTableDownloaded(
         config,
         Bootstrap->GetMasterChannel(),
         blockCache,
-        MoveRV(chunks),
+        std::move(chunks),
         New<TTableChunkReaderProvider>(config));
 
     auto syncReader = CreateSyncReader(reader);

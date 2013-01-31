@@ -24,13 +24,13 @@ IMessagePtr CreateMessage(int numParts)
     for (int i = 0; i < numParts; ++i) {
         parts.push_back(TRef(&*data.begin() + i, 1));
     }
-    return CreateMessageFromParts(MoveRV(data), parts);
+    return CreateMessageFromParts(std::move(data), parts);
 }
 
 IMessagePtr Serialize(Stroka str)
 {
     TBlob data(str.begin(), str.vend());
-    return CreateMessageFromPart(TSharedRef::FromBlob(MoveRV(data)));
+    return CreateMessageFromPart(TSharedRef::FromBlob(std::move(data)));
 }
 
 Stroka Deserialize(IMessagePtr message)

@@ -191,7 +191,7 @@ void TJobManager::CreateJob(
     auto job = New<TJob>(
         jobId,
         resourceLimits,
-        MoveRV(jobSpec),
+        std::move(jobSpec),
         Bootstrap);
 
     YCHECK(Jobs.insert(std::make_pair(jobId, job)).second);

@@ -49,7 +49,7 @@ void TMetaStatePart::RegisterMethod(
     Stroka mutationType = TRequest().GetTypeName();
     auto wrappedHandler = BIND(
         &TThunkTraits<TRequest, TResponse>::Thunk,
-        MoveRV(handler));
+        std::move(handler));
     YCHECK(MetaState->Methods.insert(MakePair(mutationType, wrappedHandler)).second);
 }
 

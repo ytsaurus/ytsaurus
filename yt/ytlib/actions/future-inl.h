@@ -40,7 +40,7 @@ public:
 
     template <class U>
     explicit TPromiseState(U&& value)
-        : Value(ForwardRV<U>(value))
+        : Value(std::forward<U>(value))
     {
         static_assert(
             NMpl::TIsConvertible<U, T>::Value,
@@ -91,7 +91,7 @@ public:
         {
             TGuard<TSpinLock> guard(SpinLock);
             YASSERT(!Value.HasValue());
-            Value.Assign(ForwardRV<U>(value));
+            Value.Assign(std::forward<U>(value));
         
             auto* event = ~ReadyEvent;
             if (event) {
@@ -150,7 +150,7 @@ private:
     void DoValue(T value)
     {
         if (AtomicAcquire()) {
-            OnValue.Run(MoveRV(value));
+            OnValue.Run(std::move(value));
         }
     }
 
@@ -355,7 +355,7 @@ inline TFuture<T>::TFuture(const TFuture<T>& other)
 
 template <class T>
 inline TFuture<T>::TFuture(TFuture<T>&& other)
-    : Impl(MoveRV(other.Impl))
+    : Impl(std::move(other.Impl))
 { }
 
 template <class T>
@@ -386,7 +386,7 @@ inline TFuture<T>& TFuture<T>::operator=(const TFuture<T>& other)
 template <class T>
 inline TFuture<T>& TFuture<T>::operator=(TFuture<T>&& other)
 {
-    TFuture(MoveRV(other)).Swap(*this);
+    TFuture(std::move(other)).Swap(*this);
     return *this;
 }
 
@@ -478,7 +478,7 @@ inline TFuture<R> TFuture<T>::Apply(const TCallback<TFuture<R>(T)>& mutator)
 
     // TODO(sandello): Make cref here.
     auto inner = BIND([mutated] (R innerValue) mutable {
-        mutated.Set(MoveRV(innerValue));
+        mutated.Set(std::move(innerValue));
     });
     // TODO(sandello): Make cref here.
     auto outer = BIND([mutator, inner] (T outerValue) mutable {
@@ -498,7 +498,7 @@ inline TFuture<T>::TFuture(
 template <class T>
 inline TFuture<T>::TFuture(
     TIntrusivePtr< NYT::NDetail::TPromiseState<T> >&& state)
-    : Impl(MoveRV(state))
+    : Impl(std::move(state))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -517,7 +517,7 @@ inline TFuture<void>::TFuture(const TFuture<void>& other)
 { }
 
 inline TFuture<void>::TFuture(TFuture<void>&& other)
-    : Impl(MoveRV(other.Impl))
+    : Impl(std::move(other.Impl))
 { }
 
 inline TFuture<void>::operator TUnspecifiedBoolType() const
@@ -543,7 +543,7 @@ inline TFuture<void>& TFuture<void>::operator=(const TFuture<void>& other)
 
 inline TFuture<void>& TFuture<void>::operator=(TFuture<void>&& other)
 {
-    TFuture(MoveRV(other)).Swap(*this);
+    TFuture(std::move(other)).Swap(*this);
     return *this;
 }
 
@@ -619,7 +619,7 @@ inline TFuture<R> TFuture<void>::Apply(const TCallback<TFuture<R>()>& mutator)
 
     // TODO(sandello): Make cref here.
     auto inner = BIND([mutated] (R innerValue) mutable {
-        mutated.Set(MoveRV(innerValue));
+        mutated.Set(std::move(innerValue));
     });
     // TODO(sandello): Make cref here.
     auto outer = BIND([mutator, inner] () mutable {
@@ -637,7 +637,7 @@ inline TFuture<void>::TFuture(
 
 inline TFuture<void>::TFuture(
     TIntrusivePtr< NYT::NDetail::TPromiseState<void> >&& state)
-    : Impl(MoveRV(state))
+    : Impl(std::move(state))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -660,7 +660,7 @@ template <class T>
 inline TFuture< typename NMpl::TDecay<T>::TType > MakeFuture(T&& value)
 {
     typedef typename NMpl::TDecay<T>::TType U;
-    return TFuture<U>(New< NYT::NDetail::TPromiseState<U> >(ForwardRV<T>(value)));
+    return TFuture<U>(New< NYT::NDetail::TPromiseState<U> >(std::forward<T>(value)));
 }
 
 inline TFuture<void> MakeFuture()
@@ -688,7 +688,7 @@ inline TPromise<T>::TPromise(const TPromise<T>& other)
 
 template <class T>
 inline TPromise<T>::TPromise(TPromise<T>&& other)
-    : Impl(MoveRV(other.Impl))
+    : Impl(std::move(other.Impl))
 { }
 
 template <class T>
@@ -719,7 +719,7 @@ inline TPromise<T>& TPromise<T>::operator=(const TPromise<T>& other)
 template <class T>
 inline TPromise<T>& TPromise<T>::operator=(TPromise<T>&& other)
 {
-    TPromise(MoveRV(other)).Swap(*this);
+    TPromise(std::move(other)).Swap(*this);
     return *this;
 }
 
@@ -741,7 +741,7 @@ template <class T>
 inline void TPromise<T>::Set(T&& value)
 {
     YASSERT(Impl);
-    Impl->Set(MoveRV(value));
+    Impl->Set(std::move(value));
 }
 
 template <class T>
@@ -797,7 +797,7 @@ inline TPromise<T>::TPromise(
 template <class T>
 inline TPromise<T>::TPromise(
     TIntrusivePtr< NYT::NDetail::TPromiseState<T> >&& state)
-    : Impl(MoveRV(state))
+    : Impl(std::move(state))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -816,7 +816,7 @@ inline TPromise<void>::TPromise(const TPromise<void>& other)
 { }
 
 inline TPromise<void>::TPromise(TPromise<void>&& other)
-    : Impl(MoveRV(other.Impl))
+    : Impl(std::move(other.Impl))
 { }
 
 inline TPromise<void>::operator TUnspecifiedBoolType() const
@@ -847,7 +847,7 @@ inline TPromise<void>& TPromise<void>::operator=(const TPromise<void>& other)
 
 inline TPromise<void>& TPromise<void>::operator=(TPromise<void>&& other)
 {
-    TPromise(MoveRV(other)).Swap(*this);
+    TPromise(std::move(other)).Swap(*this);
     return *this;
 }
 
@@ -902,7 +902,7 @@ inline TPromise<void>::TPromise(
 
 inline TPromise<void>::TPromise(
     TIntrusivePtr< NYT::NDetail::TPromiseState<void> >&& state)
-    : Impl(MoveRV(state))
+    : Impl(std::move(state))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -925,7 +925,7 @@ template <class T>
 inline TPromise< typename NMpl::TDecay<T>::TType > MakePromise(T&& value)
 {
     typedef typename NMpl::TDecay<T>::TType U;
-    return TPromise<U>(New< NYT::NDetail::TPromiseState<U> >(ForwardRV<T>(value)));
+    return TPromise<U>(New< NYT::NDetail::TPromiseState<U> >(std::forward<T>(value)));
 }
 
 inline TPromise<void> MakePromise()

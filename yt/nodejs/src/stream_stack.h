@@ -46,7 +46,7 @@ public:
             NMpl::TIsConvertible<U*, T*>::Value,
             "U* have to be convertible to T*");
         YASSERT(Head > Stack);
-        U* layer = new U(Top(), ForwardRV<A1>(a1));
+        U* layer = new U(Top(), std::forward<A1>(a1));
         *--Head = layer;
         return layer;
     }
@@ -58,7 +58,7 @@ public:
             NMpl::TIsConvertible<U*, T*>::Value,
             "U* have to be convertible to T*");
         YASSERT(Head > Stack);
-        U* layer = new U(Top(), ForwardRV<A1>(a1), ForwardRV<A2>(a2));
+        U* layer = new U(Top(), std::forward<A1>(a1), std::forward<A2>(a2));
         *--Head = layer;
         return layer;
     }
@@ -70,7 +70,7 @@ public:
             NMpl::TIsConvertible<U*, T*>::Value,
             "U* have to be convertible to T*");
         YASSERT(Head > Stack);
-        U* layer = new U(Top(), ForwardRV<A1>(a1), ForwardRV<A2>(a2), ForwardRV<A3>(a3));
+        U* layer = new U(Top(), std::forward<A1>(a1), std::forward<A2>(a2), std::forward<A3>(a3));
         *--Head = layer;
         return layer;
     }

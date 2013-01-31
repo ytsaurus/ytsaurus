@@ -8,6 +8,7 @@ namespace NLog {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Any changes to this enum must be also propagated to FormatLevel.
 DECLARE_ENUM(ELogLevel,
     (Minimum)
     (Trace)

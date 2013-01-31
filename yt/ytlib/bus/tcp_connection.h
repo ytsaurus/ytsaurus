@@ -69,7 +69,7 @@ private:
 
         explicit TQueuedMessage(IMessagePtr message)
             : Promise(NewPromise<TError>())
-            , Message(MoveRV(message))
+            , Message(std::move(message))
             , PacketId(TPacketId::Create())
         { }
 
@@ -83,7 +83,7 @@ private:
         TQueuedPacket(EPacketType type, const TPacketId& packetId, IMessagePtr message, i64 size)
             : Type(type)
             , PacketId(packetId)
-            , Message(MoveRV(message))
+            , Message(std::move(message))
             , Size(size)
         { }
 
@@ -100,7 +100,7 @@ private:
 
         TUnackedMessage(const TPacketId& packetId, TAsyncErrorPromise promise)
             : PacketId(packetId)
-            , Promise(MoveRV(promise))
+            , Promise(std::move(promise))
         { }
 
         TPacketId PacketId;

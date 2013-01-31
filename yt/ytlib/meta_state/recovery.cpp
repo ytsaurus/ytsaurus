@@ -436,7 +436,7 @@ TAsyncError TFollowerRecovery::CapturePostponedMutations()
     return BIND(
                &TFollowerRecovery::ApplyPostponedMutations,
                MakeStrong(this),
-               Passed(MoveRV(mutations)))
+               Passed(std::move(mutations)))
            .AsyncVia(EpochStateInvoker)
            .Run();
 }

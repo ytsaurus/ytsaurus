@@ -79,7 +79,6 @@
 #endif
 
 #include "assert.h"
-#include "rvalue.h"
 #include "intrusive_ptr.h"
 #include "weak_ptr.h"
 #include "ref_counted.h"
