@@ -78,8 +78,15 @@ function YtBlackbox(logger) { // TODO: Inject |config|
         return Q
             .when(makeHttpRequest("GET", config.host, uri, config.timeout, { "User-Agent" : "YT Authorization Manager" }),
             function(data) {
-                logger.debug("Successfully received data from Blackbox", { payload : data });
-                if (data.login) {
+                try {
+                    data = JSON.parse(data);
+                    logger.debug("Successfully received data from Blackbox", { payload : data });
+                } catch (ex) {
+                    data = undefined;
+                    logger.debug("Failed to parse JSON data from Blackbox");
+                }
+
+                if (data && data.login) {
                     return data.login;
                 } else {
                     return false;
@@ -110,10 +117,11 @@ function YtBlackbox(logger) { // TODO: Inject |config|
             .then(
             function(login) {
                 if (!login) {
-                    logger.debug("Client has authenticated", { login : login });
+                    logger.debug("Client has failed to authenticate", { request_id : req.uuid });
                     return httpUnauthorized(rsp);
                 } else {
-                    next();
+                    logger.debug("Client has authenticated", { request_id : req.uuid, login : login });
+                    return next();
                 }
             },
             function(error) {
