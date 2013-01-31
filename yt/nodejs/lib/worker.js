@@ -128,6 +128,11 @@ dynamic_server = connect()
     .use(yt.YtLogRequest(logger))
     .use("/auth", yt.YtAuthenticationApplication(logger, config))
     .use("/hosts", yt.YtHostDiscovery(config.neighbours))
+    .use(function(req, rsp, next) {
+        req.pauser = yt.Pause(req);
+        req.connection.setNoDelay(true); // Disable Nagle.
+        next();
+    })
     .use(yt.YtBlackbox(logger, config))
     .use("/api", yt.YtApplication(logger, config))
     .use("/ui", function(req, rsp, next) {
