@@ -10,6 +10,12 @@ include_directories(
 add_subdirectory(ytlib)
 add_subdirectory(server)
 
+if (YT_BUILD_ENABLE_BENCHMARKS)
+  add_subdirectory(benchmarks)
+else()
+  message(STATUS "Omitting benchmarks from build (YT_BUILD_ENABLE_BENCHMARKS = OFF)")
+endif()
+
 if (YT_BUILD_ENABLE_DRIVER)
   add_subdirectory(driver)
 else()

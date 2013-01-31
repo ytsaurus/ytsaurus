@@ -80,7 +80,7 @@ namespace NDetail {
 //
 // === TSignatureTraits ===
 // Type traits that unwrap a function signature into a set of easier to use
-// typedefs.  Used mainly for compile time asserts.
+// typedefs. Used mainly for compile time asserts.
 // There are |ARITY| TSignatureTraits types.
 //
 // === TIgnoreResultInSignature ===
@@ -134,6 +134,7 @@ class TCallableAdapter<T, R(T::*)($for ARG , [[A$(ARG)]])>
 public:
     typedef NMpl::TTrueType IsCallable;
 
+    enum { Arity = $(ARITY) };
     typedef R (Signature)($for ARG , [[A$(ARG)]]);
 
     explicit TCallableAdapter(const T& functor)
@@ -160,6 +161,7 @@ class TCallableAdapter<T, R(T::*)($for ARG , [[A$(ARG)]]) const>
 public:
     typedef NMpl::TTrueType IsCallable;
 
+    enum { Arity = $(ARITY) };
     typedef R (Signature)($for ARG , [[A$(ARG)]]);
 
     explicit TCallableAdapter(const T& functor)
@@ -231,6 +233,7 @@ $if ARITY > 0[[, ]] $for ARG , [[class A$(ARG)]]>
 class TRunnableAdapter<R(*)($for ARG , [[A$(ARG)]])>
 {
 public:
+    enum { Arity = $(ARITY) };
     typedef R (Signature)($for ARG , [[A$(ARG)]]);
 
     explicit TRunnableAdapter(R(*function)($for ARG , [[A$(ARG)]]))
@@ -254,6 +257,7 @@ class TRunnableAdapter<R(T::*)($for ARG , [[A$(ARG)]])>
 public:
     typedef NMpl::TTrueType IsMethod;
 
+    enum { Arity = 1 + $(ARITY) };
     typedef R (Signature)(T*[[]]
 $if ARITY > 0 [[, ]]
 $for ARG , [[A$(ARG)]]);
@@ -281,6 +285,7 @@ class TRunnableAdapter<R(T::*)($for ARG , [[A$(ARG)]]) const>
 public:
     typedef NMpl::TTrueType IsMethod;
 
+    enum { Arity = 1 + $(ARITY) };
     typedef R (Signature)(const T*[[]]
 $if ARITY > 0[[, ]]
 $for ARG , [[A$(ARG)]]);

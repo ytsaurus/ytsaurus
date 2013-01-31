@@ -11,6 +11,7 @@
 #################################################################################
 # Specify available build options.
 
+option(YT_BUILD_ENABLE_BENCHMARKS  "Build benchmarks" TRUE)
 option(YT_BUILD_ENABLE_DRIVER      "Build driver" TRUE)
 option(YT_BUILD_ENABLE_EXPERIMENTS "Build experiments" TRUE)
 option(YT_BUILD_ENABLE_TESTS       "Build tests" TRUE)

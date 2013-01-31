@@ -103,6 +103,17 @@
  */
 #define PP_FOR_EACH(what, seq) PP_FOR_EACH_IMPL(what, seq)
 
+//! Declares an anonymous variable.
+#ifdef __COUNTER__
+#define PP_ANONYMOUS_VARIABLE(str) PP_CONCAT(str, __COUNTER__)
+#else
+#define PP_ANONYMOUS_VARIABLE(str) PP_CONCAT(str, __LINE__)
+#endif
+
+//! Insert prefix based on presence of additional arguments.
+#define PP_ONE_OR_NONE(a, ...) PP_THIRD(a, ## __VA_ARGS__, a)
+#define PP_THIRD(a, b, ...) __VA_ARGS__
+
 //! \cond Implementation
 #define PREPROCESSOR_GEN_H_
 #include "preprocessor-gen.h"
