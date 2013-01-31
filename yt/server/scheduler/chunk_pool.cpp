@@ -332,7 +332,7 @@ class TUnorderedChunkPool
     , public IChunkPool
 {
 public:
-    TUnorderedChunkPool(int jobCount)
+    explicit TUnorderedChunkPool(int jobCount)
         : JobCounter(jobCount)
     { }
 

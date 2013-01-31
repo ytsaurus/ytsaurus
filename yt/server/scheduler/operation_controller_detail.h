@@ -476,8 +476,6 @@ protected:
     void OnInputChunkFailed(const NChunkClient::TChunkId& chunkId);
 
 
-    // Abort is not a pipeline really :)
-
     void AbortTransactions();
 
     void OnOperationCompleted();
