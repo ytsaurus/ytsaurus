@@ -976,10 +976,10 @@ protected:
         SimpleSortPool = CreateUnorderedChunkPool(sortJobCount);
     }
 
-    virtual void OnOperationCompleted() override
+    virtual void DoOperationCompleted() override
     {
         YCHECK(CompletedPartitionCount == Partitions.size());
-        TOperationControllerBase::OnOperationCompleted();
+        TOperationControllerBase::DoOperationCompleted();
     }
 
     void RegisterOutputChunkTrees(TJobletPtr joblet, TPartition* partition)

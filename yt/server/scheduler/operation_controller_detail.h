@@ -41,9 +41,9 @@ public:
         TOperation* operation);
 
     virtual void Initialize() override;
-    virtual TFuture<void> Prepare() override;
-    virtual TFuture<void> Revive() override;
-    virtual TFuture<void> Commit() override;
+    virtual TFuture<TError> Prepare() override;
+    virtual TFuture<TError> Revive() override;
+    virtual TFuture<TError> Commit() override;
 
     virtual void OnJobRunning(TJobPtr job, const NProto::TJobStatus& status) override;
     virtual void OnJobCompleted(TJobPtr job) override;
@@ -81,9 +81,6 @@ protected:
     TCancelableContextPtr CancelableContext;
     IInvokerPtr CancelableControlInvoker;
     IInvokerPtr CancelableBackgroundInvoker;
-
-    // Remains True as long as the operation is not finished.
-    bool Active;
 
     // Remains True as long as the operation can schedule new jobs.
     bool Running;
@@ -435,7 +432,6 @@ protected:
     // - Check for empty inputs.
     // - Init chunk list pool.
     TFuture<void> CompletePreparation();
-    void OnPreparationCompleted();
 
     // Here comes the completion pipeline.
 
@@ -484,9 +480,11 @@ protected:
 
     void AbortTransactions();
 
+    void OnOperationCompleted();
+    virtual void DoOperationCompleted();
 
-    virtual void OnOperationCompleted();
-    virtual void OnOperationFailed(const TError& error);
+    void OnOperationFailed(const TError& error);
+    virtual void DoOperationFailed(const TError& error);
 
 
     // Unsorted helpers.

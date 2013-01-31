@@ -320,7 +320,7 @@ void TOperationControllerBase::TTask::AddLocalityHint(const Stroka& address)
 }
 
 void TOperationControllerBase::TTask::AddSequentialInputSpec(
-    NScheduler::NProto::TJobSpec* jobSpec,
+    TJobSpec* jobSpec,
     TJobletPtr joblet,
     bool enableTableIndex)
 {
@@ -333,7 +333,7 @@ void TOperationControllerBase::TTask::AddSequentialInputSpec(
 }
 
 void TOperationControllerBase::TTask::AddParallelInputSpec(
-    NScheduler::NProto::TJobSpec* jobSpec,
+    TJobSpec* jobSpec,
     TJobletPtr joblet,
     bool enableTableIndex)
 {
@@ -346,7 +346,7 @@ void TOperationControllerBase::TTask::AddParallelInputSpec(
 }
 
 void TOperationControllerBase::TTask::UpdateInputSpecTotals(
-    NScheduler::NProto::TJobSpec* jobSpec,
+    TJobSpec* jobSpec,
     TJobletPtr joblet)
 {
     auto list = joblet->InputStripeList;
@@ -359,7 +359,7 @@ void TOperationControllerBase::TTask::UpdateInputSpecTotals(
 }
 
 void TOperationControllerBase::TTask::AddFinalOutputSpecs(
-    NScheduler::NProto::TJobSpec* jobSpec,
+    TJobSpec* jobSpec,
     TJobletPtr joblet)
 {
     YCHECK(joblet->ChunkListIds.size() == Controller->OutputTables.size());
@@ -379,7 +379,7 @@ void TOperationControllerBase::TTask::AddFinalOutputSpecs(
 }
 
 void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
-    NScheduler::NProto::TJobSpec* jobSpec,
+    TJobSpec* jobSpec,
     TJobletPtr joblet)
 {
     YCHECK(joblet->ChunkListIds.size() == 1);
@@ -434,7 +434,6 @@ TOperationControllerBase::TOperationControllerBase(
     , CancelableContext(New<TCancelableContext>())
     , CancelableControlInvoker(CancelableContext->CreateInvoker(Host->GetControlInvoker()))
     , CancelableBackgroundInvoker(CancelableContext->CreateInvoker(Host->GetBackgroundInvoker()))
-    , Active(false)
     , Running(false)
     , TotalInputChunkCount(0)
     , TotalInputDataSize(0)
@@ -489,11 +488,8 @@ void TOperationControllerBase::Initialize()
         DoInitialize();
     } catch (const std::exception& ex) {
         LOG_INFO(ex, "Operation has failed to initialize");
-        Active = false;
         throw;
     }
-
-    Active = true;
 
     LOG_INFO("Operation initialized");
 }
@@ -503,91 +499,74 @@ void TOperationControllerBase::DoInitialize()
     Operation->SetMaxStdErrCount(Spec->MaxStdErrCount.Get(Config->MaxStdErrCount));
 }
 
-TFuture<void> TOperationControllerBase::Prepare()
+TFuture<TError> TOperationControllerBase::Prepare()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto this_ = MakeStrong(this);
     auto pipeline = StartAsyncPipeline(CancelableBackgroundInvoker)
-        ->Add(BIND(&TThis::StartIOTransactions, MakeStrong(this)))
-        ->Add(BIND(&TThis::OnIOTransactionsStarted, MakeStrong(this)), CancelableControlInvoker)
-        ->Add(BIND(&TThis::GetObjectIds, MakeStrong(this)))
-        ->Add(BIND(&TThis::OnObjectIdsReceived, MakeStrong(this)))
-        ->Add(BIND(&TThis::GetInputTypes, MakeStrong(this)))
-        ->Add(BIND(&TThis::OnInputTypesReceived, MakeStrong(this)))
-        ->Add(BIND(&TThis::RequestInputs, MakeStrong(this)))
-        ->Add(BIND(&TThis::OnInputsReceived, MakeStrong(this)))
-        ->Add(BIND(&TThis::CompletePreparation, MakeStrong(this)));
+        ->Add(BIND(&TThis::StartIOTransactions, this_))
+        ->Add(BIND(&TThis::OnIOTransactionsStarted, this_), CancelableControlInvoker)
+        ->Add(BIND(&TThis::GetObjectIds, this_))
+        ->Add(BIND(&TThis::OnObjectIdsReceived, this_))
+        ->Add(BIND(&TThis::GetInputTypes, this_))
+        ->Add(BIND(&TThis::OnInputTypesReceived, this_))
+        ->Add(BIND(&TThis::RequestInputs, this_))
+        ->Add(BIND(&TThis::OnInputsReceived, this_))
+        ->Add(BIND(&TThis::CompletePreparation, this_));
      pipeline = CustomizePreparationPipeline(pipeline);
      return pipeline
-        ->Add(BIND(&TThis::OnPreparationCompleted, MakeStrong(this)))
         ->Run()
-        .Apply(BIND([=] (TValueOrError<void> result) -> TFuture<void> {
+        .Apply(BIND([=] (TValueOrError<void> result) -> TError {
             if (result.IsOK()) {
-                if (this_->Active) {
-                    this_->Running = true;
-                }
-                return MakeFuture();
-            } else {
-                LOG_WARNING(result, "Operation has failed to prepare");
-                this_->Active = false;
-                this_->Host->OnOperationFailed(this_->Operation, result);
-                // This promise is never fulfilled.
-                return NewPromise<void>();
+                this_->Running = true;
             }
+            return result;
         }));
 }
 
-TFuture<void> TOperationControllerBase::Revive()
+TFuture<TError> TOperationControllerBase::Revive()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     try {
         Initialize();
     } catch (const std::exception& ex) {
-        OnOperationFailed(TError("Operation has failed to initialize")
-            << ex);
-        // This promise is never fulfilled.
-        return NewPromise<void>();
+        auto wrappedError = TError("Operation has failed to initialize")
+            << ex;
+        return MakeFuture(wrappedError);
     }
+
     return Prepare();
 }
 
-TFuture<void> TOperationControllerBase::Commit()
+TFuture<TError> TOperationControllerBase::Commit()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    YCHECK(Active);
-
-    LOG_INFO("Committing operation");
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto this_ = MakeStrong(this);
     return StartAsyncPipeline(CancelableBackgroundInvoker)
-        ->Add(BIND(&TThis::CommitOutputs, MakeStrong(this)))
-        ->Add(BIND(&TThis::OnOutputsCommitted, MakeStrong(this)))
+        ->Add(BIND(&TThis::CommitOutputs, this_))
+        ->Add(BIND(&TThis::OnOutputsCommitted, this_))
         ->Run()
-        .Apply(BIND([=] (TValueOrError<void> result) -> TFuture<void> {
-            Active = false;
-            if (result.IsOK()) {
-                LOG_INFO("Operation committed");
-                return MakeFuture();
-            } else {
-                LOG_WARNING(result, "Operation has failed to commit");
-                this_->Host->OnOperationFailed(this_->Operation, result);
-                return NewPromise<void>();
-            }
+        .Apply(BIND([] (TValueOrError<void> result) -> TError {
+            return result;
         }));
-}
-
-void TOperationControllerBase::OnJobStarted(TJobPtr job)
-{
-    UNUSED(job);
-
-    JobCounter.Start(1);
 }
 
 void TOperationControllerBase::OnJobRunning(TJobPtr job, const NProto::TJobStatus& status)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
     UNUSED(job);
     UNUSED(status);
+}
+
+void TOperationControllerBase::OnJobStarted(TJobPtr job)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+    UNUSED(job);
+
+    JobCounter.Start(1);
 }
 
 void TOperationControllerBase::OnJobCompleted(TJobPtr job)
@@ -676,7 +655,6 @@ void TOperationControllerBase::Abort()
     LOG_INFO("Aborting operation");
 
     Running = false;
-    Active = false;
     CancelableContext->Cancel();
 
     AbortTransactions();
@@ -686,11 +664,13 @@ void TOperationControllerBase::Abort()
 
 void TOperationControllerBase::OnNodeOnline(TExecNodePtr node)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
     UNUSED(node);
 }
 
 void TOperationControllerBase::OnNodeOffline(TExecNodePtr node)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
     UNUSED(node);
 }
 
@@ -996,26 +976,36 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
 
 TCancelableContextPtr TOperationControllerBase::GetCancelableContext()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return CancelableContext;
 }
 
 IInvokerPtr TOperationControllerBase::GetCancelableControlInvoker()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return CancelableControlInvoker;
 }
 
 IInvokerPtr TOperationControllerBase::GetCancelableBackgroundInvoker()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return CancelableBackgroundInvoker;
 }
 
 int TOperationControllerBase::GetPendingJobCount()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     return CachedPendingJobCount;
 }
 
 NProto::TNodeResources TOperationControllerBase::GetNeededResources()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     return CachedNeededResources;
 }
 
@@ -1023,7 +1013,13 @@ void TOperationControllerBase::OnOperationCompleted()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    YCHECK(Active);
+    CancelableControlInvoker->Invoke(BIND(&TThis::DoOperationCompleted, MakeStrong(this)));
+}
+
+void TOperationControllerBase::DoOperationCompleted()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     LOG_INFO("Operation completed");
 
     JobCounter.Finalize();
@@ -1037,13 +1033,14 @@ void TOperationControllerBase::OnOperationFailed(const TError& error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    if (!Active)
-        return;
+    CancelableControlInvoker->Invoke(BIND(&TThis::DoOperationFailed, MakeStrong(this), error));
+}
 
-    LOG_WARNING(error, "Operation failed");
+void TOperationControllerBase::DoOperationFailed(const TError& error)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
     Running = false;
-    Active = false;
 
     Host->OnOperationFailed(Operation, error);
 }
@@ -1739,7 +1736,7 @@ TFuture<void> TOperationControllerBase::CompletePreparation()
     // Check for empty inputs.
     if (TotalInputChunkCount == 0) {
         LOG_INFO("Empty input");
-        OnOperationCompleted();
+        CancelableControlInvoker->Invoke(BIND(&TThis::OnOperationCompleted, MakeStrong(this)));
         return NewPromise<void>();
     }
 
@@ -1751,14 +1748,6 @@ TFuture<void> TOperationControllerBase::CompletePreparation()
         OutputTransaction->GetId());
 
     return MakeFuture();
-}
-
-void TOperationControllerBase::OnPreparationCompleted()
-{
-    if (!Active)
-        return;
-
-    LOG_INFO("Preparation completed");
 }
 
 TAsyncPipeline<void>::TPtr TOperationControllerBase::CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline)
@@ -1980,6 +1969,8 @@ void TOperationControllerBase::RemoveJoblet(TJobPtr job)
 
 void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     BuildYsonMapFluently(consumer)
         .Item("jobs").BeginMap()
             .Item("total").Value(JobCounter.GetCompleted() + JobCounter.GetRunning() + GetPendingJobCount())
@@ -1994,6 +1985,8 @@ void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
 
 void TOperationControllerBase::BuildResultYson(IYsonConsumer* consumer)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     auto error = FromProto(Operation->Result().error());
     BuildYsonFluently(consumer)
         .BeginMap()

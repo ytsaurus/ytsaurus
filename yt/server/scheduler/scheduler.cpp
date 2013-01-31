@@ -15,7 +15,6 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/periodic_invoker.h>
 #include <ytlib/misc/string.h>
-#include <ytlib/misc/address.h>
 
 #include <ytlib/actions/action_queue.h>
 #include <ytlib/actions/async_pipeline.h>
@@ -215,26 +214,49 @@ public:
 
     virtual void OnOperationCompleted(TOperationPtr operation) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
-        GetControlInvoker()->Invoke(BIND(
-            &TThis::DoOperationCompleted,
-            MakeStrong(this),
-            operation));
+        if (operation->IsFinishedState() || operation->IsFinishingState()) {
+            // Operation is probably being aborted.
+            return;
+        }
+
+        LOG_INFO("Committing operation (OperationId: %s)",
+            ~ToString(operation->GetOperationId()));
+
+        // The operation may still have running jobs (e.g. those started speculatively).
+        AbortOperationJobs(operation);
+
+        operation->SetState(EOperationState::Completing);
+
+        auto controller = operation->GetController();
+        auto invoker = controller->GetCancelableControlInvoker();
+        auto this_ = MakeStrong(this);
+        StartAsyncPipeline(invoker)
+            ->Add(BIND(&TMasterConnector::FlushOperationNode, ~MasterConnector, operation))
+            ->Add(BIND(&IOperationController::Commit, controller))
+            ->Add(BIND(&TThis::CommitSchedulerTransactions, this_, operation))
+            ->Add(BIND(&TThis::OnSchedulerTransactionsCommitted, this_, operation))
+            ->Add(BIND(&TThis::SetOperationFinalState, this_, operation, EOperationState::Completed, TError()))
+            ->Add(BIND(&TMasterConnector::FinalizeOperationNode, ~MasterConnector, operation))
+            ->Add(BIND(&TThis::FinishOperation, this_, operation))
+            ->Run()
+            .Subscribe(BIND([=] (TValueOrError<void> result) {
+                if (!result.IsOK()) {
+                    this_->OnOperationFailed(operation, result);
+                }
+            }).Via(invoker));
     }
 
     virtual void OnOperationFailed(
         TOperationPtr operation,
         const TError& error) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
-        GetControlInvoker()->Invoke(BIND(
-            &TThis::DoOperationFailed,
-            MakeStrong(this),
+        DoOperationFailed(
             operation,
             EOperationState::Failing,
             EOperationState::Failed,
-            error));
+            error);
     }
 
 
@@ -390,10 +412,6 @@ private:
 
         LOG_INFO("Node online: %s", ~address);
 
-        // XXX(babenko): Force the scheduler to precache node's DNS address.
-        // Consider removing this.
-        TAddressResolver::Get()->Resolve(Stroka(GetServiceHostName(address)));
-
         auto node = New<TExecNode>(address);
         RegisterNode(node);
 
@@ -457,18 +475,37 @@ private:
             operation->SetController(controller);
             controller->Initialize();
         } catch (const std::exception& ex) {
-            return MakeFuture(TStartResult(TError("Operation has failed to start") << ex));
+            auto wrappedError = TError("Error initializing operation")
+                << ex;
+            LOG_ERROR(wrappedError);
+            return MakeFuture(TStartResult(wrappedError));
         }
 
-        YCHECK(operation->GetState() == EOperationState::Initializing);
-        operation->SetState(EOperationState::Preparing);
+        RegisterOperation(operation);
 
-        return StartAsyncPipeline(controller->GetCancelableControlInvoker())
-            ->Add(BIND(&TThis::StartSchedulerTransactions, MakeStrong(this), operation))
-            ->Add(BIND(&TThis::OnSchedulerTransactionStarted, MakeStrong(this), operation))
+        auto invoker = controller->GetCancelableControlInvoker();
+        auto this_ = MakeStrong(this);
+        return StartAsyncPipeline(invoker)
+            ->Add(BIND(&TThis::StartSchedulerTransactions, this_, operation))
+            ->Add(BIND(&TThis::OnSchedulerTransactionStarted, this_, operation))
             ->Add(BIND(&TMasterConnector::CreateOperationNode, ~MasterConnector, operation))
-            ->Add(BIND(&TThis::OnOperationNodeCreated, MakeStrong(this), operation))
-            ->Run();
+            ->Add(BIND(&TThis::OnOperationNodeCreated, this_, operation))
+            ->Run()
+            .Apply(BIND([=] (TValueOrError<void> result) -> TValueOrError<TOperationPtr> {
+                VERIFY_THREAD_AFFINITY(ControlThread);
+
+                if (!result.IsOK()) {
+                    auto wrappedError = TError("Error starting operation (OperationId: %s)",
+                        ~operation->GetOperationId().ToString())
+                        << result;
+                    LOG_ERROR(wrappedError);
+                    this_->SetOperationFinalState(operation, EOperationState::Failed, wrappedError);
+                    this_->FinishOperation(operation);
+                    return wrappedError;
+                }
+
+                return operation;
+            }).AsyncVia(invoker));
     }
 
     TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> StartSchedulerTransactions(TOperationPtr operation)
@@ -534,22 +571,32 @@ private:
             ~ToString(operation->GetOperationId()));
     }
 
-    TOperationPtr OnOperationNodeCreated(TOperationPtr operation)
+    void OnOperationNodeCreated(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        RegisterOperation(operation);
 
         // Run async preparation.
         LOG_INFO("Preparing operation (OperationId: %s)",
             ~operation->GetOperationId().ToString());
 
-        auto controller = operation->GetController();
-        controller->Prepare().Subscribe(
-            BIND(&TThis::OnOperationPrepared, MakeStrong(this), operation)
-                .Via(controller->GetCancelableControlInvoker()));
+        if (operation->GetState() != EOperationState::Initializing)
+            return;
+        operation->SetState(EOperationState::Preparing);
 
-        return operation;
+        auto controller = operation->GetController();
+        auto invoker = controller->GetCancelableControlInvoker();
+        auto this_ = MakeStrong(this);
+        StartAsyncPipeline(invoker)
+            ->Add(BIND(&IOperationController::Prepare, controller))
+            ->Add(BIND(&TThis::OnOperationPrepared, this_, operation))
+            ->Run()
+            .Subscribe(BIND([=] (TValueOrError<void> result) {
+                VERIFY_THREAD_AFFINITY(ControlThread);
+
+                if (!result.IsOK()) {
+                    this_->OnOperationFailed(operation, result);
+                }
+            }).Via(invoker));
     }
 
     void OnOperationPrepared(TOperationPtr operation)
@@ -558,7 +605,6 @@ private:
 
         if (operation->GetState() != EOperationState::Preparing)
             return;
-
         operation->SetState(EOperationState::Running);
 
         LOG_INFO("Operation has been prepared and is now running (OperationId: %s)",
@@ -584,7 +630,8 @@ private:
 
     void ReviveOperation(TOperationPtr operation)
     {
-        LOG_INFO("Reviving operation (OperationId: %s)", ~operation->GetOperationId().ToString());
+        LOG_INFO("Reviving operation (OperationId: %s)",
+            ~operation->GetOperationId().ToString());
 
         IOperationControllerPtr controller;
         try {
@@ -598,31 +645,35 @@ private:
         operation->SetController(controller);
         RegisterOperation(operation);
 
-        StartAsyncPipeline(controller->GetCancelableControlInvoker())
-            ->Add(BIND(&TThis::StartSchedulerTransactions, MakeStrong(this), operation))
-            ->Add(BIND(&TThis::OnSchedulerTransactionStarted, MakeStrong(this), operation))
+        auto invoker = controller->GetCancelableControlInvoker();
+        auto this_ = MakeStrong(this);
+        StartAsyncPipeline(invoker)
+            ->Add(BIND(&TThis::StartSchedulerTransactions, this_, operation))
+            ->Add(BIND(&TThis::OnSchedulerTransactionStarted, this_, operation))
             ->Add(BIND(&IOperationController::Revive, controller))
-            ->Run().Subscribe(BIND(&TThis::OnOperationRevived, MakeStrong(this), operation));
+            ->Add(BIND(&TThis::OnOperationRevived, this_, operation))
+            ->Run()
+            .Subscribe(BIND([=] (TValueOrError<void> result) {
+                if (!result.IsOK()) {
+                    LOG_ERROR("Operation has failed to revive (OperationId: %s)",
+                        ~ToString(operation->GetOperationId()));
+
+                    this_->SetOperationFinalState(operation, EOperationState::Failed, result);
+                    this_->MasterConnector->FinalizeRevivingOperationNode(operation);
+                    this_->UnregisterOperation(operation);
+                }
+            }).Via(invoker));
     }
 
-    void OnOperationRevived(TOperationPtr operation, TValueOrError<void> error)
+    void OnOperationRevived(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (operation->GetState() != EOperationState::Reviving)
-            return;
-
-        if (!error.IsOK()) {
-            SetOperationFinalState(operation, EOperationState::Failed, error);
-            MasterConnector->FinalizeRevivingOperationNode(operation);
-            return;
-        }
-
+        YCHECK(operation->GetState() == EOperationState::Reviving);
         operation->SetState(EOperationState::Running);
 
-        auto id = operation->GetOperationId();
         LOG_INFO("Operation has been revived and is now running (OperationId: %s)",
-            ~ToString(id));
+            ~ToString(operation->GetOperationId()));
     }
 
 
@@ -732,7 +783,6 @@ private:
     {
         YCHECK(Operations.insert(std::make_pair(operation->GetOperationId(), operation)).second);
         OperationStarted_.Fire(operation);
-
         LOG_DEBUG("Operation registered (OperationId: %s)", ~operation->GetOperationId().ToString());
     }
 
@@ -751,7 +801,6 @@ private:
     {
         YCHECK(Operations.erase(operation->GetOperationId()) == 1);
         OperationFinished_.Fire(operation);
-
         LOG_DEBUG("Operation unregistered (OperationId: %s)", ~operation->GetOperationId().ToString());
     }
 
@@ -776,7 +825,7 @@ private:
     }
 
 
-    void CommitSchedulerTransactions(TOperationPtr operation)
+    TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> CommitSchedulerTransactions(TOperationPtr operation)
     {
         TObjectServiceProxy proxy(GetMasterChannel());
         auto batchReq = proxy.ExecuteBatch();
@@ -797,17 +846,15 @@ private:
             batchReq->AddRequest(req, "commit_async_tx");
         }
 
-        batchReq->Invoke().Subscribe(
-            BIND(&TThis::OnSchedulerTransactionsCommitted, MakeStrong(this), operation)
-                .Via(GetControlInvoker()));
+        return batchReq->Invoke();
     }
 
     void OnSchedulerTransactionsCommitted(TOperationPtr operation, TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
         auto error = batchRsp->GetCumulativeError();
         if (!error.IsOK()) {
-            LOG_ERROR(error, "Error committing scheduler transactions");
-            return;
+            THROW_ERROR_EXCEPTION("Operation has failed to commit")
+                << error;
         }
 
         LOG_INFO("Scheduler transactions committed (OperationId: %s)",
@@ -1097,58 +1144,52 @@ private:
     }
 
 
-    void DoOperationCompleted(TOperationPtr operation)
+    void OnOperationCommitted(TOperationPtr operation, TValueOrError<void> result)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (operation->IsFinishedState() || operation->IsFinishingState()) {
-            // Operation is probably being aborted.
-            return;
-        }
+        LOG_INFO("Operation committed (OperationId: %s)",
+            ~ToString(operation->GetOperationId()));
+    }   
 
-        // The operation may still have running jobs (e.g. those started speculatively).
-        AbortOperationJobs(operation);
-
-        operation->SetState(EOperationState::Completing);
-
-        auto controller = operation->GetController();
-        StartAsyncPipeline(controller->GetCancelableControlInvoker())
-            ->Add(BIND(&TMasterConnector::FlushOperationNode, ~MasterConnector, operation))
-            ->Add(BIND(&IOperationController::Commit, controller))
-            ->Add(BIND(&TThis::SetOperationFinalState, MakeStrong(this), operation, EOperationState::Completed, TError()))
-            ->Add(BIND(&TThis::CommitSchedulerTransactions, MakeStrong(this), operation))
-            ->Add(BIND(&TMasterConnector::FinalizeOperationNode, ~MasterConnector, operation))
-            ->Add(BIND(&TThis::FinishOperation, MakeStrong(this), operation))
-            ->Run();
-    }
-
-    void DoOperationFailed(TOperationPtr operation, EOperationState pendingState, EOperationState finalState, const TError& error)
+    void DoOperationFailed(
+        TOperationPtr operation,
+        EOperationState pendingState,
+        EOperationState finalState,
+        const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (operation->IsFinishedState() || operation->GetState() == EOperationState::Failing) {
+        if (operation->IsFinishedState() ||
+            operation->GetState() == EOperationState::Failing ||
+            operation->GetState() == EOperationState::Aborting)
+        {
             // Safe to call OnOperationFailed multiple times, just ignore it.
             return;
         }
 
+        LOG_ERROR(error, "Operation failed (OperationId: %s)",
+            ~ToString(operation->GetOperationId()));
+
         auto pipeline = StartAsyncPipeline(CancelableConnectionControlInvoker);
-        if (!operation->IsFinishingState()) {
+        if (operation->GetState() != EOperationState::Completing) {
 
+            // Do not call FlushOperationNode for completing operations.
             AbortOperationJobs(operation);
-            operation->SetState(pendingState);
-
-            // Do not call FlushOperationNode if we are already in finishing state.
             pipeline = pipeline
                 ->Add(BIND(&TMasterConnector::FlushOperationNode, ~MasterConnector, operation));
         }
 
+        operation->SetState(pendingState);
+
         auto controller = operation->GetController();
+        auto this_ = MakeStrong(this);
         pipeline
             ->Add(BIND(&IOperationController::Abort, controller))
-            ->Add(BIND(&TThis::SetOperationFinalState, MakeStrong(this), operation, finalState, error))
-            ->Add(BIND(&TThis::AbortSchedulerTransactions, MakeStrong(this), operation))
+            ->Add(BIND(&TThis::SetOperationFinalState, this_, operation, finalState, error))
+            ->Add(BIND(&TThis::AbortSchedulerTransactions, this_, operation))
             ->Add(BIND(&TMasterConnector::FinalizeOperationNode, ~MasterConnector, operation))
-            ->Add(BIND(&TThis::FinishOperation, MakeStrong(this), operation))
+            ->Add(BIND(&TThis::FinishOperation, this_, operation))
             ->Run();
     }
 
@@ -1293,10 +1334,11 @@ private:
         ValidateConnected();
 
         auto operation = GetOperation(operationId);
+        auto this_ = MakeStrong(this);
         operation->GetFinished().Subscribe(
             timeout,
-            BIND(&TThis::OnOperationWaitResult, MakeStrong(this), context, operation, true),
-            BIND(&TThis::OnOperationWaitResult, MakeStrong(this), context, operation, false));
+            BIND(&TThis::OnOperationWaitResult, this_, context, operation, true),
+            BIND(&TThis::OnOperationWaitResult, this_, context, operation, false));
     }
 
     void OnOperationWaitResult(
