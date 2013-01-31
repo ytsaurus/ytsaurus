@@ -70,7 +70,7 @@ public:
         }
     }
 
-    //! Appends a single character and updated the internal cursor.
+    //! Appends a single character and updates the internal cursor.
     void AppendChar(char ch)
     {
         if (Cursor < End) {
