@@ -110,7 +110,7 @@ struct TExecuteRequest
 
     void SetInputFormat(INodePtr format)
     {
-        DriverRequest.InputFormat = ConvertTo<TFormat>(MoveRV(format));
+        DriverRequest.InputFormat = ConvertTo<TFormat>(std::move(format));
     }
 
     void SetOutputCompression(ECompression compression)
@@ -120,7 +120,7 @@ struct TExecuteRequest
 
     void SetOutputFormat(INodePtr format)
     {
-        DriverRequest.OutputFormat = ConvertTo<TFormat>(MoveRV(format));
+        DriverRequest.OutputFormat = ConvertTo<TFormat>(std::move(format));
     }
 
     void Prepare()
