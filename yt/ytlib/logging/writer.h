@@ -156,8 +156,10 @@ private:
 
     Stroka FileName;
     bool Initialized;
+    THolder<TMessageBuffer> Buffer;
     THolder<TFile> File;
     THolder<TBufferedFileOutput> FileOutput;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

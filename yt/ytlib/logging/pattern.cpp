@@ -9,78 +9,118 @@ namespace NLog {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka FormatDateTime(TInstant dateTime)
+namespace {
+
+// Ultra-fast specialized versions of AppendNumber.
+void AppendDigit(TMessageBuffer* out, int value)
 {
-    timeval time1 = dateTime.TimeVal();
-    tm time2;
-    dateTime.LocalTime(&time2);
-    return Sprintf("%04d-%02d-%02d %02d:%02d:%02d,%03d",
-                   time2.tm_year + 1900,
-                   time2.tm_mon + 1,
-                   time2.tm_mday,
-                   time2.tm_hour,
-                   time2.tm_min,
-                   time2.tm_sec,
-                   (int) time1.tv_usec / 1000);
+    out->AppendChar('0' + value);
 }
 
-Stroka FormatLevel(ELogLevel level)
+void AppendNumber2(TMessageBuffer* out, int value)
 {
-    switch (level)
-    {
-        case ELogLevel::Trace:   return "T";
-        case ELogLevel::Debug:   return "D";
-        case ELogLevel::Info:    return "I";
-        case ELogLevel::Warning: return "W";
-        case ELogLevel::Error:   return "E";
-        case ELogLevel::Fatal:   return "F";
-        default: YUNREACHABLE();
+    AppendDigit(out, value / 10);
+    AppendDigit(out, value % 10);
+}
+
+void AppendNumber3(TMessageBuffer* out, int value)
+{
+    AppendDigit(out, value / 100);
+    AppendDigit(out, (value / 10) % 10);
+    AppendDigit(out, value % 10);
+}
+
+void AppendNumber4(TMessageBuffer* out, int value)
+{
+    AppendDigit(out, value / 1000);
+    AppendDigit(out, (value / 100) % 10);
+    AppendDigit(out, (value / 10) % 10);
+    AppendDigit(out, value % 10);
+}
+
+void SetupFormatter(TPatternFormatter* formatter, const TLogEvent& event)
+{
+    TAutoPtr<TMessageBuffer> out(new TMessageBuffer());
+
+    out->Reset();
+    FormatLevel(~out, event.Level);
+    formatter->AddProperty("level", out->GetString());
+
+    out->Reset();
+    FormatDateTime(~out, event.DateTime);
+    formatter->AddProperty("datetime", out->GetString());
+
+    out->Reset();
+    FormatMessage(~out, event.Message);
+    formatter->AddProperty("message", out->GetString());
+
+    formatter->AddProperty("category", event.Category);
+
+    formatter->AddProperty("tab", "\t");
+
+    if (event.FileName) {
+        formatter->AddProperty("file", NFS::GetFileName(event.FileName));
+    }
+
+    if (event.Line != TLogEvent::InvalidLine) {
+        formatter->AddProperty("line", ToString(event.Line));
+    }
+
+    if (event.ThreadId != NThread::InvalidThreadId) {
+        formatter->AddProperty("thread", ToString(event.ThreadId));
+    }
+
+    if (event.Function) {
+        formatter->AddProperty("function", event.Function);
     }
 }
 
-Stroka FormatMessage(const Stroka& message)
-{
-    Stroka result;
-    result.reserve(message.length() + 10);
-    for (int index = 0; index < static_cast<int>(message.length()); ++index) {
-        switch (message[index]) {
-            case '\n':
-                result.append("\\n");
-                break;
+} // namespace
 
-            default:
-                result.append(message[index]);
-                break;
+void FormatDateTime(TMessageBuffer* out, TInstant dateTime)
+{
+    timeval timeVal = dateTime.TimeVal();
+    tm localTime;
+    dateTime.LocalTime(&localTime);
+
+    AppendNumber4(out, localTime.tm_year + 1900);
+    out->AppendChar('-');
+    AppendNumber2(out, localTime.tm_mon + 1);
+    out->AppendChar('-');
+    AppendNumber2(out, localTime.tm_mday);
+    out->AppendChar(' ');
+    AppendNumber2(out, localTime.tm_hour);
+    out->AppendChar(':');
+    AppendNumber2(out, localTime.tm_min);
+    out->AppendChar(':');
+    AppendNumber2(out, localTime.tm_sec);
+    out->AppendChar(',');
+    AppendNumber3(out, static_cast<int>(timeVal.tv_usec / 1000));
+}
+
+void FormatLevel(TMessageBuffer* out, ELogLevel level)
+{
+    static char chars[] = "?TDIWEF?";
+    out->AppendChar(chars[level.ToValue()]);
+}
+
+void FormatMessage(TMessageBuffer* out, const Stroka& message)
+{
+    for (auto current = message.begin(); current != message.end(); ++current) {
+        char ch = *current;
+        if (ch == '\n') {
+            out->AppendString("\\n");
+        } else {
+            out->AppendChar(ch);
+
         }
     }
-    return result;
 }
 
-static void SetupFormatter(TPatternFormatter& formatter, const TLogEvent& event)
-{
-    formatter.AddProperty("level", FormatLevel(event.Level));
-    formatter.AddProperty("datetime", FormatDateTime(event.DateTime));
-    formatter.AddProperty("message", FormatMessage(event.Message));
-    formatter.AddProperty("category", event.Category);
-    formatter.AddProperty("tab", "\t");
-    if (event.FileName) {
-        formatter.AddProperty("file", NFS::GetFileName(event.FileName));
-    }
-    if (event.Line != TLogEvent::InvalidLine) {
-        formatter.AddProperty("line", ToString(event.Line));
-    }
-    if (event.ThreadId != NThread::InvalidThreadId) {
-        formatter.AddProperty("thread", ToString(event.ThreadId));
-    }
-    if (event.Function) {
-        formatter.AddProperty("function", event.Function);
-    }
-}
-
-Stroka FormatEvent(const TLogEvent& event, Stroka pattern)
+Stroka FormatEvent(const TLogEvent& event, const Stroka& pattern)
 {
     TPatternFormatter formatter;
-    SetupFormatter(formatter, event);
+    SetupFormatter(&formatter, event);
     return formatter.Format(pattern);
 }
 
