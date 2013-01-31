@@ -387,7 +387,11 @@ public:
 
     virtual int GetPendingJobCount() const override
     {
-        return IsCompleted() ? 0 : JobCounter.GetPending();
+        // NB: Pending data size can be zero while JobCounter indicates
+        // that some jobs are pending. This may happen due to unevenness
+        // of workload partitioning and cause the task to start less jobs than
+        // suggested.
+        return GetPendingDataSize() == 0 ? 0 : JobCounter.GetPending();
     }
 
     virtual i64 GetLocality(const Stroka& address) const override
