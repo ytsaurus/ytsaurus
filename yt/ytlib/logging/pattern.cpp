@@ -38,21 +38,29 @@ void AppendNumber4(TMessageBuffer* out, int value)
     AppendDigit(out, value % 10);
 }
 
+// And here comes the old slow stuff.
+using ::ToString;
+
+Stroka ToString(const TMessageBuffer& out)
+{
+    return Stroka(out.GetData(), out.GetBytesWritten());
+}
+
 void SetupFormatter(TPatternFormatter* formatter, const TLogEvent& event)
 {
     TAutoPtr<TMessageBuffer> out(new TMessageBuffer());
 
     out->Reset();
     FormatLevel(~out, event.Level);
-    formatter->AddProperty("level", out->GetString());
+    formatter->AddProperty("level", ToString(*out));
 
     out->Reset();
     FormatDateTime(~out, event.DateTime);
-    formatter->AddProperty("datetime", out->GetString());
+    formatter->AddProperty("datetime", ToString(*out));
 
     out->Reset();
     FormatMessage(~out, event.Message);
-    formatter->AddProperty("message", out->GetString());
+    formatter->AddProperty("message", ToString(*out));
 
     formatter->AddProperty("category", event.Category);
 

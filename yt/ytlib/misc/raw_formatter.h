@@ -2,8 +2,6 @@
 
 #include <algorithm>
 
-#include <util/generic/stroka.h>
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,12 +38,6 @@ public:
     const char* GetData() const
     {
         return Begin;
-    }
-
-    //! Copies all written bytes into a string.
-    Stroka GetString() const
-    {
-        return Stroka(Begin, Cursor - Begin);
     }
 
     //! Returns the number of bytes written in the buffer.
