@@ -153,7 +153,7 @@ TTypedBindState;
             location,
 #endif
             NYT::NDetail::MakeRunnable(functor)
-$if ARITY > 0 [[, ]] $for ARG , [[ForwardRV<P$(ARG)>(p$(ARG))]]));
+$if ARITY > 0 [[, ]] $for ARG , [[std::forward<P$(ARG)>(p$(ARG))]]));
 }
 
 ]]  $$ for ARITY
