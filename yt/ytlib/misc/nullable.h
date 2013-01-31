@@ -17,7 +17,8 @@ struct TNullHelper
 
 typedef int NDetail::TNullHelper::* TNull;
 
-const TNull Null = static_cast<TNull>(nullptr);
+// TODO(babenko): replace NULL with nullptr once all of our compilers support it natively
+const TNull Null = static_cast<TNull>(NULL);
 
 ////////////////////////////////////////////////////////////////////////////////
 
