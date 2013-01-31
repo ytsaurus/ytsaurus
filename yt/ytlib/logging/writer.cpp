@@ -110,6 +110,7 @@ void TFileLogWriter::Reload()
 TRawFileLogWriter::TRawFileLogWriter(const Stroka& fileName)
     : FileName(fileName)
     , Initialized(false)
+    , Buffer(new TMessageBuffer())
 { }
 
 void TRawFileLogWriter::EnsureInitialized()
@@ -136,22 +137,42 @@ void TRawFileLogWriter::EnsureInitialized()
         "Log file opened"));
 }
 
-
 void TRawFileLogWriter::Write(const TLogEvent& event)
 {
     EnsureInitialized();
-    if (~FileOutput) {
-        *FileOutput
-            << FormatDateTime(event.DateTime) << "\t"
-            << FormatLevel(event.Level) << "\t"
-            << event.Category << "\t"
-            << FormatMessage(event.Message) 
-            << "\t"
-            << event.FileName << "\t"
-            << event.Line << "\t"
-            << event.Function << "\t"
-            << event.ThreadId << Endl;
+
+    if (!FileOutput.Get())
+        return;
+
+    auto* buffer = ~Buffer;
+    buffer->Reset();
+
+    FormatDateTime(buffer, event.DateTime);
+    buffer->AppendChar('\t');
+    FormatLevel(~Buffer, event.Level);
+    buffer->AppendChar('\t');
+    buffer->AppendString(~event.Category);
+    buffer->AppendChar('\t');
+    FormatMessage(buffer, event.Message);
+    buffer->AppendChar('\t');
+    if (event.FileName) {
+        buffer->AppendString(event.FileName);
     }
+    buffer->AppendChar('\t');
+    if (event.Line >= 0) {
+        buffer->AppendNumber(event.Line);
+    }
+    buffer->AppendChar('\t');
+    if (event.Function) {
+        buffer->AppendString(event.Function);
+    }
+    buffer->AppendChar('\t');
+    if (event.ThreadId != 0) {
+        buffer->AppendNumber(event.ThreadId, 16);
+    }
+    buffer->AppendChar('\n');
+
+    FileOutput->Write(buffer->GetData(), buffer->GetBytesWritten());
 }
 
 void TRawFileLogWriter::Flush()
@@ -164,9 +185,11 @@ void TRawFileLogWriter::Flush()
 void TRawFileLogWriter::Reload()
 {
     Flush();
+
     if (~File) {
         File->Close();
     }
+
     Initialized = false;
 }
 
