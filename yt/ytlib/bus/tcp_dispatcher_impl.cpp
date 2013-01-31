@@ -33,7 +33,7 @@ TNetworkAddress GetLocalBusAddress(int port)
     return TNetworkAddress(
         *reinterpret_cast<sockaddr*>(&sockAddr),
         sizeof (sockAddr.sun_family) +
-        sizeof (char) + 
+        sizeof (char) +
         name.length());
 #endif
 }
@@ -96,21 +96,16 @@ void TTcpDispatcher::TImpl::ThreadMain()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
+    // NB: never ever use logging or any other YT subsystems here.
+    // Bus is always started first to get advatange of the root privileges.
+
     NThread::SetCurrentThreadName("Bus");
 
-    LOG_INFO("TCP bus dispatcher started");
-
-    if (NThread::RaiseCurrentThreadPriority()) {
-        LOG_INFO("TCP bus dispatcher thread priority raised successfully");
-    } else {
-        LOG_WARNING("Failed to raise TCP bus dispatcher thread priority");
-    }
+    NThread::RaiseCurrentThreadPriority();
 
     ThreadStarted.Set();
 
     EventLoop.run(0);
-
-    LOG_INFO("TCP bus dispatcher stopped");
 }
 
 void TTcpDispatcher::TImpl::OnStop(ev::async&, int)
