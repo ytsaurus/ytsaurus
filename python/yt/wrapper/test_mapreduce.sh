@@ -376,6 +376,15 @@ test_unexisting_input_tables()
     check "" "`./mapreduce -read ignat/output`"
 }
 
+test_copy_files()
+{
+    echo -e "MY CONTENT" >test_file
+    cat test_file | ./mapreduce -upload "ignat/my_file"
+    ./mapreduce -copy -src "ignat/my_file" -dst "ignat/other_file"
+    check "MY CONTENT" "`./mapreduce -download ignat/other_file`"
+    rm test_file
+}
+
 prepare_table_files
 test_sortby_reduceby
 test_base_functionality
@@ -400,5 +409,6 @@ test_custom_fs_rs
 test_write_with_tx
 test_table_file
 test_unexisting_input_tables
+test_copy_files
 
 rm -f table_file big_file
