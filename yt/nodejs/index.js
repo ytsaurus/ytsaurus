@@ -1,3 +1,4 @@
+exports.Pause = require("./lib/utils").Pause;
 exports.YtApplication = require("./lib/application").that;
 exports.YtAuthenticationApplication = require("./lib/authentication").YtAuthenticationApplication;
 exports.YtBlackbox = require("./lib/authentication").YtBlackbox;
