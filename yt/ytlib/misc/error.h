@@ -16,7 +16,8 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#undef GetMessage // Fucking WinAPI
+// WinAPI is great.
+#undef GetMessage
 
 class TError
 {
