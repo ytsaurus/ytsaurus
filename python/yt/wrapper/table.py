@@ -39,9 +39,9 @@ class TablePath(object):
             require(prefix,
                     YtError("Path (%s) should be absolute or you should specify prefix" % self.name))
             require(prefix.startswith("//"),
-                    YtError("PREFIX '%s' should starts with //" % prefix))
+                    YtError("PREFIX '%s' should start with //" % prefix))
             require(prefix.endswith("/"),
-                    YtError("PREFIX '%s' should ends with /" % prefix))
+                    YtError("PREFIX '%s' should end with /" % prefix))
             # TODO(ignat): refactor YsonString to fix this hack
             attributes = self.name.attributes
             self.name = YsonString(prefix + self.name)

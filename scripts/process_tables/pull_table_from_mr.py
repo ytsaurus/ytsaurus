@@ -26,6 +26,7 @@ def main():
     parser.add_argument("--codec")
     parser.add_argument("--force", action="store_true", default=False)
     parser.add_argument("--fastbone", action="store_true", default=False)
+    parser.add_argument("--debug", action="store_true", default=False)
     parser.add_argument("--pool")
 
     args = parser.parse_args()
@@ -97,15 +98,18 @@ def main():
             command = 'curl "http://${{server}}/table/{}?subkey=1&lenval=1&startindex=${{start}}&endindex=${{end}}"'.format(quote_plus(table))
         else:
             command = 'USER=yt MR_USER=tmp ./mapreduce -server $server {} -read {}:[$start,$end] -lenval -subkey'.format(use_fastbone, table)
+
+        debug_str = 'echo "{}" 1>&2; '.format(command.replace('"', "'")) if args.debug else ''
+
         yt.run_map(
                 'while true; do '
                     'IFS="\t" read -r server start end; '
                     'if [ "$?" != "0" ]; then break; fi; '
                     'set -e; '
-                    'echo "{0}" 1>&2; '
-                    '{0}; '
+                    '{0}'
+                    '{1}; '
                     'set +e; '
-                'done;'.format(command),
+                'done;'.format(debug_str, command),
                 temp_table,
                 destination,
                 input_format=yt.YamrFormat(lenval=False, has_subkey=True),

@@ -12,7 +12,6 @@ import logger
 import string
 import simplejson as json
 from datetime import date
-from termcolor import colored
 
 def iter_lines(response):
     """
@@ -106,7 +105,8 @@ def make_request(command_name, params,
         Returns response content, raw_response option force
         to return request.Response instance"""
     requests.adapters.DEFAULT_RETRIES = 10
-    make_request.SHOW_TOKEN_WARNING = False
+    if not "SHOW_TOKEN_WARNING" in make_request.__dict__:
+        make_request.SHOW_TOKEN_WARNING = False
     def print_info(msg, *args, **kwargs):
         # Verbose option is used for debugging because it is more
         # selective than logging
@@ -172,20 +172,10 @@ def make_request(command_name, params,
     if token is None:
         if not make_request.SHOW_TOKEN_WARNING:
             make_request.SHOW_TOKEN_WARNING = True
-            print_message = False
-            exit = False
-            color = None
-            if date.today() > date(2013, 02, 01):
-                print_message = True
-                color = "yellow"
-            if date.today() > date(2013, 02, 07):
-                print_message = True
-                exit = True
-                color = "red"
-            if print_message:
-                print >>sys.stderr, colored(color, "Please obtain an authentication token as soon as possible.")
+            if date.today() >= date(2013, 02, 01):
+                print >>sys.stderr, "Please obtain an authentication token as soon as possible."
                 print >>sys.stderr, "Refer to http://proxy.yt.yandex.net/auth/ for instructions."
-                if exit:
+                if date.today() >= date(2013, 02, 07):
                     sys.exit(1)
     else:
         headers["Authorization"] = "OAuth " + token
