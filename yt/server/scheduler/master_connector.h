@@ -51,6 +51,7 @@ public:
     DECLARE_SIGNAL(void(), MasterDisconnected);
 
     DECLARE_SIGNAL(void(TOperationPtr operation), UserTransactionAborted);
+    DECLARE_SIGNAL(void(TOperationPtr operation), SchedulerTransactionAborted);
 
 private:
     class TImpl;

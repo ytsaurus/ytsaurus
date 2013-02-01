@@ -97,14 +97,6 @@ protected:
     // Increments each time a new job is scheduled.
     TIdGenerator<int> JobIndexGenerator;
 
-    // The transaction for reading input tables (nested inside scheduler transaction).
-    // These tables are locked with Snapshot mode.
-    NTransactionClient::ITransactionPtr InputTransaction;
-
-    // The transaction for writing output tables (nested inside scheduler transaction).
-    // These tables are locked with Shared mode.
-    NTransactionClient::ITransactionPtr OutputTransaction;
-
     struct TTableBase
     {
         NYPath::TRichYPath Path;
@@ -383,28 +375,20 @@ protected:
     // Here comes the preparation pipeline.
 
     // Round 1:
-    // - Start input transaction.
-    // - Start output transaction.
-
-    NObjectClient::TObjectServiceProxy::TInvExecuteBatch StartIOTransactions();
-
-    void OnIOTransactionsStarted(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
-
-    // Round 2:
     // - Get input table ids
     // - Get output table ids
     NObjectClient::TObjectServiceProxy::TInvExecuteBatch GetObjectIds();
 
     void OnObjectIdsReceived(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
-    // Round 3:
+    // Round 2:
     // - Request file types
     // - Check that input and output are tables
     NObjectClient::TObjectServiceProxy::TInvExecuteBatch GetInputTypes();
 
     void OnInputTypesReceived(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
-    // Round 4:
+    // Round 3:
     // - Fetch input tables.
     // - Lock input tables.
     // - Lock output tables.
@@ -433,16 +417,16 @@ protected:
     // - Init chunk list pool.
     TFuture<void> CompletePreparation();
 
+
     // Here comes the completion pipeline.
 
     // Round 1.
+    // - Sort parts of output, if needed.
     // - Attach chunk trees.
-    // - Commit input transaction.
-    // - Commit output transaction.
-    // - Commit scheduler transaction.
 
-    NObjectClient::TObjectServiceProxy::TInvExecuteBatch CommitOutputs();
-    void OnOutputsCommitted(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
+    NObjectClient::TObjectServiceProxy::TInvExecuteBatch CommitResults();
+    void OnResultsCommitted(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
+
 
     virtual void DoInitialize();
 

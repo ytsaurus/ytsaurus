@@ -21,11 +21,15 @@ void BuildOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* con
     auto userTransaction = operation->GetUserTransaction();
     auto syncTransaction = operation->GetSyncSchedulerTransaction();
     auto asyncTransaction = operation->GetAsyncSchedulerTransaction();
+    auto inputTransaction = operation->GetInputTransaction();
+    auto outputTransaction = operation->GetOutputTransaction();
     BuildYsonMapFluently(consumer)
         .Item("operation_type").Value(operation->GetType())
         .Item("user_transaction_id").Value(userTransaction ? userTransaction->GetId() : NullTransactionId)
         .Item("sync_scheduler_transaction_id").Value(syncTransaction ? syncTransaction->GetId() : NullTransactionId)
         .Item("async_scheduler_transaction_id").Value(asyncTransaction ? asyncTransaction->GetId() : NullTransactionId)
+        .Item("input_transaction_id").Value(inputTransaction ? inputTransaction->GetId() : NullTransactionId)
+        .Item("output_transaction_id").Value(outputTransaction ? outputTransaction->GetId() : NullTransactionId)
         .Item("state").Value(FormatEnum(operation->GetState()))
         .Item("start_time").Value(operation->GetStartTime())
         .Item("spec").Node(operation->GetSpec());

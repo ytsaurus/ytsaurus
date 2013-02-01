@@ -190,6 +190,7 @@ public:
     DEFINE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
     DEFINE_SIGNAL(void(), MasterDisconnected);
     DEFINE_SIGNAL(void(TOperationPtr operation), UserTransactionAborted);
+    DEFINE_SIGNAL(void(TOperationPtr operation), SchedulerTransactionAborted);
 
 private:
     TSchedulerConfigPtr Config;
@@ -698,21 +699,28 @@ private:
         YCHECK(Connected);
 
         // Collect all transactions that are used by currently running operations.
-        yhash_set<TTransactionId> transactionIdsSet;
+        yhash_set<TTransactionId> watchSet;
+        auto watchTransaction = [&] (ITransactionPtr transaction) {
+            if (transaction) {
+                watchSet.insert(transaction->GetId());
+            }
+        };
+
         auto operations = Bootstrap->GetScheduler()->GetOperations();
         FOREACH (auto operation, operations) {
             if (operation->GetState() == EOperationState::Running) {
-                auto transaction = operation->GetUserTransaction();
-                if (transaction) {
-                    transactionIdsSet.insert(transaction->GetId());
-                }
+                watchTransaction(operation->GetUserTransaction());
+                watchTransaction(operation->GetSyncSchedulerTransaction());
+                watchTransaction(operation->GetAsyncSchedulerTransaction());
+                watchTransaction(operation->GetInputTransaction());
+                watchTransaction(operation->GetOutputTransaction());
             }
         }
 
         // Invoke GetId verbs for these transactions to see if they are alive.
         std::vector<TTransactionId> transactionIdsList;
         auto batchReq = StartBatchRequest();
-        FOREACH (const auto& id, transactionIdsSet) {
+        FOREACH (const auto& id, watchSet) {
             auto checkReq = TObjectYPathProxy::GetId(FromObjectId(id));
             transactionIdsList.push_back(id);
             batchReq->AddRequest(checkReq, "check_tx");
@@ -751,17 +759,29 @@ private:
             }
         }
 
-        // Collect the list of operations corresponding to dead transactions.
+        auto isDead = [&] (ITransactionPtr transaction) {
+            return transaction && deadTransactionIds.find(transaction->GetId()) != deadTransactionIds.end();
+        };
+
+        // Check every operation is it references a dead transaction.
+        // If so, raise an appropriate notification.
         auto operations = Bootstrap->GetScheduler()->GetOperations();
         FOREACH (auto operation, operations) {
             if (operation->GetState() == EOperationState::Running) {
-                auto transaction = operation->GetUserTransaction();
-                if (transaction && deadTransactionIds.find(transaction->GetId()) != deadTransactionIds.end()) {
+                if (isDead(operation->GetUserTransaction())) {
                     UserTransactionAborted_.Fire(operation);
+                }
+                if (isDead(operation->GetSyncSchedulerTransaction()) ||
+                    isDead(operation->GetAsyncSchedulerTransaction()) ||
+                    isDead(operation->GetInputTransaction()) ||
+                    isDead(operation->GetOutputTransaction()))
+                {
+                    SchedulerTransactionAborted_.Fire(operation);
                 }
             }
         }
     }
+
 
     TUpdateList* CreateUpdateList(TOperationPtr operation)
     {
@@ -1125,6 +1145,7 @@ DELEGATE_SIGNAL(TMasterConnector, void(TObjectServiceProxy::TRspExecuteBatchPtr)
 DELEGATE_SIGNAL(TMasterConnector, void(const TMasterHandshakeResult& result), MasterConnected, *Impl);
 DELEGATE_SIGNAL(TMasterConnector, void(), MasterDisconnected, *Impl);
 DELEGATE_SIGNAL(TMasterConnector, void(TOperationPtr operation), UserTransactionAborted, *Impl)
+DELEGATE_SIGNAL(TMasterConnector, void(TOperationPtr operation), SchedulerTransactionAborted, *Impl)
 
 ////////////////////////////////////////////////////////////////////
 

@@ -30,7 +30,7 @@ class TOperation
 
     //! Transaction used for maintaining operation inputs and outputs.
     /*!
-     *  SyncScheduler transaction is nested inside UserTransaction, if any.
+     *  SyncSchedulerTransaction is nested inside UserTransaction, if any.
      *  Input and output transactions are nested inside SyncSchedulerTransaction.
      */
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::ITransactionPtr, SyncSchedulerTransaction);
@@ -40,6 +40,18 @@ class TOperation
      *  Not nested inside any other transaction.
      */
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::ITransactionPtr, AsyncSchedulerTransaction);
+
+    //! Transaction used for taking snapshot of operation input.
+    /*!
+     *  InputTransaction is nested inside SyncSchedulerTransaction.
+     */
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::ITransactionPtr, InputTransaction);
+
+    //! Transaction used for locking and writing operation output.
+    /*!
+     *  OutputTransaction is nested inside SyncSchedulerTransaction.
+     */
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::ITransactionPtr, OutputTransaction);
 
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, Spec);
 

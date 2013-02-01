@@ -505,8 +505,6 @@ TFuture<TError> TOperationControllerBase::Prepare()
 
     auto this_ = MakeStrong(this);
     auto pipeline = StartAsyncPipeline(CancelableBackgroundInvoker)
-        ->Add(BIND(&TThis::StartIOTransactions, this_))
-        ->Add(BIND(&TThis::OnIOTransactionsStarted, this_), CancelableControlInvoker)
         ->Add(BIND(&TThis::GetObjectIds, this_))
         ->Add(BIND(&TThis::OnObjectIdsReceived, this_))
         ->Add(BIND(&TThis::GetInputTypes, this_))
@@ -546,8 +544,8 @@ TFuture<TError> TOperationControllerBase::Commit()
 
     auto this_ = MakeStrong(this);
     return StartAsyncPipeline(CancelableBackgroundInvoker)
-        ->Add(BIND(&TThis::CommitOutputs, this_))
-        ->Add(BIND(&TThis::OnOutputsCommitted, this_))
+        ->Add(BIND(&TThis::CommitResults, this_))
+        ->Add(BIND(&TThis::OnResultsCommitted, this_))
         ->Run()
         .Apply(BIND([] (TValueOrError<void> result) -> TError {
             return result;
@@ -1061,11 +1059,11 @@ void TOperationControllerBase::AbortTransactions()
     }
 }
 
-TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs()
+TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitResults()
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
-    LOG_INFO("Committing outputs");
+    LOG_INFO("Committing results");
 
     auto batchReq = ObjectProxy.ExecuteBatch();
 
@@ -1146,123 +1144,23 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs()
                 ~table.Path.GetPath(),
                 ~ConvertToYsonString(table.KeyColumns.Get(), EYsonFormat::Text).Data());
             auto req = TTableYPathProxy::SetSorted(path);
-            SetTransactionId(req, OutputTransaction);
+            SetTransactionId(req, Operation->GetOutputTransaction());
             ToProto(req->mutable_key_columns(), table.KeyColumns.Get());
             NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "set_out_sorted");
         }
     }
 
-    {
-        auto req = TTransactionYPathProxy::Commit(FromObjectId(InputTransaction->GetId()));
-        NMetaState::GenerateRpcMutationId(req);
-        batchReq->AddRequest(req, "commit_in_tx");
-    }
-
-    {
-        auto req = TTransactionYPathProxy::Commit(FromObjectId(OutputTransaction->GetId()));
-        NMetaState::GenerateRpcMutationId(req);
-        batchReq->AddRequest(req, "commit_out_tx");
-    }
-
-    // NB: Scheduler transaction is committed by TScheduler.
-    // We don't need pings any longer, detach the transactions.
-    InputTransaction->Detach();
-    OutputTransaction->Detach();
-
     return batchReq->Invoke();
 }
 
-void TOperationControllerBase::OnOutputsCommitted(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+void TOperationControllerBase::OnResultsCommitted(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
-    THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error committing outputs");
+    THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError(), "Error committing results");
 
-    {
-        auto rsps = batchRsp->GetResponses("attach_out");
-        FOREACH (auto rsp, rsps) {
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error attaching chunk trees");
-        }
-    }
-
-    {
-        auto rsps = batchRsp->GetResponses("set_out_sorted");
-        FOREACH (auto rsp, rsps) {
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error marking output table as sorted");
-        }
-    }
-
-    {
-        auto rsp = batchRsp->GetResponse("commit_in_tx");
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error committing input transaction");
-    }
-
-    {
-        auto rsp = batchRsp->GetResponse("commit_out_tx");
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error committing output transaction");
-    }
-
-    LOG_INFO("Outputs committed");
-}
-
-TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::StartIOTransactions()
-{
-    VERIFY_THREAD_AFFINITY(BackgroundThread);
-
-    LOG_INFO("Starting IO transactions");
-
-    auto batchReq = ObjectProxy.ExecuteBatch();
-    const auto& parentTransactionId = Operation->GetSyncSchedulerTransaction()->GetId();
-
-    {
-        auto req = TTransactionYPathProxy::CreateObject(FromObjectId(parentTransactionId));
-        req->set_type(EObjectType::Transaction);
-        auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
-        reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
-        NMetaState::GenerateRpcMutationId(req);
-        batchReq->AddRequest(req, "start_in_tx");
-    }
-
-    {
-        auto req = TTransactionYPathProxy::CreateObject(FromObjectId(parentTransactionId));
-        req->set_type(EObjectType::Transaction);
-        auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
-        reqExt->set_enable_uncommitted_accounting(false);
-        reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
-        NMetaState::GenerateRpcMutationId(req);
-        batchReq->AddRequest(req, "start_out_tx");
-    }
-
-    return batchReq->Invoke();
-}
-
-void TOperationControllerBase::OnIOTransactionsStarted(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error starting IO transactions");
-
-    auto transactionManager = Host->GetTransactionManager();
-    {
-        auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_in_tx");
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting input transaction");
-        auto id = TTransactionId::FromProto(rsp->object_id());
-        LOG_INFO("Input transaction is %s", ~id.ToString());
-        TTransactionAttachOptions options(id);
-        options.Ping = true;
-        InputTransaction = transactionManager->Attach(options);
-    }
-
-    {
-        auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_out_tx");
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting output transaction");
-        auto id = TTransactionId::FromProto(rsp->object_id());
-        LOG_INFO("Output transaction is %s", ~id.ToString());
-        TTransactionAttachOptions options(id);
-        options.Ping = true;
-        OutputTransaction = transactionManager->Attach(options);
-    }
+    LOG_INFO("Results committed");
 }
 
 TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::GetObjectIds()
@@ -1275,13 +1173,13 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::GetObjectIds()
 
     FOREACH (const auto& table, InputTables) {
         auto req = TObjectYPathProxy::GetId(table.Path.GetPath());
-        SetTransactionId(req, InputTransaction);
+        SetTransactionId(req, Operation->GetInputTransaction());
         batchReq->AddRequest(req, "get_in_id");
     }
 
     FOREACH (const auto& table, OutputTables) {
         auto req = TObjectYPathProxy::GetId(table.Path.GetPath());
-        SetTransactionId(req, InputTransaction);
+        SetTransactionId(req, Operation->GetInputTransaction());
         batchReq->AddRequest(req, "get_out_id");
     }
 
@@ -1334,20 +1232,20 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::GetInputTypes()
 
     FOREACH (const auto& table, InputTables) {
         auto req = TObjectYPathProxy::Get(FromObjectId(table.ObjectId) + "/@type");
-        SetTransactionId(req, InputTransaction);
+        SetTransactionId(req, Operation->GetInputTransaction());
         batchReq->AddRequest(req, "get_input_types");
     }
 
     FOREACH (const auto& table, OutputTables) {
         auto req = TObjectYPathProxy::Get(FromObjectId(table.ObjectId) + "/@type");
-        SetTransactionId(req, InputTransaction);
+        SetTransactionId(req, Operation->GetInputTransaction());
         batchReq->AddRequest(req, "get_output_types");
     }
 
     FOREACH (const auto& pair, GetFilePaths()) {
         const auto& path = pair.first;
         auto req = TObjectYPathProxy::Get(path.GetPath() + "/@type");
-        SetTransactionId(req, InputTransaction);
+        SetTransactionId(req, Operation->GetInputTransaction());
         batchReq->AddRequest(req, "get_file_types");
     }
 
@@ -1430,7 +1328,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
         auto path = FromObjectId(table.ObjectId);
         {
             auto req = TCypressYPathProxy::Lock(path);
-            SetTransactionId(req, InputTransaction);
+            SetTransactionId(req, Operation->GetInputTransaction());
             req->set_mode(ELockMode::Snapshot);
             NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "lock_in");
@@ -1443,14 +1341,14 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             }
             TRichYPath fetchPath(table.Path.GetPath(), *attributes);
             auto req = TTableYPathProxy::Fetch(fetchPath);
-            SetTransactionId(req, InputTransaction);
+            SetTransactionId(req, Operation->GetInputTransaction());
             req->set_fetch_all_meta_extensions(true);
             req->set_ignore_lost_chunks(Spec->IgnoreLostChunks);
             batchReq->AddRequest(req, "fetch_in");
         }
         {
             auto req = TYPathProxy::Get(path);
-            SetTransactionId(req, InputTransaction);
+            SetTransactionId(req, Operation->GetInputTransaction());
             TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
             attributeFilter.Keys.push_back("sorted");
             attributeFilter.Keys.push_back("sorted_by");
@@ -1463,14 +1361,14 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
         auto path = FromObjectId(table.ObjectId);
         {
             auto req = TCypressYPathProxy::Lock(path);
-            SetTransactionId(req, OutputTransaction);
+            SetTransactionId(req, Operation->GetOutputTransaction());
             req->set_mode(table.LockMode);
             NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "lock_out");
         }
         {
             auto req = TYPathProxy::Get(path);
-            SetTransactionId(req, OutputTransaction);
+            SetTransactionId(req, Operation->GetOutputTransaction());
             TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
             attributeFilter.Keys.push_back("channels");
             attributeFilter.Keys.push_back("row_count");
@@ -1481,7 +1379,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
         }
         {
             auto req = TTableYPathProxy::PrepareForUpdate(path);
-            SetTransactionId(req, OutputTransaction);
+            SetTransactionId(req, Operation->GetOutputTransaction());
             NMetaState::GenerateRpcMutationId(req);
             req->set_mode(table.Clear ? ETableUpdateMode::Overwrite : ETableUpdateMode::Append);
             batchReq->AddRequest(req, "prepare_for_update");
@@ -1492,7 +1390,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
         auto path = file.Path.GetPath();
         {
             auto req = TFileYPathProxy::FetchFile(path);
-            SetTransactionId(req, InputTransaction->GetId());
+            SetTransactionId(req, Operation->GetInputTransaction()->GetId());
             batchReq->AddRequest(req, "fetch_files");
         }
     }
@@ -1503,19 +1401,19 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             {
                 auto req = TTableYPathProxy::Fetch(path);
                 req->set_fetch_all_meta_extensions(true);
-                SetTransactionId(req, InputTransaction->GetId());
+                SetTransactionId(req, Operation->GetInputTransaction()->GetId());
                 batchReq->AddRequest(req, "fetch_table_files_chunks");
             }
 
             {
                 auto req = TYPathProxy::GetKey(path);
-                SetTransactionId(req, InputTransaction->GetId());
+                SetTransactionId(req, Operation->GetInputTransaction()->GetId());
                 batchReq->AddRequest(req, "fetch_table_files_names");
             }
 
             {
                 auto req = TYPathProxy::Get(file.Path.GetPath() + "/@uncompressed_data_size");
-                SetTransactionId(req, InputTransaction->GetId());
+                SetTransactionId(req, Operation->GetInputTransaction()->GetId());
                 batchReq->AddRequest(req, "fetch_table_files_sizes");
             }
         }
@@ -1747,7 +1645,7 @@ TFuture<void> TOperationControllerBase::CompletePreparation()
         Host->GetMasterChannel(),
         CancelableControlInvoker,
         Operation->GetOperationId(),
-        OutputTransaction->GetId());
+        Operation->GetOutputTransaction()->GetId());
 
     return MakeFuture();
 }
@@ -1759,7 +1657,6 @@ TAsyncPipeline<void>::TPtr TOperationControllerBase::CustomizePreparationPipelin
 
 std::vector<TRefCountedInputChunkPtr> TOperationControllerBase::CollectInputChunks()
 {
-    // TODO(babenko): set row_attributes
     std::vector<TRefCountedInputChunkPtr> result;
     for (int tableIndex = 0; tableIndex < InputTables.size(); ++tableIndex) {
         const auto& table = InputTables[tableIndex];
