@@ -27,7 +27,7 @@ namespace NJobProxy {
 using namespace NTableClient;
 using namespace NYTree;
 using namespace NYson;
- 
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = JobProxyLogger;
@@ -69,8 +69,8 @@ public:
         auto provider = New<TPartitionChunkReaderProvider>(config);
         Reader = New<TReader>(
             config,
-            masterChannel, 
-            blockCache, 
+            masterChannel,
+            blockCache,
             std::move(chunks),
             provider);
     }
@@ -249,7 +249,7 @@ private:
             auto flushBucket = [&] () {
                 Buckets.push_back(BucketEndSentinel);
                 BucketStart.push_back(Buckets.size());
-                SortQueue->GetInvoker()->Invoke(BIND(&TSortingReader::DoSortBucket, Unretained(this), bucketId));
+                SortQueue->GetInvoker()->Invoke(BIND(&TSortingReader::DoSortBucket, MakeWeak(this), bucketId));
                 ++bucketId;
                 bucketSize = 0;
             };
@@ -337,7 +337,7 @@ private:
         AtomicSet(SortedRowCount, 0);
         ReadRowCount = 0;
 
-        SortQueue->GetInvoker()->Invoke(BIND(&TSortingReader::DoMerge, Unretained(this)));
+        SortQueue->GetInvoker()->Invoke(BIND(&TSortingReader::DoMerge, MakeWeak(this)));
     }
 
     void DoMerge()
