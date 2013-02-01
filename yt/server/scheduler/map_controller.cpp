@@ -247,7 +247,7 @@ private:
             Files,
             TableFiles);
 
-        *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+        *JobSpecTemplate.mutable_output_transaction_id() = Operation->GetOutputTransaction()->GetId().ToProto();
 
         JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
     }
