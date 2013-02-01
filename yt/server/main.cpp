@@ -167,8 +167,11 @@ EExitCode GuardedMain(int argc, const char* argv[])
                 << ex;
         }
 
-        NCellNode::TBootstrap bootstrap(configFileName, config);
-        bootstrap.Run();
+        // TODO(babenko): This memory leak is intentional.
+        // We should avoid destroying bootstrap since some of the subsystems
+        // may be holding a reference to it and continue running some actions in background threads.
+        auto* bootstrap = new NCellNode::TBootstrap(configFileName, config);
+        bootstrap->Run();
     }
 
     if (isCellMaster) {
@@ -189,8 +192,11 @@ EExitCode GuardedMain(int argc, const char* argv[])
                 << ex;
         }
 
-        NCellMaster::TBootstrap bootstrap(configFileName, config);
-        bootstrap.Run();
+        // TODO(babenko): This memory leak is intentional.
+        // We should avoid destroying bootstrap since some of the subsystems
+        // may be holding a reference to it and continue running some actions in background threads.
+        auto* bootstrap = new NCellMaster::TBootstrap(configFileName, config);
+        bootstrap->Run();
     }
 
     if (isScheduler) {
