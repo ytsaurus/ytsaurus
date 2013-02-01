@@ -268,11 +268,6 @@ TObjectManager::TObjectManager(
         static_cast<int>(config->CellId));
 }
 
-void TObjectManager::Initialize()
-{
-    GarbageCollector->Start();
-}
-
 IYPathServicePtr TObjectManager::GetRootService()
 {
     return RootService;
@@ -463,6 +458,16 @@ void TObjectManager::OnStartRecovery()
 void TObjectManager::OnStopRecovery()
 {
     Profiler.SetEnabled(true);
+}
+
+void TObjectManager::OnActiveQuorumEstablished()
+{
+    GarbageCollector->StartSweep();
+}
+
+void TObjectManager::OnStopLeading()
+{
+    GarbageCollector->StopSweep();
 }
 
 TObjectBase* TObjectManager::FindObject(const TObjectId& id)

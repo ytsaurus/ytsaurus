@@ -25,7 +25,8 @@ public:
         TObjectManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
-    void Start();
+    void StartSweep();
+    void StopSweep();
 
     void Save(const NCellMaster::TSaveContext& context) const;
     void Load(const NCellMaster::TLoadContext& context);
@@ -51,7 +52,7 @@ private:
     //! This promise is set each time #GCQueue becomes empty.
     TPromise<void> CollectPromise;
 
-    void Sweep();
+    void OnSweep();
     void OnCommitSucceeded();
     void OnCommitFailed(const TError& error);
 

@@ -41,8 +41,6 @@ public:
         TObjectManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
-    void Initialize();
-
     //! Registers a new type handler.
     /*!
      *  It asserts than no handler of this type is already registered.
@@ -163,6 +161,9 @@ private:
     virtual void OnStartRecovery() override;
     virtual void OnStopRecovery() override;
     virtual void Clear() override;
+
+    virtual void OnActiveQuorumEstablished() override;
+    virtual void OnStopLeading() override;
 
     void ReplayVerb(const NProto::TMetaReqExecute& request);
 
