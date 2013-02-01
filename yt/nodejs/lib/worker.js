@@ -127,6 +127,13 @@ dynamic_server = connect()
     .use(yt.YtAssignRequestId())
     .use(yt.YtLogRequest(logger))
     .use("/auth", yt.YtAuthenticationApplication(logger, config))
+    .use("/ping", function(req, rsp, next) {
+        "use strict";
+        req.on("end", function() {
+            rsp.writeHead(200, { "Content-Length" : 0 });
+            rsp.end();
+        });
+    })
     .use("/hosts", yt.YtHostDiscovery(config.neighbours))
     .use(function(req, rsp, next) {
         req.pauser = yt.Pause(req);
@@ -135,6 +142,10 @@ dynamic_server = connect()
     })
     .use(yt.YtBlackbox(logger, config))
     .use("/api", yt.YtApplication(logger, config))
+    .use(function(req, rsp, next) {
+        process.nextTick(function() { req.pauser.unpause(); });
+        next();
+    })
     .use("/ui", function(req, rsp, next) {
         "use strict";
         if (req.url === "/") {
@@ -154,13 +165,6 @@ dynamic_server = connect()
         }
         req.on("end", function() {
             static_server_new.serve(req, rsp);
-        });
-    })
-    .use("/ping", function(req, rsp, next) {
-        "use strict";
-        req.on("end", function() {
-            rsp.writeHead(200, { "Content-Length" : 0 });
-            rsp.end();
         });
     })
     .use("/_check_availability_time", function(req, rsp, next) {
@@ -204,7 +208,7 @@ dynamic_server = connect()
         "use strict";
         if (req.url === "/") {
             rsp.writeHead(303, {
-                "Location" : "/ui/",
+                "Location" : "/ui-new/",
                 "Content-Length" : 0,
                 "Content-Type" : "application/json"
             });
