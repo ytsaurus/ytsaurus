@@ -26,6 +26,7 @@ def main():
     parser.add_argument("--codec")
     parser.add_argument("--force", action="store_true", default=False)
     parser.add_argument("--fastbone", action="store_true", default=False)
+    parser.add_argument("--pool")
 
     args = parser.parse_args()
 
@@ -83,7 +84,10 @@ def main():
 
         if args.job_count is None:
             args.job_count = len(ranges)
-        spec = {"min_data_size_per_job": 1, "job_count": args.job_count, "pool": "restricted"}
+        pool = args.pool
+        if pool is None:
+            pool = "restricted"
+        spec = {"min_data_size_per_job": 1, "job_count": args.job_count, "pool": pool}
 
         table_writer = None
         if args.codec is not None:
