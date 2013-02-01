@@ -60,6 +60,8 @@ struct TSchedulerConfig
 
     TDuration LockTransactionTimeout;
 
+    TDuration OperationTransactionTimeout;
+
     //! Timeout used for direct RPC requests to nodes.
     TDuration NodeRpcTimeout;
 
@@ -129,6 +131,8 @@ struct TSchedulerConfig
         Register("resource_demand_sanity_check_period", ResourceDemandSanityCheckPeriod)
             .Default(TDuration::Seconds(15));
         Register("lock_transaction_timeout", LockTransactionTimeout)
+            .Default(TDuration::Seconds(15));
+        Register("operation_transaction_timeout", OperationTransactionTimeout)
             .Default(TDuration::Seconds(15));
         Register("node_rpc_timeout", NodeRpcTimeout)
             .Default(TDuration::Seconds(15));

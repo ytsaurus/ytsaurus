@@ -523,7 +523,8 @@ private:
                 ? FromObjectId(userTransaction->GetId())
                 : RootTransactionPath);
             req->set_type(EObjectType::Transaction);
-            req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
+            auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
+            reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
             GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "start_sync_tx");
         }
@@ -531,7 +532,8 @@ private:
         {
             auto req = TTransactionYPathProxy::CreateObject(RootTransactionPath);
             req->set_type(EObjectType::Transaction);
-            req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
+            auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
+            reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
             GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "start_async_tx");
         }
