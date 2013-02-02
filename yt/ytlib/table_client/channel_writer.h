@@ -35,8 +35,8 @@ public:
 
     void EndRow();
 
-    size_t GetCurrentSize() const;
-    size_t GetCapacity() const;
+    i64 GetCurrentSize() const;
+    i64 GetCapacity() const;
 
     //! Number of rows in the current unflushed buffer.
     i64 GetCurrentRowCount() const;
@@ -60,10 +60,10 @@ private:
     std::vector<bool> IsColumnUsed;
 
     //! Total size of data in buffers.
-    size_t CurrentSize;
+    i64 CurrentSize;
 
     //! Total size of reserved buffers.
-    size_t Capacity;
+    i64 Capacity;
 
     //! Number of rows in the current unflushed buffer.
     int CurrentRowCount;
