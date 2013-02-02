@@ -78,17 +78,20 @@ private:
         ui32 Length;
         char Bytes[4];
     } Union;
+
     bool ReadingLength;
-    i32 BytesToRead;
+    ui32 BytesToRead;
 
     DECLARE_ENUM(EState,
         (InsideKey)
         (InsideSubkey)
         (InsideValue)
     );
+
     EState State;
 
-    static const ui32 FieldLengthThreshold = 16 * 1024 * 1024;
+    static const ui32 MaxFieldLength = 16 * 1024 * 1024;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -138,20 +141,26 @@ const char* TYamrLenvalParser::Consume(const char* begin, const char* end)
 const char* TYamrLenvalParser::ConsumeLength(const char* begin, const char* end)
 {
     const char* current = begin;
-    while (BytesToRead > 0 && current != end) {
+    while (BytesToRead != 0 && current != end) {
         if (ReadingLength) {
             Union.Bytes[4 - BytesToRead] = *current;
         }
         ++current;
         --BytesToRead;
     }
+
     if (!ReadingLength) {
         CurrentToken.append(begin, current);
     }
-    if (BytesToRead != 0) return current;
 
-    if (Union.Length > FieldLengthThreshold) {
-        THROW_ERROR_EXCEPTION("Field is too long: %d", (int)Union.Length);
+    if (BytesToRead != 0) {
+        return current;
+    }
+
+    if (Union.Length > MaxFieldLength) {
+        THROW_ERROR_EXCEPTION("Field is too long: length %d, limit %d",
+            static_cast<int>(Union.Length),
+            static_cast<int>(MaxFieldLength));
     }
 
     ReadingLength = false;
@@ -184,9 +193,7 @@ const char* TYamrLenvalParser::ConsumeData(const char* begin, const char* end)
             Consumer->OnBeginMap();
             Consumer->OnKeyedItem(Config->Key);
             Consumer->OnStringScalar(data);
-            State = Config->HasSubkey ?
-                EState::InsideSubkey :
-                EState::InsideValue;
+            State = Config->HasSubkey ? EState::InsideSubkey : EState::InsideValue;
             break;
         case EState::InsideSubkey:
             Consumer->OnKeyedItem(Config->Subkey);
@@ -202,6 +209,7 @@ const char* TYamrLenvalParser::ConsumeData(const char* begin, const char* end)
         default:
             YUNREACHABLE();
     }
+
     CurrentToken.clear();
     ReadingLength = true;
     BytesToRead = 4;
