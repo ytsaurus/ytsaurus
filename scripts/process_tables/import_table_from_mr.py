@@ -7,6 +7,8 @@ import yt.wrapper as yt
 import os
 import sh
 import sys
+import traceback
+import subprocess
 from argparse import ArgumentParser
 from urllib import quote_plus
 
@@ -18,16 +20,20 @@ def main():
     parser.add_argument("--tables")
     parser.add_argument("--destination")
     parser.add_argument("--server")
+    parser.add_argument("--import-type")
     parser.add_argument("--proxy", action="append")
     parser.add_argument("--server-port", default="8013")
     parser.add_argument("--http-port", default="13013")
     parser.add_argument("--record-threshold", type=int, default=5 * 10 ** 6)
     parser.add_argument("--job-count", type=int)
+    parser.add_argument("--speed", type=int)
     parser.add_argument("--codec")
     parser.add_argument("--force", action="store_true", default=False)
     parser.add_argument("--fastbone", action="store_true", default=False)
     parser.add_argument("--debug", action="store_true", default=False)
     parser.add_argument("--pool")
+    parser.add_argument("--mapreduce-binary", default="./mapreduce")
+    parser.add_argument("--yt-binary")
 
     args = parser.parse_args()
 
@@ -53,15 +59,7 @@ def main():
         empty_lines = filter(lambda line: line.find("is empty") != -1,  http_content.split("\n"))
         return empty_lines and empty_lines[0].startswith("Table is empty")
 
-    def import_table(table):
-        if is_empty(table):
-            print >>sys.stderr, "Table {} is empty".format(table)
-            return
-
-        temp_table = yt.create_temp_table(prefix=os.path.basename(table))
-        count = records_count(table)
-        sorted = is_sorted(table)
-
+    def pull_table(source, destination, count):
         has_proxy = args.proxy is not None
         if has_proxy:
             servers = ["%s:%s" % (proxy, args.http_port) for proxy in args.proxy]
@@ -74,17 +72,11 @@ def main():
             end = min(count, (i + 1) * args.record_threshold)
             ranges.append((server, start, end))
 
+        temp_table = yt.create_temp_table(prefix=os.path.basename(source))
         yt.write_table(temp_table,
                        ["\t".join(map(str, range)) + "\n" for range in ranges],
                        format=yt.YamrFormat(lenval=False, has_subkey=True))
 
-        destination = os.path.join(args.destination, table)
-        if args.force and yt.exists(destination):
-            yt.remove(destination)
-        yt.create_table(destination, recursive=True)
-
-        if args.job_count is None:
-            args.job_count = len(ranges)
         pool = args.pool
         if pool is None:
             pool = "restricted"
@@ -95,9 +87,9 @@ def main():
             table_writer["codec"] = args.codec
 
         if has_proxy:
-            command = 'curl "http://${{server}}/table/{}?subkey=1&lenval=1&startindex=${{start}}&endindex=${{end}}"'.format(quote_plus(table))
+            command = 'curl "http://${{server}}/table/{}?subkey=1&lenval=1&startindex=${{start}}&endindex=${{end}}"'.format(quote_plus(source))
         else:
-            command = 'USER=yt MR_USER=tmp ./mapreduce -server $server {} -read {}:[$start,$end] -lenval -subkey'.format(use_fastbone, table)
+            command = 'USER=yt MR_USER=tmp ./mapreduce -server $server {} -read {}:[$start,$end] -lenval -subkey'.format(use_fastbone, source)
 
         debug_str = 'echo "{}" 1>&2; '.format(command.replace('"', "'")) if args.debug else ''
 
@@ -114,16 +106,88 @@ def main():
                 destination,
                 input_format=yt.YamrFormat(lenval=False, has_subkey=True),
                 output_format=yt.YamrFormat(lenval=True, has_subkey=True),
-                files="mapreduce",
+                files=args.mapreduce_binary,
                 table_writer=table_writer,
                 spec=spec)
 
-        # TODO: add checksum checking
-        if yt.records_count(destination) != count:
-            raise yt.YtError("Incorrect record count: expected=%d, actual=%d" % (count, yt.records_count(destination)))
+    def push_table(source, destination):
+        if args.speed is not None:
+            limit = args.speed * yt.config.MB / args.job_count
+            speed_limit = "pv -q -L {} | ".format(limit)
+        else:
+            speed_limit = ""
 
-        if sorted:
-            yt.run_sort(destination, sort_by=["key", "subkey"])
+        if args.yt_binary is None:
+            with open("./mapreduce-yt", "w") as f:
+                for block in yt.download_file("//home/files/mapreduce-yt", response_type="iter_content"):
+                    f.write(block)
+            args.yt_binary = "./mapreduce-yt"
+
+        if args.codec is not None:
+            codec = "-codec " + args.codec
+        else:
+            codec = ""
+
+        subprocess.check_call(
+            "MR_USER=tmp {} -server {}:{} "
+                "-map '{} ./{} -append -lenval -subkey {} -write {}' "
+                "-src {} "
+                "-dst {} "
+                "-jobcount {} "
+                "-lenval "
+                "-subkey "
+                "-file {} "\
+                    .format(
+                        args.mapreduce_binary,
+                        args.server,
+                        args.server_port,
+                        speed_limit,
+                        os.path.basename(args.yt_binary),
+                        codec,
+                        destination,
+                        source,
+                        os.path.join("tmp", os.path.basename(source)),
+                        args.job_count,
+                        args.yt_binary),
+            shell=True)
+
+
+    def import_table(table):
+        if is_empty(table):
+            print >>sys.stderr, "Table {} is empty".format(table)
+            return
+
+        count = records_count(table)
+        sorted = is_sorted(table)
+
+        destination = os.path.join(args.destination, table)
+        if args.force and yt.exists(destination):
+            yt.remove(destination)
+        # TODO: remove table if operation is not successfull
+        yt.create_table(destination, recursive=True)
+
+        if args.job_count is None:
+            # Number of data pieces
+            args.job_count = (count - 1) / args.record_threshold + 1
+
+        try:
+            if args.import_type == "pull":
+                pull_table(table, destination, count)
+            elif args.import_type == "push":
+                push_table(table, destination)
+            else:
+                raise yt.YtError("Incorrect import type: " + args.import_type)
+
+            # TODO: add checksum checking
+            if yt.records_count(destination) != count:
+                raise yt.YtError("Incorrect record count: expected=%d, actual=%d" % (count, yt.records_count(destination)))
+
+            if sorted:
+                yt.run_sort(destination, sort_by=["key", "subkey"])
+        except yt.YtError:
+            _, _, exc_traceback = sys.exc_info()
+            traceback.print_tb(exc_traceback, file=sys.stdout)
+            yt.remove(destination)
 
     process_tasks_from_list(
         args.tables,
