@@ -20,7 +20,7 @@ def main():
     parser.add_argument("--tables")
     parser.add_argument("--destination")
     parser.add_argument("--server")
-    parser.add_argument("--import-type")
+    parser.add_argument("--import-type", default="pull")
     parser.add_argument("--proxy", action="append")
     parser.add_argument("--server-port", default="8013")
     parser.add_argument("--http-port", default="13013")
