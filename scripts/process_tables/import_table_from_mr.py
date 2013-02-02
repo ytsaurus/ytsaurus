@@ -128,9 +128,16 @@ def main():
         else:
             codec = ""
 
+        if args.fastbone:
+            yt_server = "proxy-fb.yt.yandex.net"
+        else:
+            yt_server = "proxy.yt.yandex.net"
+
+        extract_proxy = 'YT_PROXY=$(curl -s "http://{}/hosts" | sed "s/[\\",]/\\n/g" | grep "yt.yandex.net" | head -n1)'.format(yt_server)
+
         subprocess.check_call(
             "MR_USER=tmp {} -server {}:{} "
-                "-map '{} ./{} -append -lenval -subkey {} -write {}' "
+                "-map '{}; {} ./{} -server $YT_PROXY -append -lenval -subkey {} -write {}' "
                 "-src {} "
                 "-dst {} "
                 "-jobcount {} "
@@ -141,6 +148,7 @@ def main():
                         args.mapreduce_binary,
                         args.server,
                         args.server_port,
+                        extract_proxy,
                         speed_limit,
                         os.path.basename(args.yt_binary),
                         codec,
