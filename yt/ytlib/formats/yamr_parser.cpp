@@ -87,6 +87,8 @@ private:
         (InsideValue)
     );
     EState State;
+
+    static const ui32 FieldLengthThreshold = 16 * 1024 * 1024;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -147,6 +149,10 @@ const char* TYamrLenvalParser::ConsumeLength(const char* begin, const char* end)
         CurrentToken.append(begin, current);
     }
     if (BytesToRead != 0) return current;
+
+    if (Union.Length > FieldLengthThreshold) {
+        THROW_ERROR_EXCEPTION("Field is too long: %d", (int)Union.Length);
+    }
 
     ReadingLength = false;
     BytesToRead = Union.Length;

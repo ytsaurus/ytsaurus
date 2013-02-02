@@ -272,6 +272,24 @@ TEST(TYamrLenvalParserTest, EmptyFields)
     ParseYamr(input, &Mock, config);
 }
 
+TEST(TYamrLenvalParserTest, HugeLength)
+{
+    Stroka input = Stroka(
+        "\xFF\xFF\xFF\xFF"
+        "\x00\x00\x00\x00"
+        "\x00\x00\x00\x00"
+        , 3 * 4
+    );
+
+    auto config = New<TYamrFormatConfig>();
+    config->HasSubkey = true;
+    config->Lenval = true;
+    
+    auto Null = NYTree::GetNullYsonConsumer();
+
+    EXPECT_THROW(ParseYamr(input, Null, config), std::exception);
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
