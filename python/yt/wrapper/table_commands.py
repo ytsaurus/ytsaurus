@@ -2,7 +2,7 @@ import config
 import py_wrapper
 from common import flatten, require, YtError, unlist, update, EMPTY_GENERATOR, parse_bool, is_prefix, get_value, compose, execute_handling_sigint
 from version import VERSION
-from http import read_content
+from http import read_content, get_hosts
 from table import TablePath, to_table, to_name, prepare_path
 from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, move, mkdir, find_free_subpath, create, get_type
 from file_commands import smart_upload_file
@@ -272,11 +272,16 @@ def write_table(table, lines, format=None, table_writer=None, replication_factor
             for i in xrange(config.WRITE_RETRIES_COUNT):
                 try:
                     with PingableTransaction(config.WRITE_TRANSACTION_TIMEOUT):
+                        if config.USE_HOSTS:
+                            proxy = get_hosts()[0]
+                        else:
+                            proxy = config.PROXY
                         _make_transactioned_request(
                             "write",
                             params,
                             data=buffer.get(),
-                            format=format)
+                            format=format,
+                            proxy=proxy)
                     break
                 except YtError as err:
                     print >>sys.stderr, "Retry", i + 1, "failed with message", str(err)
