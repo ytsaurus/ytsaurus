@@ -3,6 +3,7 @@ from format import YamrFormat
 import os
 
 PROXY = "proxy.yt.yandex.net"
+USE_HOSTS = False
 
 # Turn off gzip encoding if you want to speed up reading and writing tables
 ACCEPT_ENCODING = os.environ.get("ACCEPT_ENCODING", "identity, gzip")
