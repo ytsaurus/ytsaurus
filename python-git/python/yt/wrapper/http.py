@@ -95,6 +95,11 @@ def get_token():
                              "Please refer to http://proxy.yt.yandex.net/auth/ for obtaining a valid token."))
     return token
 
+def get_hosts(proxy=None):
+    if proxy is None:
+        proxy = config.PROXY
+    return requests.get("http://{0}/hosts".format(proxy)).json()
+
 def make_request(command_name, params,
                  data=None, format=None, verbose=False, proxy=None,
                  raw_response=False, files=None):
