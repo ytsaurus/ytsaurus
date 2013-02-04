@@ -84,7 +84,7 @@ def main():
 
         table_writer = None
         if args.codec is not None:
-            table_writer["codec"] = args.codec
+            table_writer = {"codec": args.codec}
 
         if has_proxy:
             command = 'curl "http://${{server}}/table/{}?subkey=1&lenval=1&startindex=${{start}}&endindex=${{end}}"'.format(quote_plus(source))
@@ -133,6 +133,9 @@ def main():
         else:
             yt_server = "proxy.yt.yandex.net"
 
+        codec = ""
+        if args.codec is not None:
+            codec = "-codec " + args.codec
         subprocess.check_call(
             "MR_USER=tmp {} -server {}:{} "
                 "-map '{} YT_USE_HOSTS=1 ./{} -server {} -append -lenval -subkey {} -write {}' "
@@ -141,7 +144,8 @@ def main():
                 "-jobcount {} "
                 "-lenval "
                 "-subkey "
-                "-file {} "\
+                "-file {} "
+                "{} "\
                     .format(
                         args.mapreduce_binary,
                         args.server,
@@ -154,7 +158,8 @@ def main():
                         source,
                         os.path.join("tmp", os.path.basename(source)),
                         args.job_count,
-                        args.yt_binary),
+                        args.yt_binary,
+                        codec),
             shell=True)
 
 
