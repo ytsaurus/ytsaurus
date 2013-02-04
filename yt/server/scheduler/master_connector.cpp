@@ -594,8 +594,7 @@ private:
             ? nullptr
             : transactionManager->Attach(userAttachOptions);
 
-        // COMPAT(babenko)
-        auto syncTransactionId = attributes.Get<TTransactionId>("sync_scheduler_transaction_id", NullTransactionId);
+        auto syncTransactionId = attributes.Get<TTransactionId>("sync_scheduler_transaction_id");
         TTransactionAttachOptions syncAttachOptions(syncTransactionId);
         syncAttachOptions.AutoAbort = false;
         syncAttachOptions.Ping = false;
@@ -605,8 +604,7 @@ private:
             ? nullptr
             : transactionManager->Attach(syncAttachOptions);
 
-        // COMPAT(babenko)
-        auto asyncTransactionId = attributes.Get<TTransactionId>("async_scheduler_transaction_id", NullTransactionId);
+        auto asyncTransactionId = attributes.Get<TTransactionId>("async_scheduler_transaction_id");
         TTransactionAttachOptions asyncAttachOptions(syncTransactionId);
         asyncAttachOptions.AutoAbort = false;
         asyncAttachOptions.Ping = false;
