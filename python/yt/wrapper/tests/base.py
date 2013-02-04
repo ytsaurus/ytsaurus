@@ -30,6 +30,7 @@ class YtTestBase(object):
         cls.env.set_environment("tests/sandbox", "tests/sandbox/pids.txt", ports, supress_yt_output=True)
 
         config.PROXY = "localhost:%d" % ports["proxy"]
+        config.USE_TOKEN = False
 
     @classmethod
     def _teardown_class(cls):
