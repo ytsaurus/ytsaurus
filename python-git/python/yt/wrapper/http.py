@@ -55,7 +55,7 @@ class Response(object):
             if http_response.status_code == 401:
                 raise YtTokenError(
                     "Your authentication token was rejected by the server (X-YT-Request-ID: %s).\n"
-                    "Please refer to http://proxy.yt.yandex.net/auth/ for obtaining a valid token or contact us at yt@yandex-team.ru." % 
+                    "Please refer to http://proxy.yt.yandex.net/auth/ for obtaining a valid token or contact us at yt@yandex-team.ru." %
                     http_response.headers.get("X-YT-Request-ID", "absent"))
             self._error = serialize(http_response.json())
         elif int(http_response.headers.get("x-yt-response-code", 0)) != 0:
@@ -172,18 +172,19 @@ def make_request(command_name, params,
         headers.update(format.to_output_http_header())
     else:
         headers.update(JsonFormat().to_output_http_header())
-    
-    token = get_token()
-    if token is None:
-        if not make_request.SHOW_TOKEN_WARNING:
-            make_request.SHOW_TOKEN_WARNING = True
-            if date.today() >= date(2013, 02, 01):
-                print >>sys.stderr, "Please obtain an authentication token as soon as possible."
-                print >>sys.stderr, "Refer to http://proxy.yt.yandex.net/auth/ for instructions."
-                if date.today() >= date(2013, 02, 07):
-                    sys.exit(1)
-    else:
-        headers["Authorization"] = "OAuth " + token
+
+    if config.USE_TOKEN:
+        token = get_token()
+        if token is None:
+            if not make_request.SHOW_TOKEN_WARNING:
+                make_request.SHOW_TOKEN_WARNING = True
+                if date.today() >= date(2013, 02, 01):
+                    print >>sys.stderr, "Please obtain an authentication token as soon as possible."
+                    print >>sys.stderr, "Refer to http://proxy.yt.yandex.net/auth/ for instructions."
+                    if date.today() >= date(2013, 02, 07):
+                        sys.exit(1)
+        else:
+            headers["Authorization"] = "OAuth " + token
 
     print_info("Headers: %r", headers)
     print_info("Params: %r", params)
