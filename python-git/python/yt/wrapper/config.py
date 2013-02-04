@@ -4,6 +4,7 @@ import os
 
 PROXY = "proxy.yt.yandex.net"
 USE_HOSTS = False
+USE_TOKEN = True
 
 # Turn off gzip encoding if you want to speed up reading and writing tables
 ACCEPT_ENCODING = os.environ.get("ACCEPT_ENCODING", "identity, gzip")
@@ -43,6 +44,8 @@ TRANSACTION = "0-0-0-0"
 PING_ANSECTOR_TRANSACTIONS = False
 TRANSACTION_TIMEOUT = 60 * 1000
 OPERATION_TRANSACTION_TIMEOUT = 5 * 60 * 1000
+
+USE_RETRIES_DURING_WRITE = True
 WRITE_TRANSACTION_TIMEOUT = 60 * 1000
 
 CLUSTER_SIZE = 235
@@ -81,4 +84,9 @@ for key, value in os.environ.iteritems():
             continue
         else:
             var_type = type(globals()[key])
+        if var_type == bool:
+            try:
+                value = int(value)
+            except:
+                pass
         globals()[key] = var_type(value)

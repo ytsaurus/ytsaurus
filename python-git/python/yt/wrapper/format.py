@@ -1,9 +1,9 @@
-from common import bool_to_string, get_value
+from common import bool_to_string, get_value, YtError
 from yt.yson import loads, yson_types
 import simplejson as json
 
-import sys
-
+import struct
+from cStringIO import StringIO
 
 # TODO(ignat): Add custom field separator
 class Format(object):
@@ -13,6 +13,9 @@ class Format(object):
 
     def to_output_http_header(self):
         return {"Accept": self._mime_type()}
+
+    def read_row(self, stream):
+        raise YtError("Reading record from stream is not implemented for format " + repr(self))
 
 
 class DsvFormat(Format):
@@ -24,6 +27,9 @@ class DsvFormat(Format):
 
     def to_json(self):
         return "dsv"
+
+    def read_row(self, stream):
+        return stream.readline()
 
 class YsonFormat(Format):
     def __init__(self, format=None):
@@ -67,6 +73,25 @@ class YamrFormat(Format):
 
     def to_str(self):
         return json.dumps(self.to_json())
+
+    def read_row(self, stream):
+        if not self.lenval:
+            return stream.readline()
+        else:
+            field_count = 2
+            if self.has_subkey:
+                field_count += 1
+
+            result = StringIO()
+            for iter in xrange(field_count):
+                len_bytes = stream.read(4)
+                if not len_bytes:
+                    return ""
+                result.write(len_bytes)
+                length = struct.unpack('i', len_bytes)[0]
+                result.write(stream.read(length))
+            return result.getvalue()
+
 
 class JsonFormat(Format):
     def _mime_type(self):
