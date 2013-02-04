@@ -147,6 +147,7 @@ public:
         ControllerThread.Detach();
     }
 
+    // Safe to call multiple times
     void Kill(int uid, const TError& error) throw()
     {
         VERIFY_THREAD_AFFINITY(JobThread);
@@ -155,18 +156,19 @@ public:
 
         SetError(error);
 
-        if (ProcessId < 0)
-            return;
+        int pid = ProcessId;
 
-        auto result = kill(ProcessId, 9);
-        if (result != 0) {
-            switch (errno) {
-                case ESRCH:
-                    // Process group doesn't exist already.
-                    return;
-                default:
-                    LOG_FATAL("Failed to kill job: killpg failed (errno: %s)", strerror(errno));
-                    break;
+        if (pid > 0) {
+            auto result = kill(pid, 9);
+            if (result != 0) {
+                switch (errno) {
+                    case ESRCH:
+                        // Process group doesn't exist already.
+                        return;
+                    default:
+                        LOG_FATAL("Failed to kill job proxy: kill failed (errno: %s)", strerror(errno));
+                        break;
+                }
             }
         }
 
@@ -215,6 +217,9 @@ private:
         int status = 0;
         {
             int result = waitpid(ProcessId, &status, WUNTRACED);
+
+            // Set ProcessId back to -1, so that we don't try to kill it ever after.
+            ProcessId = -1;
             if (result < 0) {
                 SetError(TError("Failed to wait for job proxy to finish: waitpid failed")
                     << TError::FromSystem());
@@ -231,15 +236,6 @@ private:
         SetError(wrappedError);
 
         LOG_INFO(wrappedError, "Job proxy finished");
-
-        {
-            // Kill process group for sanity reasons.
-            auto result = killpg(ProcessId, 9);
-            if (result != 0 && errno != ESRCH) {
-                SetError(TError("Failed to clean up job process group: killpg failed")
-                    << TError::FromSystem());
-            }
-        }
 
         OnExit.Set(Error);
     }

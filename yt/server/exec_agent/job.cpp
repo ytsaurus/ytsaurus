@@ -218,7 +218,7 @@ TPromise<void> TJob::PrepareDownloadingTableFile(
                         ~chunkId.ToString(),
                         ~rsp.file_name().Quote())
                         << result;
-                    DoAbort(wrappedError, EJobState::Failed, false);
+                    DoAbort(wrappedError, EJobState::Failed);
                     return;
                 }
 
@@ -270,7 +270,7 @@ void TJob::OnChunkDownloaded(
             "Failed to download user file %s",
             ~fileName.Quote())
             << result;
-        DoAbort(wrappedError, EJobState::Failed, false);
+        DoAbort(wrappedError, EJobState::Failed);
         return;
     }
 
@@ -286,7 +286,7 @@ void TJob::OnChunkDownloaded(
             "Failed to create a symlink for %s",
             ~fileName.Quote())
             << ex;
-        DoAbort(wrappedError, EJobState::Failed, false);
+        DoAbort(wrappedError, EJobState::Failed);
         return;
     }
 
@@ -347,7 +347,7 @@ void TJob::OnTableDownloaded(
             "Failed to write user table file %s",
             ~fileName.Quote())
             << ex;
-        DoAbort(wrappedError, EJobState::Failed, false);
+        DoAbort(wrappedError, EJobState::Failed);
         return;
     }
 
@@ -389,10 +389,6 @@ void TJob::OnJobExit(TError error)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    // NB: we expect that
-    //  1. job proxy process finished
-    //  2. proxy controller already cleaned up possible child processes.
-
     if (JobPhase > EJobPhase::Cleanup)
         return;
 
@@ -409,6 +405,9 @@ void TJob::OnJobExit(TError error)
             EJobState::Failed);
         return;
     }
+
+    // NB: we should explicitly call Kill() to clean up possible child processes.
+    ProxyController->Kill(Slot->GetUserId(), TError());
 
     JobPhase = EJobPhase::Cleanup;
     Slot->Clean();
@@ -509,12 +508,11 @@ void TJob::Abort(const TError& error)
             &TJob::DoAbort,
             MakeStrong(this),
             error,
-            EJobState::Aborted,
-            true));
+            EJobState::Aborted));
     }
 }
 
-void TJob::DoAbort(const TError& error, EJobState resultState, bool killJobProxy)
+void TJob::DoAbort(const TError& error, EJobState resultState)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -536,13 +534,9 @@ void TJob::DoAbort(const TError& error, EJobState resultState, bool killJobProxy
         LOG_INFO(error, "Aborting job");
     }
 
-    if (jobPhase >= EJobPhase::StartedProxy && killJobProxy) {
-        try {
-            ProxyController->Kill(Slot->GetUserId(), error);
-        } catch (const std::exception& ex) {
-            // NB: Retries should be done inside proxy controller (if makes sense).
-            LOG_FATAL(ex, "Failed to kill job");
-        }
+    if (jobPhase >= EJobPhase::StartedProxy) {
+        // NB: Kill() never throws.
+        ProxyController->Kill(Slot->GetUserId(), error);
     }
 
     if (jobPhase >= EJobPhase::PreparingSandbox) {

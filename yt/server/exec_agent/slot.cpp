@@ -19,7 +19,6 @@ static NLog::TLogger& Logger = ExecAgentLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 // ToDo(psushin): think about more complex logic of handling fs errors.
-
 TSlot::TSlot(const Stroka& path, int id, int userId)
     : IsFree_(true)
     , IsClean(true)
@@ -34,6 +33,9 @@ TSlot::TSlot(const Stroka& path, int id, int userId)
         LOG_FATAL(ex, "Failed to create slot directory: %s",
             ~Path.Quote());
     }
+
+    // Kill all processes of this pseudo-user for sanity reasons.
+    KillallByUser(UserId);
 }
 
 void TSlot::Acquire()

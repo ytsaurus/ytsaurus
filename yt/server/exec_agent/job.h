@@ -135,8 +135,7 @@ private:
 
     void DoAbort(
         const TError& error,
-        NScheduler::EJobState resultState,
-        bool killJobProxy = false);
+        NScheduler::EJobState resultState);
 
     const TJobId JobId;
     const NScheduler::NProto::TJobSpec JobSpec;
