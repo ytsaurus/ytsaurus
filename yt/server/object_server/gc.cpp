@@ -43,9 +43,10 @@ void TGarbageCollector::StartSweep()
 
 void TGarbageCollector::StopSweep()
 {
-    YCHECK(SweepInvoker);
-    SweepInvoker->Stop();
-    SweepInvoker.Reset();
+    if (SweepInvoker) {
+        SweepInvoker->Stop();
+        SweepInvoker.Reset();
+    }
 }
 
 void TGarbageCollector::Save(const NCellMaster::TSaveContext& context) const
