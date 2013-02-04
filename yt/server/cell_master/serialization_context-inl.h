@@ -6,8 +6,6 @@
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/serialize.h>
 
-#include <server/chunk_server/chunk_tree_ref.h>
-
 #include <server/object_server/object.h>
 
 #include <server/cypress_server/node.h>
@@ -41,24 +39,6 @@ inline void SetObjectRefImpl(
     const TLoadContext& context)
 {
     object = id == typename NObjectServer::TObjectIdTraits<T*>::TId() ? nullptr : context.Get<T>(id);
-}
-
-inline void SetObjectRefImpl(
-    const NObjectServer::TObjectId& id,
-    NChunkServer::TChunkTreeRef& object,
-    const TLoadContext& context)
-{
-    auto type = NObjectClient::TypeFromId(id);
-    switch (type) {
-        case NObjectClient::EObjectType::Chunk:
-            object = context.Get<NChunkServer::TChunk>(id);
-            break;
-        case NObjectClient::EObjectType::ChunkList:
-            object = context.Get<NChunkServer::TChunkList>(id);
-            break;
-        default:
-            YUNREACHABLE();
-    }  
 }
 
 template <class T>

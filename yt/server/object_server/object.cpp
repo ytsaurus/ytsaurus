@@ -23,6 +23,11 @@ const TObjectId& TObjectBase::GetId() const
     return Id;
 }
 
+EObjectType TObjectBase::GetType() const
+{
+    return TypeFromId(Id);
+}
+
 int TObjectBase::RefObject()
 {
     YASSERT(RefCounter >= 0);
@@ -71,4 +76,3 @@ void TObjectBase::Load(const NCellMaster::TLoadContext& context)
 
 } // namespace NObjectServer
 } // namespace NYT
-

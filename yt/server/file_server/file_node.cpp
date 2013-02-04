@@ -156,7 +156,7 @@ protected:
         objectManager->RefObject(chunkList);
 
         if (chunk) {
-            chunkManager->AttachToChunkList(chunkList, TChunkTreeRef(chunk));
+            chunkManager->AttachToChunkList(chunkList, chunk);
         }
 
         return node;

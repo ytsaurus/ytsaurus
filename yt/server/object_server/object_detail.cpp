@@ -51,31 +51,26 @@ TUnversionedObjectBase::TUnversionedObjectBase(const TObjectId& id)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStagedObjectBase::TStagedObjectBase(const TObjectId& id)
-    : TUnversionedObjectBase(id)
-    , StagingTransaction_(NULL)
+TStagedObject::TStagedObject()
+    : StagingTransaction_(NULL)
     , StagingAccount_(NULL)
 { }
 
-void TStagedObjectBase::Save(const NCellMaster::TSaveContext& context) const
+void TStagedObject::Save(const NCellMaster::TSaveContext& context) const
 {
-    TUnversionedObjectBase::Save(context);
-
     auto* output = context.GetOutput();
     SaveObjectRef(output, StagingTransaction_);
     SaveObjectRef(output, StagingAccount_);
 }
 
-void TStagedObjectBase::Load(const NCellMaster::TLoadContext& context)
+void TStagedObject::Load(const NCellMaster::TLoadContext& context)
 {
-    TUnversionedObjectBase::Load(context);
-    
     auto* input = context.GetInput();
     LoadObjectRef(input, StagingTransaction_, context);
     LoadObjectRef(input, StagingAccount_, context);
 }
 
-bool TStagedObjectBase::IsStaged() const
+bool TStagedObject::IsStaged() const
 {
     return StagingTransaction_ && StagingAccount_;
 }

@@ -18,8 +18,6 @@
 
 #include <server/cypress_server/public.h>
 
-#include <server/chunk_server/chunk_tree_ref.h>
-
 namespace NYT {
 namespace NObjectServer {
 
@@ -67,11 +65,9 @@ public:
 
     //! Adds a reference.
     void RefObject(TObjectBase* object);
-    void RefObject(NChunkServer::TChunkTreeRef ref);
 
     //! Removes a reference.
     void UnrefObject(TObjectBase* object);
-    void UnrefObject(NChunkServer::TChunkTreeRef ref);
 
     //! Finds object by id, returns |nullptr| if nothing is found.
     TObjectBase* FindObject(const TObjectId& id);

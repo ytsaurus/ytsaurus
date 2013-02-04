@@ -373,20 +373,6 @@ void TObjectManager::RefObject(TObjectBase* object)
         refCounter);
 }
 
-void TObjectManager::RefObject(TChunkTreeRef ref)
-{
-    switch (ref.GetType()) {
-        case EObjectType::Chunk:
-            RefObject(ref.AsChunk());
-            break;
-        case EObjectType::ChunkList:
-            RefObject(ref.AsChunkList());
-            break;
-        default:
-            YUNREACHABLE();
-    }
-}
-
 void TObjectManager::UnrefObject(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
@@ -399,20 +385,6 @@ void TObjectManager::UnrefObject(TObjectBase* object)
 
     if (refCounter == 0) {
         GarbageCollector->Enqueue(object->GetId());
-    }
-}
-
-void TObjectManager::UnrefObject(TChunkTreeRef ref)
-{
-    switch (ref.GetType()) {
-        case EObjectType::Chunk:
-            UnrefObject(ref.AsChunk());
-            break;
-        case EObjectType::ChunkList:
-            UnrefObject(ref.AsChunkList());
-            break;
-        default:
-            YUNREACHABLE();
     }
 }
 

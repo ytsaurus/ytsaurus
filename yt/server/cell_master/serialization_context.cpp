@@ -46,6 +46,12 @@ TTransaction* TLoadContext::Get(const TObjectId& id) const
 }
 
 template <>
+TChunkTree* TLoadContext::Get(const TObjectId& id) const
+{
+    return Bootstrap_->GetChunkManager()->GetChunkTree(id);
+}
+
+template <>
 TChunkList* TLoadContext::Get(const TObjectId& id) const
 {
     return Bootstrap_->GetChunkManager()->GetChunkList(id);

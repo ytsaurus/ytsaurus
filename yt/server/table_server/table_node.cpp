@@ -83,7 +83,7 @@ TClusterResources TTableNode::GetResourceUsage() const
         case ETableUpdateMode::Append: {
             const auto& children = ChunkList_->Children();
             YCHECK(children.size() == 2);
-            chunkList = children[1].AsChunkList();
+            chunkList = children[1]->AsChunkList();
         }
 
         case ETableUpdateMode::Overwrite:

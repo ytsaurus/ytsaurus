@@ -21,6 +21,9 @@ public:
     //! Returns the object id.
     const TObjectId& GetId() const;
 
+    //! Returns the object type.
+    EObjectType GetType() const;
+
     //! Increments the object's reference counter.
     /*!
      *  \returns the incremented counter.

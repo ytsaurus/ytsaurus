@@ -50,16 +50,16 @@ private:
         TBase::ListSystemAttributes(attributes);
     }
 
-    void TraverseTree(TChunkTreeRef ref, NYson::IYsonConsumer* consumer) const
+    void TraverseTree(TChunkTree* chunkTree, NYson::IYsonConsumer* consumer) const
     {
-        switch (ref.GetType()) {
+        switch (chunkTree->GetType()) {
             case EObjectType::Chunk: {
-                consumer->OnStringScalar(ref.GetId().ToString());
+                consumer->OnStringScalar(chunkTree->GetId().ToString());
                 break;
             }
 
             case EObjectType::ChunkList: {
-                const auto* chunkList = ref.AsChunkList();
+                const auto* chunkList = chunkTree->AsChunkList();
                 consumer->OnBeginAttributes();
                 consumer->OnKeyedItem("id");
                 consumer->OnStringScalar(chunkList->GetId().ToString());
@@ -68,9 +68,9 @@ private:
                 consumer->OnEndAttributes();
 
                 consumer->OnBeginList();
-                FOREACH (auto childRef, chunkList->Children()) {
+                FOREACH (auto* child, chunkList->Children()) {
                     consumer->OnListItem();
-                    TraverseTree(childRef, consumer);
+                    TraverseTree(child, consumer);
                 }
                 consumer->OnEndList();
                 break;
@@ -88,15 +88,15 @@ private:
 
         if (key == "children_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(chunkList->Children(), [=] (TFluentList fluent, TChunkTreeRef chunkRef) {
-                    fluent.Item().Value(chunkRef.GetId());
+                .DoListFor(chunkList->Children(), [=] (TFluentList fluent, const TChunkTree* child) {
+                    fluent.Item().Value(child->GetId());
             });
             return true;
         }
 
         if (key == "parent_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(chunkList->Parents(), [=] (TFluentList fluent, TChunkList* chunkList) {
+                .DoListFor(chunkList->Parents(), [=] (TFluentList fluent, const TChunkList* chunkList) {
                     fluent.Item().Value(chunkList->GetId());
             });
             return true;
@@ -142,15 +142,18 @@ private:
         auto objectManager = Bootstrap->GetObjectManager();
         auto chunkManager = Bootstrap->GetChunkManager();
 
-        std::vector<TChunkTreeRef> childrenRefs;
-        childrenRefs.reserve(childrenIds.size());
+        std::vector<TChunkTree*> children;
+        children.reserve(childrenIds.size());
         FOREACH (const auto& childId, childrenIds) {
-            auto childRef = chunkManager->GetChunkTree(childId);
-            childrenRefs.push_back(childRef);
+            auto* child = chunkManager->FindChunkTree(childId);
+            if (!child || !child->IsAlive()) {
+                THROW_ERROR_EXCEPTION("No such chunk tree: %s", ~ToString(childId));
+            }
+            children.push_back(child);
         }
 
         auto* chunkList = GetThisTypedImpl();
-        chunkManager->AttachToChunkList(chunkList, childrenRefs);
+        chunkManager->AttachToChunkList(chunkList, children);
 
         context->Reply();
     }

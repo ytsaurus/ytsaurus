@@ -47,7 +47,7 @@ public:
 
     void ScheduleChunkRemoval(TDataNode* node, const TChunkId& chunkdId);
 
-    void ScheduleRFUpdate(TChunkTreeRef ref);
+    void ScheduleRFUpdate(TChunkTree* chunkTree);
 
     void ScheduleJobs(
         TDataNode* node,

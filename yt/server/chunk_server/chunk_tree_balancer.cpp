@@ -67,7 +67,7 @@ void TChunkTreeBalancer::Rebalance(TChunkList* root)
     }
 
     // Construct new children list.
-    std::vector<TChunkTreeRef> newChildren;
+    std::vector<TChunkTree*> newChildren;
     AppendChunkTree(&newChildren, root);
     YCHECK(!newChildren.empty());
     YCHECK(newChildren.front() != root);
@@ -76,8 +76,8 @@ void TChunkTreeBalancer::Rebalance(TChunkList* root)
     
     // Add temporary references to the old children.
     auto oldChildren = root->Children();
-    FOREACH (auto childRef, oldChildren) {
-        objectManager->RefObject(childRef);
+    FOREACH (auto* child, oldChildren) {
+        objectManager->RefObject(child);
     }
 
     // Replace the children list.
@@ -85,8 +85,8 @@ void TChunkTreeBalancer::Rebalance(TChunkList* root)
     chunkManager->AttachToChunkList(root, newChildren, false);
 
     // Release the temporary references added above.
-    FOREACH (auto childRef, oldChildren) {
-        objectManager->UnrefObject(childRef);
+    FOREACH (auto* child, oldChildren) {
+        objectManager->UnrefObject(child);
     }
 
     const auto& newStatistics = root->Statistics();
@@ -99,17 +99,17 @@ void TChunkTreeBalancer::Rebalance(TChunkList* root)
 }
 
 void TChunkTreeBalancer::AppendChunkTree(
-    std::vector<TChunkTreeRef>* children,
-    TChunkTreeRef child)
+    std::vector<TChunkTree*>* children,
+    TChunkTree* child)
 {
     auto chunkManager = Bootstrap->GetChunkManager();
 
     // Expand child chunk lists of rank > 1.
-    if (child.GetType() == EObjectType::ChunkList) {
-        const auto* chunkList = child.AsChunkList();
+    if (child->GetType() == EObjectType::ChunkList) {
+        auto* chunkList = child->AsChunkList();
         if (chunkList->Statistics().Rank > 1) {
-            FOREACH (auto childRef, chunkList->Children()) {
-                AppendChunkTree(children, childRef);
+            FOREACH (auto* child, chunkList->Children()) {
+                AppendChunkTree(children, child);
             }
             return;
         }
@@ -118,7 +118,7 @@ void TChunkTreeBalancer::AppendChunkTree(
     // Can we reuse the last chunk list?
     bool merge = false;
     if (!children->empty()) {
-        auto* lastChild = children->back().AsChunkList();
+        auto* lastChild = children->back()->AsChunkList();
         if (lastChild->Children().size() < MinChunkListSize) {
             YASSERT(lastChild->Statistics().Rank <= 1);
             YASSERT(lastChild->Children().size() <= MaxChunkListSize);
@@ -136,8 +136,8 @@ void TChunkTreeBalancer::AppendChunkTree(
 
     // Try to add the child as is.
     if (!merge) {
-        if (child.GetType() == EObjectType::ChunkList) {
-            const auto* chunkList = child.AsChunkList();
+        if (child->GetType() == EObjectType::ChunkList) {
+            auto* chunkList = child->AsChunkList();
             if (chunkList->Children().size() <= MaxChunkListSize) {
                 YASSERT(chunkList->GetObjectRefCounter() > 0);
                 children->push_back(child);
@@ -155,11 +155,11 @@ void TChunkTreeBalancer::AppendChunkTree(
 }
 
 void TChunkTreeBalancer::MergeChunkTrees(
-    std::vector<TChunkTreeRef>* children,
-    TChunkTreeRef child)
+    std::vector<TChunkTree*>* children,
+    TChunkTree* child)
 {
     // We are trying to add the child to the last chunk list.
-    auto* lastChunkList = children->back().AsChunkList();
+    auto* lastChunkList = children->back()->AsChunkList();
 
     YASSERT(lastChunkList->GetObjectRefCounter() == 0);
     YASSERT(lastChunkList->Statistics().Rank <= 1);
@@ -167,7 +167,7 @@ void TChunkTreeBalancer::MergeChunkTrees(
 
     auto chunkManager = Bootstrap->GetChunkManager();
 
-    switch (child.GetType()) {
+    switch (child->GetType()) {
         case EObjectType::Chunk: {
             // Just adding the chunk to the last chunk list.
             chunkManager->AttachToChunkList(lastChunkList, child);
@@ -175,7 +175,7 @@ void TChunkTreeBalancer::MergeChunkTrees(
         }
 
         case EObjectType::ChunkList: {
-            const auto* chunkList = child.AsChunkList();
+            auto* chunkList = child->AsChunkList();
             if (lastChunkList->Children().size() + chunkList->Children().size() <= MaxChunkListSize) {
                 // Just appending the chunk list to the last chunk list.
                 chunkManager->AttachToChunkList(lastChunkList, chunkList->Children());
@@ -187,7 +187,7 @@ void TChunkTreeBalancer::MergeChunkTrees(
                         // The last chunk list is too large. Creating a new one.
                         YASSERT(lastChunkList->Children().size() == MinChunkListSize);
                         lastChunkList = chunkManager->CreateChunkList();
-                        children->push_back(TChunkTreeRef(lastChunkList));
+                        children->push_back(lastChunkList);
                     }
                     int count = std::min(
                         MinChunkListSize - lastChunkList->Children().size(),

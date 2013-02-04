@@ -346,13 +346,13 @@ public:
     }
 
 
-    static TChunkTreeStatistics GetChunkTreeStatistics(TChunkTreeRef ref)
+    static TChunkTreeStatistics GetChunkTreeStatistics(TChunkTree* chunkTree)
     {
-        switch (ref.GetType()) {
+        switch (chunkTree->GetType()) {
             case EObjectType::Chunk:
-                return ref.AsChunk()->GetStatistics();
+                return chunkTree->AsChunk()->GetStatistics();
             case EObjectType::ChunkList:
-                return ref.AsChunkList()->Statistics();
+                return chunkTree->AsChunkList()->Statistics();
             default:
                 YUNREACHABLE();
         }
@@ -406,8 +406,8 @@ public:
 
     void AttachToChunkList(
         TChunkList* chunkList,
-        const TChunkTreeRef* childrenBegin,
-        const TChunkTreeRef* childrenEnd,
+        TChunkTree** childrenBegin,
+        TChunkTree** childrenEnd,
         bool resetSorted)
     {
         auto objectManager = Bootstrap->GetObjectManager();
@@ -415,16 +415,16 @@ public:
 
         TChunkTreeStatistics delta;
         for (auto it = childrenBegin; it != childrenEnd; ++it) {
-            auto childRef = *it;
+            auto child = *it;
             if (!chunkList->Children().empty()) {
                 chunkList->RowCountSums().push_back(
                     chunkList->Statistics().RowCount +
                     delta.RowCount);
             }
-            chunkList->Children().push_back(childRef);
-            SetChunkTreeParent(chunkList, childRef);
-            objectManager->RefObject(childRef);
-            delta.Accumulate(GetChunkTreeStatistics(childRef));
+            chunkList->Children().push_back(child);
+            SetChunkTreeParent(chunkList, child);
+            objectManager->RefObject(child);
+            delta.Accumulate(GetChunkTreeStatistics(child));
         }
 
         // Go upwards and apply delta.
@@ -442,25 +442,25 @@ public:
 
     void AttachToChunkList(
         TChunkList* chunkList,
-        const std::vector<TChunkTreeRef>& children,
+        const std::vector<TChunkTree*>& children,
         bool resetSorted)
     {
         AttachToChunkList(
             chunkList,
-            &*children.begin(),
-            &*children.begin() + children.size(),
+            const_cast<TChunkTree**>(children.data()),
+            const_cast<TChunkTree**>(children.data() + children.size()),
             resetSorted);
     }
 
     void AttachToChunkList(
         TChunkList* chunkList,
-        TChunkTreeRef childRef,
+        TChunkTree* child,
         bool resetSorted)
     {
         AttachToChunkList(
             chunkList,
-            &childRef,
-            &childRef + 1,
+            &child,
+            &child + 1,
             resetSorted);
     }
 
@@ -543,9 +543,9 @@ public:
         chunkList->IncrementVersion();
 
         auto objectManager = Bootstrap->GetObjectManager();
-        FOREACH (auto childRef, chunkList->Children()) {
-            ResetChunkTreeParent(chunkList, childRef);
-            objectManager->UnrefObject(childRef);
+        FOREACH (auto* child, chunkList->Children()) {
+            ResetChunkTreeParent(chunkList, child);
+            objectManager->UnrefObject(child);
         }
         chunkList->Children().clear();
         chunkList->RowCountSums().clear();
@@ -555,32 +555,32 @@ public:
         LOG_DEBUG_UNLESS(IsRecovery(), "Chunk list cleared (ChunkListId: %s)", ~chunkList->GetId().ToString());
     }
 
-    void SetChunkTreeParent(TChunkList* parent, TChunkTreeRef childRef)
+    void SetChunkTreeParent(TChunkList* parent, TChunkTree* child)
     {
-        switch (childRef.GetType()) {
+        switch (child->GetType()) {
             case EObjectType::Chunk:
-                childRef.AsChunk()->Parents().push_back(parent);
+                child->AsChunk()->Parents().push_back(parent);
                 break;
             case EObjectType::ChunkList:
-                childRef.AsChunkList()->Parents().insert(parent);
+                child->AsChunkList()->Parents().insert(parent);
                 break;
             default:
                 YUNREACHABLE();
         }
     }
 
-    void ResetChunkTreeParent(TChunkList* parent, TChunkTreeRef childRef)
+    void ResetChunkTreeParent(TChunkList* parent, TChunkTree* child)
     {
-        switch (childRef.GetType()) {
+        switch (child->GetType()) {
             case EObjectType::Chunk: {
-                auto& parents = childRef.AsChunk()->Parents();
+                auto& parents = child->AsChunk()->Parents();
                 auto it = std::find(parents.begin(), parents.end(), parent);
                 YASSERT(it != parents.end());
                 parents.erase(it);
                 break;
             }
             case EObjectType::ChunkList: {
-                auto& parents = childRef.AsChunkList()->Parents();
+                auto& parents = child->AsChunkList()->Parents();
                 auto it = parents.find(parent);
                 YASSERT(it != parents.end());
                 parents.erase(it);
@@ -665,46 +665,40 @@ public:
         return ChunkReplicator->IsEnabled();
     }
 
-    void ScheduleRFUpdate(TChunkTreeRef ref)
+    void ScheduleRFUpdate(TChunkTree* chunkTree)
     {
-        ChunkReplicator->ScheduleRFUpdate(ref);
+        ChunkReplicator->ScheduleRFUpdate(chunkTree);
     }
 
 
-    TChunkTreeRef GetChunkTree(const TChunkTreeId& id)
+    TChunkTree* FindChunkTree(const TChunkTreeId& id)
     {
         auto type = TypeFromId(id);
         switch (type) {
-            case EObjectType::Chunk: {
-                auto* chunk = FindChunk(id);
-                if (!chunk || !chunk->IsAlive()) {
-                    THROW_ERROR_EXCEPTION("No such chunk: %s", ~id.ToString());
-                }
-                return TChunkTreeRef(chunk);
-            }
-
-            case EObjectType::ChunkList: {
-                auto* chunkList = FindChunkList(id);
-                if (!chunkList || !chunkList->IsAlive()) {
-                    THROW_ERROR_EXCEPTION("No such chunk list: %s", ~id.ToString());
-                }
-                return TChunkTreeRef(chunkList);
-            }
-
+            case EObjectType::Chunk:
+                return FindChunk(id);
+            case EObjectType::ChunkList:
+                return FindChunkList(id);
             default:
-                THROW_ERROR_EXCEPTION("Invalid object type, expected chunk or chunk list but found %s",
-                    ~type.ToString());
+                return nullptr;
         }
     }
 
+    TChunkTree* GetChunkTree(const TChunkTreeId& id)
+    {
+        auto* chunkTree = FindChunk(id);
+        YCHECK(chunkTree);
+        return chunkTree;
+    }
 
-    std::vector<TYPath> GetOwningNodes(TChunkTreeRef ref)
+
+    std::vector<TYPath> GetOwningNodes(TChunkTree* chunkTree)
     {
         auto cypressManager = Bootstrap->GetCypressManager();
 
         yhash_set<TCypressNodeBase*> owningNodes;
-        yhash_set<TChunkTreeRef> visitedRefs;
-        GetOwningNodes(ref, visitedRefs, &owningNodes);
+        yhash_set<TChunkTree*> visited;
+        GetOwningNodes(chunkTree, visited, &owningNodes);
 
         std::vector<TYPath> paths;
         FOREACH (auto* node, owningNodes) {
@@ -801,9 +795,9 @@ private:
     {
         auto objectManager = Bootstrap->GetObjectManager();
         // Drop references to children.
-        FOREACH (auto childRef, chunkList->Children()) {
-            ResetChunkTreeParent(chunkList, childRef);
-            objectManager->UnrefObject(childRef);
+        FOREACH (auto* child, chunkList->Children()) {
+            ResetChunkTreeParent(chunkList, child);
+            objectManager->UnrefObject(child);
         }
     }
 
@@ -831,8 +825,8 @@ private:
             return;
 
         auto transactionManager = Bootstrap->GetTransactionManager();
-        FOREACH (auto childRef, chunkList->Children()) {
-            transactionManager->UnstageObject(transaction, childRef.AsObject(), true);
+        FOREACH (auto* child, chunkList->Children()) {
+            transactionManager->UnstageObject(transaction, child, true);
         }
     }
 
@@ -1123,14 +1117,14 @@ private:
         auto& statistics = chunkList->Statistics();
         if (statistics.Rank == -1) {
             statistics = TChunkTreeStatistics();
-            FOREACH (auto childRef, chunkList->Children()) {
-                switch (childRef.GetType()) {
+            FOREACH (auto* child, chunkList->Children()) {
+                switch (child->GetType()) {
                     case EObjectType::Chunk:
-                        statistics.Accumulate(childRef.AsChunk()->GetStatistics());
+                        statistics.Accumulate(child->AsChunk()->GetStatistics());
                         break;
 
                     case EObjectType::ChunkList:
-                        statistics.Accumulate(ComputeStatisticsFor(childRef.AsChunkList()));
+                        statistics.Accumulate(ComputeStatisticsFor(child->AsChunkList()));
                         break;
 
                     default:
@@ -1632,25 +1626,25 @@ private:
 
 
     static void GetOwningNodes(
-        TChunkTreeRef ref,
-        yhash_set<TChunkTreeRef>& visitedRefs,
+        TChunkTree* chunkTree,
+        yhash_set<TChunkTree*>& visited,
         yhash_set<TCypressNodeBase*>* owningNodes)
     {
-        if (!visitedRefs.insert(ref).second) {
+        if (!visited.insert(chunkTree).second) {
             return;
         }
-        switch (ref.GetType()) {
+        switch (chunkTree->GetType()) {
             case EObjectType::Chunk: {
-                FOREACH (auto* parent, ref.AsChunk()->Parents()) {
-                    GetOwningNodes(parent, visitedRefs, owningNodes);
+                FOREACH (auto* parent, chunkTree->AsChunk()->Parents()) {
+                    GetOwningNodes(parent, visited, owningNodes);
                 }
                 break;
             }
             case EObjectType::ChunkList: {
-                auto* chunkList = ref.AsChunkList();
+                auto* chunkList = chunkTree->AsChunkList();
                 owningNodes->insert(chunkList->OwningNodes().begin(), chunkList->OwningNodes().end());
                 FOREACH (auto* parent, chunkList->Parents()) {
-                    GetOwningNodes(parent, visitedRefs, owningNodes);
+                    GetOwningNodes(parent, visited, owningNodes);
                 }
                 break;
             }
@@ -1830,7 +1824,12 @@ void TChunkManager::Initialize()
 TChunkManager::~TChunkManager()
 { }
 
-TChunkTreeRef TChunkManager::GetChunkTree(const TChunkTreeId& id)
+TChunkTree* TChunkManager::FindChunkTree(const TChunkTreeId& id)
+{
+    return Impl->FindChunkTree(id);
+}
+
+TChunkTree* TChunkManager::GetChunkTree(const TChunkTreeId& id)
 {
     return Impl->GetChunkTree(id);
 }
@@ -1918,8 +1917,8 @@ void TChunkManager::ConfirmChunk(
 
 void TChunkManager::AttachToChunkList(
     TChunkList* chunkList,
-    const TChunkTreeRef* childrenBegin,
-    const TChunkTreeRef* childrenEnd,
+    TChunkTree** childrenBegin,
+    TChunkTree** childrenEnd,
     bool resetSorted)
 {
     Impl->AttachToChunkList(chunkList, childrenBegin, childrenEnd, resetSorted);
@@ -1927,7 +1926,7 @@ void TChunkManager::AttachToChunkList(
 
 void TChunkManager::AttachToChunkList(
     TChunkList* chunkList,
-    const std::vector<TChunkTreeRef>& children,
+    const std::vector<TChunkTree*>& children,
     bool resetSorted)
 {
     Impl->AttachToChunkList(chunkList, children, resetSorted);
@@ -1935,10 +1934,10 @@ void TChunkManager::AttachToChunkList(
 
 void TChunkManager::AttachToChunkList(
     TChunkList* chunkList,
-    const TChunkTreeRef childRef,
+    TChunkTree* child,
     bool resetSorted)
 {
-    Impl->AttachToChunkList(chunkList, childRef, resetSorted);
+    Impl->AttachToChunkList(chunkList, child, resetSorted);
 }
 
 void TChunkManager::RebalanceChunkTree(TChunkList* chunkList)
@@ -1969,9 +1968,9 @@ bool TChunkManager::IsReplicatorEnabled()
     return Impl->IsReplicatorEnabled();
 }
 
-void TChunkManager::ScheduleRFUpdate(TChunkTreeRef ref)
+void TChunkManager::ScheduleRFUpdate(TChunkTree* chunkTree)
 {
-    Impl->ScheduleRFUpdate(ref);
+    Impl->ScheduleRFUpdate(chunkTree);
 }
 
 TSmallVector<Stroka, TypicalReplicationFactor> TChunkManager::GetChunkAddresses(const TChunk* chunk)
@@ -1999,9 +1998,9 @@ int TChunkManager::GetRegisteredNodeCount()
     return Impl->GetRegisteredNodeCount();
 }
 
-std::vector<TYPath> TChunkManager::GetOwningNodes(TChunkTreeRef ref)
+std::vector<TYPath> TChunkManager::GetOwningNodes(TChunkTree* chunkTree)
 {
-    return Impl->GetOwningNodes(ref);
+    return Impl->GetOwningNodes(chunkTree);
 }
 
 DELEGATE_METAMAP_ACCESSORS(TChunkManager, Chunk, TChunk, TChunkId, *Impl)

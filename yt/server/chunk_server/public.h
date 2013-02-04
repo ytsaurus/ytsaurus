@@ -27,6 +27,7 @@ using NChunkClient::TBlockId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunkTree;
 class TChunk;  
 class TChunkList;
 class TJob;
@@ -37,8 +38,6 @@ class TReplicationSink;
 struct TVersionedChunkListId;
 struct TChunkTreeStatistics;
 struct TTotalNodeStatistics;
-
-class TChunkTreeRef;
 
 class TChunkManager;
 typedef TIntrusivePtr<TChunkManager> TChunkManagerPtr;

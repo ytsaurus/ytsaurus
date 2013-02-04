@@ -28,14 +28,13 @@ namespace NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStagedObjectBase
-    : public TUnversionedObjectBase
+class TStagedObject
 {
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, StagingTransaction);
     DEFINE_BYVAL_RW_PROPERTY(NSecurityServer::TAccount*, StagingAccount);
 
 public:
-    explicit TStagedObjectBase(const TObjectId& id);
+    TStagedObject();
 
     void Save(const NCellMaster::TSaveContext& context) const;
     void Load(const NCellMaster::TLoadContext& context);

@@ -21,7 +21,7 @@ TVersionedChunkListId::TVersionedChunkListId(const TChunkListId& id, int version
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkList::TChunkList(const TChunkListId& id)
-    : TUnversionedObjectBase(id)
+    : TChunkTree(id)
     , Version_(0)
     , VisitMark_(0)
 {

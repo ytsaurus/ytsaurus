@@ -65,7 +65,8 @@ public:
     DECLARE_METAMAP_ACCESSORS(JobList, TJobList, TChunkId);
     DECLARE_METAMAP_ACCESSORS(Job, TJob, TJobId);
 
-    TChunkTreeRef GetChunkTree(const TChunkTreeId& id);
+    TChunkTree* FindChunkTree(const TChunkTreeId& id);
+    TChunkTree* GetChunkTree(const TChunkTreeId& id);
 
     //! Fired when a node gets registered.
     /*!
@@ -97,16 +98,16 @@ public:
 
     void AttachToChunkList(
         TChunkList* chunkList,
-        const TChunkTreeRef* childrenBegin,
-        const TChunkTreeRef* childrenEnd,
+        TChunkTree** childrenBegin,
+        TChunkTree** childrenEnd,
         bool resetSorted = true);
     void AttachToChunkList(
         TChunkList* chunkList,
-        const std::vector<TChunkTreeRef>& children,
+        const std::vector<TChunkTree*>& children,
         bool resetSorted = true);
     void AttachToChunkList(
         TChunkList* chunkList,
-        const TChunkTreeRef childRef,
+        TChunkTree* child,
         bool resetSorted = true);
 
     void RebalanceChunkTree(TChunkList* chunkList);
@@ -127,7 +128,7 @@ public:
 
     bool IsReplicatorEnabled();
 
-    void ScheduleRFUpdate(TChunkTreeRef ref);
+    void ScheduleRFUpdate(TChunkTree* chunkTree);
 
     TSmallVector<Stroka, TypicalReplicationFactor> GetChunkAddresses(const TChunk* chunk);
 
@@ -146,7 +147,7 @@ public:
     //! Returns the number of nodes in registered state.
     int GetRegisteredNodeCount();
 
-    std::vector<NYPath::TYPath> GetOwningNodes(TChunkTreeRef ref);
+    std::vector<NYPath::TYPath> GetOwningNodes(TChunkTree* chunkTree);
 
 private:
     class TImpl;

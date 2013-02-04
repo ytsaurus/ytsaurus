@@ -711,14 +711,14 @@ bool TChunkReplicator::IsEnabled()
     return true;
 }
 
-void TChunkReplicator::ScheduleRFUpdate(TChunkTreeRef ref)
+void TChunkReplicator::ScheduleRFUpdate(TChunkTree* chunkTree)
 {
-    switch (ref.GetType()) {
+    switch (chunkTree->GetType()) {
         case EObjectType::Chunk:
-            ScheduleRFUpdate(ref.AsChunk());
+            ScheduleRFUpdate(chunkTree->AsChunk());
             break;
         case EObjectType::ChunkList:
-            ScheduleRFUpdate(ref.AsChunkList());
+            ScheduleRFUpdate(chunkTree->AsChunkList());
             break;
         default:
             YUNREACHABLE();
