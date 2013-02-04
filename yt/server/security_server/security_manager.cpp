@@ -369,17 +369,8 @@ private:
     {
         AccountMap.LoadKeys(context);
 
-        // COMPAT(babenko)
-        SysAccount = FindAccount(SysAccountId);
-        if (!SysAccount) {
-            SysAccount = DoCreateAccount(SysAccountId, SysAccountName);
-            SysAccount->ResourceLimits() = TClusterResources::FromDiskSpace((i64) 1024 * 1024 * 1024 * 1024);
-        }
-        TmpAccount = FindAccount(TmpAccountId);
-        if (!TmpAccount) {
-            TmpAccount = DoCreateAccount(TmpAccountId, TmpAccountName);
-            TmpAccount->ResourceLimits() = TClusterResources::FromDiskSpace((i64) 1024 * 1024 * 1024 * 1024);
-        }
+        SysAccount = GetAccount(SysAccountId);
+        TmpAccount = GetAccount(TmpAccountId);
     }
 
     void LoadValues(const NCellMaster::TLoadContext& context)
