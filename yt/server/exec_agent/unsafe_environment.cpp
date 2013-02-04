@@ -216,7 +216,8 @@ private:
 
         int status = 0;
         {
-            int result = waitpid(ProcessId, &status, WUNTRACED);
+            int pid = ProcessId;
+            int result = waitpid(pid, &status, WUNTRACED);
 
             // Set ProcessId back to -1, so that we don't try to kill it ever after.
             ProcessId = -1;
@@ -226,7 +227,7 @@ private:
                 OnExit.Set(Error);
                 return;
             }
-            YASSERT(result == ProcessId);
+            YASSERT(result == pid);
         }
 
         auto statusError = StatusToError(status);

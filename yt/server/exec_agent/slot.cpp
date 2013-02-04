@@ -34,8 +34,10 @@ TSlot::TSlot(const Stroka& path, int id, int userId)
             ~Path.Quote());
     }
 
-    // Kill all processes of this pseudo-user for sanity reasons.
-    KillallByUser(UserId);
+    if (UserId > 0) {
+        // Kill all processes of this pseudo-user for sanity reasons.
+        KillallByUser(UserId);
+    }
 }
 
 void TSlot::Acquire()
