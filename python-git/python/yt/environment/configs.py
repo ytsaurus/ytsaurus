@@ -193,10 +193,13 @@ def get_node_config():
             "environments" = {
                 "default" = {
                     "type" = "unsafe";
-                };                
+                };
             };
         };
         "job_manager" = {
+            "resource_limits" = {
+                "slots" = 1;
+            };
             "slot_count" = 1;
             "slot_location" = "";
         };
