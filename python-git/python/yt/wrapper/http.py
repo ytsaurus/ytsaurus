@@ -93,6 +93,8 @@ def get_token():
         require(all(c in string.hexdigits for c in token),
                 YtTokenError("You have an improper authentication token in ~/.yt_token.\n"
                              "Please refer to http://proxy.yt.yandex.net/auth/ for obtaining a valid token."))
+    if not token:
+        token = None
     return token
 
 def get_hosts(proxy=None):
