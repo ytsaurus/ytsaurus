@@ -284,7 +284,7 @@ void TOperationControllerBase::TTask::CheckResourceDemandSanity(
     // The task is requesting more then some node is willing to provide it.
     // Maybe it's OK and we should wait for some time.
     // Or maybe it's not and the task is requesting something no one is able to provide.
-    
+
     // First check if this very node has enough resources (including those currently
     // allocated by other jobs).
     if (Dominates(node->ResourceLimits(), neededResources))

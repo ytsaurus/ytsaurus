@@ -219,6 +219,7 @@ protected:
          *  For jobs with final output this list typically contains one element per each output table.
          */
         std::vector<NChunkClient::TChunkListId> ChunkListIds;
+
     };
 
     yhash_map<TJobPtr, TJobletPtr> JobsInProgress;
@@ -327,7 +328,7 @@ protected:
 
     virtual void CustomizeJoblet(TJobletPtr joblet);
     virtual void CustomizeJobSpec(TJobletPtr joblet, NProto::TJobSpec* jobSpec);
-    
+
     struct TPendingTaskInfo
     {
         // All non-local tasks.
