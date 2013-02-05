@@ -60,6 +60,11 @@ void TGarbageCollector::Load(const NCellMaster::TLoadContext& context)
 
     LoadSet(context.GetInput(), ZombieIds);
 
+    CollectPromise = NewPromise<void>();
+    if (ZombieIds.empty()) {
+        CollectPromise.Set();
+    }
+
     ProfileQueueSize();
 }
 
@@ -68,6 +73,7 @@ void TGarbageCollector::Clear()
     VERIFY_THREAD_AFFINITY(StateThread);
 
     ZombieIds.clear();
+
     CollectPromise = NewPromise<void>();
     CollectPromise.Set();
 
