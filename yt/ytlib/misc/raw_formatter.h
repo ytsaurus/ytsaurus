@@ -56,8 +56,8 @@ public:
     void Advance(int offset)
     {
         Cursor += offset;
-
-        if (Cursor + offset > End) {
+        
+        if (Cursor > End) {
             Cursor = End;
         }
     }
