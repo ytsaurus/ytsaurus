@@ -51,6 +51,6 @@ clean:
 	$(PYTHON) setup.py clean
 	find . -name '*.pyc' -delete
 	sudo rm -rf tests Yt.egg-info yt/wrapper/mapreduce-yt
-	sudo rm -rf build/ MANIFEST
+	sudo rm -rf build/ dist/ MANIFEST mapreduce.spec
 	sudo $(MAKE) -f $(CURDIR)/debian/rules clean
 
