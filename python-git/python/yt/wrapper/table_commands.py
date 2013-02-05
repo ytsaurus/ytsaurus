@@ -48,12 +48,6 @@ def _prepare_sort_by(sort_by):
             raise YtError("sort_by option is required")
     return flatten(sort_by)
 
-def _calc_job_count(input_tables, min_data=None, max_data=None):
-    size = sum(map(get_size, input_tables))
-    if min_data is None: min_data = config.MIN_SIZE_PER_JOB
-    if max_data is None: max_data = config.MAX_SIZE_PER_JOB
-    return max(1, min(size / min_data, max(config.CLUSTER_SIZE, size / max_data)))
-
 def _prepare_files(files):
     if files is None:
         return []
@@ -446,16 +440,6 @@ def run_sort(source_table, destination_table=None, sort_by=None,
     """
     Sort source table. If destination table is not specified, than it equals to source table.
     """
-    def prepare_job_count(source_table, spec):
-        if "partition_count" in spec:
-            return spec
-        return update(
-            {"partition_job_count": _calc_job_count(source_table, max_data=config.MAX_SIZE_PER_JOB),
-             "partition_count": _calc_job_count(source_table, max_data=config.MAX_SIZE_PER_JOB/2),
-             "min_data_size_per_partition_job": config.MIN_SIZE_PER_JOB,
-             "min_data_size_per_sort_job": 2 * config.MIN_SIZE_PER_JOB,
-             "min_partition_data_size": 2 * config.MIN_SIZE_PER_JOB},
-            spec)
 
     sort_by = _prepare_sort_by(sort_by)
     source_table = _prepare_source_tables(source_table)
@@ -481,7 +465,6 @@ def run_sort(source_table, destination_table=None, sort_by=None,
 
     spec = compose(
         _add_user_spec,
-        lambda _: prepare_job_count(source_table, _),
         lambda _: _add_table_writer_spec(["sort_job_io", "merge_job_io"], table_writer, _),
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"sort_by": sort_by}, _),
@@ -515,17 +498,6 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                    map_files=None, reduce_files=None,
                    map_file_paths=None, reduce_file_paths=None,
                    sort_by=None, reduce_by=None):
-    def prepare_job_count(spec, source_table):
-        if "map_job_count" not in spec and "partition_count" not in spec:
-            map_job_count = _calc_job_count(source_table)
-            spec = update(
-                {"map_job_count": map_job_count,
-                 "partition_count": max(1, map_job_count / 2),
-                 "min_data_size_per_map_job": config.MIN_SIZE_PER_JOB,
-                 "min_data_size_per_sort_job": 2 * config.MIN_SIZE_PER_JOB},
-                spec)
-        return spec
-
     run_map_reduce.files_to_remove = []
     def memorize_files(spec, files):
         run_map_reduce.files_to_remove += files
@@ -542,7 +514,6 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
 
     spec = compose(
         _add_user_spec,
-        lambda _: prepare_job_count(_, source_table),
         lambda _: _add_table_writer_spec(["map_job_io", "reduce_job_io", "sort_job_io"], table_writer, _),
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"sort_by": _prepare_sort_by(sort_by),
@@ -563,14 +534,6 @@ def run_operation(binary, source_table, destination_table,
                   spec=None,
                   op_name=None,
                   reduce_by=None):
-    def prepare_job_count(spec, source_table):
-        if "job_count" not in spec:
-            spec = update(
-                {"job_count": _calc_job_count(source_table),
-                 "min_data_size_per_job": config.MIN_SIZE_PER_JOB},
-                spec)
-        return spec
-
     run_operation.files = []
     def memorize_files(spec, files):
         run_operation.files += files
@@ -616,7 +579,6 @@ def run_operation(binary, source_table, destination_table,
 
     spec = compose(
         _add_user_spec,
-        lambda _: prepare_job_count(_, source_table),
         lambda _: _add_table_writer_spec("job_io", table_writer, _),
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"reduce_by": _prepare_reduce_by(reduce_by)}, _) if op_name == "reduce" else _,
