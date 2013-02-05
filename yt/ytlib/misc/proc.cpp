@@ -1,27 +1,25 @@
 #include "stdafx.h"
-
 #include "proc.h"
 
+#include <util/stream/file.h>
+
+#include <util/string/vector.h>
+
+#include <util/system/fs.h>
+#include <util/system/info.h>
+
+#include <util/folder/iterator.h>
 #include <util/folder/dirut.h>
 
-#include <util/stream/file.h>
-#include <util/string/vector.h>
-#include <util/system/fs.h>
-#include <util/folder/iterator.h>
-
 #ifdef _unix_
-
-#include <stdio.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-
+    #include <stdio.h>
+    #include <sys/types.h>
+    #include <sys/wait.h>
 #endif
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-static const size_t PageSize = NSystemInfo::GetPageSize();
 
 i64 GetProcessRss(int pid)
 {
@@ -32,7 +30,7 @@ i64 GetProcessRss(int pid)
 
     TIFStream memoryStatFile(path);
     auto memoryStatFields = splitStroku(memoryStatFile.ReadLine(), " ");
-    return FromString<i64>(memoryStatFields[1]) * PageSize;
+    return FromString<i64>(memoryStatFields[1]) * NSystemInfo::GetPageSize();
 }
 
 #ifdef _unix_
@@ -70,23 +68,11 @@ i64 GetUserRss(int uid)
     return result * 1024;
 }
 
-int GuardedFork()
-{
-    //ToDo(psushin): Remove this mutex when libc is fixed.
-    static TMutex ForkMutex;
-    ForkMutex.Acquire();
-    auto pid = fork();
-    if (pid != 0) {
-        ForkMutex.Release();
-    }
-    return pid;
-}
-
 // The caller must be sure that it has root privileges.
 void KillallByUser(int uid)
 {
     YCHECK(uid > 0);
-    auto pid = GuardedFork();
+    auto pid = fork();
 
     // We are forking here in order not to give the root priviledges to the parent process ever,
     // because we cannot know what other threads are doing.
@@ -128,15 +114,16 @@ void KillallByUser(int uid)
     }
 }
 
-void RemoveDirAsRoot(Stroka path)
+void RemoveDirAsRoot(const Stroka& path)
 {
     // Allocation after fork can lead to a deadlock inside LFAlloc.
     // To avoid allocation we list contents of the directory before fork.
 
     // Copy-paste from RemoveDirWithContents (util/folder/dirut.cpp)
-    SlashFolderLocal(path);
+    auto path_ = path;
+    SlashFolderLocal(path_);
 
-    TDirIterator dir(path);
+    TDirIterator dir(path_);
     std::vector<Stroka> contents;
 
     for (TDirIterator::TIterator it = dir.Begin(); it != dir.End(); ++it) {
@@ -151,8 +138,8 @@ void RemoveDirAsRoot(Stroka path)
         }
     }
 
-    auto pid = GuardedFork();
-    // We are forking here in order not to give the root priviledges to the parent process ever,
+    auto pid = fork();
+    // We are forking here in order not to give the root privileges to the parent process ever,
     // because we cannot know what other threads are doing.
     if (pid == 0) {
         // Child process
@@ -166,7 +153,7 @@ void RemoveDirAsRoot(Stroka path)
         _exit(0);
     }
 
-    auto throwError = [=] (Stroka msg, TError error) {
+    auto throwError = [=] (const Stroka& msg, const TError& error) {
         THROW_ERROR_EXCEPTION(
             "Failed to remove directory %s: %s",
             ~path,
@@ -210,28 +197,27 @@ TError StatusToError(int status)
 
 #else
 
-int GuardedFork()
-{
-    YUNIMPLEMENTED();
-}
-
 void KillallByUser(int uid)
 {
+    UNUSED(uid);
     YUNIMPLEMENTED();
 }
 
 TError StatusToError(int status)
 {
+    UNUSED(status);
     YUNIMPLEMENTED();
 }
 
 i64 GetUserRss(int uid)
 {
+    UNUSED(uid);
     YUNIMPLEMENTED();
 }
 
 void RemoveDirAsRoot(const Stroka& path)
 {
+    UNUSED(path);
     YUNIMPLEMENTED();
 }
 

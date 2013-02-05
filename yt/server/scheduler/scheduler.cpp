@@ -969,14 +969,12 @@ private:
         // No need to abort IO transactions since they are nested inside sync transaction.
     }
 
-
     void FinishOperation(TOperationPtr operation)
     {
         operation->SetFinished();
         operation->SetController(nullptr);
         UnregisterOperation(operation);
     }
-
 
     void RegisterJob(TJobPtr job)
     {
@@ -987,7 +985,7 @@ private:
         YCHECK(job->GetNode()->Jobs().insert(job).second);
 
         job->GetNode()->ResourceUsage() += job->ResourceUsage();
-        
+
         JobStarted_.Fire(job);
 
         LOG_DEBUG("Job registered (JobId: %s, OperationId: %s)",
@@ -1188,7 +1186,7 @@ private:
         auto req = TTransactionYPathProxy::UnstageObject(FromObjectId(transaction->GetId()));
         *req->mutable_object_id() = chunkId.ToProto();
         req->set_recursive(false);
-        
+
         // Fire-and-forget.
         // The subscriber is only needed to log the outcome.
         proxy.Execute(req).Subscribe(
@@ -1244,7 +1242,7 @@ private:
 
         LOG_INFO("Operation committed (OperationId: %s)",
             ~ToString(operation->GetOperationId()));
-    }   
+    }
 
     void DoOperationFailed(
         TOperationPtr operation,
