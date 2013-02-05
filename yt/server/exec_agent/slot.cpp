@@ -34,9 +34,13 @@ TSlot::TSlot(const Stroka& path, int id, int userId)
             ~Path.Quote());
     }
 
-    if (UserId > 0) {
-        // Kill all processes of this pseudo-user for sanity reasons.
-        KillallByUser(UserId);
+    try {
+        if (UserId > 0) {
+            // Kill all processes of this pseudo-user for sanity reasons.
+            KillallByUser(UserId);
+        }
+    } catch (const std::exceptions& ex) {
+        LOG_FATAL(ex, "Slot user cleanup failed (UserId: %d, Slot: %s)", ~Path.Quote());
     }
 }
 
