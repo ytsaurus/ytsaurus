@@ -1,6 +1,6 @@
 from yt.wrapper.string_iter_io import StringIterIO
 
-def test_string_list_io_read():
+def test_string_iter_io_read():
     strings = ["ab", "", "c", "de", ""]
 
     for add_eoln in [False, True]:
@@ -9,7 +9,7 @@ def test_string_list_io_read():
         for c in sep.join(strings):
             assert c == io.read(1)
 
-def test_string_list_io_readline():
+def test_string_iter_io_readline():
     strings = ["ab", "", "c\n", "d\ne", ""]
 
     for add_eoln in [False, True]:
