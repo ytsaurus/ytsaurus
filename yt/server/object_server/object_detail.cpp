@@ -52,8 +52,8 @@ TUnversionedObjectBase::TUnversionedObjectBase(const TObjectId& id)
 ////////////////////////////////////////////////////////////////////////////////
 
 TStagedObject::TStagedObject()
-    : StagingTransaction_(NULL)
-    , StagingAccount_(NULL)
+    : StagingTransaction_(nullptr)
+    , StagingAccount_(nullptr)
 { }
 
 void TStagedObject::Save(const NCellMaster::TSaveContext& context) const
