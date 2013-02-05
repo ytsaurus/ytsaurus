@@ -686,7 +686,7 @@ public:
 
     TChunkTree* GetChunkTree(const TChunkTreeId& id)
     {
-        auto* chunkTree = FindChunk(id);
+        auto* chunkTree = FindChunkTree(id);
         YCHECK(chunkTree);
         return chunkTree;
     }
