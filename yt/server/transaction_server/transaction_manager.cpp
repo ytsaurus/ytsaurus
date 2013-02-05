@@ -582,7 +582,7 @@ void TTransactionManager::DoRenewLease(const TTransaction* transaction)
     TLeaseManager::RenewLease(it->second);
 
     LOG_DEBUG("Transaction lease renewed (TransactionId: %s)",
-        ~ToString(transaction->GetId());
+        ~ToString(transaction->GetId()));
 }
 
 TObjectId TTransactionManager::CreateObject(
