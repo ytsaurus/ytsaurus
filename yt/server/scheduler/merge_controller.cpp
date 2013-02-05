@@ -348,12 +348,10 @@ protected:
 
             auto jobCount = SuggestJobCount(
                 totalDataSize,
-                1,
-                Spec->MaxDataSizePerJob,
-                Spec->JobCount,
-                Null);
+                Spec->DataSizePerJob,
+                Spec->JobCount);
 
-            MaxDataSizePerJob = static_cast<i64>(std::ceil((double) totalDataSize / jobCount));
+            MaxDataSizePerJob = 1 + totalDataSize / jobCount;
 
             FOREACH (auto chunk, chunks) {
                 ProcessInputChunk(chunk);

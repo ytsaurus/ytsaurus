@@ -965,7 +965,7 @@ protected:
             dataSizeThresholds.push_back(
                 Partitions[index]->Maniac
                 ? std::numeric_limits<i64>::max()
-                : Spec->MaxDataSizePerSortJob);
+                : Config->DataSizePerSortJob);
         }
         ShufflePool = CreateShuffleChunkPool(dataSizeThresholds);
 
@@ -1119,9 +1119,7 @@ protected:
     TNodeResources GetMinNeededPartitionResources() const
     {
         // Holds both for sort and map-reduce.
-        return GetPartitionResources(std::min(
-            Spec->MaxDataSizePerPartitionJob,
-            TotalInputDataSize));
+        return GetPartitionResources(TotalInputDataSize / SuggestPartitionJobCount());
     }
 
     virtual TNodeResources GetSimpleSortResources(
@@ -1137,7 +1135,7 @@ protected:
     TNodeResources GetMinNeededPartitionSortResources(
         TPartitionPtr partition) const
     {
-        i64 dataSize = Spec->MaxDataSizePerSortJob;
+        i64 dataSize = Config->DataSizePerSortJob;
         if (IsPartitionJobNonexpanding()) {
             dataSize = std::min(dataSize, TotalInputDataSize);
         }
@@ -1169,17 +1167,47 @@ protected:
     {
         return static_cast<i64>((double) TotalInputValueCount * dataSize / TotalInputDataSize);
     }
-
+    
     int SuggestPartitionCount() const
     {
+        i64 result;
         YCHECK(TotalInputDataSize > 0);
-        i64 minSuggestion = static_cast<i64>(ceil((double) TotalInputDataSize / Spec->MaxPartitionDataSize));
-        i64 maxSuggestion = static_cast<i64>(ceil((double) TotalInputDataSize / Spec->MinPartitionDataSize));
-        i64 result = Spec->PartitionCount.Get(minSuggestion);
-        result = std::min(result, maxSuggestion);
-        result = std::max(result, (i64)1);
-        return static_cast<int>(result);
+        if (Spec->PartitionDataSize || Spec->PartitionCount) {
+            if (Spec->PartitionCount) {
+                result = Spec->PartitionCount.Get();
+            } else { // Spec->PartitionDataSize is not Null
+                result = 1 + TotalInputDataSize / Spec->PartitionDataSize.Get();
+            }
+        } else {
+            // Suggest partition count using some (highly experimental)
+            // formula, which is inspired by the following practical
+            // observations:
+            // 1) Partitions of size < 32Mb make no sense.
+            // 2) The larger input is, the bigger is the optimal partition size.
+            // 3) The larger input is, the more parallelism is required to process it efficiently, hence the bigger is the optimal partition count.
+            // 4) Partitions of size > 2GB require too much resources and are thus harmful.
+            // To accommodate both (2) and (3), partition size growth rate is logarithmic
+            double partitionSize = (double)32 * 1024 * 1024 * (1 + std::log10(TotalInputDataSize / ((i64)100 * 1024 * 1024)));
+            i64 suggestedPartitionCount = static_cast<i64>(TotalInputDataSize / partitionSize);
+            i64 upperBoundForPartitionCount = 1000 + (i64)(TotalInputDataSize / ((i64)2 * 1024 * 1024 * 1024));
+            result = std::min(suggestedPartitionCount, upperBoundForPartitionCount);
+        }
+        return static_cast<int>(Clamp(result, 1, Config->MaxPartitionCount));
     }
+    
+    int SuggestPartitionJobCount() const
+    {
+        if (Spec->DataSizePerPartitionJob || Spec->PartitionJobCount) {
+            return SuggestJobCount(
+                TotalInputDataSize,
+                Spec->DataSizePerPartitionJob.Get(TotalInputDataSize),
+                Spec->PartitionJobCount);
+        }
+        else {
+            return SuggestPartitionCount();
+        }
+    }
+
 
     static std::vector<i64> AggregateValues(const std::vector<i64>& values, int maxBuckets)
     {
@@ -1273,8 +1301,8 @@ private:
 
     //! |PartitionCount - 1| separating keys.
     std::vector<NTableClient::NProto::TKey> PartitionKeys;
-
-
+    
+    
     // Custom bits of preparation pipeline.
 
     virtual void DoInitialize() override
@@ -1363,12 +1391,9 @@ private:
         // Don't create more partitions than we have samples (plus one).
         partitionCount = std::min(partitionCount, static_cast<int>(SortedSamples.size()) + 1);
 
-        // Don't create more partitions than allowed by the global config.
-        partitionCount = std::min(partitionCount, Config->MaxPartitionCount);
-
         YCHECK(partitionCount > 0);
 
-        SimpleSort = partitionCount == 1;
+        SimpleSort = (partitionCount == 1);
 
         InitJobIOConfigs();
 
@@ -1383,21 +1408,13 @@ private:
 
     void BuildSinglePartition()
     {
-        auto stripes = SliceInputChunks(
-            Spec->SortJobCount,
-            Spec->SortJobSliceDataSize);
+        // Choose sort job count and initialize the pool.
+        int sortJobCount = 1 + static_cast<int>(TotalInputDataSize / Config->DataSizePerSortJob);
+        auto stripes = SliceInputChunks(Config->SortJobMaxSliceDataSize, &sortJobCount);
 
         // Initialize counters.
         PartitionJobCounter.Set(0);
         SortDataSizeCounter.Set(TotalInputDataSize);
-
-        // Choose sort job count and initialize the pool.
-        int sortJobCount = SuggestJobCount(
-            TotalInputDataSize,
-            Spec->MinDataSizePerSortJob,
-            Spec->MaxDataSizePerSortJob,
-            Spec->SortJobCount,
-            static_cast<int>(stripes.size()));
         InitSimpleSortPool(sortJobCount);
 
         // Create the fake partition.
@@ -1482,16 +1499,10 @@ private:
 
         InitShufflePool();
 
-        auto stripes = SliceInputChunks(
-            Spec->PartitionJobCount,
-            Spec->PartitionJobSliceDataSize);
-
-        PartitionJobCounter.Set(SuggestJobCount(
-            TotalInputDataSize,
-            Spec->MinDataSizePerPartitionJob,
-            Spec->MaxDataSizePerPartitionJob,
-            Spec->PartitionJobCount,
-            static_cast<int>(stripes.size())));
+        int partitionJobCount = SuggestPartitionJobCount();
+        auto stripes = SliceInputChunks(Config->PartitionJobMaxSliceDataSize, &partitionJobCount);
+        
+        PartitionJobCounter.Set(partitionJobCount);
 
         PartitionTask = New<TPartitionTask>(this);
         PartitionTask->AddInput(stripes);
@@ -1895,16 +1906,13 @@ private:
 
         InitShufflePool();
 
-        auto stripes = SliceInputChunks(
-            Spec->PartitionJobCount,
-            Spec->PartitionJobSliceDataSize);
+        int partitionJobCount = SuggestPartitionJobCount();
 
-        PartitionJobCounter.Set(SuggestJobCount(
-            TotalInputDataSize,
-            Spec->MinDataSizePerPartitionJob,
-            Spec->MaxDataSizePerPartitionJob,
-            Spec->PartitionJobCount,
-            static_cast<int>(stripes.size())));
+        auto stripes = SliceInputChunks(
+            Config->PartitionJobMaxSliceDataSize,
+            &partitionJobCount);
+
+        PartitionJobCounter.Set(partitionJobCount);
 
         PartitionTask = New<TPartitionTask>(this);
         PartitionTask->AddInput(stripes);

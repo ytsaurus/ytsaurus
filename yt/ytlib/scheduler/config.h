@@ -116,8 +116,7 @@ struct TMapOperationSpec
     std::vector<NYPath::TRichYPath> OutputTablePaths;
     TNullable<int> JobCount;
     i64 JobSliceDataSize;
-    i64 MinDataSizePerJob;
-    i64 MaxDataSizePerJob;
+    i64 DataSizePerJob;
     TDuration LocalityTimeout;
     TJobIOConfigPtr JobIO;
 
@@ -132,14 +131,8 @@ struct TMapOperationSpec
         Register("job_count", JobCount)
             .Default()
             .GreaterThan(0);
-        Register("job_slice_data_size", JobSliceDataSize)
-            .Default((i64) 256 * 1024 * 1024)
-            .GreaterThan(0);
-        Register("min_data_size_per_job", MinDataSizePerJob)
-            .Default((i64) 128 * 1024 * 1024)
-            .GreaterThan(0);
-        Register("max_data_size_per_job", MaxDataSizePerJob)
-            .Default((i64) 1024 * 1024 * 1024)
+        Register("data_size_per_job", DataSizePerJob)
+            .Default((i64) 32 * 1024 * 1024)
             .GreaterThan(0);
         Register("locality_timeout", LocalityTimeout)
             .Default(TDuration::Seconds(5));
@@ -161,7 +154,7 @@ struct TMergeOperationSpecBase
     //! groups of chunks are partitioned into tasks of this or smaller size.
     //! This number, however, is merely an estimate, i.e. some tasks may still
     //! be larger.
-    i64 MaxDataSizePerJob;
+    i64 DataSizePerJob;
 
     TNullable<int> JobCount;
 
@@ -172,9 +165,6 @@ struct TMergeOperationSpecBase
 
     TMergeOperationSpecBase()
     {
-        Register("max_data_size_per_job", MaxDataSizePerJob)
-            .Default((i64) 1024 * 1024 * 1024)
-            .GreaterThan(0);
         Register("job_count", JobCount)
             .Default()
             .GreaterThan(0);
@@ -182,9 +172,6 @@ struct TMergeOperationSpecBase
             .Default(TDuration::Seconds(5));
         Register("job_io", JobIO)
             .DefaultNew();
-        Register("job_slice_data_size", JobSliceDataSize)
-            .Default((i64) 128 * 1024 * 1024)
-            .GreaterThan(0);
     }
 };
 
@@ -208,6 +195,9 @@ struct TMergeOperationSpec
 
     TMergeOperationSpec()
     {
+        Register("data_size_per_job", DataSizePerJob)
+            .Default((i64) 1024 * 1024 * 1024)
+            .GreaterThan(0);
         Register("input_table_paths", InputTablePaths)
             .NonEmpty();
         Register("output_table_path", OutputTablePath);
@@ -270,6 +260,9 @@ struct TReduceOperationSpec
 
     TReduceOperationSpec()
     {
+        Register("data_size_per_job", DataSizePerJob)
+            .Default((i64) 32 * 1024 * 1024)
+            .GreaterThan(0);
         Register("reducer", Reducer);
         Register("input_table_paths", InputTablePaths)
             .NonEmpty();
@@ -288,31 +281,15 @@ struct TSortOperationSpecBase
 {
     std::vector<NYPath::TRichYPath> InputTablePaths;
 
+    //! Amount of (uncompressed) data to be distributed to one partition.
+    //! It used only to determine partition count.
+    TNullable<i64> PartitionDataSize;
     TNullable<int> PartitionCount;
 
+    //! Amount of (uncompressed) data to be given to a single partition job.
+    //! It used only to determine partition job count.
+    TNullable<i64> DataSizePerPartitionJob;
     TNullable<int> PartitionJobCount;
-    i64 PartitionJobSliceDataSize;
-
-    //! Only used if no partitioning is done.
-    i64 SortJobSliceDataSize;
-
-    //! Minimum amount of (uncompressed) data to be given to a single partition job.
-    i64 MinDataSizePerPartitionJob;
-
-    //! Maximum amount of (uncompressed) data to be given to a single partition job.
-    i64 MaxDataSizePerPartitionJob;
-
-    i64 MinPartitionDataSize;
-    i64 MaxPartitionDataSize;
-
-    //! Minimum amount of (uncompressed) data to be given to a single sort job.
-    //! Used for adjusting #SortJobCount.
-    //! Only applies to simple sort.
-    i64 MinDataSizePerSortJob;
-
-    //! Maximum amount of (uncompressed) data to be given to a single sort job
-    //! or to a single unordered merge job taking care of a maniac partition.
-    i64 MaxDataSizePerSortJob;
 
     double ShuffleStartThreshold;
     double MergeStartThreshold;
@@ -334,17 +311,8 @@ struct TSortOperationSpecBase
         Register("partition_count", PartitionCount)
             .Default()
             .GreaterThan(0);
-        Register("min_partition_data_size", MinPartitionDataSize)
-            .Default((i64) 128 * 1024 * 1024)
-            .GreaterThan(0);
-        Register("max_partition_data_size", MaxPartitionDataSize)
-            .Default((i64) 750 * 1024 * 1024)
-            .GreaterThan(0);
-        Register("min_data_size_per_sort_job", MinDataSizePerSortJob)
-            .Default((i64) 128 * 1024 * 1024)
-            .GreaterThan(0);
-        Register("max_data_size_per_sort_job", MaxDataSizePerSortJob)
-            .Default((i64) 1024 * 1024 * 1024)
+        Register("partition_data_size", PartitionDataSize)
+            .Default()
             .GreaterThan(0);
         Register("shuffle_start_threshold", ShuffleStartThreshold)
             .Default(0.75)
@@ -374,9 +342,6 @@ struct TSortOperationSpec
     // Desired number of samples per partition.
     int SamplesPerPartition;
 
-    //! Only used if no partitioning is done.
-    TNullable<int> SortJobCount;
-
     TJobIOConfigPtr PartitionJobIO;
     TJobIOConfigPtr SortJobIO;
     TJobIOConfigPtr MergeJobIO;
@@ -386,9 +351,6 @@ struct TSortOperationSpec
         Register("output_table_path", OutputTablePath);
         Register("sort_by", SortBy)
             .NonEmpty();
-        Register("sort_job_count", SortJobCount)
-            .Default()
-            .GreaterThan(0);
         Register("samples_per_partition", SamplesPerPartition)
             .Default(10)
             .GreaterThan(1);
@@ -403,17 +365,8 @@ struct TSortOperationSpec
         Register("partition_job_count", PartitionJobCount)
             .Default()
             .GreaterThan(0);
-        Register("partition_job_slice_data_size", PartitionJobSliceDataSize)
-            .Default((i64) 256 * 1024 * 1024)
-            .GreaterThan(0);
-        Register("sort_job_slice_data_size", SortJobSliceDataSize)
-            .Default((i64) 256 * 1024 * 1024)
-            .GreaterThan(0);
-        Register("min_data_size_per_partition_job", MinDataSizePerPartitionJob)
-            .Default((i64) 128 * 1024 * 1024)
-            .GreaterThan(0);
-        Register("max_data_size_per_partition_job", MaxDataSizePerPartitionJob)
-            .Default((i64) 1024 * 1024 * 1024)
+        Register("data_size_per_partition_job", DataSizePerPartitionJob)
+            .Default()
             .GreaterThan(0);
         Register("simple_sort_locality_timeout", SimpleSortLocalityTimeout)
             .Default(TDuration::Seconds(5));
@@ -471,14 +424,8 @@ struct TMapReduceOperationSpec
         Register("map_job_count", PartitionJobCount)
             .Default()
             .GreaterThan(0);
-        Register("map_job_slice_data_size", PartitionJobSliceDataSize)
-            .Default((i64) 256 * 1024 * 1024)
-            .GreaterThan(0);
-        Register("min_data_size_per_map_job", MinDataSizePerPartitionJob)
-            .Default((i64) 128 * 1024 * 1024)
-            .GreaterThan(0);
-        Register("max_data_size_per_map_job", MaxDataSizePerPartitionJob)
-            .Default((i64) 1024 * 1024 * 1024)
+        Register("data_size_per_map_job", DataSizePerPartitionJob)
+            .Default()
             .GreaterThan(0);
         Register("map_locality_timeout", PartitionLocalityTimeout)
             .Default(TDuration::Seconds(5));

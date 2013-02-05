@@ -4,6 +4,7 @@
 #include "chunk_list_pool.h"
 #include "chunk_pool.h"
 #include "job_resources.h"
+#include "helpers.h"
 
 #include <ytlib/transaction_client/transaction.h>
 
@@ -1667,17 +1668,11 @@ std::vector<TRefCountedInputChunkPtr> TOperationControllerBase::CollectInputChun
     return result;
 }
 
-std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(
-    TNullable<int> jobCount,
-    i64 jobSliceDataSize)
+std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxSliceDataSize, int* jobCount)
 {
     auto inputChunks = CollectInputChunks();
 
-    i64 sliceDataSize =
-        jobCount
-        ? std::min(jobSliceDataSize, TotalInputDataSize / jobCount.Get() + 1)
-        : jobSliceDataSize;
-
+    i64 sliceDataSize = std::min(maxSliceDataSize, TotalInputDataSize / (*jobCount) + 1);
     YCHECK(sliceDataSize > 0);
 
     // Ensure that no input chunk has size larger than sliceSize.
@@ -1706,13 +1701,15 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(
         }
     }
 
+    *jobCount = std::min(*jobCount, static_cast<int>(stripes.size()));
 
-    LOG_DEBUG("Sliced chunks prepared (InputChunkCount: %d, SlicedChunkCount: %d, JobCount: %s, JobSliceDataSize: %" PRId64 ", SliceDataSize: %" PRId64 ")",
+    LOG_DEBUG("Sliced chunks prepared (InputChunkCount: %d, SlicedChunkCount: %d, JobCount: %d, MaxSliceDataSize: %" PRId64 ", SliceDataSize: %" PRId64 ")",
         static_cast<int>(inputChunks.size()),
         static_cast<int>(stripes.size()),
-        ~ToString(jobCount),
-        jobSliceDataSize,
+        *jobCount,
+        maxSliceDataSize,
         sliceDataSize);
+
 
     return stripes;
 }
@@ -1900,21 +1897,12 @@ std::vector<TOperationControllerBase::TPathWithStage> TOperationControllerBase::
 
 int TOperationControllerBase::SuggestJobCount(
     i64 totalDataSize,
-    i64 minDataSizePerJob,
-    i64 maxDataSizePerJob,
-    TNullable<int> configJobCount,
-    TNullable<int> chunkCount)
+    i64 dataSizePerJob,
+    TNullable<int> configJobCount) const
 {
-    i64 minSuggestion = static_cast<i64>(std::ceil((double) totalDataSize / maxDataSizePerJob));
-    i64 maxSuggestion = static_cast<i64>(std::ceil((double) totalDataSize / minDataSizePerJob));
-    i64 result = configJobCount.Get(minSuggestion);
-    if (chunkCount) {
-        result = std::min(result, static_cast<i64>(*chunkCount));
-    }
-    result = std::min(result, maxSuggestion);
-    result = std::max(result, static_cast<i64>(1));
-    result = std::min(result, static_cast<i64>(Config->MaxJobCount));
-    return static_cast<int>(result);
+    i64 suggestionBySize = 1 + totalDataSize / dataSizePerJob;
+    i64 jobCount = configJobCount.Get(suggestionBySize);
+    return static_cast<int>(Clamp(jobCount, 1, Config->MaxJobCount));
 }
 
 void TOperationControllerBase::InitUserJobSpec(

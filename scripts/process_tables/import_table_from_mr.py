@@ -80,7 +80,7 @@ def main():
         pool = args.pool
         if pool is None:
             pool = "restricted"
-        spec = {"min_data_size_per_job": 1, "job_count": args.job_count, "pool": pool}
+        spec = {"job_count": args.job_count, "pool": pool}
 
         table_writer = None
         if args.codec is not None:
