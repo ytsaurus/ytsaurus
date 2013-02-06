@@ -6,9 +6,12 @@ import yt.wrapper as yt
 
 def merge(table):
     try:
+        compression_ratio = yt.get_attribute(table, "compression_ratio")
+        data_size_per_job = min(16 * 1024 ** 3, 512 ** 3 / compression_ratio)
+        
         yt.run_merge(table, table, "unordered",
                      table_writer={"codec":"gzip_best_compression"},
-                     spec={"combine_chunks":"true"})
+                     spec={"combine_chunks":"true", "max_data_size_per_job": data_size_per_job})
     except yt.YtError as e:
         print "Failed to merge table %s with error %s" % (table, repr(e))
 
