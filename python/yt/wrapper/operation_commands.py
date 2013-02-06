@@ -153,7 +153,7 @@ def get_stderrs(operation, limit=None):
     jobs_path = os.path.join(OPERATIONS_PATH, operation, "jobs")
     if not exists(jobs_path):
         return ""
-    jobs_with_stderr = search(jobs_path, "map_node", obj_filter=lambda obj: "stderr" in obj)
+    jobs_with_stderr = search(jobs_path, "map_node", object_filter=lambda obj: "stderr" in obj)
 
     output = StringIO()
     for path in prefix(jobs_with_stderr, get_value(limit, config.ERRORS_TO_PRINT_LIMIT)):

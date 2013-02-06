@@ -102,7 +102,7 @@ def get_hosts(proxy=None):
         proxy = config.PROXY
     return requests.get("http://{0}/hosts".format(proxy)).json()
 
-def get_host_to_heavy_operation(proxy):
+def get_host_for_heavy_operation():
     if config.USE_HOSTS:
         hosts = get_hosts()
         if hosts:
