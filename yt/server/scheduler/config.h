@@ -22,7 +22,11 @@ struct TFairShareStrategyConfig
     double NewOperationWeightBoostFactor;
     TDuration NewOperationWeightBoostPeriod;
 
-    double MinPreemptionRatio;
+    //! Any operation with usage less than this cannot be preempted.
+    double MinPreemptableRatio;
+
+    //! When demand ratio drops below this threshold the operation gets 1.0 starvation tolerance.
+    double MinTotalSatisfactionRatio;
 
     TFairShareStrategyConfig()
     {
@@ -35,9 +39,12 @@ struct TFairShareStrategyConfig
         Register("new_operation_weight_boost_period", NewOperationWeightBoostPeriod)
             .Default(TDuration::Minutes(0));
 
-        Register("min_preemption_ratio", MinPreemptionRatio)
+        Register("min_preemptable_ratio", MinPreemptableRatio)
             .InRange(0.0, 1.0)
             .Default(0.01);
+        Register("min_total_satisfaction_ratio", MinTotalSatisfactionRatio)
+            .InRange(0.0, 1.0)
+            .Default(0.05);
     }
 };
 

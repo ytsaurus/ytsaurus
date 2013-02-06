@@ -25,7 +25,8 @@ using NScheduler::NProto::TNodeResources;
 static NLog::TLogger& Logger = SchedulerLogger;
 static NProfiling::TProfiler& Profiler = SchedulerProfiler;
 static Stroka DefaultPoolId("default");
-static const double RatioPrecision = 1e-12;
+static const double RatioComputationPrecision = 1e-12;
+static const double RatioComparisonPrecision = 1e-6;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -102,6 +103,7 @@ struct ISchedulableElement
     virtual const NProto::TNodeResources& ResourceLimits() const = 0;
 
     virtual double GetUsageRatio() const = 0;
+    virtual double GetDemandRatio() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -110,17 +112,26 @@ class TSchedulableElementBase
     : public ISchedulableElement
 {
 public:
-    TSchedulableElementBase(ISchedulerStrategyHost* host)
+    explicit TSchedulableElementBase(ISchedulerStrategyHost* host)
         : Host(host)
     { }
 
-    double GetUsageRatio() const override
+    virtual double GetUsageRatio() const override
     {
         const auto& attributes = Attributes();
         auto usage = ResourceUsage() - ResourceUsageDiscount();
         i64 dominantUsage = GetResource(usage, attributes.DominantResource);
         i64 dominantLimits = GetResource(Host->GetTotalResourceLimits(), attributes.DominantResource);
         return dominantLimits == 0 ? 1.0 : (double) dominantUsage / dominantLimits;
+    }
+
+    virtual double GetDemandRatio() const override
+    {
+        const auto& attributes = Attributes();
+        auto demand = GetDemand();
+        i64 dominantDemand = GetResource(demand, attributes.DominantResource);
+        i64 dominantLimits = GetResource(Host->GetTotalResourceLimits(), attributes.DominantResource);
+        return dominantLimits == 0 ? 1.0 : (double) dominantDemand / dominantLimits;
     }
 
 private:
@@ -194,8 +205,14 @@ public:
     EOperationStatus GetStatus() const
     {
         double usageRatio = GetUsageRatio();
+        double demandRatio = GetDemandRatio();
 
-        if (usageRatio < Attributes_.FairShareRatio * Spec_->FairShareStarvationTolerance) {
+        double tolerance =
+            demandRatio < Config->MinTotalSatisfactionRatio
+            ? 1.0
+            : Spec_->FairShareStarvationTolerance;
+
+        if (usageRatio < Attributes_.FairShareRatio * tolerance - RatioComparisonPrecision) {
             return usageRatio < Attributes_.AdjustedMinShareRatio
                    ? EOperationStatus::BelowMinShare
                    : EOperationStatus::BelowFairShare;
@@ -386,7 +403,7 @@ protected:
         // Run binary search to compute fit factor.
         double fitFactorLo = 0.0;
         double fitFactorHi = 1.0;
-        while (fitFactorHi - fitFactorLo > RatioPrecision) {
+        while (fitFactorHi - fitFactorLo > RatioComputationPrecision) {
             double fitFactor = (fitFactorLo + fitFactorHi) / 2.0;
             double fairShareRatioSum = 0.0;
             FOREACH (auto child, Children) {
@@ -827,7 +844,7 @@ private:
         auto spec = element->GetSpec();
 
         double usageRatio = element->GetUsageRatio();
-        if (usageRatio < Config->MinPreemptionRatio) {
+        if (usageRatio < Config->MinPreemptableRatio) {
             return false;
         }
 
