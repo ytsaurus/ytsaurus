@@ -172,24 +172,6 @@ def get_operation_result(operation):
     operation_path = os.path.join(OPERATIONS_PATH, operation)
     return get_attribute(operation_path, "result")
 
-#def get_jobs_errors(operation, limit=None):
-#    #def format_error(error):
-#    #    return "{0}\n{1}".format(
-#    #                error["message"],
-#    #                "\n".join("{0}: {1}".format(k, v)
-#    #                    for k, v in error.iteritems()
-#    #                    if k != "message"))
-#
-#    if limit is None: limit = config.ERRORS_TO_PRINT_LIMIT
-#    jobs_path = os.path.join(OPERATIONS_PATH, operation, "jobs")
-#    if not exists(jobs_path):
-#        return ""
-#    jobs = get(jobs_path, attributes=["error"])
-#    errors = filter(None, [job.attributes.get("error") for job in jobs.values()])
-#    return "\n\n".join(map(dump_to_json, prefix(errors, limit)))
-
-
-""" Strategy represents actions for processing already ran operation."""
 class WaitStrategy(object):
     """
     This strategy synchronously wait operation, print current progress and
