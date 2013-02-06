@@ -566,7 +566,33 @@ protected:
                 // Construct a stripe consisting of sorted chunks and put it into the pool.
                 auto* resultExt = joblet->Job->Result().MutableExtension(TSortJobResultExt::sort_job_result_ext);
                 auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_chunks());
-                Partition->SortedMergeTask->AddInput(stripe);
+
+                auto it = Controller->LostJobCookieMap.find(joblet->OutputCookie);
+                IChunkPoolInput::TCookie inputCookie;
+                auto* chunkPool = Partition->SortedMergeTask->GetChunkPoolInput();
+                if (it == Controller->LostJobCookieMap.end()) {
+                    inputCookie = chunkPool->Add(stripe);
+                } else {
+                    inputCookie = it->second;
+                    // Reproduced sort should always produce the same output.
+                    YCHECK(chunkPool->Resume(inputCookie, stripe));
+                    YCHECK(Controller->LostJobCookieMap.erase(joblet->OutputCookie));
+                }
+
+                // Register new chunks in map
+                auto completeJob = New<TCompleteJob>(
+                    this,
+                    GetChunkPoolOutput(),
+                    chunkPool,
+                    inputCookie,
+                    joblet->OutputCookie);
+
+                FOREACH (const auto& chunk, stripe->Chunks) {
+                    YCHECK(Controller->ChunkOriginMap.insert(std::make_pair(
+                        TChunkId::FromProto(chunk->slice().chunk_id()),
+                        completeJob)).second);
+                }
+
             } else {
                 Controller->FinalSortJobCounter.Completed(1);
 
@@ -602,6 +628,24 @@ protected:
             }
 
             TPartitionBoundTask::OnJobAborted(joblet);
+        }
+
+        virtual void OnJobLost(const TCompleteJobPtr& completeJob) override
+        {
+            Controller->IntermediateSortJobCounter.Lost(1);
+            auto stripe = completeJob->DestinationPool->GetChunkStripe(completeJob->InputCookie);
+
+            FOREACH (const auto& chunk, stripe->Chunks) {
+                i64 dataSize;
+                GetStatistics(*chunk, &dataSize);
+
+                Controller->SortDataSizeCounter.Lost(dataSize);
+                FOREACH (const auto& address, chunk->node_addresses()) {
+                    Partition->AddressToLocality[address] -= dataSize;
+                }
+            }
+
+            Controller->ResetTaskLocalityDelays();
         }
 
         virtual void OnTaskCompleted() override
@@ -773,13 +817,13 @@ protected:
             return Controller->GetSortedMergeResources(ChunkPool->GetTotalStripeCount());
         }
 
-    private:
-        TAutoPtr<IChunkPool> ChunkPool;
-
         virtual IChunkPoolInput* GetChunkPoolInput() const override
         {
             return ~ChunkPool;
         }
+
+    private:
+        TAutoPtr<IChunkPool> ChunkPool;
 
         virtual IChunkPoolOutput* GetChunkPoolOutput() const override
         {

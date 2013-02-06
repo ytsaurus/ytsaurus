@@ -31,7 +31,7 @@ struct TChunkStripeList
     TChunkStripeList();
 
     std::vector<TChunkStripePtr> Stripes;
-    
+
     TNullable<int> PartitionTag;
 
     i64 TotalDataSize;
@@ -56,6 +56,7 @@ struct IChunkPoolInput
     virtual TCookie Add(TChunkStripePtr stripe) = 0;
     virtual int GetTotalStripeCount() const = 0;
 
+    virtual TChunkStripePtr GetChunkStripe(TCookie cookie) = 0;
     virtual void Suspend(TCookie cookie) = 0;
     virtual bool Resume(TCookie cookie, TChunkStripePtr stripe) = 0;
     virtual void Finish() = 0;
