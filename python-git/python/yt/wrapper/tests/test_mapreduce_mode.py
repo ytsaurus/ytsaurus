@@ -116,9 +116,10 @@ class TestMapreduceMode(YtTestBase, YTEnv):
     def test_huge_table(self):
         POWER = 3
         records = \
-            imap(record_to_line,
-                 (Record(str(i), str(i * i), "long long string with strange symbols #*@*&^$#%@(#!@:L|L|KL..,,.~`")
-                 for i in xrange(10 ** POWER)))
+            yt.StringIterIO(
+                imap(record_to_line,
+                     (Record(str(i), str(i * i), "long long string with strange symbols #*@*&^$#%@(#!@:L|L|KL..,,.~`")
+                 for i in xrange(10 ** POWER))))
         table = TEST_DIR + "/temp"
         yt.write_table(table, records)
         self.assertEqual(yt.records_count(table), 10 ** POWER)

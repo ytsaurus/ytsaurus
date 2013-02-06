@@ -97,7 +97,10 @@ def _dirs(path):
     prefix = ""
     if path.startswith("//"):
         prefix = "//"
-    names = path.strip("/").split("/")
+    stripped = path.strip("/")
+    if not stripped:
+        return []
+    names = stripped.split("/")
     res = []
     for i in xrange(1, len(names) + 1):
         res.append(prefix + "/".join(names[0:i]))
@@ -112,7 +115,7 @@ def mkdir(path, recursive=None, create_prefix=True):
         recursive = config.CREATE_RECURSIVE
     if recursive:
         if config.PREFIX and create_prefix:
-            mkdir(config.PREFIX, recursive=True, create_prefix=False)
+            mkdir(config.PREFIX[:-1], recursive=True, create_prefix=False)
         should_create = False
         for dir in _dirs(path):
             if not should_create and not exists(dir):
