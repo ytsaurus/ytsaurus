@@ -138,7 +138,8 @@ public:
             ~ToString(id));
 
         auto* list = GetUpdateList(operation);
-        YCHECK(list->State == EUpdateListState::Flushed);
+        // NB: Flushing state is possible when operation is being failed during the flush.
+        YCHECK(list->State == EUpdateListState::Flushed || list->State == EUpdateListState::Flushing);
         list->State = EUpdateListState::Finalizing;
 
         // Create a batch update for this particular operation.
