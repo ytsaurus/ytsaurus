@@ -171,9 +171,9 @@ def main():
         sorted = is_sorted(table)
 
         destination = os.path.join(args.destination, table)
-        if args.force and yt.exists(destination):
-            yt.remove(destination)
-        # TODO: remove table if operation is not successfull
+        if yt.exists(destination):
+            if args.force or (yt.get_type(destination) == "table" and yt.is_empty(destination)):
+                yt.remove(destination)
         yt.create_table(destination, recursive=True)
 
         if args.job_count is None:
