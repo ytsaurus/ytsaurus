@@ -102,6 +102,13 @@ def get_hosts(proxy=None):
         proxy = config.PROXY
     return requests.get("http://{0}/hosts".format(proxy)).json()
 
+def get_host_to_heavy_operation(proxy):
+    if config.USE_HOSTS:
+        hosts = get_hosts()
+        if hosts:
+            return hosts[0]
+    return config.PROXY
+
 def make_request(command_name, params,
                  data=None, format=None, verbose=False, proxy=None,
                  raw_response=False, files=None):
