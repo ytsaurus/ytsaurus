@@ -218,9 +218,9 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
     def test_write_many_chunks(self):
         yt.config.WRITE_BUFFER_SIZE = 1
         table = TEST_DIR + "/table"
-        yt.write_table(table, (x for x in ["x=1\n", "y=2\n", "z=3\n"]))
-        yt.write_table(table, (x for x in ["x=1\n", "y=2\n", "z=3\n"]))
-        yt.write_table(table, (x for x in ["x=1\n", "y=2\n", "z=3\n"]))
+        yt.write_table(table, ["x=1\n", "y=2\n", "z=3\n"])
+        yt.write_table(table, ["x=1\n", "y=2\n", "z=3\n"])
+        yt.write_table(table, ["x=1\n", "y=2\n", "z=3\n"])
 
     def test_python_operations(self):
         def change_x(rec):

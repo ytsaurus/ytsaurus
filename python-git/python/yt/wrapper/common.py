@@ -21,7 +21,7 @@ class YtResponseError(YtError):
     """
     pass
 
-def YtTokenError(YtError):
+class YtTokenError(YtError):
     pass
 
 def compose(*args):

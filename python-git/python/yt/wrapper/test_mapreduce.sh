@@ -3,6 +3,7 @@
 cd $(dirname "${BASH_SOURCE[0]}")
 
 export YT_PREFIX="//statbox/"
+export YT_USE_TOKEN=0
 
 prepare_table_files() {
     set +x
@@ -376,6 +377,21 @@ test_unexisting_input_tables()
     check "" "`./mapreduce -read ignat/output`"
 }
 
+test_copy_files()
+{
+    echo -e "MY CONTENT" >test_file
+    cat test_file | ./mapreduce -upload "ignat/my_file"
+    ./mapreduce -copy -src "ignat/my_file" -dst "ignat/other_file"
+    check "MY CONTENT" "`./mapreduce -download ignat/other_file`"
+    rm test_file
+}
+
+test_write_lenval()
+{
+    echo -n -e "\\x01\\x00\\x00\\x00a\\x01\\x00\\x00\\x00b" | ./mapreduce -lenval -write "ignat/lenval_table"
+    check "a\tb" "`./mapreduce -read "ignat/lenval_table"`"
+}
+
 prepare_table_files
 test_sortby_reduceby
 test_base_functionality
@@ -400,5 +416,7 @@ test_custom_fs_rs
 test_write_with_tx
 test_table_file
 test_unexisting_input_tables
+test_copy_files
+test_write_lenval
 
 rm -f table_file big_file
