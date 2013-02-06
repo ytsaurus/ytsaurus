@@ -2,8 +2,6 @@
 
 #include <algorithm>
 
-#include <util/generic/stroka.h>
-
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,12 +40,6 @@ public:
         return Begin;
     }
 
-    //! Copies all written bytes into a string.
-    Stroka GetString() const
-    {
-        return Stroka(Begin, Cursor - Begin);
-    }
-
     //! Returns the number of bytes written in the buffer.
     int GetBytesWritten() const
     {
@@ -64,8 +56,8 @@ public:
     void Advance(int offset)
     {
         Cursor += offset;
-
-        if (Cursor + offset > End) {
+        
+        if (Cursor > End) {
             Cursor = End;
         }
     }
@@ -78,7 +70,7 @@ public:
         }
     }
 
-    //! Appends a single character and updated the internal cursor.
+    //! Appends a single character and updates the internal cursor.
     void AppendChar(char ch)
     {
         if (Cursor < End) {

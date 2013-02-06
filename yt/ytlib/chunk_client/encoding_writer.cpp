@@ -46,7 +46,7 @@ void TEncodingWriter::WriteBlock(std::vector<TSharedRef>&& vectorizedBlock)
     CompressionInvoker->Invoke(BIND(
         &TEncodingWriter::DoCompressVector, 
         MakeWeak(this),
-        MoveRV(vectorizedBlock)));
+        std::move(vectorizedBlock)));
 }
 
 void TEncodingWriter::DoCompressBlock(const TSharedRef& block)

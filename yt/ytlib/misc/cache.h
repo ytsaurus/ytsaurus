@@ -105,7 +105,7 @@ private:
         { }
 
         explicit TItem(TValuePtr&& value)
-            : ValueOrError(MakePromise(TValuePtrOrError(MoveRV(value))))
+            : ValueOrError(MakePromise(TValuePtrOrError(std::move(value))))
         { }
 
         TAsyncValuePtrOrErrorPromise ValueOrError;

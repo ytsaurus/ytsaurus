@@ -204,7 +204,7 @@ void TTcpConnection::SyncOpen()
         State = EState::Open;
     }
 
-    LOG_INFO("Connection established (Address: %s)", ~Address);
+    LOG_DEBUG("Connection established (Address: %s)", ~Address);
 
     // Flush messages that were enqueued when the connection was still opening.
     ProcessOutcomingMessages();
@@ -328,7 +328,7 @@ void TTcpConnection::SyncClose(const TError& error)
         TerminatedPromise.Set(error);
     }
 
-    LOG_INFO(error, "Connection closed");
+    LOG_DEBUG(error, "Connection closed");
 
     UpdateConnectionCount(-1);
 

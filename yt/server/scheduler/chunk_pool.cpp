@@ -76,7 +76,7 @@ public:
     { }
 
     explicit TSuspendableStripe(TChunkStripePtr stripe)
-        : Stripe(MoveRV(stripe))
+        : Stripe(std::move(stripe))
         , Suspended(false)
     {
         GetStatistics(Stripe, &DataSize, &RowCount);
@@ -332,7 +332,7 @@ class TUnorderedChunkPool
     , public IChunkPool
 {
 public:
-    TUnorderedChunkPool(int jobCount)
+    explicit TUnorderedChunkPool(int jobCount)
         : JobCounter(jobCount)
     { }
 

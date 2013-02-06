@@ -303,7 +303,7 @@ private:
 
         chunkReader->SequentialReader = New<TSequentialReader>(
             SequentialConfig,
-            MoveRV(blockSequence),
+            std::move(blockSequence),
             AsyncReader,
             ECodec(miscExt.codec()));
 
@@ -410,9 +410,9 @@ private:
 
         while (true) {
             auto currentBlock = blockHeap.front();
-            int nextBlockIndex = currentBlock.ChannelBlockIndex + 1;
+            auto nextBlockIndex = currentBlock.ChannelBlockIndex + 1;
             const auto& protoChannel = ChannelsExt.items(currentBlock.ChannelIndex);
-            int lastRow = currentBlock.LastRow;
+            auto lastRow = currentBlock.LastRow;
 
             std::pop_heap(blockHeap.begin(), blockHeap.end());
             blockHeap.pop_back();
@@ -648,7 +648,7 @@ public:
 
         chunkReader->SequentialReader = New<TSequentialReader>(
             SequentialConfig,
-            MoveRV(blockSequence),
+            std::move(blockSequence),
             AsyncReader,
             ECodec(miscExt.codec()));
 

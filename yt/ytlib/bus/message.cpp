@@ -17,7 +17,7 @@ public:
     { }
 
     explicit TMessage(std::vector<TSharedRef>&& parts)
-        : Parts(ForwardRV< std::vector<TSharedRef> >(parts))
+        : Parts(std::forward< std::vector<TSharedRef> >(parts))
     { }
 
     virtual const std::vector<TSharedRef>& GetParts() override
@@ -52,12 +52,12 @@ IMessagePtr CreateMessageFromPart(const TSharedRef& part)
 IMessagePtr CreateMessageFromParts(TBlob&& blob, const std::vector<TRef>& refs)
 {
     struct TConstructedMessageTag { };
-    auto sharedBlob = TSharedRef::FromBlob<TConstructedMessageTag>(MoveRV(blob));
+    auto sharedBlob = TSharedRef::FromBlob<TConstructedMessageTag>(std::move(blob));
     std::vector<TSharedRef> parts(refs.size());
     for (int i = 0; i < static_cast<int>(refs.size()); ++i) {
         parts[i] = sharedBlob.Slice(refs[i]);
     }
-    return New<TMessage>(MoveRV(parts));
+    return New<TMessage>(std::move(parts));
 }
 
 TSharedRef PackMessage(IMessagePtr message)

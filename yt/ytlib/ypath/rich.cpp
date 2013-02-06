@@ -57,7 +57,7 @@ TRichYPath::TRichYPath(const TYPath& path)
 { }
 
 TRichYPath::TRichYPath(TRichYPath&& other)
-    : Path_(MoveRV(other.Path_))
+    : Path_(std::move(other.Path_))
     , Attributes_(other.Attributes_)
 { }
 

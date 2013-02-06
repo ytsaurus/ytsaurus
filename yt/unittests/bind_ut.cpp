@@ -194,7 +194,7 @@ T PolymorphicIdentity(T t)
 template <class T>
 T PolymorphicPassThrough(T t)
 {
-    return MoveRV(t); // Move
+    return std::move(t); // Move
 }
 
 template <class T>
@@ -850,7 +850,7 @@ TEST_F(TBindTest, DISABLED_PassedWrapper)
         TCallback<TProbe()> cb =
             BIND(
                 &PolymorphicPassThrough<TProbe>,
-                Passed(MoveRV(probe)));
+                Passed(std::move(probe)));
         
         // The argument has been passed.
         EXPECT_FALSE(probe.IsValid());
@@ -892,7 +892,7 @@ TEST_F(TBindTest, DISABLED_PassedWrapper)
         EXPECT_EQ(0, state.Destructors);
         EXPECT_THAT(state, NoCopies());
 
-        receiver = cb.Run(MoveRV(sender));
+        receiver = cb.Run(std::move(sender));
 
         EXPECT_FALSE(sender.IsValid());
         EXPECT_TRUE(receiver.IsValid());

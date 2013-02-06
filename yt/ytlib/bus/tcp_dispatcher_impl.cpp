@@ -2,6 +2,8 @@
 #include "tcp_dispatcher_impl.h"
 #include "config.h"
 
+#include <ytlib/misc/thread.h>
+
 #ifndef _win_
     #include <sys/socket.h>
     #include <sys/un.h>
@@ -31,7 +33,7 @@ TNetworkAddress GetLocalBusAddress(int port)
     return TNetworkAddress(
         *reinterpret_cast<sockaddr*>(&sockAddr),
         sizeof (sockAddr.sun_family) +
-        sizeof (char) + 
+        sizeof (char) +
         name.length());
 #endif
 }
@@ -40,6 +42,7 @@ TNetworkAddress GetLocalBusAddress(int port)
 
 TTcpDispatcher::TImpl::TImpl()
     : Thread(ThreadFunc, (void*) this)
+    , ThreadStarted(NewPromise<void>())
     , Stopped(false)
     , StopWatcher(EventLoop)
     , RegisterWatcher(EventLoop)
@@ -59,6 +62,11 @@ TTcpDispatcher::TImpl::TImpl()
 TTcpDispatcher::TImpl::~TImpl()
 {
     Shutdown();
+}
+
+void TTcpDispatcher::TImpl::Initialize()
+{
+    ThreadStarted.Get();
 }
 
 void TTcpDispatcher::TImpl::Shutdown()
@@ -88,13 +96,16 @@ void TTcpDispatcher::TImpl::ThreadMain()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
+    // NB: never ever use logging or any other YT subsystems here.
+    // Bus is always started first to get advatange of the root privileges.
+
     NThread::SetCurrentThreadName("Bus");
 
-    LOG_INFO("TCP bus dispatcher started");
+    NThread::RaiseCurrentThreadPriority();
+
+    ThreadStarted.Set();
 
     EventLoop.run(0);
-
-    LOG_INFO("TCP bus dispatcher stopped");
 }
 
 void TTcpDispatcher::TImpl::OnStop(ev::async&, int)

@@ -124,7 +124,7 @@ struct TMaybeLockHelper< IsMethod, T&& >
 {
     T T_;
     inline TMaybeLockHelper(T&& x)
-        : T_(MoveRV(x))
+        : T_(std::move(x))
     { }
     inline TMaybeLockHelper& Lock() const
     {

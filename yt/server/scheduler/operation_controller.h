@@ -120,25 +120,19 @@ struct IOperationController
     virtual void Initialize() = 0;
 
     //! Performs a possibly lengthy initial preparation.
-    /*!
-     *  The controller must set the promise when the preparation is finished successfully.
-     *  IOperationHost::OnOperationFailed can be called during preparation to indicate an error.
-     */
-    virtual TFuture<void> Prepare() = 0;
+    virtual TFuture<TError> Prepare() = 0;
 
     //! Called by a scheduler in response to IOperationHost::OnOperationCompleted.
     /*!
      *  The controller must commit the transactions related to the operation.
      */
-    virtual TFuture<void> Commit() = 0;
+    virtual TFuture<TError> Commit() = 0;
 
     //! Reactivates an already running operation.
     /*!
      *  This method is called during scheduler state recovery for each existing operation.
-     *  The controller must set the promise when the revival is finished successfully.
-     *  IOperationHost::OnOperationFailed can be called during revival to indicate an error.
      */
-    virtual TFuture<void> Revive() = 0;
+    virtual TFuture<TError> Revive() = 0;
 
     //! Called by the scheduler notify the controller that the operation has been aborted.
     /*!

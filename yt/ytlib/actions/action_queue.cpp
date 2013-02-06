@@ -346,7 +346,7 @@ private:
                 return false;
             }
 
-            action = MoveRV(Items.front().Action);
+            action = std::move(Items.front().Action);
             std::pop_heap(Items.begin(), Items.end());
             Items.pop_back();
         }

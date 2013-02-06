@@ -30,11 +30,11 @@ static const int MaxChunksPerAction = 1000;
 
 TKey GetMaxKey(const TChunk* chunk);
 TKey GetMaxKey(const TChunkList* chunkList);
-TKey GetMaxKey(TChunkTreeRef ref);
+TKey GetMaxKey(const TChunkTree* chunkTree);
 
 TKey GetMinKey(const TChunk* chunk);
 TKey GetMinKey(const TChunkList* chunkList);
-TKey GetMinKey(TChunkTreeRef ref);
+TKey GetMinKey(const TChunkTree* chunkTree);
 
 TKey GetMaxKey(const TChunk* chunk)
 {
@@ -50,14 +50,14 @@ TKey GetMaxKey(const TChunkList* chunkList)
     return GetMaxKey(children.back());
 }
 
-TKey GetMaxKey(TChunkTreeRef ref)
+TKey GetMaxKey(const TChunkTree* chunkTree)
 {
-    switch (ref.GetType()) {
+    switch (chunkTree->GetType()) {
         case EObjectType::Chunk: {
-            return GetMaxKey(ref.AsChunk());
+            return GetMaxKey(chunkTree->AsChunk());
         }
         case EObjectType::ChunkList: {
-            return GetMaxKey(ref.AsChunkList());
+            return GetMaxKey(chunkTree->AsChunkList());
         }
         default:
             YUNREACHABLE();
@@ -78,23 +78,23 @@ TKey GetMinKey(const TChunkList* chunkList)
     return GetMinKey(children.front());
 }
 
-TKey GetMinKey(TChunkTreeRef ref)
+TKey GetMinKey(const TChunkTree* chunkTree)
 {
-    switch (ref.GetType()) {
+    switch (chunkTree->GetType()) {
         case EObjectType::Chunk: {
-            return GetMinKey(ref.AsChunk());
+            return GetMinKey(chunkTree->AsChunk());
         }
         case EObjectType::ChunkList: {
-            return GetMinKey(ref.AsChunkList());
+            return GetMinKey(chunkTree->AsChunkList());
         }
         default:
             YUNREACHABLE();
     }
 }
 
-bool LessComparer(const TKey& key, TChunkTreeRef ref)
+bool LessComparer(const TKey& key, const TChunkTree* chunkTree)
 {
-    auto maxKey = GetMaxKey(ref);
+    auto maxKey = GetMaxKey(chunkTree);
     return CompareKeys(key, maxKey) > 0;
 }
 
@@ -209,11 +209,11 @@ protected:
                 &subtreeStartLimit,
                 &subtreeEndLimit);
 
-            switch (child.GetType()) {
+            switch (child->GetType()) {
                 case EObjectType::ChunkList: {
-                    auto index = GetStartChild(child.AsChunkList(), subtreeStartLimit);
+                    auto index = GetStartChild(child->AsChunkList(), subtreeStartLimit);
                     Stack.push_back(TStackEntry(
-                        child.AsChunkList()->GetVersionedId(),
+                        child->AsChunkList()->GetVersionedId(),
                         index,
                         subtreeStartLimit,
                         subtreeEndLimit));
@@ -221,7 +221,7 @@ protected:
                 }
 
                 case EObjectType::Chunk:
-                    if (!Visitor->OnChunk(child.AsChunk(), subtreeStartLimit, subtreeEndLimit)) {
+                    if (!Visitor->OnChunk(child->AsChunk(), subtreeStartLimit, subtreeEndLimit)) {
                         return;
                     }
                     ++visitedChunkCount;

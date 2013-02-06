@@ -153,7 +153,7 @@ public:
     //! Move assignment operator.
     TWeakPtr& operator=(TWeakPtr&& other) // noexcept
     {
-        TWeakPtr(MoveRV(other)).Swap(*this);
+        TWeakPtr(std::move(other)).Swap(*this);
         return *this;
     }
 
@@ -162,7 +162,7 @@ public:
     TWeakPtr& operator=(TWeakPtr<U>&& other) // noexcept
     {
         static_assert(NMpl::TIsConvertible<U*, T*>::Value, "U* have to be convertible to T*");
-        TWeakPtr(MoveRV(other)).Swap(*this);
+        TWeakPtr(std::move(other)).Swap(*this);
         return *this;
     }
 

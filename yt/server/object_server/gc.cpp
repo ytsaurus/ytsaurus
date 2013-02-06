@@ -29,16 +29,24 @@ TGarbageCollector::TGarbageCollector(
 {
     YCHECK(Config);
     YCHECK(Bootstrap);
-
-    SweepInvoker = New<TPeriodicInvoker>(
-        Bootstrap->GetMetaStateFacade()->GetInvoker(),
-        BIND(&TGarbageCollector::Sweep, MakeWeak(this)),
-        Config->GCSweepPeriod);
 }
 
-void TGarbageCollector::Start()
+void TGarbageCollector::StartSweep()
 {
+    YCHECK(!SweepInvoker);
+    SweepInvoker = New<TPeriodicInvoker>(
+        Bootstrap->GetMetaStateFacade()->GetInvoker(),
+        BIND(&TGarbageCollector::OnSweep, MakeWeak(this)),
+        Config->GCSweepPeriod);
     SweepInvoker->Start();
+}
+
+void TGarbageCollector::StopSweep()
+{
+    if (SweepInvoker) {
+        SweepInvoker->Stop();
+        SweepInvoker.Reset();
+    }
 }
 
 void TGarbageCollector::Save(const NCellMaster::TSaveContext& context) const
@@ -52,6 +60,11 @@ void TGarbageCollector::Load(const NCellMaster::TLoadContext& context)
 
     LoadSet(context.GetInput(), ZombieIds);
 
+    CollectPromise = NewPromise<void>();
+    if (ZombieIds.empty()) {
+        CollectPromise.Set();
+    }
+
     ProfileQueueSize();
 }
 
@@ -60,6 +73,7 @@ void TGarbageCollector::Clear()
     VERIFY_THREAD_AFFINITY(StateThread);
 
     ZombieIds.clear();
+
     CollectPromise = NewPromise<void>();
     CollectPromise.Set();
 
@@ -101,15 +115,12 @@ void TGarbageCollector::Dequeue(const TObjectId& id)
     ProfileQueueSize();
 }
 
-void TGarbageCollector::Sweep()
+void TGarbageCollector::OnSweep()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
     auto metaStateManager = Bootstrap->GetMetaStateFacade()->GetManager();
-    if (!metaStateManager->IsLeader() ||
-        !metaStateManager->HasActiveQuorum() ||
-        ZombieIds.empty())
-    {
+    if (ZombieIds.empty() || !metaStateManager->HasActiveQuorum()) {
         SweepInvoker->ScheduleNext();
         return;
     }
@@ -124,16 +135,12 @@ void TGarbageCollector::Sweep()
 
     LOG_DEBUG("Starting GC sweep for %d objects", request.object_ids_size());
 
-    bool result = Bootstrap
+    Bootstrap
         ->GetObjectManager()
         ->CreateDestroyObjectsMutation(request)
         ->OnSuccess(BIND(&TGarbageCollector::OnCommitSucceeded, MakeWeak(this)))
         ->OnError(BIND(&TGarbageCollector::OnCommitFailed, MakeWeak(this)))
         ->PostCommit();
-
-    if (!result) {
-        SweepInvoker->ScheduleNext();
-    }
 }
 
 void TGarbageCollector::OnCommitSucceeded()

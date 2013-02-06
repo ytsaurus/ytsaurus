@@ -92,7 +92,7 @@ private:
         if (!AcquireLatch())
             return;
 
-        Promise.Set(MoveRV(response));
+        Promise.Set(std::move(response));
         Awaiter->Cancel();
         Cleanup();
     }
@@ -135,7 +135,7 @@ TMasterDiscovery::TAsyncResult TMasterDiscovery::GetMaster()
                 }
                 result.EpochId = TGuid::FromProto(quorum->epoch_id());
             }
-            return MakeFuture(MoveRV(result)); 
+            return MakeFuture(std::move(result)); 
         })
     );
 }
@@ -149,7 +149,7 @@ TMasterDiscovery::TAsyncResult TMasterDiscovery::GetLeader()
                 result.Address = quorum->leader_address();
                 result.EpochId = TGuid::FromProto(quorum->epoch_id());
             }
-            return MakeFuture(MoveRV(result));
+            return MakeFuture(std::move(result));
         })
     );
 }
@@ -164,7 +164,7 @@ TMasterDiscovery::TAsyncResult TMasterDiscovery::GetFollower()
                 result.Address = quorum->follower_addresses().Get(id);
                 result.EpochId = TGuid::FromProto(quorum->epoch_id());
             }
-            return MakeFuture(MoveRV(result)); 
+            return MakeFuture(std::move(result)); 
         })
     );
 }

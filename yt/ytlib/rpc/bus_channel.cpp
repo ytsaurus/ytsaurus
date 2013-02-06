@@ -36,7 +36,7 @@ class TChannel
 {
 public:
     TChannel(IBusClientPtr client, TNullable<TDuration> defaultTimeout)
-        : Client(MoveRV(client))
+        : Client(std::move(client))
         , DefaultTimeout(defaultTimeout)
         , Terminated(false)
     {

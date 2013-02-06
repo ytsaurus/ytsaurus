@@ -74,7 +74,7 @@ public:
             config->JobIO->TableReader, 
             masterChannel, 
             blockCache, 
-            MoveRV(chunks),
+            std::move(chunks),
             provider);
 
         auto transactionId = TTransactionId::FromProto(jobSpec.output_transaction_id());

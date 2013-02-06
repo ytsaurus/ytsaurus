@@ -108,7 +108,7 @@ private:
             std::vector<TSharedRef> requestParts(
                 attachments.begin() + CurrentRequestPartIndex,
                 attachments.begin() + CurrentRequestPartIndex + partCount);
-            auto requestMessage = CreateMessageFromParts(MoveRV(requestParts));
+            auto requestMessage = CreateMessageFromParts(std::move(requestParts));
 
             NRpc::NProto::TRequestHeader requestHeader;
             if (!ParseRequestHeader(requestMessage, &requestHeader)) {

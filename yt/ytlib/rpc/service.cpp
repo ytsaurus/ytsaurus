@@ -32,7 +32,7 @@ TServiceBase::TMethodDescriptor::TMethodDescriptor(
     const Stroka& verb,
     THandler handler)
     : Verb(verb)
-    , Handler(MoveRV(handler))
+    , Handler(std::move(handler))
     , OneWay(false)
     , MaxQueueSize(100000)
 { }
@@ -52,7 +52,7 @@ TServiceBase::TActiveRequest::TActiveRequest(
     TRuntimeMethodInfoPtr runtimeInfo,
     const NProfiling::TTimer& timer)
     : Id(id)
-    , ReplyBus(MoveRV(replyBus))
+    , ReplyBus(std::move(replyBus))
     , RuntimeInfo(runtimeInfo)
     , RunningSync(false)
     , Completed(false)
@@ -73,9 +73,9 @@ public:
         IBusPtr replyBus,
         const Stroka& loggingCategory)
         : TServiceContextBase(header, requestMessage)
-        , Service(MoveRV(service))
-        , ActiveRequest(MoveRV(activeRequest))
-        , ReplyBus(MoveRV(replyBus))
+        , Service(std::move(service))
+        , ActiveRequest(std::move(activeRequest))
+        , ReplyBus(std::move(replyBus))
         , Logger(loggingCategory)
     {
         YCHECK(RequestMessage);
@@ -91,7 +91,7 @@ private:
 
     virtual void DoReply(IMessagePtr responseMessage) override
     {
-        Service->OnResponse(ActiveRequest, MoveRV(responseMessage));
+        Service->OnResponse(ActiveRequest, std::move(responseMessage));
     }
 
     virtual void LogRequest() override
@@ -123,7 +123,7 @@ TServiceBase::TServiceBase(
     IInvokerPtr defaultInvoker,
     const Stroka& serviceName,
     const Stroka& loggingCategory)
-    : DefaultInvoker(MoveRV(defaultInvoker))
+    : DefaultInvoker(std::move(defaultInvoker))
     , ServiceName(serviceName)
     , LoggingCategory(loggingCategory)
     , RequestCounter("/services/" + ServiceName + "/request_rate")
@@ -238,19 +238,19 @@ void TServiceBase::OnRequest(
     if (options.HeavyRequest) {
         auto invoker = TDispatcher::Get()->GetPoolInvoker();
         handler
-            .AsyncVia(MoveRV(invoker))
+            .AsyncVia(std::move(invoker))
             .Run(context, options)
             .Subscribe(BIND(
                 &TServiceBase::OnInvocationPrepared,
                 MakeStrong(this),
-                MoveRV(activeRequest),
+                std::move(activeRequest),
                 context));
     } else {
         auto preparedHandler = handler.Run(context, options);
         OnInvocationPrepared(
-            MoveRV(activeRequest),
-            MoveRV(context),
-            MoveRV(preparedHandler));
+            std::move(activeRequest),
+            std::move(context),
+            std::move(preparedHandler));
     }
 }
 
@@ -259,7 +259,7 @@ void TServiceBase::OnInvocationPrepared(
     IServiceContextPtr context,
     TClosure handler)
 {
-    auto preparedHandler = PrepareHandler(context, MoveRV(handler));
+    auto preparedHandler = PrepareHandler(context, std::move(handler));
 
     auto wrappedHandler = BIND([=] () {
         auto& timer = activeRequest->Timer;
@@ -295,7 +295,7 @@ void TServiceBase::OnInvocationPrepared(
         invoker = DefaultInvoker;
     }
 
-    if (!invoker->Invoke(MoveRV(wrappedHandler))) {
+    if (!invoker->Invoke(std::move(wrappedHandler))) {
         context->Reply(TError(EErrorCode::Unavailable, "Service unavailable"));
     }
 }
@@ -324,7 +324,7 @@ void TServiceBase::OnResponse(TActiveRequestPtr activeRequest, IMessagePtr messa
 
         if (active) {
             Profiler.Increment(activeRequest->RuntimeInfo->QueueSizeCounter, -1);
-            activeRequest->ReplyBus->Send(MoveRV(message));
+            activeRequest->ReplyBus->Send(std::move(message));
         }
 
         auto& timer = activeRequest->Timer;

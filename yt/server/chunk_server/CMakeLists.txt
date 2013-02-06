@@ -10,7 +10,7 @@ set( SRCS
   ${BASE}/chunk_replicator.cpp
   ${BASE}/chunk_service.cpp
   ${BASE}/chunk_tree_balancer.cpp
-  ${BASE}/chunk_tree_ref.cpp
+  ${BASE}/chunk_tree.cpp
   ${BASE}/chunk_tree_statistics.cpp
   ${BASE}/chunk_tree_traversing.cpp
   ${BASE}/cypress_integration.cpp
@@ -33,7 +33,7 @@ set( HDRS
   ${BASE}/chunk_service.h
   ${BASE}/chunk_service_proxy.h
   ${BASE}/chunk_tree_balancer.h
-  ${BASE}/chunk_tree_ref.h
+  ${BASE}/chunk_tree.h
   ${BASE}/chunk_tree_statistics.h
   ${BASE}/chunk_tree_traversing.h
   ${BASE}/config.h

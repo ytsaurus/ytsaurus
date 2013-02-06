@@ -63,7 +63,7 @@ public:
             config->JobIO->TableReader,
             masterChannel,
             blockCache,
-            MoveRV(chunks),
+            std::move(chunks),
             provider);
 
         if (jobSpecExt.partition_keys_size() > 0) {

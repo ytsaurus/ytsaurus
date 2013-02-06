@@ -159,7 +159,6 @@ void TBootstrap::Run()
     CypressManager = New<TCypressManager>(this);
     ChunkManager = New<TChunkManager>(Config->Chunks, this);
 
-    ObjectManager->Initialize();
     SecurityManager->Initialize();
     TransactionManager->Inititialize();
     CypressManager->Initialize();

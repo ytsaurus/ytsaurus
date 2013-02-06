@@ -224,7 +224,7 @@ void TServiceContextBase::AppendInfo(Stroka& lhs, const Stroka& rhs)
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceContextWrapper::TServiceContextWrapper(IServiceContextPtr underlyingContext)
-    : UnderlyingContext(MoveRV(underlyingContext))
+    : UnderlyingContext(std::move(underlyingContext))
 { }
 
 IMessagePtr TServiceContextWrapper::GetRequestMessage() const
@@ -337,8 +337,8 @@ TClosure TServiceContextWrapper::Wrap(const TClosure& action)
 TReplyInterceptorContext::TReplyInterceptorContext(
     IServiceContextPtr underlyingContext,
     TClosure onReply)
-    : TServiceContextWrapper(MoveRV(underlyingContext))
-    , OnReply(MoveRV(onReply))
+    : TServiceContextWrapper(std::move(underlyingContext))
+    , OnReply(std::move(onReply))
 { }
 
 void TReplyInterceptorContext::Reply(const TError& error)
@@ -349,7 +349,7 @@ void TReplyInterceptorContext::Reply(const TError& error)
 
 void TReplyInterceptorContext::Reply(IMessagePtr responseMessage)
 {
-    TServiceContextWrapper::Reply(MoveRV(responseMessage));
+    TServiceContextWrapper::Reply(std::move(responseMessage));
     OnReply.Run();
 }
 

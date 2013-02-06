@@ -36,7 +36,7 @@ void Sync(
     TAsyncError(TTargetConvertible::*method)(TArg1),
     TArg1_&& arg1)
 {
-    auto result = (target->*method)(ForwardRV<TArg1>(arg1)).Get();
+    auto result = (target->*method)(std::forward<TArg1>(arg1)).Get();
     if (!result.IsOK()) {
         THROW_ERROR result;
     }
@@ -50,8 +50,8 @@ void Sync(
     TArg2_&& arg2)
 {
     auto result = (target->*method)(
-        ForwardRV<TArg1>(arg1), 
-        ForwardRV<TArg2>(arg2)).Get();
+        std::forward<TArg1>(arg1), 
+        std::forward<TArg2>(arg2)).Get();
 
     if (!result.IsOK()) {
         THROW_ERROR result;

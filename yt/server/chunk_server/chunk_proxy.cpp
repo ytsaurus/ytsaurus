@@ -144,7 +144,7 @@ private:
         }
 
         if (key == "owning_nodes") {
-            auto paths = chunkManager->GetOwningNodes(TChunkTreeRef(const_cast<TChunk*>(chunk)));
+            auto paths = chunkManager->GetOwningNodes(const_cast<TChunk*>(chunk));
             BuildYsonFluently(consumer)
                 .Value(paths);
             return true;

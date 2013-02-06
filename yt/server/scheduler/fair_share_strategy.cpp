@@ -639,8 +639,8 @@ public:
         : Config(config)
         , Host(host)
     {
-        Host->SubscribeOperationStarted(BIND(&TFairShareStrategy::OnOperationStarted, this));
-        Host->SubscribeOperationFinished(BIND(&TFairShareStrategy::OnOperationFinished, this));
+        Host->SubscribeOperationStarted(BIND(&TFairShareStrategy::OnOperationRegistered, this));
+        Host->SubscribeOperationFinished(BIND(&TFairShareStrategy::OnOperationUnregistered, this));
 
         Host->SubscribeJobStarted(BIND(&TFairShareStrategy::OnJobStarted, this));
         Host->SubscribeJobFinished(BIND(&TFairShareStrategy::OnJobFinished, this));
@@ -840,7 +840,7 @@ private:
     }
 
 
-    void OnOperationStarted(TOperationPtr operation)
+    void OnOperationRegistered(TOperationPtr operation)
     {
         auto operationElement = New<TOperationElement>(Config, Host, operation);
         YCHECK(OperationToElement.insert(std::make_pair(operation, operationElement)).second);
@@ -872,7 +872,7 @@ private:
             ~pool->GetId());
     }
 
-    void OnOperationFinished(TOperationPtr operation)
+    void OnOperationUnregistered(TOperationPtr operation)
     {
         auto operationElement = GetOperationElement(operation);
         auto pool = operationElement->GetPool();

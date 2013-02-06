@@ -61,7 +61,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
     
-        LOG_INFO("Connecting to %s (ConnectionId: %s)",
+        LOG_DEBUG("Connecting to %s (ConnectionId: %s)",
             ~Config->Address,
             ~Id.ToString());
     

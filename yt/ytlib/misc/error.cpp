@@ -48,9 +48,9 @@ TError::TError(const TError& other)
 
 TError::TError(TError&& other)
     : Code_(other.Code_)
-    , Message_(MoveRV(other.Message_))
+    , Message_(std::move(other.Message_))
     , Attributes_(other.Attributes_)
-    , InnerErrors_(MoveRV(other.InnerErrors_))
+    , InnerErrors_(std::move(other.InnerErrors_))
 { }
 
 TError::TError(const std::exception& ex)
@@ -112,9 +112,9 @@ TError& TError::operator= (TError&& other)
 {
     if (this != &other) {
         Code_ = other.Code_;
-        Message_ = MoveRV(other.Message_);
+        Message_ = std::move(other.Message_);
         Attributes_ = other.Attributes_;
-        InnerErrors_ = MoveRV(other.InnerErrors_);
+        InnerErrors_ = std::move(other.InnerErrors_);
     }
     return *this;
 }
@@ -371,13 +371,13 @@ void Deserialize(TError& error, NYTree::INodePtr node)
 TError operator << (TError error, const TErrorAttribute& attribute)
 {
     error.Attributes().SetYson(attribute.Key, attribute.Value);
-    return MoveRV(error);
+    return std::move(error);
 }
 
 TError operator << (TError error, const TError& innerError)
 {
     error.InnerErrors().push_back(innerError);
-    return MoveRV(error);
+    return std::move(error);
 }
 
 TError operator >>= (const TErrorAttribute& attribute, TError error)

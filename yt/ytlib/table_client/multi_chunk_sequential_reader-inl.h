@@ -19,7 +19,7 @@ TMultiChunkSequentialReader<TChunkReader>::TMultiChunkSequentialReader(
         config,
         masterChannel,
         blockCache,
-        MoveRV(inputChunks),
+        std::move(inputChunks),
         readerProvider)
     , CurrentReaderIndex(-1)
 {

@@ -45,8 +45,8 @@ private:
         TEntry(IClientRequestPtr request, IClientResponseHandlerPtr handler, TNullable<TInstant> deadline)
             : EnqueueTime(TInstant::Now())
             , State(EEntryState::Waiting)
-            , Request(MoveRV(request))
-            , Handler(MoveRV(handler))
+            , Request(std::move(request))
+            , Handler(std::move(handler))
             , Deadline(deadline)
         { }
 
@@ -76,8 +76,8 @@ public:
     TSerializedResponseHandler(
         IClientResponseHandlerPtr underlyingHandler,
         TSerializedChannelPtr channel)
-        : UnderlyingHandler(MoveRV(underlyingHandler))
-        , Channel(MoveRV(channel))
+        : UnderlyingHandler(std::move(underlyingHandler))
+        , Channel(std::move(channel))
     { }
 
     virtual void OnAcknowledgement() override
@@ -87,7 +87,7 @@ public:
     
     virtual void OnResponse(NBus::IMessagePtr message) override
     {
-        UnderlyingHandler->OnResponse(MoveRV(message));
+        UnderlyingHandler->OnResponse(std::move(message));
         Channel->OnRequestCompleted();
     }
 
@@ -104,7 +104,7 @@ private:
 };
 
 TSerializedChannel::TSerializedChannel(IChannelPtr underlyingChannel)
-    : UnderlyingChannel(MoveRV(underlyingChannel))
+    : UnderlyingChannel(std::move(underlyingChannel))
     , QueueSize(0)
 { }
 

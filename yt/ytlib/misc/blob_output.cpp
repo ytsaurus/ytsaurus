@@ -47,7 +47,7 @@ void TBlobOutput::Clear()
 
 TSharedRef TBlobOutput::Flush()
 {
-    return TSharedRef::FromBlob<TBlobOutputTag>(MoveRV(Blob));
+    return TSharedRef::FromBlob<TBlobOutputTag>(std::move(Blob));
 }
 
 const TBlob* TBlobOutput::GetBlob() const

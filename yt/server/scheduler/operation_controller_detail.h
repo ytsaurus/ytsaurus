@@ -41,9 +41,9 @@ public:
         TOperation* operation);
 
     virtual void Initialize() override;
-    virtual TFuture<void> Prepare() override;
-    virtual TFuture<void> Revive() override;
-    virtual TFuture<void> Commit() override;
+    virtual TFuture<TError> Prepare() override;
+    virtual TFuture<TError> Revive() override;
+    virtual TFuture<TError> Commit() override;
 
     virtual void OnJobRunning(TJobPtr job, const NProto::TJobStatus& status) override;
     virtual void OnJobCompleted(TJobPtr job) override;
@@ -82,9 +82,6 @@ protected:
     IInvokerPtr CancelableControlInvoker;
     IInvokerPtr CancelableBackgroundInvoker;
 
-    // Remains True as long as the operation is not finished.
-    bool Active;
-
     // Remains True as long as the operation can schedule new jobs.
     bool Running;
 
@@ -99,14 +96,6 @@ protected:
 
     // Increments each time a new job is scheduled.
     TIdGenerator<int> JobIndexGenerator;
-
-    // The transaction for reading input tables (nested inside scheduler transaction).
-    // These tables are locked with Snapshot mode.
-    NTransactionClient::ITransactionPtr InputTransaction;
-
-    // The transaction for writing output tables (nested inside scheduler transaction).
-    // These tables are locked with Shared mode.
-    NTransactionClient::ITransactionPtr OutputTransaction;
 
     struct TTableBase
     {
@@ -278,6 +267,10 @@ protected:
 
         virtual void OnTaskCompleted();
 
+        void CheckResourceDemandSanity(
+            TExecNodePtr node,
+            const NProto::TNodeResources& neededResources);
+
         bool IsPending() const;
         bool IsCompleted() const;
 
@@ -289,6 +282,7 @@ protected:
         TOperationControllerBase* Controller;
         int CachedPendingJobCount;
         NProto::TNodeResources CachedTotalNeededResources;
+        TInstant LastDemandSanityCheckTime;
 
     protected:
         NLog::TTaggedLogger& Logger;
@@ -362,7 +356,7 @@ protected:
     void ResetTaskLocalityDelays();
     TPendingTaskInfo* GetPendingTaskInfo(TTaskPtr task);
 
-    bool CheckJobLimits(TTaskPtr task, const NProto::TNodeResources& jobLimits);
+    bool CheckJobLimits(TExecNodePtr node, TTaskPtr task, const NProto::TNodeResources& jobLimits);
 
     TJobPtr DoScheduleJob(ISchedulingContext* context, const NProto::TNodeResources& jobLimits);
     TJobPtr DoScheduleLocalJob(ISchedulingContext* context, const NProto::TNodeResources& jobLimits);
@@ -381,28 +375,20 @@ protected:
     // Here comes the preparation pipeline.
 
     // Round 1:
-    // - Start input transaction.
-    // - Start output transaction.
-
-    NObjectClient::TObjectServiceProxy::TInvExecuteBatch StartIOTransactions();
-
-    void OnIOTransactionsStarted(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
-
-    // Round 2:
     // - Get input table ids
     // - Get output table ids
     NObjectClient::TObjectServiceProxy::TInvExecuteBatch GetObjectIds();
 
     void OnObjectIdsReceived(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
-    // Round 3:
+    // Round 2:
     // - Request file types
     // - Check that input and output are tables
     NObjectClient::TObjectServiceProxy::TInvExecuteBatch GetInputTypes();
 
     void OnInputTypesReceived(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
-    // Round 4:
+    // Round 3:
     // - Fetch input tables.
     // - Lock input tables.
     // - Lock output tables.
@@ -430,18 +416,17 @@ protected:
     // - Check for empty inputs.
     // - Init chunk list pool.
     TFuture<void> CompletePreparation();
-    void OnPreparationCompleted();
+
 
     // Here comes the completion pipeline.
 
     // Round 1.
+    // - Sort parts of output, if needed.
     // - Attach chunk trees.
-    // - Commit input transaction.
-    // - Commit output transaction.
-    // - Commit scheduler transaction.
 
-    NObjectClient::TObjectServiceProxy::TInvExecuteBatch CommitOutputs();
-    void OnOutputsCommitted(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
+    NObjectClient::TObjectServiceProxy::TInvExecuteBatch CommitResults();
+    void OnResultsCommitted(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
+
 
     virtual void DoInitialize();
 
@@ -475,13 +460,13 @@ protected:
     void OnInputChunkFailed(const NChunkClient::TChunkId& chunkId);
 
 
-    // Abort is not a pipeline really :)
-
     void AbortTransactions();
 
+    void OnOperationCompleted();
+    virtual void DoOperationCompleted();
 
-    virtual void OnOperationCompleted();
-    virtual void OnOperationFailed(const TError& error);
+    void OnOperationFailed(const TError& error);
+    virtual void DoOperationFailed(const TError& error);
 
 
     // Unsorted helpers.
@@ -514,9 +499,6 @@ protected:
 
     bool HasEnoughChunkLists(int requestedCount);
     NChunkClient::TChunkListId ExtractChunkList();
-
-    void ReleaseChunkList(const NChunkClient::TChunkListId& id);
-    void ReleaseChunkLists(const std::vector<NChunkClient::TChunkListId>& ids);
 
     //! Returns the list of all input chunks collected from all input tables.
     std::vector<NTableClient::TRefCountedInputChunkPtr> CollectInputChunks();
@@ -554,8 +536,6 @@ protected:
 private:
     TOperationSpecBasePtr Spec;
     TChunkListPoolPtr ChunkListPool;
-
-    void OnChunkListsReleased(NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
 };
 

@@ -2,6 +2,7 @@ import yt.wrapper as yt
 
 import sys
 import random
+import traceback
 from time import sleep
 
 def atomic_pop(list, retries_count=10, delay=5.0):
@@ -37,6 +38,8 @@ def process_tasks_from_list(list, action):
             action(value)
         except (Exception, KeyboardInterrupt) as e:
             print >>sys.stderr, "Crashed with error", e
+            _, _, exc_traceback = sys.exc_info()
+            traceback.print_tb(exc_traceback, file=sys.stdout)
             if value is not None:
                 atomic_push(list, value)
             break

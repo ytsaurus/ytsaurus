@@ -62,7 +62,7 @@ class TObjectManager::TServiceContextWrapper
 {
 public:
     explicit TServiceContextWrapper(IServiceContextPtr underlyingContext)
-        : NRpc::TServiceContextWrapper(MoveRV(underlyingContext))
+        : NRpc::TServiceContextWrapper(std::move(underlyingContext))
         , Replied(false)
     { }
 
@@ -268,11 +268,6 @@ TObjectManager::TObjectManager(
         static_cast<int>(config->CellId));
 }
 
-void TObjectManager::Initialize()
-{
-    GarbageCollector->Start();
-}
-
 IYPathServicePtr TObjectManager::GetRootService()
 {
     return RootService;
@@ -378,20 +373,6 @@ void TObjectManager::RefObject(TObjectBase* object)
         refCounter);
 }
 
-void TObjectManager::RefObject(TChunkTreeRef ref)
-{
-    switch (ref.GetType()) {
-        case EObjectType::Chunk:
-            RefObject(ref.AsChunk());
-            break;
-        case EObjectType::ChunkList:
-            RefObject(ref.AsChunkList());
-            break;
-        default:
-            YUNREACHABLE();
-    }
-}
-
 void TObjectManager::UnrefObject(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
@@ -404,20 +385,6 @@ void TObjectManager::UnrefObject(TObjectBase* object)
 
     if (refCounter == 0) {
         GarbageCollector->Enqueue(object->GetId());
-    }
-}
-
-void TObjectManager::UnrefObject(TChunkTreeRef ref)
-{
-    switch (ref.GetType()) {
-        case EObjectType::Chunk:
-            UnrefObject(ref.AsChunk());
-            break;
-        case EObjectType::ChunkList:
-            UnrefObject(ref.AsChunkList());
-            break;
-        default:
-            YUNREACHABLE();
     }
 }
 
@@ -463,6 +430,16 @@ void TObjectManager::OnStartRecovery()
 void TObjectManager::OnStopRecovery()
 {
     Profiler.SetEnabled(true);
+}
+
+void TObjectManager::OnActiveQuorumEstablished()
+{
+    GarbageCollector->StartSweep();
+}
+
+void TObjectManager::OnStopLeading()
+{
+    GarbageCollector->StopSweep();
 }
 
 TObjectBase* TObjectManager::FindObject(const TObjectId& id)
@@ -666,7 +643,7 @@ void TObjectManager::ReplayVerb(const TMetaReqExecute& request)
         parts[partIndex] = TSharedRef::FromRefNonOwning(TRef(const_cast<char*>(part.begin()), part.size()));
     }
 
-    auto requestMessage = CreateMessageFromParts(MoveRV(parts));
+    auto requestMessage = CreateMessageFromParts(std::move(parts));
     auto context = CreateYPathContext(
         requestMessage,
         "",

@@ -18,8 +18,6 @@
 
 #include <server/cypress_server/public.h>
 
-#include <server/chunk_server/chunk_tree_ref.h>
-
 namespace NYT {
 namespace NObjectServer {
 
@@ -40,8 +38,6 @@ public:
     TObjectManager(
         TObjectManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
-
-    void Initialize();
 
     //! Registers a new type handler.
     /*!
@@ -69,11 +65,9 @@ public:
 
     //! Adds a reference.
     void RefObject(TObjectBase* object);
-    void RefObject(NChunkServer::TChunkTreeRef ref);
 
     //! Removes a reference.
     void UnrefObject(TObjectBase* object);
-    void UnrefObject(NChunkServer::TChunkTreeRef ref);
 
     //! Finds object by id, returns |nullptr| if nothing is found.
     TObjectBase* FindObject(const TObjectId& id);
@@ -163,6 +157,9 @@ private:
     virtual void OnStartRecovery() override;
     virtual void OnStopRecovery() override;
     virtual void Clear() override;
+
+    virtual void OnActiveQuorumEstablished() override;
+    virtual void OnStopLeading() override;
 
     void ReplayVerb(const NProto::TMetaReqExecute& request);
 

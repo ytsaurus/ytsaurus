@@ -17,3 +17,4 @@ from transaction_commands import \
     lock, Transaction
 from py_wrapper import aggregator, raw
 from requests import HTTPError, ConnectionError
+from string_iter_io import StringIterIO

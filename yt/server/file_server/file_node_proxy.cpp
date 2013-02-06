@@ -85,7 +85,7 @@ private:
         const auto* chunkList = node->GetChunkList();
         const auto& statistics = chunkList->Statistics();
         YCHECK(chunkList->Children().size() <= 1);
-        const auto* chunk = chunkList->Children().empty() ? nullptr : chunkList->Children()[0].AsChunk();
+        const auto* chunk = chunkList->Children().empty() ? nullptr : chunkList->Children()[0]->AsChunk();
 
         if (chunk) {
             auto miscExt = GetProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
@@ -246,11 +246,8 @@ private:
             THROW_ERROR_EXCEPTION("No chunk is associated with the file");
         }
 
-        auto chunkRef = chunkList->Children()[0];
-        YCHECK(chunkRef.GetType() == EObjectType::Chunk);
-
-        auto chunkId = chunkRef.GetId();
-        const auto* chunk = chunkRef.AsChunk();
+        auto* chunk = chunkList->Children()[0]->AsChunk();
+        const auto& chunkId = chunk->GetId();
 
         *response->mutable_chunk_id() = chunkId.ToProto();
         auto addresses = chunkManager->GetChunkAddresses(chunk);

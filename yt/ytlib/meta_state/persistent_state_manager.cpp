@@ -527,12 +527,12 @@ public:
 
         CheckEpoch(epochId);
 
-        int changeCount = request->Attachments().size();
+        int mutationCount = request->Attachments().size();
         switch (GetControlStatus()) {
             case EPeerStatus::Following: {
-                LOG_DEBUG("ApplyChange: applying changes (Version: %s, ChangeCount: %d)",
+                LOG_DEBUG("Applying mutations (Version: %s, MutationCount: %d)",
                     ~version.ToString(),
-                    changeCount);
+                    mutationCount);
 
                 EpochContext->FollowerCommitter->Commit(version, request->Attachments())
                     .Subscribe(BIND(&TThis::OnFollowerCommitted, MakeStrong(this), context));
@@ -541,9 +541,9 @@ public:
 
             case EPeerStatus::FollowerRecovery: {
                 if (EpochContext->FollowerRecovery) {
-                    LOG_DEBUG("ApplyChange: keeping postponed changes (Version: %s, ChangeCount: %d)",
+                    LOG_DEBUG("Keeping postponed mutations (Version: %s, MutationCount: %d)",
                         ~version.ToString(),
-                        changeCount);
+                        mutationCount);
 
                     auto error = EpochContext->FollowerRecovery->PostponeMutations(version, request->Attachments());
                     if (!error.IsOK()) {
@@ -554,13 +554,13 @@ public:
                     response->set_committed(false);
                     context->Reply();
                 } else {
-                    LOG_DEBUG("ApplyChange: ignoring changes (Version: %s, ChangeCount: %d)",
+                    LOG_DEBUG("Ignoring mutations (Version: %s, MutationCount: %d)",
                         ~version.ToString(),
-                        changeCount);
+                        mutationCount);
                     context->Reply(TError(
                         EErrorCode::InvalidStatus,
-                        "Ping is not received yet (Status: %s)",
-                        ~GetControlStatus().ToString()));
+                        "Ping is not received yet")
+                        << TErrorAttribute("status", GetControlStatus()));
                 }
                 break;
             }

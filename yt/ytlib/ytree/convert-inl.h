@@ -40,7 +40,7 @@ TYsonProducer ConvertToProducer(T&& value)
         [] (const T& value, NYson::IYsonConsumer* consumer) {
             Consume(value, consumer);
         },
-        ForwardRV<T>(value));
+        std::forward<T>(value));
     return TYsonProducer(callback, type);
 }
 

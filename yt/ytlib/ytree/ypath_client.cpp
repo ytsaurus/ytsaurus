@@ -81,7 +81,7 @@ IMessagePtr TYPathRequest::Serialize() const
 
     return CreateRequestMessage(
         header,
-        MoveRV(bodyData),
+        std::move(bodyData),
         Attachments_);
 }
 

@@ -20,6 +20,8 @@
 
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
+#include <ytlib/logging/tagged_logger.h>
+
 namespace NYT {
 namespace NTableClient {
 
@@ -139,7 +141,7 @@ protected:
     TSpinLock WrittenChunksGuard;
     std::vector<NProto::TInputChunk> WrittenChunks;
 
-    NLog::TLogger& Logger;
+    NLog::TTaggedLogger Logger;
 
 };
 

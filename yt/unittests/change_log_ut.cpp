@@ -52,7 +52,7 @@ protected:
         for (i32 recordId = from; recordId < to; ++recordId) {
             TBlob blob(sizeof(RecordType));
             *reinterpret_cast<RecordType*>(&*blob.begin()) = static_cast<RecordType>(recordId);
-            records[recordId - from] = TSharedRef::FromBlob(MoveRV(blob));
+            records[recordId - from] = TSharedRef::FromBlob(std::move(blob));
         }
         return records;
     }

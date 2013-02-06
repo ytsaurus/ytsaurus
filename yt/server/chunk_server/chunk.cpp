@@ -24,7 +24,7 @@ const i64 TChunk::UnknownSize = -1;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunk::TChunk(const TChunkId& id)
-    : TStagedObjectBase(id)
+    : TChunkTree(id)
     , ReplicationFactor_(1)
     , Movable_(true)
     , Vital_(true)
@@ -67,7 +67,8 @@ TClusterResources TChunk::GetResourceUsage() const
 
 void TChunk::Save(const NCellMaster::TSaveContext& context) const
 {
-    TStagedObjectBase::Save(context);
+    TChunkTree::Save(context);
+    TStagedObject::Save(context);
     
     auto* output = context.GetOutput();
     SaveProto(output, ChunkInfo_);
@@ -82,7 +83,8 @@ void TChunk::Save(const NCellMaster::TSaveContext& context) const
 
 void TChunk::Load(const NCellMaster::TLoadContext& context)
 {
-    TStagedObjectBase::Load(context);
+    TChunkTree::Load(context);
+    TStagedObject::Load(context);
     
     auto* input = context.GetInput();
     LoadProto(input, ChunkInfo_);

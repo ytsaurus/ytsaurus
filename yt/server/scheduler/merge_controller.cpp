@@ -550,7 +550,7 @@ private:
         JobSpecTemplate.set_type(EJobType::UnorderedMerge);
         JobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
-        *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+        *JobSpecTemplate.mutable_output_transaction_id() = Operation->GetOutputTransaction()->GetId().ToProto();
 
         JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
     }
@@ -632,7 +632,7 @@ private:
         JobSpecTemplate.set_type(EJobType::OrderedMerge);
         JobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
-        *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+        *JobSpecTemplate.mutable_output_transaction_id() = Operation->GetOutputTransaction()->GetId().ToProto();
 
         JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
     }
@@ -711,7 +711,7 @@ private:
         JobSpecTemplate.set_type(EJobType::OrderedMerge);
         JobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
-        *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+        *JobSpecTemplate.mutable_output_transaction_id() = Operation->GetOutputTransaction()->GetId().ToProto();
 
         auto* jobSpecExt = JobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
 
@@ -1152,7 +1152,7 @@ private:
         JobSpecTemplate.set_type(EJobType::SortedMerge);
         JobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
-        *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+        *JobSpecTemplate.mutable_output_transaction_id() = Operation->GetOutputTransaction()->GetId().ToProto();
 
         auto* jobSpecExt = JobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
         ToProto(jobSpecExt->mutable_key_columns(), KeyColumns);
@@ -1247,7 +1247,7 @@ private:
         JobSpecTemplate.set_type(EJobType::SortedReduce);
         JobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
-        *JobSpecTemplate.mutable_output_transaction_id() = OutputTransaction->GetId().ToProto();
+        *JobSpecTemplate.mutable_output_transaction_id() = Operation->GetOutputTransaction()->GetId().ToProto();
 
         auto* jobSpecExt = JobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
         ToProto(jobSpecExt->mutable_key_columns(), KeyColumns);

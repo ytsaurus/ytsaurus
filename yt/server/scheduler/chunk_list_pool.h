@@ -29,6 +29,8 @@ public:
     bool HasEnough(int requestedCount);
     NChunkClient::TChunkListId Extract();
 
+    void Release(const std::vector<NChunkClient::TChunkListId>& ids);
+
 private:
     TSchedulerConfigPtr Config;
     NRpc::IChannelPtr MasterChannel;
@@ -45,6 +47,9 @@ private:
 
     void OnChunkListsCreated(
         int count,
+        NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
+
+    void OnChunkListsReleased(
         NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 };
 

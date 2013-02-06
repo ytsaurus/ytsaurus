@@ -66,7 +66,7 @@ bool TTableChunkSequenceWriter::TryWriteRow(const TRow& row)
         return false;
     }
 
-    // Collect boundary keys only in safe writer.
+    // Collect boundary keys in safe writer only.
     if (GetRowCount() == 0) {
         *BoundaryKeys.mutable_start() = CurrentSession.ChunkWriter->GetLastKey().ToProto();
     }
@@ -95,9 +95,7 @@ TAsyncError TTableChunkSequenceWriter::AsyncClose()
 {
     *BoundaryKeys.mutable_end() = CurrentSession.ChunkWriter->GetLastKey().ToProto();
 
-    LOG_DEBUG_IF(
-        KeyColumns,
-        "Writer boundary keys (Start: %s, End: %s)",
+    LOG_DEBUG_IF(KeyColumns, "Boundary keys determined (Start: %s, End: %s)",
         ~ToString(BoundaryKeys.start()),
         ~ToString(BoundaryKeys.end()));
     return TBase::AsyncClose();

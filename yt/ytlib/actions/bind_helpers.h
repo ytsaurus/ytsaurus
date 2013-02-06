@@ -15,7 +15,6 @@
 
 #include "callback_forward.h"
 
-#include <ytlib/misc/rvalue.h>
 #include <ytlib/misc/new.h>
 
 namespace NYT {
@@ -101,7 +100,7 @@ struct TVoid
 //   TIntrusivePtr<TFoo> foo = New<TFoo>();
 //
 //   // |cb| is given ownership of the |TFoo| instance. |foo| is now NULL.
-//   // You may also use MoveRV(foo), but its more verbose.
+//   // You may also use std::move(foo), but its more verbose.
 //   TClosure cb = Bind(&TakesOwnership, Passed(&foo));
 //
 //   // Run was never called so |cb| still owns the instance and deletes
@@ -194,17 +193,17 @@ class TPassedWrapper
 public:
     explicit TPassedWrapper(T x)
         : IsValid(true)
-        , T_(MoveRV(x))
+        , T_(std::move(x))
     { }
     TPassedWrapper(const TPassedWrapper& other)
         : IsValid(other.IsValid)
-        , T_(MoveRV(other.T_))
+        , T_(std::move(other.T_))
     {
         other.IsValid = false;
     }
     TPassedWrapper(TPassedWrapper&& other)
         : IsValid(other.IsValid)
-        , T_(MoveRV(other.T_))
+        , T_(std::move(other.T_))
     {
         other.IsValid = false;
     }
@@ -307,13 +306,13 @@ static inline NYT::NDetail::TOwnedWrapper<T> Owned(T* x)
 template <class T>
 static inline NYT::NDetail::TPassedWrapper<T> Passed(T&& x)
 {
-    return NYT::NDetail::TPassedWrapper<T>(ForwardRV<T>(x));
+    return NYT::NDetail::TPassedWrapper<T>(std::forward<T>(x));
 }
 
 template <class T>
 static inline NYT::NDetail::TPassedWrapper<T> Passed(T* x)
 {
-    return NYT::NDetail::TPassedWrapper<T>(MoveRV(*x));
+    return NYT::NDetail::TPassedWrapper<T>(std::move(*x));
 }
 
 template <class T>

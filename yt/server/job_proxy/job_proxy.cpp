@@ -26,7 +26,7 @@
 
 
 // Defined inside util/private/lf_alloc/lf_allocX64.cpp
-void SetLargeBlockLimit(int limit);
+void SetLargeBlockLimit(i64 limit);
 
 
 namespace NYT {

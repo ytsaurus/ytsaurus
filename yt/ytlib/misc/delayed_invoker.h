@@ -30,7 +30,7 @@ private:
         TEntry(TClosure action, TInstant deadline)
             : Valid(true)
             , Deadline(deadline)
-            , Action(MoveRV(action))
+            , Action(std::move(action))
         { }
     };
 

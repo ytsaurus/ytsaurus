@@ -711,14 +711,14 @@ bool TChunkReplicator::IsEnabled()
     return true;
 }
 
-void TChunkReplicator::ScheduleRFUpdate(TChunkTreeRef ref)
+void TChunkReplicator::ScheduleRFUpdate(TChunkTree* chunkTree)
 {
-    switch (ref.GetType()) {
+    switch (chunkTree->GetType()) {
         case EObjectType::Chunk:
-            ScheduleRFUpdate(ref.AsChunk());
+            ScheduleRFUpdate(chunkTree->AsChunk());
             break;
         case EObjectType::ChunkList:
-            ScheduleRFUpdate(ref.AsChunkList());
+            ScheduleRFUpdate(chunkTree->AsChunkList());
             break;
         default:
             YUNREACHABLE();
@@ -738,7 +738,7 @@ void TChunkReplicator::ScheduleRFUpdate(TChunkList* chunkList)
             TChunkReplicatorPtr replicator,
             TChunkList* root)
             : Bootstrap(bootstrap)
-            , Replicator(MoveRV(replicator))
+            , Replicator(std::move(replicator))
             , Root(root)
         { }
 
@@ -800,10 +800,12 @@ void TChunkReplicator::OnRFUpdate()
     NProto::TMetaReqUpdateChunkReplicationFactor request;
 
     PROFILE_TIMING ("/rf_update_time") {
-        while (!RFUpdateList.empty() && request.updates_size() < Config->MaxChunksPerRFUpdate) {
+        int count = 0;
+        while (!RFUpdateList.empty() && count < Config->MaxChunksPerRFUpdate) {
             auto chunkId = RFUpdateList.front();
             RFUpdateList.pop_front();
             YCHECK(RFUpdateSet.erase(chunkId) == 1);
+            ++count;
 
             auto* chunk = chunkManager->FindChunk(chunkId);
             if (chunk && chunk->IsAlive()) {

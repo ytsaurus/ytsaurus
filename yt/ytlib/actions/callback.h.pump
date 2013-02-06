@@ -111,7 +111,6 @@ $var MAX_ARITY = 7
 #include "callback_internal.h"
 
 #include <ytlib/misc/mpl.h>
-#include <ytlib/misc/rvalue.h>
 
 #ifdef ENABLE_BIND_LOCATION_TRACKING
 #include <ytlib/misc/source_location.h>
@@ -229,14 +228,14 @@ public:
     { }
 
     TCallback(TCallback&& other)
-        : TCallbackBase(MoveRV(other))
+        : TCallbackBase(std::move(other))
     { }
 
     template <class Runnable, class Signature, class BoundArgs>
     explicit TCallback(TIntrusivePtr<
             NYT::NDetail::TBindState<Runnable, Signature, BoundArgs>
         >&& bindState)
-        : TCallbackBase(MoveRV(bindState))
+        : TCallbackBase(std::move(bindState))
     {
         // Force the assignment to a local variable of TTypedInvokeFunction
         // so the compiler will typecheck that the passed in Run() method has
@@ -258,7 +257,7 @@ public:
  
     TCallback& operator=(TCallback&& other)
     {
-        TCallback(MoveRV(other)).Swap(*this);
+        TCallback(std::move(other)).Swap(*this);
         return *this;
     }
 
@@ -271,7 +270,7 @@ $if ARITY != 0 [[,
             [[]]
 ]]
 $for ARG ,
-            [[ForwardRV<A$(ARG)>(a$(ARG))]]);
+            [[std::forward<A$(ARG)>(a$(ARG))]]);
     }
 
     // XXX(sandello): This is legacy. Due to forced migration to new callbacks.

@@ -141,12 +141,12 @@ public:
     { }
 
     explicit TCallableAdapter(T&& functor)
-        : Functor(MoveRV(functor))
+        : Functor(std::move(functor))
     { }
 
     R Run($for ARG , [[A$(ARG)&& a$(ARG)]])
     {
-        return Functor($for ARG , [[ForwardRV<A$(ARG)>(a$(ARG))]]);
+        return Functor($for ARG , [[std::forward<A$(ARG)>(a$(ARG))]]);
     }
 
 private:
@@ -167,12 +167,12 @@ public:
     { }
 
     explicit TCallableAdapter(T&& functor)
-        : Functor(MoveRV(functor))
+        : Functor(std::move(functor))
     { }
 
     R Run($for ARG , [[A$(ARG)&& a$(ARG)]])
     {
-        return Functor($for ARG , [[ForwardRV<A$(ARG)>(a$(ARG))]]);
+        return Functor($for ARG , [[std::forward<A$(ARG)>(a$(ARG))]]);
     }
 
 private:
@@ -216,7 +216,7 @@ public:
     { }
 
     explicit TRunnableAdapter(T&& functor)
-        : TBase(MoveRV(functor))
+        : TBase(std::move(functor))
     { }
 };
 
@@ -239,7 +239,7 @@ public:
 
     R Run($for ARG , [[A$(ARG)&& a$(ARG)]])
     {
-        return Function($for ARG , [[ForwardRV<A$(ARG)>(a$(ARG))]]);
+        return Function($for ARG , [[std::forward<A$(ARG)>(a$(ARG))]]);
     }
 
 private:
@@ -266,7 +266,7 @@ $for ARG , [[A$(ARG)]]);
 $if ARITY > 0 [[, ]]
 $for ARG , [[A$(ARG)&& a$(ARG)]])
     {
-        return (target->*Method)($for ARG , [[ForwardRV<A$(ARG)>(a$(ARG))]]);
+        return (target->*Method)($for ARG , [[std::forward<A$(ARG)>(a$(ARG))]]);
     }
 
 private:
@@ -293,7 +293,7 @@ $for ARG , [[A$(ARG)]]);
 $if ARITY > 0[[, ]]
 $for ARG , [[A$(ARG)&& a$(ARG)]])
     {
-        return (target->*Method)($for ARG , [[ForwardRV<A$(ARG)>(a$(ARG))]]);
+        return (target->*Method)($for ARG , [[std::forward<A$(ARG)>(a$(ARG))]]);
     }
 
 private:
@@ -437,7 +437,7 @@ struct TInvokerHelper<false, Runnable, R,
 $if ARITY > 0 [[, ]]
 $for ARG , [[A$(ARG)&& a$(ARG)]])
     {
-        return runnable.Run($for ARG , [[ForwardRV<A$(ARG)>(a$(ARG))]]);
+        return runnable.Run($for ARG , [[std::forward<A$(ARG)>(a$(ARG))]]);
     }
 };
 
@@ -450,7 +450,7 @@ struct TInvokerHelper<false, Runnable, void,
 $if ARITY > 0 [[, ]]
 $for ARG , [[A$(ARG)&& a$(ARG)]])
     {
-        runnable.Run($for ARG , [[ForwardRV<A$(ARG)>(a$(ARG))]]);
+        runnable.Run($for ARG , [[std::forward<A$(ARG)>(a$(ARG))]]);
     }
 };
 
@@ -468,7 +468,7 @@ $for ARG , [[A$(ARG)&& a$(ARG)]])
             return;
         }
 
-        runnable.Run($for ARG , [[ForwardRV<A$(ARG)>(a$(ARG))]]);
+        runnable.Run($for ARG , [[std::forward<A$(ARG)>(a$(ARG))]]);
     }
 };
 
@@ -569,15 +569,15 @@ $if ARITY > 0 [[,
 
 $for BOUND_ARG , [[
 $if BOUND_ARG == 1 [[
-TTargetCopy::Do(TTargetLock(ForwardRV<BoundA$(BOUND_ARG)>(a$(BOUND_ARG))).Lock().Get())
+TTargetCopy::Do(TTargetLock(std::forward<BoundA$(BOUND_ARG)>(a$(BOUND_ARG))).Lock().Get())
 ]] $else [[
-TMaybeCopyHelper<A$(BOUND_ARG)>::Do(ForwardRV<BoundA$(BOUND_ARG)>(a$(BOUND_ARG)))
+TMaybeCopyHelper<A$(BOUND_ARG)>::Do(std::forward<BoundA$(BOUND_ARG)>(a$(BOUND_ARG)))
 ]]]]
 
 $if UNBOUND > 0 [[$if BOUND > 0 [[, ]]]][[]]
 
 $for UNBOUND_ARG , [[
-ForwardRV<A$(UNBOUND_ARG)>(a$(UNBOUND_ARG))
+std::forward<A$(UNBOUND_ARG)>(a$(UNBOUND_ARG))
 ]]
 );
     }
@@ -661,7 +661,7 @@ $if ARITY > 0 [[, ]] $for ARG , [[P$(ARG)&& p$(ARG)]])
 $if ARITY > 0 [[
 $for ARG [[
 
-        , S$(ARG)_(ForwardRV<P$(ARG)>(p$(ARG)))
+        , S$(ARG)_(std::forward<P$(ARG)>(p$(ARG)))
 ]] $$ for ARG
 ]]
 

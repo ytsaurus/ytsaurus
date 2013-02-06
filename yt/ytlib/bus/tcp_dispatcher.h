@@ -28,6 +28,13 @@ public:
     TTcpDispatcher();
 
     static TTcpDispatcher* Get();
+
+    //! Typically not needed since initialization happens on-demand.
+    //! Calling this method explicitly, however, ensures that dispatcher threads
+    //! are up and running. This might be useful since root permissions are
+    //! required for adjusting their priorities.
+    void Initialize();
+
     void Shutdown();
 
     TTcpDispatcherStatistics GetStatistics();

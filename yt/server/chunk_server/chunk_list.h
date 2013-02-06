@@ -1,8 +1,8 @@
 #pragma once
 
 #include "public.h"
+#include "chunk_tree.h"
 #include "chunk_tree_statistics.h"
-#include "chunk_tree_ref.h"
 
 #include <ytlib/misc/property.h>
 
@@ -29,9 +29,9 @@ struct TVersionedChunkListId
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkList
-    : public NObjectServer::TUnversionedObjectBase
+    : public TChunkTree
 {
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TChunkTreeRef>, Children);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TChunkTree*>, Children);
 
     // Accumulated sums of children row counts.
     // The i-th value is equal to the sum of row counts of children 0..i 

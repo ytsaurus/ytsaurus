@@ -114,7 +114,7 @@ void TChunkInfoCollector<TFetcher>::SendRequests()
                     &TChunkInfoCollector<TFetcher>::OnResponse,
                     MakeStrong(this),
                     address,
-                    Passed(MoveRV(requestChunkIndexes))));
+                    Passed(std::move(requestChunkIndexes))));
         }
     }
     awaiter->Complete(BIND(

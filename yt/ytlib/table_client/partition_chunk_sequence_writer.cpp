@@ -1,5 +1,4 @@
 ﻿#include "stdafx.h"
-
 #include "partition_chunk_sequence_writer.h"
 #include "private.h"
 

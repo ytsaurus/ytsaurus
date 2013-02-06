@@ -49,7 +49,7 @@ TChunkSequenceWriterBase<TChunkWriter>::TChunkSequenceWriterBase(
     YCHECK(config);
     YCHECK(masterChannel);
 
-    // TODO(babenko): use TTaggedLogger here, tag with parentChunkListId.
+    Logger.AddTag(Sprintf("TransactionId: %s", ~ToString(TransactionId)));
 }
 
 template <class TChunkWriter>
@@ -95,8 +95,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::CreateNextSession()
 
     NextSession = NewPromise<TSession>();
 
-    LOG_DEBUG("Creating chunk (TransactionId: %s, ReplicationFactor: %d, UploadReplicationFactor: %d)",
-        ~TransactionId.ToString(),
+    LOG_DEBUG("Creating chunk (ReplicationFactor: %d, UploadReplicationFactor: %d)",
         ReplicationFactor,
         UploadReplicationFactor);
 
@@ -206,24 +205,21 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnRowWritten()
     ++RowCount;
 
     if (CurrentSession.ChunkWriter->GetMetaSize() > Config->MaxMetaSize) {
-        LOG_DEBUG("Switching to next chunk: meta is too large (TransactionId: %s, ChunkMetaSize: %" PRId64,
-            ~TransactionId.ToString(),
+        LOG_DEBUG("Switching to next chunk: meta is too large (ChunkMetaSize: %" PRId64 ")",
             CurrentSession.ChunkWriter->GetMetaSize());
 
         SwitchSession();
         return;
     }
 
-    if (CurrentSession.ChunkWriter->GetCurrentSize() > Config->DesiredChunkSize)
-    {
+    if (CurrentSession.ChunkWriter->GetCurrentSize() > Config->DesiredChunkSize) {
         i64 currentDataSize = CompleteChunkSize + CurrentSession.ChunkWriter->GetCurrentSize();
-        auto expectedInputSize = currentDataSize * std::max(.0, 1. - Progress);
+        i64 expectedInputSize = static_cast<i64>(currentDataSize * std::max(0.0, 1.0 - Progress));
 
         if (expectedInputSize > Config->DesiredChunkSize ||
             CurrentSession.ChunkWriter->GetCurrentSize() > 2 * Config->DesiredChunkSize)
         {
-            LOG_DEBUG("Switching to next chunk: too much data (TransactionId: %s, currentSessionSize: %" PRId64 ", ExpectedInputSize: %lf)",
-                ~TransactionId.ToString(),
+            LOG_DEBUG("Switching to next chunk: too much data (CurrentSessionSize: %" PRId64 ", ExpectedInputSize: %" PRId64 ")",
                 CurrentSession.ChunkWriter->GetCurrentSize(),
                 expectedInputSize);
 
@@ -364,7 +360,6 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkRegistered(
     LOG_DEBUG("Chunk registered successfully (ChunkId: %s)",
         ~chunkId.ToString());
 
-
     finishResult.Set(TError());
 }
 
@@ -443,7 +438,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnClose(
         }
     }
 
-    LOG_DEBUG("Chunk sequence writer successfully closed.");
+    LOG_DEBUG("Chunk sequence writer closed");
 
     State.Close();
     State.FinishOperation();

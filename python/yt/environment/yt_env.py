@@ -251,6 +251,7 @@ class YTEnv(object):
 
         os.mkdir(os.path.join(self.path_to_run, 'node'))
 
+        current_user = 10000;
         current_port = self._ports["node"]
         for i in xrange(self.NUM_NODES):
             config = configs.get_node_config()
@@ -269,8 +270,11 @@ class YTEnv(object):
                 {'path': os.path.join(current, 'chunk_store'),
                  'low_watermark' : 0,
                  'high_watermark' : 0})
+            config['exec_agent']['start_user_id'] = current_user
             config['exec_agent']['job_manager']['slot_location'] = \
                 os.path.join(current, 'slot')
+
+            current_user += config['exec_agent']['job_manager']['resource_limits']['slots'] + 1
 
             init_logging(config['logging'], current, 'node-%d' % i)
             init_logging(config['exec_agent']['job_proxy_logging'], current, 'job_proxy-%d' % i)
@@ -412,7 +416,7 @@ class YTEnv(object):
 
     def assertEqual(self, actual, expected, msg=""):
         self.assertTrue(actual == expected, msg)
-    
+
     def assertTrue(self, expr, msg=""):
         assert expr, msg
 

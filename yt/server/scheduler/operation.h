@@ -30,7 +30,7 @@ class TOperation
 
     //! Transaction used for maintaining operation inputs and outputs.
     /*!
-     *  SyncScheduler transaction is nested inside UserTransaction, if any.
+     *  SyncSchedulerTransaction is nested inside UserTransaction, if any.
      *  Input and output transactions are nested inside SyncSchedulerTransaction.
      */
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::ITransactionPtr, SyncSchedulerTransaction);
@@ -41,6 +41,18 @@ class TOperation
      */
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::ITransactionPtr, AsyncSchedulerTransaction);
 
+    //! Transaction used for taking snapshot of operation input.
+    /*!
+     *  InputTransaction is nested inside SyncSchedulerTransaction.
+     */
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::ITransactionPtr, InputTransaction);
+
+    //! Transaction used for locking and writing operation output.
+    /*!
+     *  OutputTransaction is nested inside SyncSchedulerTransaction.
+     */
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::ITransactionPtr, OutputTransaction);
+
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, Spec);
 
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
@@ -48,6 +60,9 @@ class TOperation
 
     //! Number of stderrs generated so far.
     DEFINE_BYVAL_RW_PROPERTY(int, StdErrCount);
+
+    //! Maximum number of stderrs to capture.
+    DEFINE_BYVAL_RW_PROPERTY(int, MaxStdErrCount);
 
     //! Currently existing jobs in the operation.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);

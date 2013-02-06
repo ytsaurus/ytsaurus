@@ -27,8 +27,7 @@ using namespace NSecurityServer;
 NMetaState::TVersionValidator SnapshotVersionValidator()
 {
     static auto result = BIND([] (int version) {
-        YCHECK(version == 5 ||
-               version == 6);
+        YCHECK(version == 6);
     });
     return result;
 }
@@ -43,6 +42,12 @@ template <>
 TTransaction* TLoadContext::Get(const TObjectId& id) const
 {
     return Bootstrap_->GetTransactionManager()->GetTransaction(id);
+}
+
+template <>
+TChunkTree* TLoadContext::Get(const TObjectId& id) const
+{
+    return Bootstrap_->GetChunkManager()->GetChunkTree(id);
 }
 
 template <>

@@ -54,6 +54,7 @@ TOperationControllerBase::TTask::TTask(TOperationControllerBase* controller)
     : Controller(controller)
     , CachedPendingJobCount(0)
     , CachedTotalNeededResources(ZeroNodeResources())
+    , LastDemandSanityCheckTime(TInstant::Zero())
     , Logger(Controller->Logger)
 { }
 
@@ -131,17 +132,18 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
 {
     int chunkListCount = GetChunkListCountPerJob();
     if (!Controller->HasEnoughChunkLists(chunkListCount)) {
-        return NULL;
+        return nullptr;
     }
 
     int jobIndex = Controller->JobIndexGenerator.Next();
     auto joblet = New<TJoblet>(this, jobIndex);
 
-    auto address = context->GetNode()->GetAddress();
+    auto node = context->GetNode();
+    auto address = node->GetAddress();
     auto* chunkPoolOutput = GetChunkPoolOutput();
     joblet->OutputCookie = chunkPoolOutput->Extract(address);
     if (joblet->OutputCookie == IChunkPoolOutput::NullCookie) {
-        return NULL;
+        return nullptr;
     }
 
     joblet->InputStripeList = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
@@ -150,8 +152,9 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
     // against the the limits. This is the last chance to give up.
     auto neededResources = GetNeededResources(joblet);
     if (!Dominates(jobLimits, neededResources)) {
+        CheckResourceDemandSanity(node, neededResources);
         chunkPoolOutput->Failed(joblet->OutputCookie);
-        return NULL;
+        return nullptr;
     }
 
     auto jobType = GetJobType();
@@ -244,7 +247,7 @@ void TOperationControllerBase::TTask::ReleaseFailedJobResources(TJobletPtr joble
 {
     auto* chunkPoolOutput = GetChunkPoolOutput();
 
-    Controller->ReleaseChunkLists(joblet->ChunkListIds);
+    Controller->ChunkListPool->Release(joblet->ChunkListIds);
 
     if (HasInputLocality()) {
         auto list = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
@@ -273,6 +276,39 @@ void TOperationControllerBase::TTask::OnTaskCompleted()
     LOG_DEBUG("Task completed (Task: %s)", ~GetId());
 }
 
+void TOperationControllerBase::TTask::CheckResourceDemandSanity(
+    TExecNodePtr node,
+    const NProto::TNodeResources& neededResources)
+{
+    // The task is requesting more then some node is willing to provide it.
+    // Maybe it's OK and we should wait for some time.
+    // Or maybe it's not and the task is requesting something no one is able to provide.
+    
+    // First check if this very node has enough resources (including those currently
+    // allocated by other jobs).
+    if (Dominates(node->ResourceLimits(), neededResources))
+        return;
+
+    // Run sanity check to see if any node can provide enough resources.
+    // Don't run these checks too often to avoid jeopardizing performance.
+    auto now = TInstant::Now();
+    if (now < LastDemandSanityCheckTime + Controller->Config->ResourceDemandSanityCheckPeriod)
+        return;
+    LastDemandSanityCheckTime = now;
+
+    auto nodes = Controller->Host->GetExecNodes();
+    FOREACH (auto node, nodes) {
+        if (Dominates(node->ResourceLimits(), neededResources))
+            return;
+    }
+
+    // It seems nobody can satisfy the demand.
+    Controller->OnOperationFailed(
+        TError("No online exec node can satisfy the resource demand")
+            << TErrorAttribute("task", TRawString(GetId()))
+            << TErrorAttribute("needed_resources", neededResources));
+}
+
 void TOperationControllerBase::TTask::AddPendingHint()
 {
     Controller->AddTaskPendingHint(this);
@@ -284,7 +320,7 @@ void TOperationControllerBase::TTask::AddLocalityHint(const Stroka& address)
 }
 
 void TOperationControllerBase::TTask::AddSequentialInputSpec(
-    NScheduler::NProto::TJobSpec* jobSpec,
+    TJobSpec* jobSpec,
     TJobletPtr joblet,
     bool enableTableIndex)
 {
@@ -297,7 +333,7 @@ void TOperationControllerBase::TTask::AddSequentialInputSpec(
 }
 
 void TOperationControllerBase::TTask::AddParallelInputSpec(
-    NScheduler::NProto::TJobSpec* jobSpec,
+    TJobSpec* jobSpec,
     TJobletPtr joblet,
     bool enableTableIndex)
 {
@@ -310,7 +346,7 @@ void TOperationControllerBase::TTask::AddParallelInputSpec(
 }
 
 void TOperationControllerBase::TTask::UpdateInputSpecTotals(
-    NScheduler::NProto::TJobSpec* jobSpec,
+    TJobSpec* jobSpec,
     TJobletPtr joblet)
 {
     auto list = joblet->InputStripeList;
@@ -323,7 +359,7 @@ void TOperationControllerBase::TTask::UpdateInputSpecTotals(
 }
 
 void TOperationControllerBase::TTask::AddFinalOutputSpecs(
-    NScheduler::NProto::TJobSpec* jobSpec,
+    TJobSpec* jobSpec,
     TJobletPtr joblet)
 {
     YCHECK(joblet->ChunkListIds.size() == Controller->OutputTables.size());
@@ -343,7 +379,7 @@ void TOperationControllerBase::TTask::AddFinalOutputSpecs(
 }
 
 void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
-    NScheduler::NProto::TJobSpec* jobSpec,
+    TJobSpec* jobSpec,
     TJobletPtr joblet)
 {
     YCHECK(joblet->ChunkListIds.size() == 1);
@@ -398,7 +434,6 @@ TOperationControllerBase::TOperationControllerBase(
     , CancelableContext(New<TCancelableContext>())
     , CancelableControlInvoker(CancelableContext->CreateInvoker(Host->GetControlInvoker()))
     , CancelableBackgroundInvoker(CancelableContext->CreateInvoker(Host->GetBackgroundInvoker()))
-    , Active(false)
     , Running(false)
     , TotalInputChunkCount(0)
     , TotalInputDataSize(0)
@@ -453,103 +488,83 @@ void TOperationControllerBase::Initialize()
         DoInitialize();
     } catch (const std::exception& ex) {
         LOG_INFO(ex, "Operation has failed to initialize");
-        Active = false;
         throw;
     }
-
-    Active = true;
 
     LOG_INFO("Operation initialized");
 }
 
 void TOperationControllerBase::DoInitialize()
-{ }
+{
+    Operation->SetMaxStdErrCount(Spec->MaxStdErrCount.Get(Config->MaxStdErrCount));
+}
 
-TFuture<void> TOperationControllerBase::Prepare()
+TFuture<TError> TOperationControllerBase::Prepare()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto this_ = MakeStrong(this);
     auto pipeline = StartAsyncPipeline(CancelableBackgroundInvoker)
-        ->Add(BIND(&TThis::StartIOTransactions, MakeStrong(this)))
-        ->Add(BIND(&TThis::OnIOTransactionsStarted, MakeStrong(this)), CancelableControlInvoker)
-        ->Add(BIND(&TThis::GetObjectIds, MakeStrong(this)))
-        ->Add(BIND(&TThis::OnObjectIdsReceived, MakeStrong(this)))
-        ->Add(BIND(&TThis::GetInputTypes, MakeStrong(this)))
-        ->Add(BIND(&TThis::OnInputTypesReceived, MakeStrong(this)))
-        ->Add(BIND(&TThis::RequestInputs, MakeStrong(this)))
-        ->Add(BIND(&TThis::OnInputsReceived, MakeStrong(this)))
-        ->Add(BIND(&TThis::CompletePreparation, MakeStrong(this)));
+        ->Add(BIND(&TThis::GetObjectIds, this_))
+        ->Add(BIND(&TThis::OnObjectIdsReceived, this_))
+        ->Add(BIND(&TThis::GetInputTypes, this_))
+        ->Add(BIND(&TThis::OnInputTypesReceived, this_))
+        ->Add(BIND(&TThis::RequestInputs, this_))
+        ->Add(BIND(&TThis::OnInputsReceived, this_))
+        ->Add(BIND(&TThis::CompletePreparation, this_));
      pipeline = CustomizePreparationPipeline(pipeline);
      return pipeline
-        ->Add(BIND(&TThis::OnPreparationCompleted, MakeStrong(this)))
         ->Run()
-        .Apply(BIND([=] (TValueOrError<void> result) -> TFuture<void> {
+        .Apply(BIND([=] (TValueOrError<void> result) -> TError {
             if (result.IsOK()) {
-                if (this_->Active) {
-                    this_->Running = true;
-                }
-                return MakeFuture();
-            } else {
-                LOG_WARNING(result, "Operation has failed to prepare");
-                this_->Active = false;
-                this_->Host->OnOperationFailed(this_->Operation, result);
-                // This promise is never fulfilled.
-                return NewPromise<void>();
+                this_->Running = true;
             }
+            return result;
         }));
 }
 
-TFuture<void> TOperationControllerBase::Revive()
+TFuture<TError> TOperationControllerBase::Revive()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     try {
         Initialize();
     } catch (const std::exception& ex) {
-        OnOperationFailed(TError("Operation has failed to initialize")
-            << ex);
-        // This promise is never fulfilled.
-        return NewPromise<void>();
+        auto wrappedError = TError("Operation has failed to initialize")
+            << ex;
+        return MakeFuture(wrappedError);
     }
+
     return Prepare();
 }
 
-TFuture<void> TOperationControllerBase::Commit()
+TFuture<TError> TOperationControllerBase::Commit()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    YCHECK(Active);
-
-    LOG_INFO("Committing operation");
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto this_ = MakeStrong(this);
     return StartAsyncPipeline(CancelableBackgroundInvoker)
-        ->Add(BIND(&TThis::CommitOutputs, MakeStrong(this)))
-        ->Add(BIND(&TThis::OnOutputsCommitted, MakeStrong(this)))
+        ->Add(BIND(&TThis::CommitResults, this_))
+        ->Add(BIND(&TThis::OnResultsCommitted, this_))
         ->Run()
-        .Apply(BIND([=] (TValueOrError<void> result) -> TFuture<void> {
-            Active = false;
-            if (result.IsOK()) {
-                LOG_INFO("Operation committed");
-                return MakeFuture();
-            } else {
-                LOG_WARNING(result, "Operation has failed to commit");
-                this_->Host->OnOperationFailed(this_->Operation, result);
-                return NewPromise<void>();
-            }
+        .Apply(BIND([] (TValueOrError<void> result) -> TError {
+            return result;
         }));
-}
-
-void TOperationControllerBase::OnJobStarted(TJobPtr job)
-{
-    UNUSED(job);
-
-    JobCounter.Start(1);
 }
 
 void TOperationControllerBase::OnJobRunning(TJobPtr job, const NProto::TJobStatus& status)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
     UNUSED(job);
     UNUSED(status);
+}
+
+void TOperationControllerBase::OnJobStarted(TJobPtr job)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+    UNUSED(job);
+
+    JobCounter.Start(1);
 }
 
 void TOperationControllerBase::OnJobCompleted(TJobPtr job)
@@ -587,7 +602,7 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
 
     int failedJobCount = JobCounter.GetFailed();
     int maxFailedJobCount = Spec->MaxFailedJobCount.Get(Config->MaxFailedJobCount);
-    if (failedJobCount > maxFailedJobCount) {
+    if (failedJobCount >= maxFailedJobCount) {
         OnOperationFailed(TError("Failed jobs limit %d has been reached",
             maxFailedJobCount));
         return;
@@ -638,7 +653,6 @@ void TOperationControllerBase::Abort()
     LOG_INFO("Aborting operation");
 
     Running = false;
-    Active = false;
     CancelableContext->Cancel();
 
     AbortTransactions();
@@ -648,11 +662,13 @@ void TOperationControllerBase::Abort()
 
 void TOperationControllerBase::OnNodeOnline(TExecNodePtr node)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
     UNUSED(node);
 }
 
 void TOperationControllerBase::OnNodeOffline(TExecNodePtr node)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
     UNUSED(node);
 }
 
@@ -664,17 +680,17 @@ TJobPtr TOperationControllerBase::ScheduleJob(
 
     if (!Running) {
         LOG_TRACE("Operation is not running, scheduling request ignored");
-        return NULL;
+        return nullptr;
     }
 
     if (GetPendingJobCount() == 0) {
         LOG_TRACE("No pending jobs left, scheduling request ignored");
-        return NULL;
+        return nullptr;
     }
 
     auto job = DoScheduleJob(context, jobLimits);
     if (!job) {
-        return NULL;
+        return nullptr;
     }
 
     OnJobStarted(job);
@@ -764,9 +780,14 @@ void TOperationControllerBase::ResetTaskLocalityDelays()
     }
 }
 
-bool TOperationControllerBase::CheckJobLimits(TTaskPtr task, const NProto::TNodeResources& jobLimits)
+bool TOperationControllerBase::CheckJobLimits(TExecNodePtr node, TTaskPtr task, const NProto::TNodeResources& jobLimits)
 {
-    return Dominates(jobLimits, task->GetMinNeededResources());
+    auto neededResources = task->GetMinNeededResources();
+    if (Dominates(jobLimits, neededResources)) {
+        return true;
+    }
+    task->CheckResourceDemandSanity(node, neededResources);
+    return false;
 }
 
 TJobPtr TOperationControllerBase::DoScheduleJob(
@@ -783,7 +804,7 @@ TJobPtr TOperationControllerBase::DoScheduleJob(
         return nonLocalJob;
     }
 
-    return NULL;
+    return nullptr;
 }
 
 TJobPtr TOperationControllerBase::DoScheduleLocalJob(
@@ -801,7 +822,7 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
         }
 
         i64 bestLocality = 0;
-        TTaskPtr bestTask = NULL;
+        TTaskPtr bestTask = nullptr;
 
         auto& localTasks = localTasksIt->second;
         auto it = localTasks.begin();
@@ -824,7 +845,7 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
                 continue;
             }
 
-            if (!CheckJobLimits(task, jobLimits)) {
+            if (!CheckJobLimits(node, task, jobLimits)) {
                 continue;
             }
 
@@ -837,7 +858,7 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
             bestTask = task;
         }
 
-        if (bestTask) {
+        if (Running && bestTask) {
             LOG_DEBUG(
                 "Attempting to schedule a local job (Task: %s, Address: %s, Priority: %d, Locality: %" PRId64 ", JobLimits: {%s}, "
                 "PendingDataSize: %" PRId64 ", PendingJobCount: %d)",
@@ -856,7 +877,7 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
             }
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
@@ -908,7 +929,7 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
                     continue;
                 }
 
-                if (!CheckJobLimits(task, jobLimits)) {
+                if (!CheckJobLimits(node, task, jobLimits)) {
                     ++taskIndex;
                     continue;
                 }
@@ -927,50 +948,62 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
                     continue;
                 }
 
-                LOG_DEBUG(
-                    "Attempting to schedule a non-local job (Task: %s, Address: %s, Priority: %d, JobLimits: {%s}, "
-                    "PendingDataSize: %" PRId64 ", PendingJobCount: %d)",
-                    ~task->GetId(),
-                    ~address,
-                    priority,
-                    ~FormatResources(jobLimits),
-                    task->GetPendingDataSize(),
-                    task->GetPendingJobCount());
-                auto job = task->ScheduleJob(context, jobLimits);
-                if (job) {
-                    OnTaskUpdated(task);
-                    return job;
+                if (Running) {
+                    LOG_DEBUG(
+                        "Attempting to schedule a non-local job (Task: %s, Address: %s, Priority: %d, JobLimits: {%s}, "
+                        "PendingDataSize: %" PRId64 ", PendingJobCount: %d)",
+                        ~task->GetId(),
+                        ~address,
+                        priority,
+                        ~FormatResources(jobLimits),
+                        task->GetPendingDataSize(),
+                        task->GetPendingJobCount());
+                    auto job = task->ScheduleJob(context, jobLimits);
+                    if (job) {
+                        OnTaskUpdated(task);
+                        return job;
+                    }
                 }
 
                 ++taskIndex;
             }
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 TCancelableContextPtr TOperationControllerBase::GetCancelableContext()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return CancelableContext;
 }
 
 IInvokerPtr TOperationControllerBase::GetCancelableControlInvoker()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return CancelableControlInvoker;
 }
 
 IInvokerPtr TOperationControllerBase::GetCancelableBackgroundInvoker()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return CancelableBackgroundInvoker;
 }
 
 int TOperationControllerBase::GetPendingJobCount()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     return CachedPendingJobCount;
 }
 
 NProto::TNodeResources TOperationControllerBase::GetNeededResources()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     return CachedNeededResources;
 }
 
@@ -978,7 +1011,13 @@ void TOperationControllerBase::OnOperationCompleted()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    YCHECK(Active);
+    CancelableControlInvoker->Invoke(BIND(&TThis::DoOperationCompleted, MakeStrong(this)));
+}
+
+void TOperationControllerBase::DoOperationCompleted()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     LOG_INFO("Operation completed");
 
     JobCounter.Finalize();
@@ -992,13 +1031,14 @@ void TOperationControllerBase::OnOperationFailed(const TError& error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    if (!Active)
-        return;
+    CancelableControlInvoker->Invoke(BIND(&TThis::DoOperationFailed, MakeStrong(this), error));
+}
 
-    LOG_WARNING(error, "Operation failed");
+void TOperationControllerBase::DoOperationFailed(const TError& error)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
     Running = false;
-    Active = false;
 
     Host->OnOperationFailed(Operation, error);
 }
@@ -1019,11 +1059,11 @@ void TOperationControllerBase::AbortTransactions()
     }
 }
 
-TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs()
+TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitResults()
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
-    LOG_INFO("Committing outputs");
+    LOG_INFO("Committing results");
 
     auto batchReq = ObjectProxy.ExecuteBatch();
 
@@ -1104,121 +1144,23 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitOutputs()
                 ~table.Path.GetPath(),
                 ~ConvertToYsonString(table.KeyColumns.Get(), EYsonFormat::Text).Data());
             auto req = TTableYPathProxy::SetSorted(path);
-            SetTransactionId(req, OutputTransaction);
+            SetTransactionId(req, Operation->GetOutputTransaction());
             ToProto(req->mutable_key_columns(), table.KeyColumns.Get());
             NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "set_out_sorted");
         }
     }
 
-    {
-        auto req = TTransactionYPathProxy::Commit(FromObjectId(InputTransaction->GetId()));
-        NMetaState::GenerateRpcMutationId(req);
-        batchReq->AddRequest(req, "commit_in_tx");
-    }
-
-    {
-        auto req = TTransactionYPathProxy::Commit(FromObjectId(OutputTransaction->GetId()));
-        NMetaState::GenerateRpcMutationId(req);
-        batchReq->AddRequest(req, "commit_out_tx");
-    }
-
-    // NB: Scheduler transaction is committed by TScheduler.
-    // We don't need pings any longer, detach the transactions.
-    InputTransaction->Detach();
-    OutputTransaction->Detach();
-
     return batchReq->Invoke();
 }
 
-void TOperationControllerBase::OnOutputsCommitted(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+void TOperationControllerBase::OnResultsCommitted(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
-    THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error committing outputs");
+    THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError(), "Error committing results");
 
-    {
-        auto rsps = batchRsp->GetResponses("attach_out");
-        FOREACH (auto rsp, rsps) {
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error attaching chunk trees");
-        }
-    }
-
-    {
-        auto rsps = batchRsp->GetResponses("set_out_sorted");
-        FOREACH (auto rsp, rsps) {
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error marking output table as sorted");
-        }
-    }
-
-    {
-        auto rsp = batchRsp->GetResponse("commit_in_tx");
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error committing input transaction");
-    }
-
-    {
-        auto rsp = batchRsp->GetResponse("commit_out_tx");
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error committing output transaction");
-    }
-
-    LOG_INFO("Outputs committed");
-}
-
-TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::StartIOTransactions()
-{
-    VERIFY_THREAD_AFFINITY(BackgroundThread);
-
-    LOG_INFO("Starting IO transactions");
-
-    auto batchReq = ObjectProxy.ExecuteBatch();
-    const auto& parentTransactionId = Operation->GetSyncSchedulerTransaction()->GetId();
-
-    {
-        auto req = TTransactionYPathProxy::CreateObject(FromObjectId(parentTransactionId));
-        req->set_type(EObjectType::Transaction);
-        req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
-        NMetaState::GenerateRpcMutationId(req);
-        batchReq->AddRequest(req, "start_in_tx");
-    }
-
-    {
-        auto req = TTransactionYPathProxy::CreateObject(FromObjectId(parentTransactionId));
-        req->set_type(EObjectType::Transaction);
-        auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
-        reqExt->set_enable_uncommitted_accounting(false);
-        NMetaState::GenerateRpcMutationId(req);
-        batchReq->AddRequest(req, "start_out_tx");
-    }
-
-    return batchReq->Invoke();
-}
-
-void TOperationControllerBase::OnIOTransactionsStarted(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error starting IO transactions");
-
-    auto transactionManager = Host->GetTransactionManager();
-    {
-        auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_in_tx");
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting input transaction");
-        auto id = TTransactionId::FromProto(rsp->object_id());
-        LOG_INFO("Input transaction is %s", ~id.ToString());
-        TTransactionAttachOptions options(id);
-        options.Ping = true;
-        InputTransaction = transactionManager->Attach(options);
-    }
-
-    {
-        auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_out_tx");
-        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting output transaction");
-        auto id = TTransactionId::FromProto(rsp->object_id());
-        LOG_INFO("Output transaction is %s", ~id.ToString());
-        TTransactionAttachOptions options(id);
-        options.Ping = true;
-        OutputTransaction = transactionManager->Attach(options);
-    }
+    LOG_INFO("Results committed");
 }
 
 TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::GetObjectIds()
@@ -1231,13 +1173,13 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::GetObjectIds()
 
     FOREACH (const auto& table, InputTables) {
         auto req = TObjectYPathProxy::GetId(table.Path.GetPath());
-        SetTransactionId(req, InputTransaction);
+        SetTransactionId(req, Operation->GetInputTransaction());
         batchReq->AddRequest(req, "get_in_id");
     }
 
     FOREACH (const auto& table, OutputTables) {
         auto req = TObjectYPathProxy::GetId(table.Path.GetPath());
-        SetTransactionId(req, InputTransaction);
+        SetTransactionId(req, Operation->GetInputTransaction());
         batchReq->AddRequest(req, "get_out_id");
     }
 
@@ -1290,20 +1232,20 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::GetInputTypes()
 
     FOREACH (const auto& table, InputTables) {
         auto req = TObjectYPathProxy::Get(FromObjectId(table.ObjectId) + "/@type");
-        SetTransactionId(req, InputTransaction);
+        SetTransactionId(req, Operation->GetInputTransaction());
         batchReq->AddRequest(req, "get_input_types");
     }
 
     FOREACH (const auto& table, OutputTables) {
         auto req = TObjectYPathProxy::Get(FromObjectId(table.ObjectId) + "/@type");
-        SetTransactionId(req, InputTransaction);
+        SetTransactionId(req, Operation->GetInputTransaction());
         batchReq->AddRequest(req, "get_output_types");
     }
 
     FOREACH (const auto& pair, GetFilePaths()) {
         const auto& path = pair.first;
         auto req = TObjectYPathProxy::Get(path.GetPath() + "/@type");
-        SetTransactionId(req, InputTransaction);
+        SetTransactionId(req, Operation->GetInputTransaction());
         batchReq->AddRequest(req, "get_file_types");
     }
 
@@ -1386,7 +1328,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
         auto path = FromObjectId(table.ObjectId);
         {
             auto req = TCypressYPathProxy::Lock(path);
-            SetTransactionId(req, InputTransaction);
+            SetTransactionId(req, Operation->GetInputTransaction());
             req->set_mode(ELockMode::Snapshot);
             NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "lock_in");
@@ -1399,14 +1341,14 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             }
             TRichYPath fetchPath(table.Path.GetPath(), *attributes);
             auto req = TTableYPathProxy::Fetch(fetchPath);
-            SetTransactionId(req, InputTransaction);
+            SetTransactionId(req, Operation->GetInputTransaction());
             req->set_fetch_all_meta_extensions(true);
             req->set_ignore_lost_chunks(Spec->IgnoreLostChunks);
             batchReq->AddRequest(req, "fetch_in");
         }
         {
             auto req = TYPathProxy::Get(path);
-            SetTransactionId(req, InputTransaction);
+            SetTransactionId(req, Operation->GetInputTransaction());
             TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
             attributeFilter.Keys.push_back("sorted");
             attributeFilter.Keys.push_back("sorted_by");
@@ -1419,14 +1361,14 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
         auto path = FromObjectId(table.ObjectId);
         {
             auto req = TCypressYPathProxy::Lock(path);
-            SetTransactionId(req, OutputTransaction);
+            SetTransactionId(req, Operation->GetOutputTransaction());
             req->set_mode(table.LockMode);
             NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "lock_out");
         }
         {
             auto req = TYPathProxy::Get(path);
-            SetTransactionId(req, OutputTransaction);
+            SetTransactionId(req, Operation->GetOutputTransaction());
             TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
             attributeFilter.Keys.push_back("channels");
             attributeFilter.Keys.push_back("row_count");
@@ -1437,7 +1379,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
         }
         {
             auto req = TTableYPathProxy::PrepareForUpdate(path);
-            SetTransactionId(req, OutputTransaction);
+            SetTransactionId(req, Operation->GetOutputTransaction());
             NMetaState::GenerateRpcMutationId(req);
             req->set_mode(table.Clear ? ETableUpdateMode::Overwrite : ETableUpdateMode::Append);
             batchReq->AddRequest(req, "prepare_for_update");
@@ -1448,7 +1390,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
         auto path = file.Path.GetPath();
         {
             auto req = TFileYPathProxy::FetchFile(path);
-            SetTransactionId(req, InputTransaction->GetId());
+            SetTransactionId(req, Operation->GetInputTransaction()->GetId());
             batchReq->AddRequest(req, "fetch_files");
         }
     }
@@ -1459,19 +1401,19 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             {
                 auto req = TTableYPathProxy::Fetch(path);
                 req->set_fetch_all_meta_extensions(true);
-                SetTransactionId(req, InputTransaction->GetId());
+                SetTransactionId(req, Operation->GetInputTransaction()->GetId());
                 batchReq->AddRequest(req, "fetch_table_files_chunks");
             }
 
             {
                 auto req = TYPathProxy::GetKey(path);
-                SetTransactionId(req, InputTransaction->GetId());
+                SetTransactionId(req, Operation->GetInputTransaction()->GetId());
                 batchReq->AddRequest(req, "fetch_table_files_names");
             }
 
             {
                 auto req = TYPathProxy::Get(file.Path.GetPath() + "/@uncompressed_data_size");
-                SetTransactionId(req, InputTransaction->GetId());
+                SetTransactionId(req, Operation->GetInputTransaction()->GetId());
                 batchReq->AddRequest(req, "fetch_table_files_sizes");
             }
         }
@@ -1694,7 +1636,7 @@ TFuture<void> TOperationControllerBase::CompletePreparation()
     // Check for empty inputs.
     if (TotalInputChunkCount == 0) {
         LOG_INFO("Empty input");
-        OnOperationCompleted();
+        CancelableControlInvoker->Invoke(BIND(&TThis::OnOperationCompleted, MakeStrong(this)));
         return NewPromise<void>();
     }
 
@@ -1703,17 +1645,9 @@ TFuture<void> TOperationControllerBase::CompletePreparation()
         Host->GetMasterChannel(),
         CancelableControlInvoker,
         Operation->GetOperationId(),
-        OutputTransaction->GetId());
+        Operation->GetOutputTransaction()->GetId());
 
     return MakeFuture();
-}
-
-void TOperationControllerBase::OnPreparationCompleted()
-{
-    if (!Active)
-        return;
-
-    LOG_INFO("Preparation completed");
 }
 
 TAsyncPipeline<void>::TPtr TOperationControllerBase::CustomizePreparationPipeline(TAsyncPipeline<void>::TPtr pipeline)
@@ -1721,40 +1655,8 @@ TAsyncPipeline<void>::TPtr TOperationControllerBase::CustomizePreparationPipelin
     return pipeline;
 }
 
-void TOperationControllerBase::ReleaseChunkList(const TChunkListId& id)
-{
-    std::vector<TChunkListId> ids;
-    ids.push_back(id);
-    ReleaseChunkLists(ids);
-}
-
-void TOperationControllerBase::ReleaseChunkLists(const std::vector<TChunkListId>& ids)
-{
-    auto batchReq = ObjectProxy.ExecuteBatch();
-    FOREACH (const auto& id, ids) {
-        auto req = TTransactionYPathProxy::UnstageObject();
-        *req->mutable_object_id() = id.ToProto();
-        req->set_recursive(true);
-        NMetaState::GenerateRpcMutationId(req);
-        batchReq->AddRequest(req);
-    }
-
-    // Fire-and-forget.
-    // The subscriber is only needed to log the outcome.
-    batchReq->Invoke().Subscribe(
-        BIND(&TThis::OnChunkListsReleased, MakeStrong(this)));
-}
-
-void TOperationControllerBase::OnChunkListsReleased(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
-{
-    if (!batchRsp->IsOK()) {
-        LOG_WARNING(*batchRsp, "Error releasing chunk lists");
-    }
-}
-
 std::vector<TRefCountedInputChunkPtr> TOperationControllerBase::CollectInputChunks()
 {
-    // TODO(babenko): set row_attributes
     std::vector<TRefCountedInputChunkPtr> result;
     for (int tableIndex = 0; tableIndex < InputTables.size(); ++tableIndex) {
         const auto& table = InputTables[tableIndex];
@@ -1932,7 +1834,7 @@ TChunkStripePtr TOperationControllerBase::BuildIntermediateChunkStripe(
 {
     auto stripe = New<TChunkStripe>();
     FOREACH (auto& inputChunk, *inputChunks) {
-        stripe->Chunks.push_back(New<TRefCountedInputChunk>(MoveRV(inputChunk)));
+        stripe->Chunks.push_back(New<TRefCountedInputChunk>(std::move(inputChunk)));
     }
     return stripe;
 }
@@ -1966,6 +1868,8 @@ void TOperationControllerBase::RemoveJoblet(TJobPtr job)
 
 void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     BuildYsonMapFluently(consumer)
         .Item("jobs").BeginMap()
             .Item("total").Value(JobCounter.GetCompleted() + JobCounter.GetRunning() + GetPendingJobCount())
@@ -1980,6 +1884,8 @@ void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
 
 void TOperationControllerBase::BuildResultYson(IYsonConsumer* consumer)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     auto error = FromProto(Operation->Result().error());
     BuildYsonFluently(consumer)
         .BeginMap()
@@ -2021,9 +1927,7 @@ void TOperationControllerBase::InitUserJobSpec(
     jobSpec->set_memory_limit(config->MemoryLimit);
 
     {
-        int stdErrCount = Operation->GetStdErrCount();
-        int maxStdErrCount = Spec->MaxStdErrCount.Get(Config->MaxStdErrCount);
-        if (stdErrCount < maxStdErrCount) {
+        if (Operation->GetStdErrCount() < Operation->GetMaxStdErrCount()) {
             auto stdErrTransactionId = Operation->GetAsyncSchedulerTransaction()->GetId();
             *jobSpec->mutable_stderr_transaction_id() = stdErrTransactionId.ToProto();
         }

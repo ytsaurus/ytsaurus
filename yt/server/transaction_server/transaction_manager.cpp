@@ -580,6 +580,9 @@ void TTransactionManager::DoRenewLease(const TTransaction* transaction)
     auto it = LeaseMap.find(transaction->GetId());
     YCHECK(it != LeaseMap.end());
     TLeaseManager::RenewLease(it->second);
+
+    LOG_DEBUG("Transaction lease renewed (TransactionId: %s)",
+        ~ToString(transaction->GetId()));
 }
 
 TObjectId TTransactionManager::CreateObject(
@@ -778,7 +781,7 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
     auto objectManager = Bootstrap->GetObjectManager();
     auto proxy = objectManager->GetProxy(transaction);
 
-    LOG_INFO("Transaction has expired (TransactionId: %s)", ~id.ToString());
+    LOG_INFO("Transaction lease expired (TransactionId: %s)", ~id.ToString());
 
     auto req = TTransactionYPathProxy::Abort();
     ExecuteVerb(proxy, req).Subscribe(BIND([=] (TTransactionYPathProxy::TRspAbortPtr rsp) {

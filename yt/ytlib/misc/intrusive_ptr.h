@@ -2,7 +2,6 @@
 
 #include "assert.h"
 #include "mpl.h"
-#include "rvalue.h"
 
 namespace NYT {
 
@@ -227,7 +226,7 @@ public:
     //! Move assignment operator.
     TIntrusivePtr& operator=(TIntrusivePtr&& other) // noexcept
     {
-        TIntrusivePtr(MoveRV(other)).Swap(*this);
+        TIntrusivePtr(std::move(other)).Swap(*this);
         return *this;
     }
 
@@ -238,7 +237,7 @@ public:
         static_assert(
             NMpl::TIsConvertible<U*, T*>::Value,
             "U* have to be convertible to T*");
-        TIntrusivePtr(MoveRV(other)).Swap(*this);
+        TIntrusivePtr(std::move(other)).Swap(*this);
         return *this;
     }
 

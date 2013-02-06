@@ -2,16 +2,19 @@ import config
 import py_wrapper
 from common import flatten, require, YtError, unlist, update, EMPTY_GENERATOR, parse_bool, is_prefix, get_value, compose, execute_handling_sigint
 from version import VERSION
-from http import read_content
+from http import read_content, get_hosts
 from table import TablePath, to_table, to_name, prepare_path
 from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, move, mkdir, find_free_subpath, create, get_type
 from file_commands import smart_upload_file
 from transaction_commands import _make_transactioned_request, PingableTransaction
+from string_iter_io import StringIterIO
+from format import RawFormat
 
 import os
 import sys
 import types
 import logger
+from cStringIO import StringIO
 
 """ Auxiliary methods """
 def _filter_empty_tables(tables):
@@ -189,28 +192,22 @@ def _make_operation_request(command_name, spec, strategy, finalizer=None, verbos
 
 class Buffer(object):
     """ Reads line iterator by chunks """
-    def __init__(self, lines_iterator, has_eoln=True):
-        self._lines_iterator = lines_iterator
+    def __init__(self, input_stream, format):
+        self._input_stream = input_stream
         self._empty = False
-        self._has_eoln = has_eoln
+        self._format = format
 
     def get(self, bytes=None):
-        if bytes is None: bytes = config.WRITE_BUFFER_SIZE
-        sep = "" if self._has_eoln else "\n"
-        if isinstance(self._lines_iterator, types.ListType):
-            self._empty = True
-            for line in self._lines_iterator:
-                yield line + sep if sep else line
-            return
+        if bytes is None:
+            bytes = config.WRITE_BUFFER_SIZE
         read_bytes = 0
         while read_bytes < bytes:
-            try:
-                line = self._lines_iterator.next()
-                yield line + sep if sep else line
-            except StopIteration:
+            row = self._format.read_row(self._input_stream)
+            if not row:
                 self._empty = True
                 break
-            read_bytes += len(line)
+            read_bytes += len(row)
+            yield row
 
     def empty(self):
         return self._empty
@@ -247,13 +244,26 @@ def create_temp_table(path=None, prefix=None):
     return name
 
 
-def write_table(table, lines, format=None, table_writer=None, replication_factor=None):
+def write_table(table, input_stream, format=None, table_writer=None, replication_factor=None):
     """
-    Writes lines to table. It is made under transaction by chunks of fixed size.
-    Each chunks is written with retries.
+    Writes rows from input_stream to table.
+
+    Input stream may be python file-like object or string, or list of strings. You also can
+    use StringIterIO to wrap iter of strings.
+
+    There are two modes.
+    In chunk mode we write by portion of fixed size. Each portion is written with retries.
+    In single mode we write all stream as is throw http.
+
+    In both cases Transer-Encoding is used.
     """
     table = to_table(table)
     format = _prepare_format(format)
+    if isinstance(input_stream, types.ListType):
+        input_stream = StringIterIO(iter(input_stream))
+    elif isinstance(input_stream, str):
+        input_stream = StringIO(input_stream)
+
     with PingableTransaction(config.WRITE_TRANSACTION_TIMEOUT):
         if not exists(table.name):
             create_table(table.name, replication_factor=replication_factor)
@@ -261,28 +271,52 @@ def write_table(table, lines, format=None, table_writer=None, replication_factor
             require(replication_factor is None,
                     YtError("Cannot write to existing table %s with set replication factor" % to_name(table)))
 
-        started = False
-        buffer = Buffer(lines)
-        while not buffer.empty():
-            if started:
-                table.append = True
+        if config.USE_RETRIES_DURING_WRITE and not isinstance(format, RawFormat):
+            started = False
+            buffer = Buffer(input_stream, format)
+            while not buffer.empty():
+                if started:
+                    table.append = True
+                params = {"path": table.get_json()}
+                if table_writer is not None:
+                    params["table_writer"] = table_writer
+                for i in xrange(config.WRITE_RETRIES_COUNT):
+                    try:
+                        with PingableTransaction(config.WRITE_TRANSACTION_TIMEOUT):
+                            if config.USE_HOSTS:
+                                proxy = get_hosts()[0]
+                            else:
+                                proxy = config.PROXY
+                            #print >>sys.stderr, "CONVERTING TO LIST"
+                            #k = list(buffer.get())
+                            #print >>sys.stderr, k
+                            _make_transactioned_request(
+                                "write",
+                                params,
+                                data=buffer.get(),
+                                format=format,
+                                proxy=proxy)
+                        break
+                    except YtError as err:
+                        print >>sys.stderr, "Retry", i + 1, "failed with message", str(err)
+                        if i + 1 == config.WRITE_RETRIES_COUNT:
+                            raise
+                started = True
+        else:
             params = {"path": table.get_json()}
             if table_writer is not None:
                 params["table_writer"] = table_writer
-            for i in xrange(config.WRITE_RETRIES_COUNT):
-                try:
-                    with PingableTransaction(config.WRITE_TRANSACTION_TIMEOUT):
-                        _make_transactioned_request(
-                            "write",
-                            params,
-                            data=buffer.get(),
-                            format=format)
-                    break
-                except YtError as err:
-                    print >>sys.stderr, "Retry", i + 1, "failed with message", str(err)
-                    if i + 1 == config.WRITE_RETRIES_COUNT:
-                        raise
-            started = True
+            if config.USE_HOSTS:
+                proxy = get_hosts()[0]
+            else:
+                proxy = config.PROXY
+            _make_transactioned_request(
+                "write",
+                params,
+                data=input_stream,
+                format=format,
+                proxy=proxy)
+
 
 def read_table(table, format=None, response_type=None):
     """

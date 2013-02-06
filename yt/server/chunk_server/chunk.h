@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "chunk_tree.h"
 
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/small_vector.h>
@@ -21,7 +22,8 @@ namespace NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunk
-    : public NObjectServer::TStagedObjectBase
+    : public TChunkTree
+    , public NObjectServer::TStagedObject
 {
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TChunkMeta, ChunkMeta);
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TChunkInfo, ChunkInfo);
@@ -58,6 +60,7 @@ public:
 
     bool ValidateChunkInfo(const NChunkClient::NProto::TChunkInfo& chunkInfo) const;
     bool IsConfirmed() const;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -114,15 +114,16 @@ void KillallByUser(int uid)
     }
 }
 
-void RemoveDirAsRoot(Stroka path)
+void RemoveDirAsRoot(const Stroka& path)
 {
     // Allocation after fork can lead to a deadlock inside LFAlloc.
     // To avoid allocation we list contents of the directory before fork.
 
     // Copy-paste from RemoveDirWithContents (util/folder/dirut.cpp)
-    SlashFolderLocal(path);
+    auto path_ = path;
+    SlashFolderLocal(path_);
 
-    TDirIterator dir(path);
+    TDirIterator dir(path_);
     std::vector<Stroka> contents;
 
     for (TDirIterator::TIterator it = dir.Begin(); it != dir.End(); ++it) {
@@ -152,7 +153,7 @@ void RemoveDirAsRoot(Stroka path)
         _exit(0);
     }
 
-    auto throwError = [=] (Stroka msg, TError error) {
+    auto throwError = [=] (const Stroka& msg, const TError& error) {
         THROW_ERROR_EXCEPTION(
             "Failed to remove directory %s: %s",
             ~path,

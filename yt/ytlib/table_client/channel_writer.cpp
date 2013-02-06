@@ -26,8 +26,8 @@ TChannelWriter::TChannelWriter(
     , HeapIndex_(bufferIndex)
     , FixedColumns(fixedColumnCount, TChunkedOutputStream(upperReserveLimit))
     , RangeColumns(upperReserveLimit)
-    // this buffer gives additional overhead for
-    // partition chunks, but it is very small: 1K per partition
+    // This buffer incurs additional overhead for
+    // partition chunks, but it is very small: 1K per partition.
     , RangeSizes(writeRangeSizes ? RangeSizesChunk : 1)
     , RangeOffset(0)
     , WriteRangeSizes(writeRangeSizes)
@@ -104,15 +104,15 @@ void TChannelWriter::EndRow()
         RangeOffset = RangeColumns.GetSize();
     }
 
-    ++ CurrentRowCount;
+    ++CurrentRowCount;
 }
 
-size_t TChannelWriter::GetCurrentSize() const
+i64 TChannelWriter::GetCurrentSize() const
 {
     return CurrentSize;
 }
 
-size_t TChannelWriter::GetCapacity() const
+i64 TChannelWriter::GetCapacity() const
 {
     return Capacity;
 }

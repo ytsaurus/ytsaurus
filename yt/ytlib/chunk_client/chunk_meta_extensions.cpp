@@ -10,6 +10,7 @@ using namespace NChunkClient::NProto;
 
 TChunkMeta FilterChunkMetaExtensions(const TChunkMeta& chunkMeta, const std::vector<int>& tags)
 {
+    // ToDo: use FilterProtoExtensions.
     TChunkMeta result;
     result.set_type(chunkMeta.type());
     result.set_version(chunkMeta.version());

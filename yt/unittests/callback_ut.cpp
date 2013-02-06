@@ -125,14 +125,14 @@ TEST_F(TCallbackTest, Move)
 {
     EXPECT_FALSE(FirstCallback.IsNull());
 
-    TCallback<void()> localCallback(MoveRV(FirstCallback));
+    TCallback<void()> localCallback(std::move(FirstCallback));
     TCallback<void()> anotherCallback;
 
     EXPECT_TRUE(FirstCallback.IsNull());
     EXPECT_FALSE(localCallback.IsNull());
     EXPECT_TRUE(anotherCallback.IsNull());
 
-    anotherCallback = MoveRV(localCallback);
+    anotherCallback = std::move(localCallback);
 
     EXPECT_TRUE(FirstCallback.IsNull());
     EXPECT_TRUE(localCallback.IsNull());

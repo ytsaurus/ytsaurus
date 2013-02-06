@@ -73,7 +73,7 @@ void TTableReader::Open()
         Config,
         MasterChannel,
         BlockCache,
-        MoveRV(inputChunks),
+        std::move(inputChunks),
         provider);
     Sync(~Reader, &TTableChunkSequenceReader::AsyncOpen);
 

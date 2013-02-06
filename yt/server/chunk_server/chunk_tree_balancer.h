@@ -26,12 +26,12 @@ private:
     static const double MinChunkListToChunkRatio;
 
     void MergeChunkTrees(
-        std::vector<TChunkTreeRef>* children,
-        TChunkTreeRef child);
+        std::vector<TChunkTree*>* children,
+        TChunkTree* child);
 
     void AppendChunkTree(
-        std::vector<TChunkTreeRef>* children,
-        TChunkTreeRef child);
+        std::vector<TChunkTree*>* children,
+        TChunkTree* child);
 
 };
 

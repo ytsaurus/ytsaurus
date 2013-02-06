@@ -271,7 +271,7 @@ TEST(TIntrusivePtrTest, MoveSemantics)
     EXPECT_THAT(object, HasRefCounts(1, 0, 0));
 
     {
-        TIntricateObject::TPtr bar(MoveRV(foo));
+        TIntricateObject::TPtr bar(std::move(foo));
         EXPECT_THAT(object, HasRefCounts(1, 0, 0));
         EXPECT_THAT(foo.Get(), IsNull());
         EXPECT_EQ(&object, bar.Get());
@@ -283,7 +283,7 @@ TEST(TIntrusivePtrTest, MoveSemantics)
 
     {
         TIntricateObject::TPtr bar;
-        bar = MoveRV(foo);
+        bar = std::move(foo);
         EXPECT_THAT(object, HasRefCounts(2, 1, 1));
         EXPECT_THAT(foo.Get(), IsNull());
         EXPECT_EQ(&object, bar.Get());

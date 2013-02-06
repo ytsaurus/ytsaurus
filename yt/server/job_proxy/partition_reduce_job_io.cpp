@@ -60,7 +60,7 @@ public:
             blockCache,
             keyColumns,
             BIND(&IJobHost::ReleaseNetwork, Host),
-            MoveRV(chunks),
+            std::move(chunks),
             JobSpec.input_row_count());
         reader->Open();
 
