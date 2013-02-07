@@ -1530,7 +1530,9 @@ private:
         }
         InitIntermediateOutputConfig(IntermediateSortJobIOConfig);
 
+        // Final sort: reader like sort and output like merge.
         FinalSortJobIOConfig = CloneYsonSerializable(Spec->SortJobIO);
+        FinalSortJobIOConfig->TableWriter = CloneYsonSerializable(Spec->MergeJobIO->TableWriter);
         if (!SimpleSort) {
             InitIntermediateInputConfig(FinalSortJobIOConfig);
         }
@@ -1920,24 +1922,29 @@ private:
     {
         {
             // This is not a typo!
-            PartitionJobIOConfig = Spec->MapJobIO;
+            PartitionJobIOConfig = CloneYsonSerializable(Spec->MapJobIO);
             InitIntermediateOutputConfig(PartitionJobIOConfig);
         }
 
         {
-            IntermediateSortJobIOConfig = Spec->SortJobIO;
+            IntermediateSortJobIOConfig = CloneYsonSerializable(Spec->SortJobIO);
             InitIntermediateInputConfig(IntermediateSortJobIOConfig);
             InitIntermediateOutputConfig(IntermediateSortJobIOConfig);
         }
 
         {
-            FinalSortJobIOConfig = Spec->ReduceJobIO;
+            // Partition reduce: writer like in merge and reader like in sort.
+            FinalSortJobIOConfig = CloneYsonSerializable(Spec->ReduceJobIO);
+            FinalSortJobIOConfig->TableReader = CloneYsonSerializable(Spec->SortJobIO->TableReader);
             InitIntermediateInputConfig(FinalSortJobIOConfig);
+            InitFinalOutputConfig(FinalSortJobIOConfig);
         }
 
         {
-            SortedMergeJobIOConfig = Spec->ReduceJobIO;
+            // Sorted reduce.
+            SortedMergeJobIOConfig = CloneYsonSerializable(Spec->ReduceJobIO);
             InitIntermediateInputConfig(SortedMergeJobIOConfig);
+            InitFinalOutputConfig(SortedMergeJobIOConfig);
         }
     }
 
