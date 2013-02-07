@@ -435,7 +435,8 @@ private:
                     attributeFilter->set_mode(EAttributeFilterMode::MatchingOnly);
                     attributeFilter->add_keys("operation_type");
                     attributeFilter->add_keys("user_transaction_id");
-                    attributeFilter->add_keys("scheduler_transaction_id");
+                    attributeFilter->add_keys("sync_scheduler_transaction_id");
+                    attributeFilter->add_keys("async_scheduler_transaction_id");
                     attributeFilter->add_keys("spec");
                     attributeFilter->add_keys("start_time");
                     attributeFilter->add_keys("state");
