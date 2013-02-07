@@ -307,6 +307,7 @@ public:
     void Shutdown()
     {
         TActionQueueBase::Shutdown();
+        Config->FlushWriters();
     }
 
     virtual void OnThreadStart()
@@ -385,16 +386,16 @@ public:
         }
     }
 
-    virtual bool DequeueAndExecute()
+    virtual bool DequeueAndExecute() override
     {
-        bool result = false;
-
+        bool configsUpdated = false;
         TLogConfigPtr config;
         while (ConfigsToUpdate.Dequeue(&config)) {
             DoUpdateConfig(config);
-            result = true;
+            configsUpdated = true;
         }
 
+        bool eventsWritten = false;
         TLogEvent event;
         while (LogEventQueue.Dequeue(&event)) {
             // To avoid starvation of config update
@@ -408,10 +409,14 @@ public:
             }
 
             Write(event);
-            result = true;
+            eventsWritten = true;
         }
 
-        return result;
+        if (eventsWritten) {
+            Config->FlushWriters();
+        }
+
+        return configsUpdated || eventsWritten;
     }
 
     void Reopen()
