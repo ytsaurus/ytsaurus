@@ -133,12 +133,9 @@ def main():
         else:
             yt_server = "proxy.yt.yandex.net"
 
-        codec = ""
-        if args.codec is not None:
-            codec = "-codec " + args.codec
         subprocess.check_call(
-            "MR_USER=tmp {} -server {}:{} "
-                "-map '{} YT_USE_HOSTS=1 ./{} -server {} -append -lenval -subkey {} -write {}' "
+            "MR_USER=gemini {} -server {}:{} "
+                "-map '{} YT_USE_TOKEN=0 YT_USE_HOSTS=1 ./{} -server {} -append -lenval -subkey -write {}' "
                 "-src {} "
                 "-dst {} "
                 "-jobcount {} "
@@ -153,7 +150,6 @@ def main():
                         speed_limit,
                         os.path.basename(args.yt_binary),
                         yt_server,
-                        codec,
                         destination,
                         source,
                         os.path.join("tmp", os.path.basename(source)),
@@ -161,6 +157,14 @@ def main():
                         args.yt_binary,
                         codec),
             shell=True)
+        
+        if args.codec is not None:
+            yt.run_merge(
+                destination,
+                destination,
+                "unordered",
+                table_writer={"codec": args.codec},
+                spec={"combine_chunks": "true"})
 
 
     def import_table(table):

@@ -42,7 +42,7 @@ def process_tasks_from_list(list, action):
                 print >>sys.stderr, "We have already prosessed value %r, processing stopped." %value
                 break
 
-            processed_values.insert(value)
+            processed_values.add(value)
 
             print >>sys.stderr, "Processing value", value
             result = action(value)
