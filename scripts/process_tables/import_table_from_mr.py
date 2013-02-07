@@ -165,7 +165,7 @@ def main():
 
     def import_table(table):
         if is_empty(table):
-            raise yt.YtError("Table {} is empty".format(table))
+            return -1
 
         count = records_count(table)
         sorted = is_sorted(table)

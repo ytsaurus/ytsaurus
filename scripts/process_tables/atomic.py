@@ -28,14 +28,28 @@ def atomic_push(list, value):
     yt.set(list + "/begin", value)
 
 def process_tasks_from_list(list, action):
+    processed_values = set()
     while True:
         value = None
         try:
             value = atomic_pop(list)
+
             if value is None:
+                print >>sys.stderr, "List %s is empty, processing stopped" % list
                 break
+
+            if value in processed_values:
+                print >>sys.stderr, "We have already prosessed value %r, processing stopped." %value
+                break
+
+            processed_values.insert(value)
+
             print >>sys.stderr, "Processing value", value
-            action(value)
+            result = action(value)
+            if result == -1:
+                print >>sys.stderr, "Pushing back value", value
+                atomic_push(list, value)
+
         except (Exception, KeyboardInterrupt) as e:
             print >>sys.stderr, "Crashed with error", e
             _, _, exc_traceback = sys.exc_info()
