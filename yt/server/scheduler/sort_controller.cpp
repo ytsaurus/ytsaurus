@@ -901,10 +901,13 @@ protected:
         LOG_DEBUG("Examining online nodes");
 
         std::vector<TAssignedNodePtr> nodeHeap;
-        FOREACH (auto node, Host->GetExecNodes()) {
-            const auto& resourceUsage = node->ResourceUsage();
-            const auto& resourceLimits = node->ResourceLimits();
-            double weight = GetMinResourceRatio(resourceLimits - resourceUsage, resourceLimits);
+        auto nodes = Host->GetExecNodes();
+        auto maxResourceLimits = ZeroNodeResources();
+        FOREACH (auto node, nodes) {
+            maxResourceLimits = Max(maxResourceLimits, node->ResourceLimits());
+        }
+        FOREACH (auto node, nodes) {
+            double weight = GetMinResourceRatio(node->ResourceLimits(), maxResourceLimits);
             if (weight > 0) {
                 auto assignedNode = New<TAssignedNode>(node, weight);
                 nodeHeap.push_back(assignedNode);
