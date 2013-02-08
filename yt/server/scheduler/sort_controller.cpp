@@ -1185,12 +1185,13 @@ protected:
 
     int SuggestPartitionCount() const
     {
-        i64 result;
         YCHECK(TotalInputDataSize > 0);
+        i64 result;
         if (Spec->PartitionDataSize || Spec->PartitionCount) {
             if (Spec->PartitionCount) {
                 result = Spec->PartitionCount.Get();
-            } else { // Spec->PartitionDataSize is not Null
+            } else {
+                // NB: Spec->PartitionDataSize is not Null.
                 result = 1 + TotalInputDataSize / Spec->PartitionDataSize.Get();
             }
         } else {
