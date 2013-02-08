@@ -20,7 +20,10 @@ var konfig = {
     blackbox: {
         host: "blackbox.yandex-team.ru",
         path: "/blackbox",
-        timeout: 3000
+        timeout: 3000,
+        local: {
+            "371e089e1f729de5d6421379f3325dea" : "statbox_evvers"
+        }
     }
 };
 
@@ -54,6 +57,8 @@ function makeHttpRequest(method, host, path, timeout, headers, body) {
 
 function YtBlackbox(logger) { // TODO: Inject |config|
     var config = konfig.blackbox;
+    var locals = config.local;
+
     function httpUnauthorized(rsp) {
         rsp.writeHead(401, { "WWW-Authenticate" : "OAuth scope=\"yt:api\"" });
         rsp.end();
@@ -100,7 +105,7 @@ function YtBlackbox(logger) { // TODO: Inject |config|
 
     return function(req, rsp, next) {
         if (!req.headers.hasOwnProperty("authorization")) {
-            // logger.debug("Client is missing Authorization header");
+            logger.debug("Client is missing Authorization header", { request_id : req.uuid });
             return next();
         }
 
@@ -110,6 +115,11 @@ function YtBlackbox(logger) { // TODO: Inject |config|
         if (parts[0] !== "OAuth" || !token) {
             logger.debug("Client has improper Authorization header", { request_id : req.uuid, header : req.headers["authorization"] });
             return httpUnauthorized(rsp);
+        }
+
+        if (locals.hasOwnProperty(token) && locals[token]) {
+            logger.debug("Client has authenticated with local token", { request_id : req.uuid, login : locals[token] });
+            return next();
         }
 
         Q
