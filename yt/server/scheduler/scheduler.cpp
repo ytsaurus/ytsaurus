@@ -311,6 +311,8 @@ private:
 
         ProfileResources(TotalResourceLimitsProfiler, TotalResourceLimits);
         ProfileResources(TotalResourceUsageProfiler, TotalResourceUsage);
+
+        ProfilingInvoker->ScheduleNext();
     }
 
 
