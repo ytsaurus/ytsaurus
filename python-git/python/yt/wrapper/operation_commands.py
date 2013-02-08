@@ -69,6 +69,8 @@ class PrintOperationInfo(object):
         self.progress = None
 
     def __call__(self, operation, state):
+        logger.set_formatter(logger.OperationProgressFormatter())
+
         if state.is_running():
             progress = get_operation_progress(operation)
             if progress != self.progress:
@@ -78,13 +80,15 @@ class PrintOperationInfo(object):
                         "c={completed!s}\tf={failed!s}\tr={running!s}\tp={pending!s}".format(**progress))
                 else:
                     logger.info(
-                        "jobs of operation %s: %s",
+                        "operation %s jobs: %s",
                         operation,
                         "\t".join("{0}={1}".format(k, v) for k, v in progress.iteritems()))
             self.progress = progress
         elif state != self.state:
             logger.info("operation %s %s", operation, state)
         self.state = state
+
+        logger.set_formatter(logger.BASIC_FORMATTER)
 
 
 def abort_operation(operation):
@@ -136,7 +140,7 @@ def get_jobs_errors(operation, limit=None):
         output.write("Host: ")
         output.write(get_attribute(path, "address"))
         output.write("\n")
-        
+
         output.write("Error:\n")
         output.write(format_error(path.attributes["error"]))
         output.write("\n")
@@ -160,7 +164,7 @@ def get_stderrs(operation, limit=None):
         output.write("Host: ")
         output.write(get_attribute(path, "address"))
         output.write("\n")
-        
+
         stderr_path = os.path.join(path, "stderr")
         if exists(stderr_path):
             for line in download_file(stderr_path):
