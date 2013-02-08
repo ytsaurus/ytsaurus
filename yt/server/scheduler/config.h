@@ -104,9 +104,6 @@ struct TSchedulerConfig
     i64 SortJobMaxSliceDataSize;
     i64 PartitionJobMaxSliceDataSize;
 
-    //! Data size per sort job.
-    i64 DataSizePerSortJob;
-
     //! Maximum number of partitions during sort, ever.
     int MaxPartitionCount;
 
@@ -179,10 +176,6 @@ struct TSchedulerConfig
 
         Register("max_children_per_attach_request", MaxChildrenPerAttachRequest)
             .Default(10000)
-            .GreaterThan(0);
-
-        Register("data_size_per_sort_job", DataSizePerSortJob)
-            .Default((i64)1024 * 1024 * 1024)
             .GreaterThan(0);
 
         Register("map_job_max_slice_data_size", MapJobMaxSliceDataSize)

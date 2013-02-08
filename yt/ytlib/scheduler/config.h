@@ -290,6 +290,9 @@ struct TSortOperationSpecBase
     //! It used only to determine partition job count.
     TNullable<i64> DataSizePerPartitionJob;
     TNullable<int> PartitionJobCount;
+    
+    //! Data size per sort job.
+    i64 DataSizePerSortJob;
 
     double ShuffleStartThreshold;
     double MergeStartThreshold;
@@ -313,6 +316,9 @@ struct TSortOperationSpecBase
             .GreaterThan(0);
         Register("partition_data_size", PartitionDataSize)
             .Default()
+            .GreaterThan(0);
+        Register("data_size_per_sort_job", DataSizePerSortJob)
+            .Default((i64)1024 * 1024 * 1024)
             .GreaterThan(0);
         Register("shuffle_start_threshold", ShuffleStartThreshold)
             .Default(0.75)

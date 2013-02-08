@@ -965,7 +965,7 @@ protected:
             dataSizeThresholds.push_back(
                 Partitions[index]->Maniac
                 ? std::numeric_limits<i64>::max()
-                : Config->DataSizePerSortJob);
+                : Spec->DataSizePerSortJob);
         }
         ShufflePool = CreateShuffleChunkPool(dataSizeThresholds);
 
@@ -1009,24 +1009,27 @@ protected:
 
     bool IsSortedMergeNeeded(TPartitionPtr partition) const
     {
-        if (SimpleSort) {
-            return false;
-        }
-
-        if (partition->Maniac) {
-            return false;
-        }
-
         if (partition->CachedSortedMergeNeeded) {
             return true;
         }
 
-        if (partition->SortTask->GetPendingJobCount() == 0) {
-            return false;
+        if (SimpleSort) {
+            if (partition->ChunkPoolOutput->GetTotalJobCount() <= 1) {
+                return false;
+            }
         }
+        else {
+            if (partition->Maniac) {
+                return false;
+            }
 
-        if (partition->ChunkPoolOutput->GetTotalJobCount() <= 1 && PartitionTask->IsCompleted()) {
-            return false;
+            if (partition->SortTask->GetPendingJobCount() == 0) {
+                return false;
+            }
+
+            if (partition->ChunkPoolOutput->GetTotalJobCount() <= 1 && PartitionTask->IsCompleted()) {
+                return false;
+            }
         }
 
         LOG_DEBUG("Partition needs sorted merge (Partition: %d)", partition->Index);
@@ -1037,13 +1040,10 @@ protected:
 
     void CheckSortStartThreshold()
     {
-        if (SimpleSort)
-            return;
-
         if (SortStartThresholdReached)
             return;
 
-        if (PartitionTask->GetCompletedDataSize() < PartitionTask->GetTotalDataSize() * Spec->ShuffleStartThreshold)
+        if (!SimpleSort && PartitionTask->GetCompletedDataSize() < PartitionTask->GetTotalDataSize() * Spec->ShuffleStartThreshold)
             return;
 
         LOG_INFO("Sort start threshold reached");
@@ -1066,17 +1066,15 @@ protected:
 
     void CheckMergeStartThreshold()
     {
-        if (SimpleSort)
+       if (MergeStartThresholdReached)
             return;
 
-        if (MergeStartThresholdReached)
-            return;
-
-        if (!PartitionTask->IsCompleted())
-            return;
-
-        if (SortDataSizeCounter.GetCompleted() < SortDataSizeCounter.GetTotal() * Spec->MergeStartThreshold)
-            return;
+        if (!SimpleSort) {
+            if (!PartitionTask->IsCompleted())
+                return;
+            if (SortDataSizeCounter.GetCompleted() < SortDataSizeCounter.GetTotal() * Spec->MergeStartThreshold)
+                return;
+        }
 
         LOG_INFO("Merge start threshold reached");
 
@@ -1135,7 +1133,7 @@ protected:
     TNodeResources GetMinNeededPartitionSortResources(
         TPartitionPtr partition) const
     {
-        i64 dataSize = Config->DataSizePerSortJob;
+        i64 dataSize = Spec->DataSizePerSortJob;
         if (IsPartitionJobNonexpanding()) {
             dataSize = std::min(dataSize, TotalInputDataSize);
         }
@@ -1167,7 +1165,7 @@ protected:
     {
         return static_cast<i64>((double) TotalInputValueCount * dataSize / TotalInputDataSize);
     }
-    
+
     int SuggestPartitionCount() const
     {
         i64 result;
@@ -1194,7 +1192,7 @@ protected:
         }
         return static_cast<int>(Clamp(result, 1, Config->MaxPartitionCount));
     }
-    
+
     int SuggestPartitionJobCount() const
     {
         if (Spec->DataSizePerPartitionJob || Spec->PartitionJobCount) {
@@ -1301,8 +1299,8 @@ private:
 
     //! |PartitionCount - 1| separating keys.
     std::vector<NTableClient::NProto::TKey> PartitionKeys;
-    
-    
+
+
     // Custom bits of preparation pipeline.
 
     virtual void DoInitialize() override
@@ -1409,7 +1407,11 @@ private:
     void BuildSinglePartition()
     {
         // Choose sort job count and initialize the pool.
-        int sortJobCount = 1 + static_cast<int>(TotalInputDataSize / Config->DataSizePerSortJob);
+        int sortJobCount = static_cast<int>(
+            Clamp(
+                1 + TotalInputDataSize / Spec->DataSizePerSortJob,
+                1,
+                Config->MaxJobCount));
         auto stripes = SliceInputChunks(Config->SortJobMaxSliceDataSize, &sortJobCount);
 
         // Initialize counters.
@@ -1501,7 +1503,7 @@ private:
 
         int partitionJobCount = SuggestPartitionJobCount();
         auto stripes = SliceInputChunks(Config->PartitionJobMaxSliceDataSize, &partitionJobCount);
-        
+
         PartitionJobCounter.Set(partitionJobCount);
 
         PartitionTask = New<TPartitionTask>(this);
