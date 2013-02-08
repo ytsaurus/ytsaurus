@@ -1,6 +1,7 @@
 var url = require("url");
 var qs = require("querystring");
 var fs = require("fs");
+var lru_cache = require("lru-cache");
 var connect = require("connect");
 var mustache = require("mustache");
 var http = require("http");
@@ -58,6 +59,7 @@ function makeHttpRequest(method, host, path, timeout, headers, body) {
 function YtBlackbox(logger) { // TODO: Inject |config|
     var config = konfig.blackbox;
     var locals = config.local;
+    var cache = lru_cache({ max: 5000, maxAge: 60 * 1000 /* ms */});
 
     function httpUnauthorized(rsp) {
         rsp.writeHead(401, { "WWW-Authenticate" : "OAuth scope=\"yt:api\"" });
@@ -80,6 +82,10 @@ function YtBlackbox(logger) { // TODO: Inject |config|
             }
         });
 
+        if (cache.has(token)) {
+            return cache.get(token);
+        }
+
         return Q
             .when(makeHttpRequest("GET", config.host, uri, config.timeout, { "User-Agent" : "YT Authorization Manager" }),
             function(data) {
@@ -92,8 +98,10 @@ function YtBlackbox(logger) { // TODO: Inject |config|
                 }
 
                 if (data && data.login) {
+                    cache.set(token, data.login);
                     return data.login;
                 } else {
+                    cache.set(token, false);
                     return false;
                 }
             },
@@ -142,6 +150,7 @@ function YtBlackbox(logger) { // TODO: Inject |config|
 
 function YtAuthenticationApplication(logger) { // TODO: Inject |config|
     var config = konfig.oauth;
+
     var template_index = mustache.compile(fs.readFileSync(
         __dirname + "/../static/auth-index.mustache").toString());
     var template_layout = mustache.compile(fs.readFileSync(
