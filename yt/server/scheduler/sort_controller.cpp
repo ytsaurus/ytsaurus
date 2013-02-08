@@ -280,7 +280,6 @@ protected:
             auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_chunks());
             Controller->ShufflePool->GetInput()->Add(stripe);
 
-
             // Kick-start sort and unordered merge tasks.
             // Compute sort data size delta.
             i64 oldSortDataSize = Controller->SortDataSizeCounter.GetTotal();
