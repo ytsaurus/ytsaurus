@@ -6,6 +6,10 @@ from yt_commands import *
 
 ##################################################################
 
+'''
+This test only works when suid bit is set.
+'''
+
 def check_memory_limit(op_id):
     jobs_path = '//sys/operations/' + op_id + '/jobs'
     for job_id in ls(jobs_path):
