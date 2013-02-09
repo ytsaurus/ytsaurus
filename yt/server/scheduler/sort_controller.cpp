@@ -191,10 +191,6 @@ protected:
     // Map intermediate chunk id to its originating joblet.
     yhash_map<TChunkId, TCompleteJobPtr> ChunkOriginMap;
 
-    // For each lost job currently being replayed, map output cookie to corresponding input cookie.
-    yhash_map<IChunkPoolOutput::TCookie, IChunkPoolInput::TCookie> LostJobCookieMap;
-
-
     struct TCompleteJob
         : public TIntrinsicRefCounted
     {
@@ -203,8 +199,10 @@ protected:
             IChunkPoolOutput* sourcePool,
             IChunkPoolInput* destinationPool,
             const IChunkPoolInput::TCookie& inputCookie,
-            const IChunkPoolOutput::TCookie& outputCookie)
+            const IChunkPoolOutput::TCookie& outputCookie,
+            TExecNodePtr execNode)
             : IsLost(false)
+            , ExecNode(execNode)
             , Task(task)
             , SourcePool(sourcePool)
             , DestinationPool(destinationPool)
@@ -213,6 +211,8 @@ protected:
         { }
 
         bool IsLost;
+
+        TExecNodePtr ExecNode;
 
         TIntermediateTaskPtr Task;
         IChunkPoolOutput* SourcePool;
@@ -233,8 +233,13 @@ protected:
 
         virtual void OnJobLost(TCompleteJobPtr completeJob)
         {
-            YUNREACHABLE();
+            YCHECK(LostJobCookieMap.insert(std::make_pair(
+                completeJob->OutputCookie, completeJob->InputCookie)).second);
         }
+
+    protected:
+        // For each lost job currently being replayed, map output cookie to corresponding input cookie.
+        yhash_map<IChunkPoolOutput::TCookie, IChunkPoolInput::TCookie> LostJobCookieMap;
     };
 
     //! Implements partition phase for sort operations and map phase for map-reduce operations.
@@ -289,7 +294,6 @@ protected:
 
         TAutoPtr<IChunkPool> ChunkPool;
 
-
         virtual IChunkPoolInput* GetChunkPoolInput() const override
         {
             return ~ChunkPool;
@@ -334,9 +338,9 @@ protected:
 
             auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_chunks());
 
-            auto it = Controller->LostJobCookieMap.find(joblet->OutputCookie);
+            auto it = LostJobCookieMap.find(joblet->OutputCookie);
             IChunkPoolInput::TCookie inputCookie;
-            if (it == Controller->LostJobCookieMap.end()) {
+            if (it == LostJobCookieMap.end()) {
                 inputCookie = Controller->ShufflePool->GetInput()->Add(stripe);
             } else {
                 inputCookie = it->second;
@@ -344,7 +348,7 @@ protected:
                     Controller->OnOperationFailed(TError("Lost partition job was re-executed, but produced different row count"));
                     return;
                 }
-                YCHECK(Controller->LostJobCookieMap.erase(joblet->OutputCookie));
+                LostJobCookieMap.erase(it);
             }
 
             // Register new chunks in map
@@ -353,7 +357,8 @@ protected:
                 ~ChunkPool,
                 Controller->ShufflePool->GetInput(),
                 inputCookie,
-                joblet->OutputCookie);
+                joblet->OutputCookie,
+                joblet->Job->GetNode());
 
             FOREACH (const auto& chunk, stripe->Chunks) {
                 YCHECK(Controller->ChunkOriginMap.insert(std::make_pair(
@@ -381,9 +386,10 @@ protected:
             Controller->CheckSortStartThreshold();
         }
 
-        virtual void OnJobLost(const TCompleteJobPtr& completeJob) override
+        virtual void OnJobLost(TCompleteJobPtr completeJob) override
         {
             Controller->PartitionJobCounter.Lost(1);
+            TIntermediateTask::OnJobLost(completeJob);
         }
 
         virtual void OnJobFailed(TJobletPtr joblet) override
@@ -560,6 +566,7 @@ protected:
             Controller->SortDataSizeCounter.Completed(joblet->InputStripeList->TotalDataSize);
 
             if (Controller->IsSortedMergeNeeded(Partition)) {
+
                 Controller->IntermediateSortJobCounter.Completed(1);
 
                 // Sort outputs in large partitions are queued for further merge.
@@ -567,16 +574,16 @@ protected:
                 auto* resultExt = joblet->Job->Result().MutableExtension(TSortJobResultExt::sort_job_result_ext);
                 auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_chunks());
 
-                auto it = Controller->LostJobCookieMap.find(joblet->OutputCookie);
+                auto it = LostJobCookieMap.find(joblet->OutputCookie);
                 IChunkPoolInput::TCookie inputCookie;
                 auto* chunkPool = Partition->SortedMergeTask->GetChunkPoolInput();
-                if (it == Controller->LostJobCookieMap.end()) {
+                if (it == LostJobCookieMap.end()) {
                     inputCookie = chunkPool->Add(stripe);
                 } else {
                     inputCookie = it->second;
                     // Reproduced sort should always produce the same output.
                     YCHECK(chunkPool->Resume(inputCookie, stripe));
-                    YCHECK(Controller->LostJobCookieMap.erase(joblet->OutputCookie));
+                    LostJobCookieMap.erase(it);
                 }
 
                 // Register new chunks in map
@@ -585,7 +592,8 @@ protected:
                     GetChunkPoolOutput(),
                     chunkPool,
                     inputCookie,
-                    joblet->OutputCookie);
+                    joblet->OutputCookie,
+                    joblet->Job->GetNode());
 
                 FOREACH (const auto& chunk, stripe->Chunks) {
                     YCHECK(Controller->ChunkOriginMap.insert(std::make_pair(
@@ -630,20 +638,15 @@ protected:
             TPartitionBoundTask::OnJobAborted(joblet);
         }
 
-        virtual void OnJobLost(const TCompleteJobPtr& completeJob) override
+        virtual void OnJobLost(TCompleteJobPtr completeJob) override
         {
             Controller->IntermediateSortJobCounter.Lost(1);
-            auto stripe = completeJob->DestinationPool->GetChunkStripe(completeJob->InputCookie);
+            auto stripeList = completeJob->SourcePool->GetStripeList(completeJob->OutputCookie);
+            Controller->SortDataSizeCounter.Lost(stripeList->TotalDataSize);
+            Partition->AddressToLocality[completeJob->ExecNode->GetAddress()] -= stripeList->TotalDataSize;
+            YCHECK(Partition->AddressToLocality[completeJob->ExecNode->GetAddress()] >= 0);
 
-            FOREACH (const auto& chunk, stripe->Chunks) {
-                i64 dataSize;
-                GetStatistics(*chunk, &dataSize);
-
-                Controller->SortDataSizeCounter.Lost(dataSize);
-                FOREACH (const auto& address, chunk->node_addresses()) {
-                    Partition->AddressToLocality[address] -= dataSize;
-                }
-            }
+            TIntermediateTask::OnJobLost(completeJob);
 
             Controller->ResetTaskLocalityDelays();
         }
@@ -1238,18 +1241,22 @@ protected:
     virtual void OnIntermediateChunkFailed(const NChunkClient::TChunkId& chunkId) override
     {
         auto it = ChunkOriginMap.find(chunkId);
-        if (it != ChunkOriginMap.end()) {
-            auto& completeJob = ChunkOriginMap[chunkId];
-            if (!completeJob->IsLost) {
-                completeJob->IsLost = true;
-                completeJob->DestinationPool->Suspend(completeJob->InputCookie);
-                completeJob->SourcePool->Lost(completeJob->OutputCookie);
-                completeJob->Task->OnJobLost(completeJob);
-                AddTaskPendingHint(completeJob->Task);
-            }
-        } else {
-            TOperationControllerBase::OnIntermediateChunkFailed(chunkId);
-        }
+        YCHECK(it != ChunkOriginMap.end());
+        auto& completeJob = it->second;
+        if (completeJob->IsLost)
+            return;
+
+        JobCounter.Lost(1);
+        LOG_INFO(
+            "Job is lost (Task: %s, OutputCookie: %d, InputCookie: %d)",
+            ~completeJob->Task->GetId(),
+            completeJob->OutputCookie,
+            completeJob->InputCookie);
+        completeJob->IsLost = true;
+        completeJob->DestinationPool->Suspend(completeJob->InputCookie);
+        completeJob->SourcePool->Lost(completeJob->OutputCookie);
+        completeJob->Task->OnJobLost(completeJob);
+        AddTaskPendingHint(completeJob->Task);
     }
 
 

@@ -594,6 +594,16 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    if (job->Result().failed_chunk_ids_size() > 0) {
+        // When some input chunks are lost, we consider job as aborted.
+        job->SetState(EJobState::Aborted);
+        OnJobAborted(job);
+        FOREACH (const auto& chunkId, job->Result().failed_chunk_ids()) {
+            OnChunkFailed(TChunkId::FromProto(chunkId));
+        }
+        return;
+    }
+
     JobCounter.Failed(1);
 
     auto joblet = GetJoblet(job);
@@ -607,10 +617,6 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
         OnOperationFailed(TError("Failed jobs limit %d has been reached",
             maxFailedJobCount));
         return;
-    }
-
-    FOREACH (const auto& chunkId, job->Result().failed_chunk_ids()) {
-        OnChunkFailed(TChunkId::FromProto(chunkId));
     }
 }
 
@@ -728,6 +734,7 @@ void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
 {
     if (task->GetPendingJobCount() > 0) {
         auto* info = GetPendingTaskInfo(task);
+
         if (info->NonLocalTasks.insert(task).second) {
             info->CandidateTasks.push_back(task);
             LOG_DEBUG("Task pending hint added (Task: %s)",
