@@ -22,6 +22,7 @@ var konfig = {
         host: "blackbox.yandex-team.ru",
         path: "/blackbox",
         timeout: 3000,
+        retries: 5,
         local: {
         }
     }
@@ -70,7 +71,7 @@ function YtBlackbox(logger) { // TODO: Inject |config|
         rsp.end();
     }
 
-    function requestOAuthAuthorization(token, ip) {
+    function requestOAuthAuthorization(token, ip, id, retry) {
         var uri = url.format({
             pathname : config.path,
             query : {
@@ -85,27 +86,48 @@ function YtBlackbox(logger) { // TODO: Inject |config|
             return cache.get(token);
         }
 
+        if (retry >= config.retries) {
+            logger.error("Too many failed Blackbox requests; falling back.", { request_id : id });
+            return Q.reject(new Error("Too many failed Blackbox requests"));
+        }
+
         return Q
-            .when(makeHttpRequest("GET", config.host, uri, config.timeout, { "User-Agent" : "YT Authorization Manager" }),
+            .when(makeHttpRequest("GET", config.host, uri, config.timeout, {
+                "User-Agent" : "YT Authorization Manager",
+                "X-YT-Request-Id" : id
+            }),
             function(data) {
                 try {
                     data = JSON.parse(data);
-                    logger.debug("Successfully received data from Blackbox", { payload : data });
+                    logger.debug("Successfully received data from Blackbox", { request_id : id, payload : data });
                 } catch (ex) {
                     data = undefined;
-                    logger.debug("Failed to parse JSON data from Blackbox");
+                    logger.debug("Failed to parse JSON data from Blackbox", { request_id : id });
                 }
 
-                if (data && data.login) {
-                    cache.set(token, data.login);
-                    return data.login;
-                } else {
-                    cache.set(token, false);
+                if (!data) {
                     return false;
                 }
+
+                if (data.oauth && data.login && data.error) {
+                    if (data.error === "OK") {
+                      cache.set(token, data.login);
+                      return data.login;
+                    } else {
+                      logger.debug("Token is either invalid or expired", { request_id : id });
+                      return false;
+                    }
+                }
+
+                if (data.exception) {
+                    return requestOAuthAuthorization(token, ip, id, retry + 1);
+                }
+
+                logger.error("Unreachable", { request_id : id });
+                return false;
             },
             function(error) {
-                logger.error("Failed to query Blackbox", { error : error });
+                logger.error("Failed to query Blackbox", { request_id : id, error : error });
                 return false;
             });
     }
@@ -130,19 +152,20 @@ function YtBlackbox(logger) { // TODO: Inject |config|
         }
 
         Q
-            .when(requestOAuthAuthorization(token, req.connection.remoteAddress))
+            .when(requestOAuthAuthorization(token, req.connection.remoteAddress, 0))
             .then(
             function(login) {
                 if (!login) {
                     logger.debug("Client has failed to authenticate", { request_id : req.uuid });
-                    return httpUnauthorized(rsp);
+                    httpUnauthorized(rsp);
                 } else {
                     logger.debug("Client has authenticated", { request_id : req.uuid, login : login });
-                    return next();
+                    process.nextTick(next);
                 }
             },
             function(error) {
-                next();
+                logger.debug("Client has not been authenticated but allowed to pass-through", { request_id : req.uuid });
+                process.nextTick(next);
             });
     }
 };
