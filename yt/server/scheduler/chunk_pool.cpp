@@ -697,10 +697,14 @@ public:
         }
 
         for (int index = inputStripe.ElementaryIndexBegin; index < inputStripe.ElementaryIndexEnd; ++index) {
-            auto elementaryStripe = New<TChunkStripe>(stripe->Chunks[index - inputStripe.ElementaryIndexBegin]);
+            auto chunk = stripe->Chunks[index - inputStripe.ElementaryIndexBegin];
+            auto elementaryStripe = New<TChunkStripe>(chunk);
             if (!ElementaryStripes[index].Resume(elementaryStripe)) {
                 return false;
             }
+
+            RemoveProtoExtension<NTableClient::NProto::TPartitionsExt>(chunk->mutable_extensions());
+
             FOREACH (const auto& output, Outputs) {
                 output->ResumeStripe(index);
             }
