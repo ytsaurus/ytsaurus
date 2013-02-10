@@ -175,6 +175,7 @@ def _make_operation_request(command_name, spec, strategy, finalizer=None, verbos
                 transaction.__exit__(None, None, None)
             transaction.__enter__()
             run_operation(envelope_finalizer)
+            transaction.__exit__(None, None, None)
 
         def finish_transaction():
             transaction.__exit__(None, None, None)

@@ -6,6 +6,8 @@ import yt.wrapper as yt
 
 def merge(table):
     try:
+        if not yt.exists(table):
+            return
         compression_ratio = yt.get_attribute(table, "compression_ratio")
         data_size_per_job = min(16 * 1024 ** 3, 512 ** 3 / compression_ratio)
         
