@@ -1,6 +1,7 @@
 import config
 from common import YtError, YtResponseError, YtTokenError, require, format_error
 from format import JsonFormat
+from version import VERSION
 
 import yt.yson as yson
 
@@ -163,7 +164,7 @@ def make_request(command_name, params,
     print_info("Request url: %r", url)
 
     # prepare params, format and headers
-    headers = {"User-Agent": "Python wrapper",
+    headers = {"User-Agent": "Python wrapper " + VERSION,
                "Accept-Encoding": config.ACCEPT_ENCODING}
     if http_method[command_name] == "POST":
         require(data is None and format is None,
