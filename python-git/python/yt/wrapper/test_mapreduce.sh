@@ -392,6 +392,29 @@ test_write_lenval()
     check "a\tb" "`./mapreduce -read "ignat/lenval_table"`"
 }
 
+test_force_drop()
+{
+    gen_data()
+    {
+        echo -e "a\tb"
+        sleep 100
+        echo -e "x\ty"
+    }
+
+
+    ./mapreduce -drop "ignat/some_table" -force
+    ./mapreduce -createtable "ignat/some_table"
+    gen_data 2 | ./mapreduce -append -write "ignat/some_table" &
+
+    sleep 2
+
+    check_failed './mapreduce -drop "ignat/some_table"'
+
+    ./mapreduce -drop "ignat/some_table" -force
+
+    check "" "./mapreduce -read ignat/some_table"
+}
+
 prepare_table_files
 test_sortby_reduceby
 test_base_functionality
@@ -418,5 +441,6 @@ test_table_file
 test_unexisting_input_tables
 test_copy_files
 test_write_lenval
+test_force_drop
 
 rm -f table_file big_file
