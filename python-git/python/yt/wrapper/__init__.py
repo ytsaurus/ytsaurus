@@ -5,7 +5,7 @@ from table import TablePath, to_table, to_name
 from tree_commands import set, get, list, exists, remove, search, mkdir, copy, move, get_type, create, \
                           has_attribute, get_attribute, set_attribute, list_attributes
 from table_commands import create_table, create_temp_table, write_table, read_table, \
-                           records_count, is_sorted, \
+                           records_count, is_sorted, is_empty, \
                            run_erase, run_sort, run_merge, \
                            erase_table, sort_table, merge_tables, \
                            run_map, run_reduce, run_map_reduce
