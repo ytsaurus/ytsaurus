@@ -42,10 +42,8 @@ exports.that = function YtApplication(logger, config) {
     __DBG("RO = " + read_only);
 
     return function(req, rsp) {
-        var pause = utils.Pause(req);
-        req.connection.setNoDelay(true); // Disable Nagle.
         return (new YtCommand(
-            logger, driver, watcher, fqdn, read_only, pause, req, rsp
+            logger, driver, watcher, fqdn, read_only, req.pauser, req, rsp
         )).dispatch();
     };
 };

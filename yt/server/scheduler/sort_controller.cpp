@@ -901,10 +901,13 @@ protected:
         LOG_DEBUG("Examining online nodes");
 
         std::vector<TAssignedNodePtr> nodeHeap;
-        FOREACH (auto node, Host->GetExecNodes()) {
-            const auto& resourceUsage = node->ResourceUsage();
-            const auto& resourceLimits = node->ResourceLimits();
-            double weight = GetMinResourceRatio(resourceLimits - resourceUsage, resourceLimits);
+        auto nodes = Host->GetExecNodes();
+        auto maxResourceLimits = ZeroNodeResources();
+        FOREACH (auto node, nodes) {
+            maxResourceLimits = Max(maxResourceLimits, node->ResourceLimits());
+        }
+        FOREACH (auto node, nodes) {
+            double weight = GetMinResourceRatio(node->ResourceLimits(), maxResourceLimits);
             if (weight > 0) {
                 auto assignedNode = New<TAssignedNode>(node, weight);
                 nodeHeap.push_back(assignedNode);
@@ -962,7 +965,7 @@ protected:
             dataSizeThresholds.push_back(
                 Partitions[index]->Maniac
                 ? std::numeric_limits<i64>::max()
-                : Spec->MaxDataSizePerSortJob);
+                : Spec->DataSizePerSortJob);
         }
         ShufflePool = CreateShuffleChunkPool(dataSizeThresholds);
 
@@ -1006,24 +1009,27 @@ protected:
 
     bool IsSortedMergeNeeded(TPartitionPtr partition) const
     {
-        if (SimpleSort) {
-            return false;
-        }
-
-        if (partition->Maniac) {
-            return false;
-        }
-
         if (partition->CachedSortedMergeNeeded) {
             return true;
         }
 
-        if (partition->SortTask->GetPendingJobCount() == 0) {
-            return false;
+        if (SimpleSort) {
+            if (partition->ChunkPoolOutput->GetTotalJobCount() <= 1) {
+                return false;
+            }
         }
+        else {
+            if (partition->Maniac) {
+                return false;
+            }
 
-        if (partition->ChunkPoolOutput->GetTotalJobCount() <= 1 && PartitionTask->IsCompleted()) {
-            return false;
+            if (partition->SortTask->GetPendingJobCount() == 0) {
+                return false;
+            }
+
+            if (partition->ChunkPoolOutput->GetTotalJobCount() <= 1 && PartitionTask->IsCompleted()) {
+                return false;
+            }
         }
 
         LOG_DEBUG("Partition needs sorted merge (Partition: %d)", partition->Index);
@@ -1034,13 +1040,10 @@ protected:
 
     void CheckSortStartThreshold()
     {
-        if (SimpleSort)
-            return;
-
         if (SortStartThresholdReached)
             return;
 
-        if (PartitionTask->GetCompletedDataSize() < PartitionTask->GetTotalDataSize() * Spec->ShuffleStartThreshold)
+        if (!SimpleSort && PartitionTask->GetCompletedDataSize() < PartitionTask->GetTotalDataSize() * Spec->ShuffleStartThreshold)
             return;
 
         LOG_INFO("Sort start threshold reached");
@@ -1063,17 +1066,15 @@ protected:
 
     void CheckMergeStartThreshold()
     {
-        if (SimpleSort)
+       if (MergeStartThresholdReached)
             return;
 
-        if (MergeStartThresholdReached)
-            return;
-
-        if (!PartitionTask->IsCompleted())
-            return;
-
-        if (SortDataSizeCounter.GetCompleted() < SortDataSizeCounter.GetTotal() * Spec->MergeStartThreshold)
-            return;
+        if (!SimpleSort) {
+            if (!PartitionTask->IsCompleted())
+                return;
+            if (SortDataSizeCounter.GetCompleted() < SortDataSizeCounter.GetTotal() * Spec->MergeStartThreshold)
+                return;
+        }
 
         LOG_INFO("Merge start threshold reached");
 
@@ -1116,9 +1117,7 @@ protected:
     TNodeResources GetMinNeededPartitionResources() const
     {
         // Holds both for sort and map-reduce.
-        return GetPartitionResources(std::min(
-            Spec->MaxDataSizePerPartitionJob,
-            TotalInputDataSize));
+        return GetPartitionResources(TotalInputDataSize / SuggestPartitionJobCount());
     }
 
     virtual TNodeResources GetSimpleSortResources(
@@ -1134,7 +1133,7 @@ protected:
     TNodeResources GetMinNeededPartitionSortResources(
         TPartitionPtr partition) const
     {
-        i64 dataSize = Spec->MaxDataSizePerSortJob;
+        i64 dataSize = Spec->DataSizePerSortJob;
         if (IsPartitionJobNonexpanding()) {
             dataSize = std::min(dataSize, TotalInputDataSize);
         }
@@ -1169,14 +1168,44 @@ protected:
 
     int SuggestPartitionCount() const
     {
+        i64 result;
         YCHECK(TotalInputDataSize > 0);
-        i64 minSuggestion = static_cast<i64>(ceil((double) TotalInputDataSize / Spec->MaxPartitionDataSize));
-        i64 maxSuggestion = static_cast<i64>(ceil((double) TotalInputDataSize / Spec->MinPartitionDataSize));
-        i64 result = Spec->PartitionCount.Get(minSuggestion);
-        result = std::min(result, maxSuggestion);
-        result = std::max(result, (i64)1);
-        return static_cast<int>(result);
+        if (Spec->PartitionDataSize || Spec->PartitionCount) {
+            if (Spec->PartitionCount) {
+                result = Spec->PartitionCount.Get();
+            } else { // Spec->PartitionDataSize is not Null
+                result = 1 + TotalInputDataSize / Spec->PartitionDataSize.Get();
+            }
+        } else {
+            // Suggest partition count using some (highly experimental)
+            // formula, which is inspired by the following practical
+            // observations:
+            // 1) Partitions of size < 32Mb make no sense.
+            // 2) The larger input is, the bigger is the optimal partition size.
+            // 3) The larger input is, the more parallelism is required to process it efficiently, hence the bigger is the optimal partition count.
+            // 4) Partitions of size > 2GB require too much resources and are thus harmful.
+            // To accommodate both (2) and (3), partition size growth rate is logarithmic
+            double partitionSize = (double)32 * 1024 * 1024 * (1 + std::log10(TotalInputDataSize / ((i64)100 * 1024 * 1024)));
+            i64 suggestedPartitionCount = static_cast<i64>(TotalInputDataSize / partitionSize);
+            i64 upperBoundForPartitionCount = 1000 + (i64)(TotalInputDataSize / ((i64)2 * 1024 * 1024 * 1024));
+            result = std::min(suggestedPartitionCount, upperBoundForPartitionCount);
+        }
+        return static_cast<int>(Clamp(result, 1, Config->MaxPartitionCount));
     }
+
+    int SuggestPartitionJobCount() const
+    {
+        if (Spec->DataSizePerPartitionJob || Spec->PartitionJobCount) {
+            return SuggestJobCount(
+                TotalInputDataSize,
+                Spec->DataSizePerPartitionJob.Get(TotalInputDataSize),
+                Spec->PartitionJobCount);
+        }
+        else {
+            return SuggestPartitionCount();
+        }
+    }
+
 
     static std::vector<i64> AggregateValues(const std::vector<i64>& values, int maxBuckets)
     {
@@ -1360,12 +1389,9 @@ private:
         // Don't create more partitions than we have samples (plus one).
         partitionCount = std::min(partitionCount, static_cast<int>(SortedSamples.size()) + 1);
 
-        // Don't create more partitions than allowed by the global config.
-        partitionCount = std::min(partitionCount, Config->MaxPartitionCount);
-
         YCHECK(partitionCount > 0);
 
-        SimpleSort = partitionCount == 1;
+        SimpleSort = (partitionCount == 1);
 
         InitJobIOConfigs();
 
@@ -1380,21 +1406,17 @@ private:
 
     void BuildSinglePartition()
     {
-        auto stripes = SliceInputChunks(
-            Spec->SortJobCount,
-            Spec->SortJobSliceDataSize);
+        // Choose sort job count and initialize the pool.
+        int sortJobCount = static_cast<int>(
+            Clamp(
+                1 + TotalInputDataSize / Spec->DataSizePerSortJob,
+                1,
+                Config->MaxJobCount));
+        auto stripes = SliceInputChunks(Config->SortJobMaxSliceDataSize, &sortJobCount);
 
         // Initialize counters.
         PartitionJobCounter.Set(0);
         SortDataSizeCounter.Set(TotalInputDataSize);
-
-        // Choose sort job count and initialize the pool.
-        int sortJobCount = SuggestJobCount(
-            TotalInputDataSize,
-            Spec->MinDataSizePerSortJob,
-            Spec->MaxDataSizePerSortJob,
-            Spec->SortJobCount,
-            static_cast<int>(stripes.size()));
         InitSimpleSortPool(sortJobCount);
 
         // Create the fake partition.
@@ -1479,16 +1501,10 @@ private:
 
         InitShufflePool();
 
-        auto stripes = SliceInputChunks(
-            Spec->PartitionJobCount,
-            Spec->PartitionJobSliceDataSize);
+        int partitionJobCount = SuggestPartitionJobCount();
+        auto stripes = SliceInputChunks(Config->PartitionJobMaxSliceDataSize, &partitionJobCount);
 
-        PartitionJobCounter.Set(SuggestJobCount(
-            TotalInputDataSize,
-            Spec->MinDataSizePerPartitionJob,
-            Spec->MaxDataSizePerPartitionJob,
-            Spec->PartitionJobCount,
-            static_cast<int>(stripes.size())));
+        PartitionJobCounter.Set(partitionJobCount);
 
         PartitionTask = New<TPartitionTask>(this);
         PartitionTask->AddInput(stripes);
@@ -1527,7 +1543,9 @@ private:
         }
         InitIntermediateOutputConfig(IntermediateSortJobIOConfig);
 
+        // Final sort: reader like sort and output like merge.
         FinalSortJobIOConfig = CloneYsonSerializable(Spec->SortJobIO);
+        FinalSortJobIOConfig->TableWriter = CloneYsonSerializable(Spec->MergeJobIO->TableWriter);
         if (!SimpleSort) {
             InitIntermediateInputConfig(FinalSortJobIOConfig);
         }
@@ -1890,16 +1908,13 @@ private:
 
         InitShufflePool();
 
-        auto stripes = SliceInputChunks(
-            Spec->PartitionJobCount,
-            Spec->PartitionJobSliceDataSize);
+        int partitionJobCount = SuggestPartitionJobCount();
 
-        PartitionJobCounter.Set(SuggestJobCount(
-            TotalInputDataSize,
-            Spec->MinDataSizePerPartitionJob,
-            Spec->MaxDataSizePerPartitionJob,
-            Spec->PartitionJobCount,
-            static_cast<int>(stripes.size())));
+        auto stripes = SliceInputChunks(
+            Config->PartitionJobMaxSliceDataSize,
+            &partitionJobCount);
+
+        PartitionJobCounter.Set(partitionJobCount);
 
         PartitionTask = New<TPartitionTask>(this);
         PartitionTask->AddInput(stripes);
@@ -1917,24 +1932,29 @@ private:
     {
         {
             // This is not a typo!
-            PartitionJobIOConfig = Spec->MapJobIO;
+            PartitionJobIOConfig = CloneYsonSerializable(Spec->MapJobIO);
             InitIntermediateOutputConfig(PartitionJobIOConfig);
         }
 
         {
-            IntermediateSortJobIOConfig = Spec->SortJobIO;
+            IntermediateSortJobIOConfig = CloneYsonSerializable(Spec->SortJobIO);
             InitIntermediateInputConfig(IntermediateSortJobIOConfig);
             InitIntermediateOutputConfig(IntermediateSortJobIOConfig);
         }
 
         {
-            FinalSortJobIOConfig = Spec->ReduceJobIO;
+            // Partition reduce: writer like in merge and reader like in sort.
+            FinalSortJobIOConfig = CloneYsonSerializable(Spec->ReduceJobIO);
+            FinalSortJobIOConfig->TableReader = CloneYsonSerializable(Spec->SortJobIO->TableReader);
             InitIntermediateInputConfig(FinalSortJobIOConfig);
+            InitFinalOutputConfig(FinalSortJobIOConfig);
         }
 
         {
-            SortedMergeJobIOConfig = Spec->ReduceJobIO;
+            // Sorted reduce.
+            SortedMergeJobIOConfig = CloneYsonSerializable(Spec->ReduceJobIO);
             InitIntermediateInputConfig(SortedMergeJobIOConfig);
+            InitFinalOutputConfig(SortedMergeJobIOConfig);
         }
     }
 

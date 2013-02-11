@@ -108,7 +108,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         map(in_='//tmp/t1',
             out='<sorted_by=[key]>//tmp/t2',
             command=command,
-           opt=['/spec/job_count=2', '/spec/min_data_size_per_job=1'])
+           opt=['/spec/job_count=2'])
 
         assert get('//tmp/t2/@sorted') == 'true'
         assert get('//tmp/t2/@sorted_by') == ['key']
@@ -127,7 +127,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 in_='//tmp/t1',
                 out='<sorted_by=[key]>//tmp/t2',
                 command=command,
-                opt=['/spec/job_count=2', '/spec/min_data_size_per_job=1'])
+                opt=['/spec/job_count=2'])
 
     def test_sorted_output_job_failure(self):
         create('table', '//tmp/t1')
@@ -142,7 +142,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 in_='//tmp/t1',
                 out='<sorted_by=[key]>//tmp/t2',
                 command=command,
-                opt=['/spec/job_count=2', '/spec/min_data_size_per_job=1'])
+                opt=['/spec/job_count=2'])
 
     def test_job_count(self):
         create('table', '//tmp/t1')
@@ -156,8 +156,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
             map(in_='//tmp/t1',
                 out=table_name,
                 command=command,
-                opt=['/spec/job_count=%d' % job_count,
-                     '/spec/min_data_size_per_job=1'])
+                opt=['/spec/job_count=%d' % job_count])
             assert read(table_name) == [{'hello': 'world'} for i in xrange(expected_num_records)]
 
         check('//tmp/t2', 3, 3)

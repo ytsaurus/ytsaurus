@@ -2,13 +2,14 @@ import config
 from common import YtError, require, parse_bool, flatten, get_value
 from format import JsonFormat, YsonFormat
 from transaction_commands import _make_transactioned_request
-from table import prepare_path
+from table import prepare_path, to_name
 
 from yt.yson.yson_types import YsonString
 
 import os
 import string
 import random
+import sys
 from copy import deepcopy
 import simplejson as json
 
@@ -200,6 +201,7 @@ def search(root="/", node_type=None, path_filter=None, object_filter=None, attri
 
 def remove_with_empty_dirs(path):
     """ Removes path and all empty dirs that appear after deletion.  """
+    path = to_name(path)
     while True:
         remove(path, recursive=True)
         path = os.path.dirname(path)

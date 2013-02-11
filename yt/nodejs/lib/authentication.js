@@ -1,6 +1,7 @@
 var url = require("url");
 var qs = require("querystring");
 var fs = require("fs");
+var lru_cache = require("lru-cache");
 var connect = require("connect");
 var mustache = require("mustache");
 var http = require("http");
@@ -20,7 +21,10 @@ var konfig = {
     blackbox: {
         host: "blackbox.yandex-team.ru",
         path: "/blackbox",
-        timeout: 3000
+        timeout: 3000,
+        retries: 5,
+        local: {
+        }
     }
 };
 
@@ -52,8 +56,11 @@ function makeHttpRequest(method, host, path, timeout, headers, body) {
     return deferred.promise;
 }
 
-function YtBlackbox(logger) { // TODO: Inject |config|
+function YtBlackbox(logger, global_config) { // TODO: Inject |config|
     var config = konfig.blackbox;
+    var locals = global_config.locals;
+    var cache = lru_cache({ max: 5000, maxAge: 60 * 1000 /* ms */});
+
     function httpUnauthorized(rsp) {
         rsp.writeHead(401, { "WWW-Authenticate" : "OAuth scope=\"yt:api\"" });
         rsp.end();
@@ -64,7 +71,7 @@ function YtBlackbox(logger) { // TODO: Inject |config|
         rsp.end();
     }
 
-    function requestOAuthAuthorization(token, ip) {
+    function requestOAuthAuthorization(token, ip, id, retry) {
         var uri = url.format({
             pathname : config.path,
             query : {
@@ -75,63 +82,106 @@ function YtBlackbox(logger) { // TODO: Inject |config|
             }
         });
 
+        if (cache.has(token)) {
+            logger.debug("Blackbox cache hit", { request_id : id });
+            return cache.get(token);
+        } else {
+            logger.debug("Blackbox cache miss", { request_id : id });
+        }
+
+        if (retry >= config.retries) {
+            logger.error("Too many failed Blackbox requests (" + retry + "/" + config.retries + "); falling back.", { request_id : id });
+            return Q.reject(new Error("Too many failed Blackbox requests"));
+        }
+
         return Q
-            .when(makeHttpRequest("GET", config.host, uri, config.timeout, { "User-Agent" : "YT Authorization Manager" }),
+            .when(makeHttpRequest("GET", config.host, uri, config.timeout, {
+                "User-Agent" : "YT Authorization Manager",
+                "X-YT-Request-Id" : id
+            }),
             function(data) {
                 try {
                     data = JSON.parse(data);
-                    logger.debug("Successfully received data from Blackbox", { payload : data });
+                    logger.debug("Successfully received data from Blackbox", { request_id : id, payload : data });
                 } catch (ex) {
-                    data = undefined;
-                    logger.debug("Failed to parse JSON data from Blackbox");
+                    logger.debug("Failed to parse JSON data from Blackbox", { request_id : id });
+                    return requestOAuthAuthorization(token, ip, id, retry + 1);
                 }
 
-                if (data && data.login) {
-                    return data.login;
-                } else {
-                    return false;
+                if (data.oauth && data.login && data.error) {
+                    if (data.error === "OK") {
+                      logger.debug("Blackbox has approved token; updating cache", { request_id : id, login : data.login });
+                      cache.set(token, data.login);
+                      return data.login;
+                    } else {
+                      logger.debug("Blackbox has rejected token; invalidating cache", { request_id : id, error : data.error });
+                      cache.del(token);
+                      return false;
+                    }
                 }
+
+                if (data.exception) {
+                    logger.info("Blackbox returned an exception", { request_id : id });
+                    return requestOAuthAuthorization(token, ip, id, retry + 1);
+                }
+
+                logger.error("Unreachable", { request_id : id });
+                return false;
             },
             function(error) {
-                logger.error("Failed to query Blackbox", { error : error });
+                logger.error("Failed to query Blackbox", { request_id : id, error : error });
                 return false;
             });
     }
 
     return function(req, rsp, next) {
         if (!req.headers.hasOwnProperty("authorization")) {
-            // logger.debug("Client is missing Authorization header");
+            logger.debug("Client is missing Authorization header", { request_id : req.uuid });
             return next();
         }
 
         var parts = req.headers["authorization"].split(/\s+/);
         var token = parts[1];
 
+        req.authenticated_user = null;
+
         if (parts[0] !== "OAuth" || !token) {
             logger.debug("Client has improper Authorization header", { request_id : req.uuid, header : req.headers["authorization"] });
             return httpUnauthorized(rsp);
         }
 
+        if (locals.hasOwnProperty(token) && locals[token]) {
+            logger.debug("Client has been authenticated with local token", { request_id : req.uuid, login : locals[token] });
+            req.authenticated_user = locals[token];
+            return next();
+        }
+
+        var timestamp = new Date();
+
         Q
-            .when(requestOAuthAuthorization(token, req.connection.remoteAddress))
+            .when(requestOAuthAuthorization(token, req.connection.remoteAddress, req.uuid, 0))
             .then(
             function(login) {
+                var dt = (new Date()) - timestamp;
                 if (!login) {
-                    logger.debug("Client has failed to authenticate", { request_id : req.uuid });
-                    return httpUnauthorized(rsp);
+                    logger.debug("Client has failed to authenticate", { request_id : req.uuid, authentication_time : dt });
+                    httpUnauthorized(rsp);
                 } else {
-                    logger.debug("Client has authenticated", { request_id : req.uuid, login : login });
-                    return next();
+                    logger.debug("Client has been authenticated", { request_id : req.uuid, authentication_time : dt, login : login });
+                    req.authenticated_user = login;
+                    process.nextTick(next);
                 }
             },
             function(error) {
-                next();
+                logger.debug("Client has not been authenticated but allowed to pass-through", { request_id : req.uuid, authentication_time : dt });
+                process.nextTick(next);
             });
     }
 };
 
-function YtAuthenticationApplication(logger) { // TODO: Inject |config|
+function YtAuthenticationApplication(logger, global_config) { // TODO: Inject |config|
     var config = konfig.oauth;
+
     var template_index = mustache.compile(fs.readFileSync(
         __dirname + "/../static/auth-index.mustache").toString());
     var template_layout = mustache.compile(fs.readFileSync(

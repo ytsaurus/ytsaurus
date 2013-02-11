@@ -270,7 +270,7 @@ class YTEnv(object):
                 {'path': os.path.join(current, 'chunk_store'),
                  'low_watermark' : 0,
                  'high_watermark' : 0})
-            config['exec_agent']['start_user_id'] = current_user
+            config['exec_agent']['job_manager']['start_user_id'] = current_user
             config['exec_agent']['job_manager']['slot_location'] = \
                 os.path.join(current, 'slot')
 

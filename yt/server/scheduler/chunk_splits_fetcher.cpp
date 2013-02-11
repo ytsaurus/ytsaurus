@@ -37,7 +37,7 @@ TChunkSplitsFetcher::TChunkSplitsFetcher(
     , Logger(OperationLogger)
 
 {
-    YCHECK(Spec->JobSliceDataSize > 0);
+    YCHECK(Config->MergeJobMaxSliceDataSize > 0);
     Logger.AddTag(Sprintf("OperationId: %s", ~operationId.ToString()));
 }
 
@@ -64,7 +64,7 @@ void TChunkSplitsFetcher::CreateNewRequest(const Stroka& address)
     proxy.SetDefaultTimeout(Config->NodeRpcTimeout);
 
     CurrentRequest = proxy.GetChunkSplits();
-    CurrentRequest->set_min_split_size(Spec->JobSliceDataSize);
+    CurrentRequest->set_min_split_size(Config->MergeJobMaxSliceDataSize);
     ToProto(CurrentRequest->mutable_key_columns(), KeyColumns);
 }
 
@@ -75,7 +75,7 @@ bool TChunkSplitsFetcher::AddChunkToRequest(NTableClient::TRefCountedInputChunkP
     i64 dataSize;
     GetStatistics(*chunk, &dataSize);
 
-    if (dataSize < Spec->JobSliceDataSize) {
+    if (dataSize < Config->MergeJobMaxSliceDataSize) {
         LOG_DEBUG("Chunk split added (ChunkId: %s, TableIndex: %d)", 
             ~ToString(chunkId),
             chunk->table_index());

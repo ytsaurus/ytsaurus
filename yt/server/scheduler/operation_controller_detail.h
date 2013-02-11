@@ -505,18 +505,17 @@ protected:
 
     //! Converts a list of input chunks into a list of chunk stripes for further
     //! processing. Each stripe receives exactly one chunk (as suitable for most
-    //! jobs except merge). Tries to slice chunks into smaller parts if
-    //! sees necessary based on #jobCount and #jobSliceWeight.
-    std::vector<TChunkStripePtr> SliceInputChunks(
-        TNullable<int> jobCount,
-        i64 jobSliceWeight);
+    //! jobs except merge). The resulting stripes are of approximately equal
+    //! size. The size per stripe is either |maxSliceDataSize| or
+    //! |TotalInputDataSize / jobCount|, whichever is smaller. If the resulting
+    //! list contains less than |jobCount| stripes then |jobCount| is decreased
+    //! appropriately.
+    std::vector<TChunkStripePtr> SliceInputChunks(i64 maxSliceDataSize, int* jobCount);
 
     int SuggestJobCount(
         i64 totalDataSize,
-        i64 minDataSizePerJob,
-        i64 maxDataSizePerJob,
-        TNullable<int> configJobCount,
-        TNullable<int> chunkCount);
+        i64 dataSizePerJob,
+        TNullable<int> configJobCount) const;
 
     void InitUserJobSpec(
         NScheduler::NProto::TUserJobSpec* proto,

@@ -80,7 +80,7 @@ def main():
         pool = args.pool
         if pool is None:
             pool = "restricted"
-        spec = {"min_data_size_per_job": 1, "job_count": args.job_count, "pool": pool}
+        spec = {"job_count": args.job_count, "pool": pool}
 
         table_writer = None
         if args.codec is not None:
@@ -133,12 +133,9 @@ def main():
         else:
             yt_server = "proxy.yt.yandex.net"
 
-        codec = ""
-        if args.codec is not None:
-            codec = "-codec " + args.codec
         subprocess.check_call(
-            "MR_USER=tmp {} -server {}:{} "
-                "-map '{} YT_USE_HOSTS=1 ./{} -server {} -append -lenval -subkey {} -write {}' "
+            "MR_USER=gemini {} -server {}:{} "
+                "-map '{} YT_USE_TOKEN=0 YT_USE_HOSTS=1 ./{} -server {} -append -lenval -subkey -write {}' "
                 "-src {} "
                 "-dst {} "
                 "-jobcount {} "
@@ -153,7 +150,6 @@ def main():
                         speed_limit,
                         os.path.basename(args.yt_binary),
                         yt_server,
-                        codec,
                         destination,
                         source,
                         os.path.join("tmp", os.path.basename(source)),
@@ -161,19 +157,27 @@ def main():
                         args.yt_binary,
                         codec),
             shell=True)
+        
+        if args.codec is not None:
+            yt.run_merge(
+                destination,
+                destination,
+                "unordered",
+                table_writer={"codec": args.codec},
+                spec={"combine_chunks": "true"})
 
 
     def import_table(table):
         if is_empty(table):
-            raise yt.YtError("Table {} is empty".format(table))
+            return -1
 
         count = records_count(table)
         sorted = is_sorted(table)
 
         destination = os.path.join(args.destination, table)
-        if args.force and yt.exists(destination):
-            yt.remove(destination)
-        # TODO: remove table if operation is not successfull
+        if yt.exists(destination):
+            if args.force or (yt.get_type(destination) == "table" and yt.is_empty(destination)):
+                yt.remove(destination)
         yt.create_table(destination, recursive=True)
 
         if args.job_count is None:

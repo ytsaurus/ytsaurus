@@ -69,6 +69,8 @@ class PrintOperationInfo(object):
         self.progress = None
 
     def __call__(self, operation, state):
+        logger.set_formatter(logger.OperationProgressFormatter())
+
         if state.is_running():
             progress = get_operation_progress(operation)
             if progress != self.progress:
@@ -78,13 +80,15 @@ class PrintOperationInfo(object):
                         "c={completed!s}\tf={failed!s}\tr={running!s}\tp={pending!s}".format(**progress))
                 else:
                     logger.info(
-                        "jobs of operation %s: %s",
+                        "operation %s jobs: %s",
                         operation,
                         "\t".join("{0}={1}".format(k, v) for k, v in progress.iteritems()))
             self.progress = progress
         elif state != self.state:
             logger.info("operation %s %s", operation, state)
         self.state = state
+
+        logger.set_formatter(logger.BASIC_FORMATTER)
 
 
 def abort_operation(operation):
@@ -136,7 +140,7 @@ def get_jobs_errors(operation, limit=None):
         output.write("Host: ")
         output.write(get_attribute(path, "address"))
         output.write("\n")
-        
+
         output.write("Error:\n")
         output.write(format_error(path.attributes["error"]))
         output.write("\n")
@@ -153,14 +157,14 @@ def get_stderrs(operation, limit=None):
     jobs_path = os.path.join(OPERATIONS_PATH, operation, "jobs")
     if not exists(jobs_path):
         return ""
-    jobs_with_stderr = search(jobs_path, "map_node", obj_filter=lambda obj: "stderr" in obj)
+    jobs_with_stderr = search(jobs_path, "map_node", object_filter=lambda obj: "stderr" in obj)
 
     output = StringIO()
     for path in prefix(jobs_with_stderr, get_value(limit, config.ERRORS_TO_PRINT_LIMIT)):
         output.write("Host: ")
         output.write(get_attribute(path, "address"))
         output.write("\n")
-        
+
         stderr_path = os.path.join(path, "stderr")
         if exists(stderr_path):
             for line in download_file(stderr_path):
@@ -172,24 +176,6 @@ def get_operation_result(operation):
     operation_path = os.path.join(OPERATIONS_PATH, operation)
     return get_attribute(operation_path, "result")
 
-#def get_jobs_errors(operation, limit=None):
-#    #def format_error(error):
-#    #    return "{0}\n{1}".format(
-#    #                error["message"],
-#    #                "\n".join("{0}: {1}".format(k, v)
-#    #                    for k, v in error.iteritems()
-#    #                    if k != "message"))
-#
-#    if limit is None: limit = config.ERRORS_TO_PRINT_LIMIT
-#    jobs_path = os.path.join(OPERATIONS_PATH, operation, "jobs")
-#    if not exists(jobs_path):
-#        return ""
-#    jobs = get(jobs_path, attributes=["error"])
-#    errors = filter(None, [job.attributes.get("error") for job in jobs.values()])
-#    return "\n\n".join(map(dump_to_json, prefix(errors, limit)))
-
-
-""" Strategy represents actions for processing already ran operation."""
 class WaitStrategy(object):
     """
     This strategy synchronously wait operation, print current progress and

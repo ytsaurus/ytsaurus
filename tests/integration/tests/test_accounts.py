@@ -236,6 +236,24 @@ class TestAccounts(YTEnvSetup):
         assert self._get_account_disk_space('tmp') == space
         assert self._get_account_disk_space('max') == 0
 
+    def test_table6(self):
+        create('table', '//tmp/t')
+
+        tx = start_transaction()
+        write('//tmp/t', {'a' : 'b'}, tx=tx)
+        space = self._get_node_disk_space('//tmp/t', tx=tx)
+        assert space > 0
+
+        tx2 = start_transaction(tx=tx)
+        assert self._get_node_disk_space('//tmp/t', tx=tx2) == space
+        write('//tmp/t', {'a' : 'b'}, tx=tx2)
+        assert self._get_node_disk_space('//tmp/t', tx=tx2) == space * 2
+
+        commit_transaction(tx2)
+        assert self._get_node_disk_space('//tmp/t', tx=tx) == space * 2
+        commit_transaction(tx)
+        assert self._get_node_disk_space('//tmp/t') == space * 2
+
     def test_disk_space_limits1(self):
         create_account('max')
         assert self._is_account_over_disk_space('max') == 'false'
