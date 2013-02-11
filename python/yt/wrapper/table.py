@@ -7,9 +7,9 @@ from yt.yson import YsonString
 
 def check_prefix(prefix):
     require(prefix.startswith("//"),
-            YtError("PREFIX should starts with //"))
+            YtError("PREFIX should start with //"))
     require(prefix.endswith("/"),
-            YtError("PREFIX should ends with /"))
+            YtError("PREFIX should end with /"))
 
 def _parse_ypath(path):
     return make_request("parse_ypath", {"path": path}, format=YsonFormat())
