@@ -84,6 +84,7 @@ TClusterResources TTableNode::GetResourceUsage() const
             const auto& children = ChunkList_->Children();
             YCHECK(children.size() == 2);
             chunkList = children[1]->AsChunkList();
+            break;
         }
 
         case ETableUpdateMode::Overwrite:
@@ -178,7 +179,7 @@ protected:
 
     virtual void DoBranch(const TTableNode* originatingNode, TTableNode* branchedNode) override
     {
-    	TBase::DoBranch(originatingNode, branchedNode);
+        TBase::DoBranch(originatingNode, branchedNode);
 
         auto objectManager = Bootstrap->GetObjectManager();
 
@@ -198,7 +199,7 @@ protected:
 
     virtual void DoMerge(TTableNode* originatingNode, TTableNode* branchedNode) override
     {
-    	TBase::DoMerge(originatingNode, branchedNode);
+        TBase::DoMerge(originatingNode, branchedNode);
 
         auto originatingChunkListId = originatingNode->GetChunkList()->GetId();
         auto branchedChunkListId = branchedNode->GetChunkList()->GetId();
