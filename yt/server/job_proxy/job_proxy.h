@@ -55,6 +55,7 @@ private:
 
     virtual NScheduler::NProto::TNodeResources GetResourceUsage() override;
     virtual void SetResourceUsage(const NScheduler::NProto::TNodeResources& usage) override;
+    void OnResourcesUpdated(NExecAgent::TSupervisorServiceProxy::TRspUpdateResourceUsagePtr rsp);
 
     virtual void ReleaseNetwork() override;
 };

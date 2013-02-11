@@ -35,7 +35,7 @@ namespace NExecAgent {
 class TJob
     : public TRefCounted
 {
-    DEFINE_SIGNAL(void(const NScheduler::NProto::TNodeResources&, const NScheduler::NProto::TNodeResources&), ResourcesReleased);
+    DEFINE_SIGNAL(void(), ResourcesReleased);
 
 public:
     TJob(
@@ -90,7 +90,7 @@ public:
      *  \note Thread affinity: any.
      *  New usage should not exceed the previous one.
      */
-    void ReleaseResources(const NScheduler::NProto::TNodeResources& newUsage);
+    void SetResourceUsage(const NScheduler::NProto::TNodeResources& newUsage);
 
     double GetProgress() const;
     void UpdateProgress(double progress);
@@ -108,9 +108,7 @@ public:
 private:
     void DoStart(TEnvironmentManagerPtr environmentManager);
 
-    void PrepareUserJob(
-        const NScheduler::NProto::TUserJobSpec& userJobSpec,
-        TParallelAwaiterPtr awaiter);
+    void PrepareUserJob(TParallelAwaiterPtr awaiter);
     TPromise<void> PrepareDownloadingTableFile(
         const NYT::NScheduler::NProto::TTableFile& rsp);
 
@@ -140,9 +138,13 @@ private:
     const TJobId JobId;
     const NScheduler::NProto::TJobSpec JobSpec;
     const NScheduler::NProto::TNodeResources ResourceLimits;
+    const NScheduler::NProto::TUserJobSpec* UserJobSpec;
 
     TSpinLock ResourcesLock;
     NScheduler::NProto::TNodeResources ResourceUsage;
+
+    // Memory usage estimation for JobProxy, without user process.
+    i64 JobProxyMemoryLimit;
 
     NLog::TTaggedLogger Logger;
 

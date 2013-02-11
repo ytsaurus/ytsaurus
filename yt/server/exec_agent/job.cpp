@@ -54,7 +54,9 @@ TJob::TJob(
     : JobId(jobId)
     , JobSpec(jobSpec)
     , ResourceLimits(resourceLimits)
+    , UserJobSpec(nullptr)
     , ResourceUsage(resourceLimits)
+    , JobProxyMemoryLimit(resourceLimits.memory())
     , Logger(ExecAgentLogger)
     , Bootstrap(bootstrap)
     , ChunkCache(bootstrap->GetChunkCache())
@@ -65,6 +67,28 @@ TJob::TJob(
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
     Logger.AddTag(Sprintf("JobId: %s", ~jobId.ToString()));
+
+    if (JobSpec.HasExtension(TMapJobSpecExt::map_job_spec_ext)) {
+        const auto& jobSpecExt = JobSpec.GetExtension(TMapJobSpecExt::map_job_spec_ext);
+        UserJobSpec = &jobSpecExt.mapper_spec();
+    }
+
+    if (JobSpec.HasExtension(TReduceJobSpecExt::reduce_job_spec_ext)) {
+        const auto& jobSpecExt = JobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+        UserJobSpec = &jobSpecExt.reducer_spec();
+    }
+
+    if (JobSpec.HasExtension(TPartitionJobSpecExt::partition_job_spec_ext)) {
+        const auto& jobSpecExt = JobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
+        if (jobSpecExt.has_mapper_spec()) {
+            UserJobSpec = &jobSpecExt.mapper_spec();
+        }
+    }
+
+    if (UserJobSpec) {
+        JobProxyMemoryLimit -= UserJobSpec->memory_limit();
+        ResourceUsage.set_memory(JobProxyMemoryLimit + UserJobSpec->initial_memory_reserve());
+    }
 }
 
 void TJob::Start(TEnvironmentManagerPtr environmentManager, TSlotPtr slot)
@@ -136,34 +160,9 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
 
     JobPhase = EJobPhase::PreparingProxy;
 
-    i64 proxyMemoryLimit = GetResourceLimits().memory();
-    const NScheduler::NProto::TUserJobSpec* userJobSpec = nullptr;
-    {
-        if (JobSpec.HasExtension(TMapJobSpecExt::map_job_spec_ext)) {
-            const auto& jobSpecExt = JobSpec.GetExtension(TMapJobSpecExt::map_job_spec_ext);
-            userJobSpec = &jobSpecExt.mapper_spec();
-        }
-
-        if (JobSpec.HasExtension(TReduceJobSpecExt::reduce_job_spec_ext)) {
-            const auto& jobSpecExt = JobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-            userJobSpec = &jobSpecExt.reducer_spec();
-        }
-
-        if (JobSpec.HasExtension(TPartitionJobSpecExt::partition_job_spec_ext)) {
-            const auto& jobSpecExt = JobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
-            if (jobSpecExt.has_mapper_spec()) {
-                userJobSpec = &jobSpecExt.mapper_spec();
-            }
-        }
-
-        if (userJobSpec) {
-            proxyMemoryLimit -= userJobSpec->memory_limit();
-        }
-    }
-
     Stroka environmentType = "default";
     try {
-        YCHECK(proxyMemoryLimit > 0);
+        YCHECK(JobProxyMemoryLimit > 0);
         ProxyController = environmentManager->CreateProxyController(
             //XXX(psushin): execution environment type must not be directly
             // selectable by user -- it is more of the global cluster setting
@@ -171,7 +170,7 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
             environmentType,
             JobId,
             Slot->GetWorkingDirectory(),
-            static_cast<i64>(proxyMemoryLimit * Bootstrap->GetConfig()->MemoryLimitMultiplier));
+            static_cast<i64>(JobProxyMemoryLimit * Bootstrap->GetConfig()->MemoryLimitMultiplier));
     } catch (const std::exception& ex) {
         auto wrappedError = TError(
             "Failed to create proxy controller for environment %s",
@@ -185,8 +184,8 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
     Slot->InitSandbox();
 
     auto awaiter = New<TParallelAwaiter>(Slot->GetInvoker());
-    if (userJobSpec) {
-        PrepareUserJob(*userJobSpec, awaiter);
+    if (UserJobSpec) {
+        PrepareUserJob(awaiter);
     }
 
     awaiter->Complete(BIND(&TJob::RunJobProxy, MakeWeak(this)));
@@ -233,10 +232,11 @@ TPromise<void> TJob::PrepareDownloadingTableFile(
 }
 
 void TJob::PrepareUserJob(
-    const NScheduler::NProto::TUserJobSpec& userJobSpec,
     TParallelAwaiterPtr awaiter)
 {
-    FOREACH (const auto& fetchRsp, userJobSpec.files()) {
+    YCHECK(UserJobSpec != nullptr);
+
+    FOREACH (const auto& fetchRsp, UserJobSpec->files()) {
         auto chunkId = TChunkId::FromProto(fetchRsp.chunk_id());
         LOG_INFO("Downloading user file (FileName: %s, ChunkId: %s)",
             ~fetchRsp.file_name(),
@@ -246,7 +246,7 @@ void TJob::PrepareUserJob(
             BIND(&TJob::OnChunkDownloaded, MakeWeak(this), fetchRsp));
     }
 
-    FOREACH (const auto& rsp, userJobSpec.table_files()) {
+    FOREACH (const auto& rsp, UserJobSpec->table_files()) {
         awaiter->Await(PrepareDownloadingTableFile(rsp));
     }
 
@@ -477,22 +477,10 @@ TNodeResources TJob::GetResourceUsage() const
     return ResourceUsage;
 }
 
-void TJob::ReleaseResources(const TNodeResources& newUsage)
+void TJob::SetResourceUsage(const TNodeResources& newUsage)
 {
     TGuard<TSpinLock> guard(ResourcesLock);
-    auto oldUsage = ResourceUsage;
-
-    LOG_FATAL_IF(
-        JobState == EJobState::Running && !Dominates(oldUsage, newUsage),
-        "Job resource usage has increased: old value {%s}, new value {%s}",
-        ~FormatResources(ResourceUsage),
-        ~FormatResources(newUsage));
-
-    if (Dominates(oldUsage, newUsage) && newUsage != oldUsage) {
-        ResourceUsage = newUsage;
-        guard.Release();
-        ResourcesReleased_.Fire(oldUsage, newUsage);
-    }
+    ResourceUsage = newUsage;
 }
 
 void TJob::Abort(const TError& error)
@@ -502,7 +490,8 @@ void TJob::Abort(const TError& error)
     if (JobState == EJobState::Waiting) {
         YCHECK(!Slot);
         JobState = EJobState::Aborted;
-        ReleaseResources(ZeroNodeResources());
+        SetResourceUsage(ZeroNodeResources());
+        ResourcesReleased_.Fire();
     } else {
         Slot->GetInvoker()->Invoke(BIND(
             &TJob::DoAbort,
@@ -556,7 +545,8 @@ void TJob::DoAbort(const TError& error, EJobState resultState)
 void TJob::FinalizeJob()
 {
     Slot->Release();
-    ReleaseResources(ZeroNodeResources());
+    SetResourceUsage(ZeroNodeResources());
+    ResourcesReleased_.Fire();
 }
 
 void TJob::UpdateProgress(double progress)

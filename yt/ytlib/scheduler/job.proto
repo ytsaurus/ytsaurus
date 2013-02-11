@@ -123,8 +123,11 @@ message TUserJobSpec
     // Environment strings (K=V format) for starting user process.
     repeated string environment = 5;
 
-    // Memory limit for user process, in bytes.
+    // Hard memory limit for user process, in bytes.
     required int64 memory_limit = 7;
+
+    // Memory size reserved at job launch.
+    required int64 initial_memory_reserve = 9;
 
     // Transaction for creating stderr chunks.
     // If not set then no stderrs are captured.

@@ -64,6 +64,10 @@ public:
     //! Current resource usage.
     NScheduler::NProto::TNodeResources GetResourceUsage(bool includeWaiting = true);
 
+    void UpdateResourceUsage(
+        const TJobId& jobId,
+        const NScheduler::NProto::TNodeResources& usage);
+
 private:
     TJobManagerConfigPtr Config;
     TBootstrap* Bootstrap;
@@ -78,9 +82,7 @@ private:
 
     void ScheduleStart();
     void OnJobFinished(TJobPtr job);
-    void OnResourcesReleased(
-        const NScheduler::NProto::TNodeResources& oldResources,
-        const NScheduler::NProto::TNodeResources& newResources);
+    void OnResourcesReleased();
     void StartWaitingJobs();
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
