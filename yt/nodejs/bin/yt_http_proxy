@@ -129,6 +129,7 @@ config = {
     read_only         : opts.argv.read_only,
     profiler          : opts.argv.profiler,
     proxy             : { logging : { rules : [], writers : {} } },
+    locals            : {}
 };
 config = merge(config, (opts.argv.c && JSON.parse(fs.readFileSync(opts.argv.c, "utf8"))) || {});
 config = merge(config, {

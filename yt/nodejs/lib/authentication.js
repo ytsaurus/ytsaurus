@@ -58,7 +58,7 @@ function makeHttpRequest(method, host, path, timeout, headers, body) {
 
 function YtBlackbox(logger, global_config) { // TODO: Inject |config|
     var config = konfig.blackbox;
-    var locals = config.local;
+    var locals = global_config.locals;
     var cache = lru_cache({ max: 5000, maxAge: 60 * 1000 /* ms */});
 
     function httpUnauthorized(rsp) {
@@ -143,6 +143,8 @@ function YtBlackbox(logger, global_config) { // TODO: Inject |config|
         var parts = req.headers["authorization"].split(/\s+/);
         var token = parts[1];
 
+        req.authenticated_user = null;
+
         if (parts[0] !== "OAuth" || !token) {
             logger.debug("Client has improper Authorization header", { request_id : req.uuid, header : req.headers["authorization"] });
             return httpUnauthorized(rsp);
@@ -150,6 +152,7 @@ function YtBlackbox(logger, global_config) { // TODO: Inject |config|
 
         if (locals.hasOwnProperty(token) && locals[token]) {
             logger.debug("Client has been authenticated with local token", { request_id : req.uuid, login : locals[token] });
+            req.authenticated_user = locals[token];
             return next();
         }
 
@@ -165,6 +168,7 @@ function YtBlackbox(logger, global_config) { // TODO: Inject |config|
                     httpUnauthorized(rsp);
                 } else {
                     logger.debug("Client has been authenticated", { request_id : req.uuid, authentication_time : dt, login : login });
+                    req.authenticated_user = login;
                     process.nextTick(next);
                 }
             },
