@@ -57,7 +57,7 @@ struct IChunkPoolInput
     virtual int GetTotalStripeCount() const = 0;
 
     virtual void Suspend(TCookie cookie) = 0;
-    virtual bool Resume(TCookie cookie, TChunkStripePtr stripe) = 0;
+    virtual void Resume(TCookie cookie, TChunkStripePtr stripe) = 0;
     virtual void Finish() = 0;
 
 };

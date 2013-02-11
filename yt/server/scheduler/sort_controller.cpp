@@ -344,10 +344,7 @@ protected:
                 inputCookie = Controller->ShufflePool->GetInput()->Add(stripe);
             } else {
                 inputCookie = it->second;
-                if (!Controller->ShufflePool->GetInput()->Resume(inputCookie, stripe)) {
-                    Controller->OnOperationFailed(TError("Lost partition job was re-executed, but produced different row count"));
-                    return;
-                }
+                Controller->ShufflePool->GetInput()->Resume(inputCookie, stripe);
                 LostJobCookieMap.erase(it);
             }
 
@@ -581,8 +578,7 @@ protected:
                     inputCookie = chunkPool->Add(stripe);
                 } else {
                     inputCookie = it->second;
-                    // Reproduced sort should always produce the same output.
-                    YCHECK(chunkPool->Resume(inputCookie, stripe));
+                    chunkPool->Resume(inputCookie, stripe);
                     LostJobCookieMap.erase(it);
                 }
 
