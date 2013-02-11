@@ -12,8 +12,8 @@ class TestAccounts(YTEnvSetup):
     START_SCHEDULER = False
 
 
-    def _get_account_disk_space(self, account):
-        return get('//sys/accounts/{0}/@resource_usage/disk_space'.format(account))
+    def _get_account_disk_space(self, account, base_level = 0):
+        return get('//sys/accounts/{0}/@resource_usage/disk_space'.format(account)) - base_level
 
     def _get_account_disk_space_limit(self, account):
         return get('//sys/accounts/{0}/@resource_limits/disk_space'.format(account))
@@ -238,21 +238,26 @@ class TestAccounts(YTEnvSetup):
 
     def test_table6(self):
         create('table', '//tmp/t')
+        base_level = self._get_account_disk_space('tmp')
 
         tx = start_transaction()
         write('//tmp/t', {'a' : 'b'}, tx=tx)
         space = self._get_node_disk_space('//tmp/t', tx=tx)
         assert space > 0
+        assert self._get_account_disk_space('tmp', base_level) == space
 
         tx2 = start_transaction(tx=tx)
         assert self._get_node_disk_space('//tmp/t', tx=tx2) == space
         write('//tmp/t', {'a' : 'b'}, tx=tx2)
         assert self._get_node_disk_space('//tmp/t', tx=tx2) == space * 2
+        assert self._get_account_disk_space('tmp', base_level) == space * 2
 
         commit_transaction(tx2)
         assert self._get_node_disk_space('//tmp/t', tx=tx) == space * 2
+        assert self._get_account_disk_space('tmp', base_level) == space * 2
         commit_transaction(tx)
         assert self._get_node_disk_space('//tmp/t') == space * 2
+        assert self._get_account_disk_space('tmp', base_level) == space * 2
 
     def test_disk_space_limits1(self):
         create_account('max')
