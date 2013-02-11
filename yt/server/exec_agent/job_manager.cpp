@@ -247,12 +247,47 @@ void TJobManager::RemoveJob(const TJobId& jobId)
     }
 }
 
-void TJobManager::OnResourcesReleased(const TNodeResources& oldResources, const TNodeResources& newResources)
+void TJobManager::OnResourcesReleased()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     ResourcesUpdatedFlag = true;
     ScheduleStart();
+}
+
+void TJobManager::UpdateResourceUsage(const TJobId& jobId, const TNodeResources& usage)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    auto job = GetJob(jobId);
+    auto oldUsage = job->GetResourceUsage();
+    auto delta = usage - oldUsage;
+
+    if (!Dominates(GetResourceLimits(), GetResourceUsage(false) + delta)) {
+        job->Abort(TError(
+            "Failed to increase resource usage (OldUsage: {%s}, NewUsage: {%s})",
+            ~FormatResources(oldUsage),
+            ~FormatResources(usage)));
+        return;
+    }
+
+    if (delta.memory() > 0) {
+        auto& tracker = Bootstrap->GetMemoryUsageTracker();
+        auto error = tracker.TryAcquire(EMemoryConsumer::Job, delta.memory());
+        if (!error.IsOK()) {
+            job->Abort(TError(
+                "Failed to increase resource usage (OldUsage: {%s}, NewUsage: {%s})",
+                ~FormatResources(oldUsage),
+                ~FormatResources(usage)) << error);
+            return;
+        }
+    }
+
+    job->SetResourceUsage(usage);
+
+    if (!Dominates(delta, ZeroNodeResources())) {
+        OnResourcesReleased();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

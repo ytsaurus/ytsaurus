@@ -97,11 +97,11 @@ void TJobProxy::RetrieveJobSpec()
     }
 
     JobSpec = rsp->job_spec();
-    ResourceUsage = rsp->resource_limits();
+    ResourceUsage = rsp->resource_usage();
 
-    LOG_INFO("Job spec received (JobType: %s, ResourceLimits: %s)\n%s",
+    LOG_INFO("Job spec received (JobType: %s, ResourceLimits: {%s})\n%s",
         ~EJobType(rsp->job_spec().type()).ToString(),
-        ~FormatResources(rsp->resource_limits()),
+        ~FormatResources(ResourceUsage),
         ~rsp->job_spec().DebugString());
 }
 
@@ -234,10 +234,23 @@ void TJobProxy::SetResourceUsage(const TNodeResources& usage)
     ResourceUsage = usage;
 
     // Fire-and-forget.
-    auto req = SupervisorProxy->OnResourcesReleased();
+    auto req = SupervisorProxy->UpdateResourceUsage();
     *req->mutable_job_id() = JobId.ToProto();
     *req->mutable_resource_usage() = ResourceUsage;
-    req->Invoke();
+    req->Invoke().Subscribe(BIND(&TJobProxy::OnResourcesUpdated, MakeWeak(this)));
+}
+
+void TJobProxy::OnResourcesUpdated(TSupervisorServiceProxy::TRspUpdateResourceUsagePtr rsp)
+{
+    if (!rsp->IsOK()) {
+        LOG_ERROR(*rsp, "Failed to update resource usage");
+
+        NLog::TLogManager::Get()->Shutdown();
+        // TODO(babenko): extract error code constant
+        _exit(121);
+    }
+
+    LOG_DEBUG("Successfully updated resource usage");
 }
 
 void TJobProxy::ReleaseNetwork()

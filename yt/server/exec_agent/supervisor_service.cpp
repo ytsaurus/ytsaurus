@@ -32,7 +32,7 @@ TSupervisorService::TSupervisorService(TBootstrap* bootstrap)
     RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobFinished));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(OnJobProgress)
         .SetOneWay(true));
-    RegisterMethod(RPC_SERVICE_METHOD_DESC(OnResourcesReleased)
+    RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateResourceUsage)
         .SetOneWay(true));
 }
 
@@ -43,7 +43,7 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, GetJobSpec)
 
     auto job = Bootstrap->GetJobManager()->GetJob(jobId);
     *response->mutable_job_spec() = job->GetSpec();
-    *response->mutable_resource_limits() = job->GetResourceLimits();
+    *response->mutable_resource_usage() = job->GetResourceUsage();
 
     context->Reply();
 }
@@ -74,7 +74,7 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnJobProgress)
     job->UpdateProgress(request->progress());
 }
 
-DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnResourcesReleased)
+DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, UpdateResourceUsage)
 {
     auto jobId = TJobId::FromProto(request->job_id());
     const auto& resourceUsage = request->resource_usage();
@@ -83,8 +83,7 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnResourcesReleased)
         ~jobId.ToString(),
         ~FormatResources(resourceUsage));
 
-    auto job = Bootstrap->GetJobManager()->GetJob(jobId);
-    job->ReleaseResources(resourceUsage);
+    Bootstrap->GetJobManager()->UpdateResourceUsage(jobId, resourceUsage);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
