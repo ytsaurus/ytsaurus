@@ -11,6 +11,9 @@ def get_master_config():
     "cell" = {
       "addresses" = [ ];
     };
+    "follower_tracker" = {
+        "ping_interval" = 3000;
+    };
     "changelogs" = {
         "path" = ""
     };
