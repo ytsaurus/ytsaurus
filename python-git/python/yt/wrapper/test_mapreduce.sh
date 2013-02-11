@@ -24,7 +24,9 @@ prepare_table_files() {
 }
 
 cleanup() {
-    jobs -l | awk '{print $2}' | xargs kill
+    for pid in `jobs -l | awk '{print $2}'`; do
+        kill $pid
+    done
     rm -f table_file big_file
 }
 
