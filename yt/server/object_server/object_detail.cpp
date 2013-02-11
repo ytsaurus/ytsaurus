@@ -300,6 +300,7 @@ void TObjectProxyBase::DoInvoke(IServiceContextPtr context)
     DISPATCH_YPATH_SERVICE_METHOD(List);
     DISPATCH_YPATH_SERVICE_METHOD(Set);
     DISPATCH_YPATH_SERVICE_METHOD(Remove);
+    DISPATCH_YPATH_SERVICE_METHOD(Exists);
     TYPathServiceBase::DoInvoke(context);
 }
 

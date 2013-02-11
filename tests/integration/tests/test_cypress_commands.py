@@ -143,7 +143,7 @@ class TestCypressCommands(YTEnvSetup):
         # typo (extra slash)
         with pytest.raises(YTError): get('//tmp/t/@/key1')
         # change type
-        with pytest.raises(YTError): set('//tmp/t/@', 1) 
+        with pytest.raises(YTError): set('//tmp/t/@', 1)
         with pytest.raises(YTError): set('//tmp/t/@', 'a')
         with pytest.raises(YTError): set_str('//tmp/t/@', '<>')
         with pytest.raises(YTError): set('//tmp/t/@', [1, 2, 3])
@@ -254,7 +254,7 @@ class TestCypressCommands(YTEnvSetup):
         assert get('//tmp/b/@count', tx=tx) == 2
 
         commit_transaction(tx)
-    
+
         assert get('//tmp/a/@count') == 2
         assert get('//tmp/b/@count') == 2
 
@@ -379,7 +379,7 @@ class TestCypressCommands(YTEnvSetup):
         remove('//tmp/a', tx = tx)
         commit_transaction(tx)
 
-        assert get('//tmp') == {}       
+        assert get('//tmp') == {}
 
     def test_attr_locks1(self):
         tx = start_transaction()
@@ -488,6 +488,12 @@ class TestCypressCommands(YTEnvSetup):
         self.assertEqual(exists("//tmp"), "true")
         self.assertEqual(exists("//tmp/a"), "false")
         self.assertEqual(exists("//tmp/a/f/e"), "false")
+        self.assertEqual(exists("//tmp/a/1/e"), "false")
+        self.assertEqual(exists("//tmp/a/2/1"), "false")
+
+        set("//tmp/1", {})
+        self.assertEqual(exists("//tmp/1"), "true")
+        self.assertEqual(exists("//tmp/1/2"), "false")
 
         set("//tmp/a", {})
         self.assertEqual(exists("//tmp/a"), "true")
@@ -502,6 +508,7 @@ class TestCypressCommands(YTEnvSetup):
         self.assertEqual(exists("//tmp/a/@attr"), "true")
 
         self.assertEqual(exists("//sys/operations"), "true")
+        self.assertEqual(exists("//sys/transactions"), "true")
         self.assertEqual(exists("//sys/xxx"), "false")
         self.assertEqual(exists("//sys/operations/xxx"), "false")
 

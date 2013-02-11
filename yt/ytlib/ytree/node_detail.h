@@ -47,6 +47,8 @@ public:
     IMPLEMENT_AS_METHODS(Map)
 #undef IMPLEMENT_AS_METHODS
 
+    virtual TResolveResult ResolveRecursive(const NYPath::TYPath& path, NRpc::IServiceContextPtr context) override;
+
     virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
 
 protected:
@@ -63,12 +65,6 @@ protected:
     virtual void GetKeySelf(TReqGetKey* request, TRspGetKey* response, TCtxGetKeyPtr context) override;
     virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context) override;
     virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemovePtr context) override;
-    virtual void ExistsSelf(TReqExists* request, TRspExists* response, TCtxExistsPtr context) override;
-    virtual void ExistsRecursive(const NYTree::TYPath& path, TReqExists* request, TRspExists* response, TCtxExistsPtr context) override;
-
-    virtual TResolveResult ResolveRecursive(
-        const NYPath::TYPath& path,
-        NRpc::IServiceContextPtr context) override;
 
 };
 

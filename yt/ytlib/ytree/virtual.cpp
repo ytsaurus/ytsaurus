@@ -28,6 +28,7 @@ void TVirtualMapBase::DoInvoke(IServiceContextPtr context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(Get);
     DISPATCH_YPATH_SERVICE_METHOD(List);
+    DISPATCH_YPATH_SERVICE_METHOD(Exists);
     TSupportsAttributes::DoInvoke(context);
 }
 
@@ -43,6 +44,9 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(
     auto key = tokenizer.GetLiteralValue();
     auto service = FindItemService(key);
     if (!service) {
+        if (context->GetVerb() == "Exists") {
+            return TResolveResult::Here(path);
+        }
         // TODO(babenko): improve diagnostics
         THROW_ERROR_EXCEPTION("Node has no child with key: %s",
             ~ToYPathLiteral(key));

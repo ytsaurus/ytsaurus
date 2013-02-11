@@ -48,7 +48,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define DECLARE_SUPPORTS_VERB(verb) \
+#define DECLARE_SUPPORTS_VERB(verb, ...) \
     class TSupports##verb \
     { \
     protected: \
@@ -56,6 +56,8 @@ protected:
         virtual void verb##Self(TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context); \
         virtual void verb##Recursive(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context); \
         virtual void verb##Attribute(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context); \
+    private: \
+        __VA_ARGS__ \
     }
 
 DECLARE_SUPPORTS_VERB(GetKey);
@@ -63,7 +65,7 @@ DECLARE_SUPPORTS_VERB(Get);
 DECLARE_SUPPORTS_VERB(Set);
 DECLARE_SUPPORTS_VERB(List);
 DECLARE_SUPPORTS_VERB(Remove);
-DECLARE_SUPPORTS_VERB(Exists);
+DECLARE_SUPPORTS_VERB(Exists, void Reply(TReqExists* request, TRspExists* response, TCtxExistsPtr context, bool value); );
 
 #undef DECLARE_SUPPORTS_VERB
 
