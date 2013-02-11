@@ -448,3 +448,5 @@ test_unexisting_input_tables
 test_copy_files
 test_write_lenval
 test_force_drop
+
+cleanup

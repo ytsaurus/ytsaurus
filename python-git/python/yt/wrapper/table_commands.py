@@ -6,7 +6,8 @@ from http import read_content, get_host_for_heavy_operation
 from table import TablePath, to_table, to_name, prepare_path
 from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, move, mkdir, find_free_subpath, create, get_type
 from file_commands import smart_upload_file
-from transaction_commands import _make_transactioned_request, PingableTransaction
+from transaction_commands import _make_transactioned_request
+from transaction import PingableTransaction
 from string_iter_io import StringIterIO
 from format import RawFormat
 
