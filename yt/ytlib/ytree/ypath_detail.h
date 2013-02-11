@@ -65,7 +65,7 @@ DECLARE_SUPPORTS_VERB(Get);
 DECLARE_SUPPORTS_VERB(Set);
 DECLARE_SUPPORTS_VERB(List);
 DECLARE_SUPPORTS_VERB(Remove);
-DECLARE_SUPPORTS_VERB(Exists, void Reply(TReqExists* request, TRspExists* response, TCtxExistsPtr context, bool value); );
+DECLARE_SUPPORTS_VERB(Exists, void Reply(TCtxExistsPtr context, bool value); );
 
 #undef DECLARE_SUPPORTS_VERB
 

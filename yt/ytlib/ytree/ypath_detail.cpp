@@ -172,34 +172,33 @@ IMPLEMENT_SUPPORTS_VERB(Set)
 IMPLEMENT_SUPPORTS_VERB(List)
 IMPLEMENT_SUPPORTS_VERB(Remove)
 
-IMPLEMENT_SUPPORTS_VERB_RESOLVE(Exists, { Reply(request, response, context, false); })
+IMPLEMENT_SUPPORTS_VERB_RESOLVE(Exists, { Reply(context, false); })
 
 #undef IMPLEMENT_SUPPORTS_VERB
 #undef IMPLEMENT_SUPPORTS_VERB_RESOLVE
 
-void TSupportsExists::Reply(TReqExists* request, TRspExists* response, TCtxExistsPtr context, bool value)
+void TSupportsExists::Reply(TCtxExistsPtr context, bool value)
 {
-    UNUSED(request);
-    response->set_value(value);
-    context->SetResponseInfo(Sprintf("Response for Exists: %s", ~ToString(value)));
+    context->Response().set_value(value);
+    context->SetResponseInfo(Sprintf("Result: %s", ~ToString(value)));
     context->Reply();
 }
 
 void TSupportsExists::ExistsAttribute(const TYPath& path, TReqExists* request, TRspExists* response, TCtxExistsPtr context)
 {
     UNUSED(path);
-    Reply(request, response, context, false);
+    Reply(context, false);
 }
 
 void TSupportsExists::ExistsSelf(TReqExists* request, TRspExists* response, TCtxExistsPtr context)
 {
-    Reply(request, response, context, true);
+    Reply(context, true);
 }
 
 void TSupportsExists::ExistsRecursive(const NYTree::TYPath& path, TReqExists* request, TRspExists* response, TCtxExistsPtr context)
 {
     UNUSED(path);
-    Reply(request, response, context, false);
+    Reply(context, false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
