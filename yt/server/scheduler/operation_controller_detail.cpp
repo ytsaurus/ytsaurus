@@ -1263,13 +1263,17 @@ void TOperationControllerBase::OnInputTypesReceived(TObjectServiceProxy::TRspExe
         auto getInputTypes = batchRsp->GetResponses<TObjectYPathProxy::TRspGet>("get_input_types");
         for (int index = 0; index < static_cast<int>(InputTables.size()); ++index) {
             auto& table = InputTables[index];
+            const auto& path = table.Path;
             auto rsp = getInputTypes[index];
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting type for input %s",
-                ~table.Path.GetPath());
+                ~path.GetPath());
 
-            auto type = ConvertTo<Stroka>(TYsonString(rsp->value()));
-            if (type != "table") {
-                THROW_ERROR_EXCEPTION("Input %s should be table", ~table.Path.GetPath());
+            auto type = ConvertTo<EObjectType>(TYsonString(rsp->value()));
+            if (type != EObjectType::Table) {
+                THROW_ERROR_EXCEPTION("Object %s has invalid type: expected %s, actual %s",
+                    ~path.GetPath(),
+                    ~EObjectType(EObjectType::Table).ToString(),
+                    ~type.ToString());
             }
         }
     }
@@ -1278,13 +1282,17 @@ void TOperationControllerBase::OnInputTypesReceived(TObjectServiceProxy::TRspExe
         auto getOutputTypes = batchRsp->GetResponses<TObjectYPathProxy::TRspGet>("get_output_types");
         for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
             auto& table = OutputTables[index];
+            const auto& path = table.Path;
             auto rsp = getOutputTypes[index];
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting type for output %s",
-                ~table.Path.GetPath());
+                ~path.GetPath());
 
-            auto type = ConvertTo<Stroka>(TYsonString(rsp->value()));
-            if (type != "table") {
-                THROW_ERROR_EXCEPTION("Output %s should be table", ~table.Path.GetPath());
+            auto type = ConvertTo<EObjectType>(TYsonString(rsp->value()));
+            if (type != EObjectType::Table) {
+                THROW_ERROR_EXCEPTION("Object %s has invalid type: expected %s, actual %s",
+                    ~path.GetPath(),
+                    ~EObjectType(EObjectType::Table).ToString(),
+                    ~type.ToString());
             }
         }
     }
@@ -1296,20 +1304,23 @@ void TOperationControllerBase::OnInputTypesReceived(TObjectServiceProxy::TRspExe
             auto path = paths[index].first;
             auto stage = paths[index].second;
             auto rsp = getFileTypes[index];
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting type for file %s", ~path.GetPath());
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting type for file %s",
+                ~path.GetPath());
 
-            auto type = ConvertTo<Stroka>(TYsonString(rsp->value()));
-            if (type == "file") {
-                Files.push_back(TUserFile());
-                Files.back().Path = path;
-                Files.back().Stage = stage;
-            } else if (type == "table") {
-                TableFiles.push_back(TUserTableFile());
-                TableFiles.back().Path = path;
-                TableFiles.back().Stage = stage;
-            }
-            else {
-                THROW_ERROR_EXCEPTION("Incorrect type %s of file %s", ~rsp->value(), ~path.GetPath());
+            auto type = ConvertTo<EObjectType>(TYsonString(rsp->value()));
+            switch (type) {
+                case EObjectType::File:
+                    Files.push_back(TUserFile());
+                    break;
+                case EObjectType::Table:
+                    TableFiles.push_back(TUserTableFile());
+                    break;
+                default:
+                    THROW_ERROR_EXCEPTION("Object %s has invalid type: expected %s or %s, actual %s",
+                        ~path.GetPath(),
+                        ~EObjectType(EObjectType::File).ToString(),
+                        ~EObjectType(EObjectType::Table).ToString(),
+                        ~type.ToString());
             }
         }
     }
