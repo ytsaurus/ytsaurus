@@ -745,6 +745,8 @@ private:
         StartAsyncPipeline(invoker)
             ->Add(BIND(&TThis::StartSchedulerTransactions, this_, operation))
             ->Add(BIND(&TThis::OnSchedulerTransactionStarted, this_, operation))
+            ->Add(BIND(&TThis::StartIOTransactions, this_, operation))
+            ->Add(BIND(&TThis::OnIOTransactionsStarted, this_, operation))
             ->Add(BIND(&IOperationController::Revive, controller))
             ->Add(BIND(&TThis::OnOperationRevived, this_, operation))
             ->Run()
