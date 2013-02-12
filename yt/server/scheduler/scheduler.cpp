@@ -676,7 +676,6 @@ private:
             auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_in_tx");
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting input transaction");
             auto id = TTransactionId::FromProto(rsp->object_id());
-            LOG_INFO("Input transaction is %s", ~id.ToString());
             TTransactionAttachOptions options(id);
             options.Ping = true;
             operation->SetInputTransaction(transactionManager->Attach(options));
@@ -686,7 +685,6 @@ private:
             auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_out_tx");
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting output transaction");
             auto id = TTransactionId::FromProto(rsp->object_id());
-            LOG_INFO("Output transaction is %s", ~id.ToString());
             TTransactionAttachOptions options(id);
             options.Ping = true;
             operation->SetOutputTransaction(transactionManager->Attach(options));
