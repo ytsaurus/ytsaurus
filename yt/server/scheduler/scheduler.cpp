@@ -752,11 +752,11 @@ private:
             ->Run()
             .Subscribe(BIND([=] (TValueOrError<void> result) {
                 if (!result.IsOK()) {
-                    LOG_ERROR("Operation has failed to revive (OperationId: %s)",
+                    LOG_ERROR(result, "Operation has failed to revive (OperationId: %s)",
                         ~ToString(operation->GetOperationId()));
 
                     this_->SetOperationFinalState(operation, EOperationState::Failed, result);
-                    this_->MasterConnector->FinalizeRevivingOperationNode(operation);
+                    this_->MasterConnector->FinalizeOperationNode(operation);
                     this_->UnregisterOperation(operation);
                 }
             }).Via(invoker));

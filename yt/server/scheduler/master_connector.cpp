@@ -114,7 +114,6 @@ public:
             ~ToString(id));
 
         auto* list = GetUpdateList(operation);
-        YCHECK(list->State == EUpdateListState::Active);
         list->State = EUpdateListState::Flushing;
 
         // Create a batch update for this particular operation.
@@ -139,7 +138,6 @@ public:
 
         auto* list = GetUpdateList(operation);
         // NB: Flushing state is possible when operation is being failed during the flush.
-        YCHECK(list->State == EUpdateListState::Flushed || list->State == EUpdateListState::Flushing);
         list->State = EUpdateListState::Finalizing;
 
         // Create a batch update for this particular operation.
@@ -182,7 +180,6 @@ public:
             ~stdErrChunkId.ToString());
 
         auto* list = GetUpdateList(job->GetOperation());
-        YCHECK(list->State == EUpdateListState::Active);
         list->PendingJobs.insert(std::make_pair(job, stdErrChunkId));
     }
 
@@ -1005,7 +1002,6 @@ private:
             ~operationId.ToString());
        
         auto* list = GetUpdateList(operation);
-        YCHECK(list->State == EUpdateListState::Flushing);
         list->State = EUpdateListState::Flushed;
         list->FlushedPromise.Set();
     }
@@ -1031,7 +1027,6 @@ private:
             ~operationId.ToString());
 
         auto* list = GetUpdateList(operation);
-        YCHECK(list->State == EUpdateListState::Finalizing);
         list->State = EUpdateListState::Finalized; 
         list->FinalizedPromise.Set();
 
