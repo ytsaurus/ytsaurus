@@ -112,7 +112,7 @@ void TYPathServiceBase::SerializeAttributes(NYson::IYsonConsumer* consumer, cons
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define IMPLEMENT_SUPPORTS_VERB(verb) \
+#define IMPLEMENT_SUPPORTS_VERB_RESOLVE(verb, defaultBehaviour) \
     DEFINE_RPC_SERVICE_METHOD(TSupports##verb, verb) \
     { \
         NYPath::TTokenizer tokenizer(context->GetPath()); \
@@ -130,9 +130,25 @@ void TYPathServiceBase::SerializeAttributes(NYson::IYsonConsumer* consumer, cons
                 break; \
             \
             default: \
-                tokenizer.ThrowUnexpected(); \
-                YUNREACHABLE(); \
+                defaultBehaviour; \
         } \
+    }
+
+#define IMPLEMENT_SUPPORTS_VERB(verb) \
+    IMPLEMENT_SUPPORTS_VERB_RESOLVE( \
+        verb, \
+        { \
+            tokenizer.ThrowUnexpected(); \
+            YUNREACHABLE(); \
+        } \
+    ) \
+    \
+    void TSupports##verb::verb##Attribute(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context) \
+    { \
+        UNUSED(path); \
+        UNUSED(request); \
+        UNUSED(response); \
+        NYTree::ThrowVerbNotSuppored(context->GetVerb(), "Attribute"); \
     } \
     \
     void TSupports##verb::verb##Self(TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context) \
@@ -148,14 +164,6 @@ void TYPathServiceBase::SerializeAttributes(NYson::IYsonConsumer* consumer, cons
         UNUSED(request); \
         UNUSED(response); \
         NYTree::ThrowVerbNotSuppored(context->GetVerb(), "Recursive"); \
-    } \
-    \
-    void TSupports##verb::verb##Attribute(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context) \
-    { \
-        UNUSED(path); \
-        UNUSED(request); \
-        UNUSED(response); \
-        NYTree::ThrowVerbNotSuppored(context->GetVerb(), "Attribute"); \
     }
 
 IMPLEMENT_SUPPORTS_VERB(GetKey)
@@ -163,9 +171,35 @@ IMPLEMENT_SUPPORTS_VERB(Get)
 IMPLEMENT_SUPPORTS_VERB(Set)
 IMPLEMENT_SUPPORTS_VERB(List)
 IMPLEMENT_SUPPORTS_VERB(Remove)
-IMPLEMENT_SUPPORTS_VERB(Exists)
+
+IMPLEMENT_SUPPORTS_VERB_RESOLVE(Exists, { Reply(context, false); })
 
 #undef IMPLEMENT_SUPPORTS_VERB
+#undef IMPLEMENT_SUPPORTS_VERB_RESOLVE
+
+void TSupportsExists::Reply(TCtxExistsPtr context, bool value)
+{
+    context->Response().set_value(value);
+    context->SetResponseInfo(Sprintf("Result: %s", ~ToString(value)));
+    context->Reply();
+}
+
+void TSupportsExists::ExistsAttribute(const TYPath& path, TReqExists* request, TRspExists* response, TCtxExistsPtr context)
+{
+    UNUSED(path);
+    Reply(context, false);
+}
+
+void TSupportsExists::ExistsSelf(TReqExists* request, TRspExists* response, TCtxExistsPtr context)
+{
+    Reply(context, true);
+}
+
+void TSupportsExists::ExistsRecursive(const NYTree::TYPath& path, TReqExists* request, TRspExists* response, TCtxExistsPtr context)
+{
+    UNUSED(path);
+    Reply(context, false);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -75,7 +75,7 @@ public:
         , UserJobSpec(userJobSpec)
         , InputThread(InputThreadFunc, (void*) this)
         , OutputThread(OutputThreadFunc, (void*) this)
-        , MemoryUsage(UserJobSpec.initial_memory_reserve())
+        , MemoryUsage(UserJobSpec.memory_reserve())
         , ProcessId(-1)
     {
         MemoryWatchdogInvoker = New<TPeriodicInvoker>(

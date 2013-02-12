@@ -242,7 +242,7 @@ private:
         InitUserJobSpec(
             jobSpecExt->mutable_mapper_spec(),
             Spec->Mapper,
-            Files,
+            RegularFiles,
             TableFiles);
 
         *JobSpecTemplate.mutable_output_transaction_id() = Operation->GetOutputTransaction()->GetId().ToProto();

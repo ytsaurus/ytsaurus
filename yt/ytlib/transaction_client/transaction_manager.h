@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/ytree/public.h>
+
 #include <ytlib/object_client/object_service_proxy.h>
 
 #include <ytlib/transaction_client//transaction_ypath_proxy.h>
@@ -13,13 +15,9 @@ namespace NTransactionClient {
 
 //! Describes settings for a newly created transaction.
 struct TTransactionStartOptions
+    : private TNonCopyable
 {
-    TTransactionStartOptions()
-        : Ping(true)
-        , PingAncestors(false)
-        , EnableUncommittedAccounting(true)
-        , EnableStagedAccounting(true)
-    { }
+    TTransactionStartOptions();
 
     TNullable<TDuration> Timeout;
     TTransactionId ParentId;
@@ -27,17 +25,14 @@ struct TTransactionStartOptions
     bool PingAncestors;
     bool EnableUncommittedAccounting;
     bool EnableStagedAccounting;
+    TAutoPtr<NYTree::IAttributeDictionary> Attributes;
 };
 
 //! Describes settings used for attaching to existing transactions.
 struct TTransactionAttachOptions
+    : private TNonCopyable
 {
-    explicit TTransactionAttachOptions(const TTransactionId& id)
-        : Id(id)
-        , AutoAbort(true)
-        , Ping(true)
-        , PingAncestors(false)
-    { }
+    explicit TTransactionAttachOptions(const TTransactionId& id);
 
     TTransactionId Id;
     bool AutoAbort;

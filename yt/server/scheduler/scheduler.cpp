@@ -311,6 +311,8 @@ private:
 
         ProfileResources(TotalResourceLimitsProfiler, TotalResourceLimits);
         ProfileResources(TotalResourceUsageProfiler, TotalResourceUsage);
+
+        ProfilingInvoker->ScheduleNext();
     }
 
 
@@ -495,8 +497,7 @@ private:
             operation->SetController(controller);
             controller->Initialize();
         } catch (const std::exception& ex) {
-            auto wrappedError = TError("Error initializing operation")
-                << ex;
+            auto wrappedError = TError("Error initializing operation") << ex;
             LOG_ERROR(wrappedError);
             return MakeFuture(TStartResult(wrappedError));
         }
@@ -517,10 +518,13 @@ private:
                 VERIFY_THREAD_AFFINITY(ControlThread);
 
                 if (!result.IsOK()) {
-                    auto wrappedError = TError("Error starting operation (OperationId: %s)",
-                        ~operation->GetOperationId().ToString())
-                        << result;
-                    LOG_ERROR(wrappedError);
+                    // NB: Operation node is created at the very last step of the pipeline.
+                    // Hence the failure implies that we don't have any node yet.
+
+                    LOG_ERROR(result, "Error starting operation (OperationId: %s)",
+                        ~operation->GetOperationId().ToString());
+
+                    auto wrappedError = TError("Error starting operation") << result;
                     this_->SetOperationFinalState(operation, EOperationState::Failed, wrappedError);
                     this_->FinishOperation(operation);
                     return wrappedError;
@@ -547,8 +551,15 @@ private:
                 ? FromObjectId(userTransaction->GetId())
                 : RootTransactionPath);
             req->set_type(EObjectType::Transaction);
+            
             auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
             reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
+
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("title", Sprintf("Scheduler sync for operation %s",
+                ~operation->GetOperationId().ToString()));
+            ToProto(req->mutable_object_attributes(), *attributes);
+
             GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "start_sync_tx");
         }
@@ -556,8 +567,15 @@ private:
         {
             auto req = TTransactionYPathProxy::CreateObject(RootTransactionPath);
             req->set_type(EObjectType::Transaction);
+
             auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
             reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
+
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("title", Sprintf("Scheduler async for operation %s",
+                ~operation->GetOperationId().ToString()));
+            ToProto(req->mutable_object_attributes(), *attributes);
+
             GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "start_async_tx");
         }
@@ -613,8 +631,15 @@ private:
         {
             auto req = TTransactionYPathProxy::CreateObject(FromObjectId(parentTransactionId));
             req->set_type(EObjectType::Transaction);
+
             auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
             reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
+
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("title", Sprintf("Scheduler input for operation %s",
+                ~operation->GetOperationId().ToString()));
+            ToProto(req->mutable_object_attributes(), *attributes);
+
             NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "start_in_tx");
         }
@@ -622,9 +647,16 @@ private:
         {
             auto req = TTransactionYPathProxy::CreateObject(FromObjectId(parentTransactionId));
             req->set_type(EObjectType::Transaction);
+
             auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
             reqExt->set_enable_uncommitted_accounting(false);
             reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
+
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("title", Sprintf("Scheduler output for operation %s",
+                ~operation->GetOperationId().ToString()));
+            ToProto(req->mutable_object_attributes(), *attributes);
+
             NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "start_out_tx");
         }
@@ -728,12 +760,18 @@ private:
         LOG_INFO("Reviving operation (OperationId: %s)",
             ~operation->GetOperationId().ToString());
 
+        // NB: The operation is being revived, hence it already
+        // has a valid node associated with it.
+        // If the revival fails, we still need to update the node
+        // and unregister the operation from Master Connector.
+
         IOperationControllerPtr controller;
         try {
             controller = CreateController(~operation);
         } catch (const std::exception& ex) {
-            SetOperationFinalState(operation, EOperationState::Failed, ex);
-            MasterConnector->FinalizeRevivingOperationNode(operation);
+            auto wrappedError = TError("Error initializing operation") << ex;
+            SetOperationFinalState(operation, EOperationState::Failed, wrappedError);
+            MasterConnector->FinalizeOperationNode(operation);
             return;
         }
 
@@ -745,17 +783,20 @@ private:
         StartAsyncPipeline(invoker)
             ->Add(BIND(&TThis::StartSchedulerTransactions, this_, operation))
             ->Add(BIND(&TThis::OnSchedulerTransactionStarted, this_, operation))
+            ->Add(BIND(&TThis::StartIOTransactions, this_, operation))
+            ->Add(BIND(&TThis::OnIOTransactionsStarted, this_, operation))
             ->Add(BIND(&IOperationController::Revive, controller))
             ->Add(BIND(&TThis::OnOperationRevived, this_, operation))
             ->Run()
             .Subscribe(BIND([=] (TValueOrError<void> result) {
                 if (!result.IsOK()) {
-                    LOG_ERROR("Operation has failed to revive (OperationId: %s)",
+                    LOG_ERROR(result, "Operation has failed to revive (OperationId: %s)",
                         ~ToString(operation->GetOperationId()));
 
-                    this_->SetOperationFinalState(operation, EOperationState::Failed, result);
-                    this_->MasterConnector->FinalizeRevivingOperationNode(operation);
-                    this_->UnregisterOperation(operation);
+                    auto wrappedError = TError("Operation has failed to revive") << result;
+                    this_->SetOperationFinalState(operation, EOperationState::Failed, wrappedError);
+                    this_->MasterConnector->FinalizeOperationNode(operation);
+                    this_->FinishOperation(operation);
                 }
             }).Via(invoker));
     }

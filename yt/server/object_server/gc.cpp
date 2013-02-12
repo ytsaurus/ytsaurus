@@ -119,7 +119,8 @@ void TGarbageCollector::OnSweep()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto metaStateManager = Bootstrap->GetMetaStateFacade()->GetManager();
+    auto metaStateFacade = Bootstrap->GetMetaStateFacade();
+    auto metaStateManager = metaStateFacade->GetManager();
     if (ZombieIds.empty() || !metaStateManager->HasActiveQuorum()) {
         SweepInvoker->ScheduleNext();
         return;
@@ -135,11 +136,12 @@ void TGarbageCollector::OnSweep()
 
     LOG_DEBUG("Starting GC sweep for %d objects", request.object_ids_size());
 
+    auto invoker = metaStateFacade->GetEpochInvoker();
     Bootstrap
         ->GetObjectManager()
         ->CreateDestroyObjectsMutation(request)
-        ->OnSuccess(BIND(&TGarbageCollector::OnCommitSucceeded, MakeWeak(this)))
-        ->OnError(BIND(&TGarbageCollector::OnCommitFailed, MakeWeak(this)))
+        ->OnSuccess(BIND(&TGarbageCollector::OnCommitSucceeded, MakeWeak(this)).Via(invoker))
+        ->OnError(BIND(&TGarbageCollector::OnCommitFailed, MakeWeak(this)).Via(invoker))
         ->PostCommit();
 }
 
@@ -153,7 +155,7 @@ void TGarbageCollector::OnCommitSucceeded()
 
 void TGarbageCollector::OnCommitFailed(const TError& error)
 {
-    LOG_WARNING(error, "GC sweep commit failed");
+    LOG_ERROR(error, "GC sweep commit failed");
 
     SweepInvoker->ScheduleNext();
 }

@@ -118,26 +118,6 @@ IYPathService::TResolveResult TNodeBase::ResolveRecursive(
     YUNREACHABLE();
 }
 
-void TNodeBase::ExistsSelf(TReqExists* request, TRspExists* response, TCtxExistsPtr context)
-{
-    UNUSED(request);
-
-    response->set_value(true);
-    context->SetResponseInfo(
-        Sprintf("Response for Exists: %s", ~ToString(true)));
-    context->Reply();
-}
-
-void TNodeBase::ExistsRecursive(const NYTree::TYPath& path, TReqExists* request, TRspExists* response, TCtxExistsPtr context)
-{
-    UNUSED(request);
-
-    response->set_value(false);
-    context->SetResponseInfo(
-        Sprintf("Response for Exists: %s", ~ToString(false)));
-    context->Reply();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void TCompositeNodeMixin::SetRecursive(

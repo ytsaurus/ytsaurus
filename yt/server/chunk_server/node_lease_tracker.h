@@ -2,7 +2,9 @@
 
 #include "public.h"
 
+#include <ytlib/misc/error.h>
 #include <ytlib/misc/lease_manager.h>
+
 #include <server/cell_master/public.h>
 
 namespace NYT {
@@ -17,7 +19,7 @@ namespace NChunkServer {
  *  
  *  It also extends the leases by calling #TNodeLeaseTracker::OnNodeHeartbeat.
  *  
- *  When a lease expires #TNodeLeaseTracker triggers node deregistration
+ *  When a lease expires #TNodeLeaseTracker triggers node unregistration
  *  by calling #TChunkManager::CreateUnregisterNodeMutation.
  *  The latter is a logged operation during which #TNodeLeaseTracker::OnNodeUnregistered
  *  gets called.
@@ -91,6 +93,8 @@ private:
     TDuration GetTimeout(const TDataNode* node, const TNodeInfo& nodeInfo);
 
     void OnExpired(TNodeId nodeId);
+    void OnExpirationCommitSucceeded(TNodeId nodeId);
+    void OnExpirationCommitFailed(TNodeId nodeId, const TError& error);
 
 };
 

@@ -13,6 +13,8 @@
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
+#include <ytlib/ytree/attributes.h>
+
 namespace NYT {
 namespace NTransactionClient {
 
@@ -23,6 +25,25 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = TransactionClientLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTransactionStartOptions::TTransactionStartOptions()
+    : Ping(true)
+    , PingAncestors(false)
+    , EnableUncommittedAccounting(true)
+    , EnableStagedAccounting(true)
+    , Attributes(CreateEphemeralAttributes())
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTransactionAttachOptions::TTransactionAttachOptions(const TTransactionId& id)
+    : Id(id)
+    , AutoAbort(true)
+    , Ping(true)
+    , PingAncestors(false)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,14 +84,16 @@ public:
             : FromObjectId(options.ParentId);
 
         auto req = TTransactionYPathProxy::CreateObject(transactionPath);
-        auto* reqExt = req->MutableExtension(NProto::TReqCreateTransactionExt::create_transaction);
-
         req->set_type(EObjectType::Transaction);
+        ToProto(req->mutable_object_attributes(), *options.Attributes);
+
+        auto* reqExt = req->MutableExtension(NProto::TReqCreateTransactionExt::create_transaction);
+        reqExt->set_enable_uncommitted_accounting(options.EnableUncommittedAccounting);
+        reqExt->set_enable_staged_accounting(options.EnableStagedAccounting);
         if (options.Timeout) {
             reqExt->set_timeout(options.Timeout.Get().MilliSeconds());
         }
-        reqExt->set_enable_uncommitted_accounting(options.EnableUncommittedAccounting);
-        reqExt->set_enable_staged_accounting(options.EnableStagedAccounting);
+
         if (options.ParentId != NullTransactionId) {
             NMetaState::GenerateRpcMutationId(req);
         }

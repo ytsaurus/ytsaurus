@@ -86,7 +86,7 @@ struct TUserJobSpec
 
     int CpuLimit;
     i64 MemoryLimit;
-    double MemoryOvercommitFactor;
+    double MemoryReserveFactor;
 
     TUserJobSpec()
     {
@@ -105,7 +105,7 @@ struct TUserJobSpec
             .Default(1);
         Register("memory_limit", MemoryLimit)
             .Default((i64) 256 * 1024 * 1024);
-        Register("memory_overcommit_factor", MemoryOvercommitFactor)
+        Register("memory_reserve_factor", MemoryReserveFactor)
             .Default(0.7)
             .GreaterThan(0.)
             .LessThanOrEqual(1.);

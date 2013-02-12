@@ -72,6 +72,9 @@ const TNodeId InvalidNodeId = -1;
 //! Used as an expected upper bound in TSmallVector.
 const int TypicalReplicationFactor = 4;
 
+//! Used as an expected upper bound in TSmallVector.
+const int TypicalChunkParentCount = 2;
+
 //! The number of supported replication priorities.
 //! The smaller the more urgent.
 /*! current RF == 1 -> priority = 0

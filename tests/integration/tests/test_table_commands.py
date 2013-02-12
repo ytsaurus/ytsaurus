@@ -328,6 +328,9 @@ class TestTableCommands(YTEnvSetup):
 
         create("table", "//tmp/t")
         self.assertEqual(exists("//tmp/t"), "true")
+        self.assertEqual(exists("//tmp/t/x"), "false")
+        self.assertEqual(exists("//tmp/t/1"), "false")
+        self.assertEqual(exists("//tmp/t/1/t"), "false")
         self.assertEqual(exists("<overwrite=true>//tmp/t"), "true")
         # These cases are not supported yet because of future changes in the table grammar
         self.assertEqual(exists("//tmp/t[:#100]"), "true")

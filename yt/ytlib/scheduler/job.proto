@@ -129,8 +129,8 @@ message TUserJobSpec
     // Hard memory limit for user process, in bytes.
     required int64 memory_limit = 7;
 
-    // Memory size reserved at job launch.
-    required int64 initial_memory_reserve = 9;
+    // Memory size reserved at job launch, in bytes.
+    required int64 memory_reserve = 9;
 
     // Transaction for creating stderr chunks.
     // If not set then no stderrs are captured.

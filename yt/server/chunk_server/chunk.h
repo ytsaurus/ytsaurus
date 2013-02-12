@@ -31,7 +31,7 @@ class TChunk
     DEFINE_BYVAL_RW_PROPERTY(bool, Movable);
     DEFINE_BYVAL_RW_PROPERTY(bool, Vital);
 
-    typedef TSmallVector<TChunkList*, 2> TParents;
+    typedef TSmallVector<TChunkList*, TypicalChunkParentCount> TParents;
     DEFINE_BYREF_RW_PROPERTY(TParents, Parents);
 
     // This is usually small, e.g. has the length of 3.
