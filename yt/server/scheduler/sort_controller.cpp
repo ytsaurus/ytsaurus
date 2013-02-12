@@ -1165,7 +1165,7 @@ protected:
         return static_cast<i64>((double) TotalInputValueCount * dataSize / TotalInputDataSize);
     }
 
-    int EmpiricalParitionCount() const
+    int GetEmpiricalParitionCount() const
     {
         // Suggest partition count using some (highly experimental)
         // formula, which is inspired by the following practical
@@ -1175,11 +1175,10 @@ protected:
         // 3) The larger input is, the more parallelism is required to process it efficiently, hence the bigger is the optimal partition count.
         // 4) Partitions of size > 2GB require too much resources and are thus harmful.
         // To accommodate both (2) and (3), partition size growth rate is logarithmic
-        double partitionSize = (double)32 * 1024 * 1024 * (1 + std::log10(TotalInputDataSize / ((i64)100 * 1024 * 1024)));
+        i64 partitionSize = static_cast<i64>(32 * 1024 * 1024 * (1.0 + std::log10((double) TotalInputDataSize / ((i64)100 * 1024 * 1024))));
         i64 suggestedPartitionCount = static_cast<i64>(TotalInputDataSize / partitionSize);
-        i64 upperBoundForPartitionCount = 1000 + (i64)(TotalInputDataSize / ((i64)2 * 1024 * 1024 * 1024));
+        i64 upperBoundForPartitionCount = 1000 + TotalInputDataSize / ((i64)2 * 1024 * 1024 * 1024);
         return std::min(suggestedPartitionCount, upperBoundForPartitionCount);
-
     }
 
     int SuggestPartitionCount() const
@@ -1194,7 +1193,7 @@ protected:
                 result = 1 + TotalInputDataSize / Spec->PartitionDataSize.Get();
             }
         } else {
-            result = EmpiricalParitionCount();
+            result = GetEmpiricalParitionCount();
         }
         return static_cast<int>(Clamp(result, 1, Config->MaxPartitionCount));
     }
@@ -1210,7 +1209,7 @@ protected:
         else {
             // Experiments show that this number is suitable as default 
             // both for partition count and for partition job count.
-            return EmpiricalParitionCount();
+            return GetEmpiricalParitionCount();
         }
     }
 
