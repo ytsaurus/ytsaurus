@@ -39,7 +39,7 @@ public:
     { }
 
     TAutoPtr<NTableClient::TTableProducer> CreateTableInput(
-        int index, 
+        int index,
         NYson::IYsonConsumer* consumer) override
     {
         YCHECK(index == 0);
@@ -61,7 +61,8 @@ public:
             keyColumns,
             BIND(&IJobHost::ReleaseNetwork, Host),
             std::move(chunks),
-            JobSpec.input_row_count());
+            JobSpec.input_row_count(),
+            JobSpec.is_approximate());
         reader->Open();
 
         // ToDo(psushin): init all inputs in constructor, get rid of this check.

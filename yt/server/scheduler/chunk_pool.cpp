@@ -109,11 +109,8 @@ public:
         YCHECK(Stripe);
         YCHECK(Suspended);
 
-        i64 stripeDataSize;
-        i64 stripeRowCount;
-        GetStatistics(stripe, &stripeDataSize, &stripeRowCount);
+        GetStatistics(stripe, &DataSize, &RowCount);
 
-        YCHECK(DataSize == stripeDataSize && RowCount == stripeRowCount);
         Suspended = false;
         Stripe = stripe;
     }
