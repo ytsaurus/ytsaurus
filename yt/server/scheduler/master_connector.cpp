@@ -115,7 +115,6 @@ public:
             ~ToString(id));
 
         auto* list = GetUpdateList(operation);
-        YCHECK(list->State == EUpdateListState::Active);
         list->State = EUpdateListState::Flushing;
 
         // Create a batch update for this particular operation.
@@ -139,8 +138,6 @@ public:
             ~ToString(id));
 
         auto* list = GetUpdateList(operation);
-        // NB: Flushing state is possible when operation is being failed during the flush.
-        YCHECK(list->State == EUpdateListState::Flushed || list->State == EUpdateListState::Flushing);
         list->State = EUpdateListState::Finalizing;
 
         // Create a batch update for this particular operation.
@@ -154,24 +151,6 @@ public:
         return list->FinalizedPromise;
     }
 
-    void FinalizeRevivingOperationNode(TOperationPtr operation)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
-
-        auto id = operation->GetOperationId();
-        LOG_INFO("Finalizing reviving operation node (OperationId: %s)",
-            ~ToString(id));
-
-        auto batchReq = StartBatchRequest();
-        PrepareOperationUpdate(operation, batchReq);
-
-        batchReq->Invoke().Subscribe(
-            BIND(&TImpl::OnRevivingOperationNodeFinalized, MakeStrong(this), operation)
-                .Via(CancelableControlInvoker));
-    }
-
-
     void CreateJobNode(TJobPtr job, const TChunkId& stdErrChunkId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -183,7 +162,6 @@ public:
             ~stdErrChunkId.ToString());
 
         auto* list = GetUpdateList(job->GetOperation());
-        YCHECK(list->State == EUpdateListState::Active);
         list->PendingJobs.insert(std::make_pair(job, stdErrChunkId));
     }
 
@@ -279,7 +257,9 @@ private:
         CancelableControlInvoker = CancelableContext->CreateInvoker(Bootstrap->GetControlInvoker());
 
         const auto& result = resultOrError.Value();
-        CreateUpdateLists(result.Operations);
+        FOREACH (auto operation, result.Operations) {
+            CreateUpdateList(operation);
+        }
         WatcherResponse_.Fire(result.WatcherResponses);
 
         LockTransaction->SubscribeAborted(
@@ -798,13 +778,6 @@ private:
         return &pair.first->second;
     }
 
-    void CreateUpdateLists(const std::vector<TOperationPtr>& operations)
-    {
-        FOREACH (auto operation, operations) {
-            CreateUpdateList(operation);
-        }
-    }
-
     TUpdateList* GetUpdateList(TOperationPtr operation)
     {
         auto it = UpdateLists.find(operation->GetOperationId());
@@ -828,7 +801,8 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        LOG_INFO("Updating operation nodes");
+        LOG_INFO("Updating nodes for %s operations",
+            static_cast<int>(UpdateLists.size()));
 
         auto awaiter = New<TParallelAwaiter>(CancelableControlInvoker);
 
@@ -1012,7 +986,6 @@ private:
             ~operationId.ToString());
        
         auto* list = GetUpdateList(operation);
-        YCHECK(list->State == EUpdateListState::Flushing);
         list->State = EUpdateListState::Flushed;
         list->FlushedPromise.Set();
     }
@@ -1038,7 +1011,6 @@ private:
             ~operationId.ToString());
 
         auto* list = GetUpdateList(operation);
-        YCHECK(list->State == EUpdateListState::Finalizing);
         list->State = EUpdateListState::Finalized; 
         list->FinalizedPromise.Set();
 
@@ -1135,11 +1107,6 @@ TFuture<void> TMasterConnector::FlushOperationNode(TOperationPtr operation)
 TFuture<void> TMasterConnector::FinalizeOperationNode(TOperationPtr operation)
 {
     return Impl->FinalizeOperationNode(operation);
-}
-
-void TMasterConnector::FinalizeRevivingOperationNode(TOperationPtr operation)
-{
-    return Impl->FinalizeRevivingOperationNode(operation);
 }
 
 void TMasterConnector::CreateJobNode(TJobPtr job, const TChunkId& stdErrChunkId)
