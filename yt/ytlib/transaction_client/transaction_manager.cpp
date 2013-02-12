@@ -13,6 +13,8 @@
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
+#include <ytlib/ytree/attributes.h>
+
 namespace NYT {
 namespace NTransactionClient {
 
@@ -23,6 +25,25 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = TransactionClientLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTransactionStartOptions::TTransactionStartOptions()
+    : Ping(true)
+    , PingAncestors(false)
+    , EnableUncommittedAccounting(true)
+    , EnableStagedAccounting(true)
+    , Attributes(CreateEphemeralAttributes())
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTransactionAttachOptions::TTransactionAttachOptions(const TTransactionId& id)
+    : Id(id)
+    , AutoAbort(true)
+    , Ping(true)
+    , PingAncestors(false)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,6 +85,7 @@ public:
 
         auto req = TTransactionYPathProxy::CreateObject(transactionPath);
         req->set_type(EObjectType::Transaction);
+        ToProto(req->mutable_object_attributes(), *options.Attributes);
 
         auto* reqExt = req->MutableExtension(NProto::TReqCreateTransactionExt::create_transaction);
         reqExt->set_enable_uncommitted_accounting(options.EnableUncommittedAccounting);
