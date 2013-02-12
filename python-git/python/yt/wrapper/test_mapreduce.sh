@@ -23,7 +23,15 @@ prepare_table_files() {
     set -x
 }
 
+cleanup() {
+    for pid in `jobs -l | awk '{print $2}'`; do
+        kill $pid
+    done
+    rm -f table_file big_file
+}
+
 die() {
+    cleanup
     echo "$@" && exit 1
 }
 
@@ -401,9 +409,9 @@ test_force_drop()
         echo -e "x\ty"
     }
 
-
     ./mapreduce -drop "ignat/some_table" -force
     ./mapreduce -createtable "ignat/some_table"
+
     gen_data 2 | ./mapreduce -append -write "ignat/some_table" &
 
     sleep 2
@@ -412,7 +420,7 @@ test_force_drop()
 
     ./mapreduce -drop "ignat/some_table" -force
 
-    check "" "./mapreduce -read ignat/some_table"
+    check "" "`./mapreduce -read ignat/some_table`"
 }
 
 prepare_table_files
@@ -443,4 +451,4 @@ test_copy_files
 test_write_lenval
 test_force_drop
 
-rm -f table_file big_file
+cleanup
