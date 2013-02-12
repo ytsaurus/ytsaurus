@@ -34,7 +34,8 @@ TChunkStripe::TChunkStripe(const TChunkStripe& other)
 ////////////////////////////////////////////////////////////////////
 
 TChunkStripeList::TChunkStripeList()
-    : TotalDataSize(0)
+    : IsApproximate(false)
+    , TotalDataSize(0)
     , TotalRowCount(0)
     , TotalChunkCount(0)
     , LocalChunkCount(0)
@@ -787,6 +788,7 @@ private:
         void SuspendStripe(int elementaryIndex)
         {
             auto& run = GetRun(elementaryIndex);
+            run.IsApproximate = true;
             ++run.SuspendedCount;
 
             UpdatePendingRunSet(run);
@@ -846,7 +848,6 @@ private:
             DataSizeCounter.Start(run.TotalDataSize);
             RowCounter.Start(run.TotalRowCount);
 
-
             return cookie;
         }
 
@@ -867,6 +868,7 @@ private:
             list->TotalRowCount = run.TotalRowCount;
             list->LocalChunkCount = 0;
             list->NonLocalChunkCount = list->TotalChunkCount;
+            list->IsApproximate = run.IsApproximate;
 
             return list;
         }
@@ -928,6 +930,7 @@ private:
                 , TotalRowCount(0)
                 , SuspendedCount(0)
                 , State(ERunState::Initializing)
+                , IsApproximate(false)
             { }
 
             int ElementaryIndexBegin;
@@ -936,6 +939,7 @@ private:
             i64 TotalRowCount;
             int SuspendedCount;
             ERunState State;
+            bool IsApproximate;
         };
 
         std::vector<TRun> Runs;

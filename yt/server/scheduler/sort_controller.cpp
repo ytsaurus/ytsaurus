@@ -537,6 +537,7 @@ protected:
                 jobSpec->CopyFrom(Controller->FinalSortJobSpecTemplate);
                 AddFinalOutputSpecs(jobSpec, joblet);
             }
+            jobSpec->set_is_approximate(joblet->InputStripeList->IsApproximate);
 
             AddSequentialInputSpec(jobSpec, joblet, Controller->IsTableIndexEnabled());
         }
