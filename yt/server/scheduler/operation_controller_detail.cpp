@@ -1272,8 +1272,8 @@ void TOperationControllerBase::OnInputTypesReceived(TObjectServiceProxy::TRspExe
             if (type != EObjectType::Table) {
                 THROW_ERROR_EXCEPTION("Object %s has invalid type: expected %s, actual %s",
                     ~path.GetPath(),
-                    ~EObjectType(EObjectType::Table).ToString(),
-                    ~type.ToString());
+                    ~FormatEnum(EObjectType(EObjectType::Table)).Quote(),
+                    ~FormatEnum(type).Quote());
             }
         }
     }
@@ -1291,8 +1291,8 @@ void TOperationControllerBase::OnInputTypesReceived(TObjectServiceProxy::TRspExe
             if (type != EObjectType::Table) {
                 THROW_ERROR_EXCEPTION("Object %s has invalid type: expected %s, actual %s",
                     ~path.GetPath(),
-                    ~EObjectType(EObjectType::Table).ToString(),
-                    ~type.ToString());
+                    ~FormatEnum(EObjectType(EObjectType::Table)).Quote(),
+                    ~FormatEnum(type).Quote());
             }
         }
     }
@@ -1318,9 +1318,9 @@ void TOperationControllerBase::OnInputTypesReceived(TObjectServiceProxy::TRspExe
                 default:
                     THROW_ERROR_EXCEPTION("Object %s has invalid type: expected %s or %s, actual %s",
                         ~path.GetPath(),
-                        ~EObjectType(EObjectType::File).ToString(),
-                        ~EObjectType(EObjectType::Table).ToString(),
-                        ~type.ToString());
+                        ~FormatEnum(EObjectType(EObjectType::File)).Quote(),
+                        ~FormatEnum(EObjectType(EObjectType::Table)).Quote(),
+                        ~FormatEnum(type).Quote());
             }
         }
     }
