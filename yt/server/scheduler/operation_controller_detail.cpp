@@ -1913,8 +1913,8 @@ void TOperationControllerBase::InitUserJobSpec(
 {
     jobSpec->set_shell_command(config->Command);
     jobSpec->set_memory_limit(config->MemoryLimit);
-    i64 initialMemoryReserve = static_cast<i64>(config->MemoryLimit * config->MemoryOvercommitFactor);
-    jobSpec->set_initial_memory_reserve(initialMemoryReserve);
+    i64 memoryReserve = static_cast<i64>(config->MemoryLimit * config->MemoryReserveFactor);
+    jobSpec->set_memory_reserve(memoryReserve);
 
     {
         if (Operation->GetStdErrCount() < Operation->GetMaxStdErrCount()) {

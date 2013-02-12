@@ -234,7 +234,7 @@ TPromise<void> TJob::PrepareDownloadingTableFile(
 void TJob::PrepareUserJob(
     TParallelAwaiterPtr awaiter)
 {
-    YCHECK(UserJobSpec != nullptr);
+    YCHECK(UserJobSpec);
 
     FOREACH (const auto& fetchRsp, UserJobSpec->files()) {
         auto chunkId = TChunkId::FromProto(fetchRsp.chunk_id());

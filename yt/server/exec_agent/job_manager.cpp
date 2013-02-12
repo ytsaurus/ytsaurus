@@ -278,7 +278,8 @@ void TJobManager::UpdateResourceUsage(const TJobId& jobId, const TNodeResources&
             job->Abort(TError(
                 "Failed to increase resource usage (OldUsage: {%s}, NewUsage: {%s})",
                 ~FormatResources(oldUsage),
-                ~FormatResources(usage)) << error);
+                ~FormatResources(usage))
+                << error);
             return;
         }
     }
