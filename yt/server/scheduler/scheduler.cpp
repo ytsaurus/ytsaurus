@@ -495,8 +495,7 @@ private:
             operation->SetController(controller);
             controller->Initialize();
         } catch (const std::exception& ex) {
-            auto wrappedError = TError("Error initializing operation")
-                << ex;
+            auto wrappedError = TError("Error initializing operation") << ex;
             LOG_ERROR(wrappedError);
             return MakeFuture(TStartResult(wrappedError));
         }
@@ -517,10 +516,13 @@ private:
                 VERIFY_THREAD_AFFINITY(ControlThread);
 
                 if (!result.IsOK()) {
-                    auto wrappedError = TError("Error starting operation (OperationId: %s)",
-                        ~operation->GetOperationId().ToString())
-                        << result;
-                    LOG_ERROR(wrappedError);
+                    // NB: Operation node is created at the very last step of the pipeline.
+                    // Hence the failure implies that we don't have any node yet.
+
+                    LOG_ERROR(result, "Error starting operation (OperationId: %s)",
+                        ~operation->GetOperationId().ToString());
+
+                    auto wrappedError = TError("Error starting operation") << result;
                     this_->SetOperationFinalState(operation, EOperationState::Failed, wrappedError);
                     this_->FinishOperation(operation);
                     return wrappedError;
@@ -728,11 +730,17 @@ private:
         LOG_INFO("Reviving operation (OperationId: %s)",
             ~operation->GetOperationId().ToString());
 
+        // NB: The operation is being revived, hence it already
+        // has a valid node associated with it.
+        // If the revival fails, we still need to update the node
+        // and unregister the operation from Master Connector.
+
         IOperationControllerPtr controller;
         try {
             controller = CreateController(~operation);
         } catch (const std::exception& ex) {
-            SetOperationFinalState(operation, EOperationState::Failed, ex);
+            auto wrappedError = TError("Error initializing operation") << ex;
+            SetOperationFinalState(operation, EOperationState::Failed, wrappedError);
             MasterConnector->FinalizeRevivingOperationNode(operation);
             return;
         }
@@ -755,9 +763,10 @@ private:
                     LOG_ERROR(result, "Operation has failed to revive (OperationId: %s)",
                         ~ToString(operation->GetOperationId()));
 
-                    this_->SetOperationFinalState(operation, EOperationState::Failed, result);
+                    auto wrappedError = TError("Operation has failed to revive") << result;
+                    this_->SetOperationFinalState(operation, EOperationState::Failed, wrappedError);
                     this_->MasterConnector->FinalizeOperationNode(operation);
-                    this_->UnregisterOperation(operation);
+                    this_->FinishOperation(operation);
                 }
             }).Via(invoker));
     }

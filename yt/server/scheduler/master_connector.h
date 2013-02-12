@@ -40,7 +40,6 @@ public:
     TAsyncError CreateOperationNode(TOperationPtr operation);
     TFuture<void> FlushOperationNode(TOperationPtr operation);
     TFuture<void> FinalizeOperationNode(TOperationPtr operation);
-    void FinalizeRevivingOperationNode(TOperationPtr operation);
 
     void CreateJobNode(TJobPtr job, const NChunkClient::TChunkId& stdErrChunkId);
 
