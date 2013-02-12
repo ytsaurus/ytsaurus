@@ -184,7 +184,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         self.sort_with_options(opt='/spec/partition_count=10')
 
     def test_two_partitions_with_merge(self):
-        self.sort_with_options(opt=['/spec/partition_count=2', '/spec/min_partition_data_size=1', '/spec/data_size_per_sort_job=1'])
+        self.sort_with_options(opt=['/spec/partition_count=2', '/spec/partition_data_size=1', '/spec/data_size_per_sort_job=1'])
 
     def test_inplace_sort(self):
         create('table', '//tmp/t')

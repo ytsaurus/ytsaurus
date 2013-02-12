@@ -123,11 +123,6 @@ def main():
                     f.write(block)
             args.yt_binary = "./mapreduce-yt"
 
-        if args.codec is not None:
-            codec = "-codec " + args.codec
-        else:
-            codec = ""
-
         if args.fastbone:
             yt_server = "proxy-fb.yt.yandex.net"
         else:
@@ -141,8 +136,7 @@ def main():
                 "-jobcount {} "
                 "-lenval "
                 "-subkey "
-                "-file {} "
-                "{} "\
+                "-file {} "\
                     .format(
                         args.mapreduce_binary,
                         args.server,
@@ -154,8 +148,7 @@ def main():
                         source,
                         os.path.join("tmp", os.path.basename(source)),
                         args.job_count,
-                        args.yt_binary,
-                        codec),
+                        args.yt_binary),
             shell=True)
         
         if args.codec is not None:
