@@ -7,6 +7,7 @@
 #include <ytlib/misc/periodic_invoker.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/delayed_invoker.h>
+#include <ytlib/misc/address.h>
 
 #include <ytlib/actions/async_pipeline.h>
 #include <ytlib/actions/parallel_awaiter.h>
@@ -333,8 +334,14 @@ private:
             {
                 auto req = TTransactionYPathProxy::CreateObject(RootTransactionPath);
                 req->set_type(EObjectType::Transaction);
+
                 auto* reqExt = req->MutableExtension(TReqCreateTransactionExt::create_transaction);
                 reqExt->set_timeout(Owner->Config->LockTransactionTimeout.MilliSeconds());
+
+                auto attributes = CreateEphemeralAttributes();
+                attributes->Set("title", Sprintf("Scheduler lock at %s", ~GetLocalHostName()));
+                ToProto(req->mutable_object_attributes(), *attributes);
+
                 GenerateRpcMutationId(req);
                 batchReq->AddRequest(req, "start_lock_tx");
             }

@@ -547,8 +547,15 @@ private:
                 ? FromObjectId(userTransaction->GetId())
                 : RootTransactionPath);
             req->set_type(EObjectType::Transaction);
+            
             auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
             reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
+
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("title", Sprintf("Scheduler sync for operation %s",
+                ~operation->GetOperationId().ToString()));
+            ToProto(req->mutable_object_attributes(), *attributes);
+
             GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "start_sync_tx");
         }
@@ -556,8 +563,15 @@ private:
         {
             auto req = TTransactionYPathProxy::CreateObject(RootTransactionPath);
             req->set_type(EObjectType::Transaction);
+
             auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
             reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
+
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("title", Sprintf("Scheduler async for operation %s",
+                ~operation->GetOperationId().ToString()));
+            ToProto(req->mutable_object_attributes(), *attributes);
+
             GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "start_async_tx");
         }
@@ -613,8 +627,15 @@ private:
         {
             auto req = TTransactionYPathProxy::CreateObject(FromObjectId(parentTransactionId));
             req->set_type(EObjectType::Transaction);
+
             auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
             reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
+
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("title", Sprintf("Scheduler input for operation %s",
+                ~operation->GetOperationId().ToString()));
+            ToProto(req->mutable_object_attributes(), *attributes);
+
             NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "start_in_tx");
         }
@@ -622,9 +643,16 @@ private:
         {
             auto req = TTransactionYPathProxy::CreateObject(FromObjectId(parentTransactionId));
             req->set_type(EObjectType::Transaction);
+
             auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
             reqExt->set_enable_uncommitted_accounting(false);
             reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
+
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("title", Sprintf("Scheduler output for operation %s",
+                ~operation->GetOperationId().ToString()));
+            ToProto(req->mutable_object_attributes(), *attributes);
+
             NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "start_out_tx");
         }

@@ -393,7 +393,13 @@ private:
         auto service = Bootstrap->GetObjectManager()->GetRootService();
         auto req = TTransactionYPathProxy::CreateObject(RootTransactionPath);
         req->set_type(EObjectType::Transaction);
+        
         req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
+
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("title", "World initialization");
+        ToProto(req->mutable_object_attributes(), *attributes);
+
         auto rsp = SyncExecuteVerb(service, req);
         return TTransactionId::FromProto(rsp->object_id());
     }

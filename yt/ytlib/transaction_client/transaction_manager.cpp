@@ -63,14 +63,15 @@ public:
             : FromObjectId(options.ParentId);
 
         auto req = TTransactionYPathProxy::CreateObject(transactionPath);
-        auto* reqExt = req->MutableExtension(NProto::TReqCreateTransactionExt::create_transaction);
-
         req->set_type(EObjectType::Transaction);
         if (options.Timeout) {
             reqExt->set_timeout(options.Timeout.Get().MilliSeconds());
         }
+
+        auto* reqExt = req->MutableExtension(NProto::TReqCreateTransactionExt::create_transaction);
         reqExt->set_enable_uncommitted_accounting(options.EnableUncommittedAccounting);
         reqExt->set_enable_staged_accounting(options.EnableStagedAccounting);
+
         if (options.ParentId != NullTransactionId) {
             NMetaState::GenerateRpcMutationId(req);
         }
