@@ -103,13 +103,14 @@ int TOperationControllerBase::TTask::GetPriority() const
     return 0;
 }
 
-void TOperationControllerBase::TTask::AddInput(TChunkStripePtr stripe)
+IChunkPoolInput::TCookie TOperationControllerBase::TTask::AddInput(TChunkStripePtr stripe)
 {
-    GetChunkPoolInput()->Add(stripe);
+    auto cookie = GetChunkPoolInput()->Add(stripe);
     if (HasInputLocality()) {
         Controller->AddTaskLocalityHint(this, stripe);
     }
     AddPendingHint();
+    return cookie;
 }
 
 void TOperationControllerBase::TTask::AddInput(const std::vector<TChunkStripePtr>& stripes)
@@ -117,6 +118,15 @@ void TOperationControllerBase::TTask::AddInput(const std::vector<TChunkStripePtr
     FOREACH (auto stripe, stripes) {
         AddInput(stripe);
     }
+}
+
+void TOperationControllerBase::TTask::ResumeInput(IChunkPoolInpul::TCookie cookie, TChunkStripePtr stripe)
+{
+    GetChunkPoolInput()->Resume(cookie, stripe);
+    if (HasInputLocality()) {
+        Controller->AddTaskLocalityHint(this, stripe);
+    }
+    AddPendingHint();
 }
 
 void TOperationControllerBase::TTask::FinishInput()

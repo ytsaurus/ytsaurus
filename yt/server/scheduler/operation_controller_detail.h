@@ -256,8 +256,9 @@ protected:
 
         DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, DelayedTime);
 
-        void AddInput(TChunkStripePtr stripe);
+        IChunkPoolInput::TCookie AddInput(TChunkStripePtr stripe);
         void AddInput(const std::vector<TChunkStripePtr>& stripes);
+        void ResumeInput(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe);
         void FinishInput();
 
         TJobPtr ScheduleJob(ISchedulingContext* context, const NProto::TNodeResources& jobLimits);
