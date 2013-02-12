@@ -18,7 +18,7 @@ namespace NJobProxy {
 
 template <template <typename> class TMultiChunkReader>
 TAutoPtr<NTableClient::TTableProducer> TUserJobIO::DoCreateTableInput(
-    int index, 
+    int index,
     NYson::IYsonConsumer* consumer)
 {
     YCHECK(index >= 0 && index < GetInputCount());
@@ -28,13 +28,13 @@ TAutoPtr<NTableClient::TTableProducer> TUserJobIO::DoCreateTableInput(
     std::vector<NTableClient::NProto::TInputChunk> chunks;
     for (int i = 0; i < JobSpec.input_specs_size(); ++i) {
         chunks.insert(
-            chunks.end(), 
-            JobSpec.input_specs(i).chunks().begin(), 
-            JobSpec.input_specs(0).chunks().end());
+            chunks.end(),
+            JobSpec.input_specs(i).chunks().begin(),
+            JobSpec.input_specs(i).chunks().end());
     }
 
-    LOG_DEBUG("Opening input %d with %d chunks", 
-        index, 
+    LOG_DEBUG("Opening input %d with %d chunks",
+        index,
         static_cast<int>(chunks.size()));
 
     typedef TMultiChunkReader<NTableClient::TTableChunkReader> TReader;

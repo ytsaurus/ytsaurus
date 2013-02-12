@@ -13,6 +13,7 @@
 #include "partition_reduce_job_io.h"
 
 #include <ytlib/actions/invoker_util.h>
+#include <ytlib/actions/parallel_awaiter.h>
 
 #include <ytlib/logging/log_manager.h>
 
@@ -24,6 +25,12 @@
 
 #include <server/scheduler/job_resources.h>
 
+#include <ytlib/chunk_client/client_block_cache.h>
+#include <ytlib/chunk_client/remote_reader.h>
+#include <ytlib/chunk_client/async_reader.h>
+
+#include <ytlib/meta_state/master_channel.h>
+
 
 // Defined inside util/private/lf_alloc/lf_allocX64.cpp
 void SetLargeBlockLimit(i64 limit);
@@ -32,6 +39,7 @@ void SetLargeBlockLimit(i64 limit);
 namespace NYT {
 namespace NJobProxy {
 
+using namespace NElection;
 using namespace NScheduler;
 using namespace NExecAgent;
 using namespace NBus;
@@ -192,10 +200,58 @@ void TJobProxy::Run()
 
         TJobResult result;
         ToProto(result.mutable_error(), TError(ex));
-        ToProto(result.mutable_failed_chunk_ids(), Job->GetFailedChunks());
+
+        std::vector<NChunkClient::TChunkId> failedChunks;
+        GetFailedChunks(&failedChunks).Get();
+        ToProto(result.mutable_failed_chunk_ids(), failedChunks);
 
         ReportResult(result);
     }
+}
+
+TFuture<void> TJobProxy::GetFailedChunks(std::vector<NChunkClient::TChunkId>* failedChunks)
+{
+    *failedChunks = Job->GetFailedChunks();
+
+    if (!failedChunks->empty()) {
+        yhash_set<NChunkClient::TChunkId> failedSet(failedChunks->begin(), failedChunks->end());
+
+        auto blockCache = CreateClientBlockCache(New<NChunkClient::TClientBlockCacheConfig>());
+        auto masterChannel = CreateLeaderChannel(Config->Masters);
+        auto awaiter = New<TParallelAwaiter>(GetSyncInvoker());
+
+        FOREACH (const auto& inputSpec, JobSpec.input_specs()) {
+            FOREACH (const auto& chunk, inputSpec.chunks()) {
+                auto chunkId = NChunkClient::TChunkId::FromProto(chunk.slice().chunk_id());
+                auto pair = failedSet.insert(chunkId);
+                if (pair.second) {
+                    auto remoteReader = NChunkClient::CreateRemoteReader(
+                        Config->JobIO->TableReader,
+                        blockCache,
+                        masterChannel,
+                        chunkId,
+                        FromProto<Stroka>(chunk.node_addresses()));
+
+                    awaiter->Await(
+                        remoteReader->AsyncGetChunkMeta(),
+                        BIND([=] (NChunkClient::IAsyncReader::TGetMetaResult meta) {
+                            if (!meta.IsOK()) {
+                                failedChunks->push_back(chunkId);
+                            }
+                        }));
+                }
+            }
+        }
+
+        auto result = NewPromise<void>();
+        awaiter->Complete(BIND([=] () mutable {
+            result.Set();
+        }));
+
+        return result;
+    }
+
+    return MakeFuture();
 }
 
 void TJobProxy::ReportResult(const TJobResult& result)

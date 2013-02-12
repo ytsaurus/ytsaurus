@@ -58,6 +58,8 @@ private:
     void OnResourcesUpdated(NExecAgent::TSupervisorServiceProxy::TRspUpdateResourceUsagePtr rsp);
 
     virtual void ReleaseNetwork() override;
+
+    TFuture<void> GetFailedChunks(std::vector<NChunkClient::TChunkId>* failedChunks);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
