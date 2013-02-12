@@ -220,8 +220,9 @@ protected:
     virtual void NextRetry()
     {
         auto reader = Reader.Lock();
-        if (!reader)
+        if (!reader) {
             return;
+        }
 
         YCHECK(!GetSeedsResult);
 
@@ -362,7 +363,13 @@ public:
         , BlockIndexes(blockIndexes)
     {
         Logger.AddTag(Sprintf("ReadSession: %p", this));
+    }
 
+    ~TReadSession()
+    {
+        if (!Promise.IsSet()) {
+            Promise.Set(TError("Reader has already died."));
+        }
     }
 
     IAsyncReader::TAsyncReadResult Run()
@@ -721,6 +728,13 @@ public:
         }
 
         Logger.AddTag(Sprintf("GetMetaSession: %p", this));
+    }
+
+    ~TGetMetaSession()
+    {
+        if (!Promise.IsSet()) {
+            Promise.Set(TError("Reader has already died."));
+        }
     }
 
     IAsyncReader::TAsyncGetMetaResult Run()

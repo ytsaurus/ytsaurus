@@ -234,10 +234,12 @@ TFuture<void> TJobProxy::GetFailedChunks(std::vector<NChunkClient::TChunkId>* fa
 
                     awaiter->Await(
                         remoteReader->AsyncGetChunkMeta(),
-                        BIND([=] (NChunkClient::IAsyncReader::TGetMetaResult meta) {
+                        BIND([=] (NChunkClient::IAsyncReader::TGetMetaResult meta) mutable {
                             if (!meta.IsOK()) {
                                 failedChunks->push_back(chunkId);
                             }
+                            // This is important to capture #remoteReader.
+                            remoteReader.Reset();
                         }));
                 }
             }
