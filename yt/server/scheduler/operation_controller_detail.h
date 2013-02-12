@@ -165,24 +165,28 @@ protected:
         (Reduce)
     );
 
-    // Files.
     struct TUserFile
     {
         NYPath::TRichYPath Path;
-        NFileClient::TFileYPathProxy::TRspFetchFilePtr FetchResponse;
         EOperationStage Stage;
     };
 
-    std::vector<TUserFile> Files;
+    // Files.
+    struct TRegularUserFile
+        : public TUserFile
+    {
+        NFileClient::TFileYPathProxy::TRspFetchFilePtr FetchResponse;
+    };
+
+    std::vector<TRegularUserFile> RegularFiles;
 
     // Table files.
     struct TUserTableFile
+        : public TUserFile
     {
-        NYPath::TRichYPath Path;
         NTableClient::TTableYPathProxy::TRspFetchPtr FetchResponse;
         Stroka FileName;
         NYTree::TYsonString Format;
-        EOperationStage Stage;
     };
 
     std::vector<TUserTableFile> TableFiles;
@@ -520,7 +524,7 @@ protected:
     void InitUserJobSpec(
         NScheduler::NProto::TUserJobSpec* proto,
         TUserJobSpecPtr config,
-        const std::vector<TUserFile>& files,
+        const std::vector<TRegularUserFile>& files,
         const std::vector<TUserTableFile>& tableFiles);
 
     static void AddUserJobEnvironment(

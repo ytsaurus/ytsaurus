@@ -1805,10 +1805,10 @@ public:
 private:
     TMapReduceOperationSpecPtr Spec;
 
-    std::vector<TUserFile> MapperFiles;
+    std::vector<TRegularUserFile> MapperFiles;
     std::vector<TUserTableFile> MapperTableFiles;
 
-    std::vector<TUserFile> ReducerFiles;
+    std::vector<TRegularUserFile> ReducerFiles;
     std::vector<TUserTableFile> ReducerTableFiles;
 
     i64 MapStartRowIndex;
@@ -1855,7 +1855,7 @@ private:
 
     virtual void OnCustomInputsRecieved(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) override
     {
-        FOREACH (const auto& file, Files) {
+        FOREACH (const auto& file, RegularFiles) {
             if (file.Stage == EOperationStage::Map) {
                 MapperFiles.push_back(file);
             } else {

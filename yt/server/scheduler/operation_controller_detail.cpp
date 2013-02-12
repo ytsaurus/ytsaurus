@@ -1308,12 +1308,15 @@ void TOperationControllerBase::OnInputTypesReceived(TObjectServiceProxy::TRspExe
                 ~path.GetPath());
 
             auto type = ConvertTo<EObjectType>(TYsonString(rsp->value()));
+            TUserFile* file;
             switch (type) {
                 case EObjectType::File:
-                    Files.push_back(TUserFile());
+                    RegularFiles.push_back(TRegularUserFile());
+                    file = &RegularFiles.back();
                     break;
                 case EObjectType::Table:
                     TableFiles.push_back(TUserTableFile());
+                    file = &RegularFiles.back();
                     break;
                 default:
                     THROW_ERROR_EXCEPTION("Object %s has invalid type: expected %s or %s, actual %s",
@@ -1322,6 +1325,8 @@ void TOperationControllerBase::OnInputTypesReceived(TObjectServiceProxy::TRspExe
                         ~FormatEnum(EObjectType(EObjectType::Table)).Quote(),
                         ~FormatEnum(type).Quote());
             }
+            file->Stage = stage;
+            file->Path = path;
         }
     }
 
@@ -1398,12 +1403,12 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
         }
     }
 
-    FOREACH (const auto& file, Files) {
+    FOREACH (const auto& file, RegularFiles) {
         auto path = file.Path.GetPath();
         {
             auto req = TFileYPathProxy::FetchFile(path);
             SetTransactionId(req, Operation->GetInputTransaction()->GetId());
-            batchReq->AddRequest(req, "fetch_files");
+            batchReq->AddRequest(req, "fetch_regular_files");
         }
     }
 
@@ -1414,19 +1419,19 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
                 auto req = TTableYPathProxy::Fetch(path);
                 req->set_fetch_all_meta_extensions(true);
                 SetTransactionId(req, Operation->GetInputTransaction()->GetId());
-                batchReq->AddRequest(req, "fetch_table_files_chunks");
+                batchReq->AddRequest(req, "fetch_table_file_chunks");
             }
 
             {
                 auto req = TYPathProxy::GetKey(path);
                 SetTransactionId(req, Operation->GetInputTransaction()->GetId());
-                batchReq->AddRequest(req, "fetch_table_files_names");
+                batchReq->AddRequest(req, "get_table_file_names");
             }
 
             {
                 auto req = TYPathProxy::Get(file.Path.GetPath() + "/@uncompressed_data_size");
                 SetTransactionId(req, Operation->GetInputTransaction()->GetId());
-                batchReq->AddRequest(req, "fetch_table_files_sizes");
+                batchReq->AddRequest(req, "get_table_file_sizes");
             }
         }
     }
@@ -1544,12 +1549,12 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
     }
 
     {
-        auto fetchFilesRsps = batchRsp->GetResponses<TFileYPathProxy::TRspFetchFile>("fetch_files");
-        for (int index = 0; index < static_cast<int>(Files.size()); ++index) {
-            auto& file = Files[index];
+        auto fetchRegularFilesRsps = batchRsp->GetResponses<TFileYPathProxy::TRspFetchFile>("fetch_regular_files");
+        for (int index = 0; index < static_cast<int>(RegularFiles.size()); ++index) {
+            auto& file = RegularFiles[index];
             {
-                auto rsp = fetchFilesRsps[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching files");
+                auto rsp = fetchRegularFilesRsps[index];
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching regular files");
 
                 if (file.Path.Attributes().Contains("file_name")) {
                     rsp->set_file_name(file.Path.Attributes().Get<Stroka>("file_name"));
@@ -1563,14 +1568,14 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
     }
 
     {
-        auto fetchTableFilesSizesRsps = batchRsp->GetResponses<TTableYPathProxy::TRspGet>("fetch_table_files_sizes");
-        auto fetchTableFilesRsps = batchRsp->GetResponses<TTableYPathProxy::TRspFetch>("fetch_table_files_chunks");
-        auto fetchTableFilesNamesRsps = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("fetch_table_files_names");
+        auto getTableFileSizesRsps = batchRsp->GetResponses<TTableYPathProxy::TRspGet>("get_table_file_sizes");
+        auto fetchTableFileRsps = batchRsp->GetResponses<TTableYPathProxy::TRspFetch>("fetch_table_file_chunks");
+        auto getTableFileNameRsps = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("get_table_file_names");
         for (int index = 0; index < static_cast<int>(TableFiles.size()); ++index) {
             auto& file = TableFiles[index];
             {
-                auto rsp = fetchTableFilesSizesRsps[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching size of table files");
+                auto rsp = getTableFileSizesRsps[index];
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting table file size");
                 i64 tableSize = ConvertTo<i64>(TYsonString(rsp->value()));
                 if (tableSize > Config->TableFileSizeLimit) {
                     THROW_ERROR_EXCEPTION(
@@ -1581,13 +1586,13 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 }
             }
             {
-                auto rsp = fetchTableFilesRsps[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching chunks of table files");
+                auto rsp = fetchTableFileRsps[index];
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching table file chunks");
                 file.FetchResponse = rsp;
             }
             {
-                auto rsp = fetchTableFilesNamesRsps[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching names of table files");
+                auto rsp = getTableFileNameRsps[index];
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting table file name");
                 auto key = ConvertTo<Stroka>(TYsonString(rsp->value()));
                 file.FileName = file.Path.Attributes().Get<Stroka>("file_name", key);
                 file.Format = file.Path.Attributes().GetYson("format");
@@ -1919,7 +1924,7 @@ int TOperationControllerBase::SuggestJobCount(
 void TOperationControllerBase::InitUserJobSpec(
     NScheduler::NProto::TUserJobSpec* jobSpec,
     TUserJobSpecPtr config,
-    const std::vector<TUserFile>& files,
+    const std::vector<TRegularUserFile>& files,
     const std::vector<TUserTableFile>& tableFiles)
 {
     jobSpec->set_shell_command(config->Command);

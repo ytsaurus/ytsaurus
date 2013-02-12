@@ -1253,7 +1253,7 @@ private:
         InitUserJobSpec(
             jobSpecExt->mutable_reducer_spec(),
             Spec->Reducer,
-            Files,
+            RegularFiles,
             TableFiles);
 
         JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
