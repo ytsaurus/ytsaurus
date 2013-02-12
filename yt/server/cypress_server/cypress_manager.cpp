@@ -755,7 +755,7 @@ TCypressNodeBase* TCypressManager::LockVersionedNode(
     if (recursive) {
         YCHECK(!request.ChildKey);
         YCHECK(!request.AttributeKey);
-        ListSubtreeNodeIds(trunkNode, transaction, &nodesToLock);
+        ListSubtreeNodes(trunkNode, transaction, &nodesToLock);
     } else {
         nodesToLock.push_back(trunkNode);
     }
@@ -1029,7 +1029,7 @@ void TCypressManager::ReleaseLocks(TTransaction* transaction)
     transaction->LockedNodes().clear();
 }
 
-void TCypressManager::ListSubtreeNodeIds(
+void TCypressManager::ListSubtreeNodes(
     TCypressNodeBase* trunkNode,
     TTransaction* transaction,
     TSubtreeNodes* subtreeNodes)
@@ -1063,7 +1063,7 @@ void TCypressManager::ListSubtreeNodeIds(
             }
 
             FOREACH (const auto& pair, children) {
-                ListSubtreeNodeIds(pair.second, transaction, subtreeNodes);
+                ListSubtreeNodes(pair.second, transaction, subtreeNodes);
             }
             break;
         }
@@ -1072,7 +1072,7 @@ void TCypressManager::ListSubtreeNodeIds(
             auto* listRoot = static_cast<TListNode*>(trunkNode);
             FOREACH (const auto& childId, listRoot->IndexToChild()) {
                 auto* child = GetVersionedNode(childId, transaction);
-                ListSubtreeNodeIds(child, transaction, subtreeNodes);
+                ListSubtreeNodes(child, transaction, subtreeNodes);
             }
             break;
         }
