@@ -741,7 +741,7 @@ private:
         } catch (const std::exception& ex) {
             auto wrappedError = TError("Error initializing operation") << ex;
             SetOperationFinalState(operation, EOperationState::Failed, wrappedError);
-            MasterConnector->FinalizeRevivingOperationNode(operation);
+            MasterConnector->FinalizeOperationNode(operation);
             return;
         }
 
