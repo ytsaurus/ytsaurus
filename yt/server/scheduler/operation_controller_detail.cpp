@@ -120,7 +120,7 @@ void TOperationControllerBase::TTask::AddInput(const std::vector<TChunkStripePtr
     }
 }
 
-void TOperationControllerBase::TTask::ResumeInput(IChunkPoolInpul::TCookie cookie, TChunkStripePtr stripe)
+void TOperationControllerBase::TTask::ResumeInput(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe)
 {
     GetChunkPoolInput()->Resume(cookie, stripe);
     if (HasInputLocality()) {

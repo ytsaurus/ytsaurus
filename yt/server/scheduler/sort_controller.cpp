@@ -216,6 +216,7 @@ protected:
 
         TIntermediateTaskPtr Task;
         IChunkPoolOutput* SourcePool;
+        IChunkPoolInput* DestinationPool;
 
         IChunkPoolOutput::TCookie OutputCookie;
         IChunkPoolInput::TCookie InputCookie;
@@ -226,7 +227,7 @@ protected:
         : public TTask
     {
     public:
-        explicitTIntermediateTask(TSortControllerBase* controller)
+        explicit TIntermediateTask(TSortControllerBase* controller)
             : TTask(controller)
         { }
 
@@ -574,10 +575,10 @@ protected:
                 auto it = LostJobCookieMap.find(joblet->OutputCookie);
                 IChunkPoolInput::TCookie inputCookie;
                 if (it == LostJobCookieMap.end()) {
-                    auto inputCookie = Partition->SortedMergeTask->AddInput(stripe);
+                    inputCookie = Partition->SortedMergeTask->AddInput(stripe);
                 } else {
                     inputCookie = it->second;
-                    Partition->SortedMergeTask->ResumeInput(stripe);
+                    Partition->SortedMergeTask->ResumeInput(inputCookie, stripe);
                     LostJobCookieMap.erase(it);
                 }
 
