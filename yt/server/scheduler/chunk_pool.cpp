@@ -851,7 +851,6 @@ private:
         virtual TChunkStripeListPtr GetStripeList(TCookie cookie) override
         {
             const auto& run = Runs[cookie];
-            YCHECK(run.SuspendedCount == 0);
 
             auto list = New<TChunkStripeList>();
             list->PartitionTag = PartitionIndex;
