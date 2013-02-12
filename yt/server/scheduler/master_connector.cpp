@@ -794,7 +794,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        LOG_INFO("Updating nodes for %s operations",
+        LOG_INFO("Updating nodes for %d operations",
             static_cast<int>(UpdateLists.size()));
 
         auto awaiter = New<TParallelAwaiter>(CancelableControlInvoker);
