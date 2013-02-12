@@ -87,7 +87,7 @@ TJob::TJob(
 
     if (UserJobSpec) {
         JobProxyMemoryLimit -= UserJobSpec->memory_limit();
-        ResourceUsage.set_memory(JobProxyMemoryLimit + UserJobSpec->initial_memory_reserve());
+        ResourceUsage.set_memory(JobProxyMemoryLimit + UserJobSpec->memory_reserve());
     }
 }
 
