@@ -9,7 +9,12 @@ include_directories(
 
 add_subdirectory(ytlib)
 add_subdirectory(server)
-add_subdirectory(driver)
+
+if (YT_BUILD_ENABLE_DRIVER)
+  add_subdirectory(driver)
+else()
+  message(STATUS "Omitting driver from build (YT_BUILD_ENABLE_DRIVER = OFF)")
+endif()
 
 if (YT_BUILD_ENABLE_EXPERIMENTS)
   add_subdirectory(experiments)
