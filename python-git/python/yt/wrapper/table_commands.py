@@ -220,7 +220,7 @@ def create_table(path, recursive=None, replication_factor=None, attributes=None)
     attributes = get_value(attributes, {})
     if replication_factor is not None:
         attributes["replication_factor"] = replication_factor
-    create("table", table.name, attributes)
+    create("table", table.name, attributes=attributes)
 
 def create_temp_table(path=None, prefix=None):
     """ Creates temporary table by given path with given prefix """
