@@ -1333,7 +1333,7 @@ void TOperationControllerBase::OnInputTypesReceived(TObjectServiceProxy::TRspExe
                     break;
                 case EObjectType::Table:
                     TableFiles.push_back(TUserTableFile());
-                    file = &RegularFiles.back();
+                    file = &TableFiles.back();
                     break;
                 default:
                     THROW_ERROR_EXCEPTION("Object %s has invalid type: expected %s or %s, actual %s",
