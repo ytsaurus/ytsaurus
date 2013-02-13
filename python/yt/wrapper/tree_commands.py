@@ -89,42 +89,15 @@ def create(type, path, recursive=False, attributes=None):
         {
             "path": prepare_path(path),
             "type": type,
-            "attributes": get_value(attributes, {}),
-            "recursive": bool_to_string(recursive)
+            "recursive": bool_to_string(recursive),
+            "attributes": get_value(attributes, {})
         })
-
-def _dirs(path):
-    prefix = ""
-    if path.startswith("//"):
-        prefix = "//"
-    stripped = path.strip("/")
-    if not stripped:
-        return []
-    names = stripped.split("/")
-    res = []
-    for i in xrange(1, len(names) + 1):
-        res.append(prefix + "/".join(names[0:i]))
-    return res
-    
 
 def mkdir(path, recursive=None, create_prefix=True):
     """
     Creates directiry. By default parent directory should exist.
     """
     create("map_node", path, get_value(recursive, config.CREATE_RECURSIVE))
-    #if recursive is None:
-    #    recursive = config.CREATE_RECURSIVE
-    #if recursive:
-    #    if config.PREFIX and create_prefix:
-    #        mkdir(config.PREFIX[:-1], recursive=True, create_prefix=False)
-    #    should_create = False
-    #    for dir in _dirs(path):
-    #        if not should_create and not exists(dir):
-    #            should_create = True
-    #        if should_create:
-    #            mkdir(dir, False)
-    #else:
-    #    create("map_node", path)
 
 # TODO: maybe remove this methods
 def get_attribute(path, attribute, default=None):
