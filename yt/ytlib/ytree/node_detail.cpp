@@ -150,7 +150,7 @@ void TCompositeNodeMixin::RemoveRecursive(
 
     NYPath::TTokenizer tokenizer(path);
     tokenizer.Advance();
-    if (tokenizer.GetType() != NYPath::ETokenType::Literal || tokenizer.GetToken() != WildcardToken) {
+    if (tokenizer.GetType() != NYPath::ETokenType::Literal) {
         tokenizer.ThrowUnexpected();
     }
 
