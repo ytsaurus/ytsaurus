@@ -102,7 +102,7 @@ void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove
     }
 
     if (!request->recursive() && GetType() == ENodeType::Composite && AsComposite()->GetChildCount() > 0) {
-        THROW_ERROR_EXCEPTION("Cannot remove non-empty composite node when 'recursive' option is not set");
+        THROW_ERROR_EXCEPTION("Cannot remove non-empty composite node when \"recursive\" option is not set");
     }
 
     parent->AsComposite()->RemoveChild(this);
@@ -157,12 +157,9 @@ void TCompositeNodeMixin::RemoveRecursive(
         Clear();
 
         context->Reply();
-    }
-
-    else if (request->force()) {
+    } else if (request->force()) {
         context->Reply();
-    }
-    else {
+    } else {
         tokenizer.ThrowUnexpected();
     }
 }
@@ -243,7 +240,7 @@ void TMapNodeMixin::SetChild(const TYPath& path, INodePtr value, bool recursive)
         ThrowAlreadyExists(this);
     }
     auto factory = CreateFactory();
-    IMapNodePtr node = AsMap();
+    auto node = AsMap();
     while (tokenizer.GetType() != NYPath::ETokenType::EndOfStream) {
         tokenizer.Expect(NYPath::ETokenType::Slash);
 
@@ -255,7 +252,7 @@ void TMapNodeMixin::SetChild(const TYPath& path, INodePtr value, bool recursive)
 
         bool lastStep = (tokenizer.GetType() == NYPath::ETokenType::EndOfStream);
         if (!recursive && !lastStep) {
-            THROW_ERROR_EXCEPTION("Cannot create nodes recursively");
+            THROW_ERROR_EXCEPTION("Cannot create intermediate nodes when \"recursive\" option is not set");
         }
 
         auto newValue = lastStep ? value : factory->CreateMap();
@@ -312,7 +309,7 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
 void TListNodeMixin::SetChild(const TYPath& path, INodePtr value, bool recursive)
 {
     if (recursive) {
-        THROW_ERROR_EXCEPTION("Cannot create recursive path for list object");
+        THROW_ERROR_EXCEPTION("Cannot create intermediate nodes in a list");
     }
 
     int beforeIndex = -1;
