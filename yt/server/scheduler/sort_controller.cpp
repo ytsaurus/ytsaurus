@@ -20,9 +20,9 @@
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <server/job_proxy/config.h>
-
 #include <ytlib/transaction_client/transaction.h>
+
+#include <server/job_proxy/config.h>
 
 #include <cmath>
 
@@ -98,8 +98,8 @@ protected:
 
 
     // Forward declarations.
-    struct TCompleteJob;
-    typedef TIntrusivePtr<TCompleteJob> TCompleteJobPtr;
+    struct TCompletedJob;
+    typedef TIntrusivePtr<TCompletedJob> TCompleteJobPtr;
 
     class TIntermediateTask;
     typedef TIntrusivePtr<TIntermediateTask> TIntermediateTaskPtr;
@@ -188,13 +188,13 @@ protected:
 
     TPartitionTaskPtr PartitionTask;
 
-    // Map intermediate chunk id to its originating joblet.
+    //! Maps intermediate chunk id to its originating completed job.
     yhash_map<TChunkId, TCompleteJobPtr> ChunkOriginMap;
 
-    struct TCompleteJob
+    struct TCompletedJob
         : public TIntrinsicRefCounted
     {
-        TCompleteJob(
+        TCompletedJob(
             const TIntermediateTaskPtr& task,
             IChunkPoolOutput* sourcePool,
             IChunkPoolInput* destinationPool,
@@ -222,7 +222,7 @@ protected:
         IChunkPoolInput::TCookie InputCookie;
     };
 
-    //! Tasks that produce no direct output and whose job may therefore be lost.
+    //! Tasks that produce no direct output and whose completed job may therefore be lost.
     class TIntermediateTask
         : public TTask
     {
@@ -231,15 +231,17 @@ protected:
             : TTask(controller)
         { }
 
-        virtual void OnJobLost(TCompleteJobPtr completeJob)
+        virtual void OnJobLost(TCompleteJobPtr completedJob)
         {
             YCHECK(LostJobCookieMap.insert(std::make_pair(
-                completeJob->OutputCookie, completeJob->InputCookie)).second);
+                completedJob->OutputCookie,
+                completedJob->InputCookie)).second);
         }
 
     protected:
-        // For each lost job currently being replayed, map output cookie to corresponding input cookie.
+        //! For each lost job currently being replayed, maps output cookie to corresponding input cookie.
         yhash_map<IChunkPoolOutput::TCookie, IChunkPoolInput::TCookie> LostJobCookieMap;
+
     };
 
     //! Implements partition phase for sort operations and map phase for map-reduce operations.
@@ -348,20 +350,15 @@ protected:
                 LostJobCookieMap.erase(it);
             }
 
-            // Register new chunks in map
-            auto completeJob = New<TCompleteJob>(
+            // Store recovery info.
+            auto completedJob = New<TCompletedJob>(
                 this,
                 ~ChunkPool,
                 Controller->ShufflePool->GetInput(),
                 inputCookie,
                 joblet->OutputCookie,
                 joblet->Job->GetNode());
-
-            FOREACH (const auto& chunk, stripe->Chunks) {
-                YCHECK(Controller->ChunkOriginMap.insert(std::make_pair(
-                    TChunkId::FromProto(chunk->slice().chunk_id()),
-                    completeJob)).second);
-            }
+            Controller->RegisterIntermediateChunks(stripe, completedJob);
 
             // Kick-start sort and unordered merge tasks.
             // Compute sort data size delta.
@@ -383,10 +380,10 @@ protected:
             Controller->CheckSortStartThreshold();
         }
 
-        virtual void OnJobLost(TCompleteJobPtr completeJob) override
+        virtual void OnJobLost(TCompleteJobPtr completedJob) override
         {
             Controller->PartitionJobCounter.Lost(1);
-            TIntermediateTask::OnJobLost(completeJob);
+            TIntermediateTask::OnJobLost(completedJob);
         }
 
         virtual void OnJobFailed(TJobletPtr joblet) override
@@ -582,21 +579,15 @@ protected:
                     LostJobCookieMap.erase(it);
                 }
 
-                // Register new chunks in map
-                auto completeJob = New<TCompleteJob>(
+                // Store recovery info.
+                auto completedJob = New<TCompletedJob>(
                     this,
                     GetChunkPoolOutput(),
                     Partition->SortedMergeTask->GetChunkPoolInput(),
                     inputCookie,
                     joblet->OutputCookie,
                     joblet->Job->GetNode());
-
-                FOREACH (const auto& chunk, stripe->Chunks) {
-                    YCHECK(Controller->ChunkOriginMap.insert(std::make_pair(
-                        TChunkId::FromProto(chunk->slice().chunk_id()),
-                        completeJob)).second);
-                }
-
+                Controller->RegisterIntermediateChunks(stripe, completedJob);
             } else {
                 Controller->FinalSortJobCounter.Completed(1);
 
@@ -634,15 +625,17 @@ protected:
             TPartitionBoundTask::OnJobAborted(joblet);
         }
 
-        virtual void OnJobLost(TCompleteJobPtr completeJob) override
+        virtual void OnJobLost(TCompleteJobPtr completedJob) override
         {
             Controller->IntermediateSortJobCounter.Lost(1);
-            auto stripeList = completeJob->SourcePool->GetStripeList(completeJob->OutputCookie);
+            auto stripeList = completedJob->SourcePool->GetStripeList(completedJob->OutputCookie);
             Controller->SortDataSizeCounter.Lost(stripeList->TotalDataSize);
-            Partition->AddressToLocality[completeJob->ExecNode->GetAddress()] -= stripeList->TotalDataSize;
-            YCHECK(Partition->AddressToLocality[completeJob->ExecNode->GetAddress()] >= 0);
 
-            TIntermediateTask::OnJobLost(completeJob);
+            const auto& address = completedJob->ExecNode->GetAddress();
+            Partition->AddressToLocality[address] -= stripeList->TotalDataSize;
+            YCHECK(Partition->AddressToLocality[address] >= 0);
+
+            TIntermediateTask::OnJobLost(completedJob);
 
             Controller->ResetTaskLocalityDelays();
         }
@@ -1180,11 +1173,11 @@ protected:
         AddSortTasksPendingHints();
     }
 
-    static void CheckPartitionWriterBuffer(int partitionCount, NTableClient::TTableWriterConfigPtr config)
+    static void CheckPartitionWriterBuffer(int partitionCount, TTableWriterConfigPtr config)
     {
         auto averageBufferSize = config->MaxBufferSize / partitionCount / 2;
-        if (averageBufferSize < NTableClient::TChannelWriter::MinUpperReserveLimit) {
-            i64 minAppropriateSize = partitionCount * 2 * NTableClient::TChannelWriter::MinUpperReserveLimit;
+        if (averageBufferSize < TChannelWriter::MinUpperReserveLimit) {
+            i64 minAppropriateSize = partitionCount * 2 * TChannelWriter::MinUpperReserveLimit;
             THROW_ERROR_EXCEPTION(
                 "Too small table writer buffer size for partitioner (MaxBufferSize: %" PRId64 "). Min appropriate buffer size is %" PRId64,
                 averageBufferSize,
@@ -1234,27 +1227,34 @@ protected:
         return false;
     }
 
-    virtual void OnIntermediateChunkFailed(const NChunkClient::TChunkId& chunkId) override
+    virtual void OnIntermediateChunkFailed(const TChunkId& chunkId) override
     {
         auto it = ChunkOriginMap.find(chunkId);
         YCHECK(it != ChunkOriginMap.end());
-        auto& completeJob = it->second;
-        if (completeJob->IsLost)
+        auto& completedJob = it->second;
+        if (completedJob->IsLost)
             return;
 
+        LOG_INFO("Job is lost (Task: %s, OutputCookie: %d, InputCookie: %d)",
+            ~completedJob->Task->GetId(),
+            completedJob->OutputCookie,
+            completedJob->InputCookie);
+
         JobCounter.Lost(1);
-        LOG_INFO(
-            "Job is lost (Task: %s, OutputCookie: %d, InputCookie: %d)",
-            ~completeJob->Task->GetId(),
-            completeJob->OutputCookie,
-            completeJob->InputCookie);
-        completeJob->IsLost = true;
-        completeJob->DestinationPool->Suspend(completeJob->InputCookie);
-        completeJob->SourcePool->Lost(completeJob->OutputCookie);
-        completeJob->Task->OnJobLost(completeJob);
-        AddTaskPendingHint(completeJob->Task);
+        completedJob->IsLost = true;
+        completedJob->DestinationPool->Suspend(completedJob->InputCookie);
+        completedJob->SourcePool->Lost(completedJob->OutputCookie);
+        completedJob->Task->OnJobLost(completedJob);
+        AddTaskPendingHint(completedJob->Task);
     }
 
+    void RegisterIntermediateChunks(TChunkStripePtr stripe, TCompleteJobPtr completedJob)
+    {
+        FOREACH (const auto& chunk, stripe->Chunks) {
+            auto chunkId = TChunkId::FromProto(chunk->slice().chunk_id());
+            YCHECK(ChunkOriginMap.insert(std::make_pair(chunkId, completedJob)).second);
+        }
+    }
 
     // Resource management.
 
@@ -1790,7 +1790,7 @@ private:
             dataSize);
 
         bufferSize = std::min(
-            bufferSize + NTableClient::TChannelWriter::MaxUpperReserveLimit * static_cast<i64>(Partitions.size()),
+            bufferSize + TChannelWriter::MaxUpperReserveLimit * static_cast<i64>(Partitions.size()),
             PartitionJobIOConfig->TableWriter->MaxBufferSize);
 
         TNodeResources result;
@@ -2241,7 +2241,7 @@ private:
     virtual TNodeResources GetPartitionResources(
         i64 dataSize) const override
     {
-        i64 reserveSize = NTableClient::TChannelWriter::MaxUpperReserveLimit * static_cast<i64>(Partitions.size());
+        i64 reserveSize = TChannelWriter::MaxUpperReserveLimit * static_cast<i64>(Partitions.size());
         i64 bufferSize = std::min(
             reserveSize + PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()),
             PartitionJobIOConfig->TableWriter->MaxBufferSize);
