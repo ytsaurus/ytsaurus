@@ -1184,17 +1184,16 @@ private:
         ChunkPlacement = New<TChunkPlacement>(Config, Bootstrap);
         ChunkReplicator = New<TChunkReplicator>(Config, Bootstrap, ChunkPlacement, NodeLeaseTracker);
 
-        FOREACH (auto& pair, NodeMap) {
-            auto* node = pair.second;
-            ChunkPlacement->OnNodeRegistered(node);
-            ChunkReplicator->OnNodeRegistered(node);
-        }
-
+        LOG_INFO("Full chunk refresh started");
         PROFILE_TIMING ("/full_chunk_refresh_time") {
-            LOG_INFO("Full chunk refresh started");
+            FOREACH (auto& pair, NodeMap) {
+                auto* node = pair.second;
+                ChunkPlacement->OnNodeRegistered(node);
+                ChunkReplicator->OnNodeRegistered(node);
+            }
             ChunkReplicator->Start();
-            LOG_INFO("Full chunk refresh completed");
         }
+        LOG_INFO("Full chunk refresh completed");
     }
 
     virtual void OnActiveQuorumEstablished() override

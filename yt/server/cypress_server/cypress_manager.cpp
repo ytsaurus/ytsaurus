@@ -970,12 +970,14 @@ void TCypressManager::Clear()
 
 void TCypressManager::OnLeaderRecoveryComplete()
 {
+    LOG_INFO("Started creating node behaviors");
     YCHECK(NodeBehaviors.empty());
     FOREACH (const auto& pair, NodeMap) {
         if (!pair.first.IsBranched()) {
             CreateNodeBehavior(pair.second);
         }
     }
+    LOG_INFO("Finished creating node behaviors");
 }
 
 void TCypressManager::OnStopLeading()
