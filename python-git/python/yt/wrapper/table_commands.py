@@ -6,7 +6,7 @@ from http import read_content, get_host_for_heavy_operation
 from table import TablePath, to_table, to_name, prepare_path
 from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, move, mkdir, find_free_subpath, create, get_type
 from file_commands import smart_upload_file
-from transaction_commands import _make_transactioned_request
+from transaction_commands import _make_transactional_request
 from transaction import PingableTransaction
 from string_iter_io import StringIterIO
 from format import RawFormat
@@ -164,7 +164,7 @@ def _add_table_writer_spec(job_types, table_writer, spec):
 
 def _make_operation_request(command_name, spec, strategy, finalizer=None, verbose=False):
     def run_operation(finalizer):
-        operation = _make_transactioned_request(command_name, {"spec": spec}, verbose=verbose)
+        operation = _make_transactional_request(command_name, {"spec": spec}, verbose=verbose)
         get_value(strategy, config.DEFAULT_STRATEGY).process_operation(command_name, operation, finalizer)
 
     if not config.DETACHED:
@@ -279,7 +279,7 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
                 for i in xrange(config.WRITE_RETRIES_COUNT):
                     try:
                         with PingableTransaction(config.WRITE_TRANSACTION_TIMEOUT):
-                            _make_transactioned_request(
+                            _make_transactional_request(
                                 "write",
                                 params,
                                 data=buffer.get(),
@@ -295,7 +295,7 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
             params = {"path": table.get_json()}
             if table_writer is not None:
                 params["table_writer"] = table_writer
-            _make_transactioned_request(
+            _make_transactional_request(
                 "write",
                 params,
                 data=input_stream,
@@ -312,7 +312,7 @@ def read_table(table, format=None, response_type=None):
     format = _prepare_format(format)
     if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table.name):
         return EMPTY_GENERATOR
-    response = _make_transactioned_request(
+    response = _make_transactional_request(
         "read",
         {
             "path": table.get_json()

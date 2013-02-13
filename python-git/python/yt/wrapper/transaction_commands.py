@@ -13,7 +13,7 @@ def transaction_params(transaction=None, ping_ancestor_transactions=None):
 def _add_transaction_params(params):
     return update(deepcopy(params), transaction_params())
 
-def _make_transactioned_request(command_name, params, **kwargs):
+def _make_transactional_request(command_name, params, **kwargs):
     return make_request(command_name, _add_transaction_params(params), **kwargs)
 
 def start_transaction(parent_transaction=None, ping_ansector_transactions=None, timeout=None):
@@ -34,5 +34,5 @@ def lock(path):
     """
     Tries to lock the path. Raise exception if node already under exclusive lock.
     """
-    _make_transactioned_request("lock", {"path": path})
+    _make_transactional_request("lock", {"path": path})
 
