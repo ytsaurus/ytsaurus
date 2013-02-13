@@ -1,6 +1,5 @@
 import os
 import logging
-import sys
 from datetime import datetime
 
 class OperationProgressFormatter(logging.Formatter):
@@ -13,7 +12,9 @@ class OperationProgressFormatter(logging.Formatter):
         if date_format is not None:
             return created.strftime(date_format)
         else:
-            elapsed = int((datetime.now() - self._start_time).total_seconds() / 60)
+            def total_minutes(time):
+                return time.seconds / 60 + 60 * 24 * time.days
+            elapsed = total_minutes(datetime.now() - self._start_time)
             time = datetime.now()
             if time.microsecond > 0:
                 time = time.isoformat(" ")[:-3]
