@@ -315,6 +315,10 @@ void TListNodeMixin::SetChild(const TYPath& path, INodePtr value, bool recursive
     int beforeIndex = -1;
 
     NYPath::TTokenizer tokenizer(path);
+
+    tokenizer.Advance();
+    tokenizer.Expect(NYPath::ETokenType::Slash);
+
     tokenizer.Advance();
     tokenizer.Expect(NYPath::ETokenType::Literal);
 
