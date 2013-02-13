@@ -112,7 +112,7 @@ public:
     void RegisterNode(
         TAutoPtr<TCypressNodeBase> node,
         NTransactionServer::TTransaction* transaction,
-		NYTree::IAttributeDictionary* attributes = nullptr);
+        NYTree::IAttributeDictionary* attributes = nullptr);
 
     DECLARE_METAMAP_ACCESSORS(Node, TCypressNodeBase, TVersionedNodeId);
 

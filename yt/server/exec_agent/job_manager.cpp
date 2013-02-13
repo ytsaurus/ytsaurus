@@ -125,7 +125,7 @@ void TJobManager::StartWaitingJobs()
 
     auto& tracker = Bootstrap->GetMemoryUsageTracker();
 
-    FOREACH(const auto& pair, Jobs) {
+    FOREACH (const auto& pair, Jobs) {
         auto job = pair.second;
         if (job->GetState() != EJobState::Waiting)
             continue;

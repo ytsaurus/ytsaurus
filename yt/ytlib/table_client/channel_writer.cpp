@@ -43,7 +43,7 @@ void TChannelWriter::InitCapacity()
 {
     Capacity += RangeSizes.GetCapacity();
     Capacity += RangeColumns.GetCapacity();
-    FOREACH(const auto& column, FixedColumns) {
+    FOREACH (const auto& column, FixedColumns) {
         Capacity += column.GetCapacity();
     }
 }

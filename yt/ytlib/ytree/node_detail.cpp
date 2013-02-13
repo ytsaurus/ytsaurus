@@ -300,7 +300,7 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
         auto child = FindChild(adjustedIndex);
         const auto& verb = context->GetVerb();
         if (!child && verb == "Exists") {
-        	return IYPathService::TResolveResult::Here("/" + path);
+            return IYPathService::TResolveResult::Here("/" + path);
         }
         return IYPathService::TResolveResult::There(child, tokenizer.GetSuffix());
     }

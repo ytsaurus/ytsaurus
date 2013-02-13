@@ -18,7 +18,7 @@ TEST(TNullableDeathTest, Uninitialized)
 }
 #endif
 
-template<class T>
+template <class T>
 inline void TestNullable(const TNullable<T>& nullable, bool initialized, T value = T())
 {
     EXPECT_EQ(initialized, nullable.HasValue());

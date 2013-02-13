@@ -313,7 +313,7 @@ void TJob::OnTableDownloaded(
         chunks.end(),
         tableFileRsp.table().chunks().begin(),
         tableFileRsp.table().chunks().end());
-    FOREACH(auto& chunk, chunks) {
+    FOREACH (auto& chunk, chunks) {
         chunk.clear_node_addresses();
         chunk.add_node_addresses(Bootstrap->GetPeerAddress());
     }

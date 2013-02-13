@@ -41,10 +41,10 @@ void ZlibCompress(StreamSource* source, StreamSink* sink, int level)
 
             source->Skip(previousAvailable - stream.avail_in);
             sink->Append(buffer, BufferSize - stream.avail_out);
-        } while(stream.avail_out == 0);
+        } while (stream.avail_out == 0);
         YCHECK(stream.avail_in == 0);
 
-    } while(flush != Z_FINISH);
+    } while (flush != Z_FINISH);
     YCHECK(returnCode == Z_STREAM_END);
 
     deflateEnd(&stream);
@@ -95,7 +95,7 @@ void ZlibDecompress(StreamSource* source, std::vector<char>* output)
 
         source->Skip(available - stream.avail_in);
         currentPos = output->size() - stream.avail_out;
-    } while(returnCode != Z_STREAM_END);
+    } while (returnCode != Z_STREAM_END);
 
     YCHECK(currentPos + 1 == output->size());
     output->resize(currentPos);

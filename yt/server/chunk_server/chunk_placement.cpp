@@ -141,7 +141,7 @@ TSmallVector<TDataNode*, TypicalReplicationFactor> TChunkPlacement::GetUploadTar
             std::back_inserter(currentResult),
             sampleCount);
 
-        FOREACH(const auto& feasibleNode, currentResult) {
+        FOREACH (const auto& feasibleNode, currentResult) {
             resultNodes.push_back(feasibleNode.first);
         }
 

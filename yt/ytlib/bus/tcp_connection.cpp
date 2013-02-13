@@ -671,8 +671,8 @@ bool TTcpConnection::OnAckPacketReceived()
     if (UnackedMessages.empty()) {
         LOG_ERROR("Unexpected ack received");
         SyncClose(TError(
-        	NRpc::EErrorCode::TransportError,
-        	"Unexpected ack received"));
+            NRpc::EErrorCode::TransportError,
+            "Unexpected ack received"));
         return false;
     }
 
@@ -683,8 +683,8 @@ bool TTcpConnection::OnAckPacketReceived()
             ~unackedMessage.PacketId.ToString(),
             ~Decoder.GetPacketId().ToString());
         SyncClose(TError(
-        	NRpc::EErrorCode::TransportError,
-        	"Ack for invalid packet ID received"));
+            NRpc::EErrorCode::TransportError,
+            "Ack for invalid packet ID received"));
         return false;
     }
 

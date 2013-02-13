@@ -114,7 +114,7 @@ public:
     virtual i64 GetRowCount() const override
     {
         i64 total = 0;
-        FOREACH(const auto& reader, Readers) {
+        FOREACH (const auto& reader, Readers) {
             total += reader->GetItemCount();
         }
         return total;
@@ -128,7 +128,7 @@ public:
     virtual i64 GetRowIndex() const override
     {
         i64 total = 0;
-        FOREACH(const auto& reader, Readers) {
+        FOREACH (const auto& reader, Readers) {
             total += reader->GetItemIndex();
         }
         return total;
@@ -137,7 +137,7 @@ public:
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const override
     {
         std::vector<NChunkClient::TChunkId> result;
-        FOREACH(auto reader, Readers) {
+        FOREACH (auto reader, Readers) {
             auto part = reader->GetFailedChunks();
             result.insert(result.end(), part.begin(), part.end());
         }

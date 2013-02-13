@@ -1978,7 +1978,7 @@ void TOperationControllerBase::InitUserJobSpec(
     }
 
     auto fillEnvironment = [&] (yhash_map<Stroka, Stroka>& env) {
-        FOREACH(const auto& pair, env) {
+        FOREACH (const auto& pair, env) {
             jobSpec->add_environment(Sprintf("%s=%s", ~pair.first, ~pair.second));
         }
     };

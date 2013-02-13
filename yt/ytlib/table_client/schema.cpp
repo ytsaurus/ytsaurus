@@ -414,7 +414,7 @@ void Serialize(const NProto::TReadLimit& readLimit, NYson::IYsonConsumer* consum
     else if (readLimit.has_key()) {
         YCHECK(!readLimit.has_row_index());
         consumer->OnBeginList();
-        FOREACH(const auto& part, readLimit.key().parts()) {
+        FOREACH (const auto& part, readLimit.key().parts()) {
             consumer->OnListItem();
             switch (part.type()) {
                 case EKeyPartType::String:

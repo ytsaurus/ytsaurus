@@ -124,7 +124,7 @@ void TTableChunkWriter::FinalizeRow(const TRow& row)
     RowCount += 1;
 
     CurrentSize = EncodingWriter->GetCompressedSize();
-    FOREACH(const auto& channel, Buffers) {
+    FOREACH (const auto& channel, Buffers) {
         CurrentSize += channel->GetCurrentSize();
     }
 

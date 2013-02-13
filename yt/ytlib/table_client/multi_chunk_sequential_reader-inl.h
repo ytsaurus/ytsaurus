@@ -8,7 +8,7 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TChunkReader>
+template <class TChunkReader>
 TMultiChunkSequentialReader<TChunkReader>::TMultiChunkSequentialReader(
     TTableReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
@@ -32,7 +32,7 @@ TMultiChunkSequentialReader<TChunkReader>::TMultiChunkSequentialReader(
     }
 }
 
-template<class TChunkReader>
+template <class TChunkReader>
 TAsyncError TMultiChunkSequentialReader<TChunkReader>::AsyncOpen()
 {
     YCHECK(CurrentReaderIndex == -1);

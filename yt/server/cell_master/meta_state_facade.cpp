@@ -120,10 +120,10 @@ public:
     void ValidateActiveLeader()
     {
         if (MetaStateManager->GetStateStatus() != EPeerStatus::Leading) {
-			throw TNotALeaderException()
+            throw TNotALeaderException()
                 <<= ERROR_SOURCE_LOCATION()
                 >>= TError(EErrorCode::Unavailable, "Not a leader");
-		}
+        }
         if (!MetaStateManager->HasActiveQuorum()) {
             THROW_ERROR_EXCEPTION(EErrorCode::Unavailable, "No active quorum");
         }

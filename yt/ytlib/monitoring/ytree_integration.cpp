@@ -16,7 +16,7 @@ TYPathServiceProducer CreateMonitoringProducer(
     TMonitoringManager::TPtr monitoringManager)
 {
     return BIND([=] () -> IYPathServicePtr {
-    	return monitoringManager->GetRoot();
+        return monitoringManager->GetRoot();
     });
 }
 

@@ -93,7 +93,7 @@ double TUserJobIO::GetProgress() const
     i64 total = 0;
     i64 current = 0;
 
-    FOREACH(const auto& input, Inputs) {
+    FOREACH (const auto& input, Inputs) {
         total += input->GetRowCount();
         current += input->GetRowIndex();
     }

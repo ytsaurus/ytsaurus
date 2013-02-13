@@ -39,7 +39,7 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
     , FetchingCompleteAwaiter(New<TParallelAwaiter>())
     , Logger(TableReaderLogger)
 {
-    FOREACH(const auto& inputChunk, InputChunks) {
+    FOREACH (const auto& inputChunk, InputChunks) {
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(inputChunk.extensions());
         ItemCount_ += miscExt.row_count();
     }

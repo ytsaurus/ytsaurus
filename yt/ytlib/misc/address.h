@@ -57,7 +57,7 @@ private:
     sockaddr_storage Storage;
     socklen_t Length;
 
-	static socklen_t GetGenericLength(const sockaddr& sockAddr);
+    static socklen_t GetGenericLength(const sockaddr& sockAddr);
 
 };
 

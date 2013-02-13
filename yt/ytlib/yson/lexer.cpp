@@ -121,8 +121,8 @@ public:
                         break;
 
                     case EInnerState::AfterPlus:
-                    	FinishPlus();
-                    	break;
+                        FinishPlus();
+                        break;
 
                     default:
                         YUNREACHABLE();
@@ -404,9 +404,9 @@ private:
         if (!isdigit(*begin)) {
             ProduceToken(ETokenType::Plus);
             return begin;
-    	}
+        }
 
-    	Reset();
+        Reset();
         TokenBuffer.push_back('+');
         SetInProgressState(EInnerState::InsideNumeric);
         return ReadNumeric(begin, end);

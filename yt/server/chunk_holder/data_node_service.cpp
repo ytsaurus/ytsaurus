@@ -785,7 +785,7 @@ void TDataNodeService::MakeChunkSplits(
     createNewSplit();
 
     auto samplesLeft = std::distance(beginIt, endIt) - 1;
-    while(samplesLeft > 0) {
+    while (samplesLeft > 0) {
         ++beginIt;
         --samplesLeft;
         dataSize += dataSizeBetweenSamples;

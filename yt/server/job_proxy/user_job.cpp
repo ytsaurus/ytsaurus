@@ -339,7 +339,7 @@ private:
             SetError(TError("Unknown error during job IO"));
         }
 
-        FOREACH(auto& pipe, pipes) {
+        FOREACH (auto& pipe, pipes) {
             // Close can throw exception which will cause JobProxy death.
             // For now let's assume it is unrecoverable.
             // Anyway, system seems to be in a very bad state if this happens.
