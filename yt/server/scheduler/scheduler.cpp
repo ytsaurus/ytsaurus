@@ -36,6 +36,7 @@
 #include <ytlib/object_client/object_ypath_proxy.h>
 
 #include <ytlib/scheduler/scheduler_proxy.h>
+#include <ytlib/scheduler/helpers.h>
 
 #include <ytlib/ytree/ypath_proxy.h>
 #include <ytlib/ytree/fluent.h>
@@ -1321,11 +1322,13 @@ private:
 
     void BuildOperationYson(TOperationPtr operation, IYsonConsumer* consumer)
     {
+        auto state = operation->GetState();
+        bool hasProgress = state == EOperationState::Running || IsOperationFinished(state);
         BuildYsonMapFluently(consumer)
             .Item(ToString(operation->GetOperationId())).BeginMap()
                 .Do(BIND(&NScheduler::BuildOperationAttributes, operation))
                 .Item("progress").BeginMap()
-                    .Do(BIND(&IOperationController::BuildProgressYson, operation->GetController()))
+                    .DoIf(hasProgress, BIND(&IOperationController::BuildProgressYson, operation->GetController()))
                     .Do(BIND(&ISchedulerStrategy::BuildOperationProgressYson, ~Strategy, operation))
                 .EndMap()
                 .Item("running_jobs").BeginAttributes()
