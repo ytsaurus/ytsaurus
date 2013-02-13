@@ -20,7 +20,7 @@ class PyTest(TestCommand):
 
 def main():
     requires =["requests>=1.1.0", "simplejson"]
-    if sys.version_info[:2] < (2, 6):
+    if sys.version_info[:2] <= (2, 6):
         requires.append("argparse")
 
 
