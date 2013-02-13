@@ -42,7 +42,9 @@ message TRspSet
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqRemove
-{ }
+{
+    required bool recursive = 1;
+}
 
 message TRspRemove
 { }

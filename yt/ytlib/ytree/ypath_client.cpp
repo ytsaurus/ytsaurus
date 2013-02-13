@@ -301,6 +301,7 @@ void SyncYPathSet(IYPathServicePtr service, const TYPath& path, const TYsonStrin
 void SyncYPathRemove(IYPathServicePtr service, const TYPath& path)
 {
     auto request = TYPathProxy::Remove(path);
+    request->set_recursive(true);
     auto response = ExecuteVerb(service, request).Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(*response);
 }

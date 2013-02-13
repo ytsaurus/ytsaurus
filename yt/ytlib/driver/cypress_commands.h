@@ -74,10 +74,15 @@ struct TRemoveRequest
     : public TTransactedRequest
 {
     NYPath::TRichYPath Path;
+    bool Recursive;
 
     TRemoveRequest()
     {
         Register("path", Path);
+        // TODO(ignat): fix all places that use true default value
+        // and change default value to false
+        Register("recursive", Recursive)
+            .Default(true);
     }
 };
 

@@ -101,6 +101,10 @@ void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove
         THROW_ERROR_EXCEPTION("Cannot remove the root");
     }
 
+    if (!request->recursive() && GetType() == ENodeType::Composite && AsComposite()->GetChildCount() > 0) {
+        THROW_ERROR_EXCEPTION("Cannot remove non-empty composite node when recursive option is not set.");
+    }
+
     parent->AsComposite()->RemoveChild(this);
     context->Reply();
 }
