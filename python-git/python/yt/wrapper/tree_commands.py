@@ -1,7 +1,7 @@
 import config
 from common import parse_bool, flatten, get_value, bool_to_string
 from format import JsonFormat, YsonFormat
-from transaction_commands import _make_transactioned_request
+from transaction_commands import _make_transactional_request
 from table import prepare_path, to_name
 
 from yt.yson.yson_types import YsonString
@@ -20,7 +20,7 @@ def get(path, attributes=None, format=None, spec=None):
 
     Be carefull: attributes have weird representation in json format.
     """
-    return _make_transactioned_request(
+    return _make_transactional_request(
         "get",
         {
             "path": prepare_path(path),
@@ -33,14 +33,14 @@ def set(path, value):
     """
     Sets the value by path. Value should json-able object.
     """
-    _make_transactioned_request(
+    _make_transactional_request(
         "set",
         {"path": prepare_path(path)},
         data=json.dumps(value),
         format=JsonFormat())
 
 def copy(source_path, destination_path):
-    _make_transactioned_request(
+    _make_transactional_request(
         "copy",
         {
             "source_path": prepare_path(source_path),
@@ -48,7 +48,7 @@ def copy(source_path, destination_path):
         })
 
 def move(source_path, destination_path):
-    _make_transactioned_request(
+    _make_transactional_request(
         "move",
         {
             "source_path": prepare_path(source_path),
@@ -60,7 +60,7 @@ def list(path, max_size=1000, format=None):
     Lists all items in the path. Paht should be map_node or list_node.
     In case of map_node it returns keys of the node.
     """
-    return _make_transactioned_request(
+    return _make_transactional_request(
         "list",
         {
             "path": prepare_path(path),
@@ -70,12 +70,12 @@ def list(path, max_size=1000, format=None):
 
 def exists(path):
     return parse_bool(
-        _make_transactioned_request(
+        _make_transactional_request(
             "exists",
              {"path": prepare_path(path)}))
 
 def remove(path, recursive=False, force=False):
-    _make_transactioned_request(
+    _make_transactional_request(
         "remove",
         {
             "path": prepare_path(path),
@@ -84,7 +84,7 @@ def remove(path, recursive=False, force=False):
         })
 
 def create(type, path, recursive=False, attributes=None):
-    _make_transactioned_request(
+    _make_transactional_request(
         "create",
         {
             "path": prepare_path(path),
