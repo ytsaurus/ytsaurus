@@ -69,6 +69,7 @@ void TRemoveCommand::DoExecute()
     TObjectServiceProxy proxy(Context->GetMasterChannel());
     auto req = TYPathProxy::Remove(Request->Path.GetPath());
     req->set_recursive(Request->Recursive); 
+    req->set_force(Request->Force); 
     SetTransactionId(req, GetTransactionId(false));
     NMetaState::GenerateRpcMutationId(req);
 
@@ -114,6 +115,7 @@ void TCreateCommand::DoExecute()
         }
 
         auto req = TCypressYPathProxy::Create(Request->Path.Get().GetPath());
+        req->set_recursive(Request->Recursive);
         req->set_type(Request->Type);
         SetTransactionId(req, GetTransactionId(false));
         NMetaState::GenerateRpcMutationId(req);

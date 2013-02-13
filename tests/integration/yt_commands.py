@@ -93,8 +93,8 @@ def set_str(path, value, **kwargs):
 def ls_str(path, **kwargs):
     return command('list', path, **kwargs)
 
-def create(object_type, path, **kwargs):
-    return command('create', object_type, path, **kwargs)
+def create(object_type, path, *args, **kwargs):
+    return command('create', object_type, path, *args, **kwargs)
 
 def copy(source_path, destination_path, **kwargs):
     return command('copy', source_path, destination_path, **kwargs)

@@ -2,10 +2,7 @@
 
 from yt.wrapper.tests.base import YtTestBase, TEST_DIR
 from yt.environment import YTEnv
-import yt.wrapper.config as config
 import yt.wrapper as yt
-
-from StringIO import StringIO
 
 class TestDefaultBehaviour(YtTestBase, YTEnv):
     @classmethod
@@ -42,14 +39,13 @@ class TestDefaultBehaviour(YtTestBase, YTEnv):
     def test_remove(self):
         for recursive in [False, True]:
             self.assertRaises(yt.YtError, lambda: yt.remove(TEST_DIR + "/some_node", recursive=recursive))
-            yt.remove(TEST_DIR + "/some_node", recursive=recursive, check_existance=True)
+            yt.remove(TEST_DIR + "/some_node", recursive=recursive, force=True)
 
-
-        for check_existance in [False, True]:
+        for force in [False, True]:
             yt.set(TEST_DIR + "/some_node", {})
             yt.remove(TEST_DIR + "/some_node",
                       recursive=True,
-                      check_existance=check_existance)
+                      force=force)
 
 
     def test_mkdir(self):

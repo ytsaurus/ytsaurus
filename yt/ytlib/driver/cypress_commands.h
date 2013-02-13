@@ -75,6 +75,7 @@ struct TRemoveRequest
 {
     NYPath::TRichYPath Path;
     bool Recursive;
+    bool Force;
 
     TRemoveRequest()
     {
@@ -83,6 +84,8 @@ struct TRemoveRequest
         // and change default value to false
         Register("recursive", Recursive)
             .Default(true);
+        Register("force", Force)
+            .Default(false);
     }
 };
 
@@ -140,6 +143,7 @@ struct TCreateRequest
     TNullable<NYPath::TRichYPath> Path;
     NObjectClient::EObjectType Type;
     NYTree::INodePtr Attributes;
+    bool Recursive;
 
     TCreateRequest()
     {
@@ -148,6 +152,8 @@ struct TCreateRequest
         Register("type", Type);
         Register("attributes", Attributes)
             .Default(NULL);
+        Register("recursive", Recursive)
+            .Default(false);
     }
 };
 

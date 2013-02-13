@@ -91,7 +91,8 @@ protected:
 
     virtual void SetChild(
         const TYPath& path,
-        INodePtr value) = 0;
+        INodePtr value,
+        bool recursive) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -113,7 +114,8 @@ protected:
 
     virtual void SetChild(
         const TYPath& path,
-        INodePtr value) override;
+        INodePtr value,
+        bool recursive) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -129,7 +131,8 @@ protected:
 
     void SetChild(
         const TYPath& path,
-        INodePtr value);
+        INodePtr value,
+        bool recursive);
 
 };
 

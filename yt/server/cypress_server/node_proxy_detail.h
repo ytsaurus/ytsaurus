@@ -152,7 +152,7 @@ protected:
     ICypressNodeProxyPtr ResolveSourcePath(const NYPath::TYPath& path);
 
     virtual bool CanHaveChildren() const;
-    virtual void SetChild(const NYPath::TYPath& path, NYTree::INodePtr value);
+    virtual void SetChild(const NYPath::TYPath& path, NYTree::INodePtr value, bool recursive);
 
     DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, Lock);
     DECLARE_RPC_SERVICE_METHOD(NCypressClient::NProto, Create);
@@ -328,7 +328,7 @@ private:
     typedef TCypressNodeProxyBase<TCompositeCypressNodeProxyNontemplateBase, NYTree::IMapNode, TMapNode> TBase;
 
     virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
-    virtual void SetChild(const NYPath::TYPath& path, NYTree::INodePtr value) override;
+    virtual void SetChild(const NYPath::TYPath& path, NYTree::INodePtr value, bool recursive) override;
     virtual IYPathService::TResolveResult ResolveRecursive(const NYPath::TYPath& path, NRpc::IServiceContextPtr context) override;
 
     void DoRemoveChild(TMapNode* impl, const Stroka& key, TCypressNodeBase* childImpl);
@@ -365,7 +365,8 @@ private:
 
     virtual void SetChild(
         const NYPath::TYPath& path,
-        NYTree::INodePtr value);
+        NYTree::INodePtr value,
+        bool recursive);
     virtual IYPathService::TResolveResult ResolveRecursive(
         const NYPath::TYPath& path,
         NRpc::IServiceContextPtr context) override;

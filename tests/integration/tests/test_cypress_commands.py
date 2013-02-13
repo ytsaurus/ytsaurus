@@ -520,3 +520,14 @@ class TestCypressCommands(YTEnvSetup):
         assert get('//tmp/@id') == get('//tmp/a/@parent_id')
         abort_transaction(tx)
         assert get('//tmp/@id') == get('//tmp/a/@parent_id')
+
+    def test_create(self):
+        remove("//tmp/*")
+        create("map_node", "//tmp/some_node")
+
+        with pytest.raises(YTError): create("map_node", "//tmp/a/b")
+        create("map_node", "//tmp/a/b", "--recursive")
+
+        with pytest.raises(YTError): create("map_node", "//tmp/a/b")
+        create("map_node", "//tmp/a/b", "--recursive")
+
