@@ -54,7 +54,7 @@ TFileLogWriter::TFileLogWriter(
     : FileName(fileName)
     , Pattern(pattern)
     , Initialized(false)
-{ } 
+{ }
 
 void TFileLogWriter::EnsureInitialized()
 {

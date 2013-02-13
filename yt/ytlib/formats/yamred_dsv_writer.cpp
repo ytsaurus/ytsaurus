@@ -132,7 +132,7 @@ void TYamredDsvWriter::RememberValue(const TStringBuf& value)
     }
     State = EState::None;
 }
-    
+
 void TYamredDsvWriter::WriteRow()
 {
     WriteYamrField(Config->KeyColumnNames, KeyFields);
@@ -162,7 +162,7 @@ void TYamredDsvWriter::WriteYamrField(
 
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 } // namespace NFormats
 } // namespace NYT
 

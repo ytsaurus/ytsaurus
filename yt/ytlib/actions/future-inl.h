@@ -50,19 +50,19 @@ public:
     const T& Get() const
     {
         TGuard<TSpinLock> guard(SpinLock);
-        
+
         if (Value.HasValue()) {
             return Value.Get();
         }
-        
+
         if (!ReadyEvent) {
             ReadyEvent.Reset(new Event());
         }
-        
+
         guard.Release();
         ReadyEvent->Wait();
-        
-        YASSERT(Value.HasValue());       
+
+        YASSERT(Value.HasValue());
         return Value.Get();
     }
 
@@ -87,20 +87,20 @@ public:
             "U have to be convertible to T");
 
         TListeners listeners;
-        
+
         {
             TGuard<TSpinLock> guard(SpinLock);
             YASSERT(!Value.HasValue());
             Value.Assign(std::forward<U>(value));
-        
+
             auto* event = ~ReadyEvent;
             if (event) {
                 event->Signal();
             }
-        
+
             Listeners.swap(listeners);
         }
-        
+
         const T& storedValue = Value.Get();
         FOREACH (auto& listener, listeners) {
             listener.Run(storedValue);
@@ -140,7 +140,7 @@ private:
     TCallback<void(T)> OnValue;
     TClosure OnTimeout;
 
-    TAtomic CallbackAlreadyRan; 
+    TAtomic CallbackAlreadyRan;
 
     bool AtomicAcquire()
     {
@@ -288,7 +288,7 @@ private:
     TClosure OnValue;
     TClosure OnTimeout;
 
-    TAtomic CallbackAlreadyRan; 
+    TAtomic CallbackAlreadyRan;
 
     bool AtomicAcquire()
     {
@@ -361,7 +361,7 @@ inline TFuture<T>::TFuture(TFuture<T>&& other)
 template <class T>
 inline TFuture<T>::operator TUnspecifiedBoolType() const
 {
-    return Impl ? &TFuture::Impl : NULL;   
+    return Impl ? &TFuture::Impl : NULL;
 }
 
 template <class T>
@@ -522,7 +522,7 @@ inline TFuture<void>::TFuture(TFuture<void>&& other)
 
 inline TFuture<void>::operator TUnspecifiedBoolType() const
 {
-    return Impl ? &TFuture::Impl : NULL; 
+    return Impl ? &TFuture::Impl : NULL;
 }
 
 inline void TFuture<void>::Reset()
@@ -694,7 +694,7 @@ inline TPromise<T>::TPromise(TPromise<T>&& other)
 template <class T>
 inline TPromise<T>::operator TUnspecifiedBoolType() const
 {
-    return Impl ? &TPromise::Impl : NULL;   
+    return Impl ? &TPromise::Impl : NULL;
 }
 
 template <class T>
@@ -821,7 +821,7 @@ inline TPromise<void>::TPromise(TPromise<void>&& other)
 
 inline TPromise<void>::operator TUnspecifiedBoolType() const
 {
-    return Impl ? &TPromise::Impl : NULL;   
+    return Impl ? &TPromise::Impl : NULL;
 }
 
 inline bool TPromise<void>::IsNull() const

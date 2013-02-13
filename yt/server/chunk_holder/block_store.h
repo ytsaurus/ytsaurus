@@ -48,7 +48,7 @@ public:
 
     //! Gets (asynchronously) a block from the store.
     /*!
-     * This call returns an async result that becomes set when the 
+     * This call returns an async result that becomes set when the
      * block is fetched. Fetching an already-cached block is cheap
      * (i.e. requires no context switch). Fetching an uncached block
      * enqueues a disk-read action to the appropriate IO queue.

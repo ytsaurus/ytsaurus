@@ -24,7 +24,7 @@ struct TChunkMetaHeader
 
     //! Signature, must be #ExpectedSignature for valid chunks.
     ui64 Signature;
-    
+
     //! Chunk meta checksum.
     TChecksum Checksum;
 };

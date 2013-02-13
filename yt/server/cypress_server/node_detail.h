@@ -162,7 +162,7 @@ public:
             ~branchedNode,
             transaction,
             mode);
-        
+
         // Run custom stuff.
         DoBranch(
             dynamic_cast<const TImpl*>(originatingNode),
@@ -225,12 +225,12 @@ protected:
         UNUSED(response);
 
         auto objectManager = Bootstrap->GetObjectManager();
-     
+
         auto nodeId = TVersionedNodeId(objectManager->GenerateId(GetObjectType()));
-        
+
         TAutoPtr<TImpl> node(new TImpl(nodeId));
         node->SetTrunkNode(~node);
-        
+
         return node;
     }
 
@@ -276,7 +276,7 @@ private:
 
 };
 
-//////////////////////////////////////////////////////////////////////////////// 
+////////////////////////////////////////////////////////////////////////////////
 
 namespace NDetail {
 
@@ -307,7 +307,7 @@ struct TCypressScalarTypeTraits<double>
 
 } // namespace NDetail
 
-//////////////////////////////////////////////////////////////////////////////// 
+////////////////////////////////////////////////////////////////////////////////
 
 template <class TValue>
 class TScalarNode
@@ -329,7 +329,7 @@ public:
         auto* output = context.GetOutput();
         ::Save(output, Value_);
     }
-    
+
     virtual void Load(const NCellMaster::TLoadContext& context) override
     {
         TCypressNodeBase::Load(context);
@@ -342,7 +342,7 @@ typedef TScalarNode<Stroka> TStringNode;
 typedef TScalarNode<i64>    TIntegerNode;
 typedef TScalarNode<double> TDoubleNode;
 
-//////////////////////////////////////////////////////////////////////////////// 
+////////////////////////////////////////////////////////////////////////////////
 
 template <class TValue>
 class TScalarNodeTypeHandler
@@ -404,7 +404,7 @@ typedef TScalarNodeTypeHandler<Stroka> TStringNodeTypeHandler;
 typedef TScalarNodeTypeHandler<i64>    TIntegerNodeTypeHandler;
 typedef TScalarNodeTypeHandler<double> TDoubleNodeTypeHandler;
 
-//////////////////////////////////////////////////////////////////////////////// 
+////////////////////////////////////////////////////////////////////////////////
 
 class TMapNode
     : public TCypressNodeBase
@@ -424,7 +424,7 @@ public:
 
 };
 
-//////////////////////////////////////////////////////////////////////////////// 
+////////////////////////////////////////////////////////////////////////////////
 
 class TMapNodeTypeHandler
     : public TCypressNodeTypeHandlerBase<TMapNode>
@@ -459,7 +459,7 @@ private:
         NTransactionServer::TTransaction* transaction) override;
 };
 
-//////////////////////////////////////////////////////////////////////////////// 
+////////////////////////////////////////////////////////////////////////////////
 
 class TListNode
     : public TCypressNodeBase
@@ -478,7 +478,7 @@ public:
 
 };
 
-//////////////////////////////////////////////////////////////////////////////// 
+////////////////////////////////////////////////////////////////////////////////
 
 class TListNodeTypeHandler
     : public TCypressNodeTypeHandlerBase<TListNode>
@@ -513,7 +513,7 @@ private:
         NTransactionServer::TTransaction* transaction) override;
 };
 
-//////////////////////////////////////////////////////////////////////////////// 
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCypressServer
 } // namespace NYT

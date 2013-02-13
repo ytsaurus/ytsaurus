@@ -31,7 +31,7 @@ struct ICypressNodeProxy
     //! Returns resources used by the object.
     /*!
      *  This is displayed in @resource_usage attribute and is not used for accounting.
-     *  
+     *
      *  \see #ICypressNode::GetResourceUsage
      */
     virtual NSecurityServer::TClusterResources GetResourceUsage() const = 0;

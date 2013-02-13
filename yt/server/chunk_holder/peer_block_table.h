@@ -22,7 +22,7 @@ struct TPeerInfo
     { }
 };
 
-//////////////////////////////////////////////////////////////////////////////// 
+////////////////////////////////////////////////////////////////////////////////
 
 //! When Chunk Holder sends a block to a certain client
 //! its address is remembered to facilitate peer-to-peer transfers.
@@ -36,13 +36,13 @@ class TPeerBlockTable
 {
 public:
     TPeerBlockTable(TPeerBlockTableConfigPtr config);
-    
+
     //! Gets peers where a particular block was sent to.
     /*!
      *  Also sweeps expired peers.
      */
     const std::vector<TPeerInfo>& GetPeers(const TBlockId& blockId);
-    
+
     //! For a given block, registers a new peer or updates the existing one.
     /*!
      *  Also sweeps expired peers.
@@ -65,7 +65,7 @@ private:
     TInstant LastSwept;
 };
 
-//////////////////////////////////////////////////////////////////////////////// 
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkHolder
 } // namespace NYT

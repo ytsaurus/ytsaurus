@@ -28,7 +28,7 @@ public:
         const TReaderOptions& options = TReaderOptions());
 
     TTableChunkReaderPtr CreateNewReader(
-        const NProto::TInputChunk& inputChunk, 
+        const NProto::TInputChunk& inputChunk,
         const NChunkClient::IAsyncReaderPtr& chunkReader);
 
     bool KeepInMemory() const;
@@ -97,7 +97,7 @@ private:
 
     bool DoNextRow();
     bool ContinueNextRow(
-        int channelIndex, 
+        int channelIndex,
         TError error);
 
     void MakeCurrentRow();
@@ -137,7 +137,7 @@ private:
 
     NProto::TKeyColumnsExt KeyColumnsExt;
 
-    /*! 
+    /*!
      *  See #DoNextRow for usage.
      */
     const TAsyncErrorPromise SuccessResult;

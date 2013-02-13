@@ -22,7 +22,7 @@ public:
     typedef TLexer::EState EState;
 
     THolder<TLexer> Lexer;
-    
+
     virtual void SetUp()
     {
         Reset();
@@ -110,7 +110,7 @@ TEST_F(TLexerTest, States)
     CheckState(EState::InProgress);
     TestConsume(" ", 0);
     CheckState(EState::Terminal);
-    
+
     Lexer->Reset();
 
     CheckState(EState::None);
@@ -126,7 +126,7 @@ TEST_F(TLexerTest, States)
     CheckState(EState::None);
     TestConsume(";");
     CheckState(EState::Terminal);
-    
+
     Lexer->Reset();
 
     CheckState(EState::None);
@@ -136,9 +136,9 @@ TEST_F(TLexerTest, States)
     CheckState(EState::InProgress);
     Lexer->Finish();
     CheckState(EState::Terminal);
-    
+
     Lexer->Reset();
-    
+
     CheckState(EState::None);
     TestConsume("\t");
     CheckState(EState::None);
@@ -244,6 +244,6 @@ TEST_F(TLexerTest, IncorrectFinish)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-    
+
 } // namespace NYTree
 } // namespace NYT

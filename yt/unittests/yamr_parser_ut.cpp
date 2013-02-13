@@ -284,7 +284,7 @@ TEST(TYamrLenvalParserTest, HugeLength)
     auto config = New<TYamrFormatConfig>();
     config->HasSubkey = true;
     config->Lenval = true;
-    
+
     auto Null = NYTree::GetNullYsonConsumer();
 
     EXPECT_THROW(ParseYamr(input, Null, config), std::exception);

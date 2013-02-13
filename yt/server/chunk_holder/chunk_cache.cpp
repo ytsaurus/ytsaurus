@@ -148,7 +148,7 @@ private:
         TBase::OnAdded(value);
         ChunkAdded_.Fire(value);
     }
-    
+
     virtual void OnRemoved(TCachedChunk* value) override
     {
         TBase::OnRemoved(value);
@@ -247,7 +247,7 @@ private:
             blockSequence.reserve(BlockCount);
             for (int index = 0; index < BlockCount; ++index) {
                 blockSequence.push_back(TSequentialReader::TBlockInfo(
-                    index, 
+                    index,
                     blocksExt.blocks(index).size()));
             }
 

@@ -160,7 +160,7 @@ private:
 
     TSnapshotStorePtr SnapshotStore;
     TChangeLogCachePtr ChangeLogCache;
-    
+
     TResponseKeeperPtr ResponseKeeper;
 
     bool Started;

@@ -9,6 +9,6 @@ namespace NRpc {
 TRequestId NullRequestId(0, 0, 0, 0);
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 } // namespace NRpc
 } // namespace NYT

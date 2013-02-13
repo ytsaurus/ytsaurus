@@ -159,13 +159,13 @@ public:
         }
     }
 
-    //! Copy constructor.    
+    //! Copy constructor.
     explicit TIntrusivePtr(const TIntrusivePtr& other) // noexcept
         : T_(other.Get())
     {
         if (T_) {
             T_->Ref();
-        }           
+        }
     }
 
     //! Copy constructor with an upcast.

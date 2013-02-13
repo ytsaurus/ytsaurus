@@ -25,7 +25,7 @@ private:
     {
         TPeerId SourceId;
         i64 Length;
-        
+
         TSnapshotInfo()
         { }
 

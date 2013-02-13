@@ -24,7 +24,7 @@ public:
 
 protected:
     virtual size_t DoRead(void* buf, size_t len);
-    
+
 private:
     TInputStream* Input;
     TChecksum Checksum;

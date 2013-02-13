@@ -678,9 +678,9 @@ void TObjectManager::DestroyObject(const TObjectId& id)
 {
     auto handler = GetHandler(TypeFromId(id));
     handler->Destroy(id);
-    
+
     Profiler.Increment(DestroyedObjectCounter, +1);
-    
+
     LOG_DEBUG_UNLESS(IsRecovery(), "Object destroyed (Type: %s, Id: %s)",
         ~handler->GetType().ToString(),
         ~id.ToString());

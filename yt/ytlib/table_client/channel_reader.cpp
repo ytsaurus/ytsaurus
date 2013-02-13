@@ -94,7 +94,7 @@ bool TChannelReader::NextColumn()
             }
 
             return true;
-        } 
+        }
 
         YASSERT(ColumnBuffers.back().Avail() > 0);
         ++CurrentColumnIndex;

@@ -20,9 +20,9 @@ class TOperation
     : public TRefCounted
 {
     DEFINE_BYVAL_RO_PROPERTY(TOperationId, OperationId);
-    
+
     DEFINE_BYVAL_RO_PROPERTY(EOperationType, Type);
-    
+
     DEFINE_BYVAL_RW_PROPERTY(EOperationState, State);
 
     //! User-supplied transaction where the operation resides.

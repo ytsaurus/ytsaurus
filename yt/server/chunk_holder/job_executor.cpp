@@ -109,7 +109,7 @@ void TJob::RunRemove()
     }
 
     Bootstrap->GetChunkStore()->RemoveChunk(chunk).Subscribe(BIND(
-        &TJob::SetCompleted, 
+        &TJob::SetCompleted,
         MakeStrong(this)));
 }
 
@@ -187,7 +187,7 @@ void TJob::ReplicateBlock(int blockIndex, TError error)
                         ~blockId.ToString())
                         << result);
                     return;
-                } 
+                }
 
                 auto block = result.Value()->GetData();
                 auto nextBlockIndex = blockIndex;
@@ -244,7 +244,7 @@ void TJobExecutor::StopJob(TJobPtr job)
 {
     job->Stop();
     YCHECK(Jobs.erase(job->GetJobId()) == 1);
-    
+
     LOG_INFO("Job stopped (JobId: %s, State: %s)",
         ~job->GetJobId().ToString(),
         ~job->GetState().ToString());

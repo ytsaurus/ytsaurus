@@ -310,15 +310,15 @@ void TMapNodeTypeHandler::DoClone(
     FOREACH (const auto& pair, keyToChildList) {
         const auto& key = pair.first;
         auto* childTrunkNode = pair.second;
-        
+
         auto* childNode = cypressManager->GetVersionedNode(childTrunkNode, transaction);
-        
+
         auto* clonedChildNode = cypressManager->CloneNode(childNode, transaction);
         auto* clonedTrunkChildNode = clonedChildNode->GetTrunkNode();
 
         YCHECK(clonedNode->KeyToChild().insert(std::make_pair(key, clonedTrunkChildNode)).second);
         YCHECK(clonedNode->ChildToKey().insert(std::make_pair(clonedTrunkChildNode, key)).second);
-        
+
         clonedChildNode->SetParent(clonedNode->GetTrunkNode());
         objectManager->RefObject(clonedTrunkChildNode);
         ++clonedNode->ChildCountDelta();

@@ -179,7 +179,7 @@ inline void TParallelAwaiter::Complete(TClosure onComplete)
 
         OnComplete = onComplete;
         Completed = true;
-        
+
         invokeOnComplete = RequestCount == ResponseCount;
         if (invokeOnComplete) {
             Terminate();

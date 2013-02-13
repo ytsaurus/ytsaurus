@@ -77,11 +77,11 @@ public:
         TSessionPtr session;
         {
             TGuard<TSpinLock> guard(SpinLock);
-            
+
             if (Terminated) {
                 return;
             }
-            
+
             session = Session;
             Session.Reset();
 
@@ -450,12 +450,12 @@ private:
                 Session.Reset();
             }
         }
-        
+
         session_->Terminate(error);
     }
-};          
+};
 
-} // namespace 
+} // namespace
 
 IChannelPtr CreateBusChannel(
     IBusClientPtr client,

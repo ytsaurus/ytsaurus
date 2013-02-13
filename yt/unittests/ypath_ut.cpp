@@ -54,7 +54,7 @@ public:
     {
         return TextifyYson(SyncYPathGet(RootService, path));
     }
-    
+
     std::vector<Stroka> List(const TYPath& path)
     {
         return SyncYPathList(RootService, path);

@@ -112,7 +112,7 @@ public:
 
     bool IsActiveLeader()
     {
-        return 
+        return
             MetaStateManager->GetStateStatus() == EPeerStatus::Leading &&
             MetaStateManager->HasActiveQuorum();
     }
@@ -393,7 +393,7 @@ private:
         auto service = Bootstrap->GetObjectManager()->GetRootService();
         auto req = TTransactionYPathProxy::CreateObject(RootTransactionPath);
         req->set_type(EObjectType::Transaction);
-        
+
         req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
 
         auto attributes = CreateEphemeralAttributes();

@@ -92,10 +92,10 @@ struct ISchedulableElement
     : public virtual ISchedulerElement
 {
     virtual TInstant GetStartTime() const = 0;
-    
+
     virtual double GetWeight() const = 0;
     virtual double GetMinShareRatio() const = 0;
-    
+
     virtual TNodeResources GetDemand() const = 0;
 
     virtual const NProto::TNodeResources& ResourceUsage() const = 0;
@@ -304,9 +304,9 @@ protected:
     ISchedulerStrategyHost* Host;
 
     ESchedulingMode Mode;
-    
+
     yhash_set<ISchedulableElementPtr> Children;
-    
+
     void ComputeFairShares()
     {
         // Choose dominant resource types.
@@ -324,7 +324,7 @@ protected:
 
             auto limits = Min(totalLimits, child->ResourceLimits());
             childAttributes.MaxShareRatio = GetMinResourceRatio(limits, totalLimits);
-            
+
             childAttributes.DominantResource = GetDominantResource(demand, totalLimits);
 
             i64 dominantTotalLimits = GetResource(totalLimits, childAttributes.DominantResource);
@@ -333,7 +333,7 @@ protected:
             demandRatioSum += std::min(childAttributes.DemandRatio, childAttributes.MaxShareRatio);
 
             childAttributes.AdjustedMinShareRatio =
-                dominantDemand > 0 
+                dominantDemand > 0
                 ? std::min(
                     child->GetMinShareRatio() * Attributes_.AdjustedMinShareRatio,
                     childAttributes.MaxShareRatio)

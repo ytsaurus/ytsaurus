@@ -115,7 +115,7 @@ public:
             producer.Run(this->Consumer);
             return *static_cast<TDeepThis*>(this);
         }
-        
+
         TDeepThis& Do(TYsonCallback ysonCallback)
         {
             return Do(TYsonProducer(ysonCallback));

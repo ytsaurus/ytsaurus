@@ -55,7 +55,7 @@ public:
     virtual void SyncInitialize()
     {
         VERIFY_THREAD_AFFINITY(EventLoop);
-        
+
         // This may throw.
         OpenServerSocket();
 
@@ -90,7 +90,7 @@ protected:
     IMessageHandlerPtr Handler;
 
     NLog::TTaggedLogger Logger;
-    
+
     THolder<ev::io> AcceptWatcher;
 
     int ServerSocket;
@@ -182,9 +182,9 @@ protected:
             PROFILE_AGGREGATED_TIMING (AcceptTime) {
 #ifdef _linux_
                 clientSocket = accept4(
-                    ServerSocket, 
-                    clientAddress.GetSockAddr(), 
-                    &clientAddressLen, 
+                    ServerSocket,
+                    clientAddress.GetSockAddr(),
+                    &clientAddressLen,
                     SOCK_CLOEXEC);
 #else
                 clientSocket = accept(
@@ -224,7 +224,7 @@ protected:
                 connection));
             YCHECK(Connections.insert(connection).second);
             TTcpDispatcher::TImpl::Get()->AsyncRegister(connection);
-        }       
+        }
     }
 
 
@@ -399,7 +399,7 @@ public:
     virtual void Start(IMessageHandlerPtr handler)
     {
         TGuard<TSpinLock> guard(SpinLock);
-        
+
         YCHECK(!Running);
 
         auto server = New<TServer>(Config, handler);

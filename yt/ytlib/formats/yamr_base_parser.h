@@ -32,13 +32,13 @@ private:
         (InsideValue)
     );
     EState State;
-    
+
     char FieldSeparator;
     char RecordSeparator;
     bool HasSubkey;
 
     Stroka CurrentToken;
-    
+
     bool IsStopSymbol[256];
 
     const char* Consume(const char* begin, const char* end);
@@ -46,7 +46,7 @@ private:
 
     // returns pointer to next fragment or NULL if record is not fully present in [begin, end)
     const char* TryConsumeRecord(const char* begin, const char *end);
-    
+
     void ProcessKey(const TStringBuf& key);
     void ProcessSubkey(const TStringBuf& subkey);
     void ProcessValue(const TStringBuf& value);

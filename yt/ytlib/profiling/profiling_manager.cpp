@@ -162,7 +162,7 @@ public:
         ResourceTracker->Start();
 #endif
     }
-    
+
     void Shutdown()
     {
         TActionQueueBase::Shutdown();
@@ -183,7 +183,7 @@ public:
 
     IInvokerPtr GetInvoker() const
     {
-        return Invoker; 
+        return Invoker;
     }
 
     IMapNodePtr GetRoot() const

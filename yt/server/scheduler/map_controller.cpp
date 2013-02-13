@@ -177,7 +177,7 @@ private:
                 Spec->JobCount);
 
             auto stripes = SliceInputChunks(Config->MapJobMaxSliceDataSize, &jobCount);
-            
+
             JobCounter.Set(jobCount);
 
             MapTask = New<TMapTask>(this);

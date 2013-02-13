@@ -83,7 +83,7 @@ void TFollowerTracker::OnPeerActive(TPeerId peerId)
 void TFollowerTracker::SendPing(TPeerId followerId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    
+
     auto version = DecoratedState->GetPingVersion();
 
     LOG_DEBUG("Sending ping to follower %d (Version: %s, EpochId: %s)",
@@ -100,7 +100,7 @@ void TFollowerTracker::SendPing(TPeerId followerId)
     *request->mutable_epoch_id() = EpochId.ToProto();
     request->Invoke().Subscribe(
         BIND(&TFollowerTracker::OnPingResponse, MakeStrong(this), followerId)
-            .Via(EpochControlInvoker));       
+            .Via(EpochControlInvoker));
 }
 
 void TFollowerTracker::SchedulePing(TPeerId followerId)

@@ -126,7 +126,7 @@ private:
                 ElectionManager->StartVoting();
                 return;
             }
-            
+
             if (response->GetError().GetCode() == NRpc::EErrorCode::Timeout) {
                 SendPing(id);
             } else {
@@ -167,7 +167,7 @@ public:
         , Awaiter(New<TParallelAwaiter>(ControlEpochInvoker))
     { }
 
-    void Run() 
+    void Run()
     {
         VERIFY_THREAD_AFFINITY(ElectionManager->ControlThread);
         YCHECK(ElectionManager->State == EPeerState::Voting);
@@ -252,7 +252,7 @@ private:
         auto vote = response->vote_id();
         auto priority = response->priority();
         auto epochId = TEpochId::FromProto(response->vote_epoch_id());
-        
+
         LOG_DEBUG("Received status from peer %d (Round: %p, State: %s, VoteId: %d, Priority: %s, VoteEpochId: %s)",
             id,
             this,
@@ -301,7 +301,7 @@ private:
         // Count votes (including self) and quorum.
         int voteCount = CountVotesFor(candidateId, candidateEpochId);
         int quorum = ElectionManager->CellManager->GetQuorum();
-        
+
         // Check for quorum.
         if (voteCount < quorum) {
             LOG_DEBUG("Candidate %d has too few votes: %d < %d (Round: %p, VoteEpochId: %s)",
@@ -519,9 +519,9 @@ void TElectionManager::OnLeaderPingTimeout()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
     YCHECK(State == EPeerState::Following);
-    
+
     LOG_INFO("No recurrent ping from leader within timeout");
-    
+
     StopFollowing();
     StartVoting();
 }
@@ -543,7 +543,7 @@ void TElectionManager::DoStop()
             break;
         case EPeerState::Voting:
             Reset();
-            break;            
+            break;
         case EPeerState::Leading:
             StopLeading();
             break;
@@ -634,7 +634,7 @@ void TElectionManager::StartLeading()
         AliveFollowers.insert(i);
         PotentialFollowers.insert(i);
     }
-    
+
     InitEpochContext(CellManager->GetSelfId(), VoteEpochId);
 
     // Send initial pings.
@@ -644,7 +644,7 @@ void TElectionManager::StartLeading()
 
     LOG_INFO("Starting leading (EpochId: %s)",
         ~EpochContext->EpochId.ToString());
-    
+
     ElectionCallbacks->OnStartLeading();
 }
 
@@ -652,7 +652,7 @@ void TElectionManager::StopLeading()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
     YCHECK(State == EPeerState::Leading);
-    
+
     LOG_INFO("Stopping leading (EpochId: %s)",
         ~EpochContext->EpochId.ToString());
 
@@ -673,9 +673,9 @@ void TElectionManager::StopFollowing()
     LOG_INFO("Stopping following leader (LeaderId: %d, EpochId: %s)",
         EpochContext->LeaderId,
         ~EpochContext->EpochId.ToString());
-        
+
     ElectionCallbacks->OnStopFollowing();
-    
+
     Reset();
 }
 

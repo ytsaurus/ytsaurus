@@ -258,7 +258,7 @@ void TYsonWriter::OnKeyedItem(const TStringBuf& key)
     CollectionItem(KeyedItemSeparatorToken);
 
     WriteStringScalar(key);
-    
+
     if (Format == EYsonFormat::Pretty) {
         Stream->Write(' ');
     }

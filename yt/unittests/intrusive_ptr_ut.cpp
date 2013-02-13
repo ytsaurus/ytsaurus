@@ -138,7 +138,7 @@ public:
     TObjectWithIntrinsicRC(TOutputStream* output)
         : Output(output)
     {
-        *Output << 'C';           
+        *Output << 'C';
     }
     virtual ~TObjectWithIntrinsicRC()
     {

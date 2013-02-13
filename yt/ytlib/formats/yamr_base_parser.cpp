@@ -24,7 +24,7 @@ TYamrBaseParser::TYamrBaseParser(
     IsStopSymbol[static_cast<ui8>(RecordSeparator)] = true;
     IsStopSymbol[static_cast<ui8>(FieldSeparator)] = true;
 }
-    
+
 void TYamrBaseParser::Read(const TStringBuf& data)
 {
     auto current = data.begin();
@@ -88,7 +88,7 @@ void TYamrBaseParser::ProcessValue(const TStringBuf& value)
 
 const char* TYamrBaseParser::Consume(const char* begin, const char* end)
 {
-    // Try parse whole record (it usually works faster) 
+    // Try parse whole record (it usually works faster)
     if (State == EState::InsideKey && CurrentToken.empty()) {
         const char* next = TryConsumeRecord(begin, end);
         if (next != NULL) {
@@ -143,7 +143,7 @@ const char* TYamrBaseParser::FindNextStopSymbol(const char* begin, const char* e
 const char* TYamrBaseParser::TryConsumeRecord(const char* begin, const char* end)
 {
     const char* endOfKey = FindNextStopSymbol(begin, end, EState::InsideKey);
-    const char* endOfSubkey = 
+    const char* endOfSubkey =
         HasSubkey ?
         FindNextStopSymbol(endOfKey + 1, end, EState::InsideSubkey) :
         endOfKey;
@@ -170,7 +170,7 @@ const char* TYamrBaseParser::TryConsumeRecord(const char* begin, const char* end
 
     return endOfValue + 1;
 }
-    
+
 void TYamrBaseParser::ThrowIncorrectFormat() const
 {
     THROW_ERROR_EXCEPTION("Unexpected symbol in YAMR row: expected %s, found: %s (%s)",
@@ -199,6 +199,6 @@ void TYamrBaseParser::AppendToContextBuffer(char symbol)
 
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 } // namespace NFormats
 } // namespace NYT

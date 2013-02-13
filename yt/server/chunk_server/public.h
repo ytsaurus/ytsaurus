@@ -28,7 +28,7 @@ using NChunkClient::TBlockId;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkTree;
-class TChunk;  
+class TChunk;
 class TChunkList;
 class TJob;
 class TJobList;

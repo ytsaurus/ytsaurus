@@ -127,7 +127,7 @@ private:
         if (!chunk || !chunk->IsAlive()) {
             return nullptr;
         }
-        
+
         auto objectManager = Bootstrap->GetObjectManager();
         return objectManager->GetProxy(chunk);
     }
@@ -224,7 +224,7 @@ public:
         bool banned = nodeNode->Attributes().Get<bool>("banned", false);
         return !banned;
     }
-    
+
 private:
     TBootstrap* Bootstrap;
 
@@ -567,7 +567,7 @@ public:
     {
         return EObjectType::NodeMap;
     }
-    
+
 private:
     virtual ICypressNodeProxyPtr DoGetProxy(
         TMapNode* trunkNode,

@@ -269,7 +269,7 @@ struct TMasterDiscoveryConfig
     //! Timeout for RPC requests to masters.
     TDuration RpcTimeout;
 
-    //! Master connection priority. 
+    //! Master connection priority.
     int ConnectionPriority;
 
     TMasterDiscoveryConfig()

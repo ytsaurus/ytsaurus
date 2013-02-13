@@ -49,14 +49,14 @@ TPromise<void> MakePromise();
 /*
  *  Futures and Promises come in pairs and provide means for one party
  *  to wait for the result of the computation performed by the other party.
- *  
+ *
  *  TPromise encapsulates the value-returning mechanism while
  *  TFuture enables the clients to wait for this value.
- *  
+ *
  *  TPromise is implicitly convertible to TFuture while the reverse conversion
  *  is not allowed. This prevents a "malicious" client from setting the value
  *  by itself.
- *  
+ *
  *  Futures and Promises are thread-safe.
  */
 template <class T>
@@ -112,7 +112,7 @@ public:
     /*!
      *  \param callback A callback to call when the value gets set
      *  (passing the value as a parameter).
-     *  
+     *
      *  \note
      *  If the value is set before the call to #Subscribe, then
      *  #callback gets called synchronously.
@@ -126,7 +126,7 @@ public:
      *  \param onValue A callback to call when the value gets set
      *  (passing the value as a parameter).
      *  \param onTimeout A callback to call when the timeout exceeded.
-     *  
+     *
      *  \note
      *  If the value is set before the call to #Subscribe, then
      *  #callback gets called synchronously.
@@ -216,7 +216,7 @@ public:
     /*!
      *  \param callback A callback to call when the value gets set
      *  (passing the value as a parameter).
-     *  
+     *
      *  \note
      *  If the value is set before the call to #Subscribe, then
      *  #callback gets called synchronously.
@@ -230,7 +230,7 @@ public:
      *  \param onValue A callback to call when the value gets set
      *  (passing the value as a parameter).
      *  \param onTimeout A callback to call when the timeout exceeded.
-     *  
+     *
      *  \note
      *  If the value is set before the call to #Subscribe, then
      *  #callback gets called synchronously.
@@ -345,7 +345,7 @@ public:
     /*!
      *  \param callback A callback to call when the value gets set
      *  (passing the value as a parameter).
-     *  
+     *
      *  \note
      *  If the value is set before the call to #Subscribe, then
      *  #callback gets called synchronously.
@@ -359,7 +359,7 @@ public:
      *  \param onValue A callback to call when the value gets set
      *  (passing the value as a parameter).
      *  \param onTimeout A callback to call when the timeout exceeded.
-     *  
+     *
      *  \note
      *  If the value is set before the call to #Subscribe, then
      *  #callback gets called synchronously.
@@ -454,7 +454,7 @@ public:
     /*!
      *  \param callback A callback to call when the value gets set
      *  (passing the value as a parameter).
-     *  
+     *
      *  \note
      *  If the value is set before the call to #Subscribe, then
      *  #callback gets called synchronously.
@@ -468,7 +468,7 @@ public:
      *  \param onValue A callback to call when the value gets set
      *  (passing the value as a parameter).
      *  \param onTimeout A callback to call when the timeout exceeded.
-     *  
+     *
      *  \note
      *  If the value is set before the call to #Subscribe, then
      *  #callback gets called synchronously.

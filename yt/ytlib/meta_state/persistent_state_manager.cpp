@@ -230,7 +230,7 @@ public:
     {
         return CellManager;
     }
-    
+
     virtual bool GetReadOnly() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -1061,7 +1061,7 @@ public:
         LOG_INFO("Starting follower recovery");
 
         ControlStatus = EPeerStatus::FollowerRecovery;
-        
+
         StartEpoch();
 
         EpochContext->FollowerCommitter = New<TFollowerCommitter>(
@@ -1168,7 +1168,7 @@ public:
     void StopEpoch()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        
+
         YCHECK(EpochContext);
 
         EpochContext->CancelableContext->Cancel();

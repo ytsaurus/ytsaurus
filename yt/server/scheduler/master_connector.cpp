@@ -337,12 +337,12 @@ private:
                 auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_lock_tx");
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting lock transaction");
                 auto transactionId = TTransactionId::FromProto(rsp->object_id());
-                
+
                 TTransactionAttachOptions options(transactionId);
                 options.AutoAbort = true;
                 auto transactionManager = Owner->Bootstrap->GetTransactionManager();
                 Owner->LockTransaction = transactionManager->Attach(options);
-                
+
                 LOG_INFO("Lock transaction is %s", ~ToString(transactionId));
             }
 
@@ -572,7 +572,7 @@ private:
     TOperationPtr ParseOperationYson(const TOperationId& operationId, const IAttributeDictionary& attributes)
     {
         auto transactionManager = Bootstrap->GetTransactionManager();
-        
+
         auto userTransactionId = attributes.Get<TTransactionId>("user_transaction_id");
         TTransactionAttachOptions userAttachOptions(userTransactionId);
         userAttachOptions.AutoAbort = false;
@@ -916,7 +916,7 @@ private:
 
             if (chunkId != NullChunkId) {
                 auto stdErrPath = GetStdErrPath(operation->GetOperationId(), job->GetId());
-                
+
                 auto req = TCypressYPathProxy::Create(stdErrPath);
                 GenerateRpcMutationId(req);
                 req->set_type(EObjectType::File);
@@ -984,7 +984,7 @@ private:
 
         LOG_INFO("Operation node flushed (OperationId: %s)",
             ~operationId.ToString());
-       
+
         auto* list = GetUpdateList(operation);
         list->State = EUpdateListState::Flushed;
         list->FlushedPromise.Set();
@@ -1011,7 +1011,7 @@ private:
             ~operationId.ToString());
 
         auto* list = GetUpdateList(operation);
-        list->State = EUpdateListState::Finalized; 
+        list->State = EUpdateListState::Finalized;
         list->FinalizedPromise.Set();
 
         RemoveUpdateList(operation);

@@ -15,13 +15,13 @@ struct TChunkTreeStatistics
 {
     //! Total number of rows in the tree.
     i64 RowCount;
-    
+
     //! Sum of uncompressed data sizes of chunks in the tree.
     i64 UncompressedDataSize;
-    
+
     //! Sum of compressed data sizes of chunks in the tree.
     i64 CompressedDataSize;
-    
+
     //! Sum of data weights of chunks in the tree.
     i64 DataWeight;
 

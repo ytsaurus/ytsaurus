@@ -122,7 +122,7 @@ TEST(TYTreeFluentMapTest, Empty)
 
     EXPECT_CALL(mock, OnBeginMap());
     EXPECT_CALL(mock, OnEndMap());
-    
+
     BuildYsonFluently(&mock)
         .BeginMap()
         .EndMap();
@@ -210,7 +210,7 @@ TEST(TYTreeFluentListTest, Empty)
 
     EXPECT_CALL(mock, OnBeginList());
     EXPECT_CALL(mock, OnEndList());
-    
+
     BuildYsonFluently(&mock)
         .BeginList()
         .EndList();

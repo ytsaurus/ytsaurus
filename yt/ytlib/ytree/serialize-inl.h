@@ -159,7 +159,7 @@ T CheckedStaticCast(i64 value)
 template <class T>
 void Deserialize(
     T& value,
-    INodePtr node, 
+    INodePtr node,
     typename NMpl::TEnableIf<NMpl::TIsConvertible<T&, TEnumBase<T>&>, int>::TType)
 {
     auto stringValue = node->AsString()->GetValue();

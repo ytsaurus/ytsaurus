@@ -28,7 +28,7 @@ class TNullYsonConsumer
     {
         UNUSED(value);
     }
-    
+
     virtual void OnEntity()
     { }
 
@@ -37,13 +37,13 @@ class TNullYsonConsumer
 
     virtual void OnListItem()
     { }
-    
+
     virtual void OnEndList()
     { }
 
     virtual void OnBeginMap()
     { }
-    
+
     virtual void OnKeyedItem(const TStringBuf& name)
     {
         UNUSED(name);

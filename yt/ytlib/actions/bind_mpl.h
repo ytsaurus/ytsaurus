@@ -181,7 +181,7 @@ struct TMaybeLockHelper< true, TWeakPtr<U> >
     inline TMaybeLockHelper(const T& x)
     {
         static_assert(U::False, "Current implementation should pass smart pointers by reference.");
-    } 
+    }
 };
 
 template <class U>
@@ -203,10 +203,10 @@ struct TMaybeLockHelper< true, const TWeakPtr<U>& >
 {
     typedef const TWeakPtr<U>& T;
     T T_;
-    inline TMaybeLockHelper(const T& x) 
+    inline TMaybeLockHelper(const T& x)
         : T_(x)
     { }
-    inline TIntrusivePtr<U> Lock() const 
+    inline TIntrusivePtr<U> Lock() const
     {
         return T_.Lock();
     }
@@ -341,7 +341,7 @@ struct TIsNonConstReference<T&>
 { };
 
 template <class T>
-struct TIsNonConstReference<const T&> 
+struct TIsNonConstReference<const T&>
     : NMpl::TFalseType
 { };
 
@@ -366,5 +366,5 @@ struct TRawPtrToRefCountedTypeHelper
 
 ////////////////////////////////////////////////////////////////////////////////
 /*! \endinternal */
-} // namespace NDetail                                                        
+} // namespace NDetail
 } // namespace NY

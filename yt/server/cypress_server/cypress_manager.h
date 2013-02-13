@@ -134,7 +134,7 @@ private:
         TCypressManager* CypressManager;
 
     };
-    
+
     NCellMaster::TBootstrap* Bootstrap;
 
     NMetaState::TMetaStateMap<TVersionedNodeId, TCypressNodeBase, TNodeMapTraits> NodeMap;

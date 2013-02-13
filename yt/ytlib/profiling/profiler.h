@@ -14,11 +14,11 @@ namespace NProfiling {
 /*!
  *  - Simple: Measures the interval between start and stop.
  *  This timer creates a single bucket that stores the above interval.
- *  
+ *
  *  - Sequential: Measures intervals between checkpoints
  *  (start being the first checkpoint) and also the total time (between start and stop).
  *  This timer creates a bucket per each checkpoint plus "total" bucket.
- *  
+ *
  *  - Parallel: Measures intervals between start and checkpoints
  *  and also the total time (between start and stop).
  *  This timer creates a bucket per each checkpoint plus "total" bucket.
@@ -77,7 +77,7 @@ struct TCounterBase
  *  the total number of events occurred so far and track its increase over
  *  certain fixed intervals of time. E.g. if the interval is 1 second then
  *  this counter will actually be sampling RPS.
- *  
+ *
  *  \note Thread safety: single
  */
 struct TRateCounter
@@ -103,7 +103,7 @@ struct TRateCounter
 /*!
  * - All: The counter creates three buckets with suffixes "min", "max", and "avg"
  *   and enqueues appropriate aggregates.
- *    
+ *
  * - Min, Max, Avg: The counter creates a single bucket and enqueues the corresponding
  *   aggregate.
  */
@@ -118,7 +118,7 @@ DECLARE_ENUM(EAggregateMode,
 /*!
  *  Used to measure aggregates (min, max, avg) of a rapidly changing value.
  *  The values are aggregated over the time periods specified in the constructor.
- *  
+ *
  *  \note Thread safety: single
  */
 struct TAggregateCounter
@@ -173,7 +173,7 @@ public:
     //! Marks a checkpoint and enqueues the corresponding sample.
     /*!
      *  Returns the time passed from the previous duration.
-     *  
+     *
      *  If #timer is in Simple mode then it is automatically
      *  switched to Sequential mode.
      */

@@ -89,7 +89,7 @@ protected:
     virtual TResolveResult ResolveAttributes(
         const NYPath::TYPath& path,
         NRpc::IServiceContextPtr context) override;
-    
+
     virtual void GetAttribute(
         const TYPath& path,
         TReqGet* request,
@@ -129,16 +129,16 @@ protected:
 
 private:
     TFuture< TValueOrError<TYsonString> > DoFindAttribute(const Stroka& key);
-    
+
     static TValueOrError<TYsonString> DoGetAttributeFragment(const TYPath& path, TValueOrError<TYsonString> wholeYsonOrError);
     TFuture< TValueOrError<TYsonString> > DoGetAttribute(const TYPath& path);
-    
+
     static bool DoExistsAttributeFragment(const TYPath& path, TValueOrError<TYsonString> wholeYsonOrError);
     TFuture<bool> DoExistsAttribute(const TYPath& path);
 
     static TValueOrError<TYsonString> DoListAttributeFragment(const TYPath& path, TValueOrError<TYsonString> wholeYsonOrError);
     TFuture< TValueOrError<TYsonString> > DoListAttribute(const TYPath& path);
-    
+
     void DoSetAttribute(const TYPath& path, const TYsonString& newYson);
 
     void DoRemoveAttribute(const TYPath& path);

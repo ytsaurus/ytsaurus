@@ -59,7 +59,7 @@ protected:
         auto builder = CreateBuilderFromFactory(~factory);
         SetNodeFromProducer(node, ConvertToProducer(value), ~builder);
     }
-    
+
     virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
 
     virtual void GetKeySelf(TReqGetKey* request, TRspGetKey* response, TCtxGetKeyPtr context) override;

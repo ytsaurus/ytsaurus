@@ -26,7 +26,7 @@ TCellManager::TCellManager(TCellConfigPtr config)
 {
     OrderedAddresses = Config->Addresses;
     std::sort(OrderedAddresses.begin(), OrderedAddresses.end());
-    
+
     SelfAddress_ = BuildServiceAddress(GetLocalHostName(), Config->RpcPort);
     SelfId_ = std::distance(
         OrderedAddresses.begin(),

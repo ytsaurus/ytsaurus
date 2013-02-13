@@ -83,7 +83,7 @@ public:
      *
      *  If |options.PingAncestors| is True then Transaction Manager will be renewing
      *  the leases of all ancestors of this transaction.
-     *  
+     *
      *  \note
      *  This call may block.
      *  Thread affinity: any.

@@ -121,8 +121,8 @@ auto TSamplesFetcher::InvokeRequest() -> TFuture<TResponsePtr>
 }
 
 TError TSamplesFetcher::ProcessResponseItem(
-    TResponsePtr rsp, 
-    int index, 
+    TResponsePtr rsp,
+    int index,
     NTableClient::TRefCountedInputChunkPtr chunk)
 {
     YCHECK(rsp->IsOK());

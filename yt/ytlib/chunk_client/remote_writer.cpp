@@ -144,7 +144,7 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-struct TRemoteWriter::TNode 
+struct TRemoteWriter::TNode
     : public TRefCounted
 {
     int Index;
@@ -172,13 +172,13 @@ struct TRemoteWriter::TNode
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TRemoteWriter::TGroup 
+class TRemoteWriter::TGroup
     : public TRefCounted
 {
 public:
     TGroup(
-        int nodeCount, 
-        int startBlockIndex, 
+        int nodeCount,
+        int startBlockIndex,
         TRemoteWriter::TImpl* writer);
 
     void AddBlock(const TSharedRef& block);
@@ -248,7 +248,7 @@ private:
      * \note Thread affinity: WriterThread.
      */
     void CheckSendResponse(
-        TNodePtr srcNode, 
+        TNodePtr srcNode,
         TNodePtr dstNode,
         TRemoteWriter::TProxy::TRspSendBlocksPtr rsp);
 
@@ -323,18 +323,18 @@ void TRemoteWriter::TGroup::PutGroup()
     auto node = writer->Nodes[nodeIndex];
     auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker());
     auto onSuccess = BIND(
-        &TGroup::OnPutBlocks, 
-        MakeWeak(this), 
+        &TGroup::OnPutBlocks,
+        MakeWeak(this),
         node);
     auto onResponse = BIND(
         &TRemoteWriter::TImpl::CheckResponse<TProxy::TRspPutBlocks>,
         Writer,
-        node, 
+        node,
         onSuccess,
         &writer->PutBlocksTiming);
     awaiter->Await(PutBlocks(node), onResponse);
     awaiter->Complete(BIND(
-        &TRemoteWriter::TGroup::Process, 
+        &TRemoteWriter::TGroup::Process,
         MakeWeak(this)));
 }
 
@@ -353,7 +353,7 @@ TRemoteWriter::TGroup::PutBlocks(TNodePtr node)
     req->set_enable_caching(writer->Config->EnableNodeCaching);
 
     LOG_DEBUG("Putting blocks %d-%d to %s",
-        StartBlockIndex, 
+        StartBlockIndex,
         GetEndBlockIndex(),
         ~node->Address);
 
@@ -372,7 +372,7 @@ void TRemoteWriter::TGroup::OnPutBlocks(TNodePtr node, TProxy::TRspPutBlocksPtr 
     IsSent[node->Index] = true;
 
     LOG_DEBUG("Blocks %d-%d are put to %s",
-        StartBlockIndex, 
+        StartBlockIndex,
         GetEndBlockIndex(),
         ~node->Address);
 }
@@ -402,7 +402,7 @@ void TRemoteWriter::TGroup::SendGroup(TNodePtr srcNode)
 
 TRemoteWriter::TProxy::TInvSendBlocks
 TRemoteWriter::TGroup::SendBlocks(
-    TNodePtr srcNode, 
+    TNodePtr srcNode,
     TNodePtr dstNod)
 {
     auto writer = Writer.Lock();
@@ -411,7 +411,7 @@ TRemoteWriter::TGroup::SendBlocks(
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
     LOG_DEBUG("Sending blocks %d-%d from %s to %s",
-        StartBlockIndex, 
+        StartBlockIndex,
         GetEndBlockIndex(),
         ~srcNode->Address,
         ~dstNod->Address);
@@ -440,20 +440,20 @@ void TRemoteWriter::TGroup::CheckSendResponse(
     }
 
     auto onSuccess = BIND(
-        &TGroup::OnSentBlocks, 
+        &TGroup::OnSentBlocks,
         Unretained(this), // No need for a smart pointer here -- we're invoking action directly.
-        srcNode, 
+        srcNode,
         dstNode);
 
     writer->CheckResponse<TRemoteWriter::TProxy::TRspSendBlocks>(
-        srcNode, 
+        srcNode,
         onSuccess,
         &writer->SendBlocksTiming,
         rsp);
 }
 
 void TRemoteWriter::TGroup::OnSentBlocks(
-    TNodePtr srcNode, 
+    TNodePtr srcNode,
     TNodePtr dstNod,
     TProxy::TRspSendBlocksPtr rsp)
 {
@@ -464,7 +464,7 @@ void TRemoteWriter::TGroup::OnSentBlocks(
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
     LOG_DEBUG("Blocks %d-%d are sent from %s to %s",
-        StartBlockIndex, 
+        StartBlockIndex,
         GetEndBlockIndex(),
         ~srcNode->Address,
         ~dstNod->Address);
@@ -507,7 +507,7 @@ void TRemoteWriter::TGroup::Process()
     YCHECK(writer->IsInitComplete);
 
     LOG_DEBUG("Processing blocks %d-%d",
-        StartBlockIndex, 
+        StartBlockIndex,
         GetEndBlockIndex());
 
     TNodePtr nodeWithBlocks;
@@ -535,11 +535,11 @@ void TRemoteWriter::TGroup::Process()
 ///////////////////////////////////////////////////////////////////////////////
 
 TRemoteWriter::TImpl::TImpl(
-    const TRemoteWriterConfigPtr& config, 
+    const TRemoteWriterConfigPtr& config,
     const TChunkId& chunkId,
     const std::vector<Stroka>& addresses)
     : Config(config)
-    , ChunkId(chunkId) 
+    , ChunkId(chunkId)
     , Addresses(addresses)
     , IsOpen(false)
     , IsInitComplete(false)
@@ -594,7 +594,7 @@ void TRemoteWriter::TImpl::Open()
     FOREACH (auto node, Nodes) {
         auto onSuccess = BIND(
             &TRemoteWriter::TImpl::OnChunkStarted,
-            MakeWeak(this), 
+            MakeWeak(this),
             node);
         auto onResponse = BIND(
             &TImpl::CheckResponse<TProxy::TRspStartChunk>,
@@ -639,13 +639,13 @@ void TRemoteWriter::TImpl::ShiftWindow()
         if (node->IsAlive()) {
             auto onSuccess = BIND(
                 &TImpl::OnBlockFlushed,
-                MakeWeak(this), 
+                MakeWeak(this),
                 node,
                 lastFlushableBlock);
             auto onResponse = BIND(
                 &TImpl::CheckResponse<TProxy::TRspFlushBlock>,
-                MakeWeak(this), 
-                node, 
+                MakeWeak(this),
+                node,
                 onSuccess,
                 &FlushBlockTiming);
             awaiter->Await(FlushBlock(node, lastFlushableBlock), onResponse);
@@ -763,7 +763,7 @@ void TRemoteWriter::TImpl::OnNodeFailed(TNodePtr node, const TError& error)
 template <class TResponse>
 void TRemoteWriter::TImpl::CheckResponse(
     TNodePtr node,
-    TCallback<void(TIntrusivePtr<TResponse>)> onSuccess, 
+    TCallback<void(TIntrusivePtr<TResponse>)> onSuccess,
     TMetric* metric,
     TIntrusivePtr<TResponse> rsp)
 {
@@ -833,13 +833,13 @@ void TRemoteWriter::TImpl::CloseSession()
         if (node->IsAlive()) {
             auto onSuccess = BIND(
                 &TImpl::OnChunkFinished,
-                MakeWeak(this), 
+                MakeWeak(this),
                 node);
             auto onResponse = BIND(
                 &TImpl::CheckResponse<TProxy::TRspFinishChunk>,
-                MakeWeak(this), 
-                node, 
-                onSuccess, 
+                MakeWeak(this),
+                node,
+                onSuccess,
                 &FinishChunkTiming);
             awaiter->Await(FinishChunk(node), onResponse);
         }
@@ -859,7 +859,7 @@ void TRemoteWriter::TImpl::OnChunkFinished(TNodePtr node, TProxy::TRspFinishChun
     // If ChunkInfo is set.
     if (ChunkInfo.has_size()) {
         if (ChunkInfo.meta_checksum() != chunkInfo.meta_checksum() ||
-            ChunkInfo.size() != chunkInfo.size()) 
+            ChunkInfo.size() != chunkInfo.size())
         {
             LOG_FATAL("Mismatched chunk info reported by node (Address: %s, ExpectedInfo: {%s}, ReceivedInfo: {%s})",
                 ~node->Address,
@@ -954,8 +954,8 @@ bool TRemoteWriter::TImpl::TryWriteBlock(const TSharedRef& block)
 
     WindowSlots.Acquire(block.Size());
     TDispatcher::Get()->GetWriterInvoker()->Invoke(BIND(
-        &TImpl::AddBlock, 
-        MakeWeak(this), 
+        &TImpl::AddBlock,
+        MakeWeak(this),
         block));
 
     return true;
@@ -1055,7 +1055,7 @@ Stroka TRemoteWriter::TImpl::GetDebugInfo()
         "PutBlocks timing: (%s); "
         "SendBlocks timing: (%s); "
         "FlushBlocks timing: (%s); ",
-        ~ChunkId.ToString(), 
+        ~ChunkId.ToString(),
         ~StartChunkTiming.GetDebugInfo(),
         ~FinishChunkTiming.GetDebugInfo(),
         ~PutBlocksTiming.GetDebugInfo(),

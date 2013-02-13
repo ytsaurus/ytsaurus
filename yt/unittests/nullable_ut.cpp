@@ -132,7 +132,7 @@ TEST(TNullableTest, ToString)
 //    std::vector<int> v;
 //    TNullable<std::vector<int>&> nullable(v);
 //    TestNullable(nullable, true, std::vector<int>());
-//    
+//
 //    v.push_back(10);
 //    TestNullable(nullable, true, std::vector<int>(1, 10));
 //}

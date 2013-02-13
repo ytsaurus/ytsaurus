@@ -23,15 +23,15 @@ struct TDefaultMetaMapTraits
  *  \tparam TValue Value type.
  *  \tparam THash Hash function for keys.
  *  \tparam TTraits Traits for creating values.
- * 
+ *
  *  \note
  *  All public methods must be called from a single thread.
- * 
+ *
  *  TValue type must have the following methods:
  *  \code
  *      void Save(const TContext& context);
  *      void Load(const TContext& context);
- *  \endcode   
+ *  \endcode
  */
 template <
     class TKey,
@@ -56,7 +56,7 @@ public:
     /*!
      *  \param key A key to insert.
      *  \param value A value to insert.
-     *  
+     *
      *  \note The map will own the value and will call "delete" for it  when time comes.
      *  \note Fails if the key is already in map.
      */
@@ -96,7 +96,7 @@ public:
     //! Removes the key from the map and deletes the corresponding value.
     /*!
      *  \param A key.
-     *  
+     *
      *  \note Fails if the key is not in the map.
      */
     void Remove(const TKey& key);
@@ -126,7 +126,7 @@ public:
     //! (Unordered) begin()-iterator.
     /*!
      *  \note
-     *  This call is potentially dangerous! 
+     *  This call is potentially dangerous!
      *  The user must understand its semantics and call it at its own risk.
      *  Iteration is only possible when no snapshot is being created.
      *  A typical use-case is to iterate over the items right after reading a snapshot.
@@ -138,7 +138,7 @@ public:
      *  See the note for #Begin.
      */
     TIterator End();
-    
+
     //! (Unordered) const begin()-iterator.
     /*!
      *  See the note for #Begin.
@@ -160,16 +160,16 @@ public:
 
     template <class TContext>
     void LoadValues(const TContext& context);
-    
+
 private:
     //! Slot for the thread in which all the public methods are called.
     DECLARE_THREAD_AFFINITY_SLOT(UserThread);
-    
+
     TMap Map;
 
     //! Traits for creating values.
     TTraits Traits;
-    
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -194,7 +194,7 @@ inline auto End(NMetaState::TMetaStateMap<TKey, TValue, THash>& collection) -> d
 {
     return collection.End();
 }
- 
+
 } // namespace NForeach
 } // namespace NYT
 

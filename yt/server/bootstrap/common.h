@@ -9,5 +9,5 @@ namespace NYT {
 void SetBuildAttributes(NYTree::IYPathServicePtr orchidRoot);
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 } // namespace NYT

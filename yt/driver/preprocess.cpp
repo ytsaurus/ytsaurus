@@ -16,7 +16,7 @@ TRichYPath PreprocessYPath(const TRichYPath& path)
     if (!path.GetPath().has_prefix("~")) {
         return path;
     }
-    
+
     NYPath::TTokenizer tokenizer(path.GetPath());
     YCHECK(tokenizer.Advance() == ETokenType::Literal);
     auto userName = tokenizer.GetLiteralValue().substr(1);

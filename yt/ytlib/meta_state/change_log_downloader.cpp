@@ -72,7 +72,7 @@ TPeerId TChangeLogDownloader::GetChangeLogSource(const TMetaVersion& version)
 
         TProxy proxy(CellManager->GetMasterChannel(id));
         proxy.SetDefaultTimeout(Config->LookupTimeout);
-        
+
         auto request = proxy.GetChangeLogInfo();
         request->set_change_log_id(version.SegmentId);
         awaiter->Await(

@@ -89,7 +89,7 @@ void TChunkListPool::AllocateMore()
         LastSuccessCount < 0
         ? Config->ChunkListPreallocationCount
         : static_cast<int>(LastSuccessCount * Config->ChunkListAllocationMultiplier);
-    
+
     count = std::min(count, Config->MaxChunkListAllocationCount);
 
     if (RequestInProgress) {
@@ -150,6 +150,6 @@ void TChunkListPool::OnChunkListsReleased(TObjectServiceProxy::TRspExecuteBatchP
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 } // namespace NScheduler
 } // namespace NYT

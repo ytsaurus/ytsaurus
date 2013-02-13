@@ -85,8 +85,8 @@ void TBootstrap::Init()
     if (!ChunkStore->GetCellGuid().IsEmpty() && ChunkCache->GetCellGuid().IsEmpty()) {
         CellGuid = ChunkStore->GetCellGuid();
         ChunkCache->UpdateCellGuid(CellGuid);
-    } 
-    
+    }
+
     if (ChunkStore->GetCellGuid().IsEmpty() && !ChunkCache->GetCellGuid().IsEmpty()) {
         CellGuid = ChunkCache->GetCellGuid();
         ChunkStore->SetCellGuid(CellGuid);

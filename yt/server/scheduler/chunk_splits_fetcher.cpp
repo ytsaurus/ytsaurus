@@ -76,7 +76,7 @@ bool TChunkSplitsFetcher::AddChunkToRequest(NTableClient::TRefCountedInputChunkP
     GetStatistics(*chunk, &dataSize);
 
     if (dataSize < Config->MergeJobMaxSliceDataSize) {
-        LOG_DEBUG("Chunk split added (ChunkId: %s, TableIndex: %d)", 
+        LOG_DEBUG("Chunk split added (ChunkId: %s, TableIndex: %d)",
             ~ToString(chunkId),
             chunk->table_index());
         ChunkSplits.push_back(chunk);
@@ -95,7 +95,7 @@ TFuture<TChunkSplitsFetcher::TResponsePtr> TChunkSplitsFetcher::InvokeRequest()
 }
 
 TError TChunkSplitsFetcher::ProcessResponseItem(
-    TResponsePtr rsp, 
+    TResponsePtr rsp,
     int index,
     TRefCountedInputChunkPtr inputChunk)
 {

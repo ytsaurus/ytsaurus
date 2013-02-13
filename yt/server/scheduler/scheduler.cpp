@@ -552,7 +552,7 @@ private:
                 ? FromObjectId(userTransaction->GetId())
                 : RootTransactionPath);
             req->set_type(EObjectType::Transaction);
-            
+
             auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
             reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
 

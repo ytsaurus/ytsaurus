@@ -118,7 +118,7 @@ void TChunkInfoCollector<TFetcher>::SendRequests()
         }
     }
     awaiter->Complete(BIND(
-        &TChunkInfoCollector<TFetcher>::OnEndRound, 
+        &TChunkInfoCollector<TFetcher>::OnEndRound,
         MakeStrong(this)));
 
     LOG_INFO("Done, %d requests sent", awaiter->GetRequestCount());
@@ -165,7 +165,7 @@ void TChunkInfoCollector<TFetcher>::OnEndRound()
         LOG_INFO("All info is fetched");
         Promise.Set(TError());
     } else {
-        LOG_DEBUG("Chunk info for %d chunks is still unfetched", 
+        LOG_DEBUG("Chunk info for %d chunks is still unfetched",
             static_cast<int>(UnfetchedChunkIndexes.size()));
         SendRequests();
     }

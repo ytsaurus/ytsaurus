@@ -343,7 +343,7 @@ TEST_F(TRpcTest, Attributes)
     EXPECT_FALSE(attributes.Contains("value1"));
     EXPECT_EQ(NYTree::TYsonString("another_stroka"), attributes.GetYson("value2"));
     EXPECT_EQ(NYTree::TYsonString("stroka3"), attributes.GetYson("value3"));
-} 
+}
 
 
 ////////////////////////////////////////////////////////////////////////////////

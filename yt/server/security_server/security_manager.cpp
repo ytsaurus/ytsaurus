@@ -195,7 +195,7 @@ public:
 
         node->SetAccount(account);
         node->CachedResourceUsage() = node->GetResourceUsage();
-        
+
         if (isAccountingEnabled) {
             UpdateResourceUsage(node, account, +1);
         }
@@ -236,9 +236,9 @@ public:
             return;
 
         UpdateResourceUsage(node, account, -1);
-        
+
         node->CachedResourceUsage() = node->GetResourceUsage();
-        
+
         UpdateResourceUsage(node, account, +1);
     }
 
@@ -249,7 +249,7 @@ public:
     {
         if (!IsStagedAccountingEnabled(transaction))
             return;
-       
+
         account->ResourceUsage() += delta;
 
         auto* transactionUsage = GetTransactionAccountUsage(transaction, account);
@@ -266,7 +266,7 @@ private:
 
     TAccountId SysAccountId;
     TAccount* SysAccount;
-    
+
     TAccountId TmpAccountId;
     TAccount* TmpAccount;
 
@@ -462,7 +462,7 @@ void TSecurityManager::SetAccount(TCypressNodeBase* node, TAccount* account)
 
 void TSecurityManager::ResetAccount(TCypressNodeBase* node)
 {
-    Impl->ResetAccount(node);    
+    Impl->ResetAccount(node);
 }
 
 void TSecurityManager::UpdateAccountNodeUsage(TCypressNodeBase* node)

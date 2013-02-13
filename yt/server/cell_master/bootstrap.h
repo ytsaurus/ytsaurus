@@ -28,18 +28,18 @@ public:
     TCellMasterConfigPtr GetConfig() const;
 
     NRpc::IServerPtr GetRpcServer() const;
-    
+
     NTransactionServer::TTransactionManagerPtr GetTransactionManager() const;
-    
+
     NCypressServer::TCypressManagerPtr GetCypressManager() const;
-    
+
     TMetaStateFacadePtr GetMetaStateFacade() const;
-    
+
     NObjectServer::TObjectManagerPtr GetObjectManager() const;
-    
+
     NChunkServer::TChunkManagerPtr GetChunkManager() const;
     NChunkServer::INodeAuthorityPtr GetNodeAuthority() const;
-    
+
     NSecurityServer::TSecurityManagerPtr GetSecurityManager() const;
 
     IInvokerPtr GetControlInvoker() const;
@@ -51,15 +51,15 @@ private:
     TCellMasterConfigPtr Config;
 
     NRpc::IServerPtr RpcServer;
-    
+
     NTransactionServer::TTransactionManagerPtr TransactionManager;
-    
+
     NCypressServer::TCypressManagerPtr CypressManager;
-    
+
     TMetaStateFacadePtr MetaStateFacade;
-    
+
     NObjectServer::TObjectManagerPtr ObjectManager;
-    
+
     NChunkServer::TChunkManagerPtr ChunkManager;
     NChunkServer::INodeAuthorityPtr NodeAuthority;
 

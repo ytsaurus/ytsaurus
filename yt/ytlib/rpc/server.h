@@ -14,7 +14,7 @@ struct IServer
     : public virtual TRefCounted
 {
     virtual void RegisterService(IServicePtr service) = 0;
-    
+
     virtual void Start() = 0;
     virtual void Stop() = 0;
 };

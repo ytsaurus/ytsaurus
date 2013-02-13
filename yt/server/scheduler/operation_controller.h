@@ -44,14 +44,14 @@ struct IOperationHost
      *  \note Thread affinity: any
      */
     virtual IInvokerPtr GetControlInvoker() = 0;
-    
+
     //! Returns the invoker for heavy background activities.
     /*!
      *  This invoker is typically used by controllers for preparing operations
      *  (e.g. sorting samples keys, constructing partitions etc).
      *  There are no affinity guarantees whatsoever.
      *  This could easily be a thread pool.
-     *  
+     *
      *  \note Thread affinity: any
      */
     virtual IInvokerPtr GetBackgroundInvoker() = 0;
@@ -66,7 +66,7 @@ struct IOperationHost
     //! finished successfully.
     /*!
      *  Must be called exactly once.
-     *  
+     *
      *  \note Thread affinity: any
      */
     virtual void OnOperationCompleted(
@@ -75,7 +75,7 @@ struct IOperationHost
     //! Called by a controller to notify the host that the operation has failed.
     /*!
      *  Safe to call multiple times (only the first call counts).
-     *  
+     *
      *  \note Thread affinity: any
      */
     virtual void OnOperationFailed(

@@ -23,9 +23,9 @@ TPartitionChunkSequenceWriter::TPartitionChunkSequenceWriter(
     const TKeyColumns& keyColumns,
     IPartitioner* partitioner)
     : TChunkSequenceWriterBase<TPartitionChunkWriter>(
-        config, 
-        masterChannel, 
-        transactionId, 
+        config,
+        masterChannel,
+        transactionId,
         account,
         parentChunkListId,
         keyColumns)
@@ -43,5 +43,5 @@ void TPartitionChunkSequenceWriter::PrepareChunkWriter(TSession* newSession)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT 
+} // namespace NYT
 } // namespace NTableClient

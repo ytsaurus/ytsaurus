@@ -64,10 +64,10 @@ private:
         int ColumnIndex;
         TChannelWriterPtr Writer;
 
-        TChannelColumn(const TChannelWriterPtr& channelWriter, int columnIndex) 
+        TChannelColumn(const TChannelWriterPtr& channelWriter, int columnIndex)
             : ColumnIndex(columnIndex)
             , Writer(channelWriter)
-        { } 
+        { }
     };
 
     struct TColumnInfo {

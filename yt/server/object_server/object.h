@@ -35,7 +35,7 @@ public:
      *  \note
      *  Objects do not self-destruct, it's callers responsibility to check
      *  if the counter reaches zero.
-     *  
+     *
      *  \returns the decremented counter.
      */
     int UnrefObject();

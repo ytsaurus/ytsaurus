@@ -51,7 +51,7 @@ TFileWriter::TFileWriter(
         transaction ? ~transaction->GetId().ToString() : "None"));
 
     Attributes->Set("replication_factor", Config->ReplicationFactor);
-    
+
     if (Transaction) {
         ListenTransaction(Transaction);
     }
@@ -80,7 +80,7 @@ void TFileWriter::Open()
         ~UploadTransaction->GetId().ToString());
 
     TObjectServiceProxy proxy(MasterChannel);
-    
+
     LOG_INFO("Creating file node");
     {
         auto req = TCypressYPathProxy::Create(Path);
@@ -169,7 +169,7 @@ void TFileWriter::Close()
     {
         auto req = TChunkListYPathProxy::Attach(FromObjectId(ChunkListId));
         *req->add_children_ids() = chunkId.ToProto();
-        
+
         auto rsp = proxy.Execute(req).Get();
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error attaching chunk");
     }

@@ -53,7 +53,7 @@ private:
         if (wholeFieldStroka.length() == 0) {
             fields = VectorStrok(1, "");
         }
-        
+
         if (fields.size() != fieldNames.size()) {
             THROW_ERROR_EXCEPTION("Invalid number of key fields in YAMRed DSV: expected %d, actual %d",
                 static_cast<int>(fieldNames.size()),

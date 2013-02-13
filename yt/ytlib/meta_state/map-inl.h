@@ -212,7 +212,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadKeys(const TLoadContext& c
 
     Map.clear();
     size_t size = ::LoadSize(input);
-    
+
     TKey previousKey;
     for (size_t index = 0; index < size; ++index) {
         TKey key;

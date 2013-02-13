@@ -16,7 +16,7 @@ namespace NDetail {
 ////////////////////////////////////////////////////////////////////////////////
 
 void AssertTrapImpl(
-    const char* trapType, 
+    const char* trapType,
     const char* expr,
     const char* file,
     int line)

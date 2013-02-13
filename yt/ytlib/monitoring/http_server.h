@@ -33,9 +33,9 @@ Stroka FormatOKResponse(const Stroka& body = "");
 
 //! A simple JSON-HTTP server.
 /*
- * This class provides a simple HTTP server that invokes custom handlers 
+ * This class provides a simple HTTP server that invokes custom handlers
  * for certain requests. It is assumed that every generated response is a JSON.
- * 
+ *
  * You can specify either a synchronous or an asynchronous
  * handler for a given path prefix.
  *

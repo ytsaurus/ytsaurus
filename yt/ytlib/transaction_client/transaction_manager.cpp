@@ -179,7 +179,7 @@ public:
             // Let's pretend the transaction was aborted.
             // No sync here, should be safe.
             State = EState::Aborted;
-            
+
             THROW_ERROR_EXCEPTION("Error committing transaction %s", ~Id.ToString())
                 << rsp->GetError();
 
@@ -274,7 +274,7 @@ private:
             BIND(&TTransaction::SendPing, MakeWeak(this)),
             Owner->Config->PingPeriod);
     }
-    
+
     void SendPing()
     {
         LOG_DEBUG("Renewing transaction lease: %s", ~Id.ToString());

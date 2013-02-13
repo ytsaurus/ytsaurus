@@ -22,7 +22,7 @@ public:
     TPartitionChunkReaderProvider(const NChunkClient::TSequentialReaderConfigPtr& config);
 
     TPartitionChunkReaderPtr CreateNewReader(
-        const NProto::TInputChunk& inputChunk, 
+        const NProto::TInputChunk& inputChunk,
         const NChunkClient::IAsyncReaderPtr& chunkReader);
 
     bool KeepInMemory() const;

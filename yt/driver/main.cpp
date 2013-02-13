@@ -98,7 +98,7 @@ public:
                 PrintAllCommands();
                 THROW_ERROR_EXCEPTION("Not enough arguments");
             }
-            
+
             Stroka commandName = Stroka(argv[1]);
 
             if (commandName == "--help") {

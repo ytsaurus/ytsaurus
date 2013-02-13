@@ -123,17 +123,17 @@ void TTableWriter::Open()
                     THROW_ERROR_EXCEPTION("Cannot write sorted data into a non-empty table");
                 }
             }
-            
+
             auto channelsYson = attributes.FindYson("channels");
             if (channelsYson) {
                 channels = ConvertTo<TChannels>(channelsYson.Get());
             }
 
             Config->ReplicationFactor = attributes.Get<int>("replication_factor");
-            
+
             account = attributes.Get<Stroka>("account");
         }
-        
+
         {
             auto rsp = batchRsp->GetResponse<TTableYPathProxy::TRspPrepareForUpdate>("prepare_for_update");
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error preparing for update");
@@ -145,7 +145,7 @@ void TTableWriter::Open()
         static_cast<int>(channels.size()));
 
     Writer = New<TTableChunkSequenceWriter>(
-        Config, 
+        Config,
         MasterChannel,
         uploadTransactionId,
         account,
@@ -198,7 +198,7 @@ void TTableWriter::Close()
     if (KeyColumns) {
         auto keyColumns = KeyColumns.Get();
         LOG_INFO("Marking table as sorted by %s", ~ConvertToYsonString(keyColumns, NYson::EYsonFormat::Text).Data());
-        
+
         auto req = TTableYPathProxy::SetSorted(path);
         SetTransactionId(req, UploadTransaction);
         NMetaState::GenerateRpcMutationId(req);

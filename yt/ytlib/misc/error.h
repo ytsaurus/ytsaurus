@@ -201,7 +201,7 @@ public:
     TValueOrError(const TError& other)
         : TError(other)
     { }
-    
+
     TValueOrError(const std::exception& ex)
         : TError(ex)
     { }

@@ -42,7 +42,7 @@ bool SerializeToProtoWithEnvelope(
 {
     NProto::TSerializedMessageEnvelope envelope;
     if (codecId != ECodec::None) {
-        envelope.set_codec(codecId);   
+        envelope.set_codec(codecId);
     }
 
     size_t messageSize = message.ByteSize();
@@ -63,7 +63,7 @@ bool SerializeToProtoWithEnvelope(
         sizeof (TSerializedMessageFixedHeader) +
         fixedHeader.HeaderSize +
         fixedHeader.MessageSize;
-        
+
     *data = TSharedRef::Allocate<TSerializedMessageTag>(totalSize);
 
     char* targetFixedHeader = data->Begin();
@@ -112,7 +112,7 @@ bool DeserializeFromProtoWithEnvelope(
     ArrayInputStream arrayInputStream(serializedMessage.Begin(), serializedMessage.Size());
     CodedInputStream codedInputStream(&arrayInputStream);
     codedInputStream.SetTotalBytesLimit(
-        serializedMessage.Size() + 1, 
+        serializedMessage.Size() + 1,
         serializedMessage.Size() + 1);
 
     if (!message->ParseFromCodedStream(&codedInputStream)) {

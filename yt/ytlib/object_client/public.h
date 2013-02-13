@@ -6,7 +6,7 @@ namespace NYT {
 namespace NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
-    
+
 class TRetryingBatch;
 typedef TIntrusivePtr<TRetryingBatch> TRetryingBatchPtr;
 
@@ -16,7 +16,7 @@ typedef TIntrusivePtr<TRetryingBatch> TRetryingBatchPtr;
 /*!
  *  TGuid consists of four 32-bit parts.
  *  For TObjectId, these parts have the following meaning:
- *  
+ *
  *  Part 0: some hash
  *  Part 1: bits 0..15:  object type
  *          bits 16..31: cell id
@@ -41,7 +41,7 @@ DECLARE_ENUM(EObjectType,
     // The following are non-versioned objects.
     // These must be created by sending TTransactionYPathProxy::CreateObject to a transaction.
     // Except for EObjectType::Transaction, the latter transaction cannot be null.
-    
+
     // Transaction Manager stuff
     // Top-level transactions are created by sending CreateObject request to RootTransactionPath
     // (which is effectively represents NullTransactionId).

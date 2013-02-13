@@ -44,7 +44,7 @@ public:
 private:
     TDataNodeConfigPtr Config;
     NCellNode::TBootstrap* NodeBootstrap;
-    
+
     TChunkRegistryPtr ChunkRegistry;
     TChunkStorePtr ChunkStore;
     TChunkCachePtr ChunkCache;
@@ -57,7 +57,7 @@ private:
     TMasterConnectorPtr MasterConnector;
 
     TGuid CellGuid;
-    
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

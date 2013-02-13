@@ -30,8 +30,8 @@ public:
     virtual bool GetRetryEnabled() const override;
 
     virtual void Send(
-        IClientRequestPtr request, 
-        IClientResponseHandlerPtr responseHandler, 
+        IClientRequestPtr request,
+        IClientResponseHandlerPtr responseHandler,
         TNullable<TDuration> timeout) override;
 
     virtual void Terminate(const TError& error) override;
@@ -47,7 +47,7 @@ IChannelPtr CreateRetryingChannel(
     IChannelPtr underlyingChannel)
 {
     return config->MaxAttempts == 1
-        ? underlyingChannel 
+        ? underlyingChannel
         : New<TRetryingChannel>(config, underlyingChannel);
 }
 
@@ -78,7 +78,7 @@ public:
         Deadline = Timeout ? TInstant::Now() + Timeout.Get() : TInstant::Max();
     }
 
-    void Send() 
+    void Send()
     {
         LOG_DEBUG("Request attempt started (RequestId: %s, Attempt: %d of %d)",
             ~Request->GetRequestId().ToString(),
@@ -105,7 +105,7 @@ private:
     TNullable<TDuration> Timeout;
     TInstant Deadline;
 
-    DECLARE_ENUM(EState, 
+    DECLARE_ENUM(EState,
         (Sent)
         (Acked)
         (Done)
@@ -197,8 +197,8 @@ TRetryingChannel::TRetryingChannel(
 }
 
 void TRetryingChannel::Send(
-    IClientRequestPtr request, 
-    IClientResponseHandlerPtr responseHandler, 
+    IClientRequestPtr request,
+    IClientResponseHandlerPtr responseHandler,
     TNullable<TDuration> timeout)
 {
     YASSERT(request);

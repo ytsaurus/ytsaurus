@@ -15,7 +15,7 @@ namespace NChunkHolder {
 /*!
  *  \note
  *  Thread affinity: any.
- *  
+ *
  *  Since methods may be called from arbitrary threads some of their results
  *  may only be regarded as a transient snapshot
  *  (applies to #GetChunks, #FindChunk, #GetChunkCount);

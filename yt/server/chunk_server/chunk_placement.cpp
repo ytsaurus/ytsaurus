@@ -259,7 +259,7 @@ bool TChunkPlacement::IsValidUploadTarget(TDataNode* targetNode)
         // Do not upload anything to full nodes.
         return false;
     }
-            
+
     // Seems OK :)
     return true;
 }

@@ -10,12 +10,12 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Generates a consequent deterministic ids of a given numeric type.
-/*! 
+/*!
  *  When a fresh instance is created, it gets initialized with zero.
  *  Calling #Next produces just the next numeric value.
  *  The generator's state can be serialized by calling overloaded #Save
  *  and #Load.
- *  
+ *
  *  Internally, the generator uses an <tt>intptr_t</tt> type to keep the current id value.
  *  Hence the period is equal to the size of <tt>intptr_t</tt>'s domain and may vary
  *  depending on the current bitness.

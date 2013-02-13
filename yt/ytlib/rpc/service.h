@@ -103,7 +103,7 @@ struct IService
     : public virtual TRefCounted
 {
     virtual Stroka GetServiceName() const = 0;
-    
+
     virtual void OnRequest(
         const NProto::TRequestHeader& header,
         NBus::IMessagePtr message,
@@ -554,10 +554,10 @@ protected:
      *  \param defaultInvoker
      *  An invoker that will be used for serving method invocations unless
      *  configured otherwise (see #RegisterMethod).
-     *  
+     *
      *  \param serviceName
      *  A name of the service.
-     *  
+     *
      *  \param loggingCategory
      *  A category that will be used to log various debugging information
      *  regarding service activity.

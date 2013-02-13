@@ -31,11 +31,11 @@ struct TRetryingChannelConfig
 /*!
  *  If a request fails with a retriable error (see #NRpc::IsRetriableError),
  *  it is retried a given number of times with a given back off time.
- *  
+ *
  *  If the request is still failing, then EErrorCode::Unavailable is returned.
- *  
+ *
  *  If number of retry attemps is one then the underlying channel is returned.
- */ 
+ */
 IChannelPtr CreateRetryingChannel(
     TRetryingChannelConfigPtr config,
     IChannelPtr underlyingChannel);

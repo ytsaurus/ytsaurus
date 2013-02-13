@@ -35,10 +35,10 @@ void TCallbackBase::Swap(TCallbackBase& other)
 {
     TIntrusivePtr<TBindStateBase> tempBindState = std::move(other.BindState);
     TUntypedInvokeFunction tempUntypedInvoke = std::move(other.UntypedInvoke);
- 
+
     other.BindState = std::move(BindState);
     other.UntypedInvoke = std::move(UntypedInvoke);
- 
+
     BindState = std::move(tempBindState);
     UntypedInvoke = std::move(tempUntypedInvoke);
 }

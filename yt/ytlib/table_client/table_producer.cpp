@@ -15,7 +15,7 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableProducer::TTableProducer(
-    ISyncReaderPtr reader, 
+    ISyncReaderPtr reader,
     IYsonConsumer* consumer)
     : Reader(reader)
     , Consumer(consumer)

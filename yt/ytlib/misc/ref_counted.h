@@ -246,7 +246,7 @@ FORCED_INLINE void InitializeTracking(TRefCountedBase* object, void* typeCookie,
 }
 
 #endif
-    
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Base for reference-counted objects with extrinsic reference counting.

@@ -181,7 +181,7 @@ struct TSchedulerConfig
         Register("map_job_max_slice_data_size", MapJobMaxSliceDataSize)
             .Default((i64)256 * 1024 * 1024)
             .GreaterThan(0);
-        
+
         Register("merge_job_max_slice_data_size", MergeJobMaxSliceDataSize)
             .Default((i64)256 * 1024 * 1024)
             .GreaterThan(0);

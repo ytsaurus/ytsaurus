@@ -90,7 +90,7 @@ struct TObjectRefSetSerializer
         typedef typename T::value_type V;
 
         ::SaveSize(output, objects.size());
-        
+
         std::vector<V> sortedObjects(objects.begin(), objects.end());
         std::sort(
             sortedObjects.begin(),
@@ -156,7 +156,7 @@ struct TObjectRefHashMapSerializer
         for (auto it = items.begin(); it != items.end(); ++it) {
             sortedIterators.push_back(it);
         }
-        
+
         std::sort(
             sortedIterators.begin(),
             sortedIterators.end(),
@@ -238,6 +238,6 @@ void LoadObjectRefs(TInputStream* input, T& objects, const TLoadContext& context
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 } // namespace NCellMaster
 } // namespace NYT

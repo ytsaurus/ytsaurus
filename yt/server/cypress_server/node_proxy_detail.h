@@ -93,7 +93,7 @@ public:
     virtual TCypressNodeBase* GetTrunkNode() const override;
 
     virtual NYTree::ENodeType GetType() const override;
-    
+
 
     virtual NYTree::ICompositeNodePtr GetParent() const override;
     virtual void SetParent(NYTree::ICompositeNodePtr parent) override;
@@ -145,7 +145,7 @@ protected:
     void DetachChild(TCypressNodeBase* child, bool unref);
 
     virtual TAutoPtr<NYTree::IAttributeDictionary> DoCreateUserAttributes() override;
-    
+
     void SetModified();
 
     NYPath::TYPath PrepareRecursiveChildPath(const NYPath::TYPath& path);
@@ -370,7 +370,7 @@ private:
     virtual IYPathService::TResolveResult ResolveRecursive(
         const NYPath::TYPath& path,
         NRpc::IServiceContextPtr context) override;
-        
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

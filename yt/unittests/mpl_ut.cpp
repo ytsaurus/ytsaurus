@@ -122,13 +122,13 @@ TEST(TMetaProgrammingTest, RemoveConst)
     EXPECT_HERE(const int[3], int[3]);
     EXPECT_HERE(volatile int[3], volatile int[3]);
     EXPECT_HERE(const volatile int[3], volatile int[3]);
-  
+
     EXPECT_HERE(int&, int&);
     EXPECT_HERE(const int&, const int&);
 
     EXPECT_HERE(int&&, int&&);
     EXPECT_HERE(const int&&, const int&&);
- 
+
     EXPECT_HERE(int*, int*);
     EXPECT_HERE(int* const, int*);
     EXPECT_HERE(int* volatile, int* volatile);
@@ -161,13 +161,13 @@ TEST(TMetaProgrammingTest, RemoveVolatile)
     EXPECT_HERE(const int[3], const int[3]);
     EXPECT_HERE(volatile int[3], int[3]);
     EXPECT_HERE(const volatile int[3], const int[3]);
-  
+
     EXPECT_HERE(int&, int&);
     EXPECT_HERE(const int&, const int&);
 
     EXPECT_HERE(int&&, int&&);
     EXPECT_HERE(const int&&, const int&&);
- 
+
     EXPECT_HERE(int*, int*);
     EXPECT_HERE(int* const, int* const);
     EXPECT_HERE(int* volatile, int*);
@@ -200,13 +200,13 @@ TEST(TMetaProgrammingTest, RemoveCV)
     EXPECT_HERE(const int[3], int[3]);
     EXPECT_HERE(volatile int[3], int[3]);
     EXPECT_HERE(const volatile int[3], int[3]);
-  
+
     EXPECT_HERE(int&, int&);
     EXPECT_HERE(const int&, const int&);
 
     EXPECT_HERE(int&&, int&&);
     EXPECT_HERE(const int&&, const int&&);
- 
+
     EXPECT_HERE(int*, int*);
     EXPECT_HERE(int* const, int*);
     EXPECT_HERE(int* volatile, int*);

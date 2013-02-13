@@ -10,10 +10,10 @@ namespace NBus {
 struct TTcpDispatcherStatistics
 {
     TTcpDispatcherStatistics();
-    
+
     int PendingInCount;
     i64 PendingInSize;
-    
+
     int PendingOutCount;
     i64 PendingOutSize;
 

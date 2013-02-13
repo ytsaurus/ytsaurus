@@ -286,7 +286,7 @@ Stroka ToString(const TError& error)
 void ToProto(NYT::NProto::TError* protoError, const TError& error)
 {
     protoError->set_code(error.GetCode());
-    
+
     if (!error.GetMessage().empty()) {
         protoError->set_message(error.GetMessage());
     } else {
@@ -345,7 +345,7 @@ void Serialize(const TError& error, NYson::IYsonConsumer* consumer)
 void Deserialize(TError& error, NYTree::INodePtr node)
 {
     auto mapNode = node->AsMap();
-    
+
     error = TError(
         mapNode->GetChild("code")->GetValue<i64>(),
         mapNode->GetChild("message")->GetValue<Stroka>());
@@ -394,7 +394,7 @@ TErrorException::TErrorException(TErrorException&& other)
     : Error_(other.Error_)
 { }
 
-TErrorException::TErrorException(const TErrorException& other)  
+TErrorException::TErrorException(const TErrorException& other)
     : Error_(other.Error_)
 { }
 

@@ -14,7 +14,7 @@ using namespace NTableClient;
 ////////////////////////////////////////////////////////////////////
 
 TTableOutput::TTableOutput(
-    TAutoPtr<IParser> parser, 
+    TAutoPtr<IParser> parser,
     TAutoPtr<NYson::IYsonConsumer> consumer,
     const ISyncWriterPtr& syncWriter)
     : Parser(parser)

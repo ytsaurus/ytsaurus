@@ -16,7 +16,7 @@ extern Stroka TmpAccountName;
 extern Stroka SysAccountName;
 
 ////////////////////////////////////////////////////////////////////////////////
-    
+
 } // namespace NSecurityClient
 } // namespace NYT
 

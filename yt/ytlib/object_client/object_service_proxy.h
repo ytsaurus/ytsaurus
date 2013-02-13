@@ -55,7 +55,7 @@ public:
             const Stroka& path,
             const Stroka& verb);
 
-        //! Runs asynchronous invocation. 
+        //! Runs asynchronous invocation.
         TFuture<TRspExecuteBatchPtr> Invoke();
 
         //! Overrides base method for fluent use.
@@ -66,7 +66,7 @@ public:
          *  Each individual request may be marked with a key.
          *  These keys can be used to retrieve the corresponding responses
          *  (thus avoiding complicated and error-prone index calculations).
-         *  
+         *
          *  The client is allowed to issue an empty (|NULL|) request. This request is treated
          *  like any other and it sent to the server. The server typically sends an empty (|NULL|)
          *  response back. This feature is useful for adding dummy requests to keep
@@ -108,9 +108,9 @@ public:
     /*!
      *  This class holds a vector of messages representing responses to individual
      *  requests that were earlier sent to Cypress.
-     *  
+     *
      *  The length of this vector (see #GetSize) coincides to that of the requests vector.
-     *  
+     *
      *  Individual responses can be extracted by calling #GetResponse. Since they may be of
      *  different actual types, the client must supply an additional type parameter.
      *  Responses may also be retrieved by specifying a key that was used during

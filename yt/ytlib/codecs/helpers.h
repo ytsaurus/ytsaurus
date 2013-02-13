@@ -29,7 +29,7 @@ TSharedRef Apply(TConverter converter, const std::vector<TSharedRef>& refs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Implements snappy::Source interface over a vector of TSharedRef-s. 
+//! Implements snappy::Source interface over a vector of TSharedRef-s.
 class TVectorRefsSource
     : public StreamSource
 {

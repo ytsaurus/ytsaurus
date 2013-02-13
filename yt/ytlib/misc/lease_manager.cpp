@@ -70,7 +70,7 @@ private:
         TGuard<TSpinLock> guard(lease->SpinLock);
         if (!lease->IsValid)
             return;
-        
+
         auto onExpired = lease->OnExpired;
         InvalidateLease(lease);
         guard.Release();

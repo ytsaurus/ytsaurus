@@ -69,14 +69,14 @@ public:
     //! Finalizes the changelog.
     //! \see TChangeLog::Finalize
     void Finalize();
-        
+
     int GetId() const;
     int GetPrevRecordCount() const;
     int GetRecordCount() const;
     const TEpochId& GetEpoch() const;
     bool IsFinalized() const;
 
-    // XXX(sandello): This is very-very-very dirty. Dirty-dirty-dirty. 
+    // XXX(sandello): This is very-very-very dirty. Dirty-dirty-dirty.
     // Bad, bad, nasty --girl-- static initialization fiasco.
     static void Shutdown();
 

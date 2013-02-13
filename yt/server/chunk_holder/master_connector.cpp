@@ -135,13 +135,13 @@ void TMasterConnector::SendRegister()
 NChunkServer::NProto::TNodeStatistics TMasterConnector::ComputeStatistics()
 {
     TNodeStatistics nodeStatistics;
-    
+
     i64 totalAvailableSpace = 0;
     i64 totalUsedSpace = 0;
     int totalChunkCount = 0;
     int totalSessionCount = 0;
     bool full = true;
-    
+
     FOREACH (auto location, Bootstrap->GetChunkStore()->Locations()) {
         auto* locationStatistics = nodeStatistics.add_locations();
 
@@ -287,14 +287,14 @@ void TMasterConnector::OnFullHeartbeatResponse(TProxy::TRspFullHeartbeatPtr resp
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     ScheduleHeartbeat();
-    
+
     if (!response->IsOK()) {
         OnHeartbeatError(response->GetError());
         return;
     }
 
     LOG_INFO("Successfully reported full heartbeat to master");
-    
+
     State = EState::Online;
 }
 

@@ -130,7 +130,7 @@ private:
     TEventCount& operator=(TEventCount&&);
 
     // NB: You have to atomically work with these two.
-    TAtomic Epoch; 
+    TAtomic Epoch;
     TAtomic Waiters;
 };
 

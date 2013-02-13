@@ -47,7 +47,7 @@ public:
     TNullable(TNull)
         : HasValue_(false)
     { }
-    
+
     template <class U>
     TNullable(
         const TNullable<U>& other,
@@ -63,7 +63,7 @@ public:
         : HasValue_(other.HasValue_)
         , Value(std::move(other.Value))
     { }
-    
+
     TNullable(bool condition, const T& value)
         : HasValue_(false)
     {
@@ -113,7 +113,7 @@ public:
         Assign(other);
         return *this;
     }
-    
+
     void Assign(const T& value)
     {
         HasValue_ = true;
@@ -135,7 +135,7 @@ public:
     void Assign(const TNullable<U>& other)
     {
         static_assert(NMpl::TIsConvertible<U, T>::Value, "U have to be convertible to T");
-        
+
         bool hadValue = HasValue_;
         HasValue_ = other.HasValue_;
         if (other.HasValue_) {
@@ -164,7 +164,7 @@ public:
         if (!HasValue_ && !other.HasValue_) {
             return;
         }
-        
+
         DoSwap(HasValue_, other.HasValue_);
         DoSwap(Value, other.Value);
     }

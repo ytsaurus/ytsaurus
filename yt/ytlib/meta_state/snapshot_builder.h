@@ -89,7 +89,7 @@ private:
 #if defined(_unix_)
     static void WatchdogFork(
         TWeakPtr<TSnapshotBuilder> weakSnapshotBuilder,
-        i32 segmentId, 
+        i32 segmentId,
         pid_t childPid);
     TActionQueuePtr WatchdogQueue;
 #endif

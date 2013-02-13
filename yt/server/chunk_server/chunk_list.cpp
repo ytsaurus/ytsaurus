@@ -41,7 +41,7 @@ TVersionedChunkListId TChunkList::GetVersionedId() const
 void TChunkList::Save(const NCellMaster::TSaveContext& context) const
 {
     TChunkTree::Save(context);
-    
+
     auto* output = context.GetOutput();
     SaveObjectRefs(output, Children_);
     SaveObjectRefs(output, Parents_);
@@ -54,7 +54,7 @@ void TChunkList::Save(const NCellMaster::TSaveContext& context) const
 void TChunkList::Load(const NCellMaster::TLoadContext& context)
 {
     TChunkTree::Load(context);
-    
+
     auto* input = context.GetInput();
     LoadObjectRefs(input, Children_, context);
     LoadObjectRefs(input, Parents_, context);

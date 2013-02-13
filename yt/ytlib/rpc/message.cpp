@@ -67,7 +67,7 @@ IMessagePtr CreateResponseMessage(IServiceContextPtr context)
     ToProto(header.mutable_error(), context->GetError());
     ToProto(header.mutable_attributes(), context->ResponseAttributes());
 
-    return 
+    return
         context->GetError().IsOK()
         ? CreateResponseMessage(
             header,

@@ -27,7 +27,7 @@ class TRemoteWriter
 {
 public:
     TRemoteWriter(
-        const TRemoteWriterConfigPtr& config, 
+        const TRemoteWriterConfigPtr& config,
         const TChunkId& chunkId,
         const std::vector<Stroka>& addresses);
 

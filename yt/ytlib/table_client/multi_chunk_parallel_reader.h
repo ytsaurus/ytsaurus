@@ -28,7 +28,7 @@ public:
 private:
     using typename TBase::TProviderPtr;
     using typename TBase::TSession;
-    
+
     using TBase::State;
     using TBase::Logger;
     using TBase::CurrentSession;
@@ -41,7 +41,7 @@ private:
     int CompleteReaderCount;
 
     virtual void OnReaderOpened(
-        const typename TBase::TSession& session, 
+        const typename TBase::TSession& session,
         TError error) override;
 
     void OnReaderReady(const typename TBase::TSession& session, TError error);

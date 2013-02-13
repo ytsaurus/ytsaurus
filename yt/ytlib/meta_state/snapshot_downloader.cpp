@@ -91,9 +91,9 @@ void TSnapshotDownloader::OnSnapshotInfoResponse(
             peerId);
         return;
     }
-    
+
     i64 length = response->length();
-    
+
     LOG_INFO("Got snapshot info from peer %d (Length: %" PRId64 ")",
         peerId,
         length);
@@ -117,7 +117,7 @@ TError TSnapshotDownloader::DownloadSnapshot(
     const TSnapshotInfo& snapshotInfo)
 {
     YASSERT(snapshotInfo.Length >= 0);
-    
+
     auto sourceId = snapshotInfo.SourceId;
 
     TAutoPtr<TFile> file;
@@ -130,7 +130,7 @@ TError TSnapshotDownloader::DownloadSnapshot(
     }
 
     TBufferedFileOutput output(*file);
-    
+
     auto error = WriteSnapshot(snapshotId, snapshotInfo.Length, sourceId, &output);
     if (!error.IsOK()) {
         return error;
@@ -178,7 +178,7 @@ TError TSnapshotDownloader::WriteSnapshot(
                 sourceId)
                 << *rsp;
         }
-        
+
         const auto& attachments = rsp->Attachments();
         TRef block(attachments.at(0));
         if (static_cast<i32>(block.Size()) != blockSize) {

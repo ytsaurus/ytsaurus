@@ -70,7 +70,7 @@ private:
 // A simple mock object which mocks Ref()/Unref() and prohibits
 // public destruction.
 class TObjectWithRCAndPrivateDtor
-    : public TObjectWithRC 
+    : public TObjectWithRC
 {
 private:
     ~TObjectWithRCAndPrivateDtor()
@@ -200,7 +200,7 @@ T PolymorphicPassThrough(T t)
 template <class T>
 void VoidPolymorphic1(T t)
 {
-    UNUSED(t); 
+    UNUSED(t);
 }
 
 int ArrayGet(const int array[], int n)
@@ -783,12 +783,12 @@ TEST_F(TBindTest, OwnedWrapper)
 {
     TProbeState state;
     TProbe* probe;
-    
+
     // If we don't capture, delete happens on TCallback destruction/reset.
     // return the same value.
     state.Reset();
     probe = new TProbe(&state);
-    
+
     TCallback<TProbe*()> capturedArgument =
         BIND(&PolymorphicIdentity<TProbe*>, Owned(probe));
 
@@ -851,7 +851,7 @@ TEST_F(TBindTest, DISABLED_PassedWrapper)
             BIND(
                 &PolymorphicPassThrough<TProbe>,
                 Passed(std::move(probe)));
-        
+
         // The argument has been passed.
         EXPECT_FALSE(probe.IsValid());
         EXPECT_EQ(0, state.Destructors);
@@ -1074,7 +1074,7 @@ TEST_F(TBindTest, LambdaSupport)
 
     TCallback<int(int, int)> plus  = BIND([] (int a, int b) -> int { return a + b; });
     TCallback<int(int)>      plus5 = BIND([] (int a, int b) -> int { return a + b; }, 5);
-    
+
     EXPECT_EQ(3, plus. Run(1, 2));
     EXPECT_EQ(6, plus5.Run(1));
 }

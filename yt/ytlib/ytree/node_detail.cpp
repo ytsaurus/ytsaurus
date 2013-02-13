@@ -257,7 +257,7 @@ void TMapNodeMixin::SetChild(const TYPath& path, INodePtr value, bool recursive)
 
         auto newValue = lastStep ? value : factory->CreateMap();
         node->AddChild(newValue, key);
-        
+
         if (!lastStep) {
             node = newValue->AsMap();
         }

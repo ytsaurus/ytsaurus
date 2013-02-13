@@ -74,6 +74,6 @@ struct TElectionManagerConfig
 typedef TIntrusivePtr<TElectionManagerConfig> TElectionManagerConfigPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 } // namespace NElection
 } // namespace NYT

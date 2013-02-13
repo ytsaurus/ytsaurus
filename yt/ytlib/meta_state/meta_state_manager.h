@@ -67,7 +67,7 @@ struct IMetaStateManager
      *  If the peer is not the leader then #ECommitResult::InvalidStatus is returned.
      *  If the peer is the leader but has no active quorum, then #ECommitResult::NotCommitted is returned.
      *  If the state is read-only, then #ECommitResult::ReadOnly is returned.
-     *  
+     *
      *  \param mutationType A string describing the type of the mutation.
      *  \param mutationData A blob describing the mutation itself to be send to followers.
      *  \param mutationAction An optional action that is called to perform the mutation at the leader,
@@ -81,7 +81,7 @@ struct IMetaStateManager
     /*!
      *  Checking the return value for NULL can be useful to prevent recursive commits and only log "top-level"
      *  mutations that trigger the whole transformation chain.
-     *  
+     *
      *  \note Thread affinity: StateThread
      */
     virtual TMutationContext* GetMutationContext() = 0;

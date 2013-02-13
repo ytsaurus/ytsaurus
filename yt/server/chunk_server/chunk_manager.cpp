@@ -721,7 +721,7 @@ private:
     TBootstrap* Bootstrap;
 
     TChunkTreeBalancer ChunkTreeBalancer;
-    
+
     int ChunkReplicaCount;
     int RegisteredNodeCount;
 
@@ -738,7 +738,7 @@ private:
     TChunkPlacementPtr ChunkPlacement;
     TChunkReplicatorPtr ChunkReplicator;
     TNodeLeaseTrackerPtr NodeLeaseTracker;
-    
+
     TIdGenerator<TNodeId> NodeIdGenerator;
 
     TMetaStateMap<TChunkId, TChunk> ChunkMap;
@@ -836,9 +836,9 @@ private:
         Stroka address = request.address();
         auto incarnationId = TIncarnationId::FromProto(request.incarnation_id());
         const auto& statistics = request.statistics();
-    
+
         auto nodeId = NodeIdGenerator.Next();
-    
+
         auto* existingNode = FindNodeByAddresss(address);
         if (existingNode) {
             LOG_INFO_UNLESS(IsRecovery(), "Node kicked out due to address conflict (Address: %s, NodeId: %d)",
@@ -877,7 +877,7 @@ private:
     }
 
     void UnregisterNode(const TMetaReqUnregisterNode& request)
-    { 
+    {
         auto nodeId = request.node_id();
 
         // Allow nodeId to be invalid, just ignore such obsolete requests.
@@ -1177,7 +1177,7 @@ private:
             NeedToRecomputeStatistics = false;
         }
     }
-    
+
     virtual void OnLeaderRecoveryComplete() override
     {
         NodeLeaseTracker = New<TNodeLeaseTracker>(Config, Bootstrap);
@@ -1200,7 +1200,7 @@ private:
     {
         // Assign initial leases to nodes.
         // NB: Nodes will remain unconfirmed until the first heartbeat.
-        FOREACH (const auto& pair, NodeMap) { 
+        FOREACH (const auto& pair, NodeMap) {
             StartNodeTracking(pair.second, true);
         }
     }
@@ -1230,7 +1230,7 @@ private:
 
 
     void DoUnregisterNode(TDataNode* node)
-    { 
+    {
         PROFILE_TIMING ("/node_unregistration_time") {
             auto nodeId = node->GetId();
 
@@ -1692,7 +1692,7 @@ TObjectBase* TChunkManager::TChunkTypeHandler::Create(
     TRspCreateObject* response)
 {
     UNUSED(attributes);
-    
+
     // TODO(babenko): account must be required
     if (account && account->IsOverDiskSpace()) {
         THROW_ERROR_EXCEPTION("Account is over disk space: %s",

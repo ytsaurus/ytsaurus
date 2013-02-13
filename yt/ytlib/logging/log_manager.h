@@ -13,7 +13,7 @@ class TLogManager
 {
 public:
     TLogManager();
-    
+
     static TLogManager* Get();
 
     void Configure(NYTree::INodePtr node);

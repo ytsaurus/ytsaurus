@@ -20,21 +20,21 @@ struct ITransaction
      *  This call may block.
      *  Throws an exception if the commit fails.
      *  Should not be called more than once.
-     * 
+     *
      *  \note Thread affinity: ClientThread
      */
     virtual void Commit() = 0;
 
     //! Aborts the transaction.
     /*!
-     *  
+     *
      *  If #wait is False then then call does not block and does not throw.
-     *  
+     *
      *  If #wait is True then the call blocks until the master has confirmed
      *  transaction abort. It may also throw an exception if something goes wrong.
-     *  
+     *
      *  Safe to call multiple times.
-     * 
+     *
      *  \note Thread affinity: any
      */
     virtual void Abort(bool wait = false) = 0;
@@ -43,7 +43,7 @@ struct ITransaction
     /*!
      *  This call does not block and does not throw.
      *  Safe to call multiple times.
-     * 
+     *
      *  \note Thread affinity: ClientThread
      */
     virtual void Detach() = 0;

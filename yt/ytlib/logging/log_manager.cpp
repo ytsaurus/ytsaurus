@@ -55,7 +55,7 @@ struct TRule
     ELogLevel MaxLevel;
 
     std::vector<Stroka> Writers;
-    
+
     TRule()
         : AllCategories(false)
     {
@@ -118,7 +118,7 @@ public:
         auto it = CachedWriters.find(cacheKey);
         if (it != CachedWriters.end())
             return it->second;
-    
+
         yhash_set<Stroka> writerIds;
         FOREACH (auto& rule, Rules) {
             if (rule->IsApplicable(event.Category, event.Level)) {
@@ -170,7 +170,7 @@ public:
         config->Writers.insert(MakePair(
             DefaultStdErrWriterName,
             New<TStdErrLogWriter>(DefaultStdErrPattern)));
-        
+
         auto rule = New<TRule>();
 
         rule->AllCategories = true;
@@ -329,7 +329,7 @@ public:
 #endif
     }
 
-    /*! 
+    /*!
      * In some cases (when configuration is being updated at the same time),
      * the actual version is greater than the version returned by this method.
      */

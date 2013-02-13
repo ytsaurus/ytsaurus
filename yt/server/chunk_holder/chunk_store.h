@@ -29,7 +29,7 @@ public:
 
     //! Registers a chunk.
     void RegisterChunk(TStoredChunkPtr chunk);
-    
+
     //! Finds chunk by id. Returns NULL if no chunk exists.
     TStoredChunkPtr FindChunk(const TChunkId& chunkId) const;
 

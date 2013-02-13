@@ -68,7 +68,7 @@ private:
 
     void FetchNextGroup();
     void RequestBlocks(
-        int firstIndex, 
+        int firstIndex,
         const std::vector<int>& blockIndexes,
         int groupSize);
 

@@ -42,7 +42,7 @@ protected:
 
     Stroka ServiceName;
     IChannelPtr Channel;
-};          
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -169,7 +169,7 @@ struct IClientResponseHandler
 {
     //! Request delivery has been acknowledged.
     virtual void OnAcknowledgement() = 0;
-    
+
     //! The request has been replied with #EErrorCode::OK.
     /*!
      *  \param message A message containing the response.

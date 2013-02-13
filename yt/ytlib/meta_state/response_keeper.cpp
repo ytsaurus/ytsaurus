@@ -79,7 +79,7 @@ void TResponseKeeper::TrySweep()
         if (item.When > deadline) {
             break;
         }
-        
+
         LOG_DEBUG("Mutation response swept (MutationId: %s)", ~item.Iterator->first.ToString());
 
         UpdateCounters(item.Iterator->second, -1);
@@ -104,7 +104,7 @@ void TResponseKeeper::Clear()
     while (!ResponseQueue.empty()) {
         ResponseQueue.pop();
     }
-    
+
     Profiler.Aggregate(CountCounter, 0);
     Profiler.Aggregate(SpaceCounter, 0);
 

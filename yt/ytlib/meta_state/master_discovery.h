@@ -57,7 +57,7 @@ private:
     class TQuorumRequester;
 
     TMasterDiscoveryConfigPtr Config;
-  
+
     TFuture<TProxy::TRspGetQuorumPtr> GetQuorum();
 
 };

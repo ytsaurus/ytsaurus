@@ -12,7 +12,7 @@ namespace NRpc {
 /*!
  *  The serialized channel forwards all requests to #underlyingChannel
  *  but only starts a new request once the previous one is completed.
- */ 
+ */
 IChannelPtr CreateSerializedChannel(IChannelPtr underlyingChannel);
 
 ////////////////////////////////////////////////////////////////////////////////

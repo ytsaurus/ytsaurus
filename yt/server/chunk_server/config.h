@@ -17,25 +17,25 @@ struct TChunkReplicatorConfig
 {
     //! Minimum number of nodes the cell must have online to enable starting new jobs.
     TNullable<int> MinOnlineNodeCount;
-    
+
     //! Max lost chunk fraction the cell is allowed to have to enable starting new jobs.
     TNullable<double> MaxLostChunkFraction;
-    
+
     //! Maximum number of upload targets during replication and balancing.
     int MaxReplicationFanOut;
-    
+
     //! Maximum number of incoming upload sessions during replication and balancing.
     int MaxReplicationFanIn;
-    
+
     //! Maximum number of concurrent removal jobs that can be scheduled to a node.
     int MaxRemovalJobsPerNode;
-    
+
     //! Minimum difference in fill coefficient (between the most and the least loaded nodes) to start balancing.
     double MinBalancingFillCoeffDiff;
-    
+
     //! Minimum fill coefficient of the most loaded node to start balancing.
     double MinBalancingFillCoeff;
-    
+
     //! Maximum duration a job can run before it is considered dead.
     TDuration JobTimeout;
 
@@ -87,7 +87,7 @@ struct TChunkManagerConfig
     int FullHeartbeatQueueHardLimit;
 
     TChunkReplicatorConfigPtr ChunkReplicator;
-    
+
     TChunkManagerConfig()
     {
         Register("online_node_timeout", OnlineNodeTimeout)

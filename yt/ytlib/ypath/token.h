@@ -31,6 +31,6 @@ TStringBuf ExtractListIndex(const TStringBuf& token);
 int ParseListIndex(const TStringBuf& token);
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 } // namespace NYPath
 } // namespace NYT

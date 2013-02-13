@@ -39,8 +39,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TAutoPtr<IParser> CreateParserForYson(
-    NYson::IYsonConsumer* consumer, 
-    NYson::EYsonType type, 
+    NYson::IYsonConsumer* consumer,
+    NYson::EYsonType type,
     bool enableLinePositionInfo)
 {
     return new TYsonParser(consumer, type, enableLinePositionInfo);

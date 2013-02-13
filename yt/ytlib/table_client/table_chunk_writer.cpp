@@ -137,7 +137,7 @@ void TTableChunkWriter::FinalizeRow(const TRow& row)
     }
 }
 
-auto TTableChunkWriter::GetColumnInfo(const TStringBuf& name) ->TColumnInfo& 
+auto TTableChunkWriter::GetColumnInfo(const TStringBuf& name) ->TColumnInfo&
 {
     auto it = ColumnMap.find(name);
     if (it == ColumnMap.end()) {
@@ -205,7 +205,7 @@ bool TTableChunkWriter::TryWriteRow(const TRow& row)
     if (KeyColumns) {
         if (CompareKeys(LastKey, CurrentKey) > 0) {
             State.Fail(TError(Sprintf(
-                "Sort order violation (PreviousKey: %s, CurrentKey: %s)", 
+                "Sort order violation (PreviousKey: %s, CurrentKey: %s)",
                 ~ToString(LastKey),
                 ~ToString(CurrentKey))));
             return false;
@@ -218,7 +218,7 @@ bool TTableChunkWriter::TryWriteRow(const TRow& row)
     return true;
 }
 
-// We beleive that 
+// We beleive that
 //  1. row doesn't contain duplicate column names.
 //  2. data is sorted
 // All checks are disabled.
@@ -298,7 +298,7 @@ i64 TTableChunkWriter::GetCurrentSize() const
     return CurrentSize;
 }
 
-const TOwningKey& TTableChunkWriter::GetLastKey() const 
+const TOwningKey& TTableChunkWriter::GetLastKey() const
 {
     return LastKey;
 }
