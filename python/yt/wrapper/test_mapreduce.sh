@@ -24,7 +24,7 @@ prepare_table_files() {
 }
 
 cleanup() {
-    jobs -p | xargs kill
+    jobs -p | xargs kill -0
     rm -f table_file big_file
 }
 
