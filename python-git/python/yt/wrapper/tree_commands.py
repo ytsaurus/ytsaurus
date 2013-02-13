@@ -1,5 +1,5 @@
 import config
-from common import YtError, require, parse_bool, flatten, get_value
+from common import parse_bool, flatten, get_value, bool_to_string
 from format import JsonFormat, YsonFormat
 from transaction_commands import _make_transactioned_request
 from table import prepare_path, to_name
@@ -9,7 +9,6 @@ from yt.yson.yson_types import YsonString
 import os
 import string
 import random
-import sys
 from copy import deepcopy
 import simplejson as json
 
@@ -84,12 +83,13 @@ def remove(path, recursive=False, check_existance=False):
     """
     if check_existance and not exists(path):
         return
-    if not recursive and exists(path):
-        # TODO: remake for command argument
-        require(get_type(path) != "map_node",
-                YtError("Can not delete directory, set recursive=True"))
 
-    _make_transactioned_request("remove", {"path": prepare_path(path)})
+    _make_transactioned_request(
+        "remove",
+        {
+            "path": prepare_path(path),
+            "recursive": bool_to_string(recursive)
+        })
 
 def create(type, path, attributes=None):
     _make_transactioned_request("create", {"path": prepare_path(path), "type": type, "attributes": get_value(attributes, {})})
