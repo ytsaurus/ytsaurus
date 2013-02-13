@@ -15,6 +15,9 @@ class TestAccounts(YTEnvSetup):
     def _get_account_disk_space(self, account):
         return get('//sys/accounts/{0}/@resource_usage/disk_space'.format(account))
 
+    def _get_account_committed_disk_space(self, account):
+        return get('//sys/accounts/{0}/@committed_resource_usage/disk_space'.format(account))
+
     def _get_account_disk_space_limit(self, account):
         return get('//sys/accounts/{0}/@resource_limits/disk_space'.format(account))
 
@@ -304,3 +307,18 @@ class TestAccounts(YTEnvSetup):
         upload('//tmp/f3', content, opt=['/attributes/account=max'])
         assert self._is_account_over_disk_space('max') == 'true'
 
+    def test_committed_usage(self):
+		assert self._get_account_committed_disk_space('tmp') == 0
+		
+		create('table', '//tmp/t')
+		write('//tmp/t', {'a' : 'b'})
+		space = get('//tmp/t/@resource_usage/disk_space')
+		assert space > 0
+		assert self._get_account_committed_disk_space('tmp') == space
+
+		tx = start_transaction()
+		write('//tmp/t', {'a' : 'b'}, tx=tx)
+		assert self._get_account_committed_disk_space('tmp') == space
+
+		commit_transaction(tx)
+		assert self._get_account_committed_disk_space('tmp') == space * 2
