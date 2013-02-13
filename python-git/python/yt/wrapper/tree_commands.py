@@ -69,30 +69,29 @@ def list(path, max_size=1000, format=None):
         format=get_value(format, YsonFormat()))
 
 def exists(path):
-    """
-    Checks existance of the path. Strip table ranges from the end of the path.
-    """
     return parse_bool(
         _make_transactioned_request(
             "exists",
              {"path": prepare_path(path)}))
 
-def remove(path, recursive=False, check_existance=False):
-    """
-    Removes given path. By default it should exists and represent table of file.
-    """
-    if check_existance and not exists(path):
-        return
-
+def remove(path, recursive=False, force=False):
     _make_transactioned_request(
         "remove",
         {
             "path": prepare_path(path),
-            "recursive": bool_to_string(recursive)
+            "recursive": bool_to_string(recursive),
+            "force": bool_to_string(force)
         })
 
-def create(type, path, attributes=None):
-    _make_transactioned_request("create", {"path": prepare_path(path), "type": type, "attributes": get_value(attributes, {})})
+def create(type, path, recursive=False, attributes=None):
+    _make_transactioned_request(
+        "create",
+        {
+            "path": prepare_path(path),
+            "type": type,
+            "attributes": get_value(attributes, {}),
+            "recursive": bool_to_string(recursive)
+        })
 
 def _dirs(path):
     prefix = ""
@@ -112,19 +111,20 @@ def mkdir(path, recursive=None, create_prefix=True):
     """
     Creates directiry. By default parent directory should exist.
     """
-    if recursive is None:
-        recursive = config.CREATE_RECURSIVE
-    if recursive:
-        if config.PREFIX and create_prefix:
-            mkdir(config.PREFIX[:-1], recursive=True, create_prefix=False)
-        should_create = False
-        for dir in _dirs(path):
-            if not should_create and not exists(dir):
-                should_create = True
-            if should_create:
-                mkdir(dir, False)
-    else:
-        create("map_node", path)
+    create("map_node", path, get_value(recursive, config.CREATE_RECURSIVE))
+    #if recursive is None:
+    #    recursive = config.CREATE_RECURSIVE
+    #if recursive:
+    #    if config.PREFIX and create_prefix:
+    #        mkdir(config.PREFIX[:-1], recursive=True, create_prefix=False)
+    #    should_create = False
+    #    for dir in _dirs(path):
+    #        if not should_create and not exists(dir):
+    #            should_create = True
+    #        if should_create:
+    #            mkdir(dir, False)
+    #else:
+    #    create("map_node", path)
 
 # TODO: maybe remove this methods
 def get_attribute(path, attribute, default=None):
