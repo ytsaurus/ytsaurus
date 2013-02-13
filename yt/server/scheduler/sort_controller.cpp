@@ -1327,8 +1327,9 @@ protected:
         // To accommodate both (2) and (3), partition size growth rate is logarithmic
         i64 partitionSize = static_cast<i64>(32 * 1024 * 1024 * (1.0 + std::log10((double) TotalInputDataSize / ((i64)100 * 1024 * 1024))));
         i64 suggestedPartitionCount = static_cast<i64>(TotalInputDataSize / partitionSize);
-        i64 upperBoundForPartitionCount = 1000 + TotalInputDataSize / ((i64)2 * 1024 * 1024 * 1024);
-        return std::min(suggestedPartitionCount, upperBoundForPartitionCount);
+        i64 lowerPartitionCountCap = 1;
+        i64 upperPartitionCountCap = 1000 + TotalInputDataSize / ((i64)2 * 1024 * 1024 * 1024);
+        return std::max(std::min(suggestedPartitionCount, upperPartitionCountCap), lowerPartitionCountCap);
     }
 
     int SuggestPartitionCount() const
