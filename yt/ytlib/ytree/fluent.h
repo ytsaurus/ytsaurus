@@ -128,6 +128,19 @@ public:
             return *static_cast<TDeepThis*>(this);
         }
 
+        TDeepThis& DoIf(bool condition, TYsonProducer producer)
+        {
+            if (condition) {
+                producer.Run(this->Consumer);
+            }
+            return *static_cast<TDeepThis*>(this);
+        }
+
+        TDeepThis& DoIf(bool condition, TYsonCallback ysonCallback)
+        {
+            return DoIf(condition, TYsonProducer(ysonCallback));
+        }
+
         template <class TFunc>
         TDeepThis& DoIf(bool condition, const TFunc& func)
         {
