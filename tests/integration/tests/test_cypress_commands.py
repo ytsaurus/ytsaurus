@@ -44,6 +44,21 @@ class TestCypressCommands(YTEnvSetup):
         # can't create entity node inside cypress
         with pytest.raises(YTError): set_str('//tmp/entity', '#')
 
+    def test_remove(self):
+        with pytest.raises(YTError): remove('//tmp/x')
+        with pytest.raises(YTError): remove('//tmp/x', '--recursive')
+        remove('//tmp/x', '--force')
+        
+        with pytest.raises(YTError): remove('//tmp/1')
+        with pytest.raises(YTError): remove('//tmp/1', '--recursive')
+        remove('//tmp/1', '--force')
+
+        create("map_node", "//tmp/x/1/y", "--recursive")
+        with pytest.raises(YTError): remove('//tmp/x')
+        with pytest.raises(YTError): remove('//tmp/x', '--force')
+        remove('//tmp/x/1/y')
+        remove('//tmp/x', '--recursive')
+
     def test_list(self):
         set('//tmp/list', [1,2,"some string"])
         assert get('//tmp/list') == [1,2,"some string"]
@@ -529,5 +544,6 @@ class TestCypressCommands(YTEnvSetup):
         create("map_node", "//tmp/a/b", "--recursive")
 
         with pytest.raises(YTError): create("map_node", "//tmp/a/b")
-        create("map_node", "//tmp/a/b", "--recursive")
+        create("map_node", "//tmp/a/b", "--ignore_existing")
 
+        with pytest.raises(YTError): create("table", "//tmp/a/b", "--ignore_existing")

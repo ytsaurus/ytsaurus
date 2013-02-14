@@ -115,8 +115,9 @@ void TCreateCommand::DoExecute()
         }
 
         auto req = TCypressYPathProxy::Create(Request->Path.Get().GetPath());
-        req->set_recursive(Request->Recursive);
         req->set_type(Request->Type);
+        req->set_recursive(Request->Recursive);
+        req->set_ignore_existing(Request->IgnoreExisting);
         SetTransactionId(req, GetTransactionId(false));
         NMetaState::GenerateRpcMutationId(req);
 
