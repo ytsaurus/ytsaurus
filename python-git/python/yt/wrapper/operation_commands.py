@@ -67,9 +67,10 @@ class PrintOperationInfo(object):
     def __init__(self):
         self.state = None
         self.progress = None
+        self.formatter = logger.OperationProgressFormatter()
 
     def __call__(self, operation, state):
-        logger.set_formatter(logger.OperationProgressFormatter())
+        logger.set_formatter(self.formatter)
 
         if state.is_running():
             progress = get_operation_progress(operation)

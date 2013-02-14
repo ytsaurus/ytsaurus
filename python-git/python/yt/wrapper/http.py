@@ -212,6 +212,9 @@ def make_request(command_name, params,
             timeout=config.CONNECTION_TIMEOUT,
             stream=stream))
 
+    if config.USE_TOKEN and "Authorization" in headers:
+        headers["Authorization"] = "x" * 32
+
     print_info("Response header %r", response.http_response.headers)
     if response.is_ok():
         if raw_response:

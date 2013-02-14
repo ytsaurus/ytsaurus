@@ -159,13 +159,14 @@ Examples:
     action_flags = ["version", "copy", "sort", "merge", "list", "listfiles", "starttx"]
 
     add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "pingtx",
-                                          "smartformat", "force", "executable", "detached"])
+                                          "smartformat", "force", "executable"])
+
     add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec",
                                             "format", "inputformat", "outputformat", "tx", "value",
                                             "replicationfactor", "memlimit", "timeout", "title", "fs", "rs",
                                             "mode"])
     add_multiple_args(parser, ["src", "dst", "dstappend", "dstsorted", "file", "mapfile", "reducefile", "ytfile", "opt", "ytspec", "sortby", "reduceby"])
-    add_integer_args(parser, ["jobcount", "threadcount", "chunksize", "jcmultiplier"])
+    add_integer_args(parser, ["jobcount", "threadcount", "chunksize", "jcmultiplier", "detached"])
 
     add_help_messages(parser,
         [
@@ -406,7 +407,8 @@ Examples:
     if args.memlimit is not None:
         config.MEMORY_LIMIT = int(args.memlimit) * config.MB
 
-    config.DETACHED = args.detached
+    if args.detached is None or bool(args.detached):
+        config.DETACHED = True
 
     table_writer = {}
     if args.codec is not None:
