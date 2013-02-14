@@ -51,7 +51,7 @@ public:
 
 private:
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
-    TCLAP::SwitchArg RecursiveArg;
+    TCLAP::SwitchArg NonRecursiveArg;
     TCLAP::SwitchArg ForceArg;
 
     virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;

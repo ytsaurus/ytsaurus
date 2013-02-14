@@ -82,11 +82,11 @@ Stroka TSetExecutor::GetCommandName() const
 
 TRemoveExecutor::TRemoveExecutor()
     : PathArg("path", "object path to remove", true, TRichYPath(""), "YPATH")
-    , RecursiveArg("", "recursive", "remove recursive", false)
+    , NonRecursiveArg("", "non_recursive", "check that removed node is empty", false)
     , ForceArg("", "force", "do not throw if path does not exist", false)
 {
     CmdLine.add(PathArg);
-    CmdLine.add(RecursiveArg);
+    CmdLine.add(NonRecursiveArg);
     CmdLine.add(ForceArg);
 }
 
@@ -96,7 +96,7 @@ void TRemoveExecutor::BuildArgs(IYsonConsumer* consumer)
 
     BuildYsonMapFluently(consumer)
         .Item("path").Value(path)
-        .Item("recursive").Value(RecursiveArg.getValue())
+        .Item("recursive").Value(!NonRecursiveArg.getValue())
         .Item("force").Value(ForceArg.getValue());
 
     TTransactedExecutor::BuildArgs(consumer);
