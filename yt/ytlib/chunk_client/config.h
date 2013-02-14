@@ -56,7 +56,7 @@ struct TRemoteReaderConfig
         Register("retry_backoff_time", RetryBackoffTime)
             .Default(TDuration::Seconds(3));
         Register("retry_count", RetryCount)
-            .Default(5);
+            .Default(20);
         Register("pass_backoff_time", PassBackoffTime)
             .Default(TDuration::Seconds(3));
         Register("pass_count", PassCount)

@@ -55,8 +55,8 @@ void TMultiChunkParallelReader<TChunkReader>::OnReaderOpened(
 {
     VERIFY_THREAD_AFFINITY(TBase::ReaderThread);
     if (!error.IsOK()) {
-        State.Fail(error);
         TBase::AddFailedChunk(session);
+        State.Fail(error);
         return;
     }
 
@@ -122,8 +122,8 @@ void TMultiChunkParallelReader<TChunkReader>::OnReaderReady(
 {
     VERIFY_THREAD_AFFINITY(TBase::ReaderThread);
     if (!error.IsOK()) {
-        State.Fail(error);
         TBase::AddFailedChunk(session);
+        State.Fail(error);
         return;
     }
 
