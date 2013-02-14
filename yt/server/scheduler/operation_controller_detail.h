@@ -304,6 +304,7 @@ protected:
 
         void AddPendingHint();
         void AddLocalityHint(const Stroka& address);
+        void ReleaseFailedJobResources(TJobletPtr joblet);
 
         static void AddSequentialInputSpec(
             NScheduler::NProto::TJobSpec* jobSpec,
@@ -318,8 +319,6 @@ protected:
         void AddIntermediateOutputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
 
     private:
-        void ReleaseFailedJobResources(TJobletPtr joblet);
-
         static void AddChunksToInputSpec(
             NScheduler::NProto::TTableInputSpec* inputSpec,
             TChunkStripePtr stripe,

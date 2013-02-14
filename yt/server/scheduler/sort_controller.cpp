@@ -238,6 +238,26 @@ protected:
                 completedJob->InputCookie)).second);
         }
 
+        virtual void OnJobFailed(TJobletPtr joblet) override
+        {
+            if (LostJobCookieMap.find(joblet->OutputCookie) == LostJobCookieMap.end()) {
+                GetChunkPoolOutput()->Lost(joblet->OutputCookie);
+                ReleaseFailedJobResources(joblet);
+            } else {
+                TTask::OnJobFailed(joblet);
+            }
+        }
+
+        virtual void OnJobAborted(TJobletPtr joblet) override
+        {
+            if (LostJobCookieMap.find(joblet->OutputCookie) == LostJobCookieMap.end()) {
+                GetChunkPoolOutput()->Lost(joblet->OutputCookie);
+                ReleaseFailedJobResources(joblet);
+            } else {
+                TTask::OnJobAborted(joblet);
+            }
+        }
+
     protected:
         //! For each lost job currently being replayed, maps output cookie to corresponding input cookie.
         yhash_map<IChunkPoolOutput::TCookie, IChunkPoolInput::TCookie> LostJobCookieMap;
@@ -390,19 +410,19 @@ protected:
         {
             Controller->PartitionJobCounter.Failed(1);
 
-            TTask::OnJobFailed(joblet);
+            TIntermediateTask::OnJobFailed(joblet);
         }
 
         virtual void OnJobAborted(TJobletPtr joblet) override
         {
             Controller->PartitionJobCounter.Aborted(1);
 
-            TTask::OnJobAborted(joblet);
+            TIntermediateTask::OnJobAborted(joblet);
         }
 
         virtual void OnTaskCompleted() override
         {
-            TTask::OnTaskCompleted();
+            TIntermediateTask::OnTaskCompleted();
 
             Controller->PartitionJobCounter.Finalize();
             Controller->ShufflePool->GetInput()->Finish();
@@ -609,7 +629,7 @@ protected:
                 Controller->FinalSortJobCounter.Failed(1);
             }
 
-            TPartitionBoundTask::OnJobFailed(joblet);
+            TIntermediateTask::OnJobFailed(joblet);
         }
 
         virtual void OnJobAborted(TJobletPtr joblet) override
@@ -622,7 +642,7 @@ protected:
                 Controller->FinalSortJobCounter.Aborted(1);
             }
 
-            TPartitionBoundTask::OnJobAborted(joblet);
+            TIntermediateTask::OnJobAborted(joblet);
         }
 
         virtual void OnJobLost(TCompleteJobPtr completedJob) override

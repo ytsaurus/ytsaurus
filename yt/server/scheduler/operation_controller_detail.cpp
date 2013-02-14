@@ -267,18 +267,18 @@ void TOperationControllerBase::TTask::ReleaseFailedJobResources(TJobletPtr joble
         }
     }
 
-    chunkPoolOutput->Failed(joblet->OutputCookie);
-
     AddPendingHint();
 }
 
 void TOperationControllerBase::TTask::OnJobFailed(TJobletPtr joblet)
 {
+    GetChunkPoolOutput()->Failed(joblet->OutputCookie);
     ReleaseFailedJobResources(joblet);
 }
 
 void TOperationControllerBase::TTask::OnJobAborted(TJobletPtr joblet)
 {
+    GetChunkPoolOutput()->Failed(joblet->OutputCookie);
     ReleaseFailedJobResources(joblet);
 }
 
