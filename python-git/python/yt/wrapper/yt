@@ -103,7 +103,7 @@ def add_create_parser(subparsers):
     parser.set_defaults(func=create)
 
 def get(args):
-    print json.dumps(yt.get(args.path), indent=2, format=args.format, spec=args.spec)
+    print json.dumps(yt.get(args.path, format=args.format, spec=args.spec), indent=2)
 
 def add_get_parser(subparsers):
     parser = subparsers.add_parser("get")
