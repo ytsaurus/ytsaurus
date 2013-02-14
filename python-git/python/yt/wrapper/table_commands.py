@@ -492,7 +492,7 @@ class Finalizer(object):
             for table in filter(is_empty, map(to_name, self.output_tables)):
                 remove_with_empty_dirs(table)
         for file in self.files:
-            remove(file)
+            remove(file, force=True)
 
 def run_map_reduce(mapper, reducer, source_table, destination_table,
                    format=None, input_format=None, output_format=None,
