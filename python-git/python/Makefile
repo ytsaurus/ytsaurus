@@ -21,7 +21,7 @@ version:
 prepare: version
 	cp yt/wrapper/mapreduce yt/wrapper/mapreduce-yt
 
-html:
+html: version
 	rm -rf docs
 	mkdir docs
 	sphinx-apidoc -F -o docs yt

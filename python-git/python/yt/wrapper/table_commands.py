@@ -2,11 +2,12 @@ import config
 import py_wrapper
 from common import flatten, require, YtError, unlist, update, EMPTY_GENERATOR, parse_bool, is_prefix, get_value, compose, execute_handling_sigint
 from version import VERSION
-from http import read_content, get_hosts
+from http import read_content, get_host_for_heavy_operation
 from table import TablePath, to_table, to_name, prepare_path
 from tree_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, move, mkdir, find_free_subpath, create, get_type
 from file_commands import smart_upload_file
-from transaction_commands import _make_transactioned_request, PingableTransaction
+from transaction_commands import _make_transactional_request
+from transaction import PingableTransaction
 from string_iter_io import StringIterIO
 from format import RawFormat
 
@@ -47,12 +48,6 @@ def _prepare_sort_by(sort_by):
         else:
             raise YtError("sort_by option is required")
     return flatten(sort_by)
-
-def _calc_job_count(input_tables, min_data=None, max_data=None):
-    size = sum(map(get_size, input_tables))
-    if min_data is None: min_data = config.MIN_SIZE_PER_JOB
-    if max_data is None: max_data = config.MAX_SIZE_PER_JOB
-    return max(1, min(size / min_data, max(config.CLUSTER_SIZE, size / max_data)))
 
 def _prepare_files(files):
     if files is None:
@@ -169,7 +164,7 @@ def _add_table_writer_spec(job_types, table_writer, spec):
 
 def _make_operation_request(command_name, spec, strategy, finalizer=None, verbose=False):
     def run_operation(finalizer):
-        operation = _make_transactioned_request(command_name, {"spec": spec}, verbose=verbose)
+        operation = _make_transactional_request(command_name, {"spec": spec}, verbose=verbose)
         get_value(strategy, config.DEFAULT_STRATEGY).process_operation(command_name, operation, finalizer)
 
     if not config.DETACHED:
@@ -181,6 +176,7 @@ def _make_operation_request(command_name, spec, strategy, finalizer=None, verbos
                 transaction.__exit__(None, None, None)
             transaction.__enter__()
             run_operation(envelope_finalizer)
+            transaction.__exit__(None, None, None)
 
         def finish_transaction():
             transaction.__exit__(None, None, None)
@@ -224,7 +220,7 @@ def create_table(path, recursive=None, replication_factor=None, attributes=None)
     attributes = get_value(attributes, {})
     if replication_factor is not None:
         attributes["replication_factor"] = replication_factor
-    create("table", table.name, attributes)
+    create("table", table.name, attributes=attributes)
 
 def create_temp_table(path=None, prefix=None):
     """ Creates temporary table by given path with given prefix """
@@ -283,19 +279,12 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
                 for i in xrange(config.WRITE_RETRIES_COUNT):
                     try:
                         with PingableTransaction(config.WRITE_TRANSACTION_TIMEOUT):
-                            if config.USE_HOSTS:
-                                proxy = get_hosts()[0]
-                            else:
-                                proxy = config.PROXY
-                            #print >>sys.stderr, "CONVERTING TO LIST"
-                            #k = list(buffer.get())
-                            #print >>sys.stderr, k
-                            _make_transactioned_request(
+                            _make_transactional_request(
                                 "write",
                                 params,
                                 data=buffer.get(),
                                 format=format,
-                                proxy=proxy)
+                                proxy=get_host_for_heavy_operation())
                         break
                     except YtError as err:
                         print >>sys.stderr, "Retry", i + 1, "failed with message", str(err)
@@ -306,16 +295,12 @@ def write_table(table, input_stream, format=None, table_writer=None, replication
             params = {"path": table.get_json()}
             if table_writer is not None:
                 params["table_writer"] = table_writer
-            if config.USE_HOSTS:
-                proxy = get_hosts()[0]
-            else:
-                proxy = config.PROXY
-            _make_transactioned_request(
+            _make_transactional_request(
                 "write",
                 params,
                 data=input_stream,
                 format=format,
-                proxy=proxy)
+                proxy=get_host_for_heavy_operation())
 
 
 def read_table(table, format=None, response_type=None):
@@ -327,7 +312,7 @@ def read_table(table, format=None, response_type=None):
     format = _prepare_format(format)
     if config.TREAT_UNEXISTING_AS_EMPTY and not exists(table.name):
         return EMPTY_GENERATOR
-    response = _make_transactioned_request(
+    response = _make_transactional_request(
         "read",
         {
             "path": table.get_json()
@@ -457,16 +442,6 @@ def run_sort(source_table, destination_table=None, sort_by=None,
     """
     Sort source table. If destination table is not specified, than it equals to source table.
     """
-    def prepare_job_count(source_table, spec):
-        if "partition_count" in spec:
-            return spec
-        return update(
-            {"partition_job_count": _calc_job_count(source_table, max_data=config.MAX_SIZE_PER_JOB),
-             "partition_count": _calc_job_count(source_table, max_data=config.MAX_SIZE_PER_JOB/2),
-             "min_data_size_per_partition_job": config.MIN_SIZE_PER_JOB,
-             "min_data_size_per_sort_job": 2 * config.MIN_SIZE_PER_JOB,
-             "min_partition_data_size": 2 * config.MIN_SIZE_PER_JOB},
-            spec)
 
     sort_by = _prepare_sort_by(sort_by)
     source_table = _prepare_source_tables(source_table)
@@ -492,7 +467,6 @@ def run_sort(source_table, destination_table=None, sort_by=None,
 
     spec = compose(
         _add_user_spec,
-        lambda _: prepare_job_count(source_table, _),
         lambda _: _add_table_writer_spec(["sort_job_io", "merge_job_io"], table_writer, _),
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"sort_by": sort_by}, _),
@@ -526,17 +500,6 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                    map_files=None, reduce_files=None,
                    map_file_paths=None, reduce_file_paths=None,
                    sort_by=None, reduce_by=None):
-    def prepare_job_count(spec, source_table):
-        if "map_job_count" not in spec and "partition_count" not in spec:
-            map_job_count = _calc_job_count(source_table)
-            spec = update(
-                {"map_job_count": map_job_count,
-                 "partition_count": max(1, map_job_count / 2),
-                 "min_data_size_per_map_job": config.MIN_SIZE_PER_JOB,
-                 "min_data_size_per_sort_job": 2 * config.MIN_SIZE_PER_JOB},
-                spec)
-        return spec
-
     run_map_reduce.files_to_remove = []
     def memorize_files(spec, files):
         run_map_reduce.files_to_remove += files
@@ -553,7 +516,6 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
 
     spec = compose(
         _add_user_spec,
-        lambda _: prepare_job_count(_, source_table),
         lambda _: _add_table_writer_spec(["map_job_io", "reduce_job_io", "sort_job_io"], table_writer, _),
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"sort_by": _prepare_sort_by(sort_by),
@@ -574,14 +536,6 @@ def run_operation(binary, source_table, destination_table,
                   spec=None,
                   op_name=None,
                   reduce_by=None):
-    def prepare_job_count(spec, source_table):
-        if "job_count" not in spec:
-            spec = update(
-                {"job_count": _calc_job_count(source_table),
-                 "min_data_size_per_job": config.MIN_SIZE_PER_JOB},
-                spec)
-        return spec
-
     run_operation.files = []
     def memorize_files(spec, files):
         run_operation.files += files
@@ -627,7 +581,6 @@ def run_operation(binary, source_table, destination_table,
 
     spec = compose(
         _add_user_spec,
-        lambda _: prepare_job_count(_, source_table),
         lambda _: _add_table_writer_spec("job_io", table_writer, _),
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"reduce_by": _prepare_reduce_by(reduce_by)}, _) if op_name == "reduce" else _,

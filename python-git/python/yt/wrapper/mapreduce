@@ -9,7 +9,7 @@ from yt.wrapper.table_commands import copy_table
 from yt.wrapper.tree_commands import remove_with_empty_dirs
 from yt.wrapper.table import check_prefix
 
-from yt.wrapper.common import flatten, unlist, first_not_none, bool_to_string
+from yt.wrapper.common import flatten, unlist, first_not_none, bool_to_string, get_value
 from yt.wrapper.version import VERSION
 import yt.wrapper.config as config
 import yt.wrapper as yt
@@ -162,7 +162,8 @@ Examples:
                                           "smartformat", "force", "executable", "detached"])
     add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec",
                                             "format", "inputformat", "outputformat", "tx", "value",
-                                            "replicationfactor", "memlimit", "timeout", "title", "fs", "rs"])
+                                            "replicationfactor", "memlimit", "timeout", "title", "fs", "rs",
+                                            "mode"])
     add_multiple_args(parser, ["src", "dst", "dstappend", "dstsorted", "file", "mapfile", "reducefile", "ytfile", "opt", "ytspec", "sortby", "reduceby"])
     add_integer_args(parser, ["jobcount", "threadcount", "chunksize", "jcmultiplier"])
 
@@ -238,6 +239,8 @@ Examples:
              "Memory limit for user job in Mb."),
             ("merge",
              "merge given tables"),
+            ("mode",
+             "NEW! describes how to merge tables. Should be unordered, ordered or sorted (default)."),
             ("opt",
              "OLD! this option do nothing"),
             ("outputformat",
@@ -461,6 +464,11 @@ Examples:
         if yt.exists(args.drop):
             if not args.force and yt.get_type(args.drop) not in ["table", "file"]:
                 die("You are trying to remove object of type " + yt.get_type(args.drop))
+            if args.force:
+                for lock in yt.get_attribute(args.drop, "locks", []):
+                    if lock["mode"] != "snapshot":
+                        if yt.exists("//sys/transactions/" + lock["transaction_id"]):
+                            yt.abort_transaction(lock["transaction_id"])
             remove_with_empty_dirs(args.drop)
     if args.copy:
         copy_table(args.src, unlist(dst))
@@ -468,7 +476,7 @@ Examples:
         yt.run_sort(args.src, unlist(dst), table_writer=table_writer, sort_by=args.sortby,
                       replication_factor=replication_factor, spec=spec)
     if args.merge:
-        yt.run_merge(args.src, unlist(dst), mode="sorted", table_writer=table_writer,
+        yt.run_merge(args.src, unlist(dst), mode=get_value(args.mode, "sorted"), table_writer=table_writer,
                      replication_factor=replication_factor, spec=spec)
 
     if args.erase is not None:

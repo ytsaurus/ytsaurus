@@ -1,8 +1,8 @@
 import config
-from common import YtError, require, parse_bool, flatten, get_value
+from common import parse_bool, flatten, get_value, bool_to_string
 from format import JsonFormat, YsonFormat
-from transaction_commands import _make_transactioned_request
-from table import prepare_path
+from transaction_commands import _make_transactional_request
+from table import prepare_path, to_name
 
 from yt.yson.yson_types import YsonString
 
@@ -20,7 +20,7 @@ def get(path, attributes=None, format=None, spec=None):
 
     Be carefull: attributes have weird representation in json format.
     """
-    return _make_transactioned_request(
+    return _make_transactional_request(
         "get",
         {
             "path": prepare_path(path),
@@ -33,14 +33,14 @@ def set(path, value):
     """
     Sets the value by path. Value should json-able object.
     """
-    _make_transactioned_request(
+    _make_transactional_request(
         "set",
         {"path": prepare_path(path)},
         data=json.dumps(value),
         format=JsonFormat())
 
 def copy(source_path, destination_path):
-    _make_transactioned_request(
+    _make_transactional_request(
         "copy",
         {
             "source_path": prepare_path(source_path),
@@ -48,7 +48,7 @@ def copy(source_path, destination_path):
         })
 
 def move(source_path, destination_path):
-    _make_transactioned_request(
+    _make_transactional_request(
         "move",
         {
             "source_path": prepare_path(source_path),
@@ -60,7 +60,7 @@ def list(path, max_size=1000, format=None):
     Lists all items in the path. Paht should be map_node or list_node.
     In case of map_node it returns keys of the node.
     """
-    return _make_transactioned_request(
+    return _make_transactional_request(
         "list",
         {
             "path": prepare_path(path),
@@ -69,61 +69,35 @@ def list(path, max_size=1000, format=None):
         format=get_value(format, YsonFormat()))
 
 def exists(path):
-    """
-    Checks existance of the path. Strip table ranges from the end of the path.
-    """
     return parse_bool(
-        _make_transactioned_request(
+        _make_transactional_request(
             "exists",
              {"path": prepare_path(path)}))
 
-def remove(path, recursive=False, check_existance=False):
-    """
-    Removes given path. By default it should exists and represent table of file.
-    """
-    if check_existance and not exists(path):
-        return
-    if not recursive and exists(path):
-        # TODO: remake for command argument
-        require(get_type(path) != "map_node",
-                YtError("Can not delete directory, set recursive=True"))
+def remove(path, recursive=False, force=False):
+    _make_transactional_request(
+        "remove",
+        {
+            "path": prepare_path(path),
+            "recursive": bool_to_string(recursive),
+            "force": bool_to_string(force)
+        })
 
-    _make_transactioned_request("remove", {"path": prepare_path(path)})
-
-def create(type, path, attributes=None):
-    _make_transactioned_request("create", {"path": prepare_path(path), "type": type, "attributes": get_value(attributes, {})})
-
-def _dirs(path):
-    prefix = ""
-    if path.startswith("//"):
-        prefix = "//"
-    stripped = path.strip("/")
-    if not stripped:
-        return []
-    names = stripped.split("/")
-    res = []
-    for i in xrange(1, len(names) + 1):
-        res.append(prefix + "/".join(names[0:i]))
-    return res
-    
+def create(type, path, recursive=False, attributes=None):
+    _make_transactional_request(
+        "create",
+        {
+            "path": prepare_path(path),
+            "type": type,
+            "recursive": bool_to_string(recursive),
+            "attributes": get_value(attributes, {})
+        })
 
 def mkdir(path, recursive=None, create_prefix=True):
     """
     Creates directiry. By default parent directory should exist.
     """
-    if recursive is None:
-        recursive = config.CREATE_RECURSIVE
-    if recursive:
-        if config.PREFIX and create_prefix:
-            mkdir(config.PREFIX[:-1], recursive=True, create_prefix=False)
-        should_create = False
-        for dir in _dirs(path):
-            if not should_create and not exists(dir):
-                should_create = True
-            if should_create:
-                mkdir(dir, False)
-    else:
-        create("map_node", path)
+    create("map_node", path, get_value(recursive, config.CREATE_RECURSIVE))
 
 # TODO: maybe remove this methods
 def get_attribute(path, attribute, default=None):
@@ -200,6 +174,7 @@ def search(root="/", node_type=None, path_filter=None, object_filter=None, attri
 
 def remove_with_empty_dirs(path):
     """ Removes path and all empty dirs that appear after deletion.  """
+    path = to_name(path)
     while True:
         remove(path, recursive=True)
         path = os.path.dirname(path)
