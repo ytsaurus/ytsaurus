@@ -90,12 +90,13 @@ class TestMapreduceMode(YtTestBase, YTEnv):
         half_path = '%s/"%s"' % (TEST_DIR, random_strA)
         full_path = '%s/"%s"/"%s"' % (TEST_DIR, random_strA, random_strB)
         self.assertRaises(YtResponseError, lambda: yt.set(full_path, {}))
-        self.assertEqual(yt.set(half_path, {}), None)
-        self.assertEqual(yt.set(full_path, {}), None)
+        yt.set(half_path, {})
+        yt.set(full_path, {})
         self.assertTrue(yt.exists(full_path))
         self.assertEqual(yt.get(full_path), {})
-        self.assertEqual(yt.remove(half_path, recursive=True), None)
+        yt.remove(half_path, recursive=True)
         self.assertRaises(YtError, lambda: yt.remove(full_path))
+        yt.remove(full_path, force=True)
 
     def test_read_write(self):
         table = TEST_DIR + "/temp"

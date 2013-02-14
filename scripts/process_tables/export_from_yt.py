@@ -73,7 +73,7 @@ def main():
         count = yt.records_count(yt_table)
         limit = args.speed * yt.config.MB / POOL_RESTRICTION
         yt.run_map(
-            "./pv -q -l {} | USER=tmp MR_USER={} "
+            "pv -q -L {} | USER=tmp MR_USER={} "
             "{} -server {}:{} -append -lenval -subkey "
             "-write {}".format(
                 limit,
@@ -84,9 +84,11 @@ def main():
                 mr_table),
             yt_table,
             "//tmp/null",
-            files=[args.mapreduce_binary, sh.which("pv")],
+            files=args.mapreduce_binary,
             format=yt.YamrFormat(has_subkey=True, lenval=True),
-            spec={"pool":"export_restricted"})
+            spec={
+                "pool":"export_restricted",
+                "data_size_per_job": 2 * 1024 * yt.config.MB})
         
         res_count = records_count(mr_table)
         if count != res_count:
