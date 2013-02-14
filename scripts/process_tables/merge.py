@@ -13,7 +13,7 @@ def merge(table):
         
         yt.run_merge(table, table, "unordered",
                      table_writer={"codec":"gzip_best_compression"},
-                     spec={"combine_chunks":"true", "max_data_size_per_job": data_size_per_job})
+                     spec={"combine_chunks":"true", "data_size_per_job": data_size_per_job})
     except yt.YtError as e:
         print "Failed to merge table %s with error %s" % (table, repr(e))
 

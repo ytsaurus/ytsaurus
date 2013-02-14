@@ -1,5 +1,7 @@
 import yt.wrapper as yt
 
+import __builtin__
+
 import sys
 import random
 import traceback
@@ -37,6 +39,9 @@ def process_tasks_from_list(list, action):
             if value is None:
                 print >>sys.stderr, "List %s is empty, processing stopped" % list
                 break
+
+            if isinstance(value, __builtin__.list):
+                value = tuple(value)
 
             if value in processed_values:
                 print >>sys.stderr, "We have already prosessed value %r, processing stopped." %value

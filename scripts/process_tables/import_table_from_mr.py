@@ -194,7 +194,7 @@ def main():
         except yt.YtError:
             _, _, exc_traceback = sys.exc_info()
             traceback.print_tb(exc_traceback, file=sys.stdout)
-            yt.remove(destination)
+            yt.remove(destination, force=True)
 
     process_tasks_from_list(
         args.tables,
