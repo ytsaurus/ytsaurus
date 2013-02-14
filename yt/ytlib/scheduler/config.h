@@ -104,9 +104,9 @@ struct TUserJobSpec
         Register("cpu_limit", CpuLimit)
             .Default(1);
         Register("memory_limit", MemoryLimit)
-            .Default((i64) 256 * 1024 * 1024);
+            .Default((i64) 512 * 1024 * 1024);
         Register("memory_reserve_factor", MemoryReserveFactor)
-            .Default(0.7)
+            .Default(0.5)
             .GreaterThan(0.)
             .LessThanOrEqual(1.);
     }
