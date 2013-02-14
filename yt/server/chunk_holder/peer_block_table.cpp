@@ -48,7 +48,7 @@ void TPeerBlockTable::UpdatePeer(const TBlockId& blockId, const TPeerInfo& peer)
             break;
         }
     }
-    
+
     {
         auto it = peers.begin();
         while (it != peers.end() && it->ExpirationTime > peer.ExpirationTime) {
@@ -80,7 +80,7 @@ void TPeerBlockTable::SweepAllExpiredPeers()
         }
         it = jt;
     }
-    
+
     LastSwept = TInstant::Now();
 
     LOG_DEBUG("All expired peers were swept");
@@ -108,7 +108,7 @@ std::vector<TPeerInfo>& TPeerBlockTable::GetMutablePeers(const TBlockId& blockId
     return pair.first->second;
 }
 
-//////////////////////////////////////////////////////////////////////////////// 
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkHolder
 } // namespace NYT

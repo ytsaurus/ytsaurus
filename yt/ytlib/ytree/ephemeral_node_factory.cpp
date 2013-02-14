@@ -251,7 +251,7 @@ public:
         if (it == KeyToChild.end())
             return false;
 
-        auto child = it->second; 
+        auto child = it->second;
         child->SetParent(NULL);
         KeyToChild.erase(it);
         YCHECK(ChildToKey.erase(child) == 1);
@@ -362,7 +362,7 @@ public:
 
         if (beforeIndex < 0) {
             YCHECK(ChildToIndex.insert(MakePair(child, IndexToChild.size())).second);
-            IndexToChild.push_back(child); 
+            IndexToChild.push_back(child);
         } else {
             for (auto it = IndexToChild.begin() + beforeIndex; it != IndexToChild.end(); ++it) {
                 ++ChildToIndex[*it];

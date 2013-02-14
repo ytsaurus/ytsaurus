@@ -42,7 +42,7 @@ public:
 
     TIntricateObject()
     {
-        ++ConstructorShadowState;            
+        ++ConstructorShadowState;
     }
 
     virtual ~TIntricateObject()
@@ -165,7 +165,7 @@ TEST_F(TWeakPtrTest, Basic)
         EXPECT_THAT(*object, HasRefCounts(1, 2));
         EXPECT_EQ(object, ptr.Lock());
     }
-    
+
     EXPECT_THAT(*object, HasRefCounts(1, 1));
 
     {

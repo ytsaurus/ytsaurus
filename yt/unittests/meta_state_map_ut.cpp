@@ -16,7 +16,7 @@ using ::ToString;
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef Stroka TKey;
-    
+
 struct TMyInt
 {
     int Value;
@@ -100,7 +100,7 @@ TEST_F(TMetaStateMapTest, SaveAndLoad)
         }
 
         TStringOutput output(snapshotData);
-        
+
         TSaveContext context;
         context.SetOutput(&output);
 
@@ -111,7 +111,7 @@ TEST_F(TMetaStateMapTest, SaveAndLoad)
         TMetaStateMap<TKey, TValue> map;
 
         TStringInput input(snapshotData);
-        
+
         TLoadContext context;
         context.SetInput(&input);
 
@@ -162,7 +162,7 @@ TEST_F(TMetaStateMapTest, StressSave)
 
     const int actionCount = 100000;
     const int selectRange = 200000;
-    
+
     for (int i = 0; i < actionCount; ++i) {
         TKey key = ToString(rand() % selectRange);
         int value = rand();

@@ -17,8 +17,8 @@ void TTransactionListener::ListenTransaction(ITransactionPtr transaction)
 {
     YASSERT(transaction);
     transaction->SubscribeAborted(BIND(
-    	&TTransactionListener::OnAborted,
-    	MakeWeak(this)));
+        &TTransactionListener::OnAborted,
+        MakeWeak(this)));
 }
 
 void TTransactionListener::OnAborted()

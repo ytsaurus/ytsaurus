@@ -48,6 +48,7 @@ private:
     {
         attributes->push_back("name");
         attributes->push_back("resource_usage");
+        attributes->push_back("committed_resource_usage");
         attributes->push_back("resource_limits");
         attributes->push_back("node_count");
         attributes->push_back("over_disk_space");
@@ -67,6 +68,12 @@ private:
         if (key == "resource_usage") {
             BuildYsonFluently(consumer)
                 .Value(account->ResourceUsage());
+            return true;
+        }
+
+        if (key == "committed_resource_usage") {
+            BuildYsonFluently(consumer)
+                .Value(account->CommittedResourceUsage());
             return true;
         }
 

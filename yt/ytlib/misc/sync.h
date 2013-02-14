@@ -5,7 +5,7 @@
 
 namespace NYT {
 
-////////////////////////////////////////////////////////////////////////////////    
+////////////////////////////////////////////////////////////////////////////////
 
 // TODO: write a couple of overloads manually, switch to Pump later
 template <class TTarget, class TTargetConvertible>
@@ -50,7 +50,7 @@ void Sync(
     TArg2_&& arg2)
 {
     auto result = (target->*method)(
-        std::forward<TArg1>(arg1), 
+        std::forward<TArg1>(arg1),
         std::forward<TArg2>(arg2)).Get();
 
     if (!result.IsOK()) {

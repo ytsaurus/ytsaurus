@@ -30,7 +30,7 @@ public:
     //! Forces a new registration round and a full heartbeat to be sent.
     /*!
      *  Thread affinity: any
-     *  
+     *
      *  Typically called when a location goes down.
      */
     void ForceRegister();
@@ -58,13 +58,13 @@ private:
 
     //! The current connection state.
     EState State;
-    
+
     //! Current id assigned by the master, #InvalidnodeId if not registered.
     int NodeId;
 
     //! Proxy for the master.
     THolder<TProxy> Proxy;
-    
+
     //! Chunks that were added since the last successful heartbeat.
     TChunks AddedSinceLastSuccess;
 

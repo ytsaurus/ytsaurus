@@ -48,6 +48,7 @@ public:
         const NTransactionClient::TTransactionId& transactionId) const;
 
     void SetStderrChunkId(const NChunkClient::TChunkId& chunkId);
+    virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const;
 
     virtual void PopulateResult(NScheduler::NProto::TJobResult* result) = 0;
 

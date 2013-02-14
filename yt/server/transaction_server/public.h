@@ -21,6 +21,6 @@ using NObjectClient::TTransactionId;
 using NObjectClient::NullTransactionId;
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 } // namespace NTransactionServer
 } // namespace NYT

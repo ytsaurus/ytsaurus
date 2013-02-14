@@ -37,7 +37,7 @@ public:
     {
         FileOutput_.Write(buffer, length);
     }
-    
+
     void Write(const void* buffer, size_t length)
     {
         FileOutput_.Flush();
@@ -67,13 +67,13 @@ public:
         FileOutput_.Flush();
         return File_.GetPosition();
     }
-    
+
     size_t GetLength()
     {
         FileOutput_.Flush();
         return File_.GetLength();
     }
-    
+
     void Resize(size_t length)
     {
         FileOutput_.Flush();
@@ -107,7 +107,7 @@ public:
         FileLength_(file.GetLength()),
         Success_(true)
     { }
-    
+
     size_t Read(void* buffer, size_t length)
     {
         if (Check(length)) {
@@ -117,7 +117,7 @@ public:
         }
         return 0;
     }
-    
+
     void Skip(size_t length)
     {
         if (Check(length)) {

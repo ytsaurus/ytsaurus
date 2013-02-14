@@ -92,6 +92,6 @@ using NElection::TPeerPriority;
 using NElection::TEpochId;
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 } // namespace NMetaState
 } // namespace NYT

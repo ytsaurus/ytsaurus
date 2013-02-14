@@ -156,7 +156,7 @@ protected:
         if (required && this->Request->TransactionId == NTransactionClient::NullTransactionId) {
             THROW_ERROR_EXCEPTION("Transaction is required");
         }
-        
+
         auto transactionId = this->Request->TransactionId;
         if (transactionId == NTransactionClient::NullTransactionId) {
             return NULL;

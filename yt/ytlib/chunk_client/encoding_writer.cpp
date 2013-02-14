@@ -33,7 +33,7 @@ void TEncodingWriter::WriteBlock(const TSharedRef& block)
 {
     Semaphore.Acquire(block.Size());
     CompressionInvoker->Invoke(BIND(
-        &TEncodingWriter::DoCompressBlock, 
+        &TEncodingWriter::DoCompressBlock,
         MakeStrong(this),
         block));
 }
@@ -44,7 +44,7 @@ void TEncodingWriter::WriteBlock(std::vector<TSharedRef>&& vectorizedBlock)
         Semaphore.Acquire(part.Size());
     }
     CompressionInvoker->Invoke(BIND(
-        &TEncodingWriter::DoCompressVector, 
+        &TEncodingWriter::DoCompressVector,
         MakeWeak(this),
         std::move(vectorizedBlock)));
 }

@@ -42,7 +42,7 @@ public:
     TFuture<TResponsePtr> InvokeRequest();
 
     TError ProcessResponseItem(
-        TResponsePtr rsp, 
+        TResponsePtr rsp,
         int index,
         NTableClient::TRefCountedInputChunkPtr inputChunk);
 

@@ -263,5 +263,5 @@ inline TIntrusivePtr< TAsyncPipeline<void> > StartAsyncPipeline(IInvokerPtr invo
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 } // namespace NYT

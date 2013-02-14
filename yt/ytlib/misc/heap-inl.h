@@ -20,7 +20,7 @@ void SiftDown(Iterator begin, Iterator end, Iterator current, const Comparer& co
         if (left >= end) {
             break;
         }
-        
+
         Iterator min;
         if (right >= end) {
             min = left;

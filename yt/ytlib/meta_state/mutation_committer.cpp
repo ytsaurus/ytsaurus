@@ -125,7 +125,7 @@ private:
     void DoFlushMutations(bool rotateChangeLog)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-            
+
         if (!BatchedRecordsData.empty()) {
             Profiler.Enqueue("/commit_batch_size", BatchedRecordsData.size());
 
@@ -167,7 +167,7 @@ private:
             Awaiter->Complete(BIND(&TBatch::OnCompleted, MakeStrong(this)));
 
         }
-        
+
         // This is the version the next batch will have.
         DecoratedState->SetPingVersion(
             rotateChangeLog
@@ -184,7 +184,7 @@ private:
 
         Promise.Set(TError());
         Awaiter->Cancel();
-        
+
         LOG_DEBUG("Mutations are committed by quorum");
 
         return true;
@@ -208,7 +208,7 @@ private:
             LOG_DEBUG("Mutations are acknowledged by follower %d", peerId);
         }
     }
-    
+
     void OnLocalFlush()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);

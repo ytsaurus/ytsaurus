@@ -23,12 +23,12 @@ DECLARE_ENUM(EYPathErrorCode,
 //! Represents an abstract way of handling YPath requests.
 /*!
  *  To handle a given YPath request one must first resolve the target.
- *  
+ *
  *  We start with some root service and call #Resolve. The latter either replies "here", in which case
  *  the resolution is finished, or "there", in which case a new candidate target is provided.
  *  At each resolution step the current path may be altered by specifying a new one
  *  as a part of the result.
- *  
+ *
  *  Once the request is resolved, #Invoke is called for the target service.
  */
 struct IYPathService

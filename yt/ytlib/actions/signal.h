@@ -75,7 +75,7 @@ public:
     void Fire() const
     {
         TGuard<TSpinLock> guard(this->SpinLock);
-        
+
         if (this->Callbacks.empty())
             return;
 

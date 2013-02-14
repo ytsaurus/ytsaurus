@@ -55,7 +55,7 @@ void TFileReader::Open()
 
     if (!DeserializeFromProtoWithEnvelope(&ChunkMeta, chunkMetaRef)) {
         THROW_ERROR_EXCEPTION("Failed to parse chunk meta (FileName: %s)",
-            ~FileName); 
+            ~FileName);
     }
 
     DataFile.Reset(new TFile(FileName, OpenExisting | RdOnly | CloseOnExec));
@@ -141,7 +141,7 @@ TChunkMeta TFileReader::GetChunkMeta(const std::vector<int>* tags) const
 
 IAsyncReader::TAsyncGetMetaResult
 TFileReader::AsyncGetChunkMeta(
-    const TNullable<int>& partitionTag, 
+    const TNullable<int>& partitionTag,
     const std::vector<int>* tags)
 {
     // Partition tag filtering not implemented here

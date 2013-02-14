@@ -31,7 +31,7 @@ TChunk::TChunk(const TChunkId& id)
 {
     // Initialize required proto fields, otherwise #Save would fail.
     ChunkInfo_.set_size(UnknownSize);
-    
+
     ChunkMeta_.set_type(EChunkType::Unknown);
     ChunkMeta_.mutable_extensions();
     ChunkMeta_.set_version(-1);
@@ -69,7 +69,7 @@ void TChunk::Save(const NCellMaster::TSaveContext& context) const
 {
     TChunkTree::Save(context);
     TStagedObject::Save(context);
-    
+
     auto* output = context.GetOutput();
     SaveProto(output, ChunkInfo_);
     SaveProto(output, ChunkMeta_);
@@ -85,7 +85,7 @@ void TChunk::Load(const NCellMaster::TLoadContext& context)
 {
     TChunkTree::Load(context);
     TStagedObject::Load(context);
-    
+
     auto* input = context.GetInput();
     LoadProto(input, ChunkInfo_);
     LoadProto(input, ChunkMeta_);
@@ -152,7 +152,7 @@ bool TChunk::ValidateChunkInfo(const NChunkClient::NProto::TChunkInfo& chunkInfo
     {
         return false;
     }
- 
+
     if (ChunkInfo_.size() != chunkInfo.size()) {
         return false;
     }

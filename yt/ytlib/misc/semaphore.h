@@ -20,7 +20,7 @@ public:
     //! Decreases the counter.
     void Acquire(i64 slots = 1);
 
-    /*!  
+    /*!
      *  Quick check without guard.
      */
     bool IsReady() const;

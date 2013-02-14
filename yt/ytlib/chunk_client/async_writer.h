@@ -29,7 +29,7 @@ struct IAsyncWriter
     /*!
      *  Subsequent calls to #AsyncWriteBlock or #AsyncClose are
      *  prohibited until the returned result is set.
-     *  
+     *
      *  If the result indicates some error then the whole upload session is failed.
      *  (e.g. all target data nodes are down).
      *  The client must not retry and send the same block again.
@@ -42,12 +42,12 @@ struct IAsyncWriter
     //! A batched version of #AsyncWriteBlock.
     //TAsyncError AsyncWriteBlocks(const std::vector<TSharedRef>& blocks);
 
-    //! Called when the client has added all blocks and is 
+    //! Called when the client has added all blocks and is
     //! willing to finalize the upload.
     /*!
      *  The call completes immediately but returns a result that gets
      *  set when the session is complete.
-     *  
+     *
      *  Should be called only once.
      *  Calling #AsyncWriteBlock afterwards is an error.
      */
@@ -56,7 +56,7 @@ struct IAsyncWriter
     //! Returns the chunk info.
     /*!
      *  This method can only be called when the writer is successfully closed.
-     *  
+     *
      * \note Thread affinity: ClientThread.
      */
     virtual const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const = 0;

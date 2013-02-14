@@ -26,7 +26,7 @@ namespace NYT {
  * \{
  *
  * A string literal could be associated with an instance of polymorphic
- * enumeration and this literal is preserved during casts. 
+ * enumeration and this literal is preserved during casts.
  *
  * \page yt_enum_examples Examples
  * Please refer to the unit test for an actual example of usage

@@ -31,7 +31,7 @@ Stroka JoinToString(const TIterator& begin, const TIterator& end, Stroka delimit
 //! Joins a collection of given items into a string intermixing them with the delimiter.
 /*!
  *  The function assume the presence of begin()- and end()-like methods in the collection
- *  and calls the global #::ToString for conversion. 
+ *  and calls the global #::ToString for conversion.
  *  \param collection A collection containing the items to be joined.
  *  \param delimiter A delimiter to be inserted between items. By default equals ", ".
  *  \return The resulting combined string.

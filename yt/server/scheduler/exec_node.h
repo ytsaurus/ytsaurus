@@ -16,7 +16,7 @@ class TExecNode
 {
     //! Address as reported by master.
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Address);
-    
+
     //! Jobs that are currently running on this node.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
 
@@ -28,7 +28,7 @@ class TExecNode
      *  Some fields are also updated by the scheduler strategy to
      *  reflect recent job set changes.
      *  E.g. when the scheduler decides to
-     *  start a new job it decrements the appropriate counters. 
+     *  start a new job it decrements the appropriate counters.
      */
     DEFINE_BYREF_RW_PROPERTY(NProto::TNodeResources, ResourceUsage);
 

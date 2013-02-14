@@ -62,7 +62,7 @@ TVersionedNodeId TCypressNodeBase::GetVersionedId() const
     return TVersionedNodeId(Id, TransactionId);
 }
 
-int TCypressNodeBase::GetOwningReplicationFactor() const 
+int TCypressNodeBase::GetOwningReplicationFactor() const
 {
     YUNREACHABLE();
 }
@@ -91,12 +91,12 @@ void TCypressNodeBase::Load(const TLoadContext& context)
 
     auto* input = context.GetInput();
     LoadObjectRefs(input, Locks_, context);
-    
+
     // TODO(babenko): refactor when new serialization API is ready
     TNodeId parentId;
     NYT::Load(input, parentId);
     Parent_ = parentId == NullObjectId ? nullptr : context.Get<TCypressNodeBase>(parentId);
-    
+
     ::Load(input, LockMode_);
     ::Load(input, CreationTime_);
     ::Load(input, ModificationTime_);
@@ -112,7 +112,7 @@ void TCypressNodeBase::Load(const TLoadContext& context)
     }
 }
 
-TClusterResources TCypressNodeBase::GetResourceUsage() const 
+TClusterResources TCypressNodeBase::GetResourceUsage() const
 {
     return ZeroClusterResources();
 }

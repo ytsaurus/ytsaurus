@@ -66,7 +66,7 @@ void TPartitionChunkReader::OnGotMeta(NChunkClient::IAsyncReader::TGetMetaResult
     }
 
     if (result.Value().version() != FormatVersion) {
-        OnFail(TError("Invalid chunk format version: expected: %d, actual: %d", 
+        OnFail(TError("Invalid chunk format version: expected: %d, actual: %d",
             FormatVersion,
             result.Value().version()));
         return;
@@ -81,7 +81,7 @@ void TPartitionChunkReader::OnGotMeta(NChunkClient::IAsyncReader::TGetMetaResult
             const auto& blockInfo = channelsExt.items(0).blocks(i);
             YCHECK(PartitionTag == blockInfo.partition_tag());
             blockSequence.push_back(TSequentialReader::TBlockInfo(
-                blockInfo.block_index(), 
+                blockInfo.block_index(),
                 blockInfo.block_size()));
             RowCount_ += blockInfo.row_count();
         }
@@ -93,7 +93,7 @@ void TPartitionChunkReader::OnGotMeta(NChunkClient::IAsyncReader::TGetMetaResult
         AsyncReader,
         CodecId);
 
-    LOG_INFO("Reading %d blocks for partition %d", 
+    LOG_INFO("Reading %d blocks for partition %d",
         static_cast<int>(blockSequence.size()),
         PartitionTag);
 
@@ -144,7 +144,7 @@ bool TPartitionChunkReader::NextRow()
         ReadVarUInt64(&SizeBuffer, &SizeToNextRow);
 
         DataBuffer.Reset(RowPointer_, SizeToNextRow);
-        
+
         CurrentRow.clear();
         while (true) {
             auto value = TValue::Load(&DataBuffer);
@@ -235,7 +235,7 @@ TPartitionChunkReaderProvider::TPartitionChunkReaderProvider(
 { }
 
 TPartitionChunkReaderPtr TPartitionChunkReaderProvider::CreateNewReader(
-    const NProto::TInputChunk& inputChunk, 
+    const NProto::TInputChunk& inputChunk,
     const NChunkClient::IAsyncReaderPtr& chunkReader)
 {
     auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(inputChunk.extensions());

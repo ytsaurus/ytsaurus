@@ -38,7 +38,7 @@ TVersionedUserAttributeDictionary::TVersionedUserAttributeDictionary(
     , Bootstrap(bootstrap)
 { }
 
-std::vector<Stroka> TVersionedUserAttributeDictionary::List() const 
+std::vector<Stroka> TVersionedUserAttributeDictionary::List() const
 {
     auto keyToAttribute = GetNodeAttributes(Bootstrap, TrunkNode, Transaction);
     std::vector<Stroka> keys;
@@ -48,7 +48,7 @@ std::vector<Stroka> TVersionedUserAttributeDictionary::List() const
     return keys;
 }
 
-TNullable<TYsonString> TVersionedUserAttributeDictionary::FindYson(const Stroka& name) const 
+TNullable<TYsonString> TVersionedUserAttributeDictionary::FindYson(const Stroka& name) const
 {
     auto objectManager = Bootstrap->GetObjectManager();
     auto transactionManager = Bootstrap->GetTransactionManager();
@@ -232,22 +232,22 @@ IYPathResolverPtr TCypressNodeProxyNontemplateBase::GetResolver() const
     return Resolver;
 }
 
-NTransactionServer::TTransaction* TCypressNodeProxyNontemplateBase::GetTransaction() const 
+NTransactionServer::TTransaction* TCypressNodeProxyNontemplateBase::GetTransaction() const
 {
     return Transaction;
 }
 
-TCypressNodeBase* TCypressNodeProxyNontemplateBase::GetTrunkNode() const 
+TCypressNodeBase* TCypressNodeProxyNontemplateBase::GetTrunkNode() const
 {
     return TrunkNode;
 }
 
-ENodeType TCypressNodeProxyNontemplateBase::GetType() const 
+ENodeType TCypressNodeProxyNontemplateBase::GetType() const
 {
     return TypeHandler->GetNodeType();
 }
 
-ICompositeNodePtr TCypressNodeProxyNontemplateBase::GetParent() const 
+ICompositeNodePtr TCypressNodeProxyNontemplateBase::GetParent() const
 {
     auto* parent = GetThisImpl()->GetParent();
     return parent ? GetProxy(parent)->AsComposite() : nullptr;
@@ -259,7 +259,7 @@ void TCypressNodeProxyNontemplateBase::SetParent(ICompositeNodePtr parent)
     impl->SetParent(parent ? ToProxy(INodePtr(parent))->GetTrunkNode() : nullptr);
 }
 
-bool TCypressNodeProxyNontemplateBase::IsWriteRequest(NRpc::IServiceContextPtr context) const 
+bool TCypressNodeProxyNontemplateBase::IsWriteRequest(NRpc::IServiceContextPtr context) const
 {
     DECLARE_YPATH_SERVICE_WRITE_METHOD(Lock);
     DECLARE_YPATH_SERVICE_WRITE_METHOD(Create);
@@ -272,13 +272,13 @@ IAttributeDictionary& TCypressNodeProxyNontemplateBase::Attributes()
     return TObjectProxyBase::Attributes();
 }
 
-const IAttributeDictionary& TCypressNodeProxyNontemplateBase::Attributes() const 
+const IAttributeDictionary& TCypressNodeProxyNontemplateBase::Attributes() const
 {
     return TObjectProxyBase::Attributes();
 }
 
 TAsyncError TCypressNodeProxyNontemplateBase::GetSystemAttributeAsync(
-    const Stroka& key, 
+    const Stroka& key,
     NYson::IYsonConsumer* consumer) const
 {
     if (key == "recursive_resource_usage") {
@@ -313,12 +313,12 @@ bool TCypressNodeProxyNontemplateBase::SetSystemAttribute(const Stroka& key, con
     return TObjectProxyBase::SetSystemAttribute(key, value);
 }
 
-TVersionedObjectId TCypressNodeProxyNontemplateBase::GetVersionedId() const 
+TVersionedObjectId TCypressNodeProxyNontemplateBase::GetVersionedId() const
 {
     return TVersionedObjectId(Object->GetId(), GetObjectId(Transaction));
 }
 
-void TCypressNodeProxyNontemplateBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const 
+void TCypressNodeProxyNontemplateBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const
 {
     const auto* node = GetThisImpl();
     attributes->push_back(TAttributeInfo("parent_id", node->GetParent()));
@@ -336,7 +336,7 @@ void TCypressNodeProxyNontemplateBase::ListSystemAttributes(std::vector<TAttribu
 
 bool TCypressNodeProxyNontemplateBase::GetSystemAttribute(
     const Stroka& key,
-    IYsonConsumer* consumer) const 
+    IYsonConsumer* consumer) const
 {
     const auto* node = GetThisImpl();
     const auto* trunkNode = node->GetTrunkNode();
@@ -501,22 +501,6 @@ void TCypressNodeProxyNontemplateBase::SetModified()
     cypressManager->SetModified(TrunkNode, Transaction);
 }
 
-TYPath TCypressNodeProxyNontemplateBase::PrepareRecursiveChildPath(const TYPath& path)
-{
-    NYPath::TTokenizer tokenizer(path);
-    if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-        ThrowAlreadyExists(this);
-    }
-
-    tokenizer.Expect(NYPath::ETokenType::Slash);
-
-    if (!CanHaveChildren()) {
-        ThrowCannotHaveChildren(this);
-    }
-
-    return tokenizer.GetSuffix();
-}
-
 ICypressNodeProxyPtr TCypressNodeProxyNontemplateBase::ResolveSourcePath(const TYPath& path)
 {
     auto sourceNode = this->GetResolver()->ResolvePath(path);
@@ -528,14 +512,15 @@ bool TCypressNodeProxyNontemplateBase::CanHaveChildren() const
     return false;
 }
 
-void TCypressNodeProxyNontemplateBase::SetChild(const TYPath& path, INodePtr value)
+void TCypressNodeProxyNontemplateBase::SetChild(const TYPath& path, INodePtr value, bool recursive)
 {
     UNUSED(path);
     UNUSED(value);
+    UNUSED(recursive);
     YUNREACHABLE();
 }
 
-TClusterResources TCypressNodeProxyNontemplateBase::GetResourceUsage() const 
+TClusterResources TCypressNodeProxyNontemplateBase::GetResourceUsage() const
 {
     return ZeroClusterResources();
 }
@@ -565,7 +550,9 @@ DEFINE_RPC_SERVICE_METHOD(TCypressNodeProxyNontemplateBase, Lock)
 
 DEFINE_RPC_SERVICE_METHOD(TCypressNodeProxyNontemplateBase, Create)
 {
-    auto childPath = PrepareRecursiveChildPath(context->GetPath());
+    if (!CanHaveChildren()) {
+        ThrowCannotHaveChildren(this);
+    }
 
     auto type = EObjectType(request->type());
     context->SetRequestInfo("Type: %s", ~type.ToString());
@@ -579,17 +566,17 @@ DEFINE_RPC_SERVICE_METHOD(TCypressNodeProxyNontemplateBase, Create)
             ~type.ToString());
     }
 
+    auto* account = GetThisImpl()->GetAccount();
+    // COMPAT(babenko)
+    if (!account) {
+        account = securityManager->GetSysAccount();
+    }
+
     auto attributes =
         request->has_node_attributes()
         ? FromProto(request->node_attributes())
         : CreateEphemeralAttributes();
 
-    auto* node = GetThisImpl();
-    auto* account = node->GetAccount();
-    // COMPAT(babenko)
-    if (!account) {
-        account = securityManager->GetSysAccount();
-    }
     auto* newNode = cypressManager->CreateNode(
         handler,
         Transaction,
@@ -602,15 +589,19 @@ DEFINE_RPC_SERVICE_METHOD(TCypressNodeProxyNontemplateBase, Create)
         newNode->GetTrunkNode(),
         Transaction);
 
-    SetChild(childPath, newProxy);
+    SetChild(context->GetPath(), newProxy, request->recursive());
 
     context->Reply();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TCypressNodeProxyNontemplateBase, Copy)
 {
+    if (!CanHaveChildren()) {
+        ThrowCannotHaveChildren(this);
+    }
+
     auto sourcePath = request->source_path();
-    auto targetPath = PrepareRecursiveChildPath(context->GetPath());
+    auto targetPath = context->GetPath();
 
     context->SetRequestInfo("SourcePath: %s", ~sourcePath);
 
@@ -628,7 +619,7 @@ DEFINE_RPC_SERVICE_METHOD(TCypressNodeProxyNontemplateBase, Copy)
     auto* clonedTrunkImpl = clonedImpl->GetTrunkNode();
     auto clonedProxy = GetProxy(clonedTrunkImpl);
 
-    SetChild(targetPath, clonedProxy);
+    SetChild(targetPath, clonedProxy, false);
 
     *response->mutable_object_id() = clonedTrunkImpl->GetId().ToProto();
 
@@ -649,7 +640,7 @@ TCompositeCypressNodeProxyNontemplateBase::TCompositeCypressNodeProxyNontemplate
         trunkNode)
 { }
 
-TIntrusivePtr<const NYTree::ICompositeNode> TCompositeCypressNodeProxyNontemplateBase::AsComposite() const 
+TIntrusivePtr<const NYTree::ICompositeNode> TCompositeCypressNodeProxyNontemplateBase::AsComposite() const
 {
     return this;
 }
@@ -659,13 +650,13 @@ TIntrusivePtr<NYTree::ICompositeNode> TCompositeCypressNodeProxyNontemplateBase:
     return this;
 }
 
-void TCompositeCypressNodeProxyNontemplateBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const 
+void TCompositeCypressNodeProxyNontemplateBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const
 {
     attributes->push_back("count");
     TCypressNodeProxyNontemplateBase::ListSystemAttributes(attributes);
 }
 
-bool TCompositeCypressNodeProxyNontemplateBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const 
+bool TCompositeCypressNodeProxyNontemplateBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const
 {
     if (key == "count") {
         NYTree::BuildYsonFluently(consumer)
@@ -676,7 +667,7 @@ bool TCompositeCypressNodeProxyNontemplateBase::GetSystemAttribute(const Stroka&
     return TCypressNodeProxyNontemplateBase::GetSystemAttribute(key, consumer);
 }
 
-bool TCompositeCypressNodeProxyNontemplateBase::CanHaveChildren() const 
+bool TCompositeCypressNodeProxyNontemplateBase::CanHaveChildren() const
 {
     return true;
 }
@@ -708,9 +699,9 @@ ICypressNodeProxyPtr TNodeFactory::DoCreate(EObjectType type)
     auto cypressManager = Bootstrap->GetCypressManager();
     auto objectManager = Bootstrap->GetObjectManager();
     auto securityManager = Bootstrap->GetSecurityManager();
-   
+
     auto handler = cypressManager->GetHandler(type);
-  
+
     auto  node = handler->Create(Transaction, nullptr, nullptr);
     auto* node_ = ~node;
 
@@ -719,7 +710,7 @@ ICypressNodeProxyPtr TNodeFactory::DoCreate(EObjectType type)
     if (!node_->GetAccount()) {
         securityManager->SetAccount(node_, Account);
     }
-    
+
     objectManager->RefObject(node_);
     CreatedNodes.push_back(node_);
 
@@ -882,7 +873,7 @@ bool TMapNodeProxy::RemoveChild(const Stroka& key)
     auto* childImpl = LockImpl(trunkChildImpl, ELockMode::Exclusive, true);
     auto* impl = LockThisTypedImpl(TLockRequest::SharedChild(key));
     DoRemoveChild(impl, key, childImpl);
-    
+
     SetModified();
 
     return true;
@@ -910,7 +901,7 @@ void TMapNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
     auto* oldTrunkChildImpl = ToProxy(oldChild)->GetTrunkNode();
     auto* oldChildImpl = LockImpl(oldTrunkChildImpl, ELockMode::Exclusive, true);
 
-    
+
     auto* newTrunkChildImpl = ToProxy(newChild)->GetTrunkNode();
     auto* newChildImpl = LockImpl(newTrunkChildImpl);
 
@@ -923,7 +914,7 @@ void TMapNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
     DetachChild(oldChildImpl, ownsOldChild);
 
     keyToChild[key] = newTrunkChildImpl;
-    YCHECK(childToKey.insert(std::make_pair(newTrunkChildImpl, key)).second);    
+    YCHECK(childToKey.insert(std::make_pair(newTrunkChildImpl, key)).second);
     AttachChild(newChildImpl);
 
     SetModified();
@@ -936,7 +927,7 @@ Stroka TMapNodeProxy::GetChildKey(IConstNodePtr child)
 
     auto transactions = transactionManager->GetTransactionPath(Transaction);
     // NB: Use the latest key, don't reverse transactions.
-    
+
     auto* trunkChildImpl = ToProxy(child)->GetTrunkNode();
 
     FOREACH (const auto* currentTransaction, transactions) {
@@ -960,9 +951,9 @@ void TMapNodeProxy::DoInvoke(NRpc::IServiceContextPtr context)
     TBase::DoInvoke(context);
 }
 
-void TMapNodeProxy::SetChild(const TYPath& path, INodePtr value)
+void TMapNodeProxy::SetChild(const TYPath& path, INodePtr value, bool recursive)
 {
-    TMapNodeMixin::SetChild(path, value);
+    TMapNodeMixin::SetChild(path, value, recursive);
 }
 
 IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(
@@ -1158,9 +1149,9 @@ int TListNodeProxy::GetChildIndex(IConstNodePtr child)
     return it->second;
 }
 
-void TListNodeProxy::SetChild(const TYPath& path, INodePtr value)
+void TListNodeProxy::SetChild(const TYPath& path, INodePtr value, bool recursive)
 {
-    TListNodeMixin::SetChild(path, value);
+    TListNodeMixin::SetChild(path, value, recursive);
 }
 
 IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(

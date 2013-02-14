@@ -405,7 +405,7 @@ TNonversionedObjectProxyNontemplateBase::TNonversionedObjectProxyNontemplateBase
     : TObjectProxyBase(bootstrap, object)
 { }
 
-bool TNonversionedObjectProxyNontemplateBase::IsWriteRequest(IServiceContextPtr context) const 
+bool TNonversionedObjectProxyNontemplateBase::IsWriteRequest(IServiceContextPtr context) const
 {
     DECLARE_YPATH_SERVICE_WRITE_METHOD(Remove);
     return TObjectProxyBase::IsWriteRequest(context);

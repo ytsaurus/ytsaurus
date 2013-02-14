@@ -18,7 +18,7 @@ TEST(TNullableDeathTest, Uninitialized)
 }
 #endif
 
-template<class T>
+template <class T>
 inline void TestNullable(const TNullable<T>& nullable, bool initialized, T value = T())
 {
     EXPECT_EQ(initialized, nullable.HasValue());
@@ -132,7 +132,7 @@ TEST(TNullableTest, ToString)
 //    std::vector<int> v;
 //    TNullable<std::vector<int>&> nullable(v);
 //    TestNullable(nullable, true, std::vector<int>());
-//    
+//
 //    v.push_back(10);
 //    TestNullable(nullable, true, std::vector<int>(1, 10));
 //}

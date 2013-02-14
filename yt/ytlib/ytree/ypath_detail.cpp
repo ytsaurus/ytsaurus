@@ -639,7 +639,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                 if (!oldWholeYson) {
                     ThrowNoSuchUserAttribute(key);
                 }
-                
+
                 auto wholeNode = ConvertToNode(oldWholeYson.Get());
                 SyncYPathSet(wholeNode, tokenizer.GetInput(), newYson);
                 auto newWholeYson = ConvertToYsonString(wholeNode);
@@ -974,7 +974,7 @@ public:
         YUNREACHABLE();
     }
 
-    virtual TResolveResult Resolve(const 
+    virtual TResolveResult Resolve(const
         TYPath& path,
         IServiceContextPtr context) override
     {

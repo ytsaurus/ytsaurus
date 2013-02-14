@@ -33,7 +33,7 @@ public:
     { }
 
     TAutoPtr<TTableProducer> CreateTableInput(
-        int index, 
+        int index,
         NYson::IYsonConsumer* consumer) override
     {
         YCHECK(index >= 0 && index < GetInputCount());

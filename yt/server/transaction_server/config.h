@@ -27,6 +27,6 @@ struct TTransactionManagerConfig
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 } // namespace NTransactionServer
 } // namespace NYT

@@ -71,6 +71,9 @@ message TJobSpec
 
     required int64 lfalloc_buffer_size = 8;
 
+    // True if data_size and row_count are approximate (e.g. restarted sort jobs).
+    optional bool is_approximate = 9 [default = false];
+
     extensions 100 to max;
 }
 
@@ -123,8 +126,11 @@ message TUserJobSpec
     // Environment strings (K=V format) for starting user process.
     repeated string environment = 5;
 
-    // Memory limit for user process, in bytes.
+    // Hard memory limit for user process, in bytes.
     required int64 memory_limit = 7;
+
+    // Memory size reserved at job launch, in bytes.
+    required int64 memory_reserve = 9;
 
     // Transaction for creating stderr chunks.
     // If not set then no stderrs are captured.

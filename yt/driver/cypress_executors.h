@@ -51,6 +51,8 @@ public:
 
 private:
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
+    TCLAP::SwitchArg RecursiveArg;
+    TCLAP::SwitchArg ForceArg;
 
     virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
@@ -85,6 +87,7 @@ private:
     TTypeArg TypeArg;
 
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
+    TCLAP::SwitchArg RecursiveArg;
 
     virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;

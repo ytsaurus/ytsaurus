@@ -83,7 +83,7 @@ TDataNodeService::TDataNodeService(
 
     ProfilingInvoker = New<TPeriodicInvoker>(
         Bootstrap->GetControlInvoker(),
-        BIND(&TDataNodeService::OnProfiling, Unretained(this)),
+        BIND(&TDataNodeService::OnProfiling, MakeWeak(this)),
         ProfilingPeriod);
     ProfilingInvoker->Start();
 }
@@ -207,6 +207,8 @@ void TDataNodeService::OnProfiling()
     Profiler.Enqueue("/pending_read_size", GetPendingReadSize());
     Profiler.Enqueue("/pending_write_size", GetPendingWriteSize());
     Profiler.Enqueue("/session_count", Bootstrap->GetSessionManager()->GetSessionCount());
+
+    ProfilingInvoker->ScheduleNext();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -217,7 +219,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, StartChunk)
 
     auto chunkId = TChunkId::FromProto(request->chunk_id());
 
-    context->SetRequestInfo("ChunkId: %s", 
+    context->SetRequestInfo("ChunkId: %s",
         ~chunkId.ToString());
 
     ValidateNoSession(chunkId);
@@ -322,7 +324,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
     auto chunkId = TChunkId::FromProto(request->chunk_id());
     int blockCount = static_cast<int>(request->block_indexes_size());
     bool enableCaching = request->enable_caching();
-    
+
     context->SetRequestInfo("ChunkId: %s, BlockIndexes: %s, EnableCaching: %s",
         ~chunkId.ToString(),
         ~JoinToString(request->block_indexes()),
@@ -345,7 +347,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
     for (int index = 0; index < blockCount; ++index) {
         int blockIndex = request->block_indexes(index);
         TBlockId blockId(chunkId, blockIndex);
-        
+
         auto* blockInfo = response->add_blocks();
 
         if (isThrottling) {
@@ -462,14 +464,14 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetChunkMeta)
         ? TNullable<int>(request->partition_tag())
         : Null;
 
-    context->SetRequestInfo("ChunkId: %s, AllExtensionTags: %s, ExtensionTags: [%s], PartitionTag: %s", 
+    context->SetRequestInfo("ChunkId: %s, AllExtensionTags: %s, ExtensionTags: [%s], PartitionTag: %s",
         ~chunkId.ToString(),
         ~FormatBool(request->all_extension_tags()),
         ~JoinToString(extensionTags),
         ~ToString(partitionTag));
 
     auto chunk = GetChunk(chunkId);
-    auto asyncChunkMeta = chunk->GetMeta(request->all_extension_tags() 
+    auto asyncChunkMeta = chunk->GetMeta(request->all_extension_tags()
         ? NULL
         : &extensionTags);
 
@@ -532,13 +534,13 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetTableSamples)
         auto chunk = Bootstrap->GetChunkStore()->FindChunk(chunkId);
 
         if (!chunk) {
-            LOG_WARNING("GetTableSamples: No such chunk %s\n", 
+            LOG_WARNING("GetTableSamples: No such chunk %s\n",
                 ~chunkId.ToString());
             ToProto(chunkSamples->mutable_error(), TError("No such chunk"));
         } else {
             awaiter->Await(chunk->GetMeta(), BIND(
-                &TDataNodeService::ProcessSample, 
-                MakeStrong(this), 
+                &TDataNodeService::ProcessSample,
+                MakeStrong(this),
                 &sampleRequest,
                 chunkSamples,
                 keyColumns));
@@ -559,7 +561,7 @@ void TDataNodeService::ProcessSample(
     auto chunkId = TChunkId::FromProto(sampleRequest->chunk_id());
 
     if (!result.IsOK()) {
-        LOG_WARNING(result, "GetTableSamples: Error getting meta of chunk %s", 
+        LOG_WARNING(result, "GetTableSamples: Error getting meta of chunk %s",
             ~chunkId.ToString());
         ToProto(chunkSamples->mutable_error(), result);
         return;
@@ -568,9 +570,9 @@ void TDataNodeService::ProcessSample(
     auto samplesExt = GetProtoExtension<NTableClient::NProto::TSamplesExt>(result.Value().extensions());
     std::vector<NTableClient::NProto::TSample> samples;
     RandomSampleN(
-        samplesExt.items().begin(), 
-        samplesExt.items().end(), 
-        std::back_inserter(samples), 
+        samplesExt.items().begin(),
+        samplesExt.items().end(),
+        std::back_inserter(samples),
         sampleRequest->sample_count());
 
     FOREACH (const auto& sample, samples) {
@@ -641,7 +643,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetChunkSplits)
             ToProto(splittedChunk->mutable_error(), error);
         } else {
             awaiter->Await(chunk->GetMeta(), BIND(
-                &TDataNodeService::MakeChunkSplits, 
+                &TDataNodeService::MakeChunkSplits,
                 MakeStrong(this),
                 &inputChunk,
                 splittedChunk,
@@ -676,7 +678,7 @@ void TDataNodeService::MakeChunkSplits(
 
     auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(result.Value().extensions());
     if (!miscExt.sorted()) {
-        auto error =  TError("GetChunkSplits: Requested chunk splits for unsorted chunk %s", 
+        auto error =  TError("GetChunkSplits: Requested chunk splits for unsorted chunk %s",
             ~chunkId.ToString());
         LOG_ERROR(error);
         ToProto(splittedChunk->mutable_error(), error);
@@ -685,7 +687,7 @@ void TDataNodeService::MakeChunkSplits(
 
     auto keyColumnsExt = GetProtoExtension<NTableClient::NProto::TKeyColumnsExt>(result.Value().extensions());
     if (keyColumnsExt.values_size() < keyColumns.size()) {
-        auto error = TError("Not enough key columns in chunk %s: expected %d, actual %d", 
+        auto error = TError("Not enough key columns in chunk %s: expected %d, actual %d",
             ~chunkId.ToString(),
             static_cast<int>(keyColumns.size()),
             static_cast<int>(keyColumnsExt.values_size()));
@@ -748,21 +750,21 @@ void TDataNodeService::MakeChunkSplits(
     };
 
     auto beginIt = std::lower_bound(
-        indexExt.items().begin(), 
-        indexExt.items().end(), 
-        inputChunk->slice().start_limit(), 
+        indexExt.items().begin(),
+        indexExt.items().end(),
+        inputChunk->slice().start_limit(),
         [&] (const NTableClient::NProto::TIndexRow& indexRow,
-             const NTableClient::NProto::TReadLimit& limit) 
+             const NTableClient::NProto::TReadLimit& limit)
         {
             return comparer(limit, indexRow, true) > 0;
         });
 
     auto endIt = std::upper_bound(
-        beginIt, 
-        indexExt.items().end(), 
-        inputChunk->slice().end_limit(), 
+        beginIt,
+        indexExt.items().end(),
+        inputChunk->slice().end_limit(),
         [&] (const NTableClient::NProto::TReadLimit& limit,
-             const NTableClient::NProto::TIndexRow& indexRow) 
+             const NTableClient::NProto::TIndexRow& indexRow)
         {
             return comparer(limit, indexRow, false) < 0;
         });
@@ -783,7 +785,7 @@ void TDataNodeService::MakeChunkSplits(
     createNewSplit();
 
     auto samplesLeft = std::distance(beginIt, endIt) - 1;
-    while(samplesLeft > 0) {
+    while (samplesLeft > 0) {
         ++beginIt;
         --samplesLeft;
         dataSize += dataSizeBetweenSamples;
@@ -832,7 +834,7 @@ void TDataNodeService::MakeChunkSplits(
     NTableClient::NProto::TSizeOverrideExt sizeOverride;
     sizeOverride.set_row_count(endRowIndex - startRowIndex);
     sizeOverride.set_uncompressed_data_size(
-        dataSize + 
+        dataSize +
         (std::distance(beginIt, endIt) - 1) * dataSizeBetweenSamples);
     UpdateProtoExtension(currentSplit->mutable_extensions(), sizeOverride);
 

@@ -40,7 +40,7 @@ const void* GetInstructionPointer()
     return _ReturnAddress();
 #else
     return __builtin_extract_return_addr(__builtin_return_address(0));
-#endif        
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////

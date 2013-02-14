@@ -26,7 +26,7 @@ void Consume(const T& value, NYson::IYsonConsumer* consumer)
     static_assert(!TSameType<T, Stroka>::Result,
         "Are you sure that you want to convert from Stroka, not from TYsonString? "
         "In this case use TRawString wrapper on Stroka.");
-    
+
     Serialize(value, consumer);
 }
 
@@ -68,7 +68,7 @@ INodePtr ConvertToNode(
     INodeFactoryPtr factory)
 {
     auto type = GetYsonType(value);
-  
+
     auto builder = CreateBuilderFromFactory(factory);
     builder->BeginTree();
 

@@ -42,7 +42,7 @@ public:
 
         auto promise = Promise;
         auto awaiter = Awaiter;
-        
+
         FOREACH (const Stroka& address, Config->Addresses) {
             LOG_DEBUG("Requesting quorum information from peer %s", ~address);
 
@@ -135,7 +135,7 @@ TMasterDiscovery::TAsyncResult TMasterDiscovery::GetMaster()
                 }
                 result.EpochId = TGuid::FromProto(quorum->epoch_id());
             }
-            return MakeFuture(std::move(result)); 
+            return MakeFuture(std::move(result));
         })
     );
 }
@@ -164,7 +164,7 @@ TMasterDiscovery::TAsyncResult TMasterDiscovery::GetFollower()
                 result.Address = quorum->follower_addresses().Get(id);
                 result.EpochId = TGuid::FromProto(quorum->epoch_id());
             }
-            return MakeFuture(std::move(result)); 
+            return MakeFuture(std::move(result));
         })
     );
 }

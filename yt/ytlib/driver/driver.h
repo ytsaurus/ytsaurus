@@ -77,8 +77,8 @@ struct TCommandDescriptor
     { }
 
     TCommandDescriptor(
-        const Stroka& commandName, 
-        NFormats::EDataType inputType, 
+        const Stroka& commandName,
+        NFormats::EDataType inputType,
         NFormats::EDataType outputType,
         bool isVolatile,
         bool isHeavy)
@@ -93,12 +93,12 @@ struct TCommandDescriptor
 ////////////////////////////////////////////////////////////////////////////////
 
 //! An instance of command execution engine.
-/*! 
- *  Each driver instance maintains a collection of cached connections to 
+/*!
+ *  Each driver instance maintains a collection of cached connections to
  *  various YT subsystems (e.g. masters, scheduler).
- *  
+ *
  *  Requests are executed synchronously.
- *  
+ *
  *  IDriver instances are thread-safe and reentrant.
  */
 struct IDriver

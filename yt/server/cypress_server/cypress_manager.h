@@ -112,7 +112,7 @@ public:
     void RegisterNode(
         TAutoPtr<TCypressNodeBase> node,
         NTransactionServer::TTransaction* transaction,
-		NYTree::IAttributeDictionary* attributes = nullptr);
+        NYTree::IAttributeDictionary* attributes = nullptr);
 
     DECLARE_METAMAP_ACCESSORS(Node, TCypressNodeBase, TVersionedNodeId);
 
@@ -134,7 +134,7 @@ private:
         TCypressManager* CypressManager;
 
     };
-    
+
     NCellMaster::TBootstrap* Bootstrap;
 
     NMetaState::TMetaStateMap<TVersionedNodeId, TCypressNodeBase, TNodeMapTraits> NodeMap;
@@ -209,7 +209,7 @@ private:
         NTransactionServer::TTransaction* transaction);
 
     typedef TSmallVector<TCypressNodeBase*, 1> TSubtreeNodes;
-    void ListSubtreeNodeIds(
+    void ListSubtreeNodes(
         TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction,
         TSubtreeNodes* nodes);

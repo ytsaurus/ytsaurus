@@ -187,35 +187,21 @@ public:
 
         if (oldAccount) {
             if (isAccountingEnabled) {
-                auto* oldTransactionUsage = FindTransactionAccountUsage(node);
-                if (oldTransactionUsage) {
-                    *oldTransactionUsage -= node->CachedResourceUsage();
-                }
+                UpdateResourceUsage(node, oldAccount, -1);
             }
-
-            objectManager->UnrefObject(oldAccount);
-
-            if (isAccountingEnabled) {
-                oldAccount->ResourceUsage() -= node->CachedResourceUsage();
-            }
-
             --oldAccount->NodeCount();
+            objectManager->UnrefObject(oldAccount);
         }
 
         node->SetAccount(account);
-        objectManager->RefObject(account);
+        node->CachedResourceUsage() = node->GetResourceUsage();
 
         if (isAccountingEnabled) {
-            node->CachedResourceUsage() = node->GetResourceUsage();
-            account->ResourceUsage() += node->CachedResourceUsage();
-
-            auto* newTransactionUsage = FindTransactionAccountUsage(node);
-            if (newTransactionUsage) {
-                *newTransactionUsage += node->CachedResourceUsage();
-            }
+            UpdateResourceUsage(node, account, +1);
         }
 
         ++account->NodeCount();
+        objectManager->RefObject(account);
     }
 
     void ResetAccount(TCypressNodeBase* node)
@@ -229,21 +215,14 @@ public:
         bool isAccountingEnabled = IsUncommittedAccountingEnabled(node);
 
         if (isAccountingEnabled) {
-            auto* transactionUsage = FindTransactionAccountUsage(node);
-            if (transactionUsage) {
-                *transactionUsage -= node->CachedResourceUsage();
-            }
+            UpdateResourceUsage(node, account, -1);
         }
 
+        node->CachedResourceUsage() = ZeroClusterResources();
         node->SetAccount(nullptr);
-        objectManager->UnrefObject(account);
-
-        if (isAccountingEnabled) {
-            account->ResourceUsage() -= node->CachedResourceUsage();
-            node->CachedResourceUsage() = ZeroClusterResources();
-        }
 
         --account->NodeCount();
+        objectManager->UnrefObject(account);
     }
 
 
@@ -256,19 +235,11 @@ public:
         if (!IsUncommittedAccountingEnabled(node))
             return;
 
-        auto* transactionUsage = FindTransactionAccountUsage(node);
-
-        account->ResourceUsage() -= node->CachedResourceUsage();
-        if (transactionUsage) {
-            *transactionUsage -= node->CachedResourceUsage();
-        }
+        UpdateResourceUsage(node, account, -1);
 
         node->CachedResourceUsage() = node->GetResourceUsage();
 
-        account->ResourceUsage() += node->CachedResourceUsage();
-        if (transactionUsage) {
-            *transactionUsage += node->CachedResourceUsage();
-        }
+        UpdateResourceUsage(node, account, +1);
     }
 
     void UpdateAccountStagingUsage(
@@ -278,7 +249,7 @@ public:
     {
         if (!IsStagedAccountingEnabled(transaction))
             return;
-       
+
         account->ResourceUsage() += delta;
 
         auto* transactionUsage = GetTransactionAccountUsage(transaction, account);
@@ -295,7 +266,7 @@ private:
 
     TAccountId SysAccountId;
     TAccount* SysAccount;
-    
+
     TAccountId TmpAccountId;
     TAccount* TmpAccount;
 
@@ -311,22 +282,22 @@ private:
         return transaction->GetStagedAccountingEnabled();
     }
 
-
-    TAccount* DoCreateAccount(const TAccountId& id, const Stroka& name)
+    static void UpdateResourceUsage(TCypressNodeBase* node, TAccount* account, int delta)
     {
-        auto* account = new TAccount(id);
-        account->SetName(name);
+        auto resourceUsage = node->CachedResourceUsage() * delta;
 
-        AccountMap.Insert(id, account);
-        YCHECK(AccountNameMap.insert(std::make_pair(account->GetName(), account)).second);
+        account->ResourceUsage() += resourceUsage;
+        if (node->IsTrunk()) {
+            account->CommittedResourceUsage() += resourceUsage;
+        }
 
-        // Make the fake reference.
-        YCHECK(account->RefObject() == 1);
-
-        return account;
+        auto* transactionUsage = FindTransactionAccountUsage(node);
+        if (transactionUsage) {
+            *transactionUsage += resourceUsage;
+        }
     }
 
-    TClusterResources* FindTransactionAccountUsage(TCypressNodeBase* node)
+    static TClusterResources* FindTransactionAccountUsage(TCypressNodeBase* node)
     {
         auto* account = node->GetAccount();
         // COMPAT(babenko)
@@ -342,7 +313,7 @@ private:
         return GetTransactionAccountUsage(transaction, account);
     }
 
-    TClusterResources* GetTransactionAccountUsage(TTransaction* transaction, TAccount* account)
+    static TClusterResources* GetTransactionAccountUsage(TTransaction* transaction, TAccount* account)
     {
         auto it = transaction->AccountResourceUsage().find(account);
         if (it == transaction->AccountResourceUsage().end()) {
@@ -352,6 +323,21 @@ private:
         } else {
             return &it->second;
         }
+    }
+
+
+    TAccount* DoCreateAccount(const TAccountId& id, const Stroka& name)
+    {
+        auto* account = new TAccount(id);
+        account->SetName(name);
+
+        AccountMap.Insert(id, account);
+        YCHECK(AccountNameMap.insert(std::make_pair(account->GetName(), account)).second);
+
+        // Make the fake reference.
+        YCHECK(account->RefObject() == 1);
+
+        return account;
     }
 
 
@@ -476,7 +462,7 @@ void TSecurityManager::SetAccount(TCypressNodeBase* node, TAccount* account)
 
 void TSecurityManager::ResetAccount(TCypressNodeBase* node)
 {
-    Impl->ResetAccount(node);    
+    Impl->ResetAccount(node);
 }
 
 void TSecurityManager::UpdateAccountNodeUsage(TCypressNodeBase* node)

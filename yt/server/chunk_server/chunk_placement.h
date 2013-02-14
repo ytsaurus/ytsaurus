@@ -33,7 +33,7 @@ public:
         int count,
         const TSmallSet<Stroka, TypicalReplicationFactor>* forbiddenAddresses,
         Stroka* preferredHostName);
-    
+
     TSmallVector<TDataNode*, TypicalReplicationFactor> GetRemovalTargets(
         const TChunk* chunk,
         int count);
@@ -47,7 +47,7 @@ public:
     bool HasBalancingTargets(double maxFillCoeff);
     std::vector<TChunk*> GetBalancingChunks(TDataNode* node, int count);
     TDataNode* GetBalancingTarget(TChunk *chunk, double maxFillCoeff);
-   
+
 private:
     typedef ymultimap<double, TDataNode*> TCoeffToNode;
     typedef yhash_map<TDataNode*, TCoeffToNode::iterator> TNodeToCoeffIt;

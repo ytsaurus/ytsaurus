@@ -285,7 +285,7 @@ TEST_F(TRpcTest, ManyAsyncSends)
 
 DEFINE_RPC_SERVICE_METHOD(TMyService, ModifyAttachments)
 {
-    FOREACH(const auto& attachment, request->Attachments()) {
+    FOREACH (const auto& attachment, request->Attachments()) {
         std::vector<char> data(attachment.Begin(), attachment.End());
         data.push_back('_');
         response->Attachments().push_back(TSharedRef::FromBlob(std::move(data)));
@@ -343,7 +343,7 @@ TEST_F(TRpcTest, Attributes)
     EXPECT_FALSE(attributes.Contains("value1"));
     EXPECT_EQ(NYTree::TYsonString("another_stroka"), attributes.GetYson("value2"));
     EXPECT_EQ(NYTree::TYsonString("stroka3"), attributes.GetYson("value3"));
-} 
+}
 
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -265,7 +265,7 @@ private:
     {
         explicit TData(TBlob&& blob);
         ~TData();
-        
+
         TBlob Blob;
 
 #ifdef ENABLE_REF_COUNTED_TRACKING

@@ -61,7 +61,7 @@ void TSamplesFetcher::Prepare(const std::vector<NTableClient::TRefCountedInputCh
         DesiredSampleCount);
 
     i64 totalSize = 0;
-    FOREACH(const auto& chunk, chunks) {
+    FOREACH (const auto& chunk, chunks) {
         i64 chunkDataSize;
         GetStatistics(*chunk, &chunkDataSize);
         totalSize += chunkDataSize;
@@ -121,8 +121,8 @@ auto TSamplesFetcher::InvokeRequest() -> TFuture<TResponsePtr>
 }
 
 TError TSamplesFetcher::ProcessResponseItem(
-    TResponsePtr rsp, 
-    int index, 
+    TResponsePtr rsp,
+    int index,
     NTableClient::TRefCountedInputChunkPtr chunk)
 {
     YCHECK(rsp->IsOK());

@@ -47,7 +47,7 @@ protected:
     /*!
      *  \param targetVersion A version to reach.
      *  \returns A future that gets set when the recovery completes.
-     *  
+     *
      *  \note Thread affinity: StateThread
      */
     TAsyncError RecoverToState(const TMetaVersion& targetVersion);
@@ -58,7 +58,7 @@ protected:
      *  \param targetVersion A version to reach.
      *  \param snapshotId A snapshot to start recovery with.
      *  \returns A future that gets set when the recovery completes.
-     *  
+     *
      *  \note Thread affinity: StateThread
      */
     TAsyncError RecoverToStateWithChangeLog(
@@ -71,9 +71,9 @@ protected:
      *  \param expectedPrevRecordCount The 'PrevRecordCount' value that
      *  the first changelog is expected to have.
      *  \returns A future that gets set when the recovery completes.
-     *  
+     *
      *  Additional unnamed parameters are due to implementation details.
-     * 
+     *
      *  \note Thread affinity: StateThread
      */
     TAsyncError ReplayChangeLogs(
@@ -83,14 +83,14 @@ protected:
     //! Applies records from a given changes up to a given one.
     /*!
      *  The current segment id should match that of #changeLog.
-     *  
+     *
      *  The methods ensured that no mutation is applied twice.
      *  In particular, if the 'record count' of part the current version is positive, it skips
      *  the suitable prefix of #changeLog.
      *
      *  \param changeLog A changelog to apply.
      *  \param targetRecordCount The 'record count' part of the desired target version.
-     *  
+     *
      * \note Thread affinity: StateThread
      */
     void ReplayChangeLog(
@@ -180,7 +180,7 @@ public:
     /*!
      * \param version Version at which the segment should be changed.
      * \returns True when applicable request is coherent with the postponed version.
-     * 
+     *
      * \note Thread affinity: ControlThread
      */
     TError PostponeSegmentAdvance(const TMetaVersion& version);
@@ -190,7 +190,7 @@ public:
      * \param recordsData Incoming records.
      * \param version Version at which the changes should be applied.
      * \returns True when the mutation is coherent with the postponed version.
-     * 
+     *
      * \note Thread affinity: ControlThread
      */
     TError PostponeMutations(
@@ -233,7 +233,7 @@ private:
     // Control thread
     TPostponedMutations PostponedMutations;
     TMetaVersion PostponedVersion;
-    
+
     TAsyncError OnSyncReached(TError erro);
     TAsyncError CapturePostponedMutations();
     TAsyncError ApplyPostponedMutations(TPostponedMutations mutations);

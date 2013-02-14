@@ -61,7 +61,7 @@ private:
     IInvokerPtr CancelableInvoker;
 
     TError Error;
-    
+
     NLog::TTaggedLogger Logger;
 
     void Start();
@@ -84,17 +84,17 @@ private:
  *  These jobs are started by the master and are used for two purposes:
  *  making additional replicas of chunks lacking enough of them and
  *  moving chunks around chunk data nodes to ensure even distribution.
- *  
+ *
  *  Each job is represented by an instance of TJob class.
  *  A job is created by calling #StartJob and stopped by calling #StopJob methods.
- *  
+ *
  *  Each job may be either running, completed or failed.
  *  Completed and failed job do not vanish automatically. It is the responsibility
  *  of the master to stop them.
- *  
+ *
  *  The status of all jobs is propagated to the master with each heartbeat.
  *  This way the master obtains the outcomes of each job it had started.
- * 
+ *
  *  A job is identified by its id, which is assigned by the master when a job is started.
  *  Using master-controlled id assignment eliminates the need for additional RPC round-trips
  *  for getting these ids from the holder.
@@ -105,7 +105,7 @@ class TJobExecutor
 public:
     //! Constructs a new instance.
     explicit TJobExecutor(TBootstrap* bootstrap);
-    
+
     //! Starts a new job with the given parameters.
     TJobPtr StartJob(
         EJobType jobType,

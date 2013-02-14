@@ -26,7 +26,7 @@ struct TSmallKeyPart
         return TStringBuf(Value.Str, Value.Str + Length);
     }
 
-    TSmallKeyPart() 
+    TSmallKeyPart()
         : Type(NTableClient::EKeyPartType::Null)
     { }
 };

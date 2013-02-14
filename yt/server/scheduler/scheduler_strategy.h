@@ -44,7 +44,7 @@ struct ISchedulerStrategy
     virtual void BuildOperationProgressYson(
         TOperationPtr operation,
         NYson::IYsonConsumer* consumer) = 0;
-    
+
     //! Builds a YSON structure reflecting the state of the scheduler to be displayed in Orchid.
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) = 0;
 

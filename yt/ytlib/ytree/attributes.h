@@ -12,7 +12,7 @@ namespace NYTree {
 struct IAttributeDictionary
 {
     virtual ~IAttributeDictionary();
-    
+
     // Returns the list of all attribute names.
     virtual std::vector<Stroka> List() const = 0;
 
@@ -54,13 +54,13 @@ struct IAttributeDictionary
     //! Sets the attribute with a serialized value.
     template <class T>
     void Set(const Stroka& key, const T& value);
-    
+
     //! Constructs an instance from a map node (by serializing the values).
     static TAutoPtr<IAttributeDictionary> FromMap(IMapNodePtr node);
-    
+
     //! Converts attributes to map node.
     IMapNodePtr ToMap() const;
-    
+
     //! Adds more attributes from another map node.
     void MergeFrom(const IMapNodePtr other);
 

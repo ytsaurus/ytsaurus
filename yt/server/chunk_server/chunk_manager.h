@@ -153,7 +153,7 @@ private:
     class TImpl;
     class TChunkTypeHandler;
     class TChunkListTypeHandler;
-    
+
     TIntrusivePtr<TImpl> Impl;
 
 };

@@ -43,6 +43,6 @@ class TGarbageCollector;
 typedef TIntrusivePtr<TGarbageCollector> TGarbageCollectorPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 } // namespace NObjectServer
 } // namespace NYT

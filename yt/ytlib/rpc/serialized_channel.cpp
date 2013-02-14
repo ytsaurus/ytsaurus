@@ -84,7 +84,7 @@ public:
     {
         UnderlyingHandler->OnAcknowledgement();
     }
-    
+
     virtual void OnResponse(NBus::IMessagePtr message) override
     {
         UnderlyingHandler->OnResponse(std::move(message));

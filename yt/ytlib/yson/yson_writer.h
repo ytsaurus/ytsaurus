@@ -50,7 +50,7 @@ protected:
     EYsonFormat Format;
     EYsonType Type;
     bool EnableRaw;
-    
+
     int Depth;
     bool BeforeFirstItem;
 

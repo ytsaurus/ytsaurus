@@ -223,7 +223,7 @@ public:
 private:
     IYPathServicePtr UnderlyingService;
     ICompositeNode* Parent;
-    
+
     // TSupportsAttributes members
 
     virtual IAttributeDictionary* GetUserAttributes() override

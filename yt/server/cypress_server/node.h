@@ -27,21 +27,21 @@ class TCypressNodeBase
 public:
     typedef yhash_map<NTransactionServer::TTransaction*, TLock> TLockMap;
     DEFINE_BYREF_RW_PROPERTY(TLockMap, Locks);
-    
+
     typedef yhash_set<TCypressNodeBase*> TNodeSet;
     //! Contains all nodes with parent pointing here.
     //! When a node dies parent pointers of its immediate ancestors are reset.
     DEFINE_BYREF_RW_PROPERTY(TNodeSet, ImmediateAncestors);
 
     DEFINE_BYVAL_RW_PROPERTY(ELockMode, LockMode);
-    
+
     DEFINE_BYVAL_RW_PROPERTY(TCypressNodeBase*, TrunkNode);
-    
+
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, Transaction);
-    
+
     DEFINE_BYVAL_RW_PROPERTY(TInstant, CreationTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, ModificationTime);
-    
+
     DEFINE_BYVAL_RW_PROPERTY(NSecurityServer::TAccount*, Account);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TClusterResources, CachedResourceUsage);
 
@@ -70,7 +70,7 @@ private:
 
 };
 
-//////////////////////////////////////////////////////////////////////////////// 
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCypressServer
 } // namespace NYT

@@ -19,8 +19,8 @@ struct ICypressNodeVisitor
 };
 
 void TraverseCypress(
-    NCellMaster::TBootstrap* bootstrap, 
-    ICypressNodeProxyPtr rootNode, 
+    NCellMaster::TBootstrap* bootstrap,
+    ICypressNodeProxyPtr rootNode,
     ICypressNodeVisitorPtr visitor);
 
 ////////////////////////////////////////////////////////////////////////////////

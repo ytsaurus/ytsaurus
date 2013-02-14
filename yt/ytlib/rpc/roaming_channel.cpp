@@ -88,7 +88,7 @@ public:
             TerminationError = error;
             Terminated = true;
         }
-    
+
         if (channel && channel->IsOK()) {
             channel->Value()->Terminate(error);
         }
@@ -136,7 +136,7 @@ private:
         TValueOrError<IChannelPtr> result)
     {
         TGuard<TSpinLock> guard(SpinLock);
-        
+
         if (Terminated) {
             guard.Release();
             if (result.IsOK()) {
@@ -152,7 +152,7 @@ private:
         guard.Release();
         channelPromise.Set(result);
     }
-         
+
     void OnGotChannel(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,

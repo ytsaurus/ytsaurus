@@ -123,7 +123,7 @@ struct TDataNodeConfig
      * the session expires.
      */
     TDuration SessionTimeout;
-    
+
     //! Timeout for "PutBlock" requests to other data nodes.
     TDuration NodeRpcTimeout;
 

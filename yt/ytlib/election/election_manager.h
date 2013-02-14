@@ -88,7 +88,7 @@ public:
      *  \note Thread affinity: any.
      */
     TEpochContextPtr GetEpochContext();
-    
+
 private:
     typedef TElectionManager TThis;
     typedef TElectionManagerProxy TProxy;
@@ -101,7 +101,7 @@ private:
     typedef TIntrusivePtr<TFollowerPinger> TFollowerPingerPtr;
 
     EPeerState State;
-    
+
     // Voting parameters.
     TPeerId VoteId;
     TEpochId VoteEpochId;
@@ -109,7 +109,7 @@ private:
     // Epoch parameters.
     TEpochContextPtr EpochContext;
     IInvokerPtr ControlEpochInvoker;
-    
+
     typedef yhash_set<TPeerId> TPeerSet;
     TPeerSet AliveFollowers;
     TPeerSet PotentialFollowers;

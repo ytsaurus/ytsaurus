@@ -50,7 +50,7 @@ public:
 private:
     Stroka ConfigFileName;
     TCellNodeConfigPtr Config;
-    
+
     NChunkServer::TIncarnationId IncarnationId;
     TActionQueuePtr ControlQueue;
     NBus::IBusServerPtr BusServer;

@@ -135,6 +135,7 @@ dynamic_server = connect()
         });
     })
     .use("/hosts", yt.YtHostDiscovery(config.neighbours))
+    // Begin of asynchronous middleware.
     .use(function(req, rsp, next) {
         req.pauser = yt.Pause(req);
         req.connection.setNoDelay(true); // Disable Nagle.
@@ -146,6 +147,7 @@ dynamic_server = connect()
         process.nextTick(function() { req.pauser.unpause(); });
         next();
     })
+    // End of asynchronous middleware.
     .use("/ui", function(req, rsp, next) {
         "use strict";
         if (req.url === "/") {

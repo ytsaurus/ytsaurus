@@ -16,6 +16,6 @@ extern NProfiling::TProfiler RpcServerProfiler;
 extern NProfiling::TProfiler RpcClientProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 } // namespace NRpc
 } // namespace NYT

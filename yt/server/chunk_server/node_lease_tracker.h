@@ -2,7 +2,9 @@
 
 #include "public.h"
 
+#include <ytlib/misc/error.h>
 #include <ytlib/misc/lease_manager.h>
+
 #include <server/cell_master/public.h>
 
 namespace NYT {
@@ -14,21 +16,21 @@ namespace NChunkServer {
 /*!
  *  Upon receiving a registration request from a node,
  *  TChunkManager registers its by calling #TNodeLeaseTracker::OnNodeRegistered.
- *  
+ *
  *  It also extends the leases by calling #TNodeLeaseTracker::OnNodeHeartbeat.
- *  
- *  When a lease expires #TNodeLeaseTracker triggers node deregistration
+ *
+ *  When a lease expires #TNodeLeaseTracker triggers node unregistration
  *  by calling #TChunkManager::CreateUnregisterNodeMutation.
  *  The latter is a logged operation during which #TNodeLeaseTracker::OnNodeUnregistered
  *  gets called.
- *  
+ *
  *  Each registered node carries an additional "Confirmed" flag.
  *  The flag is used to distinguish between nodes that were registered during an earlier
  *  epoch (and whose actual liveness is not yet confirmed) and
  *  those nodes that have reported a heartbeat during the current epoch.
- *  
+ *
  *  This flag is raised automatically in #OnNodeHeartbeat.
- *  
+ *
  */
 class TNodeLeaseTracker
     : public TRefCounted
@@ -78,7 +80,7 @@ private:
     };
 
     typedef yhash_map<TNodeId, TNodeInfo> TNodeInfoMap;
-     
+
     TChunkManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
 
@@ -91,6 +93,8 @@ private:
     TDuration GetTimeout(const TDataNode* node, const TNodeInfo& nodeInfo);
 
     void OnExpired(TNodeId nodeId);
+    void OnExpirationCommitSucceeded(TNodeId nodeId);
+    void OnExpirationCommitFailed(TNodeId nodeId, const TError& error);
 
 };
 

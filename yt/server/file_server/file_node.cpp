@@ -36,7 +36,7 @@ TFileNode::TFileNode(const TVersionedNodeId& id)
     , ReplicationFactor_(0)
 { }
 
-int TFileNode::GetOwningReplicationFactor() const 
+int TFileNode::GetOwningReplicationFactor() const
 {
     auto* trunkNode = TrunkNode_ == this ? this : dynamic_cast<TFileNode*>(TrunkNode_);
     YCHECK(trunkNode);
@@ -65,7 +65,7 @@ void TFileNode::Load(const NCellMaster::TLoadContext& context)
     ::Load(input, ReplicationFactor_);
 }
 
-TClusterResources TFileNode::GetResourceUsage() const 
+TClusterResources TFileNode::GetResourceUsage() const
 {
     if (Transaction_) {
         return ZeroClusterResources();
@@ -174,7 +174,7 @@ protected:
     virtual void DoBranch(const TFileNode* originatingNode, TFileNode* branchedNode) override
     {
         TBase::DoBranch(originatingNode, branchedNode);
-        
+
         auto objectManager = Bootstrap->GetObjectManager();
 
         auto* chunkList = originatingNode->GetChunkList();

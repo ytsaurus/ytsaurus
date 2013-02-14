@@ -13,7 +13,7 @@ namespace NRpc {
  *  The scoped channel forwards all requests to #underlyingChannel.
  *  It also tracks all outstanding requests.
  *  Calling #IChannel::Terminate blocks until all outstanding requests are replied.
- */ 
+ */
 IChannelPtr CreateScopedChannel(IChannelPtr underlyingChannel);
 
 ////////////////////////////////////////////////////////////////////////////////

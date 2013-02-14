@@ -41,7 +41,7 @@ public:
     int GetSize() const;
 
     static TCallback<TActionQueuePtr()> CreateFactory(const Stroka& threadName);
-    
+
 private:
     friend class TThreadPool;
 

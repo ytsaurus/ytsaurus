@@ -24,7 +24,7 @@ class TSecurityManager
 public:
     explicit TSecurityManager(NCellMaster::TBootstrap* bootstrap);
     ~TSecurityManager();
-    
+
     void Initialize();
 
     DECLARE_METAMAP_ACCESSORS(Account, TAccount, TAccountId);
@@ -59,7 +59,7 @@ public:
 private:
     class TImpl;
     class TAccountTypeHandler;
-    
+
     TIntrusivePtr<TImpl> Impl;
 
 };

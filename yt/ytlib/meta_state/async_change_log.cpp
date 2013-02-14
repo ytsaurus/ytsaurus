@@ -71,7 +71,7 @@ public:
         }
 
         // In addition to making this code run a tiny bit faster,
-        // this check also prevents us from calling TChangeLog::Append for an already finalized changelog 
+        // this check also prevents us from calling TChangeLog::Append for an already finalized changelog
         // (its queue may still be present in the map).
         if (!FlushQueue.empty()) {
             PROFILE_TIMING ("/changelog_flush_io_time") {
@@ -147,7 +147,7 @@ public:
         // First take in-memory records (tail part).
         PROFILE_TIMING ("/changelog_read_copy_time") {
             TGuard<TSpinLock> guard(SpinLock);
-            flushedRecordCount = FlushedRecordCount; 
+            flushedRecordCount = FlushedRecordCount;
 
             CopyRecords(
                 FlushedRecordCount,
@@ -216,9 +216,9 @@ private:
                 beginIt,
                 endIt);
         }
-    }    
+    }
     TChangeLogPtr ChangeLog;
-    
+
     TSpinLock SpinLock;
     int FlushedRecordCount;
     std::vector<TSharedRef> AppendQueue;
@@ -245,7 +245,7 @@ public:
         , RecordCounter("/record_rate")
         , SizeCounter("/record_throughput")
     {
-        Thread.Start();    
+        Thread.Start();
     }
 
     ~TImpl()
@@ -414,7 +414,7 @@ private:
     bool CleanQueues()
     {
         TGuard<TSpinLock> guard(SpinLock);
-        
+
         auto it = ChangeLogQueues.begin();
         while (it != ChangeLogQueues.end()) {
             auto jt = it++;
@@ -441,7 +441,7 @@ private:
         impl->ThreadMain();
         return NULL;
     }
-    
+
     void ThreadMain()
     {
         NThread::SetCurrentThreadName("AsyncChangeLog");

@@ -334,7 +334,7 @@ TEST(TFutureTest, ApplyVoidToFutureVoid)
 
     // Kick off!
     kicker.Set();
-    
+
     EXPECT_EQ(1, state);
     EXPECT_TRUE(source.IsSet());
     EXPECT_FALSE(target.IsSet());
@@ -352,7 +352,7 @@ TEST(TFutureTest, ApplyVoidToInt)
     int state = 0;
 
     auto kicker = NewPromise<void>();
-    
+
     TFuture<void> source = kicker.ToFuture();
     TFuture<int>  target = source
         .Apply(BIND([&] () -> int {
@@ -367,7 +367,7 @@ TEST(TFutureTest, ApplyVoidToInt)
 
     // Kick off!
     kicker.Set();
-    
+
     EXPECT_EQ(1, state);
     EXPECT_TRUE(source.IsSet());
     EXPECT_TRUE(target.IsSet());
@@ -402,7 +402,7 @@ TEST(TFutureTest, ApplyVoidToFutureInt)
 
     // Kick off!
     kicker.Set();
-    
+
     EXPECT_EQ(1, state);
     EXPECT_TRUE(source.IsSet());
     EXPECT_FALSE(target.IsSet());
@@ -467,7 +467,7 @@ TEST(TFutureTest, ApplyIntToFutureVoid)
 
     // Kick off!
     kicker.Set(21);
-    
+
     EXPECT_EQ(21, state);
     EXPECT_TRUE(source.IsSet());
     EXPECT_FALSE(target.IsSet());
@@ -536,7 +536,7 @@ TEST(TFutureTest, ApplyIntToFutureInt)
 
     // Kick off!
     kicker.Set(21);
-    
+
     EXPECT_EQ(21, state);
     EXPECT_TRUE(source.IsSet());
     EXPECT_FALSE(target.IsSet());

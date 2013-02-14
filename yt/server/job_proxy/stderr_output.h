@@ -22,7 +22,7 @@ class TErrorOutput
 {
 public:
     TErrorOutput(
-        NFileClient::TFileWriterConfigPtr config, 
+        NFileClient::TFileWriterConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         const NTransactionClient::TTransactionId& transactionId);
 
@@ -30,7 +30,7 @@ public:
 
     NChunkClient::TChunkId GetChunkId() const;
 
-private: 
+private:
     void DoWrite(const void* buf, size_t len);
     void DoFinish();
 

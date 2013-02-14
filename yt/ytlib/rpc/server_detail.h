@@ -22,14 +22,14 @@ public:
 
     virtual bool IsReplied() const override;
     virtual bool IsOneWay() const override;
-    
+
     virtual void Reply(const TError& error) override;
     virtual void Reply(NBus::IMessagePtr responseMessage) override;
-    
+
     virtual const TError& GetError() const override;
 
     virtual TSharedRef GetRequestBody() const override;
-    
+
     virtual TSharedRef GetResponseBody() override;
     virtual void SetResponseBody(const TSharedRef& responseBody) override;
 

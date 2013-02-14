@@ -74,7 +74,7 @@ public:
         Owner->ControlInvoker->Invoke(BIND(
             &TSession::DoSendRequests,
             MakeStrong(this)));
-        
+
         if (CreateSnapshot) {
             Awaiter->Await(
                 Owner->BuildSnapshotLocal(Version),
@@ -308,7 +308,7 @@ TFuture<TSnapshotBuilder::TResultOrError> TSnapshotBuilder::BuildSnapshotLocal(c
     auto result = DoCreateLocalSnapshot(version);
     OnLocalSnapshotCreated(snapshotId, result);
 #endif
-        
+
     DecoratedState->RotateChangeLog(EpochId);
     return LocalPromise;
 }
@@ -342,7 +342,7 @@ void TSnapshotBuilder::OnLocalSnapshotCreated(i32 snapshotId, const TResult& res
 
 void TSnapshotBuilder::WatchdogFork(
     TWeakPtr<TSnapshotBuilder> weakSnapshotBuilder,
-    i32 snapshotId, 
+    i32 snapshotId,
     pid_t childPid)
 {
     TInstant deadline;
@@ -415,7 +415,7 @@ void TSnapshotBuilder::WatchdogFork(
     TResult builderResult;
     builderResult.SnapshotId = snapshotId;
     builderResult.Checksum = reader->GetChecksum();
-    
+
     snapshotBuilder->OnLocalSnapshotCreated(snapshotId, builderResult);
 }
 

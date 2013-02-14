@@ -21,7 +21,7 @@ struct IBus
      *  \param message A message to send.
      *  \return An asynchronous flag indicating if the delivery (not the processing!) of the message
      *  was successful.
-     * 
+     *
      *  \note Thread affinity: any
      */
     virtual TAsyncError Send(IMessagePtr message) = 0;
@@ -51,10 +51,10 @@ struct IMessageHandler
     /*!
      *  \param message The just arrived message.
      *  \param replyBus A bus that can be used for replying back.
-     *  
+     *
      *  \note Thread affinity: the method is called from an unspecified thread
      *  and must return ASAP.
-     *  
+     *
      */
     virtual void OnMessage(IMessagePtr message, IBusPtr replyBus) = 0;
 };

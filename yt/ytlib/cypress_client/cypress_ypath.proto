@@ -19,6 +19,7 @@ message TReqCreate
 {
     required int32 type = 1;
     optional NYT.NYTree.NProto.TAttributes node_attributes = 2;
+    optional bool recursive = 3 [default = false];
 
     extensions 100 to max;
 }

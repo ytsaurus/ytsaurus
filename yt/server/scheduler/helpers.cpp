@@ -59,6 +59,15 @@ void BuildExecNodeAttributes(TExecNodePtr node, NYson::IYsonConsumer* consumer)
         .Item("resource_limits").Value(node->ResourceLimits());
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+i64 Clamp(i64 value, i64 minValue, i64 maxValue)
+{
+    value = std::min(value, maxValue);
+    value = std::max(value, minValue);
+    return value;
+}
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

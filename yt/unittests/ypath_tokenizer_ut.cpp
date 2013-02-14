@@ -108,7 +108,7 @@ TEST_F(TYPathTokenizerTest, SimpleCase6)
 {
     PrepareAndTokenize("hello/cruel@world&");
     EXPECT_EQ("L/L@L&", GetFlattenedTokens());
-    
+
     std::vector<Stroka> expectedLiterals;
     expectedLiterals.push_back("hello");
     expectedLiterals.push_back("cruel");
@@ -179,7 +179,7 @@ TEST_F(TYPathTokenizerTest, EscapedHex)
         EXPECT_EQ(
             static_cast<unsigned char>(i),
             static_cast<unsigned char>(string[i]));
-    }    
+    }
 }
 
 TEST_F(TYPathTokenizerTest, EscapedAsInRealWorld)

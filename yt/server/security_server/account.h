@@ -19,6 +19,7 @@ class TAccount
 {
     DEFINE_BYVAL_RW_PROPERTY(Stroka, Name);
     DEFINE_BYREF_RW_PROPERTY(TClusterResources, ResourceUsage);
+    DEFINE_BYREF_RW_PROPERTY(TClusterResources, CommittedResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(TClusterResources, ResourceLimits);
     DEFINE_BYREF_RW_PROPERTY(int, NodeCount);
 

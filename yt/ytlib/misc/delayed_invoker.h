@@ -3,7 +3,7 @@
 #include <ytlib/actions/callback.h>
 
 namespace NYT {
-    
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Manages delayed action execution.
@@ -46,13 +46,13 @@ public:
 
     //! Cancels an earlier scheduled execution.
     /*!
-     *  \returns True iff the cookie is valid. 
+     *  \returns True iff the cookie is valid.
      */
     static bool Cancel(TCookie cookie);
 
     //! Cancels an earlier scheduled execution and clears the cookie.
     /*!
-     *  \returns True iff the cookie is valid. 
+     *  \returns True iff the cookie is valid.
      */
     static bool CancelAndClear(TCookie& cookie);
 

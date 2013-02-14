@@ -49,7 +49,7 @@ public:
         YASSERT(State_ == TLexer::EState::Terminal);
         return Token;
     }
-    
+
     size_t Read(const TStringBuf& input)
     {
         auto begin = input.begin();
@@ -106,7 +106,7 @@ public:
                         THROW_ERROR_EXCEPTION("Premature end of stream (LexerState: %s, BytesRead: %d)",
                             ~InnerState.ToString(),
                             BytesRead);
-    
+
                     case EInnerState::InsideUnquotedString:
                         Token.StringValue = GetBufferAsStringBuf();
                         FinishString();
@@ -121,8 +121,8 @@ public:
                         break;
 
                     case EInnerState::AfterPlus:
-                    	FinishPlus();
-                    	break;
+                        FinishPlus();
+                        break;
 
                     default:
                         YUNREACHABLE();
@@ -132,7 +132,7 @@ public:
             default:
                 break;
         }
-        
+
     }
 
     DEFINE_BYVAL_RO_PROPERTY(TLexer::EState, State)
@@ -404,9 +404,9 @@ private:
         if (!isdigit(*begin)) {
             ProduceToken(ETokenType::Plus);
             return begin;
-    	}
+        }
 
-    	Reset();
+        Reset();
         TokenBuffer.push_back('+');
         SetInProgressState(EInnerState::InsideNumeric);
         return ReadNumeric(begin, end);

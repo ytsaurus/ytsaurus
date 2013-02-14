@@ -28,7 +28,7 @@ void TGetCommand::DoExecute()
     SetTransactionId(req, GetTransactionId(false));
 
     TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, Request->Attributes);
-    *req->mutable_attribute_filter() = ToProto(attributeFilter); 
+    *req->mutable_attribute_filter() = ToProto(attributeFilter);
 
     req->Attributes().MergeFrom(Request->GetOptions());
     auto rsp = proxy.Execute(req).Get();
@@ -49,7 +49,7 @@ void TSetCommand::DoExecute()
     auto req = TYPathProxy::Set(Request->Path.GetPath());
     SetTransactionId(req, GetTransactionId(false));
     NMetaState::GenerateRpcMutationId(req);
-    
+
     auto producer = Context->CreateInputProducer();
     TYsonString value = ConvertToYsonString(producer);
     req->set_value(value.Data());
@@ -68,6 +68,8 @@ void TRemoveCommand::DoExecute()
 {
     TObjectServiceProxy proxy(Context->GetMasterChannel());
     auto req = TYPathProxy::Remove(Request->Path.GetPath());
+    req->set_recursive(Request->Recursive);
+    req->set_force(Request->Force);
     SetTransactionId(req, GetTransactionId(false));
     NMetaState::GenerateRpcMutationId(req);
 
@@ -88,7 +90,7 @@ void TListCommand::DoExecute()
     SetTransactionId(req, GetTransactionId(false));
 
     TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, Request->Attributes);
-    *req->mutable_attribute_filter() = ToProto(attributeFilter); 
+    *req->mutable_attribute_filter() = ToProto(attributeFilter);
 
     req->Attributes().MergeFrom(Request->GetOptions());
     auto rsp = proxy.Execute(req).Get();
@@ -113,6 +115,7 @@ void TCreateCommand::DoExecute()
         }
 
         auto req = TCypressYPathProxy::Create(Request->Path.Get().GetPath());
+        req->set_recursive(Request->Recursive);
         req->set_type(Request->Type);
         SetTransactionId(req, GetTransactionId(false));
         NMetaState::GenerateRpcMutationId(req);
@@ -226,6 +229,7 @@ void TMoveCommand::DoExecute()
 
     {
         auto req = TYPathProxy::Remove(Request->SourcePath.GetPath());
+        req->set_recursive(true);
         SetTransactionId(req, GetTransactionId(false));
         NMetaState::GenerateRpcMutationId(req);
 

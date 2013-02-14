@@ -24,7 +24,8 @@ NTableClient::ISyncReaderPtr CreateSortingReader(
     const NTableClient::TKeyColumns& keyColumns,
     TClosure onNetworkReleased,
     std::vector<NTableClient::NProto::TInputChunk>&& chunks,
-    int estimatedRowCount);
+    int estimatedRowCount,
+    bool isApproximate);
 
 ////////////////////////////////////////////////////////////////////////////////
 

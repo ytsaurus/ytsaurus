@@ -47,7 +47,7 @@ private:
         (ExpectingValue)
     );
     EState State;
-    
+
     // For small data sizes, set and map are faster than hash set and hash map.
     TSmallSet<TStringBuf, 4> KeyColumnNames;
     TSmallSet<TStringBuf, 4> SubkeyColumnNames;
@@ -69,7 +69,7 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 } // namespace NFormats
 } // namespace NYT
 

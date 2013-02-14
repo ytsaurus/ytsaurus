@@ -254,7 +254,7 @@ Stroka TGuid::ToString() const
 TGuid TGuid::FromString(const TStringBuf& str)
 {
     TGuid guid;
-    if (!FromString(str, &guid)) { 
+    if (!FromString(str, &guid)) {
         THROW_ERROR_EXCEPTION("Error parsing GUID: %s", ~Stroka(str).Quote());
     }
     return guid;

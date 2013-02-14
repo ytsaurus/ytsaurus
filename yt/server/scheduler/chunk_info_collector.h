@@ -33,7 +33,7 @@ private:
 
     //! All chunks for which info is to be fetched.
     std::vector<NTableClient::TRefCountedInputChunkPtr> Chunks;
-    
+
     //! Indexes of chunks for which no info is fetched yet.
     yhash_set<int> UnfetchedChunkIndexes;
 

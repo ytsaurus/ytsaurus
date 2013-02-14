@@ -11,6 +11,7 @@ namespace NSecurityServer {
 TAccount::TAccount(const TAccountId& id)
     : TUnversionedObjectBase(id)
     , ResourceUsage_(ZeroClusterResources())
+    , CommittedResourceUsage_(ZeroClusterResources())
     , ResourceLimits_(ZeroClusterResources())
     , NodeCount_(0)
 { }
@@ -22,6 +23,7 @@ void TAccount::Save(const NCellMaster::TSaveContext& context) const
     auto* output = context.GetOutput();
     ::Save(output, Name_);
     NSecurityServer::Save(output, ResourceUsage_);
+    NSecurityServer::Save(output, CommittedResourceUsage_);
     NSecurityServer::Save(output, ResourceLimits_);
     ::Save(output, NodeCount_);
 }
@@ -33,6 +35,12 @@ void TAccount::Load(const NCellMaster::TLoadContext& context)
     auto* input = context.GetInput();
     ::Load(input, Name_);
     NSecurityServer::Load(input, ResourceUsage_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 7) {
+        NSecurityServer::Load(input, CommittedResourceUsage_);
+    } else {
+        CommittedResourceUsage_ = ResourceUsage_;
+    }
     NSecurityServer::Load(input, ResourceLimits_);
     ::Load(input, NodeCount_);
 }

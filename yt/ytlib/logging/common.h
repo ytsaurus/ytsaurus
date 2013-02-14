@@ -42,7 +42,7 @@ struct TLogEvent
         , ThreadId(NThread::InvalidThreadId)
         , Function(NULL)
     { }
-    
+
     Stroka Category;
     ELogLevel Level;
     Stroka Message;

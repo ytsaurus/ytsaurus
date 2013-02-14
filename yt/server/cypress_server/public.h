@@ -35,6 +35,6 @@ using NCypressClient::TVersionedNodeId;
 using NObjectClient::TTransactionId;
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 } // namespace NCypressServer
 } // namespace NYT

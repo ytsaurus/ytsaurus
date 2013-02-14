@@ -37,7 +37,7 @@ TTableNode::TTableNode(const TVersionedNodeId& id)
     , ReplicationFactor_(0)
 { }
 
-int TTableNode::GetOwningReplicationFactor() const 
+int TTableNode::GetOwningReplicationFactor() const
 {
     auto* trunkNode = TrunkNode_ == this ? this : dynamic_cast<TTableNode*>(TrunkNode_);
     YCHECK(trunkNode);
@@ -69,7 +69,7 @@ void TTableNode::Load(const NCellMaster::TLoadContext& context)
     ::Load(input, ReplicationFactor_);
 }
 
-TClusterResources TTableNode::GetResourceUsage() const 
+TClusterResources TTableNode::GetResourceUsage() const
 {
     const TChunkList* chunkList;
     switch (UpdateMode_) {
@@ -190,7 +190,7 @@ protected:
         YCHECK(branchedNode->GetChunkList()->OwningNodes().insert(branchedNode).second);
 
         branchedNode->SetReplicationFactor(originatingNode->GetReplicationFactor());
-        
+
         LOG_DEBUG_UNLESS(IsRecovery(), "Table node branched (BranchedNodeId: %s, ChunkListId: %s, ReplicationFactor: %d)",
             ~branchedNode->GetId().ToString(),
             ~originatingNode->GetChunkList()->GetId().ToString(),
@@ -274,7 +274,7 @@ protected:
             YCHECK(newOriginatingChunkList->OwningNodes().insert(originatingNode).second);
             originatingNode->SetChunkList(newOriginatingChunkList);
             objectManager->RefObject(newOriginatingChunkList);
-         
+
             chunkManager->AttachToChunkList(newOriginatingChunkList, originatingChunkList);
             chunkManager->AttachToChunkList(newOriginatingChunkList, deltaRef);
 

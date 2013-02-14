@@ -75,11 +75,12 @@ public:
         , UserJobSpec(userJobSpec)
         , InputThread(InputThreadFunc, (void*) this)
         , OutputThread(OutputThreadFunc, (void*) this)
+        , MemoryUsage(UserJobSpec.memory_reserve())
         , ProcessId(-1)
     {
         MemoryWatchdogInvoker = New<TPeriodicInvoker>(
             GetSyncInvoker(),
-            BIND(&TUserJob::CheckMemoryConsumption, MakeWeak(this)),
+            BIND(&TUserJob::CheckMemoryUsage, MakeWeak(this)),
             Host->GetConfig()->MemoryWatchdogPeriod);
     }
 
@@ -131,6 +132,11 @@ public:
     virtual double GetProgress() const override
     {
         return JobIO->GetProgress();
+    }
+
+    std::vector<NChunkClient::TChunkId> GetFailedChunks() const override
+    {
+        return JobIO->GetFailedChunks();
     }
 
 private:
@@ -333,7 +339,7 @@ private:
             SetError(TError("Unknown error during job IO"));
         }
 
-        FOREACH(auto& pipe, pipes) {
+        FOREACH (auto& pipe, pipes) {
             // Close can throw exception which will cause JobProxy death.
             // For now let's assume it is unrecoverable.
             // Anyway, system seems to be in a very bad state if this happens.
@@ -453,7 +459,7 @@ private:
         KillallByUser(uid);
     }
 
-    void CheckMemoryConsumption()
+    void CheckMemoryUsage()
     {
         auto uid = Host->GetConfig()->UserId;
         if (uid <= 0) {
@@ -463,7 +469,7 @@ private:
         try {
             auto rss = GetUserRss(uid);
             LOG_DEBUG(
-                "Checking memory consumption (MemoryLimit: %" PRId64 ", RSS: %" PRId64 ")",
+                "Checking memory usage (MemoryLimit: %" PRId64 ", RSS: %" PRId64 ")",
                 UserJobSpec.memory_limit(),
                 rss);
 
@@ -473,9 +479,19 @@ private:
                     UserJobSpec.memory_limit(),
                     rss));
                 Kill();
-            } else {
-                MemoryWatchdogInvoker->ScheduleNext();
+                return;
             }
+
+            if (rss > MemoryUsage) {
+                auto delta = rss - MemoryUsage;
+                LOG_INFO("Increase memory usage (Delta %" PRId64 ")", delta);
+                auto resourceUsage = Host->GetResourceUsage();
+                resourceUsage.set_memory(resourceUsage.memory() + delta);
+                Host->SetResourceUsage(resourceUsage);
+                MemoryUsage += delta;
+            }
+
+            MemoryWatchdogInvoker->ScheduleNext();
         } catch (const std::exception& ex) {
             SetError(TError(ex));
             Kill();
@@ -494,6 +510,8 @@ private:
 
     TSpinLock SpinLock;
     TError JobExitError;
+
+    i64 MemoryUsage;
 
     TPeriodicInvokerPtr MemoryWatchdogInvoker;
 

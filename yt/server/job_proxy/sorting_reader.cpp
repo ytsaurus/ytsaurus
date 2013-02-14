@@ -51,11 +51,13 @@ public:
         const TKeyColumns& keyColumns,
         TClosure onNetworkReleased,
         std::vector<NTableClient::NProto::TInputChunk>&& chunks,
-        int estimatedRowCount)
+        int estimatedRowCount,
+        bool isApproximate)
         : KeyColumns(keyColumns)
         , KeyColumnCount(static_cast<int>(KeyColumns.size()))
         , OnNetworkReleased(onNetworkReleased)
         , IsValid_(true)
+        , IsApproximate(isApproximate)
         , EstimatedRowCount(estimatedRowCount)
         , TotalRowCount(0)
         , ReadRowCount(0)
@@ -126,6 +128,8 @@ private:
     bool IsValid_;
     TReaderPtr Reader;
     TActionQueuePtr SortQueue;
+
+    bool IsApproximate;
 
     int EstimatedRowCount;
     int EstimatedBucketCount;
@@ -300,8 +304,10 @@ private:
             TotalRowCount = rowIndex;
             int bucketCount = static_cast<int>(BucketStart.size()) - 1;
 
-            YCHECK(TotalRowCount <= EstimatedRowCount);
-            YCHECK(bucketCount <= EstimatedBucketCount);
+            if (!IsApproximate) {
+                YCHECK(TotalRowCount <= EstimatedRowCount);
+                YCHECK(bucketCount <= EstimatedBucketCount);
+            }
 
             LOG_INFO("Finished reading input (RowCount: %d, BucketCount: %d)",
                 TotalRowCount,
@@ -437,7 +443,8 @@ ISyncReaderPtr CreateSortingReader(
     const TKeyColumns& keyColumns,
     TClosure onNetworkReleased,
     std::vector<NTableClient::NProto::TInputChunk>&& chunks,
-    int estimatedRowCount)
+    int estimatedRowCount,
+    bool isApproximate)
 {
     return New<TSortingReader>(
         config,
@@ -446,7 +453,8 @@ ISyncReaderPtr CreateSortingReader(
         keyColumns,
         onNetworkReleased,
         std::move(chunks),
-        estimatedRowCount);
+        estimatedRowCount,
+        isApproximate);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

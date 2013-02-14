@@ -4,6 +4,7 @@
 #include "chunk_list_pool.h"
 #include "chunk_pool.h"
 #include "job_resources.h"
+#include "helpers.h"
 
 #include <ytlib/transaction_client/transaction.h>
 
@@ -102,13 +103,14 @@ int TOperationControllerBase::TTask::GetPriority() const
     return 0;
 }
 
-void TOperationControllerBase::TTask::AddInput(TChunkStripePtr stripe)
+IChunkPoolInput::TCookie TOperationControllerBase::TTask::AddInput(TChunkStripePtr stripe)
 {
-    GetChunkPoolInput()->Add(stripe);
+    auto cookie = GetChunkPoolInput()->Add(stripe);
     if (HasInputLocality()) {
         Controller->AddTaskLocalityHint(this, stripe);
     }
     AddPendingHint();
+    return cookie;
 }
 
 void TOperationControllerBase::TTask::AddInput(const std::vector<TChunkStripePtr>& stripes)
@@ -116,6 +118,15 @@ void TOperationControllerBase::TTask::AddInput(const std::vector<TChunkStripePtr
     FOREACH (auto stripe, stripes) {
         AddInput(stripe);
     }
+}
+
+void TOperationControllerBase::TTask::ResumeInput(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe)
+{
+    GetChunkPoolInput()->Resume(cookie, stripe);
+    if (HasInputLocality()) {
+        Controller->AddTaskLocalityHint(this, stripe);
+    }
+    AddPendingHint();
 }
 
 void TOperationControllerBase::TTask::FinishInput()
@@ -283,7 +294,7 @@ void TOperationControllerBase::TTask::CheckResourceDemandSanity(
     // The task is requesting more then some node is willing to provide it.
     // Maybe it's OK and we should wait for some time.
     // Or maybe it's not and the task is requesting something no one is able to provide.
-    
+
     // First check if this very node has enough resources (including those currently
     // allocated by other jobs).
     if (Dominates(node->ResourceLimits(), neededResources))
@@ -593,6 +604,16 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    if (job->Result().failed_chunk_ids_size() > 0) {
+        // When some input chunks are lost, we consider job as aborted.
+        job->SetState(EJobState::Aborted);
+        OnJobAborted(job);
+        FOREACH (const auto& chunkId, job->Result().failed_chunk_ids()) {
+            OnChunkFailed(TChunkId::FromProto(chunkId));
+        }
+        return;
+    }
+
     JobCounter.Failed(1);
 
     auto joblet = GetJoblet(job);
@@ -606,10 +627,6 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
         OnOperationFailed(TError("Failed jobs limit %d has been reached",
             maxFailedJobCount));
         return;
-    }
-
-    FOREACH (const auto& chunkId, job->Result().failed_chunk_ids()) {
-        OnChunkFailed(TChunkId::FromProto(chunkId));
     }
 }
 
@@ -727,6 +744,7 @@ void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
 {
     if (task->GetPendingJobCount() > 0) {
         auto* info = GetPendingTaskInfo(task);
+
         if (info->NonLocalTasks.insert(task).second) {
             info->CandidateTasks.push_back(task);
             LOG_DEBUG("Task pending hint added (Task: %s)",
@@ -1262,13 +1280,17 @@ void TOperationControllerBase::OnInputTypesReceived(TObjectServiceProxy::TRspExe
         auto getInputTypes = batchRsp->GetResponses<TObjectYPathProxy::TRspGet>("get_input_types");
         for (int index = 0; index < static_cast<int>(InputTables.size()); ++index) {
             auto& table = InputTables[index];
+            const auto& path = table.Path;
             auto rsp = getInputTypes[index];
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting type for input %s",
-                ~table.Path.GetPath());
+                ~path.GetPath());
 
-            auto type = ConvertTo<Stroka>(TYsonString(rsp->value()));
-            if (type != "table") {
-                THROW_ERROR_EXCEPTION("Input %s should be table", ~table.Path.GetPath());
+            auto type = ConvertTo<EObjectType>(TYsonString(rsp->value()));
+            if (type != EObjectType::Table) {
+                THROW_ERROR_EXCEPTION("Object %s has invalid type: expected %s, actual %s",
+                    ~path.GetPath(),
+                    ~FormatEnum(EObjectType(EObjectType::Table)).Quote(),
+                    ~FormatEnum(type).Quote());
             }
         }
     }
@@ -1277,13 +1299,17 @@ void TOperationControllerBase::OnInputTypesReceived(TObjectServiceProxy::TRspExe
         auto getOutputTypes = batchRsp->GetResponses<TObjectYPathProxy::TRspGet>("get_output_types");
         for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
             auto& table = OutputTables[index];
+            const auto& path = table.Path;
             auto rsp = getOutputTypes[index];
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting type for output %s",
-                ~table.Path.GetPath());
+                ~path.GetPath());
 
-            auto type = ConvertTo<Stroka>(TYsonString(rsp->value()));
-            if (type != "table") {
-                THROW_ERROR_EXCEPTION("Output %s should be table", ~table.Path.GetPath());
+            auto type = ConvertTo<EObjectType>(TYsonString(rsp->value()));
+            if (type != EObjectType::Table) {
+                THROW_ERROR_EXCEPTION("Object %s has invalid type: expected %s, actual %s",
+                    ~path.GetPath(),
+                    ~FormatEnum(EObjectType(EObjectType::Table)).Quote(),
+                    ~FormatEnum(type).Quote());
             }
         }
     }
@@ -1295,21 +1321,29 @@ void TOperationControllerBase::OnInputTypesReceived(TObjectServiceProxy::TRspExe
             auto path = paths[index].first;
             auto stage = paths[index].second;
             auto rsp = getFileTypes[index];
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting type for file %s", ~path.GetPath());
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting type for file %s",
+                ~path.GetPath());
 
-            auto type = ConvertTo<Stroka>(TYsonString(rsp->value()));
-            if (type == "file") {
-                Files.push_back(TUserFile());
-                Files.back().Path = path;
-                Files.back().Stage = stage;
-            } else if (type == "table") {
-                TableFiles.push_back(TUserTableFile());
-                TableFiles.back().Path = path;
-                TableFiles.back().Stage = stage;
+            auto type = ConvertTo<EObjectType>(TYsonString(rsp->value()));
+            TUserFile* file;
+            switch (type) {
+                case EObjectType::File:
+                    RegularFiles.push_back(TRegularUserFile());
+                    file = &RegularFiles.back();
+                    break;
+                case EObjectType::Table:
+                    TableFiles.push_back(TUserTableFile());
+                    file = &TableFiles.back();
+                    break;
+                default:
+                    THROW_ERROR_EXCEPTION("Object %s has invalid type: expected %s or %s, actual %s",
+                        ~path.GetPath(),
+                        ~FormatEnum(EObjectType(EObjectType::File)).Quote(),
+                        ~FormatEnum(EObjectType(EObjectType::Table)).Quote(),
+                        ~FormatEnum(type).Quote());
             }
-            else {
-                THROW_ERROR_EXCEPTION("Incorrect type %s of file %s", ~rsp->value(), ~path.GetPath());
-            }
+            file->Stage = stage;
+            file->Path = path;
         }
     }
 
@@ -1386,12 +1420,12 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
         }
     }
 
-    FOREACH (const auto& file, Files) {
+    FOREACH (const auto& file, RegularFiles) {
         auto path = file.Path.GetPath();
         {
             auto req = TFileYPathProxy::FetchFile(path);
             SetTransactionId(req, Operation->GetInputTransaction()->GetId());
-            batchReq->AddRequest(req, "fetch_files");
+            batchReq->AddRequest(req, "fetch_regular_files");
         }
     }
 
@@ -1402,19 +1436,19 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
                 auto req = TTableYPathProxy::Fetch(path);
                 req->set_fetch_all_meta_extensions(true);
                 SetTransactionId(req, Operation->GetInputTransaction()->GetId());
-                batchReq->AddRequest(req, "fetch_table_files_chunks");
+                batchReq->AddRequest(req, "fetch_table_file_chunks");
             }
 
             {
                 auto req = TYPathProxy::GetKey(path);
                 SetTransactionId(req, Operation->GetInputTransaction()->GetId());
-                batchReq->AddRequest(req, "fetch_table_files_names");
+                batchReq->AddRequest(req, "get_table_file_names");
             }
 
             {
                 auto req = TYPathProxy::Get(file.Path.GetPath() + "/@uncompressed_data_size");
                 SetTransactionId(req, Operation->GetInputTransaction()->GetId());
-                batchReq->AddRequest(req, "fetch_table_files_sizes");
+                batchReq->AddRequest(req, "get_table_file_sizes");
             }
         }
     }
@@ -1532,12 +1566,12 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
     }
 
     {
-        auto fetchFilesRsps = batchRsp->GetResponses<TFileYPathProxy::TRspFetchFile>("fetch_files");
-        for (int index = 0; index < static_cast<int>(Files.size()); ++index) {
-            auto& file = Files[index];
+        auto fetchRegularFilesRsps = batchRsp->GetResponses<TFileYPathProxy::TRspFetchFile>("fetch_regular_files");
+        for (int index = 0; index < static_cast<int>(RegularFiles.size()); ++index) {
+            auto& file = RegularFiles[index];
             {
-                auto rsp = fetchFilesRsps[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching files");
+                auto rsp = fetchRegularFilesRsps[index];
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching regular files");
 
                 if (file.Path.Attributes().Contains("file_name")) {
                     rsp->set_file_name(file.Path.Attributes().Get<Stroka>("file_name"));
@@ -1551,14 +1585,14 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
     }
 
     {
-        auto fetchTableFilesSizesRsps = batchRsp->GetResponses<TTableYPathProxy::TRspGet>("fetch_table_files_sizes");
-        auto fetchTableFilesRsps = batchRsp->GetResponses<TTableYPathProxy::TRspFetch>("fetch_table_files_chunks");
-        auto fetchTableFilesNamesRsps = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("fetch_table_files_names");
+        auto getTableFileSizesRsps = batchRsp->GetResponses<TTableYPathProxy::TRspGet>("get_table_file_sizes");
+        auto fetchTableFileRsps = batchRsp->GetResponses<TTableYPathProxy::TRspFetch>("fetch_table_file_chunks");
+        auto getTableFileNameRsps = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("get_table_file_names");
         for (int index = 0; index < static_cast<int>(TableFiles.size()); ++index) {
             auto& file = TableFiles[index];
             {
-                auto rsp = fetchTableFilesSizesRsps[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching size of table files");
+                auto rsp = getTableFileSizesRsps[index];
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting table file size");
                 i64 tableSize = ConvertTo<i64>(TYsonString(rsp->value()));
                 if (tableSize > Config->TableFileSizeLimit) {
                     THROW_ERROR_EXCEPTION(
@@ -1569,13 +1603,13 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 }
             }
             {
-                auto rsp = fetchTableFilesRsps[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching chunks of table files");
+                auto rsp = fetchTableFileRsps[index];
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching table file chunks");
                 file.FetchResponse = rsp;
             }
             {
-                auto rsp = fetchTableFilesNamesRsps[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching names of table files");
+                auto rsp = getTableFileNameRsps[index];
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting table file name");
                 auto key = ConvertTo<Stroka>(TYsonString(rsp->value()));
                 file.FileName = file.Path.Attributes().Get<Stroka>("file_name", key);
                 file.Format = file.Path.Attributes().GetYson("format");
@@ -1667,17 +1701,11 @@ std::vector<TRefCountedInputChunkPtr> TOperationControllerBase::CollectInputChun
     return result;
 }
 
-std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(
-    TNullable<int> jobCount,
-    i64 jobSliceDataSize)
+std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxSliceDataSize, int* jobCount)
 {
     auto inputChunks = CollectInputChunks();
 
-    i64 sliceDataSize =
-        jobCount
-        ? std::min(jobSliceDataSize, TotalInputDataSize / jobCount.Get() + 1)
-        : jobSliceDataSize;
-
+    i64 sliceDataSize = std::min(maxSliceDataSize, TotalInputDataSize / (*jobCount) + 1);
     YCHECK(sliceDataSize > 0);
 
     // Ensure that no input chunk has size larger than sliceSize.
@@ -1706,13 +1734,15 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(
         }
     }
 
+    *jobCount = std::min(*jobCount, static_cast<int>(stripes.size()));
 
-    LOG_DEBUG("Sliced chunks prepared (InputChunkCount: %d, SlicedChunkCount: %d, JobCount: %s, JobSliceDataSize: %" PRId64 ", SliceDataSize: %" PRId64 ")",
+    LOG_DEBUG("Sliced chunks prepared (InputChunkCount: %d, SlicedChunkCount: %d, JobCount: %d, MaxSliceDataSize: %" PRId64 ", SliceDataSize: %" PRId64 ")",
         static_cast<int>(inputChunks.size()),
         static_cast<int>(stripes.size()),
-        ~ToString(jobCount),
-        jobSliceDataSize,
+        *jobCount,
+        maxSliceDataSize,
         sliceDataSize);
+
 
     return stripes;
 }
@@ -1900,31 +1930,24 @@ std::vector<TOperationControllerBase::TPathWithStage> TOperationControllerBase::
 
 int TOperationControllerBase::SuggestJobCount(
     i64 totalDataSize,
-    i64 minDataSizePerJob,
-    i64 maxDataSizePerJob,
-    TNullable<int> configJobCount,
-    TNullable<int> chunkCount)
+    i64 dataSizePerJob,
+    TNullable<int> configJobCount) const
 {
-    i64 minSuggestion = static_cast<i64>(std::ceil((double) totalDataSize / maxDataSizePerJob));
-    i64 maxSuggestion = static_cast<i64>(std::ceil((double) totalDataSize / minDataSizePerJob));
-    i64 result = configJobCount.Get(minSuggestion);
-    if (chunkCount) {
-        result = std::min(result, static_cast<i64>(*chunkCount));
-    }
-    result = std::min(result, maxSuggestion);
-    result = std::max(result, static_cast<i64>(1));
-    result = std::min(result, static_cast<i64>(Config->MaxJobCount));
-    return static_cast<int>(result);
+    i64 suggestionBySize = 1 + totalDataSize / dataSizePerJob;
+    i64 jobCount = configJobCount.Get(suggestionBySize);
+    return static_cast<int>(Clamp(jobCount, 1, Config->MaxJobCount));
 }
 
 void TOperationControllerBase::InitUserJobSpec(
     NScheduler::NProto::TUserJobSpec* jobSpec,
     TUserJobSpecPtr config,
-    const std::vector<TUserFile>& files,
+    const std::vector<TRegularUserFile>& files,
     const std::vector<TUserTableFile>& tableFiles)
 {
     jobSpec->set_shell_command(config->Command);
     jobSpec->set_memory_limit(config->MemoryLimit);
+    i64 memoryReserve = static_cast<i64>(config->MemoryLimit * config->MemoryReserveFactor);
+    jobSpec->set_memory_reserve(memoryReserve);
 
     {
         if (Operation->GetStdErrCount() < Operation->GetMaxStdErrCount()) {
@@ -1955,7 +1978,7 @@ void TOperationControllerBase::InitUserJobSpec(
     }
 
     auto fillEnvironment = [&] (yhash_map<Stroka, Stroka>& env) {
-        FOREACH(const auto& pair, env) {
+        FOREACH (const auto& pair, env) {
             jobSpec->add_environment(Sprintf("%s=%s", ~pair.first, ~pair.second));
         }
     };

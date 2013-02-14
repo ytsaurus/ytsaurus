@@ -25,7 +25,7 @@ namespace {
 
 static const int MaxNodesPerAction = 1000;
 
-class TNodeTraverser 
+class TNodeTraverser
     : public TRefCounted
 {
 private:
@@ -79,7 +79,7 @@ private:
                 break;
             }
 
-            default: 
+            default:
                 // Do nothing.
                 break;
         };
@@ -95,7 +95,7 @@ private:
         if (TransactionId != NullTransactionId) {
             transaction = transactionManager->FindTransaction(TransactionId);
             if (!transaction) {
-                Visitor->OnError(TError("No such transaction: %s", 
+                Visitor->OnError(TError("No such transaction: %s",
                     ~TransactionId.ToString()));
                 return;
             }
@@ -118,7 +118,7 @@ private:
                 const auto& nodeId = entry.Children[childIndex];
                 auto* trunkNode = cypressManager->FindNode(TVersionedNodeId(nodeId));
                 if (!trunkNode) {
-                    Visitor->OnError(TError("No such node: %s", 
+                    Visitor->OnError(TError("No such node: %s",
                         ~nodeId.ToString()));
                     return;
                 }
@@ -158,7 +158,7 @@ public:
         , TransactionId(NullTransactionId)
     {  }
 
-    void Run(ICypressNodeProxyPtr rootNode) 
+    void Run(ICypressNodeProxyPtr rootNode)
     {
         auto* transaction = rootNode->GetTransaction();
         TransactionId = transaction ? transaction->GetId() : NullTransactionId;
@@ -173,8 +173,8 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 void TraverseCypress(
-    NCellMaster::TBootstrap* bootstrap, 
-    ICypressNodeProxyPtr rootNode, 
+    NCellMaster::TBootstrap* bootstrap,
+    ICypressNodeProxyPtr rootNode,
     ICypressNodeVisitorPtr visitor)
 {
     auto traverser = New<TNodeTraverser>(bootstrap, visitor);

@@ -19,7 +19,7 @@ class TAttributeSet
 {
     typedef yhash_map<Stroka, TNullable<NYTree::TYsonString> > TAttributeMap;
     DEFINE_BYREF_RW_PROPERTY(TAttributeMap, Attributes);
-    
+
 public:
     TAttributeSet();
     explicit TAttributeSet(const TVersionedObjectId& id); // Just for meta map

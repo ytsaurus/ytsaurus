@@ -345,6 +345,6 @@ TEST(TYamrWriterTest, LenvalWithTableIndex)
 
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 } // namespace NFormats
 } // namespace NYT

@@ -32,7 +32,7 @@ TEST_F(TSchemaTest, RangeContains)
         EXPECT_FALSE(range.Contains(Stroka('\0')));
         EXPECT_FALSE(range.Contains(TRange("")));
         EXPECT_FALSE(range.Contains("anything"));
-    } 
+    }
 
     {
         TRange range("abc", "abe");
@@ -43,7 +43,7 @@ TEST_F(TSchemaTest, RangeContains)
         EXPECT_FALSE(range.Contains(TRange("")));
         EXPECT_TRUE(range.Contains(TRange("abc", "abd")));
         EXPECT_TRUE(range.Contains(TRange("abc", "abe")));
-    } 
+    }
 }
 
 TEST_F(TSchemaTest, RangeOverlaps)
@@ -140,9 +140,9 @@ TEST_F(TSchemaTest, ChannelOverlaps)
 TEST_F(TSchemaTest, ChannelSubtract)
 {
     {
-        TChannel 
-            ch1 = TChannel::Empty(), 
-            ch2 = TChannel::Empty(), 
+        TChannel
+            ch1 = TChannel::Empty(),
+            ch2 = TChannel::Empty(),
             res = TChannel::Empty();
 
         ch1.AddRange(TRange("a", "c"));
@@ -159,9 +159,9 @@ TEST_F(TSchemaTest, ChannelSubtract)
     }
 
     {
-        TChannel 
-            ch1 = TChannel::Empty(), 
-            ch2 = TChannel::Empty(), 
+        TChannel
+            ch1 = TChannel::Empty(),
+            ch2 = TChannel::Empty(),
             res = TChannel::Empty();
 
         ch1.AddRange(TRange("a", "c"));
@@ -178,9 +178,9 @@ TEST_F(TSchemaTest, ChannelSubtract)
     }
 
     {
-        TChannel 
-            ch1 = TChannel::Empty(), 
-            ch2 = TChannel::Empty(), 
+        TChannel
+            ch1 = TChannel::Empty(),
+            ch2 = TChannel::Empty(),
             res = TChannel::Empty();
 
         ch1.AddRange(TRange("a", "c"));

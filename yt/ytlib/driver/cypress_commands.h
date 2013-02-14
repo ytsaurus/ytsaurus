@@ -8,7 +8,7 @@
 
 namespace NYT {
 namespace NDriver {
-    
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TGetRequest
@@ -74,10 +74,18 @@ struct TRemoveRequest
     : public TTransactedRequest
 {
     NYPath::TRichYPath Path;
+    bool Recursive;
+    bool Force;
 
     TRemoveRequest()
     {
         Register("path", Path);
+        // TODO(ignat): fix all places that use true default value
+        // and change default value to false
+        Register("recursive", Recursive)
+            .Default(true);
+        Register("force", Force)
+            .Default(false);
     }
 };
 
@@ -135,6 +143,7 @@ struct TCreateRequest
     TNullable<NYPath::TRichYPath> Path;
     NObjectClient::EObjectType Type;
     NYTree::INodePtr Attributes;
+    bool Recursive;
 
     TCreateRequest()
     {
@@ -143,6 +152,8 @@ struct TCreateRequest
         Register("type", Type);
         Register("attributes", Attributes)
             .Default(NULL);
+        Register("recursive", Recursive)
+            .Default(false);
     }
 };
 

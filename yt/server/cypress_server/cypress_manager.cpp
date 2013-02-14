@@ -333,7 +333,7 @@ TCypressNodeBase* TCypressManager::CreateNode(
     handler->SetDefaultAttributes(attributes);
 
     auto node = handler->Create(transaction, request, response);
-   
+
     // Make a rawptr copy and transfer the ownership.
     auto node_ = ~node;
     RegisterNode(node, transaction, attributes);
@@ -445,7 +445,7 @@ TCypressNodeBase* TCypressManager::GetVersionedNode(
 {
     VERIFY_THREAD_AFFINITY(StateThread);
     YASSERT(trunkNode->IsTrunk());
-    
+
     auto* currentTransaction = transaction;
     while (true) {
         auto* currentNode = FindNode(trunkNode, currentTransaction);
@@ -755,7 +755,7 @@ TCypressNodeBase* TCypressManager::LockVersionedNode(
     if (recursive) {
         YCHECK(!request.ChildKey);
         YCHECK(!request.AttributeKey);
-        ListSubtreeNodeIds(trunkNode, transaction, &nodesToLock);
+        ListSubtreeNodes(trunkNode, transaction, &nodesToLock);
     } else {
         nodesToLock.push_back(trunkNode);
     }
@@ -820,7 +820,7 @@ void TCypressManager::RegisterNode(
     YASSERT(node->IsTrunk());
 
     const auto& nodeId = node->GetId();
-    
+
     auto objectManager = Bootstrap->GetObjectManager();
 
     auto* mutationContext = Bootstrap
@@ -882,7 +882,7 @@ TCypressNodeBase* TCypressManager::BranchNode(
 
     auto objectManager = Bootstrap->GetObjectManager();
     auto securityManager = Bootstrap->GetSecurityManager();
-    
+
     const auto& id = originatingNode->GetId();
 
     // Create a branched node and initialize its state.
@@ -899,7 +899,7 @@ TCypressNodeBase* TCypressManager::BranchNode(
 
     // The branched node holds an implicit reference to its originator.
     objectManager->RefObject(originatingNode->GetTrunkNode());
-    
+
     // Update resource usage.
     auto* account = originatingNode->GetAccount();
     // COMPAT(babenko)
@@ -970,12 +970,14 @@ void TCypressManager::Clear()
 
 void TCypressManager::OnLeaderRecoveryComplete()
 {
+    LOG_INFO("Started creating node behaviors");
     YCHECK(NodeBehaviors.empty());
     FOREACH (const auto& pair, NodeMap) {
         if (!pair.first.IsBranched()) {
             CreateNodeBehavior(pair.second);
         }
     }
+    LOG_INFO("Finished creating node behaviors");
 }
 
 void TCypressManager::OnStopLeading()
@@ -994,7 +996,7 @@ void TCypressManager::DestroyNode(TCypressNodeBase* trunkNode)
     auto securityManager = Bootstrap->GetSecurityManager();
 
     DestroyNodeBehavior(trunkNode);
-    
+
     auto nodeHolder = NodeMap.Release(trunkNode->GetVersionedId());
 
     securityManager->ResetAccount(trunkNode);
@@ -1029,7 +1031,7 @@ void TCypressManager::ReleaseLocks(TTransaction* transaction)
     transaction->LockedNodes().clear();
 }
 
-void TCypressManager::ListSubtreeNodeIds(
+void TCypressManager::ListSubtreeNodes(
     TCypressNodeBase* trunkNode,
     TTransaction* transaction,
     TSubtreeNodes* subtreeNodes)
@@ -1037,9 +1039,9 @@ void TCypressManager::ListSubtreeNodeIds(
     YASSERT(trunkNode->IsTrunk());
 
     auto transactionManager = Bootstrap->GetTransactionManager();
-    
+
     const auto& rootId = trunkNode->GetId();
-    subtreeNodes->push_back(trunkNode);  
+    subtreeNodes->push_back(trunkNode);
     switch (TypeFromId(rootId)) {
         case EObjectType::MapNode: {
             auto transactions = transactionManager->GetTransactionPath(transaction);
@@ -1063,16 +1065,16 @@ void TCypressManager::ListSubtreeNodeIds(
             }
 
             FOREACH (const auto& pair, children) {
-                ListSubtreeNodeIds(pair.second, transaction, subtreeNodes);
+                ListSubtreeNodes(pair.second, transaction, subtreeNodes);
             }
             break;
         }
 
         case EObjectType::ListNode: {
             auto* listRoot = static_cast<TListNode*>(trunkNode);
-            FOREACH (const auto& childId, listRoot->IndexToChild()) {
-                auto* child = GetVersionedNode(childId, transaction);
-                ListSubtreeNodeIds(child, transaction, subtreeNodes);
+            FOREACH (auto* trunkChild, listRoot->IndexToChild()) {
+                auto* child = GetVersionedNode(trunkChild, transaction);
+                ListSubtreeNodes(child, transaction, subtreeNodes);
             }
             break;
         }
@@ -1090,7 +1092,7 @@ void TCypressManager::MergeNode(
     auto securityManager = Bootstrap->GetSecurityManager();
 
     auto handler = GetHandler(branchedNode);
-    
+
     auto* trunkNode = branchedNode->GetTrunkNode();
     auto branchedId = branchedNode->GetVersionedId();
     auto* parentTransaction = transaction->GetParent();

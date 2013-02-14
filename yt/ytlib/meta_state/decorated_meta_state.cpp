@@ -64,7 +64,7 @@ public:
     {
         auto metaState = MakeStrong(MetaState);
         metaState->AcquireSystemLock();
-        
+
         bool result = metaState->StateInvoker->Invoke(BIND([=] () {
             action.Run();
             metaState->ReleaseSystemLock();
@@ -110,7 +110,7 @@ TDecoratedMetaState::TDecoratedMetaState(
     VERIFY_INVOKER_AFFINITY(StateInvoker, StateThread);
     VERIFY_INVOKER_AFFINITY(controlInvoker, ControlThread);
 
-    ResponseKeeper = New<TResponseKeeper>(  
+    ResponseKeeper = New<TResponseKeeper>(
         config->ResponseKeeper,
         StateInvoker);
 }

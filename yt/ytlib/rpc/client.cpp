@@ -167,7 +167,7 @@ void TClientResponse::Deserialize(IMessagePtr responseMessage)
     YASSERT(parts.size() >= 2);
 
     DeserializeBody(parts[1]);
-    
+
     Attachments_.clear();
     Attachments_.insert(
         Attachments_.begin(),

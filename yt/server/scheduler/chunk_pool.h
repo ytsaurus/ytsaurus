@@ -31,8 +31,11 @@ struct TChunkStripeList
     TChunkStripeList();
 
     std::vector<TChunkStripePtr> Stripes;
-    
+
     TNullable<int> PartitionTag;
+
+    // True if TotalDataSize and TotalRowCount are approximate.
+    bool IsApproximate;
 
     i64 TotalDataSize;
     i64 TotalRowCount;
@@ -57,7 +60,7 @@ struct IChunkPoolInput
     virtual int GetTotalStripeCount() const = 0;
 
     virtual void Suspend(TCookie cookie) = 0;
-    virtual bool Resume(TCookie cookie, TChunkStripePtr stripe) = 0;
+    virtual void Resume(TCookie cookie, TChunkStripePtr stripe) = 0;
     virtual void Finish() = 0;
 
 };

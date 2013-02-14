@@ -57,7 +57,7 @@ struct TVoid
 // say, a pesky ignorable boolean return that you want to use with something
 // that expect a #TCallback<> with a void return.
 //
-// 
+//
 // EXAMPLE OF Unretained()
 //
 //   class TFoo {
@@ -222,7 +222,7 @@ template <class T>
 class TConstRefWrapper
 {
 public:
-    explicit TConstRefWrapper(const T& x) 
+    explicit TConstRefWrapper(const T& x)
         : T_(&x)
     { }
     const T& Get() const

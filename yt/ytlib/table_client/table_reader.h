@@ -28,7 +28,7 @@ namespace NTableClient {
 //! A client-side facade for reading tables.
 /*!
  *  The client must first call #Open. This positions the reader before the first row.
- *  
+ *
  *  Then the client it must iteratively fetch rows by calling #NextRow.
  *  When no more rows can be fetched, the latter returns False.
  *

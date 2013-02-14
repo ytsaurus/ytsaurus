@@ -264,13 +264,13 @@ struct TCallTraitsHelper
 
 template <class T>
 struct TCallTraitsHelper<T, true>
-{ 
+{
     typedef T TType;
 };
 
 template <class T>
 struct TCallTraitsHelper<T, false>
-{ 
+{
     typedef const T& TType;
 };
 

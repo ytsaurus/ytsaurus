@@ -111,13 +111,13 @@ public:
         return DoubleValue;
     }
 
-    const char* Begin() const 
+    const char* Begin() const
     {
         YASSERT(Type_ == EKeyPartType::String);
         return &*StringValue.begin();
     }
 
-    size_t GetStringSize() const 
+    size_t GetStringSize() const
     {
         YASSERT(Type_ == EKeyPartType::String);
         return StringValue.size();

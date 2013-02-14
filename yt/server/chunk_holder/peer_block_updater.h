@@ -28,7 +28,7 @@ public:
 
 private:
     void Update();
-    
+
     typedef NChunkClient::TDataNodeServiceProxy TProxy;
 
     TDataNodeConfigPtr Config;

@@ -7,6 +7,7 @@
 #include <ytlib/misc/periodic_invoker.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/delayed_invoker.h>
+#include <ytlib/misc/address.h>
 
 #include <ytlib/actions/async_pipeline.h>
 #include <ytlib/actions/parallel_awaiter.h>
@@ -313,8 +314,14 @@ private:
             {
                 auto req = TTransactionYPathProxy::CreateObject(RootTransactionPath);
                 req->set_type(EObjectType::Transaction);
+
                 auto* reqExt = req->MutableExtension(TReqCreateTransactionExt::create_transaction);
                 reqExt->set_timeout(Owner->Config->LockTransactionTimeout.MilliSeconds());
+
+                auto attributes = CreateEphemeralAttributes();
+                attributes->Set("title", Sprintf("Scheduler lock at %s", ~GetLocalHostName()));
+                ToProto(req->mutable_object_attributes(), *attributes);
+
                 GenerateRpcMutationId(req);
                 batchReq->AddRequest(req, "start_lock_tx");
             }
@@ -330,12 +337,12 @@ private:
                 auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_lock_tx");
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting lock transaction");
                 auto transactionId = TTransactionId::FromProto(rsp->object_id());
-                
+
                 TTransactionAttachOptions options(transactionId);
                 options.AutoAbort = true;
                 auto transactionManager = Owner->Bootstrap->GetTransactionManager();
                 Owner->LockTransaction = transactionManager->Attach(options);
-                
+
                 LOG_INFO("Lock transaction is %s", ~ToString(transactionId));
             }
 
@@ -565,7 +572,7 @@ private:
     TOperationPtr ParseOperationYson(const TOperationId& operationId, const IAttributeDictionary& attributes)
     {
         auto transactionManager = Bootstrap->GetTransactionManager();
-        
+
         auto userTransactionId = attributes.Get<TTransactionId>("user_transaction_id");
         TTransactionAttachOptions userAttachOptions(userTransactionId);
         userAttachOptions.AutoAbort = false;
@@ -864,7 +871,7 @@ private:
         }
 
         // Set progress.
-        if (state == EOperationState::Running || operation->IsFinishedState()) {
+        if (state == EOperationState::Running || IsOperationFinished(state)) {
             auto req = TYPathProxy::Set(operationPath + "/@progress");
             req->set_value(BuildYsonStringFluently()
                 .BeginMap()
@@ -909,7 +916,7 @@ private:
 
             if (chunkId != NullChunkId) {
                 auto stdErrPath = GetStdErrPath(operation->GetOperationId(), job->GetId());
-                
+
                 auto req = TCypressYPathProxy::Create(stdErrPath);
                 GenerateRpcMutationId(req);
                 req->set_type(EObjectType::File);
@@ -977,7 +984,7 @@ private:
 
         LOG_INFO("Operation node flushed (OperationId: %s)",
             ~operationId.ToString());
-       
+
         auto* list = GetUpdateList(operation);
         list->State = EUpdateListState::Flushed;
         list->FlushedPromise.Set();

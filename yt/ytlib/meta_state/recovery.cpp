@@ -129,7 +129,7 @@ TAsyncError TRecovery::RecoverToStateWithChangeLog(
         DecoratedState->Load(snapshotId, snapshotReader->GetStream());
 
         // The reader reference is being held by the closure action.
-        return ReplayChangeLogs(    
+        return ReplayChangeLogs(
             targetVersion,
             snapshotReader->GetPrevRecordCount());
     } else {
@@ -269,7 +269,7 @@ void TRecovery::ReplayChangeLog(
     VERIFY_THREAD_AFFINITY(StateThread);
 
     YCHECK(DecoratedState->GetVersion().SegmentId == changeLog.GetId());
-    
+
     int startRecordId = DecoratedState->GetVersion().RecordCount;
     int recordCount = targetRecordCount - startRecordId;
 
@@ -278,7 +278,7 @@ void TRecovery::ReplayChangeLog(
 
     LOG_INFO("Replaying records %d-%d from changelog %d",
         startRecordId,
-        targetRecordCount - 1, 
+        targetRecordCount - 1,
         changeLog.GetId());
 
     std::vector<TSharedRef> records;
@@ -447,7 +447,7 @@ TAsyncError TFollowerRecovery::ApplyPostponedMutations(
     VERIFY_THREAD_AFFINITY(StateThread);
 
     LOG_INFO("Applying %" PRISZT " postponed mutations", mutations.size());
-    
+
     FOREACH (const auto& mutation, mutations) {
         switch (mutation.Type) {
             case TPostponedMutation::EType::Mutation: {
@@ -470,7 +470,7 @@ TAsyncError TFollowerRecovery::ApplyPostponedMutations(
                 YUNREACHABLE();
         }
     }
-   
+
     LOG_INFO("Finished applying postponed mutations");
 
     return BIND(&TFollowerRecovery::CapturePostponedMutations, MakeStrong(this))
@@ -498,13 +498,13 @@ TError TFollowerRecovery::PostponeSegmentAdvance(
     }
 
     PostponedMutations.push_back(TPostponedMutation::CreateSegmentAdvance());
-    
+
     LOG_DEBUG("Postponing segment advance at version %s",
         ~PostponedVersion.ToString());
 
     ++PostponedVersion.SegmentId;
     PostponedVersion.RecordCount = 0;
-    
+
     return TError();
 }
 
@@ -535,7 +535,7 @@ TError TFollowerRecovery::PostponeMutations(
     FOREACH (const auto& recordData, recordsData) {
         PostponedMutations.push_back(TPostponedMutation::CreateMutation(recordData));
     }
-    
+
     PostponedVersion.RecordCount += recordsData.size();
 
     return TError();

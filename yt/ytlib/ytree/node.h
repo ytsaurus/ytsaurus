@@ -44,7 +44,7 @@ struct INode
 {
     //! Returns the static type of the node.
     virtual ENodeType GetType() const = 0;
-    
+
     //! Returns a factory for creating new nodes.
     /*!
      *  Every YTree implementation provides its own set of
@@ -52,7 +52,7 @@ struct INode
      *  this factory creates ephemeral nodes while for
      *  a persistent implementation (see Cypress) this factory
      *  creates persistent nodes.
-     *  
+     *
      *  Note that each call may produce a new factory instance.
      *  This is used in Cypress where the factory instance acts as a container holding
      *  temporary references to newly created nodes.
@@ -87,7 +87,7 @@ struct INode
     /*!
      *  This method is called automatically when one subtree (possibly)
      *  consisting of a single node is attached to another.
-     *  
+     *
      *  This method must not be called explicitly.
      */
     virtual void SetParent(ICompositeNodePtr parent) = 0;
@@ -222,7 +222,7 @@ struct IMapNode
      *  \param child A child.
      *  \param key A key.
      *  \return True iff the key was not in the map already and thus the child is inserted.
-     *  
+     *
      *  \note
      *  #child must be a root.
      */
@@ -269,13 +269,13 @@ struct IListNode
      *  \param child A child.
      *  \param beforeIndex A position before which the insertion must happen.
      *  -1 indicates the end of the list.
-     *  
+     *
      *  \note
      *  #child must be a root.
      */
 
     virtual void AddChild(INodePtr child, int beforeIndex = -1) = 0;
-    
+
     //! Removes a child by its index.
     /*!
      *  \param index An index.
@@ -321,16 +321,16 @@ struct INodeFactory
 {
     //! Creates a string node.
     virtual IStringNodePtr CreateString() = 0;
-    
+
     //! Creates an integer node.
     virtual IIntegerNodePtr CreateInteger() = 0;
-    
+
     //! Creates an FP number node.
     virtual IDoubleNodePtr CreateDouble() = 0;
-    
+
     //! Creates a map node.
     virtual IMapNodePtr CreateMap() = 0;
-    
+
     //! Creates a list node.
     virtual IListNodePtr CreateList() = 0;
 

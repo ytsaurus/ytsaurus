@@ -1,6 +1,7 @@
 import config
-from common import YtError, YtResponseError, YtTokenError, require
+from common import YtError, YtResponseError, YtTokenError, require, format_error
 from format import JsonFormat
+from version import VERSION
 
 import yt.yson as yson
 
@@ -46,9 +47,6 @@ def read_content(response, type):
 
 class Response(object):
     def __init__(self, http_response):
-        def serialize(error):
-            return json.dumps(error, indent=2)
-
         self.http_response = http_response
         if not str(http_response.status_code).startswith("2"):
             # 401 is case of incorrect token
@@ -57,9 +55,9 @@ class Response(object):
                     "Your authentication token was rejected by the server (X-YT-Request-ID: %s).\n"
                     "Please refer to http://proxy.yt.yandex.net/auth/ for obtaining a valid token or contact us at yt@yandex-team.ru." %
                     http_response.headers.get("X-YT-Request-ID", "absent"))
-            self._error = serialize(http_response.json())
+            self._error = format_error(http_response.json())
         elif int(http_response.headers.get("x-yt-response-code", 0)) != 0:
-            self._error = serialize(json.loads(http_response.headers["x-yt-error"]))
+            self._error = format_error(json.loads(http_response.headers["x-yt-error"]))
 
     def error(self):
         return self._error
@@ -101,6 +99,13 @@ def get_hosts(proxy=None):
     if proxy is None:
         proxy = config.PROXY
     return requests.get("http://{0}/hosts".format(proxy)).json()
+
+def get_host_for_heavy_operation():
+    if config.USE_HOSTS:
+        hosts = get_hosts()
+        if hosts:
+            return hosts[0]
+    return config.PROXY
 
 def make_request(command_name, params,
                  data=None, format=None, verbose=False, proxy=None,
@@ -159,7 +164,7 @@ def make_request(command_name, params,
     print_info("Request url: %r", url)
 
     # prepare params, format and headers
-    headers = {"User-Agent": "Python wrapper",
+    headers = {"User-Agent": "Python wrapper " + VERSION,
                "Accept-Encoding": config.ACCEPT_ENCODING}
     if http_method[command_name] == "POST":
         require(data is None and format is None,

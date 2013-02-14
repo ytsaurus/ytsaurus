@@ -49,7 +49,7 @@ public:
     TPacketTranscoderBase();
 
     TRef GetChunk();
-    bool IsFinished() const;  
+    bool IsFinished() const;
 
 protected:
     EPacketPhase Phase;
@@ -89,7 +89,7 @@ private:
 
     std::vector<TSharedRef> Parts;
     size_t PacketSize;
-        
+
     bool EndHeaderPhase();
     bool EndPartCountPhase();
     bool EndPartSizesPhase();

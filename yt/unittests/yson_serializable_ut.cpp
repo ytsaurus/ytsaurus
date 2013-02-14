@@ -45,7 +45,7 @@ struct TTestConfig
     : public TYsonSerializable
 {
     typedef TIntrusivePtr<TTestConfig> TPtr;
-    
+
     Stroka MyString;
     TTestSubconfig::TPtr Subconfig;
     std::vector<TTestSubconfig::TPtr> SubconfigList;
@@ -110,7 +110,7 @@ TEST(TConfigTest, Complete)
                         .Item().Value("ListItem1")
                         .Item().Value("ListItem2")
                     .EndList()
-                .EndMap()            
+                .EndMap()
             .EndList()
             .Item("sub_map").BeginMap()
                 .Item("sub1").BeginMap()
@@ -139,7 +139,7 @@ TEST(TConfigTest, Complete)
 
     auto config = New<TTestConfig>();
     config->Load(configNode->AsMap());
-    
+
     EXPECT_EQ("TestString", config->MyString);
     TestCompleteSubconfig(~config->Subconfig);
     EXPECT_EQ(2, config->SubconfigList.size());
@@ -370,7 +370,7 @@ TEST(TConfigTest, Save)
         "\"my_enum\"=\"value1\";"
         "\"my_int\"=200;"
         "\"my_string_list\"=[]}";
-    
+
     Stroka subconfigYsonOrigin =
         "{\"my_bool\"=\"false\";"
         "\"my_enum\"=\"value1\";"
@@ -395,12 +395,12 @@ TEST(TConfigTest, TestConfigUpdate)
         auto newConfig = UpdateYsonSerializable(config, 0);
         EXPECT_EQ(newConfig->Subconfig->MyInt, 200);
     }
-    
+
     {
         auto newConfig = UpdateYsonSerializable(config, ConvertToNode(TYsonString("{\"sub\"={\"my_int\"=150}}")));
         EXPECT_EQ(newConfig->Subconfig->MyInt, 150);
     }
-    
+
     {
         auto newConfig = UpdateYsonSerializable(config, ConvertToNode(TYsonString("{\"sub\"={\"my_int_\"=150}}")));
         EXPECT_EQ(newConfig->Subconfig->MyInt, 200);

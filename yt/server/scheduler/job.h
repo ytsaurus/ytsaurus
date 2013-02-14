@@ -23,7 +23,7 @@ class TJob
 
     //! The operation the job belongs to.
     DEFINE_BYVAL_RO_PROPERTY(TOperation*, Operation);
-    
+
     //! Exec node where the job is running.
     DEFINE_BYVAL_RO_PROPERTY(TExecNodePtr, Node);
 

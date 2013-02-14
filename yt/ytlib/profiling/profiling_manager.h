@@ -29,10 +29,10 @@ struct TQueuedSample
 //! A backend that controls all profiling activities.
 /*!
  *  This class is a singleton, call #Get to obtain an instance.
- *  
+ *
  *  Processing happens in a background thread that maintains
  *  a queue of all incoming (queued) samples and distributes them into buckets.
- *  
+ *
  *  This thread also provides a invoker for executing various callbacks.
  */
 class TProfilingManager

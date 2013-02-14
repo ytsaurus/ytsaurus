@@ -10,7 +10,7 @@ namespace NYT {
 namespace NMetaState {
 
 ////////////////////////////////////////////////////////////////////////////////
-    
+
 struct TSaveContext
 {
     DEFINE_BYVAL_RW_PROPERTY(TOutputStream*, Output);
@@ -39,7 +39,7 @@ protected:
     TCompositeMetaStatePtr MetaState;
 
     void RegisterSaver(int priority, const Stroka& name, i32 version, TSaver saver);
-    
+
     template <class TContext>
     void RegisterSaver(
         int priority,
@@ -62,7 +62,7 @@ protected:
 
     template <class TRequest, class TResponse>
     void RegisterMethod(TCallback<TResponse(const TRequest&)> handler);
-    
+
     bool IsLeader() const;
     bool IsFolllower() const;
     bool IsRecovery() const;
@@ -90,9 +90,9 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-    
+
 class TCompositeMetaState
-    : public IMetaState 
+    : public IMetaState
 {
 public:
     void RegisterPart(TMetaStatePartPtr part);

@@ -60,11 +60,11 @@ public:
     void Open()
     {
         VERIFY_THREAD_AFFINITY_ANY();
-    
+
         LOG_DEBUG("Connecting to %s (ConnectionId: %s)",
             ~Config->Address,
             ~Id.ToString());
-    
+
         Connection = New<TTcpConnection>(
             EConnectionType::Client,
             Id,

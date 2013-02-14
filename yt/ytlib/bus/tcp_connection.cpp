@@ -114,7 +114,7 @@ void TTcpConnection::SyncInitialize()
     VERIFY_THREAD_AFFINITY(EventLoop);
 
     const auto& eventLoop = TTcpDispatcher::TImpl::Get()->GetEventLoop();
-    
+
     TerminationWatcher.Reset(new ev::async(eventLoop));
     TerminationWatcher->set<TTcpConnection, &TTcpConnection::OnTerminated>(this);
     TerminationWatcher->start();
@@ -149,7 +149,7 @@ void TTcpConnection::SyncFinalize()
 Stroka TTcpConnection::GetLoggingId() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    
+
     return Sprintf("ConnectionId: %s", ~Id.ToString());
 }
 
@@ -319,7 +319,7 @@ void TTcpConnection::SyncClose(const TError& error)
             queuedMessage.Promise.Set(error);
         }
     }
-    
+
     // Release memory.
     Cleanup();
 
@@ -462,7 +462,7 @@ TAsyncError TTcpConnection::Send(IMessagePtr message)
 
             case EState::Closed:
                 guard.Release();
-                // Try to remove the message. 
+                // Try to remove the message.
                 // This might not be the exact same message we've just enqueued
                 // but still enables to keep the queue empty.
                 QueuedMessages.Dequeue(&queuedMessage);
@@ -472,7 +472,7 @@ TAsyncError TTcpConnection::Send(IMessagePtr message)
                     "Connection is closed"));
         }
     }
-   
+
     LOG_DEBUG("Outcoming message enqueued (PacketId: %s)", ~queuedMessage.PacketId.ToString());
 
     return queuedMessage.Promise;
@@ -516,7 +516,7 @@ void TTcpConnection::OnSocket(ev::io&, int revents)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
     YASSERT(State != EState::Closed);
-    
+
     if (revents & ev::ERROR) {
         SyncClose(TError(NRpc::EErrorCode::TransportError, "Socket failed"));
         return;
@@ -533,7 +533,7 @@ void TTcpConnection::OnSocket(ev::io&, int revents)
     UpdateSocketWatcher();
 }
 
-void TTcpConnection::OnSocketRead() 
+void TTcpConnection::OnSocketRead()
 {
     if (State == EState::Closed) {
         return;
@@ -610,7 +610,7 @@ bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
     Profiler.Aggregate(ReceiveSize, *bytesRead);
 
     LOG_TRACE("%" PRISZT " bytes read", *bytesRead);
-    
+
     return true;
 }
 
@@ -671,8 +671,8 @@ bool TTcpConnection::OnAckPacketReceived()
     if (UnackedMessages.empty()) {
         LOG_ERROR("Unexpected ack received");
         SyncClose(TError(
-        	NRpc::EErrorCode::TransportError,
-        	"Unexpected ack received"));
+            NRpc::EErrorCode::TransportError,
+            "Unexpected ack received"));
         return false;
     }
 
@@ -683,8 +683,8 @@ bool TTcpConnection::OnAckPacketReceived()
             ~unackedMessage.PacketId.ToString(),
             ~Decoder.GetPacketId().ToString());
         SyncClose(TError(
-        	NRpc::EErrorCode::TransportError,
-        	"Ack for invalid packet ID received"));
+            NRpc::EErrorCode::TransportError,
+            "Ack for invalid packet ID received"));
         return false;
     }
 

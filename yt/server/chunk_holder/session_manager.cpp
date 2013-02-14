@@ -73,7 +73,7 @@ void TSession::Start()
 void TSession::DoOpenFile()
 {
     LOG_DEBUG("Started opening chunk writer");
-    
+
     PROFILE_TIMING ("/chunk_writer_open_time") {
         try {
             Writer = New<TFileWriter>(FileName);
@@ -102,14 +102,14 @@ void TSession::SetLease(TLeaseManager::TLease lease)
 void TSession::RenewLease()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    
+
     TLeaseManager::RenewLease(Lease);
 }
 
 void TSession::CloseLease()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    
+
     TLeaseManager::CloseLease(Lease);
 }
 
@@ -234,7 +234,7 @@ void TSession::EnqueueWrites()
         BIND(
             &TSession::DoWriteBlock,
             MakeStrong(this),
-            slot.Block, 
+            slot.Block,
             WriteIndex)
         .AsyncVia(WriteInvoker)
         .Run()
@@ -291,7 +291,7 @@ void TSession::OnBlockWritten(int blockIndex, TError error)
     auto& slot = GetSlot(blockIndex);
     YCHECK(slot.State == ESlotState::Received);
     slot.State = ESlotState::Written;
-    slot.IsWritten.Set();   
+    slot.IsWritten.Set();
     Bootstrap->GetSessionManager()->UpdatePendingWriteSize(-slot.Block.Size());
 }
 
@@ -458,9 +458,9 @@ TValueOrError<TChunkPtr> TSession::OnFileClosed(TError error)
 
     ReleaseSpaceOccupiedByBlocks();
     auto chunk = New<TStoredChunk>(
-        Location, 
-        ChunkId, 
-        Writer->GetChunkMeta(), 
+        Location,
+        ChunkId,
+        Writer->GetChunkMeta(),
         Writer->GetChunkInfo(),
         Bootstrap->GetMemoryUsageTracker());
     Bootstrap->GetChunkStore()->RegisterChunk(chunk);
@@ -509,9 +509,9 @@ TSession::TSlot& TSession::GetSlot(int blockIndex)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
     YCHECK(IsInWindow(blockIndex));
-    
+
     while (Window.size() <= blockIndex) {
-        // NB: do not use resize here! 
+        // NB: do not use resize here!
         // Newly added slots must get a fresh copy of IsWritten promise.
         // Using resize would cause all of these slots to share a single promise.
         Window.push_back(TSlot());
@@ -598,7 +598,7 @@ TSessionPtr TSessionManager::FindSession(const TChunkId& chunkId) const
     auto it = SessionMap.find(chunkId);
     if (it == SessionMap.end())
         return NULL;
-    
+
     auto session = it->second;
     session->RenewLease();
     return session;
@@ -640,7 +640,7 @@ void TSessionManager::CancelSession(TSessionPtr session, const TError& error)
 }
 
 TFuture< TValueOrError<TChunkPtr> > TSessionManager::FinishSession(
-    TSessionPtr session, 
+    TSessionPtr session,
     const TChunkMeta& chunkMeta)
 {
     return session

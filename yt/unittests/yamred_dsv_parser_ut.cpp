@@ -50,7 +50,7 @@ TEST(TYamredDsvParserTest, Simple)
     Stroka input =
         "1 2\t3\ta=5\tb=6\n"
         "7 8\t9\tb=max\\tignat\ta=100\n";
-    
+
     auto config = New<TYamredDsvFormatConfig>();
     config->HasSubkey = true;
     config->KeyColumnNames.push_back("key_a");
@@ -78,7 +78,7 @@ TEST(TYamredDsvParserTest, EmptyField)
     EXPECT_CALL(Mock, OnEndMap());
 
     Stroka input = "\t0 1\ta=b\n";
-    
+
     auto config = New<TYamredDsvFormatConfig>();
     config->HasSubkey = true;
     config->KeyColumnNames.push_back("key");
@@ -88,7 +88,7 @@ TEST(TYamredDsvParserTest, EmptyField)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 } // namespace NFormats
 } // namespace NYT
 

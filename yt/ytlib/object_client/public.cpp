@@ -72,8 +72,8 @@ TVersionedObjectId::TVersionedObjectId(const TObjectId& objectId)
 { }
 
 TVersionedObjectId::TVersionedObjectId(
-	const TObjectId& objectId,
-	const TTransactionId& transactionId)
+    const TObjectId& objectId,
+    const TTransactionId& transactionId)
     : ObjectId(objectId)
     , TransactionId(transactionId)
 { }

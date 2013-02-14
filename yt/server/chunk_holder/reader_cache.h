@@ -27,15 +27,15 @@ public:
     /*!
      *  This call is thread-safe but may block since it actually opens the file.
      *  A rule of thumb is to invoke it from IO thread only.
-     *  
+     *
      *  If chunk file does not exist then NULL is returned.
-     *  
+     *
      *  The returned reader is already open.
      */
      TGetReaderResult GetReader(TChunkPtr chunk);
 
     //! Evicts the reader from the cache thus hopefully closing the file.
-    /*! 
+    /*!
         NB: do not make it TChunkPtr since it is called from TCachedChunk dtor
     */
     void EvictReader(TChunk* chunk);

@@ -63,7 +63,7 @@ public: // for users
     TParameter& LessThanOrEqual(TValueType value);
     TParameter& InRange(TValueType lowerBound, TValueType upperBound);
     TParameter& NonEmpty();
-    
+
 private:
     T& Parameter;
     bool HasDefaultValue;
@@ -103,7 +103,7 @@ private:
     friend class TParameter;
 
     typedef yhash_map<Stroka, NConfig::IParameterPtr> TParameterMap;
-    
+
     TParameterMap Parameters;
     NYTree::IMapNodePtr Options;
 };

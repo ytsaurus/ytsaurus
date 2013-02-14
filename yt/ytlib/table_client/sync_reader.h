@@ -14,7 +14,7 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ISyncReader 
+struct ISyncReader
     : public virtual TRefCounted
 {
     //! Called to initialize the reader.
@@ -38,7 +38,7 @@ struct ISyncReader
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TAsyncReader>
-class TSyncReaderAdapter 
+class TSyncReaderAdapter
     : public ISyncReader
 {
 public:

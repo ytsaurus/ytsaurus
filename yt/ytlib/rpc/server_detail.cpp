@@ -63,7 +63,7 @@ void TServiceContextBase::Reply(IMessagePtr responseMessage)
     Error = FromProto(header.error());
     ResponseBody = TSharedRef();
     ResponseAttachments_.clear();
-    
+
     if (Error.IsOK()) {
         YASSERT(parts.size() >= 2);
         ResponseBody = parts[1];

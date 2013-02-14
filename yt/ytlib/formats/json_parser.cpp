@@ -118,7 +118,7 @@ Stroka TJsonParser::DecodeString(const Stroka& value)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 void ParseJson(
     TInputStream* input,
     NYson::IYsonConsumer* consumer,

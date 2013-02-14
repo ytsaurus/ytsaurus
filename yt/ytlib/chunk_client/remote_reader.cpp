@@ -66,7 +66,7 @@ public:
     {
         if (!Config->AllowFetchingSeedsFromMaster && InitialSeedAddresses.empty()) {
             THROW_ERROR_EXCEPTION(
-                "Reader is unusable: master seeds retries are disabled and no initial seeds are given (ChunkId: %s)", 
+                "Reader is unusable: master seeds retries are disabled and no initial seeds are given (ChunkId: %s)",
                 ~ChunkId.ToString());
         }
 
@@ -217,12 +217,12 @@ protected:
         Logger.AddTag(Sprintf("ChunkId: %s", ~reader->ChunkId.ToString()));
     }
 
-
     virtual void NextRetry()
     {
         auto reader = Reader.Lock();
-        if (!reader)
+        if (!reader) {
             return;
+        }
 
         YCHECK(!GetSeedsResult);
 
@@ -363,7 +363,13 @@ public:
         , BlockIndexes(blockIndexes)
     {
         Logger.AddTag(Sprintf("ReadSession: %p", this));
+    }
 
+    ~TReadSession()
+    {
+        if (!Promise.IsSet()) {
+            Promise.Set(TError("Reader has already died."));
+        }
     }
 
     IAsyncReader::TAsyncReadResult Run()
@@ -451,7 +457,7 @@ private:
         }
         peerBlocksMapIt->second.BlockIndexes.insert(blockIndex);
     }
-    
+
     Stroka PickNextPeer()
     {
         // When the time comes to fetch from a non-seeding node, pick a random one.
@@ -514,8 +520,8 @@ private:
 
         return result;
     }
-    
-    
+
+
     void FetchBlocksFromCache()
     {
         auto reader = Reader.Lock();
@@ -638,14 +644,14 @@ private:
                     blockIndex);
                 auto block = rsp->Attachments()[index];
                 YCHECK(block);
-                
+
                 // Only keep source address if PublishPeer is on.
                 auto sourceAddress =
                     reader->Config->PublishPeer
                     ? TNullable<Stroka>(address)
                     : TNullable<Stroka>(Null);
                 reader->BlockCache->Put(blockId, block, sourceAddress);
-                
+
                 YCHECK(FetchedBlocks.insert(std::make_pair(blockIndex, block)).second);
             } else if (reader->Config->FetchFromPeers) {
                 FOREACH (const auto& peerAddress, blockInfo.peer_addresses()) {
@@ -687,7 +693,7 @@ private:
             return;
 
         auto error = BuildCombinedError(TError(
-            "Error fetching blocks for chunk %s", 
+            "Error fetching blocks for chunk %s",
             ~reader->ChunkId.ToString()));
         Promise.Set(error);
     }
@@ -720,8 +726,15 @@ public:
         } else {
             AllExtensionTags = true;
         }
-        
+
         Logger.AddTag(Sprintf("GetMetaSession: %p", this));
+    }
+
+    ~TGetMetaSession()
+    {
+        if (!Promise.IsSet()) {
+            Promise.Set(TError("Reader has already died."));
+        }
     }
 
     IAsyncReader::TAsyncGetMetaResult Run()
@@ -808,7 +821,7 @@ private:
 
         ++SeedIndex;
         if (SeedIndex >= SeedAddresses.size()) {
-            OnPassCompleted();
+            OnRetryFailed();
             return;
         }
 
@@ -829,7 +842,7 @@ private:
             return;
 
         auto error = BuildCombinedError(TError(
-            "Error getting meta for chunk %s", 
+            "Error getting meta for chunk %s",
             ~reader->ChunkId.ToString()));
         Promise.Set(error);
     }
@@ -837,7 +850,7 @@ private:
 };
 
 TRemoteReader::TAsyncGetMetaResult TRemoteReader::AsyncGetChunkMeta(
-    const TNullable<int>& partitionTag, 
+    const TNullable<int>& partitionTag,
     const std::vector<i32>* extensionTags)
 {
     VERIFY_THREAD_AFFINITY_ANY();

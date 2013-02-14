@@ -28,7 +28,7 @@ static NLog::TLogger& Logger = JobProxyLogger;
 ////////////////////////////////////////////////////////////////////
 
 TErrorOutput::TErrorOutput(
-    TFileWriterConfigPtr config, 
+    TFileWriterConfigPtr config,
     IChannelPtr masterChannel,
     const TTransactionId& transactionId)
     : Config(config)
@@ -58,7 +58,7 @@ void TErrorOutput::DoWrite(const void* buf, size_t len)
     FileWriter->Write(buf, len);
 }
 
-void TErrorOutput::DoFinish() 
+void TErrorOutput::DoFinish()
 {
     if (!FileWriter)
         return;

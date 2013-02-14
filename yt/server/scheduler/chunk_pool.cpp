@@ -34,7 +34,8 @@ TChunkStripe::TChunkStripe(const TChunkStripe& other)
 ////////////////////////////////////////////////////////////////////
 
 TChunkStripeList::TChunkStripeList()
-    : TotalDataSize(0)
+    : IsApproximate(false)
+    , TotalDataSize(0)
     , TotalRowCount(0)
     , TotalChunkCount(0)
     , LocalChunkCount(0)
@@ -55,7 +56,6 @@ public:
 
     virtual void Finish() override
     {
-        YCHECK(!Finished);
         Finished = true;
     }
 
@@ -104,24 +104,17 @@ public:
         Suspended = true;
     }
 
-    bool Resume(TChunkStripePtr stripe)
+    void Resume(TChunkStripePtr stripe)
     {
         YCHECK(Stripe);
         YCHECK(Suspended);
 
-        i64 stripeDataSize;
-        i64 stripeRowCount;
-        GetStatistics(stripe, &stripeDataSize, &stripeRowCount);
-
-        if (DataSize != stripeDataSize || RowCount != stripeRowCount) {
-            return false;
-        }
+        GetStatistics(stripe, &DataSize, &RowCount);
 
         Suspended = false;
         Stripe = stripe;
-        return true;
     }
-    
+
 private:
     TChunkStripePtr Stripe;
     bool Suspended;
@@ -182,6 +175,10 @@ class TAtomicChunkPool
 public:
     // IChunkPoolInput implementation.
 
+    TAtomicChunkPool()
+        : SuspendedStripeCount(0)
+    { }
+
     virtual IChunkPoolInput::TCookie Add(TChunkStripePtr stripe) override
     {
         YCHECK(!Finished);
@@ -210,12 +207,27 @@ public:
 
     virtual void Suspend(IChunkPoolInput::TCookie cookie) override
     {
+        ++SuspendedStripeCount;
+        auto& suspendableStripe = Stripes[cookie];
         Stripes[cookie].Suspend();
+
+        FOREACH (const auto& chunk, suspendableStripe.GetStripe()->Chunks) {
+            FOREACH (const auto& address, chunk->node_addresses()) {
+                AddressToLocality[address] -= suspendableStripe.GetDataSize();
+            }
+        }
     }
 
-    virtual bool Resume(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe) override
+    virtual void Resume(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe) override
     {
-        return Stripes[cookie].Resume(stripe);
+        auto& suspendableStripe = Stripes[cookie];
+        suspendableStripe.Resume(stripe);
+        --SuspendedStripeCount;
+        FOREACH (const auto& chunk, suspendableStripe.GetStripe()->Chunks) {
+            FOREACH (const auto& address, chunk->node_addresses()) {
+                AddressToLocality[address] += suspendableStripe.GetDataSize();
+            }
+        }
     }
 
     // IChunkPoolOutput implementation.
@@ -232,7 +244,7 @@ public:
 
     virtual int GetPendingJobCount() const override
     {
-        return Finished && !ExtractedList ? 1 : 0;
+        return (SuspendedStripeCount == 0) && Finished && !ExtractedList ? 1 : 0;
     }
 
     virtual i64 GetLocality(const Stroka& address) const override
@@ -248,6 +260,7 @@ public:
     virtual IChunkPoolOutput::TCookie Extract(const Stroka& address) override
     {
         YCHECK(Finished);
+        YCHECK(SuspendedStripeCount == 0);
         YCHECK(!ExtractedList);
 
         ExtractedList = New<TChunkStripeList>();
@@ -273,7 +286,7 @@ public:
 
         return ExtractedList;
     }
-    
+
     virtual void Completed(IChunkPoolOutput::TCookie cookie) override
     {
         YCHECK(cookie == 0);
@@ -317,6 +330,8 @@ private:
     //! Instance returned from #Extract.
     TChunkStripeListPtr ExtractedList;
 
+    int SuspendedStripeCount;
+
 };
 
 TAutoPtr<IChunkPool> CreateAtomicChunkPool()
@@ -349,7 +364,7 @@ public:
 
         DataSizeCounter.Increment(suspendableStripe.GetDataSize());
         RowCounter.Increment(suspendableStripe.GetRowCount());
-        
+
         Register(stripe);
 
         return cookie;
@@ -366,7 +381,7 @@ public:
         YUNREACHABLE();
     }
 
-    virtual bool Resume(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe) override
+    virtual void Resume(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe) override
     {
         UNUSED(cookie);
         UNUSED(stripe);
@@ -504,7 +519,7 @@ private:
         i64 TotalDataSize;
         yhash_set<TChunkStripePtr> Stripes;
     };
-    
+
     yhash_map<Stroka, TLocalityEntry> LocalChunks;
 
     TIdGenerator<IChunkPoolOutput::TCookie> OutputCookieGenerator;
@@ -556,7 +571,7 @@ private:
         size_t oldSize = list->Stripes.size();
         for (auto it = begin; it != end && list->TotalDataSize < idealDataSizePerJob; ++it) {
             const auto& stripe = *it;
-            
+
             i64 stripeDataSize;
             i64 stripeRowCount;
             GetStatistics(stripe, &stripeDataSize, &stripeRowCount);
@@ -622,11 +637,11 @@ public:
 
         TInputStripe inputStripe;
         inputStripe.ElementaryIndexBegin = static_cast<int>(ElementaryStripes.size());
-       
+
         FOREACH (const auto& chunk, stripe->Chunks) {
             int elementaryIndex = static_cast<int>(ElementaryStripes.size());
             auto elementaryStripe = New<TChunkStripe>(chunk);
-            ElementaryStripes.push_back(TSuspendableStripe(elementaryStripe));
+            ElementaryStripes.push_back(elementaryStripe);
 
             auto partitionsExt = GetProtoExtension<NTableClient::NProto::TPartitionsExt>(chunk->extensions());
             YCHECK(partitionsExt.partitions_size() == Outputs.size());
@@ -657,38 +672,62 @@ public:
     {
         const auto& inputStripe = InputStripes[cookie];
         for (int index = inputStripe.ElementaryIndexBegin; index < inputStripe.ElementaryIndexEnd; ++index) {
-            ElementaryStripes[index].Suspend();
             FOREACH (const auto& output, Outputs) {
                 output->SuspendStripe(index);
             }
         }
     }
 
-    virtual bool Resume(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe) override
+    virtual void Resume(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe) override
     {
-        YCHECK(!Finished);
-
+        // Although the sizes and even the row count may have changed (mind unordered reader and
+        // possible undetermined mappers in partition jobs), we ignore it and use couter values
+        // from the initial stripes, hoping that nobody will recognize it. This may lead to
+        // incorrect memory consumption estimates, but significant bias is very unlikely.
         const auto& inputStripe = InputStripes[cookie];
-        if (stripe->Chunks.size() != inputStripe.ElementaryIndexEnd - inputStripe.ElementaryIndexBegin) {
-            return false;
+        auto stripeCount = inputStripe.ElementaryIndexEnd - inputStripe.ElementaryIndexBegin;
+        auto limit = std::min(static_cast<int>(stripe->Chunks.size()), stripeCount - 1);
+
+        // Fill the beginning of input stripe with new chunks.
+        for (int index = 0; index < limit; ++index) {
+            auto chunk = stripe->Chunks[index];
+            RemoveProtoExtension<NTableClient::NProto::TPartitionsExt>(chunk->mutable_extensions());
+
+            auto elementaryIndex = index + inputStripe.ElementaryIndexBegin;
+            ElementaryStripes[elementaryIndex] = New<TChunkStripe>(chunk);
         }
 
-        for (int index = inputStripe.ElementaryIndexBegin; index < inputStripe.ElementaryIndexEnd; ++index) {
-            auto elementaryStripe = New<TChunkStripe>(stripe->Chunks[index - inputStripe.ElementaryIndexBegin]);
-            if (!ElementaryStripes[index].Resume(elementaryStripe)) {
-                return false;
-            }
+        // Cleanup the rest of elementary stripes.
+        for(int elementaryIndex = inputStripe.ElementaryIndexBegin + limit;
+            elementaryIndex < inputStripe.ElementaryIndexEnd;
+            ++elementaryIndex)
+        {
+            ElementaryStripes[elementaryIndex] = New<TChunkStripe>();
+        }
+
+        // Put the rest of the chunks (if any) into last stripe.
+        auto& elementaryStripe = ElementaryStripes[inputStripe.ElementaryIndexBegin + limit];
+        for (int index = limit; index < stripe->Chunks.size(); ++index) {
+            auto chunk = stripe->Chunks[index];
+            RemoveProtoExtension<NTableClient::NProto::TPartitionsExt>(chunk->mutable_extensions());
+            elementaryStripe->Chunks.push_back(chunk);
+        }
+
+        for(int elementaryIndex = inputStripe.ElementaryIndexBegin;
+            elementaryIndex < inputStripe.ElementaryIndexEnd;
+            ++elementaryIndex)
+        {
             FOREACH (const auto& output, Outputs) {
-                output->ResumeStripe(index);
+                output->ResumeStripe(elementaryIndex);
             }
         }
-
-
-        return true;
     }
 
     virtual void Finish() override
     {
+        if (Finished)
+            return;
+
         TChunkPoolInputBase::Finish();
 
         FOREACH (const auto& output, Outputs) {
@@ -746,6 +785,7 @@ private:
         void SuspendStripe(int elementaryIndex)
         {
             auto& run = GetRun(elementaryIndex);
+            run.IsApproximate = true;
             ++run.SuspendedCount;
 
             UpdatePendingRunSet(run);
@@ -805,19 +845,17 @@ private:
             DataSizeCounter.Start(run.TotalDataSize);
             RowCounter.Start(run.TotalRowCount);
 
-
             return cookie;
         }
 
         virtual TChunkStripeListPtr GetStripeList(TCookie cookie) override
         {
             const auto& run = Runs[cookie];
-            YCHECK(run.SuspendedCount == 0);
 
             auto list = New<TChunkStripeList>();
             list->PartitionTag = PartitionIndex;
             for (int index = run.ElementaryIndexBegin; index < run.ElementaryIndexEnd; ++index) {
-                auto stripe = Owner->ElementaryStripes[index].GetStripe();
+                auto stripe = Owner->ElementaryStripes[index];
                 list->Stripes.push_back(stripe);
                 list->TotalChunkCount += stripe->Chunks.size();
             }
@@ -826,6 +864,7 @@ private:
             list->TotalRowCount = run.TotalRowCount;
             list->LocalChunkCount = 0;
             list->NonLocalChunkCount = list->TotalChunkCount;
+            list->IsApproximate = run.IsApproximate;
 
             return list;
         }
@@ -887,6 +926,7 @@ private:
                 , TotalRowCount(0)
                 , SuspendedCount(0)
                 , State(ERunState::Initializing)
+                , IsApproximate(false)
             { }
 
             int ElementaryIndexBegin;
@@ -895,6 +935,7 @@ private:
             i64 TotalRowCount;
             int SuspendedCount;
             ERunState State;
+            bool IsApproximate;
         };
 
         std::vector<TRun> Runs;
@@ -910,7 +951,7 @@ private:
                 PendingRuns.erase(cookie);
             }
         }
-        
+
         void NewRun()
         {
             TRun run;
@@ -923,7 +964,7 @@ private:
         {
             int runBegin = 0;
             int runEnd = static_cast<int>(Runs.size());
-            while (runBegin < runEnd) {
+            while (runBegin + 1 < runEnd) {
                 int runMid = (runBegin + runEnd) / 2;
                 const auto& run = Runs[runMid];
                 if (run.ElementaryIndexBegin <= elementaryIndex) {
@@ -960,7 +1001,7 @@ private:
     };
 
     std::vector<TInputStripe> InputStripes;
-    std::vector<TSuspendableStripe> ElementaryStripes;
+    std::vector<TChunkStripePtr> ElementaryStripes;
 };
 
 TAutoPtr<IShuffleChunkPool> CreateShuffleChunkPool(

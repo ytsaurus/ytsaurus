@@ -57,6 +57,6 @@ void TFormatsConsumerBase::OnRaw(const TStringBuf& yson, EYsonType type)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 } // namespace NFormats
 } // namespace NYT

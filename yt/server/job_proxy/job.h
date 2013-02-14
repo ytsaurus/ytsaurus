@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <ytlib/chunk_client/public.h>
 #include <ytlib/scheduler/job.pb.h>
 
 namespace NYT {
@@ -34,6 +35,7 @@ struct IJob
     { }
 
     virtual NScheduler::NProto::TJobResult Run() = 0;
+    virtual std::vector<NChunkClient::TChunkId> GetFailedChunks() const = 0;
     virtual double GetProgress() const = 0;
 };
 

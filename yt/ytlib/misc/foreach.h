@@ -66,7 +66,7 @@ inline auto End(TIntrusiveList<T>& collection) -> decltype(collection.End())
  *  It is heavily dependent on C++0x features (r-value references
  *  and type deduction, to be precise) and is thus less portable.
  *  It also suffers from some known limitations (see below).
- *  
+ *
  *  Briefly speaking, the code like
  *  \code
  *  FOREACH (int var, collection)
@@ -74,14 +74,14 @@ inline auto End(TIntrusiveList<T>& collection) -> decltype(collection.End())
  *  causes iterating over 'collection' and capturing the copy
  *  of every its element into 'var'. The macro calls begin() and end()
  *  methods of 'collection' to figure out the range.
- *  
+ *
  *  There are some important aspects to keep in mind:
  *  - 'collection' is evaluated only once
  *  - 'collection' is captured by a reference (unless it's a temporary)
  *  - begin- and end- iterators are also evaluated once when the loop starts
  *  - you can declare 'var' as a reference to enable mutating its value
  *  - you can use 'auto' (or 'auto&') to avoid giving the type of 'var' explicitly
- *  
+ *
  *  Known limitations:
  *  - you cannot use FOREACH as a non-compound statement in, e.g., if or loop body
  *  - you cannot apply FOREACH to C-style arrays

@@ -230,7 +230,7 @@ public:
     {
         return CellManager;
     }
-    
+
     virtual bool GetReadOnly() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -949,7 +949,7 @@ public:
 
         EpochContext->FollowerTracker->Start();
 
-        DecoratedState->GetSystemInvoker()->Invoke(BIND(
+        EpochContext->EpochSystemStateInvoker->Invoke(BIND(
             &TThis::DoStateStartLeading,
             MakeStrong(this),
             EpochContext));
@@ -966,9 +966,8 @@ public:
         BIND(&TLeaderRecovery::Run, epochContext->LeaderRecovery)
             .AsyncVia(epochContext->EpochControlInvoker)
             .Run()
-            .Subscribe(
-                BIND(&TThis::OnStateLeaderRecoveryComplete, MakeStrong(this), epochContext)
-                    .Via(epochContext->EpochSystemStateInvoker));
+            .Subscribe(BIND(&TThis::OnStateLeaderRecoveryComplete, MakeStrong(this), epochContext)
+                .Via(epochContext->EpochSystemStateInvoker));
     }
 
     void OnStateLeaderRecoveryComplete(TEpochContextPtr epochContext, TError error)
@@ -1044,6 +1043,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
+        if (GetStateStatus() != EPeerStatus::LeaderRecovery && GetStateStatus() != EPeerStatus::Leading)
+            return;
+
         HasActiveQuorum_ = false;
 
         StopLeading_.Fire();
@@ -1059,7 +1061,7 @@ public:
         LOG_INFO("Starting follower recovery");
 
         ControlStatus = EPeerStatus::FollowerRecovery;
-        
+
         StartEpoch();
 
         EpochContext->FollowerCommitter = New<TFollowerCommitter>(
@@ -1076,7 +1078,7 @@ public:
             EpochContext->EpochControlInvoker,
             EpochContext->EpochUserStateInvoker);
 
-        DecoratedState->GetSystemInvoker()->Invoke(BIND(
+        EpochContext->EpochSystemStateInvoker->Invoke(BIND(
             &TThis::DoStateStartFollowing,
             MakeStrong(this)));
     }
@@ -1139,6 +1141,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(StateThread);
 
+        if (GetStateStatus() != EPeerStatus::FollowerRecovery && GetStateStatus() != EPeerStatus::Following)
+            return;
+
         StopFollowing_.Fire();
 
         DecoratedState->OnStopFollowing();
@@ -1163,7 +1168,7 @@ public:
     void StopEpoch()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        
+
         YCHECK(EpochContext);
 
         EpochContext->CancelableContext->Cancel();

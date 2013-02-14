@@ -148,7 +148,7 @@ TEST_F(TCallbackTest, Equals)
     // We should compare based on instance, not type.
     TCallback<void()> localCallback(New<TFakeBindState1>());
     TCallback<void()> anotherCallback = FirstCallback;
-   
+
     EXPECT_TRUE(FirstCallback.Equals(anotherCallback));
     EXPECT_FALSE(FirstCallback.Equals(localCallback));
 

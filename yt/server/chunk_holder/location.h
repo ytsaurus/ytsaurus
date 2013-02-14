@@ -39,7 +39,7 @@ public:
     //! Returns the cell guid. If no tag file was found and #UpdateCellGuid was not called
     //! then empty guid is returned.
     const TGuid& GetCellGuid();
-    
+
     //! Sets the cell guid and overwrites the tag file.
     void SetCellGuid(const TGuid& guid);
 

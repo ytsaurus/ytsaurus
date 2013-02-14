@@ -7,7 +7,7 @@
 #include <ytlib/misc/delayed_invoker.h>
 #include <ytlib/misc/nullable.h>
 
-namespace NYT 
+namespace NYT
 {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,13 +54,13 @@ public:
     /*!
      *  \param lease A lease to renew.
      *  \param timeout A new timeout (if |Null| then the old one is preserved).
-     *  \returns True iff the lease is still valid (i.e. not expired). 
+     *  \returns True iff the lease is still valid (i.e. not expired).
      */
     static bool RenewLease(TLease lease, TNullable<TDuration> timeout = Null);
 
     //! Closes the lease.
     /*!
-     *  \returns True iff the lease is still valid (i.e. not expired). 
+     *  \returns True iff the lease is still valid (i.e. not expired).
      */
     static bool CloseLease(TLease lease);
 

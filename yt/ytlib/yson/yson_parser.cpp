@@ -166,7 +166,7 @@ private:
 
     void ConsumeAny(const TToken& token, bool allowAttributes)
     {
-        switch (token.GetType()) {        
+        switch (token.GetType()) {
             case ETokenType::EndOfStream:
                 break;
 
@@ -270,7 +270,7 @@ private:
         bool inFragment = Type == EYsonType::MapFragment && StateStack.size() == 1;
         auto tokenType = token.GetType();
         auto& topState = StateStack.top();
-        
+
         if (inFragment && (topState == EState::MapBeforeKey || topState == EState::MapAfterValue)) {
             if (tokenType == ETokenType::EndOfStream) {
                 topState = EState::Parsed;
@@ -293,7 +293,7 @@ private:
                     OnItemConsumed();
                 } else if (tokenType == ETokenType::String) {
                     Consumer->OnKeyedItem(token.GetStringValue());
-                    topState = EState::MapAfterKey;  
+                    topState = EState::MapAfterKey;
                 } else {
                     THROW_ERROR_EXCEPTION("Expected string literal but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
@@ -358,7 +358,7 @@ private:
             case EState::AttributesBeforeKey:
                 if (tokenType == ETokenType::String) {
                     Consumer->OnKeyedItem(token.GetStringValue());
-                    topState = EState::AttributesAfterKey;  
+                    topState = EState::AttributesAfterKey;
                 } else {
                     THROW_ERROR_EXCEPTION("Expected string literal but token %s of type %s found (%s)",
                         ~token.ToString().Quote(),
@@ -430,7 +430,7 @@ private:
             case EState::AttributesBeforeValue:
                 topState = EState::AttributesAfterValue;
                 break;
-            
+
             default:
                 YUNREACHABLE();
         }

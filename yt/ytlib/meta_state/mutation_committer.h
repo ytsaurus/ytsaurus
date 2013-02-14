@@ -63,10 +63,10 @@ public:
     /*!
      *  \param request A mutation request.
      *  \return An asynchronous response of the distributed commit.
-     *  
+     *
      *  The current implementation regards a distributed commit as completed when the update is
      *  received, applied, and flushed to the changelog by a quorum of replicas.
-     *  
+     *
      *  \note Thread affinity: StateThread
      */
     TFuture< TValueOrError<TMutationResponse> > Commit(const TMutationRequest& request);
@@ -127,10 +127,10 @@ public:
      *  \param expectedVersion A version that the state is currently expected to have.
      *  \param records A bunch of serialized mutations to apply.
      *  \return An asynchronous flag indicating the outcome of the local commit.
-     *  
+     *
      *  The current implementation regards a local commit as completed when the update is
      *  flushed to the local changelog.
-     *  
+     *
      *  \note Thread affinity: ControlThread
      */
     TAsyncError Commit(

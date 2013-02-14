@@ -97,7 +97,7 @@ void TChangeLog::TImpl::Read(
 
     // Read records from envelope data and save them to the records.
     // TODO(babenko): this is suboptimal since for small maxSize values we actually read way more than needed.
-    i64 readSize = 0;    
+    i64 readSize = 0;
     TMemoryInput inputStream(envelope.Blob.Begin(), envelope.GetLength());
     for (int recordIndex = envelope.GetStartRecordIndex();
          recordIndex < envelope.GetEndRecordIndex() && readSize <= maxSize;
@@ -236,7 +236,7 @@ void TChangeLog::TImpl::Truncate(int truncatedRecordCount)
             std::lower_bound(Index.begin(), Index.end(), cutBound) - Index.begin();
         Index.resize(indexPosition);
     }
-    
+
     i64 readSize = 0;
     TMemoryInput inputStream(envelope.Blob.Begin(), envelope.GetLength());
     for (int i = envelope.GetStartRecordIndex(); i < truncatedRecordCount; ++i) {
@@ -304,7 +304,7 @@ void TChangeLog::TImpl::Definalize()
     LOG_DEBUG("Definalizing changelog");
 
     WriteHeader(false);
-    
+
     {
         // Additionally seek to the end of changelog
         TGuard<TMutex> guard(Mutex);
@@ -406,13 +406,13 @@ size_t GetMaxCorrectIndexPrefix(const std::vector<TLogIndexRecord>& index, TBuff
         }
         correctPrefixLength += 1;
     }
-    
+
     // Truncate excess index records
     i64 fileLength = changelogFile->GetLength();
     while (correctPrefixLength > 0 && index[correctPrefixLength - 1].FilePosition > fileLength) {
         correctPrefixLength -= 1;
     }
-    
+
     if (correctPrefixLength == 0) {
         return 0;
     }
@@ -509,7 +509,7 @@ void TChangeLog::TImpl::ReadChangeLogUntilEnd()
         // Record count would be set below.
         CurrentFilePosition = Index.back().FilePosition;
     }
-    
+
     // Seek to proper position in file, initialize checkable reader.
     File->Seek(CurrentFilePosition, sSet);
     auto checkableFile = CreateCheckableReader(*File);

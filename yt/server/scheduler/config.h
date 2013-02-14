@@ -18,7 +18,7 @@ struct TFairShareStrategyConfig
     : public TYsonSerializable
 {
     TDuration FairShareUpdatePeriod;
-    
+
     double NewOperationWeightBoostFactor;
     TDuration NewOperationWeightBoostPeriod;
 
@@ -32,7 +32,7 @@ struct TFairShareStrategyConfig
     {
         Register("fair_share_update_period", FairShareUpdatePeriod)
             .Default(TDuration::MilliSeconds(1000));
-        
+
         Register("new_operation_weight_boost_factor", NewOperationWeightBoostFactor)
             .GreaterThanOrEqual(1.0)
             .Default(1.0);
@@ -98,12 +98,18 @@ struct TSchedulerConfig
     //! Maximum number of chunk trees to attach per request.
     int MaxChildrenPerAttachRequest;
 
+    //! Max size of data slice for different jobs.
+    i64 MapJobMaxSliceDataSize;
+    i64 MergeJobMaxSliceDataSize;
+    i64 SortJobMaxSliceDataSize;
+    i64 PartitionJobMaxSliceDataSize;
+
     //! Maximum number of partitions during sort, ever.
     int MaxPartitionCount;
 
     //! Maximum number of jobs per operation (an approximation!).
     int MaxJobCount;
-    
+
     //! Maximum size of table allowed to be passed as a file to jobs.
     i64 TableFileSizeLimit;
 
@@ -126,7 +132,7 @@ struct TSchedulerConfig
     {
         Register("max_heartbeat_queue_size", MaxHeartbeatQueueSize)
             .Default(50);
-       
+
         Register("connect_retry_period", ConnectRetryPeriod)
             .Default(TDuration::Seconds(15));
         Register("transactions_refresh_period", TransactionsRefreshPeriod)
@@ -144,10 +150,10 @@ struct TSchedulerConfig
         Register("node_rpc_timeout", NodeRpcTimeout)
             .Default(TDuration::Seconds(15));
 
-        
+
         Register("strategy", Strategy)
             .Default(ESchedulerStrategy::Null);
-        
+
         Register("max_failed_job_count", MaxFailedJobCount)
             .Default(100)
             .GreaterThanOrEqual(0);
@@ -167,9 +173,25 @@ struct TSchedulerConfig
         Register("chunk_list_allocation_multiplier", ChunkListAllocationMultiplier)
             .Default(2.0)
             .GreaterThan(1.0);
-        
+
         Register("max_children_per_attach_request", MaxChildrenPerAttachRequest)
             .Default(10000)
+            .GreaterThan(0);
+
+        Register("map_job_max_slice_data_size", MapJobMaxSliceDataSize)
+            .Default((i64)256 * 1024 * 1024)
+            .GreaterThan(0);
+
+        Register("merge_job_max_slice_data_size", MergeJobMaxSliceDataSize)
+            .Default((i64)256 * 1024 * 1024)
+            .GreaterThan(0);
+
+        Register("partition_job_max_slice_data_size", PartitionJobMaxSliceDataSize)
+            .Default((i64)256 * 1024 * 1024)
+            .GreaterThan(0);
+
+        Register("sort_job_max_slice_data_size", SortJobMaxSliceDataSize)
+            .Default((i64)256 * 1024 * 1024)
             .GreaterThan(0);
 
         Register("max_partition_count", MaxPartitionCount)
@@ -178,7 +200,7 @@ struct TSchedulerConfig
 
         Register("table_file_size_limit", TableFileSizeLimit)
             .Default((i64) 2 * 1024 * 1024 * 1024);
-        
+
         Register("max_started_jobs_per_heartbeat", MaxStartedJobsPerHeartbeat)
             .Default()
             .GreaterThan(0);

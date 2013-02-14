@@ -12,12 +12,12 @@ namespace NYT {
 /*
  * Instances are tracked via shared pointers with a special deleter
  * that returns spare instances back to the pool.
- * 
+ *
  * Types capable of pooling must specialize #TObjectPoolCleaner
  * and provide |Clean| method.
- * 
+ *
  * Both the pool and the references are thread-safe.
- * 
+ *
  */
 template <class T>
 class TObjectPool

@@ -14,7 +14,7 @@ class THeapTest
     : public ::testing::Test
 {
 };
-    
+
 static const int testSize = 10000;
 
 Stroka getRandomString(int len) {

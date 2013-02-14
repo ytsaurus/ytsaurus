@@ -18,6 +18,6 @@ class TSecurityManager;
 typedef TIntrusivePtr<TSecurityManager> TSecurityManagerPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 } // namespace NSecurityServer
 } // namespace NYT

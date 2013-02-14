@@ -34,7 +34,7 @@ class TChunkList
     DEFINE_BYREF_RW_PROPERTY(std::vector<TChunkTree*>, Children);
 
     // Accumulated sums of children row counts.
-    // The i-th value is equal to the sum of row counts of children 0..i 
+    // The i-th value is equal to the sum of row counts of children 0..i
     // for all i in [0..Children.size() - 2]
     // Accumulated statistics for the last child (which is equal to the total chunk list statistics)
     // is stored in #Statistics field.
@@ -42,7 +42,7 @@ class TChunkList
     DEFINE_BYREF_RW_PROPERTY(yhash_multiset<TChunkList*>, Parents);
     DEFINE_BYREF_RW_PROPERTY(TChunkTreeStatistics, Statistics);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<NCypressServer::TCypressNodeBase*>, OwningNodes);
-    
+
     // A tuple of key columns. If empty then the chunk list is not sorted.
     DEFINE_BYREF_RW_PROPERTY(std::vector<Stroka>, SortedBy);
 

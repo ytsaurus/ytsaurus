@@ -105,7 +105,7 @@ static inline const char* FindNextSymbol(
         } else {
             break;
         }
-    } while(true);
+    } while (true);
 
     YASSERT(current == end);
     return current;

@@ -27,11 +27,11 @@ public:
     //! Consumes a single symbol.
     /*!
      *  Throws an exception if the symbol is unexpected.
-     *  
+     *
      *  \param ch A symbol to consume.
-     *  
-     *  \return 
-     *  If the symbol is not unexpected but was not consumed (like ';' or ']' 
+     *
+     *  \return
+     *  If the symbol is not unexpected but was not consumed (like ';' or ']'
      *  in "[12; 34]"), the method returns False and the lexer moves to a terminal
      *  state. In this case the client must call #Reset and then #Consume again
      *  with the same symbol once more to proceed.
@@ -53,13 +53,13 @@ public:
     void Finish();
 
     void Reset();
-    
+
     //! Returns the current public state.
     EState GetState() const;
 
     //! Can only be called in a terminal state. Returns the just-parsed token.
     const TToken& GetToken() const;
-    
+
 private:
     THolder<TLexerImpl> Impl;
 };

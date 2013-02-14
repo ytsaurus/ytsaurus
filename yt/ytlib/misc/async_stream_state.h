@@ -25,7 +25,7 @@ public:
     /*!
      *  Can be called multiple times.
      *  Has no guarantees and cannot fail.
-     *  If stream is already closed, failed or canceled - 
+     *  If stream is already closed, failed or canceled -
      *  this call does nothing.
      */
     void Cancel(const TError& error);

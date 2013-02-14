@@ -277,7 +277,7 @@ bool TCacheBase<TKey, TValue, THash>::Remove(const TKey& key)
 template <class TKey, class TValue, class THash>
 void TCacheBase<TKey, TValue, THash>::Touch(TItem* item)
 {
-    if (!item->Empty()) { 
+    if (!item->Empty()) {
         item->Unlink();
         LruList.PushFront(item);
     }

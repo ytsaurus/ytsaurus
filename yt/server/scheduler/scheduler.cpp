@@ -312,6 +312,8 @@ private:
 
         ProfileResources(TotalResourceLimitsProfiler, TotalResourceLimits);
         ProfileResources(TotalResourceUsageProfiler, TotalResourceUsage);
+
+        ProfilingInvoker->ScheduleNext();
     }
 
 
@@ -550,8 +552,15 @@ private:
                 ? FromObjectId(userTransaction->GetId())
                 : RootTransactionPath);
             req->set_type(EObjectType::Transaction);
+
             auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
             reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
+
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("title", Sprintf("Scheduler sync for operation %s",
+                ~operation->GetOperationId().ToString()));
+            ToProto(req->mutable_object_attributes(), *attributes);
+
             GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "start_sync_tx");
         }
@@ -559,8 +568,15 @@ private:
         {
             auto req = TTransactionYPathProxy::CreateObject(RootTransactionPath);
             req->set_type(EObjectType::Transaction);
+
             auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
             reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
+
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("title", Sprintf("Scheduler async for operation %s",
+                ~operation->GetOperationId().ToString()));
+            ToProto(req->mutable_object_attributes(), *attributes);
+
             GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "start_async_tx");
         }
@@ -616,8 +632,15 @@ private:
         {
             auto req = TTransactionYPathProxy::CreateObject(FromObjectId(parentTransactionId));
             req->set_type(EObjectType::Transaction);
+
             auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
             reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
+
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("title", Sprintf("Scheduler input for operation %s",
+                ~operation->GetOperationId().ToString()));
+            ToProto(req->mutable_object_attributes(), *attributes);
+
             NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "start_in_tx");
         }
@@ -625,9 +648,16 @@ private:
         {
             auto req = TTransactionYPathProxy::CreateObject(FromObjectId(parentTransactionId));
             req->set_type(EObjectType::Transaction);
+
             auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
             reqExt->set_enable_uncommitted_accounting(false);
             reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
+
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("title", Sprintf("Scheduler output for operation %s",
+                ~operation->GetOperationId().ToString()));
+            ToProto(req->mutable_object_attributes(), *attributes);
+
             NMetaState::GenerateRpcMutationId(req);
             batchReq->AddRequest(req, "start_out_tx");
         }
@@ -647,7 +677,6 @@ private:
             auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_in_tx");
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting input transaction");
             auto id = TTransactionId::FromProto(rsp->object_id());
-            LOG_INFO("Input transaction is %s", ~id.ToString());
             TTransactionAttachOptions options(id);
             options.Ping = true;
             operation->SetInputTransaction(transactionManager->Attach(options));
@@ -657,7 +686,6 @@ private:
             auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_out_tx");
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting output transaction");
             auto id = TTransactionId::FromProto(rsp->object_id());
-            LOG_INFO("Output transaction is %s", ~id.ToString());
             TTransactionAttachOptions options(id);
             options.Ping = true;
             operation->SetOutputTransaction(transactionManager->Attach(options));
@@ -981,14 +1009,12 @@ private:
         // No need to abort IO transactions since they are nested inside sync transaction.
     }
 
-
     void FinishOperation(TOperationPtr operation)
     {
         operation->SetFinished();
         operation->SetController(nullptr);
         UnregisterOperation(operation);
     }
-
 
     void RegisterJob(TJobPtr job)
     {
@@ -999,7 +1025,7 @@ private:
         YCHECK(job->GetNode()->Jobs().insert(job).second);
 
         job->GetNode()->ResourceUsage() += job->ResourceUsage();
-        
+
         JobStarted_.Fire(job);
 
         LOG_DEBUG("Job registered (JobId: %s, OperationId: %s)",
@@ -1200,7 +1226,7 @@ private:
         auto req = TTransactionYPathProxy::UnstageObject(FromObjectId(transaction->GetId()));
         *req->mutable_object_id() = chunkId.ToProto();
         req->set_recursive(false);
-        
+
         // Fire-and-forget.
         // The subscriber is only needed to log the outcome.
         proxy.Execute(req).Subscribe(
@@ -1256,7 +1282,7 @@ private:
 
         LOG_INFO("Operation committed (OperationId: %s)",
             ~ToString(operation->GetOperationId()));
-    }   
+    }
 
     void DoOperationFailed(
         TOperationPtr operation,
@@ -1757,8 +1783,8 @@ public:
         const NProto::TNodeResources& resourceLimits,
         TJobSpecBuilder specBuilder) override
     {
-    	auto id = TJobId::Create();
-    	auto startTime = TInstant::Now();
+        auto id = TJobId::Create();
+        auto startTime = TInstant::Now();
         auto job = New<TJob>(
             id,
             type,

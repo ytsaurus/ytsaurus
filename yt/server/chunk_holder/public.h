@@ -89,6 +89,6 @@ using NChunkServer::EJobState;
 using NChunkServer::TBlockId;
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 } // namespace NChunkHolder
 } // namespace NYT

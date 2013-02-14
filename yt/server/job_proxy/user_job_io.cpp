@@ -93,9 +93,9 @@ double TUserJobIO::GetProgress() const
     i64 total = 0;
     i64 current = 0;
 
-    FOREACH(const auto& input, Inputs) {
-        current += input->GetRowCount();
-        total += input->GetRowIndex();
+    FOREACH (const auto& input, Inputs) {
+        total += input->GetRowCount();
+        current += input->GetRowIndex();
     }
 
     if (total == 0) {
@@ -120,6 +120,16 @@ void TUserJobIO::SetStderrChunkId(const TChunkId& chunkId)
 {
     YCHECK(chunkId != NullChunkId);
     StderrChunkId = chunkId;
+}
+
+std::vector<NChunkClient::TChunkId> TUserJobIO::GetFailedChunks() const
+{
+    std::vector<NChunkClient::TChunkId> result;
+    FOREACH(const auto& input, Inputs) {
+        auto part = input->GetFailedChunks();
+        result.insert(result.end(), part.begin(), part.end());
+    }
+    return result;
 }
 
 void TUserJobIO::PopulateUserJobResult(TUserJobResult* result)

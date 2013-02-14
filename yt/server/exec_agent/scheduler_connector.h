@@ -15,7 +15,7 @@ class TSchedulerConnector
 {
 public:
     TSchedulerConnector(
-        TSchedulerConnectorConfigPtr config,    
+        TSchedulerConnectorConfigPtr config,
         TBootstrap* bootstrap);
 
     void Start();

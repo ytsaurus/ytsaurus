@@ -138,7 +138,7 @@ void TActionQueueBase::ThreadMain()
     LOG_DEBUG_IF(EnableLogging, "Thread started: %s", ~ThreadName);
 
     OnThreadStart();
-    
+
     NThread::SetCurrentThreadName(~ThreadName);
     ThreadId = NThread::GetCurrentThreadId();
 
@@ -154,7 +154,7 @@ void TActionQueueBase::ThreadMain()
             }
         }
     }
-    
+
     OnThreadShutdown();
 
     LOG_DEBUG_IF(EnableLogging, "Thread stopped: %s", ~ThreadName);

@@ -19,7 +19,7 @@ public:
     /*!
      *  \note
      *  We must call #Start to activate the instance.
-     * 
+     *
      *  \param invoker Invoker used for wrapping actions.
      *  \param callback Callback to invoke periodically.
      *  \param period Interval between usual consequent invocations.

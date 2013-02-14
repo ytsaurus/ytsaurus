@@ -35,8 +35,8 @@ private:
      */
     TLazyPtr<TActionQueue> ReaderThread;
     /*!
-     *  This thread is used for background operations in 
-     *  #TRemoteChunkWriter, #NTableClient::TChunkWriter and 
+     *  This thread is used for background operations in
+     *  #TRemoteChunkWriter, #NTableClient::TChunkWriter and
      *  #NTableClient::TChunkSetReader
      */
     TLazyPtr<TActionQueue> WriterThread;

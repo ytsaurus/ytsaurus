@@ -30,7 +30,7 @@ static NLog::TLogger& Logger = MetaStateLogger;
 
 struct TSnapshotHeader
 {
-    static const ui64 CorrectSignature =  0x3130303053535459ull; // YTSS0001    
+    static const ui64 CorrectSignature =  0x3130303053535459ull; // YTSS0001
 
     ui64 Signature;
     i32 SegmentId;
@@ -162,7 +162,7 @@ void TSnapshotWriter::Open(i32 prevRecordCount, const TEpochId& epoch)
         CompressedOutput.Reset(new TCompressedOutput(output));
         output = ~CompressedOutput;
     }
-    
+
     BufferedOutput.Reset(new TBufferedOutput(output, 64 * 1024));
     BufferedOutput->SetFinishPropagateMode(true);
 

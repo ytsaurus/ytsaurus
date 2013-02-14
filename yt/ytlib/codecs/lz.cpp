@@ -90,7 +90,7 @@ void QuickLzCompress(StreamSource* source, std::vector<char>* output)
         size_t len;
         const char* input = source->Peek(&len);
 
-        size_t bound = currentPos + sizeof(THeader) + 
+        size_t bound = currentPos + sizeof(THeader) +
             /* compressed bound */(len + 400);
 
         if (output->capacity() < bound) {

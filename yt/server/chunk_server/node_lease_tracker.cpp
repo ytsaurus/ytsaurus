@@ -92,18 +92,26 @@ void TNodeLeaseTracker::OnExpired(TNodeId nodeId)
 
     TMetaReqUnregisterNode message;
     message.set_node_id(nodeId);
+
+    auto invoker = Bootstrap->GetMetaStateFacade()->GetEpochInvoker();
     Bootstrap
         ->GetChunkManager()
         ->CreateUnregisterNodeMutation(message)
-        ->OnSuccess(BIND([=] () {
-            LOG_INFO("Node expiration commit success (NodeId: %d)",
-                nodeId);
-        }))
-        ->OnError(BIND([=] (const TError& error) {
-            LOG_ERROR(error, "Node expiration commit failed (NodeId: %d)",
-                nodeId);
-        }))
+        ->OnSuccess(BIND(&TNodeLeaseTracker::OnExpirationCommitSucceeded, MakeStrong(this), nodeId).Via(invoker))
+        ->OnError(BIND(&TNodeLeaseTracker::OnExpirationCommitFailed, MakeStrong(this), nodeId).Via(invoker))
         ->Commit();
+}
+
+void TNodeLeaseTracker::OnExpirationCommitSucceeded(TNodeId nodeId)
+{
+    LOG_INFO("Node expiration commit succeeded (NodeId: %d)",
+        nodeId);
+}
+
+void TNodeLeaseTracker::OnExpirationCommitFailed(TNodeId nodeId, const TError& error)
+{
+    LOG_ERROR(error, "Node expiration commit failed (NodeId: %d)",
+        nodeId);
 }
 
 TDuration TNodeLeaseTracker::GetTimeout(const TDataNode* node, const TNodeInfo& nodeInfo)

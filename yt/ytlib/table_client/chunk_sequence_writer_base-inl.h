@@ -404,7 +404,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::AttachChunks()
     NObjectClient::TObjectServiceProxy objectProxy(MasterChannel);
     auto batchReq = objectProxy.ExecuteBatch();
 
-    FOREACH(const auto& inputChunk, WrittenChunks) {
+    FOREACH (const auto& inputChunk, WrittenChunks) {
         auto req = NChunkClient::TChunkListYPathProxy::Attach(
             NCypressClient::FromObjectId(ParentChunkListId));
         *req->add_children_ids() = inputChunk.slice().chunk_id();

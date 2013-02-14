@@ -141,7 +141,7 @@ TSmallVector<TDataNode*, TypicalReplicationFactor> TChunkPlacement::GetUploadTar
             std::back_inserter(currentResult),
             sampleCount);
 
-        FOREACH(const auto& feasibleNode, currentResult) {
+        FOREACH (const auto& feasibleNode, currentResult) {
             resultNodes.push_back(feasibleNode.first);
         }
 
@@ -259,7 +259,7 @@ bool TChunkPlacement::IsValidUploadTarget(TDataNode* targetNode)
         // Do not upload anything to full nodes.
         return false;
     }
-            
+
     // Seems OK :)
     return true;
 }

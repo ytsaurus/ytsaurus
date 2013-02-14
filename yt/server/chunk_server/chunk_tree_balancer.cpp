@@ -73,7 +73,7 @@ void TChunkTreeBalancer::Rebalance(TChunkList* root)
     YCHECK(newChildren.front() != root);
 
     // Rewrite the root with newChildren.
-    
+
     // Add temporary references to the old children.
     auto oldChildren = root->Children();
     FOREACH (auto* child, oldChildren) {

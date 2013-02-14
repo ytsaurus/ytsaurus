@@ -50,7 +50,7 @@ public:
 
     //! Returns the handler for a given type.
     IObjectTypeHandlerPtr GetHandler(EObjectType type) const;
-    
+
     //! Returns the handler for a given object.
     IObjectTypeHandlerPtr GetHandler(TObjectBase* object) const;
 
@@ -101,7 +101,7 @@ public:
      *  This service supports some special prefix syntax for YPaths:
      */
     NYTree::IYPathServicePtr GetRootService();
-    
+
     //! Executes a YPath verb, logging the change if necessary.
     /*!
      *  \param id The id of the object that handles the verb.
@@ -110,7 +110,7 @@ public:
      *  \param isWrite True if the verb modifies the state and thus must be logged.
      *  \param context The request context.
      *  \param action An action to call that executes the actual verb logic.
-     *  
+     *
      *  Note that #action takes a context as a parameter. This is because the original #context
      *  gets wrapped to intercept replies so #action gets the wrapped instance.
      */
@@ -153,7 +153,7 @@ private:
     void SaveValues(const NCellMaster::TSaveContext& context) const;
     void LoadKeys(const NCellMaster::TLoadContext& context);
     void LoadValues(const NCellMaster::TLoadContext& context);
-    
+
     virtual void OnStartRecovery() override;
     virtual void OnStopRecovery() override;
     virtual void Clear() override;

@@ -76,7 +76,7 @@ TRefCountedTracker::TSlot* TRefCountedTracker::GetSlot(TKey key)
     return &Statistics.insert(MakePair(key, TSlot(key))).first->second;
 }
 
-std::vector<TRefCountedTracker::TSlot> TRefCountedTracker::GetSnapshot() const 
+std::vector<TRefCountedTracker::TSlot> TRefCountedTracker::GetSnapshot() const
 {
     TGuard<TSpinLock> guard(SpinLock);
     std::vector<TSlot> result;
@@ -170,7 +170,7 @@ Stroka TRefCountedTracker::GetDebugInfo(int sortByColumn) const
             slot.GetBytesAllocated(),
             ~slot.GetName());
     }
-    
+
     stream << "-------------------------------------------------------------------------------------------------------------\n";
     stream << Sprintf("%10" PRISZT " %10" PRISZT " %15" PRISZT " %15" PRISZT " %s\n",
         totalObjectsAlive,
@@ -186,7 +186,7 @@ void TRefCountedTracker::GetMonitoringInfo(IYsonConsumer* consumer) const
 {
     auto slots = GetSnapshot();
     SortSnapshot(slots, -1);
-    
+
     size_t totalObjectsAlive = 0;
     size_t totalObjectsAllocated = 0;
     size_t totalBytesAlive = 0;

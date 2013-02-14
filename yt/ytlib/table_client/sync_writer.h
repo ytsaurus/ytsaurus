@@ -18,7 +18,7 @@ struct ISyncWriter
     virtual void Open() = 0;
     virtual void Close() = 0;
 
-    /*! 
+    /*!
      *  \param key is used only if the table is sorted, e.g. GetKeyColumns
      *  returns not null.
      */

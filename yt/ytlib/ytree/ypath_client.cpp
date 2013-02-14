@@ -301,6 +301,7 @@ void SyncYPathSet(IYPathServicePtr service, const TYPath& path, const TYsonStrin
 void SyncYPathRemove(IYPathServicePtr service, const TYPath& path)
 {
     auto request = TYPathProxy::Remove(path);
+    request->set_recursive(true);
     auto response = ExecuteVerb(service, request).Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(*response);
 }
@@ -366,7 +367,7 @@ void SetNodeByYPath(INodePtr root, const TYPath& path, INodePtr value)
     auto currentNode = root;
 
     NYPath::TTokenizer tokenizer(path);
-    
+
     Stroka currentToken;
     Stroka currentLiteralValue;
     auto nextSegment = [&] () {
@@ -563,7 +564,7 @@ bool AreNodesEqual(INodePtr lhs, INodePtr rhs)
         auto lhsMap = lhs->AsMap();
         auto lhsKeys = lhsMap->GetKeys();
         sort(lhsKeys.begin(), lhsKeys.end());
-        
+
         auto rhsMap = rhs->AsMap();
         auto rhsKeys = rhsMap->GetKeys();
         sort(rhsKeys.begin(), rhsKeys.end());
@@ -593,7 +594,7 @@ bool AreNodesEqual(INodePtr lhs, INodePtr rhs)
                 return false;
             }
         }
-        return true; 
+        return true;
     } else if (lhs->GetType() == rhs->GetType()) {
         return ConvertToYsonString(lhs) == ConvertToYsonString(rhs);
     } else {

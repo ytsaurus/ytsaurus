@@ -78,7 +78,7 @@ bool TPacketDecoder::EndHeaderPhase()
         case EPacketType::Message:
             BeginPhase(EPacketPhase::PartCount, &PartCount, sizeof (i32));
             return true;
-        
+
         case EPacketType::Ack:
             SetFinished();
             return true;
@@ -237,7 +237,7 @@ bool TPacketEncoder::EndHeaderPhase()
         case EPacketType::Message:
             BeginPhase(EPacketPhase::PartCount, &PartCount, sizeof (i32));
             return true;
-        
+
         case EPacketType::Ack:
             SetFinished();
             return true;

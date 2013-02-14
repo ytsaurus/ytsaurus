@@ -32,7 +32,7 @@ TSequentialReader::TSequentialReader(
 
     YCHECK(ChunkReader);
 
-    LOG_DEBUG("Creating sequential reader (BlockCount: %d)", 
+    LOG_DEBUG("Creating sequential reader (BlockCount: %d)",
         static_cast<int>(blocks.size()));
 
     BlockWindow.reserve(BlockSequence.size());
@@ -47,14 +47,14 @@ TSequentialReader::TSequentialReader(
 
 bool TSequentialReader::HasNext() const
 {
-    // No thread affinity - can be called from 
+    // No thread affinity - can be called from
     // ContinueNextRow of NTableClient::TChunkReader.
     return NextSequenceIndex < BlockWindow.size();
 }
 
 TSharedRef TSequentialReader::GetBlock()
 {
-    // No thread affinity - can be called from 
+    // No thread affinity - can be called from
     // ContinueNextRow of NTableClient::TChunkReader.
     YCHECK(!State.HasRunningOperation());
     YCHECK(NextSequenceIndex > 0);
@@ -65,7 +65,7 @@ TSharedRef TSequentialReader::GetBlock()
 
 TAsyncError TSequentialReader::AsyncNextBlock()
 {
-    // No thread affinity - can be called from 
+    // No thread affinity - can be called from
     // ContinueNextRow of NTableClient::TChunkReader.
 
     YCHECK(HasNext());
@@ -105,8 +105,8 @@ void TSequentialReader::OnGotBlocks(
     }
 
     LOG_DEBUG(
-        "Got block group (FirstIndex: %d, BlockCount: %d)", 
-        firstSequenceIndex, 
+        "Got block group (FirstIndex: %d, BlockCount: %d)",
+        firstSequenceIndex,
         static_cast<int>(readResult.Value().size()));
 
     TDispatcher::Get()->GetReaderInvoker()->Invoke(BIND(
@@ -170,8 +170,8 @@ void TSequentialReader::FetchNextGroup()
     }
 
     LOG_DEBUG(
-        "Requesting block group (FirstIndex: %d, BlockCount: %d, GroupSize: %d)", 
-        firstUnfetched, 
+        "Requesting block group (FirstIndex: %d, BlockCount: %d, GroupSize: %d)",
+        firstUnfetched,
         static_cast<int>(blockIndexes.size()),
         groupSize);
 
@@ -185,13 +185,13 @@ void TSequentialReader::FetchNextGroup()
 }
 
 void TSequentialReader::RequestBlocks(
-    int firstIndex, 
+    int firstIndex,
     const std::vector<int>& blockIndexes,
     int groupSize)
 {
     AsyncSemaphore.Acquire(groupSize);
     ChunkReader->AsyncReadBlocks(blockIndexes).Subscribe(
-        BIND(&TSequentialReader::OnGotBlocks, 
+        BIND(&TSequentialReader::OnGotBlocks,
             MakeWeak(this),
             firstIndex)
         .Via(TDispatcher::Get()->GetReaderInvoker()));

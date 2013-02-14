@@ -171,16 +171,14 @@ private:
     TFuture<void> ProcessInputs()
     {
         PROFILE_TIMING ("/input_processing_time") {
-            auto stripes = SliceInputChunks(
-                Spec->JobCount,
-                Spec->JobSliceDataSize);
-
-            JobCounter.Set(SuggestJobCount(
+            auto jobCount = SuggestJobCount(
                 TotalInputDataSize,
-                Spec->MinDataSizePerJob,
-                Spec->MaxDataSizePerJob,
-                Spec->JobCount,
-                static_cast<int>(stripes.size())));
+                Spec->DataSizePerJob,
+                Spec->JobCount);
+
+            auto stripes = SliceInputChunks(Config->MapJobMaxSliceDataSize, &jobCount);
+
+            JobCounter.Set(jobCount);
 
             MapTask = New<TMapTask>(this);
             MapTask->AddInput(stripes);
@@ -244,7 +242,7 @@ private:
         InitUserJobSpec(
             jobSpecExt->mutable_mapper_spec(),
             Spec->Mapper,
-            Files,
+            RegularFiles,
             TableFiles);
 
         *JobSpecTemplate.mutable_output_transaction_id() = Operation->GetOutputTransaction()->GetId().ToProto();

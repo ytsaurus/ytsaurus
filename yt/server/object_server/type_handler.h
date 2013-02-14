@@ -58,7 +58,7 @@ struct IObjectTypeHandler
      *  \param request Creation request (possibly containing additional parameters).
      *  \param response Creation response (which may also hold some additional result).
      *  \returns the id of the newly created object.
-     *  
+     *
      *  Once #Create is completed, all request attributes are copied to object attributes.
      *  The handler may alter the request appropriately to control this process.
      */
@@ -75,7 +75,7 @@ struct IObjectTypeHandler
     //! Clears staging information of a given object.
     /*!
      *  If #recursive is True then also releases all child objects.
-     *  
+     *
      */
     virtual void Unstage(
         TObjectBase* object,

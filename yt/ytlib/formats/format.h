@@ -43,7 +43,7 @@ public:
     TFormat& operator = (const TFormat& other);
 
     DEFINE_BYVAL_RO_PROPERTY(EFormatType, Type);
-    
+
     const NYTree::IAttributeDictionary& Attributes() const;
 
 private:

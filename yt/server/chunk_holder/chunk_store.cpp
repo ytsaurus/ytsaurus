@@ -52,7 +52,7 @@ void TChunkStore::Start()
             auto descriptors = location->Initialize();
             FOREACH (const auto& descriptor, descriptors) {
                 auto chunk = New<TStoredChunk>(
-                    location, 
+                    location,
                     descriptor,
                     Bootstrap->GetMemoryUsageTracker());
                 RegisterChunk(chunk);
@@ -67,7 +67,7 @@ void TChunkStore::Start()
             if (CellGuid.IsEmpty()) {
                 CellGuid = cellGuid;
             } else if (CellGuid != cellGuid) {
-                LOG_FATAL("Inconsistent cell guid across chunk store locations: %s vs %s", 
+                LOG_FATAL("Inconsistent cell guid across chunk store locations: %s vs %s",
                     ~CellGuid.ToString(),
                     ~cellGuid.ToString());
             }

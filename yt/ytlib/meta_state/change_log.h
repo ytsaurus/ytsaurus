@@ -44,7 +44,7 @@ public:
 
     //! Appends records to the changelog.
     void Append(int firstRecordId, const std::vector<TSharedRef>& records);
-    
+
     //! Flushes the changelog.
     void Flush();
 
@@ -55,7 +55,7 @@ public:
         int recordCount,
         i64 maxSize,
         std::vector<TSharedRef>* result);
-    
+
     //! Deletes all records with id greater or equal than #atRecordId.
     void Truncate(int truncatedRecordCount);
 

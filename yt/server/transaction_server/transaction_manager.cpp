@@ -93,7 +93,7 @@ private:
     virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const override
     {
         const auto* transaction = GetThisTypedImpl();
-        
+
         if (key == "state") {
             BuildYsonFluently(consumer)
                 .Value(FormatEnum(transaction->GetState()));
@@ -451,7 +451,7 @@ TTransaction* TTransactionManager::StartTransaction(TTransaction* parent, TNulla
 
     // Every active transaction has a fake reference to itself.
     objectManager->RefObject(transaction);
-    
+
     if (parent) {
         transaction->SetParent(parent);
         YCHECK(parent->NestedTransactions().insert(transaction).second);
@@ -546,7 +546,7 @@ void TTransactionManager::FinishTransaction(TTransaction* transaction)
         objectManager->UnrefObject(object);
     }
     transaction->StagedObjects().clear();
-    
+
     auto* parent = transaction->GetParent();
     if (parent) {
         YCHECK(parent->NestedTransactions().erase(transaction) == 1);
@@ -661,7 +661,7 @@ TObjectId TTransactionManager::CreateObject(
         if (!attributeSet) {
             attributeSet = objectManager->CreateAttributes(TVersionedObjectId(objectId));
         }
-            
+
         FOREACH (const auto& key, attributeKeys) {
             YCHECK(attributeSet->Attributes().insert(MakePair(
                 key,

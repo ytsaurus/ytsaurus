@@ -97,7 +97,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterNode)
     auto incarnationId = TIncarnationId::FromProto(request->incarnation_id());
     auto requestCellGuid = TGuid::FromProto(request->cell_guid());
     const auto& statistics = request->statistics();
-    
+
     context->SetRequestInfo("Address: %s, IncarnationId: %s, CellGuid: %s, %s",
         ~address,
         ~incarnationId.ToString(),
@@ -127,7 +127,7 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterNode)
             << TErrorAttribute("limit", Config->FullHeartbeatQueueSoftLimit));
         return;
     }
-        
+
     TMetaReqRegisterNode registerReq;
     registerReq.set_address(address);
     *registerReq.mutable_incarnation_id() = incarnationId.ToProto();

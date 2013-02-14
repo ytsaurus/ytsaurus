@@ -90,7 +90,7 @@ void TFileReaderBase::Open(
     blockSequence.reserve(BlockCount);
     for (int index = 0; index < BlockCount; ++index) {
         blockSequence.push_back(TSequentialReader::TBlockInfo(
-            index, 
+            index,
             blocksExt.blocks(index).size()));
     }
 

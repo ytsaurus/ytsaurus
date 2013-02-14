@@ -30,7 +30,7 @@ public:
     virtual const NRpc::TRequestId& GetRequestId() const override;
 
     virtual const Stroka& GetVerb() const override;
-    
+
     virtual const Stroka& GetPath() const override;
     void SetPath(const Stroka& path);
 
@@ -157,7 +157,7 @@ SyncExecuteVerb(IYPathServicePtr service, TIntrusivePtr<TTypedRequest> request);
 //! Synchronously executes |GetKey| verb. Throws if an error has occurred.
 Stroka SyncYPathGetKey(IYPathServicePtr service, const TYPath& path);
 
-//! Asynchronously executes |Get| verb. 
+//! Asynchronously executes |Get| verb.
 TFuture< TValueOrError<TYsonString> > AsyncYPathGet(
     IYPathServicePtr service,
     const TYPath& path,

@@ -24,6 +24,6 @@ NMetaState::TMutationPtr TMetaStateFacade::CreateMutation(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-            
+
 } // namespace NCellMaster
 } // namespace NYT

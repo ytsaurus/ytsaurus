@@ -48,7 +48,7 @@ struct INodeTypeHandler
 
     //! Returns the (dynamic) node type.
     virtual NObjectClient::EObjectType GetObjectType() = 0;
-    
+
     //! Returns the (static) node type.
     virtual NYTree::ENodeType GetNodeType() = 0;
 
@@ -93,7 +93,7 @@ struct INodeTypeHandler
     /*!
      *  \param branchedNode The branched node.
      *
-     *  \note 
+     *  \note
      *  #branchedNode is non-const for performance reasons (i.e. to swap the data instead of copying).
      */
     virtual void Merge(
