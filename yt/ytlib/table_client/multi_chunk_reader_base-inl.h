@@ -114,12 +114,13 @@ void TMultiChunkReaderBase<TChunkReader>::AddFailedChunk(const TSession& session
 {
     auto chunkId = NChunkClient::TChunkId::FromProto(
         InputChunks[session.ChunkIndex].slice().chunk_id());
+    LOG_DEBUG("Add failed chunk (ChunkId: %s)", ~ToString(chunkId));
     TGuard<TSpinLock> guard(FailedChunksLock);
     FailedChunks.push_back(chunkId);
 }
 
 template <class TChunkReader>
-const std::vector<NChunkClient::TChunkId>& TMultiChunkReaderBase<TChunkReader>::GetFailedChunks() const
+std::vector<NChunkClient::TChunkId> TMultiChunkReaderBase<TChunkReader>::GetFailedChunks() const
 {
     TGuard<TSpinLock> guard(FailedChunksLock);
     return FailedChunks;

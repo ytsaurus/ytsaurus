@@ -1235,10 +1235,11 @@ protected:
         if (completedJob->IsLost)
             return;
 
-        LOG_INFO("Job is lost (Task: %s, OutputCookie: %d, InputCookie: %d)",
+        LOG_INFO("Job is lost (Task: %s, OutputCookie: %d, InputCookie: %d, NodeAddress: %s)",
             ~completedJob->Task->GetId(),
             completedJob->OutputCookie,
-            completedJob->InputCookie);
+            completedJob->InputCookie,
+            ~completedJob->ExecNode->GetAddress());
 
         JobCounter.Lost(1);
         completedJob->IsLost = true;

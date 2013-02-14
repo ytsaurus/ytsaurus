@@ -39,7 +39,7 @@ public:
     virtual bool FetchNextItem() = 0;
     TAsyncError GetReadyEvent();
 
-    const std::vector<NChunkClient::TChunkId>& GetFailedChunks() const;
+    std::vector<NChunkClient::TChunkId> GetFailedChunks() const;
 
     virtual bool IsValid() const = 0;
 

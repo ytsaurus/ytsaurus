@@ -60,8 +60,8 @@ void TMultiChunkSequentialReader<TChunkReader>::OnReaderOpened(
     TError error)
 {
     if (!error.IsOK()) {
-        State.Fail(error);
         TBase::AddFailedChunk(session);
+        State.Fail(error);
     } else {
         LOG_DEBUG("Chunk opened (ChunkIndex: %d)", session.ChunkIndex);
         TBase::ProcessOpenedReader(session);
@@ -142,8 +142,8 @@ void TMultiChunkSequentialReader<TChunkReader>::OnItemFetched(TError error)
 {
     YCHECK(State.HasRunningOperation());
     if (!error.IsOK()) {
-        State.Fail(error);
         TBase::AddFailedChunk(TBase::CurrentSession);
+        State.Fail(error);
         return;
     }
 
