@@ -254,14 +254,29 @@ void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet)
     GetChunkPoolOutput()->Completed(joblet->OutputCookie);
 }
 
-void TOperationControllerBase::TTask::ReleaseFailedJobResources(TJobletPtr joblet)
+void TOperationControllerBase::TTask::ReinstallJob(TJobletPtr joblet, EJobReinstallMode mode)
 {
-    auto* chunkPoolOutput = GetChunkPoolOutput();
-
     Controller->ChunkListPool->Release(joblet->ChunkListIds);
 
+    auto* chunkPoolOutput = GetChunkPoolOutput();
+
+    auto list =
+        HasInputLocality()
+        ? chunkPoolOutput->GetStripeList(joblet->OutputCookie)
+        : nullptr;
+
+    switch (mode) {
+        case EJobReinstallMode::Failed:
+            chunkPoolOutput->Failed(joblet->OutputCookie);
+            break;
+        case EJobReinstallMode::Lost:
+            chunkPoolOutput->Lost(joblet->OutputCookie);
+            break;
+        default:
+            YUNREACHABLE();
+    }
+
     if (HasInputLocality()) {
-        auto list = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
         FOREACH (const auto& stripe, list->Stripes) {
             Controller->AddTaskLocalityHint(this, stripe);
         }
@@ -272,14 +287,12 @@ void TOperationControllerBase::TTask::ReleaseFailedJobResources(TJobletPtr joble
 
 void TOperationControllerBase::TTask::OnJobFailed(TJobletPtr joblet)
 {
-    ReleaseFailedJobResources(joblet);
-    GetChunkPoolOutput()->Failed(joblet->OutputCookie);
+    ReinstallJob(joblet, EJobReinstallMode::Failed);
 }
 
 void TOperationControllerBase::TTask::OnJobAborted(TJobletPtr joblet)
 {
-    ReleaseFailedJobResources(joblet);
-    GetChunkPoolOutput()->Failed(joblet->OutputCookie);
+    ReinstallJob(joblet, EJobReinstallMode::Failed);
 }
 
 void TOperationControllerBase::TTask::OnTaskCompleted()

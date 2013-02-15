@@ -304,7 +304,13 @@ protected:
 
         void AddPendingHint();
         void AddLocalityHint(const Stroka& address);
-        void ReleaseFailedJobResources(TJobletPtr joblet);
+
+        DECLARE_ENUM(EJobReinstallMode,
+            (Failed)
+            (Lost)
+        );
+
+        void ReinstallJob(TJobletPtr joblet, EJobReinstallMode mode);
 
         static void AddSequentialInputSpec(
             NScheduler::NProto::TJobSpec* jobSpec,
