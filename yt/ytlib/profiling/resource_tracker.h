@@ -7,7 +7,7 @@
 namespace NYT {
 namespace NProfiling {
 
-#ifndef _win_
+#if !defined(_win_) && !defined(_darwin_)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -17,7 +17,7 @@ namespace NProfiling {
 
 using namespace NYPath;
 
-#ifndef _win_
+#if !defined(_win_) && !defined(_darwin_)
 
 ////////////////////////////////////////////////////////////////////////////////
 
