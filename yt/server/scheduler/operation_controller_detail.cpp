@@ -272,14 +272,14 @@ void TOperationControllerBase::TTask::ReleaseFailedJobResources(TJobletPtr joble
 
 void TOperationControllerBase::TTask::OnJobFailed(TJobletPtr joblet)
 {
-    GetChunkPoolOutput()->Failed(joblet->OutputCookie);
     ReleaseFailedJobResources(joblet);
+    GetChunkPoolOutput()->Failed(joblet->OutputCookie);
 }
 
 void TOperationControllerBase::TTask::OnJobAborted(TJobletPtr joblet)
 {
-    GetChunkPoolOutput()->Failed(joblet->OutputCookie);
     ReleaseFailedJobResources(joblet);
+    GetChunkPoolOutput()->Failed(joblet->OutputCookie);
 }
 
 void TOperationControllerBase::TTask::OnTaskCompleted()

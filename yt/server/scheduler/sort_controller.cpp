@@ -241,20 +241,20 @@ protected:
         virtual void OnJobFailed(TJobletPtr joblet) override
         {
             if (LostJobCookieMap.find(joblet->OutputCookie) == LostJobCookieMap.end()) {
-                GetChunkPoolOutput()->Lost(joblet->OutputCookie);
-                ReleaseFailedJobResources(joblet);
-            } else {
                 TTask::OnJobFailed(joblet);
+            } else {
+                ReleaseFailedJobResources(joblet);
+                GetChunkPoolOutput()->Lost(joblet->OutputCookie);
             }
         }
 
         virtual void OnJobAborted(TJobletPtr joblet) override
         {
             if (LostJobCookieMap.find(joblet->OutputCookie) == LostJobCookieMap.end()) {
-                GetChunkPoolOutput()->Lost(joblet->OutputCookie);
-                ReleaseFailedJobResources(joblet);
-            } else {
                 TTask::OnJobAborted(joblet);
+            } else {
+                ReleaseFailedJobResources(joblet);
+                GetChunkPoolOutput()->Lost(joblet->OutputCookie);
             }
         }
 
