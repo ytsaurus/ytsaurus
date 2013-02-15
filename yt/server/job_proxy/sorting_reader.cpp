@@ -37,6 +37,7 @@ static const int SortBucketSize = 10000;
 static const int SpinsBetweenYield = 1000;
 static const int RowsBetweenAtomicUpdate = 10000;
 static const i32 BucketEndSentinel = -1;
+static const double ReallocationFactor = 1.1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,7 +66,7 @@ public:
         , SortComparer(this)
         , MergeComparer(this)
     {
-        srand(time(NULL));
+        srand(time(nullptr));
         std::random_shuffle(chunks.begin(), chunks.end());
 
         auto provider = New<TPartitionChunkReaderProvider>(config);
@@ -89,7 +90,7 @@ public:
     virtual const TRow* GetRow() override
     {
         DoNextRow();
-        return IsValid_ ? &CurrentRow : NULL;
+        return IsValid_ ? &CurrentRow : nullptr;
     }
 
     virtual const TNonOwningKey& GetKey() const override
@@ -251,18 +252,18 @@ private:
             int rowIndex = 0;
 
             auto flushBucket = [&] () {
-                Buckets.push_back(BucketEndSentinel);
-                BucketStart.push_back(Buckets.size());
-                SortQueue->GetInvoker()->Invoke(BIND(&TSortingReader::DoSortBucket, MakeWeak(this), bucketId));
+                SafePushBack(Buckets, BucketEndSentinel);
+                SafePushBack(BucketStart, Buckets.size());
+                InvokeSortBucket(bucketId);
                 ++bucketId;
                 bucketSize = 0;
             };
 
-            BucketStart.push_back(0);
+            SafePushBack(BucketStart, 0);
 
             while (Reader->IsValid()) {
                 // Construct row entry.
-                RowPtrBuffer.push_back(Reader->CurrentReader()->GetRowPointer());
+                SafePushBack(RowPtrBuffer, Reader->CurrentReader()->GetRowPointer());
 
                 // Construct key entry.
                 KeyBuffer.resize(KeyBuffer.size() + KeyColumnCount);
@@ -275,7 +276,7 @@ private:
                 }
 
                 // Push the row to the current bucket and flush the bucket if full.
-                Buckets.push_back(rowIndex);
+                SafePushBack(Buckets, rowIndex);
                 ++rowIndex;
                 ++bucketSize;
                 if (bucketSize == SortBucketSize) {
@@ -330,7 +331,7 @@ private:
     {
         LOG_INFO("Waiting for sort thread");
         PROFILE_TIMING ("/reduce/sort_wait_time") {
-            BIND([] () -> TVoid { return TVoid(); }).AsyncVia(SortQueue->GetInvoker()).Run().Get();
+            SortQueueBarrier();
         }
         LOG_INFO("Sort thread is idle");
 
@@ -343,7 +344,7 @@ private:
         AtomicSet(SortedRowCount, 0);
         ReadRowCount = 0;
 
-        SortQueue->GetInvoker()->Invoke(BIND(&TSortingReader::DoMerge, MakeWeak(this)));
+        InvokeMerge();
     }
 
     void DoMerge()
@@ -432,6 +433,33 @@ private:
         YCHECK(IsValid_);
         IsValid_ = false;
         SortQueue->Shutdown();
+    }
+
+
+    void SortQueueBarrier()
+    {
+        BIND([] () -> TVoid { return TVoid(); }).AsyncVia(SortQueue->GetInvoker()).Run().Get();
+    }
+
+    void InvokeSortBucket(int bucketId)
+    {
+        SortQueue->GetInvoker()->Invoke(BIND(&TSortingReader::DoSortBucket, MakeWeak(this), bucketId));
+    }
+    
+    void InvokeMerge()
+    {
+        SortQueue->GetInvoker()->Invoke(BIND(&TSortingReader::DoMerge, MakeWeak(this)));
+    }
+
+
+    template <class TVector, class TItem>
+    void SafePushBack(TVector& vector, TItem item)
+    {
+        if (vector.size() == vector.capacity()) {
+            SortQueueBarrier();
+            vector.reserve(static_cast<size_t>(vector.size() * ReallocationFactor));
+        }
+        vector.push_back(item);
     }
 
 };
