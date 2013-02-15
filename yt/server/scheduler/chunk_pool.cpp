@@ -251,7 +251,7 @@ public:
         return
             SuspendedStripeCount == 0 &&
             Finished &&
-            !Completed
+            !Completed_
             ? 1 : 0;
     }
 
