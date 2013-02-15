@@ -75,12 +75,12 @@ private:
 
 } // anonymous namespace
 
-namespace NYTree {
+namespace NYson {
 
 void Serialize(const Py::Object& obj, IYsonConsumer* consumer)
 {
     TPythonYTreeProducer(consumer).Process(obj);
 }
 
-} // namespace NYTree
+} // namespace NYson
 } // namespace NYT
