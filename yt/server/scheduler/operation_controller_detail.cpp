@@ -617,8 +617,8 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    // If some input chunks have failed then the job is considered aborted rather than failed.
     if (job->Result().failed_chunk_ids_size() > 0) {
-        // When some input chunks are lost, we consider job as aborted.
         job->SetState(EJobState::Aborted);
         OnJobAborted(job);
         FOREACH (const auto& chunkId, job->Result().failed_chunk_ids()) {
