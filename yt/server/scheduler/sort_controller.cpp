@@ -243,8 +243,7 @@ protected:
             if (LostJobCookieMap.find(joblet->OutputCookie) == LostJobCookieMap.end()) {
                 TTask::OnJobFailed(joblet);
             } else {
-                ReleaseFailedJobResources(joblet);
-                GetChunkPoolOutput()->Lost(joblet->OutputCookie);
+                ReinstallJob(joblet, EJobReinstallMode::Lost);
             }
         }
 
@@ -253,8 +252,7 @@ protected:
             if (LostJobCookieMap.find(joblet->OutputCookie) == LostJobCookieMap.end()) {
                 TTask::OnJobAborted(joblet);
             } else {
-                ReleaseFailedJobResources(joblet);
-                GetChunkPoolOutput()->Lost(joblet->OutputCookie);
+                ReinstallJob(joblet, EJobReinstallMode::Lost);
             }
         }
 
