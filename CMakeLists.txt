@@ -18,7 +18,8 @@ include(CheckCXXCompilerFlag)
 include(CheckIncludeFiles)
 include(CheckFunctionExists)
 
-include(FindPythonInterp)
+include(FindPythonLibs 2.7)
+include(FindPythonInterp 2.7)
 
 include(DumpCMakeVariables)
 

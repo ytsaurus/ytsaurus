@@ -144,7 +144,7 @@ public:
         , EnqueueCounter("/enqueue_rate")
         , DequeueCounter("/dequeue_rate")
     {
-#ifndef _win_
+#if !defined(_win_) && !defined(_darwin_)
         ResourceTracker = New<TResourceTracker>(GetInvoker());
 #endif
     }
@@ -158,7 +158,7 @@ public:
     void Start()
     {
         TActionQueueBase::Start();
-#ifndef _win_
+#if !defined(_win_) && !defined(_darwin_)
         ResourceTracker->Start();
 #endif
     }
@@ -201,7 +201,7 @@ private:
     yhash_map<TYPath, TWeakPtr<TBucket> > PathToBucket;
     TIdGenerator<i64> IdGenerator;
 
-#ifndef _win_
+#if !defined(_win_) && !defined(_darwin_)
     TIntrusivePtr<TResourceTracker> ResourceTracker;
 #endif
 
