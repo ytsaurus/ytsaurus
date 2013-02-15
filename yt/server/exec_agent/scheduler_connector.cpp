@@ -72,6 +72,7 @@ void TSchedulerConnector::SendHeartbeat()
                 break;
 
             case EJobState::Completed:
+            case EJobState::Aborted:
             case EJobState::Failed: {
                 auto& jobResult = job->GetResult();
                 *jobStatus->mutable_result() = jobResult;

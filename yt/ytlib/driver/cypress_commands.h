@@ -144,6 +144,7 @@ struct TCreateRequest
     NObjectClient::EObjectType Type;
     NYTree::INodePtr Attributes;
     bool Recursive;
+    bool IgnoreExisting;
 
     TCreateRequest()
     {
@@ -153,6 +154,8 @@ struct TCreateRequest
         Register("attributes", Attributes)
             .Default(NULL);
         Register("recursive", Recursive)
+            .Default(false);
+        Register("ignore_existing", IgnoreExisting)
             .Default(false);
     }
 };

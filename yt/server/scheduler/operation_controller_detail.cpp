@@ -267,19 +267,19 @@ void TOperationControllerBase::TTask::ReleaseFailedJobResources(TJobletPtr joble
         }
     }
 
-    chunkPoolOutput->Failed(joblet->OutputCookie);
-
     AddPendingHint();
 }
 
 void TOperationControllerBase::TTask::OnJobFailed(TJobletPtr joblet)
 {
     ReleaseFailedJobResources(joblet);
+    GetChunkPoolOutput()->Failed(joblet->OutputCookie);
 }
 
 void TOperationControllerBase::TTask::OnJobAborted(TJobletPtr joblet)
 {
     ReleaseFailedJobResources(joblet);
+    GetChunkPoolOutput()->Failed(joblet->OutputCookie);
 }
 
 void TOperationControllerBase::TTask::OnTaskCompleted()
@@ -1423,33 +1423,43 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
     FOREACH (const auto& file, RegularFiles) {
         auto path = file.Path.GetPath();
         {
+            auto req = TCypressYPathProxy::Lock(path);
+            SetTransactionId(req, Operation->GetInputTransaction());
+            req->set_mode(ELockMode::Snapshot);
+            NMetaState::GenerateRpcMutationId(req);
+            batchReq->AddRequest(req, "lock_regular_file");
+        }
+        {
             auto req = TFileYPathProxy::FetchFile(path);
             SetTransactionId(req, Operation->GetInputTransaction()->GetId());
-            batchReq->AddRequest(req, "fetch_regular_files");
+            batchReq->AddRequest(req, "fetch_regular_file");
         }
     }
 
     FOREACH (const auto& file, TableFiles) {
         auto path = file.Path;
         {
-            {
-                auto req = TTableYPathProxy::Fetch(path);
-                req->set_fetch_all_meta_extensions(true);
-                SetTransactionId(req, Operation->GetInputTransaction()->GetId());
-                batchReq->AddRequest(req, "fetch_table_file_chunks");
-            }
-
-            {
-                auto req = TYPathProxy::GetKey(path);
-                SetTransactionId(req, Operation->GetInputTransaction()->GetId());
-                batchReq->AddRequest(req, "get_table_file_names");
-            }
-
-            {
-                auto req = TYPathProxy::Get(file.Path.GetPath() + "/@uncompressed_data_size");
-                SetTransactionId(req, Operation->GetInputTransaction()->GetId());
-                batchReq->AddRequest(req, "get_table_file_sizes");
-            }
+            auto req = TCypressYPathProxy::Lock(path);
+            SetTransactionId(req, Operation->GetInputTransaction());
+            req->set_mode(ELockMode::Snapshot);
+            NMetaState::GenerateRpcMutationId(req);
+            batchReq->AddRequest(req, "lock_table_file");
+        }
+        {
+            auto req = TTableYPathProxy::Fetch(path);
+            req->set_fetch_all_meta_extensions(true);
+            SetTransactionId(req, Operation->GetInputTransaction()->GetId());
+            batchReq->AddRequest(req, "fetch_table_file_chunks");
+        }
+        {
+            auto req = TYPathProxy::GetKey(path);
+            SetTransactionId(req, Operation->GetInputTransaction()->GetId());
+            batchReq->AddRequest(req, "get_table_file_name");
+        }
+        {
+            auto req = TYPathProxy::Get(file.Path.GetPath() + "/@uncompressed_data_size");
+            SetTransactionId(req, Operation->GetInputTransaction()->GetId());
+            batchReq->AddRequest(req, "get_table_file_size");
         }
     }
 
@@ -1566,11 +1576,20 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
     }
 
     {
-        auto fetchRegularFilesRsps = batchRsp->GetResponses<TFileYPathProxy::TRspFetchFile>("fetch_regular_files");
+        auto lockRegularFileRsps = batchRsp->GetResponses<TCypressYPathProxy::TRspLock>("lock_regular_file");
+        auto fetchRegularFileRsps = batchRsp->GetResponses<TFileYPathProxy::TRspFetchFile>("fetch_regular_file");
         for (int index = 0; index < static_cast<int>(RegularFiles.size()); ++index) {
             auto& file = RegularFiles[index];
             {
-                auto rsp = fetchRegularFilesRsps[index];
+                auto rsp = lockRegularFileRsps[index];
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error locking regular file %s",
+                    ~file.Path.GetPath());
+
+                LOG_INFO("Regular file %s locked",
+                    ~file.Path.GetPath());
+            }
+            {
+                auto rsp = fetchRegularFileRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching regular files");
 
                 if (file.Path.Attributes().Contains("file_name")) {
@@ -1585,13 +1604,22 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
     }
 
     {
-        auto getTableFileSizesRsps = batchRsp->GetResponses<TTableYPathProxy::TRspGet>("get_table_file_sizes");
+        auto lockTableFileRsps = batchRsp->GetResponses<TCypressYPathProxy::TRspLock>("lock_table_file");
+        auto getTableFileSizeRsps = batchRsp->GetResponses<TTableYPathProxy::TRspGet>("get_table_file_size");
         auto fetchTableFileRsps = batchRsp->GetResponses<TTableYPathProxy::TRspFetch>("fetch_table_file_chunks");
-        auto getTableFileNameRsps = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("get_table_file_names");
+        auto getTableFileNameRsps = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("get_table_file_name");
         for (int index = 0; index < static_cast<int>(TableFiles.size()); ++index) {
             auto& file = TableFiles[index];
             {
-                auto rsp = getTableFileSizesRsps[index];
+                auto rsp = lockTableFileRsps[index];
+                THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error locking table file %s",
+                    ~file.Path.GetPath());
+
+                LOG_INFO("Table file %s locked",
+                    ~file.Path.GetPath());
+            }
+            {
+                auto rsp = getTableFileSizeRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting table file size");
                 i64 tableSize = ConvertTo<i64>(TYsonString(rsp->value()));
                 if (tableSize > Config->TableFileSizeLimit) {

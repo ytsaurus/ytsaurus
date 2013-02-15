@@ -101,7 +101,8 @@ void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove
         THROW_ERROR_EXCEPTION("Cannot remove the root");
     }
 
-    if (!request->recursive() && GetType() == ENodeType::Composite && AsComposite()->GetChildCount() > 0) {
+    bool isComposite = (GetType() == ENodeType::Map || GetType() == ENodeType::List);
+    if (!request->recursive() && isComposite && AsComposite()->GetChildCount() > 0) {
         THROW_ERROR_EXCEPTION("Cannot remove non-empty composite node when \"recursive\" option is not set");
     }
 
@@ -236,9 +237,11 @@ void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxListPtr 
 void TMapNodeMixin::SetChild(const TYPath& path, INodePtr value, bool recursive)
 {
     NYPath::TTokenizer tokenizer(path);
-    if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream && !recursive) {
-        ThrowAlreadyExists(this);
+    tokenizer.Advance();
+    if (tokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
+        THROW_ERROR_EXCEPTION("Unexpected end of stream");
     }
+
     auto factory = CreateFactory();
     auto node = AsMap();
     while (tokenizer.GetType() != NYPath::ETokenType::EndOfStream) {

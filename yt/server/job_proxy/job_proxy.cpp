@@ -203,6 +203,7 @@ void TJobProxy::Run()
 
         std::vector<NChunkClient::TChunkId> failedChunks;
         GetFailedChunks(&failedChunks).Get();
+        LOG_DEBUG("Found %d failed chunks", static_cast<int>(failedChunks.size()));
         ToProto(result.mutable_failed_chunk_ids(), failedChunks);
 
         ReportResult(result);

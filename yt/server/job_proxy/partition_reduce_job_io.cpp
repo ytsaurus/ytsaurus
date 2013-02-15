@@ -63,11 +63,13 @@ public:
             std::move(chunks),
             JobSpec.input_row_count(),
             JobSpec.is_approximate());
-        reader->Open();
 
-        // ToDo(psushin): init all inputs in constructor, get rid of this check.
         YCHECK(index == Inputs.size());
+
+        // NB: put reader here before opening, for proper failed chunk generation.
         Inputs.push_back(reader);
+
+        reader->Open();
 
         return new TTableProducer(reader, consumer);
     }

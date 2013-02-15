@@ -80,10 +80,12 @@ ISyncWriterPtr TUserJobIO::CreateTableOutput(int index)
         keyColumns.empty() ? Null : MakeNullable(keyColumns));
 
     auto syncWriter = CreateSyncWriter(chunkSequenceWriter);
-    syncWriter->Open();
 
     YCHECK(Outputs.size() == index);
+    // NB: Save reader before opening! Otherwise failed chunks may not be collected.
     Outputs.push_back(chunkSequenceWriter);
+
+    syncWriter->Open();
 
     return syncWriter;
 }

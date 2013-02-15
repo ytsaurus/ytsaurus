@@ -2,7 +2,7 @@
 
 cd $(dirname "${BASH_SOURCE[0]}")
 
-export YT_PREFIX="//statbox/"
+export YT_PREFIX="//home/wrapper_tests/"
 export YT_USE_TOKEN=0
 
 prepare_table_files() {

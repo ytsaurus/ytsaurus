@@ -84,8 +84,8 @@ def lock(path, **kwargs):
 def get_str(path, **kwargs):
     return command('get', path, **kwargs)
 
-def remove(path, **kwargs):
-    return command('remove', path, **kwargs)
+def remove(path, *args, **kwargs):
+    return command('remove', path, *args, **kwargs)
 
 def set_str(path, value, **kwargs):
     return command('set', path, value, **kwargs)

@@ -63,11 +63,12 @@ public:
         }
 
         auto reader = CreateMergingReader(readers);
-        reader->Open();
 
         // ToDo(psushin): init all inputs in constructor, get rid of this check.
         YCHECK(index == Inputs.size());
         Inputs.push_back(reader);
+
+        reader->Open();
 
         return new TTableProducer(reader, consumer);
     }

@@ -48,11 +48,12 @@ TAutoPtr<NTableClient::TTableProducer> TUserJobIO::DoCreateTableInput(
         provider);
 
     auto syncReader = NTableClient::CreateSyncReader(reader);
-    syncReader->Open();
 
     // ToDo(psushin): init all inputs in constructor, get rid of this check.
     YCHECK(index == Inputs.size());
     Inputs.push_back(syncReader);
+
+    syncReader->Open();
 
     return new NTableClient::TTableProducer(syncReader, consumer);
 }

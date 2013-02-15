@@ -103,7 +103,7 @@ def add_create_parser(subparsers):
     parser.set_defaults(func=create)
 
 def get(args):
-    print json.dumps(yt.get(args.path), indent=2, format=args.format, spec=args.spec)
+    print json.dumps(yt.get(args.path, format=args.format, spec=args.spec), indent=2)
 
 def add_get_parser(subparsers):
     parser = subparsers.add_parser("get")
@@ -124,7 +124,7 @@ def add_set_parser(subparsers):
 
 
 def remove(args):
-    yt.remove(args.path, recursive=args.r, force=args.f)
+    yt.remove(args.path, recursive=args.recursive, force=args.force)
 
 def add_remove_parser(subparsers):
     parser = subparsers.add_parser("remove")
@@ -347,7 +347,7 @@ def main():
             name, flags = line.split("=")
             aliases[name] = shlex.split(flags)
 
-        if sys.argv[1] in aliases:
+        if len(sys.argv) > 1 and sys.argv[1] in aliases:
             sys.argv = sys.argv[0:1] + aliases[sys.argv[1]] + sys.argv[2:]
     
     args = parser.parse_args()

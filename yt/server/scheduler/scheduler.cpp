@@ -1136,7 +1136,7 @@ private:
         // Only update the result for the first time.
         // Typically the scheduler decides to abort the job on its own.
         // In this case we should ignore the result returned from the node
-        // and void notifying the controller twice.
+        // and avoid notifying the controller twice.
         if (job->GetState() == EJobState::Running ||
             job->GetState() == EJobState::Waiting)
         {

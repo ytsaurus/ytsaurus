@@ -82,11 +82,11 @@ Stroka TSetExecutor::GetCommandName() const
 
 TRemoveExecutor::TRemoveExecutor()
     : PathArg("path", "object path to remove", true, TRichYPath(""), "YPATH")
-    , RecursiveArg("", "recursive", "remove recursive", true)
+    , NonRecursiveArg("", "non_recursive", "check that removed node is empty", false)
     , ForceArg("", "force", "do not throw if path does not exist", false)
 {
     CmdLine.add(PathArg);
-    CmdLine.add(RecursiveArg);
+    CmdLine.add(NonRecursiveArg);
     CmdLine.add(ForceArg);
 }
 
@@ -96,7 +96,7 @@ void TRemoveExecutor::BuildArgs(IYsonConsumer* consumer)
 
     BuildYsonMapFluently(consumer)
         .Item("path").Value(path)
-        .Item("recursive").Value(RecursiveArg.getValue())
+        .Item("recursive").Value(!NonRecursiveArg.getValue())
         .Item("force").Value(ForceArg.getValue());
 
     TTransactedExecutor::BuildArgs(consumer);
@@ -139,10 +139,12 @@ TCreateExecutor::TCreateExecutor()
     : TypeArg("type", "type of node", true, NObjectClient::EObjectType::Null, "NODE_TYPE")
     , PathArg("path", "object path to create", false, TRichYPath(""), "YPATH")
     , RecursiveArg("", "recursive", "create nodes of path recursively", false)
+    , IgnoreExistingArg("", "ignore_existing", "do not fail of node already exists and has the same type", false)
 {
     CmdLine.add(TypeArg);
     CmdLine.add(PathArg);
     CmdLine.add(RecursiveArg);
+    CmdLine.add(IgnoreExistingArg);
 }
 
 void TCreateExecutor::BuildArgs(IYsonConsumer* consumer)
@@ -157,7 +159,8 @@ void TCreateExecutor::BuildArgs(IYsonConsumer* consumer)
             fluent.Item("path").Value(path.Get());
         })
         .Item("type").Value(TypeArg.getValue().ToString())
-        .Item("recursive").Value(RecursiveArg.getValue());
+        .Item("recursive").Value(RecursiveArg.getValue())
+        .Item("ignore_existing").Value(IgnoreExistingArg.getValue());
 
     TTransactedExecutor::BuildArgs(consumer);
 }
