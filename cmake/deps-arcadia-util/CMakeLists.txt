@@ -330,7 +330,7 @@ set( UT_SRCS
   ${UT_BASE}/httpdate.h
 )
 
-if (UNIX)
+if (UNIX AND NOT APPLE)
   # not important for Win, may be useful only for Unixes
   set( LFA_SRC ${CMAKE_SOURCE_DIR}/util/private/lfalloc/lf_allocX64.cpp )
 else()
