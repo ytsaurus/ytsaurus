@@ -55,18 +55,22 @@ def move(source_path, destination_path):
             "destination_path": prepare_path(destination_path)
         })
 
-def list(path, max_size=1000, format=None):
+def list(path, max_size=1000, format=None, absolute=False):
     """
     Lists all items in the path. Paht should be map_node or list_node.
     In case of map_node it returns keys of the node.
     """
-    return _make_transactional_request(
+    path = prepare_path(path)
+    res = _make_transactional_request(
         "list",
         {
-            "path": prepare_path(path),
+            "path": path,
             "max_size": max_size
         },
         format=get_value(format, YsonFormat()))
+    if absolute:
+        res = map(lambda x: os.path.join(path, x), res)
+    return res
 
 def exists(path):
     return parse_bool(
