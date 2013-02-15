@@ -44,6 +44,12 @@ exports.that = function YtHostDiscovery(hosts) {
         var accept = req.headers["accept"];
         var accepted_type;
 
+        if (req.headers["host"] === "proxy-fb.yt.yandex.net") {
+            for (var i = 0; i < body.length; ++i) {
+                body[i] = body[i].replace(/\.yt\.yandex\.net/, '-fb.yt.yandex.net');
+            }
+        }
+
         rsp.setHeader("Access-Control-Allow-Origin", "*");
 
         if (typeof(accept) === "string") {
@@ -58,7 +64,7 @@ exports.that = function YtHostDiscovery(hosts) {
                     "Content-Type" : "application/json"
                 });
             } else if (accepted_type === "text/plain") {
-                body = body.toString("\n");
+                body = body.join("\n");
                 rsp.writeHead(200, {
                     "Content-Length" : body.length,
                     "Content-Type" : "text/plain"
