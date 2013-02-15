@@ -212,6 +212,9 @@ def make_request(command_name, params,
             timeout=config.CONNECTION_TIMEOUT,
             stream=stream))
 
+    if config.USE_TOKEN and "Authorization" in headers:
+        headers["Authorization"] = "x" * 32
+
     print_info("Response header %r", response.http_response.headers)
     if response.is_ok():
         if raw_response:
@@ -223,7 +226,7 @@ def make_request(command_name, params,
         else:
             return response.content()
     else:
-        message = "Response to request {0} with headers {1} contains error: {2}".\
+        message = "Response to request {0} with headers {1} contains error:\n{2}".\
                   format(url, headers, response.error())
         raise YtResponseError(message)
 
