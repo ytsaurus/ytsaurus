@@ -129,7 +129,7 @@ function YtBlackbox(logger, global_config) { // TODO: Inject |config|
                 return false;
             },
             function(error) {
-                logger.error("Failed to query Blackbox", { request_id : id, error : error });
+                logger.error("Failed to query Blackbox", { request_id : id, error : error.toString() });
                 return false;
             });
     }
