@@ -112,9 +112,9 @@ void TMultiChunkReaderBase<TChunkReader>::ProcessFinishedReader(const TSession& 
 template <class TChunkReader>
 void TMultiChunkReaderBase<TChunkReader>::AddFailedChunk(const TSession& session)
 {
-    auto chunkId = NChunkClient::TChunkId::FromProto(
-        InputChunks[session.ChunkIndex].slice().chunk_id());
-    LOG_DEBUG("Add failed chunk (ChunkId: %s)", ~ToString(chunkId));
+    const auto& protoChunkId = InputChunks[session.ChunkIndex].slice().chunk_id();
+    auto chunkId = NChunkClient::TChunkId::FromProto(protoChunkId);
+    LOG_DEBUG("Failed chunk added (ChunkId: %s)", ~ToString(chunkId));
     TGuard<TSpinLock> guard(FailedChunksLock);
     FailedChunks.push_back(chunkId);
 }
