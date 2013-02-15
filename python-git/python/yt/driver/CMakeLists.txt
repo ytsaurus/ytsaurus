@@ -19,7 +19,7 @@ include_directories(
     ${CMAKE_BINARY_DIR}
     ${CMAKE_BINARY_DIR}/yt
     ${CMAKE_BINARY_DIR}/include
-    /usr/include/python2.7/
+    ${PYTHON_INCLUDE_DIR}
 )
 
 
@@ -30,4 +30,5 @@ add_library( ytlib_python SHARED
 target_link_libraries( ytlib_python
     ytlib
     ytext-pycxx
+    ${PYTHON_LIBRARY}
 )
