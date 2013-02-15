@@ -248,7 +248,11 @@ public:
 
     virtual int GetPendingJobCount() const override
     {
-        return (SuspendedStripeCount == 0) && Finished && !ExtractedList ? 1 : 0;
+        return
+            SuspendedStripeCount == 0 &&
+            Finished &&
+            !Completed
+            ? 1 : 0;
     }
 
     virtual i64 GetLocality(const Stroka& address) const override
