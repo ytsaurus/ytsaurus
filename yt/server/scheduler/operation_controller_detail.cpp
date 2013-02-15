@@ -164,7 +164,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
     auto neededResources = GetNeededResources(joblet);
     if (!Dominates(jobLimits, neededResources)) {
         CheckResourceDemandSanity(node, neededResources);
-        chunkPoolOutput->Failed(joblet->OutputCookie);
+        chunkPoolOutput->Aborted(joblet->OutputCookie);
         return nullptr;
     }
 
