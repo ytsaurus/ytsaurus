@@ -254,7 +254,7 @@ void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet)
     GetChunkPoolOutput()->Completed(joblet->OutputCookie);
 }
 
-void TOperationControllerBase::TTask::ReinstallJob(TJobletPtr joblet, EJobReinstallMode mode)
+void TOperationControllerBase::TTask::ReinstallJob(TJobletPtr joblet, EJobReinstallReason reason)
 {
     Controller->ChunkListPool->Release(joblet->ChunkListIds);
 
@@ -265,12 +265,12 @@ void TOperationControllerBase::TTask::ReinstallJob(TJobletPtr joblet, EJobReinst
         ? chunkPoolOutput->GetStripeList(joblet->OutputCookie)
         : nullptr;
 
-    switch (mode) {
-        case EJobReinstallMode::Failed:
+    switch (reason) {
+        case EJobReinstallReason::Failed:
             chunkPoolOutput->Failed(joblet->OutputCookie);
             break;
-        case EJobReinstallMode::Lost:
-            chunkPoolOutput->Lost(joblet->OutputCookie);
+        case EJobReinstallReason::Aborted:
+            chunkPoolOutput->Aborted(joblet->OutputCookie);
             break;
         default:
             YUNREACHABLE();
@@ -287,12 +287,12 @@ void TOperationControllerBase::TTask::ReinstallJob(TJobletPtr joblet, EJobReinst
 
 void TOperationControllerBase::TTask::OnJobFailed(TJobletPtr joblet)
 {
-    ReinstallJob(joblet, EJobReinstallMode::Failed);
+    ReinstallJob(joblet, EJobReinstallReason::Failed);
 }
 
 void TOperationControllerBase::TTask::OnJobAborted(TJobletPtr joblet)
 {
-    ReinstallJob(joblet, EJobReinstallMode::Failed);
+    ReinstallJob(joblet, EJobReinstallReason::Aborted);
 }
 
 void TOperationControllerBase::TTask::OnTaskCompleted()
