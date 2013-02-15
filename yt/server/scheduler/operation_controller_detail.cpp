@@ -164,7 +164,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
     auto neededResources = GetNeededResources(joblet);
     if (!Dominates(jobLimits, neededResources)) {
         CheckResourceDemandSanity(node, neededResources);
-        chunkPoolOutput->Failed(joblet->OutputCookie);
+        chunkPoolOutput->Aborted(joblet->OutputCookie);
         return nullptr;
     }
 
@@ -254,7 +254,7 @@ void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet)
     GetChunkPoolOutput()->Completed(joblet->OutputCookie);
 }
 
-void TOperationControllerBase::TTask::ReinstallJob(TJobletPtr joblet, EJobReinstallMode mode)
+void TOperationControllerBase::TTask::ReinstallJob(TJobletPtr joblet, EJobReinstallReason reason)
 {
     Controller->ChunkListPool->Release(joblet->ChunkListIds);
 
@@ -265,12 +265,12 @@ void TOperationControllerBase::TTask::ReinstallJob(TJobletPtr joblet, EJobReinst
         ? chunkPoolOutput->GetStripeList(joblet->OutputCookie)
         : nullptr;
 
-    switch (mode) {
-        case EJobReinstallMode::Failed:
+    switch (reason) {
+        case EJobReinstallReason::Failed:
             chunkPoolOutput->Failed(joblet->OutputCookie);
             break;
-        case EJobReinstallMode::Lost:
-            chunkPoolOutput->Lost(joblet->OutputCookie);
+        case EJobReinstallReason::Aborted:
+            chunkPoolOutput->Aborted(joblet->OutputCookie);
             break;
         default:
             YUNREACHABLE();
@@ -287,12 +287,12 @@ void TOperationControllerBase::TTask::ReinstallJob(TJobletPtr joblet, EJobReinst
 
 void TOperationControllerBase::TTask::OnJobFailed(TJobletPtr joblet)
 {
-    ReinstallJob(joblet, EJobReinstallMode::Failed);
+    ReinstallJob(joblet, EJobReinstallReason::Failed);
 }
 
 void TOperationControllerBase::TTask::OnJobAborted(TJobletPtr joblet)
 {
-    ReinstallJob(joblet, EJobReinstallMode::Failed);
+    ReinstallJob(joblet, EJobReinstallReason::Aborted);
 }
 
 void TOperationControllerBase::TTask::OnTaskCompleted()
@@ -617,8 +617,8 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    // If some input chunks have failed then the job is considered aborted rather than failed.
     if (job->Result().failed_chunk_ids_size() > 0) {
-        // When some input chunks are lost, we consider job as aborted.
         job->SetState(EJobState::Aborted);
         OnJobAborted(job);
         FOREACH (const auto& chunkId, job->Result().failed_chunk_ids()) {

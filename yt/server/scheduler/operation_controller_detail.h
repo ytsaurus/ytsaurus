@@ -305,12 +305,12 @@ protected:
         void AddPendingHint();
         void AddLocalityHint(const Stroka& address);
 
-        DECLARE_ENUM(EJobReinstallMode,
+        DECLARE_ENUM(EJobReinstallReason,
             (Failed)
-            (Lost)
+            (Aborted)
         );
 
-        void ReinstallJob(TJobletPtr joblet, EJobReinstallMode mode);
+        void ReinstallJob(TJobletPtr joblet, EJobReinstallReason reason);
 
         static void AddSequentialInputSpec(
             NScheduler::NProto::TJobSpec* jobSpec,

@@ -212,15 +212,11 @@ class Buffer(object):
 def create_table(path, recursive=None, replication_factor=None, attributes=None):
     """ Creates empty table, use recursive for automatically creaation the path """
     table = TablePath(path)
-    if recursive is None:
-        recursive = config.CREATE_RECURSIVE
-    if recursive:
-        mkdir(os.path.dirname(table.name), True)
-
+    recursive = get_value(recursive, config.CREATE_RECURSIVE)
     attributes = get_value(attributes, {})
     if replication_factor is not None:
         attributes["replication_factor"] = replication_factor
-    create("table", table.name, attributes=attributes)
+    create("table", table.name, recursive=recursive, attributes=attributes)
 
 def create_temp_table(path=None, prefix=None):
     """ Creates temporary table by given path with given prefix """

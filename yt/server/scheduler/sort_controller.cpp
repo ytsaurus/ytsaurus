@@ -195,15 +195,17 @@ protected:
         : public TIntrinsicRefCounted
     {
         TCompletedJob(
-            const TIntermediateTaskPtr& task,
+            const TJobId& jobId,
+            TIntermediateTaskPtr task,
             IChunkPoolOutput* sourcePool,
             IChunkPoolInput* destinationPool,
-            const IChunkPoolInput::TCookie& inputCookie,
-            const IChunkPoolOutput::TCookie& outputCookie,
+            IChunkPoolInput::TCookie inputCookie,
+            IChunkPoolOutput::TCookie outputCookie,
             TExecNodePtr execNode)
             : IsLost(false)
-            , ExecNode(execNode)
-            , Task(task)
+            , ExecNode(std::move(execNode))
+            , JobId(jobId)
+            , Task(std::move(task))
             , SourcePool(sourcePool)
             , DestinationPool(destinationPool)
             , OutputCookie(outputCookie)
@@ -213,8 +215,9 @@ protected:
         bool IsLost;
 
         TExecNodePtr ExecNode;
-
+        TJobId JobId;
         TIntermediateTaskPtr Task;
+
         IChunkPoolOutput* SourcePool;
         IChunkPoolInput* DestinationPool;
 
@@ -236,24 +239,6 @@ protected:
             YCHECK(LostJobCookieMap.insert(std::make_pair(
                 completedJob->OutputCookie,
                 completedJob->InputCookie)).second);
-        }
-
-        virtual void OnJobFailed(TJobletPtr joblet) override
-        {
-            if (LostJobCookieMap.find(joblet->OutputCookie) == LostJobCookieMap.end()) {
-                TTask::OnJobFailed(joblet);
-            } else {
-                ReinstallJob(joblet, EJobReinstallMode::Lost);
-            }
-        }
-
-        virtual void OnJobAborted(TJobletPtr joblet) override
-        {
-            if (LostJobCookieMap.find(joblet->OutputCookie) == LostJobCookieMap.end()) {
-                TTask::OnJobAborted(joblet);
-            } else {
-                ReinstallJob(joblet, EJobReinstallMode::Lost);
-            }
         }
 
     protected:
@@ -358,18 +343,20 @@ protected:
 
             auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_chunks());
 
-            auto it = LostJobCookieMap.find(joblet->OutputCookie);
             IChunkPoolInput::TCookie inputCookie;
-            if (it == LostJobCookieMap.end()) {
+
+            auto lostIt = LostJobCookieMap.find(joblet->OutputCookie);
+            if (lostIt == LostJobCookieMap.end()) {
                 inputCookie = Controller->ShufflePool->GetInput()->Add(stripe);
             } else {
-                inputCookie = it->second;
+                inputCookie = lostIt->second;
                 Controller->ShufflePool->GetInput()->Resume(inputCookie, stripe);
-                LostJobCookieMap.erase(it);
+                LostJobCookieMap.erase(lostIt);
             }
 
             // Store recovery info.
             auto completedJob = New<TCompletedJob>(
+                joblet->Job->GetId(),
                 this,
                 ~ChunkPool,
                 Controller->ShufflePool->GetInput(),
@@ -599,6 +586,7 @@ protected:
 
                 // Store recovery info.
                 auto completedJob = New<TCompletedJob>(
+                    joblet->Job->GetId(),
                     this,
                     GetChunkPoolOutput(),
                     Partition->SortedMergeTask->GetChunkPoolInput(),
@@ -1249,15 +1237,16 @@ protected:
     {
         auto it = ChunkOriginMap.find(chunkId);
         YCHECK(it != ChunkOriginMap.end());
-        auto& completedJob = it->second;
+        auto completedJob = it->second;
         if (completedJob->IsLost)
             return;
 
-        LOG_INFO("Job is lost (Task: %s, OutputCookie: %d, InputCookie: %d, NodeAddress: %s)",
+        LOG_INFO("Job is lost (Address: %s, JobId: %s, Task: %s, OutputCookie: %d, InputCookie: %d)",
+            ~completedJob->ExecNode->GetAddress(),
+            ~ToString(completedJob->JobId),
             ~completedJob->Task->GetId(),
             completedJob->OutputCookie,
-            completedJob->InputCookie,
-            ~completedJob->ExecNode->GetAddress());
+            completedJob->InputCookie);
 
         JobCounter.Lost(1);
         completedJob->IsLost = true;

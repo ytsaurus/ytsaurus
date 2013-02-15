@@ -811,6 +811,17 @@ public:
                     .Item(id).BeginMap()
                         .Item("mode").Value(config->Mode)
                         .Item("max_share_ratio").Value(attributes.MaxShareRatio)
+                        .Item("resource_limits").BeginMap()
+                            .DoIf(config->MaxSlots, [&] (TFluentMap fluent) {
+                                fluent.Item("slots").Value(config->MaxSlots.Get());
+                            })
+                            .DoIf(config->MaxCpu, [&] (TFluentMap fluent) {
+                                fluent.Item("cpu").Value(config->MaxCpu.Get());
+                            })
+                            .DoIf(config->MaxSlots, [&] (TFluentMap fluent) {
+                                fluent.Item("memory").Value(config->MaxMemory.Get());
+                            })
+                        .EndMap()
                         .Do(BIND(&TFairShareStrategy::BuildElementYson, RootElement, pool))
                     .EndMap();
             });
