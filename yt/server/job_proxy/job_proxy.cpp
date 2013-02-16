@@ -196,6 +196,8 @@ void TJobProxy::Run()
 
         ReportResult(result);
     } catch (const std::exception& ex) {
+        HeartbeatInvoker->Stop();
+
         LOG_ERROR(ex, "Job failed");
 
         TJobResult result;
