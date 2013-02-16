@@ -43,6 +43,8 @@ void TCypressNodeBase::SetParent(TCypressNodeBase* newParent)
     if (Parent_ == newParent)
         return;
 
+    YCHECK(newParent->IsTrunk());
+
     if (Parent_) {
         YCHECK(Parent_->ImmediateAncestors().erase(this) == 1);
     }

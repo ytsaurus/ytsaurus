@@ -915,7 +915,6 @@ void TMapNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
     auto* oldTrunkChildImpl = ToProxy(oldChild)->GetTrunkNode();
     auto* oldChildImpl = LockImpl(oldTrunkChildImpl, ELockMode::Exclusive, true);
 
-
     auto* newTrunkChildImpl = ToProxy(newChild)->GetTrunkNode();
     auto* newChildImpl = LockImpl(newTrunkChildImpl);
 

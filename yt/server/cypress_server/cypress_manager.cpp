@@ -1189,7 +1189,7 @@ TYPath TCypressManager::GetNodePath(
     TCypressNodeBase* trunkNode,
     TTransaction* transaction)
 {
-    YCH(trunkNode->IsTrunk());
+    YCHECK(trunkNode->IsTrunk());
 
     auto proxy = GetVersionedNodeProxy(trunkNode, transaction);
     return proxy->GetResolver()->GetPath(proxy);
