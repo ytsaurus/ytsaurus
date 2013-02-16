@@ -217,6 +217,9 @@ void TMasterConnector::SendFullHeartbeat()
         *request->add_chunks() = GetAddInfo(chunk);
     }
 
+    AddedSinceLastSuccess.clear();
+    RemovedSinceLastSuccess.clear();
+
     request->Invoke().Subscribe(
         BIND(&TMasterConnector::OnFullHeartbeatResponse, MakeStrong(this))
         .Via(ControlInvoker));
@@ -374,13 +377,13 @@ void TMasterConnector::OnChunkAdded(TChunkPtr chunk)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    if (State == EState::Offline)
+        return;
+
     NLog::TTaggedLogger Logger(DataNodeLogger);
     Logger.AddTag(Sprintf("ChunkId: %s, Location: %s",
         ~chunk->GetId().ToString(),
         ~chunk->GetLocation()->GetPath()));
-
-    if (State != EState::Online)
-        return;
 
     if (AddedSinceLastSuccess.find(chunk) != AddedSinceLastSuccess.end()) {
         LOG_DEBUG("Addition of chunk has already been registered");
@@ -389,7 +392,7 @@ void TMasterConnector::OnChunkAdded(TChunkPtr chunk)
 
     if (RemovedSinceLastSuccess.find(chunk) != RemovedSinceLastSuccess.end()) {
         RemovedSinceLastSuccess.erase(chunk);
-        LOG_DEBUG("Trying to add a chunk whose removal has been registered, cancelling removal and addition");
+        LOG_DEBUG("Trying to add a chunk whose removal has been registered, canceling removal and addition");
         return;
     }
 
@@ -402,13 +405,13 @@ void TMasterConnector::OnChunkRemoved(TChunkPtr chunk)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    if (State == EState::Offline)
+        return;
+
     NLog::TTaggedLogger Logger(DataNodeLogger);
     Logger.AddTag(Sprintf("ChunkId: %s, Location: %s",
         ~chunk->GetId().ToString(),
         ~chunk->GetLocation()->GetPath()));
-
-    if (State != EState::Online)
-        return;
 
     if (RemovedSinceLastSuccess.find(chunk) != RemovedSinceLastSuccess.end()) {
         LOG_DEBUG("Removal of chunk has already been registered");
