@@ -376,7 +376,7 @@ TCypressNodeBase* TCypressManager::CloneNode(
 
 void TCypressManager::CreateNodeBehavior(TCypressNodeBase* trunkNode)
 {
-    YASSERT(trunkNode->IsTrunk());
+    YCHECK(trunkNode->IsTrunk());
 
     auto handler = GetHandler(trunkNode);
     auto behavior = handler->CreateBehavior(trunkNode);
@@ -390,7 +390,7 @@ void TCypressManager::CreateNodeBehavior(TCypressNodeBase* trunkNode)
 
 void TCypressManager::DestroyNodeBehavior(TCypressNodeBase* trunkNode)
 {
-    YASSERT(trunkNode->IsTrunk());
+    YCHECK(trunkNode->IsTrunk());
 
     auto it = NodeBehaviors.find(trunkNode);
     if (it == NodeBehaviors.end())
@@ -428,7 +428,7 @@ TCypressNodeBase* TCypressManager::FindNode(
     NTransactionServer::TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-    YASSERT(trunkNode->IsTrunk());
+    YCHECK(trunkNode->IsTrunk());
 
     // Fast path -- no transaction.
     if (!transaction) {
@@ -444,7 +444,7 @@ TCypressNodeBase* TCypressManager::GetVersionedNode(
     TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-    YASSERT(trunkNode->IsTrunk());
+    YCHECK(trunkNode->IsTrunk());
 
     auto* currentTransaction = transaction;
     while (true) {
@@ -461,7 +461,7 @@ ICypressNodeProxyPtr TCypressManager::GetVersionedNodeProxy(
     TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-    YASSERT(trunkNode->IsTrunk());
+    YCHECK(trunkNode->IsTrunk());
 
     auto handler = GetHandler(trunkNode);
     return handler->GetProxy(trunkNode, transaction);
@@ -473,7 +473,7 @@ void TCypressManager::ValidateLock(
     const TLockRequest& request,
     bool* isMandatory)
 {
-    YASSERT(trunkNode->IsTrunk());
+    YCHECK(trunkNode->IsTrunk());
 
     // Snapshot locks can only be taken inside a transaction.
     if (request.Mode == ELockMode::Snapshot && !transaction) {
@@ -623,7 +623,7 @@ TCypressNodeBase* TCypressManager::AcquireLock(
     TTransaction* transaction,
     const TLockRequest& request)
 {
-    YASSERT(trunkNode->IsTrunk());
+    YCHECK(trunkNode->IsTrunk());
     YCHECK(transaction);
 
     DoAcquireLock(trunkNode, transaction, request);
@@ -685,7 +685,7 @@ TLock* TCypressManager::DoAcquireLock(
     TTransaction* transaction,
     const TLockRequest& request)
 {
-    YASSERT(trunkNode->IsTrunk());
+    YCHECK(trunkNode->IsTrunk());
 
     TVersionedNodeId versionedId(trunkNode->GetId(), transaction->GetId());
     TLock* lock;
@@ -732,7 +732,7 @@ TLock* TCypressManager::DoAcquireLock(
 
 void TCypressManager::ReleaseLock(TCypressNodeBase* trunkNode, TTransaction* transaction)
 {
-    YASSERT(trunkNode->IsTrunk());
+    YCHECK(trunkNode->IsTrunk());
 
     YCHECK(trunkNode->Locks().erase(transaction) == 1);
 
@@ -748,7 +748,7 @@ TCypressNodeBase* TCypressManager::LockVersionedNode(
     bool recursive)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-    YASSERT(trunkNode->IsTrunk());
+    YCHECK(trunkNode->IsTrunk());
     YCHECK(request.Mode != ELockMode::None);
 
     TSubtreeNodes nodesToLock;
@@ -795,7 +795,7 @@ void TCypressManager::SetModified(
     TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-    YASSERT(trunkNode->IsTrunk());
+    YCHECK(trunkNode->IsTrunk());
 
     // Failure here means that the node wasn't indeed locked,
     // which is strange given that we're about to mark it as modified.
@@ -817,7 +817,7 @@ void TCypressManager::RegisterNode(
     IAttributeDictionary* attributes)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-    YASSERT(node->IsTrunk());
+    YCHECK(node->IsTrunk());
 
     const auto& nodeId = node->GetId();
 
@@ -991,7 +991,7 @@ void TCypressManager::OnStopLeading()
 void TCypressManager::DestroyNode(TCypressNodeBase* trunkNode)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-    YASSERT(trunkNode->IsTrunk());
+    YCHECK(trunkNode->IsTrunk());
 
     auto securityManager = Bootstrap->GetSecurityManager();
 
@@ -1036,7 +1036,7 @@ void TCypressManager::ListSubtreeNodes(
     TTransaction* transaction,
     TSubtreeNodes* subtreeNodes)
 {
-    YASSERT(trunkNode->IsTrunk());
+    YCHECK(trunkNode->IsTrunk());
 
     auto transactionManager = Bootstrap->GetTransactionManager();
 
@@ -1189,7 +1189,7 @@ TYPath TCypressManager::GetNodePath(
     TCypressNodeBase* trunkNode,
     TTransaction* transaction)
 {
-    YASSERT(trunkNode->IsTrunk());
+    YCH(trunkNode->IsTrunk());
 
     auto proxy = GetVersionedNodeProxy(trunkNode, transaction);
     return proxy->GetResolver()->GetPath(proxy);
