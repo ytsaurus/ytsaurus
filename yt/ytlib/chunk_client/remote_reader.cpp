@@ -119,8 +119,8 @@ private:
             GetSeedsPromise = NewPromise<TGetSeedsResult>();
             // Don't ask master for fresh seeds too often.
             TDelayedInvoker::Submit(
-                BIND(&TRemoteReader::LocateChunk, MakeWeak(this))
-                .Via(TDispatcher::Get()->GetReaderInvoker()),
+                BIND(&TRemoteReader::LocateChunk, MakeStrong(this))
+                    .Via(TDispatcher::Get()->GetReaderInvoker()),
                 SeedsTimestamp + Config->RetryBackoffTime);
         }
 
@@ -156,7 +156,7 @@ private:
 
         auto req = TChunkYPathProxy::Locate(FromObjectId(ChunkId));
         ObjectProxy.Execute(req).Subscribe(
-            BIND(&TRemoteReader::OnLocateChunkResponse, MakeWeak(this))
+            BIND(&TRemoteReader::OnLocateChunkResponse, MakeStrong(this))
                 .Via(TDispatcher::Get()->GetReaderInvoker()));
     }
 
@@ -274,7 +274,7 @@ protected:
         }
         
         TDelayedInvoker::Submit(
-            BIND(&TSessionBase::NextRetry, MakeWeak(this))
+            BIND(&TSessionBase::NextRetry, MakeStrong(this))
                 .Via(TDispatcher::Get()->GetReaderInvoker()),
             reader->Config->RetryBackoffTime);
     }
