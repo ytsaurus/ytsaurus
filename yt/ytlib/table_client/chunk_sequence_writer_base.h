@@ -99,7 +99,7 @@ protected:
         TAsyncErrorPromise finishResult,
         TError error);
 
-    void OnChunkRegistered(
+    void OnChunkConfirmed(
         NChunkClient::TChunkId chunkId,
         TAsyncErrorPromise finishResult,
         NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
