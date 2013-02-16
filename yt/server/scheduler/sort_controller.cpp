@@ -1335,9 +1335,8 @@ protected:
         // To accommodate both (2) and (3), partition size growth rate is logarithmic
         i64 partitionSize = static_cast<i64>(32 * 1024 * 1024 * (1.0 + std::log10((double) TotalInputDataSize / ((i64)100 * 1024 * 1024))));
         i64 suggestedPartitionCount = static_cast<i64>(TotalInputDataSize / partitionSize);
-        i64 lowerPartitionCountCap = 1;
         i64 upperPartitionCountCap = 1000 + TotalInputDataSize / ((i64)2 * 1024 * 1024 * 1024);
-        return std::max(std::min(suggestedPartitionCount, upperPartitionCountCap), lowerPartitionCountCap);
+        return static_cast<int>(Clamp(suggestedPartitionCount, 1, upperPartitionCountCap));
     }
 
     int SuggestPartitionCount() const
@@ -1368,7 +1367,8 @@ protected:
         else {
             // Experiments show that this number is suitable as default
             // both for partition count and for partition job count.
-            return GetEmpiricalParitionCount();
+            int partitionCount = GetEmpiricalParitionCount();
+            return static_cast<int>(Clamp(partitionCount, 1, Config->MaxJobCount));
         }
     }
 
