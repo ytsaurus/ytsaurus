@@ -29,15 +29,21 @@ inline void TParallelAwaiter::Init(
     NProfiling::TProfiler* profiler,
     const NYPath::TYPath& timerPath)
 {
-    YASSERT(invoker);
+    YCHECK(invoker);
 
     Canceled = false;
+
     Completed = false;
+    CompletedPromise = NewPromise<void>();
+
     Terminated = false;
+
     RequestCount = 0;
     ResponseCount = 0;
+
     CancelableContext = New<TCancelableContext>();
     CancelableInvoker = CancelableContext->CreateInvoker(invoker);
+
     Profiler = profiler;
     if (Profiler) {
         Timer = Profiler->TimingStart(timerPath, NProfiling::ETimerMode::Parallel);
@@ -134,8 +140,11 @@ inline void TParallelAwaiter::MaybeInvokeOnComplete(const Stroka& timerKey)
         }
     }
 
-    if (invokeOnComplete && !onComplete.IsNull()) {
-        onComplete.Run();
+    if (invokeOnComplete) {
+        if (!onComplete.IsNull()) {
+            onComplete.Run();
+        }
+        CompletedPromise.Set();
     }
 }
 
@@ -163,7 +172,7 @@ inline void TParallelAwaiter::OnResult(
 }
 
 
-inline void TParallelAwaiter::Complete(TClosure onComplete)
+inline TFuture<void> TParallelAwaiter::Complete(TClosure onComplete)
 {
     if (!onComplete.IsNull()) {
         onComplete = onComplete.Via(CancelableInvoker);
@@ -174,21 +183,27 @@ inline void TParallelAwaiter::Complete(TClosure onComplete)
         TGuard<TSpinLock> guard(SpinLock);
 
         YASSERT(!Completed);
-        if (Canceled || Terminated)
-            return;
+        if (Canceled || Terminated) {
+            return CompletedPromise;
+        }
 
         OnComplete = onComplete;
         Completed = true;
 
-        invokeOnComplete = RequestCount == ResponseCount;
+        invokeOnComplete = (RequestCount == ResponseCount);
         if (invokeOnComplete) {
             Terminate();
         }
     }
 
-    if (invokeOnComplete && !onComplete.IsNull()) {
-        onComplete.Run();
+    if (invokeOnComplete) {
+        if (!onComplete.IsNull()) {
+            onComplete.Run();
+        }
+        CompletedPromise.Set();
     }
+
+    return CompletedPromise;
 }
 
 inline void TParallelAwaiter::Cancel()
@@ -212,6 +227,16 @@ inline int TParallelAwaiter::GetResponseCount() const
     return ResponseCount;
 }
 
+inline bool TParallelAwaiter::IsCompleted() const
+{
+    return Completed;
+}
+
+inline TFuture<void> TParallelAwaiter::GetAsyncCompleted() const
+{
+    return CompletedPromise;
+}
+
 inline bool TParallelAwaiter::IsCanceled() const
 {
     return Canceled;
@@ -225,6 +250,7 @@ inline void TParallelAwaiter::Terminate()
         return;
 
     OnComplete.Reset();
+
     if (Profiler) {
         Profiler->TimingStop(Timer);
     }

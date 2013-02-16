@@ -17,10 +17,10 @@ class TParallelAwaiter
 public:
     explicit TParallelAwaiter(
         IInvokerPtr invoker,
-        NProfiling::TProfiler* profiler = NULL,
+        NProfiling::TProfiler* profiler = nullptr,
         const NYPath::TYPath& timerPath = "");
     explicit TParallelAwaiter(
-        NProfiling::TProfiler* profiler = NULL,
+        NProfiling::TProfiler* profiler = nullptr,
         const NYPath::TYPath& timerPath = "");
 
     template <class T>
@@ -44,23 +44,34 @@ public:
         TCallback<void()> onResult = TCallback<void()>());
 
 
-    void Complete(TClosure onComplete = TClosure());
+    TFuture<void> Complete(TClosure onComplete = TClosure());
     void Cancel();
 
     int GetRequestCount() const;
     int GetResponseCount() const;
+
+    bool IsCompleted() const;
+    TFuture<void> GetAsyncCompleted() const;
+
     bool IsCanceled() const;
 
 private:
     TSpinLock SpinLock;
+
     bool Canceled;
+
     bool Completed;
+    TPromise<void> CompletedPromise;
+    TClosure OnComplete;
+
     bool Terminated;
+
     int RequestCount;
     int ResponseCount;
-    TClosure OnComplete;
+
     TCancelableContextPtr CancelableContext;
     IInvokerPtr CancelableInvoker;
+
     NProfiling::TProfiler* Profiler;
     NProfiling::TTimer Timer;
 

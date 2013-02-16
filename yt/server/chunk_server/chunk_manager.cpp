@@ -702,7 +702,8 @@ public:
 
         std::vector<TYPath> paths;
         FOREACH (auto* node, owningNodes) {
-            auto proxy = cypressManager->GetVersionedNodeProxy(node);
+            auto* trunkNode = node->GetTrunkNode();
+            auto proxy = cypressManager->GetVersionedNodeProxy(trunkNode);
             auto path = proxy->GetPath();
             paths.push_back(path);
         }

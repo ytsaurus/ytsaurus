@@ -59,7 +59,7 @@ class TEphemeralNodeBase
 {
 public:
     TEphemeralNodeBase()
-        : Parent(NULL)
+        : Parent(nullptr)
     { }
 
 
@@ -199,7 +199,7 @@ public:
     virtual void Clear() override
     {
         FOREACH (const auto& pair, KeyToChild) {
-            pair.second->SetParent(NULL);
+            pair.second->SetParent(nullptr);
         }
         KeyToChild.clear();
         ChildToKey.clear();
@@ -228,7 +228,7 @@ public:
     virtual INodePtr FindChild(const Stroka& key) const override
     {
         auto it = KeyToChild.find(key);
-        return it == KeyToChild.end() ? NULL : it->second;
+        return it == KeyToChild.end() ? nullptr : it->second;
     }
 
     virtual bool AddChild(INodePtr child, const Stroka& key) override
@@ -252,7 +252,7 @@ public:
             return false;
 
         auto child = it->second;
-        child->SetParent(NULL);
+        child->SetParent(nullptr);
         KeyToChild.erase(it);
         YCHECK(ChildToKey.erase(child) == 1);
 
@@ -263,7 +263,7 @@ public:
     {
         YASSERT(child);
 
-        child->SetParent(NULL);
+        child->SetParent(nullptr);
 
         auto it = ChildToKey.find(child);
         YASSERT(it != ChildToKey.end());
@@ -288,7 +288,7 @@ public:
         // NB: don't use const auto& here, it becomes invalid!
         auto key = it->second;
 
-        oldChild->SetParent(NULL);
+        oldChild->SetParent(nullptr);
         ChildToKey.erase(it);
 
         KeyToChild[key] = newChild;
@@ -335,7 +335,7 @@ public:
     virtual void Clear() override
     {
         FOREACH (const auto& node, IndexToChild) {
-            node->SetParent(NULL);
+            node->SetParent(nullptr);
         }
         IndexToChild.clear();
         ChildToIndex.clear();
@@ -353,7 +353,7 @@ public:
 
     virtual INodePtr FindChild(int index) const override
     {
-        return index >= 0 && index < IndexToChild.size() ? IndexToChild[index] : NULL;
+        return index >= 0 && index < IndexToChild.size() ? IndexToChild[index] : nullptr;
     }
 
     virtual void AddChild(INodePtr child, int beforeIndex = -1) override
@@ -387,7 +387,7 @@ public:
         IndexToChild.erase(IndexToChild.begin() + index);
 
         YCHECK(ChildToIndex.erase(child) == 1);
-        child->SetParent(NULL);
+        child->SetParent(nullptr);
 
         return true;
     }
@@ -405,7 +405,7 @@ public:
 
         int index = it->second;
 
-        oldChild->SetParent(NULL);
+        oldChild->SetParent(nullptr);
 
         IndexToChild[index] = newChild;
         ChildToIndex.erase(it);
