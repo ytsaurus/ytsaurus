@@ -80,7 +80,9 @@ def main():
         pool = args.pool
         if pool is None:
             pool = "restricted"
-        spec = {"data_size_per_job": 1, "job_count": args.job_count, "pool": pool}
+        spec = {"data_size_per_job": 1, "pool": pool}
+        if args.job_count is not None:
+            spec["job_count"] = args.job_count
 
         table_writer = None
         if args.codec is not None:
@@ -110,7 +112,11 @@ def main():
                 table_writer=table_writer,
                 spec=spec)
 
-    def push_table(source, destination):
+    def push_table(source, destination, count):
+        if args.job_count is None:
+            # Number of data pieces
+            args.job_count = (count - 1) / args.record_threshold + 1
+
         if args.speed is not None:
             limit = args.speed * yt.config.MB / args.job_count
             speed_limit = "pv -q -L {} | ".format(limit)
@@ -172,10 +178,6 @@ def main():
             if args.force or (yt.get_type(destination) == "table" and yt.is_empty(destination)):
                 yt.remove(destination)
         yt.create_table(destination, recursive=True)
-
-        if args.job_count is None:
-            # Number of data pieces
-            args.job_count = (count - 1) / args.record_threshold + 1
 
         try:
             if args.import_type == "pull":
