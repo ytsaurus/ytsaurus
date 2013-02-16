@@ -81,11 +81,33 @@ public:
             ~FormatBool(Config->EnableNodeCaching));
     }
 
-    TAsyncReadResult AsyncReadBlocks(const std::vector<int>& blockIndexes);
+    virtual TAsyncReadResult AsyncReadBlocks(const std::vector<int>& blockIndexes) override;
 
-    TAsyncGetMetaResult AsyncGetChunkMeta(
+    virtual TAsyncGetMetaResult AsyncGetChunkMeta(
         const TNullable<int>& partitionTag,
-        const std::vector<i32>* tags = NULL);
+        const std::vector<i32>* tags = nullptr) override;
+
+    virtual TChunkId GetChunkId() const override
+    {
+        return ChunkId;
+    }
+
+private:
+    friend class TSessionBase;
+    friend class TReadSession;
+    friend class TGetMetaSession;
+
+    TRemoteReaderConfigPtr Config;
+    IBlockCachePtr BlockCache;
+    TChunkId ChunkId;
+    NLog::TTaggedLogger Logger;
+
+    TObjectServiceProxy ObjectProxy;
+
+    TSpinLock SpinLock;
+    std::vector<Stroka> InitialSeedAddresses;
+    TInstant SeedsTimestamp;
+    TAsyncGetSeedsPromise GetSeedsPromise;
 
     TAsyncGetSeedsResult AsyncGetSeeds()
     {
@@ -95,9 +117,10 @@ public:
         if (!GetSeedsPromise) {
             LOG_INFO("Need fresh chunk seeds");
             GetSeedsPromise = NewPromise<TGetSeedsResult>();
+            // Don't ask master for fresh seeds too often.
             TDelayedInvoker::Submit(
                 BIND(&TRemoteReader::LocateChunk, MakeWeak(this))
-                    .Via(TDispatcher::Get()->GetReaderInvoker()),
+                .Via(TDispatcher::Get()->GetReaderInvoker()),
                 SeedsTimestamp + Config->RetryBackoffTime);
         }
 
@@ -124,28 +147,6 @@ public:
         YCHECK(GetSeedsPromise.IsSet());
         GetSeedsPromise.Reset();
     }
-
-    virtual TChunkId GetChunkId() const
-    {
-        return ChunkId;
-    }
-
-private:
-    friend class TSessionBase;
-    friend class TReadSession;
-    friend class TGetMetaSession;
-
-    TRemoteReaderConfigPtr Config;
-    IBlockCachePtr BlockCache;
-    TChunkId ChunkId;
-    NLog::TTaggedLogger Logger;
-
-    TObjectServiceProxy ObjectProxy;
-
-    TSpinLock SpinLock;
-    std::vector<Stroka> InitialSeedAddresses;
-    TInstant SeedsTimestamp;
-    TAsyncGetSeedsPromise GetSeedsPromise;
 
     void LocateChunk()
     {
@@ -185,6 +186,7 @@ private:
         YCHECK(!GetSeedsPromise.IsSet());
         GetSeedsPromise.Set(seedAddresses);
     }
+
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -270,8 +272,11 @@ protected:
             OnSessionFailed();
             return;
         }
-
-        NextRetry();
+        
+        TDelayedInvoker::Submit(
+            BIND(&TSessionBase::NextRetry, MakeWeak(this))
+                .Via(TDispatcher::Get()->GetReaderInvoker()),
+            reader->Config->RetryBackoffTime);
     }
 
     void OnPassCompleted()
@@ -368,7 +373,7 @@ public:
     ~TReadSession()
     {
         if (!Promise.IsSet()) {
-            Promise.Set(TError("Reader has already died."));
+            Promise.Set(TError("Reader terminated"));
         }
     }
 
@@ -702,7 +707,11 @@ private:
 TRemoteReader::TAsyncReadResult TRemoteReader::AsyncReadBlocks(const std::vector<int>& blockIndexes)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    return New<TReadSession>(this, blockIndexes)->Run();
+
+    auto session = New<TReadSession>(this, blockIndexes);
+    return BIND(&TReadSession::Run, session)
+        .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
+        .Run();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -733,7 +742,7 @@ public:
     ~TGetMetaSession()
     {
         if (!Promise.IsSet()) {
-            Promise.Set(TError("Reader has already died."));
+            Promise.Set(TError("Reader terminated"));
         }
     }
 
@@ -854,7 +863,11 @@ TRemoteReader::TAsyncGetMetaResult TRemoteReader::AsyncGetChunkMeta(
     const std::vector<i32>* extensionTags)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    return New<TGetMetaSession>(this, partitionTag, extensionTags)->Run();
+
+    auto session = New<TGetMetaSession>(this, partitionTag, extensionTags);
+    return BIND(&TGetMetaSession::Run, session)
+        .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
+        .Run();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
