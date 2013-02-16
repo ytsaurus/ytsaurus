@@ -55,18 +55,12 @@ public:
             }));
         }
 
-        TPromise<void> completed(NewPromise<void>());
-        awaiter->Complete(BIND([=] () mutable {
-            completed.Set();
-        }));
-        completed.Get();
+        awaiter->Complete().Get();
 
         if (!errors.empty()) {
-            TError error("Error opening merging reader");
-            FOREACH (const auto& innerError, errors) {
-                error.InnerErrors().push_back(innerError);
-            }
-            THROW_ERROR error;
+            TError wrappedError("Error opening merging reader");
+            wrappedError.InnerErrors() = errors;
+            THROW_ERROR wrappedError;
         }
 
         // Push all non-empty readers to the heap.
