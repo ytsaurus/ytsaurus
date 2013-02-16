@@ -34,7 +34,7 @@ struct TChunkStripeList
 
     TNullable<int> PartitionTag;
 
-    // True if TotalDataSize and TotalRowCount are approximate.
+    //! If True then TotalDataSize and TotalRowCount are approximate (and are hopefully upper bounds).
     bool IsApproximate;
 
     i64 TotalDataSize;

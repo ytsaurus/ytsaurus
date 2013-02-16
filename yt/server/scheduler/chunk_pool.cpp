@@ -14,6 +14,8 @@ using namespace NTableClient;
 using namespace NTableClient::NProto;
 using namespace NChunkClient::NProto;
 
+static const double ApproximateSizesBoostFactor = 1.3;
+
 ////////////////////////////////////////////////////////////////////
 
 TChunkStripe::TChunkStripe()
@@ -915,9 +917,15 @@ private:
 
             list->TotalDataSize = run.TotalDataSize;
             list->TotalRowCount = run.TotalRowCount;
+            
             list->LocalChunkCount = 0;
             list->NonLocalChunkCount = list->TotalChunkCount;
+
             list->IsApproximate = run.IsApproximate;
+            if (list->IsApproximate) {
+                list->TotalRowCount = static_cast<i64>(list->TotalRowCount * ApproximateSizesBoostFactor);
+                list->TotalDataSize = static_cast<i64>(list->TotalDataSize * ApproximateSizesBoostFactor);
+            }
 
             return list;
         }
