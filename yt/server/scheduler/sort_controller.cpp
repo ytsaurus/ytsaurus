@@ -419,7 +419,11 @@ protected:
                 i64 dataSize = partition->ChunkPoolOutput->GetTotalDataSize();
                 if (dataSize == 0) {
                     LOG_DEBUG("Partition %d is empty", partition->Index);
-                    Controller->OnPartitionCompleted(partition);
+                    // Job restarts may cause the partition task to complete several times.
+                    // Thus we might have already marked the partition as completed, let's be careful.
+                    if (!partition->Completed) {
+                        Controller->OnPartitionCompleted(partition);
+                    }
                 } else {
                     LOG_DEBUG("Partition[%d] = %" PRId64,
                         partition->Index,
@@ -767,6 +771,7 @@ protected:
     private:
         virtual void OnTaskCompleted() override
         {
+            // We believe that this task may only complete once.
             Controller->OnPartitionCompleted(Partition);
         }
 
