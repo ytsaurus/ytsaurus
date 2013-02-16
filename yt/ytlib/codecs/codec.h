@@ -30,6 +30,8 @@ struct ICodec
 
     //! Decompress a given block.
     virtual TSharedRef Decompress(const TSharedRef& block) = 0;
+
+    virtual ECodec GetId() const = 0;
 };
 
 
