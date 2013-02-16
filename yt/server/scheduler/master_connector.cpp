@@ -1011,7 +1011,7 @@ private:
             ~operationId.ToString());
 
         auto* list = GetUpdateList(operation);
-        list->State = EUpdateListState::Finalized;
+        list->State = EUpdateListState::Finalized; 
         list->FinalizedPromise.Set();
 
         RemoveUpdateList(operation);

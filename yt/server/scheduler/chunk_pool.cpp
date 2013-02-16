@@ -270,13 +270,11 @@ public:
         YCHECK(Finished);
         YCHECK(SuspendedStripeCount == 0);
 
-        if (Completed_) {
+        if (ExtractedList || Completed_) {
             return IChunkPoolOutput::NullCookie;
         }
         
-        YCHECK(!ExtractedList);
         ExtractedList = New<TChunkStripeList>();
-
         FOREACH (const auto& suspendableStripe, Stripes) {
             auto stripe = suspendableStripe.GetStripe();
             i64 stripeDataSize;
