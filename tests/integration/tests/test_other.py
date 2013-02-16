@@ -114,7 +114,6 @@ class TestVirtualMaps(YTEnvSetup):
 
 ###################################################################################
 
-
 class TestAsyncAttributes(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -133,3 +132,27 @@ class TestAsyncAttributes(YTEnvSetup):
         assert len(get('//tmp/t/@chunk_ids')) == chunk_count
         codec_info = get('//tmp/t/@codec_statistics')
         assert codec_info['snappy']['chunk_count'] == chunk_count
+
+###################################################################################
+
+class TestChunkInternals(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    START_SCHEDULER = True
+
+    def test_owning_nodes1(self):
+    	create('table', '//tmp/t')
+    	write('//tmp/t', {'a' : 'b'})
+    	chunk_ids = get('//tmp/t/@chunk_ids')
+    	assert len(chunk_ids) == 1
+    	chunk_id = chunk_ids[0]
+    	assert get('#' + chunk_id + '/@owning_nodes') == ['//tmp/t']
+
+    def test_owning_nodes2(self):
+    	create('table', '//tmp/t')
+    	tx = start_transaction()
+    	write('//tmp/t', {'a' : 'b'}, tx=tx)
+    	chunk_ids = get('//tmp/t/@chunk_ids', tx=tx)
+    	assert len(chunk_ids) == 1
+    	chunk_id = chunk_ids[0]
+    	assert get('#' + chunk_id + '/@owning_nodes') == ['//tmp/t']
