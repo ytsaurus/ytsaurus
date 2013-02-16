@@ -140,8 +140,10 @@ inline void TParallelAwaiter::MaybeInvokeOnComplete(const Stroka& timerKey)
         }
     }
 
-    if (invokeOnComplete && !onComplete.IsNull()) {
-        onComplete.Run();
+    if (invokeOnComplete) {
+        if (!onComplete.IsNull()) {
+            onComplete.Run();
+        }
         CompletedPromise.Set();
     }
 }
@@ -194,8 +196,10 @@ inline TFuture<void> TParallelAwaiter::Complete(TClosure onComplete)
         }
     }
 
-    if (invokeOnComplete && !onComplete.IsNull()) {
-        onComplete.Run();
+    if (invokeOnComplete) {
+        if (!onComplete.IsNull()) {
+            onComplete.Run();
+        }
         CompletedPromise.Set();
     }
 
@@ -246,6 +250,7 @@ inline void TParallelAwaiter::Terminate()
         return;
 
     OnComplete.Reset();
+
     if (Profiler) {
         Profiler->TimingStop(Timer);
     }
