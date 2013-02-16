@@ -36,6 +36,11 @@ public:
     {
         return block;
     }
+    
+    virtual ECodec GetId() const override
+    {
+        return ECodec::None;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -58,6 +63,11 @@ public:
     virtual TSharedRef Decompress(const TSharedRef& block) override
     {
         return NCodec::Apply(BIND(NCodec::SnappyDecompress), block);
+    }
+    
+    virtual ECodec GetId() const override
+    {
+        return ECodec::Snappy;
     }
 
 };
@@ -88,8 +98,21 @@ public:
         return NCodec::Apply(BIND(NCodec::ZlibDecompress), block);
     }
 
+    virtual ECodec GetId() const override
+    {
+        if (Level_ == 6) {
+            return ECodec::GzipNormal;
+        }
+        if (Level_ == 9) {
+            return ECodec::GzipBestCompression;
+        }
+        YUNREACHABLE();
+    }
+
 private:
     NCodec::TConverter Compressor_;
+
+    int Level_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -101,6 +124,7 @@ class TLz4Codec
 public:
     explicit TLz4Codec(bool highCompression)
         : Compressor_(BIND(NCodec::Lz4Compress, highCompression))
+        , CodecId_(highCompression ? ECodec::Lz4HighCompression : ECodec::Lz4)
     { }
 
     virtual TSharedRef Compress(const TSharedRef& block) override
@@ -117,9 +141,16 @@ public:
     {
         return NCodec::Apply(BIND(NCodec::Lz4Decompress), block);
     }
+    
+    virtual ECodec GetId() const override
+    {
+        return CodecId_;
+    }
 
 private:
     NCodec::TConverter Compressor_;
+
+    ECodec CodecId_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -146,6 +177,11 @@ public:
     virtual TSharedRef Decompress(const TSharedRef& block) override
     {
         return NCodec::Apply(BIND(NCodec::QuickLzDecompress), block);
+    }
+    
+    virtual ECodec GetId() const override
+    {
+        return ECodec::QuickLz;
     }
 
 private:

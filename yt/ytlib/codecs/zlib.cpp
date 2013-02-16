@@ -1,6 +1,7 @@
 #include "zlib.h"
 
 #include <ytlib/misc/assert.h>
+#include <ytlib/misc/error.h>
 #include <ytlib/misc/serialize.h>
 
 #include <contrib/libs/zlib/zlib.h>
@@ -91,7 +92,9 @@ void ZlibDecompress(StreamSource* source, std::vector<char>* output)
         stream.next_out = reinterpret_cast<Bytef*>(output->data() + currentPos);
         stream.avail_out = output->size() - currentPos;
         returnCode = inflate(&stream, Z_NO_FLUSH);
-        YCHECK(returnCode == Z_OK || returnCode == Z_STREAM_END);
+        if (!(returnCode == Z_OK || returnCode == Z_STREAM_END)) {
+            THROW_ERROR_EXCEPTION("Zlib decompression failed");
+        }
 
         source->Skip(available - stream.avail_in);
         currentPos = output->size() - stream.avail_out;
