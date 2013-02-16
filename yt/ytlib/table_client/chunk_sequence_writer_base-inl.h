@@ -133,7 +133,8 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkCreated(
     }
 
     if (!rsp->IsOK()) {
-        State.Fail(rsp->GetError());
+        auto wrappedError = TError("Error creating chunk") << *rsp;
+        State.Fail(wrappedError);
         return;
     }
 
@@ -305,7 +306,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkClosed(
 
     CompleteChunkSize += chunkWriter->GetCurrentSize();
 
-    LOG_DEBUG("Chunk successfully closed (ChunkId: %s)",
+    LOG_DEBUG("Chunk closed (ChunkId: %s)",
         ~remoteWriter->GetChunkId().ToString());
 
     NObjectClient::TObjectServiceProxy objectProxy(MasterChannel);
@@ -330,34 +331,30 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkClosed(
     }
 
     batchReq->Invoke().Subscribe(BIND(
-        &TChunkSequenceWriterBase::OnChunkRegistered,
+        &TChunkSequenceWriterBase::OnChunkConfirmed,
         MakeWeak(this),
         remoteWriter->GetChunkId(),
         finishResult));
 }
 
 template <class TChunkWriter>
-void TChunkSequenceWriterBase<TChunkWriter>::OnChunkRegistered(
+void TChunkSequenceWriterBase<TChunkWriter>::OnChunkConfirmed(
     NChunkClient::TChunkId chunkId,
     TAsyncErrorPromise finishResult,
     NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    if (!batchRsp->IsOK()) {
-        finishResult.Set(batchRsp->GetError());
+    auto error = batchRsp->GetCumulativeError();
+    if (!error) {
+        auto wrappedError = TError("Error confirming chunk %s",
+            ~ToString(chunkId) << 
+            error;
+        finishResult.Set(wrappedError);
         return;
     }
 
-    for (int i = 0; i < batchRsp->GetSize(); ++i) {
-        auto rsp = batchRsp->GetResponse(i);
-        if (!rsp->IsOK()) {
-            finishResult.Set(rsp->GetError());
-            return;
-        }
-    }
-
-    LOG_DEBUG("Chunk registered successfully (ChunkId: %s)",
+    LOG_DEBUG("Chunk confirmed (ChunkId: %s)",
         ~chunkId.ToString());
 
     finishResult.Set(TError());
@@ -425,17 +422,13 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnClose(
         return;
     }
 
-    if (!batchRsp->IsOK()) {
-        State.Fail(batchRsp->GetError());
+    auto error = batchRsp->GetCumulativeError();
+    if (!error.IsOK()) {
+        auto wrappedError = TError("Error attaching chunks to chunk list %s",
+            ~ToString(ParentChunkListId))
+            << error;
+        State.Fail(wrappedError);
         return;
-    }
-
-    for (int i = 0; i < batchRsp->GetSize(); ++i) {
-        auto rsp = batchRsp->GetResponse(i);
-        if (!rsp->IsOK()) {
-            State.Fail(rsp->GetError());
-            return;
-        }
     }
 
     LOG_DEBUG("Chunk sequence writer closed");
