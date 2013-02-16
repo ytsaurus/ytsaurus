@@ -346,7 +346,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkConfirmed(
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto error = batchRsp->GetCumulativeError();
-    if (!error) {
+    if (!error.IsOK()) {
         auto wrappedError = TError("Error confirming chunk %s",
             ~ToString(chunkId) << 
             error;
