@@ -687,11 +687,6 @@ protected:
                 return 0;
             }
 
-            // Avoid starting new final sorts while partition jobs are being replayed.
-            if (!Controller->IsSortedMergeNeeded(Partition) && !Controller->PartitionTask->IsCompleted()) {
-                return 0;
-            }
-
             return TTask::GetPendingJobCount();
         }
 
