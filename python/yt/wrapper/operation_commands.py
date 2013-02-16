@@ -182,7 +182,11 @@ def get_stderrs(operation, limit=None):
 
 def get_operation_result(operation):
     operation_path = os.path.join(OPERATIONS_PATH, operation)
-    return get_attribute(operation_path, "result")
+    result = get_attribute(operation_path, "result")
+    if "error" in result:
+        return format_error(result["error"])
+    else:
+        return result
 
 class WaitStrategy(object):
     """
