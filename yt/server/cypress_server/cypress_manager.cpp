@@ -1073,8 +1073,7 @@ void TCypressManager::ListSubtreeNodes(
         case EObjectType::ListNode: {
             auto* listRoot = static_cast<TListNode*>(trunkNode);
             FOREACH (auto* trunkChild, listRoot->IndexToChild()) {
-                auto* child = GetVersionedNode(trunkChild, transaction);
-                ListSubtreeNodes(child->GetTrunkNode(), transaction, subtreeNodes);
+                ListSubtreeNodes(trunkChild, transaction, subtreeNodes);
             }
             break;
         }
