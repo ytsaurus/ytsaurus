@@ -1,7 +1,11 @@
 #include "stdafx.h"
 #include "redirector_service.h"
-#include "private.h"
-#include "channel_cache.h"
+#include "client.h"
+#include "service.h"
+#include "message.h"
+
+#include <ytlib/bus/bus.h>
+#include <ytlib/bus/message.h>
 
 namespace NYT {
 namespace NRpc {
@@ -11,25 +15,21 @@ using namespace NBus;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = RpcServerLogger;
-static TChannelCache ChannelCache;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRedirectorService::TRequest
+namespace {
+
+class TRedirectedRequest
     : public IClientRequest
 {
 public:
-    TRequest(
-        IMessagePtr message,
-        bool oneWay,
-        const TRequestId& requestId,
-        const Stroka& path,
-        const Stroka& verb)
-        : Message(message)
-        , OneWay(oneWay)
-        , RequestId(requestId)
-        , Path(path)
-        , Verb(verb)
+    TRedirectedRequest(
+        const NProto::TRequestHeader& header,
+        IMessagePtr message)
+        : Header(header)
+        , Message(message)
+        , RequestId(TRequestId::FromProto(Header.request_id()))
     { }
 
     virtual IMessagePtr Serialize() const override
@@ -39,7 +39,7 @@ public:
 
     virtual bool IsOneWay() const override
     {
-        return OneWay;
+        return Header.one_way();
     }
 
     virtual bool IsHeavy() const override
@@ -54,12 +54,12 @@ public:
 
     virtual const Stroka& GetPath() const override
     {
-        return Path;
+        return Header.path();
     }
 
     virtual const Stroka& GetVerb() const override
     {
-        return Verb;
+        return Header.verb();
     }
 
     virtual NYTree::IAttributeDictionary& Attributes() override
@@ -73,96 +73,105 @@ public:
     }
 
 private:
+    NProto::TRequestHeader Header;
     IMessagePtr Message;
-    bool OneWay;
+
     TRequestId RequestId;
-    Stroka Path;
-    Stroka Verb;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRedirectorService::TResponseHandler
+class TRedirectedResponseHandler
     : public IClientResponseHandler
 {
 public:
-    explicit TResponseHandler(IServiceContextPtr context)
-        : Context(context)
+    TRedirectedResponseHandler(IClientRequestPtr request, IBusPtr replyBus)
+        : Request(request)
+        , ReplyBus(replyBus)
     { }
 
-    void OnAcknowledgement()
-    { }
-
-    void OnResponse(NBus::IMessagePtr message)
+    virtual void OnAcknowledgement() override
     {
-        Context->Reply(message);
+        LOG_DEBUG("Redirected request acknowledged (RequestId: %s)",
+            ~ToString(Request->GetRequestId()));
     }
 
-    void OnError(const TError& error)
+    virtual void OnResponse(IMessagePtr message) override
     {
-        Context->Reply(error);
+        LOG_DEBUG("Response for redirected request received (RequestId: %s)",
+            ~ToString(Request->GetRequestId()));
+
+        ReplyBus->Send(message);
+    }
+
+    virtual void OnError(const TError& error) override
+    {
+        LOG_DEBUG(error, "Redirected request failed (RequestId: %s)",
+            ~ToString(Request->GetRequestId()));
+
+        auto message = CreateErrorResponseMessage(Request->GetRequestId(), error);
+        ReplyBus->Send(message);
     }
 
 private:
-    IServiceContextPtr Context;
+    IClientRequestPtr Request;
+    IBusPtr ReplyBus;
 
 };
 
+} // namespace
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TRedirectorService::TRedirectorService(
+class TRedirectorService
+    : public IService
+{
+public:
+    TRedirectorService(
+        const Stroka& serviceName,
+        IChannelPtr sinkChannel)
+        : ServiceName(serviceName)
+        , SinkChannel(sinkChannel)
+    { }
+
+    virtual void OnRequest(
+        const NProto::TRequestHeader& header,
+        NBus::IMessagePtr message,
+        NBus::IBusPtr replyBus) override
+    {
+        auto request = New<TRedirectedRequest>(header, message);
+
+        LOG_DEBUG("Redirecting request (RequestId: %s, Path: %s, Verb: %s)",
+            ~ToString(request->GetRequestId()),
+            ~request->GetPath(),
+            ~request->GetVerb());
+
+        auto responseHandler = New<TRedirectedResponseHandler>(request, replyBus);
+        SinkChannel->Send(request, responseHandler, Null);
+    }
+
+    virtual Stroka GetServiceName() const override
+    {
+        return ServiceName;
+    }
+
+private:
+    Stroka ServiceName;
+    Stroka LoggingCategory;
+    IChannelPtr SinkChannel;
+
+};
+
+IServicePtr CreateRedirectorService(
     const Stroka& serviceName,
-    const Stroka& loggingCategory)
-    : ServiceName(serviceName)
-    , LoggingCategory(loggingCategory)
-{ }
-
-void TRedirectorService::OnBeginRequest(IServiceContextPtr context)
+    IChannelPtr sinkChannel)
 {
-    HandleRedirect(context).Subscribe(BIND([=] (TRedirectResult result)
-        {
-            if (!result.IsOK()) {
-                context->Reply(TError(
-                    NRpc::EErrorCode::Unavailable,
-                    "Redirection failed")
-                    << result);
-                return;
-            }
+    YCHECK(sinkChannel);
 
-            const auto& params = result.Value();
-
-            context->SetRequestInfo(Sprintf("Address: %s, Timeout: %s",
-                ~params.Address,
-                ~ToString(params.Timeout)));
-
-            auto channel = ChannelCache.GetChannel(params.Address);
-
-            auto request = New<TRequest>(
-                context->GetRequestMessage(),
-                context->IsOneWay(),
-                context->GetRequestId(),
-                context->GetPath(),
-                context->GetVerb());
-
-            auto responseHandler = New<TResponseHandler>(context);
-            channel->Send(request, responseHandler, params.Timeout);
-        }));
+    return New<TRedirectorService>(serviceName, sinkChannel);
 }
 
-void TRedirectorService::OnEndRequest(IServiceContextPtr context)
-{
-    UNUSED(context);
-}
-
-Stroka TRedirectorService::GetServiceName() const
-{
-    return ServiceName;
-}
-
-Stroka TRedirectorService::GetLoggingCategory() const
-{
-    return LoggingCategory;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
