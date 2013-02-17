@@ -78,7 +78,7 @@ private:
     bool TryAwait();
 
     void MaybeFireCompleted(const Stroka& key);
-    void DoFireCompleted();
+    void DoFireCompleted(TClosure onComplete);
 
     void Init(
         IInvokerPtr invoker,

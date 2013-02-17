@@ -113,6 +113,7 @@ inline void TParallelAwaiter::Await(
 inline void TParallelAwaiter::MaybeFireCompleted(const Stroka& timerKey)
 {
     bool fireCompleted = false;
+    TClosure onComplete;
     {
         TGuard<TSpinLock> guard(SpinLock);
 
@@ -126,22 +127,24 @@ inline void TParallelAwaiter::MaybeFireCompleted(const Stroka& timerKey)
         ++ResponseCount;
 
         fireCompleted = ResponseCount == RequestCount && Completed;
+
         if (fireCompleted) {
+            onComplete = OnComplete;
             Terminate();
         }
     }
 
     if (fireCompleted) {
-        DoFireCompleted();
+        DoFireCompleted(std::move(onComplete));
     }
 }
 
-inline void TParallelAwaiter::DoFireCompleted()
+inline void TParallelAwaiter::DoFireCompleted(TClosure onComplete)
 {
     auto this_ = MakeStrong(this);
     CancelableInvoker->Invoke(BIND([=] () {
-        if (!this_->OnComplete.IsNull()) {
-            this_->OnComplete.Run();
+        if (!onComplete.IsNull()) {
+            onComplete.Run();
         }
         this_->CompletedPromise.Set();
     }));
@@ -193,7 +196,7 @@ inline TFuture<void> TParallelAwaiter::Complete(TClosure onComplete)
     }
 
     if (fireCompleted) {
-        DoFireCompleted();
+        DoFireCompleted(onComplete);
     }
 
     return CompletedPromise;
