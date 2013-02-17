@@ -70,8 +70,7 @@ void TAsyncStreamState::Close()
 
 bool TAsyncStreamState::IsActive() const
 {
-    //TGuard<TSpinLock> guard(SpinLock);
-    // No guard for performace purpose - result can possibly be false positive.
+    // No guard for performance reasons; result can possibly be false positive.
     return IsActive_;
 }
 
