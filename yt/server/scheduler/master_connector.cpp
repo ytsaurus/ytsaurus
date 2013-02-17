@@ -490,7 +490,15 @@ private:
         // - Watcher requests.
         TObjectServiceProxy::TInvExecuteBatch Round6(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
         {
-            THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
+            // NB: transaction aborts may have failed. Check individual responses.
+            THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
+
+            {
+                auto rsps = batchRsp->GetResponses<TYPathProxy::TRspSet>("reset_op");
+                FOREACH (auto rsp, rsps) {
+                    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+                }
+            }
 
             auto batchReq = Owner->StartBatchRequest();
             Owner->WatcherRequest_.Fire(batchReq);
