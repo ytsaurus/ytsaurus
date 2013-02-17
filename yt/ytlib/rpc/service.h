@@ -127,7 +127,7 @@ class TTypedServiceRequest
 {
 public:
     TTypedServiceRequest()
-        : Context(NULL)
+        : Context(nullptr)
     { }
 
     std::vector<TSharedRef>& Attachments()
@@ -156,7 +156,7 @@ class TTypedServiceResponse
 {
 public:
     TTypedServiceResponse()
-        : Context(NULL)
+        : Context(nullptr)
     { }
 
     std::vector<TSharedRef>& Attachments()
@@ -438,7 +438,7 @@ protected:
         TMethodDescriptor(const Stroka& verb, THandler handler);
 
         //! Invoker used to executing the handler.
-        //! If NULL then the default one is used.
+        //! If |nullptr| then the default one is used.
         IInvokerPtr Invoker;
 
         //! Service method name.
@@ -579,7 +579,7 @@ protected:
     void CancelActiveRequests(const TError& error);
 
     //! Returns a reference to TRuntimeMethodInfo for a given method's name
-    //! or |NULL| if no such method is registered.
+    //! or |nullptr| if no such method is registered.
     TRuntimeMethodInfoPtr FindMethodInfo(const Stroka& method);
 
     //! Similar to #FindMethodInfo but fails if no method is found.
