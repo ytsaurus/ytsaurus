@@ -34,20 +34,28 @@ public:
 
     TFuture<void> Collect();
 
-    void Enqueue(const TObjectId& id);
-    void Dequeue(const TObjectId& id);
+    void Enqueue(TObjectBase* object);
+
+    void Unlock(TObjectBase* object);
+    void UnlockAll();
+
+    void Dequeue(TObjectBase* object);
+    void CheckEmpty();
+
+    int GetGCQueueSize() const;
+    int GetLockedGCQueueSize() const;
 
 private:
     TObjectManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
 
-    NProfiling::TAggregateCounter QueueSizeCounter;
-
     TPeriodicInvokerPtr SweepInvoker;
 
-    //! Contains the ids of object have reached ref counter of 0
-    //! but are not destroyed yet.
-    yhash_set<TObjectId> ZombieIds;
+    //! Contains objects with zero ref counter and zero lock counter.
+    yhash_set<TObjectBase*> Zombies;
+
+    //! Contains objects with zero ref counter and positive lock counter.
+    yhash_set<TObjectBase*> LockedZombies;
 
     //! This promise is set each time #GCQueue becomes empty.
     TPromise<void> CollectPromise;
@@ -55,8 +63,6 @@ private:
     void OnSweep();
     void OnCommitSucceeded();
     void OnCommitFailed(const TError& error);
-
-    void ProfileQueueSize();
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 

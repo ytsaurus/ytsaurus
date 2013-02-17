@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/periodic_invoker.h>
 
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/map.h>
@@ -68,6 +69,12 @@ public:
 
     //! Removes a reference.
     void UnrefObject(TObjectBase* object);
+
+    //! Locks the object temporarily preventing it from being destructed.
+    void LockObject(TObjectBase* object);
+
+    //! Unlocks the object making it eligible for destruction.
+    void UnlockObject(TObjectBase* object);
 
     //! Finds object by id, returns |nullptr| if nothing is found.
     TObjectBase* FindObject(const TObjectId& id);
@@ -141,10 +148,13 @@ private:
     TIntrusivePtr<TRootService> RootService;
     mutable TGuid CachedCellGuild;
 
+    TPeriodicInvokerPtr ProflilingInvoker;
+
     TGarbageCollectorPtr GarbageCollector;
 
-    NProfiling::TAggregateCounter CreatedObjectCounter;
-    NProfiling::TAggregateCounter DestroyedObjectCounter;
+    i64 CreatedObjectCount;
+    i64 DestroyedObjectCount;
+    int LockedObjectCount;
 
     //! Stores deltas from parent transaction.
     NMetaState::TMetaStateMap<TVersionedObjectId, TAttributeSet> Attributes;
@@ -164,7 +174,8 @@ private:
     void ReplayVerb(const NProto::TMetaReqExecute& request);
 
     void DestroyObjects(const NProto::TMetaReqDestroyObjects& request);
-    void DestroyObject(const TObjectId& id);
+
+    void OnProfiling();
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 };

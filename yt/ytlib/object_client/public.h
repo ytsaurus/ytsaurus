@@ -44,7 +44,7 @@ DECLARE_ENUM(EObjectType,
 
     // Transaction Manager stuff
     // Top-level transactions are created by sending CreateObject request to RootTransactionPath
-    // (which is effectively represents NullTransactionId).
+    // (which effectively represents NullTransactionId).
     // Nested transactions are created by sending CreateObject request to their parents.
     ((Transaction)(1))
 

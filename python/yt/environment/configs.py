@@ -7,26 +7,35 @@ def get_master_config():
     return yson.parse_string(
 """
 {
-  "meta_state" = {
-    "cell" = {
-      "addresses" = [ ];
+  meta_state = {
+    cell = {
+      addresses = [ ];
     };
     "follower_tracker" = {
         "ping_interval" = 3000;
     };
-    "changelogs" = {
-        "path" = ""
+    changelogs = {
+        path = "";
     };
-    "snapshots" = {
-        "path" = ""
+    snapshots = {
+        path = "";
     };
-    "max_changes_between_snapshots" = 1000000;
-    "max_batch_delay" = 0;
-    "leader_committer" = { "rpc_timeout" = 10000; };
+    max_changes_between_snapshots = 1000000;
+    max_batch_delay = 0;
+    leader_committer = {
+      rpc_timeout = 10000;
+    };
   };
+  
   transactions = {
     default_transaction_timeout = 300000;
   };
+
+  chunks = {
+    chunk_refresh_delay = 2000;
+  };
+
+
     logging = {
         rules = [
             {
@@ -73,6 +82,7 @@ def get_scheduler_config():
             "localhost:9000";
         ];
     };
+
     scheduler = {
         strategy = fair_share;
         max_failed_job_count = 10;
@@ -80,6 +90,7 @@ def get_scheduler_config():
              PYTHONUSERBASE = "/tmp"
         };
     };
+
     logging = {
         rules = [
             {
@@ -126,7 +137,7 @@ def get_driver_config():
         addresses = [
             "localhost";
         ];
-    "rpc_timeout" = 30000;
+        rpc_timeout = 30000;
     };
 
     logging = {
@@ -183,14 +194,16 @@ def get_node_config():
     return yson.parse_string(
 """
 {
-    "total_memory_size" = 8000000000;
-    "data_node" = {
-        "cache_location" = {
-            "path" = ""
+    total_memory_size = 8000000000;
+    
+    data_node = {
+        cache_location = {
+            path = "";
         };
-        "store_locations" = [];
-        "heartbeat_period" = 1000
+        store_locations = [];
+        heartbeat_period = 500;
     };
+
     "exec_agent" = {
         "environment_manager" = {
             "environments" = {
@@ -248,6 +261,7 @@ def get_node_config():
         "addresses" = [];
         "rpc_timeout" = 5000
     };
+
     logging = {
         rules = [
             {

@@ -1094,8 +1094,6 @@ private:
     {
         NodeIdGenerator.Reset();
         ChunkMap.Clear();
-        ChunkReplicaCount = 0;
-        RegisteredNodeCount = 0;
         ChunkListMap.Clear();
         NodeMap.Clear();
         JobMap.Clear();
@@ -1105,6 +1103,9 @@ private:
         NodeHostNameMap.clear();
 
         ReplicationSinkMap.clear();
+
+        ChunkReplicaCount = 0;
+        RegisteredNodeCount = 0;
     }
 
 
@@ -1176,6 +1177,19 @@ private:
         if (NeedToRecomputeStatistics) {
             RecomputeStatistics();
             NeedToRecomputeStatistics = false;
+        }
+
+        // Reset runtime info.
+        FOREACH (const auto& pair, ChunkMap) {
+            auto* chunk = pair.second;
+            chunk->SetRefreshScheduled(false);
+            chunk->SetRFUpdateScheduled(false);
+            chunk->ResetObjectLocks();
+        }
+
+        FOREACH (const auto& pair, ChunkListMap) {
+            auto* chunkList = pair.second;
+            chunkList->ResetObjectLocks();
         }
     }
 

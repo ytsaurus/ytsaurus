@@ -59,11 +59,11 @@ public:
             ~FormatEnum(GetType()));
     }
 
-    virtual void Destroy(const TObjectId& id) override
+    virtual void Destroy(TObjectBase* object) override
     {
         // Remove the object from the map but keep it alive.
-        auto object = Map->Release(id);
-        DoDestroy(static_cast<TObject*>(~object));
+        auto objectHolder = Map->Release(object->GetId());
+        DoDestroy(static_cast<TObject*>(object));
     }
 
     virtual void Unstage(

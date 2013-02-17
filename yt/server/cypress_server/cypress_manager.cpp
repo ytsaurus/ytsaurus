@@ -63,9 +63,9 @@ public:
         return CypressManager->FindNode(TVersionedNodeId(id));
     }
 
-    virtual void Destroy(const TObjectId& id) override
+    virtual void Destroy(TObjectBase* object) override
     {
-        auto* node = CypressManager->GetNode(TVersionedNodeId(id));
+        auto* node = static_cast<TCypressNodeBase*>(object);
         CypressManager->DestroyNode(node);
     }
 
@@ -983,9 +983,18 @@ void TCypressManager::OnLeaderRecoveryComplete()
 void TCypressManager::OnStopLeading()
 {
     FOREACH (const auto& pair, NodeBehaviors) {
-        pair.second->Destroy();
+        auto behavior = pair.second;
+        behavior->Destroy();
     }
     NodeBehaviors.clear();
+}
+
+void TCypressManager::OnStopRecovery()
+{
+    FOREACH (const auto& pair, NodeMap) {
+        auto* node = pair.second;
+        node->ResetObjectLocks();
+    }
 }
 
 void TCypressManager::DestroyNode(TCypressNodeBase* trunkNode)

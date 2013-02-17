@@ -336,6 +336,7 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* names) 
     names->push_back("id");
     names->push_back("type");
     names->push_back("ref_counter");
+    names->push_back("lock_counter");
 }
 
 bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const
@@ -355,6 +356,12 @@ bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* cons
     if (key == "ref_counter") {
         BuildYsonFluently(consumer)
             .Value(Object->GetObjectRefCounter());
+        return true;
+    }
+
+    if (key == "lock_counter") {
+        BuildYsonFluently(consumer)
+            .Value(Object->GetObjectLockCounter());
         return true;
     }
 

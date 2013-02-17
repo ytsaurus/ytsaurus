@@ -20,7 +20,7 @@ namespace NCypressServer {
 /*!
  *  \note
  *  Behaviors are only created at leaders.
- *  Behaviors are only created for non-branched nodes.
+ *  Behaviors are only created for trunk nodes.
  */
 struct INodeBehavior
     : public virtual TRefCounted

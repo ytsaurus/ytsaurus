@@ -40,11 +40,32 @@ public:
      */
     int UnrefObject();
 
+    //! Increments the object's lock counter.
+    /*!
+     *  \returns the incremented counter.
+     */
+    int LockObject();
+
+    //! Decrements the object's lock counter.
+    /*!
+     *  \returns the decremented counter.
+     */
+    int UnlockObject();
+
+    //! Sets lock counter to zero.
+    void ResetObjectLocks();
+
     //! Returns the current reference counter.
     int GetObjectRefCounter() const;
 
+    //! Returns the current lock counter.
+    int GetObjectLockCounter() const;
+
     //! Returns True iff the reference counter is non-zero.
     bool IsAlive() const;
+
+    //! Returns True iff the lock counter is non-zero.
+    bool IsLocked() const;
 
     //! Returns True iff the object is either non-versioned or versioned but does not belong to a transaction.
     bool IsTrunk() const;
@@ -55,6 +76,7 @@ protected:
 
     TObjectId Id;
     int RefCounter;
+    int LockCounter;
 
 };
 

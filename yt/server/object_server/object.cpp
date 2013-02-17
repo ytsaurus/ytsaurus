@@ -16,6 +16,7 @@ using namespace NCypressServer;
 TObjectBase::TObjectBase(const TObjectId& id)
     : Id(id)
     , RefCounter(0)
+    , LockCounter(0)
 { }
 
 const TObjectId& TObjectBase::GetId() const
@@ -40,14 +41,42 @@ int TObjectBase::UnrefObject()
     return --RefCounter;
 }
 
+int TObjectBase::LockObject()
+{
+    YASSERT(IsAlive());
+    YASSERT(LockCounter >= 0);
+    return ++LockCounter;
+}
+
+int TObjectBase::UnlockObject()
+{
+    YASSERT(LockCounter > 0);
+    return --LockCounter;
+}
+
+void TObjectBase::ResetObjectLocks()
+{
+    LockCounter = 0;
+}
+
 int TObjectBase::GetObjectRefCounter() const
 {
     return RefCounter;
 }
 
+int TObjectBase::GetObjectLockCounter() const
+{
+    return LockCounter;
+}
+
 bool TObjectBase::IsAlive() const
 {
     return RefCounter > 0;
+}
+
+bool TObjectBase::IsLocked() const
+{
+    return LockCounter > 0;
 }
 
 bool TObjectBase::IsTrunk() const

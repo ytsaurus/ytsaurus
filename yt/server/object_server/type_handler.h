@@ -30,6 +30,9 @@ DECLARE_ENUM(EObjectAccountMode,
     (Optional)
 );
 
+// WinAPI is great.
+#undef GetObject
+
 //! Provides a bridge between TObjectManager and concrete object implementations.
 struct IObjectTypeHandler
     : public virtual TRefCounted
@@ -37,10 +40,10 @@ struct IObjectTypeHandler
     //! Returns the object type handled by the handler.
     virtual EObjectType GetType() const = 0;
 
-    //! Finds object by id, returns |NULL| if nothing is found.
+    //! Finds object by id, returns |nullptr| if nothing is found.
     virtual TObjectBase* FindObject(const TObjectId& id) = 0;
 
-    //! Finds object by id, fails is nothing is found.
+    //! Finds object by id, fails if nothing is found.
     TObjectBase* GetObject(const TObjectId& id);
 
     //! Given a versioned object id, constructs a proxy for it.
@@ -70,7 +73,7 @@ struct IObjectTypeHandler
         TRspCreateObject* response) = 0;
 
     //! Performs the necessary cleanup.
-    virtual void Destroy(const TObjectId& id) = 0;
+    virtual void Destroy(TObjectBase* object) = 0;
 
     //! Clears staging information of a given object.
     /*!

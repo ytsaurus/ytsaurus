@@ -13,6 +13,8 @@
 namespace NYT {
 namespace NObjectServer {
 
+using namespace NCellMaster;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ObjectServerLogger;
@@ -25,7 +27,6 @@ TGarbageCollector::TGarbageCollector(
     NCellMaster::TBootstrap* bootstrap)
     : Config(config)
     , Bootstrap(bootstrap)
-    , QueueSizeCounter("/gc_queue_size")
 {
     YCHECK(Config);
     YCHECK(Bootstrap);
@@ -35,7 +36,7 @@ void TGarbageCollector::StartSweep()
 {
     YCHECK(!SweepInvoker);
     SweepInvoker = New<TPeriodicInvoker>(
-        Bootstrap->GetMetaStateFacade()->GetInvoker(),
+        Bootstrap->GetMetaStateFacade()->GetEpochInvoker(),
         BIND(&TGarbageCollector::OnSweep, MakeWeak(this)),
         Config->GCSweepPeriod);
     SweepInvoker->Start();
@@ -51,33 +52,39 @@ void TGarbageCollector::StopSweep()
 
 void TGarbageCollector::Save(const NCellMaster::TSaveContext& context) const
 {
-    SaveSet(context.GetOutput(), ZombieIds);
+    std::vector<TObjectBase*> allZombies;
+    allZombies.reserve(Zombies.size() + LockedZombies.size());
+    FOREACH (auto* object, Zombies) {
+        allZombies.push_back(object);
+    }
+    FOREACH (auto* object, LockedZombies) {
+        allZombies.push_back(object);
+    }
+    SaveObjectRefs(context.GetOutput(), allZombies);
 }
 
 void TGarbageCollector::Load(const NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    LoadSet(context.GetInput(), ZombieIds);
+    LoadObjectRefs(context.GetInput(), Zombies, context);
+    LockedZombies.clear();
 
     CollectPromise = NewPromise<void>();
-    if (ZombieIds.empty()) {
+    if (Zombies.empty()) {
         CollectPromise.Set();
     }
-
-    ProfileQueueSize();
 }
 
 void TGarbageCollector::Clear()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    ZombieIds.clear();
+    Zombies.clear();
+    LockedZombies.clear();
 
     CollectPromise = NewPromise<void>();
     CollectPromise.Set();
-
-    ProfileQueueSize();
 }
 
 TFuture<void> TGarbageCollector::Collect()
@@ -87,32 +94,59 @@ TFuture<void> TGarbageCollector::Collect()
     return CollectPromise;
 }
 
-void TGarbageCollector::Enqueue(const TObjectId& id)
+void TGarbageCollector::Enqueue(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
+    YASSERT(!object->IsAlive());
 
-    if (ZombieIds.empty()) {
+    if (Zombies.empty() && LockedZombies.empty() && CollectPromise.IsSet()) {
         CollectPromise = NewPromise<void>();
     }
 
-    YCHECK(ZombieIds.insert(id).second);
-
-    ProfileQueueSize();
+    if (object->IsLocked()) {
+        YCHECK(LockedZombies.insert(object).second);
+    } else {
+        YCHECK(Zombies.insert(object).second);
+    }
 }
 
-void TGarbageCollector::Dequeue(const TObjectId& id)
+void TGarbageCollector::Unlock(TObjectBase* object)
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+    YASSERT(!object->IsAlive());
+    YASSERT(!object->IsLocked());
+
+    YCHECK(LockedZombies.erase(object) == 1);
+    YCHECK(Zombies.insert(object).second);
+}
+
+void TGarbageCollector::UnlockAll()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    YCHECK(ZombieIds.erase(id) == 1);
+    FOREACH (auto* object, LockedZombies) {
+        YASSERT(object->IsLocked());
+        YCHECK(Zombies.insert(object).second);
+    }
+    LockedZombies.clear();
+}
 
-    if (ZombieIds.empty()) {
+void TGarbageCollector::Dequeue(TObjectBase* object)
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    YCHECK(Zombies.erase(object) == 1);
+}
+
+void TGarbageCollector::CheckEmpty()
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    if (Zombies.empty() && LockedZombies.empty()) {
         auto metaStateManager = Bootstrap->GetMetaStateFacade()->GetManager();
         LOG_DEBUG_UNLESS(metaStateManager->IsRecovery(), "GC queue is empty");
         CollectPromise.Set();
     }
-
-    ProfileQueueSize();
 }
 
 void TGarbageCollector::OnSweep()
@@ -121,17 +155,19 @@ void TGarbageCollector::OnSweep()
 
     auto metaStateFacade = Bootstrap->GetMetaStateFacade();
     auto metaStateManager = metaStateFacade->GetManager();
-    if (ZombieIds.empty() || !metaStateManager->HasActiveQuorum()) {
+    if (Zombies.empty() || !metaStateManager->HasActiveQuorum()) {
         SweepInvoker->ScheduleNext();
         return;
     }
 
     // Extract up to MaxObjectsPerGCSweep objects and post a mutation.
     NProto::TMetaReqDestroyObjects request;
-    auto it = ZombieIds.begin();
-    while (it != ZombieIds.end() && request.object_ids_size() < Config->MaxObjectsPerGCSweep) {
-        *request.add_object_ids() = it->ToProto();
-        ++it;
+    for (auto it = Zombies.begin();
+         it != Zombies.end() && request.object_ids_size() < Config->MaxObjectsPerGCSweep;
+         ++it)
+    {
+        auto* object = *it;
+        *request.add_object_ids() = object->GetId().ToProto();
     }
 
     LOG_DEBUG("Starting GC sweep for %d objects", request.object_ids_size());
@@ -160,9 +196,14 @@ void TGarbageCollector::OnCommitFailed(const TError& error)
     SweepInvoker->ScheduleNext();
 }
 
-void TGarbageCollector::ProfileQueueSize()
+int TGarbageCollector::GetGCQueueSize() const
 {
-    Profiler.Aggregate(QueueSizeCounter, ZombieIds.size());
+    return static_cast<int>(Zombies.size());
+}
+
+int TGarbageCollector::GetLockedGCQueueSize() const
+{
+    return static_cast<int>(LockedZombies.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

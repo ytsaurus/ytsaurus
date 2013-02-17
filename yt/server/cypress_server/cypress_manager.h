@@ -152,6 +152,7 @@ private:
     // TMetaStatePart overrides.
     virtual void OnLeaderRecoveryComplete() override;
     virtual void OnStopLeading() override;
+    virtual void OnStopRecovery() override;
     virtual void Clear() override;
 
     void SaveKeys(const NCellMaster::TSaveContext& context) const;

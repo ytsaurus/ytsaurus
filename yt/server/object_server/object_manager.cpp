@@ -53,6 +53,7 @@ using namespace NObjectServer::NProto;
 
 static NLog::TLogger& Logger = ObjectServerLogger;
 static NProfiling::TProfiler& Profiler = ObjectServerProfiler;
+static TDuration ProfilingPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -223,8 +224,9 @@ TObjectManager::TObjectManager(
     , TypeToHandler(MaxObjectType)
     , RootService(New<TRootService>(Bootstrap))
     , GarbageCollector(New<TGarbageCollector>(Config, Bootstrap))
-    , CreatedObjectCounter("/destroyed_object_count")
-    , DestroyedObjectCounter("/destroyed_object_count")
+    , CreatedObjectCount(0)
+    , DestroyedObjectCount(0)
+    , LockedObjectCount(0)
 {
     YCHECK(config);
     YCHECK(bootstrap);
@@ -266,6 +268,12 @@ TObjectManager::TObjectManager(
 
     LOG_INFO("Object Manager initialized (CellId: %d)",
         static_cast<int>(config->CellId));
+
+    ProflilingInvoker = New<TPeriodicInvoker>(
+        Bootstrap->GetMetaStateFacade()->GetInvoker(),
+        BIND(&TObjectManager::OnProfiling, MakeWeak(this)),
+        ProfilingPeriod);
+    ProflilingInvoker->Start();
 }
 
 IYPathServicePtr TObjectManager::GetRootService()
@@ -353,7 +361,7 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
         version.RecordCount,
         version.SegmentId);
 
-    Profiler.Increment(CreatedObjectCounter, +1);
+    ++CreatedObjectCount;
 
     LOG_DEBUG_UNLESS(IsRecovery(), "Object created (Type: %s, Id: %s)",
         ~type.ToString(),
@@ -384,7 +392,30 @@ void TObjectManager::UnrefObject(TObjectBase* object)
         refCounter);
 
     if (refCounter == 0) {
-        GarbageCollector->Enqueue(object->GetId());
+        GarbageCollector->Enqueue(object);
+    }
+}
+
+void TObjectManager::LockObject(TObjectBase* object)
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    int lockCounter = object->LockObject();
+    if (lockCounter == 1) {
+        ++LockedObjectCount;
+    }
+}
+
+void TObjectManager::UnlockObject(TObjectBase* object)
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    int lockCounter = object->UnlockObject();
+    if (lockCounter == 0) {
+        --LockedObjectCount;
+        if (!object->IsAlive()) {
+            GarbageCollector->Unlock(object);
+        }
     }
 }
 
@@ -420,6 +451,9 @@ void TObjectManager::Clear()
 
     Attributes.Clear();
     GarbageCollector->Clear();
+    CreatedObjectCount = 0;
+    DestroyedObjectCount = 0;
+    LockedObjectCount = 0;
 }
 
 void TObjectManager::OnStartRecovery()
@@ -430,6 +464,9 @@ void TObjectManager::OnStartRecovery()
 void TObjectManager::OnStopRecovery()
 {
     Profiler.SetEnabled(true);
+
+    GarbageCollector->UnlockAll();
+    LockedObjectCount = 0;
 }
 
 void TObjectManager::OnActiveQuorumEstablished()
@@ -665,25 +702,35 @@ void TObjectManager::DestroyObjects(const NProto::TMetaReqDestroyObjects& reques
 {
     FOREACH (const auto& protoId, request.object_ids()) {
         auto id = TObjectId::FromProto(protoId);
-        // NB: The order of these two calls matters.
-        // Dequeue will check the queue for emptiness and will raise CollectPromise when
-        // the latter becomes empty. To enable cascaded GC sweep we don't want this to happen
+        auto type = TypeFromId(id);
+        auto handler = GetHandler(type);
+        auto* object = handler->GetObject(id);
+
+        // NB: The order of Dequeue/Destroy/CheckEmpty calls matters.
+        // CheckEmpty will raise CollectPromise when GC becomes empty.
+        // To enable cascaded GC sweep we don't want this to happen
         // if some ids are added during DestroyObject.
-        DestroyObject(id);
-        GarbageCollector->Dequeue(id);
+        GarbageCollector->Dequeue(object);
+        handler->Destroy(object);
+        ++DestroyedObjectCount;
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Object destroyed (Type: %s, Id: %s)",
+            ~type.ToString(),
+            ~id.ToString());
     }
+
+    GarbageCollector->CheckEmpty();
 }
 
-void TObjectManager::DestroyObject(const TObjectId& id)
+void TObjectManager::OnProfiling()
 {
-    auto handler = GetHandler(TypeFromId(id));
-    handler->Destroy(id);
+    VERIFY_THREAD_AFFINITY(StateThread);
 
-    Profiler.Increment(DestroyedObjectCounter, +1);
-
-    LOG_DEBUG_UNLESS(IsRecovery(), "Object destroyed (Type: %s, Id: %s)",
-        ~handler->GetType().ToString(),
-        ~id.ToString());
+    Profiler.Enqueue("/gc_queue_size", GarbageCollector->GetGCQueueSize());
+    Profiler.Enqueue("/gc_lock_queue_size", GarbageCollector->GetLockedGCQueueSize());
+    Profiler.Enqueue("/created_object_count", CreatedObjectCount);
+    Profiler.Enqueue("/destroyed_object_count", DestroyedObjectCount);
+    Profiler.Enqueue("/locked_object_count", LockedObjectCount);
 }
 
 DEFINE_METAMAP_ACCESSORS(TObjectManager, Attributes, TAttributeSet, TVersionedObjectId, Attributes)
