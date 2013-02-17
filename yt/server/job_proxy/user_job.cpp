@@ -136,7 +136,6 @@ public:
 
     std::vector<NChunkClient::TChunkId> GetFailedChunks() const override
     {
-        LOG_DEBUG("Request failed chunks from user job.");
         return JobIO->GetFailedChunks();
     }
 
