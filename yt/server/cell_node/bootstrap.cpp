@@ -12,6 +12,7 @@
 
 #include <ytlib/rpc/channel.h>
 #include <ytlib/rpc/server.h>
+#include <ytlib/rpc/redirector_service.h>
 
 #include <ytlib/meta_state/master_channel.h>
 
@@ -32,6 +33,8 @@
 #include <ytlib/profiling/profiling_manager.h>
 
 #include <ytlib/scheduler/scheduler_channel.h>
+
+#include <ytlib/object_client/object_service_proxy.h>
 
 #include <server/chunk_holder/bootstrap.h>
 #include <server/chunk_holder/config.h>
@@ -58,7 +61,7 @@ using namespace NYTree;
 
 static NLog::TLogger Logger("Bootstrap");
 
-const i64 FootprintMemorySize = 1024L * 1024 * 1024;
+static const i64 FootprintMemorySize = (i64) 1024 * 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -132,6 +135,11 @@ void TBootstrap::Run()
         GetControlInvoker());
     RpcServer->RegisterService(orchidService);
 
+    auto masterObjectServiceRedirector = CreateRedirectorService(
+        NObjectClient::TObjectServiceProxy::GetServiceName(),
+        MasterChannel);
+    RpcServer->RegisterService(masterObjectServiceRedirector);
+
     ::THolder<NHttp::TServer> httpServer(new NHttp::TServer(Config->MonitoringPort));
     httpServer->Register(
         "/orchid",
@@ -141,7 +149,7 @@ void TBootstrap::Run()
     ChunkHolderBootstrap->Init();
 
     ExecAgentBootstrap.Reset(new NExecAgent::TBootstrap(Config->ExecAgent, this));
-    ExecAgentBootstrap->Init();
+    ExecAgentBootstrap->Initialize();
 
     LOG_INFO("Listening for HTTP requests on port %d", Config->MonitoringPort);
     httpServer->Start();

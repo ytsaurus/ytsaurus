@@ -115,10 +115,11 @@ void TJobProxy::Run()
 {
     try {
         auto supervisorClient = CreateTcpBusClient(Config->SupervisorConnection);
+
         auto supervisorChannel = CreateBusChannel(supervisorClient, Config->SupervisorRpcTimeout);
         SupervisorProxy.Reset(new TSupervisorServiceProxy(supervisorChannel));
 
-        MasterChannel = CreateLeaderChannel(Config->Masters);
+        MasterChannel = CreateBusChannel(supervisorClient, Config->MasterRpcTimeout);
 
         BlockCache = NChunkClient::CreateClientBlockCache(New<NChunkClient::TClientBlockCacheConfig>());
 

@@ -52,17 +52,22 @@ TBootstrap::TBootstrap(
 TBootstrap::~TBootstrap()
 { }
 
-void TBootstrap::Init()
+void TBootstrap::Initialize()
 {
     JobProxyConfig = New<NJobProxy::TJobProxyConfig>();
-    JobProxyConfig->SupervisorRpcTimeout = Config->SupervisorRpcTimeout;
+    
     JobProxyConfig->MemoryWatchdogPeriod = Config->MemoryWatchdogPeriod;
+    
     JobProxyConfig->Logging = Config->JobProxyLogging;
+    
     JobProxyConfig->MemoryLimitMultiplier = Config->MemoryLimitMultiplier;
+    
     JobProxyConfig->SandboxName = SandboxName;
-    JobProxyConfig->Masters = NodeBootstrap->GetConfig()->Masters;
+
     JobProxyConfig->SupervisorConnection = New<NBus::TTcpBusClientConfig>();
     JobProxyConfig->SupervisorConnection->Address = NodeBootstrap->GetPeerAddress();
+    JobProxyConfig->SupervisorRpcTimeout = Config->SupervisorRpcTimeout;
+    JobProxyConfig->MasterRpcTimeout = NodeBootstrap->GetConfig()->Masters->RpcTimeout;
     // TODO(babenko): consider making this priority configurable
     JobProxyConfig->SupervisorConnection->Priority = 6;
 

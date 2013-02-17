@@ -20,36 +20,48 @@ struct TJobProxyConfig
 {
     // Filled by exec agent.
     NBus::TTcpBusClientConfigPtr SupervisorConnection;
-    Stroka SandboxName;
-    NMetaState::TMasterDiscoveryConfigPtr Masters;
     TDuration SupervisorRpcTimeout;
+    TDuration MasterRpcTimeout;
+
+    Stroka SandboxName;
+
     TDuration HeartbeatPeriod;
+
     TDuration MemoryWatchdogPeriod;
+
     double MemoryLimitMultiplier;
 
     int UserId;
 
     NScheduler::TJobIOConfigPtr JobIO;
+
     NYTree::INodePtr Logging;
 
     TJobProxyConfig()
     {
         Register("supervisor_connection", SupervisorConnection);
-        Register("sandbox_name", SandboxName)
-            .NonEmpty();
-        Register("masters", Masters);
         Register("supervisor_rpc_timeout", SupervisorRpcTimeout)
             .Default(TDuration::Seconds(30));
+        Register("master_rpc_timeout", MasterRpcTimeout)
+            .Default(TDuration::Seconds(30));
+
+        Register("sandbox_name", SandboxName)
+            .NonEmpty();
+        
         Register("heartbeat_period", HeartbeatPeriod)
             .Default(TDuration::Seconds(5));
+        
         Register("memory_watchdog_period", MemoryWatchdogPeriod)
             .Default(TDuration::Seconds(1));
         Register("memory_limit_multiplier", MemoryLimitMultiplier)
             .Default(2.0);
+        
         Register("user_id", UserId).
             Default(-1);
+        
         Register("job_io", JobIO)
             .DefaultNew();
+        
         Register("logging", Logging)
             .Default();
     }

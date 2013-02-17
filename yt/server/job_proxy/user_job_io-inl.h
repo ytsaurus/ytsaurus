@@ -4,6 +4,7 @@
 #undef USER_JOB_IO_INL_H_
 
 #include "config.h"
+#include "job.h"
 
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/table_client/table_chunk_reader.h>

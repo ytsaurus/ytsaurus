@@ -24,7 +24,7 @@ public:
         NCellNode::TBootstrap* nodeBootstrap);
     ~TBootstrap();
 
-    void Init();
+    void Initialize();
 
     TExecAgentConfigPtr GetConfig() const;
     IInvokerPtr GetControlInvoker() const;
