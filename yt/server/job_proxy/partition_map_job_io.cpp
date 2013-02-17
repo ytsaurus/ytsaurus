@@ -1,17 +1,19 @@
 #include "stdafx.h"
 #include "partition_map_job_io.h"
 #include "config.h"
+#include "user_job_io.h"
+#include "job.h"
 
 #include <ytlib/table_client/partitioner.h>
 #include <ytlib/table_client/partition_chunk_sequence_writer.h>
 #include <ytlib/table_client/sync_writer.h>
 
+#include <ytlib/scheduler/config.h>
+#include <ytlib/scheduler/job.pb.h>
+
 #include <server/transaction_server/public.h>
 
 #include <server/chunk_server/public.h>
-
-#include <ytlib/scheduler/config.h>
-#include <ytlib/scheduler/job.pb.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -34,11 +36,11 @@ class TPartitionMapJobIO
 public:
     TPartitionMapJobIO(
         TJobIOConfigPtr config,
-        NMetaState::TMasterDiscoveryConfigPtr mastersConfig,
-        const NScheduler::NProto::TJobSpec& jobSpec)
-        : TUserJobIO(config, mastersConfig, jobSpec)
+        IJobHost* host)
+        : TUserJobIO(config, host)
     {
-        const auto& jobSpecExt = JobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
+        const auto& jobSpec = Host->GetJobSpec();
+        const auto& jobSpecExt = jobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
         Partitioner = CreateHashPartitioner(jobSpecExt.partition_count());
         KeyColumns = FromProto<Stroka>(jobSpecExt.key_columns());
     }
@@ -55,13 +57,14 @@ public:
 
         LOG_DEBUG("Opening partitioned output");
 
-        auto transactionId = TTransactionId::FromProto(JobSpec.output_transaction_id());
-        const auto& outputSpec = JobSpec.output_specs(0);
+        const auto& jobSpec = Host->GetJobSpec();
+        auto transactionId = TTransactionId::FromProto(jobSpec.output_transaction_id());
+        const auto& outputSpec = jobSpec.output_specs(0);
         auto account = outputSpec.account();
         auto chunkListId = TChunkListId::FromProto(outputSpec.chunk_list_id());
         Writer = New<TPartitionChunkSequenceWriter>(
             IOConfig->TableWriter,
-            MasterChannel,
+            Host->GetMasterChannel(),
             transactionId,
             account,
             chunkListId,
@@ -90,10 +93,9 @@ private:
 
 TAutoPtr<TUserJobIO> CreatePartitionMapJobIO(
     TJobIOConfigPtr ioConfig,
-    NMetaState::TMasterDiscoveryConfigPtr mastersConfig,
-    const NScheduler::NProto::TJobSpec& jobSpec)
+    IJobHost* host)
 {
-    return new TPartitionMapJobIO(ioConfig, mastersConfig, jobSpec);
+    return new TPartitionMapJobIO(ioConfig, host);
 }
 
 ////////////////////////////////////////////////////////////////////

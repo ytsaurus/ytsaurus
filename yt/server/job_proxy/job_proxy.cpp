@@ -11,6 +11,7 @@
 #include "partition_map_job_io.h"
 #include "sorted_reduce_job_io.h"
 #include "partition_reduce_job_io.h"
+#include "user_job_io.h"
 
 #include <ytlib/actions/invoker_util.h>
 #include <ytlib/actions/parallel_awaiter.h>
@@ -25,6 +26,7 @@
 
 #include <server/scheduler/job_resources.h>
 
+#include <ytlib/chunk_client/config.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_client/remote_reader.h>
 #include <ytlib/chunk_client/async_reader.h>
@@ -57,10 +59,6 @@ TJobProxy::TJobProxy(
     , Logger(JobProxyLogger)
 {
     Logger.AddTag(Sprintf("JobId: %s", ~JobId.ToString()));
-
-    auto client = CreateTcpBusClient(Config->SupervisorConnection);
-    auto channel = CreateBusChannel(client, Config->SupervisorRpcTimeout);
-    SupervisorProxy.Reset(new TSupervisorServiceProxy(channel));
 }
 
 void TJobProxy::SendHeartbeat()
@@ -115,30 +113,40 @@ void TJobProxy::RetrieveJobSpec()
 
 void TJobProxy::Run()
 {
-    HeartbeatInvoker = New<TPeriodicInvoker>(
-        GetSyncInvoker(),
-        BIND(&TJobProxy::SendHeartbeat, MakeWeak(this)),
-        Config->HeartbeatPeriod);
-
     try {
+        auto supervisorClient = CreateTcpBusClient(Config->SupervisorConnection);
+        auto supervisorChannel = CreateBusChannel(supervisorClient, Config->SupervisorRpcTimeout);
+        SupervisorProxy.Reset(new TSupervisorServiceProxy(supervisorChannel));
+
+        MasterChannel = CreateLeaderChannel(Config->Masters);
+
+        BlockCache = NChunkClient::CreateClientBlockCache(New<NChunkClient::TClientBlockCacheConfig>());
+
+        HeartbeatInvoker = New<TPeriodicInvoker>(
+            GetSyncInvoker(),
+            BIND(&TJobProxy::SendHeartbeat, MakeWeak(this)),
+            Config->HeartbeatPeriod);
+
         RetrieveJobSpec();
 
         const auto& jobSpec = GetJobSpec();
         auto jobType = EJobType(jobSpec.type());
+
         NYT::NThread::SetCurrentThreadName(~jobType.ToString());
+        
         SetLargeBlockLimit(jobSpec.lfalloc_buffer_size());
 
         switch (jobType) {
             case EJobType::Map: {
                 const auto& jobSpecExt = jobSpec.GetExtension(TMapJobSpecExt::map_job_spec_ext);
-                auto userJobIO = CreateMapJobIO(Config->JobIO, Config->Masters, jobSpec);
+                auto userJobIO = CreateMapJobIO(Config->JobIO, this);
                 Job = CreateUserJob(this, jobSpecExt.mapper_spec(), userJobIO);
                 break;
             }
 
             case EJobType::SortedReduce: {
                 const auto& jobSpecExt = jobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-                auto userJobIO = CreateSortedReduceJobIO(Config->JobIO, Config->Masters, jobSpec);
+                auto userJobIO = CreateSortedReduceJobIO(Config->JobIO, this);
                 Job = CreateUserJob(this, jobSpecExt.reducer_spec(), userJobIO);
                 break;
             }
@@ -146,18 +154,14 @@ void TJobProxy::Run()
             case EJobType::PartitionMap: {
                 const auto& jobSpecExt = jobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
                 YCHECK(jobSpecExt.has_mapper_spec());
-                auto userJobIO = CreatePartitionMapJobIO(Config->JobIO, Config->Masters, jobSpec);
+                auto userJobIO = CreatePartitionMapJobIO(Config->JobIO, this);
                 Job = CreateUserJob(this, jobSpecExt.mapper_spec(), userJobIO);
                 break;
             }
 
             case EJobType::PartitionReduce: {
                 const auto& jobSpecExt = jobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-                auto userJobIO = CreatePartitionReduceJobIO(
-                    Config->JobIO,
-                    this,
-                    Config->Masters,
-                    jobSpec);
+                auto userJobIO = CreatePartitionReduceJobIO(Config->JobIO, this);
                 Job = CreateUserJob(this, jobSpecExt.reducer_spec(), userJobIO);
                 break;
             }
@@ -223,8 +227,6 @@ TFuture<void> TJobProxy::GetFailedChunks(std::vector<NChunkClient::TChunkId>* fa
 
     yhash_set<NChunkClient::TChunkId> failedSet(failedChunks->begin(), failedChunks->end());
 
-    auto blockCache = CreateClientBlockCache(New<NChunkClient::TClientBlockCacheConfig>());
-    auto masterChannel = CreateLeaderChannel(Config->Masters);
     auto awaiter = New<TParallelAwaiter>(GetSyncInvoker());
 
     LOG_INFO("Started collection additional failed chunks");
@@ -238,8 +240,8 @@ TFuture<void> TJobProxy::GetFailedChunks(std::vector<NChunkClient::TChunkId>* fa
 
                 auto remoteReader = NChunkClient::CreateRemoteReader(
                     Config->JobIO->TableReader,
-                    blockCache,
-                    masterChannel,
+                    BlockCache,
+                    MasterChannel,
                     chunkId,
                     FromProto<Stroka>(chunk.node_addresses()));
 
@@ -286,12 +288,12 @@ TJobProxyConfigPtr TJobProxy::GetConfig()
     return Config;
 }
 
-const TJobSpec& TJobProxy::GetJobSpec()
+const TJobSpec& TJobProxy::GetJobSpec() const
 {
     return JobSpec;
 }
 
-TNodeResources TJobProxy::GetResourceUsage()
+const TNodeResources& TJobProxy::GetResourceUsage() const
 {
     return ResourceUsage;
 }
@@ -325,6 +327,16 @@ void TJobProxy::ReleaseNetwork()
     auto usage = GetResourceUsage();
     usage.set_network(0);
     SetResourceUsage(usage);
+}
+
+IChannelPtr TJobProxy::GetMasterChannel() const
+{
+    return MasterChannel;
+}
+
+NChunkClient::IBlockCachePtr TJobProxy::GetBlockCache() const 
+{
+    return BlockCache;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

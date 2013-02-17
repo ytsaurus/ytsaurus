@@ -4,17 +4,15 @@
 
 #include <ytlib/rpc/public.h>
 
-#include <ytlib/ytree/public.h>
-
-#include <ytlib/meta_state/public.h>
-
 #include <ytlib/table_client/public.h>
+
 #include <ytlib/transaction_client/public.h>
 
-#include <server/chunk_server/public.h>
-
 #include <ytlib/scheduler/job.pb.h>
+
 #include <ytlib/logging/log.h>
+
+#include <server/chunk_server/public.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -27,8 +25,7 @@ class TUserJobIO
 public:
     TUserJobIO(
         NScheduler::TJobIOConfigPtr ioConfig,
-        NMetaState::TMasterDiscoveryConfigPtr mastersConfig,
-        const NScheduler::NProto::TJobSpec& jobSpec);
+        IJobHost* host);
 
     virtual ~TUserJobIO();
 
@@ -54,8 +51,7 @@ public:
 
 protected:
     NScheduler::TJobIOConfigPtr IOConfig;
-    NRpc::IChannelPtr MasterChannel;
-    NScheduler::NProto::TJobSpec JobSpec;
+    IJobHost* Host;
 
     NChunkClient::TChunkId StderrChunkId;
 

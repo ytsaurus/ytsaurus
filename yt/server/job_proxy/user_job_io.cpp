@@ -3,6 +3,7 @@
 #include "user_job_io.h"
 #include "map_job_io.h"
 #include "stderr_output.h"
+#include "job.h"
 
 #include <ytlib/meta_state/config.h>
 
@@ -10,8 +11,6 @@
 #include <ytlib/table_client/table_chunk_sequence_writer.h>
 #include <ytlib/table_client/sync_writer.h>
 #include <ytlib/table_client/schema.h>
-
-#include <ytlib/meta_state/master_channel.h>
 
 #include <ytlib/scheduler/config.h>
 
@@ -31,11 +30,9 @@ using namespace NChunkServer;
 
 TUserJobIO::TUserJobIO(
     TJobIOConfigPtr ioConfig,
-    NMetaState::TMasterDiscoveryConfigPtr mastersConfig,
-    const NScheduler::NProto::TJobSpec& jobSpec)
+    IJobHost* host)
     : IOConfig(ioConfig)
-    , MasterChannel(CreateLeaderChannel(mastersConfig))
-    , JobSpec(jobSpec)
+    , Host(host)
     , Logger(JobProxyLogger)
 { }
 
@@ -55,7 +52,7 @@ TAutoPtr<TTableProducer> TUserJobIO::CreateTableInput(int index, NYson::IYsonCon
 
 int TUserJobIO::GetOutputCount() const
 {
-    return JobSpec.output_specs_size();
+    return Host->GetJobSpec().output_specs_size();
 }
 
 ISyncWriterPtr TUserJobIO::CreateTableOutput(int index)
@@ -64,15 +61,16 @@ ISyncWriterPtr TUserJobIO::CreateTableOutput(int index)
 
     LOG_DEBUG("Opening output %d", index);
 
-    auto transactionId = TTransactionId::FromProto(JobSpec.output_transaction_id());
-    const auto& outputSpec = JobSpec.output_specs(index);
+    const auto& jobSpec = Host->GetJobSpec();
+    auto transactionId = TTransactionId::FromProto(jobSpec.output_transaction_id());
+    const auto& outputSpec = jobSpec.output_specs(index);
     auto account = outputSpec.account();
     auto chunkListId = TChunkListId::FromProto(outputSpec.chunk_list_id());
     auto channels = ConvertTo<TChannels>(TYsonString(outputSpec.channels()));
     auto keyColumns = FromProto<Stroka>(outputSpec.key_columns());
     auto chunkSequenceWriter = New<TTableChunkSequenceWriter>(
         IOConfig->TableWriter,
-        MasterChannel,
+        Host->GetMasterChannel(),
         transactionId,
         account,
         chunkListId,
@@ -114,7 +112,7 @@ TAutoPtr<TErrorOutput> TUserJobIO::CreateErrorOutput(const TTransactionId& trans
 {
     return new TErrorOutput(
         IOConfig->ErrorFileWriter,
-        MasterChannel,
+        Host->GetMasterChannel(),
         transactionId);
 }
 

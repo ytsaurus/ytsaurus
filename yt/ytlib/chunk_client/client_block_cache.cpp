@@ -83,7 +83,7 @@ private:
 
 IBlockCachePtr CreateClientBlockCache(TClientBlockCacheConfigPtr config)
 {
-    YASSERT(config);
+    YCHECK(config);
     return New<TClientBlockCache>(config);
 }
 

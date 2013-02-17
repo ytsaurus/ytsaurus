@@ -48,9 +48,6 @@ public:
 
         YCHECK(jobSpec.output_specs_size() == 1);
 
-        auto blockCache = CreateClientBlockCache(New<TClientBlockCacheConfig>());
-        auto masterChannel = CreateLeaderChannel(config->Masters);
-
         {
             std::vector<TTableChunkSequenceReaderPtr> readers;
             TReaderOptions options;
@@ -66,8 +63,8 @@ public:
 
                 auto reader = New<TTableChunkSequenceReader>(
                     config->JobIO->TableReader,
-                    masterChannel,
-                    blockCache,
+                    Host->GetMasterChannel(),
+                    Host->GetBlockCache(),
                     std::move(chunks),
                     provider);
 
@@ -89,7 +86,7 @@ public:
             auto keyColumns = FromProto<Stroka>(mergeSpec.key_columns());
             Writer = New<TTableChunkSequenceWriter>(
                 config->JobIO->TableWriter,
-                masterChannel,
+                Host->GetMasterChannel(),
                 transactionId,
                 account,
                 chunkListId,

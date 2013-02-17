@@ -1,8 +1,11 @@
 #include "stdafx.h"
 #include "map_job_io.h"
 #include "config.h"
+#include "user_job_io.h"
+#include "job.h"
 
 #include <ytlib/table_client/multi_chunk_parallel_reader.h>
+
 #include <ytlib/scheduler/config.h>
 
 namespace NYT {
@@ -20,9 +23,8 @@ class TMapJobIO
 public:
     TMapJobIO(
         TJobIOConfigPtr config,
-        NMetaState::TMasterDiscoveryConfigPtr mastersConfig,
-        const NScheduler::NProto::TJobSpec& jobSpec)
-        : TUserJobIO(config, mastersConfig, jobSpec)
+        IJobHost* host)
+        : TUserJobIO(config, host)
     { }
 
     virtual void PopulateResult(NScheduler::NProto::TJobResult* result) override
@@ -35,10 +37,9 @@ public:
 
 TAutoPtr<TUserJobIO> CreateMapJobIO(
     TJobIOConfigPtr ioConfig,
-    NMetaState::TMasterDiscoveryConfigPtr mastersConfig,
-    const NScheduler::NProto::TJobSpec& jobSpec)
+    IJobHost* host)
 {
-    return new TMapJobIO(ioConfig, mastersConfig, jobSpec);
+    return new TMapJobIO(ioConfig, host);
 }
 
 ////////////////////////////////////////////////////////////////////

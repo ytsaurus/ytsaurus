@@ -53,9 +53,6 @@ public:
 
         YCHECK(jobSpec.output_specs_size() == 1);
 
-        auto blockCache = CreateClientBlockCache(New<TClientBlockCacheConfig>());
-        auto masterChannel = CreateLeaderChannel(config->Masters);
-
         std::vector<TInputChunk> inputChunks;
         FOREACH (const auto& inputSpec, jobSpec.input_specs()) {
             FOREACH (const auto& inputChunk, inputSpec.chunks()) {
@@ -66,8 +63,8 @@ public:
         auto provider = New<TTableChunkReaderProvider>(config->JobIO->TableReader);
         Reader = CreateSyncReader(New<TTableMultiChunkReader>(
             config->JobIO->TableReader,
-            masterChannel,
-            blockCache,
+            Host->GetMasterChannel(),
+            Host->GetBlockCache(),
             std::move(inputChunks),
             provider));
 
@@ -86,7 +83,7 @@ public:
         auto channels = ConvertTo<TChannels>(TYsonString(outputSpec.channels()));
         Writer = New<TTableChunkSequenceWriter>(
             config->JobIO->TableWriter,
-            masterChannel,
+            Host->GetMasterChannel(),
             transactionId,
             account,
             chunkListId,

@@ -25,12 +25,14 @@ TAutoPtr<NTableClient::TTableProducer> TUserJobIO::DoCreateTableInput(
 
     auto blockCache = NChunkClient::CreateClientBlockCache(New<NChunkClient::TClientBlockCacheConfig>());
 
+    const auto& jobSpec = Host->GetJobSpec();
+
     std::vector<NTableClient::NProto::TInputChunk> chunks;
-    for (int i = 0; i < JobSpec.input_specs_size(); ++i) {
+    for (int i = 0; i < jobSpec.input_specs_size(); ++i) {
         chunks.insert(
             chunks.end(),
-            JobSpec.input_specs(i).chunks().begin(),
-            JobSpec.input_specs(i).chunks().end());
+            jobSpec.input_specs(i).chunks().begin(),
+            jobSpec.input_specs(i).chunks().end());
     }
 
     LOG_DEBUG("Opening input %d with %d chunks",
@@ -42,7 +44,7 @@ TAutoPtr<NTableClient::TTableProducer> TUserJobIO::DoCreateTableInput(
     auto provider = New<NTableClient::TTableChunkReaderProvider>(IOConfig->TableReader);
     auto reader = New<TReader>(
         IOConfig->TableReader,
-        MasterChannel,
+        Host->GetMasterChannel(),
         blockCache,
         std::move(chunks),
         provider);

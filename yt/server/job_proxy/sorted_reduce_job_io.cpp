@@ -1,8 +1,11 @@
 ﻿#include "stdafx.h"
 #include "sorted_reduce_job_io.h"
 #include "config.h"
+#include "user_job_io.h"
+#include "job.h"
 
 #include <ytlib/chunk_client/client_block_cache.h>
+
 #include <ytlib/table_client/multi_chunk_sequential_reader.h>
 #include <ytlib/table_client/table_chunk_reader.h>
 #include <ytlib/table_client/sync_reader.h>
@@ -10,6 +13,8 @@
 #include <ytlib/table_client/merging_reader.h>
 
 #include <ytlib/scheduler/config.h>
+
+#include <ytlib/rpc/channel.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -27,9 +32,8 @@ class TSortedReduceJobIO
 public:
     TSortedReduceJobIO(
         TJobIOConfigPtr ioConfig,
-        NMetaState::TMasterDiscoveryConfigPtr mastersConfig,
-        const TJobSpec& jobSpec)
-        : TUserJobIO(ioConfig, mastersConfig, jobSpec)
+        IJobHost* host)
+        : TUserJobIO(ioConfig, host)
     { }
 
     TAutoPtr<TTableProducer> CreateTableInput(
@@ -38,15 +42,15 @@ public:
     {
         YCHECK(index >= 0 && index < GetInputCount());
 
-        auto blockCache = CreateClientBlockCache(New<TClientBlockCacheConfig>());
-
         std::vector<TTableChunkSequenceReaderPtr> readers;
         TReaderOptions options;
         options.ReadKey = true;
 
         auto provider = New<TTableChunkReaderProvider>(IOConfig->TableReader, options);
 
-        FOREACH (const auto& inputSpec, JobSpec.input_specs()) {
+        const auto& jobSpec = Host->GetJobSpec();
+
+        FOREACH (const auto& inputSpec, jobSpec.input_specs()) {
             // ToDo(psushin): validate that input chunks are sorted.
             std::vector<NTableClient::NProto::TInputChunk> chunks(
                 inputSpec.chunks().begin(),
@@ -54,8 +58,8 @@ public:
 
             auto reader = New<TTableChunkSequenceReader>(
                 IOConfig->TableReader,
-                MasterChannel,
-                blockCache,
+                Host->GetMasterChannel(),
+                Host->GetBlockCache(),
                 std::move(chunks),
                 provider);
 
@@ -82,10 +86,9 @@ public:
 
 TAutoPtr<TUserJobIO> CreateSortedReduceJobIO(
     TJobIOConfigPtr ioConfig,
-    NMetaState::TMasterDiscoveryConfigPtr mastersConfig,
-    const NScheduler::NProto::TJobSpec& jobSpec)
+    IJobHost* host)
 {
-    return new TSortedReduceJobIO(ioConfig, mastersConfig, jobSpec);
+    return new TSortedReduceJobIO(ioConfig, host);
 }
 
 ////////////////////////////////////////////////////////////////////

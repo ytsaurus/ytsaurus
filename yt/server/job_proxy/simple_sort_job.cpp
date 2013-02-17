@@ -52,8 +52,6 @@ public:
         YCHECK(jobSpec.input_specs_size() == 1);
         YCHECK(jobSpec.output_specs_size() == 1);
 
-        auto masterChannel = CreateLeaderChannel(config->Masters);
-        auto blockCache = CreateClientBlockCache(New<TClientBlockCacheConfig>());
         auto jobSpecExt = jobSpec.GetExtension(TSortJobSpecExt::sort_job_spec_ext);
 
         KeyColumns = FromProto<Stroka>(jobSpecExt.key_columns());
@@ -72,8 +70,8 @@ public:
 
         Reader = New<TReader>(
             config->JobIO->TableReader,
-            masterChannel,
-            blockCache,
+            Host->GetMasterChannel(),
+            Host->GetBlockCache(),
             std::move(chunks),
             provider);
 
@@ -84,7 +82,7 @@ public:
         auto channels = ConvertTo<TChannels>(TYsonString(outputSpec.channels()));
         Writer = New<TTableChunkSequenceWriter>(
             config->JobIO->TableWriter,
-            masterChannel,
+            Host->GetMasterChannel(),
             transactionId,
             account,
             chunkListId,

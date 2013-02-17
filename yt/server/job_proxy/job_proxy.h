@@ -39,11 +39,18 @@ private:
     void ReportResult(const NScheduler::NProto::TJobResult& result);
 
     TJobProxyConfigPtr Config;
-    THolder<NExecAgent::TSupervisorServiceProxy> SupervisorProxy;
     NScheduler::TJobId JobId;
+    
     NLog::TTaggedLogger Logger;
 
+    THolder<NExecAgent::TSupervisorServiceProxy> SupervisorProxy;
+
+    NRpc::IChannelPtr MasterChannel;
+
+    NChunkClient::IBlockCachePtr BlockCache;
+    
     TJobPtr Job;
+
     TPeriodicInvokerPtr HeartbeatInvoker;
 
     NScheduler::NProto::TJobSpec JobSpec;
@@ -51,13 +58,17 @@ private:
 
     // IJobHost implementation.
     virtual TJobProxyConfigPtr GetConfig() override;
-    virtual const NScheduler::NProto::TJobSpec& GetJobSpec() override;
+    virtual const NScheduler::NProto::TJobSpec& GetJobSpec() const override;
 
-    virtual NScheduler::NProto::TNodeResources GetResourceUsage() override;
+    virtual const NScheduler::NProto::TNodeResources& GetResourceUsage() const override;
     virtual void SetResourceUsage(const NScheduler::NProto::TNodeResources& usage) override;
     void OnResourcesUpdated(NExecAgent::TSupervisorServiceProxy::TRspUpdateResourceUsagePtr rsp);
 
     virtual void ReleaseNetwork() override;
+
+    virtual NRpc::IChannelPtr GetMasterChannel() const override;
+
+    virtual NChunkClient::IBlockCachePtr GetBlockCache() const override;
 
     TFuture<void> GetFailedChunks(std::vector<NChunkClient::TChunkId>* failedChunks);
 };

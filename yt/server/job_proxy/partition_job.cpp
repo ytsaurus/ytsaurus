@@ -50,8 +50,6 @@ public:
         YCHECK(jobSpec.input_specs_size() == 1);
         YCHECK(jobSpec.output_specs_size() == 1);
 
-        auto masterChannel = CreateLeaderChannel(config->Masters);
-        auto blockCache = CreateClientBlockCache(New<TClientBlockCacheConfig>());
         auto jobSpecExt = jobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
 
         std::vector<NTableClient::NProto::TInputChunk> chunks(
@@ -61,8 +59,8 @@ public:
         auto provider = New<TTableChunkReaderProvider>(config->JobIO->TableReader);
         Reader = New<TReader>(
             config->JobIO->TableReader,
-            masterChannel,
-            blockCache,
+            Host->GetMasterChannel(),
+            Host->GetBlockCache(),
             std::move(chunks),
             provider);
 
@@ -83,7 +81,7 @@ public:
         auto keyColumns = FromProto<Stroka>(jobSpecExt.key_columns());
         Writer = New<TPartitionChunkSequenceWriter>(
             config->JobIO->TableWriter,
-            masterChannel,
+            Host->GetMasterChannel(),
             transactionId,
             account,
             chunkListId,

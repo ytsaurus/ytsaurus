@@ -2,6 +2,7 @@
 #include "partition_reduce_job_io.h"
 #include "config.h"
 #include "sorting_reader.h"
+#include "user_job_io.h"
 #include "job.h"
 
 #include <ytlib/misc/protobuf_helpers.h>
@@ -31,11 +32,8 @@ class TPartitionReduceJobIO
 public:
     TPartitionReduceJobIO(
         TJobIOConfigPtr ioConfig,
-        IJobHost* host,
-        NMetaState::TMasterDiscoveryConfigPtr mastersConfig,
-        const NScheduler::NProto::TJobSpec& jobSpec)
-        : TUserJobIO(ioConfig, mastersConfig, jobSpec)
-        , Host(host)
+        IJobHost* host)
+        : TUserJobIO(ioConfig, host)
     { }
 
     TAutoPtr<NTableClient::TTableProducer> CreateTableInput(
@@ -43,26 +41,26 @@ public:
         NYson::IYsonConsumer* consumer) override
     {
         YCHECK(index == 0);
-        YCHECK(JobSpec.input_specs_size() == 1);
+
+        const auto& jobSpec = Host->GetJobSpec();
+        YCHECK(jobSpec.input_specs_size() == 1);
 
         std::vector<NTableClient::NProto::TInputChunk> chunks(
-            JobSpec.input_specs(0).chunks().begin(),
-            JobSpec.input_specs(0).chunks().end());
+            jobSpec.input_specs(0).chunks().begin(),
+            jobSpec.input_specs(0).chunks().end());
 
-        auto blockCache = CreateClientBlockCache(New<TClientBlockCacheConfig>());
-
-        auto jobSpecExt = JobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+        auto jobSpecExt = jobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
         auto keyColumns = FromProto<Stroka>(jobSpecExt.key_columns());
 
         auto reader = CreateSortingReader(
             IOConfig->TableReader,
-            MasterChannel,
-            blockCache,
+            Host->GetMasterChannel(),
+            Host->GetBlockCache(),
             keyColumns,
             BIND(&IJobHost::ReleaseNetwork, Host),
             std::move(chunks),
-            JobSpec.input_row_count(),
-            JobSpec.is_approximate());
+            jobSpec.input_row_count(),
+            jobSpec.is_approximate());
 
         YCHECK(index == Inputs.size());
 
@@ -80,22 +78,13 @@ public:
         PopulateUserJobResult(resultExt->mutable_reducer_result());
     }
 
-private:
-    IJobHost* Host;
-
 };
 
 TAutoPtr<TUserJobIO> CreatePartitionReduceJobIO(
     TJobIOConfigPtr ioConfig,
-    IJobHost* host,
-    NMetaState::TMasterDiscoveryConfigPtr mastersConfig,
-    const NScheduler::NProto::TJobSpec& jobSpec)
+    IJobHost* host)
 {
-    return new TPartitionReduceJobIO(
-        ioConfig,
-        host,
-        mastersConfig,
-        jobSpec);
+    return new TPartitionReduceJobIO(ioConfig, host);
 }
 
 ////////////////////////////////////////////////////////////////////
