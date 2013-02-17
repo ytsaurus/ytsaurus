@@ -318,7 +318,7 @@ protected:
     void PushStack(const TStackEntry& newEntry)
     {
         auto objectManager = Bootstrap->GetObjectManager();
-        objectManager->UnlockObject(newEntry.ChunkList);
+        objectManager->PushStack(newEntry.ChunkList);
         Stack.push_back(newEntry);
     }
 
