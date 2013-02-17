@@ -115,8 +115,8 @@ void TChunkReplicator::OnNodeRegistered(TDataNode* node)
         chunksToReplicate.clear();
     }
 
-    FOREACH (const auto* chunk, node->StoredChunks()) {
-        ScheduleChunkRefresh(chunk->GetId());
+    FOREACH (auto* chunk, node->StoredChunks()) {
+        ScheduleChunkRefresh(chunk);
     }
 }
 
@@ -142,6 +142,11 @@ void TChunkReplicator::ScheduleChunkRemoval(TDataNode* node, const TChunkId& chu
     FOREACH (auto& chunksToReplicate, node->ChunksToReplicate()) {
         chunksToReplicate.erase(chunkId);
     }
+}
+
+void TChunkReplicator::ScheduleChunkRemoval(TDataNode* node, TChunk* chunk)
+{
+    ScheduleChunkRemoval(node, chunk->GetId());
 }
 
 void TChunkReplicator::ProcessExistingJobs(
@@ -173,6 +178,8 @@ void TChunkReplicator::ProcessExistingJobs(
             jobsToStop->push_back(stopInfo);
             continue;
         }
+
+        auto* chunk = chunkManager->FindChunk(job->GetChunkId());
 
         auto jobState = EJobState(jobInfo.state());
         switch (jobState) {
@@ -206,31 +213,34 @@ void TChunkReplicator::ProcessExistingJobs(
                 }
                 break;
 
-            case EJobState::Completed: {
-                TJobStopInfo stopInfo;
-                *stopInfo.mutable_job_id() = jobId.ToProto();
-                jobsToStop->push_back(stopInfo);
-
-                ScheduleChunkRefresh(job->GetChunkId());
-
-                LOG_INFO("Job completed (JobId: %s, Address: %s)",
-                    ~jobId.ToString(),
-                    ~node->GetAddress());
-                break;
-            }
-
+            case EJobState::Completed:
             case EJobState::Failed: {
                 TJobStopInfo stopInfo;
                 *stopInfo.mutable_job_id() = jobId.ToProto();
                 jobsToStop->push_back(stopInfo);
 
-                ScheduleChunkRefresh(job->GetChunkId());
+                if (chunk) {
+                    ScheduleChunkRefresh(chunk);
+                }
 
-                LOG_WARNING(
-                    FromProto(jobInfo.error()),
-                    "Job failed (JobId: %s, Address: %s)",
-                    ~jobId.ToString(),
-                    ~node->GetAddress());
+                switch (jobState) {
+                    case EJobState::Completed:
+                        LOG_INFO("Job completed (JobId: %s, Address: %s)",
+                            ~jobId.ToString(),
+                            ~node->GetAddress());
+                        break;
+
+                    case EJobState::Failed:
+                        LOG_WARNING(
+                            FromProto(jobInfo.error()),
+                            "Job failed (JobId: %s, Address: %s)",
+                            ~jobId.ToString(),
+                            ~node->GetAddress());
+                        break;
+
+                    default:
+                        YUNREACHABLE();
+                }
                 break;
             }
 
@@ -254,11 +264,6 @@ void TChunkReplicator::ProcessExistingJobs(
     }
 }
 
-bool TChunkReplicator::IsRefreshScheduled(const TChunkId& chunkId)
-{
-    return RefreshSet.find(chunkId) != RefreshSet.end();
-}
-
 TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleReplicationJob(
     TDataNode* sourceNode,
     const TChunkId& chunkId,
@@ -270,7 +275,7 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleReplicationJob(
         return EScheduleFlags::Purged;
     }
 
-    if (IsRefreshScheduled(chunkId)) {
+    if (chunk->GetRefreshScheduled()) {
         LOG_TRACE("Chunk %s we're about to replicate is scheduled for another refresh",
             ~chunkId.ToString());
         return EScheduleFlags::Purged;
@@ -327,7 +332,7 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleBalancingJob(
 {
     auto chunkId = chunk->GetId();
 
-    if (IsRefreshScheduled(chunkId)) {
+    if (chunk->GetRefreshScheduled()) {
         LOG_TRACE("Chunk %s we're about to balance is scheduled for another refresh",
             ~chunkId.ToString());
         return EScheduleFlags::None;
@@ -365,7 +370,9 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleRemovalJob(
     const TChunkId& chunkId,
     std::vector<TJobStartInfo>* jobsToStart)
 {
-    if (IsRefreshScheduled(chunkId)) {
+    auto chunkManager = Bootstrap->GetChunkManager();
+    auto* chunk = chunkManager->FindChunk(chunkId);
+    if (chunk && chunk->GetRefreshScheduled()) {
         LOG_TRACE("Chunk %s we're about to remove is scheduled for another refresh",
             ~chunkId.ToString());
         return EScheduleFlags::None;
@@ -616,14 +623,26 @@ int TChunkReplicator::ComputeReplicationPriority(const TReplicaStatistics& stati
 
 void TChunkReplicator::ScheduleChunkRefresh(const TChunkId& chunkId)
 {
-    if (RefreshSet.find(chunkId) != RefreshSet.end())
+    auto chunkManager = Bootstrap->GetChunkManager();
+    auto* chunk = chunkManager->FindChunk(chunkId);
+    if (chunk) {
+        ScheduleChunkRefresh(chunk);
+    }
+}
+
+void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
+{
+    if (chunk->GetRefreshScheduled() || !chunk->IsAlive())
         return;
 
     TRefreshEntry entry;
-    entry.ChunkId = chunkId;
+    entry.Chunk = chunk;
     entry.When = GetCpuInstant() + ChunkRefreshDelay;
     RefreshList.push_back(entry);
-    RefreshSet.insert(chunkId);
+
+    auto objectManager = Bootstrap->GetObjectManager();
+    objectManager->LockObject(chunk);
+
     ProfileRefreshList();
 }
 
@@ -635,6 +654,8 @@ void TChunkReplicator::OnRefresh()
         RefreshInvoker->ScheduleNext();
         return;
     }
+
+    auto objectManager = Bootstrap->GetObjectManager();
 
     int refreshedCount = 0;
     PROFILE_TIMING ("/incremental_refresh_time") {
@@ -648,13 +669,13 @@ void TChunkReplicator::OnRefresh()
             if (entry.When > now)
                 break;
 
-            auto* chunk = chunkManager->FindChunk(entry.ChunkId);
-            if (chunk && chunk->IsAlive()) {
+            auto* chunk = entry.Chunk;
+            if (chunk->IsAlive()) {
                 Refresh(chunk);
                 ++refreshedCount;
             }
 
-            YCHECK(RefreshSet.erase(entry.ChunkId) == 1);
+            objectManager->UnlockObject(chunk);        
             RefreshList.pop_front();
         }
     }

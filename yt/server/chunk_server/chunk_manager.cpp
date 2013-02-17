@@ -529,7 +529,7 @@ public:
         }
 
         if (IsLeader()) {
-            ChunkReplicator->ScheduleChunkRefresh(id);
+            ChunkReplicator->ScheduleChunkRefresh(chunk);
         }
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Chunk confirmed (ChunkId: %s)", ~id.ToString());
@@ -1017,7 +1017,7 @@ private:
                 YCHECK(!chunk->IsStaged());
                 chunk->SetReplicationFactor(replicationFactor);
                 if (IsLeader()) {
-                    ChunkReplicator->ScheduleChunkRefresh(chunk->GetId());
+                    ChunkReplicator->ScheduleChunkRefresh(chunk);
                 }
             }
         }
@@ -1329,7 +1329,7 @@ private:
         }
 
         if (!cached && IsLeader()) {
-            ChunkReplicator->ScheduleChunkRefresh(chunk->GetId());
+            ChunkReplicator->ScheduleChunkRefresh(chunk);
         }
 
         if (reason == EAddReplicaReason::IncrementalHeartbeat || reason == EAddReplicaReason::Confirmation) {
@@ -1343,7 +1343,7 @@ private:
         node->RemoveChunk(chunk, cached);
 
         if (!cached && IsLeader()) {
-            ChunkReplicator->ScheduleChunkRemoval(node, chunk->GetId());
+            ChunkReplicator->ScheduleChunkRemoval(node, chunk);
         }
     }
 
@@ -1394,7 +1394,7 @@ private:
         }
 
         if (!cached && IsLeader()) {
-            ChunkReplicator->ScheduleChunkRefresh(chunkId);
+            ChunkReplicator->ScheduleChunkRefresh(chunk);
         }
 
         Profiler.Increment(RemoveChunkReplicaCounter);

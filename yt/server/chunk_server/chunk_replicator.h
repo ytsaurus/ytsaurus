@@ -44,8 +44,10 @@ public:
     void OnChunkRemoved(TChunk* chunk);
 
     void ScheduleChunkRefresh(const TChunkId& chunkId);
+    void ScheduleChunkRefresh(TChunk* chunk);
 
     void ScheduleChunkRemoval(TDataNode* node, const TChunkId& chunkdId);
+    void ScheduleChunkRemoval(TDataNode* node, TChunk* chunk);
 
     void ScheduleRFUpdate(TChunkTree* chunkTree);
 
@@ -71,12 +73,11 @@ private:
 
     struct TRefreshEntry
     {
-        TChunkId ChunkId;
+        TChunk* Chunk;
         NProfiling::TCpuInstant When;
     };
 
     TPeriodicInvokerPtr RefreshInvoker;
-    yhash_set<TChunkId> RefreshSet;
     std::deque<TRefreshEntry> RefreshList;
 
     TPeriodicInvokerPtr RFUpdateInvoker;
@@ -89,8 +90,6 @@ private:
         std::vector<NProto::TJobStopInfo>* jobsToStop,
         int* replicationJobCount,
         int* removalJobCount);
-
-    bool IsRefreshScheduled(const TChunkId& chunkId);
 
     DECLARE_ENUM(EScheduleFlags,
         ((None)(0x0000))

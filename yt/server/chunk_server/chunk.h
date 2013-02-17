@@ -28,8 +28,6 @@ class TChunk
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TChunkMeta, ChunkMeta);
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TChunkInfo, ChunkInfo);
     DEFINE_BYVAL_RW_PROPERTY(i16, ReplicationFactor);
-    DEFINE_BYVAL_RW_PROPERTY(bool, Movable);
-    DEFINE_BYVAL_RW_PROPERTY(bool, Vital);
 
     typedef TSmallVector<TChunkList*, TypicalChunkParentCount> TParents;
     DEFINE_BYREF_RW_PROPERTY(TParents, Parents);
@@ -60,6 +58,26 @@ public:
 
     bool ValidateChunkInfo(const NChunkClient::NProto::TChunkInfo& chunkInfo) const;
     bool IsConfirmed() const;
+
+    bool GetMovable() const;
+    void SetMovable(bool value);
+
+    bool GetVital() const;
+    void SetVital(bool value);
+
+    bool GetRefreshScheduled() const;
+    void SetRefreshScheduled(bool value);
+
+    bool GetRFUpdateScheduled() const;
+    void SetRFUpdateScheduled(bool value);
+
+private:
+    struct {
+        bool Movable : 1;
+        bool Vital : 1; 
+        bool RefreshScheduled : 1;
+        bool RFUpdateScheduled : 1;
+    } Flags;
 
 };
 

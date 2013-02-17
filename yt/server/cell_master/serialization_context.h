@@ -87,6 +87,17 @@ void LoadObjectRefs(TInputStream* input, T& object, const TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+T Load(const TLoadContext& context);
+
+template <class T>
+void Load(const TLoadContext& context, T& value);
+
+template <class T>
+void Save(const TSaveContext& context, const T& value);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NCellMaster
 } // namespace NYT
 

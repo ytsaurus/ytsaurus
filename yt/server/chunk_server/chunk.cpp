@@ -26,9 +26,9 @@ const i64 TChunk::UnknownSize = -1;
 TChunk::TChunk(const TChunkId& id)
     : TChunkTree(id)
     , ReplicationFactor_(1)
-    , Movable_(true)
-    , Vital_(true)
 {
+    Zero(Flags);
+
     // Initialize required proto fields, otherwise #Save would fail.
     ChunkInfo_.set_size(UnknownSize);
 
@@ -74,8 +74,8 @@ void TChunk::Save(const NCellMaster::TSaveContext& context) const
     SaveProto(output, ChunkInfo_);
     SaveProto(output, ChunkMeta_);
     ::Save(output, ReplicationFactor_);
-    ::Save(output, Movable_);
-    ::Save(output, Vital_);
+    ::Save(output, GetMovable());
+    ::Save(output, GetVital());
     SaveObjectRefs(output, Parents_);
     ::Save(output, StoredLocations_);
     SaveNullableSet(output, CachedLocations_);
@@ -90,8 +90,8 @@ void TChunk::Load(const NCellMaster::TLoadContext& context)
     LoadProto(input, ChunkInfo_);
     LoadProto(input, ChunkMeta_);
     ::Load(input, ReplicationFactor_);
-    ::Load(input, Movable_);
-    ::Load(input, Vital_);
+    SetMovable(NCellMaster::Load<bool>(context));
+    SetVital(NCellMaster::Load<bool>(context));
     LoadObjectRefs(input, Parents_, context);
     ::Load(input, StoredLocations_);
     LoadNullableSet(input, CachedLocations_);
@@ -158,6 +158,46 @@ bool TChunk::ValidateChunkInfo(const NChunkClient::NProto::TChunkInfo& chunkInfo
     }
 
     return true;
+}
+
+bool TChunk::GetMovable() const
+{
+    return Flags.Movable;
+}
+
+void TChunk::SetMovable(bool value)
+{
+    Flags.Movable = value;
+}
+
+bool TChunk::GetVital() const
+{
+    return Flags.Vital;
+}
+
+void TChunk::SetVital(bool value)
+{
+    Flags.Vital = value;
+}
+
+bool TChunk::GetRefreshScheduled() const
+{
+    return Flags.RefreshScheduled;
+}
+
+void TChunk::SetRefreshScheduled(bool value)
+{
+    Flags.RefreshScheduled = value;
+}
+
+bool TChunk::GetRFUpdateScheduled() const
+{
+    return Flags.RFUpdateScheduled;
+}
+
+void TChunk::SetRFUpdateScheduled(bool value)
+{
+    Flags.RFUpdateScheduled = value;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
