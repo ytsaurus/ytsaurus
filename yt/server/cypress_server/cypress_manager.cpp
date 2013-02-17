@@ -989,7 +989,7 @@ void TCypressManager::OnStopLeading()
     NodeBehaviors.clear();
 }
 
-void TCypressManager::OnStopRecovery()
+void TCypressManager::OnRecoveryComplete()
 {
     FOREACH (const auto& pair, NodeMap) {
         auto* node = pair.second;

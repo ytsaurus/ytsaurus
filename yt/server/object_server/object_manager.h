@@ -164,8 +164,8 @@ private:
     void LoadKeys(const NCellMaster::TLoadContext& context);
     void LoadValues(const NCellMaster::TLoadContext& context);
 
-    virtual void OnStartRecovery() override;
-    virtual void OnStopRecovery() override;
+    virtual void OnRecoveryStarted() override;
+    virtual void OnRecoveryComplete() override;
     virtual void Clear() override;
 
     virtual void OnActiveQuorumEstablished() override;

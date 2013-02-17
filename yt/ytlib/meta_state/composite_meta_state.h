@@ -78,8 +78,8 @@ protected:
     virtual void OnFollowerRecoveryComplete();
     virtual void OnStopFollowing();
 
-    virtual void OnStartRecovery();
-    virtual void OnStopRecovery();
+    virtual void OnRecoveryStarted();
+    virtual void OnRecoveryComplete();
 
 private:
     typedef TMetaStatePart TThis;

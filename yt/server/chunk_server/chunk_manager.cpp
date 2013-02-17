@@ -1163,14 +1163,14 @@ private:
     }
 
 
-    virtual void OnStartRecovery() override
+    virtual void OnRecoveryStarted() override
     {
         Profiler.SetEnabled(false);
 
         NeedToRecomputeStatistics = false;
     }
 
-    virtual void OnStopRecovery() override
+    virtual void OnRecoveryComplete() override
     {
         Profiler.SetEnabled(true);
 

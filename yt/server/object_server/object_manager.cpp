@@ -456,12 +456,12 @@ void TObjectManager::Clear()
     LockedObjectCount = 0;
 }
 
-void TObjectManager::OnStartRecovery()
+void TObjectManager::OnRecoveryStarted()
 {
     Profiler.SetEnabled(false);
 }
 
-void TObjectManager::OnStopRecovery()
+void TObjectManager::OnRecoveryComplete()
 {
     Profiler.SetEnabled(true);
 
