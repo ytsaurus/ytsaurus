@@ -1074,7 +1074,7 @@ void TCypressManager::ListSubtreeNodes(
             auto* listRoot = static_cast<TListNode*>(trunkNode);
             FOREACH (auto* trunkChild, listRoot->IndexToChild()) {
                 auto* child = GetVersionedNode(trunkChild, transaction);
-                ListSubtreeNodes(child, transaction, subtreeNodes);
+                ListSubtreeNodes(child->GetTrunkNode(), transaction, subtreeNodes);
             }
             break;
         }

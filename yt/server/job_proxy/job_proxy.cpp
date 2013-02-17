@@ -215,7 +215,8 @@ void TJobProxy::Run()
 TFuture<void> TJobProxy::GetFailedChunks(std::vector<NChunkClient::TChunkId>* failedChunks)
 {
     *failedChunks = Job->GetFailedChunks();
-
+     return MakeFuture();
+/*
     if (failedChunks->empty()) {
         return MakeFuture();
     }
@@ -259,6 +260,7 @@ TFuture<void> TJobProxy::GetFailedChunks(std::vector<NChunkClient::TChunkId>* fa
     }
 
     return awaiter->Complete();
+*/
 }
 
 void TJobProxy::ReportResult(const TJobResult& result)
