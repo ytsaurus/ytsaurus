@@ -52,18 +52,18 @@ public:
         , Channel(std::move(channel))
     { }
 
-    void OnAcknowledgement() override
+    virtual void OnAcknowledgement() override
     {
         UnderlyingHandler->OnAcknowledgement();
     }
 
-    void OnResponse(NBus::IMessagePtr message) override
+    virtual void OnResponse(NBus::IMessagePtr message) override
     {
         UnderlyingHandler->OnResponse(std::move(message));
         Channel->OnRequestCompleted();
     }
 
-    void OnError(const TError& error) override
+    virtual void OnError(const TError& error) override
     {
         UnderlyingHandler->OnError(error);
         Channel->OnRequestCompleted();
