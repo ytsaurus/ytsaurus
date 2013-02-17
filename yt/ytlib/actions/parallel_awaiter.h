@@ -75,10 +75,10 @@ private:
     NProfiling::TProfiler* Profiler;
     NProfiling::TTimer Timer;
 
-    template <class Signature>
-    bool WrapOnResult(TCallback<Signature> onResult, TCallback<Signature>& wrappedOnResult);
+    bool TryAwait();
 
-    void MaybeInvokeOnComplete(const Stroka& key);
+    void MaybeFireCompleted(const Stroka& key);
+    void DoFireCompleted();
 
     void Init(
         IInvokerPtr invoker,
@@ -86,6 +86,7 @@ private:
         const NYPath::TYPath& timerPath);
 
     void Terminate();
+
 
     template <class T>
     void OnResult(

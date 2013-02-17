@@ -50,8 +50,7 @@ inline void TParallelAwaiter::Init(
     }
 }
 
-template <class Signature>
-bool TParallelAwaiter::WrapOnResult(TCallback<Signature> onResult, TCallback<Signature>& wrappedOnResult)
+inline bool TParallelAwaiter::TryAwait()
 {
     TGuard<TSpinLock> guard(SpinLock);
     YASSERT(!Completed);
@@ -60,10 +59,6 @@ bool TParallelAwaiter::WrapOnResult(TCallback<Signature> onResult, TCallback<Sig
         return false;
 
     ++RequestCount;
-
-    if (!onResult.IsNull()) {
-        wrappedOnResult = onResult.Via(CancelableInvoker);
-    }
     return true;
 }
 
@@ -75,13 +70,12 @@ void TParallelAwaiter::Await(
 {
     YASSERT(result);
 
-    TCallback<void(T)> wrappedOnResult;
-    if (WrapOnResult(onResult, wrappedOnResult)) {
+    if (TryAwait()) {
         result.Subscribe(BIND(
             &TParallelAwaiter::OnResult<T>,
             MakeStrong(this),
             timerKey,
-            Passed(std::move(wrappedOnResult))));
+            Passed(std::move(onResult))));
     }
 }
 
@@ -92,13 +86,12 @@ inline void TParallelAwaiter::Await(
 {
     YASSERT(result);
 
-    TCallback<void(void)> wrappedOnResult;
-    if (WrapOnResult(onResult, wrappedOnResult)) {
+    if (TryAwait()) {
         result.Subscribe(BIND(
             (void(TParallelAwaiter::*)(const NYPath::TYPath&, TCallback<void()>)) &TParallelAwaiter::OnResult,
             MakeStrong(this),
             timerKey,
-            Passed(std::move(wrappedOnResult))));
+            Passed(std::move(onResult))));
     }
 }
 
@@ -117,10 +110,9 @@ inline void TParallelAwaiter::Await(
     Await(std::move(result), "", std::move(onResult));
 }
 
-inline void TParallelAwaiter::MaybeInvokeOnComplete(const Stroka& timerKey)
+inline void TParallelAwaiter::MaybeFireCompleted(const Stroka& timerKey)
 {
-    bool invokeOnComplete = false;
-    TClosure onComplete;
+    bool fireCompleted = false;
     {
         TGuard<TSpinLock> guard(SpinLock);
 
@@ -133,19 +125,26 @@ inline void TParallelAwaiter::MaybeInvokeOnComplete(const Stroka& timerKey)
 
         ++ResponseCount;
 
-        onComplete = OnComplete;
-        invokeOnComplete = ResponseCount == RequestCount && Completed;
-        if (invokeOnComplete) {
+        fireCompleted = ResponseCount == RequestCount && Completed;
+        if (fireCompleted) {
             Terminate();
         }
     }
 
-    if (invokeOnComplete) {
-        if (!onComplete.IsNull()) {
-            onComplete.Run();
-        }
-        CompletedPromise.Set();
+    if (fireCompleted) {
+        DoFireCompleted();
     }
+}
+
+inline void TParallelAwaiter::DoFireCompleted()
+{
+    auto this_ = MakeStrong(this);
+    CancelableInvoker->Invoke(BIND([=] () {
+        if (!this_->OnComplete.IsNull()) {
+            this_->OnComplete.Run();
+        }
+        this_->CompletedPromise.Set();
+    }));
 }
 
 template <class T>
@@ -155,10 +154,10 @@ void TParallelAwaiter::OnResult(
     T result)
 {
     if (!onResult.IsNull()) {
-        onResult.Run(result);
+        CancelableInvoker->Invoke(BIND(onResult, result));
     }
 
-    MaybeInvokeOnComplete(timerKey);
+    MaybeFireCompleted(timerKey);
 }
 
 inline void TParallelAwaiter::OnResult(
@@ -166,19 +165,15 @@ inline void TParallelAwaiter::OnResult(
     TCallback<void()> onResult)
 {
     if (!onResult.IsNull()) {
-        onResult.Run();
+        CancelableInvoker->Invoke(onResult);
     }
-    MaybeInvokeOnComplete(timerKey);
-}
 
+    MaybeFireCompleted(timerKey);
+}
 
 inline TFuture<void> TParallelAwaiter::Complete(TClosure onComplete)
 {
-    if (!onComplete.IsNull()) {
-        onComplete = onComplete.Via(CancelableInvoker);
-    }
-
-    bool invokeOnComplete;
+    bool fireCompleted;
     {
         TGuard<TSpinLock> guard(SpinLock);
 
@@ -190,17 +185,15 @@ inline TFuture<void> TParallelAwaiter::Complete(TClosure onComplete)
         OnComplete = onComplete;
         Completed = true;
 
-        invokeOnComplete = (RequestCount == ResponseCount);
-        if (invokeOnComplete) {
+        fireCompleted = (RequestCount == ResponseCount);
+
+        if (fireCompleted) {
             Terminate();
         }
     }
 
-    if (invokeOnComplete) {
-        if (!onComplete.IsNull()) {
-            onComplete.Run();
-        }
-        CompletedPromise.Set();
+    if (fireCompleted) {
+        DoFireCompleted();
     }
 
     return CompletedPromise;
