@@ -20,7 +20,7 @@ T GetProtoExtension(const NProto::TExtensionSet& extensions)
     FOREACH (const auto& extension, extensions.extensions()) {
         if (extension.tag() == tag) {
             const auto& data = extension.data();
-            result.ParseFromArray(data.begin(), data.length());
+            YCHECK(result.ParseFromArray(data.begin(), data.length()));
             found = true;
             break;
         }
@@ -38,7 +38,7 @@ TNullable<T> FindProtoExtension(const NProto::TExtensionSet& extensions)
         if (extension.tag() == tag) {
             const auto& data = extension.data();
             result.Assign(T());
-            result.Get().ParseFromArray(data.begin(), data.length());
+            YCHECK(result.Get().ParseFromArray(data.begin(), data.length()));
             break;
         }
     }
