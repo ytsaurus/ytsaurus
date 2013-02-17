@@ -639,11 +639,10 @@ void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
     entry.Chunk = chunk;
     entry.When = GetCpuInstant() + ChunkRefreshDelay;
     RefreshList.push_back(entry);
+    ProfileRefreshList();
 
     auto objectManager = Bootstrap->GetObjectManager();
     objectManager->LockObject(chunk);
-
-    ProfileRefreshList();
 }
 
 void TChunkReplicator::OnRefresh()
@@ -657,7 +656,7 @@ void TChunkReplicator::OnRefresh()
 
     auto objectManager = Bootstrap->GetObjectManager();
 
-    int refreshedCount = 0;
+    int count = 0;
     PROFILE_TIMING ("/incremental_refresh_time") {
         auto chunkManager = Bootstrap->GetChunkManager();
         auto now = GetCpuInstant();
@@ -670,20 +669,21 @@ void TChunkReplicator::OnRefresh()
                 break;
 
             auto* chunk = entry.Chunk;
+            RefreshList.pop_front();
+            ++count;
+
             if (chunk->IsAlive()) {
                 Refresh(chunk);
-                ++refreshedCount;
             }
 
             objectManager->UnlockObject(chunk);        
-            RefreshList.pop_front();
         }
     }
 
     ProfileRefreshList();
 
     LOG_DEBUG("Incremental chunk refresh completed, %d chunks processed",
-        refreshedCount);
+        count);
 
     RefreshInvoker->ScheduleNext();
 }
@@ -800,11 +800,14 @@ void TChunkReplicator::ScheduleRFUpdate(TChunkList* chunkList)
 
 void TChunkReplicator::ScheduleRFUpdate(TChunk* chunk)
 {
-    const auto& id = chunk->GetId();
-    if (RFUpdateSet.insert(id).second) {
-        RFUpdateList.push_back(id);
-        ProfileRFUpdateList();
-    }
+    if (chunk->GetRefreshScheduled() || !chunk->IsAlive())
+        return;
+
+    RFUpdateList.push_back(chunk);
+    ProfileRFUpdateList();
+
+    auto objectManager = Bootstrap->GetObjectManager();
+    objectManager->LockObject(chunk);
 }
 
 void TChunkReplicator::OnRFUpdate()
@@ -818,25 +821,26 @@ void TChunkReplicator::OnRFUpdate()
 
     // Extract up to GCObjectsPerMutation objects and post a mutation.
     auto chunkManager = Bootstrap->GetChunkManager();
+    auto objectManager = Bootstrap->GetObjectManager();
     NProto::TMetaReqUpdateChunkReplicationFactor request;
 
     PROFILE_TIMING ("/rf_update_time") {
         int count = 0;
         while (!RFUpdateList.empty() && count < Config->MaxChunksPerRFUpdate) {
-            auto chunkId = RFUpdateList.front();
+            auto* chunk = RFUpdateList.front();
             RFUpdateList.pop_front();
-            YCHECK(RFUpdateSet.erase(chunkId) == 1);
             ++count;
 
-            auto* chunk = chunkManager->FindChunk(chunkId);
-            if (chunk && chunk->IsAlive()) {
+            if (chunk->IsAlive()) {
                 int replicationFactor = ComputeReplicationFactor(*chunk);
                 if (chunk->GetReplicationFactor() != replicationFactor) {
                     auto* update = request.add_updates();
-                    *update->mutable_chunk_id() = chunkId.ToProto();
+                    *update->mutable_chunk_id() = chunk->GetId().ToProto();
                     update->set_replication_factor(replicationFactor);
                 }
             }
+
+            objectManager->UnlockObject(chunk);
         }
     }
 

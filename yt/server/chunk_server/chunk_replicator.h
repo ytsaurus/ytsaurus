@@ -81,8 +81,7 @@ private:
     std::deque<TRefreshEntry> RefreshList;
 
     TPeriodicInvokerPtr RFUpdateInvoker;
-    yhash_set<TChunkId> RFUpdateSet;
-    std::deque<TChunkId> RFUpdateList;
+    std::deque<TChunk*> RFUpdateList;
 
     void ProcessExistingJobs(
         TDataNode* node,
