@@ -204,6 +204,15 @@ public:
 
     EOperationStatus GetStatus() const
     {
+        if (Operation_->GetState() != EOperationState::Running) {
+            return EOperationStatus::Normal;
+        }
+
+        auto controller = Operation_->GetController();
+        if (controller->GetPendingJobCount() == 0) {
+            return EOperationStatus::Normal;
+        }
+
         double usageRatio = GetUsageRatio();
         double demandRatio = GetDemandRatio();
 
@@ -212,13 +221,13 @@ public:
             ? 1.0
             : Spec_->FairShareStarvationTolerance;
 
-        if (usageRatio < Attributes_.FairShareRatio * tolerance - RatioComparisonPrecision) {
-            return usageRatio < Attributes_.AdjustedMinShareRatio
-                   ? EOperationStatus::BelowMinShare
-                   : EOperationStatus::BelowFairShare;
-        } else {
+        if (usageRatio > Attributes_.FairShareRatio * tolerance - RatioComparisonPrecision) {
             return EOperationStatus::Normal;
         }
+
+        return usageRatio < Attributes_.AdjustedMinShareRatio
+               ? EOperationStatus::BelowMinShare
+               : EOperationStatus::BelowFairShare;
     }
 
 
