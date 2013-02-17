@@ -106,17 +106,19 @@ class TChunkTreeTraverser
 protected:
     struct TStackEntry
     {
-        TVersionedChunkListId ChunkListId;
+        TChunkList* ChunkList;
+        int ChunkListVersion;
         int ChildIndex;
         TReadLimit LowerBound;
         TReadLimit UpperBound;
 
         TStackEntry(
-            const TVersionedChunkListId& chunkListId,
+            TChunkList* chunkList,
             int childIndex,
             const TReadLimit& lowerBound,
             const TReadLimit& upperBound)
-            : ChunkListId(chunkListId)
+            : ChunkList(chunkList)
+            , ChunkListVersion(chunkList->GetVersion())
             , ChildIndex(childIndex)
             , LowerBound(lowerBound)
             , UpperBound(upperBound)
@@ -125,85 +127,74 @@ protected:
 
     void DoTraverse()
     {
-        auto chunkManager = Bootstrap->GetChunkManager();
-
         int visitedChunkCount = 0;
         while (visitedChunkCount < MaxChunksPerAction) {
-            if (Stack.empty()) {
+            if (IsStackEmpty()) {
                 Visitor->OnFinish();
                 return;
             }
 
-            auto& stackEntry = Stack.back();
-            const auto& versionedId = stackEntry.ChunkListId;
-            auto* chunkList = chunkManager->FindChunkList(versionedId.Id);
-            if (!chunkList || !chunkList->IsAlive()) {
+            auto& entry = PeekStack();
+            auto* chunkList = entry.ChunkList;
+
+            if (chunkList->GetVersion() != entry.ChunkListVersion) {
                 Visitor->OnError(TError(
                     ETraversingError::Retriable,
-                    "Missing chunk list: %s",
-                    ~ToString(versionedId.Id)));
-                return;
-            }
-            if (chunkList->GetVersion() != versionedId.Version) {
-                Visitor->OnError(TError(
-                    ETraversingError::Retriable,
-                    "Chunk list %s version mismatch: expected %d but found %d",
-                    ~ToString(versionedId.Id),
-                    versionedId.Version,
-                    chunkList->GetVersion()));
+                    "Optimistic locking failed for chunk list %s",
+                    ~ToString(chunkList->GetId())));
                 return;
             }
 
-            if (stackEntry.ChildIndex == chunkList->Children().size()) {
-                Stack.pop_back();
+            if (entry.ChildIndex == chunkList->Children().size()) {
+                PopStack();
                 continue;
             }
 
-            auto child = chunkList->Children()[stackEntry.ChildIndex];
+            auto* child = chunkList->Children()[entry.ChildIndex];
             TReadLimit childLowerBound;
             TReadLimit childUpperBound;
 
             auto getChildLowerRowIndex = [&] () {
-                return stackEntry.ChildIndex == 0
+                return entry.ChildIndex == 0
                     ? 0
-                    : chunkList->RowCountSums()[stackEntry.ChildIndex - 1];
+                    : chunkList->RowCountSums()[entry.ChildIndex - 1];
             };
 
-            if (stackEntry.UpperBound.has_row_index()) {
+            if (entry.UpperBound.has_row_index()) {
                 childLowerBound.set_row_index(getChildLowerRowIndex());
 
-                if (stackEntry.UpperBound.row_index() <= childLowerBound.row_index()) {
-                    Stack.pop_back();
+                if (entry.UpperBound.row_index() <= childLowerBound.row_index()) {
+                    PopStack();
                     continue;
                 }
 
-                if (stackEntry.ChildIndex == chunkList->Children().size() - 1) {
+                if (entry.ChildIndex == chunkList->Children().size() - 1) {
                     childUpperBound.set_row_index(chunkList->Statistics().RowCount);
                 } else {
-                    childUpperBound.set_row_index(chunkList->RowCountSums()[stackEntry.ChildIndex]);
+                    childUpperBound.set_row_index(chunkList->RowCountSums()[entry.ChildIndex]);
                 }
-            } else if (stackEntry.LowerBound.has_row_index()) {
+            } else if (entry.LowerBound.has_row_index()) {
                 childLowerBound.set_row_index(getChildLowerRowIndex());
             }
 
-            if (stackEntry.UpperBound.has_key()) {
+            if (entry.UpperBound.has_key()) {
                 *childLowerBound.mutable_key() = GetMinKey(child);
 
-                if (stackEntry.UpperBound.key() <= childLowerBound.key()) {
-                    Stack.pop_back();
+                if (entry.UpperBound.key() <= childLowerBound.key()) {
+                    PopStack();
                     continue;
                 }
                 *childUpperBound.mutable_key() = GetMaxKey(child);
-            } else if (stackEntry.LowerBound.has_key()) {
+            } else if (entry.LowerBound.has_key()) {
                 *childLowerBound.mutable_key() = GetMinKey(child);
             }
 
-            ++stackEntry.ChildIndex;
+            ++entry.ChildIndex;
 
             NTableClient::NProto::TReadLimit subtreeStartLimit;
             NTableClient::NProto::TReadLimit subtreeEndLimit;
             GetSubtreeLimits(
-                stackEntry,
+                entry,
                 childLowerBound,
                 childUpperBound,
                 &subtreeStartLimit,
@@ -211,21 +202,24 @@ protected:
 
             switch (child->GetType()) {
                 case EObjectType::ChunkList: {
-                    auto index = GetStartChild(child->AsChunkList(), subtreeStartLimit);
-                    Stack.push_back(TStackEntry(
-                        child->AsChunkList()->GetVersionedId(),
+                    auto* childChunkList = child->AsChunkList();
+                    int index = GetStartChildIndex(childChunkList, subtreeStartLimit);
+                    PushStack(TStackEntry(
+                        childChunkList,
                         index,
                         subtreeStartLimit,
                         subtreeEndLimit));
                     break;
                 }
 
-                case EObjectType::Chunk:
-                    if (!Visitor->OnChunk(child->AsChunk(), subtreeStartLimit, subtreeEndLimit)) {
+                case EObjectType::Chunk: {
+                    auto* childChunk = child->AsChunk();
+                    if (!Visitor->OnChunk(childChunk, subtreeStartLimit, subtreeEndLimit)) {
                         return;
                     }
                     ++visitedChunkCount;
                     break;
+                 }
 
                 default:
                     YUNREACHABLE();
@@ -244,7 +238,7 @@ protected:
         }
     }
 
-    int GetStartChild(
+    int GetStartChildIndex(
         const TChunkList* chunkList,
         const TReadLimit& lowerBound)
     {
@@ -316,6 +310,31 @@ protected:
         }
     }
 
+    bool IsStackEmpty()
+    {
+        return Stack.empty();
+    }
+
+    void PushStack(const TStackEntry& newEntry)
+    {
+        auto objectManager = Bootstrap->GetObjectManager();
+        objectManager->UnlockObject(newEntry.ChunkList);
+        Stack.push_back(newEntry);
+    }
+
+    TStackEntry& PeekStack()
+    {
+        return Stack.back();
+    }
+
+    void PopStack()
+    {
+        auto& entry = Stack.back();
+        auto objectManager = Bootstrap->GetObjectManager();
+        objectManager->UnlockObject(entry.ChunkList);
+        Stack.pop_back();
+    }
+
     TBootstrap* Bootstrap;
     IChunkVisitorPtr Visitor;
 
@@ -330,7 +349,7 @@ public:
     { }
 
     void Run(
-        const TChunkList* chunkList,
+        TChunkList* chunkList,
         const TReadLimit& lowerBound,
         const TReadLimit& upperBound)
     {
@@ -342,10 +361,9 @@ public:
             return;
         }
 
-        int childIndex = GetStartChild(chunkList, lowerBound);
-
-        Stack.push_back(TStackEntry(
-            chunkList->GetVersionedId(),
+        int childIndex = GetStartChildIndex(chunkList, lowerBound);
+        PushStack(TStackEntry(
+            chunkList,
             childIndex,
             lowerBound,
             upperBound));
@@ -365,7 +383,7 @@ public:
 void TraverseChunkTree(
     NCellMaster::TBootstrap* bootstrap,
     IChunkVisitorPtr visitor,
-    const TChunkList* root,
+    TChunkList* root,
     const TReadLimit& lowerBound,
     const TReadLimit& upperBound)
 {

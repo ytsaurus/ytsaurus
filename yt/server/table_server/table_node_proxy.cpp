@@ -98,7 +98,7 @@ class TTableNodeProxy::TFetchChunkVisitor
 public:
     TFetchChunkVisitor(
         NCellMaster::TBootstrap* bootstrap,
-        const TChunkList* chunkList,
+        TChunkList* chunkList,
         TCtxFetchPtr context,
         const TChannel& channel)
         : Bootstrap(bootstrap)
@@ -137,7 +137,7 @@ public:
 
 private:
     NCellMaster::TBootstrap* Bootstrap;
-    const TChunkList* ChunkList;
+    TChunkList* ChunkList;
     TCtxFetchPtr Context;
     TChannel Channel;
 
@@ -275,14 +275,14 @@ public:
 protected:
     NCellMaster::TBootstrap* Bootstrap;
     IYsonConsumer* Consumer;
-    const TChunkList* ChunkList;
+    TChunkList* ChunkList;
     TPromise<TError> Promise;
 
     DECLARE_THREAD_AFFINITY_SLOT(StateThread);
 
     TChunkVisitorBase(
         NCellMaster::TBootstrap* bootstrap,
-        const TChunkList* chunkList,
+        TChunkList* chunkList,
         IYsonConsumer* consumer)
         : Bootstrap(bootstrap)
         , Consumer(consumer)
@@ -306,7 +306,7 @@ class TChunkIdsAttributeVisitor
 public:
     TChunkIdsAttributeVisitor(
         NCellMaster::TBootstrap* bootstrap,
-        const TChunkList* chunkList,
+        TChunkList* chunkList,
         IYsonConsumer* consumer)
         : TChunkVisitorBase(bootstrap, chunkList, consumer)
     {
@@ -343,7 +343,7 @@ class TCodecStatisticsAttributeVisitor
 public:
     TCodecStatisticsAttributeVisitor(
         TBootstrap* bootstrap,
-        const TChunkList* chunkList,
+        TChunkList* chunkList,
         IYsonConsumer* consumer)
         : TChunkVisitorBase(bootstrap, chunkList, consumer)
     { }
@@ -528,7 +528,7 @@ TAsyncError TTableNodeProxy::GetSystemAttributeAsync(const Stroka& key, IYsonCon
     if (key == "chunk_ids") {
         auto visitor = New<TChunkIdsAttributeVisitor>(
             Bootstrap,
-            chunkList,
+            const_cast<TChunkList*>(chunkList),
             consumer);
         return visitor->Run();
     }
@@ -536,7 +536,7 @@ TAsyncError TTableNodeProxy::GetSystemAttributeAsync(const Stroka& key, IYsonCon
     if (key == "codec_statistics") {
         auto visitor = New<TCodecStatisticsAttributeVisitor>(
             Bootstrap,
-            chunkList,
+            const_cast<TChunkList*>(chunkList),
             consumer);
         return visitor->Run();
     }

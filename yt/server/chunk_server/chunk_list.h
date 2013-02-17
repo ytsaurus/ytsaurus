@@ -17,17 +17,6 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! |(id, version)| pair used for optimistic chunk list locking.
-struct TVersionedChunkListId
-{
-    TVersionedChunkListId(const TChunkListId& id, int version);
-
-    TChunkListId Id;
-    int Version;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TChunkList
     : public TChunkTree
 {
@@ -62,7 +51,6 @@ public:
     void Load(const NCellMaster::TLoadContext& context);
 
     void IncrementVersion();
-    TVersionedChunkListId GetVersionedId() const;
 
 };
 

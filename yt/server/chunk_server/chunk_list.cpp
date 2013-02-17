@@ -13,13 +13,6 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TVersionedChunkListId::TVersionedChunkListId(const TChunkListId& id, int version)
-    : Id(id)
-    , Version(version)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 TChunkList::TChunkList(const TChunkListId& id)
     : TChunkTree(id)
     , Version_(0)
@@ -31,11 +24,6 @@ TChunkList::TChunkList(const TChunkListId& id)
 void TChunkList::IncrementVersion()
 {
     ++Version_;
-}
-
-TVersionedChunkListId TChunkList::GetVersionedId() const
-{
-    return TVersionedChunkListId(Id, Version_);
 }
 
 void TChunkList::Save(const NCellMaster::TSaveContext& context) const
