@@ -31,7 +31,7 @@ public:
 
     TSmallVector<TDataNode*, TypicalReplicationFactor> GetUploadTargets(
         int count,
-        const TSmallSet<Stroka, TypicalReplicationFactor>* forbiddenAddresses,
+        const TSmallSet<TDataNode*, TypicalReplicationFactor>* forbiddenNodes,
         Stroka* preferredHostName);
 
     TSmallVector<TDataNode*, TypicalReplicationFactor> GetRemovalTargets(

@@ -79,7 +79,7 @@ void TChunkPlacement::OnSessionHinted(TDataNode* node)
 
 TSmallVector<TDataNode*, TypicalReplicationFactor> TChunkPlacement::GetUploadTargets(
     int count,
-    const TSmallSet<Stroka, TypicalReplicationFactor>* forbiddenAddresses,
+    const TSmallSet<TDataNode*, TypicalReplicationFactor>* forbiddenNodes,
     Stroka* preferredHostName)
 {
     // TODO: check replication fan-in for replication jobs
@@ -91,7 +91,7 @@ TSmallVector<TDataNode*, TypicalReplicationFactor> TChunkPlacement::GetUploadTar
     std::vector<TFeasibleNode> feasibleNodes;
     feasibleNodes.reserve(LoadFactorToNode.size());
 
-    TDataNode* preferredNode = NULL;
+    TDataNode* preferredNode = nullptr;
 
     auto chunkManager = Bootstrap->GetChunkManager();
 
@@ -109,7 +109,7 @@ TSmallVector<TDataNode*, TypicalReplicationFactor> TChunkPlacement::GetUploadTar
         auto* node = pair.second;
         if (node != preferredNode &&
             IsValidUploadTarget(node) &&
-            !(forbiddenAddresses && forbiddenAddresses->count(node->GetAddress())))
+            !(forbiddenNodes && forbiddenNodes->count(node)))
         {
             feasibleNodes.push_back(std::make_pair(node, node->GetTotalSessionCount()));
         }
@@ -156,23 +156,28 @@ TSmallVector<TDataNode*, TypicalReplicationFactor> TChunkPlacement::GetReplicati
     const TChunk* chunk,
     int count)
 {
-    TSmallSet<Stroka, TypicalReplicationFactor> forbiddenAddresses;
+    TSmallSet<TDataNode*, TypicalReplicationFactor> forbiddenNodes;
 
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (auto replica, chunk->StoredReplicas()) {
-        forbiddenAddresses.insert(replica.GetNode()->GetAddress());
+        forbiddenNodes.insert(replica.GetNode());
     }
 
     const auto* jobList = chunkManager->FindJobList(chunk->GetId());
     if (jobList) {
         FOREACH (auto job, jobList->Jobs()) {
             if (job->GetType() == EJobType::Replicate && job->GetChunkId() == chunk->GetId()) {
-                forbiddenAddresses.insert(job->TargetAddresses().begin(), job->TargetAddresses().end());
+                FOREACH (const auto& targetAddress, job->TargetAddresses()) {
+                    auto* targetNode = chunkManager->FindNodeByAddress(targetAddress);
+                    if (targetNode) {
+                        forbiddenNodes.insert(targetNode);
+                    }
+                }
             }
         }
     }
 
-    return GetUploadTargets(count, &forbiddenAddresses, nullptr);
+    return GetUploadTargets(count, &forbiddenNodes, nullptr);
 }
 
 TDataNode* TChunkPlacement::GetReplicationSource(const TChunk* chunk)
@@ -243,7 +248,7 @@ TDataNode* TChunkPlacement::GetBalancingTarget(TChunk* chunk, double maxFillCoef
             return node;
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 bool TChunkPlacement::IsValidUploadTarget(TDataNode* targetNode)
