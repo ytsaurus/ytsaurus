@@ -55,18 +55,6 @@ void TEncodingWriter::DoCompressBlock(const TSharedRef& block)
 {
     auto compressedBlock = Codec->Compress(block);
 
-    if (Codec->GetId() == ECodec::GzipNormal || Codec->GetId() == ECodec::GzipBestCompression) {
-        try {
-            Codec->Decompress(compressedBlock);
-        }
-        catch (std::exception& e) {
-            std::ofstream fout("/yt/disk1/uncompressable_block",  std::ios::out | std::ios::binary);
-            fout.write(block.Begin(), block.Size());
-            fout.close();
-            YUNREACHABLE();
-        }
-    }
-
     UncompressedSize_ += block.Size();
     CompressedSize_ += compressedBlock.Size();
 
@@ -81,19 +69,6 @@ void TEncodingWriter::DoCompressBlock(const TSharedRef& block)
 void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& vectorizedBlock)
 {
     auto compressedBlock = Codec->Compress(vectorizedBlock);
-    if (Codec->GetId() == ECodec::GzipNormal || Codec->GetId() == ECodec::GzipBestCompression) {
-        try {
-            Codec->Decompress(compressedBlock);
-        }
-        catch (std::exception& e) {
-            std::ofstream fout("/yt/disk1/uncompressable_block",  std::ios::out | std::ios::binary);
-            FOREACH (const auto& part, vectorizedBlock) {
-                fout.write(part.Begin(), part.Size());
-            }
-            fout.close();
-            YUNREACHABLE();
-        }
-    }
 
     auto oldSize = GetUncompressedSize();
     FOREACH (const auto& part, vectorizedBlock) {
