@@ -11,7 +11,7 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef __x86_64__ 
+#ifdef __x86_64__
 
 TChunkReplica::TChunkReplica()
     : Value(0)
@@ -20,7 +20,7 @@ TChunkReplica::TChunkReplica()
 TChunkReplica::TChunkReplica(TDataNode* node, int index)
     : Value(reinterpret_cast<ui64>(node))
 {
-    YASSERT(reinterpret_cast<ui64>(node) & 0xf000000000000000LL == 0);
+    YASSERT((reinterpret_cast<ui64>(node) & 0xf000000000000000LL) == 0);
     YASSERT(index >= 0 && index < 16);
 }
 
