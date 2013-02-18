@@ -27,8 +27,7 @@ using namespace NSecurityServer;
 NMetaState::TVersionValidator SnapshotVersionValidator()
 {
     static auto result = BIND([] (int version) {
-        YCHECK(version == 6 ||
-               version == 7 ||
+        YCHECK(version == 7 ||
                version == 8);
     });
     return result;

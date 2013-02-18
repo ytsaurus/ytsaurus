@@ -35,12 +35,7 @@ void TAccount::Load(const NCellMaster::TLoadContext& context)
     auto* input = context.GetInput();
     ::Load(input, Name_);
     NSecurityServer::Load(input, ResourceUsage_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 7) {
-        NSecurityServer::Load(input, CommittedResourceUsage_);
-    } else {
-        CommittedResourceUsage_ = ResourceUsage_;
-    }
+    NSecurityServer::Load(input, CommittedResourceUsage_);
     NSecurityServer::Load(input, ResourceLimits_);
     ::Load(input, NodeCount_);
 }
