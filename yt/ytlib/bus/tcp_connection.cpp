@@ -242,7 +242,7 @@ void TTcpConnection::SyncResolve()
 
 bool TTcpConnection::IsLocal(const TStringBuf& hostName)
 {
-#ifdef _win_
+#ifndef _linux_
     UNUSED(hostName);
     return false;
 #else
