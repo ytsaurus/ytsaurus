@@ -93,7 +93,7 @@ void ZlibDecompress(StreamSource* source, std::vector<char>* output)
         stream.avail_out = output->size() - currentPos;
         returnCode = inflate(&stream, Z_NO_FLUSH);
         if (!(returnCode == Z_OK || returnCode == Z_STREAM_END)) {
-            THROW_ERROR_EXCEPTION("Zlib decompression failed");
+            THROW_ERROR_EXCEPTION("Zlib decompression failed %s", stream.msg);
         }
 
         source->Skip(available - stream.avail_in);
