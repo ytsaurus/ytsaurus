@@ -11,7 +11,7 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef _linux_
+#ifdef __x86_64__ 
 
 TChunkReplica::TChunkReplica()
     : Value(0)
