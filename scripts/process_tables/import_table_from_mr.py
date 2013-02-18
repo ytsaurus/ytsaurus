@@ -24,11 +24,12 @@ def main():
     parser.add_argument("--proxy", action="append")
     parser.add_argument("--server-port", default="8013")
     parser.add_argument("--http-port", default="13013")
-    parser.add_argument("--record-threshold", type=int, default=5 * 10 ** 6)
+    parser.add_argument("--job-size", type=int, default=2 * 1024 ** 3)
     parser.add_argument("--job-count", type=int)
     parser.add_argument("--speed", type=int)
     parser.add_argument("--codec")
     parser.add_argument("--force", action="store_true", default=False)
+    parser.add_argument("--ignore", action="store_true", default=False)
     parser.add_argument("--fastbone", action="store_true", default=False)
     parser.add_argument("--debug", action="store_true", default=False)
     parser.add_argument("--pool")
@@ -39,19 +40,21 @@ def main():
 
     use_fastbone = "-opt net_table=fastbone" if args.fastbone else ""
 
-    def records_count(table):
-        """ Parse record count from the html """
+    def field_from_page(table, field):
+        """ Extract value of given field from http page of the table """
         http_content = sh.curl("{}:{}/debug?info=table&table={}".format(args.server, args.http_port, table)).stdout
-        records_line = filter(lambda line: line.find("Records") != -1,  http_content.split("\n"))[0]
+        records_line = filter(lambda line: line.find(field) != -1,  http_content.split("\n"))[0]
         records_line = records_line.replace("</b>", "").replace(",", "")
-        return int(records_line.split("Records:")[1].split()[0])
+        return records_line.split(field + ":")[1].split()[0]
+
+    def records_count(table):
+        return int(field_from_page(table, "Records"))
+    
+    def data_size(table):
+        return int(field_from_page(table, "Size"))
 
     def is_sorted(table):
-        """ Parse sorted from the html """
-        http_content = sh.curl("{}:{}/debug?info=table&table={}".format(args.server, args.http_port, table)).stdout
-        sorted_line = filter(lambda line: line.find("Sorted") != -1,  http_content.split("\n"))[0]
-        sorted_line = sorted_line.replace("</b>", "")
-        return sorted_line.split("Sorted:")[1].strip().lower() == "yes"
+        return field_from_page(table, "Size").lower() == "yes"
 
     def is_empty(table):
         """ Parse whether table is empty from html """
@@ -66,10 +69,12 @@ def main():
         else:
             servers = ["%s:%s" % (args.server, args.server_port)]
         ranges = []
-        for i in xrange((count - 1) / args.record_threshold + 1):
+    
+        record_threshold = max(1, count * args.job_size / data_size(source))
+        for i in xrange((count - 1) / record_threshold + 1):
             server = servers[i % len(servers)]
-            start = i * args.record_threshold
-            end = min(count, (i + 1) * args.record_threshold)
+            start = i * record_threshold
+            end = min(count, (i + 1) * record_threshold)
             ranges.append((server, start, end))
 
         temp_table = yt.create_temp_table(prefix=os.path.basename(source))
@@ -114,8 +119,9 @@ def main():
 
     def push_table(source, destination, count):
         if args.job_count is None:
+            record_threshold = max(1, count * args.job_size / data_size(source))
             # Number of data pieces
-            args.job_count = (count - 1) / args.record_threshold + 1
+            args.job_count = (count - 1) / record_threshold + 1
 
         if args.speed is not None:
             limit = args.speed * yt.config.MB / args.job_count
@@ -177,6 +183,8 @@ def main():
         if yt.exists(destination):
             if args.force or (yt.get_type(destination) == "table" and yt.is_empty(destination)):
                 yt.remove(destination)
+        if yt.exists(destination) and args.ignore:
+            return -1
         yt.create_table(destination, recursive=True)
 
         try:
