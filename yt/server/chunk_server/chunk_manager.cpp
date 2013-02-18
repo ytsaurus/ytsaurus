@@ -614,15 +614,13 @@ public:
     {
         TSmallVector<Stroka, TypicalReplicationFactor> result;
 
-        FOREACH (auto nodeId, chunk->StoredLocations()) {
-            const auto* node = GetNode(nodeId);
-            result.push_back(node->GetAddress());
+        FOREACH (auto replica, chunk->StoredReplicas()) {
+            result.push_back(replica.GetNode()->GetAddress());
         }
 
-        if (~chunk->CachedLocations()) {
-            FOREACH (auto nodeId, *chunk->CachedLocations()) {
-                const auto* node = GetNode(nodeId);
-                result.push_back(node->GetAddress());
+        if (~chunk->CachedReplicas()) {
+            FOREACH (auto replica, *chunk->CachedReplicas()) {
+                result.push_back(replica.GetNode()->GetAddress());
             }
         }
 
@@ -765,12 +763,12 @@ private:
         }
 
         // Unregister chunk replicas from all known locations.
-        FOREACH (auto nodeId, chunk->StoredLocations()) {
-            ScheduleChunkReplicaRemoval(nodeId, chunk, false);
+        FOREACH (auto replica, chunk->StoredReplicas()) {
+            ScheduleChunkReplicaRemoval(replica.GetNode(), chunk, false);
         }
-        if (~chunk->CachedLocations()) {
-            FOREACH (auto nodeId, *chunk->CachedLocations()) {
-                ScheduleChunkReplicaRemoval(nodeId, chunk, true);
+        if (~chunk->CachedReplicas()) {
+            FOREACH (auto replica, *chunk->CachedReplicas()) {
+                ScheduleChunkReplicaRemoval(replica.GetNode(), chunk, true);
             }
         }
 
@@ -1302,7 +1300,6 @@ private:
     void AddChunkReplica(TDataNode* node, TChunk* chunk, bool cached, EAddReplicaReason reason)
     {
         auto chunkId = chunk->GetId();
-        auto nodeId = node->GetId();
 
         if (node->HasChunk(chunk, cached)) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Chunk replica is already added (ChunkId: %s, Cached: %s, Reason: %s, Address: %s, NodeId: %d)",
@@ -1310,12 +1307,12 @@ private:
                 ~FormatBool(cached),
                 ~reason.ToString(),
                 ~node->GetAddress(),
-                nodeId);
+                node->GetId());
             return;
         }
 
         node->AddChunk(chunk, cached);
-        chunk->AddLocation(nodeId, cached);
+        chunk->AddReplica(TChunkReplica(node), cached);
 
         if (!IsRecovery()) {
             LOG_EVENT(
@@ -1325,7 +1322,7 @@ private:
                 ~chunkId.ToString(),
                 ~FormatBool(cached),
                 ~node->GetAddress(),
-                nodeId);
+                node->GetId());
         }
 
         if (!cached && IsLeader()) {
@@ -1337,11 +1334,9 @@ private:
         }
     }
 
-    void ScheduleChunkReplicaRemoval(TNodeId nodeId, TChunk* chunk, bool cached)
+    void ScheduleChunkReplicaRemoval(TDataNode* node, TChunk* chunk, bool cached)
     {
-        auto* node = GetNode(nodeId);
         node->RemoveChunk(chunk, cached);
-
         if (!cached && IsLeader()) {
             ChunkReplicator->ScheduleChunkRemoval(node, chunk);
         }
@@ -1379,7 +1374,7 @@ private:
             default:
                 YUNREACHABLE();
         }
-        chunk->RemoveLocation(node->GetId(), cached);
+        chunk->RemoveReplica(TChunkReplica(node), cached);
 
         if (!IsRecovery()) {
             LOG_EVENT(

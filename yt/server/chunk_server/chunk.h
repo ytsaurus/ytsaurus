@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "chunk_tree.h"
+#include "chunk_replica.h"
 
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/small_vector.h>
@@ -33,12 +34,12 @@ class TChunk
     DEFINE_BYREF_RW_PROPERTY(TParents, Parents);
 
     // This is usually small, e.g. has the length of 3.
-    typedef TSmallVector<TNodeId, TypicalReplicationFactor> TStoredLocations;
-    DEFINE_BYREF_RO_PROPERTY(TStoredLocations, StoredLocations);
+    typedef TSmallVector<TChunkReplica, TypicalReplicationFactor> TStoredReplicas;
+    DEFINE_BYREF_RO_PROPERTY(TStoredReplicas, StoredReplicas);
 
     // This list is usually empty.
     // Keeping a holder is very space efficient (takes just 8 bytes).
-    DEFINE_BYREF_RO_PROPERTY(::THolder< yhash_set<TNodeId> >, CachedLocations);
+    DEFINE_BYREF_RO_PROPERTY(::THolder< yhash_set<TChunkReplica> >, CachedReplicas);
 
 public:
     static const i64 UnknownSize;
@@ -52,9 +53,9 @@ public:
     void Save(const NCellMaster::TSaveContext& context) const;
     void Load(const NCellMaster::TLoadContext& context);
 
-    void AddLocation(TNodeId nodeId, bool cached);
-    void RemoveLocation(TNodeId nodeId, bool cached);
-    TSmallVector<TNodeId, TypicalReplicationFactor> GetLocations() const;
+    void AddReplica(TChunkReplica replica, bool cached);
+    void RemoveReplica(TChunkReplica replica, bool cached);
+    TSmallVector<TChunkReplica, TypicalReplicationFactor> GetReplicas() const;
 
     bool ValidateChunkInfo(const NChunkClient::NProto::TChunkInfo& chunkInfo) const;
     bool IsConfirmed() const;

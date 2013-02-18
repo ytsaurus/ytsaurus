@@ -127,6 +127,16 @@ int TDataNode::GetTotalSessionCount() const
     return HintedSessionCount_ + Statistics_.total_session_count();
 }
 
+TNodeId GetObjectId(const TDataNode* node)
+{
+    return node->GetId();
+}
+
+bool CompareObjectsForSerialization(const TDataNode* lhs, const TDataNode* rhs)
+{
+    return GetObjectId(lhs) < GetObjectId(rhs);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkServer

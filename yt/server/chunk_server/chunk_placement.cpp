@@ -159,9 +159,8 @@ TSmallVector<TDataNode*, TypicalReplicationFactor> TChunkPlacement::GetReplicati
     TSmallSet<Stroka, TypicalReplicationFactor> forbiddenAddresses;
 
     auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH (auto nodeId, chunk->StoredLocations()) {
-        const auto* node = chunkManager->GetNode(nodeId);
-        forbiddenAddresses.insert(node->GetAddress());
+    FOREACH (auto replica, chunk->StoredReplicas()) {
+        forbiddenAddresses.insert(replica.GetNode()->GetAddress());
     }
 
     const auto* jobList = chunkManager->FindJobList(chunk->GetId());
@@ -173,16 +172,16 @@ TSmallVector<TDataNode*, TypicalReplicationFactor> TChunkPlacement::GetReplicati
         }
     }
 
-    return GetUploadTargets(count, &forbiddenAddresses, NULL);
+    return GetUploadTargets(count, &forbiddenAddresses, nullptr);
 }
 
 TDataNode* TChunkPlacement::GetReplicationSource(const TChunk* chunk)
 {
     // Right now we are just picking a random location (including cached ones).
-    auto locations = chunk->GetLocations();
-    YCHECK(!locations.empty());
-    int index = RandomNumber<size_t>(locations.size());
-    return Bootstrap->GetChunkManager()->GetNode(locations[index]);
+    auto replicas = chunk->GetReplicas();
+    YCHECK(!replicas.empty());
+    int index = RandomNumber<size_t>(replicas.size());
+    return replicas[index].GetNode();
 }
 
 TSmallVector<TDataNode*, TypicalReplicationFactor> TChunkPlacement::GetRemovalTargets(
@@ -192,12 +191,11 @@ TSmallVector<TDataNode*, TypicalReplicationFactor> TChunkPlacement::GetRemovalTa
     // Construct a list of (nodeId, loadFactor) pairs.
     typedef std::pair<TDataNode*, double> TCandidatePair;
     TSmallVector<TCandidatePair, TypicalReplicationFactor> candidates;
-    auto chunkManager = Bootstrap->GetChunkManager();
-    candidates.reserve(chunk->StoredLocations().size());
-    FOREACH (auto nodeId, chunk->StoredLocations()) {
-        auto* node = chunkManager->GetNode(nodeId);
+    candidates.reserve(chunk->StoredReplicas().size());
+    FOREACH (auto replica, chunk->StoredReplicas()) {
+        auto* node = replica.GetNode();
         double fillCoeff = GetFillCoeff(node);
-        candidates.push_back(MakePair(node, fillCoeff));
+        candidates.push_back(std::make_pair(node, fillCoeff));
     }
 
     // Sort by fillCoeff in descending order.

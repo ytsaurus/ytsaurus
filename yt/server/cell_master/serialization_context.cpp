@@ -28,7 +28,8 @@ NMetaState::TVersionValidator SnapshotVersionValidator()
 {
     static auto result = BIND([] (int version) {
         YCHECK(version == 6 ||
-               version == 7);
+               version == 7 ||
+               version == 8);
     });
     return result;
 }
@@ -85,6 +86,12 @@ template <>
 TAccount* TLoadContext::Get(const TObjectId& id) const
 {
     return Bootstrap_->GetSecurityManager()->GetAccount(id);
+}
+
+template <>
+TDataNode* TLoadContext::Get(NChunkServer::TNodeId id) const
+{
+    return Bootstrap_->GetChunkManager()->GetNode(id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

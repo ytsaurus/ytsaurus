@@ -45,12 +45,6 @@ using namespace NMetaState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUnversionedObjectBase::TUnversionedObjectBase(const TObjectId& id)
-    : TObjectBase(id)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 TStagedObject::TStagedObject()
     : StagingTransaction_(nullptr)
     , StagingAccount_(nullptr)

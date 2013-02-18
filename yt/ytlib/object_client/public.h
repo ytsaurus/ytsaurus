@@ -166,11 +166,10 @@ DECLARE_PODTYPE(NYT::NObjectClient::TVersionedObjectId);
 template <>
 struct hash<NYT::NObjectClient::TVersionedObjectId>
 {
-    i32 operator() (const NYT::NObjectClient::TVersionedObjectId& id) const
+    size_t operator() (const NYT::NObjectClient::TVersionedObjectId& id) const
     {
-        return
-            (i32) THash<NYT::TGuid>()(id.TransactionId) * 497 +
-            (i32) THash<NYT::TGuid>()(id.ObjectId);
+        return THash<NYT::TGuid>()(id.TransactionId) * 497 +
+               THash<NYT::TGuid>()(id.ObjectId);
     }
 };
 

@@ -101,6 +101,22 @@ void TObjectBase::Load(const NCellMaster::TLoadContext& context)
     ::Load(input, RefCounter);
 }
 
+TObjectId GetObjectId(const TObjectBase* object)
+{
+    return object ? object->GetId() : NullObjectId;
+}
+
+bool CompareObjectsForSerialization(const TObjectBase* lhs, const TObjectBase* rhs)
+{
+    return GetObjectId(lhs) < GetObjectId(rhs);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TUnversionedObjectBase::TUnversionedObjectBase(const TObjectId& id)
+    : TObjectBase(id)
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NObjectServer

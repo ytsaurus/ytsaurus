@@ -62,8 +62,8 @@ private:
         YCHECK(!chunk->IsConfirmed() || miscExt);
 
         attributes->push_back("confirmed");
-        attributes->push_back("cached_locations");
-        attributes->push_back("stored_locations");
+        attributes->push_back("cached_replicas");
+        attributes->push_back("stored_replicas");
         attributes->push_back("replication_factor");
         attributes->push_back("movable");
         attributes->push_back("vital");
@@ -95,12 +95,11 @@ private:
             return true;
         }
 
-        if (key == "cached_locations") {
-            if (~chunk->CachedLocations()) {
+        if (key == "cached_replicas") {
+            if (~chunk->CachedReplicas()) {
                 BuildYsonFluently(consumer)
-                    .DoListFor(*chunk->CachedLocations(), [=] (TFluentList fluent, TNodeId nodeId) {
-                        const auto& node = chunkManager->GetNode(nodeId);
-                        fluent.Item().Value(node->GetAddress());
+                    .DoListFor(*chunk->CachedReplicas(), [=] (TFluentList fluent, TChunkReplica replica) {
+                        fluent.Item().Value(replica.GetNode()->GetAddress());
                     });
             } else {
                 BuildYsonFluently(consumer)
@@ -110,11 +109,10 @@ private:
             return true;
         }
 
-        if (key == "stored_locations") {
+        if (key == "stored_replicas") {
             BuildYsonFluently(consumer)
-                .DoListFor(chunk->StoredLocations(), [=] (TFluentList fluent, TNodeId nodeId) {
-                    const auto& node = chunkManager->GetNode(nodeId);
-                    fluent.Item().Value(node->GetAddress());
+                .DoListFor(chunk->StoredReplicas(), [=] (TFluentList fluent, TChunkReplica replica) {
+                    fluent.Item().Value(replica.GetNode()->GetAddress());
                 });
             return true;
         }

@@ -80,6 +80,9 @@ protected:
 
 };
 
+TObjectId GetObjectId(const TObjectBase* object);
+bool CompareObjectsForSerialization(const TObjectBase* lhs, const TObjectBase* rhs);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
@@ -101,19 +104,6 @@ class TUnversionedObjectBase
 public:
     explicit TUnversionedObjectBase(const TObjectId& id);
 
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-inline TObjectId GetObjectId(const TObjectBase* object)
-{
-    return object ? object->GetId() : NullObjectId;
-}
-
-template <class T>
-struct TObjectIdTraits
-{
-    typedef decltype(GetObjectId(T())) TId;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

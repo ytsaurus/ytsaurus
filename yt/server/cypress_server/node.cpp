@@ -121,6 +121,16 @@ TClusterResources TCypressNodeBase::GetResourceUsage() const
     return ZeroClusterResources();
 }
 
+TVersionedObjectId GetObjectId(const TCypressNodeBase* object)
+{
+    return object ? object->GetVersionedId() : TVersionedObjectId(NullObjectId, NullTransactionId);
+}
+
+bool CompareObjectsForSerialization(const TCypressNodeBase* lhs, const TCypressNodeBase* rhs)
+{
+    return GetObjectId(lhs) < GetObjectId(rhs);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCypressServer

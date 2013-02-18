@@ -77,8 +77,8 @@ void TChunk::Save(const NCellMaster::TSaveContext& context) const
     ::Save(output, GetMovable());
     ::Save(output, GetVital());
     SaveObjectRefs(output, Parents_);
-    ::Save(output, StoredLocations_);
-    SaveNullableSet(output, CachedLocations_);
+    SaveObjectRefs(output, StoredReplicas_);
+    SaveNullableObjectRefs(output, CachedReplicas_);
 }
 
 void TChunk::Load(const NCellMaster::TLoadContext& context)
@@ -93,34 +93,34 @@ void TChunk::Load(const NCellMaster::TLoadContext& context)
     SetMovable(NCellMaster::Load<bool>(context));
     SetVital(NCellMaster::Load<bool>(context));
     LoadObjectRefs(input, Parents_, context);
-    ::Load(input, StoredLocations_);
-    LoadNullableSet(input, CachedLocations_);
+    LoadObjectRefs(input, StoredReplicas_, context);
+    LoadNullableObjectRefs(input, CachedReplicas_, context);
 }
 
-void TChunk::AddLocation(TNodeId nodeId, bool cached)
+void TChunk::AddReplica(TChunkReplica replica, bool cached)
 {
     if (cached) {
-        if (!CachedLocations_) {
-            CachedLocations_.Reset(new yhash_set<TNodeId>());
+        if (!CachedReplicas_) {
+            CachedReplicas_.Reset(new yhash_set<TChunkReplica>());
         }
-        YCHECK(CachedLocations_->insert(nodeId).second);
+        YCHECK(CachedReplicas_->insert(replica).second);
     } else {
-        StoredLocations_.push_back(nodeId);
+        StoredReplicas_.push_back(replica);
     }
 }
 
-void TChunk::RemoveLocation(TNodeId nodeId, bool cached)
+void TChunk::RemoveReplica(TChunkReplica replica, bool cached)
 {
     if (cached) {
-        YASSERT(~CachedLocations_);
-        YCHECK(CachedLocations_->erase(nodeId) == 1);
-        if (CachedLocations_->empty()) {
-            CachedLocations_.Destroy();
+        YASSERT(~CachedReplicas_);
+        YCHECK(CachedReplicas_->erase(replica) == 1);
+        if (CachedReplicas_->empty()) {
+            CachedReplicas_.Destroy();
         }
     } else {
-        for (auto it = StoredLocations_.begin(); it != StoredLocations_.end(); ++it) {
-            if (*it == nodeId) {
-                StoredLocations_.erase(it);
+        for (auto it = StoredReplicas_.begin(); it != StoredReplicas_.end(); ++it) {
+            if (*it == replica) {
+                StoredReplicas_.erase(it);
                 return;
             }
         }
@@ -128,11 +128,11 @@ void TChunk::RemoveLocation(TNodeId nodeId, bool cached)
     }
 }
 
-TSmallVector<TNodeId, TypicalReplicationFactor> TChunk::GetLocations() const
+TSmallVector<TChunkReplica, TypicalReplicationFactor> TChunk::GetReplicas() const
 {
-    TSmallVector<TNodeId, TypicalReplicationFactor> result(StoredLocations_.begin(), StoredLocations_.end());
-    if (~CachedLocations_) {
-        result.insert(result.end(), CachedLocations_->begin(), CachedLocations_->end());
+    TSmallVector<TChunkReplica, TypicalReplicationFactor> result(StoredReplicas_.begin(), StoredReplicas_.end());
+    if (~CachedReplicas_) {
+        result.insert(result.end(), CachedReplicas_->begin(), CachedReplicas_->end());
     }
     return result;
 }

@@ -467,8 +467,8 @@ TChunkReplicator::TReplicaStatistics TChunkReplicator::GetReplicaStatistics(cons
     TReplicaStatistics result;
 
     result.ReplicationFactor = chunk.GetReplicationFactor();
-    result.StoredCount = static_cast<int>(chunk.StoredLocations().size());
-    result.CachedCount = ~chunk.CachedLocations() ? static_cast<int>(chunk.CachedLocations()->size()) : 0;
+    result.StoredCount = static_cast<int>(chunk.StoredReplicas().size());
+    result.CachedCount = ~chunk.CachedReplicas() ? static_cast<int>(chunk.CachedReplicas()->size()) : 0;
     result.PlusCount = 0;
     result.MinusCount = 0;
 
@@ -483,9 +483,8 @@ TChunkReplicator::TReplicaStatistics TChunkReplicator::GetReplicaStatistics(cons
     }
 
     TSmallSet<Stroka, TypicalReplicationFactor> storedAddresses;
-    FOREACH (auto nodeId, chunk.StoredLocations()) {
-        const auto& node = chunkManager->GetNode(nodeId);
-        storedAddresses.insert(node->GetAddress());
+    FOREACH (auto replica, chunk.StoredReplicas()) {
+        storedAddresses.insert(replica.GetNode()->GetAddress());
     }
 
     FOREACH (auto* job, jobList->Jobs()) {
@@ -528,10 +527,9 @@ void TChunkReplicator::Refresh(TChunk* chunk)
         return;
 
     auto chunkId = chunk->GetId();
-
     auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH (auto nodeId, chunk->StoredLocations()) {
-        auto* node = chunkManager->FindNode(nodeId);
+    FOREACH (auto replica, chunk->StoredReplicas()) {
+        auto* node = replica.GetNode();
         if (node) {
             FOREACH (auto& chunksToReplicate, node->ChunksToReplicate()) {
                 chunksToReplicate.erase(chunkId);

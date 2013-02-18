@@ -26,7 +26,7 @@ DECLARE_ENUM(ESavePriority,
     (Values)
 );
 
-const int CurrentSnapshotVersion = 7;
+const int CurrentSnapshotVersion = 8;
 NMetaState::TVersionValidator SnapshotVersionValidator();
 
 struct TLoadContext
@@ -39,6 +39,9 @@ struct TLoadContext
 
     template <class T>
     T* Get(const NObjectClient::TVersionedObjectId& id) const;
+
+    template <class T>
+    T* Get(NChunkServer::TNodeId id) const;
 };
 
 struct TSaveContext
@@ -69,6 +72,9 @@ NCypressServer::TCypressNodeBase* TLoadContext::Get(const NCypressClient::TVersi
 template <>
 NSecurityServer::TAccount* TLoadContext::Get(const NObjectClient::TObjectId& id) const;
 
+template <>
+NChunkServer::TDataNode* TLoadContext::Get(NChunkServer::TNodeId id) const;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
@@ -80,10 +86,18 @@ void LoadObjectRef(TInputStream* input, T& object, const TLoadContext& context);
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void SaveObjectRefs(TOutputStream* output, const T& object);
+void SaveObjectRefs(TOutputStream* output, const T& objects);
 
 template <class T>
-void LoadObjectRefs(TInputStream* input, T& object, const TLoadContext& context);
+void LoadObjectRefs(TInputStream* input, T& objects, const TLoadContext& context);
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+void SaveNullableObjectRefs(TOutputStream* output, const THolder<T>& objects);
+
+template <class T>
+void LoadNullableObjectRefs(TInputStream* input, THolder<T>& objects, const TLoadContext& context);
 
 ////////////////////////////////////////////////////////////////////////////////
 

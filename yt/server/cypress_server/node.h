@@ -70,24 +70,10 @@ private:
 
 };
 
-////////////////////////////////////////////////////////////////////////////////
+NObjectServer::TVersionedObjectId GetObjectId(const TCypressNodeBase* object);
+bool CompareObjectsForSerialization(const TCypressNodeBase* lhs, const TCypressNodeBase* rhs);
+
+//////////////////////////////////////////////////////////////////////////////// 
 
 } // namespace NCypressServer
 } // namespace NYT
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TObjectIdTraits and GetObjectId specializations.
-
-namespace NYT {
-namespace NObjectServer {
-
-inline TVersionedObjectId GetObjectId(const NCypressServer::TCypressNodeBase* object)
-{
-    return object ? object->GetVersionedId() : TVersionedObjectId(NullObjectId, NullTransactionId);
-}
-
-} // namespace NObjectServer
-} // namespace NYT
-
-////////////////////////////////////////////////////////////////////////////////

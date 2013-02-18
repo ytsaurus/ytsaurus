@@ -72,6 +72,9 @@ private:
 
 };
 
+TNodeId GetObjectId(const TDataNode* node);
+bool CompareObjectsForSerialization(const TDataNode* lhs, const TDataNode* rhs);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TReplicationSink
@@ -80,7 +83,7 @@ class TReplicationSink
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJob*>, Jobs);
 
 public:
-    explicit TReplicationSink(const Stroka &address)
+    explicit TReplicationSink(const Stroka& address)
         : Address_(address)
     { }
 
