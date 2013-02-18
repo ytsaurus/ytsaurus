@@ -113,6 +113,23 @@ void TJobProxy::RetrieveJobSpec()
 
 void TJobProxy::Run()
 {
+    auto result = DoRun();
+
+    if (Job) {
+        HeartbeatInvoker->Stop();
+
+        std::vector<NChunkClient::TChunkId> failedChunks;
+        GetFailedChunks(&failedChunks).Get();
+        LOG_DEBUG("Found %d failed chunks", static_cast<int>(failedChunks.size()));
+        ToProto(result.mutable_failed_chunk_ids(), failedChunks);
+    }
+    
+    ReportResult(result);
+}
+   
+
+TJobResult TJobProxy::DoRun()
+{
     try {
         auto supervisorClient = CreateTcpBusClient(Config->SupervisorConnection);
 
@@ -196,24 +213,14 @@ void TJobProxy::Run()
         }
 
         HeartbeatInvoker->Start();
-        auto result = Job->Run();
-        HeartbeatInvoker->Stop();
+        return Job->Run();
 
-        ReportResult(result);
     } catch (const std::exception& ex) {
-        HeartbeatInvoker->Stop();
-
         LOG_ERROR(ex, "Job failed");
 
         TJobResult result;
         ToProto(result.mutable_error(), TError(ex));
-
-        std::vector<NChunkClient::TChunkId> failedChunks;
-        GetFailedChunks(&failedChunks).Get();
-        LOG_DEBUG("Found %d failed chunks", static_cast<int>(failedChunks.size()));
-        ToProto(result.mutable_failed_chunk_ids(), failedChunks);
-
-        ReportResult(result);
+        return result;
     }
 }
 

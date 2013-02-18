@@ -32,6 +32,7 @@ public:
     void Run();
 
 private:
+    NScheduler::NProto::TJobResult DoRun();
     void SendHeartbeat();
     void OnHeartbeatResponse(NExecAgent::TSupervisorServiceProxy::TRspOnJobProgressPtr rsp);
 
