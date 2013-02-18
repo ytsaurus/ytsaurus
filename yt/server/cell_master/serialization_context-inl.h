@@ -44,7 +44,8 @@ inline void SetObjectRefImpl(
 template <class T>
 void LoadObjectRef(TInputStream* input, T& object, const TLoadContext& context)
 {
-    typename decltype(GetObjectId(object)) id;
+    typedef decltype(GetObjectId(object)) TId;
+    TId id;
     ::Load(input, id);
     SetObjectRefImpl(id, object, context);
 }
