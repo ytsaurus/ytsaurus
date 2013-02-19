@@ -265,13 +265,13 @@ protected:
         void ResumeInput(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe);
         void FinishInput();
 
+        void CheckCompleted();
+
         TJobPtr ScheduleJob(ISchedulingContext* context, const NProto::TNodeResources& jobLimits);
 
         virtual void OnJobCompleted(TJobletPtr joblet);
         virtual void OnJobFailed(TJobletPtr joblet);
         virtual void OnJobAborted(TJobletPtr joblet);
-
-        virtual void OnTaskCompleted();
 
         void CheckResourceDemandSanity(
             TExecNodePtr node,
@@ -289,9 +289,12 @@ protected:
         int CachedPendingJobCount;
         NProto::TNodeResources CachedTotalNeededResources;
         TInstant LastDemandSanityCheckTime;
+        bool CompletedFired;
 
     protected:
         NLog::TTaggedLogger& Logger;
+
+        virtual void OnTaskCompleted();
 
         virtual IChunkPoolInput* GetChunkPoolInput() const = 0;
         virtual IChunkPoolOutput* GetChunkPoolOutput() const = 0;

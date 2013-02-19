@@ -60,6 +60,7 @@ TOperationControllerBase::TTask::TTask(TOperationControllerBase* controller)
     , CachedPendingJobCount(0)
     , CachedTotalNeededResources(ZeroNodeResources())
     , LastDemandSanityCheckTime(TInstant::Zero())
+    , CompletedFired(false)
     , Logger(Controller->Logger)
 { }
 
@@ -139,6 +140,14 @@ void TOperationControllerBase::TTask::FinishInput()
 
     GetChunkPoolInput()->Finish();
     AddPendingHint();
+}
+
+void TOperationControllerBase::TTask::CheckCompleted()
+{
+    if (!CompletedFired && IsCompleted()) {
+        CompletedFired = true;
+        OnTaskCompleted();
+    }
 }
 
 TJobPtr TOperationControllerBase::TTask::ScheduleJob(
@@ -770,9 +779,7 @@ void TOperationControllerBase::OnTaskUpdated(TTaskPtr task)
         newJobCount,
         ~FormatResources(CachedNeededResources));
 
-    if (task->IsCompleted()) {
-        task->OnTaskCompleted();
-    }
+    task->CheckCompleted();
 }
 
 void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
