@@ -238,7 +238,7 @@ public:
 
     virtual bool IsCompleted() const override
     {
-        return Finished && GetCompletedDataSize() == GetTotalDataSize();
+        return Finished && Completed_;
     }
 
     virtual int GetTotalJobCount() const override
