@@ -626,10 +626,6 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
 
     OnTaskUpdated(joblet->Task);
 
-    if (joblet->Task->IsCompleted()) {
-        joblet->Task->OnTaskCompleted();
-    }
-
     if (JobCounter.GetRunning() == 0 && GetPendingJobCount() == 0) {
         OnOperationCompleted();
     }
@@ -773,6 +769,10 @@ void TOperationControllerBase::OnTaskUpdated(TTaskPtr task)
         oldJobCount,
         newJobCount,
         ~FormatResources(CachedNeededResources));
+
+    if (task->IsCompleted()) {
+        task->OnTaskCompleted();
+    }
 }
 
 void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
