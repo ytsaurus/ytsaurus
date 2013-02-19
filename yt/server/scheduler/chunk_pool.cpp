@@ -802,7 +802,7 @@ private:
             , PartitionIndex(partitionIndex)
             , DataSizeThreshold(dataSizeThreshold)
         {
-            NewRun();
+            AddNewRun();
         }
 
         struct TStripeInfo
@@ -820,8 +820,8 @@ private:
         {
             auto* run = &Runs.back();
             if (run->TotalDataSize > 0  && run->TotalDataSize + dataSize > DataSizeThreshold) {
-                FinishLastRun();
-                NewRun();
+                SealLastRun();
+                AddNewRun();
                 run = &Runs.back();
             }
 
@@ -836,25 +836,32 @@ private:
 
         void SuspendStripe(int elementaryIndex)
         {
-            auto& run = GetRun(elementaryIndex);
-            run.IsApproximate = true;
-            ++run.SuspendCount;
-
-            UpdatePendingRunSet(run);
+            auto* run = FindRun(elementaryIndex);
+            if (run) {
+                run->IsApproximate = true;
+                ++run->SuspendCount;
+                UpdatePendingRunSet(*run);
+            }
         }
 
         void ResumeStripe(int elementaryIndex)
         {
-            auto& run = GetRun(elementaryIndex);
-            --run.SuspendCount;
-            YCHECK(run.SuspendCount >= 0);
-
-            UpdatePendingRunSet(run);
+            auto* run = FindRun(elementaryIndex);
+            if (run) {
+                --run->SuspendCount;
+                YCHECK(run->SuspendCount >= 0);
+                UpdatePendingRunSet(*run);
+            }
         }
 
         void FinishInput()
         {
-            FinishLastRun();
+            auto& lastRun = Runs.back();
+            if (lastRun.TotalDataSize > 0) {
+                SealLastRun();
+            } else {
+                Runs.pop_back();
+            }
         }
 
         // IChunkPoolOutput implementation.
@@ -1025,7 +1032,7 @@ private:
             }
         }
 
-        void NewRun()
+        void AddNewRun()
         {
             TRun run;
             run.ElementaryIndexBegin = Runs.empty() ? 0 : Runs.back().ElementaryIndexEnd;
@@ -1033,28 +1040,33 @@ private:
             Runs.push_back(run);
         }
 
-        TRun& GetRun(int elementaryIndex)
+        TRun* FindRun(int elementaryIndex)
         {
-            int runBegin = 0;
-            int runEnd = static_cast<int>(Runs.size());
-            while (runBegin + 1 < runEnd) {
-                int runMid = (runBegin + runEnd) / 2;
-                const auto& run = Runs[runMid];
+            if (Runs.empty() || elementaryIndex >= Runs.back().ElementaryIndexEnd) {
+                return nullptr;
+            }
+
+            int lo = 0;
+            int hi = static_cast<int>(Runs.size());
+            while (lo + 1 < hi) {
+                int mid = (lo + hi) / 2;
+                const auto& run = Runs[mid];
                 if (run.ElementaryIndexBegin <= elementaryIndex) {
-                    runBegin = runMid;
+                    lo = mid;
                 } else {
-                    runEnd = runMid;
+                    hi = mid;
                 }
             }
 
-            auto& run = Runs[runBegin];
+            auto& run = Runs[lo];
             YCHECK(run.ElementaryIndexBegin <= elementaryIndex && run.ElementaryIndexEnd > elementaryIndex);
-            return run;
+            return &run;
         }
 
-        void FinishLastRun()
+        void SealLastRun()
         {
             auto& run = Runs.back();
+            YCHECK(run.TotalDataSize > 0);
             YCHECK(run.State == ERunState::Initializing);
             run.State = ERunState::Pending;
             UpdatePendingRunSet(run);
