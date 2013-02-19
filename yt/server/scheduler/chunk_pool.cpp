@@ -422,7 +422,7 @@ public:
 
     virtual bool IsCompleted() const override
     {
-        return Finished && GetCompletedDataSize() == GetTotalDataSize();
+        return Finished && LostCookies.empty() && PendingGlobalChunks.empty();
     }
 
     virtual int GetTotalJobCount() const override
@@ -441,29 +441,29 @@ public:
 
     virtual i64 GetLocality(const Stroka& address) const override
     {
-        auto it = LocalChunks.find(address);
-        return it == LocalChunks.end() ? 0 : it->second.TotalDataSize;
+        auto it = PendingLocalChunks.find(address);
+        return it == PendingLocalChunks.end() ? 0 : it->second.TotalDataSize;
     }
 
     virtual IChunkPoolOutput::TCookie Extract(const Stroka& address) override
     {
         YCHECK(Finished);
 
+        if (LostCookies.empty() && PendingGlobalChunks.empty()) {
+            return IChunkPoolOutput::NullCookie;
+        }
+
         TChunkStripeListPtr list;
         IChunkPoolOutput::TCookie cookie;
 
         if (LostCookies.empty()) {
-            if (GetPendingDataSize() == 0) {
-                return IChunkPoolOutput::NullCookie;
-            }
-
             cookie = OutputCookieGenerator.Next();
             list = New<TChunkStripeList>();
             YCHECK(ExtractedLists.insert(std::make_pair(cookie, list)).second);
 
             // Take local chunks first.
-            auto it = LocalChunks.find(address);
-            if (it != LocalChunks.end()) {
+            auto it = PendingLocalChunks.find(address);
+            if (it != PendingLocalChunks.end()) {
                 const auto& entry = it->second;
                 AddAndUnregisterStripes(
                     list,
@@ -475,8 +475,8 @@ public:
             // Take non-local chunks.
             AddAndUnregisterStripes(
                 list,
-                GlobalChunks.begin(),
-                GlobalChunks.end(),
+                PendingGlobalChunks.begin(),
+                PendingGlobalChunks.end(),
                 address);
         } else {
             auto lostIt = LostCookies.begin();
@@ -556,7 +556,7 @@ private:
 
     std::vector<TSuspendableStripe> Stripes;
 
-    yhash_set<TChunkStripePtr> GlobalChunks;
+    yhash_set<TChunkStripePtr> PendingGlobalChunks;
 
     struct TLocalityEntry
     {
@@ -568,7 +568,7 @@ private:
         yhash_set<TChunkStripePtr> Stripes;
     };
 
-    yhash_map<Stroka, TLocalityEntry> LocalChunks;
+    yhash_map<Stroka, TLocalityEntry> PendingLocalChunks;
 
     TIdGenerator<IChunkPoolOutput::TCookie> OutputCookieGenerator;
 
@@ -584,13 +584,13 @@ private:
             i64 chunkDataSize;
             GetStatistics(*chunk, &chunkDataSize);
             FOREACH (const auto& address, chunk->node_addresses()) {
-                auto& entry = LocalChunks[address];
+                auto& entry = PendingLocalChunks[address];
                 YCHECK(entry.Stripes.insert(stripe).second);
                 entry.TotalDataSize += chunkDataSize;
             }
         }
 
-        YCHECK(GlobalChunks.insert(stripe).second);
+        YCHECK(PendingGlobalChunks.insert(stripe).second);
     }
 
     void Unregister(TChunkStripePtr stripe)
@@ -599,13 +599,13 @@ private:
             i64 chunkDataSize;
             GetStatistics(*chunk, &chunkDataSize);
             FOREACH (const auto& address, chunk->node_addresses()) {
-                auto& entry = LocalChunks[address];
+                auto& entry = PendingLocalChunks[address];
                 YCHECK(entry.Stripes.erase(stripe) == 1);
                 entry.TotalDataSize -= chunkDataSize;
             }
         }
 
-        YCHECK(GlobalChunks.erase(stripe) == 1);
+        YCHECK(PendingGlobalChunks.erase(stripe) == 1);
     }
 
     template <class TIterator>
@@ -840,7 +840,7 @@ private:
         {
             auto& run = GetRun(elementaryIndex);
             run.IsApproximate = true;
-            ++run.SuspendedCount;
+            ++run.SuspendCount;
 
             UpdatePendingRunSet(run);
         }
@@ -848,8 +848,8 @@ private:
         void ResumeStripe(int elementaryIndex)
         {
             auto& run = GetRun(elementaryIndex);
-            --run.SuspendedCount;
-            YCHECK(run.SuspendedCount >= 0);
+            --run.SuspendCount;
+            YCHECK(run.SuspendCount >= 0);
 
             UpdatePendingRunSet(run);
         }
@@ -863,7 +863,7 @@ private:
 
         virtual bool IsCompleted() const override
         {
-            return Owner->Finished && GetCompletedDataSize() == GetTotalDataSize();
+            return Owner->Finished && PendingRuns.empty();
         }
 
         virtual int GetTotalJobCount() const override
@@ -992,7 +992,7 @@ private:
                 , ElementaryIndexEnd(0)
                 , TotalDataSize(0)
                 , TotalRowCount(0)
-                , SuspendedCount(0)
+                , SuspendCount(0)
                 , State(ERunState::Initializing)
                 , IsApproximate(false)
             { }
@@ -1001,7 +1001,7 @@ private:
             int ElementaryIndexEnd;
             i64 TotalDataSize;
             i64 TotalRowCount;
-            int SuspendedCount;
+            int SuspendCount;
             ERunState State;
             bool IsApproximate;
         };
@@ -1013,7 +1013,7 @@ private:
         void UpdatePendingRunSet(const TRun& run)
         {
             TCookie cookie = &run - Runs.data();
-            if (run.State == ERunState::Pending && run.SuspendedCount == 0) {
+            if (run.State == ERunState::Pending && run.SuspendCount == 0) {
                 PendingRuns.insert(cookie);
             } else {
                 PendingRuns.erase(cookie);
