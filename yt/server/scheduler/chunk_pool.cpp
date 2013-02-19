@@ -821,9 +821,7 @@ private:
         void AddStripe(int elementaryIndex, i64 dataSize, i64 rowCount)
         {
             auto* run = &Runs.back();
-            if (run->ElementaryIndexBegin != run->ElementaryIndexEnd &&
-                run->TotalDataSize + dataSize > DataSizeThreshold)
-            {
+            if (run->TotalDataSize > 0  && run->TotalDataSize + dataSize > DataSizeThreshold) {
                 FinishLastRun();
                 NewRun();
                 run = &Runs.back();
