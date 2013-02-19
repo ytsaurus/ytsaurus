@@ -773,6 +773,8 @@ protected:
         {
             // We believe that this task may only complete once.
             Controller->OnPartitionCompleted(Partition);
+
+            TPartitionBoundTask::OnTaskCompleted();
         }
 
     };
