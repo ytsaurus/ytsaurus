@@ -1052,9 +1052,7 @@ private:
             auto& run = Runs.back();
             YCHECK(run.State == ERunState::Initializing);
             run.State = ERunState::Pending;
-            if (run.TotalDataSize > 0) {
-                UpdatePendingRunSet(run);
-            }
+            UpdatePendingRunSet(run);
         }
 
     };
