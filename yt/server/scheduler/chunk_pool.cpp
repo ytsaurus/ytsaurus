@@ -734,20 +734,23 @@ public:
 
     virtual void Resume(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe) override
     {
+        // Remove all partition extensions.
+        FOREACH (auto chunk, stripe->Chunks) {
+            RemoveProtoExtension<NTableClient::NProto::TPartitionsExt>(chunk->mutable_extensions());
+        }
+        
         // Although the sizes and even the row count may have changed (mind unordered reader and
-        // possible undetermined mappers in partition jobs), we ignore it and use couter values
+        // possible undetermined mappers in partition jobs), we ignore it and use counter values
         // from the initial stripes, hoping that nobody will recognize it. This may lead to
-        // incorrect memory consumption estimates, but significant bias is very unlikely.
+        // incorrect memory consumption estimates but significant bias is very unlikely.
         const auto& inputStripe = InputStripes[cookie];
-        auto stripeCount = inputStripe.ElementaryIndexEnd - inputStripe.ElementaryIndexBegin;
-        auto limit = std::min(static_cast<int>(stripe->Chunks.size()), stripeCount - 1);
+        int stripeCount = inputStripe.ElementaryIndexEnd - inputStripe.ElementaryIndexBegin;
+        int limit = std::min(static_cast<int>(stripe->Chunks.size()), stripeCount - 1);
 
-        // Fill the beginning of input stripe with new chunks.
+        // Fill the initial range of elementary stripes with new chunks (one per stripe).
         for (int index = 0; index < limit; ++index) {
             auto chunk = stripe->Chunks[index];
-            RemoveProtoExtension<NTableClient::NProto::TPartitionsExt>(chunk->mutable_extensions());
-
-            auto elementaryIndex = index + inputStripe.ElementaryIndexBegin;
+            int elementaryIndex = index + inputStripe.ElementaryIndexBegin;
             ElementaryStripes[elementaryIndex] = New<TChunkStripe>(chunk);
         }
 
@@ -759,12 +762,11 @@ public:
             ElementaryStripes[elementaryIndex] = New<TChunkStripe>();
         }
 
-        // Put the rest of the chunks (if any) into last stripe.
-        auto& elementaryStripe = ElementaryStripes[inputStripe.ElementaryIndexBegin + limit];
-        for (int index = limit; index < stripe->Chunks.size(); ++index) {
+        // Put remaining chunks (if any) into the last stripe.
+        auto& lastElementaryStripe = ElementaryStripes[inputStripe.ElementaryIndexBegin + limit];
+        for (int index = limit; index < static_cast<int>(stripe->Chunks.size()); ++index) {
             auto chunk = stripe->Chunks[index];
-            RemoveProtoExtension<NTableClient::NProto::TPartitionsExt>(chunk->mutable_extensions());
-            elementaryStripe->Chunks.push_back(chunk);
+            lastElementaryStripe->Chunks.push_back(chunk);
         }
 
         for(int elementaryIndex = inputStripe.ElementaryIndexBegin;
