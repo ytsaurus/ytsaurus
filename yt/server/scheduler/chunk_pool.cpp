@@ -162,6 +162,7 @@ public:
 protected:
     TProgressCounter DataSizeCounter;
     TProgressCounter RowCounter;
+    TProgressCounter JobCounter;
 
 };
 
@@ -176,15 +177,15 @@ public:
     // IChunkPoolInput implementation.
 
     TAtomicChunkPool()
-        : Completed_(false)
-        , SuspendedStripeCount(0)
-    { }
+        : SuspendedStripeCount(0)
+    {
+        JobCounter.Set(1);
+    }
 
     virtual IChunkPoolInput::TCookie Add(TChunkStripePtr stripe) override
     {
         YCHECK(!Finished);
         YCHECK(!ExtractedList);
-        YCHECK(!Completed_);
 
         auto cookie = static_cast<int>(Stripes.size());
 
@@ -238,7 +239,7 @@ public:
 
     virtual bool IsCompleted() const override
     {
-        return Finished && Completed_;
+        return Finished && JobCounter.GetCompleted() == 1;
     }
 
     virtual int GetTotalJobCount() const override
@@ -249,10 +250,9 @@ public:
     virtual int GetPendingJobCount() const override
     {
         return
-            SuspendedStripeCount == 0 &&
             Finished &&
-            !Completed_ &&
-            !ExtractedList
+            SuspendedStripeCount == 0 &&
+            JobCounter.GetPending() == 1
             ? 1 : 0;
     }
 
@@ -271,7 +271,7 @@ public:
         YCHECK(Finished);
         YCHECK(SuspendedStripeCount == 0);
 
-        if (ExtractedList || Completed_) {
+        if (GetPendingJobCount() == 0) {
             return IChunkPoolOutput::NullCookie;
         }
         
@@ -284,6 +284,7 @@ public:
             AddStripeToList(stripe, stripeDataSize, stripeRowCount, ExtractedList, address);
         }
 
+        JobCounter.Start(1);
         DataSizeCounter.Start(DataSizeCounter.GetTotal());
         RowCounter.Start(RowCounter.GetTotal());
 
@@ -295,7 +296,6 @@ public:
         YCHECK(cookie == 0);
         YCHECK(ExtractedList);
         YCHECK(Finished);
-        YCHECK(!Completed_);
 
         return ExtractedList;
     }
@@ -305,12 +305,11 @@ public:
         YCHECK(cookie == 0);
         YCHECK(ExtractedList);
         YCHECK(Finished);
-        YCHECK(!Completed_);
 
+        JobCounter.Completed(1);
         DataSizeCounter.Completed(DataSizeCounter.GetTotal());
         RowCounter.Completed(RowCounter.GetTotal());
 
-        Completed_ = true;
         ExtractedList = nullptr;
     }
 
@@ -319,8 +318,8 @@ public:
         YCHECK(cookie == 0);
         YCHECK(ExtractedList);
         YCHECK(Finished);
-        YCHECK(!Completed_);
 
+        JobCounter.Failed(1);
         DataSizeCounter.Failed(DataSizeCounter.GetTotal());
         RowCounter.Failed(RowCounter.GetTotal());
 
@@ -332,8 +331,8 @@ public:
         YCHECK(cookie == 0);
         YCHECK(ExtractedList);
         YCHECK(Finished);
-        YCHECK(!Completed_);
 
+        JobCounter.Aborted(1);
         DataSizeCounter.Aborted(DataSizeCounter.GetTotal());
         RowCounter.Aborted(RowCounter.GetTotal());
 
@@ -345,12 +344,10 @@ public:
         YCHECK(cookie == 0);
         YCHECK(!ExtractedList);
         YCHECK(Finished);
-        YCHECK(Completed_);
 
+        JobCounter.Lost(1);
         DataSizeCounter.Lost(DataSizeCounter.GetTotal());
         RowCounter.Lost(RowCounter.GetTotal());
-
-        Completed_ = false;
     }
 
 private:
@@ -359,7 +356,6 @@ private:
     yhash_map<Stroka, i64> AddressToLocality;
     TChunkStripeListPtr ExtractedList;
 
-    bool Completed_;
     int SuspendedStripeCount;
 
 };
@@ -378,8 +374,9 @@ class TUnorderedChunkPool
 {
 public:
     explicit TUnorderedChunkPool(int jobCount)
-        : JobCounter(jobCount)
-    { }
+    {
+        JobCounter.Set(jobCount);
+    }
 
     // IChunkPoolInput implementation.
 
@@ -422,7 +419,10 @@ public:
 
     virtual bool IsCompleted() const override
     {
-        return Finished && LostCookies.empty() && PendingGlobalChunks.empty();
+        return Finished &&
+               LostCookies.empty() &&
+               PendingGlobalChunks.empty() &&
+               JobCounter.GetRunning() == 0;
     }
 
     virtual int GetTotalJobCount() const override
@@ -436,7 +436,7 @@ public:
         // that some jobs are pending. This may happen due to unevenness
         // of workload partitioning and cause the task to start less jobs than
         // suggested.
-        return GetPendingDataSize() == 0 ? 0 : JobCounter.GetPending();
+        return LostCookies.empty() && PendingGlobalChunks.empty() ? 0 : JobCounter.GetPending();
     }
 
     virtual i64 GetLocality(const Stroka& address) const override
@@ -449,7 +449,7 @@ public:
     {
         YCHECK(Finished);
 
-        if (LostCookies.empty() && PendingGlobalChunks.empty()) {
+        if (GetPendingJobCount() == 0) {
             return IChunkPoolOutput::NullCookie;
         }
 
@@ -552,8 +552,6 @@ public:
     }
 
 private:
-    TProgressCounter JobCounter;
-
     std::vector<TSuspendableStripe> Stripes;
 
     yhash_set<TChunkStripePtr> PendingGlobalChunks;
@@ -863,7 +861,9 @@ private:
 
         virtual bool IsCompleted() const override
         {
-            return Owner->Finished && PendingRuns.empty();
+            return Owner->Finished &&
+                   PendingRuns.empty() &&
+                   JobCounter.GetRunning() == 0;
         }
 
         virtual int GetTotalJobCount() const override
@@ -884,7 +884,7 @@ private:
 
         virtual TCookie Extract(const Stroka& address) override
         {
-            if (PendingRuns.empty()) {
+            if (GetPendingJobCount() == 0) {
                 return NullCookie;
             }
 
@@ -896,6 +896,7 @@ private:
             YCHECK(run.State == ERunState::Pending);
             run.State = ERunState::Running;
 
+            JobCounter.Start(1);
             DataSizeCounter.Start(run.TotalDataSize);
             RowCounter.Start(run.TotalRowCount);
 
@@ -931,6 +932,7 @@ private:
             YCHECK(run.State == ERunState::Running);
             run.State = ERunState::Completed;
 
+            JobCounter.Completed(1);
             DataSizeCounter.Completed(run.TotalDataSize);
             RowCounter.Completed(run.TotalRowCount);
         }
@@ -943,6 +945,7 @@ private:
 
             UpdatePendingRunSet(run);
 
+            JobCounter.Failed(1);
             DataSizeCounter.Failed(run.TotalDataSize);
             RowCounter.Failed(run.TotalRowCount);
         }
@@ -955,6 +958,7 @@ private:
 
             UpdatePendingRunSet(run);
 
+            JobCounter.Aborted(1);
             DataSizeCounter.Aborted(run.TotalDataSize);
             RowCounter.Aborted(run.TotalRowCount);
         }
@@ -967,6 +971,7 @@ private:
 
             UpdatePendingRunSet(run);
 
+            JobCounter.Lost(1);
             DataSizeCounter.Lost(run.TotalDataSize);
             RowCounter.Lost(run.TotalRowCount);
         }
