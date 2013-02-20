@@ -23,11 +23,13 @@ public:
     IInvokerPtr GetReaderInvoker();
     IInvokerPtr GetWriterInvoker();
     IInvokerPtr GetCompressionInvoker();
+    IInvokerPtr GetErasureInvoker();
 
     void Shutdown();
 
 private:
     int CompressionPoolSize;
+    int ErasurePoolSize;
 
     /*!
      * This thread is used for background operations in #TRemoteChunkReader
@@ -42,6 +44,8 @@ private:
     TLazyPtr<TActionQueue> WriterThread;
 
     TLazyPtr<TThreadPool> CompressionThreadPool;
+
+    TLazyPtr<TThreadPool> ErasureThreadPool;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

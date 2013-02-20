@@ -257,6 +257,11 @@ int TLrc::GetParityBlockCount() const
     return ParityCount_;
 }
 
+int TLrc::GetWordSize() const
+{
+    return WordSize_ * 8;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NErasure

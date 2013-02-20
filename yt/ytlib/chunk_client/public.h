@@ -101,11 +101,8 @@ typedef TIntrusivePtr<IBlockCache> IBlockCachePtr;
 struct TSequentialReaderConfig;
 typedef TIntrusivePtr<TSequentialReaderConfig> TSequentialReaderConfigPtr;
 
-struct TRemoteWriterConfig;
-typedef TIntrusivePtr<TRemoteWriterConfig> TRemoteWriterConfigPtr;
-
-class TRemoteWriter;
-typedef TIntrusivePtr<TRemoteWriter> TRemoteWriterPtr;
+struct TReplicationWriterConfig;
+typedef TIntrusivePtr<TReplicationWriterConfig> TReplicationWriterConfigPtr;
 
 class TFileReader;
 typedef TIntrusivePtr<TFileReader> TFileReaderPtr;

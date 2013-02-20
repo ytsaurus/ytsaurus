@@ -35,6 +35,8 @@ public:
 
     //! Returns chunk meta. The writer must be already closed.
     const NChunkClient::NProto::TChunkMeta& GetChunkMeta() const;
+    
+    virtual const std::vector<int> GetWrittenIndexes() const override;
 
 private:
     Stroka FileName;

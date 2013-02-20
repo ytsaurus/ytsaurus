@@ -57,7 +57,6 @@ bool TFileWriter::TryWriteBlock(const TSharedRef& block)
         auto checksum = GetChecksum(block);
         blockInfo->set_checksum(checksum);
         ChecksumOutput.Write(&checksum, sizeof(checksum));
-
         DataFile->Write(block.Begin(), block.Size());
 
         DataSize += block.Size();
@@ -174,6 +173,12 @@ const TChunkMeta& TFileWriter::GetChunkMeta() const
 {
     YCHECK(IsClosed);
     return ChunkMeta;
+}
+
+
+const std::vector<int> TFileWriter::GetWrittenIndexes() const
+{
+    YUNIMPLEMENTED();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

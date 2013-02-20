@@ -11,7 +11,7 @@
 
 #include <ytlib/misc/string.h>
 
-#include <ytlib/chunk_client/remote_writer.h>
+#include <ytlib/chunk_client/replication_writer.h>
 #include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/chunk_client/async_writer.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
@@ -134,7 +134,7 @@ void TJob::RunReplicate()
 
         this_->ChunkMeta = result.Value();
 
-        this_->Writer = New<TRemoteWriter>(
+        this_->Writer = GetReplicationWriter(
             this_->Bootstrap->GetConfig()->ReplicationRemoteWriter,
             this_->ChunkId,
             this_->Targets);

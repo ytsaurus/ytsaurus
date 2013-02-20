@@ -115,7 +115,7 @@ struct TSequentialReaderConfig
 
 ///////////////////////////////////////////////////////////////////////////////
 
-struct TRemoteWriterConfig
+struct TReplicationWriterConfig
     : public virtual TYsonSerializable
 {
     //! Maximum window size (in bytes).
@@ -140,7 +140,7 @@ struct TRemoteWriterConfig
     //! If True then written blocks are cached by the node.
     bool EnableNodeCaching;
 
-    TRemoteWriterConfig()
+    TReplicationWriterConfig()
     {
         Register("send_window_size", SendWindowSize)
             .Default(4 * 1024 * 1024)
@@ -171,14 +171,14 @@ struct TEncodingWriterConfig
 {
     i64 EncodeWindowSize;
 
-    double DefaultCompressionRatio;
+    double ExpectedCompressionRatio;
 
     TEncodingWriterConfig()
     {
         Register("encode_window_size", EncodeWindowSize)
             .Default(4 * 1024 * 1024)
             .GreaterThan(0);
-        Register("default_compression_ratio", DefaultCompressionRatio)
+        Register("expected_compression_ratio", ExpectedCompressionRatio)
             .Default(0.2);
     }
 };
@@ -203,11 +203,15 @@ struct TDispatcherConfig
     : public virtual TYsonSerializable
 {
     int CompressionPoolSize;
+    int ErasurePoolSize;
 
     TDispatcherConfig()
     {
         Register("compression_pool_size", CompressionPoolSize)
             .Default(4)
+            .GreaterThan(0);
+        Register("erasure_pool_size", ErasurePoolSize)
+            .Default(2)
             .GreaterThan(0);
     }
 };

@@ -67,6 +67,11 @@ int TCauchyReedSolomon::GetParityBlockCount() const
     return ParityCount_;
 }
 
+int TCauchyReedSolomon::GetWordSize() const
+{
+    return WordSize_ * 8;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NErasure

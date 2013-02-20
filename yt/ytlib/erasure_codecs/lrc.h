@@ -29,6 +29,8 @@ public:
     virtual int GetDataBlockCount() const override;
 
     virtual int GetParityBlockCount() const override;
+    
+    virtual int GetWordSize() const override;
 
 private:
     int BlockCount_;

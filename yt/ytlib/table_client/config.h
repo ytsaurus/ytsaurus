@@ -59,7 +59,7 @@ struct TChunkWriterConfig
 
 struct TTableWriterConfig
     : public TChunkWriterConfig
-    , public NChunkClient::TRemoteWriterConfig
+    , public NChunkClient::TReplicationWriterConfig
 {
     i64 DesiredChunkSize;
     i64 MaxMetaSize;

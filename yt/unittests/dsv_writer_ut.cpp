@@ -337,9 +337,6 @@ TEST(TTskvWriterTest, Escaping)
 
         "\n";
 
-    Cout << outputStream.Str();
-    Cout << output;
-
     EXPECT_EQ(outputStream.Str(), output);
 }
 

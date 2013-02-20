@@ -27,20 +27,18 @@ struct IAsyncWriter
 
     //! Called when the client wants to upload a new block.
     /*!
-     *  Subsequent calls to #AsyncWriteBlock or #AsyncClose are
+     *  Subsequent calls to #TryWriteBlock or #AsyncClose are
      *  prohibited until the returned result is set.
      *
+     *  Returns false if error detected.
+     *
+     *  Call #GetReadyEvent to obtain the result.
      *  If the result indicates some error then the whole upload session is failed.
      *  (e.g. all target data nodes are down).
      *  The client must not retry and send the same block again.
      */
-    //virtual TAsyncError AsyncWriteBlock(const TSharedRef& block) = 0;
-
     virtual bool TryWriteBlock(const TSharedRef& block) = 0;
     virtual TAsyncError GetReadyEvent() = 0;
-
-    //! A batched version of #AsyncWriteBlock.
-    //TAsyncError AsyncWriteBlocks(const std::vector<TSharedRef>& blocks);
 
     //! Called when the client has added all blocks and is
     //! willing to finalize the upload.
@@ -61,6 +59,13 @@ struct IAsyncWriter
      */
     virtual const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const = 0;
 
+    //! Return indices of alive nodes.
+    /*!
+     * Can only be called when the wrtier is successfully closed.
+     *
+     * This method used in replictaion writer and unimplemented in other cases.
+     */
+    virtual const std::vector<int> GetWrittenIndexes() const = 0;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -16,7 +16,6 @@
 #include <ytlib/rpc/public.h>
 
 #include <server/chunk_server/public.h>
-
 #include <server/object_server/public.h>
 
 namespace NYT {
@@ -68,8 +67,8 @@ private:
     bool IsOpen;
     i64 Size;
     i32 BlockCount;
-    NChunkClient::TRemoteWriterPtr Writer;
     std::vector<NChunkClient::TChunkReplica> Replicas;
+    NChunkClient::IAsyncWriterPtr Writer;
     NChunkClient::TChunkId ChunkId;
     NCompression::ICodec* Codec;
     TBlob Buffer;

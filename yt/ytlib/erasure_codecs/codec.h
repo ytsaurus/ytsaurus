@@ -10,8 +10,8 @@ namespace NErasure {
 
 DECLARE_ENUM(ECodec,
     ((None)           (0))
-    ((ReedSolomon3)   (1))
-    ((Lrc)            (2))
+    ((ReedSolomon_6_3)(1))
+    ((Lrc_12_2_2)     (2))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -27,6 +27,10 @@ struct ICodec
     virtual int GetDataBlockCount() const = 0;
 
     virtual int GetParityBlockCount() const = 0;
+
+    virtual int GetTotalBlockCount() const;
+
+    virtual int GetWordSize() const = 0;
 };
 
 

@@ -6,12 +6,13 @@ set( SRCS
   ${BASE}/client_block_cache.cpp
   ${BASE}/dispatcher.cpp
   ${BASE}/encoding_writer.cpp
+  ${BASE}/erasure_writer.cpp
   ${BASE}/file_reader.cpp
   ${BASE}/file_writer.cpp
   ${BASE}/private.cpp
   ${BASE}/public.cpp
   ${BASE}/remote_reader.cpp
-  ${BASE}/remote_writer.cpp
+  ${BASE}/replication_writer.cpp
   ${BASE}/sequential_reader.cpp
   ${BASE}/chunk_replica.cpp
   ${BASE}/node_directory.cpp
@@ -30,13 +31,14 @@ set( HDRS
   ${BASE}/data_node_service_proxy.h
   ${BASE}/dispatcher.h
   ${BASE}/encoding_writer.h
+  ${BASE}/erasure_writer.h
   ${BASE}/file_reader.h
   ${BASE}/file_writer.h
   ${BASE}/format.h
   ${BASE}/private.h
   ${BASE}/public.h
   ${BASE}/remote_reader.h
-  ${BASE}/remote_writer.h
+  ${BASE}/replication_writer.h
   ${BASE}/sequential_reader.h
   ${BASE}/chunk_replica.h
   ${BASE}/node_directory.h

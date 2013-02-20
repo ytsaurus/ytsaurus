@@ -16,7 +16,7 @@ namespace NFileClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TFileWriterConfig
-    : public NChunkClient::TRemoteWriterConfig
+    : public NChunkClient::TReplicationWriterConfig
 {
     i64 BlockSize;
     NCompression::ECodec Codec;

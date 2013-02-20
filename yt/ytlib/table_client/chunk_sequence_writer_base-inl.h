@@ -159,7 +159,11 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkCreated(
         ~ToString(chunkId));
 
     auto targets = NodeDirectory->GetDescriptors(session.Replicas);
-    session.RemoteWriter = New<NChunkClient::TRemoteWriter>(Config, chunkId, targets);
+    session.ChunkId = chunkId;
+    session.RemoteWriter = GetReplicationWriter(
+        Config,
+        chunkId,
+        targets);
     session.RemoteWriter->Open();
 
     PrepareChunkWriter(&session);
@@ -253,11 +257,10 @@ void TChunkSequenceWriterBase<TChunkWriter>::FinishCurrentSession()
 
     if (CurrentSession.ChunkWriter->GetCurrentSize() > 0) {
         LOG_DEBUG("Finishing chunk (ChunkId: %s)",
-            ~ToString(CurrentSession.RemoteWriter->GetChunkId()));
+            ~ToString(CurrentSession.ChunkId));
 
         int chunkIndex = 0;
         {
-            // Create a placeholder in WrittenChunks (to be filled later in OnChunkClosed).
             TGuard<TSpinLock> guard(WrittenChunksGuard);
             chunkIndex = WrittenChunks.size();
             WrittenChunks.push_back(NProto::TInputChunk());
@@ -267,7 +270,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::FinishCurrentSession()
         CloseChunksAwaiter->Await(finishResult.ToFuture(), BIND(
             &TChunkSequenceWriterBase::OnChunkFinished,
             MakeWeak(this),
-            CurrentSession.RemoteWriter->GetChunkId()));
+            CurrentSession.ChunkId));
 
         CurrentSession.ChunkWriter->AsyncClose().Subscribe(BIND(
             &TChunkSequenceWriterBase::OnChunkClosed,
@@ -278,7 +281,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::FinishCurrentSession()
 
     } else {
         LOG_DEBUG("Canceling empty chunk (ChunkId: %s)",
-            ~ToString(CurrentSession.RemoteWriter->GetChunkId()));
+            ~ToString(CurrentSession.ChunkId));
     }
 
     CurrentSession.Reset();
@@ -305,7 +308,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkClosed(
     CompleteChunkSize += chunkWriter->GetCurrentSize();
 
     LOG_DEBUG("Chunk closed (ChunkId: %s)",
-        ~ToString(remoteWriter->GetChunkId()));
+        ~ToString(currentSession.ChunkId));
 
     std::vector<NChunkClient::TChunkReplica> replicas;
     FOREACH (int index, remoteWriter->GetWrittenIndexes()) {
@@ -316,7 +319,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkClosed(
     auto batchReq = objectProxy.ExecuteBatch();
     {
         auto req = NChunkClient::TChunkYPathProxy::Confirm(
-            NCypressClient::FromObjectId(remoteWriter->GetChunkId()));
+            NCypressClient::FromObjectId(currentSession.ChunkId));
         NMetaState::GenerateRpcMutationId(req);
         *req->mutable_chunk_info() = remoteWriter->GetChunkInfo();
         ToProto(req->mutable_replicas(), replicas);
@@ -328,7 +331,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkClosed(
         // Initialize the entry earlier prepared in FinishCurrentSession.
         TGuard<TSpinLock> guard(WrittenChunksGuard);
         auto& inputChunk = WrittenChunks[chunkIndex];
-        ToProto(inputChunk.mutable_chunk_id(), currentSession.RemoteWriter->GetChunkId());
+        ToProto(inputChunk.mutable_chunk_id(), currentSession.ChunkId);
         ToProto(inputChunk.mutable_replicas(), replicas);
         *inputChunk.mutable_extensions() = chunkWriter->GetSchedulerMeta().extensions();
     }
@@ -336,7 +339,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkClosed(
     batchReq->Invoke().Subscribe(BIND(
         &TChunkSequenceWriterBase::OnChunkConfirmed,
         MakeWeak(this),
-        remoteWriter->GetChunkId(),
+        currentSession.ChunkId,
         finishResult));
 }
 

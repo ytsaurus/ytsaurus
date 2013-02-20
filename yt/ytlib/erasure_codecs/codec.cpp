@@ -33,6 +33,15 @@ struct TLrcWrapper
 
 } // anonymous namespace
 
+////////////////////////////////////////////////////////////////////////////////
+
+int ICodec::GetTotalBlockCount() const
+{
+    return GetDataBlockCount() + GetParityBlockCount();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 ICodec* GetCodec(ECodec id)
 {
     static TLazyPtr<TCauchyReedSolomonWrapper> CauchyReedSolomon(
@@ -48,9 +57,9 @@ ICodec* GetCodec(ECodec id)
     );
 
     switch (id) {
-        case ECodec::ReedSolomon3:
+        case ECodec::ReedSolomon_6_3:
             return CauchyReedSolomon.Get();
-        case ECodec::Lrc:
+        case ECodec::Lrc_12_2_2:
             return Lrc.Get();
         default:
             YUNREACHABLE();

@@ -221,6 +221,7 @@ public:
 
         {
             TGuard<TSpinLock> guard(SpinLock);
+
             YASSERT(!ValueIsInitialized);
             ValueIsInitialized = true;
 

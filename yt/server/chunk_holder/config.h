@@ -152,7 +152,7 @@ struct TDataNodeConfig
     NChunkClient::TSequentialReaderConfigPtr CacheSequentialReader;
 
     //! Remote writer configuration used to replicate chunks.
-    NChunkClient::TRemoteWriterConfigPtr ReplicationRemoteWriter;
+    NChunkClient::TReplicationWriterConfigPtr ReplicationRemoteWriter;
 
     //! Keeps chunk peering information.
     TPeerBlockTableConfigPtr PeerBlockTable;

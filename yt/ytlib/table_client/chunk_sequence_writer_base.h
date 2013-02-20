@@ -9,7 +9,7 @@
 #include <ytlib/actions/parallel_awaiter.h>
 
 #include <ytlib/chunk_client/public.h>
-#include <ytlib/chunk_client/remote_writer.h>
+#include <ytlib/chunk_client/replication_writer.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk_replica.h>
 
@@ -66,8 +66,14 @@ protected:
     struct TSession
     {
         TIntrusivePtr<TChunkWriter> ChunkWriter;
-        NChunkClient::TRemoteWriterPtr RemoteWriter;
+        NChunkClient::IAsyncWriterPtr RemoteWriter;
         std::vector<NChunkClient::TChunkReplica> Replicas;
+        NChunkClient::TChunkId ChunkId;
+
+        TSession()
+            : ChunkWriter(NULL)
+            , RemoteWriter(NULL)
+        { }
 
         bool IsNull() const
         {
@@ -78,6 +84,7 @@ protected:
         {
             ChunkWriter.Reset();
             RemoteWriter.Reset();
+            ChunkId = NChunkClient::TChunkId();
         }
     };
 

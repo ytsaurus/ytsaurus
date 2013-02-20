@@ -13,8 +13,8 @@
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <ytlib/chunk_client/remote_writer.h>
 #include <ytlib/chunk_client/chunk_replica.h>
+#include <ytlib/chunk_client/replication_writer.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/master_ypath_proxy.h>
@@ -99,7 +99,7 @@ void TFileChunkOutput::Open()
     LOG_INFO("Chunk created");
 
     auto targets = nodeDirectory->GetDescriptors(Replicas);
-    Writer = New<TRemoteWriter>(Config, ChunkId, targets);
+    Writer = GetReplicationWriter(Config, ChunkId, targets);
     Writer->Open();
 
     IsOpen = true;
@@ -175,7 +175,7 @@ void TFileChunkOutput::DoFinish()
         SetProtoExtension(Meta.mutable_extensions(), BlocksExt);
 
         try {
-            Sync(~Writer, &TRemoteWriter::AsyncClose, Meta);
+            Sync(~Writer, &IAsyncWriter::AsyncClose, Meta);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error closing chunk")
                 << ex;
@@ -216,7 +216,7 @@ void TFileChunkOutput::FlushBlock()
         auto compressedBuffer = Codec->Compress(TSharedRef::FromBlob<TCompressedFileChunkBlockTag>(std::move(Buffer)));
 
         while (!Writer->TryWriteBlock(compressedBuffer)) {
-            Sync(~Writer, &TRemoteWriter::GetReadyEvent);
+            Sync(~Writer, &IAsyncWriter::GetReadyEvent);
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error writing file block")

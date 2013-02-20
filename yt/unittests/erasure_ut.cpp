@@ -1,9 +1,13 @@
 #include <ytlib/misc/foreach.h>
 #include <ytlib/erasure_codecs/codec.h>
 
+#include <ytlib/chunk_client/file_writer.h>
+#include <ytlib/chunk_client/erasure_writer.h>
+
 #include <contrib/testing/framework.h>
 
 #include <util/random/randcpp.h>
+#include <util/system/fs.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11,6 +15,7 @@ using NYT::TRef;
 using NYT::TSharedRef;
 using NYT::NErasure::ECodec;
 using NYT::NErasure::GetCodec;
+using namespace NYT::NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,7 +28,8 @@ TEST_F(TErasureCodingTest, SmallTest)
     TRand rand;
 
     std::map<ECodec::EDomain, int> guaranteedRecoveryCount;
-    guaranteedRecoveryCount[ECodec::ReedSolomon3] = 3;
+    guaranteedRecoveryCount[ECodec::ReedSolomon_6_3] = 3;
+    guaranteedRecoveryCount[ECodec::Lrc_12_2_2] = 3;
 
     std::vector<char> data;
     for (int i = 0; i < 16 * 64; ++i) {
@@ -85,4 +91,57 @@ TEST_F(TErasureCodingTest, SmallTest)
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////
+class TErasureWriterTest
+    : public ::testing::Test
+{
+};
+
+
+TEST_F(TErasureWriterTest, General)
+{
+    auto codec = GetCodec(ECodec::Lrc_12_2_2);
+
+    std::vector<IAsyncWriterPtr> writers;
+    for (int i = 0; i < codec->GetTotalBlockCount(); ++i) {
+        Stroka filename = "block" + ToString(i + 1);
+        writers.push_back(NYT::New<TFileWriter>(filename));
+    }
+
+    FOREACH(auto writer, writers) {
+        writer->Open();
+    }
+
+    NProto::TChunkMeta meta;
+    // What does it mean?
+    meta.set_type(1);
+    meta.set_version(1);
+
+    auto erasureWriter = GetErasureWriter(codec, writers);
+    erasureWriter->TryWriteBlock(TSharedRef::FromString("a"));
+    erasureWriter->TryWriteBlock(TSharedRef::FromString("b"));
+    erasureWriter->TryWriteBlock(TSharedRef::FromString(""));
+    erasureWriter->TryWriteBlock(TSharedRef::FromString("Hello world"));
+    erasureWriter->AsyncClose(meta).Get();
+
+    FOREACH(auto writer, writers) {
+        EXPECT_TRUE(writer->AsyncClose(meta).Get().IsOK());
+    }
+
+    for (int i = 0; i < codec->GetTotalBlockCount(); ++i) {
+        Stroka filename = "block" + ToString(i + 1);
+        if (i == 0) {
+            EXPECT_EQ(Stroka("ab"), TFileInput("block" + ToString(i + 1)).ReadAll());
+        }
+        else if (i == 1) {
+            EXPECT_EQ(Stroka("Hello world"), TFileInput("block" + ToString(i + 1)).ReadAll());
+        }
+        else if (i < 12) {
+            EXPECT_EQ("", TFileInput("block" + ToString(i + 1)).ReadAll());
+        }
+        else {
+            EXPECT_EQ(64, TFileInput("block" + ToString(i + 1)).ReadAll().Size());
+        }
+        NFs::Remove(filename.c_str());
+        NFs::Remove((filename + ".meta").c_str());
+    }
+}
