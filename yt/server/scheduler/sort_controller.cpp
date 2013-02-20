@@ -98,12 +98,6 @@ protected:
 
 
     // Forward declarations.
-    struct TCompletedJob;
-    typedef TIntrusivePtr<TCompletedJob> TCompleteJobPtr;
-
-    class TIntermediateTask;
-    typedef TIntrusivePtr<TIntermediateTask> TIntermediateTaskPtr;
-
     class TPartitionTask;
     typedef TIntrusivePtr<TPartitionTask> TPartitionTaskPtr;
 
@@ -115,6 +109,7 @@ protected:
 
     class TUnorderedMergeTask;
     typedef TIntrusivePtr<TUnorderedMergeTask> TUnorderedMergeTaskPtr;
+    
 
     // Partitions.
 
@@ -188,72 +183,13 @@ protected:
 
     TPartitionTaskPtr PartitionTask;
 
-    //! Maps intermediate chunk id to its originating completed job.
-    yhash_map<TChunkId, TCompleteJobPtr> ChunkOriginMap;
-
-    struct TCompletedJob
-        : public TIntrinsicRefCounted
-    {
-        TCompletedJob(
-            const TJobId& jobId,
-            TIntermediateTaskPtr task,
-            IChunkPoolOutput* sourcePool,
-            IChunkPoolInput* destinationPool,
-            IChunkPoolInput::TCookie inputCookie,
-            IChunkPoolOutput::TCookie outputCookie,
-            TExecNodePtr execNode)
-            : IsLost(false)
-            , ExecNode(std::move(execNode))
-            , JobId(jobId)
-            , Task(std::move(task))
-            , SourcePool(sourcePool)
-            , DestinationPool(destinationPool)
-            , OutputCookie(outputCookie)
-            , InputCookie(inputCookie)
-        { }
-
-        bool IsLost;
-
-        TExecNodePtr ExecNode;
-        TJobId JobId;
-        TIntermediateTaskPtr Task;
-
-        IChunkPoolOutput* SourcePool;
-        IChunkPoolInput* DestinationPool;
-
-        IChunkPoolOutput::TCookie OutputCookie;
-        IChunkPoolInput::TCookie InputCookie;
-    };
-
-    //! Tasks that produce no direct output and whose completed job may therefore be lost.
-    class TIntermediateTask
+    //! Implements partition phase for sort operations and map phase for map-reduce operations.
+    class TPartitionTask
         : public TTask
     {
     public:
-        explicit TIntermediateTask(TSortControllerBase* controller)
-            : TTask(controller)
-        { }
-
-        virtual void OnJobLost(TCompleteJobPtr completedJob)
-        {
-            YCHECK(LostJobCookieMap.insert(std::make_pair(
-                completedJob->OutputCookie,
-                completedJob->InputCookie)).second);
-        }
-
-    protected:
-        //! For each lost job currently being replayed, maps output cookie to corresponding input cookie.
-        yhash_map<IChunkPoolOutput::TCookie, IChunkPoolInput::TCookie> LostJobCookieMap;
-
-    };
-
-    //! Implements partition phase for sort operations and map phase for map-reduce operations.
-    class TPartitionTask
-        : public TIntermediateTask
-    {
-    public:
         explicit TPartitionTask(TSortControllerBase* controller)
-            : TIntermediateTask(controller)
+            : TTask(controller)
             , Controller(controller)
         {
             ChunkPool = CreateUnorderedChunkPool(Controller->PartitionJobCounter.GetTotal());
@@ -294,11 +230,6 @@ protected:
             return Controller->GetPartitionResources(joblet->InputStripeList->TotalDataSize);
         }
 
-    private:
-        TSortControllerBase* Controller;
-
-        TAutoPtr<IChunkPool> ChunkPool;
-
         virtual IChunkPoolInput* GetChunkPoolInput() const override
         {
             return ~ChunkPool;
@@ -308,6 +239,11 @@ protected:
         {
             return ~ChunkPool;
         }
+
+    private:
+        TSortControllerBase* Controller;
+
+        TAutoPtr<IChunkPool> ChunkPool;
 
         virtual int GetChunkListCountPerJob() const override
         {
@@ -343,27 +279,10 @@ protected:
 
             auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_chunks());
 
-            IChunkPoolInput::TCookie inputCookie;
-
-            auto lostIt = LostJobCookieMap.find(joblet->OutputCookie);
-            if (lostIt == LostJobCookieMap.end()) {
-                inputCookie = Controller->ShufflePool->GetInput()->Add(stripe);
-            } else {
-                inputCookie = lostIt->second;
-                Controller->ShufflePool->GetInput()->Resume(inputCookie, stripe);
-                LostJobCookieMap.erase(lostIt);
-            }
-
-            // Store recovery info.
-            auto completedJob = New<TCompletedJob>(
-                joblet->Job->GetId(),
-                this,
-                ~ChunkPool,
-                Controller->ShufflePool->GetInput(),
-                inputCookie,
-                joblet->OutputCookie,
-                joblet->Job->GetNode());
-            Controller->RegisterIntermediateChunks(stripe, completedJob);
+            RegisterIntermediateChunks(
+                joblet,
+                stripe,
+                Controller->ShufflePool->GetInput());
 
             // Kick-start sort and unordered merge tasks.
             // Compute sort data size delta.
@@ -387,27 +306,28 @@ protected:
 
         virtual void OnJobLost(TCompleteJobPtr completedJob) override
         {
+            TTask::OnJobLost(completedJob);
+
             Controller->PartitionJobCounter.Lost(1);
-            TIntermediateTask::OnJobLost(completedJob);
         }
 
         virtual void OnJobFailed(TJobletPtr joblet) override
         {
-            Controller->PartitionJobCounter.Failed(1);
+            TTask::OnJobFailed(joblet);
 
-            TIntermediateTask::OnJobFailed(joblet);
+            Controller->PartitionJobCounter.Failed(1);
         }
 
         virtual void OnJobAborted(TJobletPtr joblet) override
         {
-            Controller->PartitionJobCounter.Aborted(1);
+            TTask::OnJobAborted(joblet);
 
-            TIntermediateTask::OnJobAborted(joblet);
+            Controller->PartitionJobCounter.Aborted(1);
         }
 
         virtual void OnTaskCompleted() override
         {
-            TIntermediateTask::OnTaskCompleted();
+            TTask::OnTaskCompleted();
 
             Controller->PartitionJobCounter.Finalize();
             Controller->ShufflePool->GetInput()->Finish();
@@ -442,11 +362,11 @@ protected:
 
     //! Base class for tasks that are assigned to particular partitions.
     class TPartitionBoundTask
-        : public TIntermediateTask
+        : public TTask
     {
     public:
         TPartitionBoundTask(TSortControllerBase* controller, TPartition* partition)
-            : TIntermediateTask(controller)
+            : TTask(controller)
             , Controller(controller)
             , Partition(partition)
         { }
@@ -492,7 +412,6 @@ protected:
             return GetNeededResourcesForDataSize(joblet->InputStripeList->TotalDataSize);
         }
 
-    protected:
         virtual IChunkPoolInput* GetChunkPoolInput() const override
         {
             return
@@ -509,6 +428,7 @@ protected:
                 : Partition->ChunkPoolOutput;
         }
 
+    protected:
         TNodeResources GetNeededResourcesForDataSize(i64 dataSize) const
         {
             i64 rowCount = Controller->GetRowCountEstimate(Partition, dataSize);
@@ -578,31 +498,15 @@ protected:
                 auto* resultExt = joblet->Job->Result().MutableExtension(TSortJobResultExt::sort_job_result_ext);
                 auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_chunks());
 
-                auto it = LostJobCookieMap.find(joblet->OutputCookie);
-                IChunkPoolInput::TCookie inputCookie;
-                if (it == LostJobCookieMap.end()) {
-                    inputCookie = Partition->SortedMergeTask->AddInput(stripe);
-                } else {
-                    inputCookie = it->second;
-                    Partition->SortedMergeTask->ResumeInput(inputCookie, stripe);
-                    LostJobCookieMap.erase(it);
-                }
-
-                // Store recovery info.
-                auto completedJob = New<TCompletedJob>(
-                    joblet->Job->GetId(),
-                    this,
-                    GetChunkPoolOutput(),
-                    Partition->SortedMergeTask->GetChunkPoolInput(),
-                    inputCookie,
-                    joblet->OutputCookie,
-                    joblet->Job->GetNode());
-                Controller->RegisterIntermediateChunks(stripe, completedJob);
+                RegisterIntermediateChunks(
+                    joblet,
+                    stripe,
+                    Partition->SortedMergeTask->GetChunkPoolInput());
             } else {
                 Controller->FinalSortJobCounter.Completed(1);
 
                 // Sort outputs in small partitions go directly to the output.
-                Controller->RegisterOutputChunkTrees(joblet, Partition);
+                RegisterOutput(joblet, Partition->Index);
                 Controller->OnPartitionCompleted(Partition);
             }
 
@@ -619,7 +523,7 @@ protected:
                 Controller->FinalSortJobCounter.Failed(1);
             }
 
-            TIntermediateTask::OnJobFailed(joblet);
+            TTask::OnJobFailed(joblet);
         }
 
         virtual void OnJobAborted(TJobletPtr joblet) override
@@ -632,22 +536,22 @@ protected:
                 Controller->FinalSortJobCounter.Aborted(1);
             }
 
-            TIntermediateTask::OnJobAborted(joblet);
+            TTask::OnJobAborted(joblet);
         }
 
         virtual void OnJobLost(TCompleteJobPtr completedJob) override
         {
             Controller->IntermediateSortJobCounter.Lost(1);
-            auto stripeList = completedJob->SourcePool->GetStripeList(completedJob->OutputCookie);
+            auto stripeList = completedJob->SourceTask->GetChunkPoolOutput()->GetStripeList(completedJob->OutputCookie);
             Controller->SortDataSizeCounter.Lost(stripeList->TotalDataSize);
 
             const auto& address = completedJob->ExecNode->GetAddress();
             Partition->AddressToLocality[address] -= stripeList->TotalDataSize;
             YCHECK(Partition->AddressToLocality[address] >= 0);
 
-            TIntermediateTask::OnJobLost(completedJob);
-
             Controller->ResetTaskLocalityDelays();
+
+            TTask::OnJobLost(completedJob);
         }
 
         virtual void OnTaskCompleted() override
@@ -866,7 +770,7 @@ protected:
             TMergeTask::OnJobCompleted(joblet);
 
             Controller->SortedMergeJobCounter.Completed(1);
-            Controller->RegisterOutputChunkTrees(joblet, Partition);
+            RegisterOutput(joblet, Partition->Index);
         }
 
         virtual void OnJobFailed(TJobletPtr joblet) override
@@ -930,7 +834,6 @@ protected:
             return Controller->GetUnorderedMergeResources();
         }
 
-    private:
         virtual IChunkPoolInput* GetChunkPoolInput() const override
         {
             return Controller->ShufflePool->GetInput();
@@ -941,6 +844,7 @@ protected:
             return Partition->ChunkPoolOutput;
         }
 
+    private:
         virtual bool HasInputLocality() override
         {
             return false;
@@ -973,10 +877,9 @@ protected:
         virtual void OnJobStarted(TJobletPtr joblet) override
         {
             YCHECK(Partition->Maniac);
+            TMergeTask::OnJobStarted(joblet);
 
             Controller->UnorderedMergeJobCounter.Start(1);
-
-            TMergeTask::OnJobStarted(joblet);
         }
 
         virtual void OnJobCompleted(TJobletPtr joblet) override
@@ -984,21 +887,21 @@ protected:
             TMergeTask::OnJobCompleted(joblet);
 
             Controller->UnorderedMergeJobCounter.Completed(1);
-            Controller->RegisterOutputChunkTrees(joblet, Partition);
+            RegisterOutput(joblet, Partition->Index);
         }
 
         virtual void OnJobFailed(TJobletPtr joblet) override
         {
-            Controller->UnorderedMergeJobCounter.Failed(1);
-
             TMergeTask::OnJobFailed(joblet);
+
+            Controller->UnorderedMergeJobCounter.Failed(1);
         }
 
         virtual void OnJobAborted(TJobletPtr joblet) override
         {
-            Controller->UnorderedMergeJobCounter.Aborted(1);
-
             TMergeTask::OnJobAborted(joblet);
+
+            Controller->UnorderedMergeJobCounter.Aborted(1);
         }
 
     };
@@ -1119,18 +1022,6 @@ protected:
         TOperationControllerBase::DoOperationCompleted();
     }
 
-    void RegisterOutputChunkTrees(TJobletPtr joblet, TPartition* partition)
-    {
-        const TUserJobResult* userJobResult = nullptr;
-        if (joblet->Job->Result().HasExtension(TReduceJobResultExt::reduce_job_result_ext)) {
-            userJobResult = &joblet->Job->Result()
-                .GetExtension(TReduceJobResultExt::reduce_job_result_ext)
-                .reducer_result();
-        }
-
-        TOperationControllerBase::RegisterOutputChunkTrees(joblet, partition->Index, userJobResult);
-    }
-
     void OnPartitionCompleted(TPartitionPtr partition)
     {
         YCHECK(!partition->Completed);
@@ -1238,37 +1129,6 @@ protected:
     virtual bool IsTableIndexEnabled() const
     {
         return false;
-    }
-
-    virtual void OnIntermediateChunkFailed(const TChunkId& chunkId) override
-    {
-        auto it = ChunkOriginMap.find(chunkId);
-        YCHECK(it != ChunkOriginMap.end());
-        auto completedJob = it->second;
-        if (completedJob->IsLost)
-            return;
-
-        LOG_INFO("Job is lost (Address: %s, JobId: %s, Task: %s, OutputCookie: %d, InputCookie: %d)",
-            ~completedJob->ExecNode->GetAddress(),
-            ~ToString(completedJob->JobId),
-            ~completedJob->Task->GetId(),
-            completedJob->OutputCookie,
-            completedJob->InputCookie);
-
-        JobCounter.Lost(1);
-        completedJob->IsLost = true;
-        completedJob->DestinationPool->Suspend(completedJob->InputCookie);
-        completedJob->SourcePool->Lost(completedJob->OutputCookie);
-        completedJob->Task->OnJobLost(completedJob);
-        AddTaskPendingHint(completedJob->Task);
-    }
-
-    void RegisterIntermediateChunks(TChunkStripePtr stripe, TCompleteJobPtr completedJob)
-    {
-        FOREACH (const auto& chunk, stripe->Chunks) {
-            auto chunkId = TChunkId::FromProto(chunk->slice().chunk_id());
-            YCHECK(ChunkOriginMap.insert(std::make_pair(chunkId, completedJob)).second);
-        }
     }
 
     // Resource management.

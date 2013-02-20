@@ -199,6 +199,10 @@ protected:
     struct TJoblet;
     typedef TIntrusivePtr<TJoblet> TJobletPtr;
 
+    struct TCompletedJob;
+    typedef TIntrusivePtr<TCompletedJob> TCompleteJobPtr;
+
+    
     struct TJoblet
         : public TIntrinsicRefCounted
     {
@@ -226,10 +230,42 @@ protected:
 
     };
 
-    yhash_map<TJobPtr, TJobletPtr> JobsInProgress;
+    yhash_map<TJobPtr, TJobletPtr> JobletMap;
 
     // The set of all input chunks. Used in #OnChunkFailed.
     yhash_set<NChunkClient::TChunkId> InputChunkIds;
+
+    struct TCompletedJob
+        : public TIntrinsicRefCounted
+    {
+        TCompletedJob(
+            const TJobId& jobId,
+            TTaskPtr sourceTask,
+            IChunkPoolOutput::TCookie outputCookie,
+            IChunkPoolInput* destinationPool,
+            IChunkPoolInput::TCookie inputCookie,
+            TExecNodePtr execNode)
+            : IsLost(false)
+            , JobId(jobId)
+            , SourceTask(std::move(sourceTask))
+            , OutputCookie(outputCookie)
+            , DestinationPool(destinationPool)
+            , InputCookie(inputCookie)
+            , ExecNode(std::move(execNode))
+        { }
+
+        bool IsLost;
+
+        TJobId JobId;
+
+        TTaskPtr SourceTask;
+        IChunkPoolOutput::TCookie OutputCookie;
+
+        IChunkPoolInput* DestinationPool;
+        IChunkPoolInput::TCookie InputCookie;
+
+        TExecNodePtr ExecNode;
+    };
 
     // Tasks management.
 
@@ -272,6 +308,7 @@ protected:
         virtual void OnJobCompleted(TJobletPtr joblet);
         virtual void OnJobFailed(TJobletPtr joblet);
         virtual void OnJobAborted(TJobletPtr joblet);
+        virtual void OnJobLost(TCompleteJobPtr completedJob);
 
         void CheckResourceDemandSanity(
             TExecNodePtr node,
@@ -284,20 +321,24 @@ protected:
         i64 GetCompletedDataSize() const;
         i64 GetPendingDataSize() const;
 
+        virtual IChunkPoolInput* GetChunkPoolInput() const = 0;
+        virtual IChunkPoolOutput* GetChunkPoolOutput() const = 0;
+
     private:
         TOperationControllerBase* Controller;
+
         int CachedPendingJobCount;
         NProto::TNodeResources CachedTotalNeededResources;
         TInstant LastDemandSanityCheckTime;
         bool CompletedFired;
 
+        //! For each lost job currently being replayed, maps output cookie to corresponding input cookie.
+        yhash_map<IChunkPoolOutput::TCookie, IChunkPoolInput::TCookie> LostJobCookieMap;
+
     protected:
         NLog::TTaggedLogger& Logger;
 
         virtual void OnTaskCompleted();
-
-        virtual IChunkPoolInput* GetChunkPoolInput() const = 0;
-        virtual IChunkPoolOutput* GetChunkPoolOutput() const = 0;
 
         virtual EJobType GetJobType() const = 0;
         virtual void PrepareJoblet(TJobletPtr joblet);
@@ -327,7 +368,6 @@ protected:
         void AddFinalOutputSpecs(NScheduler::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
         void AddIntermediateOutputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
 
-    private:
         static void AddChunksToInputSpec(
             NScheduler::NProto::TTableInputSpec* inputSpec,
             TChunkStripePtr stripe,
@@ -337,6 +377,17 @@ protected:
         static void UpdateInputSpecTotals(
             NScheduler::NProto::TJobSpec* jobSpec,
             TJobletPtr joblet);
+
+        void RegisterIntermediateChunks(
+            TJobletPtr joblet,
+            TChunkStripePtr stripe,
+            IChunkPoolInput* destinationPool);
+
+        static TChunkStripePtr BuildIntermediateChunkStripe(
+            google::protobuf::RepeatedPtrField<NTableClient::NProto::TInputChunk>* inputChunks);
+
+        void RegisterOutput(TJobletPtr joblet, int key);
+
     };
 
     virtual void CustomizeJoblet(TJobletPtr joblet);
@@ -360,6 +411,9 @@ protected:
 
     int CachedPendingJobCount;
     NProto::TNodeResources CachedNeededResources;
+
+    //! Maps intermediate chunk id to its originating completed job.
+    yhash_map<NChunkServer::TChunkId, TCompleteJobPtr> ChunkOriginMap;
 
     void OnTaskUpdated(TTaskPtr task);
 
@@ -494,22 +548,18 @@ protected:
         const std::vector<Stroka>& fullColumns,
         const std::vector<Stroka>& prefixColumns);
 
-    void RegisterOutputChunkTree(
+    void RegisterOutput(
         const NChunkServer::TChunkTreeId& chunkTreeId,
         int key,
         int tableIndex);
-    void RegisterOutputChunkTree(
+    void RegisterOutput(
         const NChunkServer::TChunkTreeId& chunkTreeId,
         int key,
         int tableIndex,
         TOutputTable& table);
-    void RegisterOutputChunkTrees(
+    void RegisterOutput(
         TJobletPtr joblet,
-        int key,
-        const NProto::TUserJobResult* userJobResult = NULL);
-
-    static TChunkStripePtr BuildIntermediateChunkStripe(
-        google::protobuf::RepeatedPtrField<NTableClient::NProto::TInputChunk>* inputChunks);
+        int key);
 
     bool HasEnoughChunkLists(int requestedCount);
     NChunkClient::TChunkListId ExtractChunkList();
@@ -549,6 +599,8 @@ protected:
 private:
     TOperationSpecBasePtr Spec;
     TChunkListPoolPtr ChunkListPool;
+
+    static const NProto::TUserJobResult* FindUserJobResult(TJobletPtr joblet);
 
 };
 

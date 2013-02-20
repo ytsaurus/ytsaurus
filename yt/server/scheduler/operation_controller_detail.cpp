@@ -125,15 +125,6 @@ void TOperationControllerBase::TTask::AddInput(const std::vector<TChunkStripePtr
     }
 }
 
-void TOperationControllerBase::TTask::ResumeInput(IChunkPoolInput::TCookie cookie, TChunkStripePtr stripe)
-{
-    GetChunkPoolInput()->Resume(cookie, stripe);
-    if (HasInputLocality()) {
-        Controller->AddTaskLocalityHint(this, stripe);
-    }
-    AddPendingHint();
-}
-
 void TOperationControllerBase::TTask::FinishInput()
 {
     LOG_DEBUG("Task input finished (Task: %s)", ~GetId());
@@ -474,6 +465,52 @@ TNodeResources TOperationControllerBase::TTask::GetNeededResources(TJobletPtr jo
     return GetMinNeededResources();
 }
 
+void TOperationControllerBase::TTask::RegisterIntermediateChunks(
+    TJobletPtr joblet,
+    TChunkStripePtr stripe,
+    IChunkPoolInput* destinationPool)
+{
+    IChunkPoolInput::TCookie inputCookie;
+
+    auto lostIt = LostJobCookieMap.find(joblet->OutputCookie);
+    if (lostIt == LostJobCookieMap.end()) {
+        inputCookie = destinationPool->Add(stripe);
+    } else {
+        inputCookie = lostIt->second;
+        destinationPool->Resume(inputCookie, stripe);
+        LostJobCookieMap.erase(lostIt);
+    }
+
+    // Store recovery info.
+    auto completedJob = New<TCompletedJob>(
+        joblet->Job->GetId(),
+        this,
+        joblet->OutputCookie,
+        destinationPool,
+        inputCookie,
+        joblet->Job->GetNode());
+
+    FOREACH (const auto& chunk, stripe->Chunks) {
+        auto chunkId = TChunkId::FromProto(chunk->slice().chunk_id());
+        YCHECK(Controller->ChunkOriginMap.insert(std::make_pair(chunkId, completedJob)).second);
+    }
+}
+
+TChunkStripePtr TOperationControllerBase::TTask::BuildIntermediateChunkStripe(
+    google::protobuf::RepeatedPtrField<NTableClient::NProto::TInputChunk>* inputChunks)
+{
+    auto stripe = New<TChunkStripe>();
+    FOREACH (auto& inputChunk, *inputChunks) {
+        stripe->Chunks.push_back(New<TRefCountedInputChunk>(std::move(inputChunk)));
+    }
+    return stripe;
+}
+
+void TOperationControllerBase::TTask::RegisterOutput(TJobletPtr joblet, int key)
+{
+    Controller->RegisterOutput(joblet, key);
+}
+
 ////////////////////////////////////////////////////////////////////
 
 TOperationControllerBase::TOperationControllerBase(
@@ -682,6 +719,13 @@ void TOperationControllerBase::OnJobAborted(TJobPtr job)
     RemoveJoblet(job);
 }
 
+void TOperationControllerBase::TTask::OnJobLost(TCompleteJobPtr completedJob)
+{
+    YCHECK(LostJobCookieMap.insert(std::make_pair(
+        completedJob->OutputCookie,
+        completedJob->InputCookie)).second);
+}
+
 void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
 {
     if (InputChunkIds.find(chunkId) == InputChunkIds.end()) {
@@ -700,7 +744,25 @@ void TOperationControllerBase::OnInputChunkFailed(const TChunkId& chunkId)
 
 void TOperationControllerBase::OnIntermediateChunkFailed(const TChunkId& chunkId)
 {
-    OnOperationFailed(TError("Unable to read intermediate chunk %s", ~chunkId.ToString()));
+    auto it = ChunkOriginMap.find(chunkId);
+    YCHECK(it != ChunkOriginMap.end());
+    auto completedJob = it->second;
+    if (completedJob->IsLost)
+        return;
+
+    LOG_INFO("Job is lost (Address: %s, JobId: %s, SourceTask: %s, OutputCookie: %d, InputCookie: %d)",
+        ~completedJob->ExecNode->GetAddress(),
+        ~ToString(completedJob->JobId),
+        ~completedJob->SourceTask->GetId(),
+        completedJob->OutputCookie,
+        completedJob->InputCookie);
+
+    JobCounter.Lost(1);
+    completedJob->IsLost = true;
+    completedJob->DestinationPool->Suspend(completedJob->InputCookie);
+    completedJob->SourceTask->GetChunkPoolOutput()->Lost(completedJob->OutputCookie);
+    completedJob->SourceTask->OnJobLost(completedJob);
+    AddTaskPendingHint(completedJob->SourceTask);
 }
 
 void TOperationControllerBase::Abort()
@@ -1875,7 +1937,7 @@ bool TOperationControllerBase::IsSortedOutputSupported() const
     return false;
 }
 
-void TOperationControllerBase::RegisterOutputChunkTree(
+void TOperationControllerBase::RegisterOutput(
     const NChunkServer::TChunkTreeId& chunkTreeId,
     int key,
     int tableIndex,
@@ -1889,23 +1951,22 @@ void TOperationControllerBase::RegisterOutputChunkTree(
         key);
 }
 
-void TOperationControllerBase::RegisterOutputChunkTree(
+void TOperationControllerBase::RegisterOutput(
     const NChunkServer::TChunkTreeId& chunkTreeId,
     int key,
     int tableIndex)
 {
     auto& table = OutputTables[tableIndex];
-    RegisterOutputChunkTree(chunkTreeId, key, tableIndex, table);
+    RegisterOutput(chunkTreeId, key, tableIndex, table);
 }
 
-void TOperationControllerBase::RegisterOutputChunkTrees(
-    TJobletPtr joblet,
-    int key,
-    const NProto::TUserJobResult* userJobResult)
+void TOperationControllerBase::RegisterOutput(TJobletPtr joblet, int key)
 {
+    const auto* userJobResult = FindUserJobResult(joblet);
+
     for (int tableIndex = 0; tableIndex < static_cast<int>(OutputTables.size()); ++tableIndex) {
         auto& table = OutputTables[tableIndex];
-        RegisterOutputChunkTree(joblet->ChunkListIds[tableIndex], key, tableIndex, table);
+        RegisterOutput(joblet->ChunkListIds[tableIndex], key, tableIndex, table);
 
         if (table.KeyColumns && IsSortedOutputSupported()) {
             YCHECK(userJobResult);
@@ -1929,16 +1990,6 @@ void TOperationControllerBase::RegisterOutputChunkTrees(
     }
 }
 
-TChunkStripePtr TOperationControllerBase::BuildIntermediateChunkStripe(
-    google::protobuf::RepeatedPtrField<NTableClient::NProto::TInputChunk>* inputChunks)
-{
-    auto stripe = New<TChunkStripe>();
-    FOREACH (auto& inputChunk, *inputChunks) {
-        stripe->Chunks.push_back(New<TRefCountedInputChunk>(std::move(inputChunk)));
-    }
-    return stripe;
-}
-
 bool TOperationControllerBase::HasEnoughChunkLists(int requestedCount)
 {
     return ChunkListPool->HasEnough(requestedCount);
@@ -1951,19 +2002,19 @@ TChunkListId TOperationControllerBase::ExtractChunkList()
 
 void TOperationControllerBase::RegisterJoblet(TJobletPtr joblet)
 {
-    YCHECK(JobsInProgress.insert(std::make_pair(joblet->Job, joblet)).second);
+    YCHECK(JobletMap.insert(std::make_pair(joblet->Job, joblet)).second);
 }
 
 TOperationControllerBase::TJobletPtr TOperationControllerBase::GetJoblet(TJobPtr job)
 {
-    auto it = JobsInProgress.find(job);
-    YCHECK(it != JobsInProgress.end());
+    auto it = JobletMap.find(job);
+    YCHECK(it != JobletMap.end());
     return it->second;
 }
 
 void TOperationControllerBase::RemoveJoblet(TJobPtr job)
 {
-    YCHECK(JobsInProgress.erase(job) == 1);
+    YCHECK(JobletMap.erase(job) == 1);
 }
 
 void TOperationControllerBase::BuildProgressYson(IYsonConsumer* consumer)
@@ -2109,6 +2160,25 @@ void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr conf
 void TOperationControllerBase::InitFinalOutputConfig(TJobIOConfigPtr config)
 {
     UNUSED(config);
+}
+
+const NProto::TUserJobResult* TOperationControllerBase::FindUserJobResult(TJobletPtr joblet)
+{
+    const auto& result = joblet->Job->Result();
+
+    if (result.HasExtension(TReduceJobResultExt::reduce_job_result_ext)) {
+        return &result
+               .GetExtension(TReduceJobResultExt::reduce_job_result_ext)
+               .reducer_result();
+    }
+
+    if (result.HasExtension(TMapJobResultExt::map_job_result_ext)) {
+        return &result
+               .GetExtension(TMapJobResultExt::map_job_result_ext)
+               .mapper_result();
+    }
+
+    return nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////

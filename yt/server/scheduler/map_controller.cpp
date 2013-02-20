@@ -90,11 +90,6 @@ private:
             return result;
         }
 
-    private:
-        TMapController* Controller;
-
-        TAutoPtr<IChunkPool> ChunkPool;
-
         virtual IChunkPoolInput* GetChunkPoolInput() const override
         {
             return ~ChunkPool;
@@ -104,6 +99,11 @@ private:
         {
             return ~ChunkPool;
         }
+
+    private:
+        TMapController* Controller;
+
+        TAutoPtr<IChunkPool> ChunkPool;
 
         virtual int GetChunkListCountPerJob() const override
         {
@@ -129,8 +129,7 @@ private:
         {
             TTask::OnJobCompleted(joblet);
 
-            auto& userJobResult = joblet->Job->Result().GetExtension(TMapJobResultExt::map_job_result_ext);
-            Controller->RegisterOutputChunkTrees(joblet, joblet->JobIndex, &userJobResult.mapper_result());
+            RegisterOutput(joblet, joblet->JobIndex);
         }
 
     };

@@ -142,6 +142,16 @@ protected:
             return result;
         }
 
+        virtual IChunkPoolInput* GetChunkPoolInput() const override
+        {
+            return ~ChunkPool;
+        }
+
+        virtual IChunkPoolOutput* GetChunkPoolOutput() const override
+        {
+            return ~ChunkPool;
+        }
+
     protected:
         void BuildInputOutputJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)
         {
@@ -160,16 +170,6 @@ protected:
         //! Key for #TOutputTable::OutputChunkTreeIds.
         int PartitionIndex;
 
-
-        virtual IChunkPoolInput* GetChunkPoolInput() const override
-        {
-            return ~ChunkPool;
-        }
-
-        virtual IChunkPoolOutput* GetChunkPoolOutput() const override
-        {
-            return ~ChunkPool;
-        }
 
         virtual int GetChunkListCountPerJob() const override
         {
@@ -191,14 +191,7 @@ protected:
         {
             TTask::OnJobCompleted(joblet);
 
-            const TUserJobResult* userJobResult = NULL;
-            if (joblet->Job->Result().HasExtension(TReduceJobResultExt::reduce_job_result_ext)) {
-                userJobResult = &joblet->Job->Result()
-                    .GetExtension(TReduceJobResultExt::reduce_job_result_ext)
-                    .reducer_result();
-            }
-
-            Controller->RegisterOutputChunkTrees(joblet, PartitionIndex, userJobResult);
+            RegisterOutput(joblet, PartitionIndex);
         }
     };
 
@@ -302,7 +295,7 @@ protected:
             PartitionCount);
 
         // Place the chunk directly to the output table.
-        RegisterOutputChunkTree(chunkId, PartitionCount, 0);
+        RegisterOutput(chunkId, PartitionCount, 0);
         ++PartitionCount;
     }
 
