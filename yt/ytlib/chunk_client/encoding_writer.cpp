@@ -55,18 +55,6 @@ void TEncodingWriter::DoCompressBlock(const TSharedRef& block)
 {
     auto compressedBlock = Codec->Compress(block);
 
-    if (Codec->GetId() == ECodec::GzipNormal || Codec->GetId() == ECodec::GzipBestCompression) {
-        try {
-            Codec->Decompress(compressedBlock);
-        }
-        catch (std::exception& e) {
-            std::ofstream fout("/yt/disk1/uncompressible_block",  std::ios::out | std::ios::binary);
-            fout.write(block.Begin(), block.Size());
-            fout.close();
-            YCHECK(false);
-        }
-    }
-
     UncompressedSize_ += block.Size();
     CompressedSize_ += compressedBlock.Size();
 
