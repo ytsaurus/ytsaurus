@@ -30,7 +30,7 @@ public:
     bool operator >= (TChunkReplica other) const;
 
 private:
-#ifdef _linux_
+#ifdef __x86_64__
     static_assert(sizeof (void*) == 8, "Pointer type must be of size 8.");
     // Use compact 8-byte representation with index occupying the highest 4 bits.
     ui64 Value;
