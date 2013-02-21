@@ -2,7 +2,7 @@
 #include "scoped_channel.h"
 #include "client.h"
 
-#include <util/thread/lfqueue.h>
+#include <queue>
 
 namespace NYT {
 namespace NRpc {
@@ -35,7 +35,7 @@ private:
 
     DECLARE_ENUM(EEntryState,
         (Waiting)
-        (Sent)
+        (InProgress)
         (TimedOut)
     );
 
@@ -51,7 +51,7 @@ private:
         { }
 
         TInstant EnqueueTime;
-        TAtomic State;
+        EEntryState State;
         IClientRequestPtr Request;
         IClientResponseHandlerPtr Handler;
         TNullable<TInstant> Deadline;
@@ -59,10 +59,11 @@ private:
 
     typedef TIntrusivePtr<TEntry> TEntryPtr;
 
-    TLockFreeQueue<TEntryPtr> Queue;
-    TAtomic QueueSize;
+    TSpinLock SpinLock;
+    std::queue<TEntryPtr> Queue;
+    bool RequestInProgress;
 
-    void SendQueuedRequest();
+    void TrySendQueuedRequests();
     void OnQueuedRequestTimeout(TEntryPtr entry);
 
 };
@@ -105,7 +106,7 @@ private:
 
 TSerializedChannel::TSerializedChannel(IChannelPtr underlyingChannel)
     : UnderlyingChannel(std::move(underlyingChannel))
-    , QueueSize(0)
+    , RequestInProgress(false)
 { }
 
 TNullable<TDuration> TSerializedChannel::GetDefaultTimeout() const
@@ -125,7 +126,6 @@ void TSerializedChannel::Send(
 {
     auto deadline = timeout ? MakeNullable(timeout.Get().ToDeadLine()) : Null;
     auto entry = New<TEntry>(request, responseHandler, deadline);
-    Queue.Enqueue(entry);
 
     if (timeout) {
         TDelayedInvoker::Submit(
@@ -133,9 +133,12 @@ void TSerializedChannel::Send(
             timeout.Get());
     }
 
-    if (AtomicIncrement(QueueSize) == 1) {
-        SendQueuedRequest();
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        Queue.push(entry);
     }
+
+    TrySendQueuedRequests();
 }
 
 void TSerializedChannel::Terminate(const TError& error)
@@ -144,41 +147,58 @@ void TSerializedChannel::Terminate(const TError& error)
     YUNREACHABLE();
 }
 
-void TSerializedChannel::SendQueuedRequest()
+void TSerializedChannel::TrySendQueuedRequests()
 {
     auto now = TInstant::Now();
 
-    TEntryPtr entry;
-    if (!Queue.Dequeue(&entry))
-        return;
+    TGuard<TSpinLock> guard(SpinLock);
+    while (!RequestInProgress && !Queue.empty()) {
+        auto entry = Queue.front();
+        Queue.pop();
 
-    AtomicDecrement(QueueSize);
+        if ((!entry->Deadline || entry->Deadline.Get() > now) && entry->State == EEntryState::Waiting) {
+            entry->State = EEntryState::InProgress;
+            RequestInProgress = true;
+            guard.Release();
 
-    if ((!entry->Deadline || entry->Deadline.Get() > now) &&
-        AtomicCas(&entry->State, EEntryState::Sent, EEntryState::Waiting))
-    {
-        auto timeout = entry->Deadline ? MakeNullable(entry->Deadline.Get() - now) : Null;
-        auto serializedHandler = New<TSerializedResponseHandler>(entry->Handler, this);
-        UnderlyingChannel->Send(entry->Request, serializedHandler, timeout);
-        entry->Request.Reset();
-        entry->Handler.Reset();
+            auto timeout = entry->Deadline ? MakeNullable(entry->Deadline.Get() - now) : Null;
+            auto serializedHandler = New<TSerializedResponseHandler>(entry->Handler, this);
+            UnderlyingChannel->Send(entry->Request, serializedHandler, timeout);
+            entry->Request.Reset();
+            entry->Handler.Reset();
+
+            break;
+        }
     }
 }
 
 void TSerializedChannel::OnQueuedRequestTimeout(TEntryPtr entry)
 {
-    if (AtomicCas(&entry->State, EEntryState::Waiting, EEntryState::TimedOut)) {
-        entry->Handler->OnError(TError(
-            EErrorCode::Timeout,
-            "Request timed out while waiting in serialized channel queue"));
-        entry->Request.Reset();
-        entry->Handler.Reset();
-    }
+    TGuard<TSpinLock> guard(SpinLock);
+    
+    if (entry->State != EEntryState::Waiting)
+        return;
+
+    entry->State = EEntryState::TimedOut;
+   
+    guard.Release();
+
+    entry->Handler->OnError(TError(
+        EErrorCode::Timeout,
+        "Request timed out while waiting in serialized channel queue"));
+    entry->Request.Reset();
+    entry->Handler.Reset();
 }
 
 void TSerializedChannel::OnRequestCompleted()
 {
-    SendQueuedRequest();
+    {
+        TGuard<TSpinLock> guard(SpinLock);
+        YCHECK(RequestInProgress);
+        RequestInProgress = false;
+    }
+
+    TrySendQueuedRequests();
 }
 
 } // namespace
