@@ -215,10 +215,9 @@ public:
 
         double usageRatio = GetUsageRatio();
         double demandRatio = GetDemandRatio();
-        double fairShareRatio = Attributes_.FairShareRatio;
 
         double tolerance =
-            demandRatio < fairShareRatio + RatioComparisonPrecision
+            demandRatio < Attributes_.FairShareRatio + RatioComparisonPrecision
             ? 1.0
             : Spec_->FairShareStarvationTolerance;
 
