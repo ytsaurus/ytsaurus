@@ -237,8 +237,6 @@ inline void TParallelAwaiter::Terminate()
     if (Terminated)
         return;
 
-    CompletedPromise.Reset();
-
     if (Profiler) {
         Profiler->TimingStop(Timer);
     }
