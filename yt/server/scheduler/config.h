@@ -25,9 +25,6 @@ struct TFairShareStrategyConfig
     //! Any operation with usage less than this cannot be preempted.
     double MinPreemptableRatio;
 
-    //! When demand ratio drops below this threshold the operation gets 1.0 starvation tolerance.
-    double MinTotalSatisfactionRatio;
-
     TFairShareStrategyConfig()
     {
         Register("fair_share_update_period", FairShareUpdatePeriod)
@@ -42,9 +39,6 @@ struct TFairShareStrategyConfig
         Register("min_preemptable_ratio", MinPreemptableRatio)
             .InRange(0.0, 1.0)
             .Default(0.01);
-        Register("min_total_satisfaction_ratio", MinTotalSatisfactionRatio)
-            .InRange(0.0, 1.0)
-            .Default(0.05);
     }
 };
 
