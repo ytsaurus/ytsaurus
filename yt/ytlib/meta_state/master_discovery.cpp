@@ -56,7 +56,7 @@ public:
                 BIND(&TQuorumRequester::OnResponse, MakeStrong(this), address));
         }
 
-        awaiter->Complete(BIND(&TQuorumRequester::OnComplete, MakeStrong(this)));
+        awaiter->Complete().Subscribe(BIND(&TQuorumRequester::OnComplete, MakeStrong(this)));
 
         return promise;
     }

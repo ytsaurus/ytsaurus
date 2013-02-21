@@ -333,7 +333,7 @@ void TRemoteWriter::TGroup::PutGroup()
         onSuccess,
         &writer->PutBlocksTiming);
     awaiter->Await(PutBlocks(node), onResponse);
-    awaiter->Complete(BIND(
+    awaiter->Complete().Subscribe(BIND(
         &TRemoteWriter::TGroup::Process,
         MakeWeak(this)));
 }
@@ -394,7 +394,7 @@ void TRemoteWriter::TGroup::SendGroup(TNodePtr srcNode)
                 srcNode,
                 dstNod);
             awaiter->Await(SendBlocks(srcNode, dstNod), onResponse);
-            awaiter->Complete(BIND(&TGroup::Process, MakeWeak(this)));
+            awaiter->Complete().Subscribe(BIND(&TGroup::Process, MakeWeak(this)));
             break;
         }
     }
@@ -604,7 +604,7 @@ void TRemoteWriter::TImpl::Open()
             &StartChunkTiming);
         awaiter->Await(StartChunk(node), onResponse);
     }
-    awaiter->Complete(BIND(&TImpl::OnSessionStarted, MakeWeak(this)));
+    awaiter->Complete().Subscribe(BIND(&TImpl::OnSessionStarted, MakeWeak(this)));
 
     IsOpen = true;
 }
@@ -652,7 +652,7 @@ void TRemoteWriter::TImpl::ShiftWindow()
         }
     }
 
-    awaiter->Complete(BIND(
+    awaiter->Complete().Subscribe(BIND(
         &TImpl::OnWindowShifted,
         MakeWeak(this),
         lastFlushableBlock));
@@ -844,7 +844,7 @@ void TRemoteWriter::TImpl::CloseSession()
             awaiter->Await(FinishChunk(node), onResponse);
         }
     }
-    awaiter->Complete(BIND(&TImpl::OnSessionFinished, MakeWeak(this)));
+    awaiter->Complete().Subscribe(BIND(&TImpl::OnSessionFinished, MakeWeak(this)));
 }
 
 void TRemoteWriter::TImpl::OnChunkFinished(TNodePtr node, TProxy::TRspFinishChunkPtr rsp)

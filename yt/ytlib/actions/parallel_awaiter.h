@@ -44,7 +44,7 @@ public:
         TCallback<void()> onResult = TCallback<void()>());
 
 
-    TFuture<void> Complete(TClosure onComplete = TClosure());
+    TFuture<void> Complete();
     void Cancel();
 
     int GetRequestCount() const;
@@ -62,7 +62,6 @@ private:
 
     bool Completed;
     TPromise<void> CompletedPromise;
-    TClosure OnComplete;
 
     bool Terminated;
 
@@ -78,7 +77,7 @@ private:
     bool TryAwait();
 
     void MaybeFireCompleted(const Stroka& key);
-    void DoFireCompleted(TClosure onComplete);
+    void DoFireCompleted();
 
     void Init(
         IInvokerPtr invoker,

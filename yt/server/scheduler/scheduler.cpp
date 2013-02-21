@@ -1587,7 +1587,7 @@ private:
             operationsToLog.insert(job->GetOperation());
         }
 
-        awaiter->Complete(BIND([=] () {
+        awaiter->Complete().Subscribe(BIND([=] () {
             context->Reply();
         }));
 

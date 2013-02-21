@@ -70,7 +70,7 @@ TSnapshotDownloader::TSnapshotInfo TSnapshotDownloader::GetSnapshotInfo(i32 snap
     }
     LOG_INFO("Snapshot info requests sent");
 
-    awaiter->Complete(BIND(
+    awaiter->Complete().Subscribe(BIND(
         &TSnapshotDownloader::OnSnapshotInfoComplete,
         snapshotId,
         promise));

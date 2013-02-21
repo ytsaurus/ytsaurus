@@ -97,7 +97,7 @@ void TMultiChunkReaderBase<TChunkReader>::ProcessOpenedReader(const TSession& se
     FetchingCompleteAwaiter->Await(session.Reader->GetFetchingCompleteEvent());
     if (FetchingCompleteAwaiter->GetRequestCount() == InputChunks.size()) {
         auto this_ = MakeStrong(this);
-        FetchingCompleteAwaiter->Complete(BIND([=]() {
+        FetchingCompleteAwaiter->Complete().Subscribe(BIND([=]() {
             this_->IsFetchingComplete_ = true;
         }));
     }

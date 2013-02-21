@@ -86,7 +86,7 @@ TPeerId TChangeLogDownloader::GetChangeLogSource(const TMetaVersion& version)
                 version));
     }
 
-    awaiter->Complete(BIND(&TChangeLogDownloader::OnComplete, promise));
+    awaiter->Complete().Subscribe(BIND(&TChangeLogDownloader::OnComplete, promise));
 
     return promise.Get();
 }

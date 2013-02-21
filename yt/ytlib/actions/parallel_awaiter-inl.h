@@ -113,7 +113,6 @@ inline void TParallelAwaiter::Await(
 inline void TParallelAwaiter::MaybeFireCompleted(const Stroka& timerKey)
 {
     bool fireCompleted = false;
-    TClosure onComplete;
     {
         TGuard<TSpinLock> guard(SpinLock);
 
@@ -129,25 +128,19 @@ inline void TParallelAwaiter::MaybeFireCompleted(const Stroka& timerKey)
         fireCompleted = ResponseCount == RequestCount && Completed;
 
         if (fireCompleted) {
-            onComplete = OnComplete;
             Terminate();
         }
     }
 
     if (fireCompleted) {
-        DoFireCompleted(std::move(onComplete));
+        DoFireCompleted();
     }
 }
 
-inline void TParallelAwaiter::DoFireCompleted(TClosure onComplete)
+inline void TParallelAwaiter::DoFireCompleted()
 {
-    auto this_ = MakeStrong(this);
-    CancelableInvoker->Invoke(BIND([=] () {
-        if (!onComplete.IsNull()) {
-            onComplete.Run();
-        }
-        this_->CompletedPromise.Set();
-    }));
+    auto promise = CompletedPromise;
+    CancelableInvoker->Invoke(BIND([=] () mutable { promise.Set(); }));
 }
 
 template <class T>
@@ -174,7 +167,7 @@ inline void TParallelAwaiter::OnResult(
     MaybeFireCompleted(timerKey);
 }
 
-inline TFuture<void> TParallelAwaiter::Complete(TClosure onComplete)
+inline TFuture<void> TParallelAwaiter::Complete()
 {
     bool fireCompleted;
     {
@@ -185,7 +178,6 @@ inline TFuture<void> TParallelAwaiter::Complete(TClosure onComplete)
             return CompletedPromise;
         }
 
-        OnComplete = onComplete;
         Completed = true;
 
         fireCompleted = (RequestCount == ResponseCount);
@@ -196,7 +188,7 @@ inline TFuture<void> TParallelAwaiter::Complete(TClosure onComplete)
     }
 
     if (fireCompleted) {
-        DoFireCompleted(onComplete);
+        DoFireCompleted();
     }
 
     return CompletedPromise;
@@ -245,7 +237,7 @@ inline void TParallelAwaiter::Terminate()
     if (Terminated)
         return;
 
-    OnComplete.Reset();
+    CompletedPromise.Reset();
 
     if (Profiler) {
         Profiler->TimingStop(Timer);

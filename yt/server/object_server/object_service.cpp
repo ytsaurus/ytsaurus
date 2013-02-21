@@ -142,7 +142,7 @@ private:
             }
         }
 
-        awaiter->Complete(BIND(&TExecuteSession::OnComplete, MakeStrong(this)));
+        awaiter->Complete().Subscribe(BIND(&TExecuteSession::OnComplete, MakeStrong(this)));
     }
 
     void YieldAndContinue()

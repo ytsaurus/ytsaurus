@@ -568,7 +568,7 @@ TEST(TFutureTest, Regression_de94ea0)
     EXPECT_EQ(1, counter);
 
     TPromise<void> completed(NewPromise<void>());
-    awaiter->Complete(BIND(&TPromise<void>::Set, &completed));
+    awaiter->Complete().Subscribe(BIND(&TPromise<void>::Set, &completed));
     EXPECT_TRUE(completed.IsSet());
 }
 

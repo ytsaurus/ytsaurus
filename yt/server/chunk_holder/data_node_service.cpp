@@ -390,7 +390,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
         }
     }
 
-    awaiter->Complete(BIND([=] () {
+    awaiter->Complete().Subscribe(BIND([=] () {
         // Compute statistics.
         int blocksWithData = 0;
         int blocksWithPeers = 0;
@@ -547,7 +547,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetTableSamples)
         }
     }
 
-    awaiter->Complete(BIND([=] () {
+    awaiter->Complete().Subscribe(BIND([=] () {
         context->Reply();
     }));
 }
@@ -652,7 +652,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetChunkSplits)
         }
     }
 
-    awaiter->Complete(BIND([=] () {
+    awaiter->Complete().Subscribe(BIND([=] () {
         context->Reply();
     }));
 }

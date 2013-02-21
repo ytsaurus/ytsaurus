@@ -830,7 +830,7 @@ private:
             }
         }
 
-        awaiter->Complete(BIND(&TImpl::OnOperationNodesUpdated, MakeStrong(this)));
+        awaiter->Complete().Subscribe(BIND(&TImpl::OnOperationNodesUpdated, MakeStrong(this)));
     }
 
     void OnOperationNodeUpdated(

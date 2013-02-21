@@ -164,7 +164,7 @@ private:
             }
             LOG_DEBUG("Batched mutations sent");
 
-            Awaiter->Complete(BIND(&TBatch::OnCompleted, MakeStrong(this)));
+            Awaiter->Complete().Subscribe(BIND(&TBatch::OnCompleted, MakeStrong(this)));
 
         }
 
