@@ -56,7 +56,7 @@ class TOperation
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, Spec);
 
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, EndTime);
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, FinishTime);
 
     //! Number of stderrs generated so far.
     DEFINE_BYVAL_RW_PROPERTY(int, StdErrCount);

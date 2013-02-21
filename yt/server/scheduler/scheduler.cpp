@@ -955,7 +955,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         operation->SetState(state);
-        operation->SetEndTime(TInstant::Now());
+        operation->SetFinishTime(TInstant::Now());
         ToProto(operation->Result().mutable_error(), error);
     }
 

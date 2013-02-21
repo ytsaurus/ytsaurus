@@ -898,10 +898,18 @@ private:
         }
 
         // Set end time, if given.
-        if (operation->GetEndTime()) {
-            auto req = TYPathProxy::Set(operationPath + "/@end_time");
-            req->set_value(ConvertToYsonString(operation->GetEndTime().Get()).Data());
-            batchReq->AddRequest(req);
+        if (operation->GetFinishTime()) {
+            // COMPAT(babenko)
+            {
+                auto req = TYPathProxy::Set(operationPath + "/@end_time");
+                req->set_value(ConvertToYsonString(operation->GetFinishTime().Get()).Data());
+                batchReq->AddRequest(req);
+            }
+            {
+                auto req = TYPathProxy::Set(operationPath + "/@finish_time");
+                req->set_value(ConvertToYsonString(operation->GetFinishTime().Get()).Data());
+                batchReq->AddRequest(req);
+            }
         }
     }
 
