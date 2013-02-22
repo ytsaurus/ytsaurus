@@ -2,6 +2,7 @@
 
 #include <ytlib/misc/crash_handler.h>
 #include <ytlib/misc/tclap_helpers.h>
+#include <ytlib/misc/address.h>
 
 #include <ytlib/bus/tcp_dispatcher.h>
 
@@ -15,6 +16,8 @@
 
 #include <ytlib/meta_state/async_change_log.h>
 #include <ytlib/chunk_client/dispatcher.h>
+
+#include <ytlib/ytree/yson_serializable.h>
 
 #include <tclap/CmdLine.h>
 
@@ -48,11 +51,31 @@ using namespace NJobProxy;
 
 static NLog::TLogger Logger("Server");
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct TServerConfig
+    : public TYsonSerializable
+{
+    TAddressResolverConfigPtr AddressResolver;
+
+    TServerConfig()
+    {
+        Register("address_resolver", AddressResolver)
+            .DefaultNew();
+    }
+};
+
+typedef TIntrusivePtr<TServerConfig> TServerConfigPtr;
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_ENUM(EExitCode,
     ((OK)(0))
     ((OptionsError)(1))
     ((BootstrapError)(2))
 );
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TArgsParser
 {
@@ -88,6 +111,8 @@ public:
     TCLAP::SwitchArg ConfigTemplate;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 EExitCode GuardedMain(int argc, const char* argv[])
 {
     NYT::NThread::SetCurrentThreadName("Bootstrap");
@@ -113,11 +138,9 @@ EExitCode GuardedMain(int argc, const char* argv[])
     if (isCellMaster) {
         ++modeCount;
     }
-
     if (isScheduler) {
         ++modeCount;
     }
-
     if (isJobProxy) {
         ++modeCount;
     }
@@ -128,10 +151,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     INodePtr configNode;
-    if (!printConfigTemplate) {
-        // Configure logging.
-        NLog::TLogManager::Get()->Configure(configFileName, "/logging");
 
+    if (!printConfigTemplate) {
         if (configFileName.empty()) {
             THROW_ERROR_EXCEPTION("Missing --config option");
         }
@@ -144,9 +165,16 @@ EExitCode GuardedMain(int argc, const char* argv[])
             THROW_ERROR_EXCEPTION("Error reading server configuration")
                 << ex;
         }
-    }
 
-    NProfiling::TProfilingManager::Get()->Start();
+        // Deserialize as a generic server config.
+        auto config = New<TServerConfig>();
+        config->Load(configNode);
+
+        // Configure singletons.
+        NLog::TLogManager::Get()->Configure(configFileName, "/logging");
+        TAddressResolver::Get()->Configure(config->AddressResolver);
+        NProfiling::TProfilingManager::Get()->Start();
+    }
 
     // Start an appropriate server.
     if (isCellNode) {
@@ -160,8 +188,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         }
 
         try {
-            config->Load(configNode, false);
-            config->Validate();
+            config->Load(configNode);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing cell node configuration")
                 << ex;
@@ -185,8 +212,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         }
 
         try {
-            config->Load(configNode, false);
-            config->Validate();
+            config->Load(configNode);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing cell master configuration")
                 << ex;
@@ -217,8 +243,11 @@ EExitCode GuardedMain(int argc, const char* argv[])
                 << ex;
         }
 
-        NCellScheduler::TBootstrap bootstrap(configFileName, config);
-        bootstrap.Run();
+        // TODO(babenko): This memory leak is intentional.
+        // We should avoid destroying bootstrap since some of the subsystems
+        // may be holding a reference to it and continue running some actions in background threads.
+        auto* bootstrap = new NCellScheduler::TBootstrap(configFileName, config);
+        bootstrap->Run();
     }
 
     if (isJobProxy) {
