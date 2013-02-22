@@ -151,7 +151,7 @@ function YtBlackbox(logger, global_config) { // TODO: Inject |config|
                     retry : retry,
                     error : error.toString()
                 });
-                return false;
+                return requestOAuthAuthorization(token, ip, id, retry + 1);
             });
     }
 
