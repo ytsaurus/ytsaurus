@@ -1092,7 +1092,7 @@ void TListNodeProxy::AddChild(INodePtr child, int beforeIndex /*= -1*/)
 
 bool TListNodeProxy::RemoveChild(int index)
 {
-    auto* impl = LockThisTypedImpl(ELockMode::Exclusive, true);
+    auto* impl = LockThisTypedImpl();
     auto& list = impl->IndexToChild();
 
     if (index < 0 || index >= list.size()) {
@@ -1100,7 +1100,7 @@ bool TListNodeProxy::RemoveChild(int index)
     }
 
     auto* trunkChildImpl = list[index];
-    auto* childImpl = LockImpl(trunkChildImpl);
+    auto* childImpl = LockImpl(trunkChildImpl, ELockMode::Exclusive, true);
 
     // Update the indices.
     for (auto it = list.begin() + index + 1; it != list.end(); ++it) {

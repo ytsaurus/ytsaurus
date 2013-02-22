@@ -249,7 +249,7 @@ public:
 
     virtual void SetValue(typename NMpl::TCallTraits<TValue>::TType value) override
     {
-        this->LockThisTypedImpl(ELockMode::Exclusive)->Value() = value;
+        this->LockThisTypedImpl()->Value() = value;
         this->SetModified();
     }
 
