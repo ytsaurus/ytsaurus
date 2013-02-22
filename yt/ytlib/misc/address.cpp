@@ -3,8 +3,11 @@
 #include "lazy_ptr.h"
 
 #include <ytlib/actions/action_queue.h>
+
 #include <ytlib/logging/log.h>
-#include <ytlib/profiling/timing.h>
+
+#include <ytlib/profiling/profiler.h>
+#include <ytlib/profiling/scoped_timer.h>
 
 #include <util/system/hostname.h>
 #include <util/generic/singleton.h>
@@ -24,6 +27,10 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("Network");
+static NProfiling::TProfiler Profiler("Network");
+// TOOD(babenko): get rid of this, write truly asynchronous address resolver.
+static TLazyPtr<TActionQueue> AddressResolverQueue(TActionQueue::CreateFactory("AddressResolver"));
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -157,7 +164,7 @@ TValueOrError<TNetworkAddress> TNetworkAddress::TryParse(const TStringBuf& addre
 {
     int closingBracketIndex = address.find(']');
     if (closingBracketIndex == Stroka::npos || address[0] != '[') {
-        return TError("Address %s is malformed, expected [<addr>](:<port>) format",
+        return TError("Address %s is malformed, expected [<addr>]:<port> or [<addr>] format",
             ~Stroka(address).Quote());
     }
 
@@ -174,7 +181,7 @@ TValueOrError<TNetworkAddress> TNetworkAddress::TryParse(const TStringBuf& addre
 
     Stroka ipAddress = Stroka(address.substr(1, closingBracketIndex - 1));
     {
-        // try to parse as ipv4
+        // Try to parse as ipv4.
         struct sockaddr_in sa;
         if (inet_pton(AF_INET, ~ipAddress, &sa.sin_addr) == 1) {
             if (port) {
@@ -185,7 +192,7 @@ TValueOrError<TNetworkAddress> TNetworkAddress::TryParse(const TStringBuf& addre
         }
     }
     {
-        // try to parse as ipv6
+        // Try to parse as ipv6.
         struct sockaddr_in6 sa;
         if (inet_pton(AF_INET6, ipAddress.c_str(), &(sa.sin6_addr))) {
             if (port) {
@@ -196,7 +203,7 @@ TValueOrError<TNetworkAddress> TNetworkAddress::TryParse(const TStringBuf& addre
         }
     }
 
-    return TError("Address %s is neither a valid IPv4 or IPv6 address",
+    return TError("Address %s is neither a valid IPv4 nor a valid IPv6 address",
         ~Stroka(ipAddress).Quote());
 }
 
@@ -274,8 +281,9 @@ Stroka ToString(const TNetworkAddress& address, bool withPort)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TOOD(babenko): get rid of this, write truly asynchronous address resolver.
-static TLazyPtr<TActionQueue> AddressResolverQueue(TActionQueue::CreateFactory("AddressResolver"));
+TAddressResolver::TAddressResolver()
+    : Config(New<TAddressResolverConfig>())
+{ }
 
 TAddressResolver* TAddressResolver::Get()
 {
@@ -326,13 +334,18 @@ TValueOrError<TNetworkAddress> TAddressResolver::DoResolve(const Stroka& hostNam
 
     LOG_DEBUG("Started resolving host %s", ~hostName);
 
-    auto startTime = NProfiling::GetCpuInstant();
-    int gaiResult = getaddrinfo(
-        ~hostName,
-        NULL,
-        &hints,
-        &addrInfo);
-    auto duration = NProfiling::CpuDurationToDuration(NProfiling::GetCpuInstant() - startTime);
+    NProfiling::TScopedTimer timer;
+
+    int gaiResult;
+    PROFILE_TIMING("dns_resolve_time") {
+        gaiResult = getaddrinfo(
+            ~hostName,
+            NULL,
+            &hints,
+            &addrInfo);
+    }
+
+    auto duration = timer.GetElapsed();
 
     if (gaiResult != 0) {
         auto gaiError = TError(Stroka(gai_strerror(gaiResult)))
@@ -342,7 +355,7 @@ TValueOrError<TNetworkAddress> TAddressResolver::DoResolve(const Stroka& hostNam
         LOG_WARNING(error);
         return error;
     } else if (duration > WarningDuration) {
-        LOG_WARNING("Too long dns lookup (Host: %s, Duration: %s)",
+        LOG_WARNING("DNS resolve took too long (Host: %s, Duration: %s)",
             ~hostName,
             ~ToString(duration));
     }
@@ -350,7 +363,9 @@ TValueOrError<TNetworkAddress> TAddressResolver::DoResolve(const Stroka& hostNam
     TNullable<TNetworkAddress> result;
 
     for (auto* currentInfo = addrInfo; currentInfo; currentInfo = currentInfo->ai_next) {
-        if (currentInfo->ai_family == AF_INET || currentInfo->ai_family == AF_INET6) {
+        if (currentInfo->ai_family == AF_INET ||
+            currentInfo->ai_family == AF_INET6 && Config->EnableIPv6)
+        {
             result = TNetworkAddress(*currentInfo->ai_addr);
             break;
         }
@@ -384,6 +399,11 @@ void TAddressResolver::PurgeCache()
         Cache.clear();
     }
     LOG_INFO("Address cache purged");
+}
+
+void TAddressResolver::Configure(TAddressResolverConfigPtr config)
+{
+    Config = config;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

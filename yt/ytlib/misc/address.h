@@ -3,6 +3,8 @@
 #include "common.h"
 #include "error.h"
 
+#include <ytlib/ytree/yson_serializable.h>
+
 #include <ytlib/actions/future.h>
 
 #ifdef _WIN32
@@ -38,6 +40,23 @@ TStringBuf GetServiceHostName(const TStringBuf& address);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Configuration for TAddressResolver singleton.
+struct TAddressResolverConfig
+    : public TYsonSerializable
+{
+    bool EnableIPv6;
+
+    TAddressResolverConfig()
+    {
+        Register("enable_ipv6", EnableIPv6)
+            .Default(true);
+    }
+};
+
+typedef TIntrusivePtr<TAddressResolverConfig> TAddressResolverConfigPtr;
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! An opaque wrapper for |sockaddr| type.
 class TNetworkAddress
 {
@@ -69,6 +88,9 @@ Stroka ToString(const TNetworkAddress& address, bool withPort = true);
 class TAddressResolver
 {
 public:
+    // TODO(babenko): move to private
+    TAddressResolver();
+
     //! Returns the singleton instance.
     static TAddressResolver* Get();
 
@@ -82,7 +104,12 @@ public:
     //! Removes all cached resolutions.
     void PurgeCache();
 
+    //! Updates resolver configuration.
+    void Configure(TAddressResolverConfigPtr config);
+
 private:
+    TAddressResolverConfigPtr Config;
+
     TSpinLock SpinLock;
     yhash_map<Stroka, TNetworkAddress> Cache;
 
