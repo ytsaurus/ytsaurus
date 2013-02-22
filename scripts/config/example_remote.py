@@ -51,8 +51,8 @@ class Server(Base, RemoteServer):
 
     def do_clean(cls, fd):
         print >>fd, shebang
-        print >>fd, 'rm -f %s' % cls.log_path
-        print >>fd, 'rm -f %s' % cls.debug_log_path
+        print >>fd, 'rm -rf %s' % cls.log_path
+        print >>fd, 'rm -rf %s' % cls.debug_log_path
     
 class Master(Server):
     base_dir = '/yt/disk2/data'
@@ -95,10 +95,10 @@ class Master(Server):
     
     def do_clean(cls, fd):
         print >>fd, shebang
-        print >>fd, 'rm -f %s' % cls.log_path
-        print >>fd, 'rm -f %s' % cls.debug_log_path
-        print >>fd, 'rm %s/*' % cls.config['meta_state']['snapshots']['path']
-        print >>fd, 'rm %s/*' % cls.config['meta_state']['changelogs']['path']
+        print >>fd, 'rm -rf %s' % cls.log_path
+        print >>fd, 'rm -rf %s' % cls.debug_log_path
+        print >>fd, 'rm -rf %s/*' % cls.config['meta_state']['snapshots']['path']
+        print >>fd, 'rm -rf %s/*' % cls.config['meta_state']['changelogs']['path']
         
 class Scheduler(Server):
     base_dir = '/yt/disk2/data'
@@ -194,8 +194,8 @@ class Holder(Server):
     
     def do_clean(cls, fd):
         print >>fd, shebang
-        print >>fd, 'rm -f %s' % cls.log_path
-        print >>fd, 'rm -f %s' % cls.debug_log_path
+        print >>fd, 'rm -rf %s' % cls.log_path
+        print >>fd, 'rm -rf %s' % cls.debug_log_path
         for location in cls.config['data_node']['store_locations']:
             print >>fd, 'rm -rf %s' % location['path']
         print >>fd, 'rm -rf %s' % cls.config['data_node']['cache_location']['path']
