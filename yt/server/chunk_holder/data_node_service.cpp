@@ -633,7 +633,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetChunkSplits)
     auto keyColumns = FromProto<Stroka>(request->key_columns());
 
     FOREACH (const auto& inputChunk, request->input_chunks()) {
-        auto chunkId = TChunkId::FromProto(inputChunk.slice().chunk_id());
+        auto chunkId = TChunkId::FromProto(inputChunk.chunk_id());
         auto* splittedChunk = response->add_splitted_chunks();
         auto chunk = Bootstrap->GetChunkStore()->FindChunk(chunkId);
 
@@ -664,7 +664,7 @@ void TDataNodeService::MakeChunkSplits(
     const TKeyColumns& keyColumns,
     TChunk::TGetMetaResult result)
 {
-    auto chunkId = TChunkId::FromProto(inputChunk->slice().chunk_id());
+    auto chunkId = TChunkId::FromProto(inputChunk->chunk_id());
 
     if (!result.IsOK()) {
         auto error = TError("GetChunkSplits: Error getting meta of chunk %s", ~chunkId.ToString())
@@ -752,7 +752,7 @@ void TDataNodeService::MakeChunkSplits(
     auto beginIt = std::lower_bound(
         indexExt.items().begin(),
         indexExt.items().end(),
-        inputChunk->slice().start_limit(),
+        inputChunk->start_limit(),
         [&] (const NTableClient::NProto::TIndexRow& indexRow,
              const NTableClient::NProto::TReadLimit& limit)
         {
@@ -762,7 +762,7 @@ void TDataNodeService::MakeChunkSplits(
     auto endIt = std::upper_bound(
         beginIt,
         indexExt.items().end(),
-        inputChunk->slice().end_limit(),
+        inputChunk->end_limit(),
         [&] (const NTableClient::NProto::TReadLimit& limit,
              const NTableClient::NProto::TIndexRow& indexRow)
         {
@@ -820,11 +820,11 @@ void TDataNodeService::MakeChunkSplits(
             UpdateProtoExtension(currentSplit->mutable_extensions(), sizeOverride);
 
             key = GetSuccessorKey(key);
-            *currentSplit->mutable_slice()->mutable_end_limit()->mutable_key() = key;
+            *currentSplit->mutable_end_limit()->mutable_key() = key;
 
             createNewSplit();
             *boundaryKeysExt.mutable_start() = key;
-            *currentSplit->mutable_slice()->mutable_start_limit()->mutable_key() = key;
+            *currentSplit->mutable_start_limit()->mutable_key() = key;
         }
     }
 
@@ -837,7 +837,6 @@ void TDataNodeService::MakeChunkSplits(
         dataSize +
         (std::distance(beginIt, endIt) - 1) * dataSizeBetweenSamples);
     UpdateProtoExtension(currentSplit->mutable_extensions(), sizeOverride);
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////

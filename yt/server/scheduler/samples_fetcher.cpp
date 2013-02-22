@@ -102,7 +102,7 @@ bool TSamplesFetcher::AddChunkToRequest(NTableClient::TRefCountedInputChunkPtr c
     if (sampleCount > CurrentSampleCount) {
         auto chunkSampleCount = sampleCount - CurrentSampleCount;
         CurrentSampleCount = sampleCount;
-        auto chunkId = TChunkId::FromProto(chunk->slice().chunk_id());
+        auto chunkId = TChunkId::FromProto(chunk->chunk_id());
 
         auto* sampleRequest = CurrentRequest->add_sample_requests();
         *sampleRequest->mutable_chunk_id() = chunkId.ToProto();

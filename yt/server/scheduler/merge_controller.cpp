@@ -277,7 +277,7 @@ protected:
         CurrentTaskDataSize += chunkDataSize;
         stripe->Chunks.push_back(inputChunk);
 
-        auto chunkId = TChunkId::FromProto(inputChunk->slice().chunk_id());
+        auto chunkId = TChunkId::FromProto(inputChunk->chunk_id());
         LOG_DEBUG("Pending chunk added (ChunkId: %s, Partition: %d, Task: %d, TableIndex: %d, DataSize: %" PRId64 ")",
             ~chunkId.ToString(),
             PartitionCount,
@@ -289,7 +289,7 @@ protected:
     //! Add chunk directly to the output.
     void AddPassthroughChunk(TRefCountedInputChunkPtr inputChunk)
     {
-        auto chunkId = TChunkId::FromProto(inputChunk->slice().chunk_id());
+        auto chunkId = TChunkId::FromProto(inputChunk->chunk_id());
         LOG_DEBUG("Passthrough chunk added (ChunkId: %s, Partition: %d)",
             ~chunkId.ToString(),
             PartitionCount);
@@ -322,7 +322,7 @@ protected:
             for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
                 const auto& table = InputTables[tableIndex];
                 FOREACH (const auto& inputChunk, *table.FetchResponse->mutable_chunks()) {
-                    auto chunkId = TChunkId::FromProto(inputChunk.slice().chunk_id());
+                    auto chunkId = TChunkId::FromProto(inputChunk.chunk_id());
 
                     i64 chunkDataSize;
                     NTableClient::GetStatistics(inputChunk, &chunkDataSize);
@@ -417,16 +417,14 @@ protected:
 
     static bool IsStartingSlice(const TInputChunk& inputChunk)
     {
-        return
-            !inputChunk.slice().start_limit().has_key() &&
-            !inputChunk.slice().start_limit().has_row_index();
+        return !inputChunk.start_limit().has_key() &&
+               !inputChunk.start_limit().has_row_index();
     }
 
     static bool IsEndingSlice(const TInputChunk& inputChunk)
     {
-        return
-            !inputChunk.slice().end_limit().has_key() &&
-            !inputChunk.slice().end_limit().has_row_index();
+        return !inputChunk.end_limit().has_key() &&
+               !inputChunk.end_limit().has_row_index();
     }
 
     //! Returns True if the chunk can be included into the output as-is.
@@ -883,7 +881,7 @@ protected:
                         AllowPassthroughChunks())
                     {
                         // Trying to reconstruct passthrough chunk from chunk slices.
-                        auto chunkId = TChunkId::FromProto(endpoint.InputChunk->slice().chunk_id());
+                        auto chunkId = TChunkId::FromProto(endpoint.InputChunk->chunk_id());
                         auto tableIndex = endpoint.InputChunk->table_index();
                         auto nextIndex = currentIndex;
                         while (true) {
@@ -891,7 +889,7 @@ protected:
                             if (nextIndex == endpointsCount) {
                                 break;
                             }
-                            auto nextChunkId = TChunkId::FromProto(Endpoints[nextIndex].InputChunk->slice().chunk_id());
+                            auto nextChunkId = TChunkId::FromProto(Endpoints[nextIndex].InputChunk->chunk_id());
                             auto nextTableIndex = Endpoints[nextIndex].InputChunk->table_index();
                             if (nextChunkId != chunkId || tableIndex != nextTableIndex) {
                                 break;

@@ -195,11 +195,10 @@ TPromise<void> TJob::PrepareDownloadingTableFile(
 {
     std::vector<TChunkId> chunkIds;
     FOREACH (const auto chunk, rsp.table().chunks()) {
-        chunkIds.push_back(TChunkId::FromProto(chunk.slice().chunk_id()));
+        chunkIds.push_back(TChunkId::FromProto(chunk.chunk_id()));
     }
 
-    LOG_INFO(
-        "Downloading user table file (FileName: %s, ChunkIds: %s)",
+    LOG_INFO("Downloading user table file (FileName: %s, ChunkIds: %s)",
         ~rsp.file_name(),
         ~JoinToString(chunkIds));
 
@@ -230,8 +229,7 @@ TPromise<void> TJob::PrepareDownloadingTableFile(
     return promise;
 }
 
-void TJob::PrepareUserJob(
-    TParallelAwaiterPtr awaiter)
+void TJob::PrepareUserJob(TParallelAwaiterPtr awaiter)
 {
     YCHECK(UserJobSpec);
 

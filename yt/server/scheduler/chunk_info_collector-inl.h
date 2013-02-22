@@ -48,11 +48,11 @@ void TChunkInfoCollector<TFetcher>::SendRequests()
 
     FOREACH (auto chunkIndex, UnfetchedChunkIndexes) {
         const auto& chunk = Chunks[chunkIndex];
-        auto chunkId = NChunkServer::TChunkId::FromProto(chunk->slice().chunk_id());
+        auto chunkId = NChunkServer::TChunkId::FromProto(chunk->chunk_id());
         bool chunkAvailable = false;
         FOREACH (const auto& address, chunk->node_addresses()) {
             if (DeadNodes.find(address) == DeadNodes.end() &&
-                DeadChunks.find(std::make_pair(address, chunkId)) == DeadChunks.end())
+                DeadChunkIds.find(std::make_pair(address, chunkId)) == DeadChunkIds.end())
             {
                 addressToChunkIndexes[address].push_back(chunkIndex);
                 chunkAvailable = true;
@@ -136,7 +136,7 @@ void TChunkInfoCollector<TFetcher>::OnResponse(
         for (int index = 0; index < static_cast<int>(chunkIndexes.size()); ++index) {
             int chunkIndex = chunkIndexes[index];
             auto& chunk = Chunks[chunkIndex];
-            auto chunkId = NChunkServer::TChunkId::FromProto(chunk->slice().chunk_id());
+            auto chunkId = NChunkServer::TChunkId::FromProto(chunk->chunk_id());
 
             auto result = Fetcher->ProcessResponseItem(rsp, index, chunk);
             if (result.IsOK()) {
@@ -145,7 +145,7 @@ void TChunkInfoCollector<TFetcher>::OnResponse(
                 LOG_WARNING(result, "Unable to fetch info for chunk %s from %s",
                     ~chunkId.ToString(),
                     ~address);
-                YCHECK(DeadChunks.insert(std::make_pair(address, chunkId)).second);
+                YCHECK(DeadChunkIds.insert(std::make_pair(address, chunkId)).second);
             }
         }
         LOG_DEBUG("Received chunk info from %s", ~address);

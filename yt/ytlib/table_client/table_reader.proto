@@ -14,35 +14,29 @@ message TReadLimit
     optional TKey key = 2;
 }
 
-// A contiguous part of a single table chunk.
-message TChunkSlice
-{
-    // The id of the chunk.
-    required NYT.NProto.TGuid chunk_id = 1;
-    // The left boundary, inclusive.
-    required TReadLimit start_limit = 2;
-    // The right boundary, exclusive.
-    required TReadLimit end_limit = 3;
-}
-
 // Describes a portion of table chunk.
 message TInputChunk
 {
-    // A part of table chunk.
-    required TChunkSlice slice = 1;
+    required NYT.NProto.TGuid chunk_id = 1;
+
+    // Lower boundary, inclusive.
+    required TReadLimit start_limit = 2;
+
+    // Upper boundary, exclusive.
+    required TReadLimit end_limit = 3;
 
     // Initial seed addresses. The reader may ask the master for additional ones.
-    repeated string node_addresses = 2;
+    repeated string node_addresses = 4;
 
     // Column filter.
-    required TChannel channel = 3;
+    required TChannel channel = 5;
 
-    required NYT.NProto.TExtensionSet extensions = 4;
+    required NYT.NProto.TExtensionSet extensions = 6;
 
     // When this value is given the reader inserts "table_index" as a row attribute.
-    optional int32 table_index = 5;
+    optional int32 table_index = 7;
 
-    optional int32 partition_tag = 6 [default = -1];
+    optional int32 partition_tag = 8 [default = -1];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

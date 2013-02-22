@@ -269,9 +269,9 @@ private:
         }
 
         auto* inputChunk = response->add_chunks();
-        *inputChunk->mutable_slice()->mutable_chunk_id() = chunk->GetId().ToProto();
-        inputChunk->mutable_slice()->mutable_start_limit();
-        inputChunk->mutable_slice()->mutable_end_limit();
+        *inputChunk->mutable_chunk_id() = chunk->GetId().ToProto();
+        inputChunk->mutable_start_limit();
+        inputChunk->mutable_end_limit();
         *inputChunk->mutable_channel() = TChannel::Universal().ToProto();
         inputChunk->mutable_extensions()->CopyFrom(chunk->ChunkMeta().extensions());
 

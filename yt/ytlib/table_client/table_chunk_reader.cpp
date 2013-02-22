@@ -916,20 +916,20 @@ TTableChunkReaderPtr TTableChunkReaderProvider::CreateNewReader(
     const NProto::TInputChunk& inputChunk,
     const NChunkClient::IAsyncReaderPtr& chunkReader)
 {
-    const auto& slice = inputChunk.slice();
-
-    Stroka rowAttributes;
+    TYsonString rowAttributes;
     if (inputChunk.has_table_index()) {
-        rowAttributes = Sprintf("table_index=%d", inputChunk.table_index());
+        rowAttributes = TYsonString(
+            Sprintf("table_index=%d", inputChunk.table_index()),
+            NYson::EYsonType::MapFragment);
     }
 
     return New<TTableChunkReader>(
         Config,
         TChannel::FromProto(inputChunk.channel()),
         chunkReader,
-        slice.start_limit(),
-        slice.end_limit(),
-        NYTree::TYsonString(rowAttributes),
+        inputChunk.start_limit(),
+        inputChunk.end_limit(),
+        rowAttributes,
         inputChunk.partition_tag(),
         Options);
 }

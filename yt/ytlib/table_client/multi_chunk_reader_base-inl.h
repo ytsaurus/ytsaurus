@@ -64,7 +64,7 @@ void TMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
     TSession session;
     session.ChunkIndex = chunkIndex;
     const auto& inputChunk = InputChunks[chunkIndex];
-    auto chunkId = NChunkClient::TChunkId::FromProto(inputChunk.slice().chunk_id());
+    auto chunkId = NChunkClient::TChunkId::FromProto(inputChunk.chunk_id());
 
     LOG_DEBUG("Opening chunk (ChunkIndex: %d, ChunkId: %s)",
         chunkIndex,
@@ -112,8 +112,8 @@ void TMultiChunkReaderBase<TChunkReader>::ProcessFinishedReader(const TSession& 
 template <class TChunkReader>
 void TMultiChunkReaderBase<TChunkReader>::AddFailedChunk(const TSession& session)
 {
-    const auto& protoChunkId = InputChunks[session.ChunkIndex].slice().chunk_id();
-    auto chunkId = NChunkClient::TChunkId::FromProto(protoChunkId);
+    const auto& inputChunk = InputChunks[session.ChunkIndex];
+    auto chunkId = NChunkClient::TChunkId::FromProto(inputChunk.chunk_id());
     LOG_DEBUG("Failed chunk added (ChunkId: %s)", ~ToString(chunkId));
     TGuard<TSpinLock> guard(FailedChunksLock);
     FailedChunks.push_back(chunkId);
@@ -137,7 +137,6 @@ const TIntrusivePtr<TChunkReader>& TMultiChunkReaderBase<TChunkReader>::CurrentR
 {
     return CurrentSession.Reader;
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

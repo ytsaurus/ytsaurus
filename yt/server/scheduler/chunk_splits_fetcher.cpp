@@ -70,7 +70,7 @@ void TChunkSplitsFetcher::CreateNewRequest(const Stroka& address)
 
 bool TChunkSplitsFetcher::AddChunkToRequest(NTableClient::TRefCountedInputChunkPtr chunk)
 {
-    auto chunkId = TChunkId::FromProto(chunk->slice().chunk_id());
+    auto chunkId = TChunkId::FromProto(chunk->chunk_id());
 
     i64 dataSize;
     GetStatistics(*chunk, &dataSize);

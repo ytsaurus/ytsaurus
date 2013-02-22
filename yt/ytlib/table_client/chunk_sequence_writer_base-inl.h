@@ -235,7 +235,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::SwitchSession()
 {
     State.StartOperation();
     YCHECK(NextSession);
-    // We're not waiting for the chunk to be closed.
+    // We're not waiting for the chunk to close.
     FinishCurrentSession();
     NextSession.Subscribe(BIND(
         &TChunkSequenceWriterBase::InitCurrentSession,
@@ -256,10 +256,9 @@ void TChunkSequenceWriterBase<TChunkWriter>::FinishCurrentSession()
         {
             NProto::TInputChunk inputChunk;
 
-            auto* slice = inputChunk.mutable_slice();
-            slice->mutable_start_limit();
-            slice->mutable_end_limit();
-            *slice->mutable_chunk_id() = CurrentSession.RemoteWriter->GetChunkId().ToProto();
+            inputChunk.mutable_start_limit();
+            inputChunk.mutable_end_limit();
+            *inputChunk.mutable_chunk_id() = CurrentSession.RemoteWriter->GetChunkId().ToProto();
 
             TGuard<TSpinLock> guard(WrittenChunksGuard);
             chunkIndex = WrittenChunks.size();
@@ -404,7 +403,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::AttachChunks()
     FOREACH (const auto& inputChunk, WrittenChunks) {
         auto req = NChunkClient::TChunkListYPathProxy::Attach(
             NCypressClient::FromObjectId(ParentChunkListId));
-        *req->add_children_ids() = inputChunk.slice().chunk_id();
+        *req->add_children_ids() = inputChunk.chunk_id();
         NMetaState::GenerateRpcMutationId(req);
         batchReq->AddRequest(req);
     }

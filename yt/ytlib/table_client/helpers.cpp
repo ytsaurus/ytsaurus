@@ -67,14 +67,12 @@ TRefCountedInputChunkPtr SliceChunk(
 {
     auto result = New<TRefCountedInputChunk>(*inputChunk);
 
-    const auto& slice = inputChunk->slice();
-
-    if (startKey && (!slice.start_limit().has_key() || slice.start_limit().key() < startKey.Get())) {
-        *result->mutable_slice()->mutable_start_limit()->mutable_key() = startKey.Get();
+    if (startKey && (!inputChunk->start_limit().has_key() || inputChunk->start_limit().key() < startKey.Get())) {
+        *result->mutable_start_limit()->mutable_key() = startKey.Get();
     }
 
-    if (endKey && (!slice.end_limit().has_key() || slice.end_limit().key() > endKey.Get())) {
-        *result->mutable_slice()->mutable_end_limit()->mutable_key() = endKey.Get();
+    if (endKey && (!inputChunk->end_limit().has_key() || inputChunk->end_limit().key() > endKey.Get())) {
+        *result->mutable_end_limit()->mutable_key() = endKey.Get();
     }
 
     return result;
@@ -90,11 +88,11 @@ std::vector<TRefCountedInputChunkPtr> SliceChunkEvenly(TRefCountedInputChunkPtr 
     i64 rowCount;
     GetStatistics(*inputChunk, &dataSize, &rowCount);
 
-    const auto& startLimit = inputChunk->slice().start_limit();
+    const auto& startLimit = inputChunk->start_limit();
     // Inclusive.
     i64 startRowIndex = startLimit.has_row_index() ? startLimit.row_index() : 0;
 
-    const auto& endLimit = inputChunk->slice().end_limit();
+    const auto& endLimit = inputChunk->end_limit();
     // Exclusive.
     i64 endRowIndex = endLimit.has_row_index() ? endLimit.row_index() : rowCount;
 
@@ -105,8 +103,8 @@ std::vector<TRefCountedInputChunkPtr> SliceChunkEvenly(TRefCountedInputChunkPtr 
         i64 sliceEndRowIndex = startRowIndex + rowCount * (i + 1) / count;
         if (sliceStartRowIndex < sliceEndRowIndex) {
             auto slicedChunk = New<TRefCountedInputChunk>(*inputChunk);
-            slicedChunk->mutable_slice()->mutable_start_limit()->set_row_index(sliceStartRowIndex);
-            slicedChunk->mutable_slice()->mutable_end_limit()->set_row_index(sliceEndRowIndex);
+            slicedChunk->mutable_start_limit()->set_row_index(sliceStartRowIndex);
+            slicedChunk->mutable_end_limit()->set_row_index(sliceEndRowIndex);
 
             // This is merely an approximation.
             NTableClient::NProto::TSizeOverrideExt sizeOverride;
@@ -124,10 +122,10 @@ std::vector<TRefCountedInputChunkPtr> SliceChunkEvenly(TRefCountedInputChunkPtr 
 TRefCountedInputChunkPtr CreateCompleteChunk(TRefCountedInputChunkPtr inputChunk)
 {
     auto chunk = New<TRefCountedInputChunk>(*inputChunk);
-    chunk->mutable_slice()->mutable_start_limit()->clear_key();
-    chunk->mutable_slice()->mutable_start_limit()->clear_row_index();
-    chunk->mutable_slice()->mutable_end_limit()->clear_key();
-    chunk->mutable_slice()->mutable_end_limit()->clear_row_index();
+    chunk->mutable_start_limit()->clear_key();
+    chunk->mutable_start_limit()->clear_row_index();
+    chunk->mutable_end_limit()->clear_key();
+    chunk->mutable_end_limit()->clear_row_index();
 
     RemoveProtoExtension<NTableClient::NProto::TSizeOverrideExt>(chunk->mutable_extensions());
     return chunk;

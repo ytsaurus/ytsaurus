@@ -200,13 +200,9 @@ private:
                 tags);
         }
 
-        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunk->ChunkMeta().extensions());
-
-        auto* slice = inputChunk->mutable_slice();
-        *slice->mutable_chunk_id() = chunk->GetId().ToProto();
-
-        *slice->mutable_start_limit() = startLimit;
-        *slice->mutable_end_limit() = endLimit;
+        *inputChunk->mutable_chunk_id() = chunk->GetId().ToProto();
+        *inputChunk->mutable_start_limit() = startLimit;
+        *inputChunk->mutable_end_limit() = endLimit;
 
         return true;
     }

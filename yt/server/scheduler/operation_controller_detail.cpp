@@ -491,7 +491,7 @@ void TOperationControllerBase::TTask::RegisterIntermediateChunks(
         joblet->Job->GetNode());
 
     FOREACH (const auto& chunk, stripe->Chunks) {
-        auto chunkId = TChunkId::FromProto(chunk->slice().chunk_id());
+        auto chunkId = TChunkId::FromProto(chunk->chunk_id());
         YCHECK(Controller->ChunkOriginMap.insert(std::make_pair(chunkId, completedJob)).second);
     }
 }
@@ -1599,7 +1599,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
 
                 table.FetchResponse = rsp;
                 FOREACH (const auto& chunk, rsp->chunks()) {
-                    auto chunkId = TChunkId::FromProto(chunk.slice().chunk_id());
+                    auto chunkId = TChunkId::FromProto(chunk.chunk_id());
                     YCHECK(chunk.node_addresses_size() > 0);
                     InputChunkIds.insert(chunkId);
                 }
@@ -1749,7 +1749,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
             {
                 std::vector<TChunkId> chunkIds;
                 FOREACH (const auto& chunk, file.FetchResponse->chunks()) {
-                    chunkIds.push_back(TChunkId::FromProto(chunk.slice().chunk_id()));
+                    chunkIds.push_back(TChunkId::FromProto(chunk.chunk_id()));
                 }
                 LOG_INFO("Table file %s attributes received (FileName: %s, Format: %s, ChunkIds: [%s])",
                     ~file.Path.GetPath(),
@@ -1843,7 +1843,7 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxS
     // Ensure that no input chunk has size larger than sliceSize.
     std::vector<TChunkStripePtr> stripes;
     FOREACH (auto inputChunk, inputChunks) {
-        auto chunkId = TChunkId::FromProto(inputChunk->slice().chunk_id());
+        auto chunkId = TChunkId::FromProto(inputChunk->chunk_id());
 
         i64 dataSize;
         GetStatistics(*inputChunk, &dataSize);
