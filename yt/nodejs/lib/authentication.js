@@ -91,7 +91,7 @@ function YtBlackbox(logger, global_config) { // TODO: Inject |config|
 
         if (retry >= config.retries) {
             logger.error("Too many failed Blackbox requests (" + retry + "/" + config.retries + "); falling back.", { request_id : id });
-            return Q.reject(new Error("Too many failed Blackbox requests"));
+            return Q.reject(new Error("Too many failed Blackbox requests (" + retry + ")"));
         }
 
         return Q
@@ -104,6 +104,7 @@ function YtBlackbox(logger, global_config) { // TODO: Inject |config|
                     data = JSON.parse(data);
                     logger.debug("Successfully received data from Blackbox", {
                         request_id : id,
+                        retry : retry,
                         payload : data
                     });
                 } catch (error) {
@@ -136,7 +137,6 @@ function YtBlackbox(logger, global_config) { // TODO: Inject |config|
                 if (data.exception) {
                     logger.info("Blackbox returned an exception", {
                         request_id : id,
-                        retry : retry,
                         error : data.exception
                     });
                     return requestOAuthAuthorization(token, ip, id, retry + 1);
