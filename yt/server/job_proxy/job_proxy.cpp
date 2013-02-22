@@ -127,7 +127,6 @@ void TJobProxy::Run()
     ReportResult(result);
 }
    
-
 TJobResult TJobProxy::DoRun()
 {
     try {

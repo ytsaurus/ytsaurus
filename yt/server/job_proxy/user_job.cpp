@@ -415,7 +415,7 @@ private:
             auto res = setrlimit(RLIMIT_AS, &rlimit);
 
             if (res) {
-                fprintf(stderr, "Failed to set resource limits (MemoryLimit: %" PRId64 " Error: %s)\n",
+                fprintf(stderr, "Failed to set resource limits (MemoryLimit: %" PRId64 ")\n%s",
                     rlimit.rlim_max,
                     strerror(errno));
 
