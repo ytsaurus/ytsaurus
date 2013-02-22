@@ -108,7 +108,13 @@ public:
         , SessionCount(0)
         , Completed(false)
         , Finished(false)
-    { }
+    {
+        if (!Context->Request().fetch_all_meta_extensions()) {
+            FOREACH (int tag, Context->Request().extension_tags()) {
+                ExtensionTags.insert(tag);
+            }
+        }
+    }
 
     void StartSession(const TReadLimit& lowerBound, const TReadLimit& upperBound)
     {
@@ -141,6 +147,7 @@ private:
     TCtxFetchPtr Context;
     TChannel Channel;
 
+    yhash_set<int> ExtensionTags;
     int SessionCount;
     bool Completed;
     bool Finished;
@@ -182,7 +189,9 @@ private:
         }
 
         auto* inputChunk = Context->Response().add_chunks();
-        *inputChunk->mutable_channel() = Channel.ToProto();
+        if (!Channel.IsUniversal()) {
+            *inputChunk->mutable_channel() = Channel.ToProto();
+        }
 
         FOREACH (const auto& address, addresses) {
             inputChunk->add_node_addresses(address);
@@ -191,13 +200,10 @@ private:
         if (Context->Request().fetch_all_meta_extensions()) {
             *inputChunk->mutable_extensions() = chunk->ChunkMeta().extensions();
         } else {
-            yhash_set<int> tags(
-                Context->Request().extension_tags().begin(),
-                Context->Request().extension_tags().end());
             FilterProtoExtensions(
                 inputChunk->mutable_extensions(),
                 chunk->ChunkMeta().extensions(),
-                tags);
+                ExtensionTags);
         }
 
         *inputChunk->mutable_chunk_id() = chunk->GetId().ToProto();

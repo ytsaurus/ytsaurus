@@ -61,6 +61,7 @@ public:
     bool Overlaps(const TRange& range) const;
 
     bool IsEmpty() const;
+    bool IsUniversal() const;
 
     NProto::TChannel ToProto() const;
     static TChannel FromProto(const NProto::TChannel& protoChannel);

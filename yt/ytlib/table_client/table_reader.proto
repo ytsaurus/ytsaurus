@@ -29,7 +29,7 @@ message TInputChunk
     repeated string node_addresses = 4;
 
     // Column filter.
-    required TChannel channel = 5;
+    optional TChannel channel = 5;
 
     required NYT.NProto.TExtensionSet extensions = 6;
 

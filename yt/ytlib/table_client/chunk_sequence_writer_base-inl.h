@@ -325,7 +325,6 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkClosed(
         auto& inputChunk = WrittenChunks[chunkIndex];
 
         ToProto(inputChunk.mutable_node_addresses(), remoteWriter->GetNodeAddresses());
-        *inputChunk.mutable_channel() = TChannel::Universal().ToProto();
         *inputChunk.mutable_extensions() = chunkWriter->GetSchedulerMeta().extensions();
     }
 

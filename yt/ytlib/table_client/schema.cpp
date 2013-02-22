@@ -245,6 +245,14 @@ bool TChannel::IsEmpty() const
     return Columns_.empty() && Ranges_.empty();
 }
 
+bool TChannel::IsUniversal() const
+{
+    return Columns_.empty() &&
+           Ranges_.size() == 1 &&
+           Ranges_[0].Begin() == "" &&
+           Ranges_[0].IsInfinite();
+}
+
 namespace {
 
 TChannel CreateUniversal()

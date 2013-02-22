@@ -925,7 +925,7 @@ TTableChunkReaderPtr TTableChunkReaderProvider::CreateNewReader(
 
     return New<TTableChunkReader>(
         Config,
-        TChannel::FromProto(inputChunk.channel()),
+        inputChunk.has_channel() ? TChannel::FromProto(inputChunk.channel()) : TChannel::Universal(),
         chunkReader,
         inputChunk.start_limit(),
         inputChunk.end_limit(),
