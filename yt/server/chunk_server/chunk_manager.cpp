@@ -506,7 +506,7 @@ public:
 
             if (node->GetState() != ENodeState::Online) {
                 LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %s at node %s with invalid state %s",
-                    ~id.ToString(),
+                    ~id.ToString().Quote(),
                     ~address,
                     ~FormatEnum(node->GetState()));
                 continue;
