@@ -255,9 +255,6 @@ void TChunkSequenceWriterBase<TChunkWriter>::FinishCurrentSession()
         int chunkIndex = 0;
         {
             NProto::TInputChunk inputChunk;
-
-            inputChunk.mutable_start_limit();
-            inputChunk.mutable_end_limit();
             *inputChunk.mutable_chunk_id() = CurrentSession.RemoteWriter->GetChunkId().ToProto();
 
             TGuard<TSpinLock> guard(WrittenChunksGuard);

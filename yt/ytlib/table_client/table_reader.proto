@@ -20,10 +20,10 @@ message TInputChunk
     required NYT.NProto.TGuid chunk_id = 1;
 
     // Lower boundary, inclusive.
-    required TReadLimit start_limit = 2;
+    optional TReadLimit start_limit = 2;
 
     // Upper boundary, exclusive.
-    required TReadLimit end_limit = 3;
+    optional TReadLimit end_limit = 3;
 
     // Initial seed addresses. The reader may ask the master for additional ones.
     repeated string node_addresses = 4;
