@@ -4,7 +4,7 @@ import os
 
 PROXY = "proxy.yt.yandex.net"
 USE_HOSTS = False
-USE_TOKEN = False
+USE_TOKEN = True
 
 # Turn off gzip encoding if you want to speed up reading and writing tables
 ACCEPT_ENCODING = os.environ.get("ACCEPT_ENCODING", "identity, gzip")
@@ -58,6 +58,9 @@ WRITE_RETRIES_COUNT = 3
 
 CONNECTION_TIMEOUT = 120.0
 WAIT_OPERATION_CONNECTION_TIMEOUT = 12 * 60 * 60 # twelve hours
+
+MIN_CHUNK_COUNT_FOR_MERGE_WARNING = 1000
+MAX_CHUNK_SIZE_FOR_MERGE_WARNING = 32 * MB
 
 def set_mapreduce_mode():
     global MAPREDUCE_MODE, ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE, USE_MAPREDUCE_STYLE_DESTINATION_FDS

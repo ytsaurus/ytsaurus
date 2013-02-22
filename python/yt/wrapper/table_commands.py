@@ -484,11 +484,28 @@ class Finalizer(object):
         self.output_tables = output_tables
 
     def __call__(self):
+        for table in map(to_name, self.output_tables):
+            self.check_for_merge(table)
         if config.DELETE_EMPTY_TABLES:
-            for table in filter(is_empty, map(to_name, self.output_tables)):
-                remove_with_empty_dirs(table)
+            for table in map(to_name, self.output_tables):
+                if is_empty(table):
+                    remove_with_empty_dirs(table)
         for file in self.files:
             remove(file, force=True)
+
+    def check_for_merge(self, table):
+        chunk_count = int(get_attribute(table, "chunk_count"))
+        if  chunk_count < config.MIN_CHUNK_COUNT_FOR_MERGE_WARNING:
+            return
+
+        # We use uncompressed data size to simplify recommended command
+        chunk_size = float(get_attribute(table, "uncompressed_data_size")) / chunk_count
+        if chunk_size > config.MAX_CHUNK_SIZE_FOR_MERGE_WARNING:
+            return
+
+        logger.warning("Output table {0} has too small chunks. Please merge it by command:\n"
+                       "mapreduce-yt -merge -mode unordered -src {0} -dst {0} "
+                       "-ytspec '{{\"combine_chunks\": \"true\"}}'".format(table))
 
 def run_map_reduce(mapper, reducer, source_table, destination_table,
                    format=None, input_format=None, output_format=None,
