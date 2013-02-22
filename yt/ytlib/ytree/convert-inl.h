@@ -9,6 +9,7 @@
 #include "yson_producer.h"
 #include "attribute_helpers.h"
 
+#include <ytlib/yson/tokenizer.h>
 #include <ytlib/yson/yson_parser.h>
 #include <util/generic/typehelpers.h>
 #include <util/generic/static_assert.h>
@@ -125,6 +126,28 @@ TTo ConvertTo(const TFrom& value)
 {
     return ConvertTo<TTo>(ConvertToNode(value));
 }
+
+#define CONVERT_TO_PLAIN_TYPE(type, token_type) \
+    template <> \
+    inline type ConvertTo(const TYsonString& str) \
+    { \
+        NYson::TTokenizer tokenizer(str.Data()); \
+        if (tokenizer.ParseNext()) \
+        { \
+            auto token = tokenizer.CurrentToken(); \
+            token.CheckType(NYson::ETokenType::token_type); \
+            if (!tokenizer.ParseNext()) { \
+                return token.Get##token_type##Value(); \
+            } \
+        } \
+        THROW_ERROR_EXCEPTION("Cannot parse " PP_STRINGIZE(token_type) " from string %s", ~str.Data()); \
+    }
+
+CONVERT_TO_PLAIN_TYPE(i64, Integer)
+CONVERT_TO_PLAIN_TYPE(double, Double)
+CONVERT_TO_PLAIN_TYPE(TStringBuf, String)
+
+#undef CONVERT_TO_PLAIN_TYPE
 
 ////////////////////////////////////////////////////////////////////////////////
 

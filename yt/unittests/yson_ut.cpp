@@ -111,7 +111,21 @@ TEST_F(TYsonTest, ConvertToForPODTypes)
     {
         auto node = ConvertToNode(42);
         EXPECT_EQ(42, ConvertTo<i32>(node));
-        EXPECT_EQ("42", ConvertToYsonString(node, EYsonFormat::Text).Data());
+        EXPECT_EQ(42, ConvertTo<i64>(node));
+
+        auto ysonStr = ConvertToYsonString(node, EYsonFormat::Text);
+        EXPECT_EQ("42", ysonStr.Data());
+        EXPECT_EQ(42, ConvertTo<i32>(ysonStr));
+        EXPECT_EQ(42, ConvertTo<i64>(ysonStr));
+    }
+
+    {
+        auto node = ConvertToNode(0.1);
+        EXPECT_EQ(0.1, ConvertTo<double>(node));
+        
+        auto ysonStr = ConvertToYsonString(node, EYsonFormat::Text);
+        EXPECT_EQ("0.1", ysonStr.Data());
+        EXPECT_EQ(0.1, ConvertTo<double>(ysonStr));
     }
 
     {
