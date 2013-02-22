@@ -5,7 +5,10 @@
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/proc.h>
+
 #include <ytlib/logging/tagged_logger.h>
+
+#include <server/job_proxy/public.h>
 
 #include <util/system/execpath.h>
 #include <util/folder/dirut.h>
@@ -22,6 +25,8 @@
 
 namespace NYT {
 namespace NExecAgent {
+
+using namespace NJobProxy;
 
 ////////////////////////////////////////////////////////////////////////////////
 
