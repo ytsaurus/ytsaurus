@@ -127,7 +127,7 @@ class TCypressManager::TYPathResolver
     : public IYPathResolver
 {
 public:
-    explicit TYPathResolver(
+    TYPathResolver(
         TBootstrap* bootstrap,
         TTransaction* transaction)
         : Bootstrap(bootstrap)
