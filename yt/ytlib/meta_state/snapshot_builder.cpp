@@ -133,7 +133,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(Owner->ControlThread);
 
-        Awaiter->Complete().Subscribe(BIND(&TSession::OnComplete, MakeStrong(this)));
+        Awaiter->Complete(BIND(&TSession::OnComplete, MakeStrong(this)));
     }
 
     void OnComplete()

@@ -187,7 +187,7 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
         PrepareUserJob(awaiter);
     }
 
-    awaiter->Complete().Subscribe(BIND(&TJob::RunJobProxy, MakeWeak(this)));
+    awaiter->Complete(BIND(&TJob::RunJobProxy, MakeWeak(this)));
 }
 
 TPromise<void> TJob::PrepareDownloadingTableFile(
@@ -226,12 +226,7 @@ TPromise<void> TJob::PrepareDownloadingTableFile(
     }
 
     auto promise = NewPromise<void>();
-    awaiter->Complete().Subscribe(BIND(
-        &TJob::OnTableDownloaded,
-        MakeWeak(this),
-        rsp,
-        chunks,
-        promise));
+    awaiter->Complete(BIND(&TJob::OnTableDownloaded, MakeWeak(this), rsp, chunks, promise));
     return promise;
 }
 

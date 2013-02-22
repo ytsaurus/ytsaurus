@@ -52,7 +52,7 @@ i32 TSnapshotLookup::LookupLatestSnapshot(i32 maxSnapshotId)
     }
     LOG_INFO("Snapshot lookup requests sent");
 
-    awaiter->Complete().Subscribe(BIND(
+    awaiter->Complete(BIND(
         &TSnapshotLookup::OnLookupSnapshotComplete,
         this));
 

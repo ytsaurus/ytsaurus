@@ -117,7 +117,7 @@ void TChunkInfoCollector<TFetcher>::SendRequests()
                     Passed(std::move(requestChunkIndexes))));
         }
     }
-    awaiter->Complete().Subscribe(BIND(
+    awaiter->Complete(BIND(
         &TChunkInfoCollector<TFetcher>::OnEndRound,
         MakeStrong(this)));
 

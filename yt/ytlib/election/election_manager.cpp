@@ -201,7 +201,7 @@ public:
                 BIND(&TVotingRound::OnResponse, MakeStrong(this), id));
         }
 
-        Awaiter->Complete().Subscribe(BIND(&TVotingRound::OnComplete, MakeStrong(this)));
+        Awaiter->Complete(BIND(&TVotingRound::OnComplete, MakeStrong(this)));
     }
 
 private:

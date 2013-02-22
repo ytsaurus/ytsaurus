@@ -384,7 +384,7 @@ TAsyncError TChunkSequenceWriterBase<TChunkWriter>::AsyncClose()
     State.StartOperation();
     FinishCurrentSession();
 
-    CloseChunksAwaiter->Complete().Subscribe(BIND(
+    CloseChunksAwaiter->Complete(BIND(
         &TChunkSequenceWriterBase::AttachChunks,
         MakeWeak(this)));
 
