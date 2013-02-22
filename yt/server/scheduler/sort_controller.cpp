@@ -1190,7 +1190,7 @@ protected:
         return static_cast<i64>((double) TotalInputValueCount * dataSize / TotalInputDataSize);
     }
 
-    int GetEmpiricalParitionCount() const
+    int GetEmpiricalParitionCount(i64 dataSize) const
     {
         // Suggest partition count using some (highly experimental)
         // formula, which is inspired by the following practical
@@ -1200,25 +1200,27 @@ protected:
         // 3) The larger input is, the more parallelism is required to process it efficiently, hence the bigger is the optimal partition count.
         // 4) Partitions of size > 2GB require too much resources and are thus harmful.
         // To accommodate both (2) and (3), partition size growth rate is logarithmic
-        i64 partitionSize = static_cast<i64>(32 * 1024 * 1024 * (1.0 + std::log10((double) TotalInputDataSize / ((i64)100 * 1024 * 1024))));
-        i64 suggestedPartitionCount = static_cast<i64>(TotalInputDataSize / partitionSize);
-        i64 upperPartitionCountCap = 1000 + TotalInputDataSize / ((i64)2 * 1024 * 1024 * 1024);
+        i64 partitionSize = static_cast<i64>(32 * 1024 * 1024 * (1.0 + std::log10((double) dataSize / ((i64)100 * 1024 * 1024))));
+        i64 suggestedPartitionCount = static_cast<i64>(dataSize / partitionSize);
+        i64 upperPartitionCountCap = 1000 + dataSize / ((i64)2 * 1024 * 1024 * 1024);
         return static_cast<int>(Clamp(suggestedPartitionCount, 1, upperPartitionCountCap));
     }
 
     int SuggestPartitionCount() const
     {
         YCHECK(TotalInputDataSize > 0);
+        i64 dataSizeAfterPartition = 1 + static_cast<i64>(TotalInputDataSize * Spec->SelectivityFactor);
+        
         i64 result;
         if (Spec->PartitionDataSize || Spec->PartitionCount) {
             if (Spec->PartitionCount) {
                 result = Spec->PartitionCount.Get();
             } else {
                 // NB: Spec->PartitionDataSize is not Null.
-                result = 1 + TotalInputDataSize / Spec->PartitionDataSize.Get();
+                result = 1 + dataSizeAfterPartition / Spec->PartitionDataSize.Get();
             }
         } else {
-            result = GetEmpiricalParitionCount();
+            result = GetEmpiricalParitionCount(dataSizeAfterPartition);
         }
         return static_cast<int>(Clamp(result, 1, Config->MaxPartitionCount));
     }
@@ -1234,7 +1236,7 @@ protected:
         else {
             // Experiments show that this number is suitable as default
             // both for partition count and for partition job count.
-            int partitionCount = GetEmpiricalParitionCount();
+            int partitionCount = GetEmpiricalParitionCount(TotalInputDataSize);
             return static_cast<int>(Clamp(partitionCount, 1, Config->MaxJobCount));
         }
     }

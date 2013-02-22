@@ -300,6 +300,10 @@ struct TSortOperationSpecBase
     //! Data size per sort job.
     i64 DataSizePerSortJob;
 
+    //! Ratio of data size after partition to data size before partition.
+    //! It always equals 1.0 for sort operation.
+    double SelectivityFactor;
+
     double ShuffleStartThreshold;
     double MergeStartThreshold;
 
@@ -393,6 +397,8 @@ struct TSortOperationSpec
         PartitionJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
 
         SortJobIO->TableReader->PrefetchWindow = 10;
+
+        SelectivityFactor = 1.0;
     }
 };
 
@@ -445,6 +451,10 @@ struct TMapReduceOperationSpec
             .Default(TDuration::Minutes(1));
         Register("enable_table_index", EnableTableIndex)
             .Default(false);
+        Register("map_selectivity_factor", SelectivityFactor)
+            .Default(1.0)
+            .GreaterThan(0);
+
 
         // The following settings are inherited from base but make no sense for map-reduce:
         //   SortJobSliceDataSize
