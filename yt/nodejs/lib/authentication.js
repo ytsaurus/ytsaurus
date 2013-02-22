@@ -102,26 +102,43 @@ function YtBlackbox(logger, global_config) { // TODO: Inject |config|
             function(data) {
                 try {
                     data = JSON.parse(data);
-                    logger.debug("Successfully received data from Blackbox", { request_id : id, payload : data });
-                } catch (ex) {
-                    logger.debug("Failed to parse JSON data from Blackbox", { request_id : id });
+                    logger.debug("Successfully received data from Blackbox", {
+                        request_id : id,
+                        payload : data
+                    });
+                } catch (error) {
+                    logger.debug("Failed to parse JSON data from Blackbox", {
+                        request_id : id,
+                        retry : retry,
+                        error : error.toString()
+                    });
                     return requestOAuthAuthorization(token, ip, id, retry + 1);
                 }
 
                 if (data.oauth && data.login && data.error) {
                     if (data.error === "OK") {
-                      logger.debug("Blackbox has approved token; updating cache", { request_id : id, login : data.login });
+                      logger.debug("Blackbox has approved token; updating cache", {
+                          request_id : id,
+                          login : data.login
+                      });
                       cache.set(token, data.login);
                       return data.login;
                     } else {
-                      logger.debug("Blackbox has rejected token; invalidating cache", { request_id : id, error : data.error });
+                      logger.debug("Blackbox has rejected token; invalidating cache", {
+                          request_id : id,
+                          error : data.error
+                      });
                       cache.del(token);
                       return false;
                     }
                 }
 
                 if (data.exception) {
-                    logger.info("Blackbox returned an exception", { request_id : id });
+                    logger.info("Blackbox returned an exception", {
+                        request_id : id,
+                        retry : retry,
+                        error : data.exception
+                    });
                     return requestOAuthAuthorization(token, ip, id, retry + 1);
                 }
 
@@ -129,14 +146,20 @@ function YtBlackbox(logger, global_config) { // TODO: Inject |config|
                 return false;
             },
             function(error) {
-                logger.error("Failed to query Blackbox", { request_id : id, error : error.toString() });
+                logger.error("Failed to query Blackbox", {
+                    request_id : id,
+                    retry : retry,
+                    error : error.toString()
+                });
                 return false;
             });
     }
 
     return function(req, rsp, next) {
         if (!req.headers.hasOwnProperty("authorization")) {
-            logger.debug("Client is missing Authorization header", { request_id : req.uuid });
+            logger.debug("Client is missing Authorization header", {
+                request_id : req.uuid
+            });
             return next();
         }
 
@@ -146,12 +169,18 @@ function YtBlackbox(logger, global_config) { // TODO: Inject |config|
         req.authenticated_user = null;
 
         if (parts[0] !== "OAuth" || !token) {
-            logger.debug("Client has improper Authorization header", { request_id : req.uuid, header : req.headers["authorization"] });
+            logger.debug("Client has improper Authorization header", {
+                request_id : req.uuid,
+                header : req.headers["authorization"]
+            });
             return httpUnauthorized(rsp);
         }
 
         if (locals.hasOwnProperty(token) && locals[token]) {
-            logger.debug("Client has been authenticated with local token", { request_id : req.uuid, login : locals[token] });
+            logger.debug("Client has been authenticated with local token", {
+                request_id : req.uuid,
+                login : locals[token]
+            });
             req.authenticated_user = locals[token];
             return next();
         }
@@ -164,16 +193,26 @@ function YtBlackbox(logger, global_config) { // TODO: Inject |config|
             function(login) {
                 var dt = (new Date()) - timestamp;
                 if (!login) {
-                    logger.debug("Client has failed to authenticate", { request_id : req.uuid, authentication_time : dt });
+                    logger.debug("Client has failed to authenticate", {
+                        request_id : req.uuid,
+                        authentication_time : dt
+                    });
                     httpUnauthorized(rsp);
                 } else {
-                    logger.debug("Client has been authenticated", { request_id : req.uuid, authentication_time : dt, login : login });
+                    logger.debug("Client has been authenticated", {
+                        request_id : req.uuid,
+                        authentication_time : dt,
+                        login : login
+                    });
                     req.authenticated_user = login;
                     process.nextTick(next);
                 }
             },
             function(error) {
-                logger.debug("Client has not been authenticated but allowed to pass-through", { request_id : req.uuid, authentication_time : dt });
+                logger.debug("Client has not been authenticated but allowed to pass-through", {
+                    request_id : req.uuid,
+                    authentication_time : dt
+                });
                 process.nextTick(next);
             });
     }
