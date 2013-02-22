@@ -176,6 +176,23 @@ protected:
             } else if (entry.LowerBound.has_row_index()) {
                 childLowerBound.set_row_index(getChildLowerRowIndex());
             }
+            
+            if (entry.UpperBound.has_chunk_index()) {
+                childLowerBound.set_chunk_index(getChildLowerRowIndex());
+
+                if (entry.UpperBound.chunk_index() <= childLowerBound.chunk_index()) {
+                    PopStack();
+                    continue;
+                }
+
+                if (entry.ChildIndex == chunkList->Children().size() - 1) {
+                    childUpperBound.set_chunk_index(chunkList->Statistics().RowCount);
+                } else {
+                    childUpperBound.set_chunk_index(chunkList->RowCountSums()[entry.ChildIndex]);
+                }
+            } else if (entry.LowerBound.has_chunk_index()) {
+                childLowerBound.set_chunk_index(getChildLowerRowIndex());
+            }
 
             if (entry.UpperBound.has_key()) {
                 *childLowerBound.mutable_key() = GetMinKey(child);
@@ -254,6 +271,16 @@ protected:
                 begin,
                 chunkList->RowCountSums().end(),
                 lowerBound.row_index()) - begin;
+            index = std::max(index, childIndex);
+            YCHECK(index < chunkList->Children().size());
+        }
+        
+        if (lowerBound.has_chunk_index()) {
+            auto begin = chunkList->ChunkCountSums().begin();
+            int childIndex = std::upper_bound(
+                begin,
+                chunkList->ChunkCountSums().end(),
+                lowerBound.chunk_index()) - begin;
             index = std::max(index, childIndex);
             YCHECK(index < chunkList->Children().size());
         }

@@ -413,14 +413,29 @@ namespace NProto {
 
 void Serialize(const NProto::TReadLimit& readLimit, NYson::IYsonConsumer* consumer)
 {
+    int fieldCount = 0;
+    if (readLimit.has_row_index())   { fieldCount += 1; }
+    if (readLimit.has_key())         { fieldCount += 1; }
+    if (readLimit.has_chunk_index()) { fieldCount += 1; }
+
+    if (fieldCount == 0) {
+        THROW_ERROR_EXCEPTION("Cannot serialize empty read limit");
+    }
+    if (fieldCount >= 2) {
+        THROW_ERROR_EXCEPTION("Cannot serialize read limit with more than one field");
+    }
+
+    consumer->OnBeginMap();
     if (readLimit.has_row_index()) {
-        if (readLimit.has_key()) {
-            THROW_ERROR_EXCEPTION("Key or row index must absent in read limit");
-        }
+        consumer->OnKeyedItem("row_index");
         consumer->OnIntegerScalar(readLimit.row_index());
     }
+    else if (readLimit.has_chunk_index()) {
+        consumer->OnKeyedItem("chunk_index");
+        consumer->OnIntegerScalar(readLimit.chunk_index());
+    }
     else if (readLimit.has_key()) {
-        YCHECK(!readLimit.has_row_index());
+        consumer->OnKeyedItem("key");
         consumer->OnBeginList();
         FOREACH (const auto& part, readLimit.key().parts()) {
             consumer->OnListItem();
@@ -438,19 +453,38 @@ void Serialize(const NProto::TReadLimit& readLimit, NYson::IYsonConsumer* consum
         }
         consumer->OnEndList();
     }
-    else {
-        THROW_ERROR_EXCEPTION("Cannot serialize empty read limit");
-    }
+    consumer->OnEndMap();
 }
 
 void Deserialize(NProto::TReadLimit& readLimit, INodePtr node)
 {
-    if (node->GetType() == ENodeType::Integer) {
-        readLimit.set_row_index(node->GetValue<i64>());
+    if (node->GetType() != ENodeType::Map) {
+        THROW_ERROR_EXCEPTION("Unexpected read limit token: %s", ~node->GetType().ToString());
     }
-    else if (node->GetType() == ENodeType::List) {
+    
+    auto mapNode = node->AsMap();
+    if (mapNode->GetChildCount() > 1) {
+        THROW_ERROR_EXCEPTION("Too many children in read limit: %d > 1", mapNode->GetChildCount());
+    }
+
+    if (auto child = mapNode->FindChild("row_index")) {
+        if (child->GetType() != ENodeType::Integer) {
+            THROW_ERROR_EXCEPTION("Unexpected row index token: %s", ~child->GetType().ToString());
+        }
+        readLimit.set_row_index(child->GetValue<i64>());
+    }
+    else if (auto child = mapNode->FindChild("chunk_index")) {
+        if (child->GetType() != ENodeType::Integer) {
+            THROW_ERROR_EXCEPTION("Unexpected chunk index token: %s", ~child->GetType().ToString());
+        }
+        readLimit.set_chunk_index(child->GetValue<i64>());
+    }
+    else if (auto child = mapNode->FindChild("key")) {
+        if (child->GetType() != ENodeType::List) {
+            THROW_ERROR_EXCEPTION("Unexpected key token: %s", ~child->GetType().ToString());
+        }
         auto key = readLimit.mutable_key();
-        auto nodeList = node->AsList();
+        auto nodeList = child->AsList();
         for (int i = 0; i < nodeList->GetChildCount(); ++i) {
             auto child = nodeList->FindChild(i);
             auto keyPart = key->add_parts();
@@ -471,9 +505,6 @@ void Deserialize(NProto::TReadLimit& readLimit, INodePtr node)
                     THROW_ERROR_EXCEPTION("Unexpected key part type: %s", ~child->GetType().ToString());
             }
         }
-    }
-    else {
-        THROW_ERROR_EXCEPTION("Unexpected read limit type: %s", ~node->GetType().ToString());
     }
 }
 

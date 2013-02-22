@@ -28,6 +28,7 @@ class TChunkList
     // Accumulated statistics for the last child (which is equal to the total chunk list statistics)
     // is stored in #Statistics field.
     DEFINE_BYREF_RW_PROPERTY(std::vector<i64>, RowCountSums);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<i64>, ChunkCountSums);
     DEFINE_BYREF_RW_PROPERTY(yhash_multiset<TChunkList*>, Parents);
     DEFINE_BYREF_RW_PROPERTY(TChunkTreeStatistics, Statistics);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<NCypressServer::TCypressNodeBase*>, OwningNodes);

@@ -300,10 +300,11 @@ TEST_F(TYPathTest, ParseRichYPath1)
 {
     auto path = NYPath::TRichYPath::Parse("<a=b>//home/ignat{a,b}[1:2]");
     EXPECT_EQ(path.GetPath(), "//home/ignat");
+    std::cerr << "AAAAAAAA: " << ConvertToYsonString(ConvertToNode(path.Attributes())).Data() << std::endl;
     EXPECT_TRUE(
         AreNodesEqual(
             ConvertToNode(path.Attributes()),
-            ConvertToNode(TYsonString("{a=b;channel=[a;b];upper_limit=[2];lower_limit=[1]}"))));
+            ConvertToNode(TYsonString("{a=b;channel=[a;b];upper_limit={key=[2]};lower_limit={key=[1]}}"))));
 }
 
 TEST_F(TYPathTest, ParseRichYPath2)
@@ -343,7 +344,7 @@ TEST_F(TYPathTest, ParseRichYPath5)
     EXPECT_TRUE(
         AreNodesEqual(
             ConvertToNode(path.Attributes()),
-            ConvertToNode(TYsonString("{lower_limit=[x;y];upper_limit=[a;b]}"))));
+            ConvertToNode(TYsonString("{lower_limit={key=[x;y]};upper_limit={key=[a;b]}}"))));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

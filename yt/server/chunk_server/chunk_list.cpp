@@ -37,6 +37,7 @@ void TChunkList::Save(const NCellMaster::TSaveContext& context) const
     NChunkServer::Save(Statistics_, context);
     ::Save(output, SortedBy_);
     ::Save(output, RowCountSums_);
+    ::Save(output, ChunkCountSums_);
 }
 
 void TChunkList::Load(const NCellMaster::TLoadContext& context)
@@ -50,6 +51,10 @@ void TChunkList::Load(const NCellMaster::TLoadContext& context)
     NChunkServer::Load(Statistics_, context);
     ::Load(input, SortedBy_);
     ::Load(input, RowCountSums_);
+    // COMPAT(ignat)
+    if (context.GetVersion() >= 8) {
+        ::Load(input, ChunkCountSums_);
+    }
 }
 
 TAtomic TChunkList::GenerateVisitMark()

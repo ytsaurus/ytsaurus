@@ -420,6 +420,9 @@ public:
                 chunkList->RowCountSums().push_back(
                     chunkList->Statistics().RowCount +
                     delta.RowCount);
+                chunkList->ChunkCountSums().push_back(
+                    chunkList->Statistics().ChunkCount +
+                    delta.ChunkCount);
             }
             chunkList->Children().push_back(child);
             SetChunkTreeParent(chunkList, child);
@@ -549,6 +552,7 @@ public:
         }
         chunkList->Children().clear();
         chunkList->RowCountSums().clear();
+        chunkList->ChunkCountSums().clear();
         chunkList->Statistics() = TChunkTreeStatistics();
         chunkList->Statistics().ChunkListCount = 1;
 
