@@ -418,8 +418,7 @@ private:
                 fprintf(stderr, "Failed to set resource limits (MemoryLimit: %" PRId64 ")\n%s",
                     rlimit.rlim_max,
                     strerror(errno));
-
-                _exit(8);
+                _exit(EJobProxyExitCode::SetRLimitFailed);
             }
 
             if (config->UserId > 0) {
@@ -442,14 +441,10 @@ private:
             fprintf(stderr, "Failed to exec job (/bin/sh -c '%s'): %s\n",
                 ~cmd,
                 strerror(_errno));
-
-            // TODO(babenko): extract error code constant
-            _exit(7);
-        }
-        catch (const std::exception& ex) {
+            _exit(EJobProxyExitCode::ExecFailed);
+        } catch (const std::exception& ex) {
             fprintf(stderr, "%s", ex.what());
-            // TODO(babenko): extract error code constant
-            _exit(8);
+            _exit(EJobProxyExitCode::UncaughtException);
         }
     }
 

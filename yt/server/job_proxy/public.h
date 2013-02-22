@@ -1,7 +1,8 @@
 ﻿#pragma once
 
 #include <ytlib/scheduler/public.h>
-#include <ytlib/misc/intrusive_ptr.h>
+
+#include <ytlib/misc/enum.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -24,6 +25,15 @@ struct IDataPipe;
 typedef TIntrusivePtr<IDataPipe> IDataPipePtr;
 
 class TErrorOutput;
+
+DECLARE_ENUM(EJobProxyExitCode,
+    ((HeartbeatFailed)       (10000))
+    ((ResultReportFailed)    (10001))
+    ((ResourcesUpdateFailed) (10002))
+    ((SetRLimitFailed)       (10003))
+    ((ExecFailed)            (10004))
+    ((UncaughtException)     (10005))
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

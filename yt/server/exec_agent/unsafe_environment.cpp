@@ -105,12 +105,11 @@ public:
 
             auto res = setrlimit(RLIMIT_AS, &rlimit);
             if (res) {
-                fprintf(stderr, "Failed to set resource limits (JobId: %s, MemoryLimit: %" PRId64 " Error: %s)\n",
+                fprintf(stderr, "Failed to set resource limits (JobId: %s, MemoryLimit: %" PRId64 ")\n%s",
                     ~JobId.ToString(),
                     MemoryLimit,
                     strerror(errno));
-
-                _exit(8);
+                _exit(EJobProxyExitCode::SetRLimitFailed);
             }
 
             // Search the PATH, inherit environment.
@@ -122,14 +121,12 @@ public:
                 "--job-id", ~JobId.ToString(),
                 (void*) NULL);
 
-            fprintf(stderr, "Failed to exec job proxy (ProxyPath: %s, ProxyConfig: %s, JobId: %s, Error: %s)\n",
+            fprintf(stderr, "Failed to exec job proxy (ProxyPath: %s, ProxyConfig: %s, JobId: %s)\n%s",
                 ~ProxyPath,
                 ~ProxyConfigFileName,
                 ~JobId.ToString(),
                 strerror(errno));
-
-            // TODO(babenko): use some meaningful constant
-            _exit(7);
+            _exit(EJobProxyExitCode::ExecFailed);
         }
 
         if (ProcessId < 0) {

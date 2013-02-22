@@ -81,10 +81,8 @@ void TJobProxy::OnHeartbeatResponse(TSupervisorServiceProxy::TRspOnJobProgressPt
         // when io pipes are closed.
         // Bad processes will die at container shutdown.
         LOG_ERROR(*rsp, "Error sending heartbeat to supervisor");
-
         NLog::TLogManager::Get()->Shutdown();
-        // TODO(babenko): extract error code constant
-        _exit(122);
+        _exit(EJobProxyExitCode::HeartbeatFailed);
     }
 
     LOG_DEBUG("Successfully reported heartbeat to supervisor");
@@ -283,10 +281,8 @@ void TJobProxy::ReportResult(const TJobResult& result)
     auto rsp = req->Invoke().Get();
     if (!rsp->IsOK()) {
         LOG_ERROR(*rsp, "Failed to report job result");
-
         NLog::TLogManager::Get()->Shutdown();
-        // TODO(babenko): extract error code constant
-        _exit(123);
+        _exit(EJobProxyExitCode::ResultReportFailed);
     }
 }
 
@@ -320,10 +316,8 @@ void TJobProxy::OnResourcesUpdated(TSupervisorServiceProxy::TRspUpdateResourceUs
 {
     if (!rsp->IsOK()) {
         LOG_ERROR(*rsp, "Failed to update resource usage");
-
         NLog::TLogManager::Get()->Shutdown();
-        // TODO(babenko): extract error code constant
-        _exit(121);
+        _exit(EJobProxyExitCode::ResourcesUpdateFailed);
     }
 
     LOG_DEBUG("Successfully updated resource usage");
