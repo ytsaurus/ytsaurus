@@ -7,7 +7,7 @@ import "yt/ytlib/misc/protobuf_helpers.proto";
 ////////////////////////////////////////////////////////////////////////////////
 
 // A read boundary given either by a row index, or a key, or both.
-// The boundary is inclusive or exclusive depending of the context (see TChunkSlice below).
+// The boundary is inclusive or exclusive depending of the context.
 message TReadLimit
 {
     optional int64 row_index = 1;
