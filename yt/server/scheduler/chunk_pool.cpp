@@ -239,7 +239,8 @@ public:
 
     virtual bool IsCompleted() const override
     {
-        return Finished && JobCounter.GetCompleted() == 1;
+        return Finished &&
+               JobCounter.GetCompleted() == 1;
     }
 
     virtual int GetTotalJobCount() const override
@@ -869,8 +870,7 @@ private:
         virtual bool IsCompleted() const override
         {
             return Owner->Finished &&
-                   PendingRuns.empty() &&
-                   JobCounter.GetRunning() == 0;
+                   JobCounter.GetCompleted() == Runs.size();
         }
 
         virtual int GetTotalJobCount() const override
