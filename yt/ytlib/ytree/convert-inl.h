@@ -140,7 +140,7 @@ TTo ConvertTo(const TFrom& value)
                 return token.Get##token_type##Value(); \
             } \
         } \
-        THROW_ERROR_EXCEPTION("Cannot parse " PP_STRINGIZE(token_type) " from string %s", ~str.Data()); \
+        THROW_ERROR_EXCEPTION("Cannot parse " PP_STRINGIZE(token_type) " from string %s", ~str.Data().Quote()); \
     }
 
 CONVERT_TO_PLAIN_TYPE(i64, Integer)
