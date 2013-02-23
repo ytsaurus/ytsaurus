@@ -550,6 +550,7 @@ DEFINE_RPC_SERVICE_METHOD(TCypressNodeProxyNontemplateBase, Lock)
 
 DEFINE_RPC_SERVICE_METHOD(TCypressNodeProxyNontemplateBase, Create)
 {
+    auto type = EObjectType(request->type());
     if (context->GetPath().Empty()) {
         bool typesEqual = (GetType() == ENodeType::Map && type == EObjectType::MapNode) ||
                           (GetType() == ENodeType::List && type == EObjectType::ListNode);
@@ -567,7 +568,6 @@ DEFINE_RPC_SERVICE_METHOD(TCypressNodeProxyNontemplateBase, Create)
         ThrowCannotHaveChildren(this);
     }
 
-    auto type = EObjectType(request->type());
     context->SetRequestInfo("Type: %s", ~type.ToString());
 
     auto cypressManager = Bootstrap->GetCypressManager();
