@@ -503,7 +503,7 @@ class Finalizer(object):
         if chunk_size > config.MAX_CHUNK_SIZE_FOR_MERGE_WARNING:
             return
 
-        logger.warning("Output table {0} has too small chunks. Please merge it by command:\n"
+        logger.warning("Output table {0} has too small chunks. Please merge it with command:\n"
                        "mapreduce-yt -merge -mode unordered -src {0} -dst {0} "
                        "-ytspec '{{\"combine_chunks\": \"true\"}}'".format(table))
 
