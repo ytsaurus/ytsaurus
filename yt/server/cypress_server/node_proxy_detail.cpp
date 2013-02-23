@@ -550,26 +550,25 @@ DEFINE_RPC_SERVICE_METHOD(TCypressNodeProxyNontemplateBase, Lock)
 
 DEFINE_RPC_SERVICE_METHOD(TCypressNodeProxyNontemplateBase, Create)
 {
-    if (!CanHaveChildren()) {
-        ThrowCannotHaveChildren(this);
-    }
-  
-    auto type = EObjectType(request->type());
-    context->SetRequestInfo("Type: %s", ~type.ToString());
-
     if (context->GetPath().Empty()) {
         bool typesEqual = (GetType() == ENodeType::Map && type == EObjectType::MapNode) ||
                           (GetType() == ENodeType::List && type == EObjectType::ListNode);
         if (request->ignore_existing() && typesEqual) {
             *(response->mutable_node_id()) = GetId().ToProto();
             context->Reply();
-            return; 
+            return;
         }
         else {
             ThrowAlreadyExists(this);
         }
     }
 
+    if (!CanHaveChildren()) {
+        ThrowCannotHaveChildren(this);
+    }
+
+    auto type = EObjectType(request->type());
+    context->SetRequestInfo("Type: %s", ~type.ToString());
 
     auto cypressManager = Bootstrap->GetCypressManager();
     auto securityManager = Bootstrap->GetSecurityManager();
