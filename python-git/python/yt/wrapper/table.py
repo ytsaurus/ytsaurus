@@ -59,13 +59,13 @@ class TablePath(object):
         require(not (has_index and has_key),
                 YtError("You could not specify key bound and index bound simultaneously"))
         if lower_key is not None:
-            attributes["lower_limit"] = flatten(lower_key)
+            attributes["lower_limit"] = {"key": flatten(lower_key)}
         if upper_key is not None:
-            attributes["upper_limit"] = flatten(upper_key)
+            attributes["upper_limit"] = {"key": flatten(upper_key)}
         if start_index is not None:
-            attributes["lower_limit"] = start_index
+            attributes["lower_limit"] = {"row_index": start_index}
         if end_index is not None:
-            attributes["upper_limit"] = end_index
+            attributes["upper_limit"] = {"row_index": end_index}
 
     @property
     def append(self):
