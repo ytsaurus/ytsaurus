@@ -499,13 +499,25 @@ class Finalizer(object):
             return
 
         # We use uncompressed data size to simplify recommended command
-        chunk_size = float(get_attribute(table, "uncompressed_data_size")) / chunk_count
+        chunk_size = float(get_attribute(table, "compressed_data_size")) / chunk_count
         if chunk_size > config.MAX_CHUNK_SIZE_FOR_MERGE_WARNING:
             return
 
-        logger.warning("Output table {0} has too small chunks. Please merge it with command:\n"
-                       "mapreduce-yt -merge -mode unordered -src {0} -dst {0} "
-                       "-ytspec '{{\"combine_chunks\": \"true\"}}'".format(table))
+        data_size_per_job = min(
+                16 * 1024 * config.MB,
+                int(500 * config.MB / float(get_attribute(table, "compression_ratio"))))
+
+        mode = "sorted" if is_sorted(table) else "unordered"
+
+        logger.warning("Chunks of output table {0} are too small. "
+                       "This may cause suboptimal system performance. "
+                       "Please run the following command to fix the issue:\n"
+                       "mapreduce-yt -merge -mode {1} -src {0} -dst {0} "
+                       "-ytspec '{{"
+                          "\"combine_chunks\": \"true\", "
+                          "\"job_io\":{{\"table_writer\":{{\"prefetch_window\":100}} }}, "
+                          "\"data_size_per_job\": {2}"
+                       "}}'".format(table, mode, data_size_per_job))
 
 def run_map_reduce(mapper, reducer, source_table, destination_table,
                    format=None, input_format=None, output_format=None,
