@@ -1063,6 +1063,11 @@ private:
 
         ChunkMap.LoadValues(context);
         ChunkListMap.LoadValues(context);
+        // COMPAT(ignat)
+        if (context.GetVersion() < 8) {
+            ScheduleRecomputeStatistics();
+        }
+
         NodeMap.LoadValues(context);
         JobMap.LoadValues(context);
         JobListMap.LoadValues(context);
