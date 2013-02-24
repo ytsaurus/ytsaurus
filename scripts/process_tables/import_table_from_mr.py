@@ -174,6 +174,7 @@ def main():
 
     def import_table(table):
         if is_empty(table):
+            print >>sys.stderr, "Table is empty"
             return -1
 
         count = records_count(table)
@@ -184,7 +185,7 @@ def main():
             if args.force or (yt.get_type(destination) == "table" and yt.is_empty(destination)):
                 yt.remove(destination)
         if yt.exists(destination) and args.ignore:
-            return -1
+            return
         yt.create_table(destination, recursive=True)
 
         try:
