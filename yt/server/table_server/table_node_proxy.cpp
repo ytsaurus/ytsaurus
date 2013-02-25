@@ -617,7 +617,7 @@ bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& v
         auto* node = GetThisTypedMutableImpl();
         YCHECK(node->IsTrunk());
 
-        node->SetCodec(ECodec::FromString(value));
+        node->SetCodec(ECodec::FromString(value.Data()));
         return true;
     }
 

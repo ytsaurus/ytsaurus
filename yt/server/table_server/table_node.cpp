@@ -70,7 +70,7 @@ void TTableNode::Load(const NCellMaster::TLoadContext& context)
     ::Load(input, UpdateMode_);
     ::Load(input, ReplicationFactor_);
     if (context.GetVersion() >= 8) {
-        Load(input, Codec_);
+        ::Load(input, Codec_);
     } else {
         Codec_ = ECodec::Lz4;
     }
