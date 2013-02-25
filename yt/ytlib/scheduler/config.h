@@ -92,7 +92,8 @@ struct TUserJobSpec
 
     TUserJobSpec()
     {
-        Register("command", Command);
+        Register("command", Command)
+            .NonEmpty();
         Register("file_paths", FilePaths)
             .Default();
         Register("format", Format)
@@ -132,7 +133,8 @@ struct TMapOperationSpec
 
     TMapOperationSpec()
     {
-        Register("mapper", Mapper);
+        Register("mapper", Mapper)
+            .DefaultNew();
         Register("input_table_paths", InputTablePaths)
             .NonEmpty();
         Register("output_table_paths", OutputTablePaths);
@@ -268,7 +270,8 @@ struct TReduceOperationSpec
         Register("data_size_per_job", DataSizePerJob)
             .Default((i64) 32 * 1024 * 1024)
             .GreaterThan(0);
-        Register("reducer", Reducer);
+        Register("reducer", Reducer)
+            .DefaultNew();
         Register("input_table_paths", InputTablePaths)
             .NonEmpty();
         Register("output_table_paths", OutputTablePaths);
@@ -424,8 +427,9 @@ struct TMapReduceOperationSpec
         Register("reduce_by", ReduceBy)
             .Default(std::vector<Stroka>());
         Register("mapper", Mapper)
-            .Default();
-        Register("reducer", Reducer);
+            .DefaultNew();
+        Register("reducer", Reducer)
+            .DefaultNew();
         Register("map_job_io", MapJobIO)
             .DefaultNew();
         Register("sort_job_io", SortJobIO)
