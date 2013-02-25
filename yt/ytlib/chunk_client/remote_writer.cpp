@@ -545,7 +545,7 @@ TRemoteWriter::TImpl::TImpl(
     , IsInitComplete(false)
     , IsClosing(false)
     , IsCloseRequested(false)
-    , WindowSlots(config->WindowSize)
+    , WindowSlots(config->SendWindowSize)
     , AliveNodeCount(addresses.size())
     , CurrentGroup(New<TGroup>(AliveNodeCount, 0, this))
     , BlockCount(0)

@@ -126,7 +126,7 @@ struct TRemoteWriterConfig
     : public virtual TYsonSerializable
 {
     //! Maximum window size (in bytes).
-    i64 WindowSize;
+    i64 SendWindowSize;
 
     //! Maximum group size (in bytes).
     i64 GroupSize;
@@ -149,7 +149,7 @@ struct TRemoteWriterConfig
 
     TRemoteWriterConfig()
     {
-        Register("window_size", WindowSize)
+        Register("send_window_size", SendWindowSize)
             .Default(4 * 1024 * 1024)
             .GreaterThan(0);
         Register("group_size", GroupSize)
@@ -165,7 +165,7 @@ struct TRemoteWriterConfig
 
     virtual void DoValidate() const
     {
-        if (WindowSize < GroupSize) {
+        if (SendWindowSize < GroupSize) {
             THROW_ERROR_EXCEPTION("\"window_size\" cannot be less than \"group_size\"");
         }
     }

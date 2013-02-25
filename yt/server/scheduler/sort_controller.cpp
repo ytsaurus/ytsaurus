@@ -109,7 +109,7 @@ protected:
 
     class TUnorderedMergeTask;
     typedef TIntrusivePtr<TUnorderedMergeTask> TUnorderedMergeTaskPtr;
-    
+
 
     // Partitions.
 
@@ -1210,7 +1210,7 @@ protected:
     {
         YCHECK(TotalInputDataSize > 0);
         i64 dataSizeAfterPartition = 1 + static_cast<i64>(TotalInputDataSize * Spec->SelectivityFactor);
-        
+
         i64 result;
         if (Spec->PartitionDataSize || Spec->PartitionCount) {
             if (Spec->PartitionCount) {
@@ -2122,7 +2122,7 @@ private:
         i64 bufferSize = std::min(
             reserveSize + PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()),
             PartitionJobIOConfig->TableWriter->MaxBufferSize);
-        i64 windowSize = PartitionJobIOConfig->TableWriter->WindowSize +
+        i64 windowSize = PartitionJobIOConfig->TableWriter->SendWindowSize +
             PartitionJobIOConfig->TableWriter->EncodeWindowSize;
 
         TNodeResources result;
