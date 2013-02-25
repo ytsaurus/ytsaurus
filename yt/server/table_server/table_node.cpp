@@ -35,6 +35,7 @@ TTableNode::TTableNode(const TVersionedNodeId& id)
     , ChunkList_(NULL)
     , UpdateMode_(ETableUpdateMode::None)
     , ReplicationFactor_(0)
+    , Codec_(ECodec::Lz4)
 { }
 
 int TTableNode::GetOwningReplicationFactor() const
@@ -57,6 +58,7 @@ void TTableNode::Save(const NCellMaster::TSaveContext& context) const
     SaveObjectRef(output, ChunkList_);
     ::Save(output, UpdateMode_);
     ::Save(output, ReplicationFactor_);
+    ::Save(output, Codec_);
 }
 
 void TTableNode::Load(const NCellMaster::TLoadContext& context)
@@ -67,6 +69,11 @@ void TTableNode::Load(const NCellMaster::TLoadContext& context)
     LoadObjectRef(input, ChunkList_, context);
     ::Load(input, UpdateMode_);
     ::Load(input, ReplicationFactor_);
+    if (context.GetVersion() >= 8) {
+        Load(input, Codec_);
+    } else {
+        Codec_ = ECodec::Lz4;
+    }
 }
 
 TClusterResources TTableNode::GetResourceUsage() const

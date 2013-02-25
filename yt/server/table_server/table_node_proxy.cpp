@@ -78,6 +78,8 @@ private:
 
     virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
 
+    void CheckNoTransaction() const;
+
     void ParseYPath(
         const NYPath::TYPath& path,
         NTableClient::TChannel* channel,
@@ -404,6 +406,13 @@ TTableNodeProxy::TTableNodeProxy(
         trunkNode)
 { }
 
+void TTableNodeProxy::CheckNoTransaction() const
+{
+    if (Transaction) {
+        THROW_ERROR_EXCEPTION("Value cannot be altered inside transaction");
+    }
+}
+
 void TTableNodeProxy::DoInvoke(IServiceContextPtr context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(PrepareForUpdate);
@@ -435,6 +444,7 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attribut
     attributes->push_back("chunk_list_id");
     attributes->push_back(TAttributeInfo("chunk_ids", true, true));
     attributes->push_back(TAttributeInfo("codec_statistics", true, true));
+    attributes->push_back("codec");
     attributes->push_back("chunk_count");
     attributes->push_back("uncompressed_data_size");
     attributes->push_back("compressed_data_size");
@@ -519,6 +529,12 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
         return true;
     }
 
+    if (key == "codec") {
+        BuildYsonFluently(consumer)
+            .Value(node->GetCodec().ToString());
+        return true;
+    }
+
     return TBase::GetSystemAttribute(key, consumer);
 }
 
@@ -567,10 +583,8 @@ bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& v
     auto chunkManager = Bootstrap->GetChunkManager();
 
     if (key == "replication_factor") {
-        if (Transaction) {
-            THROW_ERROR_EXCEPTION("Value cannot be altered inside transaction");
-        }
 
+        CheckNoTransaction();
         int replicationFactor = ConvertTo<int>(value);
         const int MinReplicationFactor = 1;
         const int MaxReplicationFactor = 10;
@@ -594,6 +608,16 @@ bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& v
             }
         }
 
+        return true;
+    }
+
+    if (key == "codec") {
+        CheckNoTransaction();
+
+        auto* node = GetThisTypedMutableImpl();
+        YCHECK(node->IsTrunk());
+
+        node->SetCodec(ECodec::FromString(value));
         return true;
     }
 

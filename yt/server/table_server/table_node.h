@@ -21,6 +21,7 @@ class TTableNode
     DEFINE_BYVAL_RW_PROPERTY(NChunkServer::TChunkList*, ChunkList);
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::ETableUpdateMode, UpdateMode);
     DEFINE_BYVAL_RW_PROPERTY(int, ReplicationFactor);
+    DEFINE_BYVAL_RW_PROPERTY(ECodec, Codec);
 
 public:
     explicit TTableNode(const NCypressServer::TVersionedNodeId& id);
