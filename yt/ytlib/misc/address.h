@@ -44,10 +44,13 @@ TStringBuf GetServiceHostName(const TStringBuf& address);
 struct TAddressResolverConfig
     : public TYsonSerializable
 {
+    bool EnableIPv4;
     bool EnableIPv6;
 
     TAddressResolverConfig()
     {
+        Register("enable_ipv4", EnableIPv4)
+            .Default(true);
         Register("enable_ipv6", EnableIPv6)
             .Default(true);
     }
