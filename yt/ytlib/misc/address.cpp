@@ -28,10 +28,9 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger Logger("Network");
-static NProfiling::TProfiler Profiler("Network");
+static NProfiling::TProfiler Profiler("/network");
 // TOOD(babenko): get rid of this, write truly asynchronous address resolver.
 static TLazyPtr<TActionQueue> AddressResolverQueue(TActionQueue::CreateFactory("AddressResolver"));
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -318,7 +317,7 @@ TValueOrError<TNetworkAddress> TAddressResolver::DoResolve(const Stroka& hostNam
     NProfiling::TScopedTimer timer;
 
     int gaiResult;
-    PROFILE_TIMING("dns_resolve_time") {
+    PROFILE_TIMING("/dns_resolve_time") {
         gaiResult = getaddrinfo(
             ~hostName,
             nullptr,
