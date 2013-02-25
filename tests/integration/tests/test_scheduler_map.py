@@ -358,7 +358,7 @@ cat > /dev/null; echo {hello=world}
             command="cat",
             opt=[ \
                 '/spec/mapper/format=dsv', \
-                '/spec/enable_table_index=true'])
+                '/spec/mapper/enable_table_index=true'])
 
         expected = [{'@table_index': '0', 'foo': 'bar'},
                     {'@table_index': '1', 'ninja': 'value'}]

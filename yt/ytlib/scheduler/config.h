@@ -426,8 +426,8 @@ struct TMapReduceOperationSpec
             .NonEmpty();
         Register("reduce_by", ReduceBy)
             .Default(std::vector<Stroka>());
-        Register("mapper", Mapper)
-            .DefaultNew();
+        // Mapper can be absent - leave it NULL by default.
+        Register("mapper", Mapper);
         Register("reducer", Reducer)
             .DefaultNew();
         Register("map_job_io", MapJobIO)
