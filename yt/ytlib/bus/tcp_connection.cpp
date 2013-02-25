@@ -48,7 +48,8 @@ TTcpConnection::TTcpConnection(
     const Stroka& address,
     int priority,
     IMessageHandlerPtr handler)
-    : Type(type)
+    : Dispatcher(TTcpDispatcher::TImpl::Get())
+    , Type(type)
     , Id(id)
     , Socket(socket)
     , Fd(INVALID_SOCKET)
@@ -113,21 +114,8 @@ void TTcpConnection::SyncInitialize()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
-    const auto& eventLoop = TTcpDispatcher::TImpl::Get()->GetEventLoop();
-
-    TerminationWatcher.Reset(new ev::async(eventLoop));
-    TerminationWatcher->set<TTcpConnection, &TTcpConnection::OnTerminated>(this);
-    TerminationWatcher->start();
-
-    OutcomingMessageWatcher.Reset(new ev::async(eventLoop));
-    OutcomingMessageWatcher->set<TTcpConnection, &TTcpConnection::OnOutcomingMessage>(this);
-    OutcomingMessageWatcher->start();
-
     switch (Type) {
         case EConnectionType::Client:
-            ResolveWatcher.Reset(new ev::async(eventLoop));
-            ResolveWatcher->set<TTcpConnection, &TTcpConnection::OnResolved>(this);
-            ResolveWatcher->start();
             SyncResolve();
             break;
 
@@ -229,13 +217,13 @@ void TTcpConnection::SyncResolve()
         LOG_DEBUG("Address resolved as local, connecting");
 
         auto netAddress = GetLocalBusAddress(Port);
-        OnResolved(netAddress);
+        OnAddressResolved(netAddress);
     } else {
         AsyncAddress = TAddressResolver::Get()->Resolve(Stroka(hostName));
 
         auto this_ = MakeStrong(this);
         AsyncAddress.Subscribe(BIND([=] (TValueOrError<TNetworkAddress>) {
-            this_->ResolveWatcher->send();
+            this_->Dispatcher->AsyncPostEvent(this_, EConnectionEvent::AddressResolved);
         }));
     }
 }
@@ -250,7 +238,7 @@ bool TTcpConnection::IsLocal(const TStringBuf& hostName)
 #endif
 }
 
-void TTcpConnection::OnResolved(ev::async&, int)
+void TTcpConnection::OnAddressResolved()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
@@ -263,10 +251,10 @@ void TTcpConnection::OnResolved(ev::async&, int)
     LOG_DEBUG("Address resolved, connecting");
 
     TNetworkAddress netAddress(result.Value(), Port);
-    OnResolved(netAddress);
+    OnAddressResolved(netAddress);
 }
 
-void TTcpConnection::OnResolved(const TNetworkAddress& netAddress)
+void TTcpConnection::OnAddressResolved(const TNetworkAddress& netAddress)
 {
     try {
         ConnectSocket(netAddress);
@@ -298,10 +286,7 @@ void TTcpConnection::SyncClose(const TError& error)
     }
 
     // Stop all watchers.
-    ResolveWatcher.Destroy();
-    TerminationWatcher.Destroy();
     SocketWatcher.Destroy();
-    OutcomingMessageWatcher.Destroy();
 
     // Close the socket.
     CloseSocket();
@@ -457,7 +442,7 @@ TAsyncError TTcpConnection::Send(IMessagePtr message)
                 break;
 
             case EState::Open:
-                OutcomingMessageWatcher->send();
+                Dispatcher->AsyncPostEvent(this, EConnectionEvent::MessageEnqueued);
                 break;
 
             case EState::Closed:
@@ -495,11 +480,30 @@ void TTcpConnection::Terminate(const TError& error)
         }
         TerminationError = error;
         if (State == EState::Open) {
-            TerminationWatcher->send();
+            Dispatcher->AsyncPostEvent(this, EConnectionEvent::Terminated);
         }
     }
 
     LOG_DEBUG("Bus termination requested");
+}
+
+void TTcpConnection::SyncProcessEvent(EConnectionEvent event)
+{
+    VERIFY_THREAD_AFFINITY(EventLoop);
+
+    switch (event) {
+        case EConnectionEvent::AddressResolved:
+            OnAddressResolved();
+            break;
+        case EConnectionEvent::Terminated:
+            OnTerminated();
+            break;
+        case EConnectionEvent::MessageEnqueued:
+            OnMessageEnqueued();
+            break;
+        default:
+            YUNREACHABLE();
+    }
 }
 
 void TTcpConnection::SubscribeTerminated(const TCallback<void(TError)>& callback)
@@ -943,7 +947,7 @@ void TTcpConnection::OnMessagePacketSent(const TEncodedPacket& packet)
         packet.Packet->Size);
 }
 
-void TTcpConnection::OnOutcomingMessage(ev::async&, int)
+void TTcpConnection::OnMessageEnqueued()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
     YASSERT(State != EState::Closed);
@@ -972,7 +976,7 @@ void TTcpConnection::UpdateSocketWatcher()
     }
 }
 
-void TTcpConnection::OnTerminated(ev::async&, int)
+void TTcpConnection::OnTerminated()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
     YASSERT(State != EState::Closed);

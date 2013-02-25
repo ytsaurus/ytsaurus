@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "tcp_dispatcher_impl.h"
 #include "config.h"
+#include "tcp_connection.h"
 
 #include <ytlib/misc/thread.h>
 
@@ -47,14 +48,17 @@ TTcpDispatcher::TImpl::TImpl()
     , StopWatcher(EventLoop)
     , RegisterWatcher(EventLoop)
     , UnregisterWatcher(EventLoop)
+    , EventWatcher(EventLoop)
 {
     StopWatcher.set<TImpl, &TImpl::OnStop>(this);
     RegisterWatcher.set<TImpl, &TImpl::OnRegister>(this);
     UnregisterWatcher.set<TImpl, &TImpl::OnUnregister>(this);
+    EventWatcher.set<TImpl, &TImpl::OnEvent>(this);
 
     StopWatcher.start();
     RegisterWatcher.start();
     UnregisterWatcher.start();
+    EventWatcher.start();
 
     Thread.Start();
 }
@@ -97,7 +101,7 @@ void TTcpDispatcher::TImpl::ThreadMain()
     VERIFY_THREAD_AFFINITY(EventLoop);
 
     // NB: never ever use logging or any other YT subsystems here.
-    // Bus is always started first to get advatange of the root privileges.
+    // Bus is always started first to get advantange of the root privileges.
 
     NThread::SetCurrentThreadName("Bus");
 
@@ -120,7 +124,7 @@ TAsyncError TTcpDispatcher::TImpl::AsyncRegister(IEventLoopObjectPtr object)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TQueueEntry entry(object);
+    TRegisterEntry entry(object);
     RegisterQueue.Enqueue(entry);
     RegisterWatcher.send();
 
@@ -133,7 +137,7 @@ TAsyncError TTcpDispatcher::TImpl::AsyncUnregister(IEventLoopObjectPtr object)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TQueueEntry entry(object);
+    TRegisterEntry entry(object);
     UnregisterQueue.Enqueue(entry);
     UnregisterWatcher.send();
 
@@ -142,14 +146,25 @@ TAsyncError TTcpDispatcher::TImpl::AsyncUnregister(IEventLoopObjectPtr object)
     return entry.Promise;
 }
 
+void TTcpDispatcher::TImpl::AsyncPostEvent(TTcpConnectionPtr connection, EConnectionEvent event)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TEventEntry entry(std::move(connection), event);
+    EventQueue.Enqueue(entry);
+    EventWatcher.send();
+}
+
 void TTcpDispatcher::TImpl::OnRegister(ev::async&, int)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
-    TQueueEntry entry;
+    TRegisterEntry entry;
     while (RegisterQueue.Dequeue(&entry)) {
         try {
-            Register(entry.Object);
+            LOG_DEBUG("Object registered (%s)", ~entry.Object->GetLoggingId());
+            entry.Object->SyncInitialize();
+            YCHECK(Objects.insert(entry.Object).second);
             entry.Promise.Set(TError());
         } catch (const std::exception& ex) {
             entry.Promise.Set(ex);
@@ -161,10 +176,12 @@ void TTcpDispatcher::TImpl::OnUnregister(ev::async&, int)
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
-    TQueueEntry entry;
+    TRegisterEntry entry;
     while (UnregisterQueue.Dequeue(&entry)) {
         try {
-            Unregister(entry.Object);
+            LOG_DEBUG("Object unregistered (%s)", ~entry.Object->GetLoggingId());
+            YCHECK(Objects.erase(entry.Object) == 1);
+            entry.Object->SyncFinalize();
             entry.Promise.Set(TError());
         } catch (const std::exception& ex) {
             entry.Promise.Set(ex);
@@ -172,20 +189,14 @@ void TTcpDispatcher::TImpl::OnUnregister(ev::async&, int)
     }
 }
 
-void TTcpDispatcher::TImpl::Register(IEventLoopObjectPtr object)
+void TTcpDispatcher::TImpl::OnEvent(ev::async&, int)
 {
-    LOG_DEBUG("Object registered (%s)", ~object->GetLoggingId());
+    VERIFY_THREAD_AFFINITY(EventLoop);
 
-    object->SyncInitialize();
-    YCHECK(Objects.insert(object).second);
-}
-
-void TTcpDispatcher::TImpl::Unregister(IEventLoopObjectPtr object)
-{
-    LOG_DEBUG("Object unregistered (%s)", ~object->GetLoggingId());
-
-    YCHECK(Objects.erase(object) == 1);
-    object->SyncFinalize();
+    TEventEntry entry;
+    while (EventQueue.Dequeue(&entry)) {
+        entry.Connection->SyncProcessEvent(entry.Event);
+    }
 }
 
 TTcpDispatcher::TImpl* TTcpDispatcher::TImpl::Get()

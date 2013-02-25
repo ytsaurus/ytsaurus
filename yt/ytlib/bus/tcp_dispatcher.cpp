@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "tcp_dispatcher.h"
 #include "tcp_dispatcher_impl.h"
+#include "tcp_connection.h"
 
 namespace NYT {
 namespace NBus {

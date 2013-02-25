@@ -8,30 +8,25 @@
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/address.h>
-#include <ytlib/logging/tagged_logger.h>
+
 #include <ytlib/actions/future.h>
 
-#include <queue>
-#include <deque>
+#include <ytlib/logging/tagged_logger.h>
 
-#include <util/system/thread.h>
+#include <queue>
+
 #include <util/thread/lfqueue.h>
 
 #include <contrib/libuv/src/unix/ev/ev++.h>
 
 #ifndef _WIN32
-#include <sys/uio.h>
+    #include <sys/uio.h>
 #endif
 
 namespace NYT {
 namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_ENUM(EConnectionType,
-    (Client)
-    (Server)
-);
 
 class TTcpConnection
     : public IBus
@@ -58,6 +53,8 @@ public:
     // IBus implementation.
     virtual TAsyncError Send(IMessagePtr message) override;
     virtual void Terminate(const TError& error) override;
+
+    void SyncProcessEvent(EConnectionEvent event);
 
     DECLARE_SIGNAL(void(TError), Terminated);
 
@@ -126,6 +123,7 @@ private:
         (Closed)
     );
 
+    TTcpDispatcher::TImpl* Dispatcher;
     EConnectionType Type;
     TConnectionId Id;
     int Socket;
@@ -144,8 +142,6 @@ private:
     EState State;
     TError TerminationError;
 
-    THolder<ev::async> ResolveWatcher;
-    THolder<ev::async> TerminationWatcher;
     THolder<ev::io> SocketWatcher;
 
     TBlob ReadBuffer;
@@ -164,7 +160,6 @@ private:
 #endif
 
     std::queue<TUnackedMessage> UnackedMessages;
-    THolder<ev::async> OutcomingMessageWatcher;
 
     DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
 
@@ -179,8 +174,8 @@ private:
     void ConnectSocket(const TNetworkAddress& netAddress);
     void CloseSocket();
 
-    void OnResolved(ev::async&, int);
-    void OnResolved(const TNetworkAddress& netAddress);
+    void OnAddressResolved();
+    void OnAddressResolved(const TNetworkAddress& netAddress);
 
     void OnSocket(ev::io&, int revents);
 
@@ -205,11 +200,11 @@ private:
     void OnPacketSent();
     void OnAckPacketSent(const TEncodedPacket& packet);
     void OnMessagePacketSent(const TEncodedPacket& packet);
-    void OnOutcomingMessage(ev::async&, int);
+    void OnMessageEnqueued();
     void ProcessOutcomingMessages();
     void UpdateSocketWatcher();
 
-    void OnTerminated(ev::async&, int);
+    void OnTerminated();
 
     TTcpDispatcherStatistics& Statistics();
     void UpdateConnectionCount(int delta);

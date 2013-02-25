@@ -8,6 +8,7 @@
 #include <ytlib/misc/address.h>
 
 #include <util/thread/lfqueue.h>
+
 #include <contrib/libuv/src/unix/ev/ev++.h>
 
 namespace NYT {
@@ -45,6 +46,8 @@ public:
     TAsyncError AsyncRegister(IEventLoopObjectPtr object);
     TAsyncError AsyncUnregister(IEventLoopObjectPtr object);
 
+    void AsyncPostEvent(TTcpConnectionPtr connection, EConnectionEvent event);
+
     DEFINE_BYREF_RW_PROPERTY(TTcpDispatcherStatistics, Statistics);
 
 private:
@@ -55,13 +58,13 @@ private:
     bool Stopped;
     ev::async StopWatcher;
 
-    struct TQueueEntry
+    struct TRegisterEntry
     {
-        TQueueEntry()
+        TRegisterEntry()
         { }
 
-        explicit TQueueEntry(IEventLoopObjectPtr object)
-            : Object(object)
+        explicit TRegisterEntry(IEventLoopObjectPtr object)
+            : Object(std::move(object))
             , Promise(NewPromise<TError>())
         { }
 
@@ -69,11 +72,30 @@ private:
         TPromise<TError> Promise;
     };
 
-    TLockFreeQueue<TQueueEntry> RegisterQueue;
+    typedef TRegisterEntry TUnregisterEntry;
+
+    TLockFreeQueue<TRegisterEntry> RegisterQueue;
     ev::async RegisterWatcher;
 
-    TLockFreeQueue<TQueueEntry> UnregisterQueue;
+    TLockFreeQueue<TUnregisterEntry> UnregisterQueue;
     ev::async UnregisterWatcher;
+
+    struct TEventEntry
+    {
+        TEventEntry()
+        { }
+
+        TEventEntry(TTcpConnectionPtr connection, EConnectionEvent event)
+            : Connection(std::move(connection))
+            , Event(event)
+        { }
+
+        TTcpConnectionPtr Connection;
+        EConnectionEvent Event;
+    };
+
+    TLockFreeQueue<TEventEntry> EventQueue;
+    ev::async EventWatcher;
 
     yhash_set<IEventLoopObjectPtr> Objects;
 
@@ -81,12 +103,9 @@ private:
     void ThreadMain();
 
     void OnStop(ev::async&, int);
-
-    void Register(IEventLoopObjectPtr object);
-    void Unregister(IEventLoopObjectPtr object);
-
     void OnRegister(ev::async&, int);
     void OnUnregister(ev::async&, int);
+    void OnEvent(ev::async&, int);
 
     DECLARE_THREAD_AFFINITY_SLOT(EventLoop);
 
