@@ -343,7 +343,7 @@ private:
 
         // Prefer local node if in seeds.
         for (auto it = SeedAddresses.begin(); it != SeedAddresses.end(); ++it) {
-            if (GetServiceHostName(*it) == GetLocalHostName()) {
+            if (GetServiceHostName(*it) == TAddressResolver::Get()->GetLocalHostName()) {
                 auto localSeed = *it;
                 SeedAddresses.erase(it);
                 SeedAddresses.insert(SeedAddresses.begin(), localSeed);

@@ -73,7 +73,7 @@ TBootstrap::~TBootstrap()
 
 void TBootstrap::Run()
 {
-    PeerAddress = BuildServiceAddress(GetLocalHostName(), Config->RpcPort);
+    PeerAddress = BuildServiceAddress(TAddressResolver::Get()->GetLocalHostName(), Config->RpcPort);
 
     LOG_INFO("Starting scheduler (PeerAddress: %s, MasterAddresses: [%s])",
         ~PeerAddress,

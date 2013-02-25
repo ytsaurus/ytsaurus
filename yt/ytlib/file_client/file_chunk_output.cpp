@@ -73,7 +73,7 @@ void TFileChunkOutput::Open()
         NMetaState::GenerateRpcMutationId(req);
 
         auto* reqExt = req->MutableExtension(TReqCreateChunkExt::create_chunk);
-        reqExt->set_preferred_host_name(Stroka(GetLocalHostName()));
+        reqExt->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
         reqExt->set_upload_replication_factor(UploadReplicationFactor);
         reqExt->set_replication_factor(ReplicationFactor);
         reqExt->set_movable(Config->ChunkMovable);

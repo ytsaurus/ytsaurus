@@ -9,17 +9,18 @@
 #include <ytlib/profiling/profiler.h>
 #include <ytlib/profiling/scoped_timer.h>
 
-#include <util/system/hostname.h>
 #include <util/generic/singleton.h>
 
 #ifdef _win_
     #include <ws2ipdef.h>
+    #include <winsock2.h>
 #else
     #include <netdb.h>
     #include <netinet/in.h>
     #include <arpa/inet.h>
     #include <sys/socket.h>
     #include <sys/un.h>
+    #include <unistd.h>
 #endif
 
 namespace NYT {
@@ -33,27 +34,6 @@ static TLazyPtr<TActionQueue> AddressResolverQueue(TActionQueue::CreateFactory("
 
 
 ////////////////////////////////////////////////////////////////////////////////
-
-Stroka GetLocalHostName()
-{
-    static char hostName[256] = { 0 };
-    static TSpinLock hostNameLock;
-
-    TGuard<TSpinLock> guard(hostNameLock);
-    if (hostName[0] == 0) {
-        auto info = gethostbyname(::GetHostName());
-        if (!info) {
-            // TError and related stuff will call GetLocalHostName.
-            // Release the spinlock to avoid deadlock here.
-            strcpy(hostName, "<unknown>");
-            guard.Release();
-
-            THROW_ERROR_EXCEPTION("Unable to determine local host name");
-        }
-        strcpy(hostName, info->h_name);
-    }
-    return hostName;
-}
 
 Stroka BuildServiceAddress(const TStringBuf& hostName, int port)
 {
@@ -85,14 +65,14 @@ void ParseServiceAddress(const TStringBuf& address, TStringBuf* hostName, int* p
 int GetServicePort(const TStringBuf& address)
 {
     int result;
-    ParseServiceAddress(address, NULL, &result);
+    ParseServiceAddress(address, nullptr, &result);
     return result;
 }
 
 TStringBuf GetServiceHostName(const TStringBuf& address)
 {
     TStringBuf result;
-    ParseServiceAddress(address, &result, NULL);
+    ParseServiceAddress(address, &result, nullptr);
     return result;
 }
 
@@ -283,6 +263,7 @@ Stroka ToString(const TNetworkAddress& address, bool withPort)
 
 TAddressResolver::TAddressResolver()
     : Config(New<TAddressResolverConfig>())
+    , GetLocalHostNameFailed(false)
 { }
 
 TAddressResolver* TAddressResolver::Get()
@@ -302,7 +283,7 @@ TFuture< TValueOrError<TNetworkAddress> > TAddressResolver::Resolve(const Stroka
 
     // Lookup cache.
     {
-        TGuard<TSpinLock> guard(SpinLock);
+        TGuard<TSpinLock> guard(CacheLock);
         auto it = Cache.find(address);
         if (it != Cache.end()) {
             auto result = it->second;
@@ -330,7 +311,7 @@ TValueOrError<TNetworkAddress> TAddressResolver::DoResolve(const Stroka& hostNam
     hints.ai_family = AF_UNSPEC;    // Allow both IPv4 and IPv6 addresses.
     hints.ai_socktype = SOCK_STREAM;
 
-    addrinfo* addrInfo = NULL;
+    addrinfo* addrInfo = nullptr;
 
     LOG_DEBUG("Started resolving host %s", ~hostName);
 
@@ -340,7 +321,7 @@ TValueOrError<TNetworkAddress> TAddressResolver::DoResolve(const Stroka& hostNam
     PROFILE_TIMING("dns_resolve_time") {
         gaiResult = getaddrinfo(
             ~hostName,
-            NULL,
+            nullptr,
             &hints,
             &addrInfo);
     }
@@ -376,7 +357,7 @@ TValueOrError<TNetworkAddress> TAddressResolver::DoResolve(const Stroka& hostNam
     if (result) {
         // Put result into the cache.
         {
-            TGuard<TSpinLock> guard(SpinLock);
+            TGuard<TSpinLock> guard(CacheLock);
             Cache[hostName] = result.Get();
         }
         LOG_DEBUG("Host resolved: %s -> %s",
@@ -392,10 +373,85 @@ TValueOrError<TNetworkAddress> TAddressResolver::DoResolve(const Stroka& hostNam
     }
 }
 
+Stroka TAddressResolver::GetLocalHostName()
+{
+    if (GetLocalHostNameFailed) {
+        return "<unknown>";
+    }
+
+    {
+        TGuard<TSpinLock> guard(LocalHostNameLock);
+        if (!CachedLocalHostName.empty()) {
+            return CachedLocalHostName;
+        }
+    }
+
+    auto result = DoGetLocalHostName();
+
+    {
+        TGuard<TSpinLock> guard(LocalHostNameLock);
+        if (CachedLocalHostName.empty()) {
+            CachedLocalHostName = result;
+        }
+    }
+
+    return result;
+}
+
+Stroka TAddressResolver::DoGetLocalHostName()
+{
+    char hostName[1024];
+    memset(hostName, 0, sizeof (hostName));
+
+    if (gethostname(hostName, sizeof (hostName) - 1) == -1) {
+        GetLocalHostNameFailed = true;
+        THROW_ERROR_EXCEPTION("Unable to determine localhost FQDN: gethostname failed")
+            << TError::FromSystem();
+    }
+
+    LOG_INFO("LocalHost reported by gethostname: %s", hostName);
+
+    addrinfo hints;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;    // Allow both IPv4 and IPv6 addresses.
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags |= AI_CANONNAME;
+
+    addrinfo* addrInfo = nullptr;
+
+    int gaiResult = getaddrinfo(
+        hostName,
+        nullptr,
+        &hints,
+        &addrInfo);
+
+    if (gaiResult != 0) {
+        GetLocalHostNameFailed = true;
+        auto gaiError = TError(Stroka(gai_strerror(gaiResult)))
+            << TErrorAttribute("errno", gaiResult);
+        THROW_ERROR_EXCEPTION("Unable to determinate localhost FQDN: getaddrinfo failed")
+            << gaiError;
+    }
+
+    for (auto* currentInfo = addrInfo; currentInfo; currentInfo = currentInfo->ai_next) {
+        if (currentInfo->ai_family == AF_INET && Config->EnableIPv4 ||
+            currentInfo->ai_family == AF_INET6 && Config->EnableIPv6)
+        {
+            LOG_INFO("LocalHost FQDN reported by getaddrinfo: %s", currentInfo->ai_canonname);
+            return Stroka(currentInfo->ai_canonname);
+        }
+    }
+
+    freeaddrinfo(addrInfo);
+
+    GetLocalHostNameFailed = true;
+    THROW_ERROR_EXCEPTION("Unable to determinate localhost FQDN: no matching addrinfo entry found");
+}
+
 void TAddressResolver::PurgeCache()
 {
     {
-        TGuard<TSpinLock> guard(SpinLock);
+        TGuard<TSpinLock> guard(CacheLock);
         Cache.clear();
     }
     LOG_INFO("Address cache purged");
@@ -404,6 +460,12 @@ void TAddressResolver::PurgeCache()
 void TAddressResolver::Configure(TAddressResolverConfigPtr config)
 {
     Config = config;
+
+    if (config->LocalHostFqdn) {
+        TGuard<TSpinLock> guard(LocalHostNameLock);
+        CachedLocalHostName = *config->LocalHostFqdn;
+        LOG_INFO("LocalHost FQDN configured: %s", ~CachedLocalHostName);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

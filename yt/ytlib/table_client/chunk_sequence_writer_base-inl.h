@@ -109,7 +109,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::CreateNextSession()
 
     auto* reqExt = req->MutableExtension(NChunkClient::NProto::TReqCreateChunkExt::create_chunk);
     if (Config->PreferLocalHost) {
-        reqExt->set_preferred_host_name(Stroka(GetLocalHostName()));
+        reqExt->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
     }
     reqExt->set_replication_factor(ReplicationFactor);
     reqExt->set_upload_replication_factor(UploadReplicationFactor);

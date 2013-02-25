@@ -319,7 +319,7 @@ private:
                 reqExt->set_timeout(Owner->Config->LockTransactionTimeout.MilliSeconds());
 
                 auto attributes = CreateEphemeralAttributes();
-                attributes->Set("title", Sprintf("Scheduler lock at %s", ~GetLocalHostName()));
+                attributes->Set("title", Sprintf("Scheduler lock at %s", ~TAddressResolver::Get()->GetLocalHostName()));
                 ToProto(req->mutable_object_attributes(), *attributes);
 
                 GenerateRpcMutationId(req);

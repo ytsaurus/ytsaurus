@@ -81,7 +81,7 @@ void TBootstrap::Run()
     srand(time(NULL));
 
     IncarnationId = TIncarnationId::Create();
-    PeerAddress = BuildServiceAddress(GetLocalHostName(), Config->RpcPort);
+    PeerAddress = BuildServiceAddress(TAddressResolver::Get()->GetLocalHostName(), Config->RpcPort);
 
     LOG_INFO("Starting node (IncarnationId: %s, PeerAddress: %s, MasterAddresses: [%s])",
         ~IncarnationId.ToString(),

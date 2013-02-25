@@ -246,7 +246,7 @@ bool TTcpConnection::IsLocal(const TStringBuf& hostName)
     UNUSED(hostName);
     return false;
 #else
-    return hostName == GetLocalHostName();
+    return hostName == TAddressResolver::Get()->GetLocalHostName();
 #endif
 }
 

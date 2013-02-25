@@ -17,9 +17,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Returns the FQDN of the local host.
-Stroka GetLocalHostName();
-
 //! Constructs an address of the form |hostName:port|.
 Stroka BuildServiceAddress(const TStringBuf& hostName, int port);
 
@@ -46,6 +43,7 @@ struct TAddressResolverConfig
 {
     bool EnableIPv4;
     bool EnableIPv6;
+    TNullable<Stroka> LocalHostFqdn;
 
     TAddressResolverConfig()
     {
@@ -53,6 +51,8 @@ struct TAddressResolverConfig
             .Default(true);
         Register("enable_ipv6", EnableIPv6)
             .Default(true);
+        Register("localhost_fqdn", LocalHostFqdn)
+            .Default(Null);
     }
 };
 
@@ -104,6 +104,9 @@ public:
      */
     TFuture< TValueOrError<TNetworkAddress> > Resolve(const Stroka& address);
 
+    //! Returns the FQDN of the local host.
+    Stroka GetLocalHostName();
+
     //! Removes all cached resolutions.
     void PurgeCache();
 
@@ -113,10 +116,15 @@ public:
 private:
     TAddressResolverConfigPtr Config;
 
-    TSpinLock SpinLock;
+    TSpinLock CacheLock;
     yhash_map<Stroka, TNetworkAddress> Cache;
 
+    TSpinLock LocalHostNameLock;
+    bool GetLocalHostNameFailed;
+    Stroka CachedLocalHostName;
+
     TValueOrError<TNetworkAddress> DoResolve(const Stroka& hostName);
+    Stroka DoGetLocalHostName();
 
 };
 
