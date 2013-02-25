@@ -2105,7 +2105,7 @@ private:
 
     virtual bool IsTableIndexEnabled() const override
     {
-        return Spec->EnableTableIndex;
+        return Spec->Mapper->EnableTableIndex;
     }
 
     // Resource management.

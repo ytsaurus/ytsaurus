@@ -118,7 +118,7 @@ private:
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
             jobSpec->CopyFrom(Controller->JobSpecTemplate);
-            AddSequentialInputSpec(jobSpec, joblet, Controller->Spec->EnableTableIndex);
+            AddSequentialInputSpec(jobSpec, joblet, Controller->Spec->Mapper->EnableTableIndex);
             AddFinalOutputSpecs(jobSpec, joblet);
 
             auto* jobSpecExt = jobSpec->MutableExtension(TMapJobSpecExt::map_job_spec_ext);

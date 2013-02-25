@@ -88,6 +88,8 @@ struct TUserJobSpec
     i64 MemoryLimit;
     double MemoryReserveFactor;
 
+    bool EnableTableIndex;
+
     TUserJobSpec()
     {
         Register("command", Command);
@@ -109,6 +111,8 @@ struct TUserJobSpec
             .Default(0.5)
             .GreaterThan(0.)
             .LessThanOrEqual(1.);
+        Register("enable_table_index", EnableTableIndex)
+            .Default(false);
     }
 };
 
@@ -126,8 +130,6 @@ struct TMapOperationSpec
     TDuration LocalityTimeout;
     TJobIOConfigPtr JobIO;
 
-    bool EnableTableIndex;
-
     TMapOperationSpec()
     {
         Register("mapper", Mapper);
@@ -144,8 +146,6 @@ struct TMapOperationSpec
             .Default(TDuration::Seconds(5));
         Register("job_io", JobIO)
             .DefaultNew();
-        Register("enable_table_index", EnableTableIndex)
-            .Default(false);
 
         JobIO->TableReader->PrefetchWindow = 10;
     }
@@ -262,7 +262,6 @@ struct TReduceOperationSpec
     std::vector<NYPath::TRichYPath> InputTablePaths;
     std::vector<NYPath::TRichYPath> OutputTablePaths;
     TNullable< std::vector<Stroka> > ReduceBy;
-    bool EnableTableIndex;
 
     TReduceOperationSpec()
     {
@@ -275,8 +274,6 @@ struct TReduceOperationSpec
         Register("output_table_paths", OutputTablePaths);
         Register("reduce_by", ReduceBy)
             .Default();
-        Register("enable_table_index", EnableTableIndex)
-            .Default(false);
     }
 };
 
@@ -419,8 +416,6 @@ struct TMapReduceOperationSpec
     TJobIOConfigPtr SortJobIO;
     TJobIOConfigPtr ReduceJobIO;
 
-    bool EnableTableIndex;
-
     TMapReduceOperationSpec()
     {
         Register("output_table_paths", OutputTablePaths);
@@ -449,8 +444,6 @@ struct TMapReduceOperationSpec
             .Default(TDuration::Seconds(5));
         Register("reduce_locality_timeout", MergeLocalityTimeout)
             .Default(TDuration::Minutes(1));
-        Register("enable_table_index", EnableTableIndex)
-            .Default(false);
         Register("map_selectivity_factor", SelectivityFactor)
             .Default(1.0)
             .GreaterThan(0);
