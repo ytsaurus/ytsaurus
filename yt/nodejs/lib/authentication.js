@@ -82,7 +82,8 @@ function YtBlackbox(logger, global_config) { // TODO: Inject |config|
             }
         });
 
-        if (cache.has(token)) {
+        var cached = cache.get(token);
+        if (cached !== undefined) {
             logger.debug("Blackbox cache hit", { request_id : id });
             return cache.get(token);
         } else {
