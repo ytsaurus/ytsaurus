@@ -979,7 +979,9 @@ void TTcpConnection::UpdateSocketWatcher()
 void TTcpConnection::OnTerminated()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
-    YASSERT(State != EState::Closed);
+    
+    if (State == EState::Closed)
+        return;
 
     TError error;
     {
