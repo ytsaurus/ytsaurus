@@ -121,6 +121,7 @@ function YtBlackbox(logger, global_config) { // TODO: Inject |config|
                     if (data.error === "OK") {
                       logger.debug("Blackbox has approved token; updating cache", {
                           request_id : id,
+                          retry : retry,
                           login : data.login
                       });
                       cache.set(token, data.login);
@@ -128,6 +129,7 @@ function YtBlackbox(logger, global_config) { // TODO: Inject |config|
                     } else {
                       logger.debug("Blackbox has rejected token; invalidating cache", {
                           request_id : id,
+                          retry : retry,
                           error : data.error
                       });
                       cache.del(token);
@@ -138,6 +140,7 @@ function YtBlackbox(logger, global_config) { // TODO: Inject |config|
                 if (data.exception) {
                     logger.info("Blackbox returned an exception", {
                         request_id : id,
+                        retry : retry,
                         error : data.exception
                     });
                     return requestOAuthAuthorization(token, ip, id, retry + 1);
