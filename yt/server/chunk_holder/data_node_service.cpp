@@ -478,7 +478,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetChunkMeta)
     asyncChunkMeta.Subscribe(BIND(&TDataNodeService::OnGotChunkMeta,
         Unretained(this),
         context,
-        partitionTag));
+        partitionTag).Via(WorkerThread->GetInvoker()));
 }
 
 DEFINE_RPC_SERVICE_METHOD(TDataNodeService, PrecacheChunk)
