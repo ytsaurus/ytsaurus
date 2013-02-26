@@ -77,6 +77,7 @@ private:
     virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
     virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
+    void ValidateNoTransaction() const;
 
     void ParseYPath(
         const NYPath::TYPath& path,
@@ -410,6 +411,13 @@ void TTableNodeProxy::DoInvoke(IServiceContextPtr context)
     DISPATCH_YPATH_HEAVY_SERVICE_METHOD(Fetch);
     DISPATCH_YPATH_SERVICE_METHOD(SetSorted);
     TBase::DoInvoke(context);
+}
+
+void TTableNodeProxy::ValidateNoTransaction() const
+{
+    if (Transaction) {
+        THROW_ERROR_EXCEPTION("Value cannot be altered inside transaction");
+    }
 }
 
 bool TTableNodeProxy::IsWriteRequest(IServiceContextPtr context) const
