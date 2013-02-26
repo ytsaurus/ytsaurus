@@ -472,16 +472,11 @@ void TTcpConnection::Terminate(const TError& error)
         // Check if the connection is already closed or
         // another termination request is already in progress.
         TGuard<TSpinLock> guard(SpinLock);
-        if (State == EState::Closed) {
-            return;
-        }
-        if (!TerminationError.IsOK()) {
+        if (State != EState::Open || !TerminationError.IsOK()) {
             return;
         }
         TerminationError = error;
-        if (State == EState::Open) {
-            Dispatcher->AsyncPostEvent(this, EConnectionEvent::Terminated);
-        }
+        Dispatcher->AsyncPostEvent(this, EConnectionEvent::Terminated);
     }
 
     LOG_DEBUG("Bus termination requested");
@@ -980,8 +975,9 @@ void TTcpConnection::OnTerminated()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
     
-    if (State == EState::Closed)
+    if (State == EState::Closed) {
         return;
+    }
 
     TError error;
     {
