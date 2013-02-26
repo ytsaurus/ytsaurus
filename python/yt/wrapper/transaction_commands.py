@@ -30,9 +30,9 @@ def commit_transaction(transaction, ping_ansector_transactions=None):
 def renew_transaction(transaction, ping_ansector_transactions=None):
     make_request("renew_tx", transaction_params(transaction, ping_ansector_transactions))
 
-def lock(path):
+def lock(path, mode=None):
     """
     Tries to lock the path. Raise exception if node already under exclusive lock.
     """
-    _make_transactional_request("lock", {"path": path})
+    _make_transactional_request("lock", {"path": path, "mode": get_value(mode, "exclusive")})
 
