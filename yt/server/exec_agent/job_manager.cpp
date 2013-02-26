@@ -260,6 +260,12 @@ void TJobManager::UpdateResourceUsage(const TJobId& jobId, const TNodeResources&
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto job = GetJob(jobId);
+
+    if (job->GetState() != EJobState::Running) {
+        // Outdated request.
+        return;
+    }
+
     auto oldUsage = job->GetResourceUsage();
     auto delta = usage - oldUsage;
 
