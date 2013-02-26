@@ -267,16 +267,11 @@ bool TOutputPipe::ProcessData(ui32 epollEvent)
         LOG_TRACE("Read %d bytes from output pipe (JobDescriptor: %d)", size, JobDescriptor);
 
         if (size > 0) {
-            OutputStream->Write(buffer, static_cast<size_t>(size));
-            /*if (size == bufferSize) { // it's marginal case
-                // try to read again: is more bytes present in pipe?
-                // Another way would be to restore this descriptor in epoll
-                // and return back to 'read' after epoll's signal
-                // (this descriptor in 'event triggered' mode, so restore
-                // in epoll indeed required)
-                continue;
+            try {
+                OutputStream->Write(buffer, static_cast<size_t>(size));
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Failed to write into output (fd: %d)", JobDescriptor) << ex;
             }
-            return true; */
 
             continue;
         } else if (size == 0) {
