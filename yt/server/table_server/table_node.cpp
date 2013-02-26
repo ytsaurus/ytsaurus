@@ -69,6 +69,7 @@ void TTableNode::Load(const NCellMaster::TLoadContext& context)
     LoadObjectRef(input, ChunkList_, context);
     ::Load(input, UpdateMode_);
     ::Load(input, ReplicationFactor_);
+    // COMPAT(psushin)
     if (context.GetVersion() >= 8) {
         ::Load(input, Codec_);
     } else {

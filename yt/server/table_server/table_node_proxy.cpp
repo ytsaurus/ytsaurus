@@ -78,8 +78,6 @@ private:
 
     virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
 
-    void CheckNoTransaction() const;
-
     void ParseYPath(
         const NYPath::TYPath& path,
         NTableClient::TChannel* channel,
@@ -406,13 +404,6 @@ TTableNodeProxy::TTableNodeProxy(
         trunkNode)
 { }
 
-void TTableNodeProxy::CheckNoTransaction() const
-{
-    if (Transaction) {
-        THROW_ERROR_EXCEPTION("Value cannot be altered inside transaction");
-    }
-}
-
 void TTableNodeProxy::DoInvoke(IServiceContextPtr context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(PrepareForUpdate);
@@ -583,8 +574,7 @@ bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& v
     auto chunkManager = Bootstrap->GetChunkManager();
 
     if (key == "replication_factor") {
-
-        CheckNoTransaction();
+        ValidateNoTransaction();
         int replicationFactor = ConvertTo<int>(value);
         const int MinReplicationFactor = 1;
         const int MaxReplicationFactor = 10;
@@ -612,7 +602,7 @@ bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& v
     }
 
     if (key == "codec") {
-        CheckNoTransaction();
+        ValidateNoTransaction();
 
         auto* node = GetThisTypedMutableImpl();
         YCHECK(node->IsTrunk());
