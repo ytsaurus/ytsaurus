@@ -1,6 +1,7 @@
 import config
 from http import make_request
 from common import update, bool_to_string, get_value
+from table import prepare_path
 
 from copy import deepcopy
 
@@ -34,5 +35,5 @@ def lock(path, mode=None):
     """
     Tries to lock the path. Raise exception if node already under exclusive lock.
     """
-    _make_transactional_request("lock", {"path": path, "mode": get_value(mode, "exclusive")})
+    _make_transactional_request("lock", {"path": prepare_path(path), "mode": get_value(mode, "exclusive")})
 
