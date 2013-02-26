@@ -155,7 +155,7 @@ Examples:
 
     action_stores = ["read", "write", "writesorted", "map", "reduce", "reducews", "drop",
                      "erase", "aborttx", "committx", "renewtx", "set", "get", "upload", "download",
-                     "createtable", "exists", "track"]
+                     "createtable", "exists", "track", "ytlock"]
     action_flags = ["version", "copy", "sort", "merge", "list", "listfiles", "starttx"]
 
     add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "pingtx",
@@ -314,6 +314,8 @@ Examples:
              "NEW! specifies path to the file in YT tree for use it in current operation"),
             ("ytspec",
              "NEW! spec for given operation in json format"),
+            ("ytlock",
+             "NEW! get lock on the given path"),
         ]
         +
         [(name, "this argument is inherited from Yandex Mapreduce and it is ignored")
@@ -512,6 +514,9 @@ Examples:
         yt.abort_transaction(args.aborttx)
     if args.renewtx is not None:
         yt.renew_transaction(args.renewtx)
+
+    if args.ytlock is not None:
+        yt.lock(args.ytlock, mode=args.mode)
 
     if args.track is not None:
         config.DETACHED = True
