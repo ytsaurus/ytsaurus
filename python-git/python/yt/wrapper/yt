@@ -283,7 +283,7 @@ def add_abort_op_parser(subparsers):
     parser.set_defaults(func=abort_op)
 
 def start_tx(args):
-    sys.stdout.write(yt.start_transaction())
+    print yt.start_transaction()
 
 def add_start_tx_parser(subparsers):
     parser = subparsers.add_parser("start-tx")
