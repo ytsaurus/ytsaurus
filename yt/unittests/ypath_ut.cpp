@@ -300,7 +300,6 @@ TEST_F(TYPathTest, ParseRichYPath1)
 {
     auto path = NYPath::TRichYPath::Parse("<a=b>//home/ignat{a,b}[1:2]");
     EXPECT_EQ(path.GetPath(), "//home/ignat");
-    std::cerr << "AAAAAAAA: " << ConvertToYsonString(ConvertToNode(path.Attributes())).Data() << std::endl;
     EXPECT_TRUE(
         AreNodesEqual(
             ConvertToNode(path.Attributes()),
