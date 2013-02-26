@@ -19,7 +19,11 @@ version:
 	echo "VERSION='$(VERSION)'" > yt/wrapper/version.py
 
 prepare: version
-	cp yt/wrapper/mapreduce yt/wrapper/mapreduce-yt
+	rm -f $(CURDIR)/yt/wrapper/mapreduce-yt
+	ln -s $(CURDIR)/yt/wrapper/mapreduce $(CURDIR)/yt/wrapper/mapreduce-yt
+	
+	rm -f $(CURDIR)/yt/wrapper/yt2
+	ln -s $(CURDIR)/yt/wrapper/yt $(CURDIR)/yt/wrapper/yt2
 
 html: version
 	rm -rf docs
@@ -50,7 +54,7 @@ deb_without_test: clean
 clean:
 	$(PYTHON) setup.py clean
 	find . -name '*.pyc' -delete
-	sudo rm -rf tests Yt.egg-info yt/wrapper/mapreduce-yt
+	sudo rm -rf tests Yt.egg-info yt/wrapper/mapreduce-yt yt/wrapper/yt2
 	sudo rm -rf build/ dist/ MANIFEST mapreduce.spec
 	sudo $(MAKE) -f $(CURDIR)/debian/rules clean
 

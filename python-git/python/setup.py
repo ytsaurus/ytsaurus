@@ -29,8 +29,10 @@ def main():
     # in egg and debian cases strategy of binary distribution is different
     if "EGG" in os.environ:
         scripts.append("yt/wrapper/mapreduce-yt")
+        scripts.append("yt/wrapper/yt2")
     else:
         data_files.append(("/usr/bin", ["yt/wrapper/mapreduce-yt"]))
+        data_files.append(("/usr/bin", ["yt/wrapper/yt2"]))
 
     setup(
         name = "Yt",
