@@ -148,16 +148,15 @@ void TLookupTable::Fill(const char* begin, const char* end)
     YCHECK(end - begin <= 16);
 
 #ifdef _YT_USE_SSE42_
+    int i, n;
     char storage[16];
     ::memset(&storage, 0, sizeof(storage));
 
-    {
-        int i, n;
-        for (i = 0, n = end - begin; i < n; ++i) {
-            storage[i] = begin[i]; // :) C-style!
-        }
-        SymbolCount = i;
+    for (i = 0, n = end - begin; i < n; ++i) {
+        storage[i] = begin[i]; // :) C-style!
     }
+
+    SymbolCount = i;
     Symbols = _mm_setr_epi8(
         storage[0],  storage[1],  storage[2],  storage[3],
         storage[4],  storage[5],  storage[6],  storage[7],
