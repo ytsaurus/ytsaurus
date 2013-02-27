@@ -85,7 +85,7 @@ function YtBlackbox(logger, global_config) { // TODO: Inject |config|
         var cached = cache.get(token);
         if (cached !== undefined) {
             logger.debug("Blackbox cache hit", { request_id : id });
-            return cache.get(token);
+            return cached;
         } else {
             logger.debug("Blackbox cache miss", { request_id : id });
         }
