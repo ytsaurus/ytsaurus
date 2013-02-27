@@ -3,7 +3,7 @@
 #include "public.h"
 #include "config.h"
 #include "helpers.h"
-#include "dsv_symbols.h"
+#include "dsv_table.h"
 
 #include <ytlib/misc/enum.h>
 
@@ -47,7 +47,7 @@ private:
     NYson::EYsonType Type;
     TDsvFormatConfigPtr Config;
 
-    TDsvSymbolTable SymbolTable;
+    TDsvTable Table;
 
     bool InsideFirstLine;
     bool InsideFirstItem;

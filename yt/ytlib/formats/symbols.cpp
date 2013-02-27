@@ -1,5 +1,6 @@
-#include "dsv_symbols.h"
-#include "config.h"
+#include "symbols.h"
+
+#include <ytlib/misc/common.h>
 
 namespace NYT {
 namespace NFormats {
@@ -8,7 +9,7 @@ namespace NFormats {
 
 namespace {
 
-#ifdef _YT_USE_SSE42_FOR_DSV_
+#ifdef _YT_USE_SSE42_
 
 const char _m128i_shift_right[31] = {
      0,  1,  2,  3,  4,  5,  6,  7,
@@ -116,11 +117,11 @@ static inline const char* FindNextSymbol(
 static inline const char* FindNextSymbol(
     const char* begin,
     const char* end,
-    const bool* matchTable)
+    const bool* bitmap)
 {
     // XXX(sandello): Manual loop unrolling saves about 8% CPU.
     const char* current = begin;
-#define DO_1  if (matchTable[static_cast<ui8>(*current)]) { return current; } ++current;
+#define DO_1  if (bitmap[static_cast<ui8>(*current)]) { return current; } ++current;
 #define DO_4  DO_1 DO_1 DO_1 DO_1
 #define DO_16 DO_4 DO_4 DO_4 DO_4
     while (current + 16 < end) { DO_16; }
@@ -137,80 +138,76 @@ static inline const char* FindNextSymbol(
 
 } // namespace anonymous
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
-TDsvSymbolTable::TDsvSymbolTable(TDsvFormatConfigPtr config)
-{
-    YCHECK(config);
+TLookupTable::TLookupTable()
+{ }
 
+void TLookupTable::Fill(const char* begin, const char* end)
+{
+    YCHECK(end - begin <= 16);
+
+#ifdef _YT_USE_SSE42_
+    char storage[16];
+    ::memset(&storage, 0, sizeof(storage));
+
+    {
+        int i, n;
+        for (i = 0, n = end - begin; i < n; ++i) {
+            storage[i] = begin[i]; // :) C-style!
+        }
+        SymbolCount = i;
+    }
+    Symbols = _mm_setr_epi8(
+        storage[0],  storage[1],  storage[2],  storage[3],
+        storage[4],  storage[5],  storage[6],  storage[7],
+        storage[8],  storage[9],  storage[10], storage[11],
+        storage[12], storage[13], storage[14], storage[15]);
+#else
     for (int i = 0; i < 256; ++i) {
-        EscapingTable[i] = i;
-        UnescapingTable[i] = i;
-#ifndef _YT_USE_SSE42_FOR_DSV_
-        IsKeyStopSymbol[i] = false;
-        IsValueStopSymbol[i] = false;
-#endif
+        Bitmap[i] = false;
     }
 
-#ifdef _YT_USE_SSE42_FOR_DSV_
-    KeyStopSymbols = _mm_setr_epi8(
-        config->RecordSeparator,
-        config->FieldSeparator,
-        config->KeyValueSeparator,
-        config->EscapingSymbol,
-        '\0',
-        0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0);
-
-    ValueStopSymbols = _mm_setr_epi8(
-        config->RecordSeparator,
-        config->FieldSeparator,
-        config->EscapingSymbol,
-        '\0',
-        0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0);
-
-    NumberOfKeyStopSymbols = 5;
-    NumberOfValueStopSymbols = 4;
-#else
-    IsKeyStopSymbol[static_cast<unsigned char>(config->RecordSeparator)] = true;
-    IsKeyStopSymbol[static_cast<unsigned char>(config->FieldSeparator)] = true;
-    IsKeyStopSymbol[static_cast<unsigned char>(config->KeyValueSeparator)] = true;
-    IsKeyStopSymbol[static_cast<unsigned char>(config->EscapingSymbol)] = true;
-    IsKeyStopSymbol[static_cast<unsigned char>('\0')] = true;
-
-    IsValueStopSymbol[static_cast<unsigned char>(config->RecordSeparator)] = true;
-    IsValueStopSymbol[static_cast<unsigned char>(config->FieldSeparator)] = true;
-    IsValueStopSymbol[static_cast<unsigned char>(config->EscapingSymbol)] = true;
-    IsValueStopSymbol[static_cast<unsigned char>('\0')] = true;
-#endif
-
-    EscapingTable['\0'] = '0';
-    EscapingTable['\n'] = 'n';
-    EscapingTable['\t'] = 't';
-
-    UnescapingTable['0'] = '\0';
-    UnescapingTable['t'] = '\t';
-    UnescapingTable['n'] = '\n';
-}
-
-const char* TDsvSymbolTable::FindNextKeyStop(const char* begin, const char* end)
-{
-#ifdef _YT_USE_SSE42_FOR_DSV_
-    return FindNextSymbol(begin, end, KeyStopSymbols, NumberOfKeyStopSymbols);
-#else
-    return FindNextSymbol(begin, end, IsKeyStopSymbol);
+    for (const char* current = begin; current != end; ++current)
+    {
+        Bitmap[static_cast<ui8>(*current)] = true;
+    }
 #endif
 }
 
-const char* TDsvSymbolTable::FindNextValueStop(const char* begin, const char* end)
+void TLookupTable::Fill(const std::vector<char>& v)
 {
-#ifdef _YT_USE_SSE42_FOR_DSV_
-    return FindNextSymbol(begin, end, ValueStopSymbols, NumberOfValueStopSymbols);
+    Fill(&*v.begin(), &*v.begin() + v.size());
+}
+
+void TLookupTable::Fill(const std::string& s)
+{
+    Fill(&*s.begin(), &*s.begin() + s.length());
+}
+
+const char* TLookupTable::FindNext(const char* begin, const char* end) const
+{
+#ifdef _YT_USE_SSE42_
+    return FindNextSymbol(begin, end, Symbols, SymbolCount);
 #else
-    return FindNextSymbol(begin, end, IsValueStopSymbol);
+    return FindNextSymbol(begin, end, Bitmap);
 #endif
+}
+
+TEscapeTable::TEscapeTable()
+{
+    for (int i = 0; i < 256; ++i) {
+        EscapeTable[i] = i;
+        UnescapeTable[i] = i;
+    }
+
+    EscapeTable['\0'] = '0';
+    EscapeTable['\n'] = 'n';
+    EscapeTable['\t'] = 't';
+
+    UnescapeTable['0'] = '\0';
+    UnescapeTable['t'] = '\t';
+    UnescapeTable['n'] = '\n';
 }
 
 ////////////////////////////////////////////////////////////////////////////////

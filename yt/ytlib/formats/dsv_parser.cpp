@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "dsv_parser.h"
-#include "dsv_symbols.h"
+#include "dsv_table.h"
 #include "parser.h"
 
 namespace NYT {
@@ -28,7 +28,7 @@ private:
     TDsvFormatConfigPtr Config;
     bool WrapWithMap;
 
-    TDsvSymbolTable SymbolTable;
+    TDsvTable Table;
 
     bool NewRecordStarted;
     bool ExpectingEscapedChar;
@@ -50,10 +50,10 @@ private:
         (InsideKey)
         (InsideValue)
     );
+
     EState State;
 
     EState GetStartState() const;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,7 +65,7 @@ TDsvParser::TDsvParser(
     : Consumer(consumer)
     , Config(config)
     , WrapWithMap(wrapWithMap)
-    , SymbolTable(Config)
+    , Table(config)
     , NewRecordStarted(!wrapWithMap)
     , ExpectingEscapedChar(false)
     , RecordCount(1)
@@ -112,15 +112,15 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
         return begin + 1;
     }
     if (ExpectingEscapedChar) {
-        CurrentToken.append(SymbolTable.UnescapingTable[static_cast<ui8>(*begin)]);
+        CurrentToken.append(Table.Escapes.UnescapeTable[static_cast<ui8>(*begin)]);
         ExpectingEscapedChar = false;
         return begin + 1;
     }
 
     // Read until first stop symbol.
     auto next = State == EState::InsideKey
-        ? SymbolTable.FindNextKeyStop(begin, end)
-        : SymbolTable.FindNextValueStop(begin, end);
+        ? Table.KeyStops.FindNext(begin, end)
+        : Table.ValueStops.FindNext(begin, end);
     CurrentToken.append(begin, next);
     if (next == end || *next == Config->EscapingSymbol) {
         return next;

@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "dsv_writer.h"
-#include "dsv_symbols.h"
 
 #include <ytlib/misc/error.h>
 
@@ -21,7 +20,7 @@ TDsvWriter::TDsvWriter(
     : Stream(stream)
     , Type(type)
     , Config(config)
-    , SymbolTable(Config)
+    , Table(config)
     , InsideFirstLine(true)
     , InsideFirstItem(true)
     , InsideAttributes(false)
@@ -144,14 +143,14 @@ void TDsvWriter::EscapeAndWrite(const TStringBuf& string, bool inKey)
         auto* next = begin;
         for (; begin != end; begin = next) {
             next = inKey
-                ? SymbolTable.FindNextKeyStop(begin, end)
-                : SymbolTable.FindNextValueStop(begin, end);
+                ? Table.KeyStops.FindNext(begin, end)
+                : Table.ValueStops.FindNext(begin, end);
 
             Stream->Write(begin, next - begin);
 
             if (next != end) {
                 Stream->Write(Config->EscapingSymbol);
-                Stream->Write(SymbolTable.EscapingTable[static_cast<ui8>(*next)]);
+                Stream->Write(Table.Escapes.EscapeTable[static_cast<ui8>(*next)]);
                 ++next;
             }
         }
