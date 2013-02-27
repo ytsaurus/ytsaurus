@@ -34,6 +34,7 @@ TSlot::TSlot(const Stroka& path, int id, int userId)
             ~Path.Quote());
     }
 
+#ifdef _linux_
     try {
         if (UserId > 0) {
             // Kill all processes of this pseudo-user for sanity reasons.
@@ -42,6 +43,7 @@ TSlot::TSlot(const Stroka& path, int id, int userId)
     } catch (const std::exception& ex) {
         LOG_FATAL(ex, "Slot user cleanup failed (UserId: %d, Slot: %s)", UserId, ~Path.Quote());
     }
+#endif
 }
 
 void TSlot::Acquire()
