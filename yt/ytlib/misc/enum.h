@@ -6,6 +6,7 @@
  */
 
 #include "preprocessor.h"
+#include "foreach.h"
 
 #include <util/stream/base.h>
 #include <util/string/cast.h>
@@ -143,11 +144,11 @@ protected:
         \
         static std::vector<EDomain> GetDomainValues() \
         { \
-            static const EDomain values[] = { \
+            static const EDomain bits[] = { \
                 PP_FOR_EACH(ENUM__GET_DOMAIN_VALUES_ITEM, seq) \
                 static_cast<EDomain>(-1) \
             }; \
-            return std::vector<EDomain>(values, values + sizeof(values) / sizeof(values[0]) - 1); \
+            return std::vector<EDomain>(bits, bits + sizeof(bits) / sizeof(bits[0]) - 1); \
         } \
         \
         static std::vector<Stroka> GetDomainNames() \
@@ -332,6 +333,24 @@ protected:
     }
 
 /*! \} */
+
+//! Decomposes a composite enum value into elementary values.
+/*!
+ *  Every elementary value is assumed to be power of two.
+ */
+template <class T>
+std::vector<T> DecomposeFlaggedEnum(T value)
+{
+    auto bits = T::GetDomainValues();
+    std::vector<T> result;
+    result.reserve(bits.size());
+    FOREACH (auto bit, bits) {
+        if ((value & bit) != 0) {
+            result.push_back(bit);
+        }
+    }
+    return result;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

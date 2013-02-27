@@ -12,14 +12,24 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
-    DECLARE_ENUM(ESimple, (X)(Y)(Z));
-    DECLARE_ENUM(EColor,
-        ((Red)  (10))
-        ((Green)(20))
-        ((Blue) (30))
-         (Black)
-         (White)
-    );
+
+DECLARE_ENUM(ESimple, (X)(Y)(Z));
+
+DECLARE_ENUM(EColor,
+    ((Red)  (10))
+    ((Green)(20))
+    ((Blue) (30))
+     (Black)
+     (White)
+);
+
+DECLARE_ENUM(EFlag,
+    ((_1)(0x0001))
+    ((_2)(0x0002))
+    ((_3)(0x0004))
+    ((_4)(0x0008))
+);
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -181,6 +191,39 @@ TEST(TEnumTest, DomainValues)
     colorValues.push_back(EColor::Black);
     colorValues.push_back(EColor::White);
     EXPECT_EQ(colorValues, EColor::GetDomainValues());
+}
+
+TEST(TEnumTest, Decompose1)
+{
+    auto f = EFlag(0);
+    std::vector<EFlag> ff;
+    EXPECT_EQ(DecomposeFlaggedEnum(f), ff);
+}
+
+TEST(TEnumTest, Decompose2)
+{
+    auto f = EFlag(EFlag::_1);
+    std::vector<EFlag> ff;
+    ff.push_back(EFlag::_1);
+    EXPECT_EQ(DecomposeFlaggedEnum(f), ff);
+}
+
+TEST(TEnumTest, Decompose3)
+{
+    auto f = EFlag(EFlag::_1|EFlag::_2);
+    std::vector<EFlag> ff;
+    ff.push_back(EFlag::_1);
+    ff.push_back(EFlag::_2);
+    EXPECT_EQ(DecomposeFlaggedEnum(f), ff);
+}
+
+TEST(TEnumTest, Decompose4)
+{
+    auto f = EFlag(EFlag::_2|EFlag::_4);
+    std::vector<EFlag> ff;
+    ff.push_back(EFlag::_2);
+    ff.push_back(EFlag::_4);
+    EXPECT_EQ(DecomposeFlaggedEnum(f), ff);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
