@@ -138,22 +138,12 @@ void TDsvWriter::OnEndAttributes()
 void TDsvWriter::EscapeAndWrite(const TStringBuf& string, bool inKey)
 {
     if (Config->EnableEscaping) {
-        auto* begin = string.begin();
-        auto* end = string.end();
-        auto* next = begin;
-        for (; begin != end; begin = next) {
-            next = inKey
-                ? Table.KeyStops.FindNext(begin, end)
-                : Table.ValueStops.FindNext(begin, end);
-
-            Stream->Write(begin, next - begin);
-
-            if (next != end) {
-                Stream->Write(Config->EscapingSymbol);
-                Stream->Write(Table.Escapes.EscapeTable[static_cast<ui8>(*next)]);
-                ++next;
-            }
-        }
+        WriteEscaped(
+            Stream,
+            string,
+            inKey ? Table.KeyStops : Table.ValueStops,
+            Table.Escapes,
+            Config->EscapingSymbol);
     } else {
         Stream->Write(string);
     }

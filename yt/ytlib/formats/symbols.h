@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <vector>
 #include <string>
 
@@ -48,9 +50,16 @@ class TEscapeTable
 public:
     TEscapeTable();
 
-    char EscapeTable[256];
-    char UnescapeTable[256];
+    char Forward[256];
+    char Backward[256];
 };
+
+void WriteEscaped(
+    TOutputStream* stream,
+    const TStringBuf& string,
+    const TLookupTable& lookupTable,
+    const TEscapeTable& escapeTable,
+    char escapingSymbol);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -112,7 +112,7 @@ const char* TDsvParser::Consume(const char* begin, const char* end)
         return begin + 1;
     }
     if (ExpectingEscapedChar) {
-        CurrentToken.append(Table.Escapes.UnescapeTable[static_cast<ui8>(*begin)]);
+        CurrentToken.append(Table.Escapes.Backward[static_cast<ui8>(*begin)]);
         ExpectingEscapedChar = false;
         return begin + 1;
     }

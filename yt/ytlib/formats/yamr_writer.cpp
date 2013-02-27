@@ -14,15 +14,17 @@ using namespace NYTree;
 
 TYamrWriter::TYamrWriter(TOutputStream* stream, TYamrFormatConfigPtr config)
     : Stream(stream)
-    , Config(config)
+    , Config(config ? config : New<TYamrFormatConfig>())
+    , Table(
+        Config->FieldSeparator,
+        Config->RecordSeparator,
+        Config->EnableEscaping, // Enable key escaping
+        Config->EnableEscaping, // Enable value escaping
+        Config->EscapingSymbol)
     , AllowBeginMap(true)
     , ExpectTableIndex(false)
     , State(EState::None)
-{
-    if (!Config) {
-        Config = New<TYamrFormatConfig>();
-    }
-}
+{ }
 
 TYamrWriter::~TYamrWriter()
 { }
@@ -159,13 +161,13 @@ void TYamrWriter::WriteRow()
     TStringBuf value = *Value;
 
     if (!Config->Lenval) {
-        Stream->Write(key);
+        EscapeAndWrite(key, true);
         Stream->Write(Config->FieldSeparator);
         if (Config->HasSubkey) {
-            Stream->Write(subkey);
+            EscapeAndWrite(subkey, true);
             Stream->Write(Config->FieldSeparator);
         }
-        Stream->Write(value);
+        EscapeAndWrite(value, false);
         Stream->Write(Config->RecordSeparator);
     } else {
         WriteInLenvalMode(key);
@@ -180,6 +182,20 @@ void TYamrWriter::WriteInLenvalMode(const TStringBuf& value)
 {
     WritePod(*Stream, static_cast<i32>(value.size()));
     Stream->Write(value);
+}
+
+void TYamrWriter::EscapeAndWrite(const TStringBuf& value, bool inKey)
+{
+    if (Config->EnableEscaping) {
+        WriteEscaped(
+            Stream,
+            value,
+            inKey ? Table.KeyStops : Table.ValueStops,
+            Table.Escapes,
+            Config->EscapingSymbol);
+    } else {
+        Stream->Write(value);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

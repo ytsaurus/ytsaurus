@@ -3,6 +3,7 @@
 #include "public.h"
 #include "config.h"
 #include "helpers.h"
+#include "dsv_table.h"
 
 #include <ytlib/misc/blob_output.h>
 #include <ytlib/misc/small_set.h>
@@ -60,12 +61,19 @@ private:
     bool IsValueEmpty;
     bool AllowBeginMap;
 
+    TDsvTable Table;
+
     void RememberValue(const TStringBuf& value);
 
     void WriteRow();
     void WriteYamrField(
         const std::vector<Stroka>& columnNames,
         const std::map<Stroka, Stroka>& fieldValues);
+
+    void EscapeAndWrite(
+        TOutputStream* outputStream,
+        const TStringBuf& string,
+        bool inKey);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

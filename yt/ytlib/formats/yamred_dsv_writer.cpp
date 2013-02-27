@@ -15,6 +15,7 @@ TYamredDsvWriter::TYamredDsvWriter(TOutputStream* stream, TYamredDsvFormatConfig
     , State(EState::None)
     , IsValueEmpty(true)
     , AllowBeginMap(true)
+    , Table(config)
 {
     FOREACH (const auto& val, Config->KeyColumnNames) {
         KeyColumnNames.insert(val);
@@ -126,9 +127,10 @@ void TYamredDsvWriter::RememberValue(const TStringBuf& value)
         else {
             ValueBuffer.Write(Config->FieldSeparator);
         }
-        ValueBuffer.Write(Key);
+
+        EscapeAndWrite(&ValueBuffer, Key, true);
         ValueBuffer.Write(Config->KeyValueSeparator);
-        ValueBuffer.Write(value);
+        EscapeAndWrite(&ValueBuffer, value, false);
     }
     State = EState::None;
 }
@@ -152,7 +154,7 @@ void TYamredDsvWriter::WriteYamrField(
         if (it == fieldValues.end()) {
             THROW_ERROR_EXCEPTION("Missing required column in YAMRed DSV: %s", ~columnNames[i]);
         }
-        Stream->Write(it->second);
+        EscapeAndWrite(Stream, it->second, false);
         if (i + 1 != columnNames.size()) {
             Stream->Write(Config->YamrKeysSeparator);
         }
@@ -160,6 +162,19 @@ void TYamredDsvWriter::WriteYamrField(
     Stream->Write(Config->FieldSeparator);
 }
 
+void TYamredDsvWriter::EscapeAndWrite(TOutputStream* outputStream, const TStringBuf& string, bool inKey)
+{
+    if (Config->EnableEscaping) {
+        WriteEscaped(
+            outputStream,
+            string,
+            inKey ? Table.KeyStops : Table.ValueStops,
+            Table.Escapes,
+            Config->EscapingSymbol);
+    } else {
+        outputStream->Write(string);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

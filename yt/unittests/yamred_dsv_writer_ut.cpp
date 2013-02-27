@@ -88,6 +88,33 @@ TEST(TYamredDsvWriterTest, WithoutSubkey)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TYamredDsvWriterTest, Escaping)
+{
+    TStringStream outputStream;
+    auto config = New<TYamredDsvFormatConfig>();
+    config->HasSubkey = false;
+    config->KeyColumnNames.push_back("key_a");
+    config->KeyColumnNames.push_back("key_b");
+    config->SubkeyColumnNames.push_back("subkey");
+    TYamredDsvWriter writer(&outputStream, config);
+
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("key_a");
+        writer.OnStringScalar("a\n");
+        writer.OnKeyedItem("key_b");
+        writer.OnStringScalar("\nb\t");
+        writer.OnKeyedItem("column");
+        writer.OnStringScalar("\nva\\lue\t");
+    writer.OnEndMap();
+
+    Stroka output = "a\\n \\nb\\t\tcolumn=\\nva\\\\lue\\t\n";
+
+    EXPECT_EQ(output, outputStream.Str());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NFormats
 } // namespace NYT
 

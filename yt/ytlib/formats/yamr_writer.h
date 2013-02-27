@@ -3,6 +3,7 @@
 #include "public.h"
 #include "config.h"
 #include "helpers.h"
+#include "yamr_table.h"
 
 #include <ytlib/misc/blob_output.h>
 #include <ytlib/misc/nullable.h>
@@ -51,6 +52,8 @@ private:
     TBlobOutput SubkeyBuffer;
     TBlobOutput ValueBuffer;
 
+    TYamrTable Table;
+
     bool AllowBeginMap;
 
     void RememberItem(const TStringBuf& item, bool takeOwnership);
@@ -59,6 +62,8 @@ private:
 
     void WriteRow();
     void WriteInLenvalMode(const TStringBuf& value);
+
+    void EscapeAndWrite(const TStringBuf& value, bool inKey);
 
     DECLARE_ENUM(EState,
         (None)

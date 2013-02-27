@@ -94,6 +94,10 @@ struct TYamrFormatConfig
     // Delimited specific options
     char FieldSeparator;
     char RecordSeparator;
+    
+    // Escaping options
+    bool EnableEscaping;
+    char EscapingSymbol;
 
     // make sense only in writer
     bool EnableTableIndex;
@@ -116,6 +120,10 @@ struct TYamrFormatConfig
             .Default('\n');
         Register("enable_table_index", EnableTableIndex)
             .Default(false);
+        Register("enable_escaping", EnableEscaping)
+            .Default(true);
+        Register("escaping_symbol", EscapingSymbol)
+            .Default('\\');
     }
 };
 

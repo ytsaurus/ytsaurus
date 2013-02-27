@@ -12,18 +12,25 @@ using namespace NYTree;
 TYamrBaseParser::TYamrBaseParser(
     char fieldSeparator,
     char recordSeparator,
+    bool enableKeyEscaping,
+    bool enableValueEscaping,
+    char escapingSymbol,
     bool hasSubkey)
     : FieldSeparator(fieldSeparator)
     , RecordSeparator(recordSeparator)
+    , EscapingSymbol(escapingSymbol)
+    , ExpectingEscapedChar(false)
     , HasSubkey(hasSubkey)
     , Offset(0)
     , Record(1)
     , BufferPosition(0)
-{
-    memset(IsStopSymbol, 0, sizeof(IsStopSymbol));
-    IsStopSymbol[static_cast<ui8>(RecordSeparator)] = true;
-    IsStopSymbol[static_cast<ui8>(FieldSeparator)] = true;
-}
+    , Table(
+        fieldSeparator,
+        recordSeparator,
+        enableKeyEscaping,
+        enableValueEscaping,
+        escapingSymbol)
+{ }
 
 void TYamrBaseParser::Read(const TStringBuf& data)
 {
@@ -36,6 +43,9 @@ void TYamrBaseParser::Read(const TStringBuf& data)
 
 void TYamrBaseParser::Finish()
 {
+    if (ExpectingEscapedChar) {
+        ThrowIncorrectFormat();
+    }
     if (State == EState::InsideKey && !CurrentToken.empty()) {
         ThrowIncorrectFormat();
     }
@@ -65,6 +75,7 @@ Stroka TYamrBaseParser::GetDebugInfo() const
 
 void TYamrBaseParser::ProcessKey(const TStringBuf& key)
 {
+    YASSERT(!ExpectingEscapedChar);
     YASSERT(State == EState::InsideKey);
     ConsumeKey(key);
     State = HasSubkey ? EState::InsideSubkey : EState::InsideValue;
@@ -72,6 +83,7 @@ void TYamrBaseParser::ProcessKey(const TStringBuf& key)
 
 void TYamrBaseParser::ProcessSubkey(const TStringBuf& subkey)
 {
+    YASSERT(!ExpectingEscapedChar);
     YASSERT(State == EState::InsideSubkey);
     ConsumeSubkey(subkey);
     State = EState::InsideValue;
@@ -79,6 +91,7 @@ void TYamrBaseParser::ProcessSubkey(const TStringBuf& subkey)
 
 void TYamrBaseParser::ProcessValue(const TStringBuf& value)
 {
+    YASSERT(!ExpectingEscapedChar);
     YASSERT(State == EState::InsideValue);
     ConsumeValue(value);
     State = EState::InsideKey;
@@ -89,23 +102,39 @@ void TYamrBaseParser::ProcessValue(const TStringBuf& value)
 const char* TYamrBaseParser::Consume(const char* begin, const char* end)
 {
     // Try parse whole record (it usually works faster)
-    if (State == EState::InsideKey && CurrentToken.empty()) {
+    if (!ExpectingEscapedChar && State == EState::InsideKey && CurrentToken.empty()) {
         const char* next = TryConsumeRecord(begin, end);
         if (next != NULL) {
             return next;
         }
     }
 
+    // Read symbol if we are expecting escaped symbol
+    if (ExpectingEscapedChar) {
+        CurrentToken.append(Table.Escapes.Backward[static_cast<ui8>(*begin)]);
+        ExpectingEscapedChar = false;
+        return begin + 1;
+    }
+
+    YASSERT(!ExpectingEscapedChar);
+
     // There is no whole record yet
-    const char* next = FindNextStopSymbol(begin, end, State);
+    const char* next =
+        (State == EState::InsideValue)
+        ? Table.ValueStops.FindNext(begin, end)
+        : Table.KeyStops.FindNext(begin, end);
 
     OnRangeConsumed(begin, next);
     CurrentToken.append(begin, next);
     if (next == end) {
         return end;
     }
-    OnRangeConsumed(next, next + 1); // consume separator
-    if (State == EState::InsideKey) {
+    OnRangeConsumed(next, next + 1);
+
+    if (*next == EscapingSymbol) {
+        ExpectingEscapedChar = true;
+        return next + 1;
+    } else if (State == EState::InsideKey) {
         if (*next == RecordSeparator) {
             ThrowIncorrectFormat();
         }
@@ -123,34 +152,26 @@ const char* TYamrBaseParser::Consume(const char* begin, const char* end)
     return next + 1;
 }
 
-const char* TYamrBaseParser::FindNextStopSymbol(const char* begin, const char* end, EState currentState)
-{
-    if (currentState == EState::InsideValue) {
-        IsStopSymbol[static_cast<ui8>(FieldSeparator)] = false;
-    }
-    else {
-        IsStopSymbol[static_cast<ui8>(FieldSeparator)] = true;
-    }
-    auto current = begin;
-    for ( ; current < end; ++current) {
-        if (IsStopSymbol[static_cast<ui8>(*current)]) {
-            return current;
-        }
-    }
-    return end;
-}
-
 const char* TYamrBaseParser::TryConsumeRecord(const char* begin, const char* end)
 {
-    const char* endOfKey = FindNextStopSymbol(begin, end, EState::InsideKey);
+    const char* endOfKey = Table.KeyStops.FindNext(begin, end);
     const char* endOfSubkey =
-        HasSubkey ?
-        FindNextStopSymbol(endOfKey + 1, end, EState::InsideSubkey) :
-        endOfKey;
-    const char* endOfValue = FindNextStopSymbol(endOfSubkey + 1, end, EState::InsideValue);
+        HasSubkey
+        ? Table.KeyStops.FindNext(endOfKey + 1, end)
+        : endOfKey;
+    const char* endOfValue = Table.ValueStops.FindNext(endOfSubkey + 1, end);
+
     if (endOfValue == end) { // There is no whole record yet.
         return NULL;
     }
+
+    if (*endOfKey == EscapingSymbol ||
+        *endOfSubkey == EscapingSymbol ||
+        *endOfValue == EscapingSymbol) // We have escaped symbols, so we need state machine
+    {
+        return NULL;
+    }
+
     OnRangeConsumed(begin, endOfKey + 1);
 
     if (*endOfKey == RecordSeparator) { // There is no tabulation in record. It is incorrect case.

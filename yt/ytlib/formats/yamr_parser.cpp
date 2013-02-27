@@ -19,6 +19,9 @@ public:
         : TYamrBaseParser(
               config->FieldSeparator,
               config->RecordSeparator,
+              config->EnableEscaping, //Enable key escaping
+              config->EnableEscaping, //Enable value escaping
+              config->EscapingSymbol,
               config->HasSubkey)
         , Consumer(consumer)
         , Config(config)

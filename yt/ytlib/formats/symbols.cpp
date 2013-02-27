@@ -196,17 +196,40 @@ const char* TLookupTable::FindNext(const char* begin, const char* end) const
 TEscapeTable::TEscapeTable()
 {
     for (int i = 0; i < 256; ++i) {
-        EscapeTable[i] = i;
-        UnescapeTable[i] = i;
+        Forward[i] = i;
+        Backward[i] = i;
     }
 
-    EscapeTable['\0'] = '0';
-    EscapeTable['\n'] = 'n';
-    EscapeTable['\t'] = 't';
+    Forward['\0'] = '0';
+    Forward['\n'] = 'n';
+    Forward['\t'] = 't';
 
-    UnescapeTable['0'] = '\0';
-    UnescapeTable['t'] = '\t';
-    UnescapeTable['n'] = '\n';
+    Backward['0'] = '\0';
+    Backward['t'] = '\t';
+    Backward['n'] = '\n';
+}
+
+
+void WriteEscaped(
+    TOutputStream* stream,
+    const TStringBuf& string,
+    const TLookupTable& lookupTable,
+    const TEscapeTable& escapeTable,
+    char escapingSymbol)
+{
+    auto* begin = string.begin();
+    auto* end = string.end();
+    auto* next = begin;
+    for (; begin != end; begin = next) {
+        next = lookupTable.FindNext(begin, end);
+
+        stream->Write(begin, next - begin);
+        if (next != end) {
+            stream->Write(escapingSymbol);
+            stream->Write(escapeTable.Forward[static_cast<ui8>(*next)]);
+            ++next;
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

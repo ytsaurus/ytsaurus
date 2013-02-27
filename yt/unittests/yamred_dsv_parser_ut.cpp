@@ -89,6 +89,33 @@ TEST(TYamredDsvParserTest, EmptyField)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TYamredDsvParserTest, Escaping)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    InSequence dummy;
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("key"));
+        EXPECT_CALL(Mock, OnStringScalar("\t"));
+        EXPECT_CALL(Mock, OnKeyedItem("subkey"));
+        EXPECT_CALL(Mock, OnStringScalar("0\n1"));
+        EXPECT_CALL(Mock, OnKeyedItem("a"));
+        EXPECT_CALL(Mock, OnStringScalar("\tb\nc"));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    Stroka input = "\\t\t0\\n1\ta=\\tb\\nc\n";
+
+    auto config = New<TYamredDsvFormatConfig>();
+    config->HasSubkey = true;
+    config->KeyColumnNames.push_back("key");
+    config->SubkeyColumnNames.push_back("subkey");
+
+    ParseYamredDsv(input, &Mock, config);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NFormats
 } // namespace NYT
 

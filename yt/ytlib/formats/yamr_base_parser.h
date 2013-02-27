@@ -1,6 +1,7 @@
 #pragma once
 
 #include "parser.h"
+#include "yamr_table.h"
 
 namespace NYT {
 namespace NFormats {
@@ -14,6 +15,9 @@ public:
     TYamrBaseParser(
         char fieldSeparator,
         char recordSeparator,
+        bool enableKeyEscaping,
+        bool enableValueEscaping,
+        char escapingSymbol,
         bool hasSubkey);
 
     virtual void Read(const TStringBuf& data) override;
@@ -35,14 +39,13 @@ private:
 
     char FieldSeparator;
     char RecordSeparator;
+    char EscapingSymbol;
+    bool ExpectingEscapedChar;
     bool HasSubkey;
 
     Stroka CurrentToken;
 
-    bool IsStopSymbol[256];
-
     const char* Consume(const char* begin, const char* end);
-    const char* FindNextStopSymbol(const char* begin, const char* end, EState state);
 
     // returns pointer to next fragment or NULL if record is not fully present in [begin, end)
     const char* TryConsumeRecord(const char* begin, const char *end);
@@ -62,6 +65,8 @@ private:
     i32 BufferPosition;
     static const int BufferSize = 16;
     char ContextBuffer[BufferSize];
+
+    TYamrTable Table;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
