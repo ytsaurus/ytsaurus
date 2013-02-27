@@ -122,7 +122,7 @@ def set(args):
 def add_set_parser(subparsers):
     parser = subparsers.add_parser("set")
     parser.add_argument("path")
-    parser.add_argument("value")
+    parser.add_argument("value", action=ParseJson)
     parser.set_defaults(func=set)
 
 
