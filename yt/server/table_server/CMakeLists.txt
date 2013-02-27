@@ -1,14 +1,14 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/server/table_server )
 set( SRCS
-  ${BASE}/public.cpp
   ${BASE}/private.cpp
+  ${BASE}/public.cpp
   ${BASE}/table_node.cpp
   ${BASE}/table_node_proxy.cpp
 )
 set( HDRS
-  ${BASE}/public.h
   ${BASE}/private.h
+  ${BASE}/public.h
   ${BASE}/table_node.h
   ${BASE}/table_node_proxy.h
 )
