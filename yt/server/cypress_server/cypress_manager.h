@@ -224,7 +224,6 @@ private:
         TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction);
 
-    typedef TSmallVector<TCypressNodeBase*, 1> TSubtreeNodes;
     void ListSubtreeNodes(
         TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction,
