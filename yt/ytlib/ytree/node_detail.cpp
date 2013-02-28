@@ -104,14 +104,14 @@ void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove
 
     context->SetRequestInfo("");
 
-    ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-    ValidatePermission(EPermissionCheckScope::Descendants, EPermission::Write);
-    ValidatePermission(EPermissionCheckScope::Parent, EPermission::Write);
-
     auto parent = GetParent();
     if (!parent) {
         THROW_ERROR_EXCEPTION("Cannot remove the root");
     }
+
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+    ValidatePermission(EPermissionCheckScope::Descendants, EPermission::Write);
+    ValidatePermission(EPermissionCheckScope::Parent, EPermission::Write);
 
     bool isComposite = (GetType() == ENodeType::Map || GetType() == ENodeType::List);
     if (!request->recursive() && isComposite && AsComposite()->GetChildCount() > 0) {
