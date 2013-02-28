@@ -35,12 +35,8 @@ namespace NDriver {
 struct TRequest
     : public TYsonSerializable
 {
-    Stroka AuthenticatedUser;
-
     TRequest()
     {
-        Register("authenticated_user", AuthenticatedUser)
-            .Default(NSecurityClient::GuestUserName);
         SetKeepOptions(true);
     }
 };

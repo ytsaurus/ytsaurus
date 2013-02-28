@@ -27,7 +27,6 @@ void TStartTransactionCommand::DoExecute()
     TTransactionStartOptions options;
     options.Timeout = Request->Timeout;
     options.ParentId = Request->TransactionId;
-    options.AuthenticatedUser = Request->AuthenticatedUser;
     options.Ping = true;
     options.PingAncestors = Request->PingAncestorTransactions;
 

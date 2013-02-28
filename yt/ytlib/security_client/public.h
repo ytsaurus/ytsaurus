@@ -23,7 +23,6 @@ extern Stroka GuestUserName;
 extern Stroka EveryoneGroupName;
 extern Stroka UsersGroupName;
 
-// TODO(babenko): move to server-side
 DECLARE_ENUM(ESecurityAction,
     // Intermediate state, used internally.
     ((Undefined)(0))

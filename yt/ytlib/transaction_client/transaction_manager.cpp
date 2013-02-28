@@ -97,10 +97,6 @@ public:
             reqExt->set_timeout(options.Timeout.Get().MilliSeconds());
         }
 
-        if (options.AuthenticatedUser) {
-            NSecurityClient::SetRpcAuthenticatedUser(req, options.AuthenticatedUser.Get());
-        }
-
         if (options.ParentId != NullTransactionId) {
             NMetaState::GenerateRpcMutationId(req);
         }
