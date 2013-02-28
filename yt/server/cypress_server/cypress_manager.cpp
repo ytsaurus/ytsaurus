@@ -1118,8 +1118,7 @@ void TCypressManager::ListSubtreeNodes(
                     const auto* mapNode = static_cast<const TMapNode*>(node);
                     FOREACH (const auto& pair, mapNode->KeyToChild()) {
                         if (pair.second) {
-                            auto* child = GetVersionedNode(pair.second, currentTransaction);
-                            children[pair.first] = child;
+                            children[pair.first] = pair.second;
                         } else {
                             // NB: erase may fail.
                             children.erase(pair.first);
