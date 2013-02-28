@@ -17,6 +17,15 @@ class Format(object):
     def read_row(self, stream):
         raise YtError("Reading record from stream is not implemented for format " + repr(self))
 
+    def __eq__(self, other):
+        if hasattr(self, "to_json") and hasattr(other, "to_json"):
+            return self.to_json() == other.to_json()
+        return False
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+
 
 class DsvFormat(Format):
     def __init__(self):
@@ -30,6 +39,8 @@ class DsvFormat(Format):
 
     def read_row(self, stream):
         return stream.readline()
+    
+
 
 class YsonFormat(Format):
     def __init__(self, format=None):
