@@ -113,6 +113,7 @@ const char* TYamrBaseParser::Consume(const char* begin, const char* end)
     if (ExpectingEscapedChar) {
         CurrentToken.append(Table.Escapes.Backward[static_cast<ui8>(*begin)]);
         ExpectingEscapedChar = false;
+        OnRangeConsumed(begin, begin + 1);
         return begin + 1;
     }
 
@@ -134,7 +135,9 @@ const char* TYamrBaseParser::Consume(const char* begin, const char* end)
     if (*next == EscapingSymbol) {
         ExpectingEscapedChar = true;
         return next + 1;
-    } else if (State == EState::InsideKey) {
+    }
+
+    if (State == EState::InsideKey) {
         if (*next == RecordSeparator) {
             ThrowIncorrectFormat();
         }

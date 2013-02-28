@@ -185,6 +185,27 @@ TEST(TYamrWriterTest, SubkeyCouldBeSkipped)
     EXPECT_EQ(output, outputStream.Str());
 }
 
+TEST(TYamrWriterTest, Escaping)
+{
+    TStringStream outputStream;
+    auto config = New<TYamrFormatConfig>();
+    config->HasSubkey = true;
+    TYamrWriter writer(&outputStream, config);
+
+    writer.OnListItem();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("value");
+        writer.OnStringScalar("\n");
+        writer.OnKeyedItem("subkey");
+        writer.OnStringScalar("\t");
+        writer.OnKeyedItem("key");
+        writer.OnStringScalar("\n");
+    writer.OnEndMap();
+
+    Stroka output = "\\n\t\\t\t\\n\n";
+    EXPECT_EQ(output, outputStream.Str());
+}
+
 TEST(TYamrWriterTest, SimpleWithTableIndex)
 {
     TStringStream outputStream;
