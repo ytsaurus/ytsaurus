@@ -338,12 +338,7 @@ public:
             if (isAccountingEnabled) {
                 UpdateResourceUsage(node, oldAccount, -1);
             }
-
             objectManager->UnrefObject(oldAccount);
-
-            if (isAccountingEnabled) {
-                oldAccount->ResourceUsage() -= node->CachedResourceUsage();
-            }
         }
 
         node->SetAccount(account);
@@ -373,11 +368,6 @@ public:
         node->SetAccount(nullptr);
 
         objectManager->UnrefObject(account);
-
-        if (isAccountingEnabled) {
-            account->ResourceUsage() -= node->CachedResourceUsage();
-            node->CachedResourceUsage() = ZeroClusterResources();
-        }
     }
 
 
