@@ -5,6 +5,8 @@
 
 #include <ytlib/scheduler/config.h>
 
+#include <ytlib/security_client/rpc_helpers.h>
+
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/ypath_proxy.h>
 
@@ -28,6 +30,7 @@ void TSchedulerCommandBase::StartOperation(EOperationType type)
         req->set_type(type);
         *req->mutable_transaction_id() = GetTransactionId(false).ToProto();
         req->set_spec(ConvertToYsonString(Request->Spec).Data());
+        NSecurityClient::SetRpcAuthenticatedUser(req, Request->AuthenticatedUser);
 
         auto rsp = req->Invoke().Get();
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
