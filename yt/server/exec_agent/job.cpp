@@ -411,12 +411,12 @@ void TJob::OnJobExit(TError error)
 
     JobPhase = EJobPhase::Completed;
 
-    auto error = TError::FromProto(JobResult->error())
-    if (error.GetCode() == TError::OK) {
+    auto resultError = FromProto(JobResult->error());
+    if (resultError.GetCode() == TError::OK) {
         JobState = EJobState::Completed;
     } else if (
-        error.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) ||
-        error.FindMatching(NTableClient::EErrorCode::MasterCommunicationFailed))
+        resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) ||
+        resultError.FindMatching(NTableClient::EErrorCode::MasterCommunicationFailed))
     {
         JobState = EJobState::Aborted;
     } else {
