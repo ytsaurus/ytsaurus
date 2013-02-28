@@ -130,15 +130,15 @@ void Deserilize(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAccessControlDescriptor::TAccessControlDescriptor(TObjectBase* owner)
+TAccessControlDescriptor::TAccessControlDescriptor(TObjectBase* object)
     : Inherit_(true)
-    , Owner_(owner)
+    , Object_(object)
 { }
 
 void TAccessControlDescriptor::AddEntry(const TAccessControlEntry& ace)
 {
     FOREACH (auto* subject, ace.Subjects) {
-        subject->ReferencingObjects().insert(Owner_);
+        subject->ReferencingObjects().insert(Object_);
     }
     Acl_.Entries.push_back(ace);
 }
@@ -147,7 +147,7 @@ void TAccessControlDescriptor::ClearEntries()
 {
     FOREACH (const auto& ace, Acl_.Entries) {
         FOREACH (auto* subject, ace.Subjects) {
-            YCHECK(subject->ReferencingObjects().erase(Owner_) == 1);
+            YCHECK(subject->ReferencingObjects().erase(Object_) == 1);
         }
     }
     Acl_.Entries.clear();

@@ -65,10 +65,10 @@ class TAccessControlDescriptor
 {
     DEFINE_BYREF_RO_PROPERTY(TAccessControlList, Acl);
     DEFINE_BYVAL_RW_PROPERTY(bool, Inherit);
-    DEFINE_BYVAL_RO_PROPERTY(NObjectServer::TObjectBase*, Owner);
+    DEFINE_BYVAL_RO_PROPERTY(NObjectServer::TObjectBase*, Object);
 
 public:
-    explicit TAccessControlDescriptor(NObjectServer::TObjectBase* owner);
+    explicit TAccessControlDescriptor(NObjectServer::TObjectBase* object);
 
     void AddEntry(const TAccessControlEntry& ace);
     void ClearEntries();
