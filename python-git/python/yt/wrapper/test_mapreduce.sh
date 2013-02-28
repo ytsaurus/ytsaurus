@@ -219,10 +219,7 @@ test_stderr()
 
 test_smart_format()
 {
-    export SMART_FORMAT=1
-    ./mapreduce -createtable "ignat/smart_x"
-    ./mapreduce -set "ignat/smart_x/@_format" \
-        -value '{
+    format='{
     "$value":"yamred_dsv",
     "$attributes":{
         "key_column_names":["x","y"],
@@ -230,6 +227,12 @@ test_smart_format()
         "has_subkey":"true"
     }
 }'
+    export SMART_FORMAT=1
+    ./mapreduce -createtable "ignat/smart_x"
+    ./mapreduce -createtable "ignat/smart_z"
+
+    ./mapreduce -set "ignat/smart_x/@_format" -value "$format"
+    ./mapreduce -set "ignat/smart_z/@_format" -value "$format"
 
     # test read/write
     echo -e "1 2\t\tz=10" | ./mapreduce -subkey -write "ignat/smart_x"
@@ -246,8 +249,10 @@ test_smart_format()
     # convert to yamred_dsv
     ./mapreduce -smartformat -map "cat" -src "ignat/smart_y" -src "fake" -dst "ignat/smart_x"
     check "1 2\tz=10" "`./mapreduce -smartformat -read "ignat/smart_x"`"
+
+    ./mapreduce -smartformat -copy -src "ignat/smart_x" -dst "ignat/smart_z"
   
-    ./mapreduce -smartformat -merge -src "ignat/smart_x" -src "ignat/smart_x" -dst "ignat/smart_z"
+    ./mapreduce -smartformat -map "cat" -src "ignat/smart_x" -src "ignat/smart_z" -dst "ignat/smart_z"
     check "1 2\tz=10\n1 2\tz=10" "`./mapreduce -smartformat -read "ignat/smart_z"`"
 }
 
