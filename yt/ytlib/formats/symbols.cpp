@@ -148,8 +148,7 @@ void TLookupTable::Fill(const char* begin, const char* end)
     YCHECK(end - begin <= 16);
 
 #ifdef _YT_USE_SSE42_
-    char storage[16];
-    ::memset(storage, 0, sizeof(storage));
+    char storage[16] = {0};
 
     SymbolCount = end - begin;
     for (int i = 0; i < SymbolCount; ++i) {
@@ -184,6 +183,9 @@ void TLookupTable::Fill(const std::string& s)
 
 const char* TLookupTable::FindNext(const char* begin, const char* end) const
 {
+    if (begin >= end) {
+        return end;
+    }
 #ifdef _YT_USE_SSE42_
     return FindNextSymbol(begin, end, Symbols, SymbolCount);
 #else
