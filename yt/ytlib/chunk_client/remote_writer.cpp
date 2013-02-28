@@ -749,7 +749,9 @@ void TRemoteWriter::TImpl::OnNodeFailed(TNodePtr node, const TError& error)
     --AliveNodeCount;
 
     if (State.IsActive() && AliveNodeCount == 0) {
-        TError cumulativeError(TError::Fail, "All target nodes have failed");
+        TError cumulativeError(
+            NChunkClient::EErrorCode::AllTargetNodesFailed,
+            "All target nodes have failed");
         FOREACH (const auto node, Nodes) {
             YCHECK(!node->IsAlive());
             cumulativeError.InnerErrors().push_back(node->Error);

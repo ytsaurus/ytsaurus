@@ -133,7 +133,9 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkCreated(
     }
 
     if (!rsp->IsOK()) {
-        auto wrappedError = TError("Error creating chunk") << *rsp;
+        auto wrappedError = TError(
+            EErrorCode::MasterCommunicationFailed,
+            "Error creating chunk") << *rsp;
         State.Fail(wrappedError);
         return;
     }
@@ -293,7 +295,8 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkClosed(
     VERIFY_THREAD_AFFINITY_ANY();
 
     if (!error.IsOK()) {
-        finishResult.Set(error);
+        auto wrappedError = TError("Error closing chunk") << error;
+        finishResult.Set(wrappedError);
         return;
     }
 
@@ -342,9 +345,10 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkConfirmed(
 
     auto error = batchRsp->GetCumulativeError();
     if (!error.IsOK()) {
-        auto wrappedError = TError("Error confirming chunk %s",
-            ~ToString(chunkId)) << 
-            error;
+        auto wrappedError = TError(
+            EErrorCode::MasterCommunicationFailed,
+            "Error confirming chunk %s",
+            ~ToString(chunkId)) << error;
         finishResult.Set(wrappedError);
         return;
     }

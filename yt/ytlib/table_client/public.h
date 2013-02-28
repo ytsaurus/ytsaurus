@@ -29,6 +29,10 @@ struct TReaderOptions
     { }
 };
 
+DECLARE_ENUM(EErrorCode,
+    ((MasterCommunicationFailed)(800))
+);
+
 struct IAsyncWriter;
 typedef TIntrusivePtr<IAsyncWriter> IAsyncWriterPtr;
 

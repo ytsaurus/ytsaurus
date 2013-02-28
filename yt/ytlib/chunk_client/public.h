@@ -45,6 +45,10 @@ DECLARE_ENUM(EChunkType,
     ((Table)(2))
 );
 
+DECLARE_ENUM(EErrorCode,
+    ((AllTargetNodesFailed)(700))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TRemoteReaderConfig;
