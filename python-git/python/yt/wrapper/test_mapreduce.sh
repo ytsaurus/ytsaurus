@@ -246,6 +246,9 @@ test_smart_format()
     # convert to yamred_dsv
     ./mapreduce -smartformat -map "cat" -src "ignat/smart_y" -src "fake" -dst "ignat/smart_x"
     check "1 2\tz=10" "`./mapreduce -smartformat -read "ignat/smart_x"`"
+  
+    ./mapreduce -smartformat -merge -src "ignat/smart_x" -src "ignat/smart_x" -dst "ignat/smart_z"
+    check "1 2\tz=10\n1 2\tz=10" "`./mapreduce -smartformat -read "ignat/smart_z"`"
 }
 
 test_drop()
