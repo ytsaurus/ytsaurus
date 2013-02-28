@@ -39,7 +39,7 @@ protected:
 
     virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) const override
     {
-        const auto* subject = GetThisTypedImpl();
+        const auto* subject = this->GetThisTypedImpl();
 
         if (key == "name") {
             NYTree::BuildYsonFluently(consumer)
