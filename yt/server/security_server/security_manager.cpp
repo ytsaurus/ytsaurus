@@ -1045,7 +1045,7 @@ private:
 
 
         // Initialize built-in accounts.
-        // sys, 1 TB disk space, 100000 nodes, usage allowed for: sys
+        // sys, 1 TB disk space, 100000 nodes, usage allowed for: root
         SysAccount = DoCreateAccount(SysAccountId, SysAccountName);
         SysAccount->ResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000);
         SysAccount->Acd().AddEntry(TAccessControlEntry(
