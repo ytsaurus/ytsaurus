@@ -80,7 +80,7 @@ void TTableNode::Load(const NCellMaster::TLoadContext& context)
 TClusterResources TTableNode::GetResourceUsage() const
 {
     const auto* chunkList = GetUsageChunkList();
-    i64 diskSpace = chunkList ? 0 : chunkList->Statistics().DiskSpace * GetOwningReplicationFactor();
+    i64 diskSpace = chunkList ? chunkList->Statistics().DiskSpace * GetOwningReplicationFactor() : 0;
     return TClusterResources(diskSpace, 1);
 }
 
