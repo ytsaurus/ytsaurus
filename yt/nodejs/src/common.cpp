@@ -110,6 +110,7 @@ Handle<Value> ConfigureSingletons(const Arguments& args)
     try {
         NLog::TLogManager::Get()->Configure(config->Logging);
         NChunkClient::TDispatcher::Get()->Configure(config->ChunkClientDispatcher);
+        TAddressResolver::Get()->Configure(config->AddressResolver);
     } catch (const std::exception& ex) {
         return catcher.HasCaught() ? catcher.ReThrow() : ThrowException(
             Exception::TypeError(String::Concat(
