@@ -951,6 +951,7 @@ private:
     {
         AccountMap.SaveValues(context);
         UserMap.SaveValues(context);
+        GroupMap.SaveValues(context);
     }
 
     void LoadKeys(const NCellMaster::TLoadContext& context)
