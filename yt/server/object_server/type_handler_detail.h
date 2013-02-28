@@ -6,7 +6,7 @@
 
 #include <ytlib/meta_state/map.h>
 
-#include <server/cell_master/public.h>
+#include <server/cell_master/bootstrap.h>
 
 #include <server/transaction_server/public.h>
 
