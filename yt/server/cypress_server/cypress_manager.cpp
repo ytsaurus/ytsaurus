@@ -64,7 +64,7 @@ public:
     {
         auto cypressManager = Bootstrap->GetCypressManager();
         auto* node = static_cast<TCypressNodeBase*>(object);
-        return Sprintf("node %s", cypressManager->GetNodePath(node->GetTrunkNode(), nullptr));
+        return Sprintf("node %s", ~cypressManager->GetNodePath(node->GetTrunkNode(), nullptr));
     }
 
     virtual TObjectBase* FindObject(const TObjectId& id) override
