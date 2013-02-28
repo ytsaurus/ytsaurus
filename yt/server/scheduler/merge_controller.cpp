@@ -125,18 +125,26 @@ protected:
         {
             TNodeResources result;
 
-            int inputStreamCount =
-                Controller->JobSpecTemplate.type() == EJobType::SortedMerge
-                ? static_cast<int>(Controller->GetInputTablePaths().size())
-                : 1;
-
             result.set_slots(1);
             result.set_cpu(1);
             result.set_memory(
                 GetIOMemorySize(
                     Controller->Spec->JobIO,
-                    inputStreamCount,
-                    1) +
+                    static_cast<int>(Controller->GetOutputTablePaths().size()),
+                    UpdateChunkStripeStatistics(ChunkPool->GetApproximateStripeStatistics())) +
+                GetFootprintMemorySize() +
+                Controller->GetAdditionalMemorySize());
+            return result;
+        }
+
+        virtual TNodeResources GetNeededResources(TJobletPtr joblet) const override
+        {
+            auto result = GetMinNeededResources();
+            result.set_memory(
+                GetIOMemorySize(
+                    Controller->Spec->JobIO,
+                    static_cast<int>(Controller->GetOutputTablePaths().size()),
+                    UpdateChunkStripeStatistics(joblet->InputStripeList->GetStatistics())) +
                 GetFootprintMemorySize() +
                 Controller->GetAdditionalMemorySize());
             return result;
@@ -174,6 +182,20 @@ protected:
         virtual int GetChunkListCountPerJob() const override
         {
             return Controller->OutputTables.size();
+        }
+
+        std::vector<TChunkStripeStatistics> UpdateChunkStripeStatistics(
+            const std::vector<TChunkStripeStatistics>& statistics) const
+        {
+            if (Controller->JobSpecTemplate.type() == EJobType::SortedMerge) {
+                return statistics;
+            } else {
+                std::vector<TChunkStripeStatistics> result(1);
+                FOREACH(const auto& stat, statistics) {
+                    result.back() += stat;
+                }
+                return result;
+            }
         }
 
         virtual EJobType GetJobType() const override

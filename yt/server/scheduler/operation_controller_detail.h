@@ -202,7 +202,7 @@ protected:
     struct TCompletedJob;
     typedef TIntrusivePtr<TCompletedJob> TCompleteJobPtr;
 
-    
+
     struct TJoblet
         : public TIntrinsicRefCounted
     {

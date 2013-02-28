@@ -212,7 +212,7 @@ protected:
 
         virtual TNodeResources GetMinNeededResources() const override
         {
-            return Controller->GetMinNeededPartitionResources();
+            return GetAvgNeededResources();
         }
 
         virtual TNodeResources GetAvgNeededResources() const override
@@ -221,13 +221,14 @@ protected:
             if (jobCount == 0) {
                 return ZeroNodeResources();
             }
-            i64 dataSizePerJob = GetPendingDataSize() / jobCount;
-            return Controller->GetPartitionResources(dataSizePerJob);
+            return Controller->GetPartitionResources(
+                ChunkPool->GetApproximateStripeStatistics());
         }
 
         virtual TNodeResources GetNeededResources(TJobletPtr joblet) const override
         {
-            return Controller->GetPartitionResources(joblet->InputStripeList->TotalDataSize);
+            return Controller->GetPartitionResources(
+                joblet->InputStripeList->GetStatistics());
         }
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
@@ -394,7 +395,7 @@ protected:
 
         virtual TNodeResources GetMinNeededResources() const override
         {
-            return Controller->GetMinNeededPartitionSortResources(Partition);
+            return GetAvgNeededResources();
         }
 
         virtual TNodeResources GetAvgNeededResources() const override
@@ -403,13 +404,18 @@ protected:
             if (jobCount == 0) {
                 return ZeroNodeResources();
             }
-            i64 dataSizePerJob = GetPendingDataSize() / jobCount;
-            return GetNeededResourcesForDataSize(dataSizePerJob);
+
+            auto stat = Partition->ChunkPoolOutput->GetApproximateStripeStatistics();
+            YCHECK(stat.size() == 1);
+            return GetNeededResourcesForChunkStripe(stat.front());
         }
 
         virtual TNodeResources GetNeededResources(TJobletPtr joblet) const override
         {
-            return GetNeededResourcesForDataSize(joblet->InputStripeList->TotalDataSize);
+            auto stat = AggregateStatistics(
+                joblet->InputStripeList->GetStatistics());
+            YCHECK(stat.size() == 1);
+            return GetNeededResourcesForChunkStripe(stat.front());
         }
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
@@ -429,14 +435,18 @@ protected:
         }
 
     protected:
-        TNodeResources GetNeededResourcesForDataSize(i64 dataSize) const
+        TNodeResources GetNeededResourcesForChunkStripe(const TChunkStripeStatistics& stat) const
         {
-            i64 rowCount = Controller->GetRowCountEstimate(Partition, dataSize);
-            i64 valueCount = Controller->GetValueCountEstimate(dataSize);
-            return
-                Controller->SimpleSort
-                ? Controller->GetSimpleSortResources(dataSize, rowCount, valueCount)
-                : Controller->GetPartitionSortResources(Partition, dataSize, rowCount);
+            if (Controller->SimpleSort) {
+                i64 valueCount = Controller->GetValueCountEstimate(stat.DataSize);
+                return Controller->GetSimpleSortResources(
+                    stat,
+                    valueCount);
+            } else {
+                return Controller->GetPartitionSortResources(
+                    Partition,
+                    stat);
+            }
         }
 
         virtual int GetChunkListCountPerJob() const override
@@ -723,7 +733,14 @@ protected:
 
         virtual TNodeResources GetMinNeededResources() const override
         {
-            return Controller->GetSortedMergeResources(ChunkPool->GetTotalStripeCount());
+            return Controller->GetSortedMergeResources(
+                ChunkPool->GetApproximateStripeStatistics());
+        }
+
+        virtual TNodeResources GetNeededResources(TJobletPtr joblet) const override
+        {
+            return Controller->GetSortedMergeResources(
+                joblet->InputStripeList->GetStatistics());
         }
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
@@ -831,7 +848,14 @@ protected:
 
         virtual TNodeResources GetMinNeededResources() const override
         {
-            return Controller->GetUnorderedMergeResources();
+            return Controller->GetUnorderedMergeResources(
+                Partition->ChunkPoolOutput->GetApproximateStripeStatistics());
+        }
+
+        virtual TNodeResources GetNeededResources(TJobletPtr joblet) const override
+        {
+            return Controller->GetUnorderedMergeResources(
+                joblet->InputStripeList->GetStatistics());
         }
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
@@ -1136,39 +1160,21 @@ protected:
     virtual bool IsPartitionJobNonexpanding() const = 0;
 
     virtual TNodeResources GetPartitionResources(
-        i64 dataSize) const = 0;
-
-    TNodeResources GetMinNeededPartitionResources() const
-    {
-        // Holds both for sort and map-reduce.
-        return GetPartitionResources(TotalInputDataSize / SuggestPartitionJobCount());
-    }
+        const std::vector<TChunkStripeStatistics>& statistics) const = 0;
 
     virtual TNodeResources GetSimpleSortResources(
-        i64 dataSize,
-        i64 rowCount,
+        const TChunkStripeStatistics& stat,
         i64 valueCount) const = 0;
 
     virtual TNodeResources GetPartitionSortResources(
         TPartitionPtr partition,
-        i64 dataSize,
-        i64 rowCount) const = 0;
-
-    TNodeResources GetMinNeededPartitionSortResources(
-        TPartitionPtr partition) const
-    {
-        i64 dataSize = Spec->DataSizePerSortJob;
-        if (IsPartitionJobNonexpanding()) {
-            dataSize = std::min(dataSize, TotalInputDataSize);
-        }
-        i64 rowCount = GetRowCountEstimate(partition, dataSize);
-        return GetPartitionSortResources(partition, dataSize, rowCount);
-    }
+        const TChunkStripeStatistics& stat) const = 0;
 
     virtual TNodeResources GetSortedMergeResources(
-        int stripeCount) const = 0;
+        const std::vector<TChunkStripeStatistics>& statistics) const = 0;
 
-    virtual TNodeResources GetUnorderedMergeResources() const = 0;
+    virtual TNodeResources GetUnorderedMergeResources(
+        const std::vector<TChunkStripeStatistics>& statistics) const = 0;
 
 
     // Unsorted helpers.
@@ -1660,14 +1666,18 @@ private:
     }
 
     virtual TNodeResources GetPartitionResources(
-        i64 dataSize) const override
+        const std::vector<TChunkStripeStatistics>& statistics) const override
     {
-        i64 bufferSize = std::min(
-            PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()),
-            dataSize);
+        auto stat = AggregateStatistics(statistics).front();
 
-        bufferSize = std::min(
-            bufferSize + TChannelWriter::MaxUpperReserveLimit * static_cast<i64>(Partitions.size()),
+        i64 outputBufferSize = std::min(
+            PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()),
+            stat.DataSize);
+
+        outputBufferSize += TChannelWriter::MaxUpperReserveLimit * static_cast<i64>(Partitions.size());
+
+        outputBufferSize = std::min(
+            outputBufferSize,
             PartitionJobIOConfig->TableWriter->MaxBufferSize);
 
         TNodeResources result;
@@ -1676,30 +1686,27 @@ private:
         result.set_memory(
             // NB: due to large MaxBufferSize for partition that was accounted in buffer size
             // we eliminate number of output streams to zero.
-            GetIOMemorySize(PartitionJobIOConfig, 1, 0) +
-            bufferSize +
+            GetInputIOMemorySize(PartitionJobIOConfig, stat) +
+            outputBufferSize +
+            GetOutputWindowMemorySize(PartitionJobIOConfig) +
             GetFootprintMemorySize());
         return result;
     }
 
     virtual TNodeResources GetSimpleSortResources(
-        i64 dataSize,
-        i64 rowCount,
+        const TChunkStripeStatistics& stat,
         i64 valueCount) const override
     {
         TNodeResources result;
         result.set_slots(1);
         result.set_cpu(1);
         result.set_memory(
-            // NB: Sort jobs typically have large prefetch window that
-            // drastically increases the estimated consumption returned by GetIOMemorySize.
-            // Setting input count to zero to eliminates this term.
-            GetIOMemorySize(FinalSortJobIOConfig, 0, 1) +
-            dataSize +
+            GetSortInputIOMemorySize(FinalSortJobIOConfig, stat) +
+            GetOutputIOMemorySize(FinalSortJobIOConfig, 1) +
+            (i64) 16 * Spec->SortBy.size() * stat.RowCount +
+            (i64) 16 * stat.RowCount +
             // TODO(babenko): *2 are due to lack of reserve, remove this once simple sort
             // starts reserving arrays of appropriate sizes.
-            (i64) 16 * Spec->SortBy.size() * rowCount +
-            (i64) 16 * rowCount +
             (i64) 32 * valueCount * 2 +
             GetFootprintMemorySize());
         return result;
@@ -1707,43 +1714,42 @@ private:
 
     virtual TNodeResources GetPartitionSortResources(
         TPartitionPtr partition,
-        i64 dataSize,
-        i64 rowCount) const override
+        const TChunkStripeStatistics& stat) const override
     {
         auto ioConfig = IsSortedMergeNeeded(partition) ? IntermediateSortJobIOConfig : FinalSortJobIOConfig;
         TNodeResources result;
         result.set_slots(1);
         result.set_cpu(1);
         result.set_memory(
-            // NB: See comment above for GetSimpleSortJobResources.
-            GetIOMemorySize(ioConfig, 0, 1) +
-            dataSize +
-            (i64) 16 * Spec->SortBy.size() * rowCount +
-            (i64) 12 * rowCount +
+            GetSortInputIOMemorySize(ioConfig, stat) +
+            GetOutputIOMemorySize(ioConfig, 1) +
+            (i64) 16 * Spec->SortBy.size() * stat.RowCount +
+            (i64) 12 * stat.RowCount +
             GetFootprintMemorySize());
         result.set_network(Spec->ShuffleNetworkLimit);
         return result;
     }
 
     virtual TNodeResources GetSortedMergeResources(
-        int stripeCount) const override
+        const std::vector<TChunkStripeStatistics>& statistics) const override
     {
         TNodeResources result;
         result.set_slots(1);
         result.set_cpu(1);
         result.set_memory(
-            GetIOMemorySize(SortedMergeJobIOConfig, stripeCount, 1) +
+            GetIOMemorySize(SortedMergeJobIOConfig, 1, statistics) +
             GetFootprintMemorySize());
         return result;
     }
 
-    virtual TNodeResources GetUnorderedMergeResources() const override
+    virtual TNodeResources GetUnorderedMergeResources(
+        const std::vector<TChunkStripeStatistics>& statistics) const override
     {
         TNodeResources result;
         result.set_slots(1);
         result.set_cpu(1);
         result.set_memory(
-            GetIOMemorySize(UnorderedMergeJobIOConfig, 1, 1) +
+            GetIOMemorySize(UnorderedMergeJobIOConfig, 1, AggregateStatistics(statistics)) +
             GetFootprintMemorySize());
         return result;
     }
@@ -2118,31 +2124,31 @@ private:
         return false;
     }
 
-    virtual TNodeResources GetPartitionResources(
-        i64 dataSize) const override
+    virtual TNodeResources GetPartitionResources(const std::vector<TChunkStripeStatistics>& statistics) const override
     {
+        auto stat = AggregateStatistics(statistics).front();
+
         i64 reserveSize = TChannelWriter::MaxUpperReserveLimit * static_cast<i64>(Partitions.size());
         i64 bufferSize = std::min(
             reserveSize + PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()),
             PartitionJobIOConfig->TableWriter->MaxBufferSize);
-        i64 windowSize = PartitionJobIOConfig->TableWriter->SendWindowSize +
-            PartitionJobIOConfig->TableWriter->EncodeWindowSize;
 
         TNodeResources result;
         result.set_slots(1);
         if (Spec->Mapper) {
-            bufferSize += windowSize;
+            bufferSize += GetOutputWindowMemorySize(PartitionJobIOConfig);
             result.set_cpu(Spec->Mapper->CpuLimit);
-            result.set_memory(GetIOMemorySize(PartitionJobIOConfig, 1, 0) +
+            result.set_memory(
+                GetInputIOMemorySize(PartitionJobIOConfig, stat) +
                 bufferSize +
                 Spec->Mapper->MemoryLimit +
                 GetFootprintMemorySize());
         } else {
-            bufferSize = std::min(bufferSize, dataSize + reserveSize);
-            bufferSize += windowSize;
+            bufferSize = std::min(bufferSize, stat.DataSize + reserveSize);
+            bufferSize += GetOutputWindowMemorySize(PartitionJobIOConfig);
             result.set_cpu(1);
             result.set_memory(
-                GetIOMemorySize(PartitionJobIOConfig, 1, 0) +
+                GetInputIOMemorySize(PartitionJobIOConfig, stat) +
                 bufferSize +
                 GetFootprintMemorySize());
         }
@@ -2150,8 +2156,7 @@ private:
     }
 
     virtual TNodeResources GetSimpleSortResources(
-        i64 dataSize,
-        i64 rowCount,
+        const TChunkStripeStatistics& stat,
         i64 valueCount) const override
     {
         YUNREACHABLE();
@@ -2159,26 +2164,25 @@ private:
 
     virtual TNodeResources GetPartitionSortResources(
         TPartitionPtr partition,
-        i64 dataSize,
-        i64 rowCount) const override
+        const TChunkStripeStatistics& stat) const override
     {
         TNodeResources result;
         result.set_slots(1);
         if (IsSortedMergeNeeded(partition)) {
             result.set_cpu(1);
             result.set_memory(
-                GetIOMemorySize(IntermediateSortJobIOConfig, 0, 1) +
-                dataSize +
-                (i64) 16 * Spec->SortBy.size() * rowCount +
-                (i64) 12 * rowCount +
+                GetSortInputIOMemorySize(IntermediateSortJobIOConfig, stat) +
+                GetOutputIOMemorySize(IntermediateSortJobIOConfig, 1) +
+                (i64) 16 * Spec->SortBy.size() * stat.RowCount +
+                (i64) 12 * stat.RowCount +
                 GetFootprintMemorySize());
         } else {
             result.set_cpu(Spec->Reducer->CpuLimit);
             result.set_memory(
-                GetIOMemorySize(FinalSortJobIOConfig, 0, Spec->OutputTablePaths.size()) +
-                dataSize +
-                (i64) 16 * Spec->SortBy.size() * rowCount +
-                (i64) 16 * rowCount +
+                GetSortInputIOMemorySize(FinalSortJobIOConfig, stat) +
+                GetOutputIOMemorySize(FinalSortJobIOConfig, Spec->OutputTablePaths.size()) +
+                (i64) 16 * Spec->SortBy.size() * stat.RowCount +
+                (i64) 16 * stat.RowCount +
                 Spec->Reducer->MemoryLimit +
                 GetFootprintMemorySize());
         }
@@ -2187,19 +2191,23 @@ private:
     }
 
     virtual TNodeResources GetSortedMergeResources(
-        int stripeCount) const override
+        const std::vector<TChunkStripeStatistics>& statistics) const override
     {
         TNodeResources result;
         result.set_slots(1);
         result.set_cpu(Spec->Reducer->CpuLimit);
         result.set_memory(
-            GetIOMemorySize(SortedMergeJobIOConfig, stripeCount, Spec->OutputTablePaths.size()) +
+            GetIOMemorySize(
+                SortedMergeJobIOConfig,
+                Spec->OutputTablePaths.size(),
+                statistics) +
             Spec->Reducer->MemoryLimit +
             GetFootprintMemorySize());
         return result;
     }
 
-    virtual TNodeResources GetUnorderedMergeResources() const override
+    virtual TNodeResources GetUnorderedMergeResources(
+        const std::vector<TChunkStripeStatistics>& statistics) const override
     {
         YUNREACHABLE();
     }

@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "job_resources.h"
-#include "config.h"
 
 #include <ytlib/ytree/fluent.h>
 
@@ -24,6 +23,9 @@ static const i64 LFAllocBufferSize = (i64) 64 * 1024 * 1024;
 
 //! Nodes having less free memory are considered fully occupied.
 static const i64 LowWatermarkMemorySize = (i64) 512 * 1024 * 1024;
+
+// Estimated memory overhead per chunk reader.
+static const i64 ChunkReaderMemorySize = (i64) 16 * 1024;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -321,18 +323,57 @@ i64 GetLFAllocBufferSize()
     return LFAllocBufferSize;
 }
 
-i64 GetIOMemorySize(
-    TJobIOConfigPtr ioConfig,
-    int inputStreamCount,
-    int outputStreamCount)
+i64 GetOutputWindowMemorySize(TJobIOConfigPtr ioConfig)
 {
     return
-        ioConfig->TableReader->WindowSize * (ioConfig->TableReader->PrefetchWindow + 1) * inputStreamCount +
-        (ioConfig->TableWriter->SendWindowSize + // remote chunk writer window
-        ioConfig->TableWriter->EncodeWindowSize + // codec window
-        ioConfig->TableWriter->MaxBufferSize) *
-        outputStreamCount * 2; // possibly writing two chunks at the time at chunk change
+        ioConfig->TableWriter->SendWindowSize +
+        ioConfig->TableWriter->EncodeWindowSize;
 }
+
+i64 GetOutputIOMemorySize(TJobIOConfigPtr ioConfig, int outputStreamCount)
+{
+    return
+        (GetOutputWindowMemorySize(ioConfig) +
+        ioConfig->TableWriter->MaxBufferSize) *
+        outputStreamCount * 2; // possibly writing two (or even more) chunks at the time of chunk change
+}
+
+i64 GetInputIOMemorySize(
+    TJobIOConfigPtr ioConfig,
+    const TChunkStripeStatistics& stat)
+{
+    YCHECK(stat.ChunkCount > 0);
+    int concurrentReaders = std::min(
+        stat.ChunkCount,
+        ioConfig->TableReader->PrefetchWindow + 1);
+
+    return std::min(
+        ioConfig->TableReader->WindowSize * concurrentReaders,
+        stat.DataSize) + concurrentReaders * ChunkReaderMemorySize;
+}
+
+i64 GetSortInputIOMemorySize(
+    TJobIOConfigPtr ioConfig,
+    const TChunkStripeStatistics& stat)
+{
+    YCHECK(stat.ChunkCount > 0);
+
+    return stat.DataSize + stat.ChunkCount * ChunkReaderMemorySize;
+}
+
+i64 GetIOMemorySize(
+    TJobIOConfigPtr ioConfig,
+    int outputStreamCount,
+    const std::vector<TChunkStripeStatistics>& stripeStatistics)
+{
+    i64 result;
+    FOREACH (const auto& stat, stripeStatistics) {
+        result += GetInputIOMemorySize(ioConfig, stat);
+    }
+    result += GetOutputIOMemorySize(ioConfig, outputStreamCount);
+    return result;
+}
+
 
 namespace NProto {
 

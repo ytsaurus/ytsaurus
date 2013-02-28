@@ -77,17 +77,12 @@ private:
 
         virtual TNodeResources GetMinNeededResources() const override
         {
-            TNodeResources result;
-            result.set_slots(1);
-            result.set_cpu(Controller->Spec->Mapper->CpuLimit);
-            result.set_memory(
-                GetIOMemorySize(
-                    Controller->Spec->JobIO,
-                    1,
-                    Controller->Spec->OutputTablePaths.size()) +
-                GetFootprintMemorySize() +
-                Controller->Spec->Mapper->MemoryLimit);
-            return result;
+            return GetMapResources(ChunkPool->GetApproximateStripeStatistics());
+        }
+
+        virtual TNodeResources GetNeededResources(TJobletPtr joblet) const override
+        {
+            return GetMapResources(joblet->InputStripeList->GetStatistics());
         }
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
@@ -104,6 +99,21 @@ private:
         TMapController* Controller;
 
         TAutoPtr<IChunkPool> ChunkPool;
+
+        TNodeResources GetMapResources(const std::vector<TChunkStripeStatistics>& statistics) const
+        {
+            TNodeResources result;
+            result.set_slots(1);
+            result.set_cpu(Controller->Spec->Mapper->CpuLimit);
+            result.set_memory(
+                GetIOMemorySize(
+                    Controller->Spec->JobIO,
+                    Controller->Spec->OutputTablePaths.size(),
+                    AggregateStatistics(statistics)) +
+                GetFootprintMemorySize() +
+                Controller->Spec->Mapper->MemoryLimit);
+            return result;
+        }
 
         virtual int GetChunkListCountPerJob() const override
         {

@@ -13,12 +13,40 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TChunkStripeStatistics
+{
+    int ChunkCount;
+    i64 DataSize;
+    i64 RowCount;
+    i64 xxx;
+
+    TChunkStripeStatistics()
+        : ChunkCount(0)
+        , DataSize(0)
+        , RowCount(0)
+    { }
+};
+
+TChunkStripeStatistics operator + (
+    const TChunkStripeStatistics& lhs,
+    const TChunkStripeStatistics& rhs);
+
+TChunkStripeStatistics& operator += (
+    TChunkStripeStatistics& lhs,
+    const TChunkStripeStatistics& rhs);
+
+std::vector<TChunkStripeStatistics> AggregateStatistics(const std::vector<TChunkStripeStatistics>& statistics);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TChunkStripe
     : public TIntrinsicRefCounted
 {
     TChunkStripe();
     explicit TChunkStripe(NTableClient::TRefCountedInputChunkPtr inputChunk);
     explicit TChunkStripe(const TChunkStripe& other);
+
+    TChunkStripeStatistics GetStatistics() const;
 
     TSmallVector<NTableClient::TRefCountedInputChunkPtr, 1> Chunks;
 };
@@ -29,6 +57,8 @@ struct TChunkStripeList
     : public TIntrinsicRefCounted
 {
     TChunkStripeList();
+
+    std::vector<TChunkStripeStatistics> GetStatistics() const;
 
     std::vector<TChunkStripePtr> Stripes;
 
@@ -57,7 +87,6 @@ struct IChunkPoolInput
     static const TCookie NullCookie = -1;
 
     virtual TCookie Add(TChunkStripePtr stripe) = 0;
-    virtual int GetTotalStripeCount() const = 0;
 
     virtual void Suspend(TCookie cookie) = 0;
     virtual void Resume(TCookie cookie, TChunkStripePtr stripe) = 0;
@@ -86,6 +115,9 @@ struct IChunkPoolOutput
 
     virtual int GetTotalJobCount() const = 0;
     virtual int GetPendingJobCount() const = 0;
+
+    // Approximate average stripe list statistics to estimate memory usage.
+    virtual std::vector<TChunkStripeStatistics> GetApproximateStripeStatistics() const = 0;
 
     virtual i64 GetLocality(const Stroka& address) const = 0;
 
@@ -126,11 +158,6 @@ TAutoPtr<IShuffleChunkPool> CreateShuffleChunkPool(
     const std::vector<i64>& dataSizeThresholds);
 
 ////////////////////////////////////////////////////////////////////////////////
-
-void GetStatistics(
-    const TChunkStripePtr& stripe,
-    i64* totalDataSize = NULL,
-    i64* totalRowCount = NULL);
 
 void AddStripeToList(
     const TChunkStripePtr& stripe,

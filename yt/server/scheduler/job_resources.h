@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "chunk_pool.h"
 
 #include <ytlib/yson/public.h>
 
@@ -73,10 +74,22 @@ const NProto::TNodeResources& LowWatermarkNodeResources();
 i64 GetFootprintMemorySize();
 i64 GetLFAllocBufferSize();
 
+i64 GetInputIOMemorySize(
+    TJobIOConfigPtr ioConfig,
+    const TChunkStripeStatistics& stat);
+
+i64 GetSortInputIOMemorySize(
+    TJobIOConfigPtr ioConfig,
+    const TChunkStripeStatistics& stat);
+
+i64 GetOutputIOMemorySize(TJobIOConfigPtr ioConfig, int outputStreamCount);
+
+i64 GetOutputWindowMemorySize(TJobIOConfigPtr ioConfig);
+
 i64 GetIOMemorySize(
     TJobIOConfigPtr ioConfig,
-    int inputStreamCount,
-    int outputStreamCount);
+    int outputStreamCount,
+    const std::vector<TChunkStripeStatistics>& stat);
 
 namespace NProto {
 
