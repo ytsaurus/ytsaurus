@@ -133,6 +133,9 @@ public:
     EPermissionSet GetSupportedPermissions(NObjectServer::TObjectBase* object);
 
     //! Returns the object ACD or |nullptr| if access is not controlled.
+    TAccessControlDescriptor* FindAcd(NObjectServer::TObjectBase* object);
+
+    //! Returns the object ACD. Fails if no ACD exists.
     TAccessControlDescriptor* GetAcd(NObjectServer::TObjectBase* object);
 
     //! Returns the ACL obtained by combining ACLs of the object and its parents.

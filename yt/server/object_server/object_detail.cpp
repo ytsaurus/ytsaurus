@@ -330,7 +330,7 @@ TAutoPtr<IAttributeDictionary> TObjectProxyBase::DoCreateUserAttributes()
 void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* names) const
 {
     auto securityManager = Bootstrap->GetSecurityManager();
-    auto* acd = securityManager->GetAcd(Object);
+    auto* acd = securityManager->FindAcd(Object);
     bool hasAcd = acd;
 
     names->push_back("id");
@@ -380,7 +380,7 @@ bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* cons
         return true;
     }
 
-    auto* acd = securityManager->GetAcd(Object);
+    auto* acd = securityManager->FindAcd(Object);
     if (acd) {
         if (key == "inherit_acl") {
             BuildYsonFluently(consumer)
@@ -412,7 +412,7 @@ TAsyncError TObjectProxyBase::GetSystemAttributeAsync(const Stroka& key, IYsonCo
 bool TObjectProxyBase::SetSystemAttribute(const Stroka& key, const TYsonString& value)
 {
     auto securityManager = Bootstrap->GetSecurityManager();
-    auto* acd = securityManager->GetAcd(Object);
+    auto* acd = securityManager->FindAcd(Object);
     if (acd) {
         if (key == "inherit_acl") {
             ValidateNoTransaction();

@@ -113,7 +113,7 @@ struct IObjectTypeHandler
         bool recursive) = 0;
 
     //! Returns the object ACD or |nullptr| if access is not controlled.
-    virtual NSecurityServer::TAccessControlDescriptor* GetAcd(TObjectBase* object) = 0;
+    virtual NSecurityServer::TAccessControlDescriptor* FindAcd(TObjectBase* object) = 0;
 
     //! Returns the object containing parent ACL.
     virtual TObjectBase* GetParent(TObjectBase* object) = 0;

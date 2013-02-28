@@ -123,7 +123,7 @@ public:
             EObjectAccountMode::Forbidden);
     }
 
-    virtual TAccessControlDescriptor* GetAcd(TObjectBase* object) override
+    virtual TAccessControlDescriptor* FindAcd(TObjectBase* object) override
     {
         auto* node = static_cast<TCypressNodeBase*>(object);
         return &node->GetTrunkNode()->Acd();

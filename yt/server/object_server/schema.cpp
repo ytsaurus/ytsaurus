@@ -151,7 +151,7 @@ public:
         return Null;
     }
 
-    virtual NSecurityServer::TAccessControlDescriptor* GetAcd(TObjectBase* object) override
+    virtual NSecurityServer::TAccessControlDescriptor* FindAcd(TObjectBase* object) override
     {
         return &static_cast<TSchemaObject*>(object)->Acd();
     }

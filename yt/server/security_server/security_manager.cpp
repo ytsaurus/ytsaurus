@@ -419,7 +419,7 @@ public:
         }
 
         FOREACH (auto* object, subject->ReferencingObjects()) {
-            auto* acd = GetAcd(object);
+            auto* acd = FindAcd(object);
             YCHECK(acd);
             acd->PurgeEntries(subject);
         }
@@ -566,11 +566,18 @@ public:
         return handler->GetSupportedPermissions();
     }
 
-    TAccessControlDescriptor* GetAcd(NObjectServer::TObjectBase* object)
+    TAccessControlDescriptor* FindAcd(TObjectBase* object)
     {
         auto objectManager = Bootstrap->GetObjectManager();
         auto handler = objectManager->GetHandler(object);
-        return handler->GetAcd(object);
+        return handler->FindAcd(object);
+    }
+
+    TAccessControlDescriptor* GetAcd(TObjectBase* object)
+    {
+        auto* acd = FindAcd(object);
+        YCHECK(acd);
+        return acd;
     }
 
     TAccessControlList GetEffectiveAcl(NObjectServer::TObjectBase* object)
@@ -579,7 +586,7 @@ public:
         auto objectManager = Bootstrap->GetObjectManager();
         while (object) {
             auto handler = objectManager->GetHandler(object);
-            auto* acd = handler->GetAcd(object);
+            auto* acd = handler->FindAcd(object);
             if (acd) {
                 result.Entries.insert(result.Entries.end(), acd->Acl().Entries.begin(), acd->Acl().Entries.end());
                 if (!acd->GetInherit()) {
@@ -628,7 +635,7 @@ public:
         auto* currentObject = object;
         while (currentObject) {
             auto handler = objectManager->GetHandler(currentObject);
-            auto* acd = handler->GetAcd(currentObject);
+            auto* acd = handler->FindAcd(currentObject);
 
             // Check the current ACL, if any.
             if (acd) {
@@ -1054,18 +1061,6 @@ private:
             UsersGroup,
             EPermission::Use));
 
-        // Assign some initial permissions.
-        auto objectManager = Bootstrap->GetObjectManager();
-        auto* masterObjectAcd = GetAcd(objectManager->GetMasterObject());
-        masterObjectAcd->AddEntry(TAccessControlEntry(
-            ESecurityAction::Allow,
-            EveryoneGroup,
-            EPermission::Read));
-        masterObjectAcd->AddEntry(TAccessControlEntry(
-            ESecurityAction::Allow,
-            UsersGroup,
-            EPermission::Write));
-
         InitAuthenticatedUser();
         InitDefaultSchemaAcds();
     }
@@ -1084,7 +1079,7 @@ private:
             auto handler = objectManager->FindHandler(type);
             if (handler && TypeHasSchema(type)) {
                 auto* schema = objectManager->GetSchema(type);
-                auto* acd = GetAcd(schema);
+                auto* acd = FindAcd(schema);
                 if (!TypeIsVersioned(type)) {
                     acd->AddEntry(TAccessControlEntry(
                         ESecurityAction::Allow,
@@ -1325,6 +1320,11 @@ void TSecurityManager::RemoveMember(TGroup* group, TSubject* member)
 EPermissionSet TSecurityManager::GetSupportedPermissions(TObjectBase* object)
 {
     return Impl->GetSupportedPermissions(object);
+}
+
+TAccessControlDescriptor* TSecurityManager::FindAcd(TObjectBase* object)
+{
+    return Impl->FindAcd(object);
 }
 
 TAccessControlDescriptor* TSecurityManager::GetAcd(TObjectBase* object)

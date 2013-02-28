@@ -79,9 +79,9 @@ public:
         DoUnstage(static_cast<TObject*>(object), transaction, recursive);
     }
 
-    virtual NSecurityServer::TAccessControlDescriptor* GetAcd(TObjectBase* object) override
+    virtual NSecurityServer::TAccessControlDescriptor* FindAcd(TObjectBase* object) override
     {
-        return DoGetAcd(static_cast<TObject*>(object));
+        return DoFindAcd(static_cast<TObject*>(object));
     }
 
     virtual TObjectBase* GetParent(TObjectBase* object) override
@@ -127,7 +127,7 @@ protected:
         UNUSED(recursive);
     }
 
-    virtual NSecurityServer::TAccessControlDescriptor* DoGetAcd(TObject* object)
+    virtual NSecurityServer::TAccessControlDescriptor* DoFindAcd(TObject* object)
     {
         UNUSED(object);
         return nullptr;
