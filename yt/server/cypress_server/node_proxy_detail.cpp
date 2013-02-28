@@ -586,7 +586,7 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     context->SetRequestInfo("Type: %s", ~type.ToString());
 
     if (path.Empty()) {
-        if (request->ignore_existing() && GetType() == type) {
+        if (request->ignore_existing() && GetThisImpl()->GetType() == type) {
             *response->mutable_node_id() = GetId().ToProto();
             context->Reply();
             return;
