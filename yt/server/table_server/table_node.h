@@ -34,6 +34,10 @@ public:
 
     virtual void Save(const NCellMaster::TSaveContext& context) const;
     virtual void Load(const NCellMaster::TLoadContext& context);
+
+private:
+    const NChunkServer::TChunkList* GetUsageChunkList() const;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

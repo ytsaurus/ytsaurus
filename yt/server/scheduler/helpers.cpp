@@ -32,7 +32,8 @@ void BuildOperationAttributes(TOperationPtr operation, NYson::IYsonConsumer* con
         .Item("output_transaction_id").Value(outputTransaction ? outputTransaction->GetId() : NullTransactionId)
         .Item("state").Value(FormatEnum(operation->GetState()))
         .Item("start_time").Value(operation->GetStartTime())
-        .Item("spec").Node(operation->GetSpec());
+        .Item("spec").Node(operation->GetSpec())
+        .Item("authenticated_user").Value(operation->GetAuthenticatedUser());
 }
 
 void BuildJobAttributes(TJobPtr job, NYson::IYsonConsumer* consumer)

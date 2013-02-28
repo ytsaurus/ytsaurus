@@ -11,7 +11,7 @@ namespace NChunkServer {
 
 //! Base class for both TChunkList and TChunk.
 class TChunkTree
-    : public NObjectServer::TUnversionedObjectBase
+    : public NObjectServer::TNonversionedObjectBase
 {
 public:
     explicit TChunkTree(const TChunkTreeId& id);

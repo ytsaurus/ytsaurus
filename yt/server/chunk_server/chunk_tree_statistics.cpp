@@ -53,7 +53,7 @@ void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* con
         .EndMap();
 }
 
-void Save(const TChunkTreeStatistics& statistics, const NCellMaster::TSaveContext& context)
+void Save(const NCellMaster::TSaveContext& context, const TChunkTreeStatistics& statistics)
 {
     auto* output = context.GetOutput();
     ::Save(output, statistics.RowCount);
@@ -66,7 +66,7 @@ void Save(const TChunkTreeStatistics& statistics, const NCellMaster::TSaveContex
     ::Save(output, statistics.Rank);
 }
 
-void Load(TChunkTreeStatistics& statistics, const NCellMaster::TLoadContext& context)
+void Load(const NCellMaster::TLoadContext& context, TChunkTreeStatistics& statistics)
 {
     auto* input = context.GetInput();
     ::Load(input, statistics.RowCount);

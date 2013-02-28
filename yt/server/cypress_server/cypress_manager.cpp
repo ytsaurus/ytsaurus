@@ -20,6 +20,7 @@
 #include <server/object_server/type_handler_detail.h>
 
 #include <server/security_server/account.h>
+#include <server/security_server/group.h>
 #include <server/security_server/security_manager.h>
 
 namespace NYT {
@@ -33,6 +34,7 @@ using namespace NTransactionServer;
 using namespace NMetaState;
 using namespace NObjectClient;
 using namespace NObjectServer;
+using namespace NSecurityClient;
 using namespace NSecurityServer;
 using namespace NCypressClient::NProto;
 
@@ -47,9 +49,9 @@ class TCypressManager::TNodeTypeHandler
 {
 public:
     TNodeTypeHandler(
-        TCypressManager* cypressManager,
+        TBootstrap* bootstrap,
         EObjectType type)
-        : CypressManager(cypressManager)
+        : Bootstrap(bootstrap)
         , Type(type)
     { }
 
@@ -58,15 +60,24 @@ public:
         return Type;
     }
 
+    virtual Stroka GetName(NObjectServer::TObjectBase* object) override
+    {
+        auto cypressManager = Bootstrap->GetCypressManager();
+        auto* node = static_cast<TCypressNodeBase*>(object);
+        return Sprintf("node %s", cypressManager->GetNodePath(node->GetTrunkNode(), nullptr));
+    }
+
     virtual TObjectBase* FindObject(const TObjectId& id) override
     {
-        return CypressManager->FindNode(TVersionedNodeId(id));
+        auto cypressManager = Bootstrap->GetCypressManager();
+        return cypressManager->FindNode(TVersionedNodeId(id));
     }
 
     virtual void Destroy(TObjectBase* object) override
     {
+        auto cypressManager = Bootstrap->GetCypressManager();
         auto* node = static_cast<TCypressNodeBase*>(object);
-        CypressManager->DestroyNode(node);
+        cypressManager->DestroyNode(node);
     }
 
     virtual void Unstage(
@@ -84,12 +95,12 @@ public:
         TObjectBase* object,
         TTransaction* transaction) override
     {
-        return CypressManager->GetVersionedNodeProxy(
-            static_cast<TCypressNodeBase*>(object),
-            transaction);
+        auto cypressManager = Bootstrap->GetCypressManager();
+        auto* node = static_cast<TCypressNodeBase*>(object);
+        return cypressManager->GetVersionedNodeProxy(node, transaction);
     }
 
-    virtual TUnversionedObjectBase* Create(
+    virtual TNonversionedObjectBase* Create(
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
@@ -105,18 +116,36 @@ public:
             ~FormatEnum(GetType()));
     }
 
-    virtual EObjectTransactionMode GetTransactionMode() const override
+    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
     {
-        return EObjectTransactionMode::Optional;
+        return TTypeCreationOptions(
+            EObjectTransactionMode::Optional,
+            EObjectAccountMode::Forbidden);
     }
 
-    virtual EObjectAccountMode GetAccountMode() const override
+    virtual TAccessControlDescriptor* GetAcd(TObjectBase* object) override
     {
-        return EObjectAccountMode::Forbidden;
+        auto* node = static_cast<TCypressNodeBase*>(object);
+        return &node->GetTrunkNode()->Acd();
+    }
+
+    virtual TObjectBase* GetParent(TObjectBase* object) override
+    {
+        auto* node = static_cast<TCypressNodeBase*>(object);
+        auto* parent = node->GetParent();
+        return parent ? parent : Bootstrap->GetObjectManager()->GetMasterObject();
+    }
+
+    virtual EPermissionSet GetSupportedPermissions() const override
+    {
+        // TODO(babenko): flagged enums
+        return EPermissionSet(
+            EPermission::Read |
+            EPermission::Write);
     }
 
 private:
-    TCypressManager* CypressManager;
+    TBootstrap* Bootstrap;
     EObjectType Type;
 
 };
@@ -204,13 +233,20 @@ TAutoPtr<TCypressNodeBase> TCypressManager::TNodeMapTraits::Create(const TVersio
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCloneContext::TCloneContext()
+    : Account(nullptr)
+    , Transaction(nullptr)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCypressManager::TCypressManager(TBootstrap* bootstrap)
     : TMetaStatePart(
         bootstrap->GetMetaStateFacade()->GetManager(),
         bootstrap->GetMetaStateFacade()->GetState())
     , Bootstrap(bootstrap)
     , NodeMap(TNodeMapTraits(this))
-    , TypeToHandler(MaxObjectType)
+    , TypeToHandler(MaxObjectType + 1)
     , RootNode(nullptr)
 {
     YCHECK(bootstrap);
@@ -250,13 +286,13 @@ TCypressManager::TCypressManager(TBootstrap* bootstrap)
         NCellMaster::TSaveContext context;
 
         RegisterSaver(
-            ESavePriority::Keys,
+            ESerializationPriority::Keys,
             "Cypress.Keys",
             CurrentSnapshotVersion,
             BIND(&TCypressManager::SaveKeys, MakeStrong(this)),
             context);
         RegisterSaver(
-            ESavePriority::Values,
+            ESerializationPriority::Values,
             "Cypress.Values",
             CurrentSnapshotVersion,
             BIND(&TCypressManager::SaveValues, MakeStrong(this)),
@@ -283,12 +319,12 @@ void TCypressManager::RegisterHandler(INodeTypeHandlerPtr handler)
 
     auto type = handler->GetObjectType();
     int typeValue = type.ToValue();
-    YCHECK(typeValue >= 0 && typeValue < MaxObjectType);
+    YCHECK(typeValue >= 0 && typeValue <= MaxObjectType);
     YCHECK(!TypeToHandler[typeValue]);
     TypeToHandler[typeValue] = handler;
 
     auto objectManager = Bootstrap->GetObjectManager();
-    objectManager->RegisterHandler(New<TNodeTypeHandler>(this, type));
+    objectManager->RegisterHandler(New<TNodeTypeHandler>(Bootstrap, type));
 }
 
 INodeTypeHandlerPtr TCypressManager::FindHandler(EObjectType type)
@@ -296,7 +332,7 @@ INodeTypeHandlerPtr TCypressManager::FindHandler(EObjectType type)
     VERIFY_THREAD_AFFINITY_ANY();
 
     int typeValue = type.ToValue();
-    if (typeValue < 0 || typeValue >= MaxObjectType) {
+    if (typeValue < 0 || typeValue > MaxObjectType) {
         return nullptr;
     }
 
@@ -314,7 +350,7 @@ INodeTypeHandlerPtr TCypressManager::GetHandler(EObjectType type)
 
 INodeTypeHandlerPtr TCypressManager::GetHandler(const TCypressNodeBase* node)
 {
-    return GetHandler(TypeFromId(node->GetId()));
+    return GetHandler(node->GetType());
 }
 
 TCypressNodeBase* TCypressManager::CreateNode(
@@ -351,27 +387,18 @@ TCypressNodeBase* TCypressManager::CreateNode(
 
 TCypressNodeBase* TCypressManager::CloneNode(
     TCypressNodeBase* sourceNode,
-    TTransaction* transaction)
+    const TCloneContext& context)
 {
     YCHECK(sourceNode);
 
-    auto securityManager = Bootstrap->GetSecurityManager();
-
     auto handler = GetHandler(sourceNode);
-    auto clonedNode = handler->Clone(sourceNode, transaction);
+    auto clonedNode = handler->Clone(sourceNode, context);
 
     // Make a rawptr copy and transfer the ownership.
     auto clonedNode_ = ~clonedNode;
-    RegisterNode(clonedNode, transaction);
+    RegisterNode(clonedNode, context.Transaction);
 
-    auto* account = sourceNode->GetAccount();
-    // COMPAT(babenko)
-    if (!account) {
-        account = securityManager->GetSysAccount();
-    }
-    securityManager->SetAccount(clonedNode_, account);
-
-    return LockVersionedNode(clonedNode_, transaction, ELockMode::Exclusive);
+    return LockVersionedNode(clonedNode_, context.Transaction, ELockMode::Exclusive);
 }
 
 void TCypressManager::CreateNodeBehavior(TCypressNodeBase* trunkNode)
@@ -755,7 +782,7 @@ TCypressNodeBase* TCypressManager::LockVersionedNode(
     if (recursive) {
         YCHECK(!request.ChildKey);
         YCHECK(!request.AttributeKey);
-        ListSubtreeNodes(trunkNode, transaction, &nodesToLock);
+        ListSubtreeNodes(trunkNode, transaction, true, &nodesToLock);
     } else {
         nodesToLock.push_back(trunkNode);
     }
@@ -871,6 +898,16 @@ void TCypressManager::RegisterNode(
     }
 }
 
+TCypressManager::TSubtreeNodes TCypressManager::ListSubtreeNodes(
+    TCypressNodeBase* trunkNode,
+    TTransaction* transaction,
+    bool includeRoot)
+{
+    TSubtreeNodes result;
+    ListSubtreeNodes(trunkNode, transaction, includeRoot, &result);
+    return result;
+}
+
 TCypressNodeBase* TCypressManager::BranchNode(
     TCypressNodeBase* originatingNode,
     TTransaction* transaction,
@@ -902,10 +939,6 @@ TCypressNodeBase* TCypressManager::BranchNode(
 
     // Update resource usage.
     auto* account = originatingNode->GetAccount();
-    // COMPAT(babenko)
-    if (!account) {
-        account = securityManager->GetSysAccount();
-    }
     securityManager->SetAccount(branchedNode_, account);
 
     LOG_INFO_UNLESS(IsRecovery(), "Node branched (NodeId: %s, TransactionId: %s, Mode: %s)",
@@ -949,6 +982,19 @@ void TCypressManager::LoadValues(const NCellMaster::TLoadContext& context)
             YCHECK(parent->ImmediateAncestors().insert(node).second);
         }
     }
+
+    // COMPAT(babenko)
+    // Replace every NULL account with sys
+    auto securityManager = Bootstrap->GetSecurityManager();
+    auto* sysAccount = securityManager->GetSysAccount();
+    FOREACH (const auto& pair, NodeMap) {
+        auto* node = pair.second;
+        if (!node->GetAccount()) {
+            node->SetAccount(sysAccount);
+            sysAccount->RefObject();
+            ++sysAccount->ResourceUsage().NodeCount;
+        }
+    }
 }
 
 void TCypressManager::Clear()
@@ -963,6 +1009,11 @@ void TCypressManager::Clear()
     RootNode = new TMapNode(TVersionedNodeId(RootNodeId));
     RootNode->SetTrunkNode(RootNode);
     RootNode->SetAccount(securityManager->GetSysAccount());
+    RootNode->Acd().SetInherit(false);
+    RootNode->Acd().AddEntry(TAccessControlEntry(
+        ESecurityAction::Allow,
+        securityManager->GetEveryoneGroup(),
+        EPermission::Read));
 
     NodeMap.Insert(TVersionedNodeId(RootNodeId), RootNode);
     YCHECK(RootNode->RefObject() == 1);
@@ -1043,46 +1094,51 @@ void TCypressManager::ReleaseLocks(TTransaction* transaction)
 void TCypressManager::ListSubtreeNodes(
     TCypressNodeBase* trunkNode,
     TTransaction* transaction,
+    bool includeRoot,
     TSubtreeNodes* subtreeNodes)
 {
     YCHECK(trunkNode->IsTrunk());
 
     auto transactionManager = Bootstrap->GetTransactionManager();
 
-    const auto& rootId = trunkNode->GetId();
-    subtreeNodes->push_back(trunkNode);
-    switch (TypeFromId(rootId)) {
+    if (includeRoot) {
+        subtreeNodes->push_back(trunkNode);  
+    }
+
+    switch (trunkNode->GetType()) {
         case EObjectType::MapNode: {
             auto transactions = transactionManager->GetTransactionPath(transaction);
             std::reverse(transactions.begin(), transactions.end());
 
             yhash_map<Stroka, TCypressNodeBase*> children;
             FOREACH (auto* currentTransaction, transactions) {
-                TVersionedObjectId versionedId(rootId, GetObjectId(currentTransaction));
+                TVersionedObjectId versionedId(trunkNode->GetId(), GetObjectId(currentTransaction));
                 const auto* node = FindNode(versionedId);
                 if (node) {
                     const auto* mapNode = static_cast<const TMapNode*>(node);
                     FOREACH (const auto& pair, mapNode->KeyToChild()) {
-                        if (!pair.second) {
-                            YCHECK(children.erase(pair.first) == 1);
-                        } else {
+                        if (pair.second) {
                             auto* child = GetVersionedNode(pair.second, currentTransaction);
                             children[pair.first] = child;
+                        } else {
+                            // NB: erase may fail.
+                            children.erase(pair.first);
                         }
                     }
                 }
             }
 
             FOREACH (const auto& pair, children) {
-                ListSubtreeNodes(pair.second, transaction, subtreeNodes);
+                ListSubtreeNodes(pair.second, transaction, true, subtreeNodes);
             }
+
             break;
         }
 
         case EObjectType::ListNode: {
             auto* listRoot = static_cast<TListNode*>(trunkNode);
             FOREACH (auto* trunkChild, listRoot->IndexToChild()) {
-                ListSubtreeNodes(trunkChild, transaction, subtreeNodes);
+                ListSubtreeNodes(trunkChild, transaction, true, subtreeNodes);
             }
             break;
         }

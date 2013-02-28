@@ -60,14 +60,14 @@ void TGarbageCollector::Save(const NCellMaster::TSaveContext& context) const
     FOREACH (auto* object, LockedZombies) {
         allZombies.push_back(object);
     }
-    SaveObjectRefs(context.GetOutput(), allZombies);
+    SaveObjectRefs(context, allZombies);
 }
 
 void TGarbageCollector::Load(const NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    LoadObjectRefs(context.GetInput(), Zombies, context);
+    LoadObjectRefs(context, Zombies);
     LockedZombies.clear();
 
     CollectPromise = NewPromise<void>();

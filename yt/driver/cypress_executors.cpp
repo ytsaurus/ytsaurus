@@ -266,7 +266,8 @@ void TExistsExecutor::BuildArgs(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
 
-    BuildYsonMapFluently(consumer).Item("path").Value(path);
+    BuildYsonMapFluently(consumer)
+        .Item("path").Value(path);
 
     TTransactedExecutor::BuildArgs(consumer);
 }

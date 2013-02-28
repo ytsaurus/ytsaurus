@@ -13,7 +13,7 @@ TJob::TJob(
     const Stroka& Address,
     const std::vector<Stroka>& targetAddresses,
     TInstant startTime)
-    : TUnversionedObjectBase(jobId)
+    : TNonversionedObjectBase(jobId)
     , Type_(type)
     , ChunkId_(chunkId)
     , Address_(Address)
@@ -22,7 +22,7 @@ TJob::TJob(
 { }
 
 TJob::TJob(const TJobId& jobId)
-    : TUnversionedObjectBase(jobId)
+    : TNonversionedObjectBase(jobId)
 { }
 
 void TJob::Save(const NCellMaster::TSaveContext& context) const

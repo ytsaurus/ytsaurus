@@ -18,7 +18,7 @@ protected:
     virtual IYPathServicePtr FindItemService(const TStringBuf& key) const = 0;
 
 private:
-    virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
+    virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
 
     virtual TResolveResult ResolveRecursive(const TYPath& path, NRpc::IServiceContextPtr context) override;
     virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context) override;

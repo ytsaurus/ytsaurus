@@ -31,6 +31,8 @@
 
 #include <ytlib/meta_state/rpc_helpers.h>
 
+#include <ytlib/security_client/rpc_helpers.h>
+
 #include <cmath>
 
 namespace NYT {
@@ -47,6 +49,7 @@ using namespace NYson;
 using namespace NYPath;
 using namespace NFormats;
 using namespace NJobProxy;
+using namespace NSecurityClient;
 using namespace NScheduler::NProto;
 
 ////////////////////////////////////////////////////////////////////
@@ -432,7 +435,7 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     auto* outputSpec = jobSpec->add_output_specs();
     outputSpec->set_channels("[]");
     outputSpec->set_replication_factor(1);
-    outputSpec->set_account(Controller->Spec->TmpAccount);
+    outputSpec->set_account(Controller->Spec->IntermediateDataAccount);
     *outputSpec->mutable_chunk_list_id() = joblet->ChunkListIds[0].ToProto();
 }
 
@@ -521,7 +524,9 @@ TOperationControllerBase::TOperationControllerBase(
     : Config(config)
     , Host(host)
     , Operation(operation)
-    , ObjectProxy(host->GetMasterChannel())
+    , ObjectProxy(CreateAuthenticatedChannel(
+        host->GetMasterChannel(),
+        operation->GetAuthenticatedUser()))
     , Logger(OperationLogger)
     , CancelableContext(New<TCancelableContext>())
     , CancelableControlInvoker(CancelableContext->CreateInvoker(Host->GetControlInvoker()))
@@ -1312,7 +1317,7 @@ void TOperationControllerBase::OnObjectIdsReceived(TObjectServiceProxy::TRspExec
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
-    THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error getting object ids");
+    THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error getting ids for input objects");
 
     {
         auto getInIdRsps = batchRsp->GetResponses<TObjectYPathProxy::TRspGetId>("get_in_id");
@@ -1347,10 +1352,9 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::GetInputTypes()
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
-    LOG_INFO("Getting input types");
+    LOG_INFO("Getting input object types");
 
     auto batchReq = ObjectProxy.ExecuteBatch();
-
 
     FOREACH (const auto& table, InputTables) {
         auto req = TObjectYPathProxy::Get(FromObjectId(table.ObjectId) + "/@type");
@@ -1378,7 +1382,7 @@ void TOperationControllerBase::OnInputTypesReceived(TObjectServiceProxy::TRspExe
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
-    THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error getting input types");
+    THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error getting input object types");
 
     {
         auto getInputTypes = batchRsp->GetResponses<TObjectYPathProxy::TRspGet>("get_input_types");
@@ -2062,7 +2066,7 @@ int TOperationControllerBase::SuggestJobCount(
 void TOperationControllerBase::InitUserJobSpec(
     NScheduler::NProto::TUserJobSpec* jobSpec,
     TUserJobSpecPtr config,
-    const std::vector<TRegularUserFile>& files,
+    const std::vector<TRegularUserFile>& regularFiles,
     const std::vector<TUserTableFile>& tableFiles)
 {
     jobSpec->set_shell_command(config->Command);
@@ -2113,8 +2117,7 @@ void TOperationControllerBase::InitUserJobSpec(
     jobSpec->add_environment(Sprintf("YT_OPERATION_ID=%s",
         ~Operation->GetOperationId().ToString()));
 
-    // TODO(babenko): think about per-job files
-    FOREACH (const auto& file, files) {
+    FOREACH (const auto& file, regularFiles) {
         *jobSpec->add_files() = *file.FetchResponse;
     }
 

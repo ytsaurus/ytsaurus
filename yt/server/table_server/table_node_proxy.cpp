@@ -48,7 +48,7 @@ using NTableClient::NProto::TKey;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableNodeProxy
-    : public TCypressNodeProxyBase<TCypressNodeProxyNontemplateBase, IEntityNode, TTableNode>
+    : public TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IEntityNode, TTableNode>
 {
 public:
     TTableNodeProxy(
@@ -62,7 +62,7 @@ public:
     virtual NSecurityServer::TClusterResources GetResourceUsage() const override;
 
 private:
-    typedef TCypressNodeProxyBase<TCypressNodeProxyNontemplateBase, IEntityNode, TTableNode> TBase;
+    typedef TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IEntityNode, TTableNode> TBase;
 
     class TFetchChunkVisitor;
     typedef TIntrusivePtr<TFetchChunkVisitor> TFetchChunkProcessorPtr;
@@ -76,8 +76,7 @@ private:
         const TNullable<NYTree::TYsonString>& newValue) override;
     virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
-    virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
-    void ValidateNoTransaction() const;
+    virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
 
     void ParseYPath(
         const NYPath::TYPath& path,
@@ -405,19 +404,12 @@ TTableNodeProxy::TTableNodeProxy(
         trunkNode)
 { }
 
-void TTableNodeProxy::DoInvoke(IServiceContextPtr context)
+bool TTableNodeProxy::DoInvoke(IServiceContextPtr context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(PrepareForUpdate);
     DISPATCH_YPATH_HEAVY_SERVICE_METHOD(Fetch);
     DISPATCH_YPATH_SERVICE_METHOD(SetSorted);
-    TBase::DoInvoke(context);
-}
-
-void TTableNodeProxy::ValidateNoTransaction() const
-{
-    if (Transaction) {
-        THROW_ERROR_EXCEPTION("Value cannot be altered inside transaction");
-    }
+    return TBase::DoInvoke(context);
 }
 
 bool TTableNodeProxy::IsWriteRequest(IServiceContextPtr context) const
@@ -432,7 +424,7 @@ TClusterResources TTableNodeProxy::GetResourceUsage() const
     const auto* node = GetThisTypedImpl();
     const auto* chunkList = node->GetChunkList();
     i64 diskSpace = chunkList->Statistics().DiskSpace * node->GetReplicationFactor();
-    return TClusterResources::FromDiskSpace(diskSpace);
+    return TClusterResources(diskSpace, 1);
 }
 
 void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const
@@ -624,14 +616,13 @@ bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& v
 
 DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, PrepareForUpdate)
 {
-    if (!Transaction) {
-        THROW_ERROR_EXCEPTION("Transaction required");
-    }
-
     auto mode = ETableUpdateMode(request->mode());
     YCHECK(mode == ETableUpdateMode::Append || mode == ETableUpdateMode::Overwrite);
 
     context->SetRequestInfo("Mode: %s", ~mode.ToString());
+
+    ValidateTransaction();
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
     auto* node = LockThisTypedImpl(mode == ETableUpdateMode::Append ? ELockMode::Shared : ELockMode::Exclusive);
 
@@ -743,6 +734,8 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, SetSorted)
 {
     auto keyColumns = FromProto<Stroka>(request->key_columns());
     context->SetRequestInfo("KeyColumns: %s", ~ConvertToYsonString(keyColumns, EYsonFormat::Text).Data());
+
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
     auto* node = LockThisTypedImpl();
 

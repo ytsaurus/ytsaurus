@@ -15,13 +15,13 @@
 #include <ytlib/ytree/ypath.pb.h>
 
 #include <ytlib/object_client/object_ypath.pb.h>
+#include <ytlib/object_client/object_service_proxy.h>
 
 #include <server/cell_master/public.h>
 
 #include <server/transaction_server/public.h>
 
 #include <server/security_server/public.h>
-
 
 namespace NYT {
 namespace NObjectServer {
@@ -91,6 +91,7 @@ protected:
     TAutoPtr<NYTree::IAttributeDictionary> UserAttributes;
 
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, GetId);
+    DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, CheckPermission);
 
     //! Returns the full object id that coincides with #Id
     //! for non-versioned objects and additionally includes transaction id for
@@ -98,7 +99,7 @@ protected:
     virtual TVersionedObjectId GetVersionedId() const;
 
     void GuardedInvoke(NRpc::IServiceContextPtr context);
-    virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
+    virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
     virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
 
     // NYTree::TSupportsAttributes members
@@ -113,34 +114,49 @@ protected:
     virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) const override;
     virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
+    TObjectBase* GetSchema(EObjectType type);
+    TObjectBase* GetThisSchema();
+
+    void ValidateTransaction();
+    void ValidateNoTransaction();
+
+    // TSupportsPermissions members
+    virtual void ValidatePermission(
+        NYTree::EPermissionCheckScope scope,
+        NYTree::EPermission permission) override;
+
+    void ValidatePermission(
+        TObjectBase* object,
+        NYTree::EPermission permission);
+
     bool IsRecovery() const;
     bool IsLeader() const;
+
     void ValidateActiveLeader() const;
     void ForwardToLeader(NRpc::IServiceContextPtr context);
-    void OnLeaderResponse(NRpc::IServiceContextPtr context, NBus::IMessagePtr responseMessage);
+    void OnLeaderResponse(NRpc::IServiceContextPtr context, NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr batchRsp);
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNonversionedObjectProxyNontemplateBase
+class TNontemplateNonversionedObjectProxyBase
     : public TObjectProxyBase
 {
 public:
-    TNonversionedObjectProxyNontemplateBase(
+    TNontemplateNonversionedObjectProxyBase(
         NCellMaster::TBootstrap* bootstrap,
         TObjectBase* object);
 
     virtual bool IsWriteRequest(NRpc::IServiceContextPtr context) const override;
 
 protected:
-    virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
+    virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
 
     virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context) override;
 
     virtual void ValidateRemoval();
-
-    DECLARE_RPC_SERVICE_METHOD(NYTree::NProto, Remove);
+    virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemovePtr context) override;
 
 };
 
@@ -148,25 +164,14 @@ protected:
 
 template <class TObject>
 class TNonversionedObjectProxyBase
-    : public TNonversionedObjectProxyNontemplateBase
+    : public TNontemplateNonversionedObjectProxyBase
 {
 public:
-    typedef typename NMetaState::TMetaStateMap<TObjectId, TObject> TMap;
-
-    TNonversionedObjectProxyBase(
-        NCellMaster::TBootstrap* bootstrap,
-        TObject* object,
-        TMap* map)
-        : TNonversionedObjectProxyNontemplateBase(bootstrap, object)
-        , Map(map)
-    {
-        YASSERT(map);
-    }
+    TNonversionedObjectProxyBase(NCellMaster::TBootstrap* bootstrap, TObject* object)
+        : TNontemplateNonversionedObjectProxyBase(bootstrap, object)
+    { }
 
 protected:
-    TMap* Map;
-
-
     const TObject* GetThisTypedImpl() const
     {
         return static_cast<const TObject*>(Object);

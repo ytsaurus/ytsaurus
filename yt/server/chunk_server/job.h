@@ -15,7 +15,7 @@ namespace NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJob
-    : public NObjectServer::TUnversionedObjectBase
+    : public NObjectServer::TNonversionedObjectBase
 {
     DEFINE_BYVAL_RO_PROPERTY(EJobType, Type);
     // Don't try making it TChunk*.

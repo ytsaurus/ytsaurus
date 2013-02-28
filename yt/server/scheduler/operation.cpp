@@ -18,6 +18,7 @@ TOperation::TOperation(
     EOperationType type,
     ITransactionPtr userTransaction,
     NYTree::IMapNodePtr spec,
+    const Stroka& authenticatedUser,
     TInstant startTime,
     EOperationState state)
     : OperationId_(operationId)
@@ -25,6 +26,7 @@ TOperation::TOperation(
     , State_(state)
     , UserTransaction_(userTransaction)
     , Spec_(spec)
+    , AuthenticatedUser_(authenticatedUser)
     , StartTime_(startTime)
     , StdErrCount_(0)
     , MaxStdErrCount_(0)

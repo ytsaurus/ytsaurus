@@ -30,6 +30,8 @@
 
 #include <ytlib/security_client/public.h>
 
+#include <ytlib/object_client/master_ypath_proxy.h>
+
 #include <server/cell_scheduler/bootstrap.h>
 
 namespace NYT {
@@ -312,7 +314,7 @@ private:
         {
             auto batchReq = Owner->StartBatchRequest(false);
             {
-                auto req = TTransactionYPathProxy::CreateObject(RootTransactionPath);
+                auto req = TMasterYPathProxy::CreateObject();
                 req->set_type(EObjectType::Transaction);
 
                 auto* reqExt = req->MutableExtension(TReqCreateTransactionExt::create_transaction);
@@ -334,7 +336,7 @@ private:
         {
             THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp);
             {
-                auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_lock_tx");
+                auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_lock_tx");
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting lock transaction");
                 auto transactionId = TTransactionId::FromProto(rsp->object_id());
 
@@ -425,6 +427,7 @@ private:
                     attributeFilter->add_keys("sync_scheduler_transaction_id");
                     attributeFilter->add_keys("async_scheduler_transaction_id");
                     attributeFilter->add_keys("spec");
+                    attributeFilter->add_keys("authenticated_user");
                     attributeFilter->add_keys("start_time");
                     attributeFilter->add_keys("state");
                     batchReq->AddRequest(req, "get_op_attr");
@@ -616,6 +619,8 @@ private:
             attributes.Get<EOperationType>("operation_type"),
             userTransaction,
             attributes.Get<INodePtr>("spec")->AsMap(),
+            // COMPAT(babenko)
+            attributes.Get<Stroka>("authenticated_user", "root"),
             attributes.Get<TInstant>("start_time"),
             attributes.Get<EOperationState>("state"));
         operation->SetSyncSchedulerTransaction(syncTransaction);

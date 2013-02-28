@@ -40,6 +40,8 @@ public:
         TObjectManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
+    void Initialize();
+
     //! Registers a new type handler.
     /*!
      *  It asserts than no handler of this type is already registered.
@@ -103,11 +105,29 @@ public:
         const TVersionedObjectId& originatingId,
         const TVersionedObjectId& branchedId);
 
-    //! Returns a YPath service that handles all requests.
-    /*!
-     *  This service supports some special prefix syntax for YPaths:
-     */
+    //! Returns a YPath service that routes all incoming requests.
     NYTree::IYPathServicePtr GetRootService();
+
+    //! Returns "master" object for handling requests sent via TMasterYPathProxy.
+    TObjectBase* GetMasterObject();
+
+    //! Returns a proxy for master object.
+    /*!
+     *  \see GetMasterObject
+     */
+    IObjectProxyPtr GetMasterProxy();
+    
+    //! Finds a schema object for a given type, returns |nullptr| if nothing is found.
+    TObjectBase* FindSchema(EObjectType type);
+
+    //! Finds a schema object for a given type, fails if nothing is found.
+    TObjectBase* GetSchema(EObjectType type);
+
+    //! Returns a proxy for schema object.
+    /*!
+     *  \see GetSchema
+     */
+    IObjectProxyPtr GetSchemaProxy(EObjectType type);
 
     //! Executes a YPath verb, logging the change if necessary.
     /*!
@@ -139,13 +159,29 @@ private:
     typedef TObjectManager TThis;
 
     class TServiceContextWrapper;
+
     class TRootService;
+    typedef TIntrusivePtr<TRootService> TRootServicePtr;
 
     TObjectManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
 
-    std::vector<IObjectTypeHandlerPtr> TypeToHandler;
-    TIntrusivePtr<TRootService> RootService;
+    struct TTypeEntry
+    {
+        IObjectTypeHandlerPtr Handler;
+        TAutoPtr<TSchemaObject> SchemaObject;
+        IObjectProxyPtr SchemaProxy;
+    };
+
+    std::vector<TTypeEntry> TypeToEntry;
+    
+    TRootServicePtr RootService;
+    
+    TObjectId MasterObjectId;
+    TAutoPtr<TMasterObject> MasterObject;
+
+    IObjectProxyPtr MasterProxy;
+
     mutable TGuid CachedCellGuild;
 
     TPeriodicInvokerPtr ProflilingInvoker;
@@ -159,10 +195,14 @@ private:
     //! Stores deltas from parent transaction.
     NMetaState::TMetaStateMap<TVersionedObjectId, TAttributeSet> Attributes;
 
+    void InitWellKnownSingletons();
+
     void SaveKeys(const NCellMaster::TSaveContext& context) const;
     void SaveValues(const NCellMaster::TSaveContext& context) const;
+    void SaveSchemas(const NCellMaster::TSaveContext& context) const;
     void LoadKeys(const NCellMaster::TLoadContext& context);
     void LoadValues(const NCellMaster::TLoadContext& context);
+    void LoadSchemas(const NCellMaster::TLoadContext& context);
 
     virtual void OnRecoveryStarted() override;
     virtual void OnRecoveryComplete() override;

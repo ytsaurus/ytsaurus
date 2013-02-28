@@ -12,11 +12,14 @@
 #include <server/cypress_server/cypress_manager.h>
 
 #include <server/security_server/security_manager.h>
+#include <server/security_server/user.h>
+#include <server/security_server/group.h>
 
 namespace NYT {
 namespace NCellMaster {
 
 using namespace NObjectServer;
+using namespace NObjectClient;
 using namespace NTransactionServer;
 using namespace NChunkServer;
 using namespace NCypressServer;
@@ -91,6 +94,28 @@ template <>
 TDataNode* TLoadContext::Get(NChunkServer::TNodeId id) const
 {
     return Bootstrap_->GetChunkManager()->GetNode(id);
+}
+
+template <>
+TSubject* TLoadContext::Get(const TObjectId& id) const
+{
+    switch (TypeFromId(id)) {
+        case EObjectType::User:  return Get<TUser>(id);
+        case EObjectType::Group: return Get<TGroup>(id);
+        default:                 YUNREACHABLE();
+    }
+}
+
+template <>
+TUser* TLoadContext::Get(const TObjectId& id) const
+{
+    return Bootstrap_->GetSecurityManager()->GetUser(id);
+}
+
+template <>
+TGroup* TLoadContext::Get(const TObjectId& id) const
+{
+    return Bootstrap_->GetSecurityManager()->GetGroup(id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

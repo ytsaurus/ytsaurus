@@ -55,7 +55,7 @@ void TTableNode::Save(const NCellMaster::TSaveContext& context) const
     TCypressNodeBase::Save(context);
 
     auto* output = context.GetOutput();
-    SaveObjectRef(output, ChunkList_);
+    SaveObjectRef(context, ChunkList_);
     ::Save(output, UpdateMode_);
     ::Save(output, ReplicationFactor_);
     ::Save(output, Codec_);
@@ -66,7 +66,7 @@ void TTableNode::Load(const NCellMaster::TLoadContext& context)
     TCypressNodeBase::Load(context);
 
     auto* input = context.GetInput();
-    LoadObjectRef(input, ChunkList_, context);
+    LoadObjectRef(context, ChunkList_);
     ::Load(input, UpdateMode_);
     ::Load(input, ReplicationFactor_);
     // COMPAT(psushin)
@@ -79,32 +79,32 @@ void TTableNode::Load(const NCellMaster::TLoadContext& context)
 
 TClusterResources TTableNode::GetResourceUsage() const
 {
-    const TChunkList* chunkList;
+    const auto* chunkList = GetUsageChunkList();
+    i64 diskSpace = chunkList ? 0 : chunkList->Statistics().DiskSpace * GetOwningReplicationFactor();
+    return TClusterResources(diskSpace, 1);
+}
+
+const TChunkList* TTableNode::GetUsageChunkList() const
+{
     switch (UpdateMode_) {
         case ETableUpdateMode::None:
             if (Transaction_) {
-                return ZeroClusterResources();
+                return nullptr;;
             }
-            chunkList = ChunkList_;
-            break;
+            return ChunkList_;
 
         case ETableUpdateMode::Append: {
             const auto& children = ChunkList_->Children();
             YCHECK(children.size() == 2);
-            chunkList = children[1]->AsChunkList();
-            break;
-        }
+            return children[1]->AsChunkList();
+                                       }
 
         case ETableUpdateMode::Overwrite:
-            chunkList = ChunkList_;
-            break;
+            return ChunkList_;
 
         default:
             YUNREACHABLE();
     }
-
-    i64 diskSpace = chunkList->Statistics().DiskSpace * GetOwningReplicationFactor();
-    return TClusterResources::FromDiskSpace(diskSpace);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -340,9 +340,9 @@ protected:
     virtual void DoClone(
         TTableNode* sourceNode,
         TTableNode* clonedNode,
-        TTransaction* transaction) override
+        const TCloneContext& context) override
     {
-        TBase::DoClone(sourceNode, clonedNode, transaction);
+        TBase::DoClone(sourceNode, clonedNode, context);
 
         auto objectManager = Bootstrap->GetObjectManager();
 

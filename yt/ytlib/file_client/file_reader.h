@@ -5,6 +5,8 @@
 
 #include <ytlib/object_client/object_service_proxy.h>
 
+#include <ytlib/ypath/rich.h>
+
 namespace NYT {
 namespace NFileClient {
 
@@ -25,7 +27,7 @@ public:
         NRpc::IChannelPtr masterChannel,
         NTransactionClient::ITransactionPtr transaction,
         NChunkClient::IBlockCachePtr blockCache,
-        const NYPath::TYPath& path);
+        const NYPath::TRichYPath& richPath);
 
     //! Opens the reader.
     void Open();
@@ -41,7 +43,7 @@ public:
 
 private:
     NTransactionClient::ITransactionPtr Transaction;
-    NYPath::TYPath Path;
+    NYPath::TRichYPath RichPath;
 
     DECLARE_THREAD_AFFINITY_SLOT(Client);
 

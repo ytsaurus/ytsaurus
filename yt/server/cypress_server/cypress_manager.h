@@ -32,6 +32,16 @@ namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCloneContext
+{
+    TCloneContext();
+
+    NSecurityServer::TAccount* Account;
+    NTransactionServer::TTransaction* Transaction;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCypressManager
     : public NMetaState::TMetaStatePart
 {
@@ -69,11 +79,10 @@ public:
      *  The call does the following:
      *  - Creates a clone of #sourceNode.
      *  - Registers the cloned node.
-     *  - Locks the cloned node with exclusive mode.
+     *  - Sets accounts for the whole subtree to |context.Account|.
+     *  - Locks the cloned node with exclusive mode for |context.Transaction|.
      */
-    TCypressNodeBase* CloneNode(
-        TCypressNodeBase* sourceNode,
-        NTransactionServer::TTransaction* transaction);
+    TCypressNodeBase* CloneNode(TCypressNodeBase* sourceNode, const TCloneContext& context);
 
     //! Returns the root node.
     TCypressNodeBase* GetRootNode() const;
@@ -113,6 +122,12 @@ public:
         TAutoPtr<TCypressNodeBase> node,
         NTransactionServer::TTransaction* transaction,
         NYTree::IAttributeDictionary* attributes = nullptr);
+
+    typedef TSmallVector<TCypressNodeBase*, 1> TSubtreeNodes;
+    TSubtreeNodes ListSubtreeNodes(
+        TCypressNodeBase* trunkNode,
+        NTransactionServer::TTransaction* transaction,
+        bool includeRoot = true);
 
     DECLARE_METAMAP_ACCESSORS(Node, TCypressNodeBase, TVersionedNodeId);
 
@@ -213,7 +228,8 @@ private:
     void ListSubtreeNodes(
         TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction,
-        TSubtreeNodes* nodes);
+        bool includeRoot,
+        TSubtreeNodes* subtreeNodes);
 
    TCypressNodeBase* BranchNode(
        TCypressNodeBase* originatingNode,

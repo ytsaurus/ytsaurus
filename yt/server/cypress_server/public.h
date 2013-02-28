@@ -28,6 +28,8 @@ typedef TIntrusivePtr<ICypressNodeProxy> ICypressNodeProxyPtr;
 struct ICypressNodeVisitor;
 typedef TIntrusivePtr<ICypressNodeVisitor> ICypressNodeVisitorPtr;
 
+struct TCloneContext;
+
 using NCypressClient::TNodeId;
 using NCypressClient::ELockMode;
 using NCypressClient::TVersionedNodeId;

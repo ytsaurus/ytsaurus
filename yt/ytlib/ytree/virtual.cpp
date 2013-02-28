@@ -24,12 +24,12 @@ static const size_t DefaultMaxSize = 1000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TVirtualMapBase::DoInvoke(IServiceContextPtr context)
+bool TVirtualMapBase::DoInvoke(IServiceContextPtr context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(Get);
     DISPATCH_YPATH_SERVICE_METHOD(List);
     DISPATCH_YPATH_SERVICE_METHOD(Exists);
-    TSupportsAttributes::DoInvoke(context);
+    return TSupportsAttributes::DoInvoke(context);
 }
 
 IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(

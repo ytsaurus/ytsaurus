@@ -81,7 +81,7 @@ bool TObjectBase::IsLocked() const
 
 bool TObjectBase::IsTrunk() const
 {
-    if (!IsTypeVersioned(TypeFromId(Id))) {
+    if (!TypeIsVersioned(TypeFromId(Id))) {
         return true;
     }
 
@@ -113,7 +113,7 @@ bool CompareObjectsForSerialization(const TObjectBase* lhs, const TObjectBase* r
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUnversionedObjectBase::TUnversionedObjectBase(const TObjectId& id)
+TNonversionedObjectBase::TNonversionedObjectBase(const TObjectId& id)
     : TObjectBase(id)
 { }
 

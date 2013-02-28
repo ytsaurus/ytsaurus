@@ -13,20 +13,12 @@ namespace NObjectClient {
 template <class TTypedResponse>
 TIntrusivePtr<TTypedResponse> TObjectServiceProxy::TRspExecuteBatch::GetResponse(int index) const
 {
-    YCHECK(index >= 0 && index < GetSize());
-    int beginIndex = BeginPartIndexes[index];
-    int endIndex = beginIndex + Body.part_counts(index);
-    if (beginIndex == endIndex) {
-        // This is an empty response.
-        return NULL;
+    auto innerResponseMessage = GetResponseMessage(index);
+    if (!innerResponseMessage) {
+        return nullptr;
     }
-
-    std::vector<TSharedRef> innerParts(
-        Attachments_.begin() + beginIndex,
-        Attachments_.begin() + endIndex);
-    auto innerMessage = NBus::CreateMessageFromParts(std::move(innerParts));
     auto innerResponse = New<TTypedResponse>();
-    innerResponse->Deserialize(innerMessage);
+    innerResponse->Deserialize(innerResponseMessage);
     return innerResponse;
 }
 
@@ -36,7 +28,7 @@ TIntrusivePtr<TTypedResponse> TObjectServiceProxy::TRspExecuteBatch::FindRespons
     YCHECK(!key.empty());
     auto range = KeyToIndexes.equal_range(key);
     if (range.first == range.second) {
-        return NULL;
+        return nullptr;
     }
     auto it = range.first;
     int index = it->second;

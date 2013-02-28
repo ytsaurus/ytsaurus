@@ -16,7 +16,7 @@ using namespace NCellMaster;
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransaction::TTransaction(const TTransactionId& id)
-    : TUnversionedObjectBase(id)
+    : TNonversionedObjectBase(id)
     , UncommittedAccountingEnabled_(false)
     , StagedAccountingEnabled_(false)
     , Parent_(nullptr)
@@ -25,40 +25,40 @@ TTransaction::TTransaction(const TTransactionId& id)
 
 void TTransaction::Save(const NCellMaster::TSaveContext& context) const
 {
-    TUnversionedObjectBase::Save(context);
+    TNonversionedObjectBase::Save(context);
 
     auto* output = context.GetOutput();
     ::Save(output, State_);
     ::Save(output, Timeout_);
     ::Save(output, UncommittedAccountingEnabled_);
     ::Save(output, StagedAccountingEnabled_);
-    SaveObjectRefs(output, NestedTransactions_);
-    SaveObjectRef(output, Parent_);
+    SaveObjectRefs(context, NestedTransactions_);
+    SaveObjectRef(context, Parent_);
     ::Save(output, StartTime_);
-    SaveObjectRefs(output, StagedObjects_);
-    SaveObjectRefs(output, LockedNodes_);
-    SaveObjectRefs(output, BranchedNodes_);
-    SaveObjectRefs(output, StagedNodes_);
-    SaveObjectRefs(output, AccountResourceUsage_);
+    SaveObjectRefs(context, StagedObjects_);
+    SaveObjectRefs(context, LockedNodes_);
+    SaveObjectRefs(context, BranchedNodes_);
+    SaveObjectRefs(context, StagedNodes_);
+    SaveObjectRefs(context, AccountResourceUsage_);
 }
 
 void TTransaction::Load(const NCellMaster::TLoadContext& context)
 {
-    TUnversionedObjectBase::Load(context);
+    TNonversionedObjectBase::Load(context);
 
     auto* input = context.GetInput();
     ::Load(input, State_);
     ::Load(input, Timeout_);
     ::Load(input, UncommittedAccountingEnabled_);
     ::Load(input, StagedAccountingEnabled_);
-    LoadObjectRefs(input, NestedTransactions_, context);
-    LoadObjectRef(input, Parent_, context);
+    LoadObjectRefs(context, NestedTransactions_);
+    LoadObjectRef(context, Parent_);
     ::Load(input, StartTime_);
-    LoadObjectRefs(input, StagedObjects_, context);
-    LoadObjectRefs(input, LockedNodes_, context);
-    LoadObjectRefs(input, BranchedNodes_, context);
-    LoadObjectRefs(input, StagedNodes_, context);
-    LoadObjectRefs(input, AccountResourceUsage_, context);
+    LoadObjectRefs(context, StagedObjects_);
+    LoadObjectRefs(context, LockedNodes_);
+    LoadObjectRefs(context, BranchedNodes_);
+    LoadObjectRefs(context, StagedNodes_);
+    LoadObjectRefs(context, AccountResourceUsage_);
 }
 
 bool TTransaction::IsActive() const

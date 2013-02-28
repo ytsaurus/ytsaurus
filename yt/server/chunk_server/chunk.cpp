@@ -59,10 +59,8 @@ TChunkTreeStatistics TChunk::GetStatistics() const
 
 TClusterResources TChunk::GetResourceUsage() const
 {
-    return
-        IsConfirmed()
-        ? TClusterResources::FromDiskSpace(ChunkInfo_.size() * ReplicationFactor_)
-        : ZeroClusterResources();
+    i64 diskSpace = IsConfirmed() ? ChunkInfo_.size() * ReplicationFactor_ : 0;
+    return TClusterResources(diskSpace, 1);
 }
 
 void TChunk::Save(const NCellMaster::TSaveContext& context) const
@@ -76,9 +74,9 @@ void TChunk::Save(const NCellMaster::TSaveContext& context) const
     ::Save(output, ReplicationFactor_);
     ::Save(output, GetMovable());
     ::Save(output, GetVital());
-    SaveObjectRefs(output, Parents_);
-    SaveObjectRefs(output, StoredReplicas_);
-    SaveNullableObjectRefs(output, CachedReplicas_);
+    SaveObjectRefs(context, Parents_);
+    SaveObjectRefs(context, StoredReplicas_);
+    SaveNullableObjectRefs(context, CachedReplicas_);
 }
 
 void TChunk::Load(const NCellMaster::TLoadContext& context)
@@ -92,9 +90,9 @@ void TChunk::Load(const NCellMaster::TLoadContext& context)
     ::Load(input, ReplicationFactor_);
     SetMovable(NCellMaster::Load<bool>(context));
     SetVital(NCellMaster::Load<bool>(context));
-    LoadObjectRefs(input, Parents_, context);
-    LoadObjectRefs(input, StoredReplicas_, context);
-    LoadNullableObjectRefs(input, CachedReplicas_, context);
+    LoadObjectRefs(context, Parents_);
+    LoadObjectRefs(context, StoredReplicas_);
+    LoadNullableObjectRefs(context, CachedReplicas_);
 }
 
 void TChunk::AddReplica(TChunkReplica replica, bool cached)

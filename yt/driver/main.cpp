@@ -4,7 +4,7 @@
 #include "file_executors.h"
 #include "table_executors.h"
 #include "scheduler_executors.h"
-#include "admin_executors.h"
+#include "etc_executors.h"
 
 #include <ytlib/logging/log_manager.h>
 
@@ -80,9 +80,12 @@ public:
         RegisterExecutor(New<TAbortOpExecutor>());
         RegisterExecutor(New<TTrackOpExecutor>());
 
-        // Admin commands
+        // Etc commands
         RegisterExecutor(New<TBuildSnapshotExecutor>());
-        RegisterExecutor(New<TGCCollectExector>());
+        RegisterExecutor(New<TGCCollectExecutor>());
+        RegisterExecutor(New<TAddMemberExecutor>());
+        RegisterExecutor(New<TRemoveMemberExecutor>());
+        RegisterExecutor(New<TCheckPermissionExecutor>());
     }
 
     int Main(int argc, const char* argv[])

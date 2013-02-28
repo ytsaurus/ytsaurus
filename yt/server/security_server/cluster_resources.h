@@ -4,6 +4,8 @@
 
 #include <ytlib/yson/public.h>
 
+#include <server/cell_master/public.h>
+
 namespace NYT {
 namespace NSecurityServer {
 
@@ -13,7 +15,7 @@ namespace NSecurityServer {
 struct TClusterResources
 {
     TClusterResources();
-    static TClusterResources FromDiskSpace(i64 diskSpace);
+    TClusterResources(i64 diskSpace, int nodeCount);
 
     //! Space occupied on data nodes in bytes.
     /*!
@@ -21,13 +23,19 @@ struct TClusterResources
      *  the actual space may be different.
      */
     i64 DiskSpace;
+
+    //! Number of Cypress nodes created at master.
+    /*!
+     *  Branched copies are also counted.
+     */
+    int NodeCount;
 };
 
 void Serialize(const TClusterResources& resources, NYson::IYsonConsumer* consumer);
 void Deserialize(TClusterResources& value, NYTree::INodePtr node);
 
-void Save(TOutputStream* output, const TClusterResources& resources);
-void Load(TInputStream* input, TClusterResources& resources);
+void Save(const NCellMaster::TSaveContext& context, const TClusterResources& resources);
+void Load(const NCellMaster::TLoadContext& context, TClusterResources& resources);
 
 const TClusterResources& ZeroClusterResources();
 

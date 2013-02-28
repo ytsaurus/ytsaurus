@@ -6,6 +6,7 @@
 #include "tree_builder.h"
 #include "ypath_detail.h"
 #include "exception_helpers.h"
+#include "permission.h"
 
 #include <ytlib/ytree/ypath.pb.h>
 
@@ -22,6 +23,7 @@ class TNodeBase
     , public virtual TSupportsRemove
     , public virtual TSupportsList
     , public virtual TSupportsExists
+    , public virtual TSupportsPermissions
     , public virtual INode
 {
 public:
@@ -55,12 +57,15 @@ protected:
     template <class TNode>
     void DoSetSelf(TNode* node, const TYsonString& value)
     {
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+        ValidatePermission(EPermissionCheckScope::Descendants, EPermission::Write);
+
         auto factory = CreateFactory();
         auto builder = CreateBuilderFromFactory(~factory);
         SetNodeFromProducer(node, ConvertToProducer(value), ~builder);
     }
 
-    virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
+    virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
 
     virtual void GetKeySelf(TReqGetKey* request, TRspGetKey* response, TCtxGetKeyPtr context) override;
     virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context) override;
@@ -74,6 +79,7 @@ class TCompositeNodeMixin
     : public virtual TYPathServiceBase
     , public virtual TSupportsSet
     , public virtual TSupportsRemove
+    , public virtual TSupportsPermissions
     , public virtual ICompositeNode
 {
 protected:
@@ -99,8 +105,8 @@ protected:
 
 class TMapNodeMixin
     : public virtual TCompositeNodeMixin
-    , public virtual IMapNode
     , public virtual TSupportsList
+    , public virtual IMapNode
 {
 protected:
     virtual IYPathService::TResolveResult ResolveRecursive(

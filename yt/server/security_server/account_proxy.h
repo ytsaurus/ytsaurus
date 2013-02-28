@@ -1,6 +1,5 @@
 #pragma once
 
-#include "account.h"
 #include "private.h"
 
 #include <server/cell_master/public.h>
@@ -14,8 +13,7 @@ namespace NSecurityServer {
 
 NObjectServer::IObjectProxyPtr CreateAccountProxy(
     NCellMaster::TBootstrap* bootstrap,
-    TAccount* account,
-    TAccountMetaMap* map);
+    TAccount* account);
 
 ////////////////////////////////////////////////////////////////////////////////
 

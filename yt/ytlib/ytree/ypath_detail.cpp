@@ -82,15 +82,18 @@ void TYPathServiceBase::Invoke(IServiceContextPtr context)
 void TYPathServiceBase::GuardedInvoke(IServiceContextPtr context)
 {
     try {
-        DoInvoke(context);
+        if (!DoInvoke(context)) {
+            ThrowVerbNotSuppored(context->GetVerb());
+        }
     } catch (const std::exception& ex) {
         context->Reply(ex);
     }
 }
 
-void TYPathServiceBase::DoInvoke(IServiceContextPtr context)
+bool TYPathServiceBase::DoInvoke(IServiceContextPtr context)
 {
-    ThrowVerbNotSuppored(context->GetVerb());
+    UNUSED(context);
+    return false;
 }
 
 Stroka TYPathServiceBase::GetLoggingCategory() const
@@ -148,14 +151,14 @@ void TYPathServiceBase::SerializeAttributes(NYson::IYsonConsumer* consumer, cons
         UNUSED(path); \
         UNUSED(request); \
         UNUSED(response); \
-        NYTree::ThrowVerbNotSuppored(context->GetVerb(), "Attribute"); \
+        NYTree::ThrowVerbNotSuppored(context->GetVerb(), Stroka("attribute")); \
     } \
     \
     void TSupports##verb::verb##Self(TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context) \
     { \
         UNUSED(request); \
         UNUSED(response); \
-        NYTree::ThrowVerbNotSuppored(context->GetVerb(), "Self"); \
+        NYTree::ThrowVerbNotSuppored(context->GetVerb(), Stroka("self")); \
     } \
     \
     void TSupports##verb::verb##Recursive(const TYPath& path, TReq##verb* request, TRsp##verb* response, TCtx##verb##Ptr context) \
@@ -163,7 +166,7 @@ void TYPathServiceBase::SerializeAttributes(NYson::IYsonConsumer* consumer, cons
         UNUSED(path); \
         UNUSED(request); \
         UNUSED(response); \
-        NYTree::ThrowVerbNotSuppored(context->GetVerb(), "Recursive"); \
+        NYTree::ThrowVerbNotSuppored(context->GetVerb(), Stroka("recursive")); \
     }
 
 IMPLEMENT_SUPPORTS_VERB(GetKey)
@@ -184,21 +187,60 @@ void TSupportsExists::Reply(TCtxExistsPtr context, bool value)
     context->Reply();
 }
 
-void TSupportsExists::ExistsAttribute(const TYPath& path, TReqExists* request, TRspExists* response, TCtxExistsPtr context)
+void TSupportsExists::ExistsAttribute(
+    const TYPath& path,
+    TReqExists* request,
+    TRspExists* response,
+    TCtxExistsPtr context)
 {
     UNUSED(path);
+    UNUSED(request);
+    UNUSED(response);
+
+    context->SetRequestInfo("");
+
     Reply(context, false);
 }
 
-void TSupportsExists::ExistsSelf(TReqExists* request, TRspExists* response, TCtxExistsPtr context)
+void TSupportsExists::ExistsSelf(
+    TReqExists* request,
+    TRspExists* response,
+    TCtxExistsPtr context)
 {
+    UNUSED(request);
+    UNUSED(response);
+
+    context->SetRequestInfo("");
+
     Reply(context, true);
 }
 
-void TSupportsExists::ExistsRecursive(const NYTree::TYPath& path, TReqExists* request, TRspExists* response, TCtxExistsPtr context)
+void TSupportsExists::ExistsRecursive(
+    const TYPath& path,
+    TReqExists* request,
+    TRspExists* response,
+    TCtxExistsPtr context)
 {
     UNUSED(path);
+    UNUSED(request);
+    UNUSED(response);
+
+    context->SetRequestInfo("");
+
     Reply(context, false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSupportsPermissions::~TSupportsPermissions()
+{ }
+
+void TSupportsPermissions::ValidatePermission(
+    EPermissionCheckScope scope,
+    EPermission permission)
+{
+    UNUSED(scope);
+    UNUSED(permission);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -287,6 +329,8 @@ TValueOrError<TYsonString> TSupportsAttributes::DoGetAttributeFragment(
 
 TFuture< TValueOrError<TYsonString> > TSupportsAttributes::DoGetAttribute(const TYPath& path)
 {
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
+
     auto userAttributes = GetUserAttributes();
     auto systemAttributeProvider = GetSystemAttributeProvider();
 
@@ -389,6 +433,8 @@ TValueOrError<TYsonString> TSupportsAttributes::DoListAttributeFragment(
 
 TFuture< TValueOrError<TYsonString> > TSupportsAttributes::DoListAttribute(const TYPath& path)
 {
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
+
     auto userAttributes = GetUserAttributes();
     auto systemAttributeProvider = GetSystemAttributeProvider();
 
@@ -472,6 +518,8 @@ bool TSupportsAttributes::DoExistsAttributeFragment(
 
 TFuture<bool> TSupportsAttributes::DoExistsAttribute(const TYPath& path)
 {
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
+
     auto userAttributes = GetUserAttributes();
     auto systemAttributeProvider = GetSystemAttributeProvider();
 
@@ -521,10 +569,11 @@ void TSupportsAttributes::ExistsAttribute(
 {
     UNUSED(request);
 
+    context->SetRequestInfo("");
+
     DoExistsAttribute(path).Subscribe(BIND([=] (bool result) {
         response->set_value(result);
-        context->SetResponseInfo(
-            Sprintf("Response for Exists: %s", ~ToString(result)));
+        context->SetResponseInfo("Result: %s", ~FormatBool(result));
         context->Reply();
     }));
 }
@@ -550,11 +599,6 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                     if (!attribute.IsPresent) {
                         ThrowCannotSetSystemAttribute(key);
                     }
-
-                    if (attribute.IsOpaque) {
-                        ThrowCannotSetOpaqueAttribute(key);
-                    }
-
                     GuardedSetSystemAttribute(key, newAttributeYson.Get());
                     YCHECK(newAttributes->Remove(key));
                 }
@@ -569,6 +613,8 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
              }
              return;
         }
+
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
         auto oldUserKeys = userAttributes->List();
 
@@ -594,7 +640,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
             THROW_ERROR_EXCEPTION("Attribute key cannot be empty");
         }
 
-        const ISystemAttributeProvider::TAttributeInfo* attribute = NULL;
+        const ISystemAttributeProvider::TAttributeInfo* attribute = nullptr;
         std::vector<ISystemAttributeProvider::TAttributeInfo> systemAttributes;
         if (systemAttributeProvider) {
             systemAttributeProvider->ListSystemAttributes(&systemAttributes);
@@ -607,10 +653,6 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
         }
 
         if (attribute) {
-            if (attribute->IsOpaque) {
-                ThrowCannotSetOpaqueAttribute(key);
-            }
-
             if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
                 GuardedSetSystemAttribute(key, newYson);
             } else {
@@ -631,6 +673,9 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
             if (!userAttributes) {
                 THROW_ERROR_EXCEPTION("User attributes are not supported");
             }
+            
+            ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+            
             auto oldWholeYson = userAttributes->FindYson(key);
             if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
                 GuardedValidateUserAttributeUpdate(key, oldWholeYson, newYson);
@@ -658,13 +703,19 @@ void TSupportsAttributes::SetAttribute(
     TCtxSetPtr context)
 {
     UNUSED(response);
+    UNUSED(response);
+
+    context->SetRequestInfo("");
 
     DoSetAttribute(path, TYsonString(request->value()));
+    
     context->Reply();
 }
 
 void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
 {
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+
     auto userAttributes = GetUserAttributes();
     auto systemAttributeProvider = GetSystemAttributeProvider();
 
@@ -719,11 +770,11 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
                 }
 
                 TYsonString systemYson(stream.Str());
-                auto systemNode = ConvertToNode(userYson);
+                auto systemNode = ConvertToNode(systemYson);
                 SyncYPathRemove(systemNode, tokenizer.GetInput());
                 auto updatedSystemYson = ConvertToYsonString(systemNode);
 
-                GuardedSetSystemAttribute(key, systemYson);
+                GuardedSetSystemAttribute(key, updatedSystemYson);
             }
         }
     }
@@ -738,7 +789,10 @@ void TSupportsAttributes::RemoveAttribute(
     UNUSED(request);
     UNUSED(response);
 
+    context->SetRequestInfo("");
+
     DoRemoveAttribute(path);
+
     context->Reply();
 }
 
@@ -754,12 +808,12 @@ void TSupportsAttributes::ValidateUserAttributeUpdate(
 
 IAttributeDictionary* TSupportsAttributes::GetUserAttributes()
 {
-    return NULL;
+    return nullptr;
 }
 
 ISystemAttributeProvider* TSupportsAttributes::GetSystemAttributeProvider()
 {
-    return NULL;
+    return nullptr;
 }
 
 void TSupportsAttributes::GuardedSetSystemAttribute(const Stroka& key, const TYsonString& yson)
@@ -818,7 +872,7 @@ private:
         Forward(
             ~AttributeWriter,
             BIND ([=] () {
-                AttributeWriter.Reset(NULL);
+                AttributeWriter.Reset(nullptr);
                 Attributes->SetYson(localKey, TYsonString(AttributeStream.Str()));
                 AttributeStream.clear();
             }));
@@ -840,9 +894,9 @@ TNodeSetterBase::~TNodeSetterBase()
 
 void TNodeSetterBase::ThrowInvalidType(ENodeType actualType)
 {
-    THROW_ERROR_EXCEPTION("Invalid node type: expected: %s, actual %s",
-        ~GetExpectedType().ToString().Quote(),
-        ~actualType.ToString().Quote());
+    THROW_ERROR_EXCEPTION("Invalid node type: expected %s, actual %s",
+        ~GetExpectedType().ToString(),
+        ~actualType.ToString());
 }
 
 void TNodeSetterBase::OnMyStringScalar(const TStringBuf& value)

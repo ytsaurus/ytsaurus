@@ -43,8 +43,9 @@ private:
 };
 
 // TODO(babenko): eliminate this hack when new serialization API is ready
-void SaveObjectRef(TOutputStream* output, TChunkReplica value);
-void LoadObjectRef(TInputStream* input, TChunkReplica& value, const NCellMaster::TLoadContext& context);
+void SaveObjectRef(const NCellMaster::TSaveContext& context, TChunkReplica value);
+void LoadObjectRef(const NCellMaster::TLoadContext& context, TChunkReplica& value);
+
 bool CompareObjectsForSerialization(TChunkReplica lhs, TChunkReplica rhs);
 
 ////////////////////////////////////////////////////////////////////////////////

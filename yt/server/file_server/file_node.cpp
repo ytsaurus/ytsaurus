@@ -48,7 +48,7 @@ void TFileNode::Save(const NCellMaster::TSaveContext& context) const
     TCypressNodeBase::Save(context);
 
     auto* output = context.GetOutput();
-    SaveObjectRef(output, ChunkList_);
+    SaveObjectRef(context, ChunkList_);
     ::Save(output, UpdateMode_);
     ::Save(output, ReplicationFactor_);
 }
@@ -58,7 +58,7 @@ void TFileNode::Load(const NCellMaster::TLoadContext& context)
     TCypressNodeBase::Load(context);
 
     auto* input = context.GetInput();
-    LoadObjectRef(input, ChunkList_, context);
+    LoadObjectRef(context, ChunkList_);
     if (context.GetVersion() >= 6) {
         ::Load(input, UpdateMode_);
     }
@@ -67,16 +67,18 @@ void TFileNode::Load(const NCellMaster::TLoadContext& context)
 
 TClusterResources TFileNode::GetResourceUsage() const
 {
+    const auto* chunkList = GetUsageChunkList();
+    i64 diskSpace = chunkList ? chunkList->Statistics().DiskSpace * GetOwningReplicationFactor() : 0;
+    return TClusterResources(diskSpace, 1);
+}
+
+const TChunkList* TFileNode::GetUsageChunkList() const
+{
     if (Transaction_) {
-        return ZeroClusterResources();
+        return nullptr;
     }
 
-    if (!ChunkList_) {
-        return ZeroClusterResources();
-    }
-
-    i64 diskSpace = ChunkList_->Statistics().DiskSpace * ReplicationFactor_;
-    return TClusterResources::FromDiskSpace(diskSpace);
+    return ChunkList_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -263,9 +265,9 @@ protected:
     virtual void DoClone(
         TFileNode* sourceNode,
         TFileNode* clonedNode,
-        TTransaction* transaction) override
+        const TCloneContext& context) override
     {
-        TBase::DoClone(sourceNode, clonedNode, transaction);
+        TBase::DoClone(sourceNode, clonedNode, context);
 
         auto objectManager = Bootstrap->GetObjectManager();
 

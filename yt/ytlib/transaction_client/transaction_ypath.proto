@@ -1,7 +1,7 @@
 package NYT.NTransactionClient.NProto;
 
 import "yt/ytlib/misc/guid.proto";
-import "yt/ytlib/ytree/attributes.proto";
+import "yt/ytlib/object_client/master_ypath.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,24 +31,6 @@ message TRspRenewLease
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqCreateObject
-{
-    required int32 type = 1;
-    optional NYT.NYTree.NProto.TAttributes object_attributes = 2;
-    optional string account = 3;
-
-    extensions 100 to max;
-}
-
-message TRspCreateObject
-{
-    required NYT.NProto.TGuid object_id = 1;
-
-    extensions 100 to max;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 message TReqUnstageObject
 {
     required NYT.NProto.TGuid object_id = 1;
@@ -64,7 +46,7 @@ message TRspUnstageObject
 
 message TReqCreateTransactionExt
 {
-    extend NYT.NTransactionClient.NProto.TReqCreateObject
+    extend NYT.NObjectClient.NProto.TReqCreateObject
     {
         optional TReqCreateTransactionExt create_transaction = 101;
     }

@@ -66,6 +66,7 @@ void TTableWriter::Open()
         TTransactionStartOptions options;
         options.ParentId = TransactionId;
         options.EnableUncommittedAccounting = false;
+        options.Attributes->Set("title", Sprintf("Table upload to %s", ~RichPath.GetPath()));
         UploadTransaction = TransactionManager->Start(options);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error creating upload transaction")
@@ -136,7 +137,7 @@ void TTableWriter::Open()
 
         {
             auto rsp = batchRsp->GetResponse<TTableYPathProxy::TRspPrepareForUpdate>("prepare_for_update");
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error preparing for update");
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error preparing table for update");
             chunkListId = TChunkListId::FromProto(rsp->chunk_list_id());
         }
     }

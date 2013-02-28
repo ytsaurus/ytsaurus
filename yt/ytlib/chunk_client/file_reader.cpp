@@ -23,7 +23,7 @@ TFileReader::TFileReader(const Stroka& fileName)
 
 void TFileReader::Open()
 {
-    YASSERT(!Opened);
+    YCHECK(!Opened);
 
     Stroka chunkMetaFileName = FileName + ChunkMetaSuffix;
     TFile chunkMetaFile(
@@ -65,7 +65,7 @@ void TFileReader::Open()
 TFuture<IAsyncReader::TReadResult>
 TFileReader::AsyncReadBlocks(const std::vector<int>& blockIndexes)
 {
-    YASSERT(Opened);
+    YCHECK(Opened);
 
     std::vector<TSharedRef> blocks;
     blocks.reserve(blockIndexes.size());
@@ -80,7 +80,7 @@ TFileReader::AsyncReadBlocks(const std::vector<int>& blockIndexes)
 
 TSharedRef TFileReader::ReadBlock(int blockIndex)
 {
-    YASSERT(Opened);
+    YCHECK(Opened);
 
     auto blocksExt = GetProtoExtension<TBlocksExt>(ChunkMeta.extensions());
     i32 blockCount = blocksExt.blocks_size();
@@ -117,25 +117,25 @@ TSharedRef TFileReader::ReadBlock(int blockIndex)
 
 i64 TFileReader::GetMetaSize() const
 {
-    YASSERT(Opened);
+    YCHECK(Opened);
     return InfoSize;
 }
 
 i64 TFileReader::GetDataSize() const
 {
-    YASSERT(Opened);
+    YCHECK(Opened);
     return DataSize;
 }
 
 i64 TFileReader::GetFullSize() const
 {
-    YASSERT(Opened);
+    YCHECK(Opened);
     return InfoSize + DataSize;
 }
 
 TChunkMeta TFileReader::GetChunkMeta(const std::vector<int>* tags) const
 {
-    YASSERT(Opened);
+    YCHECK(Opened);
     return tags ? FilterChunkMetaExtensions(ChunkMeta, *tags) : ChunkMeta;
 }
 

@@ -110,14 +110,23 @@ TObjectServiceProxy::TReqExecuteBatch::AddRequest(
     TYPathRequestPtr innerRequest,
     const Stroka& key)
 {
+    return AddRequestMessage(
+        innerRequest ? innerRequest->Serialize() : nullptr,
+        key);
+}
+
+TObjectServiceProxy::TReqExecuteBatchPtr
+TObjectServiceProxy::TReqExecuteBatch::AddRequestMessage(
+    IMessagePtr innerRequestMessage,
+    const Stroka& key)
+{
     if (!key.empty()) {
         int index = static_cast<int>(PartCounts.size());
         KeyToIndexes.insert(std::make_pair(key, index));
     }
 
-    if (innerRequest) {
-        auto innerMessage = innerRequest->Serialize();
-        const auto& innerParts = innerMessage->GetParts();
+    if (innerRequestMessage) {
+        const auto& innerParts = innerRequestMessage->GetParts();
         PartCounts.push_back(static_cast<int>(innerParts.size()));
         Attachments_.insert(
             Attachments_.end(),
@@ -192,7 +201,6 @@ int TObjectServiceProxy::TRspExecuteBatch::GetSize() const
     return Body.part_counts_size();
 }
 
-
 TError TObjectServiceProxy::TRspExecuteBatch::GetCumulativeError()
 {
     if (!IsOK()) {
@@ -230,6 +238,22 @@ std::vector<NYTree::TYPathResponsePtr> TObjectServiceProxy::TRspExecuteBatch::Ge
     return GetResponses<TYPathResponse>(key);
 }
 
+IMessagePtr TObjectServiceProxy::TRspExecuteBatch::GetResponseMessage(int index) const
+{
+    YCHECK(index >= 0 && index < GetSize());
+    int beginIndex = BeginPartIndexes[index];
+    int endIndex = beginIndex + Body.part_counts(index);
+    if (beginIndex == endIndex) {
+        // This is an empty response.
+        return nullptr;
+    }
+
+    std::vector<TSharedRef> innerParts(
+        Attachments_.begin() + beginIndex,
+        Attachments_.begin() + endIndex);
+    return CreateMessageFromParts(std::move(innerParts));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Stroka TObjectServiceProxy::GetServiceName()
@@ -240,23 +264,6 @@ Stroka TObjectServiceProxy::GetServiceName()
 TObjectServiceProxy::TObjectServiceProxy(IChannelPtr channel)
     : TProxyBase(channel, GetServiceName())
 { }
-
-TFuture<IMessagePtr> TObjectServiceProxy::Execute(IMessagePtr innerRequestMessage)
-{
-    auto outerRequest = Execute();
-    outerRequest->add_part_counts(static_cast<int>(innerRequestMessage->GetParts().size()));
-    outerRequest->Attachments() = innerRequestMessage->GetParts();
-
-    return outerRequest->Invoke().Apply(BIND(
-        [] (TRspExecutePtr outerResponse) -> IMessagePtr {
-            auto error = outerResponse->GetError();
-            if (error.IsOK()) {
-                return CreateMessageFromParts(outerResponse->Attachments());
-            } else {
-                return CreateErrorResponseMessage(error);
-            }
-        }));
-}
 
 TObjectServiceProxy::TReqExecuteBatchPtr TObjectServiceProxy::ExecuteBatch()
 {

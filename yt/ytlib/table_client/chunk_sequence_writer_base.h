@@ -15,10 +15,9 @@
 #include <ytlib/table_client/table_reader.pb.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
+#include <ytlib/object_client/master_ypath_proxy.h>
 
-#include <ytlib/transaction_client/transaction.h>
-
-#include <ytlib/transaction_client/transaction_ypath_proxy.h>
+#include <ytlib/transaction_client/public.h>
 
 #include <ytlib/logging/tagged_logger.h>
 
@@ -88,7 +87,7 @@ protected:
     void CreateNextSession();
     virtual void InitCurrentSession(TSession nextSession);
 
-    void OnChunkCreated(NTransactionClient::TTransactionYPathProxy::TRspCreateObjectPtr rsp);
+    void OnChunkCreated(NObjectClient::TMasterYPathProxy::TRspCreateObjectPtr rsp);
     virtual void PrepareChunkWriter(TSession* newSession) = 0;
 
     void FinishCurrentSession();

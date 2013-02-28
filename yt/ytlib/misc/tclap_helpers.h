@@ -9,6 +9,8 @@
 
 #include <ytlib/cypress_client/public.h>
 
+#include <ytlib/ytree/permission.h>
+
 #include <ytlib/yson/yson_writer.h>
 
 #include <tclap/CmdLine.h>
@@ -41,6 +43,12 @@ struct ArgTraits< ::NYT::NObjectClient::EObjectType >
 
 template <>
 struct ArgTraits< ::NYT::NYson::EYsonFormat >
+{
+    typedef ValueLike ValueCategory;
+};
+
+template <>
+struct ArgTraits< ::NYT::NYTree::EPermission >
 {
     typedef ValueLike ValueCategory;
 };

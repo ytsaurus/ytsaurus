@@ -14,6 +14,7 @@
 #include <server/transaction_server/public.h>
 
 #include <server/security_server/cluster_resources.h>
+#include <server/security_server/acl.h>
 
 namespace NYT {
 namespace NCypressServer {
@@ -44,6 +45,7 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(NSecurityServer::TAccount*, Account);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TClusterResources, CachedResourceUsage);
+    DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
     explicit TCypressNodeBase(const TVersionedNodeId& id);
     virtual ~TCypressNodeBase();

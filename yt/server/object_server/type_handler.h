@@ -3,15 +3,17 @@
 #include "public.h"
 #include "object_proxy.h"
 
+#include <ytlib/misc/nullable.h>
+
 #include <ytlib/ytree/public.h>
 
 #include <ytlib/rpc/service.h>
 
-#include <ytlib/transaction_client/transaction_ypath.pb.h>
+#include <ytlib/object_client/master_ypath.pb.h>
 
 #include <server/transaction_server/public.h>
 
-#include <server/security_server/public.h>
+#include <server/security_server/acl.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -30,6 +32,23 @@ DECLARE_ENUM(EObjectAccountMode,
     (Optional)
 );
 
+struct TTypeCreationOptions
+{
+    TTypeCreationOptions()
+    { }
+
+    TTypeCreationOptions(
+        EObjectTransactionMode transactionMode,
+        EObjectAccountMode accountMode)
+        : TransactionMode(transactionMode)
+        , AccountMode(accountMode)
+    { }
+
+    EObjectTransactionMode TransactionMode;
+    EObjectAccountMode AccountMode;
+
+};
+
 // WinAPI is great.
 #undef GetObject
 
@@ -37,8 +56,11 @@ DECLARE_ENUM(EObjectAccountMode,
 struct IObjectTypeHandler
     : public virtual TRefCounted
 {
-    //! Returns the object type handled by the handler.
+    //! Returns the object type managed by the handler.
     virtual EObjectType GetType() const = 0;
+
+    //! Returns a human-readable object name.
+    virtual Stroka GetName(TObjectBase* object) = 0;
 
     //! Finds object by id, returns |nullptr| if nothing is found.
     virtual TObjectBase* FindObject(const TObjectId& id) = 0;
@@ -52,12 +74,17 @@ struct IObjectTypeHandler
         TObjectBase* object,
         NTransactionServer::TTransaction* transaction) = 0;
 
-    typedef NRpc::TTypedServiceRequest<NTransactionClient::NProto::TReqCreateObject> TReqCreateObject;
-    typedef NRpc::TTypedServiceResponse<NTransactionClient::NProto::TRspCreateObject> TRspCreateObject;
+    //! Returns options used for creating new instances of this type
+    //! or |Null| if the type does not support creating new instances.
+    //! In the latter case #Create is never called.
+    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const = 0;
+
+    typedef NRpc::TTypedServiceRequest<NObjectClient::NProto::TReqCreateObject> TReqCreateObject;
+    typedef NRpc::TTypedServiceResponse<NObjectClient::NProto::TRspCreateObject> TRspCreateObject;
     //! Creates a new object instance.
     /*!
      *  \param transaction Transaction that becomes the owner of the newly created object.
-     *  May be NULL if #IsTransactionRequired returns False.
+     *  May be |nullptr| if #IsTransactionRequired returns False.
      *  \param request Creation request (possibly containing additional parameters).
      *  \param response Creation response (which may also hold some additional result).
      *  \returns the id of the newly created object.
@@ -85,11 +112,15 @@ struct IObjectTypeHandler
         NTransactionServer::TTransaction* transaction,
         bool recursive) = 0;
 
-    //! Specifies if a valid transaction is required or allowed to create a instance.
-    virtual EObjectTransactionMode GetTransactionMode() const = 0;
+    //! Returns the object ACD or |nullptr| if access is not controlled.
+    virtual NSecurityServer::TAccessControlDescriptor* GetAcd(TObjectBase* object) = 0;
 
-    //! Specifies if a valid account is required or allowed to create a instance.
-    virtual EObjectAccountMode GetAccountMode() const = 0;
+    //! Returns the object containing parent ACL.
+    virtual TObjectBase* GetParent(TObjectBase* object) = 0;
+
+    //! Returns the set of all permissions supported by this object type.
+    virtual NYTree::EPermissionSet GetSupportedPermissions() const = 0;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

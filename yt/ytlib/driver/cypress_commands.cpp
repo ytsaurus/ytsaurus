@@ -2,6 +2,7 @@
 #include "cypress_commands.h"
 
 #include <ytlib/object_client/object_service_proxy.h>
+#include <ytlib/object_client/master_ypath_proxy.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -23,7 +24,6 @@ using namespace NTransactionClient;
 
 void TGetCommand::DoExecute()
 {
-    TObjectServiceProxy proxy(Context->GetMasterChannel());
     auto req = TYPathProxy::Get(Request->Path.GetPath());
     SetTransactionId(req, GetTransactionId(false));
 
@@ -31,12 +31,8 @@ void TGetCommand::DoExecute()
     *req->mutable_attribute_filter() = ToProto(attributeFilter);
 
     req->Attributes().MergeFrom(Request->GetOptions());
-    auto rsp = proxy.Execute(req).Get();
-
-    if (!rsp->IsOK()) {
-        ReplyError(rsp->GetError());
-        return;
-    }
+    auto rsp = ObjectProxy->Execute(req).Get();
+    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
     ReplySuccess(TYsonString(rsp->value()));
 }
@@ -45,7 +41,6 @@ void TGetCommand::DoExecute()
 
 void TSetCommand::DoExecute()
 {
-    TObjectServiceProxy proxy(Context->GetMasterChannel());
     auto req = TYPathProxy::Set(Request->Path.GetPath());
     SetTransactionId(req, GetTransactionId(false));
     NMetaState::GenerateRpcMutationId(req);
@@ -55,18 +50,14 @@ void TSetCommand::DoExecute()
     req->set_value(value.Data());
 
     req->Attributes().MergeFrom(Request->GetOptions());
-    auto rsp = proxy.Execute(req).Get();
-
-    if (!rsp->IsOK()) {
-        ReplyError(rsp->GetError());
-    }
+    auto rsp = ObjectProxy->Execute(req).Get();
+    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TRemoveCommand::DoExecute()
 {
-    TObjectServiceProxy proxy(Context->GetMasterChannel());
     auto req = TYPathProxy::Remove(Request->Path.GetPath());
     req->set_recursive(Request->Recursive);
     req->set_force(Request->Force);
@@ -74,18 +65,14 @@ void TRemoveCommand::DoExecute()
     NMetaState::GenerateRpcMutationId(req);
 
     req->Attributes().MergeFrom(Request->GetOptions());
-    auto rsp = proxy.Execute(req).Get();
-
-    if (!rsp->IsOK()) {
-        ReplyError(rsp->GetError());
-    }
+    auto rsp = ObjectProxy->Execute(req).Get();
+    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 }
 
 //////////////////////////////////////////////////////////////////////////////////
 
 void TListCommand::DoExecute()
 {
-    TObjectServiceProxy proxy(Context->GetMasterChannel());
     auto req = TYPathProxy::List(Request->Path.GetPath());
     SetTransactionId(req, GetTransactionId(false));
 
@@ -93,12 +80,8 @@ void TListCommand::DoExecute()
     *req->mutable_attribute_filter() = ToProto(attributeFilter);
 
     req->Attributes().MergeFrom(Request->GetOptions());
-    auto rsp = proxy.Execute(req).Get();
-
-    if (!rsp->IsOK()) {
-        ReplyError(rsp->GetError());
-        return;
-    }
+    auto rsp = ObjectProxy->Execute(req).Get();
+    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
     ReplySuccess(TYsonString(rsp->keys()));
 }
@@ -107,9 +90,8 @@ void TListCommand::DoExecute()
 
 void TCreateCommand::DoExecute()
 {
-    TObjectServiceProxy proxy(Context->GetMasterChannel());
 
-    if (IsTypeVersioned(Request->Type)) {
+    if (TypeIsVersioned(Request->Type)) {
         if (!Request->Path) {
             THROW_ERROR_EXCEPTION("Object type is versioned, Cypress path required");
         }
@@ -126,11 +108,8 @@ void TCreateCommand::DoExecute()
             ToProto(req->mutable_node_attributes(), *attributes);
         }
 
-        auto rsp = proxy.Execute(req).Get();
-        if (!rsp->IsOK()) {
-            ReplyError(rsp->GetError());
-            return;
-        }
+        auto rsp = ObjectProxy->Execute(req).Get();
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
         auto consumer = Context->CreateOutputConsumer();
         auto nodeId = TNodeId::FromProto(rsp->node_id());
@@ -143,10 +122,10 @@ void TCreateCommand::DoExecute()
         }
 
         auto transactionId = GetTransactionId(false);
-        auto req = TTransactionYPathProxy::CreateObject(
-            transactionId == NullTransactionId
-            ? RootTransactionPath
-            : FromObjectId(transactionId));
+        auto req = TMasterYPathProxy::CreateObject();
+        if (transactionId != NullTransactionId) {
+            *req->mutable_transaction_id() = transactionId.ToProto();
+        }
         req->set_type(Request->Type);
         NMetaState::GenerateRpcMutationId(req);
 
@@ -155,11 +134,8 @@ void TCreateCommand::DoExecute()
             ToProto(req->mutable_object_attributes(), *attributes);
         }
 
-        auto rsp = proxy.Execute(req).Get();
-        if (!rsp->IsOK()) {
-            ReplyError(rsp->GetError());
-            return;
-        }
+        auto rsp = ObjectProxy->Execute(req).Get();
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
         auto consumer = Context->CreateOutputConsumer();
         auto objectId = TNodeId::FromProto(rsp->object_id());
@@ -172,7 +148,6 @@ void TCreateCommand::DoExecute()
 
 void TLockCommand::DoExecute()
 {
-    TObjectServiceProxy proxy(Context->GetMasterChannel());
     auto req = TCypressYPathProxy::Lock(Request->Path.GetPath());
     SetTransactionId(req, GetTransactionId(true));
     NMetaState::GenerateRpcMutationId(req);
@@ -180,29 +155,21 @@ void TLockCommand::DoExecute()
     req->set_mode(Request->Mode);
 
     req->Attributes().MergeFrom(Request->GetOptions());
-    auto rsp = proxy.Execute(req).Get();
-
-    if (!rsp->IsOK()) {
-        ReplyError(rsp->GetError());
-    }
+    auto rsp = ObjectProxy->Execute(req).Get();
+    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TCopyCommand::DoExecute()
 {
-    TObjectServiceProxy proxy(Context->GetMasterChannel());
     auto req = TCypressYPathProxy::Copy(Request->DestinationPath.GetPath());
     SetTransactionId(req, GetTransactionId(false));
     NMetaState::GenerateRpcMutationId(req);
     req->set_source_path(Request->SourcePath.GetPath());
 
-    auto rsp = proxy.Execute(req).Get();
-
-    if (!rsp->IsOK()) {
-        ReplyError(rsp->GetError());
-        return;
-    }
+    auto rsp = ObjectProxy->Execute(req).Get();
+    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
     auto consumer = Context->CreateOutputConsumer();
     auto nodeId = TNodeId::FromProto(rsp->object_id());
@@ -214,18 +181,13 @@ void TCopyCommand::DoExecute()
 
 void TMoveCommand::DoExecute()
 {
-    TObjectServiceProxy proxy(Context->GetMasterChannel());
     {
         auto req = TCypressYPathProxy::Copy(Request->DestinationPath.GetPath());
         SetTransactionId(req, GetTransactionId(false));
         NMetaState::GenerateRpcMutationId(req);
         req->set_source_path(Request->SourcePath.GetPath());
-        auto rsp = proxy.Execute(req).Get();
-
-        if (!rsp->IsOK()) {
-            ReplyError(rsp->GetError());
-            return;
-        }
+        auto rsp = ObjectProxy->Execute(req).Get();
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
     }
 
     {
@@ -234,11 +196,8 @@ void TMoveCommand::DoExecute()
         SetTransactionId(req, GetTransactionId(false));
         NMetaState::GenerateRpcMutationId(req);
 
-        auto rsp = proxy.Execute(req).Get();
-        if (!rsp->IsOK()) {
-            ReplyError(rsp->GetError());
-            return;
-        }
+        auto rsp = ObjectProxy->Execute(req).Get();
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
     }
 }
 
@@ -246,20 +205,14 @@ void TMoveCommand::DoExecute()
 
 void TExistsCommand::DoExecute()
 {
-    TObjectServiceProxy proxy(Context->GetMasterChannel());
     auto req = TYPathProxy::Exists(Request->Path.GetPath());
     SetTransactionId(req, GetTransactionId(false));
 
-    auto rsp = proxy.Execute(req).Get();
+    auto rsp = ObjectProxy->Execute(req).Get();
+    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
-    if (!rsp->IsOK()) {
-        ReplyError(rsp->GetError());
-    }
-    else {
-        ReplySuccess(ConvertToYsonString(rsp->value()));
-    }
+    ReplySuccess(ConvertToYsonString(rsp->value()));
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

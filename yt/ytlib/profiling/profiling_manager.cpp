@@ -100,10 +100,10 @@ public:
 private:
     std::deque<TStoredSample> Samples;
 
-    virtual void DoInvoke(NRpc::IServiceContextPtr context) override
+    virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Get);
-        TYPathServiceBase::DoInvoke(context);
+        return TYPathServiceBase::DoInvoke(context);
     }
 
     static TNullable<TInstant> ParseInstant(TNullable<i64> value)

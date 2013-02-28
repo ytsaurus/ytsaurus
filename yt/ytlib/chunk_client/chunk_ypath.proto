@@ -1,7 +1,7 @@
 package NYT.NChunkClient.NProto;
 
 import "yt/ytlib/chunk_client/chunk.proto";
-import "yt/ytlib/transaction_client/transaction_ypath.proto";
+import "yt/ytlib/object_client/master_ypath.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,7 +31,7 @@ message TRspConfirm
 
 message TReqCreateChunkExt
 {
-    extend NYT.NTransactionClient.NProto.TReqCreateObject
+    extend NYT.NObjectClient.NProto.TReqCreateObject
     {
         optional TReqCreateChunkExt create_chunk = 100;
     }
@@ -55,7 +55,7 @@ message TReqCreateChunkExt
 
 message TRspCreateChunkExt
 {
-    extend NYT.NTransactionClient.NProto.TRspCreateObject
+    extend NYT.NObjectClient.NProto.TRspCreateObject
     {
         optional TRspCreateChunkExt create_chunk = 100;
     }

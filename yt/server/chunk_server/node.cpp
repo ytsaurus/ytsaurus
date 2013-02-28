@@ -45,10 +45,10 @@ void TDataNode::Save(const NCellMaster::TSaveContext& context) const
     ::Save(output, IncarnationId_);
     ::Save(output, State_);
     SaveProto(output, Statistics_);
-    SaveObjectRefs(output, StoredChunks_);
-    SaveObjectRefs(output, CachedChunks_);
-    SaveObjectRefs(output, UnapprovedChunks_);
-    SaveObjectRefs(output, Jobs_);
+    SaveObjectRefs(context, StoredChunks_);
+    SaveObjectRefs(context, CachedChunks_);
+    SaveObjectRefs(context, UnapprovedChunks_);
+    SaveObjectRefs(context, Jobs_);
 }
 
 void TDataNode::Load(const NCellMaster::TLoadContext& context)
@@ -58,10 +58,10 @@ void TDataNode::Load(const NCellMaster::TLoadContext& context)
     ::Load(input, IncarnationId_);
     ::Load(input, State_);
     LoadProto(input, Statistics_);
-    LoadObjectRefs(input, StoredChunks_, context);
-    LoadObjectRefs(input, CachedChunks_, context);
-    LoadObjectRefs(input, UnapprovedChunks_, context);
-    LoadObjectRefs(input, Jobs_, context);
+    LoadObjectRefs(context, StoredChunks_);
+    LoadObjectRefs(context, CachedChunks_);
+    LoadObjectRefs(context, UnapprovedChunks_);
+    LoadObjectRefs(context, Jobs_);
 }
 
 void TDataNode::AddJob(TJob* job)

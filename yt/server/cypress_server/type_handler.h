@@ -10,6 +10,8 @@
 
 #include <server/transaction_server/public.h>
 
+#include <server/security_server/public.h>
+
 namespace NYT {
 namespace NCypressServer {
 
@@ -103,7 +105,7 @@ struct INodeTypeHandler
     //! Constructs a deep copy of the node.
     virtual TAutoPtr<TCypressNodeBase> Clone(
         TCypressNodeBase* sourceNode,
-        NTransactionServer::TTransaction* transaction) = 0;
+        const TCloneContext& context) = 0;
 
     //! Creates a behavior associated with the node.
     //! The method may return NULL if no behavior is needed.

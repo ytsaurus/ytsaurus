@@ -3,11 +3,7 @@
 #include "config.h"
 #include "driver.h"
 
-#include <ytlib/scheduler/scheduler_proxy.h>
 #include <ytlib/scheduler/config.h>
-
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
-#include <ytlib/transaction_client/transaction.h>
 
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/ypath_proxy.h>
@@ -16,7 +12,6 @@ namespace NYT {
 namespace NDriver {
 
 using namespace NScheduler;
-using namespace NCypressClient;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -27,19 +22,15 @@ TSchedulerCommandBase::TSchedulerCommandBase(ICommandContext* context)
 
 void TSchedulerCommandBase::StartOperation(EOperationType type)
 {
-    TSchedulerServiceProxy proxy(Context->GetSchedulerChannel());
-
     TOperationId operationId;
     {
-        auto req = proxy.StartOperation();
+        auto req = SchedulerProxy->StartOperation();
         req->set_type(type);
         *req->mutable_transaction_id() = GetTransactionId(false).ToProto();
         req->set_spec(ConvertToYsonString(Request->Spec).Data());
 
         auto rsp = req->Invoke().Get();
-        if (!rsp->IsOK()) {
-            THROW_ERROR(rsp->GetError());
-        }
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
         operationId = TOperationId::FromProto(rsp->operation_id());
     }
@@ -125,10 +116,9 @@ void TAbortOperationCommand::DoExecute()
     TSchedulerServiceProxy proxy(Context->GetSchedulerChannel());
     auto req = proxy.AbortOperation();
     *req->mutable_operation_id() = Request->OperationId.ToProto();
+
     auto rsp = req->Invoke().Get();
-    if (!rsp->IsOK()) {
-        THROW_ERROR(rsp->GetError());
-    }
+    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

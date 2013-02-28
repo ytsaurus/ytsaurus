@@ -11,9 +11,7 @@ namespace NSecurityClient {
 
 struct TAccountYPathProxy
     : public NYTree::TYPathProxy
-{
-    DEFINE_YPATH_PROXY_METHOD(NProto, Remove);
-};
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 

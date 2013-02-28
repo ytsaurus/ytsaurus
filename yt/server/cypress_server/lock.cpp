@@ -3,20 +3,24 @@
 
 #include <ytlib/misc/serialize.h>
 
+#include <server/cell_master/serialization_context.h>
+
 namespace NYT {
 namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Save(TOutputStream* output, const TLock& lock)
+void Save(const NCellMaster::TSaveContext& context, const TLock& lock)
 {
+    auto* output = context.GetOutput();
     Save(output, lock.Mode);
     SaveSet(output, lock.ChildKeys);
     SaveSet(output, lock.AttributeKeys);
 }
 
-void Load(TInputStream* input, TLock& lock)
+void Load(const NCellMaster::TLoadContext& context, TLock& lock)
 {
+    auto* input = context.GetInput();
     Load(input, lock.Mode);
     LoadSet(input, lock.ChildKeys);
     LoadSet(input, lock.AttributeKeys);

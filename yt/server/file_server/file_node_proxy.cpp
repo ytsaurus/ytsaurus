@@ -31,7 +31,7 @@ using namespace NChunkClient::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileNodeProxy
-    : public TCypressNodeProxyBase<TCypressNodeProxyNontemplateBase, IEntityNode, TFileNode>
+    : public TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IEntityNode, TFileNode>
 {
 public:
     TFileNodeProxy(
@@ -57,11 +57,11 @@ public:
         const auto* node = GetThisTypedImpl();
         const auto* chunkList = node->GetChunkList();
         i64 diskSpace = chunkList->Statistics().DiskSpace * node->GetReplicationFactor();
-        return TClusterResources::FromDiskSpace(diskSpace);
+        return TClusterResources(diskSpace, 1);
     }
 
 private:
-    typedef NCypressServer::TCypressNodeProxyBase<TCypressNodeProxyNontemplateBase, IEntityNode, TFileNode> TBase;
+    typedef NCypressServer::TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IEntityNode, TFileNode> TBase;
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override
     {
@@ -164,9 +164,7 @@ private:
         auto chunkManager = Bootstrap->GetChunkManager();
 
         if (key == "replication_factor") {
-            if (Transaction) {
-                THROW_ERROR_EXCEPTION("Attribute cannot be altered inside transaction");
-            }
+            ValidateNoTransaction();
 
             int replicationFactor = ConvertTo<int>(value);
             const int MinReplicationFactor = 1;
@@ -197,11 +195,11 @@ private:
         return TBase::SetSystemAttribute(key, value);
     }
 
-    virtual void DoInvoke(NRpc::IServiceContextPtr context) override
+    virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(FetchFile);
         DISPATCH_YPATH_SERVICE_METHOD(PrepareForUpdate);
-        TBase::DoInvoke(context);
+        return TBase::DoInvoke(context);
     }
 
     bool IsExecutable()
@@ -211,24 +209,23 @@ private:
 
     Stroka GetFileName()
     {
-        // TODO(ignat): Remake wrapper and than delete this option
+        // TODO(ignat): Remake wrapper and then delete this option
         auto fileName = Attributes().Find<Stroka>("file_name");
         if (fileName) {
             return *fileName;
         }
 
         auto parent = GetParent();
-        YASSERT(parent);
-
+        YCHECK(parent);
         switch (parent->GetType()) {
-        case ENodeType::Map:
-            return parent->AsMap()->GetChildKey(this);
+            case ENodeType::Map:
+                return parent->AsMap()->GetChildKey(this);
 
-        case ENodeType::List:
-            return ToString(parent->AsList()->GetChildIndex(this));
+            case ENodeType::List:
+                return ToString(parent->AsList()->GetChildIndex(this));
 
-        default:
-            YUNREACHABLE();
+            default:
+                YUNREACHABLE();
         }
     }
 
@@ -236,7 +233,9 @@ private:
     {
         UNUSED(request);
 
-        auto chunkManager = Bootstrap->GetChunkManager();
+        context->SetRequestInfo("");
+
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
         const auto* node = GetThisTypedImpl();
 
@@ -248,8 +247,9 @@ private:
 
         auto* chunk = chunkList->Children()[0]->AsChunk();
         const auto& chunkId = chunk->GetId();
-
         *response->mutable_chunk_id() = chunkId.ToProto();
+
+        auto chunkManager = Bootstrap->GetChunkManager();
         auto addresses = chunkManager->GetChunkAddresses(chunk);
         FOREACH (const auto& address, addresses) {
             response->add_node_addresses(address);
@@ -271,9 +271,8 @@ private:
     {
         context->SetRequestInfo("");
 
-        if (!Transaction) {
-            THROW_ERROR_EXCEPTION("Transaction required");
-        }
+        ValidateTransaction();
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
         auto* node = LockThisTypedImpl();
 

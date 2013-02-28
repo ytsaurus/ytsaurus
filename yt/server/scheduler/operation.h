@@ -55,6 +55,8 @@ class TOperation
 
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, Spec);
 
+    DEFINE_BYVAL_RO_PROPERTY(Stroka, AuthenticatedUser);
+
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, FinishTime);
 
@@ -91,6 +93,7 @@ public:
         EOperationType type,
         NTransactionClient::ITransactionPtr userTransaction,
         NYTree::IMapNodePtr spec,
+        const Stroka& authenticatedUser,
         TInstant startTime,
         EOperationState state = EOperationState::Initializing);
 

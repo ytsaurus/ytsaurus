@@ -101,8 +101,8 @@ void TChunkSequenceWriterBase<TChunkWriter>::CreateNextSession()
 
     NObjectClient::TObjectServiceProxy objectProxy(MasterChannel);
 
-    auto req = NTransactionClient::TTransactionYPathProxy::CreateObject(
-        NCypressClient::FromObjectId(TransactionId));
+    auto req = NObjectClient::TMasterYPathProxy::CreateObject();
+    *req->mutable_transaction_id() = TransactionId.ToProto();
     NMetaState::GenerateRpcMutationId(req);
     req->set_type(NObjectClient::EObjectType::Chunk);
     req->set_account(Account);
@@ -123,7 +123,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::CreateNextSession()
 
 template <class TChunkWriter>
 void TChunkSequenceWriterBase<TChunkWriter>::OnChunkCreated(
-    NTransactionClient::TTransactionYPathProxy::TRspCreateObjectPtr rsp)
+    NObjectClient::TMasterYPathProxy::TRspCreateObjectPtr rsp)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YCHECK(NextSession);

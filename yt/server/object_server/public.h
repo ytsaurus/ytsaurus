@@ -26,9 +26,15 @@ struct TObjectManagerConfig;
 typedef TIntrusivePtr<TObjectManagerConfig> TObjectManagerConfigPtr;
 
 class TObjectBase;
-class TUnversionedObjectBase;
+class TNonversionedObjectBase;
 
 class TAttributeSet;
+
+class TObjectBase;
+class TNonversionedObjectBase;
+
+class TSchemaObject;
+class TMasterObject;
 
 struct IObjectProxy;
 typedef TIntrusivePtr<IObjectProxy> IObjectProxyPtr;

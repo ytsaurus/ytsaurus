@@ -141,11 +141,13 @@ EExitCode TExecutor::Execute(const std::vector<std::string>& args)
 ////////////////////////////////////////////////////////////////////////////////
 
 TRequestExecutor::TRequestExecutor()
-    : FormatArg("", "format", "format (both input and output)", false, "", "YSON")
+    : AuthenticatedUserArg("", "user", "user to impersonate", false, "", "STRING")
+    , FormatArg("", "format", "format (both input and output)", false, "", "YSON")
     , InputFormatArg("", "in_format", "input format", false, "", "YSON")
     , OutputFormatArg("", "out_format", "output format", false, "", "YSON")
     , OptArg("", "opt", "override command option", false, "YPATH=YSON")
 {
+    CmdLine.add(AuthenticatedUserArg);
     CmdLine.add(FormatArg);
     CmdLine.add(InputFormatArg);
     CmdLine.add(OutputFormatArg);
@@ -157,8 +159,7 @@ EExitCode TRequestExecutor::DoExecute()
 {
     auto commandName = GetCommandName();
 
-    auto descriptor = Driver->FindCommandDescriptor(commandName);
-    YASSERT(descriptor);
+    auto descriptor = Driver->GetCommandDescriptor(commandName);
 
     Stroka inputFormatString = FormatArg.getValue();
     Stroka outputFormatString = FormatArg.getValue();
@@ -185,9 +186,13 @@ EExitCode TRequestExecutor::DoExecute()
     request.Arguments = GetArgs();
     request.CommandName = GetCommandName();
 
+    if (AuthenticatedUserArg.isSet()) {
+        request.AuthenticatedUser = AuthenticatedUserArg.getValue();
+    }
+
     request.InputStream = GetInputStream();
     try {
-        request.InputFormat = GetFormat(descriptor->InputType, inputFormat);
+        request.InputFormat = GetFormat(descriptor.InputType, inputFormat);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing input format")
             << ex;
@@ -195,7 +200,7 @@ EExitCode TRequestExecutor::DoExecute()
 
     request.OutputStream = &outputStream;
     try {
-        request.OutputFormat = GetFormat(descriptor->OutputType, outputFormat);
+        request.OutputFormat = GetFormat(descriptor.OutputType, outputFormat);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing output format")
             << ex;
@@ -207,22 +212,20 @@ EExitCode TRequestExecutor::DoExecute()
 EExitCode TRequestExecutor::DoExecute(const TDriverRequest& request)
 {
     auto response = Driver->Execute(request);
-
-    if (!response.Error.IsOK()) {
-        THROW_ERROR response.Error;
-    }
-
+    THROW_ERROR_EXCEPTION_IF_FAILED(response.Error);
     return EExitCode::OK;
 }
-
 
 IMapNodePtr TRequestExecutor::GetArgs()
 {
     auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
-    builder->OnBeginMap();
-    BuildArgs(~builder);
-    builder->OnEndMap();
+
+    BuildYsonFluently(~builder)
+        .BeginMap()
+            .Do(BIND(&TRequestExecutor::BuildArgs, Unretained(this)))
+        .EndMap();
+
     auto args = builder->EndTree()->AsMap();
     FOREACH (const auto& opt, OptArg.getValue()) {
         ApplyYPathOverride(args, opt);

@@ -15,6 +15,9 @@ class TestAccounts(YTEnvSetup):
     def _get_account_disk_space(self, account):
         return get('//sys/accounts/{0}/@resource_usage/disk_space'.format(account))
 
+    def _get_account_node_count(self, account):
+        return get('//sys/accounts/{0}/@resource_usage/node_count'.format(account))
+
     def _get_account_committed_disk_space(self, account):
         return get('//sys/accounts/{0}/@committed_resource_usage/disk_space'.format(account))
 
@@ -24,11 +27,8 @@ class TestAccounts(YTEnvSetup):
     def _set_account_disk_space_limit(self, account, value):
         set('//sys/accounts/{0}/@resource_limits/disk_space'.format(account), value)
 
-    def _is_account_over_disk_space(self, account):
-        return get('//sys/accounts/{0}/@over_disk_space'.format(account))
-
-    def _get_account_node_count(self, account):
-        return get('//sys/accounts/{0}/@node_count'.format(account))
+    def _is_account_over_disk_space_limit(self, account):
+        return get('//sys/accounts/{0}/@over_disk_space_limit'.format(account))
 
     def _get_tx_disk_space(self, tx, account):
         return get('#{0}/@resource_usage/{1}/disk_space'.format(tx, account))
@@ -263,11 +263,11 @@ class TestAccounts(YTEnvSetup):
 
     def test_disk_space_limits1(self):
         create_account('max')
-        assert self._is_account_over_disk_space('max') == 'false'
+        assert self._is_account_over_disk_space_limit('max') == 'false'
         self._set_account_disk_space_limit('max', 1000)
         self._set_account_disk_space_limit('max', 2000)
         self._set_account_disk_space_limit('max', 0)
-        assert self._is_account_over_disk_space('max') == 'false'
+        assert self._is_account_over_disk_space_limit('max') == 'false'
         with pytest.raises(YTError): self._set_account_disk_space_limit('max', -1)
 
     def test_disk_space_limits2(self):
@@ -278,16 +278,16 @@ class TestAccounts(YTEnvSetup):
         set('//tmp/t/@account', 'max')
 
         write('//tmp/t', {'a' : 'b'})
-        assert self._is_account_over_disk_space('max') == 'false'
+        assert self._is_account_over_disk_space_limit('max') == 'false'
         
         self._set_account_disk_space_limit('max', 0)
-        assert self._is_account_over_disk_space('max') == 'true'
+        assert self._is_account_over_disk_space_limit('max') == 'true'
         with pytest.raises(YTError): write('//tmp/t', {'a' : 'b'}) 
 
         self._set_account_disk_space_limit('max', self._get_account_disk_space('max'))
-        assert self._is_account_over_disk_space('max') == 'false'
+        assert self._is_account_over_disk_space_limit('max') == 'false'
         write('//tmp/t', {'a' : 'b'}) 
-        assert self._is_account_over_disk_space('max') == 'true'
+        assert self._is_account_over_disk_space_limit('max') == 'true'
 
     def test_disk_space_limits3(self):
         create_account('max')
@@ -296,29 +296,29 @@ class TestAccounts(YTEnvSetup):
         content = "some_data"
 
         upload('//tmp/f1', content, opt=['/attributes/account=max'])
-        assert self._is_account_over_disk_space('max') == 'false'
+        assert self._is_account_over_disk_space_limit('max') == 'false'
         
         self._set_account_disk_space_limit('max', 0)
-        assert self._is_account_over_disk_space('max') == 'true'
+        assert self._is_account_over_disk_space_limit('max') == 'true'
         with pytest.raises(YTError): upload('//tmp/f2', content, opt=['/attributes/account=max'])
 
         self._set_account_disk_space_limit('max', self._get_account_disk_space('max'))
-        assert self._is_account_over_disk_space('max') == 'false'
+        assert self._is_account_over_disk_space_limit('max') == 'false'
         upload('//tmp/f3', content, opt=['/attributes/account=max'])
-        assert self._is_account_over_disk_space('max') == 'true'
+        assert self._is_account_over_disk_space_limit('max') == 'true'
 
     def test_committed_usage(self):
-		assert self._get_account_committed_disk_space('tmp') == 0
-		
-		create('table', '//tmp/t')
-		write('//tmp/t', {'a' : 'b'})
-		space = get('//tmp/t/@resource_usage/disk_space')
-		assert space > 0
-		assert self._get_account_committed_disk_space('tmp') == space
+        assert self._get_account_committed_disk_space('tmp') == 0
+        
+        create('table', '//tmp/t')
+        write('//tmp/t', {'a' : 'b'})
+        space = get('//tmp/t/@resource_usage/disk_space')
+        assert space > 0
+        assert self._get_account_committed_disk_space('tmp') == space
 
-		tx = start_transaction()
-		write('//tmp/t', {'a' : 'b'}, tx=tx)
-		assert self._get_account_committed_disk_space('tmp') == space
+        tx = start_transaction()
+        write('//tmp/t', {'a' : 'b'}, tx=tx)
+        assert self._get_account_committed_disk_space('tmp') == space
 
-		commit_transaction(tx)
-		assert self._get_account_committed_disk_space('tmp') == space * 2
+        commit_transaction(tx)
+        assert self._get_account_committed_disk_space('tmp') == space * 2

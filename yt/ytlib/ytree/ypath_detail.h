@@ -1,14 +1,16 @@
 #pragma once
 
 #include "ypath_service.h"
-#include <ytlib/yson/yson_consumer.h>
 #include "yson_producer.h"
 #include "tree_builder.h"
-#include <ytlib/yson/yson_writer.h>
 #include "forwarding_yson_consumer.h"
 #include "attributes.h"
+#include "permission.h"
 
 #include <ytlib/misc/assert.h>
+
+#include <ytlib/yson/yson_consumer.h>
+#include <ytlib/yson/yson_writer.h>
 
 #include <ytlib/ytree/node.h>
 #include <ytlib/ytree/ypath.pb.h>
@@ -38,7 +40,7 @@ protected:
     NLog::TLogger Logger;
 
     void GuardedInvoke(NRpc::IServiceContextPtr context);
-    virtual void DoInvoke(NRpc::IServiceContextPtr context);
+    virtual bool DoInvoke(NRpc::IServiceContextPtr context);
 
     virtual TResolveResult ResolveSelf(const TYPath& path, NRpc::IServiceContextPtr context);
     virtual TResolveResult ResolveAttributes(const TYPath& path, NRpc::IServiceContextPtr context);
@@ -71,6 +73,19 @@ DECLARE_SUPPORTS_VERB(Exists, void Reply(TCtxExistsPtr context, bool value); );
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSupportsPermissions
+{
+protected:
+    virtual ~TSupportsPermissions();
+
+    virtual void ValidatePermission(
+        EPermissionCheckScope scope,
+        EPermission permission);
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSupportsAttributes
     : public virtual TYPathServiceBase
     , public virtual TSupportsGet
@@ -78,12 +93,13 @@ class TSupportsAttributes
     , public virtual TSupportsSet
     , public virtual TSupportsRemove
     , public virtual TSupportsExists
+    , public virtual TSupportsPermissions
 {
 protected:
-    //! Can be NULL.
+    //! Can be |nullptr|.
     virtual IAttributeDictionary* GetUserAttributes();
 
-    //! Can be NULL.
+    //! Can be |nullptr|.
     virtual ISystemAttributeProvider* GetSystemAttributeProvider();
 
     virtual TResolveResult ResolveAttributes(
@@ -369,7 +385,7 @@ IYPathServicePtr CreateRootService(IYPathServicePtr underlyingService);
     if (context->GetVerb() == #method) { \
         ::NYT::NRpc::THandlerInvocationOptions options; \
         method##Thunk(context, options).Run(); \
-        return; \
+        return true; \
     }
 
 
@@ -378,7 +394,7 @@ IYPathServicePtr CreateRootService(IYPathServicePtr underlyingService);
         ::NYT::NRpc::THandlerInvocationOptions options; \
         options.HeavyResponse = true; \
         method##Thunk(context, options).Run(); \
-        return; \
+        return true; \
     }
 
 #define DECLARE_YPATH_SERVICE_WRITE_METHOD(method) \

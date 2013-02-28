@@ -13,6 +13,7 @@ using namespace NYTree;
 using namespace NTransactionServer;
 using namespace NCellMaster;
 using namespace NObjectClient;
+using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,10 +109,12 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
     }
 }
 
-TAutoPtr<TCypressNodeBase> TNontemplateCypressNodeTypeHandlerBase::CloneCore(
+TAutoPtr<TCypressNodeBase> TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
     TCypressNodeBase* sourceNode,
-    TTransaction* transaction)
+    const TCloneContext& context)
 {
+    UNUSED(context);
+
     auto objectManager = Bootstrap->GetObjectManager();
 
     auto type = GetObjectType();
@@ -120,8 +123,19 @@ TAutoPtr<TCypressNodeBase> TNontemplateCypressNodeTypeHandlerBase::CloneCore(
     auto clonedNode = Instantiate(TVersionedNodeId(clonedId));
     clonedNode->SetTrunkNode(~clonedNode);
 
+    return clonedNode;
+}
+
+void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
+    TCypressNodeBase* sourceNode,
+    TCypressNodeBase* clonedNode,
+    const TCloneContext& context)
+{
+    UNUSED(sourceNode);
+
     // Copy attributes directly to suppress validation.
-    auto keyToAttribute = GetNodeAttributes(Bootstrap, sourceNode->GetTrunkNode(), transaction);
+    auto objectManager = Bootstrap->GetObjectManager();
+    auto keyToAttribute = GetNodeAttributes(Bootstrap, sourceNode->GetTrunkNode(), context.Transaction);
     if (!keyToAttribute.empty()) {
         auto* clonedAttributes = objectManager->CreateAttributes(clonedNode->GetVersionedId());
         FOREACH (const auto& pair, keyToAttribute) {
@@ -129,7 +143,11 @@ TAutoPtr<TCypressNodeBase> TNontemplateCypressNodeTypeHandlerBase::CloneCore(
         }
     }
 
-    return clonedNode;
+    // Update account.
+    if (context.Account) {
+        auto securityManager = Bootstrap->GetSecurityManager();
+        securityManager->SetAccount(clonedNode, context.Account);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -289,11 +307,11 @@ ICypressNodeProxyPtr TMapNodeTypeHandler::DoGetProxy(
 void TMapNodeTypeHandler::DoClone(
     TMapNode* sourceNode,
     TMapNode* clonedNode,
-    TTransaction* transaction)
+    const TCloneContext& context)
 {
-    TBase::DoClone(sourceNode, clonedNode, transaction);
+    TBase::DoClone(sourceNode, clonedNode, context);
 
-    auto keyToChildMap = GetMapNodeChildren(Bootstrap, sourceNode->GetTrunkNode(), transaction);
+    auto keyToChildMap = GetMapNodeChildren(Bootstrap, sourceNode->GetTrunkNode(), context.Transaction);
     std::vector< std::pair<Stroka, TCypressNodeBase*> > keyToChildList(keyToChildMap.begin(), keyToChildMap.end());
 
     // Sort children by key to ensure deterministic ids generation.
@@ -311,9 +329,9 @@ void TMapNodeTypeHandler::DoClone(
         const auto& key = pair.first;
         auto* childTrunkNode = pair.second;
 
-        auto* childNode = cypressManager->GetVersionedNode(childTrunkNode, transaction);
+        auto* childNode = cypressManager->GetVersionedNode(childTrunkNode, context.Transaction);
 
-        auto* clonedChildNode = cypressManager->CloneNode(childNode, transaction);
+        auto* clonedChildNode = cypressManager->CloneNode(childNode, context);
         auto* clonedTrunkChildNode = clonedChildNode->GetTrunkNode();
 
         YCHECK(clonedNode->KeyToChild().insert(std::make_pair(key, clonedTrunkChildNode)).second);
@@ -434,9 +452,9 @@ void TListNodeTypeHandler::DoMerge(
 void TListNodeTypeHandler::DoClone(
     TListNode* sourceNode,
     TListNode* clonedNode,
-    TTransaction* transaction)
+    const TCloneContext& context)
 {
-    TBase::DoClone(sourceNode, clonedNode, transaction);
+    TBase::DoClone(sourceNode, clonedNode, context);
 
     auto objectManager = Bootstrap->GetObjectManager();
     auto cypressManager = Bootstrap->GetCypressManager();
@@ -444,7 +462,7 @@ void TListNodeTypeHandler::DoClone(
     const auto& indexToChild = sourceNode->IndexToChild();
     for (int index = 0; index < indexToChild.size(); ++index) {
         auto* childNode = indexToChild[index];
-        auto* clonedChildNode = cypressManager->CloneNode(childNode, transaction);
+        auto* clonedChildNode = cypressManager->CloneNode(childNode, context);
         auto* clonedChildTrunkNode = clonedChildNode->GetTrunkNode();
 
         clonedNode->IndexToChild().push_back(clonedChildTrunkNode);

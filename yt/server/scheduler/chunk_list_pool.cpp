@@ -4,6 +4,8 @@
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
+#include <ytlib/object_client/master_ypath_proxy.h>
+
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
 #include <server/chunk_server/chunk_list.h>
@@ -103,7 +105,8 @@ void TChunkListPool::AllocateMore()
     auto batchReq = objectProxy.ExecuteBatch();
 
     for (int index = 0; index < count; ++index) {
-        auto req = TTransactionYPathProxy::CreateObject(FromObjectId(TransactionId));
+        auto req = TMasterYPathProxy::CreateObject();
+        *req->mutable_transaction_id() = TransactionId.ToProto();
         req->set_type(EObjectType::ChunkList);
         batchReq->AddRequest(req);
     }
@@ -129,7 +132,7 @@ void TChunkListPool::OnChunkListsCreated(
 
     LOG_INFO("Chunk lists allocated");
 
-    auto rsps = batchRsp->GetResponses<TTransactionYPathProxy::TRspCreateObject>();
+    auto rsps = batchRsp->GetResponses<TMasterYPathProxy::TRspCreateObject>();
     FOREACH (auto rsp, rsps) {
         if (rsp->IsOK()) {
             Ids.push_back(TChunkListId::FromProto(rsp->object_id()));

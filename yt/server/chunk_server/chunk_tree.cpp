@@ -11,7 +11,7 @@ using namespace NObjectServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkTree::TChunkTree(const TChunkTreeId& id)
-    : TUnversionedObjectBase(id)
+    : TNonversionedObjectBase(id)
 { }
 
 TChunk* TChunkTree::AsChunk()

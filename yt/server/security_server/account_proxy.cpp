@@ -24,11 +24,8 @@ class TAccountProxy
     : public NObjectServer::TNonversionedObjectProxyBase<TAccount>
 {
 public:
-    TAccountProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        TAccount* account,
-        TAccountMetaMap* map)
-        : TBase(bootstrap, account, map)
+    TAccountProxy(NCellMaster::TBootstrap* bootstrap, TAccount* account)
+        : TBase(bootstrap, account)
     { }
 
 private:
@@ -50,8 +47,7 @@ private:
         attributes->push_back("resource_usage");
         attributes->push_back("committed_resource_usage");
         attributes->push_back("resource_limits");
-        attributes->push_back("node_count");
-        attributes->push_back("over_disk_space");
+        attributes->push_back("over_disk_space_limit");
         TBase::ListSystemAttributes(attributes);
     }
 
@@ -83,22 +79,16 @@ private:
             return true;
         }
 
-        if (key == "node_count") {
+        if (key == "over_disk_space_limit") {
             BuildYsonFluently(consumer)
-                .Value(account->NodeCount());
-            return true;
-        }
-
-        if (key == "over_disk_space") {
-            BuildYsonFluently(consumer)
-                .Value(account->IsOverDiskSpace());
+                .Value(account->IsOverDiskSpaceLimit());
             return true;
         }
 
         return TBase::GetSystemAttribute(key, consumer);
     }
 
-    bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override
+    virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override
     {
         auto* account = GetThisTypedImpl();
 
@@ -114,13 +104,9 @@ private:
 
 IObjectProxyPtr CreateAccountProxy(
     NCellMaster::TBootstrap* bootstrap,
-    TAccount* account,
-    TAccountMetaMap* map)
+    TAccount* account)
 {
-    return New<TAccountProxy>(
-        bootstrap,
-        account,
-        map);
+    return New<TAccountProxy>(bootstrap, account);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -45,7 +45,7 @@ struct TJobIOConfig
 struct TOperationSpecBase
     : public TYsonSerializable
 {
-    Stroka TmpAccount;
+    Stroka IntermediateDataAccount;
 
     bool IgnoreLostChunks;
 
@@ -54,7 +54,7 @@ struct TOperationSpecBase
 
     TOperationSpecBase()
     {
-        Register("tmp_account", TmpAccount)
+        Register("intermediate_data_account", IntermediateDataAccount)
             .Default("tmp");
 
         Register("ignore_lost_chunks", IgnoreLostChunks)

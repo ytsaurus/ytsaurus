@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/misc/nullable.h>
+
 #include <ytlib/ytree/ypath_client.h>
 
 #include <ytlib/transaction_client/public.h>
@@ -21,16 +23,12 @@ public:
 
     explicit TObjectServiceProxy(NRpc::IChannelPtr channel);
 
-    DEFINE_RPC_PROXY_METHOD(NProto, Execute);
     DEFINE_RPC_PROXY_METHOD(NProto, GCCollect);
 
     //! Executes a single typed request.
     template <class TTypedRequest>
     TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> >
     Execute(TIntrusivePtr<TTypedRequest> innerRequest);
-
-    //! Executes a single untyped request.
-    TFuture<NBus::IMessagePtr> Execute(NBus::IMessagePtr innerRequestMessage);
 
     class TReqExecuteBatch;
     class TRspExecuteBatch;
@@ -59,7 +57,7 @@ public:
         TFuture<TRspExecuteBatchPtr> Invoke();
 
         //! Overrides base method for fluent use.
-        TIntrusivePtr<TReqExecuteBatch> SetTimeout(TNullable<TDuration> timeout);
+        TReqExecuteBatchPtr SetTimeout(TNullable<TDuration> timeout);
 
         //! Adds an individual request into the batch.
         /*!
@@ -72,8 +70,13 @@ public:
          *  response back. This feature is useful for adding dummy requests to keep
          *  the request list aligned with some other data structure.
          */
-        TIntrusivePtr<TReqExecuteBatch> AddRequest(
+        TReqExecuteBatchPtr AddRequest(
             NYTree::TYPathRequestPtr innerRequest,
+            const Stroka& key = "");
+
+        //! Similar to #AddRequest, but works for already serialized messages representing requests.
+        TReqExecuteBatchPtr AddRequestMessage(
+            NBus::IMessagePtr innerRequestMessage,
             const Stroka& key = "");
 
         //! Returns the current number of individual requests in the batch.
@@ -82,6 +85,7 @@ public:
     private:
         typedef std::multimap<Stroka, int> TKeyToIndexes;
 
+        TNullable<Stroka> AuthenticatedUser_;
         std::vector<int> PartCounts;
         TKeyToIndexes KeyToIndexes;
         std::vector<TError> RetryErrors;
@@ -173,6 +177,9 @@ public:
         //! Returns all responses with a given key (all if no key is specified).
         std::vector<NYTree::TYPathResponsePtr> GetResponses(const Stroka& key = "") const;
 
+        //! Similar to #GetResponse, but returns the response message without deserializing it.
+        NBus::IMessagePtr GetResponseMessage(int index) const;
+
     private:
         TKeyToIndexMultimap KeyToIndexes;
         TPromise<TRspExecuteBatchPtr> Promise;
@@ -187,10 +194,13 @@ public:
     //! Executes a batched Cypress request.
     TReqExecuteBatchPtr ExecuteBatch();
 
+private:
+    // The back-end.
+    DEFINE_RPC_PROXY_METHOD(NProto, Execute);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 } // namespace NObjectClient
 } // namespace NYT

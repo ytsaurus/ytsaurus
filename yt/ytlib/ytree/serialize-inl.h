@@ -88,6 +88,18 @@ void Serialize(const TNullable<T>& value, NYson::IYsonConsumer* consumer)
     Serialize(*value, consumer);
 }
 
+// TSmallVector
+template <class T, unsigned N>
+void Serialize(const TSmallVector<T, N>& value, NYson::IYsonConsumer* consumer)
+{
+    consumer->OnBeginList();
+    FOREACH (const auto& value, value) {
+        consumer->OnListItem();
+        Serialize(value, consumer);
+    }
+    consumer->OnEndList();
+}
+
 // std::vector
 template <class T>
 void Serialize(const std::vector<T>& value, NYson::IYsonConsumer* consumer)
@@ -174,6 +186,18 @@ void Deserialize(TNullable<T>& value, INodePtr node)
         value = T();
     }
     Deserialize(*value, node);
+}
+
+// TSmallVector
+template <class T, unsigned N>
+void Deserialize(TSmallVector<T, N>& value, INodePtr node)
+{
+    auto listNode = node->AsList();
+    auto size = listNode->GetChildCount();
+    value.resize(size);
+    for (int i = 0; i < size; ++i) {
+        Deserialize(value[i], listNode->GetChild(i));
+    }
 }
 
 // std::vector

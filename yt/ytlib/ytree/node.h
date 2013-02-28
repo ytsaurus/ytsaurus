@@ -4,7 +4,8 @@
 #include "attribute_owner.h"
 #include "attribute_provider.h"
 #include "ypath_service.h"
-#include <ytlib/yson/yson_consumer.h>
+
+#include <ytlib/yson/public.h>
 
 #include <ytlib/misc/mpl.h>
 

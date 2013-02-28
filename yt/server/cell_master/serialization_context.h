@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <ytlib/misc/property.h>
+#include <ytlib/misc/small_vector.h>
 
 #include <ytlib/meta_state/composite_meta_state.h>
 
@@ -21,7 +22,7 @@ namespace NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ESavePriority,
+DECLARE_ENUM(ESerializationPriority,
     (Keys)
     (Values)
 );
@@ -75,29 +76,38 @@ NSecurityServer::TAccount* TLoadContext::Get(const NObjectClient::TObjectId& id)
 template <>
 NChunkServer::TDataNode* TLoadContext::Get(NChunkServer::TNodeId id) const;
 
-////////////////////////////////////////////////////////////////////////////////
+template <>
+NSecurityServer::TSubject* TLoadContext::Get(const NObjectClient::TObjectId& id) const;
 
-template <class T>
-void SaveObjectRef(TOutputStream* output, T object);
+template <>
+NSecurityServer::TUser* TLoadContext::Get(const NObjectClient::TObjectId& id) const;
 
-template <class T>
-void LoadObjectRef(TInputStream* input, T& object, const TLoadContext& context);
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-void SaveObjectRefs(TOutputStream* output, const T& objects);
-
-template <class T>
-void LoadObjectRefs(TInputStream* input, T& objects, const TLoadContext& context);
+template <>
+NSecurityServer::TGroup* TLoadContext::Get(const NObjectClient::TObjectId& id) const;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void SaveNullableObjectRefs(TOutputStream* output, const THolder<T>& objects);
+void SaveObjectRef(const TSaveContext& context, T object);
 
 template <class T>
-void LoadNullableObjectRefs(TInputStream* input, THolder<T>& objects, const TLoadContext& context);
+void LoadObjectRef(const TLoadContext& context, T& object);
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+void SaveObjectRefs(const TSaveContext& context, const T& object);
+
+template <class T>
+void LoadObjectRefs(const TLoadContext& context, T& object);
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+void SaveNullableObjectRefs(const TSaveContext& context, const THolder<T>& objects);
+
+template <class T>
+void LoadNullableObjectRefs(const TLoadContext& context, THolder<T>& objects);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -109,6 +119,20 @@ void Load(const TLoadContext& context, T& value);
 
 template <class T>
 void Save(const TSaveContext& context, const T& value);
+
+template <class T>
+void Save(const TSaveContext& context, std::vector<T>& objects);
+
+template <class T>
+void Load(const TLoadContext& context, std::vector<T>& objects);
+
+// TODO(babenko): merge this with the above
+template <class T, unsigned N>
+void Save(const TSaveContext& context, const TSmallVector<T, N>& objects);
+
+// TODO(babenko): merge this with the above
+template <class T, unsigned N>
+void Load(const TLoadContext& context, TSmallVector<T, N>& objects);
 
 ////////////////////////////////////////////////////////////////////////////////
 

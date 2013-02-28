@@ -47,7 +47,7 @@ private:
     IYPathServicePtr UnderlyingService;
     IInvokerPtr Invoker;
 
-    virtual void DoInvoke(IServiceContextPtr context) override
+    virtual bool DoInvoke(IServiceContextPtr context) override
     {
         auto underlyingService = UnderlyingService;
         auto handler = BIND([=] () {
@@ -60,6 +60,7 @@ private:
                 EErrorCode::Unavailable,
                 "Service unavailable"));
         }
+        return true;
     }
 };
 
@@ -93,10 +94,11 @@ public:
 private:
     TYPathServiceProducer Producer;
 
-    virtual void DoInvoke(IServiceContextPtr context) override
+    virtual bool DoInvoke(IServiceContextPtr context) override
     {
         auto service = Producer.Run();
         ExecuteVerb(service, context);
+        return true;
     }
 };
 

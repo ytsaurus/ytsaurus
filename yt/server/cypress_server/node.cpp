@@ -26,6 +26,7 @@ TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id)
     , ModificationTime_(0)
     , Account_(nullptr)
     , CachedResourceUsage_(ZeroClusterResources())
+    , Acd_(this)
     , Parent_(nullptr)
     , TransactionId(id.TransactionId)
 { }
@@ -76,7 +77,7 @@ void TCypressNodeBase::Save(const NCellMaster::TSaveContext& context) const
     TObjectBase::Save(context);
 
     auto* output = context.GetOutput();
-    SaveObjectRefs(output, Locks_);
+    SaveObjectRefs(context, Locks_);
 
     // TODO(babenko): refactor when new serialization API is ready
     auto parentId = Parent_ ? Parent_->GetId() : NullObjectId;
@@ -85,8 +86,9 @@ void TCypressNodeBase::Save(const NCellMaster::TSaveContext& context) const
     ::Save(output, LockMode_);
     ::Save(output, CreationTime_);
     ::Save(output, ModificationTime_);
-    SaveObjectRef(output, Account_);
-    NSecurityServer::Save(output, CachedResourceUsage_);
+    SaveObjectRef(context, Account_);
+    NSecurityServer::Save(context, CachedResourceUsage_);
+    NSecurityServer::Save(context, Acd_);
 }
 
 void TCypressNodeBase::Load(const TLoadContext& context)
@@ -94,8 +96,8 @@ void TCypressNodeBase::Load(const TLoadContext& context)
     TObjectBase::Load(context);
 
     auto* input = context.GetInput();
-    LoadObjectRefs(input, Locks_, context);
-
+    LoadObjectRefs(context, Locks_);
+    
     // TODO(babenko): refactor when new serialization API is ready
     TNodeId parentId;
     NYT::Load(input, parentId);
@@ -104,8 +106,12 @@ void TCypressNodeBase::Load(const TLoadContext& context)
     ::Load(input, LockMode_);
     ::Load(input, CreationTime_);
     ::Load(input, ModificationTime_);
-    LoadObjectRef(input, Account_, context);
-    NSecurityServer::Load(input, CachedResourceUsage_);
+    LoadObjectRef(context, Account_);
+    NSecurityServer::Load(context, CachedResourceUsage_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 8) {
+        NSecurityServer::Load(context, Acd_);
+    }
 
     if (TransactionId == NullTransactionId) {
         TrunkNode_ = this;
@@ -118,7 +124,7 @@ void TCypressNodeBase::Load(const TLoadContext& context)
 
 TClusterResources TCypressNodeBase::GetResourceUsage() const
 {
-    return ZeroClusterResources();
+    return TClusterResources(0, 1);
 }
 
 TVersionedObjectId GetObjectId(const TCypressNodeBase* object)

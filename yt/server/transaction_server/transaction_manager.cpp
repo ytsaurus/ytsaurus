@@ -24,6 +24,7 @@
 
 #include <server/security_server/security_manager.h>
 #include <server/security_server/account.h>
+#include <server/security_server/group.h>
 
 namespace NYT {
 namespace NTransactionServer {
@@ -49,9 +50,8 @@ class TTransactionManager::TTransactionProxy
     : public NObjectServer::TNonversionedObjectProxyBase<TTransaction>
 {
 public:
-    TTransactionProxy(TTransactionManagerPtr owner, TTransaction* transaction)
-        : TBase(owner->Bootstrap, transaction, &owner->TransactionMap)
-        , Owner(owner)
+    TTransactionProxy(NCellMaster::TBootstrap* bootstrap, TTransaction* transaction)
+        : TBase(bootstrap, transaction)
     {
         Logger = NTransactionServer::Logger;
     }
@@ -70,8 +70,6 @@ public:
 
 private:
     typedef TNonversionedObjectProxyBase<TTransaction> TBase;
-
-    TTransactionManagerPtr Owner;
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override
     {
@@ -183,21 +181,13 @@ private:
         return TBase::GetSystemAttribute(key, consumer);
     }
 
-    virtual void DoInvoke(NRpc::IServiceContextPtr context) override
+    virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Commit);
         DISPATCH_YPATH_SERVICE_METHOD(Abort);
         DISPATCH_YPATH_SERVICE_METHOD(RenewLease);
-        DISPATCH_YPATH_SERVICE_METHOD(CreateObject);
         DISPATCH_YPATH_SERVICE_METHOD(UnstageObject);
-        TBase::DoInvoke(context);
-    }
-
-    void ValidateTransactionNotNull()
-    {
-        if (!Object) {
-            THROW_ERROR_EXCEPTION("Non-null transaction must be provided");
-        }
+        return TBase::DoInvoke(context);
     }
 
     void ValidateTransactionIsActive(const TTransaction* transaction)
@@ -208,27 +198,21 @@ private:
         }
     }
 
-    TAccount* GetAccount(const Stroka& name)
-    {
-        auto securityManager = Bootstrap->GetSecurityManager();
-        auto* account = securityManager->FindAccountByName(name);
-        if (!account) {
-            THROW_ERROR_EXCEPTION("No such account: %s", ~name);
-        }
-        return account;
-    }
-
     DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, Commit)
     {
         UNUSED(request);
         UNUSED(response);
 
-        ValidateTransactionNotNull();
+        context->SetRequestInfo("");
+
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+
         auto* transaction = GetThisTypedImpl();
         ValidateTransactionIsActive(transaction);
 
-        context->SetRequestInfo("");
-        Owner->CommitTransaction(transaction);
+        auto transactionManager = Bootstrap->GetTransactionManager();
+        transactionManager->CommitTransaction(transaction);
+
         context->Reply();
     }
 
@@ -237,12 +221,16 @@ private:
         UNUSED(request);
         UNUSED(response);
 
-        ValidateTransactionNotNull();
+        context->SetRequestInfo("");
+
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+
         auto* transaction = GetThisTypedImpl();
         ValidateTransactionIsActive(transaction);
 
-        context->SetRequestInfo("");
-        Owner->AbortTransaction(transaction);
+        auto transactionManager = Bootstrap->GetTransactionManager();
+        transactionManager->AbortTransaction(transaction);
+
         context->Reply();
     }
 
@@ -253,49 +241,15 @@ private:
         bool renewAncestors = request->renew_ancestors();
         context->SetRequestInfo("RenewAncestors: %s", ~FormatBool(renewAncestors));
 
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
         ValidateActiveLeader();
-
-        ValidateTransactionNotNull();
 
         auto* transaction = GetThisTypedImpl();
         ValidateTransactionIsActive(transaction);
 
-        Owner->RenewLease(transaction, renewAncestors);
-        context->Reply();
-    }
+        auto transactionManager = Bootstrap->GetTransactionManager();
+        transactionManager->RenewLease(transaction, renewAncestors);
 
-    DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, CreateObject)
-    {
-        auto type = EObjectType(request->type());
-
-        context->SetRequestInfo("TransactionId: %s, Type: %s",
-            ~GetId().ToString(),
-            ~type.ToString());
-
-        auto* transaction = GetId() == NullTransactionId ? NULL : GetThisTypedImpl();
-        if (transaction) {
-            ValidateTransactionIsActive(transaction);
-        }
-
-        auto* account = request->has_account() ? GetAccount(request->account()) : NULL;
-
-        auto attributes =
-            request->has_object_attributes()
-            ? FromProto(request->object_attributes())
-            : CreateEphemeralAttributes();
-
-        auto transactionManager = Owner->Bootstrap->GetTransactionManager();
-        auto objectId = transactionManager->CreateObject(
-            transaction,
-            account,
-            type,
-            ~attributes,
-            request,
-            response);
-
-        *response->mutable_object_id() = objectId.ToProto();
-
-        context->SetResponseInfo("ObjectId: %s", ~objectId.ToString());
         context->Reply();
     }
 
@@ -309,7 +263,7 @@ private:
             ~objectId.ToString(),
             ~FormatBool(recursive));
 
-        ValidateTransactionNotNull();
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
         auto* transaction = GetThisTypedImpl();
         ValidateTransactionIsActive(transaction);
@@ -320,11 +274,12 @@ private:
             THROW_ERROR_EXCEPTION("No such object: %s", ~ToString(objectId));
         }
 
-        auto transactionManager = Owner->Bootstrap->GetTransactionManager();
+        auto transactionManager = Bootstrap->GetTransactionManager();
         transactionManager->UnstageObject(transaction, object, recursive);
 
         context->Reply();
     }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -335,7 +290,6 @@ class TTransactionManager::TTransactionTypeHandler
 public:
     explicit TTransactionTypeHandler(TTransactionManager* owner)
         : TObjectTypeHandlerBase(owner->Bootstrap, &owner->TransactionMap)
-        , Owner(owner)
     { }
 
     virtual EObjectType GetType() const override
@@ -343,17 +297,14 @@ public:
         return EObjectType::Transaction;
     }
 
-    virtual EObjectTransactionMode GetTransactionMode() const override
+    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
     {
-        return EObjectTransactionMode::Optional;
+        return TTypeCreationOptions(
+            EObjectTransactionMode::Optional,
+            EObjectAccountMode::Forbidden);
     }
 
-    virtual EObjectAccountMode GetAccountMode() const override
-    {
-        return EObjectAccountMode::Forbidden;
-    }
-
-    virtual TUnversionedObjectBase* Create(
+    virtual TNonversionedObjectBase* Create(
         TTransaction* parent,
         TAccount* account,
         IAttributeDictionary* attributes,
@@ -368,19 +319,24 @@ public:
             requestExt->has_timeout()
             ? TNullable<TDuration>(TDuration::MilliSeconds(requestExt->timeout()))
             : Null;
-        auto* transaction = Owner->StartTransaction(parent, timeout);
+
+        auto transactionManager = Bootstrap->GetTransactionManager();
+        auto* transaction = transactionManager->StartTransaction(parent, timeout);
         transaction->SetUncommittedAccountingEnabled(requestExt->enable_uncommitted_accounting());
         transaction->SetStagedAccountingEnabled(requestExt->enable_staged_accounting());
         return transaction;
     }
 
 private:
-    TTransactionManager* Owner;
+    virtual Stroka DoGetName(TTransaction* transaction) override
+    {
+        return Sprintf("transaction %s", ~ToString(transaction->GetId()));
+    }
 
     virtual IObjectProxyPtr DoGetProxy(TTransaction* transaction, TTransaction* dummyTransaction) override
     {
         UNUSED(dummyTransaction);
-        return New<TTransactionProxy>(Owner, transaction);
+        return New<TTransactionProxy>(Bootstrap, transaction);
     }
 
 };
@@ -419,13 +375,13 @@ TTransactionManager::TTransactionManager(
         NCellMaster::TSaveContext context;
 
         RegisterSaver(
-            ESavePriority::Keys,
+            ESerializationPriority::Keys,
             "TransactionManager.Keys",
             CurrentSnapshotVersion,
             BIND(&TTransactionManager::SaveKeys, MakeStrong(this)),
             context);
         RegisterSaver(
-            ESavePriority::Values,
+            ESerializationPriority::Values,
             "TransactionManager.Values",
             CurrentSnapshotVersion,
             BIND(&TTransactionManager::SaveValues, MakeStrong(this)),
@@ -600,8 +556,13 @@ TObjectId TTransactionManager::CreateObject(
             ~type.ToString());
     }
 
-    auto transactionMode = handler->GetTransactionMode();
-    switch (transactionMode) {
+    auto options = handler->GetCreationOptions();
+    if (!options) {
+        THROW_ERROR_EXCEPTION("Type does not support creating new instances: %s",
+            ~type.ToString());
+    }
+
+    switch (options->TransactionMode) {
         case EObjectTransactionMode::Required:
             if (!transaction) {
                 THROW_ERROR_EXCEPTION("Cannot create an instance of %s outside of a transaction",
@@ -623,8 +584,7 @@ TObjectId TTransactionManager::CreateObject(
             YUNREACHABLE();
     }
 
-    auto accountMode = handler->GetAccountMode();
-    switch (accountMode) {
+    switch (options->AccountMode) {
         case EObjectAccountMode::Required:
             if (!account) {
                 THROW_ERROR_EXCEPTION("Cannot create an instance of %s without an account",
@@ -644,6 +604,13 @@ TObjectId TTransactionManager::CreateObject(
 
         default:
             YUNREACHABLE();
+    }
+
+    auto* schema = objectManager->FindSchema(type);
+    if (schema) {
+        auto securityManager = Bootstrap->GetSecurityManager();
+        auto* user = securityManager->GetAuthenticatedUser();
+        securityManager->ValidatePermission(schema, user, EPermission::Create);
     }
 
     auto* object = handler->Create(
@@ -793,12 +760,6 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
                 ~id.ToString());
         }
     }));
-}
-
-IObjectProxyPtr TTransactionManager::GetRootTransactionProxy()
-{
-    // TODO(babenko): remove cast when GCC supports native nullptr
-    return New<TTransactionProxy>(this, (TTransaction*) nullptr);
 }
 
 std::vector<TTransaction*> TTransactionManager::GetTransactionPath(TTransaction* transaction) const

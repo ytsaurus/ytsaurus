@@ -25,6 +25,7 @@ set( SRCS
   ${BASE}/yson_serializable.cpp
   ${BASE}/yson_stream.cpp
   ${BASE}/yson_string.cpp
+  ${BASE}/permission.cpp
 )
 set( HDRS
   ${BASE}/attribute_consumer.h
@@ -62,6 +63,7 @@ set( HDRS
   ${BASE}/yson_serializable.h
   ${BASE}/yson_stream.h
   ${BASE}/yson_string.h
+  ${BASE}/permission.h
 )
 
 list(APPEND YT_SOURCE_FILES

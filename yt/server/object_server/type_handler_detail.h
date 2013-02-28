@@ -35,6 +35,11 @@ public:
         return Map->Find(id);
     }
 
+    virtual Stroka GetName(TObjectBase* object) override
+    {
+        return DoGetName(static_cast<TObject*>(object));
+    }
+
     virtual IObjectProxyPtr GetProxy(
         TObjectBase* object,
         NTransactionServer::TTransaction* transaction) override
@@ -74,17 +79,37 @@ public:
         DoUnstage(static_cast<TObject*>(object), transaction, recursive);
     }
 
+    virtual NSecurityServer::TAccessControlDescriptor* GetAcd(TObjectBase* object) override
+    {
+        return DoGetAcd(static_cast<TObject*>(object));
+    }
+
+    virtual TObjectBase* GetParent(TObjectBase* object) override
+    {
+        return DoGetParent(static_cast<TObject*>(object));
+    }
+
+    virtual NYTree::EPermissionSet GetSupportedPermissions() const override
+    {
+        // TODO(babenko): flagged enums
+        return NYTree::EPermissionSet(
+            NYTree::EPermission::Read |
+            NYTree::EPermission::Write);
+    }
+    
 protected:
     NCellMaster::TBootstrap* Bootstrap;
     // We store map by a raw pointer. In most cases this should be OK.
     TMap* Map;
+
+    virtual Stroka DoGetName(TObject* object) = 0;
 
     virtual IObjectProxyPtr DoGetProxy(
         TObject* object,
         NTransactionServer::TTransaction* transaction)
     {
         UNUSED(transaction);
-        return New< TNonversionedObjectProxyBase<TObject> >(Bootstrap, object, Map);
+        return New< TNonversionedObjectProxyBase<TObject> >(Bootstrap, object);
     }
 
     virtual void DoDestroy(TObject* object)
@@ -100,6 +125,19 @@ protected:
         UNUSED(object);
         UNUSED(transaction);
         UNUSED(recursive);
+    }
+
+    virtual NSecurityServer::TAccessControlDescriptor* DoGetAcd(TObject* object)
+    {
+        UNUSED(object);
+        return nullptr;
+    }
+
+    virtual TObjectBase* DoGetParent(TObject* object)
+    {
+        UNUSED(object);
+        auto objectManager = Bootstrap->GetObjectManager();
+        return objectManager->FindSchema(GetType());
     }
 };
 

@@ -91,9 +91,14 @@ protected:
         TCypressNodeBase* originatingNode,
         TCypressNodeBase* branchedNode);
 
-    TAutoPtr<TCypressNodeBase> CloneCore(
+    TAutoPtr<TCypressNodeBase> CloneCorePrologue(
         TCypressNodeBase* sourceNode,
-        NTransactionServer::TTransaction* transaction);
+        const TCloneContext& context);
+
+    void CloneCoreEpilogue(
+        TCypressNodeBase* sourceNode,
+        TCypressNodeBase* clonedNode,
+        const TCloneContext& context);
 
 };
 
@@ -193,18 +198,19 @@ public:
 
     virtual TAutoPtr<TCypressNodeBase> Clone(
         TCypressNodeBase* sourceNode,
-        NTransactionServer::TTransaction* transaction) override
+        const TCloneContext& context) override
     {
-        // Run core stuff.
-        auto clonedNode = CloneCore(
-            sourceNode,
-            transaction);
+        // Run core prologue stuff.
+        auto clonedNode = CloneCorePrologue(sourceNode, context);
 
         // Run custom stuff.
         DoClone(
             dynamic_cast<TImpl*>(sourceNode),
             dynamic_cast<TImpl*>(~clonedNode),
-            transaction);
+            context);
+
+        // Run core epilogue stuff.
+        CloneCoreEpilogue(sourceNode, ~clonedNode, context);
 
         return clonedNode;
     }
@@ -264,11 +270,11 @@ protected:
     virtual void DoClone(
         TImpl* sourceNode,
         TImpl* clonedNode,
-        NTransactionServer::TTransaction* transaction)
+        const TCloneContext& context)
     {
         UNUSED(sourceNode);
         UNUSED(clonedNode);
-        UNUSED(transaction);
+        UNUSED(context);
     }
 
 private:
@@ -391,9 +397,9 @@ protected:
     virtual void DoClone(
         TScalarNode<TValue>* sourceNode,
         TScalarNode<TValue>* clonedNode,
-        NTransactionServer::TTransaction* transaction) override
+        const TCloneContext& context) override
     {
-        TBase::DoClone(sourceNode, clonedNode, transaction);
+        TBase::DoClone(sourceNode, clonedNode, context);
 
         clonedNode->Value() = sourceNode->Value();
     }
@@ -456,7 +462,7 @@ private:
     virtual void DoClone(
         TMapNode* sourceNode,
         TMapNode* clonedNode,
-        NTransactionServer::TTransaction* transaction) override;
+        const TCloneContext& context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -510,7 +516,7 @@ private:
     virtual void DoClone(
         TListNode* node,
         TListNode* clonedNode,
-        NTransactionServer::TTransaction* transaction) override;
+        const TCloneContext& context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

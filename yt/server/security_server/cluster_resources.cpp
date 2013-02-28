@@ -4,6 +4,8 @@
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/yson_serializable.h>
 
+#include <server/cell_master/serialization_context.h>
+
 namespace NYT {
 namespace NSecurityServer {
 
@@ -14,14 +16,13 @@ using namespace NYson;
 
 TClusterResources::TClusterResources()
     : DiskSpace(0)
+    , NodeCount(0)
 { }
 
-TClusterResources TClusterResources::FromDiskSpace(i64 diskSpace)
-{
-    TClusterResources result;
-    result.DiskSpace = diskSpace;
-    return result;
-}
+TClusterResources::TClusterResources(i64 diskSpace, int nodeCount)
+    : DiskSpace(diskSpace)
+    , NodeCount(nodeCount)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,6 +35,8 @@ struct TSerializableClusterAttributes
         : TClusterResources(other)
     {
         Register("disk_space", DiskSpace)
+            .GreaterThanOrEqual(0);
+        Register("node_count", NodeCount)
             .GreaterThanOrEqual(0);
     }
 };
@@ -55,14 +58,21 @@ void Deserialize(TClusterResources& value, INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Save(TOutputStream* output, const TClusterResources& resources)
+void Save(const NCellMaster::TSaveContext& context, const TClusterResources& resources)
 {
+    auto* output = context.GetOutput();
     ::Save(output, resources.DiskSpace);
+    ::Save(output, resources.NodeCount);
 }
 
-void Load(TInputStream* input, TClusterResources& resources)
+void Load(const NCellMaster::TLoadContext& context, TClusterResources& resources)
 {
+    auto* input = context.GetInput();
     ::Load(input, resources.DiskSpace);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 8) {
+        ::Load(input, resources.NodeCount);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -76,6 +86,7 @@ const TClusterResources& ZeroClusterResources()
 TClusterResources& operator += (TClusterResources& lhs, const TClusterResources& rhs)
 {
     lhs.DiskSpace += rhs.DiskSpace;
+    lhs.NodeCount += rhs.NodeCount;
     return lhs;
 }
 
@@ -89,6 +100,7 @@ TClusterResources operator + (const TClusterResources& lhs, const TClusterResour
 TClusterResources& operator -= (TClusterResources& lhs, const TClusterResources& rhs)
 {
     lhs.DiskSpace -= rhs.DiskSpace;
+    lhs.NodeCount -= rhs.NodeCount;
     return lhs;
 }
 
@@ -102,6 +114,7 @@ TClusterResources operator - (const TClusterResources& lhs, const TClusterResour
 TClusterResources& operator *= (TClusterResources& lhs, i64 rhs)
 {
     lhs.DiskSpace *= rhs;
+    lhs.NodeCount *= rhs;
     return lhs;
 }
 
@@ -116,6 +129,7 @@ TClusterResources operator -  (const TClusterResources& resources)
 {
     TClusterResources result;
     result.DiskSpace = -resources.DiskSpace;
+    result.NodeCount = -resources.NodeCount;
     return result;
 }
 

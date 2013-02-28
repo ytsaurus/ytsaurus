@@ -6,6 +6,8 @@
 
 #include <ytlib/ypath/token.h>
 
+#include <ytlib/ytree/attribute_helpers.h>
+
 #include <ytlib/rpc/error.h>
 
 namespace NYT {
@@ -65,30 +67,16 @@ void ThrowNoSuchSystemAttribute(const Stroka& key)
         ~ToYPathLiteral(key));
 }
 
-void ThrowVerbNotSuppored(IConstNodePtr node, const Stroka& verb)
+void ThrowVerbNotSuppored(const Stroka& verb, const TNullable<Stroka>& resolveType)
 {
-    THROW_ERROR_EXCEPTION(
-        NRpc::EErrorCode::NoSuchVerb,
-        "%s does not support verb: %s",
-        ~GetNodePathHelper(node),
-        ~verb);
-}
-
-void ThrowVerbNotSuppored(const Stroka& verb)
-{
-    THROW_ERROR_EXCEPTION(
+    auto error = TError(
         NRpc::EErrorCode::NoSuchVerb,
         "Verb is not supported: %s",
         ~verb);
-}
-
-void ThrowVerbNotSuppored(const Stroka& verb, const Stroka& resolveType)
-{
-    THROW_ERROR_EXCEPTION(
-        NRpc::EErrorCode::NoSuchVerb,
-        "Verb is not supported: %s",
-        ~verb)
-            << TErrorAttribute("Mode", TYsonString(resolveType));
+    if (resolveType) {
+        error.Attributes().Set("resolve_type", resolveType.Get());
+    }
+    THROW_ERROR(error);
 }
 
 void ThrowCannotHaveChildren(IConstNodePtr node)
@@ -113,12 +101,6 @@ void ThrowCannotSetSystemAttribute(const Stroka& key)
 {
     THROW_ERROR_EXCEPTION("System attribute cannot be set: %s",
         ~NYPath::ToYPathLiteral(key));
-}
-
-void ThrowCannotSetOpaqueAttribute(const Stroka& key)
-{
-    THROW_ERROR_EXCEPTION("An opaque attribute cannot be set: %s",
-        ~ToYPathLiteral(key));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

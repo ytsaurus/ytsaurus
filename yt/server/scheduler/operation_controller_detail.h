@@ -584,7 +584,7 @@ protected:
     void InitUserJobSpec(
         NScheduler::NProto::TUserJobSpec* proto,
         TUserJobSpecPtr config,
-        const std::vector<TRegularUserFile>& files,
+        const std::vector<TRegularUserFile>& regularFiles,
         const std::vector<TUserTableFile>& tableFiles);
 
     static void AddUserJobEnvironment(

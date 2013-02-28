@@ -36,11 +36,8 @@ class TChunkProxy
     : public TNonversionedObjectProxyBase<TChunk>
 {
 public:
-    TChunkProxy(
-        NCellMaster::TBootstrap* bootstrap,
-        TMap* map,
-        TChunk* chunk)
-        : TBase(bootstrap, chunk, map)
+    TChunkProxy(NCellMaster::TBootstrap* bootstrap, TChunk* chunk)
+        : TBase(bootstrap, chunk)
     {
         Logger = ChunkServerLogger;
     }
@@ -230,12 +227,12 @@ private:
         return TBase::GetSystemAttribute(key, consumer);
     }
 
-    virtual void DoInvoke(NRpc::IServiceContextPtr context) override
+    virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Locate);
         DISPATCH_YPATH_SERVICE_METHOD(Fetch);
         DISPATCH_YPATH_SERVICE_METHOD(Confirm);
-        TBase::DoInvoke(context);
+        return TBase::DoInvoke(context);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, Locate)
@@ -324,13 +321,9 @@ private:
 
 IObjectProxyPtr CreateChunkProxy(
     NCellMaster::TBootstrap* bootstrap,
-    NMetaState::TMetaStateMap<TChunkId, TChunk>* map,
     TChunk* chunk)
 {
-    return New<TChunkProxy>(
-        bootstrap,
-        map,
-        chunk);
+    return New<TChunkProxy>(bootstrap, chunk);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,10 +1,15 @@
 #include "stdafx.h"
 #include "command.h"
 
+#include <ytlib/security_client/rpc_helpers.h>
+
 namespace NYT {
 namespace NDriver {
 
 using namespace NYTree;
+using namespace NObjectClient;
+using namespace NSecurityClient;
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,10 +18,16 @@ TUntypedCommandBase::TUntypedCommandBase(ICommandContext* context)
     , Replied(false)
 { }
 
+void TUntypedCommandBase::Prepare()
+{
+    ObjectProxy.Reset(new TObjectServiceProxy(Context->GetMasterChannel()));
+    SchedulerProxy.Reset(new TSchedulerServiceProxy(Context->GetSchedulerChannel()));
+}
+
 void TUntypedCommandBase::ReplyError(const TError& error)
 {
-    YASSERT(!Replied);
-    YASSERT(!error.IsOK());
+    YCHECK(!Replied);
+    YCHECK(!error.IsOK());
 
     Context->GetResponse()->Error = error;
     Replied = true;
@@ -24,7 +35,7 @@ void TUntypedCommandBase::ReplyError(const TError& error)
 
 void TUntypedCommandBase::ReplySuccess(const TYsonString& yson)
 {
-    YASSERT(!Replied);
+    YCHECK(!Replied);
 
     auto consumer = Context->CreateOutputConsumer();
     Consume(yson, ~consumer);

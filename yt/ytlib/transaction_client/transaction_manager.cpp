@@ -11,9 +11,13 @@
 
 #include <ytlib/meta_state/rpc_helpers.h>
 
+#include <ytlib/security_client/rpc_helpers.h>
+
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <ytlib/ytree/attributes.h>
+
+#include <ytlib/object_client/master_ypath_proxy.h>
 
 namespace NYT {
 namespace NTransactionClient {
@@ -78,20 +82,23 @@ public:
         Ping = options.Ping;
         PingAncestors = options.PingAncestors;
 
-        auto transactionPath =
-            options.ParentId == NullTransactionId
-            ? RootTransactionPath
-            : FromObjectId(options.ParentId);
-
-        auto req = TTransactionYPathProxy::CreateObject(transactionPath);
+        auto req = TMasterYPathProxy::CreateObject();
         req->set_type(EObjectType::Transaction);
         ToProto(req->mutable_object_attributes(), *options.Attributes);
+        if (options.ParentId != NullTransactionId) {
+            *req->mutable_transaction_id() = options.ParentId.ToProto();
+        }
 
         auto* reqExt = req->MutableExtension(NProto::TReqCreateTransactionExt::create_transaction);
         reqExt->set_enable_uncommitted_accounting(options.EnableUncommittedAccounting);
         reqExt->set_enable_staged_accounting(options.EnableStagedAccounting);
+        
         if (options.Timeout) {
             reqExt->set_timeout(options.Timeout.Get().MilliSeconds());
+        }
+
+        if (options.AuthenticatedUser) {
+            NSecurityClient::SetRpcAuthenticatedUser(req, options.AuthenticatedUser.Get());
         }
 
         if (options.ParentId != NullTransactionId) {

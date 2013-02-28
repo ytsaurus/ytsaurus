@@ -5,34 +5,52 @@
 #include "driver.h"
 
 #include <ytlib/misc/error.h>
+
 #include <ytlib/ytree/public.h>
+#include <ytlib/ytree/yson_serializable.h>
+
 #include <ytlib/yson/yson_consumer.h>
 #include <ytlib/yson/yson_parser.h>
 #include <ytlib/yson/yson_writer.h>
-#include <ytlib/ytree/yson_serializable.h>
+
+#include <ytlib/rpc/public.h>
 #include <ytlib/rpc/channel.h>
+
 #include <ytlib/chunk_client/public.h>
+
 #include <ytlib/transaction_client/transaction.h>
 #include <ytlib/transaction_client/transaction_manager.h>
+
+#include <ytlib/security_client/public.h>
+
+#include <ytlib/object_client/object_service_proxy.h>
+
+#include <ytlib/scheduler/scheduler_proxy.h>
 
 namespace NYT {
 namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRequestBase
+struct TRequest
     : public TYsonSerializable
 {
-    TRequestBase()
+    Stroka AuthenticatedUser;
+
+    TRequest()
     {
+        Register("authenticated_user", AuthenticatedUser)
+            .Default(NSecurityClient::GuestUserName);
         SetKeepOptions(true);
     }
 };
 
+typedef TIntrusivePtr<TRequest> TRequestPtr;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTransactedRequest
-    : public TRequestBase
+    : public TRequest
 {
     NObjectClient::TTransactionId TransactionId;
     bool PingAncestorTransactions;
@@ -85,9 +103,15 @@ class TUntypedCommandBase
 {
 protected:
     ICommandContext* Context;
+
+    THolder<NObjectClient::TObjectServiceProxy> ObjectProxy;
+    THolder<NScheduler::TSchedulerServiceProxy> SchedulerProxy;
+
     bool Replied;
 
-    explicit TUntypedCommandBase(ICommandContext* host);
+    explicit TUntypedCommandBase(ICommandContext* context);
+
+    void Prepare();
 
     void ReplyError(const TError& error);
     void ReplySuccess(const NYTree::TYsonString& yson);
@@ -108,14 +132,8 @@ public:
     virtual void Execute()
     {
         try {
-            Request = New<TRequest>();
-            try {
-                auto arguments = Context->GetRequest()->Arguments;
-                Request->Load(arguments);
-            } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Error parsing command arguments") <<
-                    ex;
-            }
+            ParseRequest();
+            Prepare();
             DoExecute();
         } catch (const std::exception& ex) {
             ReplyError(ex);
@@ -126,6 +144,19 @@ protected:
     TIntrusivePtr<TRequest> Request;
 
     virtual void DoExecute() = 0;
+
+private:
+    void ParseRequest()
+    {
+        Request = New<TRequest>();
+        try {
+            auto arguments = Context->GetRequest()->Arguments;
+            Request->Load(arguments);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error parsing command arguments") <<
+                ex;
+        }
+    }
 
 };
 
@@ -144,11 +175,7 @@ protected:
     NTransactionClient::TTransactionId GetTransactionId(bool required)
     {
         auto transaction = GetTransaction(required);
-        if (transaction) {
-            return transaction->GetId();
-        } else {
-            return NTransactionClient::NullTransactionId;
-        }
+        return transaction ? transaction->GetId() : NTransactionClient::NullTransactionId;
     }
 
     NTransactionClient::ITransactionPtr GetTransaction(bool required)
@@ -159,7 +186,7 @@ protected:
 
         auto transactionId = this->Request->TransactionId;
         if (transactionId == NTransactionClient::NullTransactionId) {
-            return NULL;
+            return nullptr;
         }
 
         NTransactionClient::TTransactionAttachOptions options(transactionId);

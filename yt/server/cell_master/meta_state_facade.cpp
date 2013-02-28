@@ -12,6 +12,7 @@
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
+#include <ytlib/object_client/master_ypath_proxy.h>
 
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
@@ -25,6 +26,10 @@
 #include <server/cypress_server/cypress_manager.h>
 #include <server/cypress_server/node_detail.h>
 
+#include <server/security_server/security_manager.h>
+#include <server/security_server/acl.h>
+#include <server/security_server/group.h>
+
 namespace NYT {
 namespace NCellMaster {
 
@@ -35,7 +40,9 @@ using namespace NYPath;
 using namespace NCypressServer;
 using namespace NCypressClient;
 using namespace NTransactionClient;
+using namespace NObjectClient;
 using namespace NObjectServer;
+using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -193,6 +200,8 @@ private:
         try {
             auto objectManager = Bootstrap->GetObjectManager();
             auto cypressManager = Bootstrap->GetCypressManager();
+            auto securityManager = Bootstrap->GetSecurityManager();
+
             auto rootService = objectManager->GetRootService();
 
             auto cellId = objectManager->GetCellId();
@@ -348,6 +357,18 @@ private:
 
             CreateNode(
                 rootService,
+                "//sys/users",
+                transactionId,
+                EObjectType::UserMap);
+
+            CreateNode(
+                rootService,
+                "//sys/groups",
+                transactionId,
+                EObjectType::GroupMap);
+
+            CreateNode(
+                rootService,
                 "//tmp",
                 transactionId,
                 EObjectType::MapNode,
@@ -355,6 +376,15 @@ private:
                     .BeginMap()
                         .Item("opaque").Value(true)
                         .Item("account").Value("tmp")
+                        .Item("acl").BeginList()
+                            .Item().Value(TAccessControlEntry(
+                                ESecurityAction::Allow,
+                                securityManager->GetUsersGroup(),
+                                // TODO(babenko): flagged enums
+                                EPermissionSet(
+                                    EPermission::Read |
+                                    EPermission::Write)))
+                        .EndList()
                     .EndMap());
 
             CreateNode(
@@ -391,7 +421,7 @@ private:
     TTransactionId StartTransaction()
     {
         auto service = Bootstrap->GetObjectManager()->GetRootService();
-        auto req = TTransactionYPathProxy::CreateObject(RootTransactionPath);
+        auto req = TMasterYPathProxy::CreateObject();
         req->set_type(EObjectType::Transaction);
 
         req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);

@@ -2,10 +2,11 @@
 
 #include "public.h"
 #include "cluster_resources.h"
+#include "acl.h"
 
 #include <ytlib/misc/property.h>
 
-#include <server/object_server/object_detail.h>
+#include <server/object_server/object.h>
 
 #include <server/cell_master/public.h>
 
@@ -15,13 +16,13 @@ namespace NSecurityServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAccount
-    : public NObjectServer::TUnversionedObjectBase
+    : public NObjectServer::TNonversionedObjectBase
 {
     DEFINE_BYVAL_RW_PROPERTY(Stroka, Name);
     DEFINE_BYREF_RW_PROPERTY(TClusterResources, ResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(TClusterResources, CommittedResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(TClusterResources, ResourceLimits);
-    DEFINE_BYREF_RW_PROPERTY(int, NodeCount);
+    DEFINE_BYREF_RW_PROPERTY(TAccessControlDescriptor, Acd);
 
 public:
     explicit TAccount(const TAccountId& id);
@@ -29,7 +30,11 @@ public:
     void Save(const NCellMaster::TSaveContext& context) const;
     void Load(const NCellMaster::TLoadContext& context);
 
-    bool IsOverDiskSpace() const;
+    //! Returns |true| if disk space limit is exceeded.
+    bool IsOverDiskSpaceLimit() const;
+
+    //! Throws is disk space limit is exceeded.
+    void ValidateDiskSpaceLimit() const;
 
 };
 

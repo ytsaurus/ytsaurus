@@ -309,7 +309,7 @@ private:
     yhash_map<Stroka, INodePtr> KeyToChild;
     yhash_map<INodePtr, Stroka> ChildToKey;
 
-    virtual void DoInvoke(IServiceContextPtr context) override
+    virtual bool DoInvoke(IServiceContextPtr context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(List);
         return TEphemeralNodeBase::DoInvoke(context);

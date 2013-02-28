@@ -34,6 +34,7 @@
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <ytlib/object_client/object_ypath_proxy.h>
+#include <ytlib/object_client/master_ypath_proxy.h>
 
 #include <ytlib/scheduler/scheduler_proxy.h>
 #include <ytlib/scheduler/helpers.h>
@@ -42,6 +43,8 @@
 #include <ytlib/ytree/fluent.h>
 
 #include <ytlib/meta_state/rpc_helpers.h>
+
+#include <ytlib/security_client/rpc_helpers.h>
 
 #include <server/cell_scheduler/config.h>
 #include <server/cell_scheduler/bootstrap.h>
@@ -56,6 +59,7 @@ using namespace NYson;
 using namespace NCellScheduler;
 using namespace NObjectClient;
 using namespace NMetaState;
+using namespace NSecurityClient;
 using namespace NScheduler::NProto;
 
 using NChunkClient::TChunkId;
@@ -463,7 +467,8 @@ private:
     TFuture<TStartResult> StartOperation(
         EOperationType type,
         const TTransactionId& transactionId,
-        const IMapNodePtr spec)
+        IMapNodePtr spec,
+        const Stroka& user)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -484,13 +489,15 @@ private:
             type,
             userTransaction,
             spec,
+            user,
             TInstant::Now());
         operation->SetState(EOperationState::Initializing);
 
-        LOG_INFO("Starting operation (OperationType: %s, OperationId: %s, TransactionId: %s)",
+        LOG_INFO("Starting operation (OperationType: %s, OperationId: %s, TransactionId: %s, User: %s)",
             ~type.ToString(),
             ~ToString(operationId),
-            ~ToString(transactionId));
+            ~ToString(transactionId),
+            ~ToString(user));
 
         IOperationControllerPtr controller;
         try {
@@ -547,10 +554,10 @@ private:
 
         {
             auto userTransaction = operation->GetUserTransaction();
-            auto req = TTransactionYPathProxy::CreateObject(
-                userTransaction
-                ? FromObjectId(userTransaction->GetId())
-                : RootTransactionPath);
+            auto req = TMasterYPathProxy::CreateObject();
+            if (userTransaction) {
+                *req->mutable_transaction_id() = userTransaction->GetId().ToProto();
+            }
             req->set_type(EObjectType::Transaction);
 
             auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
@@ -566,7 +573,7 @@ private:
         }
 
         {
-            auto req = TTransactionYPathProxy::CreateObject(RootTransactionPath);
+            auto req = TMasterYPathProxy::CreateObject();
             req->set_type(EObjectType::Transaction);
 
             auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
@@ -593,7 +600,7 @@ private:
         auto transactionManager = GetTransactionManager();
 
         {
-            auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_sync_tx");
+            auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_sync_tx");
             auto transactionid = TObjectId::FromProto(rsp->object_id());
             TTransactionAttachOptions attachOptions(transactionid);
             attachOptions.AutoAbort = true;
@@ -603,7 +610,7 @@ private:
         }
 
         {
-            auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_async_tx");
+            auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_async_tx");
             auto transactionid = TObjectId::FromProto(rsp->object_id());
             TTransactionAttachOptions attachOptions(transactionid);
             attachOptions.AutoAbort = true;
@@ -630,7 +637,8 @@ private:
         const auto& parentTransactionId = operation->GetSyncSchedulerTransaction()->GetId();
 
         {
-            auto req = TTransactionYPathProxy::CreateObject(FromObjectId(parentTransactionId));
+            auto req = TMasterYPathProxy::CreateObject();
+            *req->mutable_transaction_id() = parentTransactionId.ToProto();
             req->set_type(EObjectType::Transaction);
 
             auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
@@ -646,7 +654,8 @@ private:
         }
 
         {
-            auto req = TTransactionYPathProxy::CreateObject(FromObjectId(parentTransactionId));
+            auto req = TMasterYPathProxy::CreateObject();
+            *req->mutable_transaction_id() = parentTransactionId.ToProto();
             req->set_type(EObjectType::Transaction);
 
             auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
@@ -674,7 +683,7 @@ private:
         auto transactionManager = GetTransactionManager();
 
         {
-            auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_in_tx");
+            auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_in_tx");
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting input transaction");
             auto id = TTransactionId::FromProto(rsp->object_id());
             TTransactionAttachOptions options(id);
@@ -683,7 +692,7 @@ private:
         }
 
         {
-            auto rsp = batchRsp->GetResponse<TTransactionYPathProxy::TRspCreateObject>("start_out_tx");
+            auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_out_tx");
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting output transaction");
             auto id = TTransactionId::FromProto(rsp->object_id());
             TTransactionAttachOptions options(id);
@@ -1407,6 +1416,7 @@ private:
             request->has_transaction_id()
             ? TTransactionId::FromProto(request->transaction_id())
             : NullTransactionId;
+        auto user = GetRpcAuthenticatedUser(context->GetUntypedContext());
 
         IMapNodePtr spec;
         try {
@@ -1416,16 +1426,19 @@ private:
                 << ex;
         }
 
-        context->SetRequestInfo("Type: %s, TransactionId: %s",
+        // TODO(babenko): let RPC subsystem log user name
+        context->SetRequestInfo("Type: %s, TransactionId: %s, User: %s",
             ~type.ToString(),
-            ~ToString(transactionId));
+            ~ToString(transactionId),
+            ~user);
 
         ValidateConnected();
 
         StartOperation(
             type,
             transactionId,
-            spec)
+            spec,
+            user)
         .Subscribe(BIND([=] (TValueOrError<TOperationPtr> result) {
             if (!result.IsOK()) {
                 context->Reply(result);

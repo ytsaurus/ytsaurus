@@ -21,6 +21,7 @@ namespace NYT {
 namespace NFileClient {
 
 using namespace NYTree;
+using namespace NYPath;
 using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NChunkClient;
@@ -34,20 +35,20 @@ TFileWriter::TFileWriter(
     NRpc::IChannelPtr masterChannel,
     ITransactionPtr transaction,
     TTransactionManagerPtr transactionManager,
-    const TYPath& path,
+    const TRichYPath& richPath,
     IAttributeDictionary* attributes)
     : Config(config)
     , MasterChannel(masterChannel)
     , Transaction(transaction)
     , TransactionManager(transactionManager)
-    , Path(path)
+    , RichPath(richPath)
     , Attributes(attributes ? attributes->Clone() : CreateEphemeralAttributes())
     , Logger(FileWriterLogger)
 {
     YCHECK(transactionManager);
 
     Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
-        ~Path,
+        ~RichPath.GetPath(),
         transaction ? ~transaction->GetId().ToString() : "None"));
 
     Attributes->Set("replication_factor", Config->ReplicationFactor);
@@ -69,6 +70,7 @@ void TFileWriter::Open()
         TTransactionStartOptions options;
         options.ParentId = Transaction ? Transaction->GetId() : NullTransactionId;
         options.EnableUncommittedAccounting = false;
+        options.Attributes->Set("title", Sprintf("File upload to %s", ~RichPath.GetPath()));
         UploadTransaction = TransactionManager->Start(options);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error creating upload transaction")
@@ -83,7 +85,7 @@ void TFileWriter::Open()
 
     LOG_INFO("Creating file node");
     {
-        auto req = TCypressYPathProxy::Create(Path);
+        auto req = TCypressYPathProxy::Create(RichPath);
         NMetaState::GenerateRpcMutationId(req);
         SetTransactionId(req, UploadTransaction);
         req->set_type(EObjectType::File);
@@ -118,7 +120,7 @@ void TFileWriter::Open()
         }
 
         auto batchRsp = batchReq->Invoke().Get();
-        THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error preparing node for update");
+        THROW_ERROR_EXCEPTION_IF_FAILED(*batchRsp, "Error preparing file for update");
 
         {
             auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
@@ -134,7 +136,7 @@ void TFileWriter::Open()
 
         {
             auto rsp = batchRsp->GetResponse<TFileYPathProxy::TRspPrepareForUpdate>("prepare_for_update");
-            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error preparing node for update");
+            THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error preparing file for update");
             ChunkListId = TChunkListId::FromProto(rsp->chunk_list_id());
         }
     }

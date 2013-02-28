@@ -20,6 +20,8 @@ namespace NDriver {
 //! An instance of driver request.
 struct TDriverRequest
 {
+    TDriverRequest();
+
     //! Command name to execute.
     Stroka CommandName;
 
@@ -39,6 +41,10 @@ struct TDriverRequest
 
     //! A map containing command arguments.
     NYTree::IMapNodePtr Arguments;
+
+    //! Name of the user issuing the request.
+    //! If |Null| then "root" is assumed.
+    TNullable<Stroka> AuthenticatedUser;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -107,9 +113,13 @@ struct IDriver
     //! Synchronously executes a given request.
     virtual TDriverResponse Execute(const TDriverRequest& request) = 0;
 
-    //! Returns a descriptor for a command with a given name or
+    //! Returns a descriptor for the command with a given name or
     //! |Null| if no command with this name is registered.
     virtual TNullable<TCommandDescriptor> FindCommandDescriptor(const Stroka& commandName) = 0;
+
+    //! Returns a descriptor for then command with a given name.
+    //! Fails if no command with this name is registered.
+    TCommandDescriptor GetCommandDescriptor(const Stroka& commandName);
 
     //! Returns the list of descriptors for all supported commands.
     virtual std::vector<TCommandDescriptor> GetCommandDescriptors() = 0;

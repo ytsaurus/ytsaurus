@@ -16,8 +16,6 @@ namespace NSecurityServer {
 extern NLog::TLogger SecurityServerLogger;
 extern NProfiling::TProfiler SecurityServerProfiler;
 
-typedef NMetaState::TMetaStateMap<TAccountId, TAccount> TAccountMetaMap;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NSecurityServer

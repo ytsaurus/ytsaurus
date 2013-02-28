@@ -3,10 +3,12 @@
 #include "ephemeral_node_factory.h"
 #include "yson_producer.h"
 
-#include <ytlib/yson/yson_writer.h>
 #include <ytlib/misc/nullable.h>
 #include <ytlib/misc/mpl.h>
 #include <ytlib/misc/guid.h>
+#include <ytlib/misc/small_vector.h>
+
+#include <ytlib/yson/yson_writer.h>
 
 namespace NYT {
 
@@ -108,9 +110,9 @@ void Serialize(const TNullable<T>& value, NYson::IYsonConsumer* consumer);
 template <class T>
 void Serialize(const std::vector<T>& value, NYson::IYsonConsumer* consumer);
 
-// std::vector
-template <class T>
-void Serialize(const std::vector<T>& value, NYson::IYsonConsumer* consumer);
+// TSmallVector
+template <class T, unsigned N>
+void Serialize(const TSmallVector<T, N>& value, NYson::IYsonConsumer* consumer);
 
 // yhash_set
 template <class T>
@@ -182,9 +184,9 @@ void Deserialize(TNullable<T>& value, INodePtr node);
 template <class T>
 void Deserialize(std::vector<T>& value, INodePtr node);
 
-// std::vector
-template <class T>
-void Deserialize(std::vector<T>& value, INodePtr node);
+// TSmallVector
+template <class T, unsigned N>
+void Deserialize(TSmallVector<T, N>& value, INodePtr node);
 
 // yhash_set
 template <class T>

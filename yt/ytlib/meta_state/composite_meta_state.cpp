@@ -23,8 +23,8 @@ TMetaStatePart::TMetaStatePart(
     : MetaStateManager(metaStateManager)
     , MetaState(metaState)
 {
-    YASSERT(metaStateManager);
-    YASSERT(metaState);
+    YCHECK(metaStateManager);
+    YCHECK(metaState);
 
     metaStateManager->SubscribeStartLeading(BIND(
         &TThis::OnStartLeading,
@@ -154,7 +154,7 @@ TCompositeMetaState::TLoaderInfo::TLoaderInfo(
 
 void TCompositeMetaState::RegisterPart(TMetaStatePartPtr part)
 {
-    YASSERT(part);
+    YCHECK(part);
 
     Parts.push_back(part);
 }
@@ -174,7 +174,7 @@ void TCompositeMetaState::Save(TOutputStream* output)
                    lhs.Priority == rhs.Priority && lhs.Name < rhs.Name;
         });
 
-    i32 partCount = infos.size();
+    i32 partCount = static_cast<i32>(infos.size());
     ::Save(output, partCount);
 
     TSaveContext context;
@@ -195,7 +195,7 @@ void TCompositeMetaState::Load(TInputStream* input)
     LOG_DEBUG("Started loading composite meta state (PartCount: %d)",
         partCount);
 
-    for (i32 partIndex = 0; partIndex < partCount; ++partIndex) {
+    for (int partIndex = 0; partIndex < partCount; ++partIndex) {
         Stroka name;
         i32 version;
 
@@ -203,13 +203,13 @@ void TCompositeMetaState::Load(TInputStream* input)
         ::Load(input, version);
 
         auto it = Loaders.find(name);
-        LOG_FATAL_IF(it == Loaders.end(), "No appropriate loader is registered for part %s", ~name.Quote());
+        YCHECK(it != Loaders.end());
 
         TLoadContext context;
         context.SetInput(input);
         context.SetVersion(version);
 
-        LOG_DEBUG("Loading meta state part (Name: %s, Version: %d)",
+        LOG_DEBUG("Loading meta state part: %s (Version: %d)",
             ~name,
             version);
 
@@ -224,7 +224,7 @@ void TCompositeMetaState::Load(TInputStream* input)
 void TCompositeMetaState::ApplyMutation(TMutationContext* context) throw()
 {
     if (context->GetType().empty()) {
-        // Empty mutation. Typically used as a tombstone in changelog editing.
+        // Empty mutation. Typically appears as a tombstone after editing changelogs.
         return;
     }
     auto it = Methods.find(context->GetType());

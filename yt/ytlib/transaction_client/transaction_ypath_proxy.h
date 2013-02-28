@@ -9,18 +9,12 @@ namespace NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern NYPath::TYPath RootTransactionPath;
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TTransactionYPathProxy
     : public NObjectClient::TObjectYPathProxy
 {
     DEFINE_YPATH_PROXY_METHOD(NProto, Commit);
     DEFINE_YPATH_PROXY_METHOD(NProto, Abort);
     DEFINE_YPATH_PROXY_METHOD(NProto, RenewLease);
-
-    DEFINE_YPATH_PROXY_METHOD(NProto, CreateObject);
     DEFINE_YPATH_PROXY_METHOD(NProto, UnstageObject);
 };
 

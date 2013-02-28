@@ -50,16 +50,16 @@ void TReadCommand::DoExecute()
 
 void TWriteCommand::DoExecute()
 {
+    auto config = UpdateYsonSerializable(
+        Context->GetConfig()->TableWriter,
+        Request->TableWriterConfig);
     auto writer = New<TTableWriter>(
-        UpdateYsonSerializable(
-            Context->GetConfig()->TableWriter,
-            Request->TableWriterConfig),
+        config,
         Context->GetMasterChannel(),
         GetTransaction(false),
         Context->GetTransactionManager(),
         Request->Path,
         Request->Path.Attributes().Find<TKeyColumns>("sorted_by"));
-
     writer->Open();
 
     TTableConsumer consumer(writer);

@@ -5,6 +5,8 @@
 #include "private.h"
 #include "gc.h"
 #include "attribute_set.h"
+#include "schema.h"
+#include "master.h"
 
 #include <ytlib/misc/delayed_invoker.h>
 
@@ -32,10 +34,14 @@
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
 
+#include <server/security_server/user.h>
+#include <server/security_server/group.h>
+#include <server/security_server/acl.h>
+#include <server/security_server/security_manager.h>
+
 namespace NYT {
 namespace NObjectServer {
 
-using namespace NCellMaster;
 using namespace NYTree;
 using namespace NYPath;
 using namespace NMetaState;
@@ -44,10 +50,11 @@ using namespace NBus;
 using namespace NCypressServer;
 using namespace NCypressClient;
 using namespace NTransactionServer;
+using namespace NSecurityServer;
 using namespace NChunkServer;
 using namespace NObjectClient;
 using namespace NMetaState;
-using namespace NObjectServer::NProto;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,7 +121,9 @@ class TObjectManager::TRootService
 public:
     explicit TRootService(TBootstrap* bootstrap)
         : Bootstrap(bootstrap)
-    { }
+    {
+        Logger = ObjectServerLogger;
+    }
 
     virtual TResolveResult Resolve(
         const TYPath& path,
@@ -139,7 +148,7 @@ public:
         NYPath::TTokenizer tokenizer(path);
         switch (tokenizer.Advance()) {
             case NYPath::ETokenType::EndOfStream:
-                THROW_ERROR_EXCEPTION("YPath cannot be empty");
+                return TResolveResult::There(objectManager->GetMasterProxy(), tokenizer.GetSuffix());
 
             case NYPath::ETokenType::Slash: {
                 auto root = cypressManager->GetVersionedNodeProxy(
@@ -158,12 +167,6 @@ public:
                 TObjectId objectId;
                 if (!TObjectId::FromString(objectIdString, &objectId)) {
                     THROW_ERROR_EXCEPTION("Error parsing object id: %s", ~objectIdString);
-                }
-
-                // TODO(babenko): special handling for null transaction
-                if (objectId == NullObjectId && !transaction) {
-                    auto proxy = Bootstrap->GetTransactionManager()->GetRootTransactionProxy();
-                    return TResolveResult::There(proxy, tokenizer.GetSuffix());
                 }
 
                 auto* object = objectManager->FindObject(objectId);
@@ -221,9 +224,9 @@ TObjectManager::TObjectManager(
         bootstrap->GetMetaStateFacade()->GetState())
     , Config(config)
     , Bootstrap(bootstrap)
-    , TypeToHandler(MaxObjectType)
-    , RootService(New<TRootService>(Bootstrap))
-    , GarbageCollector(New<TGarbageCollector>(Config, Bootstrap))
+    , TypeToEntry(MaxObjectType)
+    , RootService(New<TRootService>(bootstrap))
+    , GarbageCollector(New<TGarbageCollector>(config, bootstrap))
     , CreatedObjectCount(0)
     , DestroyedObjectCount(0)
     , LockedObjectCount(0)
@@ -245,29 +248,44 @@ TObjectManager::TObjectManager(
             SnapshotVersionValidator(),
             BIND(&TObjectManager::LoadValues, MakeStrong(this)),
             context);
+        RegisterLoader(
+            "ObjectManager.Schemas",
+            SnapshotVersionValidator(),
+            BIND(&TObjectManager::LoadSchemas, MakeStrong(this)),
+            context);
     }
     {
         NCellMaster::TSaveContext context;
 
         RegisterSaver(
-            ESavePriority::Keys,
+            ESerializationPriority::Keys,
             "ObjectManager.Keys",
             CurrentSnapshotVersion,
             BIND(&TObjectManager::SaveKeys, MakeStrong(this)),
             context);
         RegisterSaver(
-            ESavePriority::Values,
+            ESerializationPriority::Values,
             "ObjectManager.Values",
             CurrentSnapshotVersion,
             BIND(&TObjectManager::SaveValues, MakeStrong(this)),
             context);
+        RegisterSaver(
+            ESerializationPriority::Values,
+            "ObjectManager.Schemas",
+            CurrentSnapshotVersion,
+            BIND(&TObjectManager::SaveSchemas, MakeStrong(this)),
+            context);
     }
 
+    RegisterHandler(CreateMasterTypeHandler(Bootstrap));
+    
     RegisterMethod(BIND(&TObjectManager::ReplayVerb, Unretained(this)));
     RegisterMethod(BIND(&TObjectManager::DestroyObjects, Unretained(this)));
 
-    LOG_INFO("Object Manager initialized (CellId: %d)",
-        static_cast<int>(config->CellId));
+    MasterObjectId = MakeWellKnownId(EObjectType::Master, Config->CellId);
+
+    LOG_INFO("CellId: %d", static_cast<int>(config->CellId));
+    LOG_INFO("MasterObjectId: %s", ~ToString(MasterObjectId));
 
     ProflilingInvoker = New<TPeriodicInvoker>(
         Bootstrap->GetMetaStateFacade()->GetInvoker(),
@@ -276,9 +294,61 @@ TObjectManager::TObjectManager(
     ProflilingInvoker->Start();
 }
 
+void TObjectManager::Initialize()
+{ }
+
 IYPathServicePtr TObjectManager::GetRootService()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return RootService;
+}
+
+TObjectBase* TObjectManager::GetMasterObject()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return ~MasterObject;
+}
+
+IObjectProxyPtr TObjectManager::GetMasterProxy()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return MasterProxy;
+}
+
+TObjectBase* TObjectManager::FindSchema(EObjectType type)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    int typeValue = type.ToValue();
+    if (typeValue < 0 || typeValue > MaxObjectType) {
+        return nullptr;
+    }
+
+    return ~TypeToEntry[typeValue].SchemaObject;
+}
+
+TObjectBase* TObjectManager::GetSchema(EObjectType type)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto* schema = FindSchema(type);
+    YCHECK(schema);
+    return schema;
+}
+
+IObjectProxyPtr TObjectManager::GetSchemaProxy(EObjectType type)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    int typeValue = type.ToValue();
+    YCHECK(typeValue >= 0 && typeValue <= MaxObjectType);
+    
+    const auto& entry = TypeToEntry[typeValue];
+    YCHECK(entry.SchemaProxy);
+    return entry.SchemaProxy;
 }
 
 void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
@@ -286,10 +356,25 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
     // No thread affinity check here.
     // This will be called during init-time only but from an unspecified thread.
     YCHECK(handler);
-    int typeValue = handler->GetType().ToValue();
-    YCHECK(typeValue >= 0 && typeValue < MaxObjectType);
-    YCHECK(!TypeToHandler[typeValue]);
-    TypeToHandler[typeValue] = handler;
+
+    auto type = handler->GetType();
+    int typeValue = type.ToValue();
+    YCHECK(typeValue >= 0 && typeValue <= MaxObjectType);
+    YCHECK(!TypeToEntry[typeValue].Handler);
+
+    auto& entry = TypeToEntry[typeValue];
+    entry.Handler = handler;
+    if (TypeHasSchema(type)) {
+        auto schemaType = SchemaTypeFromType(type);
+        auto& schemaEntry = TypeToEntry[schemaType.ToValue()];
+        schemaEntry.Handler = CreateSchemaTypeHandler(Bootstrap, type);
+        LOG_INFO("Type registered (Type: %s, SchemaObjectId: %s)",
+            ~type.ToString(),
+            ~ToString(MakeSchemaObjectId(type, GetCellId())));
+    } else {
+        LOG_INFO("Type registered (Type: %s)",
+            ~type.ToString());
+    }
 }
 
 IObjectTypeHandlerPtr TObjectManager::FindHandler(EObjectType type) const
@@ -297,11 +382,11 @@ IObjectTypeHandlerPtr TObjectManager::FindHandler(EObjectType type) const
     VERIFY_THREAD_AFFINITY_ANY();
 
     int typeValue = type.ToValue();
-    if (typeValue < 0 || typeValue >= MaxObjectType) {
+    if (typeValue < 0 || typeValue > MaxObjectType) {
         return nullptr;
     }
 
-    return TypeToHandler[typeValue];
+    return TypeToEntry[typeValue].Handler;
 }
 
 IObjectTypeHandlerPtr TObjectManager::GetHandler(EObjectType type) const
@@ -313,9 +398,9 @@ IObjectTypeHandlerPtr TObjectManager::GetHandler(EObjectType type) const
     return handler;
 }
 
-IObjectTypeHandlerPtr TObjectManager::GetHandler(TObjectBase* obj) const
+IObjectTypeHandlerPtr TObjectManager::GetHandler(TObjectBase* object) const
 {
-    return GetHandler(TypeFromId(obj->GetId()));
+    return GetHandler(object->GetType());
 }
 
 TCellId TObjectManager::GetCellId() const
@@ -351,7 +436,7 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
     auto random = mutationContext->RandomGenerator().Generate<ui64>();
 
     int typeValue = type.ToValue();
-    YASSERT(typeValue >= 0 && typeValue < MaxObjectType);
+    YASSERT(typeValue >= 0 && typeValue <= MaxObjectType);
 
     auto cellId = GetCellId();
 
@@ -419,6 +504,23 @@ void TObjectManager::UnlockObject(TObjectBase* object)
     }
 }
 
+void TObjectManager::InitWellKnownSingletons()
+{
+    MasterObject = new TMasterObject(MasterObjectId);
+    MasterObject->RefObject();
+    MasterProxy = CreateMasterProxy(Bootstrap, ~MasterObject);
+
+    for (int typeValue = 0; typeValue < MaxObjectType; ++typeValue) {
+        auto type = EObjectType(typeValue);
+        auto& entry = TypeToEntry[typeValue];
+        if (entry.Handler && TypeHasSchema(type)) {
+            entry.SchemaObject = new TSchemaObject(MakeSchemaObjectId(type, GetCellId()));
+            entry.SchemaObject->RefObject();
+            entry.SchemaProxy = CreateSchemaProxy(Bootstrap, ~entry.SchemaObject);
+        }
+    }
+}
+
 void TObjectManager::SaveKeys(const NCellMaster::TSaveContext& context) const
 {
     Attributes.SaveKeys(context);
@@ -428,6 +530,21 @@ void TObjectManager::SaveValues(const NCellMaster::TSaveContext& context) const
 {
     Attributes.SaveValues(context);
     GarbageCollector->Save(context);
+}
+
+void TObjectManager::SaveSchemas(const NCellMaster::TSaveContext& context) const
+{
+    auto* output = context.GetOutput();
+    
+    for (int typeValue = 0; typeValue <= MaxObjectType; ++typeValue) {
+        const auto& entry = TypeToEntry[typeValue];
+        if (~entry.SchemaObject) {
+            ::Save(output, typeValue);
+            entry.SchemaObject->Save(context);
+        }
+    }
+
+    ::Save(output, static_cast<int>(-1));
 }
 
 void TObjectManager::LoadKeys(const NCellMaster::TLoadContext& context)
@@ -445,10 +562,29 @@ void TObjectManager::LoadValues(const NCellMaster::TLoadContext& context)
     GarbageCollector->Load(context);
 }
 
+void TObjectManager::LoadSchemas(const NCellMaster::TLoadContext& context)
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    InitWellKnownSingletons();
+
+    auto* input = context.GetInput();
+    while (true) {
+        int typeValue;
+        ::Load(input, typeValue);
+        if (typeValue < 0)
+            break;
+
+        auto& entry = TypeToEntry[typeValue];
+        entry.SchemaObject->Load(context);
+    }
+}
+
 void TObjectManager::Clear()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
+    InitWellKnownSingletons();
     Attributes.Clear();
     GarbageCollector->Clear();
     CreatedObjectCount = 0;
@@ -578,12 +714,15 @@ void TObjectManager::ExecuteVerb(
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    LOG_INFO_UNLESS(IsRecovery(), "ExecuteVerb: %s %s (ObjectId: %s, TransactionId: %s, IsWrite: %s)",
+    auto securityManager = Bootstrap->GetSecurityManager();
+    auto* user = securityManager->GetAuthenticatedUser();
+
+    LOG_INFO_UNLESS(IsRecovery(), "ExecuteVerb: %s %s (ObjectId: %s, IsWrite: %s, User: %s)",
         ~context->GetVerb(),
         ~context->GetPath(),
-        ~id.ObjectId.ToString(),
-        ~id.TransactionId.ToString(),
-        ~FormatBool(isWrite));
+        ~id.ToString(),
+        ~FormatBool(isWrite),
+        ~user->GetName());
 
     auto profilingPath = "/types/" +
         TypeFromId(id.ObjectId).ToString() +
@@ -603,9 +742,10 @@ void TObjectManager::ExecuteVerb(
             return;
         }
 
-        TMetaReqExecute executeReq;
+        NProto::TMetaReqExecute executeReq;
         *executeReq.mutable_object_id() = id.ObjectId.ToProto();
         *executeReq.mutable_transaction_id() = id.TransactionId.ToProto();
+        *executeReq.mutable_user_id() = user->GetId().ToProto();
 
         auto requestMessage = context->GetRequestMessage();
         const auto& requestParts = requestMessage->GetParts();
@@ -659,18 +799,23 @@ TFuture<void> TObjectManager::GCCollect()
     return GarbageCollector->Collect();
 }
 
-void TObjectManager::ReplayVerb(const TMetaReqExecute& request)
+void TObjectManager::ReplayVerb(const NProto::TMetaReqExecute& request)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
     auto objectId = TObjectId::FromProto(request.object_id());
     auto transactionId = TTransactionId::FromProto(request.transaction_id());
+    auto userId = TUserId::FromProto(request.user_id());
 
     auto transactionManager = Bootstrap->GetTransactionManager();
     auto* transaction =
         transactionId == NullTransactionId
         ? nullptr
         : transactionManager->GetTransaction(transactionId);
+
+    auto securityManager = Bootstrap->GetSecurityManager();
+    auto* user = securityManager->GetUser(userId);
+    TAuthenticatedUserGuard userGuard(securityManager, user);
 
     std::vector<TSharedRef> parts(request.request_parts_size());
     for (int partIndex = 0; partIndex < request.request_parts_size(); ++partIndex) {
@@ -685,13 +830,6 @@ void TObjectManager::ReplayVerb(const TMetaReqExecute& request)
         requestMessage,
         "",
         TYPathResponseHandler());
-
-    // TODO(babenko): special handling for null transaction
-    if (objectId == NullObjectId && !transaction) {
-        auto proxy = Bootstrap->GetTransactionManager()->GetRootTransactionProxy();
-        proxy->Invoke(context);
-        return;
-    }
 
     auto* object = GetObject(objectId);
     auto proxy = GetProxy(object, transaction);

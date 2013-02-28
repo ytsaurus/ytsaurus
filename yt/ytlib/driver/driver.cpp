@@ -25,6 +25,8 @@
 #include <ytlib/scheduler/config.h>
 #include <ytlib/scheduler/scheduler_channel.h>
 
+#include <ytlib/security_client/rpc_helpers.h>
+
 namespace NYT {
 namespace NDriver {
 
@@ -36,10 +38,27 @@ using namespace NTransactionClient;
 using namespace NChunkClient;
 using namespace NScheduler;
 using namespace NFormats;
+using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = DriverLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDriverRequest::TDriverRequest()
+    : InputStream(nullptr)
+    , OutputStream(nullptr)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCommandDescriptor IDriver::GetCommandDescriptor(const Stroka& commandName)
+{
+    auto descriptor = FindCommandDescriptor(commandName);
+    YCHECK(descriptor);
+    return descriptor.Get();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,36 +85,41 @@ public:
 #define REGISTER(command, name, inDataType, outDataType, isVolatile, isHeavy) \
         RegisterCommand<command>(TCommandDescriptor(name, EDataType::inDataType, EDataType::outDataType, isVolatile, isHeavy));
 
-        REGISTER(TStartTransactionCommand,  "start_tx",    Null,       Structured, true,  false);
-        REGISTER(TRenewTransactionCommand,  "renew_tx",    Null,       Null,       true,  false);
-        REGISTER(TCommitTransactionCommand, "commit_tx",   Null,       Null,       true,  false);
-        REGISTER(TAbortTransactionCommand,  "abort_tx",    Null,       Null,       true,  false);
+        REGISTER(TStartTransactionCommand,  "start_tx",          Null,       Structured, true,  false);
+        REGISTER(TRenewTransactionCommand,  "renew_tx",          Null,       Null,       true,  false);
+        REGISTER(TCommitTransactionCommand, "commit_tx",         Null,       Null,       true,  false);
+        REGISTER(TAbortTransactionCommand,  "abort_tx",          Null,       Null,       true,  false);
 
-        REGISTER(TCreateCommand,            "create",      Null,       Structured, true,  false);
-        REGISTER(TRemoveCommand,            "remove",      Null,       Null,       true,  false);
-        REGISTER(TSetCommand,               "set",         Structured, Null,       true,  false);
-        REGISTER(TGetCommand,               "get",         Null,       Structured, false, false);
-        REGISTER(TListCommand,              "list",        Null,       Structured, false, false);
-        REGISTER(TLockCommand,              "lock",        Null,       Null,       true,  false);
-        REGISTER(TCopyCommand,              "copy",        Null,       Structured, true,  false);
-        REGISTER(TMoveCommand,              "move",        Null,       Null,       true,  false);
-        REGISTER(TExistsCommand,            "exists",      Null,       Structured, false, false);
+        REGISTER(TCreateCommand,            "create",            Null,       Structured, true,  false);
+        REGISTER(TRemoveCommand,            "remove",            Null,       Null,       true,  false);
+        REGISTER(TSetCommand,               "set",               Structured, Null,       true,  false);
+        REGISTER(TGetCommand,               "get",               Null,       Structured, false, false);
+        REGISTER(TListCommand,              "list",              Null,       Structured, false, false);
+        REGISTER(TLockCommand,              "lock",              Null,       Null,       true,  false);
+        REGISTER(TCopyCommand,              "copy",              Null,       Structured, true,  false);
+        REGISTER(TMoveCommand,              "move",              Null,       Null,       true,  false);
+        REGISTER(TExistsCommand,            "exists",            Null,       Structured, false, false);
 
-        REGISTER(TUploadCommand,            "upload",      Binary,     Structured, true,  true );
-        REGISTER(TDownloadCommand,          "download",    Null,       Binary,     false, true );
+        REGISTER(TUploadCommand,            "upload",            Binary,     Structured, true,  true );
+        REGISTER(TDownloadCommand,          "download",          Null,       Binary,     false, true );
 
-        REGISTER(TWriteCommand,             "write",       Tabular,    Null,       true,  true );
-        REGISTER(TReadCommand,              "read",        Null,       Tabular,    false, true );
+        REGISTER(TWriteCommand,             "write",             Tabular,    Null,       true,  true );
+        REGISTER(TReadCommand,              "read",              Null,       Tabular,    false, true );
 
-        REGISTER(TMergeCommand,             "merge",       Null,       Structured, true,  false);
-        REGISTER(TEraseCommand,             "erase",       Null,       Structured, true,  false);
-        REGISTER(TMapCommand,               "map",         Null,       Structured, true,  false);
-        REGISTER(TSortCommand,              "sort",        Null,       Structured, true,  false);
-        REGISTER(TReduceCommand,            "reduce",      Null,       Structured, true,  false);
-        REGISTER(TMapReduceCommand,         "map_reduce",  Null,       Structured, true,  false);
-        REGISTER(TAbortOperationCommand,    "abort_op",    Null,       Null,       true,  false);
+        REGISTER(TMergeCommand,             "merge",             Null,       Structured, true,  false);
+        REGISTER(TEraseCommand,             "erase",             Null,       Structured, true,  false);
+        REGISTER(TMapCommand,               "map",               Null,       Structured, true,  false);
+        REGISTER(TSortCommand,              "sort",              Null,       Structured, true,  false);
+        REGISTER(TReduceCommand,            "reduce",            Null,       Structured, true,  false);
+        REGISTER(TMapReduceCommand,         "map_reduce",        Null,       Structured, true,  false);
+        REGISTER(TAbortOperationCommand,    "abort_op",          Null,       Null,       true,  false);
+        
+        REGISTER(TParseYPathCommand,        "parse_ypath",       Null,       Structured, false, false);
 
-        REGISTER(TParseYPathCommand,        "parse_ypath", Null,       Structured, false,  false);
+        REGISTER(TAddMemberCommand,         "add_member",        Structured, Null,       true,  false);
+        REGISTER(TRemoveMemberCommand,      "remove_member",     Structured, Null,       true,  false);
+
+        REGISTER(TCheckPersmissionCommand,  "check_permission",  Null,       Structured, false, false);
 #undef REGISTER
     }
 
@@ -115,13 +139,35 @@ public:
         const auto& entry = it->second;
 
         try {
+            auto masterChannel = LeaderChannel;
+            if (request.AuthenticatedUser) {
+                masterChannel = CreateAuthenticatedChannel(
+                    masterChannel,
+                    request.AuthenticatedUser.Get());
+            }
+            masterChannel = CreateScopedChannel(masterChannel);
+
+            auto schedulerChannel = SchedulerChannel;
+            if (request.AuthenticatedUser) {
+                schedulerChannel = CreateAuthenticatedChannel(
+                    schedulerChannel,
+                    request.AuthenticatedUser.Get());
+            }
+            schedulerChannel = CreateScopedChannel(schedulerChannel);
+
+            auto transactionManager = New<TTransactionManager>(
+                Config->TransactionManager,
+                masterChannel);
+
+            // TODO(babenko): ReadFromFollowers is switched off
             TCommandContext context(
                 this,
                 entry.Descriptor,
                 &request,
-                LeaderChannel,
-                !Config->ReadFromFollowers || entry.Descriptor.IsVolatile ? LeaderChannel : MasterChannel,
-                SchedulerChannel);
+                masterChannel,
+                masterChannel,
+                schedulerChannel,
+                transactionManager);
 
             entry.Factory.Run(&context)->Execute();
             response = *context.GetResponse();
@@ -189,15 +235,14 @@ private:
             const TDriverRequest* request,
             IChannelPtr leaderChannel,
             IChannelPtr masterChannel,
-            IChannelPtr schedulerChannel)
+            IChannelPtr schedulerChannel,
+            TTransactionManagerPtr transactionManager)
             : Driver(driver)
             , Descriptor(descriptor)
             , Request(request)
-            , MasterChannel(CreateScopedChannel(masterChannel))
-            , SchedulerChannel(CreateScopedChannel(schedulerChannel))
-            , TransactionManager(New<TTransactionManager>(
-                Driver->Config->TransactionManager,
-                leaderChannel))
+            , MasterChannel(masterChannel)
+            , SchedulerChannel(schedulerChannel)
+            , TransactionManager(transactionManager)
         { }
 
         ~TCommandContext()

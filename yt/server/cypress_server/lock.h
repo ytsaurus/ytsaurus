@@ -4,6 +4,8 @@
 
 #include <ytlib/misc/nullable.h>
 
+#include <cell_master/public.h>
+
 namespace NYT {
 namespace NCypressServer {
 
@@ -48,8 +50,8 @@ struct TLock
     yhash_set<Stroka> AttributeKeys;
 };
 
-void Save(TOutputStream* output, const TLock& lock);
-void Load(TInputStream* input, TLock& lock);
+void Save(const NCellMaster::TSaveContext& context, const TLock& lock);
+void Load(const NCellMaster::TLoadContext& context, TLock& lock);
 
 ////////////////////////////////////////////////////////////////////////////////
 

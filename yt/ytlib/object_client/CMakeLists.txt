@@ -8,6 +8,7 @@ set( HDRS
   ${BASE}/object_service_proxy-inl.h
   ${BASE}/object_service_proxy.h
   ${BASE}/object_ypath_proxy.h
+  ${BASE}/master_ypath_proxy.h
   ${BASE}/public.h
 )
 
@@ -17,4 +18,5 @@ list(APPEND YT_SOURCE_FILES
 )
 
 protoc( ${BASE}/object_ypath.proto YT_SOURCE_FILES )
+protoc( ${BASE}/master_ypath.proto YT_SOURCE_FILES )
 protoc( ${BASE}/object_service.proto YT_SOURCE_FILES )

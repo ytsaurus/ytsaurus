@@ -21,6 +21,7 @@ struct TTransactionStartOptions
 
     TNullable<TDuration> Timeout;
     TTransactionId ParentId;
+    TNullable<Stroka> AuthenticatedUser;
     bool Ping;
     bool PingAncestors;
     bool EnableUncommittedAccounting;

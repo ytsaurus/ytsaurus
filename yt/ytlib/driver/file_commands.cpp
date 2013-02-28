@@ -66,7 +66,7 @@ void TUploadCommand::DoExecute()
         size_t bytesRead = input->Read(&*buffer.begin(), buffer.size());
         if (bytesRead == 0)
             break;
-        TRef block(&*buffer.begin(), bytesRead);
+        TRef block(buffer.data(), bytesRead);
         writer->Write(block);
     }
 

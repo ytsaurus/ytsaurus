@@ -110,7 +110,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TAbortOperationRequest
-    : public TYsonSerializable
+    : public TRequest
 {
     NScheduler::TOperationId OperationId;
 

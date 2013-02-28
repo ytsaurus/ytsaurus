@@ -47,8 +47,6 @@ public:
 
     void Inititialize();
 
-    NObjectServer::IObjectProxyPtr GetRootTransactionProxy();
-
     TTransaction* StartTransaction(TTransaction* parent, TNullable<TDuration> timeout);
     void CommitTransaction(TTransaction* transaction);
     void AbortTransaction(TTransaction* transaction);

@@ -15,6 +15,8 @@
 
 #include <ytlib/rpc/public.h>
 
+#include <ytlib/ypath/rich.h>
+
 #include <ytlib/logging/tagged_logger.h>
 
 namespace NYT {
@@ -37,8 +39,8 @@ public:
         NRpc::IChannelPtr masterChannel,
         NTransactionClient::ITransactionPtr transaction,
         NTransactionClient::TTransactionManagerPtr transactionManager,
-        const NYPath::TYPath& path,
-        NYTree::IAttributeDictionary* attributes = NULL);
+        const NYPath::TRichYPath& richPath,
+        NYTree::IAttributeDictionary* attributes = nullptr);
 
     //! Destroys an instance.
     ~TFileWriter();
@@ -66,7 +68,7 @@ private:
     NTransactionClient::ITransactionPtr Transaction;
     NTransactionClient::TTransactionManagerPtr TransactionManager;
     NTransactionClient::ITransactionPtr UploadTransaction;
-    NYPath::TYPath Path;
+    NYPath::TRichYPath RichPath;
     TAutoPtr<NYTree::IAttributeDictionary> Attributes;
 
     TAutoPtr<TFileChunkOutput> Writer;

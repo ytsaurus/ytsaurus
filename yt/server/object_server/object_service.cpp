@@ -10,11 +10,16 @@
 
 #include <ytlib/actions/parallel_awaiter.h>
 
+#include <ytlib/security_client/public.h>
+#include <ytlib/security_client/rpc_helpers.h>
+
 #include <server/transaction_server/transaction.h>
 #include <server/transaction_server/transaction_manager.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/meta_state_facade.h>
+
+#include <server/security_server/security_manager.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -25,6 +30,8 @@ using namespace NBus;
 using namespace NYTree;
 using namespace NCypressServer;
 using namespace NTransactionServer;
+using namespace NSecurityClient;
+using namespace NSecurityServer;
 using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,15 +51,19 @@ public:
         , ReplyLock(0)
         , CurrentRequestIndex(0)
         , CurrentRequestPartIndex(0)
-    {
-        auto& request = Context->Request();
-        int requestCount = request.part_counts_size();
-        Context->SetRequestInfo("RequestCount: %d", requestCount);
-        ResponseMessages.resize(requestCount);
-    }
+    { }
 
     void Run()
     {
+        int requestCount = Context->Request().part_counts_size();
+        UserName = FindRpcAuthenticatedUser(Context->GetUntypedContext());
+
+        // TODO(babenko): let RPC subsystem log user name
+        Context->SetRequestInfo("User: %s, RequestCount: %d",
+            ~ToString(UserName),
+            requestCount);
+      
+        ResponseMessages.resize(requestCount);
         Continue();
     }
 
@@ -65,84 +76,76 @@ private:
     TAtomic ReplyLock;
     int CurrentRequestIndex;
     int CurrentRequestPartIndex;
+    TNullable<Stroka> UserName;
 
     void Continue()
     {
-        auto startTime = TInstant::Now();
-        auto& request = Context->Request();
-        const auto& attachments = request.Attachments();
-        auto rootService = Owner->Bootstrap->GetObjectManager()->GetRootService();
+        try {
+            auto startTime = TInstant::Now();
+            auto& request = Context->Request();
+            const auto& attachments = request.Attachments();
+            auto rootService = Owner->Bootstrap->GetObjectManager()->GetRootService();
 
-        auto awaiter = Awaiter;
-        if (!awaiter)
-            return;
-
-        // Validate prerequisite transactions.
-        auto transactionManager = Owner->Bootstrap->GetTransactionManager();
-        FOREACH (const auto& protoId, request.prerequisite_transaction_ids()) {
-            auto id = TTransactionId::FromProto(protoId);
-            const auto* transaction = transactionManager->FindTransaction(id);
-            if (!transaction) {
-                Reply(TError(
-                    "Prerequisite transaction is missing: %s",
-                    ~ToString(id)));
+            auto awaiter = Awaiter;
+            if (!awaiter)
                 return;
-            }
-            if (transaction->GetState() != ETransactionState::Active) {
-                Reply(TError(
-                    "Prerequisite transaction is not active: %s",
-                    ~ToString(id)));
-                return;
-            }
-        }
 
-        // Execute another portion of requests.
-        while (CurrentRequestIndex < request.part_counts_size()) {
-            int partCount = request.part_counts(CurrentRequestIndex);
-            if (partCount == 0) {
-                // Skip empty requests.
+            if (!CheckPrerequesiteTransactions())
+                return;
+
+            auto* user = GetAuthenticatedUser();
+            TAuthenticatedUserGuard userGuard(Owner->Bootstrap->GetSecurityManager(), user);
+
+            // Execute another portion of requests.
+            while (CurrentRequestIndex < request.part_counts_size()) {
+                int partCount = request.part_counts(CurrentRequestIndex);
+                if (partCount == 0) {
+                    // Skip empty requests.
+                    ++CurrentRequestIndex;
+                    continue;
+                }
+
+                std::vector<TSharedRef> requestParts(
+                    attachments.begin() + CurrentRequestPartIndex,
+                    attachments.begin() + CurrentRequestPartIndex + partCount);
+                auto requestMessage = CreateMessageFromParts(std::move(requestParts));
+
+                NRpc::NProto::TRequestHeader requestHeader;
+                if (!ParseRequestHeader(requestMessage, &requestHeader)) {
+                    Reply(TError(
+                        EErrorCode::ProtocolError,
+                        "Error parsing request header"));
+                    return;
+                }
+
+                const auto& path = requestHeader.path();
+                const auto& verb = requestHeader.verb();
+
+                if (AtomicGet(ReplyLock) != 0)
+                    return;
+
+                LOG_DEBUG("Execute[%d] <- %s %s",
+                    CurrentRequestIndex,
+                    ~verb,
+                    ~path);
+
+                awaiter->Await(
+                    ExecuteVerb(rootService, requestMessage),
+                    BIND(&TExecuteSession::OnResponse, MakeStrong(this), CurrentRequestIndex));
+
                 ++CurrentRequestIndex;
-                continue;
+                CurrentRequestPartIndex += partCount;
+
+                if (TInstant::Now() > startTime + Owner->Config->YieldTimeout) {
+                    YieldAndContinue();
+                    return;
+                }
             }
 
-            std::vector<TSharedRef> requestParts(
-                attachments.begin() + CurrentRequestPartIndex,
-                attachments.begin() + CurrentRequestPartIndex + partCount);
-            auto requestMessage = CreateMessageFromParts(std::move(requestParts));
-
-            NRpc::NProto::TRequestHeader requestHeader;
-            if (!ParseRequestHeader(requestMessage, &requestHeader)) {
-                Reply(TError(
-                    EErrorCode::ProtocolError,
-                    "Error parsing request header"));
-                return;
-            }
-
-            const auto& path = requestHeader.path();
-            const auto& verb = requestHeader.verb();
-
-            if (AtomicGet(ReplyLock) != 0)
-                return;
-
-            LOG_DEBUG("Execute[%d] <- %s %s",
-                CurrentRequestIndex,
-                ~verb,
-                ~path);
-
-            awaiter->Await(
-                ExecuteVerb(rootService, requestMessage),
-                BIND(&TExecuteSession::OnResponse, MakeStrong(this), CurrentRequestIndex));
-
-            ++CurrentRequestIndex;
-            CurrentRequestPartIndex += partCount;
-
-            if (TInstant::Now() > startTime + Owner->Config->YieldTimeout) {
-                YieldAndContinue();
-                return;
-            }
+            awaiter->Complete(BIND(&TExecuteSession::OnComplete, MakeStrong(this)));
+        } catch (const std::exception& ex) {
+            Reply(ex);
         }
-
-        awaiter->Complete(BIND(&TExecuteSession::OnComplete, MakeStrong(this)));
     }
 
     void YieldAndContinue()
@@ -214,6 +217,43 @@ private:
         Context->Reply(error);
     }
 
+    bool CheckPrerequesiteTransactions()
+    {
+        auto transactionManager = Owner->Bootstrap->GetTransactionManager();
+        auto& request = Context->Request();
+        FOREACH (const auto& protoId, request.prerequisite_transaction_ids()) {
+            auto id = TTransactionId::FromProto(protoId);
+            const auto* transaction = transactionManager->FindTransaction(id);
+            if (!transaction) {
+                Reply(TError(
+                    "Prerequisite transaction is missing: %s",
+                    ~ToString(id)));
+                return false;
+            }
+            if (transaction->GetState() != ETransactionState::Active) {
+                Reply(TError(
+                    "Prerequisite transaction is not active: %s",
+                    ~ToString(id)));
+                return false;
+            }
+        }
+        return true;
+    }
+
+    TUser* GetAuthenticatedUser()
+    {
+        auto securityManager = Owner->Bootstrap->GetSecurityManager();
+        if (!UserName) {
+            return securityManager->GetRootUser();
+        }
+
+        auto* user = securityManager->FindUserByName(UserName.Get());
+        if (!user) {
+            THROW_ERROR_EXCEPTION("No such user: %s", ~UserName.Get());
+        }
+
+        return user;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

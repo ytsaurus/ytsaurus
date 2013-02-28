@@ -13,7 +13,7 @@ TTransactionId NullTransactionId(0, 0, 0, 0);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsTypeVersioned(EObjectType type)
+bool TypeIsVersioned(EObjectType type)
 {
     return type == EObjectType::StringNode ||
            type == EObjectType::IntegerNode ||
@@ -35,6 +35,24 @@ bool IsTypeVersioned(EObjectType type)
 EObjectType TypeFromId(const TObjectId& id)
 {
     return EObjectType(id.Parts[1] & 0xffff);
+}
+
+bool TypeHasSchema(EObjectType type)
+{
+    return (type & 0x8000) == 0 &&
+           type != EObjectType::Master;
+}
+
+EObjectType SchemaTypeFromType(EObjectType type)
+{
+    YASSERT(TypeHasSchema(type));
+    return EObjectType(type | 0x8000);
+}
+
+EObjectType TypeFromSchemaType(EObjectType type)
+{
+    YASSERT((type & 0x8000) != 0);
+    return EObjectType(type & ~0x8000);
 }
 
 TObjectId MakeId(
@@ -60,6 +78,13 @@ TObjectId MakeWellKnownId(
         cellId,
         counter,
         static_cast<ui32>(cellId * 901517) ^ 0x140a8383);
+}
+
+TObjectId MakeSchemaObjectId(
+    EObjectType type,
+    TCellId cellId)
+{
+    return MakeWellKnownId(SchemaTypeFromType(type), cellId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

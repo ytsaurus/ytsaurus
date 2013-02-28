@@ -31,10 +31,10 @@ void TChunkList::Save(const NCellMaster::TSaveContext& context) const
     TChunkTree::Save(context);
 
     auto* output = context.GetOutput();
-    SaveObjectRefs(output, Children_);
-    SaveObjectRefs(output, Parents_);
-    SaveObjectRefs(output, OwningNodes_);
-    NChunkServer::Save(Statistics_, context);
+    SaveObjectRefs(context, Children_);
+    SaveObjectRefs(context, Parents_);
+    SaveObjectRefs(context, OwningNodes_);
+    NChunkServer::Save(context, Statistics_);
     ::Save(output, SortedBy_);
     ::Save(output, RowCountSums_);
     ::Save(output, ChunkCountSums_);
@@ -45,10 +45,10 @@ void TChunkList::Load(const NCellMaster::TLoadContext& context)
     TChunkTree::Load(context);
 
     auto* input = context.GetInput();
-    LoadObjectRefs(input, Children_, context);
-    LoadObjectRefs(input, Parents_, context);
-    LoadObjectRefs(input, OwningNodes_, context);
-    NChunkServer::Load(Statistics_, context);
+    LoadObjectRefs(context, Children_);
+    LoadObjectRefs(context, Parents_);
+    LoadObjectRefs(context, OwningNodes_);
+    NChunkServer::Load(context, Statistics_);
     ::Load(input, SortedBy_);
     ::Load(input, RowCountSums_);
     // COMPAT(ignat)

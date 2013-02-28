@@ -132,7 +132,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVirtualNodeProxy
-    : public TCypressNodeProxyBase<TCypressNodeProxyNontemplateBase, IEntityNode, TVirtualNode>
+    : public TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IEntityNode, TVirtualNode>
 {
 public:
     TVirtualNodeProxy(
@@ -165,18 +165,18 @@ public:
     }
 
 private:
-    typedef TCypressNodeProxyBase<TCypressNodeProxyNontemplateBase, IEntityNode, TVirtualNode> TBase;
+    typedef TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IEntityNode, TVirtualNode> TBase;
 
     IYPathServicePtr Service;
     bool RequireLeader;
 
-    virtual void DoInvoke(NRpc::IServiceContextPtr context) override
+    virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
     {
         auto metaStateFacade = Bootstrap->GetMetaStateFacade();
         if (RequireLeader && !metaStateFacade->GetManager()->GetMutationContext()) {
             metaStateFacade->ValidateActiveLeader();
         }
-        TBase::DoInvoke(context);
+        return TBase::DoInvoke(context);
     }
 
 };

@@ -119,21 +119,21 @@ bool TChunkReplica::operator >= (TChunkReplica other) const
     return other <= *this;
 }
 
-void SaveObjectRef(TOutputStream* output, TChunkReplica value)
+void SaveObjectRef(const TSaveContext& context, TChunkReplica value)
 {
-    NCellMaster::SaveObjectRef(output, value.GetNode());
-    Save(output, value.GetIndex());
+    NCellMaster::SaveObjectRef(context, value.GetNode());
+    NCellMaster::Save(context, value.GetIndex());
 }
 
-void LoadObjectRef(TInputStream* input, TChunkReplica& value, const NCellMaster::TLoadContext& context)
+void LoadObjectRef(const TLoadContext& context, TChunkReplica& value)
 {
     TDataNode* node;
-    LoadObjectRef(input, node, context);
+    LoadObjectRef(context, node);
 
     int index;
     // COMPAT(babenko)
     if (context.GetVersion() >= 8) {
-        Load(input, index);
+        Load(context, index);
     } else {
         index = 0;
     }

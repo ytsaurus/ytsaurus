@@ -29,7 +29,7 @@ DECLARE_ENUM(ETransactionState,
 );
 
 class TTransaction
-    : public NObjectServer::TUnversionedObjectBase
+    : public NObjectServer::TNonversionedObjectBase
 {
     DEFINE_BYVAL_RW_PROPERTY(ETransactionState, State);
     DEFINE_BYVAL_RW_PROPERTY(TDuration, Timeout);

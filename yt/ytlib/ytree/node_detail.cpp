@@ -32,7 +32,7 @@ bool TNodeBase::IsWriteRequest(IServiceContextPtr context) const
     return TYPathServiceBase::IsWriteRequest(context);
 }
 
-void TNodeBase::DoInvoke(IServiceContextPtr context)
+bool TNodeBase::DoInvoke(IServiceContextPtr context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(GetKey);
     DISPATCH_YPATH_SERVICE_METHOD(Get);
@@ -40,11 +40,15 @@ void TNodeBase::DoInvoke(IServiceContextPtr context)
     DISPATCH_YPATH_SERVICE_METHOD(Remove);
     DISPATCH_YPATH_SERVICE_METHOD(List);
     DISPATCH_YPATH_SERVICE_METHOD(Exists);
-    TYPathServiceBase::DoInvoke(context);
+    return TYPathServiceBase::DoInvoke(context);
 }
 
 void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
 {
+    context->SetRequestInfo("");
+
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
+
     TNullable< std::vector<Stroka> > attributesToVisit;
 
     auto attributeFilter =
@@ -65,7 +69,9 @@ void TNodeBase::GetKeySelf(TReqGetKey* request, TRspGetKey* response, TCtxGetKey
 {
     UNUSED(request);
 
-    context->SetResponseInfo("Get Key request");
+    context->SetRequestInfo("");
+
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
     auto parent = GetParent();
     if (!parent) {
@@ -86,6 +92,7 @@ void TNodeBase::GetKeySelf(TReqGetKey* request, TRspGetKey* response, TCtxGetKey
             YUNREACHABLE();
     }
 
+    context->SetResponseInfo("Key: %s", ~key);
     response->set_value(key);
 
     context->Reply();
@@ -93,8 +100,13 @@ void TNodeBase::GetKeySelf(TReqGetKey* request, TRspGetKey* response, TCtxGetKey
 
 void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemovePtr context)
 {
-    UNUSED(request);
     UNUSED(response);
+
+    context->SetRequestInfo("");
+
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+    ValidatePermission(EPermissionCheckScope::Descendants, EPermission::Write);
+    ValidatePermission(EPermissionCheckScope::Parent, EPermission::Write);
 
     auto parent = GetParent();
     if (!parent) {
@@ -107,6 +119,7 @@ void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove
     }
 
     parent->AsComposite()->RemoveChild(this);
+
     context->Reply();
 }
 
@@ -114,11 +127,10 @@ IYPathService::TResolveResult TNodeBase::ResolveRecursive(
     const NYPath::TYPath& path,
     IServiceContextPtr context)
 {
-    UNUSED(context);
-
     if (context->GetVerb() == "Exists") {
         return TResolveResult::Here(path);
     }
+
     ThrowCannotHaveChildren(this);
     YUNREACHABLE();
 }
@@ -132,6 +144,10 @@ void TCompositeNodeMixin::SetRecursive(
     TCtxSetPtr context)
 {
     UNUSED(response);
+
+    context->SetRequestInfo("");
+
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
     auto factory = CreateFactory();
     auto value = ConvertToNode(TYsonString(request->value()), ~factory);
@@ -148,6 +164,11 @@ void TCompositeNodeMixin::RemoveRecursive(
 {
     UNUSED(request);
     UNUSED(response);
+
+    context->SetRequestInfo("");
+
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+    ValidatePermission(EPermissionCheckScope::Descendants, EPermission::Write);
 
     NYPath::TTokenizer tokenizer(path);
     tokenizer.Advance();
@@ -211,6 +232,10 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
 
 void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxListPtr context)
 {
+    context->SetRequestInfo("");
+
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
+
     auto attributeFilter =
         request->has_attribute_filter()
         ? FromProto(request->attribute_filter())
@@ -239,7 +264,7 @@ void TMapNodeMixin::SetChild(const TYPath& path, INodePtr value, bool recursive)
     NYPath::TTokenizer tokenizer(path);
     tokenizer.Advance();
     if (tokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
-        THROW_ERROR_EXCEPTION("Unexpected end of stream");
+        tokenizer.ThrowUnexpected();
     }
 
     auto factory = CreateFactory();

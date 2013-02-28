@@ -7,11 +7,6 @@ namespace NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRetryingBatch;
-typedef TIntrusivePtr<TRetryingBatch> TRetryingBatchPtr;
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Provides a globally unique identifier for an object.
 /*!
  *  TGuid consists of four 32-bit parts.
@@ -43,17 +38,11 @@ DECLARE_ENUM(EObjectType,
     // Except for EObjectType::Transaction, the latter transaction cannot be null.
 
     // Transaction Manager stuff
-    // Top-level transactions are created by sending CreateObject request to RootTransactionPath
-    // (which effectively represents NullTransactionId).
-    // Nested transactions are created by sending CreateObject request to their parents.
     ((Transaction)(1))
 
     // Chunk Manager stuff
     ((Chunk)(100))
     ((ChunkList)(101))
-
-    // Security
-    ((Account)(500))
 
     // The following are versioned objects AKA Cypress nodes.
     // These must be created by calling TCypressYPathProxy::Create.
@@ -80,20 +69,35 @@ DECLARE_ENUM(EObjectType,
     ((Orchid)(412))
     ((LostVitalChunkMap)(413))
     ((AccountMap)(414))
+    ((UserMap)(415))
+    ((GroupMap)(416))
+
+    // Security
+    ((Account)(500))
+    ((User)(501))
+    ((Group)(502))
+
+    // A mysterious creature representing master as a whole.
+    ((Master)(600))
 );
 
-//! Valid types are supposed to be in range [0, MaxObjectType - 1].
-/*!
- *  \note
- *  An upper bound will do.
- */
-const int MaxObjectType = 1000;
+//! Types (both regular and schematic) are supposed to be in range [0, MaxObjectType].
+const int MaxObjectType = 65535;
 
 //! Checks if the given type is versioned, i.e. represents a Cypress node.
-bool IsTypeVersioned(EObjectType type);
+bool TypeIsVersioned(EObjectType type);
 
 //! Extracts the type component from an id.
 EObjectType TypeFromId(const TObjectId& id);
+
+//! Returns |true| iff a given regular type has an associated schema type.
+bool TypeHasSchema(EObjectType type);
+
+//! Returns the schema type for a given regular type.
+EObjectType SchemaTypeFromType(EObjectType type);
+
+//! Returns the regular type for a given schema type.
+EObjectType TypeFromSchemaType(EObjectType type);
 
 //! Constructs the id from its parts.
 TObjectId MakeId(
@@ -107,6 +111,11 @@ TObjectId MakeWellKnownId(
     EObjectType type,
     TCellId cellId,
     ui64 counter = 0xffffffffffffffff);
+
+//! Returns the id of the schema object for a given regular type.
+TObjectId MakeSchemaObjectId(
+    EObjectType type,
+    TCellId cellId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

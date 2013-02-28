@@ -66,6 +66,7 @@ public:
 protected:
     typedef TCLAP::UnlabeledValueArg<Stroka> TUnlabeledStringArg;
 
+    TCLAP::ValueArg<Stroka> AuthenticatedUserArg;
     TCLAP::ValueArg<Stroka> FormatArg;
     TCLAP::ValueArg<Stroka> InputFormatArg;
     TCLAP::ValueArg<Stroka> OutputFormatArg;

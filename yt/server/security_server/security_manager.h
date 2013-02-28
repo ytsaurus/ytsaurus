@@ -13,8 +13,48 @@
 
 #include <server/transaction_server/public.h>
 
+#include <server/object_server/public.h>
+
 namespace NYT {
 namespace NSecurityServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Describes the result of #TSecurityManager::CheckAccess invocation.
+struct TPermissionCheckResult
+{
+    TPermissionCheckResult();
+
+    //! Was request allowed or declined?
+    ESecurityAction Action;
+
+    //! The object whose ACL contains the matching ACE.
+    //! May be |nullptr| if check fails due to missing ACE or succeeds because the user is "root".
+    NObjectServer::TObjectBase* Object;
+
+    //! Subject to which the decision applies.
+    //! May be |nullptr| if check fails due to missing ACE or succeeds because the user is "root".
+    TSubject* Subject;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A simple RAII guard for settings the current authenticated user.
+/*!
+ *  \see #TSecurityManager::PushAuthenticatedUser
+ *  \see #TSecurityManager::PopAuthenticatedUser
+ */
+class TAuthenticatedUserGuard
+{
+public:
+    TAuthenticatedUserGuard(TSecurityManagerPtr securityManager, TUser* user);
+    ~TAuthenticatedUserGuard();
+
+private:
+    TSecurityManagerPtr SecurityManager;
+    bool IsNull;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,15 +68,17 @@ public:
     void Initialize();
 
     DECLARE_METAMAP_ACCESSORS(Account, TAccount, TAccountId);
+    DECLARE_METAMAP_ACCESSORS(User, TUser, TUserId);
+    DECLARE_METAMAP_ACCESSORS(Group, TGroup, TGroupId);
 
 
-    //! Returns an account with a given name (|nullptr| if none).
+    //! Returns account with a given name (|nullptr| if none).
     TAccount* FindAccountByName(const Stroka& name);
 
-    //! Returns the "sys" built-in account.
+    //! Returns "root" built-in account.
     TAccount* GetSysAccount();
 
-    //! Returns the "tmp" built-in account.
+    //! Returns "tmp" built-in account.
     TAccount* GetTmpAccount();
 
 
@@ -56,10 +98,82 @@ public:
         TAccount* account,
         const TClusterResources& delta);
 
+
+    //! Returns user with a given name (|nullptr| if none).
+    TUser* FindUserByName(const Stroka& name);
+
+    //! Returns "root" built-in user.
+    TUser* GetRootUser();
+
+    //! Returns "guest" built-in user.
+    TUser* GetGuestUser();
+
+
+    //! Returns group with a given name (|nullptr| if none).
+    TGroup* FindGroupByName(const Stroka& name);
+
+    //! Returns "everyone" built-in group.
+    TGroup* GetEveryoneGroup();
+
+    //! Returns "users" built-in group.
+    TGroup* GetUsersGroup();
+
+
+    //! Returns subject (a user or a group) with a given name (|nullptr| if none).
+    TSubject* FindSubjectByName(const Stroka& name);
+
+    //! Adds a new member into the group. Throws on failure.
+    void AddMember(TGroup* group, TSubject* member);
+
+    //! Removes an existing member from the group. Throws on failure.
+    void RemoveMember(TGroup* group, TSubject* member);
+
+
+    //! Returns the set of supported permissions.
+    EPermissionSet GetSupportedPermissions(NObjectServer::TObjectBase* object);
+
+    //! Returns the object ACD or |nullptr| if access is not controlled.
+    TAccessControlDescriptor* GetAcd(NObjectServer::TObjectBase* object);
+
+    //! Returns the ACL obtained by combining ACLs of the object and its parents.
+    //! The returned ACL is a fake one, i.e. does not exist explicitly anywhere.
+    TAccessControlList GetEffectiveAcl(NObjectServer::TObjectBase* object);
+
+
+    //! Pushes a new current user onto the stack.
+    void PushAuthenticatedUser(TUser* user);
+
+    //! Pops the current user from the stack.
+    void PopAuthenticatedUser();
+
+    //! Returns the current user, which is placed on the top of the stack.
+    //! If the stack is empty then "root" user is returned.
+    TUser* GetAuthenticatedUser();
+
+
+    //! Checks if #object ACL allows access with #permission.
+    TPermissionCheckResult CheckPermission(
+        NObjectServer::TObjectBase* object,
+        TUser* user,
+        EPermission permission);
+
+    //! Similar to #CheckPermission but throws a human-readable exception on failure.
+    void ValidatePermission(
+        NObjectServer::TObjectBase* object,
+        TUser* user,
+        EPermission permission);
+
+    //! Another overload that uses the current user.
+    void ValidatePermission(
+        NObjectServer::TObjectBase* object,
+        EPermission permission);
+
 private:
     class TImpl;
     class TAccountTypeHandler;
-
+    class TUserTypeHandler;
+    class TGroupTypeHandler;
+    
     TIntrusivePtr<TImpl> Impl;
 
 };

@@ -73,13 +73,13 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressNodeProxyNontemplateBase
+class TNontemplateCypressNodeProxyBase
     : public NYTree::TNodeBase
     , public NObjectServer::TObjectProxyBase
     , public ICypressNodeProxy
 {
 public:
-    TCypressNodeProxyNontemplateBase(
+    TNontemplateCypressNodeProxyBase(
         INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
         NTransactionServer::TTransaction* transaction,
@@ -120,7 +120,7 @@ protected:
     virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) const override;
     virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
-    virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
+    virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
 
     const TCypressNodeBase* GetImpl(TCypressNodeBase* trunkNode) const;
     TCypressNodeBase* GetMutableImpl(TCypressNodeBase* trunkNode);
@@ -145,10 +145,16 @@ protected:
     void DetachChild(TCypressNodeBase* child, bool unref);
 
     virtual TAutoPtr<NYTree::IAttributeDictionary> DoCreateUserAttributes() override;
+    
+    // TSupportsPermissions members
+    virtual void ValidatePermission(
+        NYTree::EPermissionCheckScope scope,
+        NYTree::EPermission permission) override;
+    // Inject other overloads into the scope.
+    using TObjectProxyBase::ValidatePermission;
 
     void SetModified();
 
-    NYPath::TYPath PrepareRecursiveChildPath(const NYPath::TYPath& path);
     ICypressNodeProxyPtr ResolveSourcePath(const NYPath::TYPath& path);
 
     virtual bool CanHaveChildren() const;
@@ -162,8 +168,8 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCompositeCypressNodeProxyNontemplateBase
-    : public TCypressNodeProxyNontemplateBase
+class TNontemplateCompositeCypressNodeProxyBase
+    : public TNontemplateCypressNodeProxyBase
     , public virtual NYTree::ICompositeNode
 {
 public:
@@ -171,7 +177,7 @@ public:
     virtual TIntrusivePtr<NYTree::ICompositeNode> AsComposite() override;
 
 protected:
-    TCompositeCypressNodeProxyNontemplateBase(
+    TNontemplateCompositeCypressNodeProxyBase(
         INodeTypeHandlerPtr typeHandler,
         NCellMaster::TBootstrap* bootstrap,
         NTransactionServer::TTransaction* transaction,
@@ -227,7 +233,7 @@ protected:
 
 template <class TValue, class IBase, class TImpl>
 class TScalarNodeProxy
-    : public TCypressNodeProxyBase<TCypressNodeProxyNontemplateBase, IBase, TImpl>
+    : public TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IBase, TImpl>
 {
 public:
     TScalarNodeProxy(
@@ -254,7 +260,7 @@ public:
     }
 
 private:
-    typedef TCypressNodeProxyBase<TCypressNodeProxyNontemplateBase, IBase, TImpl> TBase;
+    typedef TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IBase, TImpl> TBase;
 
 };
 
@@ -301,7 +307,7 @@ DECLARE_SCALAR_TYPE(Double, double)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMapNodeProxy
-    : public TCypressNodeProxyBase<TCompositeCypressNodeProxyNontemplateBase, NYTree::IMapNode, TMapNode>
+    : public TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IMapNode, TMapNode>
     , public NYTree::TMapNodeMixin
 {
     YTREE_NODE_TYPE_OVERRIDES(Map)
@@ -325,9 +331,9 @@ public:
     virtual Stroka GetChildKey(NYTree::IConstNodePtr child) override;
 
 private:
-    typedef TCypressNodeProxyBase<TCompositeCypressNodeProxyNontemplateBase, NYTree::IMapNode, TMapNode> TBase;
+    typedef TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IMapNode, TMapNode> TBase;
 
-    virtual void DoInvoke(NRpc::IServiceContextPtr context) override;
+    virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
     virtual void SetChild(const NYPath::TYPath& path, NYTree::INodePtr value, bool recursive) override;
     virtual IYPathService::TResolveResult ResolveRecursive(const NYPath::TYPath& path, NRpc::IServiceContextPtr context) override;
 
@@ -338,7 +344,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TListNodeProxy
-    : public TCypressNodeProxyBase<TCompositeCypressNodeProxyNontemplateBase, NYTree::IListNode, TListNode>
+    : public TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IListNode, TListNode>
     , public NYTree::TListNodeMixin
 {
     YTREE_NODE_TYPE_OVERRIDES(List)
@@ -361,7 +367,7 @@ public:
     virtual int GetChildIndex(NYTree::IConstNodePtr child) override;
 
 private:
-    typedef TCypressNodeProxyBase<TCompositeCypressNodeProxyNontemplateBase, NYTree::IListNode, TListNode> TBase;
+    typedef TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IListNode, TListNode> TBase;
 
     virtual void SetChild(
         const NYPath::TYPath& path,

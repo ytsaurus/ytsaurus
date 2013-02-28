@@ -10,7 +10,7 @@ namespace NDriver {
 struct TDownloadRequest
     : public TTransactedRequest
 {
-    NYPath::TYPath Path;
+    NYPath::TRichYPath Path;
 
     TDownloadRequest()
     {
@@ -37,7 +37,7 @@ private:
 struct TUploadRequest
     : public TTransactedRequest
 {
-    NYPath::TYPath Path;
+    NYPath::TRichYPath Path;
     NYTree::INodePtr Attributes;
 
     TUploadRequest()

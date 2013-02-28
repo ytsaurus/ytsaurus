@@ -98,11 +98,11 @@ std::vector<TObjectId> ToObjectIds(const std::vector<T*>& objects)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUnversionedObjectBase
+class TNonversionedObjectBase
     : public TObjectBase
 {
 public:
-    explicit TUnversionedObjectBase(const TObjectId& id);
+    explicit TNonversionedObjectBase(const TObjectId& id);
 
 };
 

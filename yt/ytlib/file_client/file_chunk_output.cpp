@@ -9,13 +9,12 @@
 #include <ytlib/chunk_client/chunk_ypath_proxy.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <ytlib/transaction_client/transaction_ypath_proxy.h>
-
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <ytlib/chunk_client/remote_writer.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
+#include <ytlib/object_client/master_ypath_proxy.h>
 
 #include <ytlib/meta_state/rpc_helpers.h>
 
@@ -24,7 +23,6 @@ namespace NFileClient {
 
 using namespace NYTree;
 using namespace NChunkClient;
-using namespace NTransactionClient;
 using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NChunkClient::NProto;
@@ -61,13 +59,13 @@ void TFileChunkOutput::Open()
         Config->ReplicationFactor,
         Config->UploadReplicationFactor);
 
-
     LOG_INFO("Creating chunk");
     std::vector<Stroka> addresses;
     {
         TObjectServiceProxy proxy(MasterChannel);
 
-        auto req = TTransactionYPathProxy::CreateObject(FromObjectId(TransactionId));
+        auto req = TMasterYPathProxy::CreateObject();
+        *req->mutable_transaction_id() = TransactionId.ToProto();
         req->set_type(EObjectType::Chunk);
         req->set_account(Account);
         NMetaState::GenerateRpcMutationId(req);
@@ -80,10 +78,7 @@ void TFileChunkOutput::Open()
         reqExt->set_vital(Config->ChunkVital);
 
         auto rsp = proxy.Execute(req).Get();
-        if (!rsp->IsOK()) {
-            THROW_ERROR_EXCEPTION("Error creating file chunk")
-                << rsp->GetError();
-        }
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error creating file chunk");
 
         ChunkId = TChunkId::FromProto(rsp->object_id());
         const auto& rspExt = rsp->GetExtension(TRspCreateChunkExt::create_chunk);
@@ -194,10 +189,7 @@ void TFileChunkOutput::DoFinish()
         NMetaState::GenerateRpcMutationId(req);
 
         auto rsp = proxy.Execute(req).Get();
-        if (!rsp->IsOK()) {
-            THROW_ERROR_EXCEPTION("Error confirming chunk")
-                << rsp->GetError();
-        }
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error confirming chunk");
     }
     LOG_INFO("Chunk confirmed");
 

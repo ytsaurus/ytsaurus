@@ -5,8 +5,6 @@
 namespace NYT {
 namespace NChunkServer {
 
-using namespace NCellMaster;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobList::TJobList(const TChunkId& chunkId)
@@ -15,14 +13,12 @@ TJobList::TJobList(const TChunkId& chunkId)
 
 void TJobList::Save(const NCellMaster::TSaveContext& context) const
 {
-    auto* output = context.GetOutput();
-    SaveObjectRefs(output, Jobs_);
+    SaveObjectRefs(context, Jobs_);
 }
 
 void TJobList::Load(const NCellMaster::TLoadContext& context)
 {
-    auto* input = context.GetInput();
-    LoadObjectRefs(input, Jobs_, context);
+    LoadObjectRefs(context, Jobs_);
 }
 
 void TJobList::AddJob(TJob* job)

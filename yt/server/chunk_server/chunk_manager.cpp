@@ -56,7 +56,9 @@
 
 #include <server/object_server/type_handler_detail.h>
 
-#include <server/table_server/table_node.h>
+#include <server/security_server/security_manager.h>
+#include <server/security_server/account.h>
+#include <server/security_server/group.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -91,14 +93,11 @@ public:
         return EObjectType::Chunk;
     }
 
-    virtual EObjectTransactionMode GetTransactionMode() const override
+    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
     {
-        return EObjectTransactionMode::Required;
-    }
-
-    virtual EObjectAccountMode GetAccountMode() const override
-    {
-        return EObjectAccountMode::Required;
+        return TTypeCreationOptions(
+            EObjectTransactionMode::Required,
+            EObjectAccountMode::Required);
     }
 
     virtual TObjectBase* Create(
@@ -111,8 +110,15 @@ public:
 private:
     TImpl* Owner;
 
+    virtual Stroka DoGetName(TChunk* chunk) override
+    {
+        return Sprintf("chunk %s", ~ToString(chunk->GetId()));
+    }
+
     virtual IObjectProxyPtr DoGetProxy(TChunk* chunk, TTransaction* transaction) override;
+
     virtual void DoDestroy(TChunk* chunk) override;
+
     virtual void DoUnstage(TChunk* chunk, TTransaction* transaction, bool recursive) override;
 
 };
@@ -130,14 +136,11 @@ public:
         return EObjectType::ChunkList;
     }
 
-    virtual EObjectTransactionMode GetTransactionMode() const override
+    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
     {
-        return EObjectTransactionMode::Required;
-    }
-
-    virtual EObjectAccountMode GetAccountMode() const override
-    {
-        return EObjectAccountMode::Forbidden;
+        return TTypeCreationOptions(
+            EObjectTransactionMode::Required,
+            EObjectAccountMode::Forbidden);
     }
 
     virtual TObjectBase* Create(
@@ -150,8 +153,15 @@ public:
 private:
     TImpl* Owner;
 
+    virtual Stroka DoGetName(TChunkList* chunkList) override
+    {
+        return Sprintf("chunk list %s", ~ToString(chunkList->GetId()));
+    }
+
     virtual IObjectProxyPtr DoGetProxy(TChunkList* chunkList, TTransaction* transaction) override;
+
     virtual void DoDestroy(TChunkList* chunkList) override;
+
     virtual void DoUnstage(TChunkList* chunkList, TTransaction* transaction, bool recursive) override;
 
 };
@@ -212,13 +222,13 @@ public:
             NCellMaster::TSaveContext context;
 
             RegisterSaver(
-                ESavePriority::Keys,
+                ESerializationPriority::Keys,
                 "ChunkManager.Keys",
                 CurrentSnapshotVersion,
                 BIND(&TImpl::SaveKeys, MakeStrong(this)),
                 context);
             RegisterSaver(
-                ESavePriority::Values,
+                ESerializationPriority::Values,
                 "ChunkManager.Values",
                 CurrentSnapshotVersion,
                 BIND(&TImpl::SaveValues, MakeStrong(this)),
@@ -1697,10 +1707,7 @@ IObjectProxyPtr TChunkManager::TChunkTypeHandler::DoGetProxy(
 {
     UNUSED(transaction);
 
-    return CreateChunkProxy(
-        Bootstrap,
-        &Owner->ChunkMap,
-        chunk);
+    return CreateChunkProxy(Bootstrap, chunk);
 }
 
 TObjectBase* TChunkManager::TChunkTypeHandler::Create(
@@ -1710,15 +1717,11 @@ TObjectBase* TChunkManager::TChunkTypeHandler::Create(
     TReqCreateObject* request,
     TRspCreateObject* response)
 {
+    YCHECK(transaction);
+    YCHECK(account);
     UNUSED(attributes);
 
-    // TODO(babenko): account must be required
-    if (account && account->IsOverDiskSpace()) {
-        THROW_ERROR_EXCEPTION("Account is over disk space: %s",
-            ~account->GetName())
-            << TErrorAttribute("usage", account->ResourceUsage().DiskSpace)
-            << TErrorAttribute("limit", account->ResourceLimits().DiskSpace);
-    }
+    account->ValidateDiskSpaceLimit();
 
     const auto* requestExt = &request->GetExtension(TReqCreateChunkExt::create_chunk);
     auto* responseExt = response->MutableExtension(TRspCreateChunkExt::create_chunk);
@@ -1791,10 +1794,7 @@ IObjectProxyPtr TChunkManager::TChunkListTypeHandler::DoGetProxy(
 {
     UNUSED(transaction);
 
-    return CreateChunkListProxy(
-        Bootstrap,
-        &Owner->ChunkListMap,
-        chunkList);
+    return CreateChunkListProxy(Bootstrap, chunkList);
 }
 
 TObjectBase* TChunkManager::TChunkListTypeHandler::Create(

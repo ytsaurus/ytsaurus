@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "account.h"
 
+#include <ytlib/ytree/convert.h>
+
 #include <server/cell_master/serialization_context.h>
 
 namespace NYT {
@@ -9,40 +11,55 @@ namespace NSecurityServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 TAccount::TAccount(const TAccountId& id)
-    : TUnversionedObjectBase(id)
+    : TNonversionedObjectBase(id)
     , ResourceUsage_(ZeroClusterResources())
     , CommittedResourceUsage_(ZeroClusterResources())
     , ResourceLimits_(ZeroClusterResources())
-    , NodeCount_(0)
+    , Acd_(this)
 { }
 
 void TAccount::Save(const NCellMaster::TSaveContext& context) const
 {
-    TUnversionedObjectBase::Save(context);
+    TNonversionedObjectBase::Save(context);
 
-    auto* output = context.GetOutput();
-    ::Save(output, Name_);
-    NSecurityServer::Save(output, ResourceUsage_);
-    NSecurityServer::Save(output, CommittedResourceUsage_);
-    NSecurityServer::Save(output, ResourceLimits_);
-    ::Save(output, NodeCount_);
+    NCellMaster::Save(context, Name_);
+    NSecurityServer::Save(context, ResourceUsage_);
+    NSecurityServer::Save(context, CommittedResourceUsage_);
+    NSecurityServer::Save(context, ResourceLimits_);
+    NSecurityServer::Save(context, Acd_);
 }
 
 void TAccount::Load(const NCellMaster::TLoadContext& context)
 {
-    TUnversionedObjectBase::Load(context);
+    TNonversionedObjectBase::Load(context);
 
-    auto* input = context.GetInput();
-    ::Load(input, Name_);
-    NSecurityServer::Load(input, ResourceUsage_);
-    NSecurityServer::Load(input, CommittedResourceUsage_);
-    NSecurityServer::Load(input, ResourceLimits_);
-    ::Load(input, NodeCount_);
+    NCellMaster::Load(context, Name_);
+    NSecurityServer::Load(context, ResourceUsage_);
+    NSecurityServer::Load(context, CommittedResourceUsage_);
+    NSecurityServer::Load(context, ResourceLimits_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 8) {
+        NSecurityServer::Load(context, Acd_);
+    }
+    // COMPAT(babenko)
+    if (context.GetVersion() < 8) {
+        NCellMaster::Load(context, ResourceUsage_.NodeCount);
+    }
 }
 
-bool TAccount::IsOverDiskSpace() const
+bool TAccount::IsOverDiskSpaceLimit() const
 {
     return ResourceUsage_.DiskSpace > ResourceLimits_.DiskSpace;
+}
+
+void TAccount::ValidateDiskSpaceLimit() const
+{
+    if (IsOverDiskSpaceLimit()) {
+        THROW_ERROR_EXCEPTION("Account is over disk space limit: %s",
+            ~Name_)
+            << TErrorAttribute("usage", ResourceUsage_.DiskSpace)
+            << TErrorAttribute("limit", ResourceLimits_.DiskSpace);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -5,9 +5,11 @@
 #include "attribute_set.h"
 
 #include <ytlib/misc/string.h>
+#include <ytlib/misc/enum.h>
 
 #include <ytlib/ytree/fluent.h>
 #include <ytlib/ytree/yson_string.h>
+#include <ytlib/ytree/exception_helpers.h>
 
 #include <ytlib/ypath/tokenizer.h>
 
@@ -28,6 +30,11 @@
 #include <server/transaction_server/transaction.h>
 
 #include <server/security_server/account.h>
+#include <server/security_server/security_manager.h>
+#include <server/security_server/acl.h>
+#include <server/security_server/subject.h>
+
+#include <server/object_server/type_handler.h>
 
 #include <stdexcept>
 
@@ -42,6 +49,8 @@ using namespace NCellMaster;
 using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NMetaState;
+using namespace NSecurityClient;
+using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,16 +61,14 @@ TStagedObject::TStagedObject()
 
 void TStagedObject::Save(const NCellMaster::TSaveContext& context) const
 {
-    auto* output = context.GetOutput();
-    SaveObjectRef(output, StagingTransaction_);
-    SaveObjectRef(output, StagingAccount_);
+    SaveObjectRef(context, StagingTransaction_);
+    SaveObjectRef(context, StagingAccount_);
 }
 
 void TStagedObject::Load(const NCellMaster::TLoadContext& context)
 {
-    auto* input = context.GetInput();
-    LoadObjectRef(input, StagingTransaction_, context);
-    LoadObjectRef(input, StagingAccount_, context);
+    LoadObjectRef(context, StagingTransaction_);
+    LoadObjectRef(context, StagingAccount_);
 }
 
 bool TStagedObject::IsStaged() const
@@ -146,8 +153,7 @@ TObjectProxyBase::TObjectProxyBase(
     , Object(object)
 {
     YASSERT(bootstrap);
-    // TODO(babenko): special handling for null transaction
-    //YASSERT(object);
+    YASSERT(object);
 }
 
 TObjectProxyBase::~TObjectProxyBase()
@@ -155,10 +161,6 @@ TObjectProxyBase::~TObjectProxyBase()
 
 const TObjectId& TObjectProxyBase::GetId() const
 {
-    // TODO(babenko): special handling for null transaction
-    if (!Object) {
-        return NullObjectId;
-    }
     return Object->GetId();
 }
 
@@ -176,6 +178,39 @@ DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, GetId)
 {
     context->SetRequestInfo("");
     *response->mutable_object_id() = GetId().ToProto();
+    context->Reply();
+}
+
+DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
+{
+    auto userName = request->user();
+    auto permission = EPermission(request->permission());
+    context->SetRequestInfo("User: %s, Permission: %s",
+        ~userName,
+        ~permission.ToString());
+
+    auto securityManager = Bootstrap->GetSecurityManager();
+    auto objectManager = Bootstrap->GetObjectManager();
+
+    auto* user = securityManager->FindUserByName(userName);
+    if (!user) {
+        THROW_ERROR_EXCEPTION("No such user: %s", ~userName);
+    }
+
+    auto result = securityManager->CheckPermission(Object, user, permission);
+
+    response->set_action(result.Action);
+    if (result.Object) {
+        *response->mutable_object_id() = result.Object->GetId().ToProto();
+    }
+    if (result.Subject) {
+        response->set_subject(result.Subject->GetName());
+    }
+
+    context->SetResponseInfo("Action: %s, Object: %s, Subject: %s",
+        ~permission.ToString(),
+        result.Object ? ~ToString(result.Object->GetId()) : "<Null>",
+        result.Subject ? ~ToString(result.Subject->GetId()) : "<Null>");
     context->Reply();
 }
 
@@ -243,7 +278,9 @@ void TObjectProxyBase::SerializeAttributes(
 void TObjectProxyBase::GuardedInvoke(IServiceContextPtr context)
 {
     try {
-        DoInvoke(context);
+        if (!DoInvoke(context)) {
+            ThrowVerbNotSuppored(context->GetVerb());
+        }
     } catch (const TNotALeaderException&) {
         ForwardToLeader(context);
     } catch (const std::exception& ex) {
@@ -251,43 +288,7 @@ void TObjectProxyBase::GuardedInvoke(IServiceContextPtr context)
     }
 }
 
-void TObjectProxyBase::ForwardToLeader(IServiceContextPtr context)
-{
-    auto metaStateManager = Bootstrap->GetMetaStateFacade()->GetManager();
-    auto epochContext = metaStateManager->GetEpochContext();
-
-    LOG_DEBUG("Forwarding request to leader");
-
-    auto cellManager = metaStateManager->GetCellManager();
-    auto channel = cellManager->GetMasterChannel(epochContext->LeaderId);
-
-    // Update request path to include the current object id and transaction id.
-    auto requestMessage = context->GetRequestMessage();
-    NRpc::NProto::TRequestHeader requestHeader;
-    YCHECK(ParseRequestHeader(requestMessage, &requestHeader));
-    auto versionedId = GetVersionedId();
-    requestHeader.set_path(FromObjectId(versionedId.ObjectId) + requestHeader.path());
-    SetTransactionId(&requestHeader, versionedId.TransactionId);
-    auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
-
-    TObjectServiceProxy proxy(channel);
-    // TODO(babenko): use proper timeout
-    proxy.SetDefaultTimeout(Bootstrap->GetConfig()->MetaState->RpcTimeout);
-    proxy
-        .Execute(updatedRequestMessage)
-        .Subscribe(BIND(&TObjectProxyBase::OnLeaderResponse, MakeStrong(this), context));
-}
-
-void TObjectProxyBase::OnLeaderResponse(IServiceContextPtr context, NBus::IMessagePtr responseMessage)
-{
-    NRpc::NProto::TResponseHeader responseHeader;
-    YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
-    auto error = FromProto(responseHeader.error());
-    LOG_DEBUG(error, "Received response for forwarded request");
-    context->Reply(responseMessage);
-}
-
-void TObjectProxyBase::DoInvoke(IServiceContextPtr context)
+bool TObjectProxyBase::DoInvoke(IServiceContextPtr context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(GetId);
     DISPATCH_YPATH_SERVICE_METHOD(Get);
@@ -295,7 +296,8 @@ void TObjectProxyBase::DoInvoke(IServiceContextPtr context)
     DISPATCH_YPATH_SERVICE_METHOD(Set);
     DISPATCH_YPATH_SERVICE_METHOD(Remove);
     DISPATCH_YPATH_SERVICE_METHOD(Exists);
-    TYPathServiceBase::DoInvoke(context);
+    DISPATCH_YPATH_SERVICE_METHOD(CheckPermission);
+    return TYPathServiceBase::DoInvoke(context);
 }
 
 bool TObjectProxyBase::IsWriteRequest(IServiceContextPtr context) const
@@ -327,14 +329,25 @@ TAutoPtr<IAttributeDictionary> TObjectProxyBase::DoCreateUserAttributes()
 
 void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* names) const
 {
+    auto securityManager = Bootstrap->GetSecurityManager();
+    auto* acd = securityManager->GetAcd(Object);
+    bool hasAcd = acd;
+
     names->push_back("id");
     names->push_back("type");
     names->push_back("ref_counter");
     names->push_back("lock_counter");
+    names->push_back(TAttributeInfo("supported_permissions", true, true));
+    names->push_back(TAttributeInfo("inherit_acl", hasAcd, true));
+    names->push_back(TAttributeInfo("acl", hasAcd, true));
+    names->push_back(TAttributeInfo("effective_acl", true, true));
 }
 
 bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const
 {
+    auto objectManager = Bootstrap->GetObjectManager();
+    auto securityManager = Bootstrap->GetSecurityManager();
+
     if (key == "id") {
         BuildYsonFluently(consumer)
             .Value(GetId().ToString());
@@ -358,6 +371,35 @@ bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* cons
             .Value(Object->GetObjectLockCounter());
         return true;
     }
+    
+    if (key == "supported_permissions") {
+        auto handler = objectManager->GetHandler(Object);
+        auto permissions = handler->GetSupportedPermissions();
+        BuildYsonFluently(consumer)
+            .Value(DecomposeFlaggedEnum(permissions));
+        return true;
+    }
+
+    auto* acd = securityManager->GetAcd(Object);
+    if (acd) {
+        if (key == "inherit_acl") {
+            BuildYsonFluently(consumer)
+                .Value(acd->GetInherit());
+            return true;
+        }
+
+        if (key == "acl") {
+            BuildYsonFluently(consumer)
+                .Value(acd->Acl());
+            return true;
+        }
+    }
+
+    if (key == "effective_acl") {
+        BuildYsonFluently(consumer)
+            .Value(securityManager->GetEffectiveAcl(Object));
+        return true;
+    }
 
     return false;
 }
@@ -369,18 +411,81 @@ TAsyncError TObjectProxyBase::GetSystemAttributeAsync(const Stroka& key, IYsonCo
 
 bool TObjectProxyBase::SetSystemAttribute(const Stroka& key, const TYsonString& value)
 {
-    UNUSED(key);
-    UNUSED(value);
+    auto securityManager = Bootstrap->GetSecurityManager();
+    auto* acd = securityManager->GetAcd(Object);
+    if (acd) {
+        if (key == "inherit_acl") {
+            ValidateNoTransaction();
+
+            acd->SetInherit(ConvertTo<bool>(value));
+            return true;
+        }
+
+        if (key == "acl") {
+            ValidateNoTransaction();
+
+            auto supportedPermissions = securityManager->GetSupportedPermissions(Object);
+            auto valueNode = ConvertToNode(value);
+            TAccessControlList newAcl;
+            Deserilize(newAcl, supportedPermissions, valueNode, securityManager);
+
+            acd->ClearEntries();
+            FOREACH (const auto& ace, newAcl.Entries) {
+                acd->AddEntry(ace);
+            }
+
+            return true;
+        }
+    }
     return false;
 }
 
 TVersionedObjectId TObjectProxyBase::GetVersionedId() const
 {
-    // TODO(babenko): special hanlding for null transaction
-    if (!Object) {
-        return TVersionedObjectId();
-    }
     return TVersionedObjectId(Object->GetId());
+}
+
+TObjectBase* TObjectProxyBase::GetSchema(EObjectType type)
+{
+    auto objectManager = Bootstrap->GetObjectManager();
+    return objectManager->GetSchema(type);
+}
+
+TObjectBase* TObjectProxyBase::GetThisSchema()
+{
+    return GetSchema(Object->GetType());
+}
+
+void TObjectProxyBase::ValidateTransaction()
+{
+    if (!GetVersionedId().IsBranched()) {
+        THROW_ERROR_EXCEPTION("Operation cannot be performed outside of a transaction");
+    }
+}
+
+void TObjectProxyBase::ValidateNoTransaction()
+{
+    if (GetVersionedId().IsBranched()) {
+        THROW_ERROR_EXCEPTION("Operation cannot be performed in transaction");
+    }
+}
+
+void TObjectProxyBase::ValidatePermission(
+    EPermissionCheckScope scope,
+    EPermission permission)
+{
+    YCHECK(scope == EPermissionCheckScope::This);
+    ValidatePermission(Object, permission);
+}
+
+void TObjectProxyBase::ValidatePermission(
+    TObjectBase* object,
+    EPermission permission)
+{
+    YCHECK(object);
+    auto securityManager = Bootstrap->GetSecurityManager();
+    auto* user = securityManager->GetAuthenticatedUser();
+    securityManager->ValidatePermission(object, user, permission);
 }
 
 bool TObjectProxyBase::IsRecovery() const
@@ -398,27 +503,67 @@ void TObjectProxyBase::ValidateActiveLeader() const
     Bootstrap->GetMetaStateFacade()->ValidateActiveLeader();
 }
 
+void TObjectProxyBase::ForwardToLeader(IServiceContextPtr context)
+{
+    auto metaStateManager = Bootstrap->GetMetaStateFacade()->GetManager();
+    auto epochContext = metaStateManager->GetEpochContext();
+
+    LOG_DEBUG("Forwarding request to leader");
+
+    auto cellManager = metaStateManager->GetCellManager();
+    auto channel = cellManager->GetMasterChannel(epochContext->LeaderId);
+
+    // Update request path to include the current object id and transaction id.
+    auto requestMessage = context->GetRequestMessage();
+    NRpc::NProto::TRequestHeader requestHeader;
+    YCHECK(ParseRequestHeader(requestMessage, &requestHeader));
+    auto versionedId = GetVersionedId();
+    requestHeader.set_path(FromObjectId(versionedId.ObjectId) + requestHeader.path());
+    SetTransactionId(&requestHeader, versionedId.TransactionId);
+    auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
+
+    TObjectServiceProxy proxy(channel);
+    // TODO(babenko): timeout?
+    // TODO(babenko): prerequisite transactions?
+    // TODO(babenko): authenticated user?
+    proxy.SetDefaultTimeout(Bootstrap->GetConfig()->MetaState->RpcTimeout);
+    auto batchReq = proxy.ExecuteBatch();
+    batchReq->AddRequestMessage(updatedRequestMessage);
+    batchReq->Invoke().Subscribe(
+        BIND(&TObjectProxyBase::OnLeaderResponse, MakeStrong(this), context));
+}
+
+void TObjectProxyBase::OnLeaderResponse(IServiceContextPtr context, TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+{
+    auto responseMessage = batchRsp->GetResponseMessage(0);
+    NRpc::NProto::TResponseHeader responseHeader;
+    YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
+    auto error = FromProto(responseHeader.error());
+    LOG_DEBUG(error, "Received response for forwarded request");
+    context->Reply(responseMessage);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TNonversionedObjectProxyNontemplateBase::TNonversionedObjectProxyNontemplateBase(
+TNontemplateNonversionedObjectProxyBase::TNontemplateNonversionedObjectProxyBase(
     NCellMaster::TBootstrap* bootstrap,
     TObjectBase* object)
     : TObjectProxyBase(bootstrap, object)
 { }
 
-bool TNonversionedObjectProxyNontemplateBase::IsWriteRequest(IServiceContextPtr context) const
+bool TNontemplateNonversionedObjectProxyBase::IsWriteRequest(IServiceContextPtr context) const 
 {
     DECLARE_YPATH_SERVICE_WRITE_METHOD(Remove);
     return TObjectProxyBase::IsWriteRequest(context);
 }
 
-void TNonversionedObjectProxyNontemplateBase::DoInvoke(IServiceContextPtr context)
+bool TNontemplateNonversionedObjectProxyBase::DoInvoke(IServiceContextPtr context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(Remove);
-    TObjectProxyBase::DoInvoke(context);
+    return TObjectProxyBase::DoInvoke(context);
 }
 
-void TNonversionedObjectProxyNontemplateBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
+void TNontemplateNonversionedObjectProxyBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
 {
     UNUSED(request);
 
@@ -426,13 +571,16 @@ void TNonversionedObjectProxyNontemplateBase::GetSelf(TReqGet* request, TRspGet*
     context->Reply();
 }
 
-void TNonversionedObjectProxyNontemplateBase::ValidateRemoval()
+void TNontemplateNonversionedObjectProxyBase::ValidateRemoval()
 {
     THROW_ERROR_EXCEPTION("Object cannot be removed explicitly");
 }
 
-DEFINE_RPC_SERVICE_METHOD(TNonversionedObjectProxyNontemplateBase, Remove)
+void TNontemplateNonversionedObjectProxyBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemovePtr context)
 {
+    UNUSED(request);
+    UNUSED(response);
+
     ValidateRemoval();
 
     if (Object->GetObjectRefCounter() != 1) {

@@ -5,6 +5,7 @@
 
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/serialize.h>
+#include <ytlib/misc/small_vector.h>
 
 #include <server/object_server/object.h>
 
@@ -26,28 +27,30 @@ namespace NCellMaster {
 // Single object ref serialization.
 
 template <class TObject>
-void SaveObjectRef(TOutputStream* output, TObject object)
+void SaveObjectRef(const TSaveContext& context, TObject object)
 {
+	auto* output = context.GetOutput();
     auto id = GetObjectId(object);
     ::Save(output, id);
 }
 
 template <class TId, class TObject>
 inline void SetObjectRefImpl(
+    const TLoadContext& context,
     TId id,
-    TObject*& object,
-    const TLoadContext& context)
+    TObject*& object)
 {
     object = id == TId() ? nullptr : context.Get<TObject>(id);
 }
 
 template <class T>
-void LoadObjectRef(TInputStream* input, T& object, const TLoadContext& context)
+void LoadObjectRef(const TLoadContext& context, T& object)
 {
     typedef decltype(GetObjectId(object)) TId;
     TId id;
+    auto* input = context.GetInput();
     ::Load(input, id);
-    SetObjectRefImpl(id, object, context);
+    SetObjectRefImpl(context, id, object);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,18 +60,19 @@ void LoadObjectRef(TInputStream* input, T& object, const TLoadContext& context)
 struct TObjectRefVectorSerializer
 {
     template <class T>
-    static void SaveRefs(TOutputStream* output, const T& objects)
+    static void SaveRefs(const TSaveContext& context, const T& objects)
     {
         typedef typename T::value_type V;
 
+        auto* output = context.GetOutput();
         ::SaveSize(output, objects.size());
         FOREACH (V object, objects) {
-            SaveObjectRef(output, object);
+            SaveObjectRef(context, object);
         }
     }
 
     template <class T>
-    static void LoadRefs(TInputStream* input, size_t size, T& objects, const TLoadContext& context)
+    static void LoadRefs(const TLoadContext& context, size_t size, T& objects)
     {
         typedef typename T::value_type V;
 
@@ -76,7 +80,7 @@ struct TObjectRefVectorSerializer
         objects.reserve(size);
         for (size_t i = 0; i < size; ++i) {
             V object;
-            LoadObjectRef(input, object, context);
+            LoadObjectRef(context, object);
             objects.push_back(object);
         }
     }
@@ -85,10 +89,11 @@ struct TObjectRefVectorSerializer
 struct TObjectRefSetSerializer
 {
     template <class T>
-    static void SaveRefs(TOutputStream* output, const T& objects)
+    static void SaveRefs(const TSaveContext& context, const T& objects)
     {
         typedef typename T::value_type V;
 
+        auto* output = context.GetOutput();
         ::SaveSize(output, objects.size());
 
         std::vector<V> sortedObjects(objects.begin(), objects.end());
@@ -100,19 +105,19 @@ struct TObjectRefSetSerializer
             });
 
         FOREACH (V object, sortedObjects) {
-            SaveObjectRef(output, object);
+            SaveObjectRef(context, object);
         }
     }
 
     template <class T>
-    static void LoadRefs(TInputStream* input, size_t size, T& objects, const TLoadContext& context)
+    static void LoadRefs(const TLoadContext& context, size_t size, T& objects)
     {
         typedef typename T::value_type V;
 
         objects.clear();
         for (size_t i = 0; i < size; ++i) {
             V object;
-            LoadObjectRef(input, object, context);
+            LoadObjectRef(context, object);
             YCHECK(objects.insert(object).second);
         }
     }
@@ -121,20 +126,20 @@ struct TObjectRefSetSerializer
 struct TObjectRefMultisetSerializer
 {
     template <class T>
-    static void SaveRefs(TOutputStream* output, const T& objects)
+    static void SaveRefs(const TSaveContext& context, const T& objects)
     {
-        TObjectRefSetSerializer::SaveRefs(output, objects);
+        TObjectRefSetSerializer::SaveRefs(context, objects);
     }
 
     template <class T>
-    static void LoadRefs(TInputStream* input, size_t size, T& objects, const TLoadContext& context)
+    static void LoadRefs(const TLoadContext& context, size_t size, T& objects)
     {
         typedef typename T::value_type V;
 
         objects.clear();
         for (size_t i = 0; i < size; ++i) {
             V object;
-            LoadObjectRef(input, object, context);
+            LoadObjectRef(context, object);
             objects.insert(object);
         }
     }
@@ -143,10 +148,11 @@ struct TObjectRefMultisetSerializer
 struct TObjectRefHashMapSerializer
 {
     template <class T>
-    static void SaveRefs(TOutputStream* output, const T& items)
+    static void SaveRefs(const TSaveContext& context, const T& items)
     {
         typedef typename T::const_iterator I;
 
+        auto* output = context.GetOutput();
         ::SaveSize(output, items.size());
 
         std::vector<I> sortedIterators;
@@ -159,17 +165,17 @@ struct TObjectRefHashMapSerializer
             sortedIterators.begin(),
             sortedIterators.end(),
             [] (const I& lhs, const I& rhs) {
-                return GetObjectId(lhs->first) < GetObjectId(rhs->first);
+                return CompareObjectsForSerialization(lhs->first, rhs->first);
             });
 
         FOREACH (const auto& it, sortedIterators) {
-            SaveObjectRef(output, it->first);
-            Save(output, it->second);
+            SaveObjectRef(context, it->first);
+            Save(context, it->second);
         }
     }
 
     template <class T>
-    static void LoadRefs(TInputStream* input, size_t size, T& items, const TLoadContext& context)
+    static void LoadRefs(const TLoadContext& context, size_t size, T& items)
     {
         typedef typename T::key_type K;
         typedef typename T::mapped_type V;
@@ -178,9 +184,9 @@ struct TObjectRefHashMapSerializer
         items.clear();
         for (size_t i = 0; i < size; ++i) {
             K key;
-            LoadObjectRef(input, key, context);
+            LoadObjectRef(context, key);
             V value;
-            Load(input, value);
+            Load(context, value);
             YCHECK(items.insert(std::make_pair(key, value)).second);
         }
     }
@@ -221,42 +227,47 @@ struct TObjectRefSerializerTraits< yhash_map<K, V, H, E, A> >
 };
 
 template <class T>
-void SaveObjectRefs(TOutputStream* output, const T& objects)
+void SaveObjectRefs(const TSaveContext& context, const T& objects)
 {
     typedef typename TObjectRefSerializerTraits<T>::TSerializer TSerializer;
-    TSerializer::SaveRefs(output, objects);
+    TSerializer::SaveRefs(context, objects);
 }
 
 template <class T>
-void LoadObjectRefs(TInputStream* input, T& objects, const TLoadContext& context)
+void LoadObjectRefs(const TLoadContext& context, T& objects)
 {
-    typedef typename TObjectRefSerializerTraits<T>::TSerializer TSerializer;
+    auto* input = context.GetInput();
     size_t size = ::LoadSize(input);
-    TSerializer::LoadRefs(input, size, objects, context);
+
+    typedef typename TObjectRefSerializerTraits<T>::TSerializer TSerializer;
+
+    TSerializer::LoadRefs(context, size, objects);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void SaveNullableObjectRefs(TOutputStream* output, const THolder<T>& objects)
+void SaveNullableObjectRefs(const TSaveContext& context, const THolder<T>& objects)
 {
     if (objects.Get()) {
-        SaveObjectRefs(output, *objects);
+        SaveObjectRefs(context, *objects);
     } else {
+    	auto* output = context.GetOutput();
         ::SaveSize(output, 0);
     }
 }
 
 template <class T>
-void LoadNullableObjectRefs(TInputStream* input, THolder<T>& objects, const TLoadContext& context)
+void LoadNullableObjectRefs(const TLoadContext& context, THolder<T>& objects)
 {
-    typedef typename TObjectRefSerializerTraits<T>::TSerializer TSerializer;
+	auto* input = context.GetInput();
     size_t size = ::LoadSize(input);
     if (size == 0) {
         objects.Destroy();
     } else {
         objects.Reset(new T());
-        TSerializer::LoadRefs(input, size, *objects, context);
+	    typedef typename TObjectRefSerializerTraits<T>::TSerializer TSerializer;
+        TSerializer::LoadRefs(context, size, *objects);
     }
 }
             
@@ -280,6 +291,56 @@ template <class T>
 void Save(const TSaveContext& context, const T& value)
 {
     ::Save(context.GetOutput(), value);
+}
+
+template <class T>
+void Save(const TSaveContext& context, const std::vector<T>& objects)
+{
+    auto* output = context.GetOutput();
+    ::SaveSize(output, objects.size());
+
+    FOREACH (const auto& object, objects) {
+        Save(context, object);
+    }
+}
+
+template <class T>
+void Load(const TLoadContext& context, std::vector<T>& objects)
+{
+    auto* input = context.GetInput();
+    size_t size = ::LoadSize(input);
+
+    objects.resize(size);
+    for (size_t index = 0; index != size; ++index) {
+        Load(context, objects[index]);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(babenko): merge this with the above
+template <class T, unsigned N>
+void Save(const TSaveContext& context, const TSmallVector<T, N>& objects)
+{
+    auto* output = context.GetOutput();
+    ::SaveSize(output, objects.size());
+
+    FOREACH (const auto& object, objects) {
+        Save(context, object);
+    }
+}
+
+// TODO(babenko): merge this with the above
+template <class T, unsigned N>
+void Load(const TLoadContext& context, TSmallVector<T, N>& objects)
+{
+    auto* input = context.GetInput();
+    size_t size = ::LoadSize(input);
+
+    objects.resize(size);
+    for (size_t index = 0; index != size; ++index) {
+        Load(context, objects[index]);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

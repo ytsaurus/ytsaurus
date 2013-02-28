@@ -45,7 +45,7 @@ INodePtr IListNode::GetChild(int index) const
 int IListNode::AdjustChildIndex(int index) const
 {
     int adjustedIndex = index >= 0 ? index : index + GetChildCount();
-    if (adjustedIndex < 0 || adjustedIndex > GetChildCount()) {
+    if (adjustedIndex < 0 || adjustedIndex >= GetChildCount()) {
         ThrowNoSuchChildIndex(this, index);
     }
     return adjustedIndex;
