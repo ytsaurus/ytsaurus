@@ -206,6 +206,7 @@ EResourceType GetDominantResource(
     };
     update(demand.cpu(), limits.cpu(), EResourceType::Cpu);
     update(demand.memory(), limits.memory(), EResourceType::Memory);
+    update(demand.network(), limits.network(), EResourceType::Network);
     return maxType;
 }
 
