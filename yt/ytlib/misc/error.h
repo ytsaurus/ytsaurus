@@ -54,6 +54,8 @@ public:
 
     bool IsOK() const;
 
+    TNullable<TError> FindMatching(int code) const;
+
     enum
     {
         OK = 0,

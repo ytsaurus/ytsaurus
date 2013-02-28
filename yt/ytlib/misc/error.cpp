@@ -178,6 +178,22 @@ void TError::CaptureOriginAttributes()
     Attributes().SetYson("tid", ConvertToYsonString(NThread::GetCurrentThreadId()));
 }
 
+TNullable<TError> TError::FindMatching(int code) const
+{
+    if (Code_ == code) {
+        return *this;
+    }
+
+    FOREACH (const auto& innerError, InnerErrors_) {
+        auto innerResult = innerError.FindMatching(code);
+        if (innerResult) {
+            return std::move(innerResult);
+        }
+    }
+
+    return Null;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
