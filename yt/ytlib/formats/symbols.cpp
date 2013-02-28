@@ -148,15 +148,14 @@ void TLookupTable::Fill(const char* begin, const char* end)
     YCHECK(end - begin <= 16);
 
 #ifdef _YT_USE_SSE42_
-    int i, n;
     char storage[16];
-    ::memset(&storage, 0, sizeof(storage));
+    ::memset(storage, 0, sizeof(storage));
 
-    for (i = 0, n = end - begin; i < n; ++i) {
+    SymbolCount = end - begin;
+    for (int i = 0; i < SymbolCount; ++i) {
         storage[i] = begin[i]; // :) C-style!
     }
 
-    SymbolCount = i;
     Symbols = _mm_setr_epi8(
         storage[0],  storage[1],  storage[2],  storage[3],
         storage[4],  storage[5],  storage[6],  storage[7],
@@ -167,8 +166,7 @@ void TLookupTable::Fill(const char* begin, const char* end)
         Bitmap[i] = false;
     }
 
-    for (const char* current = begin; current != end; ++current)
-    {
+    for (const char* current = begin; current != end; ++current) {
         Bitmap[static_cast<ui8>(*current)] = true;
     }
 #endif
@@ -176,12 +174,12 @@ void TLookupTable::Fill(const char* begin, const char* end)
 
 void TLookupTable::Fill(const std::vector<char>& v)
 {
-    Fill(&*v.begin(), &*v.begin() + v.size());
+    Fill(v.data(), v.data() + v.size());
 }
 
 void TLookupTable::Fill(const std::string& s)
 {
-    Fill(&*s.begin(), &*s.begin() + s.length());
+    Fill(s.data(), s.data() + s.length());
 }
 
 const char* TLookupTable::FindNext(const char* begin, const char* end) const
