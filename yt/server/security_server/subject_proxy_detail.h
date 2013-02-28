@@ -29,7 +29,7 @@ private:
     typedef NObjectServer::TNonversionedObjectProxyBase<TImpl> TBase;
 
 protected:
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override
+    virtual void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeInfo>* attributes) const override
     {
         attributes->push_back("name");
         attributes->push_back("member_of");

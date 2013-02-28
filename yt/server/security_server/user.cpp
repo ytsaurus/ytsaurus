@@ -15,15 +15,11 @@ TUser::TUser(const TUserId& id)
 void TUser::Save(const NCellMaster::TSaveContext& context) const
 {
     TSubject::Save(context);
-
-    auto* output = context.GetOutput();
 }
 
 void TUser::Load(const NCellMaster::TLoadContext& context)
 {
     TSubject::Load(context);
-
-    auto* input = context.GetInput();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

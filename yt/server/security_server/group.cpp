@@ -24,6 +24,7 @@ void TGroup::Save(const NCellMaster::TSaveContext& context) const
 void TGroup::Load(const NCellMaster::TLoadContext& context)
 {
     TSubject::Load(context);
+
     LoadObjectRefs(context, Members_);
 }
 
