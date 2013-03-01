@@ -337,6 +337,7 @@ def main():
     add_list_parser(subparsers)
     add_find_parser(subparsers)
     add_cat_parser(subparsers)
+    add_create_parser(subparsers)
     add_upload_parser(subparsers)
     add_get_parser(subparsers)
     add_set_parser(subparsers)
