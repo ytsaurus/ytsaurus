@@ -423,7 +423,9 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnClose(
 
     auto error = batchRsp->GetCumulativeError();
     if (!error.IsOK()) {
-        auto wrappedError = TError("Error attaching chunks to chunk list %s",
+        auto wrappedError = TError(
+            EErrorCode::MasterCommunicationFailed,
+            "Error attaching chunks to chunk list %s",
             ~ToString(ParentChunkListId))
             << error;
         State.Fail(wrappedError);
