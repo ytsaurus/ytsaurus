@@ -760,13 +760,12 @@ ICypressNodeProxyPtr TNodeFactory::DoCreate(EObjectType type)
         nullptr,
         nullptr,
         nullptr);
+    auto* trunkNode = node->GetTrunkNode();
 
-    objectManager->RefObject(node);
-    CreatedNodes.push_back(node);
+    objectManager->RefObject(trunkNode);
+    CreatedNodes.push_back(trunkNode);
 
-    return cypressManager->GetVersionedNodeProxy(
-        node->GetTrunkNode(),
-        Transaction);
+    return cypressManager->GetVersionedNodeProxy(trunkNode, Transaction);
 }
 
 IStringNodePtr TNodeFactory::CreateString()
