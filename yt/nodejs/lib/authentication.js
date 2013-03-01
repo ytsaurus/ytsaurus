@@ -164,7 +164,12 @@ function YtBlackbox(logger, global_config) { // TODO: Inject |config|
             logger.debug("Client is missing Authorization header", {
                 request_id : req.uuid
             });
-            return next();
+            var ua = req.headers["user-agent"];
+            if (ua && ua.indexOf("Python wrapper") === 0) {
+                return httpUnauthorized(rsp):
+            } else {
+                return next();
+            }
         }
 
         var parts = req.headers["authorization"].split(/\s+/);
