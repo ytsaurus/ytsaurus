@@ -327,20 +327,22 @@ TAutoPtr<IAttributeDictionary> TObjectProxyBase::DoCreateUserAttributes()
         GetId());
 }
 
-void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* names) const
+void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const
 {
     auto securityManager = Bootstrap->GetSecurityManager();
     auto* acd = securityManager->FindAcd(Object);
     bool hasAcd = acd;
+    bool hasOwner = acd && acd->GetOwner();
 
-    names->push_back("id");
-    names->push_back("type");
-    names->push_back("ref_counter");
-    names->push_back("lock_counter");
-    names->push_back(TAttributeInfo("supported_permissions", true, true));
-    names->push_back(TAttributeInfo("inherit_acl", hasAcd, true));
-    names->push_back(TAttributeInfo("acl", hasAcd, true));
-    names->push_back(TAttributeInfo("effective_acl", true, true));
+    attributes->push_back("id");
+    attributes->push_back("type");
+    attributes->push_back("ref_counter");
+    attributes->push_back("lock_counter");
+    attributes->push_back(TAttributeInfo("supported_permissions", true, true));
+    attributes->push_back(TAttributeInfo("inherit_acl", hasAcd, true));
+    attributes->push_back(TAttributeInfo("acl", hasAcd, true));
+    attributes->push_back(TAttributeInfo("owner", hasOwner, false));
+    attributes->push_back(TAttributeInfo("effective_acl", true, true));
 }
 
 bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const
@@ -391,6 +393,12 @@ bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* cons
         if (key == "acl") {
             BuildYsonFluently(consumer)
                 .Value(acd->Acl());
+            return true;
+        }
+        
+        if (key == "owner" && acd->GetOwner()) {
+            BuildYsonFluently(consumer)
+                .Value(acd->GetOwner()->GetName());
             return true;
         }
     }

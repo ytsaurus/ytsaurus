@@ -115,7 +115,7 @@ private:
     
     virtual void DoDestroy(TAccount* account) override;
 
-    virtual TAccessControlDescriptor* DoGetAcd(TAccount* account)
+    virtual TAccessControlDescriptor* DoFindAcd(TAccount* account) override
     {
         return &account->Acd();
     }
@@ -408,10 +408,9 @@ public:
             YCHECK(group->Members().erase(subject) == 1);
         }
 
-        FOREACH (auto* object, subject->ReferencingObjects()) {
-            auto* acd = FindAcd(object);
-            YCHECK(acd);
-            acd->PurgeEntries(subject);
+        FOREACH (const auto& pair, subject->LinkedObjects()) {
+            auto* acd = GetAcd(pair.first);
+            acd->OnSubjectDestroyed(subject, RootUser);
         }
     }
 

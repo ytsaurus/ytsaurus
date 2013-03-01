@@ -799,6 +799,131 @@ TFuture<void> TObjectManager::GCCollect()
     return GarbageCollector->Collect();
 }
 
+TObjectBase* TObjectManager::CreateObject(
+    TTransaction* transaction,
+    TAccount* account,
+    EObjectType type,
+    IAttributeDictionary* attributes,
+    IObjectTypeHandler::TReqCreateObject* request,
+    IObjectTypeHandler::TRspCreateObject* response)
+{
+    auto handler = FindHandler(type);
+    if (!handler) {
+        THROW_ERROR_EXCEPTION("Unknown object type: %s",
+            ~type.ToString());
+    }
+
+    auto options = handler->GetCreationOptions();
+    if (!options) {
+        THROW_ERROR_EXCEPTION("Type does not support creating new instances: %s",
+            ~type.ToString());
+    }
+
+    switch (options->TransactionMode) {
+        case EObjectTransactionMode::Required:
+            if (!transaction) {
+                THROW_ERROR_EXCEPTION("Cannot create an instance of %s outside of a transaction",
+                    ~FormatEnum(type).Quote());
+            }
+            break;
+
+        case EObjectTransactionMode::Forbidden:
+            if (transaction) {
+                THROW_ERROR_EXCEPTION("Cannot create an instance of %s inside of a transaction",
+                    ~FormatEnum(type).Quote());
+            }
+            break;
+
+        case EObjectTransactionMode::Optional:
+            break;
+
+        default:
+            YUNREACHABLE();
+    }
+
+    switch (options->AccountMode) {
+        case EObjectAccountMode::Required:
+            if (!account) {
+                THROW_ERROR_EXCEPTION("Cannot create an instance of %s without an account",
+                    ~FormatEnum(type).Quote());
+            }
+            break;
+
+        case EObjectAccountMode::Forbidden:
+            if (account) {
+                THROW_ERROR_EXCEPTION("Cannot create an instance of %s with an account",
+                    ~FormatEnum(type).Quote());
+            }
+            break;
+
+        case EObjectAccountMode::Optional:
+            break;
+
+        default:
+            YUNREACHABLE();
+    }
+
+    auto* schema = FindSchema(type);
+    if (schema) {
+        auto securityManager = Bootstrap->GetSecurityManager();
+        auto* user = securityManager->GetAuthenticatedUser();
+        securityManager->ValidatePermission(schema, user, EPermission::Create);
+    }
+
+    auto* object = handler->Create(
+        transaction,
+        account,
+        attributes,
+        request,
+        response);
+    const auto& objectId = object->GetId();
+
+    auto attributeKeys = attributes->List();
+    if (!attributeKeys.empty()) {
+        // Copy attributes. Quick and dirty.
+        auto* attributeSet = FindAttributes(TVersionedObjectId(objectId));
+        if (!attributeSet) {
+            attributeSet = CreateAttributes(TVersionedObjectId(objectId));
+        }
+
+        FOREACH (const auto& key, attributeKeys) {
+            YCHECK(attributeSet->Attributes().insert(MakePair(
+                key,
+                attributes->GetYson(key))).second);
+        }
+    }
+
+    if (transaction) {
+        YCHECK(transaction->StagedObjects().insert(object).second);
+        RefObject(object);
+    }
+
+    auto securityManager = Bootstrap->GetSecurityManager();
+    auto* acd = securityManager->FindAcd(object);
+    if (acd) {
+        auto* user = securityManager->GetAuthenticatedUser();
+        acd->SetOwner(user);
+    }
+
+    return object;
+}
+
+void TObjectManager::UnstageObject(
+    TTransaction* transaction,
+    TObjectBase* object,
+    bool recursive)
+{
+    if (transaction->StagedObjects().erase(object) != 1) {
+        THROW_ERROR_EXCEPTION("Object %s does not belong to transaction %s",
+            ~object->GetId().ToString(),
+            ~transaction->GetId().ToString());
+    }
+
+    auto handler = GetHandler(object);
+    handler->Unstage(object, transaction, recursive);
+    UnrefObject(object);
+}
+
 void TObjectManager::ReplayVerb(const NProto::TMetaReqExecute& request)
 {
     VERIFY_THREAD_AFFINITY(StateThread);

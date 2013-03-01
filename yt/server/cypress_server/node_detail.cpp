@@ -143,11 +143,16 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
         }
     }
 
-    // Update account.
-    if (context.Account) {
-        auto securityManager = Bootstrap->GetSecurityManager();
-        securityManager->SetAccount(clonedNode, context.Account);
-    }
+    auto securityManager = Bootstrap->GetSecurityManager();
+
+    // Set account.
+    YCHECK(context.Account);
+    securityManager->SetAccount(clonedNode, context.Account);
+
+    // Set owner.
+    YCHECK(context.Owner);
+    auto* acd = securityManager->GetAcd(clonedNode);
+    acd->SetOwner(context.Owner);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

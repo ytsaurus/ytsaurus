@@ -15,6 +15,7 @@
 
 #include <server/security_server/account.h>
 #include <server/security_server/security_manager.h>
+#include <server/security_server/user.h>
 
 namespace NYT {
 namespace NCypressServer {
@@ -663,8 +664,9 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     securityManager->ValidatePermission(schema, EPermission::Create);
 
     TCloneContext cloneContext;
-    cloneContext.Transaction = Transaction;
     cloneContext.Account = trunkDestImpl->GetAccount();
+    cloneContext.Owner = securityManager->GetAuthenticatedUser();
+    cloneContext.Transaction = Transaction;
 
     auto* clonedImpl = cypressManager->CloneNode(sourceImpl, cloneContext);
     auto* clonedTrunkImpl = clonedImpl->GetTrunkNode();
@@ -747,25 +749,24 @@ TNodeFactory::~TNodeFactory()
 
 ICypressNodeProxyPtr TNodeFactory::DoCreate(EObjectType type)
 {
-    auto cypressManager = Bootstrap->GetCypressManager();
     auto objectManager = Bootstrap->GetObjectManager();
-    auto securityManager = Bootstrap->GetSecurityManager();
-
+    auto cypressManager = Bootstrap->GetCypressManager();
     auto handler = cypressManager->GetHandler(type);
 
-    auto  node = handler->Create(Transaction, nullptr, nullptr);
-    auto* node_ = ~node;
+    auto* node = cypressManager->CreateNode(
+        handler,
+        Transaction,
+        Account,
+        nullptr,
+        nullptr,
+        nullptr);
 
-    cypressManager->RegisterNode(node, Transaction);
+    objectManager->RefObject(node);
+    CreatedNodes.push_back(node);
 
-    if (!node_->GetAccount()) {
-        securityManager->SetAccount(node_, Account);
-    }
-
-    objectManager->RefObject(node_);
-    CreatedNodes.push_back(node_);
-
-    return cypressManager->GetVersionedNodeProxy(node_, Transaction);
+    return cypressManager->GetVersionedNodeProxy(
+        node->GetTrunkNode(),
+        Transaction);
 }
 
 IStringNodePtr TNodeFactory::CreateString()

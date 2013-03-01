@@ -58,19 +58,6 @@ public:
     //! This list includes #transaction itself and |nullptr|.
     std::vector<TTransaction*> GetTransactionPath(TTransaction* transaction) const;
 
-    NObjectServer::TObjectId CreateObject(
-        NTransactionServer::TTransaction* transaction,
-        NSecurityServer::TAccount* account,
-        NObjectServer::EObjectType type,
-        NYTree::IAttributeDictionary* attributes,
-        NObjectServer::IObjectTypeHandler::TReqCreateObject* request,
-        NObjectServer::IObjectTypeHandler::TRspCreateObject* response);
-
-    void UnstageObject(
-        TTransaction* transaction,
-        NObjectServer::TObjectBase* object,
-        bool recursive);
-
 private:
     typedef TTransactionManager TThis;
     class TTransactionTypeHandler;

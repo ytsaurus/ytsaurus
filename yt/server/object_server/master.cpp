@@ -103,14 +103,15 @@ private:
             ? FromProto(request->object_attributes())
             : CreateEphemeralAttributes();
 
-        auto transactionManager = Bootstrap->GetTransactionManager();
-        auto objectId = transactionManager->CreateObject(
+        auto objectManager = Bootstrap->GetObjectManager();
+        auto* object = objectManager->CreateObject(
             transaction,
             account,
             type,
             ~attributes,
             request,
             response);
+        const auto& objectId = object->GetId();
 
         *response->mutable_object_id() = objectId.ToProto();
 
