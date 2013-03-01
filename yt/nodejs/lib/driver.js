@@ -130,7 +130,7 @@ function YtDriver(echo, config) {
     this._binding = new binding.TDriverWrap(echo, config.proxy);
 }
 
-YtDriver.prototype.execute = function(name,
+YtDriver.prototype.execute = function(name, user,
     input_stream, input_compression, input_format,
     output_stream, output_compression, output_format,
     parameters
@@ -172,7 +172,7 @@ YtDriver.prototype.execute = function(name,
             deferred.reject(new YtError("Output pipe has been cancelled", err));
         });
 
-    this._binding.Execute(name,
+    this._binding.Execute(name, user,
         wrapped_input_stream._binding, input_compression, input_format,
         wrapped_output_stream._binding, output_compression, output_format,
         parameters, function(result)

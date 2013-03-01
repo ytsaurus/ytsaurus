@@ -166,8 +166,10 @@ function YtBlackbox(logger, global_config) { // TODO: Inject |config|
             });
             var ua = req.headers["user-agent"];
             if (ua && ua.indexOf("Python wrapper") === 0) {
+                req.authenticated_user = undefined;
                 return httpUnauthorized(rsp):
             } else {
+                req.authenticated_user = "guest";
                 return next();
             }
         }
@@ -175,13 +177,12 @@ function YtBlackbox(logger, global_config) { // TODO: Inject |config|
         var parts = req.headers["authorization"].split(/\s+/);
         var token = parts[1];
 
-        req.authenticated_user = null;
-
         if (parts[0] !== "OAuth" || !token) {
             logger.debug("Client has improper Authorization header", {
                 request_id : req.uuid,
                 header : req.headers["authorization"]
             });
+            req.authenticated_user = undefined;
             return httpUnauthorized(rsp);
         }
 
@@ -222,6 +223,7 @@ function YtBlackbox(logger, global_config) { // TODO: Inject |config|
                     request_id : req.uuid,
                     authentication_time : dt
                 });
+                req.authenticated_user = "guest";
                 process.nextTick(next);
             });
     }

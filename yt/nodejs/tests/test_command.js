@@ -296,7 +296,7 @@ describe("Yt - command parameters", function() {
             rsp.should.be.http2xx;
             self.stub.should.have.been.calledOnce;
             self.stub.firstCall.args[0].should.eql("get");
-            self.stub.firstCall.args[7].should.eql({});
+            self.stub.firstCall.args[8].should.eql({});
         }).end();
     });
 
@@ -309,7 +309,7 @@ describe("Yt - command parameters", function() {
             self.stub.should.have.been.calledOnce;
             self.stub.firstCall.args[0].should.eql("get");
             // TODO(sandello): Fix me.
-            //self.stub.firstCall.args[7].should.eql({
+            //self.stub.firstCall.args[8].should.eql({
             //    "who" : "me", "path" : "/", "foo" : "bar"
             //});
         }).end();
