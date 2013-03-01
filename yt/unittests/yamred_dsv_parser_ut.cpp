@@ -108,6 +108,7 @@ TEST(TYamredDsvParserTest, Escaping)
 
     auto config = New<TYamredDsvFormatConfig>();
     config->HasSubkey = true;
+    config->EnableEscaping = true;
     config->KeyColumnNames.push_back("key");
     config->SubkeyColumnNames.push_back("subkey");
 

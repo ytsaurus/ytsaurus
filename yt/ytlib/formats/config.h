@@ -121,7 +121,7 @@ struct TYamrFormatConfig
         Register("enable_table_index", EnableTableIndex)
             .Default(false);
         Register("enable_escaping", EnableEscaping)
-            .Default(true);
+            .Default(false);
         Register("escaping_symbol", EscapingSymbol)
             .Default('\\');
     }

@@ -161,6 +161,25 @@ TEST(TYamrParserTest, IncorrectIncompleteRows)
     EXPECT_THROW(ParseYamr("key\tvalue\nkey\n", Null, config), std::exception);
 }
 
+TEST(TYamrParserTest, TabsInValue)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    InSequence dummy;
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("key"));
+        EXPECT_CALL(Mock, OnStringScalar("key"));
+        EXPECT_CALL(Mock, OnKeyedItem("value"));
+        EXPECT_CALL(Mock, OnStringScalar("a\tb\\tc\t"));
+    EXPECT_CALL(Mock, OnEndMap());
+    
+    auto config = New<TYamrFormatConfig>();
+    Stroka input = "key\ta\tb\\tc\t";
+    ParseYamr(input, &Mock, config);
+}
+
+
 TEST(TYamrParserTest, Escaping)
 {
     StrictMock<NYTree::TMockYsonConsumer> Mock;
@@ -178,6 +197,7 @@ TEST(TYamrParserTest, Escaping)
     
     auto config = New<TYamrFormatConfig>();
     config->HasSubkey = true;
+    config->EnableEscaping = true;
 
     Stroka input = "\\tkey\\t\t\\n\ta\tb\t\\n\n";
     ParseYamr(input, &Mock, config);
