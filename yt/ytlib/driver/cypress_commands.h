@@ -152,7 +152,7 @@ struct TCreateRequest
             .Default(Null);
         Register("type", Type);
         Register("attributes", Attributes)
-            .Default(NULL);
+            .Default(nullptr);
         Register("recursive", Recursive)
             .Default(false);
         Register("ignore_existing", IgnoreExisting)
@@ -295,6 +295,44 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TLinkRequest
+    : public TTransactedRequest
+{
+    NYPath::TRichYPath LinkPath;
+    NYPath::TRichYPath TargetPath;
+    NYTree::INodePtr Attributes;
+    bool Recursive;
+    bool IgnoreExisting;
+
+    TLinkRequest()
+    {
+        Register("link_path", LinkPath);
+        Register("target_path", TargetPath);
+        Register("attributes", Attributes)
+            .Default(nullptr);
+        Register("recursive", Recursive)
+            .Default(false);
+        Register("ignore_existing", IgnoreExisting)
+            .Default(false);
+    }
+};
+
+typedef TIntrusivePtr<TLinkRequest> TLinkRequestPtr;
+
+class TLinkCommand
+    : public TTransactedCommandBase<TLinkRequest>
+{
+public:
+    explicit TLinkCommand(ICommandContext* context)
+        : TTransactedCommandBase(context)
+    { }
+
+private:
+    virtual void DoExecute() override;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
 } // namespace NDriver
 } // namespace NYT
 

@@ -70,8 +70,8 @@ Stroka TGCCollectExecutor::GetCommandName() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TUpdateMembershipExecutor::TUpdateMembershipExecutor()
-    : GroupArg("group", "group name", false, "", "STRING")
-    , MemberArg("member", "member name (either a group or a user)", false, "", "STRING")
+    : GroupArg("group", "group name", true, "", "STRING")
+    , MemberArg("member", "member name (either a group or a user)", true, "", "STRING")
 {
     CmdLine.add(GroupArg);
     CmdLine.add(MemberArg);

@@ -111,11 +111,9 @@ void TCreateCommand::DoExecute()
         auto rsp = ObjectProxy->Execute(req).Get();
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
-        auto consumer = Context->CreateOutputConsumer();
         auto nodeId = TNodeId::FromProto(rsp->node_id());
-        BuildYsonFluently(~consumer)
-            .Value(nodeId);
-
+        ReplySuccess(BuildYsonStringFluently()
+            .Value(nodeId));
     } else {
         if (Request->Path) {
             THROW_ERROR_EXCEPTION("Object type is nonversioned, Cypress path is not required");
@@ -137,10 +135,9 @@ void TCreateCommand::DoExecute()
         auto rsp = ObjectProxy->Execute(req).Get();
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
-        auto consumer = Context->CreateOutputConsumer();
-        auto objectId = TNodeId::FromProto(rsp->object_id());
-        BuildYsonFluently(~consumer)
-            .Value(objectId);
+        auto objectId = TObjectId::FromProto(rsp->object_id());
+        ReplySuccess(BuildYsonStringFluently()
+            .Value(objectId));
     }
 }
 
@@ -212,6 +209,42 @@ void TExistsCommand::DoExecute()
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
     ReplySuccess(ConvertToYsonString(rsp->value()));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TLinkCommand::DoExecute()
+{
+    TObjectId targetId;
+    {
+        auto req = TCypressYPathProxy::Get(Request->TargetPath.GetPath() + "/@id");
+        SetTransactionId(req, GetTransactionId(false));
+
+        auto rsp = ObjectProxy->Execute(req).Get();
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+        targetId = ConvertTo<TObjectId>(TYsonString(rsp->value()));
+    }
+
+    TObjectId linkId;
+    {
+        auto req = TCypressYPathProxy::Create(Request->LinkPath.GetPath());
+        req->set_type(EObjectType::LinkNode);
+        req->set_recursive(Request->Recursive);
+        req->set_ignore_existing(Request->IgnoreExisting);
+        SetTransactionId(req, GetTransactionId(false));
+        NMetaState::GenerateRpcMutationId(req);
+
+        auto attributes = Request->Attributes ? ConvertToAttributes(Request->Attributes) : CreateEphemeralAttributes();
+        attributes->Set("target_id", targetId);
+        ToProto(req->mutable_node_attributes(), *attributes);
+
+        auto rsp = ObjectProxy->Execute(req).Get();
+        THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
+        linkId = TNodeId::FromProto(rsp->node_id());
+    }
+
+    ReplySuccess(BuildYsonStringFluently()
+        .Value(linkId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

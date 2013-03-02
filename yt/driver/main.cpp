@@ -64,6 +64,7 @@ public:
         RegisterExecutor(New<TCopyExecutor>());
         RegisterExecutor(New<TMoveExecutor>());
         RegisterExecutor(New<TExistsExecutor>());
+        RegisterExecutor(New<TLinkExecutor>());
 
         RegisterExecutor(New<TDownloadExecutor>());
         RegisterExecutor(New<TUploadExecutor>());

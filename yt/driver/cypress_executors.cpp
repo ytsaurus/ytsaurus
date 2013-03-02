@@ -136,10 +136,10 @@ Stroka TListExecutor::GetCommandName() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TCreateExecutor::TCreateExecutor()
-    : TypeArg("type", "type of node", true, NObjectClient::EObjectType::Null, "NODE_TYPE")
+    : TypeArg("type", "object type to create", true, NObjectClient::EObjectType::Null, "OBJECT_TYPE")
     , PathArg("path", "object path to create", false, TRichYPath(""), "YPATH")
     , RecursiveArg("", "recursive", "create nodes of path recursively", false)
-    , IgnoreExistingArg("", "ignore_existing", "do not fail of node already exists and has the same type", false)
+    , IgnoreExistingArg("", "ignore_existing", "do not fail if node already exists and has the same type", false)
 {
     CmdLine.add(TypeArg);
     CmdLine.add(PathArg);
@@ -275,6 +275,39 @@ void TExistsExecutor::BuildArgs(IYsonConsumer* consumer)
 Stroka TExistsExecutor::GetCommandName() const
 {
     return "exists";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLinkExecutor::TLinkExecutor()
+    : TargetPathArg("target_path", "path to target object", true, TRichYPath(""), "YPATH")
+    , LinkPathArg("link_path", "path to link node", true, TRichYPath(""), "YPATH")
+    , RecursiveArg("", "recursive", "create nodes of path recursively", false)
+    , IgnoreExistingArg("", "ignore_existing", "do not fail if node already exists and has the same type", false)
+{
+    CmdLine.add(TargetPathArg);
+    CmdLine.add(LinkPathArg);
+    CmdLine.add(RecursiveArg);
+    CmdLine.add(IgnoreExistingArg);
+}
+
+void TLinkExecutor::BuildArgs(IYsonConsumer* consumer)
+{
+    auto targetPath = PreprocessYPath(TargetPathArg.getValue());
+    auto linkPath = PreprocessYPath(LinkPathArg.getValue());
+
+    BuildYsonMapFluently(consumer)
+        .Item("target_path").Value(targetPath)
+        .Item("link_path").Value(linkPath)
+        .Item("recursive").Value(RecursiveArg.getValue())
+        .Item("ignore_existing").Value(IgnoreExistingArg.getValue());
+
+    TTransactedExecutor::BuildArgs(consumer);
+}
+
+Stroka TLinkExecutor::GetCommandName() const
+{
+    return "link";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
