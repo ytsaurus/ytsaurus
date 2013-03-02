@@ -105,10 +105,16 @@ protected:
 
     virtual void InitClientSocket(SOCKET clientSocket)
     {
-        {
+        if (Config->EnableNoDelay) {
             int value = 1;
             setsockopt(clientSocket, IPPROTO_TCP, TCP_NODELAY, (const char*) &value, sizeof(value));
         }
+#if !defined(_win_) && !defined(__APPLE__)
+        if (Config->EnableQuickAck) {
+            int value = 1;
+            setsockopt(clientSocket, IPPROTO_TCP, TCP_QUICKACK, (const char*) &value, sizeof(value));
+        }
+#endif
         {
             int value = 1;
             setsockopt(clientSocket, SOL_SOCKET, SO_KEEPALIVE, (const char*) &value, sizeof(value));
@@ -212,6 +218,7 @@ protected:
             InitSocket(clientSocket);
 
             auto connection = New<TTcpConnection>(
+                Config,
                 EConnectionType::Server,
                 TConnectionId::Create(),
                 clientSocket,
@@ -311,7 +318,7 @@ private:
     {
         TBusServerBase::InitClientSocket(clientSocket);
 
-#ifdef _linux_
+#if !defined(_win_) && !defined(__APPLE__)
         {
             int priority = Config->Priority;
             setsockopt(clientSocket, SOL_SOCKET, SO_PRIORITY, (const char*) &priority, sizeof(priority));

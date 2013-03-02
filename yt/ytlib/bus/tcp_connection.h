@@ -34,6 +34,7 @@ class TTcpConnection
 {
 public:
     TTcpConnection(
+        TTcpBusConfigPtr config,
         EConnectionType type,
         const TConnectionId& id,
         int socket,
@@ -124,6 +125,7 @@ private:
     );
 
     TTcpDispatcher::TImpl* Dispatcher;
+    TTcpBusConfigPtr Config;
     EConnectionType Type;
     TConnectionId Id;
     int Socket;

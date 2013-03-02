@@ -45,8 +45,8 @@ public:
         , Id(TConnectionId::Create())
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YASSERT(config);
-        YASSERT(handler);
+        YCHECK(config);
+        YCHECK(handler);
     }
 
     ~TTcpClientBusProxy()
@@ -66,6 +66,7 @@ public:
             ~Id.ToString());
 
         Connection = New<TTcpConnection>(
+            Config,
             EConnectionType::Client,
             Id,
             INVALID_SOCKET,

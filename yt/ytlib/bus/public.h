@@ -27,6 +27,9 @@ struct TBusStatistics;
 
 typedef TGuid TSesisonId;
 
+struct TTcpBusConfig;
+typedef TIntrusivePtr<TTcpBusConfig> TTcpBusConfigPtr;
+
 struct TTcpBusServerConfig;
 typedef TIntrusivePtr<TTcpBusServerConfig> TTcpBusServerConfigPtr;
 

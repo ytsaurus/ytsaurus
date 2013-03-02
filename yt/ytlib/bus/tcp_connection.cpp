@@ -42,6 +42,7 @@ static NProfiling::TAggregateCounter PendingOutSize("/pending_out_size");
 ////////////////////////////////////////////////////////////////////////////////
 
 TTcpConnection::TTcpConnection(
+    TTcpBusConfigPtr config,
     EConnectionType type,
     const TConnectionId& id,
     int socket,
@@ -49,6 +50,7 @@ TTcpConnection::TTcpConnection(
     int priority,
     IMessageHandlerPtr handler)
     : Dispatcher(TTcpDispatcher::TImpl::Get())
+    , Config(config)
     , Type(type)
     , Id(id)
     , Socket(socket)
@@ -368,28 +370,35 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
         }
     }
 
-    if (family != AF_UNIX) {
-        int value = 1;
-        if (setsockopt(Socket, IPPROTO_TCP, TCP_NODELAY, (const char*) &value, sizeof(value)) != 0) {
-            THROW_ERROR_EXCEPTION("Failed to disable TCP delay")
-                << TError::FromSystem();
+    if (Config->EnableNoDelay && family != AF_UNIX) {
+        if (Config->EnableNoDelay) {
+            int value = 1;
+            if (setsockopt(Socket, IPPROTO_TCP, TCP_NODELAY, (const char*) &value, sizeof(value)) != 0) {
+                THROW_ERROR_EXCEPTION("Failed to enable socket NODELAY mode")
+                    << TError::FromSystem();
+            }
         }
-    }
-
-#if !defined(_WIN32) && !defined(__APPLE__)
-    {
-        if (setsockopt(Socket, SOL_SOCKET, SO_PRIORITY, (const char*) &Priority, sizeof(Priority)) != 0) {
-            THROW_ERROR_EXCEPTION("Failed to set socket priority")
-                << TError::FromSystem();
+#if !defined(_win_) && !defined(__APPLE__)
+        if (Config->EnableQuickAck) {
+            int value = 1;
+            if (setsockopt(Socket, IPPROTO_TCP, TCP_QUICKACK, (const char*) &value, sizeof(value)) != 0) {
+                THROW_ERROR_EXCEPTION("Failed to enable socket QUICKACK mode")
+                    << TError::FromSystem();
+            }
         }
-    }
+        {
+            if (setsockopt(Socket, SOL_SOCKET, SO_PRIORITY, (const char*) &Priority, sizeof(Priority)) != 0) {
+                THROW_ERROR_EXCEPTION("Failed to set socket priority")
+                    << TError::FromSystem();
+            }
+        }
 #endif
-
-    if (family != AF_UNIX) {
-        int value = 1;
-        if (setsockopt(Socket, SOL_SOCKET, SO_KEEPALIVE, (const char*) &value, sizeof(value)) != 0) {
-            THROW_ERROR_EXCEPTION("Failed to enable keep alive")
-                << TError::FromSystem();
+        {
+            int value = 1;
+            if (setsockopt(Socket, SOL_SOCKET, SO_KEEPALIVE, (const char*) &value, sizeof(value)) != 0) {
+                THROW_ERROR_EXCEPTION("Failed to enable keep alive")
+                    << TError::FromSystem();
+            }
         }
     }
 
