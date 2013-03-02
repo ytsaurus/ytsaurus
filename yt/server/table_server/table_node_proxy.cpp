@@ -700,6 +700,8 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
 {
     context->SetRequestInfo("");
 
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
+
     const auto* node = GetThisTypedImpl();
 
     auto attributes = ConvertToAttributes(TYsonString(request->Attributes().GetYson("path_attributes")));
