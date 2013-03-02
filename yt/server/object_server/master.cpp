@@ -86,8 +86,6 @@ private:
             ~ToString(transactionId),
             ~type.ToString());
 
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-
         auto* transaction =
             transactionId != NullTransactionId
             ? GetTransaction(transactionId)
