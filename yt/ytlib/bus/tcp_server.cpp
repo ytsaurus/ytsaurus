@@ -109,12 +109,6 @@ protected:
             int value = 1;
             setsockopt(clientSocket, IPPROTO_TCP, TCP_NODELAY, (const char*) &value, sizeof(value));
         }
-#if !defined(_win_) && !defined(__APPLE__)
-        if (Config->EnableQuickAck) {
-            int value = 1;
-            setsockopt(clientSocket, IPPROTO_TCP, TCP_QUICKACK, (const char*) &value, sizeof(value));
-        }
-#endif
         {
             int value = 1;
             setsockopt(clientSocket, SOL_SOCKET, SO_KEEPALIVE, (const char*) &value, sizeof(value));

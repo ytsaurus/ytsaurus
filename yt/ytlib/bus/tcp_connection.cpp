@@ -379,13 +379,6 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
             }
         }
 #if !defined(_win_) && !defined(__APPLE__)
-        if (Config->EnableQuickAck) {
-            int value = 1;
-            if (setsockopt(Socket, IPPROTO_TCP, TCP_QUICKACK, (const char*) &value, sizeof(value)) != 0) {
-                THROW_ERROR_EXCEPTION("Failed to enable socket QUICKACK mode")
-                    << TError::FromSystem();
-            }
-        }
         {
             if (setsockopt(Socket, SOL_SOCKET, SO_PRIORITY, (const char*) &Priority, sizeof(Priority)) != 0) {
                 THROW_ERROR_EXCEPTION("Failed to set socket priority")
@@ -618,6 +611,13 @@ bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
     Profiler.Aggregate(ReceiveSize, *bytesRead);
 
     LOG_TRACE("%" PRISZT " bytes read", *bytesRead);
+
+#if !defined(_win_) && !defined(__APPLE__)
+    if (Config->EnableQuickAck) {
+        int value = 1;
+        setsockopt(Socket, IPPROTO_TCP, TCP_QUICKACK, (const char*) &value, sizeof(value));
+    }
+#endif
 
     return true;
 }
