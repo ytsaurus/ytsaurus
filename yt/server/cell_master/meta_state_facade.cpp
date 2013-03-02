@@ -227,6 +227,30 @@ private:
 
             CreateNode(
                 rootService,
+                "//sys/schemas",
+                transactionId,
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
+
+            FOREACH (auto type, objectManager->GetRegisteredTypes()) {
+                if (TypeHasSchema(type)) {
+                    CreateNode(
+                        rootService,
+                        "//sys/schemas/" + ToYPathLiteral(FormatEnum(type)),
+                        transactionId,
+                        EObjectType::LinkNode,
+                        BuildYsonStringFluently()
+                            .BeginMap()
+                                .Item("target_id").Value(objectManager->GetSchema(type)->GetId())
+                            .EndMap());
+                }
+            }
+
+            CreateNode(
+                rootService,
                 "//sys/scheduler",
                 transactionId,
                 EObjectType::MapNode,
