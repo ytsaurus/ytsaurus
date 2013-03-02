@@ -336,6 +336,11 @@ private:
         return New<TTransactionProxy>(Bootstrap, transaction);
     }
 
+    virtual TAccessControlDescriptor* DoFindAcd(TTransaction* transaction) override
+    {
+        return &transaction->Acd();
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

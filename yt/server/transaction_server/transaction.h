@@ -16,6 +16,7 @@
 
 #include <server/security_server/public.h>
 #include <server/security_server/cluster_resources.h>
+#include <server/security_server/acl.h>
 
 namespace NYT {
 namespace NTransactionServer {
@@ -48,6 +49,7 @@ class TTransaction
     // Security Manager stuff
     typedef yhash<NSecurityServer::TAccount*, NSecurityServer::TClusterResources> TAccountResourcesMap;
     DEFINE_BYREF_RW_PROPERTY(TAccountResourcesMap, AccountResourceUsage);
+    DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
 public:
     explicit TTransaction(const TTransactionId& id);
