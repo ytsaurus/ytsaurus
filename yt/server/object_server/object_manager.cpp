@@ -541,9 +541,8 @@ void TObjectManager::SaveSchemas(const NCellMaster::TSaveContext& context) const
 {
     FOREACH (auto type, RegisteredTypes) {
         if (TypeHasSchema(type)) {
-            auto schemaType = SchemaTypeFromType(type);
-            const auto& entry = TypeToEntry[schemaType.ToValue()];
-            Save(context, schemaType);
+            Save(context, type);
+            const auto& entry = TypeToEntry[type.ToValue()];
             entry.SchemaObject->Save(context);
         }
     }
@@ -573,12 +572,12 @@ void TObjectManager::LoadSchemas(const NCellMaster::TLoadContext& context)
     InitWellKnownSingletons();
 
     while (true) {
-        EObjectType schemaType;
-        Load(context, schemaType);
-        if (schemaType == EObjectType::Null)
+        EObjectType type;
+        Load(context, type);
+        if (type == EObjectType::Null)
             break;
 
-        const auto& entry = TypeToEntry[schemaType.ToValue()];
+        const auto& entry = TypeToEntry[type.ToValue()];
         entry.SchemaObject->Load(context);
     }
 }
