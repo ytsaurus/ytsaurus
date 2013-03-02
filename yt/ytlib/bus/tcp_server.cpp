@@ -133,7 +133,7 @@ protected:
 
         InitSocket(ServerSocket);
 
-        if (listen(ServerSocket, SOMAXCONN) == SOCKET_ERROR) {
+        if (listen(ServerSocket, Config->MaxBacklogSize) == SOCKET_ERROR) {
             int error = LastSystemError();
             CloseServerSocket();
             THROW_ERROR_EXCEPTION("Failed to listen to server socket")
@@ -157,8 +157,8 @@ protected:
     {
         // TODO(babenko): check results
 #ifdef _win_
-        unsigned long dummy = 1;
-        ioctlsocket(socket, FIONBIO, &dummy);
+        unsigned long value = 1;
+        ioctlsocket(socket, FIONBIO, &value);
 #else
         fcntl(socket, F_SETFL, O_NONBLOCK);
         fcntl(socket, F_SETFD, FD_CLOEXEC);

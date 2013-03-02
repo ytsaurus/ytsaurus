@@ -32,11 +32,14 @@ struct TTcpBusServerConfig
     : public TTcpBusConfig
 {
     int Port;
+    int MaxBacklogSize;
 
     explicit TTcpBusServerConfig(int port = -1)
         : Port(port)
     {
         Register("port", Port);
+        Register("max_backlog_size", MaxBacklogSize)
+            .Default(8192);
     }
 };
 
