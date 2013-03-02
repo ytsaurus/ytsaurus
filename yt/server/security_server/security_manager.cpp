@@ -687,23 +687,21 @@ public:
         auto result = CheckPermission(object, user, permission);
         if (result.Action == ESecurityAction::Deny) {
             auto objectManager = Bootstrap->GetObjectManager();
-            auto objectName = objectManager->GetHandler(object)->GetName(object);
             TError error;
             if (result.Object && result.Subject) {
-                auto objectName = objectManager->GetHandler(result.Object)->GetName(result.Object);
                 error = TError("Access denied: %s permission for %s is denied for %s by ACE at %s",
                     ~FormatEnum(permission).Quote(),
-                    ~objectName,
+                    ~objectManager->GetHandler(object)->GetName(object),
                     ~result.Subject->GetName().Quote(),
-                    ~objectName);
+                    ~objectManager->GetHandler(object)->GetName(result.Object));
             } else {
                 error = TError("Access denied: %s permission for %s is not allowed by any matching ACE",
                     ~FormatEnum(permission).Quote(),
-                    ~objectName);
+                    ~objectManager->GetHandler(object)->GetName(object));
             }
             error.Attributes().Set("permission", ~FormatEnum(permission));
             error.Attributes().Set("user", user->GetName());
-            error.Attributes().Set("object", objectName);
+            error.Attributes().Set("object", ~ToString(object->GetId()));
             if (result.Object) {
                 error.Attributes().Set("denied_by", result.Object->GetId());
             }
