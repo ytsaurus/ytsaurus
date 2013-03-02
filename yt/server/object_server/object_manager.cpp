@@ -548,7 +548,7 @@ void TObjectManager::SaveSchemas(const NCellMaster::TSaveContext& context) const
         }
     }
 
-    Save(context, static_cast<int>(-1));
+    Save(context, EObjectType::Null);
 }
 
 void TObjectManager::LoadKeys(const NCellMaster::TLoadContext& context)
@@ -575,7 +575,7 @@ void TObjectManager::LoadSchemas(const NCellMaster::TLoadContext& context)
     while (true) {
         EObjectType schemaType;
         Load(context, schemaType);
-        if (schemaType.ToValue() < 0)
+        if (schemaType == EObjectType::Null)
             break;
 
         const auto& entry = TypeToEntry[schemaType.ToValue()];
