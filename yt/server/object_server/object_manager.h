@@ -60,6 +60,9 @@ public:
     //! Returns the handler for a given object.
     IObjectTypeHandlerPtr GetHandler(TObjectBase* object) const;
 
+    //! Returns the list of registered object types, excluding schemas.
+    const std::vector<EObjectType> GetRegisteredTypes() const;
+
     //! Returns the cell id.
     TCellId GetCellId() const;
 
@@ -189,6 +192,7 @@ private:
         IObjectProxyPtr SchemaProxy;
     };
 
+    std::vector<EObjectType> RegisteredTypes;
     std::vector<TTypeEntry> TypeToEntry;
     
     TRootServicePtr RootService;

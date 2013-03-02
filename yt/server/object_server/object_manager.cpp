@@ -362,6 +362,7 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
     YCHECK(typeValue >= 0 && typeValue <= MaxObjectType);
     YCHECK(!TypeToEntry[typeValue].Handler);
 
+    RegisteredTypes.push_back(type);
     auto& entry = TypeToEntry[typeValue];
     entry.Handler = handler;
     if (TypeHasSchema(type)) {
@@ -401,6 +402,11 @@ IObjectTypeHandlerPtr TObjectManager::GetHandler(EObjectType type) const
 IObjectTypeHandlerPtr TObjectManager::GetHandler(TObjectBase* object) const
 {
     return GetHandler(object->GetType());
+}
+
+const std::vector<EObjectType> TObjectManager::GetRegisteredTypes() const
+{
+    return RegisteredTypes;
 }
 
 TCellId TObjectManager::GetCellId() const
@@ -510,10 +516,9 @@ void TObjectManager::InitWellKnownSingletons()
     MasterObject->RefObject();
     MasterProxy = CreateMasterProxy(Bootstrap, ~MasterObject);
 
-    for (int typeValue = 0; typeValue < MaxObjectType; ++typeValue) {
-        auto type = EObjectType(typeValue);
-        auto& entry = TypeToEntry[typeValue];
-        if (entry.Handler && TypeHasSchema(type)) {
+    FOREACH (auto type, RegisteredTypes)  {
+        auto& entry = TypeToEntry[type.ToValue()];
+        if (TypeHasSchema(type)) {
             entry.SchemaObject = new TSchemaObject(MakeSchemaObjectId(type, GetCellId()));
             entry.SchemaObject->RefObject();
             entry.SchemaProxy = CreateSchemaProxy(Bootstrap, ~entry.SchemaObject);
@@ -534,17 +539,16 @@ void TObjectManager::SaveValues(const NCellMaster::TSaveContext& context) const
 
 void TObjectManager::SaveSchemas(const NCellMaster::TSaveContext& context) const
 {
-    auto* output = context.GetOutput();
-    
-    for (int typeValue = 0; typeValue <= MaxObjectType; ++typeValue) {
-        const auto& entry = TypeToEntry[typeValue];
-        if (~entry.SchemaObject) {
-            ::Save(output, typeValue);
+    FOREACH (auto type, RegisteredTypes) {
+        if (TypeHasSchema(type)) {
+            auto schemaType = SchemaTypeFromType(type);
+            const auto& entry = TypeToEntry[schemaType.ToValue()];
+            Save(context, schemaType);
             entry.SchemaObject->Save(context);
         }
     }
 
-    ::Save(output, static_cast<int>(-1));
+    Save(context, static_cast<int>(-1));
 }
 
 void TObjectManager::LoadKeys(const NCellMaster::TLoadContext& context)
@@ -568,14 +572,13 @@ void TObjectManager::LoadSchemas(const NCellMaster::TLoadContext& context)
 
     InitWellKnownSingletons();
 
-    auto* input = context.GetInput();
     while (true) {
-        int typeValue;
-        ::Load(input, typeValue);
-        if (typeValue < 0)
+        EObjectType schemaType;
+        Load(context, schemaType);
+        if (schemaType.ToValue() < 0)
             break;
 
-        auto& entry = TypeToEntry[typeValue];
+        const auto& entry = TypeToEntry[schemaType.ToValue()];
         entry.SchemaObject->Load(context);
     }
 }

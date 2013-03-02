@@ -1064,12 +1064,10 @@ private:
     void InitDefaultSchemaAcds()
     {
         auto objectManager = Bootstrap->GetObjectManager();
-        for (int typeValue = 0; typeValue < MaxObjectType; ++typeValue) {
-            auto type = EObjectType(typeValue);
-            auto handler = objectManager->FindHandler(type);
-            if (handler && TypeHasSchema(type)) {
+        FOREACH (auto type, objectManager->GetRegisteredTypes()) {
+            if (TypeHasSchema(type)) {
                 auto* schema = objectManager->GetSchema(type);
-                auto* acd = FindAcd(schema);
+                auto* acd = GetAcd(schema);
                 if (!TypeIsVersioned(type)) {
                     acd->AddEntry(TAccessControlEntry(
                         ESecurityAction::Allow,
