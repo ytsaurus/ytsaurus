@@ -863,10 +863,11 @@ TObjectBase* TObjectManager::CreateObject(
             YUNREACHABLE();
     }
 
+    auto securityManager = Bootstrap->GetSecurityManager();
+    auto* user = securityManager->GetAuthenticatedUser();
+
     auto* schema = FindSchema(type);
     if (schema) {
-        auto securityManager = Bootstrap->GetSecurityManager();
-        auto* user = securityManager->GetAuthenticatedUser();
         securityManager->ValidatePermission(schema, user, EPermission::Create);
     }
 
@@ -898,10 +899,8 @@ TObjectBase* TObjectManager::CreateObject(
         RefObject(object);
     }
 
-    auto securityManager = Bootstrap->GetSecurityManager();
     auto* acd = securityManager->FindAcd(object);
     if (acd) {
-        auto* user = securityManager->GetAuthenticatedUser();
         acd->SetOwner(user);
     }
 
