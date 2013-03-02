@@ -3,9 +3,6 @@
 #include "node_proxy_detail.h"
 #include "helpers.h"
 
-#include <server/cell_master/serialization_context.h>
-#include <server/cell_master/bootstrap.h>
-
 namespace NYT {
 namespace NCypressServer {
 
@@ -386,7 +383,7 @@ void TListNode::Load(const NCellMaster::TLoadContext& context)
 ////////////////////////////////////////////////////////////////////////////////
 
 TListNodeTypeHandler::TListNodeTypeHandler(TBootstrap* bootstrap)
-    : TCypressNodeTypeHandlerBase<TListNode>(bootstrap)
+    : TBase(bootstrap)
 { }
 
 EObjectType TListNodeTypeHandler::GetObjectType()
@@ -476,6 +473,79 @@ void TListNodeTypeHandler::DoClone(
         clonedChildNode->SetParent(clonedNode->GetTrunkNode());
         objectManager->RefObject(clonedChildTrunkNode);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLinkNode::TLinkNode(const TVersionedNodeId& id)
+    : TCypressNodeBase(id)
+{ }
+
+void TLinkNode::Save(const NCellMaster::TSaveContext& context) const 
+{
+    TCypressNodeBase::Save(context);
+    NCellMaster::Save(context, TargetId_);
+}
+
+void TLinkNode::Load(const NCellMaster::TLoadContext& context)
+{
+    TCypressNodeBase::Load(context);
+    NCellMaster::Load(context, TargetId_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLinkNodeTypeHandler::TLinkNodeTypeHandler(NCellMaster::TBootstrap* bootstrap)
+    : TBase(bootstrap)
+{ }
+
+EObjectType TLinkNodeTypeHandler::GetObjectType()
+{
+    return EObjectType::LinkNode;
+}
+
+ENodeType TLinkNodeTypeHandler::GetNodeType()
+{
+    return ENodeType::Entity;
+}
+
+ICypressNodeProxyPtr TLinkNodeTypeHandler::DoGetProxy(
+    TLinkNode* trunkNode,
+    TTransaction* transaction)
+{
+    return New<TLinkNodeProxy>(
+        this,
+        Bootstrap,
+        transaction,
+        trunkNode);
+}
+
+void TLinkNodeTypeHandler::DoBranch(
+    const TLinkNode* originatingNode,
+    TLinkNode* branchedNode)
+{
+    TBase::DoBranch(originatingNode, branchedNode);
+
+    branchedNode->SetTargetId(originatingNode->GetTargetId());
+}
+
+void TLinkNodeTypeHandler::DoMerge(
+    TLinkNode* originatingNode,
+    TLinkNode* branchedNode)
+{
+    TBase::DoMerge(originatingNode, branchedNode);
+
+    originatingNode->SetTargetId(branchedNode->GetTargetId());
+}
+
+void TLinkNodeTypeHandler::DoClone(
+    TLinkNode* sourceNode,
+    TLinkNode* clonedNode,
+    const TCloneContext& context)
+{
+    TBase::DoClone(sourceNode, clonedNode, context);
+
+    clonedNode->SetTargetId(sourceNode->GetTargetId());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

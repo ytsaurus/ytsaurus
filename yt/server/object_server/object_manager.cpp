@@ -548,7 +548,7 @@ void TObjectManager::SaveSchemas(const NCellMaster::TSaveContext& context) const
         }
     }
 
-    Save(context, EObjectType::Null);
+    Save(context, EObjectType(EObjectType::Null));
 }
 
 void TObjectManager::LoadKeys(const NCellMaster::TLoadContext& context)

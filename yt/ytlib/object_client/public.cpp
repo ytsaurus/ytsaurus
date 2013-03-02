@@ -20,6 +20,7 @@ bool TypeIsVersioned(EObjectType type)
            type == EObjectType::DoubleNode ||
            type == EObjectType::MapNode ||
            type == EObjectType::ListNode ||
+           type == EObjectType::LinkNode || 
            type == EObjectType::File ||
            type == EObjectType::Table ||
            type == EObjectType::ChunkMap ||

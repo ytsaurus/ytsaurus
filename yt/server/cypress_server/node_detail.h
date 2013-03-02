@@ -277,9 +277,6 @@ protected:
         UNUSED(context);
     }
 
-private:
-    typedef TCypressNodeTypeHandlerBase<TImpl> TThis;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -319,8 +316,6 @@ template <class TValue>
 class TScalarNode
     : public TCypressNodeBase
 {
-    typedef TScalarNode<TValue> TThis;
-
     DEFINE_BYREF_RW_PROPERTY(TValue, Value)
 
 public:
@@ -332,15 +327,13 @@ public:
     virtual void Save(const NCellMaster::TSaveContext& context) const override
     {
         TCypressNodeBase::Save(context);
-        auto* output = context.GetOutput();
-        ::Save(output, Value_);
+        NCellMaster::Save(context, Value_);
     }
 
     virtual void Load(const NCellMaster::TLoadContext& context) override
     {
         TCypressNodeBase::Load(context);
-        auto* input = context.GetInput();
-        ::Load(input, Value_);
+        NCellMaster::Load(context, Value_);
     }
 };
 
@@ -442,7 +435,6 @@ public:
     virtual NYTree::ENodeType GetNodeType() override;
 
 private:
-    typedef TMapNodeTypeHandler TThis;
     typedef TCypressNodeTypeHandlerBase<TMapNode> TBase;
 
     virtual ICypressNodeProxyPtr DoGetProxy(
@@ -496,7 +488,6 @@ public:
     virtual NYTree::ENodeType GetNodeType() override;
 
 private:
-    typedef TListNodeTypeHandler TThis;
     typedef TCypressNodeTypeHandlerBase<TListNode> TBase;
 
     virtual ICypressNodeProxyPtr DoGetProxy(
@@ -514,8 +505,55 @@ private:
         TListNode* branchedNode) override;
 
     virtual void DoClone(
-        TListNode* node,
+        TListNode* sourceNode,
         TListNode* clonedNode,
+        const TCloneContext& context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLinkNode
+    : public TCypressNodeBase
+{
+    DEFINE_BYVAL_RW_PROPERTY(NObjectServer::TObjectId, TargetId);
+
+public:
+    explicit TLinkNode(const TVersionedNodeId& id);
+
+    virtual void Save(const NCellMaster::TSaveContext& context) const override;
+    virtual void Load(const NCellMaster::TLoadContext& context) override;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLinkNodeTypeHandler
+    : public TCypressNodeTypeHandlerBase<TLinkNode>
+{
+public:
+    explicit TLinkNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
+
+    virtual NObjectClient::EObjectType GetObjectType() override;
+    virtual NYTree::ENodeType GetNodeType() override;
+
+private:
+    typedef TCypressNodeTypeHandlerBase<TLinkNode> TBase;
+
+    virtual ICypressNodeProxyPtr DoGetProxy(
+        TLinkNode* trunkNode,
+        NTransactionServer::TTransaction* transaction) override;
+
+    virtual void DoBranch(
+        const TLinkNode* originatingNode,
+        TLinkNode* branchedNode) override;
+
+    virtual void DoMerge(
+        TLinkNode* originatingNode,
+        TLinkNode* branchedNode) override;
+
+    virtual void DoClone(
+        TLinkNode* sourceNode,
+        TLinkNode* clonedNode,
         const TCloneContext& context) override;
 };
 

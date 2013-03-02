@@ -1213,6 +1213,81 @@ IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TLinkNodeProxy::TLinkNodeProxy(
+    INodeTypeHandlerPtr typeHandler,
+    TBootstrap* bootstrap,
+    TTransaction* transaction,
+    TLinkNode* trunkNode)
+    : TBase(
+        typeHandler,
+        bootstrap,
+        transaction,
+        trunkNode)
+{ }
+
+IYPathService::TResolveResult TLinkNodeProxy::Resolve(
+    const TYPath& path,
+    IServiceContextPtr context)
+{
+    NYPath::TTokenizer tokenizer(path);
+    switch (tokenizer.Advance()) {
+        case NYPath::ETokenType::Ampersand:
+            return TBase::Resolve(tokenizer.GetSuffix(), context);
+        case NYPath::ETokenType::EndOfStream:
+            // NB: Always handle RemoveThis locally.
+            return context->GetVerb() == "Remove"
+                   ? TResolveResult::Here(path)
+                   : TResolveResult::There(GetTargetService(), path);
+        default:
+            return TResolveResult::There(GetTargetService(), path);
+    }
+}
+
+void TLinkNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const 
+{
+    TBase::ListSystemAttributes(attributes);
+    attributes->push_back("target_id");
+}
+
+bool TLinkNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const 
+{
+    if (key == "target_id") {
+        const auto* impl = GetThisTypedImpl();
+        BuildYsonFluently(consumer)
+            .Value(impl->GetTargetId());
+        return true;
+    }
+
+    return TBase::GetSystemAttribute(key, consumer);
+}
+
+
+bool TLinkNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& value)
+{
+    if (key == "target_id") {
+        auto targetId = ConvertTo<TObjectId>(value);
+        auto* impl = GetThisTypedMutableImpl();
+        impl->SetTargetId(targetId);
+        return true;
+    }
+
+    return TBase::SetSystemAttribute(key, value);
+}
+
+IYPathServicePtr TLinkNodeProxy::GetTargetService() const
+{
+    auto objectManager = Bootstrap->GetObjectManager();
+    const auto* impl = GetThisTypedImpl();
+    const auto& targetId = impl->GetTargetId();
+    auto* target = objectManager->FindObject(targetId);
+    if (!target) {
+        THROW_ERROR_EXCEPTION("Link target does not exist: %s", ~ToString(targetId));
+    }
+    return objectManager->GetProxy(target, Transaction);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NCypressServer
 } // namespace NYT
 

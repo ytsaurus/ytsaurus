@@ -267,6 +267,7 @@ TCypressManager::TCypressManager(TBootstrap* bootstrap)
     RegisterHandler(New<TDoubleNodeTypeHandler>(Bootstrap));
     RegisterHandler(New<TMapNodeTypeHandler>(Bootstrap));
     RegisterHandler(New<TListNodeTypeHandler>(Bootstrap));
+    RegisterHandler(New<TLinkNodeTypeHandler>(Bootstrap));
 
     {
         NCellMaster::TLoadContext context;
