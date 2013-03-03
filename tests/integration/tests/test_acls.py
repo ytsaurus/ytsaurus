@@ -137,14 +137,14 @@ class TestAcls(YTEnvSetup):
         with pytest.raises(YTError): add_member('u', 'everyone')
         with pytest.raises(YTError): add_member('u', 'users')
 
-    def _to_list(x):
+    def _to_list(self, x):
         if isinstance(x, str):
             return [x]
         else:
             return x
 
     def _make_ace(self, action, subjects, permissions):
-        return {'action' : action, 'subjects' : _to_list(subjects), 'permissions' : _to_list(permissions)}
+        return {'action' : action, 'subjects' : self._to_list(subjects), 'permissions' : self._to_list(permissions)}
 
     def test_acl1(self):
         create_user('u')
