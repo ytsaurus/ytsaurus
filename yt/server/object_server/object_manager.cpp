@@ -322,7 +322,7 @@ TObjectBase* TObjectManager::FindSchema(EObjectType type)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    int typeValue = type.ToValue();
+    int typeValue = static_cast<int>(type);
     if (typeValue < 0 || typeValue > MaxObjectType) {
         return nullptr;
     }
@@ -343,7 +343,7 @@ IObjectProxyPtr TObjectManager::GetSchemaProxy(EObjectType type)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    int typeValue = type.ToValue();
+    int typeValue = static_cast<int>(type);
     YCHECK(typeValue >= 0 && typeValue <= MaxObjectType);
     
     const auto& entry = TypeToEntry[typeValue];
@@ -358,7 +358,7 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
     YCHECK(handler);
 
     auto type = handler->GetType();
-    int typeValue = type.ToValue();
+    int typeValue = static_cast<int>(type);
     YCHECK(typeValue >= 0 && typeValue <= MaxObjectType);
     YCHECK(!TypeToEntry[typeValue].Handler);
 
@@ -367,7 +367,7 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
     entry.Handler = handler;
     if (TypeHasSchema(type)) {
         auto schemaType = SchemaTypeFromType(type);
-        auto& schemaEntry = TypeToEntry[schemaType.ToValue()];
+        auto& schemaEntry = TypeToEntry[static_cast<int>(schemaType)];
         schemaEntry.Handler = CreateSchemaTypeHandler(Bootstrap, type);
         LOG_INFO("Type registered (Type: %s, SchemaObjectId: %s)",
             ~type.ToString(),
@@ -382,7 +382,7 @@ IObjectTypeHandlerPtr TObjectManager::FindHandler(EObjectType type) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    int typeValue = type.ToValue();
+    int typeValue = static_cast<int>(type);
     if (typeValue < 0 || typeValue > MaxObjectType) {
         return nullptr;
     }
@@ -441,7 +441,7 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
 
     auto random = mutationContext->RandomGenerator().Generate<ui64>();
 
-    int typeValue = type.ToValue();
+    int typeValue = static_cast<int>(type);
     YASSERT(typeValue >= 0 && typeValue <= MaxObjectType);
 
     auto cellId = GetCellId();
@@ -517,7 +517,7 @@ void TObjectManager::InitWellKnownSingletons()
     MasterProxy = CreateMasterProxy(Bootstrap, ~MasterObject);
 
     FOREACH (auto type, RegisteredTypes)  {
-        auto& entry = TypeToEntry[type.ToValue()];
+        auto& entry = TypeToEntry[static_cast<int>(type)];
         if (TypeHasSchema(type)) {
             entry.SchemaObject = new TSchemaObject(MakeSchemaObjectId(type, GetCellId()));
             entry.SchemaObject->RefObject();
@@ -542,7 +542,7 @@ void TObjectManager::SaveSchemas(const NCellMaster::TSaveContext& context) const
     FOREACH (auto type, RegisteredTypes) {
         if (TypeHasSchema(type)) {
             Save(context, type);
-            const auto& entry = TypeToEntry[type.ToValue()];
+            const auto& entry = TypeToEntry[static_cast<int>(type)];
             entry.SchemaObject->Save(context);
         }
     }
@@ -577,7 +577,7 @@ void TObjectManager::LoadSchemas(const NCellMaster::TLoadContext& context)
         if (type == EObjectType::Null)
             break;
 
-        const auto& entry = TypeToEntry[type.ToValue()];
+        const auto& entry = TypeToEntry[static_cast<int>(type)];
         entry.SchemaObject->Load(context);
     }
 }

@@ -45,7 +45,7 @@ i64 TMemoryUsageTracker<EMemoryConsumer>::GetUsed() const
 template <class EMemoryConsumer>
 i64 TMemoryUsageTracker<EMemoryConsumer>::GetUsed(EMemoryConsumer consumer) const
 {
-    return UsedMemory[consumer.ToValue()];
+    return UsedMemory[static_cast<int>(consumer)];
 }
 
 template <class EMemoryConsumer>
@@ -74,10 +74,10 @@ template <class EMemoryConsumer>
 void TMemoryUsageTracker<EMemoryConsumer>::DoAcquire(EMemoryConsumer consumer, i64 size)
 {
     FreeMemory -= size;
-    auto& usedMemory = UsedMemory[consumer.ToValue()];
+    auto& usedMemory = UsedMemory[static_cast<int>(consumer)];
     usedMemory += size;
     Profiler.Aggregate(FreeMemoryCounter, FreeMemory);
-    Profiler.Aggregate(ConsumerCounters[consumer.ToValue()], usedMemory);
+    Profiler.Aggregate(ConsumerCounters[static_cast<int>(consumer)], usedMemory);
 }
 
 template <class EMemoryConsumer>
@@ -103,14 +103,14 @@ template <class EMemoryConsumer>
 void TMemoryUsageTracker<EMemoryConsumer>::Release(EMemoryConsumer consumer, i64 size)
 {
     TGuard<TSpinLock> guard(SpinLock);
-    auto& usedMemory = UsedMemory[consumer.ToValue()];
+    auto& usedMemory = UsedMemory[static_cast<int>(consumer)];
     YCHECK(usedMemory >= size);
     usedMemory -= size;
     FreeMemory += size;
     YCHECK(FreeMemory <= TotalMemory);
 
     Profiler.Aggregate(FreeMemoryCounter, FreeMemory);
-    Profiler.Aggregate(ConsumerCounters[consumer.ToValue()], usedMemory);
+    Profiler.Aggregate(ConsumerCounters[static_cast<int>(consumer)], usedMemory);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

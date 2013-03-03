@@ -35,43 +35,10 @@ namespace NYT {
  *
  */
 
-//! Base class for strongly-typed enumerations.
-template <class TDerived>
+//! Base class tag for strongly-typed enumerations.
+template <class T>
 class TEnumBase
-{
-public:
-    //! Default constructor.
-    TEnumBase()
-        : Value(0)
-    { }
-
-    //! Explicit constructor.
-    explicit TEnumBase(int value)
-        : Value(value)
-    { }
-
-    //! Returns the underlying integral value.
-    int ToValue() const
-    {
-        return Value;
-    }
-
-    void Load(TInputStream* input)
-    {
-        i32 value;
-        ::Load(input, value);
-        Value = value;
-    }
-
-    void Save(TOutputStream* output) const
-    {
-        i32 value = static_cast<i32>(Value);
-        ::Save(output, value);
-    }
-
-protected:
-    int Value;
-};
+{ };
 
 /*! \} */
 
@@ -87,14 +54,10 @@ protected:
  * \param base Base class; either ##TEnumBase<T> or ##TPolymorphicEnumBase<T>.
  * \param seq Enumeration domain encoded as a <em>sequence</em>.
  */
-#define ENUM__CLASS(name, base, seq) \
+#define ENUM__CLASS(name, seq) \
     class name \
-        : public base \
+        : public ::NYT::TEnumBase<name> \
     { \
-    private: \
-        friend class base; \
-        typedef base TBase; \
-        \
     public: \
         enum EDomain \
         { \
@@ -102,32 +65,45 @@ protected:
         }; \
         \
         name() \
-            : TBase() \
+            : Value(static_cast<EDomain>(0)) \
         { } \
         \
-        name(const EDomain& e) \
-            : TBase(static_cast<int>(e)) \
+        name(EDomain e) \
+            : Value(e) \
         { } \
         \
-        name& operator=(const EDomain& e) \
+        explicit name(int value) \
+            : Value(static_cast<EDomain>(value)) \
+        { } \
+        \
+        name& operator=(EDomain e) \
         { \
-            name::operator=(name(static_cast<int>(e))); \
+            Value = e; \
             return *this; \
         } \
         \
         operator EDomain() const \
         { \
-            return static_cast<EDomain>(Value); \
+            return Value; \
         } \
         \
-    public: \
+        Stroka ToString() const \
+        { \
+            Stroka str(GetLiteralByValue(Value)); \
+            if (LIKELY(!str.empty())) { \
+                return str; \
+            } else { \
+                return Stroka(PP_STRINGIZE(name)) + "(" + ::ToString(static_cast<int>(Value)) + ")"; \
+            } \
+        } \
+        \
         static const char* GetLiteralByValue(int value) \
         { \
             switch (value) \
             { \
                 PP_FOR_EACH(ENUM__LITERAL_BY_VALUE_ITEM, seq) \
                 default: \
-                    return NULL; \
+                    return nullptr; \
             } \
         } \
         \
@@ -155,7 +131,7 @@ protected:
         { \
             static const char* names[] = { \
                 PP_FOR_EACH(ENUM__GET_DOMAIN_NAMES_ITEM, seq) \
-                NULL \
+                nullptr \
             }; \
             return std::vector<Stroka>(names, names + sizeof(names) / sizeof(names[0]) - 1); \
         } \
@@ -190,7 +166,10 @@ protected:
         static bool FromString(const Stroka& str, name* target) \
         { \
             return name::FromString(str.c_str(), target); \
-        }
+        } \
+        \
+    private: \
+        EDomain Value;
 
 //! EDomain declaration helper.
 //! \{
@@ -288,9 +267,9 @@ protected:
 
 //! Declaration of a single relational operator.
 #define ENUM__RELATIONAL_OPERATOR(name, op) \
-    bool operator op(const EDomain& e) const \
+    bool operator op(EDomain other) const \
     { \
-        return Value op static_cast<int>(e); \
+        return static_cast<int>(Value) op static_cast<int>(other); \
     }
 
 //! \}
@@ -305,27 +284,13 @@ protected:
  */
 #define DECLARE_ENUM(name, seq) \
     BEGIN_DECLARE_ENUM(name, seq) \
+        ENUM__RELATIONAL_OPERATORS(name) \
     END_DECLARE_ENUM()
 
 //! Begins the declaration of a strongly-typed enumeration.
 //! See #DECLARE_ENUM.
 #define BEGIN_DECLARE_ENUM(name, seq) \
-    ENUM__CLASS(name, ::NYT::TEnumBase<name>, seq) \
-    public: \
-        explicit name(int value) \
-            : TBase(value) \
-        { } \
-        \
-        Stroka ToString() const \
-        { \
-            Stroka str = GetLiteralByValue(Value); \
-            if (LIKELY(!str.empty())) { \
-                return str; \
-            } else { \
-                return Stroka(PP_STRINGIZE(name)) + "(" + ::ToString(Value)+ ")"; \
-            } \
-        } \
-        ENUM__RELATIONAL_OPERATORS(name)
+    ENUM__CLASS(name, seq)
 
 //! Ends the declaration of a strongly-typed enumeration.
 //! See #DECLARE_ENUM.

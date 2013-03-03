@@ -64,7 +64,7 @@ TObjectId MakeId(
 {
     return TObjectId(
         hash,
-        (cellId << 16) + type.ToValue(),
+        (cellId << 16) + static_cast<int>(type),
         counter & 0xffffffff,
         counter >> 32);
 }

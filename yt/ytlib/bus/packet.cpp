@@ -84,7 +84,7 @@ bool TPacketDecoder::EndHeaderPhase()
             return true;
 
         default:
-            LOG_ERROR("Invalid packet type %d", Header.Type.ToValue());
+            LOG_ERROR("Invalid packet type %s", ~Header.Type.ToString());
             return false;
     }
 }

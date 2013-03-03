@@ -2,6 +2,7 @@
 
 #include <ytlib/misc/common.h>
 #include <ytlib/misc/enum.h>
+#include <ytlib/misc/serialize.h>
 
 #include <util/stream/buffer.h>
 #include <util/ysaveload.h>
@@ -37,18 +38,18 @@ DECLARE_ENUM(EFlag,
 
 TEST(TEnumTest, Basic)
 {
-    EXPECT_EQ(0, ESimple(ESimple::X).ToValue());
-    EXPECT_EQ(1, ESimple(ESimple::Y).ToValue());
-    EXPECT_EQ(2, ESimple(ESimple::Z).ToValue());
+    EXPECT_EQ(0, static_cast<int>(ESimple(ESimple::X)));
+    EXPECT_EQ(1, static_cast<int>(ESimple(ESimple::Y)));
+    EXPECT_EQ(2, static_cast<int>(ESimple(ESimple::Z)));
 
-    EXPECT_EQ(0, EColor( ).ToValue());
-    EXPECT_EQ(5, EColor(5).ToValue());
+    EXPECT_EQ(0, static_cast<int>(EColor( )));
+    EXPECT_EQ(5, static_cast<int>(EColor(5)));
 
-    EXPECT_EQ(10, EColor(EColor::Red  ).ToValue());
-    EXPECT_EQ(20, EColor(EColor::Green).ToValue());
-    EXPECT_EQ(30, EColor(EColor::Blue ).ToValue());
-    EXPECT_EQ(31, EColor(EColor::Black).ToValue());
-    EXPECT_EQ(32, EColor(EColor::White).ToValue());
+    EXPECT_EQ(10, static_cast<int>(EColor(EColor::Red  )));
+    EXPECT_EQ(20, static_cast<int>(EColor(EColor::Green)));
+    EXPECT_EQ(30, static_cast<int>(EColor(EColor::Blue )));
+    EXPECT_EQ(31, static_cast<int>(EColor(EColor::Black)));
+    EXPECT_EQ(32, static_cast<int>(EColor(EColor::White)));
 }
 
 TEST(TEnumTest, ToString)
@@ -161,11 +162,11 @@ TEST(TEnumTest, SaveAndLoad)
     EColor third(0);
     EColor fourth(0);
 
-    ::Save(&stream, first);
-    ::Save(&stream, second);
+    Save(&stream, first);
+    Save(&stream, second);
 
-    ::Load(&stream, third);
-    ::Load(&stream, fourth);
+    Load(&stream, third);
+    Load(&stream, fourth);
 
     EXPECT_EQ(first, third);
     EXPECT_EQ(second, fourth);

@@ -81,7 +81,7 @@ template <class T>
 inline std::istringstream& operator >> (std::istringstream& input, TEnumBase<T>& mode)
 {
     auto str = ReadAll(input);
-    mode = NYT::ParseEnum<T>(str);
+    static_cast<T&>(mode) = NYT::ParseEnum<T>(str);
     return input;
 }
 

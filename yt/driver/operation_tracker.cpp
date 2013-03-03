@@ -242,7 +242,7 @@ EExitCode TOperationTracker::DumpResult()
             auto jobId = TJobId::FromString(pair.first);
             auto job = pair.second->AsMap();
 
-            auto jobType = job->Attributes().Get<EJobType>("job_type").ToValue();
+            auto jobType = static_cast<int>(job->Attributes().Get<EJobType>("job_type"));
             YCHECK(jobType >= 0 && jobType < jobTypeCount);
 
             auto jobState = job->Attributes().Get<EJobState>("state");

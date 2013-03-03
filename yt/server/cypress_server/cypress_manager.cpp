@@ -320,7 +320,7 @@ void TCypressManager::RegisterHandler(INodeTypeHandlerPtr handler)
     YCHECK(handler);
 
     auto type = handler->GetObjectType();
-    int typeValue = type.ToValue();
+    int typeValue = static_cast<int>(type);
     YCHECK(typeValue >= 0 && typeValue <= MaxObjectType);
     YCHECK(!TypeToHandler[typeValue]);
     TypeToHandler[typeValue] = handler;
@@ -333,7 +333,7 @@ INodeTypeHandlerPtr TCypressManager::FindHandler(EObjectType type)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    int typeValue = type.ToValue();
+    int typeValue = static_cast<int>(type);
     if (typeValue < 0 || typeValue > MaxObjectType) {
         return nullptr;
     }

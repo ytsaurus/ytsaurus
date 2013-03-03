@@ -3,8 +3,8 @@
 #include "guid.h"
 #include "foreach.h"
 #include "ref.h"
-
-#include <ytlib/misc/assert.h>
+#include "assert.h"
+#include "mpl.h"
 
 #include <util/stream/input.h>
 #include <util/stream/output.h>
@@ -262,3 +262,21 @@ void UnpackRefs(const TSharedRef& packedRef, std::vector<TSharedRef>* refs);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
+
+template <class T>
+struct TSerializer<T, typename NYT::NMpl::TEnableIf<NYT::NMpl::TIsConvertible<T&, NYT::TEnumBase<T>&> >::TType>
+{
+    static void Save(TOutputStream* output, T e)
+    {
+        i32 value = static_cast<int>(e);
+        ::Save(output, value);
+    }
+
+    static void Load(TInputStream* input, T& e)
+    {
+        i32 value;
+        ::Load(input, value);
+        e = T(value);
+    }
+};
