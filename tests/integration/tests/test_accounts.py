@@ -333,10 +333,10 @@ class TestAccounts(YTEnvSetup):
         create_account('a1')
         create_account('a2')
 
-        create('map_node', '//tmp/x1', ['/attributes/account=a1'])
+        create('map_node', '//tmp/x1', opt=['/attributes/account=a1'])
         assert get('//tmp/x1/@account') == 'a1'
 
-        create('map_node', '//tmp/x2', ['/attributes/account=a2'])
+        create('map_node', '//tmp/x2', opt=['/attributes/account=a2'])
         assert get('//tmp/x2/@account') == 'a2'
 
         create('table', '//tmp/x1/t')
