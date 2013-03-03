@@ -16,7 +16,7 @@ if (process.env.NODE_DEBUG && /YTTEST/.test(process.env.NODE_DEBUG)) {
     __DBG = function(){};
 }
 
-var __HTTP_PORT = null;
+var __HTTP_PORT = 40000;
 var __HTTP_HOST = "127.0.0.1";
 
 // A bunch of helpful assertions to use while testing HTTP.
@@ -53,8 +53,6 @@ function spawnServer(driver, watcher) {
     });
 
     // Randomize port to avoid EADDRINUSE failures.
-    __HTTP_PORT = 40000 + parseInt(Math.random() * 10000);
-
     return connect()
         .use("/api", function(req, rsp) {
             var pause = utils.Pause(req);
@@ -62,7 +60,7 @@ function spawnServer(driver, watcher) {
                 logger, driver, watcher, __HTTP_HOST + ":" + __HTTP_PORT, false, pause, req, rsp
             )).dispatch();
         })
-        .listen(__HTTP_PORT, __HTTP_HOST);
+        .listen(__HTTP_PORT + parseInt(Math.random() * 10000), __HTTP_HOST);
 }
 
 // This stub provides a real driver instance which simply pipes all data through.

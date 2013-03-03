@@ -13,7 +13,7 @@ if (process.env.NODE_DEBUG && /YTTEST/.test(process.env.NODE_DEBUG)) {
     __DBG = function(){};
 }
 
-var __HTTP_PORT = 40000 + parseInt(Math.random() * 10000);
+var __HTTP_PORT = 40000;
 var __HTTP_HOST = "127.0.0.1";
 
 // A bunch of helpful assertions to use while testing HTTP.
@@ -51,7 +51,7 @@ function spawnServer(neighbours) {
 
     return connect()
         .use("/hosts", YtHostDiscovery(neighbours))
-        .listen(__HTTP_PORT, __HTTP_HOST);
+        .listen(__HTTP_PORT + parseInt(Math.random() * 10000), __HTTP_HOST);
 }
 
 // This is a helper method to produce HTTP requests.
