@@ -456,7 +456,9 @@ bool TObjectProxyBase::SetSystemAttribute(const Stroka& key, const TYsonString& 
 
             auto* user = securityManager->GetAuthenticatedUser();
             if (user != securityManager->GetRootUser() && user != owner) {
-                THROW_ERROR_EXCEPTION("Access denied: can only set owner to self");
+                THROW_ERROR_EXCEPTION(
+                    NSecurityClient::EErrorCode::AuthorizationError,
+                    "Access denied: can only set owner to self");
             }
 
             acd->SetOwner(owner);

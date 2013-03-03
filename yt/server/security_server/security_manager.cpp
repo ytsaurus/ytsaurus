@@ -696,13 +696,17 @@ public:
             auto objectManager = Bootstrap->GetObjectManager();
             TError error;
             if (result.Object && result.Subject) {
-                error = TError("Access denied: %s permission for %s is denied for %s by ACE at %s",
+                error = TError(
+                    NSecurityClient::EErrorCode::AuthorizationError,
+                    "Access denied: %s permission for %s is denied for %s by ACE at %s",
                     ~FormatEnum(permission).Quote(),
                     ~objectManager->GetHandler(object)->GetName(object),
                     ~result.Subject->GetName().Quote(),
                     ~objectManager->GetHandler(object)->GetName(result.Object));
             } else {
-                error = TError("Access denied: %s permission for %s is not allowed by any matching ACE",
+                error = TError(
+                    NSecurityClient::EErrorCode::AuthorizationError,
+                    "Access denied: %s permission for %s is not allowed by any matching ACE",
                     ~FormatEnum(permission).Quote(),
                     ~objectManager->GetHandler(object)->GetName(object));
             }

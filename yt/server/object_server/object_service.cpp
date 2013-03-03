@@ -114,7 +114,7 @@ private:
                 NRpc::NProto::TRequestHeader requestHeader;
                 if (!ParseRequestHeader(requestMessage, &requestHeader)) {
                     Reply(TError(
-                        EErrorCode::ProtocolError,
+                        NRpc::EErrorCode::ProtocolError,
                         "Error parsing request header"));
                     return;
                 }
@@ -157,7 +157,7 @@ private:
         auto invoker = Owner->Bootstrap->GetMetaStateFacade()->GetGuardedInvoker();
         if (!invoker->Invoke(BIND(&TExecuteSession::Continue, MakeStrong(this)))) {
             Reply(TError(
-                EErrorCode::Unavailable,
+                NRpc::EErrorCode::Unavailable,
                 "Yield error, only %d of out %d requests were served",
                 CurrentRequestIndex,
                 Context->Request().part_counts_size()));
@@ -175,7 +175,7 @@ private:
             requestIndex,
             ~ToString(error));
 
-        if (error.GetCode() == EErrorCode::Unavailable) {
+        if (error.GetCode() == NRpc::EErrorCode::Unavailable) {
             Reply(error);
         } else {
             // No sync is needed, requestIndexes are distinct.
@@ -250,7 +250,9 @@ private:
 
         auto* user = securityManager->FindUserByName(UserName.Get());
         if (!IsObjectAlive(user)) {
-            THROW_ERROR_EXCEPTION("No such user: %s", ~UserName.Get());
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::AuthenticationError,
+                "No such user: %s", ~UserName.Get());
         }
 
         return user;
