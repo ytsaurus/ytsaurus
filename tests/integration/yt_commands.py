@@ -186,7 +186,7 @@ def create_group(name):
     command('create', 'group', opt=['/attributes/name=' + name])
 
 def remove_group(name):
-    remove('//sys/group/' + name)
+    remove('//sys/groups/' + name)
 
 #########################################
 
