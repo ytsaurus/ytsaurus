@@ -262,6 +262,10 @@ class TEnumBase
         ENUM__RELATIONAL_OPERATOR(name, > ) \
         ENUM__RELATIONAL_OPERATOR(name, <=) \
         ENUM__RELATIONAL_OPERATOR(name, >=) \
+
+//! Declaration of equality operators; all at once.
+#define ENUM__EQUALITY_OPERATORS(name) \
+    public: \
         ENUM__RELATIONAL_OPERATOR(name, ==) \
         ENUM__RELATIONAL_OPERATOR(name, !=)
 
@@ -295,12 +299,13 @@ class TEnumBase
 //! #Decompose() helper.
 //! \{
 #define ENUM__DECOMPOSE(name, seq) \
-    std::vector<name> Decompose() const \
-    { \
-        std::vector<name> result; \
-        PP_FOR_EACH(ENUM__DECOMPOSE_ITEM, seq) \
-        return result; \
-    }
+    public: \
+        std::vector<name> Decompose() const \
+        { \
+            std::vector<name> result; \
+            PP_FOR_EACH(ENUM__DECOMPOSE_ITEM, seq) \
+            return result; \
+        }
 
 #define ENUM__DECOMPOSE_ITEM(item) \
     ENUM__DECOMPOSE_ITEM_SEQ(PP_ELEMENT(item, 0))
@@ -329,6 +334,7 @@ class TEnumBase
  */
 #define DECLARE_ENUM(name, seq) \
     BEGIN_DECLARE_ENUM(name, seq) \
+        ENUM__EQUALITY_OPERATORS(name) \
         ENUM__RELATIONAL_OPERATORS(name) \
     END_DECLARE_ENUM()
 
@@ -339,8 +345,7 @@ class TEnumBase
  */
 #define DECLARE_FLAGGED_ENUM(name, seq) \
     BEGIN_DECLARE_ENUM(name, seq) \
-        ENUM__RELATIONAL_OPERATOR(name, ==) \
-        ENUM__RELATIONAL_OPERATOR(name, !=) \
+        ENUM__EQUALITY_OPERATORS(name) \
         ENUM__BITWISE_OPERATORS(name) \
         ENUM__DECOMPOSE(name, seq) \
     END_DECLARE_ENUM()

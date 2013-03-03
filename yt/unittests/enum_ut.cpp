@@ -25,7 +25,7 @@ DECLARE_ENUM(EColor,
      (White)
 );
 
-DECLARE_ENUM(EFlag,
+DECLARE_FLAGGED_ENUM(EFlag,
     ((_1)(0x0001))
     ((_2)(0x0002))
     ((_3)(0x0004))
@@ -199,7 +199,7 @@ TEST(TEnumTest, Decompose1)
 {
     auto f = EFlag(0);
     std::vector<EFlag> ff;
-    EXPECT_EQ(DecomposeFlaggedEnum(f), ff);
+    EXPECT_EQ(f.Decompose(), ff);
 }
 
 TEST(TEnumTest, Decompose2)
@@ -207,7 +207,7 @@ TEST(TEnumTest, Decompose2)
     auto f = EFlag(EFlag::_1);
     std::vector<EFlag> ff;
     ff.push_back(EFlag::_1);
-    EXPECT_EQ(DecomposeFlaggedEnum(f), ff);
+    EXPECT_EQ(f.Decompose(), ff);
 }
 
 TEST(TEnumTest, Decompose3)
@@ -216,7 +216,7 @@ TEST(TEnumTest, Decompose3)
     std::vector<EFlag> ff;
     ff.push_back(EFlag::_1);
     ff.push_back(EFlag::_2);
-    EXPECT_EQ(DecomposeFlaggedEnum(f), ff);
+    EXPECT_EQ(f.Decompose(), ff);
 }
 
 TEST(TEnumTest, Decompose4)
@@ -225,7 +225,7 @@ TEST(TEnumTest, Decompose4)
     std::vector<EFlag> ff;
     ff.push_back(EFlag::_2);
     ff.push_back(EFlag::_4);
-    EXPECT_EQ(DecomposeFlaggedEnum(f), ff);
+    EXPECT_EQ(f.Decompose(), ff);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
