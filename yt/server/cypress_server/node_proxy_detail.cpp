@@ -664,7 +664,7 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     auto* trunkDestImpl = GetTrunkNode();
 
     ValidatePermission(
-        sourceImpl,
+        trunkSourceImpl,
         // TODO(babenko): flagged enums
         EPermissionCheckScope(EPermissionCheckScope::This | EPermissionCheckScope::Descendants),
         EPermission::Read);
