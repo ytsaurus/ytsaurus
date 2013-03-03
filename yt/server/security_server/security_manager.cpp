@@ -474,7 +474,14 @@ public:
     void DestroyGroup(TGroup* group)
     {
         YCHECK(GroupNameMap.erase(group->GetName()) == 1);
+
+        FOREACH (auto* subject, group->Members()) {
+            YCHECK(subject->MemberOf().erase(group) == 1);
+        }
+
         DestroySubject(group);
+
+        RecomputeMembershipClosure();
     }
 
     TGroup* FindGroupByName(const Stroka& name)
@@ -862,6 +869,7 @@ private:
         return group;
     }
 
+
     void PropagateRecursiveMemberOf(TSubject* subject, TGroup* ancestorGroup)
     {
         bool added = subject->RecursiveMemberOf().insert(ancestorGroup).second;
@@ -896,6 +904,7 @@ private:
     {
         YCHECK(group->Members().insert(member).second);
         YCHECK(member->MemberOf().insert(group).second);
+
         RecomputeMembershipClosure();
     }
 
@@ -903,6 +912,7 @@ private:
     {
         YCHECK(group->Members().erase(member) == 1);
         YCHECK(member->MemberOf().erase(group) == 1);
+
         RecomputeMembershipClosure();
     }
 
