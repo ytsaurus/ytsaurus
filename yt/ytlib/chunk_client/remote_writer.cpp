@@ -698,9 +698,9 @@ void TRemoteWriter::TImpl::OnWindowShifted(int lastFlushedBlock)
     VERIFY_THREAD_AFFINITY(WriterThread);
 
     if (Window.empty()) {
-        // This happens when FlushBlocks responses are disordered
-        // (i.e. a bigger BlockIndex is flushed before a smaller one)
-        // and prevents repeated calling CloseSession
+        // This happens when FlushBlocks responses are reordered
+        // (i.e. a larger BlockIndex is flushed before a smaller one)
+        // We should prevent repeated calls to CloseSession.
         return;
     }
 
