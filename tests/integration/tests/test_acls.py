@@ -186,11 +186,10 @@ class TestAcls(YTEnvSetup):
 
         set(acl_path + '/@acl/end', self._make_ace('allow', acl_subject, 'write'))
         set(rw_path, 'c', user=rw_user)
-        with pytest.raises(YTError): get(rw_path, user=rw_user)
 
         remove(acl_path + '/@acl/-1')
-        set(acl_path + '/@acl/end', self._make_ace('allow', acl_subject, ['read', 'write']))
-        assert get(rw_path, user=rw_user) == 'c'
+        set(acl_path + '/@acl/end', self._make_ace('allow', acl_subject, 'read'))
+        with pytest.raises(YTError): set(rw_path, 'd', user=rw_user)
 
     def test_allowing_acl1(self):
         self._test_allowing_acl('//tmp/a', 'guest', '//tmp/a', 'guest')
