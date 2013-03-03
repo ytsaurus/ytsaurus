@@ -444,6 +444,25 @@ bool TObjectProxyBase::SetSystemAttribute(const Stroka& key, const TYsonString& 
 
             return true;
         }
+
+        if (key == "owner") {
+            ValidateNoTransaction();
+
+            auto name = ConvertTo<Stroka>(value);
+            auto* owner = securityManager->FindSubjectByName(name);
+            if (!IsObjectAlive(owner)) {
+                THROW_ERROR_EXCEPTION("No such subject: %s", ~name);
+            }
+
+            auto* user = securityManager->GetAuthenticatedUser();
+            if (user != securityManager->GetRootUser() && user != owner) {
+                THROW_ERROR_EXCEPTION("Access denied: can only set owner to self");
+            }
+
+            acd->SetOwner(owner);
+
+            return true;
+        }
     }
     return false;
 }
