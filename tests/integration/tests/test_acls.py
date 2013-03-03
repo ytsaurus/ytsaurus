@@ -55,7 +55,7 @@ class TestAcls(YTEnvSetup):
         self.assertItemsEqual(get('//sys/users/u2/@member_of'), ['g2', 'users', 'everyone'])
 
         self.assertItemsEqual(get('//sys/users/u1/@member_of_closure'), ['g1', 'users', 'everyone'])
-        self.assertItemsEqual(get('//sys/users/u2/@member_of_clsoure'), ['g1', 'g2', 'users', 'everyone'])
+        self.assertItemsEqual(get('//sys/users/u2/@member_of_closure'), ['g1', 'g2', 'users', 'everyone'])
 
         remove_member('g2', 'g1')
 

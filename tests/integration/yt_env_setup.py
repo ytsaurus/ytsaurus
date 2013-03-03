@@ -82,7 +82,7 @@ class YTEnvSetup(YTEnv):
             if user != 'root' and user != 'guest':
                 yt_commands.remove_user(user)
 
-    def _remove_users(self, groups):
+    def _remove_groups(self, groups):
         for group in groups:
             if group != 'everyone' and group != 'users':
                 yt_commands.remove_group(group)
