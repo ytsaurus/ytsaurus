@@ -32,6 +32,8 @@ class TestAcls(YTEnvSetup):
         with pytest.raises(YTError): remove('//sys/home', user='u')
         with pytest.raises(YTError): set('//sys/home/a', 'b', user='u')
         set('//tmp/a', 'b', user='u')
+        ls('//tmp', user='guest')
+        with pytest.raises(YTError): set('//tmp/c', 'd', user='guest')
 
     def test_create_user1(self):
         create_user('max')
@@ -146,7 +148,7 @@ class TestAcls(YTEnvSetup):
     def _make_ace(self, action, subjects, permissions):
         return {'action' : action, 'subjects' : self._to_list(subjects), 'permissions' : self._to_list(permissions)}
 
-    def _test_acl_rw(self, rw_path, acl_path, acl_subject):
+    def _test_denying_acl(self, rw_path, acl_path, acl_subject):
         set(rw_path, 'b', user='u')
         assert get(rw_path, user='u') == 'b'
 
@@ -162,17 +164,40 @@ class TestAcls(YTEnvSetup):
         with pytest.raises(YTError): get(rw_path, user='u')
         with pytest.raises(YTError): set(rw_path, 'd', user='u')
 
-    def test_acl1(self):
+    def test_denying_acl1(self):
         create_user('u')
-        self._test_acl_rw('//tmp/a', '//tmp/a', 'u')
+        self._test_denying_acl('//tmp/a', '//tmp/a', 'u')
 
-    def test_acl2(self):
+    def test_denying_acl2(self):
         create_user('u')
         create_group('g')
         add_member('u', 'g')
-        self._test_acl_rw('//tmp/a', '//tmp/a', 'g')
+        self._test_denying_acl('//tmp/a', '//tmp/a', 'g')
 
-    def test_acl3(self):
+    def test_denying_acl3(self):
         create_user('u')
         set('//tmp/p', {})
-        self._test_acl_rw('//tmp/p/a', '//tmp/p', 'u')
+        self._test_denying_acl('//tmp/p/a', '//tmp/p', 'u')
+
+    def _test_allowing_acl(self, rw_path, acl_path, acl_subject):
+        with pytest.raises(YTError): set(rw_path, 'b', user='u')
+
+        set(acl_path + '/@acl/end', self._make_ace('allow', acl_subject, 'write'))
+        set(rw_path, 'c', user='u')
+        with pytest.raises(YTError): get(rw_path, user='u')
+
+        remove(acl_path + '/@acl/-1')
+        set(acl_path + '/@acl/end', self._make_ace('allow', acl_subject, ['read', 'write']))
+        assert get(rw_path, user='u') == 'c'
+
+    def test_allowing_acl1(self):
+        self._test_allowing_acl('//tmp/a', '//tmp/a', 'guest')
+
+    def test_allowing_acl2(self):
+        create_group('g')
+        add_member('guest', 'g')
+        self._test_allowing_acl('//tmp/a', '//tmp/a', 'guest')
+
+    def test_allowing_acl3(self):
+        set('//tmp/p', {})
+        self._test_allowing_acl('//tmp/p/a', '//tmp/p', 'guest')
