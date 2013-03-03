@@ -180,6 +180,8 @@ class TestAcls(YTEnvSetup):
         self._test_denying_acl('//tmp/p/a', 'u', '//tmp/p', 'u')
 
     def _test_allowing_acl(self, rw_path, rw_user, acl_path, acl_subject):
+        set(rw_path, 'a')
+
         with pytest.raises(YTError): set(rw_path, 'b', user=rw_user)
 
         set(acl_path + '/@acl/end', self._make_ace('allow', acl_subject, 'write'))
