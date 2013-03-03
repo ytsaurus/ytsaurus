@@ -46,7 +46,7 @@ public:
     typedef yhash_map<TKey, TValue*, THash> TMap;
     typedef typename TMap::iterator TIterator;
     typedef typename TMap::iterator TConstIterator;
-    typedef TPair<TKey, TValue*> TItem;
+    typedef std::pair<TKey, TValue*> TItem;
 
     explicit TMetaStateMap(const TTraits& traits = TTraits());
 

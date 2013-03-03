@@ -333,7 +333,7 @@ NConfig::TParameter<T>& TYsonSerializableLite::Register(const Stroka& parameterN
 {
     auto parameter = New< NConfig::TParameter<T> >(value);
     YCHECK(Parameters.insert(
-        TPair<Stroka, NConfig::IParameterPtr>(parameterName, parameter)).second);
+        std::pair<Stroka, NConfig::IParameterPtr>(parameterName, parameter)).second);
     return *parameter;
 }
 

@@ -210,9 +210,9 @@ public:
         return KeyToChild.ysize();
     }
 
-    virtual std::vector< TPair<Stroka, INodePtr> > GetChildren() const override
+    virtual std::vector< std::pair<Stroka, INodePtr> > GetChildren() const override
     {
-        return std::vector< TPair<Stroka, INodePtr> >(KeyToChild.begin(), KeyToChild.end());
+        return std::vector< std::pair<Stroka, INodePtr> >(KeyToChild.begin(), KeyToChild.end());
     }
 
     virtual std::vector<Stroka> GetKeys() const override

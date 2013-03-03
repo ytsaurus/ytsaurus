@@ -114,7 +114,7 @@ public:
     {
         // Place a return value on top to promote RVO.
         TLogWriters writers;
-        TPair<Stroka, ELogLevel> cacheKey(event.Category, event.Level);
+        std::pair<Stroka, ELogLevel> cacheKey(event.Category, event.Level);
         auto it = CachedWriters.find(cacheKey);
         if (it != CachedWriters.end())
             return it->second;
@@ -246,7 +246,7 @@ private:
     std::vector<TRule::TPtr> Rules;
     yhash_map<Stroka, ILogWriter::TConfig::TPtr> WriterConfigs;
     yhash_map<Stroka, ILogWriterPtr> Writers;
-    ymap<TPair<Stroka, ELogLevel>, TLogWriters> CachedWriters;
+    ymap<std::pair<Stroka, ELogLevel>, TLogWriters> CachedWriters;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

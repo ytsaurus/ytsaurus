@@ -328,7 +328,7 @@ public:
 
     virtual void Clear() override;
     virtual int GetChildCount() const override;
-    virtual std::vector< TPair<Stroka, NYTree::INodePtr> > GetChildren() const override;
+    virtual std::vector< std::pair<Stroka, NYTree::INodePtr> > GetChildren() const override;
     virtual std::vector<Stroka> GetKeys() const override;
     virtual NYTree::INodePtr FindChild(const Stroka& key) const override;
     virtual bool AddChild(NYTree::INodePtr child, const Stroka& key) override;

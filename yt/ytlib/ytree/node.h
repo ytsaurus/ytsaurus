@@ -203,7 +203,7 @@ struct IMapNode
     /*!
      *  Map items are returned in unspecified order.
      */
-    virtual std::vector< TPair<Stroka, INodePtr> > GetChildren() const = 0;
+    virtual std::vector< std::pair<Stroka, INodePtr> > GetChildren() const = 0;
 
     //! Returns map keys.
     /*!
