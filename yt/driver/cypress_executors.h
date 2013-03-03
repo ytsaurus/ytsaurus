@@ -168,8 +168,8 @@ public:
     TLinkExecutor();
 
 private:
-    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> LinkPathArg;
     TCLAP::UnlabeledValueArg<NYPath::TRichYPath> TargetPathArg;
+    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> LinkPathArg;
     TCLAP::SwitchArg RecursiveArg;
     TCLAP::SwitchArg IgnoreExistingArg;
 
