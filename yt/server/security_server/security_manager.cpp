@@ -919,8 +919,7 @@ private:
     void ValidateGroupModifiable(TGroup* group)
     {
         if (group == EveryoneGroup || group == UsersGroup) {
-            THROW_ERROR_EXCEPTION("Cannot modify a built-in group %s",
-                ~group->GetName().Quote());
+            THROW_ERROR_EXCEPTION("Cannot modify a built-in group");
         }
     }
 
