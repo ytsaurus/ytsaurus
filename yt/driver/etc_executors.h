@@ -46,8 +46,8 @@ public:
     TUpdateMembershipExecutor();
 
 private:
-    TUnlabeledStringArg GroupArg;
     TUnlabeledStringArg MemberArg;
+    TUnlabeledStringArg GroupArg;
 
     virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
 
