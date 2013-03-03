@@ -208,6 +208,7 @@ private:
     void OnMessageEnqueued();
     void ProcessOutcomingMessages();
     void DiscardOutcomingMessages(const TError& error);
+    void DiscardUnackedMessages(const TError& error);
     void UpdateSocketWatcher();
 
     void OnTerminated();

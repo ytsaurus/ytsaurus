@@ -287,10 +287,7 @@ void TTcpConnection::SyncClose(const TError& error)
     CloseSocket();
 
     // Mark all unacked messages as failed.
-    while (!UnackedMessages.empty()) {
-        UnackedMessages.front().Promise.Set(error);
-        UnackedMessages.pop();
-    }
+    DiscardUnackedMessages(error);
 
     // Mark all queued messages as failed.
     DiscardOutcomingMessages(error);
@@ -957,6 +954,14 @@ void TTcpConnection::DiscardOutcomingMessages(const TError& error)
     while (QueuedMessages.Dequeue(&queuedMessage)) {
         LOG_DEBUG("Outcoming message dequeued (PacketId: %s)", ~queuedMessage.PacketId.ToString());
         queuedMessage.Promise.Set(error);
+    }
+}
+
+void TTcpConnection::DiscardUnackedMessages(const TError& error)
+{
+    while (!UnackedMessages.empty()) {
+        UnackedMessages.front().Promise.Set(error);
+        UnackedMessages.pop();
     }
 }
 
