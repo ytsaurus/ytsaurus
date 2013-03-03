@@ -206,7 +206,7 @@ class TestAcls(YTEnvSetup):
     def test_schema_acl(self):
         create_user('u')
         create('table', '//tmp/t1', user='u')
-        set('//sys/schemas/table_node/@acl/end', self._make_ace('deny', 'u', 'create'))
+        set('//sys/schemas/table/@acl/end', self._make_ace('deny', 'u', 'create'))
         with pytest.raises(YTError): create('table', '//tmp/t2', user='u')
 
     def test_user_destruction(self):
@@ -226,3 +226,18 @@ class TestAcls(YTEnvSetup):
 
         remove_group('g')
         assert get('//tmp/@acl') == old_acl
+
+    def test_account_acl(self):
+        create_account('a')
+        create_user('u')
+
+        with pytest.raises(YTError): create('table', '//tmp/t', user='u', opt=['/attributes/account=a'])
+
+        create('table', '//tmp/t', user='u')
+        assert get('//tmp/t/@account') == 'tmp'
+
+        with pytest.raises(YTError): set('//tmp/t/@account', 'a', user='u')
+
+        set('//sys/accounts/a/@acl/end', self._make_ace('allow', 'u', 'use'))
+        set('//tmp/t/@account', 'a', user='u')
+        assert get('//tmp/t/@account') == 'a'
