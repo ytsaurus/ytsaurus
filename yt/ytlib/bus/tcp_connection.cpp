@@ -60,6 +60,7 @@ TTcpConnection::TTcpConnection(
     , Handler(handler)
     , Logger(BusLogger)
     , Port(0)
+    , MessageEnqueuedSent(false)
     , ReadBuffer(ReadChunkSize)
     , TerminatedPromise(NewPromise<TError>())
 {
@@ -71,12 +72,12 @@ TTcpConnection::TTcpConnection(
     switch (Type) {
         case EConnectionType::Client:
             YCHECK(Socket == INVALID_SOCKET);
-            State = EState::Resolving;
+            AtomicSet(State, EState::Resolving);
             break;
 
         case EConnectionType::Server:
             YCHECK(Socket != INVALID_SOCKET);
-            State = EState::Opening;
+            AtomicSet(State, EState::Opening);
             break;
 
         default:
@@ -189,10 +190,7 @@ const TConnectionId& TTcpConnection::GetId() const
 
 void TTcpConnection::SyncOpen()
 {
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        State = EState::Open;
-    }
+    AtomicSet(State, EState::Open);
 
     LOG_DEBUG("Connection established (Address: %s)", ~Address);
 
@@ -267,10 +265,7 @@ void TTcpConnection::OnAddressResolved(const TNetworkAddress& netAddress)
 
     InitFd();
 
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        State = EState::Opening;
-    }
+    AtomicSet(State, EState::Opening);
 }
 
 void TTcpConnection::SyncClose(const TError& error)
@@ -279,13 +274,11 @@ void TTcpConnection::SyncClose(const TError& error)
     YCHECK(!error.IsOK());
 
     // Check for second close attempt.
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        if (State == EState::Closed) {
-            return;
-        }
-        State = EState::Closed;
+    if (State == EState::Closed) {
+        return;
     }
+
+    AtomicSet(State, EState::Closed);
 
     // Stop all watchers.
     SocketWatcher.Destroy();
@@ -300,12 +293,7 @@ void TTcpConnection::SyncClose(const TError& error)
     }
 
     // Mark all queued messages as failed.
-    {
-        TQueuedMessage queuedMessage;
-        while (QueuedMessages.Dequeue(&queuedMessage)) {
-            queuedMessage.Promise.Set(error);
-        }
-    }
+    DiscardOutcomingMessages(error);
 
     // Release memory.
     Cleanup();
@@ -437,7 +425,10 @@ TAsyncError TTcpConnection::Send(IMessagePtr message)
 
     QueuedMessages.Enqueue(queuedMessage);
 
-    if (State != EState::Resolving && State != EState::Opening)  {
+    auto state = AtomicGet(State);
+    bool sent = AtomicGet(MessageEnqueuedSent);
+    if (!sent && state != EState::Resolving && state != EState::Opening)  {
+        AtomicSet(MessageEnqueuedSent, true);
         Dispatcher->AsyncPostEvent(this, EConnectionEvent::MessageEnqueued);
     }
 
@@ -450,16 +441,16 @@ void TTcpConnection::Terminate(const TError& error)
     YCHECK(!error.IsOK());
 
     {
-        // Check if the connection is already closed or
-        // another termination request is already in progress.
-        TGuard<TSpinLock> guard(SpinLock);
-        if (State != EState::Open || !TerminationError.IsOK()) {
+        // Check if another termination request is already in progress.
+        TGuard<TSpinLock> guard(TerminationSpinLock);
+        if (!TerminationError.IsOK()) {
             return;
         }
         TerminationError = error;
-        Dispatcher->AsyncPostEvent(this, EConnectionEvent::Terminated);
     }
 
+    Dispatcher->AsyncPostEvent(this, EConnectionEvent::Terminated);
+    
     LOG_DEBUG("Bus termination requested");
 }
 
@@ -934,8 +925,12 @@ void TTcpConnection::OnMessageEnqueued()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
     
+    AtomicSet(MessageEnqueuedSent, false);
+    
     if (State == EState::Closed) {
-        DiscardOutcomingMessages();
+        DiscardOutcomingMessages(TError(
+            NRpc::EErrorCode::TransportError,
+            "Connection is closed"));
         return;
     }
 
@@ -956,15 +951,12 @@ void TTcpConnection::ProcessOutcomingMessages()
     }
 }
 
-void TTcpConnection::DiscardOutcomingMessages()
+void TTcpConnection::DiscardOutcomingMessages(const TError& error)
 {
     TQueuedMessage queuedMessage;
     while (QueuedMessages.Dequeue(&queuedMessage)) {
         LOG_DEBUG("Outcoming message dequeued (PacketId: %s)", ~queuedMessage.PacketId.ToString());
-
-        queuedMessage.Promise.Set(TError(
-            NRpc::EErrorCode::TransportError,
-            "Connection is closed"));
+        queuedMessage.Promise.Set(error);
     }
 }
 
@@ -985,7 +977,7 @@ void TTcpConnection::OnTerminated()
 
     TError error;
     {
-        TGuard<TSpinLock> guard(SpinLock);
+        TGuard<TSpinLock> guard(TerminationSpinLock);
         error = TerminationError;
     }
 
