@@ -188,6 +188,12 @@ def create_group(name):
 def remove_group(name):
     remove('//sys/groups/' + name)
 
+def add_member(member, group):
+    command('add_member', member, group)
+
+def remove_member(member, group):
+    command('remove_member', member, group)
+
 #########################################
 
 def get(path, **kwargs):
