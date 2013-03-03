@@ -160,8 +160,8 @@ Handle<Value> ProduceV8(INodePtr node)
             auto children = node->AsMap()->GetChildren();
             auto result = Object::New();
             FOREACH (const auto& pair, children) {
-                const auto& key = pair.First();
-                const auto& value = pair.Second();
+                const auto& key = pair.first;
+                const auto& value = pair.second;
                 result->Set(
                     String::New(key.c_str(), key.length()),
                     ProduceV8(value));
