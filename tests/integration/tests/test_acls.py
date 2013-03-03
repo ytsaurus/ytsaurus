@@ -143,7 +143,7 @@ class TestAcls(YTEnvSetup):
         else:
             return x
 
-    def _make_ace(action, subjects, permissions):
+    def _make_ace(self, action, subjects, permissions):
         return {'action' : action, 'subjects' : _to_list(subjects), 'permissions' : _to_list(permissions)}
 
     def test_acl1(self):
@@ -155,11 +155,11 @@ class TestAcls(YTEnvSetup):
         set('//tmp/a', 'c', user='u')
         assert get('//tmp/a', user='u') == 'c'
 
-        set('//tmp/@acl/end', _make_ace('deny', 'u', 'write'))
+        set('//tmp/@acl/end', self._make_ace('deny', 'u', 'write'))
         with pytest.raises(YTError): set('//tmp/a', 'd', user='u')
         assert get('//tmp/a', user='u') == 'c'
 
         remove('//tmp/@acl/-1')
-        set('//tmp/@acl/end', _make_ace('deny', 'u', ['read', 'write']))
+        set('//tmp/@acl/end', self._make_ace('deny', 'u', ['read', 'write']))
         with pytest.raises(YTError): get('//tmp/a', user='u')
         with pytest.raises(YTError): set('//tmp/a', 'd', user='u')
