@@ -59,6 +59,7 @@ function makeHttpRequest(method, host, path, timeout, headers, body) {
 function YtBlackbox(logger, global_config) { // TODO: Inject |config|
     var config = konfig.blackbox;
     var locals = global_config.locals;
+    var disabled = global_config.disable_blackbox;
     var cache = lru_cache({ max: 5000, maxAge: 60 * 1000 /* ms */});
 
     function httpUnauthorized(rsp) {
@@ -160,6 +161,11 @@ function YtBlackbox(logger, global_config) { // TODO: Inject |config|
     }
 
     return function(req, rsp, next) {
+        if (disabled) {
+            req.authenticated_user = "root";
+            return next();
+        }
+
         if (!req.headers.hasOwnProperty("authorization")) {
             logger.debug("Client is missing Authorization header", {
                 request_id : req.uuid
