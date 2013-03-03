@@ -519,7 +519,7 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
     if (scope & EPermissionCheckScope::Parent) {
         // NB: trunkNode->GetParent() may be null if the node is still being constructed
         // in a transaction. Dig down to the exact versioned copy of #trunkNode.
-        ValidatePermission(GetImpl(trunkNode)->GetParent(), permission);
+        ValidatePermission(GetImpl(trunkNode)->GetParent()->GetTrunkNode(), permission);
     }
 
     if (scope & EPermissionCheckScope::Descendants) {
