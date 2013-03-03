@@ -268,7 +268,7 @@ private:
 
         auto objectManager = Bootstrap->GetObjectManager();
         auto* object = objectManager->FindObject(objectId);
-        if (!object || !object->IsAlive()) {
+        if (!IsObjectAlive(object)) {
             THROW_ERROR_EXCEPTION("No such object: %s", ~ToString(objectId));
         }
 

@@ -106,6 +106,11 @@ TObjectId GetObjectId(const TObjectBase* object)
     return object ? object->GetId() : NullObjectId;
 }
 
+bool IsObjectAlive(const TObjectBase* object)
+{
+    return object && object->IsAlive();
+}
+
 bool CompareObjectsForSerialization(const TObjectBase* lhs, const TObjectBase* rhs)
 {
     return GetObjectId(lhs) < GetObjectId(rhs);

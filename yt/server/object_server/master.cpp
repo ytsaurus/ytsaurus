@@ -65,7 +65,7 @@ private:
     {
         auto transactionManager = Bootstrap->GetTransactionManager();
         auto* transaction = transactionManager->FindTransaction(id);
-        if (!transaction || !transaction->IsAlive()) {
+        if (!IsObjectAlive(transaction)) {
             THROW_ERROR_EXCEPTION("No such transaction: %s", ~ToString(id));
         }
         if (!transaction->IsActive()) {

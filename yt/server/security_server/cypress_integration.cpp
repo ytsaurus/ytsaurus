@@ -69,7 +69,7 @@ private:
     {
         auto securityManager = Bootstrap->GetSecurityManager();
         auto* account = securityManager->FindAccountByName(Stroka(key));
-        if (!account || !account->IsAlive()) {
+        if (!IsObjectAlive(account)) {
             return nullptr;
         }
 
@@ -117,7 +117,7 @@ private:
     {
         auto securityManager = Bootstrap->GetSecurityManager();
         auto* user = securityManager->FindUserByName(Stroka(key));
-        if (!user || !user->IsAlive()) {
+        if (!IsObjectAlive(user)) {
             return nullptr;
         }
 
@@ -165,7 +165,7 @@ private:
     {
         auto securityManager = Bootstrap->GetSecurityManager();
         auto* group = securityManager->FindGroupByName(Stroka(key));
-        if (!group || !group->IsAlive()) {
+        if (!IsObjectAlive(group)) {
             return nullptr;
         }
 

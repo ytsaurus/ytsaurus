@@ -32,7 +32,7 @@
 #include <server/security_server/account.h>
 #include <server/security_server/security_manager.h>
 #include <server/security_server/acl.h>
-#include <server/security_server/subject.h>
+#include <server/security_server/user.h>
 
 #include <server/object_server/type_handler.h>
 
@@ -193,7 +193,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
     auto objectManager = Bootstrap->GetObjectManager();
 
     auto* user = securityManager->FindUserByName(userName);
-    if (!user || !user->IsAlive()) {
+    if (!IsObjectAlive(user)) {
         THROW_ERROR_EXCEPTION("No such user: %s", ~userName);
     }
 

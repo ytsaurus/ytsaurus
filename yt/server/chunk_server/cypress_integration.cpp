@@ -124,7 +124,7 @@ private:
 
         auto chunkManager = Bootstrap->GetChunkManager();
         auto* chunk = chunkManager->FindChunk(id);
-        if (!chunk || !chunk->IsAlive()) {
+        if (!IsObjectAlive(chunk)) {
             return nullptr;
         }
 
@@ -174,7 +174,7 @@ private:
         auto chunkManager = Bootstrap->GetChunkManager();
         auto id = TChunkListId::FromString(key);
         auto* chunkList = chunkManager->FindChunkList(id);
-        if (!chunkList || !chunkList->IsAlive()) {
+        if (!IsObjectAlive(chunkList)) {
             return nullptr;
         }
 

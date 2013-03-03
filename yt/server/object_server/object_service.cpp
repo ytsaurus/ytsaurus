@@ -20,6 +20,7 @@
 #include <server/cell_master/meta_state_facade.h>
 
 #include <server/security_server/security_manager.h>
+#include <server/security_server/user.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -248,7 +249,7 @@ private:
         }
 
         auto* user = securityManager->FindUserByName(UserName.Get());
-        if (!user || !user->IsAlive()) {
+        if (!IsObjectAlive(user)) {
             THROW_ERROR_EXCEPTION("No such user: %s", ~UserName.Get());
         }
 

@@ -143,10 +143,9 @@ protected:
             auto chunkId = TChunkId::FromProto(requestExt.chunk_id());
 
             chunk = chunkManager->FindChunk(chunkId);
-            if (!chunk || !chunk->IsAlive()) {
+            if (!IsObjectAlive(chunk)) {
                 THROW_ERROR_EXCEPTION("No such chunk: %s", ~chunkId.ToString());
             }
-
             if (!chunk->IsConfirmed()) {
                 THROW_ERROR_EXCEPTION("File chunk is not confirmed: %s", ~chunkId.ToString());
             }

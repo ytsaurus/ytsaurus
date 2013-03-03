@@ -630,7 +630,7 @@ void TChunkReplicator::ScheduleChunkRefresh(const TChunkId& chunkId)
 
 void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
 {
-    if (chunk->GetRefreshScheduled() || !chunk->IsAlive())
+    if (!IsObjectAlive(chunk) || chunk->GetRefreshScheduled())
         return;
 
     TRefreshEntry entry;
@@ -670,7 +670,7 @@ void TChunkReplicator::OnRefresh()
             RefreshList.pop_front();
             ++count;
 
-            if (chunk->IsAlive()) {
+            if (IsObjectAlive(chunk)) {
                 Refresh(chunk);
             }
 
@@ -798,7 +798,7 @@ void TChunkReplicator::ScheduleRFUpdate(TChunkList* chunkList)
 
 void TChunkReplicator::ScheduleRFUpdate(TChunk* chunk)
 {
-    if (chunk->GetRefreshScheduled() || !chunk->IsAlive())
+    if (!IsObjectAlive(chunk) || chunk->GetRefreshScheduled())
         return;
 
     RFUpdateList.push_back(chunk);
@@ -829,7 +829,7 @@ void TChunkReplicator::OnRFUpdate()
             RFUpdateList.pop_front();
             ++count;
 
-            if (chunk->IsAlive()) {
+            if (IsObjectAlive(chunk)) {
                 int replicationFactor = ComputeReplicationFactor(*chunk);
                 if (chunk->GetReplicationFactor() != replicationFactor) {
                     auto* update = request.add_updates();

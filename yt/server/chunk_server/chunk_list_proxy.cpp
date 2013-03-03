@@ -143,7 +143,7 @@ private:
         children.reserve(childrenIds.size());
         FOREACH (const auto& childId, childrenIds) {
             auto* child = chunkManager->FindChunkTree(childId);
-            if (!child || !child->IsAlive()) {
+            if (!IsObjectAlive(child)) {
                 THROW_ERROR_EXCEPTION("No such chunk tree: %s", ~ToString(childId));
             }
             children.push_back(child);

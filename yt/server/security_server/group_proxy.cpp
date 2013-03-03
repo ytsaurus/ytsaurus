@@ -77,7 +77,7 @@ private:
     {
         auto securityManager = Bootstrap->GetSecurityManager();
         auto* subject = securityManager->FindSubjectByName(name);
-        if (!subject || !subject->IsAlive()) {
+        if (!IsObjectAlive(subject)) {
             THROW_ERROR_EXCEPTION("No such user or group: %s", ~name);
         }
         return subject;

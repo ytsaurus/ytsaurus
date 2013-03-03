@@ -1024,7 +1024,7 @@ private:
             auto chunkId = TChunkId::FromProto(update.chunk_id());
             int replicationFactor = update.replication_factor();
             auto* chunk = FindChunk(chunkId);
-            if (chunk && chunk->IsAlive() && chunk->GetReplicationFactor() != replicationFactor) {
+            if (IsObjectAlive(chunk) && chunk->GetReplicationFactor() != replicationFactor) {
                 // NB: Updating RF for staged chunks is forbidden.
                 YCHECK(!chunk->IsStaged());
                 chunk->SetReplicationFactor(replicationFactor);
@@ -1494,7 +1494,7 @@ private:
         bool cached = chunkAddInfo.cached();
 
         auto* chunk = FindChunk(chunkId);
-        if (!chunk || !chunk->IsAlive()) {
+        if (!IsObjectAlive(chunk)) {
             // Nodes may still contain cached replicas of chunks that no longer exist.
             // Here we just silently ignore this case.
             if (cached) {
@@ -1555,7 +1555,7 @@ private:
         bool cached = chunkInfo.cached();
 
         auto* chunk = FindChunk(chunkId);
-        if (!chunk || !chunk->IsAlive()) {
+        if (!IsObjectAlive(chunk)) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk replica removed (ChunkId: %s, Cached: %s, Address: %s, NodeId: %d)",
                  ~chunkId.ToString(),
                  ~FormatBool(cached),

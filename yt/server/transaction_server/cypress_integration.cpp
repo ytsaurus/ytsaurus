@@ -54,7 +54,7 @@ private:
         auto transactionManager = Bootstrap->GetTransactionManager();
         auto id = TTransactionId::FromString(key);
         auto* transaction = transactionManager->FindTransaction(id);
-        if (!transaction || !transaction->IsAlive()) {
+        if (!IsObjectAlive(transaction)) {
             return nullptr;
         }
 

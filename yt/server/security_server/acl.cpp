@@ -115,7 +115,7 @@ void Deserilize(
         // Subject
         FOREACH (const auto& name, serializableAce->Subjects) {
             auto* subject = securityManager->FindSubjectByName(name);
-            if (!subject || !subject->IsAlive()) {
+            if (!IsObjectAlive(subject)) {
                 THROW_ERROR_EXCEPTION("No such subject: %s", ~name);
             }
             ace.Subjects.push_back(subject);
