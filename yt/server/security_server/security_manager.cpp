@@ -521,7 +521,7 @@ public:
 
     void AddMember(TGroup* group, TSubject* member)
     {
-        ValidateGroupModifiable(group);
+        ValidateMembershipUpdate(group, member);
 
         if (group->Members().find(member) != group->Members().end()) {
             THROW_ERROR_EXCEPTION("Member %s is already present in group %s",
@@ -543,7 +543,7 @@ public:
 
     void RemoveMember(TGroup* group, TSubject* member)
     {
-        ValidateGroupModifiable(group);
+        ValidateMembershipUpdate(group, member);
 
         if (group->Members().find(member) == group->Members().end()) {
             THROW_ERROR_EXCEPTION("Member %s is not present in group %s",
@@ -916,11 +916,15 @@ private:
         RecomputeMembershipClosure();
     }
 
-    void ValidateGroupModifiable(TGroup* group)
+
+    void ValidateMembershipUpdate(TGroup* group, TSubject* member)
     {
         if (group == EveryoneGroup || group == UsersGroup) {
             THROW_ERROR_EXCEPTION("Cannot modify a built-in group");
         }
+
+        ValidatePermission(group, EPermission::Write);
+        ValidatePermission(member, EPermission::Write);
     }
 
 
