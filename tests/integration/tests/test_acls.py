@@ -168,7 +168,7 @@ class TestAcls(YTEnvSetup):
 
     def test_acl2(self):
         create_user('u')
-        create_user('g')
+        create_group('g')
         add_member('u', 'g')
         self._test_acl_rw('//tmp/a', '//tmp/a', 'g')
 
