@@ -21,6 +21,18 @@ class TestAcls(YTEnvSetup):
         self.assertItemsEqual(get('//sys/users/root/@member_of_closure'), ['users', 'everyone'])
         self.assertItemsEqual(get('//sys/users/guest/@member_of_closure'), ['everyone'])
 
+    def test_default_acl_sanity(self):
+        create_user('u')
+        with pytest.raises(YTError): set('/', {}, user='u')
+        with pytest.raises(YTError): set('//sys', {}, user='u')
+        with pytest.raises(YTError): set('//sys/a', 'b', user='u')
+        with pytest.raises(YTError): set('/a', 'b', user='u')
+        with pytest.raises(YTError): remove('//sys', user='u')
+        with pytest.raises(YTError): remove('//sys/tmp', user='u')
+        with pytest.raises(YTError): remove('//sys/home', user='u')
+        with pytest.raises(YTError): set('//sys/home/a', 'b', user='u')
+        set('//tmp/a', 'b', user='u')
+
     def test_create_user1(self):
         create_user('max')
         assert get('//sys/users/max/@name') == 'max'
@@ -124,3 +136,30 @@ class TestAcls(YTEnvSetup):
         with pytest.raises(YTError): remove_member('u', 'users')
         with pytest.raises(YTError): add_member('u', 'everyone')
         with pytest.raises(YTError): add_member('u', 'users')
+
+    def _to_list(x):
+        if isinstance(x, str):
+            return [x]
+        else:
+            return x
+
+    def _make_ace(action, subjects, permissions):
+        return {'action' : action, 'subjects' : _to_list(subjects), 'permissions' : _to_list(permissions)}
+
+    def test_acl1(self):
+        create_user('u')
+        
+        set('//tmp/a', 'b', user='u')
+        assert get('//tmp/a', user='u') == 'b'
+
+        set('//tmp/a', 'c', user='u')
+        assert get('//tmp/a', user='u') == 'c'
+
+        set('//tmp/@acl/end', _make_ace('deny', 'u', 'write'))
+        with pytest.raises(YTError): set('//tmp/a', 'd', user='u')
+        assert get('//tmp/a', user='u') == 'c'
+
+        remove('//tmp/@acl/-1')
+        set('//tmp/@acl/end', _make_ace('deny', 'u', ['read', 'write']))
+        with pytest.raises(YTError): get('//tmp/a', user='u')
+        with pytest.raises(YTError): set('//tmp/a', 'd', user='u')
