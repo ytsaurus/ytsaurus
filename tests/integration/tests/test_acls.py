@@ -36,7 +36,7 @@ class TestAcls(YTEnvSetup):
         create_group('devs')
         add_member('max', 'devs')
         assert get('//sys/groups/devs/@members') == ['max']
-        self.assertItemsEqual('//sys/groups/devs/@members'), ['max'])
+        self.assertItemsEqual(get('//sys/groups/devs/@members'), ['max'])
 
     def test_membership2(self):
         create_user('u1')
