@@ -12,8 +12,8 @@ class TestAcls(YTEnvSetup):
     START_SCHEDULER = True
 
     def test_init(self):
-        self.assertItemsEqual(get('//sys/groups/everyone'), ['root', 'guest'])
-        self.assertItemsEqual(get('//sys/groups/users'), ['root'])
+        self.assertItemsEqual(get('//sys/groups/everyone/@members'), ['root', 'guest'])
+        self.assertItemsEqual(get('//sys/groups/users/@members'), ['root'])
 
     def test_create_user(self):
         create_user('max')
