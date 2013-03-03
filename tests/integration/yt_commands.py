@@ -175,18 +175,21 @@ def create_account(name):
 
 def remove_account(name):
     remove('//sys/accounts/' + name)
+    gc_collect()
 
 def create_user(name):
     command('create', 'user', opt=['/attributes/name=' + name])
 
 def remove_user(name):
     remove('//sys/users/' + name)
+    gc_collect()
 
 def create_group(name):
     command('create', 'group', opt=['/attributes/name=' + name])
 
 def remove_group(name):
     remove('//sys/groups/' + name)
+    gc_collect()
 
 def add_member(member, group):
     command('add_member', member, group)
