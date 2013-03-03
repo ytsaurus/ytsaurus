@@ -11,7 +11,7 @@
 
 #include <ytlib/logging/tagged_logger.h>
 
-#include <ytlib/rpc/error.h>
+#include <ytlib/rpc/public.h>
 
 #include <errno.h>
 

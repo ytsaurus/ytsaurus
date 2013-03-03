@@ -4,7 +4,7 @@
 #include "server.h"
 #include "config.h"
 
-#include <ytlib/rpc/error.h>
+#include <ytlib/rpc/public.h>
 
 #include <util/system/error.h>
 #include <util/folder/dirut.h>

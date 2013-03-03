@@ -20,20 +20,6 @@ public:
         return "DataNode";
     }
 
-    DECLARE_ENUM(EErrorCode,
-        ((RemoteCallFailed)(101))
-        ((NoSuchSession)(102))
-        ((SessionAlreadyExists)(103))
-        ((ChunkAlreadyExists)(104))
-        ((WindowError)(105))
-        ((BlockContentMismatch)(106))
-        ((NoSuchBlock)(107))
-        ((NoSuchChunk)(108))
-        ((ChunkPrecachingFailed)(109))
-        ((OutOfSpace)(110))
-        ((IOError)(111))
-    );
-
     explicit TDataNodeServiceProxy(NRpc::IChannelPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }

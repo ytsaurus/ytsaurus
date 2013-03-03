@@ -52,7 +52,17 @@ public:
     Stroka GetDebugInfo();
 
 private:
-    friend class TRemoteWriter::TGroup;
+    //! A group is a bunch of blocks that is sent in a single RPC request.
+    class TGroup;
+    typedef TIntrusivePtr<TGroup> TGroupPtr;
+
+    struct TNode;
+    typedef TIntrusivePtr<TNode> TNodePtr;
+    typedef TWeakPtr<TNode> TNodeWeakPtr;
+
+    typedef ydeque<TGroupPtr> TWindow;
+
+    typedef NChunkClient::TDataNodeServiceProxy TProxy;
 
     TRemoteWriterConfigPtr Config;
     TChunkId ChunkId;
@@ -144,7 +154,7 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-struct TRemoteWriter::TNode
+struct TRemoteWriter::TImpl::TNode
     : public TRefCounted
 {
     int Index;
@@ -172,7 +182,7 @@ struct TRemoteWriter::TNode
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TRemoteWriter::TGroup
+class TRemoteWriter::TImpl::TGroup
     : public TRefCounted
 {
 public:
@@ -250,7 +260,7 @@ private:
     void CheckSendResponse(
         TNodePtr srcNode,
         TNodePtr dstNode,
-        TRemoteWriter::TProxy::TRspSendBlocksPtr rsp);
+        TProxy::TRspSendBlocksPtr rsp);
 
     /*!
      * \note Thread affinity: WriterThread.
@@ -260,7 +270,7 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TRemoteWriter::TGroup::TGroup(int nodeCount,
+TRemoteWriter::TImpl::TGroup::TGroup(int nodeCount,
     int startBlockIndex,
     TImpl* writer)
     : IsFlushing_(false)
@@ -271,28 +281,28 @@ TRemoteWriter::TGroup::TGroup(int nodeCount,
     , Logger(writer->Logger)
 { }
 
-void TRemoteWriter::TGroup::AddBlock(const TSharedRef& block)
+void TRemoteWriter::TImpl::TGroup::AddBlock(const TSharedRef& block)
 {
     Blocks.push_back(block);
     Size += block.Size();
 }
 
-int TRemoteWriter::TGroup::GetStartBlockIndex() const
+int TRemoteWriter::TImpl::TGroup::GetStartBlockIndex() const
 {
     return StartBlockIndex;
 }
 
-int TRemoteWriter::TGroup::GetEndBlockIndex() const
+int TRemoteWriter::TImpl::TGroup::GetEndBlockIndex() const
 {
     return StartBlockIndex + Blocks.size() - 1;
 }
 
-i64 TRemoteWriter::TGroup::GetSize() const
+i64 TRemoteWriter::TImpl::TGroup::GetSize() const
 {
     return Size;
 }
 
-bool TRemoteWriter::TGroup::IsWritten() const
+bool TRemoteWriter::TImpl::TGroup::IsWritten() const
 {
     auto writer = Writer.Lock();
     YCHECK(writer);
@@ -307,7 +317,7 @@ bool TRemoteWriter::TGroup::IsWritten() const
     return true;
 }
 
-void TRemoteWriter::TGroup::PutGroup()
+void TRemoteWriter::TImpl::TGroup::PutGroup()
 {
     auto writer = Writer.Lock();
     YCHECK(writer);
@@ -334,12 +344,12 @@ void TRemoteWriter::TGroup::PutGroup()
         &writer->PutBlocksTiming);
     awaiter->Await(PutBlocks(node), onResponse);
     awaiter->Complete(BIND(
-        &TRemoteWriter::TGroup::Process,
+        &TRemoteWriter::TImpl::TGroup::Process,
         MakeWeak(this)));
 }
 
-TRemoteWriter::TProxy::TInvPutBlocks
-TRemoteWriter::TGroup::PutBlocks(TNodePtr node)
+TRemoteWriter::TImpl::TProxy::TInvPutBlocks
+TRemoteWriter::TImpl::TGroup::PutBlocks(TNodePtr node)
 {
     auto writer = Writer.Lock();
     YCHECK(writer);
@@ -360,7 +370,7 @@ TRemoteWriter::TGroup::PutBlocks(TNodePtr node)
     return req->Invoke();
 }
 
-void TRemoteWriter::TGroup::OnPutBlocks(TNodePtr node, TProxy::TRspPutBlocksPtr rsp)
+void TRemoteWriter::TImpl::TGroup::OnPutBlocks(TNodePtr node, TProxy::TRspPutBlocksPtr rsp)
 {
     auto writer = Writer.Lock();
     if (!writer)
@@ -377,7 +387,7 @@ void TRemoteWriter::TGroup::OnPutBlocks(TNodePtr node, TProxy::TRspPutBlocksPtr 
         ~node->Address);
 }
 
-void TRemoteWriter::TGroup::SendGroup(TNodePtr srcNode)
+void TRemoteWriter::TImpl::TGroup::SendGroup(TNodePtr srcNode)
 {
     auto writer = Writer.Lock();
     YCHECK(writer);
@@ -400,8 +410,8 @@ void TRemoteWriter::TGroup::SendGroup(TNodePtr srcNode)
     }
 }
 
-TRemoteWriter::TProxy::TInvSendBlocks
-TRemoteWriter::TGroup::SendBlocks(
+TRemoteWriter::TImpl::TProxy::TInvSendBlocks
+TRemoteWriter::TImpl::TGroup::SendBlocks(
     TNodePtr srcNode,
     TNodePtr dstNod)
 {
@@ -424,17 +434,17 @@ TRemoteWriter::TGroup::SendBlocks(
     return req->Invoke();
 }
 
-void TRemoteWriter::TGroup::CheckSendResponse(
+void TRemoteWriter::TImpl::TGroup::CheckSendResponse(
     TNodePtr srcNode,
     TNodePtr dstNode,
-    TRemoteWriter::TProxy::TRspSendBlocksPtr rsp)
+    TRemoteWriter::TImpl::TProxy::TRspSendBlocksPtr rsp)
 {
     auto writer = Writer.Lock();
     if (!writer)
         return;
 
     const auto& error = rsp->GetError();
-    if (error.GetCode() == EErrorCode::RemoteCallFailed) {
+    if (error.GetCode() == EErrorCode::PipelineFailed) {
         writer->OnNodeFailed(dstNode, error);
         return;
     }
@@ -445,14 +455,14 @@ void TRemoteWriter::TGroup::CheckSendResponse(
         srcNode,
         dstNode);
 
-    writer->CheckResponse<TRemoteWriter::TProxy::TRspSendBlocks>(
+    writer->CheckResponse<TRemoteWriter::TImpl::TProxy::TRspSendBlocks>(
         srcNode,
         onSuccess,
         &writer->SendBlocksTiming,
         rsp);
 }
 
-void TRemoteWriter::TGroup::OnSentBlocks(
+void TRemoteWriter::TImpl::TGroup::OnSentBlocks(
     TNodePtr srcNode,
     TNodePtr dstNod,
     TProxy::TRspSendBlocksPtr rsp)
@@ -472,7 +482,7 @@ void TRemoteWriter::TGroup::OnSentBlocks(
     IsSent[dstNod->Index] = true;
 }
 
-bool TRemoteWriter::TGroup::IsFlushing() const
+bool TRemoteWriter::TImpl::TGroup::IsFlushing() const
 {
     auto writer = Writer.Lock();
     YCHECK(writer);
@@ -482,7 +492,7 @@ bool TRemoteWriter::TGroup::IsFlushing() const
     return IsFlushing_;
 }
 
-void TRemoteWriter::TGroup::SetFlushing()
+void TRemoteWriter::TImpl::TGroup::SetFlushing()
 {
     auto writer = Writer.Lock();
     YCHECK(writer);
@@ -492,7 +502,7 @@ void TRemoteWriter::TGroup::SetFlushing()
     IsFlushing_ = true;
 }
 
-void TRemoteWriter::TGroup::Process()
+void TRemoteWriter::TImpl::TGroup::Process()
 {
     auto writer = Writer.Lock();
     if (!writer)
@@ -658,7 +668,7 @@ void TRemoteWriter::TImpl::ShiftWindow()
         lastFlushableBlock));
 }
 
-TRemoteWriter::TProxy::TInvFlushBlock
+TRemoteWriter::TImpl::TProxy::TInvFlushBlock
 TRemoteWriter::TImpl::FlushBlock(TNodePtr node, int blockIndex)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
@@ -780,7 +790,7 @@ void TRemoteWriter::TImpl::CheckResponse(
     onSuccess.Run(rsp);
 }
 
-TRemoteWriter::TProxy::TInvStartChunk
+TRemoteWriter::TImpl::TProxy::TInvStartChunk
 TRemoteWriter::TImpl::StartChunk(TNodePtr node)
 {
     LOG_DEBUG("Starting chunk session at %s", ~node->Address);
@@ -873,7 +883,7 @@ void TRemoteWriter::TImpl::OnChunkFinished(TNodePtr node, TProxy::TRspFinishChun
     }
 }
 
-TRemoteWriter::TProxy::TInvFinishChunk
+TRemoteWriter::TImpl::TProxy::TInvFinishChunk
 TRemoteWriter::TImpl::FinishChunk(TNodePtr node)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
@@ -904,22 +914,22 @@ void TRemoteWriter::TImpl::OnSessionFinished()
     State.FinishOperation();
 }
 
-void TRemoteWriter::TImpl::SendPing(TNodeWeakPtr nodeWeak)
+void TRemoteWriter::TImpl::SendPing(TNodeWeakPtr node)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    auto node = nodeWeak.Lock();
-    if (!node) {
+    auto node_ = node.Lock();
+    if (!node_) {
         return;
     }
 
-    LOG_DEBUG("Sending ping to %s", ~node->Address);
+    LOG_DEBUG("Sending ping to %s", ~node_->Address);
 
-    auto req = node->Proxy.PingSession();
+    auto req = node_->Proxy.PingSession();
     *req->mutable_chunk_id() = ChunkId.ToProto();
     req->Invoke();
 
-    node->PingInvoker->ScheduleNext();
+    node_->PingInvoker->ScheduleNext();
 }
 
 void TRemoteWriter::TImpl::StartPing(TNodePtr node)

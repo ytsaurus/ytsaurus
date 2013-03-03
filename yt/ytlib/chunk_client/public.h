@@ -40,13 +40,24 @@ typedef i64 TBlockOffset;
 struct TBlockId;
 
 DECLARE_ENUM(EChunkType,
-    ((Unknown)(0))
-    ((File)(1))
-    ((Table)(2))
+    ((Unknown) (0))
+    ((File)    (1))
+    ((Table)   (2))
 );
 
 DECLARE_ENUM(EErrorCode,
-    ((AllTargetNodesFailed)(700))
+    ((AllTargetNodesFailed)  (700))
+    ((PipelineFailed)        (701))
+    ((NoSuchSession)         (702))
+    ((SessionAlreadyExists)  (703))
+    ((ChunkAlreadyExists)    (704))
+    ((WindowError)           (705))
+    ((BlockContentMismatch)  (706))
+    ((NoSuchBlock)           (707))
+    ((NoSuchChunk)           (708))
+    ((ChunkPrecachingFailed) (709))
+    ((OutOfSpace)            (710))
+    ((IOError)               (711))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

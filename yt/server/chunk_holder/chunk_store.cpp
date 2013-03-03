@@ -155,7 +155,7 @@ TLocationPtr TChunkStore::GetNewChunkLocation()
 
     if (candidates.empty()) {
         THROW_ERROR_EXCEPTION(
-            TDataNodeServiceProxy::EErrorCode::OutOfSpace,
+            NChunkClient::EErrorCode::OutOfSpace,
             "All locations are either disabled or full");
     }
 

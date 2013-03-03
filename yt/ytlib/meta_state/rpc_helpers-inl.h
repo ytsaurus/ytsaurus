@@ -2,7 +2,7 @@
 #error "Direct inclusion of this file is not allowed, include rpc-helpers.h"
 #endif
 
-#include <ytlib/rpc/error.h>
+#include <ytlib/rpc/public.h>
 
 namespace NYT {
 namespace NMetaState {

@@ -2,7 +2,6 @@
 
 #include "public.h"
 #include "channel.h"
-#include "error.h"
 
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/delayed_invoker.h>

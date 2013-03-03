@@ -92,7 +92,7 @@ void TDataNodeService::ValidateNoSession(const TChunkId& chunkId)
 {
     if (Bootstrap->GetSessionManager()->FindSession(chunkId)) {
         THROW_ERROR_EXCEPTION(
-            EErrorCode::SessionAlreadyExists,
+            NChunkClient::EErrorCode::SessionAlreadyExists,
             "Session already exists: %s",
             ~chunkId.ToString());
     }
@@ -102,7 +102,7 @@ void TDataNodeService::ValidateNoChunk(const TChunkId& chunkId)
 {
     if (Bootstrap->GetChunkStore()->FindChunk(chunkId)) {
         THROW_ERROR_EXCEPTION(
-            EErrorCode::ChunkAlreadyExists,
+            NChunkClient::EErrorCode::ChunkAlreadyExists,
             "Chunk already exists: %s",
             ~chunkId.ToString());
     }
@@ -113,7 +113,7 @@ TSessionPtr TDataNodeService::GetSession(const TChunkId& chunkId)
     auto session = Bootstrap->GetSessionManager()->FindSession(chunkId);
     if (!session) {
         THROW_ERROR_EXCEPTION(
-            EErrorCode::NoSuchSession,
+            NChunkClient::EErrorCode::NoSuchSession,
             "Session is invalid or expired: %s",
             ~chunkId.ToString());
     }
@@ -125,7 +125,7 @@ TChunkPtr TDataNodeService::GetChunk(const TChunkId& chunkId)
     auto chunk = Bootstrap->GetChunkRegistry()->FindChunk(chunkId);
     if (!chunk) {
         THROW_ERROR_EXCEPTION(
-            EErrorCode::NoSuchChunk,
+            NChunkClient::EErrorCode::NoSuchChunk,
             "No such chunk: %s",
             ~chunkId.ToString());
     }
@@ -311,7 +311,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, SendBlocks)
                 context->Reply();
             } else {
                 context->Reply(TError(
-                    TDataNodeServiceProxy::EErrorCode::RemoteCallFailed,
+                    NChunkClient::EErrorCode::PipelineFailed,
                     "Error putting blocks to %s",
                     ~targetAddress)
                     << error);
@@ -375,7 +375,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
                         auto block = result.Value();
                         response->Attachments()[index] = block->GetData();
                         LOG_DEBUG("GetBlocks: Fetched block %d", blockIndex);
-                    } else if (result.GetCode() == TDataNodeServiceProxy::EErrorCode::NoSuchChunk) {
+                    } else if (result.GetCode() == NChunkClient::EErrorCode::NoSuchChunk) {
                         // This is really sad. We neither have the full chunk nor this particular block.
                         blockInfo->set_data_attached(false);
                         LOG_DEBUG("GetBlocks: Chunk is missing, block %d is not cached", blockIndex);
@@ -495,7 +495,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, PrecacheChunk)
                 context->Reply();
             } else {
                 context->Reply(TError(
-                    TDataNodeServiceProxy::EErrorCode::ChunkPrecachingFailed,
+                    NChunkClient::EErrorCode::ChunkPrecachingFailed,
                     "Error precaching chunk %s",
                     ~chunkId.ToString())
                     << result);

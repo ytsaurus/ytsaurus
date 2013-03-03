@@ -11,7 +11,7 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/address.h>
 
-#include <ytlib/rpc/error.h>
+#include <ytlib/rpc/public.h>
 
 #include <errno.h>
 

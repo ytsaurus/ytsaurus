@@ -11,24 +11,6 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A static node type.
-DECLARE_ENUM(ENodeType,
-    // Node contains a string (Stroka).
-    (String)
-    // Node contains an integer number (i64).
-    (Integer)
-    // Node contains an FP number (double).
-    (Double)
-    // Node contains a map from strings to other nodes.
-    (Map)
-    // Node contains a list (vector) of other nodes.
-    (List)
-    // Node is atomic, i.e. has no visible properties (aside from attributes).
-    (Entity)
-    // Either List or Map.
-    (Composite)
-);
-
 class TYsonString;
 
 struct INode;
@@ -91,6 +73,30 @@ template <class TRequestMessage, class TResponseMessage>
 class TTypedYPathResponse;
 
 using NYPath::TYPath;
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A static node type.
+DECLARE_ENUM(ENodeType,
+    // Node contains a string (Stroka).
+    (String)
+    // Node contains an integer number (i64).
+    (Integer)
+    // Node contains an FP number (double).
+    (Double)
+    // Node contains a map from strings to other nodes.
+    (Map)
+    // Node contains a list (vector) of other nodes.
+    (List)
+    // Node is atomic, i.e. has no visible properties (aside from attributes).
+    (Entity)
+    // Either List or Map.
+    (Composite)
+);
+
+DECLARE_ENUM(EErrorCode,
+    ((ResolveError)    (500))
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 
