@@ -31,7 +31,7 @@ static NLog::TLogger& Logger = FileServerLogger;
 
 TFileNode::TFileNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
-    , ChunkList_(NULL)
+    , ChunkList_(nullptr)
     , UpdateMode_(EFileUpdateMode::None)
     , ReplicationFactor_(0)
 { }

@@ -32,7 +32,7 @@ static NLog::TLogger& Logger = TableServerLogger;
 
 TTableNode::TTableNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
-    , ChunkList_(NULL)
+    , ChunkList_(nullptr)
     , UpdateMode_(ETableUpdateMode::None)
     , ReplicationFactor_(0)
     , Codec_(ECodec::Lz4)
