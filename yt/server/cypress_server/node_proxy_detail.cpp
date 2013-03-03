@@ -502,28 +502,32 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
     EPermissionCheckScope scope,
     EPermission permission)
 {
-    switch (scope) {
-        case EPermissionCheckScope::This:
-            ValidatePermission(TrunkNode, permission);
-            break;
+    ValidatePermission(TrunkNode, scope, permission);
+}
 
-        case EPermissionCheckScope::Parent: {
-            // NB: TrunkNode->GetParent() may be null if the node is still being constructed
-            // in a transaction.
-            ValidatePermission(GetThisImpl()->GetParent(), permission);
-            break;
-        }
-        case EPermissionCheckScope::Descendants: {
-            auto cypressManager = Bootstrap->GetCypressManager();
-            auto descendants = cypressManager->ListSubtreeNodes(TrunkNode, Transaction, false);
-            FOREACH (auto* descendant, descendants) {
-                ValidatePermission(descendant, permission);
-            }
-            break;
-        }
+void TNontemplateCypressNodeProxyBase::ValidatePermission(
+    TCypressNodeBase* trunkNode,
+    EPermissionCheckScope scope,
+    EPermission permission)
+{
+    YCHECK(trunkNode->IsTrunk());
 
-        default:
-            YUNREACHABLE();
+    if (scope & EPermissionCheckScope::This) {
+        ValidatePermission(trunkNode, permission);
+    }
+
+    if (scope & EPermissionCheckScope::Parent) {
+        // NB: trunkNode->GetParent() may be null if the node is still being constructed
+        // in a transaction. Dig down to the exact versioned copy of #trunkNode.
+        ValidatePermission(GetImpl(trunkNode)->GetParent(), permission);
+    }
+
+    if (scope & EPermissionCheckScope::Descendants) {
+        auto cypressManager = Bootstrap->GetCypressManager();
+        auto descendants = cypressManager->ListSubtreeNodes(trunkNode, Transaction, false);
+        FOREACH (auto* descendant, descendants) {
+            ValidatePermission(descendant, permission);
+        }
     }
 }
 
@@ -659,8 +663,15 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
 
     auto* trunkDestImpl = GetTrunkNode();
 
+    ValidatePermission(
+        sourceImpl,
+        // TODO(babenko): flagged enums
+        EPermissionCheckScope(EPermissionCheckScope::This | EPermissionCheckScope::Descendants),
+        EPermission::Read);
+
     auto type = sourceImpl->GetType();
     auto* schema = objectManager->GetSchema(type);
+    // TODO(babenko): also check descendant node types
     securityManager->ValidatePermission(schema, EPermission::Create);
 
     TCloneContext cloneContext;

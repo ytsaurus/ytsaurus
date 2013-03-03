@@ -150,6 +150,13 @@ protected:
     virtual void ValidatePermission(
         NYTree::EPermissionCheckScope scope,
         NYTree::EPermission permission) override;
+
+    // Cypress-specific overload.
+    void ValidatePermission(
+        TCypressNodeBase* node,
+        NYTree::EPermissionCheckScope scope,
+        NYTree::EPermission permission);
+
     // Inject other overloads into the scope.
     using TObjectProxyBase::ValidatePermission;
 

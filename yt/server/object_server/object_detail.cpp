@@ -478,17 +478,13 @@ void TObjectProxyBase::ValidateNoTransaction()
     }
 }
 
-void TObjectProxyBase::ValidatePermission(
-    EPermissionCheckScope scope,
-    EPermission permission)
+void TObjectProxyBase::ValidatePermission(EPermissionCheckScope scope, EPermission permission)
 {
     YCHECK(scope == EPermissionCheckScope::This);
     ValidatePermission(Object, permission);
 }
 
-void TObjectProxyBase::ValidatePermission(
-    TObjectBase* object,
-    EPermission permission)
+void TObjectProxyBase::ValidatePermission(TObjectBase* object, EPermission permission)
 {
     YCHECK(object);
     auto securityManager = Bootstrap->GetSecurityManager();
