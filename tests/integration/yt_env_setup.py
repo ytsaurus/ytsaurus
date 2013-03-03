@@ -59,10 +59,14 @@ class YTEnvSetup(YTEnv):
             accounts = yt_commands.get_accounts()
             self._remove_accounts(accounts)
 
-    def _abort_transactions(self, tx_ids):
-        if tx_ids:
-            logging.info('Aborting {0} txs' % tx_ids)
-        for tx in tx_ids:
+            users = yt_commands.get_users()
+            self._remove_users(users)
+
+            groups = yt_commands.get_groups()
+            self._remove_groups(groups)
+
+    def _abort_transactions(self, txs):
+        for tx in txs:
             try:
                 yt_commands.abort_transaction(tx)
             except:
@@ -72,6 +76,16 @@ class YTEnvSetup(YTEnv):
         for account in accounts:
             if account != 'sys' and account != 'tmp':
                 yt_commands.remove_account(account)
+
+    def _remove_users(self, users):
+        for user in users:
+            if user != 'root' and user != 'guest':
+                yt_commands.remove_user(user)
+
+    def _remove_users(self, groups):
+        for group in groups:
+            if group != 'everyone' and group != 'users':
+                yt_commands.remove_group(group)
 
 # decorator form
 ATTRS = [

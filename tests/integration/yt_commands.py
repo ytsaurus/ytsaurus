@@ -176,6 +176,18 @@ def create_account(name):
 def remove_account(name):
     remove('//sys/accounts/' + name)
 
+def create_user(name):
+    command('create', 'user', opt=['/attributes/name=' + name])
+
+def remove_user(name):
+    remove('//sys/users/' + name)
+
+def create_group(name):
+    command('create', 'group', opt=['/attributes/name=' + name])
+
+def remove_group(name):
+    remove('//sys/group/' + name)
+
 #########################################
 
 def get(path, **kwargs):
@@ -219,5 +231,13 @@ def get_chunks():
 def get_accounts():
     gc_collect()
     return ls('//sys/accounts')
+
+def get_users():
+    gc_collect()
+    return ls('//sys/users')
+
+def get_groups():
+    gc_collect()
+    return ls('//sys/groups')
 
 #########################################
