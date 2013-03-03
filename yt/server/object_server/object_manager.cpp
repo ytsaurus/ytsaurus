@@ -739,7 +739,7 @@ void TObjectManager::ExecuteVerb(
     } else {
         if (!Bootstrap->GetMetaStateFacade()->IsActiveLeader()) {
             context->Reply(TError(
-                EErrorCode::Unavailable,
+                NRpc::EErrorCode::Unavailable,
                 "Not an active leader"));
             return;
         }

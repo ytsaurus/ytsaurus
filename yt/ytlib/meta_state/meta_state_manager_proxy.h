@@ -20,15 +20,6 @@ public:
         return "MetaState";
     }
 
-    DECLARE_ENUM(EErrorCode,
-        ((NoSuchSnapshot)(21))
-        ((NoSuchChangeLog)(22))
-        ((InvalidEpoch)(23))
-        ((InvalidVersion)(24))
-        ((InvalidStatus)(25))
-        ((SnapshotAlreadyInProgress)(26))
-    );
-
     explicit TMetaStateManagerProxy(NRpc::IChannelPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }

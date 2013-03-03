@@ -23,7 +23,6 @@ public:
 
 private:
     typedef TMetaStateManagerProxy TProxy;
-    typedef TProxy::EErrorCode EErrorCode;
 
     TPersistentStateManagerConfigPtr Config;
     NElection::TCellManagerPtr CellManager;

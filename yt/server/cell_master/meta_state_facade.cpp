@@ -129,10 +129,10 @@ public:
         if (MetaStateManager->GetStateStatus() != EPeerStatus::Leading) {
             throw TNotALeaderException()
                 <<= ERROR_SOURCE_LOCATION()
-                >>= TError(EErrorCode::Unavailable, "Not a leader");
+                >>= TError(NRpc::EErrorCode::Unavailable, "Not a leader");
         }
         if (!MetaStateManager->HasActiveQuorum()) {
-            THROW_ERROR_EXCEPTION(EErrorCode::Unavailable, "No active quorum");
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "No active quorum");
         }
     }
 
@@ -147,7 +147,7 @@ public:
     void ValidateInitialized()
     {
         if (!IsInitialized()) {
-            THROW_ERROR_EXCEPTION(EErrorCode::Unavailable, "Not initialized yet");
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Not initialized");
         }
     }
 

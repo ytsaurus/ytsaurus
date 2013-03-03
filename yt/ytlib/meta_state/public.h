@@ -76,15 +76,19 @@ DECLARE_ENUM(EPeerStatus,
     (Leading)
 );
 
-// TODO(babenko): provide unique codes
-DECLARE_ENUM(ECommitCode,
-    ((Committed)(100))
-    ((MaybeCommitted)(101))
-    ((NoQuorum)(102))
-    ((NoLeader)(103))
-    ((ReadOnly)(104))
-    ((LateMutations)(105))
-    ((OutOfOrderMutations)(106))
+DECLARE_ENUM(EErrorCode,
+    ((NoSuchSnapshot)             (600))
+    ((NoSuchChangeLog)            (601))
+    ((InvalidEpoch)               (602))
+    ((InvalidVersion)             (603))
+    ((InvalidStatus)              (604))
+    ((SnapshotAlreadyInProgress)  (605))
+    ((MaybeCommitted)             (606))
+    ((NoQuorum)                   (607))
+    ((NoLeader)                   (608))
+    ((ReadOnly)                   (609))
+    ((LateMutations)              (610))
+    ((OutOfOrderMutations)        (611))
 );
 
 using NElection::TPeerId;

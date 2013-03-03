@@ -13,6 +13,12 @@ typedef TIntrusivePtr<TCellManager> TCellManagerPtr;
 struct TCellConfig;
 typedef TIntrusivePtr<TCellConfig> TCellConfigPtr;
 
+DECLARE_ENUM(EErrorCode,
+    ((InvalidState)  (800))
+    ((InvalidLeader) (801))
+    ((InvalidEpoch)  (802))
+);
+
 DECLARE_ENUM(EPeerState,
     (Stopped)
     (Voting)

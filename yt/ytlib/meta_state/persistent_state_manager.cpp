@@ -286,20 +286,20 @@ public:
 
         if (GetStateStatus() != EPeerStatus::Leading) {
             return MakeFuture(TValueOrError<TMutationResponse>(TError(
-                ECommitCode::NoLeader,
+                NMetaState::EErrorCode::NoLeader,
                 "Not a leader")));
         }
 
         if (AtomicGet(ReadOnly)) {
             return MakeFuture(TValueOrError<TMutationResponse>(TError(
-                ECommitCode::ReadOnly,
+                NMetaState::EErrorCode::ReadOnly,
                 "Read-only mode is active")));
         }
 
         auto epochContext = EpochContext;
         if (!epochContext || !HasActiveQuorum_) {
             return MakeFuture(TValueOrError<TMutationResponse>(TError(
-                ECommitCode::NoQuorum,
+                NMetaState::EErrorCode::NoQuorum,
                 "No active quorum")));
         }
 
@@ -315,7 +315,6 @@ public:
  private:
     typedef TPersistentStateManager TThis;
     typedef TMetaStateManagerProxy TProxy;
-    typedef TProxy::EErrorCode EErrorCode;
 
     TPersistentStateManagerConfigPtr Config;
     TCellManagerPtr CellManager;
@@ -577,7 +576,7 @@ public:
         auto& response = context->Response();
         response.set_committed(error.IsOK());
 
-        if (error.GetCode() == ECommitCode::OutOfOrderMutations) {
+        if (error.GetCode() == NMetaState::EErrorCode::OutOfOrderMutations) {
             Restart();
         }
 
@@ -601,7 +600,7 @@ public:
 
         if (status != EPeerStatus::Following && status != EPeerStatus::FollowerRecovery) {
             THROW_ERROR_EXCEPTION(
-                EErrorCode::InvalidStatus,
+                NMetaState::EErrorCode::InvalidStatus,
                 "Cannot process follower ping while %s",
                 ~GetControlStatus().ToString());
         }

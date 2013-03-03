@@ -21,12 +21,6 @@ public:
         return "ElectionManager";
     }
 
-    DECLARE_ENUM(EErrorCode,
-        ((InvalidState)(11))
-        ((InvalidLeader)(12))
-        ((InvalidEpoch)(13))
-    );
-
     TElectionManagerProxy(NRpc::IChannelPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
