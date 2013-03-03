@@ -160,6 +160,7 @@ function YtBlackbox(logger, global_config) { // TODO: Inject |config|
             });
     }
 
+    // TODO(sandello): Configure user names from config.
     return function(req, rsp, next) {
         if (disabled) {
             req.authenticated_user = "root";
