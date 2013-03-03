@@ -202,3 +202,27 @@ class TestAcls(YTEnvSetup):
     def test_allowing_acl3(self):
         set('//tmp/p', {})
         self._test_allowing_acl('//tmp/p/a', 'guest', '//tmp/p', 'guest')
+
+    def test_schema_acl(self):
+        create_user('u')
+        create('table', '//tmp/t1', user='u')
+        set('//sys/schemas/table_node/@acl/end', self._make_ace('deny', 'u', 'create'))
+        with pytest.raises(YTError): create('table', '//tmp/t2', user='u')
+
+    def test_user_destruction(self):
+        old_acl = get('//tmp/@acl')
+
+        create_user('u')
+        set('//tmp/@acl/end', self._make_ace('deny', 'u', 'write'))
+
+        remove_user('u')
+        assert get('//tmp/@acl') == old_acl
+
+    def test_group_destruction(self):
+        old_acl = get('//tmp/@acl')
+
+        create_group('g')
+        set('//tmp/@acl/end', self._make_ace('deny', 'g', 'write'))
+
+        remove_group('g')
+        assert get('//tmp/@acl') == old_acl
