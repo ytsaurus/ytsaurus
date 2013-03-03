@@ -56,13 +56,13 @@ extern TRequestId NullRequestId;
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_ENUM(EErrorCode,
-    ((TransportError)  (1))
-    ((ProtocolError)   (2))
-    ((NoSuchService)   (3))
-    ((NoSuchVerb)      (4))
-    ((Timeout)         (5))
-    ((Unavailable)     (6))
-    ((PoisonPill)      (7))
+    ((TransportError)  (100))
+    ((ProtocolError)   (101))
+    ((NoSuchService)   (102))
+    ((NoSuchVerb)      (103))
+    ((Timeout)         (104))
+    ((Unavailable)     (105))
+    ((PoisonPill)      (106))
 );
 
 // TODO(babenko): obsolete

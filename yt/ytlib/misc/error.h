@@ -56,10 +56,9 @@ public:
 
     TNullable<TError> FindMatching(int code) const;
 
-    enum
-    {
+    enum {
         OK = 0,
-        Fail = INT_MAX
+        Fail = 1
     };
 
 private:
