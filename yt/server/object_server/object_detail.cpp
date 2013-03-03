@@ -193,7 +193,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
     auto objectManager = Bootstrap->GetObjectManager();
 
     auto* user = securityManager->FindUserByName(userName);
-    if (!user) {
+    if (!user || !user->IsAlive()) {
         THROW_ERROR_EXCEPTION("No such user: %s", ~userName);
     }
 

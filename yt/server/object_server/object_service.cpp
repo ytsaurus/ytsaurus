@@ -248,7 +248,7 @@ private:
         }
 
         auto* user = securityManager->FindUserByName(UserName.Get());
-        if (!user) {
+        if (!user || !user->IsAlive()) {
             THROW_ERROR_EXCEPTION("No such user: %s", ~UserName.Get());
         }
 
