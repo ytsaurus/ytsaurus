@@ -58,7 +58,7 @@ public:
 
     enum {
         OK = 0,
-        Fail = 1
+        GenericFailure = 1
     };
 
 private:

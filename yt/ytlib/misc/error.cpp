@@ -22,14 +22,14 @@ TError::TError()
 { }
 
 TError::TError(const Stroka& message)
-    : Code_(Fail)
+    : Code_(GenericFailure)
     , Message_(message)
 {
     CaptureOriginAttributes();
 }
 
 TError::TError(const char* format, ...)
-    : Code_(Fail)
+    : Code_(GenericFailure)
 {
     va_list params;
     va_start(params, format);
@@ -59,7 +59,7 @@ TError::TError(const std::exception& ex)
     if (errorEx) {
         *this = errorEx->Error();
     } else {
-        Code_ = Fail;
+        Code_ = GenericFailure;
         Message_ = ex.what();
     }
 }
@@ -221,7 +221,7 @@ void AppendError(const TError& error, int indent, Stroka* out)
     out->append(error.GetMessage());
     out->append('\n');
 
-    if (error.GetCode() != TError::Fail) {
+    if (error.GetCode() != TError::GenericFailure) {
         AppendAttribute("code", ToString(error.GetCode()), indent, out);
     }
 

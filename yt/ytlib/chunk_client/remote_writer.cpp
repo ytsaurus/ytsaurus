@@ -591,7 +591,7 @@ TRemoteWriter::TImpl::~TImpl()
         return;
 
     LOG_INFO("Writer canceled");
-    State.Cancel(TError(TError::Fail, "Writer canceled"));
+    State.Cancel(TError("Writer canceled"));
 }
 
 void TRemoteWriter::TImpl::Open()
