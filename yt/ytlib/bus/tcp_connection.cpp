@@ -431,36 +431,15 @@ TAsyncError TTcpConnection::Send(IMessagePtr message)
     VERIFY_THREAD_AFFINITY_ANY();
 
     TQueuedMessage queuedMessage(message);
+
+    // NB: Log first to avoid producing weird traces.
+    LOG_DEBUG("Outcoming message enqueued (PacketId: %s)", ~queuedMessage.PacketId.ToString());
+
     QueuedMessages.Enqueue(queuedMessage);
 
-    // We perform state check _after_ the message is already enqueued.
-    // Other option would be to call |Enqueue| under spinlock, but this
-    // ruins the idea to be lock-free.
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        switch (State) {
-            case EState::Resolving:
-            case EState::Opening:
-                break;
-
-            case EState::Open:
-                Dispatcher->AsyncPostEvent(this, EConnectionEvent::MessageEnqueued);
-                break;
-
-            case EState::Closed:
-                guard.Release();
-                // Try to remove the message.
-                // This might not be the exact same message we've just enqueued
-                // but still enables to keep the queue empty.
-                QueuedMessages.Dequeue(&queuedMessage);
-                LOG_DEBUG("Outcoming message via closed bus is dropped");
-                return MakeFuture(TError(
-                    NRpc::EErrorCode::TransportError,
-                    "Connection is closed"));
-        }
+    if (State != EState::Resolving && State != EState::Opening)  {
+        Dispatcher->AsyncPostEvent(this, EConnectionEvent::MessageEnqueued);
     }
-
-    LOG_DEBUG("Outcoming message enqueued (PacketId: %s)", ~queuedMessage.PacketId.ToString());
 
     return queuedMessage.Promise;
 }
@@ -954,7 +933,11 @@ void TTcpConnection::OnMessagePacketSent(const TEncodedPacket& packet)
 void TTcpConnection::OnMessageEnqueued()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
-    YASSERT(State != EState::Closed);
+    
+    if (State == EState::Closed) {
+        DiscardOutcomingMessages();
+        return;
+    }
 
     ProcessOutcomingMessages();
     UpdateSocketWatcher();
@@ -970,6 +953,18 @@ void TTcpConnection::ProcessOutcomingMessages()
 
         TUnackedMessage unackedMessage(queuedMessage.PacketId, queuedMessage.Promise);
         UnackedMessages.push(unackedMessage);
+    }
+}
+
+void TTcpConnection::DiscardOutcomingMessages()
+{
+    TQueuedMessage queuedMessage;
+    while (QueuedMessages.Dequeue(&queuedMessage)) {
+        LOG_DEBUG("Outcoming message dequeued (PacketId: %s)", ~queuedMessage.PacketId.ToString());
+
+        queuedMessage.Promise.Set(TError(
+            NRpc::EErrorCode::TransportError,
+            "Connection is closed"));
     }
 }
 

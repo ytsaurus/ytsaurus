@@ -204,6 +204,7 @@ private:
     void OnMessagePacketSent(const TEncodedPacket& packet);
     void OnMessageEnqueued();
     void ProcessOutcomingMessages();
+    void DiscardOutcomingMessages();
     void UpdateSocketWatcher();
 
     void OnTerminated();
