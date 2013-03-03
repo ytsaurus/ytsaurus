@@ -174,7 +174,7 @@ function YtBlackbox(logger, global_config) { // TODO: Inject |config|
             var ua = req.headers["user-agent"];
             if (ua && ua.indexOf("Python wrapper") === 0) {
                 req.authenticated_user = undefined;
-                return httpUnauthorized(rsp):
+                return httpUnauthorized(rsp);
             } else {
                 req.authenticated_user = "guest";
                 return next();
