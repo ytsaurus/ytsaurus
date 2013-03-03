@@ -148,56 +148,56 @@ class TestAcls(YTEnvSetup):
     def _make_ace(self, action, subjects, permissions):
         return {'action' : action, 'subjects' : self._to_list(subjects), 'permissions' : self._to_list(permissions)}
 
-    def _test_denying_acl(self, rw_path, acl_path, acl_subject):
-        set(rw_path, 'b', user='u')
-        assert get(rw_path, user='u') == 'b'
+    def _test_denying_acl(self, rw_path, rw_user, acl_path, acl_subject):
+        set(rw_path, 'b', user=rw_user)
+        assert get(rw_path, user=rw_user) == 'b'
 
-        set(rw_path, 'c', user='u')
-        assert get(rw_path, user='u') == 'c'
+        set(rw_path, 'c', user=rw_user)
+        assert get(rw_path, user=rw_user) == 'c'
 
         set(acl_path + '/@acl/end', self._make_ace('deny', acl_subject, 'write'))
-        with pytest.raises(YTError): set(rw_path, 'd', user='u')
-        assert get(rw_path, user='u') == 'c'
+        with pytest.raises(YTError): set(rw_path, 'd', user=rw_user)
+        assert get(rw_path, user=rw_user) == 'c'
 
         remove(acl_path + '/@acl/-1')
         set(acl_path + '/@acl/end', self._make_ace('deny', acl_subject, ['read', 'write']))
-        with pytest.raises(YTError): get(rw_path, user='u')
-        with pytest.raises(YTError): set(rw_path, 'd', user='u')
+        with pytest.raises(YTError): get(rw_path, user=rw_user)
+        with pytest.raises(YTError): set(rw_path, 'd', user=rw_user)
 
     def test_denying_acl1(self):
         create_user('u')
-        self._test_denying_acl('//tmp/a', '//tmp/a', 'u')
+        self._test_denying_acl('//tmp/a', 'u', '//tmp/a', 'u')
 
     def test_denying_acl2(self):
         create_user('u')
         create_group('g')
         add_member('u', 'g')
-        self._test_denying_acl('//tmp/a', '//tmp/a', 'g')
+        self._test_denying_acl('//tmp/a', 'u', '//tmp/a', 'g')
 
     def test_denying_acl3(self):
         create_user('u')
         set('//tmp/p', {})
-        self._test_denying_acl('//tmp/p/a', '//tmp/p', 'u')
+        self._test_denying_acl('//tmp/p/a', 'u', '//tmp/p', 'u')
 
-    def _test_allowing_acl(self, rw_path, acl_path, acl_subject):
-        with pytest.raises(YTError): set(rw_path, 'b', user='u')
+    def _test_allowing_acl(self, rw_path, rw_user, acl_path, acl_subject):
+        with pytest.raises(YTError): set(rw_path, 'b', user=rw_user)
 
         set(acl_path + '/@acl/end', self._make_ace('allow', acl_subject, 'write'))
-        set(rw_path, 'c', user='u')
-        with pytest.raises(YTError): get(rw_path, user='u')
+        set(rw_path, 'c', user=rw_user)
+        with pytest.raises(YTError): get(rw_path, user=rw_user)
 
         remove(acl_path + '/@acl/-1')
         set(acl_path + '/@acl/end', self._make_ace('allow', acl_subject, ['read', 'write']))
-        assert get(rw_path, user='u') == 'c'
+        assert get(rw_path, user=rw_user) == 'c'
 
     def test_allowing_acl1(self):
-        self._test_allowing_acl('//tmp/a', '//tmp/a', 'guest')
+        self._test_allowing_acl('//tmp/a', 'guest', '//tmp/a', 'guest')
 
     def test_allowing_acl2(self):
         create_group('g')
         add_member('guest', 'g')
-        self._test_allowing_acl('//tmp/a', '//tmp/a', 'guest')
+        self._test_allowing_acl('//tmp/a', 'guest', '//tmp/a', 'g')
 
     def test_allowing_acl3(self):
         set('//tmp/p', {})
-        self._test_allowing_acl('//tmp/p/a', '//tmp/p', 'guest')
+        self._test_allowing_acl('//tmp/p/a', 'guest', '//tmp/p', 'guest')
