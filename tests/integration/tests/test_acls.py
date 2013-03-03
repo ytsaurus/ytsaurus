@@ -21,15 +21,33 @@ class TestAcls(YTEnvSetup):
         self.assertItemsEqual(get('//sys/users/root/@member_of_closure'), ['users', 'everyone'])
         self.assertItemsEqual(get('//sys/users/guest/@member_of_closure'), ['everyone'])
 
-    def test_create_user(self):
+    def test_create_user1(self):
         create_user('max')
         assert get('//sys/users/max/@name') == 'max'
         assert 'max' in get('//sys/groups/everyone/@members')
         self.assertItemsEqual(get('//sys/users/max/@member_of'), ['users', 'everyone'])
 
-    def test_create_group(self):
+    def test_create_user2(self):
+        create_user('max')
+        with pytest.raises(YTError): create_user('max')
+        with pytest.raises(YTError): create_group('max')
+
+    def test_create_group1(self):
         create_group('devs')
         assert get('//sys/groups/devs/@name') == 'devs'
+
+    def test_create_group2(self):
+        create_group('devs')
+        with pytest.raises(YTError): create_user('devs')
+        with pytest.raises(YTError): create_group('devs')
+
+    def test_user_remove_builtin(self):
+        with pytest.raises(YTError): remove_user('root')
+        with pytest.raises(YTError): remove_user('guest')
+
+    def test_group_remove_builtin(self):
+        with pytest.raises(YTError): remove_group('everyone')
+        with pytest.raises(YTError): remove_group('users')
 
     def test_membership1(self):
         create_user('max')
@@ -90,3 +108,19 @@ class TestAcls(YTEnvSetup):
         add_member('u', 'g')
         remove_group('g')
         self.assertItemsEqual(get('//sys/users/u/@member_of'), ['users', 'everyone'])
+
+    def test_membership6(self):
+        create_user('u')
+        create_group('g')
+        
+        with pytest.raises(YTError): remove_member('u', 'g')
+
+        add_member('u', 'g')
+        with pytest.raises(YTError): add_member('u', 'g')
+
+    def test_modify_builtin(self):
+        create_user('u')
+        with pytest.raises(YTError): remove_member('u', 'everyone')
+        with pytest.raises(YTError): remove_member('u', 'users')
+        with pytest.raises(YTError): add_member('u', 'everyone')
+        with pytest.raises(YTError): add_member('u', 'users')

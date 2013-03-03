@@ -53,8 +53,14 @@ class TestAccounts(YTEnvSetup):
     def test_account_create2(self):
         with pytest.raises(YTError): create_account('sys')
         with pytest.raises(YTError): create_account('tmp')
+
+    def test_account_remove_builtin(self):
         with pytest.raises(YTError): remove_account('sys')
         with pytest.raises(YTError): remove_account('tmp')
+
+    def test_account_create3(self):
+        create_account('max')
+        with pytest.raises(YTError): create_account('max')
 
     def test_account_attr1(self):
         set('//tmp/a', {})
