@@ -19,8 +19,6 @@
 
 #include <server/object_server/type_handler.h>
 
-#include <server/security_server/security_manager.h>
-
 namespace NYT {
 namespace NTransactionServer {
 

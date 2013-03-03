@@ -37,7 +37,6 @@ struct TCloneContext
     TCloneContext();
 
     NSecurityServer::TAccount* Account;
-    NSecurityServer::TSubject* Owner;
     NTransactionServer::TTransaction* Transaction;
 };
 

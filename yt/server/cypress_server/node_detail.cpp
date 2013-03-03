@@ -3,6 +3,9 @@
 #include "node_proxy_detail.h"
 #include "helpers.h"
 
+#include <server/security_server/security_manager.h>
+#include <server/security_server/user.h>
+
 namespace NYT {
 namespace NCypressServer {
 
@@ -147,9 +150,9 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
     securityManager->SetAccount(clonedNode, context.Account);
 
     // Set owner.
-    YCHECK(context.Owner);
+    auto* user = securityManager->GetAuthenticatedUser();
     auto* acd = securityManager->GetAcd(clonedNode);
-    acd->SetOwner(context.Owner);
+    acd->SetOwner(user);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

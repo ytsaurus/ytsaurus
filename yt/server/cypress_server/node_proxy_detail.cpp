@@ -665,7 +665,6 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
 
     TCloneContext cloneContext;
     cloneContext.Account = trunkDestImpl->GetAccount();
-    cloneContext.Owner = securityManager->GetAuthenticatedUser();
     cloneContext.Transaction = Transaction;
 
     auto* clonedImpl = cypressManager->CloneNode(sourceImpl, cloneContext);

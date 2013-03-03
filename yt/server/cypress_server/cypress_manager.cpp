@@ -236,7 +236,6 @@ TAutoPtr<TCypressNodeBase> TCypressManager::TNodeMapTraits::Create(const TVersio
 
 TCloneContext::TCloneContext()
     : Account(nullptr)
-    , Owner(nullptr)
     , Transaction(nullptr)
 { }
 
