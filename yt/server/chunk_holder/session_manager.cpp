@@ -621,7 +621,7 @@ TSessionPtr TSessionManager::StartSession(const TChunkId& chunkId)
     session->SetLease(lease);
 
     AtomicIncrement(SessionCount);
-    YCHECK(SessionMap.insert(MakePair(chunkId, session)).second);
+    YCHECK(SessionMap.insert(std::make_pair(chunkId, session)).second);
 
     return session;
 }

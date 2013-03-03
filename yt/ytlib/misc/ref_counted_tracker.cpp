@@ -73,7 +73,7 @@ TRefCountedTracker::TSlot* TRefCountedTracker::GetSlot(TKey key)
         return &it->second;
     }
 
-    return &Statistics.insert(MakePair(key, TSlot(key))).first->second;
+    return &Statistics.insert(std::make_pair(key, TSlot(key))).first->second;
 }
 
 std::vector<TRefCountedTracker::TSlot> TRefCountedTracker::GetSnapshot() const

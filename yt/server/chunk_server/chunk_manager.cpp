@@ -874,8 +874,8 @@ private:
         newNode->Statistics() = statistics;
 
         NodeMap.Insert(nodeId, newNode);
-        NodeAddressMap.insert(MakePair(address, newNode));
-        NodeHostNameMap.insert(MakePair(Stroka(GetServiceHostName(address)), newNode));
+        NodeAddressMap.insert(std::make_pair(address, newNode));
+        NodeHostNameMap.insert(std::make_pair(Stroka(GetServiceHostName(address)), newNode));
         ++RegisteredNodeCount;
 
         if (IsLeader()) {
@@ -1096,8 +1096,8 @@ private:
         FOREACH (const auto& pair, NodeMap) {
             auto* node = pair.second;
             const auto& address = node->GetAddress();
-            YCHECK(NodeAddressMap.insert(MakePair(address, node)).second);
-            NodeHostNameMap.insert(MakePair(Stroka(GetServiceHostName(address)), node));
+            YCHECK(NodeAddressMap.insert(std::make_pair(address, node)).second);
+            NodeHostNameMap.insert(std::make_pair(Stroka(GetServiceHostName(address)), node));
         }
 
         // Reconstruct ReplicationSinkMap.
@@ -1636,7 +1636,7 @@ private:
             return &it->second;
         }
 
-        auto pair = ReplicationSinkMap.insert(MakePair(address, TReplicationSink(address)));
+        auto pair = ReplicationSinkMap.insert(std::make_pair(address, TReplicationSink(address)));
         YCHECK(pair.second);
 
         return &pair.first->second;

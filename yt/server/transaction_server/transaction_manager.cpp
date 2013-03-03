@@ -608,7 +608,7 @@ void TTransactionManager::CreateLease(const TTransaction* transaction, TDuration
         timeout,
         BIND(&TThis::OnTransactionExpired, MakeStrong(this), transaction->GetId())
             .Via(metaStateFacade->GetEpochInvoker()));
-    YCHECK(LeaseMap.insert(MakePair(transaction->GetId(), lease)).second);
+    YCHECK(LeaseMap.insert(std::make_pair(transaction->GetId(), lease)).second);
 }
 
 void TTransactionManager::CloseLease(const TTransaction* transaction)

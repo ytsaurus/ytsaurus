@@ -37,7 +37,7 @@ public:
     {
         YCHECK(service);
 
-        YCHECK(Services.insert(MakePair(service->GetServiceName(), service)).second);
+        YCHECK(Services.insert(std::make_pair(service->GetServiceName(), service)).second);
         LOG_INFO("RPC service registered: %s", ~service->GetServiceName());
     }
 

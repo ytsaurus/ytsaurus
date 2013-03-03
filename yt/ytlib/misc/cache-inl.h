@@ -98,7 +98,7 @@ TCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
                 auto valueOrError = item->ValueOrError;
                 LruList.PushFront(item);
                 ++Size;
-                ItemMap.insert(MakePair(key, item));
+                ItemMap.insert(std::make_pair(key, item));
                 guard.Release();
 
                 // ...since the item can be dead at this moment.
@@ -133,7 +133,7 @@ bool TCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
             auto valueIt = ValueMap.find(key);
             if (valueIt == ValueMap.end()) {
                 auto* item = new TItem();
-                ItemMap.insert(MakePair(key, item));
+                ItemMap.insert(std::make_pair(key, item));
 
                 cookie->ValueOrError = item->ValueOrError;
                 cookie->Active = true;
@@ -145,7 +145,7 @@ bool TCacheBase<TKey, TValue, THash>::BeginInsert(TInsertCookie* cookie)
             auto value = TRefCounted::DangerousGetPtr(valueIt->second);
             if (value) {
                 auto* item = new TItem(value);
-                YCHECK(ItemMap.insert(MakePair(key, item)).second);
+                YCHECK(ItemMap.insert(std::make_pair(key, item)).second);
 
                 LruList.PushFront(item);
                 ++Size;
@@ -188,7 +188,7 @@ void TCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value, TInsertCookie* 
         valueOrError = item->ValueOrError;
 
         // TODO(sandello): Remove tilda from here when we migrate from STLport.
-        YCHECK(ValueMap.insert(MakePair(key, ~value)).second);
+        YCHECK(ValueMap.insert(std::make_pair(key, ~value)).second);
 
         LruList.PushFront(item);
         ++Size;

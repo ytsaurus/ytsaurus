@@ -250,7 +250,7 @@ void LoadMap(TInputStream* input, TMap& map)
         Load(input, key);
         typename TMap::mapped_type value;
         Load(input, value);
-        YCHECK(map.insert(MakePair(key, value)).second);
+        YCHECK(map.insert(std::make_pair(key, value)).second);
     }
 }
 

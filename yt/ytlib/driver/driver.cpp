@@ -325,7 +325,7 @@ private:
         entry.Factory = BIND([] (ICommandContext* context) -> TAutoPtr<ICommand> {
             return new TCommand(context);
         });
-        YCHECK(Commands.insert(MakePair(descriptor.CommandName, entry)).second);
+        YCHECK(Commands.insert(std::make_pair(descriptor.CommandName, entry)).second);
     }
 };
 

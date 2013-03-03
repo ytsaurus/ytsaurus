@@ -132,7 +132,7 @@ public:
             writers.push_back(writerIt->second);
         }
 
-        YCHECK(CachedWriters.insert(MakePair(cacheKey, writers)).second);
+        YCHECK(CachedWriters.insert(std::make_pair(cacheKey, writers)).second);
         return writers;
     }
 
@@ -167,7 +167,7 @@ public:
     {
         auto config = New<TLogConfig>();
 
-        config->Writers.insert(MakePair(
+        config->Writers.insert(std::make_pair(
             DefaultStdErrWriterName,
             New<TStdErrLogWriter>(DefaultStdErrPattern)));
 
@@ -216,22 +216,22 @@ private:
             switch (config->Type) {
                 case ILogWriter::EType::File:
                     YCHECK(
-                        Writers.insert(MakePair(
+                        Writers.insert(std::make_pair(
                             name, New<TFileLogWriter>(config->FileName, pattern))).second);
                     break;
                 case ILogWriter::EType::StdOut:
                     YCHECK(
-                        Writers.insert(MakePair(
+                        Writers.insert(std::make_pair(
                             name, New<TStdOutLogWriter>(pattern))).second);
                     break;
                 case ILogWriter::EType::StdErr:
                     YCHECK(
-                        Writers.insert(MakePair(
+                        Writers.insert(std::make_pair(
                             name, New<TStdErrLogWriter>(pattern))).second);
                     break;
                 case ILogWriter::EType::Raw:
                     YCHECK(
-                        Writers.insert(MakePair(
+                        Writers.insert(std::make_pair(
                             name, New<TRawFileLogWriter>(config->FileName))).second);
                     break;
                 default:

@@ -114,7 +114,7 @@ struct TLoadHelper<yhash_map<Stroka, T>, void>
                 value,
                 pair.second,
                 path + "/" + NYPath::ToYPathLiteral(key));
-            parameter.insert(MakePair(key, std::move(value)));
+            parameter.insert(std::make_pair(key, std::move(value)));
         }
     }
 };

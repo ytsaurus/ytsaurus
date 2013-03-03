@@ -890,7 +890,7 @@ TObjectBase* TObjectManager::CreateObject(
         }
 
         FOREACH (const auto& key, attributeKeys) {
-            YCHECK(attributeSet->Attributes().insert(MakePair(
+            YCHECK(attributeSet->Attributes().insert(std::make_pair(
                 key,
                 attributes->GetYson(key))).second);
         }

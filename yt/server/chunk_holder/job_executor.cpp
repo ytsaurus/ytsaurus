@@ -234,7 +234,7 @@ TJobPtr TJobExecutor::StartJob(
         jobId,
         chunkId,
         targetAddresses);
-    YCHECK(Jobs.insert(MakePair(jobId, job)).second);
+    YCHECK(Jobs.insert(std::make_pair(jobId, job)).second);
     job->Start();
 
     return job;
