@@ -410,7 +410,7 @@ public:
 
         FOREACH (const auto& pair, subject->LinkedObjects()) {
             auto* acd = GetAcd(pair.first);
-            acd->OnSubjectDestroyed(subject, RootUser);
+            acd->OnSubjectDestroyed(subject, GuestUser);
         }
     }
 
