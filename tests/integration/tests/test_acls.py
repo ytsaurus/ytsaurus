@@ -59,3 +59,34 @@ class TestAcls(YTEnvSetup):
 
         remove_member('g2', 'g1')
 
+        self.assertItemsEqual(get('//sys/groups/g1/@members'), ['u1'])
+        self.assertItemsEqual(get('//sys/groups/g2/@members'), ['u2'])
+
+        self.assertItemsEqual(get('//sys/users/u1/@member_of'), ['g1', 'users', 'everyone'])
+        self.assertItemsEqual(get('//sys/users/u2/@member_of'), ['g2', 'users', 'everyone'])
+
+        self.assertItemsEqual(get('//sys/users/u1/@member_of_closure'), ['g1', 'users', 'everyone'])
+        self.assertItemsEqual(get('//sys/users/u2/@member_of_closure'), ['g2', 'users', 'everyone'])
+
+    def test_membership3(self):
+        create_group('g1')
+        create_group('g2')
+        create_group('g3')
+
+        add_member('g2', 'g1')
+        add_member('g3', 'g2')
+        with pytest.raises(YTError): add_member('g1', 'g3')
+
+    def test_membership4(self):
+        create_user('u')
+        create_group('g')
+        add_member('u', 'g')
+        remove_user('u')
+        assert get('//sys/groups/g/@members') == []
+
+    def test_membership5(self):
+        create_user('u')
+        create_group('g')
+        add_member('u', 'g')
+        remove_group('g')
+        self.assertItemsEqual(get('//sys/users/u/@member_of'), ['users', 'everyone'])
