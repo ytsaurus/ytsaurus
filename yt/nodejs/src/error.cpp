@@ -59,7 +59,7 @@ Handle<Value> SpawnBasicYtError(const Arguments& args)
 
     auto children = attributes->GetChildren();
     FOREACH (const auto& child, children) {
-        fakeError.Attributes().Set(child.First(), child.Second());
+        fakeError.Attributes().Set(child.first, child.second);
     }
 
     return scope.Close(ConvertErrorToV8(fakeError));
