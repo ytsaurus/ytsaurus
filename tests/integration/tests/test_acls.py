@@ -36,7 +36,7 @@ class TestAcls(YTEnvSetup):
         create_group('devs')
         add_member('max', 'devs')
         assert get('//sys/groups/devs/@members') == ['max']
-        self.assertItemsEqual('//sys/groups/devs/@members') == ['max'])
+        self.assertItemsEqual('//sys/groups/devs/@members'), ['max'])
 
     def test_membership2(self):
         create_user('u1')
@@ -48,14 +48,14 @@ class TestAcls(YTEnvSetup):
         add_member('g2', 'g1')
         add_member('u2', 'g2')
 
-        self.assertItemsEqual(get('//sys/groups/g1/@members') == ['u1', 'g2'])
-        self.assertItemsEqual(get('//sys/groups/g2/@members') == ['u2'])
+        self.assertItemsEqual(get('//sys/groups/g1/@members'), ['u1', 'g2'])
+        self.assertItemsEqual(get('//sys/groups/g2/@members'), ['u2'])
 
-        self.assertItemsEqual(get('//sys/users/u1/@member_of') == ['g1', 'users', 'everyone'])
-        self.assertItemsEqual(get('//sys/users/u2/@member_of') == ['g2', 'users', 'everyone'])
+        self.assertItemsEqual(get('//sys/users/u1/@member_of'), ['g1', 'users', 'everyone'])
+        self.assertItemsEqual(get('//sys/users/u2/@member_of'), ['g2', 'users', 'everyone'])
 
-        self.assertItemsEqual(get('//sys/users/u1/@member_of_closure') == ['g1', 'users', 'everyone'])
-        self.assertItemsEqual(get('//sys/users/u2/@member_of_clsoure') == ['g1', 'g2', 'users', 'everyone'])
+        self.assertItemsEqual(get('//sys/users/u1/@member_of_closure'), ['g1', 'users', 'everyone'])
+        self.assertItemsEqual(get('//sys/users/u2/@member_of_clsoure'), ['g1', 'g2', 'users', 'everyone'])
 
         remove_member('g2', 'g1')
 
