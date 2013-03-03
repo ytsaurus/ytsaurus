@@ -170,14 +170,12 @@ public:
         auto handler = objectManager->GetHandler(Type);
 
         if (!TypeIsVersioned(Type)) {
-            // TODO(babenko): flagged enums
-            permissions = EPermissionSet(permissions | handler->GetSupportedPermissions());
+            permissions |= handler->GetSupportedPermissions();
         }
 
         auto options = handler->GetCreationOptions();
         if (options) {
-            // TODO(babenko): flagged enums
-            permissions = EPermissionSet(permissions | EPermission::Create);
+            permissions |= EPermission::Create;
         }
 
         return permissions;

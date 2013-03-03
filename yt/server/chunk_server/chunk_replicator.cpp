@@ -319,9 +319,8 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleReplicationJob(
 
     return
         targetAddresses.size() == replicasNeeded
-        // TODO: flagged enums
-        ? (EScheduleFlags) (EScheduleFlags::Purged | EScheduleFlags::Scheduled)
-        : (EScheduleFlags) EScheduleFlags::Scheduled;
+        ? EScheduleFlags(EScheduleFlags::Purged | EScheduleFlags::Scheduled)
+        : EScheduleFlags(EScheduleFlags::Scheduled);
 }
 
 TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleBalancingJob(
@@ -361,8 +360,7 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleBalancingJob(
         ~chunkId.ToString(),
         ~targetNode->GetAddress());
 
-    // TODO: flagged enums
-    return (EScheduleFlags) (EScheduleFlags::Purged | EScheduleFlags::Scheduled);
+    return EScheduleFlags(EScheduleFlags::Purged | EScheduleFlags::Scheduled);
 }
 
 TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleRemovalJob(
@@ -391,8 +389,7 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleRemovalJob(
         ~node->GetAddress(),
         ~chunkId.ToString());
 
-    // TODO: flagged enums
-    return (EScheduleFlags) (EScheduleFlags::Purged | EScheduleFlags::Scheduled);
+    return EScheduleFlags(EScheduleFlags::Purged | EScheduleFlags::Scheduled);
 }
 
 void TChunkReplicator::ScheduleNewJobs(

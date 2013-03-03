@@ -139,7 +139,6 @@ public:
 
     virtual EPermissionSet GetSupportedPermissions() const override
     {
-        // TODO(babenko): flagged enums
         return EPermissionSet(
             EPermission::Read |
             EPermission::Write);

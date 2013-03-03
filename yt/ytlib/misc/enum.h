@@ -272,6 +272,51 @@ class TEnumBase
         return static_cast<int>(Value) op static_cast<int>(other); \
     }
 
+//! Declaration of bitwise operators; all at once.
+#define ENUM__BITWISE_OPERATORS(name) \
+    public: \
+        ENUM__BITWISE_OPERATOR(name, &=, & ) \
+        ENUM__BITWISE_OPERATOR(name, |=, | ) \
+        ENUM__BITWISE_OPERATOR(name, ^=, ^ ) \
+
+//! Declaration of a single bitwise operator (together with its assignment version).
+#define ENUM__BITWISE_OPERATOR(name, assignOp, op) \
+    name operator op (EDomain other) const \
+    { \
+        return name(static_cast<int>(Value) op static_cast<int>(other)); \
+    } \
+    \
+    name& operator assignOp (EDomain other) \
+    { \
+        Value = EDomain(static_cast<int>(Value) op static_cast<int>(other)); \
+        return *this; \
+    }
+
+//! #Decompose() helper.
+//! \{
+#define ENUM__DECOMPOSE(name, seq) \
+    std::vector<name> Decompose() const \
+    { \
+        std::vector<name> result; \
+        PP_FOR_EACH(ENUM__DECOMPOSE_ITEM, seq) \
+        return result; \
+    }
+
+#define ENUM__DECOMPOSE_ITEM(item) \
+    ENUM__DECOMPOSE_ITEM_SEQ(PP_ELEMENT(item, 0))
+
+#define ENUM__DECOMPOSE_ITEM_SEQ(itemName) \
+    if (Value & itemName) { \
+        result.push_back(itemName); \
+    }
+//! \}
+
+#define BEGIN_DECLARE_ENUM(name, seq) \
+    ENUM__CLASS(name, seq)
+
+#define END_DECLARE_ENUM() \
+    }
+
 //! \}
 //! \endinternal
 
@@ -279,7 +324,7 @@ class TEnumBase
 
 //! Declares a strongly-typed enumeration.
 /*!
- * \param name Name of the enumeration.
+ * \param name Enumeration name.
  * \param seq Enumeration domain encoded as a <em>sequence</em>.
  */
 #define DECLARE_ENUM(name, seq) \
@@ -287,35 +332,20 @@ class TEnumBase
         ENUM__RELATIONAL_OPERATORS(name) \
     END_DECLARE_ENUM()
 
-//! Begins the declaration of a strongly-typed enumeration.
-//! See #DECLARE_ENUM.
-#define BEGIN_DECLARE_ENUM(name, seq) \
-    ENUM__CLASS(name, seq)
-
-//! Ends the declaration of a strongly-typed enumeration.
-//! See #DECLARE_ENUM.
-#define END_DECLARE_ENUM() \
-    }
+//! Declares a strongly-typed flagged enumeration.
+/*!
+ * \param name Enumeration name.
+ * \param seq Enumeration domain encoded as a <em>sequence</em>.
+ */
+#define DECLARE_FLAGGED_ENUM(name, seq) \
+    BEGIN_DECLARE_ENUM(name, seq) \
+        ENUM__RELATIONAL_OPERATOR(name, ==) \
+        ENUM__RELATIONAL_OPERATOR(name, !=) \
+        ENUM__BITWISE_OPERATORS(name) \
+        ENUM__DECOMPOSE(name, seq) \
+    END_DECLARE_ENUM()
 
 /*! \} */
-
-//! Decomposes a composite enum value into elementary values.
-/*!
- *  Every elementary value is assumed to be power of two.
- */
-template <class T>
-std::vector<T> DecomposeFlaggedEnum(T value)
-{
-    auto bits = T::GetDomainValues();
-    std::vector<T> result;
-    result.reserve(bits.size());
-    FOREACH (auto bit, bits) {
-        if ((value & bit) != 0) {
-            result.push_back(bit);
-        }
-    }
-    return result;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

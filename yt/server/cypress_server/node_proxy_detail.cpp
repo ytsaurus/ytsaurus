@@ -665,7 +665,6 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
 
     ValidatePermission(
         trunkSourceImpl,
-        // TODO(babenko): flagged enums
         EPermissionCheckScope(EPermissionCheckScope::This | EPermissionCheckScope::Descendants),
         EPermission::Read);
 

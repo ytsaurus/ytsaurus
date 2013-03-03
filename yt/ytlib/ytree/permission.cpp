@@ -30,8 +30,7 @@ EPermissionSet ParsePermissions(
             if (!(supportedPermissions & permission)) {
                 THROW_ERROR_EXCEPTION("Permission is not supported: %s", ~item);
             }
-            // TODO(babenko): flagged enums
-            result = EPermissionSet(result | permission);
+            result |= permission;
         }
     }
     return result;

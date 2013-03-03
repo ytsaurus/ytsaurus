@@ -404,10 +404,7 @@ private:
                             .Item().Value(TAccessControlEntry(
                                 ESecurityAction::Allow,
                                 securityManager->GetUsersGroup(),
-                                // TODO(babenko): flagged enums
-                                EPermissionSet(
-                                    EPermission::Read |
-                                    EPermission::Write)))
+                                EPermissionSet(EPermission::Read | EPermission::Write)))
                         .EndList()
                     .EndMap());
 

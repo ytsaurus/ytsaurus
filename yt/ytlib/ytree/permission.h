@@ -13,7 +13,7 @@ namespace NYTree {
 /*!
  *  Each permission corresponds to a unique bit of the mask.
  */
-DECLARE_ENUM(EPermission,
+DECLARE_FLAGGED_ENUM(EPermission,
     // Applies to: all objects
     ((Read)(0x0001))
 

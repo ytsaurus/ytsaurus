@@ -378,7 +378,7 @@ bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* cons
         auto handler = objectManager->GetHandler(Object);
         auto permissions = handler->GetSupportedPermissions();
         BuildYsonFluently(consumer)
-            .Value(DecomposeFlaggedEnum(permissions));
+            .Value(permissions.Decompose());
         return true;
     }
 
