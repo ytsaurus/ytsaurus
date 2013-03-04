@@ -72,8 +72,8 @@ std::vector<TChunkStripeStatistics> AggregateStatistics(
     const std::vector<TChunkStripeStatistics>& statistics)
 {
     TChunkStripeStatistics sum;
-    FOREACH (const auto& item, statistics) {
-        sum += item;
+    FOREACH (const auto& stat, statistics) {
+        sum += stat;
     }
     return std::vector<TChunkStripeStatistics>(1, sum);
 }
@@ -128,32 +128,22 @@ class TSuspendableStripe
 public:
     TSuspendableStripe()
         : Suspended(false)
-        , DataSize(0)
-        , RowCount(0)
     { }
 
     explicit TSuspendableStripe(TChunkStripePtr stripe)
         : Stripe(std::move(stripe))
         , Suspended(false)
-    {
-        auto stat = Stripe->GetStatistics();
-        DataSize = stat.DataSize;
-        RowCount = stat.RowCount;
-    }
+        , Statistics(Stripe->GetStatistics())
+    { }
 
-    i64 GetDataSize() const
-    {
-        return DataSize;
-    }
-
-    i64 GetRowCount() const
-    {
-        return RowCount;
-    }
-
-    TChunkStripePtr GetStripe() const
+    const TChunkStripePtr& GetStripe() const
     {
         return Stripe;
+    }
+
+    const TChunkStripeStatistics& GetStatistics() const
+    {
+        return Statistics;
     }
 
     void Suspend()
@@ -168,10 +158,7 @@ public:
         YCHECK(Stripe);
         YCHECK(Suspended);
 
-        auto stat = stripe->GetStatistics();
-        DataSize = stat.DataSize;
-        RowCount = stat.RowCount;
-
+        Statistics = stripe->GetStatistics();
         Suspended = false;
         Stripe = stripe;
     }
@@ -179,8 +166,7 @@ public:
 private:
     TChunkStripePtr Stripe;
     bool Suspended;
-    i64 DataSize;
-    i64 RowCount;
+    TChunkStripeStatistics Statistics;
 
 };
 
@@ -253,12 +239,12 @@ public:
         TSuspendableStripe suspendableStripe(stripe);
         Stripes.push_back(suspendableStripe);
 
-        DataSizeCounter.Increment(suspendableStripe.GetDataSize());
-        RowCounter.Increment(suspendableStripe.GetRowCount());
+        DataSizeCounter.Increment(suspendableStripe.GetStatistics().DataSize);
+        RowCounter.Increment(suspendableStripe.GetStatistics().RowCount);
 
         FOREACH (const auto& chunk, stripe->Chunks) {
             FOREACH (const auto& address, chunk->node_addresses()) {
-                AddressToLocality[address] += suspendableStripe.GetDataSize();
+                AddressToLocality[address] += suspendableStripe.GetStatistics().DataSize;
             }
         }
 
@@ -273,7 +259,7 @@ public:
 
         FOREACH (const auto& chunk, suspendableStripe.GetStripe()->Chunks) {
             FOREACH (const auto& address, chunk->node_addresses()) {
-                AddressToLocality[address] -= suspendableStripe.GetDataSize();
+                AddressToLocality[address] -= suspendableStripe.GetStatistics().DataSize;
             }
         }
     }
@@ -297,7 +283,7 @@ public:
 
         FOREACH (const auto& chunk, suspendableStripe.GetStripe()->Chunks) {
             FOREACH (const auto& address, chunk->node_addresses()) {
-                AddressToLocality[address] += suspendableStripe.GetDataSize();
+                AddressToLocality[address] += suspendableStripe.GetStatistics().DataSize;
             }
         }
     }
@@ -458,8 +444,8 @@ public:
         TSuspendableStripe suspendableStripe(stripe);
         Stripes.push_back(suspendableStripe);
 
-        DataSizeCounter.Increment(suspendableStripe.GetDataSize());
-        RowCounter.Increment(suspendableStripe.GetRowCount());
+        DataSizeCounter.Increment(suspendableStripe.GetStatistics().DataSize);
+        RowCounter.Increment(suspendableStripe.GetStatistics().RowCount);
 
         Register(stripe);
 

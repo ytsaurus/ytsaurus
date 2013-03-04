@@ -412,8 +412,7 @@ protected:
 
         virtual TNodeResources GetNeededResources(TJobletPtr joblet) const override
         {
-            auto stat = AggregateStatistics(
-                joblet->InputStripeList->GetStatistics());
+            auto stat = AggregateStatistics(joblet->InputStripeList->GetStatistics());
             YCHECK(stat.size() == 1);
             return GetNeededResourcesForChunkStripe(stat.front());
         }
