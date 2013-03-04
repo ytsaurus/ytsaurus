@@ -252,3 +252,37 @@ class TestAcls(YTEnvSetup):
         with pytest.raises(YTError): write('//tmp/t', {'a' : 'b'}, user='u')
         set('//sys/accounts/a/@acl/end', self._make_ace('allow', 'u', 'use'))
         write('//tmp/t', {'a' : 'b'}, user='u')
+
+    def test_scheduler1(self):
+        create_user('u')
+
+        create('table', '//tmp/t1')
+        write('//tmp/t1', {'a' : 'b'})
+        
+        create('table', '//tmp/t2')
+        
+        map(in_='//tmp/t1', out='//tmp/t2', command='cat', user='u')
+
+        set('//tmp/t1/@acl/end', self._make_ace('deny', 'u', 'read'))
+        with pytest.raises(YTError): map(in_='//tmp/t1', out='//tmp/t2', command='cat', user='u')
+
+        remove('//tmp/t1/@acl/-1')
+
+        set('//tmp/t2/@acl/end', self._make_ace('deny', 'u', 'write'))
+        with pytest.raises(YTError): map(in_='//tmp/t1', out='//tmp/t2', command='cat', user='u')
+
+        remove('//tmp/t2/@acl/-1')
+
+    def test_scheduler2(self):
+        create_user('u')
+        create_account('a')
+
+        create('table', '//tmp/t1')
+        write('//tmp/t1', {'a' : 'b'})
+
+        create('table', '//tmp/t2')
+
+        map(in_='//tmp/t1', out='//tmp/t2', command='cat', user='u')
+
+        set('//tmp/t2/@account', 'a')
+        with pytest.raises(YTError): map(in_='//tmp/t1', out='//tmp/t2', command='cat', user='u')
