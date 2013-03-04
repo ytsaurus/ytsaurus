@@ -131,7 +131,7 @@ public:
         auto chunk = Bootstrap->GetChunkRegistry()->FindChunk(blockId.ChunkId);
         if (!chunk) {
             return MakeFuture(TGetBlockResult(TError(
-                TDataNodeServiceProxy::EErrorCode::NoSuchChunk,
+                NChunkClient::EErrorCode::NoSuchChunk,
                 "No such chunk: %s",
                 ~blockId.ChunkId.ToString())));
         }
@@ -246,7 +246,7 @@ private:
                 data = reader->ReadBlock(blockId.BlockIndex);
             } catch (const std::exception& ex) {
                 auto error = TError(
-                    TDataNodeServiceProxy::EErrorCode::IOError,
+                    NChunkClient::EErrorCode::IOError,
                     "Error reading chunk block: %s",
                     ~blockId.ToString())
                     << ex;
@@ -268,7 +268,7 @@ private:
 
         if (!data) {
             cookie->Cancel(TError(
-                TDataNodeServiceProxy::EErrorCode::NoSuchBlock,
+                NChunkClient::EErrorCode::NoSuchBlock,
                 "No such chunk block: %s",
                 ~blockId.ToString()));
             return;

@@ -29,7 +29,6 @@ public:
 private:
     typedef TDataNodeService TThis;
     typedef NChunkClient::TDataNodeServiceProxy TProxy;
-    typedef TProxy::EErrorCode EErrorCode;
 
     TDataNodeConfigPtr Config;
     TActionQueuePtr WorkerThread;

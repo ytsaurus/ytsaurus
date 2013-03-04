@@ -190,6 +190,7 @@ TEST(TYamrWriterTest, Escaping)
     TStringStream outputStream;
     auto config = New<TYamrFormatConfig>();
     config->HasSubkey = true;
+    config->EnableEscaping = true;
     TYamrWriter writer(&outputStream, config);
 
     writer.OnListItem();

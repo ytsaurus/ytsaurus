@@ -244,7 +244,7 @@ private:
         auto wrappedError = TError(
             error.GetCode() == ETraversingError::Retriable
             ? NRpc::EErrorCode(NRpc::EErrorCode::Unavailable)
-            : NRpc::EErrorCode(TError::Fail),
+            : NRpc::EErrorCode(TError::GenericFailure),
             "Failed to fetch table")
             << error;
         Context->Reply(wrappedError);
@@ -699,6 +699,8 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, PrepareForUpdate)
 DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, Fetch)
 {
     context->SetRequestInfo("");
+
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
     const auto* node = GetThisTypedImpl();
 

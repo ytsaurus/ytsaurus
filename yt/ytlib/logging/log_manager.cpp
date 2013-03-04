@@ -114,7 +114,7 @@ public:
     {
         // Place a return value on top to promote RVO.
         TLogWriters writers;
-        TPair<Stroka, ELogLevel> cacheKey(event.Category, event.Level);
+        std::pair<Stroka, ELogLevel> cacheKey(event.Category, event.Level);
         auto it = CachedWriters.find(cacheKey);
         if (it != CachedWriters.end())
             return it->second;
@@ -132,7 +132,7 @@ public:
             writers.push_back(writerIt->second);
         }
 
-        YCHECK(CachedWriters.insert(MakePair(cacheKey, writers)).second);
+        YCHECK(CachedWriters.insert(std::make_pair(cacheKey, writers)).second);
         return writers;
     }
 
@@ -167,7 +167,7 @@ public:
     {
         auto config = New<TLogConfig>();
 
-        config->Writers.insert(MakePair(
+        config->Writers.insert(std::make_pair(
             DefaultStdErrWriterName,
             New<TStdErrLogWriter>(DefaultStdErrPattern)));
 
@@ -216,22 +216,22 @@ private:
             switch (config->Type) {
                 case ILogWriter::EType::File:
                     YCHECK(
-                        Writers.insert(MakePair(
+                        Writers.insert(std::make_pair(
                             name, New<TFileLogWriter>(config->FileName, pattern))).second);
                     break;
                 case ILogWriter::EType::StdOut:
                     YCHECK(
-                        Writers.insert(MakePair(
+                        Writers.insert(std::make_pair(
                             name, New<TStdOutLogWriter>(pattern))).second);
                     break;
                 case ILogWriter::EType::StdErr:
                     YCHECK(
-                        Writers.insert(MakePair(
+                        Writers.insert(std::make_pair(
                             name, New<TStdErrLogWriter>(pattern))).second);
                     break;
                 case ILogWriter::EType::Raw:
                     YCHECK(
-                        Writers.insert(MakePair(
+                        Writers.insert(std::make_pair(
                             name, New<TRawFileLogWriter>(config->FileName))).second);
                     break;
                 default:
@@ -246,7 +246,7 @@ private:
     std::vector<TRule::TPtr> Rules;
     yhash_map<Stroka, ILogWriter::TConfig::TPtr> WriterConfigs;
     yhash_map<Stroka, ILogWriterPtr> Writers;
-    ymap<TPair<Stroka, ELogLevel>, TLogWriters> CachedWriters;
+    ymap<std::pair<Stroka, ELogLevel>, TLogWriters> CachedWriters;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

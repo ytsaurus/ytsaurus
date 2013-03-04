@@ -25,7 +25,7 @@ void TSubject::Save(const NCellMaster::TSaveContext& context) const
     ::Save(output, Name_);
     SaveObjectRefs(context, MemberOf_);
     SaveObjectRefs(context, RecursiveMemberOf_);
-    SaveObjectRefs(context, ReferencingObjects_);
+    SaveObjectRefs(context, LinkedObjects_);
 }
 
 void TSubject::Load(const NCellMaster::TLoadContext& context)
@@ -36,7 +36,7 @@ void TSubject::Load(const NCellMaster::TLoadContext& context)
     ::Load(input, Name_);
     LoadObjectRefs(context, MemberOf_);
     LoadObjectRefs(context, RecursiveMemberOf_);
-    LoadObjectRefs(context, ReferencingObjects_);
+    LoadObjectRefs(context, LinkedObjects_);
 }
 
 TUser* TSubject::AsUser()
@@ -49,6 +49,25 @@ TGroup* TSubject::AsGroup()
 {
     YCHECK(GetType() == EObjectType::Group);
     return static_cast<TGroup*>(this);
+}
+
+void TSubject::LinkObject(TObjectBase* object)
+{
+    auto it = LinkedObjects_.find(object);
+    if (it == LinkedObjects_.end()) {
+        YCHECK(LinkedObjects_.insert(std::make_pair(object, 1)).second);
+    } else {
+        ++it->second;
+    }
+}
+
+void TSubject::UnlinkObject(TObjectBase* object)
+{
+    auto it = LinkedObjects_.find(object);
+    YCHECK(it != LinkedObjects_.end());
+    if (--it->second == 0) {
+        LinkedObjects_.erase(it);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -91,7 +91,6 @@ public:
 
     virtual NYTree::EPermissionSet GetSupportedPermissions() const override
     {
-        // TODO(babenko): flagged enums
         return NYTree::EPermissionSet(
             NYTree::EPermission::Read |
             NYTree::EPermission::Write);

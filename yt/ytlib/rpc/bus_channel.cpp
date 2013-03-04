@@ -205,7 +205,7 @@ private:
                         timeout.Get());
                 }
 
-                YCHECK(ActiveRequests.insert(MakePair(requestId, activeRequest)).second);
+                YCHECK(ActiveRequests.insert(std::make_pair(requestId, activeRequest)).second);
                 bus = Bus;
             }
 

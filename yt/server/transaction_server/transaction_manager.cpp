@@ -22,9 +22,7 @@
 #include <server/cell_master/config.h>
 #include <server/cell_master/meta_state_facade.h>
 
-#include <server/security_server/security_manager.h>
 #include <server/security_server/account.h>
-#include <server/security_server/group.h>
 
 namespace NYT {
 namespace NTransactionServer {
@@ -270,12 +268,11 @@ private:
 
         auto objectManager = Bootstrap->GetObjectManager();
         auto* object = objectManager->FindObject(objectId);
-        if (!object || !object->IsAlive()) {
+        if (!IsObjectAlive(object)) {
             THROW_ERROR_EXCEPTION("No such object: %s", ~ToString(objectId));
         }
 
-        auto transactionManager = Bootstrap->GetTransactionManager();
-        transactionManager->UnstageObject(transaction, object, recursive);
+        objectManager->UnstageObject(transaction, object, recursive);
 
         context->Reply();
     }
@@ -337,6 +334,11 @@ private:
     {
         UNUSED(dummyTransaction);
         return New<TTransactionProxy>(Bootstrap, transaction);
+    }
+
+    virtual TAccessControlDescriptor* DoFindAcd(TTransaction* transaction) override
+    {
+        return &transaction->Acd();
     }
 
 };
@@ -541,126 +543,6 @@ void TTransactionManager::DoRenewLease(const TTransaction* transaction)
         ~ToString(transaction->GetId()));
 }
 
-TObjectId TTransactionManager::CreateObject(
-    TTransaction* transaction,
-    TAccount* account,
-    EObjectType type,
-    IAttributeDictionary* attributes,
-    IObjectTypeHandler::TReqCreateObject* request,
-    IObjectTypeHandler::TRspCreateObject* response)
-{
-    auto objectManager = Bootstrap->GetObjectManager();
-    auto handler = objectManager->FindHandler(type);
-    if (!handler) {
-        THROW_ERROR_EXCEPTION("Unknown object type: %s",
-            ~type.ToString());
-    }
-
-    auto options = handler->GetCreationOptions();
-    if (!options) {
-        THROW_ERROR_EXCEPTION("Type does not support creating new instances: %s",
-            ~type.ToString());
-    }
-
-    switch (options->TransactionMode) {
-        case EObjectTransactionMode::Required:
-            if (!transaction) {
-                THROW_ERROR_EXCEPTION("Cannot create an instance of %s outside of a transaction",
-                    ~FormatEnum(type).Quote());
-            }
-            break;
-
-        case EObjectTransactionMode::Forbidden:
-            if (transaction) {
-                THROW_ERROR_EXCEPTION("Cannot create an instance of %s inside of a transaction",
-                    ~FormatEnum(type).Quote());
-            }
-            break;
-
-        case EObjectTransactionMode::Optional:
-            break;
-
-        default:
-            YUNREACHABLE();
-    }
-
-    switch (options->AccountMode) {
-        case EObjectAccountMode::Required:
-            if (!account) {
-                THROW_ERROR_EXCEPTION("Cannot create an instance of %s without an account",
-                    ~FormatEnum(type).Quote());
-            }
-            break;
-
-        case EObjectAccountMode::Forbidden:
-            if (account) {
-                THROW_ERROR_EXCEPTION("Cannot create an instance of %s with an account",
-                    ~FormatEnum(type).Quote());
-            }
-            break;
-
-        case EObjectAccountMode::Optional:
-            break;
-
-        default:
-            YUNREACHABLE();
-    }
-
-    auto* schema = objectManager->FindSchema(type);
-    if (schema) {
-        auto securityManager = Bootstrap->GetSecurityManager();
-        auto* user = securityManager->GetAuthenticatedUser();
-        securityManager->ValidatePermission(schema, user, EPermission::Create);
-    }
-
-    auto* object = handler->Create(
-        transaction,
-        account,
-        attributes,
-        request,
-        response);
-    const auto& objectId = object->GetId();
-
-    auto attributeKeys = attributes->List();
-    if (!attributeKeys.empty()) {
-        // Copy attributes. Quick and dirty.
-        auto* attributeSet = objectManager->FindAttributes(TVersionedObjectId(objectId));
-        if (!attributeSet) {
-            attributeSet = objectManager->CreateAttributes(TVersionedObjectId(objectId));
-        }
-
-        FOREACH (const auto& key, attributeKeys) {
-            YCHECK(attributeSet->Attributes().insert(MakePair(
-                key,
-                attributes->GetYson(key))).second);
-        }
-    }
-
-    if (transaction) {
-        YCHECK(transaction->StagedObjects().insert(object).second);
-        objectManager->RefObject(object);
-    }
-
-    return objectId;
-}
-
-void TTransactionManager::UnstageObject(
-    TTransaction* transaction,
-    TObjectBase* object,
-    bool recursive)
-{
-    if (transaction->StagedObjects().erase(object) != 1) {
-        THROW_ERROR_EXCEPTION("Object %s does not belong to transaction %s",
-            ~object->GetId().ToString(),
-            ~transaction->GetId().ToString());
-    }
-
-    auto objectManager = Bootstrap->GetObjectManager();
-    auto handler = objectManager->GetHandler(object);
-    handler->Unstage(object, transaction, recursive);
-    objectManager->UnrefObject(object);
-}
-
 void TTransactionManager::SaveKeys(const NCellMaster::TSaveContext& context)
 {
     TransactionMap.SaveKeys(context);
@@ -726,7 +608,7 @@ void TTransactionManager::CreateLease(const TTransaction* transaction, TDuration
         timeout,
         BIND(&TThis::OnTransactionExpired, MakeStrong(this), transaction->GetId())
             .Via(metaStateFacade->GetEpochInvoker()));
-    YCHECK(LeaseMap.insert(MakePair(transaction->GetId(), lease)).second);
+    YCHECK(LeaseMap.insert(std::make_pair(transaction->GetId(), lease)).second);
 }
 
 void TTransactionManager::CloseLease(const TTransaction* transaction)

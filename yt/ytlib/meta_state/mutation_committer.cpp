@@ -226,7 +226,7 @@ private:
             return;
 
         Promise.Set(TError(
-            ECommitCode::MaybeCommitted,
+            NMetaState::EErrorCode::MaybeCommitted,
             "Mutations are uncertain: %d out of %d commits were successful",
             CommitSuccessCount,
             CellManager->GetQuorum()));
@@ -463,7 +463,7 @@ TAsyncError TFollowerCommitter::DoCommit(
     auto currentVersion = DecoratedState->GetVersion();
     if (currentVersion > expectedVersion) {
         return MakeFuture(TError(
-            ECommitCode::LateMutations,
+            NMetaState::EErrorCode::LateMutations,
             "Late mutations received by follower, ignored: expected %s but got %s",
             ~currentVersion.ToString(),
             ~expectedVersion.ToString()));
@@ -471,7 +471,7 @@ TAsyncError TFollowerCommitter::DoCommit(
 
     if (currentVersion != expectedVersion) {
         return MakeFuture(TError(
-            ECommitCode::OutOfOrderMutations,
+            NMetaState::EErrorCode::OutOfOrderMutations,
             "Out-of-order mutations received by follower: expected %s but got %s",
             ~currentVersion.ToString(),
             ~expectedVersion.ToString()));

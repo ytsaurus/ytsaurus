@@ -53,8 +53,14 @@ class TestAccounts(YTEnvSetup):
     def test_account_create2(self):
         with pytest.raises(YTError): create_account('sys')
         with pytest.raises(YTError): create_account('tmp')
+
+    def test_account_remove_builtin(self):
         with pytest.raises(YTError): remove_account('sys')
         with pytest.raises(YTError): remove_account('tmp')
+
+    def test_account_create3(self):
+        create_account('max')
+        with pytest.raises(YTError): create_account('max')
 
     def test_account_attr1(self):
         set('//tmp/a', {})
@@ -322,3 +328,27 @@ class TestAccounts(YTEnvSetup):
 
         commit_transaction(tx)
         assert self._get_account_committed_disk_space('tmp') == space * 2
+
+    def test_copy(self):
+        create_account('a1')
+        create_account('a2')
+
+        create('map_node', '//tmp/x1', opt=['/attributes/account=a1'])
+        assert get('//tmp/x1/@account') == 'a1'
+
+        create('map_node', '//tmp/x2', opt=['/attributes/account=a2'])
+        assert get('//tmp/x2/@account') == 'a2'
+
+        create('table', '//tmp/x1/t')
+        assert get('//tmp/x1/t/@account') == 'a1'
+
+        write('//tmp/x1/t', {'a' : 'b'})
+        space = self._get_account_disk_space('a1')
+        assert space > 0
+        assert space == self._get_account_committed_disk_space('a1')
+
+        copy('//tmp/x1/t', '//tmp/x2/t')
+        assert get('//tmp/x2/t/@account') == 'a2'
+
+        assert space == self._get_account_disk_space('a2')
+        assert space == self._get_account_committed_disk_space('a2')

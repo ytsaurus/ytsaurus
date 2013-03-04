@@ -13,7 +13,7 @@ namespace NYTree {
 /*!
  *  Each permission corresponds to a unique bit of the mask.
  */
-DECLARE_ENUM(EPermission,
+DECLARE_FLAGGED_ENUM(EPermission,
     // Applies to: all objects
     ((Read)(0x0001))
 
@@ -24,7 +24,7 @@ DECLARE_ENUM(EPermission,
     ((Use)(0x0004))
 
     //! Applies to: schemas
-    ((Create)(0x0008))
+    ((Create)(0x0100))
 );
 
 //! An alias for EPermission denoting bitwise-or of atomic EPermission values.
@@ -47,9 +47,9 @@ std::vector<Stroka> FormatPermissions(
 
 //! Describes the set of objects for which permissions must be checked.
 DECLARE_ENUM(EPermissionCheckScope,
-    (This)
-    (Parent)
-    (Descendants)
+    ((This)            (0x0001))
+    ((Parent)          (0x0002))
+    ((Descendants)     (0x0004))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

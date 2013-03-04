@@ -36,7 +36,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::Insert(const TKey& key, TValue
     VERIFY_THREAD_AFFINITY(UserThread);
 
     YASSERT(value);
-    YCHECK(Map.insert(MakePair(key, value)).second);
+    YCHECK(Map.insert(std::make_pair(key, value)).second);
 }
 
 template <class TKey, class TValue, class TTraits, class THash>
@@ -223,7 +223,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadKeys(const TLoadContext& c
         previousKey = key;
 
         auto value = Traits.Create(key);
-        YCHECK(Map.insert(MakePair(key, value.Release())).second);
+        YCHECK(Map.insert(std::make_pair(key, value.Release())).second);
     }
 }
 

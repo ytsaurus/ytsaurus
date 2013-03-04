@@ -11,7 +11,7 @@
 
 #include <ytlib/logging/tagged_logger.h>
 
-#include <ytlib/rpc/error.h>
+#include <ytlib/rpc/public.h>
 
 #include <errno.h>
 
@@ -105,7 +105,7 @@ protected:
 
     virtual void InitClientSocket(SOCKET clientSocket)
     {
-        {
+        if (Config->EnableNoDelay) {
             int value = 1;
             setsockopt(clientSocket, IPPROTO_TCP, TCP_NODELAY, (const char*) &value, sizeof(value));
         }
@@ -133,7 +133,7 @@ protected:
 
         InitSocket(ServerSocket);
 
-        if (listen(ServerSocket, SOMAXCONN) == SOCKET_ERROR) {
+        if (listen(ServerSocket, Config->MaxBacklogSize) == SOCKET_ERROR) {
             int error = LastSystemError();
             CloseServerSocket();
             THROW_ERROR_EXCEPTION("Failed to listen to server socket")
@@ -157,8 +157,8 @@ protected:
     {
         // TODO(babenko): check results
 #ifdef _win_
-        unsigned long dummy = 1;
-        ioctlsocket(socket, FIONBIO, &dummy);
+        unsigned long value = 1;
+        ioctlsocket(socket, FIONBIO, &value);
 #else
         fcntl(socket, F_SETFL, O_NONBLOCK);
         fcntl(socket, F_SETFD, FD_CLOEXEC);
@@ -212,6 +212,7 @@ protected:
             InitSocket(clientSocket);
 
             auto connection = New<TTcpConnection>(
+                Config,
                 EConnectionType::Server,
                 TConnectionId::Create(),
                 clientSocket,
@@ -311,7 +312,7 @@ private:
     {
         TBusServerBase::InitClientSocket(clientSocket);
 
-#ifdef _linux_
+#if !defined(_win_) && !defined(__APPLE__)
         {
             int priority = Config->Priority;
             setsockopt(clientSocket, SOL_SOCKET, SO_PRIORITY, (const char*) &priority, sizeof(priority));

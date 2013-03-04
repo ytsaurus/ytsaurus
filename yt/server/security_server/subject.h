@@ -25,9 +25,9 @@ class TSubject
     //! Transitive closure of the set of groups containing this given subject.
     DEFINE_BYREF_RW_PROPERTY(TGroupSet, RecursiveMemberOf);
 
-    typedef yhash_set<TObjectBase*> TObjectSet;
-    //! Objects whose ACLs reference this particular subject.
-    DEFINE_BYREF_RW_PROPERTY(TObjectSet, ReferencingObjects);
+    typedef yhash_map<TObjectBase*, int> TLinkedObjects;
+    //! Objects whose ACLs reference this particular subject, with counters.
+    DEFINE_BYREF_RW_PROPERTY(TLinkedObjects, LinkedObjects);
 
 public:
     explicit TSubject(const TSubjectId& id);
@@ -40,6 +40,11 @@ public:
 
     //! Casts the current instance to TGroup.
     TGroup* AsGroup();
+
+    //! Adds #object to |LinkedObjects| or increments the counter if it is already there.
+    void LinkObject(TObjectBase* object);
+    //! Decrements the counter and removes #object from |LinkedObjects| if the counter drops to zero.
+    void UnlinkObject(TObjectBase* object);
 
 };
 

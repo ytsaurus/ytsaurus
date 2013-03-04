@@ -109,7 +109,7 @@ void FormatDateTime(TMessageBuffer* out, TInstant dateTime)
 void FormatLevel(TMessageBuffer* out, ELogLevel level)
 {
     static char chars[] = "?TDIWEF?";
-    out->AppendChar(chars[level.ToValue()]);
+    out->AppendChar(chars[static_cast<int>(level)]);
 }
 
 void FormatMessage(TMessageBuffer* out, const Stroka& message)
@@ -120,7 +120,6 @@ void FormatMessage(TMessageBuffer* out, const Stroka& message)
             out->AppendString("\\n");
         } else {
             out->AppendChar(ch);
-
         }
     }
 }

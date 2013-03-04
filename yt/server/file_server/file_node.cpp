@@ -31,7 +31,7 @@ static NLog::TLogger& Logger = FileServerLogger;
 
 TFileNode::TFileNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
-    , ChunkList_(NULL)
+    , ChunkList_(nullptr)
     , UpdateMode_(EFileUpdateMode::None)
     , ReplicationFactor_(0)
 { }
@@ -143,10 +143,9 @@ protected:
             auto chunkId = TChunkId::FromProto(requestExt.chunk_id());
 
             chunk = chunkManager->FindChunk(chunkId);
-            if (!chunk || !chunk->IsAlive()) {
+            if (!IsObjectAlive(chunk)) {
                 THROW_ERROR_EXCEPTION("No such chunk: %s", ~chunkId.ToString());
             }
-
             if (!chunk->IsConfirmed()) {
                 THROW_ERROR_EXCEPTION("File chunk is not confirmed: %s", ~chunkId.ToString());
             }

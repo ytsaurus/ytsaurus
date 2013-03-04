@@ -381,7 +381,7 @@ private:
             queue = it->second;
         } else {
             queue = New<TChangeLogQueue>(changeLog);
-            YCHECK(ChangeLogQueues.insert(MakePair(changeLog, queue)).second);
+            YCHECK(ChangeLogQueues.insert(std::make_pair(changeLog, queue)).second);
         }
 
         AtomicIncrement(queue->UseCount);

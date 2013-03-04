@@ -69,12 +69,19 @@ class TAccessControlDescriptor
 
 public:
     explicit TAccessControlDescriptor(NObjectServer::TObjectBase* object);
+    ~TAccessControlDescriptor();
+
+    TSubject* GetOwner() const;
+    void SetOwner(TSubject* owner);
 
     void AddEntry(const TAccessControlEntry& ace);
     void ClearEntries();
-    void PurgeEntries(TSubject* subject);
+
+    void OnSubjectDestroyed(TSubject* subject, TSubject* defaultOwner);
 
 private:
+    TSubject* Owner_;
+
     friend void Load(const NCellMaster::TLoadContext& context, TAccessControlDescriptor& acd);
     friend void Save(const NCellMaster::TSaveContext& context, const TAccessControlDescriptor& acd);
 

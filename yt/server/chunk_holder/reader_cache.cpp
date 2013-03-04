@@ -78,7 +78,7 @@ public:
                     cookie.EndInsert(reader);
                 } catch (const std::exception& ex) {
                     auto error = TError(
-                        TDataNodeServiceProxy::EErrorCode::IOError,
+                        NChunkClient::EErrorCode::IOError,
                         "Error opening chunk: %s",
                         ~chunkId.ToString())
                         << ex;

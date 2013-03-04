@@ -170,7 +170,7 @@ public:
                 }
 
                 auto* object = objectManager->FindObject(objectId);
-                if (!object || !object->IsAlive()) {
+                if (!IsObjectAlive(object)) {
                     THROW_ERROR_EXCEPTION("No such object: %s", ~ToString(objectId));
                 }
 
@@ -322,7 +322,7 @@ TObjectBase* TObjectManager::FindSchema(EObjectType type)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    int typeValue = type.ToValue();
+    int typeValue = static_cast<int>(type);
     if (typeValue < 0 || typeValue > MaxObjectType) {
         return nullptr;
     }
@@ -343,7 +343,7 @@ IObjectProxyPtr TObjectManager::GetSchemaProxy(EObjectType type)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    int typeValue = type.ToValue();
+    int typeValue = static_cast<int>(type);
     YCHECK(typeValue >= 0 && typeValue <= MaxObjectType);
     
     const auto& entry = TypeToEntry[typeValue];
@@ -358,15 +358,16 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
     YCHECK(handler);
 
     auto type = handler->GetType();
-    int typeValue = type.ToValue();
+    int typeValue = static_cast<int>(type);
     YCHECK(typeValue >= 0 && typeValue <= MaxObjectType);
     YCHECK(!TypeToEntry[typeValue].Handler);
 
+    RegisteredTypes.push_back(type);
     auto& entry = TypeToEntry[typeValue];
     entry.Handler = handler;
     if (TypeHasSchema(type)) {
         auto schemaType = SchemaTypeFromType(type);
-        auto& schemaEntry = TypeToEntry[schemaType.ToValue()];
+        auto& schemaEntry = TypeToEntry[static_cast<int>(schemaType)];
         schemaEntry.Handler = CreateSchemaTypeHandler(Bootstrap, type);
         LOG_INFO("Type registered (Type: %s, SchemaObjectId: %s)",
             ~type.ToString(),
@@ -381,7 +382,7 @@ IObjectTypeHandlerPtr TObjectManager::FindHandler(EObjectType type) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    int typeValue = type.ToValue();
+    int typeValue = static_cast<int>(type);
     if (typeValue < 0 || typeValue > MaxObjectType) {
         return nullptr;
     }
@@ -401,6 +402,11 @@ IObjectTypeHandlerPtr TObjectManager::GetHandler(EObjectType type) const
 IObjectTypeHandlerPtr TObjectManager::GetHandler(TObjectBase* object) const
 {
     return GetHandler(object->GetType());
+}
+
+const std::vector<EObjectType> TObjectManager::GetRegisteredTypes() const
+{
+    return RegisteredTypes;
 }
 
 TCellId TObjectManager::GetCellId() const
@@ -435,7 +441,7 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
 
     auto random = mutationContext->RandomGenerator().Generate<ui64>();
 
-    int typeValue = type.ToValue();
+    int typeValue = static_cast<int>(type);
     YASSERT(typeValue >= 0 && typeValue <= MaxObjectType);
 
     auto cellId = GetCellId();
@@ -510,10 +516,9 @@ void TObjectManager::InitWellKnownSingletons()
     MasterObject->RefObject();
     MasterProxy = CreateMasterProxy(Bootstrap, ~MasterObject);
 
-    for (int typeValue = 0; typeValue < MaxObjectType; ++typeValue) {
-        auto type = EObjectType(typeValue);
-        auto& entry = TypeToEntry[typeValue];
-        if (entry.Handler && TypeHasSchema(type)) {
+    FOREACH (auto type, RegisteredTypes)  {
+        auto& entry = TypeToEntry[static_cast<int>(type)];
+        if (TypeHasSchema(type)) {
             entry.SchemaObject = new TSchemaObject(MakeSchemaObjectId(type, GetCellId()));
             entry.SchemaObject->RefObject();
             entry.SchemaProxy = CreateSchemaProxy(Bootstrap, ~entry.SchemaObject);
@@ -534,17 +539,15 @@ void TObjectManager::SaveValues(const NCellMaster::TSaveContext& context) const
 
 void TObjectManager::SaveSchemas(const NCellMaster::TSaveContext& context) const
 {
-    auto* output = context.GetOutput();
-    
-    for (int typeValue = 0; typeValue <= MaxObjectType; ++typeValue) {
-        const auto& entry = TypeToEntry[typeValue];
-        if (~entry.SchemaObject) {
-            ::Save(output, typeValue);
+    FOREACH (auto type, RegisteredTypes) {
+        if (TypeHasSchema(type)) {
+            Save(context, type);
+            const auto& entry = TypeToEntry[static_cast<int>(type)];
             entry.SchemaObject->Save(context);
         }
     }
 
-    ::Save(output, static_cast<int>(-1));
+    Save(context, EObjectType(EObjectType::Null));
 }
 
 void TObjectManager::LoadKeys(const NCellMaster::TLoadContext& context)
@@ -568,14 +571,13 @@ void TObjectManager::LoadSchemas(const NCellMaster::TLoadContext& context)
 
     InitWellKnownSingletons();
 
-    auto* input = context.GetInput();
     while (true) {
-        int typeValue;
-        ::Load(input, typeValue);
-        if (typeValue < 0)
+        EObjectType type;
+        Load(context, type);
+        if (type == EObjectType::Null)
             break;
 
-        auto& entry = TypeToEntry[typeValue];
+        const auto& entry = TypeToEntry[static_cast<int>(type)];
         entry.SchemaObject->Load(context);
     }
 }
@@ -737,7 +739,7 @@ void TObjectManager::ExecuteVerb(
     } else {
         if (!Bootstrap->GetMetaStateFacade()->IsActiveLeader()) {
             context->Reply(TError(
-                EErrorCode::Unavailable,
+                NRpc::EErrorCode::Unavailable,
                 "Not an active leader"));
             return;
         }
@@ -797,6 +799,130 @@ TFuture<void> TObjectManager::GCCollect()
     VERIFY_THREAD_AFFINITY(StateThread);
 
     return GarbageCollector->Collect();
+}
+
+TObjectBase* TObjectManager::CreateObject(
+    TTransaction* transaction,
+    TAccount* account,
+    EObjectType type,
+    IAttributeDictionary* attributes,
+    IObjectTypeHandler::TReqCreateObject* request,
+    IObjectTypeHandler::TRspCreateObject* response)
+{
+    auto handler = FindHandler(type);
+    if (!handler) {
+        THROW_ERROR_EXCEPTION("Unknown object type: %s",
+            ~type.ToString());
+    }
+
+    auto options = handler->GetCreationOptions();
+    if (!options) {
+        THROW_ERROR_EXCEPTION("Type does not support creating new instances: %s",
+            ~type.ToString());
+    }
+
+    switch (options->TransactionMode) {
+        case EObjectTransactionMode::Required:
+            if (!transaction) {
+                THROW_ERROR_EXCEPTION("Cannot create an instance of %s outside of a transaction",
+                    ~FormatEnum(type).Quote());
+            }
+            break;
+
+        case EObjectTransactionMode::Forbidden:
+            if (transaction) {
+                THROW_ERROR_EXCEPTION("Cannot create an instance of %s inside of a transaction",
+                    ~FormatEnum(type).Quote());
+            }
+            break;
+
+        case EObjectTransactionMode::Optional:
+            break;
+
+        default:
+            YUNREACHABLE();
+    }
+
+    switch (options->AccountMode) {
+        case EObjectAccountMode::Required:
+            if (!account) {
+                THROW_ERROR_EXCEPTION("Cannot create an instance of %s without an account",
+                    ~FormatEnum(type).Quote());
+            }
+            break;
+
+        case EObjectAccountMode::Forbidden:
+            if (account) {
+                THROW_ERROR_EXCEPTION("Cannot create an instance of %s with an account",
+                    ~FormatEnum(type).Quote());
+            }
+            break;
+
+        case EObjectAccountMode::Optional:
+            break;
+
+        default:
+            YUNREACHABLE();
+    }
+
+    auto securityManager = Bootstrap->GetSecurityManager();
+    auto* user = securityManager->GetAuthenticatedUser();
+
+    auto* schema = FindSchema(type);
+    if (schema) {
+        securityManager->ValidatePermission(schema, user, EPermission::Create);
+    }
+
+    auto* object = handler->Create(
+        transaction,
+        account,
+        attributes,
+        request,
+        response);
+    const auto& objectId = object->GetId();
+
+    auto attributeKeys = attributes->List();
+    if (!attributeKeys.empty()) {
+        // Copy attributes. Quick and dirty.
+        auto* attributeSet = FindAttributes(TVersionedObjectId(objectId));
+        if (!attributeSet) {
+            attributeSet = CreateAttributes(TVersionedObjectId(objectId));
+        }
+
+        FOREACH (const auto& key, attributeKeys) {
+            YCHECK(attributeSet->Attributes().insert(std::make_pair(
+                key,
+                attributes->GetYson(key))).second);
+        }
+    }
+
+    if (transaction) {
+        YCHECK(transaction->StagedObjects().insert(object).second);
+        RefObject(object);
+    }
+
+    auto* acd = securityManager->FindAcd(object);
+    if (acd) {
+        acd->SetOwner(user);
+    }
+
+    return object;
+}
+
+void TObjectManager::UnstageObject(
+    TTransaction* transaction,
+    TObjectBase* object,
+    bool recursive)
+{
+    if (transaction->StagedObjects().erase(object) != 1) {
+        THROW_ERROR_EXCEPTION("Object %s does not belong to transaction %s",
+            ~object->GetId().ToString(),
+            ~transaction->GetId().ToString());
+    }
+
+    auto handler = GetHandler(object);
+    handler->Unstage(object, transaction, recursive);
+    UnrefObject(object);
 }
 
 void TObjectManager::ReplayVerb(const NProto::TMetaReqExecute& request)

@@ -99,6 +99,7 @@ public:
         REGISTER(TCopyCommand,              "copy",              Null,       Structured, true,  false);
         REGISTER(TMoveCommand,              "move",              Null,       Null,       true,  false);
         REGISTER(TExistsCommand,            "exists",            Null,       Structured, false, false);
+        REGISTER(TLinkCommand,              "link",              Null,       Structured, false, false);
 
         REGISTER(TUploadCommand,            "upload",            Binary,     Structured, true,  true );
         REGISTER(TDownloadCommand,          "download",          Null,       Binary,     false, true );
@@ -118,7 +119,6 @@ public:
 
         REGISTER(TAddMemberCommand,         "add_member",        Structured, Null,       true,  false);
         REGISTER(TRemoveMemberCommand,      "remove_member",     Structured, Null,       true,  false);
-
         REGISTER(TCheckPersmissionCommand,  "check_permission",  Null,       Structured, false, false);
 #undef REGISTER
     }
@@ -325,7 +325,7 @@ private:
         entry.Factory = BIND([] (ICommandContext* context) -> TAutoPtr<ICommand> {
             return new TCommand(context);
         });
-        YCHECK(Commands.insert(MakePair(descriptor.CommandName, entry)).second);
+        YCHECK(Commands.insert(std::make_pair(descriptor.CommandName, entry)).second);
     }
 };
 

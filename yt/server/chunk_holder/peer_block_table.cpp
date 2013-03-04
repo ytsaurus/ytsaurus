@@ -103,7 +103,7 @@ std::vector<TPeerInfo>& TPeerBlockTable::GetMutablePeers(const TBlockId& blockId
     auto it = Table.find(blockId);
     if (it != Table.end())
         return it->second;
-    auto pair = Table.insert(MakePair(blockId, std::vector<TPeerInfo>()));
+    auto pair = Table.insert(std::make_pair(blockId, std::vector<TPeerInfo>()));
     YASSERT(pair.second);
     return pair.first->second;
 }

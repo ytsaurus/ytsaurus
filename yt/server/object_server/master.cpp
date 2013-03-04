@@ -65,7 +65,7 @@ private:
     {
         auto transactionManager = Bootstrap->GetTransactionManager();
         auto* transaction = transactionManager->FindTransaction(id);
-        if (!transaction || !transaction->IsAlive()) {
+        if (!IsObjectAlive(transaction)) {
             THROW_ERROR_EXCEPTION("No such transaction: %s", ~ToString(id));
         }
         if (!transaction->IsActive()) {
@@ -86,8 +86,6 @@ private:
             ~ToString(transactionId),
             ~type.ToString());
 
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-
         auto* transaction =
             transactionId != NullTransactionId
             ? GetTransaction(transactionId)
@@ -103,14 +101,15 @@ private:
             ? FromProto(request->object_attributes())
             : CreateEphemeralAttributes();
 
-        auto transactionManager = Bootstrap->GetTransactionManager();
-        auto objectId = transactionManager->CreateObject(
+        auto objectManager = Bootstrap->GetObjectManager();
+        auto* object = objectManager->CreateObject(
             transaction,
             account,
             type,
             ~attributes,
             request,
             response);
+        const auto& objectId = object->GetId();
 
         *response->mutable_object_id() = objectId.ToProto();
 
@@ -214,7 +213,6 @@ public:
 
     virtual EPermissionSet GetSupportedPermissions() const override
     {
-        // TODO(babenko): flagged enums
         return EPermissionSet(
             EPermission::Read |
             EPermission::Write);

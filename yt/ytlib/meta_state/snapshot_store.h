@@ -18,7 +18,6 @@ class TSnapshotStore
     : public TRefCounted
 {
 public:
-    typedef TMetaStateManagerProxy::EErrorCode EErrorCode;
     typedef TValueOrError<TSnapshotReaderPtr> TGetReaderResult;
 
     //! Creates an instance.

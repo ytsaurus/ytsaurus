@@ -36,7 +36,6 @@ private:
     };
 
     typedef TMetaStateManagerProxy TProxy;
-    typedef TProxy::EErrorCode EErrorCode;
 
     TSnapshotDownloaderConfigPtr Config;
     NElection::TCellManagerPtr CellManager;

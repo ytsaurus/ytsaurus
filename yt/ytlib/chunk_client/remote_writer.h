@@ -48,19 +48,6 @@ public:
 
 private:
     class TImpl;
-    //! A group is a bunch of blocks that is sent in a single RPC request.
-    class TGroup;
-    typedef TIntrusivePtr<TGroup> TGroupPtr;
-
-    struct TNode;
-    typedef TIntrusivePtr<TNode> TNodePtr;
-    typedef TWeakPtr<TNode> TNodeWeakPtr;
-
-    typedef ydeque<TGroupPtr> TWindow;
-
-    typedef NChunkClient::TDataNodeServiceProxy TProxy;
-    typedef TProxy::EErrorCode EErrorCode;
-
     TIntrusivePtr<TImpl> Impl;
 };
 

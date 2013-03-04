@@ -72,20 +72,23 @@ void TBootstrap::Initialize()
     JobProxyConfig->SupervisorConnection->Priority = 6;
 
     JobControlEnabled = false;
+
 #if defined(_unix_) && !defined(_darwin_)
-    uid_t ruid, euid, suid;
-    YCHECK(getresuid(&ruid, &euid, &suid) == 0);
-    if (suid == 0) {
-        JobControlEnabled = true;
+    if (Config->EnforceJobControl) {
+        uid_t ruid, euid, suid;
+        YCHECK(getresuid(&ruid, &euid, &suid) == 0);
+        if (suid == 0) {
+            JobControlEnabled = true;
+        }
+        umask(0000);
     }
-    umask(0000);
 #endif
 
     if (!JobControlEnabled) {
         if (Config->EnforceJobControl) {
-            LOG_FATAL("Job control disabled, please run as root.");
+            LOG_FATAL("Job control disabled, please run as root");
         } else {
-            LOG_WARNING("Job control disabled, cannot kill jobs and use memory limits watcher.");
+            LOG_WARNING("Job control disabled, cannot kill jobs and use memory limits watcher");
         }
     }
 

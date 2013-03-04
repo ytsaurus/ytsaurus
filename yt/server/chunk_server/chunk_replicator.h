@@ -90,10 +90,10 @@ private:
         int* replicationJobCount,
         int* removalJobCount);
 
-    DECLARE_ENUM(EScheduleFlags,
-        ((None)(0x0000))
+    DECLARE_FLAGGED_ENUM(EScheduleFlags,
+        ((None)     (0x0000))
         ((Scheduled)(0x0001))
-        ((Purged)(0x0002))
+        ((Purged)   (0x0002))
     );
 
     EScheduleFlags ScheduleReplicationJob(

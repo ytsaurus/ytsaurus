@@ -50,7 +50,7 @@ void TMetaStatePart::RegisterMethod(
     auto wrappedHandler = BIND(
         &TThunkTraits<TRequest, TResponse>::Thunk,
         std::move(handler));
-    YCHECK(MetaState->Methods.insert(MakePair(mutationType, wrappedHandler)).second);
+    YCHECK(MetaState->Methods.insert(std::make_pair(mutationType, wrappedHandler)).second);
 }
 
 template <class TContext>

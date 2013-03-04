@@ -141,6 +141,7 @@ function YtCommand(logger, driver, watcher, fqdn, read_only, pause, req, rsp) {
     // on V8 optimization for more details).
 
     this.name = undefined;
+    this.user = undefined;
     this.parameters = undefined;
     this.descriptor = undefined;
 
@@ -171,6 +172,7 @@ YtCommand.prototype.dispatch = function() {
     Q
         .fcall(function() {
             self._getName();
+            self._getUser();
             self._redirectForMarkedRequests();
             self._getDescriptor();
             self._checkHttpMethod();
@@ -270,6 +272,17 @@ YtCommand.prototype._getName = function() {
 
     if (!/^[a-z_]+$/.test(this.name)) {
         throw new YtError("Malformed command name " + JSON.stringify(this.name) + ".");
+    }
+};
+
+YtCommand.prototype._getUser = function() {
+    "use strict";
+    this.__DBG("_getUser");
+
+    if (typeof(this.req.authenticated_user) === "string") {
+        this.user = this.req.authenticated_user;
+    } else {
+        throw new YtError("Failed to identify user credentials.");
     }
 };
 
@@ -621,6 +634,7 @@ YtCommand.prototype._logRequest = function() {
     this.logger.debug("Gathered request parameters", {
         request_id              : this.req.uuid,
         name                    : this.name,
+        user                    : this.user,
         parameters              : this.parameters.Print(),
         input_format            : this.input_format.Print(),
         input_compression       : binding.ECompression[this.input_compression],
@@ -696,7 +710,7 @@ YtCommand.prototype._execute = function(cb) {
 
     process.nextTick(function() { self.pause.unpause(); });
 
-    return this.driver.execute(this.name,
+    return this.driver.execute(this.name, this.user,
         this.input_stream, this.input_compression, this.input_format,
         this.output_stream, this.output_compression, this.output_format,
         this.parameters)

@@ -21,6 +21,7 @@
 
 #include <server/security_server/account.h>
 #include <server/security_server/group.h>
+#include <server/security_server/user.h>
 #include <server/security_server/security_manager.h>
 
 namespace NYT {
@@ -138,7 +139,6 @@ public:
 
     virtual EPermissionSet GetSupportedPermissions() const override
     {
-        // TODO(babenko): flagged enums
         return EPermissionSet(
             EPermission::Read |
             EPermission::Write);
@@ -265,6 +265,7 @@ TCypressManager::TCypressManager(TBootstrap* bootstrap)
     RegisterHandler(New<TDoubleNodeTypeHandler>(Bootstrap));
     RegisterHandler(New<TMapNodeTypeHandler>(Bootstrap));
     RegisterHandler(New<TListNodeTypeHandler>(Bootstrap));
+    RegisterHandler(New<TLinkNodeTypeHandler>(Bootstrap));
 
     {
         NCellMaster::TLoadContext context;
@@ -318,7 +319,7 @@ void TCypressManager::RegisterHandler(INodeTypeHandlerPtr handler)
     YCHECK(handler);
 
     auto type = handler->GetObjectType();
-    int typeValue = type.ToValue();
+    int typeValue = static_cast<int>(type);
     YCHECK(typeValue >= 0 && typeValue <= MaxObjectType);
     YCHECK(!TypeToHandler[typeValue]);
     TypeToHandler[typeValue] = handler;
@@ -331,7 +332,7 @@ INodeTypeHandlerPtr TCypressManager::FindHandler(EObjectType type)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    int typeValue = type.ToValue();
+    int typeValue = static_cast<int>(type);
     if (typeValue < 0 || typeValue > MaxObjectType) {
         return nullptr;
     }
@@ -363,24 +364,28 @@ TCypressNodeBase* TCypressManager::CreateNode(
 {
     YCHECK(handler);
     YCHECK(account);
-    YCHECK(request);
-    YCHECK(response);
 
     handler->SetDefaultAttributes(attributes);
 
     auto node = handler->Create(transaction, request, response);
-
-    // Make a rawptr copy and transfer the ownership.
     auto node_ = ~node;
+
     RegisterNode(node, transaction, attributes);
+
+    auto securityManager = Bootstrap->GetSecurityManager();
 
     // Set account (if not given in attributes).
     if (!node_->GetAccount()) {
-        auto securityManager = Bootstrap->GetSecurityManager();
         securityManager->SetAccount(node_, account);
     }
 
-    *response->mutable_node_id() = node_->GetId().ToProto();
+    // Set owner.
+    auto* user = securityManager->GetAuthenticatedUser();
+    node_->Acd().SetOwner(user);
+
+    if (response) {
+        *response->mutable_node_id() = node_->GetId().ToProto();
+    }
 
     return LockVersionedNode(node_, transaction, ELockMode::Exclusive);
 }
@@ -838,66 +843,6 @@ void TCypressManager::SetModified(
     node->SetModificationTime(mutationContext->GetTimestamp());
 }
 
-void TCypressManager::RegisterNode(
-    TAutoPtr<TCypressNodeBase> node,
-    TTransaction* transaction,
-    IAttributeDictionary* attributes)
-{
-    VERIFY_THREAD_AFFINITY(StateThread);
-    YCHECK(node->IsTrunk());
-
-    const auto& nodeId = node->GetId();
-
-    auto objectManager = Bootstrap->GetObjectManager();
-
-    auto* mutationContext = Bootstrap
-        ->GetMetaStateFacade()
-        ->GetManager()
-        ->GetMutationContext();
-
-    node->SetCreationTime(mutationContext->GetTimestamp());
-    node->SetModificationTime(mutationContext->GetTimestamp());
-
-    auto node_ = node.Get();
-    NodeMap.Insert(TVersionedNodeId(nodeId), node.Release());
-
-    // TODO(babenko): setting attributes here, in RegisterNode
-    // is somewhat weird. Moving this logic to some other place, however,
-    // complicates the code since we need to worry about possible
-    // exceptions thrown from custom attribute validators.
-    if (attributes) {
-        auto proxy = GetVersionedNodeProxy(node_, nullptr);
-        try {
-            auto keys = attributes->List();
-            FOREACH (const auto& key, keys) {
-                auto value = attributes->GetYson(key);
-                // Try to set as a system attribute. If fails then set as a user attribute.
-                if (!proxy->SetSystemAttribute(key, value)) {
-                    proxy->Attributes().SetYson(key, value);
-                }
-            }
-        } catch (...) {
-            auto handler = GetHandler(node_);
-            handler->Destroy(node_);
-            NodeMap.Remove(TVersionedNodeId(nodeId));
-            throw;
-        }
-    }
-
-    if (transaction) {
-        transaction->StagedNodes().push_back(node_);
-        objectManager->RefObject(node_);
-    }
-
-    LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %s, Type: %s)",
-        ~nodeId.ToString(),
-        ~TypeFromId(nodeId).ToString());
-
-    if (IsLeader()) {
-        CreateNodeBehavior(node_);
-    }
-}
-
 TCypressManager::TSubtreeNodes TCypressManager::ListSubtreeNodes(
     TCypressNodeBase* trunkNode,
     TTransaction* transaction,
@@ -1014,6 +959,7 @@ void TCypressManager::Clear()
         ESecurityAction::Allow,
         securityManager->GetEveryoneGroup(),
         EPermission::Read));
+    RootNode->Acd().SetOwner(securityManager->GetRootUser());
 
     NodeMap.Insert(TVersionedNodeId(RootNodeId), RootNode);
     YCHECK(RootNode->RefObject() == 1);
@@ -1045,6 +991,66 @@ void TCypressManager::OnRecoveryComplete()
     FOREACH (const auto& pair, NodeMap) {
         auto* node = pair.second;
         node->ResetObjectLocks();
+    }
+}
+
+void TCypressManager::RegisterNode(
+    TAutoPtr<TCypressNodeBase> node,
+    TTransaction* transaction,
+    IAttributeDictionary* attributes)
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+    YCHECK(node->IsTrunk());
+
+    const auto& nodeId = node->GetId();
+
+    auto objectManager = Bootstrap->GetObjectManager();
+
+    auto* mutationContext = Bootstrap
+        ->GetMetaStateFacade()
+        ->GetManager()
+        ->GetMutationContext();
+
+    node->SetCreationTime(mutationContext->GetTimestamp());
+    node->SetModificationTime(mutationContext->GetTimestamp());
+
+    auto node_ = node.Get();
+    NodeMap.Insert(TVersionedNodeId(nodeId), node.Release());
+
+    // TODO(babenko): setting attributes here, in RegisterNode
+    // is somewhat weird. Moving this logic to some other place, however,
+    // complicates the code since we need to worry about possible
+    // exceptions thrown from custom attribute validators.
+    if (attributes) {
+        auto proxy = GetVersionedNodeProxy(node_, nullptr);
+        try {
+            auto keys = attributes->List();
+            FOREACH (const auto& key, keys) {
+                auto value = attributes->GetYson(key);
+                // Try to set as a system attribute. If fails then set as a user attribute.
+                if (!proxy->SetSystemAttribute(key, value)) {
+                    proxy->Attributes().SetYson(key, value);
+                }
+            }
+        } catch (...) {
+            auto handler = GetHandler(node_);
+            handler->Destroy(node_);
+            NodeMap.Remove(TVersionedNodeId(nodeId));
+            throw;
+        }
+    }
+
+    if (transaction) {
+        transaction->StagedNodes().push_back(node_);
+        objectManager->RefObject(node_);
+    }
+
+    LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %s, Type: %s)",
+        ~nodeId.ToString(),
+        ~TypeFromId(nodeId).ToString());
+
+    if (IsLeader()) {
+        CreateNodeBehavior(node_);
     }
 }
 

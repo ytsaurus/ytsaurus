@@ -284,13 +284,13 @@ T Load(const TLoadContext& context)
 template <class T>
 void Load(const TLoadContext& context, T& value)
 {
-    ::Load(context.GetInput(), value);
+    Load(context.GetInput(), value);
 }
 
 template <class T>
 void Save(const TSaveContext& context, const T& value)
 {
-    ::Save(context.GetOutput(), value);
+    Save(context.GetOutput(), value);
 }
 
 template <class T>

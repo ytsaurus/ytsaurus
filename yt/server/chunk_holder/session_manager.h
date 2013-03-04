@@ -72,7 +72,6 @@ private:
     friend class TSessionManager;
 
     typedef NChunkClient::TDataNodeServiceProxy TProxy;
-    typedef TProxy::EErrorCode EErrorCode;
 
     DECLARE_ENUM(ESlotState,
         (Empty)

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <ytlib/misc/guid.h>
+#include <ytlib/misc/error.h>
 
 namespace NYT {
 namespace NRpc {
@@ -49,10 +50,24 @@ class TChannelCache;
 class TServiceBase;
 typedef TIntrusivePtr<TServiceBase> TServiceBasePtr;
 
-////////////////////////////////////////////////////////////////////////////////
-
 typedef TGuid TRequestId;
 extern TRequestId NullRequestId;
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_ENUM(EErrorCode,
+    ((TransportError)  (100))
+    ((ProtocolError)   (101))
+    ((NoSuchService)   (102))
+    ((NoSuchVerb)      (103))
+    ((Timeout)         (104))
+    ((Unavailable)     (105))
+    ((PoisonPill)      (106))
+);
+
+// TODO(babenko): obsolete
+bool IsRpcError(const TError& error);
+bool IsRetriableError(const TError& error);
 
 ////////////////////////////////////////////////////////////////////////////////
 

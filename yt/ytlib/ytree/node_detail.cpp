@@ -246,8 +246,8 @@ void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxListPtr 
 
     writer.OnBeginList();
     FOREACH (const auto& pair, GetChildren()) {
-        const auto& key = pair.First();
-        const auto& node = pair.Second();
+        const auto& key = pair.first;
+        const auto& node = pair.second;
         writer.OnListItem();
         node->SerializeAttributes(&writer, attributeFilter);
         writer.OnStringScalar(key);

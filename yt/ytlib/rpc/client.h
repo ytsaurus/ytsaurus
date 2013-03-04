@@ -2,7 +2,6 @@
 
 #include "public.h"
 #include "channel.h"
-#include "error.h"
 
 #include <ytlib/misc/property.h>
 #include <ytlib/misc/delayed_invoker.h>
@@ -34,7 +33,6 @@ protected:
      * A derived proxy type may hide this definition by introducing
      * an appropriate descendant of NRpc::EErrorCode.
      */
-    typedef NRpc::EErrorCode EErrorCode;
 
     TProxyBase(IChannelPtr channel, const Stroka& serviceName);
 

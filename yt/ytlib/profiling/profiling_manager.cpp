@@ -239,7 +239,7 @@ private:
 
         LOG_DEBUG("Creating bucket %s", ~path);
         auto bucket = New<TBucket>();
-        YCHECK(PathToBucket.insert(MakePair(path, bucket)).second);
+        YCHECK(PathToBucket.insert(std::make_pair(path, bucket)).second);
 
         auto node = CreateVirtualNode(bucket);
         ForceYPath(Root, path);

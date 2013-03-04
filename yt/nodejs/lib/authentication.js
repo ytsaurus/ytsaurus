@@ -59,6 +59,7 @@ function makeHttpRequest(method, host, path, timeout, headers, body) {
 function YtBlackbox(logger, global_config) { // TODO: Inject |config|
     var config = konfig.blackbox;
     var locals = global_config.locals;
+    var disabled = global_config.disable_blackbox;
     var cache = lru_cache({ max: 5000, maxAge: 60 * 1000 /* ms */});
 
     function httpUnauthorized(rsp) {
@@ -159,24 +160,36 @@ function YtBlackbox(logger, global_config) { // TODO: Inject |config|
             });
     }
 
+    // TODO(sandello): Configure user names from config.
     return function(req, rsp, next) {
+        if (disabled) {
+            req.authenticated_user = "root";
+            return next();
+        }
+
         if (!req.headers.hasOwnProperty("authorization")) {
             logger.debug("Client is missing Authorization header", {
                 request_id : req.uuid
             });
-            return next();
+            var ua = req.headers["user-agent"];
+            if (ua && ua.indexOf("Python wrapper") === 0) {
+                req.authenticated_user = undefined;
+                return httpUnauthorized(rsp);
+            } else {
+                req.authenticated_user = "guest";
+                return next();
+            }
         }
 
         var parts = req.headers["authorization"].split(/\s+/);
         var token = parts[1];
-
-        req.authenticated_user = null;
 
         if (parts[0] !== "OAuth" || !token) {
             logger.debug("Client has improper Authorization header", {
                 request_id : req.uuid,
                 header : req.headers["authorization"]
             });
+            req.authenticated_user = undefined;
             return httpUnauthorized(rsp);
         }
 
@@ -217,6 +230,7 @@ function YtBlackbox(logger, global_config) { // TODO: Inject |config|
                     request_id : req.uuid,
                     authentication_time : dt
                 });
+                req.authenticated_user = "guest";
                 process.nextTick(next);
             });
     }

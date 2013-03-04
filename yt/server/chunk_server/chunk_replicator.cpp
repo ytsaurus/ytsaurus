@@ -319,9 +319,8 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleReplicationJob(
 
     return
         targetAddresses.size() == replicasNeeded
-        // TODO: flagged enums
-        ? (EScheduleFlags) (EScheduleFlags::Purged | EScheduleFlags::Scheduled)
-        : (EScheduleFlags) EScheduleFlags::Scheduled;
+        ? EScheduleFlags(EScheduleFlags::Purged | EScheduleFlags::Scheduled)
+        : EScheduleFlags(EScheduleFlags::Scheduled);
 }
 
 TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleBalancingJob(
@@ -361,8 +360,7 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleBalancingJob(
         ~chunkId.ToString(),
         ~targetNode->GetAddress());
 
-    // TODO: flagged enums
-    return (EScheduleFlags) (EScheduleFlags::Purged | EScheduleFlags::Scheduled);
+    return EScheduleFlags(EScheduleFlags::Purged | EScheduleFlags::Scheduled);
 }
 
 TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleRemovalJob(
@@ -391,8 +389,7 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleRemovalJob(
         ~node->GetAddress(),
         ~chunkId.ToString());
 
-    // TODO: flagged enums
-    return (EScheduleFlags) (EScheduleFlags::Purged | EScheduleFlags::Scheduled);
+    return EScheduleFlags(EScheduleFlags::Purged | EScheduleFlags::Scheduled);
 }
 
 void TChunkReplicator::ScheduleNewJobs(
@@ -630,7 +627,7 @@ void TChunkReplicator::ScheduleChunkRefresh(const TChunkId& chunkId)
 
 void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
 {
-    if (chunk->GetRefreshScheduled() || !chunk->IsAlive())
+    if (!IsObjectAlive(chunk) || chunk->GetRefreshScheduled())
         return;
 
     TRefreshEntry entry;
@@ -670,7 +667,7 @@ void TChunkReplicator::OnRefresh()
             RefreshList.pop_front();
             ++count;
 
-            if (chunk->IsAlive()) {
+            if (IsObjectAlive(chunk)) {
                 Refresh(chunk);
             }
 
@@ -798,7 +795,7 @@ void TChunkReplicator::ScheduleRFUpdate(TChunkList* chunkList)
 
 void TChunkReplicator::ScheduleRFUpdate(TChunk* chunk)
 {
-    if (chunk->GetRefreshScheduled() || !chunk->IsAlive())
+    if (!IsObjectAlive(chunk) || chunk->GetRefreshScheduled())
         return;
 
     RFUpdateList.push_back(chunk);
@@ -829,7 +826,7 @@ void TChunkReplicator::OnRFUpdate()
             RFUpdateList.pop_front();
             ++count;
 
-            if (chunk->IsAlive()) {
+            if (IsObjectAlive(chunk)) {
                 int replicationFactor = ComputeReplicationFactor(*chunk);
                 if (chunk->GetReplicationFactor() != replicationFactor) {
                     auto* update = request.add_updates();

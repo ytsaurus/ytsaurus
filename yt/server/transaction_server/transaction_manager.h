@@ -19,8 +19,6 @@
 
 #include <server/object_server/type_handler.h>
 
-#include <server/security_server/security_manager.h>
-
 namespace NYT {
 namespace NTransactionServer {
 
@@ -57,19 +55,6 @@ public:
     //! Returns the list of all transaction ids on the path up to the root.
     //! This list includes #transaction itself and |nullptr|.
     std::vector<TTransaction*> GetTransactionPath(TTransaction* transaction) const;
-
-    NObjectServer::TObjectId CreateObject(
-        NTransactionServer::TTransaction* transaction,
-        NSecurityServer::TAccount* account,
-        NObjectServer::EObjectType type,
-        NYTree::IAttributeDictionary* attributes,
-        NObjectServer::IObjectTypeHandler::TReqCreateObject* request,
-        NObjectServer::IObjectTypeHandler::TRspCreateObject* response);
-
-    void UnstageObject(
-        TTransaction* transaction,
-        NObjectServer::TObjectBase* object,
-        bool recursive);
 
 private:
     typedef TTransactionManager TThis;

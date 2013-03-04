@@ -166,7 +166,7 @@ void ResolveYPath(
             result = currentService->Resolve(currentPath, context);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(
-                EYPathErrorCode::ResolveError,
+                NYTree::EErrorCode::ResolveError,
                 "Error resolving path: %s",
                 ~path)
                 << TErrorAttribute("verb", ~verb)

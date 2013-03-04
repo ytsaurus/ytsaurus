@@ -150,6 +150,13 @@ protected:
     virtual void ValidatePermission(
         NYTree::EPermissionCheckScope scope,
         NYTree::EPermission permission) override;
+
+    // Cypress-specific overload.
+    void ValidatePermission(
+        TCypressNodeBase* node,
+        NYTree::EPermissionCheckScope scope,
+        NYTree::EPermission permission);
+
     // Inject other overloads into the scope.
     using TObjectProxyBase::ValidatePermission;
 
@@ -321,7 +328,7 @@ public:
 
     virtual void Clear() override;
     virtual int GetChildCount() const override;
-    virtual std::vector< TPair<Stroka, NYTree::INodePtr> > GetChildren() const override;
+    virtual std::vector< std::pair<Stroka, NYTree::INodePtr> > GetChildren() const override;
     virtual std::vector<Stroka> GetKeys() const override;
     virtual NYTree::INodePtr FindChild(const Stroka& key) const override;
     virtual bool AddChild(NYTree::INodePtr child, const Stroka& key) override;
@@ -376,6 +383,35 @@ private:
     virtual IYPathService::TResolveResult ResolveRecursive(
         const NYPath::TYPath& path,
         NRpc::IServiceContextPtr context) override;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLinkNodeProxy
+    : public TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, NYTree::IEntityNode, TLinkNode>
+{
+    YTREE_NODE_TYPE_OVERRIDES(Entity)
+
+public:
+    TLinkNodeProxy(
+        INodeTypeHandlerPtr typeHandler,
+        NCellMaster::TBootstrap* bootstrap,
+        NTransactionServer::TTransaction* transaction,
+        TLinkNode* trunkNode);
+
+    virtual IYPathService::TResolveResult Resolve(
+        const NYPath::TYPath& path,
+        NRpc::IServiceContextPtr context) override;
+
+private:
+    typedef TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, NYTree::IEntityNode, TLinkNode> TBase;
+
+    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override;
+    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) const override;
+    virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
+
+    NYTree::IYPathServicePtr GetTargetService() const;
 
 };
 

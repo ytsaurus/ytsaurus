@@ -26,7 +26,6 @@ public:
 
 private:
     typedef TMetaStateManagerProxy TProxy;
-    typedef TProxy::EErrorCode EErrorCode;
 
     TChangeLogDownloaderConfigPtr Config;
     NElection::TCellManagerPtr CellManager;

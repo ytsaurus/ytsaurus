@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "error.h"
 
 #include <ytlib/rpc/rpc.pb.h>
 

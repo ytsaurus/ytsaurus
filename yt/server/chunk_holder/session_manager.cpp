@@ -81,7 +81,7 @@ void TSession::DoOpenFile()
         }
         catch (const std::exception& ex) {
             OnIOError(TError(
-                TDataNodeServiceProxy::EErrorCode::IOError,
+                NChunkClient::EErrorCode::IOError,
                 "Error creating chunk: %s",
                 ~ToString(ChunkId))
                 << ex);
@@ -162,7 +162,7 @@ void TSession::PutBlock(
 
     if (!Location->HasEnoughSpace(data.Size())) {
         THROW_ERROR_EXCEPTION(
-            EErrorCode::OutOfSpace,
+            NChunkClient::EErrorCode::OutOfSpace,
             "No enough space left on node");
     }
 
@@ -174,7 +174,7 @@ void TSession::PutBlock(
         }
 
         THROW_ERROR_EXCEPTION(
-            EErrorCode::BlockContentMismatch,
+            NChunkClient::EErrorCode::BlockContentMismatch,
             "Block %d with a different content already received (WindowStart: %d)",
             blockIndex,
             WindowStartIndex);
@@ -268,7 +268,7 @@ TError TSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
         } catch (const std::exception& ex) {
             TBlockId blockId(ChunkId, blockIndex);
             OnIOError(TError(
-                TDataNodeServiceProxy::EErrorCode::IOError,
+                NChunkClient::EErrorCode::IOError,
                 "Error writing chunk block: %s",
                 ~blockId.ToString())
                 << ex);
@@ -306,7 +306,7 @@ TAsyncError TSession::FlushBlock(int blockIndex)
     const auto& slot = GetSlot(blockIndex);
     if (slot.State == ESlotState::Empty) {
         THROW_ERROR_EXCEPTION(
-            EErrorCode::WindowError,
+            NChunkClient::EErrorCode::WindowError,
             "Attempt to flush an unreceived block %d (WindowStart: %d, WindowSize: %" PRISZT ")",
             blockIndex,
             WindowStartIndex,
@@ -338,7 +338,7 @@ TFuture< TValueOrError<TChunkPtr> > TSession::Finish(const TChunkMeta& chunkMeta
         const auto& slot = GetSlot(blockIndex);
         if (slot.State != ESlotState::Empty) {
             THROW_ERROR_EXCEPTION(
-                EErrorCode::WindowError,
+                NChunkClient::EErrorCode::WindowError,
                 "Attempt to finish a session with an unflushed block %d (WindowStart: %d, WindowSize: %" PRISZT ")",
                 blockIndex,
                 WindowStartIndex,
@@ -390,7 +390,7 @@ TError TSession::DoAbortWriter()
             Writer->Abort();
         } catch (const std::exception& ex) {
             OnIOError(TError(
-                TDataNodeServiceProxy::EErrorCode::IOError,
+                NChunkClient::EErrorCode::IOError,
                 "Error aborting chunk: %s",
                 ~ToString(ChunkId))
                 << ex);
@@ -436,7 +436,7 @@ TError TSession::DoCloseFile(const TChunkMeta& chunkMeta)
             Sync(~Writer, &TFileWriter::AsyncClose, chunkMeta);
         } catch (const std::exception& ex) {
             OnIOError(TError(
-                TDataNodeServiceProxy::EErrorCode::IOError,
+                NChunkClient::EErrorCode::IOError,
                 "Error closing chunk: %s",
                 ~ToString(ChunkId))
                 << ex);
@@ -497,7 +497,7 @@ void TSession::VerifyInWindow(int blockIndex)
 
     if (!IsInWindow(blockIndex)) {
         THROW_ERROR_EXCEPTION(
-            EErrorCode::WindowError,
+            NChunkClient::EErrorCode::WindowError,
             "Block %d is out of the window (WindowStart: %d, WindowSize: %" PRISZT ")",
             blockIndex,
             WindowStartIndex,
@@ -531,7 +531,7 @@ TSharedRef TSession::GetBlock(int blockIndex)
     const auto& slot = GetSlot(blockIndex);
     if (slot.State == ESlotState::Empty) {
         THROW_ERROR_EXCEPTION(
-            EErrorCode::WindowError,
+            NChunkClient::EErrorCode::WindowError,
             "Trying to retrieve a block %d that is not received yet (WindowStart: %d)",
             blockIndex,
             WindowStartIndex);
@@ -621,7 +621,7 @@ TSessionPtr TSessionManager::StartSession(const TChunkId& chunkId)
     session->SetLease(lease);
 
     AtomicIncrement(SessionCount);
-    YCHECK(SessionMap.insert(MakePair(chunkId, session)).second);
+    YCHECK(SessionMap.insert(std::make_pair(chunkId, session)).second);
 
     return session;
 }

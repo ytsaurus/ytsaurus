@@ -97,9 +97,13 @@ struct TExecuteRequest
         return OutputStack.GetBaseStream();
     }
 
-    void SetCommand(const std::string& commandName, INodePtr arguments)
+    void SetCommand(
+        Stroka commandName,
+        Stroka authenticatedUser,
+        INodePtr arguments)
     {
-        DriverRequest.CommandName = commandName;
+        DriverRequest.CommandName = std::move(commandName);
+        DriverRequest.AuthenticatedUser = std::move(authenticatedUser);
         DriverRequest.Arguments = arguments->AsMap();
     }
 
@@ -165,7 +169,7 @@ Local<Object> ConvertCommandDescriptorToV8Object(const TCommandDescriptor& descr
         v8::ReadOnly);
     result->Set(
         DescriptorInputTypeAsInteger,
-        Integer::New(descriptor.InputType.ToValue()),
+        Integer::New(static_cast<int>(descriptor.InputType)),
         static_cast<v8::PropertyAttribute>(v8::ReadOnly | v8::DontEnum));
     result->Set(
         DescriptorOutputType,
@@ -173,7 +177,7 @@ Local<Object> ConvertCommandDescriptorToV8Object(const TCommandDescriptor& descr
         v8::ReadOnly);
     result->Set(
         DescriptorOutputTypeAsInteger,
-        Integer::New(descriptor.OutputType.ToValue()),
+        Integer::New(static_cast<int>(descriptor.OutputType)),
         static_cast<v8::PropertyAttribute>(v8::ReadOnly | v8::DontEnum));
     result->Set(
         DescriptorIsVolatile,
@@ -399,40 +403,42 @@ Handle<Value> TDriverWrap::Execute(const Arguments& args)
     HandleScope scope;
 
     // Validate arguments.
-    YASSERT(args.Length() == 9);
+    YASSERT(args.Length() == 10);
 
     EXPECT_THAT_IS(args[0], String); // CommandName
+    EXPECT_THAT_IS(args[1], String); // AuthenticatedUser
 
-    EXPECT_THAT_HAS_INSTANCE(args[1], TInputStreamWrap); // InputStream
-    EXPECT_THAT_IS(args[2], Uint32); // InputCompression
-    EXPECT_THAT_HAS_INSTANCE(args[3], TNodeWrap); // InputFormat
+    EXPECT_THAT_HAS_INSTANCE(args[2], TInputStreamWrap); // InputStream
+    EXPECT_THAT_IS(args[3], Uint32); // InputCompression
+    EXPECT_THAT_HAS_INSTANCE(args[4], TNodeWrap); // InputFormat
 
-    EXPECT_THAT_HAS_INSTANCE(args[4], TOutputStreamWrap); // OutputStream
-    EXPECT_THAT_IS(args[5], Uint32); // OutputCompression
-    EXPECT_THAT_HAS_INSTANCE(args[6], TNodeWrap); // OutputFormat)
+    EXPECT_THAT_HAS_INSTANCE(args[5], TOutputStreamWrap); // OutputStream
+    EXPECT_THAT_IS(args[6], Uint32); // OutputCompression
+    EXPECT_THAT_HAS_INSTANCE(args[7], TNodeWrap); // OutputFormat)
 
-    EXPECT_THAT_HAS_INSTANCE(args[7], TNodeWrap); // Parameters
-    EXPECT_THAT_IS(args[8], Function); // Callback
+    EXPECT_THAT_HAS_INSTANCE(args[8], TNodeWrap); // Parameters
+    EXPECT_THAT_IS(args[9], Function); // Callback
 
     // Unwrap arguments.
     TDriverWrap* host = ObjectWrap::Unwrap<TDriverWrap>(args.This());
 
     String::AsciiValue commandName(args[0]);
+    String::AsciiValue authenticatedUser(args[1]);
 
     TInputStreamWrap* inputStream =
-        ObjectWrap::Unwrap<TInputStreamWrap>(args[1].As<Object>());
+        ObjectWrap::Unwrap<TInputStreamWrap>(args[2].As<Object>());
     ECompression inputCompression =
-        (ECompression)args[2]->Uint32Value();
-    INodePtr inputFormat = TNodeWrap::UnwrapNode(args[3]);
+        (ECompression)args[3]->Uint32Value();
+    INodePtr inputFormat = TNodeWrap::UnwrapNode(args[4]);
 
     TOutputStreamWrap* outputStream =
-        ObjectWrap::Unwrap<TOutputStreamWrap>(args[4].As<Object>());
+        ObjectWrap::Unwrap<TOutputStreamWrap>(args[5].As<Object>());
     ECompression outputCompression =
-        (ECompression)args[5]->Uint32Value();
-    INodePtr outputFormat = TNodeWrap::UnwrapNode(args[6]);
+        (ECompression)args[6]->Uint32Value();
+    INodePtr outputFormat = TNodeWrap::UnwrapNode(args[7]);
 
-    INodePtr parameters = TNodeWrap::UnwrapNode(args[7]);
-    Local<Function> callback = args[8].As<Function>();
+    INodePtr parameters = TNodeWrap::UnwrapNode(args[8]);
+    Local<Function> callback = args[9].As<Function>();
 
     // Build an atom of work.
     YCHECK(inputFormat);
@@ -446,13 +452,16 @@ Handle<Value> TDriverWrap::Execute(const Arguments& args)
         outputStream,
         callback);
 
-    request->SetCommand(std::string(*commandName, commandName.length()), parameters);
+    request->SetCommand(
+        Stroka(*commandName, commandName.length()),
+        Stroka(*authenticatedUser, authenticatedUser.length()),
+        std::move(parameters));
 
     request->SetInputCompression(inputCompression);
-    request->SetInputFormat(inputFormat);
+    request->SetInputFormat(std::move(inputFormat));
 
     request->SetOutputCompression(outputCompression);
-    request->SetOutputFormat(outputFormat);
+    request->SetOutputFormat(std::move(outputFormat));
 
     request->Prepare();
 

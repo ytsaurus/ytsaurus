@@ -5,7 +5,6 @@ set( SRCS
   ${BASE}/channel_cache.cpp
   ${BASE}/client.cpp
   ${BASE}/dispatcher.cpp
-  ${BASE}/error.cpp
   ${BASE}/message.cpp
   ${BASE}/private.cpp
   ${BASE}/public.cpp
@@ -24,7 +23,6 @@ set( HDRS
   ${BASE}/channel_cache.h
   ${BASE}/client.h
   ${BASE}/dispatcher.h
-  ${BASE}/error.h
   ${BASE}/message.h
   ${BASE}/private.h
   ${BASE}/public.h

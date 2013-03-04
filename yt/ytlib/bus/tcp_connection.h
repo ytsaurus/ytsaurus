@@ -34,6 +34,7 @@ class TTcpConnection
 {
 public:
     TTcpConnection(
+        TTcpBusConfigPtr config,
         EConnectionType type,
         const TConnectionId& id,
         int socket,
@@ -124,6 +125,7 @@ private:
     );
 
     TTcpDispatcher::TImpl* Dispatcher;
+    TTcpBusConfigPtr Config;
     EConnectionType Type;
     TConnectionId Id;
     int Socket;
@@ -138,8 +140,11 @@ private:
     int Port;
     TFuture< TValueOrError<TNetworkAddress> > AsyncAddress;
 
-    TSpinLock SpinLock;
-    EState State;
+    TAtomic State;
+
+    TAtomic MessageEnqueuedSent;
+
+    TSpinLock TerminationSpinLock;
     TError TerminationError;
 
     THolder<ev::io> SocketWatcher;
@@ -202,6 +207,8 @@ private:
     void OnMessagePacketSent(const TEncodedPacket& packet);
     void OnMessageEnqueued();
     void ProcessOutcomingMessages();
+    void DiscardOutcomingMessages(const TError& error);
+    void DiscardUnackedMessages(const TError& error);
     void UpdateSocketWatcher();
 
     void OnTerminated();

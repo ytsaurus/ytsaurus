@@ -91,7 +91,7 @@ TEST_F(TMetaStateMapTest, SaveAndLoad)
         for (int i = 0; i < valueCount; ++i) {
             TKey key = ToString(rand() % valueRange);
             int value = rand();
-            bool result = checkMap.insert(MakePair(key, value)).second;
+            bool result = checkMap.insert(std::make_pair(key, value)).second;
             if (result) {
                 map.Insert(key, new TValue(value));
             } else {
@@ -143,7 +143,7 @@ TEST_F(TMetaStateMapTest, StressSave)
     for (int i = 0; i < valueCount; ++i) {
         TKey key = ToString(rand() % insertRange);
         int value = rand();
-        bool result = checkMap.insert(MakePair(key, value)).second;
+        bool result = checkMap.insert(std::make_pair(key, value)).second;
         if (result) {
             map.Insert(key, new TValue(value));
         } else {
@@ -172,7 +172,7 @@ TEST_F(TMetaStateMapTest, StressSave)
             case 0: {
                 SCOPED_TRACE("Performing Insert");
 
-                bool result = checkMap.insert(MakePair(key, value)).second;
+                bool result = checkMap.insert(std::make_pair(key, value)).second;
                 if (result) {
                     map.Insert(key, new TValue(value));
                 } else {

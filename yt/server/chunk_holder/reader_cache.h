@@ -21,7 +21,6 @@ public:
     ~TReaderCache();
 
     typedef TValueOrError<NChunkClient::TFileReaderPtr> TGetReaderResult;
-    typedef NChunkClient::TDataNodeServiceProxy::EErrorCode EErrorCode;
 
     //! Returns a (cached) chunk reader.
     /*!

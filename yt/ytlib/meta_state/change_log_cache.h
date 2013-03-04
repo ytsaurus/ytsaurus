@@ -26,8 +26,6 @@ class TChangeLogCache
     : public TSizeLimitedCache<i32, TCachedAsyncChangeLog>
 {
 public:
-    typedef TMetaStateManagerProxy::EErrorCode EErrorCode;
-
     explicit TChangeLogCache(TChangeLogCacheConfigPtr config);
 
     void Start();

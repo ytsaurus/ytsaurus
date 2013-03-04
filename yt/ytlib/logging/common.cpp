@@ -15,7 +15,7 @@ namespace NLog {
 
 void TLogEvent::AddProperty(Stroka name, Stroka value)
 {
-    Properties.push_back(MakePair(name, value));
+    Properties.push_back(std::make_pair(name, value));
 }
 
 Stroka TLogEvent::GetCategory() const

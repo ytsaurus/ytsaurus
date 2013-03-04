@@ -57,7 +57,7 @@ private:
         bool result = Invoker->Invoke(wrappedHandler);
         if (!result) {
             context->Reply(TError(
-                EErrorCode::Unavailable,
+                NRpc::EErrorCode::Unavailable,
                 "Service unavailable"));
         }
         return true;

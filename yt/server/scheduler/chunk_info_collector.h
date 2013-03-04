@@ -42,7 +42,7 @@ private:
 
     //! |(address, chunkId)| pairs for which an error was returned from the node.
     // XXX(babenko): need to specialize hash to use yhash_set
-    std::set< TPair<Stroka, NChunkClient::TChunkId> > DeadChunkIds;
+    std::set< std::pair<Stroka, NChunkClient::TChunkId> > DeadChunkIds;
 
     void SendRequests();
     void OnResponse(

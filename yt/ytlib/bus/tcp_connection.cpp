@@ -4,7 +4,7 @@
 #include "server.h"
 #include "config.h"
 
-#include <ytlib/rpc/error.h>
+#include <ytlib/rpc/public.h>
 
 #include <util/system/error.h>
 #include <util/folder/dirut.h>
@@ -42,6 +42,7 @@ static NProfiling::TAggregateCounter PendingOutSize("/pending_out_size");
 ////////////////////////////////////////////////////////////////////////////////
 
 TTcpConnection::TTcpConnection(
+    TTcpBusConfigPtr config,
     EConnectionType type,
     const TConnectionId& id,
     int socket,
@@ -49,6 +50,7 @@ TTcpConnection::TTcpConnection(
     int priority,
     IMessageHandlerPtr handler)
     : Dispatcher(TTcpDispatcher::TImpl::Get())
+    , Config(config)
     , Type(type)
     , Id(id)
     , Socket(socket)
@@ -58,6 +60,7 @@ TTcpConnection::TTcpConnection(
     , Handler(handler)
     , Logger(BusLogger)
     , Port(0)
+    , MessageEnqueuedSent(false)
     , ReadBuffer(ReadChunkSize)
     , TerminatedPromise(NewPromise<TError>())
 {
@@ -69,12 +72,12 @@ TTcpConnection::TTcpConnection(
     switch (Type) {
         case EConnectionType::Client:
             YCHECK(Socket == INVALID_SOCKET);
-            State = EState::Resolving;
+            AtomicSet(State, EState::Resolving);
             break;
 
         case EConnectionType::Server:
             YCHECK(Socket != INVALID_SOCKET);
-            State = EState::Opening;
+            AtomicSet(State, EState::Opening);
             break;
 
         default:
@@ -187,10 +190,7 @@ const TConnectionId& TTcpConnection::GetId() const
 
 void TTcpConnection::SyncOpen()
 {
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        State = EState::Open;
-    }
+    AtomicSet(State, EState::Open);
 
     LOG_DEBUG("Connection established (Address: %s)", ~Address);
 
@@ -265,10 +265,7 @@ void TTcpConnection::OnAddressResolved(const TNetworkAddress& netAddress)
 
     InitFd();
 
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        State = EState::Opening;
-    }
+    AtomicSet(State, EState::Opening);
 }
 
 void TTcpConnection::SyncClose(const TError& error)
@@ -277,13 +274,11 @@ void TTcpConnection::SyncClose(const TError& error)
     YCHECK(!error.IsOK());
 
     // Check for second close attempt.
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        if (State == EState::Closed) {
-            return;
-        }
-        State = EState::Closed;
+    if (State == EState::Closed) {
+        return;
     }
+
+    AtomicSet(State, EState::Closed);
 
     // Stop all watchers.
     SocketWatcher.Destroy();
@@ -292,18 +287,10 @@ void TTcpConnection::SyncClose(const TError& error)
     CloseSocket();
 
     // Mark all unacked messages as failed.
-    while (!UnackedMessages.empty()) {
-        UnackedMessages.front().Promise.Set(error);
-        UnackedMessages.pop();
-    }
+    DiscardUnackedMessages(error);
 
     // Mark all queued messages as failed.
-    {
-        TQueuedMessage queuedMessage;
-        while (QueuedMessages.Dequeue(&queuedMessage)) {
-            queuedMessage.Promise.Set(error);
-        }
-    }
+    DiscardOutcomingMessages(error);
 
     // Release memory.
     Cleanup();
@@ -368,28 +355,28 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
         }
     }
 
-    if (family != AF_UNIX) {
-        int value = 1;
-        if (setsockopt(Socket, IPPROTO_TCP, TCP_NODELAY, (const char*) &value, sizeof(value)) != 0) {
-            THROW_ERROR_EXCEPTION("Failed to disable TCP delay")
-                << TError::FromSystem();
+    if (Config->EnableNoDelay && family != AF_UNIX) {
+        if (Config->EnableNoDelay) {
+            int value = 1;
+            if (setsockopt(Socket, IPPROTO_TCP, TCP_NODELAY, (const char*) &value, sizeof(value)) != 0) {
+                THROW_ERROR_EXCEPTION("Failed to enable socket NODELAY mode")
+                    << TError::FromSystem();
+            }
         }
-    }
-
-#if !defined(_WIN32) && !defined(__APPLE__)
-    {
-        if (setsockopt(Socket, SOL_SOCKET, SO_PRIORITY, (const char*) &Priority, sizeof(Priority)) != 0) {
-            THROW_ERROR_EXCEPTION("Failed to set socket priority")
-                << TError::FromSystem();
+#if !defined(_win_) && !defined(__APPLE__)
+        {
+            if (setsockopt(Socket, SOL_SOCKET, SO_PRIORITY, (const char*) &Priority, sizeof(Priority)) != 0) {
+                THROW_ERROR_EXCEPTION("Failed to set socket priority")
+                    << TError::FromSystem();
+            }
         }
-    }
 #endif
-
-    if (family != AF_UNIX) {
-        int value = 1;
-        if (setsockopt(Socket, SOL_SOCKET, SO_KEEPALIVE, (const char*) &value, sizeof(value)) != 0) {
-            THROW_ERROR_EXCEPTION("Failed to enable keep alive")
-                << TError::FromSystem();
+        {
+            int value = 1;
+            if (setsockopt(Socket, SOL_SOCKET, SO_KEEPALIVE, (const char*) &value, sizeof(value)) != 0) {
+                THROW_ERROR_EXCEPTION("Failed to enable keep alive")
+                    << TError::FromSystem();
+            }
         }
     }
 
@@ -429,36 +416,18 @@ TAsyncError TTcpConnection::Send(IMessagePtr message)
     VERIFY_THREAD_AFFINITY_ANY();
 
     TQueuedMessage queuedMessage(message);
+
+    // NB: Log first to avoid producing weird traces.
+    LOG_DEBUG("Outcoming message enqueued (PacketId: %s)", ~queuedMessage.PacketId.ToString());
+
     QueuedMessages.Enqueue(queuedMessage);
 
-    // We perform state check _after_ the message is already enqueued.
-    // Other option would be to call |Enqueue| under spinlock, but this
-    // ruins the idea to be lock-free.
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-        switch (State) {
-            case EState::Resolving:
-            case EState::Opening:
-                break;
-
-            case EState::Open:
-                Dispatcher->AsyncPostEvent(this, EConnectionEvent::MessageEnqueued);
-                break;
-
-            case EState::Closed:
-                guard.Release();
-                // Try to remove the message.
-                // This might not be the exact same message we've just enqueued
-                // but still enables to keep the queue empty.
-                QueuedMessages.Dequeue(&queuedMessage);
-                LOG_DEBUG("Outcoming message via closed bus is dropped");
-                return MakeFuture(TError(
-                    NRpc::EErrorCode::TransportError,
-                    "Connection is closed"));
-        }
+    auto state = AtomicGet(State);
+    bool sent = AtomicGet(MessageEnqueuedSent);
+    if (!sent && state != EState::Resolving && state != EState::Opening)  {
+        AtomicSet(MessageEnqueuedSent, true);
+        Dispatcher->AsyncPostEvent(this, EConnectionEvent::MessageEnqueued);
     }
-
-    LOG_DEBUG("Outcoming message enqueued (PacketId: %s)", ~queuedMessage.PacketId.ToString());
 
     return queuedMessage.Promise;
 }
@@ -469,16 +438,16 @@ void TTcpConnection::Terminate(const TError& error)
     YCHECK(!error.IsOK());
 
     {
-        // Check if the connection is already closed or
-        // another termination request is already in progress.
-        TGuard<TSpinLock> guard(SpinLock);
-        if (State != EState::Open || !TerminationError.IsOK()) {
+        // Check if another termination request is already in progress.
+        TGuard<TSpinLock> guard(TerminationSpinLock);
+        if (!TerminationError.IsOK()) {
             return;
         }
         TerminationError = error;
-        Dispatcher->AsyncPostEvent(this, EConnectionEvent::Terminated);
     }
 
+    Dispatcher->AsyncPostEvent(this, EConnectionEvent::Terminated);
+    
     LOG_DEBUG("Bus termination requested");
 }
 
@@ -609,6 +578,13 @@ bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
     Profiler.Aggregate(ReceiveSize, *bytesRead);
 
     LOG_TRACE("%" PRISZT " bytes read", *bytesRead);
+
+#if !defined(_win_) && !defined(__APPLE__)
+    if (Config->EnableQuickAck) {
+        int value = 1;
+        setsockopt(Socket, IPPROTO_TCP, TCP_QUICKACK, (const char*) &value, sizeof(value));
+    }
+#endif
 
     return true;
 }
@@ -945,7 +921,15 @@ void TTcpConnection::OnMessagePacketSent(const TEncodedPacket& packet)
 void TTcpConnection::OnMessageEnqueued()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
-    YASSERT(State != EState::Closed);
+    
+    AtomicSet(MessageEnqueuedSent, false);
+    
+    if (State == EState::Closed) {
+        DiscardOutcomingMessages(TError(
+            NRpc::EErrorCode::TransportError,
+            "Connection is closed"));
+        return;
+    }
 
     ProcessOutcomingMessages();
     UpdateSocketWatcher();
@@ -961,6 +945,23 @@ void TTcpConnection::ProcessOutcomingMessages()
 
         TUnackedMessage unackedMessage(queuedMessage.PacketId, queuedMessage.Promise);
         UnackedMessages.push(unackedMessage);
+    }
+}
+
+void TTcpConnection::DiscardOutcomingMessages(const TError& error)
+{
+    TQueuedMessage queuedMessage;
+    while (QueuedMessages.Dequeue(&queuedMessage)) {
+        LOG_DEBUG("Outcoming message dequeued (PacketId: %s)", ~queuedMessage.PacketId.ToString());
+        queuedMessage.Promise.Set(error);
+    }
+}
+
+void TTcpConnection::DiscardUnackedMessages(const TError& error)
+{
+    while (!UnackedMessages.empty()) {
+        UnackedMessages.front().Promise.Set(error);
+        UnackedMessages.pop();
     }
 }
 
@@ -981,7 +982,7 @@ void TTcpConnection::OnTerminated()
 
     TError error;
     {
-        TGuard<TSpinLock> guard(SpinLock);
+        TGuard<TSpinLock> guard(TerminationSpinLock);
         error = TerminationError;
     }
 

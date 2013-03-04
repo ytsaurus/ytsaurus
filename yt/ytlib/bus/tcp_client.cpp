@@ -11,7 +11,7 @@
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/address.h>
 
-#include <ytlib/rpc/error.h>
+#include <ytlib/rpc/public.h>
 
 #include <errno.h>
 
@@ -45,8 +45,8 @@ public:
         , Id(TConnectionId::Create())
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YASSERT(config);
-        YASSERT(handler);
+        YCHECK(config);
+        YCHECK(handler);
     }
 
     ~TTcpClientBusProxy()
@@ -66,6 +66,7 @@ public:
             ~Id.ToString());
 
         Connection = New<TTcpConnection>(
+            Config,
             EConnectionType::Client,
             Id,
             INVALID_SOCKET,

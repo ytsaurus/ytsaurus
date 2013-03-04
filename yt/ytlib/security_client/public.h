@@ -24,12 +24,15 @@ extern Stroka EveryoneGroupName;
 extern Stroka UsersGroupName;
 
 DECLARE_ENUM(ESecurityAction,
-    // Intermediate state, used internally.
-    ((Undefined)(0))
-    // Let'em go!
-    ((Allow)(1))
-    // No way!
-    ((Deny)(2))
+    ((Undefined)(0))  // Intermediate state, used internally.
+    ((Allow)    (1))  // Let'em go!
+    ((Deny)     (2))  // No way!
+);
+
+DECLARE_ENUM(EErrorCode,
+    ((AuthenticationError) (900))
+    ((AuthorizationError)  (901))
+    ((AccountIsOverLimit)  (902))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

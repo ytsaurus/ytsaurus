@@ -210,9 +210,9 @@ public:
         return KeyToChild.ysize();
     }
 
-    virtual std::vector< TPair<Stroka, INodePtr> > GetChildren() const override
+    virtual std::vector< std::pair<Stroka, INodePtr> > GetChildren() const override
     {
-        return std::vector< TPair<Stroka, INodePtr> >(KeyToChild.begin(), KeyToChild.end());
+        return std::vector< std::pair<Stroka, INodePtr> >(KeyToChild.begin(), KeyToChild.end());
     }
 
     virtual std::vector<Stroka> GetKeys() const override
@@ -236,8 +236,8 @@ public:
         YASSERT(!key.empty());
         YASSERT(child);
 
-        if (KeyToChild.insert(MakePair(key, child)).second) {
-            YCHECK(ChildToKey.insert(MakePair(child, key)).second);
+        if (KeyToChild.insert(std::make_pair(key, child)).second) {
+            YCHECK(ChildToKey.insert(std::make_pair(child, key)).second);
             child->SetParent(this);
             return true;
         } else {
@@ -293,7 +293,7 @@ public:
 
         KeyToChild[key] = newChild;
         newChild->SetParent(this);
-        YCHECK(ChildToKey.insert(MakePair(newChild, key)).second);
+        YCHECK(ChildToKey.insert(std::make_pair(newChild, key)).second);
     }
 
     virtual Stroka GetChildKey(IConstNodePtr child) override
@@ -361,14 +361,14 @@ public:
         YASSERT(child);
 
         if (beforeIndex < 0) {
-            YCHECK(ChildToIndex.insert(MakePair(child, IndexToChild.size())).second);
+            YCHECK(ChildToIndex.insert(std::make_pair(child, IndexToChild.size())).second);
             IndexToChild.push_back(child);
         } else {
             for (auto it = IndexToChild.begin() + beforeIndex; it != IndexToChild.end(); ++it) {
                 ++ChildToIndex[*it];
             }
 
-            YCHECK(ChildToIndex.insert(MakePair(child, beforeIndex)).second);
+            YCHECK(ChildToIndex.insert(std::make_pair(child, beforeIndex)).second);
             IndexToChild.insert(IndexToChild.begin() + beforeIndex, child);
         }
         child->SetParent(this);
@@ -409,7 +409,7 @@ public:
 
         IndexToChild[index] = newChild;
         ChildToIndex.erase(it);
-        YCHECK(ChildToIndex.insert(MakePair(newChild, index)).second);
+        YCHECK(ChildToIndex.insert(std::make_pair(newChild, index)).second);
         newChild->SetParent(this);
     }
 

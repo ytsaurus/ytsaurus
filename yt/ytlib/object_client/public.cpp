@@ -20,6 +20,7 @@ bool TypeIsVersioned(EObjectType type)
            type == EObjectType::DoubleNode ||
            type == EObjectType::MapNode ||
            type == EObjectType::ListNode ||
+           type == EObjectType::LinkNode || 
            type == EObjectType::File ||
            type == EObjectType::Table ||
            type == EObjectType::ChunkMap ||
@@ -63,7 +64,7 @@ TObjectId MakeId(
 {
     return TObjectId(
         hash,
-        (cellId << 16) + type.ToValue(),
+        (cellId << 16) + static_cast<int>(type),
         counter & 0xffffffff,
         counter >> 32);
 }

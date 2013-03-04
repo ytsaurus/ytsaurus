@@ -96,7 +96,6 @@ public:
 
     virtual EPermissionSet GetSupportedPermissions() const override
     {
-        // TODO(babenko): flagged enums
         return EPermissionSet(
             EPermissionSet::Read |
             EPermissionSet::Write |
@@ -115,7 +114,7 @@ private:
     
     virtual void DoDestroy(TAccount* account) override;
 
-    virtual TAccessControlDescriptor* DoGetAcd(TAccount* account)
+    virtual TAccessControlDescriptor* DoFindAcd(TAccount* account) override
     {
         return &account->Acd();
     }
@@ -408,10 +407,9 @@ public:
             YCHECK(group->Members().erase(subject) == 1);
         }
 
-        FOREACH (auto* object, subject->ReferencingObjects()) {
-            auto* acd = FindAcd(object);
-            YCHECK(acd);
-            acd->PurgeEntries(subject);
+        FOREACH (const auto& pair, subject->LinkedObjects()) {
+            auto* acd = GetAcd(pair.first);
+            acd->OnSubjectDestroyed(subject, GuestUser);
         }
     }
 
@@ -475,7 +473,14 @@ public:
     void DestroyGroup(TGroup* group)
     {
         YCHECK(GroupNameMap.erase(group->GetName()) == 1);
+
+        FOREACH (auto* subject, group->Members()) {
+            YCHECK(subject->MemberOf().erase(group) == 1);
+        }
+
         DestroySubject(group);
+
+        RecomputeMembershipClosure();
     }
 
     TGroup* FindGroupByName(const Stroka& name)
@@ -515,7 +520,7 @@ public:
 
     void AddMember(TGroup* group, TSubject* member)
     {
-        ValidateGroupModifiable(group);
+        ValidateMembershipUpdate(group, member);
 
         if (group->Members().find(member) != group->Members().end()) {
             THROW_ERROR_EXCEPTION("Member %s is already present in group %s",
@@ -537,7 +542,7 @@ public:
 
     void RemoveMember(TGroup* group, TSubject* member)
     {
-        ValidateGroupModifiable(group);
+        ValidateMembershipUpdate(group, member);
 
         if (group->Members().find(member) == group->Members().end()) {
             THROW_ERROR_EXCEPTION("Member %s is not present in group %s",
@@ -688,23 +693,25 @@ public:
         auto result = CheckPermission(object, user, permission);
         if (result.Action == ESecurityAction::Deny) {
             auto objectManager = Bootstrap->GetObjectManager();
-            auto objectName = objectManager->GetHandler(object)->GetName(object);
             TError error;
             if (result.Object && result.Subject) {
-                auto objectName = objectManager->GetHandler(result.Object)->GetName(result.Object);
-                error = TError("Access denied: %s permission for %s is denied for %s by ACE at %s",
+                error = TError(
+                    NSecurityClient::EErrorCode::AuthorizationError,
+                    "Access denied: %s permission for %s is denied for %s by ACE at %s",
                     ~FormatEnum(permission).Quote(),
-                    ~objectName,
+                    ~objectManager->GetHandler(object)->GetName(object),
                     ~result.Subject->GetName().Quote(),
-                    ~objectName);
+                    ~objectManager->GetHandler(object)->GetName(result.Object));
             } else {
-                error = TError("Access denied: %s permission for %s is not allowed by any matching ACE",
+                error = TError(
+                    NSecurityClient::EErrorCode::AuthorizationError,
+                    "Access denied: %s permission for %s is not allowed by any matching ACE",
                     ~FormatEnum(permission).Quote(),
-                    ~objectName);
+                    ~objectManager->GetHandler(object)->GetName(object));
             }
             error.Attributes().Set("permission", ~FormatEnum(permission));
             error.Attributes().Set("user", user->GetName());
-            error.Attributes().Set("object", objectName);
+            error.Attributes().Set("object", ~ToString(object->GetId()));
             if (result.Object) {
                 error.Attributes().Set("denied_by", result.Object->GetId());
             }
@@ -865,6 +872,7 @@ private:
         return group;
     }
 
+
     void PropagateRecursiveMemberOf(TSubject* subject, TGroup* ancestorGroup)
     {
         bool added = subject->RecursiveMemberOf().insert(ancestorGroup).second;
@@ -899,6 +907,7 @@ private:
     {
         YCHECK(group->Members().insert(member).second);
         YCHECK(member->MemberOf().insert(group).second);
+
         RecomputeMembershipClosure();
     }
 
@@ -906,15 +915,19 @@ private:
     {
         YCHECK(group->Members().erase(member) == 1);
         YCHECK(member->MemberOf().erase(group) == 1);
+
         RecomputeMembershipClosure();
     }
 
-    void ValidateGroupModifiable(TGroup* group)
+
+    void ValidateMembershipUpdate(TGroup* group, TSubject* member)
     {
         if (group == EveryoneGroup || group == UsersGroup) {
-            THROW_ERROR_EXCEPTION("Cannot modify a built-in group %s",
-                ~group->GetName().Quote());
+            THROW_ERROR_EXCEPTION("Cannot modify a built-in group");
         }
+
+        ValidatePermission(group, EPermission::Write);
+        ValidatePermission(member, EPermission::Write);
     }
 
 
@@ -1065,12 +1078,10 @@ private:
     void InitDefaultSchemaAcds()
     {
         auto objectManager = Bootstrap->GetObjectManager();
-        for (int typeValue = 0; typeValue < MaxObjectType; ++typeValue) {
-            auto type = EObjectType(typeValue);
-            auto handler = objectManager->FindHandler(type);
-            if (handler && TypeHasSchema(type)) {
+        FOREACH (auto type, objectManager->GetRegisteredTypes()) {
+            if (TypeHasSchema(type)) {
                 auto* schema = objectManager->GetSchema(type);
-                auto* acd = FindAcd(schema);
+                auto* acd = GetAcd(schema);
                 if (!TypeIsVersioned(type)) {
                     acd->AddEntry(TAccessControlEntry(
                         ESecurityAction::Allow,

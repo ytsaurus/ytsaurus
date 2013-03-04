@@ -31,7 +31,7 @@ TValueOrError<IChannelPtr> OnPeerFound(
 {
     if (!result.Address) {
         return TError(
-            EErrorCode::Unavailable,
+            NRpc::EErrorCode::Unavailable,
             "No %s found",
             ~role);
     }

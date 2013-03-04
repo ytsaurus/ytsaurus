@@ -68,7 +68,7 @@ void TPeerBlockUpdater::Update()
                 request = proxy.UpdatePeer();
                 request->set_peer_address(peerAddress);
                 request->set_peer_expiration_time(expirationTime.GetValue());
-                requests.insert(MakePair(sourceAddress, request));
+                requests.insert(std::make_pair(sourceAddress, request));
             }
             auto* block_id = request->add_block_ids();
             const auto& blockId = block->GetKey();

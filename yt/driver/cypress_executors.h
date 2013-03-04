@@ -161,5 +161,23 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TLinkExecutor
+    : public TTransactedExecutor
+{
+public:
+    TLinkExecutor();
+
+private:
+    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> TargetPathArg;
+    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> LinkPathArg;
+    TCLAP::SwitchArg RecursiveArg;
+    TCLAP::SwitchArg IgnoreExistingArg;
+
+    virtual void BuildArgs(NYson::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT

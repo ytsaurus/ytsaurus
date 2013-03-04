@@ -129,10 +129,10 @@ public:
         if (MetaStateManager->GetStateStatus() != EPeerStatus::Leading) {
             throw TNotALeaderException()
                 <<= ERROR_SOURCE_LOCATION()
-                >>= TError(EErrorCode::Unavailable, "Not a leader");
+                >>= TError(NRpc::EErrorCode::Unavailable, "Not a leader");
         }
         if (!MetaStateManager->HasActiveQuorum()) {
-            THROW_ERROR_EXCEPTION(EErrorCode::Unavailable, "No active quorum");
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "No active quorum");
         }
     }
 
@@ -147,7 +147,7 @@ public:
     void ValidateInitialized()
     {
         if (!IsInitialized()) {
-            THROW_ERROR_EXCEPTION(EErrorCode::Unavailable, "Not initialized yet");
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Not initialized");
         }
     }
 
@@ -224,6 +224,30 @@ private:
                         .Item("cell_id").Value(cellId)
                         .Item("cell_guid").Value(cellGuid)
                     .EndMap());
+
+            CreateNode(
+                rootService,
+                "//sys/schemas",
+                transactionId,
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
+
+            FOREACH (auto type, objectManager->GetRegisteredTypes()) {
+                if (TypeHasSchema(type)) {
+                    CreateNode(
+                        rootService,
+                        "//sys/schemas/" + ToYPathLiteral(FormatEnum(type)),
+                        transactionId,
+                        EObjectType::LinkNode,
+                        BuildYsonStringFluently()
+                            .BeginMap()
+                                .Item("target_id").Value(objectManager->GetSchema(type)->GetId())
+                            .EndMap());
+                }
+            }
 
             CreateNode(
                 rootService,
@@ -380,10 +404,7 @@ private:
                             .Item().Value(TAccessControlEntry(
                                 ESecurityAction::Allow,
                                 securityManager->GetUsersGroup(),
-                                // TODO(babenko): flagged enums
-                                EPermissionSet(
-                                    EPermission::Read |
-                                    EPermission::Write)))
+                                EPermissionSet(EPermission::Read | EPermission::Write)))
                         .EndList()
                     .EndMap());
 

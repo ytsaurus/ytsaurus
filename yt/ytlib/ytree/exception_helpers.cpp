@@ -8,7 +8,7 @@
 
 #include <ytlib/ytree/attribute_helpers.h>
 
-#include <ytlib/rpc/error.h>
+#include <ytlib/rpc/public.h>
 
 namespace NYT {
 namespace NYTree {

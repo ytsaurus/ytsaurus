@@ -837,9 +837,9 @@ private:
         if (!recursive)
             return;
 
-        auto transactionManager = Bootstrap->GetTransactionManager();
+        auto objectManager = Bootstrap->GetObjectManager();
         FOREACH (auto* child, chunkList->Children()) {
-            transactionManager->UnstageObject(transaction, child, true);
+            objectManager->UnstageObject(transaction, child, true);
         }
     }
 
@@ -874,8 +874,8 @@ private:
         newNode->Statistics() = statistics;
 
         NodeMap.Insert(nodeId, newNode);
-        NodeAddressMap.insert(MakePair(address, newNode));
-        NodeHostNameMap.insert(MakePair(Stroka(GetServiceHostName(address)), newNode));
+        NodeAddressMap.insert(std::make_pair(address, newNode));
+        NodeHostNameMap.insert(std::make_pair(Stroka(GetServiceHostName(address)), newNode));
         ++RegisteredNodeCount;
 
         if (IsLeader()) {
@@ -1024,7 +1024,7 @@ private:
             auto chunkId = TChunkId::FromProto(update.chunk_id());
             int replicationFactor = update.replication_factor();
             auto* chunk = FindChunk(chunkId);
-            if (chunk && chunk->IsAlive() && chunk->GetReplicationFactor() != replicationFactor) {
+            if (IsObjectAlive(chunk) && chunk->GetReplicationFactor() != replicationFactor) {
                 // NB: Updating RF for staged chunks is forbidden.
                 YCHECK(!chunk->IsStaged());
                 chunk->SetReplicationFactor(replicationFactor);
@@ -1096,8 +1096,8 @@ private:
         FOREACH (const auto& pair, NodeMap) {
             auto* node = pair.second;
             const auto& address = node->GetAddress();
-            YCHECK(NodeAddressMap.insert(MakePair(address, node)).second);
-            NodeHostNameMap.insert(MakePair(Stroka(GetServiceHostName(address)), node));
+            YCHECK(NodeAddressMap.insert(std::make_pair(address, node)).second);
+            NodeHostNameMap.insert(std::make_pair(Stroka(GetServiceHostName(address)), node));
         }
 
         // Reconstruct ReplicationSinkMap.
@@ -1494,7 +1494,7 @@ private:
         bool cached = chunkAddInfo.cached();
 
         auto* chunk = FindChunk(chunkId);
-        if (!chunk || !chunk->IsAlive()) {
+        if (!IsObjectAlive(chunk)) {
             // Nodes may still contain cached replicas of chunks that no longer exist.
             // Here we just silently ignore this case.
             if (cached) {
@@ -1555,7 +1555,7 @@ private:
         bool cached = chunkInfo.cached();
 
         auto* chunk = FindChunk(chunkId);
-        if (!chunk || !chunk->IsAlive()) {
+        if (!IsObjectAlive(chunk)) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk replica removed (ChunkId: %s, Cached: %s, Address: %s, NodeId: %d)",
                  ~chunkId.ToString(),
                  ~FormatBool(cached),
@@ -1636,7 +1636,7 @@ private:
             return &it->second;
         }
 
-        auto pair = ReplicationSinkMap.insert(MakePair(address, TReplicationSink(address)));
+        auto pair = ReplicationSinkMap.insert(std::make_pair(address, TReplicationSink(address)));
         YCHECK(pair.second);
 
         return &pair.first->second;
@@ -1722,6 +1722,9 @@ TObjectBase* TChunkManager::TChunkTypeHandler::Create(
     UNUSED(attributes);
 
     account->ValidateDiskSpaceLimit();
+
+    auto securityManger = Bootstrap->GetSecurityManager();
+    securityManger->ValidatePermission(account, EPermission::Use);
 
     const auto* requestExt = &request->GetExtension(TReqCreateChunkExt::create_chunk);
     auto* responseExt = response->MutableExtension(TRspCreateChunkExt::create_chunk);

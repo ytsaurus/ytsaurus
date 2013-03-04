@@ -21,6 +21,7 @@ TTransaction::TTransaction(const TTransactionId& id)
     , StagedAccountingEnabled_(false)
     , Parent_(nullptr)
     , StartTime_(TInstant::Zero())
+    , Acd_(this)
 { }
 
 void TTransaction::Save(const NCellMaster::TSaveContext& context) const
@@ -40,6 +41,7 @@ void TTransaction::Save(const NCellMaster::TSaveContext& context) const
     SaveObjectRefs(context, BranchedNodes_);
     SaveObjectRefs(context, StagedNodes_);
     SaveObjectRefs(context, AccountResourceUsage_);
+    NSecurityServer::Save(context, Acd_);
 }
 
 void TTransaction::Load(const NCellMaster::TLoadContext& context)
@@ -59,6 +61,10 @@ void TTransaction::Load(const NCellMaster::TLoadContext& context)
     LoadObjectRefs(context, BranchedNodes_);
     LoadObjectRefs(context, StagedNodes_);
     LoadObjectRefs(context, AccountResourceUsage_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 8) {
+        NSecurityServer::Load(context, Acd_);
+    }
 }
 
 bool TTransaction::IsActive() const

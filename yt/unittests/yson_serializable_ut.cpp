@@ -219,7 +219,7 @@ TEST(TConfigTest, Options)
     auto optionsNode = config->GetOptions();
     EXPECT_EQ(1, optionsNode->GetChildCount());
     FOREACH (const auto& pair, optionsNode->GetChildren()) {
-        const auto& name = pair.First();
+        const auto& name = pair.first;
         auto child = pair.second;
         EXPECT_EQ("option", name);
         EXPECT_EQ(1, child->AsInteger()->GetValue());

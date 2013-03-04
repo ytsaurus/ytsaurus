@@ -160,9 +160,9 @@ const char* TYamrBaseParser::TryConsumeRecord(const char* begin, const char* end
     const char* endOfKey = Table.KeyStops.FindNext(begin, end);
     const char* endOfSubkey =
         HasSubkey
-        ? Table.KeyStops.FindNext(endOfKey + 1, end)
+        ? Table.KeyStops.FindNext(std::min(endOfKey + 1, end), end)
         : endOfKey;
-    const char* endOfValue = Table.ValueStops.FindNext(endOfSubkey + 1, end);
+    const char* endOfValue = Table.ValueStops.FindNext(std::min(endOfSubkey + 1, end), end);
 
     if (endOfValue == end) { // There is no whole record yet.
         return NULL;

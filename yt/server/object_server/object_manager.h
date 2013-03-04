@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "type_handler.h"
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/periodic_invoker.h>
@@ -16,6 +17,8 @@
 #include <server/transaction_server/public.h>
 
 #include <server/object_server/object_manager.pb.h>
+
+#include <server/security_server/public.h>
 
 #include <server/cypress_server/public.h>
 
@@ -56,6 +59,9 @@ public:
 
     //! Returns the handler for a given object.
     IObjectTypeHandlerPtr GetHandler(TObjectBase* object) const;
+
+    //! Returns the list of registered object types, excluding schemas.
+    const std::vector<EObjectType> GetRegisteredTypes() const;
 
     //! Returns the cell id.
     TCellId GetCellId() const;
@@ -153,6 +159,19 @@ public:
     //! Returns a future that gets set when the GC queues becomes empty.
     TFuture<void> GCCollect();
 
+    TObjectBase* CreateObject(
+        NTransactionServer::TTransaction* transaction,
+        NSecurityServer::TAccount* account,
+        EObjectType type,
+        NYTree::IAttributeDictionary* attributes,
+        IObjectTypeHandler::TReqCreateObject* request,
+        IObjectTypeHandler::TRspCreateObject* response);
+
+    void UnstageObject(
+        NTransactionServer::TTransaction* transaction,
+        TObjectBase* object,
+        bool recursive);
+
     DECLARE_METAMAP_ACCESSORS(Attributes, TAttributeSet, TVersionedObjectId);
 
 private:
@@ -173,6 +192,7 @@ private:
         IObjectProxyPtr SchemaProxy;
     };
 
+    std::vector<EObjectType> RegisteredTypes;
     std::vector<TTypeEntry> TypeToEntry;
     
     TRootServicePtr RootService;

@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "channel_cache.h"
-#include "error.h"
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/foreach.h>
@@ -42,7 +41,7 @@ IChannelPtr TChannelCache::GetChannel(const Stroka& address)
         TGuard<TSpinLock> secondAttemptGuard(SpinLock);
         it = ChannelMap.find(address);
         if (it == ChannelMap.end()) {
-            it = ChannelMap.insert(MakePair(address, channel)).first;
+            it = ChannelMap.insert(std::make_pair(address, channel)).first;
         } else {
             channel->Terminate(TError(
                 EErrorCode::TransportError,

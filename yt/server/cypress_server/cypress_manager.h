@@ -118,11 +118,6 @@ public:
         TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction);
 
-    void RegisterNode(
-        TAutoPtr<TCypressNodeBase> node,
-        NTransactionServer::TTransaction* transaction,
-        NYTree::IAttributeDictionary* attributes = nullptr);
-
     typedef TSmallVector<TCypressNodeBase*, 1> TSubtreeNodes;
     TSubtreeNodes ListSubtreeNodes(
         TCypressNodeBase* trunkNode,
@@ -161,6 +156,11 @@ private:
     NYTree::IYPathServicePtr RootService;
 
     yhash_map<TCypressNodeBase*, INodeBehaviorPtr> NodeBehaviors;
+
+    void RegisterNode(
+        TAutoPtr<TCypressNodeBase> node,
+        NTransactionServer::TTransaction* transaction,
+        NYTree::IAttributeDictionary* attributes = nullptr);
 
     void DestroyNode(TCypressNodeBase* trunkNode);
 

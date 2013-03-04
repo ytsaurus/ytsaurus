@@ -292,7 +292,7 @@ private:
     void OnPingResponse(TTransactionYPathProxy::TRspRenewLeasePtr rsp)
     {
         if (!rsp->IsOK()) {
-            if (rsp->GetError().GetCode() == EYPathErrorCode::ResolveError) {
+            if (rsp->GetError().GetCode() == NYTree::EErrorCode::ResolveError) {
                 LOG_WARNING("Transaction has expired or was aborted: %s",
                     ~Id.ToString());
                 HandleAbort();

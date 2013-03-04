@@ -92,7 +92,6 @@ public:
 private:
     typedef TElectionManager TThis;
     typedef TElectionManagerProxy TProxy;
-    typedef TProxy::EErrorCode EErrorCode;
 
     class TVotingRound;
     typedef TIntrusivePtr<TVotingRound> TVotingRoundPtr;

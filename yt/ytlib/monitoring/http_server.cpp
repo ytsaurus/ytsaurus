@@ -141,12 +141,12 @@ public:
 
     void Register(const Stroka& prefix, TSyncHandler handler)
     {
-        YCHECK(SyncHandlers.insert(MakePair(prefix, std::move(handler))).second);
+        YCHECK(SyncHandlers.insert(std::make_pair(prefix, std::move(handler))).second);
     }
 
     void Register(const Stroka& prefix, TAsyncHandler handler)
     {
-        YCHECK(AsyncHandlers.insert(MakePair(prefix, std::move(handler))).second);
+        YCHECK(AsyncHandlers.insert(std::make_pair(prefix, std::move(handler))).second);
     }
 };
 

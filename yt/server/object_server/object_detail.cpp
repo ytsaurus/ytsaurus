@@ -32,7 +32,7 @@
 #include <server/security_server/account.h>
 #include <server/security_server/security_manager.h>
 #include <server/security_server/acl.h>
-#include <server/security_server/subject.h>
+#include <server/security_server/user.h>
 
 #include <server/object_server/type_handler.h>
 
@@ -193,7 +193,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
     auto objectManager = Bootstrap->GetObjectManager();
 
     auto* user = securityManager->FindUserByName(userName);
-    if (!user) {
+    if (!IsObjectAlive(user)) {
         THROW_ERROR_EXCEPTION("No such user: %s", ~userName);
     }
 
@@ -327,20 +327,22 @@ TAutoPtr<IAttributeDictionary> TObjectProxyBase::DoCreateUserAttributes()
         GetId());
 }
 
-void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* names) const
+void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const
 {
     auto securityManager = Bootstrap->GetSecurityManager();
     auto* acd = securityManager->FindAcd(Object);
     bool hasAcd = acd;
+    bool hasOwner = acd && acd->GetOwner();
 
-    names->push_back("id");
-    names->push_back("type");
-    names->push_back("ref_counter");
-    names->push_back("lock_counter");
-    names->push_back(TAttributeInfo("supported_permissions", true, true));
-    names->push_back(TAttributeInfo("inherit_acl", hasAcd, true));
-    names->push_back(TAttributeInfo("acl", hasAcd, true));
-    names->push_back(TAttributeInfo("effective_acl", true, true));
+    attributes->push_back("id");
+    attributes->push_back("type");
+    attributes->push_back("ref_counter");
+    attributes->push_back("lock_counter");
+    attributes->push_back(TAttributeInfo("supported_permissions", true, true));
+    attributes->push_back(TAttributeInfo("inherit_acl", hasAcd, true));
+    attributes->push_back(TAttributeInfo("acl", hasAcd, true));
+    attributes->push_back(TAttributeInfo("owner", hasOwner, false));
+    attributes->push_back(TAttributeInfo("effective_acl", true, true));
 }
 
 bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const
@@ -376,7 +378,7 @@ bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* cons
         auto handler = objectManager->GetHandler(Object);
         auto permissions = handler->GetSupportedPermissions();
         BuildYsonFluently(consumer)
-            .Value(DecomposeFlaggedEnum(permissions));
+            .Value(permissions.Decompose());
         return true;
     }
 
@@ -391,6 +393,12 @@ bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* cons
         if (key == "acl") {
             BuildYsonFluently(consumer)
                 .Value(acd->Acl());
+            return true;
+        }
+        
+        if (key == "owner" && acd->GetOwner()) {
+            BuildYsonFluently(consumer)
+                .Value(acd->GetOwner()->GetName());
             return true;
         }
     }
@@ -436,6 +444,27 @@ bool TObjectProxyBase::SetSystemAttribute(const Stroka& key, const TYsonString& 
 
             return true;
         }
+
+        if (key == "owner") {
+            ValidateNoTransaction();
+
+            auto name = ConvertTo<Stroka>(value);
+            auto* owner = securityManager->FindSubjectByName(name);
+            if (!IsObjectAlive(owner)) {
+                THROW_ERROR_EXCEPTION("No such subject: %s", ~name);
+            }
+
+            auto* user = securityManager->GetAuthenticatedUser();
+            if (user != securityManager->GetRootUser() && user != owner) {
+                THROW_ERROR_EXCEPTION(
+                    NSecurityClient::EErrorCode::AuthorizationError,
+                    "Access denied: can only set owner to self");
+            }
+
+            acd->SetOwner(owner);
+
+            return true;
+        }
     }
     return false;
 }
@@ -470,17 +499,13 @@ void TObjectProxyBase::ValidateNoTransaction()
     }
 }
 
-void TObjectProxyBase::ValidatePermission(
-    EPermissionCheckScope scope,
-    EPermission permission)
+void TObjectProxyBase::ValidatePermission(EPermissionCheckScope scope, EPermission permission)
 {
     YCHECK(scope == EPermissionCheckScope::This);
     ValidatePermission(Object, permission);
 }
 
-void TObjectProxyBase::ValidatePermission(
-    TObjectBase* object,
-    EPermission permission)
+void TObjectProxyBase::ValidatePermission(TObjectBase* object, EPermission permission)
 {
     YCHECK(object);
     auto securityManager = Bootstrap->GetSecurityManager();

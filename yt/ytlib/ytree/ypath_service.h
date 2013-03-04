@@ -3,20 +3,17 @@
 #include "public.h"
 
 #include <ytlib/yson/yson_consumer.h>
+
 #include <ytlib/ytree/attribute_provider.h>
 
 #include <ytlib/rpc/public.h>
+
 #include <ytlib/misc/property.h>
+
 #include <ytlib/actions/invoker.h>
 
 namespace NYT {
 namespace NYTree {
-
-////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_ENUM(EYPathErrorCode,
-    ((ResolveError)(1))
-);
 
 ////////////////////////////////////////////////////////////////////////////////
 

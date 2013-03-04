@@ -115,7 +115,7 @@ void Deserilize(
         // Subject
         FOREACH (const auto& name, serializableAce->Subjects) {
             auto* subject = securityManager->FindSubjectByName(name);
-            if (!subject) {
+            if (!IsObjectAlive(subject)) {
                 THROW_ERROR_EXCEPTION("No such subject: %s", ~name);
             }
             ace.Subjects.push_back(subject);
@@ -133,12 +133,41 @@ void Deserilize(
 TAccessControlDescriptor::TAccessControlDescriptor(TObjectBase* object)
     : Inherit_(true)
     , Object_(object)
+    , Owner_(nullptr)
 { }
+
+TAccessControlDescriptor::~TAccessControlDescriptor()
+{
+    // Call UnlinkObject.
+    ClearEntries();
+    SetOwner(nullptr);
+}
+
+TSubject* TAccessControlDescriptor::GetOwner() const
+{
+    return Owner_;
+}
+
+void TAccessControlDescriptor::SetOwner(TSubject* owner)
+{
+    if (Owner_ == owner)
+        return;
+
+    if (Owner_) {
+        Owner_->UnlinkObject(Object_);
+    }
+
+    Owner_ = owner;
+
+    if (Owner_) {
+        Owner_->LinkObject(Object_);
+    }
+}
 
 void TAccessControlDescriptor::AddEntry(const TAccessControlEntry& ace)
 {
     FOREACH (auto* subject, ace.Subjects) {
-        subject->ReferencingObjects().insert(Object_);
+        subject->LinkObject(Object_);
     }
     Acl_.Entries.push_back(ace);
 }
@@ -147,13 +176,13 @@ void TAccessControlDescriptor::ClearEntries()
 {
     FOREACH (const auto& ace, Acl_.Entries) {
         FOREACH (auto* subject, ace.Subjects) {
-            YCHECK(subject->ReferencingObjects().erase(Object_) == 1);
+            subject->UnlinkObject(Object_);
         }
     }
     Acl_.Entries.clear();
 }
 
-void TAccessControlDescriptor::PurgeEntries(TSubject* subject)
+void TAccessControlDescriptor::OnSubjectDestroyed(TSubject* subject, TSubject* defaultOwner)
 {
     // Remove the subject from every ACE.
     FOREACH (auto& ace, Acl_.Entries) {
@@ -176,20 +205,26 @@ void TAccessControlDescriptor::PurgeEntries(TSubject* subject)
             });
         Acl_.Entries.erase(it, Acl_.Entries.end());
     }
+
+    // Reset owner to default, if needed.
+    if (Owner_ == subject) {
+        Owner_ = nullptr; // prevent updating LinkedObjects
+        SetOwner(defaultOwner);
+    }
 }
 
 void Load(const TLoadContext& context, TAccessControlDescriptor& acd)
 {
-    auto* input = context.GetInput();
     Load(context, acd.Acl_);
-    Load(input, acd.Inherit_);
+    Load(context, acd.Inherit_);
+    LoadObjectRef(context, acd.Owner_);
 }
 
 void Save(const TSaveContext& context, const TAccessControlDescriptor& acd)
 {
-    auto* output = context.GetOutput();
     Save(context, acd.Acl_);
-    Save(output, acd.Inherit_);
+    Save(context, acd.Inherit_);
+    SaveObjectRef(context, acd.Owner_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

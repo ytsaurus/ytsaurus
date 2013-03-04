@@ -31,54 +31,55 @@ typedef ui16 TCellId;
 //! Describes the runtime type of an object.
 DECLARE_ENUM(EObjectType,
     // Does not represent any actual type.
-    ((Null)(0))
+    ((Null)                       (0))
 
     // The following are non-versioned objects.
     // These must be created by sending TTransactionYPathProxy::CreateObject to a transaction.
     // Except for EObjectType::Transaction, the latter transaction cannot be null.
 
     // Transaction Manager stuff
-    ((Transaction)(1))
+    ((Transaction)                (1))
 
     // Chunk Manager stuff
-    ((Chunk)(100))
-    ((ChunkList)(101))
+    ((Chunk)                      (100))
+    ((ChunkList)                  (101))
 
     // The following are versioned objects AKA Cypress nodes.
     // These must be created by calling TCypressYPathProxy::Create.
     // NB: When adding a new type, don't forget to update IsVersionedType.
 
     // Static nodes
-    ((StringNode)(300))
-    ((IntegerNode)(301))
-    ((DoubleNode)(302))
-    ((MapNode)(303))
-    ((ListNode)(304))
+    ((StringNode)                 (300))
+    ((IntegerNode)                (301))
+    ((DoubleNode)                 (302))
+    ((MapNode)                    (303))
+    ((ListNode)                   (304))
 
     // Dynamic nodes
-    ((File)(400))
-    ((Table)(401))
-    ((ChunkMap)(402))
-    ((LostChunkMap)(403))
-    ((OverreplicatedChunkMap)(404))
-    ((UnderreplicatedChunkMap)(405))
-    ((ChunkListMap)(406))
-    ((TransactionMap)(407))
-    ((NodeMap)(408))
-    ((Node)(410))
-    ((Orchid)(412))
-    ((LostVitalChunkMap)(413))
-    ((AccountMap)(414))
-    ((UserMap)(415))
-    ((GroupMap)(416))
+    ((File)                       (400))
+    ((Table)                      (401))
+    ((ChunkMap)                   (402))
+    ((LostChunkMap)               (403))
+    ((OverreplicatedChunkMap)     (404))
+    ((UnderreplicatedChunkMap)    (405))
+    ((ChunkListMap)               (406))
+    ((TransactionMap)             (407))
+    ((NodeMap)                    (408))
+    ((Node)                       (410))
+    ((Orchid)                     (412))
+    ((LostVitalChunkMap)          (413))
+    ((AccountMap)                 (414))
+    ((UserMap)                    (415))
+    ((GroupMap)                   (416))
+    ((LinkNode)                   (417))
 
     // Security
-    ((Account)(500))
-    ((User)(501))
-    ((Group)(502))
+    ((Account)                    (500))
+    ((User)                       (501))
+    ((Group)                      (502))
 
     // A mysterious creature representing master as a whole.
-    ((Master)(600))
+    ((Master)                     (600))
 );
 
 //! Types (both regular and schematic) are supposed to be in range [0, MaxObjectType].
