@@ -36,7 +36,7 @@ function YtClusterHandle(logger, worker) {
     this.__cached_wid = undefined;
     this.__cached_pid = undefined;
 
-    this.postponeDeath(2000); // Initial startup should be fast; 2 seconds is enough.
+    this.postponeDeath(5000); // Initial startup should be fast; 5 seconds is enough.
 };
 
 YtClusterHandle.prototype.getWid = function() {
