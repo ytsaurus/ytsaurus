@@ -34,7 +34,9 @@ TChunkStripeStatistics& operator += (
     TChunkStripeStatistics& lhs,
     const TChunkStripeStatistics& rhs);
 
-std::vector<TChunkStripeStatistics> AggregateStatistics(const std::vector<TChunkStripeStatistics>& statistics);
+//! Adds up input statistics and returns a single-item vector with the sum.
+std::vector<TChunkStripeStatistics> AggregateStatistics(
+    const std::vector<TChunkStripeStatistics>& statistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -33,18 +33,18 @@ TChunkStripe::TChunkStripe(const TChunkStripe& other)
 
 TChunkStripeStatistics TChunkStripe::GetStatistics() const
 {
-    TChunkStripeStatistics stat;
+    TChunkStripeStatistics result;
 
     FOREACH (const auto& chunk, Chunks) {
         i64 chunkDataSize;
         i64 chunkRowCount;
         NYT::NTableClient::GetStatistics(*chunk, &chunkDataSize, &chunkRowCount);
-        stat.DataSize += chunkDataSize;
-        stat.RowCount += chunkRowCount;
-        ++stat.ChunkCount;
+        result.DataSize += chunkDataSize;
+        result.RowCount += chunkRowCount;
+        ++result.ChunkCount;
     }
 
-    return stat;
+    return result;
 }
 
 TChunkStripeStatistics operator + (
@@ -71,11 +71,11 @@ TChunkStripeStatistics& operator += (
 std::vector<TChunkStripeStatistics> AggregateStatistics(
     const std::vector<TChunkStripeStatistics>& statistics)
 {
-    TChunkStripeStatistics aggregate;
-    FOREACH(const auto& stat, statistics) {
-        aggregate += stat;
+    TChunkStripeStatistics sum;
+    FOREACH (const auto& item, statistics) {
+        sum += item;
     }
-    return std::vector<TChunkStripeStatistics>(1, aggregate);
+    return std::vector<TChunkStripeStatistics>(1, sum);
 }
 
 ////////////////////////////////////////////////////////////////////

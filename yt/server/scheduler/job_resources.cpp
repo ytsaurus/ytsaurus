@@ -19,12 +19,13 @@ using namespace NJobProxy;
 //! Accounts for job proxy process and other lightweight stuff.
 static const i64 FootprintMemorySize = (i64) 256 * 1024 * 1024;
 
+//! Overhead caused by LFAlloc.
 static const i64 LFAllocBufferSize = (i64) 64 * 1024 * 1024;
 
 //! Nodes having less free memory are considered fully occupied.
 static const i64 LowWatermarkMemorySize = (i64) 512 * 1024 * 1024;
 
-// Estimated memory overhead per chunk reader.
+//! Estimated memory overhead per chunk reader.
 static const i64 ChunkReaderMemorySize = (i64) 16 * 1024;
 
 ////////////////////////////////////////////////////////////////////
