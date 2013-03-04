@@ -205,10 +205,11 @@ bool TTableChunkWriter::TryWriteRow(const TRow& row)
 
     if (KeyColumns) {
         if (CompareKeys(LastKey, CurrentKey) > 0) {
-            State.Fail(TError(EErrorCode::SortOrderViolation, Sprintf(
+            State.Fail(TError(
+                EErrorCode::SortOrderViolation,
                 "Sort order violation (PreviousKey: %s, CurrentKey: %s)",
                 ~ToString(LastKey),
-                ~ToString(CurrentKey))));
+                ~ToString(CurrentKey)));
             return false;
         }
 
