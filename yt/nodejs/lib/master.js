@@ -84,7 +84,7 @@ YtClusterHandle.prototype.handleMessage = function(message) {
     }
 
     if (this.state === "alive") {
-        this.postponeDeath(5000);
+        this.postponeDeath(30000);
     }
 
     switch (message.type) {

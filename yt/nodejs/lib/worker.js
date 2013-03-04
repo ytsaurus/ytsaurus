@@ -85,10 +85,10 @@ if (!__DBG.$) {
     (function sendHeartbeat() {
         "use strict";
         process.send({ type : "heartbeat" });
-        setTimeout(sendHeartbeat, 1000);
+        setTimeout(sendHeartbeat, 2000);
     }());
 
-    supervisor_liveness = setTimeout(gracefullyDie, 15000);
+    supervisor_liveness = setTimeout(gracefullyDie, 30000);
 }
 
 // Setup message handlers.
