@@ -417,6 +417,7 @@ void TJob::OnJobExit(TError exitError)
         JobState = EJobState::Completed;
     } else if (IsFatalError(resultError)) {
         resultError.Attributes().Set("fatal", true);
+        JobState = EJobState::Failed;
     } else if (IsRetriableSystemError(resultError)) {
         JobState = EJobState::Aborted;
     } else {
