@@ -703,6 +703,27 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
 
     RemoveJoblet(job);
 
+    auto error = FromProto(job->Result().error());
+    if (error.FindMatching(NTableClient::EErrorCode::SortOrderViolation)) {
+        OnOperationFailed(TError("Sort order violated for output table"));
+        return;
+    }
+
+    if (error.FindMatching(NSecurityClient::EErrorCode::AuthenticationError)) {
+        OnOperationFailed(TError("User is not authenticated"));
+        return;
+    }
+
+    if (error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError)) {
+        OnOperationFailed(TError("User is not authorized"));
+        return;
+    }
+
+    if (error.FindMatching(NSecurityClient::EErrorCode::AccountIsOverLimit)) {
+        OnOperationFailed(TError("Account is over limit"));
+        return;
+    }
+
     int failedJobCount = JobCounter.GetFailed();
     int maxFailedJobCount = Spec->MaxFailedJobCount.Get(Config->MaxFailedJobCount);
     if (failedJobCount >= maxFailedJobCount) {
