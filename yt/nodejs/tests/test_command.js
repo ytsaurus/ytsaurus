@@ -53,14 +53,16 @@ function spawnServer(driver, watcher) {
     });
 
     // Randomize port to avoid EADDRINUSE failures.
+    __HTTP_PORT = 40000 + parseInt(Math.random() * 10000);
     return connect()
         .use("/api", function(req, rsp) {
             var pause = utils.Pause(req);
+            req.authenticated_user = "root";
             return (new YtCommand(
                 logger, driver, watcher, __HTTP_HOST + ":" + __HTTP_PORT, false, pause, req, rsp
             )).dispatch();
         })
-        .listen(__HTTP_PORT + parseInt(Math.random() * 10000), __HTTP_HOST);
+        .listen(__HTTP_PORT, __HTTP_HOST);
 }
 
 // This stub provides a real driver instance which simply pipes all data through.
@@ -297,7 +299,7 @@ describe("Yt - command parameters", function() {
             rsp.should.be.http2xx;
             self.stub.should.have.been.calledOnce;
             self.stub.firstCall.args[0].should.eql("get");
-            self.stub.firstCall.args[8].should.eql({});
+            self.stub.firstCall.args[8].Print().should.eql("{}");
         }).end();
     });
 

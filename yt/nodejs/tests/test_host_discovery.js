@@ -49,9 +49,11 @@ function spawnServer(neighbours) {
         logger[level] = sink;
     });
 
+    // Randomize port to avoid EADDRINUSE failures.
+    __HTTP_PORT = 40000 + parseInt(Math.random() * 10000);
     return connect()
         .use("/hosts", YtHostDiscovery(neighbours))
-        .listen(__HTTP_PORT + parseInt(Math.random() * 10000), __HTTP_HOST);
+        .listen(__HTTP_PORT, __HTTP_HOST);
 }
 
 // This is a helper method to produce HTTP requests.
