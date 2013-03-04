@@ -1723,9 +1723,6 @@ TObjectBase* TChunkManager::TChunkTypeHandler::Create(
 
     account->ValidateDiskSpaceLimit();
 
-    auto securityManger = Bootstrap->GetSecurityManager();
-    securityManger->ValidatePermission(account, EPermission::Use);
-
     const auto* requestExt = &request->GetExtension(TReqCreateChunkExt::create_chunk);
     auto* responseExt = response->MutableExtension(TRspCreateChunkExt::create_chunk);
 

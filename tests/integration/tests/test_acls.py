@@ -281,10 +281,3 @@ class TestAcls(YTEnvSetup):
         set('//sys/accounts/a/@acl/end', self._make_ace('allow', 'u', 'use'))
         # account "a" still has zero disk space limit
         with pytest.raises(YTError): map(in_='//tmp/t1', out='//tmp/t2', command='cat', user='u')
-
-    def test_scheduler_account_permission(self):
-        self._prepare_scheduler_test()
-        set('//tmp/t2/@account', 'a')
-        set('//sys/accounts/a/@resource_limits/disk_space', 1000000)
-        # user "u" still has no "use" permission for account "a"
-        with pytest.raises(YTError): map(in_='//tmp/t1', out='//tmp/t2', command='cat', user='u')
