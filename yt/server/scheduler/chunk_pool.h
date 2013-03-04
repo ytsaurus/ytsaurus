@@ -18,7 +18,6 @@ struct TChunkStripeStatistics
     int ChunkCount;
     i64 DataSize;
     i64 RowCount;
-    i64 xxx;
 
     TChunkStripeStatistics()
         : ChunkCount(0)
