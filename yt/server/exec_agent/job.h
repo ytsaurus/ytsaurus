@@ -163,7 +163,7 @@ private:
     void FinalizeJob();
 
     //! Called by ProxyController when proxy process finishes.
-    void OnJobExit(TError error);
+    void OnJobExit(TError exitError);
 
     static bool IsFatalError(const TError& error);
     static bool IsRetriableSystemError(const TError& error);

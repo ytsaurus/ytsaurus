@@ -383,7 +383,7 @@ bool TJob::IsResultSet() const
     return JobResult.HasValue();
 }
 
-void TJob::OnJobExit(TError error)
+void TJob::OnJobExit(TError exitError)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -392,8 +392,8 @@ void TJob::OnJobExit(TError error)
 
     YCHECK(JobPhase < EJobPhase::Cleanup);
 
-    if (!error.IsOK()) {
-        DoAbort(error, EJobState::Failed);
+    if (!exitError.IsOK()) {
+        DoAbort(exitError, EJobState::Failed);
         return;
     }
 
@@ -415,9 +415,9 @@ void TJob::OnJobExit(TError error)
     auto resultError = FromProto(JobResult->error());
     if (resultError.IsOK()) {
         JobState = EJobState::Completed;
-    } else if (IsFatalError(error)) {
+    } else if (IsFatalError(resultError)) {
         resultError.Attributes().Set("fatal", true);
-    } else if (IsRetriableSystemError(error)) {
+    } else if (IsRetriableSystemError(resultError)) {
         JobState = EJobState::Aborted;
     } else {
         JobState = EJobState::Failed;
