@@ -204,19 +204,46 @@ protected:
     //! Zero based pass index (less than |Reader->Config->PassCount|).
     int PassIndex;
 
-    NLog::TTaggedLogger Logger;
-
     //! Seed addresses for the current retry.
     std::vector<Stroka> SeedAddresses;
+
+    //! Set of peers banned for the current retry.
+    yhash_set<Stroka> BannedPeerAddresses;
+
+    //! List of candidates to try.
+    std::vector<Stroka> PeerAddressList;
+
+    //! Current index in #PeerAddressList.
+    int PeerIndex;
+
+    NLog::TTaggedLogger Logger;
 
 
     explicit TSessionBase(TRemoteReader* reader)
         : Reader(reader)
         , RetryIndex(0)
         , PassIndex(0)
+        , PeerIndex(0)
         , Logger(ChunkReaderLogger)
     {
         Logger.AddTag(Sprintf("ChunkId: %s", ~reader->ChunkId.ToString()));
+    }
+
+    void BanPeer(const Stroka& address)
+    {
+        if (BannedPeerAddresses.insert(address).second) {
+            LOG_INFO("Peer %s is banned for the current retry", ~address);
+        }
+    }
+
+    bool IsPeerBanned(const Stroka& address)
+    {
+        return BannedPeerAddresses.find(address) != BannedPeerAddresses.end();
+    }
+
+    bool IsSeed(const Stroka& address)
+    {
+        return std::find(SeedAddresses.begin(), SeedAddresses.end(), address) != SeedAddresses.end();
     }
 
     virtual void NextRetry()
@@ -238,6 +265,7 @@ protected:
                 .Via(TDispatcher::Get()->GetReaderInvoker()));
 
         PassIndex = 0;
+        BannedPeerAddresses.clear();
     }
 
     virtual void NextPass()
@@ -250,7 +278,6 @@ protected:
             PassIndex + 1,
             reader->Config->PassCount);
     }
-
 
     void OnRetryFailed()
     {
@@ -272,7 +299,7 @@ protected:
             OnSessionFailed();
             return;
         }
-        
+
         TDelayedInvoker::Submit(
             BIND(&TSessionBase::NextRetry, MakeStrong(this))
                 .Via(TDispatcher::Get()->GetReaderInvoker()),
@@ -315,7 +342,6 @@ protected:
         return error;
     }
 
-
     virtual void OnSessionFailed() = 0;
 
 private:
@@ -323,7 +349,6 @@ private:
     std::vector<TError> InnerErrors;
 
     TRemoteReader::TAsyncGetSeedsResult GetSeedsResult;
-
 
     void OnGotSeeds(TRemoteReader::TGetSeedsResult result)
     {
@@ -409,23 +434,6 @@ private:
     //! Known peers and their blocks (peer address -> TPeerBlocksInfo).
     yhash_map<Stroka, TPeerBlocksInfo> PeerBlocksMap;
 
-    //! List of candidates to try.
-    std::vector<Stroka> PeerAddressList;
-
-    //! Current index in #PeerAddressList.
-    int PeerIndex;
-
-    //! Set of peers banned for the current retry.
-    yhash_set<Stroka> BannedPeerAddresses;
-
-
-    virtual void NextRetry() override
-    {
-        TSessionBase::NextRetry();
-
-        BannedPeerAddresses.clear();
-    }
-
     virtual void NextPass() override
     {
         TSessionBase::NextPass();
@@ -452,7 +460,6 @@ private:
         RequestBlocks();
     }
 
-
     void AddPeer(const Stroka& address, int blockIndex)
     {
         auto peerBlocksMapIt = PeerBlocksMap.find(address);
@@ -473,25 +480,6 @@ private:
         }
         return PeerAddressList[PeerIndex++];
     }
-
-
-    void BanPeer(const Stroka& address)
-    {
-        if (BannedPeerAddresses.insert(address).second) {
-            LOG_INFO("Peer %s is banned for the current retry", ~address);
-        }
-    }
-
-    bool IsPeerBanned(const Stroka& address)
-    {
-        return BannedPeerAddresses.find(address) != BannedPeerAddresses.end();
-    }
-
-    bool IsSeed(const Stroka& address)
-    {
-        return std::find(SeedAddresses.begin(), SeedAddresses.end(), address) != SeedAddresses.end();
-    }
-
 
     std::vector<int> GetUnfetchedBlockIndexes()
     {
@@ -619,7 +607,10 @@ private:
             RegisterError(TError("Error fetching blocks from %s",
                 ~address)
                 << *response);
-            BanPeer(address);
+            if (response->GetError().GetCode() != NRpc::EErrorCode::Unavailable) {
+                // Do not ban node if it says "Unavailable".
+                BanPeer(address);
+            }
         }
 
         RequestBlocks();
@@ -726,7 +717,6 @@ public:
         const std::vector<int>* extensionTags)
         : TSessionBase(reader)
         , Promise(NewPromise<IAsyncReader::TGetMetaResult>())
-        , SeedIndex(0)
         , PartitionTag(partitionTag)
     {
         if (extensionTags) {
@@ -767,7 +757,20 @@ private:
     virtual void NextPass()
     {
         TSessionBase::NextPass();
-        SeedIndex = 0;
+        PeerIndex = 0;
+
+        FOREACH (const auto& address, SeedAddresses) {
+            if (!IsPeerBanned(address)) {
+                PeerAddressList.push_back(address);
+            }
+        }
+
+        if (PeerAddressList.empty()) {
+            LOG_INFO("No feasible seeds to start a pass");
+            OnRetryFailed();
+            return;
+        }
+
         RequestInfo();
     }
 
@@ -778,7 +781,12 @@ private:
         if (!reader)
             return;
 
-        const auto& address = SeedAddresses[SeedIndex];
+        if (PeerIndex >= PeerAddressList.size()) {
+            OnPassCompleted();
+            return;
+        }
+
+        const auto& address = PeerAddressList[PeerIndex];
 
         LOG_INFO("Requesting chunk meta from %s", ~address);
 
@@ -828,10 +836,9 @@ private:
 
         RegisterError(error);
 
-        ++SeedIndex;
-        if (SeedIndex >= SeedAddresses.size()) {
-            OnRetryFailed();
-            return;
+        ++PeerIndex;
+        if (error.GetCode() !=  NRpc::EErrorCode::Unavailable) {
+            BanPeer(address);
         }
 
         RequestInfo();
