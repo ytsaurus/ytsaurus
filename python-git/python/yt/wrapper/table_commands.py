@@ -515,7 +515,7 @@ class Finalizer(object):
                        "mapreduce-yt -merge -mode {1} -src {0} -dst {0} "
                        "-ytspec '{{"
                           "\"combine_chunks\": \"true\", "
-                          "\"job_io\":{{\"table_writer\":{{\"prefetch_window\":100}} }}, "
+                          "\"job_io\":{{\"table_reader\":{{\"prefetch_window\":100}} }}, "
                           "\"data_size_per_job\": {2}"
                        "}}'".format(table, mode, data_size_per_job))
 
