@@ -412,6 +412,7 @@ void TJob::OnJobExit(TError exitError)
 
     JobPhase = EJobPhase::Completed;
 
+    // Deserialize and inspect the error.
     auto resultError = FromProto(JobResult->error());
     if (resultError.IsOK()) {
         JobState = EJobState::Completed;
@@ -423,6 +424,9 @@ void TJob::OnJobExit(TError exitError)
     } else {
         JobState = EJobState::Failed;
     }
+
+    // Serialize the error back (makes sense if we changed it).
+    ToProto(JobResult->mutable_error(), resultError);
 
     FinalizeJob();
 }
