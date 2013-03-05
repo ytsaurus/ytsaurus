@@ -24,7 +24,10 @@ class TEncodingWriter
     DEFINE_BYVAL_RO_PROPERTY(double, CompressionRatio);
 
 public:
-    TEncodingWriter(TEncodingWriterConfigPtr config, IAsyncWriterPtr asyncWriter);
+    TEncodingWriter(
+        TEncodingWriterConfigPtr config,
+        TEncodingWriterOptionsPtr options,
+        IAsyncWriterPtr asyncWriter);
 
     bool IsReady() const;
     TAsyncError GetReadyEvent();

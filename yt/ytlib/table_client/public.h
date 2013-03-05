@@ -82,6 +82,9 @@ typedef TIntrusivePtr<TChannelReader> TChannelReaderPtr;
 struct TTableWriterConfig;
 typedef TIntrusivePtr<TTableWriterConfig> TTableWriterConfigPtr;
 
+struct TTableWriterOptions;
+typedef TIntrusivePtr<TTableWriterOptions> TTableWriterOptionsPtr;
+
 struct TTableReaderConfig;
 typedef TIntrusivePtr<TTableReaderConfig> TTableReaderConfigPtr;
 

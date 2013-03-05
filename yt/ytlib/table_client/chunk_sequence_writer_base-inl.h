@@ -27,19 +27,17 @@ namespace NTableClient {
 template <class TChunkWriter>
 TChunkSequenceWriterBase<TChunkWriter>::TChunkSequenceWriterBase(
     TTableWriterConfigPtr config,
+    TTableWriterOptionsPtr options,
     NRpc::IChannelPtr masterChannel,
     const NObjectClient::TTransactionId& transactionId,
-    const Stroka& account,
-    const NChunkClient::TChunkListId& parentChunkList,
-    const TNullable<TKeyColumns>& keyColumns)
+    const NChunkClient::TChunkListId& parentChunkList)
     : Config(config)
-    , ReplicationFactor(Config->ReplicationFactor)
-    , UploadReplicationFactor(std::min(Config->ReplicationFactor, Config->UploadReplicationFactor))
+    , Options(options)
+    , ReplicationFactor(Options->ReplicationFactor)
+    , UploadReplicationFactor(std::min(options->ReplicationFactor, Config->UploadReplicationFactor))
     , MasterChannel(masterChannel)
     , TransactionId(transactionId)
-    , Account(account)
     , ParentChunkListId(parentChunkList)
-    , KeyColumns(keyColumns)
     , RowCount(0)
     , Progress(0)
     , CompleteChunkSize(0)
@@ -105,13 +103,13 @@ void TChunkSequenceWriterBase<TChunkWriter>::CreateNextSession()
     *req->mutable_transaction_id() = TransactionId.ToProto();
     NMetaState::GenerateRpcMutationId(req);
     req->set_type(NObjectClient::EObjectType::Chunk);
-    req->set_account(Account);
+    req->set_account(Options->Account);
 
     auto* reqExt = req->MutableExtension(NChunkClient::NProto::TReqCreateChunkExt::create_chunk);
     if (Config->PreferLocalHost) {
         reqExt->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
     }
-    reqExt->set_replication_factor(ReplicationFactor);
+    reqExt->set_replication_factor(Options->ReplicationFactor);
     reqExt->set_upload_replication_factor(UploadReplicationFactor);
     reqExt->set_movable(Config->ChunksMovable);
     reqExt->set_vital(Config->ChunksVital);
@@ -349,6 +347,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkConfirmed(
             EErrorCode::MasterCommunicationFailed,
             "Error confirming chunk %s",
             ~ToString(chunkId)) << error;
+
         finishResult.Set(wrappedError);
         return;
     }
@@ -453,7 +452,7 @@ i64 TChunkSequenceWriterBase<TChunkWriter>::GetRowCount() const
 template <class TChunkWriter>
 const TNullable<TKeyColumns>& TChunkSequenceWriterBase<TChunkWriter>::GetKeyColumns() const
 {
-    return KeyColumns;
+    return Options->KeyColumns;
 }
 
 template <class TChunkWriter>

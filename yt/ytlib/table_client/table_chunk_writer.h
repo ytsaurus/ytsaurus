@@ -30,9 +30,8 @@ class TTableChunkWriter
 public:
     TTableChunkWriter(
         TChunkWriterConfigPtr config,
-        NChunkClient::IAsyncWriterPtr chunkWriter,
-        const TChannels& channels,
-        const TNullable<TKeyColumns>& keyColumns);
+        TTableWriterOptionsPtr options,
+        NChunkClient::IAsyncWriterPtr chunkWriter);
 
     ~TTableChunkWriter();
 

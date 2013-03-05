@@ -13,20 +13,16 @@ using namespace NChunkClient::NProto;
 
 TTableChunkSequenceWriter::TTableChunkSequenceWriter(
     TTableWriterConfigPtr config,
+    TTableWriterOptionsPtr options,
     NRpc::IChannelPtr masterChannel,
     const TTransactionId& transactionId,
-    const Stroka&  account,
-    const TChunkListId& parentChunkListId,
-    const TChannels& channels,
-    const TNullable<TKeyColumns>& keyColumns)
+    const TChunkListId& parentChunkListId)
     : TChunkSequenceWriterBase<TTableChunkWriter>(
         config,
+        options,
         masterChannel,
         transactionId,
-        account,
-        parentChunkListId,
-        keyColumns)
-    , Channels(channels)
+        parentChunkListId)
 {
     // Create keys.
     BoundaryKeys.mutable_start();
@@ -40,9 +36,8 @@ void TTableChunkSequenceWriter::PrepareChunkWriter(TSession* newSession)
 {
     newSession->ChunkWriter = New<TTableChunkWriter>(
         Config,
-        newSession->RemoteWriter,
-        Channels,
-        KeyColumns);
+        Options,
+        newSession->RemoteWriter);
 
     newSession->ChunkWriter->AsyncOpen();
 }

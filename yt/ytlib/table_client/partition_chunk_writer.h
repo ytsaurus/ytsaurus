@@ -25,8 +25,8 @@ class TPartitionChunkWriter
 public:
     TPartitionChunkWriter(
         TChunkWriterConfigPtr config,
+        TTableWriterOptionsPtr options,
         NChunkClient::IAsyncWriterPtr chunkWriter,
-        const TKeyColumns& keyColumns,
         IPartitioner* partitioner);
 
     ~TPartitionChunkWriter();

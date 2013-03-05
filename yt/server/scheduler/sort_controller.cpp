@@ -1394,7 +1394,7 @@ private:
     {
         UNUSED(batchRsp);
 
-        OutputTables[0].KeyColumns = Spec->SortBy;
+        OutputTables[0].Options->KeyColumns = Spec->SortBy;
     }
 
     void SortSamples()

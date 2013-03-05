@@ -65,7 +65,7 @@ private:
     NTransactionClient::TTransactionId TransactionId;
     NTransactionClient::TTransactionManagerPtr TransactionManager;
     NYPath::TRichYPath RichPath;
-    TNullable<TKeyColumns> KeyColumns;
+    TTableWriterOptionsPtr Options;
 
     bool IsOpen;
     bool IsClosed;

@@ -255,7 +255,8 @@ class TestTableCommands(YTEnvSetup):
 
     def test_codec_in_writer(self):
         create('table', '//tmp/table')
-        write_str('//tmp/table', '{b="hello"}', opt="/table_writer/codec=gzip_best_compression")
+	set_str('//tmp/table/@codec', "gzip_best_compression")
+        write_str('//tmp/table', '{b="hello"}')
 
         assert read('//tmp/table') == [{"b":"hello"}]
 

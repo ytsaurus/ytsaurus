@@ -29,20 +29,11 @@ message TTableInputSpec
 // Defines how to store output from a job into a table.
 message TTableOutputSpec
 {
-    // YSON-serialized channels that must be used for writing the table.
-    required bytes channels = 1;
-
     // The chunk list where output chunks must be placed.
     required NYT.NProto.TGuid chunk_list_id = 2;
 
-    // If non-empty then the output is expected to be sorted accordingly.
-    repeated string key_columns = 3;
-
-    // Replication factor taken from the attributes of the output table.
-    optional int32 replication_factor = 4;
-
-    // Account taken from the attributes of the output table.
-    required string account = 5;
+    // YSON-serialized writer options obtained from table attributes.
+    required string table_writer_options = 6;
 }
 
 // Sent from the scheduler to an exec node.

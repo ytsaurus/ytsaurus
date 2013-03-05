@@ -76,16 +76,17 @@ public:
 
         auto transactionId = TTransactionId::FromProto(jobSpec.output_transaction_id());
         const auto& outputSpec = jobSpec.output_specs(0);
-        auto account = outputSpec.account();
+
         auto chunkListId = TChunkListId::FromProto(outputSpec.chunk_list_id());
-        auto keyColumns = FromProto<Stroka>(jobSpecExt.key_columns());
+        auto options = New<TTableWriterOptions>();
+        options->Load(ConvertToNode(TYsonString(outputSpec.table_writer_options())));
+        options->KeyColumns = FromProto<Stroka>(jobSpecExt.key_columns());
         Writer = New<TPartitionChunkSequenceWriter>(
             config->JobIO->TableWriter,
+            options,
             Host->GetMasterChannel(),
             transactionId,
-            account,
             chunkListId,
-            keyColumns,
             ~Partitioner);
     }
 

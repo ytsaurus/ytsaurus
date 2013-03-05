@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "schema.h"
 
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/config.h>
@@ -51,8 +52,6 @@ struct TChunkWriterConfig
         Register("max_buffer_size", MaxBufferSize)
             .GreaterThanOrEqual(1024 * 1024)
             .Default(32 * 1024 * 1024);
-
-        Codec = ECodec::Lz4;
     }
 };
 
@@ -65,7 +64,6 @@ struct TTableWriterConfig
     i64 DesiredChunkSize;
     i64 MaxMetaSize;
 
-    int ReplicationFactor;
     int UploadReplicationFactor;
 
     bool ChunksMovable;
@@ -82,9 +80,6 @@ struct TTableWriterConfig
             .GreaterThan(0)
             .LessThanOrEqual(64 * 1024 * 1024)
             .Default(30 * 1024 * 1024);
-        Register("replication_factor", ReplicationFactor)
-            .GreaterThanOrEqual(1)
-            .Default(3);
         Register("upload_replication_factor", UploadReplicationFactor)
             .GreaterThanOrEqual(1)
             .Default(2);
@@ -94,6 +89,38 @@ struct TTableWriterConfig
             .Default(true);
         Register("prefer_local_host", PreferLocalHost)
             .Default(true);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTableWriterOptions
+    : public NChunkClient::TEncodingWriterOptions
+{
+    int ReplicationFactor;
+
+    Stroka Account;
+
+    TNullable<TKeyColumns> KeyColumns;
+
+    TChannels Channels;
+
+    TTableWriterOptions()
+    {
+        Register("replication_factor", ReplicationFactor)
+            .GreaterThanOrEqual(1)
+            .Default(3);
+
+        Register("account", Account)
+            .NonEmpty();
+
+        Register("key_columns", KeyColumns)
+            .Default(Null);
+
+        Register("channels", Channels)
+            .Default(TChannels());
+
+        Codec = ECodec::Lz4;
     }
 };
 

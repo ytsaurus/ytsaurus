@@ -522,7 +522,7 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
 
     if (key == "codec") {
         BuildYsonFluently(consumer)
-            .Value(node->GetCodec().ToString());
+            .Value(FormatEnum(node->GetCodec()));
         return true;
     }
 
@@ -606,8 +606,8 @@ bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& v
 
         auto* node = GetThisTypedMutableImpl();
         YCHECK(node->IsTrunk());
-
-        node->SetCodec(ECodec::FromString(value.Data()));
+        auto codecName = ConvertTo<Stroka>(value);
+        node->SetCodec(ParseEnum<ECodec>(codecName));
         return true;
     }
 

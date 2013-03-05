@@ -33,11 +33,10 @@ class TChunkSequenceWriterBase
 public:
     TChunkSequenceWriterBase(
         TTableWriterConfigPtr config,
+        TTableWriterOptionsPtr options,
         NRpc::IChannelPtr masterChannel,
         const NTransactionClient::TTransactionId& transactionId,
-        const Stroka& account,
-        const NChunkClient::TChunkListId& parentChunkListId,
-        const TNullable<TKeyColumns>& keyColumns);
+        const NChunkClient::TChunkListId& parentChunkListId);
 
     ~TChunkSequenceWriterBase();
 
@@ -115,6 +114,7 @@ protected:
     void SwitchSession();
 
     const TTableWriterConfigPtr Config;
+    const TTableWriterOptionsPtr Options;
     const int ReplicationFactor;
     const int UploadReplicationFactor;
     const NRpc::IChannelPtr MasterChannel;

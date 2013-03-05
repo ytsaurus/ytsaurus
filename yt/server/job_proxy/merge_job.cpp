@@ -78,17 +78,17 @@ public:
         // ToDo(psushin): estimate row count for writer.
         auto transactionId = TTransactionId::FromProto(jobSpec.output_transaction_id());
         const auto& outputSpec = jobSpec.output_specs(0);
-        auto account = outputSpec.account();
+
         auto chunkListId = TChunkListId::FromProto(outputSpec.chunk_list_id());
-        auto channels = ConvertTo<TChannels>(TYsonString(outputSpec.channels()));
+        auto options = New<TTableWriterOptions>();
+        options->Load(ConvertToNode(TYsonString(outputSpec.table_writer_options())));
+        options->KeyColumns = KeyColumns;
         Writer = New<TTableChunkSequenceWriter>(
             config->JobIO->TableWriter,
+            options,
             Host->GetMasterChannel(),
             transactionId,
-            account,
-            chunkListId,
-            channels,
-            KeyColumns);
+            chunkListId);
     }
 
     virtual NScheduler::NProto::TJobResult Run() override

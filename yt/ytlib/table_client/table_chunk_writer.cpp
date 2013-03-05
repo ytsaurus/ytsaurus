@@ -31,11 +31,10 @@ static const int RangeColumnIndex = -1;
 
 TTableChunkWriter::TTableChunkWriter(
     TChunkWriterConfigPtr config,
-    NChunkClient::IAsyncWriterPtr chunkWriter,
-    const TChannels& channels,
-    const TNullable<TKeyColumns>& keyColumns)
-    : TChunkWriterBase(config, chunkWriter, keyColumns)
-    , Channels(channels)
+    TTableWriterOptionsPtr options,
+    NChunkClient::IAsyncWriterPtr chunkWriter)
+    : TChunkWriterBase(config, options, chunkWriter)
+    , Channels(options->Channels)
     , IsOpen(false)
     , SamplesSize(0)
     , IndexSize(0)
@@ -44,7 +43,7 @@ TTableChunkWriter::TTableChunkWriter(
     YCHECK(config);
     YCHECK(chunkWriter);
 
-    MiscExt.set_codec(Config->Codec);
+    MiscExt.set_codec(options->Codec);
 
     // Init trash channel.
     auto trashChannel = TChannel::Universal();
@@ -64,13 +63,13 @@ TTableChunkWriter::TTableChunkWriter(
 
     BasicMetaSize = ChannelsExt.ByteSize() + MiscExt.ByteSize();
 
-    if (KeyColumns) {
+    if (options->KeyColumns) {
         MiscExt.set_sorted(true);
-        CurrentKey.ClearAndResize(KeyColumns->size());
-        LastKey.ClearAndResize(KeyColumns->size());
+        CurrentKey.ClearAndResize(options->KeyColumns->size());
+        LastKey.ClearAndResize(options->KeyColumns->size());
 
-        for (int keyIndex = 0; keyIndex < KeyColumns->size(); ++keyIndex) {
-            const auto& column = KeyColumns->at(keyIndex);
+        for (int keyIndex = 0; keyIndex < options->KeyColumns->size(); ++keyIndex) {
+            const auto& column = options->KeyColumns->at(keyIndex);
             auto& columnInfo = ColumnMap[column];
             columnInfo.KeyColumnIndex = keyIndex;
 
@@ -203,7 +202,7 @@ bool TTableChunkWriter::TryWriteRow(const TRow& row)
 
     FinalizeRow(row);
 
-    if (KeyColumns) {
+    if (Options->KeyColumns) {
         if (CompareKeys(LastKey, CurrentKey) > 0) {
             State.Fail(TError(
                 EErrorCode::SortOrderViolation,
@@ -346,7 +345,7 @@ void TTableChunkWriter::OnFinalBlocksWritten(TError error)
 
     SetProtoExtension(Meta.mutable_extensions(), SamplesExt);
 
-    if (KeyColumns) {
+    if (Options->KeyColumns) {
         *BoundaryKeysExt.mutable_end() = LastKey.ToProto();
 
         const auto lastIndexRow = --IndexExt.items().end();
@@ -360,7 +359,7 @@ void TTableChunkWriter::OnFinalBlocksWritten(TError error)
         SetProtoExtension(Meta.mutable_extensions(), BoundaryKeysExt);
         {
             NProto::TKeyColumnsExt keyColumnsExt;
-            ToProto(keyColumnsExt.mutable_values(), KeyColumns.Get());
+            ToProto(keyColumnsExt.mutable_values(), Options->KeyColumns.Get());
             SetProtoExtension(Meta.mutable_extensions(), keyColumnsExt);
         }
     }
@@ -429,7 +428,7 @@ NChunkClient::NProto::TChunkMeta TTableChunkWriter::GetMasterMeta() const
     meta.set_type(EChunkType::Table);
     meta.set_version(FormatVersion);
     SetProtoExtension(meta.mutable_extensions(), MiscExt);
-    if (KeyColumns) {
+    if (Options->KeyColumns) {
         SetProtoExtension(meta.mutable_extensions(), BoundaryKeysExt);
     }
 

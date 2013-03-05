@@ -18,12 +18,10 @@ public:
 
     TTableChunkSequenceWriter(
         TTableWriterConfigPtr config,
+        TTableWriterOptionsPtr options,
         NRpc::IChannelPtr masterChannel,
         const NTransactionClient::TTransactionId& transactionId,
-        const Stroka&  account,
-        const NChunkClient::TChunkListId& parentChunkListId,
-        const TChannels& channels,
-        const TNullable<TKeyColumns>& keyColumns = Null);
+        const NChunkClient::TChunkListId& parentChunkListId);
 
     ~TTableChunkSequenceWriter();
 
@@ -40,7 +38,6 @@ public:
 
 private:
 
-    const TChannels Channels;
     NProto::TBoundaryKeysExt BoundaryKeys;
 
     virtual void InitCurrentSession(TSession nextSession) override;

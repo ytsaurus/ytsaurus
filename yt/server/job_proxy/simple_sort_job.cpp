@@ -56,38 +56,42 @@ public:
 
         KeyColumns = FromProto<Stroka>(jobSpecExt.key_columns());
 
-        TReaderOptions options;
-        options.KeepBlocks = true;
+        {
+            TReaderOptions options;
+            options.KeepBlocks = true;
 
-        std::vector<NTableClient::NProto::TInputChunk> chunks(
-            jobSpec.input_specs(0).chunks().begin(),
-            jobSpec.input_specs(0).chunks().end());
+            std::vector<NTableClient::NProto::TInputChunk> chunks(
+                jobSpec.input_specs(0).chunks().begin(),
+                jobSpec.input_specs(0).chunks().end());
 
-        srand(time(NULL));
-        std::random_shuffle(chunks.begin(), chunks.end());
+            srand(time(NULL));
+            std::random_shuffle(chunks.begin(), chunks.end());
 
-        auto provider = New<TTableChunkReaderProvider>(config->JobIO->TableReader, options);
+            auto provider = New<TTableChunkReaderProvider>(config->JobIO->TableReader, options);
 
-        Reader = New<TReader>(
-            config->JobIO->TableReader,
-            Host->GetMasterChannel(),
-            Host->GetBlockCache(),
-            std::move(chunks),
-            provider);
+            Reader = New<TReader>(
+                config->JobIO->TableReader,
+                Host->GetMasterChannel(),
+                Host->GetBlockCache(),
+                std::move(chunks),
+                provider);
+        }
 
-        auto transactionId = TTransactionId::FromProto(jobSpec.output_transaction_id());
-        const auto& outputSpec = jobSpec.output_specs(0);
-        auto account = outputSpec.account();
-        auto chunkListId = TChunkListId::FromProto(outputSpec.chunk_list_id());
-        auto channels = ConvertTo<TChannels>(TYsonString(outputSpec.channels()));
-        Writer = New<TTableChunkSequenceWriter>(
-            config->JobIO->TableWriter,
-            Host->GetMasterChannel(),
-            transactionId,
-            account,
-            chunkListId,
-            channels,
-            KeyColumns);
+        {
+            auto transactionId = TTransactionId::FromProto(jobSpec.output_transaction_id());
+            const auto& outputSpec = jobSpec.output_specs(0);
+
+            auto chunkListId = TChunkListId::FromProto(outputSpec.chunk_list_id());
+            auto options = New<TTableWriterOptions>();
+            options->Load(ConvertToNode(TYsonString(outputSpec.table_writer_options())));
+            options->KeyColumns = KeyColumns;
+            Writer = New<TTableChunkSequenceWriter>(
+                config->JobIO->TableWriter,
+                options,
+                Host->GetMasterChannel(),
+                transactionId,
+                chunkListId);
+        }
     }
 
     virtual NScheduler::NProto::TJobResult Run() override
