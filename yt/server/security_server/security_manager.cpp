@@ -847,10 +847,8 @@ private:
         // Make the fake reference.
         YCHECK(user->RefObject() == 1);
 
-        // Every user is a member of "everybody" body.
-        DoAddMember(EveryoneGroup, user);
-
         // Every user except for "guest" is a member of "users" group.
+        // "guest is a member of "everyone" group.
         if (id == GuestUserId) {
             DoAddMember(EveryoneGroup, user);
         } else {
