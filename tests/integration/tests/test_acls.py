@@ -279,14 +279,14 @@ class TestAcls(YTEnvSetup):
         with pytest.raises(YTError): map(in_='//tmp/t1', out='//tmp/t2', command='cat', user='u')
 
     def test_inherit1(self):
-    	set('//tmp/p', {})
-    	set('//tmp/p/@inherit_acl', false)
-    	
-    	create_user('u')
-		with pytest.raises(YTError): set('//tmp/p/a', 'b', user='u')
-		with pytest.raises(YTError): ls('//tmp/p', user='u')
+        set('//tmp/p', {})
+        set('//tmp/p/@inherit_acl', false)
+        
+        create_user('u')
+        with pytest.raises(YTError): set('//tmp/p/a', 'b', user='u')
+        with pytest.raises(YTError): ls('//tmp/p', user='u')
 
-		set('//tmp/p/@acl/end', self._make_ace('allow', 'u', ['read', 'write']))
-		set('//tmp/p/a', 'b', user='u')
-		self.assertItemsEqual(ls('//tmp/p', user='u') == ['a'])
-		assert get('//tmp/p/a', user='u') == 'b'
+        set('//tmp/p/@acl/end', self._make_ace('allow', 'u', ['read', 'write']))
+        set('//tmp/p/a', 'b', user='u')
+        self.assertItemsEqual(ls('//tmp/p', user='u') == ['a'])
+        assert get('//tmp/p/a', user='u') == 'b'
