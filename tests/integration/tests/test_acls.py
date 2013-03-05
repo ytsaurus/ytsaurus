@@ -12,10 +12,10 @@ class TestAcls(YTEnvSetup):
     START_SCHEDULER = True
 
     def test_init(self):
-        self.assertItemsEqual(get('//sys/groups/everyone/@members'), ['root', 'guest'])
+        self.assertItemsEqual(get('//sys/groups/everyone/@members'), ['users', 'guest'])
         self.assertItemsEqual(get('//sys/groups/users/@members'), ['root'])
 
-        self.assertItemsEqual(get('//sys/users/root/@member_of'), ['users', 'everyone'])
+        self.assertItemsEqual(get('//sys/users/root/@member_of'), ['users'])
         self.assertItemsEqual(get('//sys/users/guest/@member_of'), ['everyone'])
 
         self.assertItemsEqual(get('//sys/users/root/@member_of_closure'), ['users', 'everyone'])
@@ -39,7 +39,7 @@ class TestAcls(YTEnvSetup):
         create_user('max')
         assert get('//sys/users/max/@name') == 'max'
         assert 'max' in get('//sys/groups/everyone/@members')
-        self.assertItemsEqual(get('//sys/users/max/@member_of'), ['users', 'everyone'])
+        self.assertItemsEqual(get('//sys/users/max/@member_of'), ['users'])
 
     def test_create_user2(self):
         create_user('max')

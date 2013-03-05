@@ -851,7 +851,9 @@ private:
         DoAddMember(EveryoneGroup, user);
 
         // Every user except for "guest" is a member of "users" group.
-        if (id != GuestUserId) {
+        if (id == GuestUserId) {
+            DoAddMember(EveryoneGroup, user);
+        } else {
             DoAddMember(UsersGroup, user);
         }
 
@@ -1033,15 +1035,16 @@ private:
 
 
         // Initialize built-in groups.
-        // everyone
-        EveryoneGroup = DoCreateGroup(EveryoneGroupId, EveryoneGroupName);
-
         // users
         UsersGroup = DoCreateGroup(UsersGroupId, UsersGroupName);
 
+        // everyone
+        EveryoneGroup = DoCreateGroup(EveryoneGroupId, EveryoneGroupName);
+        DoAddMember(EveryoneGroup, UsersGroup);
+
 
         // Initialize built-in users.
-        // sys
+        // root
         RootUser = DoCreateUser(RootUserId, RootUserName);
 
         // guest
