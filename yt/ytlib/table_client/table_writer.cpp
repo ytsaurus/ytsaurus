@@ -38,7 +38,7 @@ TTableWriter::TTableWriter(
     , TransactionId(transaction ? transaction->GetId() : NullTransactionId)
     , TransactionManager(transactionManager)
     , RichPath(richPath)
-    , KeyColumns(keyColumns)
+    , Options(New<TTableWriterOptions>())
     , IsOpen(false)
     , IsClosed(false)
     , ObjectProxy(masterChannel)
@@ -47,6 +47,8 @@ TTableWriter::TTableWriter(
     YCHECK(config);
     YCHECK(masterChannel);
     YCHECK(transactionManager);
+
+    Options->KeyColumns = keyColumns;
 
     Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
         ~ToString(richPath),
@@ -78,12 +80,10 @@ void TTableWriter::Open()
 
     auto path = RichPath.GetPath();
     bool overwrite = RichPath.Attributes().Get<bool>("overwrite", false);
-    bool clear = KeyColumns.HasValue() || overwrite;
+    bool clear = Options->KeyColumns.HasValue() || overwrite;
 
     LOG_INFO("Requesting table info");
     TChunkListId chunkListId;
-    TChannels channels;
-    Stroka account;
     {
         auto batchReq = ObjectProxy.ExecuteBatch();
 
@@ -93,7 +93,8 @@ void TTableWriter::Open()
             TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
             attributeFilter.Keys.push_back("replication_factor");
             attributeFilter.Keys.push_back("channels");
-            if (KeyColumns.HasValue()) {
+            attributeFilter.Keys.push_back("codec");
+            if (Options->KeyColumns.HasValue()) {
                 attributeFilter.Keys.push_back("row_count");
             }
             attributeFilter.Keys.push_back("account");
@@ -119,20 +120,20 @@ void TTableWriter::Open()
             auto node = ConvertToNode(TYsonString(rsp->value()));
             const auto& attributes = node->Attributes();
 
-            if (KeyColumns.HasValue() && !overwrite) {
+            // ToDo(psushin): keep in sync with operation_controller_detail OnInputsReceived. Consider
+            if (Options->KeyColumns.HasValue() && !overwrite) {
                 if (attributes.Get<i64>("row_count") > 0) {
                     THROW_ERROR_EXCEPTION("Cannot write sorted data into a non-empty table");
                 }
             }
 
-            auto channelsYson = attributes.FindYson("channels");
-            if (channelsYson) {
-                channels = ConvertTo<TChannels>(channelsYson.Get());
-            }
+            Deserialize(
+                Options->Channels,
+                ConvertToNode(attributes.GetYson("channels")));
 
-            Config->ReplicationFactor = attributes.Get<int>("replication_factor");
-
-            account = attributes.Get<Stroka>("account");
+            Options->ReplicationFactor = attributes.Get<int>("replication_factor");
+            Options->Codec = ParseEnum<ECodec>(attributes.Get<Stroka>("codec"));
+            Options->Account = attributes.Get<Stroka>("account");
         }
 
         {
@@ -143,16 +144,14 @@ void TTableWriter::Open()
     }
     LOG_INFO("Table info received (ChunkListId: %s, ChannelCount: %d)",
         ~chunkListId.ToString(),
-        static_cast<int>(channels.size()));
+        static_cast<int>(Options->Channels.size()));
 
     Writer = New<TTableChunkSequenceWriter>(
         Config,
+        Options,
         MasterChannel,
         uploadTransactionId,
-        account,
-        chunkListId,
-        channels,
-        KeyColumns);
+        chunkListId);
 
     Sync(~Writer, &TTableChunkSequenceWriter::AsyncOpen);
 
@@ -196,8 +195,8 @@ void TTableWriter::Close()
 
     auto path = RichPath.GetPath();
 
-    if (KeyColumns) {
-        auto keyColumns = KeyColumns.Get();
+    if (Options->KeyColumns) {
+        auto keyColumns = Options->KeyColumns.Get();
         LOG_INFO("Marking table as sorted by %s", ~ConvertToYsonString(keyColumns, NYson::EYsonFormat::Text).Data());
 
         auto req = TTableYPathProxy::SetSorted(path);

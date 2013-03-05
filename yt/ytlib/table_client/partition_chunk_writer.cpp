@@ -27,15 +27,15 @@ static NLog::TLogger& Logger = TableWriterLogger;
 
 TPartitionChunkWriter::TPartitionChunkWriter(
     TChunkWriterConfigPtr config,
+    TTableWriterOptionsPtr options,
     NChunkClient::IAsyncWriterPtr chunkWriter,
-    const TKeyColumns& keyColumns,
     IPartitioner* partitioner)
-    : TChunkWriterBase(config, chunkWriter, keyColumns)
+    : TChunkWriterBase(config, options, chunkWriter)
     , Partitioner(partitioner)
     , BasicMetaSize(0)
 {
-    for (int i = 0; i < KeyColumns.Get().size(); ++i) {
-        KeyColumnIndexes[KeyColumns.Get()[i]] = i;
+    for (int i = 0; i < options->KeyColumns.Get().size(); ++i) {
+        KeyColumnIndexes[options->KeyColumns.Get()[i]] = i;
     }
     *ChannelsExt.add_items()->mutable_channel() = TChannel::Universal().ToProto();
 
@@ -87,7 +87,7 @@ bool TPartitionChunkWriter::TryWriteRowUnsafe(const TRow& row)
     if (!State.IsActive() || !EncodingWriter->IsReady())
         return false;
 
-    int keyColumnCount = KeyColumns.Get().size();
+    int keyColumnCount = Options->KeyColumns.Get().size();
     TNonOwningKey key(keyColumnCount);
 
     FOREACH (const auto& pair, row) {

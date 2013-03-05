@@ -27,12 +27,12 @@ static NLog::TLogger& Logger = TableWriterLogger;
 
 TChunkWriterBase::TChunkWriterBase(
     TChunkWriterConfigPtr config,
-    NChunkClient::IAsyncWriterPtr chunkWriter,
-    const TNullable<TKeyColumns>& keyColumns)
+    TTableWriterOptionsPtr options,
+    NChunkClient::IAsyncWriterPtr chunkWriter)
     : Config(config)
+    , Options(options)
     , ChunkWriter(chunkWriter)
-    , KeyColumns(keyColumns)
-    , EncodingWriter(New<TEncodingWriter>(Config, chunkWriter))
+    , EncodingWriter(New<TEncodingWriter>(Config, options, chunkWriter))
     , CurrentBlockIndex(0)
     , DataWeight(0)
     , RowCount(0)
@@ -45,7 +45,7 @@ TChunkWriterBase::TChunkWriterBase(
 
 const TNullable<TKeyColumns>& TChunkWriterBase::GetKeyColumns() const
 {
-    return KeyColumns;
+    return Options->KeyColumns;
 }
 
 void TChunkWriterBase::CheckBufferCapacity()
@@ -69,7 +69,7 @@ void TChunkWriterBase::FinalizeWriter()
         MiscExt.set_uncompressed_data_size(EncodingWriter->GetUncompressedSize());
         MiscExt.set_compressed_data_size(EncodingWriter->GetCompressedSize());
         MiscExt.set_meta_size(Meta.ByteSize());
-        MiscExt.set_codec(Config->Codec);
+        MiscExt.set_codec(Options->Codec);
         MiscExt.set_data_weight(DataWeight);
         MiscExt.set_row_count(RowCount);
         MiscExt.set_value_count(ValueCount);

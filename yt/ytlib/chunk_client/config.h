@@ -178,8 +178,6 @@ struct TEncodingWriterConfig
 {
     i64 EncodeWindowSize;
 
-    ECodec Codec;
-
     double DefaultCompressionRatio;
 
     TEncodingWriterConfig()
@@ -187,10 +185,22 @@ struct TEncodingWriterConfig
         Register("encode_window_size", EncodeWindowSize)
             .Default(4 * 1024 * 1024)
             .GreaterThan(0);
-        Register("codec", Codec)
-            .Default(ECodec::None);
         Register("default_compression_ratio", DefaultCompressionRatio)
             .Default(0.2);
+    }
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
+struct TEncodingWriterOptions
+    : public virtual TYsonSerializable
+{
+    ECodec Codec;
+
+    TEncodingWriterOptions()
+    {
+        Register("codec", Codec)
+            .Default(ECodec::None);
     }
 };
 

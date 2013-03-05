@@ -16,6 +16,7 @@
 #include <ytlib/actions/cancelable_context.h>
 
 #include <ytlib/table_client/table_ypath_proxy.h>
+#include <ytlib/table_client/config.h>
 
 #include <ytlib/file_client/file_ypath_proxy.h>
 
@@ -126,16 +127,13 @@ protected:
             : Clear(false)
             , Overwrite(false)
             , LockMode(NCypressClient::ELockMode::Shared)
-            , ReplicationFactor(0)
+            , Options(New<NTableClient::TTableWriterOptions>())
         { }
 
         bool Clear;
         bool Overwrite;
         NCypressClient::ELockMode LockMode;
-        TNullable< std::vector<Stroka> > KeyColumns;
-        NYTree::TYsonString Channels;
-        int ReplicationFactor;
-        TNullable<Stroka> Account;
+        NTableClient::TTableWriterOptionsPtr Options;
 
         // Chunk list for appending the output.
         NChunkClient::TChunkListId OutputChunkListId;

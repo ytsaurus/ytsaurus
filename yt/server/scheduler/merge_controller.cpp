@@ -713,7 +713,7 @@ private:
         const auto& inputTable = InputTables[0];
         auto& outputTable = OutputTables[0];
         if (inputTable.KeyColumns) {
-            outputTable.KeyColumns = inputTable.KeyColumns;
+            outputTable.Options->KeyColumns = inputTable.KeyColumns;
         }
     }
 
@@ -1178,7 +1178,7 @@ private:
     {
         TSortedMergeControllerBase::OnCustomInputsRecieved(batchRsp);
 
-        OutputTables[0].KeyColumns = KeyColumns;
+        OutputTables[0].Options->KeyColumns = KeyColumns;
     }
 
 };

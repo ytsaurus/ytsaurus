@@ -64,18 +64,16 @@ ISyncWriterPtr TUserJobIO::CreateTableOutput(int index)
     const auto& jobSpec = Host->GetJobSpec();
     auto transactionId = TTransactionId::FromProto(jobSpec.output_transaction_id());
     const auto& outputSpec = jobSpec.output_specs(index);
-    auto account = outputSpec.account();
+
+    auto options = New<TTableWriterOptions>();
+    options->Load(ConvertToNode(TYsonString(outputSpec.table_writer_options())));
     auto chunkListId = TChunkListId::FromProto(outputSpec.chunk_list_id());
-    auto channels = ConvertTo<TChannels>(TYsonString(outputSpec.channels()));
-    auto keyColumns = FromProto<Stroka>(outputSpec.key_columns());
     auto chunkSequenceWriter = New<TTableChunkSequenceWriter>(
         IOConfig->TableWriter,
+        options,
         Host->GetMasterChannel(),
         transactionId,
-        account,
-        chunkListId,
-        channels,
-        keyColumns.empty() ? Null : MakeNullable(keyColumns));
+        chunkListId);
 
     auto syncWriter = CreateSyncWriter(chunkSequenceWriter);
 

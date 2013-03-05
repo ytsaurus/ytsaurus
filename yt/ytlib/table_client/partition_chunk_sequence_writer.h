@@ -15,11 +15,10 @@ class TPartitionChunkSequenceWriter
 public:
     TPartitionChunkSequenceWriter(
         TTableWriterConfigPtr config,
+        TTableWriterOptionsPtr options,
         NRpc::IChannelPtr masterChannel,
         const NTransactionClient::TTransactionId& transactionId,
-        const Stroka& account,
         const NChunkClient::TChunkListId& parentChunkListId,
-        const TKeyColumns& keyColumns,
         IPartitioner* partitioner);
 
 private:

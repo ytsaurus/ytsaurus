@@ -8,6 +8,8 @@
 #include <ytlib/table_client/partition_chunk_sequence_writer.h>
 #include <ytlib/table_client/sync_writer.h>
 
+#include <ytlib/ytree/yson_string.h>
+
 #include <ytlib/scheduler/config.h>
 #include <ytlib/scheduler/job.pb.h>
 
@@ -23,6 +25,7 @@ using namespace NTransactionServer;
 using namespace NChunkServer;
 using namespace NScheduler;
 using namespace NScheduler::NProto;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -60,15 +63,17 @@ public:
         const auto& jobSpec = Host->GetJobSpec();
         auto transactionId = TTransactionId::FromProto(jobSpec.output_transaction_id());
         const auto& outputSpec = jobSpec.output_specs(0);
-        auto account = outputSpec.account();
+
         auto chunkListId = TChunkListId::FromProto(outputSpec.chunk_list_id());
+        auto options = New<TTableWriterOptions>();
+        options->Load(ConvertToNode(TYsonString(outputSpec.table_writer_options())));
+        options->KeyColumns = KeyColumns;
         Writer = New<TPartitionChunkSequenceWriter>(
             IOConfig->TableWriter,
+            options,
             Host->GetMasterChannel(),
             transactionId,
-            account,
             chunkListId,
-            KeyColumns,
             ~Partitioner);
 
         auto syncWriter = CreateSyncWriter(Writer);

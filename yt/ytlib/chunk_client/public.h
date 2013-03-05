@@ -71,6 +71,9 @@ typedef TIntrusivePtr<TClientBlockCacheConfig> TClientBlockCacheConfigPtr;
 struct TEncodingWriterConfig;
 typedef TIntrusivePtr<TEncodingWriterConfig> TEncodingWriterConfigPtr;
 
+struct TEncodingWriterOptions;
+typedef TIntrusivePtr<TEncodingWriterOptions> TEncodingWriterOptionsPtr;
+
 struct TDispatcherConfig;
 typedef TIntrusivePtr<TDispatcherConfig> TDispatcherConfigPtr;
 

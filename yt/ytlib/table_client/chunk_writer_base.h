@@ -28,12 +28,12 @@ public:
 protected:
     TChunkWriterBase(
         TChunkWriterConfigPtr config,
-        NChunkClient::IAsyncWriterPtr chunkWriter,
-        const TNullable<TKeyColumns>& keyColumns);
+        TTableWriterOptionsPtr options,
+        NChunkClient::IAsyncWriterPtr chunkWriter);
 
     const TChunkWriterConfigPtr Config;
+    const TTableWriterOptionsPtr Options;
     const NChunkClient::IAsyncWriterPtr ChunkWriter;
-    const TNullable<TKeyColumns> KeyColumns;
 
     NChunkClient::TEncodingWriterPtr EncodingWriter;
 
