@@ -511,7 +511,7 @@ class Finalizer(object):
 
         logger.warning("Chunks of output table {0} are too small. "
                        "This may cause suboptimal system performance. "
-                       "Please run the following command to fix the issue:\n"
+                       "If this table is not temporaty then consider running the following command:\n"
                        "mapreduce-yt -merge -mode {1} -src {0} -dst {0} "
                        "-ytspec '{{"
                           "\"combine_chunks\": \"true\", "
