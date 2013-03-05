@@ -94,8 +94,8 @@ class TestAcls(YTEnvSetup):
         self.assertItemsEqual(get('//sys/groups/g1/@members'), ['u1'])
         self.assertItemsEqual(get('//sys/groups/g2/@members'), ['u2'])
 
-        self.assertItemsEqual(get('//sys/users/u1/@member_of'), ['g1', 'users', 'everyone'])
-        self.assertItemsEqual(get('//sys/users/u2/@member_of'), ['g2', 'users', 'everyone'])
+        self.assertItemsEqual(get('//sys/users/u1/@member_of'), ['g1', 'users'])
+        self.assertItemsEqual(get('//sys/users/u2/@member_of'), ['g2', 'users'])
 
         self.assertItemsEqual(get('//sys/users/u1/@member_of_closure'), ['g1', 'users', 'everyone'])
         self.assertItemsEqual(get('//sys/users/u2/@member_of_closure'), ['g2', 'users', 'everyone'])
