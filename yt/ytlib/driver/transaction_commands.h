@@ -11,11 +11,14 @@ struct TStartTransactionRequest
     : public TTransactedRequest
 {
     TNullable<TDuration> Timeout;
+    NYTree::INodePtr Attributes;
 
     TStartTransactionRequest()
     {
         Register("timeout", Timeout)
             .Default(Null);
+        Register("attributes", Attributes)
+            .Default(nullptr);
     }
 };
 
