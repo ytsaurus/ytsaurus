@@ -63,16 +63,12 @@ Handle<Value> SetEioConcurrency(const Arguments& args)
     HandleScope scope;
 
     YASSERT(args.Length() == 1);
-
     EXPECT_THAT_IS(args[0], Uint32);
 
     unsigned int numberOfThreads = args[0]->Uint32Value();
-
     YCHECK(numberOfThreads > 0);
-
     eio_set_min_parallel(numberOfThreads);
     eio_set_max_parallel(numberOfThreads);
-
     return Undefined();
 }
 
@@ -128,12 +124,12 @@ Handle<Value> ShutdownSingletons(const Arguments& args)
 
     YASSERT(args.Length());
 
-    NLog::TLogManager::Get()->Shutdown();
     NBus::TTcpDispatcher::Get()->Shutdown();
     NRpc::TDispatcher::Get()->Shutdown();
     NChunkClient::TDispatcher::Get()->Shutdown();
     NProfiling::TProfilingManager::Get()->Shutdown();
     TDelayedInvoker::Shutdown();
+    NLog::TLogManager::Get()->Shutdown();
 
     return Undefined();
 }
