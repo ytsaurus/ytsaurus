@@ -367,7 +367,7 @@ i64 GetIOMemorySize(
     int outputStreamCount,
     const std::vector<TChunkStripeStatistics>& stripeStatistics)
 {
-    i64 result;
+    i64 result = 0;
     FOREACH (const auto& stat, stripeStatistics) {
         result += GetInputIOMemorySize(ioConfig, stat);
     }

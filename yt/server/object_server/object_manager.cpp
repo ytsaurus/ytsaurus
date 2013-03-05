@@ -896,7 +896,7 @@ TObjectBase* TObjectManager::CreateObject(
         }
     }
 
-    if (transaction) {
+    if (transaction && options->SupportsStaging) {
         YCHECK(transaction->StagedObjects().insert(object).second);
         RefObject(object);
     }

@@ -33,10 +33,10 @@ public:
 
     void Start();
 
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunkId>, LostChunkIds);
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunkId>, LostVitalChunkIds);
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunkId>, UnderreplicatedChunkIds);
-    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunkId>, OverreplicatedChunkIds);
+    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, LostChunks);
+    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, LostVitalChunks);
+    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, UnderreplicatedChunks);
+    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, OverreplicatedChunks);
 
     void OnNodeRegistered(TDataNode* node);
     void OnNodeUnregistered(TDataNode* node);

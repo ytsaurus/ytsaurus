@@ -137,12 +137,12 @@ public:
         // TODO: refactor system shutdown
         // XXX(sandello): Keep in sync with server/main.cpp, driver/main.cpp and utmain.cpp, python_bindings/driver.cpp,
         // nodejs/src/common.cpp
-        NLog::TLogManager::Get()->Shutdown();
         NBus::TTcpDispatcher::Get()->Shutdown();
         NRpc::TDispatcher::Get()->Shutdown();
         NChunkClient::TDispatcher::Get()->Shutdown();
         NProfiling::TProfilingManager::Get()->Shutdown();
         TDelayedInvoker::Shutdown();
+        NLog::TLogManager::Get()->Shutdown();
 
         return ExitCode;
     }
@@ -171,17 +171,17 @@ private:
     {
         UNUSED(signum);
 
-        static volatile sig_atomic_t inProgress = 0;
-        if (inProgress == 0) {
-            inProgress = 1;
+        static volatile sig_atomic_t inProgress = false;
+        if (!inProgress) {
+            inProgress = true;
             // TODO: refactor system shutdown
             // XXX(sandello): Keep in sync with server/main.cpp, driver/main.cpp and utmain.cpp.
-            NLog::TLogManager::Get()->Shutdown();
             NBus::TTcpDispatcher::Get()->Shutdown();
             NRpc::TDispatcher::Get()->Shutdown();
             NChunkClient::TDispatcher::Get()->Shutdown();
             NProfiling::TProfilingManager::Get()->Shutdown();
             TDelayedInvoker::Shutdown();
+            NLog::TLogManager::Get()->Shutdown();
             exit(0);
         }
     }

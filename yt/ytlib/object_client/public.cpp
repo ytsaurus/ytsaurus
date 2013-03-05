@@ -26,6 +26,7 @@ bool TypeIsVersioned(EObjectType type)
            type == EObjectType::ChunkMap ||
            type == EObjectType::LostChunkMap ||
            type == EObjectType::TransactionMap ||
+           type == EObjectType::TopmostTransactionMap ||
            type == EObjectType::NodeMap ||
            type == EObjectType::Node ||
            type == EObjectType::Orchid ||

@@ -137,3 +137,24 @@ class TestTxCommands(YTEnvSetup):
         # check that all tx are still alive
         self.assertItemsEqual(get_transactions(), [tx_inner, tx_outer])
 
+    def test_tx_not_staged(self):
+        tx_outer = start_transaction()
+        tx_inner = start_transaction(tx = tx_outer)
+        assert get('#' + tx_outer + '/@staged_object_ids') == []
+        assert get('#' + tx_inner + '/@staged_object_ids') == []
+
+    def test_transaction_maps(self):
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx = tx1)
+        tx3 = start_transaction(tx = tx1)
+
+        self.assertItemsEqual(get_transactions(), [tx1, tx2, tx3])
+        self.assertItemsEqual(get_topmost_transactions(), [tx1])
+
+        abort_transaction(tx2)
+        self.assertItemsEqual(get_transactions(), [tx1, tx3])
+        self.assertItemsEqual(get_topmost_transactions(), [tx1])
+
+        abort_transaction(tx1)
+        self.assertItemsEqual(get_transactions(), [])
+        self.assertItemsEqual(get_topmost_transactions(), [])

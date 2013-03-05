@@ -12,10 +12,10 @@ class TestAcls(YTEnvSetup):
     START_SCHEDULER = True
 
     def test_init(self):
-        self.assertItemsEqual(get('//sys/groups/everyone/@members'), ['root', 'guest'])
+        self.assertItemsEqual(get('//sys/groups/everyone/@members'), ['users', 'guest'])
         self.assertItemsEqual(get('//sys/groups/users/@members'), ['root'])
 
-        self.assertItemsEqual(get('//sys/users/root/@member_of'), ['users', 'everyone'])
+        self.assertItemsEqual(get('//sys/users/root/@member_of'), ['users'])
         self.assertItemsEqual(get('//sys/users/guest/@member_of'), ['everyone'])
 
         self.assertItemsEqual(get('//sys/users/root/@member_of_closure'), ['users', 'everyone'])
@@ -38,8 +38,8 @@ class TestAcls(YTEnvSetup):
     def test_create_user1(self):
         create_user('max')
         assert get('//sys/users/max/@name') == 'max'
-        assert 'max' in get('//sys/groups/everyone/@members')
-        self.assertItemsEqual(get('//sys/users/max/@member_of'), ['users', 'everyone'])
+        assert 'max' in get('//sys/groups/users/@members')
+        self.assertItemsEqual(get('//sys/users/max/@member_of'), ['users'])
 
     def test_create_user2(self):
         create_user('max')
@@ -83,8 +83,8 @@ class TestAcls(YTEnvSetup):
         self.assertItemsEqual(get('//sys/groups/g1/@members'), ['u1', 'g2'])
         self.assertItemsEqual(get('//sys/groups/g2/@members'), ['u2'])
 
-        self.assertItemsEqual(get('//sys/users/u1/@member_of'), ['g1', 'users', 'everyone'])
-        self.assertItemsEqual(get('//sys/users/u2/@member_of'), ['g2', 'users', 'everyone'])
+        self.assertItemsEqual(get('//sys/users/u1/@member_of'), ['g1', 'users'])
+        self.assertItemsEqual(get('//sys/users/u2/@member_of'), ['g2', 'users'])
 
         self.assertItemsEqual(get('//sys/users/u1/@member_of_closure'), ['g1', 'users', 'everyone'])
         self.assertItemsEqual(get('//sys/users/u2/@member_of_closure'), ['g1', 'g2', 'users', 'everyone'])
@@ -94,8 +94,8 @@ class TestAcls(YTEnvSetup):
         self.assertItemsEqual(get('//sys/groups/g1/@members'), ['u1'])
         self.assertItemsEqual(get('//sys/groups/g2/@members'), ['u2'])
 
-        self.assertItemsEqual(get('//sys/users/u1/@member_of'), ['g1', 'users', 'everyone'])
-        self.assertItemsEqual(get('//sys/users/u2/@member_of'), ['g2', 'users', 'everyone'])
+        self.assertItemsEqual(get('//sys/users/u1/@member_of'), ['g1', 'users'])
+        self.assertItemsEqual(get('//sys/users/u2/@member_of'), ['g2', 'users'])
 
         self.assertItemsEqual(get('//sys/users/u1/@member_of_closure'), ['g1', 'users', 'everyone'])
         self.assertItemsEqual(get('//sys/users/u2/@member_of_closure'), ['g2', 'users', 'everyone'])
@@ -120,8 +120,9 @@ class TestAcls(YTEnvSetup):
         create_user('u')
         create_group('g')
         add_member('u', 'g')
+        self.assertItemsEqual(get('//sys/users/u/@member_of'), ['g', 'users'])
         remove_group('g')
-        self.assertItemsEqual(get('//sys/users/u/@member_of'), ['users', 'everyone'])
+        self.assertItemsEqual(get('//sys/users/u/@member_of'), ['users'])
 
     def test_membership6(self):
         create_user('u')
@@ -203,11 +204,17 @@ class TestAcls(YTEnvSetup):
         set('//tmp/p', {})
         self._test_allowing_acl('//tmp/p/a', 'guest', '//tmp/p', 'guest')
 
-    def test_schema_acl(self):
+    def test_schema_acl1(self):
         create_user('u')
         create('table', '//tmp/t1', user='u')
         set('//sys/schemas/table/@acl/end', self._make_ace('deny', 'u', 'create'))
         with pytest.raises(YTError): create('table', '//tmp/t2', user='u')
+
+    def test_schema_acl2(self):
+        create_user('u')
+        start_transaction(user='u')
+        set('//sys/schemas/transaction/@acl/end', self._make_ace('deny', 'u', 'create'))
+        with pytest.raises(YTError): start_transaction(user='u')
 
     def test_user_destruction(self):
         old_acl = get('//tmp/@acl')
@@ -227,7 +234,7 @@ class TestAcls(YTEnvSetup):
         remove_group('g')
         assert get('//tmp/@acl') == old_acl
 
-    def test_account_acl1(self):
+    def test_account_acl(self):
         create_account('a')
         create_user('u')
 
@@ -242,13 +249,44 @@ class TestAcls(YTEnvSetup):
         set('//tmp/t/@account', 'a', user='u')
         assert get('//tmp/t/@account') == 'a'
 
-    def test_account_acl2(self):
-        create_account('a')
+    def _prepare_scheduler_test(self):
         create_user('u')
+        create_account('a')
 
-        create('table', '//tmp/t')
-        set('//tmp/t/@account', 'a')
+        create('table', '//tmp/t1')
+        write('//tmp/t1', {'a' : 'b'})
+        
+        create('table', '//tmp/t2')
 
-        with pytest.raises(YTError): write('//tmp/t', {'a' : 'b'}, user='u')
+        # just a sanity check
+        map(in_='//tmp/t1', out='//tmp/t2', command='cat', user='u')
+
+    def test_scheduler_in_acl(self):
+        self._prepare_scheduler_test()
+        set('//tmp/t1/@acl/end', self._make_ace('deny', 'u', 'read'))
+        with pytest.raises(YTError): map(in_='//tmp/t1', out='//tmp/t2', command='cat', user='u')
+
+    def test_scheduler_out_acl(self):
+        self._prepare_scheduler_test()
+        set('//tmp/t2/@acl/end', self._make_ace('deny', 'u', 'write'))
+        with pytest.raises(YTError): map(in_='//tmp/t1', out='//tmp/t2', command='cat', user='u')
+
+    def test_scheduler_account_quota(self):
+        self._prepare_scheduler_test()
+        set('//tmp/t2/@account', 'a')
         set('//sys/accounts/a/@acl/end', self._make_ace('allow', 'u', 'use'))
-        write('//tmp/t', {'a' : 'b'}, user='u')
+        # account "a" still has zero disk space limit
+        with pytest.raises(YTError): map(in_='//tmp/t1', out='//tmp/t2', command='cat', user='u')
+
+    def test_inherit1(self):
+        set('//tmp/p', {})
+        set('//tmp/p/@inherit_acl', 'false')
+        
+        create_user('u')
+        with pytest.raises(YTError): set('//tmp/p/a', 'b', user='u')
+        with pytest.raises(YTError): ls('//tmp/p', user='u')
+
+        set('//tmp/p/@acl/end', self._make_ace('allow', 'u', ['read', 'write']))
+        set('//tmp/p/a', 'b', user='u')
+        self.assertItemsEqual(ls('//tmp/p', user='u'), ['a'])
+        assert get('//tmp/p/a', user='u') == 'b'

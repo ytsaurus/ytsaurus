@@ -106,35 +106,6 @@ public:
     void SetResult(const NScheduler::NProto::TJobResult& jobResult);
 
 private:
-    void DoStart(TEnvironmentManagerPtr environmentManager);
-
-    void PrepareUserJob(TParallelAwaiterPtr awaiter);
-    TPromise<void> PrepareDownloadingTableFile(
-        const NYT::NScheduler::NProto::TTableFile& rsp);
-
-    void OnChunkDownloaded(
-        const NFileClient::NProto::TRspFetchFile& fetchRsp,
-        TValueOrError<NChunkHolder::TCachedChunkPtr> result);
-
-    typedef std::vector< TValueOrError<NChunkHolder::TCachedChunkPtr> > TDownloadedChunks;
-    void OnTableDownloaded(
-        const NYT::NScheduler::NProto::TTableFile& tableFileRsp,
-        TSharedPtr<TDownloadedChunks> downloadedChunks,
-        TPromise<void> promise);
-
-    void RunJobProxy();
-    void SetResult(const TError& error);
-
-    bool IsResultSet() const;
-    void FinalizeJob();
-
-    //! Called by ProxyController when proxy process finishes.
-    void OnJobExit(TError error);
-
-    void DoAbort(
-        const TError& error,
-        NScheduler::EJobState resultState);
-
     const TJobId JobId;
     const NScheduler::NProto::TJobSpec JobSpec;
     const NScheduler::NProto::TNodeResources ResourceLimits;
@@ -168,6 +139,38 @@ private:
     TNullable<NScheduler::NProto::TJobResult> JobResult;
 
     NJobProxy::TJobProxyConfigPtr ProxyConfig;
+
+    void DoStart(TEnvironmentManagerPtr environmentManager);
+
+    void PrepareUserJob(TParallelAwaiterPtr awaiter);
+    TPromise<void> PrepareDownloadingTableFile(
+        const NYT::NScheduler::NProto::TTableFile& rsp);
+
+    void OnChunkDownloaded(
+        const NFileClient::NProto::TRspFetchFile& fetchRsp,
+        TValueOrError<NChunkHolder::TCachedChunkPtr> result);
+
+    typedef std::vector< TValueOrError<NChunkHolder::TCachedChunkPtr> > TDownloadedChunks;
+    void OnTableDownloaded(
+        const NYT::NScheduler::NProto::TTableFile& tableFileRsp,
+        TSharedPtr<TDownloadedChunks> downloadedChunks,
+        TPromise<void> promise);
+
+    void RunJobProxy();
+    void SetResult(const TError& error);
+
+    bool IsResultSet() const;
+    void FinalizeJob();
+
+    //! Called by ProxyController when proxy process finishes.
+    void OnJobExit(TError exitError);
+
+    static bool IsFatalError(const TError& error);
+    static bool IsRetriableSystemError(const TError& error);
+
+    void DoAbort(
+        const TError& error,
+        NScheduler::EJobState resultState);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);

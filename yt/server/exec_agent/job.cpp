@@ -21,8 +21,9 @@
 #include <ytlib/table_client/multi_chunk_sequential_reader.h>
 #include <ytlib/table_client/config.h>
 
-
 #include <ytlib/chunk_client/client_block_cache.h>
+
+#include <ytlib/security_client/public.h>
 
 #include <server/chunk_holder/chunk.h>
 #include <server/chunk_holder/location.h>
@@ -382,7 +383,7 @@ bool TJob::IsResultSet() const
     return JobResult.HasValue();
 }
 
-void TJob::OnJobExit(TError error)
+void TJob::OnJobExit(TError exitError)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -391,8 +392,8 @@ void TJob::OnJobExit(TError error)
 
     YCHECK(JobPhase < EJobPhase::Cleanup);
 
-    if (!error.IsOK()) {
-        DoAbort(error, EJobState::Failed);
+    if (!exitError.IsOK()) {
+        DoAbort(exitError, EJobState::Failed);
         return;
     }
 
@@ -411,19 +412,39 @@ void TJob::OnJobExit(TError error)
 
     JobPhase = EJobPhase::Completed;
 
+    // Deserialize and inspect the error.
     auto resultError = FromProto(JobResult->error());
-    if (resultError.GetCode() == TError::OK) {
+    if (resultError.IsOK()) {
         JobState = EJobState::Completed;
-    } else if (
-        resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) ||
-        resultError.FindMatching(NTableClient::EErrorCode::MasterCommunicationFailed))
-    {
+    } else if (IsFatalError(resultError)) {
+        resultError.Attributes().Set("fatal", true);
+        JobState = EJobState::Failed;
+    } else if (IsRetriableSystemError(resultError)) {
         JobState = EJobState::Aborted;
     } else {
         JobState = EJobState::Failed;
     }
 
+    // Serialize the error back (makes sense if we changed it).
+    ToProto(JobResult->mutable_error(), resultError);
+
     FinalizeJob();
+}
+
+bool TJob::IsFatalError(const TError& error)
+{
+    return
+        error.FindMatching(NTableClient::EErrorCode::SortOrderViolation) ||
+        error.FindMatching(NSecurityClient::EErrorCode::AuthenticationError) ||
+        error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError) ||
+        error.FindMatching(NSecurityClient::EErrorCode::AccountIsOverLimit);
+}
+
+bool TJob::IsRetriableSystemError(const TError& error)
+{
+    return 
+        error.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) ||
+        error.FindMatching(NTableClient::EErrorCode::MasterCommunicationFailed);
 }
 
 const TJobId& TJob::GetId() const

@@ -97,7 +97,8 @@ public:
     {
         return TTypeCreationOptions(
             EObjectTransactionMode::Required,
-            EObjectAccountMode::Required);
+            EObjectAccountMode::Required,
+            true);
     }
 
     virtual TObjectBase* Create(
@@ -140,7 +141,8 @@ public:
     {
         return TTypeCreationOptions(
             EObjectTransactionMode::Required,
-            EObjectAccountMode::Forbidden);
+            EObjectAccountMode::Forbidden,
+            true);
     }
 
     virtual TObjectBase* Create(
@@ -619,10 +621,10 @@ public:
             jobsToStop);
     }
 
-    const yhash_set<TChunkId>& LostChunkIds() const;
-    const yhash_set<TChunkId>& LostVitalChunkIds() const;
-    const yhash_set<TChunkId>& OverreplicatedChunkIds() const;
-    const yhash_set<TChunkId>& UnderreplicatedChunkIds() const;
+    const yhash_set<TChunk*>& LostChunks() const;
+    const yhash_set<TChunk*>& LostVitalChunks() const;
+    const yhash_set<TChunk*>& OverreplicatedChunks() const;
+    const yhash_set<TChunk*>& UnderreplicatedChunks() const;
 
     TSmallVector<Stroka, TypicalReplicationFactor> GetChunkAddresses(const TChunk* chunk)
     {
@@ -1689,10 +1691,10 @@ DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, Node, TDataNode, TNodeId, NodeMap
 DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, JobList, TJobList, TChunkId, JobListMap)
 DEFINE_METAMAP_ACCESSORS(TChunkManager::TImpl, Job, TJob, TJobId, JobMap)
 
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, LostChunkIds, *ChunkReplicator);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, LostVitalChunkIds, *ChunkReplicator);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, OverreplicatedChunkIds, *ChunkReplicator);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunkId>, UnderreplicatedChunkIds, *ChunkReplicator);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, LostChunks, *ChunkReplicator);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, LostVitalChunks, *ChunkReplicator);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, OverreplicatedChunks, *ChunkReplicator);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, UnderreplicatedChunks, *ChunkReplicator);
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -1722,9 +1724,6 @@ TObjectBase* TChunkManager::TChunkTypeHandler::Create(
     UNUSED(attributes);
 
     account->ValidateDiskSpaceLimit();
-
-    auto securityManger = Bootstrap->GetSecurityManager();
-    securityManger->ValidatePermission(account, EPermission::Use);
 
     const auto* requestExt = &request->GetExtension(TReqCreateChunkExt::create_chunk);
     auto* responseExt = response->MutableExtension(TRspCreateChunkExt::create_chunk);
@@ -2033,10 +2032,10 @@ DELEGATE_METAMAP_ACCESSORS(TChunkManager, Job, TJob, TJobId, *Impl)
 DELEGATE_SIGNAL(TChunkManager, void(const TDataNode*), NodeRegistered, *Impl);
 DELEGATE_SIGNAL(TChunkManager, void(const TDataNode*), NodeUnregistered, *Impl);
 
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunkId>, LostChunkIds, *Impl);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunkId>, LostVitalChunkIds, *Impl);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunkId>, OverreplicatedChunkIds, *Impl);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunkId>, UnderreplicatedChunkIds, *Impl);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, LostChunks, *Impl);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, LostVitalChunks, *Impl);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, OverreplicatedChunks, *Impl);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, UnderreplicatedChunks, *Impl);
 
 ///////////////////////////////////////////////////////////////////////////////
 

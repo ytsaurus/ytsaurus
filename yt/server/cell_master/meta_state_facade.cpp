@@ -375,6 +375,12 @@ private:
 
             CreateNode(
                 rootService,
+                "//sys/topmost_transactions",
+                transactionId,
+                EObjectType::TopmostTransactionMap);
+
+            CreateNode(
+                rootService,
                 "//sys/accounts",
                 transactionId,
                 EObjectType::AccountMap);

@@ -52,79 +52,78 @@ class TVirtualChunkMap
     : public TVirtualMapBase
 {
 public:
-    TVirtualChunkMap(TBootstrap* bootstrap, EObjectType objectType)
+    TVirtualChunkMap(TBootstrap* bootstrap, EObjectType type)
         : Bootstrap(bootstrap)
-        , ObjectType(objectType)
+        , Type(type)
     { }
 
 private:
     TBootstrap* Bootstrap;
-    EObjectType ObjectType;
+    EObjectType Type;
 
-    const yhash_set<TChunkId>& GetFilteredChunkIds() const
+    const yhash_set<TChunk*>& GetFilteredChunks() const
     {
         auto chunkManager = Bootstrap->GetChunkManager();
-        switch (ObjectType) {
+        switch (Type) {
             case EObjectType::LostChunkMap:
-                return chunkManager->LostChunkIds();
+                return chunkManager->LostChunks();
             case EObjectType::LostVitalChunkMap:
-                return chunkManager->LostVitalChunkIds();
+                return chunkManager->LostVitalChunks();
             case EObjectType::OverreplicatedChunkMap:
-                return chunkManager->OverreplicatedChunkIds();
+                return chunkManager->OverreplicatedChunks();
             case EObjectType::UnderreplicatedChunkMap:
-                return chunkManager->UnderreplicatedChunkIds();
+                return chunkManager->UnderreplicatedChunks();
             default:
                 YUNREACHABLE();
         }
     }
 
-    bool CheckFilter(const TChunkId& id) const
+    bool CheckFilter(TChunk* chunk) const
     {
-        if (TypeFromId(id) != EObjectType::Chunk) {
-            return nullptr;
-        }
-
-        if (ObjectType == EObjectType::ChunkMap) {
+        if (Type == EObjectType::ChunkMap) {
             return true;
         }
 
-        const auto& ids = GetFilteredChunkIds();
-        return ids.find(id) != ids.end();
+        const auto& chunks = GetFilteredChunks();
+        return chunks.find(chunk) != chunks.end();
     }
 
     virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
     {
-        if (ObjectType == EObjectType::ChunkMap) {
+        if (Type == EObjectType::ChunkMap) {
             auto chunkManager = Bootstrap->GetChunkManager();
             auto ids = ToObjectIds(chunkManager->GetChunks(sizeLimit));
             // NB: No size limit is needed here.
             return ConvertToStrings(ids.begin(), ids.end());
         } else {
-            const auto& ids = GetFilteredChunkIds();
-            return ConvertToStrings(ids.begin(), ids.end(), sizeLimit);
+            const auto& chunks = GetFilteredChunks();
+            // NB: |chunks| contains all the matching chunks, enforce size limit.
+            auto ids = ToObjectIds(chunks, sizeLimit);
+            return ConvertToStrings(ids.begin(), ids.end());
         }
     }
 
     virtual size_t GetSize() const override
     {
-        if (ObjectType == EObjectType::ChunkMap) {
+        if (Type == EObjectType::ChunkMap) {
             auto chunkManager = Bootstrap->GetChunkManager();
             return chunkManager->GetChunkCount();
         } else {
-            return GetFilteredChunkIds().size();
+            return GetFilteredChunks().size();
         }
     }
 
     virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
     {
         auto id = TChunkId::FromString(key);
-        if (!CheckFilter(id)) {
-            return nullptr;
-        }
 
         auto chunkManager = Bootstrap->GetChunkManager();
         auto* chunk = chunkManager->FindChunk(id);
-        if (!IsObjectAlive(chunk)) {
+        if (IsObjectAlive(chunk)) {
+            return nullptr;
+        }
+
+        if (!CheckFilter(chunk)) {
             return nullptr;
         }
 
@@ -133,14 +132,12 @@ private:
     }
 };
 
-INodeTypeHandlerPtr CreateChunkMapTypeHandler(
-    TBootstrap* bootstrap,
-    EObjectType objectType)
+INodeTypeHandlerPtr CreateChunkMapTypeHandler(TBootstrap* bootstrap, EObjectType type)
 {
     YCHECK(bootstrap);
 
-    auto service = New<TVirtualChunkMap>(bootstrap, objectType);
-    return CreateVirtualTypeHandler(bootstrap, objectType, service, true);
+    auto service = New<TVirtualChunkMap>(bootstrap, type);
+    return CreateVirtualTypeHandler(bootstrap, type, service, true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

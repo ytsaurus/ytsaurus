@@ -84,7 +84,8 @@ public:
     {
         return TTypeCreationOptions(
             EObjectTransactionMode::Forbidden,
-            EObjectAccountMode::Forbidden);
+            EObjectAccountMode::Forbidden,
+            false);
     }
 
     virtual TObjectBase* Create(
@@ -138,7 +139,8 @@ public:
     {
         return TTypeCreationOptions(
             EObjectTransactionMode::Forbidden,
-            EObjectAccountMode::Forbidden);
+            EObjectAccountMode::Forbidden,
+            false);
     }
 
     virtual TObjectBase* Create(
@@ -179,7 +181,8 @@ public:
     {
         return TTypeCreationOptions(
             EObjectTransactionMode::Forbidden,
-            EObjectAccountMode::Forbidden);
+            EObjectAccountMode::Forbidden,
+            false);
     }
 
     virtual TObjectBase* Create(
@@ -847,11 +850,11 @@ private:
         // Make the fake reference.
         YCHECK(user->RefObject() == 1);
 
-        // Every user is a member of "everybody" body.
-        DoAddMember(EveryoneGroup, user);
-
         // Every user except for "guest" is a member of "users" group.
-        if (id != GuestUserId) {
+        // "guest is a member of "everyone" group.
+        if (id == GuestUserId) {
+            DoAddMember(EveryoneGroup, user);
+        } else {
             DoAddMember(UsersGroup, user);
         }
 
@@ -1033,15 +1036,16 @@ private:
 
 
         // Initialize built-in groups.
-        // everyone
-        EveryoneGroup = DoCreateGroup(EveryoneGroupId, EveryoneGroupName);
-
         // users
         UsersGroup = DoCreateGroup(UsersGroupId, UsersGroupName);
 
+        // everyone
+        EveryoneGroup = DoCreateGroup(EveryoneGroupId, EveryoneGroupName);
+        DoAddMember(EveryoneGroup, UsersGroup);
+
 
         // Initialize built-in users.
-        // sys
+        // root
         RootUser = DoCreateUser(RootUserId, RootUserName);
 
         // guest

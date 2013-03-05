@@ -1022,10 +1022,7 @@ protected:
     {
         std::vector<i64> dataSizeThresholds;
         for (int index = 0; index < static_cast<int>(Partitions.size()); ++index) {
-            dataSizeThresholds.push_back(
-                Partitions[index]->Maniac
-                ? std::numeric_limits<i64>::max()
-                : Spec->DataSizePerSortJob);
+            dataSizeThresholds.push_back(Spec->DataSizePerSortJob);
         }
         ShufflePool = CreateShuffleChunkPool(dataSizeThresholds);
 

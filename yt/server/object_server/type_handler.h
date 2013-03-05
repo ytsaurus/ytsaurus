@@ -34,18 +34,16 @@ DECLARE_ENUM(EObjectAccountMode,
 
 struct TTypeCreationOptions
 {
-    TTypeCreationOptions()
-    { }
+    TTypeCreationOptions();
 
     TTypeCreationOptions(
         EObjectTransactionMode transactionMode,
-        EObjectAccountMode accountMode)
-        : TransactionMode(transactionMode)
-        , AccountMode(accountMode)
-    { }
+        EObjectAccountMode accountMode,
+        bool supportsStaging);
 
     EObjectTransactionMode TransactionMode;
     EObjectAccountMode AccountMode;
+    bool SupportsStaging;
 
 };
 

@@ -699,11 +699,7 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
     RemoveJoblet(job);
 
     auto error = FromProto(job->Result().error());
-    if (error.FindMatching(NTableClient::EErrorCode::SortOrderViolation) ||
-        error.FindMatching(NSecurityClient::EErrorCode::AuthenticationError) ||
-        error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError) ||
-        error.FindMatching(NSecurityClient::EErrorCode::AccountIsOverLimit))
-    {
+    if (error.Attributes().Get<bool>("fatal", false)) {
         OnOperationFailed(error);
         return;
     }
