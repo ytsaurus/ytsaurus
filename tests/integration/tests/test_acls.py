@@ -288,5 +288,5 @@ class TestAcls(YTEnvSetup):
 
         set('//tmp/p/@acl/end', self._make_ace('allow', 'u', ['read', 'write']))
         set('//tmp/p/a', 'b', user='u')
-        self.assertItemsEqual(ls('//tmp/p', user='u') == ['a'])
+        self.assertItemsEqual(ls('//tmp/p', user='u'), ['a'])
         assert get('//tmp/p/a', user='u') == 'b'
