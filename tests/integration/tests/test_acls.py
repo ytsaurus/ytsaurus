@@ -120,8 +120,9 @@ class TestAcls(YTEnvSetup):
         create_user('u')
         create_group('g')
         add_member('u', 'g')
+        self.assertItemsEqual(get('//sys/users/u/@member_of'), ['g', 'users'])
         remove_group('g')
-        self.assertItemsEqual(get('//sys/users/u/@member_of'), ['users', 'everyone'])
+        self.assertItemsEqual(get('//sys/users/u/@member_of'), ['users'])
 
     def test_membership6(self):
         create_user('u')
@@ -233,7 +234,7 @@ class TestAcls(YTEnvSetup):
         remove_group('g')
         assert get('//tmp/@acl') == old_acl
 
-    def test_account_acl1(self):
+    def test_account_acl(self):
         create_account('a')
         create_user('u')
 
@@ -247,17 +248,6 @@ class TestAcls(YTEnvSetup):
         set('//sys/accounts/a/@acl/end', self._make_ace('allow', 'u', 'use'))
         set('//tmp/t/@account', 'a', user='u')
         assert get('//tmp/t/@account') == 'a'
-
-    def test_account_acl2(self):
-        create_account('a')
-        create_user('u')
-
-        create('table', '//tmp/t')
-        set('//tmp/t/@account', 'a')
-
-        with pytest.raises(YTError): write('//tmp/t', {'a' : 'b'}, user='u')
-        set('//sys/accounts/a/@acl/end', self._make_ace('allow', 'u', 'use'))
-        write('//tmp/t', {'a' : 'b'}, user='u')
 
     def _prepare_scheduler_test(self):
         create_user('u')
