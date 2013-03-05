@@ -121,7 +121,8 @@ public:
     {
         return TTypeCreationOptions(
             EObjectTransactionMode::Optional,
-            EObjectAccountMode::Forbidden);
+            EObjectAccountMode::Forbidden,
+            false);
     }
 
     virtual TAccessControlDescriptor* FindAcd(TObjectBase* object) override

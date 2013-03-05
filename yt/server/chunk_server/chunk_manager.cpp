@@ -97,7 +97,8 @@ public:
     {
         return TTypeCreationOptions(
             EObjectTransactionMode::Required,
-            EObjectAccountMode::Required);
+            EObjectAccountMode::Required,
+            true);
     }
 
     virtual TObjectBase* Create(
@@ -140,7 +141,8 @@ public:
     {
         return TTypeCreationOptions(
             EObjectTransactionMode::Required,
-            EObjectAccountMode::Forbidden);
+            EObjectAccountMode::Forbidden,
+            false);
     }
 
     virtual TObjectBase* Create(

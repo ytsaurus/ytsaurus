@@ -298,7 +298,8 @@ public:
     {
         return TTypeCreationOptions(
             EObjectTransactionMode::Optional,
-            EObjectAccountMode::Forbidden);
+            EObjectAccountMode::Forbidden,
+            false);
     }
 
     virtual TNonversionedObjectBase* Create(

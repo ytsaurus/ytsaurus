@@ -6,6 +6,21 @@ namespace NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTypeCreationOptions::TTypeCreationOptions()
+    : SupportsStaging(false)
+{ }
+
+TTypeCreationOptions::TTypeCreationOptions(
+    EObjectTransactionMode transactionMode,
+    EObjectAccountMode accountMode,
+    bool supportsStaging)
+    : TransactionMode(transactionMode)
+    , AccountMode(accountMode)
+    , SupportsStaging(supportsStaging)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 TObjectBase* IObjectTypeHandler::GetObject(const TObjectId& id)
 {
     auto* object = FindObject(id);
