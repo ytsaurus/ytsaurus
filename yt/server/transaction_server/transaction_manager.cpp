@@ -415,6 +415,8 @@ TTransaction* TTransactionManager::StartTransaction(TTransaction* parent, TNulla
         transaction->SetParent(parent);
         YCHECK(parent->NestedTransactions().insert(transaction).second);
         objectManager->RefObject(transaction);
+    } else {
+        YCHECK(TopmostTransactions_.insert(transaction).second);
     }
 
     auto actualTimeout = GetActualTimeout(timeout);
@@ -511,9 +513,11 @@ void TTransactionManager::FinishTransaction(TTransaction* transaction)
         YCHECK(parent->NestedTransactions().erase(transaction) == 1);
         objectManager->UnrefObject(transaction);
         transaction->SetParent(nullptr);
+    } else {
+        YCHECK(TopmostTransactions_.erase(transaction) == 1);
     }
 
-    // Kill the fake reference.
+    // Kill the fake reference thus destroying the object.
     objectManager->UnrefObject(transaction);
 }
 
@@ -566,6 +570,15 @@ void TTransactionManager::LoadValues(const NCellMaster::TLoadContext& context)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     TransactionMap.LoadValues(context);
+
+    // Reconstruct TopmostTransactions.
+    TopmostTransactions_.clear();
+    FOREACH (const auto& pair, TransactionMap) {
+        auto* transaction = pair.second;
+        if (!transaction->GetParent()) {
+            YCHECK(TopmostTransactions_.insert(transaction).second);
+        }
+    }
 }
 
 void TTransactionManager::Clear()
@@ -573,6 +586,7 @@ void TTransactionManager::Clear()
     VERIFY_THREAD_AFFINITY(StateThread);
 
     TransactionMap.Clear();
+    TopmostTransactions_.clear();
 }
 
 TDuration TTransactionManager::GetActualTimeout(TNullable<TDuration> timeout)

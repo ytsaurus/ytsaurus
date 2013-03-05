@@ -37,6 +37,8 @@ class TTransactionManager
     //! Raised when a transaction is aborted.
     DEFINE_SIGNAL(void(TTransaction*), TransactionAborted);
 
+    DEFINE_BYREF_RO_PROPERTY(yhash_set<TTransaction*>, TopmostTransactions);
+
 public:
     //! Creates an instance.
     TTransactionManager(

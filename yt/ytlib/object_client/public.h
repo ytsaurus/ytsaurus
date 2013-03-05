@@ -64,6 +64,7 @@ DECLARE_ENUM(EObjectType,
     ((UnderreplicatedChunkMap)    (405))
     ((ChunkListMap)               (406))
     ((TransactionMap)             (407))
+    ((TopmostTransactionMap)      (418))
     ((NodeMap)                    (408))
     ((Node)                       (410))
     ((Orchid)                     (412))

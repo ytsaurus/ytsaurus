@@ -8,7 +8,9 @@ namespace NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NCypressServer::INodeTypeHandlerPtr CreateTransactionMapTypeHandler(NCellMaster::TBootstrap* bootstrap);
+NCypressServer::INodeTypeHandlerPtr CreateTransactionMapTypeHandler(
+    NCellMaster::TBootstrap* bootstrap,
+    NObjectClient::EObjectType type);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -28,17 +28,29 @@ class TVirtualTransactionMap
     : public TVirtualMapBase
 {
 public:
-    explicit TVirtualTransactionMap(TBootstrap* bootstrap)
+    TVirtualTransactionMap(TBootstrap* bootstrap, EObjectType type)
         : Bootstrap(bootstrap)
+        , Type(type)
     { }
 
 private:
     TBootstrap* Bootstrap;
+    EObjectType Type;
 
     virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
     {
         auto transactionManager = Bootstrap->GetTransactionManager();
-        auto ids = ToObjectIds(transactionManager->GetTransactions(sizeLimit));
+        std::vector<TObjectId> ids;
+        switch (Type) {
+            case EObjectType::TransactionMap:
+                ids = ToObjectIds(transactionManager->GetTransactions(sizeLimit));
+                break;
+            case EObjectType::TopmostTransactionMap:
+                ids = ToObjectIds(transactionManager->TopmostTransactions(), sizeLimit);
+                break;
+            default:
+                YUNREACHABLE();
+        }
         // NB: No size limit is needed here.
         return ConvertToStrings(ids.begin(), ids.end());
     }
@@ -46,15 +58,27 @@ private:
     virtual size_t GetSize() const override
     {
         auto transactionManager = Bootstrap->GetTransactionManager();
-        return transactionManager->GetTransactionCount();
+        switch (Type) {
+            case EObjectType::TransactionMap:
+                return transactionManager->GetTransactionCount();
+            case EObjectType::TopmostTransactionMap:
+                return transactionManager->TopmostTransactions().size();
+            default:
+                YUNREACHABLE();
+        }
     }
 
     virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
     {
-        auto transactionManager = Bootstrap->GetTransactionManager();
         auto id = TTransactionId::FromString(key);
+
+        auto transactionManager = Bootstrap->GetTransactionManager();
         auto* transaction = transactionManager->FindTransaction(id);
         if (!IsObjectAlive(transaction)) {
+            return nullptr;
+        }
+
+        if (Type == EObjectType::TopmostTransactionMap && transaction->GetParent()) {
             return nullptr;
         }
 
@@ -63,14 +87,14 @@ private:
     }
 };
 
-INodeTypeHandlerPtr CreateTransactionMapTypeHandler(TBootstrap* bootstrap)
+INodeTypeHandlerPtr CreateTransactionMapTypeHandler(TBootstrap* bootstrap, EObjectType type)
 {
     YCHECK(bootstrap);
 
     return CreateVirtualTypeHandler(
         bootstrap,
-        EObjectType::TransactionMap,
-        New<TVirtualTransactionMap>(bootstrap));
+        type,
+        New<TVirtualTransactionMap>(bootstrap, type));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
