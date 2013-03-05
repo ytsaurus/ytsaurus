@@ -213,7 +213,7 @@ class TestAcls(YTEnvSetup):
     def test_schema_acl2(self):
         create_user('u')
         start_transaction(user='u')
-        set('//sys/schemas/tranaction/@acl/end', self._make_ace('deny', 'u', 'create'))
+        set('//sys/schemas/transaction/@acl/end', self._make_ace('deny', 'u', 'create'))
         with pytest.raises(YTError): start_transaction(user='u')
 
     def test_user_destruction(self):
