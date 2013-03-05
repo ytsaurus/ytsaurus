@@ -47,6 +47,8 @@ public:
      */
     TSharedRef ReadBlock(int blockIndex);
 
+    virtual TChunkId GetChunkId() const override;
+
 private:
     Stroka FileName;
     bool Opened;

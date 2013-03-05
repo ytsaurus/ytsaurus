@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "config.h"
-#include "remote_reader.h"
+#include "replication_reader.h"
 #include "async_reader.h"
 #include "block_cache.h"
 #include "private.h"
@@ -43,7 +43,7 @@ class TSessionBase;
 class TReadSession;
 class TGetMetaSession;
 
-class TRemoteReader
+class TReplicationReader
     : public IAsyncReader
 {
 public:
@@ -51,7 +51,7 @@ public:
     typedef TFuture<TGetSeedsResult> TAsyncGetSeedsResult;
     typedef TPromise<TGetSeedsResult> TAsyncGetSeedsPromise;
 
-    TRemoteReader(
+    TReplicationReader(
         TRemoteReaderConfigPtr config,
         IBlockCachePtr blockCache,
         IChannelPtr masterChannel,
@@ -97,7 +97,7 @@ public:
         const TNullable<int>& partitionTag,
         const std::vector<i32>* tags = nullptr) override;
 
-    virtual const TChunkId& GetChunkId() const override
+    virtual TChunkId GetChunkId() const override
     {
         return ChunkId;
     }
@@ -131,7 +131,7 @@ private:
             GetSeedsPromise = NewPromise<TGetSeedsResult>();
             // Don't ask master for fresh seeds too often.
             TDelayedInvoker::Submit(
-                BIND(&TRemoteReader::LocateChunk, MakeStrong(this))
+                BIND(&TReplicationReader::LocateChunk, MakeStrong(this))
                     .Via(TDispatcher::Get()->GetReaderInvoker()),
                 SeedsTimestamp + Config->RetryBackoffTime);
         }
@@ -168,7 +168,7 @@ private:
 
         auto req = TChunkYPathProxy::Locate(FromObjectId(ChunkId));
         ObjectProxy.Execute(req).Subscribe(
-            BIND(&TRemoteReader::OnLocateChunkResponse, MakeStrong(this))
+            BIND(&TReplicationReader::OnLocateChunkResponse, MakeStrong(this))
                 .Via(TDispatcher::Get()->GetReaderInvoker()));
     }
 
@@ -209,7 +209,7 @@ class TSessionBase
 {
 protected:
     //! Reference to the owning reader.
-    TWeakPtr<TRemoteReader> Reader;
+    TWeakPtr<TReplicationReader> Reader;
 
     //! Translates node ids to node descriptors.
     TNodeDirectoryPtr NodeDirectory;
@@ -238,7 +238,7 @@ protected:
     NLog::TTaggedLogger Logger;
 
 
-    explicit TSessionBase(TRemoteReader* reader)
+    explicit TSessionBase(TReplicationReader* reader)
         : Reader(reader)
         , NodeDirectory(reader->NodeDirectory)
         , RetryIndex(0)
@@ -392,9 +392,9 @@ private:
     //! Errors collected by the session.
     std::vector<TError> InnerErrors;
 
-    TRemoteReader::TAsyncGetSeedsResult GetSeedsResult;
+    TReplicationReader::TAsyncGetSeedsResult GetSeedsResult;
 
-    void OnGotSeeds(TRemoteReader::TGetSeedsResult result)
+    void OnGotSeeds(TReplicationReader::TGetSeedsResult result)
     {
         auto reader = Reader.Lock();
         if (!reader)
@@ -444,7 +444,7 @@ class TReadSession
     : public TSessionBase
 {
 public:
-    TReadSession(TRemoteReader* reader, const std::vector<int>& blockIndexes)
+    TReadSession(TReplicationReader* reader, const std::vector<int>& blockIndexes)
         : TSessionBase(reader)
         , Promise(NewPromise<IAsyncReader::TReadResult>())
         , BlockIndexes(blockIndexes)
@@ -746,7 +746,7 @@ private:
     }
 };
 
-TRemoteReader::TAsyncReadResult TRemoteReader::AsyncReadBlocks(const std::vector<int>& blockIndexes)
+TReplicationReader::TAsyncReadResult TReplicationReader::AsyncReadBlocks(const std::vector<int>& blockIndexes)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -763,7 +763,7 @@ class TGetMetaSession
 {
 public:
     TGetMetaSession(
-        TRemoteReader* reader,
+        TReplicationReader* reader,
         const TNullable<int> partitionTag,
         const std::vector<int>* extensionTags)
         : TSessionBase(reader)
@@ -907,7 +907,7 @@ private:
 
 };
 
-TRemoteReader::TAsyncGetMetaResult TRemoteReader::AsyncGetChunkMeta(
+TReplicationReader::TAsyncGetMetaResult TReplicationReader::AsyncGetChunkMeta(
     const TNullable<int>& partitionTag,
     const std::vector<i32>* extensionTags)
 {
@@ -921,7 +921,7 @@ TRemoteReader::TAsyncGetMetaResult TRemoteReader::AsyncGetChunkMeta(
 
 ///////////////////////////////////////////////////////////////////////////////
 
-IAsyncReaderPtr CreateRemoteReader(
+IAsyncReaderPtr CreateReplicationReader(
     TRemoteReaderConfigPtr config,
     IBlockCachePtr blockCache,
     NRpc::IChannelPtr masterChannel,
@@ -935,7 +935,7 @@ IAsyncReaderPtr CreateRemoteReader(
     YCHECK(masterChannel);
     YCHECK(nodeDirectory);
 
-    auto reader = New<TRemoteReader>(
+    auto reader = New<TReplicationReader>(
         config,
         blockCache,
         masterChannel,

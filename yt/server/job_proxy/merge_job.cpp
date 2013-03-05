@@ -13,7 +13,7 @@
 #include <ytlib/table_client/multi_chunk_parallel_reader.h>
 #include <ytlib/table_client/sync_writer.h>
 
-#include <ytlib/chunk_client/remote_reader.h>
+#include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 
 #include <server/chunk_server/public.h>

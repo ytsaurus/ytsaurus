@@ -56,6 +56,18 @@ message TMiscExt
 
 }
 
+message TBlocksRange
+{
+    required int32 start = 1;
+    required int32 count = 2;
+}
+
+message TErasurePlacementExt
+{
+    repeated TBlocksRange ranges = 1;
+}
+
+
 // TChunkMeta is stored in *.meta files on data nodes
 // and passed around (possibly with a different extension subset).
 message TChunkMeta

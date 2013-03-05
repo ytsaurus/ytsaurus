@@ -34,7 +34,7 @@ public:
         , ChunkId(chunkId)
     { }
 
-    virtual const TChunkId& GetChunkId() const override
+    virtual TChunkId GetChunkId() const override
     {
         return ChunkId;
     }

@@ -28,7 +28,7 @@
 
 #include <ytlib/chunk_client/config.h>
 #include <ytlib/chunk_client/client_block_cache.h>
-#include <ytlib/chunk_client/remote_reader.h>
+#include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/chunk_client/node_directory.h>
 
@@ -249,7 +249,7 @@ TFuture<void> TJobProxy::GetFailedChunks(std::vector<NChunkClient::TChunkId>* fa
             if (pair.second) {
                 LOG_INFO("Checking input chunk %s", ~ToString(chunkId));
 
-                auto remoteReader = NChunkClient::CreateRemoteReader(
+                auto remoteReader = NChunkClient::CreateReplicationReader(
                     Config->JobIO->TableReader,
                     BlockCache,
                     MasterChannel,

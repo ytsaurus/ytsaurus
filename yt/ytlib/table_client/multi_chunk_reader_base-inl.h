@@ -7,7 +7,7 @@
 #include "config.h"
 
 #include <ytlib/chunk_client/block_cache.h>
-#include <ytlib/chunk_client/remote_reader.h>
+#include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/async_reader.h>
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
@@ -73,7 +73,7 @@ void TMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
         chunkIndex,
         ~ToString(chunkId));
 
-    auto remoteReader = CreateRemoteReader(
+    auto remoteReader = CreateReplicationReader(
         Config,
         BlockCache,
         MasterChannel,

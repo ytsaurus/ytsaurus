@@ -2,6 +2,7 @@
 #include "config.h"
 #include "dispatcher.h"
 #include "async_writer.h"
+#include "chunk_meta_extensions.h"
 
 #include <ytlib/erasure_codecs/codec.h>
 #include <ytlib/actions/async_pipeline.h>
@@ -28,7 +29,11 @@ public:
     }
 
     virtual void Open() override
-    { }
+    {
+        FOREACH(auto writer, Writers_) {
+            writer->Open();
+        }
+    }
 
     virtual bool TryWriteBlock(const TSharedRef& block) override
     {
@@ -65,6 +70,8 @@ private:
 
     TAsyncError WriteWindow(int windowIndex);
 
+    TAsyncError CloseParityWriters(const NChunkClient::NProto::TChunkMeta& chunkMeta);
+
     // TODO: move to config
     static const i64 ErasureWindowSize = 1024 * 1024;
 
@@ -80,6 +87,9 @@ private:
 
     // Error of writing parity blocks
     std::vector<TError> WriteErrors_;
+
+    // Error of closing parity blocks
+    std::vector<TError> CloseErrors_;
 
     // Promises to write window of parity blocks
     std::vector<TAsyncErrorPromise> WritePromises_;
@@ -182,6 +192,21 @@ TAsyncError TErasureWriter::AsyncClose(const NChunkClient::NProto::TChunkMeta& c
     // Split data blocks to proper number of groups
     auto groups = SplitBlocks(Blocks_, Codec_->GetDataBlockCount());
 
+    // Add groups to meta
+    int start = 0;
+    NProto::TErasurePlacementExt placementExtension;
+    FOREACH (const auto& group, groups) {
+        NProto::TBlocksRange range;
+        range.set_start(start);
+        range.set_count(group.size());
+        start += group.size();
+
+        *placementExtension.add_ranges() = range;
+    }
+    
+    NChunkClient::NProto::TChunkMeta updatedMeta(chunkMeta);
+    SetProtoExtension(updatedMeta.mutable_extensions(), placementExtension);
+
     // Write data blocks
     for (int i = 0; i < groups.size(); ++i) {
         const auto& group = groups[i];
@@ -195,6 +220,11 @@ TAsyncError TErasureWriter::AsyncClose(const NChunkClient::NProto::TChunkMeta& c
                 })
             );
         }
+        pipeline = pipeline->Add(
+            BIND([=](){
+                return writer->AsyncClose(updatedMeta);
+            })
+        );
         pipeline->Run().Subscribe(BIND(&TErasureWriter::OnBlocksWritten, MakeStrong(this), 1));
     }
 
@@ -243,6 +273,7 @@ TAsyncError TErasureWriter::AsyncClose(const NChunkClient::NProto::TChunkMeta& c
 
         windowIndex += 1;
     }
+    pipeline->Add(BIND(&TErasureWriter::CloseParityWriters, MakeStrong(this), updatedMeta));
     pipeline->Run().Subscribe(BIND(&TErasureWriter::OnBlocksWritten, MakeStrong(this), Codec_->GetParityBlockCount()));
 
     return Result_;
@@ -252,6 +283,7 @@ void TErasureWriter::OnBlocksWritten(int numberOfBlocks, TValueOrError<void> err
 {
     //VERIFY_THREAD_AFFINITY(WriterThread);
 
+    // !!! We should add inner errors instead of returning first one
     if (Result_.IsSet()) {
         return;
     }
@@ -305,6 +337,41 @@ TAsyncError TErasureWriter::WriteWindow(int windowIndex)
                 // Some block writers failed
                 auto error = TError("Write parity blocks failed");
                 error.InnerErrors() = WriteErrors_;
+                promise.Set(error);
+            }
+        })
+    );
+
+    return promise;
+}
+
+TAsyncError TErasureWriter::CloseParityWriters(const NChunkClient::NProto::TChunkMeta& chunkMeta)
+{
+    // TODO(ignat): remove this copypaste
+
+    auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker());
+    for (int i = 0; i < Codec_->GetParityBlockCount(); ++i) {
+        auto& writer = Writers_[Codec_->GetDataBlockCount() + i];
+        awaiter->Await(
+            writer->AsyncClose(chunkMeta),
+            BIND([=](TError error) {
+                // Process write error
+                if (!error.IsOK()) {
+                    CloseErrors_.push_back(error);
+                }
+            }));
+    }
+
+    // Set promise of written window of blocks
+    auto promise = NewPromise<TError>();
+    awaiter->Complete(
+        BIND([&](){
+            if (CloseErrors_.empty()) {
+                promise.Set(TError());
+            } else {
+                // Some block writers failed
+                auto error = TError("Closing parity writers failed");
+                error.InnerErrors() = CloseErrors_;
                 promise.Set(error);
             }
         })

@@ -20,7 +20,7 @@
 
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/file_writer.h>
-#include <ytlib/chunk_client/remote_reader.h>
+#include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/sequential_reader.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/node_directory.h>
@@ -186,7 +186,7 @@ private:
 
         void Start()
         {
-            RemoteReader = CreateRemoteReader(
+            RemoteReader = CreateReplicationReader(
                 Owner->Config->CacheRemoteReader,
                 Owner->Bootstrap->GetBlockStore()->GetBlockCache(),
                 Owner->Bootstrap->GetMasterChannel(),

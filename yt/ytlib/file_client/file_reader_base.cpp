@@ -8,7 +8,7 @@
 #include <ytlib/misc/sync.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/remote_reader.h>
+#include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/block_cache.h>
 
 #include <limits>
@@ -48,7 +48,7 @@ void TFileReaderBase::Open(
 
     Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(chunkId)));
 
-    auto remoteReader = CreateRemoteReader(
+    auto remoteReader = CreateReplicationReader(
         config,
         blockCache,
         masterChannel,
