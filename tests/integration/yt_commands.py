@@ -233,6 +233,10 @@ def get_transactions():
     gc_collect()
     return ls('//sys/transactions')
 
+def get_topmost_transactions():
+    gc_collect()
+    return ls('//sys/topmost_transactions')
+
 def get_chunks():
     gc_collect()
     return ls('//sys/chunks')
