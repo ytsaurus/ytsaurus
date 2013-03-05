@@ -38,7 +38,7 @@ class TestAcls(YTEnvSetup):
     def test_create_user1(self):
         create_user('max')
         assert get('//sys/users/max/@name') == 'max'
-        assert 'max' in get('//sys/groups/everyone/@members')
+        assert 'max' in get('//sys/groups/users/@members')
         self.assertItemsEqual(get('//sys/users/max/@member_of'), ['users'])
 
     def test_create_user2(self):
@@ -83,8 +83,8 @@ class TestAcls(YTEnvSetup):
         self.assertItemsEqual(get('//sys/groups/g1/@members'), ['u1', 'g2'])
         self.assertItemsEqual(get('//sys/groups/g2/@members'), ['u2'])
 
-        self.assertItemsEqual(get('//sys/users/u1/@member_of'), ['g1', 'users', 'everyone'])
-        self.assertItemsEqual(get('//sys/users/u2/@member_of'), ['g2', 'users', 'everyone'])
+        self.assertItemsEqual(get('//sys/users/u1/@member_of'), ['g1', 'users'])
+        self.assertItemsEqual(get('//sys/users/u2/@member_of'), ['g2', 'users'])
 
         self.assertItemsEqual(get('//sys/users/u1/@member_of_closure'), ['g1', 'users', 'everyone'])
         self.assertItemsEqual(get('//sys/users/u2/@member_of_closure'), ['g1', 'g2', 'users', 'everyone'])
