@@ -203,11 +203,17 @@ class TestAcls(YTEnvSetup):
         set('//tmp/p', {})
         self._test_allowing_acl('//tmp/p/a', 'guest', '//tmp/p', 'guest')
 
-    def test_schema_acl(self):
+    def test_schema_acl1(self):
         create_user('u')
         create('table', '//tmp/t1', user='u')
         set('//sys/schemas/table/@acl/end', self._make_ace('deny', 'u', 'create'))
         with pytest.raises(YTError): create('table', '//tmp/t2', user='u')
+
+    def test_schema_acl2(self):
+        create_user('u')
+        start_transaction(user='u')
+        set('//sys/schemas/tranaction/@acl/end', self._make_ace('deny', 'u', 'create'))
+        with pytest.raises(YTError): start_transaction(user='u')
 
     def test_user_destruction(self):
         old_acl = get('//tmp/@acl')
