@@ -82,11 +82,11 @@ class Response(object):
         return self.http_response.content
 
 def get_token():
-    token = None
-    token_path = os.path.join(os.path.expanduser("~"), ".yt/token")
-    if os.path.isfile(token_path):
-        token = open(token_path).read().strip()
-    token = os.environ.get("YT_TOKEN", token)
+    token = os.environ.get("YT_TOKEN", None)
+    if token is None:
+        token_path = os.path.join(os.path.expanduser("~"), ".yt/token")
+        if os.path.isfile(token_path):
+            token = open(token_path).read().strip()
     if token is not None:
         require(all(c in string.hexdigits for c in token),
                 YtTokenError("You have an improper authentication token in ~/.yt_token.\n"
