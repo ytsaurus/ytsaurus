@@ -316,12 +316,12 @@ int Main(int argc, const char* argv[])
 
     // TODO: refactor system shutdown
     NMetaState::TAsyncChangeLog::Shutdown();
-    NLog::TLogManager::Get()->Shutdown();
     NBus::TTcpDispatcher::Get()->Shutdown();
     NRpc::TDispatcher::Get()->Shutdown();
     NChunkClient::TDispatcher::Get()->Shutdown();
     NProfiling::TProfilingManager::Get()->Shutdown();
     TDelayedInvoker::Shutdown();
+    NLog::TLogManager::Get()->Shutdown();
 
     return exitCode;
 }
