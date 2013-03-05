@@ -87,11 +87,15 @@ bool CompareObjectsForSerialization(const TObjectBase* lhs, const TObjectBase* r
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-std::vector<TObjectId> ToObjectIds(const std::vector<T*>& objects)
+std::vector<TObjectId> ToObjectIds(
+    const T& objects,
+    size_t sizeLimit = std::numeric_limits<size_t>::max())
 {
     std::vector<TObjectId> result;
-    result.reserve(objects.size());
+    result.reserve(std::min(objects.size(), sizeLimit));
     FOREACH (auto* object, objects) {
+        if (result.size() == sizeLimit)
+            break;
         result.push_back(object->GetId());
     }
     return result;

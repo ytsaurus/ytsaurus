@@ -132,10 +132,10 @@ public:
 
     TSmallVector<Stroka, TypicalReplicationFactor> GetChunkAddresses(const TChunk* chunk);
 
-    const yhash_set<TChunkId>& LostVitalChunkIds() const;
-    const yhash_set<TChunkId>& LostChunkIds() const;
-    const yhash_set<TChunkId>& OverreplicatedChunkIds() const;
-    const yhash_set<TChunkId>& UnderreplicatedChunkIds() const;
+    const yhash_set<TChunk*>& LostVitalChunks() const;
+    const yhash_set<TChunk*>& LostChunks() const;
+    const yhash_set<TChunk*>& OverreplicatedChunks() const;
+    const yhash_set<TChunk*>& UnderreplicatedChunks() const;
 
     TTotalNodeStatistics GetTotalNodeStatistics();
 

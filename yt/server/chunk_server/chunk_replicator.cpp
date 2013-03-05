@@ -129,11 +129,10 @@ void TChunkReplicator::OnNodeUnregistered(TDataNode* node)
 
 void TChunkReplicator::OnChunkRemoved(TChunk* chunk)
 {
-    auto chunkId = chunk->GetId();
-    LostChunkIds_.erase(chunkId);
-    LostVitalChunkIds_.erase(chunkId);
-    UnderreplicatedChunkIds_.erase(chunkId);
-    OverreplicatedChunkIds_.erase(chunkId);
+    LostChunks_.erase(chunk);
+    LostVitalChunks_.erase(chunk);
+    UnderreplicatedChunks_.erase(chunk);
+    OverreplicatedChunks_.erase(chunk);
 }
 
 void TChunkReplicator::ScheduleChunkRemoval(TDataNode* node, const TChunkId& chunkId)
@@ -523,7 +522,7 @@ void TChunkReplicator::Refresh(TChunk* chunk)
     if (!chunk->IsConfirmed())
         return;
 
-    auto chunkId = chunk->GetId();
+    const auto& chunkId = chunk->GetId();
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (auto replica, chunk->StoredReplicas()) {
         auto* node = replica.GetNode();
@@ -535,17 +534,17 @@ void TChunkReplicator::Refresh(TChunk* chunk)
         }
     }
 
-    LostChunkIds_.erase(chunkId);
-    LostVitalChunkIds_.erase(chunkId);
-    OverreplicatedChunkIds_.erase(chunkId);
-    UnderreplicatedChunkIds_.erase(chunkId);
+    LostChunks_.erase(chunk);
+    LostVitalChunks_.erase(chunk);
+    OverreplicatedChunks_.erase(chunk);
+    UnderreplicatedChunks_.erase(chunk);
 
     auto statistics = GetReplicaStatistics(*chunk);
     if (statistics.StoredCount == 0) {
-        LostChunkIds_.insert(chunkId);
+        LostChunks_.insert(chunk);
 
         if (chunk->GetVital()) {
-            LostVitalChunkIds_.insert(chunkId);
+            LostVitalChunks_.insert(chunk);
         }
 
         LOG_TRACE("Chunk %s is lost: %d replicas needed but only %s exist",
@@ -553,7 +552,7 @@ void TChunkReplicator::Refresh(TChunk* chunk)
             statistics.ReplicationFactor,
             ~ToString(statistics));
     } else if (statistics.StoredCount - statistics.MinusCount > statistics.ReplicationFactor) {
-        OverreplicatedChunkIds_.insert(chunkId);
+        OverreplicatedChunks_.insert(chunk);
 
         // NB: Never start removal jobs if new replicas are on the way, hence the check plusCount > 0.
         if (statistics.PlusCount > 0) {
@@ -581,7 +580,7 @@ void TChunkReplicator::Refresh(TChunk* chunk)
             statistics.ReplicationFactor,
             ~JoinToString(addresses));
     } else if (statistics.StoredCount + statistics.PlusCount < statistics.ReplicationFactor) {
-        UnderreplicatedChunkIds_.insert(chunkId);
+        UnderreplicatedChunks_.insert(chunk);
 
         // NB: Never start replication jobs when removal jobs are in progress, hence the check minusCount > 0.
         if (statistics.MinusCount > 0) {
@@ -704,7 +703,7 @@ bool TChunkReplicator::IsEnabled()
 
     auto chunkManager = Bootstrap->GetChunkManager();
     int chunkCount = chunkManager->GetChunkCount();
-    int lostChunkCount = chunkManager->LostChunkIds().size();
+    int lostChunkCount = chunkManager->LostChunks().size();
     if (config->MaxLostChunkFraction && chunkCount > 0) {
         double needFraction = config->MaxLostChunkFraction.Get();
         double gotFraction = (double) lostChunkCount / chunkCount;
