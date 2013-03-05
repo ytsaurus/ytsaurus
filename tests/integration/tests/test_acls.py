@@ -280,7 +280,7 @@ class TestAcls(YTEnvSetup):
 
     def test_inherit1(self):
         set('//tmp/p', {})
-        set('//tmp/p/@inherit_acl', false)
+        set('//tmp/p/@inherit_acl', 'false')
         
         create_user('u')
         with pytest.raises(YTError): set('//tmp/p/a', 'b', user='u')
