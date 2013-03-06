@@ -7,6 +7,8 @@
 
 #include <ytlib/table_client/config.h>
 
+#include <ytlib/rpc/retrying_channel.h>
+
 #include <server/job_proxy/config.h>
 
 namespace NYT {
@@ -122,6 +124,8 @@ struct TSchedulerConfig
     // Default environment variables set for every job.
     yhash_map<Stroka, Stroka> Environment;
 
+    NRpc::TRetryingChannelConfigPtr NodeRetries;
+
     TSchedulerConfig()
     {
         Register("max_heartbeat_queue_size", MaxHeartbeatQueueSize)
@@ -223,6 +227,9 @@ struct TSchedulerConfig
 
         Register("environment", Environment)
             .Default(yhash_map<Stroka, Stroka>());
+
+        Register("node_retries", NodeRetries)
+            .DefaultNew();
     }
 };
 

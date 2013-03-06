@@ -84,7 +84,9 @@ const std::vector<TKey>& TSamplesFetcher::GetSamples() const
 void TSamplesFetcher::CreateNewRequest(const Stroka& address)
 {
     auto channel = ChannelCache.GetChannel(address);
-    TDataNodeServiceProxy proxy(channel);
+    TDataNodeServiceProxy proxy(CreateRetryingChannel(
+        Config->NodeRetries,
+        channel));
     proxy.SetDefaultTimeout(Config->NodeRpcTimeout);
 
     CurrentRequest = proxy.GetTableSamples();
