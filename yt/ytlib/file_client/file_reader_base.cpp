@@ -2,6 +2,7 @@
 #include "file_reader_base.h"
 #include "private.h"
 #include "config.h"
+#include "chunk_meta_extensions.h"
 
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/sync.h>
@@ -75,24 +76,39 @@ void TFileReaderBase::Open(
             chunkMeta.version());
     }
 
-    auto blocksExt = GetProtoExtension<NChunkClient::NProto::TBlocksExt>(chunkMeta.extensions());
-    BlockCount = blocksExt.blocks_size();
-
     auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkMeta.extensions());
     Size = miscExt.uncompressed_data_size();
+
+    std::vector<TSequentialReader::TBlockInfo> blockSequence;
+
+    // COMPAT: new file chunk meta!
+    auto fileBlocksExt = FindProtoExtension<NFileClient::NProto::TBlocksExt>(chunkMeta.extensions());
+
+    if (fileBlocksExt) {
+        // New chunk.
+        BlockCount = fileBlocksExt->blocks_size();
+        blockSequence.reserve(BlockCount);
+        for (int index = 0; index < BlockCount; ++index) {
+            blockSequence.push_back(TSequentialReader::TBlockInfo(
+                index,
+                fileBlocksExt->blocks(index).size()));
+        }
+    } else {
+        // Old chunk.
+        auto blocksExt = GetProtoExtension<NChunkClient::NProto::TBlocksExt>(chunkMeta.extensions());
+        BlockCount = blocksExt.blocks_size();
+
+        blockSequence.reserve(BlockCount);
+        for (int index = 0; index < BlockCount; ++index) {
+            blockSequence.push_back(TSequentialReader::TBlockInfo(
+                index,
+                blocksExt.blocks(index).size()));
+        }
+    }
 
     LOG_INFO("Chunk info received (BlockCount: %d, Size: %" PRId64 ")",
         BlockCount,
         Size);
-
-    // Read all blocks.
-    std::vector<TSequentialReader::TBlockInfo> blockSequence;
-    blockSequence.reserve(BlockCount);
-    for (int index = 0; index < BlockCount; ++index) {
-        blockSequence.push_back(TSequentialReader::TBlockInfo(
-            index,
-            blocksExt.blocks(index).size()));
-    }
 
     SequentialReader = New<TSequentialReader>(
         Config,

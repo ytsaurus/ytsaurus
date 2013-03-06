@@ -9,6 +9,7 @@ set( SRCS
 )
 set( HDRS
   ${BASE}/config.h
+  ${BASE}/chunk_meta_extensions.h
   ${BASE}/file_chunk_output.h
   ${BASE}/file_reader.h
   ${BASE}/file_reader_base.h
@@ -24,3 +25,5 @@ list(APPEND YT_SOURCE_FILES
 )
 
 protoc( ${BASE}/file_ypath.proto YT_SOURCE_FILES )
+protoc( ${BASE}/file_chunk_meta.proto YT_SOURCE_FILES )
+
