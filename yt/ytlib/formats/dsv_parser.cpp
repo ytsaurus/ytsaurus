@@ -26,7 +26,8 @@ public:
 private:
     IYsonConsumer* Consumer;
     TDsvFormatConfigPtr Config;
-    bool WrapWithMap;
+    bool WrapWithMap; // This is actually used to represent "embedded" semantics.
+    char LastCharacter; // This is used to verify record separator presence.
 
     TDsvTable Table;
 
@@ -65,6 +66,7 @@ TDsvParser::TDsvParser(
     : Consumer(consumer)
     , Config(config)
     , WrapWithMap(wrapWithMap)
+    , LastCharacter(Config->RecordSeparator)
     , Table(config)
     , NewRecordStarted(!wrapWithMap)
     , ExpectingEscapedChar(false)
@@ -100,12 +102,18 @@ void TDsvParser::Finish()
     if (State == EState::InsidePrefix && !CurrentToken.empty()) {
         ValidatePrefix(CurrentToken);
     }
+    if (WrapWithMap && LastCharacter != Config->RecordSeparator) {
+        THROW_ERROR_EXCEPTION("Expected record to be terminated with record separator");
+    }
     CurrentToken.clear();
     FinishRecord();
 }
 
 const char* TDsvParser::Consume(const char* begin, const char* end)
 {
+    if (end - begin > 0) {
+        LastCharacter = *(end - 1);
+    }
     // Process escaping symbols.
     if (!ExpectingEscapedChar && *begin == Config->EscapingSymbol) {
         ExpectingEscapedChar = true;

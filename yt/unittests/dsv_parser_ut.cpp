@@ -9,7 +9,6 @@ using ::testing::InSequence;
 using ::testing::StrictMock;
 using ::testing::NiceMock;
 
-
 namespace NYT {
 namespace NFormats {
 
@@ -40,8 +39,7 @@ TEST(TDsvParserTest, Simple)
 
     Stroka input =
         "integer=42\tstring=some\tdouble=10\n"
-        "foo=bar\tone=1";
-
+        "foo=bar\tone=1\n";
     ParseDsv(input, &Mock);
 }
 
@@ -51,7 +49,6 @@ TEST(TDsvParserTest, EmptyInput)
     InSequence dummy;
 
     Stroka input = "";
-
     ParseDsv(input, &Mock);
 }
 
@@ -70,7 +67,7 @@ TEST(TDsvParserTest, BinaryData)
         EXPECT_CALL(Mock, OnStringScalar(b));
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input = "ntr=\\0\\0\\0\\0\txrp=\x80\\0\x16\xC8";
+    Stroka input = "ntr=\\0\\0\\0\\0\txrp=\x80\\0\x16\xC8\n";
     ParseDsv(input, &Mock);
 }
 
@@ -84,7 +81,6 @@ TEST(TDsvParserTest, EmptyRecord)
     EXPECT_CALL(Mock, OnEndMap());
 
     Stroka input = "\n";
-
     ParseDsv(input, &Mock);
 }
 
@@ -101,10 +97,7 @@ TEST(TDsvParserTest, EmptyRecords)
     EXPECT_CALL(Mock, OnBeginMap());
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input =
-        "\n"
-        "\n";
-
+    Stroka input = "\n\n";
     ParseDsv(input, &Mock);
 }
 
@@ -119,8 +112,7 @@ TEST(TDsvParserTest, EmptyKeysAndValues)
         EXPECT_CALL(Mock, OnStringScalar(""));
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input = "=";
-
+    Stroka input = "=\n";
     ParseDsv(input, &Mock);
 }
 
@@ -133,7 +125,6 @@ TEST(TDsvParserTest, UnescapedZeroInInput)
         ParseDsv(input, &Mock);
     );
 }
-
 
 TEST(TDsvParserTest, ZerosAreNotTerminals)
 {
@@ -149,11 +140,19 @@ TEST(TDsvParserTest, ZerosAreNotTerminals)
         EXPECT_CALL(Mock, OnStringScalar(value));
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input = "a\\0b=c\\0d";
-
+    Stroka input = "a\\0b=c\\0d\n";
     ParseDsv(input, &Mock);
 }
 
+TEST(TDsvParserTest, UnterminatedRecord)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+
+    Stroka input = "a=b";
+    EXPECT_ANY_THROW(
+        ParseDsv(input, &Mock);
+    );
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -170,7 +169,6 @@ public:
         Config->LinePrefix = "tskv";
     }
 };
-
 
 TEST_F(TTskvParserTest, Simple)
 {
@@ -199,8 +197,7 @@ TEST_F(TTskvParserTest, Simple)
     Stroka input =
         "tskv\n"
         "tskv\tid=1\tguid=100500\t\n"
-        "tskv\tid=2\tguid=20025";
-
+        "tskv\tid=2\tguid=20025\n";
     ParseDsv(input, &Mock, Config);
 }
 
@@ -214,7 +211,6 @@ TEST_F(TTskvParserTest, SimpleWithNewLine)
     EXPECT_CALL(Mock, OnEndMap());
 
     Stroka input = "tskv\tfoo=bar\n";
-
     ParseDsv(input, &Mock, Config);
 }
 
@@ -250,7 +246,6 @@ TEST_F(TTskvParserTest, Escaping)
         "\t"
         "an\\other_\\key=anoth\\er_v\\alue"
         "\n";
-
     ParseDsv(input, &Mock, Config);
 }
 
@@ -264,9 +259,7 @@ TEST_F(TTskvParserTest, AllowedUnescapedSymbols)
         EXPECT_CALL(Mock, OnStringScalar("value_with_="));
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input =
-        "prefix_with_=" "\t" "just_key" "=" "value_with_=";
-
+    Stroka input = "prefix_with_=" "\t" "just_key" "=" "value_with_=" "\n";
     ParseDsv(input, &Mock, Config);
 }
 
@@ -292,8 +285,6 @@ TEST_F(TTskvParserTest, UndefinedValues)
         "tskv" "\t" "tskv" "\t" "tskv" "\n"
         "tskv\t" "some_key" "\t\t\t" "a=b" "\t" "another_key" "\n" // Note: consequent \t
         "tskv\n";
-
-
     ParseDsv(input, &Mock, Config);
 }
 
@@ -306,25 +297,11 @@ TEST_F(TTskvParserTest, OnlyLinePrefix)
     EXPECT_CALL(Mock, OnBeginMap());
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input = "tskv";
-
-    ParseDsv(input, &Mock, Config);
-}
-
-TEST_F(TTskvParserTest, LinePrefixWithNewLine)
-{
-    InSequence dummy;
-
-    EXPECT_CALL(Mock, OnListItem());
-    EXPECT_CALL(Mock, OnBeginMap());
-    EXPECT_CALL(Mock, OnEndMap());
-
     Stroka input = "tskv\n";
-
     ParseDsv(input, &Mock, Config);
 }
 
-TEST_F(TTskvParserTest, LinePrefixWithTab)
+TEST_F(TTskvParserTest, OnlyLinePrefixAndTab)
 {
     InSequence dummy;
 
@@ -332,11 +309,9 @@ TEST_F(TTskvParserTest, LinePrefixWithTab)
     EXPECT_CALL(Mock, OnBeginMap());
     EXPECT_CALL(Mock, OnEndMap());
 
-    Stroka input = "tskv\t";
-
+    Stroka input = "tskv\t\n";
     ParseDsv(input, &Mock, Config);
 }
-
 
 TEST_F(TTskvParserTest, NotFinishedLinePrefix)
 {
@@ -352,7 +327,7 @@ TEST_F(TTskvParserTest, WrongLinePrefix)
     Stroka input =
         "tskv\ta=b\n"
         "tZkv\tc=d\te=f\n"
-        "tskv\ta=b";
+        "tskv\ta=b\n";
 
     EXPECT_ANY_THROW(
         ParseDsv(input, &ErrorMock, Config);
