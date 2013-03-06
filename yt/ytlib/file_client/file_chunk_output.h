@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "chunk_meta_extensions.h"
 
 #include <ytlib/codecs/codec.h>
 #include <ytlib/misc/thread_affinity.h>
@@ -65,6 +66,7 @@ private:
     ICodec* Codec;
     TBlob Buffer;
     NChunkClient::NProto::TChunkMeta Meta;
+    NFileClient::NProto::TBlocksExt BlocksExt;
 
     NLog::TTaggedLogger Logger;
 };

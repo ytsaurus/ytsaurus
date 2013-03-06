@@ -168,6 +168,7 @@ void TFileChunkOutput::DoFinish()
         miscExt.set_codec(Config->Codec);
 
         SetProtoExtension(Meta.mutable_extensions(), miscExt);
+        SetProtoExtension(Meta.mutable_extensions(), BlocksExt);
 
         try {
             Sync(~Writer, &TRemoteWriter::AsyncClose, Meta);
@@ -202,6 +203,8 @@ void TFileChunkOutput::FlushBlock()
         return;
 
     LOG_INFO("Writing block (BlockIndex: %d)", BlockCount);
+    auto* block = BlocksExt.add_blocks();
+    block->set_size(Buffer.size());
     try {
         struct TCompressedFileChunkBlockTag { };
         auto compressedBuffer = Codec->Compress(TSharedRef::FromBlob<TCompressedFileChunkBlockTag>(std::move(Buffer)));
