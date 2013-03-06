@@ -427,6 +427,9 @@ TRemoteWriter::TImpl::TGroup::SendBlocks(
         ~dstNod->Address);
 
     auto req = srcNode->Proxy.SendBlocks();
+
+    // Set double timeout for SendBlocks, because it implies another rpc call from one src to dst node.
+    req->SetTimeout(writer->Config->NodeRpcTimeout + writer->Config->NodeRpcTimeout);
     *req->mutable_chunk_id() = writer->ChunkId.ToProto();
     req->set_start_block_index(StartBlockIndex);
     req->set_block_count(Blocks.size());
