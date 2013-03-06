@@ -45,6 +45,8 @@ def process_tasks_from_list(list, action):
 
             if value in processed_values:
                 print >>sys.stderr, "We have already prosessed value %r, processing stopped." %value
+                print >>sys.stderr, "Put value %r back to the queue" % value
+                atomic_push(list, value)
                 break
 
             processed_values.add(value)
