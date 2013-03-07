@@ -3,7 +3,7 @@
 // Standard modules.
 var cluster = require("cluster");
 var fs = require("fs");
-var http = require("http");
+var net = require("net");
 
 // NPM modules.
 var optimist = require("optimist");
@@ -211,7 +211,12 @@ function runProxy(logger) {
 
     logger.error("Starting HTTP proxy master", { pid : process.pid });
 
-    master.kickstart();
+    var fake_server = net.createServer();
+    fake_server.listen(config.port, config.address, function() {
+        fake_server.close(function() {
+            master.kickstart();
+        });
+    });
 
     var cc1 = new Date(),
         cc2 = new Date(),
