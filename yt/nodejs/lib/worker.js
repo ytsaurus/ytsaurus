@@ -122,16 +122,15 @@ static_server_new = new node_static.Server("/usr/share/yt_new", { cache : 4 * 36
 dynamic_server = connect()
     .use(connect.favicon())
     .use(function(req, rsp, next) {
-        var domain = domain.create();
-        domain.on("error", function(err) {
-            var body;
-            body = new YtError(err, "Unhandled error in request domain");
-            body = body.toJson();
+        var rd = domain.create();
+        rd.on("error", function(err) {
+            // TODO(sandello): Migrate to utils.js here and extract _dispatchAsJson.
+            var body = (new YtError(err, "Unhandled error in request domain")).toJson();
             rsp.writeHead(500, { "Content-Encoding": "application/json" });
             rsp.end(body);
-            domain.dispose();
+            rd.dispose();
         });
-        domain.run(next);
+        rd.run(next);
     })
     .use(yt.YtAssignRequestId())
     .use(yt.YtLogRequest(logger))
