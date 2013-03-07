@@ -114,8 +114,17 @@ YtClusterHandle.prototype.postponeDeath = function(timeout) {
     }
 
     this.updated_at = new Date();
-    this.timeout_at = setTimeout(this.certifyDeath.bind(this), timeout);
+    this.timeout_at = setTimeout(this.ageToDeath.bind(this), timeout);
 };
+
+YtClusterHandle.prototype.ageToDeath = function() {
+    this.logger.info("Worker is not responding", {
+        wid : this.getWid(),
+        pid : this.getPid(),
+        handle : this.toString()
+    });
+    this.certifyDeath();
+}
 
 YtClusterHandle.prototype.certifyDeath = function() {
     try {
