@@ -1,6 +1,7 @@
 // Dependencies.
 var fs = require("fs");
 var cluster = require("cluster");
+var domain = require("domain");
 
 var connect = require("connect");
 var node_static = require("node-static");
@@ -124,6 +125,18 @@ static_server_new = new node_static.Server("/usr/share/yt_new", { cache : 4 * 36
 
 dynamic_server = connect()
     .use(connect.favicon())
+    .use(function(req, rsp, next) {
+        var domain = domain.create();
+        domain.on("error", function(err) {
+            var body;
+            body = new YtError(err, "Unhandled error in request domain");
+            body = body.toJson();
+            rsp.writeHead(500, { "Content-Encoding": "application/json" });
+            rsp.end(body);
+            domain.dispose();
+        });
+        domain.run(next);
+    })
     .use(yt.YtAssignRequestId())
     .use(yt.YtLogRequest(logger))
     .use("/auth", yt.YtAuthenticationApplication(logger, config))
