@@ -26,10 +26,6 @@ var logger = new winston.Logger({
         new winston_nssocket.Nssocket({
             host : config.log_address,
             port : config.log_port
-        }),
-        new winston.transports.Console({
-            level : "info",
-            timestamp : true
         })
     ]
 });
