@@ -13,9 +13,6 @@ if (process.env.NODE_DEBUG && /YTTEST/.test(process.env.NODE_DEBUG)) {
     __DBG = function(){};
 }
 
-var __HTTP_PORT = 40000;
-var __HTTP_HOST = "127.0.0.1";
-
 // A bunch of helpful assertions to use while testing HTTP.
 
 chai.Assertion.addProperty('http2xx', function() {
@@ -49,11 +46,11 @@ function spawnServer(neighbours) {
         logger[level] = sink;
     });
 
-    // Randomize port to avoid EADDRINUSE failures.
-    __HTTP_PORT = 40000 + parseInt(Math.random() * 10000);
+    // Increment port to avoid EADDRINUSE failures.
+    HTTP_PORT++;
     return connect()
         .use("/hosts", YtHostDiscovery(neighbours))
-        .listen(__HTTP_PORT, __HTTP_HOST);
+        .listen(HTTP_PORT, HTTP_HOST);
 }
 
 // This is a helper method to produce HTTP requests.
@@ -62,8 +59,8 @@ function ask(method, path, additional_options, done, callback) {
     var options = connect.utils.merge({
         method : method,
         path : path,
-        port : __HTTP_PORT,
-        host : __HTTP_HOST
+        port : HTTP_PORT,
+        host : HTTP_HOST
     }, additional_options);
 
     var request = http.request(options, function(rsp) {
