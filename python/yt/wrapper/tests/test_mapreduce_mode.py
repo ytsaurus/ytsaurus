@@ -376,7 +376,7 @@ class TestMapreduceMode(YtTestBase, YTEnv):
         @yt.raw
         def reformat(rec):
             values = rec.strip().split("\t", 2)
-            yield "\t".join("=".join([k, v]) for k, v in zip(["k", "s", "v"], values))
+            yield "\t".join("=".join([k, v]) for k, v in zip(["k", "s", "v"], values)) + "\n"
         table = self.create_temp_table()
         other_table = TEST_DIR + "/temp_other"
         yt.run_map(reformat, table, other_table, output_format=yt.DsvFormat())
