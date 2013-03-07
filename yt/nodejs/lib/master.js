@@ -172,6 +172,11 @@ function YtClusterMaster(logger, number_of_workers, cluster_options) {
 
     var self = this;
 
+    cluster.on("fork", function(worker) {
+        self.workers_handles[worker.id].getPid();
+        self.workers_handles[worker.id].getWid();
+    });
+
     cluster.on("exit", function(worker, code, signal) {
         __DIE(
             !self.workers_handles.hasOwnProperty(worker.id),
