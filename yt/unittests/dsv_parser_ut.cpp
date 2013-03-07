@@ -146,7 +146,7 @@ TEST(TDsvParserTest, ZerosAreNotTerminals)
 
 TEST(TDsvParserTest, UnterminatedRecord)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    NiceMock<NYTree::TMockYsonConsumer> Mock;
 
     Stroka input = "a=b";
     EXPECT_ANY_THROW(
