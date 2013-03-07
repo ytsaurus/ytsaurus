@@ -144,6 +144,19 @@ dynamic_server = connect()
         });
     })
     .use("/hosts", yt.YtHostDiscovery(config.neighbours))
+    .use("/_check_availability_time", function(req, rsp, next) {
+        "use strict";
+        fs.readFile("/var/lock/yt_check_availability_time", function(err, data) {
+            if (err) {
+                var body = "0";
+                rsp.writeHead(200, { "Content-Length" : body.length, "Content-Type" : "text/plain" });
+                rsp.end(body);
+            } else {
+                rsp.writeHead(200, { "Content-Length" : data.length, "Content-Type" : "text/plain" });
+                rsp.end(data);
+            }
+        });
+    })
     // Begin of asynchronous middleware.
     .use(function(req, rsp, next) {
         req.pauser = yt.Pause(req);
@@ -176,19 +189,6 @@ dynamic_server = connect()
         }
         req.on("end", function() {
             static_server_new.serve(req, rsp);
-        });
-    })
-    .use("/_check_availability_time", function(req, rsp, next) {
-        "use strict";
-        fs.readFile("/var/lock/yt_check_availability_time", function(err, data) {
-            if (err) {
-                var body = "0";
-                rsp.writeHead(200, { "Content-Length" : body.length, "Content-Type" : "text/plain" });
-                rsp.end(body);
-            } else {
-                rsp.writeHead(200, { "Content-Length" : data.length, "Content-Type" : "text/plain" });
-                rsp.end(data);
-            }
         });
     })
     .use("/__version__", function(req, rsp) {
