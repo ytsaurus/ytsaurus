@@ -16,9 +16,6 @@ if (process.env.NODE_DEBUG && /YTTEST/.test(process.env.NODE_DEBUG)) {
     __DBG = function(){};
 }
 
-var __HTTP_PORT = 40000;
-var __HTTP_HOST = "127.0.0.1";
-
 // A bunch of helpful assertions to use while testing HTTP.
 
 chai.Assertion.addProperty('http2xx', function() {
@@ -52,17 +49,17 @@ function spawnServer(driver, watcher) {
         logger[level] = sink;
     });
 
-    // Randomize port to avoid EADDRINUSE failures.
-    __HTTP_PORT = 40000 + parseInt(Math.random() * 10000);
+    // Increment port to avoid EADDRINUSE failures.
+    HTTP_PORT++;
     return connect()
         .use("/api", function(req, rsp) {
             var pause = utils.Pause(req);
             req.authenticated_user = "root";
             return (new YtCommand(
-                logger, driver, watcher, __HTTP_HOST + ":" + __HTTP_PORT, false, pause, req, rsp
+                logger, driver, watcher, HTTP_HOST + ":" + HTTP_PORT, false, pause, req, rsp
             )).dispatch();
         })
-        .listen(__HTTP_PORT, __HTTP_HOST);
+        .listen(HTTP_PORT, HTTP_HOST);
 }
 
 // This stub provides a real driver instance which simply pipes all data through.
@@ -90,8 +87,8 @@ function ask(method, path, additional_options, done, callback) {
     var options = connect.utils.merge({
         method : method,
         path : path,
-        port : __HTTP_PORT,
-        host : __HTTP_HOST
+        port : HTTP_PORT,
+        host : HTTP_HOST
     }, additional_options);
 
     var request = http.request(options, function(rsp) {
