@@ -92,13 +92,17 @@ def add_cat_parser(subparsers):
 
 
 def create(args):
-    yt.create(args.type, args.path, recursive=args.recursive, attributes=args.attributes)
+    yt.create(args.type, args.path,
+              ignore_existing=args.ignore_existing,
+              recursive=args.recursive,
+              attributes=args.attributes)
 
 def add_create_parser(subparsers):
     parser = subparsers.add_parser("create")
     parser.add_argument("type")
-    parser.add_argument("path")
+    parser.add_argument("path", default=None)
     parser.add_argument("-r", "--recursive", action="store_true", default=False)
+    parser.add_argument("-i", "--ignore-existing", action="store_true", default=False)
     parser.add_argument("--attributes", action=ParseJson)
     parser.set_defaults(func=create)
 
@@ -163,6 +167,18 @@ def add_move_parser(subparsers):
     parser.add_argument("dst")
     parser.set_defaults(func=move)
 
+def link(args):
+    yt.link(args.target_path, args.link_path,
+            ignore_existing=args.ignore_existing,
+            recursive=args.recursive)
+
+def add_link_parser(subparsers):
+    parser = subparsers.add_parser("link")
+    parser.add_argument("target_path")
+    parser.add_argument("link_path")
+    parser.add_argument("-r", "--recursive", action="store_true", default=False)
+    parser.add_argument("-i", "--ignore-existing", action="store_true", default=False)
+    parser.set_defaults(func=link)
 
 def upload(args):
     if args.type == "file":
@@ -283,10 +299,11 @@ def add_abort_op_parser(subparsers):
     parser.set_defaults(func=abort_op)
 
 def start_tx(args):
-    print yt.start_transaction()
+    print yt.start_transaction(attributes=args.attributes)
 
 def add_start_tx_parser(subparsers):
     parser = subparsers.add_parser("start-tx")
+    parser.add_argument("--attributes", action=ParseJson)
     parser.set_defaults(func=start_tx)
 
 def commit_tx(args):
@@ -325,6 +342,7 @@ def main():
     add_set_parser(subparsers)
     add_copy_parser(subparsers)
     add_move_parser(subparsers)
+    add_link_parser(subparsers)
     add_remove_parser(subparsers)
     add_erase_parser(subparsers)
     add_merge_parser(subparsers)
