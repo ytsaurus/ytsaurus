@@ -118,7 +118,8 @@ class Scheduler(Server):
         },
         'rpc_port' : 9001,
         'monitoring_port' : 10001, 
-        'logging' : Logging
+        'logging' : Logging,
+        "address_resolver": { "enable_ipv6": "false" }
     })
 
 CleanCache = FileDescr('clean_cache', ('aggregate', 'exec'))
