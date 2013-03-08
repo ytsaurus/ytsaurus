@@ -90,17 +90,17 @@ private:
 
     virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
     {
+        std::vector<TObjectId> ids;
         if (Type == EObjectType::ChunkMap) {
             auto chunkManager = Bootstrap->GetChunkManager();
-            auto ids = ToObjectIds(chunkManager->GetChunks(sizeLimit));
-            // NB: No size limit is needed here.
-            return ConvertToStrings(ids.begin(), ids.end());
+            ids = ToObjectIds(chunkManager->GetChunks(sizeLimit));
         } else {
             const auto& chunks = GetFilteredChunks();
             // NB: |chunks| contains all the matching chunks, enforce size limit.
-            auto ids = ToObjectIds(chunks, sizeLimit);
-            return ConvertToStrings(ids.begin(), ids.end());
+            ids = ToObjectIds(chunks, sizeLimit);
         }
+        // NB: No size limit is needed here.
+        return ConvertToStrings(ids.begin(), ids.end());
     }
 
     virtual size_t GetSize() const override
@@ -119,7 +119,7 @@ private:
 
         auto chunkManager = Bootstrap->GetChunkManager();
         auto* chunk = chunkManager->FindChunk(id);
-        if (IsObjectAlive(chunk)) {
+        if (!IsObjectAlive(chunk)) {
             return nullptr;
         }
 
