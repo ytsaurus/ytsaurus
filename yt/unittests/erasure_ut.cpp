@@ -17,6 +17,7 @@ using NYT::TRef;
 using NYT::TSharedRef;
 using NYT::NErasure::ECodec;
 using NYT::NErasure::GetCodec;
+using NYT::NErasure::ICodec;
 using namespace NYT::NChunkClient;
 
 Stroka ToString(TSharedRef ref) {
@@ -29,7 +30,7 @@ class TErasureCodingTest
     : public ::testing::Test
 { };
 
-TEST_F(TErasureCodingTest, SmallTest)
+TEST_F(TErasureCodingTest, RandomText)
 {
     TRand rand;
 
@@ -57,13 +58,13 @@ TEST_F(TErasureCodingTest, SmallTest)
             std::vector<char> blob(begin, begin + 64);
             dataBlocks.push_back(TSharedRef::FromBlob(std::move(blob)));
         }
-        
+
 
         auto parityBlocks = codec->Encode(dataBlocks);
-        
+
         std::vector<TSharedRef> allBlocks(dataBlocks);
         std::copy(parityBlocks.begin(), parityBlocks.end(), std::back_inserter(allBlocks));
-        
+
         for (int mask = 0; mask < (1 << blocksCount); ++mask) {
             std::vector<int> erasedIndices;
             for (int i = 0; i < blocksCount; ++i) {
@@ -97,30 +98,76 @@ TEST_F(TErasureCodingTest, SmallTest)
     }
 }
 
-class TErasureWriterTest
+class TErasureMixture
     : public ::testing::Test
 {
+public:
+    static std::vector<TSharedRef> ToSharedRefs(const std::vector<Stroka>& strings)
+    {
+        std::vector<TSharedRef> refs;
+        FOREACH (const auto& str, strings) {
+            refs.push_back(TSharedRef::FromString(str));
+        }
+        return refs;
+    }
+
+    static void WriteErasureChunk(ICodec* codec, std::vector<TSharedRef> data)
+    {
+        auto config = NYT::New<TErasureWriterConfig>();
+        config->ErasureWindowSize = 64;
+
+        std::vector<IAsyncWriterPtr> writers;
+        for (int i = 0; i < codec->GetTotalBlockCount(); ++i) {
+            Stroka filename = "block" + ToString(i + 1);
+            writers.push_back(NYT::New<TFileWriter>(filename));
+        }
+
+        FOREACH(auto writer, writers) {
+            writer->Open();
+        }
+
+        NProto::TChunkMeta meta;
+        meta.set_type(1);
+        meta.set_version(1);
+
+        auto erasureWriter = GetErasureWriter(config, codec, writers);
+        FOREACH (const auto& ref, data) {
+            erasureWriter->TryWriteBlock(ref);
+        }
+        erasureWriter->AsyncClose(meta).Get();
+
+        FOREACH(auto writer, writers) {
+            EXPECT_TRUE(writer->AsyncClose(meta).Get().IsOK());
+        }
+    }
+
+    static IAsyncReaderPtr GetErasureReader(ICodec* codec)
+    {
+        std::vector<IAsyncReaderPtr> readers;
+        for (int i = 0; i < codec->GetDataBlockCount(); ++i) {
+            Stroka filename = "block" + ToString(i + 1);
+            auto reader = NYT::New<TFileReader>(filename);
+            reader->Open();
+            readers.push_back(reader);
+        }
+        return CreateErasureReader(readers);
+    }
+
+    static void Cleanup(ICodec* codec)
+    {
+        for (int i = 0; i < codec->GetTotalBlockCount(); ++i) {
+            Stroka filename = "block" + ToString(i + 1);
+            NFs::Remove(filename.c_str());
+            NFs::Remove((filename + ".meta").c_str());
+        }
+    }
 };
 
 
-TEST_F(TErasureWriterTest, General)
+
+TEST_F(TErasureMixture, WriterTest)
 {
     auto codec = GetCodec(ECodec::Lrc_12_2_2);
-
-    std::vector<IAsyncWriterPtr> writers;
-    for (int i = 0; i < codec->GetTotalBlockCount(); ++i) {
-        Stroka filename = "block" + ToString(i + 1);
-        writers.push_back(NYT::New<TFileWriter>(filename));
-    }
-
-    FOREACH(auto writer, writers) {
-        writer->Open();
-    }
-
-    NProto::TChunkMeta meta;
-    // What does it mean?
-    meta.set_type(1);
-    meta.set_version(1);
 
     // Prepare data
     Stroka data[] = {
@@ -129,22 +176,9 @@ TEST_F(TErasureWriterTest, General)
         "",
         "Hello world"};
     std::vector<Stroka> dataStrings(data, data + sizeof(data) / sizeof(Stroka));
-    
-    std::vector<TSharedRef> dataRefs;
-    FOREACH (const auto& str, dataStrings) {
-        dataRefs.push_back(TSharedRef::FromString(str));
-    }
+    auto dataRefs = ToSharedRefs(dataStrings);
 
-    // Write data
-    auto erasureWriter = GetErasureWriter(codec, writers);
-    FOREACH (const auto& ref, dataRefs) {
-        erasureWriter->TryWriteBlock(ref);
-    }
-    erasureWriter->AsyncClose(meta).Get();
-
-    FOREACH(auto writer, writers) {
-        EXPECT_TRUE(writer->AsyncClose(meta).Get().IsOK());
-    }
+    WriteErasureChunk(codec, dataRefs);
 
     // Manually check that data in files is correct
     for (int i = 0; i < codec->GetTotalBlockCount(); ++i) {
@@ -163,26 +197,38 @@ TEST_F(TErasureWriterTest, General)
         }
     }
 
+    Cleanup(codec);
+}
 
-    // Check reader
-    std::vector<IAsyncReaderPtr> readers;
-    for (int i = 0; i < codec->GetDataBlockCount(); ++i) {
-        Stroka filename = "block" + ToString(i + 1);
-        auto reader = NYT::New<TFileReader>(filename);
-        reader->Open();
-        readers.push_back(reader);
-    }
-    auto erasureReader = CreateErasureReader(readers);
-    
-    int index = 0;
-    FOREACH (const auto& ref, dataRefs) {
-        auto result = erasureReader->AsyncReadBlocks(std::vector<int>(1, index++)).Get();
-        EXPECT_TRUE(result.IsOK());
-        auto resultRef = result.GetOrThrow().front();
+TEST_F(TErasureMixture, ReaderTest)
+{
+    auto codec = GetCodec(ECodec::Lrc_12_2_2);
 
-        EXPECT_EQ(ToString(ref), ToString(resultRef));
+    // Prepare data
+    Stroka data[] = {
+        "a",
+        "b",
+        "",
+        "Hello world"};
+    std::vector<Stroka> dataStrings(data, data + sizeof(data) / sizeof(Stroka));
+    auto dataRefs = ToSharedRefs(dataStrings);
+
+    WriteErasureChunk(codec, dataRefs);
+
+    auto erasureReader = GetErasureReader(codec);
+
+    {
+        // Check blocks separately
+        int index = 0;
+        FOREACH (const auto& ref, dataRefs) {
+            auto result = erasureReader->AsyncReadBlocks(std::vector<int>(1, index++)).Get();
+            EXPECT_TRUE(result.IsOK());
+            auto resultRef = result.GetOrThrow().front();
+
+            EXPECT_EQ(ToString(ref), ToString(resultRef));
+        }
     }
-    
+
     {
         // Check some non-trivial read request
         std::vector<int> indices;
@@ -194,11 +240,141 @@ TEST_F(TErasureWriterTest, General)
         EXPECT_EQ(ToString(dataRefs[1]), ToString(resultRef[0]));
         EXPECT_EQ(ToString(dataRefs[3]), ToString(resultRef[1]));
     }
-    
-    // CLeanup
-    for (int i = 0; i < codec->GetTotalBlockCount(); ++i) {
-        Stroka filename = "block" + ToString(i + 1);
+
+    Cleanup(codec);
+}
+
+TEST_F(TErasureMixture, RepairTest)
+{
+    auto codec = GetCodec(ECodec::Lrc_12_2_2);
+
+    // Prepare data
+    Stroka data[] = {
+        "a",
+        "b",
+        "",
+        "Hello world"};
+    std::vector<Stroka> dataStrings(data, data + sizeof(data) / sizeof(Stroka));
+    auto dataRefs = ToSharedRefs(dataStrings);
+
+    WriteErasureChunk(codec, dataRefs);
+
+    std::vector<int> erasedIndices;
+    erasedIndices.push_back(0);
+    erasedIndices.push_back(13);
+
+    std::set<int> erasedIndicesSet(erasedIndices.begin(), erasedIndices.end());
+
+    std::vector<int> repairIndices = *(codec->GetRecoveryIndices(erasedIndices));
+    std::set<int> repairIndicesSet(repairIndices.begin(), repairIndices.end());
+
+    for (int i = 0; i < erasedIndices.size(); ++i) {
+        Stroka filename = "block" + ToString(erasedIndices[i] + 1);
         NFs::Remove(filename.c_str());
         NFs::Remove((filename + ".meta").c_str());
     }
+
+    std::vector<IAsyncReaderPtr> readers;
+    std::vector<IAsyncWriterPtr> writers;
+    for (int i = 0; i < codec->GetTotalBlockCount(); ++i) {
+        Stroka filename = "block" + ToString(i + 1);
+        if (erasedIndicesSet.find(i) != erasedIndicesSet.end()) {
+            writers.push_back(NYT::New<TFileWriter>(filename));
+        }
+        if (repairIndicesSet.find(i) != repairIndicesSet.end()) {
+            auto reader = NYT::New<TFileReader>(filename);
+            reader->Open();
+            readers.push_back(reader);
+        }
+    }
+
+    RepairErasedBlocks(codec, erasedIndices, readers, writers).Get();
+
+    auto erasureReader = GetErasureReader(codec);
+
+    int index = 0;
+    FOREACH (const auto& ref, dataRefs) {
+        auto result = erasureReader->AsyncReadBlocks(std::vector<int>(1, index++)).Get();
+        EXPECT_TRUE(result.IsOK());
+        auto resultRef = result.GetOrThrow().front();
+
+        EXPECT_EQ(ToString(ref), ToString(resultRef));
+    }
+
+    Cleanup(codec);
+}
+
+TEST_F(TErasureMixture, RepairTestWithSeveralWindows)
+{
+    TRand rand;
+
+    auto codec = GetCodec(ECodec::Lrc_12_2_2);
+
+    // Prepare data
+    std::vector<TSharedRef> dataRefs;
+    for (int i = 0; i < 20; ++i) {
+        std::vector<char> data;
+        for (int i = 0; i < 100; ++i) {
+            data.push_back(static_cast<char>('a' + (std::abs(rand.random()) % 26)));
+        }
+        dataRefs.push_back(TSharedRef::FromBlob(std::move(data)));
+    }
+    WriteErasureChunk(codec, dataRefs);
+
+    { // Check reader
+        auto erasureReader = GetErasureReader(codec);
+        for (int i = 0; i < dataRefs.size(); ++i ) {
+            auto result = erasureReader->AsyncReadBlocks(std::vector<int>(1, i)).Get();
+            EXPECT_TRUE(result.IsOK());
+
+            auto resultRef = result.Value().front();
+            EXPECT_EQ(ToString(dataRefs[i]), ToString(resultRef));
+        }
+    }
+
+    std::vector<int> erasedIndices;
+    erasedIndices.push_back(1);
+    erasedIndices.push_back(8);
+    erasedIndices.push_back(13);
+    erasedIndices.push_back(15);
+    std::set<int> erasedIndicesSet(erasedIndices.begin(), erasedIndices.end());
+
+    std::vector<int> repairIndices = *(codec->GetRecoveryIndices(erasedIndices));
+    std::set<int> repairIndicesSet(repairIndices.begin(), repairIndices.end());
+
+    for (int i = 0; i < erasedIndices.size(); ++i) {
+        Stroka filename = "block" + ToString(erasedIndices[i] + 1);
+        NFs::Remove(filename.c_str());
+        NFs::Remove((filename + ".meta").c_str());
+    }
+
+    std::vector<IAsyncReaderPtr> readers;
+    std::vector<IAsyncWriterPtr> writers;
+    for (int i = 0; i < codec->GetTotalBlockCount(); ++i) {
+        Stroka filename = "block" + ToString(i + 1);
+        if (erasedIndicesSet.find(i) != erasedIndicesSet.end()) {
+            writers.push_back(NYT::New<TFileWriter>(filename));
+        }
+        if (repairIndicesSet.find(i) != repairIndicesSet.end()) {
+            auto reader = NYT::New<TFileReader>(filename);
+            reader->Open();
+            readers.push_back(reader);
+        }
+    }
+
+    RepairErasedBlocks(codec, erasedIndices, readers, writers).Get();
+
+    { // Check reader
+        auto erasureReader = GetErasureReader(codec);
+        for (int i = 0; i < dataRefs.size(); ++i ) {
+            auto result = erasureReader->AsyncReadBlocks(std::vector<int>(1, i)).Get();
+            EXPECT_TRUE(result.IsOK());
+
+            auto resultRef = result.Value().front();
+            EXPECT_EQ(dataRefs[i].Size(), resultRef.Size());
+            EXPECT_EQ(ToString(dataRefs[i]), ToString(resultRef));
+        }
+    }
+
+    Cleanup(codec);
 }

@@ -45,6 +45,43 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <>
+class TParallelCollector<void>
+    : public TRefCounted
+{
+public:
+    explicit TParallelCollector(
+        NProfiling::TProfiler* profiler = nullptr,
+        const NYPath::TYPath& timerPath = "");
+
+    void Collect(
+        TFuture<TError> future,
+        const Stroka& timerKey = "");
+    
+    void Collect(
+        TFuture<TValueOrError<void>> future,
+        const Stroka& timerKey = "");
+
+    TFuture<TError> Complete();
+
+private:
+    typedef TParallelCollector<void> TThis;
+
+    TParallelAwaiterPtr Awaiter;
+    TPromise<TError> Promise;
+    TAtomic Completed;
+
+    TSpinLock SpinLock;
+
+    void OnResult(TError result);
+    void OnCompleted();
+
+    bool TryLockCompleted();
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 
 #define PARALLEL_COLLECTOR_INL_H_

@@ -16,18 +16,19 @@ IAsyncReaderPtr CreateErasureReader(
 
 ///////////////////////////////////////////////////////////////////////////////
 
-//IAsyncReaderPtr CreateErasureRepairReader(
-//    NErasure::ICodec* codec,
-//    const std::vector<int>& erasedIndices,
-//    const std::vector<IAsyncReaderPtr>& readers);
+IAsyncReaderPtr CreateErasureRepairReader(
+    const NErasure::ICodec* codec,
+    const std::vector<int>& erasedIndices,
+    int chunkIndex,
+    const std::vector<IAsyncReaderPtr>& readers);
 
 ///////////////////////////////////////////////////////////////////////////////
 
-//TAsyncError RepairErasedBlocks(
-//    NErasure::ICodec* codec,
-//    const std::vector<int>& erasedIndices,
-//    const std::vector<IAsyncReaderPtr>& readers,
-//    const std::vector<IAsyncWriterPtr>& writers);
+TAsyncError RepairErasedBlocks(
+    const NErasure::ICodec* codec,
+    const std::vector<int>& erasedIndices,
+    const std::vector<IAsyncReaderPtr>& readers,
+    const std::vector<IAsyncWriterPtr>& writers);
 
 ///////////////////////////////////////////////////////////////////////////////
 

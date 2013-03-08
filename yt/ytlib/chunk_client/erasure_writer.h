@@ -11,6 +11,7 @@ namespace NChunkClient {
 ///////////////////////////////////////////////////////////////////////////////
 
 IAsyncWriterPtr GetErasureWriter(
+    const TErasureWriterConfigPtr& config,
     const NErasure::ICodec* codec,
     const std::vector<IAsyncWriterPtr>& writers);
 

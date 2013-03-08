@@ -1,4 +1,5 @@
 #include "public.h"
+
 #include "config.h"
 #include "dispatcher.h"
 #include "async_writer.h"
@@ -7,100 +8,20 @@
 #include <ytlib/erasure_codecs/codec.h>
 #include <ytlib/actions/async_pipeline.h>
 #include <ytlib/actions/parallel_awaiter.h>
+#include <ytlib/actions/parallel_collector.h>
 
 namespace NYT {
 namespace NChunkClient {
-
-class TErasureWriter
-    : public IAsyncWriter
-{
-public:
-    TErasureWriter(
-        const NErasure::ICodec* codec,
-        const std::vector<IAsyncWriterPtr>& writers)
-            : Codec_(codec)
-            , Writers_(writers)
-            , WrittenBlockCount(0)
-    {
-        YCHECK(writers.size() == codec->GetTotalBlockCount());
-
-        //VERIFY_INVOKER_AFFINITY(TDispatcher::Get()->GetWriterInvoker(), WriterThread);
-        //VERIFY_INVOKER_AFFINITY(TDispatcher::Get()->GetErasureInvoker(), ErasureThread);
-    }
-
-    virtual void Open() override
-    {
-        FOREACH(auto writer, Writers_) {
-            writer->Open();
-        }
-    }
-
-    virtual bool TryWriteBlock(const TSharedRef& block) override
-    {
-        Blocks_.push_back(block);
-        return true;
-    }
-
-    virtual TAsyncError GetReadyEvent() override
-    {
-        auto error = TAsyncErrorPromise();
-        error.Set(TError());
-        return error;
-    }
-
-    virtual const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override
-    {
-        YUNREACHABLE();
-    }
-
-    virtual const std::vector<int> GetWrittenIndexes() const override
-    {
-        YUNREACHABLE();
-    }
-
-    virtual TAsyncError AsyncClose(const NChunkClient::NProto::TChunkMeta& chunkMeta) override;
-
-private:
-    const NErasure::ICodec* Codec_;
-
-    std::vector<IAsyncWriterPtr> Writers_;
-    std::vector<TSharedRef> Blocks_;
-
-    void OnBlocksWritten(int numberOfBlocks, TValueOrError<void> error);
-
-    TAsyncError WriteWindow(int windowIndex);
-
-    TAsyncError CloseParityWriters(const NChunkClient::NProto::TChunkMeta& chunkMeta);
-
-    // TODO: move to config
-    static const i64 ErasureWindowSize = 1024 * 1024;
-
-    // Number of blocks (data and parity) that already written
-    int WrittenBlockCount;
-    TAsyncErrorPromise Result_;
-
-    // Promises for generated window of parity blocks
-    std::vector<TPromise<void>> WindowEncodedPromise_;
-
-    // Parity blocks, group by pieces of size ErasureWindowSize
-    std::vector<std::vector<TSharedRef>> ParityBlocks_;
-
-    // Error of writing parity blocks
-    std::vector<TError> WriteErrors_;
-
-    // Error of closing parity blocks
-    std::vector<TError> CloseErrors_;
-
-    // Promises to write window of parity blocks
-    std::vector<TAsyncErrorPromise> WritePromises_;
-
-    DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
-    DECLARE_THREAD_AFFINITY_SLOT(ErasureThread);
-};
+namespace {
 
 ///////////////////////////////////////////////////////////////////////////////
+// Helpers
 
-namespace {
+TFuture<TError> ConvertToTErrorFuture(TFuture<TValueOrError<void>> future) {
+    return future.Apply(BIND([](TValueOrError<void> error) -> TError {
+        return error; 
+    }));
+}
 
 // Split blocks to the continuous groups of approximately equal sizes.
 std::vector<std::vector<TSharedRef>> SplitBlocks(
@@ -137,10 +58,10 @@ i64 RoundUp(i64 num, i64 mod) {
     return num + mod - (num % mod);
 }
 
-class TDataBlock
+class TSlicer
 {
 public:
-    explicit TDataBlock(const std::vector<TSharedRef>& blocks)
+    explicit TSlicer(const std::vector<TSharedRef>& blocks)
         : Blocks_(blocks)
     { }
 
@@ -179,37 +100,168 @@ private:
     std::vector<TSharedRef> Blocks_;
 };
 
-} // anonymous namespace
+///////////////////////////////////////////////////////////////////////////////
+
+class TErasureWriter
+    : public IAsyncWriter
+{
+public:
+    TErasureWriter(
+        const TErasureWriterConfigPtr& config,
+        const NErasure::ICodec* codec,
+        const std::vector<IAsyncWriterPtr>& writers)
+            : Codec_(codec)
+            , Writers_(writers)
+            , ErasureWindowSize_(config->ErasureWindowSize)
+    {
+        YCHECK(writers.size() == codec->GetTotalBlockCount());
+
+        VERIFY_INVOKER_AFFINITY(TDispatcher::Get()->GetWriterInvoker(), WriterThread);
+        VERIFY_INVOKER_AFFINITY(TDispatcher::Get()->GetErasureInvoker(), ErasureThread);
+    }
+
+    virtual void Open() override
+    {
+        FOREACH(auto writer, Writers_) {
+            writer->Open();
+        }
+    }
+
+    virtual bool TryWriteBlock(const TSharedRef& block) override
+    {
+        Blocks_.push_back(block);
+        return true;
+    }
+
+    virtual TAsyncError GetReadyEvent() override
+    {
+        auto error = TAsyncErrorPromise();
+        error.Set(TError());
+        return error;
+    }
+
+    virtual const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override
+    {
+        YUNREACHABLE();
+    }
+
+    virtual const std::vector<int> GetWrittenIndexes() const override
+    {
+        YUNREACHABLE();
+    }
+
+    virtual TAsyncError AsyncClose(const NProto::TChunkMeta& chunkMeta) override;
+
+private:
+    void PrepareBlocks();
+
+    void PrepareChunkMeta(const NProto::TChunkMeta& chunkMeta);
+
+    TAsyncError WriteDataBlocks();
+    
+    TAsyncError EncodeAndWriteParityBlocks();
+
+    TAsyncError WriteParityBlocks(int windowIndex);
+
+    TAsyncError CloseParityWriters();
+
+    const NErasure::ICodec* Codec_;
+
+    std::vector<IAsyncWriterPtr> Writers_;
+    std::vector<TSharedRef> Blocks_;
+    
+    // Information about blocks, necessary to write blocks
+    // and encode parity parts
+    std::vector<std::vector<TSharedRef>> Groups_;
+    std::vector<TSlicer> Slicers_;
+    i64 ParityDataSize_;
+    int WindowCount_;
+    // TODO: move to config
+    i64 ErasureWindowSize_;
+    
+    // Chunk meta with information about block placement
+    NChunkClient::NProto::TChunkMeta ChunkMeta_;
+
+    // Parity blocks
+    std::vector<std::vector<TSharedRef>> ParityBlocks_;
+
+    // Promises to write window of parity blocks
+    std::vector<TAsyncError> WriteFutures_;
+
+    // Promises for generated window of parity blocks
+    std::vector<TPromise<void>> WindowEncodedPromise_;
+
+    DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
+    DECLARE_THREAD_AFFINITY_SLOT(ErasureThread);
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 
-
-TAsyncError TErasureWriter::AsyncClose(const NChunkClient::NProto::TChunkMeta& chunkMeta) override
+void TErasureWriter::PrepareBlocks()
 {
-    // Prepare result promise
-    Result_ = NewPromise<TError>();
+    Groups_ = SplitBlocks(Blocks_, Codec_->GetDataBlockCount());
+    
+    // Calculate size of parity blocks and form slicers
+    Slicers_.clear();
+    ParityDataSize_ = 0;
+    FOREACH (const auto& group, Groups_) {
+        i64 size = 0;
+        FOREACH(const auto& block, group) {
+            size += block.Size();
+        }
+        ParityDataSize_ = std::max(ParityDataSize_, size);
 
-    // Split data blocks to proper number of groups
-    auto groups = SplitBlocks(Blocks_, Codec_->GetDataBlockCount());
+        Slicers_.push_back(TSlicer(group));
+    }
 
-    // Add groups to meta
+    // Calculate number of windows
+    ParityDataSize_ = RoundUp(ParityDataSize_, Codec_->GetWordSize());
+    
+    WindowCount_ = ParityDataSize_ / ErasureWindowSize_;
+    if (ParityDataSize_ % ErasureWindowSize_ != 0) {
+        WindowCount_ += 1;
+    }
+
+
+    ParityBlocks_.resize(WindowCount_);
+    WindowEncodedPromise_.resize(WindowCount_);
+    WriteFutures_.resize(WindowCount_);
+}
+
+void TErasureWriter::PrepareChunkMeta(const NProto::TChunkMeta& chunkMeta)
+{
     int start = 0;
     NProto::TErasurePlacementExt placementExtension;
-    FOREACH (const auto& group, groups) {
-        NProto::TBlocksRange range;
-        range.set_start(start);
-        range.set_count(group.size());
+    FOREACH (const auto& group, Groups_) {
+        NProto::TPartInfo info;
+        info.set_start(start);
+        FOREACH (const auto& block, group) {
+            info.add_block_sizes(block.Size());
+        }
         start += group.size();
 
-        *placementExtension.add_ranges() = range;
+        *placementExtension.add_part_infos() = info;
     }
+    placementExtension.set_parity_part_count(Codec_->GetParityBlockCount());
+    placementExtension.set_parity_block_count(WindowCount_);
+    placementExtension.set_parity_block_size(ErasureWindowSize_);
+    placementExtension.set_parity_last_block_size(ParityDataSize_ - (ErasureWindowSize_ * (WindowCount_ - 1)));
+    // TODO(ignat): add calculation of memory consumption
+    placementExtension.set_repair_reader_memory_consumption(0);
     
-    NChunkClient::NProto::TChunkMeta updatedMeta(chunkMeta);
-    SetProtoExtension(updatedMeta.mutable_extensions(), placementExtension);
+    ChunkMeta_ = chunkMeta;
+    SetProtoExtension(ChunkMeta_.mutable_extensions(), placementExtension);
+}
 
-    // Write data blocks
-    for (int i = 0; i < groups.size(); ++i) {
-        const auto& group = groups[i];
+
+TAsyncError TErasureWriter::WriteDataBlocks()
+{
+    //VERIFY_THREAD_AFFINITY(WriterThread);
+
+    YCHECK(Groups_.size() <= Writers_.size());
+    auto parallelCollector = New<TParallelCollector<void>>();
+    for (int i = 0; i < Groups_.size(); ++i) {
+        const auto& group = Groups_[i];
         const auto& writer = Writers_[i];
         auto pipeline = StartAsyncPipeline(TDispatcher::Get()->GetWriterInvoker());
         FOREACH(const auto& block, group) {
@@ -220,87 +272,47 @@ TAsyncError TErasureWriter::AsyncClose(const NChunkClient::NProto::TChunkMeta& c
                 })
             );
         }
-        pipeline = pipeline->Add(
-            BIND([=](){
-                return writer->AsyncClose(updatedMeta);
-            })
-        );
-        pipeline->Run().Subscribe(BIND(&TErasureWriter::OnBlocksWritten, MakeStrong(this), 1));
+        pipeline = pipeline->Add(BIND(&IAsyncWriter::AsyncClose, writer, ChunkMeta_));
+        parallelCollector->Collect(pipeline->Run());
     }
-
-    // Calculate size of parity blocks and form DataBlock to efficiently extract slices
-    // of data blocks
-    std::vector<TDataBlock> dataBlocks;
-    i64 maxSize = 0;
-    FOREACH (const auto& group, groups) {
-        i64 size = 0;
-        FOREACH(const auto& block, group) {
-            size += block.Size();
-        }
-        maxSize = std::max(maxSize, size);
-
-        dataBlocks.push_back(TDataBlock(group));
-    }
-    maxSize = RoundUp(maxSize, Codec_->GetWordSize());
-
-    // Generate and write parity blocks.
-    auto windowCount = RoundUp(maxSize, ErasureWindowSize) / ErasureWindowSize;
-    ParityBlocks_.resize(windowCount);
-    WindowEncodedPromise_.resize(windowCount);
-    WritePromises_.resize(windowCount);
+    return parallelCollector->Complete();
+}
+    
+TAsyncError TErasureWriter::EncodeAndWriteParityBlocks()
+{
+    //VERIFY_THREAD_AFFINITY(WriterThread);
 
     auto pipeline = StartAsyncPipeline(TDispatcher::Get()->GetWriterInvoker());
     int windowIndex = 0;
-    for (i64 begin = 0; begin < maxSize; begin += ErasureWindowSize) {
+    for (i64 begin = 0; begin < ParityDataSize_; begin += ErasureWindowSize_) {
         WindowEncodedPromise_[windowIndex] = NewPromise<void>();
 
-        i64 end = std::min(begin + ErasureWindowSize, maxSize);
+        i64 end = std::min(begin + ErasureWindowSize_, ParityDataSize_);
 
         // generate bytes from [begin, end) for parity blocks
         std::vector<TSharedRef> slices;
-        FOREACH (const auto& block, dataBlocks) {
-            slices.push_back(block.GetSlice(begin, end));
+        FOREACH (const auto& slicer, Slicers_) {
+            slices.push_back(slicer.GetSlice(begin, end));
         }
 
         TDispatcher::Get()->GetErasureInvoker()->Invoke(
             BIND([=](){
+                //VERIFY_THREAD_AFFINITY(ErasureThread);
                 ParityBlocks_[windowIndex] = Codec_->Encode(slices);
                 WindowEncodedPromise_[windowIndex].Set();
             })
         );
 
-        pipeline = pipeline->Add(BIND(&TErasureWriter::WriteWindow, MakeStrong(this), windowIndex));
+        pipeline = pipeline->Add(BIND(&TErasureWriter::WriteParityBlocks, MakeStrong(this), windowIndex));
 
         windowIndex += 1;
     }
-    pipeline->Add(BIND(&TErasureWriter::CloseParityWriters, MakeStrong(this), updatedMeta));
-    pipeline->Run().Subscribe(BIND(&TErasureWriter::OnBlocksWritten, MakeStrong(this), Codec_->GetParityBlockCount()));
-
-    return Result_;
+    pipeline->Add(BIND(&TErasureWriter::CloseParityWriters, MakeStrong(this)));
+    return ConvertToTErrorFuture(pipeline->Run());
 }
 
-void TErasureWriter::OnBlocksWritten(int numberOfBlocks, TValueOrError<void> error)
-{
-    //VERIFY_THREAD_AFFINITY(WriterThread);
 
-    // !!! We should add inner errors instead of returning first one
-    if (Result_.IsSet()) {
-        return;
-    }
-
-    if (error.IsOK()) {
-        WrittenBlockCount += numberOfBlocks;
-        if (WrittenBlockCount == Codec_->GetTotalBlockCount()) {
-            // All blocks are successfully written
-            Result_.Set(TError());
-        }
-    }
-    else {
-        Result_.Set(error);
-    }
-}
-
-TAsyncError TErasureWriter::WriteWindow(int windowIndex)
+TAsyncError TErasureWriter::WriteParityBlocks(int windowIndex)
 {
     //VERIFY_THREAD_AFFINITY(WriterThread);
 
@@ -311,83 +323,50 @@ TAsyncError TErasureWriter::WriteWindow(int windowIndex)
     const std::vector<TSharedRef>& parityBlocks = ParityBlocks_[windowIndex];
 
     // Write blocks of current window in parallel manner
-    auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker());
+    auto collector = New<TParallelCollector<void>>();
     for (int i = 0; i < Codec_->GetParityBlockCount(); ++i) {
         auto& writer = Writers_[Codec_->GetDataBlockCount() + i];
         writer->TryWriteBlock(parityBlocks[i]);
-        awaiter->Await(
-            writer->GetReadyEvent(),
-            BIND([=](TError error) {
-                // Process write error
-                if (!error.IsOK()) {
-                    WriteErrors_.push_back(error);
-                }
-            })
-        );
+        collector->Collect(writer->GetReadyEvent());
     }
-
-    // Set promise of written window of blocks
-    auto& promise = WritePromises_[windowIndex];
-    promise = NewPromise<TError>();
-    awaiter->Complete(
-        BIND([&](){
-            if (WriteErrors_.empty()) {
-                promise.Set(TError());
-            } else {
-                // Some block writers failed
-                auto error = TError("Write parity blocks failed");
-                error.InnerErrors() = WriteErrors_;
-                promise.Set(error);
-            }
-        })
-    );
-
-    return promise;
+    auto writeFuture = collector->Complete();
+    return WriteFutures_[windowIndex] = writeFuture;
 }
 
-TAsyncError TErasureWriter::CloseParityWriters(const NChunkClient::NProto::TChunkMeta& chunkMeta)
+TAsyncError TErasureWriter::CloseParityWriters()
 {
-    // TODO(ignat): remove this copypaste
+    //VERIFY_THREAD_AFFINITY(WriterThread);
 
-    auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker());
+    auto collector = New<TParallelCollector<void>>();
     for (int i = 0; i < Codec_->GetParityBlockCount(); ++i) {
         auto& writer = Writers_[Codec_->GetDataBlockCount() + i];
-        awaiter->Await(
-            writer->AsyncClose(chunkMeta),
-            BIND([=](TError error) {
-                // Process write error
-                if (!error.IsOK()) {
-                    CloseErrors_.push_back(error);
-                }
-            }));
+        collector->Collect(writer->AsyncClose(ChunkMeta_));
     }
-
-    // Set promise of written window of blocks
-    auto promise = NewPromise<TError>();
-    awaiter->Complete(
-        BIND([&](){
-            if (CloseErrors_.empty()) {
-                promise.Set(TError());
-            } else {
-                // Some block writers failed
-                auto error = TError("Closing parity writers failed");
-                error.InnerErrors() = CloseErrors_;
-                promise.Set(error);
-            }
-        })
-    );
-
-    return promise;
+    return collector->Complete();
 }
 
+TAsyncError TErasureWriter::AsyncClose(const NProto::TChunkMeta& chunkMeta) override
+{
+    PrepareBlocks();
+    PrepareChunkMeta(chunkMeta);
+    
+    // TODO(ignat): add writer invoker
+    auto collector = New<TParallelCollector<void>>();
+    collector->Collect(WriteDataBlocks());
+    collector->Collect(EncodeAndWriteParityBlocks());
+    return collector->Complete();
+}
+
+} // anonymous namespace
 
 ///////////////////////////////////////////////////////////////////////////////
 
 IAsyncWriterPtr GetErasureWriter(
+    const TErasureWriterConfigPtr& config,
     const NErasure::ICodec* codec,
     const std::vector<IAsyncWriterPtr>& writers)
 {
-    return New<TErasureWriter>(codec, writers);
+    return New<TErasureWriter>(config, codec, writers);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

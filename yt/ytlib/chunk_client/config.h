@@ -166,6 +166,21 @@ struct TReplicationWriterConfig
 
 ///////////////////////////////////////////////////////////////////////////////
 
+struct TErasureWriterConfig
+    : public virtual TYsonSerializable
+{
+    i64 ErasureWindowSize;
+
+    TErasureWriterConfig()
+    {
+        Register("erasure_window_size", ErasureWindowSize)
+            .Default(1024 * 1024)
+            .GreaterThan(0);
+    }
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
 struct TEncodingWriterConfig
     : public virtual TYsonSerializable
 {
@@ -211,7 +226,7 @@ struct TDispatcherConfig
             .Default(4)
             .GreaterThan(0);
         Register("erasure_pool_size", ErasurePoolSize)
-            .Default(2)
+            .Default(4)
             .GreaterThan(0);
     }
 };

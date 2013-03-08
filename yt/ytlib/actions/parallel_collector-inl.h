@@ -66,4 +66,70 @@ bool TParallelCollector<T>::TryLockCompleted()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline
+TParallelCollector<void>::TParallelCollector(
+    NProfiling::TProfiler* profiler /* = nullptr */,
+    const NYPath::TYPath& timerPath /* = "" */)
+    : Awaiter(New<TParallelAwaiter>(profiler, timerPath))
+    , Promise(NewPromise<TError>())
+    , Completed(false)
+{ }
+
+inline
+void TParallelCollector<void>::Collect(
+    TFuture<TError> future,
+    const Stroka& timerKey /* = "" */)
+{
+    Awaiter->Await(
+        future,
+        timerKey,
+        BIND(&TThis::OnResult, MakeStrong(this)));
+}
+
+inline
+void TParallelCollector<void>::Collect(
+    TFuture<TValueOrError<void>> future,
+    const Stroka& timerKey /* = "" */)
+{
+    Awaiter->Await(
+        future.Apply(BIND([](TValueOrError<void> error) -> TError {
+            return error; 
+        })),
+        timerKey,
+        BIND(&TThis::OnResult, MakeStrong(this)));
+}
+
+inline
+TFuture<TError> TParallelCollector<void>::Complete()
+{
+    Awaiter->Complete(
+        BIND(&TThis::OnCompleted, MakeStrong(this)));
+    return Promise;
+}
+
+inline
+void TParallelCollector<void>::OnResult(TError result)
+{
+    if (!result.IsOK()) {
+        if (TryLockCompleted()) {
+            Promise.Set(result);
+        }
+    }
+}
+
+inline
+void TParallelCollector<void>::OnCompleted()
+{
+    if (TryLockCompleted()) {
+        Promise.Set(TError());
+    }
+}
+
+inline
+bool TParallelCollector<void>::TryLockCompleted()
+{
+    return AtomicCas(&Completed, true, false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 } // namespace NYT

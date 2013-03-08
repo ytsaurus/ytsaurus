@@ -104,6 +104,9 @@ typedef TIntrusivePtr<TSequentialReaderConfig> TSequentialReaderConfigPtr;
 struct TReplicationWriterConfig;
 typedef TIntrusivePtr<TReplicationWriterConfig> TReplicationWriterConfigPtr;
 
+struct TErasureWriterConfig;
+typedef TIntrusivePtr<TErasureWriterConfig> TErasureWriterConfigPtr;
+
 class TFileReader;
 typedef TIntrusivePtr<TFileReader> TFileReaderPtr;
 
