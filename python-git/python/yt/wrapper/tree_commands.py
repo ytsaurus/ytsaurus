@@ -55,6 +55,17 @@ def move(source_path, destination_path):
             "destination_path": prepare_path(destination_path)
         })
 
+def link(target_path, link_path, recursive=False, ignore_existing=False):
+    _make_transactional_request(
+        "link",
+        {
+            "target_path": target_path,
+            "link_path": link_path,
+            "recursive": bool_to_string(recursive),
+            "ignore_existing": bool_to_string(ignore_existing),
+        })
+
+
 def list(path, max_size=1000, format=None, absolute=False):
     """
     Lists all items in the path. Paht should be map_node or list_node.
@@ -87,16 +98,16 @@ def remove(path, recursive=False, force=False):
             "force": bool_to_string(force)
         })
 
-def create(type, path, recursive=False, ignore_existing=False, attributes=None):
-    _make_transactional_request(
-        "create",
-        {
-            "path": prepare_path(path),
-            "type": type,
-            "recursive": bool_to_string(recursive),
-            "ignore_existing": bool_to_string(ignore_existing),
-            "attributes": get_value(attributes, {})
-        })
+def create(type, path=None, recursive=False, ignore_existing=False, attributes=None):
+    params = {
+        "type": type,
+        "recursive": bool_to_string(recursive),
+        "ignore_existing": bool_to_string(ignore_existing),
+        "attributes": get_value(attributes, {})
+    }
+    if path is not None:
+        params["path"] = prepare_path(path)
+    _make_transactional_request("create", params)
 
 def mkdir(path, recursive=None):
     recursive = get_value(recursive, config.CREATE_RECURSIVE)
