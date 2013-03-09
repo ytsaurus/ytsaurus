@@ -164,6 +164,15 @@ std::vector<TChunkStripeStatistics> TChunkStripeList::GetStatistics() const
     return result;
 }
 
+TChunkStripeStatistics TChunkStripeList::GetAggregateStatistics() const
+{
+    TChunkStripeStatistics result;
+    result.ChunkCount = TotalChunkCount;
+    result.RowCount = TotalRowCount;
+    result.DataSize = TotalDataSize;
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////
 
 class TChunkPoolInputBase

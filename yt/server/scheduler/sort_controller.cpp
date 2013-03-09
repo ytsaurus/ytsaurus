@@ -410,9 +410,8 @@ protected:
 
         virtual TNodeResources GetNeededResources(TJobletPtr joblet) const override
         {
-            auto stat = AggregateStatistics(joblet->InputStripeList->GetStatistics());
-            YCHECK(stat.size() == 1);
-            return GetNeededResourcesForChunkStripe(stat.front());
+            return GetNeededResourcesForChunkStripe(
+                joblet->InputStripeList->GetAggregateStatistics());
         }
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
@@ -1715,6 +1714,8 @@ private:
             (i64) 12 * stat.RowCount +
             GetFootprintMemorySize());
         result.set_network(Spec->ShuffleNetworkLimit);
+
+        Cout << stat.ChunkCount << " " << stat.RowCount << ' ' << stat.DataSize << ' '<< FormatResources(result) << Endl;
         return result;
     }
 
