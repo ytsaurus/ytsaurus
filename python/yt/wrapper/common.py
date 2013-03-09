@@ -4,9 +4,6 @@ import yt.yson as yson
 from functools import partial
 import simplejson as json
 
-from cStringIO import StringIO
-
-
 EMPTY_GENERATOR = (i for i in [])
 
 class YtOperationFailedError(YtError):
@@ -136,6 +133,11 @@ def format_error(error, indent=0):
     location_keys = ["file", "line"]
     if all(key in attributes for key in location_keys):
         lines.append(format_attribute("location", "%s:%d" % (attributes["file"], attributes["line"])))
+
+    for key, value in attributes.items():
+        if key in origin_keys or key in location_keys:
+            continue
+        lines.append(format_attribute(key, str(value)))
 
     result = " " * indent + (" " * (indent + 4) + "\n").join(lines)
     if "inner_errors" in error:
