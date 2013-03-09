@@ -1112,6 +1112,8 @@ private:
     virtual void Clear() override
     {
         NodeIdGenerator.Reset();
+        // XXX(babenko): avoid generating InvalidNodeId
+        NodeIdGenerator.Next();
         ChunkMap.Clear();
         ChunkListMap.Clear();
         NodeMap.Clear();
