@@ -1,35 +1,33 @@
-set( LTYPE STATIC )
-
 set( BASE ${CMAKE_SOURCE_DIR}/contrib/z-lz-lzo )
 
-add_library( ytext-fastlz ${LTYPE}
+add_library( ytext-fastlz STATIC
   ${BASE}/fastlz.c
 )
 
-add_library( ytext-lz4 ${LTYPE}
+add_library( ytext-lz4 STATIC
   ${BASE}/lz4.c
   ${BASE}/lz4hc.c
 )
 
-add_library( ytext-minilzo ${LTYPE}
+add_library( ytext-minilzo STATIC
   ${BASE}/minilzo.c
   ${BASE}/minilzo_crc.c
 )
 
-add_library( ytext-quicklz ${LTYPE}
+add_library( ytext-quicklz STATIC
   ${BASE}/quicklz.c
 )
 
 set ( BASE ${CMAKE_SOURCE_DIR}/contrib/libs )
 
-add_library( ytext-snappy ${LTYPE}
+add_library( ytext-snappy STATIC
   ${BASE}/snappy/snappy.cc
   ${BASE}/snappy/snappy-sinksource.cc
   ${BASE}/snappy/snappy-stubs-internal.cc
   ${BASE}/snappy/snappy-c.cc
 )
 
-add_library( ytext-zlib ${LTYPE}
+add_library( ytext-zlib STATIC
   ${BASE}/zlib/adler32.c
   ${BASE}/zlib/compress.c
   ${BASE}/zlib/crc32.c
