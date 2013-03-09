@@ -14,16 +14,6 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENUM(ETraversingError,
-    (Fatal)
-
-    // Indicates that subsequent traversing attempt may succeed.
-    // This typically happens when an optimistic chunk tree locking fails.
-    (Retriable)
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct IChunkVisitor
     : public virtual TRefCounted
 {

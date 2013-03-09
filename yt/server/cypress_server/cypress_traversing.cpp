@@ -135,7 +135,7 @@ private:
              auto invoker = Bootstrap->GetMetaStateFacade()->GetGuardedInvoker();
              auto result = invoker->Invoke(BIND(&TNodeTraverser::DoTraverse, MakeStrong(this)));
              if (!result) {
-                 Visitor->OnError(TError("Yield error"));
+                 Visitor->OnError(TError(NRpc::EErrorCode::Unavailable, "Yield error"));
              }
          }
     }

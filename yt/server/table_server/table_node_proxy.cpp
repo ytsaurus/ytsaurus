@@ -243,14 +243,7 @@ private:
         if (Finished)
             return;
 
-        auto wrappedError = TError(
-            error.GetCode() == ETraversingError::Retriable
-            ? NRpc::EErrorCode(NRpc::EErrorCode::Unavailable)
-            : NRpc::EErrorCode(TError::GenericFailure),
-            "Failed to fetch table")
-            << error;
-        Context->Reply(wrappedError);
-
+        Context->Reply(error);
         Finished = true;
     }
 

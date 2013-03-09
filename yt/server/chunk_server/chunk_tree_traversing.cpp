@@ -139,7 +139,7 @@ protected:
 
             if (chunkList->GetVersion() != entry.ChunkListVersion) {
                 Visitor->OnError(TError(
-                    ETraversingError::Retriable,
+                    NRpc::EErrorCode::Unavailable,
                     "Optimistic locking failed for chunk list %s",
                     ~ToString(chunkList->GetId())));
                 return;
@@ -248,9 +248,7 @@ protected:
             auto invoker = Bootstrap->GetMetaStateFacade()->GetGuardedInvoker();
             auto result = invoker->Invoke(BIND(&TChunkTreeTraverser::DoTraverse, MakeStrong(this)));
             if (!result) {
-                Visitor->OnError(TError(
-                    ETraversingError::Retriable,
-                    "Yield error"));
+                Visitor->OnError(TError(NRpc::EErrorCode::Unavailable, "Yield error"));
             }
         }
     }
@@ -382,9 +380,7 @@ public:
     {
         bool keyRangeRequest = lowerBound.has_key() || upperBound.has_key();
         if (keyRangeRequest && chunkList->SortedBy().empty()) {
-            Visitor->OnError(TError(
-                ETraversingError::Fatal,
-                "Cannot fetch a keyed range of unsorted table"));
+            Visitor->OnError(TError("Cannot fetch a keyed range of unsorted table"));
             return;
         }
 
