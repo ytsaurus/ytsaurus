@@ -18,7 +18,7 @@ TChunkReplica::TChunkReplica()
 { }
 
 TChunkReplica::TChunkReplica(TDataNode* node, int index)
-    : Value(reinterpret_cast<ui64>(node))
+    : Value(reinterpret_cast<ui64>(node) | (static_cast<ui64>(index) << 60))
 {
     YASSERT((reinterpret_cast<ui64>(node) & 0xf000000000000000LL) == 0);
     YASSERT(index >= 0 && index < 16);
