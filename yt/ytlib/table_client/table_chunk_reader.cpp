@@ -81,7 +81,7 @@ struct TBlockInfo
     int ChannelIndex;
     i64 LastRow;
 
-    bool operator< (const TBlockInfo& rhs)
+    inline bool operator<(const TBlockInfo& rhs) const
     {
         return
             LastRow > rhs.LastRow ||

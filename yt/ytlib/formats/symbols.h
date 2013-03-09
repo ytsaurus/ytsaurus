@@ -6,7 +6,9 @@
 #include <string>
 
 // XXX(sandello): Define this to enable SSE4.2-baked symbol lookup.
+#ifdef __SSE4_2__
 #define _YT_USE_SSE42_
+#endif
 
 #ifdef _YT_USE_SSE42_
 #include <nmmintrin.h>
