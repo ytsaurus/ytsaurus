@@ -43,7 +43,7 @@ add_library( ytlib STATIC
 target_link_libraries ( ytlib
   ytext-arcadia-util
   ytext-json
-  ytext-uv
+  ytext-ev
   protobuf
 )
 

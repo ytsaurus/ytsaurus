@@ -17,7 +17,7 @@
 
 #include <util/thread/lfqueue.h>
 
-#include <contrib/libuv/src/unix/ev/ev++.h>
+#include <contrib/libev/ev++.h>
 
 #ifndef _WIN32
     #include <sys/uio.h>
