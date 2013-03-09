@@ -74,7 +74,7 @@ def add_find_parser(subparsers):
 
 
 def cat(args):
-    type = yt.get(args.path + "/@type")
+    type = yt.get(yt.to_name(args.path) + "/@type")
     if type == "file":
         writelines_silently(yt.download_file(args.path, response_type="iter_content"))
     elif type == "table":
