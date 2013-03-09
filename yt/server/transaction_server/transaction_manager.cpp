@@ -575,7 +575,7 @@ void TTransactionManager::LoadValues(const NCellMaster::TLoadContext& context)
     TopmostTransactions_.clear();
     FOREACH (const auto& pair, TransactionMap) {
         auto* transaction = pair.second;
-        if (!transaction->GetParent()) {
+        if (IsObjectAlive(transaction) && !transaction->GetParent()) {
             YCHECK(TopmostTransactions_.insert(transaction).second);
         }
     }
