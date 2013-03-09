@@ -9,7 +9,7 @@
 
 #include <util/thread/lfqueue.h>
 
-#include <contrib/libuv/src/unix/ev/ev++.h>
+#include <contrib/libev/ev++.h>
 
 namespace NYT {
 namespace NBus {
