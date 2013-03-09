@@ -2,6 +2,7 @@ package NYT.NChunkServer.NProto;
 
 import "yt/ytlib/misc/guid.proto";
 import "yt/ytlib/misc/error.proto";
+import "yt/ytlib/chunk_client/node.proto";
 import "yt/ytlib/chunk_client/chunk.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -51,7 +52,7 @@ message TJobStartInfo
     required int32 type = 1;
     required NYT.NProto.TGuid job_id = 2;
     required NYT.NProto.TGuid chunk_id = 3;
-    repeated bytes target_addresses = 4;
+    repeated NYT.NChunkClient.NProto.TNodeDescriptor targets = 4;
 }
 
 message TJobStopInfo
@@ -63,7 +64,7 @@ message TJobStopInfo
 
 message TReqRegisterNode
 {
-    required bytes address = 1;
+    required NYT.NChunkClient.NProto.TNodeDescriptor node_descriptor = 1;
     required NYT.NProto.TGuid incarnation_id = 2;
     required TNodeStatistics statistics = 3;
     required NYT.NProto.TGuid cell_guid = 4;
@@ -100,9 +101,8 @@ message TReqIncrementalHeartbeat
 
 message TRspIncrementalHeartbeat
 {
-
-    repeated TJobStartInfo jobs_to_start = 1;
-    repeated TJobStopInfo jobs_to_stop = 2;
+    repeated TJobStartInfo jobs_to_start = 2;
+    repeated TJobStopInfo jobs_to_stop = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -75,7 +75,7 @@ TJobPtr TJobManager::GetJob(const TJobId& jobId)
 
     auto job = FindJob(jobId);
     if (!job) {
-        THROW_ERROR_EXCEPTION("No such job: %s", ~jobId.ToString());
+        THROW_ERROR_EXCEPTION("No such job: %s", ~ToString(jobId));
     }
     return job;
 }
@@ -144,7 +144,7 @@ void TJobManager::StartWaitingJobs()
             auto error = tracker.TryAcquire(EMemoryConsumer::Job, jobResources.memory());
 
             if (error.IsOK()) {
-                LOG_INFO("Starting job (JobId: %s)", ~job->GetId().ToString());
+                LOG_INFO("Starting job (JobId: %s)", ~ToString(job->GetId()));
                 auto slot = GetFreeSlot();
                 job->SubscribeResourcesReleased(BIND(
                     &TJobManager::OnResourcesReleased,
@@ -155,15 +155,12 @@ void TJobManager::StartWaitingJobs()
                 // This job is done :)
                 continue;
             } else {
-                LOG_DEBUG(
-                    error,
-                    "Not enough memory to start waiting job (JobId: %s)",
-                    ~job->GetId().ToString());
+                LOG_DEBUG(error, "Not enough memory to start waiting job (JobId: %s)",
+                    ~ToString(job->GetId()));
             }
         } else {
-            LOG_DEBUG(
-                "Not enough resources to start waiting job (JobId: %s, SpareResources: %s, JobResources: %s)",
-                ~job->GetId().ToString(),
+            LOG_DEBUG("Not enough resources to start waiting job (JobId: %s, SpareResources: %s, JobResources: %s)",
+                ~ToString(job->GetId()),
                 ~FormatResources(spareResources),
                 ~FormatResources(jobResources));
         }
@@ -186,7 +183,7 @@ void TJobManager::CreateJob(
 
     auto slot = GetFreeSlot();
 
-    LOG_INFO("Creating job (JobId: %s)", ~jobId.ToString());
+    LOG_INFO("Creating job (JobId: %s)", ~ToString(jobId));
 
     auto job = New<TJob>(
         jobId,
@@ -226,7 +223,7 @@ void TJobManager::AbortJob(const TJobId& jobId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    LOG_INFO("Job abort requested (JobId: %s)", ~jobId.ToString());
+    LOG_INFO("Job abort requested (JobId: %s)", ~ToString(jobId));
 
     auto job = GetJob(jobId);
     job->Abort(TError("Abort requested by scheduler"));
@@ -236,14 +233,14 @@ void TJobManager::RemoveJob(const TJobId& jobId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    LOG_INFO("Job removal requested (JobId: %s)", ~jobId.ToString());
+    LOG_INFO("Job removal requested (JobId: %s)", ~ToString(jobId));
     auto job = FindJob(jobId);
     if (job) {
         YCHECK(job->GetPhase() > EJobPhase::Cleanup);
         YCHECK(job->GetResourceUsage() == ZeroNodeResources());
         YCHECK(Jobs.erase(jobId) == 1);
     } else {
-        LOG_WARNING("Requested to remove an unknown job (JobId: %s)", ~jobId.ToString());
+        LOG_WARNING("Requested to remove an unknown job (JobId: %s)", ~ToString(jobId));
     }
 }
 

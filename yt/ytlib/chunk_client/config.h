@@ -34,14 +34,9 @@ struct TRemoteReaderConfig
     //! Enable fetching blocks from peers suggested by seeds.
     bool FetchFromPeers;
 
-    //! Publish ourselves as a peer capable of serving block requests.
-    bool PublishPeer;
-
     //! Timeout after which a node forgets about the peer.
+    //! Only makes sense if the reader is equipped with peer descriptor.
     TDuration PeerExpirationTimeout;
-
-    //! Address to publish.
-    Stroka PeerAddress;
 
     //! If True then fetched blocks are cached by the node.
     bool EnableNodeCaching;
@@ -63,8 +58,6 @@ struct TRemoteReaderConfig
             .Default(500);
         Register("fetch_from_peers", FetchFromPeers)
             .Default(true);
-        Register("publish_peer", PublishPeer)
-            .Default(false);
         Register("peer_expiration_timeout", PeerExpirationTimeout)
             .Default(TDuration::Seconds(300));
         Register("enable_node_caching", EnableNodeCaching)

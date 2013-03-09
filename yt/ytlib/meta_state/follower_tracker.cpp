@@ -89,7 +89,7 @@ void TFollowerTracker::SendPing(TPeerId followerId)
     LOG_DEBUG("Sending ping to follower %d (Version: %s, EpochId: %s)",
         followerId,
         ~version.ToString(),
-        ~EpochId.ToString());
+        ~ToString(EpochId));
 
     TProxy proxy(CellManager->GetMasterChannel(followerId));
     proxy.SetDefaultTimeout(Config->RpcTimeout);
@@ -97,7 +97,7 @@ void TFollowerTracker::SendPing(TPeerId followerId)
     auto request = proxy.PingFollower();
     request->set_segment_id(version.SegmentId);
     request->set_record_count(version.RecordCount);
-    *request->mutable_epoch_id() = EpochId.ToProto();
+    ToProto(request->mutable_epoch_id(), EpochId);
     request->Invoke().Subscribe(
         BIND(&TFollowerTracker::OnPingResponse, MakeStrong(this), followerId)
             .Via(EpochControlInvoker));

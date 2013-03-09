@@ -28,13 +28,13 @@ void TSchedulerCommandBase::StartOperation(EOperationType type)
     {
         auto req = SchedulerProxy->StartOperation();
         req->set_type(type);
-        *req->mutable_transaction_id() = GetTransactionId(false).ToProto();
+        ToProto(req->mutable_transaction_id(), GetTransactionId(false));
         req->set_spec(ConvertToYsonString(Request->Spec).Data());
 
         auto rsp = req->Invoke().Get();
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
-        operationId = TOperationId::FromProto(rsp->operation_id());
+        operationId = FromProto<TOperationId>(rsp->operation_id());
     }
 
     ReplySuccess(BuildYsonStringFluently()
@@ -117,7 +117,7 @@ void TAbortOperationCommand::DoExecute()
 {
     TSchedulerServiceProxy proxy(Context->GetSchedulerChannel());
     auto req = proxy.AbortOperation();
-    *req->mutable_operation_id() = Request->OperationId.ToProto();
+    ToProto(req->mutable_operation_id(), Request->OperationId);
 
     auto rsp = req->Invoke().Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);

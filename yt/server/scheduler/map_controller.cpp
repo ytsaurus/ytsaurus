@@ -11,6 +11,8 @@
 #include <ytlib/table_client/schema.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/node_directory.h>
+#include <ytlib/chunk_client/node_directory_builder.h>
 
 #include <ytlib/transaction_client/transaction.h>
 
@@ -27,6 +29,7 @@ using namespace NYTree;
 using namespace NYPath;
 using namespace NChunkServer;
 using namespace NJobProxy;
+using namespace NChunkClient;
 using namespace NScheduler::NProto;
 
 ////////////////////////////////////////////////////////////////////
@@ -62,7 +65,9 @@ private:
             : TTask(controller)
             , Controller(controller)
         {
-            ChunkPool = CreateUnorderedChunkPool(Controller->JobCounter.GetTotal());
+            ChunkPool = CreateUnorderedChunkPool(
+                Controller->NodeDirectory,
+                Controller->JobCounter.GetTotal());
         }
 
         virtual Stroka GetId() const override
@@ -254,7 +259,7 @@ private:
             RegularFiles,
             TableFiles);
 
-        *JobSpecTemplate.mutable_output_transaction_id() = Operation->GetOutputTransaction()->GetId().ToProto();
+        ToProto(JobSpecTemplate.mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
 
         JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
     }

@@ -1,5 +1,6 @@
 package NYT.NChunkClient.NProto;
 
+import "yt/ytlib/chunk_client/node.proto";
 import "yt/ytlib/chunk_client/chunk.proto";
 import "yt/ytlib/object_client/master_ypath.proto";
 
@@ -10,14 +11,15 @@ message TReqLocate
 
 message TRspLocate
 {
-    repeated string node_addresses = 1;
+    required NYT.NChunkClient.NProto.TNodeDirectory node_directory = 1;
+    repeated fixed32 replicas = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqConfirm
 {
-    repeated string node_addresses = 1;
+    repeated fixed32 replicas = 1;
     required NYT.NChunkClient.NProto.TChunkMeta chunk_meta = 2;
     required NYT.NChunkClient.NProto.TChunkInfo chunk_info = 3;
 }
@@ -60,7 +62,8 @@ message TRspCreateChunkExt
         optional TRspCreateChunkExt create_chunk = 100;
     }
 
-    repeated string node_addresses = 1;
+    required TNodeDirectory node_directory = 1;
+    repeated fixed32 replicas = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

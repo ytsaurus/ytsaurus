@@ -34,7 +34,7 @@ private:
         std::vector<Stroka> keys;
         keys.reserve(chunks.size());
         FOREACH (auto chunk, chunks) {
-            keys.push_back(chunk->GetId().ToString());
+            keys.push_back(ToString(chunk->GetId()));
             if (keys.size() == sizeLimit)
                 break;
         }

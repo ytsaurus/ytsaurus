@@ -5,13 +5,16 @@
 
 #include <ytlib/misc/sync.h>
 #include <ytlib/misc/address.h>
+#include <ytlib/misc/protobuf_helpers.h>
 
 #include <ytlib/chunk_client/chunk_ypath_proxy.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/node_directory.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <ytlib/chunk_client/remote_writer.h>
+#include <ytlib/chunk_client/chunk_replica.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/master_ypath_proxy.h>
@@ -25,7 +28,6 @@ using namespace NYTree;
 using namespace NChunkClient;
 using namespace NObjectClient;
 using namespace NCypressClient;
-using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,17 +62,17 @@ void TFileChunkOutput::Open()
         Config->UploadReplicationFactor);
 
     LOG_INFO("Creating chunk");
-    std::vector<Stroka> addresses;
+    auto nodeDirectory = New<TNodeDirectory>();
     {
         TObjectServiceProxy proxy(MasterChannel);
 
         auto req = TMasterYPathProxy::CreateObject();
-        *req->mutable_transaction_id() = TransactionId.ToProto();
+        ToProto(req->mutable_transaction_id(), TransactionId);
         req->set_type(EObjectType::Chunk);
         req->set_account(Account);
         NMetaState::GenerateRpcMutationId(req);
 
-        auto* reqExt = req->MutableExtension(TReqCreateChunkExt::create_chunk);
+        auto* reqExt = req->MutableExtension(NChunkClient::NProto::TReqCreateChunkExt::create_chunk);
         reqExt->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
         reqExt->set_upload_replication_factor(UploadReplicationFactor);
         reqExt->set_replication_factor(ReplicationFactor);
@@ -80,22 +82,24 @@ void TFileChunkOutput::Open()
         auto rsp = proxy.Execute(req).Get();
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error creating file chunk");
 
-        ChunkId = TChunkId::FromProto(rsp->object_id());
-        const auto& rspExt = rsp->GetExtension(TRspCreateChunkExt::create_chunk);
-        addresses = FromProto<Stroka>(rspExt.node_addresses());
-        if (addresses.size() < Config->UploadReplicationFactor) {
-            THROW_ERROR_EXCEPTION("Not enough data nodes available");
+        ChunkId = FromProto<TGuid>(rsp->object_id());
+
+        const auto& rspExt = rsp->GetExtension(NChunkClient::NProto::TRspCreateChunkExt::create_chunk);
+        nodeDirectory->MergeFrom(rspExt.node_directory());
+        Replicas = FromProto<TChunkReplica>(rspExt.replicas());
+        if (Replicas.size() < Config->UploadReplicationFactor) {
+            THROW_ERROR_EXCEPTION("Not enough data nodes available: %d received, %d needed",
+                static_cast<int>(Replicas.size()),
+                UploadReplicationFactor);
         }
     }
 
-    LOG_INFO("Chunk created (ChunkId: %s, NodeAddresses: [%s])",
-        ~ChunkId.ToString(),
-        ~JoinToString(addresses));
+    Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ChunkId)));
 
-    Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
+    LOG_INFO("Chunk created");
 
-    Writer = New<TRemoteWriter>(Config, ChunkId, addresses);
-
+    auto targets = nodeDirectory->GetDescriptors(Replicas);
+    Writer = New<TRemoteWriter>(Config, ChunkId, targets);
     Writer->Open();
 
     IsOpen = true;
@@ -113,7 +117,7 @@ void TFileChunkOutput::DoWrite(const void* buf, size_t len)
     YCHECK(IsOpen);
 
     LOG_DEBUG("Writing data (ChunkId: %s, Size: %d)",
-        ~ChunkId.ToString(),
+        ~ToString(ChunkId),
         static_cast<int>(len));
 
     if (len == 0)
@@ -161,7 +165,7 @@ void TFileChunkOutput::DoFinish()
         Meta.set_type(EChunkType::File);
         Meta.set_version(FormatVersion);
 
-        TMiscExt miscExt;
+        NChunkClient::NProto::TMiscExt miscExt;
         miscExt.set_uncompressed_data_size(Size);
         miscExt.set_compressed_data_size(Size);
         miscExt.set_meta_size(Meta.ByteSize());
@@ -185,7 +189,9 @@ void TFileChunkOutput::DoFinish()
 
         auto req = TChunkYPathProxy::Confirm(FromObjectId(ChunkId));
         *req->mutable_chunk_info() = Writer->GetChunkInfo();
-        ToProto(req->mutable_node_addresses(), Writer->GetNodeAddresses());
+        FOREACH (int index, Writer->GetWrittenIndexes()) {
+            req->add_replicas(ToProto<ui32>(Replicas[index]));
+        }
         *req->mutable_chunk_meta() = Meta;
         NMetaState::GenerateRpcMutationId(req);
 

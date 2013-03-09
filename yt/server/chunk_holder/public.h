@@ -87,6 +87,7 @@ using NChunkServer::TJobId;
 using NChunkServer::EJobType;
 using NChunkServer::EJobState;
 using NChunkServer::TBlockId;
+using NChunkServer::TNodeId;
 
 ////////////////////////////////////////////////////////////////////////////////
 

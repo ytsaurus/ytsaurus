@@ -17,7 +17,7 @@ using namespace NYTree;
 TServiceContextBase::TServiceContextBase(
     const TRequestHeader& header,
     IMessagePtr requestMessage)
-    : RequestId(header.has_request_id() ? TRequestId::FromProto(header.request_id()) : NullRequestId)
+    : RequestId(header.has_request_id() ? FromProto<TRequestId>(header.request_id()) : NullRequestId)
     , Path(header.path())
     , Verb(header.verb())
     , RequestMessage(requestMessage)

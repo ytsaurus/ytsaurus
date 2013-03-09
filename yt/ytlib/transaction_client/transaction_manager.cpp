@@ -86,7 +86,7 @@ public:
         req->set_type(EObjectType::Transaction);
         ToProto(req->mutable_object_attributes(), *options.Attributes);
         if (options.ParentId != NullTransactionId) {
-            *req->mutable_transaction_id() = options.ParentId.ToProto();
+            ToProto(req->mutable_transaction_id(), options.ParentId);
         }
 
         auto* reqExt = req->MutableExtension(NProto::TReqCreateTransactionExt::create_transaction);
@@ -108,12 +108,12 @@ public:
             THROW_ERROR_EXCEPTION("Error starting transaction")
                 << rsp->GetError();
         }
-        Id = TTransactionId::FromProto(rsp->object_id());
+        Id = FromProto<TTransactionId>(rsp->object_id());
 
         State = EState::Active;
 
         LOG_INFO("Transaction started: %s (Ping: %s, PingAncestors: %s)",
-            ~Id.ToString(),
+            ~ToString(Id),
             ~FormatBool(Ping),
             ~FormatBool(PingAncestors));
 
@@ -132,7 +132,7 @@ public:
         State = EState::Active;
 
         LOG_INFO("Transaction attached: %s (AutoAbort: %s, Ping: %s, PingAncestors: %s)",
-            ~Id.ToString(),
+            ~ToString(Id),
             ~FormatBool(AutoAbort),
             ~FormatBool(Ping),
             ~FormatBool(PingAncestors));
@@ -172,7 +172,7 @@ public:
             }
         }
 
-        LOG_INFO("Committing transaction (TransactionId: %s)", ~Id.ToString());
+        LOG_INFO("Committing transaction (TransactionId: %s)", ~ToString(Id));
 
         auto req = TTransactionYPathProxy::Commit(FromObjectId(Id));
         NMetaState::GenerateRpcMutationId(req);
@@ -183,21 +183,21 @@ public:
             // No sync here, should be safe.
             State = EState::Aborted;
 
-            THROW_ERROR_EXCEPTION("Error committing transaction %s", ~Id.ToString())
+            THROW_ERROR_EXCEPTION("Error committing transaction %s", ~ToString(Id))
                 << rsp->GetError();
 
             FireAbort();
             return;
         }
 
-        LOG_INFO("Transaction committed (TransactionId: %s)", ~Id.ToString());
+        LOG_INFO("Transaction committed (TransactionId: %s)", ~ToString(Id));
     }
 
     void Abort(bool wait) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        LOG_INFO("Transaction aborted by client (TransactionId: %s)", ~Id.ToString());
+        LOG_INFO("Transaction aborted by client (TransactionId: %s)", ~ToString(Id));
 
         InvokeAbort(wait);
         HandleAbort();
@@ -230,7 +230,7 @@ public:
             }
         }
 
-        LOG_INFO("Transaction detached: %s", ~Id.ToString());
+        LOG_INFO("Transaction detached: %s", ~ToString(Id));
     }
 
     void SubscribeAborted(const TCallback<void()>& handler) override
@@ -280,7 +280,7 @@ private:
 
     void SendPing()
     {
-        LOG_DEBUG("Renewing transaction lease: %s", ~Id.ToString());
+        LOG_DEBUG("Renewing transaction lease: %s", ~ToString(Id));
 
         auto req = TTransactionYPathProxy::RenewLease(FromObjectId(Id));
         req->set_renew_ancestors(PingAncestors);
@@ -294,16 +294,16 @@ private:
         if (!rsp->IsOK()) {
             if (rsp->GetError().GetCode() == NYTree::EErrorCode::ResolveError) {
                 LOG_WARNING("Transaction has expired or was aborted: %s",
-                    ~Id.ToString());
+                    ~ToString(Id));
                 HandleAbort();
             } else {
                 LOG_WARNING(*rsp, "Error renewing transaction lease: %s",
-                    ~Id.ToString());
+                    ~ToString(Id));
             }
             return;
         }
 
-        LOG_DEBUG("Transaction lease renewed: %s", ~Id.ToString());
+        LOG_DEBUG("Transaction lease renewed: %s", ~ToString(Id));
 
         SchedulePing();
     }

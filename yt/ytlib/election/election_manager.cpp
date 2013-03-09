@@ -66,7 +66,7 @@ private:
             .PingFollower()
             ->SetTimeout(ElectionManager->Config->RpcTimeout);
         request->set_leader_id(ElectionManager->CellManager->GetSelfId());
-        *request->mutable_epoch_id() = ElectionManager->EpochContext->EpochId.ToProto();
+        ToProto(request->mutable_epoch_id(), ElectionManager->EpochContext->EpochId);
 
         Awaiter->Await(
             request->Invoke(),
@@ -180,7 +180,7 @@ public:
             this,
             ElectionManager->VoteId,
             ~callbacks->FormatPriority(priority),
-            ~ElectionManager->VoteEpochId.ToString());
+            ~ToString(ElectionManager->VoteEpochId));
 
         ProcessVote(
             cellManager->GetSelfId(),
@@ -251,7 +251,7 @@ private:
         auto state = EPeerState(response->state());
         auto vote = response->vote_id();
         auto priority = response->priority();
-        auto epochId = TEpochId::FromProto(response->vote_epoch_id());
+        auto epochId = FromProto<TEpochId>(response->vote_epoch_id());
 
         LOG_DEBUG("Received status from peer %d (Round: %p, State: %s, VoteId: %d, Priority: %s, VoteEpochId: %s)",
             id,
@@ -259,7 +259,7 @@ private:
             ~state.ToString(),
             vote,
             ~ElectionManager->ElectionCallbacks->FormatPriority(priority),
-            ~epochId.ToString());
+            ~ToString(epochId));
 
         ProcessVote(id, TStatus(state, vote, priority, epochId));
     }
@@ -309,7 +309,7 @@ private:
                 voteCount,
                 quorum,
                 this,
-                ~candidateEpochId.ToString());
+                ~ToString(candidateEpochId));
             return false;
         }
 
@@ -318,7 +318,7 @@ private:
             voteCount,
             quorum,
             this,
-            ~candidateEpochId.ToString());
+            ~ToString(candidateEpochId));
 
         Awaiter->Cancel();
 
@@ -585,7 +585,7 @@ void TElectionManager::StartVoting()
 
     LOG_DEBUG("Voting for self (Priority: %s, VoteEpochId: %s)",
         ~ElectionCallbacks->FormatPriority(priority),
-        ~VoteEpochId.ToString());
+        ~ToString(VoteEpochId));
 
     StartVotingRound();
 }
@@ -617,7 +617,7 @@ void TElectionManager::StartFollowing(
 
     LOG_INFO("Starting following leader (LeaderId: %d, EpochId: %s)",
         EpochContext->LeaderId,
-        ~EpochContext->EpochId.ToString());
+        ~ToString(EpochContext->EpochId));
 
     ElectionCallbacks->OnStartFollowing();
 }
@@ -643,7 +643,7 @@ void TElectionManager::StartLeading()
     FollowerPinger->Start();
 
     LOG_INFO("Starting leading (EpochId: %s)",
-        ~EpochContext->EpochId.ToString());
+        ~ToString(EpochContext->EpochId));
 
     ElectionCallbacks->OnStartLeading();
 }
@@ -654,7 +654,7 @@ void TElectionManager::StopLeading()
     YCHECK(State == EPeerState::Leading);
 
     LOG_INFO("Stopping leading (EpochId: %s)",
-        ~EpochContext->EpochId.ToString());
+        ~ToString(EpochContext->EpochId));
 
     ElectionCallbacks->OnStopLeading();
 
@@ -672,7 +672,7 @@ void TElectionManager::StopFollowing()
 
     LOG_INFO("Stopping following leader (LeaderId: %d, EpochId: %s)",
         EpochContext->LeaderId,
-        ~EpochContext->EpochId.ToString());
+        ~ToString(EpochContext->EpochId));
 
     ElectionCallbacks->OnStopFollowing();
 
@@ -705,11 +705,11 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager, PingFollower)
     UNUSED(response);
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto epochId = TEpochId::FromProto(request->epoch_id());
+    auto epochId = FromProto<TEpochId>(request->epoch_id());
     auto leaderId = request->leader_id();
 
     context->SetRequestInfo("Epoch: %s, LeaderId: %d",
-        ~epochId.ToString(),
+        ~ToString(epochId),
         leaderId);
 
     if (State != EPeerState::Following) {
@@ -718,7 +718,7 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager, PingFollower)
             "Cannot process ping from a leader while in %s (LeaderId: %d, EpochId: %s)",
             ~State.ToString(),
             leaderId,
-            ~epochId.ToString());
+            ~ToString(epochId));
     }
 
     if (leaderId != EpochContext->LeaderId) {
@@ -733,8 +733,8 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager, PingFollower)
         THROW_ERROR_EXCEPTION(
             EErrorCode::InvalidEpoch,
             "Ping with invalid epoch from leader: expected %s, received %s",
-            ~EpochContext->EpochId.ToString(),
-            ~epochId.ToString());
+            ~ToString(EpochContext->EpochId),
+            ~ToString(epochId));
     }
 
     TDelayedInvoker::Cancel(PingTimeoutCookie);
@@ -759,7 +759,7 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager, GetStatus)
     response->set_state(State);
     response->set_vote_id(VoteId);
     response->set_priority(priority);
-    *response->mutable_vote_epoch_id() = VoteEpochId.ToProto();
+    ToProto(response->mutable_vote_epoch_id(), VoteEpochId);
     response->set_self_id(CellManager->GetSelfId());
     for (TPeerId id = 0; id < CellManager->GetPeerCount(); ++id) {
         response->add_peer_addresses(CellManager->GetPeerAddress(id));
@@ -769,7 +769,7 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager, GetStatus)
         ~State.ToString(),
         VoteId,
         ~ElectionCallbacks->FormatPriority(priority),
-        ~VoteEpochId.ToString());
+        ~ToString(VoteEpochId));
 
     context->Reply();
 }

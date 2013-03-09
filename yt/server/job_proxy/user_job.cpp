@@ -9,9 +9,10 @@
 #include "pipes.h"
 
 #include <ytlib/formats/format.h>
+#include <ytlib/formats/parser.h>
 
 #include <ytlib/yson/yson_writer.h>
-#include <ytlib/formats/parser.h>
+
 #include <ytlib/ytree/convert.h>
 
 #include <ytlib/table_client/table_producer.h>
@@ -25,6 +26,9 @@
 
 #include <ytlib/misc/proc.h>
 #include <ytlib/misc/periodic_invoker.h>
+#include <ytlib/misc/protobuf_helpers.h>
+
+#include <ytlib/transaction_client/public.h>
 
 #include <util/folder/dirut.h>
 
@@ -53,6 +57,7 @@ using namespace NYson;
 using namespace NTableClient;
 using namespace NFormats;
 using namespace NScheduler;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -120,7 +125,7 @@ public:
             auto stderrChunkId = ErrorOutput->GetChunkId();
             if (stderrChunkId != NChunkServer::NullChunkId) {
                 JobIO->SetStderrChunkId(stderrChunkId);
-                LOG_INFO("Stderr chunk generated (ChunkId: %s)", ~stderrChunkId.ToString());
+                LOG_INFO("Stderr chunk generated (ChunkId: %s)", ~ToString(stderrChunkId));
             }
         }
 
@@ -189,7 +194,7 @@ private:
         // Configure stderr pipe.
         TOutputStream* stdErrOutput;
         if (UserJobSpec.has_stderr_transaction_id()) {
-            auto stderrTransactionId = NTransactionClient::TTransactionId::FromProto(UserJobSpec.stderr_transaction_id());
+            auto stderrTransactionId = FromProto<TTransactionId>(UserJobSpec.stderr_transaction_id());
             ErrorOutput = JobIO->CreateErrorOutput(stderrTransactionId);
             stdErrOutput = ~ErrorOutput;
         } else {

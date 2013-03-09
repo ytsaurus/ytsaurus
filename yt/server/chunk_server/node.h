@@ -4,6 +4,8 @@
 
 #include <ytlib/misc/property.h>
 
+#include <ytlib/chunk_client/node_directory.h>
+
 #include <server/cell_master/public.h>
 
 #include <server/chunk_server/chunk_service.pb.h>
@@ -25,7 +27,6 @@ DECLARE_ENUM(ENodeState,
 class TDataNode
 {
     DEFINE_BYVAL_RO_PROPERTY(TNodeId, Id);
-    DEFINE_BYVAL_RO_PROPERTY(Stroka, Address);
     DEFINE_BYVAL_RO_PROPERTY(TIncarnationId, IncarnationId);
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, State);
     DEFINE_BYREF_RW_PROPERTY(NProto::TNodeStatistics, Statistics);
@@ -46,10 +47,13 @@ class TDataNode
 public:
     TDataNode(
         TNodeId id,
-        const Stroka& address,
+        const NChunkClient::TNodeDescriptor& descriptor,
         const TIncarnationId& incarnationId);
 
     explicit TDataNode(TNodeId id);
+
+    const NChunkClient::TNodeDescriptor& GetDescriptor() const;
+    const Stroka& GetAddress() const;
 
     void Save(const NCellMaster::TSaveContext& context) const;
     void Load(const NCellMaster::TLoadContext& context);
@@ -68,6 +72,8 @@ public:
     int GetTotalSessionCount() const;
 
 private:
+    NChunkClient::TNodeDescriptor Descriptor_;
+
     void Init();
 
 };

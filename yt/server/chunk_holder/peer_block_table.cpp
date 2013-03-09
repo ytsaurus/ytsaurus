@@ -33,9 +33,9 @@ const std::vector<TPeerInfo>& TPeerBlockTable::GetPeers(const TBlockId& blockId)
 void TPeerBlockTable::UpdatePeer(const TBlockId& blockId, const TPeerInfo& peer)
 {
     LOG_DEBUG("Updating peer (BlockId: %s, Address: %s, ExpirationTime: %s)",
-        ~blockId.ToString(),
-        ~peer.Address,
-        ~peer.ExpirationTime.ToString());
+        ~ToString(blockId),
+        ~peer.Descriptor.Address,
+        ~ToString(peer.ExpirationTime));
 
     SweepAllExpiredPeers();
 
@@ -43,7 +43,7 @@ void TPeerBlockTable::UpdatePeer(const TBlockId& blockId, const TPeerInfo& peer)
     SweepExpiredPeers(peers); // In case when all expired peers were not swept
 
     for (auto it = peers.begin(); it != peers.end(); ++it) {
-        if (it->Address == peer.Address) {
+        if (it->Descriptor.Address == peer.Descriptor.Address) {
             peers.erase(it);
             break;
         }

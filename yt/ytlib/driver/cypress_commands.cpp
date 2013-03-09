@@ -28,7 +28,7 @@ void TGetCommand::DoExecute()
     SetTransactionId(req, GetTransactionId(false));
 
     TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, Request->Attributes);
-    *req->mutable_attribute_filter() = ToProto(attributeFilter);
+    ToProto(req->mutable_attribute_filter(), attributeFilter);
 
     req->Attributes().MergeFrom(Request->GetOptions());
     auto rsp = ObjectProxy->Execute(req).Get();
@@ -46,7 +46,7 @@ void TSetCommand::DoExecute()
     NMetaState::GenerateRpcMutationId(req);
 
     auto producer = Context->CreateInputProducer();
-    TYsonString value = ConvertToYsonString(producer);
+    auto value = ConvertToYsonString(producer);
     req->set_value(value.Data());
 
     req->Attributes().MergeFrom(Request->GetOptions());
@@ -77,7 +77,7 @@ void TListCommand::DoExecute()
     SetTransactionId(req, GetTransactionId(false));
 
     TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, Request->Attributes);
-    *req->mutable_attribute_filter() = ToProto(attributeFilter);
+    ToProto(req->mutable_attribute_filter(), attributeFilter);
 
     req->Attributes().MergeFrom(Request->GetOptions());
     auto rsp = ObjectProxy->Execute(req).Get();
@@ -111,7 +111,7 @@ void TCreateCommand::DoExecute()
         auto rsp = ObjectProxy->Execute(req).Get();
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
-        auto nodeId = TNodeId::FromProto(rsp->node_id());
+        auto nodeId = FromProto<TNodeId>(rsp->node_id());
         ReplySuccess(BuildYsonStringFluently()
             .Value(nodeId));
     } else {
@@ -122,7 +122,7 @@ void TCreateCommand::DoExecute()
         auto transactionId = GetTransactionId(false);
         auto req = TMasterYPathProxy::CreateObject();
         if (transactionId != NullTransactionId) {
-            *req->mutable_transaction_id() = transactionId.ToProto();
+            ToProto(req->mutable_transaction_id(), transactionId);
         }
         req->set_type(Request->Type);
         NMetaState::GenerateRpcMutationId(req);
@@ -135,7 +135,7 @@ void TCreateCommand::DoExecute()
         auto rsp = ObjectProxy->Execute(req).Get();
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
-        auto objectId = TObjectId::FromProto(rsp->object_id());
+        auto objectId = FromProto<TObjectId>(rsp->object_id());
         ReplySuccess(BuildYsonStringFluently()
             .Value(objectId));
     }
@@ -146,10 +146,10 @@ void TCreateCommand::DoExecute()
 void TLockCommand::DoExecute()
 {
     auto req = TCypressYPathProxy::Lock(Request->Path.GetPath());
+    req->set_mode(Request->Mode);
+
     SetTransactionId(req, GetTransactionId(true));
     NMetaState::GenerateRpcMutationId(req);
-
-    req->set_mode(Request->Mode);
 
     req->Attributes().MergeFrom(Request->GetOptions());
     auto rsp = ObjectProxy->Execute(req).Get();
@@ -169,9 +169,9 @@ void TCopyCommand::DoExecute()
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
     auto consumer = Context->CreateOutputConsumer();
-    auto nodeId = TNodeId::FromProto(rsp->object_id());
+    auto nodeId = FromProto<TNodeId>(rsp->object_id());
     BuildYsonFluently(~consumer)
-        .Value(nodeId.ToString());
+        .Value(nodeId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -240,7 +240,7 @@ void TLinkCommand::DoExecute()
 
         auto rsp = ObjectProxy->Execute(req).Get();
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
-        linkId = TNodeId::FromProto(rsp->node_id());
+        linkId = FromProto<TNodeId>(rsp->node_id());
     }
 
     ReplySuccess(BuildYsonStringFluently()

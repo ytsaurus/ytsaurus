@@ -159,9 +159,9 @@ public:
         YCHECK(Connected);
 
         LOG_DEBUG("Creating job node (OperationId: %s, JobId: %s, StdErrChunkId: %s)",
-            ~job->GetOperation()->GetOperationId().ToString(),
-            ~job->GetId().ToString(),
-            ~stdErrChunkId.ToString());
+            ~ToString(job->GetOperation()->GetOperationId()),
+            ~ToString(job->GetId()),
+            ~ToString(stdErrChunkId));
 
         auto* list = GetUpdateList(job->GetOperation());
         list->PendingJobs.insert(std::make_pair(job, stdErrChunkId));
@@ -338,7 +338,7 @@ private:
             {
                 auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_lock_tx");
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting lock transaction");
-                auto transactionId = TTransactionId::FromProto(rsp->object_id());
+                auto transactionId = FromProto<TTransactionId>(rsp->object_id());
 
                 TTransactionAttachOptions options(transactionId);
                 options.AutoAbort = true;
@@ -368,7 +368,7 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(batchRsp->GetCumulativeError());
 
             auto batchReq = Owner->StartBatchRequest();
-            auto schedulerAddress = Owner->Bootstrap->GetPeerAddress();
+            auto schedulerAddress = Owner->Bootstrap->GetLocalAddress();
             {
                 auto req = TYPathProxy::Set("//sys/scheduler/@address");
                 req->set_value(ConvertToYsonString(TRawString(schedulerAddress)).Data());
@@ -948,7 +948,7 @@ private:
                 ToProto(req->mutable_node_attributes(), *attributes);
 
                 auto* reqExt = req->MutableExtension(NFileClient::NProto::TReqCreateFileExt::create_file);
-                *reqExt->mutable_chunk_id() = chunkId.ToProto();
+                ToProto(reqExt->mutable_chunk_id(), chunkId);
 
                 batchReq->AddRequest(req);
             }
@@ -998,13 +998,13 @@ private:
         auto error = batchRsp->GetCumulativeError();
         if (!error.IsOK()) {
             LOG_ERROR(error, "Error flushing operation node (OperationId: %s)",
-                ~operationId.ToString());
+                ~ToString(operationId));
             Disconnect();
             return;
         }
 
         LOG_INFO("Operation node flushed (OperationId: %s)",
-            ~operationId.ToString());
+            ~ToString(operationId));
 
         auto* list = GetUpdateList(operation);
         list->State = EUpdateListState::Flushed;
@@ -1023,13 +1023,13 @@ private:
         auto error = batchRsp->GetCumulativeError();
         if (!error.IsOK()) {
             LOG_ERROR(error, "Error finalizing operation node (OperationId: %s)",
-                ~operationId.ToString());
+                ~ToString(operationId));
             Disconnect();
             return;
         }
 
         LOG_INFO("Operation node finalized (OperationId: %s)",
-            ~operationId.ToString());
+            ~ToString(operationId));
 
         auto* list = GetUpdateList(operation);
         list->State = EUpdateListState::Finalized; 

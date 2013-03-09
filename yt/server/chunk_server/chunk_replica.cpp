@@ -2,6 +2,8 @@
 #include "chunk_replica.h"
 #include "node.h"
 
+#include <ytlib/chunk_client/chunk_replica.h>
+
 #include <server/cell_master/serialization_context.h>
 
 namespace NYT {
@@ -117,6 +119,20 @@ bool TChunkReplica::operator > (TChunkReplica other) const
 bool TChunkReplica::operator >= (TChunkReplica other) const
 {
     return other <= *this;
+}
+
+Stroka ToString(TChunkReplica replica)
+{
+    return Sprintf("%s/%d", ~replica.GetNode()->GetAddress(), replica.GetIndex());
+
+}
+
+void ToProto(ui32* value, TChunkReplica replica)
+{
+    NChunkClient::TChunkReplica clientReplica(
+        replica.GetNode()->GetId(),
+        replica.GetIndex());
+    NChunkClient::ToProto(value, clientReplica);
 }
 
 void SaveObjectRef(const TSaveContext& context, TChunkReplica value)

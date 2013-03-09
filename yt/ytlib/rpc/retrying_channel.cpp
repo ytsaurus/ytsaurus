@@ -81,7 +81,7 @@ public:
     void Send()
     {
         LOG_DEBUG("Request attempt started (RequestId: %s, Attempt: %d of %d)",
-            ~Request->GetRequestId().ToString(),
+            ~ToString(Request->GetRequestId()),
             static_cast<int>(CurrentAttempt),
             Config->MaxAttempts);
 
@@ -118,7 +118,7 @@ private:
     virtual void OnAcknowledgement() override
     {
         LOG_DEBUG("Request attempt acknowledged (RequestId: %s)",
-            ~Request->GetRequestId().ToString());
+            ~ToString(Request->GetRequestId()));
         {
             TGuard<TSpinLock> guard(SpinLock);
             if (State != EState::Sent)
@@ -132,7 +132,7 @@ private:
     virtual void OnError(const TError& error) override
     {
         LOG_DEBUG(error, "Request attempt failed (RequestId: %s, Attempt: %d of %d)",
-            ~Request->GetRequestId().ToString(),
+            ~ToString(Request->GetRequestId()),
             static_cast<int>(CurrentAttempt),
             Config->MaxAttempts);
 
@@ -165,7 +165,7 @@ private:
     virtual void OnResponse(IMessagePtr message) override
     {
         LOG_DEBUG("Request attempt succeeded (RequestId: %s)",
-            ~Request->GetRequestId().ToString());
+            ~ToString(Request->GetRequestId()));
 
         {
             TGuard<TSpinLock> guard(SpinLock);

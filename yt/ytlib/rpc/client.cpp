@@ -49,7 +49,7 @@ TClientRequest::TClientRequest(
 IMessagePtr TClientRequest::Serialize() const
 {
     NProto::TRequestHeader header;
-    *header.mutable_request_id() = RequestId.ToProto();
+    ToProto(header.mutable_request_id(), RequestId);
     header.set_path(Path);
     header.set_verb(Verb);
     header.set_one_way(OneWay);
@@ -124,7 +124,7 @@ TClientResponseBase::operator TError()
 void TClientResponseBase::OnError(const TError& error)
 {
     LOG_DEBUG(error, "Request failed (RequestId: %s)",
-        ~RequestId_.ToString());
+        ~ToString(RequestId_));
 
     {
         TGuard<TSpinLock> guard(SpinLock);
@@ -184,7 +184,7 @@ void TClientResponse::Deserialize(IMessagePtr responseMessage)
 
 void TClientResponse::OnAcknowledgement()
 {
-    LOG_DEBUG("Request acknowledged (RequestId: %s)", ~RequestId_.ToString());
+    LOG_DEBUG("Request acknowledged (RequestId: %s)", ~ToString(RequestId_));
 
     TGuard<TSpinLock> guard(SpinLock);
     if (State == EState::Sent) {
@@ -194,7 +194,7 @@ void TClientResponse::OnAcknowledgement()
 
 void TClientResponse::OnResponse(IMessagePtr message)
 {
-    LOG_DEBUG("Response received (RequestId: %s)", ~RequestId_.ToString());
+    LOG_DEBUG("Response received (RequestId: %s)", ~ToString(RequestId_));
 
     {
         TGuard<TSpinLock> guard(SpinLock);
@@ -228,7 +228,7 @@ TOneWayClientResponse::TOneWayClientResponse(const TRequestId& requestId)
 
 void TOneWayClientResponse::OnAcknowledgement()
 {
-    LOG_DEBUG("Request acknowledged (RequestId: %s)", ~RequestId_.ToString());
+    LOG_DEBUG("Request acknowledged (RequestId: %s)", ~ToString(RequestId_));
 
     {
         TGuard<TSpinLock> guard(SpinLock);

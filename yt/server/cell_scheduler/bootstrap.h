@@ -29,7 +29,7 @@ public:
 
     TCellSchedulerConfigPtr GetConfig() const;
     NRpc::IChannelPtr GetMasterChannel() const;
-    Stroka GetPeerAddress() const;
+    const Stroka& GetLocalAddress() const;
     IInvokerPtr GetControlInvoker(EControlQueue queue = EControlQueue::Default) const;
     NTransactionClient::TTransactionManagerPtr GetTransactionManager() const;
     NScheduler::TSchedulerPtr GetScheduler() const;
@@ -43,7 +43,7 @@ private:
     TFairShareActionQueuePtr ControlQueue;
     NBus::IBusServerPtr BusServer;
     NRpc::IChannelPtr MasterChannel;
-    Stroka PeerAddress;
+    Stroka LocalAddress;
     NTransactionClient::TTransactionManagerPtr TransactionManager;
     NScheduler::TSchedulerPtr Scheduler;
 

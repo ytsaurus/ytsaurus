@@ -64,6 +64,7 @@ using namespace NScheduler::NProto;
 
 using NChunkClient::TChunkId;
 using NChunkClient::NullChunkId;
+using NChunkClient::TNodeDescriptor;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -369,7 +370,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         LOG_INFO("Operation belongs to an expired user transaction, aborting (OperationId: %s)",
-            ~operation->GetOperationId().ToString());
+            ~ToString(operation->GetOperationId()));
 
         DoOperationFailed(
             operation,
@@ -383,7 +384,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         LOG_INFO("Operation uses an expired scheduler transaction, aborting (OperationId: %s)",
-            ~operation->GetOperationId().ToString());
+            ~ToString(operation->GetOperationId()));
 
         DoOperationFailed(
             operation,
@@ -439,7 +440,10 @@ private:
 
         LOG_INFO("Node online: %s", ~address);
 
-        auto node = New<TExecNode>(address);
+        // TODO(babenko): fixme
+        TNodeDescriptor descriptor;
+        descriptor.Address = address;
+        auto node = New<TExecNode>(descriptor);
         RegisterNode(node);
 
         TotalResourceLimits += node->ResourceLimits();
@@ -530,7 +534,7 @@ private:
                     // Hence the failure implies that we don't have any node yet.
 
                     LOG_ERROR(result, "Error starting operation (OperationId: %s)",
-                        ~operation->GetOperationId().ToString());
+                        ~ToString(operation->GetOperationId()));
 
                     auto wrappedError = TError("Error starting operation") << result;
                     this_->SetOperationFinalState(operation, EOperationState::Failed, wrappedError);
@@ -547,7 +551,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         LOG_INFO("Starting scheduler transactions (OperationId: %s)",
-            ~operation->GetOperationId().ToString());
+            ~ToString(operation->GetOperationId()));
 
         TObjectServiceProxy proxy(GetMasterChannel());
         auto batchReq = proxy.ExecuteBatch();
@@ -556,7 +560,7 @@ private:
             auto userTransaction = operation->GetUserTransaction();
             auto req = TMasterYPathProxy::CreateObject();
             if (userTransaction) {
-                *req->mutable_transaction_id() = userTransaction->GetId().ToProto();
+                ToProto(req->mutable_transaction_id(), userTransaction->GetId());
             }
             req->set_type(EObjectType::Transaction);
 
@@ -565,7 +569,7 @@ private:
 
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("title", Sprintf("Scheduler sync for operation %s",
-                ~operation->GetOperationId().ToString()));
+                ~ToString(operation->GetOperationId())));
             ToProto(req->mutable_object_attributes(), *attributes);
 
             GenerateRpcMutationId(req);
@@ -581,7 +585,7 @@ private:
 
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("title", Sprintf("Scheduler async for operation %s",
-                ~operation->GetOperationId().ToString()));
+                ~ToString(operation->GetOperationId())));
             ToProto(req->mutable_object_attributes(), *attributes);
 
             GenerateRpcMutationId(req);
@@ -601,7 +605,7 @@ private:
 
         {
             auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_sync_tx");
-            auto transactionid = TObjectId::FromProto(rsp->object_id());
+            auto transactionid = FromProto<TObjectId>(rsp->object_id());
             TTransactionAttachOptions attachOptions(transactionid);
             attachOptions.AutoAbort = true;
             attachOptions.Ping = true;
@@ -611,7 +615,7 @@ private:
 
         {
             auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_async_tx");
-            auto transactionid = TObjectId::FromProto(rsp->object_id());
+            auto transactionid = FromProto<TObjectId>(rsp->object_id());
             TTransactionAttachOptions attachOptions(transactionid);
             attachOptions.AutoAbort = true;
             attachOptions.Ping = true;
@@ -630,7 +634,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         LOG_INFO("Starting IO transactions (OperationId: %s)",
-            ~operation->GetOperationId().ToString());
+            ~ToString(operation->GetOperationId()));
 
         TObjectServiceProxy proxy(GetMasterChannel());
         auto batchReq = proxy.ExecuteBatch();
@@ -638,7 +642,7 @@ private:
 
         {
             auto req = TMasterYPathProxy::CreateObject();
-            *req->mutable_transaction_id() = parentTransactionId.ToProto();
+            ToProto(req->mutable_transaction_id(), parentTransactionId);
             req->set_type(EObjectType::Transaction);
 
             auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
@@ -646,7 +650,7 @@ private:
 
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("title", Sprintf("Scheduler input for operation %s",
-                ~operation->GetOperationId().ToString()));
+                ~ToString(operation->GetOperationId())));
             ToProto(req->mutable_object_attributes(), *attributes);
 
             NMetaState::GenerateRpcMutationId(req);
@@ -655,7 +659,7 @@ private:
 
         {
             auto req = TMasterYPathProxy::CreateObject();
-            *req->mutable_transaction_id() = parentTransactionId.ToProto();
+            ToProto(req->mutable_transaction_id(), parentTransactionId);
             req->set_type(EObjectType::Transaction);
 
             auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqCreateTransactionExt::create_transaction);
@@ -664,7 +668,7 @@ private:
 
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("title", Sprintf("Scheduler output for operation %s",
-                ~operation->GetOperationId().ToString()));
+                ~ToString(operation->GetOperationId())));
             ToProto(req->mutable_object_attributes(), *attributes);
 
             NMetaState::GenerateRpcMutationId(req);
@@ -685,7 +689,7 @@ private:
         {
             auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_in_tx");
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting input transaction");
-            auto id = TTransactionId::FromProto(rsp->object_id());
+            auto id = FromProto<TTransactionId>(rsp->object_id());
             TTransactionAttachOptions options(id);
             options.Ping = true;
             operation->SetInputTransaction(transactionManager->Attach(options));
@@ -694,7 +698,7 @@ private:
         {
             auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_out_tx");
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error starting output transaction");
-            auto id = TTransactionId::FromProto(rsp->object_id());
+            auto id = FromProto<TTransactionId>(rsp->object_id());
             TTransactionAttachOptions options(id);
             options.Ping = true;
             operation->SetOutputTransaction(transactionManager->Attach(options));
@@ -712,7 +716,7 @@ private:
 
         // Run async preparation.
         LOG_INFO("Preparing operation (OperationId: %s)",
-            ~operation->GetOperationId().ToString());
+            ~ToString(operation->GetOperationId()));
 
         if (operation->GetState() != EOperationState::Initializing)
             return;
@@ -743,7 +747,7 @@ private:
         operation->SetState(EOperationState::Running);
 
         LOG_INFO("Operation has been prepared and is now running (OperationId: %s)",
-            ~operation->GetOperationId().ToString());
+            ~ToString(operation->GetOperationId()));
 
         LogOperationProgress(operation);
 
@@ -766,7 +770,7 @@ private:
     void ReviveOperation(TOperationPtr operation)
     {
         LOG_INFO("Reviving operation (OperationId: %s)",
-            ~operation->GetOperationId().ToString());
+            ~ToString(operation->GetOperationId()));
 
         // NB: The operation is being revived, hence it already
         // has a valid node associated with it.
@@ -827,20 +831,20 @@ private:
 
         if (operation->IsFinishingState()) {
             LOG_INFO(error, "Operation is already finishing (OperationId: %s, State: %s)",
-                ~operation->GetOperationId().ToString(),
+                ~ToString(operation->GetOperationId()),
                 ~operation->GetState().ToString());
             return operation->GetFinished();
         }
 
         if (operation->IsFinishedState()) {
             LOG_INFO(error, "Operation is already finished (OperationId: %s, State: %s)",
-                ~operation->GetOperationId().ToString(),
+                ~ToString(operation->GetOperationId()),
                 ~operation->GetState().ToString());
             return operation->GetFinished();
         }
 
         LOG_INFO(error, "Aborting operation (OperationId: %s, State: %s)",
-            ~operation->GetOperationId().ToString(),
+            ~ToString(operation->GetOperationId()),
             ~operation->GetState().ToString());
 
         DoOperationFailed(operation, EOperationState::Aborting, EOperationState::Aborted, error);
@@ -890,7 +894,7 @@ private:
 
     void RegisterNode(TExecNodePtr node)
     {
-        YCHECK(Nodes.insert(std::make_pair(node->GetAddress(), node)).second);
+        YCHECK(Nodes.insert(std::make_pair(node->GetDescriptor().Address, node)).second);
 
         FOREACH (const auto& pair, Operations) {
             auto operation = pair.second;
@@ -904,15 +908,16 @@ private:
     {
         // Make a copy, the collection will be modified.
         auto jobs = node->Jobs();
+        const auto& address = node->GetDescriptor().Address;
         FOREACH (auto job, jobs) {
-            LOG_INFO("Aborting job on an offline node: %s (JobId: %s, OperationId: %s)",
-                ~node->GetAddress(),
-                ~job->GetId().ToString(),
-                ~job->GetOperation()->GetOperationId().ToString());
+            LOG_INFO("Aborting job on an offline node %s (JobId: %s, OperationId: %s)",
+                ~address,
+                ~ToString(job->GetId()),
+                ~ToString(job->GetOperation()->GetOperationId()));
             AbortJob(job, TError("Node offline"));
             UnregisterJob(job);
         }
-        YCHECK(Nodes.erase(node->GetAddress()) == 1);
+        YCHECK(Nodes.erase(address) == 1);
 
         FOREACH (const auto& pair, Operations) {
             auto operation = pair.second;
@@ -927,7 +932,8 @@ private:
     {
         YCHECK(Operations.insert(std::make_pair(operation->GetOperationId(), operation)).second);
         OperationStarted_.Fire(operation);
-        LOG_DEBUG("Operation registered (OperationId: %s)", ~operation->GetOperationId().ToString());
+        LOG_DEBUG("Operation registered (OperationId: %s)",
+            ~ToString(operation->GetOperationId()));
     }
 
     void AbortOperationJobs(TOperationPtr operation)
@@ -945,7 +951,8 @@ private:
     {
         YCHECK(Operations.erase(operation->GetOperationId()) == 1);
         OperationFinished_.Fire(operation);
-        LOG_DEBUG("Operation unregistered (OperationId: %s)", ~operation->GetOperationId().ToString());
+        LOG_DEBUG("Operation unregistered (OperationId: %s)",
+            ~ToString(operation->GetOperationId()));
     }
 
     void LogOperationProgress(TOperationPtr operation)
@@ -1038,8 +1045,8 @@ private:
         JobStarted_.Fire(job);
 
         LOG_DEBUG("Job registered (JobId: %s, OperationId: %s)",
-            ~job->GetId().ToString(),
-            ~job->GetOperation()->GetOperationId().ToString());
+            ~ToString(job->GetId()),
+            ~ToString(job->GetOperation()->GetOperationId()));
     }
 
     void UnregisterJob(TJobPtr job)
@@ -1053,8 +1060,8 @@ private:
         JobFinished_.Fire(job);
 
         LOG_DEBUG("Job unregistered (JobId: %s, OperationId: %s)",
-            ~job->GetId().ToString(),
-            ~job->GetOperation()->GetOperationId().ToString());
+            ~ToString(job->GetId()),
+            ~ToString(job->GetOperation()->GetOperationId()));
     }
 
     void AbortJob(TJobPtr job, const TError& error)
@@ -1078,8 +1085,8 @@ private:
     void PreemptJob(TJobPtr job)
     {
         LOG_DEBUG("Job preempted (JobId: %s, OperationId: %s)",
-            ~job->GetId().ToString(),
-            ~job->GetOperation()->GetOperationId().ToString());
+            ~ToString(job->GetId()),
+            ~ToString(job->GetOperation()->GetOperationId()));
 
         job->GetNode()->ResourceUsage() -= job->ResourceUsage();
         JobUpdated_.Fire(job, -job->ResourceUsage());
@@ -1191,7 +1198,7 @@ private:
     {
         auto stderrChunkId =
             result.has_stderr_chunk_id()
-            ? TChunkId::FromProto(result.stderr_chunk_id())
+            ? FromProto<TChunkId>(result.stderr_chunk_id())
             : NullChunkId;
 
         // Create job node either if the job has failed or it has produced an stderr.
@@ -1233,7 +1240,7 @@ private:
             return;
 
         auto req = TTransactionYPathProxy::UnstageObject(FromObjectId(transaction->GetId()));
-        *req->mutable_object_id() = chunkId.ToProto();
+        ToProto(req->mutable_object_id(), chunkId);
         req->set_recursive(false);
 
         // Fire-and-forget.
@@ -1388,7 +1395,7 @@ private:
     void BuildNodeYson(TExecNodePtr node, IYsonConsumer* consumer)
     {
         BuildYsonMapFluently(consumer)
-            .Item(node->GetAddress()).BeginMap()
+            .Item(node->GetDescriptor().Address).BeginMap()
                 .Do([=] (TFluentMap fluent) {
                     BuildExecNodeAttributes(node, fluent);
                 })
@@ -1414,7 +1421,7 @@ private:
         auto type = EOperationType(request->type());
         auto transactionId =
             request->has_transaction_id()
-            ? TTransactionId::FromProto(request->transaction_id())
+            ? FromProto<TTransactionId>(request->transaction_id())
             : NullTransactionId;
 
         auto maybeUser = FindRpcAuthenticatedUser(context->GetUntypedContext());
@@ -1448,7 +1455,7 @@ private:
             }
             auto operation = result.Value();
             auto id = operation->GetOperationId();
-            *response->mutable_operation_id() = id.ToProto();
+            ToProto(response->mutable_operation_id(), id);
             context->SetResponseInfo("OperationId: %s", ~ToString(id));
             context->Reply();
         }));
@@ -1456,7 +1463,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, AbortOperation)
     {
-        auto operationId = TTransactionId::FromProto(request->operation_id());
+        auto operationId = FromProto<TTransactionId>(request->operation_id());
 
         context->SetRequestInfo("OperationId: %s", ~ToString(operationId));
 
@@ -1474,7 +1481,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, WaitForOperation)
     {
-        auto operationId = TTransactionId::FromProto(request->operation_id());
+        auto operationId = FromProto<TTransactionId>(request->operation_id());
         auto timeout = TDuration(request->timeout());
         context->SetRequestInfo("OperationId: %s, Timeout: %s",
             ~ToString(operationId),
@@ -1502,17 +1509,18 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Heartbeat)
     {
-        const auto& address = request->address();
+        auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
         const auto& resourceLimits = request->resource_limits();
         const auto& resourceUsage = request->resource_usage();
 
-        context->SetRequestInfo("Address: %s, JobCount: %d, ResourceUsage: {%s}",
-            ~address,
+        context->SetRequestInfo("Descriptor: %s, JobCount: %d, ResourceUsage: {%s}",
+            ~ToString(descriptor),
             request->jobs_size(),
             ~FormatResourceUsage(resourceUsage, resourceLimits));
 
         ValidateConnected();
 
+        const auto& address = descriptor.Address;
         auto node = FindNode(address);
         if (!node) {
             context->Reply(TError("Node is not registered, heartbeat ignored"));
@@ -1533,6 +1541,7 @@ private:
 
             FOREACH (auto& jobStatus, *request->mutable_jobs()) {
                 auto job = ProcessJobHeartbeat(
+                    node,
                     request,
                     response,
                     &jobStatus);
@@ -1560,8 +1569,8 @@ private:
             FOREACH (auto job, missingJobs) {
                 LOG_ERROR("Job is missing (Address: %s, JobId: %s, OperationId: %s)",
                     ~address,
-                    ~job->GetId().ToString(),
-                    ~job->GetOperation()->GetOperationId().ToString());
+                    ~ToString(job->GetId()),
+                    ~ToString(job->GetOperation()->GetOperationId()));
                 AbortJob(job, TError("Job vanished"));
                 UnregisterJob(job);
             }
@@ -1581,14 +1590,14 @@ private:
         TotalResourceUsage += node->ResourceUsage();
 
         FOREACH (auto job, schedulingContext->PreemptedJobs()) {
-            *response->add_jobs_to_abort() = job->GetId().ToProto();
+            ToProto(response->add_jobs_to_abort(), job->GetId());
         }
 
         auto awaiter = New<TParallelAwaiter>();
         auto specBuilderInvoker = NRpc::TDispatcher::Get()->GetPoolInvoker();
         FOREACH (auto job, schedulingContext->StartedJobs()) {
             auto* startInfo = response->add_jobs_to_start();
-            *startInfo->mutable_job_id() = job->GetId().ToProto();
+            ToProto(startInfo->mutable_job_id(), job->GetId());
             *startInfo->mutable_resource_limits() = job->ResourceUsage();
 
             // Build spec asynchronously.
@@ -1612,17 +1621,18 @@ private:
     }
 
     TJobPtr ProcessJobHeartbeat(
+        TExecNodePtr node,
         NProto::TReqHeartbeat* request,
         NProto::TRspHeartbeat* response,
         NProto::TJobStatus* jobStatus)
     {
-        const auto& address = request->address();
-        auto jobId = TJobId::FromProto(jobStatus->job_id());
+        auto jobId = FromProto<TJobId>(jobStatus->job_id());
         auto state = EJobState(jobStatus->state());
+        const auto& jobAddress = node->GetDescriptor().Address;
 
         NLog::TTaggedLogger Logger(SchedulerLogger);
         Logger.AddTag(Sprintf("Address: %s, JobId: %s",
-            ~address,
+            ~jobAddress,
             ~ToString(jobId)));
 
         auto job = FindJob(jobId);
@@ -1630,27 +1640,27 @@ private:
             switch (state) {
                 case EJobState::Completed:
                     LOG_WARNING("Unknown job has completed, removal scheduled");
-                    *response->add_jobs_to_remove() = jobId.ToProto();
+                    ToProto(response->add_jobs_to_remove(), jobId);
                     break;
 
                 case EJobState::Failed:
                     LOG_INFO("Unknown job has failed, removal scheduled");
-                    *response->add_jobs_to_remove() = jobId.ToProto();
+                    ToProto(response->add_jobs_to_remove(), jobId);
                     break;
 
                 case EJobState::Aborted:
                     LOG_INFO("Job aborted, removal scheduled");
-                    *response->add_jobs_to_remove() = jobId.ToProto();
+                    ToProto(response->add_jobs_to_remove(), jobId);
                     break;
 
                 case EJobState::Running:
                     LOG_WARNING("Unknown job is running, abort scheduled");
-                    *response->add_jobs_to_abort() = jobId.ToProto();
+                    ToProto(response->add_jobs_to_abort(), jobId);
                     break;
 
                 case EJobState::Waiting:
                     LOG_WARNING("Unknown job is waiting, abort scheduled");
-                    *response->add_jobs_to_abort() = jobId.ToProto();
+                    ToProto(response->add_jobs_to_abort(), jobId);
                     break;
 
                 case EJobState::Aborting:
@@ -1668,20 +1678,20 @@ private:
         Logger.AddTag(Sprintf("JobType: %s, State: %s, OperationId: %s",
             ~job->GetType().ToString(),
             ~state.ToString(),
-            ~operation->GetOperationId().ToString()));
+            ~ToString(operation->GetOperationId())));
 
         // Check if the job is running on a proper node.
-        auto expectedAddress = job->GetNode()->GetAddress();
-        if (address != expectedAddress) {
+        auto expectedAddress = job->GetNode()->GetDescriptor().Address;
+        if (jobAddress != expectedAddress) {
             // Job has moved from one node to another. No idea how this could happen.
             if (state == EJobState::Aborting) {
                 // Do nothing, job is already terminating.
             } else if (state == EJobState::Completed || state == EJobState::Failed || state == EJobState::Aborted) {
-                *response->add_jobs_to_remove() = jobId.ToProto();
+                ToProto(response->add_jobs_to_remove(), jobId);
                 LOG_WARNING("Job status report was expected from %s, removal scheduled",
                     ~expectedAddress);
             } else {
-                *response->add_jobs_to_abort() = jobId.ToProto();
+                ToProto(response->add_jobs_to_abort(), jobId);
                 LOG_WARNING("Job status report was expected from %s, abort scheduled",
                     ~expectedAddress);
             }
@@ -1692,14 +1702,14 @@ private:
             case EJobState::Completed:
                 LOG_INFO("Job completed, removal scheduled");
                 OnJobCompleted(job, jobStatus->mutable_result());
-                *response->add_jobs_to_remove() = jobId.ToProto();
+                ToProto(response->add_jobs_to_remove(), jobId);
                 break;
 
             case EJobState::Failed: {
                 auto error = FromProto(jobStatus->result().error());
                 LOG_WARNING(error, "Job failed, removal scheduled");
                 OnJobFailed(job, jobStatus->mutable_result());
-                *response->add_jobs_to_remove() = jobId.ToProto();
+                ToProto(response->add_jobs_to_remove(), jobId);
                 break;
             }
 
@@ -1707,7 +1717,7 @@ private:
                 auto error = FromProto(jobStatus->result().error());
                 LOG_INFO(error, "Job aborted, removal scheduled");
                 OnJobAborted(job, jobStatus->mutable_result());
-                *response->add_jobs_to_remove() = jobId.ToProto();
+                ToProto(response->add_jobs_to_remove(), jobId);
                 break;
             }
 
@@ -1715,11 +1725,11 @@ private:
             case EJobState::Waiting:
                 if (job->GetState() == EJobState::Aborted) {
                     LOG_INFO("Aborting job (Address: %s, JobType: %s, JobId: %s, OperationId: %s)",
-                        ~job->GetNode()->GetAddress(),
+                        ~job->GetNode()->GetDescriptor().Address,
                         ~job->GetType().ToString(),
                         ~ToString(jobId),
-                        ~operation->GetOperationId().ToString());
-                    *response->add_jobs_to_abort() = jobId.ToProto();
+                        ~ToString(operation->GetOperationId()));
+                    ToProto(response->add_jobs_to_abort(), jobId);
                 } else {
                     switch (state) {
                         case EJobState::Running: {

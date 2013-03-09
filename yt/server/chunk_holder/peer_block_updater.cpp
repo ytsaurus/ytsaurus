@@ -4,6 +4,7 @@
 #include "block_store.h"
 #include "bootstrap.h"
 #include "config.h"
+#include "master_connector.h"
 
 #include <ytlib/rpc/channel_cache.h>
 
@@ -15,6 +16,7 @@ namespace NYT {
 namespace NChunkHolder {
 
 using namespace NCellNode;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,14 +53,14 @@ void TPeerBlockUpdater::Update()
     LOG_INFO("Updating peer blocks");
 
     auto expirationTime = Config->PeerUpdateExpirationTimeout.ToDeadLine();
+    auto localDescriptor = Bootstrap->GetLocalDescriptor();
 
     yhash_map<Stroka, TProxy::TReqUpdatePeerPtr> requests;
 
     auto blocks = Bootstrap->GetBlockStore()->GetAllBlocks();
-    auto peerAddress = Bootstrap->GetPeerAddress();
     FOREACH (auto block, blocks) {
-        if (block->SourceAddress()) {
-            const auto& sourceAddress = block->SourceAddress().Get();
+        if (block->Source()) {
+            const auto& sourceAddress = block->Source()->Address;
             TProxy::TReqUpdatePeerPtr request;
             auto it = requests.find(sourceAddress);
             if (it != requests.end()) {
@@ -66,13 +68,13 @@ void TPeerBlockUpdater::Update()
             } else {
                 TProxy proxy(ChannelCache.GetChannel(sourceAddress));
                 request = proxy.UpdatePeer();
-                request->set_peer_address(peerAddress);
+                ToProto(request->mutable_peer_descriptor(), localDescriptor);
                 request->set_peer_expiration_time(expirationTime.GetValue());
                 requests.insert(std::make_pair(sourceAddress, request));
             }
             auto* block_id = request->add_block_ids();
             const auto& blockId = block->GetKey();
-            *block_id->mutable_chunk_id() = blockId.ChunkId.ToProto();
+            ToProto(block_id->mutable_chunk_id(), blockId.ChunkId);
             block_id->set_block_index(blockId.BlockIndex);
         }
     }

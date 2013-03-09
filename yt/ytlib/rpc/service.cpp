@@ -97,7 +97,7 @@ private:
     virtual void LogRequest() override
     {
         Stroka str;
-        AppendInfo(str, Sprintf("RequestId: %s", ~RequestId.ToString()));
+        AppendInfo(str, Sprintf("RequestId: %s", ~ToString(RequestId)));
         AppendInfo(str, RequestInfo);
         LOG_DEBUG("%s <- %s",
             ~Verb,
@@ -107,7 +107,7 @@ private:
     virtual void LogResponse(const TError& error) override
     {
         Stroka str;
-        AppendInfo(str, Sprintf("RequestId: %s", ~RequestId.ToString()));
+        AppendInfo(str, Sprintf("RequestId: %s", ~ToString(RequestId)));
         AppendInfo(str, Sprintf("Error: %s", ~ToString(error)));
         AppendInfo(str, ResponseInfo);
         LOG_DEBUG("%s -> %s",
@@ -148,7 +148,7 @@ void TServiceBase::OnRequest(
 
     const auto& verb = header.verb();
     bool oneWay = header.one_way();
-    auto requestId = TRequestId::FromProto(header.request_id());
+    auto requestId = FromProto<TRequestId>(header.request_id());
 
     TGuard<TSpinLock> guard(SpinLock);
 

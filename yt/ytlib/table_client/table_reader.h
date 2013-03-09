@@ -62,9 +62,10 @@ private:
     NTransactionClient::ITransactionPtr Transaction;
     NTransactionClient::TTransactionId TransactionId;
     NChunkClient::IBlockCachePtr BlockCache;
+    NChunkClient::TNodeDirectoryPtr NodeDirectory;
     NYPath::TRichYPath RichPath;
     bool IsOpen;
-    bool IsReadingStarted;
+    bool IsReadStarted;
     NObjectClient::TObjectServiceProxy Proxy;
     NLog::TTaggedLogger Logger;
 

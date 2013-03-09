@@ -65,6 +65,7 @@ public:
             config->JobIO->TableReader,
             Host->GetMasterChannel(),
             Host->GetBlockCache(),
+            Host->GetNodeDirectory(),
             std::move(inputChunks),
             provider));
 
@@ -76,12 +77,11 @@ public:
         }
 
         // ToDo(psushin): estimate row count for writer.
-        auto transactionId = TTransactionId::FromProto(jobSpec.output_transaction_id());
+        auto transactionId = FromProto<TTransactionId>(jobSpec.output_transaction_id());
         const auto& outputSpec = jobSpec.output_specs(0);
 
-        auto chunkListId = TChunkListId::FromProto(outputSpec.chunk_list_id());
-        auto options = New<TTableWriterOptions>();
-        options->Load(ConvertToNode(TYsonString(outputSpec.table_writer_options())));
+        auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
+        auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         options->KeyColumns = KeyColumns;
         Writer = New<TTableChunkSequenceWriter>(
             config->JobIO->TableWriter,

@@ -7,6 +7,7 @@
 #include <ytlib/logging/tagged_logger.h>
 
 #include <ytlib/chunk_client/data_node_service_proxy.h>
+#include <ytlib/chunk_client/node_directory.h>
 
 #include <ytlib/table_client/public.h>
 #include <ytlib/table_client/table_chunk_meta.pb.h>
@@ -33,7 +34,7 @@ public:
 
     void Prepare(const std::vector<NTableClient::TRefCountedInputChunkPtr>& chunks);
 
-    void CreateNewRequest(const Stroka& address);
+    void CreateNewRequest(const NChunkClient::TNodeDescriptor& descriptor);
 
     // Returns false if samples from this chunk are not required.
     bool AddChunkToRequest(NTableClient::TRefCountedInputChunkPtr inputChunk);
@@ -44,7 +45,7 @@ public:
         int index,
         NTableClient::TRefCountedInputChunkPtr inputChunk);
 
-    std::vector<NTableClient::TRefCountedInputChunkPtr>& GetChunkSplits();
+    const std::vector<NTableClient::TRefCountedInputChunkPtr>& GetChunkSplits();
 
     NLog::TTaggedLogger& GetLogger();
 

@@ -110,13 +110,6 @@ bool TVersionedObjectId::IsBranched() const
     return TransactionId != NullTransactionId;
 }
 
-Stroka TVersionedObjectId::ToString() const
-{
-    return Sprintf("%s:%s",
-        ~ObjectId.ToString(),
-        ~TransactionId.ToString());
-}
-
 TVersionedObjectId TVersionedObjectId::FromString(const TStringBuf& str)
 {
     TStringBuf objectToken, transactionToken;
@@ -128,6 +121,13 @@ TVersionedObjectId TVersionedObjectId::FromString(const TStringBuf& str)
         ? NullTransactionId
         : TTransactionId::FromString(transactionToken);
     return TVersionedObjectId(objectId, transactionId);
+}
+
+Stroka ToString(const TVersionedObjectId& id)
+{
+    return Sprintf("%s:%s",
+        ~ToString(id.ObjectId),
+        ~ToString(id.TransactionId));
 }
 
 bool operator == (const TVersionedObjectId& lhs, const TVersionedObjectId& rhs)

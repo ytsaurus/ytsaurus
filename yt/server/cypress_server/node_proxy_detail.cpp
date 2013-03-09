@@ -339,7 +339,7 @@ bool TNontemplateCypressNodeProxyBase::GetSystemAttribute(
 
     if (key == "parent_id" && node->GetParent()) {
         BuildYsonFluently(consumer)
-            .Value(node->GetParent()->GetId().ToString());
+            .Value(node->GetParent()->GetId());
         return true;
     }
 
@@ -592,7 +592,7 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 
     if (path.Empty()) {
         if (request->ignore_existing() && GetThisImpl()->GetType() == type) {
-            *response->mutable_node_id() = GetId().ToProto();
+            ToProto(response->mutable_node_id(), GetId());
             context->Reply();
             return;
         }
@@ -683,7 +683,7 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
 
     SetChild(targetPath, clonedProxy, false);
 
-    *response->mutable_object_id() = clonedTrunkImpl->GetId().ToProto();
+    ToProto(response->mutable_object_id(), clonedTrunkImpl->GetId());
 
     context->Reply();
 }

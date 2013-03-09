@@ -151,11 +151,12 @@ struct TVersionedObjectId
     //! Checks that the id is branched, i.e. #TransactionId is not #NullTransactionId.
     bool IsBranched() const;
 
-    //! Formats the id to string (for debugging and logging purposes mainly).
-    Stroka ToString() const;
 
     static TVersionedObjectId FromString(const TStringBuf& str);
 };
+
+//! Converts id into a string (for debugging and logging purposes mainly).
+Stroka ToString(const TVersionedObjectId& id);
 
 //! Compares TVersionedNodeId s for equality.
 bool operator == (const TVersionedObjectId& lhs, const TVersionedObjectId& rhs);
@@ -185,5 +186,4 @@ struct hash<NYT::NObjectClient::TVersionedObjectId>
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
 

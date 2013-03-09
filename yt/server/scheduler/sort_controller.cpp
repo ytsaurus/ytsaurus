@@ -19,6 +19,7 @@
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/node_directory.h>
 
 #include <ytlib/transaction_client/transaction.h>
 
@@ -192,7 +193,9 @@ protected:
             : TTask(controller)
             , Controller(controller)
         {
-            ChunkPool = CreateUnorderedChunkPool(Controller->PartitionJobCounter.GetTotal());
+            ChunkPool = CreateUnorderedChunkPool(
+                Controller->NodeDirectory,
+                Controller->PartitionJobCounter.GetTotal());
         }
 
         virtual Stroka GetId() const override
@@ -276,13 +279,8 @@ protected:
 
             Controller->PartitionJobCounter.Completed(1);
 
-            auto* resultExt = joblet->Job->Result().MutableExtension(TPartitionJobResultExt::partition_job_result_ext);
-
-            auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_chunks());
-
             RegisterIntermediateChunks(
                 joblet,
-                stripe,
                 Controller->ShufflePool->GetInput());
 
             // Kick-start sort and unordered merge tasks.
@@ -503,13 +501,8 @@ protected:
                 Controller->IntermediateSortJobCounter.Completed(1);
 
                 // Sort outputs in large partitions are queued for further merge.
-                // Construct a stripe consisting of sorted chunks and put it into the pool.
-                auto* resultExt = joblet->Job->Result().MutableExtension(TSortJobResultExt::sort_job_result_ext);
-                auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_chunks());
-
                 RegisterIntermediateChunks(
                     joblet,
-                    stripe,
                     Partition->SortedMergeTask->GetChunkPoolInput());
             } else {
                 Controller->FinalSortJobCounter.Completed(1);
@@ -554,7 +547,7 @@ protected:
             auto stripeList = completedJob->SourceTask->GetChunkPoolOutput()->GetStripeList(completedJob->OutputCookie);
             Controller->SortDataSizeCounter.Lost(stripeList->TotalDataSize);
 
-            const auto& address = completedJob->ExecNode->GetAddress();
+            const auto& address = completedJob->ExecNode->GetDescriptor().Address;
             Partition->AddressToLocality[address] -= stripeList->TotalDataSize;
             YCHECK(Partition->AddressToLocality[address] >= 0);
 
@@ -633,7 +626,7 @@ protected:
         {
             // Increase data size for this address to ensure subsequent sort jobs
             // to be scheduled to this very node.
-            auto address = joblet->Job->GetNode()->GetAddress();
+            const auto& address = joblet->Job->GetNode()->GetDescriptor().Address;
             Partition->AddressToLocality[address] += joblet->InputStripeList->TotalDataSize;
 
             // Don't rely on static assignment anymore.
@@ -701,7 +694,7 @@ protected:
         TSortedMergeTask(TSortControllerBase* controller, TPartition* partition)
             : TMergeTask(controller, partition)
         {
-            ChunkPool = CreateAtomicChunkPool();
+            ChunkPool = CreateAtomicChunkPool(Controller->NodeDirectory);
         }
 
         virtual Stroka GetId() const override
@@ -990,7 +983,7 @@ protected:
 
         FOREACH (auto partition, partitionsToAssign) {
             auto node = nodeHeap.front();
-            auto address = node->Node->GetAddress();
+            const auto& address = node->Node->GetDescriptor().Address;
 
             partition->AssignedAddress = address;
             AddTaskLocalityHint(partition->SortTask, address);
@@ -1008,7 +1001,7 @@ protected:
         FOREACH (auto node, nodeHeap) {
             if (node->AssignedDataSize > 0) {
                 LOG_DEBUG("Node used (Address: %s, Weight: %.4lf, AssignedDataSize: %" PRId64 ", AdjustedDataSize: %" PRId64 ")",
-                    ~node->Node->GetAddress(),
+                    ~node->Node->GetDescriptor().Address,
                     node->Weight,
                     node->AssignedDataSize,
                     static_cast<i64>(node->AssignedDataSize / node->Weight));
@@ -1020,11 +1013,10 @@ protected:
 
     void InitShufflePool()
     {
-        std::vector<i64> dataSizeThresholds;
-        for (int index = 0; index < static_cast<int>(Partitions.size()); ++index) {
-            dataSizeThresholds.push_back(Spec->DataSizePerSortJob);
-        }
-        ShufflePool = CreateShuffleChunkPool(dataSizeThresholds);
+        ShufflePool = CreateShuffleChunkPool(
+            NodeDirectory,
+            static_cast<int>(Partitions.size()),
+            Spec->DataSizePerSortJob);
 
         FOREACH (auto partition, Partitions) {
             partition->ChunkPoolOutput = ShufflePool->GetOutput(partition->Index);
@@ -1033,7 +1025,9 @@ protected:
 
     void InitSimpleSortPool(int sortJobCount)
     {
-        SimpleSortPool = CreateUnorderedChunkPool(sortJobCount);
+        SimpleSortPool = CreateUnorderedChunkPool(
+            NodeDirectory,
+            sortJobCount);
     }
 
     virtual void DoOperationCompleted() override
@@ -1377,11 +1371,12 @@ private:
                 Operation->GetOperationId());
 
             SamplesCollector = New<TSamplesCollector>(
+                NodeDirectory,
                 SamplesFetcher,
                 Host->GetBackgroundInvoker());
 
             auto chunks = CollectInputChunks();
-            FOREACH (auto chunk, chunks) {
+            FOREACH (const auto& chunk, chunks) {
                 SamplesCollector->AddChunk(chunk);
             }
 
@@ -1602,7 +1597,8 @@ private:
         {
             PartitionJobSpecTemplate.set_type(EJobType::Partition);
             PartitionJobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
-            *PartitionJobSpecTemplate.mutable_output_transaction_id() = Operation->GetOutputTransaction()->GetId().ToProto();
+            ToProto(PartitionJobSpecTemplate.mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+            PartitionJobSpecTemplate.set_io_config(ConvertToYsonString(PartitionJobIOConfig).Data());
 
             auto* specExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
             specExt->set_partition_count(Partitions.size());
@@ -1610,15 +1606,13 @@ private:
                 *specExt->add_partition_keys() = key;
             }
             ToProto(specExt->mutable_key_columns(), Spec->SortBy);
-
-            PartitionJobSpecTemplate.set_io_config(ConvertToYsonString(PartitionJobIOConfig).Data());
         }
 
         {
             TJobSpec sortJobSpecTemplate;
             sortJobSpecTemplate.set_type(SimpleSort ? EJobType::SimpleSort : EJobType::PartitionSort);
             sortJobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
-            *sortJobSpecTemplate.mutable_output_transaction_id() = Operation->GetOutputTransaction()->GetId().ToProto();
+            ToProto(sortJobSpecTemplate.mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
 
             auto* specExt = sortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
             ToProto(specExt->mutable_key_columns(), Spec->SortBy);
@@ -1633,23 +1627,21 @@ private:
         {
             SortedMergeJobSpecTemplate.set_type(EJobType::SortedMerge);
             SortedMergeJobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
-            *SortedMergeJobSpecTemplate.mutable_output_transaction_id() = Operation->GetOutputTransaction()->GetId().ToProto();
+            ToProto(SortedMergeJobSpecTemplate.mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+            SortedMergeJobSpecTemplate.set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).Data());
 
             auto* specExt = SortedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
             ToProto(specExt->mutable_key_columns(), Spec->SortBy);
-
-            SortedMergeJobSpecTemplate.set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).Data());
         }
 
         {
             UnorderedMergeJobSpecTemplate.set_type(EJobType::UnorderedMerge);
             UnorderedMergeJobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
-            *UnorderedMergeJobSpecTemplate.mutable_output_transaction_id() = Operation->GetOutputTransaction()->GetId().ToProto();
+            ToProto(UnorderedMergeJobSpecTemplate.mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+            UnorderedMergeJobSpecTemplate.set_io_config(ConvertToYsonString(UnorderedMergeJobIOConfig).Data());
 
             auto* specExt = UnorderedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
             ToProto(specExt->mutable_key_columns(), Spec->SortBy);
-
-            UnorderedMergeJobSpecTemplate.set_io_config(ConvertToYsonString(UnorderedMergeJobIOConfig).Data());
         }
     }
 
@@ -1998,8 +1990,9 @@ private:
     void InitJobSpecTemplates()
     {
         {
-            *PartitionJobSpecTemplate.mutable_output_transaction_id() = Operation->GetOutputTransaction()->GetId().ToProto();
+            ToProto(PartitionJobSpecTemplate.mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
             PartitionJobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
+            PartitionJobSpecTemplate.set_io_config(ConvertToYsonString(PartitionJobIOConfig).Data());
 
             auto* specExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
             specExt->set_partition_count(Partitions.size());
@@ -2015,25 +2008,23 @@ private:
             } else {
                 PartitionJobSpecTemplate.set_type(EJobType::Partition);
             }
-
-            PartitionJobSpecTemplate.set_io_config(ConvertToYsonString(PartitionJobIOConfig).Data());
         }
 
         {
             IntermediateSortJobSpecTemplate.set_type(EJobType::PartitionSort);
             IntermediateSortJobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
-            *IntermediateSortJobSpecTemplate.mutable_output_transaction_id() = Operation->GetOutputTransaction()->GetId().ToProto();
+            ToProto(IntermediateSortJobSpecTemplate.mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+            IntermediateSortJobSpecTemplate.set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).Data());
 
             auto* specExt = IntermediateSortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
             ToProto(specExt->mutable_key_columns(), Spec->SortBy);
-
-            IntermediateSortJobSpecTemplate.set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).Data());
         }
 
         {
             FinalSortJobSpecTemplate.set_type(EJobType::PartitionReduce);
             FinalSortJobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
-            *FinalSortJobSpecTemplate.mutable_output_transaction_id() = Operation->GetOutputTransaction()->GetId().ToProto();
+            ToProto(FinalSortJobSpecTemplate.mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+            FinalSortJobSpecTemplate.set_io_config(ConvertToYsonString(FinalSortJobIOConfig).Data());
 
             auto* specExt = FinalSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
             ToProto(specExt->mutable_key_columns(), Spec->SortBy);
@@ -2043,14 +2034,13 @@ private:
                 Spec->Reducer,
                 ReducerFiles,
                 ReducerTableFiles);
-
-            FinalSortJobSpecTemplate.set_io_config(ConvertToYsonString(FinalSortJobIOConfig).Data());
         }
 
         {
             SortedMergeJobSpecTemplate.set_type(EJobType::SortedReduce);
             SortedMergeJobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
-            *SortedMergeJobSpecTemplate.mutable_output_transaction_id() = Operation->GetOutputTransaction()->GetId().ToProto();
+            ToProto(SortedMergeJobSpecTemplate.mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+            SortedMergeJobSpecTemplate.set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).Data());
 
             auto* specExt = SortedMergeJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
             ToProto(specExt->mutable_key_columns(), Spec->SortBy);
@@ -2060,8 +2050,6 @@ private:
                 Spec->Reducer,
                 ReducerFiles,
                 ReducerTableFiles);
-
-            SortedMergeJobSpecTemplate.set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).Data());
         }
     }
 

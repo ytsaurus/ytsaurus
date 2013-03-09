@@ -49,7 +49,7 @@ EExitCode TStartOpExecutor::DoExecute(const TDriverRequest& request)
     }
 
     auto operationId = ConvertTo<TOperationId>(TYsonString(output.Str()));
-    printf("done, %s\n", ~operationId.ToString());
+    printf("done, %s\n", ~ToString(operationId));
 
     TOperationTracker tracker(Config, Driver, operationId);
     return tracker.Run();
@@ -366,7 +366,7 @@ TTrackOpExecutor::TTrackOpExecutor()
 EExitCode TTrackOpExecutor::DoExecute()
 {
     auto operationId = TOperationId::FromString(OpArg.getValue());
-    printf("Started tracking operation %s\n", ~operationId.ToString());
+    printf("Started tracking operation %s\n", ~ToString(operationId));
 
     TOperationTracker tracker(Config, Driver, operationId);
     return tracker.Run();

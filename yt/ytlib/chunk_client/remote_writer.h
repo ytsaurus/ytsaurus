@@ -5,15 +5,7 @@
 #include "async_writer.h"
 #include "chunk_ypath_proxy.h"
 #include "data_node_service_proxy.h"
-
-#include <ytlib/misc/metric.h>
-#include <ytlib/misc/semaphore.h>
-#include <ytlib/misc/thread_affinity.h>
-#include <ytlib/misc/async_stream_state.h>
-
-#include <ytlib/actions/action_queue.h>
-
-#include <ytlib/logging/tagged_logger.h>
+#include "node_directory.h"
 
 #include <util/generic/deque.h>
 
@@ -27,9 +19,9 @@ class TRemoteWriter
 {
 public:
     TRemoteWriter(
-        const TRemoteWriterConfigPtr& config,
+        TRemoteWriterConfigPtr config,
         const TChunkId& chunkId,
-        const std::vector<Stroka>& addresses);
+        const std::vector<TNodeDescriptor>& targets);
 
     ~TRemoteWriter();
 
@@ -41,7 +33,7 @@ public:
     virtual TAsyncError AsyncClose(const NChunkClient::NProto::TChunkMeta& chunkMeta);
 
     virtual const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const;
-    const std::vector<Stroka> GetNodeAddresses() const;
+    std::vector<int> GetWrittenIndexes() const;
     const TChunkId& GetChunkId() const;
 
     Stroka GetDebugInfo();

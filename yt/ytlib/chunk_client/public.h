@@ -11,6 +11,10 @@ namespace NChunkClient {
 
 typedef TGuid TIncarnationId;
 
+typedef i32 TNodeId;
+const TNodeId InvalidNodeId = 0;
+const TNodeId MaxNodeId = (1 << 28) - 1; // TNodeId must fit into 28 bits (see TChunkReplica)
+
 typedef NObjectClient::TObjectId TChunkId;
 extern TChunkId NullChunkId;
 
@@ -21,6 +25,9 @@ typedef NObjectClient::TObjectId TChunkTreeId;
 extern TChunkTreeId NullChunkTreeId;
 
 typedef TGuid TJobId;
+
+//! Used as an expected upper bound in TSmallVector.
+const int TypicalReplicationFactor = 4;
 
 DECLARE_ENUM(EJobState,
     (Running)
@@ -46,18 +53,19 @@ DECLARE_ENUM(EChunkType,
 );
 
 DECLARE_ENUM(EErrorCode,
-    ((AllTargetNodesFailed)  (700))
-    ((PipelineFailed)        (701))
-    ((NoSuchSession)         (702))
-    ((SessionAlreadyExists)  (703))
-    ((ChunkAlreadyExists)    (704))
-    ((WindowError)           (705))
-    ((BlockContentMismatch)  (706))
-    ((NoSuchBlock)           (707))
-    ((NoSuchChunk)           (708))
-    ((ChunkPrecachingFailed) (709))
-    ((OutOfSpace)            (710))
-    ((IOError)               (711))
+    ((AllTargetNodesFailed)     (700))
+    ((PipelineFailed)           (701))
+    ((NoSuchSession)            (702))
+    ((SessionAlreadyExists)     (703))
+    ((ChunkAlreadyExists)       (704))
+    ((WindowError)              (705))
+    ((BlockContentMismatch)     (706))
+    ((NoSuchBlock)              (707))
+    ((NoSuchChunk)              (708))
+    ((ChunkPrecachingFailed)    (709))
+    ((OutOfSpace)               (710))
+    ((IOError)                  (711))
+    ((MasterCommunicationFailed)(712))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -106,6 +114,11 @@ typedef TIntrusivePtr<TFileReader> TFileReaderPtr;
 
 class TFileWriter;
 typedef TIntrusivePtr<TFileWriter> TFileWriterPtr;
+
+struct TNodeDescriptor;
+
+class TNodeDirectory;
+typedef TIntrusivePtr<TNodeDirectory> TNodeDirectoryPtr;
 
 ///////////////////////////////////////////////////////////////////////////////
 

@@ -13,6 +13,9 @@ set( SRCS
   ${BASE}/remote_reader.cpp
   ${BASE}/remote_writer.cpp
   ${BASE}/sequential_reader.cpp
+  ${BASE}/chunk_replica.cpp
+  ${BASE}/node_directory.cpp
+  ${BASE}/node_directory_builder.cpp
 )
 set( HDRS
   ${BASE}/async_reader.h
@@ -35,6 +38,9 @@ set( HDRS
   ${BASE}/remote_reader.h
   ${BASE}/remote_writer.h
   ${BASE}/sequential_reader.h
+  ${BASE}/chunk_replica.h
+  ${BASE}/node_directory.h
+  ${BASE}/node_directory_builder.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -42,6 +48,7 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
+protoc( ${BASE}/node.proto YT_SOURCE_FILES )
 protoc( ${BASE}/chunk.proto YT_SOURCE_FILES )
 protoc( ${BASE}/data_node_service.proto YT_SOURCE_FILES )
 protoc( ${BASE}/chunk_ypath.proto YT_SOURCE_FILES )

@@ -10,6 +10,11 @@
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/protobuf_helpers.h>
 #include <ytlib/misc/periodic_invoker.h>
+#include <ytlib/misc/semaphore.h>
+#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/async_stream_state.h>
+
+#include <ytlib/logging/tagged_logger.h>
 
 #include <ytlib/actions/parallel_awaiter.h>
 
@@ -19,7 +24,6 @@ namespace NYT {
 namespace NChunkClient {
 
 using namespace NRpc;
-using namespace NChunkClient::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -32,9 +36,9 @@ class TRemoteWriter::TImpl
 {
 public:
     TImpl(
-        const TRemoteWriterConfigPtr& config,
+        TRemoteWriterConfigPtr config,
         const TChunkId& chunkId,
-        const std::vector<Stroka>& addresses);
+        const std::vector<TNodeDescriptor>& targets);
 
     ~TImpl();
 
@@ -46,7 +50,7 @@ public:
     TAsyncError AsyncClose(const NChunkClient::NProto::TChunkMeta& chunkMeta);
 
     const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const;
-    const std::vector<Stroka> GetNodeAddresses() const;
+    std::vector<int> GetWrittenIndexes() const;
     const TChunkId& GetChunkId() const;
 
     Stroka GetDebugInfo();
@@ -65,8 +69,9 @@ private:
     typedef NChunkClient::TDataNodeServiceProxy TProxy;
 
     TRemoteWriterConfigPtr Config;
+    TNodeDirectoryPtr NodeDirectory;
     TChunkId ChunkId;
-    std::vector<Stroka> Addresses;
+    std::vector<TNodeDescriptor> Targets;
 
     TAsyncStreamState State;
 
@@ -159,14 +164,14 @@ struct TRemoteWriter::TImpl::TNode
 {
     int Index;
     TError Error;
-    const Stroka Address;
+    TNodeDescriptor Descriptor;
     TProxy Proxy;
     TPeriodicInvokerPtr PingInvoker;
 
-    TNode(int index, const Stroka& address)
+    TNode(int index, const TNodeDescriptor& descriptor)
         : Index(index)
-        , Address(address)
-        , Proxy(NodeChannelCache->GetChannel(address))
+        , Descriptor(descriptor)
+        , Proxy(NodeChannelCache->GetChannel(descriptor.Address))
     { }
 
     bool IsAlive() const
@@ -218,7 +223,7 @@ public:
 
 private:
     bool IsFlushing_;
-    std::vector<bool> IsSent;
+    std::vector<bool> IsSentTo;
 
     std::vector<TSharedRef> Blocks;
     int StartBlockIndex;
@@ -265,7 +270,7 @@ private:
     /*!
      * \note Thread affinity: WriterThread.
      */
-    void OnSentBlocks(TNodePtr srcNode, TNodePtr dstNod, TProxy::TRspSendBlocksPtr rsp);
+    void OnSentBlocks(TNodePtr srcNode, TNodePtr dstNode, TProxy::TRspSendBlocksPtr rsp);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -274,7 +279,7 @@ TRemoteWriter::TImpl::TGroup::TGroup(int nodeCount,
     int startBlockIndex,
     TImpl* writer)
     : IsFlushing_(false)
-    , IsSent(nodeCount, false)
+    , IsSentTo(nodeCount, false)
     , StartBlockIndex(startBlockIndex)
     , Size(0)
     , Writer(writer)
@@ -309,8 +314,8 @@ bool TRemoteWriter::TImpl::TGroup::IsWritten() const
 
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
-    for (int nodeIndex = 0; nodeIndex < IsSent.size(); ++nodeIndex) {
-        if (writer->Nodes[nodeIndex]->IsAlive() && !IsSent[nodeIndex]) {
+    for (int nodeIndex = 0; nodeIndex < IsSentTo.size(); ++nodeIndex) {
+        if (writer->Nodes[nodeIndex]->IsAlive() && !IsSentTo[nodeIndex]) {
             return false;
         }
     }
@@ -357,7 +362,7 @@ TRemoteWriter::TImpl::TGroup::PutBlocks(TNodePtr node)
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
     auto req = node->Proxy.PutBlocks();
-    *req->mutable_chunk_id() = writer->ChunkId.ToProto();
+    ToProto(req->mutable_chunk_id(), writer->ChunkId);
     req->set_start_block_index(StartBlockIndex);
     req->Attachments().insert(req->Attachments().begin(), Blocks.begin(), Blocks.end());
     req->set_enable_caching(writer->Config->EnableNodeCaching);
@@ -365,7 +370,7 @@ TRemoteWriter::TImpl::TGroup::PutBlocks(TNodePtr node)
     LOG_DEBUG("Putting blocks %d-%d to %s",
         StartBlockIndex,
         GetEndBlockIndex(),
-        ~node->Address);
+        ~node->Descriptor.Address);
 
     return req->Invoke();
 }
@@ -379,12 +384,12 @@ void TRemoteWriter::TImpl::TGroup::OnPutBlocks(TNodePtr node, TProxy::TRspPutBlo
     UNUSED(rsp);
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
-    IsSent[node->Index] = true;
+    IsSentTo[node->Index] = true;
 
     LOG_DEBUG("Blocks %d-%d are put to %s",
         StartBlockIndex,
         GetEndBlockIndex(),
-        ~node->Address);
+        ~node->Descriptor.Address);
 }
 
 void TRemoteWriter::TImpl::TGroup::SendGroup(TNodePtr srcNode)
@@ -394,16 +399,16 @@ void TRemoteWriter::TImpl::TGroup::SendGroup(TNodePtr srcNode)
 
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
-    for (int dstNodIndex = 0; dstNodIndex < IsSent.size(); ++dstNodIndex) {
-        auto dstNod = writer->Nodes[dstNodIndex];
-        if (dstNod->IsAlive() && !IsSent[dstNodIndex]) {
+    for (int dstNodeIndex = 0; dstNodeIndex < IsSentTo.size(); ++dstNodeIndex) {
+        auto dstNode = writer->Nodes[dstNodeIndex];
+        if (dstNode->IsAlive() && !IsSentTo[dstNodeIndex]) {
             auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker());
             auto onResponse = BIND(
                 &TGroup::CheckSendResponse,
                 MakeWeak(this),
                 srcNode,
-                dstNod);
-            awaiter->Await(SendBlocks(srcNode, dstNod), onResponse);
+                dstNode);
+            awaiter->Await(SendBlocks(srcNode, dstNode), onResponse);
             awaiter->Complete(BIND(&TGroup::Process, MakeWeak(this)));
             break;
         }
@@ -413,7 +418,7 @@ void TRemoteWriter::TImpl::TGroup::SendGroup(TNodePtr srcNode)
 TRemoteWriter::TImpl::TProxy::TInvSendBlocks
 TRemoteWriter::TImpl::TGroup::SendBlocks(
     TNodePtr srcNode,
-    TNodePtr dstNod)
+    TNodePtr dstNode)
 {
     auto writer = Writer.Lock();
     YCHECK(writer);
@@ -423,17 +428,17 @@ TRemoteWriter::TImpl::TGroup::SendBlocks(
     LOG_DEBUG("Sending blocks %d-%d from %s to %s",
         StartBlockIndex,
         GetEndBlockIndex(),
-        ~srcNode->Address,
-        ~dstNod->Address);
+        ~srcNode->Descriptor.Address,
+        ~dstNode->Descriptor.Address);
 
     auto req = srcNode->Proxy.SendBlocks();
 
-    // Set double timeout for SendBlocks, because it implies another rpc call from one src to dst node.
+    // Set double timeout for SendBlocks since executing it implies another (src->dst) RPC call.
     req->SetTimeout(writer->Config->NodeRpcTimeout + writer->Config->NodeRpcTimeout);
-    *req->mutable_chunk_id() = writer->ChunkId.ToProto();
+    ToProto(req->mutable_chunk_id(), writer->ChunkId);
     req->set_start_block_index(StartBlockIndex);
     req->set_block_count(Blocks.size());
-    req->set_target_address(dstNod->Address);
+    ToProto(req->mutable_target(), dstNode->Descriptor);
     return req->Invoke();
 }
 
@@ -467,7 +472,7 @@ void TRemoteWriter::TImpl::TGroup::CheckSendResponse(
 
 void TRemoteWriter::TImpl::TGroup::OnSentBlocks(
     TNodePtr srcNode,
-    TNodePtr dstNod,
+    TNodePtr dstNode,
     TProxy::TRspSendBlocksPtr rsp)
 {
     auto writer = Writer.Lock();
@@ -479,10 +484,10 @@ void TRemoteWriter::TImpl::TGroup::OnSentBlocks(
     LOG_DEBUG("Blocks %d-%d are sent from %s to %s",
         StartBlockIndex,
         GetEndBlockIndex(),
-        ~srcNode->Address,
-        ~dstNod->Address);
+        ~srcNode->Descriptor.Address,
+        ~dstNode->Descriptor.Address);
 
-    IsSent[dstNod->Index] = true;
+    IsSentTo[dstNode->Index] = true;
 }
 
 bool TRemoteWriter::TImpl::TGroup::IsFlushing() const
@@ -525,10 +530,10 @@ void TRemoteWriter::TImpl::TGroup::Process()
 
     TNodePtr nodeWithBlocks;
     bool emptyHolderFound = false;
-    for (int nodeIndex = 0; nodeIndex < IsSent.size(); ++nodeIndex) {
+    for (int nodeIndex = 0; nodeIndex < IsSentTo.size(); ++nodeIndex) {
         auto node = writer->Nodes[nodeIndex];
         if (node->IsAlive()) {
-            if (IsSent[nodeIndex]) {
+            if (IsSentTo[nodeIndex]) {
                 nodeWithBlocks = node;
             } else {
                 emptyHolderFound = true;
@@ -548,18 +553,18 @@ void TRemoteWriter::TImpl::TGroup::Process()
 ///////////////////////////////////////////////////////////////////////////////
 
 TRemoteWriter::TImpl::TImpl(
-    const TRemoteWriterConfigPtr& config,
+    TRemoteWriterConfigPtr config,
     const TChunkId& chunkId,
-    const std::vector<Stroka>& addresses)
+    const std::vector<TNodeDescriptor>& targets)
     : Config(config)
     , ChunkId(chunkId)
-    , Addresses(addresses)
+    , Targets(targets)
     , IsOpen(false)
     , IsInitComplete(false)
     , IsClosing(false)
     , IsCloseRequested(false)
     , WindowSlots(config->SendWindowSize)
-    , AliveNodeCount(addresses.size())
+    , AliveNodeCount(targets.size())
     , CurrentGroup(New<TGroup>(AliveNodeCount, 0, this))
     , BlockCount(0)
     , StartChunkTiming(0, 1000, 20)
@@ -571,11 +576,11 @@ TRemoteWriter::TImpl::TImpl(
 {
     YCHECK(AliveNodeCount > 0);
 
-    Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
+    Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ChunkId)));
 
-    for (int index = 0; index < static_cast<int>(addresses.size()); ++index) {
-        auto address = addresses[index];
-        auto node = New<TNode>(index, address);
+    for (int index = 0; index < static_cast<int>(targets.size()); ++index) {
+        auto replica = targets[index];
+        auto node = New<TNode>(index, Targets[index]);
         node->Proxy.SetDefaultTimeout(Config->NodeRpcTimeout);
         node->PingInvoker = New<TPeriodicInvoker>(
             TDispatcher::Get()->GetWriterInvoker(),
@@ -599,8 +604,13 @@ TRemoteWriter::TImpl::~TImpl()
 
 void TRemoteWriter::TImpl::Open()
 {
-    LOG_INFO("Opening writer (Addresses: [%s], EnableCaching: %s)",
-        ~JoinToString(Addresses),
+    std::vector<Stroka> targetAddresses;
+    FOREACH (const auto& target, Targets) {
+        targetAddresses.push_back(target.Address);
+    }
+
+    LOG_INFO("Opening writer (Targets: [%s], EnableCaching: %s)",
+        ~NYT::JoinToString(targetAddresses),
         ~FormatBool(Config->EnableNodeCaching));
 
     auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetWriterInvoker());
@@ -678,10 +688,10 @@ TRemoteWriter::TImpl::FlushBlock(TNodePtr node, int blockIndex)
 
     LOG_DEBUG("Flushing block %d at %s",
         blockIndex,
-        ~node->Address);
+        ~node->Descriptor.Address);
 
     auto req = node->Proxy.FlushBlock();
-    *req->mutable_chunk_id() = ChunkId.ToProto();
+    ToProto(req->mutable_chunk_id(), ChunkId);
     req->set_block_index(blockIndex);
     return req->Invoke();
 }
@@ -693,7 +703,7 @@ void TRemoteWriter::TImpl::OnBlockFlushed(TNodePtr node, int blockIndex, TProxy:
 
     LOG_DEBUG("Block %d is flushed at %s",
         blockIndex,
-        ~node->Address);
+        ~node->Descriptor.Address);
 }
 
 void TRemoteWriter::TImpl::OnWindowShifted(int lastFlushedBlock)
@@ -754,7 +764,7 @@ void TRemoteWriter::TImpl::OnNodeFailed(TNodePtr node, const TError& error)
         return;
 
     auto wrappedError = TError("Node failed: %s",
-        ~node->Address)
+        ~node->Descriptor.Address)
         << error;
     LOG_ERROR(wrappedError);
 
@@ -796,10 +806,10 @@ void TRemoteWriter::TImpl::CheckResponse(
 TRemoteWriter::TImpl::TProxy::TInvStartChunk
 TRemoteWriter::TImpl::StartChunk(TNodePtr node)
 {
-    LOG_DEBUG("Starting chunk session at %s", ~node->Address);
+    LOG_DEBUG("Starting chunk session at %s", ~node->Descriptor.Address);
 
     auto req = node->Proxy.StartChunk();
-    *req->mutable_chunk_id() = ChunkId.ToProto();
+    ToProto(req->mutable_chunk_id(), ChunkId);
     return req->Invoke();
 }
 
@@ -808,7 +818,7 @@ void TRemoteWriter::TImpl::OnChunkStarted(TNodePtr node, TProxy::TRspStartChunkP
     UNUSED(rsp);
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    LOG_DEBUG("Chunk session started at %s", ~node->Address);
+    LOG_DEBUG("Chunk session started at %s", ~node->Descriptor.Address);
 
     StartPing(node);
 }
@@ -868,7 +878,7 @@ void TRemoteWriter::TImpl::OnChunkFinished(TNodePtr node, TProxy::TRspFinishChun
 
     auto& chunkInfo = rsp->chunk_info();
     LOG_DEBUG("Chunk session is finished at %s (Size: %" PRId64 ")",
-        ~node->Address,
+        ~node->Descriptor.Address,
         chunkInfo.size());
 
     // If ChunkInfo is set.
@@ -877,7 +887,7 @@ void TRemoteWriter::TImpl::OnChunkFinished(TNodePtr node, TProxy::TRspFinishChun
             ChunkInfo.size() != chunkInfo.size())
         {
             LOG_FATAL("Mismatched chunk info reported by node (Address: %s, ExpectedInfo: {%s}, ReceivedInfo: {%s})",
-                ~node->Address,
+                ~node->Descriptor.Address,
                 ~ChunkInfo.DebugString(),
                 ~chunkInfo.DebugString());
         }
@@ -891,10 +901,10 @@ TRemoteWriter::TImpl::FinishChunk(TNodePtr node)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    LOG_DEBUG("Finishing chunk session at %s", ~node->Address);
+    LOG_DEBUG("Finishing chunk session at %s", ~node->Descriptor.Address);
 
     auto req = node->Proxy.FinishChunk();
-    *req->mutable_chunk_id() = ChunkId.ToProto();
+    ToProto(req->mutable_chunk_id(), ChunkId);
     *req->mutable_chunk_meta() = ChunkMeta;
     req->set_block_count(BlockCount);
     return req->Invoke();
@@ -926,10 +936,10 @@ void TRemoteWriter::TImpl::SendPing(TNodeWeakPtr node)
         return;
     }
 
-    LOG_DEBUG("Sending ping to %s", ~node_->Address);
+    LOG_DEBUG("Sending ping to %s", ~node_->Descriptor.Address);
 
     auto req = node_->Proxy.PingSession();
-    *req->mutable_chunk_id() = ChunkId.ToProto();
+    ToProto(req->mutable_chunk_id(), ChunkId);
     req->Invoke();
 
     node_->PingInvoker->ScheduleNext();
@@ -960,9 +970,9 @@ void TRemoteWriter::TImpl::CancelAllPings()
 
 bool TRemoteWriter::TImpl::TryWriteBlock(const TSharedRef& block)
 {
-    YASSERT(IsOpen);
-    YASSERT(!IsClosing);
-    YASSERT(!State.IsClosed());
+    YCHECK(IsOpen);
+    YCHECK(!IsClosing);
+    YCHECK(!State.IsClosed());
 
     if (!WindowSlots.IsReady())
         return false;
@@ -978,10 +988,10 @@ bool TRemoteWriter::TImpl::TryWriteBlock(const TSharedRef& block)
 
 TAsyncError TRemoteWriter::TImpl::GetReadyEvent()
 {
-    YASSERT(IsOpen);
-    YASSERT(!IsClosing);
-    YASSERT(!State.HasRunningOperation());
-    YASSERT(!State.IsClosed());
+    YCHECK(IsOpen);
+    YCHECK(!IsClosing);
+    YCHECK(!State.HasRunningOperation());
+    YCHECK(!State.IsClosed());
 
     if (!WindowSlots.IsReady()) {
         State.StartOperation();
@@ -1070,7 +1080,7 @@ Stroka TRemoteWriter::TImpl::GetDebugInfo()
         "PutBlocks timing: (%s); "
         "SendBlocks timing: (%s); "
         "FlushBlocks timing: (%s); ",
-        ~ChunkId.ToString(),
+        ~ToString(ChunkId),
         ~StartChunkTiming.GetDebugInfo(),
         ~FinishChunkTiming.GetDebugInfo(),
         ~PutBlocksTiming.GetDebugInfo(),
@@ -1081,19 +1091,21 @@ Stroka TRemoteWriter::TImpl::GetDebugInfo()
 const NChunkClient::NProto::TChunkInfo& TRemoteWriter::TImpl::GetChunkInfo() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
     return ChunkInfo;
 }
 
-const std::vector<Stroka> TRemoteWriter::TImpl::GetNodeAddresses() const
+std::vector<int> TRemoteWriter::TImpl::GetWrittenIndexes() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    std::vector<Stroka> addresses;
+
+    std::vector<int> result;
     FOREACH (auto node, Nodes) {
         if (node->IsAlive()) {
-            addresses.push_back(node->Address);
+            result.push_back(node->Index);
         }
     }
-    return addresses;
+    return result;
 }
 
 const TChunkId& TRemoteWriter::TImpl::GetChunkId() const
@@ -1104,10 +1116,13 @@ const TChunkId& TRemoteWriter::TImpl::GetChunkId() const
 ///////////////////////////////////////////////////////////////////////////////
 
 TRemoteWriter::TRemoteWriter(
-    const TRemoteWriterConfigPtr& config,
+    TRemoteWriterConfigPtr config,
     const TChunkId& chunkId,
-    const std::vector<Stroka>& addresses)
-    : Impl(New<TImpl>(config, chunkId, addresses))
+    const std::vector<TNodeDescriptor>& targets)
+    : Impl(New<TImpl>(
+        config,
+        chunkId,
+        targets))
 { }
 
 TRemoteWriter::~TRemoteWriter()
@@ -1138,9 +1153,9 @@ const NChunkClient::NProto::TChunkInfo& TRemoteWriter::GetChunkInfo() const
     return Impl->GetChunkInfo();
 }
 
-const std::vector<Stroka> TRemoteWriter::GetNodeAddresses() const
+std::vector<int> TRemoteWriter::GetWrittenIndexes() const
 {
-    return Impl->GetNodeAddresses();
+    return Impl->GetWrittenIndexes();
 }
 
 const TChunkId& TRemoteWriter::GetChunkId() const

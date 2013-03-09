@@ -18,7 +18,6 @@ namespace NYT {
 namespace NChunkHolder {
 
 using namespace NChunkClient;
-using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,15 +32,15 @@ static NProfiling::TRateCounter CacheReadThroughputCounter("/cache_read_throughp
 TCachedBlock::TCachedBlock(
     const TBlockId& blockId,
     const TSharedRef& data,
-    const TNullable<Stroka>& sourceAddress)
+    const TNullable<TNodeDescriptor>& source)
     : TCacheValueBase<TBlockId, TCachedBlock>(blockId)
     , Data_(data)
-    , SourceAddress_(sourceAddress)
+    , Source_(source)
 { }
 
 TCachedBlock::~TCachedBlock()
 {
-    LOG_DEBUG("Cached block purged: %s", ~GetKey().ToString());
+    LOG_DEBUG("Cached block purged: %s", ~ToString(GetKey()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,18 +72,18 @@ public:
     TCachedBlockPtr Put(
         const TBlockId& blockId,
         const TSharedRef& data,
-        const TNullable<Stroka>& sourceAddress)
+        const TNullable<TNodeDescriptor>& source)
     {
         while (true) {
             TInsertCookie cookie(blockId);
             if (BeginInsert(&cookie)) {
-                auto block = New<TCachedBlock>(blockId, data, sourceAddress);
+                auto block = New<TCachedBlock>(blockId, data, source);
                 cookie.EndInsert(block);
 
-                LOG_DEBUG("Block is put into cache: %s (Size: %" PRISZT ", SourceAddress: %s)",
-                    ~blockId.ToString(),
+                LOG_DEBUG("Block is put into cache: %s (Size: %" PRISZT ", Source: %s)",
+                    ~ToString(blockId),
                     data.Size(),
-                    ~ToString(sourceAddress));
+                    ~ToString(source));
 
                 return block;
             }
@@ -104,10 +103,10 @@ public:
 
             if (!TRef::CompareContent(data, block->GetData())) {
                 LOG_FATAL("Trying to cache a block for which a different cached copy already exists: %s",
-                    ~blockId.ToString());
+                    ~ToString(blockId));
             }
 
-            LOG_DEBUG("Block is resurrected in cache: %s", ~blockId.ToString());
+            LOG_DEBUG("Block is resurrected in cache: %s", ~ToString(blockId));
 
             return block;
         }
@@ -133,13 +132,13 @@ public:
             return MakeFuture(TGetBlockResult(TError(
                 NChunkClient::EErrorCode::NoSuchChunk,
                 "No such chunk: %s",
-                ~blockId.ChunkId.ToString())));
+                ~ToString(blockId.ChunkId))));
         }
 
         if (!chunk->TryAcquireReadLock()) {
             return MakeFuture(TGetBlockResult(TError(
                 "Cannot read chunk block %s: chunk is scheduled for removal",
-                ~blockId.ToString())));
+                ~ToString(blockId))));
         }
 
         TSharedPtr<TInsertCookie, TAtomicCounter> cookie(new TInsertCookie(blockId));
@@ -148,7 +147,7 @@ public:
             return cookie->GetValue().Apply(BIND(&TStoreImpl::OnCacheHit, MakeStrong(this)));
         }
 
-        LOG_DEBUG("Block cache miss: %s", ~blockId.ToString());
+        LOG_DEBUG("Block cache miss: %s", ~ToString(blockId));
 
         i64 blockSize = -1;
         auto* meta = chunk->GetCachedMeta();
@@ -182,7 +181,7 @@ private:
 
     i64 IncreasePendingSize(const NChunkClient::NProto::TChunkMeta& chunkMeta, int blockIndex)
     {
-        const auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
+        const auto blocksExt = GetProtoExtension<NChunkClient::NProto::TBlocksExt>(chunkMeta.extensions());
         const auto& blockInfo = blocksExt.blocks(blockIndex);
         auto blockSize = blockInfo.size();
 
@@ -237,7 +236,7 @@ private:
         }
 
         LOG_DEBUG("Started reading block: %s (LocationId: %s)",
-            ~blockId.ToString(),
+            ~ToString(blockId),
             ~chunk->GetLocation()->GetId());
 
         TSharedRef data;
@@ -248,7 +247,7 @@ private:
                 auto error = TError(
                     NChunkClient::EErrorCode::IOError,
                     "Error reading chunk block: %s",
-                    ~blockId.ToString())
+                    ~ToString(blockId))
                     << ex;
                 chunk->ReleaseReadLock();
                 cookie->Cancel(error);
@@ -259,7 +258,7 @@ private:
         }
 
         LOG_DEBUG("Finished reading block: %s (LocationId: %s)",
-            ~blockId.ToString(),
+            ~ToString(blockId),
             ~chunk->GetLocation()->GetId());
 
         chunk->ReleaseReadLock();
@@ -270,7 +269,7 @@ private:
             cookie->Cancel(TError(
                 NChunkClient::EErrorCode::NoSuchBlock,
                 "No such chunk block: %s",
-                ~blockId.ToString()));
+                ~ToString(blockId)));
             return;
         }
 
@@ -288,7 +287,7 @@ private:
     void LogCacheHit(TCachedBlockPtr block)
     {
         Profiler.Increment(CacheReadThroughputCounter, block->GetData().Size());
-        LOG_DEBUG("Block cache hit: %s", ~block->GetKey().ToString());
+        LOG_DEBUG("Block cache hit: %s", ~ToString(block->GetKey()));
     }
 };
 
@@ -305,9 +304,9 @@ public:
     void Put(
         const TBlockId& id,
         const TSharedRef& data,
-        const TNullable<Stroka>& sourceAddress)
+        const TNullable<TNodeDescriptor>& source)
     {
-        StoreImpl->Put(id, data, sourceAddress);
+        StoreImpl->Put(id, data, source);
     }
 
     TSharedRef Find(const TBlockId& id)
@@ -348,9 +347,9 @@ TCachedBlockPtr TBlockStore::FindBlock(const TBlockId& blockId)
 TCachedBlockPtr TBlockStore::PutBlock(
     const TBlockId& blockId,
     const TSharedRef& data,
-    const TNullable<Stroka>& sourceAddress)
+    const TNullable<TNodeDescriptor>& source)
 {
-    return StoreImpl->Put(blockId, data, sourceAddress);
+    return StoreImpl->Put(blockId, data, source);
 }
 
 i64 TBlockStore::GetPendingReadSize() const

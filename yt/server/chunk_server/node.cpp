@@ -8,19 +8,19 @@
 #include <ytlib/misc/serialize.h>
 
 namespace NYT {
-
 namespace NChunkServer {
 
 using namespace NCellMaster;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TDataNode::TDataNode(
     TNodeId id,
-    const Stroka& address,
+    const TNodeDescriptor& descriptor,
     const TIncarnationId& incarnationId)
     : Id_(id)
-    , Address_(address)
+    , Descriptor_(descriptor)
     , IncarnationId_(incarnationId)
 {
     Init();
@@ -38,10 +38,20 @@ void TDataNode::Init()
     HintedSessionCount_ = 0;
 }
 
+const TNodeDescriptor& TDataNode::GetDescriptor() const
+{
+    return Descriptor_;
+}
+
+const Stroka& TDataNode::GetAddress() const
+{
+    return Descriptor_.Address;
+}
+
 void TDataNode::Save(const NCellMaster::TSaveContext& context) const
 {
     auto* output = context.GetOutput();
-    ::Save(output, Address_);
+    ::Save(output, Descriptor_.Address);
     ::Save(output, IncarnationId_);
     ::Save(output, State_);
     SaveProto(output, Statistics_);
@@ -54,7 +64,7 @@ void TDataNode::Save(const NCellMaster::TSaveContext& context) const
 void TDataNode::Load(const NCellMaster::TLoadContext& context)
 {
     auto* input = context.GetInput();
-    ::Load(input, Address_);
+    ::Load(input, Descriptor_.Address);
     ::Load(input, IncarnationId_);
     ::Load(input, State_);
     LoadProto(input, Statistics_);

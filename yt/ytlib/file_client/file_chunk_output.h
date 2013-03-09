@@ -4,13 +4,20 @@
 #include "chunk_meta_extensions.h"
 
 #include <ytlib/codecs/codec.h>
+
 #include <ytlib/misc/thread_affinity.h>
+
 #include <ytlib/logging/tagged_logger.h>
-#include <server/object_server/public.h>
+
 #include <ytlib/chunk_client/public.h>
-#include <server/chunk_server/public.h>
+#include <ytlib/chunk_client/chunk_replica.h>
 #include <ytlib/chunk_client/chunk.pb.h>
+
 #include <ytlib/rpc/public.h>
+
+#include <server/chunk_server/public.h>
+
+#include <server/object_server/public.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -62,6 +69,7 @@ private:
     i64 Size;
     i32 BlockCount;
     NChunkClient::TRemoteWriterPtr Writer;
+    std::vector<NChunkClient::TChunkReplica> Replicas;
     NChunkClient::TChunkId ChunkId;
     ICodec* Codec;
     TBlob Buffer;

@@ -25,6 +25,7 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
     TTableReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     NChunkClient::IBlockCachePtr blockCache,
+    NChunkClient::TNodeDirectoryPtr nodeDirectory,
     std::vector<NProto::TInputChunk>&& inputChunks,
     const TProviderPtr& readerProvider)
     : ItemIndex_(0)
@@ -33,6 +34,7 @@ TMultiChunkReaderBase<TChunkReader>::TMultiChunkReaderBase(
     , Config(config)
     , MasterChannel(masterChannel)
     , BlockCache(blockCache)
+    , NodeDirectory(nodeDirectory)
     , InputChunks(inputChunks)
     , ReaderProvider(readerProvider)
     , LastPreparedReader(-1)
@@ -64,18 +66,21 @@ void TMultiChunkReaderBase<TChunkReader>::PrepareNextChunk()
     TSession session;
     session.ChunkIndex = chunkIndex;
     const auto& inputChunk = InputChunks[chunkIndex];
-    auto chunkId = NChunkClient::TChunkId::FromProto(inputChunk.chunk_id());
+    auto chunkId = FromProto<NChunkClient::TChunkId>(inputChunk.chunk_id());
+    auto replicas = FromProto<NChunkClient::TChunkReplica, NChunkClient::TChunkReplicaList>(inputChunk.replicas());
 
     LOG_DEBUG("Opening chunk (ChunkIndex: %d, ChunkId: %s)",
         chunkIndex,
-        ~chunkId.ToString());
+        ~ToString(chunkId));
 
     auto remoteReader = CreateRemoteReader(
         Config,
         BlockCache,
         MasterChannel,
+        NodeDirectory,
+        Null,
         chunkId,
-        FromProto<Stroka>(inputChunk.node_addresses()));
+        replicas);
 
     session.Reader = ReaderProvider->CreateNewReader(inputChunk, remoteReader);
 
@@ -113,7 +118,7 @@ template <class TChunkReader>
 void TMultiChunkReaderBase<TChunkReader>::AddFailedChunk(const TSession& session)
 {
     const auto& inputChunk = InputChunks[session.ChunkIndex];
-    auto chunkId = NChunkClient::TChunkId::FromProto(inputChunk.chunk_id());
+    auto chunkId = FromProto<NChunkClient::TChunkId>(inputChunk.chunk_id());
     LOG_DEBUG("Failed chunk added (ChunkId: %s)", ~ToString(chunkId));
     TGuard<TSpinLock> guard(FailedChunksLock);
     FailedChunks.push_back(chunkId);

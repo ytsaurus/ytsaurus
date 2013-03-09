@@ -4,6 +4,7 @@
 #include "chunk_manager.h"
 #include "chunk.h"
 #include "node.h"
+#include "node_directory_builder.h"
 
 #include <ytlib/chunk_client/chunk.pb.h>
 #include <ytlib/chunk_client/chunk_ypath.pb.h>
@@ -28,6 +29,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NTableClient;
 using namespace NObjectServer;
+using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -243,13 +245,12 @@ private:
 
         const auto* chunk = GetThisTypedImpl();
 
-        auto addresses = chunkManager->GetChunkAddresses(chunk);
-        FOREACH (const auto& address, addresses) {
-            response->add_node_addresses(address);
-        }
+        auto replicas = chunkManager->GetChunkReplicas(chunk);
 
-        context->SetResponseInfo("Addresses: [%s]",
-            ~JoinToString(addresses));
+        TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory());
+        nodeDirectoryBuilder.Add(replicas);
+
+        ToProto(response->mutable_replicas(), replicas);
 
         context->Reply();
     }
@@ -261,20 +262,20 @@ private:
         auto chunkManager = Bootstrap->GetChunkManager();
         const auto* chunk = GetThisTypedImpl();
 
+        // TODO(babenko): fixme
         if (chunk->ChunkMeta().type() != EChunkType::Table) {
             THROW_ERROR_EXCEPTION("Unable to execute Fetch verb for non-table chunk");
         }
 
+        auto replicas = chunkManager->GetChunkReplicas(chunk);
+
+        TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory());
+        nodeDirectoryBuilder.Add(replicas);
+
         auto* inputChunk = response->add_chunks();
-        *inputChunk->mutable_chunk_id() = chunk->GetId().ToProto();
+        ToProto(inputChunk->mutable_replicas(), replicas);
+        ToProto(inputChunk->mutable_chunk_id(), chunk->GetId());
         inputChunk->mutable_extensions()->CopyFrom(chunk->ChunkMeta().extensions());
-
-        auto miscExt = GetProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
-
-        auto addresses = chunkManager->GetChunkAddresses(chunk);
-        FOREACH (const auto& address, addresses) {
-            inputChunk->add_node_addresses(address);
-        }
 
         context->Reply();
     }
@@ -285,12 +286,12 @@ private:
 
         auto chunkManager = Bootstrap->GetChunkManager();
 
-        auto addresses = FromProto<Stroka>(request->node_addresses());
-        YCHECK(!addresses.empty());
+        auto replicas = FromProto<NChunkClient::TChunkReplica>(request->replicas());
+        YCHECK(!replicas.empty());
 
-        context->SetRequestInfo("Size: %" PRId64 ", Addresses: [%s]",
+        context->SetRequestInfo("Size: %" PRId64 ", Targets: [%s]",
             request->chunk_info().size(),
-            ~JoinToString(addresses));
+            ~JoinToString(replicas));
 
         auto* chunk = GetThisTypedImpl();
 
@@ -304,14 +305,14 @@ private:
         // Use the size reported by the client, but check it for consistency first.
         if (!chunk->ValidateChunkInfo(request->chunk_info())) {
             LOG_FATAL("Invalid chunk info reported by client (ChunkId: %s, ExpectedInfo: {%s}, ReceivedInfo: {%s})",
-                ~chunk->GetId().ToString(),
+                ~ToString(chunk->GetId()),
                 ~chunk->ChunkInfo().DebugString(),
                 ~request->chunk_info().DebugString());
         }
 
         chunkManager->ConfirmChunk(
             chunk,
-            addresses,
+            replicas,
             request->mutable_chunk_info(),
             request->mutable_chunk_meta());
 

@@ -116,7 +116,7 @@ private:
 
         if (key == "parent_id") {
             BuildYsonFluently(consumer)
-                .Value(GetObjectId(transaction->GetParent()).ToString());
+                .Value(GetObjectId(transaction->GetParent()));
             return true;
         }
 
@@ -192,7 +192,7 @@ private:
     {
         if (!transaction->IsActive()) {
             THROW_ERROR_EXCEPTION("Transaction is not active: %s",
-                ~transaction->GetId().ToString());
+                ~ToString(transaction->GetId()));
         }
     }
 
@@ -255,10 +255,10 @@ private:
     {
         UNUSED(response);
 
-        auto objectId = TObjectId::FromProto(request->object_id());
+        auto objectId = FromProto<TObjectId>(request->object_id());
         bool recursive = request->recursive();
         context->SetRequestInfo("ObjectId: %s, Recursive: %s",
-            ~objectId.ToString(),
+            ~ToString(objectId),
             ~FormatBool(recursive));
 
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
@@ -437,8 +437,8 @@ TTransaction* TTransactionManager::StartTransaction(TTransaction* parent, TNulla
     TransactionStarted_.Fire(transaction);
 
     LOG_INFO_UNLESS(IsRecovery(), "Transaction started (TransactionId: %s, ParentId: %s, Timeout: %" PRIu64 ")",
-        ~id.ToString(),
-        ~GetObjectId(parent).ToString(),
+        ~ToString(id),
+        ~ToString(GetObjectId(parent)),
         actualTimeout.MilliSeconds());
 
     return transaction;
@@ -468,7 +468,7 @@ void TTransactionManager::CommitTransaction(TTransaction* transaction)
 
     FinishTransaction(transaction);
 
-    LOG_INFO_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %s)", ~id.ToString());
+    LOG_INFO_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %s)", ~ToString(id));
 }
 
 void TTransactionManager::AbortTransaction(TTransaction* transaction)
@@ -645,16 +645,16 @@ void TTransactionManager::OnTransactionExpired(const TTransactionId& id)
     auto objectManager = Bootstrap->GetObjectManager();
     auto proxy = objectManager->GetProxy(transaction);
 
-    LOG_INFO("Transaction lease expired (TransactionId: %s)", ~id.ToString());
+    LOG_INFO("Transaction lease expired (TransactionId: %s)", ~ToString(id));
 
     auto req = TTransactionYPathProxy::Abort();
     ExecuteVerb(proxy, req).Subscribe(BIND([=] (TTransactionYPathProxy::TRspAbortPtr rsp) {
         if (rsp->IsOK()) {
             LOG_INFO("Transaction expiration commit success (TransactionId: %s)",
-                ~id.ToString());
+                ~ToString(id));
         } else {
             LOG_ERROR(*rsp, "Transaction expiration commit failed (TransactionId: %s)",
-                ~id.ToString());
+                ~ToString(id));
         }
     }));
 }

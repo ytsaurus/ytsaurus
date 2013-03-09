@@ -55,7 +55,7 @@ public:
     TAsyncError SendBlocks(
         int startBlockIndex,
         int blockCount,
-        const Stroka& targetAddress);
+        const NChunkClient::TNodeDescriptor& target);
 
     //! Flushes a block and moves the window
     /*!

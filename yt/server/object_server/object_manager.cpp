@@ -456,7 +456,7 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
 
     LOG_DEBUG_UNLESS(IsRecovery(), "Object created (Type: %s, Id: %s)",
         ~type.ToString(),
-        ~id.ToString());
+        ~ToString(id));
 
     return id;
 }
@@ -468,7 +468,7 @@ void TObjectManager::RefObject(TObjectBase* object)
 
     int refCounter = object->RefObject();
     LOG_DEBUG_UNLESS(IsRecovery(), "Object referenced (Id: %s, RefCounter: %d)",
-        ~object->GetId().ToString(),
+        ~ToString(object->GetId()),
         refCounter);
 }
 
@@ -479,7 +479,7 @@ void TObjectManager::UnrefObject(TObjectBase* object)
 
     int refCounter = object->UnrefObject();
     LOG_DEBUG_UNLESS(IsRecovery(), "Object unreferenced (Id: %s, RefCounter: %d)",
-        ~object->GetId().ToString(),
+        ~ToString(object->GetId()),
         refCounter);
 
     if (refCounter == 0) {
@@ -722,7 +722,7 @@ void TObjectManager::ExecuteVerb(
     LOG_INFO_UNLESS(IsRecovery(), "ExecuteVerb: %s %s (ObjectId: %s, IsWrite: %s, User: %s)",
         ~context->GetVerb(),
         ~context->GetPath(),
-        ~id.ToString(),
+        ~ToString(id),
         ~FormatBool(isWrite),
         ~user->GetName());
 
@@ -745,9 +745,9 @@ void TObjectManager::ExecuteVerb(
         }
 
         NProto::TMetaReqExecute executeReq;
-        *executeReq.mutable_object_id() = id.ObjectId.ToProto();
-        *executeReq.mutable_transaction_id() = id.TransactionId.ToProto();
-        *executeReq.mutable_user_id() = user->GetId().ToProto();
+        ToProto(executeReq.mutable_object_id(), id.ObjectId);
+        ToProto(executeReq.mutable_transaction_id(),  id.TransactionId);
+        ToProto(executeReq.mutable_user_id(), user->GetId());
 
         auto requestMessage = context->GetRequestMessage();
         const auto& requestParts = requestMessage->GetParts();
@@ -916,8 +916,8 @@ void TObjectManager::UnstageObject(
 {
     if (transaction->StagedObjects().erase(object) != 1) {
         THROW_ERROR_EXCEPTION("Object %s does not belong to transaction %s",
-            ~object->GetId().ToString(),
-            ~transaction->GetId().ToString());
+            ~ToString(object->GetId()),
+            ~ToString(transaction->GetId()));
     }
 
     auto handler = GetHandler(object);
@@ -929,9 +929,9 @@ void TObjectManager::ReplayVerb(const NProto::TMetaReqExecute& request)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto objectId = TObjectId::FromProto(request.object_id());
-    auto transactionId = TTransactionId::FromProto(request.transaction_id());
-    auto userId = TUserId::FromProto(request.user_id());
+    auto objectId = FromProto<TObjectId>(request.object_id());
+    auto transactionId = FromProto<TTransactionId>(request.transaction_id());
+    auto userId = FromProto<TUserId>(request.user_id());
 
     auto transactionManager = Bootstrap->GetTransactionManager();
     auto* transaction =
@@ -965,7 +965,7 @@ void TObjectManager::ReplayVerb(const NProto::TMetaReqExecute& request)
 void TObjectManager::DestroyObjects(const NProto::TMetaReqDestroyObjects& request)
 {
     FOREACH (const auto& protoId, request.object_ids()) {
-        auto id = TObjectId::FromProto(protoId);
+        auto id = FromProto<TObjectId>(protoId);
         auto type = TypeFromId(id);
         auto handler = GetHandler(type);
         auto* object = handler->GetObject(id);
@@ -980,7 +980,7 @@ void TObjectManager::DestroyObjects(const NProto::TMetaReqDestroyObjects& reques
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Object destroyed (Type: %s, Id: %s)",
             ~type.ToString(),
-            ~id.ToString());
+            ~ToString(id));
     }
 
     GarbageCollector->CheckEmpty();

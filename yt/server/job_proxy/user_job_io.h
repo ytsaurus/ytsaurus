@@ -6,6 +6,8 @@
 
 #include <ytlib/table_client/public.h>
 
+#include <ytlib/chunk_client/public.h>
+
 #include <ytlib/transaction_client/public.h>
 
 #include <ytlib/scheduler/job.pb.h>

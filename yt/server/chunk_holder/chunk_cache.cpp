@@ -7,6 +7,7 @@
 #include "block_store.h"
 #include "config.h"
 #include "bootstrap.h"
+#include "master_connector.h"
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/serialize.h>
@@ -22,6 +23,7 @@
 #include <ytlib/chunk_client/remote_reader.h>
 #include <ytlib/chunk_client/sequential_reader.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/node_directory.h>
 
 #include <server/chunk_server/chunk_service_proxy.h>
 
@@ -30,7 +32,10 @@ namespace NChunkHolder {
 
 using namespace NChunkClient;
 using namespace NRpc;
-using namespace NChunkClient::NProto;
+
+using NChunkClient::NProto::TChunkMeta;
+using NChunkClient::NProto::TChunkInfo;
+using NChunkClient::NProto::TBlocksExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -100,21 +105,18 @@ public:
         Register(chunk);
     }
 
-    TAsyncDownloadResult Download(
-        const TChunkId& chunkId,
-        const std::vector<Stroka>& seedAddresses)
+    TAsyncDownloadResult Download(const TChunkId& chunkId)
     {
-        LOG_INFO("Getting chunk from cache (ChunkId: %s, SeedAddresses: [%s])",
-            ~chunkId.ToString(),
-            ~JoinToString(seedAddresses));
+        LOG_INFO("Getting chunk from cache (ChunkId: %s)",
+            ~ToString(chunkId));
 
         TSharedPtr<TInsertCookie, TAtomicCounter> cookie(new TInsertCookie(chunkId));
         if (BeginInsert(cookie.Get())) {
-            LOG_INFO("Loading chunk into cache (ChunkId: %s)", ~chunkId.ToString());
-            auto session = New<TDownloadSession>(this, chunkId, seedAddresses, cookie);
+            LOG_INFO("Loading chunk into cache (ChunkId: %s)", ~ToString(chunkId));
+            auto session = New<TDownloadSession>(this, chunkId, cookie);
             session->Start();
         } else {
-            LOG_INFO("Chunk is already cached (ChunkId: %s)", ~chunkId.ToString());
+            LOG_INFO("Chunk is already cached (ChunkId: %s)", ~ToString(chunkId));
         }
 
         return cookie->GetValue();
@@ -171,16 +173,15 @@ private:
         TDownloadSession(
             TImpl* owner,
             const TChunkId& chunkId,
-            const std::vector<Stroka>& seedAddresses,
             TSharedPtr<TInsertCookie, TAtomicCounter> cookie)
             : Owner(owner)
             , ChunkId(chunkId)
-            , SeedAddresses(seedAddresses)
             , Cookie(cookie)
             , WriteInvoker(CreateSerializedInvoker(Owner->Location->GetWriteInvoker()))
+            , NodeDirectory(New<TNodeDirectory>())
             , Logger(DataNodeLogger)
         {
-            Logger.AddTag(Sprintf("ChunkId: %s", ~ChunkId.ToString()));
+            Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(ChunkId)));
         }
 
         void Start()
@@ -189,8 +190,9 @@ private:
                 Owner->Config->CacheRemoteReader,
                 Owner->Bootstrap->GetBlockStore()->GetBlockCache(),
                 Owner->Bootstrap->GetMasterChannel(),
-                ChunkId,
-                SeedAddresses);
+                NodeDirectory,
+                Owner->Bootstrap->GetLocalDescriptor(),
+                ChunkId);
 
             WriteInvoker->Invoke(BIND(&TThis::DoStart, MakeStrong(this)));
         }
@@ -201,6 +203,7 @@ private:
         std::vector<Stroka> SeedAddresses;
         TSharedPtr<TInsertCookie, TAtomicCounter> Cookie;
         IInvokerPtr WriteInvoker;
+        TNodeDirectoryPtr NodeDirectory;
 
         TFileWriterPtr FileWriter;
         IAsyncReaderPtr RemoteReader;
@@ -329,8 +332,8 @@ private:
 
         void OnError(const TError& error)
         {
-            YASSERT(!error.IsOK());
-            auto wrappedError = TError("Error downloading chunk %s into cache", ~ChunkId.ToString())
+            YCHECK(!error.IsOK());
+            auto wrappedError = TError("Error downloading chunk %s into cache", ~ToString(ChunkId))
                 << error;
             Cookie->Cancel(wrappedError);
             LOG_WARNING(wrappedError);
@@ -384,13 +387,11 @@ int TChunkCache::GetChunkCount()
     return Impl->GetSize();
 }
 
-TChunkCache::TAsyncDownloadResult TChunkCache::DownloadChunk(
-    const TChunkId& chunkId,
-    const std::vector<Stroka>& seedAddresses)
+TChunkCache::TAsyncDownloadResult TChunkCache::DownloadChunk(const TChunkId& chunkId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Impl->Download(chunkId, seedAddresses);
+    return Impl->Download(chunkId);
 }
 
 const TGuid& TChunkCache::GetCellGuid() const

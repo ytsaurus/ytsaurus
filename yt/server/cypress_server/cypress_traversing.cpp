@@ -96,7 +96,7 @@ private:
             transaction = transactionManager->FindTransaction(TransactionId);
             if (!transaction) {
                 Visitor->OnError(TError("No such transaction: %s",
-                    ~TransactionId.ToString()));
+                    ~ToString(TransactionId)));
                 return;
             }
         }
@@ -119,7 +119,7 @@ private:
                 auto* trunkNode = cypressManager->FindNode(TVersionedNodeId(nodeId));
                 if (!trunkNode) {
                     Visitor->OnError(TError("No such node: %s",
-                        ~nodeId.ToString()));
+                        ~ToString(nodeId)));
                     return;
                 }
 

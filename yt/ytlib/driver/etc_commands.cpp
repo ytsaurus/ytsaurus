@@ -80,7 +80,7 @@ void TCheckPersmissionCommand::DoExecute()
         .BeginMap()
             .Item("action").Value(ESecurityAction(rsp->action()))
             .DoIf(rsp->has_object_id(), [&] (TFluentMap fluent) {
-                fluent.Item("object_id").Value(TObjectId::FromProto(rsp->object_id()));
+                fluent.Item("object_id").Value(FromProto<TObjectId>(rsp->object_id()));
             })
             .DoIf(rsp->has_subject(), [&] (TFluentMap fluent) {
                 fluent.Item("subject").Value(rsp->subject());

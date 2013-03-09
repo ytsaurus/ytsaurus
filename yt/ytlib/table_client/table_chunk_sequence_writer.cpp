@@ -7,7 +7,6 @@ namespace NTableClient {
 
 using namespace NChunkClient;
 using namespace NTransactionClient;
-using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,7 +89,7 @@ TAsyncError TTableChunkSequenceWriter::AsyncClose()
 {
     *BoundaryKeys.mutable_end() = CurrentSession.ChunkWriter->GetLastKey().ToProto();
 
-    LOG_DEBUG_IF(KeyColumns, "Boundary keys determined (Start: %s, End: %s)",
+    LOG_DEBUG_IF(Options->KeyColumns, "Boundary keys determined (Start: %s, End: %s)",
         ~ToString(BoundaryKeys.start()),
         ~ToString(BoundaryKeys.end()));
     return TBase::AsyncClose();

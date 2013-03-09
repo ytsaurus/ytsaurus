@@ -52,7 +52,7 @@ private:
                 YUNREACHABLE();
         }
         // NB: No size limit is needed here.
-        return ConvertToStrings(ids.begin(), ids.end());
+        return ConvertToStrings(ids);
     }
 
     virtual size_t GetSize() const override

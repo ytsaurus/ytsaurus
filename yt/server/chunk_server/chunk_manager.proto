@@ -2,12 +2,14 @@ package NYT.NChunkServer.NProto;
 
 import "yt/ytlib/misc/guid.proto";
 import "yt/server/chunk_server/chunk_service.proto";
+import "yt/ytlib/chunk_client/node.proto";
+import "yt/ytlib/chunk_client/chunk.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TMetaReqRegisterNode
 {
-    required string address = 1;
+    required NYT.NChunkClient.NProto.TNodeDescriptor node_descriptor = 1;
     required NYT.NProto.TGuid incarnation_id = 2;
     required TNodeStatistics statistics = 3;
 }

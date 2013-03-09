@@ -3,6 +3,8 @@
 #include "public.h"
 #include "job.h"
 
+#include <ytlib/chunk_client/public.h>
+
 #include <ytlib/scheduler/job.pb.h>
 
 namespace NYT {

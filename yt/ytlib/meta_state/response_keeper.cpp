@@ -49,7 +49,7 @@ void TResponseKeeper::RegisterResponse(
     UpdateCounters(data, +1);
 
     LOG_DEBUG("Mutation response kept (MutationId: %s, Size: %" PRISZT ")",
-        ~id.ToString(),
+        ~ToString(id),
         data ? data.Size() : 0);
 
     TrySweep();
@@ -80,7 +80,7 @@ void TResponseKeeper::TrySweep()
             break;
         }
 
-        LOG_DEBUG("Mutation response swept (MutationId: %s)", ~item.Iterator->first.ToString());
+        LOG_DEBUG("Mutation response swept (MutationId: %s)", ~ToString(item.Iterator->first));
 
         UpdateCounters(item.Iterator->second, -1);
         ResponseMap.erase(item.Iterator);

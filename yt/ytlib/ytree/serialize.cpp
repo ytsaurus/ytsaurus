@@ -115,7 +115,7 @@ void Serialize(TInstant value, NYson::IYsonConsumer* consumer)
 // TGuid
 void Serialize(const TGuid& value, NYson::IYsonConsumer* consumer)
 {
-    consumer->OnStringScalar(value.ToString());
+    consumer->OnStringScalar(ToString(value));
 }
 
 // TInputStream

@@ -100,7 +100,7 @@ private:
             ids = ToObjectIds(chunks, sizeLimit);
         }
         // NB: No size limit is needed here.
-        return ConvertToStrings(ids.begin(), ids.end());
+        return ConvertToStrings(ids);
     }
 
     virtual size_t GetSize() const override
@@ -158,7 +158,7 @@ private:
         auto chunkManager = Bootstrap->GetChunkManager();
         auto ids = ToObjectIds(chunkManager->GetChunkLists(sizeLimit));
         // NB: No size limit is needed here.
-        return ConvertToStrings(ids.begin(), ids.end());
+        return ConvertToStrings(ids);
     }
 
     virtual size_t GetSize() const override

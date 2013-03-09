@@ -31,6 +31,8 @@ struct IJobHost
 
     virtual NChunkClient::IBlockCachePtr GetBlockCache() const = 0;
 
+    virtual NChunkClient::TNodeDirectoryPtr GetNodeDirectory() const = 0;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

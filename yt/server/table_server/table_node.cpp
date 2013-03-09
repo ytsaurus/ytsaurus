@@ -200,8 +200,8 @@ protected:
         branchedNode->SetReplicationFactor(originatingNode->GetReplicationFactor());
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Table node branched (BranchedNodeId: %s, ChunkListId: %s, ReplicationFactor: %d)",
-            ~branchedNode->GetId().ToString(),
-            ~originatingNode->GetChunkList()->GetId().ToString(),
+            ~ToString(branchedNode->GetId()),
+            ~ToString(originatingNode->GetChunkList()->GetId()),
             originatingNode->GetReplicationFactor());
     }
 
@@ -221,15 +221,15 @@ protected:
             "Table node merged (OriginatingNodeId: %s, OriginatingChunkListId: %s, OriginatingUpdateMode: %s, OriginatingReplicationFactor: %d, "
             "BranchedNodeId: %s, BranchedChunkListId: %s, BranchedUpdateMode: %s, BranchedReplicationFactor: %d, "
             "NewOriginatingChunkListId: %s, NewOriginatingUpdateMode: %s)",
-            ~originatingNode->GetId().ToString(),
-            ~originatingChunkListId.ToString(),
+            ~ToString(originatingNode->GetId()),
+            ~ToString(originatingChunkListId),
             ~originatingUpdateMode.ToString(),
             originatingNode->GetReplicationFactor(),
-            ~branchedNode->GetId().ToString(),
-            ~branchedChunkListId.ToString(),
+            ~ToString(branchedNode->GetId()),
+            ~ToString(branchedChunkListId),
             ~branchedUpdateMode.ToString(),
             branchedNode->GetReplicationFactor(),
-            ~originatingNode->GetChunkList()->GetId().ToString(),
+            ~ToString(originatingNode->GetChunkList()->GetId()),
             ~originatingNode->GetUpdateMode().ToString());
     }
 

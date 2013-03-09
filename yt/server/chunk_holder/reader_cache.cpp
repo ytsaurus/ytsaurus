@@ -34,7 +34,7 @@ public:
         , ChunkId(chunkId)
     { }
 
-    virtual TChunkId GetChunkId() const override
+    virtual const TChunkId& GetChunkId() const override
     {
         return ChunkId;
     }
@@ -64,12 +64,12 @@ public:
                 cookie.Cancel(TGetReaderResult(TError(
                     EErrorCode::NoSuchChunk,
                     "No such chunk: %s",
-                    ~chunkId.ToString())));
+                    ~ToString(chunkId))));
             }
 
             LOG_DEBUG("Started opening chunk reader (LocationId: %s, ChunkId: %s)",
                 ~chunk->GetLocation()->GetId(),
-                ~chunkId.ToString());
+                ~ToString(chunkId));
 
             PROFILE_TIMING ("/chunk_reader_open_time") {
                 try {
@@ -80,7 +80,7 @@ public:
                     auto error = TError(
                         NChunkClient::EErrorCode::IOError,
                         "Error opening chunk: %s",
-                        ~chunkId.ToString())
+                        ~ToString(chunkId))
                         << ex;
                     cookie.Cancel(error);
                     chunk->GetLocation()->Disable();
@@ -90,7 +90,7 @@ public:
 
             LOG_DEBUG("Finished opening chunk reader (LocationId: %s, ChunkId: %s)",
                 ~chunk->GetLocation()->GetId(),
-                ~chunkId.ToString());
+                ~ToString(chunkId));
         }
 
         return cookie.GetValue().Get();

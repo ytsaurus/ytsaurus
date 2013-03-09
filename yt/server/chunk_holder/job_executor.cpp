@@ -20,7 +20,8 @@ namespace NYT {
 namespace NChunkHolder {
 
 using namespace NChunkClient;
-using namespace NChunkClient::NProto;
+
+using NChunkClient::NProto::TBlocksExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,13 +34,13 @@ TJob::TJob(
     EJobType jobType,
     const TJobId& jobId,
     const TChunkId& chunkId,
-    const std::vector<Stroka>& targetAddresses)
+    const std::vector<TNodeDescriptor>& targets)
     : Bootstrap(bootstrap)
     , JobType(jobType)
     , JobId(jobId)
     , State(EJobState::Running)
     , ChunkId(chunkId)
-    , TargetAddresses(targetAddresses)
+    , Targets(targets)
     , CancelableContext(New<TCancelableContext>())
     , CancelableInvoker(CancelableContext->CreateInvoker(Bootstrap->GetControlInvoker()))
     , Logger(DataNodeLogger)
@@ -47,8 +48,8 @@ TJob::TJob(
     YCHECK(bootstrap);
 
     Logger.AddTag(Sprintf("ChunkId: %s, JobId: %s",
-        ~ChunkId.ToString(),
-        ~JobId.ToString()));
+        ~ToString(ChunkId),
+        ~ToString(JobId)));
 }
 
 EJobType TJob::GetType() const
@@ -69,11 +70,6 @@ EJobState TJob::GetState() const
 const TError& TJob::GetError() const
 {
     return Error;
-}
-
-std::vector<Stroka> TJob::GetTargetAddresses() const
-{
-    return TargetAddresses;
 }
 
 void TJob::Start()
@@ -104,7 +100,7 @@ void TJob::RunRemove()
 
     auto chunk = Bootstrap->GetChunkStore()->FindChunk(ChunkId);
     if (!chunk) {
-        SetFailed(TError("No such chunk: %s", ~ChunkId.ToString()));
+        SetFailed(TError("No such chunk: %s", ~ToString(ChunkId)));
         return;
     }
 
@@ -115,12 +111,12 @@ void TJob::RunRemove()
 
 void TJob::RunReplicate()
 {
-    LOG_INFO("Replication job started (TargetAddresses: [%s])",
-        ~JoinToString(TargetAddresses));
+    LOG_INFO("Replication job started (Targets: [%s])",
+        ~JoinToString(Targets));
 
     auto chunk = Bootstrap->GetChunkRegistry()->FindChunk(ChunkId);
     if (!chunk) {
-        SetFailed(TError("No such chunk: %s", ~ChunkId.ToString()));
+        SetFailed(TError("No such chunk: %s", ~ToString(ChunkId)));
         return;
     }
 
@@ -141,7 +137,7 @@ void TJob::RunReplicate()
         this_->Writer = New<TRemoteWriter>(
             this_->Bootstrap->GetConfig()->ReplicationRemoteWriter,
             this_->ChunkId,
-            this_->TargetAddresses);
+            this_->Targets);
         this_->Writer->Open();
 
         ReplicateBlock(0, TError());
@@ -184,7 +180,7 @@ void TJob::ReplicateBlock(int blockIndex, TError error)
                 if (!result.IsOK()) {
                     this_->SetFailed(TError(
                         "Error retrieving block %d for replication",
-                        ~blockId.ToString())
+                        ~ToString(blockId))
                         << result);
                     return;
                 }
@@ -226,14 +222,15 @@ TJobPtr TJobExecutor::StartJob(
     EJobType jobType,
     const TJobId& jobId,
     const TChunkId& chunkId,
-    const std::vector<Stroka>& targetAddresses)
+    const std::vector<TNodeDescriptor>& targets)
 {
     auto job = New<TJob>(
         Bootstrap,
         jobType,
         jobId,
         chunkId,
-        targetAddresses);
+        targets);
+    
     YCHECK(Jobs.insert(std::make_pair(jobId, job)).second);
     job->Start();
 
@@ -246,7 +243,7 @@ void TJobExecutor::StopJob(TJobPtr job)
     YCHECK(Jobs.erase(job->GetJobId()) == 1);
 
     LOG_INFO("Job stopped (JobId: %s, State: %s)",
-        ~job->GetJobId().ToString(),
+        ~ToString(job->GetJobId()),
         ~job->GetState().ToString());
 }
 

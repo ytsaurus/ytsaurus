@@ -29,6 +29,7 @@
 #include <ytlib/table_client/size_limits.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/node_directory.h>
 #include <ytlib/chunk_client/data_node_service.pb.h>
 
 #include <cmath>
@@ -38,7 +39,6 @@ namespace NChunkHolder {
 
 using namespace NRpc;
 using namespace NChunkClient;
-using namespace NChunkClient::NProto;
 using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -94,7 +94,7 @@ void TDataNodeService::ValidateNoSession(const TChunkId& chunkId)
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::SessionAlreadyExists,
             "Session already exists: %s",
-            ~chunkId.ToString());
+            ~ToString(chunkId));
     }
 }
 
@@ -104,7 +104,7 @@ void TDataNodeService::ValidateNoChunk(const TChunkId& chunkId)
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::ChunkAlreadyExists,
             "Chunk already exists: %s",
-            ~chunkId.ToString());
+            ~ToString(chunkId));
     }
 }
 
@@ -115,7 +115,7 @@ TSessionPtr TDataNodeService::GetSession(const TChunkId& chunkId)
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::NoSuchSession,
             "Session is invalid or expired: %s",
-            ~chunkId.ToString());
+            ~ToString(chunkId));
     }
     return session;
 }
@@ -127,7 +127,7 @@ TChunkPtr TDataNodeService::GetChunk(const TChunkId& chunkId)
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::NoSuchChunk,
             "No such chunk: %s",
-            ~chunkId.ToString());
+            ~ToString(chunkId));
     }
     return chunk;
 }
@@ -217,10 +217,10 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, StartChunk)
 {
     UNUSED(response);
 
-    auto chunkId = TChunkId::FromProto(request->chunk_id());
+    auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
     context->SetRequestInfo("ChunkId: %s",
-        ~chunkId.ToString());
+        ~ToString(chunkId));
 
     ValidateNoSession(chunkId);
     ValidateNoChunk(chunkId);
@@ -234,10 +234,10 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, FinishChunk)
 {
     UNUSED(response);
 
-    auto chunkId = TChunkId::FromProto(request->chunk_id());
+    auto chunkId = FromProto<TChunkId>(request->chunk_id());
     auto& meta = request->chunk_meta();
 
-    context->SetRequestInfo("ChunkId: %s", ~chunkId.ToString());
+    context->SetRequestInfo("ChunkId: %s", ~ToString(chunkId));
 
     auto session = GetSession(chunkId);
 
@@ -267,12 +267,12 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, PutBlocks)
         return;
     }
 
-    auto chunkId = TChunkId::FromProto(request->chunk_id());
+    auto chunkId = FromProto<TChunkId>(request->chunk_id());
     int startBlockIndex = request->start_block_index();
     bool enableCaching = request->enable_caching();
 
     context->SetRequestInfo("ChunkId: %s, StartBlockIndex: %d, BlockCount: %d, EnableCaching: %s",
-        ~chunkId.ToString(),
+        ~ToString(chunkId),
         startBlockIndex,
         request->Attachments().size(),
         ~FormatBool(enableCaching));
@@ -292,20 +292,20 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, SendBlocks)
 {
     UNUSED(response);
 
-    auto chunkId = TChunkId::FromProto(request->chunk_id());
+    auto chunkId = FromProto<TChunkId>(request->chunk_id());
     int startBlockIndex = request->start_block_index();
     int blockCount = request->block_count();
-    Stroka targetAddress = request->target_address();
+    auto target = FromProto<TNodeDescriptor>(request->target());
 
     context->SetRequestInfo("ChunkId: %s, StartBlockIndex: %d, BlockCount: %d, TargetAddress: %s",
-        ~chunkId.ToString(),
+        ~ToString(chunkId),
         startBlockIndex,
         blockCount,
-        ~targetAddress);
+        ~target.Address);
 
     auto session = GetSession(chunkId);
     session
-        ->SendBlocks(startBlockIndex, blockCount, targetAddress)
+        ->SendBlocks(startBlockIndex, blockCount, target)
         .Subscribe(BIND([=] (TError error) {
             if (error.IsOK()) {
                 context->Reply();
@@ -313,7 +313,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, SendBlocks)
                 context->Reply(TError(
                     NChunkClient::EErrorCode::PipelineFailed,
                     "Error putting blocks to %s",
-                    ~targetAddress)
+                    ~target.Address)
                     << error);
             }
         }));
@@ -321,12 +321,12 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, SendBlocks)
 
 DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
 {
-    auto chunkId = TChunkId::FromProto(request->chunk_id());
+    auto chunkId = FromProto<TChunkId>(request->chunk_id());
     int blockCount = static_cast<int>(request->block_indexes_size());
     bool enableCaching = request->enable_caching();
 
     context->SetRequestInfo("ChunkId: %s, BlockIndexes: %s, EnableCaching: %s",
-        ~chunkId.ToString(),
+        ~ToString(chunkId),
         ~JoinToString(request->block_indexes()),
         ~FormatBool(enableCaching));
 
@@ -357,7 +357,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
             const auto& peers = peerBlockTable->GetPeers(blockId);
             if (!peers.empty()) {
                 FOREACH (const auto& peer, peers) {
-                    blockInfo->add_peer_addresses(peer.Address);
+                    ToProto(blockInfo->add_p2p_descriptors(), peer.Descriptor);
                 }
                 LOG_DEBUG("GetBlocks: %" PRISZT " peers suggested for block %d",
                     peers.size(),
@@ -393,30 +393,32 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetBlocks)
     awaiter->Complete(BIND([=] () {
         // Compute statistics.
         int blocksWithData = 0;
-        int blocksWithPeers = 0;
+        int blocksWithP2P = 0;
         FOREACH (const auto& blockInfo, response->blocks()) {
             if (blockInfo.data_attached()) {
                 ++blocksWithData;
             }
-            if (blockInfo.peer_addresses_size() != 0) {
-                ++blocksWithPeers;
+            if (blockInfo.p2p_descriptors_size() != 0) {
+                ++blocksWithP2P;
             }
         }
 
-        context->SetResponseInfo("HasCompleteChunk: %s, BlocksWithData: %d, BlocksWithPeers: %d",
+        context->SetResponseInfo("HasCompleteChunk: %s, BlocksWithData: %d, BlocksWithP2P: %d",
             ~FormatBool(response->has_complete_chunk()),
             blocksWithData,
-            blocksWithPeers);
+            blocksWithP2P);
 
         context->Reply();
 
         // Register the peer that we had just sent the reply to.
-        if (request->has_peer_address() && request->has_peer_expiration_time()) {
-            TPeerInfo peer(request->peer_address(), TInstant(request->peer_expiration_time()));
+        if (request->has_peer_descriptor() && request->has_peer_expiration_time()) {
+            auto descriptor = FromProto<TNodeDescriptor>(request->peer_descriptor());
+            auto expirationTime = TInstant(request->peer_expiration_time());
+            TPeerInfo peerInfo(descriptor, expirationTime);
             for (int index = 0; index < blockCount; ++index) {
                 if (response->blocks(index).data_attached()) {
                     TBlockId blockId(chunkId, request->block_indexes(index));
-                    peerBlockTable->UpdatePeer(blockId, peer);
+                    peerBlockTable->UpdatePeer(blockId, peerInfo);
                 }
             }
         }
@@ -427,11 +429,11 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, FlushBlock)
 {
     UNUSED(response);
 
-    auto chunkId = TChunkId::FromProto(request->chunk_id());
+    auto chunkId = FromProto<TChunkId>(request->chunk_id());
     int blockIndex = request->block_index();
 
     context->SetRequestInfo("ChunkId: %s, BlockIndex: %d",
-        ~chunkId.ToString(),
+        ~ToString(chunkId),
         blockIndex);
 
     auto session = GetSession(chunkId);
@@ -445,9 +447,9 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, PingSession)
 {
     UNUSED(response);
 
-    auto chunkId = TChunkId::FromProto(request->chunk_id());
+    auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
-    context->SetRequestInfo("ChunkId: %s", ~chunkId.ToString());
+    context->SetRequestInfo("ChunkId: %s", ~ToString(chunkId));
 
     auto session = GetSession(chunkId);
     session->RenewLease();
@@ -457,7 +459,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, PingSession)
 
 DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetChunkMeta)
 {
-    auto chunkId = TChunkId::FromProto(request->chunk_id());
+    auto chunkId = FromProto<TChunkId>(request->chunk_id());
     auto extensionTags = FromProto<int>(request->extension_tags());
     auto partitionTag =
         request->has_partition_tag()
@@ -465,7 +467,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetChunkMeta)
         : Null;
 
     context->SetRequestInfo("ChunkId: %s, AllExtensionTags: %s, ExtensionTags: [%s], PartitionTag: %s",
-        ~chunkId.ToString(),
+        ~ToString(chunkId),
         ~FormatBool(request->all_extension_tags()),
         ~JoinToString(extensionTags),
         ~ToString(partitionTag));
@@ -483,9 +485,9 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetChunkMeta)
 
 DEFINE_RPC_SERVICE_METHOD(TDataNodeService, PrecacheChunk)
 {
-    auto chunkId = TChunkId::FromProto(request->chunk_id());
+    auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
-    context->SetRequestInfo("ChunkId: %s", ~chunkId.ToString());
+    context->SetRequestInfo("ChunkId: %s", ~ToString(chunkId));
 
     Bootstrap
         ->GetChunkCache()
@@ -497,7 +499,7 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, PrecacheChunk)
                 context->Reply(TError(
                     NChunkClient::EErrorCode::ChunkPrecachingFailed,
                     "Error precaching chunk %s",
-                    ~chunkId.ToString())
+                    ~ToString(chunkId))
                     << result);
             }
         }));
@@ -505,16 +507,18 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, PrecacheChunk)
 
 DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TDataNodeService, UpdatePeer)
 {
-    TPeerInfo peer(request->peer_address(), TInstant(request->peer_expiration_time()));
+    auto descriptor = FromProto<TNodeDescriptor>(request->peer_descriptor());
+    auto expirationTime = TInstant(request->peer_expiration_time());
+    TPeerInfo peer(descriptor, expirationTime);
 
-    context->SetRequestInfo("PeerAddress: %s, ExpirationTime: %s, BlockCount: %d",
-        ~request->peer_address(),
-        ~TInstant(request->peer_expiration_time()).ToString(),
+    context->SetRequestInfo("Descriptor: %s, ExpirationTime: %s, BlockCount: %d",
+        ~ToString(descriptor),
+        ~ToString(expirationTime),
         request->block_ids_size());
 
     auto peerBlockTable = Bootstrap->GetPeerBlockTable();
     FOREACH (const auto& block_id, request->block_ids()) {
-        TBlockId blockId(TGuid::FromProto(block_id.chunk_id()), block_id.block_index());
+        TBlockId blockId(FromProto<TGuid>(block_id.chunk_id()), block_id.block_index());
         peerBlockTable->UpdatePeer(blockId, peer);
     }
 }
@@ -530,12 +534,12 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetTableSamples)
 
     FOREACH (const auto& sampleRequest, request->sample_requests()) {
         auto* chunkSamples = response->add_samples();
-        auto chunkId = TChunkId::FromProto(sampleRequest.chunk_id());
+        auto chunkId = FromProto<TChunkId>(sampleRequest.chunk_id());
         auto chunk = Bootstrap->GetChunkStore()->FindChunk(chunkId);
 
         if (!chunk) {
             LOG_WARNING("GetTableSamples: No such chunk %s\n",
-                ~chunkId.ToString());
+                ~ToString(chunkId));
             ToProto(chunkSamples->mutable_error(), TError("No such chunk"));
         } else {
             awaiter->Await(chunk->GetMeta(), BIND(
@@ -558,11 +562,11 @@ void TDataNodeService::ProcessSample(
     const TKeyColumns& keyColumns,
     TChunk::TGetMetaResult result)
 {
-    auto chunkId = TChunkId::FromProto(sampleRequest->chunk_id());
+    auto chunkId = FromProto<TChunkId>(sampleRequest->chunk_id());
 
     if (!result.IsOK()) {
         LOG_WARNING(result, "GetTableSamples: Error getting meta of chunk %s",
-            ~chunkId.ToString());
+            ~ToString(chunkId));
         ToProto(chunkSamples->mutable_error(), result);
         return;
     }
@@ -633,12 +637,12 @@ DEFINE_RPC_SERVICE_METHOD(TDataNodeService, GetChunkSplits)
     auto keyColumns = FromProto<Stroka>(request->key_columns());
 
     FOREACH (const auto& inputChunk, request->input_chunks()) {
-        auto chunkId = TChunkId::FromProto(inputChunk.chunk_id());
+        auto chunkId = FromProto<TChunkId>(inputChunk.chunk_id());
         auto* splittedChunk = response->add_splitted_chunks();
         auto chunk = Bootstrap->GetChunkStore()->FindChunk(chunkId);
 
         if (!chunk) {
-            auto error = TError("No such chunk: %s", ~chunkId.ToString());
+            auto error = TError("No such chunk: %s", ~ToString(chunkId));
             LOG_ERROR(error);
             ToProto(splittedChunk->mutable_error(), error);
         } else {
@@ -664,10 +668,10 @@ void TDataNodeService::MakeChunkSplits(
     const TKeyColumns& keyColumns,
     TChunk::TGetMetaResult result)
 {
-    auto chunkId = TChunkId::FromProto(inputChunk->chunk_id());
+    auto chunkId = FromProto<TChunkId>(inputChunk->chunk_id());
 
     if (!result.IsOK()) {
-        auto error = TError("GetChunkSplits: Error getting meta of chunk %s", ~chunkId.ToString())
+        auto error = TError("GetChunkSplits: Error getting meta of chunk %s", ~ToString(chunkId))
             << result;
         LOG_ERROR(error);
         ToProto(splittedChunk->mutable_error(), error);
@@ -679,7 +683,7 @@ void TDataNodeService::MakeChunkSplits(
     auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(result.Value().extensions());
     if (!miscExt.sorted()) {
         auto error =  TError("GetChunkSplits: Requested chunk splits for unsorted chunk %s",
-            ~chunkId.ToString());
+            ~ToString(chunkId));
         LOG_ERROR(error);
         ToProto(splittedChunk->mutable_error(), error);
         return;
@@ -688,7 +692,7 @@ void TDataNodeService::MakeChunkSplits(
     auto keyColumnsExt = GetProtoExtension<NTableClient::NProto::TKeyColumnsExt>(result.Value().extensions());
     if (keyColumnsExt.values_size() < keyColumns.size()) {
         auto error = TError("Not enough key columns in chunk %s: expected %d, actual %d",
-            ~chunkId.ToString(),
+            ~ToString(chunkId),
             static_cast<int>(keyColumns.size()),
             static_cast<int>(keyColumnsExt.values_size()));
         LOG_ERROR(error);

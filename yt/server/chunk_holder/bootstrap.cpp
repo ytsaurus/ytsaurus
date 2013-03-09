@@ -77,8 +77,8 @@ void TBootstrap::Init()
         LOG_FATAL_IF(
             ChunkStore->GetCellGuid().IsEmpty() != ChunkCache->GetCellGuid().IsEmpty(),
             "Inconsistent cell guid (ChunkStore: %s, ChunkCache: %s)",
-            ~ChunkStore->GetCellGuid().ToString(),
-            ~ChunkCache->GetCellGuid().ToString());
+            ~ToString(ChunkStore->GetCellGuid()),
+            ~ToString(ChunkCache->GetCellGuid()));
         CellGuid = ChunkCache->GetCellGuid();
     }
 
@@ -183,9 +183,9 @@ IChannelPtr TBootstrap::GetMasterChannel() const
     return NodeBootstrap->GetMasterChannel();
 }
 
-Stroka TBootstrap::GetPeerAddress() const
+const NChunkClient::TNodeDescriptor& TBootstrap::GetLocalDescriptor() const
 {
-    return NodeBootstrap->GetPeerAddress();
+    return NodeBootstrap->GetLocalDescriptor();
 }
 
 const TGuid& TBootstrap::GetCellGuid() const

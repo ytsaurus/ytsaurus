@@ -20,7 +20,7 @@ TYPath GetOperationPath(const TOperationId& operationId)
 {
     return
         GetOperationsPath() + "/" +
-        ToYPathLiteral(operationId.ToString());
+        ToYPathLiteral(ToString(operationId));
 }
 
 TYPath GetJobsPath(const TOperationId& operationId)
@@ -34,7 +34,7 @@ TYPath GetJobPath(const TOperationId& operationId, const TJobId& jobId)
 {
     return
         GetJobsPath(operationId) + "/" +
-        ToYPathLiteral(jobId.ToString());
+        ToYPathLiteral(ToString(jobId));
 }
 
 TYPath GetStdErrPath(const TOperationId& operationId, const TJobId& jobId)

@@ -385,7 +385,7 @@ TCypressNodeBase* TCypressManager::CreateNode(
     node_->Acd().SetOwner(user);
 
     if (response) {
-        *response->mutable_node_id() = node_->GetId().ToProto();
+        ToProto(response->mutable_node_id(), node_->GetId());
     }
 
     return LockVersionedNode(node_, transaction, ELockMode::Exclusive);
@@ -418,7 +418,7 @@ void TCypressManager::CreateNodeBehavior(TCypressNodeBase* trunkNode)
 
     YCHECK(NodeBehaviors.insert(std::make_pair(trunkNode, behavior)).second);
 
-    LOG_DEBUG("Node behavior created (NodeId: %s)",  ~trunkNode->GetId().ToString());
+    LOG_DEBUG("Node behavior created (NodeId: %s)", ~ToString(trunkNode->GetId()));
 }
 
 void TCypressManager::DestroyNodeBehavior(TCypressNodeBase* trunkNode)
@@ -432,7 +432,7 @@ void TCypressManager::DestroyNodeBehavior(TCypressNodeBase* trunkNode)
     it->second->Destroy();
     NodeBehaviors.erase(it);
 
-    LOG_DEBUG("Node behavior destroyed (NodeId: %s)", ~trunkNode->GetId().ToString());
+    LOG_DEBUG("Node behavior destroyed (NodeId: %s)", ~ToString(trunkNode->GetId()));
 }
 
 TCypressNodeBase* TCypressManager::GetRootNode() const
@@ -551,7 +551,7 @@ void TCypressManager::ValidateLock(
                 ~FormatEnum(request.Mode).Quote(),
                 ~GetNodePath(trunkNode, transaction),
                 ~FormatEnum(existingLock.Mode).Quote(),
-                ~existingTransaction->GetId().ToString());
+                ~ToString(existingTransaction->GetId()));
         }
 
         if (!transaction || IsConcurrentTransaction(transaction, existingTransaction)) {
@@ -563,7 +563,7 @@ void TCypressManager::ValidateLock(
                     ~FormatEnum(request.Mode).Quote(),
                     ~GetNodePath(trunkNode, transaction),
                     ~FormatEnum(existingLock.Mode).Quote(),
-                    ~existingTransaction->GetId().ToString());
+                    ~ToString(existingTransaction->GetId()));
             }
 
             // For Shared locks we check child and attribute keys.
@@ -576,7 +576,7 @@ void TCypressManager::ValidateLock(
                         ~request.ChildKey.Get().Quote(),
                         ~GetNodePath(trunkNode, transaction),
                         ~FormatEnum(existingLock.Mode).Quote(),
-                        ~existingTransaction->GetId().ToString());
+                        ~ToString(existingTransaction->GetId()));
                 }
                 if (request.AttributeKey &&
                     existingLock.AttributeKeys.find(request.AttributeKey.Get()) != existingLock.AttributeKeys.end())
@@ -586,7 +586,7 @@ void TCypressManager::ValidateLock(
                         ~request.AttributeKey.Get().Quote(),
                         ~GetNodePath(trunkNode, transaction),
                         ~FormatEnum(existingLock.Mode).Quote(),
-                        ~existingTransaction->GetId().ToString());
+                        ~ToString(existingTransaction->GetId()));
                 }
             }
         }
@@ -729,7 +729,7 @@ TLock* TCypressManager::DoAcquireLock(
         transaction->LockedNodes().push_back(trunkNode);
 
         LOG_INFO_UNLESS(IsRecovery(), "Node locked (NodeId: %s, Mode: %s)",
-            ~versionedId.ToString(),
+            ~ToString(versionedId),
             ~request.Mode.ToString());
     } else {
         lock = &it->second;
@@ -737,7 +737,7 @@ TLock* TCypressManager::DoAcquireLock(
             lock->Mode = request.Mode;
 
             LOG_INFO_UNLESS(IsRecovery(), "Node lock upgraded (NodeId: %s, Mode: %s)",
-                ~versionedId.ToString(),
+                ~ToString(versionedId),
                 ~lock->Mode.ToString());
         }
     }
@@ -747,7 +747,7 @@ TLock* TCypressManager::DoAcquireLock(
     {
         YCHECK(lock->ChildKeys.insert(request.ChildKey.Get()).second);
         LOG_INFO_UNLESS(IsRecovery(), "Node child locked (NodeId: %s, Key: %s)",
-            ~versionedId.ToString(),
+            ~ToString(versionedId),
             ~request.ChildKey.Get());
     }
 
@@ -756,7 +756,7 @@ TLock* TCypressManager::DoAcquireLock(
     {
         YCHECK(lock->AttributeKeys.insert(request.AttributeKey.Get()).second);
         LOG_INFO_UNLESS(IsRecovery(), "Node attribute locked (NodeId: %s, Key: %s)",
-            ~versionedId.ToString(),
+            ~ToString(versionedId),
             ~request.AttributeKey.Get());
     }
 
@@ -771,7 +771,7 @@ void TCypressManager::ReleaseLock(TCypressNodeBase* trunkNode, TTransaction* tra
 
     TVersionedNodeId versionedId(trunkNode->GetId(), transaction->GetId());
     LOG_INFO_UNLESS(IsRecovery(), "Node unlocked (NodeId: %s)",
-        ~versionedId.ToString());
+        ~ToString(versionedId));
 }
 
 TCypressNodeBase* TCypressManager::LockVersionedNode(
@@ -888,8 +888,8 @@ TCypressNodeBase* TCypressManager::BranchNode(
     securityManager->SetAccount(branchedNode_, account);
 
     LOG_INFO_UNLESS(IsRecovery(), "Node branched (NodeId: %s, TransactionId: %s, Mode: %s)",
-        ~id.ToString(),
-        ~transaction->GetId().ToString(),
+        ~ToString(id),
+        ~ToString(transaction->GetId()),
         ~mode.ToString());
 
     return branchedNode_;
@@ -1047,7 +1047,7 @@ void TCypressManager::RegisterNode(
     }
 
     LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %s, Type: %s)",
-        ~nodeId.ToString(),
+        ~ToString(nodeId),
         ~TypeFromId(nodeId).ToString());
 
     if (IsLeader()) {
@@ -1187,7 +1187,7 @@ void TCypressManager::MergeNode(
         securityManager->ResetAccount(branchedNode);
         securityManager->UpdateAccountNodeUsage(originatingNode);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Node merged (NodeId: %s)", ~branchedId.ToString());
+        LOG_INFO_UNLESS(IsRecovery(), "Node merged (NodeId: %s)", ~ToString(branchedId));
     } else {
         // Destroy the branched copy.
         handler->Destroy(branchedNode);
@@ -1195,7 +1195,7 @@ void TCypressManager::MergeNode(
         // Update resource usage.
         securityManager->ResetAccount(branchedNode);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Node snapshot destroyed (NodeId: %s)", ~branchedId.ToString());
+        LOG_INFO_UNLESS(IsRecovery(), "Node snapshot destroyed (NodeId: %s)", ~ToString(branchedId));
     }
 
     // Drop the implicit reference to the originator.
@@ -1204,7 +1204,7 @@ void TCypressManager::MergeNode(
     // Remove the branched copy.
     NodeMap.Remove(branchedId);
 
-    LOG_INFO_UNLESS(IsRecovery(), "Branched node removed (NodeId: %s)", ~branchedId.ToString());
+    LOG_INFO_UNLESS(IsRecovery(), "Branched node removed (NodeId: %s)", ~ToString(branchedId));
 }
 
 void TCypressManager::MergeNodes(TTransaction* transaction)
@@ -1244,7 +1244,7 @@ void TCypressManager::RemoveBranchedNode(TCypressNodeBase* branchedNode)
     handler->Destroy(branchedNode);
     NodeMap.Remove(branchedNodeId);
 
-    LOG_INFO_UNLESS(IsRecovery(), "Branched node removed (NodeId: %s)", ~branchedNodeId.ToString());
+    LOG_INFO_UNLESS(IsRecovery(), "Branched node removed (NodeId: %s)", ~ToString(branchedNodeId));
 }
 
 void TCypressManager::RemoveBranchedNodes(TTransaction* transaction)

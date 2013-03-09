@@ -1,6 +1,7 @@
 #include "stdafx.h"
 
 #include <ytlib/misc/guid.h>
+#include <ytlib/misc/protobuf_helpers.h>
 
 #include <contrib/testing/framework.h>
 
@@ -10,12 +11,11 @@ namespace NYT {
 
 TEST(TGuidTest, SerializationToProto)
 {
-    TGuid guid = TGuid::Create();
-    NProto::TGuid protoGuid = guid.ToProto();
-    TGuid deserializedGuid = TGuid::FromProto(protoGuid);
+    auto guid = TGuid::Create();
+    auto protoGuid = ToProto<NProto::TGuid>(guid);
+    auto deserializedGuid = FromProto<TGuid>(protoGuid);
     EXPECT_EQ(guid, deserializedGuid);
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

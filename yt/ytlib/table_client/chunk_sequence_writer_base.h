@@ -11,6 +11,7 @@
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/remote_writer.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/chunk_replica.h>
 
 #include <ytlib/table_client/table_reader.pb.h>
 
@@ -50,10 +51,11 @@ public:
 
     void SetProgress(double progress);
 
-    /*!
-     *  To get consistent data, should be called only when the writer is closed.
-     */
+    //! Only valid when the writer is closed.
     const std::vector<NProto::TInputChunk>& GetWrittenChunks() const;
+
+    //! Provides node id to descriptor mapping for chunks returned via #GetWrittenChunks.
+    NChunkClient::TNodeDirectoryPtr GetNodeDirectory() const;
 
     //! Current row count.
     i64 GetRowCount() const;
@@ -65,11 +67,7 @@ protected:
     {
         TIntrusivePtr<TChunkWriter> ChunkWriter;
         NChunkClient::TRemoteWriterPtr RemoteWriter;
-
-        TSession()
-            : ChunkWriter(NULL)
-            , RemoteWriter(NULL)
-        { }
+        std::vector<NChunkClient::TChunkReplica> Replicas;
 
         bool IsNull() const
         {
@@ -121,7 +119,8 @@ protected:
     const NObjectClient::TTransactionId TransactionId;
     const Stroka Account;
     const NChunkClient::TChunkListId ParentChunkListId;
-    const TNullable<TKeyColumns> KeyColumns;
+
+    NChunkClient::TNodeDirectoryPtr NodeDirectory;
 
     i64 RowCount;
 

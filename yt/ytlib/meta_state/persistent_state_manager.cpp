@@ -508,13 +508,13 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto epochId = TEpochId::FromProto(request->epoch_id());
+        auto epochId = FromProto<TEpochId>(request->epoch_id());
         int segmentId = request->segment_id();
         int recordCount = request->record_count();
         TMetaVersion version(segmentId, recordCount);
 
         context->SetRequestInfo("EpochId: %s, Version: %s",
-            ~epochId.ToString(),
+            ~ToString(epochId),
             ~version.ToString());
 
         if (GetControlStatus() != EPeerStatus::Following && GetControlStatus() != EPeerStatus::FollowerRecovery) {
@@ -590,11 +590,11 @@ public:
         int segmentId = request->segment_id();
         int recordCount = request->record_count();
         auto version = TMetaVersion(segmentId, recordCount);
-        auto epochId = TEpochId::FromProto(request->epoch_id());
+        auto epochId = FromProto<TEpochId>(request->epoch_id());
 
         context->SetRequestInfo("Version: %s, EpochId: %s",
             ~version.ToString(),
-            ~epochId.ToString());
+            ~ToString(epochId));
 
         auto status = GetControlStatus();
 
@@ -617,7 +617,7 @@ public:
                 if (!EpochContext->FollowerRecovery) {
                     LOG_INFO("Received sync ping from leader (Version: %s, Epoch: %s)",
                         ~version.ToString(),
-                        ~epochId.ToString());
+                        ~ToString(epochId));
 
                     EpochContext->FollowerRecovery = New<TFollowerRecovery>(
                         Config,
@@ -653,14 +653,14 @@ public:
         UNUSED(response);
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto epochId = TEpochId::FromProto(request->epoch_id());
+        auto epochId = FromProto<TEpochId>(request->epoch_id());
         int segmentId = request->segment_id();
         int recordCount = request->record_count();
         auto version = TMetaVersion(segmentId, recordCount);
         bool createSnapshot = request->create_snapshot();
 
         context->SetRequestInfo("EpochId: %s, Version: %s, CreateSnapshot: %s",
-            ~epochId.ToString(),
+            ~ToString(epochId),
             ~version.ToString(),
             ~ToString(createSnapshot));
 
@@ -799,7 +799,7 @@ public:
             }
         }
 
-        *response->mutable_epoch_id() = EpochContext->EpochId.ToProto();
+        ToProto(response->mutable_epoch_id(), EpochContext->EpochId);
 
         context->Reply();
     }
@@ -1188,8 +1188,8 @@ public:
             THROW_ERROR_EXCEPTION(
                 EErrorCode::InvalidEpoch,
                 "Invalid epoch: expected %s, received %s",
-                ~currentEpochId.ToString(),
-                ~epochId.ToString());
+                ~ToString(currentEpochId),
+                ~ToString(epochId));
         }
     }
 

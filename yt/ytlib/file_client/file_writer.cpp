@@ -49,7 +49,7 @@ TFileWriter::TFileWriter(
 
     Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
         ~RichPath.GetPath(),
-        transaction ? ~transaction->GetId().ToString() : "None"));
+        transaction ? ~ToString(transaction->GetId()) : ~ToString(NullTransactionId)));
 
     Attributes->Set("replication_factor", Config->ReplicationFactor);
 
@@ -79,7 +79,7 @@ void TFileWriter::Open()
 
     ListenTransaction(UploadTransaction);
     LOG_INFO("Upload transaction created (TransactionId: %s)",
-        ~UploadTransaction->GetId().ToString());
+        ~ToString(UploadTransaction->GetId()));
 
     TObjectServiceProxy proxy(MasterChannel);
 
@@ -94,9 +94,9 @@ void TFileWriter::Open()
         auto rsp = proxy.Execute(req).Get();
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error creating file node");
 
-        NodeId = NCypressClient::TNodeId::FromProto(rsp->node_id());
+        NodeId = FromProto<NCypressClient::TNodeId>(rsp->node_id());
     }
-    LOG_INFO("File node created (NodeId: %s)", ~NodeId.ToString());
+    LOG_INFO("File node created (NodeId: %s)", ~ToString(NodeId));
 
     LOG_INFO("Requesting file info");
     {
@@ -108,7 +108,7 @@ void TFileWriter::Open()
             TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
             attributeFilter.Keys.push_back("replication_factor");
             attributeFilter.Keys.push_back("account");
-            *req->mutable_attribute_filter() = ToProto(attributeFilter);
+            ToProto(req->mutable_attribute_filter(), attributeFilter);
             batchReq->AddRequest(req, "get_attributes");
         }
 
@@ -137,12 +137,12 @@ void TFileWriter::Open()
         {
             auto rsp = batchRsp->GetResponse<TFileYPathProxy::TRspPrepareForUpdate>("prepare_for_update");
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error preparing file for update");
-            ChunkListId = TChunkListId::FromProto(rsp->chunk_list_id());
+            ChunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
         }
     }
     LOG_INFO("File info received (Account: %s, ChunkListId: %s)",
         ~Account,
-        ~ChunkListId.ToString());
+        ~ToString(ChunkListId));
 
     Writer = new TFileChunkOutput(
         Config,
@@ -170,7 +170,7 @@ void TFileWriter::Close()
     LOG_INFO("Attaching chunk (ChunkId: %s)", ~ToString(chunkId));
     {
         auto req = TChunkListYPathProxy::Attach(FromObjectId(ChunkListId));
-        *req->add_children_ids() = chunkId.ToProto();
+        ToProto(req->add_children_ids(), chunkId);
 
         auto rsp = proxy.Execute(req).Get();
         THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error attaching chunk");

@@ -21,6 +21,19 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TReplicaStatistics
+{
+    int ReplicationFactor;
+    int StoredCount;
+    int CachedCount;
+    int PlusCount;
+    int MinusCount;
+};
+
+Stroka ToString(const TReplicaStatistics& statistics);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkReplicator
     : public TRefCounted
 {
@@ -115,17 +128,7 @@ private:
         int maxRemovalJobsToStart,
         std::vector<NProto::TJobStartInfo>* jobsToStart);
 
-    struct TReplicaStatistics
-    {
-        int ReplicationFactor;
-        int StoredCount;
-        int CachedCount;
-        int PlusCount;
-        int MinusCount;
-    };
-
     TReplicaStatistics GetReplicaStatistics(const TChunk& chunk);
-    static Stroka ToString(const TReplicaStatistics& statistics);
 
     void OnRefresh();
     void Refresh(TChunk* chunk);

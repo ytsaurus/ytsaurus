@@ -1,7 +1,10 @@
 ﻿#pragma once
 
 #include "public.h"
-#include "private.h"
+#include "chunk_replica.h"
+#include "node_directory.h"
+
+#include <ytlib/misc/nullable.h>
 
 #include <ytlib/rpc/public.h>
 
@@ -14,8 +17,10 @@ IAsyncReaderPtr CreateRemoteReader(
     TRemoteReaderConfigPtr config,
     IBlockCachePtr blockCache,
     NRpc::IChannelPtr masterChannel,
+    TNodeDirectoryPtr nodeDirectory,
+    const TNullable<TNodeDescriptor>& localDescriptor,
     const TChunkId& chunkId,
-    const std::vector<Stroka>& seedAddresses = std::vector<Stroka>());
+    const TChunkReplicaList& seedReplicas = TChunkReplicaList());
 
 ///////////////////////////////////////////////////////////////////////////////
 

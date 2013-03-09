@@ -81,7 +81,7 @@ TChunk::TAsyncGetMetaResult TChunk::GetMeta(const std::vector<int>* tags)
             const auto& meta = Meta;
             guard.Release();
 
-            LOG_DEBUG("Meta cache hit (ChunkId: %s)", ~Id_.ToString());
+            LOG_DEBUG("Meta cache hit (ChunkId: %s)", ~ToString(Id_));
 
             return MakeFuture(TGetMetaResult(
                 tags
@@ -90,7 +90,7 @@ TChunk::TAsyncGetMetaResult TChunk::GetMeta(const std::vector<int>* tags)
         }
     }
 
-    LOG_DEBUG("Meta cache miss (ChunkId: %s)", ~Id_.ToString());
+    LOG_DEBUG("Meta cache miss (ChunkId: %s)", ~ToString(Id_));
 
     // Make a copy of tags list to pass it into the closure.
     auto tags_ = MakeNullable(tags);
@@ -119,7 +119,7 @@ TAsyncError TChunk::ReadMeta()
 {
     if (!TryAcquireReadLock()) {
         return MakeFuture(TError("Cannot read meta of chunk %s: chunk is scheduled for removal",
-            ~Id_.ToString()));
+            ~ToString(Id_)));
     }
 
     auto this_ = MakeStrong(this);
@@ -127,7 +127,7 @@ TAsyncError TChunk::ReadMeta()
         BIND([=] () mutable -> TError {
             LOG_DEBUG("Started reading meta (LocationId: %s, ChunkId: %s)",
                 ~this_->Location_->GetId(),
-                ~this_->Id_.ToString());
+                ~ToString(this_->Id_));
 
             NChunkClient::TFileReaderPtr reader;
             PROFILE_TIMING ("/meta_read_time") {
@@ -136,7 +136,7 @@ TAsyncError TChunk::ReadMeta()
                 if (!result.IsOK()) {
                     this_->ReleaseReadLock();
                     LOG_WARNING(result, "Error reading chunk meta (ChunkId: %s)",
-                        ~this_->Id_.ToString());
+                        ~ToString(this_->Id_));
                     return TError(result);
                 }
                 reader = result.Value();
@@ -157,7 +157,7 @@ TAsyncError TChunk::ReadMeta()
             this_->ReleaseReadLock();
             LOG_DEBUG("Finished reading meta (LocationId: %s, ChunkId: %s)",
                 ~this_->Location_->GetId(),
-                ~this_->Id_.ToString());
+                ~ToString(this_->Id_));
 
             return TError();
         })
@@ -296,7 +296,7 @@ TCachedChunk::~TCachedChunk()
 {
     // This check ensures that we don't remove any chunks from cache upon shutdown.
     if (!ChunkCache.IsExpired()) {
-        LOG_INFO("Chunk is evicted from cache (ChunkId: %s)", ~GetId().ToString());
+        LOG_INFO("Chunk is evicted from cache (ChunkId: %s)", ~ToString(GetId()));
         EvictChunkReader();
         Location_->ScheduleChunkRemoval(this);
     }

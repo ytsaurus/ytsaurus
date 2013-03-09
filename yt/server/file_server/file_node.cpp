@@ -140,14 +140,14 @@ protected:
 
         if (request->HasExtension(NFileClient::NProto::TReqCreateFileExt::create_file)) {
             const auto& requestExt = request->GetExtension(NFileClient::NProto::TReqCreateFileExt::create_file);
-            auto chunkId = TChunkId::FromProto(requestExt.chunk_id());
+            auto chunkId = FromProto<TChunkId>(requestExt.chunk_id());
 
             chunk = chunkManager->FindChunk(chunkId);
             if (!IsObjectAlive(chunk)) {
-                THROW_ERROR_EXCEPTION("No such chunk: %s", ~chunkId.ToString());
+                THROW_ERROR_EXCEPTION("No such chunk: %s", ~ToString(chunkId));
             }
             if (!chunk->IsConfirmed()) {
-                THROW_ERROR_EXCEPTION("File chunk is not confirmed: %s", ~chunkId.ToString());
+                THROW_ERROR_EXCEPTION("File chunk is not confirmed: %s", ~ToString(chunkId));
             }
         }
 
@@ -186,8 +186,8 @@ protected:
         branchedNode->SetReplicationFactor(originatingNode->GetReplicationFactor());
 
         LOG_DEBUG_UNLESS(IsRecovery(), "File node branched (BranchedNodeId: %s, ChunkListId: %s, ReplicationFactor: %d)",
-            ~branchedNode->GetId().ToString(),
-            ~originatingNode->GetChunkList()->GetId().ToString(),
+            ~ToString(branchedNode->GetId()),
+            ~ToString(originatingNode->GetChunkList()->GetId()),
             originatingNode->GetReplicationFactor());
     }
 
@@ -209,15 +209,15 @@ protected:
             "File node merged (OriginatingNodeId: %s, OriginatingChunkListId: %s, OriginatingUpdateMode: %s, OriginatingReplicationFactor: %d, "
             "BranchedNodeId: %s, BranchedChunkListId: %s, BranchedUpdateMode: %s, BranchedReplicationFactor: %d, "
             "NewOriginatingChunkListId: %s, NewOriginatingUpdateMode: %s)",
-            ~originatingNode->GetId().ToString(),
-            ~originatingChunkListId.ToString(),
+            ~ToString(originatingNode->GetId()),
+            ~ToString(originatingChunkListId),
             ~originatingUpdateMode.ToString(),
             originatingNode->GetReplicationFactor(),
-            ~branchedNode->GetId().ToString(),
-            ~branchedChunkListId.ToString(),
+            ~ToString(branchedNode->GetId()),
+            ~ToString(branchedChunkListId),
             ~branchedUpdateMode.ToString(),
             branchedNode->GetReplicationFactor(),
-            ~originatingNode->GetChunkList()->GetId().ToString(),
+            ~ToString(originatingNode->GetChunkList()->GetId()),
             ~originatingNode->GetUpdateMode().ToString());
     }
 

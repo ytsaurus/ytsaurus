@@ -89,19 +89,19 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterNode)
 
     ValidateActiveLeader();
 
-    auto metaStateFacade = Bootstrap->GetMetaStateFacade();
     auto chunkManager = Bootstrap->GetChunkManager();
     auto objectManager = Bootstrap->GetObjectManager();
 
-    Stroka address = request->address();
-    auto incarnationId = TIncarnationId::FromProto(request->incarnation_id());
-    auto requestCellGuid = TGuid::FromProto(request->cell_guid());
+    auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
+    auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
+    auto requestCellGuid = FromProto<TGuid>(request->cell_guid());
     const auto& statistics = request->statistics();
+    const auto& address = descriptor.Address;
 
     context->SetRequestInfo("Address: %s, IncarnationId: %s, CellGuid: %s, %s",
         ~address,
-        ~incarnationId.ToString(),
-        ~requestCellGuid.ToString(),
+        ~ToString(incarnationId),
+        ~ToString(requestCellGuid),
         ~ToString(statistics));
 
     auto expectedCellGuid = objectManager->GetCellGuid();
@@ -110,8 +110,8 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterNode)
             NRpc::EErrorCode::PoisonPill,
             "Wrong cell guid reported by node %s: expected %s, received %s",
             ~address,
-            ~expectedCellGuid.ToString(),
-            ~requestCellGuid.ToString());
+            ~ToString(expectedCellGuid),
+            ~ToString(requestCellGuid));
     }
 
     ValidateAuthorization(address);
@@ -129,15 +129,15 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterNode)
     }
 
     TMetaReqRegisterNode registerReq;
-    registerReq.set_address(address);
-    *registerReq.mutable_incarnation_id() = incarnationId.ToProto();
+    ToProto(registerReq.mutable_node_descriptor(), descriptor);
+    ToProto(registerReq.mutable_incarnation_id(), incarnationId);
     *registerReq.mutable_statistics() = statistics;
     chunkManager
         ->CreateRegisterNodeMutation(registerReq)
         ->OnSuccess(BIND([=] (const TMetaRspRegisterNode& registerRsp) {
             TNodeId nodeId = registerRsp.node_id();
             context->Response().set_node_id(nodeId);
-            *response->mutable_cell_guid() = expectedCellGuid.ToProto();
+            ToProto(response->mutable_cell_guid(), expectedCellGuid);
             context->SetResponseInfo("NodeId: %d", nodeId);
             context->Reply();
         }))
@@ -149,7 +149,6 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, FullHeartbeat)
 {
     ValidateActiveLeader();
 
-    auto metaStateFacade = Bootstrap->GetMetaStateFacade();
     auto chunkManager = Bootstrap->GetChunkManager();
 
     auto nodeId = request->node_id();
@@ -176,12 +175,11 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
 {
     ValidateActiveLeader();
 
-    auto metaStateFacade = Bootstrap->GetMetaStateFacade();
     auto chunkManager = Bootstrap->GetChunkManager();
 
     auto nodeId = request->node_id();
 
-    context->SetRequestInfo("NodeId: %d");
+    context->SetRequestInfo("NodeId: %d", nodeId);
 
     auto* node = GetNode(nodeId);
     if (node->GetState() != ENodeState::Online) {
@@ -221,11 +219,11 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, IncrementalHeartbeat)
 
     yhash_set<TJobId> runningJobIds;
     FOREACH (const auto& jobInfo, runningJobs) {
-        runningJobIds.insert(TJobId::FromProto(jobInfo.job_id()));
+        runningJobIds.insert(FromProto<TJobId>(jobInfo.job_id()));
     }
 
     FOREACH (const auto& jobInfo, jobsToStop) {
-        auto jobId = TJobId::FromProto(jobInfo.job_id());
+        auto jobId = FromProto<TJobId>(jobInfo.job_id());
         if (runningJobIds.find(jobId) != runningJobIds.end()) {
             *response->add_jobs_to_stop() = jobInfo;
         }

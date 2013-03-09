@@ -97,7 +97,7 @@ public:
             ~manifest->RemoteAddress,
             ~path,
             ~verb,
-            ~outerRequest->GetRequestId().ToString());
+            ~ToString(outerRequest->GetRequestId()));
 
         outerRequest->Invoke().Subscribe(
             BIND(

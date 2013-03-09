@@ -52,7 +52,7 @@ TTableWriter::TTableWriter(
 
     Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
         ~ToString(richPath),
-        ~TransactionId.ToString()));
+        ~ToString(TransactionId)));
 }
 
 void TTableWriter::Open()
@@ -76,7 +76,7 @@ void TTableWriter::Open()
     }
     auto uploadTransactionId = UploadTransaction->GetId();
     ListenTransaction(UploadTransaction);
-    LOG_INFO("Upload transaction created (TransactionId: %s)", ~uploadTransactionId.ToString());
+    LOG_INFO("Upload transaction created (TransactionId: %s)", ~ToString(uploadTransactionId));
 
     auto path = RichPath.GetPath();
     bool overwrite = RichPath.Attributes().Get<bool>("overwrite", false);
@@ -98,7 +98,7 @@ void TTableWriter::Open()
                 attributeFilter.Keys.push_back("row_count");
             }
             attributeFilter.Keys.push_back("account");
-            *req->mutable_attribute_filter() = ToProto(attributeFilter);
+            ToProto(req->mutable_attribute_filter(), attributeFilter);
             batchReq->AddRequest(req, "get_attributes");
         }
 
@@ -127,24 +127,20 @@ void TTableWriter::Open()
                 }
             }
 
-            Deserialize(
-                Options->Channels,
-                ConvertToNode(attributes.GetYson("channels")));
-
+            Options->Channels = attributes.Get<TChannels>("channels");
             Options->ReplicationFactor = attributes.Get<int>("replication_factor");
-            Options->Codec = ParseEnum<ECodec>(attributes.Get<Stroka>("codec"));
+            Options->Codec = attributes.Get<ECodec>("codec");
             Options->Account = attributes.Get<Stroka>("account");
         }
 
         {
             auto rsp = batchRsp->GetResponse<TTableYPathProxy::TRspPrepareForUpdate>("prepare_for_update");
             THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error preparing table for update");
-            chunkListId = TChunkListId::FromProto(rsp->chunk_list_id());
+            chunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
         }
     }
-    LOG_INFO("Table info received (ChunkListId: %s, ChannelCount: %d)",
-        ~chunkListId.ToString(),
-        static_cast<int>(Options->Channels.size()));
+    LOG_INFO("Table info received (ChunkListId: %s)",
+        ~ToString(chunkListId));
 
     Writer = New<TTableChunkSequenceWriter>(
         Config,

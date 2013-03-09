@@ -34,7 +34,7 @@ EExitCode TOperationTracker::Run()
     TSchedulerServiceProxy proxy(Driver->GetSchedulerChannel());
     while (!CheckFinished())  {
         auto waitOpReq = proxy.WaitForOperation();
-        *waitOpReq->mutable_operation_id() = OperationId.ToProto();
+        ToProto(waitOpReq->mutable_operation_id(), OperationId);
         waitOpReq->set_timeout(Config->OperationWaitTimeout.GetValue());
 
         // Override default timeout.
@@ -284,11 +284,11 @@ EExitCode TOperationTracker::DumpResult()
             printf("\n");
             printf("%" PRISZT " job(s) have failed:\n", failedJobIds.size());
             FOREACH (const auto& jobId, failedJobIds) {
-                auto job = jobs->GetChild(jobId.ToString());
+                auto job = jobs->GetChild(ToString(jobId));
                 auto error = ConvertTo<TError>(job->Attributes().Get<INodePtr>("error"));
                 printf("\n");
                 printf("Job %s on %s\n%s\n",
-                    ~jobId.ToString(),
+                    ~ToString(jobId),
                     ~job->Attributes().Get<Stroka>("address"),
                     ~ToString(error));
             }

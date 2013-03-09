@@ -51,7 +51,7 @@ private:
     {
         switch (chunkTree->GetType()) {
             case EObjectType::Chunk: {
-                consumer->OnStringScalar(chunkTree->GetId().ToString());
+                consumer->OnStringScalar(ToString(chunkTree->GetId()));
                 break;
             }
 
@@ -59,7 +59,7 @@ private:
                 const auto* chunkList = chunkTree->AsChunkList();
                 consumer->OnBeginAttributes();
                 consumer->OnKeyedItem("id");
-                consumer->OnStringScalar(chunkList->GetId().ToString());
+                consumer->OnStringScalar(ToString(chunkList->GetId()));
                 consumer->OnKeyedItem("rank");
                 consumer->OnIntegerScalar(chunkList->Statistics().Rank);
                 consumer->OnEndAttributes();

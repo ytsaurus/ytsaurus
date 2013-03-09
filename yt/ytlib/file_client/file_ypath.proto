@@ -2,6 +2,8 @@ package NYT.NFileClient.NProto;
 
 import "yt/ytlib/misc/guid.proto";
 import "yt/ytlib/cypress_client/cypress_ypath.proto";
+import "yt/ytlib/chunk_client/node.proto";
+import "yt/ytlib/chunk_client/chunk.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,9 +37,10 @@ message TReqFetchFile
 message TRspFetchFile
 {
     required NYT.NProto.TGuid chunk_id = 1;
-    repeated string node_addresses = 2;
-    required string file_name = 3;
-    required bool executable = 4;
+    required NYT.NChunkClient.NProto.TNodeDirectory node_directory = 2;
+    repeated fixed32 replicas = 3;
+    required string file_name = 4;
+    required bool executable = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

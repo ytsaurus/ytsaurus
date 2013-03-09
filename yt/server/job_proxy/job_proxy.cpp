@@ -30,6 +30,7 @@
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_client/remote_reader.h>
 #include <ytlib/chunk_client/async_reader.h>
+#include <ytlib/chunk_client/node_directory.h>
 
 #include <ytlib/meta_state/master_channel.h>
 
@@ -48,6 +49,7 @@ using namespace NBus;
 using namespace NRpc;
 using namespace NScheduler;
 using namespace NScheduler::NProto;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,7 +60,7 @@ TJobProxy::TJobProxy(
     , JobId(jobId)
     , Logger(JobProxyLogger)
 {
-    Logger.AddTag(Sprintf("JobId: %s", ~JobId.ToString()));
+    Logger.AddTag(Sprintf("JobId: %s", ~ToString(JobId)));
 }
 
 void TJobProxy::SendHeartbeat()
@@ -66,8 +68,9 @@ void TJobProxy::SendHeartbeat()
     HeartbeatInvoker->ScheduleNext();
 
     auto req = SupervisorProxy->OnJobProgress();
-    *req->mutable_job_id() = JobId.ToProto();
+    ToProto(req->mutable_job_id(), JobId);
     req->set_progress(Job->GetProgress());
+
     req->Invoke().Subscribe(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
 
     LOG_DEBUG("Supervisor heartbeat sent");
@@ -91,20 +94,18 @@ void TJobProxy::OnHeartbeatResponse(TSupervisorServiceProxy::TRspOnJobProgressPt
 void TJobProxy::RetrieveJobSpec()
 {
     LOG_INFO("Requesting job spec");
+
     auto req = SupervisorProxy->GetJobSpec();
-    *req->mutable_job_id() = JobId.ToProto();
+    ToProto(req->mutable_job_id(), JobId);
 
     auto rsp = req->Invoke().Get();
-    if (!rsp->IsOK()) {
-        THROW_ERROR_EXCEPTION("Failed to get job spec")
-            << rsp->GetError();
-    }
+    THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Failed to get job spec");
 
     JobSpec = rsp->job_spec();
     ResourceUsage = rsp->resource_usage();
 
     LOG_INFO("Job spec received (JobType: %s, ResourceLimits: {%s})\n%s",
-        ~EJobType(rsp->job_spec().type()).ToString(),
+        ~NScheduler::EJobType(rsp->job_spec().type()).ToString(),
         ~FormatResources(ResourceUsage),
         ~rsp->job_spec().DebugString());
 }
@@ -135,38 +136,41 @@ TJobResult TJobProxy::DoRun()
 
         MasterChannel = CreateBusChannel(supervisorClient, Config->MasterRpcTimeout);
 
+        RetrieveJobSpec();
+
+        const auto& jobSpec = GetJobSpec();
+        auto jobType = NScheduler::EJobType(jobSpec.type());
+
         BlockCache = NChunkClient::CreateClientBlockCache(New<NChunkClient::TClientBlockCacheConfig>());
+
+        NodeDirectory = New<TNodeDirectory>();
+        NodeDirectory->MergeFrom(jobSpec.node_directory());
 
         HeartbeatInvoker = New<TPeriodicInvoker>(
             GetSyncInvoker(),
             BIND(&TJobProxy::SendHeartbeat, MakeWeak(this)),
             Config->HeartbeatPeriod);
 
-        RetrieveJobSpec();
-
-        const auto& jobSpec = GetJobSpec();
-        auto jobType = EJobType(jobSpec.type());
-
         NYT::NThread::SetCurrentThreadName(~jobType.ToString());
         
         SetLargeBlockLimit(jobSpec.lfalloc_buffer_size());
 
         switch (jobType) {
-            case EJobType::Map: {
+            case NScheduler::EJobType::Map: {
                 const auto& jobSpecExt = jobSpec.GetExtension(TMapJobSpecExt::map_job_spec_ext);
                 auto userJobIO = CreateMapJobIO(Config->JobIO, this);
                 Job = CreateUserJob(this, jobSpecExt.mapper_spec(), userJobIO);
                 break;
             }
 
-            case EJobType::SortedReduce: {
+            case NScheduler::EJobType::SortedReduce: {
                 const auto& jobSpecExt = jobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
                 auto userJobIO = CreateSortedReduceJobIO(Config->JobIO, this);
                 Job = CreateUserJob(this, jobSpecExt.reducer_spec(), userJobIO);
                 break;
             }
 
-            case EJobType::PartitionMap: {
+            case NScheduler::EJobType::PartitionMap: {
                 const auto& jobSpecExt = jobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
                 YCHECK(jobSpecExt.has_mapper_spec());
                 auto userJobIO = CreatePartitionMapJobIO(Config->JobIO, this);
@@ -174,34 +178,34 @@ TJobResult TJobProxy::DoRun()
                 break;
             }
 
-            case EJobType::PartitionReduce: {
+            case NScheduler::EJobType::PartitionReduce: {
                 const auto& jobSpecExt = jobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
                 auto userJobIO = CreatePartitionReduceJobIO(Config->JobIO, this);
                 Job = CreateUserJob(this, jobSpecExt.reducer_spec(), userJobIO);
                 break;
             }
 
-            case EJobType::OrderedMerge:
+            case NScheduler::EJobType::OrderedMerge:
                 Job = CreateOrderedMergeJob(this);
                 break;
 
-            case EJobType::UnorderedMerge:
+            case NScheduler::EJobType::UnorderedMerge:
                 Job = CreateUnorderedMergeJob(this);
                 break;
 
-            case EJobType::SortedMerge:
+            case NScheduler::EJobType::SortedMerge:
                 Job = CreateSortedMergeJob(this);
                 break;
 
-            case EJobType::PartitionSort:
+            case NScheduler::EJobType::PartitionSort:
                 Job = CreatePartitionSortJob(this);
                 break;
 
-            case EJobType::SimpleSort:
+            case NScheduler::EJobType::SimpleSort:
                 Job = CreateSimpleSortJob(this);
                 break;
 
-            case EJobType::Partition:
+            case NScheduler::EJobType::Partition:
                 Job = CreatePartitionJob(this);
                 break;
 
@@ -238,7 +242,7 @@ TFuture<void> TJobProxy::GetFailedChunks(std::vector<NChunkClient::TChunkId>* fa
 
     FOREACH (const auto& inputSpec, JobSpec.input_specs()) {
         FOREACH (const auto& chunk, inputSpec.chunks()) {
-            auto chunkId = NChunkClient::TChunkId::FromProto(chunk.slice().chunk_id());
+            auto chunkId = NChunkClient::FromProto<TChunkId>(chunk.slice().chunk_id());
             auto pair = failedSet.insert(chunkId);
             if (pair.second) {
                 LOG_INFO("Checking input chunk %s", ~ToString(chunkId));
@@ -275,7 +279,7 @@ void TJobProxy::ReportResult(const TJobResult& result)
     HeartbeatInvoker->Stop();
 
     auto req = SupervisorProxy->OnJobFinished();
-    *req->mutable_job_id() = JobId.ToProto();
+    ToProto(req->mutable_job_id(), JobId);
     *req->mutable_result() = result;
 
     auto rsp = req->Invoke().Get();
@@ -307,7 +311,7 @@ void TJobProxy::SetResourceUsage(const TNodeResources& usage)
 
     // Fire-and-forget.
     auto req = SupervisorProxy->UpdateResourceUsage();
-    *req->mutable_job_id() = JobId.ToProto();
+    ToProto(req->mutable_job_id(), JobId);
     *req->mutable_resource_usage() = ResourceUsage;
     req->Invoke().Subscribe(BIND(&TJobProxy::OnResourcesUpdated, MakeWeak(this)));
 }
@@ -335,9 +339,14 @@ IChannelPtr TJobProxy::GetMasterChannel() const
     return MasterChannel;
 }
 
-NChunkClient::IBlockCachePtr TJobProxy::GetBlockCache() const 
+IBlockCachePtr TJobProxy::GetBlockCache() const 
 {
     return BlockCache;
+}
+
+TNodeDirectoryPtr TJobProxy::GetNodeDirectory() const 
+{
+    return NodeDirectory;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -49,6 +49,7 @@ public:
         TTableReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
         NChunkClient::IBlockCachePtr blockCache,
+        NChunkClient::TNodeDirectoryPtr nodeDirectory,
         const TKeyColumns& keyColumns,
         TClosure onNetworkReleased,
         std::vector<NTableClient::NProto::TInputChunk>&& chunks,
@@ -74,6 +75,7 @@ public:
             config,
             masterChannel,
             blockCache,
+            nodeDirectory,
             std::move(chunks),
             provider);
     }
@@ -468,6 +470,7 @@ ISyncReaderPtr CreateSortingReader(
     TTableReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     NChunkClient::IBlockCachePtr blockCache,
+    NChunkClient::TNodeDirectoryPtr nodeDirectory,
     const TKeyColumns& keyColumns,
     TClosure onNetworkReleased,
     std::vector<NTableClient::NProto::TInputChunk>&& chunks,
@@ -478,6 +481,7 @@ ISyncReaderPtr CreateSortingReader(
         config,
         masterChannel,
         blockCache,
+        nodeDirectory,
         keyColumns,
         onNetworkReleased,
         std::move(chunks),

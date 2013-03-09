@@ -14,6 +14,7 @@
 #include <ytlib/transaction_client/transaction.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/node_directory.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -37,6 +38,7 @@ TFileReaderBase::TFileReaderBase(
     , IsOpen(false)
     , BlockCount(0)
     , BlockIndex(0)
+    , NodeDirectory(New<TNodeDirectory>())
     , Proxy(masterChannel)
     , Logger(FileReaderLogger)
 {
@@ -47,7 +49,7 @@ TFileReaderBase::TFileReaderBase(
 
 void TFileReaderBase::Open(
     const TChunkId& chunkId,
-    const std::vector<Stroka>& nodeAddresses)
+    const TChunkReplicaList& replicas)
 {
     VERIFY_THREAD_AFFINITY(Client);
     YCHECK(!IsOpen);
@@ -56,16 +58,15 @@ void TFileReaderBase::Open(
         Config,
         BlockCache,
         MasterChannel,
+        NodeDirectory,
+        Null,
         chunkId,
-        nodeAddresses);
+        replicas);
 
     LOG_INFO("Requesting chunk info");
 
     auto getMetaResult = remoteReader->AsyncGetChunkMeta().Get();
-    if (!getMetaResult.IsOK()) {
-        THROW_ERROR_EXCEPTION("Error getting chunk meta")
-            << getMetaResult;
-    }
+    THROW_ERROR_EXCEPTION_IF_FAILED(getMetaResult, "Error getting chunk meta");
 
     auto& chunkMeta = getMetaResult.Value();
     YCHECK(chunkMeta.type() == EChunkType::File);

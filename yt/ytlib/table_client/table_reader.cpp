@@ -9,6 +9,7 @@
 
 #include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/node_directory.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -19,6 +20,7 @@ namespace NTableClient {
 
 using namespace NCypressClient;
 using namespace NTableClient;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,9 +35,10 @@ TTableReader::TTableReader(
     , Transaction(transaction)
     , TransactionId(transaction ? transaction->GetId() : NullTransactionId)
     , BlockCache(blockCache)
+    , NodeDirectory(New<TNodeDirectory>())
     , RichPath(richPath)
     , IsOpen(false)
-    , IsReadingStarted(false)
+    , IsReadStarted(false)
     , Proxy(masterChannel)
     , Logger(TableReaderLogger)
 {
@@ -43,7 +46,7 @@ TTableReader::TTableReader(
 
     Logger.AddTag(Sprintf("Path: %s, TransactihonId: %s",
         ~ToString(RichPath),
-        ~TransactionId.ToString()));
+        ~ToString(TransactionId)));
 }
 
 void TTableReader::Open()
@@ -61,10 +64,9 @@ void TTableReader::Open()
     // ToDo(psushin): enable ignoring lost chunks.
 
     auto fetchRsp = Proxy.Execute(fetchReq).Get();
-    if (!fetchRsp->IsOK()) {
-        THROW_ERROR_EXCEPTION("Error fetching table info")
-            << fetchRsp->GetError();
-    }
+    THROW_ERROR_EXCEPTION_IF_FAILED(*fetchRsp, "Error fetching table info");
+
+    NodeDirectory->MergeFrom(fetchRsp->node_directory());
 
     auto inputChunks = FromProto<NProto::TInputChunk>(fetchRsp->chunks());
 
@@ -73,6 +75,7 @@ void TTableReader::Open()
         Config,
         MasterChannel,
         BlockCache,
+        NodeDirectory,
         std::move(inputChunks),
         provider);
     Sync(~Reader, &TTableChunkSequenceReader::AsyncOpen);
@@ -93,12 +96,12 @@ const TRow* TTableReader::GetRow()
 
     CheckAborted();
 
-    if (Reader->IsValid() && IsReadingStarted) {
+    if (Reader->IsValid() && IsReadStarted) {
         if (!Reader->FetchNextItem()) {
             Sync(~Reader, &TTableChunkSequenceReader::GetReadyEvent);
         }
     }
-    IsReadingStarted = true;
+    IsReadStarted = true;
 
     return Reader->IsValid() ? &(Reader->CurrentReader()->GetRow()) : NULL;
 }

@@ -22,6 +22,7 @@ set( SRCS
   ${BASE}/node_lease_tracker.cpp
   ${BASE}/node_statistics.cpp
   ${BASE}/private.cpp
+  ${BASE}/node_directory_builder.cpp
 )
 set( HDRS
   ${BASE}/chunk.h
@@ -48,6 +49,7 @@ set( HDRS
   ${BASE}/node_statistics.h
   ${BASE}/private.h
   ${BASE}/public.h
+  ${BASE}/node_directory_builder.h
 )
 
 list(APPEND YT_SOURCE_FILES

@@ -141,7 +141,7 @@ public:
         auto chunkReader = ChunkReader.Lock();
         YCHECK(chunkReader);
 
-        Logger.AddTag(Sprintf("ChunkId: %s", ~AsyncReader->GetChunkId().ToString()));
+        Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(AsyncReader->GetChunkId())));
 
         std::vector<int> tags;
         tags.reserve(10);
@@ -221,7 +221,7 @@ private:
         if (HasRangeRequest || chunkReader->Options.ReadKey) {
             if (!miscExt.sorted()) {
                 auto error = TError("Received key range read request for an unsorted chunk %s",
-                    ~AsyncReader->GetChunkId().ToString());
+                    ~ToString(AsyncReader->GetChunkId()));
                 OnFail(error, chunkReader);
                 return;
             }
@@ -585,7 +585,7 @@ public:
         auto chunkReader = ChunkReader.Lock();
         YCHECK(chunkReader);
 
-        Logger.AddTag(Sprintf("ChunkId: %s", ~AsyncReader->GetChunkId().ToString()));
+        Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(AsyncReader->GetChunkId())));
 
         std::vector<int> tags;
         tags.reserve(10);
@@ -675,15 +675,16 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableChunkReader::TTableChunkReader(TSequentialReaderConfigPtr config,
+TTableChunkReader::TTableChunkReader(
+    TSequentialReaderConfigPtr config,
     const TChannel& channel,
     NChunkClient::IAsyncReaderPtr chunkReader,
     const NProto::TReadLimit& startLimit,
     const NProto::TReadLimit& endLimit,
     const NYTree::TYsonString& rowAttributes,
     int partitionTag,
-    TReaderOptions options)
-    : SequentialReader(NULL)
+    const TReaderOptions& options)
+    : SequentialReader(nullptr)
     , Channel(channel)
     , Options(options)
     , RowAttributes(rowAttributes)

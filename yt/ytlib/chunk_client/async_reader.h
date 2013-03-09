@@ -37,9 +37,9 @@ struct IAsyncReader
 
     virtual TAsyncGetMetaResult AsyncGetChunkMeta(
         const TNullable<int>& partitionTag = Null,
-        const std::vector<int>* tags = NULL) = 0;
+        const std::vector<int>* tags = nullptr) = 0;
 
-    virtual TChunkId GetChunkId() const = 0;
+    virtual const TChunkId& GetChunkId() const = 0;
 };
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -78,7 +78,7 @@ private:
     {
         auto transactionId =
             request->has_transaction_id()
-            ? TTransactionId::FromProto(request->transaction_id())
+            ? FromProto<TTransactionId>(request->transaction_id())
             : NullTransactionId;
         auto type = EObjectType(request->type());
 
@@ -111,9 +111,9 @@ private:
             response);
         const auto& objectId = object->GetId();
 
-        *response->mutable_object_id() = objectId.ToProto();
+        ToProto(response->mutable_object_id(), objectId);
 
-        context->SetResponseInfo("ObjectId: %s", ~objectId.ToString());
+        context->SetResponseInfo("ObjectId: %s", ~ToString(objectId));
         context->Reply();
     }
 

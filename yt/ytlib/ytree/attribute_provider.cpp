@@ -11,19 +11,32 @@ namespace NYTree {
 TAttributeFilter TAttributeFilter::All(EAttributeFilterMode::All, std::vector<Stroka>());
 TAttributeFilter TAttributeFilter::None(EAttributeFilterMode::None, std::vector<Stroka>());
 
-NProto::TAttributeFilter ToProto(const TAttributeFilter& filter)
+TAttributeFilter::TAttributeFilter()
+    : Mode(EAttributeFilterMode::None)
+{ }
+
+TAttributeFilter::TAttributeFilter(
+    EAttributeFilterMode mode,
+    const std::vector<Stroka>& keys)
+    : Mode(mode)
+    , Keys(keys)
+{ }
+
+TAttributeFilter::TAttributeFilter(EAttributeFilterMode mode)
+    : Mode(mode)
+{ }
+
+void ToProto(NProto::TAttributeFilter* protoFilter, const TAttributeFilter& filter)
 {
-    NProto::TAttributeFilter protoFilter;
-    protoFilter.set_mode(filter.Mode);
+    protoFilter->set_mode(filter.Mode);
     FOREACH (const auto& key, filter.Keys) {
-        protoFilter.add_keys(key);
+        protoFilter->add_keys(key);
     }
-    return protoFilter;
 }
 
-TAttributeFilter FromProto(const NProto::TAttributeFilter& protoFilter)
+void FromProto(TAttributeFilter* filter, const NProto::TAttributeFilter& protoFilter)
 {
-    return TAttributeFilter(
+    *filter = TAttributeFilter(
         EAttributeFilterMode(protoFilter.mode()),
         NYT::FromProto<Stroka>(protoFilter.keys()));
 }

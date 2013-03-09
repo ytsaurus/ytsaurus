@@ -259,7 +259,7 @@ TFuture< TValueOrError<TYsonString> > AsyncYPathGet(
     const TAttributeFilter& attributeFilter)
 {
     auto request = TYPathProxy::Get(path);
-    *request->mutable_attribute_filter() = ToProto(attributeFilter);
+    ToProto(request->mutable_attribute_filter(), attributeFilter);
     return
         ExecuteVerb(service, request)
             .Apply(BIND([] (TYPathProxy::TRspGetPtr response) {

@@ -4,6 +4,8 @@
 
 #include <ytlib/misc/error.h>
 
+#include <ytlib/chunk_client/node_directory.h>
+
 #include <ytlib/table_client/helpers.h>
 
 namespace NYT {
@@ -19,6 +21,7 @@ public:
     typedef TIntrusivePtr<TFetcher> TFetcherPtr;
 
     TChunkInfoCollector(
+        NChunkClient::TNodeDirectoryPtr nodeDirectory,
         TFetcherPtr fetcher,
         IInvokerPtr invoker);
 
@@ -26,6 +29,7 @@ public:
     TFuture< TValueOrError<void> > Run();
 
 private:
+    NChunkClient::TNodeDirectoryPtr NodeDirectory;
     TFetcherPtr Fetcher;
     IInvokerPtr Invoker;
 
@@ -46,7 +50,7 @@ private:
 
     void SendRequests();
     void OnResponse(
-        const Stroka& address,
+        const NChunkClient::TNodeDescriptor& descriptor,
         std::vector<int> chunkIndexes,
         typename TFetcher::TResponsePtr rsp);
     void OnEndRound();

@@ -14,6 +14,8 @@
 #include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
 #include <ytlib/chunk_client/chunk_ypath_proxy.h>
 #include <ytlib/chunk_client/dispatcher.h>
+#include <ytlib/chunk_client/chunk_replica.h>
+#include <ytlib/chunk_client/node_directory.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -38,6 +40,7 @@ TChunkSequenceWriterBase<TChunkWriter>::TChunkSequenceWriterBase(
     , MasterChannel(masterChannel)
     , TransactionId(transactionId)
     , ParentChunkListId(parentChunkList)
+    , NodeDirectory(New<NChunkClient::TNodeDirectory>())
     , RowCount(0)
     , Progress(0)
     , CompleteChunkSize(0)
@@ -100,10 +103,10 @@ void TChunkSequenceWriterBase<TChunkWriter>::CreateNextSession()
     NObjectClient::TObjectServiceProxy objectProxy(MasterChannel);
 
     auto req = NObjectClient::TMasterYPathProxy::CreateObject();
-    *req->mutable_transaction_id() = TransactionId.ToProto();
-    NMetaState::GenerateRpcMutationId(req);
+    ToProto(req->mutable_transaction_id(), TransactionId);
     req->set_type(NObjectClient::EObjectType::Chunk);
     req->set_account(Options->Account);
+    NMetaState::GenerateRpcMutationId(req);
 
     auto* reqExt = req->MutableExtension(NChunkClient::NProto::TReqCreateChunkExt::create_chunk);
     if (Config->PreferLocalHost) {
@@ -138,25 +141,25 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkCreated(
         return;
     }
 
-    auto chunkId = NChunkClient::TChunkId::FromProto(rsp->object_id());
+    auto chunkId = FromProto<NChunkClient::TChunkId>(rsp->object_id());
     const auto& rspExt = rsp->GetExtension(NChunkClient::NProto::TRspCreateChunkExt::create_chunk);
-    auto addresses = FromProto<Stroka>(rspExt.node_addresses());
-    if (addresses.size() < UploadReplicationFactor) {
+    
+    NodeDirectory->MergeFrom(rspExt.node_directory());
+
+    TSession session;
+    session.Replicas = FromProto<NChunkClient::TChunkReplica>(rspExt.replicas());
+    if (session.Replicas.size() < UploadReplicationFactor) {
         State.Fail(TError("Not enough data nodes available: %d received, %d needed",
-            static_cast<int>(addresses.size()),
+            static_cast<int>(session.Replicas.size()),
             UploadReplicationFactor));
         return;
     }
 
-    LOG_DEBUG("Chunk created (Addresses: [%s], ChunkId: %s)",
-        ~JoinToString(addresses),
-        ~chunkId.ToString());
+    LOG_DEBUG("Chunk created (ChunkId: %s)",
+        ~ToString(chunkId));
 
-    TSession session;
-    session.RemoteWriter = New<NChunkClient::TRemoteWriter>(
-        Config,
-        chunkId,
-        addresses);
+    auto targets = NodeDirectory->GetDescriptors(session.Replicas);
+    session.RemoteWriter = New<NChunkClient::TRemoteWriter>(Config, chunkId, targets);
     session.RemoteWriter->Open();
 
     PrepareChunkWriter(&session);
@@ -250,16 +253,14 @@ void TChunkSequenceWriterBase<TChunkWriter>::FinishCurrentSession()
 
     if (CurrentSession.ChunkWriter->GetCurrentSize() > 0) {
         LOG_DEBUG("Finishing chunk (ChunkId: %s)",
-            ~CurrentSession.RemoteWriter->GetChunkId().ToString());
+            ~ToString(CurrentSession.RemoteWriter->GetChunkId()));
 
         int chunkIndex = 0;
         {
-            NProto::TInputChunk inputChunk;
-            *inputChunk.mutable_chunk_id() = CurrentSession.RemoteWriter->GetChunkId().ToProto();
-
+            // Create a placeholder in WrittenChunks (to be filled later in OnChunkClosed).
             TGuard<TSpinLock> guard(WrittenChunksGuard);
             chunkIndex = WrittenChunks.size();
-            WrittenChunks.push_back(inputChunk);
+            WrittenChunks.push_back(NProto::TInputChunk());
         }
 
         auto finishResult = NewPromise<TError>();
@@ -277,7 +278,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::FinishCurrentSession()
 
     } else {
         LOG_DEBUG("Canceling empty chunk (ChunkId: %s)",
-            ~CurrentSession.RemoteWriter->GetChunkId().ToString());
+            ~ToString(CurrentSession.RemoteWriter->GetChunkId()));
     }
 
     CurrentSession.Reset();
@@ -304,7 +305,12 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkClosed(
     CompleteChunkSize += chunkWriter->GetCurrentSize();
 
     LOG_DEBUG("Chunk closed (ChunkId: %s)",
-        ~remoteWriter->GetChunkId().ToString());
+        ~ToString(remoteWriter->GetChunkId()));
+
+    std::vector<NChunkClient::TChunkReplica> replicas;
+    FOREACH (int index, remoteWriter->GetWrittenIndexes()) {
+        replicas.push_back(currentSession.Replicas[index]);
+    }
 
     NObjectClient::TObjectServiceProxy objectProxy(MasterChannel);
     auto batchReq = objectProxy.ExecuteBatch();
@@ -313,16 +319,17 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkClosed(
             NCypressClient::FromObjectId(remoteWriter->GetChunkId()));
         NMetaState::GenerateRpcMutationId(req);
         *req->mutable_chunk_info() = remoteWriter->GetChunkInfo();
-        ToProto(req->mutable_node_addresses(), remoteWriter->GetNodeAddresses());
+        ToProto(req->mutable_replicas(), replicas);
         *req->mutable_chunk_meta() = chunkWriter->GetMasterMeta();
 
         batchReq->AddRequest(req);
     }
     {
+        // Initialize the entry earlier prepared in FinishCurrentSession.
         TGuard<TSpinLock> guard(WrittenChunksGuard);
         auto& inputChunk = WrittenChunks[chunkIndex];
-
-        ToProto(inputChunk.mutable_node_addresses(), remoteWriter->GetNodeAddresses());
+        ToProto(inputChunk.mutable_chunk_id(), currentSession.RemoteWriter->GetChunkId());
+        ToProto(inputChunk.mutable_replicas(), replicas);
         *inputChunk.mutable_extensions() = chunkWriter->GetSchedulerMeta().extensions();
     }
 
@@ -353,7 +360,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkConfirmed(
     }
 
     LOG_DEBUG("Chunk confirmed (ChunkId: %s)",
-        ~chunkId.ToString());
+        ~ToString(chunkId));
 
     finishResult.Set(TError());
 }
@@ -371,7 +378,7 @@ void TChunkSequenceWriterBase<TChunkWriter>::OnChunkFinished(
     }
 
     LOG_DEBUG("Chunk successfully closed and registered (ChunkId: %s)",
-        ~chunkId.ToString());
+        ~ToString(chunkId));
 }
 
 template <class TChunkWriter>
@@ -441,6 +448,12 @@ template <class TChunkWriter>
 const std::vector<NProto::TInputChunk>& TChunkSequenceWriterBase<TChunkWriter>::GetWrittenChunks() const
 {
     return WrittenChunks;
+}
+
+template <class TChunkWriter>
+NChunkClient::TNodeDirectoryPtr TChunkSequenceWriterBase<TChunkWriter>::GetNodeDirectory() const
+{
+    return NodeDirectory;
 }
 
 template <class TChunkWriter>

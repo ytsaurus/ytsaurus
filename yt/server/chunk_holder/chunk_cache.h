@@ -54,9 +54,7 @@ public:
      *  The download process is asynchronous.
      *  If the chunk is already cached, it returns a pre-set result.
      */
-    TAsyncDownloadResult DownloadChunk(
-        const TChunkId& chunkId,
-        const std::vector<Stroka>& seedAddresses = std::vector<Stroka>());
+    TAsyncDownloadResult DownloadChunk(const TChunkId& chunkId);
 
     //! Raised when a chunk is added to the cache.
     DECLARE_SIGNAL(void(TChunkPtr), ChunkAdded);

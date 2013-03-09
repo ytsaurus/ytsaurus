@@ -35,13 +35,16 @@ class TClientBlockCache
     , public IBlockCache
 {
 public:
-    TClientBlockCache(TClientBlockCacheConfigPtr config)
+    explicit TClientBlockCache(TClientBlockCacheConfigPtr config)
         : TWeightLimitedCache<TBlockId, TCachedBlock>(config->MaxSize)
     { }
 
-    void Put(const TBlockId& id, const TSharedRef& data, const TNullable<Stroka>& sourceAddress)
+    virtual void Put(
+        const TBlockId& id,
+        const TSharedRef& data,
+        const TNullable<TNodeDescriptor>& source) override
     {
-        UNUSED(sourceAddress);
+        UNUSED(source);
 
         TInsertCookie cookie(id);
         if (BeginInsert(&cookie)) {
@@ -49,27 +52,27 @@ public:
             cookie.EndInsert(block);
 
             LOG_DEBUG("Block is put into cache (BlockId: %s, BlockSize: %" PRISZT ")",
-                ~id.ToString(),
+                ~ToString(id),
                 data.Size());
         } else {
             // Already have the block cached, do nothing.
-            LOG_DEBUG("Block is already in cache (BlockId: %s)", ~id.ToString());
+            LOG_DEBUG("Block is already in cache (BlockId: %s)", ~ToString(id));
         }
     }
 
-    TSharedRef Find(const TBlockId& id)
+    virtual TSharedRef Find(const TBlockId& id) override
     {
         auto asyncResult = Lookup(id);
         if (asyncResult) {
             auto result = asyncResult.Get();
-            YASSERT(result.IsOK());
+            YCHECK(result.IsOK());
             auto block = result.Value();
 
-            LOG_DEBUG("Block cache hit (BlockId: %s)", ~id.ToString());
+            LOG_DEBUG("Block cache hit (BlockId: %s)", ~ToString(id));
 
             return block->GetData();
         } else {
-            LOG_DEBUG("Block cache miss (BlockId: %s)", ~id.ToString());
+            LOG_DEBUG("Block cache miss (BlockId: %s)", ~ToString(id));
             return TSharedRef();
         }
     }
@@ -79,6 +82,7 @@ private:
     {
         return block->GetData().Size();
     }
+
 };
 
 IBlockCachePtr CreateClientBlockCache(TClientBlockCacheConfigPtr config)

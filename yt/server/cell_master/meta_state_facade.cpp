@@ -458,7 +458,7 @@ private:
         ToProto(req->mutable_object_attributes(), *attributes);
 
         auto rsp = SyncExecuteVerb(service, req);
-        return TTransactionId::FromProto(rsp->object_id());
+        return FromProto<TTransactionId>(rsp->object_id());
     }
 
     void CommitTransaction(const TTransactionId& transactionId)

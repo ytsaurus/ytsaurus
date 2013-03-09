@@ -91,7 +91,7 @@ private:
             return;
         }
 
-        auto requestId = TRequestId::FromProto(header.request_id());
+        auto requestId = FromProto<TRequestId>(header.request_id());
         Stroka path = header.path();
         Stroka verb = header.verb();
         bool oneWay = header.has_one_way() ? header.one_way() : false;
@@ -99,14 +99,14 @@ private:
         LOG_DEBUG("Request received (Path: %s, Verb: %s, RequestId: %s, OneWay: %s)",
             ~path,
             ~verb,
-            ~requestId.ToString(),
+            ~ToString(requestId),
             ~ToString(oneWay));
 
         if (!Started) {
             auto error = TError(
                 EErrorCode::Unavailable,
                 "Server is not started (RequestId: %s)",
-                ~requestId.ToString());
+                ~ToString(requestId));
 
             LOG_DEBUG(error);
 
@@ -125,7 +125,7 @@ private:
                 EErrorCode::NoSuchService,
                 "Unknown service: %s (RequestId: %s)",
                 ~serviceName.Quote(),
-                ~requestId.ToString());
+                ~ToString(requestId));
 
             LOG_WARNING(error);
 

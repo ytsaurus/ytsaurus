@@ -177,7 +177,9 @@ const IAttributeDictionary& TObjectProxyBase::Attributes() const
 DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, GetId)
 {
     context->SetRequestInfo("");
-    *response->mutable_object_id() = GetId().ToProto();
+
+    ToProto(response->mutable_object_id(), GetId());
+
     context->Reply();
 }
 
@@ -201,7 +203,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
 
     response->set_action(result.Action);
     if (result.Object) {
-        *response->mutable_object_id() = result.Object->GetId().ToProto();
+        ToProto(response->mutable_object_id(), result.Object->GetId());
     }
     if (result.Subject) {
         response->set_subject(result.Subject->GetName());
@@ -352,7 +354,7 @@ bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* cons
 
     if (key == "id") {
         BuildYsonFluently(consumer)
-            .Value(GetId().ToString());
+            .Value(ToString(GetId()));
         return true;
     }
 

@@ -61,7 +61,7 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr co
 
     auto attributeFilter =
         request->has_attribute_filter()
-        ? FromProto(request->attribute_filter())
+        ? NYT::FromProto<TAttributeFilter>(request->attribute_filter())
         : TAttributeFilter::None;
 
     size_t max_size = request->Attributes().Get<int>("max_size", DefaultMaxSize);
@@ -100,7 +100,7 @@ void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPt
 
     auto attributeFilter =
         request->has_attribute_filter()
-        ? FromProto(request->attribute_filter())
+        ? NYT::FromProto<TAttributeFilter>(request->attribute_filter())
         : TAttributeFilter::None;
 
     auto keys = GetKeys(maxSize);

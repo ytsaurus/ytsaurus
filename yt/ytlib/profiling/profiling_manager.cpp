@@ -199,7 +199,7 @@ private:
 
     TLockFreeQueue<TQueuedSample> SampleQueue;
     yhash_map<TYPath, TWeakPtr<TBucket> > PathToBucket;
-    TIdGenerator<i64> IdGenerator;
+    TIdGenerator IdGenerator;
 
 #if !defined(_win_) && !defined(_darwin_)
     TIntrusivePtr<TResourceTracker> ResourceTracker;

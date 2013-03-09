@@ -2,6 +2,7 @@ package NYT.NChunkClient.NProto;
 
 import "yt/ytlib/misc/guid.proto";
 import "yt/ytlib/misc/error.proto";
+import "yt/ytlib/chunk_client/node.proto";
 import "yt/ytlib/chunk_client/chunk.proto";
 import "yt/ytlib/table_client/table_reader.proto";
 import "yt/ytlib/table_client/table_chunk_meta.proto";
@@ -49,7 +50,7 @@ message TRspPutBlocks
 message TReqSendBlocks
 {
     required NYT.NProto.TGuid chunk_id = 1;
-    required string target_address = 2;
+    required TNodeDescriptor target = 2;
     required int32 start_block_index = 3;
     required int32 block_count = 4;
 }
@@ -74,7 +75,7 @@ message TReqGetBlocks
 {
     required NYT.NProto.TGuid chunk_id = 1;
     repeated int32 block_indexes = 2;
-    optional string peer_address = 3;
+    optional TNodeDescriptor peer_descriptor = 3;
     optional uint64 peer_expiration_time = 4;
     optional bool enable_caching = 5 [default = true];
 }
@@ -84,7 +85,7 @@ message TRspGetBlocks
     message TBlockInfo
     {
         required bool data_attached = 1;
-        repeated string peer_addresses = 2;
+        repeated TNodeDescriptor p2p_descriptors = 2;
     }
 
     repeated TBlockInfo blocks = 1;
@@ -139,7 +140,7 @@ message TReqUpdatePeer
     }
 
     repeated TBlockId block_ids = 1;
-    required string peer_address = 2;
+    required TNodeDescriptor peer_descriptor = 2;
     required uint64 peer_expiration_time = 3;
 }
 

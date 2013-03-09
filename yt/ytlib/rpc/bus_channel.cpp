@@ -155,7 +155,7 @@ private:
                 const auto& requestId = pair.first;
                 auto& request = pair.second;
                 LOG_DEBUG("Request failed due to channel termination (RequestId: %s)",
-                    ~requestId.ToString());
+                    ~ToString(requestId));
                 FinalizeRequest(request);
                 request.ResponseHandler->OnError(error);
             }
@@ -191,7 +191,7 @@ private:
                     guard.Release();
 
                     LOG_DEBUG("Request via terminated channel is dropped (RequestId: %s, Path: %s, Verb: %s)",
-                        ~requestId.ToString(),
+                        ~ToString(requestId),
                         ~request->GetPath(),
                         ~request->GetVerb());
 
@@ -236,7 +236,7 @@ private:
                 return;
             }
 
-            auto requestId = TRequestId::FromProto(header.request_id());
+            auto requestId = FromProto<TRequestId>(header.request_id());
 
             IClientResponseHandlerPtr responseHandler;
             {
@@ -244,7 +244,7 @@ private:
 
                 if (Terminated) {
                     LOG_WARNING("Response received via a terminated channel (RequestId: %s)",
-                        ~requestId.ToString());
+                        ~ToString(requestId));
                     return;
                 }
 
@@ -252,7 +252,7 @@ private:
                 if (it == ActiveRequests.end()) {
                     // This may happen when the other party responds to an already timed-out request.
                     LOG_DEBUG("Response for an incorrect or obsolete request received (RequestId: %s)",
-                        ~requestId.ToString());
+                        ~ToString(requestId));
                     return;
                 }
 
@@ -307,7 +307,7 @@ private:
                 requestId));
 
             LOG_DEBUG("Request sent (RequestId: %s, Path: %s, Verb: %s, Timeout: %s)",
-                ~requestId.ToString(),
+                ~ToString(requestId),
                 ~request->GetPath(),
                 ~request->GetVerb(),
                 ~ToString(timeout));
@@ -323,7 +323,7 @@ private:
             if (it == ActiveRequests.end()) {
                 // This one may easily get the actual response before the acknowledgment.
                 LOG_DEBUG("Acknowledgment for an incorrect or obsolete request received (RequestId: %s)",
-                    ~requestId.ToString());
+                    ~ToString(requestId));
                 return;
             }
 
@@ -363,7 +363,7 @@ private:
                 auto it = ActiveRequests.find(requestId);
                 if (it == ActiveRequests.end()) {
                     LOG_DEBUG("Timeout for an incorrect or obsolete request occurred (RequestId: %s)",
-                        ~requestId.ToString());
+                        ~ToString(requestId));
                     return;
                 }
 

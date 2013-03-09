@@ -65,7 +65,7 @@ void TBootstrap::Initialize()
     JobProxyConfig->SandboxName = SandboxName;
 
     JobProxyConfig->SupervisorConnection = New<NBus::TTcpBusClientConfig>();
-    JobProxyConfig->SupervisorConnection->Address = NodeBootstrap->GetPeerAddress();
+    JobProxyConfig->SupervisorConnection->Address = NodeBootstrap->GetLocalDescriptor().Address;
     JobProxyConfig->SupervisorRpcTimeout = Config->SupervisorRpcTimeout;
     JobProxyConfig->MasterRpcTimeout = NodeBootstrap->GetConfig()->Masters->RpcTimeout;
     // TODO(babenko): consider making this priority configurable
@@ -130,9 +130,9 @@ IChannelPtr TBootstrap::GetSchedulerChannel() const
     return NodeBootstrap->GetSchedulerChannel();
 }
 
-Stroka TBootstrap::GetPeerAddress() const
+const NChunkClient::TNodeDescriptor& TBootstrap::GetLocalDescriptor() const
 {
-    return NodeBootstrap->GetPeerAddress();
+    return NodeBootstrap->GetLocalDescriptor();
 }
 
 TJobManagerPtr TBootstrap::GetJobManager() const

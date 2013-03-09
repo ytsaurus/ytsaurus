@@ -244,13 +244,6 @@ TGuid TGuid::Create()
     return res;
 }
 
-Stroka TGuid::ToString() const
-{
-    char buf[1000];
-    sprintf(buf, "%x-%x-%x-%x", Parts[3], Parts[2], Parts[1], Parts[0]);
-    return buf;
-}
-
 TGuid TGuid::FromString(const TStringBuf& str)
 {
     TGuid guid;
@@ -275,26 +268,24 @@ bool TGuid::FromString(const TStringBuf &str, TGuid* guid)
     return true;
 }
 
-TGuid TGuid::FromProto(const NProto::TGuid &protoGuid)
+void ToProto(NProto::TGuid* protoGuid, const TGuid& guid)
 {
-    return TGuid(protoGuid.first(), protoGuid.second());
+    ui64 first = (static_cast<ui64>(guid.Parts[1]) << 32) + guid.Parts[0];
+    ui64 second = (static_cast<ui64>(guid.Parts[3]) << 32) + guid.Parts[2];
+    protoGuid->set_first(first);
+    protoGuid->set_second(second);
 }
 
-NProto::TGuid TGuid::ToProto() const
+void FromProto(TGuid* guid, const NYT::NProto::TGuid& protoGuid)
 {
-    ui64 first = (static_cast<ui64>(Parts[1]) << 32) + Parts[0];
-    ui64 second = (static_cast<ui64>(Parts[3]) << 32) + Parts[2];
-    NProto::TGuid protoGuid;
-    protoGuid.set_first(first);
-    protoGuid.set_second(second);
-    return protoGuid;
+    *guid = TGuid(protoGuid.first(), protoGuid.second());
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 Stroka ToString(const TGuid& guid)
 {
-    return guid.ToString();
+    char buf[4 + 4 * 8];
+    sprintf(buf, "%x-%x-%x-%x", guid.Parts[3], guid.Parts[2], guid.Parts[1], guid.Parts[0]);
+    return buf;
 }
 
 bool operator == (const TGuid& lhs, const TGuid& rhs)

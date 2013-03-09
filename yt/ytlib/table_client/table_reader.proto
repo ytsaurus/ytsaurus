@@ -27,7 +27,7 @@ message TInputChunk
     optional TReadLimit end_limit = 3;
 
     // Initial seed addresses. The reader may ask the master for additional ones.
-    repeated string node_addresses = 4;
+    repeated fixed32 replicas = 4;
 
     // Column filter.
     optional TChannel channel = 5;

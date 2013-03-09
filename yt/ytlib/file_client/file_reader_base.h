@@ -37,11 +37,6 @@ public:
         NRpc::IChannelPtr masterChannel,
         NChunkClient::IBlockCachePtr blockCache);
 
-    //! Opens the reader.
-    void Open(
-        const NChunkClient::TChunkId& chunkId,
-        const std::vector<Stroka>& nodeAddresses);
-
     //! Returns the size of the file.
     i64 GetSize() const;
 
@@ -59,11 +54,6 @@ private:
     bool IsOpen;
     i32 BlockCount;
     i32 BlockIndex;
-protected:
-    NObjectClient::TObjectServiceProxy Proxy;
-    NLog::TTaggedLogger Logger;
-
-private:
     NChunkClient::TSequentialReaderPtr SequentialReader;
     i64 Size;
     ICodec* Codec;
@@ -71,6 +61,16 @@ private:
     bool Executable;
 
     DECLARE_THREAD_AFFINITY_SLOT(Client);
+
+protected:
+    NChunkClient::TNodeDirectoryPtr NodeDirectory;
+    NObjectClient::TObjectServiceProxy Proxy;
+    NLog::TTaggedLogger Logger;
+
+    //! Opens the reader.
+    void Open(
+        const NChunkClient::TChunkId& chunkId,
+        const NChunkClient::TChunkReplicaList& replicas);
 
 };
 

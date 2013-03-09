@@ -10,6 +10,7 @@
 #include <server/chunk_server/chunk.h>
 #include <server/chunk_server/chunk_list.h>
 #include <server/chunk_server/chunk_manager.h>
+#include <server/chunk_server/node_directory_builder.h>
 
 #include <server/cypress_server/node_proxy_detail.h>
 
@@ -17,6 +18,7 @@ namespace NYT {
 namespace NFileServer {
 
 using namespace NChunkServer;
+using namespace NChunkClient;
 using namespace NCypressServer;
 using namespace NYTree;
 using namespace NYson;
@@ -26,7 +28,8 @@ using namespace NCellMaster;
 using namespace NTransactionServer;
 using namespace NSecurityServer;
 using namespace NFileClient;
-using namespace NChunkClient::NProto;
+
+using NChunkClient::NProto::TMiscExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -119,14 +122,14 @@ private:
 
             if (key == "chunk_id") {
                 BuildYsonFluently(consumer)
-                    .Value(chunk->GetId().ToString());
+                    .Value(ToString(chunk->GetId()));
                 return true;
             }
         }
 
         if (key == "chunk_list_id") {
             BuildYsonFluently(consumer)
-                .Value(chunkList->GetId().ToString());
+                .Value(ToString(chunkList->GetId()));
             return true;
         }
 
@@ -247,22 +250,25 @@ private:
 
         auto* chunk = chunkList->Children()[0]->AsChunk();
         const auto& chunkId = chunk->GetId();
-        *response->mutable_chunk_id() = chunkId.ToProto();
+        ToProto(response->mutable_chunk_id(), chunkId);
 
         auto chunkManager = Bootstrap->GetChunkManager();
-        auto addresses = chunkManager->GetChunkAddresses(chunk);
-        FOREACH (const auto& address, addresses) {
-            response->add_node_addresses(address);
+        auto replicas = chunkManager->GetChunkReplicas(chunk);
+        ToProto(response->mutable_replicas(), replicas);
+
+        TNodeDirectoryBuilder builder(response->mutable_node_directory());
+        FOREACH (auto replica, replicas) {
+            builder.Add(replica);
         }
 
         response->set_executable(IsExecutable());
         response->set_file_name(GetFileName());
 
         context->SetResponseInfo("ChunkId: %s, FileName: %s, Executable: %s, Addresses: [%s]",
-            ~chunkId.ToString(),
+            ~ToString(chunkId),
             ~response->file_name(),
             ~ToString(response->executable()),
-            ~JoinToString(addresses));
+            ~JoinToString(replicas));
 
         context->Reply();
     }
@@ -294,15 +300,15 @@ private:
         objectManager->RefObject(newChunkList);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "File node is switched to \"overwrite\" mode (NodeId: %s, NewChunkListId: %s)",
-            ~node->GetId().ToString(),
-            ~newChunkList->GetId().ToString());
+            ~ToString(node->GetId()),
+            ~ToString(newChunkList->GetId()));
 
         node->SetUpdateMode(EFileUpdateMode::Overwrite);
 
         SetModified();
 
-        *response->mutable_chunk_list_id() = newChunkList->GetId().ToProto();
-        context->SetResponseInfo("ChunkListId: %s", ~newChunkList->GetId().ToString());
+        ToProto(response->mutable_chunk_list_id(), newChunkList->GetId());
+        context->SetResponseInfo("ChunkListId: %s", ~ToString(newChunkList->GetId()));
 
         context->Reply();
     }

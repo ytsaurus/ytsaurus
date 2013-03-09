@@ -34,23 +34,16 @@ struct TGuid
     //! Creates a new instance.
     static TGuid Create();
 
-    //! Conversion to Stroka.
-    Stroka ToString() const;
-
     //! Conversion from TStringBuf, throws an exception if something went wrong.
     static TGuid FromString(const TStringBuf& str);
 
     //! Conversion from TStringBuf, returns true if everything was ok.
     static bool FromString(const TStringBuf& str, TGuid* guid);
-
-    //! Conversion to protobuf type, which we mapped to Stroka
-    NProto::TGuid ToProto() const;
-
-    //! Conversion from protobuf type.
-    static TGuid FromProto(const NProto::TGuid& protoGuid);
 };
 
-// TODO(babenko): consider removing TGuid::ToString
+void ToProto(NProto::TGuid* protoGuid, const TGuid& guid);
+void FromProto(TGuid* guid, const NProto::TGuid& protoGuid);
+
 Stroka ToString(const TGuid& guid);
 
 bool operator == (const TGuid &a, const TGuid &b);

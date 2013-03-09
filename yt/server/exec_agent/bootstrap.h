@@ -5,6 +5,8 @@
 
 #include <ytlib/rpc/public.h>
 
+#include <ytlib/chunk_client/node_directory.h>
+
 #include <server/cell_node/public.h>
 
 #include <server/chunk_holder/public.h>
@@ -30,7 +32,7 @@ public:
     IInvokerPtr GetControlInvoker() const;
     NRpc::IChannelPtr GetMasterChannel() const;
     NRpc::IChannelPtr GetSchedulerChannel() const;
-    Stroka GetPeerAddress() const;
+    const NChunkClient::TNodeDescriptor& GetLocalDescriptor() const;
     TJobManagerPtr GetJobManager() const;
     TEnvironmentManagerPtr GetEnvironmentManager() const;
     NChunkHolder::TChunkCachePtr GetChunkCache() const;

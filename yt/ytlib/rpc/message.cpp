@@ -63,7 +63,7 @@ IMessagePtr CreateResponseMessage(
 IMessagePtr CreateResponseMessage(IServiceContextPtr context)
 {
     NProto::TResponseHeader header;
-    *header.mutable_request_id() = context->GetRequestId().ToProto();
+    ToProto(header.mutable_request_id(), context->GetRequestId());
     ToProto(header.mutable_error(), context->GetError());
     ToProto(header.mutable_attributes(), context->ResponseAttributes());
 
@@ -89,7 +89,7 @@ IMessagePtr CreateErrorResponseMessage(
     const TError& error)
 {
     NProto::TResponseHeader header;
-    *header.mutable_request_id() = requestId.ToProto();
+    ToProto(header.mutable_request_id(), requestId);
     ToProto(header.mutable_error(), error);
     return CreateErrorResponseMessage(header);
 }

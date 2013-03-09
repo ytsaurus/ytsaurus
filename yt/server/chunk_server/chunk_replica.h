@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/misc/small_vector.h>
+
 #include <server/cell_master/public.h>
 
 namespace NYT {
@@ -41,6 +43,12 @@ private:
 #endif
 
 };
+
+typedef TSmallVector<TChunkReplica, TypicalReplicationFactor> TChunkReplicaList;
+
+Stroka ToString(TChunkReplica replica);
+
+void ToProto(ui32* value, TChunkReplica replica);
 
 // TODO(babenko): eliminate this hack when new serialization API is ready
 void SaveObjectRef(const NCellMaster::TSaveContext& context, TChunkReplica value);

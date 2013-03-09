@@ -2,14 +2,18 @@
 
 #include "public.h"
 
-#include <ytlib/chunk_client/chunk.pb.h>
-
 #include <ytlib/misc/guid.h>
 #include <ytlib/misc/async_stream_state.h>
-#include <ytlib/actions/cancelable_context.h>
-#include <ytlib/logging/tagged_logger.h>
-#include <server/cell_node/public.h>
+
 #include <ytlib/chunk_client/public.h>
+#include <ytlib/chunk_client/chunk_replica.h>
+#include <ytlib/chunk_client/chunk.pb.h>
+
+#include <ytlib/actions/cancelable_context.h>
+
+#include <ytlib/logging/tagged_logger.h>
+
+#include <server/cell_node/public.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -28,7 +32,7 @@ public:
         EJobType jobType,
         const TJobId& jobId,
         const TChunkId& chunkId,
-        const std::vector<Stroka>& targetAddresses);
+        const std::vector<NChunkClient::TNodeDescriptor>& targets);
 
     //! Returns the type.
     EJobType GetType() const;
@@ -42,9 +46,6 @@ public:
     //! Returns the error (only valid for failed jobs).
     const TError& GetError() const;
 
-    //! Returns data nod addresses where the chunk is being replicated to.
-    std::vector<Stroka> GetTargetAddresses() const;
-
 private:
     friend class TJobExecutor;
 
@@ -53,9 +54,9 @@ private:
     TJobId JobId;
     EJobState State;
     TChunkId ChunkId;
-    NChunkClient::NProto::TChunkMeta ChunkMeta;
-    std::vector<Stroka> TargetAddresses;
+    std::vector<NChunkClient::TNodeDescriptor> Targets;
 
+    NChunkClient::NProto::TChunkMeta ChunkMeta;
     NChunkClient::IAsyncWriterPtr Writer;
     TCancelableContextPtr CancelableContext;
     IInvokerPtr CancelableInvoker;
@@ -111,7 +112,7 @@ public:
         EJobType jobType,
         const TJobId& jobId,
         const TChunkId& chunkId,
-        const std::vector<Stroka>& targetAddresses);
+        const std::vector<NChunkClient::TNodeDescriptor>& targets);
 
     //! Stops the job.
     void StopJob(TJobPtr job);

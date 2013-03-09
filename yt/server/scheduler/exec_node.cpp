@@ -10,8 +10,8 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////
 
-TExecNode::TExecNode(const Stroka& address)
-    : Address_(address)
+TExecNode::TExecNode(const NChunkClient::TNodeDescriptor& descriptor)
+    : Descriptor_(descriptor)
     , ResourceLimits_(ZeroNodeResources())
     , ResourceUsage_(ZeroNodeResources())
 { }

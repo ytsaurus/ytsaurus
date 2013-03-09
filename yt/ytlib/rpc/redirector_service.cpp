@@ -29,7 +29,7 @@ public:
         IMessagePtr message)
         : Header(header)
         , Message(message)
-        , RequestId(TRequestId::FromProto(Header.request_id()))
+        , RequestId(FromProto<TRequestId>(Header.request_id()))
     { }
 
     virtual IMessagePtr Serialize() const override

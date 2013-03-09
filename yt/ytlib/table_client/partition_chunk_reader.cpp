@@ -39,7 +39,7 @@ TAsyncError TPartitionChunkReader::AsyncOpen()
 {
     State.StartOperation();
 
-    Logger.AddTag(Sprintf("ChunkId: %s", ~AsyncReader->GetChunkId().ToString()));
+    Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(AsyncReader->GetChunkId())));
 
     std::vector<int> tags;
     tags.push_back(TProtoExtensionTag<NProto::TChannelsExt>::Value);
@@ -66,7 +66,7 @@ void TPartitionChunkReader::OnGotMeta(NChunkClient::IAsyncReader::TGetMetaResult
     }
 
     if (result.Value().version() != FormatVersion) {
-        OnFail(TError("Invalid chunk format version: expected: %d, actual: %d",
+        OnFail(TError("Invalid chunk format version: expected %d, actual %d",
             FormatVersion,
             result.Value().version()));
         return;

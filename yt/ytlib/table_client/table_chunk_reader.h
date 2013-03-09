@@ -57,7 +57,7 @@ public:
         const NProto::TReadLimit& endLimit,
         const NYTree::TYsonString& rowAttributes,
         int partitionTag,
-        TReaderOptions options);
+        const TReaderOptions& options);
 
     TAsyncError AsyncOpen();
 

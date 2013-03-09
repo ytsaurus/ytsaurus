@@ -1,0 +1,26 @@
+package NYT.NChunkClient.NProto;
+
+import "yt/ytlib/misc/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Describes a node holding a chunk.
+message TNodeDescriptor
+{
+    required string address = 2;
+}
+
+// Provides a mapping from node ids to descriptors.
+// Used for unpacking replica information.
+message TNodeDirectory
+{
+    message TItem
+    {
+        required int32 node_id = 1;
+        required TNodeDescriptor node_descriptor = 2;
+    }
+
+    repeated TItem items = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

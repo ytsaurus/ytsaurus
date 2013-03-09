@@ -23,6 +23,7 @@
 #include <server/chunk_server/chunk_list.h>
 #include <server/chunk_server/chunk_manager.h>
 #include <server/chunk_server/chunk_tree_traversing.h>
+#include <server/chunk_server/node_directory_builder.h>
 
 #include <server/cypress_server/node_proxy_detail.h>
 
@@ -105,6 +106,7 @@ public:
         , ChunkList(chunkList)
         , Context(context)
         , Channel(channel)
+        , NodeDirectoryBuilder(context->Response().mutable_node_directory())
         , SessionCount(0)
         , Completed(false)
         , Finished(false)
@@ -147,6 +149,7 @@ private:
     TCtxFetchPtr Context;
     TChannel Channel;
 
+    TNodeDirectoryBuilder NodeDirectoryBuilder;
     yhash_set<int> ExtensionTags;
     int SessionCount;
     bool Completed;
@@ -171,19 +174,19 @@ private:
 
         if (!chunk->IsConfirmed()) {
             ReplyError(TError("Cannot fetch a table containing an unconfirmed chunk %s",
-                ~chunk->GetId().ToString()));
+                ~ToString(chunk->GetId())));
             return false;
         }
 
-        auto addresses = chunkManager->GetChunkAddresses(chunk);
-        if (addresses.empty()) {
+        auto replicas = chunkManager->GetChunkReplicas(chunk);
+        if (replicas.empty()) {
             // NB: make the check before calling add_chunks, otherwise response can be malformed.
             if (Context->Request().ignore_lost_chunks()) {
                 // Just ignore this chunk.
                 return true;
             } else {
                 ReplyError(TError("Chunk is lost %s",
-                    ~chunk->GetId().ToString()));
+                    ~ToString(chunk->GetId())));
                 return false;
             }
         }
@@ -193,9 +196,8 @@ private:
             *inputChunk->mutable_channel() = Channel.ToProto();
         }
 
-        FOREACH (const auto& address, addresses) {
-            inputChunk->add_node_addresses(address);
-        }
+        NodeDirectoryBuilder.Add(replicas);
+        ToProto(inputChunk->mutable_replicas(), replicas);
 
         if (Context->Request().fetch_all_meta_extensions()) {
             *inputChunk->mutable_extensions() = chunk->ChunkMeta().extensions();
@@ -206,7 +208,7 @@ private:
                 ExtensionTags);
         }
 
-        *inputChunk->mutable_chunk_id() = chunk->GetId().ToProto();
+        ToProto(inputChunk->mutable_chunk_id(), chunk->GetId());
         *inputChunk->mutable_start_limit() = startLimit;
         *inputChunk->mutable_end_limit() = endLimit;
 
@@ -325,7 +327,7 @@ public:
         UNUSED(endLimit);
 
         Consumer->OnListItem();
-        Consumer->OnStringScalar(chunk->GetId().ToString());
+        Consumer->OnStringScalar(ToString(chunk->GetId()));
 
         return true;
     }
@@ -456,7 +458,7 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
 
     if (key == "chunk_list_id") {
         BuildYsonFluently(consumer)
-            .Value(chunkList->GetId().ToString());
+            .Value(ToString(chunkList->GetId()));
         return true;
     }
 
@@ -657,10 +659,10 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, PrepareForUpdate)
             resultChunkList = deltaChunkList;
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Table node is switched to \"append\" mode (NodeId: %s, NewChunkListId: %s, SnapshotChunkListId: %s, DeltaChunkListId: %s)",
-                ~node->GetId().ToString(),
-                ~newChunkList->GetId().ToString(),
-                ~snapshotChunkList->GetId().ToString(),
-                ~deltaChunkList->GetId().ToString());
+                ~ToString(node->GetId()),
+                ~ToString(newChunkList->GetId()),
+                ~ToString(snapshotChunkList->GetId()),
+                ~ToString(deltaChunkList->GetId()));
             break;
         }
 
@@ -677,8 +679,8 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, PrepareForUpdate)
             resultChunkList = newChunkList;
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Table node is switched to \"overwrite\" mode (NodeId: %s, NewChunkListId: %s)",
-                ~node->GetId().ToString(),
-                ~newChunkList->GetId().ToString());
+                ~ToString(node->GetId()),
+                ~ToString(newChunkList->GetId()));
             break;
         }
 
@@ -690,8 +692,8 @@ DEFINE_RPC_SERVICE_METHOD(TTableNodeProxy, PrepareForUpdate)
 
     SetModified();
 
-    *response->mutable_chunk_list_id() = resultChunkList->GetId().ToProto();
-    context->SetResponseInfo("ChunkListId: %s", ~resultChunkList->GetId().ToString());
+    ToProto(response->mutable_chunk_list_id(), resultChunkList->GetId());
+    context->SetResponseInfo("ChunkListId: %s", ~ToString(resultChunkList->GetId()));
 
     context->Reply();
 }

@@ -2,8 +2,11 @@
 
 #include "public.h"
 
-#include <ytlib/scheduler/scheduler_service.pb.h>
 #include <ytlib/misc/property.h>
+
+#include <ytlib/chunk_client/node_directory.h>
+
+#include <ytlib/scheduler/scheduler_service.pb.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -14,8 +17,8 @@ namespace NScheduler {
 class TExecNode
     : public TRefCounted
 {
-    //! Address as reported by master.
-    DEFINE_BYVAL_RO_PROPERTY(Stroka, Address);
+    //! Descriptor as reported by node.
+    DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TNodeDescriptor, Descriptor);
 
     //! Jobs that are currently running on this node.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
@@ -39,7 +42,7 @@ class TExecNode
     bool HasSpareResources() const;
 
 public:
-    explicit TExecNode(const Stroka& address);
+    explicit TExecNode(const NChunkClient::TNodeDescriptor& descriptor);
 
 };
 

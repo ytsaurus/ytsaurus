@@ -49,7 +49,8 @@ private:
     NRpc::IChannelPtr MasterChannel;
 
     NChunkClient::IBlockCachePtr BlockCache;
-    
+    NChunkClient::TNodeDirectoryPtr NodeDirectory;
+
     TJobPtr Job;
 
     TPeriodicInvokerPtr HeartbeatInvoker;
@@ -70,6 +71,7 @@ private:
     virtual NRpc::IChannelPtr GetMasterChannel() const override;
 
     virtual NChunkClient::IBlockCachePtr GetBlockCache() const override;
+    virtual NChunkClient::TNodeDirectoryPtr GetNodeDirectory() const override;
 
     TFuture<void> GetFailedChunks(std::vector<NChunkClient::TChunkId>* failedChunks);
 };

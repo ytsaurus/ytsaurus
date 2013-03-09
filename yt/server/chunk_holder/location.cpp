@@ -182,7 +182,7 @@ Stroka TLocation::GetChunkFileName(const TChunkId& chunkId) const
     ui8 firstHashByte = static_cast<ui8>(chunkId.Parts[0] & 0xff);
     return NFS::CombinePaths(
         GetPath(),
-        Sprintf("%02x%s%s", firstHashByte, LOCSLASH_S, ~chunkId.ToString()));
+        Sprintf("%02x%s%s", firstHashByte, LOCSLASH_S, ~ToString(chunkId)));
 }
 
 bool TLocation::IsFull() const
@@ -249,10 +249,10 @@ void TLocation::SetCellGuid(const TGuid& newCellGuid)
         auto cellGuidPath = NFS::CombinePaths(GetPath(), CellGuidFileName);
         TFile file(cellGuidPath, CreateAlways | WrOnly | Seq | CloseOnExec);
         TFileOutput cellGuidFile(file);
-        cellGuidFile.Write(CellGuid.ToString());
+        cellGuidFile.Write(ToString(CellGuid));
     }
 
-    LOG_INFO("Cell guid updated: %s", ~CellGuid.ToString());
+    LOG_INFO("Cell guid updated: %s", ~ToString(CellGuid));
 }
 
 std::vector<TChunkDescriptor> TLocation::Initialize()
@@ -368,11 +368,11 @@ TFuture<void> TLocation::ScheduleChunkRemoval(TChunk* chunk)
     Stroka dataFileName = GetChunkFileName(id);
     Stroka metaFileName = dataFileName + ChunkMetaSuffix;
 
-    LOG_INFO("Chunk removal scheduled (ChunkId: %s)", ~id.ToString());
+    LOG_INFO("Chunk removal scheduled (ChunkId: %s)", ~ToString(id));
 
     auto promise = NewPromise<void>();
     GetWriteInvoker()->Invoke(BIND([=] () mutable {
-        LOG_DEBUG("Started removing chunk files (ChunkId: %s)", ~id.ToString());
+        LOG_DEBUG("Started removing chunk files (ChunkId: %s)", ~ToString(id));
 
         if (!NFS::Remove(dataFileName)) {
             LOG_ERROR("Failed to remove %s", ~dataFileName.Quote());
@@ -384,7 +384,7 @@ TFuture<void> TLocation::ScheduleChunkRemoval(TChunk* chunk)
             Disable();
         }
 
-        LOG_DEBUG("Finished removing chunk files (ChunkId: %s)", ~id.ToString());
+        LOG_DEBUG("Finished removing chunk files (ChunkId: %s)", ~ToString(id));
         promise.Set();
     }));
 

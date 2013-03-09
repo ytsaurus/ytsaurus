@@ -2,14 +2,13 @@
 #include "file_reader.h"
 #include "config.h"
 
-#include <ytlib/misc/string.h>
-#include <ytlib/misc/sync.h>
-
 #include <ytlib/file_client/file_ypath_proxy.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <ytlib/transaction_client/transaction.h>
+
+#include <ytlib/chunk_client/chunk_replica.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -35,7 +34,7 @@ TFileReader::TFileReader(
 {
     Logger.AddTag(Sprintf("Path: %s, TransactionId: %s",
         ~RichPath.GetPath(),
-        transaction ? ~transaction->GetId().ToString() : ~NullTransactionId.ToString()));
+        transaction ? ~ToString(transaction->GetId()) : ~ToString(NullTransactionId)));
 }
 
 void TFileReader::Open()
@@ -45,16 +44,18 @@ void TFileReader::Open()
     LOG_INFO("Fetching file info");
     auto fetchReq = TFileYPathProxy::FetchFile(RichPath);
     SetTransactionId(fetchReq, Transaction);
+
     auto fetchRsp = Proxy.Execute(fetchReq).Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(*fetchRsp, "Error fetching file info");
 
-    auto chunkId = TChunkId::FromProto(fetchRsp->chunk_id());
-    auto addresses = FromProto<Stroka>(fetchRsp->node_addresses());
+    NodeDirectory->MergeFrom(fetchRsp->node_directory());
+    auto chunkId = FromProto<TChunkId>(fetchRsp->chunk_id());
+    auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(fetchRsp->replicas());
     LOG_INFO("File info received (ChunkId: %s, Addresses: [%s])",
-        ~chunkId.ToString(),
-        ~JoinToString(addresses));
+        ~ToString(chunkId),
+        ~JoinToString(replicas, NodeDirectory));
 
-    TFileReaderBase::Open(chunkId, addresses);
+    TFileReaderBase::Open(chunkId, replicas);
 
     if (Transaction) {
         ListenTransaction(Transaction);

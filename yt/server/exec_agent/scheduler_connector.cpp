@@ -54,7 +54,7 @@ void TSchedulerConnector::SendHeartbeat()
 
     // Construct state snapshot.
     auto req = Proxy.Heartbeat();
-    req->set_address(Bootstrap->GetPeerAddress());
+    ToProto(req->mutable_node_descriptor(), Bootstrap->GetLocalDescriptor());
     *req->mutable_resource_limits() = jobManager->GetResourceLimits();
     *req->mutable_resource_usage() = jobManager->GetResourceUsage();
 
@@ -62,7 +62,7 @@ void TSchedulerConnector::SendHeartbeat()
     FOREACH (auto job, jobs) {
         auto state = job->GetState();
         auto* jobStatus = req->add_jobs();
-        *jobStatus->mutable_job_id() = job->GetId().ToProto();
+        ToProto(jobStatus->mutable_job_id(), job->GetId());
         jobStatus->set_state(state);
         jobStatus->set_phase(job->GetPhase());
         jobStatus->set_progress(job->GetProgress());
@@ -86,7 +86,7 @@ void TSchedulerConnector::SendHeartbeat()
 
     req->Invoke().Subscribe(
         BIND(&TSchedulerConnector::OnHeartbeatResponse, MakeStrong(this))
-        .Via(ControlInvoker));
+            .Via(ControlInvoker));
 
     LOG_INFO("Scheduler heartbeat sent (JobCount: %d, ResourceUsage: {%s})",
         req->jobs_size(),
@@ -110,12 +110,12 @@ void TSchedulerConnector::OnHeartbeatResponse(TSchedulerServiceProxy::TRspHeartb
     auto jobManager = Bootstrap->GetJobManager();
 
     FOREACH (const auto& protoJobId, rsp->jobs_to_remove()) {
-        auto jobId = TJobId::FromProto(protoJobId);
+        auto jobId = FromProto<TJobId>(protoJobId);
         RemoveJob(jobId);
     }
 
     FOREACH (const auto& protoJobId, rsp->jobs_to_abort()) {
-        auto jobId = TJobId::FromProto(protoJobId);
+        auto jobId = FromProto<TJobId>(protoJobId);
         AbortJob(jobId);
     }
 
@@ -127,7 +127,7 @@ void TSchedulerConnector::OnHeartbeatResponse(TSchedulerServiceProxy::TRspHeartb
 void TSchedulerConnector::StartJob(TJobStartInfo& info)
 {
     auto jobManager = Bootstrap->GetJobManager();
-    auto jobId = TJobId::FromProto(info.job_id());
+    auto jobId = FromProto<TJobId>(info.job_id());
     const auto& resourceLimits = info.resource_limits();
     auto* spec = info.mutable_spec();
     jobManager->CreateJob(jobId, resourceLimits, *spec);

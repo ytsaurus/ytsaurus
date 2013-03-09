@@ -73,10 +73,12 @@ TBootstrap::~TBootstrap()
 
 void TBootstrap::Run()
 {
-    PeerAddress = BuildServiceAddress(TAddressResolver::Get()->GetLocalHostName(), Config->RpcPort);
+    LocalAddress = BuildServiceAddress(
+        TAddressResolver::Get()->GetLocalHostName(),
+        Config->RpcPort);
 
-    LOG_INFO("Starting scheduler (PeerAddress: %s, MasterAddresses: [%s])",
-        ~PeerAddress,
+    LOG_INFO("Starting scheduler (LocalAddress: %s, MasterAddresses: [%s])",
+        ~LocalAddress,
         ~JoinToString(Config->Masters->Addresses));
 
     MasterChannel = CreateLeaderChannel(Config->Masters);
@@ -156,9 +158,9 @@ IChannelPtr TBootstrap::GetMasterChannel() const
     return MasterChannel;
 }
 
-Stroka TBootstrap::GetPeerAddress() const
+const Stroka& TBootstrap::GetLocalAddress() const
 {
-    return PeerAddress;
+    return LocalAddress;
 }
 
 IInvokerPtr TBootstrap::GetControlInvoker(EControlQueue queue) const

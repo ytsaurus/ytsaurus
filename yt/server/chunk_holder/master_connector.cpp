@@ -11,23 +11,25 @@
 #include "job_executor.h"
 #include "bootstrap.h"
 
-#include <ytlib/actions/bind.h>
 #include <ytlib/rpc/client.h>
+
 #include <ytlib/misc/delayed_invoker.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/string.h>
-#include <server/chunk_server/node_statistics.h>
+
 #include <ytlib/meta_state/master_channel.h>
+
 #include <ytlib/logging/tagged_logger.h>
+
+#include <server/chunk_server/node_statistics.h>
 
 #include <util/random/random.h>
 
 namespace NYT {
 namespace NChunkHolder {
 
-using namespace NChunkServer::NProto;
-using namespace NChunkClient;
 using namespace NRpc;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,7 +45,6 @@ TMasterConnector::TMasterConnector(TDataNodeConfigPtr config, TBootstrap* bootst
     , NodeId(InvalidNodeId)
 {
     VERIFY_INVOKER_AFFINITY(ControlInvoker, ControlThread);
-
     YCHECK(config);
     YCHECK(bootstrap);
 }
@@ -90,11 +91,18 @@ void TMasterConnector::DoForceRegister()
     OnHeartbeat();
 }
 
+TNodeId TMasterConnector::GetNodeId() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return NodeId;
+}
+
 void TMasterConnector::ScheduleHeartbeat()
 {
     TDelayedInvoker::Submit(
         BIND(&TMasterConnector::OnHeartbeat, MakeStrong(this))
-        .Via(ControlInvoker),
+            .Via(ControlInvoker),
         Config->HeartbeatPeriod);
 }
 
@@ -121,12 +129,12 @@ void TMasterConnector::SendRegister()
 {
     auto request = Proxy->RegisterNode();
     *request->mutable_statistics() = ComputeStatistics();
-    request->set_address(Bootstrap->GetPeerAddress());
-    *request->mutable_incarnation_id() = Bootstrap->GetIncarnationId().ToProto();
-    *request->mutable_cell_guid() = Bootstrap->GetCellGuid().ToProto();
+    ToProto(request->mutable_node_descriptor(), Bootstrap->GetLocalDescriptor());
+    ToProto(request->mutable_incarnation_id(), Bootstrap->GetIncarnationId());
+    ToProto(request->mutable_cell_guid(), Bootstrap->GetCellGuid());
     request->Invoke().Subscribe(
         BIND(&TMasterConnector::OnRegisterResponse, MakeStrong(this))
-        .Via(ControlInvoker));
+            .Via(ControlInvoker));
 
     LOG_INFO("Register request sent (%s)",
         ~ToString(*request->mutable_statistics()));
@@ -134,7 +142,7 @@ void TMasterConnector::SendRegister()
 
 NChunkServer::NProto::TNodeStatistics TMasterConnector::ComputeStatistics()
 {
-    TNodeStatistics nodeStatistics;
+    NChunkServer::NProto::TNodeStatistics nodeStatistics;
 
     i64 totalAvailableSpace = 0;
     i64 totalUsedSpace = 0;
@@ -171,29 +179,30 @@ NChunkServer::NProto::TNodeStatistics TMasterConnector::ComputeStatistics()
     return nodeStatistics;
 }
 
-void TMasterConnector::OnRegisterResponse(TProxy::TRspRegisterNodePtr response)
+void TMasterConnector::OnRegisterResponse(TProxy::TRspRegisterNodePtr rsp)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (!response->IsOK()) {
+    if (!rsp->IsOK()) {
         Disconnect();
         ScheduleHeartbeat();
 
-        LOG_WARNING(*response, "Error registering at master");
+        LOG_WARNING(*rsp, "Error registering at master");
         return;
     }
 
-    auto cellGuid = TGuid::FromProto(response->cell_guid());
+    auto cellGuid = FromProto<TGuid>(rsp->cell_guid());
     YCHECK(!cellGuid.IsEmpty());
 
     if (Bootstrap->GetCellGuid().IsEmpty()) {
         Bootstrap->UpdateCellGuid(cellGuid);
     }
 
-    NodeId = response->node_id();
+    NodeId = rsp->node_id();
     State = EState::Registered;
 
-    LOG_INFO("Successfully registered at master (NodeId: %d)", NodeId);
+    LOG_INFO("Successfully registered at master (NodeId: %d)",
+        NodeId);
 
     SendFullHeartbeat();
 }
@@ -207,6 +216,7 @@ void TMasterConnector::SendFullHeartbeat()
 
     YCHECK(NodeId != InvalidNodeId);
     request->set_node_id(NodeId);
+
     *request->mutable_statistics() = ComputeStatistics();
 
     FOREACH (const auto& chunk, Bootstrap->GetChunkStore()->GetChunks()) {
@@ -235,6 +245,7 @@ void TMasterConnector::SendIncrementalHeartbeat()
 
     YCHECK(NodeId != InvalidNodeId);
     request->set_node_id(NodeId);
+
     *request->mutable_statistics() = ComputeStatistics();
 
     ReportedAdded = AddedSinceLastSuccess;
@@ -250,7 +261,7 @@ void TMasterConnector::SendIncrementalHeartbeat()
 
     FOREACH (const auto& job, Bootstrap->GetJobExecutor()->GetAllJobs()) {
         auto* info = request->add_jobs();
-        *info->mutable_job_id() = job->GetJobId().ToProto();
+        ToProto(info->mutable_job_id(), job->GetJobId());
         info->set_state(job->GetState());
         if (job->GetState() == EJobState::Failed) {
             ToProto(info->mutable_error(), job->GetError());
@@ -268,31 +279,31 @@ void TMasterConnector::SendIncrementalHeartbeat()
         static_cast<int>(request->jobs_size()));
 }
 
-TChunkAddInfo TMasterConnector::GetAddInfo(TChunkPtr chunk)
+NChunkServer::NProto::TChunkAddInfo TMasterConnector::GetAddInfo(TChunkPtr chunk)
 {
-    TChunkAddInfo info;
-    *info.mutable_chunk_id() = chunk->GetId().ToProto();
+    NChunkServer::NProto::TChunkAddInfo info;
+    ToProto(info.mutable_chunk_id(), chunk->GetId());
     info.set_cached(chunk->GetLocation()->GetType() == ELocationType::Cache);
     *info.mutable_chunk_info() = chunk->GetInfo();
     return info;
 }
 
-TChunkRemoveInfo TMasterConnector::GetRemoveInfo(TChunkPtr chunk)
+NChunkServer::NProto::TChunkRemoveInfo TMasterConnector::GetRemoveInfo(TChunkPtr chunk)
 {
-    TChunkRemoveInfo info;
-    *info.mutable_chunk_id() = chunk->GetId().ToProto();
+    NChunkServer::NProto::TChunkRemoveInfo info;
+    ToProto(info.mutable_chunk_id(), chunk->GetId());
     info.set_cached(chunk->GetLocation()->GetType() == ELocationType::Cache);
     return info;
 }
 
-void TMasterConnector::OnFullHeartbeatResponse(TProxy::TRspFullHeartbeatPtr response)
+void TMasterConnector::OnFullHeartbeatResponse(TProxy::TRspFullHeartbeatPtr rsp)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     ScheduleHeartbeat();
 
-    if (!response->IsOK()) {
-        OnHeartbeatError(response->GetError());
+    if (!rsp->IsOK()) {
+        OnHeartbeatError(rsp->GetError());
         return;
     }
 
@@ -301,13 +312,13 @@ void TMasterConnector::OnFullHeartbeatResponse(TProxy::TRspFullHeartbeatPtr resp
     State = EState::Online;
 }
 
-void TMasterConnector::OnIncrementalHeartbeatResponse(TProxy::TRspIncrementalHeartbeatPtr response)
+void TMasterConnector::OnIncrementalHeartbeatResponse(TProxy::TRspIncrementalHeartbeatPtr rsp)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
     ScheduleHeartbeat();
 
-    if (!response->IsOK()) {
-        OnHeartbeatError(response->GetError());
+    if (!rsp->IsOK()) {
+        OnHeartbeatError(rsp->GetError());
         return;
     }
 
@@ -329,28 +340,29 @@ void TMasterConnector::OnIncrementalHeartbeatResponse(TProxy::TRspIncrementalHea
     }
     RemovedSinceLastSuccess.swap(newRemovedSinceLastSuccess);
 
-    FOREACH (const auto& jobInfo, response->jobs_to_stop()) {
-        auto jobId = TJobId::FromProto(jobInfo.job_id());
+    FOREACH (const auto& jobInfo, rsp->jobs_to_stop()) {
+        auto jobId = FromProto<TJobId>(jobInfo.job_id());
         auto job = Bootstrap->GetJobExecutor()->FindJob(jobId);
         if (!job) {
             LOG_WARNING("Request to stop a non-existing job (JobId: %s)",
-                ~jobId.ToString());
+                ~ToString(jobId));
             continue;
         }
 
         Bootstrap->GetJobExecutor()->StopJob(job);
     }
 
-    FOREACH (const auto& startInfo, response->jobs_to_start()) {
-        auto jobId = TJobId::FromProto(startInfo.job_id());
+    auto jobExecutor = Bootstrap->GetJobExecutor();
+    FOREACH (const auto& startInfo, rsp->jobs_to_start()) {
+        auto jobId = FromProto<TJobId>(startInfo.job_id());
         auto jobType = EJobType(startInfo.type());
-        auto chunkId = TChunkId::FromProto(startInfo.chunk_id());
-        auto targetAddresses = FromProto<Stroka>(startInfo.target_addresses());
-        Bootstrap->GetJobExecutor()->StartJob(
+        auto chunkId = FromProto<TChunkId>(startInfo.chunk_id());
+        auto targets = FromProto<TNodeDescriptor>(startInfo.targets());
+        jobExecutor->StartJob(
             jobType,
             jobId,
             chunkId,
-            targetAddresses);
+            targets);
     }
 }
 
@@ -365,8 +377,8 @@ void TMasterConnector::OnHeartbeatError(const TError& error)
 
 void TMasterConnector::Disconnect()
 {
-    NodeId = InvalidNodeId;
     State = EState::Offline;
+    NodeId = InvalidNodeId;
     ReportedAdded.clear();
     ReportedRemoved.clear();
     AddedSinceLastSuccess.clear();
@@ -382,7 +394,7 @@ void TMasterConnector::OnChunkAdded(TChunkPtr chunk)
 
     NLog::TTaggedLogger Logger(DataNodeLogger);
     Logger.AddTag(Sprintf("ChunkId: %s, Location: %s",
-        ~chunk->GetId().ToString(),
+        ~ToString(chunk->GetId()),
         ~chunk->GetLocation()->GetPath()));
 
     if (AddedSinceLastSuccess.find(chunk) != AddedSinceLastSuccess.end()) {
@@ -410,7 +422,7 @@ void TMasterConnector::OnChunkRemoved(TChunkPtr chunk)
 
     NLog::TTaggedLogger Logger(DataNodeLogger);
     Logger.AddTag(Sprintf("ChunkId: %s, Location: %s",
-        ~chunk->GetId().ToString(),
+        ~ToString(chunk->GetId()),
         ~chunk->GetLocation()->GetPath()));
 
     if (RemovedSinceLastSuccess.find(chunk) != RemovedSinceLastSuccess.end()) {

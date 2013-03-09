@@ -17,8 +17,8 @@ namespace NYT {
 namespace NScheduler {
 
 using namespace NChunkClient;
-using namespace NTableClient::NProto;
-using namespace NChunkClient::NProto;
+
+using NTableClient::NProto::TKey;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -39,7 +39,7 @@ TSamplesFetcher::TSamplesFetcher(
     , Logger(OperationLogger)
 
 {
-    Logger.AddTag(Sprintf("OperationId: %s", ~operationId.ToString()));
+    Logger.AddTag(Sprintf("OperationId: %s", ~ToString(operationId)));
 }
 
 void TSamplesFetcher::SetDesiredSampleCount(int desiredSamplesCount)
@@ -81,12 +81,11 @@ const std::vector<TKey>& TSamplesFetcher::GetSamples() const
     return Samples;
 }
 
-void TSamplesFetcher::CreateNewRequest(const Stroka& address)
+void TSamplesFetcher::CreateNewRequest(const TNodeDescriptor& descriptor)
 {
-    auto channel = ChannelCache.GetChannel(address);
-    TDataNodeServiceProxy proxy(CreateRetryingChannel(
-        Config->NodeRetries,
-        channel));
+    auto channel = ChannelCache.GetChannel(descriptor.Address);
+    auto retryingChannel = CreateRetryingChannel(Config->NodeChannel, channel);
+    TDataNodeServiceProxy proxy(retryingChannel);
     proxy.SetDefaultTimeout(Config->NodeRpcTimeout);
 
     CurrentRequest = proxy.GetTableSamples();
@@ -104,10 +103,10 @@ bool TSamplesFetcher::AddChunkToRequest(NTableClient::TRefCountedInputChunkPtr c
     if (sampleCount > CurrentSampleCount) {
         auto chunkSampleCount = sampleCount - CurrentSampleCount;
         CurrentSampleCount = sampleCount;
-        auto chunkId = TChunkId::FromProto(chunk->chunk_id());
+        auto chunkId = FromProto<TChunkId>(chunk->chunk_id());
 
         auto* sampleRequest = CurrentRequest->add_sample_requests();
-        *sampleRequest->mutable_chunk_id() = chunkId.ToProto();
+        ToProto(sampleRequest->mutable_chunk_id(), chunkId);
         sampleRequest->set_sample_count(chunkSampleCount);
         return true;
     }

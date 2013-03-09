@@ -27,18 +27,9 @@ DECLARE_ENUM(EAttributeFilterMode,
  */
 struct TAttributeFilter
 {
-    TAttributeFilter()
-        : Mode(EAttributeFilterMode::None)
-    { }
-
-    TAttributeFilter(EAttributeFilterMode mode, const std::vector<Stroka>& keys)
-        : Mode(mode)
-        , Keys(keys)
-    { }
-
-    explicit TAttributeFilter(EAttributeFilterMode mode)
-        : Mode(mode)
-    { }
+    TAttributeFilter();
+    TAttributeFilter(EAttributeFilterMode mode, const std::vector<Stroka>& keys);
+    explicit TAttributeFilter(EAttributeFilterMode mode);
 
     EAttributeFilterMode Mode;
     std::vector<Stroka> Keys;
@@ -47,8 +38,8 @@ struct TAttributeFilter
     static TAttributeFilter None;
 };
 
-NProto::TAttributeFilter ToProto(const TAttributeFilter& filter);
-TAttributeFilter FromProto(const NProto::TAttributeFilter& protoFilter);
+void ToProto(NProto::TAttributeFilter* protoFilter, const TAttributeFilter& filter);
+void FromProto(TAttributeFilter* filter, const NProto::TAttributeFilter& protoFilter);
 
 ////////////////////////////////////////////////////////////////////////////////
 

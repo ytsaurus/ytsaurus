@@ -142,19 +142,19 @@ private:
 
     void DoStart(TEnvironmentManagerPtr environmentManager);
 
-    void PrepareUserJob(TParallelAwaiterPtr awaiter);
-    TPromise<void> PrepareDownloadingTableFile(
-        const NYT::NScheduler::NProto::TTableFile& rsp);
+    TFuture<void> PrepareUserJob();
 
-    void OnChunkDownloaded(
-        const NFileClient::NProto::TRspFetchFile& fetchRsp,
+    TFuture<void> DownloadRegularFile(
+        const NYT::NScheduler::NProto::TRegularFileDescriptor& descriptor);
+    void OnRegularFileChunkDownloaded(
+        const NYT::NScheduler::NProto::TRegularFileDescriptor& descriptor,
         TValueOrError<NChunkHolder::TCachedChunkPtr> result);
 
     typedef std::vector< TValueOrError<NChunkHolder::TCachedChunkPtr> > TDownloadedChunks;
-    void OnTableDownloaded(
-        const NYT::NScheduler::NProto::TTableFile& tableFileRsp,
-        TSharedPtr<TDownloadedChunks> downloadedChunks,
-        TPromise<void> promise);
+    TFuture<void> DownloadTableFile(
+        const NYT::NScheduler::NProto::TTableFileDescriptor& descriptor);
+    void OnTableChunksDownloaded(
+        const NYT::NScheduler::NProto::TTableFileDescriptor& descriptor);
 
     void RunJobProxy();
     void SetResult(const TError& error);

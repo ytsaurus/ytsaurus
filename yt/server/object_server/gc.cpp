@@ -167,7 +167,7 @@ void TGarbageCollector::OnSweep()
          ++it)
     {
         auto* object = *it;
-        *request.add_object_ids() = object->GetId().ToProto();
+        ToProto(request.add_object_ids(), object->GetId());
     }
 
     LOG_DEBUG("Starting GC sweep for %d objects", request.object_ids_size());

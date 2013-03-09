@@ -124,7 +124,7 @@ struct TSchedulerConfig
     // Default environment variables set for every job.
     yhash_map<Stroka, Stroka> Environment;
 
-    NRpc::TRetryingChannelConfigPtr NodeRetries;
+    NRpc::TRetryingChannelConfigPtr NodeChannel;
 
     TSchedulerConfig()
     {
@@ -228,7 +228,7 @@ struct TSchedulerConfig
         Register("environment", Environment)
             .Default(yhash_map<Stroka, Stroka>());
 
-        Register("node_retries", NodeRetries)
+        Register("node_channel", NodeChannel)
             .DefaultNew();
     }
 };

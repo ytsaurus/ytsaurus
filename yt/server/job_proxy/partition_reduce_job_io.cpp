@@ -56,6 +56,7 @@ public:
             IOConfig->TableReader,
             Host->GetMasterChannel(),
             Host->GetBlockCache(),
+            Host->GetNodeDirectory(),
             keyColumns,
             BIND(&IJobHost::ReleaseNetwork, Host),
             std::move(chunks),

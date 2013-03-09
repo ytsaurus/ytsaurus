@@ -3,8 +3,10 @@
 #include "guid.h"
 #include "ref.h"
 #include "object_pool.h"
+#include "small_vector.h"
+#include "nullable.h"
+#include "mpl.h"
 
-#include <ytlib/misc/nullable.h>
 #include <ytlib/misc/protobuf_helpers.pb.h>
 #include <ytlib/misc/guid.pb.h>
 
@@ -17,104 +19,161 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define DEFINE_TRIVIAL_PROTO_CONVERSIONS(type)                   \
+    inline void ToProto(type* serialized, type original)         \
+    {                                                            \
+        *serialized = original;                                  \
+    }                                                            \
+                                                                 \
+    inline void FromProto(type* original, type serialized)       \
+    {                                                            \
+        *original = serialized;                                  \
+    }
+
+DEFINE_TRIVIAL_PROTO_CONVERSIONS(Stroka)
+DEFINE_TRIVIAL_PROTO_CONVERSIONS(i8)
+DEFINE_TRIVIAL_PROTO_CONVERSIONS(ui8)
+DEFINE_TRIVIAL_PROTO_CONVERSIONS(i16)
+DEFINE_TRIVIAL_PROTO_CONVERSIONS(ui16)
+DEFINE_TRIVIAL_PROTO_CONVERSIONS(i32)
+DEFINE_TRIVIAL_PROTO_CONVERSIONS(ui32)
+DEFINE_TRIVIAL_PROTO_CONVERSIONS(i64)
+DEFINE_TRIVIAL_PROTO_CONVERSIONS(ui64)
+DEFINE_TRIVIAL_PROTO_CONVERSIONS(bool)
+
+#undef DEFINE_TRIVIAL_PROTO_CONVERSIONS
+
 template <class T>
-struct TProtoTraits
+inline void ToProto(
+    T* serialized,
+    const T& original,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, ::google::protobuf::MessageLite*>, int>::TType = 0)
 {
-    static const T& ToProto(const T& value)
-    {
-        return value;
-    }
+    *serialized = original;
+}
 
-    static const T& FromProto(const T& value)
-    {
-        return value;
-    }
-};
-
-// TODO: generify for other classes providing their own ToProto/FromProto methods
-template <>
-struct TProtoTraits<TGuid>
+template <class T>
+inline void FromProto(
+    T* original,
+    const T& serialized,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<T*, ::google::protobuf::MessageLite*>, int>::TType = 0)
 {
-    static NProto::TGuid ToProto(const TGuid& value)
-    {
-        return value.ToProto();
-    }
+    *original = serialized;
+}
 
-    static TGuid FromProto(const NProto::TGuid& value)
-    {
-        return TGuid::FromProto(value);
-    }
-};
+template <class TSerialized, class TOriginal>
+TSerialized ToProto(const TOriginal& original)
+{
+    TSerialized serialized;
+    ToProto(&serialized, original);
+    return serialized;
+}
+
+template <class TOriginal, class TSerialized>
+TOriginal FromProto(const TSerialized& serialized)
+{
+    TOriginal original;
+    FromProto(&original, serialized);
+    return original;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TArrayItem, class TProtoItem>
+template <class TSerialized, class TOriginal>
 inline void ToProto(
-    ::google::protobuf::RepeatedPtrField<TProtoItem>* proto,
-    const std::vector<TArrayItem>& array,
+    ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
+    const std::vector<TOriginal>& originalArray,
     bool clear = true)
 {
     if (clear) {
-        proto->Clear();
+        serializedArray->Clear();
     }
-    for (auto it = array.begin(); it != array.end(); ++it) {
-        *proto->Add() = TProtoTraits<TArrayItem>::ToProto(*it);
+    for (auto it = originalArray.begin(); it != originalArray.end(); ++it) {
+        ToProto(serializedArray->Add(), *it);
     }
 }
 
-template <class T>
+template <class TSerialized, class TOriginal>
 inline void ToProto(
-    ::google::protobuf::RepeatedField<T>* proto,
-    const std::vector<T>& array,
+    ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
+    const std::vector<TOriginal>& originalArray,
     bool clear = true)
 {
     if (clear) {
-        proto->Clear();
+        serializedArray->Clear();
     }
-    for (auto it = array.begin(); it != array.end(); ++it) {
-        *proto->Add() = *it;
+    for (auto it = originalArray.begin(); it != originalArray.end(); ++it) {
+        ToProto(serializedArray->Add(), *it);
     }
 }
 
-template <class TArrayItem, class TProtoItem>
-inline std::vector<TArrayItem> FromProto(
-    const ::google::protobuf::RepeatedPtrField<TProtoItem>& proto)
+template <class TSerialized, class TOriginal, unsigned N>
+inline void ToProto(
+    ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
+    const TSmallVector<TOriginal, N>& originalArray,
+    bool clear = true)
 {
-    std::vector<TArrayItem> array(proto.size());
-    for (int i = 0; i < proto.size(); ++i) {
-        array[i] = TProtoTraits<TArrayItem>::FromProto(proto.Get(i));
+    if (clear) {
+        serializedArray->Clear();
     }
-    return array;
+    for (auto it = originalArray.begin(); it != originalArray.end(); ++it) {
+        ToProto(serializedArray->Add(), *it);
+    }
 }
 
-template <class TArrayItem, class TProtoItem>
-inline std::vector<TArrayItem> FromProto(
-    const ::google::protobuf::RepeatedField<TProtoItem>& proto)
+template <class TOriginal, class TOriginalArray, class TSerialized>
+inline TOriginalArray FromProto(
+    const ::google::protobuf::RepeatedPtrField<TSerialized>& serializedArray)
 {
-    std::vector<TArrayItem> array(proto.size());
-    for (int i = 0; i < proto.size(); ++i) {
-        array[i] = proto.Get(i);
+    TOriginalArray originalArray(serializedArray.size());
+    for (int i = 0; i < serializedArray.size(); ++i) {
+        FromProto(&originalArray[i], serializedArray.Get(i));
     }
-    return array;
+    return originalArray;
+}
+
+template <class TOriginal, class TSerialized>
+inline std::vector<TOriginal> FromProto(
+    const ::google::protobuf::RepeatedPtrField<TSerialized>& serializedArray)
+{
+    return FromProto<TOriginal, std::vector<TOriginal>, TSerialized>(serializedArray);
+}
+
+template <class TOriginal, class TOriginalArray, class TSerialized>
+inline TOriginalArray FromProto(
+    const ::google::protobuf::RepeatedField<TSerialized>& serializedArray)
+{
+    TOriginalArray originalArray(serializedArray.size());
+    for (int i = 0; i < serializedArray.size(); ++i) {
+        FromProto(&originalArray[i], serializedArray.Get(i));
+    }
+    return originalArray;
+}
+
+template <class TOriginal, class TSerialized>
+inline std::vector<TOriginal> FromProto(
+    const ::google::protobuf::RepeatedField<TSerialized>& serializedArray)
+{
+    return FromProto<TOriginal, std::vector<TOriginal>, TSerialized>(serializedArray);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Serializes a protobuf message.
-//! Returns True iff everything went well.
+//! Returns |true| iff everything went well.
 bool SerializeToProto(
     const google::protobuf::Message& message,
     TSharedRef* data);
 
 //! Deserializes a chunk of memory into a protobuf message.
-//! Returns True iff everything went well.
+//! Returns |true| iff everything went well.
 bool DeserializeFromProto(
     google::protobuf::Message* message,
     const TRef& data);
 
 //! Serializes a given protobuf message and wraps it with envelope.
 //! Optionally compresses the serialized message.
-//! Returns True iff everything went well.
+//! Returns |true| iff everything went well.
 bool SerializeToProtoWithEnvelope(
     const google::protobuf::Message& message,
     TSharedRef* data,
@@ -122,7 +181,7 @@ bool SerializeToProtoWithEnvelope(
 
 //! Unwraps a chunk of memory obtained from #SerializeToProtoWithEnvelope
 //! and deserializes it into a protobuf message.
-//! Returns True iff everything went well.
+//! Returns |true| iff everything went well.
 bool DeserializeFromProtoWithEnvelope(
     google::protobuf::Message* message,
     const TRef& data);
@@ -182,7 +241,7 @@ template <class T>
 void UpdateProtoExtension(NProto::TExtensionSet* extensions, const T& value);
 
 //! Tries to remove the extension.
-//! Returns True iff the proper extension is found.
+//! Returns |true| iff the proper extension is found.
 template <class T>
 bool RemoveProtoExtension(NProto::TExtensionSet* extensions);
 
@@ -200,8 +259,8 @@ void FilterProtoExtensions(
 namespace google {
 namespace protobuf {
     void CleanPooledObject(MessageLite* obj);
-}
-}
+} // namespace protobuf
+} // namespace google
 
 ////////////////////////////////////////////////////////////////////////////////
 

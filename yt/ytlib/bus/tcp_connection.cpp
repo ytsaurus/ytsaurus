@@ -18,6 +18,8 @@
 namespace NYT {
 namespace NBus {
 
+using NYT::ToString;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static NProfiling::TProfiler& Profiler = BusProfiler;
@@ -67,7 +69,7 @@ TTcpConnection::TTcpConnection(
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(handler);
 
-    Logger.AddTag(Sprintf("ConnectionId: %s", ~id.ToString()));
+    Logger.AddTag(Sprintf("ConnectionId: %s", ~ToString(id)));
 
     switch (Type) {
         case EConnectionType::Client:
@@ -141,7 +143,7 @@ Stroka TTcpConnection::GetLoggingId() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Sprintf("ConnectionId: %s", ~Id.ToString());
+    return Sprintf("ConnectionId: %s", ~ToString(Id));
 }
 
 TTcpDispatcherStatistics& TTcpConnection::Statistics()
@@ -418,7 +420,7 @@ TAsyncError TTcpConnection::Send(IMessagePtr message)
     TQueuedMessage queuedMessage(message);
 
     // NB: Log first to avoid producing weird traces.
-    LOG_DEBUG("Outcoming message enqueued (PacketId: %s)", ~queuedMessage.PacketId.ToString());
+    LOG_DEBUG("Outcoming message enqueued (PacketId: %s)", ~ToString(queuedMessage.PacketId));
 
     QueuedMessages.Enqueue(queuedMessage);
 
@@ -655,15 +657,15 @@ bool TTcpConnection::OnAckPacketReceived()
 
     if (Decoder.GetPacketId() != unackedMessage.PacketId) {
         LOG_ERROR("Ack for invalid packet ID received: expected %s, found %s",
-            ~unackedMessage.PacketId.ToString(),
-            ~Decoder.GetPacketId().ToString());
+            ~ToString(unackedMessage.PacketId),
+            ~ToString(Decoder.GetPacketId()));
         SyncClose(TError(
             NRpc::EErrorCode::TransportError,
             "Ack for invalid packet ID received"));
         return false;
     }
 
-    LOG_DEBUG("Ack received (PacketId: %s)", ~Decoder.GetPacketId().ToString());
+    LOG_DEBUG("Ack received (PacketId: %s)", ~ToString(Decoder.GetPacketId()));
 
     PROFILE_AGGREGATED_TIMING (OutHandlerTime) {
         unackedMessage.Promise.Set(TError());
@@ -677,7 +679,7 @@ bool TTcpConnection::OnAckPacketReceived()
 bool TTcpConnection::OnMessagePacketReceived()
 {
     LOG_DEBUG("Incoming message received (PacketId: %s, PacketSize: %" PRISZT ")",
-        ~Decoder.GetPacketId().ToString(),
+        ~ToString(Decoder.GetPacketId()),
         Decoder.GetPacketSize());
 
     EnqueuePacket(EPacketType::Ack, Decoder.GetPacketId());
@@ -908,13 +910,13 @@ void TTcpConnection::OnPacketSent()
 
 void  TTcpConnection::OnAckPacketSent(const TEncodedPacket& packet)
 {
-    LOG_DEBUG("Ack sent (PacketId: %s)", ~packet.Packet->PacketId.ToString());
+    LOG_DEBUG("Ack sent (PacketId: %s)", ~ToString(packet.Packet->PacketId));
 }
 
 void TTcpConnection::OnMessagePacketSent(const TEncodedPacket& packet)
 {
     LOG_DEBUG("Outcoming message sent (PacketId: %s, PacketSize: %" PRId64 ")",
-        ~packet.Packet->PacketId.ToString(),
+        ~ToString(packet.Packet->PacketId),
         packet.Packet->Size);
 }
 
@@ -939,7 +941,7 @@ void TTcpConnection::ProcessOutcomingMessages()
 {
     TQueuedMessage queuedMessage;
     while (QueuedMessages.Dequeue(&queuedMessage)) {
-        LOG_DEBUG("Outcoming message dequeued (PacketId: %s)", ~queuedMessage.PacketId.ToString());
+        LOG_DEBUG("Outcoming message dequeued (PacketId: %s)", ~ToString(queuedMessage.PacketId));
 
         EnqueuePacket(EPacketType::Message, queuedMessage.PacketId, queuedMessage.Message);
 
@@ -952,7 +954,7 @@ void TTcpConnection::DiscardOutcomingMessages(const TError& error)
 {
     TQueuedMessage queuedMessage;
     while (QueuedMessages.Dequeue(&queuedMessage)) {
-        LOG_DEBUG("Outcoming message dequeued (PacketId: %s)", ~queuedMessage.PacketId.ToString());
+        LOG_DEBUG("Outcoming message dequeued (PacketId: %s)", ~ToString(queuedMessage.PacketId));
         queuedMessage.Promise.Set(error);
     }
 }

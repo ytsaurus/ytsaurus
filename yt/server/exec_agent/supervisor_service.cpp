@@ -38,8 +38,8 @@ TSupervisorService::TSupervisorService(TBootstrap* bootstrap)
 
 DEFINE_RPC_SERVICE_METHOD(TSupervisorService, GetJobSpec)
 {
-    auto jobId = TJobId::FromProto(request->job_id());
-    context->SetRequestInfo("JobId: %s", ~jobId.ToString());
+    auto jobId = FromProto<TJobId>(request->job_id());
+    context->SetRequestInfo("JobId: %s", ~ToString(jobId));
 
     auto job = Bootstrap->GetJobManager()->GetJob(jobId);
     *response->mutable_job_spec() = job->GetSpec();
@@ -50,10 +50,10 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, GetJobSpec)
 
 DEFINE_RPC_SERVICE_METHOD(TSupervisorService, OnJobFinished)
 {
-    auto jobId = TJobId::FromProto(request->job_id());
+    auto jobId = FromProto<TJobId>(request->job_id());
     auto error = FromProto(request->result().error());
     context->SetRequestInfo("JobId: %s, Error: %s",
-        ~jobId.ToString(),
+        ~ToString(jobId),
         ~ToString(error));
 
     auto job = Bootstrap->GetJobManager()->GetJob(jobId);
@@ -64,10 +64,10 @@ DEFINE_RPC_SERVICE_METHOD(TSupervisorService, OnJobFinished)
 
 DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnJobProgress)
 {
-    auto jobId = TJobId::FromProto(request->job_id());
+    auto jobId = FromProto<TJobId>(request->job_id());
 
     context->SetRequestInfo("JobId: %s, Progress: %lf",
-        ~jobId.ToString(),
+        ~ToString(jobId),
         request->progress());
 
     auto job = Bootstrap->GetJobManager()->GetJob(jobId);
@@ -76,11 +76,11 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnJobProgress)
 
 DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, UpdateResourceUsage)
 {
-    auto jobId = TJobId::FromProto(request->job_id());
+    auto jobId = FromProto<TJobId>(request->job_id());
     const auto& resourceUsage = request->resource_usage();
 
     context->SetRequestInfo("JobId: %s, ResourceUsage: {%s}",
-        ~jobId.ToString(),
+        ~ToString(jobId),
         ~FormatResources(resourceUsage));
 
     Bootstrap->GetJobManager()->UpdateResourceUsage(jobId, resourceUsage);

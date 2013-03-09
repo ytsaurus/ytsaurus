@@ -62,7 +62,7 @@ TChunkListId TChunkListPool::Extract()
     Ids.pop_back();
 
     LOG_DEBUG("Extracted chunk list %s from the pool, %d remaining",
-        ~id.ToString(),
+        ~ToString(id),
         static_cast<int>(Ids.size()));
 
     return id;
@@ -74,7 +74,7 @@ void TChunkListPool::Release(const std::vector<TChunkListId>& ids)
     auto batchReq = objectProxy.ExecuteBatch();
     FOREACH (const auto& id, ids) {
         auto req = TTransactionYPathProxy::UnstageObject(FromObjectId(TransactionId));
-        *req->mutable_object_id() = id.ToProto();
+        ToProto(req->mutable_object_id(), id);
         req->set_recursive(true);
         batchReq->AddRequest(req);
     }
@@ -106,7 +106,7 @@ void TChunkListPool::AllocateMore()
 
     for (int index = 0; index < count; ++index) {
         auto req = TMasterYPathProxy::CreateObject();
-        *req->mutable_transaction_id() = TransactionId.ToProto();
+        ToProto(req->mutable_transaction_id(), TransactionId);
         req->set_type(EObjectType::ChunkList);
         batchReq->AddRequest(req);
     }
@@ -135,7 +135,7 @@ void TChunkListPool::OnChunkListsCreated(
     auto rsps = batchRsp->GetResponses<TMasterYPathProxy::TRspCreateObject>();
     FOREACH (auto rsp, rsps) {
         if (rsp->IsOK()) {
-            Ids.push_back(TChunkListId::FromProto(rsp->object_id()));
+            Ids.push_back(FromProto<TChunkListId>(rsp->object_id()));
         } else {
             LOG_ERROR(*rsp, "Error allocating chunk list");
         }

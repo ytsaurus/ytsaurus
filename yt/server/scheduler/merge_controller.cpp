@@ -17,6 +17,7 @@
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/node_directory.h>
 
 #include <cmath>
 
@@ -105,7 +106,7 @@ protected:
             , TaskIndex(taskIndex)
             , PartitionIndex(partitionIndex)
         {
-            ChunkPool = CreateAtomicChunkPool();
+            ChunkPool = CreateAtomicChunkPool(Controller->NodeDirectory);
         }
 
         virtual Stroka GetId() const override
@@ -299,9 +300,9 @@ protected:
         CurrentTaskDataSize += chunkDataSize;
         stripe->Chunks.push_back(inputChunk);
 
-        auto chunkId = TChunkId::FromProto(inputChunk->chunk_id());
+        auto chunkId = FromProto<TChunkId>(inputChunk->chunk_id());
         LOG_DEBUG("Pending chunk added (ChunkId: %s, Partition: %d, Task: %d, TableIndex: %d, DataSize: %" PRId64 ")",
-            ~chunkId.ToString(),
+            ~ToString(chunkId),
             PartitionCount,
             static_cast<int>(Tasks.size()),
             inputChunk->table_index(),
@@ -311,9 +312,9 @@ protected:
     //! Add chunk directly to the output.
     void AddPassthroughChunk(TRefCountedInputChunkPtr inputChunk)
     {
-        auto chunkId = TChunkId::FromProto(inputChunk->chunk_id());
+        auto chunkId = FromProto<TChunkId>(inputChunk->chunk_id());
         LOG_DEBUG("Passthrough chunk added (ChunkId: %s, Partition: %d)",
-            ~chunkId.ToString(),
+            ~ToString(chunkId),
             PartitionCount);
 
         // Place the chunk directly to the output table.
@@ -344,7 +345,7 @@ protected:
             for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
                 const auto& table = InputTables[tableIndex];
                 FOREACH (const auto& inputChunk, *table.FetchResponse->mutable_chunks()) {
-                    auto chunkId = TChunkId::FromProto(inputChunk.chunk_id());
+                    auto chunkId = FromProto<TChunkId>(inputChunk.chunk_id());
 
                     i64 chunkDataSize;
                     NTableClient::GetStatistics(inputChunk, &chunkDataSize);
@@ -355,7 +356,7 @@ protected:
                     totalDataSize += chunkDataSize;
 
                     LOG_DEBUG("Processing chunk (ChunkId: %s, DataSize: %" PRId64 ", TableIndex: %d)",
-                        ~chunkId.ToString(),
+                        ~ToString(chunkId),
                         chunkDataSize,
                         rcInputChunk->table_index());
                 }
@@ -560,9 +561,7 @@ private:
     {
         JobSpecTemplate.set_type(EJobType::UnorderedMerge);
         JobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
-
-        *JobSpecTemplate.mutable_output_transaction_id() = Operation->GetOutputTransaction()->GetId().ToProto();
-
+        ToProto(JobSpecTemplate.mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
         JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
     }
 };
@@ -642,9 +641,7 @@ private:
     {
         JobSpecTemplate.set_type(EJobType::OrderedMerge);
         JobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
-
-        *JobSpecTemplate.mutable_output_transaction_id() = Operation->GetOutputTransaction()->GetId().ToProto();
-
+        ToProto(JobSpecTemplate.mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
         JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
     }
 
@@ -721,19 +718,16 @@ private:
     {
         JobSpecTemplate.set_type(EJobType::OrderedMerge);
         JobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
-
-        *JobSpecTemplate.mutable_output_transaction_id() = Operation->GetOutputTransaction()->GetId().ToProto();
+        ToProto(JobSpecTemplate.mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+        JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
 
         auto* jobSpecExt = JobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
-
         // If the input is sorted then the output must also be sorted.
         // For this, the job needs key columns.
         const auto& table = InputTables[0];
         if (table.KeyColumns) {
             ToProto(jobSpecExt->mutable_key_columns(), table.KeyColumns.Get());
         }
-
-        JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
     }
 
 };
@@ -903,7 +897,7 @@ protected:
                         AllowPassthroughChunks())
                     {
                         // Trying to reconstruct passthrough chunk from chunk slices.
-                        auto chunkId = TChunkId::FromProto(endpoint.InputChunk->chunk_id());
+                        auto chunkId = FromProto<TChunkId>(endpoint.InputChunk->chunk_id());
                         auto tableIndex = endpoint.InputChunk->table_index();
                         auto nextIndex = currentIndex;
                         while (true) {
@@ -911,7 +905,7 @@ protected:
                             if (nextIndex == endpointsCount) {
                                 break;
                             }
-                            auto nextChunkId = TChunkId::FromProto(Endpoints[nextIndex].InputChunk->chunk_id());
+                            auto nextChunkId = FromProto<TChunkId>(Endpoints[nextIndex].InputChunk->chunk_id());
                             auto nextTableIndex = Endpoints[nextIndex].InputChunk->table_index();
                             if (nextChunkId != chunkId || tableIndex != nextTableIndex) {
                                 break;
@@ -1088,8 +1082,9 @@ protected:
             KeyColumns);
 
         ChunkSplitsCollector = New<TChunkSplitsCollector>(
+            NodeDirectory,
             ChunkSplitsFetcher,
-            ~Host->GetBackgroundInvoker());
+            Host->GetBackgroundInvoker());
     }
 };
 
@@ -1162,13 +1157,11 @@ private:
     {
         JobSpecTemplate.set_type(EJobType::SortedMerge);
         JobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
-
-        *JobSpecTemplate.mutable_output_transaction_id() = Operation->GetOutputTransaction()->GetId().ToProto();
+        ToProto(JobSpecTemplate.mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+        JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
 
         auto* jobSpecExt = JobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
         ToProto(jobSpecExt->mutable_key_columns(), KeyColumns);
-
-        JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
 
         ManiacJobSpecTemplate.CopyFrom(JobSpecTemplate);
         ManiacJobSpecTemplate.set_type(EJobType::UnorderedMerge);
@@ -1257,8 +1250,8 @@ private:
     {
         JobSpecTemplate.set_type(EJobType::SortedReduce);
         JobSpecTemplate.set_lfalloc_buffer_size(GetLFAllocBufferSize());
-
-        *JobSpecTemplate.mutable_output_transaction_id() = Operation->GetOutputTransaction()->GetId().ToProto();
+        ToProto(JobSpecTemplate.mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+        JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
 
         auto* jobSpecExt = JobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
         ToProto(jobSpecExt->mutable_key_columns(), KeyColumns);
@@ -1268,8 +1261,6 @@ private:
             Spec->Reducer,
             RegularFiles,
             TableFiles);
-
-        JobSpecTemplate.set_io_config(ConvertToYsonString(JobIOConfig).Data());
 
         ManiacJobSpecTemplate.CopyFrom(JobSpecTemplate);
     }

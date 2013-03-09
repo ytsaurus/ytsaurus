@@ -9,6 +9,9 @@
 #include <ytlib/transaction_client/transaction.h>
 
 #include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
+#include <ytlib/chunk_client/chunk_replica.h>
+#include <ytlib/chunk_client/node_directory.h>
+
 #include <ytlib/table_client/key.h>
 #include <ytlib/table_client/schema.h>
 
@@ -158,7 +161,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
     auto joblet = New<TJoblet>(this, jobIndex);
 
     auto node = context->GetNode();
-    auto address = node->GetAddress();
+    const auto& address = node->GetDescriptor().Address;
     auto* chunkPoolOutput = GetChunkPoolOutput();
     joblet->OutputCookie = chunkPoolOutput->Extract(address);
     if (joblet->OutputCookie == IChunkPoolOutput::NullCookie) {
@@ -213,7 +216,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
         ~ToString(joblet->Job->GetId()),
         ~ToString(Controller->Operation->GetOperationId()),
         ~jobType.ToString(),
-        ~context->GetNode()->GetAddress(),
+        ~context->GetNode()->GetDescriptor().Address,
         ~GetId(),
         jobIndex,
         joblet->InputStripeList->TotalChunkCount,
@@ -374,10 +377,11 @@ void TOperationControllerBase::TTask::AddSequentialInputSpec(
     TJobletPtr joblet,
     bool enableTableIndex)
 {
+    TNodeDirectoryBuilder directoryBuilder(Controller->NodeDirectory, jobSpec->mutable_node_directory());
     auto* inputSpec = jobSpec->add_input_specs();
     auto list = joblet->InputStripeList;
     FOREACH (const auto& stripe, list->Stripes) {
-        AddChunksToInputSpec(inputSpec, stripe, list->PartitionTag, enableTableIndex);
+        AddChunksToInputSpec(&directoryBuilder, inputSpec, stripe, list->PartitionTag, enableTableIndex);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
 }
@@ -387,12 +391,36 @@ void TOperationControllerBase::TTask::AddParallelInputSpec(
     TJobletPtr joblet,
     bool enableTableIndex)
 {
+    TNodeDirectoryBuilder directoryBuilder(Controller->NodeDirectory, jobSpec->mutable_node_directory());
     auto list = joblet->InputStripeList;
     FOREACH (const auto& stripe, list->Stripes) {
         auto* inputSpec = jobSpec->add_input_specs();
-        AddChunksToInputSpec(inputSpec, stripe, list->PartitionTag, enableTableIndex);
+        AddChunksToInputSpec(&directoryBuilder, inputSpec, stripe, list->PartitionTag, enableTableIndex);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
+}
+
+void TOperationControllerBase::TTask::AddChunksToInputSpec(
+    TNodeDirectoryBuilder* directoryBuilder,
+    NScheduler::NProto::TTableInputSpec* inputSpec,
+    TChunkStripePtr stripe,
+    TNullable<int> partitionTag,
+    bool enableTableIndex)
+{
+    FOREACH (const auto& stripeChunk, stripe->Chunks) {
+        auto* inputChunk = inputSpec->add_chunks();
+        *inputChunk = *stripeChunk;
+        FOREACH (ui32 protoReplica, stripeChunk->replicas()) {
+            auto replica = FromProto<TChunkReplica>(protoReplica);
+            directoryBuilder->Add(replica);
+        }
+        if (!enableTableIndex) {
+            inputChunk->clear_table_index();
+        }
+        if (partitionTag) {
+            inputChunk->set_partition_tag(partitionTag.Get());
+        }
+    }
 }
 
 void TOperationControllerBase::TTask::UpdateInputSpecTotals(
@@ -417,7 +445,7 @@ void TOperationControllerBase::TTask::AddFinalOutputSpecs(
         const auto& table = Controller->OutputTables[index];
         auto* outputSpec = jobSpec->add_output_specs();
         outputSpec->set_table_writer_options(ConvertToYsonString(table.Options).Data());
-        *outputSpec->mutable_chunk_list_id() = joblet->ChunkListIds[index].ToProto();
+        ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[index]);
     }
 }
 
@@ -431,25 +459,7 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     options->Account = Controller->Spec->IntermediateDataAccount;
     options->ReplicationFactor = 1;
     outputSpec->set_table_writer_options(ConvertToYsonString(options).Data());
-    *outputSpec->mutable_chunk_list_id() = joblet->ChunkListIds[0].ToProto();
-}
-
-void TOperationControllerBase::TTask::AddChunksToInputSpec(
-    NScheduler::NProto::TTableInputSpec* inputSpec,
-    TChunkStripePtr stripe,
-    TNullable<int> partitionTag,
-    bool enableTableIndex)
-{
-    FOREACH (const auto& stripeChunk, stripe->Chunks) {
-        auto* inputChunk = inputSpec->add_chunks();
-        *inputChunk = *stripeChunk;
-        if (!enableTableIndex) {
-            inputChunk->clear_table_index();
-        }
-        if (partitionTag) {
-            inputChunk->set_partition_tag(partitionTag.Get());
-        }
-    }
+    ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[0]);
 }
 
 TNodeResources TOperationControllerBase::TTask::GetAvgNeededResources() const
@@ -465,11 +475,11 @@ TNodeResources TOperationControllerBase::TTask::GetNeededResources(TJobletPtr jo
 
 void TOperationControllerBase::TTask::RegisterIntermediateChunks(
     TJobletPtr joblet,
-    TChunkStripePtr stripe,
     IChunkPoolInput* destinationPool)
 {
     IChunkPoolInput::TCookie inputCookie;
 
+    auto stripe = joblet->OutputStripe;
     auto lostIt = LostJobCookieMap.find(joblet->OutputCookie);
     if (lostIt == LostJobCookieMap.end()) {
         inputCookie = destinationPool->Add(stripe);
@@ -489,19 +499,9 @@ void TOperationControllerBase::TTask::RegisterIntermediateChunks(
         joblet->Job->GetNode());
 
     FOREACH (const auto& chunk, stripe->Chunks) {
-        auto chunkId = TChunkId::FromProto(chunk->chunk_id());
+        auto chunkId = FromProto<TChunkId>(chunk->chunk_id());
         YCHECK(Controller->ChunkOriginMap.insert(std::make_pair(chunkId, completedJob)).second);
     }
-}
-
-TChunkStripePtr TOperationControllerBase::TTask::BuildIntermediateChunkStripe(
-    google::protobuf::RepeatedPtrField<NTableClient::NProto::TInputChunk>* inputChunks)
-{
-    auto stripe = New<TChunkStripe>();
-    FOREACH (auto& inputChunk, *inputChunks) {
-        stripe->Chunks.push_back(New<TRefCountedInputChunk>(std::move(inputChunk)));
-    }
-    return stripe;
 }
 
 void TOperationControllerBase::TTask::RegisterOutput(TJobletPtr joblet, int key)
@@ -531,12 +531,13 @@ TOperationControllerBase::TOperationControllerBase(
     , TotalInputDataSize(0)
     , TotalInputRowCount(0)
     , TotalInputValueCount(0)
+    , NodeDirectory(New<TNodeDirectory>())
     , PendingTaskInfos(MaxTaskPriority + 1)
     , CachedPendingJobCount(0)
     , CachedNeededResources(ZeroNodeResources())
     , Spec(spec)
 {
-    Logger.AddTag(Sprintf("OperationId: %s", ~operation->GetOperationId().ToString()));
+    Logger.AddTag(Sprintf("OperationId: %s", ~ToString(operation->GetOperationId())));
 }
 
 void TOperationControllerBase::Initialize()
@@ -666,6 +667,18 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
     JobCounter.Completed(1);
 
     auto joblet = GetJoblet(job);
+
+    auto& result = joblet->Job->Result();
+    
+    // Populate node directory by adding additional nodes returned from the job.
+    NodeDirectory->MergeFrom(result.node_directory());
+
+    // Construct a stripe representing job result.
+    joblet->OutputStripe = New<TChunkStripe>();
+    FOREACH (auto& inputChunk, result.chunks()) {
+        joblet->OutputStripe->Chunks.push_back(New<TRefCountedInputChunk>(std::move(inputChunk)));
+    }
+
     joblet->Task->OnJobCompleted(joblet);
 
     RemoveJoblet(job);
@@ -686,7 +699,7 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
         job->SetState(EJobState::Aborted);
         OnJobAborted(job);
         FOREACH (const auto& chunkId, job->Result().failed_chunk_ids()) {
-            OnChunkFailed(TChunkId::FromProto(chunkId));
+            OnChunkFailed(FromProto<TChunkId>(chunkId));
         }
         return;
     }
@@ -735,17 +748,17 @@ void TOperationControllerBase::TTask::OnJobLost(TCompleteJobPtr completedJob)
 void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
 {
     if (InputChunkIds.find(chunkId) == InputChunkIds.end()) {
-        LOG_WARNING("Intermediate chunk %s has failed", ~chunkId.ToString());
+        LOG_WARNING("Intermediate chunk %s has failed", ~ToString(chunkId));
         OnIntermediateChunkFailed(chunkId);
     } else {
-        LOG_WARNING("Input chunk %s has failed", ~chunkId.ToString());
+        LOG_WARNING("Input chunk %s has failed", ~ToString(chunkId));
         OnInputChunkFailed(chunkId);
     }
 }
 
 void TOperationControllerBase::OnInputChunkFailed(const TChunkId& chunkId)
 {
-    OnOperationFailed(TError("Unable to read input chunk %s", ~chunkId.ToString()));
+    OnOperationFailed(TError("Unable to read input chunk %s", ~ToString(chunkId)));
 }
 
 void TOperationControllerBase::OnIntermediateChunkFailed(const TChunkId& chunkId)
@@ -757,7 +770,7 @@ void TOperationControllerBase::OnIntermediateChunkFailed(const TChunkId& chunkId
         return;
 
     LOG_INFO("Job is lost (Address: %s, JobId: %s, SourceTask: %s, OutputCookie: %d, InputCookie: %d)",
-        ~completedJob->ExecNode->GetAddress(),
+        ~completedJob->ExecNode->GetDescriptor().Address,
         ~ToString(completedJob->JobId),
         ~completedJob->SourceTask->GetId(),
         completedJob->OutputCookie,
@@ -890,8 +903,10 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, const Stroka& 
 void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe)
 {
     FOREACH (const auto& chunk, stripe->Chunks) {
-        FOREACH (const auto& address, chunk->node_addresses()) {
-            DoAddTaskLocalityHint(task, address);
+        FOREACH (ui32 protoReplica, chunk->replicas()) {
+            auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
+            const auto& descriptor = NodeDirectory->GetDescriptor(replica);
+            DoAddTaskLocalityHint(task, descriptor.Address);
         }
     }
     OnTaskUpdated(task);
@@ -940,7 +955,7 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
     const NProto::TNodeResources& jobLimits)
 {
     auto node = context->GetNode();
-    auto address = node->GetAddress();
+    const auto& address = node->GetDescriptor().Address;
 
     for (int priority = static_cast<int>(PendingTaskInfos.size()) - 1; priority >= 0; --priority) {
         auto& info = PendingTaskInfos[priority];
@@ -1014,7 +1029,7 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
 {
     auto now = TInstant::Now();
     auto node = context->GetNode();
-    auto address = node->GetAddress();
+    const auto& address = node->GetDescriptor().Address;
 
     for (int priority = static_cast<int>(PendingTaskInfos.size()) - 1; priority >= 0; --priority) {
         auto& info = PendingTaskInfos[priority];
@@ -1214,7 +1229,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::CommitResults()
                     req = TChunkListYPathProxy::Attach(FromObjectId(table.OutputChunkListId));
                     NMetaState::GenerateRpcMutationId(req);
                 }
-                *req->add_children_ids() = chunkTreeId.ToProto();
+                ToProto(req->add_children_ids(), chunkTreeId);
                 ++reqSize;
                 if (reqSize >= Config->MaxChildrenPerAttachRequest) {
                     flushReq();
@@ -1328,7 +1343,7 @@ void TOperationControllerBase::OnObjectIdsReceived(TObjectServiceProxy::TRspExec
                 auto rsp = getInIdRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting id for input table %s",
                     ~table.Path.GetPath());
-                table.ObjectId = TObjectId::FromProto(rsp->object_id());
+                table.ObjectId = FromProto<TObjectId>(rsp->object_id());
             }
         }
     }
@@ -1341,7 +1356,7 @@ void TOperationControllerBase::OnObjectIdsReceived(TObjectServiceProxy::TRspExec
                 auto rsp = getOutIdRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error getting id for output table %s",
                     ~table.Path.GetPath());
-                table.ObjectId = TObjectId::FromProto(rsp->object_id());
+                table.ObjectId = FromProto<TObjectId>(rsp->object_id());
             }
         }
     }
@@ -1495,7 +1510,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
             attributeFilter.Keys.push_back("sorted");
             attributeFilter.Keys.push_back("sorted_by");
-            *req->mutable_attribute_filter() = ToProto(attributeFilter);
+            ToProto(req->mutable_attribute_filter(), attributeFilter);
             batchReq->AddRequest(req, "get_in_attributes");
         }
     }
@@ -1518,7 +1533,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             attributeFilter.Keys.push_back("row_count");
             attributeFilter.Keys.push_back("replication_factor");
             attributeFilter.Keys.push_back("account");
-            *req->mutable_attribute_filter() = ToProto(attributeFilter);
+            ToProto(req->mutable_attribute_filter(), attributeFilter);
             batchReq->AddRequest(req, "get_out_attributes");
         }
         {
@@ -1603,10 +1618,12 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching input table %s",
                     ~table.Path.GetPath());
 
+                NodeDirectory->MergeFrom(rsp->node_directory());
+
                 table.FetchResponse = rsp;
                 FOREACH (const auto& chunk, rsp->chunks()) {
-                    auto chunkId = TChunkId::FromProto(chunk.chunk_id());
-                    YCHECK(chunk.node_addresses_size() > 0);
+                    auto chunkId = FromProto<TChunkId>(chunk.chunk_id());
+                    YCHECK(chunk.replicas_size() > 0);
                     InputChunkIds.insert(chunkId);
                 }
                 LOG_INFO("Input table %s has %d chunks",
@@ -1678,10 +1695,10 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error preparing output table %s for update",
                     ~table.Path.GetPath());
 
-                table.OutputChunkListId = TChunkListId::FromProto(rsp->chunk_list_id());
+                table.OutputChunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
                 LOG_INFO("Output table %s has output chunk list %s",
                     ~table.Path.GetPath(),
-                    ~table.OutputChunkListId.ToString());
+                    ~ToString(table.OutputChunkListId));
             }
         }
     }
@@ -1703,13 +1720,15 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                 auto rsp = fetchRegularFileRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching regular files");
 
+                NodeDirectory->MergeFrom(rsp->node_directory());
+
                 if (file.Path.Attributes().Contains("file_name")) {
                     rsp->set_file_name(file.Path.Attributes().Get<Stroka>("file_name"));
                 }
                 file.FetchResponse = rsp;
                 LOG_INFO("File %s attributes received (ChunkId: %s)",
                     ~file.Path.GetPath(),
-                    ~TChunkId::FromProto(rsp->chunk_id()).ToString());
+                    ~ToString(FromProto<TChunkId>(rsp->chunk_id())));
             }
         }
     }
@@ -1744,6 +1763,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
             {
                 auto rsp = fetchTableFileRsps[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(*rsp, "Error fetching table file chunks");
+                NodeDirectory->MergeFrom(rsp->node_directory());
                 file.FetchResponse = rsp;
             }
             {
@@ -1756,7 +1776,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
             {
                 std::vector<TChunkId> chunkIds;
                 FOREACH (const auto& chunk, file.FetchResponse->chunks()) {
-                    chunkIds.push_back(TChunkId::FromProto(chunk.chunk_id()));
+                    chunkIds.push_back(FromProto<TChunkId>(chunk.chunk_id()));
                 }
                 LOG_INFO("Table file %s attributes received (FileName: %s, Format: %s, ChunkIds: [%s])",
                     ~file.Path.GetPath(),
@@ -1850,7 +1870,7 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxS
     // Ensure that no input chunk has size larger than sliceSize.
     std::vector<TChunkStripePtr> stripes;
     FOREACH (auto inputChunk, inputChunks) {
-        auto chunkId = TChunkId::FromProto(inputChunk->chunk_id());
+        auto chunkId = FromProto<TChunkId>(inputChunk->chunk_id());
 
         i64 dataSize;
         GetStatistics(*inputChunk, &dataSize);
@@ -1863,13 +1883,13 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(i64 maxS
                 stripes.push_back(stripe);
             }
             LOG_TRACE("Slicing chunk (ChunkId: %s, SliceCount: %d)",
-                ~chunkId.ToString(),
+                ~ToString(chunkId),
                 sliceCount);
         } else {
             auto stripe = New<TChunkStripe>(inputChunk);
             stripes.push_back(stripe);
             LOG_TRACE("Taking whole chunk (ChunkId: %s)",
-                ~chunkId.ToString());
+                ~ToString(chunkId));
         }
     }
 
@@ -1954,7 +1974,7 @@ void TOperationControllerBase::RegisterOutput(
 
     LOG_DEBUG("Output chunk tree registered (Table: %d, ChunkTreeId: %s, Key: %d)",
         tableIndex,
-        ~chunkTreeId.ToString(),
+        ~ToString(chunkTreeId),
         key);
 }
 
@@ -2080,7 +2100,7 @@ void TOperationControllerBase::InitUserJobSpec(
     {
         if (Operation->GetStdErrCount() < Operation->GetMaxStdErrCount()) {
             auto stdErrTransactionId = Operation->GetAsyncSchedulerTransaction()->GetId();
-            *jobSpec->mutable_stderr_transaction_id() = stdErrTransactionId.ToProto();
+            ToProto(jobSpec->mutable_stderr_transaction_id(), stdErrTransactionId);
         }
     }
 
@@ -2118,17 +2138,18 @@ void TOperationControllerBase::InitUserJobSpec(
     fillEnvironment(config->Environment);
 
     jobSpec->add_environment(Sprintf("YT_OPERATION_ID=%s",
-        ~Operation->GetOperationId().ToString()));
+        ~ToString(Operation->GetOperationId())));
 
     FOREACH (const auto& file, regularFiles) {
-        *jobSpec->add_files() = *file.FetchResponse;
+        auto* descriptor = jobSpec->add_regular_files();
+        *descriptor->mutable_file() = *file.FetchResponse;
     }
 
     FOREACH (const auto& file, tableFiles) {
-        auto table_file = jobSpec->add_table_files();
-        *table_file->mutable_table() = *file.FetchResponse;
-        table_file->set_file_name(file.FileName);
-        table_file->set_format(file.Format.Data());
+        auto* descriptor = jobSpec->add_table_files();
+        *descriptor->mutable_table() = *file.FetchResponse;
+        descriptor->set_file_name(file.FileName);
+        descriptor->set_format(file.Format.Data());
     }
 }
 
@@ -2137,7 +2158,7 @@ void TOperationControllerBase::AddUserJobEnvironment(
     TJobletPtr joblet)
 {
     proto->add_environment(Sprintf("YT_JOB_INDEX=%d", joblet->JobIndex));
-    proto->add_environment(Sprintf("YT_JOB_ID=%s", ~joblet->Job->GetId().ToString()));
+    proto->add_environment(Sprintf("YT_JOB_ID=%s", ~ToString(joblet->Job->GetId())));
     if (joblet->StartRowIndex >= 0) {
         proto->add_environment(Sprintf("YT_START_ROW_INDEX=%" PRId64, joblet->StartRowIndex));
     }

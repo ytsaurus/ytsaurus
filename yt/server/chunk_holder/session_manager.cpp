@@ -8,8 +8,9 @@
 #include "chunk_store.h"
 #include "bootstrap.h"
 
-#include <ytlib/chunk_client/chunk.pb.h>
 #include <ytlib/chunk_client/file_writer.h>
+#include <ytlib/chunk_client/node_directory.h>
+#include <ytlib/chunk_client/chunk.pb.h>
 
 #include <ytlib/misc/fs.h>
 #include <ytlib/misc/sync.h>
@@ -19,7 +20,9 @@ namespace NChunkHolder {
 
 using namespace NRpc;
 using namespace NChunkClient;
-using namespace NChunkClient::NProto;
+
+using NChunkClient::NProto::TChunkMeta;
+using NChunkClient::NProto::TChunkInfo;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,7 +53,7 @@ TSession::TSession(
 
     Logger.AddTag(Sprintf("LocationId: %s, ChunkId: %s",
         ~Location->GetId(),
-        ~ChunkId.ToString()));
+        ~ToString(ChunkId)));
 
     Location->UpdateSessionCount(+1);
     FileName = Location->GetChunkFileName(ChunkId);
@@ -198,15 +201,15 @@ void TSession::PutBlock(
 TAsyncError TSession::SendBlocks(
     int startBlockIndex,
     int blockCount,
-    const Stroka& targetAddress)
+    const TNodeDescriptor& target)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    TProxy proxy(ChannelCache.GetChannel(targetAddress));
+    TProxy proxy(ChannelCache.GetChannel(target.Address));
     proxy.SetDefaultTimeout(Config->NodeRpcTimeout);
 
     auto req = proxy.PutBlocks();
-    *req->mutable_chunk_id() = ChunkId.ToProto();
+    ToProto(req->mutable_chunk_id(), ChunkId);
     req->set_start_block_index(startBlockIndex);
 
     for (int blockIndex = startBlockIndex; blockIndex < startBlockIndex + blockCount; ++blockIndex) {
@@ -270,7 +273,7 @@ TError TSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
             OnIOError(TError(
                 NChunkClient::EErrorCode::IOError,
                 "Error writing chunk block: %s",
-                ~blockId.ToString())
+                ~ToString(blockId))
                 << ex);
         }
     }
@@ -636,7 +639,7 @@ void TSessionManager::CancelSession(TSessionPtr session, const TError& error)
     session->Cancel(error);
 
     LOG_INFO(error, "Session canceled (ChunkId: %s)",
-        ~chunkId.ToString());
+        ~ToString(chunkId));
 }
 
 TFuture< TValueOrError<TChunkPtr> > TSessionManager::FinishSession(
@@ -655,14 +658,14 @@ TValueOrError<TChunkPtr> TSessionManager::OnSessionFinished(TSessionPtr session,
 {
     YCHECK(SessionMap.erase(session->GetChunkId()) == 1);
     AtomicDecrement(SessionCount);
-    LOG_INFO("Session finished (ChunkId: %s)", ~session->GetChunkId().ToString());
+    LOG_INFO("Session finished (ChunkId: %s)", ~ToString(session->GetChunkId()));
     return chunkOrError;
 }
 
 void TSessionManager::OnLeaseExpired(TSessionPtr session)
 {
     if (SessionMap.find(session->GetChunkId()) != SessionMap.end()) {
-        LOG_INFO("Session %s lease expired", ~session->GetChunkId().ToString());
+        LOG_INFO("Session %s lease expired", ~ToString(session->GetChunkId()));
         CancelSession(session, TError("Session lease expired"));
     }
 }

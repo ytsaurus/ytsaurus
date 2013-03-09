@@ -112,7 +112,7 @@ private:
             auto request = proxy.AdvanceSegment();
             request->set_segment_id(Version.SegmentId);
             request->set_record_count(Version.RecordCount);
-            *request->mutable_epoch_id() = Owner->EpochId.ToProto();
+            ToProto(request->mutable_epoch_id(), Owner->EpochId);
             request->set_create_snapshot(CreateSnapshot);
 
             auto responseHandler =

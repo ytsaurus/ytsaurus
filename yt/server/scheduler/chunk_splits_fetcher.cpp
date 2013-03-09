@@ -17,8 +17,6 @@ namespace NScheduler {
 
 using namespace NChunkClient;
 using namespace NTableClient;
-using namespace NTableClient::NProto;
-using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -35,10 +33,9 @@ TChunkSplitsFetcher::TChunkSplitsFetcher(
     , Spec(spec)
     , KeyColumns(keyColumns)
     , Logger(OperationLogger)
-
 {
     YCHECK(Config->MergeJobMaxSliceDataSize > 0);
-    Logger.AddTag(Sprintf("OperationId: %s", ~operationId.ToString()));
+    Logger.AddTag(Sprintf("OperationId: %s", ~ToString(operationId)));
 }
 
 NLog::TTaggedLogger& TChunkSplitsFetcher::GetLogger()
@@ -52,17 +49,16 @@ void TChunkSplitsFetcher::Prepare(const std::vector<NTableClient::TRefCountedInp
         static_cast<int>(chunks.size()));
 }
 
-std::vector<TRefCountedInputChunkPtr>& TChunkSplitsFetcher::GetChunkSplits()
+const std::vector<TRefCountedInputChunkPtr>& TChunkSplitsFetcher::GetChunkSplits()
 {
     return ChunkSplits;
 }
 
-void TChunkSplitsFetcher::CreateNewRequest(const Stroka& address)
+void TChunkSplitsFetcher::CreateNewRequest(const TNodeDescriptor& descriptor)
 {
-    auto channel = ChannelCache.GetChannel(address);
-    TDataNodeServiceProxy proxy(CreateRetryingChannel(
-        Config->NodeRetries,
-        channel));
+    auto channel = ChannelCache.GetChannel(descriptor.Address);
+    auto retryingChannel = CreateRetryingChannel(Config->NodeChannel, channel);
+    TDataNodeServiceProxy proxy(retryingChannel);
     proxy.SetDefaultTimeout(Config->NodeRpcTimeout);
 
     CurrentRequest = proxy.GetChunkSplits();
@@ -72,7 +68,7 @@ void TChunkSplitsFetcher::CreateNewRequest(const Stroka& address)
 
 bool TChunkSplitsFetcher::AddChunkToRequest(NTableClient::TRefCountedInputChunkPtr chunk)
 {
-    auto chunkId = TChunkId::FromProto(chunk->chunk_id());
+    auto chunkId = FromProto<TChunkId>(chunk->chunk_id());
 
     i64 dataSize;
     GetStatistics(*chunk, &dataSize);

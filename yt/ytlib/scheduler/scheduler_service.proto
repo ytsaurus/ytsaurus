@@ -4,6 +4,8 @@ import "yt/ytlib/scheduler/job.proto";
 import "yt/ytlib/rpc/rpc.proto";
 import "yt/ytlib/misc/error.proto";
 import "yt/ytlib/misc/guid.proto";
+import "yt/ytlib/chunk_client/node.proto";
+import "yt/ytlib/chunk_client/chunk.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,7 +79,7 @@ message TJobStatus
 
 message TReqHeartbeat
 {
-    required string address = 1;
+    required NChunkClient.NProto.TNodeDescriptor node_descriptor = 1;
     required TNodeResources resource_usage = 2;
     required TNodeResources resource_limits = 3;
     repeated TJobStatus jobs = 4;

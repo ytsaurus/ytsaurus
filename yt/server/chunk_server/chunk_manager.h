@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "chunk_replica.h"
 #include "chunk_service_proxy.h"
 
 #include <ytlib/misc/small_vector.h>
@@ -10,6 +11,8 @@
 #include <ytlib/meta_state/composite_meta_state.h>
 #include <ytlib/meta_state/mutation.h>
 #include <ytlib/meta_state/map.h>
+
+#include <ytlib/chunk_client/chunk_replica.h>
 
 #include <ytlib/rpc/service.h>
 
@@ -114,7 +117,7 @@ public:
 
     void ConfirmChunk(
         TChunk* chunk,
-        const std::vector<Stroka>& addresses,
+        const std::vector<NChunkClient::TChunkReplica>& replicas,
         NChunkClient::NProto::TChunkInfo* chunkInfo,
         NChunkClient::NProto::TChunkMeta* chunkMeta);
 
@@ -130,7 +133,7 @@ public:
 
     void ScheduleRFUpdate(TChunkTree* chunkTree);
 
-    TSmallVector<Stroka, TypicalReplicationFactor> GetChunkAddresses(const TChunk* chunk);
+    TChunkReplicaList GetChunkReplicas(const TChunk* chunk);
 
     const yhash_set<TChunk*>& LostVitalChunks() const;
     const yhash_set<TChunk*>& LostChunks() const;

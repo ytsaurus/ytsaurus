@@ -1006,7 +1006,7 @@ private:
         static auto poolConfigTemplate = New<TPoolConfig>();
         auto poolConfigKeys = poolConfigTemplate->GetRegisteredKeys();
         TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, poolConfigKeys);
-        *req->mutable_attribute_filter() = ToProto(attributeFilter);
+        ToProto(req->mutable_attribute_filter(), attributeFilter);
         batchReq->AddRequest(req, "get_pools");
     }
 

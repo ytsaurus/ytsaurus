@@ -24,6 +24,13 @@ using NChunkClient::EJobType;
 using NChunkClient::TBlockOffset;
 using NChunkClient::EChunkType;
 using NChunkClient::TBlockId;
+using NChunkClient::TNodeId;
+using NChunkClient::InvalidNodeId;
+using NChunkClient::MaxNodeId;
+using NChunkClient::TypicalReplicationFactor;
+
+using NObjectClient::TTransactionId;
+using NObjectClient::NullTransactionId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,15 +69,6 @@ typedef TIntrusivePtr<TChunkReplicatorConfig> TChunkReplicatorConfigPtr;
 
 struct TChunkManagerConfig;
 typedef TIntrusivePtr<TChunkManagerConfig> TChunkManagerConfigPtr;
-
-using NObjectClient::TTransactionId;
-using NObjectClient::NullTransactionId;
-
-typedef i32 TNodeId;
-const TNodeId InvalidNodeId = -1;
-
-//! Used as an expected upper bound in TSmallVector.
-const int TypicalReplicationFactor = 4;
 
 //! Used as an expected upper bound in TSmallVector.
 const int TypicalChunkParentCount = 2;

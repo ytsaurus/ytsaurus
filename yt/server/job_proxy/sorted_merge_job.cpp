@@ -65,6 +65,7 @@ public:
                     config->JobIO->TableReader,
                     Host->GetMasterChannel(),
                     Host->GetBlockCache(),
+                    Host->GetNodeDirectory(),
                     std::move(chunks),
                     provider);
 
@@ -78,14 +79,11 @@ public:
             const auto& mergeSpec = jobSpec.GetExtension(TMergeJobSpecExt::merge_job_spec_ext);
 
             // ToDo(psushin): estimate row count for writer.
-            auto transactionId = TTransactionId::FromProto(jobSpec.output_transaction_id());
+            auto transactionId = FromProto<TTransactionId>(jobSpec.output_transaction_id());
             const auto& outputSpec = jobSpec.output_specs(0);
-
-            auto chunkListId = TChunkListId::FromProto(outputSpec.chunk_list_id());
-            auto options = New<TTableWriterOptions>();
-            options->Load(ConvertToNode(TYsonString(outputSpec.table_writer_options())));
+            auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
+            auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
             options->KeyColumns = FromProto<Stroka>(mergeSpec.key_columns());
-
             Writer = New<TTableChunkSequenceWriter>(
                 config->JobIO->TableWriter,
                 options,

@@ -153,7 +153,7 @@ private:
                 auto request = proxy.ApplyMutations();
                 request->set_segment_id(StartVersion.SegmentId);
                 request->set_record_count(StartVersion.RecordCount);
-                *request->mutable_epoch_id() = EpochId.ToProto();
+                ToProto(request->mutable_epoch_id(), EpochId);
                 FOREACH (const auto& mutation, BatchedRecordsData) {
                     request->Attachments().push_back(mutation);
                 }
@@ -303,7 +303,7 @@ TFuture< TValueOrError<TMutationResponse> > TLeaderCommitter::Commit(const TMuta
     if (request.Id != NullMutationId) {
         TSharedRef responseData;
         if (DecoratedState->FindKeptResponse(request.Id, &responseData)) {
-            LOG_DEBUG("Kept response returned (MutationId: %s)", ~request.Id.ToString());
+            LOG_DEBUG("Kept response returned (MutationId: %s)", ~ToString(request.Id));
             TMutationResponse response;
             response.Applied = false;
             response.Data = responseData;
@@ -317,7 +317,7 @@ TFuture< TValueOrError<TMutationResponse> > TLeaderCommitter::Commit(const TMuta
     NProto::TMutationHeader header;
     header.set_mutation_type(request.Type);
     if (request.Id != NullMutationId) {
-        *header.mutable_mutation_id() = request.Id.ToProto();
+        ToProto(header.mutable_mutation_id(), request.Id);
     }
     header.set_timestamp(timestamp.GetValue());
     header.set_random_seed(randomSeed);
@@ -327,7 +327,7 @@ TFuture< TValueOrError<TMutationResponse> > TLeaderCommitter::Commit(const TMuta
         auto version = DecoratedState->GetVersion();
         LOG_DEBUG("Committing mutation at version %s (MutationId: %s)",
             ~version.ToString(),
-            ~request.Id.ToString());
+            ~ToString(request.Id));
 
         auto logResult = DecoratedState->LogMutation(version, recordData);
         auto batchResult = AddMutationToBatch(version, recordData, logResult);

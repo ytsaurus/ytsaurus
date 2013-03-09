@@ -1,6 +1,7 @@
 #pragma once
 
 #include "private.h"
+#include "node_directory.h"
 
 #include <ytlib/misc/ref.h>
 
@@ -27,7 +28,7 @@ struct IBlockCache
     virtual void Put(
         const TBlockId& id,
         const TSharedRef& data,
-        const TNullable<Stroka>& sourceAddress) = 0;
+        const TNullable<TNodeDescriptor>& source) = 0;
 
     //! Fetches a block from the cache.
     /*!

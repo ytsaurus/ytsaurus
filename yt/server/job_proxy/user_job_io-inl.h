@@ -6,7 +6,6 @@
 #include "config.h"
 #include "job.h"
 
-#include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/table_client/table_chunk_reader.h>
 
 #include <ytlib/table_client/sync_reader.h>
@@ -23,8 +22,6 @@ TAutoPtr<NTableClient::TTableProducer> TUserJobIO::DoCreateTableInput(
     NYson::IYsonConsumer* consumer)
 {
     YCHECK(index >= 0 && index < GetInputCount());
-
-    auto blockCache = NChunkClient::CreateClientBlockCache(New<NChunkClient::TClientBlockCacheConfig>());
 
     const auto& jobSpec = Host->GetJobSpec();
 
@@ -46,7 +43,8 @@ TAutoPtr<NTableClient::TTableProducer> TUserJobIO::DoCreateTableInput(
     auto reader = New<TReader>(
         IOConfig->TableReader,
         Host->GetMasterChannel(),
-        blockCache,
+        Host->GetBlockCache(),
+        Host->GetNodeDirectory(),
         std::move(chunks),
         provider);
 

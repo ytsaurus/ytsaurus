@@ -3,10 +3,16 @@
 #include "public.h"
 
 #include <ytlib/actions/action_queue.h>
-#include <server/cell_node/public.h>
+
 #include <ytlib/bus/public.h>
+
 #include <ytlib/rpc/public.h>
+
 #include <ytlib/misc/memory_usage_tracker.h>
+
+#include <ytlib/chunk_client/node_directory.h>
+
+#include <server/cell_node/public.h>
 
 namespace NYT {
 namespace NChunkHolder {
@@ -36,7 +42,7 @@ public:
     TReaderCachePtr GetReaderCache() const;
     TMasterConnectorPtr GetMasterConnector() const;
     NRpc::IChannelPtr GetMasterChannel() const;
-    Stroka GetPeerAddress() const;
+    const NChunkClient::TNodeDescriptor& GetLocalDescriptor() const;
     TMemoryUsageTracker<NCellNode::EMemoryConsumer>& GetMemoryUsageTracker();
     const TGuid& GetCellGuid() const;
     void UpdateCellGuid(const TGuid& cellGuid);

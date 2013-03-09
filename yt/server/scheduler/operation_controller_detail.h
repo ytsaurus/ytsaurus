@@ -21,8 +21,12 @@
 #include <ytlib/file_client/file_ypath_proxy.h>
 
 #include <ytlib/cypress_client/public.h>
+
 #include <ytlib/ytree/ypath_client.h>
 #include <ytlib/ytree/yson_string.h>
+
+#include <ytlib/chunk_client/public.h>
+#include <ytlib/chunk_client/node_directory_builder.h>
 
 #include <server/chunk_server/public.h>
 
@@ -96,7 +100,10 @@ protected:
     TProgressCounter JobCounter;
 
     // Increments each time a new job is scheduled.
-    TIdGenerator<int> JobIndexGenerator;
+    TIdGenerator JobIndexGenerator;
+
+    // Maps node ids seen in fetch responses to node descriptors.
+    NChunkClient::TNodeDirectoryPtr NodeDirectory;
 
     struct TTableBase
     {
@@ -226,6 +233,8 @@ protected:
          */
         std::vector<NChunkClient::TChunkListId> ChunkListIds;
 
+        //! Chunk stripe constructed from job result.
+        TChunkStripePtr OutputStripe;
     };
 
     yhash_map<TJobPtr, TJobletPtr> JobletMap;
@@ -354,23 +363,23 @@ protected:
 
         void ReinstallJob(TJobletPtr joblet, EJobReinstallReason reason);
 
-        static void AddSequentialInputSpec(
+        void AddSequentialInputSpec(
             NScheduler::NProto::TJobSpec* jobSpec,
             TJobletPtr joblet,
             bool enableTableIndex = false);
-        static void AddParallelInputSpec(
+        void AddParallelInputSpec(
             NScheduler::NProto::TJobSpec* jobSpec,
             TJobletPtr joblet,
             bool enableTableIndex = false);
-
-        void AddFinalOutputSpecs(NScheduler::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
-        void AddIntermediateOutputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
-
         static void AddChunksToInputSpec(
+            NChunkClient::TNodeDirectoryBuilder* directoryBuilder,
             NScheduler::NProto::TTableInputSpec* inputSpec,
             TChunkStripePtr stripe,
             TNullable<int> partitionTag,
             bool enableTableIndex);
+
+        void AddFinalOutputSpecs(NScheduler::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
+        void AddIntermediateOutputSpec(NScheduler::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
 
         static void UpdateInputSpecTotals(
             NScheduler::NProto::TJobSpec* jobSpec,
@@ -378,11 +387,7 @@ protected:
 
         void RegisterIntermediateChunks(
             TJobletPtr joblet,
-            TChunkStripePtr stripe,
             IChunkPoolInput* destinationPool);
-
-        static TChunkStripePtr BuildIntermediateChunkStripe(
-            google::protobuf::RepeatedPtrField<NTableClient::NProto::TInputChunk>* inputChunks);
 
         void RegisterOutput(TJobletPtr joblet, int key);
 

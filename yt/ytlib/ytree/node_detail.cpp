@@ -8,6 +8,8 @@
 #include "tree_builder.h"
 #include "ypath_client.h"
 
+#include <ytlib/misc/protobuf_helpers.h>
+
 #include <ytlib/yson/yson_writer.h>
 #include <ytlib/yson/tokenizer.h>
 
@@ -53,7 +55,7 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
 
     auto attributeFilter =
         request->has_attribute_filter()
-        ? FromProto(request->attribute_filter())
+        ? NYT::FromProto<TAttributeFilter>(request->attribute_filter())
         : TAttributeFilter::None;
 
     TStringStream stream;
@@ -238,7 +240,7 @@ void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxListPtr 
 
     auto attributeFilter =
         request->has_attribute_filter()
-        ? FromProto(request->attribute_filter())
+        ? NYT::FromProto<TAttributeFilter>(request->attribute_filter())
         : TAttributeFilter::None;
 
     TStringStream stream;

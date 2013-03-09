@@ -81,11 +81,13 @@ void TBootstrap::Run()
     srand(time(NULL));
 
     IncarnationId = TIncarnationId::Create();
-    PeerAddress = BuildServiceAddress(TAddressResolver::Get()->GetLocalHostName(), Config->RpcPort);
+    LocalDescriptor.Address = BuildServiceAddress(
+        TAddressResolver::Get()->GetLocalHostName(),
+        Config->RpcPort);
 
-    LOG_INFO("Starting node (IncarnationId: %s, PeerAddress: %s, MasterAddresses: [%s])",
-        ~IncarnationId.ToString(),
-        ~PeerAddress,
+    LOG_INFO("Starting node (IncarnationId: %s, LocalDescriptor: %s, MasterAddresses: [%s])",
+        ~ToString(IncarnationId),
+        ~ToString(LocalDescriptor),
         ~JoinToString(Config->Masters->Addresses));
 
     auto result = MemoryUsageTracker.TryAcquire(
@@ -190,9 +192,9 @@ IChannelPtr TBootstrap::GetSchedulerChannel() const
     return SchedulerChannel;
 }
 
-Stroka TBootstrap::GetPeerAddress() const
+const NChunkClient::TNodeDescriptor& TBootstrap::GetLocalDescriptor() const
 {
-    return PeerAddress;
+    return LocalDescriptor;
 }
 
 IMapNodePtr TBootstrap::GetOrchidRoot() const

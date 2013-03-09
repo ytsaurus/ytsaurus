@@ -78,7 +78,7 @@ public:
         , OnExit(NewPromise<TError>())
         , ControllerThread(ThreadFunc, this)
     {
-        Logger.AddTag(Sprintf("JobId: %s", ~jobId.ToString()));
+        Logger.AddTag(Sprintf("JobId: %s", ~ToString(jobId)));
     }
 
     void Run()
@@ -111,7 +111,7 @@ public:
             auto res = setrlimit(RLIMIT_AS, &rlimit);
             if (res) {
                 fprintf(stderr, "Failed to set resource limits (JobId: %s, MemoryLimit: %" PRId64 ")\n%s",
-                    ~JobId.ToString(),
+                    ~ToString(JobId),
                     MemoryLimit,
                     strerror(errno));
                 _exit(EJobProxyExitCode::SetRLimitFailed);
@@ -123,13 +123,13 @@ public:
                 ~ProxyPath,
                 "--job-proxy",
                 "--config", ~ProxyConfigFileName,
-                "--job-id", ~JobId.ToString(),
+                "--job-id", ~ToString(JobId),
                 (void*) NULL);
 
             fprintf(stderr, "Failed to exec job proxy (ProxyPath: %s, ProxyConfig: %s, JobId: %s)\n%s",
                 ~ProxyPath,
                 ~ProxyConfigFileName,
-                ~JobId.ToString(),
+                ~ToString(JobId),
                 strerror(errno));
             _exit(EJobProxyExitCode::ExecFailed);
         }
@@ -276,7 +276,7 @@ public:
         , OnExit(NewPromise<TError>())
         , ControllerThread(ThreadFunc, this)
     {
-        Logger.AddTag(Sprintf("JobId: %s", ~jobId.ToString()));
+        Logger.AddTag(Sprintf("JobId: %s", ~ToString(jobId)));
     }
 
     void Run()

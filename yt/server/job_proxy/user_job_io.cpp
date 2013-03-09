@@ -7,6 +7,8 @@
 
 #include <ytlib/meta_state/config.h>
 
+#include <ytlib/chunk_client/node_directory.h>
+
 #include <ytlib/table_client/multi_chunk_parallel_reader.h>
 #include <ytlib/table_client/table_chunk_sequence_writer.h>
 #include <ytlib/table_client/sync_writer.h>
@@ -21,6 +23,7 @@ using namespace NElection;
 using namespace NScheduler::NProto;
 using namespace NTableClient;
 using namespace NYTree;
+using namespace NYson;
 using namespace NScheduler;
 using namespace NTransactionClient;
 using namespace NChunkClient;
@@ -45,7 +48,7 @@ int TUserJobIO::GetInputCount() const
     return 1;
 }
 
-TAutoPtr<TTableProducer> TUserJobIO::CreateTableInput(int index, NYson::IYsonConsumer* consumer)
+TAutoPtr<TTableProducer> TUserJobIO::CreateTableInput(int index, IYsonConsumer* consumer)
 {
     return DoCreateTableInput<TMultiChunkParallelReader>(index, consumer);
 }
@@ -62,12 +65,10 @@ ISyncWriterPtr TUserJobIO::CreateTableOutput(int index)
     LOG_DEBUG("Opening output %d", index);
 
     const auto& jobSpec = Host->GetJobSpec();
-    auto transactionId = TTransactionId::FromProto(jobSpec.output_transaction_id());
+    auto transactionId = FromProto<TTransactionId>(jobSpec.output_transaction_id());
     const auto& outputSpec = jobSpec.output_specs(index);
-
-    auto options = New<TTableWriterOptions>();
-    options->Load(ConvertToNode(TYsonString(outputSpec.table_writer_options())));
-    auto chunkListId = TChunkListId::FromProto(outputSpec.chunk_list_id());
+    auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
+    auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
     auto chunkSequenceWriter = New<TTableChunkSequenceWriter>(
         IOConfig->TableWriter,
         options,
@@ -133,7 +134,7 @@ std::vector<NChunkClient::TChunkId> TUserJobIO::GetFailedChunks() const
 void TUserJobIO::PopulateUserJobResult(TUserJobResult* result)
 {
     if (StderrChunkId != NullChunkId) {
-        *result->mutable_stderr_chunk_id() = StderrChunkId.ToProto();
+        ToProto(result->mutable_stderr_chunk_id(), StderrChunkId);
     }
 
     FOREACH (const auto& writer, Outputs) {

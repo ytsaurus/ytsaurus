@@ -60,16 +60,16 @@ void TChunkStore::Start()
         }
 
         FOREACH (const auto& location, Locations_) {
-            const auto& cellGuid = location->GetCellGuid();
-            if (cellGuid.IsEmpty())
+            const auto& locationCellGuid = location->GetCellGuid();
+            if (locationCellGuid.IsEmpty())
                 continue;
 
             if (CellGuid.IsEmpty()) {
-                CellGuid = cellGuid;
-            } else if (CellGuid != cellGuid) {
+                CellGuid = locationCellGuid;
+            } else if (CellGuid != locationCellGuid) {
                 LOG_FATAL("Inconsistent cell guid across chunk store locations: %s vs %s",
-                    ~CellGuid.ToString(),
-                    ~cellGuid.ToString());
+                    ~ToString(CellGuid),
+                    ~ToString(locationCellGuid));
             }
         }
 
@@ -100,7 +100,7 @@ void TChunkStore::RegisterChunk(TStoredChunkPtr chunk)
     location->UpdateUsedSpace(+chunk->GetInfo().size());
 
     LOG_DEBUG("Chunk registered (ChunkId: %s, Size: %" PRId64 ")",
-        ~chunk->GetId().ToString(),
+        ~ToString(chunk->GetId()),
         chunk->GetInfo().size());
 
     ChunkAdded_.Fire(chunk);

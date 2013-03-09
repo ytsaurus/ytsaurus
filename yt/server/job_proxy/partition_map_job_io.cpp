@@ -4,6 +4,8 @@
 #include "user_job_io.h"
 #include "job.h"
 
+#include <ytlib/misc/protobuf_helpers.h>
+
 #include <ytlib/table_client/partitioner.h>
 #include <ytlib/table_client/partition_chunk_sequence_writer.h>
 #include <ytlib/table_client/sync_writer.h>
@@ -61,12 +63,10 @@ public:
         LOG_DEBUG("Opening partitioned output");
 
         const auto& jobSpec = Host->GetJobSpec();
-        auto transactionId = TTransactionId::FromProto(jobSpec.output_transaction_id());
+        auto transactionId = FromProto<TTransactionId>(jobSpec.output_transaction_id());
         const auto& outputSpec = jobSpec.output_specs(0);
-
-        auto chunkListId = TChunkListId::FromProto(outputSpec.chunk_list_id());
-        auto options = New<TTableWriterOptions>();
-        options->Load(ConvertToNode(TYsonString(outputSpec.table_writer_options())));
+        auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
+        auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         options->KeyColumns = KeyColumns;
         Writer = New<TPartitionChunkSequenceWriter>(
             IOConfig->TableWriter,
@@ -84,8 +84,10 @@ public:
 
     virtual void PopulateResult(NScheduler::NProto::TJobResult* result) override
     {
+        Writer->GetNodeDirectory()->DumpTo(result->mutable_node_directory());
+        ToProto(result->mutable_chunks(), Writer->GetWrittenChunks());
+
         auto* resultExt = result->MutableExtension(NScheduler::NProto::TPartitionJobResultExt::partition_job_result_ext);
-        ToProto(resultExt->mutable_chunks(), Writer->GetWrittenChunks());
         PopulateUserJobResult(resultExt->mutable_mapper_result());
     }
 

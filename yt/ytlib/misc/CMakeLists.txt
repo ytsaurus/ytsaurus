@@ -17,6 +17,7 @@ set( SRCS
   ${BASE}/guid.cpp
   ${BASE}/high_resolution_clock.cpp
   ${BASE}/home.cpp
+  ${BASE}/id_generator.cpp
   ${BASE}/lease_manager.cpp
   ${BASE}/metric.cpp
   ${BASE}/new.cpp

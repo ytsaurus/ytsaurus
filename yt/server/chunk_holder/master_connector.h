@@ -3,7 +3,9 @@
 #include "public.h"
 
 #include <ytlib/rpc/channel.h>
+
 #include <ytlib/misc/thread_affinity.h>
+
 #include <server/chunk_server/chunk_service_proxy.h>
 
 namespace NYT {
@@ -35,13 +37,14 @@ public:
      */
     void ForceRegister();
 
+    //! Returns the node id assigned by master or |InvalidNodeId| if the node
+    //! is not registered.
+    TNodeId GetNodeId() const;
+
 private:
     typedef NChunkServer::TChunkServiceProxy TProxy;
     typedef TProxy::EErrorCode EErrorCode;
     typedef yhash_set<TChunkPtr> TChunks;
-
-    //! Special id value indicating that the node is not registered.
-    static const int InvalidNodeId = -1;
 
     TDataNodeConfigPtr Config;
     TBootstrap* Bootstrap;
@@ -59,8 +62,8 @@ private:
     //! The current connection state.
     EState State;
 
-    //! Current id assigned by the master, #InvalidnodeId if not registered.
-    int NodeId;
+    //! Node id assigned by master or |InvalidNodeId| is not registered.
+    TNodeId NodeId;
 
     //! Proxy for the master.
     THolder<TProxy> Proxy;
@@ -90,7 +93,7 @@ private:
     NChunkServer::NProto::TNodeStatistics ComputeStatistics();
 
     //! Handles registration response.
-    void OnRegisterResponse(TProxy::TRspRegisterNodePtr response);
+    void OnRegisterResponse(TProxy::TRspRegisterNodePtr rsp);
 
     //! Sends out a full heartbeat.
     void SendFullHeartbeat();
@@ -102,16 +105,16 @@ private:
     void DoForceRegister();
 
     //! Constructs a protobuf info for an added chunk.
-    static NChunkServer::NProto::TChunkAddInfo GetAddInfo(const TChunkPtr chunk);
+    static NChunkServer::NProto::TChunkAddInfo GetAddInfo(TChunkPtr chunk);
 
     //! Constructs a protobuf info for a removed chunk.
-    static NChunkServer::NProto::TChunkRemoveInfo GetRemoveInfo(const TChunkPtr chunk);
+    static NChunkServer::NProto::TChunkRemoveInfo GetRemoveInfo(TChunkPtr chunk);
 
     //! Handles full heartbeat response.
-    void OnFullHeartbeatResponse(TProxy::TRspFullHeartbeatPtr response);
+    void OnFullHeartbeatResponse(TProxy::TRspFullHeartbeatPtr rsp);
 
     //! Handles incremental heartbeat response.
-    void OnIncrementalHeartbeatResponse(TProxy::TRspIncrementalHeartbeatPtr response);
+    void OnIncrementalHeartbeatResponse(TProxy::TRspIncrementalHeartbeatPtr rsp);
 
     //! Handles errors occurring during heartbeats.
     void OnHeartbeatError(const TError& error);

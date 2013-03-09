@@ -13,12 +13,14 @@ TMultiChunkSequentialReader<TChunkReader>::TMultiChunkSequentialReader(
     TTableReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
     NChunkClient::IBlockCachePtr blockCache,
+    NChunkClient::TNodeDirectoryPtr nodeDirectory,
     std::vector<NProto::TInputChunk>&& inputChunks,
     const typename TBase::TProviderPtr& readerProvider)
     : TMultiChunkReaderBase<TChunkReader>(
         config,
         masterChannel,
         blockCache,
+        nodeDirectory,
         std::move(inputChunks),
         readerProvider)
     , CurrentReaderIndex(-1)

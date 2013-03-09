@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/chunk_client/node_directory.h>
+
 namespace NYT {
 namespace NChunkHolder {
 
@@ -10,14 +12,14 @@ namespace NChunkHolder {
 //! Keeps information about a peer possibly holding a block.
 struct TPeerInfo
 {
-    Stroka Address;
+    NChunkClient::TNodeDescriptor Descriptor;
     TInstant ExpirationTime;
 
     TPeerInfo()
     { }
 
-    TPeerInfo(const Stroka& address, TInstant expirationTime)
-        : Address(address)
+    TPeerInfo(const NChunkClient::TNodeDescriptor& descriptor, TInstant expirationTime)
+        : Descriptor(descriptor)
         , ExpirationTime(expirationTime)
     { }
 };

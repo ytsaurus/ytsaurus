@@ -152,7 +152,7 @@ private:
     void YieldAndContinue()
     {
         LOG_DEBUG("Yielding state thread (RequestId: %s)",
-            ~Context->GetUntypedContext()->GetRequestId().ToString());
+            ~ToString(Context->GetUntypedContext()->GetRequestId()));
 
         auto invoker = Owner->Bootstrap->GetMetaStateFacade()->GetGuardedInvoker();
         if (!invoker->Invoke(BIND(&TExecuteSession::Continue, MakeStrong(this)))) {
@@ -223,7 +223,7 @@ private:
         auto transactionManager = Owner->Bootstrap->GetTransactionManager();
         auto& request = Context->Request();
         FOREACH (const auto& protoId, request.prerequisite_transaction_ids()) {
-            auto id = TTransactionId::FromProto(protoId);
+            auto id = FromProto<TTransactionId>(protoId);
             const auto* transaction = transactionManager->FindTransaction(id);
             if (!transaction) {
                 Reply(TError(
@@ -248,11 +248,11 @@ private:
             return securityManager->GetRootUser();
         }
 
-        auto* user = securityManager->FindUserByName(UserName.Get());
+        auto* user = securityManager->FindUserByName(*UserName);
         if (!IsObjectAlive(user)) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::AuthenticationError,
-                "No such user: %s", ~UserName.Get());
+                "No such user: %s", ~*UserName);
         }
 
         return user;

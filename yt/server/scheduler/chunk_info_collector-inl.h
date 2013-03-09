@@ -14,9 +14,11 @@ namespace NScheduler {
 
 template <class TFetcher>
 TChunkInfoCollector<TFetcher>::TChunkInfoCollector(
+    NChunkClient::TNodeDirectoryPtr nodeDirectory,
     TFetcherPtr fetcher,
     IInvokerPtr invoker)
-    : Fetcher(fetcher)
+    : NodeDirectory(nodeDirectory)
+    , Fetcher(fetcher)
     , Invoker(invoker)
     , Promise(NewPromise< TValueOrError<void> >())
 { }
@@ -48,9 +50,12 @@ void TChunkInfoCollector<TFetcher>::SendRequests()
 
     FOREACH (auto chunkIndex, UnfetchedChunkIndexes) {
         const auto& chunk = Chunks[chunkIndex];
-        auto chunkId = NChunkServer::TChunkId::FromProto(chunk->chunk_id());
+        auto chunkId = NYT::FromProto<NChunkClient::TChunkId>(chunk->chunk_id());
         bool chunkAvailable = false;
-        FOREACH (const auto& address, chunk->node_addresses()) {
+        auto replicas = FromProto<NChunkClient::TChunkReplica, NChunkClient::TChunkReplicaList>(chunk->replicas());
+        FOREACH (auto replica, replicas) {
+            const auto& descriptor = NodeDirectory->GetDescriptor(replica);
+            const auto& address = descriptor.Address;
             if (DeadNodes.find(address) == DeadNodes.end() &&
                 DeadChunkIds.find(std::make_pair(address, chunkId)) == DeadChunkIds.end())
             {
@@ -60,8 +65,8 @@ void TChunkInfoCollector<TFetcher>::SendRequests()
         }
         if (!chunkAvailable) {
             Promise.Set(TError("Unable to fetch chunk info for chunk %s from any of nodes [%s]",
-                ~chunkId.ToString(),
-                ~JoinToString(chunk->node_addresses())));
+                ~ToString(chunkId),
+                ~JoinToString(replicas, NodeDirectory)));
             return;
         }
     }
@@ -82,9 +87,9 @@ void TChunkInfoCollector<TFetcher>::SendRequests()
     auto awaiter = New<TParallelAwaiter>(Invoker);
     yhash_set<int> requestedChunkIndexes;
     FOREACH (const auto& it, addressIts) {
-        auto address = it->first;
-
-        Fetcher->CreateNewRequest(address);
+        const auto& address = it->first;
+        const auto& descriptor = NodeDirectory->GetDescriptor(address);
+        Fetcher->CreateNewRequest(descriptor);
 
         auto& addressChunkIndexes = it->second;
         std::vector<int> requestChunkIndexes;
@@ -113,7 +118,7 @@ void TChunkInfoCollector<TFetcher>::SendRequests()
                 BIND(
                     &TChunkInfoCollector<TFetcher>::OnResponse,
                     MakeStrong(this),
-                    address,
+                    descriptor,
                     Passed(std::move(requestChunkIndexes))));
         }
     }
@@ -126,24 +131,25 @@ void TChunkInfoCollector<TFetcher>::SendRequests()
 
 template <class TFetcher>
 void TChunkInfoCollector<TFetcher>::OnResponse(
-    const Stroka& address,
+    const NChunkClient::TNodeDescriptor& descriptor,
     std::vector<int> chunkIndexes,
     typename TFetcher::TResponsePtr rsp)
 {
     auto& Logger = Fetcher->GetLogger();
+    const auto& address = descriptor.Address;
 
     if (rsp->IsOK()) {
         for (int index = 0; index < static_cast<int>(chunkIndexes.size()); ++index) {
             int chunkIndex = chunkIndexes[index];
             auto& chunk = Chunks[chunkIndex];
-            auto chunkId = NChunkServer::TChunkId::FromProto(chunk->chunk_id());
+            auto chunkId = NYT::FromProto<NChunkClient::TChunkId>(chunk->chunk_id());
 
             auto result = Fetcher->ProcessResponseItem(rsp, index, chunk);
             if (result.IsOK()) {
                 YCHECK(UnfetchedChunkIndexes.erase(chunkIndex) == 1);
             } else {
                 LOG_WARNING(result, "Unable to fetch info for chunk %s from %s",
-                    ~chunkId.ToString(),
+                    ~ToString(chunkId),
                     ~address);
                 YCHECK(DeadChunkIds.insert(std::make_pair(address, chunkId)).second);
             }

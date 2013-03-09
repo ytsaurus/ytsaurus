@@ -60,6 +60,7 @@ public:
                 IOConfig->TableReader,
                 Host->GetMasterChannel(),
                 Host->GetBlockCache(),
+                Host->GetNodeDirectory(),
                 std::move(chunks),
                 provider);
 

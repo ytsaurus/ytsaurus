@@ -61,6 +61,7 @@ public:
             config->JobIO->TableReader,
             Host->GetMasterChannel(),
             Host->GetBlockCache(),
+            Host->GetNodeDirectory(),
             std::move(chunks),
             provider);
 
@@ -74,12 +75,10 @@ public:
             Partitioner = CreateHashPartitioner(jobSpecExt.partition_count());
         }
 
-        auto transactionId = TTransactionId::FromProto(jobSpec.output_transaction_id());
+        auto transactionId = FromProto<TTransactionId>(jobSpec.output_transaction_id());
         const auto& outputSpec = jobSpec.output_specs(0);
-
-        auto chunkListId = TChunkListId::FromProto(outputSpec.chunk_list_id());
-        auto options = New<TTableWriterOptions>();
-        options->Load(ConvertToNode(TYsonString(outputSpec.table_writer_options())));
+        auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
+        auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         options->KeyColumns = FromProto<Stroka>(jobSpecExt.key_columns());
         Writer = New<TPartitionChunkSequenceWriter>(
             config->JobIO->TableWriter,
@@ -119,8 +118,8 @@ public:
             {
                 TJobResult result;
                 ToProto(result.mutable_error(), TError());
-                auto* resultExt = result.MutableExtension(TPartitionJobResultExt::partition_job_result_ext);
-                ToProto(resultExt->mutable_chunks(), Writer->GetWrittenChunks());
+                Writer->GetNodeDirectory()->DumpTo(result.mutable_node_directory());
+                ToProto(result.mutable_chunks(), Writer->GetWrittenChunks());
                 return result;
             }
         }

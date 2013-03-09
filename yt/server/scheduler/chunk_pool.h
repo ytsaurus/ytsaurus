@@ -4,6 +4,9 @@
 #include "progress_counter.h"
 
 #include <ytlib/misc/small_vector.h>
+
+#include <ytlib/chunk_client/public.h>
+
 #include <ytlib/table_client/table_reader.pb.h>
 
 #include <server/chunk_server/public.h>
@@ -140,9 +143,12 @@ struct IChunkPool
     , public virtual IChunkPoolOutput
 { };
 
-TAutoPtr<IChunkPool> CreateAtomicChunkPool();
+TAutoPtr<IChunkPool> CreateAtomicChunkPool(
+    NChunkClient::TNodeDirectoryPtr nodeDirectory);
 
-TAutoPtr<IChunkPool> CreateUnorderedChunkPool(int jobCount);
+TAutoPtr<IChunkPool> CreateUnorderedChunkPool(
+    NChunkClient::TNodeDirectoryPtr nodeDirectory,
+    int jobCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -156,16 +162,9 @@ struct IShuffleChunkPool
 };
 
 TAutoPtr<IShuffleChunkPool> CreateShuffleChunkPool(
-    const std::vector<i64>& dataSizeThresholds);
-
-////////////////////////////////////////////////////////////////////////////////
-
-void AddStripeToList(
-    const TChunkStripePtr& stripe,
-    i64 stripeDataSize,
-    i64 stripeRowCount,
-    const TChunkStripeListPtr& list,
-    const TNullable<Stroka>& address = Null);
+    NChunkClient::TNodeDirectoryPtr nodeDirectory,
+    int partitionCount,
+    i64 dataSizeThreshold);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -22,6 +22,7 @@
 #include <ytlib/table_client/config.h>
 
 #include <ytlib/chunk_client/client_block_cache.h>
+#include <ytlib/chunk_client/node_directory.h>
 
 #include <ytlib/security_client/public.h>
 
@@ -43,7 +44,11 @@ using namespace NJobProxy;
 using namespace NYTree;
 using namespace NYson;
 using namespace NTableClient;
+
+using NChunkClient::InvalidNodeId;
 using NChunkClient::TChunkId;
+using NChunkClient::TChunkReplica;
+using NChunkClient::TNodeDirectory;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,7 +71,7 @@ TJob::TJob(
     , Progress(0.0)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    Logger.AddTag(Sprintf("JobId: %s", ~jobId.ToString()));
+    Logger.AddTag(Sprintf("JobId: %s", ~ToString(jobId)));
 
     if (JobSpec.HasExtension(TMapJobSpecExt::map_job_spec_ext)) {
         const auto& jobSpecExt = JobSpec.GetExtension(TMapJobSpecExt::map_job_spec_ext);
@@ -96,10 +101,8 @@ void TJob::Start(TEnvironmentManagerPtr environmentManager, TSlotPtr slot)
     VERIFY_THREAD_AFFINITY(ControlThread);
     YCHECK(!Slot);
 
-    if (JobState != EJobState::Waiting) {
+    if (JobState != EJobState::Waiting)
         return;
-    }
-
     JobState = EJobState::Running;
 
     Slot = slot;
@@ -119,7 +122,6 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
 
     if (JobPhase > EJobPhase::Cleanup)
         return;
-
     YCHECK(JobPhase == EJobPhase::Created);
     JobPhase = EJobPhase::PreparingConfig;
 
@@ -183,84 +185,40 @@ void TJob::DoStart(TEnvironmentManagerPtr environmentManager)
     JobPhase = EJobPhase::PreparingSandbox;
     Slot->InitSandbox();
 
-    auto awaiter = New<TParallelAwaiter>(Slot->GetInvoker());
-    if (UserJobSpec) {
-        PrepareUserJob(awaiter);
-    }
-
-    awaiter->Complete(BIND(&TJob::RunJobProxy, MakeWeak(this)));
+    PrepareUserJob().Subscribe(
+        BIND(&TJob::RunJobProxy, MakeStrong(this))
+            .Via(Slot->GetInvoker()));
 }
 
-TPromise<void> TJob::PrepareDownloadingTableFile(
-    const NYT::NScheduler::NProto::TTableFile& rsp)
+TFuture<void> TJob::DownloadRegularFile(
+    const NYT::NScheduler::NProto::TRegularFileDescriptor& descriptor)
 {
-    std::vector<TChunkId> chunkIds;
-    FOREACH (const auto chunk, rsp.table().chunks()) {
-        chunkIds.push_back(TChunkId::FromProto(chunk.chunk_id()));
-    }
-
-    LOG_INFO("Downloading user table file (FileName: %s, ChunkIds: %s)",
-        ~rsp.file_name(),
-        ~JoinToString(chunkIds));
-
-    TSharedPtr<TDownloadedChunks> chunks(new TDownloadedChunks());
+    const auto& fetchRsp = descriptor.file();
+    auto chunkId = FromProto<TChunkId>(fetchRsp.chunk_id());
+    
+    LOG_INFO("Downloading user file (FileName: %s, ChunkId: %s)",
+        ~fetchRsp.file_name(),
+        ~ToString(chunkId));
 
     auto awaiter = New<TParallelAwaiter>(Slot->GetInvoker());
-    FOREACH (const auto& chunkId, chunkIds) {
-        awaiter->Await(
-            ChunkCache->DownloadChunk(chunkId),
-            BIND([=](NChunkHolder::TChunkCache::TDownloadResult result) {
-                if (!result.IsOK()) {
-                    auto wrappedError = TError(
-                        "Failed to download chunk %s of table %s",
-                        ~chunkId.ToString(),
-                        ~rsp.file_name().Quote())
-                        << result;
-                    DoAbort(wrappedError, EJobState::Failed);
-                    return;
-                }
+    awaiter->Await(
+        ChunkCache->DownloadChunk(chunkId),
+        BIND(&TJob::OnRegularFileChunkDownloaded, MakeWeak(this), descriptor));
 
-                chunks->push_back(result);
-            })
-        );
-    }
-
-    auto promise = NewPromise<void>();
-    awaiter->Complete(BIND(&TJob::OnTableDownloaded, MakeWeak(this), rsp, chunks, promise));
-    return promise;
+    return awaiter->Complete();
 }
 
-void TJob::PrepareUserJob(TParallelAwaiterPtr awaiter)
-{
-    YCHECK(UserJobSpec);
-
-    FOREACH (const auto& fetchRsp, UserJobSpec->files()) {
-        auto chunkId = TChunkId::FromProto(fetchRsp.chunk_id());
-        LOG_INFO("Downloading user file (FileName: %s, ChunkId: %s)",
-            ~fetchRsp.file_name(),
-            ~chunkId.ToString());
-        awaiter->Await(
-            ChunkCache->DownloadChunk(chunkId),
-            BIND(&TJob::OnChunkDownloaded, MakeWeak(this), fetchRsp));
-    }
-
-    FOREACH (const auto& rsp, UserJobSpec->table_files()) {
-        awaiter->Await(PrepareDownloadingTableFile(rsp));
-    }
-
-}
-
-void TJob::OnChunkDownloaded(
-    const NFileClient::NProto::TRspFetchFile& fetchRsp,
+void TJob::OnRegularFileChunkDownloaded(
+    const NYT::NScheduler::NProto::TRegularFileDescriptor& descriptor,
     NChunkHolder::TChunkCache::TDownloadResult result)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
     if (JobPhase > EJobPhase::Cleanup)
         return;
-
     YCHECK(JobPhase == EJobPhase::PreparingSandbox);
 
+    const auto& fetchRsp = descriptor.file();
     auto fileName = fetchRsp.file_name();
 
     if (!result.IsOK()) {
@@ -292,53 +250,82 @@ void TJob::OnChunkDownloaded(
         ~fileName);
 }
 
-void TJob::OnTableDownloaded(
-    const NYT::NScheduler::NProto::TTableFile& tableFileRsp,
-    TSharedPtr< std::vector<NChunkHolder::TChunkCache::TDownloadResult> > downloadedChunks,
-    TPromise<void> promise)
+TFuture<void> TJob::DownloadTableFile(
+    const NYT::NScheduler::NProto::TTableFileDescriptor& descriptor)
 {
-    UNUSED(downloadedChunks);
+    std::vector<TChunkId> chunkIds;
+    FOREACH (const auto chunk, descriptor.table().chunks()) {
+        chunkIds.push_back(FromProto<TChunkId>(chunk.chunk_id()));
+    }
 
+    LOG_INFO("Downloading user table file (FileName: %s, ChunkIds: %s)",
+        ~descriptor.file_name(),
+        ~JoinToString(chunkIds));
+
+    auto awaiter = New<TParallelAwaiter>(Slot->GetInvoker());
+    FOREACH (const auto& chunkId, chunkIds) {
+        awaiter->Await(
+            ChunkCache->DownloadChunk(chunkId),
+            BIND([=](NChunkHolder::TChunkCache::TDownloadResult result) {
+                if (!result.IsOK()) {
+                    auto wrappedError = TError(
+                        "Failed to download chunk %s of table %s",
+                        ~ToString(chunkId),
+                        ~descriptor.file_name().Quote())
+                        << result;
+                    DoAbort(wrappedError, EJobState::Failed);
+                    return;
+                }
+            })
+        );
+    }
+
+    return awaiter->Complete(BIND(&TJob::OnTableChunksDownloaded, MakeStrong(this), descriptor));
+}
+
+void TJob::OnTableChunksDownloaded(
+    const NYT::NScheduler::NProto::TTableFileDescriptor& descriptor)
+{
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    if (JobPhase > EJobPhase::Cleanup) {
+    if (JobPhase > EJobPhase::Cleanup)
         return;
-    }
     YCHECK(JobPhase == EJobPhase::PreparingSandbox);
 
-    // Preparing chunks
+    // Create a dummy node directory; prepare chunks.
+    // TODO(babenko): change this to handle erasure chunks
+    auto nodeDirectory = New<TNodeDirectory>();
+    nodeDirectory->AddDescriptor(InvalidNodeId, Bootstrap->GetLocalDescriptor());
     std::vector<NTableClient::NProto::TInputChunk> chunks;
     chunks.insert(
         chunks.end(),
-        tableFileRsp.table().chunks().begin(),
-        tableFileRsp.table().chunks().end());
+        descriptor.table().chunks().begin(),
+        descriptor.table().chunks().end());
     FOREACH (auto& chunk, chunks) {
-        chunk.clear_node_addresses();
-        chunk.add_node_addresses(Bootstrap->GetPeerAddress());
+        chunk.clear_replicas();
+        chunk.add_replicas(ToProto<ui32>(TChunkReplica(InvalidNodeId, 0)));
     }
 
-    // Creating table reader
+    // Create async table reader.
     auto config = New<TTableReaderConfig>();
     auto blockCache = NChunkClient::CreateClientBlockCache(
         New<NChunkClient::TClientBlockCacheConfig>());
-    auto reader = New<TTableChunkSequenceReader>(
+    auto asyncReader = New<TTableChunkSequenceReader>(
         config,
         Bootstrap->GetMasterChannel(),
         blockCache,
+        nodeDirectory,
         std::move(chunks),
         New<TTableChunkReaderProvider>(config));
 
-    auto syncReader = CreateSyncReader(reader);
-    syncReader->Open();
-
-    auto tableProducer = BIND(&ProduceYson, syncReader);
-    auto format = ConvertTo<NFormats::TFormat>(TYsonString(tableFileRsp.format()));
-
-    auto fileName = tableFileRsp.file_name();
+    auto syncReader = CreateSyncReader(asyncReader);
+    auto format = ConvertTo<NFormats::TFormat>(TYsonString(descriptor.format()));
+    auto fileName = descriptor.file_name();
     try {
+        syncReader->Open();
         Slot->MakeFile(
             fileName,
-            tableProducer,
+            BIND(&ProduceYson, syncReader),
             format);
     } catch (const std::exception& ex) {
         auto wrappedError = TError(
@@ -351,8 +338,25 @@ void TJob::OnTableDownloaded(
 
     LOG_INFO("User table file downloaded successfully (FileName: %s)",
         ~fileName);
+}
 
-    promise.Set();
+TFuture<void> TJob::PrepareUserJob()
+{
+    if (!UserJobSpec) {
+        return MakeFuture();
+    }
+
+    auto awaiter = New<TParallelAwaiter>(Slot->GetInvoker());
+
+    FOREACH (const auto& descriptor, UserJobSpec->regular_files()) {
+        awaiter->Await(DownloadRegularFile(descriptor));
+    }
+
+    FOREACH (const auto& descriptor, UserJobSpec->table_files()) {
+        awaiter->Await(DownloadTableFile(descriptor));
+    }
+
+    return awaiter->Complete();
 }
 
 void TJob::RunJobProxy()
@@ -444,6 +448,7 @@ bool TJob::IsRetriableSystemError(const TError& error)
 {
     return 
         error.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) ||
+        error.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
         error.FindMatching(NTableClient::EErrorCode::MasterCommunicationFailed);
 }
 

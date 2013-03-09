@@ -63,7 +63,7 @@ public:
 
         LOG_DEBUG("Connecting to %s (ConnectionId: %s)",
             ~Config->Address,
-            ~Id.ToString());
+            ~ToString(Id));
 
         Connection = New<TTcpConnection>(
             Config,
