@@ -541,7 +541,7 @@ void TObjectManager::SaveSchemas(const NCellMaster::TSaveContext& context) const
 {
     // Make sure the ordering of RegisteredTypes does not matter.
     auto types = RegisteredTypes;
-    std::sort(types.begin(), typed.end());
+    std::sort(types.begin(), types.end());
 
     FOREACH (auto type, types) {
         if (TypeHasSchema(type)) {
