@@ -60,6 +60,8 @@ void TGarbageCollector::Save(const NCellMaster::TSaveContext& context) const
     FOREACH (auto* object, LockedZombies) {
         allZombies.push_back(object);
     }
+    // NB: allZombies is vector, not hashset; manual sort needed.
+    std::sort(allZombies.begin(), allZombies.end(), CompareObjectsForSerialization);
     SaveObjectRefs(context, allZombies);
 }
 
