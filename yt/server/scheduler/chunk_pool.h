@@ -60,6 +60,7 @@ struct TChunkStripeList
     TChunkStripeList();
 
     std::vector<TChunkStripeStatistics> GetStatistics() const;
+    TChunkStripeStatistics GetAggregateStatistics() const;
 
     std::vector<TChunkStripePtr> Stripes;
 
