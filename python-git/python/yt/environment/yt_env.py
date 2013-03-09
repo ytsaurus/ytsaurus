@@ -294,8 +294,8 @@ class YTEnv(object):
         def all_nodes_ready():
             nodes_status = {}
 
-            good_marker = re.compile(r".*Node online .* NodeId: (\d+).*")
-            bad_marker = re.compile(r".*Node unregistered .* NodeId: (\d+).*")
+            good_marker = re.compile(r".*Node online .*NodeId: (\d+).*")
+            bad_marker = re.compile(r".*Node unregistered .*NodeId: (\d+).*")
 
             def update_status(marker, line, status, value):
                 match = marker.match(line)
