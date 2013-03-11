@@ -393,6 +393,7 @@ IYPathServicePtr CreateRootService(IYPathServicePtr underlyingService);
     if (context->GetVerb() == #method) { \
         ::NYT::NRpc::THandlerInvocationOptions options; \
         options.HeavyResponse = true; \
+        options.ResponseCodec = ECodec::Lz4; \
         method##Thunk(context, options).Run(); \
         return true; \
     }
