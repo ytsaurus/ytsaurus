@@ -147,8 +147,14 @@ public:
 
     virtual void Destroy(TObjectBase* object) override
     {
+        auto* acd = FindAcd(object);
+        if (acd) {
+            acd->Clear();
+        }
+
         // Remove the object from the map but keep it alive.
         auto objectHolder = Map->Release(object->GetId());
+
         this->DoDestroy(static_cast<TObject*>(object));
     }
     
