@@ -813,7 +813,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YCHECK(operation->GetState() == EOperationState::Reviving);
+        if (operation->GetState() != EOperationState::Reviving)
+            return;
         operation->SetState(EOperationState::Running);
 
         LOG_INFO("Operation has been revived and is now running (OperationId: %s)",
