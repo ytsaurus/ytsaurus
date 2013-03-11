@@ -67,7 +67,8 @@ public:
         , SortStartThresholdReached(false)
         , MergeStartThresholdReached(false)
         , SortedMergeJobCounter(0)
-        , UnorderedMergeJobCounter(0)
+        // Cannot do similar for UnorderedMergeJobCounter since the number of unsorted merge jobs
+        // is hard to predict.
         , SimpleSort(false)
     { }
 
@@ -1527,7 +1528,6 @@ private:
                     skippedCount);
 
                 lastPartition->Maniac = true;
-                UnorderedMergeJobCounter.Increment(1);
                 YCHECK(skippedCount >= 1);
 
                 auto successorKey = GetSuccessorKey(*sampleKey);
