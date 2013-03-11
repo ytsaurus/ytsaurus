@@ -141,7 +141,7 @@ public:
     typedef typename NMetaState::TMetaStateMap<TObjectId, TObject> TMap;
 
     TObjectTypeHandlerWithMapBase(NCellMaster::TBootstrap* bootstrap, TMap* map)
-        : TObjectTypeHandlerBase(bootstrap)
+        : TObjectTypeHandlerBase<TObject>(bootstrap)
         , Map(map)
     { }
 
@@ -149,7 +149,7 @@ public:
     {
         // Remove the object from the map but keep it alive.
         auto objectHolder = Map->Release(object->GetId());
-        DoDestroy(static_cast<TObject*>(object));
+        this->DoDestroy(static_cast<TObject*>(object));
     }
     
     virtual NObjectServer::TObjectBase* FindObject(const TObjectId& id) override
