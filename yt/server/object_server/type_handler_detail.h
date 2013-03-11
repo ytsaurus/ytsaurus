@@ -20,19 +20,10 @@ class TObjectTypeHandlerBase
     : public IObjectTypeHandler
 {
 public:
-    typedef typename NMetaState::TMetaStateMap<TObjectId, TObject> TMap;
-
-    TObjectTypeHandlerBase(NCellMaster::TBootstrap* bootstrap, TMap* map)
+    explicit TObjectTypeHandlerBase(NCellMaster::TBootstrap* bootstrap)
         : Bootstrap(bootstrap)
-        , Map(map)
     {
         YCHECK(bootstrap);
-        YCHECK(map);
-    }
-
-    virtual NObjectServer::TObjectBase* FindObject(const TObjectId& id) override
-    {
-        return Map->Find(id);
     }
 
     virtual Stroka GetName(TObjectBase* object) override
@@ -66,8 +57,10 @@ public:
 
     virtual void Destroy(TObjectBase* object) override
     {
-        // Remove the object from the map but keep it alive.
-        auto objectHolder = Map->Release(object->GetId());
+        auto* acd = FindAcd(object);
+        if (acd) {
+            acd->Clear();
+        }
         DoDestroy(static_cast<TObject*>(object));
     }
 
@@ -98,8 +91,6 @@ public:
     
 protected:
     NCellMaster::TBootstrap* Bootstrap;
-    // We store map by a raw pointer. In most cases this should be OK.
-    TMap* Map;
 
     virtual Stroka DoGetName(TObject* object) = 0;
 
@@ -138,6 +129,38 @@ protected:
         auto objectManager = Bootstrap->GetObjectManager();
         return objectManager->FindSchema(GetType());
     }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TObject>
+class TObjectTypeHandlerWithMapBase
+    : public TObjectTypeHandlerBase<TObject>
+{
+public:
+    typedef typename NMetaState::TMetaStateMap<TObjectId, TObject> TMap;
+
+    TObjectTypeHandlerWithMapBase(NCellMaster::TBootstrap* bootstrap, TMap* map)
+        : TObjectTypeHandlerBase(bootstrap)
+        , Map(map)
+    { }
+
+    virtual void Destroy(TObjectBase* object) override
+    {
+        // Remove the object from the map but keep it alive.
+        auto objectHolder = Map->Release(object->GetId());
+        DoDestroy(static_cast<TObject*>(object));
+    }
+    
+    virtual NObjectServer::TObjectBase* FindObject(const TObjectId& id) override
+    {
+        return Map->Find(id);
+    }
+
+private:
+    // We store map by a raw pointer. In most cases this should be OK.
+    TMap* Map;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

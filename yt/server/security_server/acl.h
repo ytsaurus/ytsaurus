@@ -69,7 +69,8 @@ class TAccessControlDescriptor
 
 public:
     explicit TAccessControlDescriptor(NObjectServer::TObjectBase* object);
-    ~TAccessControlDescriptor();
+    
+    void Clear();
 
     TSubject* GetOwner() const;
     void SetOwner(TSubject* owner);

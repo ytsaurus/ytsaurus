@@ -282,11 +282,11 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransactionManager::TTransactionTypeHandler
-    : public TObjectTypeHandlerBase<TTransaction>
+    : public TObjectTypeHandlerWithMapBase<TTransaction>
 {
 public:
     explicit TTransactionTypeHandler(TTransactionManager* owner)
-        : TObjectTypeHandlerBase(owner->Bootstrap, &owner->TransactionMap)
+        : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->TransactionMap)
     { }
 
     virtual EObjectType GetType() const override

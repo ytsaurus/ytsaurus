@@ -46,13 +46,11 @@ static NLog::TLogger Logger("Cypress");
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCypressManager::TNodeTypeHandler
-    : public IObjectTypeHandler
+    : public TObjectTypeHandlerBase<TCypressNodeBase>
 {
 public:
-    TNodeTypeHandler(
-        TBootstrap* bootstrap,
-        EObjectType type)
-        : Bootstrap(bootstrap)
+    TNodeTypeHandler(TBootstrap* bootstrap, EObjectType type)
+        : TObjectTypeHandlerBase(bootstrap)
         , Type(type)
     { }
 
@@ -61,60 +59,10 @@ public:
         return Type;
     }
 
-    virtual Stroka GetName(NObjectServer::TObjectBase* object) override
-    {
-        auto cypressManager = Bootstrap->GetCypressManager();
-        auto* node = static_cast<TCypressNodeBase*>(object);
-        return Sprintf("node %s", ~cypressManager->GetNodePath(node->GetTrunkNode(), nullptr));
-    }
-
     virtual TObjectBase* FindObject(const TObjectId& id) override
     {
         auto cypressManager = Bootstrap->GetCypressManager();
         return cypressManager->FindNode(TVersionedNodeId(id));
-    }
-
-    virtual void Destroy(TObjectBase* object) override
-    {
-        auto cypressManager = Bootstrap->GetCypressManager();
-        auto* node = static_cast<TCypressNodeBase*>(object);
-        cypressManager->DestroyNode(node);
-    }
-
-    virtual void Unstage(
-        TObjectBase* object,
-        TTransaction* transaction,
-        bool recursive) override
-    {
-        UNUSED(object);
-        UNUSED(transaction);
-        UNUSED(recursive);
-        YUNREACHABLE();
-    }
-
-    virtual IObjectProxyPtr GetProxy(
-        TObjectBase* object,
-        TTransaction* transaction) override
-    {
-        auto cypressManager = Bootstrap->GetCypressManager();
-        auto* node = static_cast<TCypressNodeBase*>(object);
-        return cypressManager->GetVersionedNodeProxy(node, transaction);
-    }
-
-    virtual TNonversionedObjectBase* Create(
-        TTransaction* transaction,
-        TAccount* account,
-        IAttributeDictionary* attributes,
-        TReqCreateObject* request,
-        TRspCreateObject* response) override
-    {
-        UNUSED(transaction);
-        UNUSED(account);
-        UNUSED(request);
-        UNUSED(response);
-
-        THROW_ERROR_EXCEPTION("Cannot create an instance of %s outside Cypress",
-            ~FormatEnum(GetType()));
     }
 
     virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
@@ -125,19 +73,6 @@ public:
             false);
     }
 
-    virtual TAccessControlDescriptor* FindAcd(TObjectBase* object) override
-    {
-        auto* node = static_cast<TCypressNodeBase*>(object);
-        return &node->GetTrunkNode()->Acd();
-    }
-
-    virtual TObjectBase* GetParent(TObjectBase* object) override
-    {
-        auto* node = static_cast<TCypressNodeBase*>(object);
-        auto* parent = node->GetParent();
-        return parent ? parent : Bootstrap->GetObjectManager()->GetMasterObject();
-    }
-
     virtual EPermissionSet GetSupportedPermissions() const override
     {
         return EPermissionSet(
@@ -146,8 +81,38 @@ public:
     }
 
 private:
-    TBootstrap* Bootstrap;
     EObjectType Type;
+
+    virtual void DoDestroy(TCypressNodeBase* node) override
+    {
+        auto cypressManager = Bootstrap->GetCypressManager();
+        cypressManager->DestroyNode(node);
+    }
+
+    virtual Stroka DoGetName(TCypressNodeBase* node) override
+    {
+        auto cypressManager = Bootstrap->GetCypressManager();
+        return Sprintf("node %s", ~cypressManager->GetNodePath(node->GetTrunkNode(), nullptr));
+    }
+
+    virtual IObjectProxyPtr DoGetProxy(
+        TCypressNodeBase* node,
+        TTransaction* transaction) override
+    {
+        auto cypressManager = Bootstrap->GetCypressManager();
+        return cypressManager->GetVersionedNodeProxy(node, transaction);
+    }
+
+    virtual TAccessControlDescriptor* DoFindAcd(TCypressNodeBase* node) override
+    {
+        return &node->GetTrunkNode()->Acd();
+    }
+
+    virtual TObjectBase* DoGetParent(TCypressNodeBase* node) override
+    {
+        auto* parent = node->GetParent();
+        return parent ? parent : Bootstrap->GetObjectManager()->GetMasterObject();
+    }
 
 };
 
