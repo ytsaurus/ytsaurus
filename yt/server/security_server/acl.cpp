@@ -136,9 +136,8 @@ TAccessControlDescriptor::TAccessControlDescriptor(TObjectBase* object)
     , Owner_(nullptr)
 { }
 
-TAccessControlDescriptor::~TAccessControlDescriptor()
+void TAccessControlDescriptor::Clear()
 {
-    // Call UnlinkObject.
     ClearEntries();
     SetOwner(nullptr);
 }

@@ -83,7 +83,7 @@ static NLog::TLogger& Logger = ChunkServerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkManager::TChunkTypeHandler
-    : public TObjectTypeHandlerBase<TChunk>
+    : public TObjectTypeHandlerWithMapBase<TChunk>
 {
 public:
     explicit TChunkTypeHandler(TImpl* owner);
@@ -127,7 +127,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkManager::TChunkListTypeHandler
-    : public TObjectTypeHandlerBase<TChunkList>
+    : public TObjectTypeHandlerWithMapBase<TChunkList>
 {
 public:
     explicit TChunkListTypeHandler(TImpl* owner);
@@ -1701,7 +1701,7 @@ DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, Underreplic
 ///////////////////////////////////////////////////////////////////////////////
 
 TChunkManager::TChunkTypeHandler::TChunkTypeHandler(TImpl* owner)
-    : TObjectTypeHandlerBase(owner->Bootstrap, &owner->ChunkMap)
+    : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->ChunkMap)
     , Owner(owner)
 { }
 
@@ -1788,7 +1788,7 @@ void TChunkManager::TChunkTypeHandler::DoUnstage(
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkManager::TChunkListTypeHandler::TChunkListTypeHandler(TImpl* owner)
-    : TObjectTypeHandlerBase(owner->Bootstrap, &owner->ChunkListMap)
+    : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->ChunkListMap)
     , Owner(owner)
 { }
 

@@ -70,7 +70,7 @@ TAuthenticatedUserGuard::~TAuthenticatedUserGuard()
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSecurityManager::TAccountTypeHandler
-    : public TObjectTypeHandlerBase<TAccount>
+    : public TObjectTypeHandlerWithMapBase<TAccount>
 {
 public:
     explicit TAccountTypeHandler(TImpl* owner);
@@ -125,7 +125,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSecurityManager::TUserTypeHandler
-    : public TObjectTypeHandlerBase<TUser>
+    : public TObjectTypeHandlerWithMapBase<TUser>
 {
 public:
     explicit TUserTypeHandler(TImpl* owner);
@@ -167,7 +167,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSecurityManager::TGroupTypeHandler
-    : public TObjectTypeHandlerBase<TGroup>
+    : public TObjectTypeHandlerWithMapBase<TGroup>
 {
 public:
     explicit TGroupTypeHandler(TImpl* owner);
@@ -1118,7 +1118,7 @@ DEFINE_METAMAP_ACCESSORS(TSecurityManager::TImpl, Group, TGroup, TGroupId, Group
 ///////////////////////////////////////////////////////////////////////////////
 
 TSecurityManager::TAccountTypeHandler::TAccountTypeHandler(TImpl* owner)
-    : TObjectTypeHandlerBase(owner->Bootstrap, &owner->AccountMap)
+    : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->AccountMap)
     , Owner(owner)
 { }
 
@@ -1155,7 +1155,7 @@ void TSecurityManager::TAccountTypeHandler::DoDestroy(TAccount* account)
 ///////////////////////////////////////////////////////////////////////////////
 
 TSecurityManager::TUserTypeHandler::TUserTypeHandler(TImpl* owner)
-    : TObjectTypeHandlerBase(owner->Bootstrap, &owner->UserMap)
+    : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->UserMap)
     , Owner(owner)
 { }
 
@@ -1192,7 +1192,7 @@ void TSecurityManager::TUserTypeHandler::DoDestroy(TUser* user)
 ///////////////////////////////////////////////////////////////////////////////
 
 TSecurityManager::TGroupTypeHandler::TGroupTypeHandler(TImpl* owner)
-    : TObjectTypeHandlerBase(owner->Bootstrap, &owner->GroupMap)
+    : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->GroupMap)
     , Owner(owner)
 { }
 
