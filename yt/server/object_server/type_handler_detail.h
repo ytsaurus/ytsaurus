@@ -147,7 +147,7 @@ public:
 
     virtual void Destroy(TObjectBase* object) override
     {
-        auto* acd = FindAcd(object);
+        auto* acd = this->FindAcd(object);
         if (acd) {
             acd->Clear();
         }
