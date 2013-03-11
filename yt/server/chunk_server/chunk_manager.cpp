@@ -1004,8 +1004,8 @@ private:
                 ProcessRemovedChunk(node, chunkInfo);
             }
 
-            std::vector<TChunk*> UnapprovedChunks(node->UnapprovedChunks().begin(), node->UnapprovedChunks().end());
-            FOREACH (auto* chunk, UnapprovedChunks) {
+            std::vector<TChunk*> unapprovedChunks(node->UnapprovedChunks().begin(), node->UnapprovedChunks().end());
+            FOREACH (auto* chunk, unapprovedChunks) {
                 RemoveChunkReplica(node, chunk, false, ERemoveReplicaReason::Unapproved);
             }
             node->UnapprovedChunks().clear();
@@ -1133,6 +1133,8 @@ private:
     virtual void Clear() override
     {
         NodeIdGenerator.Reset();
+        // XXX(babenko): avoid generating InvalidNodeId
+        NodeIdGenerator.Next();
         ChunkMap.Clear();
         ChunkListMap.Clear();
         NodeMap.Clear();
@@ -1299,15 +1301,15 @@ private:
                 StopNodeTracking(node);
             }
 
-            FOREACH (auto& chunk, node->StoredChunks()) {
+            FOREACH (auto* chunk, node->StoredChunks()) {
                 RemoveChunkReplica(node, chunk, false, ERemoveReplicaReason::Reset);
             }
 
-            FOREACH (auto& chunk, node->CachedChunks()) {
+            FOREACH (auto* chunk, node->CachedChunks()) {
                 RemoveChunkReplica(node, chunk, true, ERemoveReplicaReason::Reset);
             }
 
-            FOREACH (auto& job, node->Jobs()) {
+            FOREACH (auto* job, node->Jobs()) {
                 // Suppress removal of job from node.
                 RemoveJob(job, false, true);
             }

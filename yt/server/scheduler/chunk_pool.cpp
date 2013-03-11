@@ -979,9 +979,10 @@ private:
 
             std::vector<TChunkStripeStatistics> result(1);
             auto& run = Runs.back();
-            result.back().ChunkCount = run.ElementaryIndexEnd - run.ElementaryIndexBegin;
-            result.back().DataSize = run.TotalDataSize;
-            result.back().RowCount = run.TotalRowCount;
+            auto& stat = result.back();
+            stat.ChunkCount = run.ElementaryIndexEnd - run.ElementaryIndexBegin;
+            stat.DataSize = run.TotalDataSize;
+            stat.RowCount = run.TotalRowCount;
             return result;
         }
 
