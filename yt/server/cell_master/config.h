@@ -6,6 +6,7 @@
 #include <server/transaction_server/config.h>
 #include <server/chunk_server/config.h>
 #include <server/object_server/config.h>
+#include <server/bootstrap/config.h>
 
 namespace NYT {
 namespace NCellMaster {
@@ -14,7 +15,7 @@ namespace NCellMaster {
 
 //! Describes a configuration of TCellMaster.
 struct TCellMasterConfig
-    : public TYsonSerializable
+    : public TServerConfig
 {
     //! Meta state configuration.
     NMetaState::TPersistentStateManagerConfigPtr MetaState;

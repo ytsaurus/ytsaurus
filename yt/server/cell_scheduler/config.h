@@ -8,6 +8,7 @@
 
 #include <ytlib/rpc/retrying_channel.h>
 
+#include <server/bootstrap/config.h>
 #include <server/scheduler/config.h>
 
 namespace NYT {
@@ -16,7 +17,7 @@ namespace NCellScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCellSchedulerConfig
-    : public TYsonSerializable
+    : public TServerConfig
 {
     //! RPC interface port number.
     int RpcPort;

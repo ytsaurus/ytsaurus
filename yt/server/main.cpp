@@ -53,22 +53,6 @@ static NLog::TLogger Logger("Server");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TServerConfig
-    : public TYsonSerializable
-{
-    TAddressResolverConfigPtr AddressResolver;
-
-    TServerConfig()
-    {
-        Register("address_resolver", AddressResolver)
-            .DefaultNew();
-    }
-};
-
-typedef TIntrusivePtr<TServerConfig> TServerConfigPtr;
-
-////////////////////////////////////////////////////////////////////////////////
-
 DECLARE_ENUM(EExitCode,
     ((OK)(0))
     ((OptionsError)(1))

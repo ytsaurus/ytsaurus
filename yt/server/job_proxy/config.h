@@ -9,6 +9,7 @@
 #include <ytlib/ytree/yson_serializable.h>
 #include <ytlib/bus/config.h>
 #include <ytlib/scheduler/config.h>
+#include <ytlib/misc/address.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -28,6 +29,8 @@ struct TJobProxyConfig
     TDuration HeartbeatPeriod;
 
     TDuration MemoryWatchdogPeriod;
+    
+    TAddressResolverConfigPtr AddressResolver;
 
     double MemoryLimitMultiplier;
 
@@ -53,6 +56,8 @@ struct TJobProxyConfig
         
         Register("memory_watchdog_period", MemoryWatchdogPeriod)
             .Default(TDuration::Seconds(1));
+        Register("address_resolver", AddressResolver)
+            .Default();
         Register("memory_limit_multiplier", MemoryLimitMultiplier)
             .Default(2.0);
         

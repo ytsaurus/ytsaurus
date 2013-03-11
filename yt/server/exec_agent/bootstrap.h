@@ -50,6 +50,7 @@ private:
     TEnvironmentManagerPtr EnvironmentManager;
     TSchedulerConnectorPtr SchedulerConnector;
     NJobProxy::TJobProxyConfigPtr JobProxyConfig;
+    TAddressResolverConfigPtr AddressResolver;
 
 };
 

@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <server/bootstrap/config.h>
 #include <server/exec_agent/config.h>
 
 namespace NYT {
@@ -10,7 +11,7 @@ namespace NCellNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCellNodeConfig
-    : public TYsonSerializable
+    : public TServerConfig
 {
     //! RPC interface port number.
     int RpcPort;

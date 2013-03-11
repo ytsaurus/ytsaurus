@@ -63,7 +63,7 @@ void TBootstrap::Initialize()
     JobProxyConfig->MemoryLimitMultiplier = Config->MemoryLimitMultiplier;
     
     JobProxyConfig->SandboxName = SandboxName;
-
+    JobProxyConfig->AddressResolver = NodeBootstrap->GetConfig()->AddressResolver;
     JobProxyConfig->SupervisorConnection = New<NBus::TTcpBusClientConfig>();
     JobProxyConfig->SupervisorConnection->Address = NodeBootstrap->GetLocalDescriptor().Address;
     JobProxyConfig->SupervisorRpcTimeout = Config->SupervisorRpcTimeout;

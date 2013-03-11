@@ -5,6 +5,7 @@ set( SRCS
 )
 set( HDRS
   ${BASE}/common.h
+  ${BASE}/config.h
 )
 
 list(APPEND YT_SOURCE_FILES

@@ -61,6 +61,8 @@ TJobProxy::TJobProxy(
     , Logger(JobProxyLogger)
 {
     Logger.AddTag(Sprintf("JobId: %s", ~ToString(JobId)));
+    
+    TAddressResolver::Get()->Configure(config->AddressResolver);
 }
 
 void TJobProxy::SendHeartbeat()
