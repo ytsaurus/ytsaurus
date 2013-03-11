@@ -64,7 +64,7 @@ TWithIndex<T>::TWithIndex()
 { }
 
 template <class T>
-TWithIndex<T>::TWithIndex(TDataNode* ptr, int index)
+TWithIndex<T>::TWithIndex(T* ptr, int index)
     : Ptr(ptr)
     , Index(index)
 { }
