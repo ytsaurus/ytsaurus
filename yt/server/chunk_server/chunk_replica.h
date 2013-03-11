@@ -17,7 +17,7 @@ class TWithIndex
 {
 public:
     TWithIndex();
-    explicit TWithIndex(TDataNode* node, int index = 0);
+    explicit TWithIndex(T* node, int index = 0);
 
     T* GetPtr() const;
     int GetIndex() const;
