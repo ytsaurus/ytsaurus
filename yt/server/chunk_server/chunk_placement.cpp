@@ -160,7 +160,7 @@ TSmallVector<TDataNode*, TypicalReplicationFactor> TChunkPlacement::GetReplicati
 
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (auto replica, chunk->StoredReplicas()) {
-        forbiddenNodes.insert(replica.GetNode());
+        forbiddenNodes.insert(replica.GetPtr());
     }
 
     const auto* jobList = chunkManager->FindJobList(chunk->GetId());
@@ -186,24 +186,24 @@ TDataNode* TChunkPlacement::GetReplicationSource(const TChunk* chunk)
     auto replicas = chunk->GetReplicas();
     YCHECK(!replicas.empty());
     int index = RandomNumber<size_t>(replicas.size());
-    return replicas[index].GetNode();
+    return replicas[index].GetPtr();
 }
 
 TSmallVector<TDataNode*, TypicalReplicationFactor> TChunkPlacement::GetRemovalTargets(
     const TChunk* chunk,
     int count)
 {
-    // Construct a list of (nodeId, loadFactor) pairs.
+    // Construct a list of |(nodeId, loadFactor)| pairs.
     typedef std::pair<TDataNode*, double> TCandidatePair;
     TSmallVector<TCandidatePair, TypicalReplicationFactor> candidates;
     candidates.reserve(chunk->StoredReplicas().size());
     FOREACH (auto replica, chunk->StoredReplicas()) {
-        auto* node = replica.GetNode();
+        auto* node = replica.GetPtr();
         double fillCoeff = GetFillCoeff(node);
         candidates.push_back(std::make_pair(node, fillCoeff));
     }
 
-    // Sort by fillCoeff in descending order.
+    // Sort by |fillCoeff| in descending order.
     std::sort(
         candidates.begin(),
         candidates.end(),
@@ -211,7 +211,7 @@ TSmallVector<TDataNode*, TypicalReplicationFactor> TChunkPlacement::GetRemovalTa
             return lhs.second > rhs.second;
         });
 
-    // Take first count nodes.
+    // Take first |count| nodes.
     TSmallVector<TDataNode*, TypicalReplicationFactor> result;
     result.reserve(count);
     FOREACH (const auto& pair, candidates) {

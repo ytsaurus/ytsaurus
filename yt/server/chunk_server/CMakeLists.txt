@@ -32,6 +32,7 @@ set( HDRS
   ${BASE}/chunk_placement.h
   ${BASE}/chunk_proxy.h
   ${BASE}/chunk_replica.h
+  ${BASE}/chunk_replica-inl.h
   ${BASE}/chunk_replicator.h
   ${BASE}/chunk_service.h
   ${BASE}/chunk_service_proxy.h

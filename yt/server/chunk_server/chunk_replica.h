@@ -11,25 +11,26 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A compact representation of |(node, index)| pair.
-class TChunkReplica
+//! A compact representation for |(T*, index)| pair.
+template <class T>
+class TWithIndex
 {
 public:
-    TChunkReplica();
-    explicit TChunkReplica(TDataNode* node, int index = 0);
+    TWithIndex();
+    explicit TWithIndex(TDataNode* node, int index = 0);
 
-    TDataNode* GetNode() const;
+    T* GetPtr() const;
     int GetIndex() const;
 
     size_t GetHash() const;
 
-    bool operator == (TChunkReplica other) const;
-    bool operator != (TChunkReplica other) const;
+    bool operator == (TWithIndex other) const;
+    bool operator != (TWithIndex other) const;
 
-    bool operator <  (TChunkReplica other) const;
-    bool operator <= (TChunkReplica other) const;
-    bool operator >  (TChunkReplica other) const;
-    bool operator >= (TChunkReplica other) const;
+    bool operator <  (TWithIndex other) const;
+    bool operator <= (TWithIndex other) const;
+    bool operator >  (TWithIndex other) const;
+    bool operator >= (TWithIndex other) const;
 
 private:
 #ifdef __x86_64__
@@ -38,37 +39,39 @@ private:
     ui64 Value;
 #else
     // Use simple unpacked representation.
-    TDataNode* Node;
+    T* Ptr;
     int Index;
 #endif
 
 };
 
-typedef TSmallVector<TChunkReplica, TypicalReplicationFactor> TChunkReplicaList;
+////////////////////////////////////////////////////////////////////////////////
 
-Stroka ToString(TChunkReplica replica);
+typedef TWithIndex<TDataNode> TDataNodeWithIndex;
+typedef TWithIndex<TChunk> TChunkWithIndex;
+typedef TSmallVector<TDataNodeWithIndex, TypicalReplicationFactor> TDataNodeWithIndexList;
 
-void ToProto(ui32* value, TChunkReplica replica);
+Stroka ToString(TDataNodeWithIndex value);
+Stroka ToString(TChunkWithIndex value);
+
+void ToProto(ui32* protoValue, TDataNodeWithIndex value);
 
 // TODO(babenko): eliminate this hack when new serialization API is ready
-void SaveObjectRef(const NCellMaster::TSaveContext& context, TChunkReplica value);
-void LoadObjectRef(const NCellMaster::TLoadContext& context, TChunkReplica& value);
+template <class T>
+void SaveObjectRef(const NCellMaster::TSaveContext& context, TWithIndex<T> value);
+template <class T>
+void LoadObjectRef(const NCellMaster::TLoadContext& context, TWithIndex<T>& value);
 
-bool CompareObjectsForSerialization(TChunkReplica lhs, TChunkReplica rhs);
+template <class T>
+bool CompareObjectsForSerialization(TWithIndex<T> lhs, TWithIndex<T> rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkServer
 } // namespace NYT
 
-//! A hasher for TChunkReplica.
-template <>
-struct hash<NYT::NChunkServer::TChunkReplica>
-{
-    size_t operator()(NYT::NChunkServer::TChunkReplica value) const
-    {
-        return value.GetHash();
-    }
-};
-
 ////////////////////////////////////////////////////////////////////////////////
+
+#define CHUNK_REPLICA_INL_H_
+#include "chunk_replica-inl.h"
+#undef CHUNK_REPLICA_INL_H_

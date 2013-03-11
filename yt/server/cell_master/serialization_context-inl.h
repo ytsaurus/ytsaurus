@@ -11,6 +11,8 @@
 
 #include <server/cypress_server/node.h>
 
+#include <server/chunk_server/node.h>
+
 // Some forward declarations.
 namespace NYT {
 
@@ -46,7 +48,12 @@ inline void SetObjectRefImpl(
 template <class T>
 void LoadObjectRef(const TLoadContext& context, T& object)
 {
+    // XXX(babenko): no idea why this is needed but ADL just does not work.
+    using NChunkServer::GetObjectId;
+    using NObjectServer::GetObjectId;
+    using NCypressServer::GetObjectId;
     typedef decltype(GetObjectId(object)) TId;
+
     TId id;
     auto* input = context.GetInput();
     ::Load(input, id);

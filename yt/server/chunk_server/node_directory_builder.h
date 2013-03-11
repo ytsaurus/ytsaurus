@@ -17,8 +17,8 @@ public:
     explicit TNodeDirectoryBuilder(NChunkClient::NProto::TNodeDirectory* protoDirectory);
 
     void Add(TDataNode* node);
-    void Add(TChunkReplica replica);
-    void Add(const TChunkReplicaList& replicas);
+    void Add(TDataNodeWithIndex node);
+    void Add(const TDataNodeWithIndexList& nodes);
 
 private:
     NChunkClient::NProto::TNodeDirectory* ProtoDirectory;

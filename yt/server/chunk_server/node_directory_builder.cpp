@@ -23,15 +23,15 @@ void TNodeDirectoryBuilder::Add(TDataNode* node)
     ToProto(item->mutable_node_descriptor(), node->GetDescriptor());
 }
 
-void TNodeDirectoryBuilder::Add(TChunkReplica replica)
+void TNodeDirectoryBuilder::Add(TDataNodeWithIndex node)
 {
-    Add(replica.GetNode());
+    Add(node.GetPtr());
 }
 
-void TNodeDirectoryBuilder::Add(const TChunkReplicaList& replicas)
+void TNodeDirectoryBuilder::Add(const TDataNodeWithIndexList& nodes)
 {
-    FOREACH (auto replica, replicas) {
-        Add(replica);
+    FOREACH (auto node, nodes) {
+        Add(node);
     }
 }
 

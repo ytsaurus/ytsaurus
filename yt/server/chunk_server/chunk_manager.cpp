@@ -632,9 +632,9 @@ public:
     const yhash_set<TChunk*>& OverreplicatedChunks() const;
     const yhash_set<TChunk*>& UnderreplicatedChunks() const;
 
-    TChunkReplicaList GetChunkReplicas(const TChunk* chunk)
+    TDataNodeWithIndexList GetChunkReplicas(const TChunk* chunk)
     {
-        TChunkReplicaList result;
+        TDataNodeWithIndexList result;
 
         FOREACH (auto replica, chunk->StoredReplicas()) {
             result.push_back(replica);
@@ -786,11 +786,11 @@ private:
 
         // Unregister chunk replicas from all known locations.
         FOREACH (auto replica, chunk->StoredReplicas()) {
-            ScheduleChunkReplicaRemoval(replica.GetNode(), chunk, false);
+            ScheduleChunkReplicaRemoval(replica.GetPtr(), chunk, false);
         }
         if (~chunk->CachedReplicas()) {
             FOREACH (auto replica, *chunk->CachedReplicas()) {
-                ScheduleChunkReplicaRemoval(replica.GetNode(), chunk, true);
+                ScheduleChunkReplicaRemoval(replica.GetPtr(), chunk, true);
             }
         }
 
@@ -1357,7 +1357,7 @@ private:
         }
 
         node->AddChunk(chunk, cached);
-        chunk->AddReplica(TChunkReplica(node), cached);
+        chunk->AddReplica(TDataNodeWithIndex(node), cached);
 
         if (!IsRecovery()) {
             LOG_EVENT(
@@ -1419,7 +1419,7 @@ private:
             default:
                 YUNREACHABLE();
         }
-        chunk->RemoveReplica(TChunkReplica(node), cached);
+        chunk->RemoveReplica(TDataNodeWithIndex(node), cached);
 
         if (!IsRecovery()) {
             LOG_EVENT(
@@ -1777,7 +1777,7 @@ TObjectBase* TChunkManager::TChunkTypeHandler::Create(
         TNodeDirectoryBuilder builder(responseExt->mutable_node_directory());
         std::vector<Stroka> targetAddresses;
         FOREACH (auto* target, targets) {
-            NChunkServer::TChunkReplica replica(target, 0);
+            NChunkServer::TDataNodeWithIndex replica(target, 0);
             builder.Add(replica);
             responseExt->add_replicas(NYT::ToProto<ui32>(replica));
             targetAddresses.push_back(target->GetAddress());
@@ -2027,7 +2027,7 @@ void TChunkManager::ScheduleRFUpdate(TChunkTree* chunkTree)
     Impl->ScheduleRFUpdate(chunkTree);
 }
 
-TChunkReplicaList TChunkManager::GetChunkReplicas(const TChunk* chunk)
+TDataNodeWithIndexList TChunkManager::GetChunkReplicas(const TChunk* chunk)
 {
     return Impl->GetChunkReplicas(chunk);
 }

@@ -97,8 +97,8 @@ private:
         if (key == "cached_replicas") {
             if (~chunk->CachedReplicas()) {
                 BuildYsonFluently(consumer)
-                    .DoListFor(*chunk->CachedReplicas(), [=] (TFluentList fluent, TChunkReplica replica) {
-                        fluent.Item().Value(replica.GetNode()->GetAddress());
+                    .DoListFor(*chunk->CachedReplicas(), [=] (TFluentList fluent, TDataNodeWithIndex replica) {
+                        fluent.Item().Value(replica.GetPtr()->GetAddress());
                     });
             } else {
                 BuildYsonFluently(consumer)
@@ -110,8 +110,8 @@ private:
 
         if (key == "stored_replicas") {
             BuildYsonFluently(consumer)
-                .DoListFor(chunk->StoredReplicas(), [=] (TFluentList fluent, TChunkReplica replica) {
-                    fluent.Item().Value(replica.GetNode()->GetAddress());
+                .DoListFor(chunk->StoredReplicas(), [=] (TFluentList fluent, TDataNodeWithIndex replica) {
+                    fluent.Item().Value(replica.GetPtr()->GetAddress());
                 });
             return true;
         }

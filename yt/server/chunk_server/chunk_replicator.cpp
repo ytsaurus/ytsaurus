@@ -507,7 +507,7 @@ TReplicaStatistics TChunkReplicator::GetReplicaStatistics(const TChunk& chunk)
 
     TSmallSet<Stroka, TypicalReplicationFactor> storedAddresses;
     FOREACH (auto replica, chunk.StoredReplicas()) {
-        storedAddresses.insert(replica.GetNode()->GetAddress());
+        storedAddresses.insert(replica.GetPtr()->GetAddress());
     }
 
     FOREACH (auto* job, jobList->Jobs()) {
@@ -545,13 +545,11 @@ void TChunkReplicator::Refresh(TChunk* chunk)
     const auto& chunkId = chunk->GetId();
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (auto replica, chunk->StoredReplicas()) {
-        auto* node = replica.GetNode();
-        if (node) {
-            FOREACH (auto& chunksToReplicate, node->ChunksToReplicate()) {
-                chunksToReplicate.erase(chunkId);
-            }
-            node->ChunksToRemove().erase(chunkId);
+        auto* node = replica.GetPtr();
+        FOREACH (auto& chunksToReplicate, node->ChunksToReplicate()) {
+            chunksToReplicate.erase(chunkId);
         }
+        node->ChunksToRemove().erase(chunkId);
     }
 
     LostChunks_.erase(chunk);

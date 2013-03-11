@@ -133,7 +133,7 @@ public:
 
     void ScheduleRFUpdate(TChunkTree* chunkTree);
 
-    TChunkReplicaList GetChunkReplicas(const TChunk* chunk);
+    TDataNodeWithIndexList GetChunkReplicas(const TChunk* chunk);
 
     const yhash_set<TChunk*>& LostVitalChunks() const;
     const yhash_set<TChunk*>& LostChunks() const;
