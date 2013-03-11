@@ -13,7 +13,7 @@ namespace NChunkServer {
 #ifdef __x86_64__
 
 template <class T>
-TWithIndex::TWithIndex()
+TWithIndex<T>::TWithIndex()
     : Value(0)
 { }
 
