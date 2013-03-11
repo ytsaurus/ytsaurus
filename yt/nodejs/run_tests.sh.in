@@ -8,6 +8,8 @@ CMS=@CMAKE_CURRENT_SOURCE_DIR@
 
 export NODE_PATH=$CMB:$CMB/node_modules:$NODE_PATH
 
+[[ "$(whoami)" == "buildfarm" ]] && (rm -rf $CMB/node_modules)
+
 (cd $CMB && npm install); [[ ! -L $CMB/node_modules/yt ]] && ln -s $CMS $CMB/node_modules/yt
 (cd $CMS/tests && exec $CMB/node_modules/.bin/mocha \
   --reporter "spec" \
