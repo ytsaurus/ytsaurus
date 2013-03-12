@@ -17,7 +17,7 @@ if (process.env.NODE_DEBUG && /YT(ALL|APP)/.test(process.env.NODE_DEBUG)) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-exports.that = function YtApplication(logger, config) {
+exports.that = function YtApplicationApi(logger, config) {
     "use strict";
 
     __DBG("New");

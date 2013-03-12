@@ -11,7 +11,7 @@ var stream = require("stream");
 // Redirects unless original URL is not a directory.
 exports.redirectUnlessDirectory = function(req, rsp) {
     "use strict";
-    if (req.originalUrl.substr(-1) !== "/") {
+    if (req.url === "/" && req.originalUrl.substr(-1) !== "/") {
         rsp.statusCode = 301;
         rsp.setHeader("Location", req.originalUrl + "/");
         rsp.end();
@@ -19,6 +19,27 @@ exports.redirectUnlessDirectory = function(req, rsp) {
     } else {
         return false;
     }
+};
+
+// Redirects request to a predefined location.
+exports.redirectTo = function(rsp, location, code) {
+    rsp.statusCode = code || 303;
+    rsp.setHeader("Location", location);
+    rsp.end();
+}
+
+// Dispatches request with a precomputed result.
+exports.dispatchAs = function(rsp, body, type) {
+    "use strict";
+    rsp.removeHeader("Transfer-Encoding");
+    rsp.removeHeader("Content-Encoding");
+    rsp.removeHeader("Vary");
+    rsp.setHeader("Content-Type", type);
+    rsp.setHeader("Content-Length", typeof(body) === "string" ? Buffer.byteLength(body) : body.length);
+    rsp.setHeader("Connection", "close");
+    rsp.shouldKeepAlive = false;
+    rsp.writeHead(rsp.statusCode);
+    rsp.end(body);
 };
 
 // Checks whether MIME pattern |mime| matches actual MIME type |actual|.

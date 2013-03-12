@@ -120,6 +120,11 @@ YtError.prototype.toJson = function() {
         '}';
 };
 
+YtError.prototype.toString = function() {
+    "use strict";
+    return "YtError: " + this.message;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 exports.that = YtError;

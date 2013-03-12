@@ -98,6 +98,12 @@ namespace NNodeJS {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline v8::Handle<v8::Value> Toss(const char* message)
+{
+    return v8::ThrowException(v8::Exception::Error(
+        v8::String::New(message)));
+}
+
 static const size_t DefaultStreamBufferSize = 1 << 16;
 
 DECLARE_ENUM(ECompression,
