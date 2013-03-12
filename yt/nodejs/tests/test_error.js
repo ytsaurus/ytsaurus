@@ -125,6 +125,11 @@ describe("wrapped errors", function() {
 });
 
 describe("error serialization", function() {
+    it("should expose meaningful toString()", function() {
+        var err = makeError(42, "QWERTY", {});
+        err.toString().should.eql("YtError: QWERTY");
+    });
+
     it("should serialize simple case", function() {
         var err = makeError(42, "QWERTY", {});
         err.toJson().should.eql('{' +
