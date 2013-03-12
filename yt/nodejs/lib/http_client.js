@@ -5,63 +5,73 @@ var http = require("http");
 var buffertools = require("buffertools");
 var Q = require("q");
 
-function YtHttp(host, port, path, verb, body)
+function YtHttpClient(host, port, path, verb, body)
 {
+    if (!(this instanceof YtHttpClient)) {
+        return new YtHttpClient(host, port, path, verb, body);
+    }
+
     this.host = host;
     this.port = port != null ? port : 80;
     this.path = path != null ? path : "/";
     this.verb = verb != null ? verb : "GET";
-    this.body = body != null ? body : null;
-    this.headers = { "User-Agent": "YT" };
+    this.body = null;
+    this.headers = {};
     this.nodelay = true;
     this.timeout = 15000;
+
+    this.withBody(body).withHeader("User-Agent", "YT");
 }
 
-YtHttp.prototype.withHost = function(host)
+YtHttpClient.prototype.withHost = function(host)
 {
     this.host = host;
     return this;
 };
 
-YtHttp.prototype.withPort = function(port)
+YtHttpClient.prototype.withPort = function(port)
 {
     this.port = port;
     return this;
 };
 
-YtHttp.prototype.withPath = function(path)
+YtHttpClient.prototype.withPath = function(path)
 {
     this.path = path;
     return this;
 };
 
-YtHttp.prototype.withVerb = function(verb)
+YtHttpClient.prototype.withVerb = function(verb)
 {
     this.verb = verb;
     return this;
 };
 
-YtHttp.prototype.setNoDelay = function(nodelay)
+YtHttpClient.prototype.setNoDelay = function(nodelay)
 {
     this.nodelay = nodelay;
     return this;
 };
 
-YtHttp.prototype.setTimeout = function(timeout)
+YtHttpClient.prototype.setTimeout = function(timeout)
 {
     this.timeout = timeout;
     return this;
 };
 
-YtHttp.prototype.withBody = function(body, type)
+YtHttpClient.prototype.withBody = function(body, type)
 {
-    if (typeof(this.body) === "object") {
+    if (typeof(body) === "object") {
         this.body = JSON.stringify(body);
+        type = "application/json";
     } else {
         this.body = body;
     }
 
-    this.headers["Content-Type"] = type;
+    if (typeof(type) === "string") {
+        this.headers["Content-Type"] = type;
+    }
+
     this.headers["Content-Length"] = \
         typeof(this.body) === "string" \
         ? Buffer.byteLength(this.body)
@@ -70,14 +80,14 @@ YtHttp.prototype.withBody = function(body, type)
     return this;
 };
 
-YtHttp.prototype.withHeader = function(header, value)
+YtHttpClient.prototype.withHeader = function(header, value)
 {
     this.headers[header] = value;
     return this;
 };
 
 // TODO(sandello): Use YtError here to provide nested errors.
-YtHttp.prototype.fire = function()
+YtHttpClient.prototype.fire = function()
 {
     __DBG("Firing a request to '" + this.host + "/" + this.path + "'");
 
@@ -91,14 +101,17 @@ YtHttp.prototype.fire = function()
 
     request.setNoDelay(this.nodelay);
     request.setTimeout(this.timeout, function() {
-        deferred.reject(new Error("Request timed out"));
+        deferred.reject(new Error(
+            "Request to '" + this.host + "/" + this.path + "' timed out"));
     });
     request.once("error", function(error) {
         deferred.reject(error);
     });
     request.once("response", function(response) {
         var chunks = [];
-        response.on("data", function(chunk) { chunks.push(chunk); });
+        response.on("data", function(chunk) {
+            chunks.push(chunk);
+        });
         response.on("end", function() {
             deferred.resolve(buffertools.concat.apply(buffertools, chunks));
         });
@@ -108,4 +121,4 @@ YtHttp.prototype.fire = function()
     return deferred.promise;
 };
 
-exports.that = YtHttp;
+exports.that = YtHttpClient;
