@@ -150,7 +150,7 @@ TParallelCollector<T>::TParallelCollector(
 template <class T>
 void TParallelCollector<T>::Collect(
     TFuture< TValueOrError<T> > future,
-    const Stroka& timerKey = "")
+    const Stroka& timerKey /* = "" */)
 {
     Awaiter->Await(
         future,
