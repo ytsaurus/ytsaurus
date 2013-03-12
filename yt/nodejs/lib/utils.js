@@ -21,6 +21,20 @@ exports.redirectUnlessDirectory = function(req, rsp) {
     }
 };
 
+// Dispatches request with a precomputed result.
+exports.dispatchAs = function(req, rsp, body, type) {
+    "use strict";
+    rsp.removeHeader("Transfer-Encoding");
+    rsp.removeHeader("Content-Encoding");
+    rsp.removeHeader("Vary");
+    rsp.setHeader("Content-Type", type);
+    rsp.setHeader("Content-Length", typeof(body) === "string" ? Buffer.byteLength(body) : body.length);
+    rsp.setHeader("Connection", "close");
+    rsp.shouldKeepAlive = false;
+    rsp.writeHead(rsp.statusCode);
+    rsp.end(body);
+};
+
 // Checks whether MIME pattern |mime| matches actual MIME type |actual|.
 exports.matches = function(mime, actual) {
     "use strict";
