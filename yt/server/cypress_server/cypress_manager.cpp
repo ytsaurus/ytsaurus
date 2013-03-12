@@ -110,11 +110,7 @@ private:
 
     virtual TAccessControlDescriptor* DoFindAcd(TCypressNodeBase* node) override
     {
-        // Nodes locked in Snapshot mode have their own ACD.
-        // Others use trunk's node ACD.
-        return node->GetLockMode() == ELockMode::Snapshot
-               ? &node->Acd()
-               : &node->GetTrunkNode()->Acd();
+        return &node->GetTrunkNode()->Acd();
     }
 
     virtual TObjectBase* DoGetParent(TCypressNodeBase* node) override

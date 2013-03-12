@@ -48,6 +48,7 @@ bool TNontemplateCypressNodeTypeHandlerBase::IsRecovery() const
 void TNontemplateCypressNodeTypeHandlerBase::DestroyCore(TCypressNodeBase* node)
 {
     auto objectManager = Bootstrap->GetObjectManager();
+    auto securityManager = Bootstrap->GetSecurityManager();
 
     // Remove user attributes, if any.
     auto id = node->GetVersionedId();
@@ -55,8 +56,25 @@ void TNontemplateCypressNodeTypeHandlerBase::DestroyCore(TCypressNodeBase* node)
         objectManager->RemoveAttributes(id);
     }
 
+    TNullable<TAccessControlList> effectiveAcl;
+
     // Reset parent links from immediate ancestors.
     FOREACH (auto* ancestor, node->ImmediateAncestors()) {
+        // If the ancestor still have outstanding references, it becomes orphaned, i.e. no longer has a valid parent.
+        // This, among other thinks, breaks ACL propagation.
+        // The workaround is to append the entries from parent's effective ACL manually.
+        if (ancestor->GetObjectRefCounter() > 1) {
+            auto* ancestorAcd = securityManager->GetAcd(ancestor);
+            if (ancestorAcd->GetInherit()) {
+                if (!effectiveAcl) {
+                    effectiveAcl = securityManager->GetEffectiveAcl(node);
+                }
+                FOREACH (const auto& ace, effectiveAcl->Entries) {
+                    ancestorAcd->AddEntry(ace);
+                }
+                ancestorAcd->SetInherit(false);
+            }
+        }
         ancestor->ResetParent();
     }
     node->ImmediateAncestors().clear();
@@ -86,19 +104,6 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
 
     // Branch user attributes.
     objectManager->BranchAttributes(originatingNode->GetVersionedId(), branchedNode->GetVersionedId());
-
-    // For Snapshot locks, construct a frozen ACD.
-    if (mode == ELockMode::Snapshot) {
-        auto securityManager = Bootstrap->GetSecurityManager();
-        auto& branchedAcd = branchedNode->Acd();
-        const auto& originatingAcd = originatingNode->Acd();
-        branchedAcd.SetOwner(originatingAcd.GetOwner());
-        auto effectiveAcl = securityManager->GetEffectiveAcl(originatingNode);
-        FOREACH (const auto& ace, effectiveAcl.Entries) {
-            branchedAcd.AddEntry(ace);
-        }
-        branchedAcd.SetInherit(false);
-    }
 }
 
 void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
