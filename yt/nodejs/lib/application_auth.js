@@ -38,8 +38,7 @@ function YtApplicationAuth()
             return Q.reject(new YtError(
                 "There is no application with key " + JSON.stringify(key) + "."));
         } else {
-            // Unbox.
-            app_config = app_config[0];
+            app_config = app_config[0]; // Unbox.
         }
 
         return YtHttpClient(
@@ -103,7 +102,7 @@ function YtApplicationAuth()
                 state : state
             });
 
-            Q.when(requestOAuthToken(state.key, params.code)),
+            Q.when(requestOAuthToken(state.key, params.code),
             function(token) {
                 logger.debug("Successfully received OAuth token", {
                     request_id : req.uuid
@@ -136,9 +135,18 @@ function YtApplicationAuth()
                 return utils.dispatchAs(rsp, body, "text/html; charset=utf-8");
             });
         } else {
-            var app_config = config.oauth.application[params.application || "key"];
-            if (app_config === undefined) {
-                return utils.redirectTo(rsp, "http://yandex.ru", 307);
+            var app_config = YtRegistry.query(
+                "config",
+                ".oauth.applications{.key === $key}",
+                { key: params.application || "api" });
+
+            if (app_config.length !== 1) {
+                var body = TEMPLATE_LAYOUT({ content: TEMPLATE_TOKEN({
+                    error : new Error("Unknown application.")
+                })});
+                return utils.dispatchAs(rsp, body, "text/html; charset=utf-8");
+            } else {
+                app_config = app_config[0]; // Unbox.
             }
 
             var target = url.format({

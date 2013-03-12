@@ -72,8 +72,8 @@ YtHttpClient.prototype.withBody = function(body, type)
         this.headers["Content-Type"] = type;
     }
 
-    this.headers["Content-Length"] = \
-        typeof(this.body) === "string" \
+    this.headers["Content-Length"] =
+        typeof(this.body) === "string"
         ? Buffer.byteLength(this.body)
         : this.body.length;
 
