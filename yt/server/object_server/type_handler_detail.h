@@ -61,6 +61,7 @@ public:
         if (acd) {
             acd->Clear();
         }
+
         DoDestroy(static_cast<TObject*>(object));
     }
 
