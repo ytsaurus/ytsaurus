@@ -5,160 +5,159 @@ var lru_cache = require("lru-cache");
 var connect = require("connect");
 var mustache = require("mustache");
 var http = require("http");
-
 var Q = require("q");
 
-var konfig = {
-    oauth: {
-        mount: "/auth",
-        host: "oauth.yandex-team.ru",
-        authorize_path: "/authorize",
-        token_path: "/token",
-        client_id: "7dc2b061bd884693b520730cfb61b011",
-        client_secret: "c494ca8a946a40f9bbdb36615b14551f",
-        timeout: 3000
-    },
-    blackbox: {
-        host: "blackbox.yandex-team.ru",
-        path: "/blackbox",
-        timeout: 3000,
-        retries: 5,
-        local: {
+var YtRegistry = require("./registry").that;
+var YtError = require("./error").that;
+var YtHttpClient = require("./http_client").that;
+var utils = require("./utils");
+
+////////////////////////////////////////////////////////////////////////////////
+
+var TEMPLATE_INDEX = mustache.compile(fs.readFileSync(
+    __dirname + "/../static/auth-index.mustache").toString());
+var TEMPLATE_LAYOUT = mustache.compile(fs.readFileSync(
+    __dirname + "/../static/auth-layout.mustache").toString());
+var TEMPLATE_TOKEN = mustache.compile(fs.readFileSync(
+    __dirname + "/../static/auth-token.mustache").toString());
+var STATIC_STYLE = fs.readFileSync(__dirname + "/../static/bootstrap.min.css");
+
+function YtApplicationAuth()
+{
+    var logger = YtRegistry.get("logger");
+    var config = YtRegistry.get("config");
+
+    function requestOAuthToken(key, code)
+    {
+        var app_config = YtRegistry.query(
+            "config",
+            ".oauth.applications{.key === $key}",
+            { key: key });
+
+        if (app_config.length !== 1) {
+            return Q.reject(new YtError(
+                "There is no application with key " + JSON.stringify(key) + "."));
+        } else {
+            // Unbox.
+            app_config = app_config[0];
         }
-    }
-};
 
-function makeHttpRequest(method, host, path, timeout, headers, body) {
-    var deferred = Q.defer();
-    var request = http.request({
-        method : method,
-        headers : headers,
-        host : host,
-        path : path
-    });
-
-    request.once("error", function(error) {
-        deferred.reject(error);
-    });
-    request.once("response", function(response) {
-        var chunks = [];
-        response.on("data", function(chunk) { chunks.push(chunk); });
-        response.on("end",  function() {
-            deferred.resolve(chunks.join());
-        });
-    });
-    request.setTimeout(timeout, function() {
-        deferred.reject(new Error("Request timed out"));
-    });
-    request.setNoDelay(true);
-    request.end(body);
-
-    return deferred.promise;
-}
-
-function YtApplicationAuth(logger, global_config) { // TODO: Inject |config|
-    var config = konfig.oauth;
-
-    var template_index = mustache.compile(fs.readFileSync(
-        __dirname + "/../static/auth-index.mustache").toString());
-    var template_layout = mustache.compile(fs.readFileSync(
-        __dirname + "/../static/auth-layout.mustache").toString());
-    var template_token = mustache.compile(fs.readFileSync(
-        __dirname + "/../static/auth-token.mustache").toString());
-    var style = fs.readFileSync(__dirname + "/../static/bootstrap.min.css");
-
-    function requestOAuthToken(code) {
-        var deferred = Q.defer();
-        var body = qs.stringify({
-            grant_type : "authorization_code",
+        return YtHttpClient(
+            config.oauth.host,
+            config.oauth.port,
+            config.oauth.token_path,
+            "POST")
+        .withBody(qs.stringify({
             code : code,
-            client_id : config.client_id,
-            client_secret : config.client_secret
-        });
-        var req = http.request({
-            method : "POST",
-            headers : {
-                "Content-Type" : "application/www-form-urlencoded",
-                "Content-Length" : body.length,
-                "User-Agent" : "YT Authorization Application"
-            },
-            host : config.host,
-            path : config.token_path
-        });
-
-        req.once("response", function(rsp) {
-            var chunks = [];
-            rsp.on("data",  function(chunk) { chunks.push(chunk); });
-            rsp.on("end",   function() {
-                try {
-                    var data = JSON.parse(chunks.join());
-                    if (data.access_token) {
-                        deferred.resolve(data.access_token);
-                    } else if (data.error) {
-                        deferred.reject(new Error("OAuth server returned an error: " + data.error));
-                    } else {
-                        deferred.reject(new Error("OAuth server returned an invalid response: " + JSON.stringify(data)));
-                    }
-                } catch (ex) {
-                    deferred.reject(new Error("OAuth server returned an invalid JSON"))
+            grant_type : "authorization_code",
+            client_id : app_config.client_id,
+            client_secret : app_config.client_secret
+        }), "application/www-form-urlencoded")
+        .setNoDelay(true)
+        .setTimeout(config.oauth.timeout)
+        .then(function(data) {
+            try {
+                var error;
+                var result = JSON.parse(data);
+                if (result.access_token) {
+                    return data.access_token;
+                } else if (result.error) {
+                    error = new YtError(
+                        "OAuth server returned an error: " + result.error);
+                    error.attributes.raw_data = data;
+                    throw error;
+                } else {
+                    error = new YtError(
+                        "OAuth server returned a malformed result");
+                    error.attributes.raw_data = data;
+                    throw error;
                 }
-            });
+            } catch(err) {
+                throw new YtError("OAuth server returned an invalid JSON", err);
+            }
         });
-        req.setTimeout(config.timeout, function() {
-            deferred.reject(new Error("OAuth server timed out"));
-        });
-        req.setNoDelay(true);
-        req.setSocketKeepAlive(false);
-        req.end(body);
-
-        return deferred.promise;
     }
 
-    function httpRedirect(rsp, location, code) {
-        rsp.statusCode = code;
-        rsp.setHeader("Location", location);
-        rsp.end();
-    }
-
-    function httpDispatch(rsp, body, type) {
-        rsp.setHeader("Content-Length", typeof(body) === "string" ? Buffer.byteLength(body) : body.length);
-        rsp.setHeader("Content-Type", type);
-        rsp.end(body);
-    }
-
-    function handleIndex(req, rsp) {
-        if (req.url === "/" && req.originalUrl.substr(-1) !== "/") {
-            httpRedirect(rsp, req.originalUrl + "/", 301);
-        } else {
-            var body = template_layout({ content: template_index() });
-            httpDispatch(rsp, body, "text/html; charset=utf-8");
+    function handleIndex(req, rsp)
+    {
+        if (!utils.redirectUnlessDirectory(req, rsp)) {
+            var body = TEMPLATE_LAYOUT({ content: TEMPLATE_INDEX() });
+            utils.dispatchAs(rsp, body, "text/html; charset=utf-8");
         }
     }
 
-    function handleNew(req, rsp) {
+    function handleNew(req, rsp)
+    {
         var params = qs.parse(url.parse(req.url).query);
-        if (params.code) {
-            Q
-                .when(requestOAuthToken(params.code),
-                function(token) {
-                    var body = template_layout({ content: template_token({ token: token })});
-                    httpDispatch(rsp, body, "text/html; charset=utf-8");
-                },
-                function(error) {
-                    var body = template_layout({ content: template_token({ error: error })});
-                    httpDispatch(rsp, body, "text/html; charset=utf-8");
+
+        if (params.code && params.state) {
+            try {
+                var state = JSON.parse(params.state);
+            } catch (err) {
+                rsp.statusCode = 500;
+                rsp.end();
+            }
+
+            logger.debug("Requesting OAuth token", {
+                request_id : req.uuid,
+                state : state
+            });
+
+            Q.when(requestOAuthToken(state.key, params.code)),
+            function(token) {
+                logger.debug("Successfully received OAuth token", {
+                    request_id : req.uuid
                 });
+
+                if (state.return_path) {
+                    var target = state.return_path;
+                    target = url.parse(target);
+                    target.query = qs.parse(target.query);
+                    target.query.token = token;
+                    target.query = qs.format(target.query);
+                    target = url.format(target);
+                    return utils.redirectTo(rsp, target, 303);
+                } else {
+                    var body = TEMPLATE_LAYOUT({ content: TEMPLATE_TOKEN({
+                        token : token
+                    })});
+                    return utils.dispatchAs(rsp, body, "text/html; charset=utf-8");
+                }
+            },
+            function(error) {
+                logger.debug("Failed to receive OAuth token", {
+                    request_id : req.uuid,
+                    error : error.toString()
+                    // XXX(sandello): Better embedding would be nice.
+                });
+                var body = TEMPLATE_LAYOUT({ content: TEMPLATE_TOKEN({
+                    error : error
+                })});
+                return utils.dispatchAs(rsp, body, "text/html; charset=utf-8");
+            });
         } else {
+            var app_config = config.oauth.application[params.application || "key"];
+            if (app_config === undefined) {
+                return utils.redirectTo(rsp, "http://yandex.ru", 307);
+            }
+
             var target = url.format({
                 protocol : "http",
-                host : config.host,
-                pathname : config.authorize_path,
+                host : config.oauth.host,
+                port : config.oauth.port,
+                pathname : config.oauth.authorize_path,
                 query : {
                     response_type : "code",
-                    client_id : config.client_id
+                    display : "popup",
+                    client_id : app_config.client_id,
+                    state : JSON.stringify({
+                        key : app_config.key,
+                        return_path : params.return_path
+                    })
                 }
             });
-            httpRedirect(rsp, target, 303);
+
+            return utils.redirectTo(rsp, target, 303);
         }
     }
 
@@ -166,13 +165,12 @@ function YtApplicationAuth(logger, global_config) { // TODO: Inject |config|
         switch (url.parse(req.url).pathname) {
             case "/":
             case "/index":
-                handleIndex(req, rsp); break;
+                return handleIndex(req, rsp);
             case "/new":
-                handleNew(req, rsp); break;
+                return handleNew(req, rsp);
             // There are only static routes below.
             case "/style":
-                httpDispatch(rsp, style, "text/css");
-                break;
+                return utils.dispatchAs(rsp, STATIC_STYLE, "text/css");
         }
     };
 };

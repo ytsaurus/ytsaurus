@@ -129,8 +129,29 @@ config = {
     read_only         : opts.argv.read_only,
     profiler          : opts.argv.profiler,
     proxy             : { logging : { rules : [], writers : {} } },
-    locals            : {}
+    locals            : {},
+    oauth : {
+        mount: "/auth",
+        host: "oauth.yandex-team.ru",
+        port: 80,
+        authorize_path: "/authorize",
+        token_path: "/token",
+        timeout: 3000,
+        applications: [
+            {
+                key: "api",
+                client_id: "7dc2b061bd884693b520730cfb61b011",
+                client_secret: "c494ca8a946a40f9bbdb36615b14551f"
+            },
+            {
+                key: "ui",
+                client_id: "d3aa642b20bf42e6a85cb8b62ddb25ed",
+                client_secret: "93008f89679c46b6a79fad9ebd776879"
+            }
+        ]
+    }
 };
+
 config = merge(config, (opts.argv.c && JSON.parse(fs.readFileSync(opts.argv.c, "utf8"))) || {});
 config = merge(config, {
     port              : opts.argv.p && parseInt(opts.argv.p),
