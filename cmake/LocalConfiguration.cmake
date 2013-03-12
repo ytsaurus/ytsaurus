@@ -79,7 +79,7 @@ if (CMAKE_COMPILER_IS_CLANG)
    # These are default (basic) compilation flags.
   set( CMAKE_C_FLAGS "${CUSTOM_CMAKE_C_FLAGS} -pthread -fPIC"
     CACHE STRING "(Auto-generated) C compiler flags" FORCE)
-  set( CMAKE_CXX_FLAGS "${CUSTOM_CMAKE_CXX_FLAGS} -std=c++11 -pthread -fPIC"
+  set( CMAKE_CXX_FLAGS "${CUSTOM_CMAKE_CXX_FLAGS} -std=c++11 -stdlib=libc++ -pthread -fPIC"
     CACHE STRING "(Auto-generated) C++ compiler flags" FORCE)
 
   # These are configuration-specific compilation flags.
