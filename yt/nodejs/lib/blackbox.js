@@ -227,4 +227,4 @@ function YtBlackbox(logger, global_config) { // TODO: Inject |config|
     }
 };
 
-exports.YtBlackbox = YtBlackbox;
+exports.that = YtBlackbox;
