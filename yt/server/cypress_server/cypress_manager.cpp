@@ -65,6 +65,11 @@ public:
         return cypressManager->FindNode(TVersionedNodeId(id));
     }
 
+    virtual void Destroy(TObjectBase* object) override
+    {
+        DoDestroy(static_cast<TCypressNodeBase*>(object));
+    }
+
     virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
     {
         return TTypeCreationOptions(
@@ -83,7 +88,7 @@ public:
 private:
     EObjectType Type;
 
-    virtual void DoDestroy(TCypressNodeBase* node) override
+    void DoDestroy(TCypressNodeBase* node)
     {
         auto cypressManager = Bootstrap->GetCypressManager();
         cypressManager->DestroyNode(node);

@@ -290,3 +290,21 @@ class TestAcls(YTEnvSetup):
         set('//tmp/p/a', 'b', user='u')
         self.assertItemsEqual(ls('//tmp/p', user='u'), ['a'])
         assert get('//tmp/p/a', user='u') == 'b'
+
+    def test_snapshot_remove(self):
+        set('//tmp/a', {'b' : {'c' : 'd'}})
+        path = '#' + get('//tmp/a/b/c/@id')
+        create_user('u')
+        assert get(path, user='u') == 'd'
+        tx = start_transaction()
+        lock(path, mode='snapshot', tx=tx)
+        assert get(path, user='u', tx=tx) == 'd'
+        remove('//tmp/a')
+        assert get(path, user='u', tx=tx) == 'd'
+
+    def test_snapshot_no_inherit(self):
+        set('//tmp/a', 'b')
+        assert get('//tmp/a/@inherit_acl') == 'true'
+        tx = start_transaction()
+        lock('//tmp/a', tx=tx)
+        assert get('//tmp/a/@inherit_acl', tx=tx) == 'false'

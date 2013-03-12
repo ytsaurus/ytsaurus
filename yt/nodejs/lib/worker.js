@@ -38,6 +38,9 @@ try {
     version = { version : "(development)", versionFull: "(development)", dependencies : {} };
 }
 
+yt.YtRegistry.register("config", config);
+yt.YtRegistry.register("logger", logger);
+
 // Hoist variable declaration.
 var static_server;
 var static_server_new;
@@ -134,7 +137,7 @@ dynamic_server = connect()
     })
     .use(yt.YtAssignRequestId())
     .use(yt.YtLogRequest(logger))
-    .use("/auth", yt.YtAuthenticationApplication(logger, config))
+    .use("/auth", yt.YtApplicationAuth(logger, config))
     .use("/ping", function(req, rsp, next) {
         "use strict";
         req.on("end", function() {
@@ -163,7 +166,7 @@ dynamic_server = connect()
         next();
     })
     .use(yt.YtBlackbox(logger, config))
-    .use("/api", yt.YtApplication(logger, config))
+    .use("/api", yt.YtApplicationApi(logger, config))
     .use(function(req, rsp, next) {
         process.nextTick(function() { req.pauser.unpause(); });
         next();

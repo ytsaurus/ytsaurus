@@ -38,7 +38,7 @@ chai.Assertion.addMethod('content_type', function(mime) {
 ////////////////////////////////////////////////////////////////////////////////
 
 // This will spawn a (mock of a) real API server.
-function spawnServer(neighbours) {
+function spawnServer(neighbours, done) {
     var sink = function(){};
     var logger = { };
 
@@ -50,7 +50,7 @@ function spawnServer(neighbours) {
     HTTP_PORT++;
     return connect()
         .use("/hosts", YtHostDiscovery(neighbours))
-        .listen(HTTP_PORT, HTTP_HOST);
+        .listen(HTTP_PORT, HTTP_HOST, done);
 }
 
 // This is a helper method to produce HTTP requests.
@@ -104,13 +104,13 @@ function ask(method, path, additional_options, done, callback) {
 ////////////////////////////////////////////////////////////////////////////////
 
 describe("host discovery", function() {
-    before(function() {
-        // this.server = spawnServer([]);
+    before(function(done) {
+        this.server = spawnServer([], done);
     });
 
-    after(function() {
-        // this.server.close();
-        // this.server = null;
+    after(function(done) {
+        this.server.close(done);
+        this.server = null;
     });
 
     it("should produce randomized result");

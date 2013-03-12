@@ -82,7 +82,7 @@ protected:
     void DestroyCore(TCypressNodeBase* node);
 
     void BranchCore(
-        const TCypressNodeBase* originatingNode,
+        TCypressNodeBase* originatingNode,
         TCypressNodeBase* branchedNode,
         NTransactionServer::TTransaction* transaction,
         ELockMode mode);
@@ -152,7 +152,7 @@ public:
     }
 
     virtual TAutoPtr<TCypressNodeBase> Branch(
-        const TCypressNodeBase* originatingNode,
+        TCypressNodeBase* originatingNode,
         NTransactionServer::TTransaction* transaction,
         ELockMode mode) override
     {

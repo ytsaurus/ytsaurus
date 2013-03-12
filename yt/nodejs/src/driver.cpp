@@ -190,6 +190,27 @@ Local<Object> ConvertCommandDescriptorToV8Object(const TCommandDescriptor& descr
     return scope.Close(result);
 }
 
+template <class E>
+void ExportEnumeration(
+    const Handle<Object>& target,
+    const char* name)
+{
+    auto values = E::GetDomainValues();
+    Local<Array> mapping = Array::New();
+
+    FOREACH (const auto& value, values) {
+        Stroka key = Stroka::Join(name, "_", E::GetLiteralByValue(value));
+        auto keyHandle = String::NewSymbol(key.c_str());
+        auto valueHandle = Integer::New(value);
+        target->Set(
+            keyHandle,
+            valueHandle,
+            static_cast<v8::PropertyAttribute>(v8::ReadOnly | v8::DontDelete));
+        mapping->Set(valueHandle, keyHandle);
+    }
+    target->Set(String::NewSymbol(name), mapping);
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -260,27 +281,8 @@ void TDriverWrap::Initialize(Handle<Object> target)
         String::NewSymbol("TDriverWrap"),
         ConstructorTemplate->GetFunction());
 
-    auto compressionValues = ECompression::GetDomainValues();
-    Local<Array> compressionMapping = Array::New();
-    FOREACH (auto& value, compressionValues) {
-        Stroka key = Stroka::Join("ECompression_", ECompression::GetLiteralByValue(value));
-        auto keyHandle = String::NewSymbol(key.c_str());
-        auto valueHandle = Integer::New(value);
-        target->Set(keyHandle, valueHandle);
-        compressionMapping->Set(valueHandle, keyHandle);
-    }
-    target->Set(String::NewSymbol("ECompression"), compressionMapping);
-
-    auto dataTypeValues = EDataType::GetDomainValues();
-    Local<Array> dataTypeMapping = Array::New();
-    FOREACH (auto& value, dataTypeValues) {
-        Stroka key = Stroka::Join("EDataType_", EDataType::GetLiteralByValue(value));
-        auto keyHandle = String::NewSymbol(key.c_str());
-        auto valueHandle = Integer::New(value);
-        target->Set(keyHandle, valueHandle);
-        dataTypeMapping->Set(valueHandle, keyHandle);
-    }
-    target->Set(String::NewSymbol("EDataType"), dataTypeMapping);
+    ExportEnumeration<ECompression>(target, "ECompression");
+    ExportEnumeration<EDataType>(target, "EDataType");
 }
 
 bool TDriverWrap::HasInstance(Handle<Value> value)

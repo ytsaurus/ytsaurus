@@ -87,7 +87,7 @@ struct INodeTypeHandler
      *  \returns The branched node.
      */
     virtual TAutoPtr<TCypressNodeBase> Branch(
-        const TCypressNodeBase* originatingNode,
+        TCypressNodeBase* originatingNode,
         NTransactionServer::TTransaction* transaction,
         ELockMode mode) = 0;
 

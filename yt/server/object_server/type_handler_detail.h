@@ -55,15 +55,6 @@ public:
             ~FormatEnum(GetType()));
     }
 
-    virtual void Destroy(TObjectBase* object) override
-    {
-        auto* acd = FindAcd(object);
-        if (acd) {
-            acd->Clear();
-        }
-        DoDestroy(static_cast<TObject*>(object));
-    }
-
     virtual void Unstage(
         TObjectBase* object,
         NTransactionServer::TTransaction* transaction,
@@ -100,11 +91,6 @@ protected:
     {
         UNUSED(transaction);
         return New< TNonversionedObjectProxyBase<TObject> >(Bootstrap, object);
-    }
-
-    virtual void DoDestroy(TObject* object)
-    {
-        UNUSED(object);
     }
 
     virtual void DoUnstage(
@@ -157,7 +143,7 @@ public:
 
         this->DoDestroy(static_cast<TObject*>(object));
     }
-    
+
     virtual NObjectServer::TObjectBase* FindObject(const TObjectId& id) override
     {
         return Map->Find(id);
@@ -166,6 +152,11 @@ public:
 private:
     // We store map by a raw pointer. In most cases this should be OK.
     TMap* Map;
+
+    virtual void DoDestroy(TObject* object)
+    {
+        UNUSED(object);
+    }
 
 };
 
