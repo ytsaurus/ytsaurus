@@ -38,6 +38,9 @@ try {
     version = { version : "(development)", versionFull: "(development)", dependencies : {} };
 }
 
+yt.YtRegistry.register("config", config);
+yt.YtRegistry.register("logger", logger);
+
 // Hoist variable declaration.
 var static_server;
 var static_server_new;
