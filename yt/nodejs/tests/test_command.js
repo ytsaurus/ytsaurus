@@ -41,7 +41,7 @@ chai.Assertion.addMethod('content_type', function(mime) {
 ////////////////////////////////////////////////////////////////////////////////
 
 // This will spawn a (mock of a) real API server.
-function spawnServer(driver, watcher) {
+function spawnServer(driver, watcher, done) {
     var sink = function(){};
     var logger = { };
 
@@ -59,7 +59,7 @@ function spawnServer(driver, watcher) {
                 logger, driver, watcher, HTTP_HOST + ":" + HTTP_PORT, false, pause, req, rsp
             )).dispatch();
         })
-        .listen(HTTP_PORT, HTTP_HOST);
+        .listen(HTTP_PORT, HTTP_HOST, done);
 }
 
 // This stub provides a real driver instance which simply pipes all data through.
@@ -132,12 +132,12 @@ function ask(method, path, additional_options, done, callback) {
 ////////////////////////////////////////////////////////////////////////////////
 
 describe("Yt - http method selection", function() {
-    before(function() {
-        this.server = spawnServer(stubDriver(true), stubWatcher(false));
+    before(function(done) {
+        this.server = spawnServer(stubDriver(true), stubWatcher(false), done);
     });
 
-    after(function() {
-        this.server.close();
+    after(function(done) {
+        this.server.close(done);
         this.server = null;
     });
 
@@ -170,12 +170,12 @@ describe("Yt - http method selection", function() {
 });
 
 describe("Yt - command name", function() {
-    before(function() {
-        this.server = spawnServer(stubDriver(true), stubWatcher(false));
+    before(function(done) {
+        this.server = spawnServer(stubDriver(true), stubWatcher(false), done);
     });
 
-    after(function() {
-        this.server.close();
+    after(function(done) {
+        this.server.close(done);
         this.server = null;
     });
 
@@ -229,12 +229,12 @@ describe("Yt - command heaviness", function() {
     });
 
     describe("when there is no workload", function() {
-        before(function() {
-            this.server = spawnServer(driver, stubWatcher(false));
+        before(function(done) {
+            this.server = spawnServer(driver, stubWatcher(false), done);
         });
 
-        after(function() {
-            this.server.close();
+        after(function(done) {
+            this.server.close(done);
             this.server = null;
         });
 
@@ -252,12 +252,12 @@ describe("Yt - command heaviness", function() {
     });
 
     describe("when there is workload", function() {
-        before(function() {
-            this.server = spawnServer(driver, stubWatcher(true));
+        before(function(done) {
+            this.server = spawnServer(driver, stubWatcher(true), done);
         });
 
-        after(function() {
-            this.server.close();
+        after(function(done) {
+            this.server.close(done);
             this.server = null;
         });
 
@@ -276,15 +276,15 @@ describe("Yt - command heaviness", function() {
 });
 
 describe("Yt - command parameters", function() {
-    beforeEach(function() {
+    beforeEach(function(done) {
         this.driver = stubDriver(true);
-        this.server = spawnServer(this.driver,  stubWatcher(false));
+        this.server = spawnServer(this.driver,  stubWatcher(false), done);
     });
 
-    afterEach(function() {
+    afterEach(function(done) {
         this.driver = null;
 
-        this.server.close();
+        this.server.close(done);
         this.server = null;
     });
 
