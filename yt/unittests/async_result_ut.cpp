@@ -572,6 +572,52 @@ TEST(TFutureTest, Regression_de94ea0)
     EXPECT_TRUE(completed.IsSet());
 }
 
+static TFuture< TValueOrError<int> > AsyncDivide(int a, int b, TDuration delay)
+{
+    auto promise = NewPromise< TValueOrError<int> >();
+    TDelayedInvoker::Submit(
+        BIND([=] () mutable {
+            if (b == 0) {
+                promise.Set(TError("Division by zero"));
+            } else {
+                promise.Set(a / b);
+            }
+        }),
+        delay);
+    return promise;
+}
+
+TEST(TFutureTest, ParallelCollectorEmpty)
+{
+    auto collector = New< TParallelCollector<int> >();
+    auto resultOrError = collector->Complete().Get();
+    EXPECT_TRUE(resultOrError.IsOK());
+    const auto& result = resultOrError.Value();
+    EXPECT_TRUE(result.size() == 0);
+}
+
+TEST(TFutureTest, ParallelCollectorSuccess)
+{
+    auto collector = New< TParallelCollector<int> >();
+    collector->Collect(AsyncDivide(5, 2, TDuration::Seconds(1)));
+    collector->Collect(AsyncDivide(30, 3, TDuration::Seconds(2)));
+    auto resultOrError = collector->Complete().Get();
+    EXPECT_TRUE(resultOrError.IsOK());
+    const auto& result = resultOrError.Value();
+    EXPECT_TRUE(result.size() == 2);
+    EXPECT_TRUE(result[0] == 2);
+    EXPECT_TRUE(result[1] == 10);
+}
+
+TEST(TFutureTest, ParallelCollectorError)
+{
+    auto collector = New< TParallelCollector<int> >();
+    collector->Collect(AsyncDivide(5, 2, TDuration::Seconds(1)));
+    collector->Collect(AsyncDivide(30, 0, TDuration::Seconds(2)));
+    auto resultOrError = collector->Complete().Get();
+    EXPECT_FALSE(resultOrError.IsOK());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 } // namespace
 } // namespace NYT
