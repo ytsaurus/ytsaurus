@@ -23,4 +23,12 @@ describe("YtRegistry", function() {
         YtRegistry.unregister("test_service");
         expect(YtRegistry.get("test_service")).to.be.undefined;
     });
+
+    it("should support jspath", function() {
+        YtRegistry.register("test_service", this.test_service);
+        YtRegistry.query("test_service", ".x").should.eql([1]);
+        ++this.test_service.x;
+        YtRegistry.query("test_service", ".x").should.eql([2]);
+        YtRegistry.unregister("test_service");
+    });
 });

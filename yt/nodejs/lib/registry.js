@@ -1,5 +1,7 @@
 var __DBG = require("./debug").that("R", "Registry");
 
+var jspath = require("jspath");
+
 function YtRegistry() {
     __DBG("New");
     this.registry = {};
@@ -25,6 +27,10 @@ YtRegistry.prototype.unregister = function(name) {
 
 YtRegistry.prototype.get = function(name) {
     return this.registry[name];
+};
+
+YtRegistry.prototype.query = function(name, query, context) {
+    return jspath.apply(query, this.registry[name], context);
 };
 
 exports.that = new YtRegistry;
