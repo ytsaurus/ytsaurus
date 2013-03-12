@@ -106,7 +106,9 @@ class TestSchedulerSortCommands(YTEnvSetup):
         sort(in_='//tmp/t_in',
              out='//tmp/t_out',
              sort_by='missing_key',
-             opt=['/spec/partition_count=5'])
+             opt=['/spec/partition_count=5',
+                  '/spec/partition_job_count=2',
+                  '/spec/data_size_per_sort_job=1'])
 
         assert len(read('//tmp/t_out')) == 50
 
