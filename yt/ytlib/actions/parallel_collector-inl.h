@@ -43,7 +43,9 @@ void TParallelCollector<T>::OnResult(TValueOrError<T> result)
         Results.push_back(result.Value());
     } else {
         if (TryLockCompleted()) {
-            Promise.Set(result);
+            // NB: Do not replace TError(result) with result unless you understand
+            // the consequences! Consult ignat@ or babenko@.
+            Promise.Set(TError(result));
         }
     }
 }

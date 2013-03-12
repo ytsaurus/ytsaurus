@@ -207,12 +207,11 @@ public:
         : TError(ex)
     { }
 
-    //template <class TOther>
-    //TValueOrError(const TValueOrError<TOther>& other)
-    //    : TError(other)
-    //    , Value_(other.Value())
-    //{
-    //}
+    template <class TOther>
+    TValueOrError(const TValueOrError<TOther>& other)
+        : TError(other)
+        , Value_(other.Value())
+    { }
 
     T GetOrThrow() const
     {
