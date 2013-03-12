@@ -175,4 +175,4 @@ function YtApplicationAuth()
     };
 };
 
-exports.YtApplicationAuth = YtApplicationAuth;
+exports.that = YtApplicationAuth;

@@ -1,6 +1,6 @@
 exports.Pause = require("./lib/utils").Pause;
-exports.YtApplication = require("./lib/application").that;
-exports.YtAuthenticationApplication = require("./lib/authentication").YtAuthenticationApplication;
+exports.YtApplicationApi = require("./lib/application").that;
+exports.YtApplicationAuth = require("./lib/authentication").that;
 exports.YtError = require("./lib/error").that;
 exports.YtBlackbox = require("./lib/authentication").YtBlackbox;
 exports.YtHostDiscovery = require("./lib/host_discovery").that;

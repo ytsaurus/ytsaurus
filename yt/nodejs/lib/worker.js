@@ -137,7 +137,7 @@ dynamic_server = connect()
     })
     .use(yt.YtAssignRequestId())
     .use(yt.YtLogRequest(logger))
-    .use("/auth", yt.YtAuthenticationApplication(logger, config))
+    .use("/auth", yt.YtApplicationAuth(logger, config))
     .use("/ping", function(req, rsp, next) {
         "use strict";
         req.on("end", function() {
@@ -166,7 +166,7 @@ dynamic_server = connect()
         next();
     })
     .use(yt.YtBlackbox(logger, config))
-    .use("/api", yt.YtApplication(logger, config))
+    .use("/api", yt.YtApplicationApi(logger, config))
     .use(function(req, rsp, next) {
         process.nextTick(function() { req.pauser.unpause(); });
         next();
