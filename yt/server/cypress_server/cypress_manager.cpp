@@ -65,6 +65,11 @@ public:
         return cypressManager->FindNode(TVersionedNodeId(id));
     }
 
+    virtual void Destroy(TObjectBase* object) override
+    {
+        DoDestroy(static_cast<TCypressNodeBase*>(object));
+    }
+
     virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
     {
         return TTypeCreationOptions(
@@ -83,7 +88,7 @@ public:
 private:
     EObjectType Type;
 
-    virtual void DoDestroy(TCypressNodeBase* node) override
+    void DoDestroy(TCypressNodeBase* node)
     {
         auto cypressManager = Bootstrap->GetCypressManager();
         cypressManager->DestroyNode(node);
@@ -105,7 +110,11 @@ private:
 
     virtual TAccessControlDescriptor* DoFindAcd(TCypressNodeBase* node) override
     {
-        return &node->GetTrunkNode()->Acd();
+        // Nodes locked in Snapshot mode have their own ACD.
+        // Others use trunk's node ACD.
+        return node->GetLockMode() == ELockMode::Snapshot
+               ? &node->Acd()
+               : &node->GetTrunkNode()->Acd();
     }
 
     virtual TObjectBase* DoGetParent(TCypressNodeBase* node) override

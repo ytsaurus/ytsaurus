@@ -63,16 +63,18 @@ void TNontemplateCypressNodeTypeHandlerBase::DestroyCore(TCypressNodeBase* node)
 
     // Remove self from immediate ancestors.
     node->SetParent(nullptr);
+
+    // Clear ACD to unregister the node from linked objects.
+    node->Acd().Clear();
 }
 
 void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
-    const TCypressNodeBase* originatingNode,
+    TCypressNodeBase* originatingNode,
     TCypressNodeBase* branchedNode,
     TTransaction* transaction,
     ELockMode mode)
 {
     auto objectManager = Bootstrap->GetObjectManager();
-    auto securityManager = Bootstrap->GetSecurityManager();
 
     // Copy basic properties.
     branchedNode->SetParent(originatingNode->GetParent());
@@ -84,6 +86,19 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
 
     // Branch user attributes.
     objectManager->BranchAttributes(originatingNode->GetVersionedId(), branchedNode->GetVersionedId());
+
+    // For Snapshot locks, construct a frozen ACD.
+    if (mode == ELockMode::Snapshot) {
+        auto securityManager = Bootstrap->GetSecurityManager();
+        auto& branchedAcd = branchedNode->Acd();
+        const auto& originatingAcd = originatingNode->Acd();
+        branchedAcd.SetOwner(originatingAcd.GetOwner());
+        auto effectiveAcl = securityManager->GetEffectiveAcl(originatingNode);
+        FOREACH (const auto& ace, effectiveAcl.Entries) {
+            branchedAcd.AddEntry(ace);
+        }
+        branchedAcd.SetInherit(false);
+    }
 }
 
 void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
