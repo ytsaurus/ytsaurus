@@ -11,7 +11,7 @@ var stream = require("stream");
 // Redirects unless original URL is not a directory.
 exports.redirectUnlessDirectory = function(req, rsp) {
     "use strict";
-    if (req.originalUrl.substr(-1) !== "/") {
+    if (req.url === "/" && req.originalUrl.substr(-1) !== "/") {
         rsp.statusCode = 301;
         rsp.setHeader("Location", req.originalUrl + "/");
         rsp.end();
@@ -21,8 +21,15 @@ exports.redirectUnlessDirectory = function(req, rsp) {
     }
 };
 
+// Redirects request to a predefined location.
+exports.redirectTo = function(rsp, location, code) {
+    rsp.statusCode = code || 303;
+    rsp.setHeader("Location", location);
+    rsp.end();
+}
+
 // Dispatches request with a precomputed result.
-exports.dispatchAs = function(req, rsp, body, type) {
+exports.dispatchAs = function(rsp, body, type) {
     "use strict";
     rsp.removeHeader("Transfer-Encoding");
     rsp.removeHeader("Content-Encoding");
