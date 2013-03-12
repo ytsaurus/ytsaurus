@@ -24,6 +24,8 @@ set( HDRS
   ${BASE}/invoker_util.h
   ${BASE}/parallel_awaiter-inl.h
   ${BASE}/parallel_awaiter.h
+  ${BASE}/parallel_collector-inl.h
+  ${BASE}/parallel_collector.h
   ${BASE}/signal.h
 )
 

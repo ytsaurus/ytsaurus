@@ -126,7 +126,7 @@ inline void TParallelAwaiter::MaybeFireCompleted(const Stroka& timerKey)
 
         ++ResponseCount;
 
-        fireCompleted = ResponseCount == RequestCount && Completed;
+        fireCompleted = (ResponseCount == RequestCount) && Completed;
 
         if (fireCompleted) {
             onComplete = OnComplete;

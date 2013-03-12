@@ -5,8 +5,6 @@
 #include "invoker_util.h"
 #include "cancelable_context.h"
 
-#include <ytlib/misc/error.h>
-
 #include <ytlib/profiling/profiler.h>
 
 namespace NYT {
@@ -102,96 +100,6 @@ private:
 };
 
 typedef TIntrusivePtr<TParallelAwaiter> TParallelAwaiterPtr;
-
-template <class T>
-class TParallelCollector
-    : public TRefCounted
-{
-public:
-    typedef std::vector<T> TResults;
-    typedef TValueOrError<TResults> TResultsOrError;
-
-    explicit TParallelCollector(
-        NProfiling::TProfiler* profiler = nullptr,
-        const NYPath::TYPath& timerPath = "");
-
-    void Collect(
-        TFuture< TValueOrError<T> > future,
-        const Stroka& timerKey = "");
-
-    TFuture<TResultsOrError> Complete();
-
-private:
-    typedef TParallelCollector<T> TThis;
-
-    TParallelAwaiterPtr Awaiter;
-    TPromise<TResultsOrError> Promise;
-    TAtomic Completed;
-
-    TSpinLock SpinLock;
-    std::vector<T> Results;
-
-    void OnResult(TValueOrError<T> result);
-    void OnCompleted();
-
-    bool TryLockCompleted();
-
-};
-
-template <class T>
-TParallelCollector<T>::TParallelCollector(
-    NProfiling::TProfiler* profiler /* = nullptr */,
-    const NYPath::TYPath& timerPath /* = "" */)
-    : Awaiter(New<TParallelAwaiter>(profiler, timerPath))
-    , Promise(NewPromise<TResultsOrError>())
-    , Completed(false)
-{ }
-
-template <class T>
-void TParallelCollector<T>::Collect(
-    TFuture< TValueOrError<T> > future,
-    const Stroka& timerKey /* = "" */)
-{
-    Awaiter->Await(
-        future,
-        timerKey,
-        BIND(&TThis::OnResult, MakeStrong(this)));
-}
-
-template <class T>
-TFuture< TValueOrError< std::vector<T> > > TParallelCollector<T>::Complete()
-{
-    Awaiter->Complete(
-        BIND(&TThis::OnCompleted, MakeStrong(this)));
-    return Promise;
-}
-
-template <class T>
-void TParallelCollector<T>::OnResult(TValueOrError<T> result)
-{
-    if (result.IsOK()) {
-        TGuard<TSpinLock> guard(SpinLock);
-        Results.push_back(result.Value());
-    } else {
-        if (TryLockCompleted()) {
-            Promise.Set(result);
-        }
-    }
-}
-
-template <class T>
-void TParallelCollector<T>::OnCompleted()
-{
-    if (TryLockCompleted()) {
-        Promise.Set(std::move(Results));
-    }
-}
-
-template <class T>
-bool TParallelCollector<T>::TryLockCompleted()
-{
-    return AtomicCas(&Completed, true, false);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
