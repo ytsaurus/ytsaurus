@@ -13,11 +13,5 @@ export NODE_PATH=$CMB:$CMB/node_modules:$NODE_PATH
   --reporter "spec" \
   --require "common.js" \
   "$@" \
-  test_common.js \
-  test_streams.js \
-  test_utils.js \
-  test_error.js \
-  test_command.js \
-  test_host_discovery.js \
-  test_registry.js \
+  test_*.js \
   )

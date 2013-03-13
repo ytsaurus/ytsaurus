@@ -5,15 +5,10 @@ var cluster = require("cluster");
 var __DBG;
 var __DIE;
 
-if (process.env.NODE_DEBUG && /YT(ALL|CLUSTER)/.test(process.env.NODE_DEBUG)) {
-    __DBG = function(x) { "use strict"; console.error("YT Cluster Master:", x); };
-    __DBG.$ = true;
-} else {
-    __DBG = function(){};
-    __DBG.$ = false;
-}
-
-__DIE = function dieOfTrue(condition, message) {
+__DBG = require("./debug").that("C", "Cluster Master");
+__DIE = function dieOfTrue(condition, message)
+{
+    "use strict";
     if (condition) {
         console.error("*** Aborting: " + message);
         process.abort();
@@ -22,7 +17,8 @@ __DIE = function dieOfTrue(condition, message) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtClusterHandle(logger, worker) {
+function YtClusterHandle(logger, worker)
+{
     "use strict";
 
     this.logger     = logger;
@@ -37,29 +33,35 @@ function YtClusterHandle(logger, worker) {
     this.__cached_pid = undefined;
 
     this.postponeDeath(5000); // Initial startup should be fast; 5 seconds is enough.
-};
+}
 
-YtClusterHandle.prototype.getWid = function() {
+YtClusterHandle.prototype.getWid = function()
+{
+    "use strict";
     if (!this.__cached_wid) {
         this.__cached_wid = this.worker ? this.worker.id : -1;
-    } else {
-        return this.__cached_wid;
     }
+    return this.__cached_wid;
 };
 
-YtClusterHandle.prototype.getPid = function() {
+YtClusterHandle.prototype.getPid = function()
+{
+    "use strict";
     if (!this.__cached_pid) {
         this.__cached_pid = this.worker ? this.worker.process.pid : -1;
-    } else {
-        return this.__cached_pid;
     }
+    return this.__cached_pid;
 };
 
-YtClusterHandle.prototype.kill = function() {
+YtClusterHandle.prototype.kill = function()
+{
+    "use strict";
     this.worker.send({ type : "gracefullyDie" });
 };
 
-YtClusterHandle.prototype.destroy = function() {
+YtClusterHandle.prototype.destroy = function()
+{
+    "use strict";
     if (this.timeout_at) {
         clearTimeout(this.timeout_at);
     }
@@ -71,14 +73,18 @@ YtClusterHandle.prototype.destroy = function() {
     this.timeout_at = null;
 };
 
-YtClusterHandle.prototype.toString = function() {
+YtClusterHandle.prototype.toString = function()
+{
+    "use strict";
     return require("util").format("<YtClusterHandle wid=%s pid=%s state=%s>",
         this.getWid(),
         this.getPid(),
         this.state);
 };
 
-YtClusterHandle.prototype.handleMessage = function(message) {
+YtClusterHandle.prototype.handleMessage = function(message)
+{
+    "use strict";
     if (!message || !message.type) {
         return; // Improper message format.
     }
@@ -104,7 +110,9 @@ YtClusterHandle.prototype.handleMessage = function(message) {
     }
 };
 
-YtClusterHandle.prototype.postponeDeath = function(timeout) {
+YtClusterHandle.prototype.postponeDeath = function(timeout)
+{
+    "use strict";
     if (__DBG.$) {
         return;
     }
@@ -117,16 +125,20 @@ YtClusterHandle.prototype.postponeDeath = function(timeout) {
     this.timeout_at = setTimeout(this.ageToDeath.bind(this), timeout);
 };
 
-YtClusterHandle.prototype.ageToDeath = function() {
+YtClusterHandle.prototype.ageToDeath = function()
+{
+    "use strict";
     this.logger.info("Worker is not responding", {
         wid : this.getWid(),
         pid : this.getPid(),
         handle : this.toString()
     });
     this.certifyDeath();
-}
+};
 
-YtClusterHandle.prototype.certifyDeath = function() {
+YtClusterHandle.prototype.certifyDeath = function()
+{
+    "use strict";
     try {
         this.logger.info("Worker is dead", {
             wid : this.getWid(),
@@ -145,7 +157,8 @@ YtClusterHandle.prototype.certifyDeath = function() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtClusterMaster(logger, number_of_workers, cluster_options) {
+function YtClusterMaster(logger, number_of_workers, cluster_options)
+{
     "use strict";
 
     __DBG("New");
@@ -196,23 +209,31 @@ function YtClusterMaster(logger, number_of_workers, cluster_options) {
     });
 
     cluster.setupMaster(cluster_options);
-};
+}
 
-YtClusterMaster.prototype.kickstart = function() {
+YtClusterMaster.prototype.kickstart = function()
+{
+    "use strict";
     while (this.countWorkers()[0] < this.workers_expected) {
         this.spawnNewWorker();
     }
 };
 
-YtClusterMaster.prototype.debug = function() {
+YtClusterMaster.prototype.debug = function()
+{
+    "use strict";
     var  p;
     for (p in this.workers_handles) {
-        var handle = this.workers_handles[p];
-        console.error(" -> " + handle.toString());
+        if (this.workers_handles.hasOwnProperty(p)) {
+            var handle = this.workers_handles[p];
+            console.error(" -> " + handle.toString());
+        }
     }
 };
 
-YtClusterMaster.prototype.countWorkers = function() {
+YtClusterMaster.prototype.countWorkers = function()
+{
+    "use strict";
     var  p, n_total = 0, n_young = 0;
     for (p in this.workers_handles) {
         if (this.workers_handles.hasOwnProperty(p)) {
@@ -225,7 +246,9 @@ YtClusterMaster.prototype.countWorkers = function() {
     return [ n_total, n_young ];
 };
 
-YtClusterMaster.prototype.spawnNewWorker = function() {
+YtClusterMaster.prototype.spawnNewWorker = function()
+{
+    "use strict";
     var worker = cluster.fork();
     var handle = this.workers_handles[worker.id] =
         new YtClusterHandle(this.logger, worker);
@@ -234,7 +257,9 @@ YtClusterMaster.prototype.spawnNewWorker = function() {
     this.logger.info("Spawned young worker");
 };
 
-YtClusterMaster.prototype.killOldWorker = function() {
+YtClusterMaster.prototype.killOldWorker = function()
+{
+    "use strict";
     var  p, handle;
     for (p in this.workers_handles) {
         if (this.workers_handles.hasOwnProperty(p)) {
@@ -249,7 +274,9 @@ YtClusterMaster.prototype.killOldWorker = function() {
     }
 };
 
-YtClusterMaster.prototype.respawnWorkers = function() {
+YtClusterMaster.prototype.respawnWorkers = function()
+{
+    "use strict";
     var current  = this.countWorkers();
     var n_total  = current[0];
     var n_young  = current[1];
@@ -293,7 +320,9 @@ YtClusterMaster.prototype.respawnWorkers = function() {
     }
 };
 
-YtClusterMaster.prototype.scheduleRespawnWorkers = function() {
+YtClusterMaster.prototype.scheduleRespawnWorkers = function()
+{
+    "use strict";
     if (this.timeout_for_respawn) {
         return;
     }
@@ -305,28 +334,41 @@ YtClusterMaster.prototype.scheduleRespawnWorkers = function() {
     }, 1000);
 };
 
-YtClusterMaster.prototype.restartWorkers = function() {
+YtClusterMaster.prototype.restartWorkers = function()
+{
+    "use strict";
     this.logger.info("Starting rolling restart of workers");
     for (var i in this.workers_handles) {
-        this.workers_handles[i].young = false;
+        if (this.workers_handles.hasOwnProperty(i)) {
+            this.workers_handles[i].young = false;
+        }
     }
     this.scheduleRespawnWorkers();
 };
 
-YtClusterMaster.prototype.shutdownWorkers = function() {
+YtClusterMaster.prototype.shutdownWorkers = function()
+{
+    "use strict";
     // NB: Rely an actual cluster state, not on |this.workers_handles|.
     this.logger.info("Starting graceful shutdown");
-    for (var i in cluster.workers) {
-        cluster.workers[i].send({ type : "gracefullyDie" });
+    var i;
+    for (i in cluster.workers) {
+        if (cluster.workers.hasOwnProperty(i)) {
+            cluster.workers[i].send({ type : "gracefullyDie" });
+        }
     }
-    for (var i in this.workers_handles) {
-        this.workers_handles[i].young = false;
+    for (i in this.workers_handles) {
+        if (this.workers_handles.hasOwnProperty(i)) {
+            this.workers_handles[i].young = false;
+        }
     }
     this.workers_expected = 0;
     setTimeout(this.shutdownWorkersLoop.bind(this), 1000);
 };
 
-YtClusterMaster.prototype.shutdownWorkersLoop = function() {
+YtClusterMaster.prototype.shutdownWorkersLoop = function()
+{
+    "use strict";
     // NB: Rely an actual cluster state, not on |this.workers_handles|.
     var n = Object.keys(cluster.workers).length;
     if (n > 0) {

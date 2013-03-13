@@ -6,28 +6,13 @@ var binding = require("./ytnode");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-var __DBG;
-
-if (process.env.NODE_DEBUG && /YT(ALL|NODE)/.test(process.env.NODE_DEBUG)) {
-    __DBG = function(x) { "use strict"; console.error("YT Readable Stream:", x); };
-    __DBG.UUID = require("node-uuid");
-} else {
-    __DBG = function(){};
-}
+var __DBG = require("./debug").that("B", "Readable Stream");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtReadableStream(low_watermark, high_watermark) {
     "use strict";
-
-    if (__DBG.UUID) {
-        this.__DBG  = function(x) { __DBG(this.__UUID + " -> " + x); };
-        this.__UUID = __DBG.UUID.v4();
-    } else {
-        this.__DBG  = function(){};
-    }
-
-    this.__DBG("New");
+    this.__DBG = __DBG.Tagged();
 
     stream.Stream.call(this);
 
@@ -46,6 +31,8 @@ function YtReadableStream(low_watermark, high_watermark) {
         self.__DBG("Bindings (OutputStream) -> on_data");
         self._consumeData();
     };
+
+    this.__DBG("New");
 }
 
 util.inherits(YtReadableStream, stream.Stream);

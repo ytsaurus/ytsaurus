@@ -11,13 +11,7 @@ var winston_nssocket = require("winston-nssocket");
 var yt = require("yt");
 
 // Debugging stuff.
-if (process.env.NODE_DEBUG && /YT(ALL|CLUSTER)/.test(process.env.NODE_DEBUG)) {
-    __DBG = function(x) { "use strict"; console.error("YT Cluster Worker:", x); };
-    __DBG.$ = true;
-} else {
-    __DBG = function(){};
-    __DBG.$ = false;
-}
+var __DBG = require("./debug").that("C", "Cluster Worker");
 
 // Load configuration and set up logging.
 var config = JSON.parse(process.env.YT_PROXY_CONFIGURATION);
@@ -38,8 +32,22 @@ try {
     version = { version : "(development)", versionFull: "(development)", dependencies : {} };
 }
 
-yt.YtRegistry.register("config", config);
-yt.YtRegistry.register("logger", logger);
+// TODO(sandello): Extract these settings somewhere.
+if (typeof(config.low_watermark) === "undefined") {
+    config.low_watermark = parseInt(0.80 * config.memory_limit, 10);
+}
+
+if (typeof(config.high_watermark) === "undefined") {
+    config.high_watermark = parseInt(0.95 * config.memory_limit, 10);
+}
+
+// TODO(sandello): Extract singleton configuration to a separate branch.
+yt.configureSingletons(config.proxy);
+
+yt.YtRegistry.set("config", config);
+yt.YtRegistry.set("logger", logger);
+yt.YtRegistry.set("driver", new yt.YtDriver(config));
+yt.YtRegistry.set("authority", new yt.YtAuthority(config));
 
 // Hoist variable declaration.
 var static_server;
@@ -80,7 +88,7 @@ var gracefullyDie = function gracefulDeath() {
 // Fire up the heart.
 var supervisor_liveness;
 
-if (!__DBG.$) {
+if (!__DBG.On) {
     (function sendHeartbeat() {
         "use strict";
         process.send({ type : "heartbeat" });
@@ -121,6 +129,7 @@ static_server = new node_static.Server("/usr/share/yt_new", { cache : 4 * 3600 }
 
 dynamic_server = connect()
     .use(function(req, rsp, next) {
+        "use strict";
         var rd = domain.create();
         rd.on("error", function(err) {
             var body = (new yt.YtError("Unhandled error in the request domain", err)).toJson();
@@ -136,8 +145,8 @@ dynamic_server = connect()
         rd.run(next);
     })
     .use(connect.favicon())
-    .use(yt.YtAssignRequestId())
-    .use(yt.YtLogRequest(logger))
+    .use(yt.YtMarkRequest())
+    .use(yt.YtLogRequest())
     .use(function(req, rsp, next) {
         var socket = req.connection;
         socket.setTimeout(5 * 60 * 1000);
@@ -158,6 +167,7 @@ dynamic_server = connect()
     })
     .use(function(req, rsp, next) {
         "use strict";
+        // TODO(sandello): Refactor this.
         var expected_http_method, actual_http_method = req.method;
         if (actual_http_method === "OPTIONS") {
             rsp.statusCode = 200;
@@ -170,7 +180,6 @@ dynamic_server = connect()
             rsp.removeHeader("Vary");
             rsp.end();
             return;
-            //throw new YtError();
         }
         next();
     })
@@ -198,12 +207,14 @@ dynamic_server = connect()
     })
     // Begin of asynchronous middleware.
     .use(function(req, rsp, next) {
+        "use strict";
         req.pauser = yt.Pause(req);
         next();
     })
-    .use(yt.YtBlackbox(logger, config))
-    .use("/api", yt.YtApplicationApi(logger, config))
+    .use(yt.YtAuthentication())
+    .use("/api", yt.YtApplicationApi())
     .use(function(req, rsp, next) {
+        "use strict";
         process.nextTick(function() { req.pauser.unpause(); });
         next();
     })

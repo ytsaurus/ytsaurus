@@ -2,13 +2,7 @@ var binding = require("./ytnode");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-var __DBG;
-
-if (process.env.NODE_DEBUG && /YT(ALL|NODE)/.test(process.env.NODE_DEBUG)) {
-    __DBG = function(x) { "use strict"; console.error("YT Eio:", x); };
-} else {
-    __DBG = function(){};
-}
+var __DBG = require("./debug").that("B", "EIO");
 
 ////////////////////////////////////////////////////////////////////////////////
 

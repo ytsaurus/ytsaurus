@@ -1,36 +1,63 @@
+////////////////////////////////////////////////////////////////////////////////
+
 var __DBG = require("./debug").that("R", "Registry");
 
-var jspath = require("jspath");
+////////////////////////////////////////////////////////////////////////////////
 
-function YtRegistry() {
+function YtRegistry()
+{
+    "use strict";
     __DBG("New");
     this.registry = {};
 }
 
-YtRegistry.prototype.register = function(name, instance) {
+YtRegistry.prototype.get = function()
+{
+    "use strict";
+    var path = Array.prototype.slice.call(arguments);
+    var context = this.registry;
+    for (var i = 0; i < path.length; ++i) {
+        context = context && context[path[i]];
+    }
+    return context;
+};
+
+YtRegistry.prototype.has = function()
+{
+    "use strict";
+    return typeof(this.get.apply(this, arguments)) !== "undefined";
+};
+
+YtRegistry.prototype.set = function(name, instance)
+{
+    "use strict";
     if (this.registry.hasOwnProperty(name)) {
-        throw new Error("An instance under name '" + name + "' is already registered.");
+        throw new Error(
+            "An instance under name '" + name + "' is already registered.");
     } else {
         __DBG("Registering '" + name + "'");
         this.registry[name] = instance;
     }
 };
 
-YtRegistry.prototype.unregister = function(name) {
+YtRegistry.prototype.del = function(name)
+{
+    "use strict";
     if (!this.registry.hasOwnProperty(name)) {
-        throw new Error("An instance under name '" + name + "' is not registered yet.");
+        throw new Error(
+            "An instance under name '" + name + "' is not registered yet.");
     } else {
         __DBG("Unregistering '" + name + "'");
         delete this.registry[name];
     }
 };
 
-YtRegistry.prototype.get = function(name) {
-    return this.registry[name];
+YtRegistry.prototype.clear = function()
+{
+    "use strict";
+    __DBG("Reset");
+    this.registry = {};
 };
 
-YtRegistry.prototype.query = function(name, query, context) {
-    return jspath.apply(query, this.registry[name], context);
-};
-
+// This is a singleton object.
 exports.that = new YtRegistry;

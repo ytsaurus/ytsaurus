@@ -1,3 +1,4 @@
+/* jshint proto: false */
 var util = require("util");
 
 var binding = require("./ytnode");
@@ -28,7 +29,7 @@ function YtError(first, second) {
         }
 
         if (second) {
-            this.inner_errors.push(new YtError(second));
+            this.inner_errors.push(YtError.ensureWrapped(second));
         }
     }
 }
@@ -54,6 +55,13 @@ YtError.ensureWrapped = function(err, message) {
     }
 };
 
+// Is OK?
+
+YtError.prototype.isOK = function() {
+    "use strict";
+    return this.code === 0;
+};
+
 // Setters.
 
 YtError.prototype.withCode = function(code) {
@@ -68,12 +76,13 @@ YtError.prototype.withMessage = function(message) {
     return this;
 };
 
-// Getters.
-
-YtError.prototype.isOK = function() {
+YtError.prototype.withAttribute = function(key, value) {
     "use strict";
-    return this.code === 0;
+    this.attributes[key] = value;
+    return this;
 };
+
+// Getters.
 
 YtError.prototype.getCode = function() {
     "use strict";
@@ -85,14 +94,9 @@ YtError.prototype.getMessage = function() {
     return this.message;
 };
 
-YtError.prototype.getAttributes = function() {
+YtError.prototype.getAttribute = function(key) {
     "use strict";
-    return this.attributes;
-};
-
-YtError.prototype.getInnerErrors = function() {
-    "use strict";
-    return this.inner_errors;
+    return this.attributes[key];
 };
 
 // Serialization.

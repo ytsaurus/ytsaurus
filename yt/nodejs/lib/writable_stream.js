@@ -5,28 +5,13 @@ var binding = require("./ytnode");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-var __DBG;
-
-if (process.env.NODE_DEBUG && /YT(ALL|NODE)/.test(process.env.NODE_DEBUG)) {
-    __DBG = function(x) { "use strict"; console.error("YT Writable Stream:", x); };
-    __DBG.UUID = require("node-uuid");
-} else {
-    __DBG = function(){};
-}
+var __DBG = require("./debug").that("B", "Writable Stream");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtWritableStream(low_watermark, high_watermark) {
     "use strict";
-
-    if (__DBG.UUID) {
-        this.__DBG  = function(x) { __DBG(this.__UUID + " -> " + x); };
-        this.__UUID = __DBG.UUID.v4();
-    } else {
-        this.__DBG  = function(){};
-    }
-
-    this.__DBG("New");
+    this.__DBG = __DBG.Tagged();
 
     stream.Stream.call(this);
 
@@ -39,13 +24,14 @@ function YtWritableStream(low_watermark, high_watermark) {
     var self = this;
 
     this._binding = new binding.TInputStreamWrap(low_watermark, high_watermark);
-
     this._binding.on_drain = function() {
         self.__DBG("Bindings (InputStream) -> on_drain");
         if (!self._ended) {
             self.emit("drain");
         }
     };
+
+    this.__DBG("New");
 }
 
 util.inherits(YtWritableStream, stream.Stream);

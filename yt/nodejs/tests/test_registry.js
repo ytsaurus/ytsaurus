@@ -2,7 +2,7 @@ var YtRegistry = require("../lib/registry").that;
 
 describe("YtRegistry", function() {
     beforeEach(function() {
-        this.test_service = { x : 1 };
+        this.test_service = { x : 1, y : { foo : "bar" } };
     });
 
     afterEach(function() {
@@ -11,7 +11,7 @@ describe("YtRegistry", function() {
 
     it("should work properly", function() {
         expect(YtRegistry.get("test_service")).to.be.undefined;
-        YtRegistry.register("test_service", this.test_service);
+        YtRegistry.set("test_service", this.test_service);
         expect(YtRegistry.get("test_service")).not.to.be.undefined;
         YtRegistry.get("test_service").should.eql(this.test_service);
 
@@ -20,15 +20,22 @@ describe("YtRegistry", function() {
         YtRegistry.get("test_service").x.should.eql(2);
 
         expect(YtRegistry.get("test_service")).not.to.be.undefined;
-        YtRegistry.unregister("test_service");
+        YtRegistry.del("test_service");
         expect(YtRegistry.get("test_service")).to.be.undefined;
     });
 
-    it("should support jspath", function() {
-        YtRegistry.register("test_service", this.test_service);
-        YtRegistry.query("test_service", ".x").should.eql([1]);
-        ++this.test_service.x;
-        YtRegistry.query("test_service", ".x").should.eql([2]);
-        YtRegistry.unregister("test_service");
+    it("should support nested gets", function() {
+        YtRegistry.set("test_service", this.test_service);
+        expect(YtRegistry.get("test_service", "y", "foo")).to.eql("bar");
+        expect(YtRegistry.get("test_service", "y", "bar")).to.be.undefined;
+        expect(YtRegistry.get("test_service", "?", "?"  )).to.be.undefined;
+        YtRegistry.del("test_service");
+    });
+
+    it("should support clear", function() {
+        YtRegistry.set("test_service", this.test_service);
+        expect(YtRegistry.get("test_service")).not.to.be.undefined;
+        YtRegistry.clear();
+        expect(YtRegistry.get("test_service")).to.be.undefined;
     });
 });

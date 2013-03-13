@@ -88,7 +88,7 @@ var binding = require("../lib/ytnode");
     });
 });
 
-describe("conversion specifics", function() {
+describe("INode conversion specifics", function() {
     it("should properly convert i64 via our internals", function() {
         var node = new binding.TNodeWrap(
             "{\"key\":5000000000,\"min\":-9223372036854775807,\"max\":9223372036854775807}",
@@ -135,16 +135,17 @@ describe("conversion specifics", function() {
     });
 });
 
-describe("traversing", function() {
+describe("ytree traversing", function() {
     it("should throw exception on non-existing key", function() {
         var node = new binding.TNodeWrap({ a: 1 });
         expect(function() {
             node.Traverse("/nonexistent");
-        }).to.throw(Error);
+        }).to.throw(require("../lib/error").that);
+        // Apparently, Error is not enough.
     });
 });
 
-describe("merging", function() {
+describe("ytree merging", function() {
     it("should properly merge disjoint key sets", function() {
         var node_a = new binding.TNodeWrap({ a: 1, b: 2 });
         var node_b = new binding.TNodeWrap({ c: 3, d: 4 });
