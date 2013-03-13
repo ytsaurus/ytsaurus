@@ -31,8 +31,8 @@ public:
 
     typedef yhash_set<TCypressNodeBase*> TNodeSet;
     //! Contains all nodes with parent pointing here.
-    //! When a node dies parent pointers of its immediate ancestors are reset.
-    DEFINE_BYREF_RW_PROPERTY(TNodeSet, ImmediateAncestors);
+    //! When a node dies parent pointers of its immediate descendants are reset.
+    DEFINE_BYREF_RW_PROPERTY(TNodeSet, ImmediateDescendants);
 
     DEFINE_BYVAL_RW_PROPERTY(ELockMode, LockMode);
 
