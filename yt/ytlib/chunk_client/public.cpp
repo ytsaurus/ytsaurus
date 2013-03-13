@@ -62,8 +62,8 @@ int PartIndexFromErasurePartId(const TChunkId& id)
 TChunkIdWithIndex DecodeChunkId(const TChunkId& id)
 {
     return IsErasureChunkId(id)
-           ? TChunkIdWithIndex(id, 0)
-           : TChunkIdWithIndex(ChunkIdFromErasurePartId(id), PartIndexFromErasurePartId(id));
+           ? TChunkIdWithIndex(ChunkIdFromErasurePartId(id), PartIndexFromErasurePartId(id))
+           : TChunkIdWithIndex(id, 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
