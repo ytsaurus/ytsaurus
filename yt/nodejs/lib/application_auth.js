@@ -85,10 +85,13 @@ function YtApplicationAuth()
             config.blackbox.host,
             config.blackbox.port)
         .withPath(url.format({
-            method : "oauth",
-            format : "json",
-            oauth_token : token,
-            userip : ip
+            pathname : config.blackbox.path,
+            query : {
+                method : "oauth",
+                format : "json",
+                oauth_token : token,
+                userip : ip
+            }
         }))
         .setNoDelay(true)
         .setTimeout(config.blackbox.timeout)

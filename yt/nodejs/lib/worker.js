@@ -127,7 +127,7 @@ dynamic_server = connect()
     .use(function(req, rsp, next) {
         var rd = domain.create();
         rd.on("error", function(err) {
-            var body = (new YtError("Unhandled error in the request domain", err)).toJson();
+            var body = (new yt.YtError("Unhandled error in the request domain", err)).toJson();
 
             logger.error("Unhandled error in the request domain", {
                 request_id : req.uuid,
