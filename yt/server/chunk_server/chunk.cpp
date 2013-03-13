@@ -4,6 +4,7 @@
 #include "chunk_tree_statistics.h"
 #include "chunk_list.h"
 
+#include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <server/cell_master/serialization_context.h>
@@ -11,10 +12,11 @@
 namespace NYT {
 namespace NChunkServer {
 
+using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NCellMaster;
 using namespace NObjectServer;
 using namespace NSecurityServer;
-using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,11 +97,11 @@ void TChunk::Load(const NCellMaster::TLoadContext& context)
     LoadNullableObjectRefs(context, CachedReplicas_);
 }
 
-void TChunk::AddReplica(TDataNodeWithIndex replica, bool cached)
+void TChunk::AddReplica(TDataNodePtrWithIndex replica, bool cached)
 {
     if (cached) {
         if (!CachedReplicas_) {
-            CachedReplicas_.Reset(new yhash_set<TDataNodeWithIndex>());
+            CachedReplicas_.Reset(new yhash_set<TDataNodePtrWithIndex>());
         }
         YCHECK(CachedReplicas_->insert(replica).second);
     } else {
@@ -107,7 +109,7 @@ void TChunk::AddReplica(TDataNodeWithIndex replica, bool cached)
     }
 }
 
-void TChunk::RemoveReplica(TDataNodeWithIndex replica, bool cached)
+void TChunk::RemoveReplica(TDataNodePtrWithIndex replica, bool cached)
 {
     if (cached) {
         YASSERT(~CachedReplicas_);
@@ -126,9 +128,9 @@ void TChunk::RemoveReplica(TDataNodeWithIndex replica, bool cached)
     }
 }
 
-TSmallVector<TDataNodeWithIndex, TypicalReplicationFactor> TChunk::GetReplicas() const
+TSmallVector<TDataNodePtrWithIndex, TypicalReplicationFactor> TChunk::GetReplicas() const
 {
-    TSmallVector<TDataNodeWithIndex, TypicalReplicationFactor> result(StoredReplicas_.begin(), StoredReplicas_.end());
+    TSmallVector<TDataNodePtrWithIndex, TypicalReplicationFactor> result(StoredReplicas_.begin(), StoredReplicas_.end());
     if (~CachedReplicas_) {
         result.insert(result.end(), CachedReplicas_->begin(), CachedReplicas_->end());
     }
@@ -196,6 +198,11 @@ bool TChunk::GetRFUpdateScheduled() const
 void TChunk::SetRFUpdateScheduled(bool value)
 {
     Flags.RFUpdateScheduled = value;
+}
+
+bool TChunk::IsErasure() const
+{
+    return IsErasureChunkId(Id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -236,7 +236,7 @@ bool TChunkPlacement::HasBalancingTargets(double maxFillCoeff)
     return GetFillCoeff(node) < maxFillCoeff;
 }
 
-TDataNode* TChunkPlacement::GetBalancingTarget(TChunk* chunk, double maxFillCoeff)
+TDataNode* TChunkPlacement::GetBalancingTarget(TChunkPtrWithIndex chunkWithIndex, double maxFillCoeff)
 {
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (const auto& pair, FillCoeffToNode) {
@@ -244,7 +244,7 @@ TDataNode* TChunkPlacement::GetBalancingTarget(TChunk* chunk, double maxFillCoef
         if (GetFillCoeff(node) > maxFillCoeff) {
             break;
         }
-        if (IsValidBalancingTarget(node, chunk)) {
+        if (IsValidBalancingTarget(node, chunkWithIndex)) {
             return node;
         }
     }
@@ -267,21 +267,21 @@ bool TChunkPlacement::IsValidUploadTarget(TDataNode* targetNode)
     return true;
 }
 
-bool TChunkPlacement::IsValidBalancingTarget(TDataNode* targetNode, TChunk* chunk) const
+bool TChunkPlacement::IsValidBalancingTarget(TDataNode* targetNode, TChunkPtrWithIndex chunkWithIndex) const
 {
     if (!IsValidUploadTarget(targetNode)) {
         // Balancing implies upload, after all.
         return false;
     }
 
-    if (targetNode->StoredChunks().find(chunk) != targetNode->StoredChunks().end())  {
+    if (targetNode->StoredReplicas().find(chunkWithIndex) != targetNode->StoredReplicas().end())  {
         // Do not balance to a node already having the chunk.
         return false;
     }
 
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (const auto* job, targetNode->Jobs()) {
-        if (job->GetChunkId() == chunk->GetId()) {
+        if (job->GetChunkId() == chunkWithIndex.GetPtr()->GetId()) {
             // Do not balance to a node already having a job associated with this chunk.
             return false;
         }
@@ -295,7 +295,7 @@ bool TChunkPlacement::IsValidBalancingTarget(TDataNode* targetNode, TChunk* chun
         }
 
         FOREACH (const auto* job, sink->Jobs()) {
-            if (job->GetChunkId() == chunk->GetId()) {
+            if (job->GetChunkId() == chunkWithIndex.GetPtr()->GetId()) {
                 // Do not balance to a node that is a replication target for the very same chunk.
                 return false;
             }
@@ -306,7 +306,7 @@ bool TChunkPlacement::IsValidBalancingTarget(TDataNode* targetNode, TChunk* chun
     return true;
 }
 
-std::vector<TChunk*> TChunkPlacement::GetBalancingChunks(TDataNode* node, int count)
+std::vector<TChunkPtrWithIndex> TChunkPlacement::GetBalancingChunks(TDataNode* node, int count)
 {
     // Do not balance chunks that already have a job.
     yhash_set<TChunkId> forbiddenChunkIds;
@@ -316,9 +316,10 @@ std::vector<TChunk*> TChunkPlacement::GetBalancingChunks(TDataNode* node, int co
     }
 
     // Right now we just pick some (not even random!) chunks.
-    std::vector<TChunk*> result;
+    std::vector<TChunkPtrWithIndex> result;
     result.reserve(count);
-    FOREACH (auto* chunk, node->StoredChunks()) {
+    FOREACH (auto replica, node->StoredReplicas()) {
+        auto* chunk = replica.GetPtr();
         if (static_cast<int>(result.size()) >= count) {
             break;
         }
@@ -328,7 +329,7 @@ std::vector<TChunk*> TChunkPlacement::GetBalancingChunks(TDataNode* node, int co
         if (forbiddenChunkIds.find(chunk->GetId()) != forbiddenChunkIds.end()) {
             continue;
         }
-        result.push_back(chunk);
+        result.push_back(replica);
     }
 
     return result;

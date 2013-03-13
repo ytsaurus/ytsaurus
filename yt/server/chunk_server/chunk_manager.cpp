@@ -513,14 +513,17 @@ public:
         chunk->ChunkInfo().Swap(chunkInfo);
         chunk->ChunkMeta().Swap(chunkMeta);
 
-        FOREACH (auto replica, replicas) {
-            auto* node = FindNode(replica.GetNodeId());
+        FOREACH (auto clientReplica, replicas) {
+            auto* node = FindNode(clientReplica.GetNodeId());
             if (!node) {
                 LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %s at an unknown node %d",
                     ~ToString(id),
-                    ~replica.GetNodeId());
+                    ~clientReplica.GetNodeId());
                 continue;
             }
+
+            TDataNodePtrWithIndex nodeWithIndex(node, clientReplica.GetIndex());
+            TChunkPtrWithIndex chunkWithIndex(chunk, clientReplica.GetIndex());
 
             if (node->GetState() != ENodeState::Online) {
                 LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %s at %s which has invalid state %s",
@@ -530,13 +533,13 @@ public:
                 continue;
             }
 
-            if (!node->HasChunk(chunk, false)) {
+            if (!node->HasReplica(chunkWithIndex, false)) {
                 AddChunkReplica(
                     node,
-                    chunk,
+                    chunkWithIndex,
                     false,
                     EAddReplicaReason::Confirmation);
-                node->MarkChunkUnapproved(chunk);
+                node->MarkReplicaUnapproved(chunkWithIndex);
             }
         }
 
@@ -632,9 +635,9 @@ public:
     const yhash_set<TChunk*>& OverreplicatedChunks() const;
     const yhash_set<TChunk*>& UnderreplicatedChunks() const;
 
-    TDataNodeWithIndexList GetChunkReplicas(const TChunk* chunk)
+    TDataNodePtrWithIndexList GetChunkReplicas(const TChunk* chunk)
     {
-        TDataNodeWithIndexList result;
+        TDataNodePtrWithIndexList result;
 
         FOREACH (auto replica, chunk->StoredReplicas()) {
             result.push_back(replica);
@@ -784,13 +787,20 @@ private:
             UnstageChunk(chunk);
         }
 
+        auto scheduleRemoval = [&] (TDataNodePtrWithIndex nodeWithIndex, bool cached) {
+            ScheduleChunkReplicaRemoval(
+                nodeWithIndex.GetPtr(),
+                TChunkPtrWithIndex(chunk, nodeWithIndex.GetIndex()),
+                cached);
+        };
+
         // Unregister chunk replicas from all known locations.
         FOREACH (auto replica, chunk->StoredReplicas()) {
-            ScheduleChunkReplicaRemoval(replica.GetPtr(), chunk, false);
+            scheduleRemoval(replica, false);
         }
         if (~chunk->CachedReplicas()) {
             FOREACH (auto replica, *chunk->CachedReplicas()) {
-                ScheduleChunkReplicaRemoval(replica.GetPtr(), chunk, true);
+                scheduleRemoval(replica, true);
             }
         }
 
@@ -961,8 +971,8 @@ private:
                 nodeId,
                 ~node->GetAddress());
 
-            YCHECK(node->StoredChunks().empty());
-            YCHECK(node->CachedChunks().empty());
+            YCHECK(node->StoredReplicas().empty());
+            YCHECK(node->CachedReplicas().empty());
 
             FOREACH (const auto& chunkInfo, request.chunks()) {
                 ProcessAddedChunk(node, chunkInfo, false);
@@ -1004,11 +1014,11 @@ private:
                 ProcessRemovedChunk(node, chunkInfo);
             }
 
-            std::vector<TChunk*> unapprovedChunks(node->UnapprovedChunks().begin(), node->UnapprovedChunks().end());
-            FOREACH (auto* chunk, unapprovedChunks) {
-                RemoveChunkReplica(node, chunk, false, ERemoveReplicaReason::Unapproved);
+            std::vector<TChunkPtrWithIndex> unapprovedReplicas(node->UnapprovedReplicas().begin(), node->UnapprovedReplicas().end());
+            FOREACH (auto replica, unapprovedReplicas) {
+                RemoveChunkReplica(node, replica, false, ERemoveReplicaReason::Unapproved);
             }
-            node->UnapprovedChunks().clear();
+            node->UnapprovedReplicas().clear();
         }
     }
 
@@ -1105,8 +1115,8 @@ private:
         ChunkReplicaCount = 0;
         FOREACH (const auto& pair, NodeMap) {
             const auto* node = pair.second;
-            ChunkReplicaCount += node->StoredChunks().size();
-            ChunkReplicaCount += node->CachedChunks().size();
+            ChunkReplicaCount += node->StoredReplicas().size();
+            ChunkReplicaCount += node->CachedReplicas().size();
         }
 
         // Reconstruct address maps.
@@ -1301,12 +1311,12 @@ private:
                 StopNodeTracking(node);
             }
 
-            FOREACH (auto* chunk, node->StoredChunks()) {
-                RemoveChunkReplica(node, chunk, false, ERemoveReplicaReason::Reset);
+            FOREACH (auto replica, node->StoredReplicas()) {
+                RemoveChunkReplica(node, replica, false, ERemoveReplicaReason::Reset);
             }
 
-            FOREACH (auto* chunk, node->CachedChunks()) {
-                RemoveChunkReplica(node, chunk, true, ERemoveReplicaReason::Reset);
+            FOREACH (auto replica, node->CachedReplicas()) {
+                RemoveChunkReplica(node, replica, true, ERemoveReplicaReason::Reset);
             }
 
             FOREACH (auto* job, node->Jobs()) {
@@ -1341,14 +1351,15 @@ private:
         (Confirmation)
     );
 
-    void AddChunkReplica(TDataNode* node, TChunk* chunk, bool cached, EAddReplicaReason reason)
+    void AddChunkReplica(TDataNode* node, TChunkPtrWithIndex chunkWithIndex, bool cached, EAddReplicaReason reason)
     {
-        auto chunkId = chunk->GetId();
+        auto* chunk = chunkWithIndex.GetPtr();
         auto nodeId = node->GetId();
+        TDataNodePtrWithIndex nodeWithIndex(node, chunkWithIndex.GetIndex());
 
-        if (node->HasChunk(chunk, cached)) {
+        if (node->HasReplica(chunkWithIndex, cached)) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Chunk replica is already added (ChunkId: %s, Cached: %s, Reason: %s, NodeId: %d, Address: %s)",
-                ~ToString(chunkId),
+                ~ToString(chunkWithIndex),
                 ~FormatBool(cached),
                 ~reason.ToString(),
                 nodeId,
@@ -1356,22 +1367,22 @@ private:
             return;
         }
 
-        node->AddChunk(chunk, cached);
-        chunk->AddReplica(TDataNodeWithIndex(node), cached);
+        node->AddReplica(chunkWithIndex, cached);
+        chunk->AddReplica(nodeWithIndex, cached);
 
         if (!IsRecovery()) {
             LOG_EVENT(
                 Logger,
                 reason == EAddReplicaReason::FullHeartbeat ? NLog::ELogLevel::Trace : NLog::ELogLevel::Debug,
                 "Chunk replica added (ChunkId: %s, Cached: %s, NodeId: %d, Address: %s)",
-                ~ToString(chunkId),
+                ~ToString(chunkWithIndex),
                 ~FormatBool(cached),
                 nodeId,
                 ~node->GetAddress());
         }
 
         if (!cached && IsLeader()) {
-            ChunkReplicator->ScheduleChunkRefresh(chunk);
+            ChunkReplicator->ScheduleChunkRefresh(chunkWithIndex.GetPtr());
         }
 
         if (reason == EAddReplicaReason::IncrementalHeartbeat || reason == EAddReplicaReason::Confirmation) {
@@ -1379,11 +1390,11 @@ private:
         }
     }
 
-    void ScheduleChunkReplicaRemoval(TDataNode* node, TChunk* chunk, bool cached)
+    void ScheduleChunkReplicaRemoval(TDataNode* node, TChunkPtrWithIndex chunkWithIndex, bool cached)
     {
-        node->RemoveChunk(chunk, cached);
+        node->RemoveReplica(chunkWithIndex, cached);
         if (!cached && IsLeader()) {
-            ChunkReplicator->ScheduleChunkRemoval(node, chunk);
+            ChunkReplicator->ScheduleChunkRemoval(node, chunkWithIndex.GetPtr());
         }
     }
 
@@ -1393,14 +1404,15 @@ private:
         (Reset)
     );
 
-    void RemoveChunkReplica(TDataNode* node, TChunk* chunk, bool cached, ERemoveReplicaReason reason)
+    void RemoveChunkReplica(TDataNode* node, TChunkPtrWithIndex chunkWithIndex, bool cached, ERemoveReplicaReason reason)
     {
-        const auto& chunkId = chunk->GetId();
+        auto* chunk = chunkWithIndex.GetPtr();
         auto nodeId = node->GetId();
+        TDataNodePtrWithIndex nodeWithIndex(node, chunkWithIndex.GetIndex());
 
-        if (reason == ERemoveReplicaReason::IncrementalHeartbeat && !node->HasChunk(chunk, cached)) {
+        if (reason == ERemoveReplicaReason::IncrementalHeartbeat && !node->HasReplica(chunkWithIndex, cached)) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Chunk replica is already removed (ChunkId: %s, Cached: %s, Reason: %s, NodeId: %d, Address: %s)",
-                ~ToString(chunkId),
+                ~ToString(chunkWithIndex),
                 ~FormatBool(cached),
                 ~reason.ToString(),
                 nodeId,
@@ -1411,7 +1423,7 @@ private:
         switch (reason) {
             case ERemoveReplicaReason::IncrementalHeartbeat:
             case ERemoveReplicaReason::Unapproved:
-                node->RemoveChunk(chunk, cached);
+                node->RemoveReplica(chunkWithIndex, cached);
                 break;
             case ERemoveReplicaReason::Reset:
                 // Do nothing.
@@ -1419,14 +1431,14 @@ private:
             default:
                 YUNREACHABLE();
         }
-        chunk->RemoveReplica(TDataNodeWithIndex(node), cached);
+        chunk->RemoveReplica(nodeWithIndex, cached);
 
         if (!IsRecovery()) {
             LOG_EVENT(
                 Logger,
                 reason == ERemoveReplicaReason::Reset ? NLog::ELogLevel::Trace : NLog::ELogLevel::Debug,
                 "Chunk replica removed (ChunkId: %s, Cached: %s, Reason: %s, NodeId: %d, Address: %s)",
-                ~ToString(chunkId),
+                ~ToString(chunkWithIndex),
                 ~FormatBool(cached),
                 ~reason.ToString(),
                 nodeId,
@@ -1522,10 +1534,10 @@ private:
         bool incremental)
     {
         auto nodeId = node->GetId();
-        auto chunkId = FromProto<TChunkId>(chunkAddInfo.chunk_id());
+        auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkAddInfo.chunk_id()));
         bool cached = chunkAddInfo.cached();
 
-        auto* chunk = FindChunk(chunkId);
+        auto* chunk = FindChunk(chunkIdWithIndex.Id);
         if (!IsObjectAlive(chunk)) {
             // Nodes may still contain cached replicas of chunks that no longer exist.
             // Here we just silently ignore this case.
@@ -1536,30 +1548,31 @@ private:
             LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk added, removal scheduled (NodeId: %d, Address: %s, ChunkId: %s, Cached: %s)",
                 nodeId,
                 ~node->GetAddress(),
-                ~ToString(chunkId),
+                ~ToString(chunkIdWithIndex),
                 ~FormatBool(cached));
 
             if (IsLeader()) {
-                ChunkReplicator->ScheduleChunkRemoval(node, chunkId);
+                ChunkReplicator->ScheduleChunkRemoval(node, chunkIdWithIndex.Id);
             }
 
             return;
         }
 
-        if (!cached && node->HasUnapprovedChunk(chunk)) {
+        TChunkPtrWithIndex chunkWithIndex(chunk, chunkIdWithIndex.Index);
+        if (!cached && node->HasUnapprovedReplica(chunkWithIndex)) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Chunk approved (NodeId: %d, Address: %s, ChunkId: %s)",
                 nodeId,
                 ~node->GetAddress(),
-                ~ToString(chunkId));
+                ~ToString(chunkWithIndex));
 
-            node->ApproveChunk(chunk);
+            node->ApproveReplica(chunkWithIndex);
             return;
         }
 
         // Use the size reported by the node, but check it for consistency first.
         if (!chunk->ValidateChunkInfo(chunkAddInfo.chunk_info())) {
             auto error = TError("Mismatched chunk info reported by node (ChunkId: %s, Cached: %s, ExpectedInfo: {%s}, ReceivedInfo: {%s}, NodeId: %d, Address: %s)",
-                ~ToString(chunkId),
+                ~ToString(chunkWithIndex),
                 ~FormatBool(cached),
                 ~chunk->ChunkInfo().DebugString(),
                 ~chunkAddInfo.chunk_info().DebugString(),
@@ -1573,7 +1586,7 @@ private:
 
         AddChunkReplica(
             node,
-            chunk,
+            chunkWithIndex,
             cached,
             incremental ? EAddReplicaReason::IncrementalHeartbeat : EAddReplicaReason::FullHeartbeat);
     }
@@ -1583,22 +1596,23 @@ private:
         const TChunkRemoveInfo& chunkInfo)
     {
         auto nodeId = node->GetId();
-        auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
+        auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
         bool cached = chunkInfo.cached();
 
-        auto* chunk = FindChunk(chunkId);
+        auto* chunk = FindChunk(chunkIdWithIndex.Id);
         if (!IsObjectAlive(chunk)) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk replica removed (ChunkId: %s, Cached: %s, Address: %s, NodeId: %d)",
-                 ~ToString(chunkId),
+                 ~ToString(chunkIdWithIndex),
                  ~FormatBool(cached),
                  ~node->GetAddress(),
                  nodeId);
             return;
         }
 
+        TChunkPtrWithIndex chunkWithIndex(chunk, chunkIdWithIndex.Index);
         RemoveChunkReplica(
             node,
-            chunk,
+            chunkWithIndex,
             cached,
             ERemoveReplicaReason::IncrementalHeartbeat);
     }
@@ -1777,7 +1791,7 @@ TObjectBase* TChunkManager::TChunkTypeHandler::Create(
         TNodeDirectoryBuilder builder(responseExt->mutable_node_directory());
         std::vector<Stroka> targetAddresses;
         FOREACH (auto* target, targets) {
-            NChunkServer::TDataNodeWithIndex replica(target, 0);
+            NChunkServer::TDataNodePtrWithIndex replica(target, 0);
             builder.Add(replica);
             responseExt->add_replicas(NYT::ToProto<ui32>(replica));
             targetAddresses.push_back(target->GetAddress());
@@ -2027,7 +2041,7 @@ void TChunkManager::ScheduleRFUpdate(TChunkTree* chunkTree)
     Impl->ScheduleRFUpdate(chunkTree);
 }
 
-TDataNodeWithIndexList TChunkManager::GetChunkReplicas(const TChunk* chunk)
+TDataNodePtrWithIndexList TChunkManager::GetChunkReplicas(const TChunk* chunk)
 {
     return Impl->GetChunkReplicas(chunk);
 }

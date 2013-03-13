@@ -122,5 +122,39 @@ typedef TIntrusivePtr<TNodeDirectory> TNodeDirectoryPtr;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+struct TChunkIdWithIndex
+{
+    TChunkIdWithIndex();
+    TChunkIdWithIndex(const TChunkId& id, int index);
+
+    TChunkId Id;
+    int Index;
+};
+
+Stroka ToString(const TChunkIdWithIndex& id);
+
+///////////////////////////////////////////////////////////////////////////////
+
+//! Returns |true| iff this is a erasure chunk.
+bool IsErasureChunkId(const TChunkId& id);
+
+//! Returns |true| iff this is a erasure chunk part.
+bool IsEasureChunkPartId(const TChunkId& id);
+
+//! Returns id for a part of a given erasure chunk.
+TChunkId PartIdFromErasureChunkId(const TChunkId& id, int index);
+
+//! Returns the whole chunk id for a given erasure chunk part id.
+TChunkId ChunkIdFromErasurePartId(const TChunkId& id);
+
+//! Returns part index for a given erasure chunk part id.
+int PartIndexFromErasurePartId(const TChunkId& id);
+
+//! For usual chunks, preserves the id and returns zero index.
+//! For erasure chunks, constructs the whole chunk id and extracts index.
+TChunkIdWithIndex DecodeChunkId(const TChunkId& id);
+
+///////////////////////////////////////////////////////////////////////////////
+
 } // namespace NChunkClient
 } // namespace NYT

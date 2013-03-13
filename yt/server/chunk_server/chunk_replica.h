@@ -13,24 +13,24 @@ namespace NChunkServer {
 
 //! A compact representation for |(T*, index)| pair.
 template <class T>
-class TWithIndex
+class TPtrWithIndex
 {
 public:
-    TWithIndex();
-    explicit TWithIndex(T* node, int index = 0);
+    TPtrWithIndex();
+    explicit TPtrWithIndex(T* node, int index = 0);
 
     T* GetPtr() const;
     int GetIndex() const;
 
     size_t GetHash() const;
 
-    bool operator == (TWithIndex other) const;
-    bool operator != (TWithIndex other) const;
+    bool operator == (TPtrWithIndex other) const;
+    bool operator != (TPtrWithIndex other) const;
 
-    bool operator <  (TWithIndex other) const;
-    bool operator <= (TWithIndex other) const;
-    bool operator >  (TWithIndex other) const;
-    bool operator >= (TWithIndex other) const;
+    bool operator <  (TPtrWithIndex other) const;
+    bool operator <= (TPtrWithIndex other) const;
+    bool operator >  (TPtrWithIndex other) const;
+    bool operator >= (TPtrWithIndex other) const;
 
 private:
 #ifdef __x86_64__
@@ -47,23 +47,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TWithIndex<TDataNode> TDataNodeWithIndex;
-typedef TWithIndex<TChunk> TChunkWithIndex;
-typedef TSmallVector<TDataNodeWithIndex, TypicalReplicationFactor> TDataNodeWithIndexList;
+typedef TPtrWithIndex<TDataNode> TDataNodePtrWithIndex;
+typedef TPtrWithIndex<TChunk> TChunkPtrWithIndex;
+typedef TSmallVector<TDataNodePtrWithIndex, TypicalReplicationFactor> TDataNodePtrWithIndexList;
 
-Stroka ToString(TDataNodeWithIndex value);
-Stroka ToString(TChunkWithIndex value);
+Stroka ToString(TDataNodePtrWithIndex value);
+Stroka ToString(TChunkPtrWithIndex value);
 
-void ToProto(ui32* protoValue, TDataNodeWithIndex value);
-
-// TODO(babenko): eliminate this hack when new serialization API is ready
-template <class T>
-void SaveObjectRef(const NCellMaster::TSaveContext& context, TWithIndex<T> value);
-template <class T>
-void LoadObjectRef(const NCellMaster::TLoadContext& context, TWithIndex<T>& value);
+void ToProto(ui32* protoValue, TDataNodePtrWithIndex value);
 
 template <class T>
-bool CompareObjectsForSerialization(TWithIndex<T> lhs, TWithIndex<T> rhs);
+bool CompareObjectsForSerialization(TPtrWithIndex<T> lhs, TPtrWithIndex<T> rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

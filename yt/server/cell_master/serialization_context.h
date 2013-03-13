@@ -134,6 +134,12 @@ void Save(const TSaveContext& context, const TSmallVector<T, N>& objects);
 template <class T, unsigned N>
 void Load(const TLoadContext& context, TSmallVector<T, N>& objects);
 
+// TODO(babenko): eliminate this hack when new serialization API is ready
+template <class T>
+void SaveObjectRef(const TSaveContext& context, NChunkServer::TPtrWithIndex<T> value);
+template <class T>
+void LoadObjectRef(const TLoadContext& context, NChunkServer::TPtrWithIndex<T>& value);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCellMaster

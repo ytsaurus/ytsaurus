@@ -43,6 +43,23 @@ DECLARE_ENUM(EObjectType,
     // Chunk Manager stuff
     ((Chunk)                      (100))
     ((ChunkList)                  (101))
+    ((ErasureChunk)               (102)) // erasure chunk as a whole
+    ((ErasureChunkPart_0)         (103)) // erasure chunk parts, mnemonic names are for debugging convenience only
+    ((ErasureChunkPart_1)         (104))
+    ((ErasureChunkPart_2)         (105))
+    ((ErasureChunkPart_3)         (106))
+    ((ErasureChunkPart_4)         (107))
+    ((ErasureChunkPart_5)         (108))
+    ((ErasureChunkPart_6)         (109))
+    ((ErasureChunkPart_7)         (110))
+    ((ErasureChunkPart_8)         (111))
+    ((ErasureChunkPart_9)         (112))
+    ((ErasureChunkPart_10)        (113))
+    ((ErasureChunkPart_11)        (114))
+    ((ErasureChunkPart_12)        (115))
+    ((ErasureChunkPart_13)        (116))
+    ((ErasureChunkPart_14)        (117))
+    ((ErasureChunkPart_15)        (118))
 
     // The following are versioned objects AKA Cypress nodes.
     // These must be created by calling TCypressYPathProxy::Create.
@@ -118,6 +135,10 @@ TObjectId MakeWellKnownId(
 TObjectId MakeSchemaObjectId(
     EObjectType type,
     TCellId cellId);
+
+TObjectId ReplaceTypeInId(
+    const TObjectId& id,
+    EObjectType type);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -94,12 +94,30 @@ private:
             return true;
         }
 
+        typedef std::function<void(TFluentList fluent, TDataNodePtrWithIndex replica)> TReplicaSerializer;
+
+        auto serializeRegularReplica = [] (TFluentList fluent, TDataNodePtrWithIndex replica) {
+            fluent.Item()
+                .Value(replica.GetPtr()->GetAddress());
+        };
+
+        auto serializeErasureReplica = [] (TFluentList fluent, TDataNodePtrWithIndex replica) {
+            fluent.Item()
+                .BeginAttributes()
+                    .Item("index").Value(replica.GetIndex())
+                .EndAttributes()
+                .Value(replica.GetPtr()->GetAddress());
+        };
+
+        auto serializeReplica =
+            chunk->IsErasure()
+            ? TReplicaSerializer(serializeRegularReplica)
+            : TReplicaSerializer(serializeErasureReplica);
+
         if (key == "cached_replicas") {
             if (~chunk->CachedReplicas()) {
                 BuildYsonFluently(consumer)
-                    .DoListFor(*chunk->CachedReplicas(), [=] (TFluentList fluent, TDataNodeWithIndex replica) {
-                        fluent.Item().Value(replica.GetPtr()->GetAddress());
-                    });
+                    .DoListFor(*chunk->CachedReplicas(), serializeReplica);
             } else {
                 BuildYsonFluently(consumer)
                     .BeginList()
@@ -110,9 +128,7 @@ private:
 
         if (key == "stored_replicas") {
             BuildYsonFluently(consumer)
-                .DoListFor(chunk->StoredReplicas(), [=] (TFluentList fluent, TDataNodeWithIndex replica) {
-                    fluent.Item().Value(replica.GetPtr()->GetAddress());
-                });
+                .DoListFor(chunk->StoredReplicas(), serializeReplica);
             return true;
         }
 

@@ -55,9 +55,9 @@ void TDataNode::Save(const NCellMaster::TSaveContext& context) const
     ::Save(output, IncarnationId_);
     ::Save(output, State_);
     SaveProto(output, Statistics_);
-    SaveObjectRefs(context, StoredChunks_);
-    SaveObjectRefs(context, CachedChunks_);
-    SaveObjectRefs(context, UnapprovedChunks_);
+    SaveObjectRefs(context, StoredReplicas_);
+    SaveObjectRefs(context, CachedReplicas_);
+    SaveObjectRefs(context, UnapprovedReplicas_);
     SaveObjectRefs(context, Jobs_);
 }
 
@@ -68,9 +68,9 @@ void TDataNode::Load(const NCellMaster::TLoadContext& context)
     ::Load(input, IncarnationId_);
     ::Load(input, State_);
     LoadProto(input, Statistics_);
-    LoadObjectRefs(context, StoredChunks_);
-    LoadObjectRefs(context, CachedChunks_);
-    LoadObjectRefs(context, UnapprovedChunks_);
+    LoadObjectRefs(context, StoredReplicas_);
+    LoadObjectRefs(context, CachedReplicas_);
+    LoadObjectRefs(context, UnapprovedReplicas_);
     LoadObjectRefs(context, Jobs_);
 }
 
@@ -87,49 +87,49 @@ void TDataNode::RemoveJob(TJob* job)
     }
 }
 
-void TDataNode::AddChunk(TChunk* chunk, bool cached)
+void TDataNode::AddReplica(TChunkPtrWithIndex replica, bool cached)
 {
     if (cached) {
-        YCHECK(CachedChunks_.insert(chunk).second);
+        YCHECK(CachedReplicas_.insert(replica).second);
     } else {
-        YCHECK(StoredChunks_.insert(chunk).second);
+        YCHECK(StoredReplicas_.insert(replica).second);
     }
 }
 
-void TDataNode::RemoveChunk(TChunk* chunk, bool cached)
+void TDataNode::RemoveReplica(TChunkPtrWithIndex replica, bool cached)
 {
     if (cached) {
-        YCHECK(CachedChunks_.erase(chunk) == 1);
+        YCHECK(CachedReplicas_.erase(replica) == 1);
     } else {
-        YCHECK(StoredChunks_.erase(chunk) == 1);
-        UnapprovedChunks_.erase(chunk);
+        YCHECK(StoredReplicas_.erase(replica) == 1);
+        UnapprovedReplicas_.erase(replica);
     }
 }
 
-bool TDataNode::HasChunk(TChunk* chunk, bool cached) const
+bool TDataNode::HasReplica(TChunkPtrWithIndex replica, bool cached) const
 {
     if (cached) {
-        return CachedChunks_.find(chunk) != CachedChunks_.end();
+        return CachedReplicas_.find(replica) != CachedReplicas_.end();
     } else {
-        return StoredChunks_.find(chunk) != StoredChunks_.end();
+        return StoredReplicas_.find(replica) != StoredReplicas_.end();
     }
 }
 
-void TDataNode::MarkChunkUnapproved(TChunk* chunk)
+void TDataNode::MarkReplicaUnapproved(TChunkPtrWithIndex replica)
 {
-    YASSERT(HasChunk(chunk, false));
-    YCHECK(UnapprovedChunks_.insert(chunk).second);
+    YASSERT(HasReplica(replica, false));
+    YCHECK(UnapprovedReplicas_.insert(replica).second);
 }
 
-bool TDataNode::HasUnapprovedChunk(TChunk* chunk) const
+bool TDataNode::HasUnapprovedReplica(TChunkPtrWithIndex replica) const
 {
-    return UnapprovedChunks_.find(chunk) != UnapprovedChunks_.end();
+    return UnapprovedReplicas_.find(replica) != UnapprovedReplicas_.end();
 }
 
-void TDataNode::ApproveChunk(TChunk* chunk)
+void TDataNode::ApproveReplica(TChunkPtrWithIndex replica)
 {
-    YASSERT(HasChunk(chunk, false));
-    YCHECK(UnapprovedChunks_.erase(chunk) == 1);
+    YASSERT(HasReplica(replica, false));
+    YCHECK(UnapprovedReplicas_.erase(replica) == 1);
 }
 
 int TDataNode::GetTotalSessionCount() const

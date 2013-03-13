@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "chunk_replica.h"
 
 #include <ytlib/misc/property.h>
 
@@ -30,9 +31,9 @@ class TDataNode
     DEFINE_BYVAL_RO_PROPERTY(TIncarnationId, IncarnationId);
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, State);
     DEFINE_BYREF_RW_PROPERTY(NProto::TNodeStatistics, Statistics);
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunk*>, StoredChunks);
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunk*>, CachedChunks);
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunk*>, UnapprovedChunks);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkPtrWithIndex>, StoredReplicas);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkPtrWithIndex>, CachedReplicas);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkPtrWithIndex>, UnapprovedReplicas);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TJob*>, Jobs);
     DEFINE_BYVAL_RW_PROPERTY(int, HintedSessionCount);
 
@@ -58,13 +59,13 @@ public:
     void Save(const NCellMaster::TSaveContext& context) const;
     void Load(const NCellMaster::TLoadContext& context);
 
-    void AddChunk(TChunk* chunk, bool cached);
-    void RemoveChunk(TChunk* chunk, bool cached);
-    bool HasChunk(TChunk* chunk, bool cached) const;
+    void AddReplica(TChunkPtrWithIndex replica, bool cached);
+    void RemoveReplica(TChunkPtrWithIndex replica, bool cached);
+    bool HasReplica(TChunkPtrWithIndex, bool cached) const;
 
-    void MarkChunkUnapproved(TChunk* chunk);
-    bool HasUnapprovedChunk(TChunk* chunk) const;
-    void ApproveChunk(TChunk* chunk);
+    void MarkReplicaUnapproved(TChunkPtrWithIndex replica);
+    bool HasUnapprovedReplica(TChunkPtrWithIndex replica) const;
+    void ApproveReplica(TChunkPtrWithIndex replica);
 
     void AddJob(TJob* job);
     void RemoveJob(TJob* id);

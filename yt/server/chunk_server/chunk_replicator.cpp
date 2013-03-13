@@ -135,8 +135,8 @@ void TChunkReplicator::OnNodeRegistered(TDataNode* node)
         chunksToReplicate.clear();
     }
 
-    FOREACH (auto* chunk, node->StoredChunks()) {
-        ScheduleChunkRefresh(chunk);
+    FOREACH (auto replica, node->StoredReplicas()) {
+        ScheduleChunkRefresh(replica.GetPtr());
     }
 }
 
@@ -347,13 +347,14 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleReplicationJob(
 
 TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleBalancingJob(
     TDataNode* sourceNode,
-    TChunk* chunk,
+    TChunkPtrWithIndex chunkWithIndex,
     double maxFillCoeff,
     std::vector<TJobStartInfo>* jobsToStart)
 {
     using NYT::ToString;
 
-    auto chunkId = chunk->GetId();
+    auto* chunk = chunkWithIndex.GetPtr();
+    const auto& chunkId = chunk->GetId();
 
     if (chunk->GetRefreshScheduled()) {
         LOG_TRACE("Chunk %s we're about to balance is scheduled for another refresh",
@@ -361,10 +362,10 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleBalancingJob(
         return EScheduleFlags::None;
     }
 
-    auto* targetNode = ChunkPlacement->GetBalancingTarget(chunk, maxFillCoeff);
+    auto* targetNode = ChunkPlacement->GetBalancingTarget(chunkWithIndex, maxFillCoeff);
     if (!targetNode) {
         LOG_DEBUG("No suitable target nodes to balance chunk %s",
-            ~ToString(chunkId));
+            ~ToString(chunkWithIndex));
         return EScheduleFlags::None;
     }
 
@@ -453,11 +454,11 @@ void TChunkReplicator::ScheduleNewJobs(
         ChunkPlacement->HasBalancingTargets(targetFillCoeff))
     {
         auto chunksToBalance = ChunkPlacement->GetBalancingChunks(node, maxReplicationJobsToStart);
-        FOREACH (auto* chunk, chunksToBalance) {
+        FOREACH (auto chunkWithIndex, chunksToBalance) {
             if (maxReplicationJobsToStart == 0) {
                 break;
             }
-            auto flags = ScheduleBalancingJob(node, chunk, targetFillCoeff, jobsToStart);
+            auto flags = ScheduleBalancingJob(node, chunkWithIndex, targetFillCoeff, jobsToStart);
             if (flags & EScheduleFlags::Scheduled) {
                 --maxReplicationJobsToStart;
             }

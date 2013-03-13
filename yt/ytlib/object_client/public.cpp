@@ -89,6 +89,16 @@ TObjectId MakeSchemaObjectId(
     return MakeWellKnownId(SchemaTypeFromType(type), cellId);
 }
 
+TObjectId ReplaceTypeInId(
+    const TObjectId& id,
+    EObjectType type)
+{
+    auto result = id;
+    result.Parts[1] &= ~0xffff;
+    result.Parts[1] |= type;
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TVersionedObjectId::TVersionedObjectId()

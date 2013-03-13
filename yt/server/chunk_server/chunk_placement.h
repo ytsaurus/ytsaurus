@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "chunk_replica.h"
 
 #include <ytlib/misc/small_vector.h>
 #include <ytlib/misc/small_set.h>
@@ -45,8 +46,8 @@ public:
     TDataNode* GetReplicationSource(const TChunk* chunk);
 
     bool HasBalancingTargets(double maxFillCoeff);
-    std::vector<TChunk*> GetBalancingChunks(TDataNode* node, int count);
-    TDataNode* GetBalancingTarget(TChunk *chunk, double maxFillCoeff);
+    std::vector<TChunkPtrWithIndex> GetBalancingChunks(TDataNode* node, int count);
+    TDataNode* GetBalancingTarget(TChunkPtrWithIndex chunkWithIndex, double maxFillCoeff);
 
 private:
     typedef ymultimap<double, TDataNode*> TCoeffToNode;
@@ -63,7 +64,7 @@ private:
 
     static bool IsFull(TDataNode* node);
     static bool IsValidUploadTarget(TDataNode* targetNode);
-    bool IsValidBalancingTarget(TDataNode* targetNode, TChunk *chunk) const;
+    bool IsValidBalancingTarget(TDataNode* targetNode, TChunkPtrWithIndex chunkWithIndex) const;
 
 };
 

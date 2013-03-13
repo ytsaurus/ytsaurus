@@ -3,6 +3,7 @@
 #include <ytlib/misc/common.h>
 
 #include <ytlib/object_client/public.h>
+
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/block_id.h>
 
@@ -42,6 +43,9 @@ class TJob;
 class TJobList;
 class TDataNode;
 class TReplicationSink;
+
+template <class T>
+class TPtrWithIndex;
 
 struct TChunkTreeStatistics;
 struct TTotalNodeStatistics;

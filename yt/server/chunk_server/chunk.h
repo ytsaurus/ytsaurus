@@ -34,12 +34,13 @@ class TChunk
     DEFINE_BYREF_RW_PROPERTY(TParents, Parents);
 
     // This is usually small, e.g. has the length of 3.
-    typedef TSmallVector<TDataNodeWithIndex, TypicalReplicationFactor> TStoredReplicas;
+    typedef TSmallVector<TDataNodePtrWithIndex, TypicalReplicationFactor> TStoredReplicas;
     DEFINE_BYREF_RO_PROPERTY(TStoredReplicas, StoredReplicas);
 
     // This list is usually empty.
     // Keeping a holder is very space efficient (takes just 8 bytes).
-    DEFINE_BYREF_RO_PROPERTY(::THolder< yhash_set<TDataNodeWithIndex> >, CachedReplicas);
+    typedef ::THolder< yhash_set<TDataNodePtrWithIndex> > TCachedReplicas;
+    DEFINE_BYREF_RO_PROPERTY(TCachedReplicas, CachedReplicas);
 
 public:
     static const i64 UnknownSize;
@@ -53,9 +54,9 @@ public:
     void Save(const NCellMaster::TSaveContext& context) const;
     void Load(const NCellMaster::TLoadContext& context);
 
-    void AddReplica(TDataNodeWithIndex replica, bool cached);
-    void RemoveReplica(TDataNodeWithIndex replica, bool cached);
-    TSmallVector<TDataNodeWithIndex, TypicalReplicationFactor> GetReplicas() const;
+    void AddReplica(TDataNodePtrWithIndex replica, bool cached);
+    void RemoveReplica(TDataNodePtrWithIndex replica, bool cached);
+    TSmallVector<TDataNodePtrWithIndex, TypicalReplicationFactor> GetReplicas() const;
 
     bool ValidateChunkInfo(const NChunkClient::NProto::TChunkInfo& chunkInfo) const;
     bool IsConfirmed() const;
@@ -71,6 +72,8 @@ public:
 
     bool GetRFUpdateScheduled() const;
     void SetRFUpdateScheduled(bool value);
+
+    bool IsErasure() const;
 
 private:
     struct {

@@ -12,6 +12,8 @@
 #include <server/cypress_server/node.h>
 
 #include <server/chunk_server/node.h>
+#include <server/chunk_server/chunk.h>
+#include <server/chunk_server/chunk_replica.h>
 
 // Some forward declarations.
 namespace NYT {
@@ -348,6 +350,32 @@ void Load(const TLoadContext& context, TSmallVector<T, N>& objects)
     for (size_t index = 0; index != size; ++index) {
         Load(context, objects[index]);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+void SaveObjectRef(const TSaveContext& context, NChunkServer::TPtrWithIndex<T> value)
+{
+    NCellMaster::SaveObjectRef(context, value.GetPtr());
+    NCellMaster::Save(context, value.GetIndex());
+}
+
+template <class T>
+void LoadObjectRef(const NCellMaster::TLoadContext& context, NChunkServer::TPtrWithIndex<T>& value)
+{
+    T* ptr;
+    LoadObjectRef(context, ptr);
+
+    int index;
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 8) {
+        Load(context, index);
+    } else {
+        index = 0;
+    }
+
+    value = NChunkServer::TPtrWithIndex<T>(ptr, index);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

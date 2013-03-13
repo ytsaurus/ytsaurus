@@ -3,8 +3,6 @@
 #endif
 #undef CHUNK_REPLICA_INL_H_
 
-#include <server/cell_master/serialization_context.h>
-
 namespace NYT {
 namespace NChunkServer {
 
@@ -13,12 +11,12 @@ namespace NChunkServer {
 #ifdef __x86_64__
 
 template <class T>
-TWithIndex<T>::TWithIndex()
+TPtrWithIndex<T>::TPtrWithIndex()
     : Value(0)
 { }
 
 template <class T>
-TWithIndex<T>::TWithIndex(T* ptr, int index)
+TPtrWithIndex<T>::TPtrWithIndex(T* ptr, int index)
     : Value(reinterpret_cast<ui64>(ptr) | (static_cast<ui64>(index) << 60))
 {
     YASSERT((reinterpret_cast<ui64>(ptr) & 0xf000000000000000LL) == 0);
@@ -26,31 +24,31 @@ TWithIndex<T>::TWithIndex(T* ptr, int index)
 }
 
 template <class T>
-T* TWithIndex<T>::GetPtr() const
+T* TPtrWithIndex<T>::GetPtr() const
 {
     return reinterpret_cast<T*>(Value & 0x0fffffffffffffffLL);
 }
 
 template <class T>
-int TWithIndex<T>::GetIndex() const
+int TPtrWithIndex<T>::GetIndex() const
 {
     return Value >> 60;
 }
 
 template <class T>
-size_t TWithIndex<T>::GetHash() const
+size_t TPtrWithIndex<T>::GetHash() const
 {
     return static_cast<size_t>(Value);
 }
 
 template <class T>
-bool TWithIndex<T>::operator == (TWithIndex other) const
+bool TPtrWithIndex<T>::operator == (TPtrWithIndex other) const
 {
     return Value == other.Value;
 }
 
 template <class T>
-bool TWithIndex<T>::operator != (TWithIndex other) const
+bool TPtrWithIndex<T>::operator != (TPtrWithIndex other) const
 {
     return Value != other.Value;
 }
@@ -58,44 +56,44 @@ bool TWithIndex<T>::operator != (TWithIndex other) const
 #else
 
 template <class T>
-TWithIndex<T>::TWithIndex()
+TPtrWithIndex<T>::TPtrWithIndex()
     : Ptr(nullptr)
     , Index(0)
 { }
 
 template <class T>
-TWithIndex<T>::TWithIndex(T* ptr, int index)
+TPtrWithIndex<T>::TPtrWithIndex(T* ptr, int index)
     : Ptr(ptr)
     , Index(index)
 { }
 
 template <class T>
-T* TWithIndex<T>::GetPtr() const
+T* TPtrWithIndex<T>::GetPtr() const
 {
     return Ptr;
 }
 
 template <class T>
-int TWithIndex<T>::GetIndex() const
+int TPtrWithIndex<T>::GetIndex() const
 {
     return Index;
 }
 
 template <class T>
-size_t TWithIndex<T>::GetHash() const
+size_t TPtrWithIndex<T>::GetHash() const
 {
-    return THash<TDataNode*>()(Ptr) * 497 +
+    return THash<T*>()(Ptr) * 497 +
            THash<int>()(Index);
 }
 
 template <class T>
-bool TWithIndex<T>::operator == (TWithIndex other) const
+bool TPtrWithIndex<T>::operator == (TPtrWithIndex other) const
 {
     return Ptr == other.Ptr && Index == other.Index;
 }
 
 template <class T>
-bool TWithIndex<T>::operator != (TWithIndex other) const
+bool TPtrWithIndex<T>::operator != (TPtrWithIndex other) const
 {
     return Ptr != other.Ptr || Index != other.Index;
 }
@@ -103,7 +101,7 @@ bool TWithIndex<T>::operator != (TWithIndex other) const
 #endif
 
 template <class T>
-bool TWithIndex<T>::operator < (TWithIndex other) const
+bool TPtrWithIndex<T>::operator < (TPtrWithIndex other) const
 {
     auto thisId = GetPtr()->GetId();
     auto otherId = other.GetPtr()->GetId();
@@ -114,7 +112,7 @@ bool TWithIndex<T>::operator < (TWithIndex other) const
 }
 
 template <class T>
-bool TWithIndex<T>::operator <= (TWithIndex other) const
+bool TPtrWithIndex<T>::operator <= (TPtrWithIndex other) const
 {
     auto thisId = GetPtr()->GetId();
     auto otherId = other.GetPtr()->GetId();
@@ -125,43 +123,19 @@ bool TWithIndex<T>::operator <= (TWithIndex other) const
 }
 
 template <class T>
-bool TWithIndex<T>::operator > (TWithIndex other) const
+bool TPtrWithIndex<T>::operator > (TPtrWithIndex other) const
 {
     return other < *this;
 }
 
 template <class T>
-bool TWithIndex<T>::operator >= (TWithIndex other) const
+bool TPtrWithIndex<T>::operator >= (TPtrWithIndex other) const
 {
     return other <= *this;
 }
 
 template <class T>
-void SaveObjectRef(const NCellMaster::TSaveContext& context, TWithIndex<T> value)
-{
-    NCellMaster::SaveObjectRef(context, value.GetPtr());
-    NCellMaster::Save(context, value.GetIndex());
-}
-
-template <class T>
-void LoadObjectRef(const NCellMaster::TLoadContext& context, TWithIndex<T>& value)
-{
-    T* ptr;
-    LoadObjectRef(context, ptr);
-
-    int index;
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 8) {
-        Load(context, index);
-    } else {
-        index = 0;
-    }
-
-    value = TWithIndex<T>(ptr, index);
-}
-
-template <class T>
-bool CompareObjectsForSerialization(TWithIndex<T> lhs, TWithIndex<T> rhs)
+bool CompareObjectsForSerialization(TPtrWithIndex<T> lhs, TPtrWithIndex<T> rhs)
 {
     return lhs < rhs;
 }
@@ -172,12 +146,12 @@ bool CompareObjectsForSerialization(TWithIndex<T> lhs, TWithIndex<T> rhs)
 } // namespace NYT
 
 
-//! A hasher for TWithIndex.
 template <class T>
-struct hash< NYT::NChunkServer::TWithIndex<T> >
+struct hash< NYT::NChunkServer::TPtrWithIndex<T> >
 {
-    size_t operator()(NYT::NChunkServer::TWithIndex<T> value) const
+    size_t operator()(NYT::NChunkServer::TPtrWithIndex<T> value) const
     {
         return value.GetHash();
     }
 };
+

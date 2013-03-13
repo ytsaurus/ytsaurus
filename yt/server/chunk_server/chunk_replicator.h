@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "chunk_replica.h"
 
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/property.h>
@@ -115,7 +116,7 @@ private:
         std::vector<NProto::TJobStartInfo>* jobsToStart);
     EScheduleFlags ScheduleBalancingJob(
         TDataNode* sourceNode,
-        TChunk* chunk,
+        TChunkPtrWithIndex chunkWithIndex,
         double maxFillCoeff,
         std::vector<NProto::TJobStartInfo>* jobsToStart);
     EScheduleFlags ScheduleRemovalJob(
