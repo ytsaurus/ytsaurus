@@ -63,7 +63,7 @@ public:
 private:
     typedef NCypressServer::TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IEntityNode, TFileNode> TBase;
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override
+    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
         const auto* node = GetThisTypedImpl();
         const auto* chunkList = node->GetChunkList();
@@ -79,7 +79,7 @@ private:
         TBase::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const override
+    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         const auto* node = GetThisTypedImpl();
         const auto* chunkList = node->GetChunkList();

@@ -60,21 +60,6 @@ void TNontemplateCypressNodeTypeHandlerBase::DestroyCore(TCypressNodeBase* node)
 
     // Reset parent links from immediate ancestors.
     FOREACH (auto* ancestor, node->ImmediateAncestors()) {
-        // If the ancestor still have outstanding references, it becomes orphaned, i.e. no longer has a valid parent.
-        // This, among other thinks, breaks ACL propagation.
-        // The workaround is to append the entries from parent's effective ACL manually.
-        if (ancestor->GetObjectRefCounter() > 1) {
-            auto* ancestorAcd = securityManager->GetAcd(ancestor);
-            if (ancestorAcd->GetInherit()) {
-                if (!effectiveAcl) {
-                    effectiveAcl = securityManager->GetEffectiveAcl(node);
-                }
-                FOREACH (const auto& ace, effectiveAcl->Entries) {
-                    ancestorAcd->AddEntry(ace);
-                }
-                ancestorAcd->SetInherit(false);
-            }
-        }
         ancestor->ResetParent();
     }
     node->ImmediateAncestors().clear();
@@ -104,6 +89,20 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
 
     // Branch user attributes.
     objectManager->BranchAttributes(originatingNode->GetVersionedId(), branchedNode->GetVersionedId());
+
+    // Capture the ACD of |originatingNode| and hard-wire it into |branchedNode|.
+    // This is needed since |branchedNode| may get orphaned, i.e. lose its parent link.
+    if (mode == ELockMode::Snapshot) {
+        auto securityManager = Bootstrap->GetSecurityManager();
+        auto effectiveAcl = securityManager->GetEffectiveAcl(originatingNode);
+        const auto* originatingAcd = securityManager->GetAcd(originatingNode);
+        auto& branchedAcd = branchedNode->Acd();
+        FOREACH (const auto& ace, effectiveAcl.Entries) {
+            branchedAcd.AddEntry(ace);
+        }
+        branchedAcd.SetOwner(originatingAcd->GetOwner());
+        branchedAcd.SetInherit(false);
+    }
 }
 
 void TNontemplateCypressNodeTypeHandlerBase::MergeCore(

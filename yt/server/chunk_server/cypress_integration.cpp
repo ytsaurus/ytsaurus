@@ -257,7 +257,7 @@ private:
         return Bootstrap->GetChunkManager()->FindNodeByAddress(address);
     }
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override
+    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
         const auto* node = GetNode();
         attributes->push_back(TAttributeInfo("state"));
@@ -267,7 +267,7 @@ private:
         TMapNodeProxy::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const override
+    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         const auto* node = GetNode();
 
@@ -444,7 +444,7 @@ public:
     { }
 
 private:
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override
+    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
         attributes->push_back("offline");
         attributes->push_back("banned");
@@ -461,7 +461,7 @@ private:
         TMapNodeProxy::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const override
+    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         auto chunkManager = Bootstrap->GetChunkManager();
 

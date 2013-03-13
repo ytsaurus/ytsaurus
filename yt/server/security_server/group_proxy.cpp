@@ -44,13 +44,13 @@ private:
         }
     }
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override
+    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
         attributes->push_back("members");
         TBase::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) const override
+    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
     {
         const auto* group = GetThisTypedImpl();
 

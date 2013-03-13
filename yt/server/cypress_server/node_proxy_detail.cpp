@@ -277,7 +277,7 @@ const IAttributeDictionary& TNontemplateCypressNodeProxyBase::Attributes() const
 
 TAsyncError TNontemplateCypressNodeProxyBase::GetSystemAttributeAsync(
     const Stroka& key, 
-    NYson::IYsonConsumer* consumer) const
+    NYson::IYsonConsumer* consumer)
 {
     if (key == "recursive_resource_usage") {
         auto visitor = New<TResourceUsageVisitor>(Bootstrap, consumer);
@@ -316,7 +316,7 @@ TVersionedObjectId TNontemplateCypressNodeProxyBase::GetVersionedId() const
     return TVersionedObjectId(Object->GetId(), GetObjectId(Transaction));
 }
 
-void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const 
+void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
 {
     const auto* node = GetThisImpl();
     attributes->push_back(TAttributeInfo("parent_id", node->GetParent()));
@@ -333,7 +333,7 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
 
 bool TNontemplateCypressNodeProxyBase::GetSystemAttribute(
     const Stroka& key,
-    IYsonConsumer* consumer) const
+    IYsonConsumer* consumer)
 {
     const auto* node = GetThisImpl();
     const auto* trunkNode = node->GetTrunkNode();
@@ -456,11 +456,8 @@ TCypressNodeBase* TNontemplateCypressNodeProxyBase::LockThisImpl(
     const TLockRequest& request /*= ELockMode::Exclusive*/,
     bool recursive /*= false*/)
 {
-    if (!CachedNode) {
-        CachedNode = LockImpl(TrunkNode, request, recursive);
-        YASSERT(CachedNode->GetTransaction() == Transaction);
-    }
-    return CachedNode;
+    // NB: Cannot use |CachedNode| here.
+    return LockImpl(TrunkNode, request, recursive);
 }
 
 ICypressNodeProxyPtr TNontemplateCypressNodeProxyBase::GetProxy(TCypressNodeBase* trunkNode) const
@@ -694,6 +691,13 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     context->Reply();
 }
 
+TAccessControlDescriptor* TNontemplateCypressNodeProxyBase::FindThisAcd()
+{
+    auto securityManager = Bootstrap->GetSecurityManager();
+    auto* node = GetThisImpl();
+    return securityManager->FindAcd(node);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TNontemplateCompositeCypressNodeProxyBase::TNontemplateCompositeCypressNodeProxyBase(
@@ -718,13 +722,13 @@ TIntrusivePtr<NYTree::ICompositeNode> TNontemplateCompositeCypressNodeProxyBase:
     return this;
 }
 
-void TNontemplateCompositeCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const 
+void TNontemplateCompositeCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
 {
     attributes->push_back("count");
     TNontemplateCypressNodeProxyBase::ListSystemAttributes(attributes);
 }
 
-bool TNontemplateCompositeCypressNodeProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const 
+bool TNontemplateCompositeCypressNodeProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
     if (key == "count") {
         NYTree::BuildYsonFluently(consumer)
@@ -1258,13 +1262,13 @@ IYPathService::TResolveResult TLinkNodeProxy::Resolve(
     }
 }
 
-void TLinkNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const 
+void TLinkNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
 {
     TBase::ListSystemAttributes(attributes);
     attributes->push_back("target_id");
 }
 
-bool TLinkNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const 
+bool TLinkNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
     if (key == "target_id") {
         const auto* impl = GetThisTypedImpl();

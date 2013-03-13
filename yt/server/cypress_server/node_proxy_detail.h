@@ -115,10 +115,11 @@ protected:
     mutable NYTree::IYPathResolverPtr CachedResolver;
     
     virtual NObjectServer::TVersionedObjectId GetVersionedId() const override;
+    virtual NSecurityServer::TAccessControlDescriptor* FindThisAcd() override;
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override;
-    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) const override;
-    virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) const override;
+    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
+    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
+    virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) override;
     virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
@@ -190,8 +191,8 @@ protected:
         NTransactionServer::TTransaction* transaction,
         TCypressNodeBase* trunkNode);
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override;
-    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) const override;
+    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
+    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
 
     virtual bool CanHaveChildren() const override;
 
@@ -407,8 +408,8 @@ public:
 private:
     typedef TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, NYTree::IEntityNode, TLinkNode> TBase;
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override;
-    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) const override;
+    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
+    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
     virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
     NYTree::IYPathServicePtr GetTargetService() const;

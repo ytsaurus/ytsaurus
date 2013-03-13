@@ -53,7 +53,7 @@ public:
 private:
     typedef TNonversionedObjectProxyBase<TSchemaObject> TBase;
 
-    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) const override
+    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
     {
         if (key == "type") {
             auto type = TypeFromSchemaType(TypeFromId(GetId()));

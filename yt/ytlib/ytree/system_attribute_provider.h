@@ -34,19 +34,19 @@ struct ISystemAttributeProvider
      *  \note
      *  Must not clear #attributes since additional items may be added in inheritors.
      */
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const = 0;
+    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) = 0;
 
     //! Gets the value of a system attribute.
     /*!
      *  \returns False if there is no system attribute with the given key.
      */
-    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) const = 0;
+    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) = 0;
 
     //! Asynchronously gets the value of a system attribute.
     /*!
      *  \returns Null if there is no such async system attribute with the given key.
      */
-    virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) const = 0;
+    virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) = 0;
 
     //! Sets the value of a system attribute.
     /*!
