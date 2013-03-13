@@ -505,29 +505,26 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
     EPermissionCheckScope scope,
     EPermission permission)
 {
-    ValidatePermission(TrunkNode, scope, permission);
+    auto* node = GetThisImpl();
+    ValidatePermission(node, scope, permission);
 }
 
 void TNontemplateCypressNodeProxyBase::ValidatePermission(
-    TCypressNodeBase* trunkNode,
+    TCypressNodeBase* node,
     EPermissionCheckScope scope,
     EPermission permission)
 {
-    YCHECK(trunkNode->IsTrunk());
-
     if (scope & EPermissionCheckScope::This) {
-        ValidatePermission(trunkNode, permission);
+        ValidatePermission(node, permission);
     }
 
     if (scope & EPermissionCheckScope::Parent) {
-        // NB: trunkNode->GetParent() may be null if the node is still being constructed
-        // in a transaction. Dig down to the exact versioned copy of #trunkNode.
-        ValidatePermission(GetImpl(trunkNode)->GetParent()->GetTrunkNode(), permission);
+        ValidatePermission(node->GetParent(), permission);
     }
 
     if (scope & EPermissionCheckScope::Descendants) {
         auto cypressManager = Bootstrap->GetCypressManager();
-        auto descendants = cypressManager->ListSubtreeNodes(trunkNode, Transaction, false);
+        auto descendants = cypressManager->ListSubtreeNodes(node, Transaction, false);
         FOREACH (auto* descendant, descendants) {
             ValidatePermission(descendant, permission);
         }

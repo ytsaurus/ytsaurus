@@ -285,25 +285,25 @@ private:
             INodeTypeHandlerPtr typeHandler, \
             NCellMaster::TBootstrap* bootstrap, \
             NTransactionServer::TTransaction* transaction, \
-            TScalarNode<type>* trunkNode) \
+            TScalarNode<type>* node) \
             : TScalarNodeProxy<type, NYTree::I##key##Node, T##key##Node>( \
                 typeHandler, \
                 bootstrap, \
                 transaction, \
-                trunkNode) \
+                node) \
         { } \
     }; \
     \
     template <> \
     inline ICypressNodeProxyPtr TScalarNodeTypeHandler<type>::DoGetProxy( \
-        TScalarNode<type>* trunkNode, \
+        TScalarNode<type>* node, \
         NTransactionServer::TTransaction* transaction) \
     { \
         return New<T##key##NodeProxy>( \
             this, \
             Bootstrap, \
             transaction, \
-            trunkNode); \
+            node); \
     }
 
 DECLARE_SCALAR_TYPE(String, Stroka)
