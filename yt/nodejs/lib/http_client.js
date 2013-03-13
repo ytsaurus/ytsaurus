@@ -72,10 +72,12 @@ YtHttpClient.prototype.withBody = function(body, type)
         this.headers["Content-Type"] = type;
     }
 
-    this.headers["Content-Length"] =
-        typeof(this.body) === "string"
-        ? Buffer.byteLength(this.body)
-        : this.body.length;
+    if (this.body) {
+        this.headers["Content-Length"] =
+            typeof(this.body) === "string"
+            ? Buffer.byteLength(this.body)
+            : this.body.length;
+    }
 
     return this;
 };
@@ -91,18 +93,20 @@ YtHttpClient.prototype.fire = function()
 {
     __DBG("Firing a request to '" + this.host + "/" + this.path + "'");
 
+    var self = this;
+
     var deferred = Q.defer();
     var request = http.request({
-        method: this.verb,
-        headers: this.headers,
-        host: this.host,
-        path: url.format({ pathname: this.path })
+        method: self.verb,
+        headers: self.headers,
+        host: self.host,
+        path: url.format({ pathname: self.path })
     });
 
-    request.setNoDelay(this.nodelay);
-    request.setTimeout(this.timeout, function() {
+    request.setNoDelay(self.nodelay);
+    request.setTimeout(self.timeout, function() {
         deferred.reject(new Error(
-            "Request to '" + this.host + "/" + this.path + "' timed out"));
+            "Request to '" + self.host + "/" + self.path + "' timed out"));
     });
     request.once("error", function(error) {
         deferred.reject(error);
@@ -116,7 +120,7 @@ YtHttpClient.prototype.fire = function()
             deferred.resolve(buffertools.concat.apply(buffertools, chunks));
         });
     });
-    request.end(this.body);
+    request.end(self.body);
 
     return deferred.promise;
 };
