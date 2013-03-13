@@ -131,7 +131,6 @@ config = {
     proxy             : { logging : { rules : [], writers : {} } },
     locals            : {},
     oauth : {
-        mount: "/auth",
         host: "oauth.yandex-team.ru",
         port: 80,
         authorize_path: "/authorize",
@@ -149,6 +148,13 @@ config = {
                 client_secret: "93008f89679c46b6a79fad9ebd776879"
             }
         ]
+    },
+    blackbox: {
+        host: "blackbox.yandex-team.ru",
+        port: 80,
+        path: "/blackbox",
+        timeout: 3000,
+        retries: 5
     }
 };
 
