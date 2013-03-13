@@ -20,8 +20,8 @@ TDataNode::TDataNode(
     const TNodeDescriptor& descriptor,
     const TIncarnationId& incarnationId)
     : Id_(id)
-    , Descriptor_(descriptor)
     , IncarnationId_(incarnationId)
+    , Descriptor_(descriptor)
 {
     Init();
 }
