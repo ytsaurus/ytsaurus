@@ -68,12 +68,12 @@ function YtApplicationAuth()
             } else if (result.error) {
                 error = new YtError(
                     "OAuth server returned an error: " + result.error);
-                error.attributes.raw_data = data;
+                error.attributes.raw_data = data.toString();
                 throw error;
             } else {
                 error = new YtError(
                     "OAuth server returned a malformed result");
-                error.attributes.raw_data = data;
+                error.attributes.raw_data = data.toString();
                 throw error;
             }
         });
@@ -109,12 +109,12 @@ function YtApplicationAuth()
             } else if (result.error) {
                 error = new YtError(
                     "Blackbox server returned an error: " + result.error);
-                error.attributes.raw_data = data;
+                error.attributes.raw_data = data.toString();
                 throw error;
             } else {
                 error = new YtError(
                     "Blackbox server returned a malformed result");
-                error.attributes.raw_data = data;
+                error.attributes.raw_data = data.toString();
                 throw error;
             }
         });
@@ -155,12 +155,16 @@ function YtApplicationAuth()
 
                 if (state.return_path) {
                     var target = state.return_path;
+                    // TODO(sandello): Fixme.
+                    /*
                     target = url.parse(target);
-                    target.query = qs.parse(target.query);
+                    target.query = qs.decode(target.query);
                     target.query.token = token;
                     target.query.login = login;
-                    target.query = qs.format(target.query);
+                    target.query = qs.encode(target.query);
                     target = url.format(target);
+                    */
+                    target += '?token=' + token + '&login=' + login;
                     return utils.redirectTo(rsp, target, 303);
                 } else {
                     var body = TEMPLATE_LAYOUT({ content: TEMPLATE_TOKEN({
