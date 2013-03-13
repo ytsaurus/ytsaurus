@@ -175,7 +175,7 @@ private:
                     MaxReplicationFactor);
             }
 
-            auto* node = LockThisTypedImpl();
+            auto* node = GetThisTypedImpl();
             YCHECK(node->IsTrunk());
 
             if (node->GetReplicationFactor() != replicationFactor) {
