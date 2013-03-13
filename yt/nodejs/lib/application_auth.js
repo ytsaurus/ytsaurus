@@ -68,12 +68,12 @@ function YtApplicationAuth()
             } else if (result.error) {
                 error = new YtError(
                     "OAuth server returned an error: " + result.error);
-                error.attributes.raw_data = data;
+                error.attributes.raw_data = data.toString();
                 throw error;
             } else {
                 error = new YtError(
                     "OAuth server returned a malformed result");
-                error.attributes.raw_data = data;
+                error.attributes.raw_data = data.toString();
                 throw error;
             }
         });
@@ -109,12 +109,12 @@ function YtApplicationAuth()
             } else if (result.error) {
                 error = new YtError(
                     "Blackbox server returned an error: " + result.error);
-                error.attributes.raw_data = data;
+                error.attributes.raw_data = data.toString();
                 throw error;
             } else {
                 error = new YtError(
                     "Blackbox server returned a malformed result");
-                error.attributes.raw_data = data;
+                error.attributes.raw_data = data.toString();
                 throw error;
             }
         });
