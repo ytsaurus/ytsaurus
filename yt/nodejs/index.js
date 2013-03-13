@@ -7,3 +7,4 @@ exports.YtHostDiscovery = require("./lib/host_discovery").that;
 exports.YtAssignRequestId = require("./lib/assign_request_id").that;
 exports.YtLogRequest = require("./lib/log_request").that;
 exports.YtRegistry = require("./lib/registry").that;
+exports.utils = require("./lib/utils");

@@ -127,10 +127,14 @@ dynamic_server = connect()
     .use(function(req, rsp, next) {
         var rd = domain.create();
         rd.on("error", function(err) {
-            // TODO(sandello): Migrate to utils.js here and extract _dispatchAsJson.
-            var body = (new YtError(err, "Unhandled error in request domain")).toJson();
-            rsp.writeHead(500, { "Content-Encoding": "application/json" });
-            rsp.end(body);
+            var body = (new yt.YtError("Unhandled error in the request domain", err)).toJson();
+
+            logger.error("Unhandled error in the request domain", {
+                request_id : req.uuid,
+                error : body
+            });
+
+            yt.utils.dispatchAs(rsp, body, "application/json");
             rd.dispose();
         });
         rd.run(next);

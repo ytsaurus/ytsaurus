@@ -5,6 +5,8 @@
 
 #include <server/cell_master/bootstrap.h>
 
+#include <server/object_server/type_handler_detail.h>
+
 namespace NYT {
 namespace NObjectServer {
 
@@ -76,25 +78,19 @@ IObjectProxyPtr CreateSchemaProxy(TBootstrap* bootstrap, TSchemaObject* object)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemaTypeHandler
-    : public IObjectTypeHandler
+    : public TObjectTypeHandlerBase<TSchemaObject>
 {
 public:
     TSchemaTypeHandler(
         TBootstrap* bootstrap,
         EObjectType type)
-        : Bootstrap(bootstrap)
+        : TBase(bootstrap)
         , Type(type)
     { }
 
     virtual EObjectType GetType() const override
     {
         return SchemaTypeFromType(Type);
-    }
-
-    virtual Stroka GetName(TObjectBase* object) override
-    {
-        UNUSED(object);
-        return Sprintf("%s schema", ~FormatEnum(Type).Quote());
     }
 
     virtual TObjectBase* FindObject(const TObjectId& id) override
@@ -104,62 +100,15 @@ public:
         return id == object->GetId() ? object : nullptr;
     }
 
-    virtual IObjectProxyPtr GetProxy(
-        TObjectBase* object,
-        NTransactionServer::TTransaction* transaction) override
-    {
-        UNUSED(transaction);
-        UNUSED(object);
-        auto objectManager = Bootstrap->GetObjectManager();
-        return objectManager->GetSchemaProxy(Type);
-    }
-
-    virtual TObjectBase* Create(
-        NTransactionServer::TTransaction* transaction,
-        NSecurityServer::TAccount* account,
-        IAttributeDictionary* attributes,
-        TReqCreateObject* request,
-        TRspCreateObject* response) override
-    {
-        UNUSED(transaction);
-        UNUSED(account);
-        UNUSED(attributes);
-        UNUSED(request);
-        UNUSED(response);
-        YUNREACHABLE();
-    }
-
     virtual void Destroy(TObjectBase* object) override
     {
         UNUSED(object);
         YUNREACHABLE();
     }
 
-    virtual void Unstage(
-        TObjectBase* object,
-        NTransactionServer::TTransaction* transaction,
-        bool recursive) override
-    {
-        UNUSED(object);
-        UNUSED(transaction);
-        UNUSED(recursive);
-        YUNREACHABLE();
-    }
-
     virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
     {
         return Null;
-    }
-
-    virtual NSecurityServer::TAccessControlDescriptor* FindAcd(TObjectBase* object) override
-    {
-        return &static_cast<TSchemaObject*>(object)->Acd();
-    }
-
-    virtual TObjectBase* GetParent(TObjectBase* object) override
-    {
-        UNUSED(object);
-        return nullptr;
     }
 
     virtual EPermissionSet GetSupportedPermissions() const override
@@ -182,8 +131,47 @@ public:
     }
 
 private:
-    TBootstrap* Bootstrap;
+    typedef TObjectTypeHandlerBase<TSchemaObject> TBase;
+
     EObjectType Type;
+
+    virtual Stroka DoGetName(TSchemaObject* object) override
+    {
+        UNUSED(object);
+        return Sprintf("%s schema", ~FormatEnum(Type).Quote());
+    }
+
+    virtual IObjectProxyPtr DoGetProxy(
+        TSchemaObject* object,
+        NTransactionServer::TTransaction* transaction) override
+    {
+        UNUSED(transaction);
+        UNUSED(object);
+        auto objectManager = Bootstrap->GetObjectManager();
+        return objectManager->GetSchemaProxy(Type);
+    }
+
+    virtual void DoUnstage(
+        TSchemaObject* object,
+        NTransactionServer::TTransaction* transaction,
+        bool recursive) override
+    {
+        UNUSED(object);
+        UNUSED(transaction);
+        UNUSED(recursive);
+        YUNREACHABLE();
+    }
+
+    virtual NSecurityServer::TAccessControlDescriptor* DoFindAcd(TSchemaObject* object) override
+    {
+        return &object->Acd();
+    }
+
+    virtual TObjectBase* DoGetParent(TSchemaObject* object) override
+    {
+        UNUSED(object);
+        return nullptr;
+    }
 
 };
 

@@ -56,8 +56,6 @@ void TNontemplateCypressNodeTypeHandlerBase::DestroyCore(TCypressNodeBase* node)
         objectManager->RemoveAttributes(id);
     }
 
-    TNullable<TAccessControlList> effectiveAcl;
-
     // Reset parent links from immediate ancestors.
     FOREACH (auto* ancestor, node->ImmediateAncestors()) {
         ancestor->ResetParent();

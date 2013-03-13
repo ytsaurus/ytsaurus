@@ -306,5 +306,5 @@ class TestAcls(YTEnvSetup):
         set('//tmp/a', 'b')
         assert get('//tmp/a/@inherit_acl') == 'true'
         tx = start_transaction()
-        lock('//tmp/a', tx=tx)
+        lock('//tmp/a', mode='snapshot', tx=tx)
         assert get('//tmp/a/@inherit_acl', tx=tx) == 'false'

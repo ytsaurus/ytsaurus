@@ -579,7 +579,7 @@ bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& v
                 MaxReplicationFactor);
         }
 
-        auto* node = LockThisTypedImpl();
+        auto* node = GetThisTypedImpl();
         YCHECK(node->IsTrunk());
 
         if (node->GetReplicationFactor() != replicationFactor) {
@@ -599,7 +599,7 @@ bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& v
     if (key == "codec") {
         ValidateNoTransaction();
 
-        auto* node = LockThisTypedImpl();
+        auto* node = GetThisTypedImpl();
         YCHECK(node->IsTrunk());
         auto codecName = ConvertTo<Stroka>(value);
         node->SetCodec(ParseEnum<ECodec>(codecName));
