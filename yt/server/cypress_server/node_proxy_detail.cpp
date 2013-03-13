@@ -204,6 +204,7 @@ TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
     , Bootstrap(bootstrap)
     , Transaction(transaction)
     , TrunkNode(trunkNode)
+    , CachedNode(nullptr)
 {
     YASSERT(typeHandler);
     YASSERT(bootstrap);
@@ -222,11 +223,11 @@ INodeFactoryPtr TNontemplateCypressNodeProxyBase::CreateFactory() const
 
 IYPathResolverPtr TNontemplateCypressNodeProxyBase::GetResolver() const
 {
-    if (!Resolver) {
+    if (!CachedResolver) {
         auto cypressManager = Bootstrap->GetCypressManager();
-        Resolver = cypressManager->CreateResolver(Transaction);
+        CachedResolver = cypressManager->CreateResolver(Transaction);
     }
-    return Resolver;
+    return CachedResolver;
 }
 
 NTransactionServer::TTransaction* TNontemplateCypressNodeProxyBase::GetTransaction() const 
@@ -301,7 +302,7 @@ bool TNontemplateCypressNodeProxyBase::SetSystemAttribute(const Stroka& key, con
 
         ValidatePermission(account, EPermission::Use);
 
-        auto* node = GetThisMutableImpl();
+        auto* node = LockThisImpl();
         securityManager->SetAccount(node, account);
 
         return true;
@@ -419,13 +420,7 @@ bool TNontemplateCypressNodeProxyBase::DoInvoke(NRpc::IServiceContextPtr context
     return false;
 }
 
-const TCypressNodeBase* TNontemplateCypressNodeProxyBase::GetImpl(TCypressNodeBase* trunkNode) const
-{
-    auto cypressManager = Bootstrap->GetCypressManager();
-    return cypressManager->GetVersionedNode(trunkNode, Transaction);
-}
-
-TCypressNodeBase* TNontemplateCypressNodeProxyBase::GetMutableImpl(TCypressNodeBase* trunkNode)
+TCypressNodeBase* TNontemplateCypressNodeProxyBase::GetImpl(TCypressNodeBase* trunkNode) const
 {
     auto cypressManager = Bootstrap->GetCypressManager();
     return cypressManager->GetVersionedNode(trunkNode, Transaction);
@@ -434,27 +429,38 @@ TCypressNodeBase* TNontemplateCypressNodeProxyBase::GetMutableImpl(TCypressNodeB
 TCypressNodeBase* TNontemplateCypressNodeProxyBase::LockImpl(
     TCypressNodeBase* trunkNode,
     const TLockRequest& request /*= ELockMode::Exclusive*/,
-    bool recursive /*= false*/)
+    bool recursive /*= false*/) const
 {
     auto cypressManager = Bootstrap->GetCypressManager();
     return cypressManager->LockVersionedNode(trunkNode, Transaction, request, recursive);
 }
 
-const TCypressNodeBase* TNontemplateCypressNodeProxyBase::GetThisImpl() const
+TCypressNodeBase* TNontemplateCypressNodeProxyBase::GetThisImpl()
 {
-    return GetImpl(TrunkNode);
+    if (CachedNode) {
+        return CachedNode;
+    }
+    auto* node = GetImpl(TrunkNode);
+    if (node->GetTransaction() == Transaction) {
+        CachedNode = node;
+    }
+    return node;
 }
 
-TCypressNodeBase* TNontemplateCypressNodeProxyBase::GetThisMutableImpl()
+const TCypressNodeBase* TNontemplateCypressNodeProxyBase::GetThisImpl() const
 {
-    return GetMutableImpl(TrunkNode);
+    return const_cast<TNontemplateCypressNodeProxyBase*>(this)->GetThisImpl();
 }
 
 TCypressNodeBase* TNontemplateCypressNodeProxyBase::LockThisImpl(
     const TLockRequest& request /*= ELockMode::Exclusive*/,
     bool recursive /*= false*/)
 {
-    return LockImpl(TrunkNode, request, recursive);
+    if (!CachedNode) {
+        CachedNode = LockImpl(TrunkNode, request, recursive);
+        YASSERT(CachedNode->GetTransaction() == Transaction);
+    }
+    return CachedNode;
 }
 
 ICypressNodeProxyPtr TNontemplateCypressNodeProxyBase::GetProxy(TCypressNodeBase* trunkNode) const
@@ -1275,7 +1281,7 @@ bool TLinkNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& va
 {
     if (key == "target_id") {
         auto targetId = ConvertTo<TObjectId>(value);
-        auto* impl = GetThisTypedMutableImpl();
+        auto* impl = LockThisTypedImpl();
         impl->SetTargetId(targetId);
         return true;
     }

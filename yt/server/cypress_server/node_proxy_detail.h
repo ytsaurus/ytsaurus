@@ -85,8 +85,8 @@ public:
         NTransactionServer::TTransaction* transaction,
         TCypressNodeBase* trunkNode);
 
-    NYTree::INodeFactoryPtr CreateFactory() const;
-    NYTree::IYPathResolverPtr GetResolver() const;
+    virtual NYTree::INodeFactoryPtr CreateFactory() const override;
+    virtual NYTree::IYPathResolverPtr GetResolver() const override;
 
     virtual NTransactionServer::TTransaction* GetTransaction() const override;
 
@@ -111,8 +111,9 @@ protected:
     NTransactionServer::TTransaction* Transaction;
     TCypressNodeBase* TrunkNode;
 
-    mutable NYTree::IYPathResolverPtr Resolver;
-
+    mutable TCypressNodeBase* CachedNode;
+    mutable NYTree::IYPathResolverPtr CachedResolver;
+    
     virtual NObjectServer::TVersionedObjectId GetVersionedId() const override;
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override;
@@ -122,16 +123,15 @@ protected:
 
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
 
-    const TCypressNodeBase* GetImpl(TCypressNodeBase* trunkNode) const;
-    TCypressNodeBase* GetMutableImpl(TCypressNodeBase* trunkNode);
+    TCypressNodeBase* GetImpl(TCypressNodeBase* trunkNode) const;
 
     TCypressNodeBase* LockImpl(
         TCypressNodeBase* trunkNode,
         const TLockRequest& request = ELockMode::Exclusive,
-        bool recursive = false);
+        bool recursive = false) const;
 
+    TCypressNodeBase* GetThisImpl();
     const TCypressNodeBase* GetThisImpl() const;
-    TCypressNodeBase* GetThisMutableImpl();
 
     TCypressNodeBase* LockThisImpl(
         const TLockRequest& request = ELockMode::Exclusive,
@@ -218,14 +218,14 @@ public:
     { }
 
 protected:
+    TImpl* GetThisTypedImpl()
+    {
+        return dynamic_cast<TImpl*>(this->GetThisImpl());
+    }
+
     const TImpl* GetThisTypedImpl() const
     {
         return dynamic_cast<const TImpl*>(this->GetThisImpl());
-    }
-
-    TImpl* GetThisTypedMutableImpl()
-    {
-        return dynamic_cast<TImpl*>(this->GetThisMutableImpl());
     }
 
     TImpl* LockThisTypedImpl(
