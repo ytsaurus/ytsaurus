@@ -68,9 +68,9 @@ private:
     class TFetchChunkVisitor;
     typedef TIntrusivePtr<TFetchChunkVisitor> TFetchChunkProcessorPtr;
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override;
-    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) const override;
-    virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) const override;
+    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
+    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
+    virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) override;
     virtual void ValidateUserAttributeUpdate(
         const Stroka& key,
         const TNullable<NYTree::TYsonString>& oldValue,
@@ -422,7 +422,7 @@ TClusterResources TTableNodeProxy::GetResourceUsage() const
     return TClusterResources(diskSpace, 1);
 }
 
-void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const
+void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
 {
     const auto* node = GetThisTypedImpl();
     const auto* chunkList = node->GetChunkList();
@@ -443,7 +443,7 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attribut
     TBase::ListSystemAttributes(attributes);
 }
 
-bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const
+bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
     const auto* node = GetThisTypedImpl();
     const auto* chunkList = node->GetChunkList();
@@ -524,7 +524,7 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
     return TBase::GetSystemAttribute(key, consumer);
 }
 
-TAsyncError TTableNodeProxy::GetSystemAttributeAsync(const Stroka& key, IYsonConsumer* consumer) const
+TAsyncError TTableNodeProxy::GetSystemAttributeAsync(const Stroka& key, IYsonConsumer* consumer)
 {
     const auto* node = GetThisTypedImpl();
     const auto* chunkList = node->GetChunkList();

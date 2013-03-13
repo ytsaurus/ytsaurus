@@ -227,7 +227,7 @@ void TObjectProxyBase::Invoke(IServiceContextPtr context)
 
 void TObjectProxyBase::SerializeAttributes(
     IYsonConsumer* consumer,
-    const TAttributeFilter& filter) const
+    const TAttributeFilter& filter)
 {
     if (filter.Mode == EAttributeFilterMode::None ||
         filter.Mode == EAttributeFilterMode::MatchingOnly && filter.Keys.empty())
@@ -329,10 +329,9 @@ TAutoPtr<IAttributeDictionary> TObjectProxyBase::DoCreateUserAttributes()
         GetId());
 }
 
-void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const
+void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
 {
-    auto securityManager = Bootstrap->GetSecurityManager();
-    auto* acd = securityManager->FindAcd(Object);
+    auto* acd = FindThisAcd();
     bool hasAcd = acd;
     bool hasOwner = acd && acd->GetOwner();
 
@@ -347,7 +346,7 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attribu
     attributes->push_back(TAttributeInfo("effective_acl", true, true));
 }
 
-bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const
+bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
     auto objectManager = Bootstrap->GetObjectManager();
     auto securityManager = Bootstrap->GetSecurityManager();
@@ -384,7 +383,7 @@ bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* cons
         return true;
     }
 
-    auto* acd = securityManager->FindAcd(Object);
+    auto* acd = FindThisAcd();
     if (acd) {
         if (key == "inherit_acl") {
             BuildYsonFluently(consumer)
@@ -414,7 +413,7 @@ bool TObjectProxyBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* cons
     return false;
 }
 
-TAsyncError TObjectProxyBase::GetSystemAttributeAsync(const Stroka& key, IYsonConsumer* consumer) const
+TAsyncError TObjectProxyBase::GetSystemAttributeAsync(const Stroka& key, IYsonConsumer* consumer)
 {
     return Null;
 }
@@ -422,7 +421,7 @@ TAsyncError TObjectProxyBase::GetSystemAttributeAsync(const Stroka& key, IYsonCo
 bool TObjectProxyBase::SetSystemAttribute(const Stroka& key, const TYsonString& value)
 {
     auto securityManager = Bootstrap->GetSecurityManager();
-    auto* acd = securityManager->FindAcd(Object);
+    auto* acd = FindThisAcd();
     if (acd) {
         if (key == "inherit_acl") {
             ValidateNoTransaction();
@@ -469,11 +468,6 @@ bool TObjectProxyBase::SetSystemAttribute(const Stroka& key, const TYsonString& 
         }
     }
     return false;
-}
-
-TVersionedObjectId TObjectProxyBase::GetVersionedId() const
-{
-    return TVersionedObjectId(Object->GetId());
 }
 
 TObjectBase* TObjectProxyBase::GetSchema(EObjectType type)
@@ -618,6 +612,17 @@ void TNontemplateNonversionedObjectProxyBase::RemoveSelf(TReqRemove* request, TR
     objectManager->UnrefObject(Object);
 
     context->Reply();
+}
+
+TVersionedObjectId TNontemplateNonversionedObjectProxyBase::GetVersionedId() const
+{
+    return TVersionedObjectId(Object->GetId());
+}
+
+TAccessControlDescriptor* TNontemplateNonversionedObjectProxyBase::FindThisAcd()
+{
+    auto securityManager = Bootstrap->GetSecurityManager();
+    return securityManager->FindAcd(Object);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

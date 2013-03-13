@@ -37,7 +37,7 @@ public:
 private:
     typedef TNonversionedObjectProxyBase<TChunkList> TBase;
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override
+    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
         attributes->push_back("children_ids");
         attributes->push_back("parent_ids");
@@ -47,7 +47,7 @@ private:
         TBase::ListSystemAttributes(attributes);
     }
 
-    void TraverseTree(TChunkTree* chunkTree, NYson::IYsonConsumer* consumer) const
+    void TraverseTree(TChunkTree* chunkTree, NYson::IYsonConsumer* consumer)
     {
         switch (chunkTree->GetType()) {
             case EObjectType::Chunk: {
@@ -78,7 +78,7 @@ private:
         }
     }
 
-    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) const override
+    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
     {
         auto chunkManager = Bootstrap->GetChunkManager();
         const auto* chunkList = GetThisTypedImpl();

@@ -29,7 +29,7 @@ private:
     typedef NObjectServer::TNonversionedObjectProxyBase<TImpl> TBase;
 
 protected:
-    virtual void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeInfo>* attributes) const override
+    virtual void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeInfo>* attributes) override
     {
         attributes->push_back("name");
         attributes->push_back("member_of");
@@ -37,7 +37,7 @@ protected:
         TBase::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) const override
+    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
     {
         const auto* subject = this->GetThisTypedImpl();
 

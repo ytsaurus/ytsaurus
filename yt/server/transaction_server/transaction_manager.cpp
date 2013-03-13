@@ -69,7 +69,7 @@ public:
 private:
     typedef TNonversionedObjectProxyBase<TTransaction> TBase;
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override
+    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
         attributes->push_back("state");
         attributes->push_back("timeout");
@@ -86,7 +86,7 @@ private:
         TBase::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const override
+    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         const auto* transaction = GetThisTypedImpl();
 

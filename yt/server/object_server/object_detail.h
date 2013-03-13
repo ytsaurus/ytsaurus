@@ -83,7 +83,7 @@ public:
     virtual void Invoke(NRpc::IServiceContextPtr context) override;
     virtual void SerializeAttributes(
         NYson::IYsonConsumer* consumer,
-        const NYTree::TAttributeFilter& filter) const override;
+        const NYTree::TAttributeFilter& filter) override;
 
 protected:
     NCellMaster::TBootstrap* Bootstrap;
@@ -96,7 +96,10 @@ protected:
     //! Returns the full object id that coincides with #Id
     //! for non-versioned objects and additionally includes transaction id for
     //! versioned ones.
-    virtual TVersionedObjectId GetVersionedId() const;
+    virtual TVersionedObjectId GetVersionedId() const = 0;
+
+    //! Returns the ACD for the object or |nullptr| is none exists.
+    virtual NSecurityServer::TAccessControlDescriptor* FindThisAcd() = 0;
 
     void GuardedInvoke(NRpc::IServiceContextPtr context);
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
@@ -109,9 +112,9 @@ protected:
     virtual TAutoPtr<NYTree::IAttributeDictionary> DoCreateUserAttributes();
 
     // NYTree::ISystemAttributeProvider members
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override;
-    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) const override;
-    virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) const override;
+    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
+    virtual bool GetSystemAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
+    virtual TAsyncError GetSystemAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) override;
     virtual bool SetSystemAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
 
     TObjectBase* GetSchema(EObjectType type);
@@ -157,6 +160,9 @@ protected:
 
     virtual void ValidateRemoval();
     virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemovePtr context) override;
+
+    virtual TVersionedObjectId GetVersionedId() const override;
+    virtual NSecurityServer::TAccessControlDescriptor* FindThisAcd() override;
 
 };
 

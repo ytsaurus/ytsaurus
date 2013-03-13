@@ -17,11 +17,6 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Some handy shortcuts.
-typedef TIntrusivePtr<const INode>     IConstNodePtr;
-typedef TIntrusivePtr<const IMapNode>  IConstMapNodePtr;
-typedef TIntrusivePtr<const IListNode> IConstListNodePtr;
-
 //! Traverses a YTree and invokes appropriate methods of IYsonConsumer.
 class TTreeVisitor
     : private TNonCopyable
@@ -32,7 +27,7 @@ public:
         , AttributeFilter(attributeFilter)
     { }
 
-    void Visit(const IConstNodePtr& root)
+    void Visit(const INodePtr& root)
     {
         VisitAny(root, true);
     }
@@ -41,7 +36,7 @@ private:
     IYsonConsumer* Consumer;
     TAttributeFilter AttributeFilter;
 
-    void VisitAny(const IConstNodePtr& node, bool isRoot = false)
+    void VisitAny(const INodePtr& node, bool isRoot = false)
     {
         node->SerializeAttributes(Consumer, AttributeFilter);
 
@@ -75,7 +70,7 @@ private:
         }
     }
 
-    void VisitScalar(const IConstNodePtr& node)
+    void VisitScalar(const INodePtr& node)
     {
         switch (node->GetType()) {
             case ENodeType::String:
@@ -95,13 +90,13 @@ private:
         }
     }
 
-    void VisitEntity(const IConstNodePtr& node)
+    void VisitEntity(const INodePtr& node)
     {
         UNUSED(node);
         Consumer->OnEntity();
     }
 
-    void VisitList(const IConstListNodePtr& node)
+    void VisitList(const IListNodePtr& node)
     {
         Consumer->OnBeginList();
         for (int i = 0; i < node->GetChildCount(); ++i) {
@@ -111,7 +106,7 @@ private:
         Consumer->OnEndList();
     }
 
-    void VisitMap(const IConstMapNodePtr& node)
+    void VisitMap(const IMapNodePtr& node)
     {
         Consumer->OnBeginMap();
         FOREACH (const auto& pair, node->GetChildren()) {

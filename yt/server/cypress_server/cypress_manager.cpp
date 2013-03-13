@@ -110,13 +110,14 @@ private:
 
     virtual TAccessControlDescriptor* DoFindAcd(TCypressNodeBase* node) override
     {
-        return &node->GetTrunkNode()->Acd();
+        return node->GetLockMode() == ELockMode::Snapshot
+               ? &node->Acd()
+               : &node->GetTrunkNode()->Acd();
     }
 
     virtual TObjectBase* DoGetParent(TCypressNodeBase* node) override
     {
-        auto* parent = node->GetParent();
-        return parent ? parent : Bootstrap->GetObjectManager()->GetMasterObject();
+        return node->GetParent();
     }
 
 };

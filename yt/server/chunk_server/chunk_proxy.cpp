@@ -53,7 +53,7 @@ public:
 private:
     typedef TNonversionedObjectProxyBase<TChunk> TBase;
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const override
+    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
         const auto* chunk = GetThisTypedImpl();
         auto miscExt = FindProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
@@ -83,7 +83,7 @@ private:
         TBase::ListSystemAttributes(attributes);
     }
 
-    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const override
+    virtual bool GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         auto chunkManager = Bootstrap->GetChunkManager();
         const auto* chunk = GetThisTypedImpl();

@@ -132,12 +132,12 @@ void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPt
     context->Reply();
 }
 
-void TVirtualMapBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes) const
+void TVirtualMapBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
 {
     attributes->push_back("count");
 }
 
-bool TVirtualMapBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer) const
+bool TVirtualMapBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
     if (key == "count") {
         BuildYsonFluently(consumer)
@@ -148,7 +148,7 @@ bool TVirtualMapBase::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
     return false;
 }
 
-TAsyncError TVirtualMapBase::GetSystemAttributeAsync(const Stroka& key, IYsonConsumer* consumer) const
+TAsyncError TVirtualMapBase::GetSystemAttributeAsync(const Stroka& key, IYsonConsumer* consumer)
 {
     UNUSED(key);
     UNUSED(consumer);
@@ -214,7 +214,7 @@ public:
         return TResolveResult::There(UnderlyingService, path);
     }
 
-    virtual void SerializeAttributes(IYsonConsumer* consumer, const TAttributeFilter& filter) const
+    virtual void SerializeAttributes(IYsonConsumer* consumer, const TAttributeFilter& filter)
     {
         UNUSED(consumer);
         UNUSED(filter);
