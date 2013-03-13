@@ -56,24 +56,63 @@ function YtApplicationAuth()
         .setTimeout(config.oauth.timeout)
         .fire()
         .then(function(data) {
+            var error, result;
             try {
-                var error;
-                var result = JSON.parse(data);
-                if (result.access_token) {
-                    return data.access_token;
-                } else if (result.error) {
-                    error = new YtError(
-                        "OAuth server returned an error: " + result.error);
-                    error.attributes.raw_data = data;
-                    throw error;
-                } else {
-                    error = new YtError(
-                        "OAuth server returned a malformed result");
-                    error.attributes.raw_data = data;
-                    throw error;
-                }
+                result = JSON.parse(data);
             } catch(err) {
                 throw new YtError("OAuth server returned an invalid JSON", err);
+            }
+
+            if (result.access_token) {
+                return result.access_token;
+            } else if (result.error) {
+                error = new YtError(
+                    "OAuth server returned an error: " + result.error);
+                error.attributes.raw_data = data;
+                throw error;
+            } else {
+                error = new YtError(
+                    "OAuth server returned a malformed result");
+                error.attributes.raw_data = data;
+                throw error;
+            }
+        });
+    }
+
+    function requestBlackboxLogin(token, ip)
+    {
+        return YtHttpClient(
+            config.blackbox.host,
+            config.blackbox.port)
+        .withPath(url.format({
+            method : "oauth",
+            format : "json",
+            oauth_token : token,
+            userip : ip
+        }))
+        .setNoDelay(true)
+        .setTimeout(config.blackbox.timeout)
+        .fire()
+        .then(function(data) {
+            var error, result;
+            try {
+                result = JSON.parse(data);
+            } catch(err) {
+                throw new YtError("Blackbox server returned an invalid JSON", err);
+            }
+
+            if (result.login) {
+                return result.login;
+            } else if (result.error) {
+                error = new YtError(
+                    "Blackbox server returned an error: " + result.error);
+                error.attributes.raw_data = data;
+                throw error;
+            } else {
+                error = new YtError(
+                    "Blackbox server returned a malformed result");
+                error.attributes.raw_data = data;
+                throw error;
             }
         });
     }
@@ -98,14 +137,16 @@ function YtApplicationAuth()
                 rsp.end();
             }
 
-            logger.debug("Requesting OAuth token", {
-                request_id : req.uuid,
-                state : state
-            });
-
-            Q.when(requestOAuthToken(state.key, params.code),
-            function(token) {
-                logger.debug("Successfully received OAuth token", {
+            Q
+            .when(requestOAuthToken(state.key, params.code))
+            .then(function(token) {
+                return Q.all([
+                    token,
+                    requestBlackboxLogin(token, req.connection.remoteAddress)
+                ]);
+            })
+            .spread(function(token, login) {
+                logger.debug("Successfully received OAuth token and Blackbox login", {
                     request_id : req.uuid
                 });
 
@@ -114,6 +155,7 @@ function YtApplicationAuth()
                     target = url.parse(target);
                     target.query = qs.parse(target.query);
                     target.query.token = token;
+                    target.query.login = login;
                     target.query = qs.format(target.query);
                     target = url.format(target);
                     return utils.redirectTo(rsp, target, 303);
@@ -123,9 +165,9 @@ function YtApplicationAuth()
                     })});
                     return utils.dispatchAs(rsp, body, "text/html; charset=utf-8");
                 }
-            },
-            function(err) {
-                logger.debug("Failed to receive OAuth token", {
+            })
+            .fail(function(err) {
+                logger.debug("Failed to receive OAuth token or Blackbox login", {
                     request_id : req.uuid,
                     error : err && err.toString()
                     // XXX(sandello): Better embedding would be nice.
