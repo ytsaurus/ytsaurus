@@ -130,7 +130,6 @@ void TMasterConnector::SendRegister()
     auto request = Proxy->RegisterNode();
     *request->mutable_statistics() = ComputeStatistics();
     ToProto(request->mutable_node_descriptor(), Bootstrap->GetLocalDescriptor());
-    ToProto(request->mutable_incarnation_id(), Bootstrap->GetIncarnationId());
     ToProto(request->mutable_cell_guid(), Bootstrap->GetCellGuid());
     request->Invoke().Subscribe(
         BIND(&TMasterConnector::OnRegisterResponse, MakeStrong(this))

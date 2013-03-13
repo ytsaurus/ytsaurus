@@ -33,7 +33,6 @@ public:
     ~TBootstrap();
 
     TCellNodeConfigPtr GetConfig() const;
-    NChunkServer::TIncarnationId GetIncarnationId() const;
     IInvokerPtr GetControlInvoker() const;
     NRpc::IChannelPtr GetMasterChannel() const;
     NRpc::IChannelPtr GetSchedulerChannel() const;
@@ -52,7 +51,6 @@ private:
     Stroka ConfigFileName;
     TCellNodeConfigPtr Config;
 
-    NChunkServer::TIncarnationId IncarnationId;
     TActionQueuePtr ControlQueue;
     NBus::IBusServerPtr BusServer;
     NRpc::IServerPtr RpcServer;

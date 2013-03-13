@@ -28,7 +28,6 @@ DECLARE_ENUM(ENodeState,
 class TDataNode
 {
     DEFINE_BYVAL_RO_PROPERTY(TNodeId, Id);
-    DEFINE_BYVAL_RO_PROPERTY(TIncarnationId, IncarnationId);
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, State);
     DEFINE_BYREF_RW_PROPERTY(NProto::TNodeStatistics, Statistics);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkPtrWithIndex>, StoredReplicas);
@@ -48,8 +47,7 @@ class TDataNode
 public:
     TDataNode(
         TNodeId id,
-        const NChunkClient::TNodeDescriptor& descriptor,
-        const TIncarnationId& incarnationId);
+        const NChunkClient::TNodeDescriptor& descriptor);
 
     explicit TDataNode(TNodeId id);
 

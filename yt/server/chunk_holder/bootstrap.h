@@ -30,7 +30,6 @@ public:
     void Init();
 
     TDataNodeConfigPtr GetConfig() const;
-    NChunkServer::TIncarnationId GetIncarnationId() const;
     TChunkStorePtr GetChunkStore() const;
     TChunkCachePtr GetChunkCache() const;
     TSessionManagerPtr GetSessionManager() const;

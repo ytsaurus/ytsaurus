@@ -80,13 +80,11 @@ void TBootstrap::Run()
 {
     srand(time(NULL));
 
-    IncarnationId = TIncarnationId::Create();
     LocalDescriptor.Address = BuildServiceAddress(
         TAddressResolver::Get()->GetLocalHostName(),
         Config->RpcPort);
 
-    LOG_INFO("Starting node (IncarnationId: %s, LocalDescriptor: %s, MasterAddresses: [%s])",
-        ~ToString(IncarnationId),
+    LOG_INFO("Starting node (LocalDescriptor: %s, MasterAddresses: [%s])",
         ~ToString(LocalDescriptor),
         ~JoinToString(Config->Masters->Addresses));
 
@@ -165,11 +163,6 @@ void TBootstrap::Run()
 TCellNodeConfigPtr TBootstrap::GetConfig() const
 {
     return Config;
-}
-
-TIncarnationId TBootstrap::GetIncarnationId() const
-{
-    return IncarnationId;
 }
 
 IInvokerPtr TBootstrap::GetControlInvoker() const

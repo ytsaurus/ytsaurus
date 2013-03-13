@@ -9,8 +9,6 @@ namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-typedef TGuid TIncarnationId;
-
 typedef i32 TNodeId;
 const TNodeId InvalidNodeId = 0;
 const TNodeId MaxNodeId = (1 << 28) - 1; // TNodeId must fit into 28 bits (see TChunkReplica)

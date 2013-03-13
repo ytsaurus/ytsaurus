@@ -123,11 +123,6 @@ TDataNodeConfigPtr TBootstrap::GetConfig() const
     return Config;
 }
 
-TIncarnationId TBootstrap::GetIncarnationId() const
-{
-    return NodeBootstrap->GetIncarnationId();
-}
-
 TChunkStorePtr TBootstrap::GetChunkStore() const
 {
     return ChunkStore;

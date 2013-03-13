@@ -93,14 +93,12 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterNode)
     auto objectManager = Bootstrap->GetObjectManager();
 
     auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
-    auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
     auto requestCellGuid = FromProto<TGuid>(request->cell_guid());
     const auto& statistics = request->statistics();
     const auto& address = descriptor.Address;
 
-    context->SetRequestInfo("Address: %s, IncarnationId: %s, CellGuid: %s, %s",
+    context->SetRequestInfo("Address: %s, CellGuid: %s, %s",
         ~address,
-        ~ToString(incarnationId),
         ~ToString(requestCellGuid),
         ~ToString(statistics));
 
@@ -130,7 +128,6 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterNode)
 
     TMetaReqRegisterNode registerReq;
     ToProto(registerReq.mutable_node_descriptor(), descriptor);
-    ToProto(registerReq.mutable_incarnation_id(), incarnationId);
     *registerReq.mutable_statistics() = statistics;
     chunkManager
         ->CreateRegisterNodeMutation(registerReq)

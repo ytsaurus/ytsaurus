@@ -262,7 +262,6 @@ private:
         const auto* node = GetNode();
         attributes->push_back(TAttributeInfo("state"));
         attributes->push_back(TAttributeInfo("confirmed", node));
-        attributes->push_back(TAttributeInfo("incarnation_id", node));
         attributes->push_back(TAttributeInfo("statistics", node));
         TMapNodeProxy::ListSystemAttributes(attributes);
     }
@@ -283,12 +282,6 @@ private:
                 ValidateActiveLeader();
                 BuildYsonFluently(consumer)
                     .Value(FormatBool(Bootstrap->GetChunkManager()->IsNodeConfirmed(node)));
-                return true;
-            }
-
-            if (key == "incarnation_id") {
-                BuildYsonFluently(consumer)
-                    .Value(node->GetIncarnationId());
                 return true;
             }
 

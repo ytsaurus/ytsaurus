@@ -17,10 +17,8 @@ using namespace NChunkClient;
 
 TDataNode::TDataNode(
     TNodeId id,
-    const TNodeDescriptor& descriptor,
-    const TIncarnationId& incarnationId)
+    const TNodeDescriptor& descriptor)
     : Id_(id)
-    , IncarnationId_(incarnationId)
     , Descriptor_(descriptor)
 {
     Init();
@@ -52,7 +50,6 @@ void TDataNode::Save(const NCellMaster::TSaveContext& context) const
 {
     auto* output = context.GetOutput();
     ::Save(output, Descriptor_.Address);
-    ::Save(output, IncarnationId_);
     ::Save(output, State_);
     SaveProto(output, Statistics_);
     SaveObjectRefs(context, StoredReplicas_);
@@ -65,7 +62,11 @@ void TDataNode::Load(const NCellMaster::TLoadContext& context)
 {
     auto* input = context.GetInput();
     ::Load(input, Descriptor_.Address);
-    ::Load(input, IncarnationId_);
+    // COMPAT(babenko)
+    if (context.GetVersion() < 9) {
+        TGuid incarnationId;
+        ::Load(input, incarnationId);
+    }
     ::Load(input, State_);
     LoadProto(input, Statistics_);
     LoadObjectRefs(context, StoredReplicas_);

@@ -10,8 +10,7 @@ import "yt/ytlib/chunk_client/chunk.proto";
 message TMetaReqRegisterNode
 {
     required NYT.NChunkClient.NProto.TNodeDescriptor node_descriptor = 1;
-    required NYT.NProto.TGuid incarnation_id = 2;
-    required TNodeStatistics statistics = 3;
+    required TNodeStatistics statistics = 2;
 }
 
 message TMetaRspRegisterNode

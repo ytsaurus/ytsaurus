@@ -882,7 +882,6 @@ private:
     TMetaRspRegisterNode RegisterNode(const TMetaReqRegisterNode& request)
     {
         auto descriptor = FromProto<NChunkClient::TNodeDescriptor>(request.node_descriptor());
-        auto incarnationId = FromProto<TIncarnationId>(request.incarnation_id());
         const auto& statistics = request.statistics();
         const auto& address = descriptor.Address;
 
@@ -896,13 +895,12 @@ private:
             DoUnregisterNode(existingNode);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %d, Address: %s, IncarnationId: %s, %s)",
+        LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %d, Address: %s, %s)",
             nodeId,
             ~address,
-            ~ToString(incarnationId),
             ~ToString(statistics));
 
-        auto* newNode = new TDataNode(nodeId, descriptor, incarnationId);
+        auto* newNode = new TDataNode(nodeId, descriptor);
         newNode->SetState(ENodeState::Registered);
         newNode->Statistics() = statistics;
 

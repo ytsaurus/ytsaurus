@@ -65,9 +65,8 @@ message TJobStopInfo
 message TReqRegisterNode
 {
     required NYT.NChunkClient.NProto.TNodeDescriptor node_descriptor = 1;
-    required NYT.NProto.TGuid incarnation_id = 2;
-    required TNodeStatistics statistics = 3;
-    required NYT.NProto.TGuid cell_guid = 4;
+    required TNodeStatistics statistics = 2;
+    required NYT.NProto.TGuid cell_guid = 3;
 }
 
 message TRspRegisterNode
