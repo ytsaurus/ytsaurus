@@ -54,6 +54,7 @@ function YtApplicationAuth()
         }), "application/www-form-urlencoded")
         .setNoDelay(true)
         .setTimeout(config.oauth.timeout)
+        .fire()
         .then(function(data) {
             try {
                 var error;
@@ -123,17 +124,18 @@ function YtApplicationAuth()
                     return utils.dispatchAs(rsp, body, "text/html; charset=utf-8");
                 }
             },
-            function(error) {
+            function(err) {
                 logger.debug("Failed to receive OAuth token", {
                     request_id : req.uuid,
-                    error : error.toString()
+                    error : err && err.toString()
                     // XXX(sandello): Better embedding would be nice.
                 });
                 var body = TEMPLATE_LAYOUT({ content: TEMPLATE_TOKEN({
-                    error : error
+                    error : err
                 })});
                 return utils.dispatchAs(rsp, body, "text/html; charset=utf-8");
-            });
+            })
+            .end();
         } else {
             var app_config = YtRegistry.query(
                 "config",
