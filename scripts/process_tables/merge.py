@@ -4,6 +4,8 @@ from atomic import process_tasks_from_list
 
 import yt.wrapper as yt
 
+import sys
+
 def merge(table):
     try:
         if not yt.exists(table) or yt.get_attribute(table, "row_count") == 0:
@@ -20,5 +22,5 @@ def merge(table):
         print "Failed to merge table %s with error %s" % (table, repr(e))
 
 if __name__ == "__main__":
-    process_tasks_from_list("//home/ignat/tables_to_merge", merge)
+    process_tasks_from_list(sys.argv[1], merge)
 
