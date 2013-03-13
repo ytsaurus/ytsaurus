@@ -524,7 +524,8 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
 
     if (scope & EPermissionCheckScope::Descendants) {
         auto cypressManager = Bootstrap->GetCypressManager();
-        auto descendants = cypressManager->ListSubtreeNodes(node, Transaction, false);
+        auto* trunkNode = node->GetTrunkNode();
+        auto descendants = cypressManager->ListSubtreeNodes(trunkNode, Transaction, false);
         FOREACH (auto* descendant, descendants) {
             ValidatePermission(descendant, permission);
         }
