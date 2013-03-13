@@ -155,12 +155,16 @@ function YtApplicationAuth()
 
                 if (state.return_path) {
                     var target = state.return_path;
+                    // TODO(sandello): Fixme.
+                    /*
                     target = url.parse(target);
-                    target.query = qs.parse(target.query);
+                    target.query = qs.decode(target.query);
                     target.query.token = token;
                     target.query.login = login;
-                    target.query = qs.format(target.query);
+                    target.query = qs.encode(target.query);
                     target = url.format(target);
+                    */
+                    target += '?token=' + token + '&login=' + login;
                     return utils.redirectTo(rsp, target, 303);
                 } else {
                     var body = TEMPLATE_LAYOUT({ content: TEMPLATE_TOKEN({
