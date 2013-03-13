@@ -141,14 +141,6 @@ def add_remove_parser(subparsers):
     parser.set_defaults(func=remove)
 
 
-#def mkdir_args(parser):
-#    parser.add_argument("path")
-#    parser.add_argument("-p", action="store_true", default=False)
-#
-#def mkdir(args):
-#    yt.mkdir(args.path, recursive=args.p)
-
-
 def copy(args):
     yt.copy(args.src, args.dst)
 
