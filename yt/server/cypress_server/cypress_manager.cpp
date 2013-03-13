@@ -896,7 +896,7 @@ void TCypressManager::LoadValues(const NCellMaster::TLoadContext& context)
         auto* node = pair.second;
         auto* parent = node->GetParent();
         if (parent) {
-            YCHECK(parent->ImmediateAncestors().insert(node).second);
+            YCHECK(parent->ImmediateDescendants().insert(node).second);
         }
     }
 

@@ -56,13 +56,11 @@ void TNontemplateCypressNodeTypeHandlerBase::DestroyCore(TCypressNodeBase* node)
         objectManager->RemoveAttributes(id);
     }
 
-    // Reset parent links from immediate ancestors.
-    FOREACH (auto* ancestor, node->ImmediateAncestors()) {
-        ancestor->ResetParent();
+    // Reset parent links from immediate descendants.
+    FOREACH (auto* descendant, node->ImmediateDescendants()) {
+        descendant->ResetParent();
     }
-    node->ImmediateAncestors().clear();
-
-    // Remove self from immediate ancestors.
+    node->ImmediateDescendants().clear();
     node->SetParent(nullptr);
 
     // Clear ACD to unregister the node from linked objects.
