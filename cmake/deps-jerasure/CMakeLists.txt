@@ -1,7 +1,10 @@
 set( LTYPE STATIC )
 
 set( BASE ${CMAKE_SOURCE_DIR}/contrib/libs/jerasure )
-set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-variable" )
+
+IF(CMAKE_COMPILER_IS_GNUCXX)
+  set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-variable" )
+ENDIF(CMAKE_COMPILER_IS_GNUCXX)
 
 set(SRC
   ${BASE}/cauchy.c
