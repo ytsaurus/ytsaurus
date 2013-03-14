@@ -1815,7 +1815,7 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
     bool isErasure = (type == EObjectType::ErasureChunk);
     const auto* requestExt = &request->GetExtension(TReqCreateChunkExt::create_chunk);
 
-    auto erasureCodecId = isErasure ? NErasure::ECodec(requestExt->erasure_codec()) : NErasure::ECodec::None;
+    auto erasureCodecId = isErasure ? NErasure::ECodec(requestExt->erasure_codec()) : NErasure::ECodec(NErasure::ECodec::None);
     auto* erasureCodec = isErasure ? NErasure::GetCodec(erasureCodecId) : nullptr;
 
     auto* chunk = Owner->CreateChunk(type);
