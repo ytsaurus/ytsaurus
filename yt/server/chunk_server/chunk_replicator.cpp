@@ -543,6 +543,10 @@ void TChunkReplicator::Refresh(TChunk* chunk)
     if (!chunk->IsConfirmed())
         return;
 
+    // TODO(babenko): deal with erasure chunks separately
+    if (chunk->IsErasure())
+        return;
+
     const auto& chunkId = chunk->GetId();
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (auto replica, chunk->StoredReplicas()) {
@@ -624,7 +628,7 @@ void TChunkReplicator::Refresh(TChunk* chunk)
             ~ToString(statistics),
             statistics.ReplicationFactor);
     }
- }
+}
 
 int TChunkReplicator::ComputeReplicationPriority(const TReplicaStatistics& statistics)
 {
