@@ -89,6 +89,7 @@ void TBootstrap::Run()
     BusServer = CreateTcpBusServer(New<TTcpBusServerConfig>(Config->RpcPort));
 
     auto rpcServer = CreateRpcServer(BusServer);
+    rpcServer->Configure(Config->RpcServer);
 
     TransactionManager = New<TTransactionManager>(
         Config->TransactionManager,

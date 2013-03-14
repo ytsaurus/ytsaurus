@@ -148,7 +148,9 @@ void TBootstrap::Run()
 
     auto busServerConfig = New<TTcpBusServerConfig>(Config->MetaState->Cell->RpcPort);
     auto busServer = CreateTcpBusServer(busServerConfig);
+
     RpcServer = CreateRpcServer(busServer);
+    RpcServer->Configure(Config->RpcServer);
 
     MetaStateFacade = New<TMetaStateFacade>(Config, this);
 
