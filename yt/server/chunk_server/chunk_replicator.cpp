@@ -636,7 +636,7 @@ void TChunkReplicator::ScheduleChunkRefresh(const TChunkId& chunkId)
 {
     auto chunkManager = Bootstrap->GetChunkManager();
     auto* chunk = chunkManager->FindChunk(chunkId);
-    if (chunk) {
+    if (IsObjectAlive(chunk)) {
         ScheduleChunkRefresh(chunk);
     }
 }
