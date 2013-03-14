@@ -22,6 +22,7 @@
 #include <ytlib/ytree/ypath_service.h>
 #include <ytlib/ytree/ypath_client.h>
 
+#include <ytlib/bus/server.h>
 #include <ytlib/bus/tcp_server.h>
 
 #include <ytlib/rpc/server.h>

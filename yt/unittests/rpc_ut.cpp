@@ -8,6 +8,7 @@
 
 #include <ytlib/bus/bus.h>
 #include <ytlib/bus/config.h>
+#include <ytlib/bus/server.h>
 #include <ytlib/bus/tcp_client.h>
 #include <ytlib/bus/tcp_server.h>
 

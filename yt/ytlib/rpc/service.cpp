@@ -4,6 +4,7 @@
 #include "dispatcher.h"
 #include "server_detail.h"
 #include "message.h"
+#include "config.h"
 
 #include <ytlib/misc/string.h>
 
@@ -19,6 +20,7 @@ namespace NRpc {
 
 using namespace NBus;
 using namespace NYPath;
+using namespace NYTree;
 using namespace NRpc::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -345,6 +347,40 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDe
     // Failure here means that such verb is already registered.
     YCHECK(RuntimeMethodInfos.insert(std::make_pair(descriptor.Verb, runtimeInfo)).second);
     return runtimeInfo;
+}
+
+void TServiceBase::Configure(INodePtr configNode)
+{
+    try {
+        auto config = ConvertTo<TServiceConfigPtr>(configNode);
+        FOREACH (const auto& pair, config->Methods) {
+            const auto& methodName = pair.first;
+            const auto& methodConfig = pair.second;
+            auto runtimeInfo = FindMethodInfo(methodName);
+            if (!runtimeInfo) {
+                THROW_ERROR_EXCEPTION("Cannot find RPC method to configure: %s",
+                    ~methodName);
+            }
+
+            auto& descriptor = runtimeInfo->Descriptor;
+            if (methodConfig->RequestHeavy) {
+                descriptor.SetRequestHeavy(*methodConfig->RequestHeavy);
+            }
+            if (methodConfig->ResponseHeavy) {
+                descriptor.SetResponseHeavy(*methodConfig->ResponseHeavy);
+            }
+            if (methodConfig->ResponseCodec) {
+                descriptor.SetResponseCodec(*methodConfig->ResponseCodec);
+            }
+            if (methodConfig->MaxQueueSize) {
+                descriptor.SetMaxQueueSize(*methodConfig->MaxQueueSize);
+            }
+        }
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error configuring RPC service: %s",
+            ~ServiceName)
+            << ex;
+    }
 }
 
 void TServiceBase::CancelActiveRequests(const TError& error)

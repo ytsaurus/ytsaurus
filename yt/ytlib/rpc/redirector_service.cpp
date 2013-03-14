@@ -7,6 +7,8 @@
 #include <ytlib/bus/bus.h>
 #include <ytlib/bus/message.h>
 
+#include <ytlib/ytree/node.h>
+
 namespace NYT {
 namespace NRpc {
 
@@ -156,6 +158,11 @@ public:
         return ServiceName;
     }
 
+    virtual void Configure(NYTree::INodePtr config) override
+    {
+        UNUSED(config);
+    }
+
 private:
     Stroka ServiceName;
     Stroka LoggingCategory;
@@ -171,7 +178,6 @@ IServicePtr CreateRedirectorService(
 
     return New<TRedirectorService>(serviceName, sinkChannel);
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -50,6 +50,15 @@ class TChannelCache;
 class TServiceBase;
 typedef TIntrusivePtr<TServiceBase> TServiceBasePtr;
 
+struct TServerConfig;
+typedef TIntrusivePtr<TServerConfig> TServerConfigPtr;
+
+struct TServiceConfig;
+typedef TIntrusivePtr<TServiceConfig> TServiceConfigPtr;
+
+struct TMethodConfig;
+typedef TIntrusivePtr<TMethodConfig> TMethodConfigPtr;
+
 typedef TGuid TRequestId;
 extern TRequestId NullRequestId;
 

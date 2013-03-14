@@ -12,6 +12,8 @@
 
 #include <ytlib/codecs/codec.h>
 
+#include <ytlib/ytree/public.h>
+
 #include <ytlib/rpc/rpc.pb.h>
 
 #include <ytlib/profiling/profiler.h>
@@ -99,11 +101,20 @@ struct IServiceContext
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Represents an abstract service registered within TServer.
+/*!
+ *  \note All methods be be implemented as thread-safe.
+ */
 struct IService
     : public virtual TRefCounted
 {
+    //! Applies a new configuration.
+    virtual void Configure(NYTree::INodePtr config) = 0;
+
+    //! Returns the name of the service.
     virtual Stroka GetServiceName() const = 0;
 
+    //! Handles incoming request.
     virtual void OnRequest(
         const NProto::TRequestHeader& header,
         NBus::IMessagePtr message,
@@ -571,6 +582,9 @@ protected:
 
     //! Registers a method.
     TRuntimeMethodInfoPtr RegisterMethod(const TMethodDescriptor& descriptor);
+
+    //! Configures the service.
+    virtual void Configure(NYTree::INodePtr configNode) override;
 
     //! Prepares the handler to invocation.
     virtual TClosure PrepareHandler(IServiceContextPtr context, TClosure handler);
