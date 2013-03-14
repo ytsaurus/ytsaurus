@@ -148,6 +148,8 @@ dynamic_server = connect()
             rsp.statusCode = 200;
             rsp.setHeader("Access-Control-Allow-Origin", "*");
             rsp.setHeader("Access-Control-Allow-Methods", "POST, PUT, GET, OPTIONS");
+            // Some of this headers are not supported by commands that differ from 'api'
+            // TODO(sandello): remake it
             rsp.setHeader("Access-Control-Allow-Headers", "origin, content-type, accept, x-yt-parameters, x-yt-input-format, x-yt-output-format, authorization");
             rsp.setHeader("Access-Control-Max-Age", "3600");
             rsp.removeHeader("Transfer-Encoding");
