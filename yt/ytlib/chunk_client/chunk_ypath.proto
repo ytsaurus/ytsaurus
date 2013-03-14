@@ -39,10 +39,10 @@ message TReqCreateChunkExt
     }
 
     // Requested number of nodes to write.
-    required int32 upload_replication_factor = 1 [default = 1];
+    optional int32 upload_replication_factor = 1 [default = 1];
  
     // Desired number of copies (including those created by background replication).
-    required int32 replication_factor = 2 [default = 1];
+    optional int32 replication_factor = 2 [default = 1];
  
     // Host name (without port number!) to be preferred for upload.
     // The client typically puts the name of the local host here to
@@ -50,7 +50,7 @@ message TReqCreateChunkExt
     optional string preferred_host_name = 3;
 
     // See NErasure::ECodec.
-    required int32 erasure_codec = 4 [default = 0];
+    optional int32 erasure_codec = 4 [default = 0];
 
     // Can this chunk be balanced to other nodes?
     optional bool movable = 5 [default = true];
