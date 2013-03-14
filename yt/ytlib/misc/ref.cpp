@@ -74,6 +74,11 @@ TSharedRef TSharedRef::FromBlobImpl(TBlob&& blob)
     return TSharedRef(data, ref);
 }
 
+Stroka ToString(const TRef& ref)
+{
+    return Stroka(ref.Begin(), ref.End());
+}
+
 void Save(TOutputStream* output, const NYT::TSharedRef& ref)
 {
     if (ref == TSharedRef()) {
