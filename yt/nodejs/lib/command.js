@@ -340,18 +340,18 @@ YtCommand.prototype._checkHttpMethod = function() {
         }
     }
 
-    if (actual_http_method === "OPTIONS") {
-        this.rsp.statusCode = 200;
-        this.rsp.setHeader("Access-Control-Allow-Origin", "*");
-        this.rsp.setHeader("Access-Control-Allow-Methods", "POST, PUT, GET, OPTIONS");
-        this.rsp.setHeader("Access-Control-Allow-Headers", "origin, content-type, accept, x-yt-parameters, x-yt-input-format, x-yt-output-format, authorization");
-        this.rsp.setHeader("Access-Control-Max-Age", "3600");
-        this.rsp.removeHeader("Transfer-Encoding");
-        this.rsp.removeHeader("Content-Encoding");
-        this.rsp.removeHeader("Vary");
-        this.rsp.end();
-        throw new YtError();
-    }
+    //if (actual_http_method === "OPTIONS") {
+    //    this.rsp.statusCode = 200;
+    //    this.rsp.setHeader("Access-Control-Allow-Origin", "*");
+    //    this.rsp.setHeader("Access-Control-Allow-Methods", "POST, PUT, GET, OPTIONS");
+    //    this.rsp.setHeader("Access-Control-Allow-Headers", "origin, content-type, accept, x-yt-parameters, x-yt-input-format, x-yt-output-format, authorization");
+    //    this.rsp.setHeader("Access-Control-Max-Age", "3600");
+    //    this.rsp.removeHeader("Transfer-Encoding");
+    //    this.rsp.removeHeader("Content-Encoding");
+    //    this.rsp.removeHeader("Vary");
+    //    this.rsp.end();
+    //    throw new YtError();
+    //}
 
     if (actual_http_method !== expected_http_method) {
         this.rsp.statusCode = 405;
