@@ -1211,7 +1211,7 @@ protected:
     int SuggestPartitionCount() const
     {
         YCHECK(TotalInputDataSize > 0);
-        i64 dataSizeAfterPartition = 1 + static_cast<i64>(TotalInputDataSize * Spec->SelectivityFactor);
+        i64 dataSizeAfterPartition = 1 + static_cast<i64>(TotalInputDataSize * Spec->MapSelectivityFactor);
 
         i64 result;
         if (Spec->PartitionDataSize || Spec->PartitionCount) {

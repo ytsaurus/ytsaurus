@@ -103,7 +103,7 @@ struct TUserJobSpec
         Register("output_format", OutputFormat)
             .Default();
         Register("environment", Environment)
-            .Default(yhash_map<Stroka, Stroka>());
+            .Default();
         Register("cpu_limit", CpuLimit)
             .Default(1);
         Register("memory_limit", MemoryLimit)
@@ -302,7 +302,7 @@ struct TSortOperationSpecBase
 
     //! Ratio of data size after partition to data size before partition.
     //! It always equals 1.0 for sort operation.
-    double SelectivityFactor;
+    double MapSelectivityFactor;
 
     double ShuffleStartThreshold;
     double MergeStartThreshold;
@@ -398,7 +398,7 @@ struct TSortOperationSpec
 
         SortJobIO->TableReader->PrefetchWindow = 10;
 
-        SelectivityFactor = 1.0;
+        MapSelectivityFactor = 1.0;
     }
 };
 
@@ -425,7 +425,7 @@ struct TMapReduceOperationSpec
         Register("sort_by", SortBy)
             .NonEmpty();
         Register("reduce_by", ReduceBy)
-            .Default(std::vector<Stroka>());
+            .Default();
         // Mapper can be absent - leave it NULL by default.
         Register("mapper", Mapper)
             .Default();
@@ -449,16 +449,17 @@ struct TMapReduceOperationSpec
             .Default(TDuration::Seconds(5));
         Register("reduce_locality_timeout", MergeLocalityTimeout)
             .Default(TDuration::Minutes(1));
-        Register("map_selectivity_factor", SelectivityFactor)
+        Register("map_selectivity_factor", MapSelectivityFactor)
             .Default(1.0)
             .GreaterThan(0);
 
 
         // The following settings are inherited from base but make no sense for map-reduce:
-        //   SortJobSliceDataSize
-        //   MaxDataSizePerUnorderedMergeJob
+        //   JobSliceDataSize
+        //   DataSizePerUnorderedMergeJob
         //   SimpleSortLocalityTimeout
         //   SimpleMergeLocalityTimeout
+        //   MapSelectivityFactor
 
         MapJobIO->TableReader->PrefetchWindow = 10;
         MapJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GB
