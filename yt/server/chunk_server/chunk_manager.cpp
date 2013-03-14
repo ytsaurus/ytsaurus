@@ -1861,7 +1861,7 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
             ~ToString(preferredHostName),
             chunk->GetReplicationFactor(),
             requestExt->upload_replication_factor(),
-            ~ToString(erasureCodecId),
+            ~erasureCodecId.ToString(),
             ~FormatBool(requestExt->movable()),
             ~FormatBool(requestExt->vital()));
     }
