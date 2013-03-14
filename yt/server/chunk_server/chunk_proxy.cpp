@@ -57,13 +57,13 @@ private:
     {
         const auto* chunk = GetThisTypedImpl();
         auto miscExt = FindProtoExtension<TMiscExt>(chunk->ChunkMeta().extensions());
-
         YCHECK(!chunk->IsConfirmed() || miscExt);
 
         attributes->push_back("confirmed");
         attributes->push_back("cached_replicas");
         attributes->push_back("stored_replicas");
-        attributes->push_back("replication_factor");
+        attributes->push_back(TAttributeInfo("replication_factor", !chunk->IsErasure(), false));
+        attributes->push_back(TAttributeInfo("erasure_codec", chunk->IsErasure(), false));
         attributes->push_back("movable");
         attributes->push_back("vital");
         attributes->push_back("master_meta_size");
@@ -109,8 +109,7 @@ private:
                 .Value(replica.GetPtr()->GetAddress());
         };
 
-        auto serializeReplica =
-            chunk->IsErasure()
+        auto serializeReplica = chunk->IsErasure()
             ? TReplicaSerializer(serializeRegularReplica)
             : TReplicaSerializer(serializeErasureReplica);
 
@@ -132,10 +131,19 @@ private:
             return true;
         }
 
-        if (key == "replication_factor") {
-            BuildYsonFluently(consumer)
-                .Value(chunk->GetReplicationFactor());
-            return true;
+        if (chunk->IsErasure()) {
+            if (key == "erasure_codec") {
+                BuildYsonFluently(consumer)
+                    .Value(chunk->GetErasureCodec());
+                return true;
+            }
+
+        } else {
+            if (key == "replication_factor") {
+                BuildYsonFluently(consumer)
+                    .Value(chunk->GetReplicationFactor());
+                return true;
+            }
         }
 
         if (key == "movable") {

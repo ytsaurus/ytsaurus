@@ -1819,7 +1819,7 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
     auto* erasureCodec = isErasure ? NErasure::GetCodec(erasureCodecId) : nullptr;
 
     auto* chunk = Owner->CreateChunk(type);
-    chunk->SetReplicationFactor(requestExt->replication_factor());
+    chunk->SetReplicationFactor(isErasure ? 1 : requestExt->replication_factor());
     chunk->SetErasureCodec(erasureCodecId);
     chunk->SetMovable(requestExt->movable());
     chunk->SetVital(requestExt->vital());
@@ -1827,8 +1827,7 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
     chunk->SetStagingAccount(account);
 
     if (Owner->IsLeader()) {
-        auto preferredHostName =
-            requestExt->has_preferred_host_name()
+        auto preferredHostName = requestExt->has_preferred_host_name()
             ? TNullable<Stroka>(requestExt->preferred_host_name())
             : Null;
 
@@ -1857,10 +1856,10 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
             "PreferredHostName: %s, ReplicationFactor: %d, UploadReplicationFactor: %d, ErasureCodec: %s, Movable: %s, Vital: %s)",
             ~ToString(chunk->GetId()),
             ~ToString(transaction->GetId()),
-            account ? ~account->GetName() : "<Null>",
+            ~account->GetName(),
             ~JoinToString(targetAddresses),
             ~ToString(preferredHostName),
-            requestExt->replication_factor(),
+            chunk->GetReplicationFactor(),
             requestExt->upload_replication_factor(),
             ~ToString(erasureCodecId),
             ~FormatBool(requestExt->movable()),
