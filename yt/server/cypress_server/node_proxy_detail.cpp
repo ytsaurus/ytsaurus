@@ -319,10 +319,12 @@ TVersionedObjectId TNontemplateCypressNodeProxyBase::GetVersionedId() const
 void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
 {
     const auto* node = GetThisImpl();
+    bool hasKey = node->GetParent() && node->GetParent()->GetType() == ENodeType::Map;
     attributes->push_back(TAttributeInfo("parent_id", node->GetParent()));
     attributes->push_back("locks");
     attributes->push_back("lock_mode");
     attributes->push_back(TAttributeInfo("path", true, true));
+    attributes->push_back(TAttributeInfo("key", hasKey, false));
     attributes->push_back("creation_time");
     attributes->push_back("modification_time");
     attributes->push_back("resource_usage");
@@ -337,6 +339,7 @@ bool TNontemplateCypressNodeProxyBase::GetSystemAttribute(
 {
     const auto* node = GetThisImpl();
     const auto* trunkNode = node->GetTrunkNode();
+    bool hasKey = GetParent() && GetParent()->GetType() == ENodeType::Map;
 
     if (key == "parent_id" && node->GetParent()) {
         BuildYsonFluently(consumer)
@@ -373,6 +376,12 @@ bool TNontemplateCypressNodeProxyBase::GetSystemAttribute(
     if (key == "path") {
         BuildYsonFluently(consumer)
             .Value(GetPath());
+        return true;
+    }
+
+    if (key == "key") {
+        BuildYsonFluently(consumer)
+            .Value(GetParent()->AsMap()->GetChildKey(this));
         return true;
     }
 
