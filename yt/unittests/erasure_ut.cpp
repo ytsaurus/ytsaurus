@@ -33,7 +33,10 @@ TEST_F(TErasureCodingTest, SmallTest)
         data.push_back(static_cast<char>('a' + (std::abs(rand.random()) % 26)));
     }
 
-    FOREACH (const auto& codecId, ECodec::GetDomainValues()) {
+    FOREACH (auto codecId, ECodec::GetDomainValues()) {
+        if (codecId == ECodec::None)
+            continue;
+
         auto codec = GetCodec(codecId);
 
         int blocksCount = codec->GetDataBlockCount() + codec->GetParityBlockCount();
