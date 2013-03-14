@@ -61,7 +61,7 @@ public:
     void ScheduleChunkRefresh(TChunk* chunk);
 
     void ScheduleChunkRemoval(TDataNode* node, const TChunkId& chunkdId);
-    void ScheduleChunkRemoval(TDataNode* node, TChunk* chunk);
+    void ScheduleChunkRemoval(TDataNode* node, TChunkPtrWithIndex chunkWithIndex);
 
     void ScheduleRFUpdate(TChunkTree* chunkTree);
 

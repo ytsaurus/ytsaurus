@@ -27,7 +27,8 @@ const i64 TChunk::UnknownSize = -1;
 
 TChunk::TChunk(const TChunkId& id)
     : TChunkTree(id)
-    , ReplicationFactor_(1)
+    , ReplicationFactor(1)
+    , ErasureCodec(NErasure::ECodec::None)
 {
     Zero(Flags);
 
@@ -61,7 +62,7 @@ TChunkTreeStatistics TChunk::GetStatistics() const
 
 TClusterResources TChunk::GetResourceUsage() const
 {
-    i64 diskSpace = IsConfirmed() ? ChunkInfo_.size() * ReplicationFactor_ : 0;
+    i64 diskSpace = IsConfirmed() ? ChunkInfo_.size() * GetReplicationFactor() : 0;
     return TClusterResources(diskSpace, 1);
 }
 
@@ -73,7 +74,8 @@ void TChunk::Save(const NCellMaster::TSaveContext& context) const
     auto* output = context.GetOutput();
     SaveProto(output, ChunkInfo_);
     SaveProto(output, ChunkMeta_);
-    ::Save(output, ReplicationFactor_);
+    ::Save(output, GetReplicationFactor());
+    ::Save(output, GetErasureCodec());
     ::Save(output, GetMovable());
     ::Save(output, GetVital());
     SaveObjectRefs(context, Parents_);
@@ -89,7 +91,10 @@ void TChunk::Load(const NCellMaster::TLoadContext& context)
     auto* input = context.GetInput();
     LoadProto(input, ChunkInfo_);
     LoadProto(input, ChunkMeta_);
-    ::Load(input, ReplicationFactor_);
+    SetReplicationFactor(NCellMaster::Load<int>(context));
+    if (context.GetVersion() >= 9) {
+        SetErasureCodec(NCellMaster::Load<NErasure::ECodec>(context));
+    }
     SetMovable(NCellMaster::Load<bool>(context));
     SetVital(NCellMaster::Load<bool>(context));
     LoadObjectRefs(context, Parents_);
@@ -200,9 +205,29 @@ void TChunk::SetRFUpdateScheduled(bool value)
     Flags.RFUpdateScheduled = value;
 }
 
+int TChunk::GetReplicationFactor() const
+{
+    return ReplicationFactor;
+}
+
+void TChunk::SetReplicationFactor(int value)
+{
+    ReplicationFactor = value;
+}
+
+NErasure::ECodec TChunk::GetErasureCodec() const
+{
+    return NErasure::ECodec(ErasureCodec);
+}
+
+void TChunk::SetErasureCodec(NErasure::ECodec value)
+{
+    ErasureCodec = static_cast<i16>(value);
+}
+
 bool TChunk::IsErasure() const
 {
-    return IsErasureChunkId(Id);
+    return GetErasureCodec() != NErasure::ECodec::None;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

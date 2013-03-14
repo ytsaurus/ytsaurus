@@ -5,6 +5,7 @@
 
 #include <ytlib/misc/small_vector.h>
 #include <ytlib/misc/small_set.h>
+#include <ytlib/misc/nullable.h>
 
 #include <server/cell_master/public.h>
 
@@ -31,9 +32,9 @@ public:
     double GetFillCoeff(TDataNode* node) const;
 
     TSmallVector<TDataNode*, TypicalReplicationFactor> GetUploadTargets(
-        int count,
+        int replicaCount,
         const TSmallSet<TDataNode*, TypicalReplicationFactor>* forbiddenNodes,
-        Stroka* preferredHostName);
+        const TNullable<Stroka>& preferredHostName);
 
     TSmallVector<TDataNode*, TypicalReplicationFactor> GetRemovalTargets(
         const TChunk* chunk,

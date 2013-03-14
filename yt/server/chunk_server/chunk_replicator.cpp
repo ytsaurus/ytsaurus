@@ -163,9 +163,9 @@ void TChunkReplicator::ScheduleChunkRemoval(TDataNode* node, const TChunkId& chu
     }
 }
 
-void TChunkReplicator::ScheduleChunkRemoval(TDataNode* node, TChunk* chunk)
+void TChunkReplicator::ScheduleChunkRemoval(TDataNode* node, TChunkPtrWithIndex chunkWithIndex)
 {
-    ScheduleChunkRemoval(node, chunk->GetId());
+    ScheduleChunkRemoval(node, EncodeChunkId(chunkWithIndex));
 }
 
 void TChunkReplicator::ProcessExistingJobs(

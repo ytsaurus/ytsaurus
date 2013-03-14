@@ -3,10 +3,13 @@
 #include "node.h"
 #include "chunk.h"
 
+#include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/chunk_replica.h>
 
 namespace NYT {
 namespace NChunkServer {
+
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,6 +29,14 @@ void ToProto(ui32* protoValue, TDataNodePtrWithIndex value)
         value.GetPtr()->GetId(),
         value.GetIndex());
     NChunkClient::ToProto(protoValue, clientReplica);
+}
+
+TChunkId EncodeChunkId(TChunkPtrWithIndex chunkWithIndex)
+{
+    auto* chunk = chunkWithIndex.GetPtr();
+    return chunk->IsErasure()
+           ? PartIdFromErasureChunkId(chunk->GetId(), chunkWithIndex.GetIndex())
+           : chunk->GetId();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

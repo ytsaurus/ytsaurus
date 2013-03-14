@@ -11,6 +11,8 @@
 
 #include <ytlib/table_client/table_chunk_meta.pb.h>
 
+#include <ytlib/erasure_codecs/codec.h>
+
 #include <server/cell_master/public.h>
 
 #include <server/object_server/object_detail.h>
@@ -28,7 +30,6 @@ class TChunk
 {
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TChunkMeta, ChunkMeta);
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TChunkInfo, ChunkInfo);
-    DEFINE_BYVAL_RW_PROPERTY(i16, ReplicationFactor);
 
     typedef TSmallVector<TChunkList*, TypicalChunkParentCount> TParents;
     DEFINE_BYREF_RW_PROPERTY(TParents, Parents);
@@ -73,6 +74,12 @@ public:
     bool GetRFUpdateScheduled() const;
     void SetRFUpdateScheduled(bool value);
 
+    int GetReplicationFactor() const;
+    void SetReplicationFactor(int value);
+
+    NErasure::ECodec GetErasureCodec() const;
+    void SetErasureCodec(NErasure::ECodec value);
+
     bool IsErasure() const;
 
 private:
@@ -82,6 +89,9 @@ private:
         bool RefreshScheduled : 1;
         bool RFUpdateScheduled : 1;
     } Flags;
+
+    i16 ReplicationFactor;
+    i16 ErasureCodec;
 
 };
 

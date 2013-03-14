@@ -78,14 +78,12 @@ void TChunkPlacement::OnSessionHinted(TDataNode* node)
 }
 
 TSmallVector<TDataNode*, TypicalReplicationFactor> TChunkPlacement::GetUploadTargets(
-    int count,
+    int replicaCount,
     const TSmallSet<TDataNode*, TypicalReplicationFactor>* forbiddenNodes,
-    Stroka* preferredHostName)
+    const TNullable<Stroka>& preferredHostName)
 {
-    // TODO: check replication fan-in for replication jobs
-
     TSmallVector<TDataNode*, TypicalReplicationFactor> resultNodes;
-    resultNodes.reserve(count);
+    resultNodes.reserve(replicaCount);
 
     typedef std::pair<TDataNode*, int> TFeasibleNode;
     std::vector<TFeasibleNode> feasibleNodes;
@@ -100,7 +98,7 @@ TSmallVector<TDataNode*, TypicalReplicationFactor> TChunkPlacement::GetUploadTar
         preferredNode = chunkManager->FindNodeByHostName(*preferredHostName);
         if (preferredNode && IsValidUploadTarget(preferredNode)) {
             resultNodes.push_back(preferredNode);
-            --count;
+            --replicaCount;
         }
     }
 
@@ -124,7 +122,7 @@ TSmallVector<TDataNode*, TypicalReplicationFactor> TChunkPlacement::GetUploadTar
         });
 
     auto beginGroupIt = feasibleNodes.begin();
-    while (beginGroupIt != feasibleNodes.end() && count > 0) {
+    while (beginGroupIt != feasibleNodes.end() && replicaCount > 0) {
         auto endGroupIt = beginGroupIt;
         int groupSize = 0;
         while (endGroupIt != feasibleNodes.end() && beginGroupIt->second == endGroupIt->second) {
@@ -132,7 +130,7 @@ TSmallVector<TDataNode*, TypicalReplicationFactor> TChunkPlacement::GetUploadTar
             ++groupSize;
         }
 
-        int sampleCount = std::min(count, groupSize);
+        int sampleCount = std::min(replicaCount, groupSize);
 
         std::vector<TFeasibleNode> currentResult;
         RandomSampleN(
@@ -146,7 +144,7 @@ TSmallVector<TDataNode*, TypicalReplicationFactor> TChunkPlacement::GetUploadTar
         }
 
         beginGroupIt = endGroupIt;
-        count -= sampleCount;
+        replicaCount -= sampleCount;
     }
 
     return resultNodes;

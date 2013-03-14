@@ -29,6 +29,8 @@
 
 #include <ytlib/codecs/codec.h>
 
+#include <ytlib/erasure_codecs/codec.h>
+
 #include <ytlib/chunk_client/chunk_ypath.pb.h>
 #include <ytlib/chunk_client/chunk_list_ypath.pb.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
@@ -88,16 +90,11 @@ static NLog::TLogger& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkManager::TChunkTypeHandler
+class TChunkManager::TChunkTypeHandlerBase
     : public TObjectTypeHandlerWithMapBase<TChunk>
 {
 public:
-    explicit TChunkTypeHandler(TImpl* owner);
-
-    virtual EObjectType GetType() const override
-    {
-        return EObjectType::Chunk;
-    }
+    explicit TChunkTypeHandlerBase(TImpl* owner);
 
     virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
     {
@@ -114,19 +111,60 @@ public:
         TReqCreateObject* request,
         TRspCreateObject* response) override;
 
-private:
+protected:
     TImpl* Owner;
-
-    virtual Stroka DoGetName(TChunk* chunk) override
-    {
-        return Sprintf("chunk %s", ~ToString(chunk->GetId()));
-    }
 
     virtual IObjectProxyPtr DoGetProxy(TChunk* chunk, TTransaction* transaction) override;
 
     virtual void DoDestroy(TChunk* chunk) override;
 
     virtual void DoUnstage(TChunk* chunk, TTransaction* transaction, bool recursive) override;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChunkManager::TChunkTypeHandler
+    : public TChunkTypeHandlerBase
+{
+public:
+    explicit TChunkTypeHandler(TImpl* owner)
+        : TChunkTypeHandlerBase(owner)
+    { }
+
+    virtual EObjectType GetType() const override
+    {
+        return EObjectType::Chunk;
+    }
+
+private:
+    virtual Stroka DoGetName(TChunk* chunk) override
+    {
+        return Sprintf("chunk %s", ~ToString(chunk->GetId()));
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChunkManager::TErasureChunkTypeHandler
+    : public TChunkTypeHandlerBase
+{
+public:
+    explicit TErasureChunkTypeHandler(TImpl* owner)
+        : TChunkTypeHandlerBase(owner)
+    { }
+
+    virtual EObjectType GetType() const override
+    {
+        return EObjectType::ErasureChunk;
+    }
+
+private:
+    virtual Stroka DoGetName(TChunk* chunk) override
+    {
+        return Sprintf("erasure chunk %s", ~ToString(chunk->GetId()));
+    }
 
 };
 
@@ -248,6 +286,7 @@ public:
     {
         auto objectManager = Bootstrap->GetObjectManager();
         objectManager->RegisterHandler(New<TChunkTypeHandler>(this));
+        objectManager->RegisterHandler(New<TErasureChunkTypeHandler>(this));
         objectManager->RegisterHandler(New<TChunkListTypeHandler>(this));
     }
 
@@ -317,39 +356,41 @@ public:
     TDataNode* FindNodeByAddresss(const Stroka& address)
     {
         auto it = NodeAddressMap.find(address);
-        return it == NodeAddressMap.end() ? NULL : it->second;
+        return it == NodeAddressMap.end() ? nullptr : it->second;
     }
 
     TDataNode* FindNodeByHostName(const Stroka& hostName)
     {
         auto it = NodeHostNameMap.find(hostName);
-        return it == NodeAddressMap.end() ? NULL : it->second;
+        return it == NodeAddressMap.end() ? nullptr : it->second;
     }
 
     const TReplicationSink* FindReplicationSink(const Stroka& address)
     {
         auto it = ReplicationSinkMap.find(address);
-        return it == ReplicationSinkMap.end() ? NULL : &it->second;
+        return it == ReplicationSinkMap.end() ? nullptr : &it->second;
     }
 
     TSmallVector<TDataNode*, TypicalReplicationFactor> AllocateUploadTargets(
-        int count,
-        TNullable<Stroka> preferredHostName)
+        int replicaCount,
+        const TNullable<Stroka>& preferredHostName)
     {
         auto nodes = ChunkPlacement->GetUploadTargets(
-            count,
-            NULL,
-            preferredHostName.GetPtr());
+            replicaCount,
+            nullptr,
+            preferredHostName);
+
         FOREACH (auto* node, nodes) {
             ChunkPlacement->OnSessionHinted(node);
         }
+
         return nodes;
     }
 
-    TChunk* CreateChunk()
+    TChunk* CreateChunk(EObjectType type)
     {
         Profiler.Increment(AddChunkCounter);
-        auto id = Bootstrap->GetObjectManager()->GenerateId(EObjectType::Chunk);
+        auto id = Bootstrap->GetObjectManager()->GenerateId(type);
         auto* chunk = new TChunk(id);
         ChunkMap.Insert(id, chunk);
         return chunk;
@@ -379,7 +420,7 @@ public:
     template <class F>
     static void VisitUniqueAncestors(TChunkList* chunkList, F functor)
     {
-        while (chunkList != NULL) {
+        while (chunkList != nullptr) {
             functor(chunkList);
             const auto& parents = chunkList->Parents();
             if (parents.empty())
@@ -404,7 +445,7 @@ public:
             auto* chunkList = queue[frontIndex++];
 
             // Fast lane: handle unique parents.
-            while (chunkList != NULL) {
+            while (chunkList != nullptr) {
                 functor(chunkList);
                 const auto& parents = chunkList->Parents();
                 if (parents.size() != 1)
@@ -412,7 +453,7 @@ public:
                 chunkList = *parents.begin();
             }
 
-            if (chunkList != NULL) {
+            if (chunkList != nullptr) {
                 // Proceed to parents.
                 FOREACH (auto* parent, chunkList->Parents()) {
                     queue.push_back(parent);
@@ -738,7 +779,9 @@ public:
 
 private:
     typedef TImpl TThis;
+    friend class TChunkTypeHandlerBase;
     friend class TChunkTypeHandler;
+    friend class TErasureChunkTypeHandler;
     friend class TChunkListTypeHandler;
 
     TChunkManagerConfigPtr Config;
@@ -843,8 +886,8 @@ private:
             securityManager->UpdateAccountStagingUsage(stagingTransaction, stagingAccount, delta);
         }
 
-        chunk->SetStagingTransaction(NULL);
-        chunk->SetStagingAccount(NULL);
+        chunk->SetStagingTransaction(nullptr);
+        chunk->SetStagingAccount(nullptr);
     }
 
     void UnstageChunkList(
@@ -1392,7 +1435,7 @@ private:
     {
         node->RemoveReplica(chunkWithIndex, cached);
         if (!cached && IsLeader()) {
-            ChunkReplicator->ScheduleChunkRemoval(node, chunkWithIndex.GetPtr());
+            ChunkReplicator->ScheduleChunkRemoval(node, chunkWithIndex);
         }
     }
 
@@ -1532,7 +1575,8 @@ private:
         bool incremental)
     {
         auto nodeId = node->GetId();
-        auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkAddInfo.chunk_id()));
+        auto chunkId = FromProto<TChunkId>(chunkAddInfo.chunk_id());
+        auto chunkIdWithIndex = DecodeChunkId(chunkId);
         bool cached = chunkAddInfo.cached();
 
         auto* chunk = FindChunk(chunkIdWithIndex.Id);
@@ -1550,7 +1594,7 @@ private:
                 ~FormatBool(cached));
 
             if (IsLeader()) {
-                ChunkReplicator->ScheduleChunkRemoval(node, chunkIdWithIndex.Id);
+                ChunkReplicator->ScheduleChunkRemoval(node, chunkId);
             }
 
             return;
@@ -1740,12 +1784,12 @@ DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, Underreplic
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TChunkManager::TChunkTypeHandler::TChunkTypeHandler(TImpl* owner)
+TChunkManager::TChunkTypeHandlerBase::TChunkTypeHandlerBase(TImpl* owner)
     : TObjectTypeHandlerWithMapBase(owner->Bootstrap, &owner->ChunkMap)
     , Owner(owner)
 { }
 
-IObjectProxyPtr TChunkManager::TChunkTypeHandler::DoGetProxy(
+IObjectProxyPtr TChunkManager::TChunkTypeHandlerBase::DoGetProxy(
     TChunk* chunk,
     TTransaction* transaction)
 {
@@ -1754,7 +1798,7 @@ IObjectProxyPtr TChunkManager::TChunkTypeHandler::DoGetProxy(
     return CreateChunkProxy(Bootstrap, chunk);
 }
 
-TObjectBase* TChunkManager::TChunkTypeHandler::Create(
+TObjectBase* TChunkManager::TChunkTypeHandlerBase::Create(
     TTransaction* transaction,
     TAccount* account,
     IAttributeDictionary* attributes,
@@ -1767,9 +1811,16 @@ TObjectBase* TChunkManager::TChunkTypeHandler::Create(
 
     account->ValidateDiskSpaceLimit();
 
+    auto type = GetType();
+    bool isErasure = (type == EObjectType::ErasureChunk);
     const auto* requestExt = &request->GetExtension(TReqCreateChunkExt::create_chunk);
-    auto* chunk = Owner->CreateChunk();
+
+    auto erasureCodecId = isErasure ? NErasure::ECodec(requestExt->erasure_codec()) : NErasure::ECodec::None;
+    auto* erasureCodec = isErasure ? NErasure::GetCodec(erasureCodecId) : nullptr;
+
+    auto* chunk = Owner->CreateChunk(type);
     chunk->SetReplicationFactor(requestExt->replication_factor());
+    chunk->SetErasureCodec(erasureCodecId);
     chunk->SetMovable(requestExt->movable());
     chunk->SetVital(requestExt->vital());
     chunk->SetStagingTransaction(transaction);
@@ -1781,15 +1832,20 @@ TObjectBase* TChunkManager::TChunkTypeHandler::Create(
             ? TNullable<Stroka>(requestExt->preferred_host_name())
             : Null;
 
-        auto targets = Owner->AllocateUploadTargets(
-            requestExt->upload_replication_factor(),
-            preferredHostName);
+        int replicaCount = isErasure
+            ? erasureCodec->GetDataBlockCount() + erasureCodec->GetParityBlockCount()
+            : requestExt->upload_replication_factor();
+
+        auto targets = Owner->AllocateUploadTargets(replicaCount, preferredHostName);
 
         auto* responseExt = response->MutableExtension(TRspCreateChunkExt::create_chunk);
         TNodeDirectoryBuilder builder(responseExt->mutable_node_directory());
-        std::vector<Stroka> targetAddresses;
-        FOREACH (auto* target, targets) {
-            NChunkServer::TDataNodePtrWithIndex replica(target, 0);
+        TSmallVector<Stroka, TypicalReplicationFactor> targetAddresses;
+        for (int index = 0; index < static_cast<int>(targets.size()); ++index) {
+            auto* target = targets[index];
+            NChunkServer::TDataNodePtrWithIndex replica(
+                target,
+                isErasure ? index : 0);
             builder.Add(replica);
             responseExt->add_replicas(NYT::ToProto<ui32>(replica));
             targetAddresses.push_back(target->GetAddress());
@@ -1798,7 +1854,7 @@ TObjectBase* TChunkManager::TChunkTypeHandler::Create(
         LOG_DEBUG_UNLESS(Owner->IsRecovery(),
             "Allocated nodes for new chunk "
             "(ChunkId: %s, TransactionId: %s, Account: %s, Targets: [%s], "
-            "PreferredHostName: %s, ReplicationFactor: %d, UploadReplicationFactor: %d, Movable: %s, Vital: %s)",
+            "PreferredHostName: %s, ReplicationFactor: %d, UploadReplicationFactor: %d, ErasureCodec: %s, Movable: %s, Vital: %s)",
             ~ToString(chunk->GetId()),
             ~ToString(transaction->GetId()),
             account ? ~account->GetName() : "<Null>",
@@ -1806,6 +1862,7 @@ TObjectBase* TChunkManager::TChunkTypeHandler::Create(
             ~ToString(preferredHostName),
             requestExt->replication_factor(),
             requestExt->upload_replication_factor(),
+            ~ToString(erasureCodecId),
             ~FormatBool(requestExt->movable()),
             ~FormatBool(requestExt->vital()));
     }
@@ -1813,12 +1870,12 @@ TObjectBase* TChunkManager::TChunkTypeHandler::Create(
     return chunk;
 }
 
-void TChunkManager::TChunkTypeHandler::DoDestroy(TChunk* chunk)
+void TChunkManager::TChunkTypeHandlerBase::DoDestroy(TChunk* chunk)
 {
     Owner->DestroyChunk(chunk);
 }
 
-void TChunkManager::TChunkTypeHandler::DoUnstage(
+void TChunkManager::TChunkTypeHandlerBase::DoUnstage(
     TChunk* chunk,
     TTransaction* transaction,
     bool recursive)
@@ -1916,10 +1973,10 @@ const TReplicationSink* TChunkManager::FindReplicationSink(const Stroka& address
 }
 
 TSmallVector<TDataNode*, TypicalReplicationFactor> TChunkManager::AllocateUploadTargets(
-    int count,
-    TNullable<Stroka> preferredHostName)
+    int replicaCount,
+    const TNullable<Stroka>& preferredHostName)
 {
-    return Impl->AllocateUploadTargets(count, preferredHostName);
+    return Impl->AllocateUploadTargets(replicaCount, preferredHostName);
 }
 
 TMutationPtr TChunkManager::CreateRegisterNodeMutation(
@@ -1958,9 +2015,9 @@ TMutationPtr TChunkManager::CreateUpdateChunkReplicationFactorMutation(
     return Impl->CreateUpdateChunkReplicationFactorMutation(request);
 }
 
-TChunk* TChunkManager::CreateChunk()
+TChunk* TChunkManager::CreateChunk(EObjectType type)
 {
-    return Impl->CreateChunk();
+    return Impl->CreateChunk(type);
 }
 
 TChunkList* TChunkManager::CreateChunkList()

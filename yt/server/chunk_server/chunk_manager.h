@@ -16,6 +16,8 @@
 
 #include <ytlib/rpc/service.h>
 
+#include <server/object_server/public.h>
+
 #include <server/chunk_server/chunk_manager.pb.h>
 
 #include <server/cell_master/public.h>
@@ -93,10 +95,10 @@ public:
     const TReplicationSink* FindReplicationSink(const Stroka& address);
 
     TSmallVector<TDataNode*, TypicalReplicationFactor> AllocateUploadTargets(
-        int count,
-        TNullable<Stroka> preferredHostName);
+        int replicaCount,
+        const TNullable<Stroka>& preferredHostName);
 
-    TChunk* CreateChunk();
+    TChunk* CreateChunk(NObjectServer::EObjectType type);
     TChunkList* CreateChunkList();
 
     void AttachToChunkList(
@@ -154,7 +156,9 @@ public:
 
 private:
     class TImpl;
+    class TChunkTypeHandlerBase;
     class TChunkTypeHandler;
+    class TErasureChunkTypeHandler;
     class TChunkListTypeHandler;
 
     TIntrusivePtr<TImpl> Impl;

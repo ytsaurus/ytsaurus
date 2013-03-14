@@ -59,6 +59,8 @@ void ToProto(ui32* protoValue, TDataNodePtrWithIndex value);
 template <class T>
 bool CompareObjectsForSerialization(TPtrWithIndex<T> lhs, TPtrWithIndex<T> rhs);
 
+TChunkId EncodeChunkId(TChunkPtrWithIndex chunkWithIndex);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkServer
