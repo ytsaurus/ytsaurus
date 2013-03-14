@@ -2,7 +2,8 @@
 
 #include "public.h"
 
-#include <ytlib/bus/server.h>
+#include <ytlib/bus/public.h>
+
 #include <ytlib/ytree/public.h>
 
 namespace NYT {
@@ -14,6 +15,8 @@ struct IServer
     : public virtual TRefCounted
 {
     virtual void RegisterService(IServicePtr service) = 0;
+
+    virtual void Configure(TServerConfigPtr config) = 0;
 
     virtual void Start() = 0;
     virtual void Stop() = 0;

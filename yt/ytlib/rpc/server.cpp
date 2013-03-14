@@ -2,6 +2,7 @@
 #include "server.h"
 #include "private.h"
 #include "service.h"
+#include "config.h"
 
 #include <ytlib/bus/server.h>
 #include <ytlib/bus/bus.h>
@@ -41,6 +42,20 @@ public:
         LOG_INFO("RPC service registered: %s", ~service->GetServiceName());
     }
 
+    virtual void Configure(TServerConfigPtr config) override
+    {
+        FOREACH (const auto& pair, config->Services) {
+            const auto& serviceName = pair.first;
+            const auto& serviceConfig = pair.second;
+            auto service = FindService(serviceName);
+            if (!service) {
+                THROW_ERROR_EXCEPTION("Cannot find RPC service to configure: %s",
+                    ~serviceName);
+            }
+            service->Configure(serviceConfig);
+        }
+    }
+
     virtual void Start() override
     {
         YCHECK(!Started);
@@ -69,10 +84,10 @@ private:
 
     yhash_map<Stroka, IServicePtr> Services;
 
-    IServicePtr GetService(const Stroka& serviceName)
+    IServicePtr FindService(const Stroka& serviceName)
     {
         auto it = Services.find(serviceName);
-        return it == Services.end() ? NULL : it->second;
+        return it == Services.end() ? nullptr : it->second;
     }
 
     virtual void OnMessage(IMessagePtr message, IBusPtr replyBus) override
@@ -119,7 +134,7 @@ private:
         // TODO: anything smarter?
         const auto& serviceName = path;
 
-        auto service = GetService(serviceName);
+        auto service = FindService(serviceName);
         if (!service) {
             auto error = TError(
                 EErrorCode::NoSuchService,

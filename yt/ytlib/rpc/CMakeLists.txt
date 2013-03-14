@@ -34,6 +34,7 @@ set( HDRS
   ${BASE}/server.h
   ${BASE}/server_detail.h
   ${BASE}/service.h
+  ${BASE}/config.h
 )
 
 list(APPEND YT_SOURCE_FILES
