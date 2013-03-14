@@ -379,7 +379,7 @@ bool TNontemplateCypressNodeProxyBase::GetSystemAttribute(
         return true;
     }
 
-    if (key == "key") {
+    if (hasKey && key == "key") {
         BuildYsonFluently(consumer)
             .Value(GetParent()->AsMap()->GetChildKey(this));
         return true;
