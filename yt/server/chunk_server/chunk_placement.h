@@ -46,7 +46,9 @@ public:
     TDataNode* GetReplicationSource(const TChunk* chunk);
 
     bool HasBalancingTargets(double maxFillCoeff);
+
     std::vector<TChunkPtrWithIndex> GetBalancingChunks(TDataNode* node, int count);
+
     TDataNode* GetBalancingTarget(TChunkPtrWithIndex chunkWithIndex, double maxFillCoeff);
 
 private:
