@@ -7,13 +7,13 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_ENUM(ECodec,
-    ((None)(0))
-    ((Snappy)(1))
-    ((GzipNormal)(2))
-    ((GzipBestCompression)(3))
-    ((Lz4)(4))
-    ((Lz4HighCompression)(5))
-    ((QuickLz)(6))
+    ((None)                       (0))
+    ((Snappy)                     (1))
+    ((GzipNormal)                 (2))
+    ((GzipBestCompression)        (3))
+    ((Lz4)                        (4))
+    ((Lz4HighCompression)         (5))
+    ((QuickLz)                    (6))
 );
 
 
@@ -22,6 +22,9 @@ DECLARE_ENUM(ECodec,
 //! A generic interface for compression/decompression.
 struct ICodec
 {
+    virtual ~ICodec()
+    { }
+
     //! Compress a given block.
     virtual TSharedRef Compress(const TSharedRef& block) = 0;
 
@@ -34,7 +37,6 @@ struct ICodec
     //! Returns codec id
     virtual ECodec GetId() const = 0;
 };
-
 
 //! Returns a codec for the registered id.
 ICodec* GetCodec(ECodec id);
