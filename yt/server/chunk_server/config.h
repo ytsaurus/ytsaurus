@@ -80,11 +80,7 @@ struct TChunkManagerConfig
 
     //! Limit for the number of queued FullHeartbeat requests plus the number of registered nodes before
     //! RegisterNode starts replying EErrorCode::Unavailable.
-    int FullHeartbeatQueueSoftLimit;
-
-    //! Limit for the number of queued FullHeartbeat requests before
-    //! FullHeartbeat starts replying EErrorCode::Unavailable.
-    int FullHeartbeatQueueHardLimit;
+    int FullHeartbeatQueueSizeLimit;
 
     TChunkReplicatorConfigPtr ChunkReplicator;
 
@@ -115,11 +111,8 @@ struct TChunkManagerConfig
         Register("chunk_replicator", ChunkReplicator)
             .DefaultNew();
 
-        Register("full_heartbeat_queue_size_soft_limit", FullHeartbeatQueueSoftLimit)
+        Register("full_heartbeat_queue_size_limit", FullHeartbeatQueueSizeLimit)
             .Default(20)
-            .GreaterThan(0);
-        Register("full_heartbeat_queue_size_hard_limit", FullHeartbeatQueueHardLimit)
-            .Default(30)
             .GreaterThan(0);
     }
 };

@@ -150,7 +150,6 @@ void TBootstrap::Run()
     auto busServer = CreateTcpBusServer(busServerConfig);
 
     RpcServer = CreateRpcServer(busServer);
-    RpcServer->Configure(Config->RpcServer);
 
     MetaStateFacade = New<TMetaStateFacade>(Config, this);
 
@@ -235,6 +234,7 @@ void TBootstrap::Run()
     httpServer->Start();
 
     LOG_INFO("Listening for RPC requests on port %d", Config->MetaState->Cell->RpcPort);
+    RpcServer->Configure(Config->RpcServer);
     RpcServer->Start();
 
     Sleep(TDuration::Max());

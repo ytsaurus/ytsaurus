@@ -51,7 +51,6 @@ TChunkService::TChunkService(
     FullHeartbeatMethodInfo = RegisterMethod(
         RPC_SERVICE_METHOD_DESC(FullHeartbeat)
             .SetRequestHeavy(true)
-            .SetMaxQueueSize(Config->FullHeartbeatQueueHardLimit)
             .SetInvoker(bootstrap->GetMetaStateFacade()->GetGuardedInvoker(EStateThreadQueue::ChunkMaintenance)));
     RegisterMethod(
         RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat)
@@ -116,13 +115,13 @@ DEFINE_RPC_SERVICE_METHOD(TChunkService, RegisterNode)
 
     int fullHeartbeatQueueSize = FullHeartbeatMethodInfo->QueueSizeCounter.Current;
     int registeredNodeCount = chunkManager->GetRegisteredNodeCount();
-    if (fullHeartbeatQueueSize + registeredNodeCount > Config->FullHeartbeatQueueSoftLimit) {
+    if (fullHeartbeatQueueSize + registeredNodeCount > Config->FullHeartbeatQueueSizeLimit) {
         context->Reply(TError(
             NRpc::EErrorCode::Unavailable,
             "Full heartbeat throttling is active")
             << TErrorAttribute("queue_size", fullHeartbeatQueueSize)
             << TErrorAttribute("registered_node_count", registeredNodeCount)
-            << TErrorAttribute("limit", Config->FullHeartbeatQueueSoftLimit));
+            << TErrorAttribute("limit", Config->FullHeartbeatQueueSizeLimit));
         return;
     }
 

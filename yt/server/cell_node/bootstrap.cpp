@@ -109,7 +109,6 @@ void TBootstrap::Run()
     BusServer = CreateTcpBusServer(New<TTcpBusServerConfig>(Config->RpcPort));
 
     RpcServer = CreateRpcServer(BusServer);
-    RpcServer->Configure(Config->RpcServer);
 
     auto monitoringManager = New<TMonitoringManager>();
     monitoringManager->Register(
@@ -158,6 +157,7 @@ void TBootstrap::Run()
     httpServer->Start();
 
     LOG_INFO("Listening for RPC requests on port %d", Config->RpcPort);
+    RpcServer->Configure(Config->RpcServer);
     RpcServer->Start();
 
     Sleep(TDuration::Max());

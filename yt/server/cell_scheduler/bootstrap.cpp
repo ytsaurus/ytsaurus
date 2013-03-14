@@ -89,7 +89,6 @@ void TBootstrap::Run()
     BusServer = CreateTcpBusServer(New<TTcpBusServerConfig>(Config->RpcPort));
 
     auto rpcServer = CreateRpcServer(BusServer);
-    rpcServer->Configure(Config->RpcServer);
 
     TransactionManager = New<TTransactionManager>(
         Config->TransactionManager,
@@ -143,6 +142,7 @@ void TBootstrap::Run()
     httpServer->Start();
 
     LOG_INFO("Listening for RPC requests on port %d", Config->RpcPort);
+    rpcServer->Configure(Config->RpcServer);
     rpcServer->Start();
 
     Scheduler->Start();

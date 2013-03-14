@@ -49,8 +49,6 @@ struct TFairShareStrategyConfig
 struct TSchedulerConfig
     : public TFairShareStrategyConfig
 {
-    int MaxHeartbeatQueueSize;
-
     TDuration ConnectRetryPeriod;
 
     TDuration TransactionsRefreshPeriod;
@@ -128,9 +126,6 @@ struct TSchedulerConfig
 
     TSchedulerConfig()
     {
-        Register("max_heartbeat_queue_size", MaxHeartbeatQueueSize)
-            .Default(50);
-
         Register("connect_retry_period", ConnectRetryPeriod)
             .Default(TDuration::Seconds(15));
         Register("transactions_refresh_period", TransactionsRefreshPeriod)
