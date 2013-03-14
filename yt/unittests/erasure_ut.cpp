@@ -5,20 +5,18 @@
 
 #include <util/random/randcpp.h>
 
+////////////////////////////////////////////////////////////////////////////////
+
+using NYT::TRef;
 using NYT::TSharedRef;
 using NYT::NErasure::ECodec;
 using NYT::NErasure::GetCodec;
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TErasureCodingTest
     : public ::testing::Test
-{
-};
-
-Stroka ToStroka(const TSharedRef& ref)
-{
-    return Stroka(ref.Begin(), ref.End());
-}
-
+{ };
 
 TEST_F(TErasureCodingTest, SmallTest)
 {
@@ -26,7 +24,6 @@ TEST_F(TErasureCodingTest, SmallTest)
 
     std::map<ECodec::EDomain, int> guaranteedRecoveryCount;
     guaranteedRecoveryCount[ECodec::ReedSolomon3] = 3;
-
 
     std::vector<char> data;
     for (int i = 0; i < 16 * 64; ++i) {
@@ -78,9 +75,9 @@ TEST_F(TErasureCodingTest, SmallTest)
                 std::vector<TSharedRef> recoveredBlocks = codec->Decode(aliveBlocks, erasedIndices);
                 EXPECT_TRUE(recoveredBlocks.size() == erasedIndices.size());
                 for (int i = 0; i < erasedIndices.size(); ++i) {
-                    EXPECT_EQ(
-                        ToStroka(allBlocks[erasedIndices[i]]),
-                        ToStroka(recoveredBlocks[i]));
+                    EXPECT_TRUE(TRef::CompareContent(
+                        allBlocks[erasedIndices[i]],
+                        recoveredBlocks[i]));
                 }
             }
         }
@@ -88,3 +85,4 @@ TEST_F(TErasureCodingTest, SmallTest)
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
