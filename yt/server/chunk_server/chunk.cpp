@@ -75,7 +75,7 @@ void TChunk::Save(const NCellMaster::TSaveContext& context) const
     SaveProto(output, ChunkInfo_);
     SaveProto(output, ChunkMeta_);
     ::Save(output, GetReplicationFactor());
-    ::Save(output, GetErasureCodec());
+    NYT::Save(output, GetErasureCodec());
     ::Save(output, GetMovable());
     ::Save(output, GetVital());
     SaveObjectRefs(context, Parents_);
