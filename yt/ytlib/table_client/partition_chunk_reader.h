@@ -8,7 +8,7 @@
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/logging/tagged_logger.h>
 #include <ytlib/misc/async_stream_state.h>
-#include <ytlib/codecs/codec.h>
+#include <ytlib/compression/codec.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -47,7 +47,7 @@ public:
         const NChunkClient::TSequentialReaderConfigPtr& sequentialReader,
         const NChunkClient::IAsyncReaderPtr& asyncReader,
         int partitionTag,
-        ECodec codecId);
+        NCompression::ECodec codecId);
 
     TAsyncError AsyncOpen();
 
@@ -71,7 +71,7 @@ private:
 
     i64 CurrentRowIndex;
     int PartitionTag;
-    ECodec CodecId;
+    NCompression::ECodec CodecId;
 
     TAsyncStreamState State;
     NChunkClient::TSequentialReaderPtr SequentialReader;

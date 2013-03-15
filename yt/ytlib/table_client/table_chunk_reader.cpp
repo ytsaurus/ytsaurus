@@ -305,7 +305,7 @@ private:
             SequentialConfig,
             std::move(blockSequence),
             AsyncReader,
-            ECodec(miscExt.codec()));
+            NCompression::ECodec(miscExt.compression_codec()));
 
         LOG_DEBUG("Reading %d blocks", static_cast<int>(blockSequence.size()));
 
@@ -650,7 +650,7 @@ public:
             SequentialConfig,
             std::move(blockSequence),
             AsyncReader,
-            ECodec(miscExt.codec()));
+            NCompression::ECodec(miscExt.compression_codec()));
 
         LOG_DEBUG("Reading %d blocks for partition %d",
             static_cast<int>(blockSequence.size()),

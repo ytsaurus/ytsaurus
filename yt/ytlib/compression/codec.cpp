@@ -13,7 +13,7 @@
 #include <util/generic/singleton.h>
 
 namespace NYT {
-namespace NCodec {
+namespace NCompression {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,7 +36,7 @@ public:
     {
         return block;
     }
-    
+
     virtual ECodec GetId() const override
     {
         return ECodec::None;
@@ -52,19 +52,19 @@ class TSnappyCodec
 public:
     virtual TSharedRef Compress(const TSharedRef& block) override
     {
-        return NCodec::Apply(BIND(NCodec::SnappyCompress), block);
+        return NCompression::Apply(BIND(NCompression::SnappyCompress), block);
     }
 
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
     {
-        return NCodec::Apply(BIND(NCodec::SnappyCompress), blocks);
+        return NCompression::Apply(BIND(NCompression::SnappyCompress), blocks);
     }
 
     virtual TSharedRef Decompress(const TSharedRef& block) override
     {
-        return NCodec::Apply(BIND(NCodec::SnappyDecompress), block);
+        return NCompression::Apply(BIND(NCompression::SnappyDecompress), block);
     }
-    
+
     virtual ECodec GetId() const override
     {
         return ECodec::Snappy;
@@ -80,23 +80,23 @@ class TGzipCodec
 {
 public:
     explicit TGzipCodec(int level)
-        : Compressor_(BIND(NCodec::ZlibCompress, level))
+        : Compressor_(BIND(NCompression::ZlibCompress, level))
         , Level_(level)
     { }
 
     virtual TSharedRef Compress(const TSharedRef& block) override
     {
-        return NCodec::Apply(Compressor_, block);
+        return NCompression::Apply(Compressor_, block);
     }
 
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
     {
-        return NCodec::Apply(Compressor_, blocks);
+        return NCompression::Apply(Compressor_, blocks);
     }
 
     virtual TSharedRef Decompress(const TSharedRef& block) override
     {
-        return NCodec::Apply(BIND(NCodec::ZlibDecompress), block);
+        return NCompression::Apply(BIND(NCompression::ZlibDecompress), block);
     }
 
     virtual ECodec GetId() const override
@@ -111,7 +111,7 @@ public:
     }
 
 private:
-    NCodec::TConverter Compressor_;
+    NCompression::TConverter Compressor_;
 
     int Level_;
 };
@@ -124,32 +124,32 @@ class TLz4Codec
 {
 public:
     explicit TLz4Codec(bool highCompression)
-        : Compressor_(BIND(NCodec::Lz4Compress, highCompression))
+        : Compressor_(BIND(NCompression::Lz4Compress, highCompression))
         , CodecId_(highCompression ? ECodec::Lz4HighCompression : ECodec::Lz4)
     { }
 
     virtual TSharedRef Compress(const TSharedRef& block) override
     {
-        return NCodec::Apply(Compressor_, block);
+        return NCompression::Apply(Compressor_, block);
     }
 
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
     {
-        return NCodec::Apply(Compressor_, blocks);
+        return NCompression::Apply(Compressor_, blocks);
     }
 
     virtual TSharedRef Decompress(const TSharedRef& block) override
     {
-        return NCodec::Apply(BIND(NCodec::Lz4Decompress), block);
+        return NCompression::Apply(BIND(NCompression::Lz4Decompress), block);
     }
-    
+
     virtual ECodec GetId() const override
     {
         return CodecId_;
     }
 
 private:
-    NCodec::TConverter Compressor_;
+    NCompression::TConverter Compressor_;
 
     ECodec CodecId_;
 };
@@ -162,40 +162,36 @@ class TQuickLzCodec
 {
 public:
     explicit TQuickLzCodec()
-        : Compressor_(BIND(NCodec::QuickLzCompress))
+        : Compressor_(BIND(NCompression::QuickLzCompress))
     { }
 
     virtual TSharedRef Compress(const TSharedRef& block) override
     {
-        return NCodec::Apply(Compressor_, block);
+        return NCompression::Apply(Compressor_, block);
     }
 
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
     {
-        return NCodec::Apply(Compressor_, blocks);
+        return NCompression::Apply(Compressor_, blocks);
     }
 
     virtual TSharedRef Decompress(const TSharedRef& block) override
     {
-        return NCodec::Apply(BIND(NCodec::QuickLzDecompress), block);
+        return NCompression::Apply(BIND(NCompression::QuickLzDecompress), block);
     }
-    
+
     virtual ECodec GetId() const override
     {
         return ECodec::QuickLz;
     }
 
 private:
-    NCodec::TConverter Compressor_;
+    NCompression::TConverter Compressor_;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NCodec
 
 ICodec* GetCodec(ECodec id)
 {
-    using namespace NCodec;
+    using namespace NCompression;
 
     static TLazyPtr<TGzipCodec> GzipCodecNormal(
         BIND([] () {
@@ -223,10 +219,10 @@ ICodec* GetCodec(ECodec id)
 
     switch (id) {
         case ECodec::None:
-            return RefCountedSingleton<NCodec::TNoneCodec>().Get();
+            return RefCountedSingleton<NCompression::TNoneCodec>().Get();
 
         case ECodec::Snappy:
-            return RefCountedSingleton<NCodec::TSnappyCodec>().Get();
+            return RefCountedSingleton<NCompression::TSnappyCodec>().Get();
 
         case ECodec::GzipNormal:
             return GzipCodecNormal.Get();
@@ -241,14 +237,16 @@ ICodec* GetCodec(ECodec id)
             return Lz4HighCompression.Get();
 
         case ECodec::QuickLz:
-            return RefCountedSingleton<NCodec::TQuickLzCodec>().Get();
+            return RefCountedSingleton<NCompression::TQuickLzCodec>().Get();
 
         default:
             YUNREACHABLE();
     }
 }
 
+
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NCompression
 } // namespace NYT
 

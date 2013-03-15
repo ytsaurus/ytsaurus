@@ -15,7 +15,7 @@ TSequentialReader::TSequentialReader(
     TSequentialReaderConfigPtr config,
     std::vector<TBlockInfo>&& blocks,
     IAsyncReaderPtr chunkReader,
-    ECodec codecId)
+    NCompression::ECodec codecId)
     : BlockSequence(blocks)
     , Config(config)
     , ChunkReader(chunkReader)
@@ -23,7 +23,7 @@ TSequentialReader::TSequentialReader(
     , NextSequenceIndex(0)
     , NextUnfetchedIndex(0)
     , FetchingCompleteEvent(NewPromise<void>())
-    , Codec(GetCodec(codecId))
+    , Codec(NCompression::GetCodec(codecId))
     , Logger(ChunkReaderLogger)
 {
     VERIFY_INVOKER_AFFINITY(TDispatcher::Get()->GetReaderInvoker(), ReaderThread);

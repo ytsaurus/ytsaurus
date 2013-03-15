@@ -3,7 +3,7 @@
 #include "helpers.h"
 
 namespace NYT {
-namespace NCodec {
+namespace NCompression {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,6 +19,6 @@ void QuickLzDecompress(StreamSource* source, std::vector<char>* output);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCodec
+} // namespace NCompression
 } // namespace NYT
 

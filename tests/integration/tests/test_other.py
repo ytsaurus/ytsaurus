@@ -44,7 +44,7 @@ class TestOrchid(YTEnvSetup):
 
     def test_on_scheduler(self):
         self._check_service('//sys/scheduler/orchid', "scheduler")
-    
+
 
 ###################################################################################
 
@@ -58,7 +58,7 @@ class TestResourceLeak(YTEnvSetup):
     def _check_no_temp_file(self, chunk_store):
         for root, dirs, files in os.walk(chunk_store):
             for file in files:
-                assert not file.endswith('~') or file == 'health_check~', 'Found temporary file: ' + file  
+                assert not file.endswith('~') or file == 'health_check~', 'Found temporary file: ' + file
 
     # should be called on empty nodes
     def test_canceled_upload(self):
@@ -122,7 +122,7 @@ class TestAsyncAttributes(YTEnvSetup):
     def test(self):
         table = '//tmp/t'
         create('table', table)
-	set_str('//tmp/t/@codec', 'snappy')
+        set_str('//tmp/t/@compression_codec', 'snappy')
         write_str(table, '{foo=bar}')
 
         for i in xrange(8):
@@ -130,7 +130,7 @@ class TestAsyncAttributes(YTEnvSetup):
 
         chunk_count = 3**8
         assert len(get('//tmp/t/@chunk_ids')) == chunk_count
-        codec_info = get('//tmp/t/@codec_statistics')
+        codec_info = get('//tmp/t/@compression_statistics')
         assert codec_info['snappy']['chunk_count'] == chunk_count
 
 ###################################################################################

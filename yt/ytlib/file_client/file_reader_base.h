@@ -4,7 +4,7 @@
 
 #include <ytlib/misc/thread_affinity.h>
 
-#include <ytlib/codecs/codec.h>
+#include <ytlib/compression/codec.h>
 
 #include <ytlib/transaction_client/public.h>
 #include <ytlib/transaction_client/transaction_listener.h>
@@ -66,7 +66,7 @@ protected:
 private:
     NChunkClient::TSequentialReaderPtr SequentialReader;
     i64 Size;
-    ICodec* Codec;
+    NCompression::ICodec* Codec;
     Stroka FileName;
     bool Executable;
 

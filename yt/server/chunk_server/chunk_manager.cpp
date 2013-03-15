@@ -25,7 +25,7 @@
 #include <ytlib/misc/address.h>
 #include <ytlib/misc/string.h>
 
-#include <ytlib/codecs/codec.h>
+#include <ytlib/compression/codec.h>
 
 #include <ytlib/chunk_client/chunk_ypath.pb.h>
 #include <ytlib/chunk_client/chunk_list_ypath.pb.h>

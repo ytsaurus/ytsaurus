@@ -6,7 +6,7 @@
 
 #include <ytlib/ytree/yson_serializable.h>
 
-#include <ytlib/codecs/codec.h>
+#include <ytlib/compression/codec.h>
 
 #include <ytlib/chunk_client/config.h>
 
@@ -19,7 +19,7 @@ struct TFileWriterConfig
     : public NChunkClient::TRemoteWriterConfig
 {
     i64 BlockSize;
-    ECodec Codec;
+    NCompression::ECodec Codec;
 
     int ReplicationFactor;
     int UploadReplicationFactor;
@@ -32,8 +32,8 @@ struct TFileWriterConfig
         Register("block_size", BlockSize)
             .Default(1024 * 1024)
             .GreaterThan(0);
-        Register("codec", Codec)
-            .Default(ECodec::None);
+        Register("compression_codec", Codec)
+            .Default(NCompression::ECodec::None);
         Register("replication_factor", ReplicationFactor)
             .Default(3)
             .GreaterThanOrEqual(1);

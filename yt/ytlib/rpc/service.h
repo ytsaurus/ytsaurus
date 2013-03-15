@@ -10,7 +10,7 @@
 #include <ytlib/misc/error.h>
 #include <ytlib/misc/object_pool.h>
 
-#include <ytlib/codecs/codec.h>
+#include <ytlib/compression/codec.h>
 
 #include <ytlib/ytree/public.h>
 
@@ -196,7 +196,7 @@ struct THandlerInvocationOptions
     THandlerInvocationOptions()
         : HeavyRequest(false)
         , HeavyResponse(false)
-        , ResponseCodec(ECodec::None)
+        , ResponseCodec(NCompression::ECodec::None)
     { }
 
     //! Should we be deserializing the request in a separate thread?
@@ -206,7 +206,7 @@ struct THandlerInvocationOptions
     bool HeavyResponse;
 
     //! The codec to compress response body.
-    ECodec ResponseCodec;
+    NCompression::ECodec ResponseCodec;
 
 };
 
@@ -491,7 +491,7 @@ protected:
             return *this;
         }
 
-        TMethodDescriptor& SetResponseCodec(ECodec value)
+        TMethodDescriptor& SetResponseCodec(NCompression::ECodec value)
         {
             Options.ResponseCodec = value;
             return *this;

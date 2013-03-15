@@ -6,7 +6,7 @@
 
 #include <ytlib/ytree/yson_serializable.h>
 
-#include <ytlib/codecs/codec.h>
+#include <ytlib/compression/codec.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -195,12 +195,12 @@ struct TEncodingWriterConfig
 struct TEncodingWriterOptions
     : public virtual TYsonSerializable
 {
-    ECodec Codec;
+    NCompression::ECodec Codec;
 
     TEncodingWriterOptions()
     {
-        Register("codec", Codec)
-            .Default(ECodec::None);
+        Register("compression_codec", Codec)
+            .Default(NCompression::ECodec::None);
     }
 };
 

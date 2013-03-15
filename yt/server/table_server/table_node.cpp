@@ -35,7 +35,7 @@ TTableNode::TTableNode(const TVersionedNodeId& id)
     , ChunkList_(nullptr)
     , UpdateMode_(ETableUpdateMode::None)
     , ReplicationFactor_(0)
-    , Codec_(ECodec::Lz4)
+    , Codec_(NCompression::ECodec::Lz4)
 { }
 
 int TTableNode::GetOwningReplicationFactor() const
@@ -73,7 +73,7 @@ void TTableNode::Load(const NCellMaster::TLoadContext& context)
     if (context.GetVersion() >= 8) {
         ::Load(input, Codec_);
     } else {
-        Codec_ = ECodec::Lz4;
+        Codec_ = NCompression::ECodec::Lz4;
     }
 }
 

@@ -24,7 +24,7 @@ TPartitionChunkReader::TPartitionChunkReader(
     const NChunkClient::TSequentialReaderConfigPtr& sequentialReader,
     const NChunkClient::IAsyncReaderPtr& asyncReader,
     int partitionTag,
-    ECodec codecId)
+    NCompression::ECodec codecId)
     : RowPointer_(NULL)
     , RowCount_(0)
     , SequentialConfig(sequentialReader)
@@ -244,7 +244,7 @@ TPartitionChunkReaderPtr TPartitionChunkReaderProvider::CreateNewReader(
         Config,
         chunkReader,
         inputChunk.partition_tag(),
-        ECodec(miscExt.codec()));
+        NCompression::ECodec(miscExt.compression_codec()));
 }
 
 bool TPartitionChunkReaderProvider::KeepInMemory() const

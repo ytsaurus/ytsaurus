@@ -255,7 +255,7 @@ private:
                 Owner->Config->CacheSequentialReader,
                 std::move(blockSequence),
                 RemoteReader,
-                ECodec::None);
+                NCompression::ECodec::None);
 
             BlockIndex = 0;
             FetchNextBlock();

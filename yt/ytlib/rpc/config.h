@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/codecs/codec.h>
+#include <ytlib/compression/codec.h>
 
 #include <ytlib/ytree/yson_serializable.h>
 
@@ -40,7 +40,7 @@ struct TMethodConfig
 {
     TNullable<bool> RequestHeavy;
     TNullable<bool> ResponseHeavy;
-    TNullable<ECodec> ResponseCodec;
+    TNullable<NCompression::ECodec> ResponseCodec;
     TNullable<int> MaxQueueSize;
 
     TMethodConfig()

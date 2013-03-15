@@ -114,7 +114,7 @@ void TFileReaderBase::Open(
         Config,
         std::move(blockSequence),
         remoteReader,
-        ECodec(miscExt.codec()));
+        NCompression::ECodec(miscExt.compression_codec()));
 
     LOG_INFO("File reader opened");
 

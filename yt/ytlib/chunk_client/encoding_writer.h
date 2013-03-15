@@ -9,7 +9,7 @@
 #include <ytlib/misc/semaphore.h>
 #include <ytlib/misc/async_stream_state.h>
 
-#include <ytlib/codecs/codec.h>
+#include <ytlib/compression/codec.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -46,7 +46,7 @@ private:
 
     IInvokerPtr CompressionInvoker;
     TAsyncSemaphore Semaphore;
-    ICodec* Codec;
+    NCompression::ICodec* Codec;
 
     TAsyncStreamState State;
 

@@ -3,7 +3,8 @@
 #include "public.h"
 #include "chunk_meta_extensions.h"
 
-#include <ytlib/codecs/codec.h>
+
+#include <ytlib/compression/codec.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/logging/tagged_logger.h>
 #include <server/object_server/public.h>
@@ -63,7 +64,7 @@ private:
     i32 BlockCount;
     NChunkClient::TRemoteWriterPtr Writer;
     NChunkClient::TChunkId ChunkId;
-    ICodec* Codec;
+    NCompression::ICodec* Codec;
     TBlob Buffer;
     NChunkClient::NProto::TChunkMeta Meta;
     NFileClient::NProto::TBlocksExt BlocksExt;

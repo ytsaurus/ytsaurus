@@ -107,7 +107,7 @@ public:
             RPC_SERVICE_METHOD_DESC(Heartbeat)
                 .SetRequestHeavy(true)
                 .SetResponseHeavy(true)
-                .SetResponseCodec(ECodec::Lz4)
+                .SetResponseCodec(NCompression::ECodec::Lz4)
                 .SetInvoker(Bootstrap->GetControlInvoker(EControlQueue::Heartbeat))
                 .SetMaxQueueSize(Config->MaxHeartbeatQueueSize));
 

@@ -72,7 +72,7 @@ private:
         attributes->push_back(TAttributeInfo("compressed_data_size", chunk->IsConfirmed() && miscExt->has_compressed_data_size()));
         attributes->push_back(TAttributeInfo("uncompressed_data_size", chunk->IsConfirmed() && miscExt->has_uncompressed_data_size()));
         attributes->push_back(TAttributeInfo("data_weight", chunk->IsConfirmed() && miscExt->has_data_weight()));
-        attributes->push_back(TAttributeInfo("codec", chunk->IsConfirmed() && miscExt->has_codec()));
+        attributes->push_back(TAttributeInfo("compression_codec", chunk->IsConfirmed() && miscExt->has_compression_codec()));
         attributes->push_back(TAttributeInfo("row_count", chunk->IsConfirmed() && miscExt->has_row_count()));
         attributes->push_back(TAttributeInfo("value_count", chunk->IsConfirmed() && miscExt->has_value_count()));
         attributes->push_back(TAttributeInfo("sorted", chunk->IsConfirmed() && miscExt->has_sorted()));
@@ -185,9 +185,9 @@ private:
                 return true;
             }
 
-            if (key == "codec") {
+            if (key == "compression_codec") {
                 BuildYsonFluently(consumer)
-                    .Value(CamelCaseToUnderscoreCase(ECodec(miscExt.codec()).ToString()));
+                    .Value(CamelCaseToUnderscoreCase(NCompression::ECodec(miscExt.compression_codec()).ToString()));
                 return true;
             }
 

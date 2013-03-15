@@ -28,7 +28,7 @@ TEncodingWriter::TEncodingWriter(
     , AsyncWriter(asyncWriter)
     , CompressionInvoker(CreateSerializedInvoker(TDispatcher::Get()->GetCompressionInvoker()))
     , Semaphore(Config->EncodeWindowSize)
-    , Codec(GetCodec(options->Codec))
+    , Codec(NCompression::GetCodec(options->Codec))
     , WritePending(
         BIND(&TEncodingWriter::WritePendingBlocks, MakeWeak(this))
             .Via(CompressionInvoker))

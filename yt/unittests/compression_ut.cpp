@@ -1,5 +1,5 @@
 #include <ytlib/misc/foreach.h>
-#include <ytlib/codecs/codec.h>
+#include <ytlib/compression/codec.h>
 
 #include <contrib/testing/framework.h>
 
@@ -8,8 +8,8 @@
 #include <contrib/libs/snappy/snappy-sinksource.h>
 
 using NYT::TSharedRef;
-using NYT::ECodec;
-using NYT::GetCodec;
+using NYT::NCompression::ECodec;
+using NYT::NCompression::GetCodec;
 
 class TCodecTest:
     public ::testing::Test
