@@ -223,8 +223,8 @@ void TPartitionChunkReader::OnFail(const TError& error)
 
 const NYTree::TYsonString& TPartitionChunkReader::GetRowAttributes() const
 {
-    static NYTree::TYsonString s;
-    return s;
+    // When reading from partition chunk no row attributes are preserved.
+    YUNREACHABLE();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
