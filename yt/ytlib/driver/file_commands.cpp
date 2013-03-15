@@ -20,13 +20,16 @@ void TDownloadCommand::DoExecute()
 {
     auto config = Context->GetConfig()->FileReader;
 
-    auto reader = New<TFileReader>(
+    auto reader = New<TFileReader>();
+
+    reader->Open(
         config,
         Context->GetMasterChannel(),
         GetTransaction(false),
         Context->GetBlockCache(),
-        Request->Path);
-    reader->Open();
+        Request->Path,
+        Request->Offset,
+        Request->Length);
 
     auto output = Context->GetRequest()->OutputStream;
 

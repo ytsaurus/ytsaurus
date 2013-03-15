@@ -11,10 +11,16 @@ struct TDownloadRequest
     : public TTransactedRequest
 {
     NYPath::TRichYPath Path;
+    TNullable<i64> Offset;
+    TNullable<i64> Length;
 
     TDownloadRequest()
     {
         Register("path", Path);
+        Register("offset", Offset)
+            .Default(Null);
+        Register("length", Length)
+            .Default(Null);
     }
 };
 

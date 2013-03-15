@@ -2,20 +2,18 @@
 
 #include "public.h"
 
-#include <ytlib/misc/thread_affinity.h>
-
-#include <ytlib/codecs/codec.h>
-
-#include <ytlib/transaction_client/public.h>
-#include <ytlib/transaction_client/transaction_listener.h>
-
-#include <ytlib/object_client/object_service_proxy.h>
-
+#include <ytlib/chunk_client/public.h>
+#include <ytlib/chunk_client/chunk_replica.h>
 #include <ytlib/chunk_client/sequential_reader.h>
 #include <ytlib/chunk_client/block_cache.h>
-#include <ytlib/chunk_client/remote_reader.h>
+
+#include <ytlib/rpc/channel.h>
 
 #include <ytlib/logging/tagged_logger.h>
+
+#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/nullable.h>
+#include <ytlib/misc/ref.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -28,14 +26,22 @@ namespace NFileClient {
  *  calling #Read.
  */
 class TFileReaderBase
-    : public NTransactionClient::TTransactionListener
+    : public TNonCopyable
 {
 public:
     //! Initializes an instance.
-    TFileReaderBase(
+    TFileReaderBase();
+
+    //! Opens the reader.
+    void Open(
         TFileReaderConfigPtr config,
         NRpc::IChannelPtr masterChannel,
-        NChunkClient::IBlockCachePtr blockCache);
+        NChunkClient::IBlockCachePtr blockCache,
+        NChunkClient::TNodeDirectoryPtr nodeDirectory,
+        const NChunkClient::TChunkId& chunkId,
+        const NChunkClient::TChunkReplicaList& replicas,
+        const TNullable<i64>& offset,
+        const TNullable<i64>& length);
 
     //! Returns the size of the file.
     i64 GetSize() const;
@@ -47,30 +53,18 @@ public:
     TSharedRef Read();
 
 private:
-    TFileReaderConfigPtr Config;
-    NRpc::IChannelPtr MasterChannel;
-    NChunkClient::IBlockCachePtr BlockCache;
-    NYPath::TYPath RichPath;
     bool IsOpen;
-    i32 BlockCount;
     i32 BlockIndex;
+
     NChunkClient::TSequentialReaderPtr SequentialReader;
     i64 Size;
-    ICodec* Codec;
-    Stroka FileName;
-    bool Executable;
 
-    DECLARE_THREAD_AFFINITY_SLOT(Client);
+    i64 StartOffset;
+    i64 EndOffset;
 
-protected:
-    NChunkClient::TNodeDirectoryPtr NodeDirectory;
-    NObjectClient::TObjectServiceProxy Proxy;
     NLog::TTaggedLogger Logger;
 
-    //! Opens the reader.
-    void Open(
-        const NChunkClient::TChunkId& chunkId,
-        const NChunkClient::TChunkReplicaList& replicas);
+    DECLARE_THREAD_AFFINITY_SLOT(Client);
 
 };
 

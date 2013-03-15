@@ -7,58 +7,53 @@
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/sync.h>
 
-#include <ytlib/file_client/file_ypath_proxy.h>
-
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
-
-#include <ytlib/transaction_client/transaction.h>
-
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/node_directory.h>
+#include <ytlib/chunk_client/remote_reader.h>
+#include <ytlib/chunk_client/block_cache.h>
+
+#include <limits>
 
 namespace NYT {
 namespace NFileClient {
 
-using namespace NCypressClient;
 using namespace NYTree;
-using namespace NTransactionClient;
-using namespace NFileClient;
 using namespace NChunkClient;
-using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFileReaderBase::TFileReaderBase(
+TFileReaderBase::TFileReaderBase()
+    : IsOpen(false)
+    , BlockIndex(0)
+    , Size(0)
+    , StartOffset(0)
+    , EndOffset(std::numeric_limits<i64>::max())
+    , Logger(FileReaderLogger)
+{ }
+
+void TFileReaderBase::Open(
     TFileReaderConfigPtr config,
     NRpc::IChannelPtr masterChannel,
-    IBlockCachePtr blockCache)
-    : Config(config)
-    , MasterChannel(masterChannel)
-    , BlockCache(blockCache)
-    , IsOpen(false)
-    , BlockCount(0)
-    , BlockIndex(0)
-    , NodeDirectory(New<TNodeDirectory>())
-    , Proxy(masterChannel)
-    , Logger(FileReaderLogger)
+    IBlockCachePtr blockCache,
+    NChunkClient::TNodeDirectoryPtr nodeDirectory,
+    const TChunkId& chunkId,
+    const TChunkReplicaList& replicas,
+    const TNullable<i64>& offset,
+    const TNullable<i64>& length)
 {
+    VERIFY_THREAD_AFFINITY(Client);
     YCHECK(config);
     YCHECK(masterChannel);
     YCHECK(blockCache);
-}
 
-void TFileReaderBase::Open(
-    const TChunkId& chunkId,
-    const TChunkReplicaList& replicas)
-{
-    VERIFY_THREAD_AFFINITY(Client);
     YCHECK(!IsOpen);
 
+    Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(chunkId)));
+
     auto remoteReader = CreateRemoteReader(
-        Config,
-        BlockCache,
-        MasterChannel,
-        NodeDirectory,
+        config,
+        blockCache,
+        masterChannel,
+        nodeDirectory,
         Null,
         chunkId,
         replicas);
@@ -80,39 +75,63 @@ void TFileReaderBase::Open(
     auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkMeta.extensions());
     Size = miscExt.uncompressed_data_size();
 
+    StartOffset = offset.Get(StartOffset);
+    EndOffset = std::min(StartOffset + length.Get(Size), Size);
+
     std::vector<TSequentialReader::TBlockInfo> blockSequence;
 
     // COMPAT: new file chunk meta!
     auto fileBlocksExt = FindProtoExtension<NFileClient::NProto::TBlocksExt>(chunkMeta.extensions());
 
+    i64 selectedSize = 0;
+    auto addBlock = [&] (int index, i64 size) {
+        if (StartOffset >= size) {
+            StartOffset -= size;
+            EndOffset -= size;
+            ++BlockIndex;
+            return true;
+        } else if (selectedSize < EndOffset) {
+            selectedSize += size;
+            blockSequence.push_back(TSequentialReader::TBlockInfo(index, size));
+            return true;
+        }
+        return false;
+    };
+
+    int blockCount = 0;
     if (fileBlocksExt) {
         // New chunk.
-        BlockCount = fileBlocksExt->blocks_size();
-        blockSequence.reserve(BlockCount);
-        for (int index = 0; index < BlockCount; ++index) {
-            blockSequence.push_back(TSequentialReader::TBlockInfo(
-                index,
-                fileBlocksExt->blocks(index).size()));
+        blockCount = fileBlocksExt->blocks_size();
+        blockSequence.reserve(blockCount);
+
+        for (int index = 0; index < blockCount; ++index) {
+            if (!addBlock(index, fileBlocksExt->blocks(index).size())) {
+                break;
+            }
         }
     } else {
         // Old chunk.
         auto blocksExt = GetProtoExtension<NChunkClient::NProto::TBlocksExt>(chunkMeta.extensions());
-        BlockCount = blocksExt.blocks_size();
+        blockCount = blocksExt.blocks_size();
 
-        blockSequence.reserve(BlockCount);
-        for (int index = 0; index < BlockCount; ++index) {
-            blockSequence.push_back(TSequentialReader::TBlockInfo(
-                index,
-                blocksExt.blocks(index).size()));
+        blockSequence.reserve(blockCount);
+        for (int index = 0; index < blockCount; ++index) {
+            if (!addBlock(index, blocksExt.blocks(index).size())) {
+                break;
+            }
         }
     }
+    YCHECK(blockCount > 0);
 
     LOG_INFO("Chunk info received (BlockCount: %d, Size: %" PRId64 ")",
-        BlockCount,
+        blockCount,
         Size);
+    LOG_INFO("Reading %d blocks starting from %d)",
+        static_cast<int>(blockSequence.size()),
+        BlockIndex);
 
     SequentialReader = New<TSequentialReader>(
-        Config,
+        config,
         std::move(blockSequence),
         remoteReader,
         ECodec(miscExt.codec()));
@@ -127,8 +146,6 @@ TSharedRef TFileReaderBase::Read()
     VERIFY_THREAD_AFFINITY(Client);
     YCHECK(IsOpen);
 
-    CheckAborted();
-
     if (!SequentialReader->HasNext()) {
         return TSharedRef();
     }
@@ -139,7 +156,24 @@ TSharedRef TFileReaderBase::Read()
     ++BlockIndex;
     LOG_INFO("Block read (BlockIndex: %d)", BlockIndex);
 
-    return block;
+    auto begin = block.Begin();
+    auto end = block.End();
+
+    YCHECK(EndOffset > 0);
+
+    if (EndOffset < block.Size()) {
+        end = block.Begin() + EndOffset;
+    }
+
+    EndOffset -= block.Size();
+
+    if (StartOffset > 0) {
+        begin = block.Begin() + StartOffset;
+    }
+
+    StartOffset -= block.Size();
+
+    return block.Slice(TRef(begin, end));
 }
 
 i64 TFileReaderBase::GetSize() const
