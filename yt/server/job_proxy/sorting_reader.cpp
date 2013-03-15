@@ -117,7 +117,9 @@ public:
 
     virtual const NYTree::TYsonString& GetRowAttributes() const override
     {
-        return Reader->CurrentReader()->GetRowAttributes();
+        // When reading from partition chunk no row attributes are preserved.
+        static NYTree::TYsonString s;
+        return s;
     }
 
 private:
@@ -447,7 +449,7 @@ private:
     {
         SortQueue->GetInvoker()->Invoke(BIND(&TSortingReader::DoSortBucket, MakeWeak(this), bucketId));
     }
-    
+
     void InvokeMerge()
     {
         SortQueue->GetInvoker()->Invoke(BIND(&TSortingReader::DoMerge, MakeWeak(this)));
