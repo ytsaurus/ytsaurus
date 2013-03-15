@@ -3,7 +3,7 @@
 #include "public.h"
 #include "chunk_meta_extensions.h"
 
-#include <ytlib/codecs/codec.h>
+#include <ytlib/compression/codec.h>
 
 #include <ytlib/misc/thread_affinity.h>
 
@@ -71,7 +71,7 @@ private:
     NChunkClient::TRemoteWriterPtr Writer;
     std::vector<NChunkClient::TChunkReplica> Replicas;
     NChunkClient::TChunkId ChunkId;
-    ICodec* Codec;
+    NCompression::ICodec* Codec;
     TBlob Buffer;
     NChunkClient::NProto::TChunkMeta Meta;
     NFileClient::NProto::TBlocksExt BlocksExt;

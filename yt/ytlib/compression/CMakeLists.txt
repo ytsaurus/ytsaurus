@@ -1,5 +1,5 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/codecs )
+set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/compression )
 
 set( SRCS
   ${BASE}/codec.cpp

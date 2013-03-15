@@ -93,7 +93,7 @@ void TTableWriter::Open()
             TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
             attributeFilter.Keys.push_back("replication_factor");
             attributeFilter.Keys.push_back("channels");
-            attributeFilter.Keys.push_back("codec");
+            attributeFilter.Keys.push_back("compression_codec");
             if (Options->KeyColumns.HasValue()) {
                 attributeFilter.Keys.push_back("row_count");
             }
@@ -129,7 +129,7 @@ void TTableWriter::Open()
 
             Options->Channels = attributes.Get<TChannels>("channels");
             Options->ReplicationFactor = attributes.Get<int>("replication_factor");
-            Options->Codec = attributes.Get<ECodec>("codec");
+            Options->Codec = attributes.Get<NCompression::ECodec>("compression_codec");
             Options->Account = attributes.Get<Stroka>("account");
         }
 

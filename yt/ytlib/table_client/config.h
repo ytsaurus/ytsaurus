@@ -120,7 +120,7 @@ struct TTableWriterOptions
         Register("channels", Channels)
             .Default(TChannels());
 
-        Codec = ECodec::Lz4;
+        Codec = NCompression::ECodec::Lz4;
     }
 };
 

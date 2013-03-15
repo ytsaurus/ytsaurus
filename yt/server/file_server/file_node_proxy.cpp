@@ -75,7 +75,7 @@ private:
         attributes->push_back(TAttributeInfo("size", hasChunk));
         attributes->push_back(TAttributeInfo("compressed_size", hasChunk));
         attributes->push_back(TAttributeInfo("compression_ratio", hasChunk));
-        attributes->push_back(TAttributeInfo("codec", hasChunk));
+        attributes->push_back(TAttributeInfo("compression_codec", hasChunk));
         attributes->push_back("chunk_list_id");
         attributes->push_back(TAttributeInfo("chunk_id", hasChunk));
         attributes->push_back("replication_factor");
@@ -113,8 +113,8 @@ private:
                 return true;
             }
 
-            if (key == "codec") {
-                auto codecId = ECodec(miscExt.codec());
+            if (key == "compression_codec") {
+                auto codecId = NCompression::ECodec(miscExt.compression_codec());
                 BuildYsonFluently(consumer)
                     .Value(CamelCaseToUnderscoreCase(codecId.ToString()));
                 return true;

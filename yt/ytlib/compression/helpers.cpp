@@ -4,7 +4,7 @@
 #include <ytlib/misc/foreach.h>
 
 namespace NYT {
-namespace NCodec {
+namespace NCompression {
 
 struct TCodecBlockTag { };
 
@@ -118,5 +118,5 @@ void TDynamicByteArraySink::Append(const char* data, size_t n)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCodec
+} // namespace NCompression
 } // namespace NYT

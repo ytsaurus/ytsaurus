@@ -357,7 +357,7 @@ public:
         const auto& chunkMeta = chunk->ChunkMeta();
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkMeta.extensions());
 
-        CodecInfo[ECodec(miscExt.codec())].Accumulate(chunk->GetStatistics());
+        CodecInfo[NCompression::ECodec(miscExt.compression_codec())].Accumulate(chunk->GetStatistics());
         return true;
     }
 
@@ -380,7 +380,7 @@ public:
     }
 
 private:
-    typedef yhash_map<ECodec, TChunkTreeStatistics> TCodecInfoMap;
+    typedef yhash_map<NCompression::ECodec, TChunkTreeStatistics> TCodecInfoMap;
     TCodecInfoMap CodecInfo;
 
 };
@@ -429,8 +429,8 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attribut
 
     attributes->push_back("chunk_list_id");
     attributes->push_back(TAttributeInfo("chunk_ids", true, true));
-    attributes->push_back(TAttributeInfo("codec_statistics", true, true));
-    attributes->push_back("codec");
+    attributes->push_back(TAttributeInfo("compression_statistics", true, true));
+    attributes->push_back("compression_codec");
     attributes->push_back("chunk_count");
     attributes->push_back("uncompressed_data_size");
     attributes->push_back("compressed_data_size");
@@ -515,7 +515,7 @@ bool TTableNodeProxy::GetSystemAttribute(const Stroka& key, IYsonConsumer* consu
         return true;
     }
 
-    if (key == "codec") {
+    if (key == "compression_codec") {
         BuildYsonFluently(consumer)
             .Value(FormatEnum(node->GetCodec()));
         return true;
@@ -537,7 +537,7 @@ TAsyncError TTableNodeProxy::GetSystemAttributeAsync(const Stroka& key, IYsonCon
         return visitor->Run();
     }
 
-    if (key == "codec_statistics") {
+    if (key == "compression_statistics") {
         auto visitor = New<TCodecStatisticsAttributeVisitor>(
             Bootstrap,
             const_cast<TChunkList*>(chunkList),
@@ -596,13 +596,13 @@ bool TTableNodeProxy::SetSystemAttribute(const Stroka& key, const TYsonString& v
         return true;
     }
 
-    if (key == "codec") {
+    if (key == "compression_codec") {
         ValidateNoTransaction();
 
         auto* node = GetThisTypedImpl();
         YCHECK(node->IsTrunk());
         auto codecName = ConvertTo<Stroka>(value);
-        node->SetCodec(ParseEnum<ECodec>(codecName));
+        node->SetCodec(ParseEnum<NCompression::ECodec>(codecName));
         return true;
     }
 

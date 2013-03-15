@@ -4,7 +4,7 @@
 #include "schema.h"
 #include "key.h"
 
-#include <ytlib/codecs/codec.h>
+#include <ytlib/compression/codec.h>
 #include <ytlib/misc/blob_output.h>
 #include <ytlib/misc/thread_affinity.h>
 #include <ytlib/misc/async_stream_state.h>

@@ -669,7 +669,7 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
     auto joblet = GetJoblet(job);
 
     auto& result = joblet->Job->Result();
-    
+
     // Populate node directory by adding additional nodes returned from the job.
     NodeDirectory->MergeFrom(result.node_directory());
 
@@ -1529,7 +1529,7 @@ TObjectServiceProxy::TInvExecuteBatch TOperationControllerBase::RequestInputs()
             SetTransactionId(req, Operation->GetOutputTransaction());
             TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
             attributeFilter.Keys.push_back("channels");
-            attributeFilter.Keys.push_back("codec");
+            attributeFilter.Keys.push_back("compression_codec");
             attributeFilter.Keys.push_back("row_count");
             attributeFilter.Keys.push_back("replication_factor");
             attributeFilter.Keys.push_back("account");
@@ -1682,7 +1682,7 @@ void TOperationControllerBase::OnInputsReceived(TObjectServiceProxy::TRspExecute
                     THROW_ERROR_EXCEPTION("Output table %s must be empty (use \"overwrite\" attribute to force clearing it)",
                         ~table.Path.GetPath());
                 }
-                table.Options->Codec = ParseEnum<ECodec>(attributes.Get<Stroka>("codec"));
+                table.Options->Codec = ParseEnum<NCompression::ECodec>(attributes.Get<Stroka>("compression_codec"));
                 table.Options->ReplicationFactor = attributes.Get<int>("replication_factor");
                 table.Options->Account = attributes.Get<Stroka>("account");
 

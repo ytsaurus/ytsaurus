@@ -9,7 +9,7 @@
 #include <ytlib/misc/async_stream_state.h>
 #include <ytlib/misc/semaphore.h>
 #include <ytlib/misc/thread_affinity.h>
-#include <ytlib/codecs/codec.h>
+#include <ytlib/compression/codec.h>
 #include <ytlib/misc/ref.h>
 #include <ytlib/logging/tagged_logger.h>
 
@@ -42,7 +42,7 @@ public:
         // ToDo: use move semantics
         std::vector<TBlockInfo>&& blocks,
         IAsyncReaderPtr chunkReader,
-        ECodec codecId);
+        NCompression::ECodec codecId);
 
     bool HasNext() const;
 
@@ -93,7 +93,7 @@ private:
     TPromise<void> FetchingCompleteEvent;
 
     TAsyncStreamState State;
-    ICodec* Codec;
+    NCompression::ICodec* Codec;
     NLog::TTaggedLogger Logger;
 
     DECLARE_THREAD_AFFINITY_SLOT(ReaderThread);

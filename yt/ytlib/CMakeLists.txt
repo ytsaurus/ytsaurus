@@ -2,7 +2,7 @@ set( DIRS
   actions
   election
   chunk_client
-  codecs
+  compression
   erasure_codecs
   transaction_client
   logging

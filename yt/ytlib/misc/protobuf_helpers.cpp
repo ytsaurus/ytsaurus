@@ -38,10 +38,10 @@ struct TSerializedMessageFixedHeader
 bool SerializeToProtoWithEnvelope(
     const google::protobuf::Message& message,
     TSharedRef* data,
-    ECodec codecId)
+    NCompression::ECodec codecId)
 {
     NProto::TSerializedMessageEnvelope envelope;
-    if (codecId != ECodec::None) {
+    if (codecId != NCompression::ECodec::None) {
         envelope.set_codec(codecId);
     }
 
@@ -52,7 +52,7 @@ bool SerializeToProtoWithEnvelope(
         return false;
     }
 
-    auto codec = GetCodec(codecId);
+    auto codec = NCompression::GetCodec(codecId);
     auto compressedMessage = codec->Compress(serializedMessage);
 
     TSerializedMessageFixedHeader fixedHeader;
@@ -103,8 +103,8 @@ bool DeserializeFromProtoWithEnvelope(
         const_cast<char*>(sourceMessage),
         fixedHeader->MessageSize));
 
-    auto codecId = ECodec(envelope.codec());
-    auto codec = GetCodec(codecId);
+    auto codecId = NCompression::ECodec(envelope.codec());
+    auto codec = NCompression::GetCodec(codecId);
     auto serializedMessage = codec->Decompress(compressedMessage);
 
     // Read comments to CodedInputStream::SetTotalBytesLimit (libs/protobuf/io/coded_stream.h)

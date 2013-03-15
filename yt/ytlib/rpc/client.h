@@ -8,7 +8,7 @@
 #include <ytlib/misc/metric.h>
 #include <ytlib/misc/protobuf_helpers.h>
 
-#include <ytlib/codecs/codec.h>
+#include <ytlib/compression/codec.h>
 
 #include <ytlib/bus/client.h>
 #include <ytlib/bus/message.h>
@@ -117,7 +117,7 @@ public:
         const Stroka& verb,
         bool oneWay)
         : TClientRequest(channel, path, verb, oneWay)
-        , Codec(ECodec::None)
+        , Codec(NCompression::ECodec::None)
     { }
 
     TFuture< TIntrusivePtr<TResponse> > Invoke()
@@ -135,7 +135,7 @@ public:
         return this;
     }
 
-    TIntrusivePtr<TTypedClientRequest> SetCodec(ECodec codec)
+    TIntrusivePtr<TTypedClientRequest> SetCodec(NCompression::ECodec codec)
     {
         Codec = codec;
         return this;
@@ -148,7 +148,7 @@ public:
     }
 
 private:
-    ECodec Codec;
+    NCompression::ECodec Codec;
 
     virtual TSharedRef SerializeBody() const override
     {

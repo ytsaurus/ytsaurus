@@ -50,7 +50,7 @@ TFileChunkOutput::TFileChunkOutput(
     YCHECK(config);
     YCHECK(masterChannel);
 
-    Codec = GetCodec(Config->Codec);
+    Codec = NCompression::GetCodec(Config->Codec);
 }
 
 void TFileChunkOutput::Open()
@@ -169,7 +169,7 @@ void TFileChunkOutput::DoFinish()
         miscExt.set_uncompressed_data_size(Size);
         miscExt.set_compressed_data_size(Size);
         miscExt.set_meta_size(Meta.ByteSize());
-        miscExt.set_codec(Config->Codec);
+        miscExt.set_compression_codec(Config->Codec);
 
         SetProtoExtension(Meta.mutable_extensions(), miscExt);
         SetProtoExtension(Meta.mutable_extensions(), BlocksExt);

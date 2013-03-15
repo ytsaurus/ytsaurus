@@ -27,7 +27,7 @@
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/protobuf_helpers.h>
 
-#include <ytlib/codecs/codec.h>
+#include <ytlib/compression/codec.h>
 
 #include <ytlib/erasure_codecs/codec.h>
 

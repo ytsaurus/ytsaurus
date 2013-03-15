@@ -10,7 +10,7 @@
 #include <ytlib/misc/protobuf_helpers.pb.h>
 #include <ytlib/misc/guid.pb.h>
 
-#include <ytlib/codecs/codec.h>
+#include <ytlib/compression/codec.h>
 
 #include <contrib/libs/protobuf/message.h>
 #include <contrib/libs/protobuf/repeated_field.h>
@@ -177,7 +177,7 @@ bool DeserializeFromProto(
 bool SerializeToProtoWithEnvelope(
     const google::protobuf::Message& message,
     TSharedRef* data,
-    ECodec codecId = ECodec::None);
+    NCompression::ECodec codecId = NCompression::ECodec::None);
 
 //! Unwraps a chunk of memory obtained from #SerializeToProtoWithEnvelope
 //! and deserializes it into a protobuf message.

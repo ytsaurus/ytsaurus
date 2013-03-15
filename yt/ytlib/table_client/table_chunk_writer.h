@@ -15,7 +15,7 @@
 
 #include <ytlib/chunk_client/public.h>
 
-#include <ytlib/codecs/codec.h>
+#include <ytlib/compression/codec.h>
 
 #include <ytlib/chunk_client/chunk_ypath_proxy.h>
 

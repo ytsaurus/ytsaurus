@@ -10,7 +10,7 @@
 #include <vector>
 
 namespace NYT {
-namespace NCodec {
+namespace NCompression {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -98,5 +98,5 @@ void ReadPod(StreamSource* source, T& value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCodec
+} // namespace NCompresssionCodec
 } // namespace NYT
