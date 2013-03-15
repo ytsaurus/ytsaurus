@@ -121,7 +121,7 @@ void TFileReaderBase::Open(
             }
         }
     }
-    YCHECK(blockCount > 0);
+    YCHECK(blockCount >= 0);
 
     LOG_INFO("Chunk info received (BlockCount: %d, Size: %" PRId64 ")",
         blockCount,

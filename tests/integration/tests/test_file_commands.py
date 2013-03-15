@@ -23,6 +23,19 @@ class TestFileCommands(YTEnvSetup):
         remove('//tmp/file')
         assert get_chunks() == []
 
+    def test_empty(self):
+        content = ""
+        upload('//tmp/file', content)
+        assert download('//tmp/file') == content
+
+        chunk_id = get('//tmp/file/@chunk_id')
+        assert get_chunks() == [chunk_id]
+        assert get('//tmp/file/@size') == len(content)
+
+        # check that chunk was deleted
+        remove('//tmp/file')
+        assert get_chunks() == []
+
     def test_read_interval(self):
         content = ''.join(["data"] * 100)
         upload('//tmp/file', content, config_opt='/file_writer/block_size=8')
