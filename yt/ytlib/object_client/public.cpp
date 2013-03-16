@@ -31,7 +31,9 @@ bool TypeIsVersioned(EObjectType type)
            type == EObjectType::Node ||
            type == EObjectType::Orchid ||
            type == EObjectType::LostVitalChunkMap ||
-           type == EObjectType::AccountMap;
+           type == EObjectType::AccountMap ||
+           type == EObjectType::UserMap ||
+           type == EObjectType::GroupMap;
 }
 
 EObjectType TypeFromId(const TObjectId& id)
