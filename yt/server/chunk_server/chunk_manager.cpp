@@ -1250,12 +1250,16 @@ private:
 
         LOG_INFO("Full chunk refresh started");
         PROFILE_TIMING ("/full_chunk_refresh_time") {
-            FOREACH (auto& pair, NodeMap) {
+            FOREACH (const auto& pair, ChunkMap) {
+                auto* chunk = pair.second;
+                ChunkReplicator->ScheduleChunkRefresh(chunk);
+                ChunkReplicator->ScheduleRFUpdate(chunk);
+            }
+            FOREACH (const auto& pair, NodeMap) {
                 auto* node = pair.second;
                 ChunkPlacement->OnNodeRegistered(node);
                 ChunkReplicator->OnNodeRegistered(node);
             }
-            ChunkReplicator->Start();
         }
         LOG_INFO("Full chunk refresh completed");
     }

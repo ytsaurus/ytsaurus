@@ -31,8 +31,6 @@ public:
         TChunkPlacementPtr chunkPlacement,
         TNodeLeaseTrackerPtr nodeLeaseTracker);
 
-    void Start();
-
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, LostChunks);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, LostVitalChunks);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, UnderreplicatedChunks);
@@ -50,6 +48,8 @@ public:
     void ScheduleChunkRemoval(TDataNode* node, TChunk* chunk);
 
     void ScheduleRFUpdate(TChunkTree* chunkTree);
+    void ScheduleRFUpdate(TChunk* chunk);
+    void ScheduleRFUpdate(TChunkList* chunkList);
 
     void ScheduleJobs(
         TDataNode* node,
@@ -131,8 +131,6 @@ private:
     void Refresh(TChunk* chunk);
     static int ComputeReplicationPriority(const TReplicaStatistics& statistics);
 
-    void ScheduleRFUpdate(TChunk* chunk);
-    void ScheduleRFUpdate(TChunkList* chunkList);
     void OnRFUpdate();
     void OnRFUpdateCommitSucceeded();
     void OnRFUpdateCommitFailed(const TError& error);

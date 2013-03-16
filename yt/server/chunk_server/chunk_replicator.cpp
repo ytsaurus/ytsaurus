@@ -58,22 +58,12 @@ TChunkReplicator::TChunkReplicator(
         Bootstrap->GetMetaStateFacade()->GetEpochInvoker(EStateThreadQueue::ChunkMaintenance),
         BIND(&TChunkReplicator::OnRefresh, MakeWeak(this)),
         Config->ChunkRefreshPeriod);
+    RefreshInvoker->Start();
 
     RFUpdateInvoker = New<TPeriodicInvoker>(
         Bootstrap->GetMetaStateFacade()->GetEpochInvoker(EStateThreadQueue::ChunkMaintenance),
         BIND(&TChunkReplicator::OnRFUpdate, MakeWeak(this)),
         Config->ChunkRFUpdatePeriod);
-}
-
-void TChunkReplicator::Start()
-{
-    auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH (auto* chunk, chunkManager->GetChunks()) {
-        ScheduleChunkRefresh(chunk);
-        ScheduleRFUpdate(chunk);
-    }
-
-    RefreshInvoker->Start();
     RFUpdateInvoker->Start();
 }
 
