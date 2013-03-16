@@ -35,8 +35,6 @@ public:
         TCompositeMetaStatePtr metaState);
 
 protected:
-    friend class TCompositeMetaState;
-
     IMetaStateManagerPtr MetaStateManager;
     TCompositeMetaStatePtr MetaState;
 
