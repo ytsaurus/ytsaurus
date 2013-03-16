@@ -204,7 +204,7 @@ private:
 
     mutable TGuid CachedCellGuild;
 
-    TPeriodicInvokerPtr ProflilingInvoker;
+    TPeriodicInvokerPtr ProfilingInvoker;
 
     TGarbageCollectorPtr GarbageCollector;
 

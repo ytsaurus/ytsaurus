@@ -24,6 +24,7 @@
 #include <ytlib/misc/id_generator.h>
 #include <ytlib/misc/address.h>
 #include <ytlib/misc/string.h>
+#include <ytlib/misc/periodic_invoker.h>
 
 #include <ytlib/compression/codec.h>
 
@@ -42,6 +43,8 @@
 #include <ytlib/ytree/fluent.h>
 
 #include <ytlib/logging/log.h>
+
+#include <ytlib/profiling/profiler.h>
 
 #include <server/chunk_server/chunk_manager.pb.h>
 
@@ -79,6 +82,7 @@ using namespace NChunkServer::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ChunkServerLogger;
+static TDuration ProfilingPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -243,6 +247,12 @@ public:
         auto objectManager = Bootstrap->GetObjectManager();
         objectManager->RegisterHandler(New<TChunkTypeHandler>(this));
         objectManager->RegisterHandler(New<TChunkListTypeHandler>(this));
+
+        ProfilingInvoker = New<TPeriodicInvoker>(
+            Bootstrap->GetMetaStateFacade()->GetInvoker(),
+            BIND(&TThis::OnProfiling, MakeWeak(this)),
+            ProfilingPeriod);
+        ProfilingInvoker->Start();
     }
 
 
@@ -741,6 +751,8 @@ private:
     int RegisteredNodeCount;
 
     bool NeedToRecomputeStatistics;
+
+    TPeriodicInvokerPtr ProfilingInvoker;
 
     NProfiling::TProfiler& Profiler;
     NProfiling::TRateCounter AddChunkCounter;
@@ -1700,6 +1712,16 @@ private:
                 YUNREACHABLE();
         }
     }
+
+
+    void OnProfiling()
+    {
+        if (ChunkReplicator) {
+            Profiler.Enqueue("/refresh_list_size", ChunkReplicator->GetRefreshListSize());
+            Profiler.Enqueue("/rf_update_list_size", ChunkReplicator->GetRFUpdateListSize());
+        }
+    }
+
 
 };
 

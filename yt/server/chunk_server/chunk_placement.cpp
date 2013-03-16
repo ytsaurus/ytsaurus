@@ -4,6 +4,7 @@
 #include "chunk.h"
 #include "job.h"
 #include "job_list.h"
+#include "private.h"
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/config.h>
@@ -19,7 +20,7 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("ChunkServer");
+static NLog::TLogger& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

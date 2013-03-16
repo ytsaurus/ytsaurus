@@ -287,11 +287,11 @@ TObjectManager::TObjectManager(
     LOG_INFO("CellId: %d", static_cast<int>(config->CellId));
     LOG_INFO("MasterObjectId: %s", ~ToString(MasterObjectId));
 
-    ProflilingInvoker = New<TPeriodicInvoker>(
+    ProfilingInvoker = New<TPeriodicInvoker>(
         Bootstrap->GetMetaStateFacade()->GetInvoker(),
         BIND(&TObjectManager::OnProfiling, MakeWeak(this)),
         ProfilingPeriod);
-    ProflilingInvoker->Start();
+    ProfilingInvoker->Start();
 }
 
 void TObjectManager::Initialize()
