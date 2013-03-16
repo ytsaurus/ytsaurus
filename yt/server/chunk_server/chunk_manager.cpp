@@ -24,6 +24,7 @@
 #include <ytlib/misc/id_generator.h>
 #include <ytlib/misc/address.h>
 #include <ytlib/misc/string.h>
+#include <ytlib/misc/periodic_invoker.h>
 
 #include <ytlib/compression/codec.h>
 
@@ -42,6 +43,8 @@
 #include <ytlib/ytree/fluent.h>
 
 #include <ytlib/logging/log.h>
+
+#include <ytlib/profiling/profiler.h>
 
 #include <server/chunk_server/chunk_manager.pb.h>
 
@@ -79,6 +82,7 @@ using namespace NChunkServer::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ChunkServerLogger;
+static TDuration ProfilingPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -243,6 +247,12 @@ public:
         auto objectManager = Bootstrap->GetObjectManager();
         objectManager->RegisterHandler(New<TChunkTypeHandler>(this));
         objectManager->RegisterHandler(New<TChunkListTypeHandler>(this));
+
+        ProfilingInvoker = New<TPeriodicInvoker>(
+            Bootstrap->GetMetaStateFacade()->GetInvoker(),
+            BIND(&TThis::OnProfiling, MakeWeak(this)),
+            ProfilingPeriod);
+        ProfilingInvoker->Start();
     }
 
 
@@ -742,6 +752,8 @@ private:
 
     bool NeedToRecomputeStatistics;
 
+    TPeriodicInvokerPtr ProfilingInvoker;
+
     NProfiling::TProfiler& Profiler;
     NProfiling::TRateCounter AddChunkCounter;
     NProfiling::TRateCounter RemoveChunkCounter;
@@ -1059,6 +1071,12 @@ private:
         JobListMap.SaveValues(context);
     }
 
+
+    virtual void OnBeforeLoaded() override
+    {
+        DoClear();
+    }
+
     void LoadKeys(const NCellMaster::TLoadContext& context)
     {
         ChunkMap.LoadKeys(context);
@@ -1075,15 +1093,19 @@ private:
 
         ChunkMap.LoadValues(context);
         ChunkListMap.LoadValues(context);
-        // COMPAT(ignat)
-        if (context.GetVersion() < 8) {
-            ScheduleRecomputeStatistics();
-        }
 
         NodeMap.LoadValues(context);
         JobMap.LoadValues(context);
         JobListMap.LoadValues(context);
 
+        // COMPAT(ignat)
+        if (context.GetVersion() < 8) {
+            ScheduleRecomputeStatistics();
+        }
+    }
+
+    virtual void OnAfterLoaded() override
+    {
         // Compute chunk replica count.
         ChunkReplicaCount = 0;
         FOREACH (const auto& pair, NodeMap) {
@@ -1109,7 +1131,8 @@ private:
         }
     }
 
-    virtual void Clear() override
+
+    void DoClear()
     {
         NodeIdGenerator.Reset();
         // XXX(babenko): avoid generating InvalidNodeId
@@ -1127,6 +1150,11 @@ private:
 
         ChunkReplicaCount = 0;
         RegisteredNodeCount = 0;
+    }
+
+    virtual void Clear() override
+    {
+        DoClear();
     }
 
 
@@ -1222,12 +1250,16 @@ private:
 
         LOG_INFO("Full chunk refresh started");
         PROFILE_TIMING ("/full_chunk_refresh_time") {
-            FOREACH (auto& pair, NodeMap) {
+            FOREACH (const auto& pair, ChunkMap) {
+                auto* chunk = pair.second;
+                ChunkReplicator->ScheduleChunkRefresh(chunk);
+                ChunkReplicator->ScheduleRFUpdate(chunk);
+            }
+            FOREACH (const auto& pair, NodeMap) {
                 auto* node = pair.second;
                 ChunkPlacement->OnNodeRegistered(node);
                 ChunkReplicator->OnNodeRegistered(node);
             }
-            ChunkReplicator->Start();
         }
         LOG_INFO("Full chunk refresh completed");
     }
@@ -1684,6 +1716,16 @@ private:
                 YUNREACHABLE();
         }
     }
+
+
+    void OnProfiling()
+    {
+        if (ChunkReplicator) {
+            Profiler.Enqueue("/refresh_list_size", ChunkReplicator->GetRefreshListSize());
+            Profiler.Enqueue("/rf_update_list_size", ChunkReplicator->GetRFUpdateListSize());
+        }
+    }
+
 
 };
 

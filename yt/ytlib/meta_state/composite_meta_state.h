@@ -69,6 +69,9 @@ protected:
 
     virtual void Clear();
 
+    virtual void OnBeforeLoaded();
+    virtual void OnAfterLoaded();
+
     virtual void OnStartLeading();
     virtual void OnLeaderRecoveryComplete();
     virtual void OnActiveQuorumEstablished();

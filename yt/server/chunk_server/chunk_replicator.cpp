@@ -8,20 +8,20 @@
 #include "chunk_list.h"
 #include "job_list.h"
 #include "chunk_tree_traversing.h"
+#include "private.h"
 
 #include <ytlib/misc/foreach.h>
 #include <ytlib/misc/serialize.h>
 #include <ytlib/misc/string.h>
 #include <ytlib/misc/small_vector.h>
 
+#include <ytlib/profiling/profiler.h>
+
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/config.h>
 #include <server/cell_master/meta_state_facade.h>
 
 #include <server/chunk_server/chunk_manager.h>
-
-#include <ytlib/profiling/profiler.h>
-#include <ytlib/profiling/timing.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -33,8 +33,8 @@ using namespace NChunkServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLog::TLogger Logger("ChunkServer");
-static NProfiling::TProfiler Profiler("/chunk_server");
+static NLog::TLogger& Logger = ChunkServerLogger;
+static NProfiling::TProfiler& Profiler = ChunkServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,8 +48,6 @@ TChunkReplicator::TChunkReplicator(
     , ChunkPlacement(chunkPlacement)
     , NodeLeaseTracker(nodeLeaseTracker)
     , ChunkRefreshDelay(DurationToCpuDuration(config->ChunkRefreshDelay))
-    , RefreshListSizeCounter("/refresh_list_size")
-    , RFUpdateListSizeCounter("/rf_update_list_size")
 {
     YCHECK(config);
     YCHECK(bootstrap);
@@ -60,22 +58,12 @@ TChunkReplicator::TChunkReplicator(
         Bootstrap->GetMetaStateFacade()->GetEpochInvoker(EStateThreadQueue::ChunkMaintenance),
         BIND(&TChunkReplicator::OnRefresh, MakeWeak(this)),
         Config->ChunkRefreshPeriod);
+    RefreshInvoker->Start();
 
     RFUpdateInvoker = New<TPeriodicInvoker>(
         Bootstrap->GetMetaStateFacade()->GetEpochInvoker(EStateThreadQueue::ChunkMaintenance),
         BIND(&TChunkReplicator::OnRFUpdate, MakeWeak(this)),
         Config->ChunkRFUpdatePeriod);
-}
-
-void TChunkReplicator::Start()
-{
-    auto chunkManager = Bootstrap->GetChunkManager();
-    FOREACH (auto* chunk, chunkManager->GetChunks()) {
-        Refresh(chunk);
-        ScheduleRFUpdate(chunk);
-    }
-
-    RefreshInvoker->Start();
     RFUpdateInvoker->Start();
 }
 
@@ -633,7 +621,6 @@ void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
     entry.Chunk = chunk;
     entry.When = GetCpuInstant() + ChunkRefreshDelay;
     RefreshList.push_back(entry);
-    ProfileRefreshList();
 
     auto objectManager = Bootstrap->GetObjectManager();
     objectManager->LockObject(chunk);
@@ -673,8 +660,6 @@ void TChunkReplicator::OnRefresh()
             objectManager->UnlockObject(chunk);        
         }
     }
-
-    ProfileRefreshList();
 
     LOG_DEBUG("Incremental chunk refresh completed, %d chunks processed",
         count);
@@ -724,6 +709,16 @@ bool TChunkReplicator::IsEnabled()
     }
 
     return true;
+}
+
+int TChunkReplicator::GetRefreshListSize() const
+{
+    return static_cast<int>(RefreshList.size());
+}
+
+int TChunkReplicator::GetRFUpdateListSize() const
+{
+    return static_cast<int>(RFUpdateList.size());
 }
 
 void TChunkReplicator::ScheduleRFUpdate(TChunkTree* chunkTree)
@@ -798,7 +793,6 @@ void TChunkReplicator::ScheduleRFUpdate(TChunk* chunk)
         return;
 
     RFUpdateList.push_back(chunk);
-    ProfileRFUpdateList();
 
     auto objectManager = Bootstrap->GetObjectManager();
     objectManager->LockObject(chunk);
@@ -837,8 +831,6 @@ void TChunkReplicator::OnRFUpdate()
             objectManager->UnlockObject(chunk);
         }
     }
-
-    ProfileRFUpdateList();
 
     if (request.updates_size() > 0) {
         LOG_DEBUG("Starting RF update for %d chunks", request.updates_size());
@@ -928,16 +920,6 @@ TChunkList* TChunkReplicator::FollowParentLinks(TChunkList* chunkList)
         chunkList = *parents.begin();
     }
     return chunkList;
-}
-
-void TChunkReplicator::ProfileRefreshList()
-{
-    Profiler.Aggregate(RefreshListSizeCounter, RefreshList.size());
-}
-
-void TChunkReplicator::ProfileRFUpdateList()
-{
-    Profiler.Aggregate(RFUpdateListSizeCounter, RFUpdateList.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
