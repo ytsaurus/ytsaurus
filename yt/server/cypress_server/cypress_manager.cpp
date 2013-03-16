@@ -874,6 +874,13 @@ void TCypressManager::SaveValues(const NCellMaster::TSaveContext& context) const
     NodeMap.SaveValues(context);
 }
 
+void TCypressManager::OnBeforeLoaded()
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    DoClear();
+}
+
 void TCypressManager::LoadKeys(const NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
@@ -886,7 +893,10 @@ void TCypressManager::LoadValues(const NCellMaster::TLoadContext& context)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     NodeMap.LoadValues(context);
+}
 
+void TCypressManager::OnAfterLoaded()
+{
     // Reconstruct immediate ancestor sets.
     FOREACH (const auto& pair, NodeMap) {
         auto* node = pair.second;
@@ -933,11 +943,16 @@ void TCypressManager::InitBuiltin()
     }
 }
 
+void TCypressManager::DoClear()
+{
+    NodeMap.Clear();
+}
+
 void TCypressManager::Clear()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    NodeMap.Clear();
+    DoClear();
     InitBuiltin();
 }
 

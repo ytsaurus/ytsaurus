@@ -86,6 +86,12 @@ void TMetaStatePart::RegisterLoader(
 void TMetaStatePart::Clear()
 { }
 
+void TMetaStatePart::OnBeforeLoaded()
+{ }
+
+void TMetaStatePart::OnAfterLoaded()
+{ }
+
 bool TMetaStatePart::IsLeader() const
 {
     return MetaStateManager->IsLeader();
@@ -195,6 +201,10 @@ void TCompositeMetaState::Load(TInputStream* input)
     LOG_DEBUG("Started loading composite meta state (PartCount: %d)",
         partCount);
 
+    FOREACH (auto part, Parts) {
+        part->OnBeforeLoaded();
+    }
+
     for (int partIndex = 0; partIndex < partCount; ++partIndex) {
         Stroka name;
         i32 version;
@@ -216,6 +226,10 @@ void TCompositeMetaState::Load(TInputStream* input)
         const auto& info = it->second;
         info.VersionValidator.Run(version);
         info.Loader.Run(context);
+    }
+
+    FOREACH (auto part, Parts) {
+        part->OnAfterLoaded();
     }
 
     LOG_DEBUG("Finished loading composite meta state");

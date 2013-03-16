@@ -215,17 +215,22 @@ private:
     //! Stores deltas from parent transaction.
     NMetaState::TMetaStateMap<TVersionedObjectId, TAttributeSet> Attributes;
 
-    void InitWellKnownSingletons();
+    void InitBuiltin();
 
     void SaveKeys(const NCellMaster::TSaveContext& context) const;
     void SaveValues(const NCellMaster::TSaveContext& context) const;
     void SaveSchemas(const NCellMaster::TSaveContext& context) const;
+
+    virtual void OnBeforeLoaded() override;
     void LoadKeys(const NCellMaster::TLoadContext& context);
     void LoadValues(const NCellMaster::TLoadContext& context);
     void LoadSchemas(const NCellMaster::TLoadContext& context);
+    virtual void OnAfterLoaded() override;
 
     virtual void OnRecoveryStarted() override;
     virtual void OnRecoveryComplete() override;
+
+    void DoClear();
     virtual void Clear() override;
 
     virtual void OnActiveQuorumEstablished() override;

@@ -1059,6 +1059,12 @@ private:
         JobListMap.SaveValues(context);
     }
 
+
+    virtual void OnBeforeLoaded() override
+    {
+        DoClear();
+    }
+
     void LoadKeys(const NCellMaster::TLoadContext& context)
     {
         ChunkMap.LoadKeys(context);
@@ -1075,15 +1081,19 @@ private:
 
         ChunkMap.LoadValues(context);
         ChunkListMap.LoadValues(context);
-        // COMPAT(ignat)
-        if (context.GetVersion() < 8) {
-            ScheduleRecomputeStatistics();
-        }
 
         NodeMap.LoadValues(context);
         JobMap.LoadValues(context);
         JobListMap.LoadValues(context);
 
+        // COMPAT(ignat)
+        if (context.GetVersion() < 8) {
+            ScheduleRecomputeStatistics();
+        }
+    }
+
+    virtual void OnAfterLoaded() override
+    {
         // Compute chunk replica count.
         ChunkReplicaCount = 0;
         FOREACH (const auto& pair, NodeMap) {
@@ -1109,7 +1119,8 @@ private:
         }
     }
 
-    virtual void Clear() override
+
+    void DoClear()
     {
         NodeIdGenerator.Reset();
         // XXX(babenko): avoid generating InvalidNodeId
@@ -1127,6 +1138,11 @@ private:
 
         ChunkReplicaCount = 0;
         RegisteredNodeCount = 0;
+    }
+
+    virtual void Clear() override
+    {
+        DoClear();
     }
 
 

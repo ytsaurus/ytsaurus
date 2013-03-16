@@ -970,6 +970,12 @@ private:
         GroupMap.SaveValues(context);
     }
 
+
+    virtual void OnBeforeLoaded() override
+    {
+        DoClear();
+    }
+
     void LoadKeys(const NCellMaster::TLoadContext& context)
     {
         AccountMap.LoadKeys(context);
@@ -977,9 +983,6 @@ private:
         if (context.GetVersion() >= 8) {
             UserMap.LoadKeys(context);
             GroupMap.LoadKeys(context);
-        } else {
-            UserMap.Clear();
-            GroupMap.Clear();
         }
     }
 
@@ -990,11 +993,12 @@ private:
         if (context.GetVersion() >= 8) {
             UserMap.LoadValues(context);
             GroupMap.LoadValues(context);
-        } else {
-            UserMap.Clear();
-            GroupMap.Clear();
         }
 
+    }
+
+    virtual void OnAfterLoaded() override
+    {
         // Reconstruct account name map.
         AccountNameMap.clear();
         FOREACH (const auto& pair, AccountMap) {
@@ -1021,17 +1025,21 @@ private:
     }
 
 
-    virtual void Clear() override
+    void DoClear()
     {
         AccountMap.Clear();
         AccountNameMap.clear();
-        
+
         UserMap.Clear();
         UserNameMap.clear();
 
         GroupMap.Clear();
         GroupNameMap.clear();
+    }
 
+    virtual void Clear() override
+    {
+        DoClear();
         InitBuiltin();
         InitAuthenticatedUser();
         InitDefaultSchemaAcds();

@@ -84,9 +84,13 @@ private:
 
     void SaveKeys(const NCellMaster::TSaveContext& context);
     void SaveValues(const NCellMaster::TSaveContext& context);
+
+    virtual void OnBeforeLoaded() override;
     void LoadKeys(const NCellMaster::TLoadContext& context);
     void LoadValues(const NCellMaster::TLoadContext& context);
+    virtual void OnAfterLoaded() override;
 
+    void DoClear();
     virtual void Clear() override;
 
     TDuration GetActualTimeout(TNullable<TDuration> timeout);

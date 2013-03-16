@@ -35,6 +35,8 @@ public:
         TCompositeMetaStatePtr metaState);
 
 protected:
+    friend class TCompositeMetaState;
+
     IMetaStateManagerPtr MetaStateManager;
     TCompositeMetaStatePtr MetaState;
 
@@ -68,6 +70,9 @@ protected:
     bool IsRecovery() const;
 
     virtual void Clear();
+
+    virtual void OnBeforeLoaded();
+    virtual void OnAfterLoaded();
 
     virtual void OnStartLeading();
     virtual void OnLeaderRecoveryComplete();

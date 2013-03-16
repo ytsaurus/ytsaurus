@@ -168,12 +168,17 @@ private:
     virtual void OnLeaderRecoveryComplete() override;
     virtual void OnStopLeading() override;
     virtual void OnRecoveryComplete() override;
+    void DoClear();
     virtual void Clear() override;
 
     void SaveKeys(const NCellMaster::TSaveContext& context) const;
     void SaveValues(const NCellMaster::TSaveContext& context) const;
+    
+    virtual void OnBeforeLoaded() override;
     void LoadKeys(const NCellMaster::TLoadContext& context);
     void LoadValues(const NCellMaster::TLoadContext& context);
+    virtual void OnAfterLoaded() override;
+
     void InitBuiltin();
 
     void OnTransactionCommitted(NTransactionServer::TTransaction* transaction);

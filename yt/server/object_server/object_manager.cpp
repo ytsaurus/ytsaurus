@@ -510,20 +510,9 @@ void TObjectManager::UnlockObject(TObjectBase* object)
     }
 }
 
-void TObjectManager::InitWellKnownSingletons()
+void TObjectManager::InitBuiltin()
 {
-    MasterObject = new TMasterObject(MasterObjectId);
-    MasterObject->RefObject();
-    MasterProxy = CreateMasterProxy(Bootstrap, ~MasterObject);
 
-    FOREACH (auto type, RegisteredTypes)  {
-        auto& entry = TypeToEntry[static_cast<int>(type)];
-        if (TypeHasSchema(type)) {
-            entry.SchemaObject = new TSchemaObject(MakeSchemaObjectId(type, GetCellId()));
-            entry.SchemaObject->RefObject();
-            entry.SchemaProxy = CreateSchemaProxy(Bootstrap, ~entry.SchemaObject);
-        }
-    }
 }
 
 void TObjectManager::SaveKeys(const NCellMaster::TSaveContext& context) const
@@ -555,6 +544,13 @@ void TObjectManager::SaveSchemas(const NCellMaster::TSaveContext& context) const
     Save(context, EObjectType(EObjectType::Null));
 }
 
+void TObjectManager::OnBeforeLoaded()
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+
+    DoClear();
+}
+
 void TObjectManager::LoadKeys(const NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
@@ -574,7 +570,7 @@ void TObjectManager::LoadSchemas(const NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    InitWellKnownSingletons();
+    InitBuiltin();
 
     while (true) {
         EObjectType type;
@@ -587,16 +583,42 @@ void TObjectManager::LoadSchemas(const NCellMaster::TLoadContext& context)
     }
 }
 
-void TObjectManager::Clear()
+void TObjectManager::OnAfterLoaded()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    InitWellKnownSingletons();
+}
+
+void TObjectManager::DoClear()
+{
+    MasterObject = new TMasterObject(MasterObjectId);
+    MasterObject->RefObject();
+
+    MasterProxy = CreateMasterProxy(Bootstrap, ~MasterObject);
+
+    FOREACH (auto type, RegisteredTypes)  {
+        auto& entry = TypeToEntry[static_cast<int>(type)];
+        if (TypeHasSchema(type)) {
+            entry.SchemaObject = new TSchemaObject(MakeSchemaObjectId(type, GetCellId()));
+            entry.SchemaObject->RefObject();
+            entry.SchemaProxy = CreateSchemaProxy(Bootstrap, ~entry.SchemaObject);
+        }
+    }
+
     Attributes.Clear();
+
     GarbageCollector->Clear();
+
     CreatedObjectCount = 0;
     DestroyedObjectCount = 0;
     LockedObjectCount = 0;
+}
+
+void TObjectManager::Clear()
+{
+    VERIFY_THREAD_AFFINITY(StateThread);
+    
+    DoClear();
 }
 
 void TObjectManager::OnRecoveryStarted()
