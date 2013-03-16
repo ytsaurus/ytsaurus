@@ -111,6 +111,8 @@ void TCypressNodeBase::Load(const TLoadContext& context)
     // COMPAT(babenko)
     if (context.GetVersion() >= 8) {
         NSecurityServer::Load(context, Acd_);
+    } else {
+        Acd_.Clear();
     }
 
     if (TransactionId == NullTransactionId) {
