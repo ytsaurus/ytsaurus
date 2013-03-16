@@ -114,7 +114,7 @@ public:
 
     virtual void OnMyEndAttributes() override
     {
-        AttributeConsumer.Reset(NULL);
+        AttributeConsumer.Destroy();
         YASSERT(Attributes.Get());
     }
 
@@ -130,8 +130,8 @@ private:
     void AddNode(INodePtr node, bool push)
     {
         if (Attributes.Get()) {
-            node->Attributes().MergeFrom(*Attributes);
-            Attributes.Reset(NULL);
+            node->MutableAttributes()->MergeFrom(*Attributes);
+            Attributes.Destroy();
         }
 
         if (NodeStack.empty()) {

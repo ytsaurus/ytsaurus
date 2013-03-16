@@ -30,7 +30,7 @@ void TGetCommand::DoExecute()
     TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, Request->Attributes);
     *req->mutable_attribute_filter() = ToProto(attributeFilter);
 
-    req->Attributes().MergeFrom(Request->GetOptions());
+    req->MutableAttributes()->MergeFrom(Request->GetOptions());
     auto rsp = ObjectProxy->Execute(req).Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
@@ -49,7 +49,7 @@ void TSetCommand::DoExecute()
     TYsonString value = ConvertToYsonString(producer);
     req->set_value(value.Data());
 
-    req->Attributes().MergeFrom(Request->GetOptions());
+    req->MutableAttributes()->MergeFrom(Request->GetOptions());
     auto rsp = ObjectProxy->Execute(req).Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 }
@@ -64,7 +64,7 @@ void TRemoveCommand::DoExecute()
     SetTransactionId(req, GetTransactionId(false));
     NMetaState::GenerateRpcMutationId(req);
 
-    req->Attributes().MergeFrom(Request->GetOptions());
+    req->MutableAttributes()->MergeFrom(Request->GetOptions());
     auto rsp = ObjectProxy->Execute(req).Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 }
@@ -79,7 +79,7 @@ void TListCommand::DoExecute()
     TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, Request->Attributes);
     *req->mutable_attribute_filter() = ToProto(attributeFilter);
 
-    req->Attributes().MergeFrom(Request->GetOptions());
+    req->MutableAttributes()->MergeFrom(Request->GetOptions());
     auto rsp = ObjectProxy->Execute(req).Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 
@@ -151,7 +151,7 @@ void TLockCommand::DoExecute()
 
     req->set_mode(Request->Mode);
 
-    req->Attributes().MergeFrom(Request->GetOptions());
+    req->MutableAttributes()->MergeFrom(Request->GetOptions());
     auto rsp = ObjectProxy->Execute(req).Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(*rsp);
 }

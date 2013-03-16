@@ -94,6 +94,9 @@ public:
             filter.Mode == EAttributeFilterMode::MatchingOnly && filter.Keys.empty())
             return;
 
+        if (HasAttributes())
+            return;
+
         const auto& attributes = Attributes();
         auto keys = attributes.List();
         yhash_set<Stroka> matchingKeys(filter.Keys.begin(), filter.Keys.end());
@@ -118,7 +121,7 @@ protected:
     // TSupportsAttributes members
     virtual IAttributeDictionary* GetUserAttributes() override
     {
-        return &Attributes();
+        return MutableAttributes();
     }
 
 private:

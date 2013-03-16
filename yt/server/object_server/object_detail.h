@@ -78,8 +78,8 @@ public:
 
     // IObjectProxy members
     virtual const TObjectId& GetId() const override;
-    virtual NYTree::IAttributeDictionary& Attributes() override;
     virtual const NYTree::IAttributeDictionary& Attributes() const override;
+    virtual NYTree::IAttributeDictionary* MutableAttributes() override;
     virtual void Invoke(NRpc::IServiceContextPtr context) override;
     virtual void SerializeAttributes(
         NYson::IYsonConsumer* consumer,

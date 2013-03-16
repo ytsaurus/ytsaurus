@@ -164,14 +164,14 @@ const TObjectId& TObjectProxyBase::GetId() const
     return Object->GetId();
 }
 
-IAttributeDictionary& TObjectProxyBase::Attributes()
-{
-    return *GetUserAttributes();
-}
-
 const IAttributeDictionary& TObjectProxyBase::Attributes() const
 {
     return *const_cast<TObjectProxyBase*>(this)->GetUserAttributes();
+}
+
+IAttributeDictionary* TObjectProxyBase::MutableAttributes()
+{
+    return GetUserAttributes();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TObjectProxyBase, GetId)

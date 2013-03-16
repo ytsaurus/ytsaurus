@@ -888,7 +888,7 @@ TNodeSetterBase::TNodeSetterBase(INodePtr node, ITreeBuilder* builder)
     , TreeBuilder(builder)
     , NodeFactory(node->CreateFactory())
 {
-    Node->Attributes().Clear();
+    Node->MutableAttributes()->Clear();
 }
 
 TNodeSetterBase::~TNodeSetterBase()
@@ -939,7 +939,7 @@ void TNodeSetterBase::OnMyBeginMap()
 
 void TNodeSetterBase::OnMyBeginAttributes()
 {
-    AttributesSetter.Reset(new TAttributesSetter(&Node->Attributes()));
+    AttributesSetter.Reset(new TAttributesSetter(Node->MutableAttributes()));
     Forward(~AttributesSetter, TClosure(), NYson::EYsonType::MapFragment);
 }
 

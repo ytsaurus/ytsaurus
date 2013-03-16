@@ -24,7 +24,7 @@ void GenerateRpcMutationId(IClientRequestPtr request)
 
 void SetRpcMutationId(IClientRequestPtr request, const TMutationId& id)
 {
-    request->Attributes().Set("mutation_id", id);
+    request->MutableAttributes()->Set("mutation_id", id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

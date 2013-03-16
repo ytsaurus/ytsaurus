@@ -93,14 +93,14 @@ const TRequestId& TClientRequest::GetRequestId() const
     return RequestId;
 }
 
-NYTree::IAttributeDictionary& TClientRequest::Attributes()
+const NYTree::IAttributeDictionary& TClientRequest::Attributes() const
 {
     return *Attributes_;
 }
 
-const NYTree::IAttributeDictionary& TClientRequest::Attributes() const
+NYTree::IAttributeDictionary* TClientRequest::MutableAttributes()
 {
-    return *Attributes_;
+    return ~Attributes_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

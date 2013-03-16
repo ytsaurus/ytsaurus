@@ -1001,7 +1001,7 @@ void TCypressManager::RegisterNode(
                 auto value = attributes->GetYson(key);
                 // Try to set as a system attribute. If fails then set as a user attribute.
                 if (!proxy->SetSystemAttribute(key, value)) {
-                    proxy->Attributes().SetYson(key, value);
+                    proxy->MutableAttributes()->SetYson(key, value);
                 }
             }
         } catch (...) {

@@ -334,9 +334,9 @@ TEST_F(TRpcTest, Attributes)
     TMyProxy proxy(CreateChannel("localhost:2000"));
     auto request = proxy.ModifyAttributes();
 
-    request->Attributes().SetYson("value1", NYTree::TYsonString("stroka1"));
-    request->Attributes().SetYson("value2", NYTree::TYsonString("stroka2"));
-    request->Attributes().SetYson("value3", NYTree::TYsonString("stroka3"));
+    request->MutableAttributes()->SetYson("value1", NYTree::TYsonString("stroka1"));
+    request->MutableAttributes()->SetYson("value2", NYTree::TYsonString("stroka2"));
+    request->MutableAttributes()->SetYson("value3", NYTree::TYsonString("stroka3"));
 
     auto response = request->Invoke().Get();
     const auto& attributes = response->Attributes();
@@ -445,8 +445,8 @@ TEST_F(TRpcTest, OneWaySend)
     request->Attachments().push_back(SharedRefFromString("are"));
     request->Attachments().push_back(SharedRefFromString("ok"));
 
-    request->Attributes().SetYson("hello", NYTree::TYsonString("world"));
-    request->Attributes().SetYson("value", NYTree::TYsonString("42"));
+    request->MutableAttributes()->SetYson("hello", NYTree::TYsonString("world"));
+    request->MutableAttributes()->SetYson("value", NYTree::TYsonString("42"));
 
     auto response = request->Invoke().Get();
     EXPECT_EQ(TError::OK, response->GetError().GetCode());

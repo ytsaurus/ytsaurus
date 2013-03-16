@@ -11,8 +11,8 @@ class TEphemeralAttributeOwner
     : public virtual IAttributeOwner
 {
 public:
-    virtual IAttributeDictionary& Attributes();
     virtual const IAttributeDictionary& Attributes() const;
+    virtual IAttributeDictionary* MutableAttributes();
 
 protected:
     bool HasAttributes() const;

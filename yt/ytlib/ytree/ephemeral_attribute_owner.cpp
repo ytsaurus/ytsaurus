@@ -7,20 +7,21 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IAttributeDictionary& TEphemeralAttributeOwner::Attributes()
-{
-    if (!HasAttributes()) {
-        Attributes_ = CreateEphemeralAttributes();
-    }
-    return *Attributes_;
-}
-
 const IAttributeDictionary& TEphemeralAttributeOwner::Attributes() const
 {
     if (!HasAttributes()) {
         return EmptyAttributes();
     }
-    return *Attributes_;}
+    return *Attributes_;
+}
+
+IAttributeDictionary* TEphemeralAttributeOwner::MutableAttributes()
+{
+    if (!HasAttributes()) {
+        Attributes_ = CreateEphemeralAttributes();
+    }
+    return Attributes_.Get();
+}
 
 bool TEphemeralAttributeOwner::HasAttributes() const
 {

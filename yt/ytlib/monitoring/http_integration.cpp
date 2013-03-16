@@ -81,7 +81,7 @@ TFuture<Stroka> HandleRequest(IYPathServicePtr service, Stroka url)
             path = unescapedUrl;
         } else {
             path = unescapedUrl.substr(0, queryIndex);
-            ParseQuery(&req->Attributes(), unescapedUrl.substr(queryIndex + 1));
+            ParseQuery(req->MutableAttributes(), unescapedUrl.substr(queryIndex + 1));
         }
         req->SetPath(path);
         return ExecuteVerb(service, req).Apply(BIND(&OnResponse));

@@ -41,7 +41,7 @@ void SetTransactionId(IAttributeDictionary* attributes, const TTransactionId& tr
 
 void SetTransactionId(IClientRequestPtr request, const TTransactionId& transactionId)
 {
-    SetTransactionId(&request->Attributes(), transactionId);
+    SetTransactionId(request->MutableAttributes(), transactionId);
 }
 
 void SetTransactionId(NRpc::NProto::TRequestHeader* header, const TTransactionId& transactionId)
