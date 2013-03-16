@@ -69,7 +69,7 @@ void TChunkReplicator::Start()
 {
     auto chunkManager = Bootstrap->GetChunkManager();
     FOREACH (auto* chunk, chunkManager->GetChunks()) {
-        Refresh(chunk);
+        ScheduleChunkRefresh(chunk);
         ScheduleRFUpdate(chunk);
     }
 
