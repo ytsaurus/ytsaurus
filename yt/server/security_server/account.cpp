@@ -43,7 +43,10 @@ void TAccount::Load(const NCellMaster::TLoadContext& context)
     }
     // COMPAT(babenko)
     if (context.GetVersion() < 8) {
-        NCellMaster::Load(context, ResourceUsage_.NodeCount);
+        int nodeCount;
+        NCellMaster::Load(context, nodeCount);
+        ResourceUsage_.NodeCount = nodeCount;
+        CommittedResourceUsage_.NodeCount = nodeCount;
     }
 }
 
