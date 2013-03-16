@@ -291,6 +291,7 @@ class TestAcls(YTEnvSetup):
         self.assertItemsEqual(ls('//tmp/p', user='u'), ['a'])
         assert get('//tmp/p/a', user='u') == 'b'
 
+    @pytest.mark.xfail(run = False, reason = 'In progress')
     def test_snapshot_remove(self):
         set('//tmp/a', {'b' : {'c' : 'd'}})
         path = '#' + get('//tmp/a/b/c/@id')
@@ -302,6 +303,7 @@ class TestAcls(YTEnvSetup):
         remove('//tmp/a')
         assert get(path, user='u', tx=tx) == 'd'
 
+    @pytest.mark.xfail(run = False, reason = 'In progress')
     def test_snapshot_no_inherit(self):
         set('//tmp/a', 'b')
         assert get('//tmp/a/@inherit_acl') == 'true'

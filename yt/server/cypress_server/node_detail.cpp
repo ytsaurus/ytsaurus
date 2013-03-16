@@ -85,20 +85,6 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
 
     // Branch user attributes.
     objectManager->BranchAttributes(originatingNode->GetVersionedId(), branchedNode->GetVersionedId());
-
-    // Capture the ACD of |originatingNode| and hard-wire it into |branchedNode|.
-    // This is needed since |branchedNode| may get orphaned, i.e. lose its parent link.
-    if (mode == ELockMode::Snapshot) {
-        auto securityManager = Bootstrap->GetSecurityManager();
-        auto effectiveAcl = securityManager->GetEffectiveAcl(originatingNode);
-        const auto* originatingAcd = securityManager->GetAcd(originatingNode);
-        auto& branchedAcd = branchedNode->Acd();
-        FOREACH (const auto& ace, effectiveAcl.Entries) {
-            branchedAcd.AddEntry(ace);
-        }
-        branchedAcd.SetOwner(originatingAcd->GetOwner());
-        branchedAcd.SetInherit(false);
-    }
 }
 
 void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
