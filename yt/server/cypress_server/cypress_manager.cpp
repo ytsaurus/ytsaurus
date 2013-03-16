@@ -879,8 +879,6 @@ void TCypressManager::LoadKeys(const NCellMaster::TLoadContext& context)
     VERIFY_THREAD_AFFINITY(StateThread);
 
     NodeMap.LoadKeys(context);
-
-    RootNode = GetNode(TVersionedNodeId(RootNodeId));
 }
 
 void TCypressManager::LoadValues(const NCellMaster::TLoadContext& context)
@@ -910,29 +908,37 @@ void TCypressManager::LoadValues(const NCellMaster::TLoadContext& context)
             ++sysAccount->ResourceUsage().NodeCount;
         }
     }
+
+    InitBuiltin();
+}
+
+void TCypressManager::InitBuiltin()
+{
+    RootNode = FindNode(TVersionedNodeId(RootNodeId));
+    if (!RootNode) {
+        // Create the root.
+        auto securityManager = Bootstrap->GetSecurityManager();
+        RootNode = new TMapNode(TVersionedNodeId(RootNodeId));
+        RootNode->SetTrunkNode(RootNode);
+        RootNode->SetAccount(securityManager->GetSysAccount());
+        RootNode->Acd().SetInherit(false);
+        RootNode->Acd().AddEntry(TAccessControlEntry(
+            ESecurityAction::Allow,
+            securityManager->GetEveryoneGroup(),
+            EPermission::Read));
+        RootNode->Acd().SetOwner(securityManager->GetRootUser());
+
+        NodeMap.Insert(TVersionedNodeId(RootNodeId), RootNode);
+        YCHECK(RootNode->RefObject() == 1);
+    }
 }
 
 void TCypressManager::Clear()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    auto securityManager = Bootstrap->GetSecurityManager();
-
     NodeMap.Clear();
-
-    // Create the root.
-    RootNode = new TMapNode(TVersionedNodeId(RootNodeId));
-    RootNode->SetTrunkNode(RootNode);
-    RootNode->SetAccount(securityManager->GetSysAccount());
-    RootNode->Acd().SetInherit(false);
-    RootNode->Acd().AddEntry(TAccessControlEntry(
-        ESecurityAction::Allow,
-        securityManager->GetEveryoneGroup(),
-        EPermission::Read));
-    RootNode->Acd().SetOwner(securityManager->GetRootUser());
-
-    NodeMap.Insert(TVersionedNodeId(RootNodeId), RootNode);
-    YCHECK(RootNode->RefObject() == 1);
+    InitBuiltin();
 }
 
 void TCypressManager::OnLeaderRecoveryComplete()

@@ -174,6 +174,7 @@ private:
     void SaveValues(const NCellMaster::TSaveContext& context) const;
     void LoadKeys(const NCellMaster::TLoadContext& context);
     void LoadValues(const NCellMaster::TLoadContext& context);
+    void InitBuiltin();
 
     void OnTransactionCommitted(NTransactionServer::TTransaction* transaction);
     void OnTransactionAborted(NTransactionServer::TTransaction* transaction);
