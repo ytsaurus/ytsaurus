@@ -44,7 +44,6 @@ void TFileReaderBase::Open(
     YCHECK(config);
     YCHECK(masterChannel);
     YCHECK(blockCache);
-
     YCHECK(!IsOpen);
 
     Logger.AddTag(Sprintf("ChunkId: %s", ~ToString(chunkId)));
@@ -80,11 +79,11 @@ void TFileReaderBase::Open(
 
     std::vector<TSequentialReader::TBlockInfo> blockSequence;
 
-    // COMPAT: new file chunk meta!
+    // COMPAT(psushin): new file chunk meta!
     auto fileBlocksExt = FindProtoExtension<NFileClient::NProto::TBlocksExt>(chunkMeta.extensions());
 
     i64 selectedSize = 0;
-    auto addBlock = [&] (int index, i64 size) {
+    auto addBlock = [&] (int index, i64 size) -> bool {
         if (StartOffset >= size) {
             StartOffset -= size;
             EndOffset -= size;
@@ -126,7 +125,7 @@ void TFileReaderBase::Open(
     LOG_INFO("Chunk info received (BlockCount: %d, Size: %" PRId64 ")",
         blockCount,
         Size);
-    LOG_INFO("Reading %d blocks starting from %d)",
+    LOG_INFO("Reading %d blocks starting from %d",
         static_cast<int>(blockSequence.size()),
         BlockIndex);
 
@@ -156,8 +155,8 @@ TSharedRef TFileReaderBase::Read()
     ++BlockIndex;
     LOG_INFO("Block read (BlockIndex: %d)", BlockIndex);
 
-    auto begin = block.Begin();
-    auto end = block.End();
+    auto* begin = block.Begin();
+    auto* end = block.End();
 
     YCHECK(EndOffset > 0);
 

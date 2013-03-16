@@ -3,12 +3,12 @@
 #include <vector>
 
 namespace NYT {
-
 namespace NErasure {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// All vectors should be sorted
+// All vectors here are assumed to be sorted.
+
 std::vector<int> Segment(int begin, int end);
 
 std::vector<int> Element(int elem);
@@ -28,6 +28,5 @@ bool Contains(const std::vector<int>& set, int elem);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NErasure
-
 } // namespace NYT
 

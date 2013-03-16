@@ -1,9 +1,9 @@
 #include "helpers.h"
 
 #include <algorithm>
+#include <iterator>
 
 namespace NYT {
-
 namespace NErasure {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -17,7 +17,8 @@ std::vector<int> Segment(int begin, int end)
     return result;
 }
 
-std::vector<int> Element(int elem) {
+std::vector<int> Element(int elem)
+{
     return std::vector<int>(1, elem);
 }
 
@@ -70,6 +71,5 @@ bool Contains(const std::vector<int>& set, int elem)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NErasure
-
 } // namespace NYT
 
