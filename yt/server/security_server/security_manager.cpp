@@ -1016,7 +1016,7 @@ private:
 
         // Reconstruct group name map.
         GroupNameMap.clear();
-        FOREACH (const auto& pair, GroupNameMap) {
+        FOREACH (const auto& pair, GroupMap) {
             auto* group = pair.second;
             YCHECK(GroupNameMap.insert(std::make_pair(group->GetName(), group)).second);
         }
