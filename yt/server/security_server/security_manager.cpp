@@ -993,15 +993,16 @@ private:
 
     void LoadValues(const NCellMaster::TLoadContext& context)
     {
-        AccountMap.LoadValues(context);
         // COMPAT(babenko)
         if (context.GetVersion() >= 8) {
+            AccountMap.LoadValues(context);
             UserMap.LoadValues(context);
             GroupMap.LoadValues(context);
         } else {
             FOREACH (const auto& pair, AccountMap) {
                 pair.second->Acd().Clear();
             }
+            AccountMap.LoadValues(context);
         }
 
         // Reconstruct account name map.
