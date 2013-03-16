@@ -33,7 +33,7 @@ TFormat::TFormat()
     : Type_(EFormatType::Null)
 { }
 
-TFormat::TFormat(EFormatType type, IAttributeDictionary* attributes)
+TFormat::TFormat(EFormatType type, const IAttributeDictionary* attributes)
     : Type_(type)
     , Attributes_(attributes ? attributes->Clone() : CreateEphemeralAttributes())
 { }

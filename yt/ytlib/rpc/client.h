@@ -16,6 +16,7 @@
 #include <ytlib/actions/future.h>
 
 #include <ytlib/ytree/attributes.h>
+#include <ytlib/ytree/attribute_owner.h>
 
 #include <ytlib/logging/log.h>
 
@@ -46,6 +47,7 @@ protected:
 
 struct IClientRequest
     : public virtual TRefCounted
+    , public NYTree::IAttributeOwner
 {
     virtual NBus::IMessagePtr Serialize() const = 0;
 
@@ -55,8 +57,6 @@ struct IClientRequest
     virtual const Stroka& GetPath() const = 0;
     virtual const Stroka& GetVerb() const = 0;
 
-    virtual NYTree::IAttributeDictionary& Attributes() = 0;
-    virtual const NYTree::IAttributeDictionary& Attributes() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -76,8 +76,8 @@ public:
     virtual const Stroka& GetPath() const override;
     virtual const Stroka& GetVerb() const override;
 
-    virtual NYTree::IAttributeDictionary& Attributes() override;
     virtual const NYTree::IAttributeDictionary& Attributes() const override;
+    virtual NYTree::IAttributeDictionary* MutableAttributes();
 
 protected:
     IChannelPtr Channel;

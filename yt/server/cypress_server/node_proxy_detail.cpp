@@ -265,14 +265,14 @@ bool TNontemplateCypressNodeProxyBase::IsWriteRequest(NRpc::IServiceContextPtr c
     return TNodeBase::IsWriteRequest(context);
 }
 
-IAttributeDictionary& TNontemplateCypressNodeProxyBase::Attributes()
+const IAttributeDictionary& TNontemplateCypressNodeProxyBase::Attributes() const 
 {
     return TObjectProxyBase::Attributes();
 }
 
-const IAttributeDictionary& TNontemplateCypressNodeProxyBase::Attributes() const 
+IAttributeDictionary* TNontemplateCypressNodeProxyBase::MutableAttributes()
 {
-    return TObjectProxyBase::Attributes();
+    return TObjectProxyBase::MutableAttributes();
 }
 
 TAsyncError TNontemplateCypressNodeProxyBase::GetSystemAttributeAsync(

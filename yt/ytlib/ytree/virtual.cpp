@@ -228,7 +228,7 @@ private:
 
     virtual IAttributeDictionary* GetUserAttributes() override
     {
-        return &Attributes();
+        return MutableAttributes();
     }
 };
 

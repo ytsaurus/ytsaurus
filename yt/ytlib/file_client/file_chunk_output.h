@@ -3,9 +3,9 @@
 #include "public.h"
 #include "chunk_meta_extensions.h"
 
-#include <ytlib/compression/codec.h>
-
 #include <ytlib/misc/thread_affinity.h>
+
+#include <ytlib/compression/codec.h>
 
 #include <ytlib/logging/tagged_logger.h>
 

@@ -58,14 +58,14 @@ void TYPathRequest::SetPath(const Stroka& path)
     Path_ = path;
 }
 
-IAttributeDictionary& TYPathRequest::Attributes()
+const IAttributeDictionary& TYPathRequest::Attributes() const
 {
     return TEphemeralAttributeOwner::Attributes();
 }
 
-const IAttributeDictionary& TYPathRequest::Attributes() const
+IAttributeDictionary* TYPathRequest::MutableAttributes()
 {
-    return TEphemeralAttributeOwner::Attributes();
+    return TEphemeralAttributeOwner::MutableAttributes();
 }
 
 IMessagePtr TYPathRequest::Serialize() const
@@ -545,15 +545,16 @@ INodePtr UpdateNode(INodePtr base, INodePtr patch)
                 resultMap->AddChild(CloneNode(patchMap->GetChild(key)), key);
             }
         }
-        result->Attributes().MergeFrom(patch->Attributes());
+        result->MutableAttributes()->MergeFrom(patch->Attributes());
         return result;
     } else {
         auto result = CloneNode(patch);
-        result->Attributes().Clear();
+        auto* resultAttributes = result->MutableAttributes();
+        resultAttributes->Clear();
         if (base->GetType() == patch->GetType()) {
-            result->Attributes().MergeFrom(base->Attributes());
+            resultAttributes->MergeFrom(base->Attributes());
         }
-        result->Attributes().MergeFrom(patch->Attributes());
+        resultAttributes->MergeFrom(patch->Attributes());
         return result;
     }
 }

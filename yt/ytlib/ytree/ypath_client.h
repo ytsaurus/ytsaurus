@@ -34,8 +34,8 @@ public:
     virtual const Stroka& GetPath() const override;
     void SetPath(const Stroka& path);
 
-    virtual NYTree::IAttributeDictionary& Attributes() override;
     virtual const NYTree::IAttributeDictionary& Attributes() const override;
+    virtual NYTree::IAttributeDictionary* MutableAttributes() override;
 
     virtual NBus::IMessagePtr Serialize() const override;
 
@@ -120,7 +120,7 @@ protected:
         auto req = New<TReq##method>(#method); \
         auto simplified = path.Simplify(); \
         req->SetPath(simplified.GetPath()); \
-        req->Attributes().SetYson("path_attributes", ConvertToYsonString(simplified.Attributes())); \
+        req->MutableAttributes()->SetYson("path_attributes", ConvertToYsonString(simplified.Attributes())); \
         return req; \
     }
 

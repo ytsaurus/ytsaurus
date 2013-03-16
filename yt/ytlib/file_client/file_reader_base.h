@@ -2,8 +2,18 @@
 
 #include "public.h"
 
-#include <ytlib/chunk_client/public.h>
-#include <ytlib/chunk_client/chunk_replica.h>
+#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/thread_affinity.h>
+#include <ytlib/misc/nullable.h>
+#include <ytlib/misc/ref.h>
+
+#include <ytlib/compression/codec.h>
+
+#include <ytlib/transaction_client/public.h>
+#include <ytlib/transaction_client/transaction_listener.h>
+
+#include <ytlib/object_client/object_service_proxy.h>
+
 #include <ytlib/chunk_client/sequential_reader.h>
 #include <ytlib/chunk_client/block_cache.h>
 
@@ -11,9 +21,6 @@
 
 #include <ytlib/logging/tagged_logger.h>
 
-#include <ytlib/misc/thread_affinity.h>
-#include <ytlib/misc/nullable.h>
-#include <ytlib/misc/ref.h>
 
 namespace NYT {
 namespace NFileClient {
@@ -57,10 +64,14 @@ private:
     i32 BlockIndex;
 
     NChunkClient::TSequentialReaderPtr SequentialReader;
-    i64 Size;
 
+    i64 Size;
     i64 StartOffset;
     i64 EndOffset;
+
+    NCompression::ICodec* Codec;
+    Stroka FileName;
+    bool Executable;
 
     NLog::TTaggedLogger Logger;
 

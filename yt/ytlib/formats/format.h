@@ -38,7 +38,7 @@ class TFormat
 public:
     TFormat();
     TFormat(const TFormat& other);
-    TFormat(EFormatType type, NYTree::IAttributeDictionary* attributes = NULL);
+    TFormat(EFormatType type, const NYTree::IAttributeDictionary* attributes = nullptr);
 
     TFormat& operator = (const TFormat& other);
 

@@ -14,7 +14,7 @@ using namespace NRpc;
 
 void SetRpcAuthenticatedUser(NRpc::IClientRequestPtr request, const Stroka& user)
 {
-    request->Attributes().Set("authenticated_user", user);
+    request->MutableAttributes()->Set("authenticated_user", user);
 }
 
 TNullable<Stroka> FindRpcAuthenticatedUser(NRpc::IServiceContextPtr context)
