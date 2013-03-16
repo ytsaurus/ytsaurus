@@ -94,7 +94,7 @@ public:
             filter.Mode == EAttributeFilterMode::MatchingOnly && filter.Keys.empty())
             return;
 
-        if (HasAttributes())
+        if (!HasAttributes())
             return;
 
         const auto& attributes = Attributes();
