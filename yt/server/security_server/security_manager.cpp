@@ -993,11 +993,16 @@ private:
 
     void LoadValues(const NCellMaster::TLoadContext& context)
     {
-        AccountMap.LoadValues(context);
         // COMPAT(babenko)
         if (context.GetVersion() >= 8) {
+            AccountMap.LoadValues(context);
             UserMap.LoadValues(context);
             GroupMap.LoadValues(context);
+        } else {
+            FOREACH (const auto& pair, AccountMap) {
+                pair.second->Acd().Clear();
+            }
+            AccountMap.LoadValues(context);
         }
 
         // Reconstruct account name map.
@@ -1016,7 +1021,7 @@ private:
 
         // Reconstruct group name map.
         GroupNameMap.clear();
-        FOREACH (const auto& pair, GroupNameMap) {
+        FOREACH (const auto& pair, GroupMap) {
             auto* group = pair.second;
             YCHECK(GroupNameMap.insert(std::make_pair(group->GetName(), group)).second);
         }

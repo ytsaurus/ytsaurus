@@ -218,7 +218,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadKeys(const TLoadContext& c
         TKey key;
         ::Load(input, key);
 
-        YASSERT(index == 0 || previousKey < key);
+        YCHECK(index == 0 || previousKey < key);
 
         previousKey = key;
 
@@ -242,7 +242,7 @@ void TMetaStateMap<TKey, TValue, TTraits, THash>::LoadValues(const TContext& con
 
     FOREACH (const auto& key, keys) {
         auto it = Map.find(key);
-        YASSERT(it != Map.end());
+        YCHECK(it != Map.end());
         it->second->Load(context);
     }
 }

@@ -64,6 +64,8 @@ void TTransaction::Load(const NCellMaster::TLoadContext& context)
     // COMPAT(babenko)
     if (context.GetVersion() >= 8) {
         NSecurityServer::Load(context, Acd_);
+    } else {
+        Acd_.Clear();
     }
 }
 
