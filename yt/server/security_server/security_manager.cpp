@@ -998,6 +998,10 @@ private:
         if (context.GetVersion() >= 8) {
             UserMap.LoadValues(context);
             GroupMap.LoadValues(context);
+        } else {
+            FOREACH (const auto& pair, AccountMap) {
+                pair.second->Acd().Clear();
+            }
         }
 
         // Reconstruct account name map.
