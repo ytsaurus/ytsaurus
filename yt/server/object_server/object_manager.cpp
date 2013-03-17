@@ -619,14 +619,14 @@ void TObjectManager::Clear()
 void TObjectManager::OnRecoveryStarted()
 {
     Profiler.SetEnabled(false);
+
+    GarbageCollector->UnlockAll();
+    LockedObjectCount = 0;
 }
 
 void TObjectManager::OnRecoveryComplete()
 {
     Profiler.SetEnabled(true);
-
-    GarbageCollector->UnlockAll();
-    LockedObjectCount = 0;
 }
 
 void TObjectManager::OnActiveQuorumEstablished()
