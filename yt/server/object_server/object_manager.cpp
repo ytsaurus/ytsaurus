@@ -59,7 +59,6 @@ using namespace NCellMaster;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ObjectServerLogger;
-static NProfiling::TProfiler& Profiler = ObjectServerProfiler;
 static TDuration ProfilingPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -224,6 +223,7 @@ TObjectManager::TObjectManager(
         bootstrap->GetMetaStateFacade()->GetState())
     , Config(config)
     , Bootstrap(bootstrap)
+    , Profiler(ObjectServerProfiler)
     , TypeToEntry(MaxObjectType)
     , RootService(New<TRootService>(bootstrap))
     , GarbageCollector(New<TGarbageCollector>(config, bootstrap))
@@ -287,7 +287,7 @@ TObjectManager::TObjectManager(
 
 void TObjectManager::Initialize()
 {
-    LOG_INFO("CellId: %d", static_cast<int>(config->CellId));
+    LOG_INFO("CellId: %d", static_cast<int>(Config->CellId));
     LOG_INFO("MasterObjectId: %s", ~ToString(MasterObjectId));
 
     ProfilingInvoker = New<TPeriodicInvoker>(
@@ -565,8 +565,6 @@ void TObjectManager::LoadSchemas(const NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    InitBuiltin();
-
     while (true) {
         EObjectType type;
         Load(context, type);
@@ -581,7 +579,6 @@ void TObjectManager::LoadSchemas(const NCellMaster::TLoadContext& context)
 void TObjectManager::OnAfterLoaded()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-
 }
 
 void TObjectManager::DoClear()

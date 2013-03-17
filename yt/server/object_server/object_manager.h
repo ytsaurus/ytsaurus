@@ -185,6 +185,8 @@ private:
     TObjectManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
 
+    NProfiling::TProfiler Profiler;
+
     struct TTypeEntry
     {
         IObjectTypeHandlerPtr Handler;

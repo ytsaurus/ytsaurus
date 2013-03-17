@@ -754,7 +754,7 @@ private:
 
     TPeriodicInvokerPtr ProfilingInvoker;
 
-    NProfiling::TProfiler& Profiler;
+    NProfiling::TProfiler Profiler;
     NProfiling::TRateCounter AddChunkCounter;
     NProfiling::TRateCounter RemoveChunkCounter;
     NProfiling::TRateCounter AddChunkReplicaCounter;
