@@ -865,7 +865,8 @@ void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
             i64 minMemory = task->GetMinNeededResources().memory();
             info->CandidateTasks.insert(std::make_pair(minMemory, task));
             LOG_DEBUG("Task pending hint added (Task: %s, MinMemory: %" PRId64 ")",
-                ~task->GetId());
+                ~task->GetId(),
+                minMemory);
         }
     }
     OnTaskUpdated(task);
