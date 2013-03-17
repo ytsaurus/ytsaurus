@@ -467,9 +467,10 @@ void TObjectManager::RefObject(TObjectBase* object)
     YASSERT(object->IsTrunk());
 
     int refCounter = object->RefObject();
-    LOG_DEBUG_UNLESS(IsRecovery(), "Object referenced (Id: %s, RefCounter: %d)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Object referenced (Id: %s, RefCounter: %d, LockCounter: %d)",
         ~object->GetId().ToString(),
-        refCounter);
+        refCounter,
+        object->GetObjectLockCounter());
 }
 
 void TObjectManager::UnrefObject(TObjectBase* object)
@@ -478,9 +479,10 @@ void TObjectManager::UnrefObject(TObjectBase* object)
     YASSERT(object->IsTrunk());
 
     int refCounter = object->UnrefObject();
-    LOG_DEBUG_UNLESS(IsRecovery(), "Object unreferenced (Id: %s, RefCounter: %d)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Object unreferenced (Id: %s, RefCounter: %d, LockCounter: %d)",
         ~object->GetId().ToString(),
-        refCounter);
+        refCounter,
+        object->GetObjectLockCounter());
 
     if (refCounter == 0) {
         GarbageCollector->Enqueue(object);
