@@ -333,10 +333,10 @@ protected:
         NProto::TNodeResources CachedTotalNeededResources;
 
         mutable bool IsMinResourcesCached;
-        NProto::TNodeResources CachedMinNeededResources;
+        mutable NProto::TNodeResources CachedMinNeededResources;
 
         mutable bool IsAvgResourcesCached;
-        NProto::TNodeResources CachedAvgNeededResources;
+        mutable NProto::TNodeResources CachedAvgNeededResources;
 
         TInstant LastDemandSanityCheckTime;
         bool CompletedFired;
