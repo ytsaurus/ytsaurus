@@ -288,8 +288,7 @@ protected:
         virtual i64 GetLocality(const Stroka& address) const;
         virtual bool HasInputLocality();
 
-        virtual NProto::TNodeResources GetMinNeededResources() const = 0;
-        virtual NProto::TNodeResources GetAvgNeededResources() const;
+        const NProto::TNodeResources& GetMinNeededResources() const;
         virtual NProto::TNodeResources GetNeededResources(TJobletPtr joblet) const;
 
         DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, DelayedTime);
@@ -327,6 +326,8 @@ protected:
 
         int CachedPendingJobCount;
         NProto::TNodeResources CachedTotalNeededResources;
+        mutable TNullable<NProto::TNodeResources> CachedMinNeededResources;
+
         TInstant LastDemandSanityCheckTime;
         bool CompletedFired;
 
@@ -335,6 +336,8 @@ protected:
 
     protected:
         NLog::TTaggedLogger& Logger;
+
+        virtual NProto::TNodeResources GetMinNeededResourcesHeavy() const = 0;
 
         virtual void OnTaskCompleted();
 

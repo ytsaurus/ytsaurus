@@ -93,8 +93,8 @@ TNodeResources TOperationControllerBase::TTask::GetTotalNeededResourcesDelta()
 TNodeResources TOperationControllerBase::TTask::GetTotalNeededResources() const
 {
     i64 count = GetPendingJobCount();
-    // NB: Don't call GetAvgNeededResources if there are no pending jobs.
-    return count == 0 ? ZeroNodeResources() : GetAvgNeededResources() * count;
+    // NB: Don't call GetMinNeededResources if there are no pending jobs.
+    return count == 0 ? ZeroNodeResources() : GetMinNeededResources() * count;
 }
 
 i64 TOperationControllerBase::TTask::GetLocality(const Stroka& address) const
@@ -171,7 +171,9 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
     // Adjust it if approximation flag is set.
     auto neededResources = GetNeededResources(joblet);
     if (joblet->InputStripeList->IsApproximate) {
-        neededResources.set_memory(static_cast<i64>(neededResources.memory() * ApproximateSizesBoostFactor));
+        neededResources.set_memory(static_cast<i64>(
+            neededResources.memory() *
+            ApproximateSizesBoostFactor));
     }
 
     // Check the usage against the limits. This is the last chance to give up.
@@ -452,9 +454,13 @@ void TOperationControllerBase::TTask::AddChunksToInputSpec(
     }
 }
 
-TNodeResources TOperationControllerBase::TTask::GetAvgNeededResources() const
+const TNodeResources& TOperationControllerBase::TTask::GetMinNeededResources() const
 {
-    return GetMinNeededResources();
+    if (!CachedMinNeededResources) {
+        YCHECK(GetPendingJobCount() > 0);
+        CachedMinNeededResources = GetMinNeededResourcesHeavy();
+    }
+    return *CachedMinNeededResources;
 }
 
 TNodeResources TOperationControllerBase::TTask::GetNeededResources(TJobletPtr joblet) const
@@ -974,12 +980,12 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
                 continue;
             }
 
-            if (!CheckJobLimits(node, task, jobLimits)) {
+            if (task->GetPendingJobCount() == 0) {
+                OnTaskUpdated(task);
                 continue;
             }
 
-            if (task->GetPendingJobCount() == 0) {
-                OnTaskUpdated(task);
+            if (!CheckJobLimits(node, task, jobLimits)) {
                 continue;
             }
 

@@ -211,19 +211,10 @@ protected:
             return Controller->Spec->PartitionLocalityTimeout;
         }
 
-        virtual TNodeResources GetMinNeededResources() const override
+        virtual TNodeResources GetMinNeededResourcesHeavy() const override
         {
-            return GetAvgNeededResources();
-        }
-
-        virtual TNodeResources GetAvgNeededResources() const override
-        {
-            int jobCount = GetPendingJobCount();
-            if (jobCount == 0) {
-                return ZeroNodeResources();
-            }
             return Controller->GetPartitionResources(
-                ChunkPool->GetApproximateStripeStatistics());
+                ChunkPool->GetApproximateStripeStatistics());;
         }
 
         virtual TNodeResources GetNeededResources(TJobletPtr joblet) const override
@@ -394,18 +385,8 @@ protected:
             return 1;
         }
 
-        virtual TNodeResources GetMinNeededResources() const override
+        virtual TNodeResources GetMinNeededResourcesHeavy() const override
         {
-            return GetAvgNeededResources();
-        }
-
-        virtual TNodeResources GetAvgNeededResources() const override
-        {
-            int jobCount = GetPendingJobCount();
-            if (jobCount == 0) {
-                return ZeroNodeResources();
-            }
-
             auto stat = Partition->ChunkPoolOutput->GetApproximateStripeStatistics();
             YCHECK(stat.size() == 1);
             return GetNeededResourcesForChunkStripe(stat.front());
@@ -730,7 +711,7 @@ protected:
                 : Controller->Spec->MergeLocalityTimeout;
         }
 
-        virtual TNodeResources GetMinNeededResources() const override
+        virtual TNodeResources GetMinNeededResourcesHeavy() const override
         {
             return Controller->GetSortedMergeResources(
                 ChunkPool->GetApproximateStripeStatistics());
@@ -845,7 +826,7 @@ protected:
             return TDuration::Zero();
         }
 
-        virtual TNodeResources GetMinNeededResources() const override
+        virtual TNodeResources GetMinNeededResourcesHeavy() const override
         {
             return Controller->GetUnorderedMergeResources(
                 Partition->ChunkPoolOutput->GetApproximateStripeStatistics());
@@ -1062,8 +1043,7 @@ protected:
             if (partition->ChunkPoolOutput->GetTotalJobCount() <= 1) {
                 return false;
             }
-        }
-        else {
+        } else {
             if (partition->Maniac) {
                 return false;
             }
@@ -1723,7 +1703,6 @@ private:
             GetFootprintMemorySize());
         result.set_network(Spec->ShuffleNetworkLimit);
 
-        Cout << stat.ChunkCount << " " << stat.RowCount << ' ' << stat.DataSize << ' '<< FormatResources(result) << Endl;
         return result;
     }
 
