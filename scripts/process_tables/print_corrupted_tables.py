@@ -2,7 +2,7 @@
 
 import yt.wrapper as yt
 
-a = yt.list('//sys/lost_chunks', max_size=10000)
+a = yt.list('//sys/lost_vital_chunks', max_size=10000)
 
 owning = set()
 for ch in a:
