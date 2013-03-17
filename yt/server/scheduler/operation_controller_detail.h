@@ -398,8 +398,11 @@ protected:
     {
         // All non-local tasks.
         yhash_set<TTaskPtr> NonLocalTasks;
-        // Non-local tasks that may possibly be ready (but a delayed check is still needed).
-        std::vector<TTaskPtr> CandidateTasks;
+
+        // Non-local tasks that may possibly be ready (but a delayed check is still needed)
+        // keyed by min memory demand (as reported by TTask::GetMinNeededResources).
+        std::multimap<i64, TTaskPtr> CandidateTasks;
+
         // Non-local tasks keyed by deadline.
         std::multimap<TInstant, TTaskPtr> DelayedTasks;
 
