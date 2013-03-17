@@ -258,7 +258,7 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleReplicationJob(
 {
     auto chunkManager = Bootstrap->GetChunkManager();
     auto* chunk = chunkManager->FindChunk(chunkId);
-    if (IsObjectAlive(chunk)) {
+    if (!IsObjectAlive(chunk)) {
         return EScheduleFlags::Purged;
     }
 
@@ -621,6 +621,7 @@ void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
     entry.Chunk = chunk;
     entry.When = GetCpuInstant() + ChunkRefreshDelay;
     RefreshList.push_back(entry);
+    chunk->SetRefreshScheduled(true);
 
     auto objectManager = Bootstrap->GetObjectManager();
     objectManager->LockObject(chunk);
@@ -651,6 +652,7 @@ void TChunkReplicator::OnRefresh()
 
             auto* chunk = entry.Chunk;
             RefreshList.pop_front();
+            chunk->SetRefreshScheduled(false);
             ++count;
 
             if (IsObjectAlive(chunk)) {
@@ -793,6 +795,7 @@ void TChunkReplicator::ScheduleRFUpdate(TChunk* chunk)
         return;
 
     RFUpdateList.push_back(chunk);
+    chunk->SetRFUpdateScheduled(true);
 
     auto objectManager = Bootstrap->GetObjectManager();
     objectManager->LockObject(chunk);
@@ -819,6 +822,7 @@ void TChunkReplicator::OnRFUpdate()
 
             auto* chunk = RFUpdateList.front();
             RFUpdateList.pop_front();
+            chunk->SetRFUpdateScheduled(false);
 
             if (IsObjectAlive(chunk)) {
                 int replicationFactor = ComputeReplicationFactor(*chunk);

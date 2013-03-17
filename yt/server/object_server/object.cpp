@@ -43,7 +43,7 @@ int TObjectBase::UnrefObject()
 
 int TObjectBase::LockObject()
 {
-    YASSERT(IsAlive());
+    YCHECK(IsAlive());
     YASSERT(LockCounter >= 0);
     return ++LockCounter;
 }

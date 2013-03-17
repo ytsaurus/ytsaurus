@@ -1016,6 +1016,8 @@ void TObjectManager::OnProfiling()
     Profiler.Enqueue("/created_object_count", CreatedObjectCount);
     Profiler.Enqueue("/destroyed_object_count", DestroyedObjectCount);
     Profiler.Enqueue("/locked_object_count", LockedObjectCount);
+    
+    ProfilingInvoker->ScheduleNext();
 }
 
 DEFINE_METAMAP_ACCESSORS(TObjectManager, Attributes, TAttributeSet, TVersionedObjectId, Attributes)
