@@ -510,11 +510,6 @@ void TObjectManager::UnlockObject(TObjectBase* object)
     }
 }
 
-void TObjectManager::InitBuiltin()
-{
-
-}
-
 void TObjectManager::SaveKeys(const NCellMaster::TSaveContext& context) const
 {
     Attributes.SaveKeys(context);

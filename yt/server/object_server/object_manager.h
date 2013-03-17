@@ -215,8 +215,6 @@ private:
     //! Stores deltas from parent transaction.
     NMetaState::TMetaStateMap<TVersionedObjectId, TAttributeSet> Attributes;
 
-    void InitBuiltin();
-
     void SaveKeys(const NCellMaster::TSaveContext& context) const;
     void SaveValues(const NCellMaster::TSaveContext& context) const;
     void SaveSchemas(const NCellMaster::TSaveContext& context) const;
