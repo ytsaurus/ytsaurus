@@ -893,10 +893,12 @@ private:
         virtual std::vector<TChunkStripeStatistics> GetApproximateStripeStatistics() const
         {
             YCHECK(!Runs.empty());
+            YCHECK(GetPendingJobCount() > 0);
 
             std::vector<TChunkStripeStatistics> result(1);
-            auto& run = Runs.back();
-            auto& stat = result.back();
+            // First run should give a pretty good approximation.
+            auto& run = Runs.front();
+            auto& stat = result.front();
             stat.ChunkCount = run.ElementaryIndexEnd - run.ElementaryIndexBegin;
             stat.DataSize = run.TotalDataSize;
             stat.RowCount = run.TotalRowCount;
