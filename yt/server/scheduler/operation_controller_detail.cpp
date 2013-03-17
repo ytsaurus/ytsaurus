@@ -171,7 +171,9 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
     // Adjust it if approximation flag is set.
     auto neededResources = GetNeededResources(joblet);
     if (joblet->InputStripeList->IsApproximate) {
-        neededResources.set_memory(static_cast<i64>(neededResources.memory() * ApproximateSizesBoostFactor));
+        neededResources.set_memory(static_cast<i64>(
+            neededResources.memory() *
+            ApproximateSizesBoostFactor));
     }
 
     // Check the usage against the limits. This is the last chance to give up.
