@@ -151,6 +151,8 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
 {
     int chunkListCount = GetChunkListCountPerJob();
     if (!Controller->HasEnoughChunkLists(chunkListCount)) {
+        LOG_DEBUG("Job chunk list demand is not met (Task: %s)",
+            ~GetId());
         return nullptr;
     }
 
@@ -162,6 +164,8 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
     auto* chunkPoolOutput = GetChunkPoolOutput();
     joblet->OutputCookie = chunkPoolOutput->Extract(address);
     if (joblet->OutputCookie == IChunkPoolOutput::NullCookie) {
+        LOG_DEBUG("Job input is empty (Task: %s)",
+            ~GetId());
         return nullptr;
     }
 
@@ -178,6 +182,10 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
 
     // Check the usage against the limits. This is the last chance to give up.
     if (!Dominates(jobLimits, neededResources)) {
+        LOG_DEBUG("Job actual resource demand is not met (Task: %s, Limits: {%s}, Demand: {%s})",
+            ~GetId(),
+            ~FormatResources(jobLimits),
+            ~FormatResources(neededResources));
         CheckResourceDemandSanity(node, neededResources);
         chunkPoolOutput->Aborted(joblet->OutputCookie);
         return nullptr;
@@ -211,7 +219,9 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
         neededResources,
         jobSpecBuilder);
 
-    LOG_INFO("Job scheduled (JobId: %s, OperationId: %s, JobType: %s, Address: %s, Task: %s, JobIndex: %d, ChunkCount: %d (%d local), Approximate: %s, DataSize: %" PRId64 ", RowCount: %" PRId64 ", ResourceLimits: {%s})",
+    LOG_INFO(
+        "Job scheduled (JobId: %s, OperationId: %s, JobType: %s, Address: %s, Task: %s, JobIndex: %d, ChunkCount: %d (%d local), "
+        "Approximate: %s, DataSize: %" PRId64 ", RowCount: %" PRId64 ", ResourceLimits: {%s})",
         ~ToString(joblet->Job->GetId()),
         ~ToString(Controller->Operation->GetOperationId()),
         ~jobType.ToString(),
