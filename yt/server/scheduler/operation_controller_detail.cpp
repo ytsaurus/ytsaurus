@@ -861,11 +861,12 @@ void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
 {
     if (task->GetPendingJobCount() > 0) {
         auto* info = GetPendingTaskInfo(task);
-
         if (info->NonLocalTasks.insert(task).second) {
-            info->CandidateTasks.push_back(task);
-            LOG_DEBUG("Task pending hint added (Task: %s)",
-                ~task->GetId());
+            i64 minMemory = task->GetMinNeededResources().memory();
+            info->CandidateTasks.insert(std::make_pair(minMemory, task));
+            LOG_DEBUG("Task pending hint added (Task: %s, MinMemory: %" PRId64 ")",
+                ~task->GetId(),
+                minMemory);
         }
     }
     OnTaskUpdated(task);
@@ -909,7 +910,11 @@ void TOperationControllerBase::ResetTaskLocalityDelays()
     LOG_DEBUG("Task locality delays are reset");
     FOREACH (auto& info, PendingTaskInfos) {
         FOREACH (const auto& pair, info.DelayedTasks) {
-            info.CandidateTasks.push_back(pair.second);
+            auto task = pair.second;
+            if (task->GetPendingJobCount() > 0) {
+                i64 minMemory = task->GetMinNeededResources().memory();
+                info.CandidateTasks.insert(std::make_pair(minMemory, task));
+            }
         }
         info.DelayedTasks.clear();
     }
@@ -1029,43 +1034,50 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
         auto& candidateTasks = info.CandidateTasks;
         auto& delayedTasks = info.DelayedTasks;
 
-        auto eraseCandidate = [&] (int index) {
-            std::swap(candidateTasks[index], candidateTasks.back());
-            candidateTasks.erase(candidateTasks.end() - 1, candidateTasks.end());
-        };
-
         // Move tasks from delayed to candidates.
         while (!delayedTasks.empty()) {
             auto it = delayedTasks.begin();
             auto deadline = it->first;
-            auto task = it->second;
             if (now < deadline) {
                 break;
             }
+            const auto& task = it->second;
             delayedTasks.erase(it);
-            candidateTasks.push_back(task);
-            LOG_DEBUG("Task delay deadline reached (Task: %s)", ~task->GetId());
+            if (task->GetPendingJobCount() == 0) {
+                LOG_DEBUG("Task delay deadline reached but no pending jobs found (Task: %s)",
+                    ~task->GetId());
+            } else {
+                i64 minMemory = task->GetMinNeededResources().memory();
+                candidateTasks.insert(std::make_pair(minMemory, task));
+                LOG_DEBUG("Task delay deadline reached (Task: %s, MinMemory: % " PRId64 ")",
+                    ~task->GetId(),
+                    minMemory);
+            }
         }
 
-        // Consider candidates.
+        // Consider candidates in the order of increasing memory demand.
         {
-            int taskIndex = 0;
-            while (taskIndex < static_cast<int>(candidateTasks.size())) {
-                auto task = candidateTasks[taskIndex];
+            auto it = candidateTasks.begin();
+            while (it != candidateTasks.end()) {
+                const auto& task = it->second;
+
+                // Check min memory demand for early exit.
+                if (task->GetMinNeededResources().memory() > jobLimits.memory()) {
+                    break;
+                }
 
                 // Make sure that the task is ready to launch jobs.
                 // Remove pending hint if not.
                 if (task->GetPendingJobCount() == 0) {
                     LOG_DEBUG("Task pending hint removed (Task: %s)", ~task->GetId());
-
-                    eraseCandidate(taskIndex);
+                    candidateTasks.erase(it++);
                     YCHECK(nonLocalTasks.erase(task) == 1);
                     OnTaskUpdated(task);
                     continue;
                 }
 
                 if (!CheckJobLimits(node, task, jobLimits)) {
-                    ++taskIndex;
+                    ++it;
                     continue;
                 }
 
@@ -1075,32 +1087,35 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
 
                 auto deadline = task->GetDelayedTime().Get() + task->GetLocalityTimeout();
                 if (deadline > now) {
-                    delayedTasks.insert(std::make_pair(deadline, task));
-                    eraseCandidate(taskIndex);
                     LOG_DEBUG("Task delayed (Task: %s, Deadline: %s)",
                         ~task->GetId(),
                         ~ToString(deadline));
+                    delayedTasks.insert(std::make_pair(deadline, task));
+                    candidateTasks.erase(it++);
                     continue;
                 }
 
-                if (Running) {
-                    LOG_DEBUG(
-                        "Attempting to schedule a non-local job (Task: %s, Address: %s, Priority: %d, JobLimits: {%s}, "
-                        "PendingDataSize: %" PRId64 ", PendingJobCount: %d)",
-                        ~task->GetId(),
-                        ~address,
-                        priority,
-                        ~FormatResources(jobLimits),
-                        task->GetPendingDataSize(),
-                        task->GetPendingJobCount());
-                    auto job = task->ScheduleJob(context, jobLimits);
-                    if (job) {
-                        OnTaskUpdated(task);
-                        return job;
-                    }
+                if (!Running) {
+                    break;
                 }
 
-                ++taskIndex;
+                LOG_DEBUG(
+                    "Attempting to schedule a non-local job (Task: %s, Address: %s, Priority: %d, JobLimits: {%s}, "
+                    "PendingDataSize: %" PRId64 ", PendingJobCount: %d)",
+                    ~task->GetId(),
+                    ~address,
+                    priority,
+                    ~FormatResources(jobLimits),
+                    task->GetPendingDataSize(),
+                    task->GetPendingJobCount());
+
+                auto job = task->ScheduleJob(context, jobLimits);
+                if (job) {
+                    OnTaskUpdated(task);
+                    return job;
+                }
+
+                ++it;
             }
         }
     }
