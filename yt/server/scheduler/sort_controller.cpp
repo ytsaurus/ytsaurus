@@ -1723,7 +1723,6 @@ private:
             GetFootprintMemorySize());
         result.set_network(Spec->ShuffleNetworkLimit);
 
-        Cout << stat.ChunkCount << " " << stat.RowCount << ' ' << stat.DataSize << ' '<< FormatResources(result) << Endl;
         return result;
     }
 
