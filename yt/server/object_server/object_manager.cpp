@@ -283,7 +283,10 @@ TObjectManager::TObjectManager(
     RegisterMethod(BIND(&TObjectManager::DestroyObjects, Unretained(this)));
 
     MasterObjectId = MakeWellKnownId(EObjectType::Master, Config->CellId);
+}
 
+void TObjectManager::Initialize()
+{
     LOG_INFO("CellId: %d", static_cast<int>(config->CellId));
     LOG_INFO("MasterObjectId: %s", ~ToString(MasterObjectId));
 
@@ -293,9 +296,6 @@ TObjectManager::TObjectManager(
         ProfilingPeriod);
     ProfilingInvoker->Start();
 }
-
-void TObjectManager::Initialize()
-{ }
 
 IYPathServicePtr TObjectManager::GetRootService()
 {
