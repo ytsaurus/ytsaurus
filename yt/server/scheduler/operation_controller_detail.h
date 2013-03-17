@@ -288,8 +288,8 @@ protected:
         virtual i64 GetLocality(const Stroka& address) const;
         virtual bool HasInputLocality();
 
-        virtual NProto::TNodeResources GetMinNeededResources();
-        virtual NProto::TNodeResources GetAvgNeededResources();
+        virtual NProto::TNodeResources GetMinNeededResources() const;
+        virtual NProto::TNodeResources GetAvgNeededResources() const;
 
         virtual NProto::TNodeResources GetMinNeededResourcesHeavy() const = 0;
         virtual NProto::TNodeResources GetAvgNeededResourcesHeavy() const;
@@ -332,10 +332,10 @@ protected:
         int CachedPendingJobCount;
         NProto::TNodeResources CachedTotalNeededResources;
 
-        bool IsMinResourcesCached;
+        mutable bool IsMinResourcesCached;
         NProto::TNodeResources CachedMinNeededResources;
 
-        bool IsAvgResourcesCached;
+        mutable bool IsAvgResourcesCached;
         NProto::TNodeResources CachedAvgNeededResources;
 
         TInstant LastDemandSanityCheckTime;

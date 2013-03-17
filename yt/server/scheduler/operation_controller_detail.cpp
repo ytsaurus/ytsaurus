@@ -456,7 +456,7 @@ void TOperationControllerBase::TTask::AddChunksToInputSpec(
     }
 }
 
-TNodeResources TOperationControllerBase::TTask::GetMinNeededResources()
+TNodeResources TOperationControllerBase::TTask::GetMinNeededResources() const
 {
     YCHECK(GetPendingJobCount() > 0);
     if (!IsMinResourcesCached) {
@@ -466,7 +466,7 @@ TNodeResources TOperationControllerBase::TTask::GetMinNeededResources()
     return CachedMinNeededResources;
 }
 
-TNodeResources TOperationControllerBase::TTask::GetAvgNeededResources()
+TNodeResources TOperationControllerBase::TTask::GetAvgNeededResources() const
 {
     YCHECK(GetPendingJobCount() > 0);
     if (!IsAvgResourcesCached) {
