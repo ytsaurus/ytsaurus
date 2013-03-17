@@ -1062,8 +1062,7 @@ protected:
             if (partition->ChunkPoolOutput->GetTotalJobCount() <= 1) {
                 return false;
             }
-        }
-        else {
+        } else {
             if (partition->Maniac) {
                 return false;
             }
