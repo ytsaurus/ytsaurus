@@ -998,7 +998,11 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
             bestTask = task;
         }
 
-        if (Running && bestTask) {
+        if (!Running) {
+            return nullptr;
+        }
+
+        if (bestTask) {
             LOG_DEBUG(
                 "Attempting to schedule a local job (Task: %s, Address: %s, Priority: %d, Locality: %" PRId64 ", JobLimits: {%s}, "
                 "PendingDataSize: %" PRId64 ", PendingJobCount: %d)",
@@ -1096,7 +1100,7 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
                 }
 
                 if (!Running) {
-                    break;
+                    return nullptr;
                 }
 
                 LOG_DEBUG(
