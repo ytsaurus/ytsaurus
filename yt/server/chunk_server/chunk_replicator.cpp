@@ -791,7 +791,7 @@ void TChunkReplicator::ScheduleRFUpdate(TChunkList* chunkList)
 
 void TChunkReplicator::ScheduleRFUpdate(TChunk* chunk)
 {
-    if (!IsObjectAlive(chunk) || chunk->GetRefreshScheduled())
+    if (!IsObjectAlive(chunk) || chunk->GetRFUpdateScheduled())
         return;
 
     RFUpdateList.push_back(chunk);
