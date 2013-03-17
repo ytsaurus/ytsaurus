@@ -62,8 +62,6 @@ static const double ApproximateSizesBoostFactor = 1.3;
 TOperationControllerBase::TTask::TTask(TOperationControllerBase* controller)
     : Controller(controller)
     , CachedPendingJobCount(0)
-    , IsMinResourcesCached(false)
-    , IsAvgResourcesCached(false)
     , CachedTotalNeededResources(ZeroNodeResources())
     , LastDemandSanityCheckTime(TInstant::Zero())
     , CompletedFired(false)
@@ -95,8 +93,8 @@ TNodeResources TOperationControllerBase::TTask::GetTotalNeededResourcesDelta()
 TNodeResources TOperationControllerBase::TTask::GetTotalNeededResources() const
 {
     i64 count = GetPendingJobCount();
-    // NB: Don't call GetAvgNeededResources if there are no pending jobs.
-    return count == 0 ? ZeroNodeResources() : GetAvgNeededResources() * count;
+    // NB: Don't call GetMinNeededResources if there are no pending jobs.
+    return count == 0 ? ZeroNodeResources() : GetMinNeededResources() * count;
 }
 
 i64 TOperationControllerBase::TTask::GetLocality(const Stroka& address) const
@@ -456,29 +454,13 @@ void TOperationControllerBase::TTask::AddChunksToInputSpec(
     }
 }
 
-TNodeResources TOperationControllerBase::TTask::GetMinNeededResources() const
+const TNodeResources& TOperationControllerBase::TTask::GetMinNeededResources() const
 {
-    YCHECK(GetPendingJobCount() > 0);
-    if (!IsMinResourcesCached) {
-        IsMinResourcesCached = true;
+    if (!CachedMinNeededResources) {
+        YCHECK(GetPendingJobCount() > 0);
         CachedMinNeededResources = GetMinNeededResourcesHeavy();
     }
-    return CachedMinNeededResources;
-}
-
-TNodeResources TOperationControllerBase::TTask::GetAvgNeededResources() const
-{
-    YCHECK(GetPendingJobCount() > 0);
-    if (!IsAvgResourcesCached) {
-        IsAvgResourcesCached = true;
-        CachedAvgNeededResources = GetAvgNeededResourcesHeavy();
-    }
-    return CachedAvgNeededResources;
-}
-
-NProto::TNodeResources TOperationControllerBase::TTask::GetAvgNeededResourcesHeavy() const
-{
-    return GetMinNeededResourcesHeavy();
+    return *CachedMinNeededResources;
 }
 
 TNodeResources TOperationControllerBase::TTask::GetNeededResources(TJobletPtr joblet) const
