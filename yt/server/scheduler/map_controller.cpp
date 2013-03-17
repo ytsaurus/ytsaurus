@@ -75,7 +75,7 @@ private:
             return Controller->Spec->LocalityTimeout;
         }
 
-        virtual TNodeResources GetMinNeededResources() const override
+        virtual TNodeResources GetMinNeededResourcesHeavy() const override
         {
             return GetMapResources(ChunkPool->GetApproximateStripeStatistics());
         }

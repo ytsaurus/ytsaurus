@@ -121,7 +121,7 @@ protected:
             return Controller->Spec->LocalityTimeout;
         }
 
-        virtual NProto::TNodeResources GetMinNeededResources() const override
+        virtual NProto::TNodeResources GetMinNeededResourcesHeavy() const override
         {
             TNodeResources result;
 

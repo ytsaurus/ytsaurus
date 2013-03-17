@@ -62,6 +62,8 @@ static const double ApproximateSizesBoostFactor = 1.3;
 TOperationControllerBase::TTask::TTask(TOperationControllerBase* controller)
     : Controller(controller)
     , CachedPendingJobCount(0)
+    , IsMinResourcesCached(false)
+    , IsAvgResourcesCached(false)
     , CachedTotalNeededResources(ZeroNodeResources())
     , LastDemandSanityCheckTime(TInstant::Zero())
     , CompletedFired(false)
@@ -454,9 +456,29 @@ void TOperationControllerBase::TTask::AddChunksToInputSpec(
     }
 }
 
+TNodeResources TOperationControllerBase::TTask::GetMinNeededResources() const
+{
+    YCHECK(GetPendingJobCount() > 0);
+    if (!IsMinResourcesCached) {
+        IsMinResourcesCached = true;
+        CachedMinNeededResources = GetMinNeededResourcesHeavy();
+    }
+    return CachedMinNeededResources;
+}
+
 TNodeResources TOperationControllerBase::TTask::GetAvgNeededResources() const
 {
-    return GetMinNeededResources();
+    YCHECK(GetPendingJobCount() > 0);
+    if (!IsAvgResourcesCached) {
+        IsAvgResourcesCached = true;
+        CachedAvgNeededResources = GetAvgNeededResourcesHeavy();
+    }
+    return CachedAvgNeededResources;
+}
+
+NProto::TNodeResources TOperationControllerBase::TTask::GetAvgNeededResourcesHeavy() const
+{
+    return GetMinNeededResourcesHeavy();
 }
 
 TNodeResources TOperationControllerBase::TTask::GetNeededResources(TJobletPtr joblet) const
@@ -976,12 +998,12 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
                 continue;
             }
 
-            if (!CheckJobLimits(node, task, jobLimits)) {
+            if (task->GetPendingJobCount() == 0) {
+                OnTaskUpdated(task);
                 continue;
             }
 
-            if (task->GetPendingJobCount() == 0) {
-                OnTaskUpdated(task);
+            if (!CheckJobLimits(node, task, jobLimits)) {
                 continue;
             }
 

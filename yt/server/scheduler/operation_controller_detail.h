@@ -288,8 +288,12 @@ protected:
         virtual i64 GetLocality(const Stroka& address) const;
         virtual bool HasInputLocality();
 
-        virtual NProto::TNodeResources GetMinNeededResources() const = 0;
+        virtual NProto::TNodeResources GetMinNeededResources() const;
         virtual NProto::TNodeResources GetAvgNeededResources() const;
+
+        virtual NProto::TNodeResources GetMinNeededResourcesHeavy() const = 0;
+        virtual NProto::TNodeResources GetAvgNeededResourcesHeavy() const;
+
         virtual NProto::TNodeResources GetNeededResources(TJobletPtr joblet) const;
 
         DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, DelayedTime);
@@ -327,6 +331,13 @@ protected:
 
         int CachedPendingJobCount;
         NProto::TNodeResources CachedTotalNeededResources;
+
+        bool IsMinResourcesCached;
+        NProto::TNodeResources CachedMinNeededResources;
+
+        bool IsAvgResourcesCached;
+        NProto::TNodeResources CachedAvgNeededResources;
+
         TInstant LastDemandSanityCheckTime;
         bool CompletedFired;
 
