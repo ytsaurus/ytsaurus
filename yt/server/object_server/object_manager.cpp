@@ -59,7 +59,6 @@ using namespace NCellMaster;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLog::TLogger& Logger = ObjectServerLogger;
-static NProfiling::TProfiler& Profiler = ObjectServerProfiler;
 static TDuration ProfilingPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -224,6 +223,7 @@ TObjectManager::TObjectManager(
         bootstrap->GetMetaStateFacade()->GetState())
     , Config(config)
     , Bootstrap(bootstrap)
+    , Profiler(ObjectServerProfiler)
     , TypeToEntry(MaxObjectType)
     , RootService(New<TRootService>(bootstrap))
     , GarbageCollector(New<TGarbageCollector>(config, bootstrap))
@@ -283,8 +283,11 @@ TObjectManager::TObjectManager(
     RegisterMethod(BIND(&TObjectManager::DestroyObjects, Unretained(this)));
 
     MasterObjectId = MakeWellKnownId(EObjectType::Master, Config->CellId);
+}
 
-    LOG_INFO("CellId: %d", static_cast<int>(config->CellId));
+void TObjectManager::Initialize()
+{
+    LOG_INFO("CellId: %d", static_cast<int>(Config->CellId));
     LOG_INFO("MasterObjectId: %s", ~ToString(MasterObjectId));
 
     ProfilingInvoker = New<TPeriodicInvoker>(
@@ -293,9 +296,6 @@ TObjectManager::TObjectManager(
         ProfilingPeriod);
     ProfilingInvoker->Start();
 }
-
-void TObjectManager::Initialize()
-{ }
 
 IYPathServicePtr TObjectManager::GetRootService()
 {
@@ -467,9 +467,10 @@ void TObjectManager::RefObject(TObjectBase* object)
     YASSERT(object->IsTrunk());
 
     int refCounter = object->RefObject();
-    LOG_DEBUG_UNLESS(IsRecovery(), "Object referenced (Id: %s, RefCounter: %d)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Object referenced (Id: %s, RefCounter: %d, LockCounter: %d)",
         ~object->GetId().ToString(),
-        refCounter);
+        refCounter,
+        object->GetObjectLockCounter());
 }
 
 void TObjectManager::UnrefObject(TObjectBase* object)
@@ -478,9 +479,10 @@ void TObjectManager::UnrefObject(TObjectBase* object)
     YASSERT(object->IsTrunk());
 
     int refCounter = object->UnrefObject();
-    LOG_DEBUG_UNLESS(IsRecovery(), "Object unreferenced (Id: %s, RefCounter: %d)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Object unreferenced (Id: %s, RefCounter: %d, LockCounter: %d)",
         ~object->GetId().ToString(),
-        refCounter);
+        refCounter,
+        object->GetObjectLockCounter());
 
     if (refCounter == 0) {
         GarbageCollector->Enqueue(object);
@@ -508,11 +510,6 @@ void TObjectManager::UnlockObject(TObjectBase* object)
             GarbageCollector->Unlock(object);
         }
     }
-}
-
-void TObjectManager::InitBuiltin()
-{
-
 }
 
 void TObjectManager::SaveKeys(const NCellMaster::TSaveContext& context) const
@@ -570,8 +567,6 @@ void TObjectManager::LoadSchemas(const NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(StateThread);
 
-    InitBuiltin();
-
     while (true) {
         EObjectType type;
         Load(context, type);
@@ -586,7 +581,6 @@ void TObjectManager::LoadSchemas(const NCellMaster::TLoadContext& context)
 void TObjectManager::OnAfterLoaded()
 {
     VERIFY_THREAD_AFFINITY(StateThread);
-
 }
 
 void TObjectManager::DoClear()
@@ -624,14 +618,14 @@ void TObjectManager::Clear()
 void TObjectManager::OnRecoveryStarted()
 {
     Profiler.SetEnabled(false);
+
+    GarbageCollector->UnlockAll();
+    LockedObjectCount = 0;
 }
 
 void TObjectManager::OnRecoveryComplete()
 {
     Profiler.SetEnabled(true);
-
-    GarbageCollector->UnlockAll();
-    LockedObjectCount = 0;
 }
 
 void TObjectManager::OnActiveQuorumEstablished()

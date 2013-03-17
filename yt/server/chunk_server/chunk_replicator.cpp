@@ -258,7 +258,7 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleReplicationJob(
 {
     auto chunkManager = Bootstrap->GetChunkManager();
     auto* chunk = chunkManager->FindChunk(chunkId);
-    if (!chunk) {
+    if (IsObjectAlive(chunk)) {
         return EScheduleFlags::Purged;
     }
 
@@ -813,11 +813,12 @@ void TChunkReplicator::OnRFUpdate()
     NProto::TMetaReqUpdateChunkReplicationFactor request;
 
     PROFILE_TIMING ("/rf_update_time") {
-        int count = 0;
-        while (!RFUpdateList.empty() && count < Config->MaxChunksPerRFUpdate) {
+        for (int i = 0; i < Config->MaxChunksPerRFUpdate; ++i) {
+            if (RFUpdateList.empty())
+                break;
+
             auto* chunk = RFUpdateList.front();
             RFUpdateList.pop_front();
-            ++count;
 
             if (IsObjectAlive(chunk)) {
                 int replicationFactor = ComputeReplicationFactor(*chunk);

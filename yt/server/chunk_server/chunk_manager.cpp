@@ -754,7 +754,7 @@ private:
 
     TPeriodicInvokerPtr ProfilingInvoker;
 
-    NProfiling::TProfiler& Profiler;
+    NProfiling::TProfiler Profiler;
     NProfiling::TRateCounter AddChunkCounter;
     NProfiling::TRateCounter RemoveChunkCounter;
     NProfiling::TRateCounter AddChunkReplicaCounter;
@@ -1217,16 +1217,6 @@ private:
         Profiler.SetEnabled(false);
 
         NeedToRecomputeStatistics = false;
-    }
-
-    virtual void OnRecoveryComplete() override
-    {
-        Profiler.SetEnabled(true);
-
-        if (NeedToRecomputeStatistics) {
-            RecomputeStatistics();
-            NeedToRecomputeStatistics = false;
-        }
 
         // Reset runtime info.
         FOREACH (const auto& pair, ChunkMap) {
@@ -1239,6 +1229,16 @@ private:
         FOREACH (const auto& pair, ChunkListMap) {
             auto* chunkList = pair.second;
             chunkList->ResetObjectLocks();
+        }
+    }
+
+    virtual void OnRecoveryComplete() override
+    {
+        Profiler.SetEnabled(true);
+
+        if (NeedToRecomputeStatistics) {
+            RecomputeStatistics();
+            NeedToRecomputeStatistics = false;
         }
     }
 

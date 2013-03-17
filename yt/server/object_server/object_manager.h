@@ -185,6 +185,8 @@ private:
     TObjectManagerConfigPtr Config;
     NCellMaster::TBootstrap* Bootstrap;
 
+    NProfiling::TProfiler Profiler;
+
     struct TTypeEntry
     {
         IObjectTypeHandlerPtr Handler;
@@ -214,8 +216,6 @@ private:
 
     //! Stores deltas from parent transaction.
     NMetaState::TMetaStateMap<TVersionedObjectId, TAttributeSet> Attributes;
-
-    void InitBuiltin();
 
     void SaveKeys(const NCellMaster::TSaveContext& context) const;
     void SaveValues(const NCellMaster::TSaveContext& context) const;
