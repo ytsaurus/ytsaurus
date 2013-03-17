@@ -258,7 +258,7 @@ TChunkReplicator::EScheduleFlags TChunkReplicator::ScheduleReplicationJob(
 {
     auto chunkManager = Bootstrap->GetChunkManager();
     auto* chunk = chunkManager->FindChunk(chunkId);
-    if (IsObjectAlive(chunk)) {
+    if (!IsObjectAlive(chunk)) {
         return EScheduleFlags::Purged;
     }
 
