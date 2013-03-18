@@ -1,7 +1,7 @@
 from pickling import dump
 import config
 
-from common import YtError
+from errors import YtError
 
 from yt.zip import ZipFile
 

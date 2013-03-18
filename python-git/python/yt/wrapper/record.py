@@ -1,5 +1,6 @@
 import config
-from common import require, YtError
+from common import require
+from errors import YtError
 from format import DsvFormat, YamrFormat, YsonFormat
 
 import yt.yson as yson
