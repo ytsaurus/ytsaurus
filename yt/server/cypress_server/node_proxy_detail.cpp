@@ -664,6 +664,10 @@ DEFINE_RPC_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         THROW_ERROR_EXCEPTION("Cannot copy a node to its child");
     }
 
+    if (!CanHaveChildren()) {
+        ThrowCannotHaveChildren(this);
+    }   
+
     auto objectManager = Bootstrap->GetObjectManager();
     auto cypressManager = Bootstrap->GetCypressManager();
     auto securityManager = Bootstrap->GetSecurityManager();
