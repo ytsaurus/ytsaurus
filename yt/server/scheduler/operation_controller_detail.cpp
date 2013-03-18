@@ -1054,8 +1054,10 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
             const auto& task = it->second;
             delayedTasks.erase(it);
             if (task->GetPendingJobCount() == 0) {
-                LOG_DEBUG("Task delay deadline reached but no pending jobs found (Task: %s)",
+                LOG_DEBUG("Task delay deadline reached but no pending jobs found. Task pending hint removed (Task: %s)",
                     ~task->GetId());
+                YCHECK(nonLocalTasks.erase(task) == 1);
+                OnTaskUpdated(task);
             } else {
                 i64 minMemory = task->GetMinNeededResources().memory();
                 candidateTasks.insert(std::make_pair(minMemory, task));
