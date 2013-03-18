@@ -1,4 +1,5 @@
-from common import bool_to_string, get_value, YtError
+from common import bool_to_string, get_value
+from errors import YtError
 from yt.yson import loads, yson_types
 import simplejson as json
 

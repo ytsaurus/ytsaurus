@@ -1,5 +1,3 @@
-from format import YamrFormat
-
 import os
 
 PROXY = "proxy.yt.yandex.net"
@@ -62,6 +60,8 @@ WAIT_OPERATION_CONNECTION_TIMEOUT = 12 * 60 * 60 # twelve hours
 MIN_CHUNK_COUNT_FOR_MERGE_WARNING = 1000
 MAX_CHUNK_SIZE_FOR_MERGE_WARNING = 32 * MB
 
+ERROR_FORMAT = "text"
+
 def set_mapreduce_mode():
     global MAPREDUCE_MODE, ALWAYS_SET_EXECUTABLE_FLAG_TO_FILE, USE_MAPREDUCE_STYLE_DESTINATION_FDS
     global TREAT_UNEXISTING_AS_EMPTY, DEFAULT_FORMAT, DELETE_EMPTY_TABLES, USE_YAMR_SORT_REDUCE_COLUMNS
@@ -77,6 +77,7 @@ def set_mapreduce_mode():
     DO_NOT_UPLOAD_EMPTY_FILES = True
     THROW_ON_EMPTY_DST_LIST = True
     RUN_MAP_REDUCE_IF_SOURCE_IS_NOT_SORTED = True
+    from format import YamrFormat
     DEFAULT_FORMAT = YamrFormat(has_subkey=True, lenval=False)
 
 for key, value in os.environ.iteritems():

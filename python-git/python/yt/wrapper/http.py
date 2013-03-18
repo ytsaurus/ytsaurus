@@ -1,5 +1,6 @@
 import config
-from common import YtError, YtResponseError, YtTokenError, require, format_error
+from common import require
+from errors import YtError, YtResponseError, YtTokenError, format_error
 from format import JsonFormat
 from version import VERSION
 

@@ -377,10 +377,10 @@ Examples:
     map_files = to_list(args.file) + to_list(args.mapfile)
     reduce_files = to_list(args.file) + to_list(args.reducefile)
 
-    config.DEFAULT_FORMAT = config.YamrFormat(lenval=args.lenval,
-                                              has_subkey=args.subkey,
-                                              field_separator=args.fs,
-                                              record_separator=args.rs)
+    config.DEFAULT_FORMAT = yt.YamrFormat(lenval=args.lenval,
+                                          has_subkey=args.subkey,
+                                          field_separator=args.fs,
+                                          record_separator=args.rs)
     if args.dsv:
         if args.lenval or args.subkey:
             die("Options subkey and lenval are mutually exclusive with dsv option")
