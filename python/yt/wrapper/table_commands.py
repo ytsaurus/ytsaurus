@@ -1,6 +1,7 @@
 import config
 import py_wrapper
-from common import flatten, require, YtError, unlist, update, EMPTY_GENERATOR, parse_bool, is_prefix, get_value, compose, execute_handling_sigint
+from common import flatten, require, unlist, update, EMPTY_GENERATOR, parse_bool, is_prefix, get_value, compose, execute_handling_sigint
+from errors import YtError
 from version import VERSION
 from http import read_content, get_host_for_heavy_operation
 from table import TablePath, to_table, to_name, prepare_path

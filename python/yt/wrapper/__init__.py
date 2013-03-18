@@ -1,4 +1,4 @@
-from common import YtError, YtOperationFailedError, YtResponseError 
+from errors import YtError, YtOperationFailedError, YtResponseError 
 from record import Record, record_to_line, line_to_record, extract_key
 from format import DsvFormat, YamrFormat, YsonFormat, RawFormat, JsonFormat
 from table import TablePath, to_table, to_name

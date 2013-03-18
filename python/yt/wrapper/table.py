@@ -1,4 +1,5 @@
-from common import flatten, require, YtError, bool_to_string
+from common import flatten, require, bool_to_string
+from errors import YtError
 from http import make_request
 from format import YsonFormat
 import config

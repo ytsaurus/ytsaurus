@@ -424,7 +424,7 @@ private:
             if (config->UserId > 0) {
                 // Set unprivileged uid and gid for user process.
                 YCHECK(setuid(0) == 0);
-                YCHECK(setgid(config->UserId) == 0);
+                YCHECK(setresgid(config->UserId, config->UserId, config->UserId) == 0);
                 YCHECK(setuid(config->UserId) == 0);
             }
 
